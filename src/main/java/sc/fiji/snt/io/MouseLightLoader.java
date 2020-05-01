@@ -267,22 +267,41 @@ public class MouseLightLoader {
 			break;
 		default:
 			int sn = 1;
-			final JSONObject somaNode = neuron.getJSONObject("soma");
-			nodes.add(jsonObjectToSWCPoint(somaNode, Path.SWC_SOMA));
-			sn++;
-			final JSONArray dendriteList = neuron.getJSONArray(DENDRITE);
-			for (int n = 1; n < dendriteList.length(); n++) {
-				final SWCPoint node = jsonObjectToSWCPoint(dendriteList.getJSONObject(n), Path.SWC_DENDRITE);
-				node.id = sn++;
-				nodes.add(node);
+			int failures = 0;
+			try {
+				final JSONObject somaNode = neuron.getJSONObject("soma");
+				nodes.add(jsonObjectToSWCPoint(somaNode, Path.SWC_SOMA));
+				sn++;
+			} catch (final JSONException ignored) {
+				SNTUtils.log("JSON doesn not contain soma data");
+				failures++;
 			}
-			final JSONArray axonList = neuron.getJSONArray(AXON);
-			final int parentOffset = nodes.size() - 1;
-			for (int n = 1; n < axonList.length(); n++) {
-				final SWCPoint node = jsonObjectToSWCPoint(axonList.getJSONObject(n), Path.SWC_AXON);
-				if (n > 1) node.parent += parentOffset;
-				node.id = sn++;
-				nodes.add(node);
+			try {
+				final JSONArray dendriteList = neuron.getJSONArray(DENDRITE);
+				for (int n = 1; n < dendriteList.length(); n++) {
+					final SWCPoint node = jsonObjectToSWCPoint(dendriteList.getJSONObject(n), Path.SWC_DENDRITE);
+					node.id = sn++;
+					nodes.add(node);
+				}
+			} catch (final JSONException ignored) {
+				SNTUtils.log("JSON doesn not contain dendrite data");
+				failures++;
+			}
+			try {
+				final JSONArray axonList = neuron.getJSONArray(AXON);
+				final int parentOffset = nodes.size() - 1;
+				for (int n = 1; n < axonList.length(); n++) {
+					final SWCPoint node = jsonObjectToSWCPoint(axonList.getJSONObject(n), Path.SWC_AXON);
+					if (n > 1) node.parent += parentOffset;
+					node.id = sn++;
+					nodes.add(node);
+				}
+			} catch (final JSONException ignored) {
+				SNTUtils.log("JSON doesn not contain axon data");
+				failures++;
+			}
+			if (failures == 3) {
+				throw new JSONException("No [soma], [dendrites], or [axon] field(s) found");
 			}
 			break;
 		}
