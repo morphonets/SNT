@@ -28,6 +28,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
@@ -179,6 +180,13 @@ public class MouseLightLoader {
 		return pafm.importNeurons(nodesMap, null, null);
 	}
 
+	public static Map<String, Tree> extractTrees(final InputStream stream, final String compartment) {
+		final Map<String, TreeSet<SWCPoint>> nodesMap = extractNodes(stream, compartment);
+		final PathAndFillManager pafm = new PathAndFillManager();
+		pafm.setHeadless(true);
+		return pafm.importNeurons(nodesMap, null, null);
+	}
+
 	/**
 	 * Extracts reconstruction(s) from a JSON file.
 	 *
@@ -193,6 +201,15 @@ public class MouseLightLoader {
 	 */
 	public static Map<String, TreeSet<SWCPoint>> extractNodes(final File jsonFile, final String compartment) throws JSONException, FileNotFoundException {
 		final JSONTokener tokener = new JSONTokener(new FileInputStream(jsonFile));
+		return extractNodes(tokener, compartment);
+	}
+
+	public static Map<String, TreeSet<SWCPoint>> extractNodes(final InputStream stream, final String compartment) throws JSONException {
+		final JSONTokener tokener = new JSONTokener(stream);
+		return extractNodes(tokener, compartment);
+	}
+
+	private static Map<String, TreeSet<SWCPoint>> extractNodes(final JSONTokener tokener, final String compartment) throws JSONException {
 		final JSONObject json = new JSONObject(tokener);
 		final String normCompartment = (compartment == null) ? "" : compartment.toLowerCase();
 		JSONArray neuronArray;

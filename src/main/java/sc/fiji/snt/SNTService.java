@@ -33,10 +33,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import net.imagej.ImageJService;
-import org.scijava.table.DefaultGenericTable;
-import org.scijava.util.FileUtils;
 import org.scijava.Priority;
 import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
@@ -44,18 +42,22 @@ import org.scijava.plugin.Plugin;
 import org.scijava.script.ScriptService;
 import org.scijava.service.AbstractService;
 import org.scijava.service.Service;
+import org.scijava.table.DefaultGenericTable;
+import org.scijava.util.FileUtils;
 
 import ij.IJ;
 import ij.ImagePlus;
 import ij.io.Opener;
 import ij.plugin.ZProjector;
 import ij.process.ColorProcessor;
+import net.imagej.ImageJService;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.TreeAnalyzer;
-import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.io.MouseLightLoader;
+import sc.fiji.snt.viewer.Viewer3D;
 
 /**
  * Service for accessing and scripting the active instance of
@@ -449,10 +451,10 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * @see #demoTreeImage()
 	 */
 	public Tree demoTree() {
-		return getResourceTree("tests/TreeV.swc");
+		return getResourceSWCTree("tests/TreeV.swc");
 	}
 
-	private Tree getResourceTree(final String resourcePath) {
+	private Tree getResourceSWCTree(final String resourcePath) {
 		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 		final InputStream is = classloader.getResourceAsStream(resourcePath);
 		final PathAndFillManager pafm = new PathAndFillManager();
@@ -505,10 +507,20 @@ public class SNTService extends AbstractService implements ImageJService {
 	 *         IDs).
 	 */
 	public List<Tree> demoTrees() {
+		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+		final InputStream is = classloader.getResourceAsStream("ml/demo-trees/AA0001-4.json");
+		final Map<String, Tree> result = MouseLightLoader.extractTrees(is, "dendrites");
+		if (result.values().stream().anyMatch(tree -> tree == null || tree.isEmpty())) {
+			return null;
+		}
+		return new ArrayList<>(result.values());
+	}
+
+	protected List<Tree> demoTreesSWC() {
 		final String[] cells = {"AA0001", "AA0002", "AA0003", "AA0004"};
 		final List<Tree> trees = new ArrayList<>();
 		for (final String cell : cells) {
-			final Tree tree = getResourceTree("ml/demo-trees/" + cell + ".swc");
+			final Tree tree = getResourceSWCTree("ml/demo-trees/" + cell + ".swc");
 			if (tree != null) tree.setLabel(cell);
 			trees.add(tree);
 		}
