@@ -1,25 +1,19 @@
 package sc.fiji.snt;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
 import ij.IJ;
 import ij.ImagePlus;
-import ij.gui.PointRoi;
-import ij.process.ImageConverter;
 import net.imglib2.Cursor;
 import net.imglib2.img.Img;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
-import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
-import org.python.core.imp;
-import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.util.PointInImage;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class DensityPlotTest {
     static public void densityPlot(String swcDirectory, String outDirectory, String resultPrefix) throws IOException {

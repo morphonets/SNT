@@ -22,7 +22,6 @@
 
 package sc.fiji.snt;
 
-import cleargl.GLVector;
 import graphics.scenery.*;
 import net.imagej.ImageJ;
 

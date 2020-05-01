@@ -21,16 +21,16 @@ import sc.fiji.snt.util.PointInImage;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
+@SuppressWarnings("unused")
 public class DensityPlot2DTest {
     static public void densityPlot(String swcDirectory, String outDirectory, String resultPrefix) throws IOException {
         List<Tree> trees = Tree.listFromDir(swcDirectory);
 
         System.out.println("Processing: " + swcDirectory);
 
-        int[] maxDims = new int[]{0, 0};
+		int[] maxDims = new int[]{0, 0};
 
         new ij.ImageJ();
 
@@ -199,7 +199,7 @@ public class DensityPlot2DTest {
         String parentDirectory = System.getProperty("user.home") + "/Data/SNT/GRN_RandomNeuriteDir";
         String resultDirectory = parentDirectory + "/output";
 
-        ImageJ ij = new ImageJ();
+		ImageJ ij = new ImageJ();
 
 //        Tree t = new Tree("/home/kharrington/Dropbox/SNTmanuscript/Simulations/GRN_RandomNeuriteDirection/snt_maxTime_6_filenameGRN_grn_1.grn_randomSeed_20326147.swc");
 //        t.getSkeleton2D().show();

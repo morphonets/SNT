@@ -1056,7 +1056,7 @@ public class Tree {
 	 * @return the skeletonized 8-bit binary image: (skeleton: 255, background: 0).
 	 * @see #skeletonize(ImagePlus, int)
 	 */
-	public List<Object> getSkeleton2() {
+	protected List<Object> getSkeleton2() {
 
 		// Find what is the offset of the tree relative to (0,0,0).
 		// We'll set padding margins similarly to getImpContainer()
