@@ -1598,13 +1598,14 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel reconstructionViewerPanel() {
+		InitViewer3DSystemProperties.init(); // needs to be called as early as possible to be effective
 		openRecViewer = new JButton("Open Reconstruction Viewer");
 		openRecViewer.addActionListener(e -> {
 			// if (noPathsError()) return;
 			if (recViewer == null) {
 				try {
 					getReconstructionViewer(true);
-				} catch (final NoClassDefFoundError exc) {
+				} catch (final NoClassDefFoundError | RuntimeException exc) {
 					exc.printStackTrace();
 					no3DcapabilitiesError("Reconstruction Viewer");
 					return;
@@ -3704,8 +3705,14 @@ public class SNTUI extends JDialog {
 		}
 	}
 
+	private static class InitViewer3DSystemProperties extends Viewer3D {
+		static void init() {
+			workaroundIntelGraphicsBug();
+		}
+	}
+
 	private class SNTViewer3D extends Viewer3D {
-		private SNTViewer3D() {
+		SNTViewer3D() {
 			super(SNTUI.this.plugin);
 		}
 	}
