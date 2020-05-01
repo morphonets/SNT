@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.util.ColorRGB;
 
 import ij.IJ;
@@ -1050,6 +1051,81 @@ public class Tree {
 	}
 
 	/**
+	 * Retrieves the rasterized skeleton of this tree at 1:1 scaling.
+	 *
+	 * @return the skeletonized 8-bit binary image: (skeleton: 255, background: 0).
+	 * @see #skeletonize(ImagePlus, int)
+	 */
+	public List<Object> getSkeleton2() {
+
+		// Find what is the offset of the tree relative to (0,0,0).
+		// We'll set padding margins similarly to getImpContainer()
+		SNTUtils.log("Skeletonizing "+ getLabel());
+		final SummaryStatistics xStats = new SummaryStatistics();
+		final SummaryStatistics yStats = new SummaryStatistics();
+		final SummaryStatistics zStats = new SummaryStatistics();
+		for (final PointInImage p : getNodes()) {
+			xStats.addValue(p.x);
+			yStats.addValue(p.y);
+			zStats.addValue(p.z);
+		}
+		final PointInImage origin = new PointInImage(xStats.getMin(), yStats.getMin(), zStats.getMin());
+		final double width = Math.abs(xStats.getMax() - origin.getX());
+		final double height = Math.abs(yStats.getMax() - origin.getY());
+		final double depth = Math.abs(zStats.getMax() - origin.getZ());
+		final boolean threeD = depth > 0;
+		final int xyMargin = 3;
+		final int zMargin = (threeD) ? 1 : 0;
+		final double xOffset = origin.getX() - xyMargin;
+		final double yOffset = origin.getY() - xyMargin;
+		final double zOffset = origin.getZ() - zMargin;
+		SNTUtils.log("  Tree boundaries: " + width + "x" + height + "x" + depth);
+
+		// Apply the translation offset to each Path as canvas offset and
+		// map the path scaling to 1. We'll keep track of existing values
+		// so that we can restore them after skeletonization
+		final ArrayList<PointInCanvas> pics = new ArrayList<>(size());
+		final ArrayList<Calibration> spacings = new ArrayList<>(size());
+		for (final Path p : list()) {
+			pics.add(p.getCanvasOffset());
+			p.setCanvasOffset(new PointInCanvas(-xOffset, -yOffset, -zOffset));
+			spacings.add(p.getCalibration());
+			p.setSpacing(new Calibration()); // 1,1,1 pixel spacing
+		}
+
+		// Define image dimensions
+		final int w = (int) Math.round(width) + (2 * xyMargin);
+		final int h = (int) Math.round(height) + (2 * xyMargin);
+		int d = (int) Math.round(depth);
+		if (d < 1) d = 1;
+		if (d > 1) d += (2 * zMargin);
+		SNTUtils.log("  Allocating " + w + "x" + h + "x" + d + " pixels (16-bit)");
+		final ImagePlus imp = IJ.createImage("Skel " + getLabel(), w, h, d, 16);
+
+		// Skeletonize
+		skeletonize(imp, 65535);
+		SNTUtils.convertTo8bit(imp);
+		if (getBoundingBox().isScaled())
+			imp.setCalibration(getBoundingBox().getCalibration());
+
+		// Restore initial state
+		SNTUtils.log("  Skeletonization complete");
+		for (int i = 0; i < size(); i++) {
+			get(i).setCanvasOffset(pics.get(i));
+			get(i).setSpacing(spacings.get(i));
+		}
+
+		List<Object> outList = new ArrayList<>();
+		outList.add(imp);
+		outList.add(origin);
+		outList.add(xStats.getMax());
+		outList.add(yStats.getMax());
+		outList.add(zStats.getMax());
+
+		return outList;
+	}
+
+	/**
 	 * Retrieves a 2D projection of the rasterized skeleton of this tree at 1:1
 	 * scaling.
 	 *
@@ -1401,6 +1477,11 @@ public class Tree {
 		boolean isComputationNeeded() {
 			return dimensionsNeedToBeComputed;
 		}
+
+		public String toString() {
+			return "[TreeBoundingBox: origin: " + this.origin + ", originOpposite: " + this.originOpposite + "]";
+		}
+
 	}
 
 	public static void assignUniqueColors(final Collection<Tree> trees) {

@@ -9,7 +9,7 @@
 		<relativePath />
 	</parent>
 
-	<groupId>sc.fiji</groupId>
+	<groupId>org.morphonets</groupId>
 	<artifactId>SNT</artifactId>
 	<version>3.1.101-SNAPSHOT</version>
 
@@ -125,13 +125,17 @@
 		<package-name>sciview</package-name>
 
 		<!-- Dependency versions for JitPack -->
-		<sciview.version>2f4df2f</sciview.version>
-<!--		<sciview.version>0.2.0-beta-2-SNAPSHOT</sciview.version>-->
-		<scenery.version>7d3b58a</scenery.version>
-		<cleargl.version>2.2.9</cleargl.version>
+		<sciview.version>f9f2f45</sciview.version>
+		<scenery.version>6a994af</scenery.version>
+		<kotlin.version>1.4-M1</kotlin.version>
+		<joml.version>1.9.22</joml.version>
+
+		<cleargl.version>2.2.10</cleargl.version>
 		<lwjgl.version>3.2.3</lwjgl.version>
 		<jzy3d.version>1.0.3-SNAPSHOT</jzy3d.version>
 		<jide-oss.version>3.6.18</jide-oss.version>
+
+		<okhttp.version>4.5.0</okhttp.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>deploy-to-scijava</releaseProfiles>
@@ -153,6 +157,12 @@
 	</repositories>
 
 	<dependencies>
+		<dependency>
+			<groupId>org.joml</groupId>
+			<artifactId>joml</artifactId>
+			<version>${joml.version}</version>
+		</dependency>
+
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>3D_Viewer</artifactId>
@@ -258,7 +268,7 @@
 		<dependency>
 			<groupId>com.squareup.okhttp3</groupId>
 			<artifactId>okhttp</artifactId>
-			<version>4.1.0</version>
+			<version>${okhttp.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.json</groupId>
@@ -290,16 +300,7 @@
 			<groupId>net.imagej</groupId>
 			<artifactId>imagej-ui-swing</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>org.jetbrains.kotlin</groupId>
-			<artifactId>kotlin-stdlib</artifactId>
-			<version>1.3.50</version>
-		</dependency>
-		<dependency>
-			<groupId>org.jetbrains.kotlin</groupId>
-			<artifactId>kotlin-stdlib-common</artifactId>
-			<version>1.3.50</version>
-		</dependency>
+
 		<dependency>
 			<groupId>me.tongfei</groupId>
 			<artifactId>progressbar</artifactId>
@@ -315,4 +316,33 @@
 			<artifactId>scijava-plugins-io-table</artifactId>
 		</dependency>
 	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-enforcer-plugin</artifactId>
+				<version>1.3.1</version>
+				<executions>
+					<execution>
+						<id>enforce-version</id>
+						<goals>
+							<goal>enforce</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<bannedDependencies>
+									<excludes>
+										<!-- exclude all versions lower than 1.2.17-->
+										<exclude>org.jetbrains:kotlin-stdlib:[0.0,1.3.42)</exclude>
+										<exclude>org.joml:joml:[0.0,1.9.22)</exclude>
+									</excludes>
+								</bannedDependencies>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
 </project>
