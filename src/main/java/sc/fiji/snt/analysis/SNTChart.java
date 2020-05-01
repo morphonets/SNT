@@ -59,7 +59,7 @@ import sc.fiji.snt.Tree;
 public class SNTChart extends ChartFrame {
 
 	private static final long serialVersionUID = 5245298401153759551L;
-	private static final Color BACKGROUND_COLOR = null;
+	private static final Color BACKGROUND_COLOR = Color.WHITE;
 
 	protected SNTChart(final String title, final JFreeChart chart) {
 		this(title, chart, new Dimension(400, 400));
@@ -67,7 +67,7 @@ public class SNTChart extends ChartFrame {
 
 	public SNTChart(String title, JFreeChart chart, Dimension preferredSize) {
 		super(title, chart);
-		chart.setBackgroundPaint(null);
+		chart.setBackgroundPaint(BACKGROUND_COLOR);
 		chart.setAntiAlias(true);
 		chart.setTextAntiAlias(true);
 		if (chart.getLegend() != null) {
@@ -81,13 +81,17 @@ public class SNTChart extends ChartFrame {
 		cp.setMinimumDrawHeight(0);
 		cp.setMaximumDrawHeight(Integer.MAX_VALUE);
 		cp.setBackground(BACKGROUND_COLOR);
-		setBackground(Color.WHITE); // provided contrast to otherwise transparent background
+		setBackground(BACKGROUND_COLOR); // provided contrast to otherwise transparent background
 		setPreferredSize(preferredSize);
 		pack();
 	}
 
-	private XYPlot getPlot() {
+	private XYPlot getXYPlot() {
 		return getChartPanel().getChart().getXYPlot();
+	}
+
+	private CategoryPlot getCategoryPlot() {
+		return getChartPanel().getChart().getCategoryPlot();
 	}
 
 	public void annotateXline(final double xValue, final String label) {
@@ -104,9 +108,9 @@ public class SNTChart extends ChartFrame {
 			marker.setLabel(label);
 			marker.setLabelAnchor(RectangleAnchor.TOP_LEFT);
 			marker.setLabelTextAnchor(TextAnchor.TOP_RIGHT);
-			marker.setLabelFont(getPlot().getDomainAxis().getTickLabelFont());
+			marker.setLabelFont(getXYPlot().getDomainAxis().getTickLabelFont());
 		}
-		getPlot().addDomainMarker(marker);
+		getXYPlot().addDomainMarker(marker);
 	}
 
 	public void annotateYline(final double yValue, final String label) {
@@ -123,9 +127,9 @@ public class SNTChart extends ChartFrame {
 			marker.setLabel(label);
 			marker.setLabelAnchor(RectangleAnchor.TOP_RIGHT);
 			marker.setLabelTextAnchor(TextAnchor.BOTTOM_RIGHT);
-			marker.setLabelFont(getPlot().getRangeAxis().getTickLabelFont());
+			marker.setLabelFont(getXYPlot().getRangeAxis().getTickLabelFont());
 		}
-		getPlot().addRangeMarker(marker);
+		getXYPlot().addRangeMarker(marker);
 	}
 
 	public void annotateCategory(final String category, final String label) {
@@ -133,7 +137,7 @@ public class SNTChart extends ChartFrame {
 	}
 
 	public void annotateCategory(final String category, final String label, final String color) {
-		final CategoryPlot catPlot = getChartPanel().getChart().getCategoryPlot();
+		final CategoryPlot catPlot = getCategoryPlot();
 		final Color c = getColorFromString(color);
 		final CategoryMarker marker = new CategoryMarker(category, c, new BasicStroke(1.0f,
 				BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1.0f, new float[] { 6.0f, 6.0f }, 0.0f));
@@ -142,13 +146,53 @@ public class SNTChart extends ChartFrame {
 		if (catPlot.getCategories().contains(category)) {
 			if (label != null && !label.isEmpty()) {
 				final Range range = catPlot.getRangeAxis().getRange();
-				final double labelYloc = range.getUpperBound() * 0.90 + range.getLowerBound();
+				final double labelYloc = range.getUpperBound() * 0.50 + range.getLowerBound();
 				final CategoryTextAnnotation annot = new CategoryTextAnnotation(label, category, labelYloc);
 				annot.setPaint(c);
-				annot.setCategoryAnchor(CategoryAnchor.END);
 				annot.setFont(catPlot.getRangeAxis().getTickLabelFont());
+				annot.setCategoryAnchor(CategoryAnchor.END);
+				annot.setTextAnchor(TextAnchor.BOTTOM_CENTER);
 				catPlot.addAnnotation(annot);
 			}
+		}
+	}
+	public void setFontSize(final float size) {
+		setFontSize(size, "axis");
+		setFontSize(size, "labels");
+	}
+
+	public void setFontSize(final float size, final String scope) {
+		switch(scope.toLowerCase()) {
+		case "axis":
+		case "axes":
+		case "ticks":
+			if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+				Font font = getXYPlot().getDomainAxis().getTickLabelFont().deriveFont(size);
+				getXYPlot().getDomainAxis().setTickLabelFont(font);
+				font = getXYPlot().getRangeAxis().getTickLabelFont().deriveFont(size);
+				getXYPlot().getRangeAxis().setTickLabelFont(font);
+			}
+			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+				Font font = getCategoryPlot().getDomainAxis().getTickLabelFont().deriveFont(size);
+				getCategoryPlot().getDomainAxis().setTickLabelFont(font);
+				font = getCategoryPlot().getRangeAxis().getTickLabelFont().deriveFont(size);
+				getCategoryPlot().getRangeAxis().setTickLabelFont(font);
+			}
+			break;
+		default:
+			if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+				Font font = getXYPlot().getDomainAxis().getLabelFont().deriveFont(size);
+				getXYPlot().getDomainAxis().setLabelFont(font);
+				font = getXYPlot().getRangeAxis().getLabelFont().deriveFont(size);
+				getXYPlot().getRangeAxis().setLabelFont(font);
+			}
+			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+				Font font = getCategoryPlot().getDomainAxis().getLabelFont().deriveFont(size);
+				getCategoryPlot().getDomainAxis().setLabelFont(font);
+				font = getCategoryPlot().getRangeAxis().getLabelFont().deriveFont(size);
+				getCategoryPlot().getRangeAxis().setLabelFont(font);
+			}
+			break;
 		}
 	}
 
@@ -171,13 +215,13 @@ public class SNTChart extends ChartFrame {
 
 	public void annotatePoint(final double x, final double y, final String label, final String color) {
 		final XYPointerAnnotation annot = new XYPointerAnnotation(label, x, y, -Math.PI / 2.0);
-		final Font font = getPlot().getDomainAxis().getTickLabelFont();
+		final Font font = getXYPlot().getDomainAxis().getTickLabelFont();
 		final Color c = getColorFromString(color);
 		annot.setLabelOffset(font.getSize());
 		annot.setPaint(c);
 		annot.setArrowPaint(c);
 		annot.setFont(font);
-		getPlot().addAnnotation(annot);
+		getXYPlot().addAnnotation(annot);
 	}
 
 	@Override
