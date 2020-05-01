@@ -53,7 +53,7 @@ public class IOTest {
 
 	@Before
 	public void setUp() throws Exception {
-		trees = new SNTService().demoTrees();
+		trees = new SNTService().demoTreesSWC();
 		assumeNotNull(trees);
 	}
 
