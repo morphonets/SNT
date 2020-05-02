@@ -59,7 +59,10 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 		String resStr = null;
 		try {
 			response = client.newCall(request).execute();
-			if (!response.isSuccessful()) return null;
+			if (!response.isSuccessful()) {
+				response.close();
+				return null;
+			}
 			resStr = response.body().string();
 		}
 		catch (final IOException e) {

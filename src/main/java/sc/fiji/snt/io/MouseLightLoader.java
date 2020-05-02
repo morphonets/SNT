@@ -116,6 +116,7 @@ public class MouseLightLoader {
 			if (json != null && url.equals(JSON_URL)
 					&& json.getJSONObject("contents").getJSONArray("neurons").isEmpty())
 				return null;
+			response.close();
 			return json;
 		} catch (final IOException e) {
 			SNTUtils.error("Failed to retrieve id " + id, e);
@@ -443,6 +444,9 @@ public class MouseLightLoader {
 		inMap.put(id, getNodes(compartment));
 		final Map<String, Tree> outMap = pafm.importNeurons(inMap, color, "um");
 		final Tree tree = outMap.get(id);
+		if (tree == null) {
+			throw new IllegalArgumentException("Data could not be retrieved. Is the database online?");
+		}
 		if (!compartment.startsWith("all") && !compartment.startsWith("full"))
 			tree.setLabel(""+ id + " ("+ compartment + ")");
 		else
@@ -505,6 +509,7 @@ public class MouseLightLoader {
 			final Response response = client.newCall(request).execute();
 			final JSONObject json = new JSONObject(response.body().string());
 			count = json.getJSONObject("data").getJSONObject("systemSettings").getInt("neuronCount");
+			response.close();
 		} catch (IOException | JSONException ignored) {
 			// do nothing
 		}
