@@ -2715,12 +2715,4 @@ public class Path implements Comparable<Path> {
 		}
 	}
 
-	@Override
-	public boolean equals(final Object obj) {
-		if (obj == null) return false;
-		if (getClass() != obj.getClass()) return false;
-		final Path other = (Path) obj;
-		if (obj == this) return true;
-		return (this.id == other.id);
-	}
 }

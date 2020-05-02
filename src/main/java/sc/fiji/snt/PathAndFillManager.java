@@ -108,7 +108,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		"000");
 
 	protected SNT plugin;
-	private static boolean headless = false;
+	private boolean headless = false;
 	private double x_spacing;
 	private double y_spacing;
 	private double z_spacing;
@@ -439,10 +439,10 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @param headless true to activate headless calls, otherwise false
 	 */
 	public void setHeadless(final boolean headless) {
-		PathAndFillManager.headless = headless;
+		this.headless = headless;
 	}
 
-	private static void errorStatic(final String msg) {
+	private void errorStatic(final String msg) {
 		if (headless || GraphicsEnvironment.isHeadless()) {
 			SNTUtils.error(msg);
 		}
@@ -2007,7 +2007,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			colors = new ColorRGB[swcs.size()];
 			Arrays.fill(colors, color);
 		}
-		final boolean headlessState = PathAndFillManager.headless;
+		final boolean headlessState = headless;
 		setHeadless(true);
 		final int[] colorIdx = { 0 };
 		swcs.forEach((id, path) -> {
@@ -2428,7 +2428,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	}
 
-	protected static int guessTracesFileType(final String filename) {
+	protected int guessTracesFileType(final String filename) {
 
 		/*
 		 * Look at the magic bytes at the start of the file:

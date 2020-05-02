@@ -119,7 +119,7 @@ public class GuiUtils {
 
 	final private Component parent;
 	private JidePopup popup;
-	protected static int timeOut = 2500;
+	private int timeOut = 2500;
 	private Color background = Color.WHITE;
 	private Color foreground = Color.BLACK;
 
@@ -993,7 +993,7 @@ public class GuiUtils {
 	}
 
 	public static void setAutoDismiss(final JDialog dialog) {
-		final int DELAY = timeOut;
+		final int DELAY = 2500;
 		final Timer timer = new Timer(DELAY, e -> dialog.dispose());
 		timer.setRepeats(false);
 		dialog.addMouseListener(new MouseAdapter() {

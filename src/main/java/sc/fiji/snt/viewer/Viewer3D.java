@@ -856,7 +856,7 @@ public class Viewer3D {
 	 *         elements
 	 */
 	public Annotation3D annotateLine(final Collection<? extends SNTPoint> points, final String label) {
-		if (points == null | points.size() < 2) return null;
+		if (points == null || points.size() < 2) return null;
 		final int type = (points.size()==2) ? Annotation3D.Q_TIP : Annotation3D.STRIP;
 		final Annotation3D annotation = new Annotation3D(this, points, type);
 		final String uniqueLabel = getUniqueLabel(plottedAnnotations, "Line Annot.", label);
@@ -2550,7 +2550,6 @@ public class Viewer3D {
 		private final GuiUtils guiUtils;
 		private SNTTable table;
 		private JCheckBoxMenuItem debugCheckBox;
-		private final JPanel barPanel;
 		private final SNTSearchableBar searchableBar;
 
 		public ManagerPanel(final GuiUtils guiUtils) {
@@ -2563,7 +2562,7 @@ public class Viewer3D {
 			searchableBar.setVisibleButtons(SearchableBar.SHOW_CLOSE |
 				SearchableBar.SHOW_NAVIGATION | SearchableBar.SHOW_HIGHLIGHTS |
 				SearchableBar.SHOW_MATCHCASE | SearchableBar.SHOW_STATUS);
-			barPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+			final JPanel barPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 			setFixedHeightToPanel(barPanel);
 			barPanel.add(searchableBar);
 			barPanel.setVisible(false);
@@ -6056,11 +6055,25 @@ public class Viewer3D {
 	}
 
 	@Override
-	public boolean equals(final Object o) {
-		if (o == this) return true;
-		if (o == null) return false;
-		if (getClass() != o.getClass()) return false;
-		return id == ((Viewer3D) o).id;
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + id;
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Viewer3D other = (Viewer3D) obj;
+		if (id != other.id)
+			return false;
+		return true;
 	}
 
 	/* IDE debug method */

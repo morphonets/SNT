@@ -735,7 +735,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	private GuiUtils getGuiUtils() {
-		return (guiUtils == null) ? new GuiUtils(getParent()) : guiUtils;
+		if (guiUtils == null)
+			guiUtils = new GuiUtils(getParent());
+		return guiUtils;
 	}
 
 	protected boolean isEditMode() {

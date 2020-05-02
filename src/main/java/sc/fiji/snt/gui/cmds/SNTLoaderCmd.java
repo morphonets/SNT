@@ -378,8 +378,8 @@ public class SNTLoaderCmd extends DynamicCommand {
 	public static void main(final String[] args) throws IOException {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
-		final Object img = ij.io().open("/home/tferr/code/OP_1/OP_1.tif");
-		ij.ui().show("OP_1", img);
+		final SNTService sntService = ij.context().getService(SNTService.class);
+		ij.ui().show("Demo image", sntService.demoTreeImage());
 		SNTUtils.setDebugMode(true);
 		ij.command().run(SNTLoaderCmd.class, true);
 	}

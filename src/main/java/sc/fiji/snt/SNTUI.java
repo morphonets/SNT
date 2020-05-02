@@ -2626,7 +2626,7 @@ public class SNTUI extends JDialog {
 	private boolean isFastMarchSearchAvailable() {
 		final boolean tgInstalled = Types.load("FijiITKInterface.TubularGeodesics") != null;
 		final boolean tgAvailable = plugin.tubularGeodesicsTracingEnabled;
-		if (!tgInstalled || !tgInstalled) {
+		if (!tgAvailable || !tgInstalled) {
 			final StringBuilder msg = new StringBuilder(
 					"Fast marching requires the <i>TubularGeodesics</i> plugin to be installed ")
 							.append("and an <i>oof.tif</i> secondary image to be loaded. Currently, ");

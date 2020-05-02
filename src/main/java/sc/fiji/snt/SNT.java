@@ -1080,7 +1080,7 @@ public class SNT extends MultiDThreePanes implements
 			loading = false;
 			return;
 		}
-		final int guessedType = PathAndFillManager.guessTracesFileType(file
+		final int guessedType = pathAndFillManager.guessTracesFileType(file
 			.getAbsolutePath());
 		switch (guessedType) {
 			case PathAndFillManager.TRACES_FILE_TYPE_COMPRESSED_XML:
@@ -1109,7 +1109,7 @@ public class SNT extends MultiDThreePanes implements
 			loading = false;
 			return;
 		}
-		final int guessedType = PathAndFillManager.guessTracesFileType(file
+		final int guessedType = pathAndFillManager.guessTracesFileType(file
 			.getAbsolutePath());
 		switch (guessedType) {
 			case PathAndFillManager.TRACES_FILE_TYPE_SWC: {
