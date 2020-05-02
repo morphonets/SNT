@@ -25,17 +25,23 @@ package sc.fiji.snt.viewer;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.DisplayMode;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
@@ -172,6 +178,7 @@ import org.scijava.util.ColorRGB;
 import org.scijava.util.ColorRGBA;
 import org.scijava.util.Colors;
 import org.scijava.util.FileUtils;
+import org.scijava.util.PlatformUtils;
 import org.scijava.widget.FileWidget;
 
 import com.jidesoft.swing.CheckBoxList;
@@ -1008,6 +1015,14 @@ public class Viewer3D {
 	 * @see #show()
 	 */
 	public Frame show(final int width, final int height) {
+		final JFrame dummy = new JFrame();
+		final Frame frame = show( width, height, dummy.getGraphicsConfiguration());
+		dummy.dispose();
+		return frame;
+	}
+
+	private Frame show(final int width, final int height, final GraphicsConfiguration gConfiguration) {
+
 		final boolean viewInitialized = initView();
 		if (!viewInitialized && frame != null) {
 			updateView();
@@ -1027,12 +1042,12 @@ public class Viewer3D {
 			});
 		}
 		if (width == 0 || height == 0) {
-			frame = new ViewerFrame(chart, managerList != null);
+			frame = new ViewerFrame(chart, managerList != null, gConfiguration);
 		} else {
-			final Dimension sSize = Toolkit.getDefaultToolkit().getScreenSize();
-			final int w = (width < 0) ? sSize.width : width;
-			final int h = (height < 0) ? sSize.height : height;
-			frame = new ViewerFrame(chart, w, h, managerList != null);
+			final DisplayMode dm = gConfiguration.getDevice().getDisplayMode();
+			final int w = (width < 0) ? dm.getWidth() : width;
+			final int h = (height < 0) ? dm.getHeight() : height;
+			frame = new ViewerFrame(chart, w, h, managerList != null, gConfiguration);
 		}
 		displayMsg("Press 'H' or 'F1' for help", 3000);
 		return frame;
@@ -2117,7 +2132,7 @@ public class Viewer3D {
 		private AllenCCFNavigator allenNavigator;
 		private ManagerPanel managerPanel;
 
-		// full screen
+		// displays and full screen
 		private java.awt.Point loc;
 		private Dimension dim;
 		private boolean isFullScreen;
@@ -2128,23 +2143,34 @@ public class Viewer3D {
 		 * @param chart the chart to be rendered in the frame
 		 * @param includeManager whether the "Reconstruction Viewer Manager" dialog
 		 *          should be made visible
+		 * @param gConfiguration 
 		 */
-		public ViewerFrame(final Chart chart, final boolean includeManager) {
-			this(chart, (int) (DEF_WIDTH * Prefs.SCALE_FACTOR), (int) (DEF_HEIGHT * Prefs.SCALE_FACTOR),
-					includeManager);
+		public ViewerFrame(final Chart chart, final boolean includeManager, final GraphicsConfiguration gConfiguration) {
+			this(chart, (int) (DEF_WIDTH * Prefs.SCALE_FACTOR), (int) (DEF_HEIGHT * Prefs.SCALE_FACTOR), includeManager,
+					gConfiguration);
 		}
 
-		public ViewerFrame(final Chart chart, final int width, final int height, final boolean includeManager) {
+		public ViewerFrame(final Chart chart, final int width, final int height, final boolean includeManager,
+				final GraphicsConfiguration gConfiguration) {
+			super();
 			final String title = (isSNTInstance()) ? " (SNT)" : " ("+ getID() + ")";
 			initialize(chart, new Rectangle(width, height), "Reconstruction Viewer" +
 				title);
-			setLocationRelativeTo(null); // ensures frame will not appear in between displays on a multidisplay setup
+			if (PlatformUtils.isLinux()) new MultiDisplayUtil(this);
+			AWTWindows.centerWindow(gConfiguration.getBounds(), this);
+			//setLocationRelativeTo(null); // ensures frame will not appear in between displays on a multidisplay setup
 			if (includeManager) {
 				manager = getManager();
 				managerList.selectAll();
+				snapPanelToSide();
 				manager.setVisible(true);
 			}
 			toFront();
+		}
+
+		private void snapPanelToSide() {
+			final java.awt.Point parentLoc = getLocation();
+			manager.setLocation(parentLoc.x + getWidth() + 5, parentLoc.y);
 		}
 
 		public void replaceCurrentChart(final Chart chart) {
@@ -2168,8 +2194,7 @@ public class Viewer3D {
 				}
 			});
 			// dialog.setLocationRelativeTo(this);
-			final java.awt.Point parentLoc = getLocation();
-			dialog.setLocation(parentLoc.x + getWidth() + 5, parentLoc.y);
+			dialog.setMinimumSize(new Dimension(dialog.getMinimumSize().width, getHeight()/2));
 			dialog.setContentPane(managerPanel);
 			dialog.pack();
 			return dialog;
@@ -2253,6 +2278,98 @@ public class Viewer3D {
 				setExtendedState(JFrame.MAXIMIZED_BOTH );
 				isFullScreen = true;
 				delayedMsg(300, "Press \"Esc\" to exit Full Screen", 3000); // without delay popup is not shown?
+			}
+		}
+	}
+
+	/* Workaround for nasty libx11 bug on linux */
+	private class MultiDisplayUtil extends ComponentAdapter {
+
+		final ViewerFrame frame;
+		GraphicsConfiguration conf;
+		GraphicsDevice curDisplay;
+		GraphicsEnvironment ge;
+		GraphicsDevice[] allDisplays;
+		int currentDisplayIndex;
+
+		MultiDisplayUtil(final ViewerFrame frame) {
+			this.frame = frame;
+			frame.addComponentListener(this);
+			warnOnX11Bug();
+			setCurrentDisplayIndex();
+		}
+
+		GraphicsDevice getCurrentDisplay() {
+			ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+			conf = frame.getGraphicsConfiguration();
+			curDisplay = conf.getDevice();
+			return curDisplay;
+		}
+
+		GraphicsDevice[] getAllDisplays() {
+			ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+			allDisplays = ge.getScreenDevices();
+			return allDisplays;
+		}
+
+		boolean multipleDisplaysAvailable() {
+			getAllDisplays();
+			return allDisplays.length > 1;
+		}
+
+		private void setCurrentDisplayIndex() {
+			currentDisplayIndex = 0;
+			getAllDisplays();
+			for (int i = 0; i < allDisplays.length; i++) {
+				if (allDisplays[i].equals(curDisplay)) {
+					currentDisplayIndex = i;
+					break;
+				}
+			}
+		}
+
+		@Override
+		public void componentMoved(final ComponentEvent evt) {
+			if (!multipleDisplaysAvailable()) {
+				return;
+			}
+			getCurrentDisplay();
+			// https://stackoverflow.com/a/42529925
+			for (int i = 0; i < allDisplays.length; i++) {
+				if (allDisplays[i].equals(curDisplay)) {
+					// the window has been dragged to another display
+					if (i != currentDisplayIndex) {
+						rebuildOnNewScreen(curDisplay.getDefaultConfiguration());
+						currentDisplayIndex = i;
+					}
+				}
+			}
+		}
+
+		void rebuildOnNewScreen(final GraphicsConfiguration gConfiguration) {
+			final Dimension dim = frame.getSize();
+			final boolean hasManager = frame.manager != null;
+			final boolean darkMode = isDarkModeOn();
+			frame.dispose();
+			if (hasManager) {
+				frame.manager.dispose();
+				Viewer3D.this.initManagerList();
+			}
+			Viewer3D.this.show((int) dim.getWidth(), (int) dim.getHeight(), gConfiguration);
+			setEnableDarkMode(darkMode);
+			if (hasManager) {
+				Viewer3D.this.frame.snapPanelToSide();
+				Viewer3D.this.frame.manager.setVisible(true);
+			}
+			if (sceneIsOK()) rebuild();
+		}
+
+		void warnOnX11Bug() {
+			if (multipleDisplaysAvailable()) {
+				System.out.println("*** Warning ***");
+				System.out.println("In some X11 installations dragging the Reconstruction Viewer window");
+				System.out.println("into a secondary display may freeze the entire UI. There is a workaround");
+				System.out.println("in place but please avoid repeteaded movements of windows across displays.");
 			}
 		}
 	}
@@ -3404,6 +3521,7 @@ public class Viewer3D {
 			});
 			utilsMenu.add(mi);
 			utilsMenu.add(legendMenu());
+
 			final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.getMenuIcon(GLYPH.BULB));
 			light.addActionListener(e -> {
 //				guiUtils.centeredMsg(
