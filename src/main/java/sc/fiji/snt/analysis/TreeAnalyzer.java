@@ -659,7 +659,7 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @see #restrictToOrder(int...)
 	 */
 	public List<Path> getTerminalBranches() {
-		if (sAnalyzer == null) sAnalyzer = new StrahlerAnalyzer(tree);
+		getStrahlerAnalyzer();
 		terminalBranches = sAnalyzer.getBranches(1);
 		return terminalBranches;
 	}
@@ -887,7 +887,7 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @throws IllegalArgumentException if tree contains multiple roots or loops
 	 */
 	public int getStrahlerNumber() throws IllegalArgumentException {
-		if (sAnalyzer == null) sAnalyzer = new StrahlerAnalyzer(tree);
+		getStrahlerAnalyzer();
 		return sAnalyzer.getRootNumber();
 	}
 
@@ -922,7 +922,7 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @throws IllegalArgumentException if tree contains multiple roots or loops
 	 */
 	public double getStrahlerBifurcationRatio() throws IllegalArgumentException {
-		if (sAnalyzer == null) sAnalyzer = new StrahlerAnalyzer(tree);
+		getStrahlerAnalyzer();
 		return sAnalyzer.getAvgBifurcationRatio();
 	}
 
@@ -946,7 +946,7 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @throws IllegalArgumentException if tree contains multiple roots or loops
 	 */
 	public List<Path> getBranches() throws IllegalArgumentException {
-		if (sAnalyzer == null) sAnalyzer = new StrahlerAnalyzer(tree);
+		getStrahlerAnalyzer();
 		return sAnalyzer.getBranches().values().stream().flatMap(List::stream).collect(Collectors.toList());
 	}
 
@@ -986,7 +986,7 @@ public class TreeAnalyzer extends ContextCommand {
 		final List<Path> branches = getBranches();
 		return sumLength(getBranches()) / branches.size();
 	}
-	
+
 	/**
 	 * Gets the angle between each bifurcation point and its children in the simplified graph, 
 	 * which comprise either branch points or terminal nodes.
@@ -997,43 +997,43 @@ public class TreeAnalyzer extends ContextCommand {
 	 */
 	public List<Double> getRemoteBifAngles() throws IllegalArgumentException {
 		final DirectedWeightedGraph sGraph = tree.getGraph().getSimplifiedGraph();
-		List<SWCPoint> branchPoints = sGraph.getBPs();
-		List<Double> angles = new ArrayList<Double>();
-		for (SWCPoint bp : branchPoints) {
-			List<SWCPoint> children = Graphs.successorListOf(sGraph, bp);
+		final List<SWCPoint> branchPoints = sGraph.getBPs();
+		final List<Double> angles = new ArrayList<Double>();
+		for (final SWCPoint bp : branchPoints) {
+			final List<SWCPoint> children = Graphs.successorListOf(sGraph, bp);
 			// Only consider bifurcations
 			if (children.size() > 2) {
 				continue;
 			}
-			SWCPoint c0 = children.get(0);
-			SWCPoint c1 = children.get(1);
+			final SWCPoint c0 = children.get(0);
+			final SWCPoint c1 = children.get(1);
 			// Get vector for each parent-child link
-			double[] v0 = new double[] { c0.getX() - bp.getX(), c0.getY() - bp.getY(), c0.getZ() - bp.getZ() };
-			double[] v1 = new double[] { c1.getX() - bp.getX(), c1.getY() - bp.getY(), c1.getZ() - bp.getZ() };
+			final double[] v0 = new double[] { c0.getX() - bp.getX(), c0.getY() - bp.getY(), c0.getZ() - bp.getZ() };
+			final double[] v1 = new double[] { c1.getX() - bp.getX(), c1.getY() - bp.getY(), c1.getZ() - bp.getZ() };
 			// Dot product
 			double dot = 0.0;
 			for (int i = 0 ; i < v0.length ; i++) {
 				dot += v0[i]*v1[i];
 			}
-			double cosineAngle = (double) dot / ( Math.sqrt(v0[0]*v0[0] + v0[1]*v0[1] + v0[2]*v0[2]) * Math.sqrt(v1[0]*v1[0] + v1[1]*v1[1] + v1[2]*v1[2]) );
-			double angleRadians = Math.acos(cosineAngle);
-			double angleDegrees = angleRadians * ( (double) 180.0 / Math.PI );
+			final double cosineAngle = (double) dot / ( Math.sqrt(v0[0]*v0[0] + v0[1]*v0[1] + v0[2]*v0[2]) * Math.sqrt(v1[0]*v1[0] + v1[1]*v1[1] + v1[2]*v1[2]) );
+			final double angleRadians = Math.acos(cosineAngle);
+			final double angleDegrees = angleRadians * ( (double) 180.0 / Math.PI );
 			angles.add(angleDegrees);
 		}
 		return angles;
 	}
-	
+
 	/**
 	 * Gets the average remote bifurcation angle of the analyzed tree.
 	 * Note that branch points with more than 2 children are ignored during the computation.
 	 * 
 	 * @return the average remote bifurcation angle
-	 * @throws IllegalArgumentException
+	 * @throws IllegalArgumentException if the tree contains multiple roots or loops
 	 */
 	public double getAvgRemoteBifAngle() throws IllegalArgumentException {
-		List<Double> angles = getRemoteBifAngles();
+		final List<Double> angles = getRemoteBifAngles();
 		double sumAngles = 0.0;
-		for (double a : angles) {
+		for (final double a : angles) {
 			sumAngles += a;
 		}
 		return (double) sumAngles / angles.size();
