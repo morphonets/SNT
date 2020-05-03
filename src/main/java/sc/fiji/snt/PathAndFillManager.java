@@ -2311,6 +2311,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (boundingBox == null) // should never happen
 				boundingBox = new BoundingBox();
 			boundingBox.setUnit((spatialUnit == null) ? "um" : spatialUnit);
+			updateBoundingBox();
 		}
 		return result;
 	}
