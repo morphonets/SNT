@@ -58,7 +58,7 @@ public class GraphUtils {
 
 	@Deprecated
 	public static DefaultDirectedGraph<SWCPoint, SWCWeightedEdge> createGraph(final Tree tree) throws IllegalArgumentException {
-		return new DirectedWeightedGraph(tree);
+		return tree.getGraph();
 	}
 
 	/**

@@ -75,6 +75,7 @@ public class Tree {
 	private String label;
 	private TreeBoundingBox box;
 	private PathAndFillManager pafm;
+	private DirectedWeightedGraph graph;
 	private double value;
 
 	/**
@@ -204,7 +205,9 @@ public class Tree {
 	 * @return true, if Path successful added
 	 */
 	public boolean add(final Path p) {
-		return tree.add(p);
+		final boolean added = tree.add(p);
+		if (added) graph = null;
+		return added;
 	}
 
 	/**
@@ -215,7 +218,9 @@ public class Tree {
 	 */
 	public boolean merge(final Tree tree) {
 		setLabel(((label == null) ? "" : label) + " " + tree.getLabel());
-		return this.tree.addAll(tree.list());
+		final boolean addedAll = this.tree.addAll(tree.list());
+		if (addedAll) graph = null;
+		return addedAll;
 	}
 
 	// /**
@@ -234,6 +239,7 @@ public class Tree {
 	 */
 	public void replaceAll(final List<Path> paths) {
 		tree = new ArrayList<>(paths);
+		graph = null;
 	}
 
 	/**
@@ -263,7 +269,9 @@ public class Tree {
 	 * @return true if this tree contained p
 	 */
 	public boolean remove(final Path p) {
-		return tree.remove(p);
+		boolean removed = tree.remove(p);
+		if (removed) graph = null;
+		return removed;
 	}
 
 	/**
@@ -315,6 +323,7 @@ public class Tree {
 		tree.parallelStream().forEach(p -> {
 			p.downsample(maximumAllowedDeviation);
 		});
+		graph = null;
 	}
 
 	/**
@@ -519,6 +528,7 @@ public class Tree {
 	 */
 	public void setType(final int type) {
 		tree.forEach(p -> p.setSWCType(type));
+		if (graph != null) graph.vertexSet().forEach(v -> v.type = type);
 	}
 
 	/**
@@ -558,7 +568,7 @@ public class Tree {
 		if (labelIdx == -1) throw new IllegalArgumentException(
 			"Unrecognized SWC-type label:" + type);
 		final int intType = Path.getSWCtypes().get(labelIdx);
-		tree.forEach(p -> p.setSWCType(intType));
+		setType(intType);
 	}
 
 	/**
@@ -698,6 +708,7 @@ public class Tree {
 			box.originOpposite().y += yOffset;
 			box.originOpposite().z += zOffset;
 		}
+		graph = null;
 	}
 
 	/**
@@ -739,6 +750,7 @@ public class Tree {
 			box.originOpposite().y *= yScale;
 			box.originOpposite().z *= zScale;
 		}
+		graph = null;
 	}
 
 	/**
@@ -760,6 +772,7 @@ public class Tree {
 				}
 			}
 		});
+		graph = null;
 	}
 
 	/**
@@ -859,6 +872,7 @@ public class Tree {
 				throw new IllegalArgumentException("Unrecognized rotation axis" + axis);
 		}
 		if (box != null) box.setComputationNeeded(true);
+		graph = null;
 	}
 
 	/**
@@ -1181,6 +1195,7 @@ public class Tree {
 	 */
 	public void setRadii(final double r) {
 		tree.forEach(p -> p.setRadius(r));
+		if (graph != null) graph.vertexSet().forEach(v -> v.radius = r);
 	}
 
 	/**
@@ -1220,7 +1235,18 @@ public class Tree {
 	 * @throws IllegalArgumentException if tree contains multiple roots or loops
 	 */
 	public DirectedWeightedGraph getGraph() throws IllegalArgumentException {
-		return new DirectedWeightedGraph(this);
+		if (graph == null) graph = new DirectedWeightedGraph(this);
+		return graph;
+	}
+
+	/**
+	 * Re-assembles the DirectedGraph object returned by {@link #getGraph()}
+	 * ensuring that no untracked changes exist. Usually, calling this method is not
+	 * necessary since most changes to this Tree percolate to its graph
+	 * representation.
+	 */
+	public void rebuildGraph() {
+		graph = new DirectedWeightedGraph(this);
 	}
 
 	/**

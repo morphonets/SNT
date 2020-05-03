@@ -50,7 +50,7 @@ public class SWCPoint extends PointInImage implements SNTPoint, Comparable<SWCPo
 	 * The SWC-type flag of this node ({@link Path#SWC_SOMA},
 	 * {@link Path#SWC_DENDRITE}, etc.)
 	 */
-	public final int type;
+	public int type;
 
 	/** The parent id of this node */
 	public int parent;
