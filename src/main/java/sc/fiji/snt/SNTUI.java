@@ -93,6 +93,8 @@ import org.scijava.util.Types;
 import ij.IJ;
 import ij.ImageListener;
 import ij.ImagePlus;
+import ij.Prefs;
+import ij.gui.ImageCanvas;
 import ij3d.Content;
 import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
@@ -1086,6 +1088,7 @@ public class SNTUI extends JDialog {
 				showStatus("Resizing Canvas...", false);
 				updateSinglePaneFlag();
 				plugin.rebuildDisplayCanvases(); // will change UI state
+				arrangeCanvases(false);
 				showStatus("Canvas rebuilt...", true);
 			} else {
 				guiUtils.error("This command is only available for display canvases. To resize "
@@ -2810,6 +2813,18 @@ public class SNTUI extends JDialog {
 				guiUtils.error("XY view is not available");
 			return;
 		}
+
+		// Adjust and uniformize zoom levels
+		final boolean zoomSyncStatus = plugin.isZoomAllPanesDisabled();
+		plugin.disableZoomAllPanes(false);
+		double zoom = plugin.getImagePlus().getCanvas().getMagnification();
+		if (plugin.getImagePlus().getWidth() < 500d && plugin.getImagePlus().getCanvas().getMagnification() == 1) {
+			// if the image is rather small (typically a display canvas), zoom it to more manageable dimensions
+			zoom = ImageCanvas.getLowerZoomLevel(500d/plugin.getImagePlus().getWidth() * Math.min(1.5, Prefs.getGuiScale()));
+		}
+		plugin.zoomAllPanes(zoom);
+		plugin.disableZoomAllPanes(zoomSyncStatus);
+
 		final GraphicsConfiguration xy_config = xy_window.getGraphicsConfiguration();
 		final GraphicsDevice xy_screen = xy_config.getDevice();
 		final Rectangle xy_screen_bounds = xy_screen.getDefaultConfiguration().getBounds();
@@ -2821,12 +2836,12 @@ public class SNTUI extends JDialog {
 
 		final ImagePlus zy = plugin.getImagePlus(MultiDThreePanes.ZY_PLANE);
 		if (zy != null && zy.getWindow() != null) {
-			zy.getWindow().setLocation(x + xy_window.getWidth(), y);
+			zy.getWindow().setLocation(x + xy_window.getWidth() + 5, y);
 			zy.getWindow().toFront();
 		}
 		final ImagePlus xz = plugin.getImagePlus(MultiDThreePanes.XZ_PLANE);
 		if (xz != null && xz.getWindow() != null) {
-			xz.getWindow().setLocation(x, y + xy_window.getHeight());
+			xz.getWindow().setLocation(x, y + xy_window.getHeight() + 2);
 			xz.getWindow().toFront();
 		}
 		xy_window.toFront();

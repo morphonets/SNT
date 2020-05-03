@@ -75,6 +75,24 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 		this.owner = owner;
 	}
 
+	protected void setZoom(final double zoomFactor) {
+		if (magnification == zoomFactor || (magnification >= getLowerZoomLevel(zoomFactor)
+				&& magnification <= getHigherZoomLevel(zoomFactor))) {
+			return;
+		}
+		if (imp == null || imp.getWindow() == null) {
+			setMagnification(zoomFactor);
+		} else if (zoomFactor == 1d) {
+			super.zoom100Percent();
+		} else if (zoomFactor > magnification) {
+			while (magnification < zoomFactor)
+				super.zoomIn(imageWidth / 2, imageHeight / 2);
+		} else if (zoomFactor < magnification) {
+			while (magnification > zoomFactor)
+				super.zoomOut(imageWidth / 2, imageHeight / 2);
+		}
+	}
+
 	protected void drawOverlay(final Graphics2D g) {
 		drawCanvasText(g, canvasText);
 		final boolean draw_string = validString(cursorText);

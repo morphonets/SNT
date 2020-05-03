@@ -190,6 +190,20 @@ public class MultiDThreePanes implements PaneOwner {
 		}
 	}
 
+	public void zoomAllPanes(final double zoomFactor) {
+		if (xy_canvas != null) {
+			xy_canvas.setZoom(zoomFactor);
+		}
+		if (!disable_zoom) {
+			if (xz_canvas != null) {
+				xz_canvas.setZoom(zoomFactor);
+			}
+			if (zy_canvas != null) {
+				zy_canvas.setZoom(zoomFactor);
+			}
+		}
+	}
+
 	public void unzoomAllPanes() {
 		if (xy_canvas != null) xy_canvas.unzoom();
 		if (!disable_zoom) {
