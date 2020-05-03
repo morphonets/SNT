@@ -100,6 +100,9 @@ public class MultiTreeStatistics extends TreeStatistics {
 	/** Flag for {@value #AVG_FRAGMENTATION} statistics */
 	public static final String AVG_FRAGMENTATION = "Average fragmentation";
 
+	/** Flag specifying {@value #AVG_REMOTE_ANGLE} statistics */
+	public static final String AVG_REMOTE_ANGLE = "Average remote bif. angle";
+
 	/** Flag for {@value #N_PATHS} statistics */
 	public static final String N_PATHS = "No. of paths";
 
@@ -129,6 +132,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 			AVG_BRANCH_LENGTH, //
 			AVG_CONTRACTION, //
 			AVG_FRAGMENTATION, //
+			AVG_REMOTE_ANGLE, //
 			DEPTH, //
 			HEIGHT, //
 			HIGHEST_PATH_ORDER, //
@@ -317,11 +321,16 @@ public class MultiTreeStatistics extends TreeStatistics {
 				return N_PATHS;
 			}
 		}
-		if (normGuess.indexOf("contraction") != -1 && containsAvgReference(normGuess)) {
-			return AVG_CONTRACTION;
-		}
-		if (normGuess.indexOf("fragmentation") != -1 && containsAvgReference(normGuess)) {
-			return AVG_FRAGMENTATION;
+		if (containsAvgReference(normGuess)) {
+			if (normGuess.indexOf("contraction") != -1) {
+				return AVG_CONTRACTION;
+			}
+			if (normGuess.indexOf("fragmentation") != -1) {
+				return AVG_FRAGMENTATION;
+			}
+			if (normGuess.indexOf("remote") != -1 || normGuess.indexOf("bif") != -1) {
+				return AVG_REMOTE_ANGLE;
+			}
 		}
 		return "unknown";
 	}

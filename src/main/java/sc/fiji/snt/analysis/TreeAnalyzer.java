@@ -364,6 +364,13 @@ public class TreeAnalyzer extends ContextCommand {
 				SNTUtils.log("Error: " + ignored.getMessage());
 				return Double.NaN;
 			}
+		case MultiTreeStatistics.AVG_REMOTE_ANGLE:
+			try {
+				return getAvgRemoteBifAngle();
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				return Double.NaN;
+			}
 		case MultiTreeStatistics.DEPTH:
 			return getDepth();
 		case MultiTreeStatistics.HEIGHT:
