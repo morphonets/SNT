@@ -102,6 +102,9 @@ public class TreeStatistics extends TreeAnalyzer {
 	/** Flag for {@value #CONTRACTION} statistics. */
 	public static final String CONTRACTION = "Contraction";
 
+	/** Flag for {@value #REMOTE_BIF_ANGLES} statistics. */
+	public static final String REMOTE_BIF_ANGLES = "Remote bif. angles";
+
 	/**
 	 * Flag for analysis of {@value #VALUES}, an optional numeric property that
 	 * can be assigned to Path nodes (e.g., voxel intensities, assigned via
@@ -116,6 +119,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	private static final String[] ALL_FLAGS = { //
 			BRANCH_LENGTH, //
 			CONTRACTION, //
+			REMOTE_BIF_ANGLES, //
 			INTER_NODE_DISTANCE, //
 			INTER_NODE_DISTANCE_SQUARED, //
 			MEAN_RADIUS, //
@@ -325,6 +329,9 @@ public class TreeStatistics extends TreeAnalyzer {
 		if (normGuess.indexOf("contrac") != -1) {
 			return CONTRACTION;
 		}
+		if (normGuess.indexOf("remote") != -1 && normGuess.indexOf("angle") != -1) {
+			return REMOTE_BIF_ANGLES;
+		}
 		if (normGuess.indexOf("length") != -1 || normGuess.indexOf("cable") != -1) {
 			if (normGuess.indexOf("term") != -1) {
 				return TERMINAL_LENGTH;
@@ -416,6 +423,15 @@ public class TreeStatistics extends TreeAnalyzer {
 			try {
 				for (final Path p : getBranches())
 					stat.addValue(p.getContraction());
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				stat.addValue(Double.NaN);
+			}
+			break;
+		case REMOTE_BIF_ANGLES:
+			try {
+				for (final double angle : getRemoteBifAngles())
+					stat.addValue(angle);
 			} catch (final IllegalArgumentException ignored) {
 				SNTUtils.log("Error: " + ignored.getMessage());
 				stat.addValue(Double.NaN);
@@ -593,6 +609,7 @@ public class TreeStatistics extends TreeAnalyzer {
 			somaCompartment = somaCompartment.getAncestor(depth - somaCompartment.getOntologyDepth());
 		hist.annotateCategory(somaCompartment.acronym(), "soma", "blue");
 		hist.show();
+		tStats.getHistogram("remote angles").show();
 		NodeStatistics<?> nStats =new NodeStatistics<>(tStats.getTips());
 				hist = nStats.getAnnotatedHistogram(depth);
 				hist.annotate("No. of tips: " + tStats.getTips().size());
