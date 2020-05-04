@@ -524,11 +524,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @see #getSelectedPaths(boolean)
 	 */
 	public Map<String, Tree> getSelectedPathsOrganizedByTrees(final boolean ifNoneSelectedGetAll) {
-		return getSelectedPathsOrganizedByTrees(getSelectedPaths(ifNoneSelectedGetAll));
-	}
-
-	private Map<String, Tree> getSelectedPathsOrganizedByTrees(final Collection<Path> paths) {
 		final HashMap<String, Tree> trees = new HashMap<>();
+		final Collection<Path> paths = getSelectedPaths(ifNoneSelectedGetAll);
 		if (paths.isEmpty()) return trees;
 		for (final Path p : paths) {
 			final String tLabel = p.getTreeLabel();
@@ -884,7 +881,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	protected Tree getSingleTree() {
-		return getTreesPrompt(false).iterator().next();
+		final Collection<Tree> singletonTree = getTreesPrompt(false);
+		return (singletonTree == null) ? null : singletonTree.iterator().next();
 	}
 
 	protected Collection<Tree> getTrees() {
@@ -1815,8 +1813,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			else if (MEASURE_CMD_SUMMARY.equals(cmd)) {
+				final Tree tree = getSingleTree();
+				if (tree == null) return;
 				try {
-					final TreeAnalyzer ta = new TreeAnalyzer(new Tree(selectedPaths));
+					final TreeAnalyzer ta = new TreeAnalyzer(tree);
 					ta.setContext(plugin.getContext());
 					if (ta.getParsedTree().isEmpty()) {
 						guiUtils.error("None of the selected paths could be measured.");
@@ -1826,8 +1826,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					ta.summarize(getDescription(selectedPaths), true);
 				}
 				catch (final IllegalArgumentException ignored) {
-					guiUtils.error(
-						"Selected paths do not fullfill requirements for measurements");
+					guiUtils.error("Selected paths do not fullfill requirements for retrieval of choiceless measurements.");
 				}
 				return;
 			}
@@ -1863,8 +1862,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 			}
 			else if (HISTOGRAM_CMD.equals(cmd)) {
+				
 				final Map<String, Object> input = new HashMap<>();
-				input.put("trees", getSelectedPathsOrganizedByTrees(selectedPaths).values());
+				final Collection<Tree> trees = getTrees();
+				if (trees == null) return;
+				input.put("trees", trees);
 				input.put("calledFromPathManagerUI", true);
 				final CommandService cmdService = plugin.getContext().getService(
 					CommandService.class);
