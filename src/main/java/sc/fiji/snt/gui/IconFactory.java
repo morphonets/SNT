@@ -73,6 +73,7 @@ public class IconFactory {
 			COLOR2('\uf5c3', true), //
 			COMMENTS('\uf086', false), //
 			CROSSHAIR('\uf05b', true), //
+			CSV('\uf6dd', true), //
 			CUBE('\uf1b2', true), //
 			DANGER('\uf071', true), //
 			DATABASE('\uf1c0', true), //
@@ -118,6 +119,7 @@ public class IconFactory {
 			PLUS('\uf0fe', false), //
 			PREVIOUS('\uf358', false), //
 			QUESTION('\uf128', true), //
+			QUIT('\uf011', true), //
 			RECYCLE('\uf1b8', true), //
 			REDO('\uf01e', true), //
 			ROCKET('\uf135', true), //

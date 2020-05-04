@@ -2090,7 +2090,7 @@ public class SNTUI extends JDialog {
 		menuBar.add(fileMenu);
 		final JMenu importSubmenu = new JMenu("Import");
 		importSubmenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.IMPORT));
-		final JMenu exportSubmenu = new JMenu("Export (All Paths)");
+		final JMenu exportSubmenu = new JMenu("Export As");
 		exportSubmenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EXPORT));
 		final JMenu analysisMenu = new JMenu("Analysis");
 		menuBar.add(analysisMenu);
@@ -2102,21 +2102,8 @@ public class SNTUI extends JDialog {
 		menuBar.add(viewMenu);
 		menuBar.add(helpMenu());
 
-		loadTracesMenuItem = new JMenuItem("Load Traces...");
-		loadTracesMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.IMPORT));
-		loadTracesMenuItem.addActionListener(listener);
-		fileMenu.add(loadTracesMenuItem);
-
-		saveMenuItem = new JMenuItem("Save Traces...");
-		saveMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SAVE));
-		saveMenuItem.addActionListener(listener);
-		fileMenu.add(saveMenuItem);
-		final JMenuItem saveTable = new JMenuItem("Save Measurements...", IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
-		saveTable.addActionListener(e -> {
-			pmUI.saveTable();
-			return;
-		});
-		fileMenu.add(saveTable);
+		fileMenu.add(importSubmenu);
+		fileMenu.add(exportSubmenu);
 
 		// Options to replace image data
 		final JMenu changeImpMenu = new JMenu("Choose Tracing Image");
@@ -2134,32 +2121,46 @@ public class SNTUI extends JDialog {
 		fileMenu.addSeparator();
 		fileMenu.add(changeImpMenu);
 
+		loadLabelsMenuItem = new JMenuItem("Load Labels (AmiraMesh)...");
+		loadLabelsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAG));
+		loadLabelsMenuItem.addActionListener(listener);
+		fileMenu.add(loadLabelsMenuItem);
+		final JMenuItem saveTable = new JMenuItem("Save Measurements...", IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
+		saveTable.addActionListener(e -> {
+			pmUI.saveTable();
+			return;
+		});
+		fileMenu.add(saveTable);
 		sendToTrakEM2 = new JMenuItem("Send to TrakEM2");
 		sendToTrakEM2.addActionListener(e -> plugin.notifyListeners(new SNTEvent(SNTEvent.SEND_TO_TRAKEM2)));
 		fileMenu.addSeparator();
 		fileMenu.add(sendToTrakEM2);
 		fileMenu.addSeparator();
-		fileMenu.add(importSubmenu);
 
-		loadSWCMenuItem = new JMenuItem("(e)SWC...");
-		loadSWCMenuItem.addActionListener(listener);
-		importSubmenu.add(loadSWCMenuItem);
+		final JMenuItem importGuessingType = new JMenuItem("Any File Type...");
+		importSubmenu.add(importGuessingType);
+		importGuessingType.addActionListener(e -> {
+			new ImportAction(ImportAction.ANY_RECONSTRUCTION, null).run();
+		});
+
 		final JMenuItem importJSON = new JMenuItem("JSON...");
 		importSubmenu.add(importJSON);
 		importJSON.addActionListener(e -> {
 			new ImportAction(ImportAction.JSON, null).run();
 		});
+		loadSWCMenuItem = new JMenuItem("(e)SWC...");
+		loadSWCMenuItem.addActionListener(listener);
+		importSubmenu.add(loadSWCMenuItem);
+		loadTracesMenuItem = new JMenuItem("TRACES...");
+		loadTracesMenuItem.addActionListener(listener);
+		importSubmenu.add(loadTracesMenuItem);
+
 		final JMenuItem importDirectory = new JMenuItem("Directory of SWCs...");
 		importDirectory.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FOLDER));
 		importSubmenu.add(importDirectory);
 		importDirectory.addActionListener(e -> {
 			new ImportAction(ImportAction.SWC_DIR, null).run();
 		});
-		importSubmenu.addSeparator();
-		loadLabelsMenuItem = new JMenuItem("Labels (AmiraMesh)...");
-		loadLabelsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAG));
-		loadLabelsMenuItem.addActionListener(listener);
-		importSubmenu.add(loadLabelsMenuItem);
 		importSubmenu.addSeparator();
 		final JMenu remoteSubmenu = new JMenu("Remote Databases");
 		remoteSubmenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DATABASE));
@@ -2185,28 +2186,36 @@ public class SNTUI extends JDialog {
 		});
 		importSubmenu.add(remoteSubmenu);
 
+		saveMenuItem = new JMenuItem("TRACES...");
+		saveMenuItem.addActionListener(listener);
+		exportSubmenu.add(saveMenuItem);
 		exportAllSWCMenuItem = new JMenuItem("SWC...");
 		exportAllSWCMenuItem.addActionListener(listener);
 		exportSubmenu.add(exportAllSWCMenuItem);
-		exportCSVMenuItem = new JMenuItem("CSV Properties...");
-		exportCSVMenuItem.addActionListener(listener);
-		exportSubmenu.add(exportCSVMenuItem);
-		fileMenu.add(exportSubmenu);
 
 		fileMenu.addSeparator();
-		quitMenuItem = new JMenuItem("Quit");
+		quitMenuItem = new JMenuItem("Quit", IconFactory.getMenuIcon(IconFactory.GLYPH.QUIT));
 		quitMenuItem.addActionListener(listener);
 		fileMenu.add(quitMenuItem);
 
 		final JMenuItem measureMenuItem = new JMenuItem("Quick Measurements", IconFactory.getMenuIcon(IconFactory.GLYPH.ROCKET));
 		measureMenuItem.addActionListener(e -> {
 			if (noPathsError()) return;
-			final Tree tree = new Tree(pathAndFillManager.getPathsFiltered());
-			tree.setLabel("All Paths");
-			final TreeAnalyzer ta = new TreeAnalyzer(tree);
-			ta.setContext(plugin.getContext());
-			ta.setTable(pmUI.getTable(), PathManagerUI.TABLE_TITLE);
-			ta.run();
+			final Tree tree = getPathManager().getSingleTree();
+			if (tree == null) return;
+			try {
+				final TreeAnalyzer ta = new TreeAnalyzer(tree);
+				ta.setContext(plugin.getContext());
+				if (ta.getParsedTree().isEmpty()) {
+					guiUtils.error("None of the selected paths could be measured.");
+					return;
+				}
+				ta.setTable(pmUI.getTable(), PathManagerUI.TABLE_TITLE);
+				ta.run();
+			}
+			catch (final IllegalArgumentException ignored) {
+				guiUtils.error("Selected paths do not fullfill requirements for retrieval of choiceless measurements.");
+			}
 		});
 		final JMenuItem plotMenuItem = new JMenuItem("Reconstruction Plotter...", IconFactory.getMenuIcon(IconFactory.GLYPH.DRAFT));
 		plotMenuItem.addActionListener( e -> {
@@ -2257,6 +2266,9 @@ public class SNTUI extends JDialog {
 		analysisMenu.addSeparator();
 	
 		// Measuring options : All Paths
+		exportCSVMenuItem = new JMenuItem("Export CSV Properties...", IconFactory.getMenuIcon(IconFactory.GLYPH.CSV));
+		exportCSVMenuItem.addActionListener(listener);
+		analysisMenu.add(exportCSVMenuItem);
 		final JMenuItem measureWithPrompt = new JMenuItem("Measure...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
 		measureWithPrompt.addActionListener(e -> {
@@ -3829,6 +3841,7 @@ public class SNTUI extends JDialog {
 		private static final int SWC_DIR = 2;
 		private static final int JSON = 3;
 		private static final int IMAGE = 4;
+		private static final int ANY_RECONSTRUCTION = 5;
 
 		private final int type;
 		private File file;
@@ -3860,12 +3873,17 @@ public class SNTUI extends JDialog {
 				return;
 			case TRACES:
 			case SWC:
+			case ANY_RECONSTRUCTION:
 				final int preLoadingState = currentState;
 				changeState(LOADING);
 				if (type == SWC) {
 					plugin.loadSWCFile(file);
-				} else {
+				} else if (type == TRACES){
 					plugin.loadTracesFile(file);
+				} else if (type == ANY_RECONSTRUCTION){
+					if (file == null) file = openFile("Open Reconstruction File...", "swc");
+					if (file == null) return; // user pressed cancel;
+					plugin.loadTracings(file);
 				}
 				changeState(preLoadingState);
 				return;
