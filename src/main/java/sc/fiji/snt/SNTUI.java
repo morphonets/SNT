@@ -1944,16 +1944,17 @@ public class SNTUI extends JDialog {
 		return openedFile;
 	}
 
-	protected File saveFile(final String promptMsg, final File suggestedFile, final String fallbackExtension) {
-		final File fFile = (suggestedFile == null)
-				? SNTUtils.findClosestPair(plugin.prefs.getRecentFile(), fallbackExtension)
-				: suggestedFile;
+	protected File saveFile(final String promptMsg, final String suggestedFileName, final String fallbackExtension) {
+		final File fFile = new File(plugin.prefs.getRecentDir(),
+				(suggestedFileName == null) ? plugin.prefs.getRecentFile().getName() : suggestedFileName);
 		final boolean focused = hasFocus();
-		if (focused) toBack();
+		if (focused)
+			toBack();
 		final File savedFile = plugin.legacyService.getIJ1Helper().saveDialog(promptMsg, fFile, fallbackExtension);
 		if (savedFile != null)
 			plugin.prefs.setRecentFile(savedFile);
-		if (focused) toFront();
+		if (focused)
+			toFront();
 		return savedFile;
 	}
 
@@ -3497,7 +3498,7 @@ public class SNTUI extends JDialog {
 				saveAllPathsToSwc(saveFile.getAbsolutePath());
 			} else if (source == exportCSVMenuItem && !noPathsError()) {
 
-				final File saveFile = saveFile("Export All Paths as CSV...", null, ".csv");
+				final File saveFile = saveFile("Export All Paths as CSV...", "CSV_Properties.csv", ".csv");
 				if (saveFile == null)
 					return; // user pressed cancel
 				if (saveFile.exists()) {

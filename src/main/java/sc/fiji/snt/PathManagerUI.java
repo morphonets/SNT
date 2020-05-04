@@ -1566,21 +1566,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			.getColumnCount() > 0;
 	}
 
-	private void saveTable(final File outputFile) throws IOException {
-		table.save(outputFile);
-	}
-
 	protected void saveTable() {
 		if (!validTableMeasurements()) {
 			plugin.error("There are no measurements to save.");
 			return;
 		}
-		final File saveFile = plugin.getUI().saveFile("Save SNT Measurements...", null, ".csv");
+		final File saveFile = plugin.getUI().saveFile("Save SNT Measurements...", "SNT_Measurements.csv", ".csv");
 		if (saveFile == null) return; // user pressed cancel
 
 		plugin.getUI().showStatus("Exporting Measurements..", false);
 		try {
-			saveTable(saveFile);
+			table.save(saveFile);
 		}
 		catch (final IOException e) {
 			plugin.error(
