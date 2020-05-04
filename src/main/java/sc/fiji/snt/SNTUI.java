@@ -130,6 +130,7 @@ import sc.fiji.snt.gui.cmds.MLImporterCmd;
 import sc.fiji.snt.gui.cmds.MultiSWCImporterCmd;
 import sc.fiji.snt.gui.cmds.OpenDatasetCmd;
 import sc.fiji.snt.gui.cmds.RemoteSWCImporterCmd;
+import sc.fiji.snt.gui.cmds.SNTLoaderCmd;
 import sc.fiji.snt.gui.cmds.PrefsCmd;
 import sc.fiji.snt.gui.cmds.ShowCorrespondencesCmd;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
@@ -381,9 +382,10 @@ public class SNTUI extends JDialog {
 			addSeparatorWithURL(tab3, "SciView:", true, c3);
 			++c3.gridy;
 			final String msg3 =
-				"IJ2's modern 3D visualization framework supporting (large) image volumes, " +
+				"IJ2's modern 3D visualization framework supporting large image volumes, " +
 				"reconstructions, meshes, and virtual reality. Discrete graphics card recommended. " +
-				"For performance reasons, some Path Manager changes may need to be manually synchronized.";
+				"For performance reasons, some Path Manager changes may need to be synchronized " +
+				"manually using \"Sync Changes\".";
 			tab3.add(largeMsg(msg3), c3);
 			c3.gridy++;
 			tab3.add(sciViewerPanel(), c3);
@@ -402,6 +404,8 @@ public class SNTUI extends JDialog {
 			} catch (final NoClassDefFoundError ignored) {
 				tab3.add(largeMsg("Error: Legacy 3D Viewer could not be initialized!"), c3);
 			}
+			c3.gridy++;
+			tab3.add(largeMsg(""), c3); // add bottom spacer
 
 			{
 				tabbedPane.setIconAt(0, IconFactory.getTabbedPaneIcon(IconFactory.GLYPH.HOME));
@@ -2196,6 +2200,20 @@ public class SNTUI extends JDialog {
 		fileMenu.addSeparator();
 		quitMenuItem = new JMenuItem("Quit", IconFactory.getMenuIcon(IconFactory.GLYPH.QUIT));
 		quitMenuItem.addActionListener(listener);
+
+		final JMenuItem restartMenuItem = new JMenuItem("Reset SNT and Restart...", IconFactory.getMenuIcon(IconFactory.GLYPH.RECYCLE));
+		restartMenuItem.setToolTipText("Resets all preferences and restarts SNT");
+		restartMenuItem.addActionListener( e -> {
+			CommandService cmdService = plugin.getContext().getService(CommandService.class);
+			exitRequested();
+			if (SNTUtils.getPluginInstance() == null) { // exit successful
+				SNTPrefs.clearAll();
+				cmdService.run(SNTLoaderCmd.class, true);
+			} else {
+				cmdService = null;
+			}
+		});
+		fileMenu.add(restartMenuItem);
 		fileMenu.add(quitMenuItem);
 
 		final JMenuItem measureMenuItem = new JMenuItem("Quick Measurements", IconFactory.getMenuIcon(IconFactory.GLYPH.ROCKET));
@@ -3882,8 +3900,7 @@ public class SNTUI extends JDialog {
 					plugin.loadTracesFile(file);
 				} else if (type == ANY_RECONSTRUCTION){
 					if (file == null) file = openFile("Open Reconstruction File...", "swc");
-					if (file == null) return; // user pressed cancel;
-					plugin.loadTracings(file);
+					if (file != null) plugin.loadTracings(file);
 				}
 				changeState(preLoadingState);
 				return;
