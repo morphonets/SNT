@@ -2559,9 +2559,10 @@ public class Viewer3D {
 			searchableBar = new SNTSearchableBar(new ListSearchable(managerList));
 			searchableBar.setStatusLabelPlaceholder(String.format(
 				"%d Item(s) listed", managerList.model.size()));
-			searchableBar.setVisibleButtons(SearchableBar.SHOW_CLOSE |
-				SearchableBar.SHOW_NAVIGATION | SearchableBar.SHOW_HIGHLIGHTS |
-				SearchableBar.SHOW_MATCHCASE | SearchableBar.SHOW_STATUS);
+			searchableBar.setGuiUtils(guiUtils);
+			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_CLOSE |
+				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
+				SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_STATUS);
 			final JPanel barPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
 			setFixedHeightToPanel(barPanel);
 			barPanel.add(searchableBar);

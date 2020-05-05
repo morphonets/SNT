@@ -230,7 +230,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		imageTagsMenu.add(jmi);
 		tagsMenu.add(imageTagsMenu);
 
-		morphoTagsMenu = new JMenu("Morphology");
+		morphoTagsMenu = new JMenu("Morphometry");
 		morphoTagsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RULER));
 		final JCheckBoxMenuItem tagTreeCbmi = new JCheckBoxMenuItem(
 				MultiPathActionListener.TREE_TAG_CMD, false);
@@ -1862,7 +1862,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 			}
 			else if (HISTOGRAM_CMD.equals(cmd)) {
-				
+
 				final Map<String, Object> input = new HashMap<>();
 				final Collection<Tree> trees = getTrees();
 				if (trees == null) return;

@@ -106,6 +106,7 @@ public class IconFactory {
 			KEYBOARD('\uf11c', false), //
 			LINK('\uf0c1', true), //
 			LIST('\uf03a', true), //
+			LIST_ALT('\uf022', true), //
 			MAGIC('\uf0d0', true), //
 			MARKER('\uf3c5', true), //
 			MASKS('\uf630', true), //

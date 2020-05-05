@@ -271,7 +271,7 @@ public class Path implements Comparable<Path> {
 		this.treeLabel = treeLabel;
 	}
 
-	protected String getTreeLabel() {
+	public String getTreeLabel() {
 		return (treeLabel == null) ? "Cell "+ getTreeID() : treeLabel;
 	}
 
