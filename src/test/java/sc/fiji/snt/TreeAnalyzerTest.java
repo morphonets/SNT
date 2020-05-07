@@ -74,8 +74,12 @@ public class TreeAnalyzerTest {
 		assertTrue("Width = 116.0", analyzer.getWidth() == 116d);
 		assertTrue("Height = 145.0", analyzer.getHeight() == 145d);
 		assertTrue("Depth = 0.0", analyzer.getDepth() == 0d);
-		final double avgContraction=  analyzer.getAvgContraction();
+		final double avgContraction = analyzer.getAvgContraction();
 		assertEquals("Avg contraction", 0.9628, avgContraction, precision);
+		final double avgRemoteBifAngle = analyzer.getAvgRemoteBifAngle();
+		assertEquals("Avg remote bif angle", 41.3833, avgRemoteBifAngle, precision);
+		final double avgPartitionAsymmetry = analyzer.getAvgPartitionAsymmetry();
+		assertEquals("Avg partition asymmetry", 0.0, avgPartitionAsymmetry, precision);
 
 		// Scaling tests
 		for (double scaleFactor : new double[] { .25d, 1d, 2d}) {

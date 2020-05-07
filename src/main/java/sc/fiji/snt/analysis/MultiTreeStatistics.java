@@ -102,6 +102,9 @@ public class MultiTreeStatistics extends TreeStatistics {
 
 	/** Flag specifying {@value #AVG_REMOTE_ANGLE} statistics */
 	public static final String AVG_REMOTE_ANGLE = "Average remote bif. angle";
+	
+	/** Flag specifying {@value #AVG_PARTITION_ASYMMETRY} statistics */
+	public static final String AVG_PARTITION_ASYMMETRY = "Average partition asymmetry";
 
 	/** Flag for {@value #N_PATHS} statistics */
 	public static final String N_PATHS = "No. of paths";
@@ -133,6 +136,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 			AVG_CONTRACTION, //
 			AVG_FRAGMENTATION, //
 			AVG_REMOTE_ANGLE, //
+			AVG_PARTITION_ASYMMETRY, //
 			DEPTH, //
 			HEIGHT, //
 			HIGHEST_PATH_ORDER, //
@@ -330,6 +334,9 @@ public class MultiTreeStatistics extends TreeStatistics {
 			}
 			if (normGuess.indexOf("remote") != -1 || normGuess.indexOf("bif") != -1) {
 				return AVG_REMOTE_ANGLE;
+			}
+			if (normGuess.indexOf("partition") != -1 || normGuess.indexOf("asymmetry") != -1) {
+				return AVG_PARTITION_ASYMMETRY;
 			}
 		}
 		return "unknown";
