@@ -2250,7 +2250,9 @@ public class SNTUI extends JDialog {
 				IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
 		pathOrderAnalysis.addActionListener(e -> {
 			if (noPathsError()) return;
-			final PathOrderAnalysisCmd pa = new PathOrderAnalysisCmd(new Tree(getPathManager().getSelectedPaths(true)));
+			final Tree tree = getPathManager().getSingleTree();
+			if (tree == null) return;
+			final PathOrderAnalysisCmd pa = new PathOrderAnalysisCmd(tree);
 			pa.setContext(plugin.getContext());
 			pa.setTable(new DefaultGenericTable(), "SNT: Path Order Analysis");
 			pa.run();
@@ -2992,6 +2994,9 @@ public class SNTUI extends JDialog {
 		mi = menuItemTriggeringURL("Ask a Question", "https://forum.image.sc/tags/snt");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COMMENTS));
 		helpMenu.add(mi);
+		mi = menuItemTriggeringURL("Known Issues", "https://github.com/morphonets/SNT/issues");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BUG));
+		helpMenu.add(mi);
 		helpMenu.addSeparator();
 
 		mi = menuItemTriggeringURL("Analysis", URL + ":_Analysis");
@@ -3000,7 +3005,7 @@ public class SNTUI extends JDialog {
 		mi = menuItemTriggeringURL("Scripting", URL + ":_Scripting");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE));
 		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Python Notebooks", URL + ":_Scripting#Python_Notebooks");
+		mi = menuItemTriggeringURL("Python Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SCROLL));
 		helpMenu.add(mi);
 		helpMenu.addSeparator();
