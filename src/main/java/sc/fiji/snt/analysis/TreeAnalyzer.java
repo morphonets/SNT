@@ -373,6 +373,13 @@ public class TreeAnalyzer extends ContextCommand {
 				SNTUtils.log("Error: " + ignored.getMessage());
 				return Double.NaN;
 			}
+		case MultiTreeStatistics.AVG_PARTITION_ASYMMETRY:
+			try {
+				return getAvgPartitionAsymmetry();
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				return Double.NaN;
+			}
 		case MultiTreeStatistics.DEPTH:
 			return getDepth();
 		case MultiTreeStatistics.HEIGHT:
