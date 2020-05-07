@@ -1065,8 +1065,8 @@ public class TreeAnalyzer extends ContextCommand {
 			if (children.size() > 2) {
 				continue;
 			}
-			List<Integer> tipCounts = new ArrayList<Integer>();
-			for (SWCPoint child : children) {
+			final List<Integer> tipCounts = new ArrayList<Integer>();
+			for (final SWCPoint child : children) {
 				int count = 0;
 				final DepthFirstIterator<SWCPoint, SWCWeightedEdge> dfi = sGraph.getDepthFirstIterator(child);
 				while (dfi.hasNext()) {
