@@ -1005,7 +1005,7 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @throws IllegalArgumentException if the tree contains multiple roots or loops
 	 */
 	public List<Double> getRemoteBifAngles() throws IllegalArgumentException {
-		final DirectedWeightedGraph sGraph = tree.getGraph().getSimplifiedGraph();
+		final DirectedWeightedGraph sGraph = tree.getGraph(true);
 		final List<SWCPoint> branchPoints = sGraph.getBPs();
 		final List<Double> angles = new ArrayList<Double>();
 		for (final SWCPoint bp : branchPoints) {
@@ -1056,7 +1056,7 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @throws IllegalArgumentException if the tree contains multiple roots or loops
 	 */
 	public List<Double> getPartitionAsymmetry() throws IllegalArgumentException {
-		final DirectedWeightedGraph sGraph = tree.getGraph().getSimplifiedGraph();
+		final DirectedWeightedGraph sGraph = tree.getGraph(true);
 		final List<SWCPoint> branchPoints = sGraph.getBPs();
 		final List<Double> resultList = new ArrayList<Double>();
 		for (final SWCPoint bp : branchPoints) {

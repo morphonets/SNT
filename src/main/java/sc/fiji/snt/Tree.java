@@ -76,6 +76,7 @@ public class Tree {
 	private TreeBoundingBox box;
 	private PathAndFillManager pafm;
 	private DirectedWeightedGraph graph;
+	private DirectedWeightedGraph simplifiedGraph;
 	private double value;
 
 	/**
@@ -206,7 +207,7 @@ public class Tree {
 	 */
 	public boolean add(final Path p) {
 		final boolean added = tree.add(p);
-		if (added) graph = null;
+		if (added) nullifyGraphs();
 		return added;
 	}
 
@@ -219,7 +220,7 @@ public class Tree {
 	public boolean merge(final Tree tree) {
 		setLabel(((label == null) ? "" : label) + " " + tree.getLabel());
 		final boolean addedAll = this.tree.addAll(tree.list());
-		if (addedAll) graph = null;
+		if (addedAll) nullifyGraphs();
 		return addedAll;
 	}
 
@@ -239,7 +240,7 @@ public class Tree {
 	 */
 	public void replaceAll(final List<Path> paths) {
 		tree = new ArrayList<>(paths);
-		graph = null;
+		nullifyGraphs();
 	}
 
 	/**
@@ -270,7 +271,7 @@ public class Tree {
 	 */
 	public boolean remove(final Path p) {
 		boolean removed = tree.remove(p);
-		if (removed) graph = null;
+		if (removed) nullifyGraphs();
 		return removed;
 	}
 
@@ -323,7 +324,7 @@ public class Tree {
 		tree.parallelStream().forEach(p -> {
 			p.downsample(maximumAllowedDeviation);
 		});
-		graph = null;
+		nullifyGraphs();
 	}
 
 	/**
@@ -529,6 +530,7 @@ public class Tree {
 	public void setType(final int type) {
 		tree.forEach(p -> p.setSWCType(type));
 		if (graph != null) graph.vertexSet().forEach(v -> v.type = type);
+		if (simplifiedGraph != null) simplifiedGraph.vertexSet().forEach(v -> v.type = type);
 	}
 
 	/**
@@ -708,7 +710,7 @@ public class Tree {
 			box.originOpposite().y += yOffset;
 			box.originOpposite().z += zOffset;
 		}
-		graph = null;
+		nullifyGraphs();
 	}
 
 	/**
@@ -750,7 +752,7 @@ public class Tree {
 			box.originOpposite().y *= yScale;
 			box.originOpposite().z *= zScale;
 		}
-		graph = null;
+		nullifyGraphs();
 	}
 
 	/**
@@ -772,7 +774,7 @@ public class Tree {
 				}
 			}
 		});
-		graph = null;
+		nullifyGraphs();
 	}
 
 	/**
@@ -872,7 +874,7 @@ public class Tree {
 				throw new IllegalArgumentException("Unrecognized rotation axis" + axis);
 		}
 		if (box != null) box.setComputationNeeded(true);
-		graph = null;
+		nullifyGraphs();
 	}
 
 	/**
@@ -1196,6 +1198,7 @@ public class Tree {
 	public void setRadii(final double r) {
 		tree.forEach(p -> p.setRadius(r));
 		if (graph != null) graph.vertexSet().forEach(v -> v.radius = r);
+		if (simplifiedGraph != null) simplifiedGraph.vertexSet().forEach(v -> v.radius = r);
 	}
 
 	/**
@@ -1246,7 +1249,13 @@ public class Tree {
 	 * representation.
 	 */
 	public void rebuildGraph() {
+		nullifyGraphs();
 		graph = new DirectedWeightedGraph(this);
+	}
+
+	private void nullifyGraphs() {
+		graph = null;
+		simplifiedGraph = null;
 	}
 
 	/**
@@ -1258,7 +1267,11 @@ public class Tree {
 	 * @throws IllegalArgumentException if tree contains multiple roots or loops
 	 */
 	public DirectedWeightedGraph getGraph(final boolean simplify) throws IllegalArgumentException {
-		return (simplify) ? getGraph().getSimplifiedGraph() : getGraph();
+		if (simplify) {
+			if (simplifiedGraph == null) simplifiedGraph = getGraph().getSimplifiedGraph();
+			return simplifiedGraph;
+		}
+		return getGraph();
 	}
 
 	/**
