@@ -36,6 +36,7 @@ import org.scijava.table.DefaultGenericTable;
 import net.imagej.ImageJ;
 
 import org.jgrapht.Graphs;
+import org.jgrapht.traverse.DepthFirstIterator;
 import org.scijava.app.StatusService;
 import org.scijava.command.ContextCommand;
 import org.scijava.display.Display;
@@ -47,6 +48,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SWCPoint;
@@ -1038,12 +1040,69 @@ public class TreeAnalyzer extends ContextCommand {
 		}
 		return (double) sumAngles / angles.size();
 	}
+	
+	/**
+	 * Gets the partition asymmetry at each bifurcation point in the analyzed tree.
+	 * Note that branch points with more than 2 children are ignored.
+	 * 
+	 * @return a list containing the partition asymmetry at each bifurcation point
+	 * @throws IllegalArgumentException if the tree contains multiple roots or loops
+	 */
+	public List<Double> getPartitionAsymmetry() throws IllegalArgumentException {
+		final DirectedWeightedGraph sGraph = tree.getGraph().getSimplifiedGraph();
+		final List<SWCPoint> branchPoints = sGraph.getBPs();
+		final List<Double> resultList = new ArrayList<Double>();
+		for (final SWCPoint bp : branchPoints) {
+			final List<SWCPoint> children = Graphs.successorListOf(sGraph, bp);
+			// Only consider bifurcations
+			if (children.size() > 2) {
+				continue;
+			}
+			List<Integer> tipCounts = new ArrayList<Integer>();
+			for (SWCPoint child : children) {
+				int count = 0;
+				final DepthFirstIterator<SWCPoint, SWCWeightedEdge> dfi = sGraph.getDepthFirstIterator(child);
+				while (dfi.hasNext()) {
+					final SWCPoint node = dfi.next();
+					if (Graphs.successorListOf(sGraph, node).size() == 0) {
+						count++;
+					}
+				}
+				tipCounts.add(count);
+			}
+			double asymmetry;
+			// Make sure we avoid getting NaN
+			if (tipCounts.get(0) == tipCounts.get(1)) {
+				asymmetry = 0.0;
+			}
+			else {
+				asymmetry = (double) Math.abs(tipCounts.get(0) - tipCounts.get(1)) / (tipCounts.get(0) + tipCounts.get(1) - 2);
+			}
+			resultList.add(asymmetry);
+		}
+		return resultList;
+	}
+	
+	/**
+	 * Gets the average partition asymmetry of the analyzed tree.
+	 * Note that branch points with more than 2 children are ignored during the computation.
+	 * 
+	 * @return the average partition asymmetry
+	 * @throws IllegalArgumentException if the tree contains multiple roots or loops
+	 */
+	public double getAvgPartitionAsymmetry() throws IllegalArgumentException {
+		final List<Double> asymmetries = getPartitionAsymmetry();
+		double sumAsymmetries = 0.0;
+		for (final double a : asymmetries) {
+			sumAsymmetries += a;
+		}
+		return (double) sumAsymmetries / asymmetries.size();
+	}
 
 	private double sumLength(final Collection<Path> paths) {
 		return paths.stream().mapToDouble(p -> p.getLength()).sum();
 	}
-
-
+	
 	/* IDE debug method */
 	public static void main(final String[] args) throws InterruptedException {
 		final ImageJ ij = new ImageJ();
