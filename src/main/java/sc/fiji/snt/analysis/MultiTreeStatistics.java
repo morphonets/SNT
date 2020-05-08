@@ -105,6 +105,9 @@ public class MultiTreeStatistics extends TreeStatistics {
 	
 	/** Flag specifying {@value #AVG_PARTITION_ASYMMETRY} statistics */
 	public static final String AVG_PARTITION_ASYMMETRY = "Average partition asymmetry";
+	
+	/** Flag specifying {@value #AVG_FRACTAL_DIMENSION} statistics */
+	public static final String AVG_FRACTAL_DIMENSION = "Average fractal dimension";
 
 	/** Flag for {@value #N_PATHS} statistics */
 	public static final String N_PATHS = "No. of paths";
@@ -137,6 +140,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 			AVG_FRAGMENTATION, //
 			AVG_REMOTE_ANGLE, //
 			AVG_PARTITION_ASYMMETRY, //
+			AVG_FRACTAL_DIMENSION, //
 			DEPTH, //
 			HEIGHT, //
 			HIGHEST_PATH_ORDER, //
@@ -337,6 +341,9 @@ public class MultiTreeStatistics extends TreeStatistics {
 			}
 			if (normGuess.indexOf("partition") != -1 || normGuess.indexOf("asymmetry") != -1) {
 				return AVG_PARTITION_ASYMMETRY;
+			}
+			if (normGuess.indexOf("fractal") != -1) {
+				return AVG_FRACTAL_DIMENSION;
 			}
 		}
 		return "unknown";
