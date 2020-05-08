@@ -80,6 +80,8 @@ public class TreeAnalyzerTest {
 		assertEquals("Avg remote bif angle", 41.3833, avgRemoteBifAngle, precision);
 		final double avgPartitionAsymmetry = analyzer.getAvgPartitionAsymmetry();
 		assertEquals("Avg partition asymmetry", 0.0, avgPartitionAsymmetry, precision);
+		final double avgFractalDimension = analyzer.getAvgFractalDimension();
+		assertEquals("Avg fractal dimension", 1.0146, avgFractalDimension, precision);
 
 		// Scaling tests
 		for (double scaleFactor : new double[] { .25d, 1d, 2d}) {
