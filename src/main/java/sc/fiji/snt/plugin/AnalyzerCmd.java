@@ -101,6 +101,9 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 	
 	@Parameter(label = MultiTreeStatistics.AVG_PARTITION_ASYMMETRY)
 	private boolean avgPartitionAsymmetry;
+	
+	@Parameter(label = MultiTreeStatistics.AVG_FRACTAL_DIMENSION)
+	private boolean avgFractalDimension;
 
 	@Parameter(label = MultiTreeStatistics.N_BRANCH_POINTS)
 	private boolean nBPs;
@@ -194,6 +197,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		avgFragmentation = enable;
 		avgRemoteAngle = enable;
 		avgPartitionAsymmetry = enable;
+		avgFractalDimension = enable;
 		cableLength = enable;
 		depth = enable;
 		height = enable;
@@ -221,6 +225,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		if (avgFragmentation) metrics.add(MultiTreeStatistics.AVG_FRAGMENTATION);
 		if(avgRemoteAngle) metrics.add(MultiTreeStatistics.AVG_REMOTE_ANGLE);
 		if(avgPartitionAsymmetry) metrics.add(MultiTreeStatistics.AVG_PARTITION_ASYMMETRY);
+		if(avgFractalDimension) metrics.add(MultiTreeStatistics.AVG_FRACTAL_DIMENSION);
 		if(cableLength) metrics.add(MultiTreeStatistics.LENGTH);
 		if(terminalLength) metrics.add(MultiTreeStatistics.TERMINAL_LENGTH);
 		if(primaryLength) metrics.add(MultiTreeStatistics.PRIMARY_LENGTH);
