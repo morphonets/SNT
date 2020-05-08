@@ -380,6 +380,13 @@ public class TreeAnalyzer extends ContextCommand {
 				SNTUtils.log("Error: " + ignored.getMessage());
 				return Double.NaN;
 			}
+		case MultiTreeStatistics.AVG_FRACTAL_DIMENSION:
+			try {
+				return getAvgFractalDimension();
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				return Double.NaN;
+			}
 		case MultiTreeStatistics.DEPTH:
 			return getDepth();
 		case MultiTreeStatistics.HEIGHT:

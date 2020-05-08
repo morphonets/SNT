@@ -107,6 +107,9 @@ public class TreeStatistics extends TreeAnalyzer {
 	
 	/** Flag for {@value #PARTITION_ASYMMETRY} statistics. */
 	public static final String PARTITION_ASYMMETRY = "Partition asymmetry";
+	
+	/** Flag for {@value #FRACTAL_DIMENSION} statistics. */
+	public static final String FRACTAL_DIMENSION = "Fractal dimension";
 
 	/**
 	 * Flag for analysis of {@value #VALUES}, an optional numeric property that
@@ -124,6 +127,7 @@ public class TreeStatistics extends TreeAnalyzer {
 			CONTRACTION, //
 			REMOTE_BIF_ANGLES, //
 			PARTITION_ASYMMETRY, //
+			FRACTAL_DIMENSION, //
 			INTER_NODE_DISTANCE, //
 			INTER_NODE_DISTANCE_SQUARED, //
 			MEAN_RADIUS, //
@@ -339,6 +343,9 @@ public class TreeStatistics extends TreeAnalyzer {
 		if (normGuess.indexOf("partition") != -1 && normGuess.indexOf("asymmetry") != -1) {
 			return PARTITION_ASYMMETRY;
 		}
+		if (normGuess.indexOf("fractal") != -1) {
+			return FRACTAL_DIMENSION;
+		}
 		if (normGuess.indexOf("length") != -1 || normGuess.indexOf("cable") != -1) {
 			if (normGuess.indexOf("term") != -1) {
 				return TERMINAL_LENGTH;
@@ -448,6 +455,15 @@ public class TreeStatistics extends TreeAnalyzer {
 			try {
 				for (final double asymmetry : getPartitionAsymmetry())
 					stat.addValue(asymmetry);
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				stat.addValue(Double.NaN);
+			}
+			break;
+		case FRACTAL_DIMENSION:
+			try {
+				for (final double fDim : getFractalDimension())
+					stat.addValue(fDim);
 			} catch (final IllegalArgumentException ignored) {
 				SNTUtils.log("Error: " + ignored.getMessage());
 				stat.addValue(Double.NaN);
@@ -625,7 +641,7 @@ public class TreeStatistics extends TreeAnalyzer {
 			somaCompartment = somaCompartment.getAncestor(depth - somaCompartment.getOntologyDepth());
 		hist.annotateCategory(somaCompartment.acronym(), "soma", "blue");
 		hist.show();
-		tStats.getHistogram("partition asymmetry").show();
+		tStats.getHistogram("fractal dimension").show();
 		NodeStatistics<?> nStats =new NodeStatistics<>(tStats.getTips());
 				hist = nStats.getAnnotatedHistogram(depth);
 				hist.annotate("No. of tips: " + tStats.getTips().size());
