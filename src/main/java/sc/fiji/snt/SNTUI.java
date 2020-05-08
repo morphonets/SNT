@@ -684,6 +684,7 @@ public class SNTUI extends JDialog {
 		dispose();
 		// NB: If visible Reconstruction Plotter will remain open
 		plugin.closeAndResetAllPanes();
+		ImagePlus.removeImageListener(listener);
 		SNTUtils.setPlugin(null);
 	}
 
