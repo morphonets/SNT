@@ -26,4 +26,4 @@ import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.*;
 
 // Documentation Resources: https://imagej.net/SNT:_Scripting
-// SNT API: https://javadoc.scijava.org/Fiji/index.html?sc/fiji/snt/package-summary.html
+// Latest SNT API: https://morphonets.github.io/SNT/

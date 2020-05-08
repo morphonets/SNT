@@ -16,9 +16,8 @@ info:
 """
 
 from sc.fiji.snt import (Path, PathAndFillManager, SNT, SNTUI, Tree)
-from sc.fiji.snt.analysis import (MultiTreeColorMapper, PathProfiler, RoiConverter,
-        TreeAnalyzer, TreeColorMapper, TreeStatistics)
-from sc.fiji.snt.analysis.graph import GraphUtils
+from sc.fiji.snt.analysis import *
+from sc.fiji.snt.analysis.graph import DirectedWeightedGraph
 from sc.fiji.snt.analysis.sholl import TreeParser
 from sc.fiji.snt.annotation import (AllenCompartment, AllenUtils, VFBUtils, ZBAtlasUtils)
 from sc.fiji.snt.io import (FlyCircuitLoader, MouseLightLoader, NeuroMorphoLoader)
@@ -27,4 +26,4 @@ from sc.fiji.snt.util import (BoundingBox, PointInImage, SNTColor, SWCPoint)
 from sc.fiji.snt.viewer import (Annotation3D, OBJMesh, MultiViewer2D, Viewer2D, Viewer3D)
 
 # Documentation Resources: https://imagej.net/SNT:_Scripting
-# SNT API: https://javadoc.scijava.org/Fiji/index.html?sc/fiji/snt/package-summary.html
+# Latest SNT API: https://morphonets.github.io/SNT/
