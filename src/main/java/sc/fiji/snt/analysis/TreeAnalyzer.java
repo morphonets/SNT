@@ -1105,6 +1105,68 @@ public class TreeAnalyzer extends ContextCommand {
 		}
 		return (double) sumAsymmetries / asymmetries.size();
 	}
+	
+	/**
+	 * Gets the fractal dimension of each branch in the analyzed tree.
+	 * Note that branches with less than 5 points are ignored.
+	 * 
+	 * @return a list containing the fractal dimension of each branch
+	 * @see StrahlerAnalyzer#getBranches()
+	 * @throws IllegalArgumentException if the tree contains multiple roots or loops
+	 */
+	public List<Double> getFractalDimension() throws IllegalArgumentException {
+		final List<Path> branches = getBranches();
+		final List<Double> fractalDims = new ArrayList<Double>();
+		for (final Path b : branches) {
+			// Must have at least 4 points after the start-node in a branch
+			if (b.size() < 5) {
+				continue;
+			}
+			final List<Double> pathDists = new ArrayList<Double>();
+			final List<Double> eucDists  = new ArrayList<Double>();
+			// Start at the second node in the branch
+			for (int i = 1; i < b.size(); i++) {
+				double pDist = b.getNode(i).distanceTo(b.getNode(i-1));
+				if (!pathDists.isEmpty()) {
+					double cumDist = pathDists.get(i-2) + pDist;
+					pathDists.add(cumDist);
+				}
+				else {
+					pathDists.add(pDist);
+				}
+				double eDist = b.getNode(i).distanceTo(b.getNode(0));
+				eucDists.add(eDist);
+			}
+			double numerator = 0.0;
+			for (int i = 0; i < eucDists.size(); i++) {
+				numerator += Math.log(1 + eucDists.get(i)) * Math.log(1 + pathDists.get(i));
+			}
+			double denominator = 0.0;
+			for (int i = 0; i < eucDists.size(); i++) {
+				denominator += Math.log(1 + eucDists.get(i)) * Math.log(1 + eucDists.get(i));
+			}
+			double fDim = (double) numerator / denominator;
+			fractalDims.add(fDim);	
+		}
+		return fractalDims;
+	}
+	
+	/**
+	 * Gets the average fractal dimension of the analyzed tree.
+	 * Note that branches with less than 5 points are ignored during the computation.
+	 * 
+	 * @return the average fractal dimension
+	 * @throws IllegalArgumentException if the tree contains multiple roots or loops
+	 */
+	public double getAvgFractalDimension() throws IllegalArgumentException {
+		final List<Double> fractalDims = getFractalDimension();
+		double sumDims = 0.0;
+		for (final double fDim : fractalDims) {
+			sumDims += fDim;
+		}
+		return (double) sumDims / fractalDims.size();
+		
+	}
 
 	private double sumLength(final Collection<Path> paths) {
 		return paths.stream().mapToDouble(p -> p.getLength()).sum();
