@@ -130,7 +130,7 @@ class AnalysisUtils {
 		chart.removeLegend();
 		final String desc = getSummaryDescription(stats, datasetPlus);
 		final TextTitle label = new TextTitle(desc);
-		label.setFont(label.getFont().deriveFont(Font.PLAIN));
+		label.setFont(plot.getRangeAxis().getLabelFont().deriveFont(Font.PLAIN));
 		label.setPosition(RectangleEdge.BOTTOM);
 		chart.addSubtitle(label);
 		return chart;

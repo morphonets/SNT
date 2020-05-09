@@ -26,6 +26,7 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.util.List;
 
 import javax.swing.SwingUtilities;
 
@@ -40,7 +41,9 @@ import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.Marker;
 import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.title.LegendTitle;
 import org.jfree.chart.title.TextTitle;
+import org.jfree.chart.title.Title;
 import org.jfree.chart.ui.Layer;
 import org.jfree.chart.ui.RectangleAnchor;
 import org.jfree.chart.ui.RectangleEdge;
@@ -156,11 +159,25 @@ public class SNTChart extends ChartFrame {
 			}
 		}
 	}
+
+	/**
+	 * Sets the font size to all components of this chart.
+	 *
+	 * @param size  the new font size
+	 */
 	public void setFontSize(final float size) {
 		setFontSize(size, "axis");
 		setFontSize(size, "labels");
+		setFontSize(size, "legend");
 	}
 
+	/**
+	 * Sets the font size for this chart.
+	 *
+	 * @param size  the new font size
+	 * @param scope which components should be modified. Either "axes", "legends",
+	 *              or "labels".
+	 */
 	public void setFontSize(final float size, final String scope) {
 		switch(scope.toLowerCase()) {
 		case "axis":
@@ -179,7 +196,25 @@ public class SNTChart extends ChartFrame {
 				getCategoryPlot().getRangeAxis().setTickLabelFont(font);
 			}
 			break;
-		default:
+		case "legend":
+		case "legends":
+		case "subtitle":
+		case "subtitles":
+			LegendTitle legend = getChartPanel().getChart().getLegend();
+			if (legend != null)
+				legend.setItemFont(legend.getItemFont().deriveFont(size));
+			for (int i = 0; i < getChartPanel().getChart().getSubtitleCount(); i++) {
+				final Title title = getChartPanel().getChart().getSubtitle(i);
+				if (title instanceof TextTitle) {
+					final TextTitle tt = (TextTitle) title;
+					tt.setFont(tt.getFont().deriveFont(size));
+				} else if (title instanceof LegendTitle) {
+					final LegendTitle lt = (LegendTitle) title;
+					lt.setItemFont(lt.getItemFont().deriveFont(size));
+				}
+			}
+			break;
+		default: // labels
 			if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
 				Font font = getXYPlot().getDomainAxis().getLabelFont().deriveFont(size);
 				getXYPlot().getDomainAxis().setLabelFont(font);
