@@ -84,5 +84,6 @@ def run():
     tree.setColor("yellow")
     snt.loadTree(tree)
     snt.getRecViewer().show()
+    snt.updateViewers()
 
 run()
