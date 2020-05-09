@@ -162,7 +162,7 @@ public class PersistenceAnalyzer {
 	 * @throws IllegalArgumentException If the {@code tree}'s graph could not be
 	 *                                  obtained
 	 */
-	public ArrayList<ArrayList<Double>> getPersistenceDiagram(final String descriptor) throws UnknownMetricException, IllegalArgumentException {
+	public ArrayList<ArrayList<Double>> getDiagram(final String descriptor) throws UnknownMetricException, IllegalArgumentException {
 		if (persistenceDiagramMap.get(descriptor) == null || persistenceDiagramMap.get(descriptor).isEmpty()) {
 			compute(descriptor);
 		}
@@ -177,22 +177,22 @@ public class PersistenceAnalyzer {
 	}
 
 	/**
-	 * Gets the 'bar codes' for the specified filter function.
+	 * Gets the 'barcode' for the specified filter function.
 	 *
 	 * @param descriptor A descriptor for the filter function as per
 	 *                   {@link #getDescriptors()} (case insensitive), such as
 	 *                   {@code radial}, {@code geodesic}, {@code centrifugal}
 	 *                   (reverse Strahler), etc.
-	 * @return the bar codes
+	 * @return the barcode
 	 * @throws UnknownMetricException   If {@code descriptor} is not valid
 	 * @throws IllegalArgumentException If the {@code tree}'s graph could not be
 	 *                                  obtained
 	 */
-	public ArrayList<Double> getBarCodes(final String descriptor) throws UnknownMetricException, IllegalArgumentException {
-		final ArrayList<ArrayList<Double>> diag = getPersistenceDiagram(descriptor);
+	public ArrayList<Double> getBarcode(final String descriptor) throws UnknownMetricException, IllegalArgumentException {
+		final ArrayList<ArrayList<Double>> diag = getDiagram(descriptor);
 		final ArrayList<Double> barcodes = new ArrayList<>(diag.size());
 		diag.forEach(point -> {
-			barcodes.add(point.get(1) - point.get(0));
+			barcodes.add(Math.abs(point.get(1) - point.get(0)));
 		});
 		return barcodes;
 	}
@@ -209,7 +209,7 @@ public class PersistenceAnalyzer {
 	 * @throws IllegalArgumentException If the {@code tree}'s graph could not be
 	 *                                  obtained
 	 */
-	public ArrayList<ArrayList<SWCPoint>> getPersistenceDiagramNodes(final String descriptor) {
+	public ArrayList<ArrayList<SWCPoint>> getDiagramNodes(final String descriptor) {
 		if (persistenceNodesMap.get(descriptor) == null || persistenceNodesMap.get(descriptor).isEmpty())
 			compute(descriptor);
 		final ArrayList<ArrayList<SWCPoint>> nodeDiagram = persistenceNodesMap.get(descriptor);
@@ -230,7 +230,7 @@ public class PersistenceAnalyzer {
      * @param numLandscapes the number of piecewise-linear functions to output.
      * @param resolution the number of samples for all piecewise-linear functions.
 	 */
-	public double[] getPersistenceLandscape(final String descriptor, final int numLandscapes, final int resolution) {
+	public double[] getLandscape(final String descriptor, final int numLandscapes, final int resolution) {
 		if (persistenceDiagramMap.get(descriptor) == null || persistenceDiagramMap.get(descriptor).isEmpty()) {
 			compute(descriptor);
 		}
@@ -403,12 +403,12 @@ public class PersistenceAnalyzer {
 		final SNTService sntService = ij.context().getService(SNTService.class);
 		final Tree tree = sntService.demoTree();
 		final PersistenceAnalyzer analyzer = new PersistenceAnalyzer(tree);
-		final ArrayList<ArrayList<Double>> diagram = analyzer.getPersistenceDiagram("radial");
+		final ArrayList<ArrayList<Double>> diagram = analyzer.getDiagram("radial");
 		for (final ArrayList<Double> point : diagram) {
 			System.out.println(point);
 		}
 		System.out.println(diagram.size());
-		double[] landscape = analyzer.getPersistenceLandscape("radial", 5, 100);
+		double[] landscape = analyzer.getLandscape("radial", 5, 100);
 		System.out.println(landscape.length);
 		
 	}
