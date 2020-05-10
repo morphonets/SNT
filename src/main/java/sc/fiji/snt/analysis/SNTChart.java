@@ -26,6 +26,7 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.util.Collection;
 import java.util.List;
 
 import javax.swing.SwingUtilities;
@@ -33,8 +34,12 @@ import javax.swing.SwingUtilities;
 import org.jfree.chart.ChartFrame;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
+import org.jfree.chart.annotations.CategoryAnnotation;
 import org.jfree.chart.annotations.CategoryTextAnnotation;
+import org.jfree.chart.annotations.TextAnnotation;
+import org.jfree.chart.annotations.XYAnnotation;
 import org.jfree.chart.annotations.XYPointerAnnotation;
+import org.jfree.chart.annotations.XYTextAnnotation;
 import org.jfree.chart.axis.CategoryAnchor;
 import org.jfree.chart.plot.CategoryMarker;
 import org.jfree.chart.plot.CategoryPlot;
@@ -52,7 +57,9 @@ import org.jfree.data.Range;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.ColorRGB;
 
+import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Extension of {@link ChartFrame} with convenience methods for plot annotations.
@@ -68,7 +75,7 @@ public class SNTChart extends ChartFrame {
 		this(title, chart, new Dimension(400, 400));
 	}
 
-	public SNTChart(String title, JFreeChart chart, Dimension preferredSize) {
+	protected SNTChart(final String title, final JFreeChart chart, final Dimension preferredSize) {
 		super(title, chart);
 		chart.setBackgroundPaint(BACKGROUND_COLOR);
 		chart.setAntiAlias(true);
@@ -97,10 +104,23 @@ public class SNTChart extends ChartFrame {
 		return getChartPanel().getChart().getCategoryPlot();
 	}
 
+	/**
+	 * Annotates the specified X-value (XY plots and histograms).
+	 *
+	 * @param xValue the X value to be annotated.
+	 * @param label the annotation label
+	 */
 	public void annotateXline(final double xValue, final String label) {
 		annotateXline(xValue, label, null);
 	}
 
+	/**
+	 * Annotates the specified X-value (XY plots and histograms).
+	 *
+	 * @param xValue the X value to be annotated.
+	 * @param label the annotation label
+	 * @param color the font color
+	 */
 	public void annotateXline(final double xValue, final String label, final String color) {
 		final Marker marker = new ValueMarker(xValue);
 		final Color c = getColorFromString(color);
@@ -116,10 +136,23 @@ public class SNTChart extends ChartFrame {
 		getXYPlot().addDomainMarker(marker);
 	}
 
+	/**
+	 * Annotates the specified Y-value (XY plots and histograms).
+	 *
+	 * @param yValue the Y value to be annotated.
+	 * @param label the annotation label
+	 */
 	public void annotateYline(final double yValue, final String label) {
 		annotateYline(yValue, label, null);
 	}
 
+	/**
+	 * Annotates the specified Y-value (XY plots and histograms).
+	 *
+	 * @param yValue the Y value to be annotated.
+	 * @param label the annotation label
+	 * @param color the font color
+	 */
 	public void annotateYline(final double yValue, final String label, final String color) {
 		final Color c = getColorFromString(color);
 		final Marker marker = new ValueMarker(yValue);
@@ -135,10 +168,25 @@ public class SNTChart extends ChartFrame {
 		getXYPlot().addRangeMarker(marker);
 	}
 
+	/**
+	 * Annotates the specified category (Category plots only)
+	 *
+	 * @param category the category to be annotated. Ignored if it does not exits in
+	 *                 category axis.
+	 * @param label    the annotation label
+	 */
 	public void annotateCategory(final String category, final String label) {
-		annotateCategory(category, label, null);
+		annotateCategory(category, label, "blue");
 	}
 
+	/**
+	 * Annotates the specified category (Category plots only).
+	 *
+	 * @param category the category to be annotated. Ignored if it does not exits in
+	 *                 category axis.
+	 * @param label    the annotation label
+	 * @param color    the annotation color
+	 */
 	public void annotateCategory(final String category, final String label, final String color) {
 		final CategoryPlot catPlot = getCategoryPlot();
 		final Color c = getColorFromString(color);
@@ -176,7 +224,7 @@ public class SNTChart extends ChartFrame {
 	 *
 	 * @param size  the new font size
 	 * @param scope which components should be modified. Either "axes", "legends",
-	 *              or "labels".
+	 *              or "labels" (singular/plural allowed)
 	 */
 	public void setFontSize(final float size, final String scope) {
 		switch(scope.toLowerCase()) {
@@ -200,7 +248,7 @@ public class SNTChart extends ChartFrame {
 		case "legends":
 		case "subtitle":
 		case "subtitles":
-			LegendTitle legend = getChartPanel().getChart().getLegend();
+			final LegendTitle legend = getChartPanel().getChart().getLegend();
 			if (legend != null)
 				legend.setItemFont(legend.getItemFont().deriveFont(size));
 			for (int i = 0; i < getChartPanel().getChart().getSubtitleCount(); i++) {
@@ -214,20 +262,56 @@ public class SNTChart extends ChartFrame {
 				}
 			}
 			break;
-		default: // labels
+		default: // labels  annotations
 			if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
 				Font font = getXYPlot().getDomainAxis().getLabelFont().deriveFont(size);
 				getXYPlot().getDomainAxis().setLabelFont(font);
 				font = getXYPlot().getRangeAxis().getLabelFont().deriveFont(size);
 				getXYPlot().getRangeAxis().setLabelFont(font);
+				final List<?> annotations = getXYPlot().getAnnotations();
+				if (annotations != null) {
+					for (int i = 0; i < getXYPlot().getAnnotations().size(); i++) {
+						final XYAnnotation annotation = (XYAnnotation) getXYPlot().getAnnotations().get(i);
+						if (annotation instanceof XYTextAnnotation) {
+							((XYTextAnnotation) annotation)
+									.setFont(((XYTextAnnotation) annotation).getFont().deriveFont(size));
+						}
+					}
+				}
+				adjustMarkersFont(getXYPlot().getDomainMarkers(Layer.FOREGROUND), size);
+				adjustMarkersFont(getXYPlot().getDomainMarkers(Layer.BACKGROUND), size);
+				adjustMarkersFont(getXYPlot().getRangeMarkers(Layer.FOREGROUND), size);
+				adjustMarkersFont(getXYPlot().getRangeMarkers(Layer.BACKGROUND), size);
 			}
 			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
 				Font font = getCategoryPlot().getDomainAxis().getLabelFont().deriveFont(size);
 				getCategoryPlot().getDomainAxis().setLabelFont(font);
 				font = getCategoryPlot().getRangeAxis().getLabelFont().deriveFont(size);
 				getCategoryPlot().getRangeAxis().setLabelFont(font);
+				final List<?> annotations = getCategoryPlot().getAnnotations();
+				if (annotations != null) {
+					for (int i = 0; i < annotations.size(); i++) {
+						final CategoryAnnotation annotation = (CategoryAnnotation) annotations.get(i);
+						if (annotation instanceof TextAnnotation) {
+							((TextAnnotation) annotation)
+									.setFont(((TextAnnotation) annotation).getFont().deriveFont(size));
+						}
+					}
+				}
+				adjustMarkersFont(getCategoryPlot().getDomainMarkers(Layer.FOREGROUND), size);
+				adjustMarkersFont(getCategoryPlot().getDomainMarkers(Layer.BACKGROUND), size);
+				adjustMarkersFont(getCategoryPlot().getRangeMarkers(Layer.FOREGROUND), size);
+				adjustMarkersFont(getCategoryPlot().getRangeMarkers(Layer.BACKGROUND), size);
 			}
 			break;
+		}
+	}
+
+	private void adjustMarkersFont(final Collection<?> markers, final float size) {
+		if (markers != null) {
+			markers.forEach(marker -> {
+				((Marker) marker).setLabelFont(((Marker) marker).getLabelFont().deriveFont(size));
+			});
 		}
 	}
 
@@ -237,6 +321,11 @@ public class SNTChart extends ChartFrame {
 		return (c==null) ? Color.BLACK : new Color(c.getRed(), c.getGreen(), c.getBlue());
 	}
 
+	/**
+	 * Adds a subtitle to the chart.
+	 *
+	 * @param label the subtitle text
+	 */
 	public void annotate(final String label) {
 		final TextTitle tLabel = new TextTitle(label);
 		tLabel.setFont(tLabel.getFont().deriveFont(Font.PLAIN));
@@ -244,10 +333,27 @@ public class SNTChart extends ChartFrame {
 		getChartPanel().getChart().addSubtitle(tLabel);
 	}
 
+	/**
+	 * Highlights a point in a histogram/XY plot by drawing a labeled arrow at the
+	 * specified location.
+	 * 
+	 * @param x     the x-coordinate
+	 * @param y     the y-coordinate
+	 * @param label the annotation label
+	 */
 	public void annotatePoint(final double x, final double y, final String label) {
 		annotatePoint(x,y,label, null);
 	}
 
+	/**
+	 * Highlights a point in a histogram/XY plot by drawing a labeled arrow at the
+	 * specified location.
+	 *
+	 * @param x     the x-coordinate
+	 * @param y     the y-coordinate
+	 * @param label the annotation label
+	 * @param color the annotation color
+	 */
 	public void annotatePoint(final double x, final double y, final String label, final String color) {
 		final XYPointerAnnotation annot = new XYPointerAnnotation(label, x, y, -Math.PI / 2.0);
 		final Font font = getXYPlot().getDomainAxis().getTickLabelFont();
@@ -268,12 +374,15 @@ public class SNTChart extends ChartFrame {
 
 	/* IDE debug method */
 	public static void main(final String[] args) {
-		final Tree tree = new Tree("/home/tferr/code/test-files/AA0100.swc");
+		GuiUtils.setSystemLookAndFeel();
+		final Tree tree = new SNTService().demoTrees().get(0);
 		final TreeStatistics treeStats = new TreeStatistics(tree);
 		final SNTChart chart = treeStats.getHistogram("contraction");
-		chart.annotatePoint(0.5, 0.15, "No data here", "green");
-		chart.annotateXline(0.275, "Start of slope", "blue");
-		chart.annotateYline(0.050, "5% mark", "red");
+		chart.annotatePoint(0.75, 0.15, "No data here", "green");
+		chart.annotateXline(0.80, "Start of slope", "blue");
+		chart.annotateYline(0.05, "5% mark", "red");
+		chart.annotate("Annotation");
+		chart.setFontSize(18);
 		chart.show();
 	}
 
