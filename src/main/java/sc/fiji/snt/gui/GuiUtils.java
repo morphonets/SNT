@@ -768,20 +768,30 @@ public class GuiUtils {
 		return new TextFieldWithPlaceholder(placeholder);
 	}
 
-	private class TextFieldWithPlaceholder extends JTextField {
-
-		private final String placeholder;
-
-		private TextFieldWithPlaceholder(final String placeholder) {
-			this.placeholder = placeholder;
-		}
+	static class TextFieldWithPlaceholder extends JTextField {
 
 		private static final long serialVersionUID = 1L;
+		private String initialPlaceholder;
+		private String placeholder;
+
+		TextFieldWithPlaceholder(final String placeholder) {
+			changePlaceholder(placeholder, true);
+			setBorder(null);
+		}
+
+		void changePlaceholder(final String placeholder, final boolean overrideInitialPlaceholder) {
+			this.placeholder = placeholder;
+			if (overrideInitialPlaceholder) initialPlaceholder = placeholder;
+			update(getGraphics());
+		}
+
+		void resetPlaceholder() {
+			changePlaceholder(initialPlaceholder, false);
+		}
 
 		@Override
 		protected void paintComponent(final java.awt.Graphics g) {
 			super.paintComponent(g);
-
 			if (getText().isEmpty() && !(FocusManager.getCurrentKeyboardFocusManager().getFocusOwner() == this)) {
 				final Graphics2D g2 = (Graphics2D) g.create();
 				g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,

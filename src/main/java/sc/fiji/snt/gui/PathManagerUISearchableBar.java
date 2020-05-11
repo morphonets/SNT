@@ -23,6 +23,8 @@
 package sc.fiji.snt.gui;
 
 import java.awt.Color;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -74,7 +76,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	 * @param pmui the PathManagerUI instance
 	 */
 	public PathManagerUISearchableBar(final PathManagerUI pmui) {
-		super(pmui.getSearchable());
+		super(pmui.getSearchable(), "Text filtering:");
 		this.pmui = pmui;
 		guiUtils = new GuiUtils(pmui);
 		setGuiUtils(guiUtils);
@@ -478,7 +480,21 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		button.setToolTipText("Restrict filtering to selected Paths");
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
-		button.addActionListener(e -> subFilteringEnabled = button.isSelected());
+		button.addActionListener(e -> {
+			if (pmui.getJTree().isSelectionEmpty()) {
+				guiUtils.error("There are no selected Paths.");
+				button.setSelected(false);
+			} else {
+				subFilteringEnabled = button.isSelected();
+			}
+		});
+		// There is a logic for when the "Highlights All" button is enabled. Apply it here too:
+		_highlightsButton.addPropertyChangeListener("enabled", new PropertyChangeListener() {
+			@Override
+			public void propertyChange(final PropertyChangeEvent evt) {
+				button.setEnabled(_highlightsButton.isEnabled());
+			}
+		});
 		return button;
 	}
 

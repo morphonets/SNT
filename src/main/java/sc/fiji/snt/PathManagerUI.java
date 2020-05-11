@@ -1099,7 +1099,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			setScrollsOnExpand(true);
 			setRowHeight(getPreferredRowSize());
 			searchable = new TreeSearchable(this);
-			searchable.setWildcardEnabled(true);
 		}
 
 		public boolean isExpanded(final Object[] path) {

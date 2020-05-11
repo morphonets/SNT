@@ -22,12 +22,6 @@
 
 package sc.fiji.snt.gui;
 
-import com.jidesoft.swing.Searchable;
-import com.jidesoft.swing.SearchableBar;
-import com.jidesoft.swing.WholeWordsSupport;
-import com.jidesoft.swing.event.SearchableEvent;
-import com.jidesoft.swing.event.SearchableListener;
-
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -51,8 +45,16 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JToggleButton;
 import javax.swing.UIManager;
+import javax.swing.plaf.basic.BasicComboBoxEditor;
+
+import com.jidesoft.swing.Searchable;
+import com.jidesoft.swing.SearchableBar;
+import com.jidesoft.swing.WholeWordsSupport;
+import com.jidesoft.swing.event.SearchableEvent;
+import com.jidesoft.swing.event.SearchableListener;
 
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils.TextFieldWithPlaceholder;
 
 /**
  * Implements a SearchableBar following SNT's UI.
@@ -80,9 +82,14 @@ public class SNTSearchableBar extends SearchableBar {
 	}
 
 	public SNTSearchableBar(final Searchable searchable) {
-		super(searchable, true);
-		init();
+		this(searchable, "Find:");
+	}
+
+	public SNTSearchableBar(final Searchable searchable, final String placeholder) {
+		super(searchable, true); // will create _comboBox
+		init(placeholder);
 		searchable.setCaseSensitive(false);
+		searchable.setWildcardEnabled(false);
 		searchable.setFromStart(false);
 		searchable.setRepeats(true);
 		setShowMatchCount(false); // for performance reasons
@@ -92,10 +99,10 @@ public class SNTSearchableBar extends SearchableBar {
 		setMaxHistoryLength(10);
 		setHighlightAll(false); // TODO: update to 3.6.19 see bugfix
 		// https://github.com/jidesoft/jide-oss/commit/149bd6a53846a973dfbb589fffcc82abbc49610b
+		updatPlaceholderText();
 	}
 
-	private void init() {
-		createComboBox();
+	private void init(final String placeholder) {
 		_leadingLabel = new JLabel();
 		if (getMaxHistoryLength() == 0) {
 			_leadingLabel.setLabelFor(_textField);
@@ -107,7 +114,39 @@ public class SNTSearchableBar extends SearchableBar {
 			_comboBox.setVisible(true);
 			_textField.setVisible(false);
 		}
+		// _comboBox has been initialized by the parent constructor. Now adjust its placeholder text
+		final TextFieldWithPlaceholder editorField = ((GuiUtils.TextFieldWithPlaceholder)_comboBox.getEditor().getEditorComponent());
+		editorField.changePlaceholder(placeholder, true);
 		setStatusLabelPlaceholder(SNTUtils.getReadableVersion());
+	}
+
+	@SuppressWarnings("rawtypes")
+	@Override
+	protected JComboBox createComboBox() {
+		final JComboBox comboBox = super.createComboBox();
+		comboBox.setEditor(new BoxEditorWithPrompt("Find:"));
+		return comboBox;
+	}
+
+	private class BoxEditorWithPrompt extends BasicComboBoxEditor {
+		BoxEditorWithPrompt(String prompt) {
+			super();
+			final int cols = editor.getColumns();
+			editor = new GuiUtils.TextFieldWithPlaceholder(prompt);
+			editor.setColumns(cols);
+		}
+	}
+
+	private void updatPlaceholderText() {
+		final TextFieldWithPlaceholder editorField = ((GuiUtils.TextFieldWithPlaceholder)_comboBox.getEditor().getEditorComponent());
+		if (getSearchable().isWildcardEnabled() && getSearchable().isCaseSensitive())
+			editorField.changePlaceholder("Active filters: [Aa]  [.?*]", false);
+		else if (getSearchable().isWildcardEnabled())
+			editorField.changePlaceholder("Active filter: [.?*]", false);
+		else if (getSearchable().isCaseSensitive())
+			editorField.changePlaceholder("Active filter: [Aa]", false);
+		else
+			editorField.resetPlaceholder();
 	}
 
 	public void setStatusLabelPlaceholder(final String placeholder) {
@@ -185,6 +224,7 @@ public class SNTSearchableBar extends SearchableBar {
 		final JMenuItem jcbmi1 = new JCheckBoxMenuItem("Case Sensitive Matching", getSearchable().isCaseSensitive());
 		jcbmi1.addItemListener(e -> {
 			getSearchable().setCaseSensitive(jcbmi1.isSelected());
+			updatPlaceholderText();
 			updateSearch();
 		});
 		popup.add(jcbmi1);
@@ -199,6 +239,7 @@ public class SNTSearchableBar extends SearchableBar {
 		jcbmi2.setToolTipText("<HTML><b>?</b> (any character) and <b>*</b> (any string) supported");
 		jcbmi2.addItemListener(e -> {
 			getSearchable().setWildcardEnabled(jcbmi2.isSelected());
+			updatPlaceholderText();
 			updateSearch();
 		});
 		popup.add(jcbmi2);

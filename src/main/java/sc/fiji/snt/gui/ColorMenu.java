@@ -232,10 +232,8 @@ public class ColorMenu extends JMenu {
 			}
 			else {
 				setBackground(swcColor.color());
-				final String msg = (!swcColor.isTypeDefined()) ? "RGB: " + swcColor
-					.color().getRed() + ", " + swcColor.color().getGreen() + ", " +
-					swcColor.color().getBlue() : Path.getSWCtypeName(swcColor.type(),
-						true);
+				final String msg = (!swcColor.isTypeDefined()) ? ij.plugin.Colors.colorToString2(swcColor.color())
+						: Path.getSWCtypeName(swcColor.type(), true);
 				setToolTipText(msg);
 			}
 		}
