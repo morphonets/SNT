@@ -22,7 +22,9 @@
 
 package sc.fiji.snt.gui;
 
+import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
+import com.jidesoft.utils.ProductNames;
 
 import ij.gui.HTMLDialog;
 
@@ -928,14 +930,15 @@ public class GuiUtils {
 	}
 
 	public static void setSystemLookAndFeel() {
-		if (PlatformUtils.isMac()) return;
 		try {
-			// With Ubuntu and java 1.9.0 we need to ensure we're using
+			// With Ubuntu and java 8 we need to ensure we're using
 			// GTK+ L&F otherwise no scaling occurs with hiDPI screens
 			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+			LookAndFeelFactory.installDefaultLookAndFeelAndExtension();
+			LookAndFeelFactory.setProductsUsed(ProductNames.PRODUCT_COMMON);
 		//	checkGTKLookAndFeel();
 		}
-		catch (final Exception ignored) {
+		catch (final Error | Exception ignored) {
 			// move on
 		}
 	}
