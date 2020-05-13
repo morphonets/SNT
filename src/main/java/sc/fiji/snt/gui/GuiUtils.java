@@ -121,6 +121,7 @@ public class GuiUtils {
 
 	final private Component parent;
 	private JidePopup popup;
+	private boolean popupExceptionTriggered;
 	private int timeOut = 2500;
 	private Color background = Color.WHITE;
 	private Color foreground = Color.BLACK;
@@ -153,18 +154,30 @@ public class GuiUtils {
 	}
 
 	public void tempMsg(final String msg) {
-		SwingUtilities.invokeLater(() -> {
-			if (popup != null && popup.isVisible()) popup.hidePopupImmediately();
-			popup = getPopup(msg);
-			popup.showPopup();
-		});
+		tempMsg(msg, -1);
 	}
 
 	public void tempMsg(final String msg, final int location) {
 		SwingUtilities.invokeLater(() -> {
-			if (popup != null && popup.isVisible()) popup.hidePopupImmediately();
-			popup = getPopup(msg);
-			popup.showPopup(location);
+			try {
+				if (popup != null && popup.isVisible())
+					popup.hidePopupImmediately();
+				popup = getPopup(msg);
+				if (location < 0) {
+					popup.showPopup();
+				} else {
+					popup.showPopup(location);
+				}
+				popup.showPopup();
+			} catch (final Error ignored) {
+				if (!popupExceptionTriggered) {
+					errorPrompt("<HTML><body><div style='width:500;'>Notification mechanism "
+							+ "failed when notifying of:<br>\"<i>"+ msg +"</i>\".<br>"
+							+ "All future notifications will be displayed in Console.");
+					popupExceptionTriggered = true;
+				}
+				System.out.println("[INFO] [SNT] " + msg);
+			}
 		});
 	}
 
