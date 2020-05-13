@@ -137,7 +137,7 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 
 	private void annotateSoma(final SNTChart hist, final BrainAnnotation sAnnotation, final String sLabel) {
 		if (sAnnotation != null)
-			hist.annotateCategory(sAnnotation.acronym(), sLabel, "blue");
+			hist.annotateCategory(sAnnotation.acronym(), sLabel);
 	}
 
 	public static void main(final String[] args) {

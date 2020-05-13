@@ -1496,7 +1496,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 						if (startsxString == null) {
 							// The index (older file format) was supplied:
-							startsIndexInteger = new Integer(startsindexString);
+							startsIndexInteger = Integer.valueOf(startsindexString);
 						} else {
 							startJoinPoint = new PointInImage(Double.parseDouble(startsxString),
 									Double.parseDouble(startsyString), Double.parseDouble(

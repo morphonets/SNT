@@ -11,7 +11,6 @@ info:       A Jython demo of how SNT can analyze neuronal reconstructions fetche
             Analysis_Demo_(Interactive).py 
 """
 
-import math
 from collections import defaultdict
 
 from sc.fiji.snt import Tree

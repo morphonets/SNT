@@ -241,6 +241,8 @@ public class FillerThread extends SearchThread {
 				case ImagePlus.GRAY32:
 					new_slice_data_f[z] = new float[width * height];
 					break;
+				default:
+					throw new IllegalArgumentException("Unsupported image type");
 			}
 		}
 

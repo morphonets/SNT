@@ -136,9 +136,9 @@ public class ShollAnalyzer {
 	/**
 	 * Sets whether curve fitting computations should be performed.
 	 *
-	 * @param enable, if {@code true} polynomial and linear regression on normalized
-	 *                Sholl data will be performed. Enabling this option may
-	 *                adversely affect performance.
+	 * @param enable if {@code true} polynomial and linear regression on normalized
+	 *               Sholl data will be performed. Enabling this option may
+	 *               adversely affect performance.
 	 */
 	public void setEnableCurveFitting(final boolean enable) {
 		includeFitting = enable;

@@ -131,7 +131,7 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 
 				final Class<?> c = loader.loadClass(
 					"FijiITKInterface.TubularGeodesics");
-				final Object newInstance = c.newInstance();
+				final Object newInstance = c.getDeclaredConstructor().newInstance();
 
 				final Class<?>[] parameterTypes = {};
 
@@ -214,7 +214,7 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 			// Call the JNI here:
 
 			final ClassLoader loader = IJ.getClassLoader();
-			if (loader == null) throw new RuntimeException(
+			if (loader == null) throw new NullPointerException(
 				"IJ.getClassLoader() failed (!)");
 
 			try {
@@ -226,7 +226,7 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 
 				final Class<?> c = loader.loadClass(
 					"FijiITKInterface.TubularGeodesics");
-				final Object newInstance = c.newInstance();
+				final Object newInstance = c.getDeclaredConstructor().newInstance();
 
 				final Class<?>[] parameterTypes = { String.class, float[].class,
 					float[].class, PathResult.class, TubularGeodesicsTracer.class };

@@ -40,6 +40,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.AnalysisUtils.HistogramDatasetPlus;
+import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.PointInImage;
@@ -231,10 +232,25 @@ public class NodeStatistics <T extends PointInImage> {
 		return list;
 	}
 
+	/**
+	 * Splits the nodes being analyzed into groups sharing the same brain
+	 * annotation.
+	 *
+	 * @return the map containing the brain annotations as keys, and list of nodes
+	 *         as values.
+	 */
 	public Map<BrainAnnotation, List<T>> getAnnotatedNodes() {
 		return getAnnotatedNodes(Integer.MAX_VALUE);
 	}
 
+	/**
+	 * Splits the nodes being analyzed into groups sharing the same brain
+	 * annotation.
+	 *
+	 * @param level the ontological depth of the compartments to be considered
+	 * @return the map containing the brain annotations as keys, and list of nodes
+	 *         as values.
+	 */
 	public Map<BrainAnnotation, List<T>> getAnnotatedNodes(final int level) {
 		final HashMap<BrainAnnotation, List<T>> map  = new HashMap<>();
 		for (final T p : points) {
@@ -259,10 +275,24 @@ public class NodeStatistics <T extends PointInImage> {
 		return map;
 	}
 
+	/**
+	 * Retrieves the count frequencies across brain compartment.
+	 *
+	 * @return the map containing the brain compartments as keys, and count
+	 *         frequencies as values.
+	 */
 	public Map<BrainAnnotation, Integer> getAnnotatedFrequencies() {
 		return getAnnotatedFrequencies(Integer.MAX_VALUE);
 	}
 
+	/**
+	 * Retrieves the count frequencies across brain compartment.
+	 *
+	 * @param level the ontological depth of the compartments to be considered
+	 * @return the map containing the brain compartments as keys, and count
+	 *         frequencies as values.
+	 * @see AllenCompartment#getOntologyDepth()
+	 */
 	public Map<BrainAnnotation, Integer> getAnnotatedFrequencies(final int level) {
 		final HashMap<BrainAnnotation, Integer> map  = new HashMap<>();
 		points.forEach(p -> {
@@ -283,10 +313,23 @@ public class NodeStatistics <T extends PointInImage> {
 		return map;
 	}
 
+	/**
+	 * Retrieves the histogram of count frequencies across brain areas.
+	 *
+	 * @return the annotated frequencies histogram
+	 */
 	public SNTChart getAnnotatedHistogram() {
 		return getAnnotatedHistogram(Integer.MAX_VALUE);
 	}
 
+	/**
+	 * Retrieves the histogram of count frequencies across brain areas of the
+	 * specified ontology level.
+	 *
+	 * @param depth the ontological depth of the compartments to be considered
+	 * @return the annotated frequencies histogram
+	 * @see AllenCompartment#getOntologyDepth()
+	 */
 	public SNTChart getAnnotatedHistogram(final int depth) {
 		final Map<BrainAnnotation, Integer> map = getAnnotatedFrequencies(depth);
 		final DefaultCategoryDataset dataset = new DefaultCategoryDataset();

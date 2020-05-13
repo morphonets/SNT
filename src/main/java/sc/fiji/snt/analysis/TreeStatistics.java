@@ -217,6 +217,15 @@ public class TreeStatistics extends TreeAnalyzer {
 		return lastDstats.dStats;
 	}
 
+	/**
+	 * Retrieves the amount of cable length present on each brain compartment
+	 * innervated by the analyzed neuron.
+	 *
+	 * @param level the ontological depth of the compartments to be considered
+	 * @return the map containing the brain compartments as keys, and cable lengths
+	 *         as values.
+	 * @see AllenCompartment#getOntologyDepth()
+	 */
 	public Map<BrainAnnotation, Double> getAnnotatedLength(int level) {
 		final HashMap<BrainAnnotation, Double> map = new HashMap<>();
 		// 1. Retrieve lengths for all annotations. Set has no null annotations
@@ -262,10 +271,23 @@ public class TreeStatistics extends TreeAnalyzer {
 		return map;
 	}
 
+	/**
+	 * Retrieves the of cable length frequencies across brain areas.
+	 *
+	 * @return the histogram of cable length frequencies.
+	 */
 	public SNTChart getAnnotatedLengthHistogram() {
 		return getAnnotatedLengthHistogram(Integer.MAX_VALUE);
 	}
 
+	/**
+	 * Retrieves the histogram of cable length frequencies across brain areas of the
+	 * specified ontology level.
+	 *
+	 * @param depth the ontological depth of the compartments to be considered
+	 * @return the annotated length histogram
+	 * @see AllenCompartment#getOntologyDepth()
+	 */
 	public SNTChart getAnnotatedLengthHistogram(final int depth) {
 		final Map<BrainAnnotation, Double> map = getAnnotatedLength(depth);
 		final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
@@ -289,11 +311,11 @@ public class TreeStatistics extends TreeAnalyzer {
 	}
 
 	/**
-	 * Gets the relative frequencies histogram for a univariate measurement. The
-	 * number of bins is determined using the Freedman-Diaconis rule.
+	 * Retrieves the histogram of relative frequencies histogram for a univariate
+	 * measurement. The number of bins is determined using the Freedman-Diaconis
+	 * rule.
 	 *
-	 * @param metric the measurement ({@link #N_NODES}, {@link #NODE_RADIUS},
-	 *          etc.)
+	 * @param metric the measurement ({@link #N_NODES}, {@link #NODE_RADIUS}, etc.)
 	 * @return the frame holding the histogram
 	 */
 	public SNTChart getHistogram(final String metric) {
@@ -639,7 +661,7 @@ public class TreeStatistics extends TreeAnalyzer {
 		AllenCompartment somaCompartment = loader.getSomaCompartment();
 		if (somaCompartment.getOntologyDepth() > depth)
 			somaCompartment = somaCompartment.getAncestor(depth - somaCompartment.getOntologyDepth());
-		hist.annotateCategory(somaCompartment.acronym(), "soma", "blue");
+		hist.annotateCategory(somaCompartment.acronym(), "soma");
 		hist.show();
 		tStats.getHistogram("fractal dimension").show();
 		NodeStatistics<?> nStats =new NodeStatistics<>(tStats.getTips());

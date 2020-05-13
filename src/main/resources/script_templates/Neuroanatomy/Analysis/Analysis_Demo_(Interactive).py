@@ -11,8 +11,6 @@ info:       Exemplifies how to programmatically interact with a running instance
             directly (see Analysis_Demo.py for comparison)
 """
 
-import math
-
 from sc.fiji.snt import (SNTUI, Tree)
 from sc.fiji.snt.analysis import (TreeAnalyzer, TreeStatistics)
 

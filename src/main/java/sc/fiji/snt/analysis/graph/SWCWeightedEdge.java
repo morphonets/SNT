@@ -29,7 +29,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.util.SWCPoint;
 
 /**
- * An extremely simple implementation of a weighted edge for Tree<>Directed
+ * An extremely simple implementation of a weighted edge for Tree:Directed
  * Graph conversions.
  *
  * @author Tiago Ferreira

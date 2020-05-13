@@ -68,7 +68,6 @@ public class SigmaPalette extends Thread {
 	private int croppedDepth;
 	private PaletteStackWindow paletteWindow;
 	private ImagePlus paletteImage;
-	private PaletteCanvas paletteCanvas;
 
 	private int selectedSigmaIndex = 0;
 	private int mouseMovedSigmaIndex = -1;
@@ -528,11 +527,10 @@ public class SigmaPalette extends Thread {
 			setMinMax(defaultMin, defaultMax);
 		}
 
-		paletteCanvas = new PaletteCanvas(paletteImage, croppedWidth, croppedHeight,
+		final PaletteCanvas paletteCanvas = new PaletteCanvas(paletteImage, croppedWidth, croppedHeight,
 			sigmasAcross, sigmasDown);
 		paletteWindow = new PaletteStackWindow(paletteImage, paletteCanvas, defaultMax);
 		paletteCanvas.requestFocusInWindow(); // required to trigger keylistener events
-
 	}
 
 }
