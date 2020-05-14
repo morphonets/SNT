@@ -110,6 +110,7 @@ public class IconFactory {
 			MAGIC('\uf0d0', true), //
 			MARKER('\uf3c5', true), //
 			MASKS('\uf630', true), //
+			MICROCHIP('\uf2db', true), //
 			NAVIGATE('\uf14e', false), //
 			MOVE('\uf0b2', true), //
 			NEXT('\uf35b', false), //

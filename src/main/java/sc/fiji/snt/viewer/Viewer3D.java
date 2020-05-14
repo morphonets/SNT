@@ -115,6 +115,7 @@ import javax.swing.tree.TreePath;
 import org.jzy3d.bridge.awt.FrameAWT;
 import org.jzy3d.chart.AWTChart;
 import org.jzy3d.chart.Chart;
+import org.jzy3d.chart.Settings;
 import org.jzy3d.chart.controllers.ControllerType;
 import org.jzy3d.chart.controllers.camera.AbstractCameraController;
 import org.jzy3d.chart.controllers.mouse.AWTMouseUtilities;
@@ -188,7 +189,9 @@ import com.jidesoft.swing.SearchableBar;
 import com.jidesoft.swing.TreeSearchable;
 import com.jogamp.opengl.FPSCounter;
 import com.jogamp.opengl.GLAnimatorControl;
+import com.jogamp.opengl.GLCapabilities;
 import com.jogamp.opengl.GLException;
+import com.jogamp.opengl.GLProfile;
 
 import ij.IJ;
 import net.imagej.ImageJ;
@@ -358,7 +361,11 @@ public class Viewer3D {
 	 * be added concurrently.
 	 */
 	public Viewer3D() {
+		SNTUtils.log("Initializing Viewer3D...");
 		workaroundIntelGraphicsBug();
+		Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
+		Settings.getInstance().setHardwareAccelerated(true);
+		logGLDetails();
 		plottedTrees = new TreeMap<>();
 		plottedObjs = new TreeMap<>();
 		plottedAnnotations = new TreeMap<>();
@@ -1847,6 +1854,11 @@ public class Viewer3D {
 
 	protected Color getDefColor() {
 		return (defColor == null) ? getNonUserDefColor() : defColor;
+	}
+
+	private void logGLDetails() {
+		SNTUtils.log("GL capabilities: " + Settings.getInstance().getGLCapabilities().toString());
+		SNTUtils.log("Hardware accelerated: " +  Settings.getInstance().isHardwareAccelerated());
 	}
 
 	/**
@@ -3545,14 +3557,16 @@ public class Viewer3D {
 			jcbmi.setIcon(IconFactory.getMenuIcon(GLYPH.STETHOSCOPE));
 			jcbmi.setMnemonic('d');
 			jcbmi.addItemListener(e -> {
+				final boolean debug = jcbmi.isSelected();
 				if (isSNTInstance()) {
-					sntService.getPlugin().getUI().setEnableDebugMode(jcbmi.isSelected());
+					sntService.getPlugin().getUI().setEnableDebugMode(debug);
 				} else {
-					SNTUtils.setDebugMode(jcbmi.isSelected());
+					SNTUtils.setDebugMode(debug);
 				}
+				if (debug) logGLDetails();
 			});
 			utilsMenu.add(jcbmi);
-
+	
 			addSeparator(utilsMenu, "Online Resources:");
 			mi = new JMenuItem("Documentation", IconFactory.getMenuIcon(GLYPH.QUESTION));
 			mi.addActionListener(e -> IJ.runPlugIn("ij.plugin.BrowserLauncher", "https://imagej.net/SNT"));
@@ -3575,6 +3589,16 @@ public class Viewer3D {
 			prefsMenu.add(panMenu());
 			prefsMenu.add(zoomMenu());
 			prefsMenu.add(rotationMenu());
+			prefsMenu.addSeparator();
+			final JMenuItem  jcbmi2= new JCheckBoxMenuItem("Enable Hardware Acceleration", Settings.getInstance().isHardwareAccelerated());
+			jcbmi2.setEnabled(!isSNTInstance());
+			jcbmi2.setIcon(IconFactory.getMenuIcon(GLYPH.MICROCHIP));
+			jcbmi2.setMnemonic('h');
+			jcbmi2.addItemListener(e -> {
+				Settings.getInstance().setHardwareAccelerated(jcbmi2.isSelected());
+				logGLDetails();
+			});
+			prefsMenu.add(jcbmi2);
 			prefsMenu.addSeparator();
 			final JMenuItem mi = new JMenuItem("Global Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
 			mi.addActionListener(e -> {
