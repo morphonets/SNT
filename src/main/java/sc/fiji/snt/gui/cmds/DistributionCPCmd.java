@@ -112,7 +112,7 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 	}
 
 	/* IDE debug method **/
-	public static void main2(final String[] args) {
+	public static void main(final String[] args) {
 		GuiUtils.setSystemLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
@@ -120,13 +120,4 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 		input.put("trees", new SNTService().demoTrees());
 		ij.command().run(DistributionCPCmd.class, true, input);
 	}
-
-	/* IDE debug method */
-	public static void main(final String[] args) {
-		final List<Tree> treeCollection = new SNTService().demoTrees();
-		final MultiTreeStatistics dStats = new MultiTreeStatistics(treeCollection, "dendrites");
-		dStats.setLabel("Dendrites");
-		dStats.getHistogram("Length").setVisible(true);
-	}
-
 }

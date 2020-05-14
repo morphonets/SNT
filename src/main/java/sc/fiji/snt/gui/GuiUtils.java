@@ -176,7 +176,14 @@ public class GuiUtils {
 							+ "All future notifications will be displayed in Console.");
 					popupExceptionTriggered = true;
 				}
-				System.out.println("[INFO] [SNT] " + msg);
+				if (msg.startsWith("<")) { //HTML formatted
+					// https://stackoverflow.com/a/3608319
+					String cleanedMsg = msg.replaceAll("(?s)<[^>]*>(\\s*<[^>]*>)*", " ");
+					cleanedMsg = cleanedMsg.replaceAll("&amp;", "&");
+					System.out.println("[INFO] [SNT] " + cleanedMsg.trim());
+				} else {
+					System.out.println("[INFO] [SNT] " + msg);
+				}
 			}
 		});
 	}
@@ -587,7 +594,7 @@ public class GuiUtils {
 	}
 
 	public void addTooltip(final JComponent c, final String text) {
-		final int length = Math.round(c.getFontMetrics(c.getFont()).stringWidth(text));
+		final int length = c.getFontMetrics(c.getFont()).stringWidth(text);
 		c.setToolTipText("<html>" + ((length > 500) ? "<body><div style='width:500;'>" : "") + text);
 	}
 
@@ -603,8 +610,7 @@ public class GuiUtils {
 	}
 
 	private String getWrappedText(final JComponent c, final String text) {
-		final int width = Math.round(c.getFontMetrics(c.getFont()).stringWidth(
-			text));
+		final int width = c.getFontMetrics(c.getFont()).stringWidth(text);
 		final int max = (parent == null) ? 500 : parent.getWidth();
 		return "<html><body><div style='width:" + Math.min(width, max) + ";'>" +
 			text;

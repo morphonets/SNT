@@ -24,6 +24,7 @@ package sc.fiji.snt.util;
 
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Objects;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
@@ -341,19 +342,25 @@ public class BoundingBox {
 		this.originOpposite = originOpposite;
 	}
 
-	/**
-	 * Compares two BoundingBox objects for equality.
-	 *
-	 * @param box the comparing object
-	 * @return true, if successful
-	 */
-	public boolean equals(final BoundingBox box) {
-		if (box == null) return false;
-		if (box.xSpacing != xSpacing || box.ySpacing != ySpacing ||
-			box.zSpacing != zSpacing) return false;
-		if (!box.spacingUnit.equals(spacingUnit)) return false;
-		if (!origin.equals(box.origin)) return false;
-		return originOpposite.equals(box.originOpposite);
+	@Override
+	public int hashCode() {
+		return Objects.hash(xSpacing, ySpacing, zSpacing, spacingUnit, origin, originOpposite);
+	}
+
+	@Override
+	public boolean equals(final Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (!(obj instanceof BoundingBox)) {
+			return false;
+		}
+		final BoundingBox other = (BoundingBox) obj;
+		return Double.doubleToLongBits(xSpacing) == Double.doubleToLongBits(other.xSpacing)
+				&& Double.doubleToLongBits(ySpacing) == Double.doubleToLongBits(other.ySpacing)
+				&& Double.doubleToLongBits(zSpacing) == Double.doubleToLongBits(other.zSpacing)
+				&& Objects.equals(spacingUnit, other.spacingUnit) && Objects.equals(origin, other.origin)
+				&& Objects.equals(originOpposite, other.originOpposite);
 	}
 
 	@Override

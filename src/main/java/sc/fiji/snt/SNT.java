@@ -736,7 +736,8 @@ public class SNT extends MultiDThreePanes implements
 
 			SNTUtils.log("[" + Thread.currentThread() +
 				"] going to lock filler in plugin.saveFill");
-			synchronized (filler) {
+			//synchronized (filler) 
+			{
 				SNTUtils.log("[" + Thread.currentThread() + "] acquired it");
 				if (SearchThread.PAUSED == filler.getThreadStatus()) {
 					// Then we can go ahead and save:

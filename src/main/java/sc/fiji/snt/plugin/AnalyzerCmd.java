@@ -108,7 +108,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 	@Parameter(label = MultiTreeStatistics.N_BRANCH_POINTS)
 	private boolean nBPs;
 
-	@Parameter(required = true, label = MultiTreeStatistics.N_TIPS)
+	@Parameter(label = MultiTreeStatistics.N_TIPS)
 	private boolean nTips;
 
 	@Parameter(label = MultiTreeStatistics.N_BRANCHES)
@@ -205,6 +205,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		nBPs = enable;
 		nBranches = enable;
 		nPrimaryBranches = enable;
+		nInnerBranches = enable;
 		nTerminalBranches = enable;
 		nTips = enable;
 		primaryLength = enable;

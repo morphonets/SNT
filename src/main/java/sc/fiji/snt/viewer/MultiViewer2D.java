@@ -87,7 +87,7 @@ public class MultiViewer2D {
 	}
 
 	private void guessLayout() {
-		gridCols = (int) Math.ceil(viewers.size() / 2);
+		gridCols = viewers.size() / 2;
 	}
 
 	public void setLayoutColumns(final int cols) {

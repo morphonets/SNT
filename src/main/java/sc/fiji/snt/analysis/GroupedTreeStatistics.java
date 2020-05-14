@@ -482,7 +482,7 @@ public class GroupedTreeStatistics {
 						if (count == 1) {
 							drawOutlier(outlier, g2);
 						} else {
-							final int leftPoints = (int) Math.round(count / 2);
+							final int leftPoints = count / 2;
 							final int rightPoints = count - leftPoints;
 							for (int i = 1; i <= leftPoints; i++) {
 								final double offset = Math.min(i * pointSize, state.getBarWidth() / 2);

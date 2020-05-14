@@ -76,7 +76,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	@Parameter
 	private LogService logService;
 
-	private static SNT plugin;
+	private SNT plugin;
 
 
 	private void accessActiveInstance(final boolean createInstanceIfNull) {
