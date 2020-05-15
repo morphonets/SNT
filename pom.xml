@@ -101,18 +101,18 @@
 	</mailingLists>
 
 	<scm>
-		<connection>scm:git:git://github.com/fiji/SNT</connection>
-		<developerConnection>scm:git:git@github.com:fiji/SNT</developerConnection>
+		<connection>scm:git:git://github.com/morphonets/SNT</connection>
+		<developerConnection>scm:git:git@github.com:morphonets/SNT</developerConnection>
 		<tag>HEAD</tag>
-		<url>https://github.com/fiji/SNT</url>
+		<url>https://github.com/morphonets/SNT</url>
 	</scm>
 	<issueManagement>
 		<system>GitHub Issues</system>
-		<url>https://github.com/fiji/SNT/issues</url>
+		<url>https://github.com/morphonets/SNT/issues</url>
 	</issueManagement>
 	<ciManagement>
 		<system>Travis CI</system>
-		<url>https://travis-ci.org/fiji/SNT</url>
+		<url>https://travis-ci.org/morphonets/SNT</url>
 	</ciManagement>
 
 	<properties>
