@@ -4223,8 +4223,8 @@ public class Viewer3D {
 			searchableBar = new SNTSearchableBar(new TreeSearchable(tree));
 			searchableBar.setStatusLabelPlaceholder("Common Coordinate Framework v"+ AllenUtils.VERSION);
 			searchableBar.setVisibleButtons(
-				SearchableBar.SHOW_NAVIGATION | SearchableBar.SHOW_HIGHLIGHTS |
-				SearchableBar.SHOW_MATCHCASE | SearchableBar.SHOW_STATUS);
+				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
+				SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_STATUS);
 			refreshTree(false);
 		}
 
@@ -4346,6 +4346,7 @@ public class Viewer3D {
 			dialog = new JDialog(frame, "Allen CCF Ontology");
 			frame.allenNavigator = this;
 			guiUtils = new GuiUtils(dialog);
+			searchableBar.setGuiUtils(guiUtils);
 			dialog.setLocationRelativeTo(frame);
 			dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 			dialog.addWindowListener(new WindowAdapter() {

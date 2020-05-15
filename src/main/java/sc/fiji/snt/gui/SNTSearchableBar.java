@@ -207,6 +207,11 @@ public class SNTSearchableBar extends SearchableBar {
 		this.guiUtils = guiUtils;
 	}
 
+	private GuiUtils getGuiUtils() {
+		if (guiUtils == null) guiUtils = new GuiUtils(getRootPane());
+		return guiUtils;
+	}
+
 	protected void setFindAndReplaceMenuItem(final JMenuItem findAndReplaceMenuItem) {
 		this.findAndReplaceMenuItem = findAndReplaceMenuItem;
 	}
@@ -220,7 +225,6 @@ public class SNTSearchableBar extends SearchableBar {
 		});
 		formatButton(button, IconFactory.GLYPH.LIST_ALT);
 
-		if (guiUtils == null) guiUtils = new GuiUtils(getRootPane());
 		final JMenuItem jcbmi1 = new JCheckBoxMenuItem("Case Sensitive Matching", getSearchable().isCaseSensitive());
 		jcbmi1.addItemListener(e -> {
 			getSearchable().setCaseSensitive(jcbmi1.isSelected());
@@ -266,7 +270,7 @@ public class SNTSearchableBar extends SearchableBar {
 					//+ "<b>?</b> (any character), and <b>*</b> (any string) can also be used</li>"
 					+ "<li>Uncheck <i>Display No. of Matches</i> to improve search performance</li>"
 					+ "</ol></div></html>";
-			guiUtils.centeredMsg(msg, "Text-based Filtering");
+			getGuiUtils().centeredMsg(msg, "Text-based Filtering");
 		});
 		popup.add(mi2);
 		return button;
