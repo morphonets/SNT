@@ -344,11 +344,6 @@ public class AllenCompartment implements BrainAnnotation {
 	}
 	
 	@Override
-	public int hashCode() {
-		return Objects.hash(acronym, structureId);
-	}
-	
-	@Override
 	public boolean equals(Object obj) {
 		if (this == obj) {
 			return true;
@@ -358,6 +353,11 @@ public class AllenCompartment implements BrainAnnotation {
 		}
 		AllenCompartment other = (AllenCompartment) obj;
 		return Objects.equals(acronym, other.acronym) && structureId == other.structureId;
+	}
+	
+	@Override
+	public int hashCode() {
+		return Objects.hash(acronym, structureId);
 	}
 
 	/* IDE Debug method */
