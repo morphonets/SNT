@@ -55,12 +55,12 @@ import sc.fiji.snt.viewer.OBJMesh;
  */
 public class AllenCompartment implements BrainAnnotation {
 
-	public String name;
-	public String acronym;
-	public String[] aliases;
-	public int structureId;
-	public UUID uuid;
-	public JSONObject jsonObj;
+	private String name;
+	private String acronym;
+	private String[] aliases;
+	private int structureId;
+	private UUID uuid;
+	private JSONObject jsonObj;
 	private ArrayList<AllenCompartment> parentStructure;
 
 	/**
