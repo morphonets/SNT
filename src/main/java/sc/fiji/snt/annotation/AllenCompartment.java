@@ -26,6 +26,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -341,29 +342,22 @@ public class AllenCompartment implements BrainAnnotation {
 	public String toString() {
 		return name() + " [" + acronym + "]";
 	}
-
+	
 	@Override
-	public boolean equals(final Object o) {
-		if (o == this) return true;
-		if (o == null) return false;
-		if (!(o instanceof AllenCompartment))
+	public boolean equals(Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (!(obj instanceof AllenCompartment)) {
 			return false;
-		final AllenCompartment other = ((AllenCompartment) o);
-		// There is really no need to assess uuid: for most instances it will be null
-//		if (uuid != null && other.uuid != null) {
-//			return uuid.equals(other.uuid);
-//		}
-		return id() == other.id();
+		}
+		AllenCompartment other = (AllenCompartment) obj;
+		return Objects.equals(acronym, other.acronym) && structureId == other.structureId;
 	}
-
+	
 	@Override
 	public int hashCode() {
-		if (uuid != null) return uuid.hashCode();
-		int hash = 7;
-		hash = 31 * hash + (int) id();
-		hash = 31 * hash + (acronym == null ? 0 : acronym.hashCode());
-		hash = 31 * hash + (name == null ? 0 : name.hashCode());
-		return hash;
+		return Objects.hash(acronym, structureId);
 	}
 
 	/* IDE Debug method */
