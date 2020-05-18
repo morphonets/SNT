@@ -43,7 +43,7 @@ import sc.fiji.snt.annotation.BrainAnnotation;
  * Tests for {@link TreeStatistics}
  */
 public class TreeStatisticsTest {
-	
+
 	private final double precision = 0.0001;
 	private Tree tree;
 	private TreeStatistics tStats;
@@ -51,11 +51,11 @@ public class TreeStatisticsTest {
 	@Before
 	public void setUp() throws Exception {
 		tree = new SNTService().demoTrees().get(1);
-		//tree = new MouseLightLoader("AA0788").getTree();
+		// tree = new MouseLightLoader("AA0788").getTree();
 		tStats = new TreeStatistics(tree);
 		assumeNotNull(tree);
 	}
-	
+
 	@Test
 	public void testAnnotatedLength() {
 		final double cableLength = tStats.getCableLength();
@@ -69,10 +69,8 @@ public class TreeStatisticsTest {
 			// Check for duplicate keys
 			System.out.println(lengthMap.entrySet());
 			Set<BrainAnnotation> uniqueKeys = new HashSet<BrainAnnotation>();
-		    lengthMap.keySet().stream()
-		        .filter(e -> !uniqueKeys.add(e))
-		        .collect(Collectors.toSet());
-		    assertEquals("No duplicate keys", uniqueKeys.size(), lengthMap.keySet().size());
+			lengthMap.keySet().stream().filter(e -> !uniqueKeys.add(e)).collect(Collectors.toSet());
+			assertEquals("No duplicate keys", uniqueKeys.size(), lengthMap.keySet().size());
 		}
 	}
 
