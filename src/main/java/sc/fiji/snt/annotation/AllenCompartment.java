@@ -71,6 +71,7 @@ public class AllenCompartment implements BrainAnnotation {
 	 */
 	public AllenCompartment(final UUID uuid) {
 		this(null, uuid);
+		//initializeAsNeeded();
 	}
 
 	/**
@@ -81,11 +82,15 @@ public class AllenCompartment implements BrainAnnotation {
 	public AllenCompartment(final int id) {
 		this(null, null);
 		structureId = id;
+		initializeAsNeeded();
 	}
 
 	protected AllenCompartment(final JSONObject jsonObj, final UUID uuid) {
 		this.jsonObj = jsonObj;
 		this.uuid = uuid;
+		if (uuid != null)
+			initializeAsNeeded();
+		
 	}
 
 	private void loadJsonObj() {

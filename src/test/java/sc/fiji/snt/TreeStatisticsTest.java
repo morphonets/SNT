@@ -26,7 +26,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeNotNull;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -63,6 +66,13 @@ public class TreeStatisticsTest {
 			assertEquals("Sum of annotated lengths", cableLength, mapLength, precision);
 			final double unaccountedLength = (lengthMap.get(null) == null) ? 0 : lengthMap.get(null);
 			assertTrue("Length not entirely in null compartment", mapLength - unaccountedLength > 0);
+			// Check for duplicate keys
+			System.out.println(lengthMap.entrySet());
+			Set<BrainAnnotation> uniqueKeys = new HashSet<BrainAnnotation>();
+		    lengthMap.keySet().stream()
+		        .filter(e -> !uniqueKeys.add(e))
+		        .collect(Collectors.toSet());
+		    assertEquals("No duplicate keys", uniqueKeys.size(), lengthMap.keySet().size());
 		}
 	}
 
