@@ -37,7 +37,6 @@ import org.junit.Test;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
-//import sc.fiji.snt.io.MouseLightLoader;
 
 /**
  * Tests for {@link TreeStatistics}
@@ -51,7 +50,6 @@ public class TreeStatisticsTest {
 	@Before
 	public void setUp() throws Exception {
 		tree = new SNTService().demoTrees().get(1);
-		// tree = new MouseLightLoader("AA0788").getTree();
 		tStats = new TreeStatistics(tree);
 		assumeNotNull(tree);
 	}
@@ -67,7 +65,6 @@ public class TreeStatisticsTest {
 			final double unaccountedLength = (lengthMap.get(null) == null) ? 0 : lengthMap.get(null);
 			assertTrue("Length not entirely in null compartment", mapLength - unaccountedLength > 0);
 			// Check for duplicate keys
-			System.out.println(lengthMap.entrySet());
 			Set<BrainAnnotation> uniqueKeys = new HashSet<BrainAnnotation>();
 			lengthMap.keySet().stream().filter(e -> !uniqueKeys.add(e)).collect(Collectors.toSet());
 			assertEquals("No duplicate keys", uniqueKeys.size(), lengthMap.keySet().size());

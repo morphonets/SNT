@@ -90,7 +90,6 @@ public class AllenCompartment implements BrainAnnotation {
 		this.uuid = uuid;
 		if (uuid != null)
 			initializeAsNeeded();
-		
 	}
 
 	private void loadJsonObj() {
@@ -102,9 +101,9 @@ public class AllenCompartment implements BrainAnnotation {
 			if (areaUUID.equals(uuid) || structureId ==  area.optInt("structureId")) {
 				jsonObj = area;
 				break;
-				}
 			}
 		}
+	}
 
 	private void initializeAsNeeded() {
 		if (name != null) return;
@@ -112,7 +111,7 @@ public class AllenCompartment implements BrainAnnotation {
 		name = jsonObj.getString("name");
 		acronym = jsonObj.getString("acronym");
 		if (structureId == 0) structureId = jsonObj.optInt("structureId");
-		if (uuid != null) uuid = UUID.fromString(jsonObj.getString("id"));
+		if (uuid == null) uuid = UUID.fromString(jsonObj.getString("id"));
 	}
 
 	private String[] getArray(final JSONArray jArray) {
@@ -347,7 +346,12 @@ public class AllenCompartment implements BrainAnnotation {
 	public String toString() {
 		return name() + " [" + acronym + "]";
 	}
-	
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(uuid);
+	}
+
 	@Override
 	public boolean equals(Object obj) {
 		if (this == obj) {
@@ -357,12 +361,7 @@ public class AllenCompartment implements BrainAnnotation {
 			return false;
 		}
 		AllenCompartment other = (AllenCompartment) obj;
-		return Objects.equals(acronym, other.acronym) && structureId == other.structureId;
-	}
-	
-	@Override
-	public int hashCode() {
-		return Objects.hash(acronym, structureId);
+		return Objects.equals(uuid, other.uuid);
 	}
 
 	/* IDE Debug method */
