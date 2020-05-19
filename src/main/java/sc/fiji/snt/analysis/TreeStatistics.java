@@ -35,14 +35,19 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.text.WordUtils;
 import org.jfree.chart.JFreeChart;
 import org.jfree.data.category.DefaultCategoryDataset;
+import org.jgrapht.Graphs;
+import org.jgrapht.graph.AsSubgraph;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.AnalysisUtils.HistogramDatasetPlus;
+import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.io.MouseLightLoader;
+import sc.fiji.snt.util.SWCPoint;
 
 /**
  * Computes summary and descriptive statistics from univariate properties of
@@ -226,49 +231,35 @@ public class TreeStatistics extends TreeAnalyzer {
 	 *         as values.
 	 * @see AllenCompartment#getOntologyDepth()
 	 */
-	public Map<BrainAnnotation, Double> getAnnotatedLength(int level) {
-		final HashMap<BrainAnnotation, Double> map = new HashMap<>();
-		// 1. Retrieve lengths for all annotations. Set has no null annotations
-		final Set<BrainAnnotation> annotations = getAnnotations(level);
-		annotations.forEach(annot -> {
-			map.put(annot, getCableLength(annot, true));
-		});
-
-		// 2. The map may contain a parent of another mapped annotation, so we'll
-		// need to subtract the child length from the parent
-		final double cableLength =  getCableLength(); // cable length of entire tree
-		double mapLength = map.values().stream().mapToDouble(d -> d).sum();
-		while (mapLength > cableLength) {
-
-			for (final Map.Entry<BrainAnnotation, Double> entry1 : map.entrySet()) {
-				final BrainAnnotation parent = entry1.getKey();
-
-				for (final Map.Entry<BrainAnnotation, Double> entry2 : map.entrySet()) {
-					final BrainAnnotation child = entry2.getKey();
-
-					if (!parent.equals(child) && (child.isChildOf(parent))) {
-						final double lengthInChild = entry2.getValue();
-						final double adjustedParentLength = map.get(parent) - lengthInChild;
-						map.put(parent, adjustedParentLength);
-					}
-				}
+	public Map<BrainAnnotation, Double> getAnnotatedLength(final int level) {
+		final DirectedWeightedGraph graph = tree.getGraph();
+		final NodeStatistics<SWCPoint> nodeStats = new NodeStatistics<SWCPoint>(graph.vertexSet());
+		final Map<BrainAnnotation, Set<SWCPoint>> annotatedNodesMap = nodeStats.getAnnotatedNodes(level);
+		final HashMap<BrainAnnotation, Double> lengthMap = new HashMap<>();
+		for (final Map.Entry<BrainAnnotation, Set<SWCPoint>> entry : annotatedNodesMap.entrySet()) {
+		    final BrainAnnotation annotation = entry.getKey();
+		    final Set<SWCPoint> nodeSubset = entry.getValue();
+		    final AsSubgraph<SWCPoint, SWCWeightedEdge> subgraph = new AsSubgraph<SWCPoint, SWCWeightedEdge>(graph, nodeSubset);
+		    final double subgraphWeight = getSubgraphWeight(subgraph, graph);
+		    lengthMap.put(annotation, subgraphWeight);
+		}
+		return lengthMap;
+	}
+	
+	private double getSubgraphWeight(final AsSubgraph<SWCPoint, SWCWeightedEdge> subgraph, final DirectedWeightedGraph baseGraph) {
+		double totalWeight = 0d;
+		for (final SWCWeightedEdge edge : subgraph.edgeSet()) {
+			totalWeight += edge.getWeight();
+		}
+		// Now account for missing edges that cross compartment boundaries
+		final List<SWCPoint> rootList = subgraph.vertexSet().stream().filter(v -> subgraph.inDegreeOf(v) == 0).collect(Collectors.toList());
+		for (final SWCPoint root : rootList) {
+			final List<SWCPoint> parent = Graphs.predecessorListOf(baseGraph, root);
+			if (!parent.isEmpty()) {
+				totalWeight += baseGraph.getEdge(parent.get(0), root).getWeight();
 			}
-
-			// Remove any parent annotations associated with zero lengths
-			map.entrySet().removeIf(entry->entry.getValue() <=0);
-
-			// Repeat as necessary
-			final double newMapLength = map.values().stream().mapToDouble(d -> d).sum();
-			if (newMapLength==mapLength) break;
-			mapLength = newMapLength;
 		}
-
-		// Did we account for all the distances? If not, assign them to a null annotation
-		final double unaccountedCable = cableLength - mapLength;
-		if (unaccountedCable > 0d) {
-			map.put(null, unaccountedCable);
-		}
-		return map;
+		return totalWeight;
 	}
 
 	/**
@@ -653,7 +644,7 @@ public class TreeStatistics extends TreeAnalyzer {
 
 	/* IDE debug method */
 	public static void main(final String[] args) {
-		final MouseLightLoader loader = new MouseLightLoader("AA0788");
+		final MouseLightLoader loader = new MouseLightLoader("AA0015");
 		final Tree axon = loader.getTree("axon");
 		final TreeStatistics tStats = new TreeStatistics(axon);
 		final int depth = 6;//Integer.MAX_VALUE;

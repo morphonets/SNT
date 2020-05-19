@@ -27,8 +27,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
@@ -239,7 +241,7 @@ public class NodeStatistics <T extends PointInImage> {
 	 * @return the map containing the brain annotations as keys, and list of nodes
 	 *         as values.
 	 */
-	public Map<BrainAnnotation, List<T>> getAnnotatedNodes() {
+	public Map<BrainAnnotation, Set<T>> getAnnotatedNodes() {
 		return getAnnotatedNodes(Integer.MAX_VALUE);
 	}
 
@@ -251,8 +253,8 @@ public class NodeStatistics <T extends PointInImage> {
 	 * @return the map containing the brain annotations as keys, and list of nodes
 	 *         as values.
 	 */
-	public Map<BrainAnnotation, List<T>> getAnnotatedNodes(final int level) {
-		final HashMap<BrainAnnotation, List<T>> map  = new HashMap<>();
+	public Map<BrainAnnotation, Set<T>> getAnnotatedNodes(final int level) {
+		final HashMap<BrainAnnotation, Set<T>> map  = new HashMap<>();
 		for (final T p : points) {
 			BrainAnnotation mappingAnnotation = null;
 			final BrainAnnotation pAnnotation = p.getAnnotation();
@@ -264,9 +266,9 @@ public class NodeStatistics <T extends PointInImage> {
 					mappingAnnotation = pAnnotation;
 				}
 			}
-			List<T> currentList = map.get(mappingAnnotation);
+			Set<T> currentList = map.get(mappingAnnotation);
 			if (currentList == null) {
-				currentList = new ArrayList<T>();
+				currentList = new HashSet<T>();
 				map.put(mappingAnnotation, currentList);
 			}
 			currentList.add(p);
