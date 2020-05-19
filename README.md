@@ -56,6 +56,8 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 
 ## Features
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/03d224645e9e4cba8266e99ec6099bcc)](https://app.codacy.com/gh/morphonets/SNT?utm_source=github.com&utm_medium=referral&utm_content=morphonets/SNT&utm_campaign=Badge_Grade_Dashboard)
+
 ### Tracing
 * Support for up to 5D multidimensional images (including multichannel, and those with a time axis).
   While tracing, visibility of non-traced channels can be toggled at will
