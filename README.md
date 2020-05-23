@@ -1,6 +1,6 @@
 <h1 align="center">SNT</h1>
 <div align="center">
-  The ImageJ framework for semi-automated tracing and analysis of neurons
+  The ImageJ framework for quantification of neuronal anatomy
 </div>
 <div align="center">
   <!-- License -->
@@ -8,7 +8,7 @@
     <img alt="GitHub license" src="https://img.shields.io/github/license/morphonets/SNT">
   </a>
   <!-- Build Status -->
-  <a href="https://travis-ci.org/fiji/SNT">
+  <a href="https://travis-ci.org/morphonets/SNT">
     <img alt="build" src="https://travis-ci.org/morphonets/SNT.svg?branch=master">
   </a>
     <!-- Issues -->
@@ -17,6 +17,9 @@
   </a>
   <a href="https://github.com/morphonets/SNT/issues">
     <img alt="GitHub closed issues" src="https://img.shields.io/github/issues-closed/morphonets/SNT">
+  </a>
+  <a href="https://forum.image.sc/tags/snt">
+    <img alt="Forum.sc topics" src="https://img.shields.io/badge/dynamic/json.svg?label=forum&url=https%3A%2F%2Fforum.image.sc%2Ftags%2Fsnt.json&query=%24.topic_list.tags.0.topic_count&suffix=%20topics">
   </a>
 </div>
 <div align="center">
@@ -29,8 +32,8 @@
       Installation
     </a>
     <span style="margin:.5em">|</span>
-    <a href="#Contribution">
-      Contribution
+    <a href="#Contributing">
+      Contributing
     </a>
     <span style="margin:.5em">|</span>
     <a href="https://imagej.net/SNT">
@@ -49,10 +52,10 @@
 
 
 
+
 SNT is [ImageJ](https://imagej.net/)'s framework for semi-automated tracing, visualization, quantitative analyses and modeling of neuronal morphology. For tracing, SNT supports modern multi-dimensional microscopy data, and highly-customizable routines. For data analysis, SNT features advanced visualization tools, access to all major morphology databases, and support for whole-brain circuitry data.
 
 Most importantly, SNT can be used as a regular application or as a scripting library. Python (through [pyimagej](https://github.com/imagej/pyimagej)) and  all of SciJava's scripting languages are supported. It is distributed with [Fiji](https://imagej.net/Fiji) and supersedes the now outdated [Simple Neurite Tracer](https://github.com/fiji/SNT) plug-in.
-
 
 ## Features
 
@@ -61,8 +64,7 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
   While tracing, visibility of non-traced channels can be toggled at will
 * Precise placement of nodes is aided by a local search that automatically snaps the cursor to neurites wihin a 3D neighborhood
 * A* search can be performed on a second, non-displayed image.
-  This allows for e.g., tracing on a pre-process (filtered) image while interacting with the unfiltered image (or vice-versa).
-  If enough RAM is available toggling between the two data sources is immediate
+  This allows for e.g., tracing on a pre-process (filtered) image while interacting with the unfiltered image (or vice-versa). If enough RAM is available toggling between the two data sources is immediate
 * Tracing can be interleaved with image processing routines
 * Tracing is scriptable. Interactive scripts allow for real-time inspection of results
 * Paths can be tagged, searched, grouped and filtered by morphometric properties (length, radius, etc.)
@@ -73,20 +75,19 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 * *Extensive* repertoire of metrics, namely those provided by [L-measure](http://cng.gmu.edu:8080/Lm/help/index.htm) and [NeuroM](https://github.com/BlueBrain/NeuroM). Metrics can be collected from groups of cells, single cells, or parts thereof
 * Analysis based on neuropil annotations for whole-brain data such as [MouseLight](https://ml-neuronbrowser.janelia.org/)
 * Direct access to public databases, including [MouseLight](https://ml-neuronbrowser.janelia.org/), [FlyCircuit](http://www.flycircuit.tw) and [NeuroMorpho](http://neuromorpho.org/)
-* Built-in commands for *immediate* retrieval of summary statistics, plots and histograms
+* Built-in commands for *immediate* retrieval of summary statistics, comparison plots and histograms
 * Graph theory-based analyses
+* Persistent homology-based analyses
 * Sholl and Horton-Strahler analyses
-* Branches can be converted to ROIs and voxel intensities profiles
+* Image processing: Reconstructions can be skeletonized, converted to masks or ROIs, and voxel intensities profiled
 
 ### Visualization
-* Reconstruction Viewer: Hardware-accelerated 3D visualization tool for both meshes and reconstructions.
-* Interactive and programmatic scenes (controlled rotations, panning, zoom, scaling, animation,  "dark"/"light" mode, etc.)
-* Customizable views: Interactive management of scene elements, controls for transparency, color interpolation, lightning, path smoothing, etc.
-* Ability to render both local and remote files on the same scene
-* Loading of surface meshes of several template brains (Drosophila, zebrafish, and Allen CCF (Allen Mouse Brain Atlas)
+* [Reconstruction Viewer](https://imagej.net/SNT:_Reconstruction_Viewer): Standalone hardware-accelerated 3D visualization tool for both meshes and reconstructions.
+* Interactive and programmatic scenes (controlled rotations, panning, zoom, scaling, animation,  "dark/light mode", etc.)
+* Customizable views: Interactive management of scene elements, controls for transparency, color interpolation, lightning, path smoothing, etc.. Ability to render both local and remote files on the same scene
+* Built-in support for several template brains: Drosophila, zebrafish, and Allen CCF (Allen Mouse Brain Atlas)
 * [SciView](https://github.com/scenerygraphics/sciview) integration
-* Quantitative visualizations: 
-* Publication-quality figures: plots, traces and diagrams can be exported as SVG or PDF
+* Quantitative, publication-quality visualization: Display neurons color coded by morphometric traits, or neuropil annotations. Export plots, reconstructions, diagrams and histograms as vector graphics.
 
 ### Scripting
 * *Every* aspect of the program can be scripted in any of the IJ2 supported languages, or from Python through [pyimagej](https://github.com/imagej/pyimagej)
@@ -97,7 +98,7 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 * Modeling is performed through [Cortex3D (Cx3D)](https://github.com/morphonets/cx3d) and [SciView](https://imagej.net/SciView "SciView"), in which a modified version of [Cx3D](https://github.com/morphonets/cx3d) grows neuronal processes with [SciView](https://imagej.net/SciView)’s data structures.
 
 ### Backwards Compatibility
-* Special effort was put into backwards compatibility with  [Simple Neurite Tracer](https://github.com/fiji/SNT)  (including [TrakEM2](https://github.com/trakem2/TrakEM2) interaction). Inherited functionality has been improved, namely:
+* Special effort was put into backwards compatibility with  [Simple Neurite Tracer](https://github.com/fiji/SNT)  (including [TrakEM2](https://github.com/trakem2/TrakEM2) and [ITK](https://imagej.net/SNT:_Tubular_Geodesics) interaction). Inherited functionality has been improved, namely:
   * Extended support for sub-pixel accuracy
   * Improved synchronization of XY, ZY, and XZ views
   * Improved calls to Dijkstra's filling and Path-fitting routines
@@ -105,13 +106,40 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 
 
 ## Installation
-SNT is currently distributed through two ImageJ [update sites](https://imagej.net/Update_Sites): *NeuroAnatomy* and *NeuroAnatomy-Unstable*. The former hosts the latest officially  released distribution of SNT. The latter  hosts development builds, sometimes released weekly. Note that [SciView](https://imagej.net/SciView) is released under a similar strategy. To subscribe to the NeuroAnatomy update site:
 
-1.  Run *Help › Update...*
+### *Regular* Releases
+SNT is available in  [Fiji](https://imagej.net/Fiji) and is currently distributed through the *NeuroAnatomy* [update site](https://imagej.net/Update_Sites). For full functionality, subscription to the [SciView](https://imagej.net/SciView) update site is also required.
+
+The first time you start SNT from Fiji's menu structure (*Plugins>Neuroanatomy>SNT* (or its backwards-compatible alias *Plugins>NeuroAnatomy>SNT>Legacy>Simple Neurite Tracer* ) you should be prompted for automatic subscription and download of required dependencies. If not, to manually subscribe to the required update sites:
+
+1.  Run the Fiji Updater (*Help › Update...*, the penultimate entry in the *Help>* menu)
 2.  Click *Manage update sites*
-3.  Select the *Neuroanatomy* checkbox (see also [list of update sites](https://imagej.github.io/list-of-update-sites/))
-4.  Click *Apply changes* and Restart ImageJ.
+3.  Select the *Neuroanatomy* and *SciView* checkboxes
+4.  Click *Apply changes* and Restart Fiji
+
+Problems? Have a look at the full [documentation](https://imagej.net/SNT).
+
+### *Bleeding Edge* Releases
+
+Daily builds of SNT and SciView are pushed to the *Neuroanatomy-Unstable* and *SciView-Unstable* updated sites. Note that there is nothing inherently _unstable_ with these builds: this nomenclature is adopted from the [Debian release cycle](https://www.debian.org/releases/). Since the sites are not part of the official list, you have to specify their location to the updater:
+
+1. Run the Fiji Updater (*Help › Update...*, the penultimate entry in the *Help>* menu)
+
+2. Click *Manage update sites*
+
+4.  Add the following entries to the *Manage update sites* table, by clicking on *Add update site*:
+    
+    | Name              | URL                                             |
+    | :---------------- | :---------------------------------------------- |
+    | Neuroanatomy-edge | https://sites.imagej.net/Neuroanatomy-Unstable/ |
+    | SciView-edge      | https://sites.imagej.net/SciView-Unstable/      |
+
+    
+    
+6. Activate the newly added *Neuroanatomy-edge* and *SciView-edge* checkboxes (if subscribed to *regular releases*, unselect *Neuroanatomy* and *SciView*)
+
+7. Click *Apply changes* and restart Fiji
 
 
-## Contribution
+## Contributing
 Want to contribute? Please, please do! We welcome [issues](https://github.com/morphonets/SNT/issues) and [pull requests](https://github.com/morphonets/SNT/pulls) any time.

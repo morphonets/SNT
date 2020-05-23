@@ -14,7 +14,7 @@
 	<version>3.1.101-SNAPSHOT</version>
 
 	<name>SNT</name>
-	<description>The ImageJ framework for semi-automated tracing of neurons and other tube-like structures.</description>
+	<description>The ImageJ framework for quantitative neuroanatomy</description>
 	<url>https://imagej.net/SNT</url>
 	<inceptionYear>2010</inceptionYear>
 	<organization>
@@ -55,13 +55,16 @@
 				<role>maintainer</role>
 			</roles>
 		</developer>
-	</developers>
-	<contributors>
-		<contributor>
+		<developer>
 			<name>Cameron Arshadi</name>
 			<url>https://imagej.net/User:Arshadi</url>
 			<properties><id>carshadi</id></properties>
-		</contributor>
+			<roles>
+				<role>developer</role>
+			</roles>
+		</developer>
+	</developers>
+	<contributors>
 		<contributor>
 			<name>Mark Longair</name>
 			<url>https://imagej.net/User:Mark</url>
@@ -119,10 +122,6 @@
 		<license.licenseName>gpl_v3</license.licenseName>
 		<license.copyrightOwners>Fiji developers.</license.copyrightOwners>
 		<license.projectName>Fiji distribution of ImageJ for the life sciences.</license.projectName>
-
-		<!-- Required since pom-scijava 27.0.1? -->
-		<main-class>sc.iview.Main</main-class>
-		<package-name>sciview</package-name>
 
 		<!-- Dependency versions for JitPack -->
 		<sciview.version>f9f2f45</sciview.version>
