@@ -744,7 +744,7 @@ public class SNT extends MultiDThreePanes implements
 					pathAndFillManager.addFill(filler.getFill());
 					// ... and then stop filling:
 					filler.requestStop();
-					ui.changeState(SNTUI.WAITING_TO_START_PATH);
+					changeUIState(SNTUI.WAITING_TO_START_PATH);
 					filler = null;
 				}
 				else {
@@ -1883,43 +1883,34 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void startFillerThread(final FillerThread filler) {
-
 		this.filler = filler;
-
 		filler.addProgressListener(this);
 		filler.addProgressListener(ui.getFillManager());
-
 		addThreadToDraw(filler);
-
 		filler.start();
-
-		ui.changeState(SNTUI.FILLING_PATHS);
-
+		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
 	synchronized public void startFillingPaths(final Set<Path> fromPaths) {
 
 		// currentlyFilling = true;
-		ui.getFillManager().pauseOrRestartFilling.setText("Pause");
-		ui.getFillManager().thresholdChanged(0.03f);
+		if (ui != null) {
+			ui.getFillManager().pauseOrRestartFilling.setText("Pause");
+			ui.getFillManager().thresholdChanged(0.03f);
+		}
 		filler = new FillerThread(xy, stackMin, stackMax, false, // startPaused
 			true, // reciprocal
 			0.03f, // Initial threshold to display
 			5000); // reportEveryMilliseconds
 
 		addThreadToDraw(filler);
-
 		filler.addProgressListener(this);
 		filler.addProgressListener(ui.getFillManager());
-
 		filler.setSourcePaths(fromPaths);
 
-		ui.setFillListVisible(true);
-
+		if (ui != null) ui.setFillListVisible(true);
 		filler.start();
-
-		ui.changeState(SNTUI.FILLING_PATHS);
-
+		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
 	protected void setFillTransparent(final boolean transparent) {

@@ -30,7 +30,6 @@ import java.util.PriorityQueue;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.measure.Calibration;
-import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 
 /**
@@ -42,14 +41,77 @@ import sc.fiji.snt.hyperpanes.MultiDThreePanes;
  */
 public abstract class SearchThread extends Thread implements SearchInterface {
 
-	boolean verbose = SNTUtils.isDebugMode();
-
 	public static final byte OPEN_FROM_START = 1;
 	public static final byte CLOSED_FROM_START = 2;
 	public static final byte OPEN_FROM_GOAL = 3;
 	public static final byte CLOSED_FROM_GOAL = 4;
-	public static final byte FREE = 5; // Indicates that this node isn't in a
-	// list yet...
+	public static final byte FREE = 5; // Indicates that this node isn't in a list yet...
+
+	/** Thread state: the run method is going and the thread is unpaused */
+	public static final int RUNNING = 0;
+	/** Thread state: run() hasn't been started yet or the thread is paused */
+	public static final int PAUSED = 1;
+	/** Thread state: the thread cannot be used again */
+	public static final int STOPPING = 2;
+
+	public static final int SUCCESS = 0;
+	public static final int CANCELLED = 1;
+	public static final int TIMED_OUT = 2;
+	public static final int POINTS_EXHAUSTED = 3;
+	public static final int OUT_OF_MEMORY = 4;
+	public static final String[] EXIT_REASONS_STRINGS = { "SUCCESS", "CANCELLED",
+		"TIMED_OUT", "POINTS_EXHAUSTED", "OUT_OF_MEMORY" };
+
+	/* This can only be changed in a block synchronized on this object */
+	private volatile int threadStatus = PAUSED;
+
+	protected ImagePlus imagePlus;
+	protected byte[][] slices_data_b;
+	protected short[][] slices_data_s;
+	protected float[][] slices_data_f;
+	int imageType = -1;
+	float stackMin;
+	float stackMax;
+	protected float x_spacing;
+	protected float y_spacing;
+	protected float z_spacing;
+	protected String spacing_units;
+	protected int width;
+	protected int height;
+	protected int depth;
+
+	private Color openColor;
+	private Color closedColor;
+	private float drawingThreshold;
+
+	/* The search may only be bidirectional if definedGoal is true */
+	private boolean bidirectional;
+
+	/*
+	 * If there is no definedGoal then the search is just Dijkstra's algorithm (h =
+	 * 0 in the A* search algorithm.
+	 */
+	private boolean definedGoal;
+
+	private boolean startPaused;
+	private int timeoutSeconds;
+	private long reportEveryMilliseconds;
+	private long lastReportMilliseconds;
+	protected ArrayList<SearchProgressCallback> progressListeners;
+	protected double minimum_cost_per_unit_distance;
+	protected PriorityQueue<SearchNode> closed_from_start;
+	protected PriorityQueue<SearchNode> open_from_start;
+
+	// The next two are null if the search is not bidirectional
+	private PriorityQueue<SearchNode> closed_from_goal;
+	private PriorityQueue<SearchNode> open_from_goal;
+
+	protected SearchNode[][] nodes_as_image_from_start;
+	protected SearchNode[][] nodes_as_image_from_goal;
+
+	protected int exitReason;
+	private boolean verbose = SNTUtils.isDebugMode();
+
 
 	/*
 	 * This calculates the cost of moving to a new point in the image. This does not
@@ -94,7 +156,6 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 	 * Use this for doing special progress updates, beyond what
 	 * SearchProgressCallback provides.
 	 */
-
 	protected void reportPointsInSearch() {
 		for (final SearchProgressCallback progress : progressListeners)
 			progress.pointsInSearch(this, open_from_start.size() + (bidirectional
@@ -138,10 +199,6 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 		return false;
 	}
 
-	Color openColor;
-	Color closedColor;
-	float drawingThreshold;
-
 	void setDrawingColors(final Color openColor, final Color closedColor) {
 		this.openColor = openColor;
 		this.closedColor = closedColor;
@@ -156,67 +213,13 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 	 * than some value (e.g. to make your A star heuristic valid or something, then
 	 * you should override this method and return that value.
 	 */
-
 	protected double minimumCostPerUnitDistance() {
 		return 0.0;
 	}
 
-	protected double minimum_cost_per_unit_distance;
-
-	byte[][] slices_data_b;
-	short[][] slices_data_s;
-	float[][] slices_data_f;
-
-	ImagePlus imagePlus;
-
-	float x_spacing;
-	float y_spacing;
-	float z_spacing;
-
-	String spacing_units;
-
-	int width;
-	int height;
-	int depth;
-
-	/* The search may only be bidirectional if definedGoal is true */
-
-	boolean bidirectional;
-
-	/*
-	 * If there is no definedGoal then the search is just Dijkstra's algorithm (h =
-	 * 0 in the A* search algorithm.
-	 */
-
-	boolean definedGoal;
-
-	boolean startPaused;
-
-	int timeoutSeconds;
-	long reportEveryMilliseconds;
-	long lastReportMilliseconds;
-
-	ArrayList<SearchProgressCallback> progressListeners;
-
 	public void addProgressListener(final SearchProgressCallback callback) {
 		progressListeners.add(callback);
 	}
-
-	/*
-	 * The thread can be in one of these states:
-	 *
-	 * - STOPPING: the thread cannot be used again - PAUSED: run() hasn't been
-	 * started yet or the thread is paused - RUNNING: the run method is going and
-	 * the thread is unpaused
-	 */
-
-	/* This can only be changed in a block synchronized on this object */
-
-	private volatile int threadStatus = PAUSED;
-
-	public static final int RUNNING = 0;
-	public static final int PAUSED = 1;
-	public static final int STOPPING = 2;
 
 	public int getThreadStatus() {
 		return threadStatus;
@@ -286,12 +289,8 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 		SNTUtils.log("pauseOrUnpause finished");
 	}
 
-	int imageType = -1;
-	float stackMin;
-	float stackMax;
 
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
-
 	public SearchThread(final ImagePlus imagePlus, final float stackMin,
 		final float stackMax, final boolean bidirectional,
 		final boolean definedGoal, final boolean startPaused,
@@ -406,16 +405,6 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 		progressListeners = new ArrayList<>();
 	}
 
-	PriorityQueue<SearchNode> closed_from_start;
-	PriorityQueue<SearchNode> open_from_start;
-
-	// The next two are null if the search is not bidirectional
-	PriorityQueue<SearchNode> closed_from_goal;
-	PriorityQueue<SearchNode> open_from_goal;
-
-	SearchNode[][] nodes_as_image_from_start;
-	SearchNode[][] nodes_as_image_from_goal;
-
 	public void printStatus() {
 		SNTUtils.log("... Start nodes: open=" + open_from_start.size() +
 			" closed=" + closed_from_start.size());
@@ -431,10 +420,12 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 
 		try {
 
-			SNTUtils.log("New SearchThread running!");
-			if (verbose) printStatus();
-			SNTUtils.log("... was asked to start it in the " + (startPaused ? "paused"
-				: "unpaused") + " state.");
+			if (verbose) {
+				SNTUtils.log("New SearchThread running!");
+				printStatus();
+				SNTUtils.log("... was asked to start it in the " + (startPaused ? "paused"
+						: "unpaused") + " state.");
+			}
 
 			synchronized (this) {
 				threadStatus = startPaused ? PAUSED : RUNNING;
@@ -700,7 +691,7 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 		}
 		catch (final OutOfMemoryError oome) {
 			SNTUtils.error("Out Of Memory Error", oome);
-			GuiUtils.errorPrompt("Out of memory while searching for a path");
+			//GuiUtils.errorPrompt("Out of memory while searching for a path");
 			setExitReason(OUT_OF_MEMORY);
 			reportFinished(false);
 		}
@@ -722,17 +713,6 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 	{
 		return 0;
 	}
-
-	public static int SUCCESS = 0;
-	public static int CANCELLED = 1;
-	public static int TIMED_OUT = 2;
-	public static int POINTS_EXHAUSTED = 3;
-	public static int OUT_OF_MEMORY = 4;
-
-	public static String[] exitReasonStrings = { "SUCCESS", "CANCELLED",
-		"TIMED_OUT", "POINTS_EXHAUSTED", "OUT_OF_MEMORY" };
-
-	protected int exitReason;
 
 	/* This method is used to set the reason for the thread finishing */
 	void setExitReason(final int exitReason) {
