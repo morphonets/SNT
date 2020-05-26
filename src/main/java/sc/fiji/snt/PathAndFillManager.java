@@ -978,16 +978,32 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @param p the path to be deleted
 	 * @return true, if path was found and successfully deleted
 	 */
-	public synchronized boolean deletePath(final Path p)
-		throws IllegalArgumentException
-	{
+	public synchronized boolean deletePath(final Path p) {
 		final int i = getPathIndex(p);
 		if (i < 0) return false;
 		return deletePath(i);
 	}
 
 	/**
-	 * Gets the index of a Path
+	 * Deletes a collection of paths. If present, the UI is only updated once
+	 * operation completes.
+	 *
+	 * @param paths the collection to be deleted
+	 * @return true, if all Paths in the collection were found and successfully
+	 *         deleted
+	 */
+	public synchronized boolean deletePaths(final Collection<Path> paths) {
+		final ArrayList<Integer> indices = new ArrayList<>(paths.size());
+		for (final Path path : paths) {
+			final int index = getPathIndex(path);
+			if (index != -1) indices.add(index);
+		}
+		deletePaths(indices.stream().mapToInt(i->i).toArray());
+		return indices.size() == paths.size();
+	}
+
+	/**
+	 * Gets the index of a Path.
 	 *
 	 * @param p the Path for which the index should be retrieved
 	 * @return the path index, or -1 if p was not found
