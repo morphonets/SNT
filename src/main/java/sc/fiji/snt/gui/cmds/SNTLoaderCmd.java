@@ -215,11 +215,14 @@ public class SNTLoaderCmd extends DynamicCommand {
 	}
 
 	private void adjustFileFields(final boolean adjustImageChoice) {
-		if (imageFile == null || !imageFile.exists()) {
-			imageChoice = IMAGE_NONE;
-			return;
+		if (adjustImageChoice) {
+			if (imageFile == null || !imageFile.exists()) {
+				imageChoice = IMAGE_NONE;
+				return;
+			} else {
+				imageChoice = IMAGE_FILE;
+			}
 		}
-		if (adjustImageChoice) imageChoice = IMAGE_FILE;
 		for (final String ext : new String[] { "traces", "swc" , "json"}) {
 			final File candidate = SNTUtils.findClosestPair(imageFile, ext);
 			if (candidate != null && candidate.exists()) {
