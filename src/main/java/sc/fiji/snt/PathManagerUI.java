@@ -1541,6 +1541,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		return tree.searchable;
 	}
 
+	/**
+	 * Runs a menu command.
+	 *
+	 * @param cmd The command to be run, exactly as listed in the PathManagerUI menu bar.
+	 */
 	public void runCommand(final String cmd) {
 		if (cmd == null || cmd.isEmpty()
 				|| (Character.isAlphabetic(cmd.charAt(0)) && !Character.isUpperCase(cmd.charAt(0)))) {

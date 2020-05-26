@@ -770,6 +770,28 @@ public class GuiUtils {
 		return cp;
 	}
 
+	public static List<JMenuItem> getMenuItems(final JMenuBar menuBar) {
+		final List<JMenuItem> list = new ArrayList<>();
+		for (int i = 0; i < menuBar.getMenuCount(); i++) {
+			final JMenu menu = menuBar.getMenu(i);
+			getMenuItems(menu, list);
+		}
+		return list;
+	}
+
+	private static void getMenuItems(final JMenu menu, final List<JMenuItem> holdingList) {
+		for (int j = 0; j < menu.getItemCount(); j++) {
+			final JMenuItem jmi = menu.getItem(j);
+			if (jmi == null)
+				continue;
+			if (jmi instanceof JMenu) {
+				getMenuItems((JMenu) jmi, holdingList);
+			} else {
+				holdingList.add(jmi);
+			}
+		}
+	}
+
 	public JTextField textField(final String placeholder) {
 		return new TextFieldWithPlaceholder(placeholder);
 	}

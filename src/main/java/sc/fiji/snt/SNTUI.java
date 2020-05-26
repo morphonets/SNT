@@ -40,7 +40,6 @@ import java.awt.Rectangle;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -86,7 +85,6 @@ import javax.swing.event.DocumentListener;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
-import org.scijava.table.DefaultGenericTable;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Types;
 
@@ -100,7 +98,7 @@ import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
 import ij3d.ImageWindow3D;
 import net.imagej.Dataset;
-import net.imagej.ui.swing.updater.ImageJUpdater;
+import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.gui.ColorChooserButton;
@@ -587,17 +585,17 @@ public class SNTUI extends JDialog {
 		}
 	}
 
+	/**
+	 * Runs a menu command (as listed in the menu bar hierarchy).
+	 *
+	 * @param cmd The command to be run, exactly as listed in its menu
+	 * @throws IllegalArgumentException if {@code cmd} was not found.
+	 */
 	public void runCommand(final String cmd) throws IllegalArgumentException {
-		if (cmd == null || cmd.isEmpty()
-				|| (Character.isAlphabetic(cmd.charAt(0)) && !Character.isUpperCase(cmd.charAt(0)))) {
+		if (cmd == null || cmd.trim().isEmpty()) {
 			throw new IllegalArgumentException("Not a recognizable command: " + cmd);
 		}
-		final List<JMenuItem> list = new ArrayList<>();
-		for (int i = 0; i < menuBar.getMenuCount(); i++) {
-			final JMenu menu = menuBar.getMenu(i);
-			getMenuItems(menu, list);
-		}
-		for (final JMenuItem jmi : list) {
+		for (final JMenuItem jmi : GuiUtils.getMenuItems(menuBar)) {
 			if (cmd.equals(jmi.getText()) || cmd.equals(jmi.getActionCommand())) {
 				jmi.doClick();
 				return;
@@ -606,17 +604,6 @@ public class SNTUI extends JDialog {
 		throw new IllegalArgumentException("Not a recognizable command: " + cmd);
 	}
 
-	private void getMenuItems(final JMenu menu, final List<JMenuItem> holdingList) {
-		for (int j = 0; j < menu.getItemCount(); j++) {
-			final JMenuItem jmi = menu.getItem(j);
-			if (jmi == null) continue;
-			if (jmi instanceof JMenu) {
-				getMenuItems((JMenu)jmi, holdingList);
-			} else {
-				holdingList.add(jmi);
-			}
-		}
-	}
 	private void addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,
 			final GridBagConstraints c) {
 		final String anchor = label.replace(" ", "_").replace(":", "");
@@ -2255,7 +2242,7 @@ public class SNTUI extends JDialog {
 			if (tree == null) return;
 			final PathOrderAnalysisCmd pa = new PathOrderAnalysisCmd(tree);
 			pa.setContext(plugin.getContext());
-			pa.setTable(new DefaultGenericTable(), "SNT: Path Order Analysis");
+			pa.setTable(new SNTTable(), "SNT: Path Order Analysis");
 			pa.run();
 		});
 		analysisMenu.add(pathOrderAnalysis);

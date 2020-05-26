@@ -42,7 +42,6 @@ import org.scijava.plugin.Plugin;
 import org.scijava.script.ScriptService;
 import org.scijava.service.AbstractService;
 import org.scijava.service.Service;
-import org.scijava.table.DefaultGenericTable;
 import org.scijava.util.FileUtils;
 
 import ij.IJ;
@@ -52,6 +51,7 @@ import ij.plugin.ZProjector;
 import ij.process.ColorProcessor;
 import net.imagej.ImageJService;
 import sc.fiji.snt.analysis.PathProfiler;
+import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.event.SNTEvent;
@@ -436,10 +436,10 @@ public class SNTService extends AbstractService implements ImageJService {
 	/**
 	 * Returns a reference to SNT's main table of measurements.
 	 *
-	 * @return SNT measurements table
+	 * @return SNT measurements table (a {@code DefaultGenericTable})
 	 * @throws UnsupportedOperationException if SNT is not running
 	 */
-	public DefaultGenericTable getTable() {
+	public SNTTable getTable() {
 		accessActiveInstance(false);
 		return (getUI() == null) ? null : getUI().getPathManager().getTable();
 	}
