@@ -201,12 +201,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		addSeparator(" Search Status:", c);
 
 		{
-			currentThreshold = GuiUtils.leftAlignedLabel(
-				"No Pahs are currently being filled...", false);
-			maxThreshold = GuiUtils.leftAlignedLabel(
-				"This message will be updated once a Fill-out", false);
-			fillStatus = GuiUtils.leftAlignedLabel(
-				"command is run from the Path Manager...", false);
+			setPlaceholderStatusLabels();
 			final int storedPady = c.ipady;
 			final Insets storedInsets = c.insets;
 			c.ipady = 0;
@@ -280,11 +275,18 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		});
 	}
 
+	private void setPlaceholderStatusLabels() {
+		currentThreshold = GuiUtils.leftAlignedLabel("No Pahs are currently being filled...", false);
+		maxThreshold = GuiUtils.leftAlignedLabel("Max. expplored distance: N/A", false);
+		fillStatus = GuiUtils.leftAlignedLabel("Cursor position: N/A", false);
+	}
+
 	private class FMCellRenderer extends DefaultListCellRenderer {
 
 		private static final long serialVersionUID = 1L;
 		static final String LIST_PLACEHOLDER = "To start filling, run \"Fill Out\" from Path Manager";
 
+		@Override
 		public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
 				boolean cellHasFocus) {
 			if (LIST_PLACEHOLDER.equals(value.toString())) {
@@ -296,15 +298,10 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		}
 	}
 
-	private boolean fillerHasNotRun() {
-		return (plugin.filler == null || !plugin.filler.isAlive());
-	}
-
 	protected void adjustListPlaceholder() {
-		if (fillerHasNotRun()) {
-			if (!listModel.contains(FMCellRenderer.LIST_PLACEHOLDER))
+		if (listModel.isEmpty()) {
 				listModel.addElement(FMCellRenderer.LIST_PLACEHOLDER);
-		} else {
+		} else if (listModel.getSize() > 1 ){
 			listModel.removeElement(FMCellRenderer.LIST_PLACEHOLDER);
 		}
 	}
@@ -368,7 +365,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		manualRButton.setEnabled(false);
 		maxThreshold.setEnabled(false);
 		currentThreshold.setEnabled(false);
-		fillStatus.setEnabled(false);
 		maxRButton.setEnabled(false);
 		view3D.setEnabled(false);
 		exportAsCSV.setEnabled(false);
@@ -427,8 +423,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 		if (source == deleteFills) {
 
+			if (noFillsError()) return;
 			final int[] selectedIndices = fillList.getSelectedIndices();
-			if (selectedIndices.length < 1 || fillerHasNotRun()) {
+			if (selectedIndices.length < 1) {
 				gUtils.error("No fill was selected for deletion.");
 				return;
 			}
@@ -438,8 +435,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		}
 		else if (source == reloadFill) {
 
+			if (noFillsError()) return;
 			final int[] selectedIndices = fillList.getSelectedIndices();
-			if (selectedIndices.length != 1 || fillerHasNotRun()) {
+			if (selectedIndices.length != 1) {
 				gUtils.error(
 					"You must have a single fill selected in order to reload.");
 				return;
@@ -507,6 +505,13 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	}
 
+	private boolean noFillsError() {
+		final boolean noFills = listModel.getSize() == 0 || FMCellRenderer.LIST_PLACEHOLDER.equals(
+				listModel.getElementAt(0).toString());
+		if (noFills) gUtils.error("There are no stashed fills.");
+		return noFills;
+	}
+
 	private void assembleViewFillsMenu() {
 		viewFillsMenu = new JPopupMenu();
 		viewFillsMenu.add(new JMenuItem(new AbstractAction(
@@ -570,7 +575,14 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 */
 	@Override
 	public void finished(final SearchInterface source, final boolean success) {
-		// Do nothing...
+		if (!success) {
+			final int exitReason = ((SearchThread) source).exitReason;
+			if (exitReason != SearchThread.CANCELLED) {
+				final String reason = SearchThread.EXIT_REASONS_STRINGS[((SearchThread) source).exitReason];
+				new GuiUtils(this).error("Filling thread exited prematurely (Error code: '" + reason + "'). "
+						+ "With debug mode on, see Console for details.", "Filling Error");
+			}
+		}
 	}
 
 	/* (non-Javadoc)
