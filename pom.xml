@@ -172,15 +172,7 @@
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
-			<artifactId>pal-optimization</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>sc.fiji</groupId>
 			<artifactId>Skeletonize3D_</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>sc.fiji</groupId>
-			<artifactId>VIB_</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
@@ -247,10 +239,6 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>net.imagej</groupId>
-			<artifactId>imagej-legacy</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>com.jidesoft</groupId>
 			<artifactId>jide-oss</artifactId>
 			<version>${jide-oss.version}</version>
@@ -280,10 +268,6 @@
 			<version>5.10.1</version>
 		</dependency>
 		<dependency>
-			<groupId>net.imagej</groupId>
-			<artifactId>ij1-patcher</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>org.scijava</groupId>
 			<artifactId>scijava-table</artifactId>
 		</dependency>
@@ -294,10 +278,6 @@
 		<dependency>
 			<groupId>org.jgrapht</groupId>
 			<artifactId>jgrapht-ext</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>net.imagej</groupId>
-			<artifactId>imagej-ui-swing</artifactId>
 		</dependency>
 
 		<dependency>
