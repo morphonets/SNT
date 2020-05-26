@@ -1,5 +1,7 @@
 package sc.fiji.snt.gui.cmds;
 
+import java.util.List;
+
 /*-
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
@@ -21,38 +23,75 @@ package sc.fiji.snt.gui.cmds;
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
-
-import net.imagej.ImageJ;
-
-import net.imagej.updater.UpdateService;
 import org.scijava.command.Command;
-import org.scijava.log.LogService;
+import org.scijava.command.CommandInfo;
+import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-
+import org.scijava.util.Types;
+import net.imagej.ImageJ;
+import net.imagej.updater.UpdateService;
+import net.imagej.updater.UpdateSite;
+import net.imagej.updater.UpdaterUI;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Implements the 'EnableSciViewUpdateSite' command.
- *
+ * 
+ * @author Tiago Ferreira
  * @author Kyle Harrington
  */
 @Plugin(type = Command.class, visible = false)
 public class EnableSciViewUpdateSiteCmd implements Command {
 
-    @Parameter
-    private LogService logService;
-
 	@Parameter
 	private UpdateService updateService;
 
+	@Parameter
+	private CommandService cmdService;
+
 	@Override
 	public void run() {
-	    try {
-	    	// Note that this call emits (but doesnt throw) a FileNotFoundException when run from an IDE
-            updateService.getUpdateSite("SciView").setActive(true);
-        } catch( Exception e ) {
-	        logService.warn("UpdateService is unavailable. This should not occur if you run SNT via ImageJ, but may occur if you are using a development IDE.");
-        }
+		final UpdateSite updateSite = updateService.getUpdateSite("SciView");
+		if (updateSite != null && updateSite.isActive()) {
+			SNTUtils.log("SciView subscription detected");
+			return;
+		}
+		if (!new GuiUtils().getConfirmation(
+				"SNT now requires SciView but SciView does not seem to installed. Install it now? (Restart may be required)",
+				"Run Updater?")) {
+			return;
+		}
+		instructionsMsg();
+		runUpdater();
+	}
+
+	private void runUpdater() {
+		// This allows us to call the updater without having to depend on
+		// net.imagej.ui.swing. See net.imagej.updater.CheckForUpdates
+		final List<CommandInfo> updaters = cmdService.getCommandsOfType(UpdaterUI.class);
+		if (updaters.size() > 0) {
+			cmdService.run(updaters.get(0), true);
+		} else {
+			new GuiUtils().error("No updater plugins found! Please check your installation.");
+		}
+	}
+
+	private void instructionsMsg() {
+		final String msg = "Please enable the \"SciView\" update site in the Updater list:"
+				+ "<ol>" //
+				+ "<li>Click on the <i>Manage update sites</i> button</li>"
+				+ "<li>Select the <i>SciView</i> checkbox in the sites list</li> "
+				+ "<li>Click on <i>Apply changes</i> and restart ImageJ</li>"
+				+ "</ol>" //
+				+ "<b>This inconvenience will no longer be required once SciView is officially released.<br>"
+				+ "Thank you for your patience!";
+		GuiUtils.showHTMLDialog(msg, "Instructions");
+	}
+
+	public static boolean isSciViewAvailable() {
+		return Types.load("sc.iview.SciView") != null && Types.load("graphics.scenery.backends.Renderer") != null;
 	}
 
 	public static void main(final String... args) {
@@ -62,4 +101,3 @@ public class EnableSciViewUpdateSiteCmd implements Command {
 	}
 
 }
-

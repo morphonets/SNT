@@ -122,6 +122,7 @@ import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 import sc.fiji.snt.gui.cmds.CompareFilesCmd;
 import sc.fiji.snt.gui.cmds.ComputeSecondaryImg;
 import sc.fiji.snt.gui.cmds.ComputeTubenessImg;
+import sc.fiji.snt.gui.cmds.EnableSciViewUpdateSiteCmd;
 import sc.fiji.snt.gui.cmds.GraphGeneratorCmd;
 import sc.fiji.snt.gui.cmds.JSONImporterCmd;
 import sc.fiji.snt.gui.cmds.MLImporterCmd;
@@ -1634,9 +1635,9 @@ public class SNTUI extends JDialog {
 	private JPanel sciViewerPanel() {
 		openSciView = new JButton("Open SciView Viewer");
 		openSciView.addActionListener(e -> {
-			if (GuiUtils.sciViewUnavailableError()) {
+			if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
 				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-				cmdService.run(ImageJUpdater.class, true);
+				cmdService.run(EnableSciViewUpdateSiteCmd.class, true);
 				return;
 			}
 			if (openingSciView && sciViewSNT != null) {

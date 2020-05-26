@@ -31,7 +31,6 @@ import java.util.Arrays;
 import net.imagej.ImageJ;
 import net.imagej.display.ImageDisplayService;
 import net.imagej.legacy.LegacyService;
-import net.imagej.ui.swing.updater.ImageJUpdater;
 
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
@@ -128,10 +127,16 @@ public class SNTLoaderCmd extends DynamicCommand {
 	public void initialize() {
 		if (sntService.isActive() && sntService.getUI() != null) {
 			cancel("SNT seems to be already running.");
+			return;
 		}
-		if (!isSciViewAvailable()) cancel("");
-
 		GuiUtils.setSystemLookAndFeel();
+		if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
+			cmdService.run(EnableSciViewUpdateSiteCmd.class, true);
+			//cancel("SNT cannot initialize until SNT is available.");
+			cancel(""); // EnableSciViewUpdateSiteCmd will display prompt. Display nothing here
+			return;
+		}
+
 		// TODO: load defaults from prefService?
 		sourceImp = legacyService.getImageMap().lookupImagePlus(imageDisplayService
 			.getActiveImageDisplay());
@@ -147,15 +152,6 @@ public class SNTLoaderCmd extends DynamicCommand {
 			imageChoiceInput.setValue(this, sourceImp.getTitle());
 			adjustChannelInput();
 		}
-	}
-
-	private boolean isSciViewAvailable() {
-		if (GuiUtils.sciViewUnavailableError()) {
-			cmdService.run(ImageJUpdater.class, true);
-			//cmdService.run(EnableSciViewUpdateSiteCmd.class, true); // TF: this is currently not working
-			return false;
-		}
-		return true;
 	}
 
 	private void adjustChannelInput() {

@@ -314,6 +314,10 @@
 			<groupId>org.scijava</groupId>
 			<artifactId>scijava-plugins-io-table</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej-updater</artifactId>
+		</dependency>
 	</dependencies>
 
 	<build>

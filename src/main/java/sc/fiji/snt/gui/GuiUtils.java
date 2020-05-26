@@ -189,33 +189,13 @@ public class GuiUtils {
 	}
 
 	public static void showHTMLDialog(final String msg, final String title) {
-		new HTMLDialog(title, msg, false);
+		SwingUtilities.invokeLater(() -> {
+			new HTMLDialog(title, msg, false);
+		});
 	}
 
 	public static boolean isLegacy3DViewerAvailable() {
 		return Types.load("ij3d.Image3DUniverse") != null;
-	}
-
-	public static boolean isSciViewAvailable() {
-		return Types.load("sc.iview.SciView") != null && Types.load("graphics.scenery.backends.Renderer") != null;
-	}
-
-	public static boolean sciViewUnavailableError() {
-		final boolean available = isSciViewAvailable();
-		if (!available) {
-			final String msg = "SNT now requires you to subscribe to the <i>SciView</i> update site. To do so:" +
-					"<ol>" +
-					"<li>Run <i>Help>Update...</i> (the second last menu entry in the Help menu)</li>" +
-					"(!! This step is currently being done for you !!)" +
-					"<li>Click on the <i>Manage update sites</i> button</li>" +
-					"<li>Select the <i>SciView</i> checkbox in the sites list</li> " +
-					"<li>Click on <i>Apply changes</i>, dismiss this dialog, and restart ImageJ</li>" +
-					"</ol>" +
-					"<b>This inconvenience is just temporary and will no longer be required once SNT is " +
-					"officially release. Thank you for your patience!";
-			showHTMLDialog(msg, "Please Subscribe to the SciView Update Site");
-		}
-		return !available;
 	}
 
 	private JidePopup getPopup(final String msg) {
