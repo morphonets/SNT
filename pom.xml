@@ -132,9 +132,6 @@
 		<cleargl.version>2.2.10</cleargl.version>
 		<lwjgl.version>3.2.3</lwjgl.version>
 		<jzy3d.version>1.0.3-SNAPSHOT</jzy3d.version>
-		<jide-oss.version>3.6.18</jide-oss.version>
-
-		<okhttp.version>4.5.0</okhttp.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>deploy-to-scijava</releaseProfiles>
@@ -241,7 +238,7 @@
 		<dependency>
 			<groupId>com.jidesoft</groupId>
 			<artifactId>jide-oss</artifactId>
-			<version>${jide-oss.version}</version>
+			<version>3.6.18</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
@@ -255,17 +252,17 @@
 		<dependency>
 			<groupId>com.squareup.okhttp3</groupId>
 			<artifactId>okhttp</artifactId>
-			<version>${okhttp.version}</version>
+			<version>4.7.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.json</groupId>
 			<artifactId>json</artifactId>
-			<version>20190722</version>
+			<version>20200518</version>
 		</dependency>
 		<dependency>
 			<groupId>org.webjars</groupId>
 			<artifactId>font-awesome</artifactId>
-			<version>5.10.1</version>
+			<version>5.13.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.scijava</groupId>
@@ -283,7 +280,7 @@
 		<dependency>
 			<groupId>me.tongfei</groupId>
 			<artifactId>progressbar</artifactId>
-			<version>0.7.4</version>
+			<version>0.8.1</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jline</groupId>
