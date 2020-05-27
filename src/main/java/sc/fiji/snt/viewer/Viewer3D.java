@@ -1481,6 +1481,7 @@ public class Viewer3D {
 	 * @param enabled if true animation starts. Stops if false
 	 */
 	public void setAnimationEnabled(final boolean enabled) {
+		if (enabled && frame == null) show(); // TODO: Assume caller wanted scene to be visible when starting animation?
 		if (mouseController == null) return;
 		if (enabled) mouseController.startThreadController();
 		else mouseController.stopThreadController();
@@ -1890,9 +1891,11 @@ public class Viewer3D {
 			sb.append("Hidden  objects: ").append(hiddenActors.toString());
 			sb.append("\n");
 		}
-		sb.append("viewer.setFrameSize(");
-		sb.append(frame.getWidth()).append(", ").append(frame.getHeight()).append(");");
-		sb.append("\n");
+		if (frame != null) {
+			sb.append("viewer.setFrameSize(");
+			sb.append(frame.getWidth()).append(", ").append(frame.getHeight()).append(");");
+			sb.append("\n");
+		}
 		if (currentView == ViewMode.TOP) {
 			sb.append("viewer.setViewMode(Viewer3D.ViewMode.TOP);");
 		} else {
@@ -3619,7 +3622,7 @@ public class Viewer3D {
 			final String commentPrefix = (extension.endsWith("py")) ? "# " : "// ";
 			final StringBuilder sb = new StringBuilder(prefs.getBoilerplateScript(extension));
 			sb.append("\n").append(commentPrefix);
-			sb.append("Rec. Viewer's API: https://javadoc.scijava.org/Fiji/sc/fiji/snt/viewer/Viewer3D.html");
+			sb.append("Rec. Viewer's API: https://morphonets.github.io/SNT/index.html?sc/fiji/snt/viewer/Viewer3D.html");
 			sb.append("\n").append(commentPrefix);
 			sb.append("Tip: Programmatic control of the Viewer's scene can be set using the Console info");
 			sb.append("\n").append(commentPrefix);

@@ -31,6 +31,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -355,32 +356,39 @@ public class SNTService extends AbstractService implements ImageJService {
 	}
 
 	/**
-	 * Returns a reference to SNT's Reconstruction Viewer.
+	 * Returns a reference to the active Reconstruction Viewer (either stand-alone
+	 * or SNT-associated instance). A new instance is retrieved if none exists.
 	 *
-	 * @return SNT's {@link Viewer3D} instance.
-	 * @throws UnsupportedOperationException if SNT is not running
+	 * @return The active {@link Viewer3D} instance. For stand-alone viewers, this
+	 *         is typically the last viewer initiated.
 	 */
 	public Viewer3D getRecViewer() {
-		accessActiveInstance(false);
 		if (getUI() != null) {
 			return getUI().getReconstructionViewer(true);
 		}
-		final Viewer3D viewer = getInstanceViewer();
-		if (viewer == null) {
-			class SNTViewer3D extends Viewer3D {
-				private SNTViewer3D() {
-					super(plugin);
+		if (plugin != null) {
+			final Viewer3D viewer = getInstanceViewer();
+			if (viewer == null) {
+				class SNTViewer3D extends Viewer3D {
+					private SNTViewer3D() {
+						super(plugin);
+					}
+
+					@Override
+					public void dispose() {
+						super.dispose();
+						if (getUI() != null) getUI().setReconstructionViewer(null);
+					}
 				}
-				@Override
-				public void dispose() {
-					super.dispose();
-					if (getUI() != null) getUI().setReconstructionViewer(null);
-				}
+				return new SNTViewer3D();
 			}
-			return new SNTViewer3D();
-		} else {
 			return viewer;
 		}
+		final HashMap<Integer, Viewer3D> viewerMap = SNTUtils.getViewers();
+		if (viewerMap == null || viewerMap.isEmpty()) {
+			return newRecViewer(true);
+		}
+		return viewerMap.get(Collections.max(viewerMap.keySet()));
 	}
 
 	private Viewer3D getInstanceViewer() {
