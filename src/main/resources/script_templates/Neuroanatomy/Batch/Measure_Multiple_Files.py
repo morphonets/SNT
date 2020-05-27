@@ -13,15 +13,13 @@
 """
 file:      Measure_Multiple_Files.py
 author:    Tiago Ferreira
-version:   20180531
+version:   20200527
 info:      Bulk measurements of reconstruction files using SNT
 """
 
 import os, sys
 from sc.fiji.snt import Tree
-from sc.fiji.snt.analysis import TreeAnalyzer
-from org.scijava.table import DefaultGenericTable
-
+from sc.fiji.snt.analysis import (TreeAnalyzer, SNTTable)
 
 
 def get_trees(directory, filtering_string):
@@ -48,11 +46,9 @@ def run():
         return
 
     # Define a common table to host results
-
-    table = DefaultGenericTable()
+    table = SNTTable()  # a org.scijava.table.DefaultGenericTable
 
     # Define the metrics to be considered
-
     if 'Complete' in chosen_metrics:
         metrics = TreeAnalyzer.getAllMetrics()
     else:
@@ -67,7 +63,6 @@ def run():
 
         # Prepare analysis. We'll make TreeAnalyzer aware of current context
         # so that we don't need to worry about displaying/updating the table
-
         analyzer = TreeAnalyzer(tree)
         analyzer.setContext(context)
         analyzer.setTable(table, 'SWC Measurements: %s' % input_dir)
@@ -75,11 +70,13 @@ def run():
         # Analyze the data grouping measurements by compartment (e.g., axon,
         # dendrite). See the analysis API for more sophisticated operations:
         # https://morphonets.github.io/SNT/
-
         analyzer.measure(metrics, True)  # Split results by compartment?
 
     msg = 'Done. %s file(s) analyzed...' % (counter + 1)
     log.info(msg)
+  
+    # To save the table
+    #table.save('path/to/swc/file.csv')
     uiservice.showDialog(msg)
 
 run()

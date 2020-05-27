@@ -35,9 +35,19 @@ import org.scijava.script.ScriptFinder;
 import org.scijava.script.ScriptInfo;
 import org.scijava.script.ScriptModule;
 import org.scijava.script.ScriptService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+
+/**
+ * Scripting Tests
+ * 
+ * @author Cameron Arshadi
+ * @author Tiago Ferreira
+ */
 public class ScriptTemplatesTest {
 
+	private static final Logger LOGGER = LoggerFactory.getLogger(ScriptTemplatesTest.class);
 	private final String scriptTemplatesResource = "script_templates/Neuroanatomy";
 	private ScriptService scriptService;
 	private ArrayList<ScriptInfo> scripts;
@@ -49,9 +59,8 @@ public class ScriptTemplatesTest {
 		Context context = new Context();
 		scriptService = context.getService(ScriptService.class);
 		File[] subDirectories = scriptTemplatesBaseDirectory.listFiles(File::isDirectory);
-		for (int i = 0; i < subDirectories.length; i++) {
-			scriptService.addScriptDirectory(subDirectories[i], new MenuPath(subDirectories[i].getName()));
-			
+		for (File subDirectory : subDirectories) {
+			scriptService.addScriptDirectory(subDirectory, new MenuPath(subDirectory.getName()));
 		}
 		ScriptFinder scriptFinder = new ScriptFinder(scriptService.context());
 		scripts = new ArrayList<>();
@@ -60,10 +69,18 @@ public class ScriptTemplatesTest {
 
 	@Test
 	public void testAnalysisScriptTemplates() throws Exception {
+		//TODO: Allow headless execution
 		for (ScriptInfo script : scripts) {
-			if (script.getMenuPath().get(0).getName().equals("Analysis") && script.getPath().indexOf("SciView") == -1) {
-				ScriptModule fsm = scriptService.run(script, true).get(); // calling get() waits for execution to finish
+			LOGGER.info("##### Testing: " + script);
+			// Some scripts require very specific inputs. For now we are just going to skip those
+			if (script.getMenuPath().get(0).getName().contains("Batch")) {
+				LOGGER.info("\tSkipping...: " + script);
+				continue;
 			}
+			ScriptModule module = scriptService.run(script, true).get(); // calling get() waits for execution to finish			
+			module.getOutputs().values().forEach(output -> {
+				LOGGER.info("\tOutputs: " + output);
+			});
 		}
 	}
 

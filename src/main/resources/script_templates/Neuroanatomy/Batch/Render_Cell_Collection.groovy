@@ -1,6 +1,8 @@
-#@File(style="directory") dir
+#@File(style="directory", required=false, label="Reconstructions directory (Leave empty for demo):") dir
+#@String(label="Color mapping:", choices={"Ice.lut", "mpl-viridis.lut"}) lutName
 #@ImageJ ij
 #@LUTService lut
+
 
 import groovy.io.FileType
 import groovy.time.TimeCategory
@@ -21,18 +23,19 @@ import sc.fiji.snt.viewer.Viewer3D
 // Keep track of current time
 start = new Date()
 
-// Retrieve the list of Trees from the reconstruction files in the directory
-trees = Tree.listFromDir(dir.getAbsolutePath())
+// Retrive all reconstruction files from the directory
+trees = Tree.listFromDir(dir.toString())
 if (trees.isEmpty()) {
-	println("No files found in "+ dir)
-	return
+	// Directory is invalid. Let's retrieve demo data instead
+	trees = snt.demoTrees()
 }
+
 
 // Define the color table (LUT) and perform the color mapping to total length.
 // A fixed set of tables can be accessed from net.imagej.display.ColorTables, 
 // e.g., `colorTable = ColorTables.ICE`, but using LutService, one can access
 // _any_ LUT currently installed in Fiji
-colorTable = lut.loadLUT(lut.findLUTs().get("Ice.lut"))
+colorTable = lut.loadLUT(lut.findLUTs().get(lutName))
 colorMapper = new MultiTreeColorMapper(trees)
 colorMapper.map("total length", colorTable)
 
@@ -54,3 +57,4 @@ viewer.setAnimationEnabled(true)
 td = TimeCategory.minus(new Date(), start)
 println("Rendered " + trees.size() + " files in "+ td)
 println("With Viewer active, Press 'H' for a list of Viewer's shortcuts")
+
