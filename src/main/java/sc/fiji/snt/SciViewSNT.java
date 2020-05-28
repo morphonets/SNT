@@ -23,6 +23,7 @@
 package sc.fiji.snt;
 
 import graphics.scenery.*;
+import ij.IJ;
 import net.imagej.ImageJ;
 
 import org.joml.Vector3f;
@@ -41,9 +42,10 @@ import sc.iview.vector.FloatVector3;
 import sc.iview.vector.JOMLVector3;
 import sc.iview.vector.Vector3;
 
-import java.awt.Color;
+import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.image.BufferedImage;
 import java.util.List;
 
 import javax.swing.SwingUtilities;
@@ -460,8 +462,13 @@ public class SciViewSNT {
 	/* IDE debug method */
 	public static void main(final String[] args) throws InterruptedException {
 		SceneryBase.xinitThreads();
+
 		//GuiUtils.setSystemLookAndFeel();
 		final ImageJ ij = new ImageJ();
+
+		Image icon = new BufferedImage(64, 64, BufferedImage.TYPE_INT_RGB);
+		IJ.getInstance().setIconImage(icon);
+
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
 		final SciViewSNT sciViewSNT = sntService.getOrCreateSciViewSNT();
