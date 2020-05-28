@@ -219,6 +219,13 @@
 			<groupId>sc.iview</groupId>
 			<artifactId>sciview</artifactId>
 			<version>${sciview.version}</version>
+			<exclusions>
+				<exclusion>
+					<!-- NB: Exclude older jline that comes in via sciview -->
+					<groupId>jline</groupId>
+					<artifactId>jline</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>graphics.scenery</groupId>
