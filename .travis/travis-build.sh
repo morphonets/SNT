@@ -65,7 +65,7 @@ EOL
 			<id>scijava-mirror</id>
 			<name>SciJava mirror</name>
 			<url>https://maven.scijava.org/content/groups/public/</url>
-			<mirrorOf>*</mirrorOf>
+			<mirrorOf>central</mirrorOf>
 		</mirror>
 	</mirrors>
 EOL
