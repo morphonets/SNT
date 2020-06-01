@@ -158,6 +158,17 @@
 			<id>Jzy3D.releases</id>
 			<url>https://maven.jzy3d.org/releases/</url>
 		</repository>
+		<repository>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <id>bintray.kotlin.eap</id>
+            <name>Bintray Kotlin EAP Repository</name>
+            <url>https://dl.bintray.com/kotlin/kotlin-eap</url>
+        </repository>
 	</repositories>
 
 	<dependencies>
