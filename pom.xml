@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>28.0.0</version>
+		<version>29.0.0-beta-1</version>
 		<relativePath />
 	</parent>
 
@@ -124,14 +124,22 @@
 		<license.projectName>Fiji distribution of ImageJ for the life sciences.</license.projectName>
 
 		<!-- Dependency versions for JitPack -->
-		<sciview.version>f9f2f45</sciview.version>
-		<scenery.version>6a994af</scenery.version>
+		<sciview.version>9a71de9</sciview.version>
+		<scenery.version>f55e46b</scenery.version>
 		<kotlin.version>1.4-M1</kotlin.version>
 		<joml.version>1.9.22</joml.version>
 
 		<cleargl.version>2.2.10</cleargl.version>
 		<lwjgl.version>3.2.3</lwjgl.version>
 		<jzy3d.version>1.0.3-SNAPSHOT</jzy3d.version>
+
+		<jline.version>3.13.1</jline.version>
+		<jide-oss.version>3.6.18</jide-oss.version>
+		<imagej-plot-service.version>0.1.1</imagej-plot-service.version>
+		<progressbar.version>0.8.1</progressbar.version>
+		<okhttp.version>4.7.2</okhttp.version>
+		<font-awesome.version>5.13.0</font-awesome.version>
+		<json.version>20200518</json.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>deploy-to-scijava</releaseProfiles>
@@ -150,6 +158,17 @@
 			<id>Jzy3D.releases</id>
 			<url>https://maven.jzy3d.org/releases/</url>
 		</repository>
+		<repository>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <id>bintray.kotlin.eap</id>
+            <name>Bintray Kotlin EAP Repository</name>
+            <url>https://dl.bintray.com/kotlin/kotlin-eap</url>
+        </repository>
 	</repositories>
 
 	<dependencies>
@@ -207,6 +226,13 @@
 			<groupId>sc.iview</groupId>
 			<artifactId>sciview</artifactId>
 			<version>${sciview.version}</version>
+			<exclusions>
+				<exclusion>
+					<!-- NB: Exclude older jline that comes in via sciview -->
+					<groupId>jline</groupId>
+					<artifactId>jline</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>graphics.scenery</groupId>
@@ -238,7 +264,7 @@
 		<dependency>
 			<groupId>com.jidesoft</groupId>
 			<artifactId>jide-oss</artifactId>
-			<version>3.6.18</version>
+			<version>${jide-oss.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
@@ -247,22 +273,22 @@
 		<dependency>
 			<groupId>net.imagej</groupId>
 			<artifactId>imagej-plot-service</artifactId>
-			<version>0.1.1</version>
+			<version>${imagej-plot-service.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.squareup.okhttp3</groupId>
 			<artifactId>okhttp</artifactId>
-			<version>4.7.2</version>
+			<version>${okhttp.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.json</groupId>
 			<artifactId>json</artifactId>
-			<version>20200518</version>
+			<version>${json.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.webjars</groupId>
 			<artifactId>font-awesome</artifactId>
-			<version>5.13.0</version>
+			<version>${font-awesome.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.scijava</groupId>
@@ -280,12 +306,19 @@
 		<dependency>
 			<groupId>me.tongfei</groupId>
 			<artifactId>progressbar</artifactId>
-			<version>0.8.1</version>
+			<version>${progressbar.version}</version>
+			<exclusions>
+				<exclusion>
+					<!-- NB: Exclude older jline that comes in via sciview -->
+					<groupId>org.jline</groupId>
+					<artifactId>jline-terminal-jansi</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.jline</groupId>
 			<artifactId>jline</artifactId>
-			<version>3.13.1</version>
+			<version>${jline.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.scijava</groupId>
