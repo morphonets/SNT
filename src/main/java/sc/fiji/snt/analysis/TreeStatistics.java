@@ -45,6 +45,7 @@ import sc.fiji.snt.analysis.AnalysisUtils.HistogramDatasetPlus;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.annotation.AllenCompartment;
+import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.SWCPoint;
@@ -232,8 +233,30 @@ public class TreeStatistics extends TreeAnalyzer {
 	 * @see AllenCompartment#getOntologyDepth()
 	 */
 	public Map<BrainAnnotation, Double> getAnnotatedLength(final int level) {
+		return getAnnotatedLength(level, BrainAnnotation.ANY_HEMISPHERE);
+	}
+
+	/**
+	 * Retrieves the amount of cable length present on each brain compartment
+	 * innervated by the analyzed neuron.
+	 *
+	 * @param level      the ontological depth of the compartments to be considered
+	 * @param hemisphere typically 'left' or 'right'. The hemisphere flag (
+	 *                   {@link BrainAnnotation#LEFT_HEMISPHERE} or
+	 *                   {@link BrainAnnotation#RIGHT_HEMISPHERE}) is extracted from
+	 *                   the first character of the string (case insensitive).
+	 *                   Ignored if not a recognized option
+	 * @return the map containing the brain compartments as keys, and cable lengths
+	 *         as values.
+	 * @see AllenCompartment#getOntologyDepth()
+	 */
+	public Map<BrainAnnotation, Double> getAnnotatedLength(final int level, final String hemisphere) {
+		return getAnnotatedLength(level, BrainAnnotation.getHemisphereFlag(hemisphere));
+	}
+
+	private Map<BrainAnnotation, Double> getAnnotatedLength(final int level, final char lr) {
 		final DirectedWeightedGraph graph = tree.getGraph();
-		final NodeStatistics<SWCPoint> nodeStats = new NodeStatistics<SWCPoint>(graph.vertexSet());
+		final NodeStatistics<SWCPoint> nodeStats = new NodeStatistics<SWCPoint>(graph.vertexSet(lr));
 		final Map<BrainAnnotation, Set<SWCPoint>> annotatedNodesMap = nodeStats.getAnnotatedNodes(level);
 		final HashMap<BrainAnnotation, Double> lengthMap = new HashMap<>();
 		for (final Map.Entry<BrainAnnotation, Set<SWCPoint>> entry : annotatedNodesMap.entrySet()) {
@@ -281,6 +304,40 @@ public class TreeStatistics extends TreeAnalyzer {
 	 */
 	public SNTChart getAnnotatedLengthHistogram(final int depth) {
 		final Map<BrainAnnotation, Double> map = getAnnotatedLength(depth);
+		return getAnnotatedLengthHistogram(map, depth, "");
+	}
+
+	/**
+	 * Retrieves the histogram of cable length frequencies across brain areas of the
+	 * specified ontology level across the specified hemisphere.
+	 *
+	 * @param depth      the ontological depth of the compartments to be considered
+	 * @param hemisphere typically 'left' or 'right'. The hemisphere flag (
+	 *                   {@link BrainAnnotation#LEFT_HEMISPHERE} or
+	 *                   {@link BrainAnnotation#RIGHT_HEMISPHERE}) is extracted from
+	 *                   the first character of the string (case insensitive).
+	 *                   Ignored if not a recognized option
+	 * @return the annotated length histogram
+	 * @see AllenCompartment#getOntologyDepth()
+	 */
+	public SNTChart getAnnotatedLengthHistogram(int depth, String hemisphere) {
+		final char hemiFlag = BrainAnnotation.getHemisphereFlag(hemisphere);
+		final Map<BrainAnnotation, Double> map = getAnnotatedLength(depth, hemiFlag);
+		String label;
+		switch (hemiFlag) {
+		case BrainAnnotation.LEFT_HEMISPHERE:
+			label = "Left hemi.";
+			break;
+		case BrainAnnotation.RIGHT_HEMISPHERE:
+			label = "Right hemi.";
+			break;
+		default:
+			label = "";
+		}
+		return getAnnotatedLengthHistogram(map, depth, label);
+	}
+
+	private SNTChart getAnnotatedLengthHistogram(final Map<BrainAnnotation, Double> map, final int depth, final String secondaryLabel) {
 		final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
 		final String seriesLabel = (depth == Integer.MAX_VALUE) ? "no filtering" : "depth \u2264" + depth;
 		map.entrySet().stream().sorted((e1, e2) -> -e1.getValue().compareTo(e2.getValue())).forEach(entry -> {
@@ -298,6 +355,7 @@ public class TreeStatistics extends TreeAnalyzer {
 				dataset, seriesLabel);
 		final String tLabel = (tree.getLabel() == null) ? "" : tree.getLabel();
 		final SNTChart frame = new SNTChart(tLabel + " Annotated Length", chart, new Dimension(400, 600));
+		if (secondaryLabel != null) frame.annotate(secondaryLabel);
 		return frame;
 	}
 
@@ -648,17 +706,27 @@ public class TreeStatistics extends TreeAnalyzer {
 		final Tree axon = loader.getTree("axon");
 		final TreeStatistics tStats = new TreeStatistics(axon);
 		final int depth = 6;//Integer.MAX_VALUE;
-		SNTChart hist = tStats.getAnnotatedLengthHistogram(depth);
+
+		// retrieve some metrics:
+		tStats.getHistogram("fractal dimension").show();
+		NodeStatistics<?> nStats =new NodeStatistics<>(tStats.getTips());
+		SNTChart hist = nStats.getAnnotatedHistogram(depth);
+		hist.annotate("No. of tips: " + tStats.getTips().size());
+		hist.show();
+
+		// retrieve annotated lengths
+		AllenUtils.assignHemisphereTags(axon.getGraph());
+		hist = tStats.getAnnotatedLengthHistogram(depth);
 		AllenCompartment somaCompartment = loader.getSomaCompartment();
 		if (somaCompartment.getOntologyDepth() > depth)
 			somaCompartment = somaCompartment.getAncestor(depth - somaCompartment.getOntologyDepth());
 		hist.annotateCategory(somaCompartment.acronym(), "soma");
 		hist.show();
-		tStats.getHistogram("fractal dimension").show();
-		NodeStatistics<?> nStats =new NodeStatistics<>(tStats.getTips());
-				hist = nStats.getAnnotatedHistogram(depth);
-				hist.annotate("No. of tips: " + tStats.getTips().size());
-				hist.show();
-
+		hist = tStats.getAnnotatedLengthHistogram(depth, "left");
+		hist.annotateCategory(somaCompartment.acronym(), "soma");
+		hist.show();
+		hist = tStats.getAnnotatedLengthHistogram(depth, "right");
+		hist.annotateCategory(somaCompartment.acronym(), "soma");
+		hist.show();
 	}
 }

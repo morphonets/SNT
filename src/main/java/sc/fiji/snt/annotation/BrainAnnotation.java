@@ -32,6 +32,10 @@ import sc.fiji.snt.viewer.OBJMesh;
  */
 public interface BrainAnnotation {
 
+	public char LEFT_HEMISPHERE = 'l';
+	public char RIGHT_HEMISPHERE = 'r';
+	public char ANY_HEMISPHERE = '\u0000';
+
 	/** @return the compartment's unique id */
 	public int id();
 
@@ -68,5 +72,16 @@ public interface BrainAnnotation {
 
 	/** @return the parent of this compartment */
 	public BrainAnnotation getParent();
+
+	public static char getHemisphereFlag(final String hemisphere) {
+		final char flag = hemisphere.trim().toLowerCase().charAt(0);
+		switch(flag) {
+		case LEFT_HEMISPHERE:
+		case RIGHT_HEMISPHERE:
+			return flag;
+		default:
+			return ANY_HEMISPHERE;
+		}
+	}
 
 }

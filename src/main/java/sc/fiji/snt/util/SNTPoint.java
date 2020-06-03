@@ -55,6 +55,10 @@ public interface SNTPoint {
 	/** @return the neuropil annotation assigned to this point */
 	public BrainAnnotation getAnnotation();
 
+	public void setHemisphere(char lr);
+
+	public char getHemisphere();
+
 	@SuppressWarnings("unchecked")
 	public static <T extends SNTPoint> T average(final Collection<T> points) {
 		double x = 0;

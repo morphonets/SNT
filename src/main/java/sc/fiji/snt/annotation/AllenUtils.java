@@ -45,6 +45,7 @@ import org.scijava.util.ColorRGB;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.OBJMesh;
@@ -256,6 +257,20 @@ public class AllenUtils {
 	 */
 	public static boolean isLeftHemisphere(final Tree tree) {
 		return isLeftHemisphere(tree.getRoot());
+	}
+
+	public static void assignHemisphereTags(final DirectedWeightedGraph graph) {
+		graph.vertexSet().forEach(node -> {
+			node.setHemisphere(isLeftHemisphere(node) ? BrainAnnotation.LEFT_HEMISPHERE : BrainAnnotation.RIGHT_HEMISPHERE);
+		});
+	}
+
+	public static void assignHemisphereTags(final Tree tree) {
+		//TODO: Currently we have to tag both the tree nodes and graph vertices. This needs to be simplified!
+		tree.getNodes().forEach(node -> {
+			node.setHemisphere(isLeftHemisphere(node) ? BrainAnnotation.LEFT_HEMISPHERE : BrainAnnotation.RIGHT_HEMISPHERE);
+		});
+		assignHemisphereTags(tree.getGraph());
 	}
 
 	/**
