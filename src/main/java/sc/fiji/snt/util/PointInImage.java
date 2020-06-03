@@ -53,6 +53,9 @@ public class PointInImage implements SNTPoint {
 	/** The Path associated with this node, if any (optional field) */
 	public Path onPath = null;
 
+	private char lr = BrainAnnotation.ANY_HEMISPHERE;
+
+
 	public PointInImage(final double x, final double y, final double z) {
 		this.x = x;
 		this.y = y;
@@ -232,5 +235,15 @@ public class PointInImage implements SNTPoint {
 	@Override
 	public BrainAnnotation getAnnotation() {
 		return annotation;
+	}
+
+	@Override
+	public void setHemisphere(char lr) {
+		this.lr = lr;
+	}
+
+	@Override
+	public char getHemisphere() {
+		return lr;
 	}
 }

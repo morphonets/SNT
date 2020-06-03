@@ -41,7 +41,7 @@ import sc.fiji.snt.annotation.BrainAnnotation;
  *
  * @author Tiago Ferreira
  */
-public class SWCPoint extends PointInImage implements SNTPoint, Comparable<SWCPoint> {
+public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 
 	/** The sample number of this node */
 	public int id;

@@ -25,9 +25,11 @@ package sc.fiji.snt.analysis.graph;
 import java.awt.Window;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.jgrapht.GraphTests;
@@ -36,6 +38,7 @@ import org.jgrapht.graph.DefaultDirectedWeightedGraph;
 import org.jgrapht.traverse.DepthFirstIterator;
 
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.SWCPoint;
 
 /**
@@ -272,6 +275,15 @@ public class DirectedWeightedGraph extends DefaultDirectedWeightedGraph<SWCPoint
 	public Tree getTree() {
 		updateVertexProperties();
 		return new Tree(this.vertexSet(), "");
+	}
+
+	public Set<SWCPoint> vertexSet(final char lr) {
+		if (lr == BrainAnnotation.ANY_HEMISPHERE) return vertexSet();
+		final Set<SWCPoint> modifiable = new HashSet<SWCPoint>();
+		vertexSet().forEach(vertex -> {
+			if (lr == vertex.getHemisphere()) modifiable.add(vertex);
+		});
+		return modifiable;
 	}
 
 	/**

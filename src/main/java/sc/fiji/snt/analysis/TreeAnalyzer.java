@@ -83,30 +83,35 @@ public class TreeAnalyzer extends ContextCommand {
 	private int unfilteredPathsFittedPathsCounter = 0;
 
 	/**
-	 * Instantiates a new Tree analyzer.
+	 * Instantiates a new Tree analyzer from a collection of paths.
 	 *
-	 * @param tree Collection of Paths to be analyzed. Note that null Paths are
+	 * @param paths Collection of Paths to be analyzed. Note that null Paths are
 	 *          discarded. Also, when a Path has been fitted and
 	 *          {@link Path#getUseFitted()} is true, its fitted 'flavor' is used.
+	 * @param label the label describing the path collection
 	 * @see #getParsedTree()
 	 */
-	public TreeAnalyzer(final Tree tree) {
-		this.tree = new Tree();
-		this.tree.setLabel(tree.getLabel());
+	public TreeAnalyzer(final Collection<Path> paths, String label) {
+		tree = new Tree(paths);
+		tree.setLabel(label);
 		for (final Path p : tree.list()) {
-			if (p == null) continue;
-			Path pathToAdd;
 			// If fitted flavor of path exists use it instead
 			if (p.getUseFitted() && p.getFitted() != null) {
-				pathToAdd = p.getFitted();
 				fittedPathsCounter++;
 			}
-			else {
-				pathToAdd = p;
-			}
-			this.tree.add(pathToAdd);
 		}
 		unfilteredPathsFittedPathsCounter = fittedPathsCounter;
+	}
+
+	/**
+	 * Instantiates a new Tree analyzer.
+	 *
+	 * @param tree the Tree to be analyzed.
+	 */
+	public TreeAnalyzer(final Tree tree) {
+		this.tree = tree;
+		unfilteredPathsFittedPathsCounter = 0;
+		fittedPathsCounter = 0;
 	}
 
 	/**
