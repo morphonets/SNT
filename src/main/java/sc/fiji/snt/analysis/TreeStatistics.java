@@ -268,7 +268,30 @@ public class TreeStatistics extends TreeAnalyzer {
 		}
 		return lengthMap;
 	}
-	
+
+	public Map<BrainAnnotation, double[]> getAnnotatedLengthsByHemisphere(final int level) {
+		final char ipsiFlag = tree.getGraph().getRoot().getHemisphere();
+		if (ipsiFlag == BrainAnnotation.ANY_HEMISPHERE)
+			throw new IllegalArgumentException("Tree's root has its hemisphere flag unset");
+		final char contraFlag = (ipsiFlag == BrainAnnotation.LEFT_HEMISPHERE) ? BrainAnnotation.RIGHT_HEMISPHERE
+				: BrainAnnotation.LEFT_HEMISPHERE;
+		final Map<BrainAnnotation, Double> ipsiMap = getAnnotatedLength(level, ipsiFlag);
+		final Map<BrainAnnotation, Double> contraMap = getAnnotatedLength(level, contraFlag);
+		final Map<BrainAnnotation, double[]> finalMap = new HashMap<>();
+		ipsiMap.forEach( (k, ipsiLength) -> {
+			double[] values = new double[2];
+			final Double contraLength = contraMap.get(k);
+			values[0] = ipsiLength;
+			values[1] = (contraLength == null) ? 0d : contraLength;
+			finalMap.put(k, values);
+		});
+		contraMap.keySet().removeIf( k -> ipsiMap.get(k) != null);
+		contraMap.forEach( (k, contraLength) -> {
+			finalMap.put(k, new double[] {0d, contraLength});
+		});
+		return finalMap;
+	}
+
 	private double getSubgraphWeight(final AsSubgraph<SWCPoint, SWCWeightedEdge> subgraph, final DirectedWeightedGraph baseGraph) {
 		double totalWeight = 0d;
 		for (final SWCWeightedEdge edge : subgraph.edgeSet()) {
@@ -321,9 +344,11 @@ public class TreeStatistics extends TreeAnalyzer {
 	 * @see AllenCompartment#getOntologyDepth()
 	 */
 	public SNTChart getAnnotatedLengthHistogram(int depth, String hemisphere) {
-		final char hemiFlag = BrainAnnotation.getHemisphereFlag(hemisphere);
-		final Map<BrainAnnotation, Double> map = getAnnotatedLength(depth, hemiFlag);
+		final Map<BrainAnnotation, Double> map = getAnnotatedLength(depth, hemisphere);
+		if ("ratio".equalsIgnoreCase(hemisphere.trim()))
+			return getAnnotatedLengthsByHemisphereHistogram(depth);
 		String label;
+		final char hemiFlag = BrainAnnotation.getHemisphereFlag(hemisphere);
 		switch (hemiFlag) {
 		case BrainAnnotation.LEFT_HEMISPHERE:
 			label = "Left hemi.";
@@ -335,6 +360,32 @@ public class TreeStatistics extends TreeAnalyzer {
 			label = "";
 		}
 		return getAnnotatedLengthHistogram(map, depth, label);
+	}
+
+	private SNTChart getAnnotatedLengthsByHemisphereHistogram(int depth) {
+		final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+		Map<BrainAnnotation, double[]> seriesMap = getAnnotatedLengthsByHemisphere(depth);
+		seriesMap.entrySet().stream().sorted((e1, e2) -> -Double.compare(e1.getValue()[0], e2.getValue()[0]))
+		.forEach(entry -> {
+			if (entry.getKey() != null) {
+					dataset.addValue(entry.getValue()[0], "Ipsilateral", entry.getKey().acronym());
+					dataset.addValue(entry.getValue()[1], "Contralateral", entry.getKey().acronym());
+			}
+		});
+		int nAreas = seriesMap.size();
+		if (seriesMap.get(null) != null) {
+			dataset.addValue(seriesMap.get(null)[0], "Ipsilateral", "Other" );
+			dataset.addValue(seriesMap.get(null)[1], "Contralateral", "Other" );
+			nAreas--;
+		}
+		final String axisTitle = (depth == Integer.MAX_VALUE) ? "no filtering" : "depth \u2264" + depth;
+		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
+				"Brain areas (N=" + nAreas + ", "+ axisTitle +")", // domain axis title
+				"Cable length", // range axis title
+				dataset, 2);
+		final String tLabel = (tree.getLabel() == null) ? "" : tree.getLabel();
+		final SNTChart frame = new SNTChart(tLabel + " Annotated Length", chart, new Dimension(400, 600));
+		return frame;
 	}
 
 	private SNTChart getAnnotatedLengthHistogram(final Map<BrainAnnotation, Double> map, final int depth, final String secondaryLabel) {
@@ -735,6 +786,10 @@ public class TreeStatistics extends TreeAnalyzer {
 		hist.show();
 		hist = tStats.getAnnotatedLengthHistogram(depth, "right");
 		hist.annotateCategory(somaCompartment.acronym(), "soma");
+		hist.show();
+		hist = tStats.getAnnotatedLengthHistogram(depth, "ratio");
+		hist.annotateCategory(somaCompartment.acronym(), "soma");
+		hist.setFontSize(25);
 		hist.show();
 	}
 }
