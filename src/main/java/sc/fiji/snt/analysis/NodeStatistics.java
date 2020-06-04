@@ -348,7 +348,7 @@ public class NodeStatistics <T extends PointInImage> {
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
 				"Brain areas (N=" + nAreas + ", "+ seriesLabel +")", // domain axis title
 				"Frequency", // range axis title
-				dataset, seriesLabel);
+				dataset);
 		final SNTChart frame = new SNTChart(getLabel() + " Annotated Node Distribution", chart, new Dimension(400, 600));
 		return frame;
 	}

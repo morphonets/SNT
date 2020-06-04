@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
+
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.CategoryAxis;
@@ -46,12 +47,9 @@ import org.jfree.chart.axis.ValueAxis;
 import org.jfree.chart.entity.EntityCollection;
 import org.jfree.chart.labels.BoxAndWhiskerToolTipGenerator;
 import org.jfree.chart.plot.CategoryPlot;
-import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.Outlier;
 import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
 import org.jfree.chart.renderer.category.CategoryItemRendererState;
-import org.jfree.chart.renderer.xy.StandardXYBarPainter;
-import org.jfree.chart.renderer.xy.XYBarRenderer;
 import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.statistics.BoxAndWhiskerCategoryDataset;
@@ -169,29 +167,7 @@ public class GroupedTreeStatistics {
 		hdpMap.forEach((label, hdp) -> {
 			dataset.addSeries(label, hdp.valuesAsArray(), nBins[0]);
 		});
-
-		final JFreeChart chart = ChartFactory.createHistogram(null, normMeasurement, "Rel. Frequency", dataset);
-
-		// Customize plot
-		final Color bColor = null; // Color.WHITE; make graph transparent so that it can be exported without
-									// background
-		final XYPlot plot = chart.getXYPlot();
-		plot.setBackgroundPaint(bColor);
-		plot.setDomainGridlinesVisible(false);
-		plot.setRangeGridlinesVisible(false);
-		final XYBarRenderer bar_renderer = (XYBarRenderer) plot.getRenderer();
-		bar_renderer.setBarPainter(new StandardXYBarPainter());
-		bar_renderer.setDrawBarOutline(true);
-		bar_renderer.setSeriesOutlinePaint(0, Color.DARK_GRAY);
-
-		final ColorRGB[] colors = SNTColor.getDistinctColors(hdpMap.size());
-		for (int i = 0; i < hdpMap.size(); i++) {
-			final Color awtColor = new Color(colors[i].getRed(), colors[i].getGreen(), colors[i].getBlue(), 128);
-			bar_renderer.setSeriesPaint(i, awtColor);
-		}
-		bar_renderer.setShadowVisible(false);
-		chart.getLegend().setBackgroundPaint(bColor);
-		return new SNTChart("Grouped Hist.", chart);
+		return AnalysisUtils.createHistogram(normMeasurement, hdpMap.size(), dataset);
 	}
 
 	/**

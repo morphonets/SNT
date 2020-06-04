@@ -33,7 +33,9 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
+import org.jfree.chart.axis.SubCategoryAxis;
 import org.jfree.chart.plot.CategoryPlot;
+import org.jfree.chart.plot.Plot;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.category.BarRenderer;
@@ -46,6 +48,7 @@ import org.jfree.chart.ui.RectangleInsets;
 import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.statistics.HistogramDataset;
 import org.jfree.data.statistics.HistogramType;
+import org.scijava.util.ColorRGB;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
@@ -110,21 +113,14 @@ class AnalysisUtils {
 			"Rel. Frequency", datasetPlus.getDataset(xAxisTitle));
 
 		// Customize plot
-		final Color bColor = null; //Color.WHITE; make graph transparent so that it can be exported without background
 		final XYPlot plot = chart.getXYPlot();
-		plot.setBackgroundPaint(bColor);
-		plot.setDomainGridlinesVisible(false);
-		plot.setRangeGridlinesVisible(false);
-		plot.setAxisOffset(new RectangleInsets(0,0, 0, 0));
 		final XYBarRenderer bar_renderer = (XYBarRenderer) plot.getRenderer();
 		bar_renderer.setBarPainter(new StandardXYBarPainter());
 		bar_renderer.setDrawBarOutline(true);
 		bar_renderer.setSeriesOutlinePaint(0, Color.DARK_GRAY);
 		bar_renderer.setSeriesPaint(0, SNTColor.alphaColor(Color.LIGHT_GRAY, 50));
 		bar_renderer.setShadowVisible(false);
-		chart.setBackgroundPaint(bColor);
-		chart.setAntiAlias(true);
-		chart.setTextAntiAlias(true);
+		applyHistogramStyle(chart, plot);
 
 		// Append descriptive label
 		chart.removeLegend();
@@ -136,8 +132,52 @@ class AnalysisUtils {
 		return chart;
 	}
 
+	private static void applyHistogramStyle(final JFreeChart chart, final Plot plot) {
+		final Color bColor = null; //Color.WHITE; make graph transparent so that it can be exported without background
+		plot.setBackgroundPaint(bColor);
+		if (plot instanceof XYPlot) {
+			((XYPlot) plot).setDomainGridlinesVisible(false);
+			((XYPlot) plot).setRangeGridlinesVisible(false);
+			((XYPlot) plot).setAxisOffset(new RectangleInsets(0,0, 0, 0));
+		}
+		if (plot instanceof CategoryPlot) {
+			final CategoryPlot cPlot = (CategoryPlot) plot;
+			cPlot.setDomainGridlinesVisible(false);
+			cPlot.setRangeGridlinesVisible(true);
+			cPlot.getDomainAxis().setCategoryMargin(0);
+			cPlot.getDomainAxis().setLowerMargin(0.01);
+			cPlot.getDomainAxis().setUpperMargin(0.01);
+			cPlot.setAxisOffset(new RectangleInsets(0,0, 0, 0));
+		}
+		chart.setBackgroundPaint(bColor);
+		if (chart.getLegend() != null)
+			chart.getLegend().setBackgroundPaint(bColor);
+		chart.setAntiAlias(true);
+		chart.setTextAntiAlias(true);
+	}
+
+	static SNTChart createHistogram(final String normMeasurement, final int nSeries,
+			final HistogramDataset dataset) {
+		final JFreeChart chart = ChartFactory.createHistogram(null, normMeasurement, "Rel. Frequency", dataset);
+
+		// Customize plot
+		final XYPlot plot = chart.getXYPlot();
+		applyHistogramStyle(chart, plot);
+		final XYBarRenderer bar_renderer = (XYBarRenderer) plot.getRenderer();
+		bar_renderer.setBarPainter(new StandardXYBarPainter());
+		bar_renderer.setDrawBarOutline(true);
+		bar_renderer.setSeriesOutlinePaint(0, Color.DARK_GRAY);
+		final ColorRGB[] colors = SNTColor.getDistinctColors(nSeries);
+		for (int i = 0; i < nSeries; i++) {
+			final Color awtColor = new Color(colors[i].getRed(), colors[i].getGreen(), colors[i].getBlue(), 128);
+			bar_renderer.setSeriesPaint(i, awtColor);
+		}
+		bar_renderer.setShadowVisible(false);
+		return new SNTChart("Grouped Hist.", chart);
+	}
+
 	static JFreeChart createCategoryPlot(final String domainTitle,
-			final String rangeTitle, final DefaultCategoryDataset dataset, final String seriesLabel) {
+			final String rangeTitle, final DefaultCategoryDataset dataset) {
 		final JFreeChart chart = ChartFactory.createBarChart(null, domainTitle, rangeTitle, dataset,
 				PlotOrientation.HORIZONTAL, // orientation
 				false, // include legend
@@ -146,20 +186,43 @@ class AnalysisUtils {
 		);
 		// Customize plot
 		final CategoryPlot plot = chart.getCategoryPlot();
-		plot.setBackgroundPaint(null); //make graph transparent so that it can be exported without background
-		plot.setDomainGridlinesVisible(false);
-		plot.setRangeGridlinesVisible(true);
-		plot.setRangeGridlinePaint(SNTColor.alphaColor(Color.LIGHT_GRAY, 50));
-		plot.getDomainAxis().setCategoryMargin(0);
-		plot.getDomainAxis().setLowerMargin(0.01);
-		plot.getDomainAxis().setUpperMargin(0.01);
-		plot.setAxisOffset(new RectangleInsets(0,0, 0, 0));
+		applyHistogramStyle(chart, plot);
 		final BarRenderer barRender = ((BarRenderer) plot.getRenderer());
 		barRender.setBarPainter(new StandardBarPainter());
 		barRender.setDrawBarOutline(true);
 		barRender.setSeriesPaint(0, SNTColor.alphaColor(Color.LIGHT_GRAY, 50));
 		barRender.setSeriesOutlinePaint(0, Color.DARK_GRAY);
 		barRender.setShadowVisible(false);
+		return chart;
+	}
+	
+	static JFreeChart createCategoryPlot(final String domainTitle,
+			final String rangeTitle, final DefaultCategoryDataset dataset, final int nSeries) {
+		final JFreeChart chart = ChartFactory.createBarChart(null, domainTitle, rangeTitle, dataset,
+				PlotOrientation.HORIZONTAL, // orientation
+				true, // include legend
+				true, // tooltips?
+				false // URLs?
+		);
+		// Customize plot
+		final CategoryPlot plot = chart.getCategoryPlot();
+		final ColorRGB[] colors = SNTColor.getDistinctColors(nSeries);
+		SubCategoryAxis domainAxis = new SubCategoryAxis(" ");
+		final BarRenderer barRender = ((BarRenderer) plot.getRenderer());
+		barRender.setBarPainter(new StandardBarPainter());
+		barRender.setDrawBarOutline(true);
+		barRender.setShadowVisible(false);
+		for (int i = 0; i < nSeries; i++) {
+			final Color color = new Color(colors[i].getRed(), colors[i].getGreen(), colors[i].getBlue());
+			barRender.setSeriesPaint(i, SNTColor.alphaColor(color, 50));
+			barRender.setSeriesOutlinePaint(i, color);
+			barRender.setItemMargin(0);
+			domainAxis.addSubCategory("");
+		}
+		plot.setDomainAxis(domainAxis);
+		applyHistogramStyle(chart, plot);
+		domainAxis.setCategoryMargin(0.25);
+		
 		return chart;
 	}
 

@@ -352,7 +352,7 @@ public class TreeStatistics extends TreeAnalyzer {
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
 				"Brain areas (N=" + nAreas + ", "+ seriesLabel +")", // domain axis title
 				"Cable length", // range axis title
-				dataset, seriesLabel);
+				dataset);
 		final String tLabel = (tree.getLabel() == null) ? "" : tree.getLabel();
 		final SNTChart frame = new SNTChart(tLabel + " Annotated Length", chart, new Dimension(400, 600));
 		if (secondaryLabel != null) frame.annotate(secondaryLabel);
