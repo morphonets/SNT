@@ -79,7 +79,7 @@ Before running the notebooks, there are three more things to take care of:
 
   ```bash
   conda activate pyimagej
-  conda install gudhi trimesh
+  conda install trimesh
   ```
   Some functionality may require [blender](https://www.blender.org/download/).
 
