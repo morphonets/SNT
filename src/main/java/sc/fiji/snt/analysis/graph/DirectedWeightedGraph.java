@@ -38,6 +38,7 @@ import org.jgrapht.graph.DefaultDirectedWeightedGraph;
 import org.jgrapht.traverse.DepthFirstIterator;
 
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.NodeStatistics;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.SWCPoint;
 
@@ -252,6 +253,32 @@ public class DirectedWeightedGraph extends DefaultDirectedWeightedGraph<SWCPoint
 	 */
 	public List<SWCPoint> getTips() {
 		return vertexSet().stream().filter(v -> outDegreeOf(v) == 0).collect(Collectors.toList());
+	}
+
+	public NodeStatistics<SWCPoint> getNodeStatistics() {
+		return getNodeStatistics("all");
+	}
+
+	public NodeStatistics<SWCPoint> getNodeStatistics(final String type) {
+		switch(type.toLowerCase()) {
+		case "all":
+			return new NodeStatistics<SWCPoint>(vertexSet());
+		case "tips":
+		case "endings":
+		case "end points":
+		case "end-points":
+		case "terminals":
+			return new NodeStatistics<SWCPoint>(getTips());
+		case "bps":
+		case "forks":
+		case "junctions":
+		case "fork points":
+		case "junction points":
+		case "branch points":
+			return new NodeStatistics<SWCPoint>(getBPs());
+		default:
+			throw new IllegalArgumentException("type not recognized. Perhaps you meant 'all', 'junctions' or 'tips'?");
+		}
 	}
 
 	/**

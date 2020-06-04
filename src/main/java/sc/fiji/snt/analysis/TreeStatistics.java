@@ -700,6 +700,14 @@ public class TreeStatistics extends TreeAnalyzer {
 		}
 	}
 
+	public NodeStatistics<SWCPoint> getNodeStatistics() {
+		return getNodeStatistics("all");
+	}
+
+	public NodeStatistics<SWCPoint> getNodeStatistics(final String type) {
+		return tree.getGraph().getNodeStatistics(type);
+	}
+
 	/* IDE debug method */
 	public static void main(final String[] args) {
 		final MouseLightLoader loader = new MouseLightLoader("AA0015");
