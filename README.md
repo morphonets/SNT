@@ -1,8 +1,5 @@
-<div align="center">
-  <img src="https://imagej.net/_images/5/5d/SNTLogo512.png" alt="SNT" width="150"> The ImageJ framework for quantification of neuronal anatomy
-</div>
-
-
+<p align="center"><img src="https://imagej.net/_images/5/5d/SNTLogo512.png" alt="SNT" width="150"></p>
+<h2 align="center">The ImageJ framework for quantification of neuronal anatomy</h2>
 <div align="center">
   <!-- License -->
   <a href="https://github.com/morphonets/SNT/blob/master/LICENSE.txt">
