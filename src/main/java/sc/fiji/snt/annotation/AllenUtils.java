@@ -92,16 +92,16 @@ public class AllenUtils {
 	
 	protected static JSONObject getBrainAreasByStructureId() {
 		if (areaObjectFromStructureId == null) {
-			final JSONObject json = getJSONfile("ml/brainAreasByStructureId.json");
-			areaObjectFromStructureId = json.getJSONObject("data").getJSONObject("brainAreas");
+			final JSONObject json = getJSONfile("ml/brainAreas.json");
+			areaObjectFromStructureId = json.getJSONObject("data").getJSONObject("brainAreasByStructureId");
 		}
 		return areaObjectFromStructureId;
 	}
 	
 	protected static JSONObject getBrainAreasByUUID() {
 		if (areaObjectFromUUID == null) {
-			final JSONObject json = getJSONfile("ml/brainAreasByUUID.json");
-			areaObjectFromUUID = json.getJSONObject("data").getJSONObject("brainAreas");
+			final JSONObject json = getJSONfile("ml/brainAreas.json");
+			areaObjectFromUUID = json.getJSONObject("data").getJSONObject("brainAreasByUUID");
 		}
 		return areaObjectFromUUID;
 	}
