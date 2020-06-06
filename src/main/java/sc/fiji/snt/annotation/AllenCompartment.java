@@ -71,7 +71,6 @@ public class AllenCompartment implements BrainAnnotation {
 	 */
 	public AllenCompartment(final UUID uuid) {
 		this(null, uuid);
-		//initializeAsNeeded();
 	}
 
 	/**
@@ -91,16 +90,18 @@ public class AllenCompartment implements BrainAnnotation {
 		if (uuid != null)
 			initializeAsNeeded();
 	}
-
+	
 	private void loadJsonObj() {
 		if (jsonObj != null) return;
-		final JSONArray areaList = AllenUtils.getBrainAreasList();
-		for (int n = 0; n < areaList.length(); n++) {
-			final JSONObject area = (JSONObject) areaList.get(n);
-			final UUID areaUUID = UUID.fromString(area.getString("id"));
-			if (areaUUID.equals(uuid) || structureId ==  area.optInt("structureId")) {
-				jsonObj = area;
-				break;
+		if (uuid != null) {
+			final JSONObject areaObjectFromUUID = AllenUtils.getBrainAreasByUUID();
+			if (areaObjectFromUUID.has(uuid.toString())) {
+				jsonObj = areaObjectFromUUID.getJSONObject(uuid.toString());
+			}
+		} else if (structureId != 0) {
+			final JSONObject areaObjectFromStructureId = AllenUtils.getBrainAreasByStructureId();
+			if (areaObjectFromStructureId.has(String.valueOf(structureId))) {
+				jsonObj = areaObjectFromStructureId.getJSONObject(String.valueOf(structureId));
 			}
 		}
 	}
@@ -123,7 +124,7 @@ public class AllenCompartment implements BrainAnnotation {
 	}
 
 	protected int depth() {
-		initializeAsNeeded();
+		//initializeAsNeeded();
 		return jsonObj.getInt("depth");
 	}
 
@@ -132,7 +133,7 @@ public class AllenCompartment implements BrainAnnotation {
 	}
 
 	protected String getStructureIdPath() {
-		initializeAsNeeded();
+		//initializeAsNeeded();
 		return jsonObj.optString("structureIdPath");
 	}
 
@@ -265,25 +266,25 @@ public class AllenCompartment implements BrainAnnotation {
 
 	@Override
 	public int id() {
-		initializeAsNeeded();
+		//initializeAsNeeded();
 		return structureId;
 	}
 
 	@Override
 	public String name() {
-		initializeAsNeeded();
+		//initializeAsNeeded();
 		return name;
 	}
 
 	@Override
 	public String acronym() {
-		initializeAsNeeded();
+		//initializeAsNeeded();
 		return acronym;
 	}
 
 	@Override
 	public String[] aliases() {
-		initializeAsNeeded();
+		//initializeAsNeeded();
 		aliases = getArray(jsonObj.getJSONArray("aliases"));
 		return aliases;
 	}
@@ -294,7 +295,7 @@ public class AllenCompartment implements BrainAnnotation {
 	 * @return true, if a mesh is available.
 	 */
 	public boolean isMeshAvailable() {
-		initializeAsNeeded();
+		//initializeAsNeeded();
 		return jsonObj.getBoolean("geometryEnable");
 	}
 
