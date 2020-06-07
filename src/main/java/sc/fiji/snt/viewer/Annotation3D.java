@@ -76,7 +76,7 @@ public class Annotation3D {
 	private final int type;
 	private float size;
 	private String label;
-	public double volume = Double.NaN;
+	private double volume = Double.NaN;
 
 	protected Annotation3D(final Viewer3D viewer, final Collection<Annotation3D> annotations) {
 		this.viewer = viewer;
@@ -428,6 +428,10 @@ public class Annotation3D {
 	public SNTPoint getBarycentre() {
 		final Coord3d center = drawable.getBarycentre();
 		return new PointInImage(center.x, center.y, center.z);
+	}
+	
+	public double getVolume() {
+		return volume;
 	}
 
 	/**

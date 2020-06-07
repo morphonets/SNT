@@ -6172,7 +6172,7 @@ public class Viewer3D {
 		MouseLightLoader loader = new MouseLightLoader("AA1044");
 		Tree aa1044 = loader.getTree("axon");
 		Annotation3D hull = jzy3D.annotateSurface(new TreeAnalyzer(aa1044).getTips(), "Convex Hull", true);
-		System.out.println("AA1044: Convex hull volume = " + hull.volume);
+		System.out.println("AA1044: Convex hull volume = " + hull.getVolume());
 		jzy3D.addTree(aa1044);
 		jzy3D.show();
 		jzy3D.setAnimationEnabled(true);
