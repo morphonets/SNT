@@ -65,8 +65,8 @@ public class TreeStatisticsTest {
 			final double unaccountedLength = (lengthMap.get(null) == null) ? 0 : lengthMap.get(null);
 			assertTrue("Length not entirely in null compartment", mapLength - unaccountedLength > 0);
 			// Check for duplicate keys
-			Set<BrainAnnotation> uniqueKeys = new HashSet<BrainAnnotation>();
-			lengthMap.keySet().stream().filter(e -> !uniqueKeys.add(e)).collect(Collectors.toSet());
+			Set<String> uniqueKeys = new HashSet<String>();
+			lengthMap.keySet().stream().filter(e -> !uniqueKeys.add(e.acronym())).collect(Collectors.toSet());
 			assertEquals("No duplicate keys", uniqueKeys.size(), lengthMap.keySet().size());
 		}
 	}
