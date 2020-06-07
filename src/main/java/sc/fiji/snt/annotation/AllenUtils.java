@@ -63,6 +63,8 @@ public class AllenUtils {
 	private final static PointInImage BRAIN_BARYCENTRE = new PointInImage(5687.5435f, 3849.6099f, 6595.3813f);
 
 	private static JSONArray areaList;
+	private static JSONObject areaObjectFromStructureId;
+	private static JSONObject areaObjectFromUUID;
 
 	private AllenUtils() {
 	}
@@ -87,16 +89,28 @@ public class AllenUtils {
 		}
 		return areaList;
 	}
+	
+	protected static JSONObject getBrainAreasByStructureId() {
+		if (areaObjectFromStructureId == null) {
+			final JSONObject json = getJSONfile("ml/brainAreas.json");
+			areaObjectFromStructureId = json.getJSONObject("data").getJSONObject("brainAreasByStructureId");
+		}
+		return areaObjectFromStructureId;
+	}
+	
+	protected static JSONObject getBrainAreasByUUID() {
+		if (areaObjectFromUUID == null) {
+			final JSONObject json = getJSONfile("ml/brainAreas.json");
+			areaObjectFromUUID = json.getJSONObject("data").getJSONObject("brainAreasByUUID");
+		}
+		return areaObjectFromUUID;
+	}
 
 	@SuppressWarnings("unused")
 	private static AllenCompartment getCompartment(final UUID uuid) {
-		areaList = getBrainAreasList();
-		for (int n = 0; n < areaList.length(); n++) {
-			final JSONObject area = (JSONObject) areaList.get(n);
-			final UUID areaId = UUID.fromString(area.getString("id"));
-			if (uuid.equals(areaId)) {
-				return new AllenCompartment(area, areaId);
-			}
+		areaObjectFromUUID = getBrainAreasByUUID();
+		if (areaObjectFromUUID.has(uuid.toString())) {
+			return new AllenCompartment(areaObjectFromUUID.getJSONObject(uuid.toString()), uuid);
 		}
 		return null;
 	}
@@ -108,12 +122,10 @@ public class AllenUtils {
 	 * @return the compartment matching the id or null if id is not valid
 	 */
 	public static AllenCompartment getCompartment(final int id) {
-		areaList = getBrainAreasList();
-		for (int n = 0; n < areaList.length(); n++) {
-			final JSONObject area = (JSONObject) areaList.get(n);
-			if (area.optInt("structureId") == id) {
-				return new AllenCompartment(area, UUID.fromString(area.getString("id")));
-			}
+		areaObjectFromStructureId = getBrainAreasByStructureId();
+		String idString = String.valueOf(id);
+		if (areaObjectFromStructureId.has(idString)) {
+			return new AllenCompartment(id);
 		}
 		return null;
 	}

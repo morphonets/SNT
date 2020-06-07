@@ -31,7 +31,6 @@ import java.util.List;
 import net.imagej.mesh.Mesh;
 import net.imagej.mesh.Triangle;
 import net.imagej.mesh.Triangles;
-import net.imagej.mesh.Vertices;
 import net.imagej.mesh.naive.NaiveDoubleMesh;
 import net.imagej.ops.OpMatchingService;
 import net.imagej.ops.OpService;
@@ -47,6 +46,7 @@ import org.jzy3d.plot3d.primitives.Shape;
 import org.scijava.Context;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
+import org.scijava.vecmath.Vector3d;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.util.PointInImage;
@@ -68,6 +68,7 @@ public class Annotation3D {
 	protected static final int STRIP = 2;
 	protected static final int Q_TIP = 3;
 	protected static final int MERGE = 4;
+	protected static final int SURFACE_AND_VOLUME = 5;
 
 	private final Viewer3D viewer;
 	private final Collection<? extends SNTPoint> points;
@@ -75,6 +76,7 @@ public class Annotation3D {
 	private final int type;
 	private float size;
 	private String label;
+	private double volume = Double.NaN;
 
 	protected Annotation3D(final Viewer3D viewer, final Collection<Annotation3D> annotations) {
 		this.viewer = viewer;
@@ -97,7 +99,10 @@ public class Annotation3D {
 			drawable = assembleScatter();
 			break;
 		case SURFACE:
-			drawable = assembleSurface();
+			drawable = assembleSurface(false);
+			break;
+		case SURFACE_AND_VOLUME:
+			drawable = assembleSurface(true);
 			break;
 		case STRIP:
 			drawable = assembleStrip();
@@ -115,33 +120,56 @@ public class Annotation3D {
 		this(viewer, Collections.singleton(point), SCATTER);
 	}
 
-	private AbstractDrawable assembleSurface() {
+	private AbstractDrawable assembleSurface(boolean computeVolume) {
 		final Mesh dmesh = new NaiveDoubleMesh();
 		for (final SNTPoint point : points) {
 			dmesh.vertices().add(point.getX(), point.getY(), point.getZ());
 		}
 		OpService ops = new Context(OpService.class, OpMatchingService.class).getService(OpService.class);
 		Mesh hull = (Mesh) ops.geom().convexHull(dmesh).get(0);
-		Vertices verts = hull.vertices();
 		Triangles faces = hull.triangles();
+		if (computeVolume) {
+			/*
+			 * Approximate the hull volume using method described in
+			 * "Chapter IV.1: Area of planar polygons and volume of polyhedra". 
+			 * In Arvo, James (ed.). Graphic Gems Package: Graphics Gems II. Academic Press. 
+			 * pp. 170–171.
+			 */
+			volume = 0.0;
+			Iterator<Triangle> faceIter = faces.iterator();
+			while (faceIter.hasNext()) {
+				Triangle t = faceIter.next();
+				Vector3d tNormal = new Vector3d(t.nx(), t.ny(), t.nz());
+				tNormal.normalize();
+				Vector3d a = new Vector3d(t.v0x(), t.v0y(), t.v0z());
+				Vector3d b = new Vector3d(t.v1x(), t.v1y(), t.v1z());
+				Vector3d c = new Vector3d(t.v2x(), t.v2y(), t.v2z());
+				// calculate face area
+				Vector3d crossAB = new Vector3d();
+				crossAB.cross(a,  b);
+				Vector3d crossBC = new Vector3d();
+				crossBC.cross(b, c);
+				Vector3d crossCA = new Vector3d();
+				crossCA.cross(c, a);
+				Vector3d summed = new Vector3d();
+				summed.add(crossAB);
+				summed.add(crossBC);
+				summed.add(crossCA);
+				double area = 0.5 * tNormal.dot(summed);
+				// add to total volume
+				volume += a.dot(tNormal) * area;
+			}
+			volume = volume / (double)3.0;
+		}
 		Iterator<Triangle> faceIter = faces.iterator();
 		ArrayList<ArrayList<Coord3d>> coord3dFaces = new ArrayList<ArrayList<Coord3d>>();
 		while (faceIter.hasNext()) {
 			ArrayList<Coord3d> simplex = new ArrayList<Coord3d>();
 			Triangle t = faceIter.next();
-			double x0 = verts.x(t.vertex0());
-			double y0 = verts.y(t.vertex0());
-			double z0 = verts.z(t.vertex0());
-			simplex.add(new Coord3d(x0, y0, z0));
-			double x1 = verts.x(t.vertex1());
-			double y1 = verts.y(t.vertex1());
-			double z1 = verts.z(t.vertex1());
-			simplex.add(new Coord3d(x1, y1, z1));
-			double x2 = verts.x(t.vertex2());
-			double y2 = verts.y(t.vertex2());
-			double z2 = verts.z(t.vertex2());
-			simplex.add(new Coord3d(x2, y2, z2));
-			coord3dFaces.add(simplex);
+			simplex.add(new Coord3d(t.v0x(), t.v0y(), t.v0z()));
+			simplex.add(new Coord3d(t.v1x(), t.v1y(), t.v1z()));
+			simplex.add(new Coord3d(t.v2x(), t.v2y(), t.v2z()));
+			coord3dFaces.add(simplex);	
 		}
 		List<Polygon> polygons = new ArrayList<Polygon>();
 		for (ArrayList<Coord3d> face : coord3dFaces) {
@@ -237,6 +265,9 @@ public class Annotation3D {
 		case SURFACE:
 			((Shape) drawable).setWireframeWidth(this.size);
 			break;
+		case SURFACE_AND_VOLUME:
+			((Shape) drawable).setWireframeWidth(this.size);
+			break;
 		case STRIP:
 			((LineStrip) drawable).setWidth(this.size);
 			break;
@@ -282,6 +313,10 @@ public class Annotation3D {
 			((Scatter) drawable).setColor(c);
 			break;
 		case SURFACE:
+			((Shape) drawable).setColor(c);
+			((Shape) drawable).setWireframeColor(Viewer3D.Utils.contrastColor(c));
+			break;
+		case SURFACE_AND_VOLUME:
 			((Shape) drawable).setColor(c);
 			((Shape) drawable).setWireframeColor(Viewer3D.Utils.contrastColor(c));
 			break;
@@ -368,6 +403,8 @@ public class Annotation3D {
 			return "cloud";
 		case SURFACE:
 			return "surface";
+		case SURFACE_AND_VOLUME:
+			return "surface";
 		case STRIP:
 		case Q_TIP:
 			return "line";
@@ -391,6 +428,10 @@ public class Annotation3D {
 	public SNTPoint getBarycentre() {
 		final Coord3d center = drawable.getBarycentre();
 		return new PointInImage(center.x, center.y, center.z);
+	}
+	
+	public double getVolume() {
+		return volume;
 	}
 
 	/**
