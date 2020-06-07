@@ -800,18 +800,30 @@ public class Viewer3D {
 		return new ArrayList<>(plottedAnnotations.values());
 	}
 
-	/**
-	 * Computes a Delaunay surface from a collection of points and adds it to the
-	 * scene as an annotation.
-	 *
-	 * @param points the collection of points defining the triangulated surface
-	 * @param label  the (optional) annotation identifier. If null or empty, a
-	 *               unique label will be generated.
-	 * @return the {@link Annotation3D}
-	 */
 	public Annotation3D annotateSurface(final Collection<? extends SNTPoint> points, final String label)
 	{
-		final Annotation3D annotation = new Annotation3D(this, points, Annotation3D.SURFACE);
+		return annotateSurface(points, label, false);
+	}
+	
+	/**
+	 * Computes a convex hull from a collection of points and adds it to the
+	 * scene as an annotation.
+	 *
+	 * @param points the collection of points defining the convex set.
+	 * @param label  the (optional) annotation identifier. If null or empty, a
+	 *               unique label will be generated.
+	 * @param computeVolume whether or not to compute the volume of the convex hull.
+	 * 				 If true, the volume is stored in the "volume" field of the 
+	 * 				 returned {@link Annotation3D} object.
+	 * @return the {@link Annotation3D}
+	 */
+	public Annotation3D annotateSurface(final Collection<? extends SNTPoint> points, final String label, boolean computeVolume) {
+		Annotation3D annotation;
+		if (computeVolume) {
+			annotation = new Annotation3D(this, points, Annotation3D.SURFACE_AND_VOLUME);
+		} else { 
+			annotation = new Annotation3D(this, points, Annotation3D.SURFACE);
+		}
 		final String uniquelabel = getUniqueLabel(plottedAnnotations, "Point Annot.", label);
 		annotation.setLabel(uniquelabel);
 		plottedAnnotations.put(uniquelabel, annotation);
@@ -6159,7 +6171,8 @@ public class Viewer3D {
 		}
 		MouseLightLoader loader = new MouseLightLoader("AA1044");
 		Tree aa1044 = loader.getTree("axon");
-		jzy3D.annotateSurface(new TreeAnalyzer(aa1044).getTips(), "Convex Hull");
+		Annotation3D hull = jzy3D.annotateSurface(new TreeAnalyzer(aa1044).getTips(), "Convex Hull", true);
+		System.out.println("AA1044: Convex hull volume = " + hull.volume);
 		jzy3D.addTree(aa1044);
 		jzy3D.show();
 		jzy3D.setAnimationEnabled(true);
