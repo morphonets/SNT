@@ -76,7 +76,7 @@ public class Annotation3D {
 	private final int type;
 	private float size;
 	private String label;
-	public double volume;
+	public double volume = Double.NaN;
 
 	protected Annotation3D(final Viewer3D viewer, final Collection<Annotation3D> annotations) {
 		this.viewer = viewer;

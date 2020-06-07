@@ -6149,7 +6149,7 @@ public class Viewer3D {
 		}
 		brainMesh.setBoundingBoxColor(Colors.RED);
 		final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
-		final ArrayList<SNTPoint >selectedTips = new ArrayList<>();
+		final ArrayList<SNTPoint> selectedTips = new ArrayList<>();
 		selectedTips.add(SNTPoint.average(analyzer.getTips()));
 		selectedTips.add(AllenUtils.brainCenter());
 		final Annotation3D annotation1 = jzy3D.annotateLine(selectedTips, "dummy");

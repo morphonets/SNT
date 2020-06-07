@@ -322,6 +322,9 @@ public class AllenCompartment implements BrainAnnotation {
 			mesh = new OBJMesh(url, "um");
 			mesh.setColor(geometryColor, 87.5f);
 			mesh.setLabel(name);
+			if (!jsonObj.isNull("geometryVolume")) {
+				mesh.setVolume(jsonObj.getDouble("geometryVolume"));
+			}
 		} catch (final JSONException | IllegalArgumentException | IOException e) {
 			SNTUtils.error("Could not retrieve mesh ", e);
 		}
@@ -368,6 +371,8 @@ public class AllenCompartment implements BrainAnnotation {
 	/* IDE Debug method */
 	public static void main(final String[] args) {
 		final AllenCompartment child = AllenUtils.getCompartment("CA3");
+		OBJMesh childMesh = child.getMesh();
+		System.out.println("Volume: " + childMesh.getVolume());
 		final AllenCompartment parent = AllenUtils.getCompartment("Hippocampal Formation");
 		System.out.println("CA3.isChildOf(HPF):\t"+child.isChildOf(parent));
 		System.out.println("HPF.isChildOf(CA3):\t" +parent.isChildOf(child));

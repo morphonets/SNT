@@ -63,6 +63,7 @@ public class OBJMesh {
 	private double xMirrorCoord = Double.NaN;
 	private String label;
 	protected String unit;
+	private double volume = Double.NaN;
 
 	/**
 	 * Instantiates a new wavefront OBJ mesh from a file path/URL.
@@ -228,6 +229,14 @@ public class OBJMesh {
 
 	public void setLabel(final String label) {
 		this.label = label;
+	}
+	
+	public void setVolume(final double volume) {
+		this.volume = volume;
+	}
+	
+	public double getVolume() {
+		return this.volume;
 	}
 
 	/**
