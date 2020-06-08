@@ -280,6 +280,15 @@ public class AllenUtils {
 		});
 	}
 
+	/**
+	 * Gets the axis defining mid sagittal plane.
+	 *
+	 * @return the axis defining mid sagittal plane where X=0; Y=1; Z=2;
+	 */
+	public static int getAxisDefiningMidSagittalPlane() {
+		return 0;
+	}
+
 	public static void assignHemisphereTags(final Tree tree) {
 		//TODO: Currently we have to tag both the tree nodes and graph vertices. This needs to be simplified!
 		tree.getNodes().forEach(node -> {
