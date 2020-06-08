@@ -144,7 +144,7 @@ public class Annotation3D {
 				Vector3d a = new Vector3d(t.v0x(), t.v0y(), t.v0z());
 				Vector3d b = new Vector3d(t.v1x(), t.v1y(), t.v1z());
 				Vector3d c = new Vector3d(t.v2x(), t.v2y(), t.v2z());
-				// calculate face area
+				// calculate face area (technically twice the area)
 				Vector3d crossAB = new Vector3d();
 				crossAB.cross(a,  b);
 				Vector3d crossBC = new Vector3d();
@@ -155,11 +155,10 @@ public class Annotation3D {
 				summed.add(crossAB);
 				summed.add(crossBC);
 				summed.add(crossCA);
-				double area = 0.5 * tNormal.dot(summed);
 				// add to total volume
-				volume += a.dot(tNormal) * area;
+				volume += a.dot(tNormal) * tNormal.dot(summed);
 			}
-			volume = volume / (double)3.0;
+			volume = volume / (double)6.0;
 		}
 		Iterator<Triangle> faceIter = faces.iterator();
 		ArrayList<ArrayList<Coord3d>> coord3dFaces = new ArrayList<ArrayList<Coord3d>>();
