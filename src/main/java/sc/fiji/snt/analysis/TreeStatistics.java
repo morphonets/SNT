@@ -35,15 +35,13 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.text.WordUtils;
 import org.jfree.chart.JFreeChart;
 import org.jfree.data.category.DefaultCategoryDataset;
-import org.jgrapht.Graphs;
-import org.jgrapht.graph.AsSubgraph;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.AnalysisUtils.HistogramDatasetPlus;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
-import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
+import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
@@ -262,8 +260,8 @@ public class TreeStatistics extends TreeAnalyzer {
 		for (final Map.Entry<BrainAnnotation, Set<SWCPoint>> entry : annotatedNodesMap.entrySet()) {
 		    final BrainAnnotation annotation = entry.getKey();
 		    final Set<SWCPoint> nodeSubset = entry.getValue();
-		    final AsSubgraph<SWCPoint, SWCWeightedEdge> subgraph = new AsSubgraph<SWCPoint, SWCWeightedEdge>(graph, nodeSubset);
-		    final double subgraphWeight = getSubgraphWeight(subgraph, graph);
+		    final DirectedWeightedSubgraph subgraph = graph.getSubgraph(nodeSubset);
+		    final double subgraphWeight = subgraph.sumEdgeWeights(true);
 		    lengthMap.put(annotation, subgraphWeight);
 		}
 		return lengthMap;
@@ -290,22 +288,6 @@ public class TreeStatistics extends TreeAnalyzer {
 			finalMap.put(k, new double[] {0d, contraLength});
 		});
 		return finalMap;
-	}
-
-	private double getSubgraphWeight(final AsSubgraph<SWCPoint, SWCWeightedEdge> subgraph, final DirectedWeightedGraph baseGraph) {
-		double totalWeight = 0d;
-		for (final SWCWeightedEdge edge : subgraph.edgeSet()) {
-			totalWeight += edge.getWeight();
-		}
-		// Now account for missing edges that cross compartment boundaries
-		final List<SWCPoint> rootList = subgraph.vertexSet().stream().filter(v -> subgraph.inDegreeOf(v) == 0).collect(Collectors.toList());
-		for (final SWCPoint root : rootList) {
-			final List<SWCPoint> parent = Graphs.predecessorListOf(baseGraph, root);
-			if (!parent.isEmpty()) {
-				totalWeight += baseGraph.getEdge(parent.get(0), root).getWeight();
-			}
-		}
-		return totalWeight;
 	}
 
 	/**

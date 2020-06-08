@@ -25,10 +25,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -46,6 +48,7 @@ import org.scijava.util.ColorRGB;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.OBJMesh;
@@ -283,6 +286,15 @@ public class AllenUtils {
 			node.setHemisphere(isLeftHemisphere(node) ? BrainAnnotation.LEFT_HEMISPHERE : BrainAnnotation.RIGHT_HEMISPHERE);
 		});
 		assignHemisphereTags(tree.getGraph());
+	}
+
+	public static List<DirectedWeightedSubgraph> splitByHemisphere(final DirectedWeightedGraph graph) {
+		assignHemisphereTags(graph);
+		final DirectedWeightedSubgraph leftGraph = graph.getSubgraph(graph.vertexSet(BrainAnnotation.LEFT_HEMISPHERE));
+		leftGraph.setLabel("Left hemi.");
+		final DirectedWeightedSubgraph rightGraph = graph.getSubgraph(graph.vertexSet(BrainAnnotation.RIGHT_HEMISPHERE));
+		rightGraph.setLabel("Right hemi.");
+		return Arrays.asList(leftGraph, rightGraph);
 	}
 
 	/**

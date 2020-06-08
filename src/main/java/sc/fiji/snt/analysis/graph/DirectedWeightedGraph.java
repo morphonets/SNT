@@ -304,6 +304,10 @@ public class DirectedWeightedGraph extends DefaultDirectedWeightedGraph<SWCPoint
 		return new Tree(this.vertexSet(), "");
 	}
 
+	public DirectedWeightedSubgraph getSubgraph(final Set<SWCPoint> nodeSubset) {
+		return new DirectedWeightedSubgraph(this, nodeSubset);
+	}
+
 	public Set<SWCPoint> vertexSet(final char lr) {
 		if (lr == BrainAnnotation.ANY_HEMISPHERE) return vertexSet();
 		final Set<SWCPoint> modifiable = new HashSet<SWCPoint>();
