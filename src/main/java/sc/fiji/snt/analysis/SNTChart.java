@@ -26,10 +26,18 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import javax.swing.JFileChooser;
+import javax.swing.JMenuItem;
 import javax.swing.SwingUtilities;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 import org.jfree.chart.ChartFrame;
 import org.jfree.chart.ChartPanel;
@@ -54,6 +62,9 @@ import org.jfree.chart.ui.RectangleAnchor;
 import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.chart.ui.TextAnchor;
 import org.jfree.data.Range;
+import org.jfree.data.category.CategoryDataset;
+import org.jfree.data.general.Dataset;
+import org.jfree.data.xy.XYDataset;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.ColorRGB;
 
@@ -368,8 +379,77 @@ public class SNTChart extends ChartFrame {
 	@Override
 	@SuppressWarnings("deprecation")
 	public void show() {
+		if (getChartPanel() != null && getChartPanel().getPopupMenu() != null) {
+			final JMenuItem mi = new JMenuItem("Export as CSV...");
+			mi.addActionListener(e -> {
+				final JFileChooser fileChooser = new JFileChooser();
+				fileChooser.setDialogTitle("Export to CSV (Experimental)");
+				final FileNameExtensionFilter csvFilter = new FileNameExtensionFilter("CSV files (*.csv)", "csv");
+				fileChooser.addChoosableFileFilter(csvFilter);
+				fileChooser.setFileFilter(csvFilter);
+				if (fileChooser.showSaveDialog(getChartPanel()) == JFileChooser.APPROVE_OPTION) {
+					File file = fileChooser.getSelectedFile();
+					if (file == null)
+						return;
+					if (!file.getName().toLowerCase().endsWith("csv")) {
+						file = new File(file.toString() + ".csv");
+					}
+					try {
+						exportAsCSV(file);
+					} catch(final IllegalStateException ise) {
+						new GuiUtils(this).error("Could not save data. See Console for details");
+						ise.printStackTrace();
+					}
+				}
+			});
+			getChartPanel().getPopupMenu().addSeparator();
+			getChartPanel().getPopupMenu().add(mi);
+		}
 		AWTWindows.centerWindow(this);
 		SwingUtilities.invokeLater(() -> super.show());
+	}
+
+	/* Experimental: Not all types of data are supported */
+	protected void exportAsCSV(final File file) throws IllegalStateException {
+		// https://stackoverflow.com/a/58530238
+		final ArrayList<String> csv = new ArrayList<>();
+		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+			final Dataset dataset = getXYPlot().getDataset();
+			final XYDataset xyDataset = (XYDataset) dataset;
+			final int seriesCount = xyDataset.getSeriesCount();
+			for (int i = 0; i < seriesCount; i++) {
+				final int itemCount = xyDataset.getItemCount(i);
+				for (int j = 0; j < itemCount; j++) {
+					final Comparable<?> key = xyDataset.getSeriesKey(i);
+					final Number x = xyDataset.getX(i, j);
+					final Number y = xyDataset.getY(i, j);
+					csv.add(String.format("%s, %s, %s", key, x, y));
+				}
+			}
+		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+			final Dataset dataset = getCategoryPlot().getDataset();
+			final CategoryDataset categoryDataset = (CategoryDataset) dataset;
+			final int columnCount = categoryDataset.getColumnCount();
+			final int rowCount = categoryDataset.getRowCount();
+			for (int i = 0; i < rowCount; i++) {
+				for (int j = 0; j < columnCount; j++) {
+					final Comparable<?> key1 = categoryDataset.getRowKey(i);
+					final Comparable<?> key2 = categoryDataset.getColumnKey(j);
+					final Number n = categoryDataset.getValue(i, j);
+					csv.add(String.format("%s, %s, %s", key1, key2, n));
+				}
+			}
+		} else {
+			throw new IllegalStateException("This type of dataset is not supported.");
+		}
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(file));) {
+			for (final String line : csv) {
+				writer.append(line);
+				writer.newLine();
+			}
+		} catch (final IOException e) {
+			throw new IllegalStateException("Could not write dataset", e);
+		}
 	}
 
 	/* IDE debug method */
