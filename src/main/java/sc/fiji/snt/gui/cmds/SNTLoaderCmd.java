@@ -130,12 +130,6 @@ public class SNTLoaderCmd extends DynamicCommand {
 			return;
 		}
 		GuiUtils.setSystemLookAndFeel();
-		if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
-			cmdService.run(EnableSciViewUpdateSiteCmd.class, true);
-			//cancel("SNT cannot initialize until SNT is available.");
-			cancel(""); // EnableSciViewUpdateSiteCmd will display prompt. Display nothing here
-			return;
-		}
 
 		// TODO: load defaults from prefService?
 		sourceImp = legacyService.getImageMap().lookupImagePlus(imageDisplayService

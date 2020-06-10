@@ -32,6 +32,8 @@ import org.scijava.NullContextException;
 import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
+
+import sc.fiji.snt.gui.cmds.EnableSciViewUpdateSiteCmd;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.iview.SciView;
@@ -53,7 +55,7 @@ import javax.swing.SwingUtilities;
 import java.util.*;
 
 /**
- * Bridges SNT to {@link SciView}, allowing {@link Tree}s to be rendered as Scenery objects
+ * Bridges SNT to {@link SciView}, allowing {@link Tree}s to be rendered as scenery objects
  *
  * @author Kyle Harrington
  * @author Tiago Ferreira
@@ -74,9 +76,12 @@ public class SciViewSNT {
 	 *
 	 * @param context the SciJava application context providing the services
 	 *                required by the class
-	 * @throws NullContextException If context is null
+	 * @throws NoClassDefFoundError if SciView/scenery are not available
+	 * @throws NullContextException   If context is null
 	 */
-	public SciViewSNT(final Context context) {
+	public SciViewSNT(final Context context) throws NoClassDefFoundError {
+		if (EnableSciViewUpdateSiteCmd.isSciViewAvailable())
+			throw new NoClassDefFoundError("SciView not available");
 		if (context == null) throw new NullContextException();
 		context.inject(this);
 		plottedTrees = new TreeMap<String,ShapeTree>();
@@ -103,7 +108,7 @@ public class SciViewSNT {
 		snt = null;
 	}
 
-	protected SciViewSNT(final SNT snt) {
+	protected SciViewSNT(final SNT snt) throws NoClassDefFoundError {
 		this(snt.getContext());
 		this.snt = snt;
 		if (snt.getUI() != null) snt.getUI().setSciViewSNT(this);

@@ -116,7 +116,6 @@ import sc.fiji.snt.plugin.PlotterCmd;
 import sc.fiji.snt.plugin.ShollTracingsCmd;
 import sc.fiji.snt.plugin.StrahlerCmd;
 import sc.fiji.snt.viewer.Viewer3D;
-import sc.iview.SciView;
 import sholl.ShollUtils;
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 import sc.fiji.snt.gui.cmds.CompareFilesCmd;
@@ -3095,17 +3094,17 @@ public class SNTUI extends JDialog {
 	}
 
 	/**
-	 * Gets the SciView Viewer.
+	 * Gets the active getSciViewSNT (SciView<>SNT bridge) instance.
 	 *
-	 * @param initializeIfNull it true, initializes the Viewer if it has not yet
+	 * @param initializeIfNull it true, initializes SciView if it has not yet
 	 *                         been initialized
 	 * @return the SciView viewer
 	 */
-	public SciView getSciViewViewer(final boolean initializeIfNull) {
+	public SciViewSNT getSciViewSNT(final boolean initializeIfNull) {
 		if (initializeIfNull && sciViewSNT == null) {
 			openSciView.doClick();
 		}
-		return (sciViewSNT == null) ? null : sciViewSNT.getSciView();
+		return (sciViewSNT == null) ? null : sciViewSNT;
 	}
 
 	protected void setReconstructionViewer(final Viewer3D recViewer) {

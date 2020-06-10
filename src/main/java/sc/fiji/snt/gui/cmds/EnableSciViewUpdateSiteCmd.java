@@ -59,7 +59,7 @@ public class EnableSciViewUpdateSiteCmd implements Command {
 			return;
 		}
 		if (!new GuiUtils().getConfirmation(
-				"SNT now requires SciView but SciView does not seem to installed. Install it now? (Restart may be required)",
+				"SciView does not seem to installed in your system. Install it now? (Restart may be required)",
 				"Run Updater?")) {
 			return;
 		}
@@ -79,14 +79,16 @@ public class EnableSciViewUpdateSiteCmd implements Command {
 	}
 
 	private void instructionsMsg() {
-		final String msg = "Please enable the \"SciView\" update site in the Updater list:"
-				+ "<ol>" //
-				+ "<li>Click on the <i>Manage update sites</i> button</li>"
-				+ "<li>Select the <i>SciView</i> checkbox in the sites list</li> "
-				+ "<li>Click on <i>Apply changes</i> and restart ImageJ</li>"
-				+ "</ol>" //
-				+ "<b>This inconvenience will no longer be required once SciView is officially released.<br>"
-				+ "Thank you for your patience!";
+		final String msg =
+				"Please subscribe to the Sciview <em>Bleeding Edge</em> update site:</p>\n" + "<ol start='' >\n"
+						+ "<li><p>In the updater --Currently running--, add the following entry to the <em>Manage update sites</em> table, by clicking on <em>Add update site</em>:</p>\n"
+						+ "<figure><table>\n" + "<thead>\n"
+						+ "<tr><th style='text-align:left;' >Name</th><th style='text-align:left;' >URL</th></tr></thead>\n"
+						+ "<tbody><tr><td style='text-align:left;' >SciView-edge</td><td style='text-align:left;' ><a href='https://sites.imagej.net/SciView-Unstable/' target='_blank' class='url'>https://sites.imagej.net/SciView-Unstable/</a></td></tr></tbody>\n"
+						+ "</table></figure>\n" + "</li>\n"
+						+ "<li><p>Activate the newly added <em>SciView-edge</em> checkbox and unselect the <em>SciView</em> checkbox if you currently subscribing to Sciview&#39;s regular channel </p>\n"
+						+ "</li>\n" + "<li><p>Click <em>Apply changes</em> and restart Fiji</p>\n" + "</li>\n" + "</ol>"
+						+ "See <a href='https://imagej.net/SNT#Installation'>documentation</a> for details.";
 		GuiUtils.showHTMLDialog(msg, "Instructions");
 	}
 

@@ -427,14 +427,14 @@ public class SNTService extends AbstractService implements ImageJService {
 		return (guiControls) ? new Viewer3D(getContext()) : new Viewer3D();
 	}
 
-	public SciViewSNT getOrCreateSciViewSNT() {
+	public SciViewSNT getOrCreateSciViewSNT() throws NoClassDefFoundError {
 		if (SNTUtils.getPluginInstance() == null) {
 			return new SciViewSNT(getContext());
 		}
 		return getSciViewSNT();
 	}
 
-	public SciViewSNT getSciViewSNT() {
+	public SciViewSNT getSciViewSNT() throws NoClassDefFoundError {
 		accessActiveInstance(false);
 		if (getUI() != null && getUI().sciViewSNT != null)
 			return getUI().sciViewSNT;
