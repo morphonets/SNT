@@ -1530,11 +1530,47 @@ public class Tree {
 			it.next().setColor(colors[i]);
 		}
 	}
+	
+	/**
+	 * Swaps the coordinates of two axes in this Tree.
+	 *
+	 * @param axis1 the first axis. Either {@link #X_AXIS}, {@link #Y_AXIS}, or
+	 *              {@link #Z_AXIS}
+	 * @param axis2 the second axis. Either {@link #X_AXIS}, {@link #Y_AXIS}, or
+	 *              {@link #Z_AXIS}
+	 */
+	public void swapAxes(final int axis1, final int axis2) {
+		List<Integer> validAxes = Arrays.asList(X_AXIS, Y_AXIS, Z_AXIS);
+		if (!validAxes.contains(axis1) || !validAxes.contains(axis2)) {
+			throw new IllegalArgumentException("Unrecognized axis");
+		}
+		if (axis1 == axis2) {
+			return;
+		}
+		// The axis that remains unchanged
+		final int axis3 = X_AXIS + Y_AXIS + Z_AXIS - axis1 - axis2;
+		for (final Path p : this.list()) {
+			for (int i = 0; i < p.size(); i++) {
+				final PointInImage current = p.getNode(i);
+				// swap axis1 and axis2
+				final Map<Integer, Double> coordMap = new HashMap<Integer, Double>();
+				coordMap.put(axis1, current.getCoordinateOnAxis(axis2));
+				coordMap.put(axis2, current.getCoordinateOnAxis(axis1));
+				coordMap.put(axis3, current.getCoordinateOnAxis(axis3));
+				p.moveNode(i, new PointInImage(coordMap.get(X_AXIS), coordMap.get(Y_AXIS), coordMap.get(Z_AXIS)));
+			}
+		}
+		if (graph != null) {
+			rebuildGraph();
+		}
+	}
 
 	/* IDE debug method */
 	public static void main(final String[] args) {
 
-		final Tree tree = new Tree("/home/tferr/Downloads/test_swc.swc");
+		//final Tree tree = new Tree("/home/tferr/Downloads/test_swc.swc");
+		final Tree tree = new SNTService().demoTree();
+		tree.swapAxes(Z_AXIS, Y_AXIS);
 		TreeAnalyzer analyzer = new TreeAnalyzer(tree);
 		System.out.println("Creating graph...");
 

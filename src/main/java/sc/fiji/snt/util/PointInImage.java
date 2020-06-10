@@ -28,6 +28,7 @@ import ij.measure.Calibration;
 import sholl.UPoint;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathTransformer;
+import sc.fiji.snt.Tree;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 
@@ -225,6 +226,26 @@ public class PointInImage implements SNTPoint {
 	@Override
 	public double getZ() {
 		return z;
+	}
+	
+	/**
+	 * Gets the coordinate along the specified axis.
+	 *
+	 * @param axis the axis. Either {@link Tree#X_AXIS}, {@link Tree#Y_AXIS}, or
+	 *             {@link Tree#Z_AXIS}
+	 */
+	@Override
+	public double getCoordinateOnAxis(final int axis) {
+		switch (axis) {
+		case Tree.X_AXIS:
+			return getX();
+		case Tree.Y_AXIS:
+			return getY();
+		case Tree.Z_AXIS:
+			return getZ();
+		default:
+			throw new IllegalArgumentException("Unrecognized axis " + axis);
+		}
 	}
 
 	@Override
