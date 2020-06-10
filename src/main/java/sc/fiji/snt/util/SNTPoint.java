@@ -44,6 +44,9 @@ public interface SNTPoint {
 
 	/** @return the Z-coordinate of the point */
 	public double getZ();
+	
+	/** @return the coordinate on the specified axis */
+	public double getCoordinateOnAxis(int axis);
 
 	/**
 	 * Assigns a neuropil annotation (e.g., atlas compartment) to this point.
