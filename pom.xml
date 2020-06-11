@@ -268,7 +268,7 @@
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-lang3</artifactId>
+			<artifactId>commons-text</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>net.imagej</groupId>
