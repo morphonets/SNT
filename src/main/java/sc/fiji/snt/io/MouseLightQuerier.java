@@ -148,8 +148,9 @@ public class MouseLightQuerier {
 	private void initialize(final boolean assembleSwcTypeMap) {
 		try {
 			final OkHttpClient client = new OkHttpClient();
-			final RequestBody body = RequestBody.create(String.format(
-				GRAPHQL_BODY, publicID), MEDIA_TYPE);
+			//TODO: Update for okhttp4: final RequestBody body = RequestBody.create(String.format(GRAPHQL_BODY, publicID), MEDIA_TYPE);
+			//see https://github.com/morphonets/SNT/issues/26
+			final RequestBody body = RequestBody.create(MEDIA_TYPE, String.format(GRAPHQL_BODY, publicID));
 			final Request request = new Request.Builder().url(GRAPHQL_URL).post(body)
 				.addHeader("Content-Type", "application/json").addHeader(
 					"Cache-Control", "no-cache").build();
@@ -285,8 +286,9 @@ public class MouseLightQuerier {
 			"Structure name not recognized: " + structure);
 
 		final OkHttpClient client = new OkHttpClient();
-		final RequestBody body = RequestBody.create("{\n\"ids\": [\n\"" +
-			structureID + "\"\n]\n}", MEDIA_TYPE);
+		//TODO: Update for okhttp4: final RequestBody body = RequestBody.create("{\n\"ids\": [\n\"" + structureID + "\"\n]\n}", MEDIA_TYPE);
+		//see https://github.com/morphonets/SNT/issues/26
+		final RequestBody body = RequestBody.create(MEDIA_TYPE, "{\n\"ids\": [\n\"" + structureID + "\"\n]\n}");
 		try {
 			final Request request = new Request.Builder().url(TRACINGS_URL).post(body)
 				.addHeader("Content-Type", "application/json").addHeader(
