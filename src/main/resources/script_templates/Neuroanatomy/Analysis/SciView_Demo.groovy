@@ -1,4 +1,3 @@
-#@SciView sciView
 #@SNTService sntService
 #@DatasetIOService datasetIOService
 
@@ -16,20 +15,19 @@ import sc.fiji.snt.SciViewSNT
 // All the heavy lifting is performed by SciViewSNT, that can be instantiated
 // from a SciJava Context, an existing SciView instance, or from SNTService
 // directly using sntService.getOrCreateSciViewSNT()
-sciViewSNT = new SciViewSNT(sciView)
+sciViewSNT = sntService.getOrCreateSciViewSNT()
 
 // We can now add reconstructions as we do with Reconstruction Viewer:
-tree = sntService.demoTree() // retrieve a toy tree from SNTService
+tree = sntService.demoTrees().get(0) // retrieve a sample tree from SNTService
 tree.setColor("red")
 sciViewSNT.addTree(tree)
 
 // Now let's add a volume:
-ds = datasetIOService.open("http://wsr.imagej.net/images/boats.gif");
-sciView.addVolume(ds);
+ds = datasetIOService.open("http://wsr.imagej.net/images/t1-head.gif")
+sciViewSNT.getSciView().addVolume(ds)
 
 // Let's add another tree, and center the view on it
 tree.translate(2, 2, 2)
 tree.setColor("cyan")
 sciViewSNT.addTree(tree)
-sciView.centerOnNode(sciViewSNT.getTreeAsSceneryNode(tree))
-
+sciViewSNT.getSciView().centerOnNode(sciViewSNT.getTreeAsSceneryNode(tree))
