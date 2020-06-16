@@ -124,13 +124,9 @@
 		<license.projectName>Fiji distribution of ImageJ for the life sciences.</license.projectName>
 
 		<!-- Dependency versions for JitPack -->
-		<sciview.version>9a71de9</sciview.version>
-		<scenery.version>f55e46b</scenery.version>
-		<kotlin.version>1.4-M1</kotlin.version>
-		<joml.version>1.9.22</joml.version>
+		<sciview.version>9c0918a</sciview.version>
+		<scenery.version>4e67655</scenery.version>
 
-		<cleargl.version>2.2.10</cleargl.version>
-		<lwjgl.version>3.2.3</lwjgl.version>
 		<jzy3d.version>1.0.3-SNAPSHOT</jzy3d.version>
 
 		<jline.version>3.13.1</jline.version>
