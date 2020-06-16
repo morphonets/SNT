@@ -22,35 +22,24 @@
 
 package sc.fiji.snt.io;
 
-import java.io.IOException;
-import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.stream.IntStream;
-import java.util.TreeSet;
-import java.util.UUID;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import me.tongfei.progressbar.ProgressBar;
 import me.tongfei.progressbar.ProgressBarBuilder;
 import me.tongfei.progressbar.ProgressBarStyle;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-import sc.fiji.snt.util.SWCPoint;
+import okhttp3.*;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
+import sc.fiji.snt.util.SWCPoint;
+
+import java.io.IOException;
+import java.text.DecimalFormat;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.stream.IntStream;
 
 /**
  * Importer for retrieving reconstructions from MouseLight's online database at
@@ -180,8 +169,9 @@ public class MouseLightQuerier {
 						final double sRadius = jsonSoma.getDouble("radius");
 						final int parent = jsonSoma.getInt("parentNumber"); // always -1
 						soma = new SWCPoint(0, Path.SWC_SOMA, sX, sY, sZ, sRadius, parent);
-						final String areaId = jsonSoma.optString("brainAreaId");
-						if (!areaId.isEmpty()) soma.setAnnotation(new AllenCompartment(UUID.fromString(areaId)));
+						if (!jsonSoma.isNull("brainAreaId")) {
+							soma.setAnnotation(new AllenCompartment(UUID.fromString(jsonSoma.getString("brainAreaId"))));
+						}
 					}
 					final JSONObject tracingStructure = compartment.getJSONObject(
 						"tracingStructure");
@@ -466,7 +456,9 @@ public class MouseLightQuerier {
 					int parent = node.getInt("parentNumber");
 					if (parent > -1) parent += idOffset;
 					final SWCPoint point = new SWCPoint(sn, type, x, y, z, radius, parent);
-					point.setAnnotation(new AllenCompartment(UUID.fromString(node.getString("brainAreaId"))));
+					if (!node.isNull("brainAreaId")) {
+						point.setAnnotation(new AllenCompartment(UUID.fromString(node.getString("brainAreaId"))));
+					}
 					points.add(point);
 				}
 			}
