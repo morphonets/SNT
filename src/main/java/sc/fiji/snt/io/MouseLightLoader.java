@@ -339,8 +339,17 @@ public class MouseLightLoader {
 		return jsonData;
 	}
 
+	/**
+	 * Convenience method to save JSON data.
+	 *
+	 * @param path the absolute path to output directory/file
+	 * @return true, if successful
+	 * @see #saveAsJSON(File)
+	 */
 	public boolean save(final String path) {
-		return save(new File(path));
+		final File file = new File(path);
+		if (!file.exists()) file.mkdirs();
+		return save(file);
 	}
 
 	/**
@@ -531,35 +540,6 @@ public class MouseLightLoader {
 			final String id = "AA" + new DecimalFormat("0000").format(neuron);
 			final MouseLightLoader loader = new MouseLightLoader(id);
 			if (loader.idExists()) list.add(loader);
-		});
-		return list;
-	}
-
-	/**
-	 * Convenience method to obtain a consecutive range of cell IDs from a range of
-	 * indices. E.g., {@code getRangeOfIDs(1, getNeuronCount())} would return the
-	 * list of IDs for all the cells in the MouseLight database.
-	 *
-	 * @param first the first index in the range (inclusive, 1-based)
-	 * @param last  the last index in the range (inclusive)
-	 * @return the list of cell IDs or an empty list if database could not be
-	 *         reached.
-	 */
-	public static List<String> getRangeOfIDs(final int first, final int last) {
-		final List<String> list = new ArrayList<>();
-		final int maxN = getNeuronCount();
-		if (maxN == -1) return list;
-		if (maxN > 9999) {
-			throw new IllegalArgumentException(
-					"This method needs to be updated to accomodate the large # of neurons in database. "
-					+ "Please contact the developers");
-		}
-		final int adjFirst = Math.max(1, first);
-		final int adjLast = Math.min(last, maxN);
-		IntStream.rangeClosed(adjFirst, adjLast).forEach( neuron -> {
-			final String id = "AA" + new DecimalFormat("0000").format(neuron);
-			//if (new MouseLightLoader(id).idExists())
-			list.add(id);
 		});
 		return list;
 	}
