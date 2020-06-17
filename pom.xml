@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>29.0.0-beta-2</version>
+		<version>29.0.0-beta-3</version>
 		<relativePath />
 	</parent>
 
@@ -124,19 +124,14 @@
 		<license.projectName>Fiji distribution of ImageJ for the life sciences.</license.projectName>
 
 		<!-- Dependency versions for JitPack -->
-		<sciview.version>9a71de9</sciview.version>
-		<scenery.version>f55e46b</scenery.version>
-		<kotlin.version>1.4-M1</kotlin.version>
-		<joml.version>1.9.22</joml.version>
+		<sciview.version>9c0918a</sciview.version>
+		<scenery.version>4e67655</scenery.version>
 
-		<cleargl.version>2.2.10</cleargl.version>
-		<lwjgl.version>3.2.3</lwjgl.version>
 		<jzy3d.version>1.0.3-SNAPSHOT</jzy3d.version>
 
 		<jline.version>3.13.1</jline.version>
 		<jide-oss.version>3.6.18</jide-oss.version>
 		<imagej-plot-service.version>0.1.1</imagej-plot-service.version>
-		<progressbar.version>0.8.1</progressbar.version>
 		<okhttp.version>4.7.2</okhttp.version>
 		<font-awesome.version>5.13.0</font-awesome.version>
 		<json.version>20200518</json.version>
@@ -301,19 +296,6 @@
 		<dependency>
 			<groupId>org.jgrapht</groupId>
 			<artifactId>jgrapht-ext</artifactId>
-		</dependency>
-
-		<dependency>
-			<groupId>me.tongfei</groupId>
-			<artifactId>progressbar</artifactId>
-			<version>${progressbar.version}</version>
-			<exclusions>
-				<exclusion>
-					<!-- NB: Exclude older jline that comes in via sciview -->
-					<groupId>org.jline</groupId>
-					<artifactId>jline-terminal-jansi</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.jline</groupId>
