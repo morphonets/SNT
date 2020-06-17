@@ -346,6 +346,10 @@ public class AllenCompartment implements BrainAnnotation {
 		return id() != cCompartment.id() && cCompartment.getStructureIdPath().contains(String.valueOf(id()));
 	}
 
+	public UUID getUUID() {
+		return uuid;
+	}
+
 	@Override
 	public String toString() {
 		return name() + " [" + acronym + "]";

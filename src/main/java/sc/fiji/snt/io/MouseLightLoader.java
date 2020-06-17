@@ -69,13 +69,13 @@ import sc.fiji.snt.annotation.AllenCompartment;
 public class MouseLightLoader {
 
 	/** The Constant AXON. */
-	public static final String AXON = MouseLightQuerier.AXON;
+	public static final String AXON = "axon";
 
 	/** The Constant DENDRITE. */
-	public static final String DENDRITE = MouseLightQuerier.DENDRITE;
+	public static final String DENDRITE = "dendrite";
 
 	/** The Constant SOMA. */
-	public static final String SOMA = MouseLightQuerier.SOMA;
+	public static final String SOMA = "soma";
 
 	private static final String JSON_URL = "https://ml-neuronbrowser.janelia.org/json";
 	private static final String SWC_URL = "https://ml-neuronbrowser.janelia.org/swc";
