@@ -22,8 +22,6 @@
 
 package sc.fiji.snt.io;
 
-import static org.junit.Assert.assertTrue;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -265,11 +263,11 @@ public class MouseLightQuerier {
 	/* IDE debug method */
 	public static void main(final String... args) {
 		List<String> ids = getIDs(AllenUtils.getCompartment("CA2"));
-		assertTrue(ids.get(0).equals("AA0960"));
-		assertTrue(ids.get(1).equals("AA0997"));
+		System.out.println(ids.get(0).equals("AA0960"));
+		System.out.println(ids.get(1).equals("AA0997"));
 		ids = getIDs(AllenUtils.getCompartment("SNr"));
-		assertTrue(ids.get(0).equals("AA1044"));
-		assertTrue(getAllIDs().size() == getNeuronCount());
+		System.out.println(ids.get(0).equals("AA1044"));
+		System.out.println(getAllIDs().size() == getNeuronCount());
 		//assertTrue("AA0100".equals(getIDs(" AA0100", false).get(0)));
 		System.out.println("done");
 	}
