@@ -185,10 +185,10 @@ public class SNTUtils {
 	}
 
 	protected static String getColorString(final Color color) {
-		String name = "none";
-		name = Colors.getColorName(color, name);
-		if (!"none".equals(name)) name = Colors.colorToString(color);
-		return name;
+		//String name = "none";
+		//name = Colors.getColorName(color, name);
+		//if (!"none".equals(name)) name = Colors.colorToString(color);
+		return Colors.colorToString2(color);
 	}
 
 	protected static Color getColor(String colorName) {
