@@ -588,10 +588,19 @@ public class SNTUI extends JDialog {
 	/**
 	 * Runs a menu command (as listed in the menu bar hierarchy).
 	 *
-	 * @param cmd The command to be run, exactly as listed in its menu
+	 * @param cmd The command to be run, exactly as listed in its menu (either in
+	 *            the this dialog, or {@link PathManagerUI})
 	 * @throws IllegalArgumentException if {@code cmd} was not found.
 	 */
 	public void runCommand(final String cmd) throws IllegalArgumentException {
+		try {
+			runCommand(menuBar, cmd);
+		} catch (final IllegalArgumentException ie) {
+			getPathManager().runCommand(cmd);
+		}
+	}
+
+	protected static void runCommand(final JMenuBar menuBar, final String cmd) throws IllegalArgumentException {
 		if (cmd == null || cmd.trim().isEmpty()) {
 			throw new IllegalArgumentException("Not a recognizable command: " + cmd);
 		}

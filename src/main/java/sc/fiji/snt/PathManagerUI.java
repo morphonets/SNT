@@ -1544,18 +1544,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	/**
 	 * Runs a menu command.
 	 *
-	 * @param cmd The command to be run, exactly as listed in the PathManagerUI menu bar.
+	 * @param cmd The command to be run, exactly as listed in the PathManagerUI's
+	 *            menu bar or Right-click contextual menu
+	 * @throws IllegalArgumentException if {@code cmd} was not found.
 	 */
-	public void runCommand(final String cmd) {
-		if (cmd == null || cmd.isEmpty()
-				|| (Character.isAlphabetic(cmd.charAt(0)) && !Character.isUpperCase(cmd.charAt(0)))) {
-			throw new IllegalArgumentException("Not a recognizable command: "+ cmd);
-		}
-		final ActionEvent actionEvent = new ActionEvent(menuBar, ActionEvent.ACTION_PERFORMED, cmd);
-		if (SinglePathActionListener.CMDS.contains(cmd)) {
-			new SinglePathActionListener().actionPerformed(actionEvent);
-		} else {
-			new MultiPathActionListener().actionPerformed(actionEvent);
+	public void runCommand(final String cmd) throws IllegalArgumentException {
+		try {
+			SNTUI.runCommand(menuBar, cmd);
+		} catch (final IllegalArgumentException ie) {
+			for (final JMenuItem jmi : GuiUtils.getMenuItems(popup)) {
+				if (cmd.equals(jmi.getText()) || cmd.equals(jmi.getActionCommand())) {
+					jmi.doClick();
+					return;
+				}
+			}
+			throw new IllegalArgumentException("Not a recognizable command: " + cmd);
 		}
 	}
 
@@ -1636,7 +1639,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String MAKE_PRIMARY_CMD = "Make Primary";
 		private final static String DISCONNECT_CMD = "Disconnect...";
 		private final static String EXPLORE_FIT_CMD = "Explore/Preview Fit";
-		private final static String CMDS = RENAME_CMD + MAKE_PRIMARY_CMD + " " + DISCONNECT_CMD + EXPLORE_FIT_CMD;
 
 		@Override
 		public void actionPerformed(final ActionEvent e) {

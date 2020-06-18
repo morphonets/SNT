@@ -83,6 +83,7 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JRadioButton;
 import javax.swing.JSlider;
 import javax.swing.JSpinner;
@@ -94,6 +95,7 @@ import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.JTree;
 import javax.swing.LookAndFeel;
+import javax.swing.MenuElement;
 import javax.swing.SpinnerModel;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
@@ -755,6 +757,20 @@ public class GuiUtils {
 		for (int i = 0; i < menuBar.getMenuCount(); i++) {
 			final JMenu menu = menuBar.getMenu(i);
 			getMenuItems(menu, list);
+		}
+		return list;
+	}
+
+	public static List<JMenuItem> getMenuItems(final JPopupMenu menuBar) {
+		final List<JMenuItem> list = new ArrayList<>();
+		for (final MenuElement me : menuBar.getSubElements()) {
+			if (me == null) {
+				continue;
+			} else if (me instanceof JMenuItem) {
+				list.add((JMenuItem) me);
+			} else if (me instanceof JMenu) {
+				getMenuItems((JMenu) me, list);
+			}
 		}
 		return list;
 	}
