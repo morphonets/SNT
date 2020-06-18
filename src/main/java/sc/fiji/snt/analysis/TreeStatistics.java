@@ -26,6 +26,7 @@ import java.awt.Dimension;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -407,12 +408,14 @@ public class TreeStatistics extends TreeAnalyzer {
 	}
 
 	public static TreeStatistics fromCollection(final Collection<Tree> trees, final String metric) {
-		if (trees.size() == 1) return new TreeStatistics(trees.iterator().next());
-		final TreeStatistics holder = new TreeStatistics(new Tree());
+		final Iterator<Tree> iterator = trees.iterator();
+		final TreeStatistics holder = new TreeStatistics(iterator.next());
+		if (trees.size() == 1) return holder;
 		holder.tree.setLabel(getLabelFromTreeCollection(trees));
 		final String normMeasurement = getNormalizedMeasurement(metric);
 		final DescriptiveStatistics holderStats = holder.getDescriptiveStats(normMeasurement);
-		for (final Tree tree : trees) {
+		while (iterator.hasNext()) {
+			final Tree tree = iterator.next();
 			final TreeStatistics treeStats = new TreeStatistics(tree);
 			final DescriptiveStatistics dStats = treeStats.getDescriptiveStats(normMeasurement);
 			for (final double v : dStats.getValues()) {
