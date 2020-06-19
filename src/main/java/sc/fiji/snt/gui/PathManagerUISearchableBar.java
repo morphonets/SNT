@@ -178,15 +178,14 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			doMorphoFiltering(TreeStatistics.PATH_LENGTH, unit);
 		});
 		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem("Mean Radius...");
+		mi1 = new JMenuItem(TreeStatistics.MEAN_RADIUS + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.MEAN_RADIUS, ""));
 		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem("No. of Nodes...");
+		mi1 = new JMenuItem(TreeStatistics.N_NODES + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_NODES, ""));
 		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem("Path Order...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER,
-			""));
+		mi1 = new JMenuItem(TreeStatistics.PATH_ORDER + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER, ""));
 		morphoFilteringMenu.add(mi1);
 		mi1 = new JMenuItem("SWC Type...");
 		mi1.addActionListener(e -> {
@@ -280,6 +279,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		String s = guiUtils.getString(msg, property + " Filtering", "10-100");
 		if (s == null) return; // user pressed cancel
 		s = s.toLowerCase();
+		if (s.indexOf("-") == -1) s = s + "-"+ s;
 
 		double min = Double.MIN_VALUE;
 		double max = Double.MAX_VALUE;
@@ -304,14 +304,19 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				"Invalid range. Example of valid inputs: 10-100, min-10, 100-max, max-max");
 			return;
 		}
+		doMorphoFiltering(filteredPaths, property, values[0], values[1]);
 
-		for (final Iterator<Path> iterator = filteredPaths.iterator(); iterator
+	}
+
+	public void doMorphoFiltering(final  Collection<Path> paths, final String property, final Number min, final Number max) {
+		for (final Iterator<Path> iterator = paths.iterator(); iterator
 			.hasNext();)
 		{
 			final Path p = iterator.next();
 			double value;
 			switch (property) {
 				case TreeStatistics.PATH_LENGTH:
+				case "Length":
 					value = p.getLength();
 					break;
 				case TreeStatistics.N_NODES:
@@ -326,14 +331,14 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				default:
 					throw new IllegalArgumentException("Unrecognized parameter");
 			}
-			if (value < values[0] || value > values[1]) iterator.remove();
+			if (value < min.doubleValue() || value > max.doubleValue()) iterator.remove();
 		}
-		if (filteredPaths.isEmpty()) {
+		if (paths.isEmpty()) {
 			guiUtils.error("No Path matches the specified range.");
 			return;
 		}
-		pmui.setSelectedPaths(new HashSet<>(filteredPaths), this);
-		guiUtils.tempMsg(filteredPaths.size() + " Path(s) selected");
+		pmui.setSelectedPaths(new HashSet<>(paths), this);
+		guiUtils.tempMsg(paths.size() + " Path(s) selected");
 		// refreshManager(true, true);
 	}
 
@@ -379,15 +384,14 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			doMorphoFiltering(TreeStatistics.PATH_LENGTH, unit);
 		});
 		popup.add(mi1);
-		mi1 = new JMenuItem("Mean Radius...");
+		mi1 = new JMenuItem(TreeStatistics.MEAN_RADIUS + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.MEAN_RADIUS, ""));
 		popup.add(mi1);
-		mi1 = new JMenuItem("No. of Nodes...");
+		mi1 = new JMenuItem(TreeStatistics.N_NODES + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_NODES, ""));
 		popup.add(mi1);
-		mi1 = new JMenuItem("Path Order...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER,
-			""));
+		mi1 = new JMenuItem(TreeStatistics.PATH_ORDER + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER, ""));
 		popup.add(mi1);
 		mi1 = new JMenuItem("SWC Type...");
 		mi1.addActionListener(e -> {

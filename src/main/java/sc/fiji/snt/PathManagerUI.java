@@ -89,12 +89,15 @@ import org.scijava.command.CommandService;
 import org.scijava.display.Display;
 import org.scijava.display.DisplayService;
 import org.scijava.prefs.PrefService;
+import org.scijava.util.ColorRGB;
+import org.scijava.util.Colors;
 
 import com.jidesoft.swing.Searchable;
 import com.jidesoft.swing.TreeSearchable;
 
 import ij.ImagePlus;
 import net.imagej.ImageJ;
+import net.imagej.lut.LUTService;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
@@ -142,6 +145,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private final ColorMenu colorMenu;
 	private final JMenuItem fitVolumeMenuItem;
 	private FitHelper fittingHelper;
+	private PathManagerUISearchableBar searchableBar;
 
 	/**
 	 * Instantiates a new Path Manager Dialog.
@@ -332,7 +336,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		advanced.add(jmi);
 
 		// Search Bar TreeSearchable
-		final PathManagerUISearchableBar searchableBar = new PathManagerUISearchableBar(this);
+		searchableBar = new PathManagerUISearchableBar(this);
 		popup = new JPopupMenu();
 		popup.add(getDeleteMenuItem(multiPathListener));
 		popup.add(getRenameMenuItem(singlePathListener));
@@ -887,6 +891,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	protected Collection<Tree> getTrees() {
 		return getTreesPrompt(true);
+	}
+
+	private Collection<Tree> getTreesMimickingPrompt(final String description) {
+		final Collection<Tree> trees = pathAndFillManager.getTrees();
+		if (trees.size() == 1 || description.contains("All")) return trees;
+		for (final Tree t : trees) {
+			if (t.getLabel().equals(description)) return Collections.singleton(t);
+		}
+		return null;
+	}
+
+	private Tree getSingleTreeMimickingPrompt(final String description) {
+		return getTreesMimickingPrompt(description).iterator().next();
 	}
 
 	private Collection<Tree> getTreesPrompt(final boolean includeAll) {
@@ -1542,6 +1559,80 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	/**
+	 * Selects paths matching a morphometric criteria.
+	 *
+	 * @param property The morphometric property ("Length", "Path order", etc.) as
+	 *                 listed in the "Morphology filter" menu (case sensitive).
+	 * @param min      the lowest value (exclusive) in the filter
+	 * @param max      the highest value (exclusive) in the filter
+	 * @throws IllegalArgumentException if {@code property} was not recognized. Note
+	 *                                  that some filtering options listed in the
+	 *                                  GUI may not be supported.	 */
+	public void applySelectionFilter(final String property, Number min, Number max) throws IllegalArgumentException {
+		searchableBar.doMorphoFiltering(getSelectedPaths(true),
+				(property.endsWith("...")) ? property.replace("...", "") : property, min, max);
+	}
+
+	/**
+	 * Applies a tag/ color to selected Path(s).
+	 *
+	 * @param customTagOrColor The tag (or color) to be applied to selected Paths.
+	 */
+	public void applyTag(final String customTagOrColor) throws IllegalArgumentException {
+		final ColorRGB color = Colors.getColor(customTagOrColor);
+		if (color == null) {
+			applyCustomTags(getSelectedPaths(true), customTagOrColor);
+			refreshManager(false, false);
+		} else {
+			getSelectedPaths(true).forEach( p-> p.setColor(color));
+			refreshManager(true, true);
+		}
+	}
+
+	/**
+	 * Selects paths matching a text-based criteria.
+	 *
+	 * @param query The matching text, as it would have been typed in the "Text
+	 *              filtering" box.
+	 */
+	public void applySelectionFilter(final String query) throws IllegalArgumentException {
+		final List<Integer> hits = searchableBar.getSearchable().findAll(query);
+		if (hits != null && !hits.isEmpty()) {
+			final int[] array = hits.stream().mapToInt(i->i).toArray();
+			tree.addSelectionRows(array);
+		}
+	}
+
+	/**
+	 * Selects paths matching a morphometric criteria.
+	 *
+	 * @param property The morphometric property ("Length", "Path order", etc.) as
+	 *                 listed in the "Morphology filter" menu (case sensitive).
+	 * @param criteria the filtering criteria.
+	 * @throws IllegalArgumentException if {@code property} was not recognized. Note
+	 *                                  that some filtering options listed in the
+	 *                                  GUI may not be supported.
+	 */
+	public void applySelectionFilter(final String property, Number criteria) throws IllegalArgumentException {
+		searchableBar.doMorphoFiltering(getSelectedPaths(true),
+				(property.endsWith("...")) ? property.replace("...", "") : property, criteria, criteria);
+	}
+
+	/**
+	 * Gets the collection of paths listed in the Path Manager as a {@link Tree}
+	 * object. All paths are retrieved if none are currently selected.
+	 *
+	 * @return the Tree holding the Path collection
+	 */
+	public Tree geSelectedPathsAsTree() {
+		return new Tree(getSelectedPaths(true));
+	}
+
+	public void clearSelection() {
+		tree.clearSelection();
+	}
+
+	/**
 	 * Runs a menu command.
 	 *
 	 * @param cmd The command to be run, exactly as listed in the PathManagerUI's
@@ -1560,6 +1651,96 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			throw new IllegalArgumentException("Not a recognizable command: " + cmd);
 		}
+	}
+
+	/**
+	 * Runs a menu command with options.
+	 *
+	 * @param cmd  The command to be run, exactly as listed in the PathManagerUI's
+	 *             menu bar or Right-click contextual menu
+	 * @param args the option(s) that would fill the commands's prompt. e.g.,
+	 *             {@code runCommand("Color Coding...", "X coordinates", "Cyan Hot.lut")}
+	 * @throws IllegalArgumentException if {@code cmd} was not found, or if it is
+	 *                                  not supported.
+	 */
+	public void runCommand(final String cmd, String... args) throws IllegalArgumentException, IOException {
+		if (MultiPathActionListener.HISTOGRAM_CMD.equals(cmd)) {
+			if (args.length == 1) {
+				runDistributionAnalysisCmd("All", args[0]);
+			} else if (args.length > 1) {
+				runDistributionAnalysisCmd(args[0], args[1]);
+			} else {
+				throw new IllegalArgumentException("Not enough arguments...");
+			}
+			return;
+		} else if (MultiPathActionListener.COLORIZE_PATH_CMD.equals(cmd)) {
+			if (args.length == 2) {
+				runColorCodingCmd("All", args[0], args[1]);
+			} else if (args.length > 2) {
+				runColorCodingCmd(args[0], args[1], args[2]);
+			} else {
+				throw new IllegalArgumentException("Not enough arguments...");
+			}
+			return;
+		} else if (MultiPathActionListener.CONVERT_TO_ROI_CMD.equals(cmd)) {
+			if (args.length == 0) {
+				runRoiConverterCmd("All", null);
+			} else if (args.length == 1) {
+				runRoiConverterCmd(args[0], null);
+			} else if (args.length > 1) {
+				runRoiConverterCmd(args[0], args[1]);
+			}
+			return;
+		} else if (args == null || args.length == 0) {
+			runCommand(cmd);
+			return;
+		}
+		throw new IllegalArgumentException("Unsupported command: " + cmd);
+	}
+
+	private void runRoiConverterCmd(final String type, final String view) throws IllegalArgumentException {
+		final Map<String, Object> input = new HashMap<>();
+		input.put("tree", new Tree(getSelectedPaths(true)));
+		input.put("imp", plugin.getImagePlus());
+		input.put("roiChoice", type);
+		input.put("viewChoice", (view==null) ? "XY (default)" : view);
+		input.put("useSWCcolors", false);
+		input.put("avgWidth", true);
+		input.put("discardExisting", false);
+		final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+		cmdService.run(ROIExporterCmd.class, true, input);
+		return;
+	}
+
+	private void runColorCodingCmd(final String singleTreeDescriptor, final String metric, final String lutName) throws IllegalArgumentException, IOException {
+		final Tree tree =  getSingleTreeMimickingPrompt(singleTreeDescriptor);
+		if (tree == null) throw new IllegalArgumentException("Not a recognized choice "+ singleTreeDescriptor);
+		final Map<String, Object> input = new HashMap<>();
+		input.put("tree", tree);
+		input.put("measurementChoice", metric);
+		input.put("lutChoice", lutName);
+		input.put("showInRecViewer", false);
+		input.put("showPlot", false);
+		input.put("setValuesFromSNTService", !plugin.tracingHalted);
+		input.put("removeColorCoding", null);
+		final LUTService lutService = plugin.getContext().getService(LUTService.class);
+		input.put("colorTable", lutService.loadLUT(lutService.findLUTs().get(lutName)));
+		final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+		cmdService.run(TreeMapperCmd.class, true, input);
+		return;
+	}
+
+	private void runDistributionAnalysisCmd(final String treeCollectionDescriptor, final String metric) throws IllegalArgumentException {
+		final Collection<Tree> trees = getTreesMimickingPrompt(treeCollectionDescriptor);
+		if (trees == null) throw new IllegalArgumentException("Not a recognized choice "+ treeCollectionDescriptor);
+		final Map<String, Object> input = new HashMap<>();
+		input.put("trees", trees);
+		input.put("measurementChoice", metric);
+		input.put("calledFromPathManagerUI", true);
+		final CommandService cmdService = plugin.getContext().getService(
+			CommandService.class);
+		cmdService.run(DistributionBPCmd.class, true, input);
+		return;
 	}
 
 	protected boolean measurementsUnsaved() {
@@ -1702,6 +1883,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 
 			SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
+		}
+	}
+
+	private void applyCustomTags(final Collection<Path> selectedPaths, String customTag) {
+		customTag = customTag.replace("[", "(");
+		customTag = customTag.replace("]", ")");
+		for (final Path p : selectedPaths) {
+			p.setName(p.getName() + "{" + customTag + "}");
 		}
 	}
 
@@ -1894,11 +2083,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					displayTmpMsg("Tags removed");
 				}
 				else {
-					for (final Path p : selectedPaths) {
-						tags = tags.replace("[", "(");
-						tags = tags.replace("]", ")");
-						p.setName(p.getName() + "{" + tags + "}");
-					}
+					applyCustomTags(selectedPaths, tags);
 				}
 				refreshManager(false, false);
 				return;
