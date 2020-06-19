@@ -122,6 +122,54 @@ public class RoiConverter extends TreeAnalyzer {
 	}
 
 	/**
+	 * Converts paths into 2D polyline ROIs (segment paths), adding them to the
+	 * overlay of the image specified in the constructor.
+	 * 
+	 * @throws IllegalArgumentException if this RoiConverter instance is not aware
+	 *                                  of any image
+	 * @see #convertPaths(Overlay)
+	 */
+	public void convertPaths() throws IllegalArgumentException {
+		convertPaths(getImpOverlay());
+	}
+
+	/**
+	 * Converts all the tips associated with the parsed paths into
+	 * {@link ij.gui.PointRoi}s, adding them to the overlay of the image specified
+	 * in the constructor.
+	 * 
+	 * @throws IllegalArgumentException if this RoiConverter instance is not aware
+	 *                                  of any image
+	 * @see #convertTips(Overlay)
+	 */
+	public void convertTips() throws IllegalArgumentException {
+		convertTips(getImpOverlay());
+	}
+
+	/**
+	 * Converts all the branch poisnts associated with the parsed paths into
+	 * {@link ij.gui.PointRoi}s, adding them to the overlay of the image specified
+	 * in the constructor.
+	 * 
+	 * @throws IllegalArgumentException if this RoiConverter instance is not aware
+	 *                                  of any image
+	 * @see #convertBranchPoints(Overlay)
+	 */
+	public void convertBranchPoints() throws IllegalArgumentException {
+		convertBranchPoints(getImpOverlay());
+	}
+
+	private Overlay getImpOverlay() throws IllegalArgumentException {
+		if (imp == null) throw new IllegalArgumentException("Roiconverter initialized without image.");
+		Overlay overlay = imp.getOverlay();
+		if (overlay == null) {
+			overlay = new Overlay();
+			imp.setOverlay(overlay);
+		}
+		return overlay;
+	}
+
+	/**
 	 * Converts all the branch points associated with the parsed paths into
 	 * {@link ij.gui.PointRoi}s
 	 *
