@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.swing.SwingUtilities;
+
 import org.scijava.Context;
 import org.scijava.NullContextException;
 import org.scijava.app.StatusService;
@@ -77,7 +79,6 @@ import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.event.SNTListener;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SWCImportOptionsDialog;
-import sc.fiji.snt.gui.SwingSafeResult;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollTracingsCmd;
 import sc.fiji.snt.util.BoundingBox;
@@ -643,10 +644,11 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void startUI() {
+		GuiUtils.setSystemLookAndFeel();
 		final SNT thisPlugin = this;
-		ui = SwingSafeResult.getResult(() -> new SNTUI(thisPlugin));
+		ui = new SNTUI(thisPlugin);
 		guiUtils = new GuiUtils(ui);
-		ui.displayOnStarting();
+		SwingUtilities.invokeLater(() -> { ui.displayOnStarting(); });
 	}
 
 	public void loadTracings(final File file) {

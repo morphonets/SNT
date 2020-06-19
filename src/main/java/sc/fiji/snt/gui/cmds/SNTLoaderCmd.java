@@ -129,7 +129,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 			cancel("SNT seems to be already running.");
 			return;
 		}
-		GuiUtils.setSystemLookAndFeel();
+		//GuiUtils.setSystemLookAndFeel();
 
 		// TODO: load defaults from prefService?
 		sourceImp = legacyService.getImageMap().lookupImagePlus(imageDisplayService

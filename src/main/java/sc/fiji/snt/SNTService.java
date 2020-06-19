@@ -148,7 +148,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * @param imagePath the image to be traced. If "demo" (case insensitive), SNT is
 	 *                  initialized using the {@link #demoTreeImage}. If empty or
 	 *                  null and SNT's UI is available an "Open" dialog prompt is
-	 *                  displayed.
+	 *                  displayed. URL's supported.
 	 * @param startUI   Whether SNT's UI should also be initialized;
 	 * @return the SNT instance.
 	 */

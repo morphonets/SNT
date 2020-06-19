@@ -1632,6 +1632,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		tree.clearSelection();
 	}
 
+	public void selectAll() {
+		tree.setSelectionInterval(0, tree.getRowCount());
+	}
+
 	/**
 	 * Runs a menu command.
 	 *
