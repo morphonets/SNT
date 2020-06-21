@@ -912,7 +912,7 @@ public class Viewer3D {
 	}
 
 	private void addItemToManager(final String label) {
-		if (managerList == null) return;
+		if (managerList == null || managerList.model == null) return;
 		final int[] indices = managerList.getCheckBoxListSelectedIndices();
 		final int index = managerList.model.size() - 1;
 		managerList.model.insertElementAt(label, index);
@@ -923,7 +923,7 @@ public class Viewer3D {
 	}
 
 	private boolean deleteItemFromManager(final String managerEntry) {
-		if (managerList.model == null)
+		if (managerList == null || managerList.model == null)
 			return false;
 		if (!managerList.model.removeElement(managerEntry)) {
 			// managerEntry was not found. It is likely associated
@@ -1277,7 +1277,10 @@ public class Viewer3D {
 
 	/**
 	 * Script friendly method to add a supported object ({@link Tree},
-	 * {@link OBJMesh}, {@link AbstractDrawable}, etc.) to this viewer.
+	 * {@link OBJMesh}, {@link AbstractDrawable}, etc.) to this viewer. Note that
+	 * collections of supported objects are also supported, which is an effective
+	 * way of adding multiple items since the scene is only rebuilt once all items
+	 * have been added.
 	 *
 	 * @param object the object to be added. No exception is triggered if null
 	 * @throws IllegalArgumentException if object is not supported
@@ -1292,6 +1295,12 @@ public class Viewer3D {
 				addTree((Tree) object);
 			} else if (object instanceof OBJMesh) {
 				addMesh((OBJMesh) object);
+			} else if (object instanceof Collection) {
+				final boolean updateStatus = viewUpdatesEnabled;
+				setSceneUpdatesEnabled(false);
+				((Collection<?>) object).forEach(item -> add(item));
+				setSceneUpdatesEnabled(updateStatus);
+				validate();
 			} else if (object instanceof String) {
 				addLabel((String) object);
 			} else if (object instanceof AbstractDrawable) {

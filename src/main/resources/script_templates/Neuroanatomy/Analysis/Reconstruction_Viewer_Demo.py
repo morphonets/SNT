@@ -16,7 +16,6 @@ from sc.fiji.snt.analysis import TreeColorMapper
 from sc.fiji.snt.annotation import AllenCompartment
 from sc.fiji.snt.annotation import AllenUtils
 from sc.fiji.snt.viewer import Viewer3D
-from sc.fiji.snt.viewer.Viewer3D import ViewMode
 
 
 def run():
@@ -47,19 +46,17 @@ def run():
 
     # Add reconstructions and color map legend
     dend_tree.setColor("orange")
-    viewer.add(dend_tree)
-    viewer.add(axon_tree)
+    viewer.add([dend_tree, axon_tree])
     viewer.addColorBarLegend(mapper)
 
     # Add Allen Reference Atlas annotations: brain contour
     # and compartment associated with soma of downloaded cell
     brainMesh = AllenUtils.getCompartment("Whole Brain").getMesh()
     brainMesh.setBoundingBoxColor("cyan")
-    viewer.add(brainMesh)
-    viewer.add(loader.getSomaCompartment().getMesh())
+    viewer.add([brainMesh, loader.getSomaCompartment().getMesh()])
 
     # Display scene
-    viewer.setViewMode(ViewMode.SIDE)
+    viewer.setViewMode("side")
     viewer.show()
     viewer.setAnimationEnabled(True)
     print("... Done. With Viewer active, Press 'H' or 'F1' for help")

@@ -66,9 +66,8 @@ viewer = new Viewer3D(ij.context())
 
 // Add relevant meshes
 brainMesh = AllenUtils.getCompartment("Whole Brain").getMesh()
-viewer.add(brainMesh)
-viewer.add(somaCompartment.getMesh())
-viewer.add(projCompartment.getMesh())
+displayMeshes = [brainMesh, somaCompartment.getMesh(), projCompartment.getMesh()]
+viewer.add(displayMeshes)
 
 // Add original cell
 tree = loader.getTree()

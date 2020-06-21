@@ -2,6 +2,7 @@
 #@String(label="Color mapping:", choices={"Ice.lut", "mpl-viridis.lut"}) lutName
 #@ImageJ ij
 #@LUTService lut
+#@SNTService snt
 
 
 import groovy.io.FileType
@@ -42,11 +43,9 @@ colorMapper.map("total length", colorTable)
 // Initialize a non-interactive Reconstruction Viewer
 viewer = (trees.size > 100) ? new Viewer3D() : new Viewer3D(ij.context())
 
-// Plot all trees
-trees.forEach({
-	println("Rendering "+ it)
-	viewer.add(it)
-})
+// Add all trees to scene
+println("Adding all reconstructions to viewer...")
+viewer.add(trees);
 
 // Add Legend
 viewer.addColorBarLegend(colorMapper)
