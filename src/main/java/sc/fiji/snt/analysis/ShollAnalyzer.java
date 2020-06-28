@@ -157,12 +157,17 @@ public class ShollAnalyzer {
 		getLinearStats();
 		if (lStats != null) {
 			if (includeFitting && polynomialDegreeRange[0] + polynomialDegreeRange[1] > 0) {
-				final int bestFit = lStats.findBestFit(polynomialDegreeRange[0], polynomialDegreeRange[1], 0.60, -1);
-				if (lStats.validFit()) {
-					final UPoint fMax = lStats.getCenteredMaximum(true);
-					metrics.put(MAX_FITTED, fMax.y);
-					metrics.put(MAX_FITTED_RADIUS, fMax.x);
-					metrics.put(POLY_FIT_DEGREE, bestFit);
+				try {
+					final int bestFit = lStats.findBestFit(polynomialDegreeRange[0], polynomialDegreeRange[1], 0.60,
+							-1);
+					if (lStats.validFit()) {
+						final UPoint fMax = lStats.getCenteredMaximum(true);
+						metrics.put(MAX_FITTED, fMax.y);
+						metrics.put(MAX_FITTED_RADIUS, fMax.x);
+						metrics.put(POLY_FIT_DEGREE, bestFit);
+					}
+				} catch (final NullPointerException t) {
+					SNTUtils.error("Metric skipped under exception", t);
 				}
 			}
 			metrics.put(MEAN, lStats.getMean());
