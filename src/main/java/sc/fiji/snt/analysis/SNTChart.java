@@ -41,6 +41,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 
 import org.jfree.chart.ChartFrame;
 import org.jfree.chart.ChartPanel;
+import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.annotations.CategoryAnnotation;
 import org.jfree.chart.annotations.CategoryTextAnnotation;
@@ -82,7 +83,7 @@ public class SNTChart extends ChartFrame {
 	private static final long serialVersionUID = 5245298401153759551L;
 	private static final Color BACKGROUND_COLOR = Color.WHITE;
 
-	protected SNTChart(final String title, final JFreeChart chart) {
+	public SNTChart(final String title, final JFreeChart chart) {
 		this(title, chart, new Dimension(400, 400));
 	}
 
@@ -177,6 +178,34 @@ public class SNTChart extends ChartFrame {
 			marker.setLabelFont(getXYPlot().getRangeAxis().getTickLabelFont());
 		}
 		getXYPlot().addRangeMarker(marker);
+	}
+
+	public void setAxesVisible(final boolean visible) {
+		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
+			plot.getDomainAxis().setVisible(visible);
+			plot.getRangeAxis().setVisible(visible);
+		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+			plot.getDomainAxis().setVisible(visible);
+			plot.getRangeAxis().setVisible(visible);
+		}
+	}
+
+	public void setGridlinesVisible(final boolean visible) {
+		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
+			plot.setDomainGridlinesVisible(false);
+			plot.setRangeGridlinesVisible(false);
+		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+			plot.setDomainGridlinesVisible(false);
+			plot.setRangeGridlinesVisible(false);
+		}
+	}
+
+	public void setOutlineVisible(final boolean visible) {
+		getChartPanel().getChart().getPlot().setOutlineVisible(visible);
 	}
 
 	/**
@@ -318,6 +347,16 @@ public class SNTChart extends ChartFrame {
 		}
 	}
 
+	public void saveAsPNG(final File file) throws IOException {
+		ChartUtils.saveChartAsPNG(file, getChartPanel().getChart(), getChartPanel().getWidth(),  getChartPanel().getHeight());
+	}
+
+	public void saveAsPNG(final String filePath) throws IOException {
+		final File f = new File((filePath.toLowerCase().endsWith(".png")) ? filePath : filePath + ".png");
+		f.mkdirs();
+		saveAsPNG(f);
+	}
+
 	private void adjustMarkersFont(final Collection<?> markers, final float size) {
 		if (markers != null) {
 			markers.forEach(marker -> {
@@ -374,6 +413,12 @@ public class SNTChart extends ChartFrame {
 		annot.setArrowPaint(c);
 		annot.setFont(font);
 		getXYPlot().addAnnotation(annot);
+	}
+
+	public void show(final int width, final int height) {
+		setPreferredSize(new Dimension(width, height));
+		pack();
+		show();
 	}
 
 	@Override

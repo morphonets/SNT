@@ -23,13 +23,11 @@
 package sc.fiji.snt.viewer;
 
 import java.awt.Color;
-import java.awt.Dimension;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 
-import org.jfree.chart.ChartFrame;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.AxisLocation;
 import org.jfree.chart.axis.NumberAxis;
@@ -41,7 +39,6 @@ import org.scijava.Context;
 import org.scijava.plugin.Parameter;
 import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
-import org.scijava.util.Colors;
 
 import net.imagej.ImageJ;
 import net.imagej.plot.LineStyle;
@@ -57,6 +54,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ColorMapper;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
@@ -216,7 +214,7 @@ public class Viewer2D extends TreeColorMapper {
 		if (min >= max || colorTable == null) {
 			return;
 		}
-		chart = getChart();
+		chart = getJFreeChart();
 		chart.addSubtitle(getPaintScaleLegend(colorTable, min, max));
 	}
 
@@ -303,6 +301,16 @@ public class Viewer2D extends TreeColorMapper {
 	}
 
 	/**
+	 * Appends a tree to the viewer.
+	 *
+	 * @param tree  the Collection of paths to be plotted
+	 * @param color a string representation of the color to render the Tree
+	 */
+	public void add(final Tree tree, final String color) {
+		add(tree, new ColorRGB(color));
+	}
+
+	/**
 	 * Appends a tree to the viewer rendered after the specified measurement.
 	 *
 	 * @param tree the tree to be plotted
@@ -361,12 +369,22 @@ public class Viewer2D extends TreeColorMapper {
 	 *
 	 * @return the converted viewer
 	 */
-	public JFreeChart getChart() {
-		initPlot();
-		final XYPlotConverter converter = new XYPlotConverter();
-		return converter.convert(plot, JFreeChart.class);
-		// chart.setAntiAlias(true);
-		// chart.setTextAntiAlias(true);
+	public JFreeChart getJFreeChart() {
+		if (chart == null) {
+			initPlot();
+			final XYPlotConverter converter = new XYPlotConverter();
+			chart = converter.convert(plot, JFreeChart.class);
+		}
+		return chart;
+	}
+
+	/**
+	 * Gets the current viewer as a {@link SNTChart} object
+	 *
+	 * @return the converted viewer
+	 */
+	public SNTChart getChart() {
+		return new SNTChart(getTitle(), getJFreeChart());
 	}
 
 	/**
@@ -384,21 +402,16 @@ public class Viewer2D extends TreeColorMapper {
 				uiService.show((title == null) ? "Reconstruction Plotter" : title, plot);
 			}
 			else {
-				if (chart == null) chart = getChart();
-				((org.jfree.chart.plot.XYPlot)chart.getPlot()).getDomainAxis().setVisible(visibleAxes);
-				((org.jfree.chart.plot.XYPlot)chart.getPlot()).getRangeAxis().setVisible(visibleAxes);
-				((org.jfree.chart.plot.XYPlot)chart.getPlot()).setDomainGridlinesVisible(visibleGridLines);
-				((org.jfree.chart.plot.XYPlot)chart.getPlot()).setRangeGridlinesVisible(visibleGridLines);
-				((org.jfree.chart.plot.XYPlot)chart.getPlot()).setOutlineVisible(visibleOutline);
-				((org.jfree.chart.plot.XYPlot)chart.getPlot()).setOutlineVisible(visibleOutline);
-				final ChartFrame frame = new ChartFrame(title, chart);
+				if (chart == null) chart = getJFreeChart();
 				chart.setBackgroundPaint(null); // transparent
 				chart.getPlot().setBackgroundPaint(null); // transparent
+				final SNTChart frame = getChart();
+				frame.setAxesVisible(visibleAxes);
+				frame.setGridlinesVisible(visibleGridLines);
+				frame.setOutlineVisible(visibleOutline);
 				frame.getChartPanel().setBackground(null); // transparent
 				frame.setBackground(Color.WHITE);
-				frame.setPreferredSize(new Dimension(600, 450));
-				frame.pack();
-				frame.setVisible(true);
+				frame.show(600, 450);
 			}
 		}
 		return plot;
@@ -476,9 +489,14 @@ public class Viewer2D extends TreeColorMapper {
 		tree.rotate(Tree.Z_AXIS, 180);
 		final SNTPoint root = tree.getRoot();
 		tree.translate(-root.getX(), -root.getY(), -root.getZ());
-		pplot.add(tree, Colors.RED);
+		pplot.add(tree, "red");
 		pplot.setOutlineVisible(true);
 		pplot.show();
+		final SNTChart sntChart = pplot.getChart();
+		sntChart.setAxesVisible(false);
+		sntChart.setOutlineVisible(false);
+		sntChart.setGridlinesVisible(false);
+		sntChart.show();
 	}
 
 }

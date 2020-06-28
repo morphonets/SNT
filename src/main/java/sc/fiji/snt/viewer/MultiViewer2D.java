@@ -205,7 +205,7 @@ public class MultiViewer2D {
 		if (style != null && style.toLowerCase().startsWith("c")) { // column
 			final CombinedRangeXYPlot mergedPlot = new CombinedRangeXYPlot();
 			for (final Viewer2D viewer : viewers) {
-				final XYPlot plot = viewer.getChart().getXYPlot();
+				final XYPlot plot = viewer.getJFreeChart().getXYPlot();
 				plot.getDomainAxis().setVisible(axesVisible);
 				plot.getRangeAxis().setVisible(axesVisible);
 				plot.setDomainGridlinesVisible(gridVisible);
@@ -217,7 +217,7 @@ public class MultiViewer2D {
 		} else {
 			final CombinedDomainXYPlot mergedPlot = new CombinedDomainXYPlot();
 			for (final Viewer2D viewer : viewers) {
-				mergedPlot.add(viewer.getChart().getXYPlot(), 1);
+				mergedPlot.add(viewer.getJFreeChart().getXYPlot(), 1);
 			}
 			result = new JFreeChart(null, mergedPlot);
 		}

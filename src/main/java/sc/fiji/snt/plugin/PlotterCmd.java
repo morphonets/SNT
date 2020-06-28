@@ -173,7 +173,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		snapshotTree = tree.clone();
 		plottingTree.setColor(DEF_COLOR);
 		buildPlot();
-		chart = plot.getChart();
+		chart = plot.getJFreeChart();
 		frame = new ChartFrame(tree.getLabel(), chart);
 		frame.setPreferredSize(new Dimension(500, 500));
 		frame.pack();
@@ -192,7 +192,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		if (preview && msg.isEmpty()) {
 			msg = BUSY_MSG;
 			buildPlot();
-			chart.getXYPlot().setDataset(plot.getChart().getXYPlot().getDataset());
+			chart.getXYPlot().setDataset(plot.getJFreeChart().getXYPlot().getDataset());
 			frame.setVisible(true); // re-open frame if it has been closed
 			msg = "";
 			// frame.toFront();
