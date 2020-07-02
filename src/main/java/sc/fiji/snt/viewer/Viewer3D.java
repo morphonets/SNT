@@ -3615,7 +3615,7 @@ public class Viewer3D {
 			prefsMenu.add(rotationMenu());
 			prefsMenu.addSeparator();
 			final JMenuItem  jcbmi2= new JCheckBoxMenuItem("Enable Hardware Acceleration", Settings.getInstance().isHardwareAccelerated());
-			jcbmi2.setEnabled(!isSNTInstance());
+			//jcbmi2.setEnabled(!isSNTInstance());
 			jcbmi2.setIcon(IconFactory.getMenuIcon(GLYPH.MICROCHIP));
 			jcbmi2.setMnemonic('h');
 			jcbmi2.addItemListener(e -> {
