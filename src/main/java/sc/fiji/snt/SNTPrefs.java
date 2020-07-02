@@ -267,23 +267,21 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	protected File getRecentFile() {
-		if (recentFile == null) {
-			if (snt.accessToValidImageData()) {
+		if (recentFile == null && snt.accessToValidImageData()) {
 				try {
 					final FileInfo fInfo = snt.getImagePlus().getOriginalFileInfo();
 					recentFile = new File(fInfo.directory, fInfo.fileName);
 				} catch (final NullPointerException npe) {
 					// ignored;
 				}
-			} else {
-				recentFile = new File(System.getProperty("user.home"), "SNT_data");
-			}
 		}
+		if (recentFile == null)
+			recentFile = new File(System.getProperty("user.home"), "SNT_data");
 		return recentFile;
 	}
 
 	protected File getRecentDir() {
-		return getRecentFile().getParentFile();
+		return (getRecentFile() == null) ? new File(System.getProperty("user.home")) : recentFile.getParentFile();
 	}
 
 }
