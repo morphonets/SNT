@@ -173,8 +173,17 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 			resolveInput("pattern");
 			getInfo().getMutableInput("pattern", String.class).setLabel("");
 		}
-		if (tree != null) resolveInput("trees");
-		if (trees != null) resolveInput("tree");
+		if (tree == null && trees == null) {
+			// caller specified nothing: user will be prompted for file/dir
+			resolveInput("tree");
+			resolveInput("trees");
+		} else if (tree != null) {
+			// caller specified a single tree
+			resolveInput("trees");
+		} else if (trees != null) {
+			// caller specified a collection of trees
+			resolveInput("tree");
+		}
 		if (table == null) {
 			table = (sntService.isActive()) ? sntService.getTable() : new DefaultGenericTable();
 			if (table == null) table = new DefaultGenericTable();

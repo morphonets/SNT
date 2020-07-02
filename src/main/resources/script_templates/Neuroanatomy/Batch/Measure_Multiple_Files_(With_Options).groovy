@@ -10,4 +10,4 @@ info:       Applies SNT's measure command to a directory
 
 import sc.fiji.snt.plugin.AnalyzerCmd
 
-ij.command().run(AnalyzerCmd.class, true, null)
+ij.command().run(AnalyzerCmd.class, true)
