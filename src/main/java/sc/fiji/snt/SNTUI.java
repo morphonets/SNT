@@ -2229,7 +2229,7 @@ public class SNTUI extends JDialog {
 				ta.run();
 			}
 			catch (final IllegalArgumentException ignored) {
-				guiUtils.error("Selected paths do not fullfill requirements for retrieval of choiceless measurements.");
+				getPathManager().quickMeasurementsCmdError(guiUtils);
 			}
 		});
 		final JMenuItem plotMenuItem = new JMenuItem("Reconstruction Plotter...", IconFactory.getMenuIcon(IconFactory.GLYPH.DRAFT));

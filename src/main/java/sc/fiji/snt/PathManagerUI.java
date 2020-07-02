@@ -86,9 +86,9 @@ import javax.swing.tree.TreeSelectionModel;
 
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
-import org.scijava.display.Display;
 import org.scijava.display.DisplayService;
 import org.scijava.prefs.PrefService;
+import org.scijava.table.TableDisplay;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
@@ -924,6 +924,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		return null; // user pressed canceled prompt
 	}
 
+	protected void quickMeasurementsCmdError(final GuiUtils guiUtils) {
+		guiUtils.error("Selected paths do not fullfill requirements for retrieval of choiceless measurements. "
+				+ "This can happen if e.g.,you have paths tagged with different type flags combined in an "
+				+ "unexpected way. Please use the options in the \"Measure\" prompt to retrieve measurements.");
+		updateTable();
+	}
+
 	/* (non-Javadoc)
 	 * @see PathAndFillListener#setFillList(java.lang.String[])
 	 */
@@ -1532,13 +1539,38 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	protected void closeTable() {
-		final Display<?> display = plugin.getContext().getService(
-			DisplayService.class).getDisplay(TABLE_TITLE);
-		if (display != null && display.isDisplaying(table)) display.close();
+		final TableDisplay tableDisplay = getTableDisplay();
+		if (tableDisplay != null) tableDisplay.close();
+		table = null;
+	}
+
+	private boolean tableIsBeingDisplayed() {
+		return getTableDisplay() != null;
+	}
+
+	protected void updateTable() {
+		final TableDisplay tableDisplay = getTableDisplay();
+		if (tableDisplay != null) tableDisplay.update();
+	}
+
+	private TableDisplay getTableDisplay() {
+		if (table == null) return null;
+		final List<TableDisplay> displays = plugin.getContext().getService(DisplayService.class)
+				.getDisplaysOfType(TableDisplay.class);
+		if (displays == null) return null;
+		for (final TableDisplay d : displays) {
+			if (d != null && d.isDisplaying(table)) return d;
+		}
+		return null;
 	}
 
 	protected SNTTable getTable() {
-		if (table == null) table = new SNTTable();
+		if (table == null || !tableIsBeingDisplayed()) {
+			// Create a new table if it does not exist or is cached but it has been closed.
+			// Resetting the table on the latter scenario improves GUI usability.
+			// TODO: add a window listener that prompts the user to save contents before closing it
+			table = new SNTTable();
+		}
 		return table;
 	}
 
@@ -2025,7 +2057,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					ta.summarize(getDescription(selectedPaths), true);
 				}
 				catch (final IllegalArgumentException ignored) {
-					guiUtils.error("Selected paths do not fullfill requirements for retrieval of choiceless measurements.");
+					quickMeasurementsCmdError(guiUtils);
+					return;
 				}
 				return;
 			}
