@@ -103,7 +103,7 @@ class ClarifyingKeyListener implements KeyListener, ContainerListener {
 
 		else if (keyCode == KeyEvent.VK_ENTER) {
 			final ImagePlus imp = plugin.getImagePlus();
-			if (imp.isVisible()) imp.getWindow().toFront();
+			if (imp != null && imp.isVisible()) imp.getWindow().toFront();
 		}
 
 		else if (e.isShiftDown() && e.isAltDown() && (keyCode == KeyEvent.VK_A)) {
