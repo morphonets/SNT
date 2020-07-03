@@ -67,6 +67,7 @@ public class GraphUtils {
 	 * @param graph the graph to be converted.
 	 * @return the Tree, assembled from from the graph vertices
 	 */
+	@Deprecated
 	public static Tree createTree(final DefaultDirectedGraph<SWCPoint, ?> graph) {
 		if (graph instanceof DirectedWeightedGraph) {
 			return ((DirectedWeightedGraph)graph).getTree();

@@ -32,14 +32,12 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
-import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
-import java.util.stream.IntStream;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -531,15 +529,16 @@ public class MouseLightLoader {
 
 	/**
 	 * Gets the loaders for all the cells publicly available in the MouseLight database.
-	 *
-	 * @return the list of loaders or an empty list if the ML database could not be reached.
+	 * @throws IllegalArgumentException if the ML database could not be reached.
+	 * @return the list of loaders
 	 */
-	public static List<MouseLightLoader> getAllLoaders() {
-		final List<MouseLightLoader> list = new ArrayList<>();
-		IntStream.rangeClosed(0, getNeuronCount()).forEach( neuron -> {
-			final String id = "AA" + new DecimalFormat("0000").format(neuron);
+	public static List<MouseLightLoader> getAllLoaders() throws IllegalArgumentException {
+		final List<String> ids = MouseLightQuerier.getAllIDs();
+		final List<MouseLightLoader> list = new ArrayList<>(ids.size());
+		ids.forEach( id -> {
 			final MouseLightLoader loader = new MouseLightLoader(id);
-			if (loader.idExists()) list.add(loader);
+			//if (loader.idExists())
+			list.add(loader);
 		});
 		return list;
 	}
