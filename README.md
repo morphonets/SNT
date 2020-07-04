@@ -151,5 +151,19 @@ Daily builds of SNT and SciView are pushed to the *Neuroanatomy-Unstable* update
 6. Activate the newly added *Neuroanatomy-edge* checkbox
 7. Click *Apply changes* and restart Fiji
 
+## Developing
+
+  1. Clone this repository (use the green _code_ button above the list of files) 
+  2. Import the project into an IDE such as [Eclipse](https://www.eclipse.org/downloads/packages/)/[IntelliJ](https://www.jetbrains.com/idea/download/)/[NetBeans](https://netbeans.apache.org/download/index.html):
+        - In Eclipse: Run _Import> Existing Maven Projects_ and specify the path to the downloaded `SNT` folder in _Root Directory_
+        - In IntelliJ: In the _Welcome Prompt_, choose _Open or Import_ and specify the path to the downloaded `SNT` folder
+        - In NetBeans: Run _File> Open Project..._, select the downloaded `SNT` directory, and click on _Open Project_
+  3. Wait for all the dependencies to be downloaded, and run [SNTLoaderCmd](./src/main/java/sc/fiji/snt/gui/cmds/SNTLoaderCmd.java). 
+
+Useful resources to start hacking SNT:
+  -  _main_ methods found on most classes: These test/showcase some of the class's functionality ([example](https://github.com/morphonets/SNT/blob/master/src/main/java/sc/fiji/snt/viewer/Viewer3D.java#L6130))
+  -  [JUnit tests](./src/test/java/sc/fiji/snt/),  [Script templates](./src/main/resources/script_templates/Neuroanatomy/) and [notebooks](./notebooks)
+
+
 ## Contributing
 Want to contribute? Please, please do! We welcome [issues](https://github.com/morphonets/SNT/issues) and [pull requests](https://github.com/morphonets/SNT/pulls) any time.
