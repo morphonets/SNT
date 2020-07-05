@@ -100,7 +100,6 @@ import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
-import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.gui.ColorMenu;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.PathManagerUISearchableBar;
@@ -109,6 +108,7 @@ import sc.fiji.snt.gui.cmds.DistributionBPCmd;
 import sc.fiji.snt.gui.cmds.PathFitterCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeOptionsCmd;
 import sc.fiji.snt.plugin.AnalyzerCmd;
+import sc.fiji.snt.plugin.PathAnalyzerCmd;
 import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.plugin.SkeletonizerCmd;
 import sc.fiji.snt.plugin.TreeMapperCmd;
@@ -311,12 +311,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHART));
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.MEASURE_CMD_OPTIONS);
+		jmi = new JMenuItem(MultiPathActionListener.MEASURE_CMD_OPTIONS_PATHS);
+		jmi.setToolTipText("Measures selected path(s), indepently of their connectivity");
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.MEASURE_CMD_SUMMARY);
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ROCKET));
+		jmi = new JMenuItem(MultiPathActionListener.MEASURE_CMD_OPTIONS);
+		jmi.setToolTipText("Measures complete structures assuming valid connectivity between paths");
+		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
 		advanced.addSeparator();
@@ -926,8 +928,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	protected void quickMeasurementsCmdError(final GuiUtils guiUtils) {
 		guiUtils.error("Selected paths do not fullfill requirements for retrieval of choiceless measurements. "
-				+ "This can happen if e.g.,you have paths tagged with different type flags combined in an "
-				+ "unexpected way. Please use the options in the \"Measure\" prompt to retrieve measurements.");
+				+ "This can happen if e.g., paths are disconnected, or have been tagged with different type "
+				+ "flags combined in an unexpected way. Please use the options in the \"Measure\" prompt to "
+				+ "retrieve measurements.");
 		updateTable();
 	}
 
@@ -1954,8 +1957,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String FILL_OUT_CMD = "Fill Out...";
 		private static final String RESET_FITS = "Discard Fit(s)...";
 		private final static String SPECIFY_RADIUS_CMD = "Specify Radius...";
-		private final static String MEASURE_CMD_SUMMARY = "Quick Measurements";
-		private final static String MEASURE_CMD_OPTIONS = "Measure...";
+		//private final static String MEASURE_CMD_SUMMARY = "Quick Measurements";
+		private final static String MEASURE_CMD_OPTIONS = "Measure Structure(s)...";
+		private final static String MEASURE_CMD_OPTIONS_PATHS = "Measure Path(s)...";
 
 		private final static String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
 		private final static String COLORIZE_PATH_CMD = "Color Coding...";
@@ -2043,25 +2047,25 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				});
 				return;
 			}
-			else if (MEASURE_CMD_SUMMARY.equals(cmd)) {
-				final Tree tree = getSingleTree();
-				if (tree == null) return;
-				try {
-					final TreeAnalyzer ta = new TreeAnalyzer(tree);
-					ta.setContext(plugin.getContext());
-					if (ta.getParsedTree().isEmpty()) {
-						guiUtils.error("None of the selected paths could be measured.");
-						return;
-					}
-					ta.setTable(getTable(), TABLE_TITLE);
-					ta.summarize(getDescription(selectedPaths), true);
-				}
-				catch (final IllegalArgumentException ignored) {
-					quickMeasurementsCmdError(guiUtils);
-					return;
-				}
-				return;
-			}
+//			else if (MEASURE_CMD_SUMMARY.equals(cmd)) {
+//				final Tree tree = getSingleTree();
+//				if (tree == null) return;
+//				try {
+//					final TreeAnalyzer ta = new TreeAnalyzer(tree);
+//					ta.setContext(plugin.getContext());
+//					if (ta.getParsedTree().isEmpty()) {
+//						guiUtils.error("None of the selected paths could be measured.");
+//						return;
+//					}
+//					ta.setTable(getTable(), TABLE_TITLE);
+//					ta.summarize(tree.getLabel(), true);
+//				}
+//				catch (final IllegalArgumentException ignored) {
+//					quickMeasurementsCmdError(guiUtils);
+//					return;
+//				}
+//				return;
+//			}
 			else if (MEASURE_CMD_OPTIONS.equals(cmd)) {
 				final Collection<Tree> trees = getTrees();
 				if (trees == null) return;
@@ -2069,6 +2073,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				inputs.put("trees", trees);
 				inputs.put("table", getTable());
 				(plugin.getUI().new DynamicCmdRunner(AnalyzerCmd.class, inputs)).run();
+				return;
+			}
+			else if (MEASURE_CMD_OPTIONS_PATHS.equals(cmd)) {
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("paths", selectedPaths);
+				inputs.put("proposedLabel", getDescription(selectedPaths));
+				inputs.put("table", getTable());
+				(plugin.getUI().new DynamicCmdRunner(PathAnalyzerCmd.class, inputs)).run();
 				return;
 			}
 			else if (CONVERT_TO_ROI_CMD.equals(cmd)) {

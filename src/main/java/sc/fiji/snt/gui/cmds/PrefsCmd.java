@@ -43,6 +43,7 @@ import sc.fiji.snt.plugin.BrainAnnotationCmd;
 import sc.fiji.snt.plugin.CallLegacyShollPlugin;
 import sc.fiji.snt.plugin.GroupAnalyzerCmd;
 import sc.fiji.snt.plugin.LocalThicknessCmd;
+import sc.fiji.snt.plugin.PathAnalyzerCmd;
 import sc.fiji.snt.plugin.PathOrderAnalysisCmd;
 import sc.fiji.snt.plugin.PlotterCmd;
 import sc.fiji.snt.plugin.ROIExporterCmd;
@@ -120,7 +121,6 @@ public class PrefsCmd extends ContextCommand {
 
 	/** Clears all of SNT preferences. */
 	public void clearAll() {
-		// gui.cmds
 		prefService.clear(ChooseDatasetCmd.class);
 		prefService.clear(ColorMapReconstructionCmd.class);
 		prefService.clear(CompareFilesCmd.class);
@@ -147,9 +147,8 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(SWCTypeFilterCmd.class);
 		prefService.clear(SWCTypeOptionsCmd.class);
 		prefService.clear(TranslateReconstructionsCmd.class);
-
-		// tracing.plugin
 		prefService.clear(AnalyzerCmd.class);
+		prefService.clear(PathAnalyzerCmd.class);
 		prefService.clear(BrainAnnotationCmd.class);
 		prefService.clear(CallLegacyShollPlugin.class);
 		prefService.clear(GroupAnalyzerCmd.class);

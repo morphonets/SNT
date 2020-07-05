@@ -1003,7 +1003,8 @@ public class Tree {
 		for (int z = 0; z < depth; ++z) {
 			slices_data[z] = (short[]) s.getPixels(destinationImp.getStackIndex(channel, z + 1, frame));
 		}
-		new PathAndFillManager().setPathPointsInVolume(list(), slices_data, value, width, height, depth);
+		initPathAndFillManager();
+		pafm.setPathPointsInVolume(list(), slices_data, value, width, height, depth);
 	}
 
 	/**
@@ -1530,7 +1531,25 @@ public class Tree {
 			it.next().setColor(colors[i]);
 		}
 	}
-	
+
+	/**
+	 * Assigns the spatial calibration of an image to this Tree.
+	 *
+	 * @param imp the image providing the spatial calibration. Null allowed.
+	 */
+	public void assignImage(final ImagePlus imp) {
+		initPathAndFillManager();
+		Calibration cal;
+		if (imp == null) {
+			pafm.resetSpatialSettings();
+			cal = new Calibration();
+		} else {
+			pafm.assignSpatialSettings(imp);
+			cal = imp.getCalibration();
+		}
+		list().forEach(path -> path.setSpacing(cal));
+	}
+
 	/**
 	 * Swaps the coordinates of two axes in this Tree.
 	 *
