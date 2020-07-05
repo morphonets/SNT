@@ -114,7 +114,7 @@ The first time you start SNT from Fiji's menu structure (*Plugins>Neuroanatomy>S
 1.  Run the Fiji Updater (*Help › Update...*, the penultimate entry in the  *Help ›*  menu)
 2.  Click *Manage update sites*
 3.  Select the *Neuroanatomy* checkbox
-4.  Click *Apply changes* and Restart Fiji
+4.  Click *Apply changes* and Restart Fiji. SNT commands are registered under _Plugins>Neuroanatomy>_ in the main menu and SNT scripts under _Templates>Neuroanatomy>_ in Fiji's Script Editor.
 
 <a name="sciview"></a>For extra [SciView](https://imagej.net/SciView) functionality you need to subscribe to the Sciview *Bleeding Edge* update site:
 
