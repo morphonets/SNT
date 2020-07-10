@@ -22,68 +22,11 @@
 
 package sc.fiji.snt;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Graphics;
-import java.awt.datatransfer.DataFlavor;
-import java.awt.datatransfer.Transferable;
-import java.awt.datatransfer.UnsupportedFlavorException;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-
-import javax.swing.ButtonGroup;
-import javax.swing.Icon;
-import javax.swing.ImageIcon;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JMenu;
-import javax.swing.JMenuBar;
-import javax.swing.JMenuItem;
-import javax.swing.JPopupMenu;
-import javax.swing.JRadioButtonMenuItem;
-import javax.swing.JScrollPane;
-import javax.swing.JTree;
-import javax.swing.SwingUtilities;
-import javax.swing.SwingWorker;
-import javax.swing.TransferHandler;
-import javax.swing.UIManager;
-import javax.swing.event.TreeSelectionEvent;
-import javax.swing.event.TreeSelectionListener;
-import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeCellRenderer;
-import javax.swing.tree.DefaultTreeModel;
-import javax.swing.tree.MutableTreeNode;
-import javax.swing.tree.TreeModel;
-import javax.swing.tree.TreeNode;
-import javax.swing.tree.TreePath;
-import javax.swing.tree.TreeSelectionModel;
-
+import com.jidesoft.swing.Searchable;
+import com.jidesoft.swing.TreeSearchable;
+import ij.ImagePlus;
+import net.imagej.ImageJ;
+import net.imagej.lut.LUTService;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.display.DisplayService;
@@ -91,20 +34,10 @@ import org.scijava.prefs.PrefService;
 import org.scijava.table.TableDisplay;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
-
-import com.jidesoft.swing.Searchable;
-import com.jidesoft.swing.TreeSearchable;
-
-import ij.ImagePlus;
-import net.imagej.ImageJ;
-import net.imagej.lut.LUTService;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
-import sc.fiji.snt.gui.ColorMenu;
-import sc.fiji.snt.gui.IconFactory;
-import sc.fiji.snt.gui.PathManagerUISearchableBar;
-import sc.fiji.snt.gui.SwingSafeResult;
+import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.cmds.DistributionBPCmd;
 import sc.fiji.snt.gui.cmds.PathFitterCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeOptionsCmd;
@@ -112,9 +45,28 @@ import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.plugin.SkeletonizerCmd;
 import sc.fiji.snt.plugin.TreeMapperCmd;
+import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.util.SWCPoint;
-import sc.fiji.snt.gui.GuiUtils;
+
+import javax.swing.*;
+import javax.swing.event.TreeSelectionEvent;
+import javax.swing.event.TreeSelectionListener;
+import javax.swing.tree.*;
+import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.event.*;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * Implements the <i>Path Manager</i> Dialog.
@@ -199,12 +151,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.LINK));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.MERGE_PRIMARY_PATHS_CMD);
+		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.LINK));
+		jmi.addActionListener(multiPathListener);
+		editMenu.add(jmi);
 		editMenu.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.SPECIFY_RADIUS_CMD);
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CIRCLE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.DOWNSAMPLE_CMD);
+		jmi.addActionListener(multiPathListener);
+		editMenu.add(jmi);
+		editMenu.addSeparator();
+		jmi = new JMenuItem(MultiPathActionListener.REBUILD_CMD);
+		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RECYCLE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 
@@ -1939,8 +1900,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String COLORS_MENU = "Color";
 		private final static String DELETE_CMD = "Delete...";
 		private final static String MERGE_CMD = "Merge...";
-		private final static String DOWNSAMPLE_CMD =
-			"Ramer-Douglas-Peucker Downsampling...";
+		private final static String MERGE_PRIMARY_PATHS_CMD = "Merge primary paths(s) into shared root...";
+		private final static String REBUILD_CMD = "Rebuild...";
+		private final static String DOWNSAMPLE_CMD = "Ramer-Douglas-Peucker Downsampling...";
 		private final static String CUSTOM_TAG_CMD = "Custom...";
 		private final static String LENGTH_TAG_CMD = "Length";
 		private final static String MEAN_RADIUS_TAG_CMD = "Mean Radius";
@@ -2278,6 +2240,61 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				refreshManager(true, true);
 				return;
 
+			}
+			else if (MERGE_PRIMARY_PATHS_CMD.equals(cmd)) {
+				if (n == 1) {
+					displayTmpMsg("You must have at least two primary paths selected.");
+					return;
+				}
+				List<Path> primaryPaths = new ArrayList<>();
+				List<PointInImage> rootNodes = new ArrayList<PointInImage>();
+				for (Path path : selectedPaths) {
+					if (path.isPrimary()) {
+						primaryPaths.add(path);
+						rootNodes.add(path.getNode(0));
+					}
+				}
+				if (primaryPaths.size() < 2) {
+					guiUtils.error(
+							"There must be at least two primary paths selected.",
+							"Invalid Merge Condition");
+					return;
+				}
+				if (!guiUtils.getConfirmation("Merge " + primaryPaths.size() +
+								" selected primary paths? (this destructive operation cannot be undone!)",
+						"Confirm merge?")) {
+					return;
+				}
+				// create a new empty Path with the same properties (i.e., spatial calibration)
+				// of the first path found in the Path Manager list (In SNT, scaling is set on
+				// a per-Path basis). Assign unique IDs to avoid conflicts with existing IDs
+				Path newSoma = pathAndFillManager.getPath(0).createPath();
+				newSoma.setIsPrimary(true);
+				newSoma.setName("Root centroid");
+				// Add a node to the newly defined path, corresponding to the centroid of
+				// all other root nodes and add this new single-point path to the manager
+				newSoma.addNode(SNTPoint.average(rootNodes));
+				pathAndFillManager.addPath(newSoma, false, true);
+				// Now connect all of root nodes to it
+				primaryPaths.forEach(primaryPath -> {
+					primaryPath.moveNode(0, newSoma.getNode(0));
+					primaryPath.setStartJoin(newSoma, newSoma.getNode(0));
+				});
+				pathAndFillManager.rebuildRelationships();
+				refreshManager(true, true);
+				update();
+				return;
+			}
+			else if (REBUILD_CMD.equals(cmd)) {
+				if (!guiUtils.getConfirmation("Rebuild all Path relationships? " +
+						"This will re-assign Path ID, Path order, and Tree ID fields for all Paths.",
+						"Confirm rebuild?"))
+				{
+					return;
+				}
+				pathAndFillManager.rebuildRelationships();
+				update();
+				return;
 			}
 			else if (DOWNSAMPLE_CMD.equals(cmd)) {
 				final double minSep = plugin.getMinimumSeparation();

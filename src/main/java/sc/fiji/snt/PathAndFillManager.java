@@ -41,19 +41,7 @@ import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
@@ -217,6 +205,32 @@ public class PathAndFillManager extends DefaultHandler implements
 		spacing_units = boundingBox.getUnit();
 		plugin = null;
 		spacingIsUnset = true;
+	}
+
+	protected void rebuildRelationships() {
+		Path[] primaryPaths = getPathsStructured();
+		if (primaryPaths == null || primaryPaths.length == 0) {
+			return;
+		}
+		maxUsedPathID = -1;
+		maxUsedTreeID = 0;
+		for (Path p : primaryPaths) {
+			++maxUsedTreeID;
+			p.setOrder(1);
+			Stack<Path> pathStack = new Stack<>();
+			pathStack.push(p);
+			while (!pathStack.isEmpty()) {
+				Path current = pathStack.pop();
+				current.setIDs(++maxUsedPathID, maxUsedTreeID);
+				current.setName(getDefaultName(current));
+				for (Path child : current.children) {
+					child.setOrder(current.getOrder() +1);
+					pathStack.push(child);
+				}
+			}
+
+		}
+
 	}
 
 	/**
