@@ -112,7 +112,9 @@ import sc.fiji.snt.plugin.PathAnalyzerCmd;
 import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.plugin.SkeletonizerCmd;
 import sc.fiji.snt.plugin.TreeMapperCmd;
+import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.gui.GuiUtils;
 
@@ -187,24 +189,45 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		editMenu.add(getDeleteMenuItem(multiPathListener));
 		editMenu.add(getRenameMenuItem(singlePathListener));
 		editMenu.addSeparator();
+
 		final JMenuItem primaryMitem = new JMenuItem(
 			SinglePathActionListener.MAKE_PRIMARY_CMD);
+		primaryMitem.setToolTipText("Makes a single selected path primary");
 		primaryMitem.addActionListener(singlePathListener);
 		editMenu.add(primaryMitem);
-		JMenuItem jmi = new JMenuItem(SinglePathActionListener.DISCONNECT_CMD);
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.UNLINK));
-		jmi.addActionListener(singlePathListener);
-		editMenu.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.MERGE_CMD);
+		JMenuItem jmi = new JMenuItem(MultiPathActionListener.MERGE_PRIMARY_PATHS_CMD);
+		jmi.setToolTipText("Merges selected primary path(s) into a common root");
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.LINK));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 		editMenu.addSeparator();
+
+		jmi = new JMenuItem(MultiPathActionListener.COMBINE_CMD);
+		jmi.setToolTipText("Concatenates 2 or more paths into a single one");
+		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
+		jmi.addActionListener(multiPathListener);
+		editMenu.add(jmi);
+		jmi = new JMenuItem(SinglePathActionListener.DISCONNECT_CMD);
+		jmi.setToolTipText("Disconnects a single path from all of its connections");
+		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.UNLINK));
+		jmi.addActionListener(singlePathListener);
+		editMenu.add(jmi);
+		editMenu.addSeparator();
+
 		jmi = new JMenuItem(MultiPathActionListener.SPECIFY_RADIUS_CMD);
+		jmi.setToolTipText("Assigns a fixed radius to selected path(s)");
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CIRCLE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.DOWNSAMPLE_CMD);
+		jmi.setToolTipText("Reduces the no. of nodes in selected paths (lossy simplificatio)");
+		jmi.addActionListener(multiPathListener);
+		editMenu.add(jmi);
+		editMenu.addSeparator();
+
+		jmi = new JMenuItem(MultiPathActionListener.REBUILD_CMD);
+		jmi.setToolTipText("Re-computes all hierarchical connections in the list");
+		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RECYCLE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 
@@ -396,6 +419,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final JMenuItem renameMitem = new JMenuItem(
 			SinglePathActionListener.RENAME_CMD);
 		renameMitem.addActionListener(singlePathListener);
+		renameMitem.setToolTipText("Renames a single path");
 		return renameMitem;
 	}
 
@@ -800,7 +824,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	private void setSelectedPaths(final HelpfulJTree tree, final TreeModel model,
-		final MutableTreeNode node, final HashSet<Path> set, final boolean updateCTpositon)
+		final MutableTreeNode node, final Collection<Path> set, final boolean updateCTpositon)
 	{
 		assert SwingUtilities.isEventDispatchThread();
 		final int count = model.getChildCount(node);
@@ -1941,9 +1965,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String APPEND_CHILDREN_CMD = "Append Children To Selection";
 		private final static String COLORS_MENU = "Color";
 		private final static String DELETE_CMD = "Delete...";
-		private final static String MERGE_CMD = "Merge...";
-		private final static String DOWNSAMPLE_CMD =
-			"Ramer-Douglas-Peucker Downsampling...";
+		private final static String COMBINE_CMD = "Combine...";
+		private final static String MERGE_PRIMARY_PATHS_CMD = "Merge Primary Paths(s) Into Shared Root...";
+		private final static String REBUILD_CMD = "Rebuild...";
+		private final static String DOWNSAMPLE_CMD = "Ramer-Douglas-Peucker Downsampling...";
 		private final static String CUSTOM_TAG_CMD = "Custom...";
 		private final static String LENGTH_TAG_CMD = "Length";
 		private final static String MEAN_RADIUS_TAG_CMD = "Mean Radius";
@@ -2250,7 +2275,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				resetMenu(imageTagsMenu);
 				return;
 			}
-			else if (MERGE_CMD.equals(cmd)) {
+			else if (COMBINE_CMD.equals(cmd)) {
 				if (n == 1) {
 					displayTmpMsg("You must have at least two paths selected.");
 					return;
@@ -2259,12 +2284,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				if (refPath.getEndJoins() != null) {
 					guiUtils.error(
 						"The first path in the selection cannot have an end-point junction.",
-						"Invalid Merge Selection");
+						"Invalid Selection");
 					return;
 				}
-				if (!guiUtils.getConfirmation("Merge " + n +
+				if (!guiUtils.getConfirmation("Combine " + n +
 					" selected paths? (this destructive operation cannot be undone!)",
-					"Confirm merge?"))
+					"Confirm Destructive Operation?"))
 				{
 					return;
 				}
@@ -2275,10 +2300,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					pathsToMerge.add(p);
 				}
 				if (pathsToMerge.size() < n - 1 && !guiUtils.getConfirmation(
-					"Some of the selected paths are connected and cannot be merged. " +
-						"Proceed with the merge of the " + pathsToMerge.size() +
+					"Some of the selected paths are connected and cannot be combined. " +
+						"Proceed by combinining the " + pathsToMerge.size() +
 						" disconnected path(s) in the selection?",
-					"Only Disconnected Paths Can Be Merged"))
+					"Only Disconnected Paths Can Be Combined"))
 				{
 					return;
 				}
@@ -2290,6 +2315,59 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				refreshManager(true, true);
 				return;
 
+			}
+			else if (MERGE_PRIMARY_PATHS_CMD.equals(cmd)) {
+				if (n == 1) {
+					displayTmpMsg("You must have at least two primary paths selected.");
+					return;
+				}
+				List<Path> primaryPaths = new ArrayList<>();
+				List<PointInImage> rootNodes = new ArrayList<PointInImage>();
+				for (Path path : selectedPaths) {
+					if (path.isPrimary()) {
+						primaryPaths.add(path);
+						rootNodes.add(path.getNode(0));
+					}
+				}
+				if (primaryPaths.size() < 2) {
+					guiUtils.error(
+							"There must be at least two primary paths selected.",
+							"Invalid Merge Condition");
+					return;
+				}
+				if (!guiUtils.getConfirmation("Merge " + primaryPaths.size() + " selected "
+						+ "primary paths and rebuild Path relationships? (this destructive "
+						+ "operation cannot be undone!)", "Confirm merge?")) {
+					return;
+				}
+				// create a new empty Path with the same properties (i.e., spatial calibration)
+				// of the first path found in the Path Manager list (In SNT, scaling is set on
+				// a per-Path basis). Assign unique IDs to avoid conflicts with existing IDs
+				Path newSoma = pathAndFillManager.getPath(0).createPath();
+				newSoma.setIsPrimary(true);
+				newSoma.setName("Root centroid");
+				// Add a node to the newly defined path, corresponding to the centroid of
+				// all other root nodes and add this new single-point path to the manager
+				newSoma.addNode(SNTPoint.average(rootNodes));
+				pathAndFillManager.addPath(newSoma, false, true);
+				// Now connect all of root nodes to it
+				primaryPaths.forEach(primaryPath -> {
+					primaryPath.moveNode(0, newSoma.getNode(0));
+					primaryPath.setStartJoin(newSoma, newSoma.getNode(0));
+				});
+				rebuildRelationShips();
+				refreshManager(true, true);
+				return;
+			}
+			else if (REBUILD_CMD.equals(cmd)) {
+				if (!guiUtils.getConfirmation("Rebuild all path relationships? " +
+						"This will reset all IDs and recompute connectivity for all " +
+						"paths. Existing fits will be discarded.", "Confirm Rebuild?"))
+				{
+					return;
+				}
+				rebuildRelationShips();
+				return;
 			}
 			else if (DOWNSAMPLE_CMD.equals(cmd)) {
 				final double minSep = plugin.getMinimumSeparation();
@@ -2326,8 +2404,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				if (!guiUtils.getConfirmation("Discard existing fits?",
 					"Confirm Discard?")) return;
 				for (final Path p : selectedPaths) {
-					p.setUseFitted(false);
-					p.setFitted(null);
+					p.discardFit();
 				}
 				refreshManager(true, false);
 				return;
@@ -2397,6 +2474,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
 				return;
 			}
+		}
+
+		private void rebuildRelationShips() {
+			tree.clearSelection(); // existing selections could change after the rebuild
+			pathAndFillManager.rebuildRelationships();
+			update();
 		}
 
 		private void resetMenu(final JMenu menu) {

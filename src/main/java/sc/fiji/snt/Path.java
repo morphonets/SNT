@@ -1642,6 +1642,11 @@ public class Path implements Comparable<Path> {
 		this.useFitted = useFitted;
 	}
 
+	protected void discardFit() {
+		fitted = null;
+		useFitted = false;
+	}
+
 	/**
 	 * Gets whether the fitted 'flavor' of this Path is in use.
 	 *

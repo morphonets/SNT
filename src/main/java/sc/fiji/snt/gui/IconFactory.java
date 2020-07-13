@@ -139,6 +139,7 @@ public class IconFactory {
 			//TACHOMETER('\uf3fd', true), //
 			TABLE('\uf0ce', true), //
 			TAG('\uf02b', true), //
+			TAPE('\uf4db', true), //
 			TEXT('\uf031', true), //
 			TIMES('\uf00d', true), //
 			TOOL('\uf0ad', true), //
