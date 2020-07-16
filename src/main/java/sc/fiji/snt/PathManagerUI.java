@@ -109,6 +109,7 @@ import sc.fiji.snt.gui.cmds.PathFitterCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeOptionsCmd;
 import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.PathAnalyzerCmd;
+import sc.fiji.snt.plugin.PathMatcherCmd;
 import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.plugin.SkeletonizerCmd;
 import sc.fiji.snt.plugin.TreeMapperCmd;
@@ -359,6 +360,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EXPORT));
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
+		advanced.addSeparator();
+		advanced.add(getTimeSequenceMenu(multiPathListener));
 
 		// Search Bar TreeSearchable
 		searchableBar = new PathManagerUISearchableBar(this);
@@ -413,6 +416,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		});
 		pack();
+	}
+
+	private JMenu getTimeSequenceMenu(final MultiPathActionListener multiPathListener) {
+		final JMenu menu = new JMenu("Time-lapse Utilities");
+		menu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.VIDEO));
+		JMenuItem jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD);
+		jmi.addActionListener(multiPathListener);
+		menu.add(jmi);
+		return menu;
 	}
 
 	private JMenuItem getRenameMenuItem(final SinglePathActionListener singlePathListener) {
@@ -1565,6 +1577,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		model.nodeChanged((TreeNode) model.getRoot());
 	}
 
+	public void reload() {
+		int[] selectedRows = tree.getSelectionRows();
+		final boolean expanded = tree.getExpandsSelectedPaths();
+		((DefaultTreeModel)tree.getModel()).reload();
+		tree.setSelectionRows(selectedRows);
+		tree.setExpandsSelectedPaths(expanded);
+	}
+
 	protected void closeTable() {
 		final TableDisplay tableDisplay = getTableDisplay();
 		if (tableDisplay != null) tableDisplay.close();
@@ -1993,6 +2013,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String CONVERT_TO_SWC_CMD = "Save Subset as SWC...";
 		private final static String PLOT_PROFILE_CMD = "Plot Profile";
 
+		// timelapse analysis
+		private final static String MATCH_PATHS_ACROSS_TIME_CMD = "Match Paths Across Time...";
+
+		// tags
 		private final static String TAG_LENGTH_PATTERN =
 			" ?\\[L:\\d+\\.?\\d+\\s?.+\\w+\\]";
 		private final static String TAG_RADIUS_PATTERN =
@@ -2106,6 +2130,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				inputs.put("proposedLabel", getDescription(selectedPaths));
 				inputs.put("table", getTable());
 				(plugin.getUI().new DynamicCmdRunner(PathAnalyzerCmd.class, inputs)).run();
+				return;
+			}
+			else if (MATCH_PATHS_ACROSS_TIME_CMD.equals(cmd)) {
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("paths", selectedPaths);
+				(plugin.getUI().new DynamicCmdRunner(PathMatcherCmd.class, inputs)).run();
 				return;
 			}
 			else if (CONVERT_TO_ROI_CMD.equals(cmd)) {
