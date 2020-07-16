@@ -107,11 +107,7 @@ import sc.fiji.snt.gui.SwingSafeResult;
 import sc.fiji.snt.gui.cmds.DistributionBPCmd;
 import sc.fiji.snt.gui.cmds.PathFitterCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeOptionsCmd;
-import sc.fiji.snt.plugin.AnalyzerCmd;
-import sc.fiji.snt.plugin.PathAnalyzerCmd;
-import sc.fiji.snt.plugin.ROIExporterCmd;
-import sc.fiji.snt.plugin.SkeletonizerCmd;
-import sc.fiji.snt.plugin.TreeMapperCmd;
+import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
@@ -911,12 +907,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	protected Tree getSingleTree() {
-		final Collection<Tree> singletonTree = getTreesPrompt(false);
-		return (singletonTree == null) ? null : singletonTree.iterator().next();
+		return getSingleTreePrompt();
 	}
 
-	protected Collection<Tree> getTrees() {
-		return getTreesPrompt(true);
+	protected Collection<Tree> getMultipleTrees() {
+		return getMultipleTreesPrompt(true);
 	}
 
 	private Collection<Tree> getTreesMimickingPrompt(final String description) {
@@ -932,19 +927,39 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		return getTreesMimickingPrompt(description).iterator().next();
 	}
 
-	private Collection<Tree> getTreesPrompt(final boolean includeAll) {
+	private Tree getSingleTreePrompt() {
+		final Collection<Tree> trees = pathAndFillManager.getTrees();
+		if (trees.size() == 1) return trees.iterator().next();
+		final ArrayList<String> treeLabels = new ArrayList<>(trees.size());
+		trees.forEach(t -> treeLabels.add(t.getLabel()));
+		final String choice = guiUtils.getChoice("Multiple rooted structures exist. Which one should be considered?",
+				"Which Structure?", treeLabels.toArray(new String[trees.size()]), treeLabels.get(0));
+		for (final Tree t : trees) {
+			if (t.getLabel().equals(choice)) return t;
+		}
+
+		return null; // user pressed canceled prompt
+	}
+
+	private Collection<Tree> getMultipleTreesPrompt(final boolean includeAll) {
 		final Collection<Tree> trees = pathAndFillManager.getTrees();
 		if (trees.size() == 1) return trees;
 		final ArrayList<String> treeLabels = new ArrayList<>(trees.size());
 		if (includeAll)
 			treeLabels.add("   -- All --  ");
 		trees.forEach(t -> treeLabels.add(t.getLabel()));
-		final String choice = guiUtils.getChoice("Multiple rooted structures exist. Which one should be considered?",
-				"Which Structure?", treeLabels.toArray(new String[trees.size()]), treeLabels.get(0));
-		if (includeAll && "   -- All --  ".equals(choice))
+		final List<String> choices = guiUtils.getMultipleChoices("Multiple rooted structures exist. Which ones should be considered?",
+				"Which Structure?", treeLabels.toArray(new String[trees.size()]));
+		if (includeAll && choices.contains("   -- All --  "))
 			return trees;
+		List<Tree> toReturn = new ArrayList<>();
 		for (final Tree t : trees) {
-			if (t.getLabel().equals(choice)) return Collections.singleton(t);
+			if (choices.contains(t.getLabel())) {
+				toReturn.add(t);
+			}
+		}
+		if (!toReturn.isEmpty()) {
+			return toReturn;
 		}
 		
 		return null; // user pressed canceled prompt
@@ -2092,7 +2107,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 //				return;
 //			}
 			else if (MEASURE_CMD_OPTIONS.equals(cmd)) {
-				final Collection<Tree> trees = getTrees();
+				final Collection<Tree> trees = getMultipleTrees();
 				if (trees == null) return;
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("trees", trees);
@@ -2119,21 +2134,31 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 			}
 			else if (COLORIZE_PATH_CMD.equals(cmd)) {
-				final Tree tree = (assumeAll) ? getSingleTree() : new Tree(selectedPaths);
-				if (tree == null) return;
-				final Map<String, Object> input = new HashMap<>();
-				input.put("tree", tree);
-				input.put("setValuesFromSNTService", !plugin.tracingHalted);
-				final CommandService cmdService = plugin.getContext().getService(
-					CommandService.class);
-				cmdService.run(TreeMapperCmd.class, true, input);
+				if (assumeAll) {
+					Collection<Tree> trees = getMultipleTrees();
+					if (trees == null || trees.isEmpty()) return;
+					Map<String, Object> input = new HashMap<>();
+					input.put("trees", trees);
+					CommandService cmdService = plugin.getContext().getService(
+							CommandService.class);
+					cmdService.run(MultiTreeMapperCmd.class, true, input);
+				} else {
+					Tree tree = new Tree(selectedPaths);
+					if (tree == null || tree.isEmpty()) return;
+					Map<String, Object> input = new HashMap<>();
+					input.put("tree", tree);
+					CommandService cmdService = plugin.getContext().getService(
+							CommandService.class);
+					cmdService.run(TreeMapperCmd.class, true, input);
+				}
+				refreshManager(false, true);
 				return;
 
 			}
 			else if (HISTOGRAM_CMD.equals(cmd)) {
 
 				final Map<String, Object> input = new HashMap<>();
-				final Collection<Tree> trees = getTrees();
+				final Collection<Tree> trees = getMultipleTrees();
 				if (trees == null) return;
 				input.put("trees", trees);
 				input.put("calledFromPathManagerUI", true);

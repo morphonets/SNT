@@ -1533,7 +1533,11 @@ public class Path implements Comparable<Path> {
 		this.color = color;
 		hasCustomColor = color != null;
 		if (fitted != null) fitted.setColor(color);
-		if (hasNodeColors() && size() == 1) nodeColors[0] = color;
+		if (hasNodeColors()) {
+			for (int i=0; i < nodeColors.length; i++) {
+				nodeColors[i] = color;
+			}
+		}
 	}
 
 	/**
