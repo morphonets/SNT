@@ -2137,11 +2137,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				if (assumeAll) {
 					Collection<Tree> trees = getMultipleTrees();
 					if (trees == null || trees.isEmpty()) return;
-					Map<String, Object> input = new HashMap<>();
-					input.put("trees", trees);
-					CommandService cmdService = plugin.getContext().getService(
-							CommandService.class);
-					cmdService.run(MultiTreeMapperCmd.class, true, input);
+					if (trees.size() == 1) {
+						Tree tree = trees.iterator().next();
+						Map<String, Object> input = new HashMap<>();
+						input.put("tree", tree);
+						CommandService cmdService = plugin.getContext().getService(
+								CommandService.class);
+						cmdService.run(TreeMapperCmd.class, true, input);
+					}
+					else {
+						Map<String, Object> input = new HashMap<>();
+						input.put("trees", trees);
+						CommandService cmdService = plugin.getContext().getService(
+								CommandService.class);
+						cmdService.run(MultiTreeMapperCmd.class, true, input);
+					}
 				} else {
 					Tree tree = new Tree(selectedPaths);
 					if (tree == null || tree.isEmpty()) return;
