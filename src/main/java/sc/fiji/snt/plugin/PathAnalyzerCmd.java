@@ -39,7 +39,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
-import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.PathAnalyzer;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 
@@ -174,52 +174,6 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 		analyzer.setTable(table, TABLE_TITLE);
 		analyzer.measure(label, metrics, false); // will display table
 		resetUI();
-	}
-
-	/*
-	 * A flavor of TreeAnalyzer that does not do graph conversions, ensuring paths
-	 * can me measured independently of their connectivity.
-	 */
-	private class PathAnalyzer extends TreeAnalyzer {
-
-		public PathAnalyzer(Collection<Path> paths, String label) {
-			super(paths, label);
-		}
-
-		@Override
-		public List<Path> getBranches() {
-			return tree.list();
-		}
-
-		@Override
-		public int getNBranches() {
-			return tree.size();
-		}
-
-		@Override
-		public List<Path> getPrimaryBranches() {
-			final ArrayList<Path> paths = new ArrayList<>();
-			for (final Path path : tree.list()) {
-				if (path.isPrimary()) paths.add(path);
-			}
-			return paths;
-		}
-
-		@Override
-		public double getPrimaryLength() {
-			return getPrimaryBranches().stream().mapToDouble(p -> p.getLength()).sum();
-		}
-
-		@Override
-		public List<Path> getInnerBranches() {
-			return getPrimaryBranches();
-		}
-
-		@Override
-		public double getInnerLength() {
-			return getPrimaryLength();
-		}
-
 	}
 
 	/* IDE debug method **/

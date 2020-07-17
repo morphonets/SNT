@@ -110,6 +110,7 @@ import sc.fiji.snt.gui.cmds.SWCTypeOptionsCmd;
 import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.PathAnalyzerCmd;
 import sc.fiji.snt.plugin.PathMatcherCmd;
+import sc.fiji.snt.plugin.PathTimeAnalysisCmd;
 import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.plugin.SkeletonizerCmd;
 import sc.fiji.snt.plugin.TreeMapperCmd;
@@ -422,6 +423,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final JMenu menu = new JMenu("Time-lapse Utilities");
 		menu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.VIDEO));
 		JMenuItem jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD);
+		jmi.addActionListener(multiPathListener);
+		menu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.TIME_PROFILE_CMD);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
 		return menu;
@@ -2015,7 +2019,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		// timelapse analysis
 		private final static String MATCH_PATHS_ACROSS_TIME_CMD = "Match Paths Across Time...";
-
+		private final static String TIME_PROFILE_CMD = "Time Profile...";
 		// tags
 		private final static String TAG_LENGTH_PATTERN =
 			" ?\\[L:\\d+\\.?\\d+\\s?.+\\w+\\]";
@@ -2130,6 +2134,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				inputs.put("proposedLabel", getDescription(selectedPaths));
 				inputs.put("table", getTable());
 				(plugin.getUI().new DynamicCmdRunner(PathAnalyzerCmd.class, inputs)).run();
+				return;
+			}
+			else if (TIME_PROFILE_CMD.equals(cmd)) {
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("paths", selectedPaths);
+				(plugin.getUI().new DynamicCmdRunner(PathTimeAnalysisCmd.class, inputs)).run();
 				return;
 			}
 			else if (MATCH_PATHS_ACROSS_TIME_CMD.equals(cmd)) {

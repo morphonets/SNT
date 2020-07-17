@@ -57,6 +57,9 @@ import sc.fiji.snt.util.SNTColor;
 @Plugin(type = Command.class, visible = false, label="Match Path(s) Across Time...", initializer = "init")
 public class PathMatcherCmd extends CommonDynamicCmd {
 
+	private static final String TAG_FORMAT = "{Group %d}";
+	protected static final String TAG_REGEX_PATTERN = "\\{Group \\d+\\}";
+
 	@Parameter(label = "<HTML><b>Range Criteria for Frames:", persist = false, 
 			required = false, visibility = ItemVisibility.MESSAGE)
 	private String SPACER1;
@@ -113,7 +116,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 
 	private void wipeExistingMatches() {
 		for (final Path p : paths) {
-			p.setName(p.getName().replaceAll("\\{Group \\d+\\}", ""));
+			p.setName(p.getName().replaceAll(TAG_REGEX_PATTERN, ""));
 		}
 	}
 
@@ -232,7 +235,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 		}
 
 		void assignID(final int id) {
-			path.setName(path.getName() + String.format("{Group %d}", id));
+			path.setName(path.getName() + String.format(TAG_FORMAT, id));
 		}
 	}
 
