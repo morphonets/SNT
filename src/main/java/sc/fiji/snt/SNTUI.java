@@ -2290,7 +2290,7 @@ public class SNTUI extends JDialog {
 				IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
 		measureWithPrompt.addActionListener(e -> {
 			if (noPathsError()) return;
-			final Collection<Tree> trees = getPathManager().getTrees();
+			final Collection<Tree> trees = getPathManager().getMultipleTrees();
 			if (trees == null) return;
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("trees", trees);

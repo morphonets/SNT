@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.commons.text.WordUtils;
 import org.scijava.Context;
@@ -108,6 +109,15 @@ public class MultiTreeColorMapper extends ColorMapper {
 		for (final Tree tree : trees) {
 			if (tree.size() > 0) mappedTrees.add(new MappedTree(tree));
 		}
+	}
+
+	/**
+	 * Gets the list of supported mapping metrics.
+	 *
+	 * @return the list of mapping metrics.
+	 */
+	public static List<String> getMetrics() {
+		return Arrays.stream(ALL_FLAGS).collect(Collectors.toList());
 	}
 
 	/*
