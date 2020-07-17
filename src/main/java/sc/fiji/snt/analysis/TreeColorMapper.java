@@ -95,6 +95,8 @@ public class TreeColorMapper extends ColorMapper {
 	public static final String PATH_DISTANCE = "Path distance to soma";
 	/** Flag for {@value #TAG_FILENAME} mapping. */
 	public static final String TAG_FILENAME = "Tags/filename";
+	/** Flag for {@value #PATH_FRAME} mapping. */
+	public static final String PATH_FRAME = "Path frame";
 	private static final String INTERNAL_COUNTER = "Id";
 
 	private static final String[] ALL_FLAGS = { //
@@ -110,7 +112,8 @@ public class TreeColorMapper extends ColorMapper {
 			Z_COORDINATES, //
 			VALUES, //
 			PATH_DISTANCE, //
-			TAG_FILENAME};
+			TAG_FILENAME,
+			PATH_FRAME};
 
 	@Parameter
 	private LUTService lutService;
@@ -201,6 +204,7 @@ public class TreeColorMapper extends ColorMapper {
 			case N_BRANCH_POINTS:
 			case INTERNAL_COUNTER:
 			case TAG_FILENAME:
+			case PATH_FRAME:
 				mapToPathProperty(cMeasurement, colorTable);
 				break;
 			case X_COORDINATES:
@@ -284,6 +288,11 @@ public class TreeColorMapper extends ColorMapper {
 					mappedPaths.add(new MappedPath(p.path, (double) tags.headSet(
 						p.mappedTag).size() / nTags));
 				}
+				break;
+			case PATH_FRAME:
+				integerScale = true;
+				for (final Path p : paths)
+					mappedPaths.add(new MappedPath(p, (double) p.getFrame()));
 				break;
 			default:
 				throw new IllegalArgumentException("Unknown parameter");
@@ -533,6 +542,9 @@ public class TreeColorMapper extends ColorMapper {
 		}
 		if (normGuess.indexOf("tag") != -1 || normGuess.indexOf("name") > -1 || normGuess.indexOf("label") > -1) {
 			return TAG_FILENAME;
+		}
+		if (normGuess.indexOf("frame") != -1) {
+			return PATH_FRAME;
 		}
 		if (normGuess.matches(".*\\bx\\b.*")) {
 			return X_COORDINATES;
