@@ -43,11 +43,12 @@ def graph_diameter(graph, root, tips):
 
 
 def graph_diameter_dsp(graph, root, tips):
+    dsp = DijkstraShortestPath(graph)
     max_path_length = 0
     longest_shortest_path = None
     for tip in tips:
         # Use JGraphT's Dijkstra implementation
-        shortest_path = DijkstraShortestPath(graph).getPath(root, tip)
+        shortest_path = dsp.getPath(root, tip)
         path_length = shortest_path.getWeight()
         if path_length > max_path_length:
             max_path_length = path_length
