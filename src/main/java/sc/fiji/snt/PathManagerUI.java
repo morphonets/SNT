@@ -105,6 +105,7 @@ import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.PathManagerUISearchableBar;
 import sc.fiji.snt.gui.SwingSafeResult;
 import sc.fiji.snt.gui.cmds.DistributionBPCmd;
+import sc.fiji.snt.gui.cmds.DuplicateCmd;
 import sc.fiji.snt.gui.cmds.PathFitterCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeOptionsCmd;
 import sc.fiji.snt.plugin.AnalyzerCmd;
@@ -190,6 +191,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final JMenu editMenu = new JMenu("Edit");
 		menuBar.add(editMenu);
 		editMenu.add(getDeleteMenuItem(multiPathListener));
+		editMenu.add(getDuplicateMenuItem(singlePathListener));
 		editMenu.add(getRenameMenuItem(singlePathListener));
 		editMenu.addSeparator();
 
@@ -369,6 +371,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		searchableBar = new PathManagerUISearchableBar(this);
 		popup = new JPopupMenu();
 		popup.add(getDeleteMenuItem(multiPathListener));
+		popup.add(getDuplicateMenuItem(singlePathListener));
 		popup.add(getRenameMenuItem(singlePathListener));
 		popup.addSeparator();
 		JMenuItem pjmi = popup.add(NoPathActionListener.COLLAPSE_ALL_CMD);
@@ -438,6 +441,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		renameMitem.addActionListener(singlePathListener);
 		renameMitem.setToolTipText("Renames a single path");
 		return renameMitem;
+	}
+
+	private JMenuItem getDuplicateMenuItem(final SinglePathActionListener singlePathListener) {
+		final JMenuItem duplicateMitem = new JMenuItem(
+			SinglePathActionListener.DUPLICATE_CMD);
+		duplicateMitem.addActionListener(singlePathListener);
+		duplicateMitem.setToolTipText("Duplicates a single path");
+		return duplicateMitem;
 	}
 
 	private JMenuItem getDeleteMenuItem(final MultiPathActionListener multiPathListener) {
@@ -1925,6 +1936,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		private final static String RENAME_CMD = "Rename...";
 		private final static String MAKE_PRIMARY_CMD = "Make Primary";
+		private final static String DUPLICATE_CMD = "Duplicate...";
 		private final static String DISCONNECT_CMD = "Disconnect...";
 		private final static String EXPLORE_FIT_CMD = "Explore/Preview Fit";
 
@@ -1963,6 +1975,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					p.unsetPrimaryForConnected(pathsExplored);
 					removeAllOrderTags();
 					refreshManager(false, false);
+					return;
+
+				case DUPLICATE_CMD:
+					final HashMap<String, Object> inputs = new HashMap<>();
+					inputs.put("path", p);
+					(plugin.getUI().new DynamicCmdRunner(DuplicateCmd.class, inputs)).run();
 					return;
 
 				case DISCONNECT_CMD:

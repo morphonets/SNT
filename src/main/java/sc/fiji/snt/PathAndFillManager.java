@@ -946,7 +946,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	@SuppressWarnings("deprecation")
-	protected synchronized void addPath(final Path p,
+	public synchronized void addPath(final Path p,
 		final boolean forceNewName, final boolean forceNewId)
 	{
 		if (p.isPrimary()) ++maxUsedTreeID;
