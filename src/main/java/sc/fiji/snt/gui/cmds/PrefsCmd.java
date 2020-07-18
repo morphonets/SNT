@@ -43,8 +43,11 @@ import sc.fiji.snt.plugin.BrainAnnotationCmd;
 import sc.fiji.snt.plugin.CallLegacyShollPlugin;
 import sc.fiji.snt.plugin.GroupAnalyzerCmd;
 import sc.fiji.snt.plugin.LocalThicknessCmd;
+import sc.fiji.snt.plugin.MultiTreeMapperCmd;
 import sc.fiji.snt.plugin.PathAnalyzerCmd;
+import sc.fiji.snt.plugin.PathMatcherCmd;
 import sc.fiji.snt.plugin.PathOrderAnalysisCmd;
+import sc.fiji.snt.plugin.PathTimeAnalysisCmd;
 import sc.fiji.snt.plugin.PlotterCmd;
 import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.plugin.ShollTracingsCmd;
@@ -121,6 +124,10 @@ public class PrefsCmd extends ContextCommand {
 
 	/** Clears all of SNT preferences. */
 	public void clearAll() {
+
+		prefService.clear(AnalyzerCmd.class);
+		prefService.clear(BrainAnnotationCmd.class);
+		prefService.clear(CallLegacyShollPlugin.class);
 		prefService.clear(ChooseDatasetCmd.class);
 		prefService.clear(ColorMapReconstructionCmd.class);
 		prefService.clear(CompareFilesCmd.class);
@@ -131,34 +138,35 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(CustomizeTreeCmd.class);
 		prefService.clear(DistributionBPCmd.class);
 		prefService.clear(DistributionCPCmd.class);
+		prefService.clear(DuplicateCmd.class);
 		prefService.clear(GraphGeneratorCmd.class);
+		prefService.clear(GroupAnalyzerCmd.class);
 		prefService.clear(JSONImporterCmd.class);
 		prefService.clear(LoadObjCmd.class);
 		prefService.clear(LoadReconstructionCmd.class);
+		prefService.clear(LocalThicknessCmd.class);
 		prefService.clear(MLImporterCmd.class);
 		prefService.clear(MultiSWCImporterCmd.class);
+		prefService.clear(MultiTreeMapperCmd.class);
 		prefService.clear(OpenDatasetCmd.class);
+		prefService.clear(PathAnalyzerCmd.class);
 		prefService.clear(PathFitterCmd.class);
+		prefService.clear(PathMatcherCmd.class);
+		prefService.clear(PathOrderAnalysisCmd.class);
+		prefService.clear(PathTimeAnalysisCmd.class);
+		prefService.clear(PlotterCmd.class);
 		prefService.clear(ReconstructionViewerCmd.class);
 		prefService.clear(RecViewerPrefsCmd.class);
 		prefService.clear(RemoteSWCImporterCmd.class);
+		prefService.clear(ROIExporterCmd.class);
+		prefService.clear(ShollTracingsCmd.class);
 		prefService.clear(ShowCorrespondencesCmd.class);
+		prefService.clear(SkeletonizerCmd.class);
 		prefService.clear(SNTLoaderCmd.class);
+		prefService.clear(StrahlerCmd.class);
 		prefService.clear(SWCTypeFilterCmd.class);
 		prefService.clear(SWCTypeOptionsCmd.class);
 		prefService.clear(TranslateReconstructionsCmd.class);
-		prefService.clear(AnalyzerCmd.class);
-		prefService.clear(PathAnalyzerCmd.class);
-		prefService.clear(BrainAnnotationCmd.class);
-		prefService.clear(CallLegacyShollPlugin.class);
-		prefService.clear(GroupAnalyzerCmd.class);
-		prefService.clear(LocalThicknessCmd.class);
-		prefService.clear(PathOrderAnalysisCmd.class);
-		prefService.clear(PlotterCmd.class);
-		prefService.clear(ROIExporterCmd.class);
-		prefService.clear(ShollTracingsCmd.class);
-		prefService.clear(SkeletonizerCmd.class);
-		prefService.clear(StrahlerCmd.class);
 		prefService.clear(TreeMapperCmd.class);
 
 		// Legacy (IJ1-based) preferences

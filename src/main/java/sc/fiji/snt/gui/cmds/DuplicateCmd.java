@@ -23,6 +23,8 @@
 package sc.fiji.snt.gui.cmds;
 
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.TreeSet;
 
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
@@ -42,8 +44,16 @@ import sc.fiji.snt.SNTService;
 @Plugin(type = Command.class, visible = false, label = "Duplicate Path...", initializer = "init")
 public class DuplicateCmd extends CommonDynamicCmd {
 
-	@Parameter(label = "Portion to be duplicated (%)", min = "1", max = "100", 
-			style = NumberWidget.SCROLL_BAR_STYLE, callback = "updateMsg")
+	private final String CHOICE_LENGTH = "Use % specified below";
+	private final String CHOICE_FIRST_BP = "Duplicate until first branch point";
+	private final String CHOICE_LAST_BP = "Duplicate until last branch point";
+
+	@Parameter(label = "Portion to be duplicated", callback = "portionChoiceChanged",
+			choices = {CHOICE_LENGTH, CHOICE_FIRST_BP, CHOICE_LAST_BP })
+	private String portionChoice;
+
+	@Parameter(label = "<HTML>&nbsp;", min = "0", max = "100", 
+			style = NumberWidget.SCROLL_BAR_STYLE, callback = "percentageChanged")
 	private double percentage;
 
 	@Parameter(persist = false, label = "Assign to channel")
@@ -65,6 +75,7 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	private Path path;
 
 	private double length;
+	private TreeSet<Integer> junctionIndices;
 
 	@SuppressWarnings("unused")
 	private void init() {
@@ -88,15 +99,51 @@ public class DuplicateCmd extends CommonDynamicCmd {
 			name += String.format(" [L:%.2f]", length);
 		}
 		msg = "Duplicating " + name;
-
+		junctionIndices = path.findJunctionIndices();
 	}
 
 	@SuppressWarnings("unused")
+	private void portionChoiceChanged() {
+		percentage = (CHOICE_LENGTH.equals(portionChoice)) ? 100 : 0;
+		updateMsg();
+	}
+
+
+	@SuppressWarnings("unused")
+	private void percentageChanged() {
+		portionChoice = (percentage==0d) ? CHOICE_FIRST_BP : CHOICE_LENGTH;
+		updateMsg();
+	}
+
 	private void updateMsg() {
-		if (percentage == 100d)
+		switch((int)percentage) {
+		case 100:
 			msg = String.format("Duplicating full length");
-		else
-			msg = String.format("aprox. %.2f", percentage / 100 * length);
+			break;
+		case 0:
+			if (junctionIndices == null || junctionIndices.isEmpty())
+				msg = "Invalid choice: Path has no branch points!";
+			else
+				msg = "...";
+			break;
+		default:
+			msg = String.format("Aprox. length: %.2f", percentage / 100 * length);
+			break;
+		}
+	}
+
+	private int getNthJunction(final int desiredIndex) {
+		final Iterator<Integer> itr = junctionIndices.iterator();
+		int currentIndex = 0;
+		int currentElement = 0;
+		while (itr.hasNext()) {
+			currentElement = itr.next();
+			if (currentIndex == desiredIndex) {
+				return currentElement;
+			}
+			currentIndex++;
+		}
+		return 0;
 	}
 
 	/*
@@ -106,8 +153,36 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	 */
 	@Override
 	public void run() {
-		int lastIndex = (int) Math.round(percentage / 100 * path.size());
-		final Path dup = path.getSection(0, Math.min(lastIndex, path.size() - 1));
+
+		// Define the last node index of the duplicate section
+		int dupIndex = 0;
+		switch(portionChoice) {
+			case CHOICE_FIRST_BP:
+				if (junctionIndices != null && !junctionIndices.isEmpty()) {
+					dupIndex = junctionIndices.first();
+					// if we just retrieved the starting node, try the next fork point
+					if (dupIndex == 0)  dupIndex = getNthJunction(1);
+				}
+				break;
+			case CHOICE_LAST_BP:
+				if (junctionIndices != null && !junctionIndices.isEmpty()) {
+					dupIndex = junctionIndices.last();
+				}
+				break;
+			default:
+				dupIndex = (int) Math.round(percentage / 100 * path.size());
+				break;
+		}
+		if (dupIndex == 0 && path.size() > 1) {
+			// if we are still stuck on the starting node, assume the user does not
+			// want to generate a single-node path: make a full duplication instead
+			if (dupIndex == 0)  dupIndex = path.size() - 1;
+		} else {
+			dupIndex = Math.min(dupIndex, path.size() - 1);
+		}
+
+		// Now make the duplication
+		final Path dup = path.getSection(0, dupIndex);
 		dup.setName("Dup " + path.getName());
 		dup.setCTposition(channel, frame);
 		if (!disconnect) {
@@ -116,6 +191,8 @@ public class DuplicateCmd extends CommonDynamicCmd {
 			if (path.getEndJoins() != null)
 				dup.setEndJoin(path.getEndJoins(), path.getEndJoinsPoint());
 		}
+
+		// Add to manager and restore UI
 		snt.getPathAndFillManager().addPath(dup, false, true);
 		resetUI();
 	}
