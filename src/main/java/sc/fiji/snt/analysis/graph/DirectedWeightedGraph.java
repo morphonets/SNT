@@ -22,12 +22,7 @@
 
 package sc.fiji.snt.analysis.graph;
 
-import org.jgrapht.GraphTests;
 import org.jgrapht.Graphs;
-import org.jgrapht.alg.lca.BinaryLiftingLCAFinder;
-import org.jgrapht.alg.lca.EulerTourRMQLCAFinder;
-import org.jgrapht.alg.lca.HeavyPathLCAFinder;
-import org.jgrapht.alg.lca.TarjanLCAFinder;
 import org.jgrapht.graph.DefaultDirectedWeightedGraph;
 import org.jgrapht.traverse.DepthFirstIterator;
 import sc.fiji.snt.Path;
