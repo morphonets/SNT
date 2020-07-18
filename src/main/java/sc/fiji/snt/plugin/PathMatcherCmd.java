@@ -107,6 +107,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 
 	@Parameter(required = true)
 	private Collection<Path> paths;
+	private boolean existingMatchesWiped = false;
 
 
 	@SuppressWarnings("unused")
@@ -118,8 +119,14 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 		for (final Path p : paths) {
 			p.setName(p.getName().replaceAll(TAG_REGEX_PATTERN, ""));
 		}
+		existingMatchesWiped = true;
 	}
 
+	@Override
+	public void cancel() {
+		if (existingMatchesWiped && ui != null) ui.getPathManager().reload();
+		super.cancel();
+	}
 
 	@Override
 	public void run() {
@@ -231,7 +238,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			 * 2. Different path belonging to a different frame with root within neighborhood
 			 */
 			if (path.equals(other.path)) return true;
-			return path.getFrame() != other.path.getFrame() && box.contains(other.box);
+			return path.getFrame() != other.path.getFrame() && box.contains(other.path.getNode(0));
 		}
 
 		void assignID(final int id) {

@@ -251,6 +251,15 @@ public class BoundingBox {
 			boundingBox.originOpposite.z <= originOpposite.z);
 	}
 
+	public boolean contains(final SNTPoint point) {
+		return (point.getX() >= origin.x && //
+			point.getY() >= origin.y && //
+			point.getZ() >= origin.z && //
+			point.getX() <= originOpposite.x && //
+			point.getY() <= originOpposite.y && //
+			point.getZ() <= originOpposite.z);
+	}
+
 	/**
 	 * Retrieves the origin of this box.
 	 *
