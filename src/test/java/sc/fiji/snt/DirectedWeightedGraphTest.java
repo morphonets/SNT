@@ -1,15 +1,13 @@
 package sc.fiji.snt;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.junit.Assume.assumeNotNull;
-import static org.junit.Assert.fail;
 
-import java.util.HashSet;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.*;
 
+import org.jgrapht.GraphPath;
+import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
+import org.jgrapht.graph.AsUndirectedGraph;
 import org.junit.Before;
 import org.junit.Test;
 import org.jgrapht.graph.DefaultDirectedWeightedGraph;
@@ -37,13 +35,13 @@ public class DirectedWeightedGraphTest {
 
 	@Before
 	public void setUp() throws Exception {
-		tree = new SNTService().demoTree();
+		tree = new SNTService().demoTrees().get(0);
 		analyzer = new TreeAnalyzer(tree);
 		assumeNotNull(tree);
 	}
 
 	public void testModificationAndConversionToTree() throws InterruptedException {
-		Set<SWCPoint> points = new HashSet<SWCPoint>();
+		Set<SWCPoint> points = new HashSet<>();
 		SWCPoint v1 = new SWCPoint(1, 2, 1.0, 1.0, 1.0, 0.5, -1);
 		SWCPoint v2 = new SWCPoint(2, 2, 1.0, 4.0, 1.0, 2.515, 1);
 		SWCPoint v3 = new SWCPoint(3, 2, 4.0, 4.0, 8.0, 3.2, 2);
@@ -74,10 +72,10 @@ public class DirectedWeightedGraphTest {
 		
 		PointInImage newTreeRoot = changedTree.getRoot();
 		assertTrue("Graph to Tree: replace root", newTreeRoot.getX() == 0.5 && newTreeRoot.getY() == 0.5 && newTreeRoot.getZ() == 0.5);
-		assertTrue("Graph to Tree: # Branches", analyzer.getBranches().size() == 3);
-		assertTrue("Graph to Tree: Strahler #", analyzer.getStrahlerNumber() == 2);
-		assertTrue("Graph to Tree: # Branch Points", analyzer.getBranchPoints().size() == 1);
-		assertTrue("Graph to Tree: # Tips", analyzer.getTips().size() == 2);
+		assertEquals("Graph to Tree: # Branches", 3, analyzer.getBranches().size());
+		assertEquals("Graph to Tree: Strahler #", 2, analyzer.getStrahlerNumber());
+		assertEquals("Graph to Tree: # Branch Points", 1, analyzer.getBranchPoints().size());
+		assertEquals("Graph to Tree: # Tips", 2, analyzer.getTips().size());
 		assertEquals(analyzer.getCableLength(), (newRoot.distanceTo(v1) + v1.distanceTo(v2) + v2.distanceTo(v3) + v2.distanceTo(v4)), precision);
 
 	}
@@ -87,9 +85,9 @@ public class DirectedWeightedGraphTest {
 
 		// First test that #equals() and #hashCode() are correctly set up for the vertex
 		// Type
-		DefaultDirectedWeightedGraph<SWCPoint, SWCWeightedEdge> badGraph = new DefaultDirectedWeightedGraph<SWCPoint, SWCWeightedEdge>(
+		DefaultDirectedWeightedGraph<SWCPoint, SWCWeightedEdge> badGraph = new DefaultDirectedWeightedGraph<>(
 				SWCWeightedEdge.class);
-		ParanoidGraph<SWCPoint, SWCWeightedEdge> pGraph = new ParanoidGraph<SWCPoint, SWCWeightedEdge>(badGraph);
+		ParanoidGraph<SWCPoint, SWCWeightedEdge> pGraph = new ParanoidGraph<>(badGraph);
 		SWCPoint v1 = new SWCPoint(0, 2, 1.0, 1.0, 1.0, 1.0, 0);
 		SWCPoint v2 = new SWCPoint(0, 2, 2.0, 2.0, 2.0, 1.0, 0);
 		SWCPoint v3 = v1;
@@ -108,8 +106,7 @@ public class DirectedWeightedGraphTest {
 		DirectedWeightedGraph graph = tree.getGraph();
 
 		final int numVertices = graph.vertexSet().size();
-		final int numRoots = graph.vertexSet().stream().filter(v -> graph.inDegreeOf(v) == 0)
-				.collect(Collectors.toList()).size();
+		final int numRoots = (int) graph.vertexSet().stream().filter(v -> graph.inDegreeOf(v) == 0).count();
 		final int numBranchPoints = graph.getBPs().size();
 		final int numTips = graph.getTips().size();
 		final double summedEdgeWeights = graph.sumEdgeWeights();
@@ -117,33 +114,67 @@ public class DirectedWeightedGraphTest {
 
 		// Compare measurements against TreeAnalyzer since TreeAnalyzer is compared
 		// against the hard-coded correct values
-		assertTrue("Graph: Equal # Vertices", numVertices == tree.getNodes().size());
-		assertTrue("Graph: Single Root", numRoots == 1);
-		assertTrue("Graph: Equal # Branch Points", numBranchPoints == analyzer.getBranchPoints().size());
-		assertTrue("Graph: Equal # End Points", numTips == analyzer.getTips().size());
+		assertEquals("Graph: Equal # Vertices", numVertices, tree.getNodes().size());
+		assertEquals("Graph: Single Root", 1, numRoots);
+		assertEquals("Graph: Equal # Branch Points", numBranchPoints, analyzer.getBranchPoints().size());
+		assertEquals("Graph: Equal # End Points", numTips, analyzer.getTips().size());
 		assertEquals("Graph: Summed Edge Weights", summedEdgeWeights, analyzer.getCableLength(), precision);
 
 		// Topology tests
 		assertTrue("Graph: Is Simple", GraphTests.isSimple(graph));
 		assertTrue("Graph: Is connected", GraphTests.isConnected(graph));
-		assertTrue(GraphTests.requireDirected(graph) instanceof DirectedWeightedGraph);
-		assertTrue(GraphTests.requireWeighted(graph) instanceof DirectedWeightedGraph);
+		GraphTests.requireDirected(graph);
+		GraphTests.requireWeighted(graph);
 
 		// Graph scaling tests
 		for (double scaleFactor : new double[] { .25d, 1d, 2d }) {
 			graph.scale(scaleFactor, scaleFactor, scaleFactor, true);
 			assertTrue("Graph: Is Simple", GraphTests.isSimple(graph));
 			assertTrue("Graph: Is connected", GraphTests.isConnected(graph));
-			assertTrue("Graph Scaling: Equal # Tips", graph.getTips().size() == numTips);
-			assertTrue("Graph Scaling: Equal # Branch points", graph.getBPs().size() == numBranchPoints);
-			assertTrue("Graph Scaling: Equal # Vertices", graph.vertexSet().size() == numVertices);
-			assertTrue("Graph Scaling: Equal # Roots", graph.vertexSet().stream().filter(v -> graph.inDegreeOf(v) == 0)
-					.collect(Collectors.toList()).size() == numRoots);
+			assertEquals("Graph Scaling: Equal # Tips", graph.getTips().size(), numTips);
+			assertEquals("Graph Scaling: Equal # Branch points", graph.getBPs().size(), numBranchPoints);
+			assertEquals("Graph Scaling: Equal # Vertices", graph.vertexSet().size(), numVertices);
+			assertEquals("Graph Scaling: Equal # Roots", graph.vertexSet().stream().filter(v -> graph.inDegreeOf(v) == 0).count(), numRoots);
 			assertEquals("Graph Scaling: Summed Edge Weight", graph.sumEdgeWeights(), summedEdgeWeights * scaleFactor,
 					precision);
 			graph.scale(1 / scaleFactor, 1 / scaleFactor, 1 / scaleFactor, true);
 		}
 
+		// Shortest path tests
+		// get undirected view of base graph so we can compute arbitrary shortest paths using JGraphT
+		AsUndirectedGraph<SWCPoint, SWCWeightedEdge> undirected = new AsUndirectedGraph<>(graph);
+		DijkstraShortestPath<SWCPoint, SWCWeightedEdge> dijkstraShortestPath = new DijkstraShortestPath<>(undirected);
+
+		SWCPoint root = graph.getRoot();
+		List<SWCPoint> tips = graph.getTips();
+
+		// brute-force test
+//		Set<SWCPoint> nodes = graph.vertexSet();
+//		for (SWCPoint n1 : nodes) {
+//			for (SWCPoint n2 : nodes) {
+//				if (n1 == n2) continue;
+//				Path sp = graph.getShortestPath(n1, n2);
+//				GraphPath dsp = dijkstraShortestPath.getPath(n1, n2);
+//				assertEquals(sp.getLength(), dsp.getWeight(), precision);
+//			}
+//		}
+		for (SWCPoint tip : tips) {
+			Path sp = graph.getShortestPath(root, tip);
+			GraphPath dsp = dijkstraShortestPath.getPath(root, tip);
+			assertEquals(sp.getLength(), dsp.getWeight(), precision);
+			assertEquals(sp.size(), dsp.getVertexList().size());
+		}
+		for (SWCPoint t1 : tips) {
+			for (SWCPoint t2 : tips) {
+				if (t1 == t2) continue;
+				Path sp = graph.getShortestPath(t1, t2);
+				GraphPath dsp = dijkstraShortestPath.getPath(t1, t2);
+				assertEquals(sp.getLength(), dsp.getWeight(), precision);
+				assertEquals(sp.size(), dsp.getVertexList().size());
+			}
+		}
+		// path between the same points should be null
+		assertNull(graph.getShortestPath(root, root));
 	}
 
 }

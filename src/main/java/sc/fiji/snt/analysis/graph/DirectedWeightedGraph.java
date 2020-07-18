@@ -22,25 +22,24 @@
 
 package sc.fiji.snt.analysis.graph;
 
-import java.awt.Window;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import org.jgrapht.GraphTests;
 import org.jgrapht.Graphs;
+import org.jgrapht.alg.lca.BinaryLiftingLCAFinder;
+import org.jgrapht.alg.lca.EulerTourRMQLCAFinder;
+import org.jgrapht.alg.lca.HeavyPathLCAFinder;
+import org.jgrapht.alg.lca.TarjanLCAFinder;
 import org.jgrapht.graph.DefaultDirectedWeightedGraph;
 import org.jgrapht.traverse.DepthFirstIterator;
-
+import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.NodeStatistics;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.SWCPoint;
+
+import java.awt.*;
+import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Class for accessing a reconstruction as a graph structure.
@@ -75,7 +74,7 @@ public class DirectedWeightedGraph extends DefaultDirectedWeightedGraph<SWCPoint
 	 * Creates a DirectedWeightedGraph from a collection of reconstruction nodes.
 	 *
 	 * @param nodes                    the collections of SWC nodes
-	 * @param assignDistancesToWeights if true, inter-node Euclidean distances are
+	 * @param assignDistancesToWeight if true, inter-node Euclidean distances are
 	 *                                 used as edge weights
 	 */
 	protected DirectedWeightedGraph(final Collection<SWCPoint> nodes, final boolean assignDistancesToWeight)
@@ -117,7 +116,7 @@ public class DirectedWeightedGraph extends DefaultDirectedWeightedGraph<SWCPoint
 		relevantNodes.addAll(getTips());
 		final DirectedWeightedGraph simplifiedGraph = new DirectedWeightedGraph();
 		transferCommonProperties(simplifiedGraph);
-		relevantNodes.forEach(node -> simplifiedGraph.addVertex(node));
+		relevantNodes.forEach(simplifiedGraph::addVertex);
 		for (final SWCPoint node : relevantNodes) {
 			final SimplifiedVertex ancestor = firstRelevantAncestor(node);
 			if (ancestor != null && ancestor.associatedWeight > 0) {
@@ -154,7 +153,7 @@ public class DirectedWeightedGraph extends DefaultDirectedWeightedGraph<SWCPoint
 		}
 	}
 
-	private class SimplifiedVertex {
+	private static class SimplifiedVertex {
 		final SWCPoint vertex;
 		final double associatedWeight;
 
@@ -199,21 +198,87 @@ public class DirectedWeightedGraph extends DefaultDirectedWeightedGraph<SWCPoint
 	 * @return the sum of all edge weights
 	 */
 	public double sumEdgeWeights() {
-		return edgeSet().stream().mapToDouble(e -> e.getWeight()).sum();
+		return edgeSet().stream().mapToDouble(SWCWeightedEdge::getWeight).sum();
 	}
 
 	public DepthFirstIterator<SWCPoint, SWCWeightedEdge> getDepthFirstIterator() {
-		return new DepthFirstIterator<SWCPoint, SWCWeightedEdge>(this);
+		return new DepthFirstIterator<>(this);
 	}
 
 	public DepthFirstIterator<SWCPoint, SWCWeightedEdge> getDepthFirstIterator(final SWCPoint startVertex) {
-		return new DepthFirstIterator<SWCPoint, SWCWeightedEdge>(this, startVertex);
+		return new DepthFirstIterator<>(this, startVertex);
+	}
+
+	/**
+	 * Gets the shortest path between source and target vertex.
+	 * Since underlying edge direction is ignored, a shortest path will always exist between
+	 * any two vertices that share a connected component.
+	 *
+	 * @param v1 the source vertex
+	 * @param v2 the target vertex
+	 * @return the shortest Path between source v1 and target v2, or null if no path exists
+	 */
+	public Path getShortestPath(SWCPoint v1, SWCPoint v2) {
+		if (!this.containsVertex(v1) || !this.containsVertex(v2)) {
+			return null;
+		}
+		if (v1 == v2) {
+			return null;
+		}
+		List<SWCPoint> shortestPathList = shortestPathInternal(v1, v2);
+		if (shortestPathList == null) {
+			return null;
+		}
+		Path shortestPath = shortestPathList.get(0).getPath().createPath();
+		shortestPath.setOrder(-1);
+		shortestPath.setName("Path between " + v1.id + "and " + v2.id);
+		for (SWCPoint point : shortestPathList) {
+			shortestPath.addNode(point);
+		}
+		return shortestPath;
+	}
+
+	/**
+	 * Uses the least common ancestor to find the shortest path between any two vertices.
+	 * This is much faster (and lighter) than any of the shortest path algorithms included with JGraphT, even
+	 * those based on LCA (i.e., TarjanLCAFinder, EulerTourRMQLCAFinder, etc.) since no preprocessing is required.
+	 * Since this is a custom implementation, it should be tested against one of the shortest path algos
+	 * included with JGraphT.
+	 * @param v1 the source vertex
+	 * @param v2 the target vertex
+	 * @return the List of SWCPoints representing the shortest path, or null if no path exists
+	 */
+	private List<SWCPoint> shortestPathInternal(SWCPoint v1, SWCPoint v2) {
+		List<SWCPoint> ancestorList1 = new ArrayList<>();
+		SWCPoint currentVertex = v1;
+		ancestorList1.add(currentVertex);
+		while (Graphs.vertexHasPredecessors(this, currentVertex)) {
+			currentVertex = Graphs.predecessorListOf(this, currentVertex).get(0);
+			ancestorList1.add(currentVertex);
+		}
+		if (ancestorList1.contains(v2)) {
+			return ancestorList1.subList(0, ancestorList1.indexOf(v2) + 1);
+		}
+		List<SWCPoint> ancestorList2 = new ArrayList<>();
+		currentVertex = v2;
+		ancestorList2.add(currentVertex);
+		while (Graphs.vertexHasPredecessors(this, currentVertex)) {
+			currentVertex = Graphs.predecessorListOf(this, currentVertex).get(0);
+			ancestorList2.add(currentVertex);
+			if (ancestorList1.contains(currentVertex)) {
+				List<SWCPoint> firstList = ancestorList1.subList(0, ancestorList1.indexOf(currentVertex));
+				Collections.reverse(ancestorList2);
+				firstList.addAll(ancestorList2);
+				return firstList;
+			}
+		}
+		return null;
 	}
 
 	/**
 	 * Re-assigns a unique Integer identifier to each vertex based on visit order
 	 * during Depth First Search. Also updates the parent and previousPoint fields
-	 * of each SWCvertex contained in the Graph.
+	 * of each SWCPoint vertex contained in the Graph.
 	 */
 	private void updateVertexProperties() {
 		final DepthFirstIterator<SWCPoint, SWCWeightedEdge> iter = getDepthFirstIterator(getRoot());
@@ -262,20 +327,20 @@ public class DirectedWeightedGraph extends DefaultDirectedWeightedGraph<SWCPoint
 	public NodeStatistics<SWCPoint> getNodeStatistics(final String type) {
 		switch(type.toLowerCase()) {
 		case "all":
-			return new NodeStatistics<SWCPoint>(vertexSet());
+			return new NodeStatistics<>(vertexSet());
 		case "tips":
 		case "endings":
 		case "end points":
 		case "end-points":
 		case "terminals":
-			return new NodeStatistics<SWCPoint>(getTips());
+			return new NodeStatistics<>(getTips());
 		case "bps":
 		case "forks":
 		case "junctions":
 		case "fork points":
 		case "junction points":
 		case "branch points":
-			return new NodeStatistics<SWCPoint>(getBPs());
+			return new NodeStatistics<>(getBPs());
 		default:
 			throw new IllegalArgumentException("type not recognized. Perhaps you meant 'all', 'junctions' or 'tips'?");
 		}
@@ -287,11 +352,14 @@ public class DirectedWeightedGraph extends DefaultDirectedWeightedGraph<SWCPoint
 	 * @return the root node.
 	 */
 	public SWCPoint getRoot() {
-		if (vertexSet().isEmpty()) return null;
-		if (!GraphTests.isConnected(this)) {
+		List<SWCPoint> roots = vertexSet().stream().filter(v -> inDegreeOf(v) == 0).collect(Collectors.toList());
+		if (roots.size() == 0) {
+			throw new IllegalStateException("Graph has no root");
+		}
+		if (roots.size() > 1) {
 			throw new IllegalStateException("Graph has multiple connected components");
 		}
-		return vertexSet().stream().filter(v -> inDegreeOf(v) == 0).findFirst().orElse(null);
+		return roots.get(0);
 	}
 
 	/**
@@ -310,7 +378,7 @@ public class DirectedWeightedGraph extends DefaultDirectedWeightedGraph<SWCPoint
 
 	public Set<SWCPoint> vertexSet(final char lr) {
 		if (lr == BrainAnnotation.ANY_HEMISPHERE) return vertexSet();
-		final Set<SWCPoint> modifiable = new HashSet<SWCPoint>();
+		final Set<SWCPoint> modifiable = new HashSet<>();
 		vertexSet().forEach(vertex -> {
 			if (lr == vertex.getHemisphere()) modifiable.add(vertex);
 		});
@@ -324,7 +392,7 @@ public class DirectedWeightedGraph extends DefaultDirectedWeightedGraph<SWCPoint
 	 */
 	public Window show() {
 		updateVertexProperties();
-		return GraphUtils.show(this);
+		return GraphUtils.show(this.getSimplifiedGraph());
 	}
 
 }
