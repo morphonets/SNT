@@ -35,9 +35,7 @@ import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 
 import org.scijava.ItemVisibility;
-import org.scijava.app.StatusService;
 import org.scijava.command.Command;
-import org.scijava.command.DynamicCommand;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
@@ -46,6 +44,7 @@ import org.scijava.widget.Button;
 
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.TreeColorMapper;
+import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.Path;
@@ -62,19 +61,13 @@ import sc.fiji.snt.Tree;
  */
 @Plugin(type = Command.class, visible = false, label = "Color Mapper",
 	initializer = "init")
-public class TreeMapperCmd extends DynamicCommand {
-
-	@Parameter
-	private SNTService sntService;
+public class TreeMapperCmd extends CommonDynamicCmd {
 
 	@Parameter
 	private PrefService prefService;
 
 	@Parameter
 	private LUTService lutService;
-
-	@Parameter
-	private StatusService statusService;
 
 	@Parameter(required = true, label = "Color by")
 	private String measurementChoice;
@@ -100,6 +93,9 @@ public class TreeMapperCmd extends DynamicCommand {
 
 	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
 	private boolean setValuesFromSNTService;
+	
+	@Parameter(required = false, persist = false, visibility = ItemVisibility.INVISIBLE)
+	private boolean onlyConnectivitySafeMetrics = false;
 
 	private Map<String, URL> luts;
 	private Viewer2D plot;
@@ -141,16 +137,20 @@ public class TreeMapperCmd extends DynamicCommand {
 		}
 		sntService.updateViewers();
 		SNTUtils.log("Finished...");
-		statusService.clearStatus();
+		resetUI();
 	}
 
 	@SuppressWarnings("unused")
 	private void init() {
-		final MutableModuleItem<String> measurementChoiceInput = getInfo()
-			.getMutableInput("measurementChoice", String.class);
+		super.init(true);
 		final List<String> choices = TreeColorMapper.getMetrics();
 		if (!setValuesFromSNTService) choices.remove(TreeColorMapper.VALUES);
+		if (onlyConnectivitySafeMetrics) {
+			choices.remove(TreeColorMapper.STRAHLER_NUMBER);
+		}
 		Collections.sort(choices);
+		final MutableModuleItem<String> measurementChoiceInput = getInfo()
+				.getMutableInput("measurementChoice", String.class);
 		measurementChoiceInput.setChoices(choices);
 		measurementChoiceInput.setValue(this, prefService.get(getClass(),
 			"measurementChoice", TreeColorMapper.STRAHLER_NUMBER));

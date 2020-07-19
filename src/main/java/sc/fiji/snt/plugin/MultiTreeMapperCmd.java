@@ -30,9 +30,7 @@ import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 
-import org.scijava.app.StatusService;
 import org.scijava.command.Command;
-import org.scijava.command.DynamicCommand;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
@@ -41,6 +39,7 @@ import org.scijava.widget.Button;
 
 import sc.fiji.snt.analysis.MultiTreeColorMapper;
 import sc.fiji.snt.analysis.TreeColorMapper;
+import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.viewer.MultiViewer2D;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -59,19 +58,13 @@ import sc.fiji.snt.Tree;
  */
 @Plugin(type = Command.class, visible = false, label = "Multi Tree Color Mapper",
         initializer = "init")
-public class MultiTreeMapperCmd extends DynamicCommand {
-
-    @Parameter
-    private SNTService sntService;
+public class MultiTreeMapperCmd extends CommonDynamicCmd {
 
     @Parameter
     private PrefService prefService;
 
     @Parameter
     private LUTService lutService;
-
-    @Parameter
-    private StatusService statusService;
 
     @Parameter(required = true, label = "Color by")
     private String measurementChoice;
@@ -132,11 +125,12 @@ public class MultiTreeMapperCmd extends DynamicCommand {
         }
         sntService.updateViewers();
         SNTUtils.log("Finished...");
-        statusService.clearStatus();
+        resetUI();
     }
 
     @SuppressWarnings("unused")
     private void init() {
+    	super.init(true);
         final MutableModuleItem<String> measurementChoiceInput = getInfo()
                 .getMutableInput("measurementChoice", String.class);
         final List<String> choices = MultiTreeColorMapper.getMetrics();
