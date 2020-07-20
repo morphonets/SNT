@@ -69,19 +69,40 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
 	private boolean calledFromPathManagerUI;
 
+	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
+	private boolean onlyConnectivitySafeMetrics = false;
+
 	private boolean imgDataAvailable;
 
 	protected void init() {
 		super.init(false);
 		final MutableModuleItem<String> measurementChoiceInput = getInfo()
 			.getMutableInput("measurementChoice", String.class);
-		final List<String> choices = TreeStatistics.getMetrics();
+		List<String> choices;
+		if (onlyConnectivitySafeMetrics) {
+			choices = TreeStatistics.getAllMetrics();
+			choices.remove(TreeStatistics.BRANCH_LENGTH);
+			choices.remove(TreeStatistics.CONTRACTION);
+			choices.remove(TreeStatistics.REMOTE_BIF_ANGLES);
+			choices.remove(TreeStatistics.PARTITION_ASYMMETRY);
+			choices.remove(TreeStatistics.PRIMARY_LENGTH);
+			choices.remove(TreeStatistics.INNER_LENGTH);
+			choices.remove(TreeStatistics.TERMINAL_LENGTH);
+			choices.remove(TreeStatistics.REMOTE_BIF_ANGLES);
+			choices.remove(TreeStatistics.FRACTAL_DIMENSION);
+			getInfo().setLabel("Distribution Analysis (Path Properties)");
+		} else {
+			choices = TreeStatistics.getMetrics(); // does not contain "Path metrics"
+			resolveInput("onlyConnectivitySafeMetrics");
+			getInfo().setLabel("Distribution Analysis (Branch Properties)");
+		}
 		imgDataAvailable = calledFromPathManagerUI && sntService.getPlugin().accessToValidImageData();
 		if (!imgDataAvailable) choices.remove(TreeStatistics.VALUES);
+
 		Collections.sort(choices);
 		measurementChoiceInput.setChoices(choices);
-		measurementChoiceInput.setValue(this, prefService.get(getClass(),
-			"measurementChoice", TreeStatistics.CONTRACTION));
+		measurementChoiceInput.setValue(this,
+				prefService.get(getClass(), "measurementChoice", TreeStatistics.INTER_NODE_DISTANCE));
 		if (tree != null) {
 			trees = Collections.singletonList(tree);
 			resolveInput("trees");
