@@ -12,26 +12,36 @@ import com.mxgraph.swing.mxGraphOutline;
 import com.mxgraph.util.mxCellRenderer;
 
 import org.scijava.Context;
+import org.scijava.command.Command;
+import org.scijava.command.CommandService;
+import org.scijava.plugin.Parameter;
 
 import org.w3c.dom.Document;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.plugin.GraphMapperCmd;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 public class AnnotationGraphComponent extends mxGraphComponent {
-
+    @Parameter
+    private CommandService cmdService;
     private static final long serialVersionUID = 1L;
     private final AnnotationGraphAdapter adapter;
     private mxGraphLayout layout;
@@ -51,6 +61,7 @@ public class AnnotationGraphComponent extends mxGraphComponent {
 
     protected AnnotationGraphComponent(final AnnotationGraphAdapter adapter, Context context) {
         super(adapter);
+        context.inject(this);
         this.adapter = adapter;
         addMouseWheelListener(new AnnotationGraphComponent.ZoomMouseWheelListener());
         setKeepSelectionVisibleOnZoom(true);
@@ -211,20 +222,10 @@ public class AnnotationGraphComponent extends mxGraphComponent {
         colorCodingButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                AnnotationGraph mappedGraph = adapter.getAnnotationGraph();
-//                Map<String, Object> input = new HashMap<>();
-//                input.put("graph", mappedGraph);
-//                CommandService cmdService = new Context().getService(CommandService.class);
-//                cmdService.run(GraphMapperCmd.class, true, input);
-                // TODO replace with cmd
-                GraphColorMapper mapper = new GraphColorMapper(new Context());
-                mapper.map(mappedGraph, GraphColorMapper.EDGE_WEIGHT, "Ice");
-                if (!mappedGraph.getVertexColorRGBMap().isEmpty()) {
-                    adapter.setVertexColors(mappedGraph.getVertexColorRGBMap());
-                }
-                if (!mappedGraph.getEdgeColorRGBMap().isEmpty()) {
-                    adapter.setEdgeColors(mappedGraph.getEdgeColorRGBMap());
-                }
+                final AnnotationGraph mappedGraph = adapter.getAnnotationGraph();
+                final Map<String, Object> input = new HashMap<>();
+                input.put("graph", mappedGraph);
+                runCmd(GraphMapperCmd.class, input, CmdWorker.UPDATE_GRAPH);
             }
         });
         buttonPanel.add(colorCodingButton, gbc);
@@ -248,65 +249,65 @@ public class AnnotationGraphComponent extends mxGraphComponent {
     }
 
     private void setAutomaticLayoutPrefs() {
-        JTextField forceConstantField = new JTextField(SNTUtils.formatDouble(forceConstant, 2), 3);
-        JTextField minDistanceField = new JTextField(SNTUtils.formatDouble(minDistance, 2), 3);
-        JTextField maxDistanceField = new JTextField(SNTUtils.formatDouble(maxDistance, 2), 3);
-        JTextField initialTempField = new JTextField(SNTUtils.formatDouble(initialTemp, 2), 3);
-        JTextField maxIterationsField = new JTextField(SNTUtils.formatDouble(maxIterations, 1), 3);
-        JTextField radiusField = new JTextField(SNTUtils.formatDouble(radius, 2), 3);
+        JTextField forceConstantField = new JTextField(SNTUtils.formatDouble(forceConstant, 2), 2);
+        JTextField minDistanceField = new JTextField(SNTUtils.formatDouble(minDistance, 2), 2);
+        JTextField maxDistanceField = new JTextField(SNTUtils.formatDouble(maxDistance, 2), 2);
+        JTextField initialTempField = new JTextField(SNTUtils.formatDouble(initialTemp, 2), 2);
+        JTextField maxIterationsField = new JTextField(SNTUtils.formatDouble(maxIterations, 1), 2);
+        JTextField radiusField = new JTextField(SNTUtils.formatDouble(radius, 2), 2);
 
         JPanel myPanel = new JPanel();
         myPanel.setLayout(new BoxLayout(myPanel, BoxLayout.Y_AXIS));
-        myPanel.add(new JLabel("Fast-organic layout settings"));
-        myPanel.add(new JLabel("<html><b>Force Constant"));
+        myPanel.add(new JLabel("<html><b>Fast-organic layout settings"));
+        myPanel.add(new JLabel("<html>Force Constant"));
         myPanel.add(forceConstantField);
-        myPanel.add(new JLabel("<html><br><b>Minimum distance"));
+        myPanel.add(new JLabel("<html><br>Minimum distance"));
         myPanel.add(minDistanceField);
-        myPanel.add(new JLabel("<html><br><b>Maximum distance"));
+        myPanel.add(new JLabel("<html><br>Maximum distance"));
         myPanel.add(maxDistanceField);
-        myPanel.add(new JLabel("<html><br><b>Initial Temperature"));
+        myPanel.add(new JLabel("<html><br>Initial Temperature"));
         myPanel.add(initialTempField);
-        myPanel.add(new JLabel("<html><br><b>Maximum iterations"));
+        myPanel.add(new JLabel("<html><br>Maximum iterations"));
         myPanel.add(maxIterationsField);
         myPanel.add(Box.createVerticalStrut(30)); // a spacer
-        myPanel.add(new JLabel("Circle layout settings"));
-        myPanel.add(new JLabel("<html><br><b>Radius"));
+        myPanel.add(new JLabel("<html><b>Circle layout settings"));
+        myPanel.add(new JLabel("<html><br>Radius"));
         myPanel.add(radiusField);
 
         int result = JOptionPane.showConfirmDialog(null, myPanel,
                 "Please Specify Options", JOptionPane.OK_CANCEL_OPTION);
         if (result == JOptionPane.OK_OPTION) {
             double input = GuiUtils.extractDouble(forceConstantField);
-            if (Double.isNaN(input) || input <= 0){
+            if (Double.isNaN(input) || input <= 0) {
                 GuiUtils.errorPrompt("Force constant must be positive number.");
                 return;
             }
             forceConstant = input;
-            input =  GuiUtils.extractDouble(minDistanceField);
+            input = GuiUtils.extractDouble(minDistanceField);
             if (Double.isNaN(input) || input <= 0) {
                 GuiUtils.errorPrompt("Minimum distance limit must be positive.");
                 return;
             }
             minDistance = input;
-            input =  GuiUtils.extractDouble(maxDistanceField);
+            input = GuiUtils.extractDouble(maxDistanceField);
             if (Double.isNaN(input) || input <= 0) {
                 GuiUtils.errorPrompt("Maximum distance limit must be positive.");
                 return;
             }
             maxDistance = input;
-            input =  GuiUtils.extractDouble(initialTempField);
+            input = GuiUtils.extractDouble(initialTempField);
             if (Double.isNaN(input) || input <= 0) {
                 GuiUtils.errorPrompt("Initial temp must be positive.");
                 return;
             }
             initialTemp = input;
-            input =  GuiUtils.extractDouble(maxIterationsField);
+            input = GuiUtils.extractDouble(maxIterationsField);
             if (Double.isNaN(input) || input < 0) {
                 GuiUtils.errorPrompt("Maximum iterations must be non-negative.");
                 return;
             }
             maxIterations = input;
-            input =  Double.parseDouble(radiusField.getText());
+            input = Double.parseDouble(radiusField.getText());
             if (Double.isNaN(input) || input <= 0) {
                 GuiUtils.errorPrompt("Radius must be positive.");
                 return;
@@ -510,8 +511,6 @@ public class AnnotationGraphComponent extends mxGraphComponent {
         }
     }
 
-    ;
-
     private class KeyboardHandler extends mxKeyboardHandler {
 
         public KeyboardHandler(mxGraphComponent graphComponent) {
@@ -545,4 +544,80 @@ public class AnnotationGraphComponent extends mxGraphComponent {
             GuiUtils.showHTMLDialog("<HTML>" + String.join("<br>", lines), "Dendrogram Viewer Shortcuts");
         }
     }
+
+    private void runCmd(final Class<? extends Command> cmdClass,
+                        final Map<String, Object> inputs, final int cmdType)
+    {
+        if (cmdService == null) {
+            new GuiUtils().error(
+                    "This command requires AnnotationGraphComponent to be aware of a Scijava Context");
+            return;
+        }
+        SwingUtilities.invokeLater(() -> {
+            (new CmdWorker(cmdClass, inputs, cmdType))
+                    .execute();
+        });
+    }
+
+    class CmdWorker extends SwingWorker<Boolean, Object> {
+
+        private static final int UPDATE_GRAPH = 0;
+
+        private final Class<? extends Command> cmd;
+        private final Map<String, Object> inputs;
+        private final int type;
+
+
+        public CmdWorker(final Class<? extends Command> cmd,
+                         final Map<String, Object> inputs, final int type) {
+            this.cmd = cmd;
+            this.inputs = inputs;
+            this.type = type;
+        }
+
+        @Override
+        public Boolean doInBackground() {
+            try {
+                final Map<String, Object> input = new HashMap<>();
+                if (inputs != null) input.putAll(inputs);
+                cmdService.run(cmd, true, input).get();
+                return true;
+            } catch (final NullPointerException e1) {
+                e1.printStackTrace();
+                return false;
+            } catch (InterruptedException | ExecutionException e2) {
+                new GuiUtils().error(
+                        "Unfortunately an exception occured. See console for details.");
+                SNTUtils.error("Error", e2);
+                return false;
+            }
+        }
+
+        @Override
+        protected void done() {
+            boolean status = false;
+            try {
+                status = get();
+                if (status) {
+                    switch (type) {
+                        case UPDATE_GRAPH:
+                            AnnotationGraph mappedGraph = (AnnotationGraph) inputs.get("graph");
+                            System.out.println(mappedGraph.getEdgeColorRGBMap());
+                            if (!mappedGraph.getVertexColorRGBMap().isEmpty()) {
+                                adapter.setVertexColors(mappedGraph.getVertexColorRGBMap());
+                            }
+                            if (!mappedGraph.getEdgeColorRGBMap().isEmpty()) {
+                                adapter.setEdgeColors(mappedGraph.getEdgeColorRGBMap());
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            } catch (final Exception ignored) {
+                // do nothing
+            }
+        }
+    }
+
 }

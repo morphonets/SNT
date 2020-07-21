@@ -42,9 +42,9 @@ import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
 
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.graph.ColorableGraph;
 import sc.fiji.snt.analysis.graph.GraphColorMapper;
-
 
 
 @Plugin(type = Command.class, visible = false, label = "Graph Color Mapper",
@@ -78,16 +78,19 @@ public class GraphMapperCmd extends DynamicCommand {
     @Override
     public void run() {
         if (graph == null || graph.vertexSet().isEmpty()) cancel("Invalid input tree");
-        //SNTUtils.log("Color Coding Graph(" + measurementChoice + ") using " + lutChoice);
+        SNTUtils.log("Color Coding Graph(" + measurementChoice + ") using " + lutChoice);
         final GraphColorMapper colorizer = new GraphColorMapper(context());
         try {
             colorizer.map(graph, measurementChoice, colorTable);
         }
-        catch (final IllegalArgumentException exc) {
+        catch (final Exception exc) {
             cancel(exc.getMessage());
             return;
         }
-        //SNTUtils.log("Finished...");
+        for (DefaultWeightedEdge e : graph.edgeSet()) {
+            System.out.println(graph.getEdgeColor(e).toHTMLColor());
+        }
+        SNTUtils.log("Finished...");
     }
 
     @SuppressWarnings("unused")

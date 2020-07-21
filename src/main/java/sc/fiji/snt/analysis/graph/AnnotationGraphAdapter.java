@@ -100,6 +100,7 @@ public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, Anno
         for (AnnotationWeightedEdge e : eMap) {
             aGraph.addEdge(e.getSource(), e.getTarget(), e);
         }
+        System.out.println(aGraph.edgeSet().size());
         return aGraph;
     }
 

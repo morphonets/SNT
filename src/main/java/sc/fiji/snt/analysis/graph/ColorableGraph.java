@@ -13,4 +13,8 @@ public abstract class ColorableGraph<Object, DefaultWeightedEdge> extends Defaul
 
     public abstract void setEdgeColor(DefaultWeightedEdge edge, ColorRGB color);
 
+    public abstract ColorRGB getVertexColor(Object vertex);
+
+    public abstract ColorRGB getEdgeColor(DefaultWeightedEdge edge);
+
 }
