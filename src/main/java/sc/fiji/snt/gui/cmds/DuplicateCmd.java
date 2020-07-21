@@ -56,10 +56,10 @@ public class DuplicateCmd extends CommonDynamicCmd {
 			style = NumberWidget.SCROLL_BAR_STYLE, callback = "percentageChanged")
 	private double percentage;
 
-	@Parameter(persist = false, label = "Assign to channel")
+	@Parameter(persist = false, label = "Assign to channel", min="1")
 	private int channel;
 
-	@Parameter(persist = false, label = "Assign to frame")
+	@Parameter(persist = false, label = "Assign to frame", min="1")
 	private int frame;
 
 	@Parameter(label = "Make primary (disconnect)")
@@ -184,7 +184,7 @@ public class DuplicateCmd extends CommonDynamicCmd {
 		// Now make the duplication
 		final Path dup = path.getSection(0, dupIndex);
 		dup.setName("Dup " + path.getName());
-		dup.setCTposition(channel, frame);
+		dup.setCTposition(Math.max(1, channel), Math.max(1, frame));
 		if (!disconnect) {
 			if (path.getStartJoins() != null)
 				dup.setStartJoin(path.getStartJoins(), path.getStartJoinsPoint());

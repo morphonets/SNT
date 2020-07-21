@@ -49,7 +49,7 @@ import sc.fiji.snt.gui.GuiUtils;
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, visible = false,
-	label = "Distribution Analysis (Groups)", initializer = "init")
+	label = "Distribution Analysis (Cell Groups)", initializer = "init")
 public class DistributionCPCmd extends CommonDynamicCmd {
 
 	@Parameter
@@ -93,7 +93,7 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 				dStats.setLabel("Dendrites");
 				dStats.getHistogram(measurementChoice).setVisible(true);
 			}
-		} catch (final java.util.NoSuchElementException ignored) {
+		} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
 			failures += "dendritic";
 		}
 		try {
@@ -102,11 +102,17 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 				aStats.setLabel("Axons");
 				aStats.getHistogram(measurementChoice).setVisible(true);
 			}
-		} catch (final java.util.NoSuchElementException ignored) {
+		} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
 			failures += (failures.isEmpty()) ? "axonal" : " or axonal";
 		}
 		if (!failures.isEmpty()) {
-			msg("It was not possible to access data for " + failures + "compartment(s).", "Error");
+			String error = "It was not possible to access data for " + failures + "compartment(s).";
+			if (calledFromPathManagerUI) {
+				error += "\nNote that some distributions can only be computed on \n"
+						+ "structures with a single root without disconnected paths.\n"
+						+ "Please re-run the command with a valid selection.";
+			}
+			cancel(error);
 		}
 		resetUI();
 	}

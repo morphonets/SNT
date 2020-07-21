@@ -76,6 +76,12 @@ public class TreeStatistics extends TreeAnalyzer {
 	/** Flag for {@value #PATH_ORDER} statistics. */
 	public static final String PATH_ORDER = "Path order";
 
+	/** Flag for {@value #PATH_CHANNEL} statistics. */
+	public static final String PATH_CHANNEL = "Path channel";
+
+	/** Flag for {@value #PATH_FRAME} statistics. */
+	public static final String PATH_FRAME = "Path frame";
+
 	/** Flag for {@value #INTER_NODE_DISTANCE} statistics. */
 	public static final String INTER_NODE_DISTANCE = "Inter-node distance";
 
@@ -139,6 +145,8 @@ public class TreeStatistics extends TreeAnalyzer {
 			N_BRANCH_POINTS, //
 			N_NODES, //
 			NODE_RADIUS, //
+			PATH_CHANNEL,//
+			PATH_FRAME,//
 			PATH_LENGTH, //
 			PATH_ORDER, //
 			PRIMARY_LENGTH, //
@@ -622,6 +630,16 @@ public class TreeStatistics extends TreeAnalyzer {
 		case PATH_ORDER:
 			for (final Path p : tree.list()) {
 				stat.addValue(p.getOrder());
+			}
+			break;
+		case PATH_FRAME:
+			for (final Path p : tree.list()) {
+				stat.addValue(p.getFrame());
+			}
+			break;
+		case PATH_CHANNEL:
+			for (final Path p : tree.list()) {
+				stat.addValue(p.getChannel());
 			}
 			break;
 		case PRIMARY_LENGTH:

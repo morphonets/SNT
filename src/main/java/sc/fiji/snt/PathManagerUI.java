@@ -100,11 +100,13 @@ import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
+import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.gui.ColorMenu;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.PathManagerUISearchableBar;
 import sc.fiji.snt.gui.SwingSafeResult;
 import sc.fiji.snt.gui.cmds.DistributionBPCmd;
+import sc.fiji.snt.gui.cmds.DistributionCPCmd;
 import sc.fiji.snt.gui.cmds.DuplicateCmd;
 import sc.fiji.snt.gui.cmds.PathFitterCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeOptionsCmd;
@@ -331,41 +333,60 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		final JMenu advanced = new JMenu("Analyze");
 		menuBar.add(advanced);
-		jmi = new JMenuItem(MultiPathActionListener.COLORIZE_PATH_CMD);
-		// jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COLOR2));
+
+		final JMenu colorMapMenu = new JMenu("Color Coding");
+		colorMapMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COLOR2));
+		advanced.add(colorMapMenu);
+		jmi = new JMenuItem(MultiPathActionListener.COLORIZE_PATHS_CMD);
+		jmi.setToolTipText("Color codes selected path(s) using connectivity-independent metrics");
 		jmi.addActionListener(multiPathListener);
-		advanced.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_CMD);
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHART));
+		colorMapMenu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.COLORIZE_TREES_CMD);
+		jmi.setToolTipText("Color codes selected path(s) assuming valid connectivity between paths");
 		jmi.addActionListener(multiPathListener);
-		advanced.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.MEASURE_CMD_OPTIONS_PATHS);
+		colorMapMenu.add(jmi);
+
+		final JMenu distributionMenu = new JMenu("Frequency Analysis");
+		distributionMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHART));
+		advanced.add(distributionMenu);
+		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_PATHS_CMD);
+		jmi.addActionListener(multiPathListener);
+		distributionMenu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_TREES_CMD);
+		jmi.addActionListener(multiPathListener);
+		distributionMenu.add(jmi);
+	
+		final JMenu measureMenu = new JMenu("Measurements");
+		measureMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
+		advanced.add(measureMenu);
+		jmi = new JMenuItem(MultiPathActionListener.MEASURE_PATHS_CMD);
 		jmi.setToolTipText("Measures selected path(s), indepently of their connectivity");
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
 		jmi.addActionListener(multiPathListener);
-		advanced.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.MEASURE_CMD_OPTIONS);
+		measureMenu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.MEASURE_TREES_CMD);
 		jmi.setToolTipText("Measures complete structures assuming valid connectivity between paths");
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
 		jmi.addActionListener(multiPathListener);
-		advanced.add(jmi);
+		measureMenu.add(jmi);
+
 		advanced.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_ROI_CMD);
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
+
 		jmi = new JMenuItem(MultiPathActionListener.PLOT_PROFILE_CMD);
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SKEL_CMD);
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
+
+		advanced.add(getTimeSequenceMenu(multiPathListener));
+
 		advanced.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SWC_CMD);
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EXPORT));
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
-		advanced.addSeparator();
-		advanced.add(getTimeSequenceMenu(multiPathListener));
 
 		// Search Bar TreeSearchable
 		searchableBar = new PathManagerUISearchableBar(this);
@@ -426,7 +447,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private JMenu getTimeSequenceMenu(final MultiPathActionListener multiPathListener) {
 		final JMenu menu = new JMenu("Time-lapse Utilities");
 		menu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.VIDEO));
-		JMenuItem jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD);
+		JMenuItem jmi = new JMenuItem(MultiPathActionListener.TIME_COLOR_CODING_CMD);
+		jmi.addActionListener(multiPathListener);
+		menu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.TIME_PROFILE_CMD);
@@ -976,10 +1000,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private Collection<Tree> getMultipleTreesPrompt(final boolean includeAll) {
 		final Collection<Tree> trees = pathAndFillManager.getTrees();
 		if (trees.size() == 1) return trees;
-		final ArrayList<String> treeLabels = new ArrayList<>(trees.size());
-		if (includeAll)
-			treeLabels.add("   -- All --  ");
+		final ArrayList<String> treeLabels = new ArrayList<>(trees.size() + 1);
 		trees.forEach(t -> treeLabels.add(t.getLabel()));
+		Collections.sort(treeLabels);
+		if (includeAll)
+			treeLabels.add(0, "   -- All --  ");
 		final List<String> choices = guiUtils.getMultipleChoices("Multiple rooted structures exist. Which ones should be considered?",
 				"Which Structure?", treeLabels.toArray(new String[trees.size()]));
 		if (includeAll && choices.contains("   -- All --  "))
@@ -1777,12 +1802,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @param cmd  The command to be run, exactly as listed in the PathManagerUI's
 	 *             menu bar or Right-click contextual menu
 	 * @param args the option(s) that would fill the commands's prompt. e.g.,
-	 *             {@code runCommand("Color Coding...", "X coordinates", "Cyan Hot.lut")}
+	 *             'runCommand({@value MultiPathActionListener#COLORIZE_TREES_CMD},
+	 *             "X coordinates", "Cyan Hot.lut")'
 	 * @throws IllegalArgumentException if {@code cmd} was not found, or if it is
 	 *                                  not supported.
 	 */
 	public void runCommand(final String cmd, String... args) throws IllegalArgumentException, IOException {
-		if (MultiPathActionListener.HISTOGRAM_CMD.equals(cmd)) {
+		if (MultiPathActionListener.HISTOGRAM_TREES_CMD.equals(cmd)) {
 			if (args.length == 1) {
 				runDistributionAnalysisCmd("All", args[0]);
 			} else if (args.length > 1) {
@@ -1791,11 +1817,25 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				throw new IllegalArgumentException("Not enough arguments...");
 			}
 			return;
-		} else if (MultiPathActionListener.COLORIZE_PATH_CMD.equals(cmd)) {
+		} else if (MultiPathActionListener.HISTOGRAM_PATHS_CMD.equals(cmd)) {
+			if (args.length > 0) {
+				runHistogramPathsCmd(getSelectedPaths(true), args[0]);
+			} else {
+				throw new IllegalArgumentException("Not enough arguments...");
+			}
+			return;
+		} else if (MultiPathActionListener.COLORIZE_TREES_CMD.equals(cmd)) {
 			if (args.length == 2) {
 				runColorCodingCmd("All", args[0], args[1]);
 			} else if (args.length > 2) {
 				runColorCodingCmd(args[0], args[1], args[2]);
+			} else {
+				throw new IllegalArgumentException("Not enough arguments...");
+			}
+			return;
+		} else if (MultiPathActionListener.COLORIZE_PATHS_CMD.equals(cmd)) {
+			if (args.length > 2) {
+				runColorCodingCmd(geSelectedPathsAsTree(), true, args[0], args[1]);
 			} else {
 				throw new IllegalArgumentException("Not enough arguments...");
 			}
@@ -1818,7 +1858,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	private void runRoiConverterCmd(final String type, final String view) throws IllegalArgumentException {
 		final Map<String, Object> input = new HashMap<>();
-		input.put("tree", new Tree(getSelectedPaths(true)));
+		input.put("tree", geSelectedPathsAsTree());
 		input.put("imp", plugin.getImagePlus());
 		input.put("roiChoice", type);
 		input.put("viewChoice", (view==null) ? "XY (default)" : view);
@@ -1833,6 +1873,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private void runColorCodingCmd(final String singleTreeDescriptor, final String metric, final String lutName) throws IllegalArgumentException, IOException {
 		final Tree tree =  getSingleTreeMimickingPrompt(singleTreeDescriptor);
 		if (tree == null) throw new IllegalArgumentException("Not a recognized choice "+ singleTreeDescriptor);
+		runColorCodingCmd(tree, false, metric, lutName);
+	}
+
+	private void runColorCodingCmd(final Tree tree, final boolean onlyConnectivitySafeMetrics, final String metric, final String lutName) throws IllegalArgumentException, IOException {
 		final Map<String, Object> input = new HashMap<>();
 		input.put("tree", tree);
 		input.put("measurementChoice", metric);
@@ -1841,6 +1885,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		input.put("showPlot", false);
 		input.put("setValuesFromSNTService", !plugin.tracingHalted);
 		input.put("removeColorCoding", null);
+		input.put("onlyConnectivitySafeMetrics", onlyConnectivitySafeMetrics);
 		final LUTService lutService = plugin.getContext().getService(LUTService.class);
 		input.put("colorTable", lutService.loadLUT(lutService.findLUTs().get(lutName)));
 		final CommandService cmdService = plugin.getContext().getService(CommandService.class);
@@ -1848,16 +1893,44 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		return;
 	}
 
-	private void runDistributionAnalysisCmd(final String treeCollectionDescriptor, final String metric) throws IllegalArgumentException {
-		final Collection<Tree> trees = getTreesMimickingPrompt(treeCollectionDescriptor);
-		if (trees == null) throw new IllegalArgumentException("Not a recognized choice "+ treeCollectionDescriptor);
+	private void runHistogramPathsCmd(final Collection<Path> paths, final String metric) {
 		final Map<String, Object> input = new HashMap<>();
-		input.put("trees", trees);
-		input.put("measurementChoice", metric);
+		final Tree tree = new Tree(paths);
+		tree.setLabel("Selected Paths");
+		input.put("tree", tree);
 		input.put("calledFromPathManagerUI", true);
+		input.put("onlyConnectivitySafeMetrics", true);
+		if (metric != null) input.put("measurementChoice", metric);
 		final CommandService cmdService = plugin.getContext().getService(
 			CommandService.class);
 		cmdService.run(DistributionBPCmd.class, true, input);
+	}
+
+	private void runDistributionAnalysisCmd(final String treeCollectionDescriptor, final String metric) throws IllegalArgumentException {
+		final Collection<Tree> trees = getTreesMimickingPrompt(treeCollectionDescriptor);
+		if (trees == null) throw new IllegalArgumentException("Not a recognized choice "+ treeCollectionDescriptor);
+		runDistributionAnalysisCmd(trees, metric);
+	}
+
+	private void runDistributionAnalysisCmd(final Collection<Tree> trees, final String metric) {
+		if (trees.size() == 1) {
+			final Map<String, Object> input = new HashMap<>();
+			input.put("trees", trees);
+			if (metric != null) input.put("measurementChoice", metric);
+			input.put("calledFromPathManagerUI", true);
+			input.put("onlyConnectivitySafeMetrics", false);
+			final CommandService cmdService = plugin.getContext().getService(
+				CommandService.class);
+			cmdService.run(DistributionBPCmd.class, true, input);
+		} else {
+			final Map<String, Object> input = new HashMap<>();
+			input.put("trees", trees);
+			input.put("calledFromPathManagerUI", true);
+			if (metric != null) input.put("measurementChoice", metric);
+			final CommandService cmdService = plugin.getContext().getService(
+				CommandService.class);
+			cmdService.run(DistributionCPCmd.class, true, input);
+		}
 		return;
 	}
 
@@ -2045,19 +2118,25 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String RESET_FITS = "Discard Fit(s)...";
 		private final static String SPECIFY_RADIUS_CMD = "Specify Radius...";
 		//private final static String MEASURE_CMD_SUMMARY = "Quick Measurements";
-		private final static String MEASURE_CMD_OPTIONS = "Measure Structure(s)...";
-		private final static String MEASURE_CMD_OPTIONS_PATHS = "Measure Path(s)...";
-
 		private final static String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
-		private final static String COLORIZE_PATH_CMD = "Color Coding...";
-		private final static String HISTOGRAM_CMD = "Distribution Analysis...";
 		private final static String CONVERT_TO_SKEL_CMD = "Skeletonize...";
 		private final static String CONVERT_TO_SWC_CMD = "Save Subset as SWC...";
 		private final static String PLOT_PROFILE_CMD = "Plot Profile";
 
+		// color mapping commands
+		private final static String COLORIZE_TREES_CMD = "Color Code Cell(s)...";
+		private final static String COLORIZE_PATHS_CMD = "Color Code Path(s)...";
+		// measure commands
+		private final static String MEASURE_TREES_CMD = "Measure Cell(s)...";
+		private final static String MEASURE_PATHS_CMD = "Measure Path(s)...";
+		// distribution commands
+		private final static String HISTOGRAM_PATHS_CMD = "Distribution of Path Properties...";
+		private final static String HISTOGRAM_TREES_CMD = "Distribution of Cell Properties...";
 		// timelapse analysis
 		private final static String MATCH_PATHS_ACROSS_TIME_CMD = "Match Paths Across Time...";
 		private final static String TIME_PROFILE_CMD = "Time Profile...";
+		private final static String TIME_COLOR_CODING_CMD = "Color Code Paths Across Time...";
+
 		// tags
 		private final static String TAG_LENGTH_PATTERN =
 			" ?\\[L:\\d+\\.?\\d+\\s?.+\\w+\\]";
@@ -2157,7 +2236,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 //				}
 //				return;
 //			}
-			else if (MEASURE_CMD_OPTIONS.equals(cmd)) {
+			else if (MEASURE_TREES_CMD.equals(cmd)) {
 				final Collection<Tree> trees = getMultipleTrees();
 				if (trees == null) return;
 				final HashMap<String, Object> inputs = new HashMap<>();
@@ -2166,7 +2245,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				(plugin.getUI().new DynamicCmdRunner(AnalyzerCmd.class, inputs)).run();
 				return;
 			}
-			else if (MEASURE_CMD_OPTIONS_PATHS.equals(cmd)) {
+			else if (MEASURE_PATHS_CMD.equals(cmd)) {
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("paths", selectedPaths);
 				inputs.put("proposedLabel", getDescription(selectedPaths));
@@ -2185,6 +2264,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				inputs.put("paths", selectedPaths);
 				(plugin.getUI().new DynamicCmdRunner(PathMatcherCmd.class, inputs)).run();
 				return;
+			} else if (TIME_COLOR_CODING_CMD.equals(cmd)) {
+				final Tree tree = new Tree(selectedPaths);
+				if (tree == null || tree.isEmpty()) return;
+				final Map<String, Object> input = new HashMap<>();
+				input.put("tree", tree);
+				input.put("onlyConnectivitySafeMetrics", true);
+				input.put("measurementChoice", TreeColorMapper.PATH_FRAME);
+				input.put("showInRecViewer", false);
+				input.put("showPlot", false);
+				final CommandService cmdService = plugin.getContext().getService(
+						CommandService.class);
+				cmdService.run(TreeMapperCmd.class, true, input);
+				refreshManager(false, true);
+				return;
 			}
 			else if (CONVERT_TO_ROI_CMD.equals(cmd)) {
 				final Map<String, Object> input = new HashMap<>();
@@ -2196,7 +2289,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 
 			}
-			else if (COLORIZE_PATH_CMD.equals(cmd)) {
+			else if (COLORIZE_TREES_CMD.equals(cmd)) {
 				if (assumeAll) {
 					Collection<Tree> trees = getMultipleTrees();
 					if (trees == null || trees.isEmpty()) return;
@@ -2216,28 +2309,38 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						cmdService.run(MultiTreeMapperCmd.class, true, input);
 					}
 				} else {
-					Tree tree = new Tree(selectedPaths);
+					final Tree tree = new Tree(selectedPaths);
 					if (tree == null || tree.isEmpty()) return;
-					Map<String, Object> input = new HashMap<>();
+					final Map<String, Object> input = new HashMap<>();
 					input.put("tree", tree);
-					CommandService cmdService = plugin.getContext().getService(
+					final CommandService cmdService = plugin.getContext().getService(
 							CommandService.class);
 					cmdService.run(TreeMapperCmd.class, true, input);
 				}
 				refreshManager(false, true);
 				return;
 
-			}
-			else if (HISTOGRAM_CMD.equals(cmd)) {
-
+			} else if (COLORIZE_PATHS_CMD.equals(cmd)) {
+				final Tree tree = new Tree(selectedPaths);
+				if (tree == null || tree.isEmpty()) return;
 				final Map<String, Object> input = new HashMap<>();
+				input.put("tree", tree);
+				input.put("onlyConnectivitySafeMetrics", true);
+				final CommandService cmdService = plugin.getContext().getService(
+						CommandService.class);
+				cmdService.run(TreeMapperCmd.class, true, input);
+				refreshManager(false, true);
+				return;
+			}
+			else if (HISTOGRAM_TREES_CMD.equals(cmd)) {
+
 				final Collection<Tree> trees = getMultipleTrees();
 				if (trees == null) return;
-				input.put("trees", trees);
-				input.put("calledFromPathManagerUI", true);
-				final CommandService cmdService = plugin.getContext().getService(
-					CommandService.class);
-				cmdService.run(DistributionBPCmd.class, true, input);
+				runDistributionAnalysisCmd(trees, null);
+				return;
+			}
+			else if (HISTOGRAM_PATHS_CMD.equals(cmd)) {
+				runHistogramPathsCmd(selectedPaths, null);
 				return;
 			}
 			if (CUSTOM_TAG_CMD.equals(cmd)) {

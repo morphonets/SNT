@@ -98,8 +98,15 @@ public class SNTUtils {
 	}
 
 	public static synchronized void removeViewer(final Viewer3D viewer) {
-		if (viewerMap != null && viewer!= null)
+		if (viewerMap != null && viewer != null) {
 			viewerMap.values().removeIf(viewer::equals);
+			if (plugin != null && plugin.getUI() != null) {
+				final Viewer3D v = plugin.getUI().getReconstructionViewer(false);
+				if (v != null && v.getID() == viewer.getID()) {
+					plugin.getUI().setReconstructionViewer(null);
+				}
+			}
+		}
 	}
 
 	protected static HashMap<Integer, Viewer3D> getViewers() {

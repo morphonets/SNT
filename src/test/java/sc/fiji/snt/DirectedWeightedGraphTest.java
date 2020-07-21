@@ -160,7 +160,7 @@ public class DirectedWeightedGraphTest {
 //		}
 		for (SWCPoint tip : tips) {
 			Path sp = graph.getShortestPath(root, tip);
-			GraphPath dsp = dijkstraShortestPath.getPath(root, tip);
+			GraphPath<SWCPoint, SWCWeightedEdge> dsp = dijkstraShortestPath.getPath(root, tip);
 			assertEquals(sp.getLength(), dsp.getWeight(), precision);
 			assertEquals(sp.size(), dsp.getVertexList().size());
 		}
@@ -168,7 +168,7 @@ public class DirectedWeightedGraphTest {
 			for (SWCPoint t2 : tips) {
 				if (t1 == t2) continue;
 				Path sp = graph.getShortestPath(t1, t2);
-				GraphPath dsp = dijkstraShortestPath.getPath(t1, t2);
+				GraphPath<SWCPoint, SWCWeightedEdge> dsp = dijkstraShortestPath.getPath(t1, t2);
 				assertEquals(sp.getLength(), dsp.getWeight(), precision);
 				assertEquals(sp.size(), dsp.getVertexList().size());
 			}
