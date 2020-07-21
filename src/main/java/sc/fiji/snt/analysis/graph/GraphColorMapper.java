@@ -1,0 +1,121 @@
+package sc.fiji.snt.analysis.graph;
+
+import net.imagej.lut.LUTService;
+import net.imglib2.display.ColorTable;
+import org.jgrapht.graph.DefaultWeightedEdge;
+import org.scijava.Context;
+import org.scijava.plugin.Parameter;
+import org.scijava.util.ColorRGB;
+import sc.fiji.snt.analysis.ColorMapper;
+
+import java.io.IOException;
+import java.net.URL;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+public class GraphColorMapper extends ColorMapper {
+
+    /**
+     * Flag for {@value #EDGE_WEIGHT} mapping.
+     */
+    public static final String EDGE_WEIGHT = "Edge weight";
+
+    private static final String[] ALL_FLAGS = { //
+            EDGE_WEIGHT};
+
+    @Parameter
+    private LUTService lutService;
+    private Map<String, URL> luts;
+    protected ColorableGraph<Object, DefaultWeightedEdge> graph;
+    private int internalCounter = 1;
+
+    public GraphColorMapper(final Context context) {
+        this();
+        context.inject(this);
+    }
+
+    public GraphColorMapper() {
+
+    }
+
+    /**
+     * Gets the list of supported mapping metrics.
+     *
+     * @return the list of mapping metrics.
+     */
+    public static List<String> getMetrics() {
+
+        return Arrays.stream(ALL_FLAGS).collect(Collectors.toList());
+    }
+
+    private void initLuts() {
+        if (luts == null) luts = lutService.findLUTs();
+    }
+
+    /**
+     * Gets the available LUTs.
+     *
+     * @return the set of keys, corresponding to the set of LUTs available
+     */
+    public Set<String> getAvailableLuts() {
+        initLuts();
+        return luts.keySet();
+    }
+
+    public ColorTable getColorTable(final String lut) {
+        initLuts();
+        for (final Map.Entry<String, URL> entry : luts.entrySet()) {
+            if (entry.getKey().contains(lut)) {
+                try {
+                    return lutService.loadLUT(entry.getValue());
+                } catch (final IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        return null;
+    }
+
+    public void map(ColorableGraph graph, final String measurement, final String lut) {
+        ColorTable colorTable = getColorTable(lut);
+        this.graph = graph;
+        mapToProperty(measurement, colorTable);
+    }
+
+    public void map(ColorableGraph graph, final String measurement, final ColorTable colorTable) {
+        this.graph = graph;
+        mapToProperty(measurement, colorTable);
+    }
+
+    protected void mapToProperty(final String measurement,
+                                 final ColorTable colorTable) {
+        map(measurement, colorTable);
+        switch (measurement) {
+            case EDGE_WEIGHT:
+                mapToEdgeWeight(colorTable);
+        }
+    }
+
+    protected void mapToEdgeWeight(final ColorTable colorTable) {
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
+        for (DefaultWeightedEdge edge : this.graph.edgeSet()) {
+            double w = this.graph.getEdgeWeight(edge);
+            if (w > max) {
+                max = w;
+            }
+            if (w < min) {
+                min = w;
+            }
+        }
+        setMinMax(min, max);
+        for (DefaultWeightedEdge edge : this.graph.edgeSet()) {
+            ColorRGB c = getColorRGB(this.graph.getEdgeWeight(edge));
+            this.graph.setEdgeColor(edge, c);
+        }
+    }
+
+}
