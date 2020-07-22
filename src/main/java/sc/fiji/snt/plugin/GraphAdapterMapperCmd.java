@@ -22,13 +22,8 @@
 
 package sc.fiji.snt.plugin;
 
-import java.io.IOException;
-import java.net.URL;
-import java.util.*;
-
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
-
 import org.scijava.command.Command;
 import org.scijava.command.DynamicCommand;
 import org.scijava.module.MutableModuleItem;
@@ -36,10 +31,19 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
-
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.analysis.graph.*;
+import sc.fiji.snt.analysis.graph.AnnotationGraph;
+import sc.fiji.snt.analysis.graph.AnnotationGraphAdapter;
+import sc.fiji.snt.analysis.graph.AnnotationWeightedEdge;
+import sc.fiji.snt.analysis.graph.GraphColorMapper;
 import sc.fiji.snt.annotation.BrainAnnotation;
+
+import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 
 @Plugin(type = Command.class, visible = false, label = "Graph Color Mapper",
@@ -77,14 +81,27 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
         cGraph = adapter.getSourceGraph();
         if (cGraph.vertexSet().isEmpty()) cancel("Graph is empty");
         final GraphColorMapper colorizer = new GraphColorMapper(context());
+        int mappedState;
         try {
-            colorizer.map(cGraph, measurementChoice, colorTable);
-        }
-        catch (final Exception exc) {
+            mappedState = colorizer.map(cGraph, measurementChoice, colorTable);
+        } catch (final Exception exc) {
             cancel(exc.getMessage());
             return;
         }
-        applyColorCoding();
+        switch (mappedState) {
+            case GraphColorMapper.VERTICES:
+                applyVertexColors();
+                break;
+            case GraphColorMapper.EDGES:
+                applyEdgeColors();
+                break;
+            case GraphColorMapper.VERTICES_AND_EDGES:
+                applyVertexColors();
+                applyEdgeColors();
+                break;
+            default:
+                cancel("Color mapping failed");
+        }
         SNTUtils.log("Finished...");
     }
 
@@ -128,8 +145,7 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
     private void lutChoiceChanged() {
         try {
             colorTable = lutService.loadLUT(luts.get(lutChoice));
-        }
-        catch (final IOException e) {
+        } catch (final IOException e) {
             e.printStackTrace();
         }
     }
@@ -144,10 +160,13 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
         }
     }
 
-    private void applyColorCoding() {
+    private void applyVertexColors() {
         for (BrainAnnotation vertex : cGraph.vertexSet()) {
             adapter.setVertexColor(vertex, cGraph.getVertexColor(vertex));
         }
+    }
+
+    private void applyEdgeColors() {
         for (AnnotationWeightedEdge edge : cGraph.edgeSet()) {
             adapter.setEdgeColor(edge, cGraph.getEdgeColor(edge));
         }

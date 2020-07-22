@@ -78,6 +78,7 @@ public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, Anno
         }
         Object[] modified = { cell };
         setCellStyles(mxConstants.STYLE_STROKECOLOR, newColor, modified);
+        setCellStyles(mxConstants.STYLE_GRADIENTCOLOR, newColor, modified);
     }
 
     public void setEdgeColor(AnnotationWeightedEdge edge, ColorRGB color) {
