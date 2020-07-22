@@ -10,6 +10,7 @@ import com.mxgraph.swing.handler.mxRubberband;
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.swing.mxGraphOutline;
 import com.mxgraph.util.mxCellRenderer;
+import com.mxgraph.view.mxGraphView;
 
 import org.scijava.Context;
 import org.scijava.command.CommandService;
@@ -63,6 +64,10 @@ public class AnnotationGraphComponent extends mxGraphComponent {
         addMouseWheelListener(new AnnotationGraphComponent.ZoomMouseWheelListener());
         setKeepSelectionVisibleOnZoom(true);
         setCenterZoom(true);
+        //setCenterPage(true);
+        //setPageVisible(true);
+        //setPreferPageSize(true);
+        addComponentListener(new InitialComponentResizeListener());
         addRubberBandZoom();
         panningHandler = createPanningHandler();
         setPanning(true);
@@ -79,6 +84,48 @@ public class AnnotationGraphComponent extends mxGraphComponent {
         new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
         panMenuItem = new JCheckBoxMenuItem("Pan Mode");
     }
+
+    class InitialComponentResizeListener implements ComponentListener {
+
+        @Override
+        public void componentHidden(ComponentEvent e) {
+        }
+
+        @Override
+        public void componentMoved(ComponentEvent e) {
+        }
+
+        @Override
+        public void componentResized(ComponentEvent e) {
+          e.getComponent().removeComponentListener(this);
+            zoomToFitHorizontal();
+        }
+
+        @Override
+        public void componentShown(ComponentEvent e) {
+
+        }
+
+      }
+
+	public void zoomToFitHorizontal() {
+		// See https://www.javatips.net/api/bundlemaker-master/bundlemaker.incubator/
+		// org.bundlemaker.core.ui.editor.dependencyviewer/src/org/bundlemaker/core/ui/
+		// editor/dependencyviewer/graph/DependencyViewerGraph.java
+		mxGraphView view = graph.getView();
+		int compLen = getWidth();
+		int viewLen = (int) view.getGraphBounds().getWidth();
+
+		if (compLen == 0 || viewLen == 0) {
+			return;
+		}
+		double scale = (double) compLen / viewLen * view.getScale();
+		if (scale > 1) {
+			zoomActual();
+		} else {
+			view.setScale(scale);
+		}
+	}
 
     protected Component getJSplitPane() {
         // Default dimensions are exaggerated. Curb them a bit
