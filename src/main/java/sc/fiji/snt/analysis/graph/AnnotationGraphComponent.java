@@ -12,7 +12,6 @@ import com.mxgraph.swing.mxGraphOutline;
 import com.mxgraph.util.mxCellRenderer;
 
 import org.scijava.Context;
-import org.scijava.command.Command;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 
@@ -20,7 +19,7 @@ import org.w3c.dom.Document;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.plugin.GraphMapperCmd;
+import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -37,7 +36,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 public class AnnotationGraphComponent extends mxGraphComponent {
     @Parameter
@@ -47,7 +45,6 @@ public class AnnotationGraphComponent extends mxGraphComponent {
     private mxGraphLayout layout;
     private final KeyboardHandler keyboardHandler;
     private final JCheckBoxMenuItem panMenuItem;
-    private JButton flipButton;
     private File saveDir;
     // Layout parameters, these are all the default value unless specified
     // Fast organic layout parameters
@@ -132,21 +129,13 @@ public class AnnotationGraphComponent extends mxGraphComponent {
         final JButton circleLayoutButton = new JButton("Circular");
         circleLayoutButton.addActionListener(e -> {
             mxCircleLayout circleLayout = new mxCircleLayout(adapter);
-            adapter.getModel().beginUpdate();
-            try {
-//                for (mxICell cell : adapter.getVertexToCellMap().values()) {
-//                    adapter.getModel().setGeometry(cell, new mxGeometry(0,0,0,0));
-//                }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            } finally {
-                adapter.getModel().endUpdate();
-                circleLayout.setRadius(radius);
-                circleLayout.execute(adapter.getDefaultParent());
-                zoomActual();
-                zoomAndCenter();
-                centerGraph();
-            }
+            circleLayout.setRadius(radius);
+            circleLayout.execute(adapter.getDefaultParent());
+            new mxParallelEdgeLayout((adapter)).execute(adapter.getDefaultParent());
+            zoomActual();
+            zoomAndCenter();
+            centerGraph();
+
         });
         layoutPopup.add(circleLayoutButton);
         final JButton fastOrganicLayoutButton = new JButton("Fast Organic");
@@ -157,20 +146,11 @@ public class AnnotationGraphComponent extends mxGraphComponent {
             fastOrganicLayout.setMaxDistanceLimit(maxDistance);
             fastOrganicLayout.setInitialTemp(initialTemp);
             fastOrganicLayout.setMaxIterations(maxIterations);
-            adapter.getModel().beginUpdate();
-            try {
-//                for (mxICell cell : adapter.getVertexToCellMap().values()) {
-//                    adapter.getModel().setGeometry(cell, new mxGeometry(0,0,0,0));
-//                }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            } finally {
-                adapter.getModel().endUpdate();
-                fastOrganicLayout.execute(adapter.getDefaultParent());
-                zoomActual();
-                zoomAndCenter();
-                centerGraph();
-            }
+            fastOrganicLayout.execute(adapter.getDefaultParent());
+            new mxParallelEdgeLayout((adapter)).execute(adapter.getDefaultParent());
+            zoomActual();
+            zoomAndCenter();
+            centerGraph();
         });
         layoutPopup.add(fastOrganicLayoutButton);
 
@@ -180,14 +160,11 @@ public class AnnotationGraphComponent extends mxGraphComponent {
             }
         });
         buttonPanel.add(layoutButton, gbc);
-        //flipButton = new JButton((layout.isHorizontal()?"Vertical":"Horizontal"));
-        //flipButton.addActionListener(e -> flipGraphToHorizontal(!layout.isHorizontal()));
-        //buttonPanel.add(flipButton, gbc);
+
         button = new JButton("Reset");
         button.addActionListener(e -> {
             zoomActual();
             zoomAndCenter();
-            flipGraphToHorizontal(true);
         });
         buttonPanel.add(button, gbc);
         final JButton labelsButton = new JButton("Labels");
@@ -222,10 +199,9 @@ public class AnnotationGraphComponent extends mxGraphComponent {
         colorCodingButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                final AnnotationGraph mappedGraph = adapter.getAnnotationGraph();
                 final Map<String, Object> input = new HashMap<>();
-                input.put("graph", mappedGraph);
-                runCmd(GraphMapperCmd.class, input, CmdWorker.UPDATE_GRAPH);
+                input.put("adapter", adapter);
+                cmdService.run(GraphAdapterMapperCmd.class, true, input);
             }
         });
         buttonPanel.add(colorCodingButton, gbc);
@@ -432,14 +408,6 @@ public class AnnotationGraphComponent extends mxGraphComponent {
                 new mxGeometry((widthLayout - width) / 2, (heightLayout - height) / 2, widthLayout, heightLayout));
     }
 
-    private void flipGraphToHorizontal(final boolean horizontal) {
-//        layout.setHorizontal(horizontal);
-//        layout.execute(adapter.getDefaultParent());
-//        centerGraph();
-//        if (flipButton != null)
-//            flipButton.setText((layout.isHorizontal())?"Vertical":"Horizontal");
-    }
-
     private JMenuItem saveAsMenuItem(final String label, final String extension) {
         final JMenuItem menuItem = new JMenuItem(label);
         menuItem.addActionListener(e -> export(extension));
@@ -542,81 +510,6 @@ public class AnnotationGraphComponent extends mxGraphComponent {
                 Collections.sort(lines);
             }
             GuiUtils.showHTMLDialog("<HTML>" + String.join("<br>", lines), "Dendrogram Viewer Shortcuts");
-        }
-    }
-
-    private void runCmd(final Class<? extends Command> cmdClass,
-                        final Map<String, Object> inputs, final int cmdType)
-    {
-        if (cmdService == null) {
-            new GuiUtils().error(
-                    "This command requires AnnotationGraphComponent to be aware of a Scijava Context");
-            return;
-        }
-        SwingUtilities.invokeLater(() -> {
-            (new CmdWorker(cmdClass, inputs, cmdType))
-                    .execute();
-        });
-    }
-
-    class CmdWorker extends SwingWorker<Boolean, Object> {
-
-        private static final int UPDATE_GRAPH = 0;
-
-        private final Class<? extends Command> cmd;
-        private final Map<String, Object> inputs;
-        private final int type;
-
-
-        public CmdWorker(final Class<? extends Command> cmd,
-                         final Map<String, Object> inputs, final int type) {
-            this.cmd = cmd;
-            this.inputs = inputs;
-            this.type = type;
-        }
-
-        @Override
-        public Boolean doInBackground() {
-            try {
-                final Map<String, Object> input = new HashMap<>();
-                if (inputs != null) input.putAll(inputs);
-                cmdService.run(cmd, true, input).get();
-                return true;
-            } catch (final NullPointerException e1) {
-                e1.printStackTrace();
-                return false;
-            } catch (InterruptedException | ExecutionException e2) {
-                new GuiUtils().error(
-                        "Unfortunately an exception occured. See console for details.");
-                SNTUtils.error("Error", e2);
-                return false;
-            }
-        }
-
-        @Override
-        protected void done() {
-            boolean status = false;
-            try {
-                status = get();
-                if (status) {
-                    switch (type) {
-                        case UPDATE_GRAPH:
-                            AnnotationGraph mappedGraph = (AnnotationGraph) inputs.get("graph");
-                            System.out.println(mappedGraph.getEdgeColorRGBMap());
-                            if (!mappedGraph.getVertexColorRGBMap().isEmpty()) {
-                                adapter.setVertexColors(mappedGraph.getVertexColorRGBMap());
-                            }
-                            if (!mappedGraph.getEdgeColorRGBMap().isEmpty()) {
-                                adapter.setEdgeColors(mappedGraph.getEdgeColorRGBMap());
-                            }
-                            break;
-                        default:
-                            break;
-                    }
-                }
-            } catch (final Exception ignored) {
-                // do nothing
-            }
         }
     }
 

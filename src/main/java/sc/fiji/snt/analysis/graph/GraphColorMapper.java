@@ -2,6 +2,7 @@ package sc.fiji.snt.analysis.graph;
 
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
+import org.jgrapht.alg.scoring.BetweennessCentrality;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.plugin.Parameter;
@@ -22,9 +23,15 @@ public class GraphColorMapper extends ColorMapper {
      * Flag for {@value #EDGE_WEIGHT} mapping.
      */
     public static final String EDGE_WEIGHT = "Edge weight";
+    /**
+     * Flag for {@value #BETWEENNESS_CENTRALITY} mapping.
+     */
+    public static final String BETWEENNESS_CENTRALITY = "Betweenness centrality";
 
     private static final String[] ALL_FLAGS = { //
-            EDGE_WEIGHT};
+            EDGE_WEIGHT,
+            BETWEENNESS_CENTRALITY,
+    };
 
     @Parameter
     private LUTService lutService;
@@ -96,6 +103,12 @@ public class GraphColorMapper extends ColorMapper {
         switch (measurement) {
             case EDGE_WEIGHT:
                 mapToEdgeWeight(colorTable);
+                break;
+            case BETWEENNESS_CENTRALITY:
+                mapToBetweennessCentrality(colorTable);
+                break;
+            default:
+                return;
         }
     }
 
@@ -115,6 +128,22 @@ public class GraphColorMapper extends ColorMapper {
         for (DefaultWeightedEdge edge : this.graph.edgeSet()) {
             ColorRGB c = getColorRGB(this.graph.getEdgeWeight(edge));
             this.graph.setEdgeColor(edge, c);
+        }
+    }
+
+    protected void mapToBetweennessCentrality(final ColorTable colorTable) {
+        BetweennessCentrality<Object, DefaultWeightedEdge> bc = new BetweennessCentrality<>(this.graph, false);
+        Map<Object, Double> scores = bc.getScores();
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
+        for (Double s : scores.values()) {
+            if (s < min) {min = s;}
+            if (s > max) {max = s;}
+        }
+        setMinMax(min, max);
+        for (Map.Entry<Object, Double> entry : scores.entrySet()) {
+            ColorRGB c = getColorRGB(entry.getValue());
+            this.graph.setVertexColor(entry.getKey(), c);
         }
     }
 

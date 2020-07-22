@@ -24,15 +24,10 @@ package sc.fiji.snt.plugin;
 
 import java.io.IOException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
-
-import org.jgrapht.graph.DefaultWeightedEdge;
 
 import org.scijava.command.Command;
 import org.scijava.command.DynamicCommand;
@@ -43,13 +38,13 @@ import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
 
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.analysis.graph.ColorableGraph;
-import sc.fiji.snt.analysis.graph.GraphColorMapper;
+import sc.fiji.snt.analysis.graph.*;
+import sc.fiji.snt.annotation.BrainAnnotation;
 
 
 @Plugin(type = Command.class, visible = false, label = "Graph Color Mapper",
         initializer = "init")
-public class GraphMapperCmd extends DynamicCommand {
+public class GraphAdapterMapperCmd extends DynamicCommand {
 
     @Parameter
     private PrefService prefService;
@@ -71,25 +66,25 @@ public class GraphMapperCmd extends DynamicCommand {
     private Button removeColorCoding;
 
     @Parameter(required = true)
-    private ColorableGraph<Object, DefaultWeightedEdge> graph;
+    private AnnotationGraphAdapter adapter;
 
+    private AnnotationGraph cGraph;
     private Map<String, URL> luts;
 
     @Override
     public void run() {
-        if (graph == null || graph.vertexSet().isEmpty()) cancel("Invalid input tree");
-        SNTUtils.log("Color Coding Graph(" + measurementChoice + ") using " + lutChoice);
+        if (adapter == null) cancel("Input is null");
+        cGraph = adapter.getSourceGraph();
+        if (cGraph.vertexSet().isEmpty()) cancel("Graph is empty");
         final GraphColorMapper colorizer = new GraphColorMapper(context());
         try {
-            colorizer.map(graph, measurementChoice, colorTable);
+            colorizer.map(cGraph, measurementChoice, colorTable);
         }
         catch (final Exception exc) {
             cancel(exc.getMessage());
             return;
         }
-        for (DefaultWeightedEdge e : graph.edgeSet()) {
-            System.out.println(graph.getEdgeColor(e).toHTMLColor());
-        }
+        applyColorCoding();
         SNTUtils.log("Finished...");
     }
 
@@ -141,11 +136,20 @@ public class GraphMapperCmd extends DynamicCommand {
 
     @SuppressWarnings("unused")
     private void removeColorCoding() {
-        for (Object vertex : graph.vertexSet()) {
-            graph.setVertexColor(vertex, null);
+        for (BrainAnnotation vertex : adapter.getVertexToCellMap().keySet()) {
+            adapter.setVertexColor(vertex, null);
         }
-        for (DefaultWeightedEdge edge : graph.edgeSet()) {
-            graph.setEdgeColor(edge, null);
+        for (AnnotationWeightedEdge edge : adapter.getEdgeToCellMap().keySet()) {
+            adapter.setEdgeColor(edge, null);
+        }
+    }
+
+    private void applyColorCoding() {
+        for (BrainAnnotation vertex : cGraph.vertexSet()) {
+            adapter.setVertexColor(vertex, cGraph.getVertexColor(vertex));
+        }
+        for (AnnotationWeightedEdge edge : cGraph.edgeSet()) {
+            adapter.setEdgeColor(edge, cGraph.getEdgeColor(edge));
         }
     }
 

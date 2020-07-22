@@ -12,7 +12,6 @@ import org.scijava.prefs.PrefService;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.gui.GuiUtils;
 
 import javax.swing.*;
@@ -23,9 +22,9 @@ import java.util.List;
 public class GraphViewer {
     @Parameter
     private Context context;
-    private ColorableGraph<BrainAnnotation, AnnotationWeightedEdge> graph;
+    private AnnotationGraph graph;
 
-    public GraphViewer(final ColorableGraph<BrainAnnotation, AnnotationWeightedEdge> graph) {
+    public GraphViewer(final AnnotationGraph graph) {
         this.graph = graph;
     }
     public void setContext(final Context context) {

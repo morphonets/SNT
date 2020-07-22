@@ -14,9 +14,6 @@ import java.util.stream.Collectors;
 
 public class AnnotationGraph extends ColorableGraph<BrainAnnotation, AnnotationWeightedEdge> {
 
-    private final Map<BrainAnnotation, ColorRGB> vertexColorRGBMap = new HashMap<>();
-    private final Map<AnnotationWeightedEdge, ColorRGB> edgeColorRGBMap = new HashMap<>();
-
     protected AnnotationGraph() {
         super(AnnotationWeightedEdge.class);
     }
@@ -127,34 +124,6 @@ public class AnnotationGraph extends ColorableGraph<BrainAnnotation, AnnotationW
      */
     public double sumEdgeWeights() {
         return edgeSet().stream().mapToDouble(this::getEdgeWeight).sum();
-    }
-
-    @Override
-    public void setVertexColor(BrainAnnotation vertex, ColorRGB color) {
-        if (containsVertex(vertex)) {
-            vertexColorRGBMap.put(vertex, color);
-        }
-    }
-
-    @Override
-    public void setEdgeColor(AnnotationWeightedEdge edge, ColorRGB color) {
-        if (containsEdge(edge)) {
-            edgeColorRGBMap.put(edge, color);
-        }
-    }
-
-    public ColorRGB getVertexColor(BrainAnnotation vertex) {
-        if (containsVertex(vertex) && vertexColorRGBMap.containsKey(vertex)) {
-            return vertexColorRGBMap.get(vertex);
-        }
-        return null;
-    }
-
-    public ColorRGB getEdgeColor(AnnotationWeightedEdge edge) {
-        if (containsEdge(edge) && edgeColorRGBMap.containsKey(edge)) {
-            return edgeColorRGBMap.get(edge);
-        }
-        return null;
     }
 
     protected Map<BrainAnnotation, ColorRGB> getVertexColorRGBMap() {

@@ -12,6 +12,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import javax.swing.*;
 import java.awt.*;
 import java.io.File;
+import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,7 +28,7 @@ public class AnnotationGraphUtils {
      * @param graph the graph to be displayed
      * @return the assembled window
      */
-    public static Window show(final Graph<BrainAnnotation, AnnotationWeightedEdge> graph) {
+    public static Window show(final AnnotationGraph graph) {
         GuiUtils.setSystemLookAndFeel();
         final JDialog frame = new JDialog((JFrame) null, "SNT Graph Viewer");
         final AnnotationGraphAdapter graphAdapter = new AnnotationGraphAdapter(graph);

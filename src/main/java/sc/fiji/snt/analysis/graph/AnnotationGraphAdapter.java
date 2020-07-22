@@ -4,7 +4,6 @@ import com.mxgraph.model.mxCell;
 import com.mxgraph.model.mxICell;
 import com.mxgraph.util.mxConstants;
 
-import org.jgrapht.Graph;
 import org.jgrapht.ext.JGraphXAdapter;
 
 import org.scijava.util.ColorRGB;
@@ -20,11 +19,11 @@ public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, Anno
     private static final String DARK_GRAY = "#222222";
     private static final String LIGHT_GRAY = "#eeeeee";
 
-    protected AnnotationGraphAdapter(final Graph<BrainAnnotation, AnnotationWeightedEdge> graph) {
+    protected AnnotationGraphAdapter(final AnnotationGraph graph) {
         this(graph, LIGHT_GRAY);
     }
 
-    protected AnnotationGraphAdapter(final Graph<BrainAnnotation, AnnotationWeightedEdge> graph, final String verticesColor) {
+    protected AnnotationGraphAdapter(final AnnotationGraph graph, final String verticesColor) {
         super(graph);
         final String vColor = (verticesColor == null) ? LIGHT_GRAY : new ColorRGB(verticesColor).toHTMLColor();
         final Map<String, Object> edgeStyle = getStylesheet().getDefaultEdgeStyle();
@@ -66,41 +65,49 @@ public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, Anno
 
     }
 
-    protected void setVertexColors(Map<BrainAnnotation, ColorRGB> vertexColorMap) {
-        for (BrainAnnotation v : vertexColorMap.keySet()) {
-            Object cell = getVertexToCellMap().get(v);
-            Object[] modified = { cell };
-            String newColor = vertexColorMap.get(v).toHTMLColor();
-            if (newColor == null) {
-                newColor = DARK_GRAY;
-            }
-            setCellStyles(mxConstants.STYLE_STROKECOLOR, newColor, modified);
+    public void setVertexColor(BrainAnnotation vertex, ColorRGB color) {
+        Object cell = getVertexToCellMap().get(vertex);
+        if (cell == null) {
+            return;
         }
+        String newColor;
+        if (color == null) {
+            newColor = DARK_GRAY;
+        } else {
+            newColor = color.toHTMLColor();
+        }
+        Object[] modified = { cell };
+        setCellStyles(mxConstants.STYLE_STROKECOLOR, newColor, modified);
     }
 
-    protected void setEdgeColors(Map<AnnotationWeightedEdge, ColorRGB> edgeColorMap) {
-        for (AnnotationWeightedEdge e : edgeColorMap.keySet()) {
-            Object cell = getEdgeToCellMap().get(e);
-            Object[] modified = { cell };
-            String newColor = edgeColorMap.get(e).toHTMLColor();
-            if (newColor == null) {
-                newColor = DARK_GRAY;
-            }
-            setCellStyles(mxConstants.STYLE_STROKECOLOR, newColor, modified);
+    public void setEdgeColor(AnnotationWeightedEdge edge, ColorRGB color) {
+        Object cell = getEdgeToCellMap().get(edge);
+        if (cell == null) {
+            return;
         }
+        String newColor;
+        if (color == null) {
+            newColor = DARK_GRAY;
+        } else {
+            newColor = color.toHTMLColor();
+        }
+        Object[] modified = { cell };
+        setCellStyles(mxConstants.STYLE_STROKECOLOR, newColor, modified);
     }
 
-    protected AnnotationGraph getAnnotationGraph() {
+    public AnnotationGraph getSourceGraph() {
         AnnotationGraph aGraph = new AnnotationGraph();
-        Set<BrainAnnotation> vMap = getVertexToCellMap().keySet();
-        Set<AnnotationWeightedEdge> eMap = getEdgeToCellMap().keySet();
-        for (BrainAnnotation v : vMap) {
-            aGraph.addVertex(v);
+        Map<BrainAnnotation, mxICell> vMap = getVertexToCellMap();
+        Map<AnnotationWeightedEdge, mxICell> eMap = getEdgeToCellMap();
+        for (Map.Entry<BrainAnnotation, mxICell> entry : vMap.entrySet()) {
+            aGraph.addVertex(entry.getKey());
+            aGraph.setVertexColor(entry.getKey(), new ColorRGB( (String) getCellStyle(entry.getValue()).get(mxConstants.STYLE_STROKECOLOR)));
         }
-        for (AnnotationWeightedEdge e : eMap) {
-            aGraph.addEdge(e.getSource(), e.getTarget(), e);
+        for (Map.Entry<AnnotationWeightedEdge, mxICell> entry : eMap.entrySet()) {
+            AnnotationWeightedEdge edge = entry.getKey();
+            aGraph.addEdge(edge.getSource(), edge.getTarget(), edge);
+            aGraph.setEdgeColor(edge, new ColorRGB( (String) getCellStyle(entry.getValue()).get(mxConstants.STYLE_STROKECOLOR)));
         }
-        System.out.println(aGraph.edgeSet().size());
         return aGraph;
     }
 
