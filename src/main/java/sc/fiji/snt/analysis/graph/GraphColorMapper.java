@@ -2,6 +2,8 @@ package sc.fiji.snt.analysis.graph;
 
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
+import org.jgrapht.Graph;
+import org.jgrapht.alg.connectivity.BiconnectivityInspector;
 import org.jgrapht.alg.scoring.BetweennessCentrality;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
@@ -18,19 +20,23 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class GraphColorMapper extends ColorMapper {
-
-    /**
-     * Flag for {@value #EDGE_WEIGHT} mapping.
-     */
-    public static final String EDGE_WEIGHT = "Edge weight";
     /**
      * Flag for {@value #BETWEENNESS_CENTRALITY} mapping.
      */
     public static final String BETWEENNESS_CENTRALITY = "Betweenness centrality";
+    /**
+     * Flag for {@value #CONNECTIVITY} mapping.
+     */
+    public static final String CONNECTIVITY = "Connected components";
+    /**
+     * Flag for {@value #EDGE_WEIGHT} mapping.
+     */
+    public static final String EDGE_WEIGHT = "Edge weight";
 
     private static final String[] ALL_FLAGS = { //
-            EDGE_WEIGHT,
             BETWEENNESS_CENTRALITY,
+            CONNECTIVITY,
+            EDGE_WEIGHT,
     };
 
     @Parameter
@@ -107,8 +113,22 @@ public class GraphColorMapper extends ColorMapper {
             case BETWEENNESS_CENTRALITY:
                 mapToBetweennessCentrality(colorTable);
                 break;
+            case CONNECTIVITY:
+                mapToConnectivity(colorTable);
             default:
-                return;
+        }
+    }
+
+    protected void mapToConnectivity(final ColorTable colorTable) {
+        BiconnectivityInspector<Object, DefaultWeightedEdge> inspector = new BiconnectivityInspector<>(this.graph);
+        Set<Graph<Object, DefaultWeightedEdge>> components = inspector.getConnectedComponents();
+        int idx = 0;
+        for (Graph<Object, DefaultWeightedEdge> comp : components) {
+            for (DefaultWeightedEdge edge : comp.edgeSet()) {
+                ColorRGB c = getColorRGB(idx);
+                this.graph.setEdgeColor(edge, c);
+            }
+            ++idx;
         }
     }
 
