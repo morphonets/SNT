@@ -24,20 +24,11 @@ public class GraphViewer {
     @Parameter
     private Context context;
     private final ColorableGraph graph;
-    private final SNTGraphAdapter adapter;
-    private final SNTGraphComponent component;
+    private SNTGraphAdapter adapter;
+    private SNTGraphComponent component;
 
-    public GraphViewer(final ColorableGraph inputGraph, Context context) {
+    public GraphViewer(final ColorableGraph inputGraph) {
         this.graph = inputGraph;
-        if (this.graph instanceof DirectedWeightedGraph) {
-            adapter = new TreeGraphAdapter((DirectedWeightedGraph)this.graph);
-            component = new TreeGraphComponent((TreeGraphAdapter) adapter, getContext());
-        } else if (this.graph instanceof AnnotationGraph) {
-            adapter = new AnnotationGraphAdapter((AnnotationGraph) this.graph);
-            component = new AnnotationGraphComponent((AnnotationGraphAdapter) adapter, getContext());
-        } else {
-            throw new UnsupportedOperationException("Currently only DirectedWeightedGraph and AnnotationGraph are supported.");
-        }
     }
 
     public void setContext(final Context context) {
@@ -58,6 +49,15 @@ public class GraphViewer {
      * @return the assembled window
      */
     public Window show() {
+        if (this.graph instanceof DirectedWeightedGraph) {
+            adapter = new TreeGraphAdapter((DirectedWeightedGraph)this.graph);
+            component = new TreeGraphComponent((TreeGraphAdapter) adapter, getContext());
+        } else if (this.graph instanceof AnnotationGraph) {
+            adapter = new AnnotationGraphAdapter((AnnotationGraph) this.graph);
+            component = new AnnotationGraphComponent((AnnotationGraphAdapter) adapter, getContext());
+        } else {
+            throw new UnsupportedOperationException("Currently only DirectedWeightedGraph and AnnotationGraph are supported.");
+        }
         GuiUtils.setSystemLookAndFeel();
         final JDialog frame = new JDialog((JFrame) null, "SNT Graph Viewer");
         frame.add(component.getJSplitPane());
@@ -86,8 +86,8 @@ public class GraphViewer {
         final AnnotationGraph graph = new AnnotationGraph(trees, 40, 7);
         //graph.filterEdgesByWeight(20);
         // graph.removeOrphanedNodes();
-        GraphViewer graphViewer = new GraphViewer(trees.get(0).getGraph().getSimplifiedGraph(), ij.context());
-        //graphViewer.setContext(ij.context());
+        GraphViewer graphViewer = new GraphViewer(graph);
+        graphViewer.setContext(ij.context());
         graphViewer.show();
     }
 }
