@@ -38,15 +38,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class AnnotationGraphComponent extends mxGraphComponent {
-    @Parameter
-    private CommandService cmdService;
+class AnnotationGraphComponent extends SNTGraphComponent {
+
     private static final long serialVersionUID = 1L;
-    private final AnnotationGraphAdapter adapter;
     private mxGraphLayout layout;
-    private final KeyboardHandler keyboardHandler;
-    private final JCheckBoxMenuItem panMenuItem;
-    private File saveDir;
     // Layout parameters, these are all the default value unless specified
     // Fast organic layout parameters
     private double forceConstant = 50;
@@ -54,79 +49,17 @@ public class AnnotationGraphComponent extends mxGraphComponent {
     private double maxDistance = 500;
     private double initialTemp = 200;
     private double maxIterations = 0;
-    // Circular layout parameters
+    // Circle layout parameters
     private double radius = 100;
 
     protected AnnotationGraphComponent(final AnnotationGraphAdapter adapter, Context context) {
-        super(adapter);
-        context.inject(this);
-        this.adapter = adapter;
-        addMouseWheelListener(new AnnotationGraphComponent.ZoomMouseWheelListener());
-        setKeepSelectionVisibleOnZoom(true);
-        setCenterZoom(true);
-        //setCenterPage(true);
-        //setPageVisible(true);
-        //setPreferPageSize(true);
-        addComponentListener(new InitialComponentResizeListener());
-        addRubberBandZoom();
-        panningHandler = createPanningHandler();
-        setPanning(true);
-        keyboardHandler = new AnnotationGraphComponent.KeyboardHandler(this);
-        setEscapeEnabled(true);
-        setAntiAlias(true);
-        setDoubleBuffered(true);
-        setConnectable(true);
-        setFoldingEnabled(true);
-        setDragEnabled(false);
-        setToolTips(true);
+        super(adapter, context);
         layout = new mxCircleLayout(adapter);
         layout.execute(adapter.getDefaultParent());
         new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
-        panMenuItem = new JCheckBoxMenuItem("Pan Mode");
     }
 
-    class InitialComponentResizeListener implements ComponentListener {
-
-        @Override
-        public void componentHidden(ComponentEvent e) {
-        }
-
-        @Override
-        public void componentMoved(ComponentEvent e) {
-        }
-
-        @Override
-        public void componentResized(ComponentEvent e) {
-          e.getComponent().removeComponentListener(this);
-            zoomToFitHorizontal();
-        }
-
-        @Override
-        public void componentShown(ComponentEvent e) {
-
-        }
-
-      }
-
-	public void zoomToFitHorizontal() {
-		// See https://www.javatips.net/api/bundlemaker-master/bundlemaker.incubator/
-		// org.bundlemaker.core.ui.editor.dependencyviewer/src/org/bundlemaker/core/ui/
-		// editor/dependencyviewer/graph/DependencyViewerGraph.java
-		mxGraphView view = graph.getView();
-		int compLen = getWidth();
-		int viewLen = (int) view.getGraphBounds().getWidth();
-
-		if (compLen == 0 || viewLen == 0) {
-			return;
-		}
-		double scale = (double) compLen / viewLen * view.getScale();
-		if (scale > 1) {
-			zoomActual();
-		} else {
-			view.setScale(scale);
-		}
-	}
-
+    @Override
     protected Component getJSplitPane() {
         // Default dimensions are exaggerated. Curb them a bit
         setPreferredSize(getPreferredSize());
@@ -136,7 +69,8 @@ public class AnnotationGraphComponent extends mxGraphComponent {
         return new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, getControlPanel(), this);
     }
 
-    private JComponent getControlPanel() {
+    @Override
+    protected JComponent getControlPanel() {
         final JPanel buttonPanel = new JPanel(new GridBagLayout());
         final GridBagConstraints gbc = new GridBagConstraints();
         gbc.weightx = 1;
@@ -178,7 +112,7 @@ public class AnnotationGraphComponent extends mxGraphComponent {
             mxCircleLayout circleLayout = new mxCircleLayout(adapter);
             circleLayout.setRadius(radius);
             circleLayout.execute(adapter.getDefaultParent());
-            new mxParallelEdgeLayout((adapter)).execute(adapter.getDefaultParent());
+            new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
             zoomActual();
             zoomAndCenter();
             centerGraph();
@@ -340,57 +274,7 @@ public class AnnotationGraphComponent extends mxGraphComponent {
     }
 
     @Override
-    public void zoomIn() {
-        super.zoomIn();
-        centerGraph();
-    }
-
-    @Override
-    public void zoomOut() {
-        super.zoomOut();
-        centerGraph();
-    }
-
-    private void addRubberBandZoom() {
-        new mxRubberband(this) {
-
-            @Override
-            public void mouseReleased(final MouseEvent e) {
-                if (e.isAltDown()) {
-                    // get bounds before they are reset
-                    final Rectangle rect = super.bounds;
-
-                    super.mouseReleased(e);
-                    if (rect == null)
-                        return;
-
-                    double newScale = 1d;
-                    final Dimension graphSize = new Dimension(rect.width, rect.height);
-                    final Dimension viewPortSize = graphComponent.getViewport().getSize();
-
-                    final int gw = (int) graphSize.getWidth();
-                    final int gh = (int) graphSize.getHeight();
-
-                    if (gw > 0 && gh > 0) {
-                        final int w = (int) viewPortSize.getWidth();
-                        final int h = (int) viewPortSize.getHeight();
-                        newScale = Math.min((double) w / gw, (double) h / gh);
-                    }
-
-                    // zoom to fit selected area
-                    graphComponent.zoom(newScale);
-
-                    // make selected area visible
-                    graphComponent.getGraphControl().scrollRectToVisible(new Rectangle((int) (rect.x * newScale),
-                            (int) (rect.y * newScale), (int) (rect.width * newScale), (int) (rect.height * newScale)));
-                } else {
-                    super.mouseReleased(e);
-                }
-            }
-        };
-    }
-
-    private void assignPopupMenu(final JComponent component) {
+    protected void assignPopupMenu(final JComponent component) {
         final JPopupMenu popup = new JPopupMenu();
         component.setComponentPopupMenu(popup);
         JMenuItem mItem = new JMenuItem("Zoom to Selection (Alt + Click & Drag)");
@@ -436,128 +320,6 @@ public class AnnotationGraphComponent extends mxGraphComponent {
                 e.consume();
             }
         });
-    }
-
-    @Override
-    public Dimension getPreferredSize() {
-        final double width = adapter.getGraphBounds().getWidth();
-        final double height = adapter.getGraphBounds().getHeight();
-        return new Dimension((int) Math.min(600, width), (int) Math.min(400, height));
-    }
-
-    private void centerGraph() {
-        // https://stackoverflow.com/a/36947526
-        final double widthLayout = getLayoutAreaSize().getWidth();
-        final double heightLayout = getLayoutAreaSize().getHeight();
-        final double width = adapter.getGraphBounds().getWidth();
-        final double height = adapter.getGraphBounds().getHeight();
-        adapter.getModel().setGeometry(adapter.getDefaultParent(),
-                new mxGeometry((widthLayout - width) / 2, (heightLayout - height) / 2, widthLayout, heightLayout));
-    }
-
-    private JMenuItem saveAsMenuItem(final String label, final String extension) {
-        final JMenuItem menuItem = new JMenuItem(label);
-        menuItem.addActionListener(e -> export(extension));
-        return menuItem;
-    }
-
-    private void export(final String extension) {
-        final GuiUtils guiUtils = new GuiUtils(this.getParent());
-        final File file = new File(getSaveDir(), "exported-graph" + extension);
-        final File saveFile = guiUtils.saveFile("Export Graph...", file, Collections.singletonList(extension));
-        if (saveFile == null)
-            return; // user pressed cancel;
-        saveDir = saveFile.getParentFile();
-        try {
-            switch (extension) {
-                case ".png":
-                    final BufferedImage image = mxCellRenderer.createBufferedImage(adapter, null, 1, getBackground(), true,
-                            null);
-                    ImageIO.write(image, "PNG", saveFile);
-                    break;
-                case ".svg":
-                    final Document svgDoc = mxCellRenderer.createSvgDocument(adapter, null, 1, getBackground(), null);
-                    exportDocument(svgDoc, saveFile);
-                    break;
-                case ".html":
-                    final Document htmlDoc = mxCellRenderer.createHtmlDocument(adapter, null, 1, getBackground(), null);
-                    exportDocument(htmlDoc, saveFile);
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unrecognized extension");
-            }
-            guiUtils.tempMsg(file.getAbsolutePath() + " saved");
-
-        } catch (IOException | TransformerException e) {
-            guiUtils.error("An exception occured while saving file. See Console for details");
-            e.printStackTrace();
-        }
-    }
-
-    private File getSaveDir() {
-        if (saveDir == null)
-            return new File(System.getProperty("user.home"));
-        return saveDir;
-    }
-
-    private void exportDocument(final Document doc, final File file) throws TransformerException {
-        final Transformer transformer = TransformerFactory.newInstance().newTransformer();
-        final Result output = new StreamResult(file);
-        final Source input = new DOMSource(doc);
-        transformer.transform(input, output);
-    }
-
-    @Override
-    public boolean isPanningEvent(final MouseEvent event) {
-        return panMenuItem.isSelected();
-    }
-
-    private class ZoomMouseWheelListener implements MouseWheelListener {
-        @Override
-        public void mouseWheelMoved(final MouseWheelEvent e) {
-            if (e.getSource() instanceof mxGraphOutline || e.isShiftDown()) {
-                if (e.getWheelRotation() < 0) {
-                    AnnotationGraphComponent.this.zoomIn();
-                } else {
-                    AnnotationGraphComponent.this.zoomOut();
-                }
-
-            }
-        }
-    }
-
-    private class KeyboardHandler extends mxKeyboardHandler {
-
-        public KeyboardHandler(mxGraphComponent graphComponent) {
-            super(graphComponent);
-        }
-
-        protected InputMap getInputMap(int condition) {
-            final InputMap map = super.getInputMap(condition);
-            if (condition == JComponent.WHEN_FOCUSED) {
-                map.put(KeyStroke.getKeyStroke("EQUALS"), "zoomIn");
-                map.put(KeyStroke.getKeyStroke("control EQUALS"), "zoomIn");
-                map.put(KeyStroke.getKeyStroke("MINUS"), "zoomOut");
-                map.put(KeyStroke.getKeyStroke("control MINUS"), "zoomOut");
-            }
-            return map;
-        }
-
-        private void displayKeyMap() {
-            final InputMap inputMap = getInputMap(JComponent.WHEN_FOCUSED);
-            final KeyStroke[] keys = inputMap.allKeys();
-            final ArrayList<String> lines = new ArrayList<>();
-            final String common = "<span style='display:inline-block;width:100px;font-weight:bold'>";
-            if (keys != null) {
-                for (int i = 0; i < keys.length; i++) {
-                    final KeyStroke key = keys[i];
-                    final String keyString = key.toString().replace("pressed", "");
-                    lines.add(common + keyString + "</span>&nbsp;&nbsp;" + inputMap.get(key));
-                }
-                Collections.sort(lines);
-            }
-            GuiUtils.showHTMLDialog("<HTML>" + String.join("<br>", lines), "Dendrogram Viewer Shortcuts");
-        }
     }
 
 }

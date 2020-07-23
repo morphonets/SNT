@@ -31,6 +31,7 @@ import javax.swing.SwingUtilities;
 
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
+import org.scijava.Context;
 import org.scijava.util.Colors;
 
 import net.imagej.ImageJ;
@@ -88,15 +89,10 @@ public class GraphUtils {
 	 * @param graph the graph to be displayed
 	 * @return the assembled window
 	 */
-	public static Window show(final Graph<SWCPoint, SWCWeightedEdge> graph) {
-		GuiUtils.setSystemLookAndFeel();
-		final JDialog frame = new JDialog((JFrame) null, "SNT Dendrogram Viewer");
-		final TreeGraphAdapter graphAdapter = new TreeGraphAdapter(graph);
-		final TreeGraphComponent graphComponent = new TreeGraphComponent(graphAdapter);
-		frame.add(graphComponent.getJSplitPane());
-		frame.pack();
-		SwingUtilities.invokeLater(() -> frame.setVisible(true));
-		return frame;
+	public static Window show(final DirectedWeightedGraph graph) {
+		// TODO decide what to do here
+		//return new GraphViewer(graph).show();
+		throw new UnsupportedOperationException();
 	}
 
 	public static void main(final String[] args) {
@@ -106,7 +102,7 @@ public class GraphUtils {
 		final Tree tree = sntService.demoTree();
 		tree.downSample(Double.MAX_VALUE);
 		tree.setColor(Colors.RED);
-		final DefaultDirectedGraph<SWCPoint, SWCWeightedEdge> graph = tree.getGraph();
+		final DirectedWeightedGraph graph = tree.getGraph();
 		final Viewer3D recViewer = new Viewer3D(ij.context());
 		final Tree convertedTree = GraphUtils.createTree(graph);
 		convertedTree.setColor(Colors.CYAN);
@@ -114,6 +110,6 @@ public class GraphUtils {
 		recViewer.add(convertedTree);
 		recViewer.show();
 		GraphUtils.show(graph);
-		GraphUtils.show(GraphUtils.getSimplifiedGraph((DirectedWeightedGraph) graph));
+		GraphUtils.show(graph.getSimplifiedGraph());
 	}
 }

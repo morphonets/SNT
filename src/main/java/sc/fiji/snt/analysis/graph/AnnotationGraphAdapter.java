@@ -1,10 +1,7 @@
 package sc.fiji.snt.analysis.graph;
 
 import com.mxgraph.model.mxCell;
-import com.mxgraph.model.mxICell;
 import com.mxgraph.util.mxConstants;
-
-import org.jgrapht.ext.JGraphXAdapter;
 
 import org.scijava.util.ColorRGB;
 
@@ -12,7 +9,7 @@ import sc.fiji.snt.annotation.BrainAnnotation;
 
 import java.util.*;
 
-public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, AnnotationWeightedEdge> {
+public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, AnnotationWeightedEdge> {
 
     private static final String DARK_GRAY = "#222222";
     private static final String LIGHT_GRAY = "#eeeeee";
@@ -53,16 +50,7 @@ public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, Anno
 //        setCellStyles(mxConstants.STYLE_STROKECOLOR, "black", sArray);
 //        setCellStyles(mxConstants.STYLE_FONTSTYLE, String.valueOf(mxConstants.FONT_BOLD), sources.toArray());
 //        setCellStyles(mxConstants.STYLE_GRADIENTCOLOR, "black", sArray);
-        if (!graph.getVertexColorRGBMap().isEmpty()) {
-            for (Map.Entry<BrainAnnotation, ColorRGB> entry : graph.getVertexColorRGBMap().entrySet()) {
-                setVertexColor(entry.getKey(), entry.getValue());
-            }
-        }
-        if (!graph.getEdgeColorRGBMap().isEmpty()) {
-            for (Map.Entry<AnnotationWeightedEdge, ColorRGB> entry : graph.getEdgeColorRGBMap().entrySet()) {
-                setEdgeColor(entry.getKey(), entry.getValue());
-            }
-        }
+        setCellColorsFromGraph();
         vertexStyle.put(mxConstants.STYLE_FILLCOLOR, vColor);
         setLabelsVisible(true);
         setEnableVertexLabels(true);
@@ -74,6 +62,7 @@ public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, Anno
 
     }
 
+    @Override
     public void setVertexColor(BrainAnnotation vertex, ColorRGB color) {
         Object cell = getVertexToCellMap().get(vertex);
         if (cell == null) {
@@ -93,6 +82,7 @@ public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, Anno
         setCellStyles(mxConstants.STYLE_GRADIENTCOLOR, gradientColor, modified);
     }
 
+    @Override
     public void setEdgeColor(AnnotationWeightedEdge edge, ColorRGB color) {
         Object cell = getEdgeToCellMap().get(edge);
         if (cell == null) {
@@ -106,22 +96,6 @@ public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, Anno
         }
         Object[] modified = { cell };
         setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
-    }
-
-    public AnnotationGraph getSourceGraph() {
-        AnnotationGraph aGraph = new AnnotationGraph();
-        Map<BrainAnnotation, mxICell> vMap = getVertexToCellMap();
-        Map<AnnotationWeightedEdge, mxICell> eMap = getEdgeToCellMap();
-        for (Map.Entry<BrainAnnotation, mxICell> entry : vMap.entrySet()) {
-            aGraph.addVertex(entry.getKey());
-            aGraph.setVertexColor(entry.getKey(), new ColorRGB( (String) getCellStyle(entry.getValue()).get(mxConstants.STYLE_STROKECOLOR)));
-        }
-        for (Map.Entry<AnnotationWeightedEdge, mxICell> entry : eMap.entrySet()) {
-            AnnotationWeightedEdge edge = entry.getKey();
-            aGraph.addEdge(edge.getSource(), edge.getTarget(), edge);
-            aGraph.setEdgeColor(edge, new ColorRGB( (String) getCellStyle(entry.getValue()).get(mxConstants.STYLE_STROKECOLOR)));
-        }
-        return aGraph;
     }
 
     @Override
@@ -145,28 +119,6 @@ public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, Anno
         BrainAnnotation obj = (BrainAnnotation) mxc.getValue();
         return obj.name();
 
-    }
-
-    protected boolean isEdgeLabelsEnabled() {
-        return !(boolean)stylesheet.getDefaultEdgeStyle().get(mxConstants.STYLE_NOLABEL);
-    }
-
-    protected boolean isVertexLabelsEnabled() {
-        return !(boolean)stylesheet.getDefaultVertexStyle().get(mxConstants.STYLE_NOLABEL);
-    }
-
-    protected void setEnableEdgeLabels(final boolean enable) {
-        getModel().beginUpdate();
-        stylesheet.getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, !enable);
-        getModel().endUpdate();
-        refresh();
-    }
-
-    protected void setEnableVertexLabels(final boolean enable) {
-        getModel().beginUpdate();
-        stylesheet.getDefaultVertexStyle().put(mxConstants.STYLE_NOLABEL, !enable);
-        getModel().endUpdate();
-        refresh();
     }
 
 }

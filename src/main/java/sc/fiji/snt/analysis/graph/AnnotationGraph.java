@@ -1,6 +1,5 @@
 package sc.fiji.snt.analysis.graph;
 
-import org.scijava.util.ColorRGB;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.annotation.AllenUtils;
@@ -8,6 +7,7 @@ import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.PointInImage;
 
 import java.awt.*;
+import java.lang.annotation.Annotation;
 import java.util.List;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -124,14 +124,6 @@ public class AnnotationGraph extends ColorableGraph<BrainAnnotation, AnnotationW
      */
     public double sumEdgeWeights() {
         return edgeSet().stream().mapToDouble(this::getEdgeWeight).sum();
-    }
-
-    protected Map<BrainAnnotation, ColorRGB> getVertexColorRGBMap() {
-        return vertexColorRGBMap;
-    }
-
-    protected Map<AnnotationWeightedEdge, ColorRGB> getEdgeColorRGBMap() {
-        return edgeColorRGBMap;
     }
 
     /**

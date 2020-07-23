@@ -24,6 +24,8 @@ package sc.fiji.snt.plugin;
 
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
+
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.command.Command;
 import org.scijava.command.DynamicCommand;
 import org.scijava.module.MutableModuleItem;
@@ -31,12 +33,9 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
+
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.analysis.graph.AnnotationGraph;
-import sc.fiji.snt.analysis.graph.AnnotationGraphAdapter;
-import sc.fiji.snt.analysis.graph.AnnotationWeightedEdge;
-import sc.fiji.snt.analysis.graph.GraphColorMapper;
-import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.analysis.graph.*;
 
 import java.io.IOException;
 import java.net.URL;
@@ -70,16 +69,16 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
     private Button removeColorCoding;
 
     @Parameter(required = true)
-    private AnnotationGraphAdapter adapter;
+    private SNTGraphAdapter<Object, DefaultWeightedEdge> adapter;
 
-    private AnnotationGraph cGraph;
+    private ColorableGraph<Object, DefaultWeightedEdge> cGraph;
     private Map<String, URL> luts;
 
     @Override
     public void run() {
         if (adapter == null) cancel("Input is null");
         cGraph = adapter.getSourceGraph();
-        if (cGraph.vertexSet().isEmpty()) cancel("Graph is empty");
+        if (cGraph == null || cGraph.vertexSet().isEmpty()) cancel("Graph is invalid");
         final GraphColorMapper colorizer = new GraphColorMapper(context());
         int mappedState;
         try {
@@ -152,22 +151,22 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
 
     @SuppressWarnings("unused")
     private void removeColorCoding() {
-        for (BrainAnnotation vertex : adapter.getVertexToCellMap().keySet()) {
+        for (Object vertex : adapter.getVertexToCellMap().keySet()) {
             adapter.setVertexColor(vertex, null);
         }
-        for (AnnotationWeightedEdge edge : adapter.getEdgeToCellMap().keySet()) {
+        for (DefaultWeightedEdge edge : adapter.getEdgeToCellMap().keySet()) {
             adapter.setEdgeColor(edge, null);
         }
     }
 
     private void applyVertexColors() {
-        for (BrainAnnotation vertex : cGraph.vertexSet()) {
+        for (Object vertex : cGraph.vertexSet()) {
             adapter.setVertexColor(vertex, cGraph.getVertexColor(vertex));
         }
     }
 
     private void applyEdgeColors() {
-        for (AnnotationWeightedEdge edge : cGraph.edgeSet()) {
+        for (DefaultWeightedEdge edge : cGraph.edgeSet()) {
             adapter.setEdgeColor(edge, cGraph.getEdgeColor(edge));
         }
     }

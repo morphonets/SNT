@@ -6,9 +6,9 @@ import org.scijava.util.ColorRGB;
 import java.util.HashMap;
 import java.util.Map;
 
-public abstract class ColorableGraph<Object, DefaultWeightedEdge> extends DefaultDirectedWeightedGraph<Object, DefaultWeightedEdge> {
-    protected final Map<Object, ColorRGB> vertexColorRGBMap;
-    protected final Map<DefaultWeightedEdge, ColorRGB> edgeColorRGBMap;
+public class ColorableGraph<Object, DefaultWeightedEdge> extends DefaultDirectedWeightedGraph<Object, DefaultWeightedEdge> {
+    private final Map<Object, ColorRGB> vertexColorRGBMap;
+    private final Map<DefaultWeightedEdge, ColorRGB> edgeColorRGBMap;
 
     public ColorableGraph(Class<? extends DefaultWeightedEdge> edgeClass) {
         super(edgeClass);
@@ -40,6 +40,14 @@ public abstract class ColorableGraph<Object, DefaultWeightedEdge> extends Defaul
             return edgeColorRGBMap.get(edge);
         }
         return null;
+    }
+
+    protected Map<Object, ColorRGB> getVertexColorRGBMap() {
+        return vertexColorRGBMap;
+    }
+
+    protected Map<DefaultWeightedEdge, ColorRGB> getEdgeColorRGBMap() {
+        return edgeColorRGBMap;
     }
 
 }

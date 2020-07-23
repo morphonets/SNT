@@ -160,7 +160,9 @@ public class DirectedWeightedSubgraph extends AsSubgraph<SWCPoint, SWCWeightedEd
 	 * @return a reference to the displayed window.
 	 */
 	public Window show() {
-		return GraphUtils.show(this);
+		// TODO decide what to do here
+		//return GraphUtils.show(this);
+		throw new UnsupportedOperationException();
 	}
 
 	/**

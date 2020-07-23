@@ -9,7 +9,6 @@ import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 
-import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
@@ -24,20 +23,34 @@ import java.util.List;
 public class GraphViewer {
     @Parameter
     private Context context;
-    private AnnotationGraph graph;
+    private final ColorableGraph graph;
+    private final SNTGraphAdapter adapter;
+    private final SNTGraphComponent component;
 
-    public GraphViewer(final AnnotationGraph graph) {
-        this.graph = graph;
+    public GraphViewer(final ColorableGraph inputGraph, Context context) {
+        this.graph = inputGraph;
+        if (this.graph instanceof DirectedWeightedGraph) {
+            adapter = new TreeGraphAdapter((DirectedWeightedGraph)this.graph);
+            component = new TreeGraphComponent((TreeGraphAdapter) adapter, getContext());
+        } else if (this.graph instanceof AnnotationGraph) {
+            adapter = new AnnotationGraphAdapter((AnnotationGraph) this.graph);
+            component = new AnnotationGraphComponent((AnnotationGraphAdapter) adapter, getContext());
+        } else {
+            throw new UnsupportedOperationException("Currently only DirectedWeightedGraph and AnnotationGraph are supported.");
+        }
     }
+
     public void setContext(final Context context) {
         if (context == null) throw new NullContextException("Context cannot be null!");
         context.inject(this);
     }
+
     private Context getContext() {
         if (context == null)
             setContext(new Context(CommandService.class, LUTService.class, PrefService.class));
         return context;
     }
+
     /**
      * Displays a graph in SNT's "Graph Viewer" featuring UI commands for
      * interactive visualization and export options.
@@ -47,9 +60,7 @@ public class GraphViewer {
     public Window show() {
         GuiUtils.setSystemLookAndFeel();
         final JDialog frame = new JDialog((JFrame) null, "SNT Graph Viewer");
-        final AnnotationGraphAdapter graphAdapter = new AnnotationGraphAdapter(graph);
-        final AnnotationGraphComponent graphComponent = new AnnotationGraphComponent(graphAdapter, getContext());
-        frame.add(graphComponent.getJSplitPane());
+        frame.add(component.getJSplitPane());
         frame.pack();
         SwingUtilities.invokeLater(() -> frame.setVisible(true));
         return frame;
@@ -75,8 +86,8 @@ public class GraphViewer {
         final AnnotationGraph graph = new AnnotationGraph(trees, 40, 7);
         //graph.filterEdgesByWeight(20);
         // graph.removeOrphanedNodes();
-        GraphViewer graphViewer = new GraphViewer(graph);
-        graphViewer.setContext(ij.context());
+        GraphViewer graphViewer = new GraphViewer(trees.get(0).getGraph().getSimplifiedGraph(), ij.context());
+        //graphViewer.setContext(ij.context());
         graphViewer.show();
     }
 }
