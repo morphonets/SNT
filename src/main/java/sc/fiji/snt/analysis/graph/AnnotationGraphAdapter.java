@@ -11,13 +11,15 @@ import org.scijava.util.ColorRGB;
 import sc.fiji.snt.annotation.BrainAnnotation;
 
 import java.util.*;
-import java.util.List;
-import java.util.stream.Collectors;
 
 public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, AnnotationWeightedEdge> {
 
     private static final String DARK_GRAY = "#222222";
     private static final String LIGHT_GRAY = "#eeeeee";
+    // default cell colors
+    private String defaultVertexStrokeColor = DARK_GRAY;
+    private String defaultVertexGradientColor = LIGHT_GRAY;
+    private String defaultEdgeStrokeColor = DARK_GRAY;
 
     protected AnnotationGraphAdapter(final AnnotationGraph graph) {
         this(graph, LIGHT_GRAY);
@@ -32,28 +34,35 @@ public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, Anno
         edgeStyle.put(mxConstants.STYLE_VERTICAL_ALIGN, mxConstants.ALIGN_TOP);
         edgeStyle.put(mxConstants.STYLE_VERTICAL_LABEL_POSITION, mxConstants.ALIGN_MIDDLE);
         edgeStyle.put(mxConstants.STYLE_LABEL_POSITION, mxConstants.ALIGN_CENTER);
-        edgeStyle.put(mxConstants.STYLE_STROKECOLOR, DARK_GRAY);
+        edgeStyle.put(mxConstants.STYLE_STROKECOLOR, defaultEdgeStrokeColor);
 
         final Map<String, Object> vertexStyle = getStylesheet().getDefaultVertexStyle();
-        vertexStyle.put(mxConstants.STYLE_SHAPE, mxConstants.SHAPE_HEXAGON);
         vertexStyle.put(mxConstants.STYLE_AUTOSIZE, true);
         vertexStyle.put(mxConstants.STYLE_LABEL_POSITION, mxConstants.ALIGN_CENTER);
         vertexStyle.put(mxConstants.STYLE_VERTICAL_LABEL_POSITION, mxConstants.ALIGN_MIDDLE);
-//        vertexStyle.put(mxConstants.STYLE_FONTCOLOR, DARK_GRAY);
-//        vertexStyle.put(mxConstants.STYLE_STROKECOLOR, DARK_GRAY);
+        vertexStyle.put(mxConstants.STYLE_STROKECOLOR, defaultVertexStrokeColor);
+        vertexStyle.put(mxConstants.STYLE_GRADIENTCOLOR, defaultVertexGradientColor);
         // Render all source nodes in a different color
-        List<mxICell> sources = getVertexToCellMap()
-                .entrySet()
-                .stream()
-                .filter(e -> graph.outDegreeOf(e.getKey()) > 0)
-                .map(Map.Entry::getValue)
-                .collect(Collectors.toList());
-        Object[] sArray = sources.toArray();
-        setCellStyles(mxConstants.STYLE_STROKECOLOR, "black", sArray);
-        //setCellStyles(mxConstants.STYLE_FONTCOLOR, "black", sArray);
-        setCellStyles(mxConstants.STYLE_FONTSTYLE, String.valueOf(mxConstants.FONT_BOLD), sources.toArray());
-        setCellStyles(mxConstants.STYLE_GRADIENTCOLOR, "grey", sArray);
-
+//        List<mxICell> sources = getVertexToCellMap()
+//                .entrySet()
+//                .stream()
+//                .filter(e -> graph.outDegreeOf(e.getKey()) > 0)
+//                .map(Map.Entry::getValue)
+//                .collect(Collectors.toList());
+//        Object[] sArray = sources.toArray();
+//        setCellStyles(mxConstants.STYLE_STROKECOLOR, "black", sArray);
+//        setCellStyles(mxConstants.STYLE_FONTSTYLE, String.valueOf(mxConstants.FONT_BOLD), sources.toArray());
+//        setCellStyles(mxConstants.STYLE_GRADIENTCOLOR, "black", sArray);
+        if (!graph.getVertexColorRGBMap().isEmpty()) {
+            for (Map.Entry<BrainAnnotation, ColorRGB> entry : graph.getVertexColorRGBMap().entrySet()) {
+                setVertexColor(entry.getKey(), entry.getValue());
+            }
+        }
+        if (!graph.getEdgeColorRGBMap().isEmpty()) {
+            for (Map.Entry<AnnotationWeightedEdge, ColorRGB> entry : graph.getEdgeColorRGBMap().entrySet()) {
+                setEdgeColor(entry.getKey(), entry.getValue());
+            }
+        }
         vertexStyle.put(mxConstants.STYLE_FILLCOLOR, vColor);
         setLabelsVisible(true);
         setEnableVertexLabels(true);
@@ -70,15 +79,18 @@ public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, Anno
         if (cell == null) {
             return;
         }
-        String newColor;
+        String strokeColor;
+        String gradientColor;
         if (color == null) {
-            newColor = DARK_GRAY;
+            strokeColor = defaultVertexStrokeColor;
+            gradientColor = defaultVertexGradientColor;
         } else {
-            newColor = color.toHTMLColor();
+            strokeColor = color.toHTMLColor();
+            gradientColor = color.toHTMLColor();
         }
         Object[] modified = { cell };
-        setCellStyles(mxConstants.STYLE_STROKECOLOR, newColor, modified);
-        setCellStyles(mxConstants.STYLE_GRADIENTCOLOR, newColor, modified);
+        setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
+        setCellStyles(mxConstants.STYLE_GRADIENTCOLOR, gradientColor, modified);
     }
 
     public void setEdgeColor(AnnotationWeightedEdge edge, ColorRGB color) {
@@ -86,14 +98,14 @@ public class AnnotationGraphAdapter extends JGraphXAdapter<BrainAnnotation, Anno
         if (cell == null) {
             return;
         }
-        String newColor;
+        String strokeColor;
         if (color == null) {
-            newColor = DARK_GRAY;
+            strokeColor = defaultEdgeStrokeColor;
         } else {
-            newColor = color.toHTMLColor();
+            strokeColor = color.toHTMLColor();
         }
         Object[] modified = { cell };
-        setCellStyles(mxConstants.STYLE_STROKECOLOR, newColor, modified);
+        setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
     }
 
     public AnnotationGraph getSourceGraph() {
