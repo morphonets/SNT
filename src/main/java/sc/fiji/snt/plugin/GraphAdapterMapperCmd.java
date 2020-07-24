@@ -36,6 +36,7 @@ import org.scijava.widget.Button;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.graph.*;
+import sc.fiji.snt.viewer.SNTGraphAdapter;
 
 import java.io.IOException;
 import java.net.URL;
@@ -71,7 +72,7 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
     @Parameter(required = true)
     private SNTGraphAdapter<Object, DefaultWeightedEdge> adapter;
 
-    private ColorableGraph<Object, DefaultWeightedEdge> cGraph;
+    private SNTGraph<Object, DefaultWeightedEdge> cGraph;
     private Map<String, URL> luts;
 
     @Override

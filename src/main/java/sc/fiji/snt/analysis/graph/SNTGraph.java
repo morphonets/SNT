@@ -6,11 +6,11 @@ import org.scijava.util.ColorRGB;
 import java.util.HashMap;
 import java.util.Map;
 
-public class ColorableGraph<Object, DefaultWeightedEdge> extends DefaultDirectedWeightedGraph<Object, DefaultWeightedEdge> {
+public class SNTGraph<Object, DefaultWeightedEdge> extends DefaultDirectedWeightedGraph<Object, DefaultWeightedEdge> {
     private final Map<Object, ColorRGB> vertexColorRGBMap;
     private final Map<DefaultWeightedEdge, ColorRGB> edgeColorRGBMap;
 
-    public ColorableGraph(Class<? extends DefaultWeightedEdge> edgeClass) {
+    public SNTGraph(Class<? extends DefaultWeightedEdge> edgeClass) {
         super(edgeClass);
         vertexColorRGBMap = new HashMap<>();
         edgeColorRGBMap = new HashMap<>();
@@ -42,11 +42,11 @@ public class ColorableGraph<Object, DefaultWeightedEdge> extends DefaultDirected
         return null;
     }
 
-    protected Map<Object, ColorRGB> getVertexColorRGBMap() {
+    public Map<Object, ColorRGB> getVertexColorRGBMap() {
         return vertexColorRGBMap;
     }
 
-    protected Map<DefaultWeightedEdge, ColorRGB> getEdgeColorRGBMap() {
+    public Map<DefaultWeightedEdge, ColorRGB> getEdgeColorRGBMap() {
         return edgeColorRGBMap;
     }
 

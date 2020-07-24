@@ -6,13 +6,11 @@ import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.PointInImage;
 
-import java.awt.*;
-import java.lang.annotation.Annotation;
 import java.util.List;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class AnnotationGraph extends ColorableGraph<BrainAnnotation, AnnotationWeightedEdge> {
+public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeightedEdge> {
 
     protected AnnotationGraph() {
         super(AnnotationWeightedEdge.class);
@@ -131,8 +129,5 @@ public class AnnotationGraph extends ColorableGraph<BrainAnnotation, AnnotationW
      *
      * @return a reference to the displayed window.
      */
-    public Window show() {
-        return AnnotationGraphUtils.show(this);
-    }
 
 }

@@ -53,7 +53,7 @@ public class GraphColorMapper extends ColorMapper {
     @Parameter
     private LUTService lutService;
     private Map<String, URL> luts;
-    protected ColorableGraph<Object, DefaultWeightedEdge> graph;
+    protected SNTGraph<Object, DefaultWeightedEdge> graph;
     private int internalCounter = 1;
 
     public GraphColorMapper(final Context context) {
@@ -103,14 +103,14 @@ public class GraphColorMapper extends ColorMapper {
         return null;
     }
 
-    public int map(ColorableGraph graph, final String measurement, final String lut) {
+    public int map(SNTGraph graph, final String measurement, final String lut) {
         ColorTable colorTable = getColorTable(lut);
         this.graph = graph;
         mapToProperty(measurement, colorTable);
         return mappedState;
     }
 
-    public int map(ColorableGraph graph, final String measurement, final ColorTable colorTable) {
+    public int map(SNTGraph graph, final String measurement, final ColorTable colorTable) {
         this.graph = graph;
         mapToProperty(measurement, colorTable);
         return mappedState;

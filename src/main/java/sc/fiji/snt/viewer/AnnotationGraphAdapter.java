@@ -1,11 +1,14 @@
-package sc.fiji.snt.analysis.graph;
+package sc.fiji.snt.viewer;
 
 import com.mxgraph.model.mxCell;
 import com.mxgraph.util.mxConstants;
 
 import org.scijava.util.ColorRGB;
 
+import sc.fiji.snt.analysis.graph.AnnotationGraph;
+import sc.fiji.snt.analysis.graph.AnnotationWeightedEdge;
 import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.viewer.SNTGraphAdapter;
 
 import java.util.*;
 

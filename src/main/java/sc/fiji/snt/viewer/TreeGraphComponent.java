@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.analysis.graph;
+package sc.fiji.snt.viewer;
 
 import java.awt.*;
 import java.awt.event.MouseAdapter;

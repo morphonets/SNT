@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
  * @author Tiago Ferreira
  * @author Cameron Arshadi
  */
-public class DirectedWeightedGraph extends ColorableGraph<SWCPoint, SWCWeightedEdge> {
+public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 
 	private static final long serialVersionUID = 1L;
 	private Tree tree;

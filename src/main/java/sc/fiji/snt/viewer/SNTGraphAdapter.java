@@ -1,15 +1,16 @@
-package sc.fiji.snt.analysis.graph;
+package sc.fiji.snt.viewer;
 
 import com.mxgraph.util.mxConstants;
 import org.jgrapht.ext.JGraphXAdapter;
 import org.scijava.util.ColorRGB;
+import sc.fiji.snt.analysis.graph.SNTGraph;
 
 import java.util.Map;
 
 public class SNTGraphAdapter<Object, DefaultWeightedEdge> extends JGraphXAdapter<Object, DefaultWeightedEdge> {
-    private final ColorableGraph<Object, DefaultWeightedEdge> cGraph;
+    private final SNTGraph<Object, DefaultWeightedEdge> cGraph;
 
-    protected SNTGraphAdapter(ColorableGraph<Object, DefaultWeightedEdge> graph) {
+    protected SNTGraphAdapter(SNTGraph<Object, DefaultWeightedEdge> graph) {
         super(graph);
         this.cGraph = graph;
     }
@@ -36,7 +37,7 @@ public class SNTGraphAdapter<Object, DefaultWeightedEdge> extends JGraphXAdapter
         setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
     }
 
-    public void setCellColorsFromGraph() {
+    protected void setCellColorsFromGraph() {
         if (!cGraph.getVertexColorRGBMap().isEmpty()) {
             for (Map.Entry<Object, ColorRGB> entry : cGraph.getVertexColorRGBMap().entrySet()) {
                 setVertexColor(entry.getKey(), entry.getValue());
@@ -49,7 +50,7 @@ public class SNTGraphAdapter<Object, DefaultWeightedEdge> extends JGraphXAdapter
         }
     }
 
-    public ColorableGraph<Object, DefaultWeightedEdge> getSourceGraph() {
+    public SNTGraph<Object, DefaultWeightedEdge> getSourceGraph() {
         return cGraph;
     }
 

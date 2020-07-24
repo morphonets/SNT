@@ -1,40 +1,20 @@
-package sc.fiji.snt.analysis.graph;
+package sc.fiji.snt.viewer;
 
 import com.mxgraph.layout.mxCircleLayout;
 import com.mxgraph.layout.mxFastOrganicLayout;
 import com.mxgraph.layout.mxGraphLayout;
 import com.mxgraph.layout.mxParallelEdgeLayout;
-import com.mxgraph.model.mxGeometry;
-import com.mxgraph.swing.handler.mxKeyboardHandler;
-import com.mxgraph.swing.handler.mxRubberband;
-import com.mxgraph.swing.mxGraphComponent;
-import com.mxgraph.swing.mxGraphOutline;
-import com.mxgraph.util.mxCellRenderer;
-import com.mxgraph.view.mxGraphView;
 
 import org.scijava.Context;
-import org.scijava.command.CommandService;
-import org.scijava.plugin.Parameter;
-
-import org.w3c.dom.Document;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
 
-import javax.imageio.ImageIO;
 import javax.swing.*;
-import javax.xml.transform.*;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 

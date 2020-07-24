@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.analysis.graph;
+package sc.fiji.snt.viewer;
 
 import java.util.Map;
 
@@ -29,6 +29,8 @@ import org.scijava.util.ColorRGB;
 import com.mxgraph.model.mxCell;
 import com.mxgraph.util.mxConstants;
 
+import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.util.SWCPoint;
 
 

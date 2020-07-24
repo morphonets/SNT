@@ -1,4 +1,4 @@
-package sc.fiji.snt.analysis.graph;
+package sc.fiji.snt.viewer;
 
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
@@ -11,6 +11,7 @@ import org.scijava.prefs.PrefService;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.graph.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
 
@@ -23,11 +24,11 @@ import java.util.List;
 public class GraphViewer {
     @Parameter
     private Context context;
-    private final ColorableGraph graph;
+    private final SNTGraph graph;
     private SNTGraphAdapter adapter;
     private SNTGraphComponent component;
 
-    public GraphViewer(final ColorableGraph inputGraph) {
+    public GraphViewer(final SNTGraph inputGraph) {
         this.graph = inputGraph;
     }
 
@@ -86,7 +87,7 @@ public class GraphViewer {
         final AnnotationGraph graph = new AnnotationGraph(trees, 40, 7);
         //graph.filterEdgesByWeight(20);
         // graph.removeOrphanedNodes();
-        GraphViewer graphViewer = new GraphViewer(graph);
+        GraphViewer graphViewer = new GraphViewer(trees.get(0).getGraph().getSimplifiedGraph());
         graphViewer.setContext(ij.context());
         graphViewer.show();
     }

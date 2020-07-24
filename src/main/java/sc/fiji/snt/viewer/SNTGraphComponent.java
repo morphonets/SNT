@@ -1,4 +1,4 @@
-package sc.fiji.snt.analysis.graph;
+package sc.fiji.snt.viewer;
 
 import com.mxgraph.model.mxGeometry;
 import com.mxgraph.swing.handler.mxKeyboardHandler;
@@ -82,7 +82,7 @@ class SNTGraphComponent extends mxGraphComponent {
 
     }
 
-    public void zoomToFitHorizontal() {
+    protected void zoomToFitHorizontal() {
         // See https://www.javatips.net/api/bundlemaker-master/bundlemaker.incubator/
         // org.bundlemaker.core.ui.editor.dependencyviewer/src/org/bundlemaker/core/ui/
         // editor/dependencyviewer/graph/DependencyViewerGraph.java
