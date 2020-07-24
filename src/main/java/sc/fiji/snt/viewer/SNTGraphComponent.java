@@ -5,8 +5,11 @@ import com.mxgraph.swing.handler.mxKeyboardHandler;
 import com.mxgraph.swing.handler.mxRubberband;
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.swing.mxGraphOutline;
+import com.mxgraph.swing.view.mxInteractiveCanvas;
 import com.mxgraph.util.mxCellRenderer;
+import com.mxgraph.util.mxPoint;
 import com.mxgraph.view.mxGraphView;
+import com.mxgraph.view.mxLayoutManager;
 import org.scijava.Context;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
@@ -33,6 +36,7 @@ class SNTGraphComponent extends mxGraphComponent {
     protected final KeyboardHandler keyboardHandler;
     protected final JCheckBoxMenuItem panMenuItem;
     protected File saveDir;
+    private final mxPoint defaultOrigin;
 
     protected SNTGraphComponent(SNTGraphAdapter adapter, Context context) {
         super(adapter);
@@ -41,22 +45,24 @@ class SNTGraphComponent extends mxGraphComponent {
         keyboardHandler = new KeyboardHandler(this);
         addMouseWheelListener(new ZoomMouseWheelListener());
         setKeepSelectionVisibleOnZoom(true);
-        setCenterZoom(true);
-//        setCenterPage(true);
-//        setPageVisible(true);
-//        setPreferPageSize(true);
-        addComponentListener(new InitialComponentResizeListener());
+        //setCenterZoom(true);
+        //setCenterPage(true);
+        //setPageVisible(true);
+        //setPreferPageSize(true);
+        //addComponentListener(new InitialComponentResizeListener());
         addRubberBandZoom();
         panningHandler = createPanningHandler();
         setPanning(true);
         setEscapeEnabled(true);
-        setAntiAlias(true);
-        setDoubleBuffered(true);
-        setConnectable(true);
-        setFoldingEnabled(true);
-        setDragEnabled(false);
+        //setAntiAlias(true);
+        //setTripleBuffered(true);
+        setConnectable(false);
+        //setFoldingEnabled(true);
+        //setDragEnabled(false);
         setToolTips(true);
+
         panMenuItem = new JCheckBoxMenuItem("Pan Mode");
+        defaultOrigin = new mxPoint(getX(), getY());
     }
 
     class InitialComponentResizeListener implements ComponentListener {
@@ -73,6 +79,8 @@ class SNTGraphComponent extends mxGraphComponent {
         public void componentResized(ComponentEvent e) {
             e.getComponent().removeComponentListener(this);
             zoomToFitHorizontal();
+
+
         }
 
         @Override
@@ -82,7 +90,7 @@ class SNTGraphComponent extends mxGraphComponent {
 
     }
 
-    protected void zoomToFitHorizontal() {
+    private void zoomToFitHorizontal() {
         // See https://www.javatips.net/api/bundlemaker-master/bundlemaker.incubator/
         // org.bundlemaker.core.ui.editor.dependencyviewer/src/org/bundlemaker/core/ui/
         // editor/dependencyviewer/graph/DependencyViewerGraph.java
@@ -104,13 +112,13 @@ class SNTGraphComponent extends mxGraphComponent {
     @Override
     public void zoomIn() {
         super.zoomIn();
-        centerGraph();
+        //zoomAndCenter();
     }
 
     @Override
     public void zoomOut() {
         super.zoomOut();
-        centerGraph();
+        //zoomAndCenter();
     }
 
     private void addRubberBandZoom() {
@@ -152,6 +160,11 @@ class SNTGraphComponent extends mxGraphComponent {
         };
     }
 
+    @Override
+    public mxInteractiveCanvas createCanvas() {
+        return super.createCanvas();
+    }
+
     protected Component getJSplitPane() {
         // TODO create default pane
         throw new UnsupportedOperationException();
@@ -167,13 +180,20 @@ class SNTGraphComponent extends mxGraphComponent {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public Dimension getPreferredSize() {
+        final double width = graph.getGraphBounds().getWidth();
+        final double height = graph.getGraphBounds().getHeight();
+        return new Dimension((int)Math.min(600, width), (int)Math.min(400, height));
+    }
+
     protected void centerGraph() {
         // https://stackoverflow.com/a/36947526
         final double widthLayout = getLayoutAreaSize().getWidth();
         final double heightLayout = getLayoutAreaSize().getHeight();
         final double width = adapter.getGraphBounds().getWidth();
         final double height = adapter.getGraphBounds().getHeight();
-        adapter.getModel().setGeometry(adapter.getDefaultParent(),
+        mxGeometry geo = adapter.getModel().setGeometry(adapter.getDefaultParent(),
                 new mxGeometry((widthLayout - width) / 2, (heightLayout - height) / 2, widthLayout, heightLayout));
     }
 

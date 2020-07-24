@@ -23,8 +23,12 @@
 package sc.fiji.snt.viewer;
 
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.swing.*;
 
@@ -33,6 +37,7 @@ import org.scijava.Context;
 import com.mxgraph.layout.mxCompactTreeLayout;
 
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
 
 
 class TreeGraphComponent extends SNTGraphComponent {
@@ -112,6 +117,18 @@ class TreeGraphComponent extends SNTGraphComponent {
 			}
 		});
 		buttonPanel.add(labelsButton, gbc);
+
+		GuiUtils.addSeparator(buttonPanel, "Color coding", true, gbc);
+		final JButton colorCodingButton = new JButton("Color code");
+		colorCodingButton.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				final Map<String, Object> input = new HashMap<>();
+				input.put("adapter", adapter);
+				cmdService.run(GraphAdapterMapperCmd.class, true, input);
+			}
+		});
+		buttonPanel.add(colorCodingButton, gbc);
 
 		GuiUtils.addSeparator(buttonPanel, "Export:", true, gbc);
 		final JButton ioButton = new JButton("Save As");

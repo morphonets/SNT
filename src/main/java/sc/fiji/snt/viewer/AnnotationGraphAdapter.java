@@ -55,13 +55,6 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
 //        setCellStyles(mxConstants.STYLE_GRADIENTCOLOR, "black", sArray);
         setCellColorsFromGraph();
         vertexStyle.put(mxConstants.STYLE_FILLCOLOR, vColor);
-        setLabelsVisible(true);
-        setEnableVertexLabels(true);
-        setEnableEdgeLabels(true);
-        setKeepEdgesInBackground(true); // Edges will not appear above vertices
-        setResetEdgesOnConnect(true);
-        setResetViewOnRootChange(true);
-        setEdgeLabelsMovable(true);
 
     }
 

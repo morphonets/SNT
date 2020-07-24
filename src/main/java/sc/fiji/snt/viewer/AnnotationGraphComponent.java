@@ -5,6 +5,8 @@ import com.mxgraph.layout.mxFastOrganicLayout;
 import com.mxgraph.layout.mxGraphLayout;
 import com.mxgraph.layout.mxParallelEdgeLayout;
 
+import com.mxgraph.model.mxGeometry;
+import com.mxgraph.util.mxPoint;
 import org.scijava.Context;
 
 import sc.fiji.snt.SNTUtils;
@@ -31,12 +33,14 @@ class AnnotationGraphComponent extends SNTGraphComponent {
     private double maxIterations = 0;
     // Circle layout parameters
     private double radius = 100;
+    private final mxPoint defaultOrigin = new mxPoint(getX(), getY());
 
     protected AnnotationGraphComponent(final AnnotationGraphAdapter adapter, Context context) {
         super(adapter, context);
         layout = new mxCircleLayout(adapter);
         layout.execute(adapter.getDefaultParent());
         new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
+        adapter.refresh();
     }
 
     @Override
@@ -44,7 +48,7 @@ class AnnotationGraphComponent extends SNTGraphComponent {
         // Default dimensions are exaggerated. Curb them a bit
         setPreferredSize(getPreferredSize());
         assignPopupMenu(this);
-        centerGraph();
+        //centerGraph();
         requestFocusInWindow();
         return new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, getControlPanel(), this);
     }
@@ -91,27 +95,35 @@ class AnnotationGraphComponent extends SNTGraphComponent {
         circleLayoutButton.addActionListener(e -> {
             mxCircleLayout circleLayout = new mxCircleLayout(adapter);
             circleLayout.setRadius(radius);
-            circleLayout.execute(adapter.getDefaultParent());
-            new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
-            zoomActual();
-            zoomAndCenter();
-            centerGraph();
-
+            layout = circleLayout;
+            layout.execute(adapter.getDefaultParent());
+            layout = new mxParallelEdgeLayout(adapter);
+            layout.execute(adapter.getDefaultParent());
+            System.out.println(adapter.getView().getTranslate());
+            //adapter.getView().setTranslate(new mxPoint(0,0));
+            //zoomTo(adapter.getView().getScale(), true);
         });
         layoutPopup.add(circleLayoutButton);
         final JButton fastOrganicLayoutButton = new JButton("Fast Organic");
         fastOrganicLayoutButton.addActionListener(e -> {
             mxFastOrganicLayout fastOrganicLayout = new mxFastOrganicLayout(adapter);
+            //fastOrganicLayout.setUseInputOrigin(true);
             fastOrganicLayout.setForceConstant(forceConstant);
             fastOrganicLayout.setMinDistanceLimit(minDistance);
             fastOrganicLayout.setMaxDistanceLimit(maxDistance);
             fastOrganicLayout.setInitialTemp(initialTemp);
             fastOrganicLayout.setMaxIterations(maxIterations);
-            fastOrganicLayout.execute(adapter.getDefaultParent());
-            new mxParallelEdgeLayout((adapter)).execute(adapter.getDefaultParent());
-            zoomActual();
-            zoomAndCenter();
-            centerGraph();
+            //fastOrganicLayout.setResetEdges(true);
+            //adapter.setMaximumGraphBounds(getLayoutAreaSize());
+            layout = fastOrganicLayout;
+            layout.execute(adapter.getDefaultParent());
+            layout = new mxParallelEdgeLayout((adapter));
+            layout.execute(adapter.getDefaultParent());
+            //adapter.getView().revalidate();
+            //zoomTo(adapter.getView().getScale(), true);
+
+            System.out.println(adapter.getView().getTranslate());
+
         });
         layoutPopup.add(fastOrganicLayoutButton);
 
@@ -271,8 +283,8 @@ class AnnotationGraphComponent extends SNTGraphComponent {
         mItem = new JMenuItem("Reset Zoom");
         mItem.addActionListener(e -> {
             zoomActual();
-            zoomAndCenter();
-            centerGraph();
+            //zoomAndCenter();
+            //centerGraph();
         });
         popup.add(mItem);
         popup.addSeparator();

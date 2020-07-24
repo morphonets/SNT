@@ -13,6 +13,18 @@ public class SNTGraphAdapter<Object, DefaultWeightedEdge> extends JGraphXAdapter
     protected SNTGraphAdapter(SNTGraph<Object, DefaultWeightedEdge> graph) {
         super(graph);
         this.cGraph = graph;
+        //setAutoOrigin(true);
+        setAutoSizeCells(true);
+        setLabelsVisible(true);
+        setEnableVertexLabels(true);
+        setEnableEdgeLabels(true);
+        setKeepEdgesInBackground(true); // Edges will not appear above vertices
+        setVertexLabelsMovable(false);
+        setEdgeLabelsMovable(true);
+        setDisconnectOnMove(false);
+        setResetEdgesOnMove(true);
+        setResetEdgesOnResize(true);
+        setResetViewOnRootChange(true);
     }
 
     public void setVertexColor(Object vertex, ColorRGB color) {

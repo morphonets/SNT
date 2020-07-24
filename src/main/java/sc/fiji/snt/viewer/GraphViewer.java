@@ -1,5 +1,8 @@
 package sc.fiji.snt.viewer;
 
+import com.mxgraph.swing.mxGraphComponent;
+import com.mxgraph.swing.view.mxInteractiveCanvas;
+import com.mxgraph.view.mxCellState;
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 
@@ -16,6 +19,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
 
 import javax.swing.*;
+import javax.swing.border.BevelBorder;
 
 import java.awt.*;
 import java.util.ArrayList;
@@ -56,15 +60,61 @@ public class GraphViewer {
         } else if (this.graph instanceof AnnotationGraph) {
             adapter = new AnnotationGraphAdapter((AnnotationGraph) this.graph);
             component = new AnnotationGraphComponent((AnnotationGraphAdapter) adapter, getContext());
+//            {
+//                /**
+//                 *
+//                 */
+//                private static final long serialVersionUID = 4683716829748931448L;
+//
+//                public mxInteractiveCanvas createCanvas()
+//                {
+//                    return new SwingCanvas(this);
+//                }
+//            };
+
         } else {
             throw new UnsupportedOperationException("Currently only DirectedWeightedGraph and AnnotationGraph are supported.");
         }
         GuiUtils.setSystemLookAndFeel();
-        final JDialog frame = new JDialog((JFrame) null, "SNT Graph Viewer");
-        frame.add(component.getJSplitPane());
+        final JSplitPane pane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, component.getControlPanel(), component);
+        JFrame frame = new JFrame("Graph Viewer");
+        frame.add(pane);
         frame.pack();
         SwingUtilities.invokeLater(() -> frame.setVisible(true));
         return frame;
+    }
+
+    public class SwingCanvas extends mxInteractiveCanvas
+    {
+        protected CellRendererPane rendererPane = new CellRendererPane();
+
+        protected JLabel vertexRenderer = new JLabel();
+
+        protected mxGraphComponent graphComponent;
+
+        public SwingCanvas(mxGraphComponent graphComponent)
+        {
+            this.graphComponent = graphComponent;
+
+            vertexRenderer.setBorder(
+                    BorderFactory.createBevelBorder(BevelBorder.RAISED));
+            vertexRenderer.setHorizontalAlignment(JLabel.CENTER);
+            vertexRenderer
+                    .setBackground(graphComponent.getBackground().darker());
+            vertexRenderer.setOpaque(true);
+        }
+
+        public void drawVertex(mxCellState state, String label)
+        {
+            vertexRenderer.setText(label);
+            // TODO: Configure other properties...
+
+            rendererPane.paintComponent(g, vertexRenderer, graphComponent,
+                    (int) (state.getX() + translate.getX()),
+                    (int) (state.getY() + translate.getY()),
+                    (int) state.getWidth(), (int) state.getHeight(), true);
+        }
+
     }
 
     public static void main(final String[] args) {
@@ -87,7 +137,7 @@ public class GraphViewer {
         final AnnotationGraph graph = new AnnotationGraph(trees, 40, 7);
         //graph.filterEdgesByWeight(20);
         // graph.removeOrphanedNodes();
-        GraphViewer graphViewer = new GraphViewer(trees.get(0).getGraph().getSimplifiedGraph());
+        GraphViewer graphViewer = new GraphViewer(graph);
         graphViewer.setContext(ij.context());
         graphViewer.show();
     }
