@@ -33,36 +33,33 @@ class SNTGraphComponent extends mxGraphComponent {
     @Parameter
     protected CommandService cmdService;
     protected final SNTGraphAdapter adapter;
-    protected final KeyboardHandler keyboardHandler;
-    protected final JCheckBoxMenuItem panMenuItem;
+    //protected final KeyboardHandler keyboardHandler;
+    //protected final JCheckBoxMenuItem panMenuItem;
     protected File saveDir;
-    private final mxPoint defaultOrigin;
 
     protected SNTGraphComponent(SNTGraphAdapter adapter, Context context) {
         super(adapter);
         context.inject(this);
         this.adapter = adapter;
-        keyboardHandler = new KeyboardHandler(this);
-        addMouseWheelListener(new ZoomMouseWheelListener());
-        setKeepSelectionVisibleOnZoom(true);
+        //keyboardHandler = new KeyboardHandler(this);
+        //addMouseWheelListener(new ZoomMouseWheelListener());
+        //setKeepSelectionVisibleOnZoom(true);
         //setCenterZoom(true);
         //setCenterPage(true);
         //setPageVisible(true);
         //setPreferPageSize(true);
         //addComponentListener(new InitialComponentResizeListener());
-        addRubberBandZoom();
-        panningHandler = createPanningHandler();
-        setPanning(true);
-        setEscapeEnabled(true);
+        //addRubberBandZoom();
+        //panningHandler = createPanningHandler();
+        //setPanning(true);
+        //setEscapeEnabled(true);
         //setAntiAlias(true);
         //setTripleBuffered(true);
-        setConnectable(false);
+        //setConnectable(false);
         //setFoldingEnabled(true);
         //setDragEnabled(false);
-        setToolTips(true);
-
-        panMenuItem = new JCheckBoxMenuItem("Pan Mode");
-        defaultOrigin = new mxPoint(getX(), getY());
+        //setToolTips(true);
+//        panMenuItem = new JCheckBoxMenuItem("Pan Mode");
     }
 
     class InitialComponentResizeListener implements ComponentListener {
@@ -197,10 +194,10 @@ class SNTGraphComponent extends mxGraphComponent {
                 new mxGeometry((widthLayout - width) / 2, (heightLayout - height) / 2, widthLayout, heightLayout));
     }
 
-    @Override
-    public boolean isPanningEvent(final MouseEvent event) {
-        return panMenuItem.isSelected();
-    }
+//    @Override
+//    public boolean isPanningEvent(final MouseEvent event) {
+//        return panMenuItem.isSelected();
+//    }
 
     protected JMenuItem saveAsMenuItem(final String label, final String extension) {
         final JMenuItem menuItem = new JMenuItem(label);

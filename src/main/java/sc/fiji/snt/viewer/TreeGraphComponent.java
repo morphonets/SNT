@@ -85,8 +85,8 @@ class TreeGraphComponent extends SNTGraphComponent {
 		button = new JButton("Center");
 		button.addActionListener(e -> {centerGraph();});
 		buttonPanel.add(button, gbc);
-		panMenuItem.addActionListener(e -> getPanningHandler().setEnabled(panMenuItem.isSelected()));
-		buttonPanel.add(panMenuItem, gbc);
+//		panMenuItem.addActionListener(e -> getPanningHandler().setEnabled(panMenuItem.isSelected()));
+//		buttonPanel.add(panMenuItem, gbc);
 
 		GuiUtils.addSeparator(buttonPanel, "Layout:", true, gbc);
 		flipButton = new JButton((layout.isHorizontal()?"Vertical":"Horizontal"));
@@ -168,7 +168,7 @@ class TreeGraphComponent extends SNTGraphComponent {
 		popup.add(mItem);
 		popup.addSeparator();
 		mItem = new JMenuItem("Available Shortcuts...");
-		mItem.addActionListener(e -> keyboardHandler.displayKeyMap());
+//		mItem.addActionListener(e -> keyboardHandler.displayKeyMap());
 		popup.add(mItem);
 
 		getGraphControl().addMouseListener(new MouseAdapter() {

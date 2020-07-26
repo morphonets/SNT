@@ -24,7 +24,6 @@ package sc.fiji.snt.plugin;
 
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
-
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.command.Command;
 import org.scijava.command.DynamicCommand;
@@ -33,9 +32,9 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
-
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.analysis.graph.*;
+import sc.fiji.snt.analysis.graph.GraphColorMapper;
+import sc.fiji.snt.analysis.graph.SNTGraph;
 import sc.fiji.snt.viewer.SNTGraphAdapter;
 
 import java.io.IOException;
@@ -152,23 +151,41 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
 
     @SuppressWarnings("unused")
     private void removeColorCoding() {
-        for (Object vertex : adapter.getVertexToCellMap().keySet()) {
-            adapter.setVertexColor(vertex, null);
-        }
-        for (DefaultWeightedEdge edge : adapter.getEdgeToCellMap().keySet()) {
-            adapter.setEdgeColor(edge, null);
+        adapter.getModel().beginUpdate();
+        try {
+            for (Object vertex : adapter.getVertexToCellMap().keySet()) {
+                adapter.setVertexColor(vertex, null);
+            }
+            for (DefaultWeightedEdge edge : adapter.getEdgeToCellMap().keySet()) {
+                adapter.setEdgeColor(edge, null);
+            }
+        } finally {
+            adapter.getModel().endUpdate();
+            adapter.refresh();
         }
     }
 
     private void applyVertexColors() {
-        for (Object vertex : cGraph.vertexSet()) {
-            adapter.setVertexColor(vertex, cGraph.getVertexColor(vertex));
+        adapter.getModel().beginUpdate();
+        try {
+            for (Object vertex : cGraph.vertexSet()) {
+                adapter.setVertexColor(vertex, cGraph.getVertexColor(vertex));
+            }
+        } finally {
+            adapter.getModel().endUpdate();
+            adapter.refresh();
         }
     }
 
     private void applyEdgeColors() {
-        for (DefaultWeightedEdge edge : cGraph.edgeSet()) {
-            adapter.setEdgeColor(edge, cGraph.getEdgeColor(edge));
+        adapter.getModel().beginUpdate();
+        try {
+            for (DefaultWeightedEdge edge : cGraph.edgeSet()) {
+                adapter.setEdgeColor(edge, cGraph.getEdgeColor(edge));
+            }
+        } finally {
+            adapter.getModel().endUpdate();
+            adapter.refresh();
         }
     }
 

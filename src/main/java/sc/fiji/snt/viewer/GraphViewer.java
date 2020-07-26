@@ -1,5 +1,9 @@
 package sc.fiji.snt.viewer;
 
+import com.mxgraph.view.mxGraph;
+import org.jgrapht.ext.JGraphXAdapter;
+import org.jgrapht.graph.DefaultWeightedEdge;
+import sc.fiji.GraphEditor.GraphEditor;
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.swing.view.mxInteractiveCanvas;
 import com.mxgraph.view.mxCellState;
@@ -12,6 +16,7 @@ import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 
+import sc.fiji.GraphEditor.editor.EditorMenuBar;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.*;
@@ -60,61 +65,17 @@ public class GraphViewer {
         } else if (this.graph instanceof AnnotationGraph) {
             adapter = new AnnotationGraphAdapter((AnnotationGraph) this.graph);
             component = new AnnotationGraphComponent((AnnotationGraphAdapter) adapter, getContext());
-//            {
-//                /**
-//                 *
-//                 */
-//                private static final long serialVersionUID = 4683716829748931448L;
-//
-//                public mxInteractiveCanvas createCanvas()
-//                {
-//                    return new SwingCanvas(this);
-//                }
-//            };
-
         } else {
             throw new UnsupportedOperationException("Currently only DirectedWeightedGraph and AnnotationGraph are supported.");
         }
+
+        //mxGraphComponent component = new mxGraphComponent(adapter);
         GuiUtils.setSystemLookAndFeel();
-        final JSplitPane pane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, component.getControlPanel(), component);
-        JFrame frame = new JFrame("Graph Viewer");
-        frame.add(pane);
+        GraphEditor editor = new GraphEditor("Graph Viewer", component);
+        JFrame frame = editor.createFrame(new SNTEditorMenuBar(editor, getContext()));
         frame.pack();
         SwingUtilities.invokeLater(() -> frame.setVisible(true));
         return frame;
-    }
-
-    public class SwingCanvas extends mxInteractiveCanvas
-    {
-        protected CellRendererPane rendererPane = new CellRendererPane();
-
-        protected JLabel vertexRenderer = new JLabel();
-
-        protected mxGraphComponent graphComponent;
-
-        public SwingCanvas(mxGraphComponent graphComponent)
-        {
-            this.graphComponent = graphComponent;
-
-            vertexRenderer.setBorder(
-                    BorderFactory.createBevelBorder(BevelBorder.RAISED));
-            vertexRenderer.setHorizontalAlignment(JLabel.CENTER);
-            vertexRenderer
-                    .setBackground(graphComponent.getBackground().darker());
-            vertexRenderer.setOpaque(true);
-        }
-
-        public void drawVertex(mxCellState state, String label)
-        {
-            vertexRenderer.setText(label);
-            // TODO: Configure other properties...
-
-            rendererPane.paintComponent(g, vertexRenderer, graphComponent,
-                    (int) (state.getX() + translate.getX()),
-                    (int) (state.getY() + translate.getY()),
-                    (int) state.getWidth(), (int) state.getHeight(), true);
-        }
-
     }
 
     public static void main(final String[] args) {
@@ -137,7 +98,7 @@ public class GraphViewer {
         final AnnotationGraph graph = new AnnotationGraph(trees, 40, 7);
         //graph.filterEdgesByWeight(20);
         // graph.removeOrphanedNodes();
-        GraphViewer graphViewer = new GraphViewer(graph);
+        GraphViewer graphViewer = new GraphViewer(trees.get(0).getGraph(true));
         graphViewer.setContext(ij.context());
         graphViewer.show();
     }

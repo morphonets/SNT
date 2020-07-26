@@ -40,7 +40,6 @@ class AnnotationGraphComponent extends SNTGraphComponent {
         layout = new mxCircleLayout(adapter);
         layout.execute(adapter.getDefaultParent());
         new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
-        adapter.refresh();
     }
 
     @Override
@@ -85,8 +84,8 @@ class AnnotationGraphComponent extends SNTGraphComponent {
             centerGraph();
         });
         buttonPanel.add(button, gbc);
-        panMenuItem.addActionListener(e -> getPanningHandler().setEnabled(panMenuItem.isSelected()));
-        buttonPanel.add(panMenuItem, gbc);
+//        panMenuItem.addActionListener(e -> getPanningHandler().setEnabled(panMenuItem.isSelected()));
+//        buttonPanel.add(panMenuItem, gbc);
 
         GuiUtils.addSeparator(buttonPanel, "Layout:", true, gbc);
         final JButton layoutButton = new JButton("Choose Layout");
@@ -289,7 +288,7 @@ class AnnotationGraphComponent extends SNTGraphComponent {
         popup.add(mItem);
         popup.addSeparator();
         mItem = new JMenuItem("Available Shortcuts...");
-        mItem.addActionListener(e -> keyboardHandler.displayKeyMap());
+//        mItem.addActionListener(e -> keyboardHandler.displayKeyMap());
         popup.add(mItem);
 
         getGraphControl().addMouseListener(new MouseAdapter() {

@@ -1,6 +1,7 @@
 package sc.fiji.snt.viewer;
 
 import com.mxgraph.model.mxCell;
+import com.mxgraph.model.mxICell;
 import com.mxgraph.util.mxConstants;
 
 import org.scijava.util.ColorRGB;
@@ -11,6 +12,7 @@ import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.viewer.SNTGraphAdapter;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, AnnotationWeightedEdge> {
 
@@ -34,14 +36,14 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
         edgeStyle.put(mxConstants.STYLE_VERTICAL_ALIGN, mxConstants.ALIGN_TOP);
         edgeStyle.put(mxConstants.STYLE_VERTICAL_LABEL_POSITION, mxConstants.ALIGN_MIDDLE);
         edgeStyle.put(mxConstants.STYLE_LABEL_POSITION, mxConstants.ALIGN_CENTER);
-        edgeStyle.put(mxConstants.STYLE_STROKECOLOR, defaultEdgeStrokeColor);
+        //edgeStyle.put(mxConstants.STYLE_STROKECOLOR, defaultEdgeStrokeColor);
 
         final Map<String, Object> vertexStyle = getStylesheet().getDefaultVertexStyle();
         vertexStyle.put(mxConstants.STYLE_AUTOSIZE, true);
         vertexStyle.put(mxConstants.STYLE_LABEL_POSITION, mxConstants.ALIGN_CENTER);
         vertexStyle.put(mxConstants.STYLE_VERTICAL_LABEL_POSITION, mxConstants.ALIGN_MIDDLE);
-        vertexStyle.put(mxConstants.STYLE_STROKECOLOR, defaultVertexStrokeColor);
-        vertexStyle.put(mxConstants.STYLE_GRADIENTCOLOR, defaultVertexGradientColor);
+        //vertexStyle.put(mxConstants.STYLE_STROKECOLOR, defaultVertexStrokeColor);
+        //vertexStyle.put(mxConstants.STYLE_GRADIENTCOLOR, defaultVertexGradientColor);
         // Render all source nodes in a different color
 //        List<mxICell> sources = getVertexToCellMap()
 //                .entrySet()
@@ -54,7 +56,7 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
 //        setCellStyles(mxConstants.STYLE_FONTSTYLE, String.valueOf(mxConstants.FONT_BOLD), sources.toArray());
 //        setCellStyles(mxConstants.STYLE_GRADIENTCOLOR, "black", sArray);
         setCellColorsFromGraph();
-        vertexStyle.put(mxConstants.STYLE_FILLCOLOR, vColor);
+        //vertexStyle.put(mxConstants.STYLE_FILLCOLOR, vColor);
 
     }
 
