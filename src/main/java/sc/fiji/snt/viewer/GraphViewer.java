@@ -86,7 +86,7 @@ public class GraphViewer {
         cellIds.add("AA0004");
         cellIds.add("AA0100");
         cellIds.add("AA0788");
-        cellIds.add("AA1044");
+        //cellIds.add("AA1044");
         cellIds.add("AA0023");
         cellIds.add("AA0310");
         List<Tree> trees = new ArrayList<Tree>();
@@ -95,10 +95,10 @@ public class GraphViewer {
             trees.add(tree);
         }
         //List<Tree> trees = ij.context().getService(SNTService.class).demoTrees();
-        final AnnotationGraph graph = new AnnotationGraph(trees, 40, 7);
+        final AnnotationGraph graph = new AnnotationGraph(trees, 10, 8);
         //graph.filterEdgesByWeight(20);
         // graph.removeOrphanedNodes();
-        GraphViewer graphViewer = new GraphViewer(trees.get(0).getGraph(true));
+        GraphViewer graphViewer = new GraphViewer(graph);
         graphViewer.setContext(ij.context());
         graphViewer.show();
     }
