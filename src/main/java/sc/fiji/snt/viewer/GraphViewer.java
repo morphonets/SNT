@@ -3,7 +3,6 @@ package sc.fiji.snt.viewer;
 import com.mxgraph.view.mxGraph;
 import org.jgrapht.ext.JGraphXAdapter;
 import org.jgrapht.graph.DefaultWeightedEdge;
-import sc.fiji.GraphEditor.GraphEditor;
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.swing.view.mxInteractiveCanvas;
 import com.mxgraph.view.mxCellState;
@@ -16,12 +15,12 @@ import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 
-import sc.fiji.GraphEditor.editor.EditorMenuBar;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
+import sc.fiji.snt.viewer.geditor.GraphEditor;
 
 import javax.swing.*;
 import javax.swing.border.BevelBorder;
@@ -73,7 +72,7 @@ public class GraphViewer {
         GuiUtils.setSystemLookAndFeel();
         GraphEditor editor = new GraphEditor("Graph Viewer", component);
         JFrame frame = editor.createFrame(new SNTEditorMenuBar(editor, getContext()));
-        frame.pack();
+        //frame.pack(); //FIXME: Don't pack() otherwise stall occurs on openjdk
         SwingUtilities.invokeLater(() -> frame.setVisible(true));
         return frame;
     }

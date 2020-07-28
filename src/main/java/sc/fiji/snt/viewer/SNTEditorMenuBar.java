@@ -4,9 +4,10 @@ import com.mxgraph.analysis.mxAnalysisGraph;
 import org.scijava.Context;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
-import sc.fiji.GraphEditor.editor.BasicGraphEditor;
-import sc.fiji.GraphEditor.editor.EditorMenuBar;
+
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
+import sc.fiji.snt.viewer.geditor.BasicGraphEditor;
+import sc.fiji.snt.viewer.geditor.EditorMenuBar;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
