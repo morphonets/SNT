@@ -137,10 +137,10 @@ public class BasicGraphEditor extends JPanel
 		graphComponent.setAntiAlias(true);
 		graphComponent.setTextAntiAlias(true);
 		graphComponent.setTripleBuffered(true);
-		graphComponent.getGraph().setGridSize(100);
-		graphComponent.setGridStyle(mxGraphComponent.GRID_STYLE_LINE);
-		graphComponent.setGridColor(Color.CYAN);
-		graphComponent.setGridVisible(false);
+//		graphComponent.getGraph().setGridSize(100);
+//		graphComponent.setGridStyle(mxGraphComponent.GRID_STYLE_LINE);
+//		graphComponent.setGridColor(Color.CYAN);
+//		graphComponent.setGridVisible(false);
 
 		// Do not change the scale and translation after files have been loaded
 		graph.setResetViewOnRootChange(false);
