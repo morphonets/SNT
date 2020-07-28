@@ -51,14 +51,14 @@ class SNTGraphComponent extends mxGraphComponent {
         //addComponentListener(new InitialComponentResizeListener());
         //addRubberBandZoom();
         //panningHandler = createPanningHandler();
-        //setPanning(true);
+        setPanning(true);
         //setEscapeEnabled(true);
         //setAntiAlias(true);
         //setTripleBuffered(true);
         //setConnectable(false);
         //setFoldingEnabled(true);
         //setDragEnabled(false);
-        //setToolTips(true);
+        setToolTips(true);
 //        panMenuItem = new JCheckBoxMenuItem("Pan Mode");
     }
 

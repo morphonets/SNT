@@ -78,7 +78,7 @@ public class GraphViewer {
         cellIds.add("AA0004");
         cellIds.add("AA0100");
         cellIds.add("AA0788");
-        //cellIds.add("AA1044");
+        cellIds.add("AA1044");
         cellIds.add("AA0023");
         cellIds.add("AA0310");
         List<Tree> trees = new ArrayList<Tree>();
