@@ -19,6 +19,9 @@ import com.mxgraph.util.mxEventSource.mxIEventListener;
 import com.mxgraph.view.mxGraph;
 import com.mxgraph.view.mxGraphView;
 
+import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.IconFactory.GLYPH;
+
 public class EditorToolBar extends JToolBar
 {
 
@@ -37,25 +40,19 @@ public class EditorToolBar extends JToolBar
 	/**
 	 * 
 	 */
-	public EditorToolBar(final BasicGraphEditor editor, int orientation)
+	@SuppressWarnings("rawtypes")
+	public EditorToolBar(final BasicGraphEditor editor, final int orientation)
 	{
 		super(orientation);
 		setBorder(BorderFactory.createCompoundBorder(BorderFactory
 				.createEmptyBorder(3, 3, 3, 3), getBorder()));
-		setFloatable(false);
+		setFloatable(true);
+		setFocusable(false);
 
-		add(editor.bind("New", new EditorActions.NewAction(),
-                "/mx_shape_images/new.gif"));
-		add(editor.bind("Open", new EditorActions.OpenAction(),
-                "/mx_shape_images/open.gif"));
-		add(editor.bind("Save", new EditorActions.SaveAction(false),
-                "/mx_shape_images/save.gif"));
-
-		addSeparator();
-
-		add(editor.bind("Print", new EditorActions.PrintAction(),
-                "/mx_shape_images/print.gif"));
-
+		add(editor.bind("Open", new EditorActions.OpenAction(), IconFactory.getButtonIcon(GLYPH.OPEN_FOLDER, 1f)))
+				.setToolTipText("Open");
+		add(editor.bind("Save", new EditorActions.SaveAction(false), IconFactory.getButtonIcon(GLYPH.SAVE, 1f)))
+				.setToolTipText("Save");
 		addSeparator();
 
 		add(editor.bind("Cut", TransferHandler.getCutAction(),
@@ -68,70 +65,48 @@ public class EditorToolBar extends JToolBar
 		addSeparator();
 
 		add(editor.bind("Delete", mxGraphActions.getDeleteAction(),
-                "/mx_shape_images/delete.gif"));
+			IconFactory.getButtonIcon(GLYPH.DELETE, 1f))).setToolTipText("Delete Selected Object(s)");
 
 		addSeparator();
-
-		add(editor.bind("Undo", new EditorActions.HistoryAction(true),
-                "/mx_shape_images/undo.gif"));
-		add(editor.bind("Redo", new EditorActions.HistoryAction(false),
-                "/mx_shape_images/redo.gif"));
-
+		add(editor.bind("Undo", new EditorActions.HistoryAction(true), IconFactory.getButtonIcon(GLYPH.UNDO, 1f)))
+				.setToolTipText("Undo");
+		add(editor.bind("Redo", new EditorActions.HistoryAction(false), IconFactory.getButtonIcon(GLYPH.REDO, 1f)))
+				.setToolTipText("Redo");
 		addSeparator();
 
 		// Gets the list of available fonts from the local graphics environment
 		// and adds some frequently used fonts at the beginning of the list
-		GraphicsEnvironment env = GraphicsEnvironment
+		final GraphicsEnvironment env = GraphicsEnvironment
 				.getLocalGraphicsEnvironment();
-		List<String> fonts = new ArrayList<String>();
+		final List<String> fonts = new ArrayList<String>();
 		fonts.addAll(Arrays.asList(new String[] { "Helvetica", "Verdana",
 				"Times New Roman", "Garamond", "Courier New", "-" }));
 		fonts.addAll(Arrays.asList(env.getAvailableFontFamilyNames()));
 
+		@SuppressWarnings("unchecked")
 		final JComboBox fontCombo = new JComboBox(fonts.toArray());
-		fontCombo.setEditable(true);
-		fontCombo.setMinimumSize(new Dimension(120, 0));
-		fontCombo.setPreferredSize(new Dimension(120, 0));
-		fontCombo.setMaximumSize(new Dimension(120, 100));
+		fontCombo.setEditable(false);
+		fontCombo.setToolTipText("Labels Typeface & Size");
 		add(fontCombo);
-
-		fontCombo.addActionListener(new ActionListener()
-		{
-			/**
-			 * 
-			 */
-			public void actionPerformed(ActionEvent e)
-			{
-				String font = fontCombo.getSelectedItem().toString();
-
-				if (font != null && !font.equals("-"))
-				{
-					mxGraph graph = editor.getGraphComponent().getGraph();
-					graph.setCellStyles(mxConstants.STYLE_FONTFAMILY, font);
-				}
+		fontCombo.addActionListener(e -> {
+			final String font = fontCombo.getSelectedItem().toString();
+			if (font != null && !font.equals("-")) {
+				final mxGraph graph = editor.getGraphComponent().getGraph();
+				graph.setCellStyles(mxConstants.STYLE_FONTFAMILY, font);
 			}
 		});
 
+		@SuppressWarnings("unchecked")
 		final JComboBox sizeCombo = new JComboBox(new Object[] { "6pt", "8pt",
 				"9pt", "10pt", "12pt", "14pt", "18pt", "24pt", "30pt", "36pt",
 				"48pt", "60pt" });
-		sizeCombo.setEditable(true);
-		sizeCombo.setMinimumSize(new Dimension(65, 0));
-		sizeCombo.setPreferredSize(new Dimension(65, 0));
-		sizeCombo.setMaximumSize(new Dimension(65, 100));
+		sizeCombo.setToolTipText("Labels Typeface & Size");
+		sizeCombo.setEditable(false);
 		add(sizeCombo);
-
-		sizeCombo.addActionListener(new ActionListener()
-		{
-			/**
-			 * 
-			 */
-			public void actionPerformed(ActionEvent e)
-			{
-				mxGraph graph = editor.getGraphComponent().getGraph();
-				graph.setCellStyles(mxConstants.STYLE_FONTSIZE, sizeCombo
-						.getSelectedItem().toString().replace("pt", ""));
-			}
+		sizeCombo.addActionListener(e -> {
+			final mxGraph graph = editor.getGraphComponent().getGraph();
+			graph.setCellStyles(mxConstants.STYLE_FONTSIZE, sizeCombo
+					.getSelectedItem().toString().replace("pt", ""));
 		});
 
 		addSeparator();
@@ -169,23 +144,21 @@ public class EditorToolBar extends JToolBar
 
 		final mxGraphView view = editor.getGraphComponent().getGraph()
 				.getView();
+		@SuppressWarnings("unchecked")
 		final JComboBox zoomCombo = new JComboBox(new Object[] { "400%",
 				"200%", "150%", "100%", "75%", "50%", mxResources.get("page"),
 				mxResources.get("width"), mxResources.get("actualSize") });
 		zoomCombo.setEditable(true);
-		zoomCombo.setMinimumSize(new Dimension(75, 0));
-		zoomCombo.setPreferredSize(new Dimension(75, 0));
-		zoomCombo.setMaximumSize(new Dimension(75, 100));
 		zoomCombo.setMaximumRowCount(9);
 		add(zoomCombo);
 
 		// Sets the zoom in the zoom combo the current value
-		mxIEventListener scaleTracker = new mxIEventListener()
+		final mxIEventListener scaleTracker = new mxIEventListener()
 		{
 			/**
 			 * 
 			 */
-			public void invoke(Object sender, mxEventObject evt)
+			public void invoke(final Object sender, final mxEventObject evt)
 			{
 				ignoreZoomChange = true;
 
@@ -211,105 +184,98 @@ public class EditorToolBar extends JToolBar
 		// Invokes once to sync with the actual zoom value
 		scaleTracker.invoke(null, null);
 
-		zoomCombo.addActionListener(new ActionListener()
-		{
-			/**
-			 * 
-			 */
-			public void actionPerformed(ActionEvent e)
+		zoomCombo.addActionListener(e -> {
+			final mxGraphComponent graphComponent = editor.getGraphComponent();
+
+			// Zoomcombo is changed when the scale is changed in the diagram
+			// but the change is ignored here
+			if (!ignoreZoomChange)
 			{
-				mxGraphComponent graphComponent = editor.getGraphComponent();
+				String zoom = zoomCombo.getSelectedItem().toString();
 
-				// Zoomcombo is changed when the scale is changed in the diagram
-				// but the change is ignored here
-				if (!ignoreZoomChange)
+				if (zoom.equals(mxResources.get("page")))
 				{
-					String zoom = zoomCombo.getSelectedItem().toString();
-
-					if (zoom.equals(mxResources.get("page")))
+					graphComponent.setPageVisible(true);
+					graphComponent
+							.setZoomPolicy(mxGraphComponent.ZOOM_POLICY_PAGE);
+				}
+				else if (zoom.equals(mxResources.get("width")))
+				{
+					graphComponent.setPageVisible(true);
+					graphComponent
+							.setZoomPolicy(mxGraphComponent.ZOOM_POLICY_WIDTH);
+				}
+				else if (zoom.equals(mxResources.get("actualSize")))
+				{
+					graphComponent.zoomActual();
+				}
+				else
+				{
+					try
 					{
-						graphComponent.setPageVisible(true);
-						graphComponent
-								.setZoomPolicy(mxGraphComponent.ZOOM_POLICY_PAGE);
+						zoom = zoom.replace("%", "");
+						final double scale = Math.min(16, Math.max(0.01,
+								Double.parseDouble(zoom) / 100));
+						graphComponent.zoomTo(scale, graphComponent
+								.isCenterZoom());
 					}
-					else if (zoom.equals(mxResources.get("width")))
+					catch (final Exception ex)
 					{
-						graphComponent.setPageVisible(true);
-						graphComponent
-								.setZoomPolicy(mxGraphComponent.ZOOM_POLICY_WIDTH);
-					}
-					else if (zoom.equals(mxResources.get("actualSize")))
-					{
-						graphComponent.zoomActual();
-					}
-					else
-					{
-						try
-						{
-							zoom = zoom.replace("%", "");
-							double scale = Math.min(16, Math.max(0.01,
-									Double.parseDouble(zoom) / 100));
-							graphComponent.zoomTo(scale, graphComponent
-									.isCenterZoom());
-						}
-						catch (Exception ex)
-						{
-							JOptionPane.showMessageDialog(editor, ex
-									.getMessage());
-						}
+						JOptionPane.showMessageDialog(editor, ex
+								.getMessage());
 					}
 				}
 			}
 		});
 
-		JButton plusShapeSizeButton = new JButton("+");
+		final JButton plusShapeSizeButton = new JButton("+");
 		plusShapeSizeButton.setPreferredSize(new Dimension(10, 10));
 		plusShapeSizeButton.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
-				mxGraphComponent graphComponent = editor.getGraphComponent();
-				mxGraph graph = graphComponent.getGraph();
+			public void actionPerformed(final ActionEvent e) {
+				final mxGraphComponent graphComponent = editor.getGraphComponent();
+				final mxGraph graph = graphComponent.getGraph();
 				graph.setCellsResizable(true);
-				Object[] cells = graph.getSelectionCells();
+				final Object[] cells = graph.getSelectionCells();
 				if (cells == null || cells.length ==0) {
 					return;
 				}
-				for (Object cell : cells) {
-					mxICell mxc = (mxICell) cell;
+				for (final Object cell : cells) {
+					final mxICell mxc = (mxICell) cell;
 					if (graph.getModel().isVertex(mxc)) {
-						mxGeometry geom = mxc.getGeometry();
-						double srcWidth = geom.getWidth();
-						double srcHeight = geom.getHeight();
-						double maxWidth = srcWidth * 1.25;
-						double maxHeight = srcHeight * 1.25;
-						double ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+						final mxGeometry geom = mxc.getGeometry();
+						final double srcWidth = geom.getWidth();
+						final double srcHeight = geom.getHeight();
+						final double maxWidth = srcWidth * 1.25;
+						final double maxHeight = srcHeight * 1.25;
+						final double ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
 						graph.resizeCell(mxc, new mxRectangle(geom.getX(), geom.getY(), srcWidth*ratio, srcHeight*ratio));
 					}
 				}
 			}
 		});
 		add(plusShapeSizeButton);
-		JButton minusShapeSizeButton = new JButton("-");
+		final JButton minusShapeSizeButton = new JButton("-");
 		minusShapeSizeButton.setPreferredSize(new Dimension(10, 10));
 		minusShapeSizeButton.addActionListener(new ActionListener() {
 			@Override
-			public void actionPerformed(ActionEvent e) {
-				mxGraphComponent graphComponent = editor.getGraphComponent();
-				mxGraph graph = graphComponent.getGraph();
+			public void actionPerformed(final ActionEvent e) {
+				final mxGraphComponent graphComponent = editor.getGraphComponent();
+				final mxGraph graph = graphComponent.getGraph();
 				graph.setCellsResizable(true);
-				Object[] cells = graph.getSelectionCells();
+				final Object[] cells = graph.getSelectionCells();
 				if (cells == null || cells.length ==0) {
 					return;
 				}
-				for (Object cell : cells) {
-					mxICell mxc = (mxICell) cell;
+				for (final Object cell : cells) {
+					final mxICell mxc = (mxICell) cell;
 					if (graph.getModel().isVertex(mxc)) {
-						mxGeometry geom = mxc.getGeometry();
-						double srcWidth = geom.getWidth();
-						double srcHeight = geom.getHeight();
-						double maxWidth = srcWidth * 0.75;
-						double maxHeight = srcHeight * 0.75;
-						double ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+						final mxGeometry geom = mxc.getGeometry();
+						final double srcWidth = geom.getWidth();
+						final double srcHeight = geom.getHeight();
+						final double maxWidth = srcWidth * 0.75;
+						final double maxHeight = srcHeight * 0.75;
+						final double ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
 						graph.resizeCell(mxc, new mxRectangle(geom.getX(), geom.getY(), srcWidth*ratio, srcHeight*ratio));
 					}
 				}

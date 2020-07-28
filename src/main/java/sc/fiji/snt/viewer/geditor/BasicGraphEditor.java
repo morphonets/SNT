@@ -18,6 +18,7 @@ import java.util.List;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
+import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFrame;
@@ -587,7 +588,7 @@ public class BasicGraphEditor extends JPanel
 	 */
 	public Action bind(String name, final Action action)
 	{
-		return bind(name, action, null);
+		return bind(name, action, (String)null);
 	}
 
 	/**
@@ -611,6 +612,22 @@ public class BasicGraphEditor extends JPanel
 		
 		newAction.putValue(Action.SHORT_DESCRIPTION, action.getValue(Action.SHORT_DESCRIPTION));
 		
+		return newAction;
+	}
+
+	@SuppressWarnings("serial")
+	public Action bind(String name, final Action action, Icon icon)
+	{
+		AbstractAction newAction = new AbstractAction(name, icon)
+		{
+			public void actionPerformed(ActionEvent e)
+			{
+				action.actionPerformed(new ActionEvent(getGraphComponent(), e
+						.getID(), e.getActionCommand()));
+			}
+		};
+		
+		newAction.putValue(Action.SHORT_DESCRIPTION, action.getValue(Action.SHORT_DESCRIPTION));
 		return newAction;
 	}
 

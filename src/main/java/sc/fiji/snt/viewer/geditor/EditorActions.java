@@ -1,6 +1,3 @@
-/*
- * Copyright (c) 2001-2012, JGraph Ltd
- */
 package sc.fiji.snt.viewer.geditor;
 
 import java.awt.Color;
@@ -63,7 +60,7 @@ import com.mxgraph.util.png.mxPngTextDecoder;
 import com.mxgraph.view.mxGraph;
 
 /**
- *
+ * Copyright (c) 2001-2012, JGraph Ltd
  */
 public class EditorActions
 {
@@ -96,38 +93,20 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class ToggleRulersItem extends JCheckBoxMenuItem
 	{
-		/**
-		 * 
-		 */
 		public ToggleRulersItem(final BasicGraphEditor editor, String name)
 		{
 			super(name);
 			setSelected(editor.getGraphComponent().getColumnHeader() != null);
+			addActionListener(e -> {
+				mxGraphComponent graphComponent = editor.getGraphComponent();
 
-			addActionListener(new ActionListener()
-			{
-				/**
-				 * 
-				 */
-				public void actionPerformed(ActionEvent e)
-				{
-					mxGraphComponent graphComponent = editor
-							.getGraphComponent();
-
-					if (graphComponent.getColumnHeader() != null)
-					{
-						graphComponent.setColumnHeader(null);
-						graphComponent.setRowHeader(null);
-					}
-					else
-					{
-						graphComponent.setColumnHeaderView(new EditorRuler(
-								graphComponent,
-								EditorRuler.ORIENTATION_HORIZONTAL));
-						graphComponent.setRowHeaderView(new EditorRuler(
-								graphComponent,
-								EditorRuler.ORIENTATION_VERTICAL));
-					}
+				if (graphComponent.getColumnHeader() != null) {
+					graphComponent.setColumnHeader(null);
+					graphComponent.setRowHeader(null);
+				} else {
+					graphComponent
+							.setColumnHeaderView(new EditorRuler(graphComponent, EditorRuler.ORIENTATION_HORIZONTAL));
+					graphComponent.setRowHeaderView(new EditorRuler(graphComponent, EditorRuler.ORIENTATION_VERTICAL));
 				}
 			});
 		}
@@ -205,8 +184,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public void actionPerformed(ActionEvent e)
-		{
+		public void actionPerformed(ActionEvent e) {
 			if (e.getSource() instanceof mxGraphComponent)
 			{
 				mxGraphComponent graphComponent = (mxGraphComponent) e
