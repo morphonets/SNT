@@ -39,7 +39,7 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
         //edgeStyle.put(mxConstants.STYLE_STROKECOLOR, defaultEdgeStrokeColor);
 
         final Map<String, Object> vertexStyle = getStylesheet().getDefaultVertexStyle();
-        vertexStyle.put(mxConstants.STYLE_AUTOSIZE, true);
+        vertexStyle.put(mxConstants.STYLE_AUTOSIZE, false);
         vertexStyle.put(mxConstants.STYLE_LABEL_POSITION, mxConstants.ALIGN_CENTER);
         vertexStyle.put(mxConstants.STYLE_VERTICAL_LABEL_POSITION, mxConstants.ALIGN_MIDDLE);
         //vertexStyle.put(mxConstants.STYLE_STROKECOLOR, defaultVertexStrokeColor);

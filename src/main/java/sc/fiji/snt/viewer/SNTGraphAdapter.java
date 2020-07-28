@@ -13,8 +13,8 @@ public class SNTGraphAdapter<Object, DefaultWeightedEdge> extends JGraphXAdapter
     protected SNTGraphAdapter(SNTGraph<Object, DefaultWeightedEdge> graph) {
         super(graph);
         this.cGraph = graph;
-        setAutoOrigin(true);
-        setAutoSizeCells(true);
+//        setAutoOrigin(true);
+        setAutoSizeCells(false);
         setLabelsVisible(true);
 //        setEnableVertexLabels(true);
 //        setEnableEdgeLabels(true);
