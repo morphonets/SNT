@@ -1,11 +1,5 @@
 package sc.fiji.snt.viewer;
 
-import com.mxgraph.view.mxGraph;
-import org.jgrapht.ext.JGraphXAdapter;
-import org.jgrapht.graph.DefaultWeightedEdge;
-import com.mxgraph.swing.mxGraphComponent;
-import com.mxgraph.swing.view.mxInteractiveCanvas;
-import com.mxgraph.view.mxCellState;
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 
@@ -23,7 +17,6 @@ import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.viewer.geditor.GraphEditor;
 
 import javax.swing.*;
-import javax.swing.border.BevelBorder;
 
 import java.awt.*;
 import java.util.ArrayList;

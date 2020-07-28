@@ -161,7 +161,7 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
             }
         } finally {
             adapter.getModel().endUpdate();
-            adapter.refresh();
+            //adapter.refresh();
         }
     }
 
@@ -173,7 +173,7 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
             }
         } finally {
             adapter.getModel().endUpdate();
-            adapter.refresh();
+            //adapter.refresh();
         }
     }
 
@@ -185,7 +185,7 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
             }
         } finally {
             adapter.getModel().endUpdate();
-            adapter.refresh();
+            //adapter.refresh();
         }
     }
 
