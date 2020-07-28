@@ -48,7 +48,7 @@ public class EditorMenuBar extends JMenuBar
 
 	public enum AnalyzeType
 	{
-		IS_CONNECTED, IS_SIMPLE, IS_CYCLIC_DIRECTED, IS_CYCLIC_UNDIRECTED, COMPLEMENTARY, REGULARITY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE, IS_TREE, ONE_SPANNING_TREE, IS_DIRECTED, GET_CUT_VERTEXES, GET_CUT_EDGES, GET_SOURCES, GET_SINKS, PLANARITY, IS_BICONNECTED, GET_BICONNECTED, SPANNING_TREE, FLOYD_ROY_WARSHALL
+		PROPERTIES, COMPLEMENTARY, REGULARITY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE, ONE_SPANNING_TREE, GET_CUT_VERTEXES, GET_CUT_EDGES, GET_SOURCES, GET_SINKS, PLANARITY, GET_BICONNECTED, SPANNING_TREE, FLOYD_ROY_WARSHALL
 	}
 
 	public EditorMenuBar(final BasicGraphEditor editor)
@@ -390,10 +390,7 @@ public class EditorMenuBar extends JMenuBar
 //		menu.add(editor.bind("Reset Style", new InsertGraph(GraphType.RESET_STYLE, aGraph)));
 
 		menu = add(new JMenu("Analyze"));
-		menu.add(editor.bind("Is Connected", new AnalyzeGraph(AnalyzeType.IS_CONNECTED, aGraph)));
-		menu.add(editor.bind("Is Simple", new AnalyzeGraph(AnalyzeType.IS_SIMPLE, aGraph)));
-		menu.add(editor.bind("Is Directed Cyclic", new AnalyzeGraph(AnalyzeType.IS_CYCLIC_DIRECTED, aGraph)));
-		menu.add(editor.bind("Is Undirected Cyclic", new AnalyzeGraph(AnalyzeType.IS_CYCLIC_UNDIRECTED, aGraph)));
+		menu.add(editor.bind("Properties", new AnalyzeGraph(AnalyzeType.PROPERTIES, aGraph)));
 		menu.add(editor.bind("BFS Directed", new InsertGraph(GraphType.BFS_DIR, aGraph)));
 		menu.add(editor.bind("BFS Undirected", new InsertGraph(GraphType.BFS_UNDIR, aGraph)));
 		menu.add(editor.bind("DFS Directed", new InsertGraph(GraphType.DFS_DIR, aGraph)));
@@ -406,7 +403,6 @@ public class EditorMenuBar extends JMenuBar
 		menu.add(editor.bind("Get Components", new AnalyzeGraph(AnalyzeType.COMPONENTS, aGraph)));
 //		menu.add(editor.bind("Make Connected", new AnalyzeGraph(AnalyzeType.MAKE_CONNECTED, aGraph)));
 //		menu.add(editor.bind("Make Simple", new AnalyzeGraph(AnalyzeType.MAKE_SIMPLE, aGraph)));
-		menu.add(editor.bind("Is Tree", new AnalyzeGraph(AnalyzeType.IS_TREE, aGraph)));
 		menu.add(editor.bind("One Spanning Tree", new AnalyzeGraph(AnalyzeType.ONE_SPANNING_TREE, aGraph)));
 //		menu.add(editor.bind("Make tree directed", new InsertGraph(GraphType.MAKE_TREE_DIRECTED, aGraph)));
 //		menu.add(editor.bind("Is directed", new AnalyzeGraph(AnalyzeType.IS_DIRECTED, aGraph)));
@@ -808,56 +804,28 @@ public class EditorMenuBar extends JMenuBar
 			this.aGraph = aGraph;
 		}
 
-		protected void doIsConnected() {
+		private void printReport() {
 			boolean isConnected = mxGraphStructure.isConnected(aGraph);
-
-			if (isConnected)
-			{
-				System.out.println("The graph is connected");
-			}
-			else
-			{
-				System.out.println("The graph is not connected");
-			}
-		}
-
-		protected void doIsSimple() {
 			boolean isSimple = mxGraphStructure.isSimple(aGraph);
+			boolean isDirected = mxGraphProperties.isDirected(aGraph.getProperties(), mxGraphProperties.DEFAULT_DIRECTED);
+			boolean isTree = mxGraphStructure.isTree(aGraph);
 
-			if (isSimple)
-			{
-				System.out.println("The graph is simple");
+			System.out.println("Graph properties");
+			System.out.println("\tConnected: " + isConnected);
+			try {
+				boolean isBiconnected = mxGraphStructure.isBiconnected(aGraph);
+				System.out.println("\tBiconnected: " + isBiconnected);
+			} catch (Exception ignored) {
+				// do nothing
 			}
-			else
-			{
-				System.out.println("The graph is not simple");
-			}
-		}
+			System.out.println("\tSimple: " + isSimple);
+			System.out.println("\tDirected: " + isDirected);
+			System.out.println("\tTree: " + isTree);
 
-		protected void doIsCyclicDirected() {
 			boolean isCyclicDirected = mxGraphStructure.isCyclicDirected(aGraph);
-
-			if (isCyclicDirected)
-			{
-				System.out.println("The graph is cyclic directed");
-			}
-			else
-			{
-				System.out.println("The graph is acyclic directed");
-			}
-		}
-
-		protected void doIsCyclicUndirected() {
+			System.out.println("\tCyclic directed: " + isCyclicDirected);
 			boolean isCyclicUndirected = mxGraphStructure.isCyclicUndirected(aGraph);
-
-			if (isCyclicUndirected)
-			{
-				System.out.println("The graph is cyclic undirected");
-			}
-			else
-			{
-				System.out.println("The graph is acyclic undirected");
-			}
+			System.out.println("\tCyclic undirected: " + isCyclicUndirected);
 		}
 
 		protected void doComplementary(mxGraph graph) {
@@ -912,20 +880,6 @@ public class EditorMenuBar extends JMenuBar
 			graph.getModel().endUpdate();
 		}
 
-		protected void doIsDirected() {
-
-			boolean isDirected = mxGraphProperties.isDirected(aGraph.getProperties(), mxGraphProperties.DEFAULT_DIRECTED);
-
-			if (isDirected)
-			{
-				System.out.println("The graph is directed.");
-			}
-			else
-			{
-				System.out.println("The graph is undirected.");
-			}
-		}
-
 		protected void doGetSources() {
 
 			Object[] cells = aGraph.getGraph().getChildVertices(aGraph.getGraph().getDefaultParent());
@@ -965,21 +919,9 @@ public class EditorMenuBar extends JMenuBar
 				mxGraph graph = graphComponent.getGraph();
 				aGraph.setGraph(graph);
 
-				if (analyzeType == AnalyzeType.IS_CONNECTED)
+				if (analyzeType == AnalyzeType.PROPERTIES)
 				{
-					doIsConnected();
-				}
-				else if (analyzeType == AnalyzeType.IS_SIMPLE)
-				{
-					doIsSimple();
-				}
-				else if (analyzeType == AnalyzeType.IS_CYCLIC_DIRECTED)
-				{
-					doIsCyclicDirected();
-				}
-				else if (analyzeType == AnalyzeType.IS_CYCLIC_UNDIRECTED)
-				{
-					doIsCyclicUndirected();
+					printReport();
 				}
 				else if (analyzeType == AnalyzeType.COMPLEMENTARY)
 				{
@@ -1002,19 +944,6 @@ public class EditorMenuBar extends JMenuBar
 				{
 					mxGraphStructure.makeSimple(aGraph);
 				}
-				else if (analyzeType == AnalyzeType.IS_TREE)
-				{
-					boolean isTree = mxGraphStructure.isTree(aGraph);
-
-					if (isTree)
-					{
-						System.out.println("The graph is a tree");
-					}
-					else
-					{
-						System.out.println("The graph is not a tree");
-					}
-				}
 				else if (analyzeType == AnalyzeType.ONE_SPANNING_TREE)
 				{
 					try
@@ -1028,10 +957,6 @@ public class EditorMenuBar extends JMenuBar
 					{
 						System.out.println("The graph must be simple and connected");
 					}
-				}
-				else if (analyzeType == AnalyzeType.IS_DIRECTED)
-				{
-					doIsDirected();
 				}
 				else if (analyzeType == AnalyzeType.GET_CUT_VERTEXES)
 				{
@@ -1069,31 +994,6 @@ public class EditorMenuBar extends JMenuBar
 				else if (analyzeType == AnalyzeType.GET_SINKS)
 				{
 					doGetSinks();
-				}
-				else if (analyzeType == AnalyzeType.PLANARITY)
-				{
-					//TODO implement
-				}
-				else if (analyzeType == AnalyzeType.IS_BICONNECTED)
-				{
-					boolean isBiconnected = mxGraphStructure.isBiconnected(aGraph);
-
-					if (isBiconnected)
-					{
-						System.out.println("The graph is biconnected.");
-					}
-					else
-					{
-						System.out.println("The graph is not biconnected.");
-					}
-				}
-				else if (analyzeType == AnalyzeType.GET_BICONNECTED)
-				{
-					//TODO implement
-				}
-				else if (analyzeType == AnalyzeType.SPANNING_TREE)
-				{
-					//TODO implement
 				}
 				else if (analyzeType == AnalyzeType.FLOYD_ROY_WARSHALL)
 				{
