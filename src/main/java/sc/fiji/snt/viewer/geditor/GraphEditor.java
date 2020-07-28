@@ -10,6 +10,8 @@ import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
+import org.scijava.Context;
+import org.scijava.plugin.Parameter;
 import org.w3c.dom.Document;
 
 import com.mxgraph.io.mxCodec;
@@ -283,23 +285,23 @@ public class GraphEditor extends BasicGraphEditor
 	 */
 	public static void main(String[] args)
 	{
-		try
-		{
-			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-		}
-		catch (Exception e1)
-		{
-			e1.printStackTrace();
-		}
-
-		mxSwingConstants.SHADOW_COLOR = Color.LIGHT_GRAY;
-		mxConstants.W3C_SHADOWCOLOR = "#D3D3D3";
-
-		GraphEditor editor = new GraphEditor();
-		JFrame frame = editor.createFrame(new EditorMenuBar(editor));
-		SwingUtilities.invokeLater( () -> {
-			frame.setVisible(true);
-		});
+//		try
+//		{
+//			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+//		}
+//		catch (Exception e1)
+//		{
+//			e1.printStackTrace();
+//		}
+//
+//		mxSwingConstants.SHADOW_COLOR = Color.LIGHT_GRAY;
+//		mxConstants.W3C_SHADOWCOLOR = "#D3D3D3";
+//
+//		GraphEditor editor = new GraphEditor();
+//		JFrame frame = editor.createFrame(new EditorMenuBar(editor));
+//		SwingUtilities.invokeLater( () -> {
+//			frame.setVisible(true);
+//		});
 		
 
 	}

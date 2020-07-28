@@ -4,16 +4,9 @@ import java.awt.Dimension;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
-import javax.swing.AbstractAction;
-import javax.swing.JMenu;
-import javax.swing.JMenuBar;
-import javax.swing.JMenuItem;
-import javax.swing.SwingUtilities;
-import javax.swing.TransferHandler;
-import javax.swing.UIManager;
+import javax.swing.*;
 
 import com.mxgraph.analysis.StructuralException;
 import com.mxgraph.analysis.mxGraphProperties.GraphType;
@@ -31,12 +24,24 @@ import com.mxgraph.util.mxPoint;
 import com.mxgraph.util.mxResources;
 import com.mxgraph.view.mxGraph;
 import com.mxgraph.view.mxGraphView;
+import org.jgrapht.graph.DefaultWeightedEdge;
+import org.scijava.Context;
+import org.scijava.command.CommandService;
+import org.scijava.plugin.Parameter;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.graph.SNTGraph;
+import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
+import sc.fiji.snt.viewer.SNTGraphAdapter;
+import sc.fiji.snt.viewer.SNTGraphComponent;
 
 public class EditorMenuBar extends JMenuBar
 {
 	/**
 	 * 
 	 */
+	@Parameter
+	Context context;
 	private static final long serialVersionUID = 4060203894740766714L;
 	protected final BasicGraphEditor editor;
 	protected final mxGraphComponent graphComponent;
@@ -48,11 +53,14 @@ public class EditorMenuBar extends JMenuBar
 
 	public enum AnalyzeType
 	{
-		PROPERTIES, COMPLEMENTARY, REGULARITY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE, ONE_SPANNING_TREE, GET_CUT_VERTEXES, GET_CUT_EDGES, GET_SOURCES, GET_SINKS, PLANARITY, GET_BICONNECTED, SPANNING_TREE, FLOYD_ROY_WARSHALL
+		PROPERTIES, COLOR_CODING, EDGE_SCALING, COMPLEMENTARY, REGULARITY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE,
+		ONE_SPANNING_TREE, GET_CUT_VERTEXES, GET_CUT_EDGES, GET_SOURCES, GET_SINKS,
+		PLANARITY, GET_BICONNECTED, SPANNING_TREE, FLOYD_ROY_WARSHALL
 	}
 
-	public EditorMenuBar(final BasicGraphEditor editor)
+	public EditorMenuBar(final BasicGraphEditor editor, final Context context)
 	{
+		context.inject(this);
 		this.editor = editor;
 		this.graphComponent = editor.getGraphComponent();
 		this.graph = graphComponent.getGraph();
@@ -390,20 +398,22 @@ public class EditorMenuBar extends JMenuBar
 //		menu.add(editor.bind("Reset Style", new InsertGraph(GraphType.RESET_STYLE, aGraph)));
 
 		menu = add(new JMenu("Analyze"));
-		menu.add(editor.bind("Properties", new AnalyzeGraph(AnalyzeType.PROPERTIES, aGraph)));
+		menu.add(editor.bind("Properties", new AnalyzeGraph(AnalyzeType.PROPERTIES, aGraph, context)));
+		menu.add(editor.bind("Color coding...", new AnalyzeGraph(AnalyzeType.COLOR_CODING, aGraph, context)));
+		menu.add(editor.bind("Edge Scaling...", new AnalyzeGraph(AnalyzeType.EDGE_SCALING, aGraph, context)));
 		menu.add(editor.bind("BFS Directed", new InsertGraph(GraphType.BFS_DIR, aGraph)));
 		menu.add(editor.bind("BFS Undirected", new InsertGraph(GraphType.BFS_UNDIR, aGraph)));
 		menu.add(editor.bind("DFS Directed", new InsertGraph(GraphType.DFS_DIR, aGraph)));
 		menu.add(editor.bind("DFS Undirected", new InsertGraph(GraphType.DFS_UNDIR, aGraph)));
-		menu.add(editor.bind("Complementary", new AnalyzeGraph(AnalyzeType.COMPLEMENTARY, aGraph)));
-		menu.add(editor.bind("Regularity", new AnalyzeGraph(AnalyzeType.REGULARITY, aGraph)));
+		menu.add(editor.bind("Complementary", new AnalyzeGraph(AnalyzeType.COMPLEMENTARY, aGraph, context)));
+		menu.add(editor.bind("Regularity", new AnalyzeGraph(AnalyzeType.REGULARITY, aGraph, context)));
 		menu.add(editor.bind("Dijkstra", new InsertGraph(GraphType.DIJKSTRA, aGraph)));
 		menu.add(editor.bind("Bellman-Ford", new InsertGraph(GraphType.BELLMAN_FORD, aGraph)));
-		menu.add(editor.bind("Floyd-Roy-Warshall", new AnalyzeGraph(AnalyzeType.FLOYD_ROY_WARSHALL, aGraph)));
-		menu.add(editor.bind("Get Components", new AnalyzeGraph(AnalyzeType.COMPONENTS, aGraph)));
+		menu.add(editor.bind("Floyd-Roy-Warshall", new AnalyzeGraph(AnalyzeType.FLOYD_ROY_WARSHALL, aGraph, context)));
+		menu.add(editor.bind("Get Components", new AnalyzeGraph(AnalyzeType.COMPONENTS, aGraph, context)));
 //		menu.add(editor.bind("Make Connected", new AnalyzeGraph(AnalyzeType.MAKE_CONNECTED, aGraph)));
 //		menu.add(editor.bind("Make Simple", new AnalyzeGraph(AnalyzeType.MAKE_SIMPLE, aGraph)));
-		menu.add(editor.bind("One Spanning Tree", new AnalyzeGraph(AnalyzeType.ONE_SPANNING_TREE, aGraph)));
+		menu.add(editor.bind("One Spanning Tree", new AnalyzeGraph(AnalyzeType.ONE_SPANNING_TREE, aGraph, context)));
 //		menu.add(editor.bind("Make tree directed", new InsertGraph(GraphType.MAKE_TREE_DIRECTED, aGraph)));
 //		menu.add(editor.bind("Is directed", new AnalyzeGraph(AnalyzeType.IS_DIRECTED, aGraph)));
 //		menu.add(editor.bind("Indegree", new InsertGraph(GraphType.INDEGREE, aGraph)));
@@ -411,8 +421,8 @@ public class EditorMenuBar extends JMenuBar
 //		menu.add(editor.bind("Is cut vertex", new InsertGraph(GraphType.IS_CUT_VERTEX, aGraph)));
 //		menu.add(editor.bind("Get cut vertices", new AnalyzeGraph(AnalyzeType.GET_CUT_VERTEXES, aGraph)));
 //		menu.add(editor.bind("Get cut edges", new AnalyzeGraph(AnalyzeType.GET_CUT_EDGES, aGraph)));
-		menu.add(editor.bind("Get sources", new AnalyzeGraph(AnalyzeType.GET_SOURCES, aGraph)));
-		menu.add(editor.bind("Get sinks", new AnalyzeGraph(AnalyzeType.GET_SINKS, aGraph)));
+		menu.add(editor.bind("Get sources", new AnalyzeGraph(AnalyzeType.GET_SOURCES, aGraph, context)));
+		menu.add(editor.bind("Get sinks", new AnalyzeGraph(AnalyzeType.GET_SINKS, aGraph, context)));
 //		menu.add(editor.bind("Is biconnected", new AnalyzeGraph(AnalyzeType.IS_BICONNECTED, aGraph)));
 	}
 
@@ -789,6 +799,9 @@ public class EditorMenuBar extends JMenuBar
 		private static final long serialVersionUID = 6926170745240507985L;
 
 		mxAnalysisGraph aGraph;
+		SNTGraphComponent component;
+		SNTGraphAdapter adapter;
+		Context context;
 
 		/**
 		 * 
@@ -798,10 +811,11 @@ public class EditorMenuBar extends JMenuBar
 		/**
 		 * Examples for calling analysis methods from mxGraphStructure 
 		 */
-		public AnalyzeGraph(AnalyzeType analyzeType, mxAnalysisGraph aGraph)
+		public AnalyzeGraph(AnalyzeType analyzeType, mxAnalysisGraph aGraph, Context context)
 		{
 			this.analyzeType = analyzeType;
 			this.aGraph = aGraph;
+			this.context = context;
 		}
 
 		private void printReport() {
@@ -828,13 +842,105 @@ public class EditorMenuBar extends JMenuBar
 			System.out.println("\tCyclic undirected: " + isCyclicUndirected);
 		}
 
-		protected void doComplementary(mxGraph graph) {
-			graph.getModel().beginUpdate();
+		protected void doColorCoding() {
+			final Map<String, Object> input = new HashMap<>();
+			input.put("adapter", adapter);
+			context.getService(CommandService.class).run(GraphAdapterMapperCmd.class, true, input);
+		}
+
+		protected void doEdgeScaling() {
+			JTextField maxWidthField = new JTextField(SNTUtils.formatDouble(5, 2), 5);
+			JRadioButton linearScaleButton = new JRadioButton("linear");
+			linearScaleButton.setSelected(true);
+			JRadioButton logScaleButton = new JRadioButton("log");
+			ButtonGroup bg = new ButtonGroup();
+			bg.add(linearScaleButton);
+			bg.add(logScaleButton);
+			JPanel myPanel = new JPanel();
+			myPanel.setLayout(new BoxLayout(myPanel, BoxLayout.Y_AXIS));
+			myPanel.add(new JLabel("<html><b>Edge Scaling Parameters"));
+			myPanel.add(new JLabel("<html>Max line width"));
+			myPanel.add(maxWidthField);
+			myPanel.add(new JLabel("<html><br>Scale"));
+			myPanel.add(linearScaleButton);
+			myPanel.add(logScaleButton);
+			double newMax = 1;
+			String scale = "linear";
+			int result = JOptionPane.showConfirmDialog(null, myPanel,
+					"Please Specify Options", JOptionPane.OK_CANCEL_OPTION);
+			if (result == JOptionPane.OK_OPTION) {
+				double input = GuiUtils.extractDouble(maxWidthField);
+				if (Double.isNaN(input) || input <= 0) {
+					GuiUtils.errorPrompt("Max width must be > 0");
+					return;
+				}
+				newMax = input;
+				for (Enumeration<AbstractButton> buttons = bg.getElements(); buttons.hasMoreElements();) {
+					AbstractButton button = buttons.nextElement();
+					if (button.isSelected()) {
+						scale = button.getText();
+					}
+				}
+			} else {
+				return;
+			}
+			Object[] cells = adapter.getEdgeToCellMap().values().toArray();
+			if (cells.length == 0) {
+				return;
+			}
+			double newMin = 0.1;
+			double minWeight = Double.MAX_VALUE;
+			double maxWeight = -Double.MAX_VALUE;
+			SNTGraph<Object, DefaultWeightedEdge> sntGraph = adapter.getSourceGraph();
+			// First get the range of observed weights, negative weights are allowed.
+			for (Object cell : cells) {
+				mxICell mxc = (mxICell) cell;
+				if (!mxc.isEdge()) continue;
+				double weight = sntGraph.getEdgeWeight((DefaultWeightedEdge)adapter.getCellToEdgeMap().get(mxc));
+				if (weight < minWeight) {minWeight = weight;}
+				if (weight > maxWeight) {maxWeight = weight;}
+			}
+			if (scale.equals("linear")) {
+				// Map the input interval onto a new interval [newMin, newMax]
+				for (Object cell : cells) {
+					mxICell mxc = (mxICell) cell;
+					if (!mxc.isEdge()) continue;
+					double weight = sntGraph.getEdgeWeight((DefaultWeightedEdge)adapter.getCellToEdgeMap().get(mxc));
+					double scaledWeight = newMin + ((newMax - newMin) / (maxWeight - minWeight)) * (weight - minWeight);
+					adapter.setCellStyles(mxConstants.STYLE_STROKEWIDTH, String.valueOf(scaledWeight), new Object[]{mxc});
+				}
+			}
+			else if (scale.equals("log")) {
+				// If the min edge weight is not 1, shift all values so that the minimum is 1.
+				// This is necessary for correct log function behavior at the minimum value (i.e., log(1) == 0)
+				double rightShift = 0;
+				double leftShift = 0;
+				if (minWeight < 1) {
+					rightShift = 1 - minWeight;
+				}
+				else if (minWeight > 1) {
+					leftShift = 1 - minWeight;
+				}
+				for (Object cell : cells) {
+					mxICell mxc = (mxICell) cell;
+					if (!mxc.isEdge()) continue;
+					double weight = sntGraph.getEdgeWeight(
+							(DefaultWeightedEdge)adapter.getCellToEdgeMap().get(mxc)
+					) + rightShift + leftShift;
+					double k = newMax / Math.log(maxWeight + rightShift + leftShift);
+					double scaledWeight = k * Math.log(weight) + newMin;
+					adapter.setCellStyles(mxConstants.STYLE_STROKEWIDTH, String.valueOf(scaledWeight), new Object[]{mxc});
+				}
+			}
+		}
+
+		protected void doComplementary() {
+			adapter.getModel().beginUpdate();
 
 			mxGraphStructure.complementaryGraph(aGraph);
 
 			mxGraphStructure.setDefaultGraphStyle(aGraph, true);
-			graph.getModel().endUpdate();
+			adapter.getModel().endUpdate();
 		}
 
 		protected void doRegularity() {
@@ -868,8 +974,8 @@ public class EditorMenuBar extends JMenuBar
 			System.out.println("Number of components: " + components.length);
 		}
 
-		protected void doMakeConnected(mxGraph graph) {
-			graph.getModel().beginUpdate();
+		protected void doMakeConnected() {
+			adapter.getModel().beginUpdate();
 
 			if (!mxGraphStructure.isConnected(aGraph))
 			{
@@ -877,7 +983,7 @@ public class EditorMenuBar extends JMenuBar
 				mxGraphStructure.setDefaultGraphStyle(aGraph, false);
 			}
 
-			graph.getModel().endUpdate();
+			adapter.getModel().endUpdate();
 		}
 
 		protected void doGetSources() {
@@ -913,19 +1019,26 @@ public class EditorMenuBar extends JMenuBar
 
 		public void actionPerformed(ActionEvent e)
 		{
-			if (e.getSource() instanceof mxGraphComponent)
+			if (e.getSource() instanceof SNTGraphComponent)
 			{
-				mxGraphComponent graphComponent = (mxGraphComponent) e.getSource();
-				mxGraph graph = graphComponent.getGraph();
-				aGraph.setGraph(graph);
+				component = (SNTGraphComponent) e.getSource();
+				adapter = (SNTGraphAdapter) component.getGraph();
+				aGraph.setGraph(adapter);
 
 				if (analyzeType == AnalyzeType.PROPERTIES)
 				{
 					printReport();
 				}
+				else if (analyzeType == AnalyzeType.COLOR_CODING)
+				{
+					doColorCoding();
+				}
+				else if (analyzeType == AnalyzeType.EDGE_SCALING) {
+					doEdgeScaling();
+				}
 				else if (analyzeType == AnalyzeType.COMPLEMENTARY)
 				{
-					doComplementary(graph);
+					doComplementary();
 				}
 				else if (analyzeType == AnalyzeType.REGULARITY)
 				{
@@ -934,11 +1047,10 @@ public class EditorMenuBar extends JMenuBar
 				else if (analyzeType == AnalyzeType.COMPONENTS)
 				{
 					doComponents();
-
 				}
 				else if (analyzeType == AnalyzeType.MAKE_CONNECTED)
 				{
-					doMakeConnected(graph);
+					doMakeConnected();
 				}
 				else if (analyzeType == AnalyzeType.MAKE_SIMPLE)
 				{
@@ -948,10 +1060,10 @@ public class EditorMenuBar extends JMenuBar
 				{
 					try
 					{
-						graph.getModel().beginUpdate();
+						adapter.getModel().beginUpdate();
 						aGraph.getGenerator().oneSpanningTree(aGraph, true, true);
 						mxGraphStructure.setDefaultGraphStyle(aGraph, false);
-						graph.getModel().endUpdate();
+						adapter.getModel().endUpdate();
 					}
 					catch (StructuralException e1)
 					{

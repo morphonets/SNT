@@ -40,7 +40,7 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
 	private static final String LIGHT_GRAY = "#eeeeee";
 	// default cell colors
 	private String defaultVertexStrokeColor = DARK_GRAY;
-	private String defaultVertexGradientColor = LIGHT_GRAY;
+	private String defaultVertexFillColor = LIGHT_GRAY;
 	private String defaultEdgeStrokeColor = DARK_GRAY;
 
 	protected TreeGraphAdapter(final DirectedWeightedGraph graph) {
@@ -79,17 +79,17 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
 			return;
 		}
 		String strokeColor;
-		String gradientColor;
+		String fillColor;
 		if (color == null) {
 			strokeColor = defaultVertexStrokeColor;
-			gradientColor = defaultVertexGradientColor;
+			fillColor = defaultVertexFillColor;
 		} else {
 			strokeColor = color.toHTMLColor();
-			gradientColor = color.toHTMLColor();
+			fillColor = color.toHTMLColor();
 		}
 		Object[] modified = { cell };
 		setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
-		setCellStyles(mxConstants.STYLE_GRADIENTCOLOR, gradientColor, modified);
+		setCellStyles(mxConstants.STYLE_FILLCOLOR, fillColor, modified);
 	}
 
 	@Override

@@ -8,6 +8,7 @@ import com.mxgraph.swing.mxGraphOutline;
 import com.mxgraph.swing.view.mxInteractiveCanvas;
 import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.util.mxPoint;
+import com.mxgraph.view.mxGraph;
 import com.mxgraph.view.mxGraphView;
 import com.mxgraph.view.mxLayoutManager;
 import org.scijava.Context;
@@ -29,7 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 
-class SNTGraphComponent extends mxGraphComponent {
+public class SNTGraphComponent extends mxGraphComponent {
     @Parameter
     protected CommandService cmdService;
     protected final SNTGraphAdapter adapter;

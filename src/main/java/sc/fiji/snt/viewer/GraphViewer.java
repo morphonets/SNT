@@ -14,6 +14,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
+import sc.fiji.snt.viewer.geditor.EditorMenuBar;
 import sc.fiji.snt.viewer.geditor.GraphEditor;
 
 import javax.swing.*;
@@ -64,7 +65,7 @@ public class GraphViewer {
         //mxGraphComponent component = new mxGraphComponent(adapter);
         GuiUtils.setSystemLookAndFeel();
         GraphEditor editor = new GraphEditor("Graph Viewer", component);
-        JFrame frame = editor.createFrame(new SNTEditorMenuBar(editor, getContext()));
+        JFrame frame = editor.createFrame(new EditorMenuBar(editor, getContext()));
         //frame.pack(); //FIXME: Don't pack() otherwise stall occurs on openjdk
         SwingUtilities.invokeLater(() -> frame.setVisible(true));
         return frame;
