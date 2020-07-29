@@ -265,11 +265,11 @@ public class BasicGraphEditor extends JPanel
 
 						if (dirty == null)
 						{
-							status("Repaint all" + buffer);
+							status("View updated" + buffer);
 						}
 						else
 						{
-							status("Repaint: x=" + (int) (dirty.getX()) + " y="
+							status("Updated: x=" + (int) (dirty.getX()) + " y="
 									+ (int) (dirty.getY()) + " w="
 									+ (int) (dirty.getWidth()) + " h="
 									+ (int) (dirty.getHeight()) + buffer);
@@ -638,6 +638,14 @@ public class BasicGraphEditor extends JPanel
 	public void status(String msg)
 	{
 		statusBar.setText(msg);
+	}
+
+	public void status(String msg, final boolean error) {
+		if (error) {
+			status("<html><font color='red'>" + msg + "</font>");
+		} else {
+			status(msg);
+		}
 	}
 
 	/**

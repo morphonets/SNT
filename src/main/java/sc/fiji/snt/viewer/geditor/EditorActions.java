@@ -33,7 +33,6 @@ import org.w3c.dom.Document;
 
 import com.mxgraph.analysis.mxDistanceCostFunction;
 import com.mxgraph.analysis.mxGraphAnalysis;
-import com.mxgraph.canvas.mxGraphics2DCanvas;
 import com.mxgraph.canvas.mxICanvas;
 import com.mxgraph.canvas.mxSvgCanvas;
 import com.mxgraph.io.mxCodec;
@@ -41,9 +40,7 @@ import com.mxgraph.io.mxGdCodec;
 import com.mxgraph.model.mxCell;
 import com.mxgraph.model.mxGraphModel;
 import com.mxgraph.model.mxIGraphModel;
-import com.mxgraph.shape.mxStencilShape;
 import com.mxgraph.swing.mxGraphComponent;
-import com.mxgraph.swing.mxGraphOutline;
 import com.mxgraph.swing.handler.mxConnectionHandler;
 import com.mxgraph.swing.util.mxGraphActions;
 import com.mxgraph.swing.view.mxCellEditor;
@@ -118,16 +115,21 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class ToggleGridItem extends JCheckBoxMenuItem {
 
+		boolean firstTimeSettingGrid = true;
 		public ToggleGridItem(final BasicGraphEditor editor, String name, boolean initialState) {
 			super(name, initialState);
-			addActionListener(e -> {
+			addItemListener(e -> {
 				mxGraphComponent graphComponent = editor.getGraphComponent();
 				mxGraph graph = graphComponent.getGraph();
-				boolean enabled = !graph.isGridEnabled();
-				graph.setGridEnabled(enabled);
-				graphComponent.setGridVisible(enabled);
+				if (firstTimeSettingGrid && isSelected()) {
+					graph.setGridSize(100);
+					graphComponent.setGridStyle(mxGraphComponent.GRID_STYLE_LINE);
+					graphComponent.setGridColor(Color.CYAN);
+					firstTimeSettingGrid = false;
+				}
+				graph.setGridEnabled(isSelected());
+				graphComponent.setGridVisible(isSelected());
 				graphComponent.repaint();
-				setSelected(enabled);
 			});
 		}
 	}
@@ -1228,6 +1230,9 @@ public class EditorActions
 						.getSource();
 				Component editorComponent = null;
 
+				if (noCellsError(e, "Font style", graphComponent.getGraph())) {
+					return;
+				}
 				if (graphComponent.getCellEditor() instanceof mxCellEditor)
 				{
 					editorComponent = ((mxCellEditor) graphComponent
@@ -1725,7 +1730,7 @@ public class EditorActions
 		{
 			mxGraph graph = mxGraphActions.getGraph(e);
 
-			if (graph != null && !graph.isSelectionEmpty())
+			if (graph != null && !noCellsError(e, key, graph))
 			{
 				graph.setCellStyles(key, value);
 			}
@@ -1882,8 +1887,7 @@ public class EditorActions
 				mxGraphComponent graphComponent = (mxGraphComponent) e
 						.getSource();
 				mxGraph graph = graphComponent.getGraph();
-
-				if (!graph.isSelectionEmpty())
+				if (!noCellsError(e, name, graph))
 				{
 					Color newColor = JColorChooser.showDialog(graphComponent,
 							name, null);
@@ -2051,7 +2055,7 @@ public class EditorActions
 				mxGraphComponent graphComponent = (mxGraphComponent) e
 						.getSource();
 				mxGraph graph = graphComponent.getGraph();
-				JList choices = new JList(shapes);
+				JList<String> choices = new JList<>(shapes);
 				JOptionPane.showMessageDialog(
 						graphComponent, new JScrollPane(choices), "Choose new shape", JOptionPane.PLAIN_MESSAGE,
 						null);
@@ -2067,6 +2071,18 @@ public class EditorActions
 				}
 			}
 		}
+	}
+
+	private static boolean noCellsError(final ActionEvent e, final String cmdName, final mxGraph graph) {
+		final boolean noCells = graph.isSelectionEmpty();
+		if (noCells) {
+			final BasicGraphEditor editor = getEditor(e);
+			if (editor != null)
+				editor.status("No selection exists!", true);
+			else
+				System.out.println("No selection exists");
+		}
+		return noCells;
 	}
 
 }

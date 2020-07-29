@@ -24,7 +24,7 @@ public class EditorConsole extends JPanel implements ActionListener {
 
 	public EditorConsole() {
 		super(new BorderLayout());
-		ta = new JTextArea("=== Welcome to SNT's Graph Editor ===\n");
+		ta = new JTextArea("Welcome to SNT's Graph Editor!\n");
 		ta.setLineWrap(false);
 		sOut = System.out;
 		sErr = System.err;
