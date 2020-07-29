@@ -146,7 +146,7 @@ public class EditorMenuBar extends JMenuBar
 		menu.addSeparator();
 		menu.add(new EditorActions.ToggleBottomPaneItem(editor, mxResources.get("outline")));
 		menu.add(new EditorActions.ToggleRulersItem(editor, mxResources.get("rulers")));
-		menu.add(new EditorActions.ToggleGridItem(editor, mxResources.get("grid"), graphComponent.isGridVisible()));
+		menu.add(new EditorActions.ToggleGridItem(editor, mxResources.get("grid"), false));
 
 		submenu = (JMenu) menu.add(new JMenu("Grid Options"));
 		submenu.add(editor.bind(mxResources.get("gridSize"), new EditorActions.PromptPropertyAction(graph, "Grid Size", "GridSize")));
@@ -824,7 +824,7 @@ public class EditorMenuBar extends JMenuBar
 			boolean isDirected = mxGraphProperties.isDirected(aGraph.getProperties(), mxGraphProperties.DEFAULT_DIRECTED);
 			boolean isTree = mxGraphStructure.isTree(aGraph);
 
-			System.out.println("Graph properties");
+			System.out.println("Graph properties:");
 			System.out.println("\tConnected: " + isConnected);
 			try {
 				boolean isBiconnected = mxGraphStructure.isBiconnected(aGraph);
