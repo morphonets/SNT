@@ -2,6 +2,7 @@ package sc.fiji.snt.analysis.graph;
 
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.PointInImage;
@@ -12,23 +13,45 @@ import java.util.stream.Collectors;
 
 public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeightedEdge> {
 
+    public static final String TIPS = "tips";
+    public static final String LENGTH = "length";
+    public static final String BRANCH_POINTS = "branches";
+
     protected AnnotationGraph() {
         super(AnnotationWeightedEdge.class);
     }
 
     public AnnotationGraph(final Collection<Tree> trees) {
-        this(trees, 1, AllenUtils.getHighestOntologyDepth());
+        this(trees, "tips", 1, AllenUtils.getHighestOntologyDepth());
     }
 
-    public AnnotationGraph(final Collection<Tree> trees, int minTipCount, int maxOntologyDepth) {
+    public AnnotationGraph(final Collection<Tree> trees, String metric, double threshold, int maxOntologyDepth) {
         super(AnnotationWeightedEdge.class);
+        if (trees.isEmpty()) {
+            throw new IllegalArgumentException("Empty Tree collection given");
+        }
+        if (threshold < 0) {
+            threshold = 0;
+        }
         if (maxOntologyDepth < 0) {
             maxOntologyDepth = 0;
         }
-        init(trees, minTipCount, maxOntologyDepth);
+        switch (metric) {
+            case TIPS:
+                init_tips(trees, (int)threshold, maxOntologyDepth);
+                break;
+            case BRANCH_POINTS:
+                init_branch_points(trees, (int)threshold, maxOntologyDepth);
+                break;
+            case LENGTH:
+                init_length(trees, threshold, maxOntologyDepth);
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown metric");
+        }
     }
 
-    private void init(final Collection<Tree> trees, int minTipCount, int maxOntologyDepth) {
+    private void init_tips(final Collection<Tree> trees, int minTipCount, int maxOntologyDepth) {
         final Map<Integer, BrainAnnotation> annotationPool = new HashMap<>();
         for (final Tree tree : trees) {
             BrainAnnotation rootAnnotation = tree.getRoot().getAnnotation();
@@ -38,7 +61,6 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
             rootAnnotation = getLevelAncestor(rootAnnotation, maxOntologyDepth);
             if (!annotationPool.containsKey(rootAnnotation.id())) {
                 annotationPool.put(rootAnnotation.id(), rootAnnotation);
-                addVertex(rootAnnotation);
             }
             rootAnnotation = annotationPool.get(rootAnnotation.id());
             if (!containsVertex(rootAnnotation)) {
@@ -78,6 +100,97 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
                     setEdgeWeight(edge, 0);
                 }
                 setEdgeWeight(edge, getEdgeWeight(edge) + countMap.get(areaId));
+            }
+        }
+    }
+
+    private void init_branch_points(final Collection<Tree> trees, int minBranchCount, int maxOntologyDepth) {
+        final Map<Integer, BrainAnnotation> annotationPool = new HashMap<>();
+        for (final Tree tree : trees) {
+            BrainAnnotation rootAnnotation = tree.getRoot().getAnnotation();
+            if (rootAnnotation == null) {
+                continue;
+            }
+            rootAnnotation = getLevelAncestor(rootAnnotation, maxOntologyDepth);
+            if (!annotationPool.containsKey(rootAnnotation.id())) {
+                annotationPool.put(rootAnnotation.id(), rootAnnotation);
+            }
+            rootAnnotation = annotationPool.get(rootAnnotation.id());
+            if (!containsVertex(rootAnnotation)) {
+                addVertex(rootAnnotation);
+            }
+            final Set<PointInImage> branches = new TreeAnalyzer(tree).getBranchPoints();
+            Map<Integer, Integer> countMap = new HashMap<>();
+            for (final PointInImage branch : branches) {
+                BrainAnnotation branchAnnotation = branch.getAnnotation();
+                if (branchAnnotation == null) {
+                    continue;
+                }
+                branchAnnotation = getLevelAncestor(branchAnnotation, maxOntologyDepth);
+                if (!annotationPool.containsKey(branchAnnotation.id())) {
+                    annotationPool.put(branchAnnotation.id(), branchAnnotation);
+                }
+                if (!countMap.containsKey(branchAnnotation.id())) {
+                    countMap.put(branchAnnotation.id(), 0);
+                }
+                countMap.put(branchAnnotation.id(), countMap.get(branchAnnotation.id()) + 1);
+            }
+            List<Integer> filteredBranches = countMap
+                    .entrySet()
+                    .stream()
+                    .filter(e -> e.getValue() >= minBranchCount)
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+            for (Integer areaId : filteredBranches) {
+                BrainAnnotation fBranch = annotationPool.get(areaId);
+                if (!containsVertex(fBranch)) {
+                    addVertex(fBranch);
+                }
+                AnnotationWeightedEdge edge = getEdge(rootAnnotation, fBranch);
+                if (edge == null) {
+                    edge = new AnnotationWeightedEdge();
+                    addEdge(rootAnnotation, fBranch, edge);
+                    setEdgeWeight(edge, 0);
+                }
+                setEdgeWeight(edge, getEdgeWeight(edge) + countMap.get(areaId));
+            }
+        }
+    }
+
+    private void init_length(final Collection<Tree> trees, double minCableLength, int maxOntologyDepth) {
+        final Map<Integer, BrainAnnotation> annotationPool = new HashMap<>();
+        for (final Tree tree : trees) {
+            BrainAnnotation rootAnnotation = tree.getRoot().getAnnotation();
+            if (rootAnnotation == null) {
+                continue;
+            }
+            rootAnnotation = getLevelAncestor(rootAnnotation, maxOntologyDepth);
+            if (!annotationPool.containsKey(rootAnnotation.id())) {
+                annotationPool.put(rootAnnotation.id(), rootAnnotation);
+            }
+            rootAnnotation = annotationPool.get(rootAnnotation.id());
+            if (!containsVertex(rootAnnotation)) {
+                addVertex(rootAnnotation);
+            }
+            Map<BrainAnnotation, Double> lengthMap = new TreeStatistics(tree).getAnnotatedLength(maxOntologyDepth);
+            for (Map.Entry<BrainAnnotation, Double> entry : lengthMap.entrySet()) {
+                if (entry.getKey() == null) {continue;}
+                if (entry.getValue() < minCableLength) {continue;}
+                BrainAnnotation area = entry.getKey();
+                if (!annotationPool.containsKey(area.id())) {
+                    annotationPool.put(area.id(), area);
+                }
+                area = annotationPool.get(area.id());
+                if (!containsVertex(area)) {
+                    addVertex(area);
+                }
+                AnnotationWeightedEdge edge = getEdge(rootAnnotation, area);
+                if (edge == null) {
+                    edge = new AnnotationWeightedEdge();
+                    addEdge(rootAnnotation, area, edge);
+                    setEdgeWeight(edge, 0);
+                }
+                setEdgeWeight(edge, getEdgeWeight(edge) + entry.getValue());
             }
         }
     }
@@ -129,5 +242,8 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
      *
      * @return a reference to the displayed window.
      */
+    protected void show() {
+        // TODO
+    }
 
 }

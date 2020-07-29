@@ -11,6 +11,7 @@ import org.scijava.prefs.PrefService;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.graph.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
@@ -82,13 +83,15 @@ public class GraphViewer {
         cellIds.add("AA1044");
         cellIds.add("AA0023");
         cellIds.add("AA0310");
+
         List<Tree> trees = new ArrayList<Tree>();
         for (String id : cellIds) {
             Tree tree = new MouseLightLoader(id).getTree("axon");
             trees.add(tree);
         }
+        System.out.println(new TreeAnalyzer(trees.get(3)).getCableLength());
         //List<Tree> trees = ij.context().getService(SNTService.class).demoTrees();
-        final AnnotationGraph graph = new AnnotationGraph(trees, 10, 8);
+        final AnnotationGraph graph = new AnnotationGraph(trees, "branches", 50, 7);
         //graph.filterEdgesByWeight(20);
         // graph.removeOrphanedNodes();
         GraphViewer graphViewer = new GraphViewer(graph);

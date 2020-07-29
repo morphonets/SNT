@@ -847,9 +847,9 @@ public class BasicGraphEditor extends JPanel
 			else if (ident.equals("organicLayout"))
 			{
 				mxOrganicLayout olayout = new mxOrganicLayout(graph);
-				olayout.setMinDistanceLimit(5);
-				olayout.setMaxIterations(2000);
-				olayout.setEdgeCrossingCostFactor(7000);
+//				olayout.setMinDistanceLimit(5);
+//				olayout.setMaxIterations(2000);
+//				olayout.setEdgeCrossingCostFactor(7000);
 				return olayout;
 			}
 			if (ident.equals("verticalPartition"))
