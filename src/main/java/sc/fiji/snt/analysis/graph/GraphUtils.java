@@ -40,6 +40,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.SWCPoint;
+import sc.fiji.snt.viewer.GraphViewer;
 import sc.fiji.snt.viewer.Viewer3D;
 
 /**
@@ -90,9 +91,10 @@ public class GraphUtils {
 	 * @return the assembled window
 	 */
 	public static Window show(final DirectedWeightedGraph graph) {
-		// TODO decide what to do here
-		//return new GraphViewer(graph).show();
-		throw new UnsupportedOperationException();
+		final GraphViewer graphViewer = new GraphViewer(graph);
+		if (SNTUtils.getPluginInstance() != null)
+			graphViewer.setContext(SNTUtils.getPluginInstance().getContext());
+		return graphViewer.show();
 	}
 
 	public static void main(final String[] args) {
