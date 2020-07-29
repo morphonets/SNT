@@ -43,7 +43,7 @@ public class EditorMenuBar extends JMenuBar
 	@Parameter
 	Context context;
 	private static final long serialVersionUID = 4060203894740766714L;
-	protected final BasicGraphEditor editor;
+	private static BasicGraphEditor editor;
 	protected final mxGraphComponent graphComponent;
 	protected final mxGraph graph;
 	protected mxAnalysisGraph aGraph;
@@ -61,7 +61,7 @@ public class EditorMenuBar extends JMenuBar
 	public EditorMenuBar(final BasicGraphEditor editor, final Context context)
 	{
 		context.inject(this);
-		this.editor = editor;
+		EditorMenuBar.editor = editor;
 		this.graphComponent = editor.getGraphComponent();
 		this.graph = graphComponent.getGraph();
 		this.aGraph = new mxAnalysisGraph();
@@ -886,6 +886,9 @@ public class EditorMenuBar extends JMenuBar
 			} else {
 				return;
 			}
+			editor.status("Building edges...");
+			adapter.getModel().beginUpdate();
+
 			Object[] cells = adapter.getEdgeToCellMap().values().toArray();
 			if (cells.length == 0) {
 				return;
@@ -934,6 +937,8 @@ public class EditorMenuBar extends JMenuBar
 					adapter.setCellStyles(mxConstants.STYLE_STROKEWIDTH, String.valueOf(scaledWeight), new Object[]{mxc});
 				}
 			}
+			adapter.getModel().endUpdate();
+			editor.status("Done...");
 		}
 
 		protected void doComplementary() {
