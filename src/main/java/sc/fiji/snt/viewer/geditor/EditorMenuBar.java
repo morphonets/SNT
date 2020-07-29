@@ -189,6 +189,8 @@ public class EditorMenuBar extends JMenuBar
 		zoomOptionsMenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("zoomToSelection"),
 				"KeepSelectionVisibleOnZoom", true));
 
+		menu.addSeparator();
+		menu.add(editor.bind("Center", new EditorActions.CenterAction()));
 
 		// Creates the format menu
 		menu = add(new JMenu(mxResources.get("format")));

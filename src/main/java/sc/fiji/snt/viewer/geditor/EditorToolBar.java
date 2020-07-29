@@ -1,6 +1,5 @@
 package sc.fiji.snt.viewer.geditor;
 
-import java.awt.Component;
 import java.awt.GraphicsEnvironment;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -213,7 +212,7 @@ public class EditorToolBar extends JToolBar
 				"Garamond", "Courier New"}));
 		fonts.addAll(Arrays.asList(env.getAvailableFontFamilyNames()));
 
-		final JComboBox<String> fontCombo = new JComboBox(fonts.toArray());
+		final JComboBox<String> fontCombo = new JComboBox<String>(fonts.toArray(new String[0]));
 		fontCombo.setPrototypeDisplayValue("DejaVu Sans Condens");
 		fontCombo.setEditable(false);
 		fontCombo.setToolTipText("Labels Typeface & Size");
@@ -222,7 +221,7 @@ public class EditorToolBar extends JToolBar
 			final String font = fontCombo.getSelectedItem().toString();
 			if (font != null) {
 				final mxGraph graph = editor.getGraphComponent().getGraph();
-				if (noCellsError(graph.getSelectionCells()))
+				if (!noCellsError(graph.getSelectionCells()))
 					graph.setCellStyles(mxConstants.STYLE_FONTFAMILY, font);
 			}
 		});
@@ -261,7 +260,7 @@ public class EditorToolBar extends JToolBar
 
 	private boolean noCellsError(final Object[] cells) {
 		final boolean noCells = cells == null || cells.length ==0;
-		if (noCells) editor.status("No selection exists", true);
+		if (noCells) editor.status("No selection exists!", true);
 		return noCells;
 	}
 

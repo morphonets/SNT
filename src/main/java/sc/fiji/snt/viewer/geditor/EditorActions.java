@@ -15,7 +15,6 @@ import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.URLDecoder;
@@ -38,6 +37,7 @@ import com.mxgraph.canvas.mxSvgCanvas;
 import com.mxgraph.io.mxCodec;
 import com.mxgraph.io.mxGdCodec;
 import com.mxgraph.model.mxCell;
+import com.mxgraph.model.mxGeometry;
 import com.mxgraph.model.mxGraphModel;
 import com.mxgraph.model.mxIGraphModel;
 import com.mxgraph.swing.mxGraphComponent;
@@ -48,6 +48,7 @@ import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.util.mxCellRenderer.CanvasFactory;
 import com.mxgraph.util.mxConstants;
 import com.mxgraph.util.mxDomUtils;
+import com.mxgraph.util.mxPoint;
 import com.mxgraph.util.mxResources;
 import com.mxgraph.util.mxUtils;
 import com.mxgraph.util.mxXmlUtils;
@@ -1818,6 +1819,30 @@ public class EditorActions
 			if (graph != null && !graph.isSelectionEmpty())
 			{
 				graph.alignCells(align);
+			}
+		}
+	}
+
+	@SuppressWarnings("serial")
+	public static class CenterAction extends AbstractAction {
+
+		public void actionPerformed(final ActionEvent e) {
+			if (e.getSource() instanceof mxGraphComponent) {
+				final mxGraphComponent component = ((mxGraphComponent) e.getSource());
+				if (component.isPageVisible()) {
+					final BasicGraphEditor editor = getEditor(e);
+					if (editor != null)
+						editor.status("Not available in \"Page Layout\". Use Zoom controls instead", true);
+					return;
+				}
+				final mxGraph graph = component.getGraph();
+				final double layoutX = component.getViewportBorderBounds().getCenterX();
+				final double layoutY = component.getViewportBorderBounds().getCenterY();
+				final double boundsX = graph.getGraphBounds().getCenterX();
+				final double boundsY = graph.getGraphBounds().getCenterY();
+				final double dx = (layoutX - boundsX);
+				final double dy = (layoutY - boundsY);
+				graph.getView().setTranslate(new mxPoint(dx, dy));
 			}
 		}
 	}
