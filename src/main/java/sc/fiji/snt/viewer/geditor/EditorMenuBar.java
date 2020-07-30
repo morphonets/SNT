@@ -53,9 +53,9 @@ public class EditorMenuBar extends JMenuBar
 
 	public enum AnalyzeType
 	{
-		PROPERTIES, COLOR_CODING, EDGE_SCALING, COMPLEMENTARY, REGULARITY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE,
+		PROPERTIES, COLOR_CODING, EDGE_SCALING, COMPLEMENTARY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE,
 		ONE_SPANNING_TREE, GET_CUT_VERTEXES, GET_CUT_EDGES, GET_SOURCES, GET_SINKS,
-		PLANARITY, GET_BICONNECTED, SPANNING_TREE, FLOYD_ROY_WARSHALL
+		PLANARITY, SPANNING_TREE, FLOYD_ROY_WARSHALL
 	}
 
 	public EditorMenuBar(final BasicGraphEditor editor, final Context context)
@@ -793,7 +793,7 @@ public class EditorMenuBar extends JMenuBar
 
 		mxAnalysisGraph aGraph;
 		SNTGraphComponent component;
-		SNTGraphAdapter adapter;
+		SNTGraphAdapter<Object, DefaultWeightedEdge> adapter;
 		Context context;
 
 		/**
