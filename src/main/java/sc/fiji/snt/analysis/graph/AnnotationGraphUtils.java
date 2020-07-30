@@ -2,10 +2,19 @@ package sc.fiji.snt.analysis.graph;
 
 import java.util.*;
 
+/**
+ * Utilities for AnnotationGraph handling and manipulation.
+ */
 public class AnnotationGraphUtils {
 
+    /**
+     * Return the graph representing the
+     * <a href="https://reference.wolfram.com/language/ref/GraphUnion.html">union</a>
+     * of the edge sets of a collection of graphs.
+     *
+     * @param graphs the graph collection
+     */
     public static AnnotationGraph union(Collection<AnnotationGraph> graphs) {
-        // get union of the edge sets
         List<Set<HashableEdge>> edgeSets = getHashableEdgeSetList(graphs);
         Set<HashableEdge> result = edgeSets.get(0);
         for (Set<HashableEdge> edgeSet : edgeSets) {
@@ -14,8 +23,14 @@ public class AnnotationGraphUtils {
         return buildGraph(result);
     }
 
+    /**
+     * Return the graph representing the
+     * <a href="https://reference.wolfram.com/language/ref/GraphIntersection.html">intersection</a>
+     * of the edge sets of a collection of graphs.
+     *
+     * @param graphs the graph collection
+     */
     public static AnnotationGraph intersection(Collection<AnnotationGraph> graphs) {
-        // get the intersection of the edge sets
         List<Set<HashableEdge>> edgeSets = getHashableEdgeSetList(graphs);
         Set<HashableEdge> result = edgeSets.get(0);
         for (Set<HashableEdge> edgeSet : edgeSets) {
@@ -24,12 +39,30 @@ public class AnnotationGraphUtils {
         return buildGraph(result);
     }
 
+    /**
+     * Return the graph representing the
+     * <a href="https://reference.wolfram.com/language/ref/GraphDifference.html">difference</a>
+     * of edge sets of graph1 - graph2
+     *
+     * @param graph1
+     * @param graph2
+     * @return the difference graph
+     */
     public static AnnotationGraph difference(AnnotationGraph graph1, AnnotationGraph graph2) {
         Set<HashableEdge> result = getHashableEdgeSet(graph1.edgeSet());
         result.removeAll(getHashableEdgeSet(graph2.edgeSet()));
         return buildGraph(result);
     }
 
+    /**
+     * Return the graph representing the
+     * <a href="https://mathworld.wolfram.com/SymmetricDifference.html">symmetric difference</a>
+     * of the edge sets of graph1 and graph2
+     *
+     * @param graph1
+     * @param graph2
+     * @return the symmetric difference graph
+     */
     public static AnnotationGraph symDifference(AnnotationGraph graph1, AnnotationGraph graph2) {
         Set<HashableEdge> edgeSet1 = getHashableEdgeSet(graph1.edgeSet());
         Set<HashableEdge> edgeSet2 = getHashableEdgeSet(graph2.edgeSet());
@@ -68,7 +101,7 @@ public class AnnotationGraphUtils {
     }
 
     static class HashableEdge {
-        AnnotationWeightedEdge edge;
+        final AnnotationWeightedEdge edge;
 
         private HashableEdge(AnnotationWeightedEdge edge) {
             this.edge = edge;
