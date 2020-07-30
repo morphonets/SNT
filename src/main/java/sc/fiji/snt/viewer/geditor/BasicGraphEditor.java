@@ -12,6 +12,8 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.File;
 import java.util.List;
 
@@ -694,12 +696,10 @@ public class BasicGraphEditor extends JPanel
 	/**
 	 * 
 	 */
-	public void exit()
-	{
-		JFrame frame = (JFrame) SwingUtilities.windowForComponent(this);
-
-		if (frame != null)
-		{
+	public void exit() {
+		if (getEditorConsole() != null) getEditorConsole().restore();
+		final JFrame frame = (JFrame) SwingUtilities.windowForComponent(this);
+		if (frame != null && new sc.fiji.snt.gui.GuiUtils(this).getConfirmation("Exit Graph Viewer?", "Really Quit?")) {
 			frame.dispose();
 		}
 	}
@@ -735,7 +735,14 @@ public class BasicGraphEditor extends JPanel
 	{
 		JFrame frame = new JFrame();
 		frame.getContentPane().add(this);
-		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+		frame.addWindowListener(new WindowAdapter() {
+
+			@Override
+			public void windowClosing(final WindowEvent e) {
+				exit();
+			}
+		});
 		frame.setJMenuBar(menuBar);
 		frame.setSize(870, 640);
 
