@@ -152,6 +152,30 @@ public class EditorToolBar extends JToolBar
 		addSeparator();
 
 		// Vertices size controls
+		final JButton minusShapeSizeButton = new JButton(IconFactory.getButtonIcon(GLYPH.MINUS, 1f));
+		minusShapeSizeButton.setToolTipText("Decrease size of selected vertices");
+		minusShapeSizeButton.addActionListener(e -> {
+			final mxGraphComponent graphComponent = editor.getGraphComponent();
+			final mxGraph graph = graphComponent.getGraph();
+			graph.setCellsResizable(true);
+			final Object[] cells = graph.getSelectionCells();
+			if (noCellsError(cells)) {
+				return;
+			}
+			for (final Object cell : cells) {
+				final mxICell mxc = (mxICell) cell;
+				if (graph.getModel().isVertex(mxc)) {
+					final mxGeometry geom = mxc.getGeometry();
+					final double srcWidth = geom.getWidth();
+					final double srcHeight = geom.getHeight();
+					final double maxWidth = srcWidth * 0.75;
+					final double maxHeight = srcHeight * 0.75;
+					final double ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+					graph.resizeCell(mxc, new mxRectangle(geom.getX(), geom.getY(), srcWidth*ratio, srcHeight*ratio));
+				}
+			}
+		});
+		add(minusShapeSizeButton);
 		final JButton plusShapeSizeButton = new JButton(IconFactory.getButtonIcon(GLYPH.PLUS, 1f));
 		plusShapeSizeButton.setToolTipText("Increase size of selected vertices");
 		plusShapeSizeButton.addActionListener(e -> {
@@ -176,30 +200,6 @@ public class EditorToolBar extends JToolBar
 			}
 		});
 		add(plusShapeSizeButton);
-		final JButton minusShapeSizeButton = new JButton(IconFactory.getButtonIcon(GLYPH.MINUS, 1f));
-		plusShapeSizeButton.setToolTipText("Decrease size of selected vertices");
-		minusShapeSizeButton.addActionListener(e -> {
-			final mxGraphComponent graphComponent = editor.getGraphComponent();
-			final mxGraph graph = graphComponent.getGraph();
-			graph.setCellsResizable(true);
-			final Object[] cells = graph.getSelectionCells();
-			if (noCellsError(cells)) {
-				return;
-			}
-			for (final Object cell : cells) {
-				final mxICell mxc = (mxICell) cell;
-				if (graph.getModel().isVertex(mxc)) {
-					final mxGeometry geom = mxc.getGeometry();
-					final double srcWidth = geom.getWidth();
-					final double srcHeight = geom.getHeight();
-					final double maxWidth = srcWidth * 0.75;
-					final double maxHeight = srcHeight * 0.75;
-					final double ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
-					graph.resizeCell(mxc, new mxRectangle(geom.getX(), geom.getY(), srcWidth*ratio, srcHeight*ratio));
-				}
-			}
-		});
-		add(minusShapeSizeButton);
 		addSeparator();
 		add(Box.createHorizontalGlue());
 

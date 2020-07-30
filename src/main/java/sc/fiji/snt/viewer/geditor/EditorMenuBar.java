@@ -53,9 +53,9 @@ public class EditorMenuBar extends JMenuBar
 
 	public enum AnalyzeType
 	{
-		PROPERTIES, COLOR_CODING, EDGE_SCALING, COMPLEMENTARY, REGULARITY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE,
+		PROPERTIES, COLOR_CODING, EDGE_SCALING, COMPLEMENTARY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE,
 		ONE_SPANNING_TREE, GET_CUT_VERTEXES, GET_CUT_EDGES, GET_SOURCES, GET_SINKS,
-		PLANARITY, GET_BICONNECTED, SPANNING_TREE, FLOYD_ROY_WARSHALL
+		PLANARITY, SPANNING_TREE, FLOYD_ROY_WARSHALL
 	}
 
 	public EditorMenuBar(final BasicGraphEditor editor, final Context context)
@@ -363,17 +363,9 @@ public class EditorMenuBar extends JMenuBar
 		menu = add(new JMenu(mxResources.get("help")));
 
 		item = menu.add(new JMenuItem(mxResources.get("aboutGraphEditor")));
-		item.addActionListener(new ActionListener()
-		{
-			/*
-			 * (non-Javadoc)
-			 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
-			 */
-			public void actionPerformed(ActionEvent e)
-			{
-				editor.about();
-			}
-		});
+		item.addActionListener(e -> editor.about());
+		item = menu.add(new JMenuItem("Shortcuts..."));
+		item.addActionListener(e -> ((EditorKeyboardHandler) editor.keyboardHandler).displayKeyMap());
 	}
 
 	public void createDeveloperMenu() {
@@ -408,7 +400,6 @@ public class EditorMenuBar extends JMenuBar
 		menu.add(editor.bind("DFS Directed", new InsertGraph(GraphType.DFS_DIR, aGraph)));
 		menu.add(editor.bind("DFS Undirected", new InsertGraph(GraphType.DFS_UNDIR, aGraph)));
 		menu.add(editor.bind("Complementary", new AnalyzeGraph(AnalyzeType.COMPLEMENTARY, aGraph, context)));
-		menu.add(editor.bind("Regularity", new AnalyzeGraph(AnalyzeType.REGULARITY, aGraph, context)));
 		menu.add(editor.bind("Dijkstra", new InsertGraph(GraphType.DIJKSTRA, aGraph)));
 		menu.add(editor.bind("Bellman-Ford", new InsertGraph(GraphType.BELLMAN_FORD, aGraph)));
 		menu.add(editor.bind("Floyd-Roy-Warshall", new AnalyzeGraph(AnalyzeType.FLOYD_ROY_WARSHALL, aGraph, context)));
@@ -802,7 +793,7 @@ public class EditorMenuBar extends JMenuBar
 
 		mxAnalysisGraph aGraph;
 		SNTGraphComponent component;
-		SNTGraphAdapter adapter;
+		SNTGraphAdapter<Object, DefaultWeightedEdge> adapter;
 		Context context;
 
 		/**
@@ -821,27 +812,36 @@ public class EditorMenuBar extends JMenuBar
 		}
 
 		private void printReport() {
+			editor.status("Creating report...");
 			boolean isConnected = mxGraphStructure.isConnected(aGraph);
 			boolean isSimple = mxGraphStructure.isSimple(aGraph);
-			boolean isDirected = mxGraphProperties.isDirected(aGraph.getProperties(), mxGraphProperties.DEFAULT_DIRECTED);
+			boolean isDirected = mxGraphProperties.isDirected(aGraph.getProperties(),
+					mxGraphProperties.DEFAULT_DIRECTED);
 			boolean isTree = mxGraphStructure.isTree(aGraph);
 
 			System.out.println("Graph properties:");
-			System.out.println("\tConnected: " + isConnected);
-			try {
-				boolean isBiconnected = mxGraphStructure.isBiconnected(aGraph);
-				System.out.println("\tBiconnected: " + isBiconnected);
-			} catch (Exception ignored) {
-				// do nothing
-			}
-			System.out.println("\tSimple: " + isSimple);
-			System.out.println("\tDirected: " + isDirected);
-			System.out.println("\tTree: " + isTree);
+			System.out.println("  Connected: " + isConnected);
+			System.out.println("  Simple: " + isSimple);
+			System.out.println("  Directed: " + isDirected);
+			System.out.println("  Tree: " + isTree);
 
 			boolean isCyclicDirected = mxGraphStructure.isCyclicDirected(aGraph);
-			System.out.println("\tCyclic directed: " + isCyclicDirected);
+			System.out.println("  Cyclic directed: " + isCyclicDirected);
 			boolean isCyclicUndirected = mxGraphStructure.isCyclicUndirected(aGraph);
-			System.out.println("\tCyclic undirected: " + isCyclicUndirected);
+			System.out.println("  Cyclic undirected: " + isCyclicUndirected);
+			try {
+				boolean isBiconnected = mxGraphStructure.isBiconnected(aGraph);
+				System.out.println("  Biconnected: " + isBiconnected);
+			} catch (Exception ignored) {
+				System.out.println("  Biconnected: false");
+			}
+			try {
+				int regularity = mxGraphStructure.regularity(aGraph);
+				System.out.println("  Regularity: " + regularity);
+			} catch (StructuralException e1) {
+				System.out.println("  Regularity: irregular");
+			}
+			editor.status("Done.");
 		}
 
 		protected void doColorCoding() {
@@ -943,23 +943,9 @@ public class EditorMenuBar extends JMenuBar
 
 		protected void doComplementary() {
 			adapter.getModel().beginUpdate();
-
 			mxGraphStructure.complementaryGraph(aGraph);
-
 			mxGraphStructure.setDefaultGraphStyle(aGraph, true);
 			adapter.getModel().endUpdate();
-		}
-
-		protected void doRegularity() {
-			try
-			{
-				int regularity = mxGraphStructure.regularity(aGraph);
-				System.out.println("Graph regularity is: " + regularity);
-			}
-			catch (StructuralException e1)
-			{
-				System.out.println("The graph is irregular");
-			}
 		}
 
 		protected void doComponents() {
@@ -1047,10 +1033,7 @@ public class EditorMenuBar extends JMenuBar
 				{
 					doComplementary();
 				}
-				else if (analyzeType == AnalyzeType.REGULARITY)
-				{
-					doRegularity();
-				}
+
 				else if (analyzeType == AnalyzeType.COMPONENTS)
 				{
 					doComponents();
