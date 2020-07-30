@@ -1,5 +1,7 @@
 package sc.fiji.snt.analysis.graph;
 
+import sc.fiji.snt.annotation.BrainAnnotation;
+
 import java.util.*;
 
 /**
@@ -13,14 +15,20 @@ public class AnnotationGraphUtils {
      * of the edge sets of a collection of graphs.
      *
      * @param graphs the graph collection
+     * @return the union graph
      */
     public static AnnotationGraph union(Collection<AnnotationGraph> graphs) {
+        List<Set<HashableVertex>> vertexSets = getHashableVertexSetList(graphs);
         List<Set<HashableEdge>> edgeSets = getHashableEdgeSetList(graphs);
-        Set<HashableEdge> result = edgeSets.get(0);
-        for (Set<HashableEdge> edgeSet : edgeSets) {
-            result.addAll(edgeSet);
+        Set<HashableVertex> vertexResult = vertexSets.get(0);
+        for (Set<HashableVertex> vertexSet : vertexSets) {
+            vertexResult.addAll(vertexSet);
         }
-        return buildGraph(result);
+        Set<HashableEdge> edgeResult = edgeSets.get(0);
+        for (Set<HashableEdge> edgeSet : edgeSets) {
+            edgeResult.addAll(edgeSet);
+        }
+        return buildGraph(vertexResult, edgeResult);
     }
 
     /**
@@ -29,14 +37,20 @@ public class AnnotationGraphUtils {
      * of the edge sets of a collection of graphs.
      *
      * @param graphs the graph collection
+     * @return the intersection graph
      */
     public static AnnotationGraph intersection(Collection<AnnotationGraph> graphs) {
+        List<Set<HashableVertex>> vertexSets = getHashableVertexSetList(graphs);
         List<Set<HashableEdge>> edgeSets = getHashableEdgeSetList(graphs);
-        Set<HashableEdge> result = edgeSets.get(0);
-        for (Set<HashableEdge> edgeSet : edgeSets) {
-            result.retainAll(edgeSet);
+        Set<HashableVertex> vertexResult = vertexSets.get(0);
+        for (Set<HashableVertex> vertexSet : vertexSets) {
+            vertexResult.addAll(vertexSet);
         }
-        return buildGraph(result);
+        Set<HashableEdge> edgeResult = edgeSets.get(0);
+        for (Set<HashableEdge> edgeSet : edgeSets) {
+            edgeResult.retainAll(edgeSet);
+        }
+        return buildGraph(vertexResult, edgeResult);
     }
 
     /**
@@ -49,9 +63,13 @@ public class AnnotationGraphUtils {
      * @return the difference graph
      */
     public static AnnotationGraph difference(AnnotationGraph graph1, AnnotationGraph graph2) {
-        Set<HashableEdge> result = getHashableEdgeSet(graph1.edgeSet());
-        result.removeAll(getHashableEdgeSet(graph2.edgeSet()));
-        return buildGraph(result);
+        Set<HashableVertex> vertexSet1 = getHashableVertexSet(graph1.vertexSet());
+        Set<HashableVertex> vertexSet2 = getHashableVertexSet(graph2.vertexSet());
+        Set<HashableEdge> edgeSet1 = getHashableEdgeSet(graph1.edgeSet());
+        Set<HashableEdge> edgeSet2 = getHashableEdgeSet(graph2.edgeSet());
+        vertexSet1.addAll(vertexSet2);
+        edgeSet1.removeAll(edgeSet2);
+        return buildGraph(vertexSet1, edgeSet1);
     }
 
     /**
@@ -64,22 +82,30 @@ public class AnnotationGraphUtils {
      * @return the symmetric difference graph
      */
     public static AnnotationGraph symDifference(AnnotationGraph graph1, AnnotationGraph graph2) {
+        Set<HashableVertex> vertexSet1 = getHashableVertexSet(graph1.vertexSet());
+        Set<HashableVertex> vertexSet2 = getHashableVertexSet(graph2.vertexSet());
         Set<HashableEdge> edgeSet1 = getHashableEdgeSet(graph1.edgeSet());
         Set<HashableEdge> edgeSet2 = getHashableEdgeSet(graph2.edgeSet());
+        vertexSet1.addAll(vertexSet2);
         Set<HashableEdge> symmetricDiff = new HashSet<>(edgeSet1);
         symmetricDiff.addAll(edgeSet2);
         Set<HashableEdge> tmp = new HashSet<>(edgeSet1);
         tmp.retainAll(edgeSet2);
         symmetricDiff.removeAll(tmp);
-        return buildGraph(symmetricDiff);
+        return buildGraph(vertexSet1, symmetricDiff);
     }
 
-    private static AnnotationGraph buildGraph(Set<HashableEdge> edgeSet) {
+    private static AnnotationGraph buildGraph(Set<HashableVertex> vertexSet, Set<HashableEdge> edgeSet) {
+        Map<Integer, BrainAnnotation> vertexMap = new HashMap<>();
         AnnotationGraph newGraph = new AnnotationGraph();
+        for (HashableVertex hv : vertexSet) {
+            vertexMap.put(hv.getVertex().id(), hv.getVertex());
+            newGraph.addVertex(hv.getVertex());
+        }
+        // Ensure that we form edges between the vertices contained in the current graph..
         for (HashableEdge he : edgeSet) {
-            newGraph.addVertex(he.getEdge().getSource());
-            newGraph.addVertex(he.getEdge().getTarget());
-            newGraph.addEdge(he.getEdge().getSource(), he.getEdge().getTarget());
+            newGraph.addEdge(vertexMap.get(he.getEdge().getSource().id())
+                    , vertexMap.get(he.getEdge().getTarget().id()));
         }
         return newGraph;
     }
@@ -98,6 +124,22 @@ public class AnnotationGraphUtils {
             edgeSet.add(new HashableEdge(edge));
         }
         return edgeSet;
+    }
+
+    private static Set<HashableVertex> getHashableVertexSet(Set<BrainAnnotation> vertices) {
+        Set<HashableVertex> vertexSet = new HashSet<>();
+        for (BrainAnnotation vertex : vertices) {
+            vertexSet.add(new HashableVertex(vertex));
+        }
+        return vertexSet;
+    }
+
+    private static List<Set<HashableVertex>> getHashableVertexSetList(Collection<AnnotationGraph> graphs) {
+        List<Set<HashableVertex>> vertexSets = new ArrayList<>();
+        for (AnnotationGraph graph : graphs) {
+            vertexSets.add(getHashableVertexSet(graph.vertexSet()));
+        }
+        return vertexSets;
     }
 
     static class HashableEdge {
@@ -132,6 +174,41 @@ public class AnnotationGraphUtils {
         public String toString() {
             return edge.getSource().id() + "->" + edge.getTarget().id();
         }
+    }
+
+    static class HashableVertex {
+        final BrainAnnotation vertex;
+
+        private HashableVertex(BrainAnnotation vertex) {
+            this.vertex = vertex;
+        }
+
+        public BrainAnnotation getVertex() {
+            return this.vertex;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof HashableVertex)) {
+                return false;
+            }
+            HashableVertex other = (HashableVertex) o;
+            return getVertex().id() == other.getVertex().id();
+        }
+
+        @Override
+        public int hashCode() {
+            return getVertex().id();
+        }
+
+        @Override
+        public String toString() {
+            return getVertex().name();
+        }
+
     }
 
 }
