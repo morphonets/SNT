@@ -363,17 +363,9 @@ public class EditorMenuBar extends JMenuBar
 		menu = add(new JMenu(mxResources.get("help")));
 
 		item = menu.add(new JMenuItem(mxResources.get("aboutGraphEditor")));
-		item.addActionListener(new ActionListener()
+		item.addActionListener(e -> editor.about());
 		{
 			/*
-			 * (non-Javadoc)
-			 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
-			 */
-			public void actionPerformed(ActionEvent e)
-			{
-				editor.about();
-			}
-		});
 	}
 
 	public void createDeveloperMenu() {

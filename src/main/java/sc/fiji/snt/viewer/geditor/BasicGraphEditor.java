@@ -671,25 +671,22 @@ public class BasicGraphEditor extends JPanel
 		}
 	}
 
-	/**
-	 * 
-	 */
-	public void about()
-	{
+	void about() {
 		JFrame frame = (JFrame) SwingUtilities.windowForComponent(this);
-
-		if (frame != null)
-		{
-			EditorAboutFrame about = new EditorAboutFrame(frame);
-			about.setModal(true);
-
-			// Centers inside the application frame
-			int x = frame.getX() + (frame.getWidth() - about.getWidth()) / 2;
-			int y = frame.getY() + (frame.getHeight() - about.getHeight()) / 2;
-			about.setLocation(x, y);
-
-			// Shows the modal dialog and waits
-			about.setVisible(true);
+		if (frame != null) {
+			String msg = "<html><p><b>Graph Viewer</b></p>" //
+					+ "<p>" //
+					+ "Graph Viewer is SNT&#39;s graph visualization tool. " //
+					+ "It relies heavily on code provided by <a href='https://github.com/jgraph/jgraphx'>JGraphX</a> " //
+					+ "(<a href='https://github.com/jgraph/jgraphx/blob/master/license.txt'>BSD license</a>), " //
+					+ "including the original <em>Graph Editor</em> written by Gaudenz Alder and others at " //
+					+ "JGraph Ltd between (2001--2014)." //
+					+ "</p><p>" //
+					+ "Special thanks to all those contributing to the code base of JGraphX, " //
+					+ "including Vladimir Sitnikov for making JGraphX " //
+					+ "<a href='https://github.com/vlsi/jgraphx-publish'>easily available</a>." //
+					+ "</p></html>";
+			sc.fiji.snt.gui.GuiUtils.showHTMLDialog(msg, "About Graph Viewer");
 		}
 	}
 
