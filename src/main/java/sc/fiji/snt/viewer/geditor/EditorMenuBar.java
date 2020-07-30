@@ -364,8 +364,8 @@ public class EditorMenuBar extends JMenuBar
 
 		item = menu.add(new JMenuItem(mxResources.get("aboutGraphEditor")));
 		item.addActionListener(e -> editor.about());
-		{
-			/*
+		item = menu.add(new JMenuItem("Shortcuts..."));
+		item.addActionListener(e -> ((EditorKeyboardHandler) editor.keyboardHandler).displayKeyMap());
 	}
 
 	public void createDeveloperMenu() {
