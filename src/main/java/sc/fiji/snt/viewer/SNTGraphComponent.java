@@ -34,44 +34,55 @@ public class SNTGraphComponent extends mxGraphComponent {
     @Parameter
     protected CommandService cmdService;
     protected final SNTGraphAdapter adapter;
-    //protected final KeyboardHandler keyboardHandler;
-    //protected final JCheckBoxMenuItem panMenuItem;
     protected File saveDir;
+	private boolean spaceDown = false;
 
     protected SNTGraphComponent(SNTGraphAdapter adapter, Context context) {
         super(adapter);
         context.inject(this);
         this.adapter = adapter;
-        //keyboardHandler = new KeyboardHandler(this);
-        //addMouseWheelListener(new ZoomMouseWheelListener());
-        //setKeepSelectionVisibleOnZoom(true);
         //setCenterZoom(true);
         //setCenterPage(true);
-        //setPageVisible(true);
         //setPreferPageSize(true);
-        //addComponentListener(new InitialComponentResizeListener());
-        //addRubberBandZoom();
-        //panningHandler = createPanningHandler();
-        setPanning(true);
-        //setEscapeEnabled(true);
-        //setAntiAlias(true);
-        //setTripleBuffered(true);
-        //setConnectable(false);
+        setEscapeEnabled(true);
         //setFoldingEnabled(true);
-        //setDragEnabled(false);
         setToolTips(true);
-//        panMenuItem = new JCheckBoxMenuItem("Pan Mode");
+
+        // rendering and performance
+        setPageVisible(false);
+        setTripleBuffered(false);
+        setAntiAlias(true);
+        setTextAntiAlias(true);
+
+        // cell editing
+		((mxCellEditor) getCellEditor()).setShiftEnterSubmitsText(true);
+
+        // By default disable editing options. These can be toggled in GraphEditor
+        // if the user is really willing to  change the graph's connectivity
+        setDragEnabled(false);
+        setConnectable(false);
+        graph.setCellsDisconnectable(false);
+        graph.setDropEnabled(false);
+        graph.setDisconnectOnMove(false);
+
+        // Use space key for panning (from TrackSchemeGraphComponent)
+        getPanningHandler().setEnabled(true);
+		addKeyListener(new KeyAdapter() {
+			@Override
+			public void keyReleased(final KeyEvent e) {
+				if (e.getKeyCode() == 32)
+					spaceDown = false;
+			}
+
+			@Override
+			public void keyPressed(final KeyEvent e) {
+				if (e.getKeyCode() == 32 && !spaceDown)
+					spaceDown = true;
+			}
+		});
+
     }
 
-    class InitialComponentResizeListener implements ComponentListener {
-
-        @Override
-        public void componentHidden(ComponentEvent e) {
-        }
-
-        @Override
-        public void componentMoved(ComponentEvent e) {
-        }
 
         @Override
         public void componentResized(ComponentEvent e) {
@@ -88,13 +99,14 @@ public class SNTGraphComponent extends mxGraphComponent {
 
     }
 
-    private void zoomToFitHorizontal() {
+    @SuppressWarnings("unused")
+	private void zoomToFitHorizontal() {
         // See https://www.javatips.net/api/bundlemaker-master/bundlemaker.incubator/
         // org.bundlemaker.core.ui.editor.dependencyviewer/src/org/bundlemaker/core/ui/
         // editor/dependencyviewer/graph/DependencyViewerGraph.java
         mxGraphView view = graph.getView();
         int compLen = getWidth();
-        int viewLen = (int) view.getGraphBounds().getWidth();
+        int viewLen = (int) getViewportBorderBounds().getWidth();
 
         if (compLen == 0 || viewLen == 0) {
             return;
@@ -108,77 +120,6 @@ public class SNTGraphComponent extends mxGraphComponent {
     }
 
     @Override
-    public void zoomIn() {
-        super.zoomIn();
-        //zoomAndCenter();
-    }
-
-    @Override
-    public void zoomOut() {
-        super.zoomOut();
-        //zoomAndCenter();
-    }
-
-    private void addRubberBandZoom() {
-        new mxRubberband(this) {
-
-            @Override
-            public void mouseReleased(final MouseEvent e) {
-                if (e.isAltDown()) {
-                    // get bounds before they are reset
-                    final Rectangle rect = super.bounds;
-
-                    super.mouseReleased(e);
-                    if (rect == null)
-                        return;
-
-                    double newScale = 1d;
-                    final Dimension graphSize = new Dimension(rect.width, rect.height);
-                    final Dimension viewPortSize = graphComponent.getViewport().getSize();
-
-                    final int gw = (int) graphSize.getWidth();
-                    final int gh = (int) graphSize.getHeight();
-
-                    if (gw > 0 && gh > 0) {
-                        final int w = (int) viewPortSize.getWidth();
-                        final int h = (int) viewPortSize.getHeight();
-                        newScale = Math.min((double) w / gw, (double) h / gh);
-                    }
-
-                    // zoom to fit selected area
-                    graphComponent.zoom(newScale);
-
-                    // make selected area visible
-                    graphComponent.getGraphControl().scrollRectToVisible(new Rectangle((int) (rect.x * newScale),
-                            (int) (rect.y * newScale), (int) (rect.width * newScale), (int) (rect.height * newScale)));
-                } else {
-                    super.mouseReleased(e);
-                }
-            }
-        };
-    }
-
-    @Override
-    public mxInteractiveCanvas createCanvas() {
-        return super.createCanvas();
-    }
-
-    protected Component getJSplitPane() {
-        // TODO create default pane
-        throw new UnsupportedOperationException();
-    }
-
-    protected JComponent getControlPanel() {
-        // TODO create default control panel
-        throw new UnsupportedOperationException();
-    }
-
-    protected void assignPopupMenu(final JComponent component) {
-        // TODO create default popup menu
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public Dimension getPreferredSize() {
         final double width = graph.getGraphBounds().getWidth();
         final double height = graph.getGraphBounds().getHeight();
@@ -187,8 +128,8 @@ public class SNTGraphComponent extends mxGraphComponent {
 
     protected void centerGraph() {
         // https://stackoverflow.com/a/36947526
-        final double widthLayout = getLayoutAreaSize().getWidth();
-        final double heightLayout = getLayoutAreaSize().getHeight();
+        final double widthLayout = getViewportBorderBounds().getWidth();
+        final double heightLayout = getViewportBorderBounds().getHeight();
         final double width = adapter.getGraphBounds().getWidth();
         final double height = adapter.getGraphBounds().getHeight();
         mxGeometry geo = adapter.getModel().setGeometry(adapter.getDefaultParent(),
