@@ -1,11 +1,3 @@
-/* 
- * Copyright (c) 2001-2005, Gaudenz Alder
- * 
- * All rights reserved.
- * 
- * See LICENSE file for license details. If you are unable to locate
- * this file please contact info (at) jgraph (dot) com.
- */
 package sc.fiji.snt.viewer.geditor;
 
 import java.io.File;
@@ -16,6 +8,7 @@ import javax.swing.filechooser.FileFilter;
 
 /**
  * Filter for use in a {@link JFileChooser}.
+ * @author Gaudenz Alder Copyright (c) 2001-2005,
  */
 public class DefaultFileFilter extends FileFilter
 {

@@ -1,6 +1,3 @@
-/**
- * Copyright (c) 2008, Gaudenz Alder
- */
 package sc.fiji.snt.viewer.geditor;
 
 import java.util.ArrayList;
@@ -18,7 +15,7 @@ import com.mxgraph.swing.util.mxGraphActions;
 import sc.fiji.snt.gui.GuiUtils;
 
 /**
- * @author Administrator
+ * @author Gaudenz Alder Copyright (c) 2008
  * 
  */
 public class EditorKeyboardHandler extends mxKeyboardHandler

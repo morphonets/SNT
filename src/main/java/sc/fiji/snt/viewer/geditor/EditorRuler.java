@@ -1,11 +1,3 @@
-/* 
- * Copyright (c) 2001-2005, Gaudenz Alder
- * 
- * All rights reserved.
- * 
- * See LICENSE file for license details. If you are unable to locate
- * this file please contact info (at) jgraph (dot) com.
- */
 package sc.fiji.snt.viewer.geditor;
 
 import java.awt.Color;
@@ -40,6 +32,8 @@ import com.mxgraph.view.mxGraph;
 
 /**
  * Component that displays a ruler for a JGraph component.
+ * 
+ * @author Gaudenz Alder info (at) jgraph (dot) com Copyright (c) 2001-2005
  */
 public class EditorRuler extends JComponent implements MouseMotionListener,
 		DropTargetListener

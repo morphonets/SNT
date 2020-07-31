@@ -681,15 +681,15 @@ public class GraphEditor extends JPanel
 		if (frame != null) {
 			String msg = "<html><p><b>Graph Viewer</b></p>" //
 					+ "<p>" //
-					+ "Graph Viewer is SNT&#39;s graph visualization tool. " //
-					+ "It relies heavily on code provided by <a href='https://github.com/jgraph/jgraphx'>JGraphX</a> " //
-					+ "(<a href='https://github.com/jgraph/jgraphx/blob/master/license.txt'>BSD license</a>), " //
-					+ "including the original <em>Graph Editor</em> written by Gaudenz Alder and others at " //
-					+ "JGraph Ltd between (2001--2014)." //
+					+ "Graph Viewer is SNT&#39;s graph visualization tool built around " //
+					+ "<a href='https://jgrapht.org/'>JGraphT</a> and <a href='https://github.com/jgraph/jgraphx'>JGraphX</a>." //
 					+ "</p><p>" //
-					+ "Special thanks to all those contributing to the code base of JGraphX, " //
-					+ "including Vladimir Sitnikov for making JGraphX " //
-					+ "<a href='https://github.com/vlsi/jgraphx-publish'>easily available</a>." //
+					+ "The GUI relies heavily on a JGraphX <em>Graph Editor</em> demo written by Gaudenz Alder and others at " //
+					+ "JGraph Ltd between (2001--2014) released under the " //
+					+ "<a href='https://github.com/jgraph/jgraphx/blob/master/license.txt'>BSD license</a>. " //
+					+ "</p><p>" //
+					+ "Special thanks to JeanYves Tinevez for writing JGraphT/JGraphX adapters and " //
+					+ "Vladimir Sitnikov for making JGraphX easily available on Maven Central." //
 					+ "</p></html>";
 			sc.fiji.snt.gui.GuiUtils.showHTMLDialog(msg, "About Graph Viewer");
 		}
