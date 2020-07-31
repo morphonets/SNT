@@ -3,7 +3,6 @@ package sc.fiji.snt.viewer.geditor;
 import java.awt.Dimension;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.*;
 
 import javax.swing.*;
@@ -214,7 +213,7 @@ public class EditorMenuBar extends JMenuBar
 		submenu.add(editor.bind(mxResources.get("pageBackground"), new EditorActions.PageBackgroundAction()));
 
 		submenu = (JMenu) menu.add(new JMenu("Graph"));
-		submenu.add(editor.bind("Graph Criteria", new EditorActions.ChangeGraphAction()));
+		submenu.add(editor.bind("Graph Criteria...", new EditorActions.ChangeGraphAction()));
 
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("layout")));
 
@@ -270,46 +269,30 @@ public class EditorMenuBar extends JMenuBar
 		// Creates the options menu
 		menu = add(new JMenu(mxResources.get("options")));
 
-		submenu = (JMenu) menu.add(new JMenu(mxResources.get("display")));
-//		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("buffering"), "TripleBuffered", true));
+		// Performance menu
+		submenu = (JMenu) menu.add(new JMenu("Performance/Quality"));
+		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("buffering"), "TripleBuffered", true));
+		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("antialias"), "AntiAlias", true));
+		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("antialiasText"), "TextAntiAlias", true));
+		menu.addSeparator();
 
-		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("preferPageSize"), "PreferPageSize", true, new ActionListener()
-		{
-			/**
-			 * 
-			 */
-			public void actionPerformed(ActionEvent e)
-			{
-				graphComponent.zoomAndCenter();
-			}
-		}));
-
-		// TODO: This feature is not yet implemented
-		//submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources
-		//		.get("pageBreaks"), "PageBreaksVisible", true));
-
-		submenu.addSeparator();
-
+		submenu = (JMenu) menu.add(new JMenu("Misc"));
+		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("preferPageSize"),
+				"PreferPageSize", true, e -> graphComponent.zoomAndCenter()));
 		submenu.add(editor.bind(mxResources.get("tolerance"), new EditorActions.PromptPropertyAction(graphComponent, "Tolerance")));
-
 		submenu.add(editor.bind(mxResources.get("dirty"), new EditorActions.ToggleDirtyAction()));
-
 		menu.addSeparator();
 
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("dragAndDrop")));
-
 		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("dragEnabled"), "DragEnabled"));
 		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("dropEnabled"), "DropEnabled"));
-
 		submenu.addSeparator();
 
-		submenu.add(new EditorActions.TogglePropertyItem(graphComponent.getGraphHandler(), mxResources.get("imagePreview"), "ImagePreview"));
-
+		//submenu.add(new EditorActions.TogglePropertyItem(graphComponent.getGraphHandler(), mxResources.get("imagePreview"), "ImagePreview"));
+		
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("labels")));
-
 		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("htmlLabels"), "HtmlLabels", true));
 		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("showLabels"), "LabelsVisible", true));
-
 		submenu.addSeparator();
 
 		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("moveEdgeLabels"), "EdgeLabelsMovable"));
@@ -393,16 +376,16 @@ public class EditorMenuBar extends JMenuBar
 //		menu.add(editor.bind("Reset Style", new InsertGraph(GraphType.RESET_STYLE, aGraph)));
 
 		menu = add(new JMenu("Analyze"));
-		menu.add(editor.bind("Properties", new AnalyzeGraph(AnalyzeType.PROPERTIES, aGraph, context)));
 		menu.add(editor.bind("Color coding...", new AnalyzeGraph(AnalyzeType.COLOR_CODING, aGraph, context)));
 		menu.add(editor.bind("Edge Scaling...", new AnalyzeGraph(AnalyzeType.EDGE_SCALING, aGraph, context)));
-		menu.add(editor.bind("BFS Directed", new InsertGraph(GraphType.BFS_DIR, aGraph)));
-		menu.add(editor.bind("BFS Undirected", new InsertGraph(GraphType.BFS_UNDIR, aGraph)));
-		menu.add(editor.bind("DFS Directed", new InsertGraph(GraphType.DFS_DIR, aGraph)));
-		menu.add(editor.bind("DFS Undirected", new InsertGraph(GraphType.DFS_UNDIR, aGraph)));
+		menu.addSeparator();
+//		menu.add(editor.bind("BFS Directed", new InsertGraph(GraphType.BFS_DIR, aGraph)));
+//		menu.add(editor.bind("BFS Undirected", new InsertGraph(GraphType.BFS_UNDIR, aGraph)));
+//		menu.add(editor.bind("DFS Directed", new InsertGraph(GraphType.DFS_DIR, aGraph)));
+//		menu.add(editor.bind("DFS Undirected", new InsertGraph(GraphType.DFS_UNDIR, aGraph)));
 		menu.add(editor.bind("Complementary", new AnalyzeGraph(AnalyzeType.COMPLEMENTARY, aGraph, context)));
-		menu.add(editor.bind("Dijkstra", new InsertGraph(GraphType.DIJKSTRA, aGraph)));
-		menu.add(editor.bind("Bellman-Ford", new InsertGraph(GraphType.BELLMAN_FORD, aGraph)));
+//		menu.add(editor.bind("Dijkstra", new InsertGraph(GraphType.DIJKSTRA, aGraph)));
+//		menu.add(editor.bind("Bellman-Ford", new InsertGraph(GraphType.BELLMAN_FORD, aGraph)));
 		menu.add(editor.bind("Floyd-Roy-Warshall", new AnalyzeGraph(AnalyzeType.FLOYD_ROY_WARSHALL, aGraph, context)));
 		menu.add(editor.bind("Get Components", new AnalyzeGraph(AnalyzeType.COMPONENTS, aGraph, context)));
 //		menu.add(editor.bind("Make Connected", new AnalyzeGraph(AnalyzeType.MAKE_CONNECTED, aGraph)));
@@ -415,9 +398,10 @@ public class EditorMenuBar extends JMenuBar
 //		menu.add(editor.bind("Is cut vertex", new InsertGraph(GraphType.IS_CUT_VERTEX, aGraph)));
 //		menu.add(editor.bind("Get cut vertices", new AnalyzeGraph(AnalyzeType.GET_CUT_VERTEXES, aGraph)));
 //		menu.add(editor.bind("Get cut edges", new AnalyzeGraph(AnalyzeType.GET_CUT_EDGES, aGraph)));
-		menu.add(editor.bind("Get sources", new AnalyzeGraph(AnalyzeType.GET_SOURCES, aGraph, context)));
-		menu.add(editor.bind("Get sinks", new AnalyzeGraph(AnalyzeType.GET_SINKS, aGraph, context)));
-//		menu.add(editor.bind("Is biconnected", new AnalyzeGraph(AnalyzeType.IS_BICONNECTED, aGraph)));
+		menu.addSeparator();
+		menu.add(editor.bind("List Graph Properties", new AnalyzeGraph(AnalyzeType.PROPERTIES, aGraph, context)));
+		menu.add(editor.bind("Get Sources", new AnalyzeGraph(AnalyzeType.GET_SOURCES, aGraph, context)));
+		menu.add(editor.bind("Get Sinks", new AnalyzeGraph(AnalyzeType.GET_SINKS, aGraph, context)));
 	}
 
 	/**
