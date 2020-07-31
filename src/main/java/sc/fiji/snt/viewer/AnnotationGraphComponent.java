@@ -32,7 +32,6 @@ public class AnnotationGraphComponent extends SNTGraphComponent {
     private double maxIterations = 0;
     // Circle layout parameters
     private double radius = 100;
-    private final mxPoint defaultOrigin = new mxPoint(getX(), getY());
 
     protected AnnotationGraphComponent(final AnnotationGraphAdapter adapter, Context context) {
         super(adapter, context);
@@ -41,161 +40,8 @@ public class AnnotationGraphComponent extends SNTGraphComponent {
         new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
     }
 
-    @Override
-    protected Component getJSplitPane() {
-        // Default dimensions are exaggerated. Curb them a bit
-        setPreferredSize(getPreferredSize());
-        assignPopupMenu(this);
-        //centerGraph();
-        requestFocusInWindow();
-        return new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, getControlPanel(), this);
-    }
-
-    @Override
-    protected JComponent getControlPanel() {
-        final JPanel buttonPanel = new JPanel(new GridBagLayout());
-        final GridBagConstraints gbc = new GridBagConstraints();
-        gbc.weightx = 1;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.gridwidth = GridBagConstraints.REMAINDER;
-
-        GuiUtils.addSeparator(buttonPanel, "Navigation:", true, gbc);
-        JButton button = new JButton("Zoom In");
-        button.setToolTipText("[+] or Shift + Mouse Wheel");
-        button.addActionListener(e -> {
-            zoomIn();
-        });
-        buttonPanel.add(button, gbc);
-        button = new JButton("Zoom Out");
-        button.setToolTipText("[-] or Shift + Mouse Wheel");
-        button.addActionListener(e -> {
-            zoomOut();
-        });
-        buttonPanel.add(button, gbc);
-        button = new JButton("Reset Zoom");
-        button.addActionListener(e -> {
-            zoomActual();
-            zoomAndCenter();
-        });
-        buttonPanel.add(button, gbc);
-        button = new JButton("Center");
-        button.addActionListener(e -> {
-            centerGraph();
-        });
-        buttonPanel.add(button, gbc);
-//        panMenuItem.addActionListener(e -> getPanningHandler().setEnabled(panMenuItem.isSelected()));
-//        buttonPanel.add(panMenuItem, gbc);
-
-        GuiUtils.addSeparator(buttonPanel, "Layout:", true, gbc);
-        final JButton layoutButton = new JButton("Choose Layout");
-        final JPopupMenu layoutPopup = new JPopupMenu();
-        final JButton circleLayoutButton = new JButton("Circular");
-        circleLayoutButton.addActionListener(e -> {
-            mxCircleLayout circleLayout = new mxCircleLayout(adapter);
-            circleLayout.setRadius(radius);
-            layout = circleLayout;
-            layout.execute(adapter.getDefaultParent());
-            layout = new mxParallelEdgeLayout(adapter);
-            layout.execute(adapter.getDefaultParent());
-            System.out.println(adapter.getView().getTranslate());
-            //adapter.getView().setTranslate(new mxPoint(0,0));
-            //zoomTo(adapter.getView().getScale(), true);
-        });
-        layoutPopup.add(circleLayoutButton);
-        final JButton fastOrganicLayoutButton = new JButton("Fast Organic");
-        fastOrganicLayoutButton.addActionListener(e -> {
-            mxFastOrganicLayout fastOrganicLayout = new mxFastOrganicLayout(adapter);
-            //fastOrganicLayout.setUseInputOrigin(true);
-            fastOrganicLayout.setForceConstant(forceConstant);
-            fastOrganicLayout.setMinDistanceLimit(minDistance);
-            fastOrganicLayout.setMaxDistanceLimit(maxDistance);
-            fastOrganicLayout.setInitialTemp(initialTemp);
-            fastOrganicLayout.setMaxIterations(maxIterations);
-            //fastOrganicLayout.setResetEdges(true);
-            //adapter.setMaximumGraphBounds(getLayoutAreaSize());
-            layout = fastOrganicLayout;
-            layout.execute(adapter.getDefaultParent());
-            layout = new mxParallelEdgeLayout((adapter));
-            layout.execute(adapter.getDefaultParent());
-            //adapter.getView().revalidate();
-            //zoomTo(adapter.getView().getScale(), true);
-
-            System.out.println(adapter.getView().getTranslate());
-
-        });
-        layoutPopup.add(fastOrganicLayoutButton);
-
-        layoutButton.addMouseListener(new MouseAdapter() {
-            public void mousePressed(final MouseEvent e) {
-                layoutPopup.show(layoutButton, e.getX(), e.getY());
-            }
-        });
-        buttonPanel.add(layoutButton, gbc);
-
-        button = new JButton("Reset");
-        button.addActionListener(e -> {
-            zoomActual();
-            zoomAndCenter();
-        });
-        buttonPanel.add(button, gbc);
-        final JButton labelsButton = new JButton("Labels");
-        final JPopupMenu lPopup = new JPopupMenu();
-        final JCheckBox vCheckbox = new JCheckBox("Vertices (Node ID)", adapter.isVertexLabelsEnabled());
-        vCheckbox.addActionListener(e -> {
-            adapter.setEnableVertexLabels(vCheckbox.isSelected());
-        });
-        lPopup.add(vCheckbox);
-        final JCheckBox eCheckbox = new JCheckBox("Edges (Inter-node distance)", adapter.isEdgeLabelsEnabled());
-        eCheckbox.addActionListener(e -> {
-            adapter.setEnableEdgeLabels(eCheckbox.isSelected());
-        });
-        lPopup.add(eCheckbox);
-        labelsButton.addMouseListener(new MouseAdapter() {
-            public void mousePressed(final MouseEvent e) {
-                lPopup.show(labelsButton, e.getX(), e.getY());
-            }
-        });
-        buttonPanel.add(labelsButton, gbc);
-        final JButton layoutSettingsButton = new JButton("Layout settings");
-        layoutSettingsButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                setAutomaticLayoutPrefs();
-            }
-        });
-        buttonPanel.add(layoutSettingsButton, gbc);
-
-        GuiUtils.addSeparator(buttonPanel, "Color coding", true, gbc);
-        final JButton colorCodingButton = new JButton("Color code");
-        colorCodingButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                final Map<String, Object> input = new HashMap<>();
-                input.put("adapter", adapter);
-                cmdService.run(GraphAdapterMapperCmd.class, true, input);
-            }
-        });
-        buttonPanel.add(colorCodingButton, gbc);
-
-        GuiUtils.addSeparator(buttonPanel, "Export:", true, gbc);
-        final JButton ioButton = new JButton("Save As");
-        final JPopupMenu popup = new JPopupMenu();
-        popup.add(saveAsMenuItem("HTML...", ".html"));
-        popup.add(saveAsMenuItem("PNG...", ".png"));
-        popup.add(saveAsMenuItem("SVG...", ".svg"));
-        ioButton.addMouseListener(new MouseAdapter() {
-            public void mousePressed(final MouseEvent e) {
-                popup.show(ioButton, e.getX(), e.getY());
-            }
-        });
-        buttonPanel.add(ioButton, gbc);
-        final JPanel holder = new JPanel(new BorderLayout());
-        holder.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
-        holder.add(buttonPanel, BorderLayout.CENTER);
-        return new JScrollPane(holder);
-    }
-
-    private void setAutomaticLayoutPrefs() {
+    @SuppressWarnings("unused")
+	private void setAutomaticLayoutPrefs() {
         JTextField forceConstantField = new JTextField(SNTUtils.formatDouble(forceConstant, 2), 2);
         JTextField minDistanceField = new JTextField(SNTUtils.formatDouble(minDistance, 2), 2);
         JTextField maxDistanceField = new JTextField(SNTUtils.formatDouble(maxDistance, 2), 2);
@@ -261,55 +107,6 @@ public class AnnotationGraphComponent extends SNTGraphComponent {
             }
             radius = input;
         }
-    }
-
-    @Override
-    protected void assignPopupMenu(final JComponent component) {
-        final JPopupMenu popup = new JPopupMenu();
-        component.setComponentPopupMenu(popup);
-        JMenuItem mItem = new JMenuItem("Zoom to Selection (Alt + Click & Drag)");
-        mItem.addActionListener(e -> {
-            new GuiUtils(this).error("Please draw a rectangular selection while holding \"Alt\".");
-        });
-        popup.add(mItem);
-        mItem = new JMenuItem("Zoom In ([+] or Shift + Mouse Wheel)");
-        mItem.addActionListener(e -> zoomIn());
-        popup.add(mItem);
-        mItem = new JMenuItem("Zoom Out ([-] or Shift + Mouse Wheel)");
-        mItem.addActionListener(e -> zoomOut());
-        popup.add(mItem);
-        mItem = new JMenuItem("Reset Zoom");
-        mItem.addActionListener(e -> {
-            zoomActual();
-            //zoomAndCenter();
-            //centerGraph();
-        });
-        popup.add(mItem);
-        popup.addSeparator();
-        mItem = new JMenuItem("Available Shortcuts...");
-//        mItem.addActionListener(e -> keyboardHandler.displayKeyMap());
-        popup.add(mItem);
-
-        getGraphControl().addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(final MouseEvent e) {
-                handleMouseEvent(e);
-            }
-
-            @Override
-            public void mouseReleased(final MouseEvent e) {
-                handleMouseEvent(e);
-            }
-
-            private void handleMouseEvent(final MouseEvent e) {
-                if (e.isConsumed())
-                    return;
-                if (e.isPopupTrigger()) {
-                    popup.show(getGraphControl(), e.getX(), e.getY());
-                }
-                e.consume();
-            }
-        });
     }
 
 }
