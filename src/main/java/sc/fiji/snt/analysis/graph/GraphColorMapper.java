@@ -34,6 +34,23 @@ public class GraphColorMapper extends ColorMapper {
      * Flag for {@value #PAGE_RANK} mapping.
      */
     public static final String PAGE_RANK = "Page rank";
+    /**
+     * Flag for {@value #IN_DEGREE} mapping.
+     */
+    public static final String IN_DEGREE = "In degree";
+    /**
+     * Flag for {@value #OUT_DEGREE} mapping.
+     */
+    public static final String OUT_DEGREE = "Out degree";
+    /**
+     * Flag for {@value #INCOMING_WEIGHT} mapping.
+     */
+    public static final String INCOMING_WEIGHT = "Incoming weight";
+    /**
+     * Flag for {@value #OUTGOING_WEIGHT} mapping.
+     */
+    public static final String OUTGOING_WEIGHT = "Outgoing weight";
+
 
     public static final int VERTICES = 1;
     public static final int EDGES = 2;
@@ -46,13 +63,17 @@ public class GraphColorMapper extends ColorMapper {
             CONNECTIVITY,
             EDGE_WEIGHT,
             PAGE_RANK,
+            IN_DEGREE,
+            OUT_DEGREE,
+            INCOMING_WEIGHT,
+            OUTGOING_WEIGHT
     };
 
     @Parameter
     private LUTService lutService;
     private Map<String, URL> luts;
     protected SNTGraph<Object, DefaultWeightedEdge> graph;
-    private int internalCounter = 1;
+    private final int internalCounter = 1;
 
     public GraphColorMapper(final Context context) {
         this();
@@ -134,6 +155,22 @@ public class GraphColorMapper extends ColorMapper {
                 mappedState = VERTICES;
                 mapToPageRank(colorTable);
                 break;
+            case IN_DEGREE:
+                mappedState = VERTICES;
+                mapToInDegree(colorTable);
+                break;
+            case OUT_DEGREE:
+                mappedState = VERTICES;
+                mapToOutDegree(colorTable);
+                break;
+            case INCOMING_WEIGHT:
+                mappedState = VERTICES;
+                mapToIncomingWeight(colorTable);
+                break;
+            case OUTGOING_WEIGHT:
+                mappedState = VERTICES;
+                mapToOutgoingWeight(colorTable);
+                break;
             default:
                 throw new IllegalArgumentException("Unknown metric");
         }
@@ -207,6 +244,78 @@ public class GraphColorMapper extends ColorMapper {
         for (Map.Entry<Object, Double> entry : scores.entrySet()) {
             ColorRGB c = getColorRGB(entry.getValue());
             this.graph.setVertexColor(entry.getKey(), c);
+        }
+    }
+
+    protected void mapToInDegree(ColorTable colorTable) {
+        if (!minMaxSet) {
+            double min = Double.MAX_VALUE;
+            double max = -Double.MAX_VALUE;
+            for (Object vertex : graph.vertexSet()) {
+                double d = graph.inDegreeOf(vertex);
+                if (d < min) {min = d;}
+                if (d > max) {max = d;}
+            }
+            setMinMax(min, max);
+        }
+        for (Object vertex : graph.vertexSet()) {
+            ColorRGB c = getColorRGB(graph.inDegreeOf(vertex));
+            graph.setVertexColor(vertex, c);
+        }
+    }
+
+    protected void mapToOutDegree(ColorTable colorTable) {
+        if (!minMaxSet) {
+            double min = Double.MAX_VALUE;
+            double max = -Double.MAX_VALUE;
+            for (Object vertex : graph.vertexSet()) {
+                double d = graph.outDegreeOf(vertex);
+                if (d < min) {min = d;}
+                if (d > max) {max = d;}
+            }
+            setMinMax(min, max);
+        }
+        for (Object vertex : graph.vertexSet()) {
+            ColorRGB c = getColorRGB(graph.outDegreeOf(vertex));
+            graph.setVertexColor(vertex, c);
+        }
+    }
+
+    protected void mapToIncomingWeight(ColorTable colorTable) {
+        if (!minMaxSet) {
+            double min = Double.MAX_VALUE;
+            double max = -Double.MAX_VALUE;
+            for (Object vertex : graph.vertexSet()) {
+                double sum = graph.incomingEdgesOf(vertex).stream().mapToDouble(e -> graph.getEdgeWeight(e)).sum();
+                if (sum < min) {min = sum;}
+                if (sum > max) {max = sum;}
+            }
+            setMinMax(min, max);
+        }
+        for (Object vertex : graph.vertexSet()) {
+            ColorRGB c = getColorRGB(
+                    graph.incomingEdgesOf(vertex).stream().mapToDouble(e -> graph.getEdgeWeight(e)).sum()
+            );
+            graph.setVertexColor(vertex, c);
+        }
+    }
+
+    protected void mapToOutgoingWeight(ColorTable colorTable) {
+        if (!minMaxSet) {
+            double min = Double.MAX_VALUE;
+            double max = -Double.MAX_VALUE;
+            for (Object vertex : graph.vertexSet()) {
+                double sum = graph.outgoingEdgesOf(vertex).stream().mapToDouble(e -> graph.getEdgeWeight(e)).sum();
+                if (sum < min) {min = sum;}
+                if (sum > max) {max = sum;}
+            }
+            setMinMax(min, max);
+        }
+        for (Object vertex : graph.vertexSet()) {
+            ColorRGB c = getColorRGB(
+                    graph.outgoingEdgesOf(vertex).stream().mapToDouble(e -> graph.getEdgeWeight(e)).sum()
+            );
+            graph.setVertexColor(vertex, c);
         }
     }
 
