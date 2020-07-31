@@ -116,7 +116,7 @@ public class SNTGraphComponent extends mxGraphComponent {
         final double heightLayout = getViewportBorderBounds().getHeight();
         final double width = adapter.getGraphBounds().getWidth();
         final double height = adapter.getGraphBounds().getHeight();
-        mxGeometry geo = adapter.getModel().setGeometry(adapter.getDefaultParent(),
+        adapter.getModel().setGeometry(adapter.getDefaultParent(),
                 new mxGeometry((widthLayout - width) / 2, (heightLayout - height) / 2, widthLayout, heightLayout));
     }
 
@@ -175,20 +175,6 @@ public class SNTGraphComponent extends mxGraphComponent {
         final Result output = new StreamResult(file);
         final Source input = new DOMSource(doc);
         transformer.transform(input, output);
-    }
-
-    private class ZoomMouseWheelListener implements MouseWheelListener {
-        @Override
-        public void mouseWheelMoved(final MouseWheelEvent e) {
-            if (e.getSource() instanceof mxGraphOutline || e.isShiftDown()) {
-                if (e.getWheelRotation() < 0) {
-                    SNTGraphComponent.this.zoomIn();
-                } else {
-                    SNTGraphComponent.this.zoomOut();
-                }
-
-            }
-        }
     }
 
     protected static class KeyboardHandler extends mxKeyboardHandler {

@@ -1,13 +1,10 @@
 package sc.fiji.snt.viewer;
 
 import net.imagej.ImageJ;
-import net.imagej.lut.LUTService;
 
 import org.scijava.Context;
 import org.scijava.NullContextException;
-import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
-import org.scijava.prefs.PrefService;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;

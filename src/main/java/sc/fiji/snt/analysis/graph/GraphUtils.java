@@ -25,20 +25,13 @@ package sc.fiji.snt.analysis.graph;
 import java.awt.Window;
 import java.util.Collection;
 
-import javax.swing.JDialog;
-import javax.swing.JFrame;
-import javax.swing.SwingUtilities;
-
-import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultDirectedGraph;
-import org.scijava.Context;
 import org.scijava.util.Colors;
 
 import net.imagej.ImageJ;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.GraphViewer;
 import sc.fiji.snt.viewer.Viewer3D;

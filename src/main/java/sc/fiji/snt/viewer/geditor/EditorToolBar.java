@@ -27,10 +27,7 @@ public class EditorToolBar extends JToolBar
 	private boolean ignoreZoomChange = false;
 	private final GraphEditor editor;
 
-	/**
-	 * 
-	 */
-	@SuppressWarnings("rawtypes")
+
 	public EditorToolBar(final GraphEditor editor, final int orientation)
 	{
 		super(orientation);

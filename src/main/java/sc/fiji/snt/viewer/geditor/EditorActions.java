@@ -59,7 +59,6 @@ import com.mxgraph.view.mxGraph;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.annotation.AllenUtils;
-import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Copyright (c) 2001-2012, JGraph Ltd
@@ -2066,9 +2065,7 @@ public class EditorActions
 		}
 	}
 
-	/**
-	 *
-	 */
+	@SuppressWarnings("serial")
 	public static class ChangeVertexShapeAction extends AbstractAction
 	{
 		private String[] shapes = {mxConstants.SHAPE_RECTANGLE, mxConstants.SHAPE_DOUBLE_RECTANGLE,
@@ -2103,6 +2100,7 @@ public class EditorActions
 		}
 	}
 
+	@SuppressWarnings("serial")
 	public static class ChangeGraphAction extends AbstractAction {
 
 		@Override
