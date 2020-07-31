@@ -71,19 +71,19 @@ public class EditorActions
 	 * @param e
 	 * @return Returns the graph for the given action event.
 	 */
-	public static final BasicGraphEditor getEditor(ActionEvent e)
+	public static final GraphEditor getEditor(ActionEvent e)
 	{
 		if (e.getSource() instanceof Component)
 		{
 			Component component = (Component) e.getSource();
 
 			while (component != null
-					&& !(component instanceof BasicGraphEditor))
+					&& !(component instanceof GraphEditor))
 			{
 				component = component.getParent();
 			}
 
-			return (BasicGraphEditor) component;
+			return (GraphEditor) component;
 		}
 
 		return null;
@@ -95,7 +95,7 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class ToggleRulersItem extends JCheckBoxMenuItem
 	{
-		public ToggleRulersItem(final BasicGraphEditor editor, String name)
+		public ToggleRulersItem(final GraphEditor editor, String name)
 		{
 			super(name);
 			setSelected(editor.getGraphComponent().getColumnHeader() != null);
@@ -121,7 +121,7 @@ public class EditorActions
 	public static class ToggleGridItem extends JCheckBoxMenuItem {
 
 		boolean firstTimeSettingGrid = true;
-		public ToggleGridItem(final BasicGraphEditor editor, String name, boolean initialState) {
+		public ToggleGridItem(final GraphEditor editor, String name, boolean initialState) {
 			super(name, initialState);
 			addItemListener(e -> {
 				mxGraphComponent graphComponent = editor.getGraphComponent();
@@ -141,7 +141,7 @@ public class EditorActions
 
 	@SuppressWarnings("serial")
 	public static class ToggleBottomPaneItem extends JCheckBoxMenuItem {
-		public ToggleBottomPaneItem(final BasicGraphEditor editor, String name) {
+		public ToggleBottomPaneItem(final GraphEditor editor, String name) {
 			super(name, true);
 			addActionListener(e -> {
 				editor.setBottomPaneVisible(!editor.getGraphOutline().isVisible());
@@ -160,7 +160,7 @@ public class EditorActions
 		 */
 		public void actionPerformed(ActionEvent e)
 		{
-			BasicGraphEditor editor = getEditor(e);
+			GraphEditor editor = getEditor(e);
 
 			if (editor != null)
 			{
@@ -453,7 +453,7 @@ public class EditorActions
 		/**
 		 * Saves XML+PNG format.
 		 */
-		protected void saveXmlPng(BasicGraphEditor editor, String filename,
+		protected void saveXmlPng(GraphEditor editor, String filename,
 				Color bg) throws IOException
 		{
 			mxGraphComponent graphComponent = editor.getGraphComponent();
@@ -504,7 +504,7 @@ public class EditorActions
 		 */
 		public void actionPerformed(ActionEvent e)
 		{
-			BasicGraphEditor editor = getEditor(e);
+			GraphEditor editor = getEditor(e);
 
 			if (editor != null)
 			{
@@ -902,7 +902,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public ToggleCreateTargetItem(final BasicGraphEditor editor, String name)
+		public ToggleCreateTargetItem(final GraphEditor editor, String name)
 		{
 			super(name);
 			setSelected(true);
@@ -1189,7 +1189,7 @@ public class EditorActions
 		 */
 		public void actionPerformed(ActionEvent e)
 		{
-			BasicGraphEditor editor = getEditor(e);
+			GraphEditor editor = getEditor(e);
 
 			if (editor != null)
 			{
@@ -1342,7 +1342,7 @@ public class EditorActions
 		 */
 		public void actionPerformed(ActionEvent e)
 		{
-			BasicGraphEditor editor = getEditor(e);
+			GraphEditor editor = getEditor(e);
 
 			if (editor != null)
 			{
@@ -1379,7 +1379,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		protected void resetEditor(BasicGraphEditor editor)
+		protected void resetEditor(GraphEditor editor)
 		{
 			editor.setModified(false);
 			editor.getUndoManager().clear();
@@ -1389,7 +1389,7 @@ public class EditorActions
 		/**
 		 * Reads XML+PNG format.
 		 */
-		protected void openXmlPng(BasicGraphEditor editor, File file)
+		protected void openXmlPng(GraphEditor editor, File file)
 				throws IOException
 		{
 			Map<String, String> text = mxPngTextDecoder
@@ -1421,7 +1421,7 @@ public class EditorActions
 		 * @throws IOException
 		 *
 		 */
-		protected void openGD(BasicGraphEditor editor, File file,
+		protected void openGD(GraphEditor editor, File file,
 				String gdText)
 		{
 			mxGraph graph = editor.getGraphComponent().getGraph();
@@ -1448,7 +1448,7 @@ public class EditorActions
 		 */
 		public void actionPerformed(ActionEvent e)
 		{
-			BasicGraphEditor editor = getEditor(e);
+			GraphEditor editor = getEditor(e);
 
 			if (editor != null)
 			{
@@ -1835,7 +1835,7 @@ public class EditorActions
 			if (e.getSource() instanceof mxGraphComponent) {
 				final mxGraphComponent component = ((mxGraphComponent) e.getSource());
 				if (component.isPageVisible()) {
-					final BasicGraphEditor editor = getEditor(e);
+					final GraphEditor editor = getEditor(e);
 					if (editor != null)
 						editor.status("Not available in \"Page Layout\". Use Zoom controls instead", true);
 					return;
@@ -2166,7 +2166,7 @@ public class EditorActions
 	private static boolean noCellsError(final ActionEvent e, final String cmdName, final mxGraph graph) {
 		final boolean noCells = graph.isSelectionEmpty();
 		if (noCells) {
-			final BasicGraphEditor editor = getEditor(e);
+			final GraphEditor editor = getEditor(e);
 			if (editor != null)
 				editor.status("No selection exists!", true);
 			else

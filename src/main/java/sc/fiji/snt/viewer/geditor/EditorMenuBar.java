@@ -32,7 +32,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.graph.SNTGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
-import sc.fiji.snt.viewer.geditor.BasicGraphEditor.CmdRunner;
+import sc.fiji.snt.viewer.geditor.GraphEditor.CmdRunner;
 
 public class EditorMenuBar extends JMenuBar
 {
@@ -42,7 +42,7 @@ public class EditorMenuBar extends JMenuBar
 	@Parameter
 	Context context;
 	private static final long serialVersionUID = 4060203894740766714L;
-	private static BasicGraphEditor editor;
+	private static GraphEditor editor;
 	protected final mxGraphComponent graphComponent;
 	protected final mxGraph graph;
 	protected mxAnalysisGraph aGraph;
@@ -57,7 +57,7 @@ public class EditorMenuBar extends JMenuBar
 		PLANARITY, SPANNING_TREE, FLOYD_ROY_WARSHALL
 	}
 
-	public EditorMenuBar(final BasicGraphEditor editor, final Context context)
+	public EditorMenuBar(final GraphEditor editor, final Context context)
 	{
 		context.inject(this);
 		EditorMenuBar.editor = editor;
@@ -424,7 +424,7 @@ public class EditorMenuBar extends JMenuBar
 	 * Adds menu items to the given shape menu. This is factored out because
 	 * the shape menu appears in the menubar and also in the popupmenu.
 	 */
-	public static void populateShapeMenu(JMenu menu, BasicGraphEditor editor)
+	public static void populateShapeMenu(JMenu menu, GraphEditor editor)
 	{
 		menu.add(editor.bind("Choose vertex shape...", new EditorActions.ChangeVertexShapeAction()));
 		//menu.add(editor.bind(mxResources.get("home"), mxGraphActions.getHomeAction(), "/mx_shape_images/house.gif"));
@@ -489,7 +489,7 @@ public class EditorMenuBar extends JMenuBar
 	 * Adds menu items to the given format menu. This is factored out because
 	 * the format menu appears in the menubar and also in the popupmenu.
 	 */
-	public static void populateFormatMenu(JMenu menu, BasicGraphEditor editor)
+	public static void populateFormatMenu(JMenu menu, GraphEditor editor)
 	{
 		JMenu submenu = (JMenu) menu.add(new JMenu(mxResources.get("background")));
 

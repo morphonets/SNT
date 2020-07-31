@@ -25,13 +25,13 @@ public class EditorToolBar extends JToolBar
 
 	private static final long serialVersionUID = -8015443128436394471L;
 	private boolean ignoreZoomChange = false;
-	private final BasicGraphEditor editor;
+	private final GraphEditor editor;
 
 	/**
 	 * 
 	 */
 	@SuppressWarnings("rawtypes")
-	public EditorToolBar(final BasicGraphEditor editor, final int orientation)
+	public EditorToolBar(final GraphEditor editor, final int orientation)
 	{
 		super(orientation);
 		this.editor = editor;

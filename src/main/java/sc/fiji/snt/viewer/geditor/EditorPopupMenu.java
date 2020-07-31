@@ -15,7 +15,7 @@ public class EditorPopupMenu extends JPopupMenu
 	 */
 	private static final long serialVersionUID = -3132749140550242191L;
 
-	public EditorPopupMenu(BasicGraphEditor editor)
+	public EditorPopupMenu(GraphEditor editor)
 	{
 		boolean selected = !editor.getGraphComponent().getGraph()
 				.isSelectionEmpty();
