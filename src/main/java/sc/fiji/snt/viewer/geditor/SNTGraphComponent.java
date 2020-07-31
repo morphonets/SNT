@@ -1,4 +1,4 @@
-package sc.fiji.snt.viewer;
+package sc.fiji.snt.viewer.geditor;
 
 import com.mxgraph.model.mxGeometry;
 import com.mxgraph.swing.handler.mxKeyboardHandler;

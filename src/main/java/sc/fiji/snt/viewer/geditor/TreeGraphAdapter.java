@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.viewer;
+package sc.fiji.snt.viewer.geditor;
 
 import java.util.Map;
 
@@ -43,7 +43,7 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
 	private String defaultVertexFillColor = LIGHT_GRAY;
 	private String defaultEdgeStrokeColor = DARK_GRAY;
 
-	protected TreeGraphAdapter(final DirectedWeightedGraph graph) {
+	public TreeGraphAdapter(final DirectedWeightedGraph graph) {
 		this(graph, LIGHT_GRAY);
 	}
 

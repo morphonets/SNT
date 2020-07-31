@@ -1,4 +1,4 @@
-package sc.fiji.snt.viewer;
+package sc.fiji.snt.viewer.geditor;
 
 import com.mxgraph.layout.mxCircleLayout;
 import com.mxgraph.layout.mxGraphLayout;
@@ -8,6 +8,7 @@ import org.scijava.Context;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
+
 import javax.swing.*;
 
 public class AnnotationGraphComponent extends SNTGraphComponent {
@@ -24,7 +25,7 @@ public class AnnotationGraphComponent extends SNTGraphComponent {
     // Circle layout parameters
     private double radius = 100;
 
-    protected AnnotationGraphComponent(final AnnotationGraphAdapter adapter, Context context) {
+    public AnnotationGraphComponent(final AnnotationGraphAdapter adapter, Context context) {
         super(adapter, context);
         layout = new mxCircleLayout(adapter);
         layout.execute(adapter.getDefaultParent());

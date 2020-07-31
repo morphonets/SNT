@@ -32,8 +32,6 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.graph.SNTGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
-import sc.fiji.snt.viewer.SNTGraphAdapter;
-import sc.fiji.snt.viewer.SNTGraphComponent;
 import sc.fiji.snt.viewer.geditor.BasicGraphEditor.CmdRunner;
 
 public class EditorMenuBar extends JMenuBar

@@ -15,8 +15,14 @@ import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.graph.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
+import sc.fiji.snt.viewer.geditor.AnnotationGraphAdapter;
+import sc.fiji.snt.viewer.geditor.AnnotationGraphComponent;
 import sc.fiji.snt.viewer.geditor.EditorMenuBar;
 import sc.fiji.snt.viewer.geditor.GraphEditor;
+import sc.fiji.snt.viewer.geditor.SNTGraphAdapter;
+import sc.fiji.snt.viewer.geditor.SNTGraphComponent;
+import sc.fiji.snt.viewer.geditor.TreeGraphAdapter;
+import sc.fiji.snt.viewer.geditor.TreeGraphComponent;
 
 import javax.swing.*;
 

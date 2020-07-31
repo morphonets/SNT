@@ -35,7 +35,7 @@ import org.scijava.widget.Button;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.graph.GraphColorMapper;
 import sc.fiji.snt.analysis.graph.SNTGraph;
-import sc.fiji.snt.viewer.SNTGraphAdapter;
+import sc.fiji.snt.viewer.geditor.SNTGraphAdapter;
 
 import java.io.IOException;
 import java.net.URL;

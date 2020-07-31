@@ -1,4 +1,4 @@
-package sc.fiji.snt.viewer;
+package sc.fiji.snt.viewer.geditor;
 
 import com.mxgraph.util.mxConstants;
 import org.jgrapht.ext.JGraphXAdapter;

@@ -60,8 +60,6 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.viewer.AnnotationGraphAdapter;
-import sc.fiji.snt.viewer.AnnotationGraphComponent;
 
 /**
  * Copyright (c) 2001-2012, JGraph Ltd

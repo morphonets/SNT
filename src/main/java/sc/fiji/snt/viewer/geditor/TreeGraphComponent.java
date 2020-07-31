@@ -20,18 +20,18 @@
  * #L%
  */
 
-package sc.fiji.snt.viewer;
+package sc.fiji.snt.viewer.geditor;
 
 import org.scijava.Context;
 
 import com.mxgraph.layout.mxCompactTreeLayout;
 
-class TreeGraphComponent extends SNTGraphComponent {
+public class TreeGraphComponent extends SNTGraphComponent {
 
 	private static final long serialVersionUID = 1L;
 	private final mxCompactTreeLayout layout;
 
-	protected TreeGraphComponent(final TreeGraphAdapter adapter, Context context) {
+	public TreeGraphComponent(final TreeGraphAdapter adapter, Context context) {
 		super(adapter, context);
 		layout = new mxCompactTreeLayout(adapter);
 		layout.execute(adapter.getDefaultParent());
