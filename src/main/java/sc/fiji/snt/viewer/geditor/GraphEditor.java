@@ -140,18 +140,6 @@ public class GraphEditor extends JPanel
 		final mxGraph graph = graphComponent.getGraph();
 		undoManager = createUndoManager();
 
-		// Apply sensible defaults
-		graphComponent.setAntiAlias(true);
-		graphComponent.setTextAntiAlias(true);
-		graphComponent.setTripleBuffered(true);
-//		graphComponent.getGraph().setGridSize(100);
-//		graphComponent.setGridStyle(mxGraphComponent.GRID_STYLE_LINE);
-//		graphComponent.setGridColor(Color.CYAN);
-//		graphComponent.setGridVisible(false);
-
-		// Do not change the scale and translation after files have been loaded
-		graph.setResetViewOnRootChange(false);
-
 		// Updates the modified flag if the graph model changes
 		graph.getModel().addListener(mxEvent.CHANGE, changeTracker);
 

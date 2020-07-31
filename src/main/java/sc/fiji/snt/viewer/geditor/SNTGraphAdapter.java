@@ -24,7 +24,12 @@ public class SNTGraphAdapter<Object, DefaultWeightedEdge> extends JGraphXAdapter
         setDisconnectOnMove(false);
         setResetEdgesOnMove(true);
         setResetEdgesOnResize(true);
-        setResetViewOnRootChange(true);
+		// Change the scale and translation after graph has changed
+        setResetViewOnRootChange(false);
+
+        // restrict editability of graph by default
+        setCellsDisconnectable(false);
+        setDropEnabled(false);
     }
 
     public void setVertexColor(Object vertex, ColorRGB color) {

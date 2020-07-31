@@ -59,9 +59,6 @@ public class SNTGraphComponent extends mxGraphComponent {
         // if the user is really willing to  change the graph's connectivity
         setDragEnabled(false);
         setConnectable(false);
-        graph.setCellsDisconnectable(false);
-        graph.setDropEnabled(false);
-        graph.setDisconnectOnMove(false);
 
         // Use space key for panning (from TrackSchemeGraphComponent)
         getPanningHandler().setEnabled(true);
