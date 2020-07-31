@@ -28,6 +28,7 @@ import javax.swing.text.html.HTML;
 import javax.swing.text.html.HTMLDocument;
 import javax.swing.text.html.HTMLEditorKit;
 
+import com.mxgraph.layout.mxCircleLayout;
 import org.w3c.dom.Document;
 
 import com.mxgraph.analysis.mxDistanceCostFunction;
@@ -37,7 +38,6 @@ import com.mxgraph.canvas.mxSvgCanvas;
 import com.mxgraph.io.mxCodec;
 import com.mxgraph.io.mxGdCodec;
 import com.mxgraph.model.mxCell;
-import com.mxgraph.model.mxGeometry;
 import com.mxgraph.model.mxGraphModel;
 import com.mxgraph.model.mxIGraphModel;
 import com.mxgraph.swing.mxGraphComponent;
@@ -56,6 +56,12 @@ import com.mxgraph.util.png.mxPngEncodeParam;
 import com.mxgraph.util.png.mxPngImageEncoder;
 import com.mxgraph.util.png.mxPngTextDecoder;
 import com.mxgraph.view.mxGraph;
+import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.graph.AnnotationGraph;
+import sc.fiji.snt.annotation.AllenUtils;
+import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.viewer.AnnotationGraphAdapter;
+import sc.fiji.snt.viewer.AnnotationGraphComponent;
 
 /**
  * Copyright (c) 2001-2012, JGraph Ltd
@@ -1614,7 +1620,8 @@ public class EditorActions
 
 		/**
 		 * 
-		 * @param key
+		 * @param labelPosition
+		 * @param alignment
 		 */
 		public SetLabelPositionAction(String labelPosition, String alignment)
 		{
@@ -1673,7 +1680,7 @@ public class EditorActions
 
 		/**
 		 * 
-		 * @param key
+		 * @param value
 		 */
 		public SetStyleAction(String value)
 		{
@@ -1802,7 +1809,7 @@ public class EditorActions
 
 		/**
 		 * 
-		 * @param key
+		 * @param align
 		 */
 		public AlignCellsAction(String align)
 		{
@@ -2094,6 +2101,66 @@ public class EditorActions
 						graph.refresh();
 					}
 				}
+			}
+		}
+	}
+
+	public static class ChangeGraphAction extends AbstractAction {
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			if (e.getSource() instanceof AnnotationGraphComponent) {
+				AnnotationGraphComponent graphComponent = (AnnotationGraphComponent) e.getSource();
+				AnnotationGraphAdapter graph = (AnnotationGraphAdapter) graphComponent.getGraph();
+				List<Tree> trees = graph.getAnnotationGraph().getTrees();
+				if (trees == null || trees.isEmpty()) {
+					System.out.println("Graph not associated with a Tree Collection.");
+					return;
+				}
+				// Fields
+				JComboBox metricComboBox = new JComboBox(AnnotationGraph.getMetrics());
+				metricComboBox.setSelectedIndex(0);
+				SpinnerNumberModel thresModel = new SpinnerNumberModel(0.0, 0.0, null, 1.0);
+				JSpinner thresholdSpinner = new JSpinner(thresModel);
+				SpinnerNumberModel depthModel = new SpinnerNumberModel(0, 0, AllenUtils.getHighestOntologyDepth(), 1);
+				JSpinner depthSpinner = new JSpinner(depthModel);
+				// Panel
+				JPanel myPanel = new JPanel();
+				myPanel.setLayout(new BoxLayout(myPanel, BoxLayout.Y_AXIS));
+				myPanel.add(new JLabel("<html><b>Annotation Graph Criteria"));
+				myPanel.add(new JLabel("<html>Metric"));
+				myPanel.add(metricComboBox);
+				myPanel.add(new JLabel("<html>Threshold"));
+				myPanel.add(thresholdSpinner);
+				myPanel.add(new JLabel("<html>Max Ontology Depth"));
+				myPanel.add(depthSpinner);
+				int result = JOptionPane.showConfirmDialog(null, myPanel,
+						"Please Specify Options", JOptionPane.OK_CANCEL_OPTION);
+				String metric;
+				double threshold;
+				int depth;
+				if (result == JOptionPane.OK_OPTION) {
+					metric = (String) metricComboBox.getSelectedItem();
+					threshold = (double) thresholdSpinner.getValue();
+					depth = (int) depthSpinner.getValue();
+				} else {
+					return;
+				}
+				AnnotationGraph newGraph = new AnnotationGraph(trees, metric, threshold, depth);
+				AnnotationGraphAdapter adapter = new AnnotationGraphAdapter(newGraph);
+				graphComponent.setGraph(adapter);
+				adapter.getModel().beginUpdate();
+				try {
+					mxCircleLayout layout = new mxCircleLayout(adapter);
+					layout.execute(adapter.getDefaultParent());
+				} catch (Exception ex) {
+					ex.printStackTrace();
+				} finally {
+					adapter.getModel().endUpdate();
+				}
+				graphComponent.refresh();
+			} else {
+				System.out.println("This action requires AnnotationGraph.");
 			}
 		}
 	}

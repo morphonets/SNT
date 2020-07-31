@@ -16,6 +16,13 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
     public static final String TIPS = "tips";
     public static final String LENGTH = "length";
     public static final String BRANCH_POINTS = "branches";
+    private static final String[] ALL_FLAGS = {
+            TIPS,
+            LENGTH,
+            BRANCH_POINTS
+    };
+
+    private Collection<Tree> treeCollection;
 
     protected AnnotationGraph() {
         super(AnnotationWeightedEdge.class);
@@ -30,6 +37,7 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
         if (trees.isEmpty()) {
             throw new IllegalArgumentException("Empty Tree collection given");
         }
+        this.treeCollection = trees;
         if (threshold < 0) {
             threshold = 0;
         }
@@ -49,6 +57,10 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
             default:
                 throw new IllegalArgumentException("Unknown metric");
         }
+    }
+
+    public static String[] getMetrics() {
+        return ALL_FLAGS;
     }
 
     private void init_tips(final Collection<Tree> trees, int minTipCount, int maxOntologyDepth) {
@@ -235,6 +247,10 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
      */
     public double sumEdgeWeights() {
         return edgeSet().stream().mapToDouble(this::getEdgeWeight).sum();
+    }
+
+    public List<Tree> getTrees() {
+        return new ArrayList<>(treeCollection);
     }
 
     /**

@@ -19,13 +19,15 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
     private String defaultVertexStrokeColor = DARK_GRAY;
     private String defaultVertexFillColor = LIGHT_GRAY;
     private String defaultEdgeStrokeColor = DARK_GRAY;
+    private AnnotationGraph annotationGraph;
 
-    protected AnnotationGraphAdapter(final AnnotationGraph graph) {
+    public AnnotationGraphAdapter(final AnnotationGraph graph) {
         this(graph, LIGHT_GRAY);
     }
 
     protected AnnotationGraphAdapter(final AnnotationGraph graph, final String verticesColor) {
         super(graph);
+        this.annotationGraph = graph;
         final String vColor = (verticesColor == null) ? LIGHT_GRAY : new ColorRGB(verticesColor).toHTMLColor();
         final Map<String, Object> edgeStyle = getStylesheet().getDefaultEdgeStyle();
         //edgeStyle.put(mxConstants.STYLE_ROUNDED, true);
@@ -55,6 +57,10 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
         setCellColorsFromGraph();
         //vertexStyle.put(mxConstants.STYLE_FILLCOLOR, vColor);
 
+    }
+
+    public AnnotationGraph getAnnotationGraph() {
+        return annotationGraph;
     }
 
     @Override
@@ -104,7 +110,7 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
         }
         return cell.toString();
     }
-
+    
     @Override
     public String getToolTipForCell(Object cell) {
         mxCell mxc = (mxCell) cell;

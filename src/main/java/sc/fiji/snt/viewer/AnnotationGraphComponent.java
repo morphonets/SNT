@@ -5,7 +5,6 @@ import com.mxgraph.layout.mxFastOrganicLayout;
 import com.mxgraph.layout.mxGraphLayout;
 import com.mxgraph.layout.mxParallelEdgeLayout;
 
-import com.mxgraph.model.mxGeometry;
 import com.mxgraph.util.mxPoint;
 import org.scijava.Context;
 
@@ -20,7 +19,7 @@ import java.awt.event.*;
 import java.util.HashMap;
 import java.util.Map;
 
-class AnnotationGraphComponent extends SNTGraphComponent {
+public class AnnotationGraphComponent extends SNTGraphComponent {
 
     private static final long serialVersionUID = 1L;
     private mxGraphLayout layout;
