@@ -1,21 +1,27 @@
 <mxStylesheet>
+	<include name="/sc/fiji/GraphEditor/resources/basic-style.xml"/>
 	<add as="defaultVertex">
 		<add as="shape" value="label"/>
 		<add as="perimeter" value="rectanglePerimeter"/>
-		<add as="fontSize" value="11"/>
+		<add as="fontSize" value="12"/>
 		<add as="align" value="center"/>
 		<add as="verticalAlign" value="middle"/>
-		<add as="strokeColor" value="black"/>
+		<add as="strokeColor" value="#363636"/>
 		<add as="fillColor" value="white"/>
+		<add as="fontColor" value="black"/>
+		<add as="rounded" value="1"/>
 	</add>
 	<add as="defaultEdge">
 		<add as="shape" value="connector"/>
-		<add as="labelBackgroundColor" value="white"/>
-		<add as="endArrow" value="classic"/>
+		<add as="labelBackgroundColor" value="none"/>
+		<add as="startArrow" value="classic"/>
+		<add as="endArrow" value="block"/>
 		<add as="fontSize" value="10"/>
 		<add as="align" value="center"/>
-		<add as="verticalAlign" value="middle"/>
-		<add as="strokeColor" value="black"/>
+		<add as="verticalAlign" value="bottom"/>
+		<add as="strokeColor" value="#363636"/>
+		<add as="fontColor" value="black"/>
+		<add as="rounded" value="1"/>
 	</add>
 	<add as="entity">
 		<add as="edgeStyle" value="entityRelationEdgeStyle"/>
