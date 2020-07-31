@@ -31,6 +31,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.graph.SNTGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
+import sc.fiji.snt.viewer.geditor.EditorActions.TogglePropertyItem;
 import sc.fiji.snt.viewer.geditor.GraphEditor.CmdRunner;
 
 public class EditorMenuBar extends JMenuBar
@@ -300,8 +301,9 @@ public class EditorMenuBar extends JMenuBar
 
 		submenu.addSeparator();
 
-		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("handleReturn"), "EnterStopsCellEditing"));
-
+		final TogglePropertyItem mitem = new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("handleReturn"), "EnterStopsCellEditing");
+		mitem.setToolTipText("If unselected, editing terminates on Ctrl + Enter");
+		submenu.add(mitem);
 		menu.addSeparator();
 
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("connections")));
@@ -316,10 +318,9 @@ public class EditorMenuBar extends JMenuBar
 
 		submenu.addSeparator();
 
-		submenu.add(editor.bind(mxResources.get("connectMode"), new EditorActions.ToggleConnectModeAction()));
-
+		submenu.add(new EditorActions.ToggleConnectModeAction(mxResources.get("connectMode"), graphComponent.isConnectable()));
+		
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("validation")));
-
 		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("allowDanglingEdges"), "AllowDanglingEdges"));
 		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("cloneInvalidEdges"), "CloneInvalidEdges"));
 

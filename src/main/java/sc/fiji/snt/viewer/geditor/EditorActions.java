@@ -874,11 +874,12 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class ToggleConnectModeAction extends AbstractAction
+	public static class ToggleConnectModeAction extends JCheckBoxMenuItem
 	{
-		/**
-		 * 
-		 */
+		public ToggleConnectModeAction(final String name, final boolean initialState) {
+			super(name, initialState);
+		}
+
 		public void actionPerformed(ActionEvent e)
 		{
 			if (e.getSource() instanceof mxGraphComponent)
