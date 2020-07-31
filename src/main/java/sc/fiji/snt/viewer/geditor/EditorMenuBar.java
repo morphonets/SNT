@@ -34,6 +34,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
 import sc.fiji.snt.viewer.SNTGraphAdapter;
 import sc.fiji.snt.viewer.SNTGraphComponent;
+import sc.fiji.snt.viewer.geditor.BasicGraphEditor.CmdRunner;
 
 public class EditorMenuBar extends JMenuBar
 {
@@ -849,7 +850,10 @@ public class EditorMenuBar extends JMenuBar
 		protected void doColorCoding() {
 			final Map<String, Object> input = new HashMap<>();
 			input.put("adapter", adapter);
-			context.getService(CommandService.class).run(GraphAdapterMapperCmd.class, true, input);
+			final CmdRunner runner = editor.new CmdRunner(context.getService(CommandService.class),
+					GraphAdapterMapperCmd.class, true, input);
+			System.out.println(SwingUtilities.isEventDispatchThread());
+			runner.execute();
 		}
 
 		protected void doEdgeScaling() {

@@ -42,7 +42,7 @@ public class GraphViewer {
 
     private Context getContext() {
         if (context == null)
-            setContext(new Context(CommandService.class, LUTService.class, PrefService.class));
+            setContext(new Context());
         return context;
     }
 

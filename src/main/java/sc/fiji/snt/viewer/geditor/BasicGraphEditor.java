@@ -15,6 +15,7 @@ import java.awt.event.MouseWheelListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
+import java.util.HashMap;
 import java.util.List;
 
 import javax.swing.AbstractAction;
@@ -33,8 +34,12 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JToolBar;
 import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.UIManager;
 
+import org.scijava.command.Command;
+import org.scijava.command.CommandModule;
+import org.scijava.command.CommandService;
 import com.mxgraph.layout.mxCircleLayout;
 import com.mxgraph.layout.mxCompactTreeLayout;
 import com.mxgraph.layout.mxEdgeLabelLayout;
@@ -952,6 +957,34 @@ public class BasicGraphEditor extends JPanel
 
 	public JSplitPane getBottomPanel() {
 		return bottomPanel;
+	}
+
+	class CmdRunner extends SwingWorker<Void, Void> {
+
+		private final CommandService cmdService;
+		private final Class<? extends Command> commandClass;
+		private final boolean process;
+		private final Object[] inputs;
+
+		public CmdRunner(final CommandService cmdService, final Class<? extends Command> commandClass,
+				final boolean process, Object... inputs) {
+			this.cmdService = cmdService;
+			this.commandClass = commandClass;
+			this.process = process;
+			this.inputs = inputs;
+			status("Running command...");
+		}
+
+		@Override
+		public Void doInBackground() {
+			cmdService.run(commandClass, process, inputs);
+			return null;
+		}
+
+		@Override
+		protected void done() {
+			status("Command terminated...");
+		}
 	}
 
 }
