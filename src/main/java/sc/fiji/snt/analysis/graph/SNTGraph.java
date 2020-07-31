@@ -6,8 +6,11 @@ import org.scijava.util.ColorRGB;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SNTGraph<Object, DefaultWeightedEdge> extends DefaultDirectedWeightedGraph<Object, DefaultWeightedEdge> {
-    private final Map<Object, ColorRGB> vertexColorRGBMap;
+public class SNTGraph<V, DefaultWeightedEdge> extends DefaultDirectedWeightedGraph<V, DefaultWeightedEdge> {
+
+	private static final long serialVersionUID = 8458292348918037500L;
+
+	private final Map<V, ColorRGB> vertexColorRGBMap;
     private final Map<DefaultWeightedEdge, ColorRGB> edgeColorRGBMap;
 
     public SNTGraph(Class<? extends DefaultWeightedEdge> edgeClass) {
@@ -16,7 +19,7 @@ public class SNTGraph<Object, DefaultWeightedEdge> extends DefaultDirectedWeight
         edgeColorRGBMap = new HashMap<>();
     }
 
-    public void setVertexColor(Object vertex, ColorRGB color) {
+    public void setVertexColor(V vertex, ColorRGB color) {
         if (containsVertex(vertex)) {
             vertexColorRGBMap.put(vertex, color);
         }
@@ -28,7 +31,7 @@ public class SNTGraph<Object, DefaultWeightedEdge> extends DefaultDirectedWeight
         }
     }
 
-    public ColorRGB getVertexColor(Object vertex) {
+    public ColorRGB getVertexColor(V vertex) {
         if (containsVertex(vertex) && vertexColorRGBMap.containsKey(vertex)) {
             return vertexColorRGBMap.get(vertex);
         }
@@ -42,7 +45,7 @@ public class SNTGraph<Object, DefaultWeightedEdge> extends DefaultDirectedWeight
         return null;
     }
 
-    public Map<Object, ColorRGB> getVertexColorRGBMap() {
+    public Map<V, ColorRGB> getVertexColorRGBMap() {
         return vertexColorRGBMap;
     }
 

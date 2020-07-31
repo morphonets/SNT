@@ -3,7 +3,6 @@ package sc.fiji.snt.viewer.geditor;
 import com.mxgraph.model.mxGeometry;
 import com.mxgraph.swing.handler.mxKeyboardHandler;
 import com.mxgraph.swing.mxGraphComponent;
-import com.mxgraph.swing.mxGraphOutline;
 import com.mxgraph.swing.view.mxCellEditor;
 import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.view.mxGraphView;
@@ -26,16 +25,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 
-@SuppressWarnings("serial")
 public class SNTGraphComponent extends mxGraphComponent {
 
-    @Parameter
+	private static final long serialVersionUID = -341155071963647372L;
+
+	@Parameter
     protected CommandService cmdService;
-    protected final SNTGraphAdapter adapter;
+    protected final SNTGraphAdapter<?, ?> adapter;
     protected File saveDir;
 	private boolean spaceDown = false;
 
-    protected SNTGraphComponent(SNTGraphAdapter adapter, Context context) {
+    protected SNTGraphComponent(SNTGraphAdapter<?, ?> adapter, Context context) {
         super(adapter);
         context.inject(this);
         this.adapter = adapter;

@@ -13,7 +13,9 @@ import java.util.stream.Collectors;
 
 public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeightedEdge> {
 
-    public static final String TIPS = "tips";
+	private static final long serialVersionUID = 6826816297520498404L;
+
+	public static final String TIPS = "tips";
     public static final String LENGTH = "length";
     public static final String BRANCH_POINTS = "branches";
     private static final String[] ALL_FLAGS = {

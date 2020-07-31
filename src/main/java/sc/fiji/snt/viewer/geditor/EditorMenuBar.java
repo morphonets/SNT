@@ -1014,6 +1014,7 @@ public class EditorMenuBar extends JMenuBar
 			}
 		}
 
+		@SuppressWarnings({ "rawtypes", "unchecked" })
 		public void actionPerformed(ActionEvent e)
 		{
 			if (e.getSource() instanceof SNTGraphComponent)

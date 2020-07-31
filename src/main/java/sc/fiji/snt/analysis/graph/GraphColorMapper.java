@@ -101,14 +101,14 @@ public class GraphColorMapper extends ColorMapper {
         return null;
     }
 
-    public int map(SNTGraph graph, final String measurement, final String lut) {
+    public int map(SNTGraph<Object, DefaultWeightedEdge> graph, final String measurement, final String lut) {
         ColorTable colorTable = getColorTable(lut);
         this.graph = graph;
         mapToProperty(measurement, colorTable);
         return mappedState;
     }
 
-    public int map(SNTGraph graph, final String measurement, final ColorTable colorTable) {
+    public int map(SNTGraph<Object, DefaultWeightedEdge> graph, final String measurement, final ColorTable colorTable) {
         this.graph = graph;
         mapToProperty(measurement, colorTable);
         return mappedState;

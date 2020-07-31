@@ -2114,7 +2114,7 @@ public class EditorActions
 					return;
 				}
 				// Fields
-				JComboBox metricComboBox = new JComboBox(AnnotationGraph.getMetrics());
+				JComboBox<String> metricComboBox = new JComboBox<>(AnnotationGraph.getMetrics());
 				metricComboBox.setSelectedIndex(0);
 				SpinnerNumberModel thresModel = new SpinnerNumberModel(0.0, 0.0, null, 1.0);
 				JSpinner thresholdSpinner = new JSpinner(thresModel);

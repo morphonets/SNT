@@ -30,11 +30,11 @@ import java.util.List;
 public class GraphViewer {
     @Parameter
     private Context context;
-    private final SNTGraph graph;
-    private SNTGraphAdapter adapter;
+    private final SNTGraph<?, ?> graph;
+    private SNTGraphAdapter<?, ?> adapter;
     private SNTGraphComponent component;
 
-    public GraphViewer(final SNTGraph inputGraph) {
+    public GraphViewer(final SNTGraph<?, ?> inputGraph) {
         this.graph = inputGraph;
     }
 

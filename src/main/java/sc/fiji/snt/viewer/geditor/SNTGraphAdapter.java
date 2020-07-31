@@ -7,10 +7,10 @@ import sc.fiji.snt.analysis.graph.SNTGraph;
 
 import java.util.Map;
 
-public class SNTGraphAdapter<Object, DefaultWeightedEdge> extends JGraphXAdapter<Object, DefaultWeightedEdge> {
-    private final SNTGraph<Object, DefaultWeightedEdge> cGraph;
+public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, DefaultWeightedEdge> {
+    private final SNTGraph<V, DefaultWeightedEdge> cGraph;
 
-    protected SNTGraphAdapter(SNTGraph<Object, DefaultWeightedEdge> graph) {
+    protected SNTGraphAdapter(SNTGraph<V, DefaultWeightedEdge> graph) {
         super(graph);
         this.cGraph = graph;
 //        setAutoOrigin(true);
@@ -32,7 +32,7 @@ public class SNTGraphAdapter<Object, DefaultWeightedEdge> extends JGraphXAdapter
         setDropEnabled(false);
     }
 
-    public void setVertexColor(Object vertex, ColorRGB color) {
+    public void setVertexColor(V vertex, ColorRGB color) {
         java.lang.Object cell = getVertexToCellMap().get(vertex);
         if (cell == null || color == null) {
             return;
@@ -56,7 +56,7 @@ public class SNTGraphAdapter<Object, DefaultWeightedEdge> extends JGraphXAdapter
 
     protected void setCellColorsFromGraph() {
         if (!cGraph.getVertexColorRGBMap().isEmpty()) {
-            for (Map.Entry<Object, ColorRGB> entry : cGraph.getVertexColorRGBMap().entrySet()) {
+            for (Map.Entry<V, ColorRGB> entry : cGraph.getVertexColorRGBMap().entrySet()) {
                 setVertexColor(entry.getKey(), entry.getValue());
             }
         }
@@ -67,7 +67,7 @@ public class SNTGraphAdapter<Object, DefaultWeightedEdge> extends JGraphXAdapter
         }
     }
 
-    public SNTGraph<Object, DefaultWeightedEdge> getSourceGraph() {
+    public SNTGraph<V, DefaultWeightedEdge> getSourceGraph() {
         return cGraph;
     }
 
