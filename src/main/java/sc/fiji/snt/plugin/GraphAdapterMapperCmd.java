@@ -64,6 +64,15 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
     @Parameter(required = false, label = "<HTML>&nbsp;")
     private ColorTable colorTable;
 
+    @Parameter(required=true, label="Use clipping range")
+    private boolean useRange;
+
+    @Parameter(required = false, label="min value")
+    private double minValue;
+
+    @Parameter(required = false, label="max value")
+    private double maxValue;
+
     @Parameter(required = false, label = "Remove Existing Color Coding",
             callback = "removeColorCoding")
     private Button removeColorCoding;
@@ -82,6 +91,9 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
         final GraphColorMapper colorizer = new GraphColorMapper(context());
         int mappedState;
         try {
+            if (useRange) {
+                colorizer.setMinMax(minValue, maxValue);
+            }
             mappedState = colorizer.map(cGraph, measurementChoice, colorTable);
         } catch (final Exception exc) {
             cancel(exc.getMessage());
@@ -116,6 +128,17 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
         if (lutChoice == null) lutChoice = prefService.get(getClass(), "lutChoice",
                 "mpl-viridis.lut");
         setLUTs();
+        final MutableModuleItem<Double> minValueInput = getInfo()
+                .getMutableInput("minValue", Double.class);
+        minValueInput.setMinimumValue(-Double.MAX_VALUE);
+        minValueInput.setMaximumValue(Double.MAX_VALUE);
+        minValueInput.setDefaultValue(0d);
+
+        final MutableModuleItem<Double> maxValueInput = getInfo()
+                .getMutableInput("maxValue", Double.class);
+        maxValueInput.setMinimumValue(-Double.MAX_VALUE);
+        maxValueInput.setMaximumValue(Double.MAX_VALUE);
+        maxValueInput.setDefaultValue(0d);
     }
 
     private void setLUTs() {

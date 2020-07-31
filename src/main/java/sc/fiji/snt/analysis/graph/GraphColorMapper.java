@@ -14,10 +14,7 @@ import sc.fiji.snt.analysis.ColorMapper;
 
 import java.io.IOException;
 import java.net.URL;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class GraphColorMapper extends ColorMapper {
@@ -42,6 +39,7 @@ public class GraphColorMapper extends ColorMapper {
     public static final int EDGES = 2;
     public static final int VERTICES_AND_EDGES = 4;
     private int mappedState;
+    private boolean minMaxSet = false;
 
     private static final String[] ALL_FLAGS = { //
             BETWEENNESS_CENTRALITY,
@@ -156,18 +154,20 @@ public class GraphColorMapper extends ColorMapper {
     }
 
     protected void mapToEdgeWeight(final ColorTable colorTable) {
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
-        for (DefaultWeightedEdge edge : this.graph.edgeSet()) {
-            double w = this.graph.getEdgeWeight(edge);
-            if (w > max) {
-                max = w;
+        if (!minMaxSet) {
+            double min = Double.MAX_VALUE;
+            double max = -Double.MAX_VALUE;
+            for (DefaultWeightedEdge edge : this.graph.edgeSet()) {
+                double w = this.graph.getEdgeWeight(edge);
+                if (w > max) {
+                    max = w;
+                }
+                if (w < min) {
+                    min = w;
+                }
             }
-            if (w < min) {
-                min = w;
-            }
+            setMinMax(min, max);
         }
-        setMinMax(min, max);
         for (DefaultWeightedEdge edge : this.graph.edgeSet()) {
             ColorRGB c = getColorRGB(this.graph.getEdgeWeight(edge));
             this.graph.setEdgeColor(edge, c);
@@ -177,13 +177,15 @@ public class GraphColorMapper extends ColorMapper {
     protected void mapToBetweennessCentrality(final ColorTable colorTable) {
         BetweennessCentrality<Object, DefaultWeightedEdge> bc = new BetweennessCentrality<>(this.graph, false);
         Map<Object, Double> scores = bc.getScores();
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
-        for (Double s : scores.values()) {
-            if (s < min) {min = s;}
-            if (s > max) {max = s;}
+        if (!minMaxSet) {
+            double min = Double.MAX_VALUE;
+            double max = -Double.MAX_VALUE;
+            for (Double s : scores.values()) {
+                if (s < min) {min = s;}
+                if (s > max) {max = s;}
+            }
+            setMinMax(min, max);
         }
-        setMinMax(min, max);
         for (Map.Entry<Object, Double> entry : scores.entrySet()) {
             ColorRGB c = getColorRGB(entry.getValue());
             this.graph.setVertexColor(entry.getKey(), c);
@@ -193,17 +195,29 @@ public class GraphColorMapper extends ColorMapper {
     protected void mapToPageRank(final ColorTable colorTable) {
         PageRank<Object, DefaultWeightedEdge> pr = new PageRank<>(this.graph);
         Map<Object, Double> scores = pr.getScores();
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
-        for (Double s : scores.values()) {
-            if (s < min) {min = s;}
-            if (s > max) {max = s;}
+        if (!minMaxSet) {
+            double min = Double.MAX_VALUE;
+            double max = -Double.MAX_VALUE;
+            for (Double s : scores.values()) {
+                if (s < min) {min = s;}
+                if (s > max) {max = s;}
+            }
+            setMinMax(min, max);
         }
-        setMinMax(min, max);
         for (Map.Entry<Object, Double> entry : scores.entrySet()) {
             ColorRGB c = getColorRGB(entry.getValue());
             this.graph.setVertexColor(entry.getKey(), c);
         }
     }
 
+    @Override
+    public void setMinMax(double min, double max) {
+        super.setMinMax(min, max);
+        minMaxSet = true;
+    }
+
+    public void resetMinMax() {
+        setMinMax(Double.NaN, Double.NaN);
+        minMaxSet = false;
+    }
 }
