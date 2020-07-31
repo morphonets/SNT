@@ -17,8 +17,10 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.net.MalformedURLException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.file.Paths;
 import java.util.*;
 
 import javax.imageio.ImageIO;
@@ -1937,41 +1939,40 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class BackgroundImageAction extends AbstractAction
 	{
-		/**
-		 * 
-		 */
-		public void actionPerformed(ActionEvent e)
-		{
-			if (e.getSource() instanceof mxGraphComponent)
-			{
-				mxGraphComponent graphComponent = (mxGraphComponent) e
-						.getSource();
-				String value = (String) JOptionPane.showInputDialog(
-						graphComponent, mxResources.get("backgroundImage"),
-						"URL", JOptionPane.PLAIN_MESSAGE, null, null,
-						"http://www.callatecs.com/images/background2.JPG");
+		public void actionPerformed(ActionEvent e) {
+			if (e.getSource() instanceof mxGraphComponent) {
+				final mxGraphComponent graphComponent = (mxGraphComponent) e.getSource();
+				String value = (String) JOptionPane.showInputDialog(graphComponent,
+						"Image location (absolute path or URL). Clear field to remove loaded image:",
+						mxResources.get("backgroundImage"), JOptionPane.PLAIN_MESSAGE, null, null,
+						"http://morphonets.org/static/MorphonetsLogo.png");
 
-				if (value != null)
-				{
-					if (value.length() == 0)
-					{
-						graphComponent.setBackgroundImage(null);
-					}
-					else
-					{
-						Image background = mxUtils.loadImage(value);
-						// Incorrect URLs will result in no image.
-						// TODO provide feedback that the URL is not correct
-						if (background != null)
-						{
-							graphComponent.setBackgroundImage(new ImageIcon(
-									background));
-						}
-					}
+				if (value == null) {
+					return; // user pressed cancel
 
-					// Forces a repaint of the outline
-					graphComponent.getGraph().repaint();
+				} else if (value.trim().isEmpty()) {
+					graphComponent.setBackgroundImage(null);
+					System.out.println("Background image removed");
+					return;
+				} else if (!(value.startsWith("http") || value.startsWith("www"))) {
+					try {
+						value = Paths.get(value).toUri().toURL().toString();
+					} catch (final MalformedURLException e1) {
+						System.out.println("Not a valid path!");
+						return;
+					}
 				}
+				final Image background = mxUtils.loadImage(value);
+				if (background == null) {
+					// Incorrect URLs will result in no image.
+					System.out.println("Image could not be loaded. Invalid path?");
+				} else {
+					graphComponent.setBackgroundImage(new ImageIcon(background));
+					System.out.println("Applied background image: " + value);
+				}
+
+				// Forces a repaint of the outline
+				graphComponent.getGraph().repaint();
 			}
 		}
 	}
