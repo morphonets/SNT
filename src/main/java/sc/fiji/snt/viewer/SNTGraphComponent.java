@@ -2,15 +2,11 @@ package sc.fiji.snt.viewer;
 
 import com.mxgraph.model.mxGeometry;
 import com.mxgraph.swing.handler.mxKeyboardHandler;
-import com.mxgraph.swing.handler.mxRubberband;
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.swing.mxGraphOutline;
-import com.mxgraph.swing.view.mxInteractiveCanvas;
+import com.mxgraph.swing.view.mxCellEditor;
 import com.mxgraph.util.mxCellRenderer;
-import com.mxgraph.util.mxPoint;
-import com.mxgraph.view.mxGraph;
 import com.mxgraph.view.mxGraphView;
-import com.mxgraph.view.mxLayoutManager;
 import org.scijava.Context;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
@@ -30,7 +26,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 
+@SuppressWarnings("serial")
 public class SNTGraphComponent extends mxGraphComponent {
+
     @Parameter
     protected CommandService cmdService;
     protected final SNTGraphAdapter adapter;
@@ -83,20 +81,9 @@ public class SNTGraphComponent extends mxGraphComponent {
 
     }
 
-
-        @Override
-        public void componentResized(ComponentEvent e) {
-            e.getComponent().removeComponentListener(this);
-            zoomToFitHorizontal();
-
-
-        }
-
-        @Override
-        public void componentShown(ComponentEvent e) {
-
-        }
-
+    @Override
+    public boolean isPanningEvent(MouseEvent event) {
+    	return (event != null) ? spaceDown : false;
     }
 
     @SuppressWarnings("unused")

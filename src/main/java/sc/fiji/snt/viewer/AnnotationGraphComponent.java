@@ -1,23 +1,14 @@
 package sc.fiji.snt.viewer;
 
 import com.mxgraph.layout.mxCircleLayout;
-import com.mxgraph.layout.mxFastOrganicLayout;
 import com.mxgraph.layout.mxGraphLayout;
 import com.mxgraph.layout.mxParallelEdgeLayout;
 
-import com.mxgraph.util.mxPoint;
 import org.scijava.Context;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
-
 import javax.swing.*;
-
-import java.awt.*;
-import java.awt.event.*;
-import java.util.HashMap;
-import java.util.Map;
 
 public class AnnotationGraphComponent extends SNTGraphComponent {
 
