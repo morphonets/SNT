@@ -1,7 +1,6 @@
 package sc.fiji.snt.viewer.geditor;
 
 import com.mxgraph.model.mxGeometry;
-import com.mxgraph.swing.handler.mxKeyboardHandler;
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.swing.view.mxCellEditor;
 import com.mxgraph.util.mxCellRenderer;
@@ -13,7 +12,6 @@ import org.w3c.dom.Document;
 import sc.fiji.snt.gui.GuiUtils;
 
 import javax.imageio.ImageIO;
-import javax.swing.*;
 import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
@@ -22,7 +20,6 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 
 public class SNTGraphComponent extends mxGraphComponent {
@@ -120,17 +117,6 @@ public class SNTGraphComponent extends mxGraphComponent {
                 new mxGeometry((widthLayout - width) / 2, (heightLayout - height) / 2, widthLayout, heightLayout));
     }
 
-//    @Override
-//    public boolean isPanningEvent(final MouseEvent event) {
-//        return panMenuItem.isSelected();
-//    }
-
-    protected JMenuItem saveAsMenuItem(final String label, final String extension) {
-        final JMenuItem menuItem = new JMenuItem(label);
-        menuItem.addActionListener(e -> export(extension));
-        return menuItem;
-    }
-
     protected void export(final String extension) {
         final GuiUtils guiUtils = new GuiUtils(this.getParent());
         final File file = new File(getSaveDir(), "exported-graph" + extension);
@@ -175,40 +161,6 @@ public class SNTGraphComponent extends mxGraphComponent {
         final Result output = new StreamResult(file);
         final Source input = new DOMSource(doc);
         transformer.transform(input, output);
-    }
-
-    protected static class KeyboardHandler extends mxKeyboardHandler {
-
-        public KeyboardHandler(mxGraphComponent graphComponent) {
-            super(graphComponent);
-        }
-
-        protected InputMap getInputMap(int condition) {
-            final InputMap map = super.getInputMap(condition);
-            if (condition == JComponent.WHEN_FOCUSED) {
-                map.put(KeyStroke.getKeyStroke("EQUALS"), "zoomIn");
-                map.put(KeyStroke.getKeyStroke("control EQUALS"), "zoomIn");
-                map.put(KeyStroke.getKeyStroke("MINUS"), "zoomOut");
-                map.put(KeyStroke.getKeyStroke("control MINUS"), "zoomOut");
-            }
-            return map;
-        }
-
-        protected void displayKeyMap() {
-            final InputMap inputMap = getInputMap(JComponent.WHEN_FOCUSED);
-            final KeyStroke[] keys = inputMap.allKeys();
-            final ArrayList<String> lines = new ArrayList<>();
-            final String common = "<span style='display:inline-block;width:100px;font-weight:bold'>";
-            if (keys != null) {
-                for (int i = 0; i < keys.length; i++) {
-                    final KeyStroke key = keys[i];
-                    final String keyString = key.toString().replace("pressed", "");
-                    lines.add(common + keyString + "</span>&nbsp;&nbsp;" + inputMap.get(key));
-                }
-                Collections.sort(lines);
-            }
-            GuiUtils.showHTMLDialog("<HTML>" + String.join("<br>", lines), "Dendrogram Viewer Shortcuts");
-        }
     }
 
 }
