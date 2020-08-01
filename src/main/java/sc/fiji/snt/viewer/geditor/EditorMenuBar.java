@@ -23,6 +23,7 @@ import com.mxgraph.util.mxPoint;
 import com.mxgraph.util.mxResources;
 import com.mxgraph.view.mxGraph;
 import com.mxgraph.view.mxGraphView;
+import org.jgrapht.alg.cycle.JohnsonSimpleCycles;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.command.CommandService;
@@ -53,7 +54,7 @@ public class EditorMenuBar extends JMenuBar
 	{
 		PROPERTIES, COLOR_CODING, EDGE_SCALING, COMPLEMENTARY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE,
 		ONE_SPANNING_TREE, GET_CUT_VERTEXES, GET_CUT_EDGES, GET_SOURCES, GET_SINKS,
-		PLANARITY, SPANNING_TREE, FLOYD_ROY_WARSHALL
+		PLANARITY, SPANNING_TREE, FLOYD_ROY_WARSHALL, FIND_CYCLES
 	}
 
 	public EditorMenuBar(final GraphEditor editor, final Context context)
@@ -402,6 +403,7 @@ public class EditorMenuBar extends JMenuBar
 		menu.add(editor.bind("List Graph Properties", new AnalyzeGraph(AnalyzeType.PROPERTIES, aGraph, context)));
 		menu.add(editor.bind("Get Sources", new AnalyzeGraph(AnalyzeType.GET_SOURCES, aGraph, context)));
 		menu.add(editor.bind("Get Sinks", new AnalyzeGraph(AnalyzeType.GET_SINKS, aGraph, context)));
+		menu.add(editor.bind("Find Cycles", new AnalyzeGraph(AnalyzeType.FIND_CYCLES, aGraph, context)));
 	}
 
 	/**
@@ -834,7 +836,7 @@ public class EditorMenuBar extends JMenuBar
 			input.put("adapter", adapter);
 			final CmdRunner runner = editor.new CmdRunner(context.getService(CommandService.class),
 					GraphAdapterMapperCmd.class, true, input);
-			System.out.println(SwingUtilities.isEventDispatchThread());
+			//System.out.println(SwingUtilities.isEventDispatchThread());
 			runner.execute();
 		}
 
@@ -889,7 +891,7 @@ public class EditorMenuBar extends JMenuBar
 			for (Object cell : cells) {
 				mxICell mxc = (mxICell) cell;
 				if (!mxc.isEdge()) continue;
-				double weight = sntGraph.getEdgeWeight((DefaultWeightedEdge)adapter.getCellToEdgeMap().get(mxc));
+				double weight = sntGraph.getEdgeWeight(adapter.getCellToEdgeMap().get(mxc));
 				if (weight < minWeight) {minWeight = weight;}
 				if (weight > maxWeight) {maxWeight = weight;}
 			}
@@ -898,7 +900,7 @@ public class EditorMenuBar extends JMenuBar
 				for (Object cell : cells) {
 					mxICell mxc = (mxICell) cell;
 					if (!mxc.isEdge()) continue;
-					double weight = sntGraph.getEdgeWeight((DefaultWeightedEdge)adapter.getCellToEdgeMap().get(mxc));
+					double weight = sntGraph.getEdgeWeight(adapter.getCellToEdgeMap().get(mxc));
 					double scaledWeight = newMin + ((newMax - newMin) / (maxWeight - minWeight)) * (weight - minWeight);
 					adapter.setCellStyles(mxConstants.STYLE_STROKEWIDTH, String.valueOf(scaledWeight), new Object[]{mxc});
 				}
@@ -918,7 +920,7 @@ public class EditorMenuBar extends JMenuBar
 					mxICell mxc = (mxICell) cell;
 					if (!mxc.isEdge()) continue;
 					double weight = sntGraph.getEdgeWeight(
-							(DefaultWeightedEdge)adapter.getCellToEdgeMap().get(mxc)
+							adapter.getCellToEdgeMap().get(mxc)
 					) + rightShift + leftShift;
 					double k = newMax / Math.log(maxWeight + rightShift + leftShift);
 					double scaledWeight = k * Math.log(weight) + newMin;
@@ -996,6 +998,22 @@ public class EditorMenuBar extends JMenuBar
 			if (!selectionCells.isEmpty()) {
 				aGraph.getGraph().setSelectionCells(selectionCells);
 			}
+		}
+
+		protected void doFindCycles() {
+			SNTGraph<Object, DefaultWeightedEdge> graph = adapter.getSourceGraph();
+			System.out.println("Finding cycles...");
+			JohnsonSimpleCycles<Object, DefaultWeightedEdge> jsc = new JohnsonSimpleCycles<>(graph);
+			List<List<Object>> cycleList = jsc.findSimpleCycles();
+			for (List<Object> cycle : cycleList) {
+				System.out.print("Cycle: ");
+				for (Object vertex : cycle) {
+					System.out.print(vertex + " -> ");
+				}
+				System.out.print(cycle.get(0));
+				System.out.println();
+			}
+			System.out.println("Done...");
 		}
 
 		@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -1086,6 +1104,9 @@ public class EditorMenuBar extends JMenuBar
 				{
 					doGetSinks();
 				}
+				else if (analyzeType == AnalyzeType.FIND_CYCLES) {
+					doFindCycles();
+				}
 				else if (analyzeType == AnalyzeType.FLOYD_ROY_WARSHALL)
 				{
 					
@@ -1162,5 +1183,5 @@ public class EditorMenuBar extends JMenuBar
 				}
 			}
 		}
-	};
-};
+	}
+}

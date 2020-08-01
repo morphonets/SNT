@@ -159,18 +159,20 @@ public class EditorToolBar extends JToolBar
 			if (noCellsError(cells)) {
 				return;
 			}
+			graph.getModel().beginUpdate();
 			for (final Object cell : cells) {
 				final mxICell mxc = (mxICell) cell;
 				if (graph.getModel().isVertex(mxc)) {
 					final mxGeometry geom = mxc.getGeometry();
 					final double srcWidth = geom.getWidth();
 					final double srcHeight = geom.getHeight();
-					final double maxWidth = srcWidth * 0.75;
-					final double maxHeight = srcHeight * 0.75;
+					final double maxWidth = srcWidth * 0.833333333;
+					final double maxHeight = srcHeight * 0.833333333;
 					final double ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
 					graph.resizeCell(mxc, new mxRectangle(geom.getX(), geom.getY(), srcWidth*ratio, srcHeight*ratio));
 				}
 			}
+			graph.getModel().endUpdate();
 		});
 		add(minusShapeSizeButton);
 		final JButton plusShapeSizeButton = new JButton(IconFactory.getButtonIcon(GLYPH.PLUS, 1f));
@@ -183,18 +185,20 @@ public class EditorToolBar extends JToolBar
 			if (noCellsError(cells)) {
 				return;
 			}
+			graph.getModel().beginUpdate();
 			for (final Object cell : cells) {
 				final mxICell mxc = (mxICell) cell;
 				if (graph.getModel().isVertex(mxc)) {
 					final mxGeometry geom = mxc.getGeometry();
 					final double srcWidth = geom.getWidth();
 					final double srcHeight = geom.getHeight();
-					final double maxWidth = srcWidth * 1.25;
-					final double maxHeight = srcHeight * 1.25;
+					final double maxWidth = srcWidth * 1.20;
+					final double maxHeight = srcHeight * 1.20;
 					final double ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
 					graph.resizeCell(mxc, new mxRectangle(geom.getX(), geom.getY(), srcWidth*ratio, srcHeight*ratio));
 				}
 			}
+			graph.getModel().endUpdate();
 		});
 		add(plusShapeSizeButton);
 		addSeparator();
@@ -205,8 +209,8 @@ public class EditorToolBar extends JToolBar
 		final GraphicsEnvironment env = GraphicsEnvironment
 				.getLocalGraphicsEnvironment();
 		final List<String> fonts = new ArrayList<String>();
-		fonts.addAll(Arrays.asList(new String[] { "Arial", "Helvetica", "Verdana",
-				"Garamond", "Courier New"}));
+		fonts.addAll(Arrays.asList("Arial", "Helvetica", "Verdana",
+				"Garamond", "Courier New"));
 		fonts.addAll(Arrays.asList(env.getAvailableFontFamilyNames()));
 
 		final JComboBox<String> fontCombo = new JComboBox<String>(fonts.toArray(new String[0]));
