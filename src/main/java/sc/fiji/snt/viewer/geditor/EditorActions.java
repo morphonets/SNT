@@ -40,6 +40,7 @@ import com.mxgraph.canvas.mxSvgCanvas;
 import com.mxgraph.io.mxCodec;
 import com.mxgraph.io.mxGdCodec;
 import com.mxgraph.model.mxCell;
+import com.mxgraph.model.mxGeometry;
 import com.mxgraph.model.mxGraphModel;
 import com.mxgraph.model.mxIGraphModel;
 import com.mxgraph.swing.mxGraphComponent;
@@ -1836,20 +1837,15 @@ public class EditorActions
 		public void actionPerformed(final ActionEvent e) {
 			if (e.getSource() instanceof mxGraphComponent) {
 				final mxGraphComponent component = ((mxGraphComponent) e.getSource());
-				if (component.isPageVisible()) {
-					final GraphEditor editor = getEditor(e);
-					if (editor != null)
-						editor.status("Not available in \"Page Layout\". Use Zoom controls instead", true);
-					return;
-				}
 				final mxGraph graph = component.getGraph();
-				final double layoutX = component.getViewportBorderBounds().getCenterX();
-				final double layoutY = component.getViewportBorderBounds().getCenterY();
-				final double boundsX = graph.getGraphBounds().getCenterX();
-				final double boundsY = graph.getGraphBounds().getCenterY();
-				final double dx = (layoutX - boundsX);
-				final double dy = (layoutY - boundsY);
-				graph.getView().setTranslate(new mxPoint(dx, dy));
+				// https://stackoverflow.com/a/36947526
+				final double widthLayout = component.getLayoutAreaSize().getWidth();
+				final double heightLayout = component.getLayoutAreaSize().getHeight();
+				final double width = graph.getGraphBounds().getWidth();
+				final double height = graph.getGraphBounds().getHeight();
+				graph.getModel().setGeometry(graph.getDefaultParent(), new mxGeometry((widthLayout - width) / 2,
+						(heightLayout - height) / 2, widthLayout, heightLayout));
+
 			}
 		}
 	}
