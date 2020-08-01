@@ -166,7 +166,6 @@ public class GraphEditor extends JPanel
 		// Creates the library pane that contains the tabs with the palettes
 		libraryPane = new JTabbedPane();
 		editorConsole = new EditorConsole();
-		editorConsole.redirect();
 		insertConsole(getEditorConsole());
 
 		// Creates the split pane that contains the tabbed pane with
@@ -736,6 +735,7 @@ public class GraphEditor extends JPanel
 
 		// Updates the frame title
 		updateTitle();
+		getEditorConsole().redirect();
 
 		return frame;
 	}
