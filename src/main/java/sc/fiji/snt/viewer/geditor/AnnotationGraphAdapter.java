@@ -102,24 +102,22 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
     @Override
     public String convertValueToString(final Object cell) {
         final Object obj = ((mxCell)cell).getValue();
+        if (obj == null) return ""; // required for Analyze>Complementary
         if (obj instanceof BrainAnnotation) {
             return ""+ ((BrainAnnotation)obj).acronym();
         }
-        if (obj instanceof AnnotationWeightedEdge) {
-            return obj.toString();
-        }
-        return cell.toString();
+        return obj.toString();
     }
-    
+
     @Override
     public String getToolTipForCell(Object cell) {
         mxCell mxc = (mxCell) cell;
-        if (!mxc.isVertex()) {
-            return null;
+        if (mxc.isVertex() && mxc.getValue() instanceof BrainAnnotation) {
+        	// NB: Once cell is displayed/edited we no longer can cast cell's
+        	// value to a BrainAnnotation object!?
+        	return ((BrainAnnotation) mxc.getValue()).name();
         }
-        BrainAnnotation obj = (BrainAnnotation) mxc.getValue();
-        return obj.name();
-
+        return getOriginalValueOfmxCell(mxc.getId());
     }
 
 }

@@ -31,6 +31,7 @@ import com.mxgraph.util.mxConstants;
 
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
+import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.SWCPoint;
 
 
@@ -108,16 +109,24 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
 		setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
 	}
 
-	@Override
-	public String convertValueToString(final Object cell) {
-		final Object obj = ((mxCell)cell).getValue();
-		if (obj instanceof SWCPoint) {
-			return ""+ ((SWCPoint)obj).id;
-		}
-		if (obj instanceof SWCWeightedEdge) {
-			return ((SWCWeightedEdge)obj).toString();
-		}
-		return ((mxCell)cell).toString();
-	}
+    @Override
+    public String convertValueToString(final Object cell) {
+        final Object obj = ((mxCell)cell).getValue();
+        if (obj == null) return ""; // an edge?
+        if (obj instanceof SWCPoint) {
+            return ""+ ((SWCPoint)obj).id;
+        }
+        return obj.toString();
+    }
 
+    @Override
+    public String getToolTipForCell(Object cell) {
+        mxCell mxc = (mxCell) cell;
+        if (mxc.isVertex() && mxc.getValue() instanceof SWCPoint) {
+        	// NB: Once cell is displayed/edited we no longer can cast cell's
+        	// value to a SWCPoint object!?
+        	return ((SWCPoint) mxc.getValue()).toString();
+        }
+        return getOriginalValueOfmxCell(mxc.getId());
+    }
 }

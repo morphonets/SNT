@@ -1,14 +1,18 @@
 package sc.fiji.snt.viewer.geditor;
 
+import com.mxgraph.model.mxCell;
 import com.mxgraph.util.mxConstants;
 import org.jgrapht.ext.JGraphXAdapter;
 import org.scijava.util.ColorRGB;
 import sc.fiji.snt.analysis.graph.SNTGraph;
+import sc.fiji.snt.annotation.BrainAnnotation;
 
+import java.util.HashMap;
 import java.util.Map;
 
 public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, DefaultWeightedEdge> {
     private final SNTGraph<V, DefaultWeightedEdge> cGraph;
+    private HashMap<String, String> mxCellIDsToOriginalValuesMap;
 
     protected SNTGraphAdapter(SNTGraph<V, DefaultWeightedEdge> graph) {
         super(graph);
@@ -30,7 +34,19 @@ public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, D
         // restrict editability of graph by default
         setCellsDisconnectable(false);
         setDropEnabled(false);
+       
     }
+
+    @Override
+    public void cellLabelChanged( final Object cell, final Object value, final boolean autoSize )
+	{
+		if (mxCellIDsToOriginalValuesMap == null)
+			mxCellIDsToOriginalValuesMap = new HashMap<>();
+		final mxCell mxc = (mxCell) cell;
+		if (!mxCellIDsToOriginalValuesMap.containsKey(mxc.getId()))
+			mxCellIDsToOriginalValuesMap.put(mxc.getId(), mxc.getValue().toString());
+		super.cellLabelChanged(cell, value, autoSize);
+	}
 
     public void setVertexColor(V vertex, ColorRGB color) {
         java.lang.Object cell = getVertexToCellMap().get(vertex);
@@ -93,5 +109,8 @@ public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, D
         refresh();
     }
 
+    protected String getOriginalValueOfmxCell(final String mxCellId) {
+    	return (mxCellIDsToOriginalValuesMap == null) ? null : mxCellIDsToOriginalValuesMap.get(mxCellId);
+    }
 
 }
