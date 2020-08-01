@@ -89,6 +89,7 @@ public class GraphEditor extends JPanel
 	private final EditorConsole editorConsole;
 	private final JSplitPane mainPanel;
 	private final JSplitPane bottomPanel;
+	protected boolean animateLayoutChange = true;
 
 
 	/**
@@ -747,10 +748,9 @@ public class GraphEditor extends JPanel
 	 * @return an action that executes the specified layout
 	 */
 	@SuppressWarnings("serial")
-	public Action graphLayout(final String key, boolean animate)
+	public Action graphLayout(final String key)
 	{
-		final mxIGraphLayout layout = createLayout(key, animate);
-
+		final mxIGraphLayout layout = createLayout(key);
 		if (layout != null)
 		{
 			return new AbstractAction(mxResources.get(key))
@@ -776,20 +776,13 @@ public class GraphEditor extends JPanel
 					}
 					finally
 					{
-						mxMorphing morph = new mxMorphing(graphComponent, 20,
-								1.2, 20);
-
-						morph.addListener(mxEvent.DONE, new mxIEventListener()
-						{
-
-							public void invoke(Object sender, mxEventObject evt)
-							{
-								graph.getModel().endUpdate();
-							}
-
-						});
-
-						morph.startAnimation();
+						if (animateLayoutChange) {
+							mxMorphing morph = new mxMorphing(graphComponent, 20, 1.2, 20);
+							morph.addListener(mxEvent.DONE, (sender, evt) -> graph.getModel().endUpdate());
+							morph.startAnimation();
+						} else {
+							graph.getModel().endUpdate();
+						}
 					}
 
 				}
@@ -814,7 +807,7 @@ public class GraphEditor extends JPanel
 	/**
 	 * Creates a layout instance for the given identifier.
 	 */
-	protected mxIGraphLayout createLayout(String ident, boolean animate)
+	protected mxIGraphLayout createLayout(String ident)
 	{
 		mxIGraphLayout layout = null;
 

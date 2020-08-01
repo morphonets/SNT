@@ -218,33 +218,33 @@ public class EditorMenuBar extends JMenuBar
 
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("layout")));
 
-		submenu.add(editor.graphLayout("verticalHierarchical", true));
-		submenu.add(editor.graphLayout("horizontalHierarchical", true));
+		submenu.add(editor.graphLayout("verticalHierarchical"));
+		submenu.add(editor.graphLayout("horizontalHierarchical"));
 
 		submenu.addSeparator();
 
-		submenu.add(editor.graphLayout("verticalPartition", false));
-		submenu.add(editor.graphLayout("horizontalPartition", false));
+		submenu.add(editor.graphLayout("verticalPartition"));
+		submenu.add(editor.graphLayout("horizontalPartition"));
 
 		submenu.addSeparator();
 
-		submenu.add(editor.graphLayout("verticalStack", false));
-		submenu.add(editor.graphLayout("horizontalStack", false));
+		submenu.add(editor.graphLayout("verticalStack"));
+		submenu.add(editor.graphLayout("horizontalStack"));
 
 		submenu.addSeparator();
 
-		submenu.add(editor.graphLayout("verticalTree", true));
-		submenu.add(editor.graphLayout("horizontalTree", true));
+		submenu.add(editor.graphLayout("verticalTree"));
+		submenu.add(editor.graphLayout("horizontalTree"));
 
 		submenu.addSeparator();
 
-		submenu.add(editor.graphLayout("placeEdgeLabels", false));
-		submenu.add(editor.graphLayout("parallelEdges", false));
+		submenu.add(editor.graphLayout("placeEdgeLabels"));
+		submenu.add(editor.graphLayout("parallelEdges"));
 
 		submenu.addSeparator();
 
-		submenu.add(editor.graphLayout("organicLayout", true));
-		submenu.add(editor.graphLayout("circleLayout", true));
+		submenu.add(editor.graphLayout("organicLayout"));
+		submenu.add(editor.graphLayout("circleLayout"));
 
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("selection")));
 
@@ -275,6 +275,12 @@ public class EditorMenuBar extends JMenuBar
 		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("buffering"), "TripleBuffered", true));
 		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("antialias"), "AntiAlias", true));
 		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("antialiasText"), "TextAntiAlias", true));
+		final JCheckBoxMenuItem morphJmi = new JCheckBoxMenuItem("Animate Layout Changes", editor.animateLayoutChange);
+		morphJmi.addItemListener(e -> {
+			editor.animateLayoutChange = morphJmi.isSelected();
+			System.out.println("Layout change: morphing animation " + ((editor.animateLayoutChange) ? "enabled" : "disabled"));
+		});
+		submenu.add(morphJmi);
 		menu.addSeparator();
 
 		submenu = (JMenu) menu.add(new JMenu("Misc"));
