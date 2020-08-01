@@ -143,7 +143,7 @@ public class EditorMenuBar extends JMenuBar
 		});
 
 		menu.addSeparator();
-		menu.add(new EditorActions.ToggleBottomPaneItem(editor, mxResources.get("outline")));
+		menu.add(new EditorActions.ToggleBottomPaneItem(editor, "Bottom Panel"));
 		menu.add(new EditorActions.ToggleRulersItem(editor, mxResources.get("rulers")));
 		menu.add(new EditorActions.ToggleGridItem(editor, mxResources.get("grid"), false));
 
@@ -287,7 +287,12 @@ public class EditorMenuBar extends JMenuBar
 		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("preferPageSize"),
 				"PreferPageSize", true, e -> graphComponent.zoomAndCenter()));
 		submenu.add(editor.bind(mxResources.get("tolerance"), new EditorActions.PromptPropertyAction(graphComponent, "Tolerance")));
-		submenu.add(editor.bind(mxResources.get("dirty"), new EditorActions.ToggleDirtyAction()));
+		JCheckBoxMenuItem dirtyJmi = new JCheckBoxMenuItem(mxResources.get("dirty"), graphComponent.showDirtyRectangle);
+		dirtyJmi.addItemListener(e -> {
+			graphComponent.showDirtyRectangle = dirtyJmi.isSelected();
+			//System.out.println("Layout change: morphing animation " + ((editor.animateLayoutChange) ? "enabled" : "disabled"));
+		});
+		submenu.add(dirtyJmi);
 		menu.addSeparator();
 
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("dragAndDrop")));
@@ -841,7 +846,6 @@ public class EditorMenuBar extends JMenuBar
 			input.put("adapter", adapter);
 			final CmdRunner runner = editor.new CmdRunner(context.getService(CommandService.class),
 					GraphAdapterMapperCmd.class, true, input);
-			System.out.println(SwingUtilities.isEventDispatchThread());
 			runner.execute();
 		}
 

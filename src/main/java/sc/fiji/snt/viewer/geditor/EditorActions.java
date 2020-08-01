@@ -51,7 +51,6 @@ import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.util.mxCellRenderer.CanvasFactory;
 import com.mxgraph.util.mxConstants;
 import com.mxgraph.util.mxDomUtils;
-import com.mxgraph.util.mxPoint;
 import com.mxgraph.util.mxResources;
 import com.mxgraph.util.mxUtils;
 import com.mxgraph.util.mxXmlUtils;
@@ -144,9 +143,9 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class ToggleBottomPaneItem extends JCheckBoxMenuItem {
 		public ToggleBottomPaneItem(final GraphEditor editor, String name) {
-			super(name, true);
-			addActionListener(e -> {
-				editor.setBottomPaneVisible(!editor.getGraphOutline().isVisible());
+			super(name, editor.getGraphOutline().isVisible());
+			addItemListener(e -> {
+				editor.setBottomPaneVisible(isSelected());
 			});
 		}
 	}
@@ -850,27 +849,6 @@ public class EditorActions
 				graph.setSelectionCells(mst);
 			}
 		}
-	}
-
-	/**
-	 *
-	 */
-	@SuppressWarnings("serial")
-	public static class ToggleDirtyAction extends AbstractAction
-	{
-		/**
-		 * 
-		 */
-		public void actionPerformed(ActionEvent e)
-		{
-			if (e.getSource() instanceof mxGraphComponent)
-			{
-				mxGraphComponent graphComponent = (mxGraphComponent) e
-						.getSource();
-				graphComponent.showDirtyRectangle = !graphComponent.showDirtyRectangle;
-			}
-		}
-
 	}
 
 	/**
