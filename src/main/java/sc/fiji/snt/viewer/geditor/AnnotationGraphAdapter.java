@@ -82,6 +82,7 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
         Object[] modified = { cell };
         setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
         setCellStyles(mxConstants.STYLE_FILLCOLOR, fillColor, modified);
+        cGraph.setVertexColor(vertex, color);
     }
 
     @Override
@@ -98,6 +99,7 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
         }
         Object[] modified = { cell };
         setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
+        cGraph.setEdgeColor(edge, color);
     }
 
     @Override

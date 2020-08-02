@@ -86,7 +86,9 @@ public class GraphViewer {
         cellIds.add("AA1044");
         cellIds.add("AA0023");
         cellIds.add("AA0310");
-
+        cellIds.add("AA0824");
+        cellIds.add("AA0017");
+        cellIds.add("AA0345");
         List<Tree> trees = new ArrayList<Tree>();
         for (String id : cellIds) {
             Tree tree = new MouseLightLoader(id).getTree("axon");
@@ -94,7 +96,7 @@ public class GraphViewer {
         }
         System.out.println(new TreeAnalyzer(trees.get(3)).getCableLength());
         //List<Tree> trees = ij.context().getService(SNTService.class).demoTrees();
-        final AnnotationGraph graph = new AnnotationGraph(trees, "branches", 50, 7);
+        final AnnotationGraph graph = new AnnotationGraph(trees, "branches", 5, 8);
         //graph.filterEdgesByWeight(20);
         // graph.removeOrphanedNodes();
         GraphViewer graphViewer = new GraphViewer(graph);

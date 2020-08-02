@@ -11,8 +11,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, DefaultWeightedEdge> {
-    private final SNTGraph<V, DefaultWeightedEdge> cGraph;
     private HashMap<String, String> mxCellIDsToOriginalValuesMap;
+    protected final SNTGraph<V, DefaultWeightedEdge> cGraph;
 
     protected SNTGraphAdapter(SNTGraph<V, DefaultWeightedEdge> graph) {
         super(graph);
@@ -60,6 +60,7 @@ public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, D
         java.lang.Object[] modified = { cell };
         setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
         setCellStyles(mxConstants.STYLE_FILLCOLOR, fillColor, modified);
+        cGraph.setVertexColor(vertex, color);
     }
 
     public void setEdgeColor(DefaultWeightedEdge edge, ColorRGB color) {
@@ -70,6 +71,7 @@ public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, D
         String strokeColor = color.toHTMLColor();
         java.lang.Object[] modified = { cell };
         setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
+        cGraph.setEdgeColor(edge, color);
     }
 
     protected void setCellColorsFromGraph() {
