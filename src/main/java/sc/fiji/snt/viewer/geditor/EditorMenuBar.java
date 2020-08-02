@@ -14,6 +14,7 @@ import com.mxgraph.analysis.mxGraphProperties;
 import com.mxgraph.analysis.mxGraphStructure;
 import com.mxgraph.analysis.mxTraversal;
 import com.mxgraph.costfunction.mxCostFunction;
+import com.mxgraph.model.mxCell;
 import com.mxgraph.model.mxICell;
 import com.mxgraph.model.mxIGraphModel;
 import com.mxgraph.swing.mxGraphComponent;
@@ -24,6 +25,7 @@ import com.mxgraph.util.mxResources;
 import com.mxgraph.view.mxGraph;
 import com.mxgraph.view.mxGraphView;
 import org.jgrapht.alg.cycle.JohnsonSimpleCycles;
+import org.jgrapht.graph.AsSubgraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.command.CommandService;
@@ -834,6 +836,21 @@ public class EditorMenuBar extends JMenuBar
 		protected void doColorCoding() {
 			final Map<String, Object> input = new HashMap<>();
 			input.put("adapter", adapter);
+			Object[] selection = adapter.getSelectionCells();
+			if (selection.length > 0) {
+				Set<Object> vertexSubset = new HashSet<>();
+				Set<DefaultWeightedEdge> edgeSubset = new HashSet<>();
+				for (Object obj : selection) {
+					mxCell mxc = (mxCell) obj;
+					if (mxc.isVertex()) {
+						vertexSubset.add(adapter.getCellToVertexMap().get(mxc));
+					} else if (mxc.isEdge()) {
+						edgeSubset.add(adapter.getCellToEdgeMap().get(mxc));
+					}
+				}
+				final AsSubgraph<Object, DefaultWeightedEdge> subgraph = new AsSubgraph<>(adapter.getSourceGraph(), vertexSubset, edgeSubset);
+				input.put("subgraph", subgraph);
+			}
 			final CmdRunner runner = editor.new CmdRunner(context.getService(CommandService.class),
 					GraphAdapterMapperCmd.class, true, input);
 			//System.out.println(SwingUtilities.isEventDispatchThread());

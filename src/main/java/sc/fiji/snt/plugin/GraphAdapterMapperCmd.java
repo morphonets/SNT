@@ -24,6 +24,7 @@ package sc.fiji.snt.plugin;
 
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
+import org.jgrapht.graph.AsSubgraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.command.Command;
 import org.scijava.command.DynamicCommand;
@@ -80,6 +81,9 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
     @Parameter(required = true)
     private SNTGraphAdapter<Object, DefaultWeightedEdge> adapter;
 
+    @Parameter(required = false)
+    private AsSubgraph<Object, DefaultWeightedEdge> subgraph;
+
     private SNTGraph<Object, DefaultWeightedEdge> cGraph;
     private Map<String, URL> luts;
 
@@ -90,13 +94,20 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
         if (cGraph == null || cGraph.vertexSet().isEmpty()) cancel("Graph is invalid");
         final GraphColorMapper colorizer = new GraphColorMapper(context());
         int mappedState;
+        SNTUtils.log("Color Coding Graph (" + measurementChoice + ") using " + lutChoice);
         try {
             if (useRange) {
                 colorizer.setMinMax(minValue, maxValue);
             }
-            mappedState = colorizer.map(cGraph, measurementChoice, colorTable);
+            if (subgraph != null) {
+                mappedState = colorizer.map(cGraph, subgraph, measurementChoice, colorTable);
+            } else {
+                mappedState = colorizer.map(cGraph, measurementChoice, colorTable);
+            }
+
         } catch (final Exception exc) {
             cancel(exc.getMessage());
+            exc.printStackTrace();
             return;
         }
         switch (mappedState) {
@@ -118,13 +129,18 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
 
     @SuppressWarnings("unused")
     private void init() {
-        final MutableModuleItem<String> measurementChoiceInput = getInfo()
-                .getMutableInput("measurementChoice", String.class);
-        final List<String> choices = GraphColorMapper.getMetrics();
-        Collections.sort(choices);
-        measurementChoiceInput.setChoices(choices);
-        measurementChoiceInput.setValue(this, prefService.get(getClass(),
-                "measurementChoice", GraphColorMapper.EDGE_WEIGHT));
+        if (subgraph == null) {
+            resolveInput("subgraph");
+        }
+        if (measurementChoice == null) {
+            final MutableModuleItem<String> measurementChoiceInput = getInfo()
+                    .getMutableInput("measurementChoice", String.class);
+            final List<String> choices = GraphColorMapper.getMetrics();
+            Collections.sort(choices);
+            measurementChoiceInput.setChoices(choices);
+            measurementChoiceInput.setValue(this, prefService.get(getClass(),
+                    "measurementChoice", GraphColorMapper.EDGE_WEIGHT));
+        }
         if (lutChoice == null) lutChoice = prefService.get(getClass(), "lutChoice",
                 "mpl-viridis.lut");
         setLUTs();
@@ -175,17 +191,22 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
     @SuppressWarnings("unused")
     private void removeColorCoding() {
         adapter.getModel().beginUpdate();
-        try {
+        if (subgraph != null) {
+            for (Object vertex : subgraph.vertexSet()) {
+                adapter.setVertexColor(vertex, null);
+            }
+            for (DefaultWeightedEdge edge : subgraph.edgeSet()) {
+                adapter.setEdgeColor(edge, null);
+            }
+        } else {
             for (Object vertex : adapter.getVertexToCellMap().keySet()) {
                 adapter.setVertexColor(vertex, null);
             }
             for (DefaultWeightedEdge edge : adapter.getEdgeToCellMap().keySet()) {
                 adapter.setEdgeColor(edge, null);
             }
-        } finally {
-            adapter.getModel().endUpdate();
-            //adapter.refresh();
         }
+        adapter.getModel().endUpdate();
     }
 
     private void applyVertexColors() {
