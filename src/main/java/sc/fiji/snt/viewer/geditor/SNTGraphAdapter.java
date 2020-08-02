@@ -8,7 +8,7 @@ import sc.fiji.snt.analysis.graph.SNTGraph;
 import java.util.Map;
 
 public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, DefaultWeightedEdge> {
-    private final SNTGraph<V, DefaultWeightedEdge> cGraph;
+    protected final SNTGraph<V, DefaultWeightedEdge> cGraph;
 
     protected SNTGraphAdapter(SNTGraph<V, DefaultWeightedEdge> graph) {
         super(graph);
