@@ -1,11 +1,15 @@
 package sc.fiji.snt.viewer.geditor;
 
-import javax.swing.JMenu;
-import javax.swing.JPopupMenu;
-import javax.swing.TransferHandler;
-
+import com.mxgraph.analysis.mxAnalysisGraph;
+import com.mxgraph.analysis.mxGraphProperties;
+import com.mxgraph.analysis.mxTraversal;
+import com.mxgraph.model.mxCell;
 import com.mxgraph.swing.util.mxGraphActions;
 import com.mxgraph.util.mxResources;
+
+import javax.swing.*;
+import java.awt.event.ActionEvent;
+import java.util.*;
 
 public class EditorPopupMenu extends JPopupMenu
 {
@@ -17,8 +21,16 @@ public class EditorPopupMenu extends JPopupMenu
 
 	public EditorPopupMenu(GraphEditor editor)
 	{
-		boolean selected = !editor.getGraphComponent().getGraph()
-				.isSelectionEmpty();
+
+		mxCell[] selectedCells = Arrays.stream(editor.getGraphComponent().getGraph().getSelectionCells())
+				.map(obj -> (mxCell) obj)
+				.toArray(mxCell[]::new);
+		mxCell[] selectedVertices = Arrays.stream(selectedCells)
+				.filter(mxCell::isVertex)
+				.toArray(mxCell[]::new);
+
+		boolean selected = !(selectedCells.length == 0);
+		boolean vertexSelected = !(selectedVertices.length == 0);
 
 		add(editor.bind(mxResources.get("undo"), new EditorActions.HistoryAction(true),
                 "/mx_shape_images/undo.gif"));
@@ -76,6 +88,28 @@ public class EditorPopupMenu extends JPopupMenu
 
 		add(editor.bind(mxResources.get("selectAll"), mxGraphActions
 				.getSelectAllAction()));
+
+		addSeparator();
+		add(editor.bind("Select all descendants...", new AbstractAction() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				mxAnalysisGraph aGraph = new mxAnalysisGraph();
+				aGraph.setGraph(editor.getGraphComponent().getGraph());
+				Map<String, Object> properties = new HashMap<>();
+				mxGraphProperties.setDirected(properties, true);
+				aGraph.setProperties(properties);
+				List<Object> newSelected = new ArrayList<>();
+				for (mxCell sv : selectedVertices) {
+					mxTraversal.dfs(aGraph, sv, (vertex, edge) -> {
+						newSelected.add(vertex);
+						newSelected.add(edge);
+						return false;
+					});
+				}
+				editor.getGraphComponent().getGraph().setSelectionCells(newSelected);
+			}
+		})).setEnabled(vertexSelected);
+
 	}
 
 }
