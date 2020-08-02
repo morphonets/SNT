@@ -28,13 +28,15 @@ public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, D
         setDisconnectOnMove(false);
         setResetEdgesOnMove(true);
         setResetEdgesOnResize(true);
+
 		// Change the scale and translation after graph has changed
-        setResetViewOnRootChange(false);
+        setResetViewOnRootChange(true);
 
         // restrict editability of graph by default
         setCellsDisconnectable(false);
         setDropEnabled(false);
-       
+        setSplitEnabled(true);
+
     }
 
     @Override

@@ -56,6 +56,7 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
 //        setCellStyles(mxConstants.STYLE_GRADIENTCOLOR, "black", sArray);
         setCellColorsFromGraph();
         //vertexStyle.put(mxConstants.STYLE_FILLCOLOR, vColor);
+        setAllowLoops(true);
 
     }
 

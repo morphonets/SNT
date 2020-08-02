@@ -36,26 +36,36 @@ public class SNTGraphComponent extends mxGraphComponent {
         super(adapter);
         context.inject(this);
         this.adapter = adapter;
-        //setCenterZoom(true);
-        //setCenterPage(true);
+   
+        // Zoom into the center of diagram rather than top left;
+        setCenterZoom(true);
+        // If selected cells exist, include them in viewport after zoom?
+        setKeepSelectionVisibleOnZoom(true);
+
+        // disable page layout
+        setPageVisible(false);
+        // If page is visible, center it in view port?
+        setCenterPage(true);
+
         //setPreferPageSize(true);
         setEscapeEnabled(true);
         //setFoldingEnabled(true);
         setToolTips(true);
 
         // rendering and performance
-        setPageVisible(false);
         setTripleBuffered(false);
         setAntiAlias(true);
         setTextAntiAlias(true);
 
         // cell editing
 		((mxCellEditor) getCellEditor()).setShiftEnterSubmitsText(true);
+		setEnterStopsCellEditing(false);
 
-        // By default disable editing options. These can be toggled in GraphEditor
-        // if the user is really willing to  change the graph's connectivity
+        // By default disable editing of diagram. These can be toggled in GraphEditor's
+        // GUI if the user is really willing to  change the graph's connectivity
         setDragEnabled(false);
         setConnectable(false);
+        getConnectionHandler().setCreateTarget(false);
 
         // Use space key for panning (from TrackSchemeGraphComponent)
         getPanningHandler().setEnabled(true);
