@@ -6,6 +6,7 @@ import org.jgrapht.Graph;
 import org.jgrapht.alg.connectivity.BiconnectivityInspector;
 import org.jgrapht.alg.scoring.BetweennessCentrality;
 import org.jgrapht.alg.scoring.PageRank;
+import org.jgrapht.alg.shortestpath.GraphMeasurer;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.plugin.Parameter;
@@ -22,6 +23,10 @@ public class GraphColorMapper extends ColorMapper {
      * Flag for {@value #BETWEENNESS_CENTRALITY} mapping.
      */
     public static final String BETWEENNESS_CENTRALITY = "Betweenness centrality";
+    /**
+     * Flag for {@value #ECCENTRICITY} mapping.
+     */
+    public static final String ECCENTRICITY = "Eccentricity";
     /**
      * Flag for {@value #CONNECTIVITY} mapping.
      */
@@ -51,7 +56,6 @@ public class GraphColorMapper extends ColorMapper {
      */
     public static final String OUTGOING_WEIGHT = "Outgoing weight";
 
-
     public static final int VERTICES = 1;
     public static final int EDGES = 2;
     public static final int VERTICES_AND_EDGES = 4;
@@ -60,13 +64,14 @@ public class GraphColorMapper extends ColorMapper {
 
     private static final String[] ALL_FLAGS = { //
             BETWEENNESS_CENTRALITY,
+            ECCENTRICITY,
             CONNECTIVITY,
             EDGE_WEIGHT,
             PAGE_RANK,
             IN_DEGREE,
             OUT_DEGREE,
             INCOMING_WEIGHT,
-            OUTGOING_WEIGHT
+            OUTGOING_WEIGHT,
     };
 
     @Parameter
@@ -147,6 +152,10 @@ public class GraphColorMapper extends ColorMapper {
                 mappedState = VERTICES;
                 mapToBetweennessCentrality(colorTable);
                 break;
+            case ECCENTRICITY:
+                mappedState = VERTICES;
+                mapToEccentricity(colorTable);
+                break;
             case CONNECTIVITY:
                 mappedState = EDGES;
                 mapToConnectivity(colorTable);
@@ -226,6 +235,34 @@ public class GraphColorMapper extends ColorMapper {
         for (Map.Entry<Object, Double> entry : scores.entrySet()) {
             ColorRGB c = getColorRGB(entry.getValue());
             this.graph.setVertexColor(entry.getKey(), c);
+        }
+    }
+
+    protected void mapToEccentricity(ColorTable colorTable) {
+        BiconnectivityInspector<Object, DefaultWeightedEdge> inspector = new BiconnectivityInspector<>(this.graph);
+        Set<Graph<Object, DefaultWeightedEdge>> components = inspector.getConnectedComponents();
+        List<Map<Object, Double>> eccentricityMaps = new ArrayList<>();
+        for (Graph<Object, DefaultWeightedEdge> comp : components) {
+            GraphMeasurer<Object, DefaultWeightedEdge> measurer = new GraphMeasurer<>(comp);
+            Map<Object, Double> scores = measurer.getVertexEccentricityMap();
+            eccentricityMaps.add(scores);
+        }
+        if (!minMaxSet) {
+            double min = Double.MAX_VALUE;
+            double max = -Double.MAX_VALUE;
+            for (Map<Object, Double> eMap : eccentricityMaps) {
+                for (Double s : eMap.values()) {
+                    if (s < min) {min = s;}
+                    if (s > max) {max = s;}
+                }
+            }
+            setMinMax(min, max);
+        }
+        for (Map<Object, Double> eMap : eccentricityMaps) {
+            for (Map.Entry<Object, Double> entry : eMap.entrySet()) {
+                ColorRGB c = getColorRGB(entry.getValue());
+                this.graph.setVertexColor(entry.getKey(), c);
+            }
         }
     }
 
