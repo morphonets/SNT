@@ -115,31 +115,6 @@ public class EditorActions
 		}
 	}
 
-	/**
-	 *
-	 */
-	@SuppressWarnings("serial")
-	public static class ToggleGridItem extends JCheckBoxMenuItem {
-
-		boolean firstTimeSettingGrid = true;
-		public ToggleGridItem(final GraphEditor editor, String name, boolean initialState) {
-			super(name, initialState);
-			addItemListener(e -> {
-				mxGraphComponent graphComponent = editor.getGraphComponent();
-				mxGraph graph = graphComponent.getGraph();
-				if (firstTimeSettingGrid && isSelected()) {
-					graph.setGridSize(100);
-					graphComponent.setGridStyle(mxGraphComponent.GRID_STYLE_LINE);
-					graphComponent.setGridColor(Color.CYAN);
-					firstTimeSettingGrid = false;
-				}
-				graph.setGridEnabled(isSelected());
-				graphComponent.setGridVisible(isSelected());
-				graphComponent.repaint();
-			});
-		}
-	}
-
 	@SuppressWarnings("serial")
 	public static class ToggleBottomPaneItem extends JCheckBoxMenuItem {
 		public ToggleBottomPaneItem(final GraphEditor editor, String name) {
@@ -252,17 +227,13 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class GridStyleAction extends AbstractAction
 	{
-		/**
-		 * 
-		 */
-		protected int style;
+		private final int style;
+		private final EditorMenuBar editorMenuBar;
 
-		/**
-		 * 
-		 */
-		public GridStyleAction(int style)
+		public GridStyleAction(EditorMenuBar editorMenuBar, int style)
 		{
 			this.style = style;
+			this.editorMenuBar = editorMenuBar;
 		}
 
 		/**
@@ -275,7 +246,7 @@ public class EditorActions
 				mxGraphComponent graphComponent = (mxGraphComponent) e
 						.getSource();
 				graphComponent.setGridStyle(style);
-				graphComponent.repaint();
+				editorMenuBar.enableGrid(true);
 			}
 		}
 	}
@@ -286,9 +257,15 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class GridColorAction extends AbstractAction
 	{
-		/**
-		 * 
-		 */
+
+		private final EditorMenuBar editorMenuBar;
+
+		public GridColorAction(EditorMenuBar editorMenuBar)
+		{
+			this.editorMenuBar = editorMenuBar;
+		}
+
+		@Override
 		public void actionPerformed(ActionEvent e)
 		{
 			if (e.getSource() instanceof mxGraphComponent)
@@ -302,7 +279,7 @@ public class EditorActions
 				if (newColor != null)
 				{
 					graphComponent.setGridColor(newColor);
-					graphComponent.repaint();
+					editorMenuBar.enableGrid(true);
 				}
 			}
 		}

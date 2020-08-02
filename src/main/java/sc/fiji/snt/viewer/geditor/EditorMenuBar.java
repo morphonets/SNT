@@ -49,6 +49,8 @@ public class EditorMenuBar extends JMenuBar
 
 	protected JMenu menu = null;
 	protected JMenu submenu = null;
+	private final JCheckBoxMenuItem gridJmi;
+	private GuiUtils guiUtils;
 
 	public enum AnalyzeType
 	{
@@ -114,6 +116,15 @@ public class EditorMenuBar extends JMenuBar
 		// Creates the view menu
 		menu = add(new JMenu(mxResources.get("view")));
 
+		final JCheckBoxMenuItem toolbarJmi = new JCheckBoxMenuItem("Toolbar", editor.toolbar != null && editor.toolbar.isVisible());
+		toolbarJmi.addItemListener(e -> {
+			if (editor.toolbar != null)
+				editor.toolbar.setVisible(toolbarJmi.isSelected());
+		});
+		menu.add(toolbarJmi);
+		menu.add(new EditorActions.ToggleBottomPaneItem(editor, "Bottom Pane"));
+		menu.addSeparator();
+
 		JMenuItem item = menu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("pageLayout"),
 				"PageVisible", false, e -> {
 					if (graphComponent.isPageVisible() && graphComponent.isCenterPage()) {
@@ -142,30 +153,21 @@ public class EditorMenuBar extends JMenuBar
 			}
 		});
 
-		menu.addSeparator();
-		menu.add(new EditorActions.ToggleBottomPaneItem(editor, "Bottom Panel"));
 		menu.add(new EditorActions.ToggleRulersItem(editor, mxResources.get("rulers")));
-		menu.add(new EditorActions.ToggleGridItem(editor, mxResources.get("grid"), false));
+		gridJmi = new JCheckBoxMenuItem( mxResources.get("grid"), graphComponent.isGridVisible());
+		gridJmi.addItemListener(e -> enableGrid(gridJmi.isSelected()));
+		menu.add(gridJmi);
 
-		submenu = (JMenu) menu.add(new JMenu("Grid Options"));
-		submenu.add(editor.bind(mxResources.get("gridSize"), new EditorActions.PromptPropertyAction(graph, "Grid Size", "GridSize")));
-		submenu.add(editor.bind(mxResources.get("gridColor"), new EditorActions.GridColorAction()));
-		submenu.addSeparator();
-		submenu.add(editor.bind(mxResources.get("dashed"), new EditorActions.GridStyleAction(mxGraphComponent.GRID_STYLE_DASHED)));
-		submenu.add(editor.bind(mxResources.get("dot"), new EditorActions.GridStyleAction(mxGraphComponent.GRID_STYLE_DOT)));
-		submenu.add(editor.bind(mxResources.get("line"), new EditorActions.GridStyleAction(mxGraphComponent.GRID_STYLE_LINE)));
-		submenu.add(editor.bind(mxResources.get("cross"), new EditorActions.GridStyleAction(mxGraphComponent.GRID_STYLE_CROSS)));
+		menu.addSeparator();
+		menu.add(editor.bind("Center", new EditorActions.CenterAction()));
 		menu.addSeparator();
 
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("zoom")));
 		submenu.add(editor.bind(mxResources.get("zoomIn"), mxGraphActions.getZoomInAction()));
 		submenu.add(editor.bind(mxResources.get("zoomOut"), mxGraphActions.getZoomOutAction()));
-		submenu.addSeparator(); 
 		submenu.add(editor.bind(mxResources.get("actualSize"), mxGraphActions.getZoomActualAction()));
-		submenu.add(editor.bind(mxResources.get("page"), new EditorActions.ZoomPolicyAction(mxGraphComponent.ZOOM_POLICY_PAGE)));
-		submenu.add(editor.bind(mxResources.get("width"), new EditorActions.ZoomPolicyAction(mxGraphComponent.ZOOM_POLICY_WIDTH)));
 		submenu.addSeparator(); 
-
+		
 		final JMenu zoomLevelsMenu = (JMenu) submenu.add(new JMenu("Presets"));
 		zoomLevelsMenu.add(editor.bind("400%", new EditorActions.ScaleAction(4)));
 		zoomLevelsMenu.add(editor.bind("200%", new EditorActions.ScaleAction(2)));
@@ -175,21 +177,16 @@ public class EditorMenuBar extends JMenuBar
 		zoomLevelsMenu.add(editor.bind("50%", new EditorActions.ScaleAction(0.5)));
 		zoomLevelsMenu.addSeparator();
 		zoomLevelsMenu.add(editor.bind(mxResources.get("custom"), new EditorActions.ScaleAction(0)));
+		zoomLevelsMenu.addSeparator();
+		zoomLevelsMenu.add(editor.bind(mxResources.get("page"), new EditorActions.ZoomPolicyAction(mxGraphComponent.ZOOM_POLICY_PAGE)));
+		zoomLevelsMenu.add(editor.bind(mxResources.get("width"), new EditorActions.ZoomPolicyAction(mxGraphComponent.ZOOM_POLICY_WIDTH)));
+		submenu.addSeparator();
 
-		final JMenu zoomOptionsMenu = (JMenu) submenu.add(new JMenu("Options"));
-		zoomOptionsMenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("centerZoom"),
+		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("centerZoom"),
 				"CenterZoom", true));
-		zoomOptionsMenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("centerPage"),
-				"CenterPage", true, e -> {
-					if (graphComponent.isPageVisible() && graphComponent.isCenterPage()) {
-						graphComponent.zoomAndCenter();
-					}
-				}));
-		zoomOptionsMenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("zoomToSelection"),
+		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("zoomToSelection"),
 				"KeepSelectionVisibleOnZoom", true));
-
-		menu.addSeparator();
-		menu.add(editor.bind("Center", new EditorActions.CenterAction()));
+		submenu.addSeparator(); 
 
 		// Creates the format menu
 		menu = add(new JMenu(mxResources.get("format")));
@@ -270,22 +267,99 @@ public class EditorMenuBar extends JMenuBar
 		// Creates the options menu
 		menu = add(new JMenu(mxResources.get("options")));
 
+		// Connections menu
+		submenu = (JMenu) menu.add(new JMenu(mxResources.get("connections")));
+		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("connectable"), "Connectable"));
+		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("connectableEdges"), "ConnectableEdges"));
+		submenu.addSeparator();
+		submenu.add(new EditorActions.ToggleCreateTargetItem(editor, mxResources.get("createTarget")));
+		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("disconnectOnMove"), "DisconnectOnMove"));
+		submenu.addSeparator();
+		submenu.add(new EditorActions.ToggleConnectModeAction(mxResources.get("connectMode"), graphComponent.isConnectable()));
+
+		// DragAndDrop menu
+		submenu = (JMenu) menu.add(new JMenu(mxResources.get("dragAndDrop")));
+		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("dragEnabled"), "DragEnabled"));
+		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("dropEnabled"), "DropEnabled"));
+
+		// Validation menu
+		submenu = (JMenu) menu.add(new JMenu(mxResources.get("validation")));
+		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("allowDanglingEdges"), "AllowDanglingEdges"));
+		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("cloneInvalidEdges"), "CloneInvalidEdges"));
+		submenu.addSeparator();
+		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("allowLoops"), "AllowLoops"));
+		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("multigraph"), "Multigraph"));
+
+		menu.addSeparator();
+
+		// Grid menu
+		submenu = (JMenu) menu.add(new JMenu("Grid"));
+		final JMenuItem gridSizeJmi = new JMenuItem( mxResources.get("gridSize"));
+		gridSizeJmi.addActionListener(e -> {
+			final Double size = getGuiUtils().getDouble(
+					"Grid size:", "Grid Size...", graph.getGridSize());
+				if (size == null) {
+					return; // user pressed cancel
+				}
+				if (Double.isNaN(size) || size < 0) {
+					guiUtils.error("Invalid size value.");
+					return;
+				}
+				graph.setGridSize(size.intValue());
+				enableGrid(true);
+		});
+		submenu.add(gridSizeJmi);
+		submenu.add(editor.bind(mxResources.get("gridColor"), new EditorActions.GridColorAction(this)));
+		submenu.addSeparator();
+		submenu.add(editor.bind(mxResources.get("dashed"), new EditorActions.GridStyleAction(this, mxGraphComponent.GRID_STYLE_DASHED)));
+		// Do not include dot style: not visible on hiDPI screens with Java 8 (cross with lighter color is equivalent)
+		//submenu.add(editor.bind(mxResources.get("dot"), new EditorActions.GridStyleAction(this, mxGraphComponent.GRID_STYLE_DOT)));
+		submenu.add(editor.bind(mxResources.get("line"), new EditorActions.GridStyleAction(this, mxGraphComponent.GRID_STYLE_LINE)));
+		submenu.add(editor.bind(mxResources.get("cross"), new EditorActions.GridStyleAction(this, mxGraphComponent.GRID_STYLE_CROSS)));
+
+		// Labels menu
+		submenu = (JMenu) menu.add(new JMenu(mxResources.get("labels")));
+		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("htmlLabels"), "HtmlLabels", true));
+		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("showLabels"), "LabelsVisible", true));
+		submenu.addSeparator();
+		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("moveEdgeLabels"), "EdgeLabelsMovable"));
+		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("moveVertexLabels"), "VertexLabelsMovable"));
+		submenu.addSeparator();
+		//submenu.add(new EditorActions.TogglePropertyItem(graphComponent.getGraphHandler(), mxResources.get("imagePreview"), "ImagePreview"));
+		final TogglePropertyItem mitem = new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("handleReturn"), "EnterStopsCellEditing");
+		mitem.setToolTipText("If unselected, editing terminates on Ctrl + Enter");
+		submenu.add(mitem);
+		menu.addSeparator();
+		// Page View menu
+		submenu = (JMenu) menu.add(new JMenu("Page View"));
+		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("centerPage"),
+				"CenterPage", true, e -> {
+					if (graphComponent.isPageVisible() && graphComponent.isCenterPage()) {
+						graphComponent.zoomAndCenter();
+					}
+				}));
+		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("preferPageSize"),
+				"PreferPageSize", true, e -> graphComponent.zoomAndCenter()));
+
+		menu.addSeparator();
+
 		// Performance menu
 		submenu = (JMenu) menu.add(new JMenu("Performance/Quality"));
-		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("buffering"), "TripleBuffered", true));
+		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, "Enable Buffering (Main Canvas)", "TripleBuffered", true));
+		submenu.add(new EditorActions.TogglePropertyItem(editor.getGraphOutline(), "Enable Buffering (Outline)", "TripleBuffered", true));
+		submenu.addSeparator();
 		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("antialias"), "AntiAlias", true));
 		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("antialiasText"), "TextAntiAlias", true));
+		submenu.addSeparator();
 		final JCheckBoxMenuItem morphJmi = new JCheckBoxMenuItem("Animate Layout Changes", editor.animateLayoutChange);
 		morphJmi.addItemListener(e -> {
 			editor.animateLayoutChange = morphJmi.isSelected();
 			System.out.println("Layout change: morphing animation " + ((editor.animateLayoutChange) ? "enabled" : "disabled"));
 		});
 		submenu.add(morphJmi);
-		menu.addSeparator();
 
+		// Misc menu
 		submenu = (JMenu) menu.add(new JMenu("Misc"));
-		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("preferPageSize"),
-				"PreferPageSize", true, e -> graphComponent.zoomAndCenter()));
 		submenu.add(editor.bind(mxResources.get("tolerance"), new EditorActions.PromptPropertyAction(graphComponent, "Tolerance")));
 		JCheckBoxMenuItem dirtyJmi = new JCheckBoxMenuItem(mxResources.get("dirty"), graphComponent.showDirtyRectangle);
 		dirtyJmi.addItemListener(e -> {
@@ -293,56 +367,9 @@ public class EditorMenuBar extends JMenuBar
 			//System.out.println("Layout change: morphing animation " + ((editor.animateLayoutChange) ? "enabled" : "disabled"));
 		});
 		submenu.add(dirtyJmi);
-		menu.addSeparator();
-
-		submenu = (JMenu) menu.add(new JMenu(mxResources.get("dragAndDrop")));
-		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("dragEnabled"), "DragEnabled"));
-		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("dropEnabled"), "DropEnabled"));
 		submenu.addSeparator();
-
-		//submenu.add(new EditorActions.TogglePropertyItem(graphComponent.getGraphHandler(), mxResources.get("imagePreview"), "ImagePreview"));
-		
-		submenu = (JMenu) menu.add(new JMenu(mxResources.get("labels")));
-		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("htmlLabels"), "HtmlLabels", true));
-		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("showLabels"), "LabelsVisible", true));
-		submenu.addSeparator();
-
-		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("moveEdgeLabels"), "EdgeLabelsMovable"));
-		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("moveVertexLabels"), "VertexLabelsMovable"));
-
-		submenu.addSeparator();
-
-		final TogglePropertyItem mitem = new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("handleReturn"), "EnterStopsCellEditing");
-		mitem.setToolTipText("If unselected, editing terminates on Ctrl + Enter");
-		submenu.add(mitem);
-		menu.addSeparator();
-
-		submenu = (JMenu) menu.add(new JMenu(mxResources.get("connections")));
-
-		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("connectable"), "Connectable"));
-		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("connectableEdges"), "ConnectableEdges"));
-
-		submenu.addSeparator();
-
-		submenu.add(new EditorActions.ToggleCreateTargetItem(editor, mxResources.get("createTarget")));
-		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("disconnectOnMove"), "DisconnectOnMove"));
-
-		submenu.addSeparator();
-
-		submenu.add(new EditorActions.ToggleConnectModeAction(mxResources.get("connectMode"), graphComponent.isConnectable()));
-		
-		submenu = (JMenu) menu.add(new JMenu(mxResources.get("validation")));
-		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("allowDanglingEdges"), "AllowDanglingEdges"));
-		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("cloneInvalidEdges"), "CloneInvalidEdges"));
-
-		submenu.addSeparator();
-
-		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("allowLoops"), "AllowLoops"));
-		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("multigraph"), "Multigraph"));
-
 		// Creates the Look and Feel menu
-		menu.addSeparator();
-		submenu = (JMenu) menu.add(new JMenu("Look & Feel"));
+		submenu = (JMenu) submenu.add(new JMenu("Look & Feel"));
 		UIManager.LookAndFeelInfo[] lafs = UIManager.getInstalledLookAndFeels();
 		for (int i = 0; i < lafs.length; i++) {
 			final String clazz = lafs[i].getClassName();
@@ -414,6 +441,19 @@ public class EditorMenuBar extends JMenuBar
 		menu.add(editor.bind("List Graph Properties", new AnalyzeGraph(AnalyzeType.PROPERTIES, aGraph, context)));
 		menu.add(editor.bind("Get Sources", new AnalyzeGraph(AnalyzeType.GET_SOURCES, aGraph, context)));
 		menu.add(editor.bind("Get Sinks", new AnalyzeGraph(AnalyzeType.GET_SINKS, aGraph, context)));
+	}
+
+	private GuiUtils getGuiUtils() {
+		if (guiUtils == null)
+			guiUtils = new GuiUtils(graphComponent);
+		return guiUtils;
+	}
+
+	protected void enableGrid(final boolean enable) {
+		graph.setGridEnabled(enable);
+		graphComponent.setGridVisible(enable);
+		gridJmi.setSelected(enable);
+		graphComponent.repaint();
 	}
 
 	/**

@@ -89,6 +89,7 @@ public class GraphEditor extends JPanel
 	private final EditorConsole editorConsole;
 	private final JSplitPane mainPanel;
 	private final JSplitPane bottomPanel;
+	protected EditorToolBar toolbar;
 	protected boolean animateLayoutChange = true;
 
 
@@ -96,33 +97,6 @@ public class GraphEditor extends JPanel
 	 * Flag indicating whether the current graph has been modified 
 	 */
 	protected boolean modified = false;
-
-
-
-
-	/**
-	 * 
-	 */
-	protected mxIEventListener undoHandler = new mxIEventListener()
-	{
-		public void invoke(Object source, mxEventObject evt)
-		{
-			undoManager.undoableEditHappened((mxUndoableEdit) evt
-					.getProperty("edit"));
-		}
-	};
-
-	/**
-	 * 
-	 */
-	protected mxIEventListener changeTracker = new mxIEventListener()
-	{
-		public void invoke(Object source, mxEventObject evt)
-		{
-			setModified(true);
-		}
-	};
-
 
 
 	/**
@@ -185,48 +159,58 @@ public class GraphEditor extends JPanel
 		mainPanel.setDividerSize(6);
 		mainPanel.setBorder(null);
 
-		// Creates the status bar
+		// Create the toolbar and status bar
 		statusBar = createStatusBar();
-
-		// Display some useful information about repaint events
-		installRepaintListener();
+		toolbar = createToolBar();
 
 		// Puts everything together
 		setLayout(new BorderLayout());
+		add(toolbar, BorderLayout.NORTH);
 		add(mainPanel, BorderLayout.CENTER);
 		add(statusBar, BorderLayout.SOUTH);
-		installToolBar();
+
+		// Display some useful information about repaint events
+		installRepaintListener();
 
 		// Installs rubberband selection and handling for some special
 		// keystrokes such as F2, Control-C, -V, X, A etc.
 		installHandlers();
 		installListeners();
 		updateTitle();
+
 	}
 
-	/**
-	 * 
-	 */
+	protected mxIEventListener undoHandler = new mxIEventListener()
+	{
+		public void invoke(Object source, mxEventObject evt)
+		{
+			undoManager.undoableEditHappened((mxUndoableEdit) evt
+					.getProperty("edit"));
+		}
+	};
+
+	protected mxIEventListener changeTracker = new mxIEventListener()
+	{
+		public void invoke(Object source, mxEventObject evt)
+		{
+			setModified(true);
+		}
+	};
+
 	protected mxUndoManager createUndoManager()
 	{
 		return new mxUndoManager();
 	}
 
-	/**
-	 * 
-	 */
 	protected void installHandlers()
 	{
 		rubberband = new mxRubberband(graphComponent);
 		keyboardHandler = new EditorKeyboardHandler(graphComponent);
 	}
 
-	/**
-	 * 
-	 */
-	protected void installToolBar()
+	protected EditorToolBar createToolBar()
 	{
-		add(new EditorToolBar(this, JToolBar.HORIZONTAL), BorderLayout.NORTH);
+		return new EditorToolBar(this, JToolBar.HORIZONTAL);
 	}
 
 	/**
