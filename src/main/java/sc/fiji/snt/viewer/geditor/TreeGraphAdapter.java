@@ -39,9 +39,9 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
 	private static final String DARK_GRAY = "#222222";
 	private static final String LIGHT_GRAY = "#eeeeee";
 	// default cell colors
-	private String defaultVertexStrokeColor = DARK_GRAY;
-	private String defaultVertexFillColor = LIGHT_GRAY;
-	private String defaultEdgeStrokeColor = DARK_GRAY;
+	private final String defaultVertexStrokeColor = DARK_GRAY;
+	private final String defaultVertexFillColor = LIGHT_GRAY;
+	private final String defaultEdgeStrokeColor = DARK_GRAY;
 
 	public TreeGraphAdapter(final DirectedWeightedGraph graph) {
 		this(graph, LIGHT_GRAY);
@@ -90,6 +90,7 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
 		Object[] modified = { cell };
 		setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
 		setCellStyles(mxConstants.STYLE_FILLCOLOR, fillColor, modified);
+		cGraph.setVertexColor(vertex, color);
 	}
 
 	@Override
@@ -106,6 +107,7 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
 		}
 		Object[] modified = { cell };
 		setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
+		cGraph.setEdgeColor(edge, color);
 	}
 
 	@Override
@@ -115,9 +117,9 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
 			return ""+ ((SWCPoint)obj).id;
 		}
 		if (obj instanceof SWCWeightedEdge) {
-			return ((SWCWeightedEdge)obj).toString();
+			return obj.toString();
 		}
-		return ((mxCell)cell).toString();
+		return cell.toString();
 	}
 
 }
