@@ -22,6 +22,7 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -31,6 +32,9 @@ import javax.swing.text.html.HTMLDocument;
 import javax.swing.text.html.HTMLEditorKit;
 
 import com.mxgraph.layout.mxCircleLayout;
+
+import org.scijava.command.CommandModule;
+import org.scijava.command.CommandService;
 import org.w3c.dom.Document;
 
 import com.mxgraph.analysis.mxDistanceCostFunction;
@@ -60,7 +64,7 @@ import com.mxgraph.util.png.mxPngTextDecoder;
 import com.mxgraph.view.mxGraph;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
-import sc.fiji.snt.annotation.AllenUtils;
+import sc.fiji.snt.gui.cmds.NewGraphOptionsCmd;
 
 /**
  * Copyright (c) 2001-2012, JGraph Ltd
@@ -2056,6 +2060,61 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class ChangeGraphAction extends AbstractAction {
 
+		private CommandService cmdService;
+
+		public ChangeGraphAction(CommandService cmdService) {
+			this.cmdService = cmdService;
+		}
+
+		class NewGraphFromCmd extends SwingWorker<AnnotationGraphAdapter, Void> {
+
+			private List<Tree> trees;
+			private AnnotationGraphComponent graphComponent;
+
+			public NewGraphFromCmd(final AnnotationGraphComponent graphComponent, final List<Tree> trees) {
+				this.graphComponent = graphComponent;
+				this.trees = trees;
+			}
+
+			@Override
+			public AnnotationGraphAdapter doInBackground() {
+				try {
+					final CommandModule cm = cmdService.run(NewGraphOptionsCmd.class, true).get();
+					if (cm.isCanceled()) return null;
+					final Map<String, Object> inputs = cm.getInputs();
+					final String metric = String.valueOf(inputs.get("metric"));
+					final double threshold = Double.valueOf(String.valueOf(inputs.get("threshold")));
+					final int depth = Integer.valueOf(String.valueOf(inputs.get("depth")));
+					AnnotationGraph newGraph = new AnnotationGraph(trees, metric, threshold, depth);
+					return new AnnotationGraphAdapter(newGraph);
+				} catch (final InterruptedException | ExecutionException e1) {
+					e1.printStackTrace();
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				try {
+					AnnotationGraphAdapter adapter = get();
+					if (adapter == null) return;
+					graphComponent.setGraph(adapter);
+					adapter.getModel().beginUpdate();
+					try {
+						mxCircleLayout layout = new mxCircleLayout(adapter);
+						layout.execute(adapter.getDefaultParent());
+					} catch (Exception ex) {
+						ex.printStackTrace();
+					} finally {
+						adapter.getModel().endUpdate();
+					}
+					graphComponent.refresh();
+				} catch (InterruptedException | ExecutionException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+
 		@Override
 		public void actionPerformed(ActionEvent e) {
 			if (e.getSource() instanceof AnnotationGraphComponent) {
@@ -2066,48 +2125,7 @@ public class EditorActions
 					System.out.println("Graph not associated with a Tree Collection.");
 					return;
 				}
-				// Fields
-				JComboBox<String> metricComboBox = new JComboBox<>(AnnotationGraph.getMetrics());
-				metricComboBox.setSelectedIndex(0);
-				SpinnerNumberModel thresModel = new SpinnerNumberModel(0.0, 0.0, null, 1.0);
-				JSpinner thresholdSpinner = new JSpinner(thresModel);
-				SpinnerNumberModel depthModel = new SpinnerNumberModel(0, 0, AllenUtils.getHighestOntologyDepth(), 1);
-				JSpinner depthSpinner = new JSpinner(depthModel);
-				// Panel
-				JPanel myPanel = new JPanel();
-				myPanel.setLayout(new BoxLayout(myPanel, BoxLayout.Y_AXIS));
-				myPanel.add(new JLabel("<html><b>Annotation Graph Criteria"));
-				myPanel.add(new JLabel("<html>Metric"));
-				myPanel.add(metricComboBox);
-				myPanel.add(new JLabel("<html>Threshold"));
-				myPanel.add(thresholdSpinner);
-				myPanel.add(new JLabel("<html>Max Ontology Depth"));
-				myPanel.add(depthSpinner);
-				int result = JOptionPane.showConfirmDialog(null, myPanel,
-						"Please Specify Options", JOptionPane.OK_CANCEL_OPTION);
-				String metric;
-				double threshold;
-				int depth;
-				if (result == JOptionPane.OK_OPTION) {
-					metric = (String) metricComboBox.getSelectedItem();
-					threshold = (double) thresholdSpinner.getValue();
-					depth = (int) depthSpinner.getValue();
-				} else {
-					return;
-				}
-				AnnotationGraph newGraph = new AnnotationGraph(trees, metric, threshold, depth);
-				AnnotationGraphAdapter adapter = new AnnotationGraphAdapter(newGraph);
-				graphComponent.setGraph(adapter);
-				adapter.getModel().beginUpdate();
-				try {
-					mxCircleLayout layout = new mxCircleLayout(adapter);
-					layout.execute(adapter.getDefaultParent());
-				} catch (Exception ex) {
-					ex.printStackTrace();
-				} finally {
-					adapter.getModel().endUpdate();
-				}
-				graphComponent.refresh();
+				new NewGraphFromCmd(graphComponent, trees).execute();
 			} else {
 				System.out.println("This action requires AnnotationGraph.");
 			}

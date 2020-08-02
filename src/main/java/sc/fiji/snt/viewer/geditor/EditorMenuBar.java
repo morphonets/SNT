@@ -214,7 +214,7 @@ public class EditorMenuBar extends JMenuBar
 		submenu.add(editor.bind(mxResources.get("pageBackground"), new EditorActions.PageBackgroundAction()));
 
 		submenu = (JMenu) menu.add(new JMenu("Graph"));
-		submenu.add(editor.bind("Graph Criteria...", new EditorActions.ChangeGraphAction()));
+		submenu.add(editor.bind("Graph Criteria...", new EditorActions.ChangeGraphAction(context.getService(CommandService.class))));
 
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("layout")));
 
