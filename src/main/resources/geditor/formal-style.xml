@@ -1,26 +1,36 @@
 <mxStylesheet>
-	<include name="/sc/fiji/GraphEditor/resources/basic-style.xml"/>
+	<include name="/sc/fiji/snt/resources/geditor/formal-style.xml"/>
 	<add as="defaultVertex">
 		<add as="shape" value="label"/>
 		<add as="perimeter" value="rectanglePerimeter"/>
-		<add as="fontSize" value="12"/>
+		<add as="fontSize" value="14"/>
 		<add as="align" value="center"/>
 		<add as="verticalAlign" value="middle"/>
 		<add as="strokeColor" value="#363636"/>
-		<add as="fillColor" value="white"/>
+		<add as="fillColor" value="none"/>
 		<add as="fontColor" value="black"/>
 		<add as="rounded" value="1"/>
+		<add as="spacing" value="12"/>
 	</add>
 	<add as="defaultEdge">
 		<add as="shape" value="connector"/>
 		<add as="labelBackgroundColor" value="none"/>
-		<add as="startArrow" value="classic"/>
+		<add as="startArrow" value="none"/>
 		<add as="endArrow" value="block"/>
-		<add as="fontSize" value="10"/>
+		<add as="fontSize" value="12"/>
 		<add as="align" value="center"/>
 		<add as="verticalAlign" value="bottom"/>
 		<add as="strokeColor" value="#363636"/>
 		<add as="fontColor" value="black"/>
+		<add as="rounded" value="1"/>
+	</add>
+	<add as="label">
+		<add as="shape" value="label"/>
+		<add as="perimeter" value="rectanglePerimeter"/>
+		<add as="fontStyle" value="1"/>
+		<add as="align" value="left"/>
+		<add as="verticalAlign" value="middle"/>
+		<add as="spacing" value="12"/>
 		<add as="rounded" value="1"/>
 	</add>
 	<add as="entity">

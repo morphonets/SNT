@@ -66,12 +66,9 @@ public class GraphEditor extends JPanel
 
 	private static final long serialVersionUID = -6561623072112577140L;
 
-	/**
-	 * Adds required resources for i18n
-	 */
 	static {
 		try {
-			mxResources.add("editor");
+			mxResources.add("geditor/editor"); // load editor.properties
 		} catch (Exception e) {
 			e.printStackTrace(); // ignore
 		}

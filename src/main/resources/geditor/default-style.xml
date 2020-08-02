@@ -1,12 +1,13 @@
 <mxStylesheet>
-	<include name="/sc/fiji/GraphEditor/resources/basic-style.xml"/>
+	<include name="/sc/fiji/snt/resources/geditor/default-style.xml"/>
 	<add as="defaultVertex" extend="defaultVertex">
 		<add as="fillColor" value="#adc5ff"/>
 		<add as="gradientColor" value="#7d85df"/>
 		<add as="strokeColor" value="#5d65df"/>
 		<add as="fontSize" value="12"/>
 		<add as="fontColor" value="#1d258f"/>
-		<add as="fontFamily" value="Verdana"/>
+		<add as="fontFamily" value="Arial"/>
+		<add as="rounded" value="1"/>
 	</add>
 	<add as="defaultEdge" extend="defaultEdge">
 		<add as="labelBackgroundColor" value="white"/>
@@ -15,7 +16,7 @@
 		<add as="strokeColor" value="#5d65df"/>
 		<add as="fontSize" value="11"/>
 		<add as="fontColor" value="#1d258f"/>
-		<add as="fontFamily" value="Verdana"/>
+		<add as="fontFamily" value="Arial"/>
 	</add>
 	<add as="label">
 		<add as="shape" value="label"/>
@@ -30,6 +31,7 @@
 		<add as="rounded" value="1"/>
 		<add as="shadow" value="1"/>
 		<add as="glass" value="1"/>
+		
 	</add>
 	<add as="icon" extend="label">
 		<add as="align" value="center"/>
