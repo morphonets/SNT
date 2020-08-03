@@ -455,6 +455,9 @@ public class EditorMenuBar extends JMenuBar
 	}
 
 	protected void enableGrid(final boolean enable) {
+		if (enable && graphComponent.getGridStyle() == mxGraphComponent.GRID_STYLE_DOT) {
+			graphComponent.setGridStyle(mxGraphComponent.GRID_STYLE_CROSS);
+		}
 		graph.setGridEnabled(enable);
 		graphComponent.setGridVisible(enable);
 		gridJmi.setSelected(enable);
