@@ -59,6 +59,7 @@ import com.mxgraph.swing.mxGraphOutline;
 import com.mxgraph.swing.handler.mxKeyboardHandler;
 import com.mxgraph.swing.handler.mxRubberband;
 import com.mxgraph.swing.util.mxMorphing;
+import com.mxgraph.util.mxConstants;
 import com.mxgraph.util.mxEvent;
 import com.mxgraph.util.mxEventObject;
 import com.mxgraph.util.mxRectangle;
@@ -68,6 +69,7 @@ import com.mxgraph.util.mxUndoableEdit;
 import com.mxgraph.util.mxEventSource.mxIEventListener;
 import com.mxgraph.util.mxUndoableEdit.mxUndoableChange;
 import com.mxgraph.view.mxGraph;
+import com.mxgraph.view.mxStylesheet;
 
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
@@ -120,6 +122,8 @@ public class GraphEditor extends JPanel
 		graphComponent = component;
 		final mxGraph graph = graphComponent.getGraph();
 		undoManager = createUndoManager();
+
+		adjustZoomToGuiScale();
 
 		// Updates the modified flag if the graph model changes
 		graph.getModel().addListener(mxEvent.CHANGE, changeTracker);
@@ -188,6 +192,24 @@ public class GraphEditor extends JPanel
 		installListeners();
 		updateTitle();
 
+	}
+
+	private int getDefaultFontSizeInGUI() {
+		return new JLabel().getFont().getSize();
+	}
+
+	private void adjustZoomToGuiScale() {
+		try {
+			final mxStylesheet styleSheet = graphComponent.getGraph().getStylesheet();
+			final int currentFontSize = (int) styleSheet.getDefaultVertexStyle()
+					.getOrDefault(mxConstants.DEFAULT_FONTSIZE, mxConstants.DEFAULT_FONTSIZE);
+			final int uiFontSize = getDefaultFontSizeInGUI();
+			if (currentFontSize < uiFontSize)
+				graphComponent.zoomTo(Math.round(uiFontSize / currentFontSize), true);
+
+		} catch (final ClassCastException ignored) {
+			System.out.println("Failed to adjust zoom levels");
+		}
 	}
 
 	protected mxIEventListener undoHandler = new mxIEventListener()
