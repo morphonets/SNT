@@ -1,8 +1,45 @@
 package sc.fiji.snt.viewer.geditor;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Image;
+import com.mxgraph.analysis.mxDistanceCostFunction;
+import com.mxgraph.analysis.mxGraphAnalysis;
+import com.mxgraph.canvas.mxICanvas;
+import com.mxgraph.canvas.mxSvgCanvas;
+import com.mxgraph.io.mxCodec;
+import com.mxgraph.io.mxGdCodec;
+import com.mxgraph.layout.mxCircleLayout;
+import com.mxgraph.layout.mxParallelEdgeLayout;
+import com.mxgraph.model.mxCell;
+import com.mxgraph.model.mxGeometry;
+import com.mxgraph.model.mxGraphModel;
+import com.mxgraph.model.mxIGraphModel;
+import com.mxgraph.swing.handler.mxConnectionHandler;
+import com.mxgraph.swing.mxGraphComponent;
+import com.mxgraph.swing.util.mxGraphActions;
+import com.mxgraph.swing.view.mxCellEditor;
+import com.mxgraph.util.*;
+import com.mxgraph.util.mxCellRenderer.CanvasFactory;
+import com.mxgraph.util.png.mxPngEncodeParam;
+import com.mxgraph.util.png.mxPngImageEncoder;
+import com.mxgraph.util.png.mxPngTextDecoder;
+import com.mxgraph.view.mxGraph;
+import org.scijava.Context;
+import org.scijava.command.CommandModule;
+import org.scijava.command.CommandService;
+import org.w3c.dom.Document;
+import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.graph.AnnotationGraph;
+import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.gui.cmds.NewGraphOptionsCmd;
+import sc.fiji.snt.viewer.OBJMesh;
+import sc.fiji.snt.viewer.Viewer3D;
+
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import javax.swing.filechooser.FileFilter;
+import javax.swing.text.html.HTML;
+import javax.swing.text.html.HTMLDocument;
+import javax.swing.text.html.HTMLEditorKit;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
@@ -21,50 +58,9 @@ import java.net.MalformedURLException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-
-import javax.imageio.ImageIO;
-import javax.swing.*;
-import javax.swing.filechooser.FileFilter;
-import javax.swing.text.html.HTML;
-import javax.swing.text.html.HTMLDocument;
-import javax.swing.text.html.HTMLEditorKit;
-
-import com.mxgraph.layout.mxCircleLayout;
-
-import org.scijava.command.CommandModule;
-import org.scijava.command.CommandService;
-import org.w3c.dom.Document;
-
-import com.mxgraph.analysis.mxDistanceCostFunction;
-import com.mxgraph.analysis.mxGraphAnalysis;
-import com.mxgraph.canvas.mxICanvas;
-import com.mxgraph.canvas.mxSvgCanvas;
-import com.mxgraph.io.mxCodec;
-import com.mxgraph.io.mxGdCodec;
-import com.mxgraph.model.mxCell;
-import com.mxgraph.model.mxGeometry;
-import com.mxgraph.model.mxGraphModel;
-import com.mxgraph.model.mxIGraphModel;
-import com.mxgraph.swing.mxGraphComponent;
-import com.mxgraph.swing.handler.mxConnectionHandler;
-import com.mxgraph.swing.util.mxGraphActions;
-import com.mxgraph.swing.view.mxCellEditor;
-import com.mxgraph.util.mxCellRenderer;
-import com.mxgraph.util.mxCellRenderer.CanvasFactory;
-import com.mxgraph.util.mxConstants;
-import com.mxgraph.util.mxDomUtils;
-import com.mxgraph.util.mxResources;
-import com.mxgraph.util.mxUtils;
-import com.mxgraph.util.mxXmlUtils;
-import com.mxgraph.util.png.mxPngEncodeParam;
-import com.mxgraph.util.png.mxPngImageEncoder;
-import com.mxgraph.util.png.mxPngTextDecoder;
-import com.mxgraph.view.mxGraph;
-import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.graph.AnnotationGraph;
-import sc.fiji.snt.gui.cmds.NewGraphOptionsCmd;
 
 /**
  * Copyright (c) 2001-2012, JGraph Ltd
@@ -946,7 +942,7 @@ public class EditorActions
 					if (current instanceof Integer)
 					{
 						Method setter = target.getClass().getMethod(
-								"set" + fieldname, new Class[] { int.class });
+								"set" + fieldname, int.class);
 
 						String value = (String) JOptionPane.showInputDialog(
 								(Component) e.getSource(), "Value", message,
@@ -1095,7 +1091,7 @@ public class EditorActions
 					Method getter = target.getClass().getMethod(
 							"is" + fieldname);
 					Method setter = target.getClass().getMethod(
-							"set" + fieldname, new Class[] { boolean.class });
+							"set" + fieldname, boolean.class);
 
 					Object current = getter.invoke(target);
 
@@ -2028,7 +2024,7 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class ChangeVertexShapeAction extends AbstractAction
 	{
-		private String[] shapes = {mxConstants.SHAPE_RECTANGLE, mxConstants.SHAPE_DOUBLE_RECTANGLE,
+		private final String[] shapes = {mxConstants.SHAPE_RECTANGLE, mxConstants.SHAPE_DOUBLE_RECTANGLE,
 				mxConstants.SHAPE_ELLIPSE, mxConstants.SHAPE_DOUBLE_ELLIPSE, mxConstants.SHAPE_TRIANGLE,
 				mxConstants.SHAPE_RHOMBUS, mxConstants.SHAPE_HEXAGON, mxConstants.SHAPE_CYLINDER,
 				mxConstants.SHAPE_ACTOR, mxConstants.SHAPE_CLOUD, mxConstants.NONE};
@@ -2046,7 +2042,7 @@ public class EditorActions
 				JOptionPane.showMessageDialog(
 						graphComponent, new JScrollPane(choices), "Choose new shape", JOptionPane.PLAIN_MESSAGE,
 						null);
-				String selectedShape = (String) choices.getSelectedValue();
+				String selectedShape = choices.getSelectedValue();
 				if (selectedShape != null) {
 					graph.getModel().beginUpdate();
 					try {
@@ -2063,7 +2059,7 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class ChangeGraphAction extends AbstractAction {
 
-		private CommandService cmdService;
+		private final CommandService cmdService;
 
 		public ChangeGraphAction(CommandService cmdService) {
 			this.cmdService = cmdService;
@@ -2071,8 +2067,8 @@ public class EditorActions
 
 		class NewGraphFromCmd extends SwingWorker<AnnotationGraphAdapter, Void> {
 
-			private List<Tree> trees;
-			private AnnotationGraphComponent graphComponent;
+			private final List<Tree> trees;
+			private final AnnotationGraphComponent graphComponent;
 
 			public NewGraphFromCmd(final AnnotationGraphComponent graphComponent, final List<Tree> trees) {
 				this.graphComponent = graphComponent;
@@ -2086,8 +2082,8 @@ public class EditorActions
 					if (cm.isCanceled()) return null;
 					final Map<String, Object> inputs = cm.getInputs();
 					final String metric = String.valueOf(inputs.get("metric"));
-					final double threshold = Double.valueOf(String.valueOf(inputs.get("threshold")));
-					final int depth = Integer.valueOf(String.valueOf(inputs.get("depth")));
+					final double threshold = Double.parseDouble(String.valueOf(inputs.get("threshold")));
+					final int depth = Integer.parseInt(String.valueOf(inputs.get("depth")));
 					AnnotationGraph newGraph = new AnnotationGraph(trees, metric, threshold, depth);
 					return new AnnotationGraphAdapter(newGraph);
 				} catch (final InterruptedException | ExecutionException e1) {
@@ -2104,8 +2100,8 @@ public class EditorActions
 					graphComponent.setGraph(adapter);
 					adapter.getModel().beginUpdate();
 					try {
-						mxCircleLayout layout = new mxCircleLayout(adapter);
-						layout.execute(adapter.getDefaultParent());
+						new mxCircleLayout(adapter).execute(adapter.getDefaultParent());
+						new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
 					} catch (Exception ex) {
 						ex.printStackTrace();
 					} finally {
@@ -2133,6 +2129,83 @@ public class EditorActions
 				System.out.println("This action requires AnnotationGraph.");
 			}
 		}
+	}
+
+	public static class ShowInViewer3DAction extends AbstractAction {
+
+		private final Context context;
+
+		public ShowInViewer3DAction(Context context) {
+			this.context = context;
+		}
+
+		class ShowInViewer3DWorker extends SwingWorker<Viewer3D, Void> {
+
+			private final AnnotationGraphAdapter adapter;
+
+			public ShowInViewer3DWorker(final AnnotationGraphAdapter graphAdapter) {
+				this.adapter = graphAdapter;
+			}
+
+			@Override
+			public Viewer3D doInBackground() {
+				try {
+					Set<BrainAnnotation> annotations = adapter.getVertexToCellMap().keySet();
+					List<Tree> trees = ((AnnotationGraph) adapter.getSourceGraph()).getTrees();
+					if (trees == null) trees = new ArrayList<>();
+					List<OBJMesh> meshes = new ArrayList<>();
+					for (BrainAnnotation ann : annotations) {
+						if (!ann.isMeshAvailable()) continue;
+						OBJMesh mesh = ann.getMesh();
+						int aDepth = ann.getOntologyDepth();
+						for (Tree tree : trees) {
+							BrainAnnotation rootAnnotation = tree.getRoot().getAnnotation();
+							if (rootAnnotation == null) continue;
+							BrainAnnotation adjustedAnn = rootAnnotation;
+							if (rootAnnotation.getOntologyDepth() > aDepth) {
+								int diff = aDepth - rootAnnotation.getOntologyDepth();
+								adjustedAnn = rootAnnotation.getAncestor(diff);
+							}
+							if (adjustedAnn.id() == ann.id()) {
+								tree.setColor(adapter.getSourceGraph().getVertexColor(ann));
+							}
+						}
+						mesh.setColor(adapter.getSourceGraph().getVertexColor(ann), 80);
+						meshes.add(mesh);
+					}
+					Viewer3D viewer = new Viewer3D(context);
+					viewer.add(meshes);
+					viewer.add(trees);
+					return viewer;
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				try {
+					Viewer3D viewer = get();
+					if (viewer == null) return;
+					viewer.show();
+					viewer.updateView();
+				} catch (InterruptedException | ExecutionException e) {
+					e.printStackTrace();
+				}
+			}
+
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			if (e.getSource() instanceof AnnotationGraphComponent) {
+				AnnotationGraphAdapter adapter =
+						(AnnotationGraphAdapter) ((AnnotationGraphComponent) e.getSource()).getGraph();
+				new ShowInViewer3DWorker(adapter).execute();
+			}
+		}
+
 	}
 
 	private static boolean noCellsError(final ActionEvent e, final String cmdName, final mxGraph graph) {

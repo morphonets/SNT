@@ -31,9 +31,14 @@ import org.scijava.Context;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.analysis.graph.SNTGraph;
+import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
+import sc.fiji.snt.viewer.OBJMesh;
+import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.viewer.geditor.EditorActions.TogglePropertyItem;
 import sc.fiji.snt.viewer.geditor.GraphEditor.CmdRunner;
 
@@ -446,6 +451,7 @@ public class EditorMenuBar extends JMenuBar
 		menu.add(editor.bind("Get Sources", new AnalyzeGraph(AnalyzeType.GET_SOURCES, aGraph, context)));
 		menu.add(editor.bind("Get Sinks", new AnalyzeGraph(AnalyzeType.GET_SINKS, aGraph, context)));
 		menu.add(editor.bind("Find Cycles", new AnalyzeGraph(AnalyzeType.FIND_CYCLES, aGraph, context)));
+		menu.add(editor.bind("Show Rec. Viewer", new EditorActions.ShowInViewer3DAction(context)));
 	}
 
 	private GuiUtils getGuiUtils() {
