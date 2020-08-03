@@ -1,11 +1,12 @@
 package sc.fiji.snt.viewer.geditor;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Font;
 import java.awt.Point;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionListener;
@@ -24,7 +25,7 @@ import javax.swing.ImageIcon;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
-import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
@@ -35,6 +36,13 @@ import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.UIManager;
 
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.title.PaintScaleLegend;
+import org.jfree.chart.ui.RectangleEdge;
+import org.jfree.chart.ui.RectangleInsets;
+import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
 import com.mxgraph.layout.mxCircleLayout;
@@ -61,17 +69,20 @@ import com.mxgraph.util.mxEventSource.mxIEventListener;
 import com.mxgraph.util.mxUndoableEdit.mxUndoableChange;
 import com.mxgraph.view.mxGraph;
 
+import net.imagej.lut.LUTService;
+import net.imglib2.display.ColorTable;
+import sc.fiji.snt.analysis.TreeColorMapper;
+import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.viewer.Viewer2D;
+
 public class GraphEditor extends JPanel
 {
 
 	private static final long serialVersionUID = -6561623072112577140L;
 
-	/**
-	 * Adds required resources for i18n
-	 */
 	static {
 		try {
-			mxResources.add("editor");
+			mxResources.add("geditor/editor"); // load editor.properties
 		} catch (Exception e) {
 			e.printStackTrace(); // ignore
 		}
@@ -86,9 +97,10 @@ public class GraphEditor extends JPanel
 	protected File currentFile;
 	protected mxRubberband rubberband;
 	protected mxKeyboardHandler keyboardHandler;
-	private final EditorConsole editorConsole;
-	private final JSplitPane mainPanel;
-	private final JSplitPane bottomPanel;
+	private EditorConsole editorConsole;
+	private JPanel legendPanel;
+	private JSplitPane mainPanel;
+	private JSplitPane bottomPanel;
 	protected EditorToolBar toolbar;
 	protected boolean animateLayoutChange = true;
 
@@ -99,9 +111,6 @@ public class GraphEditor extends JPanel
 	protected boolean modified = false;
 
 
-	/**
-	 * 
-	 */
 	public GraphEditor(String appTitle, mxGraphComponent component)
 	{
 		// Stores and updates the frame title
@@ -140,7 +149,8 @@ public class GraphEditor extends JPanel
 		// Creates the library pane that contains the tabs with the palettes
 		libraryPane = new JTabbedPane();
 		editorConsole = new EditorConsole();
-		insertConsole(getEditorConsole());
+		insertConsole(getConsole());
+		initColorLegend();
 
 		// Creates the split pane that contains the tabbed pane with
 		// console on the right and the graph outline on left
@@ -258,12 +268,17 @@ public class GraphEditor extends JPanel
 		libraryPane.add("Console", editorConsole);
 
 		// Updates the widths of the palettes if the container size changes
-		libraryPane.addComponentListener(new ComponentAdapter() {
-			public void componentResized(final ComponentEvent e) {
-				final int w = editorConsole.getWidth() - editorConsole.getWidth();
-				editorConsole.setPreferredWidth(w);
-			}
-		});
+//		libraryPane.addComponentListener(new ComponentAdapter() {
+//			public void componentResized(final ComponentEvent e) {
+//				final int w = editorConsole.getWidth() - editorConsole.getWidth();
+//				editorConsole.setPreferredWidth(w);
+//			}
+//		});
+	}
+
+	private void initColorLegend() {
+		if (legendPanel == null)  legendPanel = getNoLegendPanel();
+		libraryPane.add("Legend", legendPanel);
 	}
 
 	/**
@@ -668,7 +683,7 @@ public class GraphEditor extends JPanel
 	 * 
 	 */
 	public void exit() {
-		if (getEditorConsole() != null) getEditorConsole().restore();
+		if (getConsole() != null) getConsole().restore();
 		final JFrame frame = (JFrame) SwingUtilities.windowForComponent(this);
 		if (frame != null && new sc.fiji.snt.gui.GuiUtils(this).getConfirmation("Exit Graph Viewer?", "Really Quit?")) {
 			frame.dispose();
@@ -699,11 +714,9 @@ public class GraphEditor extends JPanel
 		}
 	}
 
-	/**
-	 * 
-	 */
-	public JFrame createFrame(JMenuBar menuBar)
+	public JFrame createFrame(final Context context)
 	{
+		
 		JFrame frame = new JFrame();
 		frame.getContentPane().add(this);
 		frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
@@ -714,12 +727,12 @@ public class GraphEditor extends JPanel
 				exit();
 			}
 		});
-		frame.setJMenuBar(menuBar);
+		frame.setJMenuBar(new EditorMenuBar(this, context));
 		frame.setSize(870, 640);
 
 		// Updates the frame title
 		updateTitle();
-		getEditorConsole().redirect();
+		getConsole().redirect();
 
 		return frame;
 	}
@@ -913,8 +926,110 @@ public class GraphEditor extends JPanel
 		});
 	}
 
-	public EditorConsole getEditorConsole() {
+	public EditorConsole getConsole() {
 		return editorConsole;
+	}
+
+	public void setLegend(final String colorTable, double min, double max) {
+		setLegend(colorTable, null, min, max);
+	}
+
+	public void setLegend(final String colorTable, final String label, double min, double max) {
+		final TreeColorMapper lutRetriever = new TreeColorMapper(new Context(LUTService.class));
+		final ColorTable cTable = lutRetriever.getColorTable(colorTable);
+		setLegend(cTable, label, min, max);
+	}
+
+	public void setLegend(final ColorTable colorTable, final String label, double min, double max) {
+
+		/* Flavor of Viewer2D to produce an empty viewer with just ColorTable legend */
+		class LegendViewer extends Viewer2D {
+			private Font font;
+			private String title;
+			private Color color;
+			LegendViewer(final ColorTable colorTable, final String metric, final double min, final double max) {
+				this.colorTable = colorTable;
+				this.min = min;
+				this.max = max;
+				font = new JLabel().getFont();
+				title = metric;
+				color = getForegroundColor();
+			}
+
+			PaintScaleLegend getLegend() {
+				final PaintScaleLegend legend = getPaintScaleLegend(colorTable, min, max);
+				legend.setPosition(RectangleEdge.TOP);
+				legend.setMargin(10, 50, 0, 50);
+				legend.getAxis().setLabelPaint(color);
+				legend.getAxis().setAxisLinePaint(color);
+				legend.getAxis().setTickLabelPaint(color);
+				legend.getAxis().setTickMarkPaint(color);
+				legend.getAxis().setLabelFont(font);
+				legend.getAxis().setTickLabelFont(font);
+				legend.getAxis().setTickMarkOutsideLength(font.getSize2D()/2);
+				legend.getAxis().setTickLabelInsets(new RectangleInsets(2, 2 , font.getSize2D()/2, 2));
+				return legend;
+			}
+
+			JFreeChart getDummyChart() {
+				final XYPlot dummyPlot = new XYPlot();
+				dummyPlot.setBackgroundPaint(null);
+				dummyPlot.setOutlineVisible(false);
+				final JFreeChart dummyChart = new JFreeChart(dummyPlot);
+				dummyChart.setBorderVisible(false);
+				dummyChart.setTitle(title);
+				if (title != null) {
+					dummyChart.getTitle().setPaint(color);
+					dummyChart.getTitle().setFont(font);
+				}
+				return dummyChart;
+			}
+
+			JPanel getAssembledPanel() {
+				final JFreeChart chart = getDummyChart();
+				chart.addSubtitle(getLegend());
+				ChartPanel panel = new ChartPanel(chart);
+				JPopupMenu popup = panel.getPopupMenu();
+				if (popup == null) return panel;
+				tweakPopupMenu(popup);
+				return panel;
+			}
+
+			private void tweakPopupMenu(final JPopupMenu popup ) {
+				// Remove entries that are irrelevant for the legend
+				for ( Component component : popup.getComponents()) {
+					if (component instanceof JMenuItem) {
+						final String cName = ((JMenuItem) component).getText();
+						if (cName != null && (cName.startsWith("Zoom") || cName.startsWith("Auto Range"))) {
+							popup.remove(component);
+						}
+					}
+				}
+				popup.addSeparator();
+				final JMenuItem jmi = new JMenuItem("Clear");
+				jmi.addActionListener(e -> setLegend((ColorTable)null, null, 0d, 0d));
+				popup.add(jmi);
+			}
+		}
+
+		final JPanel newContents = (colorTable == null) ? getNoLegendPanel()
+				: new LegendViewer(colorTable, label, min, max).getAssembledPanel();
+		legendPanel.removeAll();
+		legendPanel.add(newContents);
+		legendPanel.validate();
+		legendPanel.repaint();
+	}
+
+	private Color getForegroundColor() { // Dark theme support
+		return SNTColor.contrastColor(new JPanel().getBackground());
+	}
+
+	private JPanel getNoLegendPanel() {
+		final JPanel panel = new JPanel();
+		final JLabel label = new JLabel("No Color Mapping Currently Exists");
+		label.setForeground(getForegroundColor());
+		panel.add(label);
+		return panel;
 	}
 
 	public JSplitPane getBottomPanel() {
