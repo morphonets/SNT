@@ -2028,7 +2028,7 @@ public class EditorActions
 		private String[] shapes = {mxConstants.SHAPE_RECTANGLE, mxConstants.SHAPE_DOUBLE_RECTANGLE,
 				mxConstants.SHAPE_ELLIPSE, mxConstants.SHAPE_DOUBLE_ELLIPSE, mxConstants.SHAPE_TRIANGLE,
 				mxConstants.SHAPE_RHOMBUS, mxConstants.SHAPE_HEXAGON, mxConstants.SHAPE_CYLINDER,
-				mxConstants.SHAPE_ACTOR, mxConstants.SHAPE_CLOUD};
+				mxConstants.SHAPE_ACTOR, mxConstants.SHAPE_CLOUD, mxConstants.NONE};
 		/**
 		 *
 		 */
