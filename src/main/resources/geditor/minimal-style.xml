@@ -17,12 +17,13 @@
 		<add as="labelBackgroundColor" value="none"/>
 		<add as="startArrow" value="none"/>
 		<add as="endArrow" value="block"/>
+		<add as="endSize" value="11"/>
 		<add as="fontSize" value="12"/>
-		<add as="sourcePerimeterSpacing" value="12"/>
-		<add as="targetPerimeterSpacing" value="12"/>
+		<add as="sourcePerimeterSpacing" value="6"/>
+		<add as="targetPerimeterSpacing" value="6"/>
 		<add as="align" value="center"/>
 		<add as="verticalAlign" value="bottom"/>
-		<add as="strokeColor" value="#363636"/>
+		<add as="strokeColor" value="#555555"/>
 		<add as="fontColor" value="black"/>
 		<add as="rounded" value="1"/>
 	</add>

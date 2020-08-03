@@ -7,10 +7,11 @@
 		<add as="fontSize" value="12"/>
 		<add as="fontColor" value="#1d258f"/>
 		<add as="fontFamily" value="Arial"/>
+		<add as="spacing" value="6"/>
 		<add as="rounded" value="1"/>
 	</add>
 	<add as="defaultEdge" extend="defaultEdge">
-		<add as="labelBackgroundColor" value="white"/>
+		<add as="labelBackgroundColor" value="none"/>
 		<add as="rounded" value="1"/>
 		<add as="edgeStyle" value="elbowEdgeStyle"/>
 		<add as="strokeColor" value="#5d65df"/>

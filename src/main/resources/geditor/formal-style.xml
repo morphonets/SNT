@@ -1,28 +1,28 @@
 <mxStylesheet>
 	<include name="/sc/fiji/snt/resources/geditor/formal-style.xml"/>
-	<add as="defaultVertex">
-		<add as="shape" value="label"/>
-		<add as="perimeter" value="rectanglePerimeter"/>
+	<add as="defaultVertex" extend="defaultVertex">
+		<add as="fillColor" value="white"/>
+		<add as="gradientColor" value="none"/>
+		<add as="strokeColor" value="#444444"/>
 		<add as="fontSize" value="14"/>
 		<add as="align" value="center"/>
 		<add as="verticalAlign" value="middle"/>
-		<add as="strokeColor" value="#363636"/>
-		<add as="fillColor" value="none"/>
+		<add as="fillColor" value="white"/>
 		<add as="fontColor" value="black"/>
-		<add as="rounded" value="1"/>
+		<add as="fontFamily" value="Arial"/>
 		<add as="spacing" value="12"/>
+		<add as="rounded" value="1"/>
 	</add>
-	<add as="defaultEdge">
-		<add as="shape" value="connector"/>
+	<add as="defaultEdge" extend="defaultEdge">
 		<add as="labelBackgroundColor" value="none"/>
-		<add as="startArrow" value="none"/>
-		<add as="endArrow" value="block"/>
+		<add as="rounded" value="0"/>
+		<add as="edgeStyle" value="elbowEdgeStyle"/>
+		<add as="strokeColor" value="#444444"/>
 		<add as="fontSize" value="12"/>
 		<add as="align" value="center"/>
 		<add as="verticalAlign" value="bottom"/>
-		<add as="strokeColor" value="#363636"/>
 		<add as="fontColor" value="black"/>
-		<add as="rounded" value="1"/>
+		<add as="fontFamily" value="Arial"/>
 	</add>
 	<add as="label">
 		<add as="shape" value="label"/>
@@ -30,8 +30,28 @@
 		<add as="fontStyle" value="1"/>
 		<add as="align" value="left"/>
 		<add as="verticalAlign" value="middle"/>
-		<add as="spacing" value="12"/>
+		<add as="spacing" value="2"/>
+		<add as="spacingLeft" value="40"/>
+		<add as="imageWidth" value="32"/>
+		<add as="imageHeight" value="32"/>
 		<add as="rounded" value="1"/>
+		<add as="shadow" value="1"/>
+		<add as="glass" value="1"/>
+		
+	</add>
+	<add as="icon" extend="label">
+		<add as="align" value="center"/>
+		<add as="imageAlign" value="center"/>
+		<add as="verticalLabelPosition" value="bottom"/>
+		<add as="verticalAlign" value="top"/>
+		<add as="spacingTop" value="4"/>
+		<add as="labelBackgroundColor" value="#FFFFFF"/>
+		<add as="spacing" value="0"/>
+		<add as="spacingLeft" value="0"/>
+		<add as="spacingTop" value="6"/>
+		<add as="fontStyle" value="0"/>
+		<add as="imageWidth" value="48"/>
+		<add as="imageHeight" value="48"/>
 	</add>
 	<add as="entity">
 		<add as="edgeStyle" value="entityRelationEdgeStyle"/>
@@ -46,7 +66,6 @@
 	</add>
 	<add as="arrow">
 		<add as="shape" value="arrow"/>
-		<add as="fillColor" value="red"/>
 	</add>
 	<add as="swimlane">
 		<add as="shape" value="swimlane"/>

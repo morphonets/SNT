@@ -174,17 +174,20 @@ public class EditorActions
 		public void actionPerformed(ActionEvent e) {
 			if (e.getSource() instanceof mxGraphComponent)
 			{
-				mxGraphComponent graphComponent = (mxGraphComponent) e
-						.getSource();
+				mxGraphComponent graphComponent = (mxGraphComponent) e.getSource();
 				mxGraph graph = graphComponent.getGraph();
 				mxCodec codec = new mxCodec();
-				Document doc = mxUtils.loadDocument(EditorActions.class
-						.getResource(stylesheet).toString());
+				Document doc = mxUtils.loadDocument(EditorActions.class.getResource(stylesheet).toString());
 
-				if (doc != null)
-				{
-					codec.decode(doc.getDocumentElement(),
-							graph.getStylesheet());
+				if (doc != null) {
+					codec.decode(doc.getDocumentElement(), graph.getStylesheet());
+					graph.getModel().beginUpdate();
+					for (Object cell : graph.getChildCells(graph.getDefaultParent()))
+						try {
+							graph.updateCellSize(cell);
+						} finally {
+							graph.getModel().endUpdate();
+						}
 					graph.refresh();
 				}
 			}

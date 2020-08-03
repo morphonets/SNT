@@ -22,40 +22,31 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
     private AnnotationGraph annotationGraph;
 
     public AnnotationGraphAdapter(final AnnotationGraph graph) {
-        this(graph, LIGHT_GRAY);
+        this(graph, null);
     }
 
     protected AnnotationGraphAdapter(final AnnotationGraph graph, final String verticesColor) {
+
         super(graph);
         this.annotationGraph = graph;
-        final String vColor = (verticesColor == null) ? LIGHT_GRAY : new ColorRGB(verticesColor).toHTMLColor();
+
         final Map<String, Object> edgeStyle = getStylesheet().getDefaultEdgeStyle();
-        //edgeStyle.put(mxConstants.STYLE_ROUNDED, true);
         edgeStyle.put(mxConstants.STYLE_ENDARROW, mxConstants.ARROW_BLOCK);
         edgeStyle.put(mxConstants.STYLE_VERTICAL_ALIGN, mxConstants.ALIGN_TOP);
         edgeStyle.put(mxConstants.STYLE_VERTICAL_LABEL_POSITION, mxConstants.ALIGN_MIDDLE);
-        edgeStyle.put(mxConstants.STYLE_LABEL_POSITION, mxConstants.ALIGN_CENTER);
-        //edgeStyle.put(mxConstants.STYLE_STROKECOLOR, defaultEdgeStrokeColor);
+        edgeStyle.put(mxConstants.STYLE_LABEL_POSITION, mxConstants.ALIGN_BOTTOM);
+        edgeStyle.put(mxConstants.STYLE_ENDSIZE, mxConstants.DEFAULT_FONTSIZE);
+        //edgeStyle.put(mxConstants.STYLE_ROUNDED, true);
 
         final Map<String, Object> vertexStyle = getStylesheet().getDefaultVertexStyle();
-        vertexStyle.put(mxConstants.STYLE_AUTOSIZE, false);
+        vertexStyle.put(mxConstants.STYLE_AUTOSIZE, true);
         vertexStyle.put(mxConstants.STYLE_LABEL_POSITION, mxConstants.ALIGN_CENTER);
         vertexStyle.put(mxConstants.STYLE_VERTICAL_LABEL_POSITION, mxConstants.ALIGN_MIDDLE);
-        //vertexStyle.put(mxConstants.STYLE_STROKECOLOR, defaultVertexStrokeColor);
-        //vertexStyle.put(mxConstants.STYLE_GRADIENTCOLOR, defaultVertexGradientColor);
-        // Render all source nodes in a different color
-//        List<mxICell> sources = getVertexToCellMap()
-//                .entrySet()
-//                .stream()
-//                .filter(e -> graph.outDegreeOf(e.getKey()) > 0)
-//                .map(Map.Entry::getValue)
-//                .collect(Collectors.toList());
-//        Object[] sArray = sources.toArray();
-//        setCellStyles(mxConstants.STYLE_STROKECOLOR, "black", sArray);
-//        setCellStyles(mxConstants.STYLE_FONTSTYLE, String.valueOf(mxConstants.FONT_BOLD), sources.toArray());
-//        setCellStyles(mxConstants.STYLE_GRADIENTCOLOR, "black", sArray);
+        vertexStyle.put(mxConstants.STYLE_ROUNDED, true);
+        if (verticesColor != null)
+        	vertexStyle.put(mxConstants.STYLE_FILLCOLOR, new ColorRGB(verticesColor).toHTMLColor());
+
         setCellColorsFromGraph();
-        //vertexStyle.put(mxConstants.STYLE_FILLCOLOR, vColor);
         setAllowLoops(true);
 
     }
