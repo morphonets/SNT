@@ -14,7 +14,6 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.viewer.geditor.AnnotationGraphAdapter;
 import sc.fiji.snt.viewer.geditor.AnnotationGraphComponent;
-import sc.fiji.snt.viewer.geditor.EditorMenuBar;
 import sc.fiji.snt.viewer.geditor.GraphEditor;
 import sc.fiji.snt.viewer.geditor.SNTGraphAdapter;
 import sc.fiji.snt.viewer.geditor.SNTGraphComponent;
@@ -33,6 +32,7 @@ public class GraphViewer {
     private final SNTGraph<?, ?> graph;
     private SNTGraphAdapter<?, ?> adapter;
     private SNTGraphComponent component;
+	private GraphEditor editor;
 
     public GraphViewer(final SNTGraph<?, ?> inputGraph) {
         this.graph = inputGraph;
@@ -49,14 +49,13 @@ public class GraphViewer {
         return context;
     }
 
-    /**
-     * Displays a graph in SNT's "Graph Viewer" featuring UI commands for
-     * interactive visualization and export options.
-     *
-     * @return the assembled window
-     */
-    public Window show() {
-        if (this.graph instanceof DirectedWeightedGraph) {
+    public GraphEditor getEditor() {
+    	if (editor == null) initEditor();
+    	return editor;
+    }
+
+    private void initEditor() {
+        if (graph instanceof DirectedWeightedGraph) {
             adapter = new TreeGraphAdapter((DirectedWeightedGraph)this.graph);
             component = new TreeGraphComponent((TreeGraphAdapter) adapter, getContext());
         } else if (this.graph instanceof AnnotationGraph) {
@@ -65,11 +64,19 @@ public class GraphViewer {
         } else {
             throw new UnsupportedOperationException("Currently only DirectedWeightedGraph and AnnotationGraph are supported.");
         }
-
-        //mxGraphComponent component = new mxGraphComponent(adapter);
         GuiUtils.setSystemLookAndFeel();
-        GraphEditor editor = new GraphEditor("Graph Viewer", component);
-        JFrame frame = editor.createFrame(new EditorMenuBar(editor, getContext()));
+        editor = new GraphEditor("Graph Viewer", component);
+    }
+
+    /**
+     * Displays a graph in SNT's "Graph Viewer" featuring UI commands for
+     * interactive visualization and export options.
+     *
+     * @return the assembled window
+     */
+    public Window show() {
+    	if (editor == null) initEditor();
+        JFrame frame = editor.createFrame(getContext());
         //frame.pack(); //FIXME: Don't pack() otherwise stall occurs on openjdk
         SwingUtilities.invokeLater(() -> frame.setVisible(true));
         return frame;
@@ -101,6 +108,7 @@ public class GraphViewer {
         // graph.removeOrphanedNodes();
         GraphViewer graphViewer = new GraphViewer(graph);
         graphViewer.setContext(ij.context());
+        graphViewer.getEditor().setLegend("Ice.lut", "Metric", 0d, 1000000);
         graphViewer.show();
     }
 }

@@ -97,9 +97,10 @@ public class GraphEditor extends JPanel
 	protected File currentFile;
 	protected mxRubberband rubberband;
 	protected mxKeyboardHandler keyboardHandler;
-	private final EditorConsole editorConsole;
+	private EditorConsole editorConsole;
 	private JPanel legendPanel;
-	private final JSplitPane bottomPanel;
+	private JSplitPane mainPanel;
+	private JSplitPane bottomPanel;
 	protected EditorToolBar toolbar;
 	protected boolean animateLayoutChange = true;
 
@@ -110,9 +111,6 @@ public class GraphEditor extends JPanel
 	protected boolean modified = false;
 
 
-	/**
-	 * 
-	 */
 	public GraphEditor(String appTitle, mxGraphComponent component)
 	{
 		// Stores and updates the frame title
@@ -151,7 +149,7 @@ public class GraphEditor extends JPanel
 		// Creates the library pane that contains the tabs with the palettes
 		libraryPane = new JTabbedPane();
 		editorConsole = new EditorConsole();
-		insertConsole(getEditorConsole());
+		insertConsole(getConsole());
 		initColorLegend();
 
 		// Creates the split pane that contains the tabbed pane with
@@ -270,12 +268,14 @@ public class GraphEditor extends JPanel
 		libraryPane.add("Console", editorConsole);
 
 		// Updates the widths of the palettes if the container size changes
-		libraryPane.addComponentListener(new ComponentAdapter() {
-			public void componentResized(final ComponentEvent e) {
-				final int w = editorConsole.getWidth() - editorConsole.getWidth();
-				editorConsole.setPreferredWidth(w);
-			}
-		});
+//		libraryPane.addComponentListener(new ComponentAdapter() {
+//			public void componentResized(final ComponentEvent e) {
+//				final int w = editorConsole.getWidth() - editorConsole.getWidth();
+//				editorConsole.setPreferredWidth(w);
+//			}
+//		});
+	}
+
 	private void initColorLegend() {
 		if (legendPanel == null)  legendPanel = getNoLegendPanel();
 		libraryPane.add("Legend", legendPanel);
@@ -683,7 +683,7 @@ public class GraphEditor extends JPanel
 	 * 
 	 */
 	public void exit() {
-		if (getEditorConsole() != null) getEditorConsole().restore();
+		if (getConsole() != null) getConsole().restore();
 		final JFrame frame = (JFrame) SwingUtilities.windowForComponent(this);
 		if (frame != null && new sc.fiji.snt.gui.GuiUtils(this).getConfirmation("Exit Graph Viewer?", "Really Quit?")) {
 			frame.dispose();
@@ -714,11 +714,9 @@ public class GraphEditor extends JPanel
 		}
 	}
 
-	/**
-	 * 
-	 */
-	public JFrame createFrame(JMenuBar menuBar)
+	public JFrame createFrame(final Context context)
 	{
+		
 		JFrame frame = new JFrame();
 		frame.getContentPane().add(this);
 		frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
@@ -729,12 +727,12 @@ public class GraphEditor extends JPanel
 				exit();
 			}
 		});
-		frame.setJMenuBar(menuBar);
+		frame.setJMenuBar(new EditorMenuBar(this, context));
 		frame.setSize(870, 640);
 
 		// Updates the frame title
 		updateTitle();
-		getEditorConsole().redirect();
+		getConsole().redirect();
 
 		return frame;
 	}
@@ -928,7 +926,7 @@ public class GraphEditor extends JPanel
 		});
 	}
 
-	public EditorConsole getEditorConsole() {
+	public EditorConsole getConsole() {
 		return editorConsole;
 	}
 
