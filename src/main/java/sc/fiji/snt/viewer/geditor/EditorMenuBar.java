@@ -64,7 +64,7 @@ public class EditorMenuBar extends JMenuBar
 	{
 		PROPERTIES, COLOR_CODING, EDGE_SCALING, COMPLEMENTARY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE,
 		ONE_SPANNING_TREE, GET_CUT_VERTEXES, GET_CUT_EDGES, GET_SOURCES, GET_SINKS,
-		PLANARITY, SPANNING_TREE, FLOYD_ROY_WARSHALL, FIND_CYCLES, SHOW_VIEWER_3D
+		PLANARITY, SPANNING_TREE, FLOYD_ROY_WARSHALL, FIND_CYCLES
 	}
 
 	public EditorMenuBar(final GraphEditor editor, final Context context)
@@ -450,7 +450,7 @@ public class EditorMenuBar extends JMenuBar
 		menu.add(editor.bind("Get Sources", new AnalyzeGraph(AnalyzeType.GET_SOURCES, aGraph, context)));
 		menu.add(editor.bind("Get Sinks", new AnalyzeGraph(AnalyzeType.GET_SINKS, aGraph, context)));
 		menu.add(editor.bind("Find Cycles", new AnalyzeGraph(AnalyzeType.FIND_CYCLES, aGraph, context)));
-		menu.add(editor.bind("Show Viewer3D", new AnalyzeGraph(AnalyzeType.SHOW_VIEWER_3D, aGraph, context)));
+		menu.add(editor.bind("Show Rec. Viewer", new EditorActions.ShowInViewer3DAction(context)));
 	}
 
 	private GuiUtils getGuiUtils() {
@@ -1090,50 +1090,6 @@ public class EditorMenuBar extends JMenuBar
 			System.out.println("Done...");
 		}
 
-		protected void showViewer3D() {
-			SNTGraph graph = adapter.getSourceGraph();
-			if (graph instanceof AnnotationGraph) {
-				Viewer3D viewer = new Viewer3D(context);
-				Set<Object> annotations = adapter.getVertexToCellMap().keySet();
-				List<Tree> trees = ((AnnotationGraph)graph).getTrees();
-				if (!trees.isEmpty()) {
-					viewer.addTrees(trees, true);
-				}
-				List<OBJMesh> meshes = new ArrayList<>();
-				for (Object o : annotations) {
-					BrainAnnotation a = (BrainAnnotation) o;
-					if (!a.isMeshAvailable()) continue;
-					OBJMesh mesh = a.getMesh();
-					int aDepth = a.getOntologyDepth();
-					for (Tree tree : trees) {
-						BrainAnnotation rootAnnotation = tree.getRoot().getAnnotation();
-						if (rootAnnotation == null) continue;
-						BrainAnnotation adjustedAnn = rootAnnotation;
-						if (rootAnnotation.getOntologyDepth() != aDepth) {
-							int diff = aDepth - rootAnnotation.getOntologyDepth();
-							adjustedAnn = rootAnnotation.getAncestor(diff);
-						}
-						if (adjustedAnn.id() == a.id()) {
-							tree.setColor(adapter.getSourceGraph().getVertexColor(a));
-						}
-					}
-					mesh.setColor(adapter.getSourceGraph().getVertexColor(a), 90);
-					meshes.add(mesh);
-				}
-				viewer.add(meshes);
-				viewer.add(trees);
-				//viewer.setViewMode("side");
-				SwingUtilities.invokeLater(new Runnable() {
-					@Override
-					public void run() {
-						viewer.show();
-						viewer.updateView();
-					}
-				});
-			}
-
-		}
-
 		@SuppressWarnings({ "rawtypes", "unchecked" })
 		public void actionPerformed(ActionEvent e)
 		{
@@ -1224,9 +1180,6 @@ public class EditorMenuBar extends JMenuBar
 				}
 				else if (analyzeType == AnalyzeType.FIND_CYCLES) {
 					doFindCycles();
-				}
-				else if (analyzeType == AnalyzeType.SHOW_VIEWER_3D) {
-					showViewer3D();
 				}
 				else if (analyzeType == AnalyzeType.FLOYD_ROY_WARSHALL)
 				{
