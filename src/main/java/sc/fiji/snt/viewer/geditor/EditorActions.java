@@ -1906,6 +1906,7 @@ public class EditorActions
 
 				} else if (value.trim().isEmpty()) {
 					graphComponent.setBackgroundImage(null);
+					graphComponent.getGraph().repaint();
 					System.out.println("Background image removed");
 					return;
 				} else if (!(value.startsWith("http") || value.startsWith("www"))) {
