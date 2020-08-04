@@ -22,9 +22,11 @@ import com.mxgraph.util.png.mxPngEncodeParam;
 import com.mxgraph.util.png.mxPngImageEncoder;
 import com.mxgraph.util.png.mxPngTextDecoder;
 import com.mxgraph.view.mxGraph;
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
+import org.scijava.util.ColorRGB;
 import org.w3c.dom.Document;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
@@ -1843,45 +1845,54 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class ColorAction extends AbstractAction
-	{
+	public static class ColorAction extends AbstractAction {
 		/**
-		 * 
+		 *
 		 */
 		protected String name, key;
 
 		/**
-		 * 
 		 * @param key
 		 */
-		public ColorAction(String name, String key)
-		{
+		public ColorAction(String name, String key) {
 			this.name = name;
 			this.key = key;
 		}
 
 		/**
-		 * 
+		 *
 		 */
-		public void actionPerformed(ActionEvent e)
-		{
-			if (e.getSource() instanceof mxGraphComponent)
-			{
-				mxGraphComponent graphComponent = (mxGraphComponent) e
+		public void actionPerformed(ActionEvent e) {
+			if (e.getSource() instanceof SNTGraphComponent) {
+				SNTGraphComponent graphComponent = (SNTGraphComponent) e
 						.getSource();
-				mxGraph graph = graphComponent.getGraph();
-				if (!noCellsError(e, name, graph))
-				{
-					Color newColor = JColorChooser.showDialog(graphComponent,
-							name, null);
+				if (graphComponent.getGraph() instanceof SNTGraphAdapter) {
+					@SuppressWarnings("unchecked")
+					SNTGraphAdapter<Object, DefaultWeightedEdge> graph
+							= (SNTGraphAdapter<Object, DefaultWeightedEdge>) graphComponent.getGraph();
 
-					if (newColor != null)
-					{
-						graph.setCellStyles(key, mxUtils.hexString(newColor));
+					if (!noCellsError(e, name, graph)) {
+						Color newColor = JColorChooser.showDialog(graphComponent,
+								name, null);
+
+						if (newColor != null) {
+							graph.setCellStyles(key, mxUtils.hexString(newColor));
+							if (key.equals(mxConstants.STYLE_FILLCOLOR)) {
+								Object[] selectionCells = graph.getSelectionCells();
+								for (Object c : selectionCells) {
+									mxCell mxc = (mxCell) c;
+									graph.getSourceGraph().setVertexColor(
+											graph.getCellToVertexMap().get(mxc),
+											new ColorRGB(newColor.getRed(), newColor.getGreen(), newColor.getBlue())
+									);
+								}
+							}
+						}
 					}
 				}
 			}
 		}
+
 	}
 
 	/**
