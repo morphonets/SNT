@@ -10,7 +10,7 @@
 		<add as="verticalAlign" value="middle"/>
 		<add as="strokeColor" value="none"/>
 		<add as="fillColor" value="none"/>
-		<add as="rounded" value="1"/>
+		<add as="rounded" value="0"/>
 	</add>
 	<add as="defaultEdge">
 		<add as="shape" value="connector"/>
@@ -18,14 +18,15 @@
 		<add as="startArrow" value="none"/>
 		<add as="endArrow" value="block"/>
 		<add as="endSize" value="11"/>
-		<add as="fontSize" value="12"/>
+		<add as="fontSize" value="14"/>
 		<add as="sourcePerimeterSpacing" value="6"/>
 		<add as="targetPerimeterSpacing" value="6"/>
 		<add as="align" value="center"/>
 		<add as="verticalAlign" value="bottom"/>
-		<add as="strokeColor" value="#555555"/>
+		<add as="strokeColor" value="#444444"/>
+		<add as="strokeWidth" value="3"/>
 		<add as="fontColor" value="black"/>
-		<add as="rounded" value="1"/>
+		<add as="rounded" value="0"/>
 	</add>
 	<add as="entity">
 		<add as="edgeStyle" value="entityRelationEdgeStyle"/>

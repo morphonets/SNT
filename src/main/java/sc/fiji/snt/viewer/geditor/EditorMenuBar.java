@@ -1,5 +1,6 @@
 package sc.fiji.snt.viewer.geditor;
 
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
@@ -266,11 +267,13 @@ public class EditorMenuBar extends JMenuBar
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("stylesheet")));
 
 		submenu.add(editor.bind("Minimal Style",
-				new EditorActions.StylesheetAction("/geditor/minimal-style.xml")));
+				new EditorActions.StylesheetAction("/geditor/minimal-style.xml", Color.WHITE)));
 		submenu.add(editor.bind("Formal Style",
-				new EditorActions.StylesheetAction("/geditor/formal-style.xml")));
+				new EditorActions.StylesheetAction("/geditor/formal-style.xml", Color.WHITE)));
+		submenu.add(editor.bind("Formal Style (Dark)",
+				new EditorActions.StylesheetAction("/geditor/formal-style-dark.xml", new Color(52,52,52))));
 		submenu.add(editor.bind("Default Style",
-				new EditorActions.StylesheetAction("/geditor/default-style.xml")));
+				new EditorActions.StylesheetAction("/geditor/default-style.xml", Color.WHITE)));
 		createDeveloperMenu();
 
 		// Creates the options menu

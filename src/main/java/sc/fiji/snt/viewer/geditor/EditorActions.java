@@ -151,22 +151,15 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class StylesheetAction extends AbstractAction
 	{
-		/**
-		 * 
-		 */
 		protected String stylesheet;
+		protected Color background;
 
-		/**
-		 * 
-		 */
-		public StylesheetAction(String stylesheet)
+		public StylesheetAction(String stylesheet, final Color background)
 		{
 			this.stylesheet = stylesheet;
+			this.background = background;
 		}
 
-		/**
-		 * 
-		 */
 		public void actionPerformed(ActionEvent e) {
 			if (e.getSource() instanceof mxGraphComponent)
 			{
@@ -174,17 +167,27 @@ public class EditorActions
 				mxGraph graph = graphComponent.getGraph();
 				mxCodec codec = new mxCodec();
 				Document doc = mxUtils.loadDocument(EditorActions.class.getResource(stylesheet).toString());
-
 				if (doc != null) {
-					codec.decode(doc.getDocumentElement(), graph.getStylesheet());
-					graph.getModel().beginUpdate();
-					for (Object cell : graph.getChildCells(graph.getDefaultParent()))
+					try {
+						graph.getModel().beginUpdate();
+						codec.decode(doc.getDocumentElement(), graph.getStylesheet());
+						graphComponent.setPageBackgroundColor(background);
+						graphComponent.getViewport().setOpaque(true);
+						graphComponent.getViewport().setBackground(background);
+					} finally {
+						graph.getModel().endUpdate();
+						graph.refresh();
+						// somehow changes on label spacing don't apply fully with certain styles!?
+						// HACK: update manually all the cell sizes
+						graph.getModel().beginUpdate();
 						try {
-							graph.updateCellSize(cell);
-						} finally {
+							for (Object cell : mxGraphModel.getChildren(graph.getModel(), graph.getDefaultParent()))
+								graph.updateCellSize(cell);
+						}
+						finally {
 							graph.getModel().endUpdate();
 						}
-					graph.refresh();
+					}
 				}
 			}
 		}
