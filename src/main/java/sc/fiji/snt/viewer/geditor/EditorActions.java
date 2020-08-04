@@ -65,6 +65,7 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 /**
  * Copyright (c) 2001-2012, JGraph Ltd
@@ -2167,12 +2168,25 @@ public class EditorActions
 			@Override
 			public Viewer3D doInBackground() {
 				try {
-					Set<BrainAnnotation> annotations = adapter.getVertexToCellMap().keySet();
+					Set<BrainAnnotation> annotations;
+					Object[] selectionCells = adapter.getSelectionCells();
+					if (selectionCells == null || selectionCells.length == 0) {
+						annotations = adapter.getVertexToCellMap().keySet();
+					} else {
+						annotations = Arrays.stream(selectionCells)
+								.map(c -> (mxCell) c)
+								.filter(mxCell::isVertex)
+								.map(c -> adapter.getCellToVertexMap().get(c))
+								.collect(Collectors.toSet());
+					}
 					List<Tree> trees = ((AnnotationGraph) adapter.getSourceGraph()).getTrees();
 					if (trees == null) trees = new ArrayList<>();
 					List<OBJMesh> meshes = new ArrayList<>();
 					for (BrainAnnotation ann : annotations) {
-						if (!ann.isMeshAvailable()) continue;
+						if (!ann.isMeshAvailable()) {
+							System.out.println("Skipping " + ann.acronym() + ", mesh not available...");
+							continue;
+						}
 						OBJMesh mesh = ann.getMesh();
 						int aDepth = ann.getOntologyDepth();
 						for (Tree tree : trees) {
@@ -2187,7 +2201,7 @@ public class EditorActions
 								tree.setColor(adapter.getSourceGraph().getVertexColor(ann));
 							}
 						}
-						mesh.setColor(adapter.getSourceGraph().getVertexColor(ann), 80);
+						mesh.setColor(adapter.getSourceGraph().getVertexColor(ann), 85);
 						meshes.add(mesh);
 					}
 					Viewer3D viewer = new Viewer3D(context);
