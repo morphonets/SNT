@@ -1,13 +1,13 @@
 <mxStylesheet>
-	<include name="/sc/fiji/snt/resources/geditor/formal-style.xml"/>
+	<include name="/sc/fiji/snt/resources/geditor/formal-style-dark.xml"/>
 	<add as="defaultVertex" extend="defaultVertex">
-		<add as="fillColor" value="white"/>
+		<add as="fillColor" value="#333333"/>
 		<add as="gradientColor" value="none"/>
-		<add as="strokeColor" value="#444444"/>
+		<add as="strokeColor" value="#cccccc"/>
 		<add as="fontSize" value="14"/>
 		<add as="align" value="center"/>
 		<add as="verticalAlign" value="middle"/>
-		<add as="fontColor" value="black"/>
+		<add as="fontColor" value="white"/>
 		<add as="fontFamily" value="Arial"/>
 		<add as="spacing" value="12"/>
 		<add as="rounded" value="1"/>
@@ -16,12 +16,12 @@
 		<add as="labelBackgroundColor" value="none"/>
 		<add as="rounded" value="0"/>
 		<add as="edgeStyle" value="elbowEdgeStyle"/>
-		<add as="strokeColor" value="#444444"/>
+		<add as="strokeColor" value="#cccccc"/>
 		<add as="strokeWidth" value="2.5"/>
 		<add as="fontSize" value="14"/>
 		<add as="align" value="center"/>
 		<add as="verticalAlign" value="bottom"/>
-		<add as="fontColor" value="black"/>
+		<add as="fontColor" value="white"/>
 		<add as="fontFamily" value="Arial"/>
 	</add>
 	<add as="label">
@@ -45,7 +45,7 @@
 		<add as="verticalLabelPosition" value="bottom"/>
 		<add as="verticalAlign" value="top"/>
 		<add as="spacingTop" value="4"/>
-		<add as="labelBackgroundColor" value="#FFFFFF"/>
+		<add as="labelBackgroundColor" value="#333333"/>
 		<add as="spacing" value="0"/>
 		<add as="spacingLeft" value="0"/>
 		<add as="spacingTop" value="6"/>
@@ -93,13 +93,13 @@
 	<add as="line">
 		<add as="shape" value="line"/>
 		<add as="strokeWidth" value="4"/>
-		<add as="labelBackgroundColor" value="white"/>
+		<add as="labelBackgroundColor" value="#333333"/>
 		<add as="verticalAlign" value="top"/>
 		<add as="spacingTop" value="8"/>
 	</add>
 	<add as="image">
 		<add as="shape" value="image"/>
-		<add as="labelBackgroundColor" value="white"/>
+		<add as="labelBackgroundColor" value="#333333"/>
 		<add as="verticalLabelPosition" value="bottom"/>
 		<add as="verticalAlign" value="top"/>
 	</add>

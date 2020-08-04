@@ -153,37 +153,43 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class StylesheetAction extends AbstractAction
 	{
-		/**
-		 * 
-		 */
 		protected String stylesheet;
+		protected Color background;
 
-		/**
-		 * 
-		 */
-		public StylesheetAction(String stylesheet)
+		public StylesheetAction(String stylesheet, final Color background)
 		{
 			this.stylesheet = stylesheet;
+			this.background = background;
 		}
 
-		/**
-		 * 
-		 */
 		public void actionPerformed(ActionEvent e) {
 			if (e.getSource() instanceof mxGraphComponent)
 			{
-				mxGraphComponent graphComponent = (mxGraphComponent) e
-						.getSource();
+				mxGraphComponent graphComponent = (mxGraphComponent) e.getSource();
 				mxGraph graph = graphComponent.getGraph();
 				mxCodec codec = new mxCodec();
-				Document doc = mxUtils.loadDocument(EditorActions.class
-						.getResource(stylesheet).toString());
-
-				if (doc != null)
-				{
-					codec.decode(doc.getDocumentElement(),
-							graph.getStylesheet());
-					graph.refresh();
+				Document doc = mxUtils.loadDocument(EditorActions.class.getResource(stylesheet).toString());
+				if (doc != null) {
+					try {
+						graph.getModel().beginUpdate();
+						codec.decode(doc.getDocumentElement(), graph.getStylesheet());
+						graphComponent.setPageBackgroundColor(background);
+						graphComponent.getViewport().setOpaque(true);
+						graphComponent.getViewport().setBackground(background);
+					} finally {
+						graph.getModel().endUpdate();
+						graph.refresh();
+						// somehow changes on label spacing don't apply fully with certain styles!?
+						// HACK: update manually all the cell sizes
+						graph.getModel().beginUpdate();
+						try {
+							for (Object cell : mxGraphModel.getChildren(graph.getModel(), graph.getDefaultParent()))
+								graph.updateCellSize(cell);
+						}
+						finally {
+							graph.getModel().endUpdate();
+						}
+					}
 				}
 			}
 		}
@@ -1914,6 +1920,7 @@ public class EditorActions
 
 				} else if (value.trim().isEmpty()) {
 					graphComponent.setBackgroundImage(null);
+					graphComponent.getGraph().repaint();
 					System.out.println("Background image removed");
 					return;
 				} else if (!(value.startsWith("http") || value.startsWith("www"))) {
@@ -2035,7 +2042,7 @@ public class EditorActions
 		private final String[] shapes = {mxConstants.SHAPE_RECTANGLE, mxConstants.SHAPE_DOUBLE_RECTANGLE,
 				mxConstants.SHAPE_ELLIPSE, mxConstants.SHAPE_DOUBLE_ELLIPSE, mxConstants.SHAPE_TRIANGLE,
 				mxConstants.SHAPE_RHOMBUS, mxConstants.SHAPE_HEXAGON, mxConstants.SHAPE_CYLINDER,
-				mxConstants.SHAPE_ACTOR, mxConstants.SHAPE_CLOUD};
+				mxConstants.SHAPE_ACTOR, mxConstants.SHAPE_CLOUD, mxConstants.NONE};
 		/**
 		 *
 		 */
