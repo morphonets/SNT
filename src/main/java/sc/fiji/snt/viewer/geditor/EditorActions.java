@@ -30,7 +30,9 @@ import org.scijava.util.ColorRGB;
 import org.w3c.dom.Document;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
+import sc.fiji.snt.analysis.graph.SNTGraph;
 import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.NewGraphOptionsCmd;
 import sc.fiji.snt.viewer.OBJMesh;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -2221,6 +2223,34 @@ public class EditorActions
 			}
 		}
 
+	}
+
+	public static class ScaleEdgeWeightsAction extends AbstractAction {
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			if (e.getSource() instanceof SNTGraphComponent) {
+				String result = JOptionPane.showInputDialog(null, "Scale factor");
+				if (result == null) {
+					return;
+				}
+				double scale = Double.parseDouble(result);
+				if (Double.isNaN(scale)) {
+					GuiUtils.errorPrompt("Invalid scale factor");
+					return;
+				}
+				SNTGraphComponent graphComponent = (SNTGraphComponent) e.getSource();
+				@SuppressWarnings("unchecked")
+				SNTGraphAdapter<Object, DefaultWeightedEdge> graph
+						= (SNTGraphAdapter<Object, DefaultWeightedEdge>) graphComponent.getGraph();
+				SNTGraph<Object, DefaultWeightedEdge> sntGraph = graph.getSourceGraph();
+				for (DefaultWeightedEdge edge : graph.getEdgeToCellMap().keySet()) {
+					double newWeight = sntGraph.getEdgeWeight(edge) * scale;
+					sntGraph.setEdgeWeight(edge, newWeight);
+				}
+				graph.refresh();
+			}
+		}
 	}
 
 	private static boolean noCellsError(final ActionEvent e, final String cmdName, final mxGraph graph) {

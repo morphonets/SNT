@@ -337,6 +337,8 @@ public class EditorMenuBar extends JMenuBar
 		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("moveEdgeLabels"), "EdgeLabelsMovable"));
 		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("moveVertexLabels"), "VertexLabelsMovable"));
 		submenu.addSeparator();
+		submenu.add(editor.bind("Scale Edge Weights...", new EditorActions.ScaleEdgeWeightsAction()));
+		submenu.addSeparator();
 		//submenu.add(new EditorActions.TogglePropertyItem(graphComponent.getGraphHandler(), mxResources.get("imagePreview"), "ImagePreview"));
 		final TogglePropertyItem mitem = new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("handleReturn"), "EnterStopsCellEditing");
 		mitem.setToolTipText("If unselected, editing terminates on Ctrl + Enter");
