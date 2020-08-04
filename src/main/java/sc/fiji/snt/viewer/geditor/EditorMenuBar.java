@@ -32,14 +32,9 @@ import org.scijava.Context;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.analysis.graph.SNTGraph;
-import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
-import sc.fiji.snt.viewer.OBJMesh;
-import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.viewer.geditor.EditorActions.TogglePropertyItem;
 import sc.fiji.snt.viewer.geditor.GraphEditor.CmdRunner;
 
@@ -63,7 +58,7 @@ public class EditorMenuBar extends JMenuBar
 
 	public enum AnalyzeType
 	{
-		PROPERTIES, COLOR_CODING, EDGE_SCALING, COMPLEMENTARY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE,
+		PROPERTIES, COLOR_CODING, EDGE_WIDTH_SCALING, COMPLEMENTARY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE,
 		ONE_SPANNING_TREE, GET_CUT_VERTEXES, GET_CUT_EDGES, GET_SOURCES, GET_SINKS,
 		PLANARITY, SPANNING_TREE, FLOYD_ROY_WARSHALL, FIND_CYCLES
 	}
@@ -429,8 +424,8 @@ public class EditorMenuBar extends JMenuBar
 //		menu.add(editor.bind("Reset Style", new InsertGraph(GraphType.RESET_STYLE, aGraph)));
 
 		menu = add(new JMenu("Analyze"));
-		menu.add(editor.bind("Color coding...", new AnalyzeGraph(AnalyzeType.COLOR_CODING, aGraph, context)));
-		menu.add(editor.bind("Edge Scaling...", new AnalyzeGraph(AnalyzeType.EDGE_SCALING, aGraph, context)));
+		menu.add(editor.bind("Color Coding...", new AnalyzeGraph(AnalyzeType.COLOR_CODING, aGraph, context)));
+		menu.add(editor.bind("Scale Edge Width...", new AnalyzeGraph(AnalyzeType.EDGE_WIDTH_SCALING, aGraph, context)));
 		menu.addSeparator();
 //		menu.add(editor.bind("BFS Directed", new InsertGraph(GraphType.BFS_DIR, aGraph)));
 //		menu.add(editor.bind("BFS Undirected", new InsertGraph(GraphType.BFS_UNDIR, aGraph)));
@@ -1116,7 +1111,7 @@ public class EditorMenuBar extends JMenuBar
 				{
 					doColorCoding();
 				}
-				else if (analyzeType == AnalyzeType.EDGE_SCALING) {
+				else if (analyzeType == AnalyzeType.EDGE_WIDTH_SCALING) {
 					doEdgeScaling();
 				}
 				else if (analyzeType == AnalyzeType.COMPLEMENTARY)
