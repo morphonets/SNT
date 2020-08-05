@@ -422,6 +422,10 @@ public class EditorMenuBar extends JMenuBar
 //		menu.addSeparator();
 //		menu.add(editor.bind("Simple Random", new InsertGraph(GraphType.SIMPLE_RANDOM, aGraph)));
 //		menu.add(editor.bind("Simple Random Tree", new InsertGraph(GraphType.SIMPLE_RANDOM_TREE, aGraph)));
+//		menu.add(editor.bind("BFS Directed", new InsertGraph(GraphType.BFS_DIR, aGraph)));
+//		menu.add(editor.bind("BFS Undirected", new InsertGraph(GraphType.BFS_UNDIR, aGraph)));
+//		menu.add(editor.bind("DFS Directed", new InsertGraph(GraphType.DFS_DIR, aGraph)));
+//		menu.add(editor.bind("DFS Undirected", new InsertGraph(GraphType.DFS_UNDIR, aGraph)))
 //		menu.addSeparator();
 //		menu.add(editor.bind("Reset Style", new InsertGraph(GraphType.RESET_STYLE, aGraph)));
 
@@ -431,15 +435,11 @@ public class EditorMenuBar extends JMenuBar
 		menu.add(editor.bind("Scale Edge Weights...", new EditorActions.ScaleEdgeWeightsAction()));
 		menu.add(editor.bind("Scale Edge Widths...", new AnalyzeGraph(AnalyzeType.EDGE_WIDTH_SCALING, aGraph, context)));
 		menu.addSeparator();
-//		menu.add(editor.bind("BFS Directed", new InsertGraph(GraphType.BFS_DIR, aGraph)));
-//		menu.add(editor.bind("BFS Undirected", new InsertGraph(GraphType.BFS_UNDIR, aGraph)));
-//		menu.add(editor.bind("DFS Directed", new InsertGraph(GraphType.DFS_DIR, aGraph)));
-//		menu.add(editor.bind("DFS Undirected", new InsertGraph(GraphType.DFS_UNDIR, aGraph)));
+
 		menu.add(editor.bind("Complementary", new AnalyzeGraph(AnalyzeType.COMPLEMENTARY, aGraph, context)));
-//		menu.add(editor.bind("Dijkstra", new InsertGraph(GraphType.DIJKSTRA, aGraph)));
+		menu.add(editor.bind("Dijkstra", new InsertGraph(GraphType.DIJKSTRA, aGraph)));
 //		menu.add(editor.bind("Bellman-Ford", new InsertGraph(GraphType.BELLMAN_FORD, aGraph)));
 		menu.add(editor.bind("Floyd-Roy-Warshall", new AnalyzeGraph(AnalyzeType.FLOYD_ROY_WARSHALL, aGraph, context)));
-		menu.add(editor.bind("Get Components", new AnalyzeGraph(AnalyzeType.COMPONENTS, aGraph, context)));
 //		menu.add(editor.bind("Make Connected", new AnalyzeGraph(AnalyzeType.MAKE_CONNECTED, aGraph)));
 //		menu.add(editor.bind("Make Simple", new AnalyzeGraph(AnalyzeType.MAKE_SIMPLE, aGraph)));
 		menu.add(editor.bind("One Spanning Tree", new AnalyzeGraph(AnalyzeType.ONE_SPANNING_TREE, aGraph, context)));
@@ -448,13 +448,18 @@ public class EditorMenuBar extends JMenuBar
 //		menu.add(editor.bind("Indegree", new InsertGraph(GraphType.INDEGREE, aGraph)));
 //		menu.add(editor.bind("Outdegree", new InsertGraph(GraphType.OUTDEGREE, aGraph)));
 //		menu.add(editor.bind("Is cut vertex", new InsertGraph(GraphType.IS_CUT_VERTEX, aGraph)));
-//		menu.add(editor.bind("Get cut vertices", new AnalyzeGraph(AnalyzeType.GET_CUT_VERTEXES, aGraph)));
-//		menu.add(editor.bind("Get cut edges", new AnalyzeGraph(AnalyzeType.GET_CUT_EDGES, aGraph)));
 		menu.addSeparator();
-		menu.add(editor.bind("List Graph Properties", new AnalyzeGraph(AnalyzeType.PROPERTIES, aGraph, context)));
-		menu.add(editor.bind("Get Sources", new AnalyzeGraph(AnalyzeType.GET_SOURCES, aGraph, context)));
-		menu.add(editor.bind("Get Sinks", new AnalyzeGraph(AnalyzeType.GET_SINKS, aGraph, context)));
-		menu.add(editor.bind("Find Cycles", new AnalyzeGraph(AnalyzeType.FIND_CYCLES, aGraph, context)));
+
+		submenu = (JMenu) menu.add(new JMenu("Graph Properties"));
+		submenu.add(editor.bind("Summary", new AnalyzeGraph(AnalyzeType.PROPERTIES, aGraph, context)));
+		submenu.addSeparator();
+		submenu.add(editor.bind("List Components", new AnalyzeGraph(AnalyzeType.COMPONENTS, aGraph, context)));
+		submenu.add(editor.bind("List Cut Edges", new AnalyzeGraph(AnalyzeType.GET_CUT_EDGES, aGraph, context)));
+		submenu.add(editor.bind("List Cut Vertices", new AnalyzeGraph(AnalyzeType.GET_CUT_VERTEXES, aGraph, context)));
+		submenu.add(editor.bind("List Cycles", new AnalyzeGraph(AnalyzeType.FIND_CYCLES, aGraph, context)));
+		submenu.add(editor.bind("List Sources", new AnalyzeGraph(AnalyzeType.GET_SOURCES, aGraph, context)));
+		submenu.add(editor.bind("List Sinks", new AnalyzeGraph(AnalyzeType.GET_SINKS, aGraph, context)));
+
 		menu.addSeparator();
 		menu.add(editor.bind("Show Rec. Viewer", new EditorActions.ShowInViewer3DAction(context.getService(CommandService.class))));
 	}

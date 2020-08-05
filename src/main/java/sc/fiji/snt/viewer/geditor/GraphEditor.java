@@ -358,9 +358,12 @@ public class GraphEditor extends JPanel
 
 	private void insertGraphCriteriaPanel() {
 
+		String metricTip = "<HTML><div WIDTH=500>The morphometric criteria used to define connectivity between brain areas";
+		String mintTresTip= "<HTML><div WIDTH=500>Connectiviy to a target area will only be considered if the chosen metric is above this value";
+		String maxDepthTip = "<HTML><div WIDTH=500> The highest ontology level to be considered when defining brain areas.";
+
 		JPanel panel = new JPanel(new GridBagLayout());
 		libraryPane.add("Graph Criteria", panel);
-
 		GridBagConstraints c = new GridBagConstraints();
 		c.fill = GridBagConstraints.HORIZONTAL;
 		// Row 1: header
@@ -375,25 +378,32 @@ public class GraphEditor extends JPanel
 		c.gridy++;
 		c.gridx = 0;
 		JLabel label = new JLabel("Metric:");
+		label.setToolTipText(metricTip);
 		panel.add(label, c);
 		c.gridx = 1;
 		label = new JLabel("Min. Threshold:");
+		label.setToolTipText(mintTresTip);
 		panel.add(label, c);
 		c.gridx = 2;
 		label = new JLabel("Max. Ont. Depth:");
+		label.setToolTipText(maxDepthTip);
 		panel.add(label, c);
 
 		// Row 3: annot. graph fields
 		c.gridy++;
 		c.gridx = 0;
 		annotationMetricJCombo = new JComboBox<>(AnnotationGraph.getMetrics());
+		annotationMetricJCombo.setToolTipText(metricTip);
 		panel.add(annotationMetricJCombo, c);
 		annotationThresholdField = new JFormattedTextField(NumberFormat.getNumberInstance());
+		annotationThresholdField.setToolTipText(mintTresTip);
 		annotationThresholdField.setValue(new Double(5));
 		annotationThresholdField.setColumns(8);
+
 		c.gridx++;
 		panel.add(annotationThresholdField, c);
 		annotationDepthField = new JFormattedTextField(NumberFormat.getNumberInstance());
+		annotationDepthField.setToolTipText(maxDepthTip);
 		annotationDepthField.setValue(new Integer(5));
 		annotationDepthField.setColumns(8);
 		c.gridx++;
@@ -804,19 +814,19 @@ public class GraphEditor extends JPanel
 	void about() {
 		JFrame frame = (JFrame) SwingUtilities.windowForComponent(this);
 		if (frame != null) {
-			String msg = "<html><p><b>Graph Viewer</b></p>" //
+			String msg = "<p><b>Graph Viewer</b></p>" //
 					+ "<p>" //
 					+ "Graph Viewer is SNT&#39;s graph visualization tool built around " //
 					+ "<a href='https://jgrapht.org/'>JGraphT</a> and <a href='https://github.com/jgraph/jgraphx'>JGraphX</a>." //
 					+ "</p><p>" //
 					+ "The GUI relies heavily on a JGraphX <em>Graph Editor</em> demo written by Gaudenz Alder and others at " //
-					+ "JGraph Ltd between (2001--2014) released under the " //
+					+ "JGraph Ltd between 2001&mdash;2014, and released under the " //
 					+ "<a href='https://github.com/jgraph/jgraphx/blob/master/license.txt'>BSD license</a>. " //
 					+ "</p><p>" //
 					+ "Special thanks to JeanYves Tinevez for writing JGraphT/JGraphX adapters and " //
 					+ "Vladimir Sitnikov for making JGraphX easily available on Maven Central." //
-					+ "</p></html>";
-			sc.fiji.snt.gui.GuiUtils.showHTMLDialog(msg, "About Graph Viewer");
+					+ "</p>";
+			GuiUtils.showHTMLDialog(msg, "About Graph Viewer");
 		}
 	}
 
@@ -826,7 +836,7 @@ public class GraphEditor extends JPanel
 	public void exit() {
 		if (getConsole() != null) getConsole().restore();
 		final JFrame frame = (JFrame) SwingUtilities.windowForComponent(this);
-		if (frame != null && new sc.fiji.snt.gui.GuiUtils(this).getConfirmation("Exit Graph Viewer?", "Really Quit?")) {
+		if (frame != null && new GuiUtils(this).getConfirmation("Exit Graph Viewer?", "Really Quit?")) {
 			frame.dispose();
 		}
 	}
