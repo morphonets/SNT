@@ -922,6 +922,7 @@ public class EditorMenuBar extends JMenuBar
 			} else {
 				System.out.println("  Reconstruction Tree Graph: false");
 			}
+			System.out.println("");
 			editor.status("Done.");
 		}
 
@@ -1049,10 +1050,11 @@ public class EditorMenuBar extends JMenuBar
 		protected void doComponents() {
 			Object[][] components = mxGraphStructure.getGraphComponents(aGraph);
 			mxIGraphModel model = aGraph.getGraph().getModel();
+			System.out.println("Retrieving components:");
 
 			for (int i = 0; i < components.length; i++)
 			{
-				System.out.print("Component " + i + " :");
+				System.out.print("  Component " + i + " :");
 
 				for (int j = 0; j < components[i].length; j++)
 				{
@@ -1062,7 +1064,7 @@ public class EditorMenuBar extends JMenuBar
 				System.out.println(".");
 			}
 
-			System.out.println("Number of components: " + components.length);
+			System.out.println("Number of components: " + components.length + "\n");
 		}
 
 		protected void doMakeConnected() {
@@ -1081,13 +1083,15 @@ public class EditorMenuBar extends JMenuBar
 
 			Object[] cells = aGraph.getGraph().getChildVertices(aGraph.getGraph().getDefaultParent());
 			List<Object> selectionCells = new ArrayList<>();
+			System.out.println("Retrieving source nodes:");
 			for (Object c : cells) {
 				mxICell mxc = (mxICell) c;
 				if (aGraph.getGraph().getOutgoingEdges(mxc).length > 0) {
-					System.out.println("Source: " + aGraph.getGraph().getModel().getValue(mxc));
+					System.out.println("  Source: " + aGraph.getGraph().getModel().getValue(mxc));
 					selectionCells.add(mxc);
 				}
 			}
+			System.out.println("");
 			if (!selectionCells.isEmpty()) {
 				aGraph.getGraph().setSelectionCells(selectionCells);
 			}
@@ -1096,16 +1100,41 @@ public class EditorMenuBar extends JMenuBar
 		protected void doGetSinks() {
 			Object[] cells = aGraph.getGraph().getChildVertices(aGraph.getGraph().getDefaultParent());
 			List<Object> selectionCells = new ArrayList<>();
+			System.out.println("Retrieving sink nodes (nodes without emerging edges):");
 			for (Object c : cells) {
 				mxICell mxc = (mxICell) c;
 				if (aGraph.getGraph().getOutgoingEdges(mxc).length == 0) {
-					System.out.println("Sink: " + aGraph.getGraph().getModel().getValue(mxc));
+					System.out.println("  Sink: " + aGraph.getGraph().getModel().getValue(mxc));
 					selectionCells.add(mxc);
 				}
 			}
+			System.out.println("");
 			if (!selectionCells.isEmpty()) {
 				aGraph.getGraph().setSelectionCells(selectionCells);
 			}
+		}
+
+		private void doCutEdges() throws ClassCastException {
+			Object[] cutEdges = mxGraphStructure.getCutEdges(aGraph);
+			System.out.print("Retrieving cut edges: ");
+			mxIGraphModel model = aGraph.getGraph().getModel();
+			for (int i = 0; i < cutEdges.length; i++)
+			{
+				System.out.println(" CE: " + Integer.parseInt((String) model.getValue(aGraph.getTerminal(cutEdges[i], true))) + "-"
+						+ Integer.parseInt((String) model.getValue(aGraph.getTerminal(cutEdges[i], false))));
+			}
+
+			System.out.println("Done. " + cutEdges.length + " CE(s) found.\n");
+		}
+
+		private void doCutVertices() throws ClassCastException{
+			Object[] cutVertices = mxGraphStructure.getCutVertices(aGraph);
+			System.out.print("Retrieving cut vertices: ");
+			mxIGraphModel model = aGraph.getGraph().getModel();
+			for (int i = 0; i < cutVertices.length; i++) {
+				System.out.println("  CV: " + model.getValue(cutVertices[i]));
+			}
+			System.out.println("Done. " + cutVertices.length + " cv(s) found.\n");
 		}
 
 		protected void doFindCycles() {
@@ -1114,14 +1143,14 @@ public class EditorMenuBar extends JMenuBar
 			JohnsonSimpleCycles<Object, DefaultWeightedEdge> jsc = new JohnsonSimpleCycles<>(graph);
 			List<List<Object>> cycleList = jsc.findSimpleCycles();
 			for (List<Object> cycle : cycleList) {
-				System.out.print("Cycle: ");
+				System.out.print("  Cycle: ");
 				for (Object vertex : cycle) {
 					System.out.print(vertex + " -> ");
 				}
 				System.out.print(cycle.get(0));
 				System.out.println();
 			}
-			System.out.println("Done...");
+			System.out.println("Done. " + cycleList.size() + " cyle(s) found.\n");
 		}
 
 		@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -1172,37 +1201,24 @@ public class EditorMenuBar extends JMenuBar
 					}
 					catch (StructuralException e1)
 					{
-						System.out.println("The graph must be simple and connected");
+						System.out.println("Spanning tree caculations require graph to be simple and connected (no self-loops and no multiple edges).\n");
 					}
 				}
 				else if (analyzeType == AnalyzeType.GET_CUT_VERTEXES)
 				{
-					Object[] cutVertices = mxGraphStructure.getCutVertices(aGraph);
-
-					System.out.print("Cut vertices of the graph are: [");
-					mxIGraphModel model = aGraph.getGraph().getModel();
-
-					for (int i = 0; i < cutVertices.length; i++)
-					{
-						System.out.print(" " + model.getValue(cutVertices[i]));
+					try {
+						doCutVertices();
+					} catch (ClassCastException ignored) {
+						System.out.println("Cut vertices cannot be retrieved for the current graph.\n");
 					}
-
-					System.out.println(" ]");
 				}
 				else if (analyzeType == AnalyzeType.GET_CUT_EDGES)
 				{
-					Object[] cutEdges = mxGraphStructure.getCutEdges(aGraph);
-
-					System.out.print("Cut edges of the graph are: [");
-					mxIGraphModel model = aGraph.getGraph().getModel();
-
-					for (int i = 0; i < cutEdges.length; i++)
-					{
-						System.out.print(" " + Integer.parseInt((String) model.getValue(aGraph.getTerminal(cutEdges[i], true))) + "-"
-								+ Integer.parseInt((String) model.getValue(aGraph.getTerminal(cutEdges[i], false))));
+					try {
+						doCutEdges();
+					} catch (ClassCastException ignored) {
+						System.out.println("Cut edges cannot be retrieved for the current graph.\n");
 					}
-
-					System.out.println(" ]");
 				}
 				else if (analyzeType == AnalyzeType.GET_SOURCES)
 				{
@@ -1217,78 +1233,85 @@ public class EditorMenuBar extends JMenuBar
 				}
 				else if (analyzeType == AnalyzeType.FLOYD_ROY_WARSHALL)
 				{
-					
-					ArrayList<Object[][]> FWIresult = new ArrayList<Object[][]>();
-					try
-					{
-						//only this line is needed to get the result from Floyd-Roy-Warshall, the rest is code for displaying the result
-						FWIresult = mxTraversal.floydRoyWarshall(aGraph);
-
-						Object[][] dist = FWIresult.get(0);
-						Object[][] paths = FWIresult.get(1);
-						Object[] vertices = aGraph.getChildVertices(aGraph.getGraph().getDefaultParent());
-						int vertexNum = vertices.length;
-						System.out.println("Distances are:");
-
-						for (int i = 0; i < vertexNum; i++)
-						{
-							System.out.print("[");
-
-							for (int j = 0; j < vertexNum; j++)
-							{
-								System.out.print(" " + Math.round((Double) dist[i][j] * 100.0) / 100.0);
-							}
-
-							System.out.println("] ");
-						}
-
-						System.out.println("Path info:");
-
-						mxCostFunction costFunction = aGraph.getGenerator().getCostFunction();
-						mxGraphView view = aGraph.getGraph().getView();
-
-						for (int i = 0; i < vertexNum; i++)
-						{
-							System.out.print("[");
-
-							for (int j = 0; j < vertexNum; j++)
-							{
-								if (paths[i][j] != null)
-								{
-									System.out.print(" " + costFunction.getCost(view.getState(paths[i][j])));
-								}
-								else
-								{
-									System.out.print(" -");
-								}
-							}
-
-							System.out.println(" ]");
-						}
-
-						try
-						{
-							Object[] path = mxTraversal.getWFIPath(aGraph, FWIresult, vertices[0], vertices[vertexNum - 1]);
-							System.out.print("The path from " + costFunction.getCost(view.getState(vertices[0])) + " to "
-									+ costFunction.getCost((view.getState(vertices[vertexNum - 1]))) + " is:");
-
-							for (int i = 0; i < path.length; i++)
-							{
-								System.out.print(" " + costFunction.getCost(view.getState(path[i])));
-							}
-
-							System.out.println();
-						}
-						catch (StructuralException e1)
-						{
-							System.out.println(e1);
-						}
-					}
-					catch (StructuralException e2)
-					{
-						System.out.println(e2);
+					try {
+						doFloydRoyWarshall();
+					} catch (ClassCastException ignored) {
+						System.out.println("Floyd-Roy-Warshall (WFI) shortest path algorithm cannot be computed for the current graph.\n");
 					}
 				}
+			}
+		}
+
+		private void doFloydRoyWarshall() {
+			ArrayList<Object[][]> FWIresult = new ArrayList<Object[][]>();
+			try
+			{
+				//only this line is needed to get the result from Floyd-Roy-Warshall, the rest is code for displaying the result
+				FWIresult = mxTraversal.floydRoyWarshall(aGraph);
+
+				Object[][] dist = FWIresult.get(0);
+				Object[][] paths = FWIresult.get(1);
+				Object[] vertices = aGraph.getChildVertices(aGraph.getGraph().getDefaultParent());
+				int vertexNum = vertices.length;
+				System.out.println("Distances are:");
+
+				for (int i = 0; i < vertexNum; i++)
+				{
+					System.out.print("[");
+
+					for (int j = 0; j < vertexNum; j++)
+					{
+						System.out.print(" " + Math.round((Double) dist[i][j] * 100.0) / 100.0);
+					}
+
+					System.out.println("] ");
+				}
+
+				System.out.println("Path info:");
+
+				mxCostFunction costFunction = aGraph.getGenerator().getCostFunction();
+				mxGraphView view = aGraph.getGraph().getView();
+
+				for (int i = 0; i < vertexNum; i++)
+				{
+					System.out.print("[");
+
+					for (int j = 0; j < vertexNum; j++)
+					{
+						if (paths[i][j] != null)
+						{
+							System.out.print(" " + costFunction.getCost(view.getState(paths[i][j])));
+						}
+						else
+						{
+							System.out.print(" -");
+						}
+					}
+
+					System.out.println(" ]");
+				}
+
+				try
+				{
+					Object[] path = mxTraversal.getWFIPath(aGraph, FWIresult, vertices[0], vertices[vertexNum - 1]);
+					System.out.print("The path from " + costFunction.getCost(view.getState(vertices[0])) + " to "
+							+ costFunction.getCost((view.getState(vertices[vertexNum - 1]))) + " is:");
+
+					for (int i = 0; i < path.length; i++)
+					{
+						System.out.print(" " + costFunction.getCost(view.getState(path[i])));
+					}
+
+					System.out.println();
+				}
+				catch (StructuralException e1)
+				{
+					System.out.println(e1);
+				}
+			}
+			catch (StructuralException e2)
+			{
+				System.out.println(e2);
 			}
 		}
 	}
