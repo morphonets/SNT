@@ -72,8 +72,9 @@ public class GraphRecViewerCmd extends DynamicCommand {
                     .map(c -> adapter.getCellToVertexMap().get(c))
                     .collect(Collectors.toSet());
         }
-        int maxDepth = annotations.stream().mapToInt(BrainAnnotation::getOntologyDepth).max().orElse(-1);
+
         AnnotationGraph annGraph = (AnnotationGraph) adapter.getSourceGraph();
+        int maxDepth = annGraph.getMaxOntologyDepth();
         List<Tree> trees = annGraph.getTrees();
         Map<BrainAnnotation, List<Tree>> treeMap = new HashMap<>();
         if (colorMetric.equals(COLOR_SOMA_MESH) && trees != null) {
