@@ -90,7 +90,7 @@ public class EditorPopupMenu extends JPopupMenu
 				.getSelectAllAction()));
 
 		addSeparator();
-		add(editor.bind("Select all descendants...", new AbstractAction() {
+		add(editor.bind("Select All Descendants...", new AbstractAction() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
 				mxAnalysisGraph aGraph = new mxAnalysisGraph();
