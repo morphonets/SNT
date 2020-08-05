@@ -215,7 +215,7 @@ public class EditorMenuBar extends JMenuBar
 		submenu.add(editor.bind(mxResources.get("pageBackground"), new EditorActions.PageBackgroundAction()));
 
 		submenu = (JMenu) menu.add(new JMenu("Graph"));
-		submenu.add(editor.bind("Graph Criteria...", new EditorActions.ChangeGraphAction(context.getService(CommandService.class))));
+		submenu.add(editor.bind("Graph Criteria...", new EditorActions.ChangeGraphAction(editor, context.getService(CommandService.class))));
 
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("layout")));
 
@@ -451,7 +451,8 @@ public class EditorMenuBar extends JMenuBar
 		menu.add(editor.bind("Get Sources", new AnalyzeGraph(AnalyzeType.GET_SOURCES, aGraph, context)));
 		menu.add(editor.bind("Get Sinks", new AnalyzeGraph(AnalyzeType.GET_SINKS, aGraph, context)));
 		menu.add(editor.bind("Find Cycles", new AnalyzeGraph(AnalyzeType.FIND_CYCLES, aGraph, context)));
-		menu.add(editor.bind("Show Rec. Viewer", new EditorActions.ShowInViewer3DAction(context.getService(CommandService.class))));
+		menu.addSeparator();
+		menu.add(editor.bind("Show Rec. Viewer", new EditorActions.ShowInViewer3DAction(context)));
 	}
 
 	private GuiUtils getGuiUtils() {

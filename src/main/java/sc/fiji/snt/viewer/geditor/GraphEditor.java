@@ -3,7 +3,10 @@ package sc.fiji.snt.viewer.geditor;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.Point;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -15,14 +18,20 @@ import java.awt.event.MouseWheelListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
+import java.text.NumberFormat;
 import java.util.List;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JComboBox;
+import javax.swing.JFormattedTextField;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -74,8 +83,11 @@ import com.mxgraph.view.mxStylesheet;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.analysis.TreeColorMapper;
+import sc.fiji.snt.analysis.graph.AnnotationGraph;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.Viewer2D;
+import sc.fiji.snt.viewer.geditor.EditorActions.ChangeGraphAction;
 
 public class GraphEditor extends JPanel
 {
@@ -105,7 +117,7 @@ public class GraphEditor extends JPanel
 	private JSplitPane bottomPanel;
 	protected EditorToolBar toolbar;
 	protected boolean animateLayoutChange = true;
-
+	private JComboBox<String> annotationMetricJCombo;
 
 	/**
 	 * Flag indicating whether the current graph has been modified 
@@ -154,6 +166,7 @@ public class GraphEditor extends JPanel
 		libraryPane = new JTabbedPane();
 		editorConsole = new EditorConsole();
 		insertConsole(getConsole());
+		insertGraphCriteriaPanel();
 		initColorLegend();
 
 		// Creates the split pane that contains the tabbed pane with
@@ -191,6 +204,10 @@ public class GraphEditor extends JPanel
 		installHandlers();
 		installListeners();
 		updateTitle();
+		if (graphComponent instanceof SNTGraphComponent) {
+			// update UI
+			((SNTGraphComponent)graphComponent).assignEditor(this);
+		}
 
 	}
 
@@ -228,6 +245,8 @@ public class GraphEditor extends JPanel
 			setModified(true);
 		}
 	};
+	private JFormattedTextField annotationThresholdField;
+	private JFormattedTextField annotationDepthField;
 
 	protected mxUndoManager createUndoManager()
 	{
@@ -301,6 +320,86 @@ public class GraphEditor extends JPanel
 	private void initColorLegend() {
 		if (legendPanel == null)  legendPanel = getNoLegendPanel();
 		libraryPane.add("Legend", legendPanel);
+	}
+
+	protected void refresh() {
+		if (graphComponent instanceof AnnotationGraphComponent) {
+			AnnotationGraphAdapter adapter = (AnnotationGraphAdapter) ((AnnotationGraphComponent) graphComponent)
+					.getGraph();
+			AnnotationGraph graph = adapter.getAnnotationGraph();
+			SwingUtilities.invokeLater(() -> {
+				annotationMetricJCombo.setSelectedItem(graph.getMetric());
+				annotationThresholdField.setValue(graph.getThreshold());
+				annotationDepthField.setValue(graph.getMaxOntologyDepth());
+			});
+		}
+		toolbar.refresh();
+	}
+
+	private void insertGraphCriteriaPanel() {
+
+		JPanel panel = new JPanel(new GridBagLayout());
+		libraryPane.add("Graph Criteria", panel);
+
+		GridBagConstraints c = new GridBagConstraints();
+		c.fill = GridBagConstraints.HORIZONTAL;
+		// Row 1: header
+		c.gridx = 0;
+		c.gridy = 0;
+		c.insets.bottom = getDefaultFontSizeInGUI() / 2;
+		GuiUtils.addSeparator(panel, "Annotation Graphs:", false, c);
+		c.insets.bottom = 0;
+		c.insets.top = 0;
+
+		// Row 2: labels
+		c.gridy++;
+		c.gridx = 0;
+		JLabel label = new JLabel("Metric:");
+		panel.add(label, c);
+		c.gridx = 1;
+		label = new JLabel("Threshold:");
+		panel.add(label, c);
+		c.gridx = 2;
+		label = new JLabel("Ont. Depth:");
+		panel.add(label, c);
+
+		// Row 3: annot. graph fields
+		c.gridy++;
+		c.gridx = 0;
+		annotationMetricJCombo = new JComboBox<>(AnnotationGraph.getMetrics());
+		panel.add(annotationMetricJCombo, c);
+		annotationThresholdField = new JFormattedTextField(NumberFormat.getNumberInstance());
+		annotationThresholdField.setValue(new Double(5));
+		annotationThresholdField.setColumns(8);
+		c.gridx++;
+		panel.add(annotationThresholdField, c);
+		annotationDepthField = new JFormattedTextField(NumberFormat.getNumberInstance());
+		annotationDepthField.setValue(new Integer(5));
+		annotationDepthField.setColumns(4);
+		c.gridx++;
+		panel.add(annotationDepthField, c);
+		JButton applyButton = new JButton("Apply");
+		applyButton.addActionListener( e-> {
+			ChangeGraphAction changeGraphAction = new EditorActions.ChangeGraphAction(this, 
+					(String) annotationMetricJCombo.getSelectedItem(),
+					((Number) annotationThresholdField.getValue()).doubleValue(),
+					((Number) annotationDepthField.getValue()).intValue());
+			changeGraphAction.actionPerformed(e);
+			
+		});
+		c.gridx++;
+		panel.add(applyButton, c);
+//
+//		// Row 4: header
+//		c.gridx = 0;
+//		c.gridy++;
+//		GuiUtils.addSeparator(panel, "Trees:", true, c);
+//
+//		// Row 5: Tree graph options
+//		c.gridx = 0;
+//		c.gridy++;
+//		JCheckBox simplify = new JCheckBox("Simplify");
+//		panel.add(simplify, c);
 	}
 
 	/**

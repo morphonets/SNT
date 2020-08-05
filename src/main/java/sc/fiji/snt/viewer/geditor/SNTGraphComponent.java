@@ -5,6 +5,7 @@ import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.swing.view.mxCellEditor;
 import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.view.mxGraphView;
+
 import org.scijava.Context;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
@@ -31,6 +32,8 @@ public class SNTGraphComponent extends mxGraphComponent {
     protected final SNTGraphAdapter<?, ?> adapter;
     protected File saveDir;
 	private boolean spaceDown = false;
+
+	private GraphEditor editor;
 
     protected SNTGraphComponent(SNTGraphAdapter<?, ?> adapter, Context context) {
         super(adapter);
@@ -173,4 +176,33 @@ public class SNTGraphComponent extends mxGraphComponent {
         transformer.transform(input, output);
     }
 
+	/**
+	 * Assigns an editor. Once and editor has been assigned calling
+	 * {@link #refresh()} will also refresh the editor.
+	 * 
+	 * @param editor the assigned editor
+	 */
+    protected void assignEditor(GraphEditor editor) {
+    	this.editor = editor;
+    }
+ 
+	public void replaceGraph(final AnnotationGraphAdapter adapter, final boolean restoreParameters) {
+		if (restoreParameters) {
+			adapter.setStylesheet(getGraph().getStylesheet());
+			final double existingScale = getGraph().getView().getScale();
+			setGraph(adapter);
+			zoomTo(existingScale, isCenterZoom());
+		} else {
+			setGraph(adapter);
+		}
+		refresh();
+		if (editor != null) editor.status("Graph updated.. ");
+	}
+
+    @Override
+	public void refresh() {
+    	// If and editor exists, notify it of graph changes for GUI updates
+		if (editor != null) editor.refresh();
+		super.refresh();
+	}
 }

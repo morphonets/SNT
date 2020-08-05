@@ -6,6 +6,7 @@ import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.viewer.GraphViewer;
 
 import java.util.List;
 import java.util.*;
@@ -25,6 +26,9 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
     };
 
     private Collection<Tree> treeCollection;
+	private String metric;
+	private double threshold;
+	private int maxOntologyDepth;
 
     protected AnnotationGraph() {
         super(AnnotationWeightedEdge.class);
@@ -46,6 +50,10 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
         if (maxOntologyDepth < 0) {
             maxOntologyDepth = 0;
         }
+        this.metric = metric;
+        this.threshold = threshold;
+        this.maxOntologyDepth = maxOntologyDepth;
+       
         switch (metric) {
             case TIPS:
                 init_tips(trees, (int)threshold, maxOntologyDepth);
@@ -264,7 +272,19 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
      * @return a reference to the displayed window.
      */
     protected void show() {
-        // TODO
+        new GraphViewer(this).show();
     }
+
+	public int getMaxOntologyDepth() {
+		return maxOntologyDepth;
+	}
+
+	public double getThreshold() {
+		return threshold;
+	}
+
+	public String getMetric() {
+		return metric;
+	}
 
 }
