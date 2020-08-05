@@ -32,9 +32,13 @@ import org.scijava.Context;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.graph.AnnotationGraph;
+import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SNTGraph;
+import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
+import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.geditor.EditorActions.TogglePropertyItem;
 import sc.fiji.snt.viewer.geditor.GraphEditor.CmdRunner;
 
@@ -892,6 +896,31 @@ public class EditorMenuBar extends JMenuBar
 				System.out.println("  Regularity: " + regularity);
 			} catch (StructuralException e1) {
 				System.out.println("  Regularity: irregular");
+			}
+
+			if (component instanceof AnnotationGraphComponent) {
+				AnnotationGraphAdapter adapter = (AnnotationGraphAdapter) ((AnnotationGraphComponent) component)
+						.getGraph();
+				AnnotationGraph graph = adapter.getAnnotationGraph();
+				System.out.println(String.format("  No. vertices: %s", graph.vertexSet().size()));
+				System.out.println(String.format("  No. edges: %s", graph.edgeSet().size()));
+				System.out.println(String.format("  Annotation Graph: true [metric: %s, thresh.: %.2f, max. ont. depth: %s]", 
+						graph.getMetric(), graph.getThreshold(), graph.getMaxOntologyDepth()));
+				System.out.println(String.format("  Sum of edge weights: %.4f", graph.sumEdgeWeights()));
+			} else {
+				System.out.println("  Annotation Graph: false");
+			}
+			if (component instanceof TreeGraphComponent) {
+				TreeGraphAdapter adapter = (TreeGraphAdapter) ((TreeGraphComponent) component).getGraph();
+				SNTGraph<SWCPoint, SWCWeightedEdge> graph = adapter.cGraph;
+				if ( graph instanceof DirectedWeightedGraph) {
+					DirectedWeightedGraph dwGraph = (DirectedWeightedGraph) graph;
+					System.out.println(String.format("  Reconstruction Tree Graph: true [n. vertices: %s, n. branch points: %s, n. tips: %s]", 
+							dwGraph.vertexSet().size(), dwGraph.getBPs().size(), dwGraph.getTips().size()));
+					System.out.println(String.format("  Sum of edge weights: %.4f", dwGraph.sumEdgeWeights()));
+				}
+			} else {
+				System.out.println("  Reconstruction Tree Graph: false");
 			}
 			editor.status("Done.");
 		}

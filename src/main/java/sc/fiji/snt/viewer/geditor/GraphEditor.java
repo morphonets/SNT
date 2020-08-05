@@ -377,10 +377,10 @@ public class GraphEditor extends JPanel
 		JLabel label = new JLabel("Metric:");
 		panel.add(label, c);
 		c.gridx = 1;
-		label = new JLabel("Threshold:");
+		label = new JLabel("Min. Threshold:");
 		panel.add(label, c);
 		c.gridx = 2;
-		label = new JLabel("Ont. Depth:");
+		label = new JLabel("Max. Ont. Depth:");
 		panel.add(label, c);
 
 		// Row 3: annot. graph fields
@@ -395,7 +395,7 @@ public class GraphEditor extends JPanel
 		panel.add(annotationThresholdField, c);
 		annotationDepthField = new JFormattedTextField(NumberFormat.getNumberInstance());
 		annotationDepthField.setValue(new Integer(5));
-		annotationDepthField.setColumns(4);
+		annotationDepthField.setColumns(8);
 		c.gridx++;
 		panel.add(annotationDepthField, c);
 		JButton applyButton = new JButton("Apply");
