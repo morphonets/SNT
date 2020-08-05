@@ -33,6 +33,7 @@ import org.scijava.table.Column;
 import org.scijava.table.DefaultGenericTable;
 import org.scijava.table.DefaultTableIOPlugin;
 import org.scijava.table.GenericTable;
+import org.scijava.table.Table;
 
 import sc.fiji.snt.SNTUtils;
 
@@ -56,7 +57,7 @@ public class SNTTable extends DefaultGenericTable {
 		super();
 		if (tableIO == null)
 			tableIO = new Context().getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
-		final GenericTable openedTable = tableIO.open(filePath);
+		final Table<?, ?> openedTable = tableIO.open(filePath);
 		for (int col = 0; col < openedTable.getColumnCount(); ++col) {
 			add(openedTable.get(col));
 		}
