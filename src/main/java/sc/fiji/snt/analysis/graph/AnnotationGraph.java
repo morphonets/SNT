@@ -252,7 +252,10 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
     }
 
     public List<Tree> getTrees() {
-        return new ArrayList<>(treeCollection);
+        if (treeCollection != null) {
+            return new ArrayList<>(treeCollection);
+        }
+        return null;
     }
 
     /**

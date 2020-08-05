@@ -25,7 +25,7 @@ package sc.fiji.snt.gui.cmds;
 import com.mxgraph.model.mxCell;
 
 import org.scijava.command.Command;
-import org.scijava.command.ContextCommand;
+import org.scijava.command.DynamicCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
@@ -38,24 +38,21 @@ import sc.fiji.snt.viewer.OBJMesh;
 import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.viewer.geditor.AnnotationGraphAdapter;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 
 @Plugin(type = Command.class, visible = false, label = "Show Graph in Rec. Viewer")
-public class GraphRecViewerCmd extends ContextCommand {
+public class GraphRecViewerCmd extends DynamicCommand {
 
-    public static final String COLOR_SOMA_MESH = "Soma compartment mesh";
-    public static final String COLOR_UNIQUE = "Color cells uniquely";
+    public static final String COLOR_SOMA_MESH = "Soma compartment (graph color)";
+    public static final String COLOR_UNIQUE = "Unique colors";
 
-    @Parameter( label = "Color by",
+    @Parameter( label = "Color Trees By",
             choices = {COLOR_SOMA_MESH, COLOR_UNIQUE}) // NB: we cannot use AnnotationGraph.getMetrics()  here
     private String colorMetric;
 
-    @Parameter(label= "Use Relative Opacity")
+    @Parameter(label= "Metric-based Mesh Opacity")
     private boolean useRelativeOpacity;
 
     @Parameter(label="adapter")
@@ -63,6 +60,7 @@ public class GraphRecViewerCmd extends ContextCommand {
 
     @Override
     public void run() {
+        if (adapter == null) cancel("Invalid adapter");
         Set<BrainAnnotation> annotations;
         Object[] selectionCells = adapter.getSelectionCells();
         if (selectionCells == null || selectionCells.length == 0) {
@@ -74,8 +72,25 @@ public class GraphRecViewerCmd extends ContextCommand {
                     .map(c -> adapter.getCellToVertexMap().get(c))
                     .collect(Collectors.toSet());
         }
-        List<Tree> trees = ((AnnotationGraph) adapter.getSourceGraph()).getTrees();
-        if (trees == null) trees = new ArrayList<>();
+        int maxDepth = annotations.stream().mapToInt(BrainAnnotation::getOntologyDepth).max().orElse(-1);
+        AnnotationGraph annGraph = (AnnotationGraph) adapter.getSourceGraph();
+        List<Tree> trees = annGraph.getTrees();
+        Map<BrainAnnotation, List<Tree>> treeMap = new HashMap<>();
+        if (colorMetric.equals(COLOR_SOMA_MESH) && trees != null) {
+            for (Tree tree : trees) {
+                BrainAnnotation rootAnnotation = tree.getRoot().getAnnotation();
+                if (rootAnnotation == null) continue;
+                BrainAnnotation adjustedAnn = rootAnnotation;
+                if (rootAnnotation.getOntologyDepth() > maxDepth) {
+                    int diff = maxDepth - rootAnnotation.getOntologyDepth();
+                    adjustedAnn = rootAnnotation.getAncestor(diff);
+                }
+                if (!treeMap.containsKey(adjustedAnn)) {
+                    treeMap.put(adjustedAnn, new ArrayList<>());
+                }
+                treeMap.get(adjustedAnn).add(tree);
+            }
+        }
         List<OBJMesh> meshes = new ArrayList<>();
         for (BrainAnnotation ann : annotations) {
             if (!ann.isMeshAvailable()) {
@@ -83,27 +98,42 @@ public class GraphRecViewerCmd extends ContextCommand {
                 continue;
             }
             OBJMesh mesh = ann.getMesh();
-            int aDepth = ann.getOntologyDepth();
-            for (Tree tree : trees) {
-                BrainAnnotation rootAnnotation = tree.getRoot().getAnnotation();
-                if (rootAnnotation == null) continue;
-                BrainAnnotation adjustedAnn = rootAnnotation;
-                if (rootAnnotation.getOntologyDepth() > aDepth) {
-                    int diff = aDepth - rootAnnotation.getOntologyDepth();
-                    adjustedAnn = rootAnnotation.getAncestor(diff);
-                }
-                if (adjustedAnn.id() == ann.id()) {
+            double transparency = 90; // default value
+            if (useRelativeOpacity && annGraph.getVertexValueMap().containsKey(ann)) {
+                transparency = mapValueToTransparency(annGraph.getVertexValue(ann));
+            }
+            mesh.setColor(adapter.getSourceGraph().getVertexColor(ann), transparency);
+            meshes.add(mesh);
+            if (colorMetric.equals(COLOR_SOMA_MESH)) {
+                List<Tree> annTrees = treeMap.get(ann);
+                if (annTrees == null || annTrees.isEmpty()) continue;
+                for (Tree tree : annTrees) {
                     tree.setColor(adapter.getSourceGraph().getVertexColor(ann));
                 }
             }
-            mesh.setColor(adapter.getSourceGraph().getVertexColor(ann), 85);
-            meshes.add(mesh);
         }
         Viewer3D viewer = new Viewer3D(getContext());
         viewer.add(meshes);
-        viewer.add(trees);
+        if (colorMetric.equals(COLOR_UNIQUE)) {
+            viewer.addTrees(trees, true);
+        } else if (colorMetric.equals(COLOR_SOMA_MESH)) {
+            viewer.addTrees(trees, false);
+        } else {
+            cancel("Unknown Tree coloring choice");
+        }
         viewer.show();
         viewer.updateView();
+    }
+
+    private double mapValueToTransparency(double value) {
+        // Opacity and Transparency expressed as percentages
+        // vertex values are normalized to 0-1 by default during color mapping.
+        double minOpacity = 2.0;
+        double maxOpacity = 40.0;
+        double minValue = 0.0;
+        double maxValue = 1.0;
+        double opacity = minOpacity + ( (maxOpacity - minOpacity) / (maxValue - minValue) ) * (value - minValue);
+        return 100.0 - opacity;
     }
 
     /* IDE debug method **/

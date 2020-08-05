@@ -63,4 +63,7 @@ public class SNTGraph<V, DefaultWeightedEdge> extends DefaultDirectedWeightedGra
         return edgeColorRGBMap;
     }
 
+    public Map<V, Double> getVertexValueMap() {
+        return vertexValueMap;
+    }
 }
