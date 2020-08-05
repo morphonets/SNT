@@ -41,6 +41,8 @@ import javax.swing.JToolBar;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.UIManager;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
@@ -303,15 +305,36 @@ public class GraphEditor extends JPanel
 	}
 
 	private void insertConsole(final EditorConsole editorConsole) {
-		libraryPane.add("Console", editorConsole);
+		final String regTitle = "<html>Console ";
+		final String higTitle = "<html><b>Console</b>";
+		int editorConsolePosition = libraryPane.getTabCount();
+		libraryPane.add(regTitle, editorConsole);
 
-		// Updates the widths of the palettes if the container size changes
-//		libraryPane.addComponentListener(new ComponentAdapter() {
-//			public void componentResized(final ComponentEvent e) {
-//				final int w = editorConsole.getWidth() - editorConsole.getWidth();
-//				editorConsole.setPreferredWidth(w);
-//			}
-//		});
+		// Highlight tab title if console contents changed and it does not have focus
+		editorConsole.getTextArea().getDocument().addDocumentListener(new DocumentListener() {
+
+			@Override
+			public void removeUpdate(final DocumentEvent e) {
+				// do nothing
+			}
+
+			@Override
+			public void insertUpdate(final DocumentEvent e) {
+				boolean highlight = editorConsolePosition != libraryPane.getSelectedIndex();
+				libraryPane.setTitleAt(editorConsolePosition, (highlight) ? higTitle : regTitle);
+			}
+
+			@Override
+			public void changedUpdate(final DocumentEvent arg0) {
+				// do nothing
+			}
+		});
+		// Reset tab title highlight if console tab has focus
+		libraryPane.addChangeListener(e -> {
+			if (editorConsolePosition == libraryPane.getSelectedIndex()) {
+				libraryPane.setTitleAt(editorConsolePosition, regTitle);
+			}
+		});
 	}
 
 	private void initColorLegend() {

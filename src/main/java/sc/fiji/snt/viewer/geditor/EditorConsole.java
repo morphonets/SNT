@@ -37,6 +37,10 @@ public class EditorConsole extends JPanel implements ActionListener {
 		assignPopupMenu();
 	}
 
+	protected JTextArea getTextArea() {
+		return ta;
+	}
+
 	private void assignPopupMenu() {
 		final JPopupMenu pMenu = new JPopupMenu();
 		addMenuItem(pMenu, "Cut");
