@@ -332,8 +332,6 @@ public class EditorMenuBar extends JMenuBar
 		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("moveEdgeLabels"), "EdgeLabelsMovable"));
 		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("moveVertexLabels"), "VertexLabelsMovable"));
 		submenu.addSeparator();
-		submenu.add(editor.bind("Scale Edge Weights...", new EditorActions.ScaleEdgeWeightsAction()));
-		submenu.addSeparator();
 		//submenu.add(new EditorActions.TogglePropertyItem(graphComponent.getGraphHandler(), mxResources.get("imagePreview"), "ImagePreview"));
 		final TogglePropertyItem mitem = new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("handleReturn"), "EnterStopsCellEditing");
 		mitem.setToolTipText("If unselected, editing terminates on Ctrl + Enter");
@@ -425,7 +423,9 @@ public class EditorMenuBar extends JMenuBar
 
 		menu = add(new JMenu("Analyze"));
 		menu.add(editor.bind("Color Coding...", new AnalyzeGraph(AnalyzeType.COLOR_CODING, aGraph, context)));
-		menu.add(editor.bind("Scale Edge Width...", new AnalyzeGraph(AnalyzeType.EDGE_WIDTH_SCALING, aGraph, context)));
+		menu.addSeparator();
+		menu.add(editor.bind("Scale Edge Weights...", new EditorActions.ScaleEdgeWeightsAction()));
+		menu.add(editor.bind("Scale Edge Widths...", new AnalyzeGraph(AnalyzeType.EDGE_WIDTH_SCALING, aGraph, context)));
 		menu.addSeparator();
 //		menu.add(editor.bind("BFS Directed", new InsertGraph(GraphType.BFS_DIR, aGraph)));
 //		menu.add(editor.bind("BFS Undirected", new InsertGraph(GraphType.BFS_UNDIR, aGraph)));
