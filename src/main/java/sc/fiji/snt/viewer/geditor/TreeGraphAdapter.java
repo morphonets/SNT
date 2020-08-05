@@ -70,6 +70,7 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
 		setKeepEdgesInBackground(true); // Edges will not appear above vertices
 		setResetEdgesOnConnect(true);
 		setEdgeLabelsMovable(true);
+		setCellColorsFromGraph();
 	}
 
 	@Override
@@ -126,7 +127,7 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
         if (mxc.isVertex() && mxc.getValue() instanceof SWCPoint) {
         	// NB: Once cell is displayed/edited we no longer can cast cell's
         	// value to a SWCPoint object!?
-        	return ((SWCPoint) mxc.getValue()).toString();
+        	return mxc.getValue().toString();
         }
         return getOriginalValueOfmxCell(mxc.getId());
     }

@@ -92,7 +92,7 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
         if (adapter == null) cancel("Input is null");
         cGraph = adapter.getSourceGraph();
         if (cGraph == null || cGraph.vertexSet().isEmpty()) cancel("Graph is invalid");
-        final GraphColorMapper colorizer = new GraphColorMapper(context());
+        final GraphColorMapper<Object, DefaultWeightedEdge> colorizer = new GraphColorMapper<>(context());
         int mappedState;
         SNTUtils.log("Color Coding Graph (" + measurementChoice + ") using " + lutChoice);
         try {

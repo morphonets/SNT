@@ -8,10 +8,10 @@ import org.scijava.plugin.Parameter;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.graph.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
+import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.geditor.AnnotationGraphAdapter;
 import sc.fiji.snt.viewer.geditor.AnnotationGraphComponent;
 import sc.fiji.snt.viewer.geditor.GraphEditor;
@@ -101,14 +101,16 @@ public class GraphViewer {
             Tree tree = new MouseLightLoader(id).getTree("axon");
             trees.add(tree);
         }
-        System.out.println(new TreeAnalyzer(trees.get(3)).getCableLength());
         //List<Tree> trees = ij.context().getService(SNTService.class).demoTrees();
-        final AnnotationGraph graph = new AnnotationGraph(trees, "branches", 5, 8);
+        //final AnnotationGraph graph = new AnnotationGraph(trees, "branches", 5, 8);
+        DirectedWeightedGraph graph = trees.get(0).getGraph(true);
+        GraphColorMapper<SWCPoint, SWCWeightedEdge> mapper = new GraphColorMapper<>(ij.context());
+        mapper.map(graph, GraphColorMapper.EDGE_WEIGHT, "Ice");
         //graph.filterEdgesByWeight(20);
         // graph.removeOrphanedNodes();
         GraphViewer graphViewer = new GraphViewer(graph);
         graphViewer.setContext(ij.context());
-        graphViewer.getEditor().setLegend("Ice.lut", "Metric", 0d, 1000000);
+        graphViewer.getEditor().setLegend("cool.lut", "Metric", 0d, 1000);
         graphViewer.show();
     }
 }

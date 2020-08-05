@@ -8,7 +8,6 @@ import org.jgrapht.alg.scoring.BetweennessCentrality;
 import org.jgrapht.alg.scoring.PageRank;
 import org.jgrapht.alg.shortestpath.GraphMeasurer;
 import org.jgrapht.graph.AsSubgraph;
-import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
@@ -19,7 +18,7 @@ import java.net.URL;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class GraphColorMapper extends ColorMapper {
+public class GraphColorMapper<V, DefaultWeightedEdge> extends ColorMapper {
     /**
      * Flag for {@value #BETWEENNESS_CENTRALITY} mapping.
      */
@@ -78,8 +77,8 @@ public class GraphColorMapper extends ColorMapper {
     @Parameter
     private LUTService lutService;
     private Map<String, URL> luts;
-    protected SNTGraph<Object, DefaultWeightedEdge> graph;
-    protected AsSubgraph<Object, DefaultWeightedEdge> subgraph;
+    protected SNTGraph<V, DefaultWeightedEdge> graph;
+    protected AsSubgraph<V, DefaultWeightedEdge> subgraph;
 
 
     public GraphColorMapper(final Context context) {
@@ -129,17 +128,17 @@ public class GraphColorMapper extends ColorMapper {
         return null;
     }
 
-    public int map(SNTGraph<Object, DefaultWeightedEdge> graph, final String measurement, final String lut) {
+    public int map(SNTGraph<V, DefaultWeightedEdge> graph, final String measurement, final String lut) {
         map(graph, new AsSubgraph<>(graph), measurement, getColorTable(lut));
         return mappedState;
     }
 
-    public int map(SNTGraph<Object, DefaultWeightedEdge> graph, final String measurement, final ColorTable colorTable) {
+    public int map(SNTGraph<V, DefaultWeightedEdge> graph, final String measurement, final ColorTable colorTable) {
         map(graph, new AsSubgraph<>(graph), measurement, colorTable);
         return mappedState;
     }
 
-    public int map(SNTGraph<Object, DefaultWeightedEdge> graph, AsSubgraph<Object, DefaultWeightedEdge> subgraph, final String measurement, final ColorTable colorTable) {
+    public int map(SNTGraph<V, DefaultWeightedEdge> graph, AsSubgraph<V, DefaultWeightedEdge> subgraph, final String measurement, final ColorTable colorTable) {
         this.graph = graph;
         this.subgraph = subgraph;
         mapToProperty(measurement, colorTable);
@@ -192,11 +191,11 @@ public class GraphColorMapper extends ColorMapper {
     }
 
     protected void mapToConnectivity(final ColorTable colorTable) {
-        BiconnectivityInspector<Object, DefaultWeightedEdge> inspector = new BiconnectivityInspector<>(subgraph);
-        Set<Graph<Object, DefaultWeightedEdge>> components = inspector.getConnectedComponents();
+        BiconnectivityInspector<V, DefaultWeightedEdge> inspector = new BiconnectivityInspector<>(subgraph);
+        Set<Graph<V, DefaultWeightedEdge>> components = inspector.getConnectedComponents();
         setMinMax(0, components.size());
         int idx = 0;
-        for (Graph<Object, DefaultWeightedEdge> comp : components) {
+        for (Graph<V, DefaultWeightedEdge> comp : components) {
             for (DefaultWeightedEdge edge : comp.edgeSet()) {
                 ColorRGB c = getColorRGB(idx);
                 graph.setEdgeColor(edge, c);
@@ -227,8 +226,8 @@ public class GraphColorMapper extends ColorMapper {
     }
 
     protected void mapToBetweennessCentrality(final ColorTable colorTable) {
-        BetweennessCentrality<Object, DefaultWeightedEdge> bc = new BetweennessCentrality<>(subgraph, false);
-        Map<Object, Double> scores = bc.getScores();
+        BetweennessCentrality<V, DefaultWeightedEdge> bc = new BetweennessCentrality<>(subgraph, false);
+        Map<V, Double> scores = bc.getScores();
         if (!minMaxSet) {
             double min = Double.MAX_VALUE;
             double max = -Double.MAX_VALUE;
@@ -238,7 +237,7 @@ public class GraphColorMapper extends ColorMapper {
             }
             setMinMax(min, max);
         }
-        for (Map.Entry<Object, Double> entry : scores.entrySet()) {
+        for (Map.Entry<V, Double> entry : scores.entrySet()) {
             ColorRGB c = getColorRGB(entry.getValue());
             graph.setVertexColor(entry.getKey(), c);
             graph.setVertexValue(entry.getKey(),entry.getValue() / getMinMax()[1]);
@@ -246,18 +245,18 @@ public class GraphColorMapper extends ColorMapper {
     }
 
     protected void mapToEccentricity(ColorTable colorTable) {
-        BiconnectivityInspector<Object, DefaultWeightedEdge> inspector = new BiconnectivityInspector<>(subgraph);
-        Set<Graph<Object, DefaultWeightedEdge>> components = inspector.getConnectedComponents();
-        List<Map<Object, Double>> eccentricityMaps = new ArrayList<>();
-        for (Graph<Object, DefaultWeightedEdge> comp : components) {
-            GraphMeasurer<Object, DefaultWeightedEdge> measurer = new GraphMeasurer<>(comp);
-            Map<Object, Double> scores = measurer.getVertexEccentricityMap();
+        BiconnectivityInspector<V, DefaultWeightedEdge> inspector = new BiconnectivityInspector<>(subgraph);
+        Set<Graph<V, DefaultWeightedEdge>> components = inspector.getConnectedComponents();
+        List<Map<V, Double>> eccentricityMaps = new ArrayList<>();
+        for (Graph<V, DefaultWeightedEdge> comp : components) {
+            GraphMeasurer<V, DefaultWeightedEdge> measurer = new GraphMeasurer<>(comp);
+            Map<V, Double> scores = measurer.getVertexEccentricityMap();
             eccentricityMaps.add(scores);
         }
         if (!minMaxSet) {
             double min = Double.MAX_VALUE;
             double max = -Double.MAX_VALUE;
-            for (Map<Object, Double> eMap : eccentricityMaps) {
+            for (Map<V, Double> eMap : eccentricityMaps) {
                 for (Double s : eMap.values()) {
                     if (s < min) {min = s;}
                     if (s > max) {max = s;}
@@ -265,8 +264,8 @@ public class GraphColorMapper extends ColorMapper {
             }
             setMinMax(min, max);
         }
-        for (Map<Object, Double> eMap : eccentricityMaps) {
-            for (Map.Entry<Object, Double> entry : eMap.entrySet()) {
+        for (Map<V, Double> eMap : eccentricityMaps) {
+            for (Map.Entry<V, Double> entry : eMap.entrySet()) {
                 ColorRGB c = getColorRGB(entry.getValue());
                 graph.setVertexColor(entry.getKey(), c);
                 graph.setVertexValue(entry.getKey(),entry.getValue() / getMinMax()[1]);
@@ -275,8 +274,8 @@ public class GraphColorMapper extends ColorMapper {
     }
 
     protected void mapToPageRank(final ColorTable colorTable) {
-        PageRank<Object, DefaultWeightedEdge> pr = new PageRank<>(subgraph);
-        Map<Object, Double> scores = pr.getScores();
+        PageRank<V, DefaultWeightedEdge> pr = new PageRank<>(subgraph);
+        Map<V, Double> scores = pr.getScores();
         if (!minMaxSet) {
             double min = Double.MAX_VALUE;
             double max = -Double.MAX_VALUE;
@@ -286,7 +285,7 @@ public class GraphColorMapper extends ColorMapper {
             }
             setMinMax(min, max);
         }
-        for (Map.Entry<Object, Double> entry : scores.entrySet()) {
+        for (Map.Entry<V, Double> entry : scores.entrySet()) {
             ColorRGB c = getColorRGB(entry.getValue());
             graph.setVertexColor(entry.getKey(), c);
             graph.setVertexValue(entry.getKey(),entry.getValue() / getMinMax()[1]);
@@ -297,14 +296,14 @@ public class GraphColorMapper extends ColorMapper {
         if (!minMaxSet) {
             double min = Double.MAX_VALUE;
             double max = -Double.MAX_VALUE;
-            for (Object vertex : subgraph.vertexSet()) {
+            for (V vertex : subgraph.vertexSet()) {
                 double d = subgraph.inDegreeOf(vertex);
                 if (d < min) {min = d;}
                 if (d > max) {max = d;}
             }
             setMinMax(min, max);
         }
-        for (Object vertex : subgraph.vertexSet()) {
+        for (V vertex : subgraph.vertexSet()) {
             ColorRGB c = getColorRGB(subgraph.inDegreeOf(vertex));
             graph.setVertexColor(vertex, c);
             graph.setVertexValue(vertex,subgraph.inDegreeOf(vertex) / getMinMax()[1]);
@@ -315,14 +314,14 @@ public class GraphColorMapper extends ColorMapper {
         if (!minMaxSet) {
             double min = Double.MAX_VALUE;
             double max = -Double.MAX_VALUE;
-            for (Object vertex : subgraph.vertexSet()) {
+            for (V vertex : subgraph.vertexSet()) {
                 double d = subgraph.outDegreeOf(vertex);
                 if (d < min) {min = d;}
                 if (d > max) {max = d;}
             }
             setMinMax(min, max);
         }
-        for (Object vertex : subgraph.vertexSet()) {
+        for (V vertex : subgraph.vertexSet()) {
             ColorRGB c = getColorRGB(subgraph.outDegreeOf(vertex));
             graph.setVertexColor(vertex, c);
             graph.setVertexValue(vertex,subgraph.outDegreeOf(vertex) / getMinMax()[1]);
@@ -333,14 +332,14 @@ public class GraphColorMapper extends ColorMapper {
         if (!minMaxSet) {
             double min = Double.MAX_VALUE;
             double max = -Double.MAX_VALUE;
-            for (Object vertex : subgraph.vertexSet()) {
+            for (V vertex : subgraph.vertexSet()) {
                 double sum = subgraph.incomingEdgesOf(vertex).stream().mapToDouble(e -> subgraph.getEdgeWeight(e)).sum();
                 if (sum < min) {min = sum;}
                 if (sum > max) {max = sum;}
             }
             setMinMax(min, max);
         }
-        for (Object vertex : subgraph.vertexSet()) {
+        for (V vertex : subgraph.vertexSet()) {
             double sum = subgraph.incomingEdgesOf(vertex).stream().mapToDouble(e -> subgraph.getEdgeWeight(e)).sum();
             ColorRGB c = getColorRGB(sum);
             graph.setVertexColor(vertex, c);
@@ -352,14 +351,14 @@ public class GraphColorMapper extends ColorMapper {
         if (!minMaxSet) {
             double min = Double.MAX_VALUE;
             double max = -Double.MAX_VALUE;
-            for (Object vertex : subgraph.vertexSet()) {
+            for (V vertex : subgraph.vertexSet()) {
                 double sum = subgraph.outgoingEdgesOf(vertex).stream().mapToDouble(e -> subgraph.getEdgeWeight(e)).sum();
                 if (sum < min) {min = sum;}
                 if (sum > max) {max = sum;}
             }
             setMinMax(min, max);
         }
-        for (Object vertex : subgraph.vertexSet()) {
+        for (V vertex : subgraph.vertexSet()) {
             double sum = subgraph.outgoingEdgesOf(vertex).stream().mapToDouble(e -> subgraph.getEdgeWeight(e)).sum();
             ColorRGB c = getColorRGB(sum);
             graph.setVertexColor(vertex, c);
