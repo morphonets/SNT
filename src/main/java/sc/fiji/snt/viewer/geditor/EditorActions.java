@@ -62,7 +62,6 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 /**
  * Copyright (c) 2001-2012, JGraph Ltd
@@ -2167,6 +2166,7 @@ public class EditorActions
 		}
 	}
 
+	@SuppressWarnings("serial")
 	public static class ShowInViewer3DAction extends AbstractAction {
 
 		private final CommandService cmdService;

@@ -5,7 +5,6 @@ import com.mxgraph.util.mxConstants;
 import org.jgrapht.ext.JGraphXAdapter;
 import org.scijava.util.ColorRGB;
 import sc.fiji.snt.analysis.graph.SNTGraph;
-import sc.fiji.snt.annotation.BrainAnnotation;
 
 import java.util.HashMap;
 import java.util.Map;

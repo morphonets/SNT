@@ -31,7 +31,6 @@ import com.mxgraph.util.mxConstants;
 
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
-import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.SWCPoint;
 
 

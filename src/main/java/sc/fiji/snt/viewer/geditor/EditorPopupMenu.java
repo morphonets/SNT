@@ -19,6 +19,7 @@ public class EditorPopupMenu extends JPopupMenu
 	 */
 	private static final long serialVersionUID = -3132749140550242191L;
 
+	@SuppressWarnings("serial")
 	public EditorPopupMenu(GraphEditor editor)
 	{
 

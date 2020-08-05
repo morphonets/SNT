@@ -80,7 +80,7 @@ public class GraphColorMapper extends ColorMapper {
     private Map<String, URL> luts;
     protected SNTGraph<Object, DefaultWeightedEdge> graph;
     protected AsSubgraph<Object, DefaultWeightedEdge> subgraph;
-    private final int internalCounter = 1;
+
 
     public GraphColorMapper(final Context context) {
         this();
