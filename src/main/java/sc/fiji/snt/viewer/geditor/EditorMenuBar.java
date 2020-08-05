@@ -452,7 +452,7 @@ public class EditorMenuBar extends JMenuBar
 		menu.add(editor.bind("Get Sinks", new AnalyzeGraph(AnalyzeType.GET_SINKS, aGraph, context)));
 		menu.add(editor.bind("Find Cycles", new AnalyzeGraph(AnalyzeType.FIND_CYCLES, aGraph, context)));
 		menu.addSeparator();
-		menu.add(editor.bind("Show Rec. Viewer", new EditorActions.ShowInViewer3DAction(context)));
+		menu.add(editor.bind("Show Rec. Viewer", new EditorActions.ShowInViewer3DAction(context.getService(CommandService.class))));
 	}
 
 	private GuiUtils getGuiUtils() {
