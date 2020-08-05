@@ -14,7 +14,6 @@ import com.mxgraph.swing.util.mxGraphActions;
 import com.mxgraph.util.*;
 import com.mxgraph.util.mxEventSource.mxIEventListener;
 import com.mxgraph.view.mxGraph;
-import com.mxgraph.view.mxGraphView;
 
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
@@ -26,7 +25,7 @@ public class EditorToolBar extends JToolBar
 	private static final long serialVersionUID = -8015443128436394471L;
 	private boolean ignoreZoomChange = false;
 	private final GraphEditor editor;
-
+	private JComboBox<String> zoomCombo;
 
 	public EditorToolBar(final GraphEditor editor, final int orientation)
 	{
@@ -60,61 +59,33 @@ public class EditorToolBar extends JToolBar
 		add(Box.createHorizontalGlue());
 
 		// Zoom controls
-		final mxGraphView view = editor.getGraphComponent().getGraph()
-				.getView();
-		final JComboBox<String> zoomCombo = new JComboBox<>(new String[] { "400%",
-				"200%", "150%", "100%", "75%", "50%", mxResources.get("page"),
-				mxResources.get("width"), mxResources.get("actualSize") });
-		zoomCombo.setToolTipText("Zoom levels. Arbitry levels accepted.");
-		zoomCombo.setEditable(true);
-		zoomCombo.setMaximumRowCount(9);
+		registerScaleTracker(); // will create zoomCombo;
 		add(zoomCombo);
-
-		// Sets the zoom in the zoom combo the current value
-		final mxIEventListener scaleTracker = (sender, evt) -> {
-			ignoreZoomChange = true;
-			try {
-				zoomCombo.setSelectedItem((int) Math.round(100 * view.getScale()) + "%");
-			} finally {
-				ignoreZoomChange = false;
-			}
-		};
-
-		// Installs the scale tracker to update the value in the combo box
-		// if the zoom is changed from outside the combo box
-		view.getGraph().getView().addListener(mxEvent.SCALE, scaleTracker);
-		view.getGraph().getView().addListener(mxEvent.SCALE_AND_TRANSLATE,
-				scaleTracker);
-
-		// Invokes once to sync with the actual zoom value
-		scaleTracker.invoke(null, null);
-
 		zoomCombo.addActionListener(e -> {
-			final mxGraphComponent graphComponent = editor.getGraphComponent();
-
 			// Zoomcombo is changed when the scale is changed in the diagram
 			// but the change is ignored here
 			if (!ignoreZoomChange) {
 				String zoom = zoomCombo.getSelectedItem().toString();
 
 				if (zoom.equals(mxResources.get("page"))) {
-					graphComponent.setPageVisible(true);
-					graphComponent.setZoomPolicy(mxGraphComponent.ZOOM_POLICY_PAGE);
+					getGraphComponent().setPageVisible(true);
+					getGraphComponent().setZoomPolicy(mxGraphComponent.ZOOM_POLICY_PAGE);
 				} else if (zoom.equals(mxResources.get("width"))) {
-					graphComponent.setPageVisible(true);
-					graphComponent.setZoomPolicy(mxGraphComponent.ZOOM_POLICY_WIDTH);
+					getGraphComponent().setPageVisible(true);
+					getGraphComponent().setZoomPolicy(mxGraphComponent.ZOOM_POLICY_WIDTH);
 				} else if (zoom.equals(mxResources.get("actualSize"))) {
-					graphComponent.zoomActual();
+					getGraphComponent().zoomActual();
 				} else {
 					try {
 						zoom = zoom.replace("%", "");
 						final double scale = Math.min(16, Math.max(0.01, Double.parseDouble(zoom) / 100));
-						graphComponent.zoomTo(scale, graphComponent.isCenterZoom());
+						getGraphComponent().zoomTo(scale, getGraphComponent().isCenterZoom());
 					} catch (final Exception ex) {
 						new GuiUtils(editor).error("Invalid zoom factor.");
 						ignoreZoomChange = true;
 						try {
-							zoomCombo.setSelectedItem((int) Math.round(100 * view.getScale()) + "%");
+							zoomCombo.setSelectedItem((int) Math.round(100 * getGraphComponent().getGraph()
+									.getView().getScale()) + "%");
 						} finally {
 							ignoreZoomChange = false;
 						}
@@ -125,11 +96,11 @@ public class EditorToolBar extends JToolBar
 
 		final JButton zoomOutButton = new JButton(IconFactory.getButtonIcon(GLYPH.SEARCH_MINUS, 1f));
 		zoomOutButton.setToolTipText("Zoom out");
-		zoomOutButton.addActionListener(e -> editor.getGraphComponent().zoomOut());
+		zoomOutButton.addActionListener(e -> getGraphComponent().zoomOut());
 		add(zoomOutButton);
 		final JButton zoomInButton = new JButton(IconFactory.getButtonIcon(GLYPH.SEARCH_PLUS, 1f));
 		zoomInButton.setToolTipText("Zoom in");
-		zoomInButton.addActionListener(e -> editor.getGraphComponent().zoomIn());
+		zoomInButton.addActionListener(e -> getGraphComponent().zoomIn());
 		add(zoomInButton);
 		addSeparator();
 		add(Box.createHorizontalGlue());
@@ -152,8 +123,7 @@ public class EditorToolBar extends JToolBar
 		final JButton minusShapeSizeButton = new JButton(IconFactory.getButtonIcon(GLYPH.MINUS, 1f));
 		minusShapeSizeButton.setToolTipText("Decrease size of selected vertices");
 		minusShapeSizeButton.addActionListener(e -> {
-			final mxGraphComponent graphComponent = editor.getGraphComponent();
-			final mxGraph graph = graphComponent.getGraph();
+			final mxGraph graph = getGraphComponent().getGraph();
 			graph.setCellsResizable(true);
 			final Object[] cells = graph.getSelectionCells();
 			if (noCellsError(cells)) {
@@ -178,8 +148,7 @@ public class EditorToolBar extends JToolBar
 		final JButton plusShapeSizeButton = new JButton(IconFactory.getButtonIcon(GLYPH.PLUS, 1f));
 		plusShapeSizeButton.setToolTipText("Increase size of selected vertices");
 		plusShapeSizeButton.addActionListener(e -> {
-			final mxGraphComponent graphComponent = editor.getGraphComponent();
-			final mxGraph graph = graphComponent.getGraph();
+			final mxGraph graph = getGraphComponent().getGraph();
 			graph.setCellsResizable(true);
 			final Object[] cells = graph.getSelectionCells();
 			if (noCellsError(cells)) {
@@ -221,7 +190,7 @@ public class EditorToolBar extends JToolBar
 		fontCombo.addActionListener(e -> {
 			final String font = fontCombo.getSelectedItem().toString();
 			if (font != null) {
-				final mxGraph graph = editor.getGraphComponent().getGraph();
+				final mxGraph graph = getGraphComponent().getGraph();
 				if (!noCellsError(graph.getSelectionCells()))
 					graph.setCellStyles(mxConstants.STYLE_FONTFAMILY, font);
 			}
@@ -234,7 +203,7 @@ public class EditorToolBar extends JToolBar
 		sizeCombo.setEditable(false);
 		add(sizeCombo);
 		sizeCombo.addActionListener(e -> {
-			final mxGraph graph = editor.getGraphComponent().getGraph();
+			final mxGraph graph = getGraphComponent().getGraph();
 			if (!noCellsError(graph.getSelectionCells())) {
 				graph.setCellStyles(mxConstants.STYLE_FONTSIZE,
 						sizeCombo.getSelectedItem().toString().replace("pt", ""));
@@ -259,10 +228,44 @@ public class EditorToolBar extends JToolBar
 
 	}
 
+	protected void refresh() {
+		registerScaleTracker();
+	}
+
+	private void registerScaleTracker() {
+		if (zoomCombo == null) {
+			zoomCombo = new JComboBox<>(new String[] { "400%", "200%", "150%", "100%", "75%", "50%",
+					mxResources.get("page"), mxResources.get("width"), mxResources.get("actualSize") });
+			zoomCombo.setToolTipText("Zoom levels. Arbitry levels accepted.");
+			zoomCombo.setEditable(true);
+			zoomCombo.setMaximumRowCount(9);
+		}
+		// Sets the zoom in the zoom combo the current value
+		mxIEventListener scaleTracker = (sender, evt) -> {
+			ignoreZoomChange = true;
+			try {
+				zoomCombo.setSelectedItem(
+						(int) Math.round(100 * getGraphComponent().getGraph().getView().getScale()) + "%");
+			} finally {
+				ignoreZoomChange = false;
+			}
+		};
+		// Installs the scale tracker to update the value in the combo box
+		// if the zoom is changed from outside the combo box
+		getGraphComponent().getGraph().getView().addListener(mxEvent.SCALE, scaleTracker);
+		getGraphComponent().getGraph().getView().addListener(mxEvent.SCALE_AND_TRANSLATE, scaleTracker);
+		// Invokes once to sync with the actual zoom value
+		scaleTracker.invoke(null, null);
+	}
+
 	private boolean noCellsError(final Object[] cells) {
 		final boolean noCells = cells == null || cells.length ==0;
 		if (noCells) editor.status("No selection exists!", true);
 		return noCells;
+	}
+
+	private mxGraphComponent getGraphComponent() {
+		return editor.getGraphComponent();
 	}
 
 }

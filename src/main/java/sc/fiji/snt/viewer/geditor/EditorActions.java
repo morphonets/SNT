@@ -2076,31 +2076,52 @@ public class EditorActions
 	@SuppressWarnings("serial")
 	public static class ChangeGraphAction extends AbstractAction {
 
-		private final CommandService cmdService;
+		private CommandService cmdService;
+		private String metric;
+		private double threshold;
+		private int depth;
+		private GraphEditor editor;
+		private final AnnotationGraphComponent graphComponent;
 
-		public ChangeGraphAction(CommandService cmdService) {
+		/* Parameters will be retrieved from a scijava prompt */
+		public ChangeGraphAction(final GraphEditor editor, CommandService cmdService) {
+			this (editor, null, -1d, -1);
 			this.cmdService = cmdService;
+		}
+
+		public ChangeGraphAction(final GraphEditor editor, final String metric, final double threshold, final int depth) {
+			this.editor = editor;
+			graphComponent = (editor.getGraphComponent() instanceof AnnotationGraphComponent)
+					? ((AnnotationGraphComponent) editor.getGraphComponent())
+					: null;
+			this.metric = metric;
+			this.threshold = threshold;
+			this.depth = depth;
+			this.cmdService = null;
 		}
 
 		class NewGraphFromCmd extends SwingWorker<AnnotationGraphAdapter, Void> {
 
 			private final List<Tree> trees;
-			private final AnnotationGraphComponent graphComponent;
 
-			public NewGraphFromCmd(final AnnotationGraphComponent graphComponent, final List<Tree> trees) {
-				this.graphComponent = graphComponent;
+			public NewGraphFromCmd(final List<Tree> trees) {
 				this.trees = trees;
+				editor.status("Computing graph...");
 			}
 
 			@Override
 			public AnnotationGraphAdapter doInBackground() {
 				try {
-					final CommandModule cm = cmdService.run(NewGraphOptionsCmd.class, true).get();
-					if (cm.isCanceled()) return null;
-					final Map<String, Object> inputs = cm.getInputs();
-					final String metric = String.valueOf(inputs.get("metric"));
-					final double threshold = Double.parseDouble(String.valueOf(inputs.get("threshold")));
-					final int depth = Integer.parseInt(String.valueOf(inputs.get("depth")));
+					if (graphComponent == null)
+						return null;
+					if (cmdService != null) {
+						final CommandModule cm = cmdService.run(NewGraphOptionsCmd.class, true).get();
+						if (cm.isCanceled()) return null;
+						final Map<String, Object> inputs = cm.getInputs();
+						metric = String.valueOf(inputs.get("metric"));
+						threshold = Double.parseDouble(String.valueOf(inputs.get("threshold")));
+						depth = Integer.parseInt(String.valueOf(inputs.get("depth")));
+					}
 					AnnotationGraph newGraph = new AnnotationGraph(trees, metric, threshold, depth);
 					return new AnnotationGraphAdapter(newGraph);
 				} catch (final InterruptedException | ExecutionException e1) {
@@ -2124,6 +2145,7 @@ public class EditorActions
 						adapter.getModel().endUpdate();
 					}
 					graphComponent.replaceGraph(adapter, true);
+					System.out.println(String.format("New Graph computed: %s, %.2f, %s", metric, threshold, depth));
 				} catch (InterruptedException | ExecutionException e) {
 					e.printStackTrace();
 				}
@@ -2132,17 +2154,17 @@ public class EditorActions
 
 		@Override
 		public void actionPerformed(ActionEvent e) {
-			if (e.getSource() instanceof AnnotationGraphComponent) {
-				AnnotationGraphComponent graphComponent = (AnnotationGraphComponent) e.getSource();
+			if (graphComponent == null) {
+				new GuiUtils(editor).error("This action requires an AnnotationGraph.");
+			} 
+			else {
 				AnnotationGraphAdapter graph = (AnnotationGraphAdapter) graphComponent.getGraph();
 				List<Tree> trees = graph.getAnnotationGraph().getTrees();
 				if (trees == null || trees.isEmpty()) {
-					System.out.println("Graph not associated with a Tree Collection.");
+					new GuiUtils(editor).error("Graph not associated with a Tree Collection.");
 					return;
 				}
-				new NewGraphFromCmd(graphComponent, trees).execute();
-			} else {
-				System.out.println("This action requires AnnotationGraph.");
+				new NewGraphFromCmd(trees).execute();
 			}
 		}
 	}
@@ -2224,6 +2246,7 @@ public class EditorActions
 
 	}
 
+	@SuppressWarnings("serial")
 	public static class ScaleEdgeWeightsAction extends AbstractAction {
 
 		@Override
