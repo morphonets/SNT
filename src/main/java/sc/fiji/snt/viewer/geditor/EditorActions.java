@@ -2114,7 +2114,6 @@ public class EditorActions
 				try {
 					AnnotationGraphAdapter adapter = get();
 					if (adapter == null) return;
-					graphComponent.setGraph(adapter);
 					adapter.getModel().beginUpdate();
 					try {
 						new mxCircleLayout(adapter).execute(adapter.getDefaultParent());
@@ -2124,7 +2123,7 @@ public class EditorActions
 					} finally {
 						adapter.getModel().endUpdate();
 					}
-					graphComponent.refresh();
+					graphComponent.replaceGraph(adapter, true);
 				} catch (InterruptedException | ExecutionException e) {
 					e.printStackTrace();
 				}
