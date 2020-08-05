@@ -20,30 +20,34 @@
  * #L%
  */
 
-package sc.fiji.snt.analysis.graph;
+package sc.fiji.snt.viewer.geditor;
 
 import java.util.Map;
 
-import org.jgrapht.Graph;
-import org.jgrapht.ext.JGraphXAdapter;
 import org.scijava.util.ColorRGB;
 
 import com.mxgraph.model.mxCell;
 import com.mxgraph.util.mxConstants;
 
+import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.util.SWCPoint;
 
 
-class TreeGraphAdapter extends JGraphXAdapter<SWCPoint, SWCWeightedEdge> {
+public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge> {
 
 	private static final String DARK_GRAY = "#222222";
 	private static final String LIGHT_GRAY = "#eeeeee";
+	// default cell colors
+	private final String defaultVertexStrokeColor = DARK_GRAY;
+	private final String defaultVertexFillColor = LIGHT_GRAY;
+	private final String defaultEdgeStrokeColor = DARK_GRAY;
 
-	protected TreeGraphAdapter(final Graph<SWCPoint, SWCWeightedEdge> graph) {
+	public TreeGraphAdapter(final DirectedWeightedGraph graph) {
 		this(graph, LIGHT_GRAY);
 	}
 
-	protected TreeGraphAdapter(final Graph<SWCPoint, SWCWeightedEdge> graph, final String verticesColor) {
+	protected TreeGraphAdapter(final DirectedWeightedGraph graph, final String verticesColor) {
 		super(graph);
 		final String vColor = (verticesColor == null) ? LIGHT_GRAY : new ColorRGB(verticesColor).toHTMLColor();
 		final Map<String, Object> edgeStyle = getStylesheet().getDefaultEdgeStyle();
@@ -66,40 +70,65 @@ class TreeGraphAdapter extends JGraphXAdapter<SWCPoint, SWCWeightedEdge> {
 		setKeepEdgesInBackground(true); // Edges will not appear above vertices
 		setResetEdgesOnConnect(true);
 		setEdgeLabelsMovable(true);
+		setCellColorsFromGraph();
 	}
 
 	@Override
-	public String convertValueToString(final Object cell) {
-		final Object obj = ((mxCell)cell).getValue();
-		if (obj instanceof SWCPoint) {
-			return ""+ ((SWCPoint)obj).id;
+	public void setVertexColor(SWCPoint vertex, ColorRGB color) {
+		Object cell = getVertexToCellMap().get(vertex);
+		if (cell == null) {
+			return;
 		}
-		if (obj instanceof SWCWeightedEdge) {
-			return ((SWCWeightedEdge)obj).toString();
+		String strokeColor;
+		String fillColor;
+		if (color == null) {
+			strokeColor = defaultVertexStrokeColor;
+			fillColor = defaultVertexFillColor;
+		} else {
+			strokeColor = color.toHTMLColor();
+			fillColor = color.toHTMLColor();
 		}
-		return ((mxCell)cell).toString();
+		Object[] modified = { cell };
+		setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
+		setCellStyles(mxConstants.STYLE_FILLCOLOR, fillColor, modified);
+		cGraph.setVertexColor(vertex, color);
 	}
 
-	protected boolean isEdgeLabelsEnabled() {
-		return !(boolean)stylesheet.getDefaultEdgeStyle().get(mxConstants.STYLE_NOLABEL);
+	@Override
+	public void setEdgeColor(SWCWeightedEdge edge, ColorRGB color) {
+		Object cell = getEdgeToCellMap().get(edge);
+		if (cell == null) {
+			return;
+		}
+		String strokeColor;
+		if (color == null) {
+			strokeColor = defaultEdgeStrokeColor;
+		} else {
+			strokeColor = color.toHTMLColor();
+		}
+		Object[] modified = { cell };
+		setCellStyles(mxConstants.STYLE_STROKECOLOR, strokeColor, modified);
+		cGraph.setEdgeColor(edge, color);
 	}
 
-	protected boolean isVertexLabelsEnabled() {
-		return !(boolean)stylesheet.getDefaultVertexStyle().get(mxConstants.STYLE_NOLABEL);
-	}
+    @Override
+    public String convertValueToString(final Object cell) {
+        final Object obj = ((mxCell)cell).getValue();
+        if (obj == null) return ""; // an edge?
+        if (obj instanceof SWCPoint) {
+            return ""+ ((SWCPoint)obj).id;
+        }
+        return obj.toString();
+    }
 
-	protected void setEnableEdgeLabels(final boolean enable) {
-		getModel().beginUpdate();
-		stylesheet.getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, !enable);
-		getModel().endUpdate();
-		refresh();
-	}
-
-	protected void setEnableVertexLabels(final boolean enable) {
-		getModel().beginUpdate();
-		stylesheet.getDefaultVertexStyle().put(mxConstants.STYLE_NOLABEL, !enable);
-		getModel().endUpdate();
-		refresh();
-	}
-
+    @Override
+    public String getToolTipForCell(Object cell) {
+        mxCell mxc = (mxCell) cell;
+        if (mxc.isVertex() && mxc.getValue() instanceof SWCPoint) {
+        	// NB: Once cell is displayed/edited we no longer can cast cell's
+        	// value to a SWCPoint object!?
+        	return mxc.getValue().toString();
+        }
+        return getOriginalValueOfmxCell(mxc.getId());
+    }
 }

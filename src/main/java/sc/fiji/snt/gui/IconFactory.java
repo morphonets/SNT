@@ -49,9 +49,13 @@ public class IconFactory {
 	public enum GLYPH {
 			ARCHIVE('\uf1c6', false), //
 			ADJUST('\uf042', true), //
+			ALIGN_LEFT('\uf036', true), //
+			ALIGN_CENTER('\uf037', true), //
+			ALIGN_RIGHT('\uf038', true), //
 			ATLAS('\uf558', true), //
 			//ATOM('\uf5d2', true), //
 			BINOCULARS('\uf1e5', true), //
+			BOLD('\uf032', true),//
 			BOOK_READER('\uf5da', true), //
 			BRAIN('\uf5dc', true), //
 			BRANCH_CODE('\uf126', true), //
@@ -72,9 +76,11 @@ public class IconFactory {
 			COLOR('\uf53f', true), //
 			COLOR2('\uf5c3', true), //
 			COMMENTS('\uf086', false), //
+			COPY('\uf0c5', false), //
 			CROSSHAIR('\uf05b', true), //
 			CSV('\uf6dd', true), //
 			CUBE('\uf1b2', true), //
+			CUT('\uf0c4', true), //
 			DANGER('\uf071', true), //
 			DATABASE('\uf1c0', true), //
 			DELETE('\uf55a', true), //
@@ -94,6 +100,7 @@ public class IconFactory {
 			FILL('\uf575', true), //
 			FILTER('\uf0b0', true), //
 			FOLDER('\uf07b', false), //
+			FONT('\uf031', true), //
 			FOOTPRINTS('\uf54b', true), //
 			//GLOBE('\uf0ac', true), //
 			HAND('\uf256', false), //
@@ -102,6 +109,7 @@ public class IconFactory {
 			INFO('\uf129', true), //
 			IMAGE('\uf03e', false), //
 			IMPORT('\uf56f', true), //
+			ITALIC('\uf033', true), //
 			//JET('\uf0fb', true), //
 			KEYBOARD('\uf11c', false), //
 			LINK('\uf0c1', true), //
@@ -111,11 +119,13 @@ public class IconFactory {
 			MARKER('\uf3c5', true), //
 			MASKS('\uf630', true), //
 			MICROCHIP('\uf2db', true), //
+			MINUS('\uf146', false), //
 			NAVIGATE('\uf14e', false), //
 			MOVE('\uf0b2', true), //
 			NEXT('\uf35b', false), //
 			OPEN_FOLDER('\uf07c', false), //
 			OPTIONS('\uf013', true), //
+			PASTE('\uf0ea', true), //
 			PEN('\uf303', true), //
 			POINTER('\uf245', true), //
 			PLUS('\uf0fe', false), //
@@ -129,6 +139,8 @@ public class IconFactory {
 			SAVE('\uf0c7', false), //
 			SCROLL('\uf70e', true), //
 			SEARCH('\uf002', true), //
+			SEARCH_MINUS('\uf010', true), //
+			SEARCH_PLUS('\uf00e', true), //
 			SIGNS('\uf277', true), //
 			SLIDERS('\uf1de', true), //
 			SORT('\uf15d', true), //

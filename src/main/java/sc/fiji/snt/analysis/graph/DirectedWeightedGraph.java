@@ -23,8 +23,8 @@
 package sc.fiji.snt.analysis.graph;
 
 import org.jgrapht.Graphs;
-import org.jgrapht.graph.DefaultDirectedWeightedGraph;
 import org.jgrapht.traverse.DepthFirstIterator;
+
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.NodeStatistics;
@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
  * @author Tiago Ferreira
  * @author Cameron Arshadi
  */
-public class DirectedWeightedGraph extends DefaultDirectedWeightedGraph<SWCPoint, SWCWeightedEdge> {
+public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 
 	private static final long serialVersionUID = 1L;
 	private Tree tree;
