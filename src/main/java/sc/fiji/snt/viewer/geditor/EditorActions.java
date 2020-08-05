@@ -23,7 +23,6 @@ import com.mxgraph.util.png.mxPngImageEncoder;
 import com.mxgraph.util.png.mxPngTextDecoder;
 import com.mxgraph.view.mxGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
-import org.scijava.Context;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.util.ColorRGB;
@@ -31,11 +30,9 @@ import org.w3c.dom.Document;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.analysis.graph.SNTGraph;
-import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.cmds.GraphRecViewerCmd;
 import sc.fiji.snt.gui.cmds.NewGraphOptionsCmd;
-import sc.fiji.snt.viewer.OBJMesh;
-import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -2151,89 +2148,20 @@ public class EditorActions
 
 	public static class ShowInViewer3DAction extends AbstractAction {
 
-		private final Context context;
+		private final CommandService cmdService;
 
-		public ShowInViewer3DAction(Context context) {
-			this.context = context;
-		}
-
-		class ShowInViewer3DWorker extends SwingWorker<Viewer3D, Void> {
-
-			private final AnnotationGraphAdapter adapter;
-
-			public ShowInViewer3DWorker(final AnnotationGraphAdapter graphAdapter) {
-				this.adapter = graphAdapter;
-			}
-
-			@Override
-			public Viewer3D doInBackground() {
-				try {
-					Set<BrainAnnotation> annotations;
-					Object[] selectionCells = adapter.getSelectionCells();
-					if (selectionCells == null || selectionCells.length == 0) {
-						annotations = adapter.getVertexToCellMap().keySet();
-					} else {
-						annotations = Arrays.stream(selectionCells)
-								.map(c -> (mxCell) c)
-								.filter(mxCell::isVertex)
-								.map(c -> adapter.getCellToVertexMap().get(c))
-								.collect(Collectors.toSet());
-					}
-					List<Tree> trees = ((AnnotationGraph) adapter.getSourceGraph()).getTrees();
-					if (trees == null) trees = new ArrayList<>();
-					List<OBJMesh> meshes = new ArrayList<>();
-					for (BrainAnnotation ann : annotations) {
-						if (!ann.isMeshAvailable()) {
-							System.out.println("Skipping " + ann.acronym() + ", mesh not available...");
-							continue;
-						}
-						OBJMesh mesh = ann.getMesh();
-						int aDepth = ann.getOntologyDepth();
-						for (Tree tree : trees) {
-							BrainAnnotation rootAnnotation = tree.getRoot().getAnnotation();
-							if (rootAnnotation == null) continue;
-							BrainAnnotation adjustedAnn = rootAnnotation;
-							if (rootAnnotation.getOntologyDepth() > aDepth) {
-								int diff = aDepth - rootAnnotation.getOntologyDepth();
-								adjustedAnn = rootAnnotation.getAncestor(diff);
-							}
-							if (adjustedAnn.id() == ann.id()) {
-								tree.setColor(adapter.getSourceGraph().getVertexColor(ann));
-							}
-						}
-						mesh.setColor(adapter.getSourceGraph().getVertexColor(ann), 85);
-						meshes.add(mesh);
-					}
-					Viewer3D viewer = new Viewer3D(context);
-					viewer.add(meshes);
-					viewer.add(trees);
-					return viewer;
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-				return null;
-			}
-
-			@Override
-			protected void done() {
-				try {
-					Viewer3D viewer = get();
-					if (viewer == null) return;
-					viewer.show();
-					viewer.updateView();
-				} catch (InterruptedException | ExecutionException e) {
-					e.printStackTrace();
-				}
-			}
-
+		public ShowInViewer3DAction(CommandService cmdService) {
+			this.cmdService = cmdService;
 		}
 
 		@Override
 		public void actionPerformed(ActionEvent e) {
 			if (e.getSource() instanceof AnnotationGraphComponent) {
-				AnnotationGraphAdapter adapter =
-						(AnnotationGraphAdapter) ((AnnotationGraphComponent) e.getSource()).getGraph();
-				new ShowInViewer3DWorker(adapter).execute();
+				final AnnotationGraphAdapter adapter;
+				adapter = (AnnotationGraphAdapter) ((AnnotationGraphComponent) e.getSource()).getGraph();
+				final Map<String, Object> inputs = new HashMap<>();
+				inputs.put("adapter", adapter);
+				cmdService.run(GraphRecViewerCmd.class, true, inputs);
 			}
 		}
 
