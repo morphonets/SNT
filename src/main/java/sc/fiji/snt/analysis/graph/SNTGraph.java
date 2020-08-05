@@ -12,11 +12,13 @@ public class SNTGraph<V, DefaultWeightedEdge> extends DefaultDirectedWeightedGra
 
 	private final Map<V, ColorRGB> vertexColorRGBMap;
     private final Map<DefaultWeightedEdge, ColorRGB> edgeColorRGBMap;
+    private final Map<V, Double> vertexValueMap;
 
     public SNTGraph(Class<? extends DefaultWeightedEdge> edgeClass) {
         super(edgeClass);
         vertexColorRGBMap = new HashMap<>();
         edgeColorRGBMap = new HashMap<>();
+        vertexValueMap = new HashMap<>();
     }
 
     public void setVertexColor(V vertex, ColorRGB color) {
@@ -43,6 +45,14 @@ public class SNTGraph<V, DefaultWeightedEdge> extends DefaultDirectedWeightedGra
             return edgeColorRGBMap.get(edge);
         }
         return null;
+    }
+
+    public void setVertexValue(V vertex, double value) {
+        vertexValueMap.put(vertex, value);
+    }
+
+    public double getVertexValue(V vertex) {
+        return vertexValueMap.get(vertex);
     }
 
     public Map<V, ColorRGB> getVertexColorRGBMap() {
