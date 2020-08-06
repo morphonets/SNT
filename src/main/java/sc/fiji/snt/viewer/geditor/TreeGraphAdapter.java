@@ -52,7 +52,6 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
 		final String vColor = (verticesColor == null) ? LIGHT_GRAY : new ColorRGB(verticesColor).toHTMLColor();
 		final Map<String, Object> edgeStyle = getStylesheet().getDefaultEdgeStyle();
 		edgeStyle.put(mxConstants.STYLE_ENDARROW, mxConstants.ARROW_BLOCK);
-		edgeStyle.put(mxConstants.STYLE_VERTICAL_ALIGN, mxConstants.ALIGN_TOP);
 		edgeStyle.put(mxConstants.STYLE_VERTICAL_LABEL_POSITION, mxConstants.ALIGN_MIDDLE);
 		edgeStyle.put(mxConstants.STYLE_LABEL_POSITION, mxConstants.ALIGN_CENTER);
 		edgeStyle.put(mxConstants.STYLE_STROKECOLOR, DARK_GRAY);
@@ -68,7 +67,6 @@ public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge>
 		setEnableVertexLabels(true);
 		setEnableEdgeLabels(true);
 		setKeepEdgesInBackground(true); // Edges will not appear above vertices
-		setResetEdgesOnConnect(true);
 		setEdgeLabelsMovable(true);
 		setCellColorsFromGraph();
 	}

@@ -33,12 +33,12 @@ public class TreeGraphComponent extends SNTGraphComponent {
 
 	public TreeGraphComponent(final TreeGraphAdapter adapter, Context context) {
 		super(adapter, context);
-		layout = new mxCompactTreeLayout(adapter);
+		layout = new mxCompactTreeLayout(adapter, false);
 		layout.execute(adapter.getDefaultParent());
 	}
 
-	@SuppressWarnings("unused")
-	private void flipGraphToHorizontal(final boolean horizontal) {
+
+	protected void flipGraphToHorizontal(final boolean horizontal) {
 		layout.setHorizontal(horizontal);
 		layout.execute(adapter.getDefaultParent());
 		centerGraph();
