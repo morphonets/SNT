@@ -19,10 +19,12 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
 	public static final String TIPS = "tips";
     public static final String LENGTH = "length";
     public static final String BRANCH_POINTS = "branches";
+    public static final String EDGES = "edges";
     private static final String[] ALL_FLAGS = {
             TIPS,
             LENGTH,
-            BRANCH_POINTS
+            BRANCH_POINTS,
+            EDGES
     };
 
     private Collection<Tree> treeCollection;
@@ -63,6 +65,9 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
                 break;
             case LENGTH:
                 init_length(trees, threshold, maxOntologyDepth);
+                break;
+            case EDGES:
+                init_edges(trees, threshold, maxOntologyDepth);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown metric");
@@ -217,6 +222,56 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
         }
     }
 
+    private void init_edges(Collection<Tree> trees, double threshold, int maxOntologyDepth) {
+        final Map<Integer, BrainAnnotation> annotationPool = new HashMap<>();
+        final Map<AnnotationWeightedEdge, Integer> edgeCountMap = new HashMap<>();
+        for (final Tree tree : trees) {
+            DirectedWeightedGraph tGraph = tree.getGraph(true);
+            BrainAnnotation rootAnnotation = tree.getRoot().getAnnotation();
+            if (rootAnnotation == null) {
+                continue;
+            }
+            for (SWCWeightedEdge e : tGraph.edgeSet()) {
+                BrainAnnotation sourceAnnotation = e.getSource().getAnnotation();
+                if (sourceAnnotation != null) {
+                    if (!annotationPool.containsKey(sourceAnnotation.id())) {
+                        annotationPool.put(sourceAnnotation.id(), sourceAnnotation);
+                    }
+                    sourceAnnotation = annotationPool.get(sourceAnnotation.id());
+                    if (!containsVertex(sourceAnnotation)) {
+                        addVertex(sourceAnnotation);
+                    }
+                }
+                BrainAnnotation targetAnnotation = e.getTarget().getAnnotation();
+                if (targetAnnotation != null) {
+                    if (!annotationPool.containsKey(targetAnnotation.id())) {
+                        annotationPool.put(targetAnnotation.id(), targetAnnotation);
+                    }
+                    targetAnnotation = annotationPool.get(targetAnnotation.id());
+                    if (!containsVertex(targetAnnotation)) {
+                        addVertex(targetAnnotation);
+                    }
+                }
+                if (sourceAnnotation != null && targetAnnotation != null) {
+                    if (!containsEdge(sourceAnnotation, targetAnnotation)) {
+                        AnnotationWeightedEdge edge = addEdge(sourceAnnotation, targetAnnotation);
+                        setEdgeWeight(edge, 0);
+                    }
+                    AnnotationWeightedEdge edge = getEdge(sourceAnnotation, targetAnnotation);
+                    setEdgeWeight(edge, edge.getWeight() + 1);
+                    edgeCountMap.merge(edge, 1, Integer::sum);
+                }
+            }
+        }
+        // Prune self-loops, edges with sub-threshold counts, and isolated vertices
+        Set<AnnotationWeightedEdge> removedEdges = edgeSet().stream()
+                .filter(e -> (e.getSource().id() == e.getTarget().id()) || (edgeCountMap.getOrDefault(e,0) < threshold))
+                .collect(Collectors.toSet());
+        removeAllEdges(removedEdges);
+        Set<BrainAnnotation> removedVertices = vertexSet().stream().filter(v -> degreeOf(v) == 0).collect(Collectors.toSet());
+        removeAllVertices(removedVertices);
+    }
+
     private BrainAnnotation getLevelAncestor(BrainAnnotation annotation, int maxOntologyDepth) {
         int depth = annotation.getOntologyDepth();
         BrainAnnotation ancestor = annotation;
@@ -269,7 +324,6 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
     /**
      * Displays this graph in a new instance of SNT's "Dendrogram Viewer".
      *
-     * @return a reference to the displayed window.
      */
     protected void show() {
         new GraphViewer(this).show();
