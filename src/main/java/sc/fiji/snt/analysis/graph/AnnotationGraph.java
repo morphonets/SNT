@@ -58,16 +58,16 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
        
         switch (metric) {
             case TIPS:
-                init_tips(trees, (int)threshold, maxOntologyDepth);
+                initTips(trees, (int)threshold, maxOntologyDepth);
                 break;
             case BRANCH_POINTS:
-                init_branch_points(trees, (int)threshold, maxOntologyDepth);
+                initBranchPoints(trees, (int)threshold, maxOntologyDepth);
                 break;
             case LENGTH:
-                init_length(trees, threshold, maxOntologyDepth);
+                initLength(trees, threshold, maxOntologyDepth);
                 break;
             case EDGES:
-                init_edges(trees, threshold, maxOntologyDepth);
+                initEdges(trees, threshold, maxOntologyDepth);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown metric");
@@ -78,7 +78,7 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
         return ALL_FLAGS;
     }
 
-    private void init_tips(final Collection<Tree> trees, int minTipCount, int maxOntologyDepth) {
+    private void initTips(final Collection<Tree> trees, int minTipCount, int maxOntologyDepth) {
         final Map<Integer, BrainAnnotation> annotationPool = new HashMap<>();
         for (final Tree tree : trees) {
             BrainAnnotation rootAnnotation = tree.getRoot().getAnnotation();
@@ -131,7 +131,7 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
         }
     }
 
-    private void init_branch_points(final Collection<Tree> trees, int minBranchCount, int maxOntologyDepth) {
+    private void initBranchPoints(final Collection<Tree> trees, int minBranchCount, int maxOntologyDepth) {
         final Map<Integer, BrainAnnotation> annotationPool = new HashMap<>();
         for (final Tree tree : trees) {
             BrainAnnotation rootAnnotation = tree.getRoot().getAnnotation();
@@ -184,7 +184,7 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
         }
     }
 
-    private void init_length(final Collection<Tree> trees, double minCableLength, int maxOntologyDepth) {
+    private void initLength(final Collection<Tree> trees, double minCableLength, int maxOntologyDepth) {
         final Map<Integer, BrainAnnotation> annotationPool = new HashMap<>();
         for (final Tree tree : trees) {
             BrainAnnotation rootAnnotation = tree.getRoot().getAnnotation();
@@ -222,7 +222,7 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
         }
     }
 
-    private void init_edges(Collection<Tree> trees, double threshold, int maxOntologyDepth) {
+    private void initEdges(Collection<Tree> trees, double threshold, int maxOntologyDepth) {
         final Map<Integer, BrainAnnotation> annotationPool = new HashMap<>();
         final Map<AnnotationWeightedEdge, Integer> edgeCountMap = new HashMap<>();
         for (final Tree tree : trees) {
