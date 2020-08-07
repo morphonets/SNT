@@ -172,7 +172,6 @@ public class EditorActions
 					try {
 						graph.getModel().beginUpdate();
 						codec.decode(doc.getDocumentElement(), graph.getStylesheet());
-						graphComponent.setPageBackgroundColor(background);
 						graphComponent.getViewport().setOpaque(true);
 						graphComponent.getViewport().setBackground(background);
 					} finally {

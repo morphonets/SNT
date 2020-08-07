@@ -8,7 +8,6 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Point;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionListener;
@@ -117,6 +116,8 @@ public class GraphEditor extends JPanel
 	protected EditorToolBar toolbar;
 	protected boolean animateLayoutChange = true;
 	private JComboBox<String> annotationMetricJCombo;
+	private JFormattedTextField annotationThresholdField;
+	private JFormattedTextField annotationDepthField;
 
 	/**
 	 * Flag indicating whether the current graph has been modified 
@@ -244,8 +245,6 @@ public class GraphEditor extends JPanel
 			setModified(true);
 		}
 	};
-	private JFormattedTextField annotationThresholdField;
-	private JFormattedTextField annotationDepthField;
 
 	protected mxUndoManager createUndoManager()
 	{
@@ -279,29 +278,17 @@ public class GraphEditor extends JPanel
 	 */
 	protected void installRepaintListener()
 	{
-		graphComponent.getGraph().addListener(mxEvent.REPAINT,
-				new mxIEventListener()
-				{
-					public void invoke(Object source, mxEventObject evt)
-					{
-						String buffer = (graphComponent.getTripleBuffer() != null) ? ""
-								: " (unbuffered)";
-						mxRectangle dirty = (mxRectangle) evt
-								.getProperty("region");
+		graphComponent.getGraph().addListener(mxEvent.REPAINT, (source, evt) -> {
+			String buffer = (graphComponent.getTripleBuffer() != null) ? "" : " (unbuffered)";
+			mxRectangle dirty = (mxRectangle) evt.getProperty("region");
 
-						if (dirty == null)
-						{
-							status("View updated" + buffer);
-						}
-						else
-						{
-							status("Updated: x=" + (int) (dirty.getX()) + " y="
-									+ (int) (dirty.getY()) + " w="
-									+ (int) (dirty.getWidth()) + " h="
-									+ (int) (dirty.getHeight()) + buffer);
-						}
-					}
-				});
+			if (dirty == null) {
+				status("View updated" + buffer);
+			} else {
+				status("Updated: x=" + (int) (dirty.getX()) + " y=" + (int) (dirty.getY()) + " w="
+						+ (int) (dirty.getWidth()) + " h=" + (int) (dirty.getHeight()) + buffer);
+			}
+		});
 	}
 
 	private void insertConsole(final EditorConsole editorConsole) {
@@ -432,28 +419,16 @@ public class GraphEditor extends JPanel
 //		panel.add(simplify, c);
 	}
 
-	/**
-	 * 
-	 */
 	protected void mouseWheelMoved(MouseWheelEvent e)
 	{
-		if (e.getWheelRotation() < 0)
-		{
+		if (e.getWheelRotation() < 0) {
 			graphComponent.zoomIn();
-		}
-		else
-		{
+		} else {
 			graphComponent.zoomOut();
 		}
-
-		status(mxResources.get("scale") + ": "
-				+ (int) (100 * graphComponent.getGraph().getView().getScale())
-				+ "%");
+		status(mxResources.get("scale") + ": " + (int) (100 * graphComponent.getGraph().getView().getScale()) + "%");
 	}
 
-	/**
-	 * 
-	 */
 	protected void showOutlinePopupMenu(MouseEvent e)
 	{
 		Point pt = SwingUtilities.convertPoint(e.getComponent(), e.getPoint(),
@@ -462,48 +437,27 @@ public class GraphEditor extends JPanel
 				mxResources.get("magnifyPage"));
 		item.setSelected(graphOutline.isFitPage());
 
-		item.addActionListener(new ActionListener()
-		{
-			/**
-			 * 
-			 */
-			public void actionPerformed(ActionEvent e)
-			{
-				graphOutline.setFitPage(!graphOutline.isFitPage());
-				graphOutline.repaint();
-			}
+		item.addActionListener(e1 -> {
+			graphOutline.setFitPage(!graphOutline.isFitPage());
+			graphOutline.repaint();
 		});
 
 		JCheckBoxMenuItem item2 = new JCheckBoxMenuItem(
 				mxResources.get("showLabels"));
 		item2.setSelected(graphOutline.isDrawLabels());
 
-		item2.addActionListener(new ActionListener()
-		{
-			/**
-			 * 
-			 */
-			public void actionPerformed(ActionEvent e)
-			{
-				graphOutline.setDrawLabels(!graphOutline.isDrawLabels());
-				graphOutline.repaint();
-			}
+		item2.addActionListener(e1 -> {
+			graphOutline.setDrawLabels(!graphOutline.isDrawLabels());
+			graphOutline.repaint();
 		});
 
 		JCheckBoxMenuItem item3 = new JCheckBoxMenuItem(
 				mxResources.get("buffering"));
 		item3.setSelected(graphOutline.isTripleBuffered());
 
-		item3.addActionListener(new ActionListener()
-		{
-			/**
-			 * 
-			 */
-			public void actionPerformed(ActionEvent e)
-			{
-				graphOutline.setTripleBuffered(!graphOutline.isTripleBuffered());
-				graphOutline.repaint();
-			}
+		item3.addActionListener(e1 -> {
+			graphOutline.setTripleBuffered(!graphOutline.isTripleBuffered());
+			graphOutline.repaint();
 		});
 
 		JPopupMenu menu = new JPopupMenu();
@@ -524,38 +478,21 @@ public class GraphEditor extends JPanel
 				graphComponent);
 		EditorPopupMenu menu = new EditorPopupMenu(GraphEditor.this);
 		menu.show(graphComponent, pt.x, pt.y);
-
 		e.consume();
 	}
 
-	/**
-	 * 
-	 */
 	protected void mouseLocationChanged(MouseEvent e)
 	{
 		status(e.getX() + ", " + e.getY());
 	}
 
-	/**
-	 * 
-	 */
 	protected void installListeners()
 	{
 		// Installs mouse wheel listener for zooming
-		MouseWheelListener wheelTracker = new MouseWheelListener()
-		{
-			/**
-			 * 
-			 */
-			public void mouseWheelMoved(MouseWheelEvent e)
-			{
-				if (e.getSource() instanceof mxGraphOutline
-						|| e.isControlDown())
-				{
-					GraphEditor.this.mouseWheelMoved(e);
-				}
+		MouseWheelListener wheelTracker = e -> {
+			if (e.getSource() instanceof mxGraphOutline || e.isControlDown()) {
+				GraphEditor.this.mouseWheelMoved(e);
 			}
-
 		};
 
 		// Handles mouse wheel events in the outline and graph component
@@ -563,25 +500,15 @@ public class GraphEditor extends JPanel
 		graphComponent.addMouseWheelListener(wheelTracker);
 
 		// Installs the popup menu in the outline
-		graphOutline.addMouseListener(new MouseAdapter()
-		{
+		graphOutline.addMouseListener(new MouseAdapter() {
 
-			/**
-			 * 
-			 */
-			public void mousePressed(MouseEvent e)
-			{
+			public void mousePressed(MouseEvent e) {
 				// Handles context menu on the Mac where the trigger is on mousepressed
 				mouseReleased(e);
 			}
 
-			/**
-			 * 
-			 */
-			public void mouseReleased(MouseEvent e)
-			{
-				if (e.isPopupTrigger())
-				{
+			public void mouseReleased(MouseEvent e) {
+				if (e.isPopupTrigger()) {
 					showOutlinePopupMenu(e);
 				}
 			}
@@ -589,25 +516,15 @@ public class GraphEditor extends JPanel
 		});
 
 		// Installs the popup menu in the graph component
-		graphComponent.getGraphControl().addMouseListener(new MouseAdapter()
-		{
+		graphComponent.getGraphControl().addMouseListener(new MouseAdapter() {
 
-			/**
-			 * 
-			 */
-			public void mousePressed(MouseEvent e)
-			{
+			public void mousePressed(MouseEvent e) {
 				// Handles context menu on the Mac where the trigger is on mousepressed
 				mouseReleased(e);
 			}
 
-			/**
-			 * 
-			 */
-			public void mouseReleased(MouseEvent e)
-			{
-				if (e.isPopupTrigger())
-				{
+			public void mouseReleased(MouseEvent e) {
+				if (e.isPopupTrigger()) {
 					showGraphPopupMenu(e);
 				}
 			}
@@ -615,34 +532,30 @@ public class GraphEditor extends JPanel
 		});
 
 		// Installs a mouse motion listener to display the mouse location
-		graphComponent.getGraphControl().addMouseMotionListener(
-				new MouseMotionListener()
-				{
+		graphComponent.getGraphControl().addMouseMotionListener(new MouseMotionListener() {
 
-					/*
-					 * (non-Javadoc)
-					 * @see java.awt.event.MouseMotionListener#mouseDragged(java.awt.event.MouseEvent)
-					 */
-					public void mouseDragged(MouseEvent e)
-					{
-						mouseLocationChanged(e);
-					}
+			/*
+			 * (non-Javadoc)
+			 * 
+			 * @see
+			 * java.awt.event.MouseMotionListener#mouseDragged(java.awt.event.MouseEvent)
+			 */
+			public void mouseDragged(MouseEvent e) {
+				mouseLocationChanged(e);
+			}
 
-					/*
-					 * (non-Javadoc)
-					 * @see java.awt.event.MouseMotionListener#mouseMoved(java.awt.event.MouseEvent)
-					 */
-					public void mouseMoved(MouseEvent e)
-					{
-						mouseDragged(e);
-					}
+			/*
+			 * (non-Javadoc)
+			 * 
+			 * @see java.awt.event.MouseMotionListener#mouseMoved(java.awt.event.MouseEvent)
+			 */
+			public void mouseMoved(MouseEvent e) {
+				mouseDragged(e);
+			}
 
-				});
+		});
 	}
 
-	/**
-	 * 
-	 */
 	public void setCurrentFile(File file)
 	{
 		File oldValue = currentFile;
@@ -650,24 +563,18 @@ public class GraphEditor extends JPanel
 
 		firePropertyChange("currentFile", oldValue, file);
 
-		if (oldValue != file)
-		{
+		if (oldValue != file) {
 			updateTitle();
 		}
 	}
 
-	/**
-	 * 
-	 */
+
 	public File getCurrentFile()
 	{
 		return currentFile;
 	}
 
-	/**
-	 * 
-	 * @param modified
-	 */
+
 	public void setModified(boolean modified)
 	{
 		boolean oldValue = this.modified;
@@ -675,8 +582,7 @@ public class GraphEditor extends JPanel
 
 		firePropertyChange("modified", oldValue, modified);
 
-		if (oldValue != modified)
-		{
+		if (oldValue != modified) {
 			updateTitle();
 		}
 	}
@@ -685,40 +591,23 @@ public class GraphEditor extends JPanel
 	 * 
 	 * @return whether or not the current graph has been modified
 	 */
-	public boolean isModified()
-	{
+	public boolean isModified() {
 		return modified;
 	}
 
-	/**
-	 * 
-	 */
-	public mxGraphComponent getGraphComponent()
-	{
+	public mxGraphComponent getGraphComponent() {
 		return graphComponent;
 	}
 
-	/**
-	 * 
-	 */
-	public mxGraphOutline getGraphOutline()
-	{
+	public mxGraphOutline getGraphOutline() {
 		return graphOutline;
 	}
-	
-	/**
-	 * 
-	 */
-	public JTabbedPane getLibraryPane()
-	{
+
+	public JTabbedPane getLibraryPane() {
 		return libraryPane;
 	}
 
-	/**
-	 * 
-	 */
-	public mxUndoManager getUndoManager()
-	{
+	public mxUndoManager getUndoManager() {
 		return undoManager;
 	}
 
@@ -773,12 +662,7 @@ public class GraphEditor extends JPanel
 		return newAction;
 	}
 
-	/**
-	 * 
-	 * @param msg
-	 */
-	public void status(String msg)
-	{
+	public void status(String msg) {
 		statusBar.setText(msg);
 	}
 
@@ -790,23 +674,14 @@ public class GraphEditor extends JPanel
 		}
 	}
 
-	/**
-	 * 
-	 */
 	public void updateTitle()
 	{
 		JFrame frame = (JFrame) SwingUtilities.windowForComponent(this);
-
-		if (frame != null)
-		{
-			String title = (currentFile != null) ? currentFile
-					.getAbsolutePath() : mxResources.get("newDiagram");
-
-			if (modified)
-			{
+		if (frame != null) {
+			String title = (currentFile != null) ? currentFile.getAbsolutePath() : mxResources.get("newDiagram");
+			if (modified) {
 				title += "*";
 			}
-
 			frame.setTitle(title + " - " + appTitle);
 		}
 	}
@@ -830,9 +705,6 @@ public class GraphEditor extends JPanel
 		}
 	}
 
-	/**
-	 * 
-	 */
 	public void exit() {
 		if (getConsole() != null) getConsole().restore();
 		final JFrame frame = (JFrame) SwingUtilities.windowForComponent(this);
@@ -841,25 +713,18 @@ public class GraphEditor extends JPanel
 		}
 	}
 
-	/**
-	 * 
-	 */
 	public void setLookAndFeel(String clazz)
 	{
 		JFrame frame = (JFrame) SwingUtilities.windowForComponent(this);
 
-		if (frame != null)
-		{
-			try
-			{
+		if (frame != null) {
+			try {
 				UIManager.setLookAndFeel(clazz);
 				SwingUtilities.updateComponentTreeUI(frame);
 
 				// Needs to assign the key bindings again
 				keyboardHandler = new EditorKeyboardHandler(graphComponent);
-			}
-			catch (Exception e1)
-			{
+			} catch (Exception e1) {
 				e1.printStackTrace();
 			}
 		}
@@ -867,7 +732,7 @@ public class GraphEditor extends JPanel
 
 	public JFrame createFrame(final Context context)
 	{
-		
+
 		JFrame frame = new JFrame();
 		frame.getContentPane().add(this);
 		frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
@@ -901,29 +766,21 @@ public class GraphEditor extends JPanel
 		final mxIGraphLayout layout = createLayout(key);
 		if (layout != null)
 		{
-			return new AbstractAction(mxResources.get(key))
-			{
-				public void actionPerformed(ActionEvent e)
-				{
+			return new AbstractAction(mxResources.get(key)) {
+				public void actionPerformed(ActionEvent e) {
 					final mxGraph graph = graphComponent.getGraph();
 					Object cell = graph.getSelectionCell();
 
-					if (cell == null
-							|| graph.getModel().getChildCount(cell) == 0)
-					{
+					if (cell == null || graph.getModel().getChildCount(cell) == 0) {
 						cell = graph.getDefaultParent();
 					}
 
 					graph.getModel().beginUpdate();
-					try
-					{
+					try {
 						long t0 = System.currentTimeMillis();
 						layout.execute(cell);
-						status("Layout: " + (System.currentTimeMillis() - t0)
-								+ " ms");
-					}
-					finally
-					{
+						status("Layout: " + (System.currentTimeMillis() - t0) + " ms");
+					} finally {
 						if (animateLayoutChange) {
 							mxMorphing morph = new mxMorphing(graphComponent, 20, 1.2, 20);
 							morph.addListener(mxEvent.DONE, (sender, evt) -> graph.getModel().endUpdate());
@@ -937,15 +794,11 @@ public class GraphEditor extends JPanel
 
 			};
 		}
-		else
-		{
+		else {
 			return new AbstractAction(mxResources.get(key))
 			{
-
-				public void actionPerformed(ActionEvent e)
-				{
-					JOptionPane.showMessageDialog(graphComponent,
-							mxResources.get("noLayout"));
+				public void actionPerformed(ActionEvent e) {
+					JOptionPane.showMessageDialog(graphComponent, mxResources.get("noLayout"));
 				}
 
 			};

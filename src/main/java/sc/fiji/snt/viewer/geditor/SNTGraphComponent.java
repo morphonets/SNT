@@ -60,7 +60,11 @@ public class SNTGraphComponent extends mxGraphComponent {
         setAntiAlias(true);
         setTextAntiAlias(true);
 
-        // cell editing
+        // viewport is not opaque by default. this reduces contrast on dark themes 
+		getViewport().setOpaque(true);
+		getViewport().setBackground(Color.WHITE);
+
+		// cell editing
 		((mxCellEditor) getCellEditor()).setShiftEnterSubmitsText(true);
 		setEnterStopsCellEditing(false);
 
