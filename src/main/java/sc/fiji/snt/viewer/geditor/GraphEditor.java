@@ -52,7 +52,6 @@ import org.jfree.chart.ui.RectangleInsets;
 import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
-import com.mxgraph.layout.mxCircleLayout;
 import com.mxgraph.layout.mxCompactTreeLayout;
 import com.mxgraph.layout.mxEdgeLabelLayout;
 import com.mxgraph.layout.mxIGraphLayout;
@@ -764,44 +763,52 @@ public class GraphEditor extends JPanel
 	public Action graphLayout(final String key)
 	{
 		final mxIGraphLayout layout = createLayout(key);
-		if (layout != null)
-		{
+		if (layout == null) {
 			return new AbstractAction(mxResources.get(key)) {
 				public void actionPerformed(ActionEvent e) {
-					final mxGraph graph = graphComponent.getGraph();
-					Object cell = graph.getSelectionCell();
-
-					if (cell == null || graph.getModel().getChildCount(cell) == 0) {
-						cell = graph.getDefaultParent();
-					}
-
-					graph.getModel().beginUpdate();
-					try {
-						long t0 = System.currentTimeMillis();
-						layout.execute(cell);
-						status("Layout: " + (System.currentTimeMillis() - t0) + " ms");
-					} finally {
-						if (animateLayoutChange) {
-							mxMorphing morph = new mxMorphing(graphComponent, 20, 1.2, 20);
-							morph.addListener(mxEvent.DONE, (sender, evt) -> graph.getModel().endUpdate());
-							morph.startAnimation();
-						} else {
-							graph.getModel().endUpdate();
+					if (key.toLowerCase().contains("circle")) {
+						Double factor = new GuiUtils(GraphEditor.this).getDouble("Reduction factor for radial span (-1 will for default reduction):",
+								"Reduction Factor... (1-10)", 2);
+						if (factor != null) {
+							final mxCircleLayoutScaled cLayout = new mxCircleLayoutScaled(graphComponent.getGraph());
+							cLayout.setReductionFactor(factor.doubleValue());
+							applyLayout(cLayout);
 						}
+					} else {
+						JOptionPane.showMessageDialog(graphComponent, mxResources.get("noLayout"));
 					}
-
 				}
-
+			};
+		} else {
+			return new AbstractAction(mxResources.get(key)) {
+				public void actionPerformed(ActionEvent e) {
+					applyLayout(layout);
+				}
 			};
 		}
-		else {
-			return new AbstractAction(mxResources.get(key))
-			{
-				public void actionPerformed(ActionEvent e) {
-					JOptionPane.showMessageDialog(graphComponent, mxResources.get("noLayout"));
-				}
+	}
 
-			};
+	private void applyLayout(final mxIGraphLayout layout) {
+		final mxGraph graph = graphComponent.getGraph();
+		Object cell = graph.getSelectionCell();
+
+		if (cell == null || graph.getModel().getChildCount(cell) == 0) {
+			cell = graph.getDefaultParent();
+		}
+
+		graph.getModel().beginUpdate();
+		try {
+			long t0 = System.currentTimeMillis();
+			layout.execute(cell);
+			status("Layout: " + (System.currentTimeMillis() - t0) + " ms");
+		} finally {
+			if (animateLayoutChange) {
+				mxMorphing morph = new mxMorphing(graphComponent, 20, 1.2, 20);
+				morph.addListener(mxEvent.DONE, (sender, evt) -> graph.getModel().endUpdate());
+				morph.startAnimation();
+			} else {
+				graph.getModel().endUpdate();
+			}
 		}
 	}
 
@@ -906,7 +913,7 @@ public class GraphEditor extends JPanel
 			}
 			else if (ident.equals("circleLayout"))
 			{
-				layout = new mxCircleLayout(graph);
+				layout = new mxCircleLayoutScaled(graph); //new mxCircleLayout(graph);
 			}
 		}
 
