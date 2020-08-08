@@ -43,12 +43,14 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
         vertexStyle.put(mxConstants.STYLE_LABEL_POSITION, mxConstants.ALIGN_CENTER);
         vertexStyle.put(mxConstants.STYLE_VERTICAL_LABEL_POSITION, mxConstants.ALIGN_MIDDLE);
         vertexStyle.put(mxConstants.STYLE_ROUNDED, true);
+        vertexStyle.put(mxConstants.STYLE_SHAPE, mxConstants.NONE);
+        vertexStyle.put(mxConstants.STYLE_FONTCOLOR, "black");
+
         if (verticesColor != null)
         	vertexStyle.put(mxConstants.STYLE_FILLCOLOR, new ColorRGB(verticesColor).toHTMLColor());
 
         setCellColorsFromGraph();
         setAllowLoops(true);
-
     }
 
     public AnnotationGraph getAnnotationGraph() {

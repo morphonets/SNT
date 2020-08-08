@@ -931,6 +931,10 @@ public class EditorMenuBar extends JMenuBar
 			} else {
 				System.out.println("  Reconstruction Tree Graph: false");
 			}
+			System.out.println("View:");
+			System.out.println("  " + adapter.getView().toString().replace("mxRectangle", "Bounding box:"));
+			System.out.println(String.format("  Center: x=%.2f, y=%.2f", adapter.getGraphBounds().getCenterX(),
+					adapter.getGraphBounds().getCenterY()));
 			System.out.println("");
 			editor.status("Done.");
 		}
