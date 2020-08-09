@@ -34,7 +34,7 @@ public class mxCircleLayoutScaled extends mxCircleLayout
 		if (getReductionFactor() <= 0) {
 			if (vertices.length < 10)
 				setReductionFactor(1);
-			if (vertices.length < 20)
+			else if (vertices.length < 20)
 				setReductionFactor(2);
 			else if (vertices.length < 30)
 				setReductionFactor(4);
