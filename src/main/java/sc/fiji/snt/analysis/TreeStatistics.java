@@ -325,18 +325,16 @@ public class TreeStatistics extends TreeAnalyzer {
 	 * specified ontology level across the specified hemisphere.
 	 *
 	 * @param depth      the ontological depth of the compartments to be considered
-	 * @param hemisphere typically 'left' or 'right'. The hemisphere flag (
-	 *                   {@link BrainAnnotation#LEFT_HEMISPHERE} or
-	 *                   {@link BrainAnnotation#RIGHT_HEMISPHERE}) is extracted from
-	 *                   the first character of the string (case insensitive).
-	 *                   Ignored if not a recognized option
+	 * @param hemisphere 'left', 'right' or 'ratio' (case insensitive). Ignored if
+	 *                   not a recognized option
 	 * @return the annotated length histogram
 	 * @see AllenCompartment#getOntologyDepth()
 	 */
 	public SNTChart getAnnotatedLengthHistogram(int depth, String hemisphere) {
-		final Map<BrainAnnotation, Double> map = getAnnotatedLength(depth, hemisphere);
 		if ("ratio".equalsIgnoreCase(hemisphere.trim()))
 			return getAnnotatedLengthsByHemisphereHistogram(depth);
+		final Map<BrainAnnotation, Double> map = getAnnotatedLength(depth, hemisphere);
+
 		String label;
 		final char hemiFlag = BrainAnnotation.getHemisphereFlag(hemisphere);
 		switch (hemiFlag) {

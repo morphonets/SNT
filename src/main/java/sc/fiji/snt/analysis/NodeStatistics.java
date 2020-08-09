@@ -296,8 +296,32 @@ public class NodeStatistics <T extends PointInImage> {
 	 * @see AllenCompartment#getOntologyDepth()
 	 */
 	public Map<BrainAnnotation, Integer> getAnnotatedFrequencies(final int level) {
+		return getAnnotatedFrequencies(level, BrainAnnotation.ANY_HEMISPHERE);
+	}
+
+	/**
+	 * Retrieves the count frequencies across brain compartment.
+	 *
+	 * @param level      the ontological depth of the compartments to be considered
+	 * @param hemisphere typically 'left' or 'right'. The hemisphere flag (
+	 *                   {@link BrainAnnotation#LEFT_HEMISPHERE} or
+	 *                   {@link BrainAnnotation#RIGHT_HEMISPHERE}) is extracted from
+	 *                   the first character of the string (case insensitive).
+	 *                   Ignored if not a recognized option
+	 * @return the map containing the brain compartments as keys, and frequencies
+	 *         as values.
+	 * @see AllenCompartment#getOntologyDepth()
+	 */
+	public Map<BrainAnnotation, Integer> getAnnotatedFrequencies(final int level, final String hemisphere) {
+		return getAnnotatedFrequencies(level, BrainAnnotation.getHemisphereFlag(hemisphere));
+	}
+
+	private Map<BrainAnnotation, Integer> getAnnotatedFrequencies(final int level, final char lr) {
 		final HashMap<BrainAnnotation, Integer> map  = new HashMap<>();
-		points.forEach(p -> {
+		for (final T p : points) {
+
+			if (lr != BrainAnnotation.ANY_HEMISPHERE && lr != p.getHemisphere()) continue;
+
 			BrainAnnotation mappingAnnotation = null;
 			final BrainAnnotation pAnnotation = p.getAnnotation();
 			if (pAnnotation != null) {
@@ -311,8 +335,40 @@ public class NodeStatistics <T extends PointInImage> {
 			Integer currentCount = map.get(mappingAnnotation);
 			if (currentCount == null) currentCount = 0;
 			map.put(mappingAnnotation, ++currentCount);
-		});
+		}
 		return map;
+	}
+
+	public Map<BrainAnnotation, int[]> getAnnotatedFrequenciesByHemisphere(final int level, final Tree tree) {
+		final PointInImage root = tree.getRoot();
+		if (root == null)
+			throw new IllegalArgumentException("Tree's root is null");
+		final char ipsiFlag = root.getHemisphere();
+		if (ipsiFlag == BrainAnnotation.ANY_HEMISPHERE)
+			throw new IllegalArgumentException("Tree's root has its hemisphere flag unset");
+
+		final char contraFlag = (ipsiFlag == BrainAnnotation.LEFT_HEMISPHERE) ? BrainAnnotation.RIGHT_HEMISPHERE
+				: BrainAnnotation.LEFT_HEMISPHERE;
+		final Map<BrainAnnotation, Integer> ipsiMap = getAnnotatedFrequencies(level, ipsiFlag);
+		final Map<BrainAnnotation, Integer> contraMap = getAnnotatedFrequencies(level, contraFlag);
+
+		if (ipsiMap.isEmpty() && contraMap.isEmpty()) {
+			throw new IllegalArgumentException("Nodes without set hemisphere flag"); 
+		}
+
+		final Map<BrainAnnotation, int[]> finalMap = new HashMap<>();
+		ipsiMap.forEach( (k, ipsiFreq) -> {
+			int[] values = new int[2];
+			final Integer contraFreq = contraMap.get(k);
+			values[0] = ipsiFreq;
+			values[1] = (contraFreq == null) ? 0 : contraFreq;
+			finalMap.put(k, values);
+		});
+		contraMap.keySet().removeIf( k -> ipsiMap.get(k) != null);
+		contraMap.forEach( (k, contraFreq) -> {
+			finalMap.put(k, new int[] {0, contraFreq});
+		});
+		return finalMap;
 	}
 
 	/**
@@ -350,6 +406,84 @@ public class NodeStatistics <T extends PointInImage> {
 				"Frequency", // range axis title
 				dataset);
 		final SNTChart frame = new SNTChart(getLabel() + " Annotated Node Distribution", chart, new Dimension(400, 600));
+		return frame;
+	}
+
+	/**
+	 * Retrieves the histogram of count frequencies across brain areas of the
+	 * specified ontology level across the specified hemisphere.
+	 *
+	 * @param depth      the ontological depth of the compartments to be considered
+	 * @param hemisphere 'left', 'right' or 'ratio' (case insensitive). Ignored if
+	 *                   not a recognized option
+	 * @param tree       the Tree associated with the nodes being analyzed. Only
+	 *                   used if hemisphere is 'ratio'.
+	 * @return the annotated frequencies histogram
+	 * @see AllenCompartment#getOntologyDepth()
+	 */
+	public SNTChart getAnnotatedFrequencyHistogram(int depth, String hemisphere, final Tree tree) {
+		if ("ratio".equalsIgnoreCase(hemisphere.trim()))
+			return getAnnotatedFrequenciesByHemisphereHistogram(depth, tree);
+
+		final Map<BrainAnnotation, Integer> map = getAnnotatedFrequencies(depth, hemisphere);
+		String label;
+		final char hemiFlag = BrainAnnotation.getHemisphereFlag(hemisphere);
+		switch (hemiFlag) {
+		case BrainAnnotation.LEFT_HEMISPHERE:
+			label = "Left hemi.";
+			break;
+		case BrainAnnotation.RIGHT_HEMISPHERE:
+			label = "Right hemi.";
+			break;
+		default:
+			label = "";
+		}
+		return getAnnotatedFrequencyHistogram(map, depth, label);
+	}
+
+	private SNTChart getAnnotatedFrequenciesByHemisphereHistogram(int depth, final Tree tree) {
+		final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+		Map<BrainAnnotation, int[]> seriesMap = getAnnotatedFrequenciesByHemisphere(depth, tree);
+		seriesMap.entrySet().stream().sorted((e1, e2) -> -Integer.compare(e1.getValue()[0], e2.getValue()[0]))
+		.forEach(entry -> {
+			if (entry.getKey() != null) {
+					dataset.addValue(entry.getValue()[0], "Ipsilateral", entry.getKey().acronym());
+					dataset.addValue(entry.getValue()[1], "Contralateral", entry.getKey().acronym());
+			}
+		});
+		int nAreas = seriesMap.size();
+		if (seriesMap.get(null) != null) {
+			dataset.addValue(seriesMap.get(null)[0], "Ipsilateral", "Other" );
+			dataset.addValue(seriesMap.get(null)[1], "Contralateral", "Other" );
+			nAreas--;
+		}
+		final String axisTitle = (depth == Integer.MAX_VALUE) ? "no filtering" : "depth \u2264" + depth;
+		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
+				"Brain areas (N=" + nAreas + ", "+ axisTitle +")", // domain axis title
+				"Frequency", // range axis title
+				dataset, 2);
+		final SNTChart frame = new SNTChart(getLabel() + " Annotated Frequencies", chart, new Dimension(400, 600));
+		return frame;
+	}
+
+	private SNTChart getAnnotatedFrequencyHistogram(final Map<BrainAnnotation, Integer> map, final int depth, final String secondaryLabel) {
+		final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+		final String seriesLabel = (depth == Integer.MAX_VALUE) ? "no filtering" : "depth \u2264" + depth;
+		map.entrySet().stream().sorted((e1, e2) -> -e1.getValue().compareTo(e2.getValue())).forEach(entry -> {
+			if (entry.getKey() != null)
+					dataset.addValue(entry.getValue(), seriesLabel, entry.getKey().acronym());
+		});
+		int nAreas = map.size();
+		if (map.get(null) != null) {
+			dataset.addValue(map.get(null), seriesLabel,"Other" );
+			nAreas--;
+		}
+		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
+				"Brain areas (N=" + nAreas + ", "+ seriesLabel +")", // domain axis title
+				"Frequency", // range axis title
+				dataset);
+		final SNTChart frame = new SNTChart(getLabel() + " Annotated Frequencies", chart, new Dimension(400, 600));
+		if (secondaryLabel != null) frame.annotate(secondaryLabel);
 		return frame;
 	}
 
@@ -445,7 +579,7 @@ public class NodeStatistics <T extends PointInImage> {
 		final MouseLightLoader loader = new MouseLightLoader("AA0001");
 		final TreeAnalyzer analyzer = new TreeAnalyzer(loader.getTree("axon"));
 		final NodeStatistics<?> nStats = new NodeStatistics<>(analyzer.getTips());
-		final SNTChart plot = nStats.getAnnotatedHistogram();
+		final SNTChart plot = nStats.getAnnotatedFrequencyHistogram(6, "ratio", analyzer.tree);
 		plot.annotateCategory("CA1", "Not showing");
 		plot.annotateCategory("CP", "highlighted category");
 		plot.annotate("Free Text");
