@@ -172,6 +172,7 @@ public class DuplicateCmd extends CommonDynamicCmd {
 		if (dupChildren) {
 
 			final Path dup = path.clone(true);
+			if (!disconnect) connectToAncestorAsNeeded(dup);
 			setPropertiesAndAdd(dup, path);
 			if (disconnect) {
 				dup.getChildren().forEach( dupChild -> {
@@ -218,21 +219,25 @@ public class DuplicateCmd extends CommonDynamicCmd {
 
 			// Now make the duplication and add to manager
 			final Path dup = path.getSection(0, dupIndex);
-			if (!disconnect) {
-				if (path.getStartJoins() != null) {
-					dup.unsetStartJoin();
-					dup.setStartJoin(path.getStartJoins(), path.getStartJoinsPoint());
-				}
-				if (path.getEndJoins() != null) {
-					dup.unsetEndJoin();
-					dup.setEndJoin(path.getEndJoins(), path.getEndJoinsPoint());
-				}
-			}
+			if (!disconnect) connectToAncestorAsNeeded(dup);
 			setPropertiesAndAdd(dup, path);
 
 		}
 
 		resetUI();
+	}
+
+	private void connectToAncestorAsNeeded(final Path dup) {
+		if (!dup.isPrimary()) {
+			if (path.getStartJoins() != null) {
+				if (dup.getStartJoins() != null) dup.unsetStartJoin();
+				dup.setStartJoin(path.getStartJoins(), path.getStartJoinsPoint());
+			}
+			if (path.getEndJoins() != null) {
+				if (dup.getEndJoins() != null)  dup.unsetEndJoin();
+				dup.setEndJoin(path.getEndJoins(), path.getEndJoinsPoint());
+			}
+		}
 	}
 
 	private void setPropertiesAndAdd(final Path dup, final Path original) {
