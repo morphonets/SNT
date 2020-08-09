@@ -44,7 +44,6 @@ import sc.fiji.snt.analysis.AnalysisUtils.HistogramDatasetPlus;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.annotation.AllenCompartment;
-import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.SWCPoint;
@@ -777,7 +776,7 @@ public class TreeStatistics extends TreeAnalyzer {
 		hist.show();
 
 		// retrieve annotated lengths
-		AllenUtils.assignHemisphereTags(axon.getGraph());
+		//AllenUtils.assignHemisphereTags(axon.getGraph());
 		hist = tStats.getAnnotatedLengthHistogram(depth);
 		AllenCompartment somaCompartment = loader.getSomaCompartment();
 		if (somaCompartment.getOntologyDepth() > depth)

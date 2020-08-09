@@ -56,6 +56,8 @@ import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.annotation.AllenCompartment;
+import sc.fiji.snt.annotation.AllenUtils;
+import sc.fiji.snt.annotation.BrainAnnotation;
 
 /**
  * Methods for retrieving reconstructions from MouseLight's online database at
@@ -324,6 +326,8 @@ public class MouseLightLoader {
 		};
 		final int allenId = node.optInt("allenId", -1);
 		point.setAnnotation((allenId==-1)?null:new AllenCompartment(allenId));
+		point.setHemisphere(AllenUtils.isLeftHemisphere(point) ? BrainAnnotation.LEFT_HEMISPHERE
+				: BrainAnnotation.RIGHT_HEMISPHERE);
 		return point;
 	}
 

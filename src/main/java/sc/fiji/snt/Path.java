@@ -141,7 +141,8 @@ public class Path implements Comparable<Path> {
 	private double[] nodeValues;
 	// BrainAnnotations associated with this node;
 	private BrainAnnotation[] nodeAnnotations;
-
+	// Hemisphere flags associated with this node;
+	private char[] nodeHemisphereFlags;
 	/*
 	 * Path identifiers: this Path's id is stored in (lower) bits 15-0. Tree id in
 	 * the (upper) bits 31-16. NB: should only be assigned by PathAndFillManager.
@@ -592,6 +593,7 @@ public class Path implements Comparable<Path> {
 		result.onPath = this;
 		if (nodeValues != null) result.v = nodeValues[pos];
 		if (nodeAnnotations != null) result.setAnnotation(nodeAnnotations[pos]);
+		if (nodeHemisphereFlags != null) result.setHemisphere(nodeHemisphereFlags[pos]);
 		return result;
 	}
 
@@ -657,6 +659,9 @@ public class Path implements Comparable<Path> {
 		if (nodeAnnotations != null) {
 			nodeAnnotations = ArrayUtils.insert(index, nodeAnnotations, (BrainAnnotation)null);
 		}
+		if (nodeHemisphereFlags != null) {
+			nodeHemisphereFlags = ArrayUtils.insert(index, nodeHemisphereFlags, BrainAnnotation.ANY_HEMISPHERE);
+		}
 		if (nodeValues != null) {
 			nodeValues = ArrayUtils.insert(index, nodeValues, Double.NaN);
 		}
@@ -687,6 +692,9 @@ public class Path implements Comparable<Path> {
 		}
 		if (nodeAnnotations != null) {
 			nodeAnnotations = ArrayUtils.remove(nodeAnnotations, index);
+		}
+		if (nodeHemisphereFlags != null) {
+			nodeHemisphereFlags = ArrayUtils.remove(nodeHemisphereFlags, index);
 		}
 		if (nodeValues != null) {
 			nodeValues = ArrayUtils.remove(nodeValues, index);
@@ -908,6 +916,8 @@ public class Path implements Comparable<Path> {
 			sub.nodeValues = Arrays.copyOfRange(nodeValues, startIndex, endIndex + 1);
 		if (nodeAnnotations != null)
 			sub.nodeAnnotations = Arrays.copyOfRange(nodeAnnotations, startIndex, endIndex + 1);
+		if (nodeHemisphereFlags != null)
+			sub.nodeHemisphereFlags = Arrays.copyOfRange(nodeHemisphereFlags, startIndex, endIndex + 1);
 		if (nodeColors != null)
 			sub.nodeColors = Arrays.copyOfRange(nodeColors, startIndex, endIndex + 1);
 		if (getFitted() != null)
@@ -962,6 +972,7 @@ public class Path implements Comparable<Path> {
 		if (tangents_z != null) dup.tangents_z = tangents_z.clone();
 		if (nodeValues != null) dup.nodeValues = nodeValues.clone();
 		if (nodeAnnotations != null) dup.nodeAnnotations = nodeAnnotations.clone();
+		if (nodeHemisphereFlags != null) dup.nodeHemisphereFlags = nodeHemisphereFlags.clone();
 		dup.somehowJoins = (ArrayList<Path>) somehowJoins.clone();
 		dup.children = (ArrayList<Path>) children.clone();
 		if (startJoins != null) dup.startJoins = startJoins.clone();
@@ -1054,6 +1065,11 @@ public class Path implements Comparable<Path> {
 			final BrainAnnotation[] newNodeAnnotations = new BrainAnnotation[newMaxPoints];
 			System.arraycopy(nodeAnnotations, 0, newNodeAnnotations, 0, points);
 			nodeAnnotations = newNodeAnnotations;
+		}
+		if (nodeHemisphereFlags != null) {
+			final char[] newNodeHemisphereFlags = new char[newMaxPoints];
+			System.arraycopy(nodeHemisphereFlags, 0, newNodeHemisphereFlags, 0, points);
+			nodeHemisphereFlags = newNodeHemisphereFlags;
 		}
 		if (nodeValues != null) {
 			final double[] newNodeValues = new double[newMaxPoints];
@@ -1171,6 +1187,7 @@ public class Path implements Comparable<Path> {
 	private void addCommonPropertiesNode(final SNTPoint point) {
 		addPointDouble(point.getX(), point.getY(), point.getZ());
 		if (point.getAnnotation() != null) setNodeAnnotation(point.getAnnotation(), size() - 1);
+		if (point.getHemisphere() != BrainAnnotation.ANY_HEMISPHERE) setNodeHemisphere(point.getHemisphere(), size() - 1);
 	}
 
 	protected void addPointDouble(final double x, final double y, final double z) {
@@ -1461,6 +1478,19 @@ public class Path implements Comparable<Path> {
 	}
 
 	/**
+	 * Assigns an hemisphere to an existing node.
+	 *
+	 * @param hemisphereFlag the node hemisphere flag.
+	 * @param pos the node position
+	 */
+	public void setNodeHemisphere(final char hemisphereFlag, final int pos) {
+		if (nodeHemisphereFlags == null) {
+			nodeHemisphereFlags = new char[maxPoints];
+		}
+		nodeHemisphereFlags[pos] = hemisphereFlag;
+	}
+
+	/**
 	 * Returns the "value" property of this node.
 	 *
 	 * @param pos the node position
@@ -1477,10 +1507,24 @@ public class Path implements Comparable<Path> {
 	 *
 	 * @param pos the node position
 	 * @return the annotation of this node,
-	 * @see PointInImage#getAnnotation()
+	 * @see SNTPoint#getAnnotation()
 	 */
 	public BrainAnnotation getNodeAnnotation(final int pos) {
 		return (nodeAnnotations == null) ? null : nodeAnnotations[pos];
+	}
+
+	/**
+	 * Returns the hemisphere flag associated with this node.
+	 *
+	 * @param pos the node position
+	 * @return the flag associated with this node, either
+	 *         {@link BrainAnnotation#LEFT_HEMISPHERE},
+	 *         {@link BrainAnnotation#RIGHT_HEMISPHERE}, or
+	 *         {@link BrainAnnotation#ANY_HEMISPHERE}
+	 * @see SNTPoint#getAnnotation()
+	 */
+	public char getNodeHemisphereFlag(final int pos) {
+		return (nodeHemisphereFlags == null) ? BrainAnnotation.ANY_HEMISPHERE : nodeHemisphereFlags[pos];
 	}
 
 	/**
@@ -1512,14 +1556,24 @@ public class Path implements Comparable<Path> {
 	}
 
 	/**
-	 * Assesses whether the nodes of this path have been assigned an array of
-	 * annotations
+	 * Assesses whether the nodes of this path have been assigned
+	 * {@link BrainAnnotations}.
 	 *
 	 * @return true, if successful
-	 * @see PointInImage#getAnnotation()
+	 * @see SNTPoint#getAnnotation()
 	 */
 	public boolean hasNodeAnnotations() {
 		return nodeAnnotations != null;
+	}
+
+	/**
+	 * Assesses whether the nodes of this path have been assigned hemisphere flags.
+	 *
+	 * @return true, if successful
+	 * @see SNTPoint#getHemisphere()
+	 */
+	public boolean hasNodeHemisphereFlags() {
+		return nodeHemisphereFlags != null;
 	}
 
 	/**

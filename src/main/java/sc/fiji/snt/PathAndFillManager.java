@@ -779,6 +779,8 @@ public class PathAndFillManager extends DefaultHandler implements
 
 			final boolean realRadius = pathToUse.hasRadii();
 			final boolean hasAnnotations = pathToUse.hasNodeAnnotations();
+			final boolean hasHemisphereFlags = pathToUse.hasNodeHemisphereFlags();
+
 			for (int i = indexToStartAt; i < pathToUse.size(); ++i) {
 
 				final boolean firstPoint = firstSWCPoint == null;
@@ -797,6 +799,8 @@ public class PathAndFillManager extends DefaultHandler implements
 				);
 				swcPoint.setPath(currentPath);
 				if (hasAnnotations) swcPoint.setAnnotation(pathToUse.getNodeAnnotation(i));
+				if (hasHemisphereFlags) swcPoint.setHemisphere(pathToUse.getNodeHemisphereFlag(i));
+
 				result.add(swcPoint);
 				++currentPointID;
 				if (firstSWCPoint == null) firstSWCPoint = swcPoint;
