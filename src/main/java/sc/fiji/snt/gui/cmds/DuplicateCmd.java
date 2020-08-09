@@ -62,7 +62,12 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	@Parameter(persist = false, label = "Assign to frame", min="1")
 	private int frame;
 
-	@Parameter(label = "Make primary (disconnect)")
+	@Parameter(label = "Duplicate immediate children", callback = "dupChildrenChanged",
+			description = "If selected, direct children will also be duplicated. The entire group will be duplicated at full length.")
+	private boolean dupChildren;
+
+	@Parameter(label = "Make primary (disconnect)",
+			description="If selected, hierarchical relationships will be discarded.")
 	private boolean disconnect;
 
 	@Parameter(label = "<HTML>&nbsp", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
@@ -84,10 +89,10 @@ public class DuplicateCmd extends CommonDynamicCmd {
 		channel = path.getChannel();
 		frame = path.getFrame();
 		String name = path.getName();
-		if (path.isPrimary()) {
-			resolveInput("disconnect");
-			getInfo().getMutableInput("disconnect", Boolean.class).setLabel("");
-		}
+//		if (path.isPrimary()) {
+//			resolveInput("disconnect");
+//			getInfo().getMutableInput("disconnect", Boolean.class).setLabel("");
+//		}
 		if (path.size() == 1) {
 			percentage = 100;
 			name = "single point path";
@@ -102,16 +107,26 @@ public class DuplicateCmd extends CommonDynamicCmd {
 		junctionIndices = path.findJunctionIndices();
 	}
 
-	@SuppressWarnings("unused")
 	private void portionChoiceChanged() {
 		percentage = (CHOICE_LENGTH.equals(portionChoice)) ? 100 : 0;
+		if (percentage != 100d) dupChildren = false;
 		updateMsg();
 	}
 
+	@SuppressWarnings("unused")
+	private void dupChildrenChanged() {
+		if (dupChildren) {
+			disconnect = false;
+			portionChoice = CHOICE_LENGTH;
+			percentage = 100;
+			portionChoiceChanged();
+		}
+	}
 
 	@SuppressWarnings("unused")
 	private void percentageChanged() {
 		portionChoice = (percentage==0d) ? CHOICE_FIRST_BP : CHOICE_LENGTH;
+		if (percentage != 100d) dupChildren = false;
 		updateMsg();
 	}
 
@@ -154,14 +169,31 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	@Override
 	public void run() {
 
-		// Define the last node index of the duplicate section
-		int dupIndex = 0;
-		switch(portionChoice) {
+		if (dupChildren) {
+
+			final Path dup = path.clone(true);
+			setPropertiesAndAdd(dup, path);
+			if (disconnect) {
+				dup.getChildren().forEach( dupChild -> {
+					if (dupChild.getStartJoins() != null) dupChild.unsetStartJoin();
+					if (dupChild.getEndJoins() != null) dupChild.unsetEndJoin();
+				});
+			}
+			for( int i =0, n = path.getChildren().size(); i<n; i++ ) {
+				setPropertiesAndAdd(dup.getChildren().get(i), path.getChildren().get(i));
+			}
+
+		} else {
+
+			// Define the last node index of the duplicate section
+			int dupIndex = 0;
+			switch (portionChoice) {
 			case CHOICE_FIRST_BP:
 				if (junctionIndices != null && !junctionIndices.isEmpty()) {
 					dupIndex = junctionIndices.first();
 					// if we just retrieved the starting node, try the next fork point
-					if (dupIndex == 0)  dupIndex = getNthJunction(1);
+					if (dupIndex == 0)
+						dupIndex = getNthJunction(1);
 				}
 				break;
 			case CHOICE_LAST_BP:
@@ -172,29 +204,39 @@ public class DuplicateCmd extends CommonDynamicCmd {
 			default:
 				dupIndex = (int) Math.round(percentage / 100 * path.size());
 				break;
-		}
-		if (dupIndex == 0 && path.size() > 1) {
-			// if we are still stuck on the starting node, assume the user does not
-			// want to generate a single-node path: make a full duplication instead
-			if (dupIndex == 0)  dupIndex = path.size() - 1;
-		} else {
-			dupIndex = Math.min(dupIndex, path.size() - 1);
+			}
+			if (dupIndex == 0 && path.size() > 1) {
+				// if we are still stuck on the starting node, assume the user does not
+				// want to generate a single-node path: make a full duplication instead
+				if (dupIndex == 0)
+					dupIndex = path.size() - 1;
+			} else {
+				dupIndex = Math.min(dupIndex, path.size() - 1);
+			}
+
+			// Now make the duplication and add to manager
+			final Path dup = path.getSection(0, dupIndex);
+			if (!disconnect) {
+				if (path.getStartJoins() != null) {
+					dup.unsetStartJoin();
+					dup.setStartJoin(path.getStartJoins(), path.getStartJoinsPoint());
+				}
+				if (path.getEndJoins() != null) {
+					dup.unsetEndJoin();
+					dup.setEndJoin(path.getEndJoins(), path.getEndJoinsPoint());
+				}
+			}
+			setPropertiesAndAdd(dup, path);
+
 		}
 
-		// Now make the duplication
-		final Path dup = path.getSection(0, dupIndex);
-		dup.setName("Dup " + path.getName());
-		dup.setCTposition(Math.max(1, channel), Math.max(1, frame));
-		if (!disconnect) {
-			if (path.getStartJoins() != null)
-				dup.setStartJoin(path.getStartJoins(), path.getStartJoinsPoint());
-			if (path.getEndJoins() != null)
-				dup.setEndJoin(path.getEndJoins(), path.getEndJoinsPoint());
-		}
-
-		// Add to manager and restore UI
-		snt.getPathAndFillManager().addPath(dup, false, true);
 		resetUI();
+	}
+
+	private void setPropertiesAndAdd(final Path dup, final Path original) {
+		dup.setName("Dup " + original.getName());
+		dup.setCTposition(Math.max(1, channel), Math.max(1, frame));
+		snt.getPathAndFillManager().addPath(dup, false, true);
 	}
 
 	/* IDE debug method **/

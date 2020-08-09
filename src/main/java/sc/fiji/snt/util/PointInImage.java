@@ -199,6 +199,16 @@ public class PointInImage implements SNTPoint {
 	}
 
 	@Override
+	public PointInImage clone() {
+		final PointInImage dup = new PointInImage(getX(), getY(), getZ());
+		dup.onPath = onPath;
+		dup.v = v;
+		dup.annotation = annotation;
+		dup.lr = lr;
+		return dup;
+	}
+
+	@Override
 	public boolean equals(final Object o) {
 		if (o == this) return true;
 		if (o == null) return false;

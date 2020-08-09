@@ -30,6 +30,7 @@ import java.awt.geom.Line2D;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -964,19 +965,41 @@ public class Path implements Comparable<Path> {
 		dup.somehowJoins = (ArrayList<Path>) somehowJoins.clone();
 		dup.children = (ArrayList<Path>) children.clone();
 		if (startJoins != null) dup.startJoins = startJoins.clone();
-		if (startJoinsPoint != null) {
-			dup.startJoinsPoint = new PointInImage(startJoinsPoint.x, startJoinsPoint.y, startJoinsPoint.z);
-			dup.startJoinsPoint.onPath = dup;
-		}
+		if (startJoinsPoint != null) dup.startJoinsPoint = startJoinsPoint.clone(); 
 		if (endJoins != null) dup.endJoins = endJoins.clone();
-		if (endJoinsPoint != null) {
-			dup.endJoinsPoint = new PointInImage(endJoinsPoint.x, endJoinsPoint.y, endJoinsPoint.z);
-			dup.endJoinsPoint.onPath = dup;
-		}
+		if (endJoinsPoint != null) dup.endJoinsPoint = endJoinsPoint.clone();
 		if (getFitted() != null) dup.setFitted(getFitted().clone());
 		dup.setNodeColors(getNodeColors());
 		applyCommonProperties(dup);
 		return dup;
+	}
+
+	public Path clone(final boolean includeImmediateChildren) {
+		final Path dup = clone();
+		if (!includeImmediateChildren) return dup;
+
+		dup.children = new ArrayList<>(children.size());
+		final Iterator<Path> childrenIt = children.iterator();
+		while (childrenIt.hasNext()) {
+			final Path child = childrenIt.next();
+			final Path dupChild = child.clone();
+			if (dupChild.getStartJoinsPoint() != null) {
+				final PointInImage dupSPoint = dupChild.getStartJoinsPoint().clone();
+				dupChild.unsetStartJoin();
+				dupChild.setStartJoin(dup, dupSPoint);
+			}
+			if (dupChild.getEndJoinsPoint() != null) {
+				final PointInImage dupEPoint = dupChild.getEndJoinsPoint().clone();
+				dupChild.unsetEndJoin();
+				dupChild.setEndJoin(dup, dupEPoint);
+			}
+			dup.children.add(dupChild);
+		}
+		return dup;
+	}
+
+	public ArrayList<Path> getChildren() {
+		return children;
 	}
 
 	/**
