@@ -1173,7 +1173,7 @@ public class EditorMenuBar extends JMenuBar
 			{
 				component = (SNTGraphComponent) e.getSource();
 				adapter = (SNTGraphAdapter) component.getGraph();
-				if (adapter == null || adapter.getGraph() == null || adapter.getDefaultParent() == null
+				if (adapter == null || adapter.getSourceGraph() == null || adapter.getDefaultParent() == null
 						|| adapter.getChildCells(adapter.getDefaultParent(), true, true).length == 0) {
 					new GuiUtils(component).error("No data currently exists.");
 					return;

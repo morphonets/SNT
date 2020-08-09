@@ -115,8 +115,4 @@ public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, D
     	return (mxCellIDsToOriginalValuesMap == null) ? null : mxCellIDsToOriginalValuesMap.get(mxCellId);
     }
 
-	public SNTGraph<V, DefaultWeightedEdge> getGraph() {
-		return cGraph;
-	}
-
 }
