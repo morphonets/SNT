@@ -61,6 +61,9 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 	@Parameter(required = false, label = "Compartment", choices = { "All", "Axon", "Dendrites" })
 	private String compartment;
 
+	@Parameter(required = false, label = "Distinguish ipsi/contralateral areas")
+	private boolean splitByHemisphere;
+
 	@Parameter(required = true)
 	private Tree tree;
 
@@ -69,9 +72,14 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 
 	@SuppressWarnings("unused")
 	private void init() {
-		if (tree == null || tree.isEmpty()) {
+		if (tree == null || tree.isEmpty() || tree.getRoot() == null) {
 			cancel("No reconstruction specified.");
 			return;
+		}
+		final char hemiFlag = tree.getRoot().getHemisphere();
+		if (hemiFlag == BrainAnnotation.ANY_HEMISPHERE) {
+			resolveInput("splitByHemisphere");
+			splitByHemisphere = false;
 		}
 		treeLabel = (tree.getLabel() == null) ? "Reconstruction" : tree.getLabel();
 		if (!tree.isAnnotated()) {
@@ -117,15 +125,20 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 		statusService.showStatus("Classifying reconstruction...");
 		final TreeStatistics tStats = new TreeStatistics(tree);
 		if (histogramType.toLowerCase().contains("length")) {
-			hist = tStats.getAnnotatedLengthHistogram(ontologyDepth <= 0 ? Integer.MAX_VALUE : ontologyDepth);
+			hist = (splitByHemisphere) ?
+					tStats.getAnnotatedLengthHistogram(ajustedOntologyDepth(), "ratio")
+					: tStats.getAnnotatedLengthHistogram(ajustedOntologyDepth());
 			annotateSoma(hist, somaAnnot, somaLabel);
-			hist.annotate("Total cable length: " + tStats.getCableLength());
+			hist.annotate(String.format("Total cable length: %.3f", tStats.getCableLength()));
 			hist.show();
 		}
 		if (histogramType.toLowerCase().contains("tips")) {
 			final Set<PointInImage> tips = tStats.getTips();
 			final NodeStatistics<?> nStats = new NodeStatistics<>(tips);
-			hist = nStats.getAnnotatedHistogram(ontologyDepth <= 0 ? Integer.MAX_VALUE : ontologyDepth);
+			hist = nStats.getAnnotatedHistogram(ajustedOntologyDepth());
+			hist = (splitByHemisphere) ?
+					nStats.getAnnotatedFrequencyHistogram(ajustedOntologyDepth(), "ratio", tree)
+					: nStats.getAnnotatedHistogram(ajustedOntologyDepth());
 			annotateSoma(hist, somaAnnot, somaLabel);
 			hist.annotate("No. of tips: " + tips.size());
 			hist.show();
@@ -135,17 +148,28 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 
 	}
 
+	private int ajustedOntologyDepth() {
+		return ontologyDepth <= 0 ? Integer.MAX_VALUE : ontologyDepth;
+	}
+
 	private void annotateSoma(final SNTChart hist, final BrainAnnotation sAnnotation, final String sLabel) {
-		if (sAnnotation != null)
-			hist.annotateCategory(sAnnotation.acronym(), sLabel);
+		if (sAnnotation != null) {
+			final int adjustedOntologyLevel = ajustedOntologyDepth();
+			if (sAnnotation.getOntologyDepth() > adjustedOntologyLevel) {
+				final BrainAnnotation sAnnotationAdjusted = sAnnotation.getAncestor(adjustedOntologyLevel - sAnnotation.getOntologyDepth());
+				hist.annotateCategory(sAnnotationAdjusted.acronym(), "soma");
+			} else {
+				hist.annotateCategory(sAnnotation.acronym(), "soma");
+			}
+		}
 	}
 
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
-		final MouseLightLoader loader = new MouseLightLoader("AA0360");
+		final MouseLightLoader loader = new MouseLightLoader("AA0100");
 		final HashMap<String, Object> input = new HashMap<>();
-		input.put("tree", loader.getTree());
+		input.put("tree", loader.getTree("axon"));
 		final CommandService cmdService = ij.context().getService(CommandService.class);
 		cmdService.run(BrainAnnotationCmd.class, true, input);
 	}
