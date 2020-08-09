@@ -1,5 +1,6 @@
 package sc.fiji.snt.viewer.geditor;
 
+import com.mxgraph.layout.mxCircleLayout;
 import com.mxgraph.layout.mxGraphLayout;
 import com.mxgraph.layout.mxParallelEdgeLayout;
 import com.mxgraph.model.mxCell;
@@ -38,7 +39,7 @@ public class AnnotationGraphComponent extends SNTGraphComponent {
 
     public AnnotationGraphComponent(final AnnotationGraphAdapter adapter, Context context) {
         super(adapter, context);
-        layout = new mxCircleLayoutScaled(adapter);
+        layout = new mxCircleLayout(adapter);
         layout.execute(adapter.getDefaultParent());
         new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
     }
