@@ -156,7 +156,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 		while (!mPaths.isEmpty()) {
 			final MatchingPath current = mPaths.pop();
 			final List<MatchingPath> pathsWithCommonRoot = mPaths.stream().filter( p -> p.matches(current)).collect(Collectors.toList());
-			if (colorCounter > colors.length) colorCounter = 0;
+			if (colorCounter > colors.length-1) colorCounter = 0;
 			for (final MatchingPath hit : pathsWithCommonRoot) {
 				hit.assignID(groupCounter+1);
 				if (assignUniqueColors) hit.path.setColor(colors[colorCounter]);
