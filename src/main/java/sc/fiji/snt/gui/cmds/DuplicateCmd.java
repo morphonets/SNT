@@ -179,8 +179,10 @@ public class DuplicateCmd extends CommonDynamicCmd {
 					if (dupChild.getEndJoins() != null) dupChild.unsetEndJoin();
 				});
 			}
-			for( int i =0, n = path.getChildren().size(); i<n; i++ ) {
-				setPropertiesAndAdd(dup.getChildren().get(i), path.getChildren().get(i));
+			int idx = 0;
+			for (final Path child : path.getChildren()) {
+				setPropertiesAndAdd(dup.getChildren().get(idx), child);
+				idx++;
 			}
 
 		} else {
