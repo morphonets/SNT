@@ -341,7 +341,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 		}
 	}
 
-	// this exists only to address issue #25 and avoid the propagation
+	// this exists only to address issue https://github.com/fiji/SNT/issues/25 and avoid the propagation
 	// of swc files in pixel coordinates
 	private boolean validateImageDimensions() {
 		final int[] dims = sourceImp.getDimensions();
