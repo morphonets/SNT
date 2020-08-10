@@ -352,7 +352,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 			sourceImp.setDimensions(dims[2], dims[4], dims[3]);
 		}
 		final Calibration cal = sourceImp.getCalibration();
-		if (!cal.scaled() || (sourceImp.getNSlices() > 1 && (cal.pixelDepth < cal.pixelHeight ||
+		if (!cal.scaled() || (sourceImp.getZ() > 1 && (cal.pixelDepth < cal.pixelHeight ||
 			cal.pixelDepth < cal.pixelWidth)))
 		{
 			return new GuiUtils().getConfirmation("Spatial calibration of " +
