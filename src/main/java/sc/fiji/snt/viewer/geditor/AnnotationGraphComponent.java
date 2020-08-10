@@ -170,7 +170,11 @@ public class AnnotationGraphComponent extends SNTGraphComponent {
 				Graphics2D temporaryGraphics = (Graphics2D) g.create();
 
 				// Applies the default translate
-				temporaryGraphics.translate(translate.getX(), translate.getY());
+				try {
+					temporaryGraphics.translate(translate.getX(), translate.getY());
+				} catch (java.lang.NoSuchFieldError ignored) {
+					// do nothing!?
+				}
 
 				// setup the rotation for the label
 				double angle = java.lang.Math.atan(bounds.getHeight() / bounds.getWidth());
