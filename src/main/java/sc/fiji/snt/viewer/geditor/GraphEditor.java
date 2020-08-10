@@ -43,6 +43,7 @@ import javax.swing.UIManager;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
+import com.mxgraph.layout.*;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.XYPlot;
@@ -52,13 +53,6 @@ import org.jfree.chart.ui.RectangleInsets;
 import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
-import com.mxgraph.layout.mxCompactTreeLayout;
-import com.mxgraph.layout.mxEdgeLabelLayout;
-import com.mxgraph.layout.mxIGraphLayout;
-import com.mxgraph.layout.mxOrganicLayout;
-import com.mxgraph.layout.mxParallelEdgeLayout;
-import com.mxgraph.layout.mxPartitionLayout;
-import com.mxgraph.layout.mxStackLayout;
 import com.mxgraph.layout.hierarchical.mxHierarchicalLayout;
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.swing.mxGraphOutline;
@@ -913,7 +907,10 @@ public class GraphEditor extends JPanel
 			}
 			else if (ident.equals("circleLayout"))
 			{
-				layout = new mxCircleLayoutScaled(graph); //new mxCircleLayout(graph);
+				layout = new mxCircleLayout(graph); //new mxCircleLayout(graph);
+			}
+			else if (ident.equals("circleLayoutSorted")) {
+				layout = new mxCircleLayoutSorted(graph);
 			}
 		}
 
