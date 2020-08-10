@@ -67,7 +67,7 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	private boolean dupChildren;
 
 	@Parameter(label = "Make primary (disconnect)",
-			description="If selected, hierarchical relationships will be discarded.")
+			description="If selected, duplicate path will become primary (root path)")
 	private boolean disconnect;
 
 	@Parameter(label = "<HTML>&nbsp", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
@@ -89,10 +89,14 @@ public class DuplicateCmd extends CommonDynamicCmd {
 		channel = path.getChannel();
 		frame = path.getFrame();
 		String name = path.getName();
-//		if (path.isPrimary()) {
-//			resolveInput("disconnect");
-//			getInfo().getMutableInput("disconnect", Boolean.class).setLabel("");
-//		}
+		if (path.isPrimary()) {
+			resolveInput("disconnect");
+			getInfo().getMutableInput("disconnect", Boolean.class).setLabel("");
+		}
+		if (path.getChildren() == null || path.getChildren().isEmpty()) {
+			resolveInput("dupChildren");
+			getInfo().getMutableInput("dupChildren", Boolean.class).setLabel("");
+		}
 		if (path.size() == 1) {
 			percentage = 100;
 			name = "single point path";
@@ -116,7 +120,6 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	@SuppressWarnings("unused")
 	private void dupChildrenChanged() {
 		if (dupChildren) {
-			disconnect = false;
 			portionChoice = CHOICE_LENGTH;
 			percentage = 100;
 			portionChoiceChanged();
@@ -169,17 +172,11 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	@Override
 	public void run() {
 
-		if (dupChildren) {
+		if (dupChildren && path.getChildren() != null && !path.getChildren().isEmpty()) {
 
 			final Path dup = path.clone(true);
-			if (!disconnect) connectToAncestorAsNeeded(dup);
+			connectToAncestorAsNeeded(dup);
 			setPropertiesAndAdd(dup, path);
-			if (disconnect) {
-				dup.getChildren().forEach( dupChild -> {
-					if (dupChild.getStartJoins() != null) dupChild.unsetStartJoin();
-					if (dupChild.getEndJoins() != null) dupChild.unsetEndJoin();
-				});
-			}
 			int idx = 0;
 			for (final Path child : path.getChildren()) {
 				setPropertiesAndAdd(dup.getChildren().get(idx), child);
@@ -219,7 +216,7 @@ public class DuplicateCmd extends CommonDynamicCmd {
 
 			// Now make the duplication and add to manager
 			final Path dup = path.getSection(0, dupIndex);
-			if (!disconnect) connectToAncestorAsNeeded(dup);
+			connectToAncestorAsNeeded(dup);
 			setPropertiesAndAdd(dup, path);
 
 		}
@@ -228,16 +225,21 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	}
 
 	private void connectToAncestorAsNeeded(final Path dup) {
-		if (!dup.isPrimary()) {
+
+		// Disconnect duplicated path by default
+		if (dup.getStartJoins() != null) dup.unsetStartJoin();
+		if (dup.getEndJoins() != null) dup.unsetEndJoin();
+
+		// Now connect it to the parent of the original path if requested. Do nothing if original path has no parent
+		if (!path.isPrimary() && !disconnect) {
 			if (path.getStartJoins() != null) {
-				if (dup.getStartJoins() != null) dup.unsetStartJoin();
 				dup.setStartJoin(path.getStartJoins(), path.getStartJoinsPoint());
 			}
 			if (path.getEndJoins() != null) {
-				if (dup.getEndJoins() != null)  dup.unsetEndJoin();
 				dup.setEndJoin(path.getEndJoins(), path.getEndJoinsPoint());
 			}
 		}
+
 	}
 
 	private void setPropertiesAndAdd(final Path dup, final Path original) {
