@@ -23,8 +23,10 @@
 package sc.fiji.snt.analysis.graph;
 
 import org.jgrapht.Graphs;
+import org.jgrapht.graph.DefaultGraphType;
 import org.jgrapht.traverse.DepthFirstIterator;
 
+import org.jgrapht.util.SupplierUtil;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.NodeStatistics;
@@ -55,14 +57,16 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @throws IllegalArgumentException if Tree contains multiple roots
 	 */
 	public DirectedWeightedGraph(final Tree tree) throws IllegalArgumentException {
-		super(SWCWeightedEdge.class);
+		this();
 		this.tree = tree;
 		init(tree.getNodesAsSWCPoints(), true);
 	}
 
 	protected DirectedWeightedGraph() {
-		super(SWCWeightedEdge.class);
-		this.tree = null;
+		super(null, SupplierUtil.createSupplier(SWCWeightedEdge.class), new DefaultGraphType.Builder()
+				.directed().allowMultipleEdges(false).allowSelfLoops(false).allowCycles(false).weighted(true)
+				.modifiable(true)
+				.build());
 	}
 
 	/**

@@ -1,9 +1,10 @@
 package sc.fiji.snt.analysis.graph;
 
+import org.jgrapht.graph.DefaultGraphType;
+import org.jgrapht.util.SupplierUtil;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
-import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.viewer.GraphViewer;
@@ -33,15 +34,14 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
 	private int maxOntologyDepth;
 
     protected AnnotationGraph() {
-        super(AnnotationWeightedEdge.class);
-    }
-
-    public AnnotationGraph(final Collection<Tree> trees) {
-        this(trees, "tips", 1, AllenUtils.getHighestOntologyDepth());
+        super(null, SupplierUtil.createSupplier(AnnotationWeightedEdge.class), new DefaultGraphType.Builder()
+                .directed().allowMultipleEdges(false).allowSelfLoops(true).allowCycles(true).weighted(true)
+                .modifiable(true)
+                .build());
     }
 
     public AnnotationGraph(final Collection<Tree> trees, String metric, double threshold, int maxOntologyDepth) {
-        super(AnnotationWeightedEdge.class);
+        this();
         if (trees.isEmpty()) {
             throw new IllegalArgumentException("Empty Tree collection given");
         }

@@ -2,6 +2,7 @@ package sc.fiji.snt.viewer;
 
 import net.imagej.ImageJ;
 
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.NullContextException;
 import org.scijava.plugin.Parameter;
@@ -11,7 +12,6 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
-import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.geditor.AnnotationGraphAdapter;
 import sc.fiji.snt.viewer.geditor.AnnotationGraphComponent;
 import sc.fiji.snt.viewer.geditor.GraphEditor;
@@ -29,12 +29,12 @@ import java.util.List;
 public class GraphViewer {
     @Parameter
     private Context context;
-    private final SNTGraph<?, ?> graph;
-    private SNTGraphAdapter<?, ?> adapter;
+    private final SNTGraph<?, ? extends DefaultWeightedEdge> graph;
+    private SNTGraphAdapter<?, ? extends DefaultWeightedEdge> adapter;
     private SNTGraphComponent component;
 	private GraphEditor editor;
 
-    public GraphViewer(final SNTGraph<?, ?> inputGraph) {
+    public GraphViewer(final SNTGraph<?, ? extends DefaultWeightedEdge> inputGraph) {
         this.graph = inputGraph;
     }
 
@@ -102,10 +102,10 @@ public class GraphViewer {
             trees.add(tree);
         }
         //List<Tree> trees = ij.context().getService(SNTService.class).demoTrees();
-        //final AnnotationGraph graph = new AnnotationGraph(trees, "branches", 5, 8);
-        DirectedWeightedGraph graph = trees.get(0).getGraph(true);
-        GraphColorMapper<SWCPoint, SWCWeightedEdge> mapper = new GraphColorMapper<>(ij.context());
-        mapper.map(graph, GraphColorMapper.EDGE_WEIGHT, "Ice");
+        final AnnotationGraph graph = new AnnotationGraph(trees, "tips", 5, 7);
+        //DirectedWeightedGraph graph = trees.get(0).getGraph(true);
+        //GraphColorMapper<SWCPoint, SWCWeightedEdge> mapper = new GraphColorMapper<>(ij.context());
+        //mapper.map(graph, GraphColorMapper.EDGE_WEIGHT, "Ice");
         //graph.filterEdgesByWeight(20);
         // graph.removeOrphanedNodes();
         GraphViewer graphViewer = new GraphViewer(graph);

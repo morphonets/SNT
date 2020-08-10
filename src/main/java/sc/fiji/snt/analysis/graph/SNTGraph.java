@@ -1,12 +1,15 @@
 package sc.fiji.snt.analysis.graph;
 
-import org.jgrapht.graph.DefaultDirectedWeightedGraph;
+import org.jgrapht.GraphType;
+import org.jgrapht.graph.AbstractBaseGraph;
+
 import org.scijava.util.ColorRGB;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
-public class SNTGraph<V, DefaultWeightedEdge> extends DefaultDirectedWeightedGraph<V, DefaultWeightedEdge> {
+public abstract class SNTGraph<V, DefaultWeightedEdge> extends AbstractBaseGraph<V, DefaultWeightedEdge> {
 
 	private static final long serialVersionUID = 8458292348918037500L;
 
@@ -14,8 +17,8 @@ public class SNTGraph<V, DefaultWeightedEdge> extends DefaultDirectedWeightedGra
     private final Map<DefaultWeightedEdge, ColorRGB> edgeColorRGBMap;
     private final Map<V, Double> vertexValueMap;
 
-    public SNTGraph(Class<? extends DefaultWeightedEdge> edgeClass) {
-        super(edgeClass);
+    protected SNTGraph(Supplier<V> vertexSupplier, Supplier<DefaultWeightedEdge> edgeSupplier, GraphType type) {
+        super(vertexSupplier, edgeSupplier, type);
         vertexColorRGBMap = new HashMap<>();
         edgeColorRGBMap = new HashMap<>();
         vertexValueMap = new HashMap<>();

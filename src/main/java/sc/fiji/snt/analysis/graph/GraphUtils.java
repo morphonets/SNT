@@ -25,7 +25,7 @@ package sc.fiji.snt.analysis.graph;
 import java.awt.Window;
 import java.util.Collection;
 
-import org.jgrapht.graph.DefaultDirectedGraph;
+import org.jgrapht.Graph;
 import org.scijava.util.Colors;
 
 import net.imagej.ImageJ;
@@ -46,13 +46,13 @@ public class GraphUtils {
 	}
 
 	@Deprecated
-	public static DefaultDirectedGraph<SWCPoint, SWCWeightedEdge> createGraph(final Collection<SWCPoint> nodes,
+	public static DirectedWeightedGraph createGraph(final Collection<SWCPoint> nodes,
 	                                                                              final boolean assignDistancesToWeights) {
 		return new DirectedWeightedGraph(nodes, assignDistancesToWeights);
 	}
 
 	@Deprecated
-	public static DefaultDirectedGraph<SWCPoint, SWCWeightedEdge> createGraph(final Tree tree) throws IllegalArgumentException {
+	public static DirectedWeightedGraph createGraph(final Tree tree) throws IllegalArgumentException {
 		return tree.getGraph();
 	}
 
@@ -63,7 +63,7 @@ public class GraphUtils {
 	 * @return the Tree, assembled from from the graph vertices
 	 */
 	@Deprecated
-	public static Tree createTree(final DefaultDirectedGraph<SWCPoint, ?> graph) {
+	public static Tree createTree(final Graph<SWCPoint, ?> graph) {
 		if (graph instanceof DirectedWeightedGraph) {
 			return ((DirectedWeightedGraph)graph).getTree();
 		}
@@ -71,7 +71,7 @@ public class GraphUtils {
 	}
 
 	@Deprecated
-	public static DefaultDirectedGraph<SWCPoint, SWCWeightedEdge> getSimplifiedGraph(
+	public static DirectedWeightedGraph getSimplifiedGraph(
 			final DirectedWeightedGraph graph) {
 		return graph.getSimplifiedGraph();
 	}
