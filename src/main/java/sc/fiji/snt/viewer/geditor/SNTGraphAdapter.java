@@ -3,17 +3,18 @@ package sc.fiji.snt.viewer.geditor;
 import com.mxgraph.model.mxCell;
 import com.mxgraph.util.mxConstants;
 import org.jgrapht.ext.JGraphXAdapter;
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.util.ColorRGB;
 import sc.fiji.snt.analysis.graph.SNTGraph;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, DefaultWeightedEdge> {
+public class SNTGraphAdapter<V, E extends DefaultWeightedEdge> extends JGraphXAdapter<V, E> {
     private HashMap<String, String> mxCellIDsToOriginalValuesMap;
-    protected final SNTGraph<V, DefaultWeightedEdge> cGraph;
+    protected final SNTGraph<V, E> cGraph;
 
-    public SNTGraphAdapter(SNTGraph<V, DefaultWeightedEdge> graph) {
+    public SNTGraphAdapter(SNTGraph<V, E> graph) {
         super(graph);
         this.cGraph = graph;
         setAutoSizeCells(true);
@@ -61,7 +62,7 @@ public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, D
         cGraph.setVertexColor(vertex, color);
     }
 
-    public void setEdgeColor(DefaultWeightedEdge edge, ColorRGB color) {
+    public void setEdgeColor(E edge, ColorRGB color) {
         java.lang.Object cell = getEdgeToCellMap().get(edge);
         if (cell == null || color == null) {
             return;
@@ -79,13 +80,13 @@ public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, D
             }
         }
         if (!cGraph.getEdgeColorRGBMap().isEmpty()) {
-            for (Map.Entry<DefaultWeightedEdge, ColorRGB> entry : cGraph.getEdgeColorRGBMap().entrySet()) {
+            for (Map.Entry<E, ColorRGB> entry : cGraph.getEdgeColorRGBMap().entrySet()) {
                 setEdgeColor(entry.getKey(), entry.getValue());
             }
         }
     }
 
-    public SNTGraph<V, DefaultWeightedEdge> getSourceGraph() {
+    public SNTGraph<V, E> getSourceGraph() {
         return cGraph;
     }
 

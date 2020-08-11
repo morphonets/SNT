@@ -4,6 +4,7 @@ import com.mxgraph.layout.mxCircleLayout;
 import com.mxgraph.layout.mxParallelEdgeLayout;
 import net.imagej.ImageJ;
 
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.NullContextException;
 import org.scijava.plugin.Parameter;
@@ -30,12 +31,12 @@ import java.util.List;
 public class GraphViewer {
     @Parameter
     private Context context;
-    private final SNTGraph<?, ?> graph;
-    private SNTGraphAdapter<?, ?> adapter;
+    private final SNTGraph<?, ? extends DefaultWeightedEdge> graph;
+    private SNTGraphAdapter<?, ? extends DefaultWeightedEdge> adapter;
     private SNTGraphComponent component;
 	private GraphEditor editor;
 
-    public GraphViewer(final SNTGraph<?, ?> inputGraph) {
+    public GraphViewer(final SNTGraph<?, ? extends DefaultWeightedEdge> inputGraph) {
         this.graph = inputGraph;
     }
 
@@ -63,7 +64,7 @@ public class GraphViewer {
             adapter = new AnnotationGraphAdapter((AnnotationGraph) this.graph);
             component = new AnnotationGraphComponent((AnnotationGraphAdapter) adapter, getContext());
         } else if (graph instanceof SNTPseudograph) {
-            adapter = new SNTGraphAdapter<>((SNTPseudograph<?, ?>) this.graph);
+            adapter = new SNTGraphAdapter<>((SNTPseudograph<?, ? extends DefaultWeightedEdge>) this.graph);
             component = new SNTGraphComponent(adapter, getContext());
             this.adapter.setCellColorsFromGraph();
             new mxCircleLayout(adapter).execute(adapter.getDefaultParent());

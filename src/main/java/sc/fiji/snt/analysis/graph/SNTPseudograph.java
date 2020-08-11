@@ -1,9 +1,10 @@
 package sc.fiji.snt.analysis.graph;
 
 import org.jgrapht.graph.DefaultGraphType;
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.util.SupplierUtil;
 
-public class SNTPseudograph<V, E> extends SNTGraph<V, E> {
+public class SNTPseudograph<V, E extends DefaultWeightedEdge> extends SNTGraph<V, E> {
 
     public SNTPseudograph(Class<? extends E> edgeClass) {
         super(null, SupplierUtil.createSupplier(edgeClass), new DefaultGraphType.Builder()

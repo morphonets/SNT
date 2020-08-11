@@ -3,13 +3,14 @@ package sc.fiji.snt.analysis.graph;
 import org.jgrapht.GraphType;
 import org.jgrapht.graph.AbstractBaseGraph;
 
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.util.ColorRGB;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public abstract class SNTGraph<V, E> extends AbstractBaseGraph<V, E> {
+public abstract class SNTGraph<V, E extends DefaultWeightedEdge> extends AbstractBaseGraph<V, E> {
 
 	private static final long serialVersionUID = 8458292348918037500L;
 

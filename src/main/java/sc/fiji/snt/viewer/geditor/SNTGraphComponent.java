@@ -6,6 +6,7 @@ import com.mxgraph.swing.view.mxCellEditor;
 import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.view.mxGraphView;
 
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
@@ -29,13 +30,13 @@ public class SNTGraphComponent extends mxGraphComponent {
 
 	@Parameter
     protected CommandService cmdService;
-    protected final SNTGraphAdapter<?, ?> adapter;
+    protected final SNTGraphAdapter<?, ? extends DefaultWeightedEdge> adapter;
     protected File saveDir;
 	private boolean spaceDown = false;
 
 	private GraphEditor editor;
 
-    public SNTGraphComponent(SNTGraphAdapter<?, ?> adapter, Context context) {
+    public SNTGraphComponent(SNTGraphAdapter<?, ? extends DefaultWeightedEdge> adapter, Context context) {
         super(adapter);
         context.inject(this);
         this.adapter = adapter;
