@@ -26,6 +26,7 @@ import java.awt.Color;
 import java.io.File;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -220,6 +221,7 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 	private Profile profile;
 	private DefaultGenericTable commonSummaryTable;
 	private Display<?> detailedTableDisplay;
+	private boolean multipleTreesExist;
 
 	/* Interactive runs: References to previous outputs */
 	private ShollPlot lPlot;
@@ -277,6 +279,10 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 			analysisRunner = new AnalysisRunner(filteredTree, center);
 		}
 		else {
+			if (tree == null && multipleTreesExist) {
+				multipleTreesExistError();
+				return;
+			}
 			if (tree == null) {
 				cancelAndFreezeUI("File does not seem to be valid", "Invalid File");
 				return;
@@ -323,7 +329,7 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 		logger = new Logger(context());
 		final boolean calledFromSNT = snt != null;
 		final boolean calledFromStandAloneRecViewer = snt == null && tree != null;
-
+		multipleTreesExist = false;
 		// Adjust Path filtering choices
 		final MutableModuleItem<String> mlitm =
 			(MutableModuleItem<String>) getInfo().getInput("filterChoice",
@@ -413,6 +419,24 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 		helper.errorPrompt(msg, title);
 	}
 
+	private void multipleTreesExistError() {
+		cancel("Invalid File");
+		GuiUtils.showHTMLDialog(
+				"<html>"//
+				+ "<p>The selected file seems to contain multiple rooted structures (i.e., disconnected primary paths). "//
+				+ "Currently there is no automated way to <em>be certain</em> that such structures relate to the same cell, "//
+				+ "so the analysis has been aborted to ensure it is not confounded by the presence of multiple cells."//
+				+ "</p>"//
+				+ "<p>If your file does contain data from a single cell, please use Path Manager&#39;s "//
+				+ "<em>Edit &gt;Merge all Primary Paths into Shared Root...</em> command to merge disconnected paths. "//
+				+ "More details on this issue can be found "
+				+ "<a href='https://forum.image.sc/t/snt-sholl-analysis-bug-following-update/40057/7?u=tferr'>here</a>."//
+				+ "</p>"//
+				+ "<p>(If you think this limitation is a cumbersome annoyance, please provide feedback on how this "//
+				+ "restriction should be lifted using the link above).</p>"//
+				+ "</html>", "Multiple Roots Detected");
+	}
+
 	private double adjustedStepSize() {
 		return Math.max(stepSize, 0);
 	}
@@ -470,10 +494,18 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 	@SuppressWarnings("unused")
 	private void fileChanged() {
 		try {
-			tree = new Tree(file.getAbsolutePath());
+			Collection<Tree> trees = Tree.listFromFile(file.getAbsolutePath());
+			if (trees != null && trees.size() == 1) {
+				tree = trees.iterator().next();
+				multipleTreesExist = false;;
+			} else if (trees != null && trees.size() > 1) {
+				tree = null;
+				multipleTreesExist = true;
+			}
 		}
 		catch (final IllegalArgumentException | NullPointerException ex) {
 			tree = null;
+			multipleTreesExist = false;
 		}
 	}
 
