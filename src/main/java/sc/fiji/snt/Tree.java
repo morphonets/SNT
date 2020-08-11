@@ -149,6 +149,12 @@ public class Tree {
 		final File f = new File(filename);
 		if (!f.exists())
 			throw new IllegalArgumentException("File does not exist: " + filename);
+		initPathAndFillManagerFromFile(filename, compartment);
+		tree = pafm.getPaths();
+		setLabel(SNTUtils.stripExtension(f.getName()));
+	}
+
+	private void initPathAndFillManagerFromFile(final String filename, final String compartment) throws IllegalArgumentException {
 		final String normCompartment = (compartment == null || compartment.length() < 2) ? "all"
 				: compartment.toLowerCase().substring(0, 2);
 		switch (normCompartment) {
@@ -172,8 +178,6 @@ public class Tree {
 		}
 		if (pafm == null)
 			throw new IllegalArgumentException("No paths extracted from " + filename + " Invalid file/compartment?");
-		tree = pafm.getPaths();
-		setLabel(SNTUtils.stripExtension(f.getName()));
 	}
 
 	/**
@@ -1288,6 +1292,31 @@ public class Tree {
 		} catch (final IllegalArgumentException ex) {
 			return null;
 		}
+	}
+
+	/**
+	 * Retrieves a list of {@link Tree}s from a single reconstruction file.
+	 * 
+	 *
+	 * @param tracesOrJsonFile the file containing the reconstructions (typically a
+	 *                         .traces or .json extension).
+	 * @return the collection of imported {@link Tree}s. An empty list is retrieved
+	 *         if {@code tracesOrJsonFile} is not a valid, readable file.
+	 */
+	public static Collection<Tree> listFromFile(final String tracesOrJsonFile) throws IllegalArgumentException {
+		final File f = new File(tracesOrJsonFile);
+		if (!f.exists())
+			throw new IllegalArgumentException("File does not exist: " + tracesOrJsonFile);
+		final Tree dummyTree = new Tree();
+		try {
+			dummyTree.initPathAndFillManagerFromFile(tracesOrJsonFile, "all");
+		} catch (final IllegalArgumentException ignored) {
+			return new ArrayList<>();
+		}
+		final Collection<Tree> trees = dummyTree.pafm.getTrees();
+		if (trees.size() == 1)
+			trees.iterator().next().setLabel(SNTUtils.stripExtension(f.getName()));
+		return trees;
 	}
 
 	/**
