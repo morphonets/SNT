@@ -35,7 +35,7 @@ public class SNTGraphComponent extends mxGraphComponent {
 
 	private GraphEditor editor;
 
-    protected SNTGraphComponent(SNTGraphAdapter<?, ?> adapter, Context context) {
+    public SNTGraphComponent(SNTGraphAdapter<?, ?> adapter, Context context) {
         super(adapter);
         context.inject(this);
         this.adapter = adapter;

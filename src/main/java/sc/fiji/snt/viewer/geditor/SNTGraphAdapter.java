@@ -13,7 +13,7 @@ public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, D
     private HashMap<String, String> mxCellIDsToOriginalValuesMap;
     protected final SNTGraph<V, DefaultWeightedEdge> cGraph;
 
-    protected SNTGraphAdapter(SNTGraph<V, DefaultWeightedEdge> graph) {
+    public SNTGraphAdapter(SNTGraph<V, DefaultWeightedEdge> graph) {
         super(graph);
         this.cGraph = graph;
         setAutoSizeCells(true);
@@ -72,7 +72,7 @@ public class SNTGraphAdapter<V, DefaultWeightedEdge> extends JGraphXAdapter<V, D
         cGraph.setEdgeColor(edge, color);
     }
 
-    protected void setCellColorsFromGraph() {
+    public void setCellColorsFromGraph() {
         if (!cGraph.getVertexColorRGBMap().isEmpty()) {
             for (Map.Entry<V, ColorRGB> entry : cGraph.getVertexColorRGBMap().entrySet()) {
                 setVertexColor(entry.getKey(), entry.getValue());

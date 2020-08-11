@@ -1,8 +1,9 @@
 package sc.fiji.snt.viewer;
 
+import com.mxgraph.layout.mxCircleLayout;
+import com.mxgraph.layout.mxParallelEdgeLayout;
 import net.imagej.ImageJ;
 
-import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.NullContextException;
 import org.scijava.plugin.Parameter;
@@ -29,12 +30,12 @@ import java.util.List;
 public class GraphViewer {
     @Parameter
     private Context context;
-    private final SNTGraph<?, ? extends DefaultWeightedEdge> graph;
-    private SNTGraphAdapter<?, ? extends DefaultWeightedEdge> adapter;
+    private final SNTGraph<?, ?> graph;
+    private SNTGraphAdapter<?, ?> adapter;
     private SNTGraphComponent component;
 	private GraphEditor editor;
 
-    public GraphViewer(final SNTGraph<?, ? extends DefaultWeightedEdge> inputGraph) {
+    public GraphViewer(final SNTGraph<?, ?> inputGraph) {
         this.graph = inputGraph;
     }
 
@@ -61,8 +62,14 @@ public class GraphViewer {
         } else if (this.graph instanceof AnnotationGraph) {
             adapter = new AnnotationGraphAdapter((AnnotationGraph) this.graph);
             component = new AnnotationGraphComponent((AnnotationGraphAdapter) adapter, getContext());
+        } else if (graph instanceof SNTPseudograph) {
+            adapter = new SNTGraphAdapter<>((SNTPseudograph<?, ?>) this.graph);
+            component = new SNTGraphComponent(adapter, getContext());
+            this.adapter.setCellColorsFromGraph();
+            new mxCircleLayout(adapter).execute(adapter.getDefaultParent());
+            new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
         } else {
-            throw new UnsupportedOperationException("Currently only DirectedWeightedGraph and AnnotationGraph are supported.");
+            throw new UnsupportedOperationException("Unsupported Graph Type.");
         }
         GuiUtils.setSystemLookAndFeel();
         editor = new GraphEditor("Graph Viewer", component);
@@ -96,7 +103,7 @@ public class GraphViewer {
         cellIds.add("AA0824");
         cellIds.add("AA0017");
         cellIds.add("AA0345");
-        List<Tree> trees = new ArrayList<Tree>();
+        List<Tree> trees = new ArrayList<>();
         for (String id : cellIds) {
             Tree tree = new MouseLightLoader(id).getTree("axon");
             trees.add(tree);

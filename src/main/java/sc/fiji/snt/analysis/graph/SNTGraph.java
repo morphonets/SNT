@@ -9,15 +9,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public abstract class SNTGraph<V, DefaultWeightedEdge> extends AbstractBaseGraph<V, DefaultWeightedEdge> {
+public abstract class SNTGraph<V, E> extends AbstractBaseGraph<V, E> {
 
 	private static final long serialVersionUID = 8458292348918037500L;
 
 	private final Map<V, ColorRGB> vertexColorRGBMap;
-    private final Map<DefaultWeightedEdge, ColorRGB> edgeColorRGBMap;
+    private final Map<E, ColorRGB> edgeColorRGBMap;
     private final Map<V, Double> vertexValueMap;
 
-    protected SNTGraph(Supplier<V> vertexSupplier, Supplier<DefaultWeightedEdge> edgeSupplier, GraphType type) {
+    protected SNTGraph(Supplier<V> vertexSupplier, Supplier<E> edgeSupplier, GraphType type) {
         super(vertexSupplier, edgeSupplier, type);
         vertexColorRGBMap = new HashMap<>();
         edgeColorRGBMap = new HashMap<>();
@@ -30,7 +30,7 @@ public abstract class SNTGraph<V, DefaultWeightedEdge> extends AbstractBaseGraph
         }
     }
 
-    public void setEdgeColor(DefaultWeightedEdge edge, ColorRGB color) {
+    public void setEdgeColor(E edge, ColorRGB color) {
         if (containsEdge(edge)) {
             edgeColorRGBMap.put(edge, color);
         }
@@ -43,7 +43,7 @@ public abstract class SNTGraph<V, DefaultWeightedEdge> extends AbstractBaseGraph
         return null;
     }
 
-    public ColorRGB getEdgeColor(DefaultWeightedEdge edge) {
+    public ColorRGB getEdgeColor(E edge) {
         if (containsEdge(edge) && edgeColorRGBMap.containsKey(edge)) {
             return edgeColorRGBMap.get(edge);
         }
@@ -62,7 +62,7 @@ public abstract class SNTGraph<V, DefaultWeightedEdge> extends AbstractBaseGraph
         return vertexColorRGBMap;
     }
 
-    public Map<DefaultWeightedEdge, ColorRGB> getEdgeColorRGBMap() {
+    public Map<E, ColorRGB> getEdgeColorRGBMap() {
         return edgeColorRGBMap;
     }
 
