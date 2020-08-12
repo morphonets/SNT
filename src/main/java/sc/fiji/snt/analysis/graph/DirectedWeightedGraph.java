@@ -361,14 +361,27 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		return roots.get(0);
 	}
 
-	/**
-	 * Reassembles a tree from this graph's data.
-	 *
-	 * @return the reassembled tree
-	 */
 	public Tree getTree() {
-		updateVertexProperties();
-		return new Tree(this.vertexSet(), "");
+		if (tree == null) {
+			return getTree(true);
+		} else {
+			return getTree(false);
+		}
+	}
+
+	/**
+	 * Returns a tree associated with this graph.
+	 *
+	 * @param createNewTree If true, reassembles a tree from this graph's data.
+	 *                      If false, returns the cached tree if it exists or null if it does not exist
+	 * @return the tree
+	 */
+	public Tree getTree(boolean createNewTree) {
+		if (createNewTree) {
+			return new Tree(this.vertexSet(), "");
+		} else {
+			return tree;
+		}
 	}
 
 	public DirectedWeightedSubgraph getSubgraph(final Set<SWCPoint> nodeSubset) {

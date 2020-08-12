@@ -33,6 +33,7 @@ import sc.fiji.snt.analysis.graph.SNTGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.GraphRecViewerCmd;
 import sc.fiji.snt.gui.cmds.NewGraphOptionsCmd;
+import sc.fiji.snt.gui.cmds.TreeGraphRecViewerCmd;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -2182,6 +2183,12 @@ public class EditorActions
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("adapter", adapter);
 				cmdService.run(GraphRecViewerCmd.class, true, inputs);
+			} else if (e.getSource() instanceof TreeGraphComponent) {
+				final TreeGraphAdapter adapter;
+				adapter = (TreeGraphAdapter) ((TreeGraphComponent) e.getSource()).getGraph();
+				final Map<String, Object> inputs = new HashMap<>();
+				inputs.put("adapter", adapter);
+				cmdService.run(TreeGraphRecViewerCmd.class, true, inputs);
 			}
 		}
 
