@@ -362,11 +362,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	}
 
 	public Tree getTree() {
-		if (tree == null) {
-			return getTree(true);
-		} else {
-			return getTree(false);
-		}
+		return getTree(true);
 	}
 
 	/**
@@ -378,6 +374,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 */
 	public Tree getTree(boolean createNewTree) {
 		if (createNewTree) {
+			updateVertexProperties();
 			return new Tree(this.vertexSet(), "");
 		} else {
 			return tree;

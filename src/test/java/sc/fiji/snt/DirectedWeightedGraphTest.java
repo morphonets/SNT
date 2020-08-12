@@ -67,7 +67,7 @@ public class DirectedWeightedGraphTest {
 		graph.addVertex(newRoot);
 		graph.addEdge(newRoot, oldRoot);
 		
-		Tree changedTree = graph.getTree();
+		Tree changedTree = graph.getTree(true);
 		TreeAnalyzer analyzer = new TreeAnalyzer(changedTree);
 		
 		PointInImage newTreeRoot = changedTree.getRoot();

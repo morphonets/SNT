@@ -22,7 +22,7 @@ public class TreeGraphRecViewerCmd extends DynamicCommand {
     public void run() {
         if (adapter == null) cancel("Invalid adapter");
         DirectedWeightedGraph graph = (DirectedWeightedGraph) adapter.getSourceGraph();
-        Tree tree = graph.getTree();
+        Tree tree = graph.getTree(false);
         if (tree == null) cancel("Invalid Tree");
         Viewer3D viewer = new Viewer3D(getContext());
         viewer.addTrees(Collections.singleton(tree), true);
