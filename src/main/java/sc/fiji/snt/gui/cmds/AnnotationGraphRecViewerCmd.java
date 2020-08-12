@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 
 
 @Plugin(type = Command.class, visible = false, label = "Show Graph in Rec. Viewer")
-public class GraphRecViewerCmd extends DynamicCommand {
+public class AnnotationGraphRecViewerCmd extends DynamicCommand {
 
     public static final String COLOR_SOMA_MESH = "Soma compartment (graph color)";
     public static final String COLOR_UNIQUE = "Unique colors";
@@ -142,7 +142,7 @@ public class GraphRecViewerCmd extends DynamicCommand {
         GuiUtils.setSystemLookAndFeel();
         final ImageJ ij = new ImageJ();
         ij.ui().showUI();
-        ij.command().run(GraphRecViewerCmd.class, true);
+        ij.command().run(AnnotationGraphRecViewerCmd.class, true);
     }
 
 }
