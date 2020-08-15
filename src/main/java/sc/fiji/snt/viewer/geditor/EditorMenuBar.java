@@ -942,6 +942,7 @@ public class EditorMenuBar extends JMenuBar
 
 		protected void doColorCoding() {
 			final Map<String, Object> input = new HashMap<>();
+			input.put("editor", editor);
 			input.put("adapter", adapter);
 			Object[] selection = adapter.getSelectionCells();
 			if (selection.length > 0) {

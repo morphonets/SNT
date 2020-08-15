@@ -36,6 +36,7 @@ import org.scijava.widget.Button;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.graph.GraphColorMapper;
 import sc.fiji.snt.analysis.graph.SNTGraph;
+import sc.fiji.snt.viewer.geditor.GraphEditor;
 import sc.fiji.snt.viewer.geditor.SNTGraphAdapter;
 
 import java.io.IOException;
@@ -56,7 +57,7 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
     @Parameter
     private LUTService lutService;
 
-    @Parameter(required = true, label = "Color by")
+    @Parameter(label = "Color By")
     private String measurementChoice;
 
     @Parameter(label = "LUT", callback = "lutChoiceChanged")
@@ -65,20 +66,26 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
     @Parameter(required = false, label = "<HTML>&nbsp;")
     private ColorTable colorTable;
 
-    @Parameter(required=true, label="Use clipping range")
+    @Parameter(label="Use Clipping Range")
     private boolean useRange;
 
-    @Parameter(required = false, label="min value")
+    @Parameter(required = false, label="Min Value")
     private double minValue;
 
-    @Parameter(required = false, label="max value")
+    @Parameter(required = false, label="Max Value")
     private double maxValue;
+
+    @Parameter(label="Show Legend")
+    private boolean showLegend;
 
     @Parameter(required = false, label = "Remove Existing Color Coding",
             callback = "removeColorCoding")
     private Button removeColorCoding;
 
-    @Parameter(required = true)
+    @Parameter(label = "Editor")
+    private GraphEditor editor;
+
+    @Parameter
     private SNTGraphAdapter<Object, DefaultWeightedEdge> adapter;
 
     @Parameter(required = false)
@@ -123,6 +130,9 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
                 break;
             default:
                 cancel("Color mapping failed");
+        }
+        if (showLegend && editor != null) {
+            editor.setLegend(colorTable, measurementChoice, colorizer.getMinMax()[0], colorizer.getMinMax()[1]);
         }
         SNTUtils.log("Finished...");
     }
