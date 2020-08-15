@@ -163,7 +163,7 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
                 mapToEccentricity(colorTable);
                 break;
             case CONNECTIVITY:
-                mappedState = EDGES;
+                mappedState = VERTICES_AND_EDGES;
                 mapToConnectivity(colorTable);
                 break;
             case PAGE_RANK:
@@ -197,9 +197,12 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
         setMinMax(0, components.size());
         int idx = 0;
         for (Graph<V, E> comp : components) {
+            ColorRGB c = getColorRGB(idx);
             for (E edge : comp.edgeSet()) {
-                ColorRGB c = getColorRGB(idx);
                 graph.setEdgeColor(edge, c);
+            }
+            for (V vertex : comp.vertexSet()) {
+                graph.setVertexColor(vertex, c);
             }
             ++idx;
         }
