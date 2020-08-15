@@ -1,49 +1,19 @@
 package sc.fiji.snt.viewer.geditor;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Point;
-import java.awt.event.ActionEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseMotionListener;
-import java.awt.event.MouseWheelEvent;
-import java.awt.event.MouseWheelListener;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.io.File;
-import java.text.NumberFormat;
-import java.util.List;
-
-import javax.swing.AbstractAction;
-import javax.swing.Action;
-import javax.swing.BorderFactory;
-import javax.swing.Icon;
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JComboBox;
-import javax.swing.JFormattedTextField;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JSplitPane;
-import javax.swing.JTabbedPane;
-import javax.swing.JToolBar;
-import javax.swing.SwingUtilities;
-import javax.swing.SwingWorker;
-import javax.swing.UIManager;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-
+import com.mxgraph.layout.hierarchical.mxHierarchicalLayout;
 import com.mxgraph.layout.*;
+import com.mxgraph.swing.handler.mxKeyboardHandler;
+import com.mxgraph.swing.handler.mxRubberband;
+import com.mxgraph.swing.mxGraphComponent;
+import com.mxgraph.swing.mxGraphOutline;
+import com.mxgraph.swing.util.mxMorphing;
+import com.mxgraph.util.*;
+import com.mxgraph.util.mxEventSource.mxIEventListener;
+import com.mxgraph.util.mxUndoableEdit.mxUndoableChange;
+import com.mxgraph.view.mxGraph;
+import com.mxgraph.view.mxStylesheet;
+import net.imagej.lut.LUTService;
+import net.imglib2.display.ColorTable;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.XYPlot;
@@ -53,32 +23,21 @@ import org.jfree.chart.ui.RectangleInsets;
 import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
-import com.mxgraph.layout.hierarchical.mxHierarchicalLayout;
-import com.mxgraph.swing.mxGraphComponent;
-import com.mxgraph.swing.mxGraphOutline;
-import com.mxgraph.swing.handler.mxKeyboardHandler;
-import com.mxgraph.swing.handler.mxRubberband;
-import com.mxgraph.swing.util.mxMorphing;
-import com.mxgraph.util.mxConstants;
-import com.mxgraph.util.mxEvent;
-import com.mxgraph.util.mxEventObject;
-import com.mxgraph.util.mxRectangle;
-import com.mxgraph.util.mxResources;
-import com.mxgraph.util.mxUndoManager;
-import com.mxgraph.util.mxUndoableEdit;
-import com.mxgraph.util.mxEventSource.mxIEventListener;
-import com.mxgraph.util.mxUndoableEdit.mxUndoableChange;
-import com.mxgraph.view.mxGraph;
-import com.mxgraph.view.mxStylesheet;
-
-import net.imagej.lut.LUTService;
-import net.imglib2.display.ColorTable;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.geditor.EditorActions.ChangeGraphAction;
+
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import java.awt.*;
+import java.awt.event.*;
+import java.io.File;
+import java.text.NumberFormat;
+import java.util.List;
 
 public class GraphEditor extends JPanel
 {
@@ -777,6 +736,7 @@ public class GraphEditor extends JPanel
 			return new AbstractAction(mxResources.get(key)) {
 				public void actionPerformed(ActionEvent e) {
 					applyLayout(layout);
+					applyParallelEdgeLayout();
 				}
 			};
 		}
@@ -803,6 +763,25 @@ public class GraphEditor extends JPanel
 			} else {
 				graph.getModel().endUpdate();
 			}
+		}
+	}
+
+	private void applyParallelEdgeLayout() {
+		final mxGraph graph = graphComponent.getGraph();
+		Object cell = graph.getSelectionCell();
+
+		if (cell == null || graph.getModel().getChildCount(cell) == 0) {
+			cell = graph.getDefaultParent();
+		}
+
+		graph.getModel().beginUpdate();
+		try {
+			long t0 = System.currentTimeMillis();
+			mxParallelEdgeLayout layout = new mxParallelEdgeLayout(graph);
+			layout.execute(cell);
+			status("Parallel Edge Layout: " + (System.currentTimeMillis() - t0) + " ms");
+		} finally {
+			graph.getModel().endUpdate();
 		}
 	}
 
