@@ -34,6 +34,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.AnnotationGraphRecViewerCmd;
 import sc.fiji.snt.gui.cmds.NewGraphOptionsCmd;
 import sc.fiji.snt.gui.cmds.TreeGraphRecViewerCmd;
+import sc.fiji.snt.gui.cmds.mxOrganicLayoutPrefsCmd;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -2221,6 +2222,21 @@ public class EditorActions
 				graph.refresh();
 			}
 		}
+	}
+
+	public static class mxOrganicLayoutPrefsAction extends AbstractAction {
+
+		private final CommandService cmdService;
+
+		public mxOrganicLayoutPrefsAction(CommandService cmdService) {
+			this.cmdService = cmdService;
+		}
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			cmdService.run(mxOrganicLayoutPrefsCmd.class, true);
+		}
+
 	}
 
 	private static boolean noCellsError(final ActionEvent e, final String cmdName, final mxGraph graph) {

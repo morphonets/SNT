@@ -63,6 +63,7 @@ public class GraphViewer {
         }
         GuiUtils.setSystemLookAndFeel();
         editor = new GraphEditor("Graph Viewer", component);
+        editor.setContext(getContext());
     }
 
     /**
@@ -99,7 +100,7 @@ public class GraphViewer {
         //mapper.map(graph, GraphColorMapper.EDGE_WEIGHT, "Ice");
         //graph.filterEdgesByWeight(20);
         // graph.removeOrphanedNodes();
-        GraphViewer graphViewer = new GraphViewer(graph);
+        GraphViewer graphViewer = new GraphViewer(trees.get(0).getGraph(true));
         graphViewer.setContext(ij.context());
         graphViewer.getEditor().setLegend("cool.lut", "Metric", 0d, 1000);
         graphViewer.show();

@@ -21,11 +21,15 @@ import org.jfree.chart.title.PaintScaleLegend;
 import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.chart.ui.RectangleInsets;
 import org.scijava.Context;
+import org.scijava.NullContextException;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
+import org.scijava.plugin.Parameter;
+import org.scijava.prefs.PrefService;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.cmds.mxOrganicLayoutPrefsCmd;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.geditor.EditorActions.ChangeGraphAction;
@@ -41,6 +45,8 @@ import java.util.List;
 
 public class GraphEditor extends JPanel
 {
+	@Parameter
+	private PrefService prefService;
 
 	private static final long serialVersionUID = -6561623072112577140L;
 
@@ -157,6 +163,11 @@ public class GraphEditor extends JPanel
 			((SNTGraphComponent)graphComponent).assignEditor(this);
 		}
 
+	}
+
+	public void setContext(final Context context) {
+		if (context == null) throw new NullContextException("Context cannot be null!");
+		context.inject(this);
 	}
 
 	private int getDefaultFontSizeInGUI() {
@@ -812,7 +823,28 @@ public class GraphEditor extends JPanel
 			}
 			else if (ident.equals("organicLayout"))
 			{
-				layout = new mxOrganicLayout(graph);
+				mxOrganicLayout organicLayout = new mxOrganicLayout(graph);
+				organicLayout.setRadiusScaleFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+						"radiusScaleFactor", 0.75));
+				organicLayout.setFineTuningRadius(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+						"fineTuningRadius", 40.0));
+				organicLayout.setMaxIterations(prefService.getInt(mxOrganicLayoutPrefsCmd.class,
+						"maxIterations", 1000));
+				organicLayout.setEdgeDistanceCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+						"edgeDistanceCostFactor", 3000));
+				organicLayout.setEdgeCrossingCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+						"edgeCrossingCostFactor", 6000));
+				organicLayout.setNodeDistributionCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+						"nodeDistributionCostFactor", 30000));
+				organicLayout.setBorderLineCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+						"borderLineCostFactor", 5));
+				organicLayout.setEdgeLengthCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+						"edgeLengthCostFactor", 0.02));
+				organicLayout.setDisableEdgeStyle(prefService.getBoolean(mxOrganicLayoutPrefsCmd.class,
+						"disableEdgeStyle", true));
+				organicLayout.setResetEdges(prefService.getBoolean(mxOrganicLayoutPrefsCmd.class,
+						"resetEdges", false));
+				layout = organicLayout;
 			}
 			if (ident.equals("verticalPartition"))
 			{
