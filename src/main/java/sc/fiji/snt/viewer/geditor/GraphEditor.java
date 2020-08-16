@@ -61,10 +61,10 @@ public class GraphEditor extends JPanel
 	protected File currentFile;
 	protected mxRubberband rubberband;
 	protected mxKeyboardHandler keyboardHandler;
-	private EditorConsole editorConsole;
+	private final EditorConsole editorConsole;
 	private JPanel legendPanel;
-	private JSplitPane mainPanel;
-	private JSplitPane bottomPanel;
+	private final JSplitPane mainPanel;
+	private final JSplitPane bottomPanel;
 	protected EditorToolBar toolbar;
 	protected boolean animateLayoutChange = true;
 	private JComboBox<String> annotationMetricJCombo;
@@ -97,15 +97,11 @@ public class GraphEditor extends JPanel
 		graph.getView().addListener(mxEvent.UNDO, undoHandler);
 
 		// Keeps the selection in sync with the command history
-		mxIEventListener undoHandler = new mxIEventListener()
-		{
-			public void invoke(Object source, mxEventObject evt)
-			{
-				List<mxUndoableChange> changes = ((mxUndoableEdit) evt
-						.getProperty("edit")).getChanges();
-				graph.setSelectionCells(graph
-						.getSelectionCellsForChanges(changes));
-			}
+		mxIEventListener undoHandler = (source, evt) -> {
+			List<mxUndoableChange> changes = ((mxUndoableEdit) evt
+					.getProperty("edit")).getChanges();
+			graph.setSelectionCells(graph
+					.getSelectionCellsForChanges(changes));
 		};
 
 		undoManager.addListener(mxEvent.UNDO, undoHandler);
@@ -181,7 +177,7 @@ public class GraphEditor extends JPanel
 		}
 	}
 
-	protected mxIEventListener undoHandler = new mxIEventListener()
+	protected final mxIEventListener undoHandler = new mxIEventListener()
 	{
 		public void invoke(Object source, mxEventObject evt)
 		{
@@ -190,13 +186,7 @@ public class GraphEditor extends JPanel
 		}
 	};
 
-	protected mxIEventListener changeTracker = new mxIEventListener()
-	{
-		public void invoke(Object source, mxEventObject evt)
-		{
-			setModified(true);
-		}
-	};
+	protected final mxIEventListener changeTracker = (source, evt) -> setModified(true);
 
 	protected mxUndoManager createUndoManager()
 	{
@@ -283,7 +273,7 @@ public class GraphEditor extends JPanel
 
 	protected void refresh() {
 		if (graphComponent instanceof AnnotationGraphComponent) {
-			AnnotationGraphAdapter adapter = (AnnotationGraphAdapter) ((AnnotationGraphComponent) graphComponent)
+			AnnotationGraphAdapter adapter = (AnnotationGraphAdapter) graphComponent
 					.getGraph();
 			AnnotationGraph graph = adapter.getAnnotationGraph();
 			SwingUtilities.invokeLater(() -> {
@@ -822,11 +812,7 @@ public class GraphEditor extends JPanel
 			}
 			else if (ident.equals("organicLayout"))
 			{
-				mxOrganicLayout olayout = new mxOrganicLayout(graph);
-//				olayout.setMinDistanceLimit(5);
-//				olayout.setMaxIterations(2000);
-//				olayout.setEdgeCrossingCostFactor(7000);
-				return olayout;
+				layout = new mxOrganicLayout(graph);
 			}
 			if (ident.equals("verticalPartition"))
 			{
@@ -931,9 +917,9 @@ public class GraphEditor extends JPanel
 
 		/* Flavor of Viewer2D to produce an empty viewer with just ColorTable legend */
 		class LegendViewer extends Viewer2D {
-			private Font font;
-			private String title;
-			private Color color;
+			private final Font font;
+			private final String title;
+			private final Color color;
 			LegendViewer(final ColorTable colorTable, final String metric, final double min, final double max) {
 				this.colorTable = colorTable;
 				this.min = min;
