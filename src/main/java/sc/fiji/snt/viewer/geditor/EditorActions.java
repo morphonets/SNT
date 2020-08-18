@@ -2234,7 +2234,12 @@ public class EditorActions
 
 		@Override
 		public void actionPerformed(ActionEvent e) {
-			cmdService.run(mxOrganicLayoutPrefsCmd.class, true);
+			if (e.getSource() instanceof mxGraphComponent) {
+				final mxGraph graph = ((mxGraphComponent) e.getSource()).getGraph();
+				final Map<String, Object> inputs = new HashMap<>();
+				inputs.put("adapter", graph);
+				cmdService.run(mxOrganicLayoutPrefsCmd.class, true, inputs);
+			}
 		}
 
 	}

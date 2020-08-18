@@ -22,6 +22,8 @@
 
 package sc.fiji.snt.gui.cmds;
 
+import com.mxgraph.layout.mxOrganicLayout;
+import com.mxgraph.view.mxGraph;
 import net.imagej.ImageJ;
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
@@ -116,11 +118,11 @@ public class mxOrganicLayoutPrefsCmd extends ContextCommand {
             min="0.0",
             description =
                     "<html>" +
-                    "Cost factor applied to energy calculations involving the distance<br>" +
-                    "nodes and edges. Increasing this value tends to cause nodes to move away<br>" +
-                    "from edges, at the partial cost of other graph aesthetics<br>" +
-                    "<code>isOptimizeEdgeDistance</code> must be true for edge to nodes<br>" +
-                    "distances to be taken into account." +
+                        "Cost factor applied to energy calculations involving the distance<br>" +
+                        "nodes and edges. Increasing this value tends to cause nodes to move away<br>" +
+                        "from edges, at the partial cost of other graph aesthetics<br>" +
+                        "<code>isOptimizeEdgeDistance</code> must be true for edge to nodes<br>" +
+                        "distances to be taken into account." +
                     "</html>"
     )
     protected double edgeDistanceCostFactor = 3000;
@@ -203,11 +205,11 @@ public class mxOrganicLayoutPrefsCmd extends ContextCommand {
     @Parameter(
             label = "Edge Length Cost Factor", min = "0.0",
             description =
-                        "<html>" +
-                            "Cost factor applied to energy calculations for the edge lengths.<br>" +
-                            "Increasing this value results in the layout attempting to shorten all<br> " +
-                            "edges to the minimum edge length, at the partial cost of other graph aesthetics." +
-                        "</html>"
+                    "<html>" +
+                        "Cost factor applied to energy calculations for the edge lengths.<br>" +
+                        "Increasing this value results in the layout attempting to shorten all<br> " +
+                        "edges to the minimum edge length, at the partial cost of other graph aesthetics." +
+                    "</html>"
     )
     protected double edgeLengthCostFactor = 0.02;
 
@@ -218,10 +220,10 @@ public class mxOrganicLayoutPrefsCmd extends ContextCommand {
     @Parameter(
             label="Disable Edge Style",
             description =
-                        "<html>" +
-                            "Specifies if the STYLE_NOEDGESTYLE flag should be set on edges that are<br>" +
-                            "modified by the result. Default is true." +
-                        "</html>"
+                    "<html>" +
+                        "Specifies if the STYLE_NOEDGESTYLE flag should be set on edges that are<br>" +
+                        "modified by the result. Default is true." +
+                    "</html>"
     )
     protected boolean disableEdgeStyle = true;
 
@@ -237,7 +239,13 @@ public class mxOrganicLayoutPrefsCmd extends ContextCommand {
                         "Default is true." +
                     "</html>"
     )
-    protected boolean resetEdges = false;
+    protected boolean resetEdges = true;
+
+    @Parameter(label = "adapter", required = false, persist = false)
+    private mxGraph adapter;
+
+    @Parameter(label="Preview", callback = "previewLayout")
+    private Button preview;
 
     @Parameter(label="Reset All Preferences...", callback="reset")
     private Button reset;
@@ -249,7 +257,49 @@ public class mxOrganicLayoutPrefsCmd extends ContextCommand {
      */
     @Override
     public void run() {
-        // do nothing. We are just retrieving inputs
+        prefService.put(this.getClass(), "radiusScaleFactor", radiusScaleFactor);
+        prefService.put(this.getClass(), "fineTuningRadius", fineTuningRadius);
+        prefService.put(this.getClass(), "maxIterations", maxIterations);
+        prefService.put(this.getClass(), "edgeDistanceCostFactor", edgeDistanceCostFactor);
+        prefService.put(this.getClass(), "edgeCrossingCostFactor", edgeCrossingCostFactor);
+        prefService.put(this.getClass(), "nodeDistributionCostFactor", nodeDistributionCostFactor);
+        prefService.put(this.getClass(), "borderLineCostFactor",  borderLineCostFactor);
+        prefService.put(this.getClass(), "edgeLengthCostFactor", edgeLengthCostFactor);
+        prefService.put(this.getClass(), "disableEdgeStyle", disableEdgeStyle);
+        prefService.put(this.getClass(), "resetEdges", resetEdges);
+    }
+
+    @SuppressWarnings("unused")
+    private void previewLayout() {
+        if (adapter == null) {
+            uiService.showDialog("Cannot preview. Invalid Graph.");
+            return;
+        }
+        Object cell = adapter.getSelectionCell();
+
+        if (cell == null || adapter.getModel().getChildCount(cell) == 0) {
+            cell = adapter.getDefaultParent();
+        }
+
+        adapter.getModel().beginUpdate();
+        try {
+            long t0 = System.currentTimeMillis();
+            mxOrganicLayout organicLayout = new mxOrganicLayout(adapter);
+            organicLayout.setRadiusScaleFactor(radiusScaleFactor);
+            organicLayout.setFineTuningRadius(fineTuningRadius);
+            organicLayout.setMaxIterations(maxIterations);
+            organicLayout.setEdgeDistanceCostFactor(edgeDistanceCostFactor);
+            organicLayout.setEdgeCrossingCostFactor(edgeCrossingCostFactor);
+            organicLayout.setNodeDistributionCostFactor(nodeDistributionCostFactor);
+            organicLayout.setBorderLineCostFactor(borderLineCostFactor);
+            organicLayout.setEdgeLengthCostFactor(edgeLengthCostFactor);
+            organicLayout.setDisableEdgeStyle(disableEdgeStyle);
+            organicLayout.setResetEdges(resetEdges);
+            organicLayout.execute(cell);
+        } finally {
+            adapter.getModel().endUpdate();
+        }
+
     }
 
     @SuppressWarnings("unused")
@@ -272,7 +322,7 @@ public class mxOrganicLayoutPrefsCmd extends ContextCommand {
         borderLineCostFactor = 5;
         edgeLengthCostFactor = 0.02;
         disableEdgeStyle = true;
-        resetEdges = false;
+        resetEdges = true;
     }
 
     /* IDE debug method **/
