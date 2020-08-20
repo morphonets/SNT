@@ -70,31 +70,64 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			+ "Leave empty or type <tt>all</tt> to consider all time-points.")
 	private String inputRange;
 
-	@Parameter(label = "<HTML>&nbsp;<br><b>Location Criteria for Starting Node:", 
+	@Parameter(label = "<HTML>&nbsp;<br><b>Matching Criteria:", 
 			persist = false, required = false, visibility = ItemVisibility.MESSAGE)
 	private String SPACER2;
 
-	@Parameter(label = "X neighborhood:", description="<HTML><div WIDTH=500>"
-			+ "Only paths sharing a common origin will be matched. Paths within this 'motion-shift' "
-			+ "neighboorhood along the X-axis are assumed to share the same origin. Set it to 0 to "
-			+ "disable this option. Assumes spatially calibrated units.")
+	@Parameter(label = "Starting node location", description="<HTML><div WIDTH=500>"
+			+ "Whether paths neeed to share a common origin.")
+	private boolean startNodeLocationMatching;
+
+	@Parameter(label = "Channel", description="<HTML><div WIDTH=500>"
+			+ "Whether paths neeed to share the same channel to be matched.")
+	private boolean channelMatching;
+
+	@Parameter(label = "Path order", description="<HTML><div WIDTH=500>"
+			+ "Whether paths neeed to share the same order to be matched.")
+	private boolean pathOrderMatching;
+
+	@Parameter(label = "Type tag", description="<HTML><div WIDTH=500>"
+			+ "Whether paths neeed to share the same type tag ('Axon', 'Dendrite', etc.) to be matched.")
+	private boolean typeTagMatching;
+
+	@Parameter(label = "Color tag", description="<HTML><div WIDTH=500>"
+			+ "Whether paths neeed to share the same color tag to be matched.")
+	private boolean colorTagMatching;
+
+	@Parameter(label = "Custom tag", description="<HTML><div WIDTH=500>"
+			+ "Whether paths neeed to share a custom tag to be matched.")
+	private boolean customTagMatching;
+
+	@Parameter(label = "<HTML>&nbsp;<br><b>Matching Criteria Settings:", 
+			persist = false, required = false, visibility = ItemVisibility.MESSAGE)
+	private String SPACER3;
+
+	@Parameter(label = "Starting node X neighborhood:",required = false, description="<HTML><div WIDTH=500>"
+			+ "Starting node location: Paths within this 'motion-shift' neighboorhood "
+			+ "along the X-axis are assumed to share the same origin. Ignored if 'Starting "
+			+ "node location' is disabled. Assumes spatially calibrated units.")
 	private double xNeighborhood;
 
-	@Parameter(label = "Y neighborhood:", description="<HTML><div WIDTH=500>"
-			+ "Only paths sharing a common origin will be matched. Paths within this 'motion-shift' "
-			+ "neighboorhood along the Y-axis are assumed to share the same origin. Set it to 0 to "
-			+ "disable this option. Assumes spatially calibrated units.")
+	@Parameter(label = "Starting node Y neighborhood:", required = false, description="<HTML><div WIDTH=500>"
+			+ "Starting node location: Paths within this 'motion-shift' neighboorhood "
+			+ "along the Y-axis are assumed to share the same origin. Ignored if 'Starting "
+			+ "node location' is disabled. Assumes spatially calibrated units.")
 	private double yNeighborhood;
 
-	@Parameter(label = "Z neighborhood:", description="<HTML><div WIDTH=500>"
-			+ "Only paths sharing a common origin will be matched. Paths within this 'motion-shift' "
-			+ "neighboorhood along the Z-axis are assumed to share the same origin. Set it to 0 to "
-			+ "disable this option. Assumes spatially calibrated units.")
+	@Parameter(label = "Starting node Z neighborhood:", required = false, description="<HTML><div WIDTH=500>"
+			+ "Starting node location: Paths within this 'motion-shift' neighboorhood "
+			+ "along the Z-axis are assumed to share the same origin. Ignored if 'Starting "
+			+ "node location' is disabled. Assumes spatially calibrated units.")
 	private double zNeighborhood;
+
+	@Parameter(label = "Custom tag:", required = false, description="<HTML><div WIDTH=500>"
+			+ "The string (case sensitive) to be consider when assessing custom tag "
+			+ "matching. Ignored if 'Custom tag' is disabled. Regex pattern allowed.")
+	private String customTagPattern;
 
 	@Parameter(label = "<HTML>&nbsp;<br><b>Options:", 
 			persist = false, required = false, visibility = ItemVisibility.MESSAGE)
-	private String SPACER3;
+	private String SPACER4;
 
 	@Parameter(label = "Assign unique colors to groups", description="<HTML><div WIDTH=500>"
 			+ "Whether pats from the same group should be assigned a common color tag.")
@@ -128,8 +161,18 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 		super.cancel();
 	}
 
+	private boolean validMatchingChoice() {
+		return pathOrderMatching || startNodeLocationMatching || typeTagMatching || colorTagMatching
+				|| (customTagMatching && !customTagPattern.trim().isEmpty());
+	}
+
 	@Override
 	public void run() {
+
+		if (!validMatchingChoice()) {
+			error("No paths to process: No matching criteria selected");
+			return;
+		}
 
 		// Get valid range
 		final Set<Integer> timePoints = getTimePoints(inputRange);
@@ -224,21 +267,39 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 
 		MatchingPath(final Path path) {
 			this.path = path;
-			final PointInImage root = path.getNode(0);
-			box = new BoundingBox();
-			box.setOrigin(new PointInImage(root.getX() - xNeighborhood, root.getY() - yNeighborhood,
-					root.getZ() - zNeighborhood));
-			box.setOriginOpposite(new PointInImage(root.getX() + xNeighborhood, root.getY() + yNeighborhood,
-					root.getZ() + zNeighborhood));
+		}
+
+		private BoundingBox bBox() {
+			if (box == null) {
+				final PointInImage root = path.getNode(0);
+				box = new BoundingBox();
+				box.setOrigin(new PointInImage(root.getX() - xNeighborhood, root.getY() - yNeighborhood,
+						root.getZ() - zNeighborhood));
+				box.setOriginOpposite(new PointInImage(root.getX() + xNeighborhood, root.getY() + yNeighborhood,
+						root.getZ() + zNeighborhood));
+			}
+			return box;
 		}
 
 		boolean matches(final MatchingPath other) {
-			/* Matching conditions:
-			 * 1. Same path
-			 * 2. Different path belonging to a different frame with root within neighborhood
-			 */
-			if (path.equals(other.path)) return true;
-			return path.getFrame() != other.path.getFrame() && box.contains(other.path.getNode(0));
+			if (path.equals(other.path))
+				return true;
+			if (path.getFrame() == other.path.getFrame())
+				return false;
+			if (startNodeLocationMatching && !bBox().contains(other.path.getNode(0)))
+				return false;
+			if (channelMatching && path.getChannel() != other.path.getChannel())
+				return false;
+			if (pathOrderMatching && path.getOrder() != other.path.getOrder())
+				return false;
+			if (typeTagMatching && path.getSWCType() != other.path.getSWCType())
+				return false;
+			if (colorTagMatching && path.getColor() != other.path.getColor())
+				return false;
+			if (customTagMatching
+					&& (!path.getName().contains(customTagPattern) || !other.path.getName().contains(customTagPattern)))
+				return false;
+			return true;
 		}
 
 		void assignID(final int id) {

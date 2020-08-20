@@ -5,15 +5,17 @@ import java.util.Collection;
 import java.util.List;
 
 import sc.fiji.snt.Path;
+import sc.fiji.snt.Tree;
 
 /*
- * A flavor of TreeAnalyzer that does not do graph conversions, ensuring paths
+ * A flavor of TreeStatistics that does not do graph conversions, ensuring paths
  * can me measured independently of their connectivity.
  */
-public class PathAnalyzer extends TreeAnalyzer {
+public class PathAnalyzer extends TreeStatistics {
 
 	public PathAnalyzer(Collection<Path> paths, String label) {
-		super(paths, label);
+		super(new Tree(paths));
+		tree.setLabel(label);
 	}
 
 	@Override
