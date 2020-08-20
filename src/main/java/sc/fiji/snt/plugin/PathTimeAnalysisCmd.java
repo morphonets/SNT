@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -110,7 +111,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 	}
 
 	private Map<Integer, List<Path>> getPathListMap() {
-		final Map<Integer, List<Path>> map = new HashMap<>();
+		final TreeMap<Integer, List<Path>> map = new TreeMap<>();
 		for (final Path p : paths) {
 			List<Path> list = map.get(p.getFrame());
 			if (list == null) {
@@ -204,14 +205,14 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
 	private void runMatchedAnalysis(final boolean ignoreSinglePoints) {
 		final Pattern pattern = Pattern.compile(TAG_REGEX_PATTERN);
-		final HashMap<String, Map<Integer, Path>> map = new HashMap<>();
+		final TreeMap<String, TreeMap<Integer, Path>> map = new TreeMap<>();
 		for (final Path p : paths) {
 			final Matcher matcher = pattern.matcher(p.getName());
 			if (matcher.find()) {
 				final String groupID = matcher.group(1);
-				Map<Integer, Path> groupMap = map.get(groupID);
+				TreeMap<Integer, Path> groupMap = map.get(groupID);
 				if (groupMap == null) {
-					groupMap = new HashMap<>();
+					groupMap = new TreeMap<>();
 				}
 				groupMap.put(p.getFrame(), p);
 				map.put(groupID, groupMap);
