@@ -31,11 +31,13 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.table.DefaultColumn;
 import org.scijava.util.ColorRGB;
+import org.scijava.util.Colors;
 
 import net.imagej.ImageJ;
 import net.imagej.plot.LineStyle;
@@ -49,6 +51,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.PathAnalyzer;
 import sc.fiji.snt.analysis.SNTTable;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.SNTColor;
@@ -68,10 +71,12 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
 	@Parameter(label = "Metric", choices = { //
 			MultiTreeStatistics.LENGTH, //
+			TreeStatistics.PATH_LENGTH + " (mean ± SD)", //
 			MultiTreeStatistics.N_BRANCH_POINTS, //
 			MultiTreeStatistics.HIGHEST_PATH_ORDER, //
-			MultiTreeStatistics.MEAN_RADIUS, //
-			MultiTreeStatistics.N_PATHS })
+			MultiTreeStatistics.MEAN_RADIUS + " (mean ± SD)", //
+			MultiTreeStatistics.N_PATHS, //
+	})
 	private String measurementChoice;
 
 	@Parameter(label = "Grouping Strategy", choices = { "No grouping", "Matched path(s) across time", "Matched path(s) across time (≥2 time-points)"})
@@ -83,9 +88,16 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 	@Parameter(required = true)
 	private Collection<Path> paths;
 
+
 	@SuppressWarnings("unused")
 	private void init() {
 		super.init(false);
+	}
+
+	private String getMasurementChoiceMetric() {
+		final int idx = measurementChoice.indexOf(" (mean");
+		if (idx > -1) return measurementChoice.substring(0, idx);
+		return measurementChoice;
 	}
 
 	@Override
@@ -97,7 +109,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 		}
 	}
 
-	private void runNonMatchedAnalysis() {
+	private Map<Integer, List<Path>> getPathListMap() {
 		final Map<Integer, List<Path>> map = new HashMap<>();
 		for (final Path p : paths) {
 			List<Path> list = map.get(p.getFrame());
@@ -107,31 +119,78 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 			}
 			list.add(p);
 		}
+		return map;
+	}
+
+	private void runNonMatchedAnalysis() {
+		final Map<Integer, List<Path>> map = getPathListMap();
 		final ArrayList<Double> xValues = new ArrayList<>(map.size());
 		final ArrayList<Double> yValues = new ArrayList<>(map.size());
+		final boolean includeSDevSeries = measurementChoice.contains(" (mean");
+		ArrayList<Double> lowerStdDevValues = (includeSDevSeries) ?  new ArrayList<>(map.size()) : null;
+		ArrayList<Double> upperStdDevValues = (includeSDevSeries) ?  new ArrayList<>(map.size()) : null;
+		final String metric = getMasurementChoiceMetric();
 		map.forEach((frame, list) -> {
 			final PathAnalyzer pa = new PathAnalyzer(list, String.valueOf(frame));
-			yValues.add(pa.getMetric(measurementChoice).doubleValue());
 			xValues.add((double) frame);
+			if (includeSDevSeries) {
+				SummaryStatistics stats = pa.getSummaryStats(metric);
+				final double mean = stats.getMean();
+				final double sd = stats.getStandardDeviation();
+				yValues.add(mean);
+				lowerStdDevValues.add(mean - sd);
+				upperStdDevValues.add(mean + sd);
+			} else {
+				yValues.add(pa.getMetric(metric).doubleValue());
+			}
 		});
 
 		if (outputChoice.toLowerCase().contains("plot")) {
 			final XYPlot plot = getPlot();
 			final XYSeries series = plot.addXYSeries();
-			series.setLabel("Un-matched paths");
-			series.setLegendVisible(false);
-			series.setStyle(plot.newSeriesStyle(new ColorRGB("black"), LineStyle.SOLID, MarkerStyle.CIRCLE));
+			series.setStyle(plot.newSeriesStyle(Colors.BLACK, LineStyle.SOLID, MarkerStyle.FILLEDCIRCLE));
 			series.setValues(xValues, yValues);
+			if (includeSDevSeries) {
+				series.setLabel("Mean ± SD");
+				series.setLegendVisible(true);
+				final XYSeries upper = plot.addXYSeries();
+				upper.setLabel("Mean+SD");
+				upper.setLegendVisible(false);
+				upper.setStyle(plot.newSeriesStyle(Colors.DARKGRAY, LineStyle.DASH, MarkerStyle.NONE));
+				upper.setValues(xValues, upperStdDevValues);
+				final XYSeries lower = plot.addXYSeries();
+				lower.setLabel("Mean-SD");
+				lower.setLegendVisible(false);
+				lower.setStyle(plot.newSeriesStyle(Colors.DARKGRAY, LineStyle.DASH, MarkerStyle.NONE));
+				lower.setValues(xValues, lowerStdDevValues);
+			} else {
+				series.setLabel("Un-matched paths");
+				series.setLegendVisible(false);
+			}
 			uiService.show("SNT: Time Profile", plot);
 		}
+
 		if (outputChoice.toLowerCase().contains("table")) {
 			final SNTTable table = new SNTTable();
 			final DefaultColumn<Double> xcol = new DefaultColumn<Double>(Double.class, "Frame");
 			xcol.addAll(xValues);
 			table.add(xcol);
-			final DefaultColumn<Double> ycol = new DefaultColumn<Double>(Double.class, measurementChoice);
-			ycol.addAll(yValues);
-			table.add(ycol);
+			if (includeSDevSeries) {
+				final String label = getMasurementChoiceMetric();
+				final DefaultColumn<Double> mean = new DefaultColumn<Double>(Double.class, label + " Mean");
+				mean.addAll(upperStdDevValues);
+				table.add(mean);
+				final DefaultColumn<Double> upperErr = new DefaultColumn<Double>(Double.class, label + " Mean+SD");
+				upperErr.addAll(upperStdDevValues);
+				table.add(upperErr);
+				final DefaultColumn<Double> lowerErr = new DefaultColumn<Double>(Double.class, label + " Mean-SD");
+				lowerErr.addAll(lowerStdDevValues);
+				table.add(lowerErr);
+			} else {
+				final DefaultColumn<Double> ycol = new DefaultColumn<Double>(Double.class, measurementChoice);
+				ycol.addAll(yValues);
+				table.add(ycol);
+			}
 			uiService.show("SNT_TimeProfile.csv", table);
 		}
 	}
@@ -139,7 +198,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 	private XYPlot getPlot() {
 		final XYPlot plot = plotService.newXYPlot();
 		plot.xAxis().setLabel("Time (frame no.)");
-		plot.yAxis().setLabel(measurementChoice);
+		plot.yAxis().setLabel(getMasurementChoiceMetric());
 		return plot;
 	}
 
@@ -171,6 +230,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 			final XYPlot plot = getPlot();
 			final ColorRGB[] uniqueColors = SNTColor.getDistinctColors(map.size());
 			final int[] colorCounter = { 0 };
+			final String metric = getMasurementChoiceMetric();
 			map.forEach((groupID, groupMap) -> {
 				final XYSeries series = plot.addXYSeries();
 				series.setLabel(groupID.substring(1, groupID.length()-1)); // group ID without curly braces
@@ -181,7 +241,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 				final ArrayList<Double> yValues = new ArrayList<>(groupMap.size());
 				groupMap.forEach((frame, path) -> {
 					final PathAnalyzer pa = new PathAnalyzer(Collections.singletonList(path), String.valueOf(frame));
-					yValues.add(pa.getMetric(measurementChoice).doubleValue());
+					yValues.add(pa.getMetric(metric).doubleValue());
 					xValues.add((double) frame);
 				});
 				series.setValues(xValues, yValues);
@@ -197,7 +257,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 						table.set("Frame", row, x);
 					}
 					for (final double y : series.getYValues()) {
-						table.set(measurementChoice, initialRow++, y);
+						table.set(metric, initialRow++, y);
 					}
 				}
 				uiService.show("SNT_TimeProfile.csv", table);
