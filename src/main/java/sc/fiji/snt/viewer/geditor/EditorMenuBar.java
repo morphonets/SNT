@@ -966,7 +966,9 @@ public class EditorMenuBar extends JMenuBar
 		}
 
 		protected void doEdgeScaling() {
-			JTextField maxWidthField = new JTextField(SNTUtils.formatDouble(5, 2), 5);
+			// Obtain scaling parameter input
+			JTextField minWidthField = new JTextField(SNTUtils.formatDouble(1.0, 2), 5);
+			JTextField maxWidthField = new JTextField(SNTUtils.formatDouble(5.0, 2), 5);
 			JRadioButton linearScaleButton = new JRadioButton("linear");
 			linearScaleButton.setSelected(true);
 			JRadioButton logScaleButton = new JRadioButton("log");
@@ -976,22 +978,38 @@ public class EditorMenuBar extends JMenuBar
 			JPanel myPanel = new JPanel();
 			myPanel.setLayout(new BoxLayout(myPanel, BoxLayout.Y_AXIS));
 			myPanel.add(new JLabel("<html><b>Edge Scaling Parameters"));
+			myPanel.add(new JLabel("<html>Min line width"));
+			myPanel.add(minWidthField);
 			myPanel.add(new JLabel("<html>Max line width"));
 			myPanel.add(maxWidthField);
 			myPanel.add(new JLabel("<html><br>Scale"));
 			myPanel.add(linearScaleButton);
 			myPanel.add(logScaleButton);
-			double newMax = 1;
+			Double newMin = null;
+			Double newMax = null;
 			String scale = "linear";
 			int result = JOptionPane.showConfirmDialog(null, myPanel,
 					"Please Specify Options", JOptionPane.OK_CANCEL_OPTION);
 			if (result == JOptionPane.OK_OPTION) {
-				double input = GuiUtils.extractDouble(maxWidthField);
+				double input = GuiUtils.extractDouble(minWidthField);
+				if (Double.isNaN(input) || input <= 0) {
+					GuiUtils.errorPrompt("Max width must be > 0");
+					return;
+				}
+				newMin = input;
+
+				input = GuiUtils.extractDouble(maxWidthField);
 				if (Double.isNaN(input) || input <= 0) {
 					GuiUtils.errorPrompt("Max width must be > 0");
 					return;
 				}
 				newMax = input;
+
+				if (newMin > newMax) {
+					GuiUtils.errorPrompt("Min > Max");
+					return;
+				}
+
 				for (Enumeration<AbstractButton> buttons = bg.getElements(); buttons.hasMoreElements();) {
 					AbstractButton button = buttons.nextElement();
 					if (button.isSelected()) {
@@ -1001,14 +1019,14 @@ public class EditorMenuBar extends JMenuBar
 			} else {
 				return;
 			}
+
+			// Perform scaling
 			editor.status("Building edges...");
 			adapter.getModel().beginUpdate();
-
 			Object[] cells = adapter.getEdgeToCellMap().values().toArray();
 			if (cells.length == 0) {
 				return;
 			}
-			double newMin = 0.1;
 			double minWeight = Double.MAX_VALUE;
 			double maxWeight = -Double.MAX_VALUE;
 			SNTGraph<Object, DefaultWeightedEdge> sntGraph = adapter.getSourceGraph();
