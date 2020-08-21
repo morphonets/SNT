@@ -605,6 +605,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	public void dispose() {
 		if (plugin == null) return;
 		if (getUI() == null) {
+			try {
 			SNTUtils.log("Disposing resources..");
 			plugin.cancelSearch(true);
 			plugin.notifyListeners(new SNTEvent(SNTEvent.QUIT));
@@ -614,6 +615,9 @@ public class SNTService extends AbstractService implements ImageJService {
 			if (plugin.getImagePlus() != null) plugin.getImagePlus().close();
 			SNTUtils.setPlugin(null);
 			plugin = null;
+			} catch (final NullPointerException ignored) {
+				// do nothing
+			}
 		} else {
 			getUI().exitRequested();
 		}
