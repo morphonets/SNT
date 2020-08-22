@@ -283,7 +283,6 @@ public class mxOrganicLayoutPrefsCmd extends ContextCommand {
 
         adapter.getModel().beginUpdate();
         try {
-            long t0 = System.currentTimeMillis();
             mxOrganicLayout organicLayout = new mxOrganicLayout(adapter);
             organicLayout.setRadiusScaleFactor(radiusScaleFactor);
             organicLayout.setFineTuningRadius(fineTuningRadius);
