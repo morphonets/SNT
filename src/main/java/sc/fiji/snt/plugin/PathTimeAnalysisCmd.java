@@ -25,6 +25,7 @@ package sc.fiji.snt.plugin;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -205,7 +206,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
 	private void runMatchedAnalysis(final boolean ignoreSinglePoints) {
 		final Pattern pattern = Pattern.compile(TAG_REGEX_PATTERN);
-		final TreeMap<String, TreeMap<Integer, Path>> map = new TreeMap<>();
+		final TreeMap<String, TreeMap<Integer, Path>> map = new TreeMap<>(new NumberAwareComparator());
 		for (final Path p : paths) {
 			final Matcher matcher = pattern.matcher(p.getName());
 			if (matcher.find()) {
@@ -262,6 +263,64 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 					}
 				}
 				uiService.show("SNT_TimeProfile.csv", table);
+			}
+		}
+	}
+
+	//https://stackoverflow.com/a/58249974
+	private class NumberAwareComparator implements Comparator<String>
+	{
+		@Override
+		public int compare(final String s1, final String s2) {
+			final int len1 = s1.length();
+			final int len2 = s2.length();
+			int i1 = 0;
+			int i2 = 0;
+			while (true) {
+				// handle the case when one string is longer than another
+				if (i1 == len1)
+					return i2 == len2 ? 0 : -1;
+				if (i2 == len2)
+					return 1;
+
+				final char ch1 = s1.charAt(i1);
+				final char ch2 = s2.charAt(i2);
+				if (Character.isDigit(ch1) && Character.isDigit(ch2)) {
+					// skip leading zeros
+					while (i1 < len1 && s1.charAt(i1) == '0')
+						i1++;
+					while (i2 < len2 && s2.charAt(i2) == '0')
+						i2++;
+
+					// find the ends of the numbers
+					int end1 = i1;
+					int end2 = i2;
+					while (end1 < len1 && Character.isDigit(s1.charAt(end1)))
+						end1++;
+					while (end2 < len2 && Character.isDigit(s2.charAt(end2)))
+						end2++;
+
+					final int diglen1 = end1 - i1;
+					final int diglen2 = end2 - i2;
+
+					// if the lengths are different, then the longer number is bigger
+					if (diglen1 != diglen2)
+						return diglen1 - diglen2;
+
+					// compare numbers digit by digit
+					while (i1 < end1) {
+						if (s1.charAt(i1) != s2.charAt(i2))
+							return s1.charAt(i1) - s2.charAt(i2);
+						i1++;
+						i2++;
+					}
+				} else {
+					// plain characters comparison
+					if (ch1 != ch2)
+						return ch1 - ch2;
+					i1++;
+					i2++;
+				}
 			}
 		}
 	}
