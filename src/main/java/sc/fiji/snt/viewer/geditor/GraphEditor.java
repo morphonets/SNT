@@ -907,7 +907,7 @@ public class GraphEditor extends JPanel
 				layout = new mxCircleLayout(graph); //new mxCircleLayout(graph);
 			}
 			else if (ident.equals("circleLayoutSorted")) {
-				layout = new mxCircleLayoutSorted(graph);
+				layout = new mxCircleLayoutSorted(graph, "compartment");
 			}
 		}
 
