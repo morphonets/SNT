@@ -2219,8 +2219,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					final int maxChannel = imp.getNChannels();
 					int userChosenChannel = -1;
 					if (maxChannel > 1) {
-						final Double chPrompted = guiUtils.getDouble("Profile a specific channel? (If not, leave the choice at -1, "
-								+ "to profile the channel associated with selected path(s).", "Profile a Specific Channel?", -1);
+						final Double chPrompted = guiUtils.getDouble("<HTML><div WIDTH=550>"
+								+ "Profile a specific channel? (If not, leave the choice at -1, "
+								+ "to profile the channel associated with selected path(s).", 
+								"Profile a Specific Channel?", -1);
 						if (chPrompted == null) return;
 						userChosenChannel = chPrompted.intValue();
 						if (userChosenChannel == 0) userChosenChannel = -1;

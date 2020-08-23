@@ -162,7 +162,8 @@ public class PathProfiler extends ContextCommand {
 
 	private void validateChannelRange(final int channel) {
 		if (channel < 1 || channel > imp.getNChannels())
-			throw new IllegalArgumentException("Specified channel out of range: Only 1-"+imp.getNChannels() + " allowed");
+			throw new IllegalArgumentException(
+					"Specified channel " + channel + " out of range: Only 1-" + imp.getNChannels() + " allowed");
 	}
 
 	/**
@@ -229,7 +230,8 @@ public class PathProfiler extends ContextCommand {
 
 	}
 	private Map<String, double[]> getValuesAsArray(final Path p, final int channel) {
-		assignValues(p, channel);
+		if (!valuesAssignedToTree || channel != lastprofiledChannel)
+			assignValues(p, channel);
 		final double[] xList = new double[p.size()];
 		final double[] yList = new double[p.size()];
 		final Map<String, List<Double>> values = getValues(p);
@@ -368,7 +370,9 @@ public class PathProfiler extends ContextCommand {
 	public Plot getPlot(final int channel) throws IllegalArgumentException {
 		if (!valuesAssignedToTree || channel != lastprofiledChannel)
 			assignValues(channel);
-		final Plot plot = new Plot(getPlotTitle(), getXAxisLabel(), getYAxisLabel());
+		String yAxisLabel = getYAxisLabel();
+		if (channel > -1) yAxisLabel += " (Ch " + channel + ")";
+		final Plot plot = new Plot(getPlotTitle(), getXAxisLabel(), yAxisLabel);
 		final Color[] colors = getSeriesColorsAWT();
 		final StringBuilder legend = new StringBuilder();
 		for (int i = 0; i < tree.size(); i++) {
@@ -388,8 +392,12 @@ public class PathProfiler extends ContextCommand {
 		final Plot plot = new Plot(getPlotTitle(), getXAxisLabel(), getYAxisLabel());
 		final Color[] colors = new Color[imp.getNChannels()];
 		if (imp instanceof CompositeImage) {
-			for (int i = 0; i < imp.getNChannels(); i++)
+			final int currentChannel = imp.getC();
+			for (int i = 0; i < imp.getNChannels(); i++) {
+				imp.setPositionWithoutUpdate(i+1, imp.getZ(), imp.getFrame());
 				colors[i] = ((CompositeImage)imp).getChannelColor();
+			}
+			imp.setPositionWithoutUpdate(currentChannel, imp.getZ(), imp.getFrame());
 		} else {
 			final ColorRGB[] colorsRGB = SNTColor.getDistinctColors(imp.getNChannels());
 			for (int i = 0; i < imp.getNChannels(); i++)
@@ -397,7 +405,7 @@ public class PathProfiler extends ContextCommand {
 		}
 		final StringBuilder legend = new StringBuilder();
 		for (int i = 1; i <= imp.getNChannels(); i++) {
-			legend.append("Ch").append(i+1).append("\n");
+			legend.append("Ch").append(i).append("\n");
 			final Map<String, double[]> values = getValuesAsArray(path, i);
 			plot.setColor(colors[i-1], colors[i-1]);
 			plot.addPoints(values.get(X_VALUES), values.get(Y_VALUES),
