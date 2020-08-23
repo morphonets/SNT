@@ -43,6 +43,7 @@ import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
+import ij.CompositeImage;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -82,6 +83,7 @@ public class PathProfiler extends ContextCommand {
 	private final ImagePlus imp;
 	private final BoundingBox impBox;
 	private boolean valuesAssignedToTree;
+	private int lastprofiledChannel = -1;
 	private boolean nodeIndices = false;
 
 	/**
@@ -158,12 +160,23 @@ public class PathProfiler extends ContextCommand {
 		return impBox.contains(bbox);
 	}
 
+	private void validateChannelRange(final int channel) {
+		if (channel < 1 || channel > imp.getNChannels())
+			throw new IllegalArgumentException("Specified channel out of range: Only 1-"+imp.getNChannels() + " allowed");
+	}
+
 	/**
 	 * Calls {@link #assignValues(Path)} on the Paths of the profiled Tree
 	 */
 	public void assignValues() {
+		assignValues(-1);
+	}
+
+	public void assignValues(final int channel) throws IllegalArgumentException {
+		validateChannelRange(channel);
 		for (final Path p : tree.list())
-			assignValues(p);
+			assignValues(p, channel);
+		lastprofiledChannel = channel;
 		valuesAssignedToTree = true;
 	}
 
@@ -175,8 +188,17 @@ public class PathProfiler extends ContextCommand {
 	 * @param p the Path to be profiled
 	 */
 	public void assignValues(final Path p) {
+		assignValues(p, -1);
+	}
+
+	public void assignValues(final Path p, final int channel) throws IllegalArgumentException {
+		validateChannelRange(channel);
 		final double[] values = new double[p.size()];
 		if (imp.getNDimensions() == 2) {
+			final int currentCh = imp.getC();
+			if (channel != -1) {
+				imp.setPositionWithoutUpdate(channel, imp.getZ(), imp.getFrame());
+			}
 			for (int i = 0; i < p.size(); i++) {
 				try {
 					values[i] = imp.getPixel(p.getXUnscaled(i), p.getYUnscaled(i))[0];
@@ -184,8 +206,10 @@ public class PathProfiler extends ContextCommand {
 					values[i] = Float.NaN;
 				}
 			}
+			if (channel != -1)
+				imp.setPositionWithoutUpdate(currentCh, imp.getZ(), imp.getFrame());
 		} else {
-			final int c = p.getChannel();
+			final int c = (channel == -1) ? p.getChannel() : channel;
 			final int f = p.getFrame();
 			for (int i = 0; i < p.size(); i++) {
 				try {
@@ -201,6 +225,11 @@ public class PathProfiler extends ContextCommand {
 
 	private Map<String, double[]> getValuesAsArray(final Path p) {
 		if (!p.hasNodeValues()) assignValues(p);
+		return getValuesAsArray(p, -1);
+
+	}
+	private Map<String, double[]> getValuesAsArray(final Path p, final int channel) {
+		assignValues(p, channel);
 		final double[] xList = new double[p.size()];
 		final double[] yList = new double[p.size()];
 		final Map<String, List<Double>> values = getValues(p);
@@ -236,7 +265,11 @@ public class PathProfiler extends ContextCommand {
 	 * @return the profile
 	 */
 	public Map<String, List<Double>> getValues(final Path p) {
-		if (!p.hasNodeValues()) assignValues(p);
+		return getValues(p, -1);
+	}
+
+	public Map<String, List<Double>> getValues(final Path p, final int channel) throws IllegalArgumentException {
+		if (!p.hasNodeValues()) assignValues(p, channel);
 		final List<Double> xList = new ArrayList<>();
 		final List<Double> yList = new ArrayList<>();
 
@@ -329,7 +362,12 @@ public class PathProfiler extends ContextCommand {
 	 * @return the plot
 	 */
 	public Plot getPlot() {
-		if (!valuesAssignedToTree) assignValues();
+		return (tree.size()==1) ? getPlot(tree.get(0)) : getPlot(-1);
+	}
+
+	public Plot getPlot(final int channel) throws IllegalArgumentException {
+		if (!valuesAssignedToTree || channel != lastprofiledChannel)
+			assignValues(channel);
 		final Plot plot = new Plot(getPlotTitle(), getXAxisLabel(), getYAxisLabel());
 		final Color[] colors = getSeriesColorsAWT();
 		final StringBuilder legend = new StringBuilder();
@@ -346,6 +384,30 @@ public class PathProfiler extends ContextCommand {
 		return plot;
 	}
 
+	public Plot getPlot(final Path path) {
+		final Plot plot = new Plot(getPlotTitle(), getXAxisLabel(), getYAxisLabel());
+		final Color[] colors = new Color[imp.getNChannels()];
+		if (imp instanceof CompositeImage) {
+			for (int i = 0; i < imp.getNChannels(); i++)
+				colors[i] = ((CompositeImage)imp).getChannelColor();
+		} else {
+			final ColorRGB[] colorsRGB = SNTColor.getDistinctColors(imp.getNChannels());
+			for (int i = 0; i < imp.getNChannels(); i++)
+				colors[i] = new Color(colorsRGB[i].getARGB());
+		}
+		final StringBuilder legend = new StringBuilder();
+		for (int i = 1; i <= imp.getNChannels(); i++) {
+			legend.append("Ch").append(i+1).append("\n");
+			final Map<String, double[]> values = getValuesAsArray(path, i);
+			plot.setColor(colors[i-1], colors[i-1]);
+			plot.addPoints(values.get(X_VALUES), values.get(Y_VALUES),
+				Plot.CONNECTED_CIRCLES);
+		}
+		plot.setColor(Color.BLACK, null);
+		plot.setLegend(legend.toString(), Plot.LEGEND_TRANSPARENT);
+		return plot;
+	}
+
 	/**
 	 * Gets the plot profile as an {@link PlotService} plot. Requires
 	 * {@link #setContext(org.scijava.Context)} to be called beforehand.
@@ -353,7 +415,11 @@ public class PathProfiler extends ContextCommand {
 	 * @return the plot
 	 */
 	public XYPlot getXYPlot() {
-		if (!valuesAssignedToTree) assignValues();
+		return getXYPlot(-1);
+	}
+
+	public XYPlot getXYPlot(final int channel) throws IllegalArgumentException {
+		if (!valuesAssignedToTree) assignValues(channel);
 		final XYPlot plot = plotService.newXYPlot();
 		final boolean setLegend = tree.size() > 1;
 		final ColorRGB[] colors = getSeriesColorsRGB();

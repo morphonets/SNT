@@ -2207,10 +2207,30 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						guiUtils.error("Unfortunately virtual stacks cannot be profiled.");
 							return;
 					}
+
 					final Tree tree = new Tree(selectedPaths);
-					final PathProfiler profiler = new PathProfiler(tree, imp);
+					PathProfiler profiler = new PathProfiler(tree, imp);
 					profiler.setNodeIndicesAsDistances(false);
-					profiler.getPlot().show(); // IJ1 plot, arguably more suitable for profile data
+					if (selectedPaths.size() == 1) {
+						profiler.getPlot().show(); // all channels will be plotted
+						return;
+					}
+
+					final int maxChannel = imp.getNChannels();
+					int userChosenChannel = -1;
+					if (maxChannel > 1) {
+						final Double chPrompted = guiUtils.getDouble("Profile a specific channel? (If not, leave the choice at -1, "
+								+ "to profile the channel associated with selected path(s).", "Profile a Specific Channel?", -1);
+						if (chPrompted == null) return;
+						userChosenChannel = chPrompted.intValue();
+						if (userChosenChannel == 0) userChosenChannel = -1;
+						if (userChosenChannel > maxChannel) {
+							guiUtils.error("Channel out of range! Image has only " + maxChannel + " channels.");
+							profiler = null;
+							return;
+						}
+					}
+					profiler.getPlot(userChosenChannel).show();
 					// NB: to use Scijava plotService instead:
 					//profiler.setContext(plugin.getContext());
 					//profiler.run();
