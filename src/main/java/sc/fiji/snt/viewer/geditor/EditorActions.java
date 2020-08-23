@@ -2224,6 +2224,7 @@ public class EditorActions
 		}
 	}
 
+	@SuppressWarnings("serial")
 	public static class mxOrganicLayoutPrefsAction extends AbstractAction {
 
 		private final CommandService cmdService;
