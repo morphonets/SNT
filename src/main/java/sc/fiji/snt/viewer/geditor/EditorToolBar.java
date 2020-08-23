@@ -197,8 +197,8 @@ public class EditorToolBar extends JToolBar
 		});
 
 		final JComboBox<String> sizeCombo = new JComboBox<>(new String[] { "6pt", "8pt",
-				"9pt", "10pt", "12pt", "14pt", "18pt", "24pt", "30pt", "36pt",
-				"48pt", "60pt" });
+				"9pt", "10pt", "12pt", "14pt", "16pt", "18pt", "20pt", "22pt", "24pt", "26pt",
+				"28pt", "30pt", "32pt", "34pt", "36pt", "38pt", "40pt", "42pt", "48pt", "60pt" });
 		sizeCombo.setToolTipText("Labels Typeface & Size");
 		sizeCombo.setEditable(false);
 		add(sizeCombo);
