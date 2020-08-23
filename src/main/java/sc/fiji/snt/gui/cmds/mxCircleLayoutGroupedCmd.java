@@ -62,6 +62,9 @@ public class mxCircleLayoutGroupedCmd extends DynamicCommand {
     @Parameter(label="Mid-level")
     int midLevel;
 
+    @Parameter(label="Sort mid-level compartments by weight")
+    boolean sortMidLevel;
+
     @Parameter(label="Color by group")
     boolean colorByGroup;
 
@@ -83,6 +86,7 @@ public class mxCircleLayoutGroupedCmd extends DynamicCommand {
         mxCircleLayoutGrouped groupedLayout = new mxCircleLayoutGrouped(adapter, midLevel, topLevel);
         groupedLayout.setColorTable(colorTable);
         groupedLayout.setColorCode(colorByGroup);
+        groupedLayout.setSortMidLevel(sortMidLevel);
         try {
             applyLayout(groupedLayout, adapter);
             applyParallelEdgeLayout(adapter);

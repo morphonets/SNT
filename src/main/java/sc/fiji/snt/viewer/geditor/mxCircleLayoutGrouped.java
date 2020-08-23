@@ -11,7 +11,7 @@ import sc.fiji.snt.analysis.graph.SNTGraph;
 import sc.fiji.snt.annotation.BrainAnnotation;
 
 import java.util.*;
-import java.util.List;
+import java.util.stream.Collectors;
 
 public class mxCircleLayoutGrouped extends mxCircleLayout {
     SNTGraphAdapter<BrainAnnotation, DefaultWeightedEdge> adapter;
@@ -22,6 +22,7 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
     ColorTable colorTable;
     int midLevel;
     int topLevel;
+    boolean isSortMidLevel = true;
 
     public mxCircleLayoutGrouped(mxGraph graph, int midLevel, int topLevel) throws IllegalArgumentException {
         super(graph);
@@ -86,9 +87,19 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
             // Group by top-level compartment
             groups.add(entry.getValue());
             for (List<BrainAnnotation> anList : entry.getValue().values()) {
-                sortedAnnotationList.addAll(anList);
-                this.vertexCount += anList.size();
-
+                List<BrainAnnotation> sortedAnList;
+                if (isSortMidLevel) {
+                    sortedAnList = anList.stream()
+                            .sorted((o1, o2) -> {
+                                double val1 = sntGraph.incomingEdgesOf(o1).stream().mapToDouble(e -> sntGraph.getEdgeWeight(e)).sum();
+                                double val2 = sntGraph.incomingEdgesOf(o2).stream().mapToDouble(e -> sntGraph.getEdgeWeight(e)).sum();
+                                return Double.compare(val1, val2);
+                            }).collect(Collectors.toList());
+                } else {
+                    sortedAnList = anList;
+                }
+                sortedAnnotationList.addAll(sortedAnList);
+                this.vertexCount += sortedAnList.size();
             }
         }
         vertexCount += groups.size();
@@ -194,6 +205,10 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
 
     public void setColorTable(ColorTable colorTable) {
         this.colorTable = colorTable;
+    }
+
+    public void setSortMidLevel(boolean sortMidLevel) {
+        this.isSortMidLevel = sortMidLevel;
     }
 
 
