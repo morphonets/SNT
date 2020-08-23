@@ -254,7 +254,7 @@ public class EditorMenuBar extends JMenuBar
 		submenu.add(editor.graphLayout("circleLayout"));
 		submenu.add(editor.graphLayout("circleLayoutOptions"));
 		submenu.add(editor.graphLayout("circleLayoutSorted"));
-
+		submenu.add(editor.graphLayout("circleLayoutGrouped"));
 
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("selection")));
 

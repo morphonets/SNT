@@ -20,6 +20,7 @@ import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.title.PaintScaleLegend;
 import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.chart.ui.RectangleInsets;
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.NullContextException;
 import org.scijava.command.Command;
@@ -904,10 +905,15 @@ public class GraphEditor extends JPanel
 			}
 			else if (ident.equals("circleLayout"))
 			{
-				layout = new mxCircleLayout(graph); //new mxCircleLayout(graph);
+				layout = new mxCircleLayout(graph);
 			}
-			else if (ident.equals("circleLayoutSorted")) {
-				layout = new mxCircleLayoutSorted(graph, "compartment");
+			else if (ident.equals("circleLayoutSorted"))
+			{
+				layout = new mxCircleLayoutSorted(graph, "incomingWeight");
+			}
+			else if (ident.equals("circleLayoutGrouped"))
+			{
+				layout = new mxCircleLayoutGrouped(graph);
 			}
 		}
 

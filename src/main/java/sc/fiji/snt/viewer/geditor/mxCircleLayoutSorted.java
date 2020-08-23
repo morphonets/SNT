@@ -11,9 +11,9 @@ import sc.fiji.snt.annotation.BrainAnnotation;
 
 import java.util.*;
 
-public class mxCircleLayoutSorted<V, E extends DefaultWeightedEdge> extends mxCircleLayout {
-    SNTGraphAdapter<V, E> adapter;
-    SNTGraph<V, E> sntGraph;
+public class mxCircleLayoutSorted extends mxCircleLayout {
+    SNTGraphAdapter<Object, DefaultWeightedEdge> adapter;
+    SNTGraph<Object, DefaultWeightedEdge> sntGraph;
     String criteria;
 
     public mxCircleLayoutSorted(mxGraph graph, String criteria) throws IllegalArgumentException {
@@ -22,76 +22,25 @@ public class mxCircleLayoutSorted<V, E extends DefaultWeightedEdge> extends mxCi
             throw new IllegalArgumentException("This action requires an SNTGraph");
         }
         @SuppressWarnings("unchecked")
-        SNTGraphAdapter<V, E> adapter = (SNTGraphAdapter<V,E>) graph;
+        SNTGraphAdapter<Object, DefaultWeightedEdge> adapter = (SNTGraphAdapter<Object, DefaultWeightedEdge>) graph;
         this.adapter = adapter;
         this.sntGraph = adapter.getSourceGraph();
         this.criteria = criteria;
     }
 
-    protected Object[] sortVertices(String criteria) {
+    protected Object[] sortVertices(Object[] vertexArray, String criteria) {
         Object[] sortedVertexArray = null;
         if (criteria.equals("incomingWeight")) {
-            Object[] vertexArray = graph.getChildVertices(parent);
-             sortedVertexArray = Arrays.stream(vertexArray)
-                    .map(v -> (V) graph.getModel().getValue(v))
+            sortedVertexArray = Arrays.stream(vertexArray)
+                    .map(v -> graph.getModel().getValue(v))
                     .sorted((o1, o2) -> {
                         double val1 = sntGraph.incomingEdgesOf(o1).stream().mapToDouble(e -> sntGraph.getEdgeWeight(e)).sum();
                         double val2 = sntGraph.incomingEdgesOf(o2).stream().mapToDouble(e -> sntGraph.getEdgeWeight(e)).sum();
                         // Reverse order is necessary for graph to orient properly (?)
                         return Double.compare(val2, val1);
                     }).map(v -> adapter.getVertexToCellMap().get(v)).toArray();
-
-        } else if (criteria.equals("compartment")) {
-            if (!(sntGraph.vertexSet().iterator().next() instanceof BrainAnnotation)) {
-                throw new IllegalArgumentException("AnnotationGraph required.");
-            }
-            SNTGraph<BrainAnnotation, AnnotationWeightedEdge> aGraph = (SNTGraph<BrainAnnotation, AnnotationWeightedEdge>) sntGraph;
-            Map<BrainAnnotation, List<BrainAnnotation>> parentMap = new HashMap<>();
-            Set<BrainAnnotation> unaccountedVertices = new HashSet<>(); // not currently used
-            // Group lowest level annotations (the graph vertices) by shared ancestor
-            for (BrainAnnotation v : aGraph.vertexSet()) {
-                int vLevel = v.getOntologyDepth();
-                BrainAnnotation parentV;
-                // hard-coded ancestor
-                if (vLevel > 6) {
-                    parentV = v.getAncestor(6 - vLevel);
-                } else {
-                    parentV = v;
-                }
-                if (!parentMap.containsKey(parentV)) {
-                    parentMap.put(parentV, new ArrayList<>());
-                }
-                parentMap.get(parentV).add(v);
-            }
-            // Now, group the ancestor keys of the map we created above by shared ancestor.
-            // This will create a 2-level hierarchy where one top level BrainAnnotation key points to a map
-            // which contains the 2nd level of BrainAnnotation keys, each of which points to a list of the lowest level
-            // compartments in that region.
-            // For example, Cerebral Cortex -> Somatomotor areas -> MOs, MOp
-            Map<BrainAnnotation, Map<BrainAnnotation, List<BrainAnnotation>>> parentMap2 = new HashMap<>();
-            for (BrainAnnotation key : parentMap.keySet()) {
-                if (key == null ) continue;
-                int keyLevel = key.getOntologyDepth();
-                BrainAnnotation parentKey;
-                // hard-coded top-level ancestor
-                if (keyLevel > 3) {
-                    parentKey = key.getAncestor(3 - keyLevel);
-                } else {
-                    parentKey = key;
-                }
-                if (!parentMap2.containsKey(parentKey)) {
-                    parentMap2.put(parentKey, new HashMap<>());
-                }
-                parentMap2.get(parentKey).put(key, parentMap.get(key));
-            }
-            System.out.println(parentMap2);
-            List<BrainAnnotation> sortedAnnotationList = new ArrayList<>();
-            for (Map<BrainAnnotation, List<BrainAnnotation>> map : parentMap2.values()) {
-                for (List<BrainAnnotation> anList : map.values()) {
-                    sortedAnnotationList.addAll(anList);
-                }
-            }
-            sortedVertexArray = sortedAnnotationList.stream().map(v -> adapter.getVertexToCellMap().get(v)).toArray();
+        } else {
+            throw new IllegalArgumentException("Unknown sort criteria");
         }
         return sortedVertexArray;
     }
@@ -111,7 +60,8 @@ public class mxCircleLayoutSorted<V, E extends DefaultWeightedEdge> extends mxCi
             Double top = null;
             Double left = null;
 
-            Object[] sortedVertexArray = sortVertices(criteria);
+            Object[] vertexArray = graph.getChildVertices(parent);
+            Object[] sortedVertexArray = sortVertices(vertexArray, criteria);
             List<Object> vertices = new ArrayList<>();
 
             for (Object cell : sortedVertexArray) {
