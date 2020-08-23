@@ -4,19 +4,26 @@ import com.mxgraph.layout.mxCircleLayout;
 import com.mxgraph.model.mxIGraphModel;
 import com.mxgraph.util.mxRectangle;
 import com.mxgraph.view.mxGraph;
+import net.imglib2.display.ColorTable;
 import org.jgrapht.graph.DefaultWeightedEdge;
+import org.scijava.util.ColorRGB;
 import sc.fiji.snt.analysis.graph.SNTGraph;
 import sc.fiji.snt.annotation.BrainAnnotation;
 
 import java.util.*;
+import java.util.List;
 
 public class mxCircleLayoutGrouped extends mxCircleLayout {
     SNTGraphAdapter<BrainAnnotation, DefaultWeightedEdge> adapter;
     SNTGraph<BrainAnnotation, DefaultWeightedEdge> sntGraph;
     List<Map<BrainAnnotation, List<BrainAnnotation>>> groups;
     int vertexCount = 0;
+    boolean isColorCode = false;
+    ColorTable colorTable;
+    int midLevel;
+    int topLevel;
 
-    public mxCircleLayoutGrouped(mxGraph graph) throws IllegalArgumentException {
+    public mxCircleLayoutGrouped(mxGraph graph, int midLevel, int topLevel) throws IllegalArgumentException {
         super(graph);
         if (!(graph instanceof SNTGraphAdapter)) {
             throw new IllegalArgumentException("This action requires an SNTGraph");
@@ -29,10 +36,11 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
         this.adapter = adapter;
         this.sntGraph = adapter.getSourceGraph();
         this.groups = new ArrayList<>();
+        this.midLevel = midLevel;
+        this.topLevel = topLevel;
     }
 
     protected Object[] sortVertices() {
-        Object[] sortedVertexArray = null;
         Map<BrainAnnotation, List<BrainAnnotation>> parentMap = new HashMap<>();
         //List<BrainAnnotation> unaccountedVertices = new ArrayList<>();
         // Group lowest level annotations (the graph vertices) by shared ancestor
@@ -40,8 +48,8 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
             int vLevel = v.getOntologyDepth();
             BrainAnnotation parentV;
             // hard-coded ancestor
-            if (vLevel > 6) {
-                parentV = v.getAncestor(6 - vLevel);
+            if (vLevel > midLevel) {
+                parentV = v.getAncestor(midLevel - vLevel);
             } else {
                 parentV = v;
             }
@@ -61,8 +69,8 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
             int keyLevel = key.getOntologyDepth();
             BrainAnnotation parentKey;
             // hard-coded top-level ancestor
-            if (keyLevel > 3) {
-                parentKey = key.getAncestor(3 - keyLevel);
+            if (keyLevel > topLevel) {
+                parentKey = key.getAncestor(topLevel - keyLevel);
             } else {
                 parentKey = key;
             }
@@ -84,9 +92,8 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
             }
         }
         vertexCount += groups.size();
-        sortedVertexArray = sortedAnnotationList.stream().map(v -> adapter.getVertexToCellMap().get(v)).toArray();
 
-        return sortedVertexArray;
+        return sortedAnnotationList.stream().map(v -> adapter.getVertexToCellMap().get(v)).toArray();
     }
 
     @Override
@@ -129,6 +136,10 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
             }
             //noinspection ConstantConditions
             circle(r, left, top);
+
+            if (isColorCode) {
+                colorCode();
+            }
         } finally {
             model.endUpdate();
         }
@@ -154,4 +165,37 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
             ++i;
         }
     }
+
+    private void colorCode() {
+        int min = 0;
+        int max = groups.size()-1;
+        int minColor = 0;
+        int maxColor = colorTable.getLength() - 1;
+        for (int i = 0; i < groups.size(); i++) {
+            int idx = minColor + ( (maxColor - minColor) / (max - min) ) * (i - min);
+            ColorRGB c = new ColorRGB(colorTable.get(ColorTable.RED, idx), colorTable.get(
+                    ColorTable.GREEN, idx), colorTable.get(ColorTable.BLUE, idx));
+            Map<BrainAnnotation, List<BrainAnnotation>> group = groups.get(i);
+            for (List<BrainAnnotation> anList : group.values()) {
+                for (BrainAnnotation an : anList) {
+                    adapter.setVertexColor(an, c);
+                    Set<DefaultWeightedEdge> inEdges = sntGraph.incomingEdgesOf(an);
+                    for (DefaultWeightedEdge edge : inEdges) {
+                        adapter.setEdgeColor(edge, c);
+                    }
+                }
+            }
+        }
+    }
+
+    public void setColorCode(boolean colorCode) {
+        this.isColorCode = colorCode;
+    }
+
+    public void setColorTable(ColorTable colorTable) {
+        this.colorTable = colorTable;
+    }
+
+
+
 }

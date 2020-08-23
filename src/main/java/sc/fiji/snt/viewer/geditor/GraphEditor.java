@@ -20,7 +20,6 @@ import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.title.PaintScaleLegend;
 import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.chart.ui.RectangleInsets;
-import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.NullContextException;
 import org.scijava.command.Command;
@@ -30,6 +29,7 @@ import org.scijava.prefs.PrefService;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.cmds.mxCircleLayoutGroupedCmd;
 import sc.fiji.snt.gui.cmds.mxOrganicLayoutPrefsCmd;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.Viewer2D;
@@ -42,10 +42,15 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.text.NumberFormat;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class GraphEditor extends JPanel
 {
+	@Parameter
+	private Context context;
+
 	@Parameter
 	private PrefService prefService;
 
@@ -721,7 +726,7 @@ public class GraphEditor extends JPanel
 		if (layout == null) {
 			return new AbstractAction(mxResources.get(key)) {
 				public void actionPerformed(ActionEvent e) {
-					if (key.toLowerCase().contains("circle")) {
+					if (key.toLowerCase().contains("options")) {
 						Double factor = new GuiUtils(GraphEditor.this).getDouble("Reduction factor for radial span (-1 will for default reduction):",
 								"Reduction Factor... (1-10)", 2);
 						if (factor != null) {
@@ -729,6 +734,12 @@ public class GraphEditor extends JPanel
 							cLayout.setReductionFactor(factor.doubleValue());
 							applyLayout(cLayout);
 						}
+					} else if (key.toLowerCase().contains("grouped")) {
+						final Map<String, Object> inputs = new HashMap<>();
+						inputs.put("adapter", graphComponent.getGraph());
+						final CmdRunner runner = new CmdRunner(context.getService(CommandService.class),
+								mxCircleLayoutGroupedCmd.class, true, inputs);
+						runner.execute();
 					} else {
 						JOptionPane.showMessageDialog(graphComponent, mxResources.get("noLayout"));
 					}
@@ -847,7 +858,7 @@ public class GraphEditor extends JPanel
 						"resetEdges", false));
 				layout = organicLayout;
 			}
-			if (ident.equals("verticalPartition"))
+			else if (ident.equals("verticalPartition"))
 			{
 				layout = new mxPartitionLayout(graph, false)
 				{
@@ -911,10 +922,7 @@ public class GraphEditor extends JPanel
 			{
 				layout = new mxCircleLayoutSorted(graph, "incomingWeight");
 			}
-			else if (ident.equals("circleLayoutGrouped"))
-			{
-				layout = new mxCircleLayoutGrouped(graph);
-			}
+
 		}
 
 		return layout;
