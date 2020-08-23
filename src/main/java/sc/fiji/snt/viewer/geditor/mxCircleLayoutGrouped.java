@@ -75,11 +75,12 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
         List<BrainAnnotation> sortedAnnotationList = new ArrayList<>();
         for (Map.Entry<BrainAnnotation, Map<BrainAnnotation, List<BrainAnnotation>>> entry : parentMap2.entrySet()) {
             System.out.println(entry);
+            // Group by top-level compartment
             groups.add(entry.getValue());
             for (List<BrainAnnotation> anList : entry.getValue().values()) {
                 sortedAnnotationList.addAll(anList);
                 this.vertexCount += anList.size();
-                // Group by mid-level compartment
+
             }
         }
         vertexCount += groups.size();
@@ -104,10 +105,8 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
             Double left = null;
 
             Object[] sortedVertexArray = sortVertices();
-            List<Object> vertices = new ArrayList<>();
 
             for (Object cell : sortedVertexArray) {
-                vertices.add(cell);
                 mxRectangle bounds = getVertexBounds(cell);
                 if (top == null) {
                     top = bounds.getY();
@@ -129,33 +128,30 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
                 top = y0;
             }
             //noinspection ConstantConditions
-            circle(vertices.toArray(), r, left, top);
+            circle(r, left, top);
         } finally {
             model.endUpdate();
         }
     }
 
-    @Override
-    public void circle(Object[] vertices, double r, double left, double top)
+    public void circle(double r, double left, double top)
     {
         double phi = 2 * Math.PI / vertexCount;
         int i = 0;
-        int j = 0;
         for (Map<BrainAnnotation, List<BrainAnnotation>> group : groups) {
             for (List<BrainAnnotation> anList : group.values()) {
                 for (BrainAnnotation an : anList) {
                     Object cell = adapter.getVertexToCellMap().get(an);
                     if (isVertexMovable(cell)) {
                         setVertexLocation(cell,
-                                left + r + r * Math.sin(j * phi), top + r + r
-                                        * Math.cos(j * phi));
+                                left + r + r * Math.sin(i * phi), top + r + r
+                                        * Math.cos(i * phi));
                     }
                     ++i;
-                    ++j;
                 }
             }
             // bump angle on group change
-            ++j;
+            ++i;
         }
     }
 }
