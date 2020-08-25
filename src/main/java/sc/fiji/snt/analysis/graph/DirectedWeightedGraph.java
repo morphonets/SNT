@@ -401,7 +401,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 */
 	public Window show() {
 		updateVertexProperties();
-		return GraphUtils.show(this.getSimplifiedGraph());
+		return GraphUtils.show(this);
 	}
 
 }
