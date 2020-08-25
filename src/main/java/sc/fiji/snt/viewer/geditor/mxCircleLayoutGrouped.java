@@ -139,7 +139,12 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
                 max = Math.max(max, Math.max(bounds.getWidth(), bounds
                         .getHeight()));
             }
-            double r = Math.max(vertexCount * max / Math.PI, radius);
+            double r;
+            if (radius <= 0) {
+                r = vertexCount * max / Math.PI;
+            } else {
+                r = radius;
+            }
             // Moves the circle to the specified origin
             if (moveCircle) {
                 left = x0;
@@ -147,7 +152,6 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
             }
             //noinspection ConstantConditions
             circle(r, left, top);
-
             if (isColorCode) {
                 colorCode();
             }

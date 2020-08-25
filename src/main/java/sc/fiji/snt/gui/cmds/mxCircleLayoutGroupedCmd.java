@@ -56,6 +56,10 @@ public class mxCircleLayoutGroupedCmd extends DynamicCommand {
     @Parameter
     LUTService lutService;
 
+    @Parameter(label="Radius", description="The radius of the circle on which the vertices are distributed. Set to 0 " +
+            "to determine automatically.")
+    double radius;
+
     @Parameter(label="Top-level")
     int topLevel;
 
@@ -84,6 +88,7 @@ public class mxCircleLayoutGroupedCmd extends DynamicCommand {
         if (adapter == null) cancel("Invalid adapter");
         if (midLevel < topLevel) cancel("midLevel must be greater than topLevel");
         mxCircleLayoutGrouped groupedLayout = new mxCircleLayoutGrouped(adapter, midLevel, topLevel);
+        groupedLayout.setRadius(radius);
         groupedLayout.setColorTable(colorTable);
         groupedLayout.setColorCode(colorByGroup);
         groupedLayout.setSortMidLevel(sortMidLevel);
