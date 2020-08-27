@@ -1,6 +1,7 @@
 package sc.fiji.snt.viewer.geditor;
 
 import com.mxgraph.model.mxCell;
+import com.mxgraph.model.mxICell;
 import com.mxgraph.util.mxConstants;
 import org.jgrapht.ext.JGraphXAdapter;
 import org.jgrapht.graph.DefaultWeightedEdge;
@@ -114,6 +115,62 @@ public class SNTGraphAdapter<V, E extends DefaultWeightedEdge> extends JGraphXAd
 
     protected String getOriginalValueOfmxCell(final String mxCellId) {
     	return (mxCellIDsToOriginalValuesMap == null) ? null : mxCellIDsToOriginalValuesMap.get(mxCellId);
+    }
+
+    public void scaleEdgeWidths(double minWidth, double maxWidth, String scale) {
+        Object[] cells = getEdgeToCellMap().values().toArray();
+        if (cells.length == 0) {
+            return;
+        }
+        double minWeight = Double.MAX_VALUE;
+        double maxWeight = -Double.MAX_VALUE;
+        SNTGraph<V, E> sntGraph = getSourceGraph();
+        // First get the range of observed weights, negative weights are allowed.
+        for (Object cell : cells) {
+            mxICell mxc = (mxICell) cell;
+            if (!mxc.isEdge()) continue;
+            double weight = sntGraph.getEdgeWeight(getCellToEdgeMap().get(mxc));
+            if (weight < minWeight) {minWeight = weight;}
+            if (weight > maxWeight) {maxWeight = weight;}
+        }
+        if (minWeight == maxWeight) {
+            minWeight = 0;
+            maxWeight = Math.abs(maxWeight);
+        }
+        getModel().beginUpdate();
+        if (scale.equals("linear")) {
+            // Map the input interval onto a new interval [newMin, newMax]
+            for (Object cell : cells) {
+                mxICell mxc = (mxICell) cell;
+                if (!mxc.isEdge()) continue;
+                double weight = sntGraph.getEdgeWeight(getCellToEdgeMap().get(mxc));
+                double scaledWeight = minWidth + ((maxWidth - minWidth) / (maxWeight - minWeight)) * (weight - minWeight);
+                setCellStyles(mxConstants.STYLE_STROKEWIDTH, String.valueOf(scaledWeight), new Object[]{mxc});
+            }
+        }
+        else if (scale.equals("log")) {
+            // If the min edge weight is not 1, shift all values so that the minimum is 1.
+            // This is necessary for correct log function behavior at the minimum value (i.e., log(1) == 0)
+            double rightShift = 0;
+            double leftShift = 0;
+            if (minWeight < 1) {
+                rightShift = 1 - minWeight;
+            }
+            else if (minWeight > 1) {
+                leftShift = 1 - minWeight;
+            }
+            for (Object cell : cells) {
+                mxICell mxc = (mxICell) cell;
+                if (!mxc.isEdge()) continue;
+                double weight = sntGraph.getEdgeWeight(
+                        getCellToEdgeMap().get(mxc)
+                ) + rightShift + leftShift;
+                double k = maxWidth / Math.log(maxWeight + rightShift + leftShift);
+                double scaledWeight = k * Math.log(weight) + minWidth;
+                setCellStyles(mxConstants.STYLE_STROKEWIDTH, String.valueOf(scaledWeight), new Object[]{mxc});
+            }
+        }
+        getModel().endUpdate();
     }
 
 }

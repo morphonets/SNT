@@ -993,7 +993,7 @@ public class EditorMenuBar extends JMenuBar
 			if (result == JOptionPane.OK_OPTION) {
 				double input = GuiUtils.extractDouble(minWidthField);
 				if (Double.isNaN(input) || input <= 0) {
-					GuiUtils.errorPrompt("Max width must be > 0");
+					GuiUtils.errorPrompt("Min width must be > 0");
 					return;
 				}
 				newMin = input;
@@ -1022,55 +1022,7 @@ public class EditorMenuBar extends JMenuBar
 
 			// Perform scaling
 			editor.status("Building edges...");
-			adapter.getModel().beginUpdate();
-			Object[] cells = adapter.getEdgeToCellMap().values().toArray();
-			if (cells.length == 0) {
-				return;
-			}
-			double minWeight = Double.MAX_VALUE;
-			double maxWeight = -Double.MAX_VALUE;
-			SNTGraph<Object, DefaultWeightedEdge> sntGraph = adapter.getSourceGraph();
-			// First get the range of observed weights, negative weights are allowed.
-			for (Object cell : cells) {
-				mxICell mxc = (mxICell) cell;
-				if (!mxc.isEdge()) continue;
-				double weight = sntGraph.getEdgeWeight(adapter.getCellToEdgeMap().get(mxc));
-				if (weight < minWeight) {minWeight = weight;}
-				if (weight > maxWeight) {maxWeight = weight;}
-			}
-			if (scale.equals("linear")) {
-				// Map the input interval onto a new interval [newMin, newMax]
-				for (Object cell : cells) {
-					mxICell mxc = (mxICell) cell;
-					if (!mxc.isEdge()) continue;
-					double weight = sntGraph.getEdgeWeight(adapter.getCellToEdgeMap().get(mxc));
-					double scaledWeight = newMin + ((newMax - newMin) / (maxWeight - minWeight)) * (weight - minWeight);
-					adapter.setCellStyles(mxConstants.STYLE_STROKEWIDTH, String.valueOf(scaledWeight), new Object[]{mxc});
-				}
-			}
-			else if (scale.equals("log")) {
-				// If the min edge weight is not 1, shift all values so that the minimum is 1.
-				// This is necessary for correct log function behavior at the minimum value (i.e., log(1) == 0)
-				double rightShift = 0;
-				double leftShift = 0;
-				if (minWeight < 1) {
-					rightShift = 1 - minWeight;
-				}
-				else if (minWeight > 1) {
-					leftShift = 1 - minWeight;
-				}
-				for (Object cell : cells) {
-					mxICell mxc = (mxICell) cell;
-					if (!mxc.isEdge()) continue;
-					double weight = sntGraph.getEdgeWeight(
-							adapter.getCellToEdgeMap().get(mxc)
-					) + rightShift + leftShift;
-					double k = newMax / Math.log(maxWeight + rightShift + leftShift);
-					double scaledWeight = k * Math.log(weight) + newMin;
-					adapter.setCellStyles(mxConstants.STYLE_STROKEWIDTH, String.valueOf(scaledWeight), new Object[]{mxc});
-				}
-			}
-			adapter.getModel().endUpdate();
+			adapter.scaleEdgeWidths(newMin, newMax, scale);
 			editor.status("Done...");
 		}
 
