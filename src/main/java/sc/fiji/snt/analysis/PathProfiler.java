@@ -169,8 +169,11 @@ public class PathProfiler extends ContextCommand {
 	/**
 	 * Calls {@link #assignValues(Path)} on the Paths of the profiled Tree
 	 */
-	public void assignValues() {
-		assignValues(-1);
+	public void assignValues() throws IllegalArgumentException {
+		for (final Path p : tree.list())
+			assignValues(p);
+		lastprofiledChannel = -1;
+		valuesAssignedToTree = true;
 	}
 
 	public void assignValues(final int channel) throws IllegalArgumentException {
@@ -187,19 +190,18 @@ public class PathProfiler extends ContextCommand {
 	 * 
 	 * @see Path#setNodeValues(double[])
 	 * @param p the Path to be profiled
+	 * @throws IllegalArgumentException if image does not contain the path's channel
 	 */
-	public void assignValues(final Path p) {
-		assignValues(p, -1);
+	public void assignValues(final Path p) throws IllegalArgumentException {
+		assignValues(p, p.getChannel());
 	}
 
 	public void assignValues(final Path p, final int channel) throws IllegalArgumentException {
 		validateChannelRange(channel);
 		final double[] values = new double[p.size()];
 		if (imp.getNDimensions() == 2) {
-			final int currentCh = imp.getC();
-			if (channel != -1) {
-				imp.setPositionWithoutUpdate(channel, imp.getZ(), imp.getFrame());
-			}
+			final int currentCh = imp.getChannel();
+			imp.setPositionWithoutUpdate(channel, imp.getZ(), imp.getFrame());
 			for (int i = 0; i < p.size(); i++) {
 				try {
 					values[i] = imp.getPixel(p.getXUnscaled(i), p.getYUnscaled(i))[0];
@@ -207,14 +209,12 @@ public class PathProfiler extends ContextCommand {
 					values[i] = Float.NaN;
 				}
 			}
-			if (channel != -1)
-				imp.setPositionWithoutUpdate(currentCh, imp.getZ(), imp.getFrame());
+			imp.setPositionWithoutUpdate(currentCh, imp.getZ(), imp.getFrame());
 		} else {
-			final int c = (channel == -1) ? p.getChannel() : channel;
 			final int f = p.getFrame();
 			for (int i = 0; i < p.size(); i++) {
 				try {
-					final int zPos = imp.getStackIndex(c, p.getZUnscaled(i) + 1, f);
+					final int zPos = imp.getStackIndex(channel, p.getZUnscaled(i) + 1, f);
 					values[i] = stack.getVoxel(p.getXUnscaled(i), p.getYUnscaled(i), zPos);
 				} catch (final IndexOutOfBoundsException exc) {
 					values[i] = Float.NaN;
