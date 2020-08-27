@@ -17,12 +17,14 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
     SNTGraphAdapter<BrainAnnotation, DefaultWeightedEdge> adapter;
     SNTGraph<BrainAnnotation, DefaultWeightedEdge> sntGraph;
     List<Map<BrainAnnotation, List<BrainAnnotation>>> groups;
-    int vertexCount = 0;
+    int vertexCount;
     boolean isColorCode = false;
     ColorTable colorTable;
     int midLevel;
     int topLevel;
-    boolean isSortMidLevel = true;
+    boolean isSortMidLevel = false;
+    private double centerX;
+    private double centerY;
 
     public mxCircleLayoutGrouped(mxGraph graph, int midLevel, int topLevel) throws IllegalArgumentException {
         super(graph);
@@ -150,7 +152,8 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
                 left = x0;
                 top = y0;
             }
-            //noinspection ConstantConditions
+            this.centerX = left + r;
+            this.centerY = top + r;
             circle(r, left, top);
             if (isColorCode) {
                 colorCode();
@@ -215,6 +218,12 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
         this.isSortMidLevel = sortMidLevel;
     }
 
+    public double getCenterX() {
+        return centerX;
+    }
 
+    public double getCenterY() {
+        return centerY;
+    }
 
 }
