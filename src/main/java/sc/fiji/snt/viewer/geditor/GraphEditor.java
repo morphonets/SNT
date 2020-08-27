@@ -755,7 +755,7 @@ public class GraphEditor extends JPanel
 		}
 	}
 
-	private void applyLayout(final mxIGraphLayout layout) {
+	public void applyLayout(final mxIGraphLayout layout) {
 		final mxGraph graph = graphComponent.getGraph();
 		Object cell = graph.getSelectionCell();
 
