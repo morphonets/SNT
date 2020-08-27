@@ -412,7 +412,7 @@ public class PathProfiler extends ContextCommand {
 				Plot.CONNECTED_CIRCLES);
 		}
 		plot.setColor(Color.BLACK, null);
-		plot.setLegend(legend.toString(), Plot.LEGEND_TRANSPARENT);
+		plot.setLegend(legend.toString(), Plot.LEGEND_TRANSPARENT + Plot.AUTO_POSITION);
 		return plot;
 	}
 

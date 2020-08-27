@@ -1834,7 +1834,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			return;
 		} else if (MultiPathActionListener.COLORIZE_PATHS_CMD.equals(cmd)) {
-			if (args.length > 2) {
+			if (args.length > 1) {
 				runColorCodingCmd(geSelectedPathsAsTree(), true, args[0], args[1]);
 			} else {
 				throw new IllegalArgumentException("Not enough arguments...");
@@ -2221,7 +2221,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					if (maxChannel > 1) {
 						final Double chPrompted = guiUtils.getDouble("<HTML><div WIDTH=550>"
 								+ "Profile a specific channel? (If not, leave the choice at -1, "
-								+ "to profile the channel associated with selected path(s).", 
+								+ "to profile the channel in which the selected path(s) were traced.", 
 								"Profile a Specific Channel?", -1);
 						if (chPrompted == null) return;
 						userChosenChannel = chPrompted.intValue();

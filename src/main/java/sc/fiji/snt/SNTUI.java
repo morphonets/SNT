@@ -932,10 +932,10 @@ public class SNTUI extends JDialog {
 		final JPanel positionPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
 		positionPanel.add(GuiUtils.leftAlignedLabel("Channel", true));
 		final JSpinner channelSpinner = GuiUtils.integerSpinner(plugin.channel, 1,
-				(hasChannels) ? imp.getNChannels() : 1, 1);
+				(hasChannels) ? imp.getNChannels() : 1, 1, true);
 		positionPanel.add(channelSpinner);
 		positionPanel.add(GuiUtils.leftAlignedLabel(" Frame", true));
-		final JSpinner frameSpinner = GuiUtils.integerSpinner(plugin.frame, 1, (hasFrames) ? imp.getNFrames() : 1, 1);
+		final JSpinner frameSpinner = GuiUtils.integerSpinner(plugin.frame, 1, (hasFrames) ? imp.getNFrames() : 1, 1, true);
 		positionPanel.add(frameSpinner);
 		final JButton applyPositionButton = new JButton("Reload");
 		final ChangeListener spinnerListener = e -> applyPositionButton.setText(
@@ -1004,7 +1004,7 @@ public class SNTUI extends JDialog {
 		final JPanel mipPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
 		final JCheckBox mipOverlayCheckBox = new JCheckBox("Overlay MIP(s) at");
 		mipPanel.add(mipOverlayCheckBox);
-		final JSpinner mipSpinner = GuiUtils.integerSpinner(20, 10, 80, 1);
+		final JSpinner mipSpinner = GuiUtils.integerSpinner(20, 10, 80, 1, true);
 		mipSpinner.addChangeListener(e -> mipOverlayCheckBox.setSelected(false));
 		mipPanel.add(mipSpinner);
 		mipPanel.add(GuiUtils.leftAlignedLabel(" % opacity", true));
@@ -1842,7 +1842,7 @@ public class SNTUI extends JDialog {
 
 		// row 2
 		secondaryImgOverlayCheckbox = new JCheckBox("Render in overlay at ");
-		final JSpinner mipSpinner = GuiUtils.integerSpinner(20, 10, 80, 1);
+		final JSpinner mipSpinner = GuiUtils.integerSpinner(20, 10, 80, 1, true);
 		mipSpinner.addChangeListener(e -> secondaryImgOverlayCheckbox.setSelected(false));
 		secondaryImgOverlayCheckbox.addActionListener(e -> {
 			if (!plugin.isSecondaryImageLoaded()) {
@@ -2418,7 +2418,7 @@ public class SNTUI extends JDialog {
 		showPartsNearby.addItemListener(listener);
 		final JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
 		row2.add(showPartsNearby);
-		nearbyFieldSpinner = GuiUtils.integerSpinner(plugin.depth == 1 ? 1 : 2, 1, plugin.depth, 1);
+		nearbyFieldSpinner = GuiUtils.integerSpinner(plugin.depth == 1 ? 1 : 2, 1, plugin.depth, 1, false);
 		nearbyFieldSpinner.setEnabled(isStackAvailable());
 		nearbyFieldSpinner.addChangeListener(e -> {
 			showPartsNearby.setSelected(true);
@@ -2480,7 +2480,7 @@ public class SNTUI extends JDialog {
 		tracingOptionsPanel.add(useSnapWindow);
 
 		snapWindowXYsizeSpinner = GuiUtils.integerSpinner(plugin.cursorSnapWindowXY * 2,
-				SNT.MIN_SNAP_CURSOR_WINDOW_XY, SNT.MAX_SNAP_CURSOR_WINDOW_XY * 2, 2);
+				SNT.MIN_SNAP_CURSOR_WINDOW_XY, SNT.MAX_SNAP_CURSOR_WINDOW_XY * 2, 2, false);
 		snapWindowXYsizeSpinner
 				.addChangeListener(e -> plugin.cursorSnapWindowXY = (int) snapWindowXYsizeSpinner.getValue() / 2);
 		tracingOptionsPanel.add(snapWindowXYsizeSpinner);
@@ -2489,7 +2489,7 @@ public class SNTUI extends JDialog {
 		z_spinner_label.setBorder(new EmptyBorder(0, 2, 0, 0));
 		tracingOptionsPanel.add(z_spinner_label);
 		snapWindowZsizeSpinner = GuiUtils.integerSpinner(plugin.cursorSnapWindowZ * 2,
-				SNT.MIN_SNAP_CURSOR_WINDOW_Z, SNT.MAX_SNAP_CURSOR_WINDOW_Z * 2, 2);
+				SNT.MIN_SNAP_CURSOR_WINDOW_Z, SNT.MAX_SNAP_CURSOR_WINDOW_Z * 2, 2, false);
 		snapWindowZsizeSpinner.setEnabled(isStackAvailable());
 		snapWindowZsizeSpinner
 				.addChangeListener(e -> plugin.cursorSnapWindowZ = (int) snapWindowZsizeSpinner.getValue() / 2);

@@ -822,7 +822,7 @@ public class GuiUtils {
 	}
 
 	public static JSpinner integerSpinner(final int value, final int min,
-		final int max, final int step)
+		final int max, final int step, final boolean allowEditing)
 	{
 		final int maxDigits = Integer.toString(max).length();
 		final SpinnerModel model = new SpinnerNumberModel(value, min, max, step);
@@ -830,7 +830,14 @@ public class GuiUtils {
 		final JFormattedTextField textfield = ((DefaultEditor) spinner.getEditor())
 			.getTextField();
 		textfield.setColumns(maxDigits);
-		textfield.setEditable(false);
+		try {
+			if (allowEditing) {
+				((NumberFormatter) textfield.getFormatter()).setAllowsInvalid(false);
+			}
+			textfield.setEditable(allowEditing);
+		} catch (final Exception ignored){
+			textfield.setEditable(false);
+		}
 		return spinner;
 	}
 
