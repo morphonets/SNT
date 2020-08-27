@@ -101,8 +101,9 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 
 		Collections.sort(choices);
 		measurementChoiceInput.setChoices(choices);
-		measurementChoiceInput.setValue(this,
-				prefService.get(getClass(), "measurementChoice", TreeStatistics.INTER_NODE_DISTANCE));
+		// Do not set value, otherwise we'll overwrite any input passed to CommandService
+//		measurementChoiceInput.setValue(this,
+//				prefService.get(getClass(), "measurementChoice", TreeStatistics.INTER_NODE_DISTANCE));
 		if (tree != null) {
 			trees = Collections.singletonList(tree);
 			resolveInput("trees");

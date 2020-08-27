@@ -152,8 +152,9 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 		final MutableModuleItem<String> measurementChoiceInput = getInfo()
 				.getMutableInput("measurementChoice", String.class);
 		measurementChoiceInput.setChoices(choices);
-		measurementChoiceInput.setValue(this, prefService.get(getClass(),
-			"measurementChoice", TreeColorMapper.STRAHLER_NUMBER));
+		// Do not set value, otherwise we'll overwrite any input passed to CommandService
+//		measurementChoiceInput.setValue(this, prefService.get(getClass(),
+//			"measurementChoice", TreeColorMapper.STRAHLER_NUMBER));
 		resolveInput("setValuesFromSNTService");
 		if (lutChoice == null) lutChoice = prefService.get(getClass(), "lutChoice",
 			"mpl-viridis.lut");
