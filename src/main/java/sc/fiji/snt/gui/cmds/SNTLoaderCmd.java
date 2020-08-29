@@ -272,22 +272,12 @@ public class SNTLoaderCmd extends DynamicCommand {
 		}
 
 		else if (IMAGE_FILE.equals(imageChoice)) {
-			try {
 
-//				final Dataset ds = datasetIOService.open(imageFile.getAbsolutePath());
-//				sourceImp = convertService.convert(ds, ImagePlus.class);
-//				displayService.createDisplay(sourceImp.getTitle(), sourceImp);
-
-				// FIXME: In some cases the code above seems to open images as virtual
-				// stacks which causes all sort of problems later on. We'll fallback
-				// to IJ1 until this issue is fixed
-				sourceImp = IJ.openImage(imageFile.getAbsolutePath());
+			sourceImp = openImage();
+			if (sourceImp == null)
+				return; // error messages have been displayed by openImage()
+			else if (!sourceImp.isVisible())
 				sourceImp.show();
-			}
-			catch (final Exception exc) {
-				cancel("Could not open image:\n" + imageFile.getAbsolutePath());
-				return;
-			}
 
 		}
 		else if (sourceImp == null) { // frontmost image does not exist
@@ -316,6 +306,42 @@ public class SNTLoaderCmd extends DynamicCommand {
 		sntInstance.loadTracings(tracesFile);
 		initPlugin(sntInstance);
 
+	}
+
+	private ImagePlus openImage() {
+		// final Dataset ds = datasetIOService.open(imageFile.getAbsolutePath());
+		// sourceImp = convertService.convert(ds, ImagePlus.class);
+		// displayService.createDisplay(sourceImp.getTitle(), sourceImp);
+
+		// FIXME: In some cases the code above seems to open images as virtual
+		// stacks which causes all sort of problems later on. We'll fallback
+		// to IJ1 until this issue is fixed
+		final int nImagesBefore = ij.WindowManager.getImageCount();
+		ImagePlus imp = IJ.openImage(imageFile.getAbsolutePath());
+		if (imp != null)
+			return imp;
+
+		// HACK: if the image was opened by bio-formats, it was likely displayed
+		// but HandleExtraFileTypes will return null. If a new image meanwhile
+		// exists we will assume this has been the case.
+		final int nImagesAfter = ij.WindowManager.getImageCount();
+		if (nImagesAfter == nImagesBefore + 1) {
+			imp = IJ.getImage(); // cannot be null
+			final String title = imp.getTitle().toLowerCase();
+			final String filename = imageFile.getName().toLowerCase();
+			if (title.contains(filename)) return imp;
+		} else if (nImagesAfter > nImagesBefore + 1) {
+			cancel("Import of " + imageFile.getName() + " resulted in several images open.\n"
+					+ "Since it is not clear which one should be chosen, please make\n"
+					+ "the relevant image frontmost and re-run SNT.");
+			return null;
+		}
+
+		cancel("Could not open image:\n" + imageFile.getAbsolutePath() + ".\n"
+				+ "If the file corresponds to a proprietary image format, please open it\n"
+				+ "using Plugins>Bio-Formats>Bio-Formats Importer..., then re-run SNT\n"
+				+ "with " + imageFile.getName() + " as the frontmost image.");
+		return null;
 	}
 
 	private void initPlugin(final SNT snt)
