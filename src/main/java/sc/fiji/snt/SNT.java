@@ -2890,8 +2890,11 @@ public class SNT extends MultiDThreePanes implements
 			xy.close();
 			return;
 		}
-		if (original_xy_canvas != null && xy != null && xy.getImage() != null) {
-			xy_window = new StackWindow(xy, original_xy_canvas);
+		if (xy != null && xy.getImage() != null) {
+			if (original_xy_canvas != null) {
+				xy_window = new StackWindow(xy, original_xy_canvas);
+			} else
+				xy_window = new StackWindow(xy);
 			xy.setOverlay(overlay);
 			xy_window.getCanvas().add(ij.Menus.getPopupMenu());
 		}
