@@ -59,7 +59,7 @@ def run():
         msg = 'Analyzing Tree: %s: %s...' % (counter + 1,
                 tree.getLabel())
         status.showStatus(msg)
-        log.info(msg)
+        print(msg)
 
         # Prepare analysis. We'll make TreeAnalyzer aware of current context
         # so that we don't need to worry about displaying/updating the table
@@ -73,7 +73,7 @@ def run():
         analyzer.measure(metrics, True)  # Split results by compartment?
 
     msg = 'Done. %s file(s) analyzed...' % (counter + 1)
-    log.info(msg)
+    print(msg)
   
     # To save the table
     #table.save('path/to/swc/file.csv')

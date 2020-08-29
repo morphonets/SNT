@@ -58,7 +58,7 @@ def run():
         basename = os.path.basename(f)
         msg = 'Processing file %s: %s...' % (processed + skipped + 1, basename)
         status.showStatus(msg)
-        log.info(msg)
+        print(msg)
 
         # Load the input image
         input_image = ij.io().open(f)
@@ -96,7 +96,7 @@ def run():
 
         processed += 1
 
-    log.info('Done. %s file(s) processed. %s file(s) skipped...' % (processed, skipped))
+    print('Done. %s file(s) processed. %s file(s) skipped...' % (processed, skipped))
 
 
 run()
