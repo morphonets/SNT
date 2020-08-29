@@ -177,6 +177,10 @@ public class PathProfiler extends ContextCommand {
 	}
 
 	public void assignValues(final int channel) throws IllegalArgumentException {
+		if (channel == -1) {
+			assignValues();
+			return;
+		}
 		validateChannelRange(channel);
 		for (final Path p : tree.list())
 			assignValues(p, channel);
@@ -226,7 +230,7 @@ public class PathProfiler extends ContextCommand {
 
 	private Map<String, double[]> getValuesAsArray(final Path p) {
 		if (!p.hasNodeValues()) assignValues(p);
-		return getValuesAsArray(p, -1);
+		return getValuesAsArray(p, p.getChannel());
 
 	}
 	private Map<String, double[]> getValuesAsArray(final Path p, final int channel) {
@@ -267,7 +271,7 @@ public class PathProfiler extends ContextCommand {
 	 * @return the profile
 	 */
 	public Map<String, List<Double>> getValues(final Path p) {
-		return getValues(p, -1);
+		return getValues(p, p.getChannel());
 	}
 
 	public Map<String, List<Double>> getValues(final Path p, final int channel) throws IllegalArgumentException {
@@ -368,8 +372,9 @@ public class PathProfiler extends ContextCommand {
 	}
 
 	public Plot getPlot(final int channel) throws IllegalArgumentException {
-		if (!valuesAssignedToTree || channel != lastprofiledChannel)
+		if (!valuesAssignedToTree || (channel > 0 && channel != lastprofiledChannel) ) {
 			assignValues(channel);
+		}
 		String yAxisLabel = getYAxisLabel();
 		if (channel > -1) yAxisLabel += " (Ch " + channel + ")";
 		final Plot plot = new Plot(getPlotTitle(), getXAxisLabel(), yAxisLabel);
@@ -427,7 +432,9 @@ public class PathProfiler extends ContextCommand {
 	}
 
 	public XYPlot getXYPlot(final int channel) throws IllegalArgumentException {
-		if (!valuesAssignedToTree) assignValues(channel);
+		if (!valuesAssignedToTree || (channel > 0 && channel != lastprofiledChannel) ) {
+			assignValues(channel);
+		}
 		final XYPlot plot = plotService.newXYPlot();
 		final boolean setLegend = tree.size() > 1;
 		final ColorRGB[] colors = getSeriesColorsRGB();
