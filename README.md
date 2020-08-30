@@ -1,6 +1,14 @@
 <p align="center"><img src="https://imagej.net/_images/5/5d/SNTLogo512.png" alt="SNT" width="150"></p>
 <h2 align="center">The ImageJ framework for quantification of neuronal anatomy</h2>
 <div align="center">
+  <!-- BioRiv -->
+  <a href="https://doi.org/10.1101/2020.07.13.179325">
+    <img alt="Publication" src="https://img.shields.io/badge/Publication-BioRiv-red.svg">
+  </a>
+  <!-- Gitpod -->
+  <a href="https://gitpod.io/#https://github.com/fiji/SNT">
+    <img alt="Gitpod ready-to-code" src="https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod">
+  </a>
   <!-- License -->
   <a href="https://github.com/morphonets/SNT/blob/master/LICENSE.txt">
     <img alt="GitHub license" src="https://img.shields.io/github/license/morphonets/SNT">
@@ -52,12 +60,14 @@
 
 
 
+
 SNT is [ImageJ](https://imagej.net/)'s framework for semi-automated tracing, visualization, quantitative analyses and modeling of neuronal morphology. For tracing, SNT supports modern multi-dimensional microscopy data, and highly-customizable routines. For data analysis, SNT features advanced visualization tools, access to all major morphology databases, and support for whole-brain circuitry data.
 
 Most importantly, SNT can be used as a regular application or as a scripting library. Python (through [pyimagej](https://github.com/imagej/pyimagej)) and  all of SciJava's scripting languages are supported. It is distributed with [Fiji](https://imagej.net/Fiji) and supersedes the original [Simple Neurite Tracer](#backwards-compatibility) plug-in.
 
-## Features
+Please check [SNT's publication](https://doi.org/10.1101/2020.07.13.179325)  for details.
 
+## Features
 ### Tracing
 * Support for up to 5D multidimensional images (including multichannel, and those with a time axis).
   While tracing, visibility of non-traced channels can be toggled at will
@@ -68,7 +78,8 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 * Tracing is scriptable. Interactive scripts allow for real-time inspection of results
 * Paths can be tagged, searched, grouped and filtered by morphometric properties (length, radius, etc.)
 * Paths can be edited, i.e., a path can be merged into a existing one, or split into two. Nodes can be moved, deleted, or inserted
-* Post-hoc refinement of node positioning by 'snapping' traces to the fluorescent signal associated with a a path.
+* Post-hoc refinement of node positioning by 'snapping' traces to the fluorescent signal associated with a a path
+* Generation of traces from segmented images (binarized skeletons)
 
 ### Analysis
 * *Extensive* repertoire of metrics, namely those provided by [L-measure](http://cng.gmu.edu:8080/Lm/help/index.htm) and [NeuroM](https://github.com/BlueBrain/NeuroM). Metrics can be collected from groups of cells, single cells, or parts thereof
@@ -86,6 +97,7 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 * Customizable views: Interactive management of scene elements, controls for transparency, color interpolation, lightning, path smoothing, etc.. Ability to render both local and remote files on the same scene
 * Built-in support for several template brains: Drosophila, zebrafish, and Allen CCF (Allen Mouse Brain Atlas)
 * [SciView](https://github.com/scenerygraphics/sciview) integration
+* Connectivity diagrams
 * Quantitative, publication-quality visualization: Display neurons color coded by morphometric traits, or neuropil annotations. Export plots, reconstructions, diagrams and histograms as vector graphics.
 
 ### Scripting
@@ -109,7 +121,7 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 ### *Regular* Releases
 SNT is available in  [Fiji](https://imagej.net/Fiji) and is currently distributed through the *NeuroAnatomy* [update site](https://imagej.net/Update_Sites).
 
-The first time you start SNT from Fiji's menu structure (*Plugins>Neuroanatomy>SNT* (or its backwards-compatible alias *Plugins>NeuroAnatomy>SNT>Legacy>Simple Neurite Tracer* ) you should be prompted for automatic subscription and download of required dependencies. If not:
+The first time you start SNT from Fiji's menu structure (*Plugins>Neuroanatomy>SNT...* you should be prompted for automatic subscription and download of required dependencies. If not:
 
 1.  Run the Fiji Updater (*Help › Update...*, the penultimate entry in the  *Help ›*  menu)
 2.  Click *Manage update sites*
@@ -153,12 +165,19 @@ Daily builds of SNT and SciView are pushed to the *Neuroanatomy-Unstable* update
 
 ## Developing
 
+### On the cloud
+
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/morphonets/SNT) 
+Use the button above to open the project on the cloud using [Gitpod](https://gitpod.io), with no local installation necessary.
+
+### Locally
+
   1. Clone this repository (use the green _code_ button above the list of files) 
   2. Import the project into an IDE such as [Eclipse](https://www.eclipse.org/downloads/packages/)/[IntelliJ](https://www.jetbrains.com/idea/download/)/[NetBeans](https://netbeans.apache.org/download/index.html):
         - In Eclipse: Run _Import> Existing Maven Projects_ and specify the path to the downloaded `SNT` folder in _Root Directory_
         - In IntelliJ: In the _Welcome Prompt_, choose _Open or Import_ and specify the path to the downloaded `SNT` folder
         - In NetBeans: Run _File> Open Project..._, select the downloaded `SNT` directory, and click on _Open Project_
-  3. Wait for all the dependencies to be downloaded, and run [SNTLoaderCmd](./src/main/java/sc/fiji/snt/gui/cmds/SNTLoaderCmd.java). 
+  3. Wait for all the dependencies to be downloaded, and run [snt/gui/cmds/SNTLoaderCmd/SNTLoaderCmd](./src/main/java/sc/fiji/snt/gui/cmds/SNTLoaderCmd.java). 
 
 Useful resources to start hacking SNT:
   -  _main_ methods found on most classes: These test/showcase some of the class's functionality ([example](https://github.com/morphonets/SNT/blob/master/src/main/java/sc/fiji/snt/viewer/Viewer3D.java#L6130))
