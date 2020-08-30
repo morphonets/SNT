@@ -1,3 +1,6 @@
+image:
+  file: .gitpod.dockerfile
+
 tasks:
   - init: mvn install -DskipTests=false
 
