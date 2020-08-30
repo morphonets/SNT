@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 import org.scijava.Priority;
 import org.scijava.log.LogService;
@@ -55,9 +56,11 @@ import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
+import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
+import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.Viewer3D;
 
 /**
@@ -202,14 +205,22 @@ public class SNTService extends AbstractService implements ImageJService {
 	}
 
 	/**
-	 * Loads the specified tree.
+	 * Loads the specified tree. Note that if SNT has not been properly initialized,
+	 * spatial calibration mismatches may occur.
 	 *
-	 * @param tree the {@link Tree} to be loaded (null not allowed)
+	 * @param tree the {@link Tree} to be loaded (null not allowed).
 	 * @throws UnsupportedOperationException if SNT is not running
 	 */
-	public void loadTree(final Tree tree) {
-		accessActiveInstance(false);
+	public void loadTree(final Tree tree) throws UnsupportedOperationException {
 		plugin.getPathAndFillManager().addTree(tree);
+	}
+
+
+	public void loadGraph(final DirectedWeightedGraph graph) throws UnsupportedOperationException {
+		accessActiveInstance(false);
+		final Map<String, TreeSet<SWCPoint>> inMap = new HashMap<>();
+		inMap.put("graph", new TreeSet<>(graph.vertexSet()));
+		plugin.getPathAndFillManager().importNeurons(inMap, null, "");
 	}
 
 	/**
