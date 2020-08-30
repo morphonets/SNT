@@ -167,8 +167,9 @@ Daily builds of SNT and SciView are pushed to the *Neuroanatomy-Unstable* update
 
 ### On the cloud
 
+Use this button to open the project on the cloud using [Gitpod](https://gitpod.io). No local installation necessary.
+
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/morphonets/SNT) 
-Use the button above to open the project on the cloud using [Gitpod](https://gitpod.io), with no local installation necessary.
 
 ### Locally
 
