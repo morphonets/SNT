@@ -219,7 +219,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	public void loadGraph(final DirectedWeightedGraph graph) throws UnsupportedOperationException {
 		accessActiveInstance(false);
 		final Map<String, TreeSet<SWCPoint>> inMap = new HashMap<>();
-		inMap.put("graph", new TreeSet<>(graph.vertexSet()));
+		inMap.put("graph", new TreeSet<>(graph.vertexSet(true)));
 		plugin.getPathAndFillManager().importNeurons(inMap, null, "");
 	}
 

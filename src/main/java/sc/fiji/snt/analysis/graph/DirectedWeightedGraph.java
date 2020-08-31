@@ -381,9 +381,8 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		}
 	}
 
-	@Override
-	public Set<SWCPoint> vertexSet() {
-		updateVertexProperties();
+	public Set<SWCPoint> vertexSet(final boolean updateVertexProperties) {
+		if (updateVertexProperties) updateVertexProperties(); 
 		return super.vertexSet();
 	}
 
