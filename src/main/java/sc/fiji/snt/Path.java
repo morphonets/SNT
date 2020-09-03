@@ -1557,7 +1557,7 @@ public class Path implements Comparable<Path> {
 
 	/**
 	 * Assesses whether the nodes of this path have been assigned
-	 * {@link BrainAnnotations}.
+	 * {@link BrainAnnotation}s.
 	 *
 	 * @return true, if successful
 	 * @see SNTPoint#getAnnotation()

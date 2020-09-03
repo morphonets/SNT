@@ -100,14 +100,12 @@ public class EditorRuler extends JComponent implements MouseMotionListener,
 	protected int activeoffset, activelength;
 
 	/**
-	 * Specifies the scale for the metrics. Default is
-	 * {@link JGraphEditorDiagramPane#DEFAULT_PAGESCALE}.
+	 * Specifies the scale for the metrics.
 	 */
 	protected double scale = DEFAULT_PAGESCALE;
 
 	/**
-	 * Specifies the unit system. Default is
-	 * {@link JGraphEditorDiagramPane#DEFAULT_ISMETRIC}.
+	 * Specifies the unit system.
 	 */
 	protected boolean metric = DEFAULT_ISMETRIC;
 
@@ -155,8 +153,8 @@ public class EditorRuler extends JComponent implements MouseMotionListener,
 	/**
 	 * Constructs a new ruler for the specified graph and orientation.
 	 * 
-	 * @param graph
-	 *            The graph to create the ruler for.
+	 * @param graphComponent
+	 *            The graphComponent to create the ruler for.
 	 * @param orientation
 	 *            The orientation to use for the ruler.
 	 */

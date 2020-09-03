@@ -97,7 +97,7 @@ public class MouseLightQuerier {
 	 *
 	 * @param idOrDOI the neuron id (e.g., "AA0001") or DOI (e.g.,
 	 *                "10.25378/janelia.5527672") of the neuron to be loaded
-	 * @@param exactMatch If true, only exact matches will be considered
+	 * @param exactMatch If true, only exact matches will be considered
 	 */
 	public static List<String> getIDs(final String idOrDOI, final boolean exactMatch) {
 		return getIDs(new BodyBuilder().idQuery(idOrDOI, exactMatch));

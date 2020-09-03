@@ -346,7 +346,7 @@ public class MouseLightLoader {
 	 *
 	 * @param path the absolute path to output directory/file
 	 * @return true, if successful
-	 * @see #saveAsJSON(File)
+	 * @see #saveAsJSON(String)
 	 */
 	public boolean save(final String path) {
 		final File file = new File(path);

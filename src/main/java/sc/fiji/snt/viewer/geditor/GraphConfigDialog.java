@@ -1500,11 +1500,6 @@ public class GraphConfigDialog extends JDialog
 		this.groupSpacing = groupSpacing;
 	}
 
-	/**
-	 * @param insertIntoModel
-	 *            The insertIntoModel to set.
-	 */
-
 	public void setNumColumns(int numColumns)
 	{
 		this.numColumns = numColumns;
