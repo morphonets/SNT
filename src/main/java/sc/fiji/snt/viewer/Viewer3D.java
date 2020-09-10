@@ -193,7 +193,6 @@ import com.jogamp.opengl.GLCapabilities;
 import com.jogamp.opengl.GLException;
 import com.jogamp.opengl.GLProfile;
 
-import ij.IJ;
 import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
@@ -3592,18 +3591,11 @@ public class Viewer3D {
 			utilsMenu.add(jcbmi);
 	
 			addSeparator(utilsMenu, "Online Resources:");
-			mi = new JMenuItem("Documentation", IconFactory.getMenuIcon(GLYPH.QUESTION));
-			mi.addActionListener(e -> IJ.runPlugIn("ij.plugin.BrowserLauncher", "https://imagej.net/SNT"));
-			utilsMenu.add(mi);
-			mi = new JMenuItem("API",  IconFactory.getMenuIcon(GLYPH.SCROLL));
-			mi.addActionListener(e -> IJ.runPlugIn("ij.plugin.BrowserLauncher", "https://morphonets.github.io/SNT/"));
-			utilsMenu.add(mi);
-			mi = new JMenuItem("Known Issues", IconFactory.getMenuIcon(GLYPH.BUG));
-			mi.addActionListener(e -> IJ.runPlugIn("ij.plugin.BrowserLauncher", "https://github.com/morphonets/SNT/issues?q=is%3Aissue+is%3Aopen+"));
-			utilsMenu.add(mi);
-			mi = new JMenuItem("Source Code");
-			mi.addActionListener(e -> IJ.runPlugIn("ij.plugin.BrowserLauncher", "https://github.com/morphonets/SNT"));
-			utilsMenu.add(mi);
+			final JMenu helpMenu = GuiUtils.helpMenu();
+			helpMenu.setIcon( IconFactory.getMenuIcon(GLYPH.QUESTION));
+			//utilsMenu.add(helpMenu.getItem(0));
+			utilsMenu.add(helpMenu.getItem(helpMenu.getItemCount()-1));
+			utilsMenu.add(helpMenu);
 			return utilsMenu;
 		}
 

@@ -88,7 +88,6 @@ import org.scijava.command.CommandService;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Types;
 
-import ij.IJ;
 import ij.ImageListener;
 import ij.ImagePlus;
 import ij.Prefs;
@@ -2110,7 +2109,7 @@ public class SNTUI extends JDialog {
 		menuBar.add(installer.getScriptsMenu());
 		final JMenu viewMenu = new JMenu("View");
 		menuBar.add(viewMenu);
-		menuBar.add(helpMenu());
+		menuBar.add(GuiUtils.helpMenu());
 
 		fileMenu.add(importSubmenu);
 		fileMenu.add(exportSubmenu);
@@ -2970,60 +2969,6 @@ public class SNTUI extends JDialog {
 		return showPartsNearby.isSelected();
 	}
 
-	private JMenu helpMenu() {
-		final JMenu helpMenu = new JMenu("Help");
-		final String URL = "https://imagej.net/SNT";
-		JMenuItem mi = menuItemTriggeringURL("Main Documentation Page", URL);
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.HOME));
-		helpMenu.add(mi);
-		helpMenu.addSeparator();
-
-		mi = menuItemTriggeringURL("User Manual", URL + ":_Manual");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BOOK_READER));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Screencasts", URL + ":_Screencasts");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.VIDEO));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Step-by-step Instructions", URL + ":_Step-By-Step_Instructions");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FOOTPRINTS));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Reconstruction Viewer", URL + ":_Reconstruction_Viewer");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CUBE));
-		helpMenu.add(mi);
-		helpMenu.addSeparator();
-		mi = menuItemTriggeringURL("List of Shortcuts", URL + ":_Key_Shortcuts");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.KEYBOARD));
-		helpMenu.add(mi);
-		helpMenu.addSeparator();
-
-		mi = menuItemTriggeringURL("FAQs", URL + ":_FAQ");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Ask a Question", "https://forum.image.sc/tags/snt");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COMMENTS));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Known Issues", "https://github.com/morphonets/SNT/issues");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BUG));
-		helpMenu.add(mi);
-		helpMenu.addSeparator();
-
-		mi = menuItemTriggeringURL("Analysis", URL + ":_Analysis");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHART));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Scripting", URL + ":_Scripting");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Python Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SCROLL));
-		helpMenu.add(mi);
-		helpMenu.addSeparator();
-
-		mi = menuItemTriggeringURL("Citing SNT", URL + ":_FAQ#citing");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.PEN));
-		helpMenu.add(mi);
-		return helpMenu;
-	}
-
 	private JMenuItem shollAnalysisHelpMenuItem() {
 		final JMenuItem mi = new JMenuItem("Sholl Analysis (by Focal Point)...");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DOTCIRCLE));
@@ -3055,12 +3000,6 @@ public class SNTUI extends JDialog {
 			});
 			newThread.start();
 		});
-		return mi;
-	}
-
-	protected static JMenuItem menuItemTriggeringURL(final String label, final String URL) {
-		final JMenuItem mi = new JMenuItem(label);
-		mi.addActionListener(e -> IJ.runPlugIn("ij.plugin.BrowserLauncher", URL));
 		return mi;
 	}
 

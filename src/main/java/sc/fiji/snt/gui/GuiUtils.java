@@ -26,6 +26,7 @@ import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
 import com.jidesoft.utils.ProductNames;
 
+import ij.IJ;
 import ij.gui.HTMLDialog;
 
 import java.awt.Canvas;
@@ -762,6 +763,71 @@ public class GuiUtils {
 
 	public JTextField textField(final String placeholder) {
 		return new TextFieldWithPlaceholder(placeholder);
+	}
+
+	public static JMenu helpMenu() {
+		final JMenu helpMenu = new JMenu("Help");
+		final String URL = "https://imagej.net/SNT";
+		JMenuItem mi = menuItemTriggeringURL("Main Documentation Page", URL);
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.HOME));
+		helpMenu.add(mi);
+		helpMenu.addSeparator();
+		mi = menuItemTriggeringURL("User Manual", URL + ":_Manual");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BOOK_READER));
+		helpMenu.add(mi);
+		mi = menuItemTriggeringURL("Screencasts", URL + ":_Screencasts");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.VIDEO));
+		helpMenu.add(mi);
+		mi = menuItemTriggeringURL("Step-by-step Instructions", URL + ":_Step-By-Step_Instructions");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FOOTPRINTS));
+		helpMenu.add(mi);
+
+		helpMenu.addSeparator();
+		mi = menuItemTriggeringURL("Analysis", URL + ":_Analysis");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHART));
+		helpMenu.add(mi);
+		mi = menuItemTriggeringURL("Reconstruction Viewer", URL + ":_Reconstruction_Viewer");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CUBE));
+		helpMenu.add(mi);
+
+		helpMenu.addSeparator();
+		mi = menuItemTriggeringURL("List of Shortcuts", URL + ":_Key_Shortcuts");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.KEYBOARD));
+		helpMenu.add(mi);
+		helpMenu.addSeparator();
+
+		mi = menuItemTriggeringURL("FAQs", URL + ":_FAQ");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
+		helpMenu.add(mi);
+		mi = menuItemTriggeringURL("Ask a Question", "https://forum.image.sc/tags/snt");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COMMENTS));
+		helpMenu.add(mi);
+		mi = menuItemTriggeringURL("Known Issues", "https://github.com/morphonets/SNT/issues");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BUG));
+		helpMenu.add(mi);
+
+		helpMenu.addSeparator();
+		mi = menuItemTriggeringURL("Scripting", URL + ":_Scripting");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE));
+		helpMenu.add(mi);
+		mi = menuItemTriggeringURL("API", "https://morphonets.github.io/SNT/");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE2));
+		helpMenu.add(mi);
+		mi = menuItemTriggeringURL("Python Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SCROLL));
+		helpMenu.add(mi);
+
+		helpMenu.addSeparator();
+		mi = menuItemTriggeringURL("SNT Manuscript", "https://doi.org/10.1101/2020.07.13.179325");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FILE));
+		helpMenu.add(mi);
+		return helpMenu;
+	}
+
+	public static JMenuItem menuItemTriggeringURL(final String label, final String URL) {
+		final JMenuItem mi = new JMenuItem(label);
+		mi.addActionListener(e -> IJ.runPlugIn("ij.plugin.BrowserLauncher", URL));
+		return mi;
 	}
 
 	static class TextFieldWithPlaceholder extends JTextField {

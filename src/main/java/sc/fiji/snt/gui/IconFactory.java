@@ -96,6 +96,7 @@ public class IconFactory {
 			EXPORT('\uf56e', true), //
 			EYE('\uf06e', false), //
 			EYE_SLASH('\uf070', false), //
+			FILE('\uf15b', false), //
 			FILE_IMAGE('\uf1c5', false), //
 			FILL('\uf575', true), //
 			FILTER('\uf0b0', true), //
