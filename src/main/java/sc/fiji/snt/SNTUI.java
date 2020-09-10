@@ -1120,8 +1120,12 @@ public class SNTUI extends JDialog {
 	private JPanel tracingPanel() {
 		final JPanel tPanel = new JPanel(new GridBagLayout());
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
+
 		final JCheckBox confirmTemporarySegmentsCheckbox = new JCheckBox("Confirm temporary segments",
 				confirmTemporarySegments);
+		tPanel.add(confirmTemporarySegmentsCheckbox, gdb);
+		++gdb.gridy;
+
 		final JCheckBox confirmCheckbox = new JCheckBox("Pressing 'Y' twice finishes path", finishOnDoubleConfimation);
 		final JCheckBox finishCheckbox = new JCheckBox("Pressing 'N' twice cancels path", discardOnDoubleCancellation);
 		confirmTemporarySegmentsCheckbox.addItemListener(e -> {
@@ -1132,14 +1136,19 @@ public class SNTUI extends JDialog {
 
 		confirmCheckbox.addItemListener(e -> finishOnDoubleConfimation = (e.getStateChange() == ItemEvent.SELECTED));
 		confirmCheckbox.addItemListener(e -> discardOnDoubleCancellation = (e.getStateChange() == ItemEvent.SELECTED));
-		tPanel.add(confirmTemporarySegmentsCheckbox, gdb);
-		++gdb.gridy;
 		gdb.insets = new Insets(0, MARGIN * 3, 0, 0);
 		tPanel.add(confirmCheckbox, gdb);
 		++gdb.gridy;
 		tPanel.add(finishCheckbox, gdb);
 		++gdb.gridy;
 		gdb.insets = new Insets(0, 0, 0, 0);
+
+		final JCheckBox activateFinishedPathCheckbox = new JCheckBox("Finishing a path selects it",
+				plugin.activateFinishedPath);
+		guiUtils.addTooltip(activateFinishedPathCheckbox, "Whether the path being traced should automatically be selected once finished.");
+		activateFinishedPathCheckbox.addItemListener(e -> plugin.enableAutoSelectionOfFinishedPath(e.getStateChange() == ItemEvent.SELECTED));
+		tPanel.add(activateFinishedPathCheckbox, gdb);
+
 		return tPanel;
 
 	}

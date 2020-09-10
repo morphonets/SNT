@@ -142,6 +142,7 @@ public class SNT extends MultiDThreePanes implements
 	volatile protected boolean unsavedPaths = false;
 	volatile protected boolean showOnlySelectedPaths;
 	volatile protected boolean showOnlyActiveCTposPaths;
+	volatile protected boolean activateFinishedPath;
 	private boolean manualOverride = false;
 
 
@@ -1676,7 +1677,7 @@ public class SNT extends MultiDThreePanes implements
 			pathAndFillManager.addPath(currentPath, true, false);
 		unsavedPaths = true;
 		lastStartPointSet = false;
-		selectPath(currentPath, false);
+		if (activateFinishedPath) selectPath(currentPath, false);
 		setPathUnfinished(false);
 		setCurrentPath(null);
 
@@ -2798,6 +2799,10 @@ public class SNT extends MultiDThreePanes implements
 
 	public void enableAutoActivation(final boolean enable) {
 		autoCanvasActivation = enable;
+	}
+
+	public void enableAutoSelectionOfFinishedPath(final boolean enable) {
+		activateFinishedPath = enable;
 	}
 
 	protected boolean isTracingOnSecondaryImageActive() {

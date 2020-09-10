@@ -41,7 +41,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final int SNAP_CURSOR = 2;
 	// private static final int SHOW_MIP_OVERLAY = 4;
 	private static final int AUTO_CANVAS_ACTIVATION = 8;
-	// @Deprecated//private static final int ENFORCE_LUT = 16;
+	private static final int AUTO_SELECTION_FINISHED_PATH = 16;
 	private static final int USE_THREE_PANE = 32;
 	private static final int USE_3D_VIEWER = 64;
 	// @Deprecated//private static final int LOOK_FOR_TUBES = 128;
@@ -128,6 +128,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	protected void loadPluginPrefs() {
 		getBooleans();
 		snt.autoCanvasActivation = getPref(AUTO_CANVAS_ACTIVATION);
+		snt.activateFinishedPath = getPref(AUTO_SELECTION_FINISHED_PATH);
 		snt.snapCursor = !snt.tracingHalted && getPref(SNAP_CURSOR);
 		snt.drawDiametersXY = getPref(DRAW_DIAMETERS_XY);
 		snt.displayCustomPathColors = !getPref(ENFORCE_DEFAULT_PATH_COLORS);
@@ -179,6 +180,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	protected void savePluginPrefs(final boolean restoreIJ1prefs) {
 		setSaveCompressedTraces(isSaveCompressedTraces());
 		setPref(AUTO_CANVAS_ACTIVATION, snt.autoCanvasActivation);
+		setPref(AUTO_SELECTION_FINISHED_PATH, snt.activateFinishedPath);
 		if (!snt.tracingHalted) setPref(SNAP_CURSOR, snt.snapCursor);
 		Prefs.set(SNAP_XY, snt.cursorSnapWindowXY);
 		Prefs.set(SNAP_Z, snt.cursorSnapWindowZ);
