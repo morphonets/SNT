@@ -39,7 +39,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	private static final int DRAW_DIAMETERS_XY = 1;
 	private static final int SNAP_CURSOR = 2;
-	// private static final int SHOW_MIP_OVERLAY = 4;
+	private static final int REQUIRE_SHIFT_FOR_FORK = 4;
 	private static final int AUTO_CANVAS_ACTIVATION = 8;
 	private static final int AUTO_SELECTION_FINISHED_PATH = 16;
 	private static final int USE_THREE_PANE = 32;
@@ -129,6 +129,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		getBooleans();
 		snt.autoCanvasActivation = getPref(AUTO_CANVAS_ACTIVATION);
 		snt.activateFinishedPath = getPref(AUTO_SELECTION_FINISHED_PATH);
+		snt.requireShiftToFork = getPref(REQUIRE_SHIFT_FOR_FORK);
 		snt.snapCursor = !snt.tracingHalted && getPref(SNAP_CURSOR);
 		snt.drawDiametersXY = getPref(DRAW_DIAMETERS_XY);
 		snt.displayCustomPathColors = !getPref(ENFORCE_DEFAULT_PATH_COLORS);
@@ -181,6 +182,8 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		setSaveCompressedTraces(isSaveCompressedTraces());
 		setPref(AUTO_CANVAS_ACTIVATION, snt.autoCanvasActivation);
 		setPref(AUTO_SELECTION_FINISHED_PATH, snt.activateFinishedPath);
+		setPref(REQUIRE_SHIFT_FOR_FORK, snt.requireShiftToFork);
+
 		if (!snt.tracingHalted) setPref(SNAP_CURSOR, snt.snapCursor);
 		Prefs.set(SNAP_XY, snt.cursorSnapWindowXY);
 		Prefs.set(SNAP_Z, snt.cursorSnapWindowZ);

@@ -143,6 +143,8 @@ public class SNT extends MultiDThreePanes implements
 	volatile protected boolean showOnlySelectedPaths;
 	volatile protected boolean showOnlyActiveCTposPaths;
 	volatile protected boolean activateFinishedPath;
+	volatile protected boolean requireShiftToFork;
+
 	private boolean manualOverride = false;
 
 

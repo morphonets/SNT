@@ -144,7 +144,7 @@ class QueueJumpingKeyListener implements KeyListener {
 		final char keyChar = e.getKeyChar();
 		final boolean shift_down = e.isShiftDown();
 		final boolean alt_down = e.isAltDown();
-		final boolean join_modifier_down = alt_down && shift_down;
+		final boolean join_modifier_down = (tracerPlugin.requireShiftToFork) ? shift_down && alt_down : alt_down;
 
 		// SNT Hotkeys that do not override defaults
 		if (join_modifier_down && keyCode == KeyEvent.VK_A)

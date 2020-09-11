@@ -1147,7 +1147,13 @@ public class SNTUI extends JDialog {
 		guiUtils.addTooltip(activateFinishedPathCheckbox, "Whether the path being traced should automatically be selected once finished.");
 		activateFinishedPathCheckbox.addItemListener(e -> plugin.enableAutoSelectionOfFinishedPath(e.getStateChange() == ItemEvent.SELECTED));
 		tPanel.add(activateFinishedPathCheckbox, gdb);
+		++gdb.gridy;
 
+		final JCheckBox requireShiftToForkCheckbox = new JCheckBox("Require 'Shift' to branch off a path", plugin.requireShiftToFork);
+		guiUtils.addTooltip(requireShiftToForkCheckbox, "When branching off a path: Use Shift+Alt+click or Alt+click at the forking node? "
+				+ "NB: Alt+click is a common trigger for window dragging on Linux. Use Super+Alt+click to circunvent it");
+		requireShiftToForkCheckbox.addItemListener(e ->plugin.requireShiftToFork = e.getStateChange() == ItemEvent.SELECTED);
+		tPanel.add(requireShiftToForkCheckbox, gdb);
 		return tPanel;
 
 	}

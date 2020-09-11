@@ -141,6 +141,11 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				final JMenuItem mItem = ((JMenuItem) me);
 				final String cmd = mItem.getActionCommand();
 
+				if (cmd.startsWith(AListener.FORK_NEAREST)) {
+					mItem.setText((tracerPlugin.requireShiftToFork) ? AListener.FORK_NEAREST_SHIFT_ALT
+							: AListener.FORK_NEAREST_ALT);
+				}
+
 				if (togglePauseSNTMenuItem.isSelected() && !cmd.equals(
 					AListener.PAUSE_SNT_TOGGLE))
 				{
@@ -377,7 +382,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		last_y_in_pane_precise = myOffScreenYD(e.getY());
 
 		boolean shift_key_down = e.isShiftDown();
-		final boolean joiner_modifier_down = shift_key_down && e.isAltDown();
+		final boolean joiner_modifier_down = (tracerPlugin.requireShiftToFork) ? e.isShiftDown() && e.isAltDown() : e.isAltDown();
 
 		if (!editMode && tracerPlugin.snapCursor &&
 			plane == MultiDThreePanes.XY_PLANE && !joiner_modifier_down &&
@@ -608,13 +613,17 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	/**
-	 * This class implements implements ActionListeners for
-	 * InteractiveTracerCanvas contextual menu.
+	 * This class implements ActionListeners for
+	 * InteractiveTracerCanvas's contextual menu.
 	 */
 	private class AListener implements ActionListener, ItemListener {
 
 		public static final String FORK_NEAREST = 
-			"Fork at Nearest Node  [Shift+Alt+Click]";
+			"Fork at Nearest Node  ";
+		public static final String FORK_NEAREST_SHIFT_ALT = 
+			FORK_NEAREST + "[Shift+Alt+Click]";
+		public static final String FORK_NEAREST_ALT = 
+			FORK_NEAREST + "[Alt+Click]";
 		public static final String SELECT_NEAREST =
 			"Select Nearest Path  [G] [Shift+G]";
 		public static final String EXTEND_SELECTED = "Continue Extending Path";
@@ -674,7 +683,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				return;
 
 			}
-			else if (e.getActionCommand().equals(FORK_NEAREST)) {
+			else if (e.getActionCommand().startsWith(FORK_NEAREST)) {
 
 				if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
 					getGuiUtils().tempMsg(
