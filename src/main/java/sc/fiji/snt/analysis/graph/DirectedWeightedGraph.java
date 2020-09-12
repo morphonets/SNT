@@ -62,7 +62,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		init(tree.getNodesAsSWCPoints(), true);
 	}
 
-	protected DirectedWeightedGraph() {
+	public DirectedWeightedGraph() {
 		super(null, SupplierUtil.createSupplier(SWCWeightedEdge.class), new DefaultGraphType.Builder()
 				.directed().allowMultipleEdges(false).allowSelfLoops(false).allowCycles(false).weighted(true)
 				.modifiable(true)
