@@ -206,7 +206,9 @@ public class SNTService extends AbstractService implements ImageJService {
 
 	/**
 	 * Loads the specified tree. Note that if SNT has not been properly initialized,
-	 * spatial calibration mismatches may occur.
+	 * spatial calibration mismatches may occur. In that case, assign the spatial
+	 * calibration of the image to {#@code Tree} using
+	 * {@link Tree#assignImage(ImagePlus)}, before loading it.
 	 *
 	 * @param tree the {@link Tree} to be loaded (null not allowed).
 	 * @throws UnsupportedOperationException if SNT is not running

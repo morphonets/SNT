@@ -195,7 +195,10 @@ public class SkeletonConverter {
             sntGraph.addEdge(pointMap.get(slabs.get(slabs.size() - 1)), p2);
         }
         convertToDirected(sntGraph);
-        return sntGraph.getTree();
+        final Tree tree = sntGraph.getTree();
+        /* Assign image calibration to tree. Avoids unexpected offsets when initializing SNT */
+        tree.assignImage(imp);
+        return tree;
     }
 
     /**
