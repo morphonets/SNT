@@ -54,7 +54,7 @@ public class SkeletonConverterTest {
 
     @Test
     public void testConverter() {
-        final SkeletonConverter converter = new SkeletonConverter(imp);
+        final SkeletonConverter converter = new SkeletonConverter(imp, false);
         final List<Tree> skelTrees = converter.getTrees();
         final Tree tree = skelTrees.get(0);
         final TreeAnalyzer skelAnalyzer = new TreeAnalyzer(tree);

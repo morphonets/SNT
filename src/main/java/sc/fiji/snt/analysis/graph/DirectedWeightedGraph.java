@@ -279,7 +279,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * during Depth First Search. Also updates the parent and previousPoint fields
 	 * of each SWCPoint vertex contained in the Graph.
 	 */
-	private void updateVertexProperties() {
+	public void updateVertexProperties() {
 		final DepthFirstIterator<SWCPoint, SWCWeightedEdge> iter = getDepthFirstIterator(getRoot());
 		int currentId = 1;
 		while (iter.hasNext()) {

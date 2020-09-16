@@ -23,7 +23,9 @@
 package sc.fiji.snt.analysis;
 
 import ij.ImagePlus;
+import ij.measure.Calibration;
 import sc.fiji.analyzeSkeleton.*;
+import sc.fiji.skeletonize3D.Skeletonize3D_;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
@@ -36,10 +38,10 @@ import java.util.*;
 /**
  * Class for generation of {@link Tree}s from a skeletonized {@link ImagePlus}.
  *
- * @see sc.fiji.skeletonize3D.Skeletonize3D_
- * @see AnalyzeSkeleton_
  * @author Cameron Arshadi
  * @author Tiago Ferreira
+ * @see sc.fiji.skeletonize3D.Skeletonize3D_
+ * @see AnalyzeSkeleton_
  */
 public class SkeletonConverter {
 
@@ -53,23 +55,76 @@ public class SkeletonConverter {
     private boolean verbose = false;
     private boolean pruneByLength = false;
     private double lengthThreshold;
+    // Scale parameters for generated reconstructions
+    double pixelWidth;
+    double pixelHeight;
+    double pixelDepth;
 
+    /**
+     * @param imagePlus The image to be parsed. It is expected to be a topological
+     *                  skeleton (non-zero foreground) (conversion will be
+     *                  nonsensical otherwise).
+     */
     public SkeletonConverter(final ImagePlus imagePlus) {
         this.imp = imagePlus;
+        final Calibration cal = imp.getCalibration();
+        this.pixelWidth = cal.pixelWidth;
+        this.pixelHeight = cal.pixelHeight;
+        this.pixelDepth = cal.pixelDepth;
+    }
+
+    /**
+     * @param imagePlus   The image to be parsed. It is expected to be binary
+     *                    (non-zero foreground).
+     * @param skeletonize If true, image will be skeletonized using
+     *                    {@link Skeletonize3D_} _in place_ prior to the analysis.
+     *                    Conversion will be nonsensical if {@code false} and
+     *                    {@code imagePlus} is not a topological skeleton
+     * @throws IllegalArgumentException if {@code skeletonize} is true and
+     *                                  {@code imagePlus} is not binary.
+     */
+    public SkeletonConverter(final ImagePlus imagePlus, final boolean skeletonize) throws IllegalArgumentException {
+        this(imagePlus);
+        if (skeletonize) {
+            if (!imagePlus.getProcessor().isBinary())
+                throw new IllegalArgumentException("Only binary images allowed");
+            final Skeletonize3D_ thin = new Skeletonize3D_();
+            thin.setup("", imp);
+            thin.run(null);
+        }
     }
 
     /**
      * Generates a list of {@link Tree}s from the skeleton image.
      * Each Tree corresponds to one connected component of the graph returned by {@link SkeletonResult#getGraph()}.
+     *
      * @return the skeleton tree list
      */
     public List<Tree> getTrees() {
-        final Graph[] skeletonGraphs = getSkeletonGraphs();
         final List<Tree> treeList = new ArrayList<>();
-        for (final Graph skelGraph : skeletonGraphs) {
-            treeList.add(treeFromSkeletonGraph(skelGraph));
+        for (final DirectedWeightedGraph graph : getGraphs()) {
+            final Tree tree = graph.getTree();
+            /* Assign image calibration to tree. Avoids unexpected offsets when initializing SNT */
+            tree.assignImage(imp);
+            treeList.add(tree);
         }
         return treeList;
+    }
+
+    /**
+     * Generates a list of {@link DirectedWeightedGraph}s from the skeleton image.
+     * Each graph corresponds to one connected component of the graph returned by {@link SkeletonResult#getGraph()}.
+     *
+     * @return the skeleton graph list
+     */
+    public List<DirectedWeightedGraph> getGraphs() {
+        final List<DirectedWeightedGraph> graphList = new ArrayList<>();
+        for (final Graph skelGraph : getSkeletonGraphs()) {
+            final DirectedWeightedGraph graph = sntGraphFromSkeletonGraph(skelGraph);
+            graph.updateVertexProperties();
+            graphList.add(graph);
+        }
+        return graphList;
     }
 
     /**
@@ -77,7 +132,7 @@ public class SkeletonConverter {
      * See <a href="https://imagej.net/AnalyzeSkeleton.html#Loop_detection_and_pruning">AnalyzeSkeleton documentation</a>
      *
      * @param origIP the original ImagePlus
-     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean) 
+     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
      */
     public void setOrigIP(ImagePlus origIP) {
         this.origIP = origIP;
@@ -86,9 +141,10 @@ public class SkeletonConverter {
     /**
      * Sets the loop pruning strategy.
      * See <a href="https://imagej.net/AnalyzeSkeleton.html#Loop_detection_and_pruning">AnalyzeSkeleton documentation</a>
+     *
      * @param pruneMode the loop prune strategy, e.g., {@link AnalyzeSkeleton_#SHORTEST_BRANCH},
-     * {@link AnalyzeSkeleton_#LOWEST_INTENSITY_BRANCH} or {@link AnalyzeSkeleton_#LOWEST_INTENSITY_VOXEL}
-     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean) 
+     *                  {@link AnalyzeSkeleton_#LOWEST_INTENSITY_BRANCH} or {@link AnalyzeSkeleton_#LOWEST_INTENSITY_VOXEL}
+     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
      */
     public void setPruneMode(int pruneMode) {
         this.pruneMode = pruneMode;
@@ -96,7 +152,8 @@ public class SkeletonConverter {
 
     /**
      * Sets whether or not to prune branches which end in end-points from the result.
-     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean) 
+     *
+     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
      */
     public void setPruneEnds(boolean pruneEnds) {
         this.pruneEnds = pruneEnds;
@@ -104,7 +161,8 @@ public class SkeletonConverter {
 
     /**
      * Sets whether or not to calculate the longest shortest-path in the skeleton result.
-     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean) 
+     *
+     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
      */
     public void setShortestPath(boolean shortestPath) {
         this.shortestPath = shortestPath;
@@ -113,14 +171,15 @@ public class SkeletonConverter {
     /**
      * Setting this to false will display both the tagged skeleton image and the shortest path image (if the
      * shortest path calculation is enabled).
-     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean) 
+     *
+     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
      */
     public void setSilent(boolean silent) {
         this.silent = silent;
     }
 
     /**
-     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean) 
+     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
      */
     public void setVerbose(boolean verbose) {
         this.verbose = verbose;
@@ -129,13 +188,16 @@ public class SkeletonConverter {
     /**
      * Sets whether or not to prune branches below a threshold length from the result.
      */
-    public void setPruneByLength(boolean pruneByLength) { this.pruneByLength = pruneByLength; }
+    public void setPruneByLength(boolean pruneByLength) {
+        this.pruneByLength = pruneByLength;
+    }
 
     /**
      * The minimum branch length necessary to avoid pruning. This value is only used
      * if {@link SkeletonConverter#pruneByLength} is true.
-     * @see SkeletonConverter#setPruneByLength(boolean)
+     *
      * @param lengthThreshold the length threshold
+     * @see SkeletonConverter#setPruneByLength(boolean)
      */
     public void setLengthThreshold(double lengthThreshold) {
         if (lengthThreshold < 0) {
@@ -163,14 +225,16 @@ public class SkeletonConverter {
      * Convert the AnalyzeSkeleton {@link Graph} object to an SNT {@link Tree}, using a {@link DirectedWeightedGraph}
      * as an intermediary data structure.
      */
-    private Tree treeFromSkeletonGraph(final Graph skeletonGraph) {
+    private DirectedWeightedGraph sntGraphFromSkeletonGraph(final Graph skeletonGraph) {
         final DirectedWeightedGraph sntGraph = new DirectedWeightedGraph();
         final Map<Point, SWCPoint> pointMap = new HashMap<>();
         for (final Vertex vertex : skeletonGraph.getVertices()) {
             final Point v = vertex.getPoints().get(0);
             /* Use dummy values for all fields except the point coordinates.
             These will be assigned real values automatically during conversion to Tree. */
-            final SWCPoint swcPoint = new SWCPoint(0,0,v.x, v.y, v.z, 0, -1);
+            final SWCPoint swcPoint = new SWCPoint(0, 0,
+                    v.x * pixelWidth, v.y * pixelHeight, v.z * pixelDepth,
+                    0, -1);
             pointMap.put(v, swcPoint);
             sntGraph.addVertex(swcPoint);
         }
@@ -182,11 +246,15 @@ public class SkeletonConverter {
                 sntGraph.addEdge(p1, p2);
                 continue;
             }
-            SWCPoint swcSlab = new SWCPoint(0, 0, slabs.get(0).x, slabs.get(0).y, slabs.get(0).z, 0, -1);
+            SWCPoint swcSlab = new SWCPoint(0, 0,
+                    slabs.get(0).x * pixelWidth, slabs.get(0).y * pixelHeight, slabs.get(0).z * pixelDepth,
+                    0, -1);
             pointMap.put(slabs.get(0), swcSlab);
             sntGraph.addVertex(swcSlab);
             for (int i = 1; i < slabs.size(); i++) {
-                swcSlab = new SWCPoint(0, 0, slabs.get(i).x, slabs.get(i).y, slabs.get(i).z, 0, -1);
+                swcSlab = new SWCPoint(0, 0,
+                        slabs.get(i).x * pixelWidth, slabs.get(i).y * pixelHeight, slabs.get(i).z * pixelDepth,
+                        0, -1);
                 pointMap.put(slabs.get(i), swcSlab);
                 sntGraph.addVertex(swcSlab);
                 sntGraph.addEdge(pointMap.get(slabs.get(i - 1)), swcSlab);
@@ -195,10 +263,7 @@ public class SkeletonConverter {
             sntGraph.addEdge(pointMap.get(slabs.get(slabs.size() - 1)), p2);
         }
         convertToDirected(sntGraph);
-        final Tree tree = sntGraph.getTree();
-        /* Assign image calibration to tree. Avoids unexpected offsets when initializing SNT */
-        tree.assignImage(imp);
-        return tree;
+        return sntGraph;
     }
 
     /**
@@ -239,7 +304,7 @@ public class SkeletonConverter {
         //IJ.open("C:\\Users\\cam\\Desktop\\Drosophila_ddaC_Neuron.tif\\");
         //ImagePlus imp = IJ.getImage();
         ImagePlus imp = new SNTService().demoTrees().get(0).getSkeleton();
-        SkeletonConverter converter = new SkeletonConverter(imp);
+        SkeletonConverter converter = new SkeletonConverter(imp, false);
         converter.setPruneEnds(false);
         converter.setPruneMode(AnalyzeSkeleton_.SHORTEST_BRANCH);
         converter.setShortestPath(false);
