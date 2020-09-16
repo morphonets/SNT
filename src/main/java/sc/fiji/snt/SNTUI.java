@@ -107,13 +107,7 @@ import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SigmaPalette;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
-import sc.fiji.snt.plugin.AnalyzerCmd;
-import sc.fiji.snt.plugin.GroupAnalyzerCmd;
-import sc.fiji.snt.plugin.LocalThicknessCmd;
-import sc.fiji.snt.plugin.PathOrderAnalysisCmd;
-import sc.fiji.snt.plugin.PlotterCmd;
-import sc.fiji.snt.plugin.ShollTracingsCmd;
-import sc.fiji.snt.plugin.StrahlerCmd;
+import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.viewer.Viewer3D;
 import sholl.ShollUtils;
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
@@ -2341,6 +2335,13 @@ public class SNTUI extends JDialog {
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("tree", tree);
 			(new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
+		});
+		utilitiesMenu.addSeparator();
+		final JMenuItem skeletonConverter = new JMenuItem("Reconstruction(s) from Skeleton...",
+				IconFactory.getMenuIcon(IconFactory.GLYPH.TREE));
+		utilitiesMenu.add(skeletonConverter);
+		skeletonConverter.addActionListener(e -> {
+			(new DynamicCmdRunner(SkeletonConverterCmd.class, null)).run();
 		});
 		utilitiesMenu.addSeparator();
 		final JMenu scriptUtilsMenu = installer.getBatchScriptsMenu();
