@@ -2060,20 +2060,19 @@ public class PathAndFillManager extends DefaultHandler implements
 		final boolean headlessState = headless;
 		setHeadless(true);
 		final int[] colorIdx = { 0 };
-		swcs.forEach((id, path) -> {
-			SNTUtils.log("Loading " + id + ": " + path);
+		swcs.forEach((treeDescription, filePath) -> {
+			SNTUtils.log("Loading " + treeDescription + ": " + filePath);
 			final Tree tree = new Tree();
-			tree.setLabel(id);
+			tree.setLabel(treeDescription);
 			result.add(tree);
 			final int firstImportedPathIdx = size();
-			if (!importSWC(id, path)) {
+			if (!importSWC(treeDescription, filePath)) {
 				return; // here means 'continue;'
 			}
 			for (int i = firstImportedPathIdx; i < size(); i++) {
 				final Path p = getPath(i);
 				//p.setTreeLabel(id);
 				p.setColor(colors[colorIdx[0]]);
-				p.setIDs(p.getID(), ++maxUsedTreeID);
 				tree.add(p);
 			}
 			colorIdx[0]++;
@@ -2297,7 +2296,9 @@ public class PathAndFillManager extends DefaultHandler implements
 //				}
 //			}
 			currentPath.setGuessedTangents(2);
+			currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
 			addPath(currentPath);
+
 		}
 
 		// Set the start joins:
