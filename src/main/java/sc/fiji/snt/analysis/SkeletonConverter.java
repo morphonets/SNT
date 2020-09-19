@@ -88,9 +88,7 @@ public class SkeletonConverter {
         if (skeletonize) {
             if (!imagePlus.getProcessor().isBinary())
                 throw new IllegalArgumentException("Only binary images allowed");
-            final Skeletonize3D_ thin = new Skeletonize3D_();
-            thin.setup("", imp);
-            thin.run(null);
+            skeletonize(imagePlus);
         }
     }
 
@@ -298,6 +296,20 @@ public class SkeletonConverter {
             }
         }
     }
+
+	/**
+	 * Convenience method to skeletonize an 8-bit image using
+	 * {@link Skeletonize3D_}.
+	 * 
+	 * @param imagePlus The 8-bit image to be skeletonized. All non-zero values are
+	 *                  considered to be foreground.
+	 */
+	public static void skeletonize(final ImagePlus imp) {
+		final Skeletonize3D_ thin = new Skeletonize3D_();
+		thin.setup("", imp);
+		thin.run(null);
+		imp.updateImage();
+	}
 
     /* IDE debug method */
     public static void main(String[] args) {
