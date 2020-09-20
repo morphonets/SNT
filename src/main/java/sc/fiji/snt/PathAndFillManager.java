@@ -949,17 +949,35 @@ public class PathAndFillManager extends DefaultHandler implements
 		addPath(p, false, false);
 	}
 
-	@SuppressWarnings("deprecation")
 	public synchronized void addPath(final Path p,
-		final boolean forceNewName, final boolean forceNewId)
+			final boolean forceNewName, final boolean forceNewId)
+		{
+		addPath(p, forceNewName, forceNewId, true);
+		}
+
+	@SuppressWarnings("deprecation")
+	protected synchronized void addPath(final Path p,
+		final boolean forceNewName, final boolean forceNewId, final boolean assumeMaxUsedTreeID)
 	{
-		if (p.isPrimary()) ++maxUsedTreeID;
+		final boolean isPrimary = p.isPrimary();
+		if (isPrimary) ++maxUsedTreeID;
 		if (!forceNewId && getPathFromID(p.getID()) != null) throw new IllegalArgumentException(
 				"Attempted to add a path with an ID that was already added");
-		if (forceNewId || p.getID() < 0) {
-			p.setIDs(++maxUsedPathID, maxUsedTreeID);
+
+		// By default the latest tree ID is assigned to the added Path. That is a reasonable
+		// assumption when adding paths in bulk, but in an interactive session, we need to
+		// ensure the path is being assigned the correct tree ID.
+		int treeID = maxUsedTreeID;
+		if (!assumeMaxUsedTreeID && !isPrimary) {
+			if (p.getStartJoins() != null)
+				treeID = p.getStartJoins().getTreeID();
+			else
+				if (p.getEndJoins() != null)
+					treeID = p.getEndJoins().getTreeID();
 		}
+		p.setIDs((forceNewId || p.getID() < 0) ? ++maxUsedPathID : p.getID(), treeID);
 		if (maxUsedPathID < p.getID()) maxUsedPathID = p.getID();
+
 		if (p.getName() == null || forceNewName) {
 			final String suggestedName = getDefaultName(p);
 			p.setName(suggestedName);
