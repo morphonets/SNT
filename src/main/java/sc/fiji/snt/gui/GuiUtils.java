@@ -27,13 +27,14 @@ import com.jidesoft.popup.JidePopup;
 import com.jidesoft.utils.ProductNames;
 
 import ij.IJ;
-import ij.gui.HTMLDialog;
 
+import java.awt.BorderLayout;
 import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Desktop;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
@@ -46,6 +47,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
@@ -71,9 +74,13 @@ import javax.swing.*;
 import javax.swing.JSpinner.DefaultEditor;
 import javax.swing.border.EmptyBorder;
 import javax.swing.colorchooser.AbstractColorChooserPanel;
+import javax.swing.event.HyperlinkEvent;
+import javax.swing.event.HyperlinkListener;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.plaf.FontUIResource;
 import javax.swing.text.NumberFormatter;
+import javax.swing.text.html.HTMLEditorKit;
+import javax.swing.text.html.StyleSheet;
 
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.ui.swing.SwingDialog;
@@ -157,8 +164,9 @@ public class GuiUtils {
 	}
 
 	public static void showHTMLDialog(final String msg, final String title) {
+		final HTMLDialog dialog = new GuiUtils().new HTMLDialog(msg, title, false);
 		SwingUtilities.invokeLater(() -> {
-			new HTMLDialog(title, msg, false);
+			dialog.setVisible(true);
 		});
 	}
 
@@ -1115,6 +1123,120 @@ public class GuiUtils {
 		});
 		timer.start();
 	}
+
+	public void showHTMLDialog(final String msg, final String title, final boolean modal) {
+		new HTMLDialog(msg, title, modal).setVisible(true);
+	}
+
+	/** Tweaked version of ij.gui.HTMLDialog that is aware of parent */
+	private class HTMLDialog extends JDialog implements ActionListener, KeyListener, HyperlinkListener {
+
+		private static final long serialVersionUID = 1L;
+		private JEditorPane editorPane;
+
+		public HTMLDialog(final String message, final String title, final boolean modal) {
+			super();
+			setModal(modal);
+			setTitle(title);
+			init(message);
+		}
+
+		@Override
+		public void setVisible(final boolean b) {
+			if (parent != null)
+				setLocationRelativeTo(parent);
+			else
+				AWTWindows.centerWindow(this);
+			super.setVisible(b);
+		}
+
+		private void init(String message) {
+			getContentPane().setLayout(new BorderLayout());
+			if (message == null)
+				message = "";
+			editorPane = new JEditorPane("text/html", "");
+			editorPane.setEditable(false);
+			final HTMLEditorKit kit = new HTMLEditorKit();
+			editorPane.setEditorKit(kit);
+			final StyleSheet styleSheet = kit.getStyleSheet();
+			styleSheet.addRule("body{font-family:Verdana,sans-serif; font-size:11.5pt; margin:5px 10px 5px 10px;}"); // top
+																														// right
+																														// bottom
+																														// left
+			styleSheet.addRule("h1{font-size:18pt;}");
+			styleSheet.addRule("h2{font-size:15pt;}");
+			styleSheet.addRule("dl dt{font-face:bold;}");
+			editorPane.setText(message); // display the html text with the above style
+			editorPane.getActionMap().put("insert-break", new AbstractAction() {
+				private static final long serialVersionUID = 1L;
+
+				public void actionPerformed(final ActionEvent e) {
+				}
+			}); // suppress beep on <ENTER> key
+			final JScrollPane scrollPane = new JScrollPane(editorPane);
+			getContentPane().add(scrollPane);
+			final JButton button = new JButton("OK");
+			button.addActionListener(this);
+			button.addKeyListener(this);
+			editorPane.addKeyListener(this);
+			editorPane.addHyperlinkListener(this);
+			final JPanel panel = new JPanel();
+			panel.add(button);
+			getContentPane().add(panel, "South");
+			setForeground(Color.black);
+			pack();
+			final Dimension screenD = Toolkit.getDefaultToolkit().getScreenSize();
+			final Dimension dialogD = getSize();
+			final int maxWidth = (int) (Math.min(0.70 * screenD.width, 800)); // max 70% of screen width, but not more
+																				// than 800 pxl
+			if (maxWidth > 400 && dialogD.width > maxWidth)
+				dialogD.width = maxWidth;
+			if (dialogD.height > 0.80 * screenD.height && screenD.height > 400) // max 80% of screen height
+				dialogD.height = (int) (0.80 * screenD.height);
+			setSize(dialogD);
+		}
+
+		public void actionPerformed(final ActionEvent e) {
+			dispose();
+		}
+
+		public void keyPressed(final KeyEvent e) {
+			final int keyCode = e.getKeyCode();
+			if (keyCode == KeyEvent.VK_C) {
+				if (editorPane.getSelectedText() == null || editorPane.getSelectedText().length() == 0)
+					editorPane.selectAll();
+				editorPane.copy();
+				editorPane.select(0, 0);
+			} else if (keyCode == KeyEvent.VK_ENTER || keyCode == KeyEvent.VK_W || keyCode == KeyEvent.VK_ESCAPE)
+				dispose();
+		}
+
+		public void hyperlinkUpdate(final HyperlinkEvent e) {
+			if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+				final String url = e.getDescription(); // getURL does not work for relative links within document such
+														// as "#top"
+				if (url == null)
+					return;
+				if (url.startsWith("#"))
+					editorPane.scrollToReference(url.substring(1));
+				else {
+					IJ.runPlugIn("ij.plugin.BrowserLauncher", url);
+				}
+			}
+		}
+
+		@Override
+		public void keyReleased(final KeyEvent arg0) {
+			// DO nothing
+		}
+
+		@Override
+		public void keyTyped(final KeyEvent arg0) {
+			// DO nothing
+		}
+
+	}
+
 
 	private class FloatingDialog extends JDialog implements ComponentListener,
 		WindowListener

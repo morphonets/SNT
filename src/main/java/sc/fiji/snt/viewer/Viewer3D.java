@@ -4355,7 +4355,7 @@ public class Viewer3D {
 				sb.append("</tr>");
 			}
 			sb.append("</table>");
-			GuiUtils.showHTMLDialog(sb.toString(), "Info On Selected Compartments");
+			guiUtils.showHTMLDialog(sb.toString(), "Info On Selected Compartments", false); // guiUtils is not null
 		}
 
 		private JDialog show() {
@@ -5558,7 +5558,10 @@ public class Viewer3D {
 			}
 			sb.append("</table>");
 			if (showInDialog) {
-				GuiUtils.showHTMLDialog(sb.toString(), "Viewer Shortcuts");
+				if (gUtils == null) 
+					GuiUtils.showHTMLDialog(sb.toString(), "Viewer Shortcuts");
+				else
+					gUtils.showHTMLDialog(sb.toString(), "Viewer Shortcuts", false);
 			}
 			else {
 				displayMsg(sb.toString(), 10000);

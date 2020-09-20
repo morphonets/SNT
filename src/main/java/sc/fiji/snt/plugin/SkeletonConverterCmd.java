@@ -122,6 +122,7 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 			}
 			sb.append("</ul>");
 			if (!new GuiUtils().getConfirmation(sb.toString(), "Proceed Despite Warnings?")) {
+				if (ensureChosenImpIsVisible) chosenImp.show();
 				cancel();
 				return;
 			}
