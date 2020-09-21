@@ -41,6 +41,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.BrainAnnotationCmd;
 import sc.fiji.snt.plugin.CallLegacyShollPlugin;
+import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
 import sc.fiji.snt.plugin.GroupAnalyzerCmd;
 import sc.fiji.snt.plugin.LocalThicknessCmd;
 import sc.fiji.snt.plugin.MultiTreeMapperCmd;
@@ -51,6 +52,7 @@ import sc.fiji.snt.plugin.PathTimeAnalysisCmd;
 import sc.fiji.snt.plugin.PlotterCmd;
 import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.plugin.ShollTracingsCmd;
+import sc.fiji.snt.plugin.SkeletonConverterCmd;
 import sc.fiji.snt.plugin.SkeletonizerCmd;
 import sc.fiji.snt.plugin.StrahlerCmd;
 import sc.fiji.snt.plugin.TreeMapperCmd;
@@ -126,6 +128,7 @@ public class PrefsCmd extends ContextCommand {
 	public void clearAll() {
 
 		prefService.clear(AnalyzerCmd.class);
+		prefService.clear(AnnotationGraphRecViewerCmd.class);
 		prefService.clear(BrainAnnotationCmd.class);
 		prefService.clear(CallLegacyShollPlugin.class);
 		prefService.clear(ChooseDatasetCmd.class);
@@ -139,6 +142,7 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(DistributionBPCmd.class);
 		prefService.clear(DistributionCPCmd.class);
 		prefService.clear(DuplicateCmd.class);
+		prefService.clear(GraphAdapterMapperCmd.class);
 		prefService.clear(GraphGeneratorCmd.class);
 		prefService.clear(GroupAnalyzerCmd.class);
 		prefService.clear(JSONImporterCmd.class);
@@ -162,11 +166,13 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(ShollTracingsCmd.class);
 		prefService.clear(ShowCorrespondencesCmd.class);
 		prefService.clear(SkeletonizerCmd.class);
+		prefService.clear(SkeletonConverterCmd.class);
 		prefService.clear(SNTLoaderCmd.class);
 		prefService.clear(StrahlerCmd.class);
 		prefService.clear(SWCTypeFilterCmd.class);
 		prefService.clear(SWCTypeOptionsCmd.class);
 		prefService.clear(TranslateReconstructionsCmd.class);
+		prefService.clear(TreeGraphRecViewerCmd.class);
 		prefService.clear(TreeMapperCmd.class);
 
 		// Legacy (IJ1-based) preferences
