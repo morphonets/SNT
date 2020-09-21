@@ -5,6 +5,7 @@ import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.widget.ChoiceWidget;
 
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.Tree;
@@ -13,6 +14,9 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -32,23 +36,37 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 
 	@Override
 	protected void init() {
-		super.init();
+		super.init(true);
+
 		final MutableModuleItem<String> mItem = getInfo().getMutableInput("choice", String.class);
-		final List<String> choices = mItem.getChoices(); // UnmodifiableCollection
-		final List<String> impList = (choices == null) ? new ArrayList<>() : new ArrayList<>(choices);
+		mItem.setWidgetStyle(ChoiceWidget.LIST_BOX_STYLE);
+		mItem.setLabel("Segmented Image");
+		mItem.setDescription("<HTML>The skeletonized image from which paths will be extracted.<br>"//
+				+ "Assumed to be binary.");
+		final List<String> choices = new ArrayList<>();
+
+		// Populate choices with list of open images
+		final Collection<ImagePlus> impCollection = getImpInstances();
+		if (impCollection != null && !impCollection.isEmpty()) {
+			impMap = new HashMap<>(impCollection.size());
+			final ImagePlus existingImp = snt.getImagePlus();
+			for (final ImagePlus imp : impCollection) {
+				if (!imp.equals(existingImp)) {
+					impMap.put(imp.getTitle(), imp);
+					choices.add(imp.getTitle());
+				}
+			}
+		}
+		if (!impMap.isEmpty()) Collections.sort(choices);
+
 		final boolean accessToValidImageData = snt.accessToValidImageData();
 		if (accessToValidImageData) {
-			unresolveInput("choice");
-			impList.add("Copy of data being traced");
+			//unresolveInput("choice");
 			if (snt.getImagePlus().getProcessor().isBinary())
-				impList.add("Data being traced");
-			mItem.setChoices(impList);
+				choices.add(0, "Data being traced");
+			choices.add(1, "Copy of data being traced");
 		}
-		if (!impList.isEmpty()) {
-			mItem.setLabel("Segmented Image");
-			mItem.setDescription("<HTML>The skeletonized image from which paths will be extracted.<br>"
-					+ "Assumed to be binary.");
-		}
+		mItem.setChoices(choices);
 	}
 
 	@Override
@@ -62,10 +80,9 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 	@Override
 	public void run() {
 
-		if (choice == null || impMap == null || impMap.isEmpty()) {
-			error("To run this command you need to first open, in Fiji, a "
-					+ "segmented/skeletonized image from which paths can be "
-					+ "extracted.");
+		if (choice == null) { // this should never happen
+			error("To run this command you need to first select a segmented/"
+					+ "skeletonized image from which paths can be extracted.");
 			return;
 		}
 
