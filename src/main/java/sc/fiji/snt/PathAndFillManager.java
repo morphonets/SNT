@@ -2269,6 +2269,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		final HashMap<Path, SWCPoint> pathStartsOnSWCPoint = new HashMap<>();
 		final HashMap<Path, PointInImage> pathStartsAtPointInImage =
 			new HashMap<>();
+		final List<Path> pathList = new ArrayList<>();
 
 		SWCPoint start;
 		Path currentPath;
@@ -2315,13 +2316,12 @@ public class PathAndFillManager extends DefaultHandler implements
 //			}
 			currentPath.setGuessedTangents(2);
 			currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
-			addPath(currentPath);
+			pathList.add(currentPath);
 
 		}
 
 		// Set the start joins:
-		for (int i = firstImportedPathIdx; i < size(); i++) {
-			final Path p = getPath(i);
+		for (Path p : pathList) {
 			final SWCPoint swcPoint = pathStartsOnSWCPoint.get(p);
 			if (descriptor != null) {
 				p.setTreeLabel(descriptor);
@@ -2334,6 +2334,11 @@ public class PathAndFillManager extends DefaultHandler implements
 			final Path previousPath = pointToPath.get(swcPoint);
 			final PointInImage pointInImage = pathStartsAtPointInImage.get(p);
 			p.setStartJoin(previousPath, pointInImage);
+		}
+
+		// Add paths after setting all joins to ensure treeIDs are computed correctly
+		for (Path p : pathList) {
+			addPath(p);
 		}
 
 		resetListeners(null, true);
