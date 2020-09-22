@@ -301,7 +301,7 @@ public class SkeletonConverter {
 	 * Convenience method to skeletonize an 8-bit image using
 	 * {@link Skeletonize3D_}.
 	 * 
-	 * @param imagePlus The 8-bit image to be skeletonized. All non-zero values are
+	 * @param imp The 8-bit image to be skeletonized. All non-zero values are
 	 *                  considered to be foreground.
 	 */
 	public static void skeletonize(final ImagePlus imp) {

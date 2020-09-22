@@ -6,18 +6,13 @@ import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
-
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.SkeletonConverter;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.stream.IntStream;
 
 
@@ -62,9 +57,12 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 		final boolean accessToValidImageData = snt.accessToValidImageData();
 		if (accessToValidImageData) {
 			//unresolveInput("choice");
-			if (snt.getImagePlus().getProcessor().isBinary())
+			if (snt.getImagePlus().getProcessor().isBinary()) {
 				choices.add(0, "Data being traced");
-			choices.add(1, "Copy of data being traced");
+				choices.add(1, "Copy of data being traced");
+			} else {
+				choices.add(0, "Copy of data being traced");
+			}
 		}
 		mItem.setChoices(choices);
 	}
@@ -89,7 +87,9 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 		boolean ensureChosenImpIsVisible = false;
 		ImagePlus chosenImp;
 		if ("Copy of data being traced".equals(choice)) {
-			chosenImp = snt.getLoadedDataAsImp();
+			/* Make deep copy of imp returned by getLoadedDataAsImp() since it holds references to
+			 the same pixel arrays as used by the source data */
+			chosenImp = snt.getLoadedDataAsImp().duplicate();
 			ensureChosenImpIsVisible = chosenImp.getBitDepth() > 8 || skeletonizeImage
 					|| snt.getImagePlus().getNChannels() > 1 || snt.getImagePlus().getNFrames() > 1;
 		} else if ("Data being traced".equals(choice)) {
