@@ -87,7 +87,9 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 		boolean ensureChosenImpIsVisible = false;
 		ImagePlus chosenImp;
 		if ("Copy of data being traced".equals(choice)) {
-			chosenImp = snt.getLoadedDataAsImp();
+			/* Make deep copy of imp returned by getLoadedDataAsImp() since it holds references to
+			 the same pixel arrays as used by the source data */
+			chosenImp = snt.getLoadedDataAsImp().duplicate();
 			ensureChosenImpIsVisible = chosenImp.getBitDepth() > 8 || skeletonizeImage
 					|| snt.getImagePlus().getNChannels() > 1 || snt.getImagePlus().getNFrames() > 1;
 		} else if ("Data being traced".equals(choice)) {
