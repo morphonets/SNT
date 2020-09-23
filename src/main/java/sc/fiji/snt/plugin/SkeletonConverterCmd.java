@@ -19,7 +19,7 @@ import java.util.stream.IntStream;
 @Plugin(type = Command.class, visible = false, label="Tree(s) from Skeleton Image...", initializer = "init")
 public class SkeletonConverterCmd extends ChooseDatasetCmd {
 
-	@Parameter(label = "Skeletonize image", description="Wether the segmented image should be skeletonized.<br>"
+	@Parameter(label = "Skeletonize image", description="<HTML>Wether the segmented image should be skeletonized.<br>"
 			+ "Unnecessary if segmented image is already a topological sekeleton")
 	private boolean skeletonizeImage;
 
@@ -108,7 +108,7 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 		final boolean isBinary = chosenImp.getProcessor().isBinary();
 		final boolean isCompatible = isCalibrationCompatible(chosenImp);
 		if (!isBinary || !isCompatible) {
-			final StringBuilder sb = new StringBuilder("<HTML><div WIDTH=600><p>The following issues were detected:</p><ul>");
+			final StringBuilder sb = new StringBuilder("<HTML><div WIDTH=600><p>The following issue(s) were detected:</p><ul>");
 			if (!isBinary) {
 				sb.append("<li>Image is not binary: ");
 				if (skeletonizeImage) {
