@@ -93,7 +93,7 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 			ensureChosenImpIsVisible = chosenImp.getBitDepth() > 8 || skeletonizeImage
 					|| snt.getImagePlus().getNChannels() > 1 || snt.getImagePlus().getNFrames() > 1;
 		} else if ("Data being traced".equals(choice)) {
-			chosenImp = snt.getImagePlus();
+			chosenImp = snt.getLoadedDataAsImp();
 		} else {
 			chosenImp = impMap.get(choice);
 		}
