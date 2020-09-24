@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2019 Fiji developers.
+ * Copyright (C) 2010 - 2020 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -16,8 +16,7 @@
  * 
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
- * 
-http://www.gnu.org/licenses/gpl-3.0.html>.
+ * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
 
