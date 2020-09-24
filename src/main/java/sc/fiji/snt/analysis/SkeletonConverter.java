@@ -29,7 +29,6 @@ import sc.fiji.skeletonize3D.Skeletonize3D_;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
-import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.Viewer3D;
 

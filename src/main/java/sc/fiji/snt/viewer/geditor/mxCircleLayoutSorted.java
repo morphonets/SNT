@@ -5,9 +5,7 @@ import com.mxgraph.model.mxIGraphModel;
 import com.mxgraph.util.mxRectangle;
 import com.mxgraph.view.mxGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
-import sc.fiji.snt.analysis.graph.AnnotationWeightedEdge;
 import sc.fiji.snt.analysis.graph.SNTGraph;
-import sc.fiji.snt.annotation.BrainAnnotation;
 
 import java.util.*;
 
