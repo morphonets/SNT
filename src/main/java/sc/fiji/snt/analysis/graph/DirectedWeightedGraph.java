@@ -403,7 +403,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		if (!containsVertex(newRoot)) {
 			throw new IllegalArgumentException("Node not contained in graph");
 		}
-		final Stack<SWCPoint> stack = new Stack<>();
+		final Deque<SWCPoint> stack = new ArrayDeque<>();
 		stack.push(newRoot);
 		final Set<SWCPoint> visited = new HashSet<>();
 		while (!stack.isEmpty()) {
