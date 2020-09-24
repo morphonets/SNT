@@ -22,32 +22,21 @@
 
 package sc.fiji.snt;
 
-import java.awt.Color;
-import java.awt.Event;
-import java.awt.Graphics2D;
-import java.awt.Rectangle;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
-import java.awt.event.MouseEvent;
-import java.util.List;
-
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JPopupMenu;
-import javax.swing.MenuElement;
-import javax.swing.SwingUtilities;
-
-import org.scijava.util.PlatformUtils;
-
 import ij.ImagePlus;
+import ij.measure.Calibration;
+import org.scijava.util.PlatformUtils;
+import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.util.SWCPoint;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.List;
 
 class InteractiveTracerCanvas extends TracerCanvas {
 
@@ -104,6 +93,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		pMenu.add(menuItem(AListener.NODE_INSERT, listener));
 		pMenu.add(menuItem(AListener.NODE_MOVE, listener));
 		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener));
+		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
 		deselectedEditingPathsMenu = new JMenu("  Connect To");
 		pMenu.add(deselectedEditingPathsMenu);
 		pMenu.addSeparator();
@@ -154,7 +144,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				// commands only enabled in "Edit Mode"
 				else if (cmd.equals(AListener.NODE_RESET) || cmd.equals(
 					AListener.NODE_DELETE) || cmd.equals(AListener.NODE_INSERT) || cmd
-						.equals(AListener.NODE_MOVE) || cmd.equals(AListener.NODE_MOVE_Z))
+						.equals(AListener.NODE_MOVE) || cmd.equals(AListener.NODE_MOVE_Z) || cmd
+						.equals(AListener.NODE_SET_ROOT))
 				{
 					mItem.setEnabled(be && editMode);
 				}
@@ -639,6 +630,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			"  Move Active Node to Cursor Position  [M]";
 		private final static String NODE_MOVE_Z =
 			"  Bring Active Node to Current Z-plane  [B]";
+		private final static String NODE_SET_ROOT =
+				"  Set Active Node as Tree Root";
 		private final String START_SHOLL = "Sholl Analysis at Nearest Node  [Shift+Alt+A]";
 
 		@Override
@@ -734,6 +727,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 					break;
 				case NODE_MOVE_Z:
 					assignLastCanvasZPositionToEditNode(true);
+					break;
+				case NODE_SET_ROOT:
+					assignTreeRootToEditingNode(true);
 					break;
 				default:
 					SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
@@ -855,6 +851,48 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		catch (final IllegalArgumentException exc) {
 			tempMsg("Adjustment of Z-position failed!");
 		}
+	}
+
+	protected void assignTreeRootToEditingNode(
+			final boolean warnOnFailure)
+	{
+		if (impossibleEdit(warnOnFailure)) return;
+		if (!guiUtils.getConfirmation(" <HTML><div WIDTH=600><p><b>Warning</b>: This destructive operation will " +
+				"replace the Tree (i.e., single rooted structure) associated with the active node.</p> " +
+				"<p>All color, metadata and morphometry tags and existing fits associated with the current Tree " +
+				"will be discarded.</p>", "Confirm root change?")) {
+			return;
+		}
+		final Path editingPath = tracerPlugin.getEditingPath();
+		final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
+		final int treeID = editingPath.getTreeID();
+		final Tree editingTree = new Tree();
+		for (final Path p : pathAndFillManager.getPaths()) {
+			if (treeID == p.getTreeID()) {
+				editingTree.add(p);
+			}
+		}
+		final DirectedWeightedGraph editingGraph = editingTree.getGraph();
+		/* FIXME:
+		    currently, there is no efficient way to map a PointInImage to its corresponding SWCPoint in the graph.
+		    Workaround is to find the SWCPoint in the graph closest to the query PointInImage.
+		    This is likely to be slow with large or highly dense reconstructions. */
+		SWCPoint editingSWCPoint = null;
+		double minDist = Double.MAX_VALUE;
+		for (final SWCPoint p : editingGraph.vertexSet()) {
+			double d = p.distanceTo(editingNode);
+			if (d < minDist) {
+				minDist = d;
+				editingSWCPoint = p;
+			}
+		}
+		editingGraph.setRoot(editingSWCPoint);
+		final Tree newTree = editingGraph.getTree(true);
+		enableEditMode(false);
+		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
+		newTree.list().forEach(p -> p.setSpacing(cal));
+		pathAndFillManager.deletePaths(editingTree.list());
+		pathAndFillManager.addTree(newTree);
 	}
 
 }

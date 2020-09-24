@@ -56,13 +56,13 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 
 	@Parameter(label = "New tracing image:", persist = false, required = false,
 		style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
-	private String choice;
+	protected String choice;
 
 	@Parameter(label = "Validate spatial calibration", required = false,
 		description = "Checks whether voxel dimensions of chosen image differ from those of loaded image (if any)")
-	private boolean validateCalibration;
+	protected boolean validateCalibration;
 
-	private HashMap<String, ImagePlus> impMap;
+	protected HashMap<String, ImagePlus> impMap;
 
 	@Override
 	public void run() {
@@ -76,10 +76,14 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 		resetUI();
 	}
 
-	private boolean compatibleCalibration(final ImagePlus chosenImp) {
+	protected boolean isCalibrationCompatible(final ImagePlus chosenImp) {
 		if (!validateCalibration || !snt.accessToValidImageData())
 			return true;
-		if (!snt.getImagePlus().getCalibration().equals(chosenImp.getCalibration())) {
+		return snt.getImagePlus().getCalibration().equals(chosenImp.getCalibration());
+	}
+
+	private boolean compatibleCalibration(final ImagePlus chosenImp) {
+		if (!(isCalibrationCompatible(chosenImp))) {
 			final Result result = uiService.showDialog(
 					"Images do not share the same spatial calibration.\n"
 					+ "Load " + chosenImp.getTitle() + " nevertheless?",
@@ -114,13 +118,13 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 		if (choices.size() > 10) mItem.setWidgetStyle(ChoiceWidget.LIST_BOX_STYLE);
 	}
 
-	private void resolveInputs() {
+	protected void resolveInputs() {
 		choice = null;
 		resolveInput("choice");
 		resolveInput("validateCalibration");
 	}
 
-	private Collection<ImagePlus> getImpInstances() {
+	protected Collection<ImagePlus> getImpInstances() {
 		// In theory we should be able to use legacyService to retrieve
 		// all the images but somehow this can never retrieve the full
 		// list of current available instances:

@@ -6,7 +6,9 @@ import org.jgrapht.util.SupplierUtil;
 
 public class SNTPseudograph<V, E extends DefaultWeightedEdge> extends SNTGraph<V, E> {
 
-    public SNTPseudograph(Class<? extends E> edgeClass) {
+	private static final long serialVersionUID = 4375953050236896508L;
+
+	public SNTPseudograph(Class<? extends E> edgeClass) {
         super(null, SupplierUtil.createSupplier(edgeClass), new DefaultGraphType.Builder()
                 .directed().allowMultipleEdges(true).allowSelfLoops(true).allowCycles(true).weighted(true)
                 .modifiable(true)

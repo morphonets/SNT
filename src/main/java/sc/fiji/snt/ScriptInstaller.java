@@ -182,6 +182,7 @@ class ScriptInstaller implements MenuKeyListener {
 			final String path = si.getPath();
 			if (path == null || (folder != null && !path.contains(folder))) continue;
 			final JMenuItem mItem = new JMenuItem(getScriptLabel(si,trimExtension));
+			mItem.setToolTipText("Click to run script. Click holding Shift to open it");
 			sMenu.add(mItem);
 			mItem.addMenuKeyListener(this);
 			mItem.addActionListener(e -> {
@@ -291,17 +292,19 @@ class ScriptInstaller implements MenuKeyListener {
 		final JMenuItem mItem = new JMenuItem("About SNT Scripts...");
 		mItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
 		mItem.addActionListener(e -> {
-			ui.guiUtils.centeredMsg(
-				"This menu lists scripting routines that enhance SNT functionality. " +
-					"The list is automatically populated at startup.<br><br>" +
-					"To have your own scripts listed here, save them in the <tt>scripts</tt> " +
-					"directory while including <i>SNT</i> in the filename (e.g., <tt>" +
-					getScriptsDirPath() + File.separator + "My_SNT_script.py</tt>) <br><br>" +
-					"To edit a listed script hold \"Shift\" while clicking on its menu entry.<br><br>" +
-					"Several programming examples are available through the Script Editor's " +
-					"<i>Templates>Neuroanatomy></i> menu.  Please submit a pull request to SNT's " +
-					"repository if you would like to have your scripts distributed with Fiji.",
-				"About SNT Scripts...");
+			ui.guiUtils.showHTMLDialog(
+				"<HTML><div WIDTH=500>This menu lists scripting routines that " //
+				+ "<a href='https://imagej.net/SNT:_Scripting'>enhance SNT functionality</a>. " //
+				+ "The list is automatically populated at startup.<br><br>" //
+				+ "To have your own scripts listed here, save them in the <tt>scripts</tt> " //
+				+ "directory while including <i>SNT</i> in the filename (e.g., <tt>" //
+				+ getScriptsDirPath() + File.separator + "My_SNT_script.py</tt>) <br><br>" //
+				+ "To edit a listed script hold \"Shift\" while clicking on its menu entry.<br><br>" //
+				+ "Several programming examples are available through the Script Editor's " //
+				+ "<i>Templates>Neuroanatomy></i> menu.  Please submit a pull request to " //
+				+ "<a href='https://github.com/morphonets/SNT/pulls'>SNT's repository</a>. if " //
+				+ "you would like to have your scripts distributed with Fiji.",
+				"About SNT Scripts...", true);
 		});
 		return mItem;
 	}

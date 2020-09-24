@@ -97,7 +97,7 @@ public class JSONImporterCmd extends CommonDynamicCmd {
 			// If a display canvas is being used, resize it as needed
 			sntService.getPlugin().updateDisplayCanvases();
 
-			status("Successful imported " + result.size() + " reconstruction(s)...", true);
+			status("Successfully imported " + result.size() + " reconstruction(s)...", true);
 	
 		} catch (final FileNotFoundException | IllegalArgumentException | JSONException e) {
 			error(e.getMessage());

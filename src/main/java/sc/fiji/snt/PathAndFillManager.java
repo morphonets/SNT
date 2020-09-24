@@ -949,17 +949,35 @@ public class PathAndFillManager extends DefaultHandler implements
 		addPath(p, false, false);
 	}
 
-	@SuppressWarnings("deprecation")
 	public synchronized void addPath(final Path p,
-		final boolean forceNewName, final boolean forceNewId)
+			final boolean forceNewName, final boolean forceNewId)
+		{
+		addPath(p, forceNewName, forceNewId, true);
+		}
+
+	@SuppressWarnings("deprecation")
+	protected synchronized void addPath(final Path p,
+		final boolean forceNewName, final boolean forceNewId, final boolean assumeMaxUsedTreeID)
 	{
-		if (p.isPrimary()) ++maxUsedTreeID;
+		final boolean isPrimary = p.isPrimary();
+		if (isPrimary) ++maxUsedTreeID;
 		if (!forceNewId && getPathFromID(p.getID()) != null) throw new IllegalArgumentException(
 				"Attempted to add a path with an ID that was already added");
-		if (forceNewId || p.getID() < 0) {
-			p.setIDs(++maxUsedPathID, maxUsedTreeID);
+
+		// By default the latest tree ID is assigned to the added Path. That is a reasonable
+		// assumption when adding paths in bulk, but in an interactive session, we need to
+		// ensure the path is being assigned the correct tree ID.
+		int treeID = maxUsedTreeID;
+		if (!assumeMaxUsedTreeID && !isPrimary) {
+			if (p.getStartJoins() != null)
+				treeID = p.getStartJoins().getTreeID();
+			else
+				if (p.getEndJoins() != null)
+					treeID = p.getEndJoins().getTreeID();
 		}
+		p.setIDs((forceNewId || p.getID() < 0) ? ++maxUsedPathID : p.getID(), treeID);
 		if (maxUsedPathID < p.getID()) maxUsedPathID = p.getID();
+
 		if (p.getName() == null || forceNewName) {
 			final String suggestedName = getDefaultName(p);
 			p.setName(suggestedName);
@@ -2060,20 +2078,19 @@ public class PathAndFillManager extends DefaultHandler implements
 		final boolean headlessState = headless;
 		setHeadless(true);
 		final int[] colorIdx = { 0 };
-		swcs.forEach((id, path) -> {
-			SNTUtils.log("Loading " + id + ": " + path);
+		swcs.forEach((treeDescription, filePath) -> {
+			SNTUtils.log("Loading " + treeDescription + ": " + filePath);
 			final Tree tree = new Tree();
-			tree.setLabel(id);
+			tree.setLabel(treeDescription);
 			result.add(tree);
 			final int firstImportedPathIdx = size();
-			if (!importSWC(id, path)) {
+			if (!importSWC(treeDescription, filePath)) {
 				return; // here means 'continue;'
 			}
 			for (int i = firstImportedPathIdx; i < size(); i++) {
 				final Path p = getPath(i);
 				//p.setTreeLabel(id);
 				p.setColor(colors[colorIdx[0]]);
-				p.setIDs(p.getID(), ++maxUsedTreeID);
 				tree.add(p);
 			}
 			colorIdx[0]++;
@@ -2252,6 +2269,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		final HashMap<Path, SWCPoint> pathStartsOnSWCPoint = new HashMap<>();
 		final HashMap<Path, PointInImage> pathStartsAtPointInImage =
 			new HashMap<>();
+		final List<Path> pathList = new ArrayList<>();
 
 		SWCPoint start;
 		Path currentPath;
@@ -2297,12 +2315,13 @@ public class PathAndFillManager extends DefaultHandler implements
 //				}
 //			}
 			currentPath.setGuessedTangents(2);
-			addPath(currentPath);
+			currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
+			pathList.add(currentPath);
+
 		}
 
 		// Set the start joins:
-		for (int i = firstImportedPathIdx; i < size(); i++) {
-			final Path p = getPath(i);
+		for (Path p : pathList) {
 			final SWCPoint swcPoint = pathStartsOnSWCPoint.get(p);
 			if (descriptor != null) {
 				p.setTreeLabel(descriptor);
@@ -2315,6 +2334,11 @@ public class PathAndFillManager extends DefaultHandler implements
 			final Path previousPath = pointToPath.get(swcPoint);
 			final PointInImage pointInImage = pathStartsAtPointInImage.get(p);
 			p.setStartJoin(previousPath, pointInImage);
+		}
+
+		// Add paths after setting all joins to ensure treeIDs are computed correctly
+		for (Path p : pathList) {
+			addPath(p);
 		}
 
 		resetListeners(null, true);

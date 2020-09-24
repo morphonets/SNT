@@ -62,7 +62,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		init(tree.getNodesAsSWCPoints(), true);
 	}
 
-	protected DirectedWeightedGraph() {
+	public DirectedWeightedGraph() {
 		super(null, SupplierUtil.createSupplier(SWCWeightedEdge.class), new DefaultGraphType.Builder()
 				.directed().allowMultipleEdges(false).allowSelfLoops(false).allowCycles(false).weighted(true)
 				.modifiable(true)
@@ -279,7 +279,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * during Depth First Search. Also updates the parent and previousPoint fields
 	 * of each SWCPoint vertex contained in the Graph.
 	 */
-	private void updateVertexProperties() {
+	public void updateVertexProperties() {
 		final DepthFirstIterator<SWCPoint, SWCWeightedEdge> iter = getDepthFirstIterator(getRoot());
 		int currentId = 1;
 		while (iter.hasNext()) {
@@ -381,11 +381,6 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		}
 	}
 
-	public Set<SWCPoint> vertexSet(final boolean updateVertexProperties) {
-		if (updateVertexProperties) updateVertexProperties(); 
-		return super.vertexSet();
-	}
-
 	public DirectedWeightedSubgraph getSubgraph(final Set<SWCPoint> nodeSubset) {
 		return new DirectedWeightedSubgraph(this, nodeSubset);
 	}
@@ -397,6 +392,36 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 			if (lr == vertex.getHemisphere()) modifiable.add(vertex);
 		});
 		return modifiable;
+	}
+
+	/**
+	 * Sets the root of the tree. This modifies the edge directions such that
+	 * all other nodes in the graph have the new root as ancestor.
+	 * @param newRoot the new root of the tree, which must be an existing vertex of the graph
+	 */
+	public void setRoot(SWCPoint newRoot) {
+		if (!containsVertex(newRoot)) {
+			throw new IllegalArgumentException("Node not contained in graph");
+		}
+		final Deque<SWCPoint> stack = new ArrayDeque<>();
+		stack.push(newRoot);
+		final Set<SWCPoint> visited = new HashSet<>();
+		while (!stack.isEmpty()) {
+			final SWCPoint swcPoint = stack.pop();
+			visited.add(swcPoint);
+			SWCPoint newTarget = null;
+			for (final SWCWeightedEdge edge : edgesOf(swcPoint)) {
+				if (edge.getSource() == swcPoint) {
+					newTarget = edge.getTarget();
+				} else if (edge.getTarget() == swcPoint) {
+					newTarget = edge.getSource();
+				}
+				if (visited.contains(newTarget)) continue;
+				removeEdge(edge);
+				addEdge(swcPoint, newTarget);
+				stack.push(newTarget);
+			}
+		}
 	}
 
 	/**

@@ -133,7 +133,7 @@ public class SkeletonizerCmd implements Command {
 			imagePlus.show();
 		}
 		catch (final OutOfMemoryError error) {
-			final String msg = "Out of Memory: There is not enough RAM to perform skeletonizztion under "
+			final String msg = "Out of Memory: There is not enough RAM to perform skeletonization under "
 					+ "current options. Please allocate more memory to IJ, downsample the reconstruction, "
 					+ " or consider skeletonization through API scripting";
 			error(msg);
