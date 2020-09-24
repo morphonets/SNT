@@ -856,8 +856,13 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	protected void assignTreeRootToEditingNode(
 			final boolean warnOnFailure)
 	{
-		// TODO: add confirmation GUI prompt since this operation is destructive
 		if (impossibleEdit(warnOnFailure)) return;
+		if (!guiUtils.getConfirmation(" <HTML><div WIDTH=600><p><b>Warning</b>: This destructive operation will " +
+				"replace the Tree (i.e., single rooted structure) associated with the active node.</p> " +
+				"<p>All color, metadata and morphometry tags and existing fits associated with the current Tree " +
+				"will be discarded.</p>", "Confirm root change?")) {
+			return;
+		}
 		final Path editingPath = tracerPlugin.getEditingPath();
 		final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
 		final int treeID = editingPath.getTreeID();
