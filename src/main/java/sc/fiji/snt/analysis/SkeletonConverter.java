@@ -276,25 +276,7 @@ public class SkeletonConverter {
         if (root == null) {
             return;
         }
-        final Stack<SWCPoint> stack = new Stack<>();
-        stack.push(root);
-        final Set<SWCPoint> visited = new HashSet<>();
-        while (!stack.isEmpty()) {
-            final SWCPoint swcPoint = stack.pop();
-            visited.add(swcPoint);
-            SWCPoint newTarget = null;
-            for (final SWCWeightedEdge edge : sntGraph.edgesOf(swcPoint)) {
-                if (edge.getSource() == swcPoint) {
-                    newTarget = edge.getTarget();
-                } else if (edge.getTarget() == swcPoint) {
-                    newTarget = edge.getSource();
-                }
-                if (visited.contains(newTarget)) continue;
-                sntGraph.removeEdge(edge);
-                sntGraph.addEdge(swcPoint, newTarget);
-                stack.push(newTarget);
-            }
-        }
+        sntGraph.setRoot(root);
     }
 
 	/**
