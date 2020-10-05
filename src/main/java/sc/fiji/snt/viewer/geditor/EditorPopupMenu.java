@@ -32,7 +32,7 @@ import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.util.*;
 
-public class EditorPopupMenu extends JPopupMenu
+class EditorPopupMenu extends JPopupMenu
 {
 
 	/**
@@ -41,7 +41,7 @@ public class EditorPopupMenu extends JPopupMenu
 	private static final long serialVersionUID = -3132749140550242191L;
 
 	@SuppressWarnings("serial")
-	public EditorPopupMenu(GraphEditor editor)
+	EditorPopupMenu(GraphEditor editor)
 	{
 
 		mxCell[] selectedCells = Arrays.stream(editor.getGraphComponent().getGraph().getSelectionCells())

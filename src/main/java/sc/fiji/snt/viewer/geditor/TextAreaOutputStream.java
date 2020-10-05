@@ -33,7 +33,7 @@ import javax.swing.JTextArea;
 
 //https://stackoverflow.com/a/27737289
 //https://stackoverflow.com/a/343007
-public class TextAreaOutputStream extends OutputStream {
+class TextAreaOutputStream extends OutputStream {
 
 // *************************************************************************************************
 // INSTANCE MEMBERS
@@ -43,11 +43,11 @@ public class TextAreaOutputStream extends OutputStream {
 	private Appender appender; // most recent action
 	private final PrintStream con;
 
-	public TextAreaOutputStream(final JTextArea txtara) {
+	TextAreaOutputStream(final JTextArea txtara) {
 		this(txtara, 1000);
 	}
 
-	public TextAreaOutputStream(final JTextArea txtara, final int maxlin) {
+	TextAreaOutputStream(final JTextArea txtara, final int maxlin) {
 		if (maxlin < 1) {
 			throw new IllegalArgumentException(
 					"TextAreaOutputStream maximum lines must be positive (value=" + maxlin + ")");
