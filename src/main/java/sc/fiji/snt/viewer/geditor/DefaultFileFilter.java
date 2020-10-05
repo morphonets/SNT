@@ -31,7 +31,7 @@ import javax.swing.filechooser.FileFilter;
  * Filter for use in a {@link JFileChooser}.
  * @author Gaudenz Alder Copyright (c) 2001-2005,
  */
-public class DefaultFileFilter extends FileFilter
+class DefaultFileFilter extends FileFilter
 {
 
 	/**
@@ -52,7 +52,7 @@ public class DefaultFileFilter extends FileFilter
 	 * @param description
 	 *            The description of the file format.
 	 */
-	public DefaultFileFilter(String extension, String description)
+	DefaultFileFilter(String extension, String description)
 	{
 		ext = extension.toLowerCase();
 		desc = description;
@@ -107,7 +107,7 @@ public class DefaultFileFilter extends FileFilter
 	 * 
 	 * @see ImageIO#getReaderFormatNames()
 	 */
-	public static class ImageFileFilter extends FileFilter
+	static class ImageFileFilter extends FileFilter
 	{
 
 		/**
@@ -127,7 +127,7 @@ public class DefaultFileFilter extends FileFilter
 		 * @param description
 		 *            The description to use for the file filter.
 		 */
-		public ImageFileFilter(String description)
+		ImageFileFilter(String description)
 		{
 			desc = description;
 		}
@@ -178,7 +178,7 @@ public class DefaultFileFilter extends FileFilter
 	 * 
 	 * @see ImageIO#getReaderFormatNames()
 	 */
-	public static class EditorFileFilter extends FileFilter
+	static class EditorFileFilter extends FileFilter
 	{
 
 		/**
@@ -192,7 +192,7 @@ public class DefaultFileFilter extends FileFilter
 		 * @param description
 		 *            The description to use for the filter.
 		 */
-		public EditorFileFilter(String description)
+		EditorFileFilter(String description)
 		{
 			desc = description;
 		}

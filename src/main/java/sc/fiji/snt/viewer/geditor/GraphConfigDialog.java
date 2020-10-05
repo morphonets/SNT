@@ -62,7 +62,7 @@ import com.mxgraph.view.mxGraphView;
 import com.mxgraph.costfunction.mxCostFunction;
 import com.mxgraph.costfunction.mxDoubleValCostFunction;
 
-public class GraphConfigDialog extends JDialog
+class GraphConfigDialog extends JDialog
 {
 	/**
 	 * Number of nodes
@@ -241,7 +241,7 @@ public class GraphConfigDialog extends JDialog
 
 	protected JTextField numVertexesInBranchField = new JTextField();
 
-	public GraphConfigDialog(final GraphType graphType2, String dialogText)
+	GraphConfigDialog(final GraphType graphType2, String dialogText)
 	{
 
 		super((Frame) null, dialogText, true);

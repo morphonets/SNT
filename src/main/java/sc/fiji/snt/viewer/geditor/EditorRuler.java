@@ -56,7 +56,7 @@ import com.mxgraph.view.mxGraph;
  * 
  * @author Gaudenz Alder info (at) jgraph (dot) com Copyright (c) 2001-2005
  */
-public class EditorRuler extends JComponent implements MouseMotionListener,
+class EditorRuler extends JComponent implements MouseMotionListener,
 		DropTargetListener
 {
 
@@ -179,7 +179,7 @@ public class EditorRuler extends JComponent implements MouseMotionListener,
 	 * @param orientation
 	 *            The orientation to use for the ruler.
 	 */
-	public EditorRuler(mxGraphComponent graphComponent, int orientation)
+	EditorRuler(mxGraphComponent graphComponent, int orientation)
 	{
 		this.orientation = orientation;
 		this.graphComponent = graphComponent;

@@ -89,14 +89,14 @@ import java.util.concurrent.ExecutionException;
 /**
  * Copyright (c) 2001-2012, JGraph Ltd
  */
-public class EditorActions
+class EditorActions
 {
 	/**
 	 * 
 	 * @param e
 	 * @return Returns the graph for the given action event.
 	 */
-	public static final GraphEditor getEditor(ActionEvent e)
+	private static GraphEditor getEditor(ActionEvent e)
 	{
 		if (e.getSource() instanceof Component)
 		{
@@ -118,9 +118,9 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class ToggleRulersItem extends JCheckBoxMenuItem
+	static class ToggleRulersItem extends JCheckBoxMenuItem
 	{
-		public ToggleRulersItem(final GraphEditor editor, String name)
+		ToggleRulersItem(final GraphEditor editor, String name)
 		{
 			super(name);
 			setSelected(editor.getGraphComponent().getColumnHeader() != null);
@@ -140,8 +140,8 @@ public class EditorActions
 	}
 
 	@SuppressWarnings("serial")
-	public static class ToggleBottomPaneItem extends JCheckBoxMenuItem {
-		public ToggleBottomPaneItem(final GraphEditor editor, String name) {
+	static class ToggleBottomPaneItem extends JCheckBoxMenuItem {
+		ToggleBottomPaneItem(final GraphEditor editor, String name) {
 			super(name, editor.getGraphOutline().isVisible());
 			addItemListener(e -> {
 				editor.setBottomPaneVisible(isSelected());
@@ -153,7 +153,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class ExitAction extends AbstractAction
+	static class ExitAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -173,12 +173,12 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class StylesheetAction extends AbstractAction
+	static class StylesheetAction extends AbstractAction
 	{
 		protected String stylesheet;
 		protected Color background;
 
-		public StylesheetAction(String stylesheet, final Color background)
+		StylesheetAction(String stylesheet, final Color background)
 		{
 			this.stylesheet = stylesheet;
 			this.background = background;
@@ -220,7 +220,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class ZoomPolicyAction extends AbstractAction
+	static class ZoomPolicyAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -230,7 +230,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public ZoomPolicyAction(int zoomPolicy)
+		ZoomPolicyAction(int zoomPolicy)
 		{
 			this.zoomPolicy = zoomPolicy;
 		}
@@ -254,12 +254,12 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class GridStyleAction extends AbstractAction
+	static class GridStyleAction extends AbstractAction
 	{
 		private final int style;
 		private final EditorMenuBar editorMenuBar;
 
-		public GridStyleAction(EditorMenuBar editorMenuBar, int style)
+		GridStyleAction(EditorMenuBar editorMenuBar, int style)
 		{
 			this.style = style;
 			this.editorMenuBar = editorMenuBar;
@@ -284,12 +284,12 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class GridColorAction extends AbstractAction
+	static class GridColorAction extends AbstractAction
 	{
 
 		private final EditorMenuBar editorMenuBar;
 
-		public GridColorAction(EditorMenuBar editorMenuBar)
+		GridColorAction(EditorMenuBar editorMenuBar)
 		{
 			this.editorMenuBar = editorMenuBar;
 		}
@@ -318,7 +318,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class ScaleAction extends AbstractAction
+	static class ScaleAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -328,7 +328,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public ScaleAction(double scale)
+		ScaleAction(double scale)
 		{
 			this.scale = scale;
 		}
@@ -369,7 +369,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class PageSetupAction extends AbstractAction
+	static class PageSetupAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -397,7 +397,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class PrintAction extends AbstractAction
+	static class PrintAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -437,7 +437,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class SaveAction extends AbstractAction
+	static class SaveAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -452,7 +452,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public SaveAction(boolean showDialog)
+		SaveAction(boolean showDialog)
 		{
 			this.showDialog = showDialog;
 		}
@@ -735,7 +735,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class SelectShortestPathAction extends AbstractAction
+	static class SelectShortestPathAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -745,7 +745,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public SelectShortestPathAction(boolean directed)
+		SelectShortestPathAction(boolean directed)
 		{
 			this.directed = directed;
 		}
@@ -809,7 +809,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class SelectSpanningTreeAction extends AbstractAction
+	static class SelectSpanningTreeAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -819,7 +819,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public SelectSpanningTreeAction(boolean directed)
+		SelectSpanningTreeAction(boolean directed)
 		{
 			this.directed = directed;
 		}
@@ -861,9 +861,9 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class ToggleConnectModeAction extends JCheckBoxMenuItem
+	static class ToggleConnectModeAction extends JCheckBoxMenuItem
 	{
-		public ToggleConnectModeAction(final String name, final boolean initialState) {
+		ToggleConnectModeAction(final String name, final boolean initialState) {
 			super(name, initialState);
 		}
 
@@ -884,12 +884,12 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class ToggleCreateTargetItem extends JCheckBoxMenuItem
+	static class ToggleCreateTargetItem extends JCheckBoxMenuItem
 	{
 		/**
 		 * 
 		 */
-		public ToggleCreateTargetItem(final GraphEditor editor, String name)
+		ToggleCreateTargetItem(final GraphEditor editor, String name)
 		{
 			super(name);
 			setSelected(true);
@@ -920,7 +920,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class PromptPropertyAction extends AbstractAction
+	static class PromptPropertyAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -935,7 +935,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public PromptPropertyAction(Object target, String message)
+		PromptPropertyAction(Object target, String message)
 		{
 			this(target, message, message);
 		}
@@ -943,7 +943,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public PromptPropertyAction(Object target, String message,
+		PromptPropertyAction(Object target, String message,
 				String fieldname)
 		{
 			this.target = target;
@@ -1000,12 +1000,12 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class TogglePropertyItem extends JCheckBoxMenuItem
+	static class TogglePropertyItem extends JCheckBoxMenuItem
 	{
 		/**
 		 * 
 		 */
-		public TogglePropertyItem(Object target, String name, String fieldname)
+		TogglePropertyItem(Object target, String name, String fieldname)
 		{
 			this(target, name, fieldname, false);
 		}
@@ -1013,7 +1013,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public TogglePropertyItem(Object target, String name, String fieldname,
+		TogglePropertyItem(Object target, String name, String fieldname,
 				boolean refresh)
 		{
 			this(target, name, fieldname, refresh, null);
@@ -1022,7 +1022,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public TogglePropertyItem(final Object target, String name,
+		TogglePropertyItem(final Object target, String name,
 				final String fieldname, final boolean refresh,
 				ActionListener listener)
 		{
@@ -1079,7 +1079,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public void update(Object target, String fieldname)
+		void update(Object target, String fieldname)
 		{
 			if (target != null && fieldname != null)
 			{
@@ -1108,7 +1108,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public void execute(Object target, String fieldname, boolean refresh)
+		void execute(Object target, String fieldname, boolean refresh)
 		{
 			if (target != null && fieldname != null)
 			{
@@ -1156,7 +1156,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class HistoryAction extends AbstractAction
+	static class HistoryAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -1166,7 +1166,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public HistoryAction(boolean undo)
+		HistoryAction(boolean undo)
 		{
 			this.undo = undo;
 		}
@@ -1196,7 +1196,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class FontStyleAction extends AbstractAction
+	static class FontStyleAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -1206,7 +1206,7 @@ public class EditorActions
 		/**
 		 * 
 		 */
-		public FontStyleAction(boolean bold)
+		FontStyleAction(boolean bold)
 		{
 			this.bold = bold;
 		}
@@ -1286,7 +1286,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class WarningAction extends AbstractAction
+	static class WarningAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -1322,7 +1322,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class NewAction extends AbstractAction
+	static class NewAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -1356,7 +1356,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class OpenAction extends AbstractAction
+	static class OpenAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -1547,7 +1547,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class ToggleAction extends AbstractAction
+	static class ToggleAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -1563,7 +1563,7 @@ public class EditorActions
 		 * 
 		 * @param key
 		 */
-		public ToggleAction(String key)
+		ToggleAction(String key)
 		{
 			this(key, false);
 		}
@@ -1572,7 +1572,7 @@ public class EditorActions
 		 * 
 		 * @param key
 		 */
-		public ToggleAction(String key, boolean defaultValue)
+		ToggleAction(String key, boolean defaultValue)
 		{
 			this.key = key;
 			this.defaultValue = defaultValue;
@@ -1596,7 +1596,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class SetLabelPositionAction extends AbstractAction
+	static class SetLabelPositionAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -1608,7 +1608,7 @@ public class EditorActions
 		 * @param labelPosition
 		 * @param alignment
 		 */
-		public SetLabelPositionAction(String labelPosition, String alignment)
+		SetLabelPositionAction(String labelPosition, String alignment)
 		{
 			this.labelPosition = labelPosition;
 			this.alignment = alignment;
@@ -1656,7 +1656,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class SetStyleAction extends AbstractAction
+	static class SetStyleAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -1667,7 +1667,7 @@ public class EditorActions
 		 * 
 		 * @param value
 		 */
-		public SetStyleAction(String value)
+		SetStyleAction(String value)
 		{
 			this.value = value;
 		}
@@ -1690,7 +1690,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class KeyValueAction extends AbstractAction
+	static class KeyValueAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -1701,7 +1701,7 @@ public class EditorActions
 		 * 
 		 * @param key
 		 */
-		public KeyValueAction(String key)
+		KeyValueAction(String key)
 		{
 			this(key, null);
 		}
@@ -1710,7 +1710,7 @@ public class EditorActions
 		 * 
 		 * @param key
 		 */
-		public KeyValueAction(String key, String value)
+		KeyValueAction(String key, String value)
 		{
 			this.key = key;
 			this.value = value;
@@ -1734,7 +1734,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class PromptValueAction extends AbstractAction
+	static class PromptValueAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -1745,7 +1745,7 @@ public class EditorActions
 		 * 
 		 * @param key
 		 */
-		public PromptValueAction(String key, String message)
+		PromptValueAction(String key, String message)
 		{
 			this.key = key;
 			this.message = message;
@@ -1785,7 +1785,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class AlignCellsAction extends AbstractAction
+	static class AlignCellsAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -1796,7 +1796,7 @@ public class EditorActions
 		 * 
 		 * @param align
 		 */
-		public AlignCellsAction(String align)
+		AlignCellsAction(String align)
 		{
 			this.align = align;
 		}
@@ -1816,7 +1816,7 @@ public class EditorActions
 	}
 
 	@SuppressWarnings("serial")
-	public static class CenterAction extends AbstractAction {
+	static class CenterAction extends AbstractAction {
 
 		public void actionPerformed(final ActionEvent e) {
 			if (e.getSource() instanceof mxGraphComponent) {
@@ -1838,7 +1838,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class AutosizeAction extends AbstractAction
+	static class AutosizeAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -1872,7 +1872,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class ColorAction extends AbstractAction {
+	static class ColorAction extends AbstractAction {
 		/**
 		 *
 		 */
@@ -1881,7 +1881,7 @@ public class EditorActions
 		/**
 		 * @param key
 		 */
-		public ColorAction(String name, String key) {
+		ColorAction(String name, String key) {
 			this.name = name;
 			this.key = key;
 		}
@@ -1926,7 +1926,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class BackgroundImageAction extends AbstractAction
+	static class BackgroundImageAction extends AbstractAction
 	{
 		public void actionPerformed(ActionEvent e) {
 			if (e.getSource() instanceof mxGraphComponent) {
@@ -1971,7 +1971,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class BackgroundAction extends AbstractAction
+	static class BackgroundAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -2001,7 +2001,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class PageBackgroundAction extends AbstractAction
+	static class PageBackgroundAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -2030,7 +2030,7 @@ public class EditorActions
 	 *
 	 */
 	@SuppressWarnings("serial")
-	public static class StyleAction extends AbstractAction
+	static class StyleAction extends AbstractAction
 	{
 		/**
 		 * 
@@ -2058,7 +2058,7 @@ public class EditorActions
 	}
 
 	@SuppressWarnings("serial")
-	public static class ChangeVertexShapeAction extends AbstractAction
+	static class ChangeVertexShapeAction extends AbstractAction
 	{
 		private final String[] shapes = {mxConstants.SHAPE_RECTANGLE, mxConstants.SHAPE_DOUBLE_RECTANGLE,
 				mxConstants.SHAPE_ELLIPSE, mxConstants.SHAPE_DOUBLE_ELLIPSE, mxConstants.SHAPE_TRIANGLE,
@@ -2093,7 +2093,7 @@ public class EditorActions
 	}
 
 	@SuppressWarnings("serial")
-	public static class ChangeGraphAction extends AbstractAction {
+	static class ChangeGraphAction extends AbstractAction {
 
 		private CommandService cmdService;
 		private String metric;
@@ -2103,12 +2103,12 @@ public class EditorActions
 		private final AnnotationGraphComponent graphComponent;
 
 		/* Parameters will be retrieved from a scijava prompt */
-		public ChangeGraphAction(final GraphEditor editor, CommandService cmdService) {
+		ChangeGraphAction(final GraphEditor editor, CommandService cmdService) {
 			this (editor, null, -1d, -1);
 			this.cmdService = cmdService;
 		}
 
-		public ChangeGraphAction(final GraphEditor editor, final String metric, final double threshold, final int depth) {
+		ChangeGraphAction(final GraphEditor editor, final String metric, final double threshold, final int depth) {
 			this.editor = editor;
 			graphComponent = (editor.getGraphComponent() instanceof AnnotationGraphComponent)
 					? ((AnnotationGraphComponent) editor.getGraphComponent())
@@ -2189,11 +2189,11 @@ public class EditorActions
 	}
 
 	@SuppressWarnings("serial")
-	public static class ShowInViewer3DAction extends AbstractAction {
+	static class ShowInViewer3DAction extends AbstractAction {
 
 		private final CommandService cmdService;
 
-		public ShowInViewer3DAction(CommandService cmdService) {
+		ShowInViewer3DAction(CommandService cmdService) {
 			this.cmdService = cmdService;
 		}
 
@@ -2217,7 +2217,7 @@ public class EditorActions
 	}
 
 	@SuppressWarnings("serial")
-	public static class ScaleEdgeWeightsAction extends AbstractAction {
+	static class ScaleEdgeWeightsAction extends AbstractAction {
 
 		@Override
 		public void actionPerformed(ActionEvent e) {
@@ -2246,11 +2246,11 @@ public class EditorActions
 	}
 
 	@SuppressWarnings("serial")
-	public static class mxOrganicLayoutPrefsAction extends AbstractAction {
+	static class mxOrganicLayoutPrefsAction extends AbstractAction {
 
 		private final CommandService cmdService;
 
-		public mxOrganicLayoutPrefsAction(CommandService cmdService) {
+		mxOrganicLayoutPrefsAction(CommandService cmdService) {
 			this.cmdService = cmdService;
 		}
 

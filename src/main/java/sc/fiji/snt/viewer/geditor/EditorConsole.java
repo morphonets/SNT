@@ -35,7 +35,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
-public class EditorConsole extends JPanel implements ActionListener {
+class EditorConsole extends JPanel implements ActionListener {
 
 	private static final long serialVersionUID = 1L;
 	private final JTextArea ta;
@@ -43,7 +43,7 @@ public class EditorConsole extends JPanel implements ActionListener {
 	private final PrintStream sOut;
 	private final PrintStream sErr;
 
-	public EditorConsole() {
+	EditorConsole() {
 		super(new BorderLayout());
 		ta = new JTextArea("Welcome to SNT's Graph Viewer!\n");
 		ta.setLineWrap(false);

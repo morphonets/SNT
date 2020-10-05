@@ -40,7 +40,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 
-public class EditorToolBar extends JToolBar
+class EditorToolBar extends JToolBar
 {
 
 	private static final long serialVersionUID = -8015443128436394471L;
@@ -48,7 +48,7 @@ public class EditorToolBar extends JToolBar
 	private final GraphEditor editor;
 	private JComboBox<String> zoomCombo;
 
-	public EditorToolBar(final GraphEditor editor, final int orientation)
+	EditorToolBar(final GraphEditor editor, final int orientation)
 	{
 		super(orientation);
 		this.editor = editor;

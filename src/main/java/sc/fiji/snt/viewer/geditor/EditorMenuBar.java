@@ -63,7 +63,7 @@ import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.geditor.EditorActions.TogglePropertyItem;
 import sc.fiji.snt.viewer.geditor.GraphEditor.CmdRunner;
 
-public class EditorMenuBar extends JMenuBar
+class EditorMenuBar extends JMenuBar
 {
 	/**
 	 * 
@@ -81,14 +81,14 @@ public class EditorMenuBar extends JMenuBar
 	private final JCheckBoxMenuItem gridJmi;
 	private GuiUtils guiUtils;
 
-	public enum AnalyzeType
+	enum AnalyzeType
 	{
 		PROPERTIES, COLOR_CODING, EDGE_WIDTH_SCALING, COMPLEMENTARY, COMPONENTS, MAKE_CONNECTED, MAKE_SIMPLE,
 		ONE_SPANNING_TREE, GET_CUT_VERTEXES, GET_CUT_EDGES, GET_SOURCES, GET_SINKS,
 		PLANARITY, SPANNING_TREE, FLOYD_ROY_WARSHALL, FIND_CYCLES
 	}
 
-	public EditorMenuBar(final GraphEditor editor, final Context context)
+	EditorMenuBar(final GraphEditor editor, final Context context)
 	{
 		context.inject(this);
 		EditorMenuBar.editor = editor;
@@ -775,7 +775,7 @@ public class EditorMenuBar extends JMenuBar
 	/**
 	 *
 	 */
-	public static class InsertGraph extends AbstractAction
+	static class InsertGraph extends AbstractAction
 	{
 
 		/**
@@ -794,7 +794,7 @@ public class EditorMenuBar extends JMenuBar
 		 * @param aGraph 
 		 * 
 		 */
-		public InsertGraph(GraphType tree, mxAnalysisGraph aGraph)
+		InsertGraph(GraphType tree, mxAnalysisGraph aGraph)
 		{
 			this.graphType = tree;
 			this.aGraph = aGraph;
@@ -872,7 +872,7 @@ public class EditorMenuBar extends JMenuBar
 	/**
 	 *
 	 */
-	public static class AnalyzeGraph extends AbstractAction
+	static class AnalyzeGraph extends AbstractAction
 	{
 		/**
 		 * 
@@ -892,7 +892,7 @@ public class EditorMenuBar extends JMenuBar
 		/**
 		 * Examples for calling analysis methods from mxGraphStructure 
 		 */
-		public AnalyzeGraph(AnalyzeType analyzeType, mxAnalysisGraph aGraph, Context context)
+		AnalyzeGraph(AnalyzeType analyzeType, mxAnalysisGraph aGraph, Context context)
 		{
 			this.analyzeType = analyzeType;
 			this.aGraph = aGraph;

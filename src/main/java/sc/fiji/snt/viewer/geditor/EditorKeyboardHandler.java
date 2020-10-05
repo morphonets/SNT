@@ -39,14 +39,14 @@ import sc.fiji.snt.gui.GuiUtils;
  * @author Gaudenz Alder Copyright (c) 2008
  * 
  */
-public class EditorKeyboardHandler extends mxKeyboardHandler
+class EditorKeyboardHandler extends mxKeyboardHandler
 {
 
 	/**
 	 * 
 	 * @param graphComponent
 	 */
-	public EditorKeyboardHandler(mxGraphComponent graphComponent)
+	EditorKeyboardHandler(mxGraphComponent graphComponent)
 	{
 		super(graphComponent);
 	}
