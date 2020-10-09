@@ -22,6 +22,7 @@
 
 package sc.fiji.snt;
 
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
@@ -44,10 +45,12 @@ import org.scijava.plugin.Plugin;
 import org.scijava.script.ScriptService;
 import org.scijava.service.AbstractService;
 import org.scijava.service.Service;
+import org.scijava.util.ColorRGB;
 import org.scijava.util.FileUtils;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.gui.NewImage;
 import ij.io.Opener;
 import ij.plugin.ZProjector;
 import ij.process.ColorProcessor;
@@ -306,6 +309,17 @@ public class SNTService extends AbstractService implements ImageJService {
 			: getPaths());
 		tree.setLabel((selectedPathsOnly) ? "Selected Paths" : "All Paths");
 		return tree;
+	}
+
+	/**
+	 * Gets the collection of paths listed in the Path Manager as a {@link Tree}
+	 * object.
+	 *
+	 * @return the Tree holding the Path collection
+	 * @throws UnsupportedOperationException if SNT is not running
+	 */
+	public Tree getTree() {
+		return getTree(false);
 	}
 
 	/**
@@ -568,8 +582,9 @@ public class SNTService extends AbstractService implements ImageJService {
 			throw new IllegalArgumentException("Invalid view");
 
 		if (view.toLowerCase().contains("3d")) {
-			if (plugin.get3DUniverse() == null) throw new IllegalArgumentException(
-				"view is not available");
+			if (plugin.get3DUniverse() == null || plugin.get3DUniverse().getWindow() == null)
+				throw new IllegalArgumentException("Legacy 3D viewer is not available");
+			//plugin.get3DUniverse().getWindow().setBackground(background);
 			return plugin.get3DUniverse().takeSnapshot();
 		}
 
@@ -578,23 +593,62 @@ public class SNTService extends AbstractService implements ImageJService {
 		if (imp == null) throw new IllegalArgumentException(
 			"view is not available");
 
-		final ImagePlus proj = ZProjector.run(imp, "max", (project) ? 1 : imp
-			.getZ(), (project) ? imp.getNSlices() : imp.getZ()).flatten();
+		ImagePlus holdingView;
+		if (plugin.accessToValidImageData()) {
+			holdingView = ZProjector
+					.run(imp, "max", (project) ? 1 : imp.getZ(), (project) ? imp.getNSlices() : imp.getZ()).flatten();
+		} else {
+			holdingView = NewImage.createByteImage("Holding view", imp.getWidth(), imp.getHeight(), 1, NewImage.FILL_BLACK);
+		}
+		return captureView(holdingView, view, viewPlane);
+	}
+
+	@SuppressWarnings("deprecation")
+	public ImagePlus captureView(final String view, final ColorRGB backgroundColor) throws IllegalArgumentException {
+		accessActiveInstance(false);
+		if (view == null || view.trim().isEmpty())
+			throw new IllegalArgumentException("Invalid view");
+		if (backgroundColor == null)
+			throw new IllegalArgumentException("Invalid backgroundColor");
+
+		final Color backgroundColorAWT = new Color(backgroundColor.getRed(), backgroundColor.getGreen(),
+				backgroundColor.getBlue(), 255);
+		if (view.toLowerCase().contains("3d")) {
+			if (plugin.get3DUniverse() == null || plugin.get3DUniverse().getWindow() == null)
+				throw new IllegalArgumentException("Legacy 3D viewer is not available");
+			final Color existingBackground = plugin.get3DUniverse().getWindow().getBackground();
+			plugin.get3DUniverse().getWindow().setBackground(backgroundColorAWT);
+			final ImagePlus imp = plugin.get3DUniverse().takeSnapshot();
+			plugin.get3DUniverse().getWindow().setBackground(existingBackground);
+			return imp;
+		}
+
+		final int viewPlane = getView(view);
+		final ImagePlus imp = plugin.getImagePlus(viewPlane);
+		if (imp == null) throw new IllegalArgumentException(
+			"view is not available");
+		final ColorProcessor ip = new ColorProcessor(imp.getWidth(), imp.getHeight());
+		ip.setColor(backgroundColorAWT);
+		ip.fill();
+		return captureView(new ImagePlus("Holder", ip), view, viewPlane);
+	}
+
+	public ImagePlus captureView(final ImagePlus holdingImp, final String viewDescription, final int viewPlane) {
 		// NB: overlay will be flatten but not active ROI
-		final TracerCanvas canvas = new TracerCanvas(proj, plugin, viewPlane, plugin
+		final TracerCanvas canvas = new TracerCanvas(holdingImp, plugin, viewPlane, plugin
 			.getPathAndFillManager());
-		final BufferedImage bi = new BufferedImage(proj.getWidth(), proj
+		final BufferedImage bi = new BufferedImage(holdingImp.getWidth(), holdingImp
 			.getHeight(), BufferedImage.TYPE_INT_ARGB);
 		final Graphics2D g = canvas.getGraphics2D(bi.getGraphics());
-		g.drawImage(proj.getImage(), 0, 0, null);
+		g.drawImage(holdingImp.getImage(), 0, 0, null);
 		for (final Path p : getPaths()) {
 			p.drawPathAsPoints(g, canvas, plugin);
 		}
 		// this is taken from ImagePlus.flatten()
-		final ImagePlus result = new ImagePlus(view + " view snapshot",
+		final ImagePlus result = new ImagePlus(viewDescription + " view snapshot",
 			new ColorProcessor(bi));
-		result.copyScale(proj);
-		result.setProperty("Info", proj.getProperty("Info"));
+		result.copyScale(holdingImp);
+		result.setProperty("Info", holdingImp.getProperty("Info"));
 		return result;
 	}
 
