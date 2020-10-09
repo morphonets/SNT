@@ -127,8 +127,7 @@
 		<!-- Dependency versions for JitPack -->
 		<sciview.version>9c0918a</sciview.version>
 		<scenery.version>4e67655</scenery.version>
-
-		<jzy3d.version>1.0.3-SNAPSHOT</jzy3d.version>
+		<jzy3d.version>4bb4999</jzy3d.version>
 
 		<jline.version>3.13.1</jline.version>
 		<jide-oss.version>3.6.18</jide-oss.version>
@@ -149,10 +148,6 @@
 		<repository>
 			<id>scijava.public</id>
 			<url>https://maven.scijava.org/content/groups/public</url>
-		</repository>
-		<repository>
-			<id>Jzy3D.releases</id>
-			<url>https://maven.jzy3d.org/releases/</url>
 		</repository>
 		<repository>
             <releases>
@@ -202,7 +197,7 @@
 			<artifactId>vecmath</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.jzy3d</groupId>
+			<groupId>com.github.jzy3d.jzy3d-api</groupId>
 			<artifactId>jzy3d-api</artifactId>
 			<version>${jzy3d.version}</version>
 			<exclusions>
