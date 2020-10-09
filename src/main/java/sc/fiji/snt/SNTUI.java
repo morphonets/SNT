@@ -2140,11 +2140,11 @@ public class SNTUI extends JDialog {
 			return;
 		});
 		fileMenu.add(saveTable);
+
 		sendToTrakEM2 = new JMenuItem("Send to TrakEM2");
 		sendToTrakEM2.addActionListener(e -> plugin.notifyListeners(new SNTEvent(SNTEvent.SEND_TO_TRAKEM2)));
 		fileMenu.addSeparator();
 		fileMenu.add(sendToTrakEM2);
-		fileMenu.addSeparator();
 
 		final JMenuItem importGuessingType = new JMenuItem("Any File Type...");
 		importSubmenu.add(importGuessingType);
@@ -2164,8 +2164,8 @@ public class SNTUI extends JDialog {
 		loadTracesMenuItem.addActionListener(listener);
 		importSubmenu.add(loadTracesMenuItem);
 
-		final JMenuItem importDirectory = new JMenuItem("Directory of SWCs...");
-		importDirectory.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FOLDER));
+		final JMenuItem importDirectory = new JMenuItem("Directory of SWCs...", 
+				IconFactory.getMenuIcon(IconFactory.GLYPH.FOLDER));
 		importSubmenu.add(importDirectory);
 		importDirectory.addActionListener(e -> {
 			new ImportAction(ImportAction.SWC_DIR, null).run();
@@ -2202,11 +2202,7 @@ public class SNTUI extends JDialog {
 		exportAllSWCMenuItem.addActionListener(listener);
 		exportSubmenu.add(exportAllSWCMenuItem);
 
-		fileMenu.addSeparator();
-		quitMenuItem = new JMenuItem("Quit", IconFactory.getMenuIcon(IconFactory.GLYPH.QUIT));
-		quitMenuItem.addActionListener(listener);
-
-		final JMenuItem restartMenuItem = new JMenuItem("Reset SNT and Restart...", IconFactory.getMenuIcon(IconFactory.GLYPH.RECYCLE));
+		final JMenuItem restartMenuItem = new JMenuItem("Reset and Restart...", IconFactory.getMenuIcon(IconFactory.GLYPH.RECYCLE));
 		restartMenuItem.setToolTipText("Resets all preferences and restarts SNT");
 		restartMenuItem.addActionListener( e -> {
 			CommandService cmdService = plugin.getContext().getService(CommandService.class);
@@ -2220,7 +2216,13 @@ public class SNTUI extends JDialog {
 				cmdService = null;
 			}
 		});
+
+		fileMenu.addSeparator();
 		fileMenu.add(restartMenuItem);
+		fileMenu.addSeparator();
+
+		quitMenuItem = new JMenuItem("Quit", IconFactory.getMenuIcon(IconFactory.GLYPH.QUIT));
+		quitMenuItem.addActionListener(listener);
 		fileMenu.add(quitMenuItem);
 
 		final JMenuItem measureMenuItem = new JMenuItem("Quick Measurements", IconFactory.getMenuIcon(IconFactory.GLYPH.ROCKET));

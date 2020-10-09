@@ -234,11 +234,19 @@ public class GuiUtils {
 	}
 
 	private void makeVisible(final JDialog dialog) {
-		// work around a bug in openjdk and MacOS in which prompts
-		// are not frontmost if the component hierarchy is > 3
 		dialog.setVisible(true);
 		dialog.toFront();
-		if (!dialog.hasFocus() && parent != null) parent.transferFocusUpCycle();
+		// work around a bug in openjdk and MacOS in which prompts
+		// are not frontmost if the component hierarchy is > 3
+		if (!dialog.hasFocus() && parent != null && parent instanceof JDialog) {
+			try {
+				((JDialog) parent).toBack();
+				Thread.sleep(50);
+				dialog.toFront();
+			} catch (final InterruptedException e) {
+				// ignored
+			}
+		}
 	}
 
 	public boolean getConfirmation(final String msg, final String title) {
