@@ -99,6 +99,7 @@ import ij3d.ImageWindow3D;
 import net.imagej.Dataset;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.gui.ColorChooserButton;
 import sc.fiji.snt.gui.FileDrop;
@@ -109,7 +110,7 @@ import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.viewer.Viewer3D;
-import sholl.ShollUtils;
+
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 import sc.fiji.snt.gui.cmds.CompareFilesCmd;
 import sc.fiji.snt.gui.cmds.ComputeSecondaryImg;

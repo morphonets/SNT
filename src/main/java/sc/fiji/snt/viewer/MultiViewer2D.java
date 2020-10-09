@@ -53,7 +53,7 @@ import sc.fiji.snt.analysis.MultiTreeColorMapper;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.analysis.sholl.TreeParser;
 import sc.fiji.snt.util.PointInImage;
-import sholl.math.LinearProfileStats;
+import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 
 /**
  * Class for rendering {@link Tree}s as 2D plots that can be exported as SVG,

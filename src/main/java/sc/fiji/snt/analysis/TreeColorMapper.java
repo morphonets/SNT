@@ -46,9 +46,9 @@ import org.apache.commons.text.WordUtils;
 import org.scijava.Context;
 import org.scijava.plugin.Parameter;
 
-import sholl.ProfileEntry;
-import sholl.UPoint;
-import sholl.math.LinearProfileStats;
+import sc.fiji.snt.analysis.sholl.ProfileEntry;
+import sc.fiji.snt.analysis.sholl.UPoint;
+import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;

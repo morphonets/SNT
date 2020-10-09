@@ -227,10 +227,6 @@
 		</dependency>
 
 		<dependency>
-			<groupId>ca.mcgill</groupId>
-			<artifactId>Sholl_Analysis</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-math3</artifactId>
 		</dependency>

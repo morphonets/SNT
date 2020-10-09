@@ -25,7 +25,7 @@ package sc.fiji.snt.util;
 import java.util.Objects;
 
 import ij.measure.Calibration;
-import sholl.UPoint;
+import sc.fiji.snt.analysis.sholl.UPoint;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathTransformer;
 import sc.fiji.snt.Tree;

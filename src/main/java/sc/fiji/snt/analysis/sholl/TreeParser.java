@@ -27,24 +27,19 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import net.imagej.display.ColorTables;
-import net.imglib2.display.ColorTable;
-
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.measure.Calibration;
 import ij.process.ShortProcessor;
+import net.imagej.display.ColorTables;
+import net.imglib2.display.ColorTable;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
+import sc.fiji.snt.analysis.sholl.parsers.Parser;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
-import sholl.Profile;
-import sholl.ProfileEntry;
-import sholl.ShollUtils;
-import sholl.UPoint;
-import sholl.math.LinearProfileStats;
-import sholl.parsers.Parser;
 
 /**
  * A {@link Parser} for extracting Sholl Profiles from a {@link Tree}.

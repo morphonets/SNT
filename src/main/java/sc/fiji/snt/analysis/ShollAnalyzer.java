@@ -35,10 +35,10 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.sholl.TreeParser;
-import sholl.Logger;
-import sholl.UPoint;
-import sholl.math.LinearProfileStats;
-import sholl.math.NormalizedProfileStats;
+import sc.fiji.snt.analysis.sholl.Logger;
+import sc.fiji.snt.analysis.sholl.UPoint;
+import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
+import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 
 /**
  * Class to retrieve Sholl metrics from a {@link Tree}.
