@@ -600,9 +600,24 @@ public class SNTService extends AbstractService implements ImageJService {
 		} else {
 			holdingView = NewImage.createByteImage("Holding view", imp.getWidth(), imp.getHeight(), 1, NewImage.FILL_BLACK);
 		}
+		holdingView.copyScale(imp);
 		return captureView(holdingView, view, viewPlane);
 	}
 
+	/**
+	 * Retrieves a WYSIWYG 'snapshot' of a tracing canvas without voxel data.
+	 *
+	 * @param view            A case-insensitive string specifying the canvas to be
+	 *                        captured. Either "xy" (or "main"), "xz", "zy" or "3d"
+	 *                        (for legacy's 3D Viewer).
+	 * @param backgroundColor the background color of the canvas (string, hex, or
+	 *                        html)
+	 * @return the snapshot capture of the canvas as an RGB image
+	 * @throws UnsupportedOperationException if SNT is not running
+	 * @throws IllegalArgumentException      if {@code view} or
+	 *                                       {@code backgroundColor} are not
+	 *                                       recognized
+	 */
 	@SuppressWarnings("deprecation")
 	public ImagePlus captureView(final String view, final ColorRGB backgroundColor) throws IllegalArgumentException {
 		accessActiveInstance(false);
@@ -630,7 +645,9 @@ public class SNTService extends AbstractService implements ImageJService {
 		final ColorProcessor ip = new ColorProcessor(imp.getWidth(), imp.getHeight());
 		ip.setColor(backgroundColorAWT);
 		ip.fill();
-		return captureView(new ImagePlus("Holder", ip), view, viewPlane);
+		final ImagePlus holdingView = new ImagePlus("Holder", ip);
+		holdingView.copyScale(imp);
+		return captureView(holdingView, view, viewPlane);
 	}
 
 	public ImagePlus captureView(final ImagePlus holdingImp, final String viewDescription, final int viewPlane) {
