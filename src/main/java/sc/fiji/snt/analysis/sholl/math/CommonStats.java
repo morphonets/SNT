@@ -30,10 +30,10 @@ import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
 import org.scijava.Context;
 import org.scijava.command.ContextCommand;
 
-import sc.fiji.snt.analysis.sholl.Logger;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
+import sc.fiji.snt.util.Logger;
 
 
 
@@ -166,7 +166,7 @@ class CommonStats extends ContextCommand implements ShollStats {
 	public void setContext(Context context) {
 		super.setContext(context);
 		if (logger == null)
-			logger = new Logger(context);
+			logger = new Logger(context, "Sholl");
 	}
 
 	/**

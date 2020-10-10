@@ -34,10 +34,10 @@ import net.imagej.ImageJ;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.sholl.Logger;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
+import sc.fiji.snt.util.Logger;
 import sc.fiji.snt.util.ShollPoint;
 
 /**
@@ -290,7 +290,7 @@ public class ShollAnalyzer {
 		//final Tree tree = new Tree("/home/tferr/code/morphonets/SNT/clustering/zi/cells/AA0768.json", "axon");
 		final ShollAnalyzer analyzer = new ShollAnalyzer(tree);
 		analyzer.setPolynomialFitRange(2, 70);
-		Logger logger = new Logger(ij.context());
+		Logger logger = new Logger(ij.context(), "Sholl");
 		logger.setDebug(true);
 		analyzer.getLinearStats().setLogger(logger);
 		analyzer.getSingleValueMetrics().forEach((metric, value) -> {

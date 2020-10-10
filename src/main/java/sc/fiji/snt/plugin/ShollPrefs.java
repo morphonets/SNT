@@ -38,9 +38,9 @@ import org.scijava.ui.UIService;
 import org.scijava.widget.Button;
 
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.analysis.sholl.Logger;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GUIHelper;
+import sc.fiji.snt.util.Logger;
 
 
 /**
@@ -166,7 +166,7 @@ public class ShollPrefs extends OptionsPlugin {
 	@SuppressWarnings("unused")
 	private void init() {
 		helper = new GUIHelper(context());
-		logger = new Logger(context());
+		logger = new Logger(context(), "Sholl");
 		logger.debug("Prefs successfully initialized");
 		if (ignoreBitmapOptions) {
 			resolveInput("HEADER_SAMPLING");

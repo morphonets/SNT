@@ -27,8 +27,8 @@ import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.scijava.NullContextException;
 import org.scijava.command.ContextCommand;
 
-import sc.fiji.snt.analysis.sholl.Logger;
 import sc.fiji.snt.analysis.sholl.Profile;
+import sc.fiji.snt.util.Logger;
 
 /**
  * Compares two profiles statistically.
@@ -58,7 +58,7 @@ public class Comparator extends ContextCommand {
 
 	@Override
 	public void run() throws NullContextException {
-		final Logger logger = new Logger(context());
+		final Logger logger = new Logger(context(), "Sholl");
 		logger.info("\n*** Comparing " + profile1.identifier() + "vs" + profile2.identifier() + "***");
 		logger.info("KS-test: " + getKStest());
 		logger.info("Reg R: " + regression.getR());

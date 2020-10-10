@@ -19,7 +19,7 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
-package sc.fiji.snt.analysis.sholl;
+package sc.fiji.snt.util;
 
 import org.scijava.Context;
 import org.scijava.log.LogService;
@@ -37,28 +37,25 @@ public class Logger {
 	private PrefService prefService;
 
 	private boolean debug;
+	private final String callerIdentifier;
 
-	@Deprecated
-	public Logger() {
-		this(new Context(LogService.class));
-	}
-
-	public Logger(final Context context) {
+	public Logger(final Context context, final String callerIdentifier) {
 		context.inject(this);
 		debug = prefService.getBoolean(ShollPrefs.class, "debugMode", ShollPrefs.DEF_DEBUG_MODE);
 		setDebug(debug || logService.isDebug());
+		this.callerIdentifier = callerIdentifier;
 	}
 
 	public void info(final Object msg) {
-		logService.info("Sholl: " + msg );
+		logService.info(callerIdentifier + ": " + msg );
 	}
 
 	public void debug(final Object msg) {
-		if (debug) logService.info("Sholl: " + msg);
+		if (debug) logService.info(callerIdentifier + ": " + msg);
 	}
 
 	public void warn(final String string) {
-		logService.warn("Sholl: " + string);
+		logService.warn(callerIdentifier + ": " + string);
 	}
 
 	public boolean isDebug() {

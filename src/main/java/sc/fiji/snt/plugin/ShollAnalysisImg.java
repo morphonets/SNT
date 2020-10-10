@@ -75,7 +75,6 @@ import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.analysis.sholl.Logger;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.ProfileProperties;
@@ -89,6 +88,7 @@ import sc.fiji.snt.analysis.sholl.parsers.ImageParser;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser2D;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser3D;
 import sc.fiji.snt.gui.GUIHelper;
+import sc.fiji.snt.util.Logger;
 import sc.fiji.snt.util.ShollPoint;
 
 
@@ -467,7 +467,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 	/* initializer method running before displaying prompt */
 	protected void init() {
 		helper = new GUIHelper(context());
-		logger = new Logger(context());
+		logger = new Logger(context(), "Sholl");
 		readPreferences();
 		imp = legacyService.getImageMap().lookupImagePlus(imageDisplayService.getActiveImageDisplay());
 		if (imp == null)

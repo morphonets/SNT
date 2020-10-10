@@ -62,7 +62,6 @@ import ij.gui.Overlay;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeColorMapper;
-import sc.fiji.snt.analysis.sholl.Logger;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
@@ -78,6 +77,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GUIHelper;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.Logger;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.ShollPoint;
@@ -325,7 +325,7 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 	/* initializer method running before displaying prompt */
 	protected void init() {
 		helper = new GUIHelper(context());
-		logger = new Logger(context());
+		logger = new Logger(context(), "Sholl");
 		final boolean calledFromSNT = snt != null;
 		final boolean calledFromStandAloneRecViewer = snt == null && tree != null;
 		multipleTreesExist = false;
