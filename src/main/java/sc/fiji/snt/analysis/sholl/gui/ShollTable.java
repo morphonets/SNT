@@ -33,22 +33,22 @@ import org.scijava.prefs.PrefService;
 import org.scijava.table.DefaultGenericTable;
 import org.scijava.table.DefaultTableIOPlugin;
 import org.scijava.table.DoubleColumn;
-import org.scijava.table.GenericTable;
 
+import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.sholl.Profile;
-import sc.fiji.snt.analysis.sholl.UPoint;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
-import sc.fiji.snt.analysis.sholl.plugin.Prefs;
+import sc.fiji.snt.plugin.ShollPrefs;
+import sc.fiji.snt.util.ShollPoint;
 
 
 /**
- * Implementation of {@link GenericTable} for Sholl metrics and Profile lists.
+ * Implementation of {@link SNTTable} for Sholl metrics and Profile lists.
  * 
  * @author Tiago Ferreira
  */
-public class ShollTable extends DefaultGenericTable {
+public class ShollTable extends SNTTable {
 
 	private static final long serialVersionUID = 1L;
 	private final Profile profile;
@@ -165,7 +165,7 @@ public class ShollTable extends DefaultGenericTable {
 
 	/**
 	 * Summarizes {@link Profile} and {@link ShollStats} metrics to a new row. Note
-	 * that some of the reported metrics rely on the options set in {@link Prefs}.
+	 * that some of the reported metrics rely on the options set in {@link ShollPrefs}.
 	 * To ensure that those are read, you should run {@link #setContext(Context)},
 	 * so that a {@link PrefService} is set.
 	 *
@@ -258,14 +258,14 @@ public class ShollTable extends DefaultGenericTable {
 
 		set(getCol(getHeader("Ramification index", fData)), row, lStats.getRamificationIndex(fData));
 
-		final UPoint centroid = lStats.getCentroid(fData);
+		final ShollPoint centroid = lStats.getCentroid(fData);
 		set(getCol(getHeader("Centroid value", fData)), row, centroid.y);
 		set(getCol(getHeader("Centroid radius", fData)), row, centroid.x);
 
 		try {
 			if (prefService != null) {
-				final int cutoff = prefService.getInt(Prefs.class, "enclosingRadiusCutoff",
-						Prefs.DEF_ENCLOSING_RADIUS_CUTOFF);
+				final int cutoff = prefService.getInt(ShollPrefs.class, "enclosingRadiusCutoff",
+						ShollPrefs.DEF_ENCLOSING_RADIUS_CUTOFF);
 				set(getCol(getHeader("Enclosing radius", fData)), row, lStats.getEnclosingRadius(fData, cutoff));
 			}
 		} catch (final NullContextException ignored) {
@@ -312,7 +312,7 @@ public class ShollTable extends DefaultGenericTable {
 
 	/**
 	 * Sets the services required by this ShollTable, namely {@link PrefService},
-	 * used to read advanced options set by {@link Prefs}.
+	 * used to read advanced options set by {@link ShollPrefs}.
 	 *
 	 * @param context the SciJava application context
 	 * @throws IllegalStateException    If this ShollTable already has a context
@@ -322,7 +322,7 @@ public class ShollTable extends DefaultGenericTable {
 	public void setContext(final Context context) throws IllegalStateException, IllegalArgumentException {
 		context.inject(this);
 		if (prefService != null) {
-			final boolean detailedMetrics = prefService.getBoolean(Prefs.class, "detailedMetrics", Prefs.DEF_DETAILED_METRICS);
+			final boolean detailedMetrics = prefService.getBoolean(ShollPrefs.class, "detailedMetrics", ShollPrefs.DEF_DETAILED_METRICS);
 			setDetailedSummary(detailedMetrics);
 		}
 		if (tableIO == null) {
@@ -335,7 +335,7 @@ public class ShollTable extends DefaultGenericTable {
 		return prefService != null || tableIO != null;
 	}
 
-	public boolean save(final File file) {
+	public boolean save2(final File file) {
 		if (file == null) return false;
 		if (file.isDirectory()) {
 			String fName = getTitle();
@@ -343,7 +343,7 @@ public class ShollTable extends DefaultGenericTable {
 				fName = "Sholl_Table.csv";
 			if (!fName.toLowerCase().endsWith(".csv"))
 				fName+= ".csv";
-			return save(new File(file, fName));
+			return save2(new File(file, fName));
 		}
 		String filePath = file.getAbsolutePath();
 		if (!filePath.toLowerCase().endsWith(".csv"))
@@ -351,7 +351,7 @@ public class ShollTable extends DefaultGenericTable {
 		return save(filePath);
 	}
 
-	public boolean save(final String filePath) {
+	public boolean save2(final String filePath) {
 		if (tableIO == null) {
 			throw new IllegalArgumentException("Context has not been set");
 		}
