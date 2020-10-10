@@ -37,7 +37,7 @@ import sc.fiji.snt.gui.GuiUtils;
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class,
-	menuPath = "Plugins>NeuroAnatomy>Reconstruction Viewer")
+	menuPath = "Plugins>Neuroanatomy>Reconstruction Viewer")
 public class ReconstructionViewerCmd extends ContextCommand {
 
 	/*

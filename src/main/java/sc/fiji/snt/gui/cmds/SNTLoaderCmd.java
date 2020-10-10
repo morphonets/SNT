@@ -60,7 +60,7 @@ import sc.fiji.snt.SNTUtils;
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, visible = true,
-	menuPath = "Plugins>NeuroAnatomy>SNT...", label ="SNT Startup Prompt",
+	menuPath = "Plugins>Neuroanatomy>SNT...", label ="SNT Startup Prompt",
 	initializer = "initialize")
 public class SNTLoaderCmd extends DynamicCommand {
 

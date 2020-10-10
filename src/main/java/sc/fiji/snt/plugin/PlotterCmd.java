@@ -59,7 +59,7 @@ import sc.fiji.snt.util.SNTColor;
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, visible = true,
-	menuPath = "Plugins>NeuroAnatomy>Reconstruction Plotter...",
+	menuPath = "Plugins>Neuroanatomy>Reconstruction Plotter...",
 	label = "Reconstruction Plotter", initializer = "init")
 public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 
