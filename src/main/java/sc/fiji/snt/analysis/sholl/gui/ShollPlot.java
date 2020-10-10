@@ -40,10 +40,10 @@ import ij.process.ImageStatistics;
 import ij.util.Tools;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
-import sc.fiji.snt.analysis.sholl.UPoint;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
+import sc.fiji.snt.util.ShollPoint;
 
 public class ShollPlot extends Plot {
 
@@ -212,7 +212,7 @@ public class ShollPlot extends Plot {
 		if (profile.is2D())
 			sb.append("2D ");
 		sb.append("Distance");
-		final UPoint center = profile.center();
+		final ShollPoint center = profile.center();
 		if (center != null)
 			sb.append(" from ").append(center.toString());
 		if (profile.scaled())
@@ -268,7 +268,7 @@ public class ShollPlot extends Plot {
 
 		// mark intercept
 		if (regression.hasIntercept())
-			markPoint(new UPoint(0, regression.getIntercept()), DOT, 8);
+			markPoint(new ShollPoint(0, regression.getIntercept()), DOT, 8);
 
 		// assemble legend
 		final double rsqred = regression.getRSquare();
@@ -282,9 +282,9 @@ public class ShollPlot extends Plot {
 		if (!annotate || linearStats == null)
 			return;
 
-		final UPoint centroid = linearStats.getCentroid(fittedData);
-		final UPoint pCentroid = linearStats.getPolygonCentroid(fittedData);
-		final UPoint max = linearStats.getCenteredMaximum(fittedData);
+		final ShollPoint centroid = linearStats.getCentroid(fittedData);
+		final ShollPoint pCentroid = linearStats.getPolygonCentroid(fittedData);
+		final ShollPoint max = linearStats.getCenteredMaximum(fittedData);
 		final double primary = linearStats.getPrimaryBranches(fittedData);
 		final double mv;
 		Color color;
@@ -337,7 +337,7 @@ public class ShollPlot extends Plot {
 	 * @param markSize
 	 *            the mark size in pixels
 	 */
-	public void markPoint(final UPoint pCentroid, final int markShape, final int markSize) {
+	public void markPoint(final ShollPoint pCentroid, final int markShape, final int markSize) {
 		if (pCentroid == null)
 			return;
 
@@ -381,7 +381,7 @@ public class ShollPlot extends Plot {
 	 * @param point the point to be drawn (defined in calibrated coordinates).
 	 * @param color the drawing color. This will not affect consequent objects
 	 */
-	public void markPoint(final UPoint point, final Color color) {
+	public void markPoint(final ShollPoint point, final Color color) {
 		if (point != null) {
 			setColor(color);
 			markPoint(point, CROSS, 8);

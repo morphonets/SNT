@@ -35,6 +35,7 @@ import ij.measure.Calibration;
 import ij.process.ImageProcessor;
 import sc.fiji.snt.analysis.sholl.gui.ShollOverlay;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
+import sc.fiji.snt.util.ShollPoint;
 
 
 /**
@@ -45,7 +46,7 @@ import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 public class Profile implements ProfileProperties {
 
 	private SortedSet<ProfileEntry> profile;
-	private UPoint center;
+	private ShollPoint center;
 	private Calibration cal = new Calibration();
 	private Properties properties;
 	private double stepRadius = -1;
@@ -148,8 +149,8 @@ public class Profile implements ProfileProperties {
 		return counts().stream().mapToDouble(d -> d).toArray();
 	}
 
-	public ArrayList<Set<UPoint>> points() {
-		final ArrayList<Set<UPoint>> allPoints = new ArrayList<>();
+	public ArrayList<Set<ShollPoint>> points() {
+		final ArrayList<Set<ShollPoint>> allPoints = new ArrayList<>();
 		for (final ProfileEntry e : profile)
 			allPoints.add(e.points);
 		return allPoints;
@@ -194,7 +195,7 @@ public class Profile implements ProfileProperties {
 			entry.radius *= isotropicScale;
 			if (entry.points == null)
 				continue;
-			for (final UPoint point : entry.points)
+			for (final ShollPoint point : entry.points)
 				point.scale(xScale, yScale, zScale);
 		}
 	}
@@ -238,7 +239,7 @@ public class Profile implements ProfileProperties {
 
 	public boolean hasPoints() {
 		for (final Iterator<ProfileEntry> it = profile.iterator(); it.hasNext();) {
-			final Set<UPoint> entryPoints = it.next().points;
+			final Set<ShollPoint> entryPoints = it.next().points;
 			if (entryPoints != null && entryPoints.size() > 0)
 				return true;
 		}
@@ -254,11 +255,11 @@ public class Profile implements ProfileProperties {
 		return properties.toString();
 	}
 
-	public UPoint center() {
+	public ShollPoint center() {
 		return center;
 	}
 
-	public void setCenter(final UPoint center) {
+	public void setCenter(final ShollPoint center) {
 		this.center = center;
 		properties.setProperty(KEY_CENTER, center.toString());
 	}
@@ -335,7 +336,7 @@ public class Profile implements ProfileProperties {
 		this.properties = properties;
 
 		// Center
-		center = UPoint.fromString(properties.getProperty(KEY_CENTER, UNSET));
+		center = ShollPoint.fromString(properties.getProperty(KEY_CENTER, UNSET));
 
 		// Calibration
 		final String[] calLines = properties.getProperty(KEY_CALIBRATION, UNSET).split(",");

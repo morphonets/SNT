@@ -50,7 +50,7 @@ import org.scijava.prefs.PrefService;
 
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.UPoint;
-import sc.fiji.snt.analysis.sholl.plugin.Prefs;
+import sc.fiji.snt.util.ShollPoint;
 
 
 /**
@@ -67,7 +67,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	private double maxCount = UNASSIGNED_VALUE;
 	private double sumCounts = UNASSIGNED_VALUE;
 	private double sumSqCounts = UNASSIGNED_VALUE;
-	private ArrayList<UPoint> maxima;
+	private ArrayList<ShollPoint> maxima;
 
 	/* Polynomial fit */
 	private PolynomialFunction pFunction;
@@ -94,16 +94,16 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 *
 	 * @return the centroid {x,y} coordinates
 	 */
-	public UPoint getCentroid(final boolean fittedData) {
+	public ShollPoint getCentroid(final boolean fittedData) {
 		if (fittedData)
 			validateFit();
 		final double x = StatUtils.sum(inputRadii) / nPoints;
 		final double y = StatUtils.sum(fittedData ? fCounts : inputCounts) / nPoints;
-		return new UPoint(x, y);
+		return new ShollPoint(x, y);
 	}
 
 	/** @return {@link #getCentroid(boolean) getCentroid(false)} */
-	public UPoint getCentroid() {
+	public ShollPoint getCentroid() {
 		return getCentroid(false);
 	}
 
@@ -119,7 +119,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 *
 	 * @return the point by the centroid {x,y} coordinates
 	 */
-	public UPoint getPolygonCentroid(final boolean fittedData) {
+	public ShollPoint getPolygonCentroid(final boolean fittedData) {
 		if (fittedData)
 			validateFit();
 		double area = 0;
@@ -132,13 +132,13 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 			sumy += (y[i - 1] + y[i]) * cfactor;
 			area += cfactor / 2;
 		}
-		return new UPoint(sumx / (6 * area), sumy / (6 * area));
+		return new ShollPoint(sumx / (6 * area), sumy / (6 * area));
 	}
 
 	/**
 	 * @return {@link #getPolygonCentroid(boolean) getPolygonCentroid(false)}
 	 */
-	public UPoint getPolygonCentroid() {
+	public ShollPoint getPolygonCentroid() {
 		return getPolygonCentroid(false);
 	}
 
@@ -235,13 +235,13 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 *            values, otherwise from sampled data
 	 * @return the list of points of all maxima
 	 */
-	public ArrayList<UPoint> getMaxima(final boolean fittedData) {
+	public ArrayList<ShollPoint> getMaxima(final boolean fittedData) {
 		if (!fittedData && maxima != null) {
 			return maxima;
 		}
 		final double values[];
 		final double max;
-		final ArrayList<UPoint> target = new ArrayList<>();
+		final ArrayList<ShollPoint> target = new ArrayList<>();
 		if (fittedData) {
 			validateFit();
 			values = fCounts;
@@ -252,7 +252,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 		}
 		for (int i = 0; i < nPoints; i++) {
 			if (values[i] == max) {
-				target.add(new UPoint(inputRadii[i], values[i]));
+				target.add(new ShollPoint(inputRadii[i], values[i]));
 			}
 		}
 		if (maxima == null)
@@ -261,7 +261,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	}
 
 	/** @return {@link #getMaxima(boolean) getMaxima(false)} */
-	public ArrayList<UPoint> getMaxima() {
+	public ArrayList<ShollPoint> getMaxima() {
 		return getMaxima(false);
 	}
 
@@ -273,24 +273,24 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 *            values, otherwise from sampled data
 	 * @return the averaged x,y coordinates of maxima
 	 */
-	public UPoint getCenteredMaximum(final boolean fittedData) {
-		final ArrayList<UPoint> maxima = getMaxima(fittedData);
+	public ShollPoint getCenteredMaximum(final boolean fittedData) {
+		final ArrayList<ShollPoint> maxima = getMaxima(fittedData);
 		debug("Found " + maxima.size() + " maxima");
 		double sumX = 0;
 		double sumY = 0;
-		for (final UPoint p : maxima) {
+		for (final ShollPoint p : maxima) {
 			sumX += p.x;
 			sumY += p.y;
 		}
 		final double avgX = sumX / maxima.size();
 		final double avgY = sumY / maxima.size();
-		return new UPoint(avgX, avgY);
+		return new ShollPoint(avgX, avgY);
 	}
 
 	/**
 	 * @return {@link #getCenteredMaximum(boolean) getCenteredMaximum(false)}
 	 */
-	public UPoint getCenteredMaximum() {
+	public ShollPoint getCenteredMaximum() {
 		return getCenteredMaximum(false);
 	}
 
@@ -584,7 +584,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 * @throws NullPointerException
 	 *             if {@link #fitPolynomial(int)} has not been called
 	 */
-	public Set<UPoint> getPolynomialMaxima(final double lowerBound, final double upperBound,
+	public Set<ShollPoint> getPolynomialMaxima(final double lowerBound, final double upperBound,
 			final double initialGuess) {
 		validateFit();
 		final PolynomialFunction derivative = pFunction.polynomialDerivative();
@@ -597,9 +597,9 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 		final Complex[] roots = solver.solveAllComplex(derivative.getCoefficients(), initialGuess, getMaxEvaluations());
 		if (roots == null)
 			return null;
-		final Set<UPoint> maxima = new TreeSet<>(new Comparator<UPoint>() {
+		final Set<ShollPoint> maxima = new TreeSet<>(new Comparator<ShollPoint>() {
 			@Override
-			public int compare(final UPoint p1, final UPoint p2) {
+			public int compare(final ShollPoint p1, final ShollPoint p2) {
 				return Double.compare(p2.y, p1.y); // descendant order of
 													// ordinates
 			}
@@ -611,7 +611,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 				continue;
 			final double y = pFunction.value(x);
 			if (y > pFunction.value(x - tolerance) && y > pFunction.value(x + tolerance)) {
-				maxima.add(new UPoint(x, y));
+				maxima.add(new ShollPoint(x, y));
 			}
 		}
 		return maxima;

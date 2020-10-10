@@ -36,9 +36,9 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.sholl.TreeParser;
 import sc.fiji.snt.analysis.sholl.Logger;
-import sc.fiji.snt.analysis.sholl.UPoint;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
+import sc.fiji.snt.util.ShollPoint;
 
 /**
  * Class to retrieve Sholl metrics from a {@link Tree}.
@@ -161,7 +161,7 @@ public class ShollAnalyzer {
 					final int bestFit = lStats.findBestFit(polynomialDegreeRange[0], polynomialDegreeRange[1], 0.60,
 							-1);
 					if (lStats.validFit()) {
-						final UPoint fMax = lStats.getCenteredMaximum(true);
+						final ShollPoint fMax = lStats.getCenteredMaximum(true);
 						metrics.put(MAX_FITTED, fMax.y);
 						metrics.put(MAX_FITTED_RADIUS, fMax.x);
 						metrics.put(POLY_FIT_DEGREE, bestFit);
@@ -176,7 +176,7 @@ public class ShollAnalyzer {
 			metrics.put(MAX, lStats.getMax());
 			metrics.put(N_MAX, getMaximaRadii().size());
 			metrics.put(N_SECONDARY_MAX, getSecondaryMaxima().size());
-			final UPoint centroid = lStats.getCentroid();
+			final ShollPoint centroid = lStats.getCentroid();
 			metrics.put(CENTROID, centroid.y);
 			metrics.put(CENTROID_RADIUS, centroid.x);
 			metrics.put(MEDIAN, lStats.getMedian());
@@ -199,8 +199,8 @@ public class ShollAnalyzer {
 		if (!maximaRadii.isEmpty()) return maximaRadii;
 		getLinearStats();
 		if (lStats == null) return maximaRadii;
-		final ArrayList<UPoint> maximaPoints = lStats.getMaxima();
-		for (final UPoint mp : maximaPoints) {
+		final ArrayList<ShollPoint> maximaPoints = lStats.getMaxima();
+		for (final ShollPoint mp : maximaPoints) {
 			maximaRadii.add(mp.x);
 		}
 		return maximaRadii;

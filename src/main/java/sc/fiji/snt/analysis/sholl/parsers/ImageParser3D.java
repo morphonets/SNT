@@ -36,7 +36,7 @@ import ij.Prefs;
 import ij.plugin.ChannelSplitter;
 import ij.util.ThreadUtil;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
-import sc.fiji.snt.analysis.sholl.UPoint;
+import sc.fiji.snt.util.ShollPoint;
 
 /**
  * Parser for 3D images
@@ -116,7 +116,7 @@ public class ImageParser3D extends ImageParser {
 					setThreadedCounter(counter + 1);
 
 					// Initialize ArrayLists to hold surface points
-					final ArrayList<UPoint> pixelPoints = new ArrayList<>();
+					final ArrayList<ShollPoint> pixelPoints = new ArrayList<>();
 
 					// Restrain analysis to the smallest volume for this
 					// sphere
@@ -139,14 +139,14 @@ public class ImageParser3D extends ImageParser {
 
 								if (!running)
 									return;
-								final UPoint p = new UPoint(x, y, z, cal);
-								final double dxSq = p.distanceSquared(center);
+								final ShollPoint p = new ShollPoint(x, y, z, cal);
+								final double dxSq = p.distanceSquaredTo(center);
 								if (dxSq > lowerR * lowerR && dxSq < upperR * upperR) {
 									if (!withinThreshold(stack.getVoxel(x, y, z)))
 										continue;
 									if (skipSingleVoxels && !hasNeighbors(x, y, z))
 										continue;
-									pixelPoints.add(new UPoint(x, y, z, UPoint.NONE));
+									pixelPoints.add(new ShollPoint(x, y, z, ShollPoint.NONE));
 								}
 
 							}
@@ -157,8 +157,8 @@ public class ImageParser3D extends ImageParser {
 					// surface of this shell: Check if they are
 					// clustered and add them in world coordinates
 					// to profile
-					final HashSet<UPoint> points = getUnique3Dgroups(pixelPoints);
-					UPoint.scale(points, cal);
+					final HashSet<ShollPoint> points = getUnique3Dgroups(pixelPoints);
+					ShollPoint.scale(points, cal);
 					profile.add(new ProfileEntry(r, points));
 
 				}
@@ -167,26 +167,26 @@ public class ImageParser3D extends ImageParser {
 
 	}
 
-	protected HashSet<UPoint> getUnique3Dgroups(final ArrayList<UPoint> points) {
+	protected HashSet<ShollPoint> getUnique3Dgroups(final ArrayList<ShollPoint> points) {
 
 		for (int i = 0; i < points.size(); i++) {
 			for (int j = i + 1; j < points.size(); j++) {
 
-				final UPoint pi = points.get(i);
-				final UPoint pj = points.get(j);
+				final ShollPoint pi = points.get(i);
+				final ShollPoint pj = points.get(j);
 				// Compute the chessboard (Chebyshev) distance for this point. A
 				// chessboard distance of 1 in xy (lateral) underlies
 				// 8-connectivity within the plane. A distance of 1 in z (axial)
 				// underlies 26-connectivity in 3D
 				if (pi.chebyshevXYdxTo(pj) * pi.chebyshevZdxTo(pj) < 2) { // int distances: ==1 <=> <2
-					pj.setFlag(UPoint.DELETE);
+					pj.setFlag(ShollPoint.DELETE);
 				}
 			}
 		}
 
-		final Iterator<UPoint> it = points.iterator();
+		final Iterator<ShollPoint> it = points.iterator();
 		while (it.hasNext()) {
-			if (it.next().flag == UPoint.DELETE) {
+			if (it.next().flag == ShollPoint.DELETE) {
 				it.remove();
 			}
 		}

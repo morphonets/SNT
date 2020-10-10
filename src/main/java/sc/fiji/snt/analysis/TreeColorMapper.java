@@ -47,7 +47,6 @@ import org.scijava.Context;
 import org.scijava.plugin.Parameter;
 
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
-import sc.fiji.snt.analysis.sholl.UPoint;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
@@ -56,6 +55,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.sholl.TreeParser;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SWCPoint;
+import sc.fiji.snt.util.ShollPoint;
 import sc.fiji.snt.viewer.MultiViewer2D;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -192,7 +192,7 @@ public class TreeColorMapper extends ColorMapper {
 						"No soma attribute found... Defaulting to average of all root nodes");
 					parser.setCenter(TreeParser.PRIMARY_NODES_ANY);
 				}
-				final UPoint center = parser.getCenter();
+				final ShollPoint center = parser.getCenter();
 				final PointInImage root = new PointInImage(center.x, center.y,
 					center.z);
 				mapPathDistances(root);
@@ -421,7 +421,7 @@ public class TreeColorMapper extends ColorMapper {
 	public void map(final Tree tree, final LinearProfileStats stats,
 		final ColorTable colorTable)
 	{
-		final UPoint ucenter = stats.getProfile().center();
+		final ShollPoint ucenter = stats.getProfile().center();
 		if (ucenter == null) {
 			throw new IllegalArgumentException("Center unknown");
 		}

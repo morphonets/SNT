@@ -25,7 +25,6 @@ package sc.fiji.snt.util;
 import java.util.Objects;
 
 import ij.measure.Calibration;
-import sc.fiji.snt.analysis.sholl.UPoint;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathTransformer;
 import sc.fiji.snt.Tree;
@@ -87,6 +86,22 @@ public class PointInImage implements SNTPoint {
 
 	public double distanceTo(final PointInImage o) {
 		return Math.sqrt(distanceSquaredTo(o));
+	}
+
+	public double euclideanDxTo(final PointInImage point) {
+		return distanceTo(point);
+	}
+
+	public double chebyshevXYdxTo(final PointInImage point) {
+		return Math.max(Math.abs(x - point.x), Math.abs(y - point.y));
+	}
+
+	public double chebyshevZdxTo(final PointInImage point) {
+		return Math.abs(z - point.z);
+	}
+
+	public double chebyshevDxTo(final PointInImage point) {
+		return Math.max(chebyshevXYdxTo(point), chebyshevZdxTo(point));
 	}
 
 	@Override
@@ -173,10 +188,6 @@ public class PointInImage implements SNTPoint {
 				throw new IllegalArgumentException("Unknown plane: " + view);
 		}
 		return point;
-	}
-
-	public UPoint toUPoint() {
-		return new UPoint(x, y, z);
 	}
 
 	/**

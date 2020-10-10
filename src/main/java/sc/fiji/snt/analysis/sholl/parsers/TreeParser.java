@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.analysis.sholl;
+package sc.fiji.snt.analysis.sholl.parsers;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,10 +36,12 @@ import net.imglib2.display.ColorTable;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.sholl.Profile;
+import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
-import sc.fiji.snt.analysis.sholl.parsers.Parser;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
+import sc.fiji.snt.util.ShollPoint;
 
 /**
  * A {@link Parser} for extracting Sholl Profiles from a {@link Tree}.
@@ -91,7 +93,7 @@ public class TreeParser implements Parser {
 	public static final int PRIMARY_NODES_UNDEFINED = 6;
 
 	private final Tree tree;
-	private List<ShollPoint> shollPointsList;
+	private List<ComparableShollPoint> shollPointsList;
 	private PointInImage center;
 	private double stepSize = 0;
 	private Profile profile;
@@ -153,8 +155,8 @@ public class TreeParser implements Parser {
 	 *
 	 * @return the point defining the center, or null if it has not yet been set.
 	 */
-	public UPoint getCenter() {
-		return (center == null) ? null : new UPoint(center.x, center.y, center.z);
+	public PointInImage getCenter() {
+		return (center == null) ? null : new ShollPoint(center.x, center.y, center.z);
 	}
 
 	private PointInImage getCenter(final int swcType) {
@@ -205,7 +207,7 @@ public class TreeParser implements Parser {
 		profile = new Profile();
 		if (tree.getLabel() != null) profile.setIdentifier(tree.getLabel());
 		profile.setNDimensions((tree.is3D()) ? 3 : 2);
-		profile.setCenter(center.toUPoint());
+		profile.setCenter(new ShollPoint(center));
 		if (tree.getBoundingBox(false) != null) profile.setSpatialCalibration(tree
 			.getBoundingBox(false).getCalibration());
 		profile.getProperties().setProperty(KEY_SOURCE, SRC_TRACES);
@@ -246,9 +248,9 @@ public class TreeParser implements Parser {
 				final PointInImage pim2 = p.getNode(i + 1);
 				final double distanceSquaredFirst = pim1.distanceSquaredTo(center);
 				final double distanceSquaredSecond = pim2.distanceSquaredTo(center);
-				shollPointsList.add(new ShollPoint(distanceSquaredFirst,
+				shollPointsList.add(new ComparableShollPoint(distanceSquaredFirst,
 					distanceSquaredFirst < distanceSquaredSecond));
-				shollPointsList.add(new ShollPoint(distanceSquaredSecond,
+				shollPointsList.add(new ComparableShollPoint(distanceSquaredSecond,
 					distanceSquaredFirst >= distanceSquaredSecond));
 			}
 		});
@@ -265,7 +267,7 @@ public class TreeParser implements Parser {
 		int currentCrossings = 0;
 		Collections.sort(shollPointsList);
 		for (int i = 0; i < n; ++i) {
-			final ShollPoint p = shollPointsList.get(i);
+			final ComparableShollPoint p = shollPointsList.get(i);
 			if (p.nearer) ++currentCrossings;
 			else--currentCrossings;
 			squaredRangeStarts[i] = p.distanceSquared;
@@ -311,18 +313,18 @@ public class TreeParser implements Parser {
 		return crossingsPastEach[minIndex];
 	}
 
-	private class ShollPoint implements Comparable<ShollPoint> {
+	private class ComparableShollPoint implements Comparable<ComparableShollPoint> {
 
 		private final boolean nearer;
 		private final double distanceSquared;
 
-		ShollPoint(final double distanceSquared, final boolean nearer) {
+		ComparableShollPoint(final double distanceSquared, final boolean nearer) {
 			this.distanceSquared = distanceSquared;
 			this.nearer = nearer;
 		}
 
 		@Override
-		public int compareTo(final ShollPoint other) {
+		public int compareTo(final ComparableShollPoint other) {
 			if (this.distanceSquared < other.distanceSquared) return -1;
 			else if (other.distanceSquared < this.distanceSquared) return 1;
 			return 0;
@@ -337,8 +339,8 @@ public class TreeParser implements Parser {
 		public boolean equals(final Object o) {
 			if (this == o) return true;
 			if (o == null) return false;
-			if (!(o instanceof ShollPoint)) return false;
-			final ShollPoint other = (ShollPoint) o;
+			if (!(o instanceof ComparableShollPoint)) return false;
+			final ComparableShollPoint other = (ComparableShollPoint) o;
 			return (nearer == other.nearer &&
 				distanceSquared == other.distanceSquared);
 		}
@@ -387,7 +389,7 @@ public class TreeParser implements Parser {
 			stack.addSlice("", sp);
 		}
 		final ImagePlus result = new ImagePlus("Labels Image", stack);
-		result.setLut(ShollUtils.getLut((cTable == null) ? ColorTables.ICE
+		result.setLut(SNTUtils.getLut((cTable == null) ? ColorTables.ICE
 			: cTable));
 		result.setDisplayRange(0, new LinearProfileStats(profile).getMax());
 		result.setCalibration(templateImg.getCalibration());

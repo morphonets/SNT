@@ -38,7 +38,7 @@ import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
-import sc.fiji.snt.analysis.sholl.UPoint;
+import sc.fiji.snt.util.ShollPoint;
 
 /**
  * @author Tiago Ferreira
@@ -50,7 +50,7 @@ public class ImageParser extends ContextCommand implements Parser {
 
 	protected Profile profile;
 	protected Properties properties;
-	protected UPoint center;
+	protected ShollPoint center;
 	protected ArrayList<Double> radii;
 	protected final ImagePlus imp;
 	protected final Calibration cal;
@@ -101,7 +101,7 @@ public class ImageParser extends ContextCommand implements Parser {
 	public void setCenterPx(final int x, final int y, final int z) {
 		if (x > imp.getWidth() - 1 || y > imp.getHeight() || z > imp.getNSlices())
 			throw new IndexOutOfBoundsException("specified coordinates cannot be aplied to image");
-		center = new UPoint(x, y, z, cal);
+		center = new ShollPoint(x, y, z, cal);
 		profile.setCenter(center);
 		xc = x;
 		yc = y;
@@ -109,7 +109,7 @@ public class ImageParser extends ContextCommand implements Parser {
 	}
 
 	public void setCenter(final double x, final double y, final double z) {
-		center = new UPoint(x, y, z);
+		center = new ShollPoint(x, y, z);
 		profile.setCenter(center);
 		xc = (int) center.rawX(cal);
 		yc = (int) center.rawY(cal);
@@ -145,20 +145,20 @@ public class ImageParser extends ContextCommand implements Parser {
 		final double maxX = imp.getWidth() - 1 * cal.pixelWidth;
 		final double maxY = imp.getHeight() - 1 * cal.pixelHeight;
 		final double maxZ = imp.getNSlices() - 1 * cal.pixelDepth;
-		final UPoint[] points = new UPoint[8];
-		points[0] = new UPoint(0, 0, 0);
-		points[1] = new UPoint(maxX, maxY, maxZ);
+		final ShollPoint[] points = new ShollPoint[8];
+		points[0] = new ShollPoint(0, 0, 0);
+		points[1] = new ShollPoint(maxX, maxY, maxZ);
 		if (center == null)
 			return points[0].euclideanDxTo(points[1]);
-		points[2] = new UPoint(maxX, 0, 0);
-		points[3] = new UPoint(0, maxY, 0);
-		points[4] = new UPoint(maxX, maxY, 0);
-		points[5] = new UPoint(0, 0, maxZ);
-		points[6] = new UPoint(maxX, 0, maxZ);
-		points[7] = new UPoint(0, maxY, maxZ);
+		points[2] = new ShollPoint(maxX, 0, 0);
+		points[3] = new ShollPoint(0, maxY, 0);
+		points[4] = new ShollPoint(maxX, maxY, 0);
+		points[5] = new ShollPoint(0, 0, maxZ);
+		points[6] = new ShollPoint(maxX, 0, maxZ);
+		points[7] = new ShollPoint(0, maxY, maxZ);
 		double max = 0;
-		for (final UPoint p : points)
-			max = Math.max(max, center.distanceSquared(p));
+		for (final ShollPoint p : points)
+			max = Math.max(max, center.distanceSquaredTo(p));
 		return Math.sqrt(max);
 	}
 

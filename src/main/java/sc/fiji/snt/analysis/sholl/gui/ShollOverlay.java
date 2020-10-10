@@ -39,7 +39,7 @@ import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.ProfileProperties;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
-import sc.fiji.snt.analysis.sholl.UPoint;
+import sc.fiji.snt.util.ShollPoint;
 
 import org.apache.commons.math3.stat.StatUtils;
 
@@ -58,7 +58,7 @@ public class ShollOverlay implements ProfileProperties {
 	private final Properties properties;
 	private final Overlay overlay;
 	private final ImagePlus imp;
-	private final UPoint center;
+	private final ShollPoint center;
 	private final int channel;
 	private final int frame;
 	private final boolean hyperStack;
@@ -203,12 +203,12 @@ public class ShollOverlay implements ProfileProperties {
 		final Color baseColor = alphaColor(this.baseColor, pointsAlpha);
 		final DecimalFormat formatter = new DecimalFormat("#000.##");
 		for (final ProfileEntry entry : profile.entries()) {
-			final Set<UPoint> ePoints = entry.points;
+			final Set<ShollPoint> ePoints = entry.points;
 			if (ePoints == null || ePoints.isEmpty())
 				continue;
 			PointRoi multipointRoi = null;
 			double currentRawZ = -1;
-			for (final UPoint point : ePoints) {
+			for (final ShollPoint point : ePoints) {
 				final double rawX = point.rawX(cal);
 				final double rawY = point.rawY(cal);
 				final double rawZ = point.rawZ(cal);
