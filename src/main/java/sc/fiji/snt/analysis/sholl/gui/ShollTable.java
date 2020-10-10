@@ -22,7 +22,6 @@
 package sc.fiji.snt.analysis.sholl.gui;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.List;
 import java.util.Properties;
 
@@ -31,7 +30,6 @@ import org.scijava.NullContextException;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 import org.scijava.table.DefaultGenericTable;
-import org.scijava.table.DefaultTableIOPlugin;
 import org.scijava.table.DoubleColumn;
 
 import sc.fiji.snt.analysis.SNTTable;
@@ -55,7 +53,6 @@ public class ShollTable extends SNTTable {
 	private ShollStats[] stats;
 	private boolean detailedSummary = false;
 	private String title;
-	private DefaultTableIOPlugin tableIO;
 
 	@Parameter
 	private PrefService prefService;
@@ -325,50 +322,25 @@ public class ShollTable extends SNTTable {
 			final boolean detailedMetrics = prefService.getBoolean(ShollPrefs.class, "detailedMetrics", ShollPrefs.DEF_DETAILED_METRICS);
 			setDetailedSummary(detailedMetrics);
 		}
-		if (tableIO == null) {
-			tableIO = new DefaultTableIOPlugin();
-			tableIO.setContext(context);
-		}
 	}
 
 	public boolean hasContext() {
-		return prefService != null || tableIO != null;
+		return prefService != null;
 	}
 
-	public boolean save2(final File file) {
-		if (file == null) return false;
+	public boolean saveSilently(final File file) { // csv extension appended as needed
+		if (file == null)
+			return false;
+		File savedFile;
 		if (file.isDirectory()) {
 			String fName = getTitle();
 			if (fName == null || fName.trim().isEmpty())
 				fName = "Sholl_Table.csv";
-			if (!fName.toLowerCase().endsWith(".csv"))
-				fName+= ".csv";
-			return save2(new File(file, fName));
+			savedFile = new File(file, fName);
+		} else {
+			savedFile = file;
 		}
-		String filePath = file.getAbsolutePath();
-		if (!filePath.toLowerCase().endsWith(".csv"))
-			filePath+= ".csv";
-		return save(filePath);
-	}
-
-	public boolean save2(final String filePath) {
-		if (tableIO == null) {
-			throw new IllegalArgumentException("Context has not been set");
-		}
-		if (filePath == null || filePath.trim().isEmpty()) {
-			throw new IllegalArgumentException("filePath is not valid");
-		}
-		try {
-			final String fPath = (filePath.toLowerCase().endsWith(".csv")) ? filePath : filePath + ".csv";
-			for (int i = 0; i < getColumnCount(); i++) {
-				setRowCount(Math.max(getRowCount(), get(i).size()));
-			}
-			tableIO.save(this, fPath);
-			return true;
-		} catch (final IOException ex) {
-			System.out.println(ex);
-			return false;
-		}
+		return save(savedFile.getAbsolutePath());
 	}
 
 	public void setTitle(String title) {

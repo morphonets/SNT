@@ -1094,7 +1094,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 					else if (output instanceof ShollTable) {
 						final ShollTable table = (ShollTable)output;
 						if (!table.hasContext()) table.setContext(getContext());
-						if (!table.save2(saveDir)) ++failures;
+						if (!table.saveSilently(saveDir)) ++failures;
 					}
 					else if (output instanceof ImagePlus) {
 						final ImagePlus imp = (ImagePlus)output;
