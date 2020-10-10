@@ -294,7 +294,7 @@ public class ShollAnalysisPlugin implements PlugIn, DialogListener {
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
 		else if (gd.wasOKed()) {
-			Utils.improveRecording();
+			EnhancedGenericDialog.improveRecording();
 			return dialogItemChanged(gd, null);
 		}
 		return false;
@@ -317,10 +317,10 @@ public class ShollAnalysisPlugin implements PlugIn, DialogListener {
 		});
 		popup.add(mi);
 		popup.addSeparator();
-		mi = Utils.menuItemTrigerringURL("Online Documentation",
+		mi = EnhancedGenericDialog.menuItemTrigerringURL("Online Documentation",
 			Sholl_Analysis.URL + "#Traces");
 		popup.add(mi);
-		mi = Utils.menuItemTriggeringResources();
+		mi = EnhancedGenericDialog.menuItemTriggeringResources();
 		popup.add(mi);
 		return popup;
 	}
@@ -376,11 +376,11 @@ public class ShollAnalysisPlugin implements PlugIn, DialogListener {
 			warning += "Not a valid .traces/.(e)swc file";
 		}
 		if (!warning.isEmpty()) {
-			infoMsg.setForeground(Utils.warningColor());
+			infoMsg.setForeground(EnhancedGenericDialog.warningColor());
 			infoMsg.setText("Error: " + warning);
 		}
 		else {
-			infoMsg.setForeground(Utils.infoColor());
+			infoMsg.setForeground(EnhancedGenericDialog.infoColor());
 			infoMsg.setText(defaultInfoMsg);
 		}
 
