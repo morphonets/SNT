@@ -1,8 +1,8 @@
-/*
+/*-
  * #%L
- * Sholl Analysis plugin for ImageJ.
+ * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2005 - 2020 Tiago Ferreira.
+ * Copyright (C) 2010 - 2020 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -36,7 +36,10 @@ import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.util.Logger;
 
 
-
+/**
+ * @author Tiago Ferreira
+ *
+ */
 class CommonStats extends ContextCommand implements ShollStats {
 
 	protected final static double UNASSIGNED_VALUE = Double.MIN_VALUE;

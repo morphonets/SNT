@@ -1,8 +1,8 @@
-/*
+/*-
  * #%L
- * Sholl Analysis plugin for ImageJ.
+ * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2005 - 2020 Tiago Ferreira.
+ * Copyright (C) 2010 - 2020 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -24,6 +24,10 @@ package sc.fiji.snt.analysis.sholl.parsers;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileProperties;
 
+/**
+ * @author Tiago Ferreira
+ *
+ */
 public interface Parser extends ProfileProperties {
 
 	public boolean successful();

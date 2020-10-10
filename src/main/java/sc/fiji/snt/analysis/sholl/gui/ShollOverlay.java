@@ -1,8 +1,8 @@
-/*
+/*-
  * #%L
- * Sholl Analysis plugin for ImageJ.
+ * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2005 - 2020 Tiago Ferreira.
+ * Copyright (C) 2010 - 2020 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -51,7 +51,10 @@ import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 import ij.measure.Calibration;
 
-
+/**
+ * @author Tiago Ferreira
+ *
+ */
 public class ShollOverlay implements ProfileProperties {
 
 	private final Profile profile;

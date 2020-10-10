@@ -19,7 +19,6 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
-
 package sc.fiji.snt.analysis.sholl.parsers;
 
 import java.util.ArrayList;

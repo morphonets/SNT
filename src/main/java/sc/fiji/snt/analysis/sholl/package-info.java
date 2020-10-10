@@ -19,9 +19,8 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
-
 /**
- * Sholl analysis of {@link sc.fiji.snt.Tree Tree}s.
+ * Sholl analysis of Images, pre-sampled data and {@link sc.fiji.snt.Tree Tree}s.
  *
  * @author Tiago Ferreira
  */

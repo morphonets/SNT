@@ -1,8 +1,8 @@
-/*
+/*-
  * #%L
- * Sholl Analysis plugin for ImageJ.
+ * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2005 - 2020 Tiago Ferreira.
+ * Copyright (C) 2010 - 2020 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -20,11 +20,10 @@
  * #L%
  */
 /**
- * Implements GUI customizations required by the Sholl Analysis plugin.
+ * GUI customizations required for Sholl Analysis.
  *
  * @author Tiago Ferreira
  *
- * @see <a href="https://github.com/tferr/ASA">https://github.com/tferr/ASA</a>
- * @see <a href="http://imagej.net/Sholl">http://imagej.net/Sholl</a>
+ * @see <a href="http://imagej.net/Sholl">https://imagej.net/Sholl</a>
  */
 package sc.fiji.snt.analysis.sholl.gui;

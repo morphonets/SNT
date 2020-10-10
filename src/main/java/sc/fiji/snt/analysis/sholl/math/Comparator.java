@@ -1,8 +1,8 @@
-/*
+/*-
  * #%L
- * Sholl Analysis plugin for ImageJ.
+ * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2005 - 2020 Tiago Ferreira.
+ * Copyright (C) 2010 - 2020 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -19,7 +19,6 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
-
 package sc.fiji.snt.analysis.sholl.math;
 
 import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
