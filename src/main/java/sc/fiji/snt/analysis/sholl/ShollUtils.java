@@ -28,21 +28,15 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.PrimitiveIterator.OfInt;
-import java.util.concurrent.TimeUnit;
-import java.util.jar.Attributes;
-import java.util.jar.Manifest;
 import java.util.stream.IntStream;
 
-import net.imglib2.display.ColorTable;
 import net.imglib2.display.ColorTable8;
 
 import org.scijava.table.DoubleTable;
 import org.scijava.table.TableLoader;
-import org.scijava.util.VersionUtils;
 
 import ij.ImagePlus;
 import ij.io.Opener;
-import ij.process.LUT;
 
 /**
  * Static utilities.
@@ -80,7 +74,7 @@ public class ShollUtils {
 	}
 
 	public static DoubleTable csvSample() {
-		final URL url = getResource("csv/ddaCsample.csv");
+		final URL url = getResource("tests/ddaCsample.csv");
 		if (url == null)
 			throw new IllegalArgumentException("Could not retrieve ddaCsample.csv");
 		final TableLoader loader = new TableLoader();
@@ -141,7 +135,7 @@ public class ShollUtils {
 	 * @return ddaC image, or null if image cannot be retrieved
 	 */
 	public static ImagePlus sampleImage() {
-		final URL url = getResource("images/ddaC.tif");
+		final URL url = getResource("tests/ddaC.tif");
 		if (url == null)
 			throw new NullPointerException("Could not retrieve ddaC.tif");
 		ImagePlus imp = null;
@@ -154,63 +148,4 @@ public class ShollUtils {
 		return imp;
 	}
 
-	/**
-	 * Retrieves Sholl Analysis version
-	 *
-	 * @return the version or a non-empty place holder string if version could
-	 *         not be retrieved.
-	 *
-	 */
-	public static String version() {
-		final String VERSION = VersionUtils.getVersion(ShollUtils.class);
-		return (VERSION == null) ? "X Dev" : VERSION;
-	}
-
-
-	/**
-	 * Retrieves Sholl Analysis implementation date
-	 *
-	 * @return the implementation date or an empty strong if date could not be
-	 *         retrieved.
-	 */
-	public static String buildDate() {
-		String BUILD_DATE = "";
-		final Class<ShollUtils> clazz = ShollUtils.class;
-		final String className = clazz.getSimpleName() + ".class";
-		final String classPath = clazz.getResource(className).toString();
-		final String manifestPath = classPath.substring(0, classPath.lastIndexOf("!") + 1) + "/META-INF/MANIFEST.MF";
-		try {
-			final Manifest manifest = new Manifest(new URL(manifestPath).openStream());
-			final Attributes attr = manifest.getMainAttributes();
-			BUILD_DATE = attr.getValue("Implementation-Date");
-			BUILD_DATE = BUILD_DATE.substring(0, BUILD_DATE.lastIndexOf("T"));
-		} catch (final Exception ignored) {
-			BUILD_DATE = "";
-		}
-		return BUILD_DATE;
-	}
-
-	public static String getElapsedTime(final long fromStart) {
-		final long time = System.currentTimeMillis() - fromStart;
-		if (time < 1000)
-			return String.format("%02d msec", time);
-		else if (time < 90000)
-			return String.format("%02d sec", TimeUnit.MILLISECONDS.toSeconds(time));
-		return String.format("%02d min, %02d sec", TimeUnit.MILLISECONDS.toMinutes(time),
-				TimeUnit.MILLISECONDS.toSeconds(time)
-						- TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(time)));
-	}
-
-	/* see net.imagej.legacy.translate.ColorTableHarmonizer */
-	public static LUT getLut(final ColorTable cTable) {
-		final byte[] reds = new byte[256];
-		final byte[] greens = new byte[256];
-		final byte[] blues = new byte[256];
-		for (int i = 0; i < 256; i++) {
-			reds[i] = (byte) cTable.getResampled(ColorTable.RED, 256, i);
-			greens[i] = (byte) cTable.getResampled(ColorTable.GREEN, 256, i);
-			blues[i] = (byte) cTable.getResampled(ColorTable.BLUE, 256, i);
-		}
-		return new LUT(reds, greens, blues);
-	}
 }

@@ -91,8 +91,7 @@ import ij.process.ShortProcessor;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.analysis.sholl.Sholl_Analysis;
-import sc.fiji.snt.analysis.sholl.Sholl_Utils;
+import sc.fiji.snt.plugin.Sholl_Analysis;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUtils;
@@ -118,7 +117,7 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 	private final JButton exportProfileButton = new JButton("Save Profile...");
 	private final JButton drawShollGraphButton = new JButton("Preview Plot");
 	private final JButton analyzeButton = new JButton(
-		"Analyze Profile (Sholl Analysis v" + Sholl_Utils.version() + ")...");
+		"Analyze Profile (Sholl Analysis v" + SNTUtils.VERSION + ")...");
 
 	private final ButtonGroup axesGroup;
 	private final JRadioButton normalAxes;
@@ -318,8 +317,7 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 				analyzeButton.setText("Running Analysis. Please wait...");
 				results.analyzeWithShollAnalysisPlugin(getExportPath(), shollpafm
 					.getPathsStructured().length);
-				analyzeButton.setText("Analyze Profile (Sholl Analysis v" + Sholl_Utils
-					.version() + ")...");
+				analyzeButton.setText("Analyze Profile (Sholl Analysis v" + SNTUtils.VERSION + ")...");
 				analyzeButton.setEnabled(true);
 			});
 			newThread.start();

@@ -39,6 +39,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
 
 import org.scijava.Context;
 import org.scijava.log.LogService;
@@ -55,7 +58,10 @@ import ij.plugin.Colors;
 import ij.plugin.ContrastEnhancer;
 import ij.plugin.ZProjector;
 import ij.process.ImageConverter;
+import ij.process.LUT;
 import ij.process.StackConverter;
+import net.imglib2.display.ColorTable;
+import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -88,6 +94,13 @@ public class SNTUtils {
 		return "SNT " + VERSION.substring(0, 21) + "...";
 	}
 
+	/**
+	 * Retrieves SNT's version
+	 *
+	 * @return the version or a non-empty place holder string if version could
+	 *         not be retrieved.
+	 *
+	 */
 	private static String getVersion() {
 		return VersionUtils.getVersion(SNT.class);
 	}
@@ -382,6 +395,53 @@ public class SNTUtils {
 			data.add(p);
 		}
 		return data;
+	}
+
+	/* see net.imagej.legacy.translate.ColorTableHarmonizer */
+	public static LUT getLut(final ColorTable cTable) {
+		final byte[] reds = new byte[256];
+		final byte[] greens = new byte[256];
+		final byte[] blues = new byte[256];
+		for (int i = 0; i < 256; i++) {
+			reds[i] = (byte) cTable.getResampled(ColorTable.RED, 256, i);
+			greens[i] = (byte) cTable.getResampled(ColorTable.GREEN, 256, i);
+			blues[i] = (byte) cTable.getResampled(ColorTable.BLUE, 256, i);
+		}
+		return new LUT(reds, greens, blues);
+	}
+
+	public static String getElapsedTime(final long fromStart) {
+		final long time = System.currentTimeMillis() - fromStart;
+		if (time < 1000)
+			return String.format("%02d msec", time);
+		else if (time < 90000)
+			return String.format("%02d sec", TimeUnit.MILLISECONDS.toSeconds(time));
+		return String.format("%02d min, %02d sec", TimeUnit.MILLISECONDS.toMinutes(time),
+				TimeUnit.MILLISECONDS.toSeconds(time)
+						- TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(time)));
+	}
+
+	/**
+	 * Retrieves Sholl Analysis implementation date
+	 *
+	 * @return the implementation date or an empty strong if date could not be
+	 *         retrieved.
+	 */
+	public static String buildDate() {
+		String BUILD_DATE = "";
+		final Class<ShollUtils> clazz = ShollUtils.class;
+		final String className = clazz.getSimpleName() + ".class";
+		final String classPath = clazz.getResource(className).toString();
+		final String manifestPath = classPath.substring(0, classPath.lastIndexOf("!") + 1) + "/META-INF/MANIFEST.MF";
+		try {
+			final Manifest manifest = new Manifest(new URL(manifestPath).openStream());
+			final Attributes attr = manifest.getMainAttributes();
+			BUILD_DATE = attr.getValue("Implementation-Date");
+			BUILD_DATE = BUILD_DATE.substring(0, BUILD_DATE.lastIndexOf("T"));
+		} catch (final Exception ignored) {
+			BUILD_DATE = "";
+		}
+		return BUILD_DATE;
 	}
 
 }
