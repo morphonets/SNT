@@ -1802,8 +1802,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @param cmd  The command to be run, exactly as listed in the PathManagerUI's
 	 *             menu bar or Right-click contextual menu
 	 * @param args the option(s) that would fill the commands's prompt. e.g.,
-	 *             'runCommand({@value MultiPathActionListener#COLORIZE_TREES_CMD},
-	 *             "X coordinates", "Cyan Hot.lut")'
+	 *             'runCommand("Color Code Cell(s)...", X coordinates", "Cyan Hot.lut")'
 	 * @throws IllegalArgumentException if {@code cmd} was not found, or if it is
 	 *                                  not supported.
 	 */
