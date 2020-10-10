@@ -91,10 +91,10 @@ import ij.process.ShortProcessor;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.plugin.Sholl_Analysis;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.plugin.ij1.Sholl_Analysis;
 import util.FindConnectedRegions;
 
 @Deprecated

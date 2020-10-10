@@ -19,7 +19,7 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
-package sc.fiji.snt.plugin;
+package sc.fiji.snt.plugin.ij1;
 
 import java.awt.AWTEvent;
 import java.awt.Checkbox;

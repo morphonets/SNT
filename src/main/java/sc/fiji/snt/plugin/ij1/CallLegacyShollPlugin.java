@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.plugin;
+package sc.fiji.snt.plugin.ij1;
 
 import net.imagej.ImageJ;
 import net.imagej.legacy.LegacyService;

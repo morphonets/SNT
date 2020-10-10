@@ -40,7 +40,6 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.BrainAnnotationCmd;
-import sc.fiji.snt.plugin.CallLegacyShollPlugin;
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
 import sc.fiji.snt.plugin.GroupAnalyzerCmd;
 import sc.fiji.snt.plugin.LocalThicknessCmd;
@@ -56,6 +55,7 @@ import sc.fiji.snt.plugin.SkeletonConverterCmd;
 import sc.fiji.snt.plugin.SkeletonizerCmd;
 import sc.fiji.snt.plugin.StrahlerCmd;
 import sc.fiji.snt.plugin.TreeMapperCmd;
+import sc.fiji.snt.plugin.ij1.CallLegacyShollPlugin;
 
 /**
  * Command for (re)setting SNT Preferences.

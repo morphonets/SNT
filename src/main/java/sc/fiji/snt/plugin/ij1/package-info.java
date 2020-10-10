@@ -1,0 +1,1 @@
+package sc.fiji.snt.plugin.ij1;

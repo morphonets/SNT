@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.plugin;
+package sc.fiji.snt.plugin.ij1;
 
 import java.awt.AWTEvent;
 import java.awt.Checkbox;
@@ -54,7 +54,7 @@ import sc.fiji.snt.gui.ShollAnalysisDialog.ShollResults;
 import sc.fiji.snt.util.PointInImage;
 
 /**
- * Implements the IJ1 "Sholl Analysis" command.
+ * Implements the IJ1 "Sholl Analysis" (deprecated) command.
  *
  * @author Tiago Ferreira
  */
