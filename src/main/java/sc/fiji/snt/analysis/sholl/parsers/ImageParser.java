@@ -36,6 +36,7 @@ import ij.plugin.ZProjector;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.util.ShollPoint;
@@ -397,7 +398,7 @@ public class ImageParser extends ContextCommand implements Parser {
 	}
 
 	protected void clearStatus() {
-		statusService.showStatus(0, 0, "Finished. " + ShollUtils.getElapsedTime(start));
+		statusService.showStatus(0, 0, "Finished. " + SNTUtils.getElapsedTime(start));
 	}
 
 	@Override

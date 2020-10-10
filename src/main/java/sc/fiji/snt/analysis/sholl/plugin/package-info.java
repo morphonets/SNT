@@ -1,1 +1,0 @@
-package sc.fiji.snt.analysis.sholl.plugin;

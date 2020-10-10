@@ -19,7 +19,7 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
-package sc.fiji.snt.analysis.sholl.plugin;
+package sc.fiji.snt.plugin;
 
 import java.awt.Rectangle;
 import java.io.File;
@@ -74,13 +74,12 @@ import net.imagej.event.DataDeletedEvent;
 import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.Logger;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.ProfileProperties;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
-import sc.fiji.snt.analysis.sholl.UPoint;
-import sc.fiji.snt.analysis.sholl.gui.Helper;
 import sc.fiji.snt.analysis.sholl.gui.ShollOverlay;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.analysis.sholl.gui.ShollTable;
@@ -89,6 +88,8 @@ import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser2D;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser3D;
+import sc.fiji.snt.gui.GUIHelper;
+import sc.fiji.snt.util.ShollPoint;
 
 
 /**
@@ -270,7 +271,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 
 	/* Instance variables */
 	private Dataset dataset;
-	private Helper helper;
+	private GUIHelper helper;
 	private Logger logger;
 	private PreviewOverlay previewOverlay;
 	private Map<String, URL> luts;
@@ -278,7 +279,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 	private ImageParser parser;
 	private Overlay overlaySnapshot;
 	private Calibration cal;
-	private UPoint center;
+	private ShollPoint center;
 	private double voxelSize;
 	private boolean twoD;
 	private double maxPossibleRadius;
@@ -465,7 +466,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 
 	/* initializer method running before displaying prompt */
 	protected void init() {
-		helper = new Helper(context());
+		helper = new GUIHelper(context());
 		logger = new Logger(context());
 		readPreferences();
 		imp = legacyService.getImageMap().lookupImagePlus(imageDisplayService.getActiveImageDisplay());
@@ -476,7 +477,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 			cancel(null);
 			return;
 		}
-		getInfo().setLabel("Sholl Analysis " + ShollUtils.version());
+		getInfo().setLabel("Sholl Analysis " + SNTUtils.VERSION);
 		previewOverlay = new PreviewOverlay();
 		legacyService.syncActiveImage();
 		setLUTs();
@@ -489,8 +490,8 @@ public class ShollAnalysisImg extends DynamicCommand {
 	private void readPreferences() {
 		logger.debug("Reading preferences");
 //		autoClose = prefService.getBoolean(Prefs.class, "autoClose", Prefs.DEF_AUTO_CLOSE);
-		minDegree = prefService.getInt(Prefs.class, "minDegree", Prefs.DEF_MIN_DEGREE);
-		maxDegree = prefService.getInt(Prefs.class, "maxDegree", Prefs.DEF_MAX_DEGREE);
+		minDegree = prefService.getInt(ShollPrefs.class, "minDegree", ShollPrefs.DEF_MIN_DEGREE);
+		maxDegree = prefService.getInt(ShollPrefs.class, "maxDegree", ShollPrefs.DEF_MAX_DEGREE);
 		startRadius = prefService.getDouble(getClass(), "startRadius", startRadius);
 		endRadius = prefService.getDouble(getClass(), "endRadius", endRadius);
 		stepSize = prefService.getDouble(getClass(), "stepSize", stepSize);
@@ -509,8 +510,8 @@ public class ShollAnalysisImg extends DynamicCommand {
 	private void savePreferences() {
 		logger.debug("Saving preferences");
 //		autoClose = prefService.getBoolean(Prefs.class, "autoClose", Prefs.DEF_AUTO_CLOSE);
-		prefService.put(Prefs.class,  "minDegree", minDegree);
-		prefService.put(Prefs.class, "maxDegree", maxDegree);
+		prefService.put(ShollPrefs.class,  "minDegree", minDegree);
+		prefService.put(ShollPrefs.class, "maxDegree", maxDegree);
 		prefService.put(getClass(), "startRadius", startRadius);
 		prefService.put(getClass(), "endRadius", endRadius);
 		prefService.put(getClass(), "stepSize", stepSize);
@@ -633,7 +634,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 			.isNaN(endRadius) && endRadius > startRadius);
 	}
 
-	private UPoint getCenterFromROI(final boolean setEndRadius) {
+	private ShollPoint getCenterFromROI(final boolean setEndRadius) {
 		final Roi roi = imp.getRoi();
 		if (roi == null)
 			return null;
@@ -641,16 +642,16 @@ public class ShollAnalysisImg extends DynamicCommand {
 			final Line line = (Line) roi;
 			if (setEndRadius)
 				endRadius = line.getLength();
-			return new UPoint(line.x1, line.y1, imp.getZ(), cal);
+			return new ShollPoint(line.x1, line.y1, imp.getZ(), cal);
 		}
 		if (roi.getType() == Roi.POINT) {
 			final Rectangle rect = roi.getBounds();
-			return new UPoint(rect.x, rect.y, imp.getZ(), cal);
+			return new ShollPoint(rect.x, rect.y, imp.getZ(), cal);
 		}
 		if (setEndRadius)
 				endRadius = roi.getFeretsDiameter() / 2;
 		final double[] ctd = roi.getContourCentroid();
-		return new UPoint((int) Math.round(ctd[0]), (int) Math.round(ctd[1]), imp
+		return new ShollPoint((int) Math.round(ctd[0]), (int) Math.round(ctd[1]), imp
 			.getZ(), cal);
 	}
 
@@ -680,7 +681,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 			cancelAndFreezeUI(NO_IMAGE);
 			return;
 		}
-		final UPoint newCenter = getCenterFromROI(false);
+		final ShollPoint newCenter = getCenterFromROI(false);
 		if (newCenter == null) {
 			cancelAndFreezeUI(NO_ROI);
 			return;
@@ -944,7 +945,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 		threadService.newThread(() -> {
 			final Map<String, Object> input = new HashMap<>();
 			input.put("ignoreBitmapOptions", false);
-			cmdService.run(Prefs.class, true, input);
+			cmdService.run(ShollPrefs.class, true, input);
 		}).start();
 	}
 
@@ -963,7 +964,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 			parser.setThreshold(lowerT, upperT);
 			if (parser instanceof ImageParser3D) {
 				((ImageParser3D) parser).setSkipSingleVoxels(prefService.getBoolean(
-					Prefs.class, "skipSingleVoxels", Prefs.DEF_SKIP_SINGLE_VOXELS));
+					ShollPrefs.class, "skipSingleVoxels", ShollPrefs.DEF_SKIP_SINGLE_VOXELS));
 			}
 		}
 
@@ -1093,7 +1094,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 					else if (output instanceof ShollTable) {
 						final ShollTable table = (ShollTable)output;
 						if (!table.hasContext()) table.setContext(getContext());
-						if (!table.save(saveDir)) ++failures;
+						if (!table.save2(saveDir)) ++failures;
 					}
 					else if (output instanceof ImagePlus) {
 						final ImagePlus imp = (ImagePlus)output;
@@ -1109,7 +1110,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 
 		private void showMask() {
 			final ImagePlus mask = parser.getMask();
-			if (!lutChoice.contains("No LUT.")) mask.getProcessor().setLut(ShollUtils
+			if (!lutChoice.contains("No LUT.")) mask.getProcessor().setLut(SNTUtils
 				.getLut(lutTable));
 			outputs.add(mask);
 			displayService.createDisplay(mask);

@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.analysis.sholl.plugin;
+package sc.fiji.snt.plugin;
 
 import java.io.IOException;
 import java.net.URL;
@@ -37,9 +37,10 @@ import org.scijava.ui.DialogPrompt.Result;
 import org.scijava.ui.UIService;
 import org.scijava.widget.Button;
 
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.Logger;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
-import sc.fiji.snt.analysis.sholl.gui.Helper;
+import sc.fiji.snt.gui.GUIHelper;
 
 
 /**
@@ -49,7 +50,7 @@ import sc.fiji.snt.analysis.sholl.gui.Helper;
  */
 @Plugin(type = Command.class, label = "Sholl Options", visible = false,
 	initializer = "init")
-public class Prefs extends OptionsPlugin {
+public class ShollPrefs extends OptionsPlugin {
 
 	@Parameter
 	private AppService appService;
@@ -75,7 +76,7 @@ public class Prefs extends OptionsPlugin {
 	/* Fields */
 	private final static String PLACEHOLDER_CHOICE = "Choose...";
 	private final static String HELP_URL = ShollUtils.URL;
-	private Helper helper;
+	private GUIHelper helper;
 	private Logger logger;
 	private boolean restartRequired;
 
@@ -164,7 +165,7 @@ public class Prefs extends OptionsPlugin {
 
 	@SuppressWarnings("unused")
 	private void init() {
-		helper = new Helper(context());
+		helper = new GUIHelper(context());
 		logger = new Logger(context());
 		logger.debug("Prefs successfully initialized");
 		if (ignoreBitmapOptions) {
@@ -198,8 +199,8 @@ public class Prefs extends OptionsPlugin {
 
 	private void about() {
 		final StringBuilder sb = new StringBuilder();
-		sb.append("You are running Sholl Analysis v").append(ShollUtils.version());
-		sb.append(" ").append(ShollUtils.buildDate()).append("\n");
+		sb.append("You are running Sholl Analysis v").append(SNTUtils.VERSION);
+		sb.append(" ").append(SNTUtils.buildDate()).append("\n");
 		sb.append("on ImageJ ").append(appService.getApp().getVersion());
 		helper.infoMsg(sb.toString(), null);
 	}

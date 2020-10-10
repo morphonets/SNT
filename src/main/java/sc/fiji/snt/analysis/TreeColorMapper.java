@@ -48,11 +48,11 @@ import org.scijava.plugin.Parameter;
 
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
+import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.sholl.TreeParser;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.util.ShollPoint;
@@ -192,7 +192,7 @@ public class TreeColorMapper extends ColorMapper {
 						"No soma attribute found... Defaulting to average of all root nodes");
 					parser.setCenter(TreeParser.PRIMARY_NODES_ANY);
 				}
-				final ShollPoint center = parser.getCenter();
+				final PointInImage center = parser.getCenter();
 				final PointInImage root = new PointInImage(center.x, center.y,
 					center.z);
 				mapPathDistances(root);

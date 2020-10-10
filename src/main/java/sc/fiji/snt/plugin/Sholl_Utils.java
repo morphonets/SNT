@@ -19,7 +19,7 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
-package sc.fiji.snt.analysis.sholl;
+package sc.fiji.snt.plugin;
 
 import java.awt.Color;
 import java.awt.Frame;
@@ -35,8 +35,10 @@ import ij.gui.HTMLDialog;
 import ij.gui.Plot;
 import ij.plugin.PlugIn;
 import ij.text.TextWindow;
-
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
+import sc.fiji.snt.util.ShollPoint;
 
 /**
  * Utilities for {@link Sholl_Analysis}
@@ -150,7 +152,7 @@ public class Sholl_Utils implements PlugIn {
 	/** Displays the Sholl's plugin "about" info box */
 	private void showAbout() {
 
-		final String version = ShollUtils.version() + " " + ShollUtils.buildDate();
+		final String version = SNTUtils.VERSION + " " + SNTUtils.buildDate();
 		final String header1 = "Sholl Analysis " + version;
 		final String header2 = "Quantitative Sholl-based morphometry of untraced images";
 		final String author = "Tiago Ferreira";
@@ -242,7 +244,7 @@ public class Sholl_Utils implements PlugIn {
 
 	@Deprecated
 	public static void markPlotPoint(final Plot plot, final double[] coordinates, final Color color) {
-		((ShollPlot) plot).markPoint(new UPoint(coordinates[0], coordinates[1]), color);
+		((ShollPlot) plot).markPoint(new ShollPoint(coordinates[0], coordinates[1]), color);
 	}
 
 	/**
@@ -280,7 +282,7 @@ public class Sholl_Utils implements PlugIn {
 	 */
 	@Deprecated
 	public static String version() {
-		return ShollUtils.version();
+		return SNTUtils.VERSION;
 	}
 
 }

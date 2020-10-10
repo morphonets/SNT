@@ -19,7 +19,7 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
-package sc.fiji.snt.analysis.sholl;
+package sc.fiji.snt.plugin;
 
 import java.awt.AWTEvent;
 import java.awt.Checkbox;
@@ -69,6 +69,9 @@ import ij.process.LUT;
 import ij.text.TextPanel;
 import ij.text.TextWindow;
 import ij.util.Tools;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.sholl.Profile;
+import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.analysis.sholl.gui.EnhancedResultsTable;
 import sc.fiji.snt.analysis.sholl.gui.ShollOverlay;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
@@ -78,6 +81,7 @@ import sc.fiji.snt.analysis.sholl.parsers.ImageParser2D;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser3D;
 import sc.fiji.snt.gui.EnhancedGenericDialog;
 import sc.fiji.snt.gui.EnhancedWaitForUserDialog;
+import sc.fiji.snt.util.ShollPoint;
 
 
 /**
@@ -95,7 +99,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 
 	/* Plugin Information */
 	/** The Plugin's version */
-	public static final String VERSION = ShollUtils.version();
+	public static final String VERSION = SNTUtils.VERSION;
 	public static final String URL = ShollUtils.URL;
 
 	/* Sholl Type Definitions */
@@ -207,7 +211,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 	private boolean tableRequired = true;
 
 	/* Preferences */
-	private Options options;
+	private ShollOptions options;
 	private int metrics;
 
 	private double[] radii;
@@ -460,8 +464,8 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 		// double[] fvaluesLOG = null;
 
 		// Create plots
-		final boolean noPlots = options.getPlotOutput() == Options.NO_PLOTS;
-		final boolean onlyLinearPlot = options.getPlotOutput() == Options.ONLY_LINEAR_PLOT;
+		final boolean noPlots = options.getPlotOutput() == ShollOptions.NO_PLOTS;
+		final boolean onlyLinearPlot = options.getPlotOutput() == ShollOptions.ONLY_LINEAR_PLOT;
 		if (shollN) {
 			final ShollPlot plotN;
 			if (noPlots) {
@@ -474,7 +478,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 			if (fitCurve)
 				fvaluesN = getFittedProfile(valuesN, SHOLL_N, statsTable, plotN);
 			if (!noPlots) {
-				if (centroid != null) plotN.markPoint(new UPoint(centroid[0],
+				if (centroid != null) plotN.markPoint(new ShollPoint(centroid[0],
 					centroid[1]), Color.RED);
 				savePlot(plotN, SHOLL_N);
 			}
@@ -542,7 +546,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 
 		}
 
-		final boolean noTable = ((metrics & Options.NO_TABLE) != 0);
+		final boolean noTable = ((metrics & ShollOptions.NO_TABLE) != 0);
 		if (!noTable) {
 
 			// If re-running over the same image, dispose unsaved table from
@@ -608,7 +612,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 		if (mask && img.getWindow() != null) {
 
 			IJ.showStatus("Preparing intersections mask...");
-			final boolean fittedData = options.getMaskType() == Options.FITTED_MASK && fitCurve;
+			final boolean fittedData = options.getMaskType() == ShollOptions.FITTED_MASK && fitCurve;
 			ImagePlus maskimg = null;
 
 			if (shollN && fittedData) {
@@ -677,9 +681,9 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 
 	}
 
-	private Options getOptions() {
+	private ShollOptions getOptions() {
 		if (options == null)
-			options = new Options(true);
+			options = new ShollOptions(true);
 		return options;
 	}
 
@@ -687,10 +691,10 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 	 * Assigns options to the plugin.
 	 *
 	 * @param options
-	 *            the {@link Options} instance use to customize the plugin's
+	 *            the {@link ShollOptions} instance use to customize the plugin's
 	 *            output.
 	 */
-	public void setOptions(final Options options) {
+	public void setOptions(final ShollOptions options) {
 		options.instanceAttatchedToPlugin = true;
 		this.options = options;
 	}
@@ -698,20 +702,20 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 	private void saveParametersToPreferences() {
 
 		final HashMap<Integer, Boolean> boolPrefs = new HashMap<>();
-		boolPrefs.put(Options.TRIM_BOUNDS, trimBounds);
-		boolPrefs.put(Options.INFER_PRIMARY, inferPrimary);
-		boolPrefs.put(Options.CURVE_FITTING, fitCurve);
-		boolPrefs.put(Options.VERBOSE, verbose);
-		boolPrefs.put(Options.SHOLL_N, shollN);
-		boolPrefs.put(Options.SHOLL_NS, shollNS);
-		boolPrefs.put(Options.SHOLL_SLOG, shollSLOG);
-		boolPrefs.put(Options.SHOLL_LOG, shollLOG);
-		boolPrefs.put(Options.GUESS_LOG_METHOD, chooseLog);
-		boolPrefs.put(Options.SHOW_MASK, mask);
-		boolPrefs.put(Options.OVERLAY_SHELLS, overlayShells);
-		boolPrefs.put(Options.SAVE_FILES, save);
-		boolPrefs.put(Options.HIDE_SAVED_FILES, hideSaved);
-		boolPrefs.put(Options.SKIP_SINGLE_VOXELS, skipSingleVoxels);
+		boolPrefs.put(ShollOptions.TRIM_BOUNDS, trimBounds);
+		boolPrefs.put(ShollOptions.INFER_PRIMARY, inferPrimary);
+		boolPrefs.put(ShollOptions.CURVE_FITTING, fitCurve);
+		boolPrefs.put(ShollOptions.VERBOSE, verbose);
+		boolPrefs.put(ShollOptions.SHOLL_N, shollN);
+		boolPrefs.put(ShollOptions.SHOLL_NS, shollNS);
+		boolPrefs.put(ShollOptions.SHOLL_SLOG, shollSLOG);
+		boolPrefs.put(ShollOptions.SHOLL_LOG, shollLOG);
+		boolPrefs.put(ShollOptions.GUESS_LOG_METHOD, chooseLog);
+		boolPrefs.put(ShollOptions.SHOW_MASK, mask);
+		boolPrefs.put(ShollOptions.OVERLAY_SHELLS, overlayShells);
+		boolPrefs.put(ShollOptions.SAVE_FILES, save);
+		boolPrefs.put(ShollOptions.HIDE_SAVED_FILES, hideSaved);
+		boolPrefs.put(ShollOptions.SKIP_SINGLE_VOXELS, skipSingleVoxels);
 
 		int prefs = options.getBooleanPrefs();
 		for (final Entry<Integer, Boolean> entry : boolPrefs.entrySet()) {
@@ -722,50 +726,50 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 				prefs &= ~key;
 		}
 		options.setBooleanPrefs(prefs);
-		options.setStringPreference(Options.START_RADIUS_KEY, String.format("%.2f", startRadius));
-		options.setStringPreference(Options.END_RADIUS_KEY, String.format("%.2f", endRadius));
-		options.setStringPreference(Options.STEP_SIZE_KEY, String.format("%.2f", incStep));
-		options.setStringPreference(Options.NSAMPLES_KEY, nSpans);
-		options.setStringPreference(Options.INTEGRATION_KEY, binChoice);
-		options.setStringPreference(Options.ENCLOSING_RADIUS_KEY, enclosingCutOff);
-		options.setStringPreference(Options.PRIMARY_BRANCHES_KEY, String.format("%.0f", incStep));
-		options.setStringPreference(Options.POLYNOMIAL_INDEX_KEY, polyChoice);
-		options.setStringPreference(Options.NORMALIZER_INDEX_KEY, normChoice);
+		options.setStringPreference(ShollOptions.START_RADIUS_KEY, String.format("%.2f", startRadius));
+		options.setStringPreference(ShollOptions.END_RADIUS_KEY, String.format("%.2f", endRadius));
+		options.setStringPreference(ShollOptions.STEP_SIZE_KEY, String.format("%.2f", incStep));
+		options.setStringPreference(ShollOptions.NSAMPLES_KEY, nSpans);
+		options.setStringPreference(ShollOptions.INTEGRATION_KEY, binChoice);
+		options.setStringPreference(ShollOptions.ENCLOSING_RADIUS_KEY, enclosingCutOff);
+		options.setStringPreference(ShollOptions.PRIMARY_BRANCHES_KEY, String.format("%.0f", incStep));
+		options.setStringPreference(ShollOptions.POLYNOMIAL_INDEX_KEY, polyChoice);
+		options.setStringPreference(ShollOptions.NORMALIZER_INDEX_KEY, normChoice);
 		if (orthoChord)
-			options.setStringPreference(Options.QUAD_CHOICE_KEY, quadChoice);
+			options.setStringPreference(ShollOptions.QUAD_CHOICE_KEY, quadChoice);
 		if (validPath)
-			options.setStringPreference(Options.SAVE_DIR_KEY, imgPath);
+			options.setStringPreference(ShollOptions.SAVE_DIR_KEY, imgPath);
 		options.saveStringPreferences();
 	}
 
 	private void setParametersFromPreferences() {
 		final int prefs = options.getBooleanPrefs();
-		trimBounds = (prefs & Options.TRIM_BOUNDS) != 0;
-		inferPrimary = (prefs & Options.INFER_PRIMARY) != 0;
-		fitCurve = (prefs & Options.CURVE_FITTING) != 0;
-		verbose = (prefs & Options.VERBOSE) != 0;
-		shollN = (prefs & Options.SHOLL_N) != 0;
-		shollNS = (prefs & Options.SHOLL_NS) != 0;
-		shollSLOG = (prefs & Options.SHOLL_SLOG) != 0;
-		shollLOG = (prefs & Options.SHOLL_LOG) != 0;
-		chooseLog = (prefs & Options.GUESS_LOG_METHOD) != 0;
-		mask = (prefs & Options.SHOW_MASK) != 0;
-		overlayShells = (prefs & Options.OVERLAY_SHELLS) != 0;
-		save = (prefs & Options.SAVE_FILES) != 0;
-		hideSaved = (prefs & Options.HIDE_SAVED_FILES) != 0;
-		skipSingleVoxels = (prefs & Options.SKIP_SINGLE_VOXELS) != 0;
+		trimBounds = (prefs & ShollOptions.TRIM_BOUNDS) != 0;
+		inferPrimary = (prefs & ShollOptions.INFER_PRIMARY) != 0;
+		fitCurve = (prefs & ShollOptions.CURVE_FITTING) != 0;
+		verbose = (prefs & ShollOptions.VERBOSE) != 0;
+		shollN = (prefs & ShollOptions.SHOLL_N) != 0;
+		shollNS = (prefs & ShollOptions.SHOLL_NS) != 0;
+		shollSLOG = (prefs & ShollOptions.SHOLL_SLOG) != 0;
+		shollLOG = (prefs & ShollOptions.SHOLL_LOG) != 0;
+		chooseLog = (prefs & ShollOptions.GUESS_LOG_METHOD) != 0;
+		mask = (prefs & ShollOptions.SHOW_MASK) != 0;
+		overlayShells = (prefs & ShollOptions.OVERLAY_SHELLS) != 0;
+		save = (prefs & ShollOptions.SAVE_FILES) != 0;
+		hideSaved = (prefs & ShollOptions.HIDE_SAVED_FILES) != 0;
+		skipSingleVoxels = (prefs & ShollOptions.SKIP_SINGLE_VOXELS) != 0;
 
-		startRadius = options.getDoubleFromHashMap(Options.START_RADIUS_KEY, 10.0);
-		endRadius = options.getDoubleFromHashMap(Options.END_RADIUS_KEY, 100.0);
-		incStep = options.getDoubleFromHashMap(Options.STEP_SIZE_KEY, 0);
-		quadChoice = options.getIntFromHashMap(Options.QUAD_CHOICE_KEY, 0);
-		nSpans = options.getIntFromHashMap(Options.NSAMPLES_KEY, 1);
-		binChoice = options.getIntFromHashMap(Options.INTEGRATION_KEY, BIN_AVERAGE);
-		enclosingCutOff = options.getIntFromHashMap(Options.ENCLOSING_RADIUS_KEY, 1);
-		primaryBranches = options.getDoubleFromHashMap(Options.PRIMARY_BRANCHES_KEY, Double.NaN);
-		polyChoice = options.getIntFromHashMap(Options.POLYNOMIAL_INDEX_KEY, DEGREES.length - 1);
-		normChoice = options.getIntFromHashMap(Options.NORMALIZER_INDEX_KEY, 0);
-		imgPath = options.getStringFromHashMap(Options.SAVE_DIR_KEY, null);
+		startRadius = options.getDoubleFromHashMap(ShollOptions.START_RADIUS_KEY, 10.0);
+		endRadius = options.getDoubleFromHashMap(ShollOptions.END_RADIUS_KEY, 100.0);
+		incStep = options.getDoubleFromHashMap(ShollOptions.STEP_SIZE_KEY, 0);
+		quadChoice = options.getIntFromHashMap(ShollOptions.QUAD_CHOICE_KEY, 0);
+		nSpans = options.getIntFromHashMap(ShollOptions.NSAMPLES_KEY, 1);
+		binChoice = options.getIntFromHashMap(ShollOptions.INTEGRATION_KEY, BIN_AVERAGE);
+		enclosingCutOff = options.getIntFromHashMap(ShollOptions.ENCLOSING_RADIUS_KEY, 1);
+		primaryBranches = options.getDoubleFromHashMap(ShollOptions.PRIMARY_BRANCHES_KEY, Double.NaN);
+		polyChoice = options.getIntFromHashMap(ShollOptions.POLYNOMIAL_INDEX_KEY, DEGREES.length - 1);
+		normChoice = options.getIntFromHashMap(ShollOptions.NORMALIZER_INDEX_KEY, 0);
+		imgPath = options.getStringFromHashMap(ShollOptions.SAVE_DIR_KEY, null);
 	}
 
 	/**
@@ -949,9 +953,9 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 			rt.addValue("Mean value", mv);
 			rt.addValue("Ramification index (fit)", rif);
 			final double[] moments = getMoments(fy);
-			if ((metrics & Options.SKEWNESS) != 0)
+			if ((metrics & ShollOptions.SKEWNESS) != 0)
 				rt.addValue("Skewness (fit)", moments[2]);
-			if ((metrics & Options.KURTOSIS) != 0)
+			if ((metrics & ShollOptions.KURTOSIS) != 0)
 				rt.addValue("Kurtosis (fit)", moments[3]);
 			rt.addValue("Polyn. degree", degree);
 			rt.addValue("Polyn. R^2", cf.getRSquared());
@@ -1954,10 +1958,10 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 					@Override
 					public void run() {
 						if (Recorder.record)
-							Recorder.setCommand(Options.COMMAND_LABEL);
+							Recorder.setCommand(ShollOptions.COMMAND_LABEL);
 						// IJ.runPlugIn(Options.class.getName(), analyzingImage
 						// ? "" : Options.SKIP_BITMAP_OPTIONS_LABEL);
-						options.run(analyzingImage ? "" : Options.SKIP_BITMAP_OPTIONS_LABEL);
+						options.run(analyzingImage ? "" : ShollOptions.SKIP_BITMAP_OPTIONS_LABEL);
 						if (Recorder.record)
 							Recorder.saveCommand();
 					}
@@ -2062,62 +2066,62 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 		statsTable.incrementCounter();
 		statsTable.setPrecision(options.getScientificNotationAwarePrecision());
 		statsTable.addValue("Image", rowLabel);
-		if ((metrics & Options.DIRECTORY) != 0)
+		if ((metrics & ShollOptions.DIRECTORY) != 0)
 			statsTable.addValue("Directory", (validPath) ? imgPath : "Unknown");
 		final String comment = options.getCommentString();
 		if (comment != null)
 			statsTable.addValue("Comment", comment);
 		if (!isCSV && img != null && img.isComposite())
 			statsTable.addValue("Channel", channel);
-		if ((metrics & Options.UNIT) != 0)
+		if ((metrics & ShollOptions.UNIT) != 0)
 			statsTable.addValue("Unit", unit);
-		if (!isCSV && (metrics & Options.THRESHOLD) != 0) {
+		if (!isCSV && (metrics & ShollOptions.THRESHOLD) != 0) {
 			statsTable.addValue("Lower threshold", lowerT);
 			statsTable.addValue("Upper threshold", upperT);
 		}
-		if ((metrics & Options.CENTER) != 0 && !isCenterUnknown()) {
+		if ((metrics & ShollOptions.CENTER) != 0 && !isCenterUnknown()) {
 			statsTable.addValue("X center (px)", xc);
 			statsTable.addValue("Y center (px)", yc);
 			statsTable.addValue("Z center (slice)", zc);
 		}
-		if ((metrics & Options.STARTING_RADIUS) != 0)
+		if ((metrics & ShollOptions.STARTING_RADIUS) != 0)
 			statsTable.addValue("Starting radius", startRadius);
-		if ((metrics & Options.ENDING_RADIUS) != 0)
+		if ((metrics & ShollOptions.ENDING_RADIUS) != 0)
 			statsTable.addValue("Ending radius", endRadius);
-		if ((metrics & Options.RADIUS_STEP) != 0)
+		if ((metrics & ShollOptions.RADIUS_STEP) != 0)
 			statsTable.addValue("Radius step", stepRadius);
-		if ((metrics & Options.SAMPLES_PER_RADIUS) != 0)
+		if ((metrics & ShollOptions.SAMPLES_PER_RADIUS) != 0)
 			statsTable.addValue("Samples/radius", (isCSV || is3D) ? 1 : nSpans);
-		if ((metrics & Options.ENCLOSING_RADIUS) != 0)
+		if ((metrics & ShollOptions.ENCLOSING_RADIUS) != 0)
 			statsTable.addValue("Enclosing radius cutoff", enclosingCutOff);
 		statsTable.addValue("I branches (user)", (inferPrimary) ? Double.NaN : primaryBranches);
 		statsTable.addValue("I branches (inferred)", (inferPrimary) ? y[0] : Double.NaN);
-		if ((metrics & Options.INTERSECTING_RADII) != 0)
+		if ((metrics & ShollOptions.INTERSECTING_RADII) != 0)
 			statsTable.addValue("Intersecting radii", size);
-		if ((metrics & Options.SUM_INTERS) != 0)
+		if ((metrics & ShollOptions.SUM_INTERS) != 0)
 			statsTable.addValue("Sum inters.", sumY);
 
 		// Calculate skewness and kurtosis of sampled data (linear Sholl);
 		final double[] moments = getMoments(y);
-		if ((metrics & Options.MEAN_INTERS) != 0)
+		if ((metrics & ShollOptions.MEAN_INTERS) != 0)
 			statsTable.addValue("Mean inters.", moments[0]);
-		if ((metrics & Options.MEDIAN_INTERS) != 0)
+		if ((metrics & ShollOptions.MEDIAN_INTERS) != 0)
 			statsTable.addValue("Median inters.", getMedian(y));
-		if ((metrics & Options.SKEWNESS) != 0)
+		if ((metrics & ShollOptions.SKEWNESS) != 0)
 			statsTable.addValue("Skewness (sampled)", moments[2]);
-		if ((metrics & Options.KURTOSIS) != 0)
+		if ((metrics & ShollOptions.KURTOSIS) != 0)
 			statsTable.addValue("Kurtosis (sampled)", moments[3]);
 		statsTable.addValue("Max inters.", maxIntersect);
 		statsTable.addValue("Max inters. radius", maxR);
 		statsTable.addValue("Ramification index (sampled)", ri);
 
 		// Calculate the 'center of mass' for the sampled curve (linear Sholl);
-		if ((metrics & Options.CENTROID) != 0) {
+		if ((metrics & ShollOptions.CENTROID) != 0) {
 			centroid = Sholl_Utils.baryCenter(x, y);
 			statsTable.addValue("Centroid radius", centroid[0]);
 			statsTable.addValue("Centroid value", centroid[1]);
 		}
-		if ((metrics & Options.ENCLOSING_RADIUS) != 0)
+		if ((metrics & ShollOptions.ENCLOSING_RADIUS) != 0)
 			statsTable.addValue("Enclosing radius", enclosingR);
 		// rt.addValue("Enclosed field", field);
 
@@ -2201,7 +2205,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 			y[i] = values[i][1];
 		}
 		plotRegression(x, y, false, plot, rt, method);
-		if ((metrics & Options.P1090_REGRESSION) != 0)
+		if ((metrics & ShollOptions.P1090_REGRESSION) != 0)
 			plotRegression(x, y, true, plot, rt, method);
 		// remove legend to mimic previous versions
 		if (plot != null) plot.setLegend("Sampled Data\n", 0);
@@ -2269,7 +2273,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 			plot.drawLine(x1, y1, x2, y2);
 			plot.setLineWidth(1);
 
-			plot.markPoint(new UPoint(0, kIntercept), color);
+			plot.markPoint(new ShollPoint(0, kIntercept), color);
 			if (plotLabels) {
 				final StringBuffer label = new StringBuffer();
 				label.append("R\u00B2= " + IJ.d2s(kRSquared, 3));

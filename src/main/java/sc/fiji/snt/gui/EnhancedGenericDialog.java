@@ -48,6 +48,7 @@ import fiji.util.gui.GenericDialogPlus;
 import ij.IJ;
 import ij.plugin.BrowserLauncher;
 import ij.plugin.frame.Recorder;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 
 
@@ -342,7 +343,7 @@ public class EnhancedGenericDialog extends GenericDialogPlus {
 	/** Customizes macro recordings */
 	public static final void improveRecording() {
 		if (Recorder.record) {
-			String recordString = "// Recording Sholl Analysis version " + ShollUtils.version() + "\n" + "// Visit "
+			String recordString = "// Recording Sholl Analysis version " + SNTUtils.VERSION + "\n" + "// Visit "
 					+ ShollUtils.URL + "#Batch_Processing for scripting tips\n";
 			final String cmd = Recorder.getCommand();
 			final String cmdOptions = Recorder.getCommandOptions();

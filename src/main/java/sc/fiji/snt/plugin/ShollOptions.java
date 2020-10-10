@@ -19,7 +19,7 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
-package sc.fiji.snt.analysis.sholl;
+package sc.fiji.snt.plugin;
 
 
 import java.awt.Font;
@@ -37,15 +37,16 @@ import ij.measure.Measurements;
 import ij.plugin.PlugIn;
 import ij.plugin.filter.Analyzer;
 import ij.plugin.frame.Recorder;
+import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.EnhancedGenericDialog;
 
 /**
- * Implements the "Sholl Options and Metrics" command.
+ * Implements the IJ1 "Sholl Options and Metrics" command.
  *
  * @author Tiago Ferreira
  */
 @Deprecated
-public class Options implements PlugIn {
+public class ShollOptions implements PlugIn {
 
 	/** The Menu entry of this plugin as specified in plugins.config **/
 	public static final String COMMAND_LABEL = "Metrics & Options...";
@@ -139,7 +140,7 @@ public class Options implements PlugIn {
 	private boolean skipBitmapOptions;
 	protected boolean instanceAttatchedToPlugin;
 
-	public Options(final boolean attachInstanceToPlugin) {
+	public ShollOptions(final boolean attachInstanceToPlugin) {
 		this.instanceAttatchedToPlugin = attachInstanceToPlugin;
 		currentMetrics = getMetrics();
 		currentBooleanPrefs = getBooleanPrefs();
@@ -148,7 +149,7 @@ public class Options implements PlugIn {
 		loadStringPreferences();
 	}
 
-	public Options() {
+	public ShollOptions() {
 		this(false);
 	}
 
@@ -187,7 +188,7 @@ public class Options implements PlugIn {
 	}
 
 	private static int getSMetrics() {
-		return new Options().getMetrics();
+		return new ShollOptions().getMetrics();
 	}
 
 	protected int getDefaultBooleanPrefs() {

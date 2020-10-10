@@ -66,22 +66,21 @@ import sc.fiji.snt.analysis.sholl.Logger;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
-import sc.fiji.snt.analysis.sholl.UPoint;
-import sc.fiji.snt.analysis.sholl.gui.Helper;
 import sc.fiji.snt.analysis.sholl.gui.ShollOverlay;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.analysis.sholl.gui.ShollTable;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
-import sc.fiji.snt.analysis.sholl.plugin.Prefs;
+import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.sholl.TreeParser;
+import sc.fiji.snt.gui.GUIHelper;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.ShollPoint;
 
 /**
  * Implements both the "Analyze:Sholl:Sholl Analysis (From Tracings)..." and
@@ -212,7 +211,7 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 	private PointInImage center;
 
 	/* Instance variables */
-	private Helper helper;
+	private GUIHelper helper;
 	private Logger logger;
 	private AnalysisRunner analysisRunner;
 	private Map<String, URL> luts;
@@ -325,7 +324,7 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 
 	/* initializer method running before displaying prompt */
 	protected void init() {
-		helper = new Helper(context());
+		helper = new GUIHelper(context());
 		logger = new Logger(context());
 		final boolean calledFromSNT = snt != null;
 		final boolean calledFromStandAloneRecViewer = snt == null && tree != null;
@@ -368,7 +367,7 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 			}
 		}
 		readPreferences();
-		getInfo().setLabel("Sholl Analysis " + ShollUtils.version());
+		getInfo().setLabel("Sholl Analysis " + SNTUtils.VERSION);
 		adjustFittingOptions();
 	}
 
@@ -401,10 +400,10 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 
 	private void readPreferences() {
 		logger.debug("Reading preferences");
-		minDegree = prefService.getInt(Prefs.class, "minDegree",
-			Prefs.DEF_MIN_DEGREE);
-		maxDegree = prefService.getInt(Prefs.class, "maxDegree",
-			Prefs.DEF_MAX_DEGREE);
+		minDegree = prefService.getInt(ShollPrefs.class, "minDegree",
+			ShollPrefs.DEF_MIN_DEGREE);
+		maxDegree = prefService.getInt(ShollPrefs.class, "maxDegree",
+			ShollPrefs.DEF_MAX_DEGREE);
 	}
 
 	private void adjustFittingOptions() {
@@ -557,7 +556,7 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 		threadService.run(() -> {
 			final Map<String, Object> input = new HashMap<>();
 			input.put("ignoreBitmapOptions", true);
-			cmdService.run(Prefs.class, true, input);
+			cmdService.run(ShollPrefs.class, true, input);
 		});
 	}
 
@@ -792,7 +791,7 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 				for (final double r : radii) {
 					profile.add(new ProfileEntry(r, 0));
 				}
-				profile.setCenter(new UPoint(centerUnscaled.x, centerUnscaled.y,
+				profile.setCenter(new ShollPoint(centerUnscaled.x, centerUnscaled.y,
 					centerUnscaled.z));
 				final ShollOverlay so = new ShollOverlay(profile);
 				so.setShellsLUT(lutTable, ShollOverlay.RADIUS);

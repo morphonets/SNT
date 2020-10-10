@@ -26,7 +26,7 @@ import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 
-import sc.fiji.snt.analysis.sholl.plugin.Prefs;
+import sc.fiji.snt.plugin.ShollPrefs;
 
 public class Logger {
 
@@ -45,7 +45,7 @@ public class Logger {
 
 	public Logger(final Context context) {
 		context.inject(this);
-		debug = prefService.getBoolean(Prefs.class, "debugMode", Prefs.DEF_DEBUG_MODE);
+		debug = prefService.getBoolean(ShollPrefs.class, "debugMode", ShollPrefs.DEF_DEBUG_MODE);
 		setDebug(debug || logService.isDebug());
 	}
 

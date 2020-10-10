@@ -42,9 +42,6 @@ import ij.io.OpenDialog;
 import ij.measure.Calibration;
 import ij.plugin.PlugIn;
 import ij.plugin.frame.Recorder;
-import sc.fiji.snt.analysis.sholl.Options;
-import sc.fiji.snt.analysis.sholl.Sholl_Analysis;
-import sc.fiji.snt.analysis.sholl.gui.Utils;
 import sc.fiji.snt.NearPoint;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathAndFillManager;
@@ -56,6 +53,11 @@ import sc.fiji.snt.gui.ShollAnalysisDialog.ShollPoint;
 import sc.fiji.snt.gui.ShollAnalysisDialog.ShollResults;
 import sc.fiji.snt.util.PointInImage;
 
+/**
+ * Implements the IJ1 "Sholl Analysis" command.
+ *
+ * @author Tiago Ferreira
+ */
 @Deprecated
 public class ShollAnalysisPlugin implements PlugIn, DialogListener {
 
@@ -305,12 +307,12 @@ public class ShollAnalysisPlugin implements PlugIn, DialogListener {
 	private JPopupMenu createMenu() {
 		final JPopupMenu popup = new JPopupMenu();
 		JMenuItem mi;
-		mi = new JMenuItem(Options.COMMAND_LABEL);
+		mi = new JMenuItem(ShollOptions.COMMAND_LABEL);
 		mi.addActionListener(e -> {
 			final Thread newThread = new Thread(() -> {
-				if (Recorder.record) Recorder.setCommand(Options.COMMAND_LABEL);
-				IJ.runPlugIn(Options.class.getName(),
-					Options.SKIP_BITMAP_OPTIONS_LABEL);
+				if (Recorder.record) Recorder.setCommand(ShollOptions.COMMAND_LABEL);
+				IJ.runPlugIn(ShollOptions.class.getName(),
+					ShollOptions.SKIP_BITMAP_OPTIONS_LABEL);
 				if (Recorder.record) Recorder.saveCommand();
 			});
 			newThread.start();

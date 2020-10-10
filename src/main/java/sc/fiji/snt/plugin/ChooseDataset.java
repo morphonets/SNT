@@ -19,7 +19,7 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
-package sc.fiji.snt.analysis.sholl.plugin;
+package sc.fiji.snt.plugin;
 
 import java.util.ArrayList;
 import java.util.Collections;
