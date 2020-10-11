@@ -50,6 +50,7 @@ import ij.plugin.BrowserLauncher;
 import ij.plugin.frame.Recorder;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
+import sc.fiji.snt.plugin.ij1.Sholl_Utils;
 
 
 /**
@@ -385,7 +386,7 @@ public class EnhancedGenericDialog extends GenericDialogPlus {
 		mi.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(final ActionEvent e) {
-				IJ.runPlugIn(sholl.Sholl_Utils.class.getName(), "about");
+				IJ.runPlugIn(Sholl_Utils.class.getName(), "about");
 			}
 		});
 		return mi;
