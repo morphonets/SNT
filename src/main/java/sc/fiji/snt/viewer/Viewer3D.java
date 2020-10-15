@@ -215,19 +215,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.SNTSearchableBar;
-import sc.fiji.snt.gui.cmds.ColorMapReconstructionCmd;
-import sc.fiji.snt.gui.cmds.CustomizeLegendCmd;
-import sc.fiji.snt.gui.cmds.CustomizeObjCmd;
-import sc.fiji.snt.gui.cmds.CustomizeTreeCmd;
-import sc.fiji.snt.gui.cmds.DistributionBPCmd;
-import sc.fiji.snt.gui.cmds.DistributionCPCmd;
-import sc.fiji.snt.gui.cmds.GraphGeneratorCmd;
-import sc.fiji.snt.gui.cmds.LoadObjCmd;
-import sc.fiji.snt.gui.cmds.LoadReconstructionCmd;
-import sc.fiji.snt.gui.cmds.MLImporterCmd;
-import sc.fiji.snt.gui.cmds.RecViewerPrefsCmd;
-import sc.fiji.snt.gui.cmds.RemoteSWCImporterCmd;
-import sc.fiji.snt.gui.cmds.TranslateReconstructionsCmd;
+import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
@@ -2761,8 +2749,7 @@ public class Viewer3D {
 		}
 	
 		private JPanel buttonPanel() {
-			final boolean includeAnalysisCmds = !isSNTInstance();
-			final JPanel buttonPanel = new JPanel(new GridLayout(1, (includeAnalysisCmds) ? 6 : 7));
+			final JPanel buttonPanel = new JPanel(new GridLayout(1, 6));
 			buttonPanel.setBorder(null);
 			// do not allow panel to resize vertically
 			setFixedHeightToPanel(buttonPanel);
@@ -2770,8 +2757,7 @@ public class Viewer3D {
 			buttonPanel.add(menuButton(GLYPH.TREE, treesMenu(), "Neuronal Arbors"));
 			buttonPanel.add(menuButton(GLYPH.CUBE, meshMenu(), "3D Meshes"));
 			buttonPanel.add(menuButton(GLYPH.ATLAS, refBrainsMenu(), "Reference Brains"));
-			if (includeAnalysisCmds)
-				buttonPanel.add(menuButton(GLYPH.CALCULATOR, measureMenu(), "Analyze & Measure"));
+			buttonPanel.add(menuButton(GLYPH.CALCULATOR, measureMenu(), "Analyze & Measure"));
 			buttonPanel.add(menuButton(GLYPH.TOOL, utilsMenu(), "Utilities"));
 			buttonPanel.add(menuButton(GLYPH.COG, prefsMenu(), "Settings"));
 			return buttonPanel;
