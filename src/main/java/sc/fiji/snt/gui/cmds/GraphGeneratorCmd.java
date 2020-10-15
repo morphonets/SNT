@@ -34,7 +34,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 
 /**
- * Command for displaying the contents of Path Manager in the "SNT Graph Canvas"
+ * Command for displaying the contents of Path Manager in the "SNT Graph Viewer"
  *
  * @author Tiago Ferreira
  */
