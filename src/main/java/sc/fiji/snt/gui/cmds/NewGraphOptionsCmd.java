@@ -40,14 +40,15 @@ public class NewGraphOptionsCmd extends ContextCommand {
 
 
 	@Parameter( label = "New metric",
-			choices = {AnnotationGraph.TIPS, AnnotationGraph.BRANCH_POINTS, AnnotationGraph.LENGTH}) // NB: we cannot use AnnotationGraph.getMetrics()  here
-	private String metric;
+			choices = {AnnotationGraph.TIPS, AnnotationGraph.BRANCH_POINTS, AnnotationGraph.LENGTH,
+					AnnotationGraph.EDGES}) // NB: we cannot use AnnotationGraph.getMetrics()  here
+	protected String metric;
 
 	@Parameter(label= "Threshold")
-	private double threshold;
+	protected double threshold;
 
 	@Parameter(label= "Depth")
-	private int depth;
+	protected int depth;
 
 	/*
 	 * (non-Javadoc)

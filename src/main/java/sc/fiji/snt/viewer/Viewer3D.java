@@ -3286,6 +3286,16 @@ public class Viewer3D {
 				SwingUtilities.invokeLater(() -> sa.run());
 			});
 			measureMenu.add(mi);
+			addSeparator(measureMenu, "Annotation Graphs:");
+			mi = new JMenuItem("Create Annotation Graph...", IconFactory.getMenuIcon(GLYPH.BRAIN));
+			mi.addActionListener(e -> {
+				final List<Tree> trees = getSelectedTrees();
+				if (trees == null || trees.isEmpty()) return;
+				final Map<String, Object> inputs = new HashMap<>();
+				inputs.put("trees", trees);
+				runCmd(AnnotationGraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false);
+			});
+			measureMenu.add(mi);
 			return measureMenu;
 		}
 
