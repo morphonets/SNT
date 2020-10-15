@@ -39,9 +39,10 @@ public class AnnotationGraphGeneratorCmd extends NewGraphOptionsCmd {
                 continue;
             }
             if (!compartment.equals("All")) {
+                final String oldLabel = tree.getLabel();
                 tree = tree.subTree(compartment);
                 if (tree.isEmpty()) {
-                    SNTUtils.log(tree.getLabel()
+                    SNTUtils.log(oldLabel
                             + " does not contain processes tagged as \"" + compartment + "\". Skipping...");
                     continue;
                 }
