@@ -99,7 +99,7 @@ import sc.fiji.snt.util.ShollPoint;
  */
 @Plugin(type = Command.class, menu = { @Menu(label = "Analyze"), @Menu(label = "Sholl", weight = 0.01d),
 		@Menu(label = "Sholl Analysis (From Image)...") }, initializer = "init")
-public class ShollAnalysisImg extends DynamicCommand {
+public class ShollAnalysisImgCmd extends DynamicCommand {
 
 	@Parameter
 	private CommandService cmdService;
@@ -490,8 +490,8 @@ public class ShollAnalysisImg extends DynamicCommand {
 	private void readPreferences() {
 		logger.debug("Reading preferences");
 //		autoClose = prefService.getBoolean(Prefs.class, "autoClose", Prefs.DEF_AUTO_CLOSE);
-		minDegree = prefService.getInt(ShollPrefs.class, "minDegree", ShollPrefs.DEF_MIN_DEGREE);
-		maxDegree = prefService.getInt(ShollPrefs.class, "maxDegree", ShollPrefs.DEF_MAX_DEGREE);
+		minDegree = prefService.getInt(ShollAnalysisPrefsCmd.class, "minDegree", ShollAnalysisPrefsCmd.DEF_MIN_DEGREE);
+		maxDegree = prefService.getInt(ShollAnalysisPrefsCmd.class, "maxDegree", ShollAnalysisPrefsCmd.DEF_MAX_DEGREE);
 		startRadius = prefService.getDouble(getClass(), "startRadius", startRadius);
 		endRadius = prefService.getDouble(getClass(), "endRadius", endRadius);
 		stepSize = prefService.getDouble(getClass(), "stepSize", stepSize);
@@ -510,8 +510,8 @@ public class ShollAnalysisImg extends DynamicCommand {
 	private void savePreferences() {
 		logger.debug("Saving preferences");
 //		autoClose = prefService.getBoolean(Prefs.class, "autoClose", Prefs.DEF_AUTO_CLOSE);
-		prefService.put(ShollPrefs.class,  "minDegree", minDegree);
-		prefService.put(ShollPrefs.class, "maxDegree", maxDegree);
+		prefService.put(ShollAnalysisPrefsCmd.class,  "minDegree", minDegree);
+		prefService.put(ShollAnalysisPrefsCmd.class, "maxDegree", maxDegree);
 		prefService.put(getClass(), "startRadius", startRadius);
 		prefService.put(getClass(), "endRadius", endRadius);
 		prefService.put(getClass(), "stepSize", stepSize);
@@ -945,7 +945,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 		threadService.newThread(() -> {
 			final Map<String, Object> input = new HashMap<>();
 			input.put("ignoreBitmapOptions", false);
-			cmdService.run(ShollPrefs.class, true, input);
+			cmdService.run(ShollAnalysisPrefsCmd.class, true, input);
 		}).start();
 	}
 
@@ -964,7 +964,7 @@ public class ShollAnalysisImg extends DynamicCommand {
 			parser.setThreshold(lowerT, upperT);
 			if (parser instanceof ImageParser3D) {
 				((ImageParser3D) parser).setSkipSingleVoxels(prefService.getBoolean(
-					ShollPrefs.class, "skipSingleVoxels", ShollPrefs.DEF_SKIP_SINGLE_VOXELS));
+					ShollAnalysisPrefsCmd.class, "skipSingleVoxels", ShollAnalysisPrefsCmd.DEF_SKIP_SINGLE_VOXELS));
 			}
 		}
 

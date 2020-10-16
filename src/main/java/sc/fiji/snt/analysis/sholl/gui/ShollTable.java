@@ -37,7 +37,7 @@ import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
-import sc.fiji.snt.plugin.ShollPrefs;
+import sc.fiji.snt.plugin.ShollAnalysisPrefsCmd;
 import sc.fiji.snt.util.ShollPoint;
 
 
@@ -162,7 +162,7 @@ public class ShollTable extends SNTTable {
 
 	/**
 	 * Summarizes {@link Profile} and {@link ShollStats} metrics to a new row. Note
-	 * that some of the reported metrics rely on the options set in {@link ShollPrefs}.
+	 * that some of the reported metrics rely on the options set in {@link ShollAnalysisPrefsCmd}.
 	 * To ensure that those are read, you should run {@link #setContext(Context)},
 	 * so that a {@link PrefService} is set.
 	 *
@@ -261,8 +261,8 @@ public class ShollTable extends SNTTable {
 
 		try {
 			if (prefService != null) {
-				final int cutoff = prefService.getInt(ShollPrefs.class, "enclosingRadiusCutoff",
-						ShollPrefs.DEF_ENCLOSING_RADIUS_CUTOFF);
+				final int cutoff = prefService.getInt(ShollAnalysisPrefsCmd.class, "enclosingRadiusCutoff",
+						ShollAnalysisPrefsCmd.DEF_ENCLOSING_RADIUS_CUTOFF);
 				set(getCol(getHeader("Enclosing radius", fData)), row, lStats.getEnclosingRadius(fData, cutoff));
 			}
 		} catch (final NullContextException ignored) {
@@ -309,7 +309,7 @@ public class ShollTable extends SNTTable {
 
 	/**
 	 * Sets the services required by this ShollTable, namely {@link PrefService},
-	 * used to read advanced options set by {@link ShollPrefs}.
+	 * used to read advanced options set by {@link ShollAnalysisPrefsCmd}.
 	 *
 	 * @param context the SciJava application context
 	 * @throws IllegalStateException    If this ShollTable already has a context
@@ -319,7 +319,7 @@ public class ShollTable extends SNTTable {
 	public void setContext(final Context context) throws IllegalStateException, IllegalArgumentException {
 		context.inject(this);
 		if (prefService != null) {
-			final boolean detailedMetrics = prefService.getBoolean(ShollPrefs.class, "detailedMetrics", ShollPrefs.DEF_DETAILED_METRICS);
+			final boolean detailedMetrics = prefService.getBoolean(ShollAnalysisPrefsCmd.class, "detailedMetrics", ShollAnalysisPrefsCmd.DEF_DETAILED_METRICS);
 			setDetailedSummary(detailedMetrics);
 		}
 	}

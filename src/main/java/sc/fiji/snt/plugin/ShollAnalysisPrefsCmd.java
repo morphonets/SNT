@@ -50,7 +50,7 @@ import sc.fiji.snt.util.Logger;
  */
 @Plugin(type = Command.class, label = "Sholl Options", visible = false,
 	initializer = "init")
-public class ShollPrefs extends OptionsPlugin {
+public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 	@Parameter
 	private AppService appService;
@@ -229,7 +229,7 @@ public class ShollPrefs extends OptionsPlugin {
 
 		// Reset preferences
 		super.reset();
-		pService.clear(ShollAnalysisImg.class);
+		pService.clear(ShollAnalysisImgCmd.class);
 		pService.clear(ChooseDataset.class);
 
 		// Reset inputs in prompt

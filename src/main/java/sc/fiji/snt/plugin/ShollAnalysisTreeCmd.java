@@ -91,7 +91,7 @@ import sc.fiji.snt.util.ShollPoint;
 @Plugin(type = Command.class, menu = { @Menu(label = "Analyze"), @Menu(
 	label = "Sholl", weight = 0.01d), @Menu(
 		label = "Sholl Analysis (From Tracings)...") }, initializer = "init")
-public class ShollTracingsCmd extends DynamicCommand implements Interactive,
+public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	Cancelable
 {
 
@@ -127,10 +127,11 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 	private String filterChoice;
 
 	@Parameter(label = "Center", required = false, choices = { "Soma",
+		"Root node(s)",
 		"Root node(s): Primary axon(s)",
 		"Root node(s): Primary (basal) dendrites(s)",
 		"Root node(s): Primary apical dendrites(s)",
-		"Root node(s): All primary paths" }, callback = "centerChoiceChanged")
+		}, callback = "centerChoiceChanged")
 	private String centerChoice;
 
 	@Parameter(label = "Radius step size", required = false, min = "0",
@@ -400,10 +401,10 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 
 	private void readPreferences() {
 		logger.debug("Reading preferences");
-		minDegree = prefService.getInt(ShollPrefs.class, "minDegree",
-			ShollPrefs.DEF_MIN_DEGREE);
-		maxDegree = prefService.getInt(ShollPrefs.class, "maxDegree",
-			ShollPrefs.DEF_MAX_DEGREE);
+		minDegree = prefService.getInt(ShollAnalysisPrefsCmd.class, "minDegree",
+			ShollAnalysisPrefsCmd.DEF_MIN_DEGREE);
+		maxDegree = prefService.getInt(ShollAnalysisPrefsCmd.class, "maxDegree",
+			ShollAnalysisPrefsCmd.DEF_MAX_DEGREE);
 	}
 
 	private void adjustFittingOptions() {
@@ -556,7 +557,7 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 		threadService.run(() -> {
 			final Map<String, Object> input = new HashMap<>();
 			input.put("ignoreBitmapOptions", true);
-			cmdService.run(ShollPrefs.class, true, input);
+			cmdService.run(ShollAnalysisPrefsCmd.class, true, input);
 		});
 	}
 
@@ -715,7 +716,6 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 			}
 			else {
 				plot = new ShollPlot(stats);
-				plot.getTitle();
 				plot.show();
 			}
 			return plot;
@@ -818,6 +818,6 @@ public class ShollTracingsCmd extends DynamicCommand implements Interactive,
 		ij.ui().showUI();
 		final Map<String, Object> input = new HashMap<>();
 		final CommandService cmdService = ij.command();
-		cmdService.run(ShollTracingsCmd.class, true, input);
+		cmdService.run(ShollAnalysisTreeCmd.class, true, input);
 	}
 }

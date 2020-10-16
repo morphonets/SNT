@@ -49,7 +49,7 @@ import org.apache.commons.math3.stat.descriptive.moment.Skewness;
 import org.scijava.prefs.PrefService;
 
 import sc.fiji.snt.analysis.sholl.Profile;
-import sc.fiji.snt.plugin.ShollPrefs;
+import sc.fiji.snt.plugin.ShollAnalysisPrefsCmd;
 import sc.fiji.snt.util.ShollPoint;
 
 
@@ -461,7 +461,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 
 	/**
 	 * Runs {@link #findBestFit(int, int, double, double)} using the preferences
-	 * specified by the user using the {@link ShollPrefs} command.
+	 * specified by the user using the {@link ShollAnalysisPrefsCmd} command.
 	 *
 	 * @param fromDegree  the lowest degree to be considered. See
 	 *                    {@link #findBestFit(int, int, double, double)}
@@ -472,8 +472,8 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 *         {@link #findBestFit(int, int, double, double)}
 	 */
 	public int findBestFit(final int fromDegree, final int toDegree, final PrefService prefService) {
-		final double rSq = prefService.getDouble(ShollPrefs.class, "rSquared", ShollPrefs.DEF_RSQUARED);
-		final boolean ksTesting = prefService.getBoolean(ShollPrefs.class, "ksTesting", ShollPrefs.DEF_KS_TESTING);
+		final double rSq = prefService.getDouble(ShollAnalysisPrefsCmd.class, "rSquared", ShollAnalysisPrefsCmd.DEF_RSQUARED);
+		final boolean ksTesting = prefService.getBoolean(ShollAnalysisPrefsCmd.class, "ksTesting", ShollAnalysisPrefsCmd.DEF_KS_TESTING);
 		logger.debug("Determining 'Best fit' polynomial [degrees " + fromDegree + "-" + toDegree + "]...");
 		return findBestFit(fromDegree, toDegree, rSq, (ksTesting) ? 0.05 : -1);
 	}

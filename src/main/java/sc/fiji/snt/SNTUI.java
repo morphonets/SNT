@@ -2277,7 +2277,7 @@ public class SNTUI extends JDialog {
 			if (tree == null) return;
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("tree", tree);
-			(new DynamicCmdRunner(ShollTracingsCmd.class, inputs, getState())).run();
+			(new DynamicCmdRunner(ShollAnalysisTreeCmd.class, inputs, getState())).run();
 		});
 		analysisMenu.add(shollMenuItem);
 		analysisMenu.add(shollAnalysisHelpMenuItem());

@@ -80,7 +80,7 @@ import sc.fiji.snt.event.SNTListener;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.plugin.ShollTracingsCmd;
+import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
@@ -1856,7 +1856,7 @@ public class SNT extends MultiDThreePanes implements
 		input.put("tree", tree);
 		final CommandService cmdService = getContext().getService(
 			CommandService.class);
-		cmdService.run(ShollTracingsCmd.class, true, input);
+		cmdService.run(ShollAnalysisTreeCmd.class, true, input);
 	}
 
 	public ImagePlus getFilledVolume(final boolean asMask) {

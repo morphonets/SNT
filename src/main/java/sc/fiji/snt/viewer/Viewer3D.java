@@ -234,7 +234,7 @@ import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.BrainAnnotationCmd;
 import sc.fiji.snt.plugin.GroupAnalyzerCmd;
-import sc.fiji.snt.plugin.ShollTracingsCmd;
+import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.plugin.StrahlerCmd;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -3288,7 +3288,7 @@ public class Viewer3D {
 				final Map<String, Object> input = new HashMap<>();
 				input.put("snt", null);
 				input.put("tree", tree);
-				runCmd(ShollTracingsCmd.class, input, CmdWorker.DO_NOTHING, false);
+				runCmd(ShollAnalysisTreeCmd.class, input, CmdWorker.DO_NOTHING, false);
 			});
 			measureMenu.add(mi);
 			mi = new JMenuItem("Strahler Analysis...", IconFactory.getMenuIcon(GLYPH.BRANCH_CODE));
