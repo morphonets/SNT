@@ -36,7 +36,7 @@ import org.scijava.plugin.Plugin;
  */
 @Plugin(type = Command.class,
 	menuPath = "Analyze>Sholl>Deprecated>Sholl Analysis (Image)...")
-public class CallLegacySholl_AnalysisImg implements Command {
+public class CallLegacyShollAnalysisImg implements Command {
 
 	@Parameter
 	private LegacyService legacyService;
@@ -51,6 +51,6 @@ public class CallLegacySholl_AnalysisImg implements Command {
 	public static void main(final String... args) {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
-		ij.command().run(CallLegacySholl_AnalysisImg.class, true);
+		ij.command().run(CallLegacyShollAnalysisImg.class, true);
 	}
 }

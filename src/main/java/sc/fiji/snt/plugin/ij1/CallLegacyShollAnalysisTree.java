@@ -30,13 +30,13 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
 /**
- * Command to invoke the legacy "Sholl Analysis (Existing Profile)..." IJ1 plugin
+ * Command to invoke the legacy "Sholl Analysis (Tracings)..." IJ1 plugin
  *
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class,
-	menuPath = "Analyze>Sholl>Deprecated>Sholl Analysis (Existing Profile)...")
-public class CallLegacySholl_AnalysisCsv implements Command {
+	menuPath = "Analyze>Sholl>Deprecated>Sholl Analysis (Tracings)...")
+public class CallLegacyShollAnalysisTree implements Command {
 
 	@Parameter
 	private LegacyService legacyService;
@@ -44,13 +44,13 @@ public class CallLegacySholl_AnalysisCsv implements Command {
 	@SuppressWarnings("deprecation")
 	@Override
 	public void run() {
-		legacyService.runLegacyCommand(Sholl_Analysis.class.getName(), "csv");
+		legacyService.runLegacyCommand(ShollAnalysisPlugin.class.getName(), "");
 	}
 
 	/* IDE debugging method */
 	public static void main(final String... args) {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
-		ij.command().run(CallLegacySholl_AnalysisCsv.class, true);
+		ij.command().run(CallLegacyShollAnalysisTree.class, true);
 	}
 }
