@@ -115,7 +115,8 @@ public class GraphViewer {
             trees.add(tree);
         }
         //List<Tree> trees = ij.context().getService(SNTService.class).demoTrees();
-        final AnnotationGraph graph = new AnnotationGraph(trees, "tips", 5, 7);
+        @SuppressWarnings("unused")
+		final AnnotationGraph graph = new AnnotationGraph(trees, "tips", 5, 7);
         //DirectedWeightedGraph graph = trees.get(0).getGraph(true);
         //GraphColorMapper<SWCPoint, SWCWeightedEdge> mapper = new GraphColorMapper<>(ij.context());
         //mapper.map(graph, GraphColorMapper.EDGE_WEIGHT, "Ice");

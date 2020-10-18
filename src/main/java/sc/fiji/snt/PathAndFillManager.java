@@ -2212,7 +2212,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		final Map<Integer, SWCPoint> idToSWCPoint = new HashMap<>();
 		final List<SWCPoint> primaryPoints = new ArrayList<>();
 
-		final int firstImportedPathIdx = size();
 		for (final SWCPoint point : points) {
 			idToSWCPoint.put(point.id, point);
 			if (point.parent == -1) {
