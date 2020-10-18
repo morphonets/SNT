@@ -20,7 +20,7 @@
  * #L%
  */
 /**
- * GUI customizations required for Sholl Analysis.
+ * GUI customizations (image overlays, plots, etc.) required for Sholl Analysis.
  *
  * @author Tiago Ferreira
  *

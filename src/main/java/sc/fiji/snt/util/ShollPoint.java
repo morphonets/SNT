@@ -28,7 +28,7 @@ import ij.measure.Calibration;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 
 /**
- * Convenience class accessing 2D/3D points for Sholll Analysis.
+ * Convenience flavor of {@link PointInImage} defining 2D/3D points for Sholll Analysis.
  *
  * @author Tiago Ferreira
  */

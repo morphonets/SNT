@@ -20,7 +20,7 @@
  * #L%
  */
 /**
- * Parsers to retrieve Profiles from multiple sources
+ * Parsers to retrieve Profiles from multiple sources (2D/3D images, reconstructions, and tables)
  *
  * @author Tiago Ferreira
  *
