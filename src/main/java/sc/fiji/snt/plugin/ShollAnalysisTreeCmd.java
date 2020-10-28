@@ -454,7 +454,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		if (choice.contains("none")) {
 			return tree;
 		}
-		if (filterChoice.contains("selected")) {
+		if (choice.contains("selected")) {
 			return new Tree(snt.getPathAndFillManager().getSelectedPaths());
 		}
 		boolean containsType = false;
