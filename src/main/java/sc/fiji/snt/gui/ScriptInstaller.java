@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.gui;
 
 import java.awt.Component;
 import java.awt.event.InputEvent;
@@ -49,12 +49,12 @@ import org.scijava.script.ScriptService;
 import org.scijava.ui.swing.script.TextEditor;
 import org.scijava.util.FileUtils;
 
-import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 
 /**
- * Utility class for discovery of scripts scripting SNT
+ * Utility class for discovery of SNT scripts
  * 
  * @author Tiago Ferreira
  */
@@ -81,7 +81,7 @@ public class ScriptInstaller implements MenuKeyListener {
 	protected ScriptInstaller(final Context context, final SNTUI ui) {
 		context.inject(this);
 		this.ui = ui;
-		guiUtils = (ui == null) ? new GuiUtils() : ui.guiUtils;
+		guiUtils = new GuiUtils(ui);
 		init();
 	}
 
@@ -214,7 +214,7 @@ public class ScriptInstaller implements MenuKeyListener {
 	}
 
 	/** Returns a UI list of SNT's 'Batch' scripts **/
-	protected JMenu getBatchScriptsMenu() {
+	public JMenu getBatchScriptsMenu() {
 		final JMenu menu = getMenu("Batch", true);
 		for (int i = 0; i < menu.getItemCount(); i++) {
 			final JMenuItem mItem = menu.getItem(i);

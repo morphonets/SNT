@@ -105,6 +105,7 @@ import sc.fiji.snt.gui.ColorChooserButton;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.SigmaPalette;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
