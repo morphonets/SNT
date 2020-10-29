@@ -55,7 +55,7 @@ import sc.fiji.snt.plugin.SkeletonConverterCmd;
 import sc.fiji.snt.plugin.SkeletonizerCmd;
 import sc.fiji.snt.plugin.StrahlerCmd;
 import sc.fiji.snt.plugin.TreeMapperCmd;
-import sc.fiji.snt.plugin.ij1.CallLegacyShollAnalysisTree;
+import sc.fiji.snt.plugin.ij1.CallIJ1LegacyCmd;
 
 /**
  * Command for (re)setting SNT Preferences.
@@ -130,7 +130,7 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(AnalyzerCmd.class);
 		prefService.clear(AnnotationGraphRecViewerCmd.class);
 		prefService.clear(BrainAnnotationCmd.class);
-		prefService.clear(CallLegacyShollAnalysisTree.class);
+		prefService.clear(CallIJ1LegacyCmd.class);
 		prefService.clear(ChooseDatasetCmd.class);
 		prefService.clear(ColorMapReconstructionCmd.class);
 		prefService.clear(CompareFilesCmd.class);
