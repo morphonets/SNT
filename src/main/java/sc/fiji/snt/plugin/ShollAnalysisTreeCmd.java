@@ -504,8 +504,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			existingTypes.contains(Path.SWC_UNDEFINED);
 		}
 		if (containsType) {
-			return tree.subTree(filteredTypes.stream().mapToInt(Integer::intValue)
-				.toArray());
+			try {
+				return tree.subTree(filteredTypes.stream().mapToInt(Integer::intValue).toArray());
+			} catch (final IllegalArgumentException ex) {
+				logger.info("Connectiviy problem detected! The reconstruction is not a valid Tree!?");
+				ex.printStackTrace();
+				return null;
+			}
 		}
 		return null;
 	}
@@ -638,7 +643,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		public void runAnalysis() {
 			showStatus("Obtaining profile...");
 			parser.setStepSize(adjustedStepSize());
-			parser.parse();
+			try {
+				parser.parse();
+			} catch (IllegalArgumentException ex) {
+				cancelAndFreezeUI(ex.getMessage(), "Exception Occured");
+				ex.printStackTrace();
+				return;
+			}
 			profile = parser.getProfile();
 
 			if (!parser.successful()) {
@@ -650,16 +661,24 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			// Linear profile stats
 			lStats = new LinearProfileStats(profile);
 			lStats.setLogger(logger);
-			lStats.setPrimaryBranches(new TreeAnalyzer(tree).getPrimaryBranches()
-				.size());
+			int primaryBranches;
+			try {
+				logger.debug("Retriving primary branches...");
+				primaryBranches = new TreeAnalyzer(tree).getPrimaryBranches().size();
+			} catch (IllegalArgumentException exc) {
+				logger.debug("Failure... Structure is not a graph. Defaulting to primary paths");
+				primaryBranches = new TreeAnalyzer(tree).getPrimaryPaths().size();
+			}
+			lStats.setPrimaryBranches(primaryBranches);
 
 			if (polynomialChoice.contains("Best")) {
 				showStatus("Computing 'Best Fit' Polynomial...");
 				final int deg = lStats.findBestFit(minDegree, maxDegree, prefService);
 				if (deg == -1) {
 					helper.error(
-						"Polynomial regression failed. You may need to adjust (or reset) the options for 'best fit' polynomial",
+						"Please adjust the options for 'best fit' polynomial using Options, Preferences & Resources...\n"
 						null);
+						"Polynomial Regression Failed");
 				}
 			}
 			else if (polynomialChoice.contains("degree") && polynomialDegree > 1) {
