@@ -153,7 +153,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private String polynomialChoice;
 
 	@Parameter(label = "<html>&nbsp;", callback = "polynomialDegreeChanged",
-		style = NumberWidget.SCROLL_BAR_STYLE)
+		style = NumberWidget.SLIDER_STYLE) //FIXME: Class cast exception on linux with scroll bar widget
 	private int polynomialDegree;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
@@ -279,14 +279,14 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		if (snt != null) {
 			logger.info("Retrieving filtered paths... ");
 			final Tree filteredTree = getFilteredTree();
-			tree.setBoundingBox(snt.getPathAndFillManager().getBoundingBox(false));
 			if (filteredTree == null || filteredTree.isEmpty()) {
 				cancelAndFreezeUI(
-					"Tracings do not seem to contain Paths matching the filtering criteria.",
+					"Structure does not seem to contain Paths matching the filtering criteria.",
 					"Invalid Filter");
 				return;
 			}
-			logger.info("Considering " + filteredTree.size() + " out of " + tree
+			tree.setBoundingBox(snt.getPathAndFillManager().getBoundingBox(false));
+			logger.info("Considering " + filteredTree.size() + " paths out of " + tree
 				.size());
 			analysisRunner = new AnalysisRunner(filteredTree, center);
 		}
@@ -380,7 +380,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			}
 		}
 		readPreferences();
-		getInfo().setLabel("Sholl Analysis " + SNTUtils.VERSION);
+		getInfo().setLabel("Sholl Analysis SNT" + SNTUtils.VERSION);
 		adjustFittingOptions();
 	}
 
@@ -677,7 +677,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				if (deg == -1) {
 					helper.error(
 						"Please adjust the options for 'best fit' polynomial using Options, Preferences & Resources...\n"
-						null);
+						+ "Tip: Enabling 'Debug mode' will allow you to monitor the fitting progress.",
 						"Polynomial Regression Failed");
 				}
 			}

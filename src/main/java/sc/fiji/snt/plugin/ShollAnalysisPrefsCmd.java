@@ -183,8 +183,8 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 			return;
 		}
 		String url = "";
-		if (choice.contains("forum")) url = "https://forum.image.sc/";
-		else if (choice.contains("code")) url = "https://github.com/tferr/ASA";
+		if (choice.contains("forum")) url = "https://forum.image.sc/search?q=sholl%20order%3Alatest";
+		else if (choice.contains("code")) url = "https://github.com/morphonets/SNT";
 		else url = ShollUtils.URL;
 		try {
 			platformService.open(new URL(url));
@@ -198,7 +198,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 	private void about() {
 		final StringBuilder sb = new StringBuilder();
-		sb.append("You are running Sholl Analysis v").append(SNTUtils.VERSION);
+		sb.append("You are running Sholl Analysis SNTv").append(SNTUtils.VERSION);
 		sb.append(" ").append(SNTUtils.buildDate()).append("\n");
 		sb.append("on ImageJ ").append(appService.getApp().getVersion());
 		helper.infoMsg(sb.toString(), null);
@@ -229,6 +229,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		// Reset preferences
 		super.reset();
 		pService.clear(ShollAnalysisImgCmd.class);
+		pService.clear(ShollAnalysisTreeCmd.class);
 		pService.clear(ChooseDataset.class);
 
 		// Reset inputs in prompt
