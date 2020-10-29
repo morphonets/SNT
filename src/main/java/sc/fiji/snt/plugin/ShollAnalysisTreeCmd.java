@@ -413,12 +413,45 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 
 	private void readPreferences() {
 		logger.debug("Reading preferences");
+
 		minDegree = prefService.getInt(ShollAnalysisPrefsCmd.class, "minDegree",
 			ShollAnalysisPrefsCmd.DEF_MIN_DEGREE);
 		maxDegree = prefService.getInt(ShollAnalysisPrefsCmd.class, "maxDegree",
 			ShollAnalysisPrefsCmd.DEF_MAX_DEGREE);
-		if (saveDir == null || saveDir.getAbsolutePath().isEmpty())
-			saveDir = new File(System.getProperty("user.home"));
+
+		// FIXME: Somehow values for these parameters are not persisting. We'll load them manually
+		filterChoice = prefService.get(ShollAnalysisTreeCmd.class, "filterChoice", "None");
+		stepSize = prefService.getDouble(ShollAnalysisTreeCmd.class, "stepSize", 0d);
+		centerChoice = prefService.get(ShollAnalysisTreeCmd.class, "centerChoice", "Root node(s)");
+		polynomialChoice = prefService.get(ShollAnalysisTreeCmd.class, "polynomialChoice", "'Best fitting' degree");
+		polynomialDegree = prefService.getInt(ShollAnalysisTreeCmd.class, "polynomialDegree", 0);
+		normalizationMethodDescription = prefService.get(ShollAnalysisTreeCmd.class, "normalizationMethodDescription", "Automatically choose");
+		normalizerDescription = prefService.get(ShollAnalysisTreeCmd.class, "normalizationMethodDescription", "Default");
+		plotOutputDescription = prefService.get(ShollAnalysisTreeCmd.class, "plotOutputDescription", "Linear plot");
+		tableOutputDescription = prefService.get(ShollAnalysisTreeCmd.class, "tableOutputDescription", "Detailed table");
+		annotationsDescription = prefService.get(ShollAnalysisTreeCmd.class, "annotationsDescription", "None");
+		lutChoice = prefService.get(ShollAnalysisTreeCmd.class, "lutChoice", "mpl-viridis.lut");
+		save = prefService.getBoolean(ShollAnalysisTreeCmd.class, "save", false);
+		saveDir = new File(prefService.get(ShollAnalysisTreeCmd.class, "saveDir", System.getProperty("user.home")));
+	}
+
+	private void savePreferences() {
+		logger.debug("Saving preferences");
+
+		// FIXME: Somehow values for these parameters are not persisting. We'll load them manually
+		prefService.put(ShollAnalysisTreeCmd.class, "filterChoice", filterChoice);
+		prefService.put(ShollAnalysisTreeCmd.class, "stepSize", stepSize);
+		prefService.put(ShollAnalysisTreeCmd.class, "centerChoice", centerChoice);
+		prefService.put(ShollAnalysisTreeCmd.class, "polynomialChoice", polynomialChoice);
+		prefService.put(ShollAnalysisTreeCmd.class, "polynomialDegree", polynomialDegree);
+		prefService.put(ShollAnalysisTreeCmd.class, "normalizationMethodDescription", normalizationMethodDescription);
+		prefService.put(ShollAnalysisTreeCmd.class, "normalizationMethodDescription", normalizationMethodDescription);
+		prefService.put(ShollAnalysisTreeCmd.class, "plotOutputDescription", plotOutputDescription);
+		prefService.put(ShollAnalysisTreeCmd.class, "tableOutputDescription", tableOutputDescription);
+		prefService.put(ShollAnalysisTreeCmd.class, "annotationsDescription", annotationsDescription);
+		prefService.put(ShollAnalysisTreeCmd.class, "lutChoice", lutChoice);
+		prefService.put(ShollAnalysisTreeCmd.class, "save", save);
+		prefService.put(ShollAnalysisTreeCmd.class, "saveDir", saveDir.getAbsolutePath());
 	}
 
 	private void adjustFittingOptions() {
@@ -778,6 +811,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			}
 
 			showStatus("Sholl Analysis concluded...");
+			savePreferences();
 		}
 
 		private ShollPlot showOrRebuildPlot(ShollPlot plot,
