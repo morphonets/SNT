@@ -22,6 +22,7 @@
 
 package sc.fiji.snt;
 
+import java.awt.Component;
 import java.awt.event.InputEvent;
 import java.io.BufferedReader;
 import java.io.File;
@@ -57,7 +58,7 @@ import sc.fiji.snt.gui.IconFactory.GLYPH;
  * 
  * @author Tiago Ferreira
  */
-class ScriptInstaller implements MenuKeyListener {
+public class ScriptInstaller implements MenuKeyListener {
 
 	@Parameter
 	private Context context;
@@ -66,14 +67,25 @@ class ScriptInstaller implements MenuKeyListener {
 	private ScriptService scriptService;
 
 	private final SNTUI ui;
-	private final TreeSet<ScriptInfo> scripts;
+	private final GuiUtils guiUtils;
+	private TreeSet<ScriptInfo> scripts;
 	private boolean openInsteadOfRun;
 
-	protected ScriptInstaller(final Context context, final SNTUI ui) {
+	public ScriptInstaller(final Context context, final Component parent){
+		context.inject(this);
+		ui = null;
+		guiUtils = new GuiUtils(parent);
+		init();
+	}
 
+	protected ScriptInstaller(final Context context, final SNTUI ui) {
 		context.inject(this);
 		this.ui = ui;
+		guiUtils = (ui == null) ? new GuiUtils() : ui.guiUtils;
+		init();
+	}
 
+	private void init() {
 		scripts = new TreeSet<>(Comparator.comparing(this::getScriptLabel));
 
 		// 1. Include script_templates that are not discovered by ScriptService
@@ -140,19 +152,19 @@ class ScriptInstaller implements MenuKeyListener {
 	}
 
 	private void runScript(final ScriptInfo si) {
-		ui.showStatus("Running script...", false);
+		if (ui != null) ui.showStatus("Running script...", false);
 		final Future<ScriptModule> fsm = scriptService.run(si, true,
 			(Map<String, Object>) null);
 		if (fsm.isCancelled()) {
 			ui.showStatus("Script canceled...", true);
 		}
-		else if (fsm.isDone()) {
+		else if (fsm.isDone() && ui != null) {
 			ui.showStatus("Script completed...", true);
 		}
 	}
 
 	private void openScript(final ScriptInfo si) {
-		ui.showStatus("Opening script...", false);
+		if (ui != null) ui.showStatus("Opening script...", false);
 		final TextEditor editor = new TextEditor(context);
 		final BufferedReader reader = si.getReader();
 		if (reader == null) { // local file
@@ -172,7 +184,7 @@ class ScriptInstaller implements MenuKeyListener {
 			}
 		}
 		editor.setVisible(true);
-		ui.showStatus("", false);
+		if (ui != null) ui.showStatus("", false);
 	}
 
 	private JMenu getMenu(final String folder, final boolean trimExtension) {
@@ -212,7 +224,7 @@ class ScriptInstaller implements MenuKeyListener {
 	}
 
 	/** Returns a UI list with all available scripts scripting SNT **/
-	protected JMenu getScriptsMenu() {
+	public JMenu getScriptsMenu() {
 		final JMenu sMenu = new JMenu("Scripts");
 		sMenu.add(getMenu("Analysis", true));
 		sMenu.add(getMenu("Batch", true));
@@ -226,25 +238,28 @@ class ScriptInstaller implements MenuKeyListener {
 			addLocalScripts();
 			final int newCount = scripts.size();
 			if (oldCount == newCount) {
-				ui.guiUtils.centeredMsg("No new scripts detected.", "List Reloaded");
+				guiUtils.centeredMsg("No new scripts detected.", "List Reloaded");
 				return;
 			}
 			sMenu.remove(listMenuPosition);
 			sMenu.add(getFullListMenu(), listMenuPosition);
 			sMenu.revalidate();
-			ui.guiUtils.centeredMsg(""+ (newCount-oldCount) +" new script(s) added to \"Scripts>Full List>\".", "New Script(s) Detected");
+			guiUtils.centeredMsg(""+ (newCount-oldCount) +" new script(s) added to \"Scripts>Full List>\".", "New Script(s) Detected");
 		});
 		sMenu.add(reloadMI);
 		sMenu.addSeparator();
 		final JMenuItem mi = new JMenuItem("New...", IconFactory.getMenuIcon(GLYPH.CODE));
 		mi.addActionListener(e -> {
-			final TextEditor editor = new TextEditor(context);
+
 			final HashMap<String, String> map = new HashMap<>();
 			map.put("BeanShell", "BSH.bsh");
 			map.put("Groovy", "GVY.groovy");
 			map.put("Python", "PY.py");
-			final String choice = new GuiUtils(ui).getChoice("Language:", "New Script",
+			final String choice = guiUtils.getChoice("Language:", "New Script",
 					map.keySet().toArray(new String[map.keySet().size()]), "");
+			if (choice == null) return; // user pressed cancel
+
+			final TextEditor editor = new TextEditor(context);
 			final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 			boolean save = true;
 			try {
@@ -292,7 +307,7 @@ class ScriptInstaller implements MenuKeyListener {
 		final JMenuItem mItem = new JMenuItem("About SNT Scripts...");
 		mItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
 		mItem.addActionListener(e -> {
-			ui.guiUtils.showHTMLDialog(
+			guiUtils.showHTMLDialog(
 				"<HTML><div WIDTH=500>This menu lists scripting routines that " //
 				+ "<a href='https://imagej.net/SNT:_Scripting'>enhance SNT functionality</a>. " //
 				+ "The list is automatically populated at startup.<br><br>" //
