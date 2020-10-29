@@ -85,16 +85,13 @@ import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.ShollPoint;
 
 /**
- * Implements both the "Analyze:Sholl:Sholl Analysis (From Tracings)..." and
- * SNT's "Start Sholl Analysis..." commands
+ * Implements SNT's commands for Sholl Analysis of {@link Tree}s.
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, menu = { @Menu(label = "Analyze"), @Menu(
-	label = "Sholl", weight = 0.01d), @Menu(
-		label = "Sholl Analysis (From Tracings)...") }, initializer = "init")
-public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
-	Cancelable
+@Plugin(type = Command.class, menu = { @Menu(label = "Plugins"), @Menu(label = "Neuroanatomy"),
+		@Menu(label = "Sholl", weight = 0.01d), @Menu(label = "Sholl Analysis (From Tracings)...") }, initializer = "init")
+public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive, Cancelable
 {
 
 	@Parameter

@@ -44,7 +44,6 @@ import org.scijava.convert.ConvertService;
 import org.scijava.display.Display;
 import org.scijava.display.DisplayService;
 import org.scijava.event.EventHandler;
-import org.scijava.event.EventService;
 import org.scijava.module.ModuleItem;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Menu;
@@ -54,7 +53,6 @@ import org.scijava.prefs.PrefService;
 import org.scijava.table.DefaultGenericTable;
 import org.scijava.thread.ThreadService;
 import org.scijava.ui.DialogPrompt.Result;
-import org.scijava.ui.UIService;
 import org.scijava.widget.Button;
 import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
@@ -97,8 +95,8 @@ import sc.fiji.snt.util.ShollPoint;
  * 
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, menu = { @Menu(label = "Analyze"), @Menu(label = "Sholl", weight = 0.01d),
-		@Menu(label = "Sholl Analysis (From Image)...") }, initializer = "init")
+@Plugin(type = Command.class, menu = { @Menu(label = "Plugins"), @Menu(label = "Neuroanatomy"),
+		@Menu(label = "Sholl", weight = 0.01d), @Menu(label = "Sholl Analysis (From Image)...") }, initializer = "init")
 public class ShollAnalysisImgCmd extends DynamicCommand {
 
 	@Parameter
@@ -107,8 +105,6 @@ public class ShollAnalysisImgCmd extends DynamicCommand {
 	private ConvertService convertService;
 	@Parameter
 	private DatasetService datasetService;
-	@Parameter
-	private EventService eventService;
 	@Parameter
 	private DisplayService displayService;
 	@Parameter
@@ -119,12 +115,11 @@ public class ShollAnalysisImgCmd extends DynamicCommand {
 	private LUTService lutService;
 	@Parameter
 	private PrefService prefService;
-	@Parameter(visibility = ItemVisibility.INVISIBLE)
+	@Parameter
 	private StatusService statusService;
 	@Parameter
 	private ThreadService threadService;
-	@Parameter
-	private UIService uiService;
+
 
 	/* constants */
 	private static final List<String> NORM2D_CHOICES = Arrays.asList("Default", "Area", "Perimeter", "Annulus");
