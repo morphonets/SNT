@@ -2001,10 +2001,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 			@Override
 			public void actionPerformed(final ActionEvent e) {
 				gd.disposeWithouRecording();
-				IJ.runPlugIn("tracing.ShollAnalysisPlugin", "");// FIXME will
-																// break if
-																// ShollAnalysisPlugin
-																// changes path
+				IJ.runPlugIn(ShollAnalysisPlugin.class.getName(), "");
 			}
 		});
 		mi.setEnabled(!analyzingTraces);

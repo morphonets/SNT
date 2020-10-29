@@ -36,10 +36,10 @@ import java.util.concurrent.Future;
 
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
-import org.scijava.table.DefaultGenericTable;
 import net.imglib2.display.ColorTable;
 
 import org.scijava.Cancelable;
+import org.scijava.ItemIO;
 import org.scijava.ItemVisibility;
 import org.scijava.app.StatusService;
 import org.scijava.command.Command;
@@ -55,8 +55,10 @@ import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.thread.ThreadService;
 import org.scijava.widget.Button;
+import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.Overlay;
 import sc.fiji.snt.SNT;
@@ -108,17 +110,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	@Parameter
 	private ThreadService threadService;
 
-	/* constants */
-	private static final String HEADER_HTML =
-		"<html><body><div style='font-weight:bold;'>";
-
 	/* Parameters */
 	@Parameter(required = false, label = "File:",
 		style = "extensions:eswc/swc/traces", callback = "fileChanged")
 	private File file;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-		label = HEADER_HTML + "Sampling:")
+		label = ShollAnalysisImgCmd.HEADER_HTML + "Sampling:")
 	private String HEADER1;
 
 	@Parameter(label = "Path filtering", required = false, choices = { "None",
@@ -142,7 +140,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private boolean previewShells;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-		label = HEADER_HTML + "<br>Metrics:")
+		label = ShollAnalysisImgCmd.HEADER_HTML + "<br>Metrics:")
 	private String HEADER2;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
@@ -172,7 +170,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private String normalizerDescription;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-		label = HEADER_HTML + "<br>Output:")
+		label = ShollAnalysisImgCmd.HEADER_HTML + "<br>Output:")
 	private String HEADER3;
 
 	@Parameter(label = "Plots", choices = { "Linear plot", "Normalized plot",
@@ -184,7 +182,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private String tableOutputDescription;
 
 	@Parameter(required = false, label = "Annotations", choices = { "None",
-		"Color coded paths", "3D viewer labels image" })
+		"Color coded nodes", "3D viewer labels image" })
 	private String annotationsDescription;
 
 	@Parameter(required = false, label = "Annotations LUT",
@@ -194,7 +192,21 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	@Parameter(required = false, label = "<html>&nbsp;")
 	private ColorTable lutTable;
 
-	@Parameter(label = "<html><b>Run Analysis", callback = "runAnalysis")
+	@Parameter(required = false, callback = "saveChoiceChanged", label = "Save files", //
+			description = ShollAnalysisImgCmd.HEADER_TOOLTIP
+					+ "Wheter output files (tables, plots, mask) should be saved once displayed.")
+	private boolean save;
+
+	@Parameter(required = false, label = "Destination", type = ItemIO.INPUT, style = FileWidget.DIRECTORY_STYLE, //
+			description = ShollAnalysisImgCmd.HEADER_TOOLTIP
+					+ "Destination directory. Ignored if \"Save files\" is deselected, or outputs are not savable.")
+	private File saveDir;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
+		label = ShollAnalysisImgCmd.HEADER_HTML + "<br>&nbsp;")
+	private String HEADER4;
+
+	@Parameter(label = "Run Analysis", callback = "runAnalysis")
 	private Button analyzeButton;
 
 	@Parameter(label = " Options, Preferences and Resources... ",
@@ -219,7 +231,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private Future<?> analysisFuture;
 	private PreviewOverlay previewOverlay;
 	private Profile profile;
-	private DefaultGenericTable commonSummaryTable;
+	private ShollTable commonSummaryTable;
 	private Display<?> detailedTableDisplay;
 	private boolean multipleTreesExist;
 
@@ -405,6 +417,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			ShollAnalysisPrefsCmd.DEF_MIN_DEGREE);
 		maxDegree = prefService.getInt(ShollAnalysisPrefsCmd.class, "maxDegree",
 			ShollAnalysisPrefsCmd.DEF_MAX_DEGREE);
+		if (saveDir == null || saveDir.getAbsolutePath().isEmpty())
+			saveDir = new File(System.getProperty("user.home"));
 	}
 
 	private void adjustFittingOptions() {
@@ -447,6 +461,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		if (snt != null) noOutput = noOutput && annotationsDescription.contains(
 			"None");
 		return !noOutput;
+	}
+
+	private void errorIfSaveDirInvalid() {
+		if (save && (saveDir == null || !saveDir.exists() || !saveDir.canWrite())) {
+			save = false;
+			helper.error("No files saved: Output directory is not valid or writable.", "Please Change Output Directory");
+		}
 	}
 
 	private Tree getFilteredTree() {
@@ -567,6 +588,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		private final TreeParser parser;
 		private LinearProfileStats lStats;
 		private NormalizedProfileStats nStats;
+		private ArrayList<Object> outputs = new ArrayList<>();
 
 		public AnalysisRunner(final Tree tree, final String centerChoice) {
 			this.tree = tree;
@@ -656,12 +678,15 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			logger.debug("Sholl decay: " + nStats.getShollDecay());
 
 			// Set Plots
+			outputs = new ArrayList<>();
 			showStatus("Preparing outputs...");
 			if (plotOutputDescription.toLowerCase().contains("linear")) {
 				lPlot = showOrRebuildPlot(lPlot, lStats);
+				outputs.add(lPlot);
 			}
 			if (plotOutputDescription.toLowerCase().contains("normalized")) {
 				nPlot = showOrRebuildPlot(nPlot, nStats);
+				outputs.add(nPlot);
 			}
 
 			// Set tables
@@ -673,11 +698,11 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				}
 				detailedTableDisplay = displayService.createDisplay("Sholl-Profiles",
 					dTable);
+				outputs.add(dTable);
 			}
 			if (tableOutputDescription.contains("Summary")) {
 				final ShollTable sTable = new ShollTable(lStats, nStats);
-				if (commonSummaryTable == null) commonSummaryTable =
-					new DefaultGenericTable();
+				if (commonSummaryTable == null) commonSummaryTable = new ShollTable();
 				String header = "";
 				if (snt == null) {
 					header = file.getName();
@@ -689,21 +714,50 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				if (!filterChoice.contains("None")) header += "(" + filterChoice + ")";
 				sTable.summarize(commonSummaryTable, header);
 				updateAndDisplayCommonSummaryTable();
+				outputs.add(commonSummaryTable);
 			}
 
 			if (snt != null) {
 				if (annotationsDescription.contains("labels image")) {
 					showStatus("Creating labels image...");
-					parser.getLabelsImage(snt.getImagePlus(), null).show();
+					final ImagePlus labelsImage = parser.getLabelsImage(snt.getImagePlus(), null);
+					outputs.add(labelsImage);
+					labelsImage.show();
 				}
-				if (annotationsDescription.contains("paths")) {
+				if (annotationsDescription.contains("coded")) {
 					showStatus("Color coding nodes...");
 					final TreeColorMapper treeColorizer = new TreeColorMapper(snt
 						.getContext());
 					treeColorizer.map(tree, lStats, lutTable);
+					if (snt != null) snt.updateAllViewers();
 				}
 				annotationsDescription = "None";
 			}
+
+			// Now save everything
+			errorIfSaveDirInvalid();
+			if (save) {
+				int failures = 0;
+				for (final Object output : outputs) {
+					if (output instanceof ShollPlot) {
+						if (!((ShollPlot)output).save(saveDir)) ++failures;
+					}
+					else if (output instanceof ShollTable) {
+						final ShollTable table = (ShollTable)output;
+						if (!table.hasContext()) table.setContext(getContext());
+						if (!table.saveSilently(saveDir)) ++failures;
+					}
+					else if (output instanceof ImagePlus) {
+						final ImagePlus imp = (ImagePlus)output;
+						final File outFile = new File(saveDir, imp.getTitle());
+						if (!IJ.saveAsTiff(imp, outFile.getAbsolutePath())) ++failures;
+					}
+				}
+				if (failures > 0)
+					helper.error("Some file(s) (" + failures + "/"+ outputs.size() +") could not be saved. \n"
+							+ "Please ensure \"Destination\" directory is valid.", "IO Failure");
+			}
+
 			showStatus("Sholl Analysis concluded...");
 		}
 

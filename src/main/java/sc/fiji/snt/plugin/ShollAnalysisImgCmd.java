@@ -130,9 +130,9 @@ public class ShollAnalysisImgCmd extends DynamicCommand {
 	private static final List<String> NORM2D_CHOICES = Arrays.asList("Default", "Area", "Perimeter", "Annulus");
 	private static final List<String> NORM3D_CHOICES = Arrays.asList("Default", "Volume", "Surface area", "Spherical shell");
 
-	private static final String HEADER_HTML = "<html><body><div style='font-weight:bold;'>";
-	private static final String HEADER_TOOLTIP = "<HTML><div WIDTH=650>";
-	private static final String EMPTY_LABEL = "<html>&nbsp;";
+	protected static final String HEADER_HTML = "<html><body><div style='font-weight:bold;'>";
+	protected static final String HEADER_TOOLTIP = "<HTML><div WIDTH=650>";
+	protected static final String EMPTY_LABEL = "<html>&nbsp;";
 	private static final int MAX_SPANS = 10;
 
 	private static final String NO_IMAGE = "Image no longer available";
@@ -259,7 +259,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand {
 					"Abort current analysis", "Change image..."})
 	private String analysisAction;
 
-	@Parameter(label = "<html><b>Analyze Image", callback = "runAnalysis")
+	@Parameter(label = "Analyze Image", callback = "runAnalysis")
 	private Button analyzeButton;
 
 	@Parameter(persist = false, required = false, visibility = ItemVisibility.MESSAGE, //
@@ -619,7 +619,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand {
 		} else
 			label = analysisAction;
 		aButton.setLabel(
-				String.format("<html><font color='%s'><b>%s</b></font></html>", disable ? "#555555" : "#000", label));
+				String.format("<html><font color='%s'><b>%s</font></html>", disable ? "#f00" : "#000", label));
 	}
 
 	private void setNormalizerChoices() {
@@ -954,7 +954,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand {
 
 		private final ImageParser parser;
 		private boolean skipParsing;
-		private final ArrayList<Object> outputs = new ArrayList<>();
+		private ArrayList<Object> outputs = new ArrayList<>();
 
 		public AnalysisRunner(final ImageParser parser) {
 			this.parser = parser;
@@ -1042,6 +1042,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand {
 			}
 
 			// Set Plots
+			outputs = new ArrayList<>();
 			if (plotOutputDescription.toLowerCase().contains("linear")) {
 				final ShollPlot lPlot = lStats.getPlot();
 				outputs.add(lPlot);

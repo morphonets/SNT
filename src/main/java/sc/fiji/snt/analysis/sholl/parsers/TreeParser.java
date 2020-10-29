@@ -195,7 +195,7 @@ public class TreeParser implements Parser {
 	 * @see sholl.parsers.Parser#parse()
 	 */
 	@Override
-	public void parse() {
+	public void parse() throws IllegalArgumentException {
 		if (tree == null || tree.isEmpty()) {
 			throw new IllegalArgumentException("Invalid tree");
 		}

@@ -75,14 +75,13 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 	/* Fields */
 	private final static String PLACEHOLDER_CHOICE = "Choose...";
-	private final static String HELP_URL = ShollUtils.URL;
 	private GUIHelper helper;
 	private Logger logger;
 	private boolean restartRequired;
 
 	/* Prompt */
-	private static final String HEADER_HTML = "<html><body><div style='font-weight:bold;'>";
-	private static final String DESCRIPTION_HTML = "<html><body><div style='width:400px'>";
+	protected static final String HEADER_HTML = "<html><body><div style='font-weight:bold;'>";
+	protected static final String DESCRIPTION_HTML = "<html><body><div style='width:400px'>";
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 		label = HEADER_HTML + "Sampling:")
@@ -186,7 +185,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		String url = "";
 		if (choice.contains("forum")) url = "https://forum.image.sc/";
 		else if (choice.contains("code")) url = "https://github.com/tferr/ASA";
-		else url = HELP_URL;
+		else url = ShollUtils.URL;
 		try {
 			platformService.open(new URL(url));
 		}
