@@ -643,19 +643,19 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			final String choice = centerChoice.toLowerCase();
 			try {
 				if (choice.contains("all")) {
-					parser.setCenter(TreeParser.PRIMARY_NODES_ANY);
+					parser.setCenter(TreeParser.ROOT_NODES_ANY);
 				}
 				else if (choice.contains("soma")) {
-					parser.setCenter(TreeParser.PRIMARY_NODES_SOMA);
+					parser.setCenter(TreeParser.ROOT_NODES_SOMA);
 				}
 				else if (choice.contains("axon")) {
-					parser.setCenter(TreeParser.PRIMARY_NODES_AXON);
+					parser.setCenter(TreeParser.ROOT_NODES_AXON);
 				}
 				else if (choice.contains("apical")) {
-					parser.setCenter(TreeParser.PRIMARY_NODES_APICAL_DENDRITE);
+					parser.setCenter(TreeParser.ROOT_NODES_APICAL_DENDRITE);
 				}
 				else if (choice.contains("dendrite")) {
-					parser.setCenter(TreeParser.PRIMARY_NODES_DENDRITE);
+					parser.setCenter(TreeParser.ROOT_NODES_DENDRITE);
 				}
 			}
 			catch (IllegalArgumentException | NullPointerException ignored) {

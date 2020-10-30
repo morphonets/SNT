@@ -185,12 +185,12 @@ public class TreeColorMapper extends ColorMapper {
 			case PATH_DISTANCE:
 				final TreeParser parser = new TreeParser(new Tree(paths));
 				try {
-					parser.setCenter(TreeParser.PRIMARY_NODES_SOMA);
+					parser.setCenter(TreeParser.ROOT_NODES_SOMA);
 				}
 				catch (final IllegalArgumentException ignored) {
 					SNTUtils.log(
 						"No soma attribute found... Defaulting to average of all root nodes");
-					parser.setCenter(TreeParser.PRIMARY_NODES_ANY);
+					parser.setCenter(TreeParser.ROOT_NODES_ANY);
 				}
 				final PointInImage center = parser.getCenter();
 				final PointInImage root = new PointInImage(center.x, center.y,

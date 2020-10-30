@@ -273,7 +273,7 @@ public class MultiViewer2D {
 		for (final Tree tree : trees) {
 			final TreeColorMapper tmapper = new TreeColorMapper();
 			final TreeParser parser = new TreeParser(tree);
-			parser.setCenter(TreeParser.PRIMARY_NODES_ANY);
+			parser.setCenter(TreeParser.ROOT_NODES_ANY);
 			parser.setStepSize(0);
 			parser.parse();
 			final LinearProfileStats stats = new LinearProfileStats(parser.getProfile());
