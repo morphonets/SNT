@@ -53,43 +53,43 @@ public class TreeParser implements Parser {
 	 * Flag for defining the profile center as the average position of root nodes
 	 * of all primary Paths.
 	 */
-	public static final int PRIMARY_NODES_ANY = 0;
+	public static final int ROOT_NODES_ANY = 0;
 
 	/**
 	 * Flag for defining the profile center as the average position of root nodes
 	 * of Paths tagged as Apical Dendrite.
 	 */
-	public static final int PRIMARY_NODES_APICAL_DENDRITE = 1;
+	public static final int ROOT_NODES_APICAL_DENDRITE = 1;
 
 	/**
 	 * Flag for defining the profile center as the average position of root nodes
 	 * of Paths tagged as Axon.
 	 */
-	public static final int PRIMARY_NODES_AXON = 2;
+	public static final int ROOT_NODES_AXON = 2;
 
 	/**
 	 * Flag for defining the profile center as the average position of root nodes
 	 * of Paths tagged as Custom.
 	 */
-	public static final int PRIMARY_NODES_CUSTOM = 3;
+	public static final int ROOT_NODES_CUSTOM = 3;
 
 	/**
 	 * Flag for defining the profile center as the average position of root nodes
 	 * of Paths tagged as (Basal) Dendrite
 	 */
-	public static final int PRIMARY_NODES_DENDRITE = 4;
+	public static final int ROOT_NODES_DENDRITE = 4;
 
 	/**
 	 * Flag for defining the profile center as the average position of root nodes
 	 * of Paths tagged as Soma
 	 */
-	public static final int PRIMARY_NODES_SOMA = 5;
+	public static final int ROOT_NODES_SOMA = 5;
 
 	/**
 	 * Flag for defining the profile center as the average position of root nodes
 	 * of Paths tagged as Undefined
 	 */
-	public static final int PRIMARY_NODES_UNDEFINED = 6;
+	public static final int ROOT_NODES_UNDEFINED = 6;
 
 	private final Tree tree;
 	private List<ComparableShollPoint> shollPointsList;
@@ -113,33 +113,33 @@ public class TreeParser implements Parser {
 	 * Computes the center of the Profile.
 	 *
 	 * @param choice the flag specifying the center (e.g.,
-	 *          {@link #PRIMARY_NODES_SOMA}, {@link #PRIMARY_NODES_ANY}, etc.)
+	 *          {@link #ROOT_NODES_SOMA}, {@link #ROOT_NODES_ANY}, etc.)
 	 * @throws IllegalArgumentException if choice is not a recognized flag or if
 	 *           no Paths in the Tree match the choice criteria
 	 */
 	public void setCenter(final int choice) throws IllegalArgumentException {
 		switch (choice) {
-			case PRIMARY_NODES_ANY:
+			case ROOT_NODES_ANY:
 				center = getCenter(-1);
 				if (center == null && !tree.isEmpty())
 					center = tree.list().get(0).getNode(0);
 				break;
-			case PRIMARY_NODES_UNDEFINED:
+			case ROOT_NODES_UNDEFINED:
 				center = getCenter(Path.SWC_UNDEFINED);
 				break;
-			case PRIMARY_NODES_SOMA:
+			case ROOT_NODES_SOMA:
 				center = getCenter(Path.SWC_SOMA);
 				break;
-			case PRIMARY_NODES_AXON:
+			case ROOT_NODES_AXON:
 				center = getCenter(Path.SWC_AXON);
 				break;
-			case PRIMARY_NODES_DENDRITE:
+			case ROOT_NODES_DENDRITE:
 				center = getCenter(Path.SWC_DENDRITE);
 				break;
-			case PRIMARY_NODES_APICAL_DENDRITE:
+			case ROOT_NODES_APICAL_DENDRITE:
 				center = getCenter(Path.SWC_APICAL_DENDRITE);
 				break;
-			case PRIMARY_NODES_CUSTOM:
+			case ROOT_NODES_CUSTOM:
 				center = getCenter(Path.SWC_CUSTOM);
 				break;
 			default:
@@ -399,7 +399,7 @@ public class TreeParser implements Parser {
 	public static void main(final String... args) {
 		final Tree tree = new Tree(SNTUtils.randomPaths());
 		final TreeParser parser = new TreeParser(tree);
-		parser.setCenter(PRIMARY_NODES_ANY);
+		parser.setCenter(ROOT_NODES_ANY);
 		parser.parse();
 		parser.getProfile().plot().show();
 	}
