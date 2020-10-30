@@ -166,7 +166,7 @@ public class Profile implements ProfileProperties {
 		return Double.NaN;
 	}
 
-	public void trimZeroEntries() {
+	public void trimZeroCounts() {
 		final Iterator<ProfileEntry> iter = profile.iterator();
 		while (iter.hasNext()) {
 			final ProfileEntry entry = iter.next();
@@ -370,9 +370,13 @@ public class Profile implements ProfileProperties {
 	public Overlay getROIs(final ImagePlus imp) {
 		final ShollOverlay so = new ShollOverlay(this, imp);
 		so.addCenter();
-		if (!is2D())
+		if (!is2D()) {
 			so.setShellsColor(null); // same as so.setShellsThickness(0);
+		} else {
+			so.setShellsLUT("mpl-viridis.lut");
+		}
 		so.setPointsLUT("mpl-viridis.lut");
+		so.updateDisplay();
 		return so.getOverlay();
 	}
 

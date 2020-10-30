@@ -94,6 +94,10 @@ public class ImageParser3D extends ImageParser {
 
 	}
 
+	public void setPosition(final int channel, final int frame) {
+		super.setPosition(channel, frame);
+	}
+
 	private class ChunkParser implements Runnable {
 
 		private final int start;

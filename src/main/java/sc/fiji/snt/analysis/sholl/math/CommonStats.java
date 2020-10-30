@@ -63,7 +63,7 @@ class CommonStats extends ContextCommand implements ShollStats {
 		// Remove all zeroes from input sample: this is required when e.g.,
 		// performing log transforms, since log(0) is undefined
 		if (trimZeroes)
-			profile.trimZeroEntries();
+			profile.trimZeroCounts();
 		if (profile.isEmpty())
 			throw new IllegalArgumentException("Cannot instantiate analysis with an empty profile");
 

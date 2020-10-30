@@ -21,6 +21,7 @@
  */
 package sc.fiji.snt.analysis.sholl.parsers;
 
+import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Properties;
 
@@ -31,6 +32,8 @@ import org.scijava.plugin.Parameter;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.gui.Line;
+import ij.gui.Roi;
 import ij.measure.Calibration;
 import ij.plugin.ZProjector;
 import ij.process.FloatProcessor;
@@ -97,6 +100,22 @@ public class ImageParser extends ContextCommand implements Parser {
 
 	public double getIsotropicVoxelSize() {
 		return voxelSize;
+	}
+
+	public void setCenterFromROI() {
+		final Roi roi = imp.getRoi();
+		if (roi == null)
+			return; // FIXME: Throw exception rather than doing nothing?
+		if (roi.getType() == Roi.LINE) {
+			final Line line = (Line) roi;
+			setCenterPx(line.x1, line.y1, imp.getZ());
+		} else if (roi.getType() == Roi.POINT) {
+			final Rectangle rect = roi.getBounds();
+			setCenterPx(rect.x, rect.y, imp.getZ());
+		} else {
+			final double[] ctd = roi.getContourCentroid();
+			setCenterPx((int) Math.round(ctd[0]), (int) Math.round(ctd[1]), imp.getZ());
+		}
 	}
 
 	public void setCenterPx(final int x, final int y, final int z) {
@@ -166,8 +185,14 @@ public class ImageParser extends ContextCommand implements Parser {
 	protected void checkUnsetFields(final boolean includeThreshold) {
 		if (center == null || radii == null)
 			throw new IllegalArgumentException("Cannot proceed with undefined parameters");
-		if (includeThreshold && (upperT == ImageProcessor.NO_THRESHOLD || lowerT == ImageProcessor.NO_THRESHOLD))
-			throw new IllegalArgumentException("Cannot proceed with undefined threshold levels");
+		if (includeThreshold && (upperT == ImageProcessor.NO_THRESHOLD || lowerT == ImageProcessor.NO_THRESHOLD)) {
+			if (imp.isThreshold()) { // check if image is thresholded
+				lowerT = imp.getProcessor().getMinThreshold();
+				upperT = imp.getProcessor().getMaxThreshold();
+			}
+			if (upperT == ImageProcessor.NO_THRESHOLD || lowerT == ImageProcessor.NO_THRESHOLD)
+				throw new IllegalArgumentException("Cannot proceed with undefined threshold levels");
+		}
 	}
 
 	protected void checkUnsetFields() {
@@ -306,6 +331,11 @@ public class ImageParser extends ContextCommand implements Parser {
 		final ImagePlus img = new ImagePlus(imp.getTitle() + "_ShollMask",
 				getMaskProcessor(false, profile.countsAsArray()));
 		img.setCalibration(cal);
+		try {
+			IJ.run(img, "mpl-inferno", "");
+		} catch (final Exception ignored) {
+			// do nothing ...
+		}
 		return img;
 	}
 
