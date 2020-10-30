@@ -1,5 +1,5 @@
 """
-file:       Brain_Comparment_Analysis.py
+file:       Brain_Comparment_Analysis_Demo.py
 author:     Tiago Ferreira
 version:    20200126
 info:       A Python demo on how to assess the brain areas a neuron projects to

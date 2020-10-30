@@ -3,8 +3,8 @@ import sc.fiji.snt.annotation.AllenUtils
 import scala.collection.JavaConversions._
 
 /**
- * Streamlined version of Download_ML_Data_I.groovy written in Scala. Have
- * a look at the original Download_ML_Data_I.groovy script for details.
+ * Streamlined version of Download_ML_Data_(Demo_I).groovy written in Scala. Have
+ * a look at the original Download_ML_Data_(Demo_I).groovy script for details.
  * TF 20200417
  */
 

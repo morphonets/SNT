@@ -10,7 +10,7 @@ import org.scijava.util.*
 
 
 /**
- * file:	Get_Branch_Points_in_Brain_Compartment.groovy
+ * file:	Get_Branch_Points_in_Brain_Compartment_Demo.groovy
  * author:	Tiago Ferreira  
  * version:	20190613 
  * info:	Exemplifies how to extract morphometric properties of a MouseLight

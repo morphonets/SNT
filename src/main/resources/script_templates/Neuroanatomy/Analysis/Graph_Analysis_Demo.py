@@ -1,6 +1,6 @@
 #@Context context
 """
-file:       Graph_Analysis.py
+file:       Graph_Analysis_Demo.py
 author:     Tiago Ferreira, Cameron Arshadi
 version:    20190402
 info:       Demonstrates how to handle neurons as graph structures[1] (graph theory)

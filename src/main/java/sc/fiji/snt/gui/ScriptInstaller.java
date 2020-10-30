@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.concurrent.Future;
+import java.util.regex.Pattern;
 
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
@@ -66,6 +67,7 @@ public class ScriptInstaller implements MenuKeyListener {
 	@Parameter
 	private ScriptService scriptService;
 
+	public static final Pattern DEMO_SCRIPT = Pattern.compile(".*demo.*", Pattern.CASE_INSENSITIVE);
 	private final SNTUI ui;
 	private final GuiUtils guiUtils;
 	private TreeSet<ScriptInfo> scripts;
@@ -187,12 +189,13 @@ public class ScriptInstaller implements MenuKeyListener {
 		if (ui != null) ui.showStatus("", false);
 	}
 
-	private JMenu getMenu(final String folder, final boolean trimExtension) {
+	private JMenu getMenu(final String folder, final Pattern excludePattern, final boolean trimExtension) {
 		final JMenu sMenu = new JMenu((folder == null) ? "Full List" : folder);
 		sMenu.addMenuKeyListener(this);
 		for (final ScriptInfo si : scripts) {
 			final String path = si.getPath();
 			if (path == null || (folder != null && !path.contains(folder))) continue;
+			if (excludePattern != null && excludePattern.matcher(path).matches()) continue;
 			final JMenuItem mItem = new JMenuItem(getScriptLabel(si,trimExtension));
 			mItem.setToolTipText("Click to run script. Click holding Shift to open it");
 			sMenu.add(mItem);
@@ -215,7 +218,7 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	/** Returns a UI list of SNT's 'Batch' scripts **/
 	public JMenu getBatchScriptsMenu() {
-		final JMenu menu = getMenu("Batch", true);
+		final JMenu menu = getMenu("Batch", DEMO_SCRIPT, true);
 		for (int i = 0; i < menu.getItemCount(); i++) {
 			final JMenuItem mItem = menu.getItem(i);
 			mItem.setText(SNTUtils.stripExtension(mItem.getText()) + "...");
@@ -223,12 +226,24 @@ public class ScriptInstaller implements MenuKeyListener {
 		return menu;
 	}
 
-	/** Returns a UI list with all available scripts scripting SNT **/
+	/** Returns a UI list with all the bundled non-demo SNT scripts **/
 	public JMenu getScriptsMenu() {
+		return getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Render", "Skeletons_and_ROIs", "Tracing");
+	}
+
+	/**
+	 * Returns a UI list with the bundled SNT scripts (specified directories only).
+	 *
+	 * @param excludePattern the exclusion pattern (e.g., {@link #DEMO_SCRIPT}).
+	 *                       Null allowed.
+	 * @param directories    the subset of directories (e.g., Analysis, Batch, etc.)
+	 * @return the scripts menu
+	 */
+	public JMenu getScriptsMenu(final Pattern excludePattern, final String... directories) {
 		final JMenu sMenu = new JMenu("Scripts");
-		sMenu.add(getMenu("Analysis", true));
-		sMenu.add(getMenu("Batch", true));
-		sMenu.add(getMenu("Tracing", true));
+		for (final String dir : directories) {
+			sMenu.add(getMenu(dir, excludePattern, true));
+		}
 		final JMenu listMenu = getFullListMenu();
 		final int listMenuPosition = sMenu.getItemCount();
 		sMenu.add(listMenu);
@@ -281,8 +296,8 @@ public class ScriptInstaller implements MenuKeyListener {
 		return sMenu;
 	}
 
-	private JMenu getFullListMenu() {
-		final JMenu listMenu = getMenu(null, false);
+	private JMenu getFullListMenu() { // Will include _ALL_ scripts (no exclusions)
+		final JMenu listMenu = getMenu(null, null, false);
 		listMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.LIST));
 		return listMenu;
 	}

@@ -141,7 +141,7 @@ public class ShortcutWindowCmd extends ContextCommand {
 	private JButton getScriptsButton() {
 		final ScriptInstaller installer = new ScriptInstaller(getContext(), getFrame());
 		final JButton button = new JButton("Scripts...");
-		final JPopupMenu sMenu = installer.getScriptsMenu().getPopupMenu();
+		final JPopupMenu sMenu = installer.getScriptsMenu(ScriptInstaller.DEMO_SCRIPT, "Analysis", "Batch", "Render", "Skeletons_and_ROIs").getPopupMenu();
 		button.addActionListener(e -> sMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 		return button;
 	}
