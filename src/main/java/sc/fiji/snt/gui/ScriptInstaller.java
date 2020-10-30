@@ -190,7 +190,7 @@ public class ScriptInstaller implements MenuKeyListener {
 	}
 
 	private JMenu getMenu(final String folder, final Pattern excludePattern, final boolean trimExtension) {
-		final JMenu sMenu = new JMenu((folder == null) ? "Full List" : folder);
+		final JMenu sMenu = new JMenu((folder == null) ? "Full List" : folder.replace("_", " "));
 		sMenu.addMenuKeyListener(this);
 		for (final ScriptInfo si : scripts) {
 			final String path = si.getPath();
@@ -242,7 +242,9 @@ public class ScriptInstaller implements MenuKeyListener {
 	public JMenu getScriptsMenu(final Pattern excludePattern, final String... directories) {
 		final JMenu sMenu = new JMenu("Scripts");
 		for (final String dir : directories) {
-			sMenu.add(getMenu(dir, excludePattern, true));
+			final JMenu menu = getMenu(dir, excludePattern, true);
+			if (menu.getMenuComponents().length > 0)
+				sMenu.add(getMenu(dir, excludePattern, true));
 		}
 		final JMenu listMenu = getFullListMenu();
 		final int listMenuPosition = sMenu.getItemCount();
@@ -330,7 +332,7 @@ public class ScriptInstaller implements MenuKeyListener {
 				+ "directory while including <i>SNT</i> in the filename (e.g., <tt>" //
 				+ getScriptsDirPath() + File.separator + "My_SNT_script.py</tt>) <br><br>" //
 				+ "To edit a listed script hold \"Shift\" while clicking on its menu entry.<br><br>" //
-				+ "Several programming examples are available through the Script Editor's " //
+				+ "Several other programming examples are available through the Script Editor's " //
 				+ "<i>Templates>Neuroanatomy></i> menu.  Please submit a pull request to " //
 				+ "<a href='https://github.com/morphonets/SNT/pulls'>SNT's repository</a>. if " //
 				+ "you would like to have your scripts distributed with Fiji.",

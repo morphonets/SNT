@@ -71,11 +71,11 @@ public class ShortcutWindowCmd extends ContextCommand {
 
 		final Shortcut spacer = new Shortcut("spacer", null, null);
 		final ArrayList<Shortcut> map = new ArrayList<>();
-		map.add(new Shortcut("SNT", SNTLoaderCmd.class,
+		map.add(new Shortcut("SNT...", SNTLoaderCmd.class,
 				"Initialize the complete SNT frontend. For tracing start here."));
 		map.add(new Shortcut("Reconstruction Viewer", ReconstructionViewerCmd.class,
 				"Initialize SNT's neuroanatomy viewer. For analysis/visualization start here."));
-		map.add(new Shortcut("Reconstruction Plotter", PlotterCmd.class,
+		map.add(new Shortcut("Reconstruction Plotter...", PlotterCmd.class,
 				"Create a 2D rendering of a reconstruction file (traces/json/swc)"));
 		map.add(spacer);
 		map.add(new Shortcut("Sholl Analysis (Image)", ShollAnalysisImgCmd.class,
@@ -140,14 +140,15 @@ public class ShortcutWindowCmd extends ContextCommand {
 
 	private JButton getScriptsButton() {
 		final ScriptInstaller installer = new ScriptInstaller(getContext(), getFrame());
-		final JButton button = new JButton("Scripts...");
+		final JButton button = new JButton("<HTML>Scripts &#9657;");
+		button.setToolTipText("Bulk measurements, conversions, multi-panel figures, etc.");
 		final JPopupMenu sMenu = installer.getScriptsMenu(ScriptInstaller.DEMO_SCRIPT, "Analysis", "Batch", "Render", "Skeletons_and_ROIs").getPopupMenu();
 		button.addActionListener(e -> sMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 		return button;
 	}
 
 	private JButton getHelpButton() {
-		final JButton button = new JButton("Help & Resources...");
+		final JButton button = new JButton("<HTML>Help & Resources &#9657;");
 		final JPopupMenu hMenu = GuiUtils.helpMenu().getPopupMenu();
 		button.addActionListener(e -> hMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 		return button;
