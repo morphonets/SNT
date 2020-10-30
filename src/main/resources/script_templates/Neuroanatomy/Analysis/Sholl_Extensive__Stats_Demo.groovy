@@ -1,3 +1,4 @@
+//@Context context
 //@UIService ui
 
 import ij.ImagePlus
@@ -14,13 +15,13 @@ import sc.fiji.snt.analysis.sholl.parsers.*
 // files and pre-retrieved Sholl (tabular) data.
 
 // To parse a grayscale/binay image, we use ImageParser2D and 
-// ImageParser3D, depending on whether the image is 2D or 3D.
+// ImageParser3D, depending on whether the image is 2D or 3D:
 imp = Opener.openUsingBioFormats("path/to/image/file.tif")
 if (imp != null) {
     if (imp.getNDimensions() == 2)
-        parser = new ImageParser2D((ImagePlus)imp, context)
+        parser = new ImageParser2D(imp, context)
     else 
-        parser = new ImageParser3D((ImagePlus)imp, context)
+        parser = new ImageParser3D(imp, context)
     // we would then set the required options:
     parser.setHemiShells(true)
     parser.setThreshold(100, 250)
