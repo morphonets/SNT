@@ -1314,8 +1314,12 @@ public class Tree {
 			return new ArrayList<>();
 		}
 		final Collection<Tree> trees = dummyTree.pafm.getTrees();
+		final String baseName = SNTUtils.stripExtension(f.getName());
 		if (trees.size() == 1)
-			trees.iterator().next().setLabel(SNTUtils.stripExtension(f.getName()));
+			trees.iterator().next().setLabel(baseName);
+		else {
+			trees.forEach( t-> t.setLabel(baseName + " " + t.getLabel()));
+		}
 		return trees;
 	}
 
@@ -1383,12 +1387,15 @@ public class Tree {
 			return trees;
 		}
 		for (final File treeFile : treeFiles) {
-			final Tree tree = Tree.fromFile(treeFile.getAbsolutePath());
-			if (tree != null) {
+			final Collection<Tree> treesInFile = Tree.listFromFile(treeFile.getAbsolutePath());
+			if (treesInFile != null) {
 				if (swcTypes == null)
-					trees.add(tree);
-				else
-					trees.add(tree.subTree(swcTypes));
+					trees.addAll(treesInFile);
+				else {
+					treesInFile.forEach(t -> {
+						trees.add(t.subTree(swcTypes));
+					});
+				}
 			}
 		}
 		return trees;
