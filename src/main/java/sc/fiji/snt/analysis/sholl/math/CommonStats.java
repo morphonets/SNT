@@ -56,7 +56,7 @@ class CommonStats extends ContextCommand implements ShollStats {
 		this(profile, false);
 	}
 
-	protected CommonStats(final Profile profile, final boolean trimZeroes) {
+	protected CommonStats(final Profile profile, final boolean trimZeroes) throws IllegalArgumentException {
 
 		if (profile == null)
 			throw new IllegalArgumentException("Cannot instantiate analysis with a null profile");
@@ -123,9 +123,13 @@ class CommonStats extends ContextCommand implements ShollStats {
 	}
 
 	protected double getAdjustedRSquaredOfFit(final int p) {
-		double rSquared = getRSquaredOfFit();
-		rSquared = rSquared - (1 - rSquared) * (p / (nPoints - p - 1));
-		return rSquared;
+		try {
+			double rSquared = getRSquaredOfFit();
+			rSquared = rSquared - (1 - rSquared) * (p / (nPoints - p - 1));
+			return rSquared;
+		} catch (final ArithmeticException ex) {
+			return Double.NaN;
+		}
 	}
 
 	protected int getIndex(final double[] array, final double value) {

@@ -15,7 +15,8 @@ import sc.fiji.snt.analysis.sholl.parsers.*
 // files and pre-retrieved Sholl (tabular) data.
 
 // To parse a grayscale/binay image, we use ImageParser2D and 
-// ImageParser3D, depending on whether the image is 2D or 3D:
+// ImageParser3D, depending on whether the image is 2D or 3D
+// (see Sholl_Extract_Profile_From_Image_Demo script for details)
 imp = Opener.openUsingBioFormats("path/to/image/file.tif")
 if (imp != null) {
     if (imp.getNDimensions() == 2)
@@ -29,12 +30,12 @@ if (imp != null) {
     // (...)
 }
 
-//# Traced data:
+// Traced data:
 tree = Tree.fromFile("path/to/reconstruction/file.swc")
 if (tree != null) {
     parser = new TreeParser(tree)
     parser.setCenter(TreeParser.ROOT_NODES_DENDRITE)
-    parser.setStepSize(10) // in microns
+    parser.setStepSize(10) // in physical units, e.g., microns
     // (...)
 }
 

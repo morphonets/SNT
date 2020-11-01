@@ -27,9 +27,11 @@ import java.util.Properties;
 
 import org.scijava.Context;
 import org.scijava.NullContextException;
+import org.scijava.io.IOService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 import org.scijava.table.DefaultGenericTable;
+import org.scijava.table.DefaultTableIOPlugin;
 import org.scijava.table.DoubleColumn;
 
 import sc.fiji.snt.analysis.SNTTable;
@@ -57,6 +59,12 @@ public class ShollTable extends SNTTable {
 	@Parameter
 	private PrefService prefService;
 
+
+	/** Instantiates a new empty table. */
+	public ShollTable() {
+		super();
+		this.profile = new Profile();
+	}
 
 	/**
 	 * Instantiates a new table from a {@link Profile}
@@ -318,6 +326,8 @@ public class ShollTable extends SNTTable {
 	 */
 	public void setContext(final Context context) throws IllegalStateException, IllegalArgumentException {
 		context.inject(this);
+		if (tableIO == null)
+			tableIO = context.getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
 		if (prefService != null) {
 			final boolean detailedMetrics = prefService.getBoolean(ShollAnalysisPrefsCmd.class, "detailedMetrics", ShollAnalysisPrefsCmd.DEF_DETAILED_METRICS);
 			setDetailedSummary(detailedMetrics);

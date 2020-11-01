@@ -45,7 +45,7 @@ public class SNTTable extends DefaultGenericTable {
 
 	private static final long serialVersionUID = 1L;
 	private boolean hasUnsavedData;
-	private static DefaultTableIOPlugin tableIO;
+	protected static DefaultTableIOPlugin tableIO;
 
 
 	public SNTTable() {
@@ -124,7 +124,7 @@ public class SNTTable extends DefaultGenericTable {
 				hasUnsavedData = false;
 			}
 			return true;
-		} catch (final IOException ignored) {
+		} catch (final ArrayIndexOutOfBoundsException | NullPointerException | IOException ignored) {
 			return false;
 		}
 	}
