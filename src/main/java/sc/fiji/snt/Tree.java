@@ -382,7 +382,11 @@ public class Tree {
 	 *         Tree if no hits were retrieved
 	 */
 	public Tree subTree(final int... swcTypes) {
-		return subTreeNodeConversion(swcTypes);
+		try {
+			return subTreeNodeConversion(swcTypes);
+		} catch(final IllegalArgumentException ignored) {
+			return new Tree();
+		}
 		//return subTreePathBased2(swcTypes);
 	}
 
@@ -480,7 +484,12 @@ public class Tree {
 		return subtree;
 	}
 
-	Tree subTreeNodeConversion(final int... swcTypes) {
+	/**
+	 * @param swcTypes the swc types
+	 * @return the tree
+	 * @throws IllegalArgumentException If Tree does not contain selected types
+	 */
+	Tree subTreeNodeConversion(final int... swcTypes) throws IllegalArgumentException {
 		// this is ~4x slower than Path-based conversion but accurate
 		final List<SWCPoint> nodes = getNodesAsSWCPoints();
 		//System.out.println("nNodes: "+ nodes.size());
