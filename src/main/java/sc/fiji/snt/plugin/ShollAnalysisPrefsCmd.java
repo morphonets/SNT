@@ -230,6 +230,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		super.reset();
 		pService.clear(ShollAnalysisImgCmd.class);
 		pService.clear(ShollAnalysisTreeCmd.class);
+		pService.clear(ShollAnalysisBulkTreeCmd.class);
 		pService.clear(ChooseDataset.class);
 
 		// Reset inputs in prompt

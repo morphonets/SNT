@@ -50,6 +50,7 @@ import sc.fiji.snt.plugin.PathOrderAnalysisCmd;
 import sc.fiji.snt.plugin.PathTimeAnalysisCmd;
 import sc.fiji.snt.plugin.PlotterCmd;
 import sc.fiji.snt.plugin.ROIExporterCmd;
+import sc.fiji.snt.plugin.ShollAnalysisBulkTreeCmd;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.plugin.SkeletonConverterCmd;
 import sc.fiji.snt.plugin.SkeletonizerCmd;
@@ -163,6 +164,7 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(RecViewerPrefsCmd.class);
 		prefService.clear(RemoteSWCImporterCmd.class);
 		prefService.clear(ROIExporterCmd.class);
+		prefService.clear(ShollAnalysisBulkTreeCmd.class);
 		prefService.clear(ShollAnalysisTreeCmd.class);
 		prefService.clear(ShowCorrespondencesCmd.class);
 		prefService.clear(SkeletonizerCmd.class);

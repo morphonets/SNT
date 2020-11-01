@@ -125,8 +125,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		"Root node(s)",
 		"Root node(s): Primary axon(s)",
 		"Root node(s): Primary (basal) dendrites(s)",
-		"Root node(s): Primary apical dendrites(s)",
-		}, callback = "centerChoiceChanged")
+		"Root node(s): Primary apical dendrites(s)"})
 	private String centerChoice;
 
 	@Parameter(label = "Radius step size", required = false, min = "0",
@@ -296,8 +295,15 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				cancelAndFreezeUI("File does not seem to be valid", "Invalid File");
 				return;
 			}
-			analysisRunner = new AnalysisRunner(tree, centerChoice);
-			if (analysisRunner.parser.getCenter() == null) {
+			analysisRunner = new AnalysisRunner(tree);
+			boolean invalidCenter = false;
+			try {
+				analysisRunner.parser.setCenter(getCenterFromChoice(centerChoice));
+				invalidCenter = analysisRunner.parser.getCenter() == null;
+			} catch (IllegalArgumentException ignored) {
+				invalidCenter = true;
+			}
+			if (invalidCenter) {
 				cancelAndFreezeUI(
 					"No paths match the center criteria. Please choose a different option from the \"Center\" choice list.",
 					"Invalid Center");
@@ -585,7 +591,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			polynomialDegree = 0;
 		}
 		else if (polynomialDegree == 0) {
-			polynomialDegree = (minDegree + maxDegree) / 2;
+			polynomialDegree = (int)(minDegree + maxDegree) / 2;
 		}
 	}
 
@@ -625,10 +631,9 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		private NormalizedProfileStats nStats;
 		private ArrayList<Object> outputs = new ArrayList<>();
 
-		public AnalysisRunner(final Tree tree, final String centerChoice) {
+		public AnalysisRunner(final Tree tree) {
 			this.tree = tree;
 			parser = new TreeParser(tree);
-			setCenterFromChoice(centerChoice);
 			parser.setStepSize(adjustedStepSize());
 		}
 
@@ -637,30 +642,6 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			parser = new TreeParser(tree);
 			parser.setCenter(center);
 			parser.setStepSize(adjustedStepSize());
-		}
-
-		private void setCenterFromChoice(final String centerChoice) {
-			final String choice = centerChoice.toLowerCase();
-			try {
-				if (choice.contains("all")) {
-					parser.setCenter(TreeParser.ROOT_NODES_ANY);
-				}
-				else if (choice.contains("soma")) {
-					parser.setCenter(TreeParser.ROOT_NODES_SOMA);
-				}
-				else if (choice.contains("axon")) {
-					parser.setCenter(TreeParser.ROOT_NODES_AXON);
-				}
-				else if (choice.contains("apical")) {
-					parser.setCenter(TreeParser.ROOT_NODES_APICAL_DENDRITE);
-				}
-				else if (choice.contains("dendrite")) {
-					parser.setCenter(TreeParser.ROOT_NODES_DENDRITE);
-				}
-			}
-			catch (IllegalArgumentException | NullPointerException ignored) {
-				// do nothing. We'll check for this later
-			}
 		}
 
 		@Override
@@ -914,6 +895,21 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			}
 			ShollOverlay.remove(overlaySnapshot, "temp");
 			imp.setOverlay(overlaySnapshot);
+		}
+	}
+
+	protected static int getCenterFromChoice(final String centerChoice) {
+		final String choice = centerChoice.toLowerCase();
+		if (choice.contains("soma")) {
+			return TreeParser.ROOT_NODES_SOMA;
+		} else if (choice.contains("axon")) {
+			return TreeParser.ROOT_NODES_AXON;
+		} else if (choice.contains("apical")) {
+			return TreeParser.ROOT_NODES_APICAL_DENDRITE;
+		} else if (choice.contains("dendrite")) {
+			return TreeParser.ROOT_NODES_DENDRITE;
+		} else {
+			return TreeParser.ROOT_NODES_ANY;
 		}
 	}
 
