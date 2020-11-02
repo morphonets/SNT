@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.stream.IntStream;
 
+import org.jfree.chart.JFreeChart;
 import org.scijava.app.StatusService;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
@@ -38,8 +39,10 @@ import net.imagej.plot.LineSeries;
 import net.imagej.plot.LineStyle;
 import net.imagej.plot.MarkerStyle;
 import net.imagej.plot.PlotService;
+import net.imagej.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.StrahlerAnalyzer;
 
@@ -78,22 +81,26 @@ public class StrahlerCmd extends ContextCommand {
 		this.tree = tree;
 	}
 
+	private void compute() throws IllegalArgumentException {
+		if (sAnalyzer != null) return;
+		statusService.showStatus("Classifying branches...");
+		sAnalyzer = new StrahlerAnalyzer(tree);
+		maxOrder = sAnalyzer.getRootNumber();
+		tLengthMap = sAnalyzer.getLengths();
+		nBranchesMap = sAnalyzer.getBranchCounts();
+		bPointsMap = sAnalyzer.getBranchPointCounts();
+		bRatioMap = sAnalyzer.getBifurcationRatios();
+	}
+
 	@Override
 	public void run() {
 		if (tree == null || tree.isEmpty()) {
 			cancel("No Paths to Measure");
 			return;
 		}
-		statusService.showStatus("Classifying branches...");
-		sAnalyzer = new StrahlerAnalyzer(tree);
 		try {
-			maxOrder = sAnalyzer.getRootNumber();
-			tLengthMap = sAnalyzer.getLengths();
-			nBranchesMap = sAnalyzer.getBranchCounts();
-			bPointsMap = sAnalyzer.getBranchPointCounts();
-			bRatioMap = sAnalyzer.getBifurcationRatios();
-			updateAndDisplayTable();
-			displayPlot();
+			uiService.show("SNT: Strahler Table", getTable());
+			uiService.show("SNT: Strahler Plot", getCategoryChart());
 		} catch (final IllegalArgumentException ex) {
 			cancel("Analysis could not be performed: " + ex.getLocalizedMessage() + "\n"
 			+ "Please ensure you select a single set of connected paths (one root exclusively)");
@@ -102,23 +109,18 @@ public class StrahlerCmd extends ContextCommand {
 		}
 	}
 
-	private void updateAndDisplayTable() {
-		final SNTTable table = new SNTTable();
-		IntStream.rangeClosed(1, maxOrder).forEach(order -> {
-			table.appendRow();
-			final int row = Math.max(0, table.getRowCount() - 1);
-			table.set("Horton-Strahler #", row, order);
-			table.set("Rev. Horton-Strahler #", row, maxOrder - order + 1);
-			table.set("Length (Sum)", row, tLengthMap.get(order));
-			table.set("# Branches", row, nBranchesMap.get(order));
-			table.set("Bifurcation ratio", row, bRatioMap.get(order));
-			table.set("# Branch Points", row, bPointsMap.get(order));
-		});
-		uiService.show("SNT: Strahler Plot", table);
+	public boolean validStructure() {
+		try {
+			compute();
+		} catch (final IllegalArgumentException ex) {
+			return false;
+		}
+		return true;
 	}
 
-	private void displayPlot() {
+	public CategoryChart<Integer> getCategoryChart() {
 
+		compute();
 		final CategoryChart<Integer> chart = plotService.newCategoryChart(Integer.class);
 		chart.categoryAxis().setLabel("Horton-Strahler order");
 		chart.categoryAxis().setOrder(Comparator.reverseOrder());
@@ -137,8 +139,30 @@ public class StrahlerCmd extends ContextCommand {
 		series3.setLabel("Bifurcation ratio");
 		series3.setValues(bRatioMap);
 		series3.setStyle(chart.newSeriesStyle(Colors.BLACK, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		return chart;
+	}
 
-		uiService.show("SNT: Strahler Plot", chart);
+	public SNTChart getChart() {
+		final CategoryChartConverter converter = new CategoryChartConverter();
+		final JFreeChart chart = converter.convert(getCategoryChart(), JFreeChart.class);
+		final String title = (tree.getLabel()== null) ? "Strahler Plot" : tree.getLabel() + "Strahler Plot";
+		return new SNTChart(title, chart);
+	}
+
+	public SNTTable getTable() {
+		compute();
+		final SNTTable table = new SNTTable();
+		IntStream.rangeClosed(1, maxOrder).forEach(order -> {
+			table.appendRow();
+			final int row = Math.max(0, table.getRowCount() - 1);
+			table.set("Horton-Strahler #", row, order);
+			table.set("Rev. Horton-Strahler #", row, maxOrder - order + 1);
+			table.set("Length (Sum)", row, tLengthMap.get(order));
+			table.set("# Branches", row, nBranchesMap.get(order));
+			table.set("Bifurcation ratio", row, bRatioMap.get(order));
+			table.set("# Branch Points", row, bPointsMap.get(order));
+		});
+		return table;
 	}
 
 	public static void main(final String[] args) {
