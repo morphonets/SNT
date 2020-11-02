@@ -2,7 +2,7 @@
 
 
 """
-file:       Bulk_Sholl_Analysis.groovy
+file:       Sholl_Bulk_Analysis.groovy
 author:     Tiago Ferreira
 info:       Runs Sholl Analysis (Tracings) on a directory
 """
