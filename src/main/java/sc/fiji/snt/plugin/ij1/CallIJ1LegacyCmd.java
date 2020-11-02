@@ -26,7 +26,6 @@ import net.imagej.ImageJ;
 import net.imagej.legacy.LegacyService;
 import sc.fiji.snt.gui.GUIHelper;
 
-import java.awt.event.KeyEvent;
 import java.util.HashMap;
 
 import org.scijava.Context;
@@ -35,8 +34,6 @@ import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
-
-import ij.IJ;
 
 /**
  * Command to invoke legacy neuroanatomy-related plugins
@@ -55,7 +52,7 @@ public class CallIJ1LegacyCmd implements Command {
 	private static final HashMap<String, String[]> cmds = new HashMap<>();
 
 	static {
-		cmds.put(SNT_LEGACY, new String[] { "tracing.Simple_Neurite_Tracer", "" }); //FIXME: reflection
+		cmds.put(SNT_LEGACY, new String[] { "tracing.Simple_Neurite_Tracer", "skip" }); //FIXME: reflection
 		cmds.put(SHOLL_IMG_LEGACY, new String[] { Sholl_Analysis.class.getName(), "image" });
 		cmds.put(SHOLL_TRACES_LEGACY, new String[] { Sholl_Analysis.class.getName(), "" });
 		cmds.put(SHOLL_CSV_LEGACY, new String[] { Sholl_Analysis.class.getName(), "csv" });
@@ -83,14 +80,11 @@ public class CallIJ1LegacyCmd implements Command {
 	public void run() {
 		final String[] cmdAndArg = cmds.get(cmdChoice);
 		try {
-			if (SNT_LEGACY.equals(cmdChoice)) IJ.setKeyDown(KeyEvent.VK_ALT);
 			legacyService.runLegacyCommand(cmdAndArg[0], cmdAndArg[1]);
 		} catch (final Exception ex) {
 			new GUIHelper(context).error("An exception occured. Maybe the command is no longer available?",
 					"Exception occured");
 			ex.printStackTrace();
-		} finally {
-			IJ.setKeyUp(KeyEvent.VK_ALT);
 		}
 	}
 

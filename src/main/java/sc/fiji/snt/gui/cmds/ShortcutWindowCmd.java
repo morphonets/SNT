@@ -24,11 +24,14 @@ package sc.fiji.snt.gui.cmds;
 
 import java.awt.Dimension;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
@@ -43,6 +46,7 @@ import org.scijava.plugin.Plugin;
 import org.scijava.thread.ThreadService;
 import org.scijava.ui.awt.AWTWindows;
 
+import ij.IJ;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.plugin.PlotterCmd;
@@ -59,99 +63,157 @@ import sc.fiji.snt.plugin.ij1.CallIJ1LegacyCmd;
 @Plugin(type = Command.class, menuPath = "Plugins>Neuroanatomy>Neuroanatomy Cmd Window")
 public class ShortcutWindowCmd extends ContextCommand {
 
+	private static final String HTML_TOOLTIP = "<html><body><div style='width:500px'>";
+
 	@Parameter
 	private CommandService cmdService;
 
 	@Parameter
 	private ThreadService threadService;
-	
+
 	private JFrame frame;
+	private final ArrayList<JButton> buttons = new ArrayList<>();
+
 
 	private JPanel getPanel() {
-
-		final Shortcut spacer = new Shortcut("spacer", null, null);
-		final ArrayList<Shortcut> map = new ArrayList<>();
-		map.add(new Shortcut("SNT...", SNTLoaderCmd.class,
+		final ArrayList<Shortcut> shortcuts = new ArrayList<>();
+		shortcuts.add(new Shortcut("SNT...", SNTLoaderCmd.class,
 				"Initialize the complete SNT frontend. For tracing start here."));
-		map.add(new Shortcut("Reconstruction Viewer", ReconstructionViewerCmd.class,
-				"Initialize SNT's neuroanatomy viewer. For analysis/visualization start here."));
-		map.add(new Shortcut("Reconstruction Plotter...", PlotterCmd.class,
+		shortcuts.add(new Shortcut("Reconstruction Plotter...", PlotterCmd.class,
 				"Create a 2D rendering of a reconstruction file (traces/json/swc)"));
-		map.add(spacer);
-		map.add(new Shortcut("Sholl Analysis (Image)", ShollAnalysisImgCmd.class,
-				"Performs Sholl Analysis directly from a 2D/3D image"));
-		map.add(new Shortcut("Sholl Analysis (Tracings)", ShollAnalysisTreeCmd.class,
-				"Performs Sholl Analysis on reconstruction file(s) (traces/json/swc)"));
-		map.add(spacer);
-		map.add(new Shortcut("Deprecated IJ1 Cmds", CallIJ1LegacyCmd.class,
+		shortcuts.add(new Shortcut("Reconstruction Viewer", ReconstructionViewerCmd.class,
+				"Initialize SNT's neuroanatomy viewer. For analysis/visualization start here."));
+		addButtons(shortcuts);
+		buttons.add(null);
+		addShollButton();
+		addStrahlerButton();
+		addScriptsButton();
+		buttons.add(null);
+		addButton(new Shortcut("Deprecated Cmds...", CallIJ1LegacyCmd.class,
 				"Runs a legacy ImageJ1-based plugin (here only for backwards compatibility)"));
+		buttons.add(null);
+		addHelpButton();
 
+		// Assemble GUI
 		final JPanel panel = new JPanel();
 		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 		panel.setBorder(new EmptyBorder(10, 10, 10, 10));
 		final Dimension prefSize = new Dimension(-1, -1);
-
-		final ArrayList<JButton> buttons = new ArrayList<>();
-		map.forEach(shrtct -> {
-			if (spacer.equals(shrtct)) {
-				addSpacer(panel);
+		buttons.forEach(button -> {
+			if (button == null) {
+				panel.add(new JLabel("<HTML>&nbsp;")); // spacer
 			} else {
-				final JButton b = new JButton(shrtct.label);
-				b.setToolTipText("<html><body><div style='width:500px'>" + shrtct.description);
-				setNormDimensions(prefSize, b);
-				b.addActionListener(e -> {
-					threadService.queue(() -> cmdService.run(shrtct.cmd, true));
-				});
-				panel.add(b);
-				buttons.add(b);
+				final Dimension d = button.getPreferredSize();
+				if (d.width > prefSize.width)
+					prefSize.width = d.width;
+				if (d.height > prefSize.height)
+					prefSize.height = d.height;
+				panel.add(button);
 			}
 		});
-
-		final JButton sButton = getScriptsButton();
-		setNormDimensions(prefSize, sButton);
-		panel.add(sButton);
-		buttons.add(sButton);
-		addSpacer(panel);
-		final JButton hButton = getHelpButton();
-		setNormDimensions(prefSize, hButton);
-		panel.add(hButton);
-		buttons.add(hButton);
-
 		final Dimension maxSize = new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE);
 		buttons.forEach(b -> {
-			b.setPreferredSize(prefSize);
-			b.setMaximumSize(maxSize);
+			if (b != null) {
+				b.setPreferredSize(prefSize);
+				b.setMaximumSize(maxSize);
+			}
 		});
 
 		return panel;
 	}
 
-	private void setNormDimensions(final Dimension normSize, final JButton b) {
-		final Dimension d = b.getPreferredSize();
-		if (d.width > normSize.width)
-			normSize.width = d.width;
-		if (d.height > normSize.height)
-			normSize.height = d.height;
+	private void addStrahlerButton() {
+		final JPopupMenu popup = new JPopupMenu();
+		final JButton button = getPopupButton(popup, "Strahler Analysis",
+				"Single file analysis (skeletonized image or reconstruction). For bulk processing see Scripts>Batch>");
+		JMenuItem jmi = new JMenuItem("Strahler Analysis (Image)...");
+		jmi.addActionListener(e -> {
+			try {  // FIXME: We need to adopt SciJavaCommands for this
+				Class.forName("ipnat.skel.Strahler");
+				IJ.runPlugIn("ipnat.skel.Strahler", "");
+			}
+			catch (final Exception ignored) {
+				new GuiUtils(getFrame()).error("Plugin was not found. Please run Fiji's updater to retrieve missing files.");
+			}
+		});
+		popup.add(jmi);
+		jmi = new JMenuItem("Strahler Analysis (Tracings)...");
+		jmi.addActionListener(e -> {
+			try {
+				new ScriptInstaller(getContext(), getFrame()).runScript("Analysis", "Strahler Analysis");
+			} catch (final IllegalArgumentException ignored){
+				new GuiUtils(getFrame()).error(ignored.getMessage());
+			}
+		});
+		popup.add(jmi);
+	
+		buttons.add(button);
 	}
 
-	private void addSpacer(final JPanel panel) {
-		panel.add(new JLabel("<HTML>&nbsp;"));
+	private void addShollButton() {
+		final JPopupMenu popup = new JPopupMenu();
+		final JButton button = getPopupButton(popup, "Sholl Analysis",
+				"Single file analysis (segmentable image or reconstruction). For bulk processing see Scripts>Batch>");
+		final ArrayList<Shortcut> shortcuts = new ArrayList<>();
+		shortcuts.add(new Shortcut("Sholl Analysis (Image)...", ShollAnalysisImgCmd.class,
+				"Performs Sholl Analysis directly from a 2D/3D image"));
+		shortcuts.add(new Shortcut("Sholl Analysis (Tracings)...", ShollAnalysisTreeCmd.class,
+				"Performs Sholl Analysis on reconstruction file(s) (traces/json/swc)"));
+		getMenuItems(shortcuts).forEach(mi -> popup.add(mi));
+		buttons.add(button);
 	}
 
-	private JButton getScriptsButton() {
-		final ScriptInstaller installer = new ScriptInstaller(getContext(), getFrame());
-		final JButton button = new JButton("<HTML>Scripts &#9657;");
-		button.setToolTipText("Bulk measurements, conversions, multi-panel figures, etc.");
-		final JPopupMenu sMenu = installer.getScriptsMenu(ScriptInstaller.DEMO_SCRIPT, "Analysis", "Batch", "Render", "Skeletons_and_ROIs").getPopupMenu();
-		button.addActionListener(e -> sMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
+	private void addButton(final Shortcut shortcut) {
+		addButtons(Collections.singletonList(shortcut));
+	}
+
+	private void addButtons(final Collection<Shortcut> shortcuts) {
+		shortcuts.forEach(shrtct -> {
+			final JButton b = new JButton(shrtct.label);
+				b.setToolTipText(HTML_TOOLTIP + shrtct.description);
+				b.addActionListener(e -> {
+					threadService.queue(() -> cmdService.run(shrtct.cmd, true));
+				});
+				buttons.add(b);
+		});
+	}
+
+	private JButton getPopupButton(final JPopupMenu popup, final String label, final String tooltip) {
+		final JButton button = new JButton("<HTML>" + label + " &#9657;");
+		button.setToolTipText(HTML_TOOLTIP + tooltip);
+		button.addActionListener( e -> {
+			popup.show(button, button.getWidth() / 2, button.getHeight() / 2);
+		});
 		return button;
 	}
 
-	private JButton getHelpButton() {
+	private ArrayList<JMenuItem> getMenuItems(final ArrayList<Shortcut> shortcuts) {
+		final ArrayList<JMenuItem> menuItems = new ArrayList<>();
+		shortcuts.forEach(shrtct -> {
+			final JMenuItem jmi = new JMenuItem(shrtct.label);
+			jmi.setToolTipText(HTML_TOOLTIP + shrtct.description);
+			jmi.addActionListener(e -> {
+				threadService.queue(() -> cmdService.run(shrtct.cmd, true));
+			});
+			menuItems.add(jmi);
+		});
+		return menuItems;
+	}
+
+	private void addScriptsButton() {
+		final ScriptInstaller installer = new ScriptInstaller(getContext(), getFrame());
+		final JButton button = new JButton("<HTML>Utility Scripts &#9657;");
+		button.setToolTipText(HTML_TOOLTIP + "Bulk measurements, conversions, multi-panel figures, etc.");
+		final JPopupMenu sMenu = installer.getScriptsMenu(ScriptInstaller.DEMO_SCRIPT, "Analysis", "Batch", "Render", "Skeletons_and_ROIs").getPopupMenu();
+		button.addActionListener(e -> sMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
+		buttons.add(button);
+	}
+
+	private void addHelpButton() {
 		final JButton button = new JButton("<HTML>Help & Resources &#9657;");
 		final JPopupMenu hMenu = GuiUtils.helpMenu().getPopupMenu();
 		button.addActionListener(e -> hMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
-		return button;
+		buttons.add(button);
 	}
 
 	private JFrame getFrame() {
