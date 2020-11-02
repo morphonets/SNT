@@ -193,9 +193,9 @@ public class ScriptInstaller implements MenuKeyListener {
 		final JMenu sMenu = new JMenu((folder == null) ? "Full List" : folder.replace("_", " "));
 		sMenu.addMenuKeyListener(this);
 		for (final ScriptInfo si : scripts) {
-			final String path = si.getPath();
-			if (path == null || (folder != null && !path.contains(folder))) continue;
-			if (excludePattern != null && excludePattern.matcher(path).matches()) continue;
+			final String[] dirAndFile = getDirAndFilename(si.getPath());
+			if (dirAndFile == null || (folder != null && !dirAndFile[0].contains(folder))) continue;
+			if (excludePattern != null && excludePattern.matcher(dirAndFile[1]).matches()) continue;
 			final JMenuItem mItem = new JMenuItem(getScriptLabel(si,trimExtension));
 			mItem.setToolTipText("Click to run script. Click holding Shift to open it");
 			sMenu.add(mItem);
@@ -214,6 +214,20 @@ public class ScriptInstaller implements MenuKeyListener {
 			});
 		}
 		return sMenu;
+	}
+
+	private String[] getDirAndFilename(final String resourcePath) {
+		if (resourcePath == null) return null;
+		final String[] result = new String[2];
+		final int slashIndex = resourcePath.lastIndexOf("/"); // path separator in JARs is always "/"
+		if (slashIndex == -1) {
+			result[0] = resourcePath;
+			result[1] = resourcePath;
+		} else {
+			result[0] = resourcePath.substring(0, slashIndex);
+			result[1] = resourcePath.substring(slashIndex);
+		}
+		return result;
 	}
 
 	/** Returns a UI list of SNT's 'Batch' scripts **/
@@ -298,6 +312,18 @@ public class ScriptInstaller implements MenuKeyListener {
 		return sMenu;
 	}
 
+	public void runScript(final String folder, final String name) throws IllegalArgumentException{
+		for (final ScriptInfo si : scripts) {
+			final String path = si.getPath();
+			if (path == null || (folder != null && !path.contains(folder))) continue;
+			if (name.equals(getScriptLabel(si, true)) || name.equals(getScriptLabel(si, false))) {
+				runScript(si); 
+				return;
+			}
+		}
+		throw new IllegalArgumentException("Script not found");
+	}
+
 	private JMenu getFullListMenu() { // Will include _ALL_ scripts (no exclusions)
 		final JMenu listMenu = getMenu(null, null, false);
 		listMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.LIST));
@@ -332,7 +358,7 @@ public class ScriptInstaller implements MenuKeyListener {
 				+ "directory while including <i>SNT</i> in the filename (e.g., <tt>" //
 				+ getScriptsDirPath() + File.separator + "My_SNT_script.py</tt>) <br><br>" //
 				+ "To edit a listed script hold \"Shift\" while clicking on its menu entry.<br><br>" //
-				+ "Several other programming examples are available through the Script Editor's " //
+				+ "Many other programming examples are available through the Script Editor's " //
 				+ "<i>Templates>Neuroanatomy></i> menu.  Please submit a pull request to " //
 				+ "<a href='https://github.com/morphonets/SNT/pulls'>SNT's repository</a>. if " //
 				+ "you would like to have your scripts distributed with Fiji.",
