@@ -73,10 +73,19 @@ public class StrahlerCmd extends ContextCommand {
 	private int maxOrder;
 
 
+	/**
+	 * Instantiates a new StrahlerCmd. A {@code tree} is is expected to have been
+	 * specified as input {@code @parameter}
+	 */
 	public StrahlerCmd() {
 		// tree is expected as @parameter
 	}
 
+	/**
+	 * Instantiates a new StrahlerCmd.
+	 *
+	 * @param tree the Tree to be analyzed
+	 */
 	public StrahlerCmd(final Tree tree) {
 		this.tree = tree;
 	}
@@ -109,6 +118,11 @@ public class StrahlerCmd extends ContextCommand {
 		}
 	}
 
+	/**
+	 * Assesses if tree contains multiple roots or loops
+	 *
+	 * @return true, if successful
+	 */
 	public boolean validStructure() {
 		try {
 			compute();
@@ -118,7 +132,14 @@ public class StrahlerCmd extends ContextCommand {
 		return true;
 	}
 
-	public CategoryChart<Integer> getCategoryChart() {
+	/**
+	 * Returns the Strahler chart.
+	 *
+	 * @return the Strahler chart
+	 * @see #getChart()
+	 * @throws IllegalArgumentException if tree contains multiple roots or loops
+	 */
+	public CategoryChart<Integer> getCategoryChart() throws IllegalArgumentException {
 
 		compute();
 		final CategoryChart<Integer> chart = plotService.newCategoryChart(Integer.class);
@@ -142,14 +163,28 @@ public class StrahlerCmd extends ContextCommand {
 		return chart;
 	}
 
-	public SNTChart getChart() {
+	/**
+	 * A variant of {@link #getCategoryChart()} that returns the Strahler chart as a
+	 * {@link SNTChart} object.
+	 *
+	 * @return the Strahler chart as a {@link SNTChart} object
+	 * @throws IllegalArgumentException if tree contains multiple roots or loops
+	 */
+	public SNTChart getChart() throws IllegalArgumentException {
 		final CategoryChartConverter converter = new CategoryChartConverter();
 		final JFreeChart chart = converter.convert(getCategoryChart(), JFreeChart.class);
 		final String title = (tree.getLabel()== null) ? "Strahler Plot" : tree.getLabel() + "Strahler Plot";
 		return new SNTChart(title, chart);
 	}
 
-	public SNTTable getTable() {
+	
+	/**
+	 * Gets the Strahler table.
+	 *
+	 * @return the Strahler table
+	 * @throws IllegalArgumentException if tree contains multiple roots or loops
+	 */
+	public SNTTable getTable() throws IllegalArgumentException {
 		compute();
 		final SNTTable table = new SNTTable();
 		IntStream.rangeClosed(1, maxOrder).forEach(order -> {

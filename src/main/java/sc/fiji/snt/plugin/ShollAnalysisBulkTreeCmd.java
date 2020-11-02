@@ -59,7 +59,7 @@ import sc.fiji.snt.util.Logger;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Bulk Sholl Analysis", initializer = "init")
+@Plugin(type = Command.class, visible = false, label = "Bulk Sholl Analysis (Tracings)", initializer = "init")
 public class ShollAnalysisBulkTreeCmd extends ContextCommand
 {
 

@@ -1,4 +1,4 @@
-# @String(value="<HTML>This script runs Strahler Analysis on an entire directory of recontruction files.<br>Processing log is shown in Console.", visibility="MESSAGE") msg
+# @String(value="<HTML>This script runs Strahler Analysis on an entire directory of reconstruction files.<br>Processing log is shown in Console.", visibility="MESSAGE") msg
 # @File(label="Input directory:", style="directory", description="Input folder containing reconstruction files (.traces, .swc, json) to be analyzed") input_dir
 # @String(label="Filename filter", description="<HTML>Only filenames matching this string (case sensitive) will be considered.<br>Regex patterns accepted. Leave empty to disable fitering.",value="") name_filter
 # @File(label="Output directory:", style="directory", description="output folder where tables and plots will be saved. Will be created if it does not exist") output_dir

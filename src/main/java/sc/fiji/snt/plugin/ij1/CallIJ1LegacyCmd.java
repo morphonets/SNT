@@ -44,7 +44,7 @@ import ij.IJ;
  * @author Tiago Ferreira
  */
 @SuppressWarnings("deprecation")
-@Plugin(type = Command.class, visible=false)
+@Plugin(type = Command.class, visible=false, label="Run IJ1 Legacy Plugin")
 public class CallIJ1LegacyCmd implements Command {
 
 	private static final String SNT_LEGACY = "Simple Neurite Tracer...";
