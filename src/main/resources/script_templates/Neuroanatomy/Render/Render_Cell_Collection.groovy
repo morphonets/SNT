@@ -1,9 +1,10 @@
-#@File(style="directory", required=false, label="Reconstructions directory (Leave empty for demo):") dir
-#@String(label="Color mapping:", choices={"Ice.lut", "mpl-viridis.lut"}) lutName
-#@ImageJ ij
-#@LUTService lut
-#@SNTService snt
 
+#@ File (style="directory", required=false, label="Reconstructions directory (Leave empty for demo):") dir
+#@ String (label="Mapping metric:", choices={"Assigned value", "Highest path order", "Cell/id", "Cable length", "No. of branch points", "No. of branches", "No. of tips", "Horton-Strahler number"}) mapMetric
+#@ String (label="Color mapping:", choices={"Ice.lut", "mpl-viridis.lut"}) lutName
+#@ ImageJ ij
+#@ LUTService lut
+#@ SNTService snt
 
 import groovy.io.FileType
 import groovy.time.TimeCategory
@@ -24,13 +25,13 @@ import sc.fiji.snt.viewer.Viewer3D
 // Keep track of current time
 start = new Date()
 
-// Retrive all reconstruction files from the directory
-trees = Tree.listFromDir(dir.toString())
-if (trees.isEmpty()) {
+if (dir) {
+	// Retrive all reconstruction files from the directory
+	trees = Tree.listFromDir(dir.getAbsolutePath())
+} else {
 	// Directory is invalid. Let's retrieve demo data instead
 	trees = snt.demoTrees()
 }
-
 
 // Define the color table (LUT) and perform the color mapping to total length.
 // A fixed set of tables can be accessed from net.imagej.display.ColorTables, 
@@ -38,7 +39,7 @@ if (trees.isEmpty()) {
 // _any_ LUT currently installed in Fiji
 colorTable = lut.loadLUT(lut.findLUTs().get(lutName))
 colorMapper = new MultiTreeColorMapper(trees)
-colorMapper.map("total length", colorTable)
+colorMapper.map(mapMetric, colorTable)
 
 // Initialize a non-interactive Reconstruction Viewer
 viewer = (trees.size > 100) ? new Viewer3D() : new Viewer3D(ij.context())

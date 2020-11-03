@@ -1,7 +1,8 @@
-#@File(style="directory", required=false, label="Reconstructions directory (Leave empty for demo):") recDir
-#@String(label="Color mapping:", choices={"Ice.lut", "mpl-viridis.lut"}) lutName
-#@LUTService lut
-#@SNTService snt
+#@ File (style="directory", required=false, label="Reconstructions directory (Leave empty for demo):") recDir
+#@ String (label="Mapping metric:", choices={"Assigned value", "Highest path order", "Cell/id", "Cable length", "No. of branch points", "No. of branches", "No. of tips", "Horton-Strahler number"}) mapMetric
+#@ String (label="Color mapping:", choices={"Ice.lut", "mpl-viridis.lut"}) lutName
+#@ LUTService lut
+#@ SNTService snt
 
 /**
  * Exemplifies how to generate a publication-quality multi-panel figure in which
@@ -18,9 +19,10 @@ import sc.fiji.snt.analysis.MultiTreeColorMapper
 import sc.fiji.snt.viewer.MultiViewer2D
 
 
-// Retrive all reconstruction files from the directory
-trees = Tree.listFromDir(recDir.toString())
-if (trees.isEmpty()) {
+if (recDir) {
+	// Retrive all reconstruction files from the directory
+	trees = Tree.listFromDir(recDir.getAbsolutePath())
+} else {
 	// Directory is invalid. Let's retrieve demo data instead
 	trees = snt.demoTrees()
 	// Rotate the reconstructions to "straighten up" the
