@@ -161,10 +161,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	private void assembleDeselectedEditingPathsMenu(final boolean computeList) {
-		deselectedEditingPathsMenu.removeAll();
 		deselectedEditingPathsMenu.setEnabled(computeList);
 		if (!computeList) return;
 
+		deselectedEditingPathsMenu.removeAll();
 		final Path source = tracerPlugin.getEditingPath();
 		final boolean startJoins = (source.getEditableNodeIndex() <= source.size() /
 			2);
