@@ -482,6 +482,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				+ "More details on this issue can be found "
 				+ "<a href='https://forum.image.sc/t/snt-sholl-analysis-bug-following-update/40057/7?u=tferr'>here</a>."//
 				+ "</p>"//
+				+ "<p>If your file does contain multiple cells, please use the 'Sholl Bulk Analysis' batch script."//
+				+ "</p>"//
 				+ "<p>(If you think this limitation is a cumbersome annoyance, please provide feedback on how this "//
 				+ "restriction should be lifted using the link above).</p>"//
 				+ "</html>", "Multiple Roots Detected");
