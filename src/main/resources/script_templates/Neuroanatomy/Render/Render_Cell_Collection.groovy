@@ -1,6 +1,5 @@
-
 #@ File (style="directory", required=false, label="Reconstructions directory (Leave empty for demo):") dir
-#@ String (label="Mapping metric:", choices={"Assigned value", "Highest path order", "Cell/id", "Cable length", "No. of branch points", "No. of branches", "No. of tips", "Horton-Strahler number"}) mapMetric
+#@ String (label="Mapping metric:", choices={"Cable length", "Cell/id", "Highest path order", "Horton-Strahler number", "No. of branch points", "No. of branches", "No. of tips"}) mapMetric
 #@ String (label="Color mapping:", choices={"Ice.lut", "mpl-viridis.lut"}) lutName
 #@ ImageJ ij
 #@ LUTService lut
