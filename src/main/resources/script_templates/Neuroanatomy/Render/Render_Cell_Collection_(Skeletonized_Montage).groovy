@@ -1,18 +1,27 @@
-#@SNTService snt
+#@ File (style="directory", required=false, label="Reconstructions directory (Leave empty for demo):") recDir
+#@ boolean (label="Choose panel dimensions automatically", value=true) autoSize
+#@ int (label="Number of columns", value=0) columns
+#@ int (label="Number of rows", value=0) rows
+#@ Float (label="Scale factor for reconstructions", value=1.0) scale
+#@ String (label="Color mapping:", choices={"Ice.lut", "mpl-viridis.lut", "glasbey_on_dark.lut"}, value="glasbey_on_dark.lut") lutName
+#@ SNTService snt
 
 /**
  * Exemplifies how to skeletonize neuronal reconstructions.
  * TF 20200701
  */
 
+import java.lang.Math
 import ij.ImagePlus
 import sc.fiji.snt.Tree
 
-// Retrieve a collection of trees. Here we'll use demo reconstructions
-// provided by SNTService. For rendering a collection of SWC files:
-// trees = Tree.listFromDir("/path/to/swc/directory", "optional filename pattern")
-trees = snt.demoTrees() // retrieve collection of trees
-
+if (recDir) {
+    // Retrive all reconstruction files from the directory
+    trees = Tree.listFromDir(recDir.getAbsolutePath())
+} else {
+    // Directory is invalid. Let's retrieve demo data instead
+    trees = snt.demoTrees()
+}
 
 // First we'll handle 2D skeletons
 imps = [] // define list holding skeletonized images
@@ -25,9 +34,15 @@ for (tree in trees) {
 treeStack = new ij.plugin.ImagesToStack().run(imps as ImagePlus[])
 
 // Assemble a montage using IJ1's "Make Montage" command
+
+if (autoSize) {
+    N = trees.size()
+    columns = (int)Math.floor(Math.sqrt(N))
+    rows = (int)Math.ceil(N/columns)
+} 
 montage = new ij.plugin.MontageMaker().makeMontage2(
                         treeStack, //image
-						2, 2, 1d, // columns, rows, scale
+						columns, rows, scale,
 						1, treeStack.getNSlices(), 1,// from, to, step
 						0, false) // border thickness, labels?
 montage.setTitle("2D Skeletons")
@@ -50,7 +65,7 @@ treeStack = new ij.plugin.Concatenator().concatenate(imps as ImagePlus[], false)
 treeStack.setTitle("3D Skeletons")
 
 // Assign unique colors to each skeleton and display the result
-lutPath = ij.IJ.getDirectory("luts") + "glasbey_on_dark.lut"
+lutPath = ij.IJ.getDirectory("luts") + lutName
 lut = new ij.plugin.LutLoader().openLut(lutPath)
 treeStack.getProcessor().setLut(lut)
 treeStack.show()
