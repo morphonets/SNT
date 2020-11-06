@@ -25,7 +25,7 @@
     <img alt="GitHub closed issues" src="https://img.shields.io/github/issues-closed/morphonets/SNT">
   </a>
   <a href="https://forum.image.sc/tags/snt">
-    <img alt="Forum.sc topics" src="https://img.shields.io/badge/dynamic/json.svg?label=forum&url=https%3A%2F%2Fforum.image.sc%2Ftags%2Fsnt.json&query=%24.topic_list.tags.0.topic_count&suffix=%20topics">
+    <img alt="Forum.sc topics" src="https://img.shields.io/badge/dynamic/json.svg?label=forum&url=https%3A%2F%2Fforum.image.sc%2Ftag%2Fsnt.json&query=%24.topic_list.tags.0.topic_count&suffix=%20topics">
   </a>
 </div>
 <div align="center">
@@ -61,19 +61,17 @@
 
 
 
+
 SNT is [ImageJ](https://imagej.net/)'s framework for semi-automated tracing, visualization, quantitative analyses and modeling of neuronal morphology. For tracing, SNT supports modern multi-dimensional microscopy data, and highly-customizable routines. For data analysis, SNT features advanced visualization tools, access to all major morphology databases, and support for whole-brain circuitry data.
 
-Most importantly, SNT can be used as a regular application or as a scripting library. Python (through [pyimagej](https://github.com/imagej/pyimagej)) and  all of SciJava's scripting languages are supported. It is distributed with [Fiji](https://imagej.net/Fiji) and supersedes the original [Simple Neurite Tracer](#backwards-compatibility) plug-in.
-
-Please check [SNT's publication](https://doi.org/10.1101/2020.07.13.179325)  for details.
+Most importantly, SNT can be used as a regular application or as a scripting library. Python (through [pyimagej](https://github.com/imagej/pyimagej)) and  all of SciJava's scripting languages are supported. It is distributed with [Fiji](https://imagej.net/Fiji) and supersedes the original [Simple Neurite Tracer](#backwards-compatibility) plug-in. It also incorporates several other neuroanatomy-related plugins. **See  [SNT's publication](https://doi.org/10.1101/2020.07.13.179325)  for details**.
 
 ## Features
 ### Tracing
-* Support for up to 5D multidimensional images (including multichannel, and those with a time axis).
-  While tracing, visibility of non-traced channels can be toggled at will
+
+* Support for up to 5D multidimensional images (including multichannel, and those with a time axis). While tracing, visibility of non-traced channels can be toggled at will
 * Precise placement of nodes is aided by a local search that automatically snaps the cursor to neurites wihin a 3D neighborhood
-* A* search can be performed on a second, non-displayed image.
-  This allows for e.g., tracing on a pre-process (filtered) image while interacting with the unfiltered image (or vice-versa). If enough RAM is available toggling between the two data sources is immediate
+* A* search can be performed on a second, non-displayed image. This allows for e.g., tracing on a pre-process (filtered) image while interacting with the unfiltered image (or vice-versa). If enough RAM is available toggling between the two data sources is immediate
 * Tracing can be interleaved with image processing routines
 * Tracing is scriptable. Interactive scripts allow for real-time inspection of results
 * Paths can be tagged, searched, grouped and filtered by morphometric properties (length, radius, etc.)
