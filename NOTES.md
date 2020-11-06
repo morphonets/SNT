@@ -1,7 +1,7 @@
 <p align="center"><img src="https://imagej.net/_images/5/5d/SNTLogo512.png" alt="SNT" width="150"></p>
 <h1 align="center">Notes</h1>
 
-SNT is both a scripting library and GUI program. More formally, it is a collection of [SciJava](https://scijava.org/) commands (plugins), organized around a common API. The GUI is written in Swing.
+SNT is both a scripting library and a GUI program. More formally, it is a collection of [SciJava](https://scijava.org/) commands (plugins), organized around a common API. The GUI is written in Swing.
 
 
 
@@ -10,7 +10,7 @@ SNT is both a scripting library and GUI program. More formally, it is a collecti
 SNT has incorporated several projects that were previously scattered across the Fiji ecosystem of plugins. Notably:
 
 * Sholl Analysis: Originally hosted at  https://github.com/tferr/ASA ([Project summary](https://github.com/tferr/ASA#sholl-analysis)), _Sholl Analysis_ is now part of SNT. Its dedicated documentation page is at https://imagej.net/Sholl
-* Simple Neurite Tracer: The founding ImageJ1 plugin released in 2010. SNT stems from its rewrite. Originally hosted at 
+* Simple Neurite Tracer: The founding ImageJ1 plugin released in 2010. SNT stems from its rewrite. Originally hosted at https://github.com/fiji/SNT
 
 An overview of SNT's history is also provided in the [FAQs](https://imagej.net/SNT:_FAQ).
 
@@ -28,6 +28,18 @@ The _Sholl Analysis_ plugin is described in:
 
 - Ferreira T, Blackman A, Oyrer J, Jayabal A, Chung A, Watt A, Sjöström J, van Meyel D. [Neuronal morphometry directly from bitmap images](http://www.nature.com/nmeth/journal/v11/n10/full/nmeth.3125.html), **Nature Methods** 11(10): 982–984, 2014
 
+Simple Neurite Tracer is described in:
+
+- Longair MH, Baker DA, Armstrong JD. [Simple Neurite Tracer: Open Source software for reconstruction, visualization and analysis of neuronal processes](http://bioinformatics.oxfordjournals.org/content/early/2011/07/04/bioinformatics.btr390.long). **Bioinformatics**, 2011
+
+
+
+### Algorithms:
+
+ The Topological Morphology Descriptor (*TMD*) algorithm used for persistent homology analysis is described in:
+
+- Kanari, L., Dłotko, P., Scolamiero, M., Levi, R., Shillcock, J., Hess,  K., & Markram, H. (2018). A topological representation of branching  neuronal morphologies. **Neuroinformatics**, *16*(1), 3-13.
+
 The tracer based on *Tubular Geodesics* is described in:
 
 - Türetken E, Benmansour F, Fua P. [Automated Reconstruction of Tree Structures using Path Classifiers and Mixed Integer Programming](https://infoscience.epfl.ch/record/176222/files/turetken_et_al_2012.pdf?version=1), ***IEEE Conference on Computer Vision and Pattern Recognition***, Providence, Rhode Island, 2012
@@ -36,9 +48,7 @@ The *Cx3D* simulation engine is described in:
 
 - Zubler, F. & Douglas, R. [A framework for modeling the growth and development of neurons and networks](https://doi.org/10.3389/neuro.10.025.2009). **Front. Comput. Neurosci**. 3, 25 (2009)
 
-Simple Neurite Tracer is described in:
 
-- Longair MH, Baker DA, Armstrong JD. [Simple Neurite Tracer: Open Source software for reconstruction, visualization and analysis of neuronal processes](http://bioinformatics.oxfordjournals.org/content/early/2011/07/04/bioinformatics.btr390.long). **Bioinformatics** 2011
 
 
 
@@ -58,3 +68,4 @@ Simple Neurite Tracer is described in:
 | [JGraphT](https://jgrapht.org/)                              | Graph theory -based analyses                          |
 | [JSON-Java](https://github.com/stleary/JSON-java), [okhttp](https://square.github.io/okhttp/) | Access/query of online databases                      |
 | [Jzy3D](http://www.jzy3d.org/)                               | Reconstruction Viewer                                 |
+| [pyimagej](https://pypi.org/project/pyimagej/)               | Python bindings                                       |
