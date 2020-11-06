@@ -86,7 +86,7 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 * Built-in commands for *immediate* retrieval of summary statistics, comparison plots and histograms
 * Graph theory-based analyses
 * Persistent homology-based analyses
-* Sholl and Horton-Strahler analyses
+* [Sholl](./NOTES.md) and Horton-Strahler analyses
 * Image processing: Reconstructions can be skeletonized, converted to masks or ROIs, and voxel intensities profiled
 
 ### Visualization
