@@ -47,7 +47,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	private JMenuItem extendPathMenuItem;
 	private JCheckBoxMenuItem togglePauseTracingMenuItem;
 	private JCheckBoxMenuItem togglePauseSNTMenuItem;
-	private JMenu deselectedEditingPathsMenu;
+	private JMenuItem connectToSecondaryEditingPath;
 	private double last_x_in_pane_precise = Double.MIN_VALUE;
 	private double last_y_in_pane_precise = Double.MIN_VALUE;
 	private boolean fillTransparent = false;
@@ -82,9 +82,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final AListener listener = new AListener();
 		pMenu.add(menuItem(AListener.SELECT_NEAREST, listener));
 		pMenu.add(menuItem(AListener.FORK_NEAREST, listener));
-		pMenu.addSeparator();
 		extendPathMenuItem = menuItem(AListener.EXTEND_SELECTED, listener);
 		pMenu.add(extendPathMenuItem);
+		pMenu.addSeparator();
+
 		toggleEditModeMenuItem = new JCheckBoxMenuItem(AListener.EDIT_TOGGLE);
 		toggleEditModeMenuItem.addItemListener(listener);
 		pMenu.add(toggleEditModeMenuItem);
@@ -93,10 +94,16 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		pMenu.add(menuItem(AListener.NODE_INSERT, listener));
 		pMenu.add(menuItem(AListener.NODE_MOVE, listener));
 		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener));
-		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
-		deselectedEditingPathsMenu = new JMenu("  Connect To");
-		pMenu.add(deselectedEditingPathsMenu);
+
 		pMenu.addSeparator();
+		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
+		pMenu.addSeparator();
+
+		connectToSecondaryEditingPath = menuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER, listener);
+		pMenu.add(connectToSecondaryEditingPath);
+		pMenu.add(helpOnConnectingMenuItem());
+		pMenu.addSeparator();
+
 		togglePauseSNTMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_SNT_TOGGLE);
 		togglePauseSNTMenuItem.addItemListener(listener);
 		pMenu.add(togglePauseSNTMenuItem);
@@ -145,7 +152,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				else if (cmd.equals(AListener.NODE_RESET) || cmd.equals(
 					AListener.NODE_DELETE) || cmd.equals(AListener.NODE_INSERT) || cmd
 						.equals(AListener.NODE_MOVE) || cmd.equals(AListener.NODE_MOVE_Z) || cmd
-						.equals(AListener.NODE_SET_ROOT))
+						.equals(AListener.NODE_SET_ROOT)  || 
+						cmd.startsWith(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX))
 				{
 					mItem.setEnabled(be && editMode);
 				}
@@ -156,74 +164,73 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			}
 		}
 
-		assembleDeselectedEditingPathsMenu(be && editMode);
+		updateConnectToSecondaryEditingPathMenuItem();
 		pMenu.show(this, x, y);
 	}
 
-	private void assembleDeselectedEditingPathsMenu(final boolean computeList) {
-		deselectedEditingPathsMenu.setEnabled(computeList);
-		if (!computeList) return;
-
-		deselectedEditingPathsMenu.removeAll();
+	protected void connectEditingPathToPreviousEditingPath() {
+		updateConnectToSecondaryEditingPathMenuItem();
+		if (!connectToSecondaryEditingPath.isEnabled()) {
+			getGuiUtils().error(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + ": No connectable node exist.",
+					"No Connectable Nodes");
+			updateConnectToSecondaryEditingPathMenuItem();
+			return;
+		}
 		final Path source = tracerPlugin.getEditingPath();
-		final boolean startJoins = (source.getEditableNodeIndex() <= source.size() /
-			2);
-		deselectedEditingPathsMenu.setText("  Connect To (" + (startJoins ? "Start"
-			: "End") + " Join)");
-		int count = 0;
-		for (final Path p : pathAndFillManager.getPaths()) {
-			if (p.equals(tracerPlugin.getEditingPath()) || !p.isBeingEdited())
-				continue;
-			final JMenuItem mitem = new JMenuItem(p.getName());
-			deselectedEditingPathsMenu.add(mitem);
-			mitem.addActionListener(e -> {
-				final Path source1 = tracerPlugin.getEditingPath();
-				final int nodeIndexP = p.getEditableNodeIndex();
-				final int nodeIndexS = source1.getEditableNodeIndex();
-				if (nodeIndexP * nodeIndexS != 0) {
-					getGuiUtils().error(
-						"One of the connecting nodes must be a start or an end node!",
-						"Paths Cannot Contain Loops");
-					return;
-				}
-				final PointInImage tPim = p.getNodeWithoutChecks(nodeIndexP);
-				source1.moveNode(source1.getEditableNodeIndex(), tPim);
-				if (startJoins) {
-					if (source1.getStartJoins() != null) source1.unsetStartJoin();
-					source1.setStartJoin(p, tPim);
-				}
-				else {
-					if (source1.getEndJoins() != null) source1.unsetEndJoin();
-					source1.setEndJoin(p, tPim);
-				}
-				p.setEditableNode(-1);
-				pathAndFillManager.resetListeners(null);
-				tracerPlugin.updateAllViewers();
-			});
-			++count;
-		}
-		if (count == 0) {
-			final JMenuItem mitem = new JMenuItem("No Other Editable Nodes Exist...");
-			mitem.setEnabled(false);
-			deselectedEditingPathsMenu.add(mitem);
-		}
-		deselectedEditingPathsMenu.add(helpOnConnecting());
+		final boolean startJoins = (source.getEditableNodeIndex() <= source.size() / 2);
+		connectToEditingPath(source, tracerPlugin.getPreviousEditingPath(), startJoins);
 	}
 
-	private JMenuItem helpOnConnecting() {
+	private void updateConnectToSecondaryEditingPathMenuItem() {
+		if (!editMode || //
+				tracerPlugin.getEditingPath() == null || //
+				tracerPlugin.getPreviousEditingPath() == null || //
+				tracerPlugin.getPreviousEditingPath().getEditableNodeIndex() == -1) //
+		{
+			connectToSecondaryEditingPath.setText(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER);
+			connectToSecondaryEditingPath.setEnabled(false);
+			return;
+		}
+		final String label = tracerPlugin.getPreviousEditingPath().getName() + " (node " + tracerPlugin.getPreviousEditingPath().getEditableNodeIndex() +")";
+		connectToSecondaryEditingPath.setText(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + label + 
+				AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_SUFFIX );
+	}
+
+
+	private void connectToEditingPath(final Path source, final Path destination, final boolean startJoins) {
+		final int nodeIndexP = destination.getEditableNodeIndex();
+		final int nodeIndexS = source.getEditableNodeIndex();
+		if (nodeIndexP * nodeIndexS != 0) {
+			getGuiUtils().error("Cannot connect selected nodes: A loop would be created!",
+					"Reconstruction Cannot Contain Loops");
+			return;
+		}
+		final PointInImage tPim = destination.getNodeWithoutChecks(nodeIndexP);
+		source.moveNode(source.getEditableNodeIndex(), tPim);
+		if (startJoins) {
+			if (source.getStartJoins() != null)
+				source.unsetStartJoin();
+			source.setStartJoin(destination, tPim);
+		} else {
+			if (source.getEndJoins() != null)
+				source.unsetEndJoin();
+			source.setEndJoin(destination, tPim);
+		}
+		destination.setEditableNode(-1);
+		pathAndFillManager.resetListeners(null);
+		tracerPlugin.updateAllViewers();
+	}
+
+	private JMenuItem helpOnConnectingMenuItem() {
 		final String msg = "<HTML>To connect two paths in <i>Edit Mode</i>:<ol>" +
-			"  <li>Select the source node on the 1st path</li>" +
+			"  <li>Select the source node on the path being edited by hovering over it</li>" +
 			"  <li>Activate the 2nd path by pressing 'G'. Select the destination node on it</li>" +
-			"  <li>Link the two through the appropriate <i>Connect To</i> menu entry</li>" +
+			"  <li>Link the two by pressing 'C' (<u>C</u>onnect To... command)</li>" +
 			"</ol>" +
-			"To ensure no loops exist, one of the nodes must be a start or an end node.";
-		return helpItem(msg);
-	}
-
-	private JMenuItem helpItem(final String msg) {
+			"Note that loop-forming connections are not allowed.";
 		final GuiUtils guiUtils = new GuiUtils(this.getParent());
-		final JMenuItem helpItem = new JMenuItem("Help...");
-		helpItem.addActionListener(e -> guiUtils.centeredMsg(msg, "Help"));
+		final JMenuItem helpItem = new JMenuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help...");
+		helpItem.addActionListener(e -> guiUtils.centeredMsg(msg, AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help"));
 		return helpItem;
 	}
 
@@ -609,6 +616,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	 */
 	private class AListener implements ActionListener, ItemListener {
 
+		/* Listed shortcuts are specified in QueueJumpingKeyListener */
 		public static final String FORK_NEAREST = 
 			"Fork at Nearest Node  ";
 		public static final String FORK_NEAREST_SHIFT_ALT = 
@@ -630,8 +638,11 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			"  Move Active Node to Cursor Position  [M]";
 		private final static String NODE_MOVE_Z =
 			"  Bring Active Node to Current Z-plane  [B]";
-		private final static String NODE_SET_ROOT =
-				"  Set Active Node as Tree Root";
+		private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root...";
+		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = "  Connect to ";
+		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_SUFFIX = "  [C]";
+		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER = NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX
+				+ "Unselected Crosshair Node" + AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_SUFFIX;
 		private final String START_SHOLL = "Sholl Analysis at Nearest Node  [Shift+Alt+A]";
 
 		@Override
@@ -712,6 +723,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			else if (impossibleEdit(true)) return;
 
 			// EDIT Commands below
+			if (e.getActionCommand().startsWith(NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX)) {
+				connectEditingPathToPreviousEditingPath();
+				return;
+			}
 			switch (e.getActionCommand()) {
 				case NODE_RESET:
 					tracerPlugin.getEditingPath().setEditableNode(-1);

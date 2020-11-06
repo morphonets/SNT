@@ -203,6 +203,7 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	volatile private boolean pathUnfinished = false;
 	private Path editingPath; // Path being edited when in 'Edit Mode'
+	private Path previousEditingPath; // reference to the 'last selected' path when in 'Edit Mode'
 
 	/* Labels */
 	private String[] materialList;
@@ -895,6 +896,10 @@ public class SNT extends MultiDThreePanes implements
 		return editingPath;
 	}
 
+	protected Path getPreviousEditingPath() {
+		return previousEditingPath;
+	}
+
 	protected int getEditingNode() {
 		return (getEditingPath() == null) ? -1 : getEditingPath()
 			.getEditableNodeIndex();
@@ -931,6 +936,8 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void setEditingPath(final Path path) {
+		if (previousEditingPath != null) previousEditingPath.setEditableNode(-1);
+		previousEditingPath = editingPath;
 		editingPath = path;
 	}
 

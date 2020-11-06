@@ -210,6 +210,9 @@ class QueueJumpingKeyListener implements KeyListener {
 			else if (keyChar == 'b' || keyChar == 'B') {
 				canvas.assignLastCanvasZPositionToEditNode(false);
 			}
+			else if (keyChar == 'c' || keyChar == 'C') {
+				canvas.connectEditingPathToPreviousEditingPath();
+			}
 			e.consume();
 			return;
 		}
