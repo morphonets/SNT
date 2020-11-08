@@ -812,11 +812,11 @@ public class GuiUtils {
 		helpMenu.add(mi);
 		helpMenu.addSeparator();
 
-		mi = menuItemTriggeringURL("FAQs", URL + ":_FAQ");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
-		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("Ask a Question", "https://forum.image.sc/tags/snt");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COMMENTS));
+		helpMenu.add(mi);
+		mi = menuItemTriggeringURL("FAQs", URL + ":_FAQ");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("Known Issues", "https://github.com/morphonets/SNT/issues");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BUG));
@@ -826,14 +826,19 @@ public class GuiUtils {
 		mi = menuItemTriggeringURL("Scripting", URL + ":_Scripting");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE));
 		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("API", "https://morphonets.github.io/SNT/");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE2));
-		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("Python Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SCROLL));
 		helpMenu.add(mi);
-
 		helpMenu.addSeparator();
+
+		mi = menuItemTriggeringURL("SNT's Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COGS));
+		helpMenu.add(mi);
+		mi = menuItemTriggeringURL("SNT's API", "https://morphonets.github.io/SNT/");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE2));
+		helpMenu.add(mi);
+		helpMenu.addSeparator();
+
 		mi = menuItemTriggeringURL("SNT Manuscript", "https://doi.org/10.1101/2020.07.13.179325");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FILE));
 		helpMenu.add(mi);
