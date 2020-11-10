@@ -124,7 +124,7 @@ public class GuiUtils {
 	public JDialog floatingMsg(final String msg, final boolean autodismiss) {
 		final JDialog dialog = new FloatingDialog(msg);
 		if (autodismiss) GuiUtils.setAutoDismiss(dialog);
-		makeVisible(dialog);
+		makeVisible(dialog, false);
 		return dialog;
 	}
 
@@ -216,7 +216,7 @@ public class GuiUtils {
 			JOptionPane.QUESTION_MESSAGE, JOptionPane.YES_NO_OPTION, null,
 			buttonLabels);
 		final JDialog d = optionPane.createDialog(parent, title);
-		makeVisible(d);
+		makeVisible(d, true);
 		d.dispose();
 		final Object result = optionPane.getValue();
 		if (result instanceof Integer) {
@@ -233,12 +233,12 @@ public class GuiUtils {
 		}
 	}
 
-	private void makeVisible(final JDialog dialog) {
+	private void makeVisible(final JDialog dialog, final boolean forceBringToFront) {
 		dialog.setVisible(true);
 		dialog.toFront();
 		// work around a bug in openjdk and MacOS in which prompts
 		// are not frontmost if the component hierarchy is > 3
-		if (!dialog.hasFocus() && parent != null && parent instanceof JDialog) {
+		if (forceBringToFront && !dialog.hasFocus() && parent != null && parent instanceof JDialog) {
 			try {
 				((JDialog) parent).toBack();
 				Thread.sleep(50);
@@ -257,7 +257,7 @@ public class GuiUtils {
 		final JOptionPane optionPane = new JOptionPane(getLabel(msg), JOptionPane.ERROR_MESSAGE,
 				JOptionPane.YES_NO_OPTION, null, new String[] { "Online Help", "OK" });
 		final JDialog d = optionPane.createDialog(parent, title);
-		makeVisible(d);
+		makeVisible(d, true);
 		d.dispose();
 		if ("Online Help".equals(optionPane.getValue()))
 			openURL(helpURI);
@@ -366,7 +366,7 @@ public class GuiUtils {
 		final ColorTracker ok = new ColorTracker(chooser);
 		final JDialog dialog = JColorChooser.createDialog(parent, title, true,
 			chooser, ok, null);
-		makeVisible(dialog);
+		makeVisible(dialog, true);
 		return ok.getColor();
 	}
 
@@ -557,7 +557,7 @@ public class GuiUtils {
 			AWTWindows.centerWindow(parent.getBounds(), d);
 			// we could also use d.setLocationRelativeTo(parent);
 		}
-		makeVisible(d);
+		makeVisible(d, true);
 		final Object result = optionPane.getValue();
 		if ((!(result instanceof Integer)))
 			return SwingDialog.UNKNOWN_OPTION;
