@@ -60,7 +60,7 @@ import sc.fiji.snt.plugin.ij1.CallIJ1LegacyCmd;
  * 
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, menuPath = "Plugins>Neuroanatomy>Neuroanatomy Cmd Window")
+@Plugin(type = Command.class, menuPath = "Plugins>Neuroanatomy>Neuroanatomy Shortcut Window")
 public class ShortcutWindowCmd extends ContextCommand {
 
 	private static final String HTML_TOOLTIP = "<html><body><div style='width:500px'>";

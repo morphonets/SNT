@@ -359,8 +359,8 @@ public class ScriptInstaller implements MenuKeyListener {
 				+ getScriptsDirPath() + File.separator + "My_SNT_script.py</tt>) <br><br>" //
 				+ "To edit a listed script hold \"Shift\" while clicking on its menu entry.<br><br>" //
 				+ "Many other programming examples are available through the Script Editor's " //
-				+ "<i>Templates>Neuroanatomy></i> menu.  Please submit a pull request to " //
-				+ "<a href='https://github.com/morphonets/SNT/pulls'>SNT's repository</a>. if " //
+				+ "<i>Templates>Neuroanatomy></i> menu.<br>Please submit a pull request to " //
+				+ "<a href='https://github.com/morphonets/SNT/'>SNT's repository</a>. if " //
 				+ "you would like to have your scripts distributed with Fiji.",
 				"About SNT Scripts...", true);
 		});
