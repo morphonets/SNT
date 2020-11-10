@@ -645,8 +645,7 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @see StrahlerAnalyzer#getHighestBranchOrder()
 	 */
 	public List<Path> getInnerBranches() {
-		if (sAnalyzer == null)
-			sAnalyzer = new StrahlerAnalyzer(tree);
+		getStrahlerAnalyzer();
 		innerBranches = sAnalyzer.getBranches(sAnalyzer.getHighestBranchOrder());
 		return innerBranches;
 	}
@@ -662,8 +661,7 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @see StrahlerAnalyzer#getRootAssociatedBranches()
 	 */
 	public List<Path> getPrimaryBranches() {
-		if (sAnalyzer == null)
-			sAnalyzer = new StrahlerAnalyzer(tree);
+		getStrahlerAnalyzer();
 		primaryBranches = sAnalyzer.getRootAssociatedBranches();
 		return primaryBranches;
 	}
