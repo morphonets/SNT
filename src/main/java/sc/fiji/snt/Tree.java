@@ -1546,6 +1546,7 @@ public class Tree {
 	@Override
 	public Tree clone() {
 		final Tree clone = new Tree();
+		clone.setLabel(getLabel());
 		final Map<Integer, Path> idToPathMap = new HashMap<>();
 		for (final Path path : list()) {
 			final Path clonePath = path.clone();
