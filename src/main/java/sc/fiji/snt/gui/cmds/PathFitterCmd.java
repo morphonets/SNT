@@ -102,11 +102,22 @@ public class PathFitterCmd extends ContextCommand {
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg3 = HEADER +
-		"<b>Replace nodes:</b> (Advanced setting) Defines wether fitted "//
-		+ "nodes should immediately replace those of input path(s):";
+		"<b>Replace nodes:</b> Defines wether fitted paths should immediately "
+		+ "replace (override) input path(s):";
+
 	@Parameter(required = false, label = EMPTY_LABEL, choices = {
 			"Keep original path(s)", "Replace existing nodes (undoable operation)" })
 	private String fitInPlaceChoice;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+	private final String note = HEADER +
+		"NB: With 'Keep original path(s)', it may not be possible to accurately "
+		+ "establish hierarchical relationships between branches. Thus, it is "
+		+ "recommended to choose 'Replace existing nodes' when performing measurements "
+		+ "on complete cells."; // spacer
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+	private final String spacer1 = EMPTY_LABEL;
 
 	@Parameter(required = false, label = "Reset Defaults", callback = "reset")
 	private Button reset;
