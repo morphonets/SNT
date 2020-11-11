@@ -953,9 +953,8 @@ public class PathAndFillManager extends DefaultHandler implements
 			final boolean forceNewName, final boolean forceNewId)
 		{
 		addPath(p, forceNewName, forceNewId, true);
-		}
+	}
 
-	@SuppressWarnings("deprecation")
 	protected synchronized void addPath(final Path p,
 		final boolean forceNewName, final boolean forceNewId, final boolean assumeMaxUsedTreeID)
 	{
@@ -982,7 +981,21 @@ public class PathAndFillManager extends DefaultHandler implements
 			final String suggestedName = getDefaultName(p);
 			p.setName(suggestedName);
 		}
-		// Now check if there's already a path with this name.
+		addPathInternal(p);
+	}
+
+	public synchronized void addPath(final Path p, final int id, final int treeID) {
+		addPathInternal(p);
+		p.setIDs(id, treeID);
+		if (maxUsedPathID < id)
+			maxUsedPathID = id;
+		if (maxUsedTreeID < treeID)
+			maxUsedTreeID = treeID;
+	}
+
+	@SuppressWarnings("deprecation")
+	private void addPathInternal(final Path p) {
+		// Check if there's already a path with this name.
 		// If so, try adding numbered suffixes:
 		final String originalName = p.getName();
 		String candidateName = originalName;
