@@ -291,18 +291,24 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 	}
 
 	private void measure(final Collection<Tree> trees, final List<String> metrics) {
-		final int n = trees.size();
-		final Iterator<Tree> it = trees.iterator();
-		int index = 0;
-		while (it.hasNext()) {
-			final Tree tree = it.next();
-			statusService.showStatus(index++, n, tree.getLabel());
-			final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
-			analyzer.setContext(getContext());
-			analyzer.setTable(table, TABLE_TITLE);
-			analyzer.measure(metrics, splitByType); // will display table
+		try {
+			final int n = trees.size();
+			final Iterator<Tree> it = trees.iterator();
+			int index = 0;
+			while (it.hasNext()) {
+				final Tree tree = it.next();
+				statusService.showStatus(index++, n, tree.getLabel());
+				final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
+				analyzer.setContext(getContext());
+				analyzer.setTable(table, TABLE_TITLE);
+				analyzer.measure(metrics, splitByType); // will display table
+			}
+		} catch (final IllegalArgumentException | ArithmeticException | IllegalStateException ex) {
+			error("An error occured while computing metric(s). See Console for details.");
+			ex.printStackTrace();
+		} finally {
+			resetUI();
 		}
-		resetUI();
 	}
 
 

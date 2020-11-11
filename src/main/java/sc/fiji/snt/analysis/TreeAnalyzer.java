@@ -343,55 +343,34 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @see #getMetrics()
 	 */
 	public Number getMetric(final String metric) throws IllegalArgumentException {
-		return getMetricWithoutChecks(MultiTreeStatistics.getNormalizedMeasurement(metric, false));
+		return getMetricInternal(MultiTreeStatistics.getNormalizedMeasurement(metric, false));
 	}
 
-	protected Number getMetricWithoutChecks(final String metric) throws IllegalArgumentException {
+	protected Number getMetricInternal(final String metric) {
+		try {
+			return getMetricWithoutChecks(metric);
+		} catch (final Exception ignored) {
+			SNTUtils.log("Error: " + ignored.getMessage());
+			return Double.NaN;
+		}
+	}
+
+	protected Number getMetricWithoutChecks(final String metric) throws UnknownMetricException {
 		switch (metric) {
 		case MultiTreeStatistics.ASSIGNED_VALUE:
 			return tree.getAssignedValue();
 		case MultiTreeStatistics.AVG_BRANCH_LENGTH:
-			try {
-				return getAvgBranchLength();
-			} catch (final IllegalArgumentException ignored) {
-				SNTUtils.log("Error: " + ignored.getMessage());
-				return Double.NaN;
-			}
+			return getAvgBranchLength();
 		case MultiTreeStatistics.AVG_CONTRACTION:
-			try {
-				return getAvgContraction();
-			} catch (final IllegalArgumentException ignored) {
-				SNTUtils.log("Error: " + ignored.getMessage());
-				return Double.NaN;
-			}
+			return getAvgContraction();
 		case MultiTreeStatistics.AVG_FRAGMENTATION:
-			try {
-				return getAvgFragmentation();
-			} catch (final IllegalArgumentException ignored) {
-				SNTUtils.log("Error: " + ignored.getMessage());
-				return Double.NaN;
-			}
+			return getAvgFragmentation();
 		case MultiTreeStatistics.AVG_REMOTE_ANGLE:
-			try {
-				return getAvgRemoteBifAngle();
-			} catch (final IllegalArgumentException ignored) {
-				SNTUtils.log("Error: " + ignored.getMessage());
-				return Double.NaN;
-			}
+			return getAvgRemoteBifAngle();
 		case MultiTreeStatistics.AVG_PARTITION_ASYMMETRY:
-			try {
-				return getAvgPartitionAsymmetry();
-			} catch (final IllegalArgumentException ignored) {
-				SNTUtils.log("Error: " + ignored.getMessage());
-				return Double.NaN;
-			}
+			return getAvgPartitionAsymmetry();
 		case MultiTreeStatistics.AVG_FRACTAL_DIMENSION:
-			try {
-				return getAvgFractalDimension();
-			} catch (final IllegalArgumentException ignored) {
-				SNTUtils.log("Error: " + ignored.getMessage());
-				return Double.NaN;
-			}
+			return getAvgFractalDimension();
 		case MultiTreeStatistics.DEPTH:
 			return getDepth();
 		case MultiTreeStatistics.HEIGHT:
@@ -406,12 +385,7 @@ public class TreeAnalyzer extends ContextCommand {
 		case MultiTreeStatistics.N_BRANCH_POINTS:
 			return getBranchPoints().size();
 		case MultiTreeStatistics.N_BRANCHES:
-			try {
-				return getNBranches();
-			} catch (final IllegalArgumentException ignored) {
-				SNTUtils.log("Error: " + ignored.getMessage());
-				return Double.NaN;
-			}
+			return getNBranches();
 		case MultiTreeStatistics.N_FITTED_PATHS:
 			return getNFittedPaths();
 		case MultiTreeStatistics.N_NODES:
@@ -431,19 +405,9 @@ public class TreeAnalyzer extends ContextCommand {
 		case MultiTreeStatistics.INNER_LENGTH:
 			return getInnerLength();
 		case MultiTreeStatistics.STRAHLER_NUMBER:
-			try {
-				return getStrahlerNumber();
-			} catch (final IllegalArgumentException ignored) {
-				SNTUtils.log("Error: " + ignored.getMessage());
-				return Double.NaN;
-			}
+			return getStrahlerNumber();
 		case MultiTreeStatistics.STRAHLER_RATIO:
-			try {
-				return getStrahlerBifurcationRatio();
-			} catch (final IllegalArgumentException ignored) {
-				SNTUtils.log("Error: " + ignored.getMessage());
-				return Double.NaN;
-			}
+			return getStrahlerBifurcationRatio();
 		case MultiTreeStatistics.TERMINAL_LENGTH:
 			return getTerminalLength();
 		case MultiTreeStatistics.WIDTH:
@@ -453,7 +417,7 @@ public class TreeAnalyzer extends ContextCommand {
 				final String fMetric = metric.substring(metric.indexOf("Sholl: ") + 6).trim();
 				return getShollAnalyzer().getSingleValueMetrics().getOrDefault(fMetric, Double.NaN);
 			}
-			throw new IllegalArgumentException("Unrecognizable measurement \"" + metric + "\". "
+			throw new UnknownMetricException("Unrecognizable measurement \"" + metric + "\". "
 					+ "Maybe you meant one of the following?: \"" + String.join(", ", getMetrics() + "\""));
 		}
 	}
@@ -494,13 +458,13 @@ public class TreeAnalyzer extends ContextCommand {
 				restrictToSWCType(type);
 				final int row = getNextRow(rowHeader);
 				table.set(getCol("SWC Type"), row, Path.getSWCtypeName(type, true));
-				measuringMetrics.forEach(metric -> table.set(getCol(metric), row, getMetricWithoutChecks(metric)));
+				measuringMetrics.forEach(metric -> table.set(getCol(metric), row, getMetricInternal(metric)));
 				resetRestrictions();
 			}
 		} else {
 			int row = getNextRow(rowHeader);
 			table.set(getCol("SWC Types"), row, getSWCTypesAsString());
-			measuringMetrics.forEach(metric -> table.set(getCol(metric), row, getMetricWithoutChecks(metric)));
+			measuringMetrics.forEach(metric -> table.set(getCol(metric), row, getMetricInternal(metric)));
 		}
 		if (getContext() != null) updateAndDisplayTable();
 	}
