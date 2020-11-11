@@ -2613,7 +2613,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				}
 				for (final Path p : selectedPaths) {
 					Path pathToUse = p;
-					if (p.getUseFitted()) {
+					if (p.getUseFitted() && p.getFitted() != null) {
 						pathToUse = p.getFitted();
 					}
 					pathToUse.downsample(maxDeviation);

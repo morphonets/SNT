@@ -286,7 +286,7 @@ public class Path implements Comparable<Path> {
 	 */
 	public void setCanvasOffset(final PointInCanvas canvasOffset) {
 		this.canvasOffset = canvasOffset;
-		if (fitted != null) fitted.setCanvasOffset(canvasOffset);
+		if (getFitted() != null) getFitted().setCanvasOffset(canvasOffset);
 	}
 
 	/**
@@ -1609,7 +1609,7 @@ public class Path implements Comparable<Path> {
 	public void setColor(final Color color) {
 		this.color = color;
 		hasCustomColor = color != null;
-		if (fitted != null) fitted.setColor(color);
+		if (getFitted() != null) getFitted().setColor(color);
 		if (hasNodeColors() && size() == 1) nodeColors[0] = color;
 	}
 
@@ -1692,7 +1692,7 @@ public class Path implements Comparable<Path> {
 	}
 
 	protected void setFitted(final Path p) {
-		if (fitted != null && p != null) {
+		if (getFitted() != null && p != null) {
 			throw new IllegalArgumentException(
 				"BUG: Trying to set a fitted path when there already is one...");
 		}
@@ -1714,7 +1714,7 @@ public class Path implements Comparable<Path> {
 	public void setUseFitted(final boolean useFitted)
 		throws IllegalArgumentException
 	{
-		if (useFitted && fitted == null) throw new IllegalArgumentException(
+		if (useFitted && getFitted() == null) throw new IllegalArgumentException(
 			"setUseFitted(true) called, but 'fitted' member was null");
 		this.useFitted = useFitted;
 	}
@@ -1979,7 +1979,7 @@ public class Path implements Comparable<Path> {
 
 	@Override
 	public String toString() {
-		if (useFitted) return fitted.realToString();
+		if (useFitted) return getFitted().realToString();
 		return realToString();
 	}
 
@@ -2007,7 +2007,7 @@ public class Path implements Comparable<Path> {
 			if (isFittedVersionOfAnotherPath() && fittedVersionOf
 				.getSWCType() != newSWCType) throw new IllegalArgumentException(
 					"BUG: only call setSWCType on the unfitted path");
-			if (fitted != null) fitted.setSWCType(newSWCType);
+			if (getFitted() != null) getFitted().setSWCType(newSWCType);
 		}
 	}
 
@@ -2045,7 +2045,7 @@ public class Path implements Comparable<Path> {
 
 	public void setOrder(final int order) {
 		this.order = order;
-		if (fitted != null) fitted.order = order;
+		if (getFitted() != null) getFitted().order = order;
 		else if (fittedVersionOf != null) fittedVersionOf.order = order;
 	}
 
@@ -2067,7 +2067,7 @@ public class Path implements Comparable<Path> {
 		final Image3DUniverse univ)
 	{
 		removeFrom3DViewer(univ);
-		if (useFitted) fitted.removeFrom3DViewer(univ);
+		if (useFitted) getFitted().removeFrom3DViewer(univ);
 	}
 
 	synchronized void updateContent3D(final Image3DUniverse univ,
@@ -2098,14 +2098,14 @@ public class Path implements Comparable<Path> {
 			 * If the non-fitted versions are currently being displayed, remove them:
 			 */
 			removeFrom3DViewer(univ);
-			pathToUse = fitted;
+			pathToUse = getFitted();
 		}
 		else {
 			/*
 			 * If the fitted version is currently being displayed, remove it:
 			 */
-			if (fitted != null) {
-				fitted.removeFrom3DViewer(univ);
+			if (getFitted() != null) {
+				getFitted().removeFrom3DViewer(univ);
 			}
 			pathToUse = this;
 		}

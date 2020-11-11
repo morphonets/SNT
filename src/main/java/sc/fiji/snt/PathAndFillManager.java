@@ -341,7 +341,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			// selectedPathsSet.addAll(selectedPaths);
 			selectedPaths.forEach(p -> {
 				Path pathToSelect = p;
-				if (pathToSelect.getUseFitted()) pathToSelect = pathToSelect.fitted;
+				if (pathToSelect.getUseFitted()) pathToSelect = pathToSelect.getFitted();
 				// pathToSelect.setSelected(true);
 				selectedPathsSet.add(pathToSelect);
 			});
@@ -725,7 +725,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 			Path pathToUse = currentPath;
 			if (currentPath.getUseFitted()) {
-				pathToUse = currentPath.fitted;
+				pathToUse = currentPath.getFitted();
 			}
 
 			Path parent = null;
@@ -1079,7 +1079,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		if (originalPathToDelete.fittedVersionOf == null) {
 			unfittedPathToDelete = originalPathToDelete;
-			fittedPathToDelete = originalPathToDelete.fitted;
+			fittedPathToDelete = originalPathToDelete.getFitted();
 		}
 		else {
 			unfittedPathToDelete = originalPathToDelete.fittedVersionOf;
@@ -1337,8 +1337,8 @@ public class PathAndFillManager extends DefaultHandler implements
 				}
 				if (p.isPrimary()) pw.print(" primary=\"true\"");
 				pw.print(" usefitted=\"" + p.getUseFitted() + "\"");
-				if (p.fitted != null) {
-					pw.print(" fitted=\"" + p.fitted.getID() + "\"");
+				if (p.getFitted() != null) {
+					pw.print(" fitted=\"" + p.getFitted().getID() + "\"");
 				}
 				if (p.fittedVersionOf != null) {
 					pw.print(" fittedversionof=\"" + p.fittedVersionOf.getID() + "\"");
@@ -1803,7 +1803,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			.size() > 1)
 		{
 			Path pathToAdd;
-			if (p.getUseFitted()) pathToAdd = p.fitted;
+			if (p.getUseFitted()) pathToAdd = p.getFitted();
 			else pathToAdd = p;
 			pathToAdd.addTo3DViewer(plugin.univ, plugin.deselectedColor,
 				plugin.colorImage);
@@ -1874,22 +1874,22 @@ public class PathAndFillManager extends DefaultHandler implements
 				// Do some checks that the fitted and fittedVersionOf fields match
 				// up:
 				for (final Path p : allPaths) {
-					if (p.fitted != null) {
-						if (p.fitted.fittedVersionOf == null)
+					if (p.getFitted() != null) {
+						if (p.getFitted().fittedVersionOf == null)
 							throw new TracesFileFormatException(
 									"Malformed traces file: p.fitted.fittedVersionOf was null");
-						else if (p != p.fitted.fittedVersionOf)
+						else if (p != p.getFitted().fittedVersionOf)
 							throw new TracesFileFormatException(
 									"Malformed traces file: p didn't match p.fitted.fittedVersionOf");
 					} else if (p.fittedVersionOf != null) {
-						if (p.fittedVersionOf.fitted == null)
+						if (p.fittedVersionOf.getFitted() == null)
 							throw new TracesFileFormatException(
 									"Malformed traces file: p.fittedVersionOf.fitted was null");
-						else if (p != p.fittedVersionOf.fitted)
+						else if (p != p.fittedVersionOf.getFitted())
 							throw new TracesFileFormatException(
 									"Malformed traces file: p didn't match p.fittedVersionOf.fitted");
 					}
-					if (p.useFitted && p.fitted == null) {
+					if (p.useFitted && p.getFitted() == null) {
 						throw new TracesFileFormatException(
 								"Malformed traces file: p.useFitted was true but p.fitted was null");
 					}
@@ -2636,7 +2636,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		for (final Path topologyPath : paths) {
 			Path p = topologyPath;
 			if (topologyPath.getUseFitted()) {
-				p = topologyPath.fitted;
+				p = topologyPath.getFitted();
 			}
 			final int n = p.size();
 
@@ -3005,7 +3005,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		for (final Path p : allPaths) {
 			Path pForLengthAndName = p;
 			if (p.getUseFitted()) {
-				pForLengthAndName = p.fitted;
+				pForLengthAndName = p.getFitted();
 			}
 			if (p.fittedVersionOf != null) continue;
 			SNTUtils.csvQuoteAndPrint(pw, p.getID());
