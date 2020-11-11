@@ -316,6 +316,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			if (fittingHelper == null) fittingHelper = new FitHelper();
 			fittingHelper.showPrompt();
 		});
+		fitMenu.add(jmi);
 		jmi = GuiUtils.menuItemTriggeringURL("<HTML>Help on <i>Fitting", FIT_URI);
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
 		fitMenu.add(jmi);
@@ -2646,30 +2647,35 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final ArrayList<PathFitter> pathsToFit = new ArrayList<>();
 				int skippedFits = 0;
 
-				for (final Path p : selectedPaths) {
+				try {
+					for (final Path p : selectedPaths) {
 
-					// If the fitted version is already being used. Do nothing
-					if (p.getUseFitted()) {
-						continue;
-					}
-
-					// A fitted version does not exist
-					else if (p.getFitted() == null) {
-						if (imageNotAvailable) {
-							// Keep a tally of how many computations we are skipping
-							skippedFits++;
+						// If the fitted version is already being used. Do nothing
+						if (p.getUseFitted()) {
+							continue;
 						}
+
+						// A fitted version does not exist
+						else if (p.getFitted() == null) {
+							if (imageNotAvailable) {
+								// Keep a tally of how many computations we are skipping
+								skippedFits++;
+							} else {
+								// Prepare for computation
+								final PathFitter pathFitter = new PathFitter(plugin, p);
+								pathsToFit.add(pathFitter);
+							}
+						}
+
+						// Just use the existing fitted version:
 						else {
-							// Prepare for computation
-							final PathFitter pathFitter = new PathFitter(plugin, p);
-							pathsToFit.add(pathFitter);
+							p.setUseFitted(true);
 						}
 					}
 
-					// Just use the existing fitted version:
-					else {
-						p.setUseFitted(true);
-					}
+				} catch (final IllegalArgumentException ex) {
+					guiUtils.centeredMsg(ex.getMessage(), "Error");
+					return;
 				}
 
 				if (skippedFits == n) {
@@ -2692,6 +2698,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 
 			}
+	
 			else {
 				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
 				return;
