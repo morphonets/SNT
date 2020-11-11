@@ -1525,14 +1525,63 @@ public class Tree {
 	private void initPathAndFillManager() {
 		if (pafm == null) pafm = new PathAndFillManager();
 		if (pafm.size() == 0) for (final Path p : list()) pafm.addPath(p);
+		if (pafm == null) {
+			pafm = new PathAndFillManager();
+			// FIXME: Since the paths of this tree may be associated with other pafm instances and paths
+			//  are passed to a pafm by reference, make a deep copy of the Tree so that changes to identifying path
+			//  properties (path ID, tree ID, etc) in this instance do not propagate to other
+			//  pafm instances (most importantly, the one used by the plugin instance).
+			pafm.addTree(this.clone());
+		}
+	}
+
+	private Tree cloneOld() {
+		final Tree clone = new Tree();
+		clone.setLabel(getLabel());
+		clone.setBoundingBox(box);
+		for (final Path path : list()) clone.add(path.clone());
+		return clone;
 	}
 
 	@Override
 	public Tree clone() {
 		final Tree clone = new Tree();
-		clone.setLabel(getLabel());
-		clone.setBoundingBox(box);
-		for (final Path path : list()) clone.add(path.clone());
+		final Map<Integer, Path> idToPathMap = new HashMap<>();
+		for (final Path path : list()) {
+			final Path clonePath = path.clone();
+			idToPathMap.put(clonePath.getID(), clonePath);
+			clone.add(clonePath);
+		}
+		for (final Path path : list()) {
+			final Path clonePath = idToPathMap.get(path.getID());
+			clonePath.disconnectFromAll();
+			clonePath.setChildren(new HashSet<>());
+			if (path.getStartJoins() != null) {
+				final PointInImage startJoinsPoint = path.getStartJoinsPoint();
+				// Path#getNodeIndex() does not work for some reason...
+				final int startJoinsPointIdx = path.indexNearestTo(
+						startJoinsPoint.x,
+						startJoinsPoint.y,
+						startJoinsPoint.z
+				);
+				clonePath.setStartJoin(
+						idToPathMap.get(path.getStartJoins().getID()),
+						clonePath.getNode(startJoinsPointIdx)
+				);
+			}
+			if (path.getEndJoins() != null) {
+				final PointInImage endJoinsPoint = path.getEndJoinsPoint();
+				int endJoinsPointIdx = path.indexNearestTo(
+						endJoinsPoint.x,
+						endJoinsPoint.y,
+						endJoinsPoint.z
+				);
+				clonePath.setEndJoin(
+						idToPathMap.get(path.getEndJoins().getID()),
+						clonePath.getNode(endJoinsPointIdx)
+				);
+			}
+		}
 		return clone;
 	}
 
