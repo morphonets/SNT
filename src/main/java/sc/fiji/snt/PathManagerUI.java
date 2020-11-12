@@ -1119,18 +1119,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					}
 					finally {
 						progress.done();
-						pathsToFit = null;
 					}
 					return null;
 				}
 
 				@Override
 				protected void done() {
+					if (pathsToFit != null) {
+						// since paths wer fitted asynchronously, we need to rebuild connections
+						pathsToFit.forEach(p-> p.getPath().rebuildConnectionsOfFittedVersion());
+					}
 					refreshManager(true, false);
 					msg.dispose();
 					plugin.changeUIState(preFittingState);
 					setEnabledCommands(true);
 					ui.showStatus(null, false);
+					pathsToFit = null;
 				}
 			};
 			fitWorker.execute();
@@ -2614,7 +2618,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				}
 				for (final Path p : selectedPaths) {
 					Path pathToUse = p;
-					if (p.getUseFitted() && p.getFitted() != null) {
+					if (p.getUseFitted()) {
 						pathToUse = p.getFitted();
 					}
 					pathToUse.downsample(maxDeviation);

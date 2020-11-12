@@ -220,13 +220,23 @@ public class PathAndFillManager extends DefaultHandler implements
 		spacingIsUnset = true;
 	}
 
+	/**
+	 * Rebuild relationships. Will wipe existing fitted flavors.
+	 */
 	protected void rebuildRelationships() {
-		Path[] primaryPaths = getPathsStructured();
+
+		// Discard all fitted paths, including imported ones
+		allPaths.forEach( p -> {
+			p.discardFit();
+			p.fittedVersionOf = null;
+		});
+		Path[] primaryPaths = getPathsStructured(allPaths);
 		if (primaryPaths == null || primaryPaths.length == 0) {
 			return;
 		}
-		maxUsedPathID = -1;
-		maxUsedTreeID = 0;
+
+		enableUIupdates = false;
+		resetIDs();
 		for (Path p : primaryPaths) {
 			++maxUsedTreeID;
 			p.setOrder(1);
@@ -247,6 +257,10 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		}
 
+		// Delete any rogue stand-alone paths that may still exist
+		while (allPaths.remove(null));
+		enableUIupdates = true;
+		resetListeners(null);
 	}
 
 	/**
@@ -2033,7 +2047,9 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	protected void resetIDs() {
-		maxUsedPathID = -1;
+		// NB: a path id should not be zero so that its fitted version can have an ID of -pathID
+		maxUsedPathID = 0;
+		maxUsedTreeID = 0;
 	}
 
 	/**
