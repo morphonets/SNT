@@ -96,7 +96,7 @@ public class TreeAnalyzer extends ContextCommand {
 		tree.setLabel(label);
 		for (final Path p : tree.list()) {
 			// If fitted flavor of path exists use it instead
-			if (p.getUseFitted() && p.getFitted() != null) {
+			if (p.getUseFitted()) {
 				fittedPathsCounter++;
 			}
 		}

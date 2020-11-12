@@ -23,7 +23,6 @@
 package sc.fiji.snt;
 
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.concurrent.Callable;
 
 import ij.ImagePlus;
@@ -31,7 +30,6 @@ import ij.ImageStack;
 import ij.process.FloatProcessor;
 import pal.math.ConjugateDirectionSearch;
 import pal.math.MultivariateFunction;
-import sc.fiji.snt.util.PointInImage;
 
 /**
  * Class for fitting circular cross-sections around existing nodes of a
@@ -188,51 +186,19 @@ public class PathFitter implements Callable<Path> {
 			return path;
 		}
 
+		// All common properties have been set using Path#creatPath(),
+		// so we just need to adjust the name and set relationships
 		fitted.setName("Fitted Path [" + path.getID() + "]");
-		fitted.setCTposition(path.getChannel(), path.getFrame());
-		fitted.setColor(path.getColor());
-		fitted.setSWCType(path.getSWCType());
-		fitted.setOrder(path.getOrder());
-		fitted.setIsPrimary(path.isPrimary());
-		fitted.setCanvasOffset(path.getCanvasOffset());
-
-		// set relationships
-		if (path.isPrimary()) {
-			fitted.disconnectFromAll();
-		} else {
-			if (path.getStartJoins() != null) {
-				if (path.startJoins.getUseFitted()) {
-					final int index = fitted.indexNearestTo(path.startJoinsPoint.x, path.startJoinsPoint.y,
-							path.startJoinsPoint.z);
-					final PointInImage pim = (index == -1) ? path.startJoinsPoint : fitted.getNodeWithoutChecks(index);
-					fitted.setStartJoin(path.startJoins.getFitted(), pim);
-				} else {
-					fitted.setStartJoin(path.startJoins, path.startJoinsPoint);
-				}
-			}
-			if (path.getEndJoins() != null) {
-				if (path.endJoins.getUseFitted()) {
-					final int index = fitted.indexNearestTo(path.endJoinsPoint.x, path.endJoinsPoint.y,
-							path.endJoinsPoint.z);
-					final PointInImage pim = (index == -1) ? path.endJoinsPoint : fitted.getNodeWithoutChecks(index);
-					fitted.setEndJoin(path.endJoins.getFitted(), pim);
-				} else {
-					fitted.setEndJoin(path.endJoins, path.endJoinsPoint);
-				}
-			}
-
-		}
-
-		// FIXME: This shouldn't be needed!?
-		final HashSet<Path> children = new HashSet<Path>();
-		for (final Path child : path.getChildren()) {
-			children.add( (child.getUseFitted()) ? child.getFitted() : child);
-		}
-		fitted.setChildren(children);
 
 		path.setFitted(fitted);
 		path.setUseFitted(true);
+		path.rebuildConnectionsOfFittedVersion();
+
 		return fitted;
+	}
+
+	public Path getPath() {
+		return path;
 	}
 
 	/**
@@ -296,8 +262,7 @@ public class PathFitter implements Callable<Path> {
 		final int totalPoints = path.size();
 		final int pointsEitherSide = 4;
 
-		fitted = new Path(path.x_spacing, path.y_spacing, path.z_spacing,
-			path.spacing_units);
+		fitted = path.createPath();
 		SNTUtils.log("  Generating cross-section stack (" + totalPoints +
 			"slices/nodes)");
 		final int width = imp.getWidth();
