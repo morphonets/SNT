@@ -152,7 +152,17 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 			+ "should be grouped by cellular compartment (e.g., \"axon\", \"dendrites\", etc.)")
 	private boolean splitByType;
 
-	// IV. Skip input options?
+	@Parameter(label = "<HTML>&nbsp;<br", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
+	private String fittingSpacer;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
+			label = "NB: Some metrics may not be", 
+			description = "<HTML><div WIDTH=500>"
+					+ "Some branch-based metrics may not be available if e.g., you fitted paths while "
+					+ "retaining original path coordinates. In such cases, it is recommended to fit "
+					+ "paths using the 'Replace existing nodes' option")
+	private String fittingMsg = "retrievable!";
+
 	@Parameter(required = false)
 	private Tree tree;
 
@@ -161,6 +171,9 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 
 	@Parameter(required = false)
 	private DefaultGenericTable table;
+
+	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE, persist = false)
+	private boolean calledFromPathManagerUI;
 
 	@SuppressWarnings("unused")
 	private void init() {
@@ -189,6 +202,11 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 			if (table == null) table = new DefaultGenericTable();
 		}
 		resolveInput("table");
+		if (!calledFromPathManagerUI) {
+			resolveInput("fittingSpacer");
+			resolveInput("fittingMsg");
+		}
+		resolveInput("calledFromPathManagerUI");
 	}
 
 	@SuppressWarnings("unused")

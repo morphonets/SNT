@@ -2264,6 +2264,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("trees", trees);
 				inputs.put("table", getTable());
+				inputs.put("calledFromPathManagerUI", true);
 				(plugin.getUI().new DynamicCmdRunner(AnalyzerCmd.class, inputs)).run();
 				return;
 			}
