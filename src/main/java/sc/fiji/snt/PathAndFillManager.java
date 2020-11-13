@@ -728,9 +728,11 @@ public class PathAndFillManager extends DefaultHandler implements
 
 			final Path currentPath = nextPathsToAdd.removeFirst();
 
-			if (!paths.contains(currentPath)) throw new SWCExportException(
-				"The path \"" + currentPath +
-					"\" is connected to other selected paths, but wasn't itself selected.");
+			if (!paths.contains(currentPath)) {
+				SNTUtils.error(
+						"The path \"" + currentPath +
+						"\" is connected to other paths, but wasn't itself included.");
+			}
 
 			/*
 			 * The paths we're dealing with specify connectivity, but we might be using the
