@@ -36,6 +36,7 @@ import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.table.DefaultGenericTable;
+import org.scijava.widget.Button;
 import org.scijava.widget.FileWidget;
 
 import net.imagej.ImageJ;
@@ -155,13 +156,8 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 	@Parameter(label = "<HTML>&nbsp;<br", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
 	private String fittingSpacer;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-			label = "NB: Some metrics may not be", 
-			description = "<HTML><div WIDTH=500>"
-					+ "Some branch-based metrics may not be available if e.g., you fitted paths while "
-					+ "retaining original path coordinates. In such cases, it is recommended to fit "
-					+ "paths using the 'Replace existing nodes' option")
-	private String fittingMsg = "retrievable!";
+	@Parameter(label = "Note on Fitted Paths", callback="fittingHelpMsgPressed")
+	private Button fittingHelpMsg;
 
 	@Parameter(required = false)
 	private Tree tree;
@@ -204,9 +200,25 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		resolveInput("table");
 		if (!calledFromPathManagerUI) {
 			resolveInput("fittingSpacer");
-			resolveInput("fittingMsg");
+			resolveInput("fittingHelpMsg");
 		}
 		resolveInput("calledFromPathManagerUI");
+	}
+
+	@SuppressWarnings("unused")
+	private void fittingHelpMsgPressed() {
+		new GuiUtils().showHTMLDialog("<HTML><div WIDTH=550>"
+					+ "<p>Some branch-based metrics may not be available if you fitted paths "
+					+ "while using the <em>Retain original path coordinates</em> option. This "
+					+ "can happen because paths are fitted independently from one another and "
+					+ "may not be aware of the original connectivity. When this happens, metrics "
+					+ "will be reported as <em>NaN</em>  and related errors reported to the "
+					+ "Console (when running in <em>Debug</em> mode).</p>\n"
+					+ "<p>If this becomes an issue in your analyses, consider fitting paths in situ "
+					+ "using the <em>Replace existing nodes</em> option instead. Also, remember that "
+					+ "you can also use the Path Manager&#39;s Edit&gt;Rebuild... command to discard "
+					+ "temporary fits and rebuilt relationships between paths.</p>",
+					"Warning on Fitted Paths", true);
 	}
 
 	@SuppressWarnings("unused")
