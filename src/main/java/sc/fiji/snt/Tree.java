@@ -211,7 +211,7 @@ public class Tree {
 	 */
 	public boolean add(final Path p) {
 		final boolean added = tree.add(p);
-		if (added) nullifyGraphs();
+		if (added) nullifyGraphsAndPafm();
 		return added;
 	}
 
@@ -224,7 +224,7 @@ public class Tree {
 	public boolean merge(final Tree tree) {
 		setLabel(((label == null) ? "" : label) + " " + tree.getLabel());
 		final boolean addedAll = this.tree.addAll(tree.list());
-		if (addedAll) nullifyGraphs();
+		if (addedAll) nullifyGraphsAndPafm();
 		return addedAll;
 	}
 
@@ -244,7 +244,7 @@ public class Tree {
 	 */
 	public void replaceAll(final List<Path> paths) {
 		tree = new ArrayList<>(paths);
-		nullifyGraphs();
+		nullifyGraphsAndPafm();
 	}
 
 	/**
@@ -275,7 +275,7 @@ public class Tree {
 	 */
 	public boolean remove(final Path p) {
 		boolean removed = tree.remove(p);
-		if (removed) nullifyGraphs();
+		if (removed) nullifyGraphsAndPafm();
 		return removed;
 	}
 
@@ -328,7 +328,7 @@ public class Tree {
 		tree.parallelStream().forEach(p -> {
 			p.downsample(maximumAllowedDeviation);
 		});
-		nullifyGraphs();
+		nullifyGraphsAndPafm();
 	}
 
 	/**
@@ -723,7 +723,7 @@ public class Tree {
 			box.originOpposite().y += yOffset;
 			box.originOpposite().z += zOffset;
 		}
-		nullifyGraphs();
+		nullifyGraphsAndPafm();
 	}
 
 	/**
@@ -765,7 +765,7 @@ public class Tree {
 			box.originOpposite().y *= yScale;
 			box.originOpposite().z *= zScale;
 		}
-		nullifyGraphs();
+		nullifyGraphsAndPafm();
 	}
 
 	/**
@@ -787,7 +787,7 @@ public class Tree {
 				}
 			}
 		});
-		nullifyGraphs();
+		nullifyGraphsAndPafm();
 	}
 
 	/**
@@ -887,7 +887,7 @@ public class Tree {
 				throw new IllegalArgumentException("Unrecognized rotation axis" + axis);
 		}
 		if (box != null) box.setComputationNeeded(true);
-		nullifyGraphs();
+		nullifyGraphsAndPafm();
 	}
 
 	/**
@@ -1263,13 +1263,14 @@ public class Tree {
 	 * representation.
 	 */
 	public void rebuildGraph() {
-		nullifyGraphs();
+		nullifyGraphsAndPafm();
 		graph = new DirectedWeightedGraph(this);
 	}
 
-	private void nullifyGraphs() {
+	private void nullifyGraphsAndPafm() {
 		graph = null;
 		simplifiedGraph = null;
+		pafm = null;
 	}
 
 	/**
@@ -1523,16 +1524,66 @@ public class Tree {
 	}
 
 	private void initPathAndFillManager() {
-		if (pafm == null) pafm = new PathAndFillManager();
-		if (pafm.size() == 0) for (final Path p : list()) pafm.addPath(p);
+		if (pafm == null) {
+			pafm = new PathAndFillManager();
+			// Since the paths of this tree may be associated with other pafm instances and
+			// paths are passed to a pafm by reference, we must ensure path is added to the
+			// pafm whitout changes to (path ID, tree ID, etc)
+			for (final Path p : list()) {
+				pafm.addPath(p, p.getID(), p.getTreeID());
+			}
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private Tree cloneOld() {
+		final Tree clone = new Tree();
+		clone.setLabel(getLabel());
+		clone.setBoundingBox(box);
+		for (final Path path : list()) clone.add(path.clone());
+		return clone;
 	}
 
 	@Override
 	public Tree clone() {
 		final Tree clone = new Tree();
 		clone.setLabel(getLabel());
-		clone.setBoundingBox(box);
-		for (final Path path : list()) clone.add(path.clone());
+		final Map<Integer, Path> idToPathMap = new HashMap<>();
+		for (final Path path : list()) {
+			final Path clonePath = path.clone();
+			idToPathMap.put(clonePath.getID(), clonePath);
+			clone.add(clonePath);
+		}
+		for (final Path path : list()) {
+			final Path clonePath = idToPathMap.get(path.getID());
+			clonePath.disconnectFromAll();
+			clonePath.setChildren(new HashSet<>());
+			if (path.getStartJoins() != null) {
+				final PointInImage startJoinsPoint = path.getStartJoinsPoint();
+				// Path#getNodeIndex() does not work for some reason...
+				final int startJoinsPointIdx = path.indexNearestTo(
+						startJoinsPoint.x,
+						startJoinsPoint.y,
+						startJoinsPoint.z
+				);
+				clonePath.setStartJoin(
+						idToPathMap.get(path.getStartJoins().getID()),
+						clonePath.getNode(startJoinsPointIdx)
+				);
+			}
+			if (path.getEndJoins() != null) {
+				final PointInImage endJoinsPoint = path.getEndJoinsPoint();
+				int endJoinsPointIdx = path.indexNearestTo(
+						endJoinsPoint.x,
+						endJoinsPoint.y,
+						endJoinsPoint.z
+				);
+				clonePath.setEndJoin(
+						idToPathMap.get(path.getEndJoins().getID()),
+						clonePath.getNode(endJoinsPointIdx)
+				);
+			}
+		}
 		return clone;
 	}
 

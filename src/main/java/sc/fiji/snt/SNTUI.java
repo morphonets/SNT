@@ -2308,6 +2308,7 @@ public class SNTUI extends JDialog {
 			if (trees == null) return;
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("trees", trees);
+			inputs.put("calledFromPathManagerUI", true);
 			(new DynamicCmdRunner(AnalyzerCmd.class, inputs)).run();
 		});
 		analysisMenu.add(measureWithPrompt);

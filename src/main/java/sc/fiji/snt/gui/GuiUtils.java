@@ -238,7 +238,8 @@ public class GuiUtils {
 		dialog.toFront();
 		// work around a bug in openjdk and MacOS in which prompts
 		// are not frontmost if the component hierarchy is > 3
-		if (forceBringToFront && !dialog.hasFocus() && parent != null && parent instanceof JDialog) {
+		if (forceBringToFront && PlatformUtils.isMac() && !dialog.hasFocus() && parent != null
+				&& parent instanceof JDialog) {
 			try {
 				((JDialog) parent).toBack();
 				Thread.sleep(50);

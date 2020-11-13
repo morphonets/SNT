@@ -36,6 +36,7 @@ import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.table.DefaultGenericTable;
+import org.scijava.widget.Button;
 import org.scijava.widget.FileWidget;
 
 import net.imagej.ImageJ;
@@ -152,7 +153,12 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 			+ "should be grouped by cellular compartment (e.g., \"axon\", \"dendrites\", etc.)")
 	private boolean splitByType;
 
-	// IV. Skip input options?
+	@Parameter(label = "<HTML>&nbsp;<br", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
+	private String fittingSpacer;
+
+	@Parameter(label = "Note on Fitted Paths", callback="fittingHelpMsgPressed")
+	private Button fittingHelpMsg;
+
 	@Parameter(required = false)
 	private Tree tree;
 
@@ -161,6 +167,9 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 
 	@Parameter(required = false)
 	private DefaultGenericTable table;
+
+	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE, persist = false)
+	private boolean calledFromPathManagerUI;
 
 	@SuppressWarnings("unused")
 	private void init() {
@@ -189,6 +198,27 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 			if (table == null) table = new DefaultGenericTable();
 		}
 		resolveInput("table");
+		if (!calledFromPathManagerUI) {
+			resolveInput("fittingSpacer");
+			resolveInput("fittingHelpMsg");
+		}
+		resolveInput("calledFromPathManagerUI");
+	}
+
+	@SuppressWarnings("unused")
+	private void fittingHelpMsgPressed() {
+		new GuiUtils().showHTMLDialog("<HTML><div WIDTH=550>"
+					+ "<p>Some branch-based metrics may not be available if you fitted paths "
+					+ "while using the <em>Retain original path coordinates</em> option. This "
+					+ "can happen because paths are fitted independently from one another and "
+					+ "may not be aware of the original connectivity. When this happens, metrics "
+					+ "will be reported as <em>NaN</em>  and related errors reported to the "
+					+ "Console (when running in <em>Debug</em> mode).</p>\n"
+					+ "<p>If this becomes an issue in your analyses, consider fitting paths in situ "
+					+ "using the <em>Replace existing nodes</em> option instead. Also, remember that "
+					+ "you can also use the Path Manager&#39;s Edit&gt;Rebuild... command to discard "
+					+ "temporary fits and rebuilt relationships between paths.</p>",
+					"Warning on Fitted Paths", true);
 	}
 
 	@SuppressWarnings("unused")
@@ -291,18 +321,24 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 	}
 
 	private void measure(final Collection<Tree> trees, final List<String> metrics) {
-		final int n = trees.size();
-		final Iterator<Tree> it = trees.iterator();
-		int index = 0;
-		while (it.hasNext()) {
-			final Tree tree = it.next();
-			statusService.showStatus(index++, n, tree.getLabel());
-			final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
-			analyzer.setContext(getContext());
-			analyzer.setTable(table, TABLE_TITLE);
-			analyzer.measure(metrics, splitByType); // will display table
+		try {
+			final int n = trees.size();
+			final Iterator<Tree> it = trees.iterator();
+			int index = 0;
+			while (it.hasNext()) {
+				final Tree tree = it.next();
+				statusService.showStatus(index++, n, tree.getLabel());
+				final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
+				analyzer.setContext(getContext());
+				analyzer.setTable(table, TABLE_TITLE);
+				analyzer.measure(metrics, splitByType); // will display table
+			}
+		} catch (final IllegalArgumentException | ArithmeticException | IllegalStateException ex) {
+			error("An error occured while computing metric(s). See Console for details.");
+			ex.printStackTrace();
+		} finally {
+			resetUI();
 		}
-		resetUI();
 	}
 
 

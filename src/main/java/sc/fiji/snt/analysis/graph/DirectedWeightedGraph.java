@@ -350,7 +350,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 *
 	 * @return the root node.
 	 */
-	public SWCPoint getRoot() {
+	public SWCPoint getRoot() throws IllegalStateException {
 		List<SWCPoint> roots = vertexSet().stream().filter(v -> inDegreeOf(v) == 0).collect(Collectors.toList());
 		if (roots.size() == 0) {
 			throw new IllegalStateException("Graph has no root");
@@ -361,7 +361,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		return roots.get(0);
 	}
 
-	public Tree getTree() {
+	public Tree getTree() throws IllegalStateException {
 		return getTree(true);
 	}
 

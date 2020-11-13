@@ -82,7 +82,8 @@ public class PrefsCmd extends ContextCommand {
 	private boolean compressTraces;
 
 	@Parameter(label="No. parallel threads",
-			description="<HTML><div WIDTH=400>The max. no. of parallel threads to be used by SNT, as specified in IJ's Edit>Options>Memory &amp; Threads...")
+			description="<HTML><div WIDTH=500>The max. no. of parallel threads to be used by SNT, as specified in "
+					+ "IJ's Edit>Options>Memory &amp; Threads... Set it to 0 to use the available processors on your computer")
 	private int nThreads;
 
 	@Parameter(label="Reset All Preferences...", callback="reset")
@@ -98,7 +99,7 @@ public class PrefsCmd extends ContextCommand {
 	public void run() {
 		snt.getPrefs().setSaveWinLocations(persistentWinLoc);
 		snt.getPrefs().setSaveCompressedTraces(compressTraces);
-		snt.getPrefs().setThreads(nThreads);
+		SNTPrefs.setThreads(Math.max(0, nThreads));
 	}
 
 	private void init() {
@@ -106,7 +107,7 @@ public class PrefsCmd extends ContextCommand {
 			snt = sntService.getPlugin();
 			persistentWinLoc = snt.getPrefs().isSaveWinLocations();
 			compressTraces = snt.getPrefs().isSaveCompressedTraces();
-			nThreads = snt.getPrefs().getThreads();
+			nThreads = SNTPrefs.getThreads();
 		} catch (final NullPointerException npe) {
 			cancel("SNT is not running.");
 		}

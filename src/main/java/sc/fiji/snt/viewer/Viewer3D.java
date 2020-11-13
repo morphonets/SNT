@@ -3188,6 +3188,7 @@ public class Viewer3D {
 				inputs.put("trees", trees);
 				initTable();
 				inputs.put("table", table);
+				inputs.put("calledFromPathManagerUI", false);
 				runCmd(AnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false);
 			});
 			measureMenu.add(mi);

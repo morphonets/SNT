@@ -379,7 +379,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 			String normMeasurement = getNormalizedMeasurement(measurement, false);
 			for (final Tree t : groupOfTrees) {
 				final TreeAnalyzer ta = new TreeAnalyzer(t);
-				stat.addValue(ta.getMetricWithoutChecks(normMeasurement).doubleValue());
+				stat.addValue(ta.getMetricInternal(normMeasurement).doubleValue());
 			}
 		} catch (final UnknownMetricException ignored) {
 			SNTUtils.log("Unrecognized MultiTreeStatistics parameter... Defaulting to TreeStatistics analysis");
