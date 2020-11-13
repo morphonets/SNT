@@ -146,6 +146,8 @@ public class Path implements Comparable<Path> {
 	/*
 	 * Path identifiers: this Path's id is stored in (lower) bits 15-0. Tree id in
 	 * the (upper) bits 31-16. NB: should only be assigned by PathAndFillManager.
+	 * NB: A regular path should have a path ID > 0, because if present, its fitted
+	 * version will have an ID of -path ID. see {@link #setFitted(Path)}
 	 */
 	private long id = -1l;
 	private String treeLabel;
@@ -286,7 +288,7 @@ public class Path implements Comparable<Path> {
 	 */
 	public void setCanvasOffset(final PointInCanvas canvasOffset) {
 		this.canvasOffset = canvasOffset;
-		if (fitted != null) fitted.setCanvasOffset(canvasOffset);
+		if (getFitted() != null) getFitted().setCanvasOffset(canvasOffset);
 	}
 
 	/**
@@ -507,6 +509,46 @@ public class Path implements Comparable<Path> {
 		setOrder(other.order + 1);
 	}
 
+	public void rebuildConnectionsOfFittedVersion() {
+		if (fitted == null) return;
+		if (isPrimary()) {
+			fitted.disconnectFromAll();
+			return;
+		}
+		if (getStartJoins() != null) {
+			if (fitted.startJoins != null) fitted.unsetStartJoin();
+			if (startJoins.getUseFitted()) {
+				final int index = startJoins.fitted.indexNearestTo(startJoinsPoint.x, startJoinsPoint.y, startJoinsPoint.z);
+				final PointInImage pim = (index == -1) ? startJoinsPoint : startJoins.fitted.getNodeWithoutChecks(index);
+				fitted.setStartJoin(startJoins.getFitted(), pim);
+			} else {
+				fitted.setStartJoin(startJoins, startJoinsPoint);
+			}
+//			System.out.println(fitted.getName() + " connected to " + fitted.getStartJoins().getName());
+//			System.out.println("        fitted.startJoinsPoint.onPath: " + fitted.startJoinsPoint.onPath.getName());
+
+		}
+		if (getEndJoins() != null) {
+			if (fitted.endJoins != null) fitted.unsetEndJoin();
+
+			if (endJoins.getUseFitted()) {
+				final int index = endJoins.fitted.indexNearestTo(endJoinsPoint.x, endJoinsPoint.y, endJoinsPoint.z);
+				final PointInImage pim = (index == -1) ? endJoinsPoint : endJoins.fitted.getNodeWithoutChecks(index);
+				fitted.setEndJoin(endJoins.getFitted(), pim);
+			} else {
+				fitted.setEndJoin(endJoins, endJoinsPoint);
+			}
+		}
+
+		// FIXME: This shouldn't be needed!?
+		final HashSet<Path> children = new HashSet<Path>();
+		for (final Path child : getChildren()) {
+			children.add( (child.getUseFitted()) ? child.getFitted() : child);
+		}
+		fitted.setChildren(children);
+
+	}
+
 	public void unsetStartJoin() {
 		unsetJoin(PATH_START);
 	}
@@ -515,7 +557,7 @@ public class Path implements Comparable<Path> {
 		unsetJoin(PATH_END);
 	}
 
-	void unsetJoin(final int startOrEnd) {
+	private void unsetJoin(final int startOrEnd) {
 		Path other;
 		Path leaveAloneJoin;
 		if (startOrEnd == PATH_START) {
@@ -1609,7 +1651,7 @@ public class Path implements Comparable<Path> {
 	public void setColor(final Color color) {
 		this.color = color;
 		hasCustomColor = color != null;
-		if (fitted != null) fitted.setColor(color);
+		if (getFitted() != null) getFitted().setColor(color);
 		if (hasNodeColors() && size() == 1) nodeColors[0] = color;
 	}
 
@@ -1692,16 +1734,17 @@ public class Path implements Comparable<Path> {
 	}
 
 	protected void setFitted(final Path p) {
-		if (fitted != null && p != null) {
+		if (getFitted() != null && p != null) {
 			throw new IllegalArgumentException(
 				"BUG: Trying to set a fitted path when there already is one...");
 		}
 		fitted = p;
 		if (p == null) {
 			setUseFitted(false);
-		}
-		else {
+		} else {
 			p.fittedVersionOf = this;
+			p.setIDs(-getID(), getTreeID());
+//			System.out.println("Just set " + p.getName() + " is a fitted version of " + getName() );
 		}
 	}
 
@@ -1714,7 +1757,7 @@ public class Path implements Comparable<Path> {
 	public void setUseFitted(final boolean useFitted)
 		throws IllegalArgumentException
 	{
-		if (useFitted && fitted == null) throw new IllegalArgumentException(
+		if (useFitted && getFitted() == null) throw new IllegalArgumentException(
 			"setUseFitted(true) called, but 'fitted' member was null");
 		this.useFitted = useFitted;
 	}
@@ -1730,7 +1773,7 @@ public class Path implements Comparable<Path> {
 	 * @return true, if the fitted version of this Path is in use, otherwise false
 	 */
 	public boolean getUseFitted() {
-		return useFitted;
+		return useFitted && fitted != null;
 	}
 
 	/**
@@ -1979,7 +2022,7 @@ public class Path implements Comparable<Path> {
 
 	@Override
 	public String toString() {
-		if (useFitted) return fitted.realToString();
+		if (useFitted) return getFitted().realToString();
 		return realToString();
 	}
 
@@ -2007,7 +2050,7 @@ public class Path implements Comparable<Path> {
 			if (isFittedVersionOfAnotherPath() && fittedVersionOf
 				.getSWCType() != newSWCType) throw new IllegalArgumentException(
 					"BUG: only call setSWCType on the unfitted path");
-			if (fitted != null) fitted.setSWCType(newSWCType);
+			if (getFitted() != null) getFitted().setSWCType(newSWCType);
 		}
 	}
 
@@ -2045,7 +2088,7 @@ public class Path implements Comparable<Path> {
 
 	public void setOrder(final int order) {
 		this.order = order;
-		if (fitted != null) fitted.order = order;
+		if (getFitted() != null) getFitted().order = order;
 		else if (fittedVersionOf != null) fittedVersionOf.order = order;
 	}
 
@@ -2067,7 +2110,7 @@ public class Path implements Comparable<Path> {
 		final Image3DUniverse univ)
 	{
 		removeFrom3DViewer(univ);
-		if (useFitted) fitted.removeFrom3DViewer(univ);
+		if (useFitted) getFitted().removeFrom3DViewer(univ);
 	}
 
 	synchronized void updateContent3D(final Image3DUniverse univ,
@@ -2098,14 +2141,14 @@ public class Path implements Comparable<Path> {
 			 * If the non-fitted versions are currently being displayed, remove them:
 			 */
 			removeFrom3DViewer(univ);
-			pathToUse = fitted;
+			pathToUse = getFitted();
 		}
 		else {
 			/*
 			 * If the fitted version is currently being displayed, remove it:
 			 */
-			if (fitted != null) {
-				fitted.removeFrom3DViewer(univ);
+			if (getFitted() != null) {
+				getFitted().removeFrom3DViewer(univ);
 			}
 			pathToUse = this;
 		}

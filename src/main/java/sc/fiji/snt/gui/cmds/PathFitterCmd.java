@@ -33,6 +33,7 @@ import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
 
 import sc.fiji.snt.PathFitter;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.gui.GuiUtils;
 
 /**
@@ -102,11 +103,24 @@ public class PathFitterCmd extends ContextCommand {
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg3 = HEADER +
-		"<b>Replace nodes:</b> (Advanced setting) Defines wether fitted "//
-		+ "nodes should immediately replace those of input path(s):";
+		"<b>Replace nodes:</b> Defines wether fitted paths should immediately "
+		+ "replace (override) input path(s):";
+
 	@Parameter(required = false, label = EMPTY_LABEL, choices = {
 			"Keep original path(s)", "Replace existing nodes (undoable operation)" })
 	private String fitInPlaceChoice;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+	private final String spacer3 = EMPTY_LABEL;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
+			description="Press 'Reset' or set it to 0 to use the available processors on your computer")
+	private final String msg4 = HEADER +
+		"<b>Multithreading:</b> Number of parallel threads:";
+
+	@Parameter(required = false, label = EMPTY_LABEL, persist = false, min = "0", stepSize = "1",
+			description="Press 'Reset' or set it to 0 to use the available processors on your computer")
+	private int nThreads = SNTPrefs.getThreads();
 
 	@Parameter(required = false, label = "Reset Defaults", callback = "reset")
 	private Button reset;
@@ -133,6 +147,15 @@ public class PathFitterCmd extends ContextCommand {
 		}
 		prefService.put(PathFitterCmd.class, MAXRADIUS_KEY, maxRadius);
 		prefService.put(PathFitterCmd.class, FITINPLACE_KEY, fitInPlaceChoice.toLowerCase().contains("replace"));
+		nThreads = getAdjustedThreadNumber(nThreads);
+		SNTPrefs.setThreads(nThreads);
+	}
+
+	private int getAdjustedThreadNumber(final int threads) {
+		int processors = Runtime.getRuntime().availableProcessors();
+		if (threads < 1 || threads > processors)
+			return processors;
+		return threads;
 	}
 
 	@SuppressWarnings("unused")
@@ -140,8 +163,8 @@ public class PathFitterCmd extends ContextCommand {
 		fitChoice = PathFitterCmd.CHOICE_RADII;
 		maxRadius = PathFitter.DEFAULT_MAX_RADIUS;
 		fitInPlaceChoice = null;
-		prefService.clear(PathFitterCmd.class); // useful if user dismisses dialog
-																						// after pressing "Reset"
+		nThreads = getAdjustedThreadNumber(0);
+		prefService.clear(PathFitterCmd.class); // useful if user dismisses dialog after pressing "Reset"
 	}
 
 	/* IDE debug method **/

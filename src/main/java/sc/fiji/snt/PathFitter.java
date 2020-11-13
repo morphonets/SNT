@@ -185,15 +185,20 @@ public class PathFitter implements Callable<Path> {
 			// coordinates/radii were already applied 
 			return path;
 		}
+
+		// All common properties have been set using Path#creatPath(),
+		// so we just need to adjust the name and set relationships
 		fitted.setName("Fitted Path [" + path.getID() + "]");
-		fitted.setCTposition(path.getChannel(), path.getFrame());
-		fitted.setColor(path.getColor());
-		fitted.setSWCType(path.getSWCType());
-		fitted.setOrder(path.getOrder());
-		fitted.setCanvasOffset(path.getCanvasOffset());
+
 		path.setFitted(fitted);
 		path.setUseFitted(true);
+		path.rebuildConnectionsOfFittedVersion();
+
 		return fitted;
+	}
+
+	public Path getPath() {
+		return path;
 	}
 
 	/**
@@ -257,8 +262,7 @@ public class PathFitter implements Callable<Path> {
 		final int totalPoints = path.size();
 		final int pointsEitherSide = 4;
 
-		fitted = new Path(path.x_spacing, path.y_spacing, path.z_spacing,
-			path.spacing_units);
+		fitted = path.createPath();
 		SNTUtils.log("  Generating cross-section stack (" + totalPoints +
 			"slices/nodes)");
 		final int width = imp.getWidth();

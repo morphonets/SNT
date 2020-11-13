@@ -105,7 +105,7 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 				// If the path suggests using the fitted version, draw that
 				// instead:
 				if (p.useFitted) {
-					drawPath = p.fitted;
+					drawPath = p.getFitted();
 				}
 
 				final boolean isSelected = pathAndFillManager.isSelected(drawPath);
