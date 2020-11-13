@@ -1082,7 +1082,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			final int preFittingState = ui.getState();
 			ui.changeState(SNTUI.FITTING_PATHS);
 			final int numberOfPathsToFit = pathsToFit.size();
-			final int processors = Math.min(numberOfPathsToFit, plugin.getPrefs().getThreads());
+			final int processors = Math.min(numberOfPathsToFit, SNTPrefs.getThreads());
 			final String statusMsg = (processors == 1) ? "Fitting 1 path..."
 				: "Fitting " + numberOfPathsToFit + " paths (" + processors +
 					" threads)...";

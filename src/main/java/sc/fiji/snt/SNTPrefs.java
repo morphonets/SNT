@@ -224,11 +224,11 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		setPref(STORE_WIN_LOCATIONS, value);
 	}
 
-	public void setThreads(int n) {
+	public static void setThreads(int n) {
 		Prefs.setThreads(n);
 	}
 
-	public int getThreads() {
+	public static int getThreads() {
 		return Prefs.getThreads();
 	}
 
@@ -259,6 +259,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(FILLWIN_LOC, null);
 		Prefs.set(PATHWIN_LOC, null);
 		Prefs.set(FILTERED_IMG_PATH, null);
+		SNTPrefs.setThreads(0);
 		Prefs.savePreferences();
 	}
 
