@@ -23,7 +23,10 @@
 package sc.fiji.snt.io;
 
 import net.imagej.ImageJ;
-import okhttp3.*;
+import okhttp3.HttpUrl;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import sc.fiji.snt.*;
@@ -38,7 +41,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Methods for retrieving reconstructions from the Insect Brain Database at
+ * Methods for retrieving reconstructions and annotations from the Insect Brain Database at
  * <a href=
  * "https://www.insectbraindb.org/app/">insectbraindb.org</a> *
  *
@@ -49,11 +52,11 @@ public class InsectBrainLoader {
 
     private static final String BASE_URL = "https://insectbraindb.org/";
 
-    private final String id;
+    private final int id;
     private JSONObject jsonData;
     private NeuronInfo neuronInfo;
 
-    public InsectBrainLoader(final String id) {
+    public InsectBrainLoader(final int id) {
         this.id = id;
         this.jsonData = null;
         this.neuronInfo = null;
@@ -85,7 +88,7 @@ public class InsectBrainLoader {
      * Checks whether the neuron to be loaded was found in the database.
      *
      * @return true, if the neuron id specified in the constructor was found in the
-     *         database
+     * database
      */
     public boolean idExists() {
         return getJSON() != null;
@@ -95,7 +98,7 @@ public class InsectBrainLoader {
      * Gets the collection of Paths for the specified cell ID
      *
      * @return the data for the specified cell as a {@link Tree}, or null if data
-     *         could not be retrieved
+     * could not be retrieved
      */
     public Tree getTree() {
         String url = getSWCUrl();
@@ -105,7 +108,7 @@ public class InsectBrainLoader {
         final PathAndFillManager pafm = new PathAndFillManager();
         pafm.setHeadless(true);
         neuronInfo = getNeuronInfo();
-        if (pafm.importSWC(this.id, url)) {
+        if (pafm.importSWC(String.valueOf(this.id), url)) {
             final Tree tree = new Tree(pafm.getPaths());
             tree.setType(Path.SWC_UNDEFINED);
             tree.setLabel(neuronInfo.getFullName());
@@ -169,7 +172,7 @@ public class InsectBrainLoader {
         @SuppressWarnings("ConstantConditions") HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
         urlBuilder.addPathSegments("archive/neuron/");
         urlBuilder.addQueryParameter("format", "json");
-        urlBuilder.addQueryParameter("id", id);
+        urlBuilder.addQueryParameter("id", String.valueOf(id));
         return urlBuilder.build().toString();
     }
 
@@ -226,15 +229,15 @@ public class InsectBrainLoader {
     }
 
     private String getResponseStr(final String url) {
-        try {
-            final Response response = getResponse(url);
-            final ResponseBody resBody = response.body();
-            if (resBody == null) {
+        try (Response response = getResponse(url)) {
+            if (!response.isSuccessful()) {
+                SNTUtils.log("Unsuccessful response from url: " + url
+                        + "\nResponse: " + response);
                 return null;
             }
-            return resBody.string();
+            return response.body().string();
         } catch (final IOException e) {
-            SNTUtils.error("Failed to retrieve id " + id, e);
+            SNTUtils.error("Invalid response from url " + url, e);
         }
         return null;
     }
@@ -246,10 +249,11 @@ public class InsectBrainLoader {
         if (getJSON() == null) {
             return null;
         }
+        SNTUtils.log("Retrieving info for neuron " + id);
         JSONObject data = jsonData.getJSONObject("data");
         neuronInfo = new NeuronInfo();
         neuronInfo.hasReconstructions = !data.getJSONArray("reconstructions").isEmpty();
-        neuronInfo.neuronId= data.getInt("id");
+        neuronInfo.neuronId = data.getInt("id");
         JSONObject morphology = data.optJSONObject("morphology");
         if (morphology != null) {
             neuronInfo.somaLocation = morphology.optString("soma_location");
@@ -273,14 +277,15 @@ public class InsectBrainLoader {
         String somaLocation;
         String hemisphere;
         String sex;
-        String fullName ;
-        String shortName ;
-        int speciesId ;
-        String speciesScientificName ;
-        String speciesCommonName ;
+        String fullName;
+        String shortName;
+        int speciesId;
+        String speciesScientificName;
+        String speciesCommonName;
         String dateUploaded;
 
-        private NeuronInfo() { }
+        private NeuronInfo() {
+        }
 
         public int getNeuronID() {
             return neuronId;
@@ -335,16 +340,17 @@ public class InsectBrainLoader {
         sntService.setContext(ij.getContext());
         sntService.initialize(true);
         System.out.println("Database available: " + InsectBrainLoader.isDatabaseAvailable());
-        List<Integer> allIds = InsectBrainUtils.getAllNeuronIDs();
+        final int speciesId = 11;
+        List<Integer> allIds = InsectBrainUtils.getSpeciesNeuronIDs(speciesId);
         if (allIds == null || allIds.isEmpty()) {
             System.out.println("No neurons could be retrieved...");
             return;
         }
         System.out.println("Total # neurons: " + allIds.size());
         List<Tree> trees = new ArrayList<>();
-        Set<InsectBrainCompartment> allCompartments = new HashSet<>();
+//        Set<InsectBrainCompartment> allCompartments = new HashSet<>();
         for (Integer id : allIds) {
-            final InsectBrainLoader loader = new InsectBrainLoader(String.valueOf(id));
+            final InsectBrainLoader loader = new InsectBrainLoader(id);
             NeuronInfo neuronInfo = loader.getNeuronInfo();
             if (neuronInfo == null) continue;
             System.out.println("\nNeuron ID: " + neuronInfo.getNeuronID());
@@ -362,14 +368,15 @@ public class InsectBrainLoader {
                 Tree tree = loader.getTree();
                 if (tree == null) continue;
                 trees.add(tree);
-                List<InsectBrainCompartment> compartments = loader.getAnnotations();
-                if (compartments != null && !compartments.isEmpty()) {
-                    allCompartments.addAll(compartments);
-                }
+//                List<InsectBrainCompartment> compartments = loader.getAnnotations();
+//                if (compartments != null && !compartments.isEmpty()) {
+//                    allCompartments.addAll(compartments);
+//                }
             }
         }
+        List<InsectBrainCompartment> brainCompartments = InsectBrainUtils.getBrainCompartments(speciesId, "MALE");
         Viewer3D viewer = new Viewer3D();
-        viewer.add(allCompartments.stream().map(InsectBrainCompartment::getMesh).collect(Collectors.toList()));
+        viewer.add(brainCompartments.stream().map(InsectBrainCompartment::getMesh).collect(Collectors.toList()));
         viewer.addTrees(trees, true);
         viewer.show();
     }

@@ -26,11 +26,19 @@ import okhttp3.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.io.InsectBrainLoader;
 import sc.fiji.snt.viewer.OBJMesh;
 
 import java.io.IOException;
 import java.util.*;
 
+/**
+ * Utility methods for retrieving species, brain, and neuron data from
+ * the Insect Brain Database
+ *
+ * @author Cameron Arshadi
+ * @author Tiago Ferreira
+ */
 public final class InsectBrainUtils {
 
     private static final String BASE_URL = "https://insectbraindb.org/";
@@ -84,6 +92,25 @@ public final class InsectBrainUtils {
         return idList;
     }
 
+    public static List<Integer> getSpeciesNeuronIDs(final int speciesId) {
+        List<Integer> allIds = getAllNeuronIDs();
+        if (allIds == null) {
+            return null;
+        }
+        List<Integer> speciesIds = new ArrayList<>();
+        for (int id : allIds) {
+            InsectBrainLoader loader = new InsectBrainLoader(id);
+            InsectBrainLoader.NeuronInfo info = loader.getNeuronInfo();
+            if (info == null) {
+                continue;
+            }
+            if (info.getSpeciesID() == speciesId) {
+                speciesIds.add(id);
+            }
+        }
+        return speciesIds;
+    }
+
     private static String getBrainURL(final int speciesId) {
         @SuppressWarnings("ConstantConditions") HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
         urlBuilder.addPathSegments("archive/species/most_current_permitted/");
@@ -91,7 +118,7 @@ public final class InsectBrainUtils {
         return urlBuilder.build().toString();
     }
 
-    private static JSONObject getBrainJSON(final int speciesId) {
+    public static JSONObject getBrainJSON(final int speciesId) {
         String resStr = getResponseStr(getBrainURL(speciesId));
         if (resStr == null) {
             return null;
@@ -121,7 +148,7 @@ public final class InsectBrainUtils {
 
     public static List<InsectBrainCompartment> getBrainCompartments(final int speciesId, final String sex) {
         /* TODO: Establish parent-child relationships, either here or elsewhere.
-            Decide how to better handle compartments with viewer files but no structure data */
+            Decide how to better handle compartments with viewer files but no structure information */
         JSONArray viewerFiles = getBrainViewerFiles(speciesId, sex);
         if (viewerFiles == null) {
             return null;
@@ -189,15 +216,15 @@ public final class InsectBrainUtils {
     }
 
     private static String getResponseStr(final String url) {
-        try {
-            final Response response = getResponse(url);
-            final ResponseBody resBody = response.body();
-            if (resBody == null) {
+        try (Response response = getResponse(url)) {
+            if (!response.isSuccessful()) {
+                SNTUtils.log("Unsuccessful response from url: " + url
+                        + "\nResponse: " + response);
                 return null;
             }
-            return resBody.string();
+            return response.body().string();
         } catch (final IOException e) {
-            SNTUtils.error("Invalid response", e);
+            SNTUtils.error("Invalid response from url " + url, e);
         }
         return null;
     }

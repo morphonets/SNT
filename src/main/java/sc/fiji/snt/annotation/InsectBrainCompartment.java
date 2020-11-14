@@ -34,6 +34,10 @@ import java.net.URL;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * @author Cameron Arshadi
+ * @author Tiago Ferreira
+ */
 public class InsectBrainCompartment implements BrainAnnotation {
 
     private static final String BASE_OBJ_DOWNLOAD_URL = "https://s3.eu-central-1.amazonaws.com/ibdb-file-storage/";
