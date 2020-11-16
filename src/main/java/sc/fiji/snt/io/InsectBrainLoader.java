@@ -28,6 +28,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import sc.fiji.snt.*;
 import sc.fiji.snt.annotation.InsectBrainCompartment;
@@ -193,31 +194,36 @@ public class InsectBrainLoader {
     }
 
     private String getSWCUrl() {
-        if (getJSON() == null) {
-            return null;
-        }
-        JSONArray viewerFiles = jsonData
-                .getJSONObject("data")
-                .getJSONArray("reconstructions")
-                .getJSONObject(0)
-                .getJSONArray("viewer_files");
-        if (viewerFiles.isEmpty()) {
-            SNTUtils.log("Viewer files not found for neuron " + id);
-            return null;
-        }
-        String uuidString = viewerFiles
-                .getJSONObject(0)
-                .getString("uuid");
-        @SuppressWarnings("ConstantConditions") HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
-        urlBuilder.addPathSegments("filestore/download_url/");
-        urlBuilder.addQueryParameter("uuid", uuidString);
-        String downloadUrl = urlBuilder.build().toString();
-        String resStr = getResponseStr(downloadUrl);
-        if (resStr == null) {
-            return null;
-        }
-        final JSONObject urlObj = new JSONObject(resStr);
-        return urlObj.getString("url");
+    	if (getJSON() == null) {
+    		return null;
+    	}
+    	try {
+    		JSONArray viewerFiles = jsonData
+    				.getJSONObject("data")
+    				.getJSONArray("reconstructions")
+    				.getJSONObject(0)
+    				.getJSONArray("viewer_files");
+    		if (viewerFiles.isEmpty()) {
+    			SNTUtils.log("Viewer files not found for neuron " + id);
+    			return null;
+    		}
+    		String uuidString = viewerFiles
+    				.getJSONObject(0)
+    				.getString("uuid");
+    		@SuppressWarnings("ConstantConditions") HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
+    		urlBuilder.addPathSegments("filestore/download_url/");
+    		urlBuilder.addQueryParameter("uuid", uuidString);
+    		String downloadUrl = urlBuilder.build().toString();
+    		String resStr = getResponseStr(downloadUrl);
+    		if (resStr == null) {
+    			return null;
+    		}
+    		final JSONObject urlObj = new JSONObject(resStr);
+    		return urlObj.getString("url");
+    	} catch (final JSONException ex) {
+			SNTUtils.log("Error: " + ex.getMessage());
+    		return null;
+    	}
     }
 
     private Response getResponse(final String url) throws IOException {

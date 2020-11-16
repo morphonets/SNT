@@ -37,7 +37,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Neuron(s):")
 	private String HEADER2;
 	@Parameter(required = true, persist = true, label="ID(s)", 
-			description= "NIN as listed at https://insectbraindb.org/app/ . E.g.: 128, 129, 174")
+			description= "NIN as listed at https://insectbraindb.org/app/ . E.g.: 205, 210, 211")
 	private String neuronIDsChoice;
 	@Parameter(required = false, label = "Colors", choices = {
 		"Distinct (each neuron labelled uniquely)", "Common color specified below" })
@@ -120,6 +120,11 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 			trees.forEach( tree -> pafm.addTree(tree));
 			if (loadMeshes) {
 				sntService.getRecViewer().add(meshes);
+				try {
+					sntService.getRecViewer().syncPathManagerList();
+				} catch (final IllegalArgumentException ex) {
+					// do nothing
+				}
 			}
 			// If a display canvas is being used, resize it as needed
 			sntService.getPlugin().updateDisplayCanvases();
@@ -186,7 +191,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 
 		// Assign some defaults, in the case it is the first time the user is running this command
 		if (neuronIDsChoice == null || neuronIDsChoice.trim().isEmpty())
-			neuronIDsChoice = "128, 129, 174";
+			neuronIDsChoice = "205, 210, 211";
 
 		// We could instead provide users with a choice list, but then
 		// we would probably have to provide a choice list for species?

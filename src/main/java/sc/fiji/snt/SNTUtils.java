@@ -149,7 +149,10 @@ public class SNTUtils {
 	{
 		if (!SNTUtils.isDebugMode()) return;
 		if (!initialized) initialize();
-		logService.error("[SNT] " + string, t);
+		if ( t == null) 
+			logService.error("[SNT] " + string);
+		else
+			logService.error("[SNT] " + string, t);
 	}
 
 	public static synchronized void log(final String string) {
