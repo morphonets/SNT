@@ -147,6 +147,7 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(GraphAdapterMapperCmd.class);
 		prefService.clear(GraphGeneratorCmd.class);
 		prefService.clear(GroupAnalyzerCmd.class);
+		prefService.clear(InsectBrainImporterCmd.class);
 		prefService.clear(JSONImporterCmd.class);
 		prefService.clear(LoadObjCmd.class);
 		prefService.clear(LoadReconstructionCmd.class);
