@@ -25,12 +25,14 @@ package sc.fiji.snt.annotation;
 import okhttp3.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
+
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.io.InsectBrainLoader;
 import sc.fiji.snt.viewer.OBJMesh;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.Map.Entry;
 
 /**
  * Utility methods for retrieving species, brain, and neuron data from
@@ -74,6 +76,44 @@ public final class InsectBrainUtils {
         return speciesMapList;
     }
 
+
+    /** FIXME: This is extremely slow!? */
+	protected static Map<String, List<Integer>> getAllNeuronIDsOrganizedBySpecies() {
+
+		final Map<Integer, String> speciesIDNameMap = new HashMap<>();
+		for (final Map<String, Object> species : InsectBrainUtils.getAllSpecies()) {
+
+			if (!(boolean) species.get("searchable"))
+				continue;
+
+			final int id = (int) species.get("id");
+			final String name = (String) species.get("scientific_name");
+			speciesIDNameMap.put(id, name);
+		}
+
+		final List<Integer> allIds = getAllNeuronIDs();
+		if (allIds == null) {
+			return null;
+		}
+
+		final Map<String, List<Integer>> speciesIDsMap = new HashMap<>();
+		for (final int id : allIds) {
+			final InsectBrainLoader loader = new InsectBrainLoader(id);
+			final InsectBrainLoader.NeuronInfo info = loader.getNeuronInfo();
+			if (info == null) {
+				continue;
+			}
+			final String speciesName = speciesIDNameMap.get(info.getSpeciesID());
+			if (speciesName != null) {
+				if (speciesIDsMap.get(speciesName) == null)
+					speciesIDsMap.put(speciesName, new ArrayList<>());
+				speciesIDsMap.get(speciesName).add(id);
+			}
+		}
+
+		return speciesIDsMap;
+	}
+ 
     public static List<Integer> getAllNeuronIDs() {
         @SuppressWarnings("ConstantConditions") HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
         urlBuilder.addPathSegments("api/neurons/base/");
