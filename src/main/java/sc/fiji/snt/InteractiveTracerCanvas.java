@@ -36,6 +36,7 @@ import sc.fiji.snt.util.SWCPoint;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.ArrayList;
 import java.util.List;
 
 class InteractiveTracerCanvas extends TracerCanvas {
@@ -310,7 +311,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		tracerPlugin.startSholl(centerScaled);
 	}
 
-	public void selectNearestPathToMousePointer(
+	public void selectNearestPathToMousePointerOld(
 		final boolean addToExistingSelection)
 	{
 		if (pathAndFillManager.size() == 0) {
@@ -327,24 +328,63 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		}
 	}
 
-	protected NearPoint getNearPointToMousePointer() {
-
+	public void selectNearestPathToMousePointer(
+			final boolean addToExistingSelection)
+	{
 		if (pathAndFillManager.size() == 0) {
-			return null;
+			getGuiUtils().tempMsg("Nothing to select: There are no traced paths");
+			return;
+		}
+
+		List<PointInCanvas> nodes = new ArrayList<>();
+		for (final Path path : pathAndFillManager.getPaths()) {
+			if (!path.isSelected()) {
+				nodes.addAll(path.getUnscaledNodesInViewPort(this));
+			}
+		}		
+		if (nodes.isEmpty()) {
+			getGuiUtils().tempMsg("Nothing to select. No paths in view");
+			return;
 		}
 
 		final double[] p = new double[3];
 		tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise,
 			last_y_in_pane_precise, plane, p);
+		PointInCanvas cursor = new PointInCanvas(p[0], p[1], 0);
 
+		final NearPointInCanvas nearPoint = NearPointInCanvas.nearestPointInCanvas(nodes, cursor);
+		if (nearPoint == null) {
+			getGuiUtils().tempMsg("No selectable paths in view");
+		}
+		else {
+			tracerPlugin.selectPath(nearPoint.getPath(), addToExistingSelection);
+			getGuiUtils().tempMsg(nearPoint.getPath().getName() + " selected");
+		}
+	}
+
+	private NearPoint getNearPointToMousePointer() {
+
+		if (pathAndFillManager.size() == 0) {
+			return null;
+		}
+
+		System.out.println(last_x_in_pane_precise + ", " + last_y_in_pane_precise);
+		final double[] p = new double[3];
+		tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise,
+			last_y_in_pane_precise, plane, p);
+
+		// FIXME: We are going to ignore Z coordinates. Not sure why I
+		// decided this was a good idea. Perhaps needs to be revised?
 		final Rectangle rect = super.getSrcRect();
 		final PointInImage rectMin = new PointInImage(rect.getMinX(), rect
-			.getMinY(), p[2]);
+			.getMinY(), 0);
 		final PointInImage rectMax = new PointInImage(rect.getMaxX(), rect
-			.getMaxY(), p[2]);
-		final PointInImage cursor = new PointInImage(p[0], p[1], p[2]);
+			.getMaxY(), 0);
+		final PointInImage cursor = new PointInImage(p[0], p[1], 0);
 		final double maxSquaredLength = Math.max(cursor.distanceSquaredTo(rectMin),
 			cursor.distanceSquaredTo(rectMax));
+		System.out.println(SNTUtils.formatDouble(last_x_in_pane_precise, 2) + ", " +
+			SNTUtils.formatDouble(last_y_in_pane_precise, 2) + " | dx:" + maxSquaredLength);
 
 		// Find the nearest point on unselected Paths currently displayed in
 		// viewPort
