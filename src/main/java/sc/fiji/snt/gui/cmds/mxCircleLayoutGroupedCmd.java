@@ -27,13 +27,17 @@ import com.mxgraph.layout.mxParallelEdgeLayout;
 import com.mxgraph.view.mxGraph;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.command.Command;
 import org.scijava.command.DynamicCommand;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
+import sc.fiji.snt.analysis.graph.SNTGraph;
 import sc.fiji.snt.annotation.AllenUtils;
+import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.viewer.geditor.SNTGraphAdapter;
 import sc.fiji.snt.viewer.geditor.mxCircleLayoutGrouped;
 
 import java.io.IOException;
@@ -72,10 +76,13 @@ public class mxCircleLayoutGroupedCmd extends DynamicCommand {
     @Parameter(label="Color by group")
     boolean colorByGroup;
 
-    @Parameter(label = "LUT", callback = "lutChoiceChanged")
+    @Parameter(label="Move source to center", required=false)
+    boolean center;
+
+    @Parameter(label="LUT", callback="lutChoiceChanged")
     String lutChoice;
 
-    @Parameter(required = false, label = "<HTML>&nbsp;")
+    @Parameter(required=false, label="<HTML>&nbsp;")
     ColorTable colorTable;
 
     @Parameter(label="adapter")
@@ -92,6 +99,9 @@ public class mxCircleLayoutGroupedCmd extends DynamicCommand {
         groupedLayout.setColorTable(colorTable);
         groupedLayout.setColorCode(colorByGroup);
         groupedLayout.setSortMidLevel(sortMidLevel);
+        if (center) {
+            groupedLayout.setCenterSource(true);
+        }
         try {
             applyLayout(groupedLayout, adapter);
             applyParallelEdgeLayout(adapter);
@@ -116,6 +126,30 @@ public class mxCircleLayoutGroupedCmd extends DynamicCommand {
         midLevelInput.setMinimumValue(0);
         midLevelInput.setMaximumValue(AllenUtils.getHighestOntologyDepth());
         midLevelInput.setDefaultValue(0);
+
+        if (!(adapter instanceof SNTGraphAdapter)) {
+            cancel("This action requires an SNTGraph");
+            return;
+        }
+        if (!(((SNTGraphAdapter<?, ?>) adapter).getSourceGraph().vertexSet().iterator().next() instanceof BrainAnnotation)) {
+            cancel("This action requires BrainAnnotation vertex objects.");
+            return;
+        }
+        SNTGraphAdapter<BrainAnnotation, DefaultWeightedEdge> sntAdapter = (SNTGraphAdapter<BrainAnnotation, DefaultWeightedEdge>) adapter;
+        SNTGraph<BrainAnnotation, DefaultWeightedEdge> graph = sntAdapter.getSourceGraph();
+        int sourceCount = 0;
+        for (BrainAnnotation an : graph.vertexSet()) {
+            if (graph.outDegreeOf(an) > 0) {
+                sourceCount++;
+            }
+        }
+        if (sourceCount != 1) {
+            center = false;
+            resolveInput("center");
+        } else {
+            center = true;
+        }
+
     }
 
     private void setLUTs() {
