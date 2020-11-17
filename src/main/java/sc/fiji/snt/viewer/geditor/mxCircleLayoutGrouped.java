@@ -165,7 +165,9 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
                         .getHeight()));
             }
             if (isCenterSource) {
-                accountForCenterSource();
+                List<BrainAnnotation> removeFrom = accountForCenterSource();
+                if (removeFrom != null)
+                    removeFrom.remove(source);
             }
             double r;
             if (radius <= 0) {
@@ -220,24 +222,19 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
         setVertexLocation(sourceCell, getCenterX(), getCenterY());
     }
 
-    private void accountForCenterSource() {
-        List<BrainAnnotation> sourceList = new ArrayList<>();
-        List<BrainAnnotation> removeFrom = null;
+    private List<BrainAnnotation> accountForCenterSource() {
         for (Map<BrainAnnotation, List<BrainAnnotation>> group : groups) {
             for (List<BrainAnnotation> anList : group.values()) {
                 for (BrainAnnotation an : anList) {
                     if (sntGraph.outDegreeOf(an) > 0) {
-                        sourceList.add(an);
-                        removeFrom = anList;
+                        source = an;
                         vertexCount -= 1;
+                        return anList;
                     }
                 }
             }
         }
-        if (removeFrom != null) {
-            removeFrom.removeAll(sourceList);
-        }
-        source = sourceList.get(0);
+        return null;
     }
 
     private void colorCode() {
