@@ -2661,8 +2661,11 @@ public class SNT extends MultiDThreePanes implements
 	protected void clickAtMaxPoint(final int x_in_pane, final int y_in_pane,
 		final int plane)
 	{
-		final int[][] pointsToConsider = findAllPointsAlongLine(x_in_pane,
-			y_in_pane, plane);
+
+		SNTUtils.log("Looking for maxima at x=" + x_in_pane + " y=" + y_in_pane + " on pane " + plane);
+		final int[][] pointsToConsider = findAllPointsAlongLine(x_in_pane, y_in_pane, plane);
+		System.out.println("pointsToConsider.length "+ pointsToConsider.length);
+
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
 		float currentMaximum = stackMin;
 		for (int[] ints : pointsToConsider) {
@@ -2697,8 +2700,13 @@ public class SNT extends MultiDThreePanes implements
 		 * Take the middle of those points, and pretend that was the point that was
 		 * clicked on.
 		 */
+		if (pointsAtMaximum.isEmpty()) {
+			discreteMsg("No maxima at " + x_in_pane + ", " + y_in_pane);
+			return;
+		}
 		final int[] p = pointsAtMaximum.get(pointsAtMaximum.size() / 2);
-
+		SNTUtils.log(" Detected: x=" + p[0] + ", y=" + p[1] + ", z=" + p[2] + ", value=" + stackMax);
+		setZPositionAllPanes(p[0], p[1], p[2]);
 		clickForTrace(p[0] * x_spacing, p[1] * y_spacing, p[2] * z_spacing, false);
 	}
 

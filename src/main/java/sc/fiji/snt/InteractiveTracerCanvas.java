@@ -83,8 +83,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final AListener listener = new AListener();
 		pMenu.add(menuItem(AListener.SELECT_NEAREST, listener));
 		pMenu.add(menuItem(AListener.FORK_NEAREST, listener));
+		pMenu.addSeparator();
 		extendPathMenuItem = menuItem(AListener.EXTEND_SELECTED, listener);
 		pMenu.add(extendPathMenuItem);
+		pMenu.add(menuItem(AListener.CLICK_AT_MAX, listener));
 		pMenu.addSeparator();
 
 		toggleEditModeMenuItem = new JCheckBoxMenuItem(AListener.EDIT_TOGGLE);
@@ -278,15 +280,16 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	public void clickAtMaxPoint() {
+		if (tracerPlugin.tracingHalted) {
+			getGuiUtils().tempMsg(
+				"Tracing functions currently disabled");
+			return;
+		}
 		final int x = (int) Math.round(last_x_in_pane_precise);
 		final int y = (int) Math.round(last_y_in_pane_precise);
 		final int[] p = new int[3];
 		tracerPlugin.findPointInStack(x, y, plane, p);
-		SNTUtils.log("Clicking on x=" + x + " y= " + y + "on pane " + plane +
-			" which corresponds to image position x=" + p[0] + ", y=" + p[1] + " z=" +
-			p[2]);
 		tracerPlugin.clickAtMaxPoint(x, y, plane);
-		tracerPlugin.setZPositionAllPanes(p[0], p[1], p[2]);
 	}
 
 	protected void startShollAnalysis() {
@@ -657,6 +660,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	private class AListener implements ActionListener, ItemListener {
 
 		/* Listed shortcuts are specified in QueueJumpingKeyListener */
+		public static final String CLICK_AT_MAX = "Click on Brightest Voxel Above/Below Cursor  [M]";
 		public static final String FORK_NEAREST = 
 			"Fork at Nearest Node  ";
 		public static final String FORK_NEAREST_SHIFT_ALT = 
@@ -726,6 +730,11 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				tracerPlugin.replaceCurrentPath(activePath);
 				return;
 
+			}
+
+			else if (e.getActionCommand().equals(CLICK_AT_MAX)) {
+				clickAtMaxPoint();
+				return;
 			}
 			else if (e.getActionCommand().startsWith(FORK_NEAREST)) {
 
