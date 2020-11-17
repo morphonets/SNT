@@ -27,15 +27,16 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.geom.Line2D;
 import java.awt.geom.Rectangle2D;
 
-import org.scijava.vecmath.Point2d;
-
 import ij.ImagePlus;
 import ij.Prefs;
 import ij.gui.ImageCanvas;
+import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.PointInCanvas;
 
 
 public class MultiDThreePanesCanvas extends ImageCanvas {
@@ -97,7 +98,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 		drawCanvasText(g, canvasText);
 		final boolean draw_string = validString(cursorText);
 		if (!draw_crosshairs && !draw_string) return;
-		final Point2d pos = getCursorPos();
+		final PointInCanvas pos = getCursorPos();
 		g.setColor(getAnnotationsColor());
 		if (draw_crosshairs) drawCrosshairs(g, pos.x, pos.y);
 		if (draw_string) drawString(g, cursorText, (float) pos.x + 2,
@@ -107,7 +108,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	/**
 	 * @return the current X,Y position of the mouse cursor
 	 */
-	public Point2d getCursorPos() {
+	public PointInCanvas getCursorPos() {
 		double x, y;
 		if (plane == MultiDThreePanes.XY_PLANE) {
 			x = myScreenXDprecise(current_x);
@@ -122,9 +123,8 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 			y = myScreenYDprecise(current_y);
 		}
 		else throw new IllegalArgumentException("Unknow pane");
-		return new Point2d(x, y);
+		return new PointInCanvas(x, y, 0);
 	}
-
 	public Graphics2D getGraphics2D(final Graphics g) {
 		final Graphics2D g2 = (Graphics2D) g;
 		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
@@ -359,6 +359,16 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 
 	public Color getAnnotationsColor() {
 		return (annotationsColor == null) ? Color.RED : annotationsColor;
+	}
+
+	public BoundingBox getViewPort() {
+		final Rectangle rect = getSrcRect();
+		final BoundingBox box = new BoundingBox();
+		final PointInCanvas origin = new PointInCanvas(rect.getMinX(), rect.getMinY(), 0);
+		final PointInCanvas originOpposite = new PointInCanvas(rect.getMaxX(), rect.getMaxY(), 0);
+		box.setOrigin(origin);
+		box.setOriginOpposite(originOpposite);
+		return box;
 	}
 
 	/**
