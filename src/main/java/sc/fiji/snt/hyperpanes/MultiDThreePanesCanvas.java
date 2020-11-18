@@ -96,13 +96,14 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 
 	protected void drawOverlay(final Graphics2D g) {
 		drawCanvasText(g, canvasText);
+		if (isEventsDisabled()) return;
 		final boolean draw_string = validString(cursorText);
-		if (!draw_crosshairs && !draw_string) return;
-		final PointInCanvas pos = getCursorPos();
-		g.setColor(getAnnotationsColor());
-		if (draw_crosshairs) drawCrosshairs(g, pos.x, pos.y);
-		if (draw_string) drawString(g, cursorText, (float) pos.x + 2,
-			(float) pos.y);
+		if (draw_crosshairs || draw_string) {
+			final PointInCanvas pos = getCursorPos();
+			g.setColor(getAnnotationsColor());
+			if (draw_crosshairs) drawCrosshairs(g, pos.x, pos.y);
+			if (draw_string) drawString(g, cursorText, (float) pos.x + 2, (float) pos.y);
+		}
 	}
 
 	/**

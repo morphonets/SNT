@@ -22,6 +22,7 @@
 
 package sc.fiji.snt;
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import org.scijava.util.PlatformUtils;
@@ -125,6 +126,18 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_MASK + KeyEvent.ALT_MASK)));
 		pMenu.addSeparator();
 
+		// Add a silly pan entry, just to remind users that the functionality exists.
+		// TODO: Since we are going through the trouble, should it sync all panes?
+		final JCheckBoxMenuItem panmi = new JCheckBoxMenuItem("Pan Mode  (or Hold Spacebar & Drag)");
+		panmi.addItemListener( e -> {
+			disableEvents(panmi.isSelected());
+			if (panmi.isSelected()) {
+				IJ.setKeyDown(KeyEvent.VK_SPACE);
+			} else {
+				IJ.setKeyUp(KeyEvent.VK_SPACE);
+			}
+		});
+		pMenu.add(panmi);
 		togglePauseTracingMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_TRACING_TOGGLE);
 		togglePauseTracingMenuItem.setAccelerator(KeyStroke.getKeyStroke("shift P"));
 		togglePauseTracingMenuItem.setMnemonic(KeyEvent.VK_P);
@@ -255,9 +268,14 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		return helpItem;
 	}
 
-	private JMenuItem menuItem(final String cmdName, final ActionListener lstnr) {
+	private JMenuItem menuItem(final String cmdName) {
 		final JMenuItem mi = GuiUtils.menuItemWithoutAccelerator();
 		mi.setText(cmdName);
+		return mi;
+	}
+
+	private JMenuItem menuItem(final String cmdName, final ActionListener lstnr) {
+		final JMenuItem mi = menuItem(cmdName);
 		mi.addActionListener(lstnr);
 		return mi;
 	}
@@ -521,6 +539,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		if (pMenu.isShowing() || tracerPlugin.panMode || isEventsDisabled() ||
 			isPopupTrigger(e))
 		{
+			super.mouseClicked(e);
 			return;
 		}
 
