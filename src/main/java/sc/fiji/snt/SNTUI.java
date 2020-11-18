@@ -118,6 +118,7 @@ import sc.fiji.snt.gui.cmds.ComputeSecondaryImg;
 import sc.fiji.snt.gui.cmds.ComputeTubenessImg;
 import sc.fiji.snt.gui.cmds.EnableSciViewUpdateSiteCmd;
 import sc.fiji.snt.gui.cmds.GraphGeneratorCmd;
+import sc.fiji.snt.gui.cmds.InsectBrainImporterCmd;
 import sc.fiji.snt.gui.cmds.JSONImporterCmd;
 import sc.fiji.snt.gui.cmds.MLImporterCmd;
 import sc.fiji.snt.gui.cmds.MultiSWCImporterCmd;
@@ -2181,6 +2182,13 @@ public class SNTUI extends JDialog {
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("loader", new FlyCircuitLoader());
 			(new DynamicCmdRunner(RemoteSWCImporterCmd.class, inputs, LOADING, true)).run();
+		});
+		final JMenuItem importInsectBrainDb = new JMenuItem("Insect Brain Database...");
+		remoteSubmenu.add(importInsectBrainDb);
+		importInsectBrainDb.addActionListener(e -> {
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("recViewer", null);
+			(new DynamicCmdRunner(InsectBrainImporterCmd.class, inputs, LOADING, true)).run();
 		});
 		final JMenuItem importMouselight = new JMenuItem("MouseLight...");
 		remoteSubmenu.add(importMouselight);

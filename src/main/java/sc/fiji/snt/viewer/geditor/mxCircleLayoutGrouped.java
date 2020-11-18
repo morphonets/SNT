@@ -44,6 +44,8 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
     int midLevel;
     int topLevel;
     boolean isSortMidLevel = false;
+    boolean isCenterSource = false;
+    BrainAnnotation source;
     private double centerX;
     private double centerY;
 
@@ -162,6 +164,11 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
                 max = Math.max(max, Math.max(bounds.getWidth(), bounds
                         .getHeight()));
             }
+            if (isCenterSource) {
+                List<BrainAnnotation> removeFrom = accountForCenterSource();
+                if (removeFrom != null)
+                    removeFrom.remove(source);
+            }
             double r;
             if (radius <= 0) {
                 r = vertexCount * max / Math.PI;
@@ -179,6 +186,11 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
             if (isColorCode) {
                 colorCode();
             }
+            if (isCenterSource) {
+                centerSource();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         } finally {
             model.endUpdate();
         }
@@ -203,6 +215,26 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
             // bump angle on group change
             ++i;
         }
+    }
+
+    private void centerSource() {
+        Object sourceCell = adapter.getVertexToCellMap().get(source);
+        setVertexLocation(sourceCell, getCenterX(), getCenterY());
+    }
+
+    private List<BrainAnnotation> accountForCenterSource() {
+        for (Map<BrainAnnotation, List<BrainAnnotation>> group : groups) {
+            for (List<BrainAnnotation> anList : group.values()) {
+                for (BrainAnnotation an : anList) {
+                    if (sntGraph.outDegreeOf(an) > 0) {
+                        source = an;
+                        vertexCount -= 1;
+                        return anList;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     private void colorCode() {
@@ -237,6 +269,10 @@ public class mxCircleLayoutGrouped extends mxCircleLayout {
 
     public void setSortMidLevel(boolean sortMidLevel) {
         this.isSortMidLevel = sortMidLevel;
+    }
+
+    public void setCenterSource(boolean centerSource) {
+        this.isCenterSource = centerSource;
     }
 
     public double getCenterX() {

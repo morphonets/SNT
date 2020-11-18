@@ -41,6 +41,9 @@ import sc.fiji.snt.SNT;
 @Plugin(type = Command.class, visible = false)
 public class CommonDynamicCmd extends DynamicCommand {
 
+	protected static final String HEADER_HTML = "<html><body><div style='font-weight:bold;'>";
+	protected static final String EMPTY_LABEL = "<html>&nbsp;";
+
 	@Parameter
 	protected StatusService statusService;
 
