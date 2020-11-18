@@ -75,46 +75,65 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		super.disablePopupMenu(true); // so that handlePopupMenu is not triggered
 	}
 
+	private void updateForkPointMenuItem(final JMenuItem forkNearestMenuItem) {
+		// FIXME: We should be setting the accelerator to Alt+Shit+Button1. but KeyEvent.BUTTON1_MASK is never registered!?
+		final String accelerator = (tracerPlugin.requireShiftToFork) ? "  [Alt+Shift+Left-click]" : "  [Alt+Left-click]";
+		forkNearestMenuItem.setText( AListener.FORK_NEAREST + accelerator);
+	}
+
 	private void buildPpupMenu() {
 		pMenu = new JPopupMenu();
-		pMenu.setLightWeightPopupEnabled(false); // Required because we are mixing
-																							// lightweight and heavyweight
-		// components?
+		// Required because we are mixing lightweight and heavyweight components?
+		pMenu.setLightWeightPopupEnabled(false);
+
 		final AListener listener = new AListener();
-		pMenu.add(menuItem(AListener.SELECT_NEAREST, listener));
-		pMenu.add(menuItem(AListener.FORK_NEAREST, listener));
+		pMenu.add(menuItem(AListener.SELECT_NEAREST, listener, KeyEvent.VK_G));
+		pMenu.add(menuItem(AListener.APPEND_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_MASK)));
 		pMenu.addSeparator();
+
+		pMenu.add(menuItem(AListener.FORK_NEAREST, listener));
+		pMenu.add(menuItem(AListener.CLICK_AT_MAX, listener, KeyEvent.VK_V));
+
 		extendPathMenuItem = menuItem(AListener.EXTEND_SELECTED, listener);
 		pMenu.add(extendPathMenuItem);
-		pMenu.add(menuItem(AListener.CLICK_AT_MAX, listener));
 		pMenu.addSeparator();
 
-		toggleEditModeMenuItem = new JCheckBoxMenuItem(AListener.EDIT_TOGGLE);
+		toggleEditModeMenuItem = new JCheckBoxMenuItem(AListener.EDIT_TOGGLE_FORMATTER);
 		toggleEditModeMenuItem.addItemListener(listener);
+		toggleEditModeMenuItem.setAccelerator(KeyStroke.getKeyStroke("shift E"));
+		toggleEditModeMenuItem.setMnemonic(KeyEvent.VK_E);
 		pMenu.add(toggleEditModeMenuItem);
-		pMenu.add(menuItem(AListener.NODE_RESET, listener));
-		pMenu.add(menuItem(AListener.NODE_DELETE, listener));
-		pMenu.add(menuItem(AListener.NODE_INSERT, listener));
-		pMenu.add(menuItem(AListener.NODE_MOVE, listener));
-		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener));
 
-		pMenu.addSeparator();
-		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
+		pMenu.add(menuItem(AListener.NODE_DELETE, listener, KeyEvent.VK_D));
+		pMenu.add(menuItem(AListener.NODE_INSERT, listener, KeyEvent.VK_I));
+		pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M));
+		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B));
+		pMenu.add(menuItem(AListener.NODE_RESET, listener));
 		pMenu.addSeparator();
 
 		connectToSecondaryEditingPath = menuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER, listener);
+		connectToSecondaryEditingPath.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0));
+		connectToSecondaryEditingPath.setMnemonic(KeyEvent.VK_C);
 		pMenu.add(connectToSecondaryEditingPath);
 		pMenu.add(helpOnConnectingMenuItem());
 		pMenu.addSeparator();
 
+		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
+		pMenu.addSeparator();
+
+		pMenu.add(menuItem(AListener.START_SHOLL, listener, 
+				KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_MASK + KeyEvent.ALT_MASK)));
+		pMenu.addSeparator();
+
+		togglePauseTracingMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_TRACING_TOGGLE);
+		togglePauseTracingMenuItem.setAccelerator(KeyStroke.getKeyStroke("shift P"));
+		togglePauseTracingMenuItem.setMnemonic(KeyEvent.VK_P);
+		togglePauseTracingMenuItem.addItemListener(listener);
+		pMenu.add(togglePauseTracingMenuItem);
 		togglePauseSNTMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_SNT_TOGGLE);
 		togglePauseSNTMenuItem.addItemListener(listener);
 		pMenu.add(togglePauseSNTMenuItem);
-		togglePauseTracingMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_TRACING_TOGGLE);
-		togglePauseTracingMenuItem.addItemListener(listener);
-		pMenu.add(togglePauseTracingMenuItem);
-		pMenu.addSeparator();
-		pMenu.add(menuItem(listener.START_SHOLL, listener));
+
 	}
 
 	private void showPopupMenu(final int x, final int y) {
@@ -125,8 +144,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		extendPathMenuItem.setEnabled(!(editMode || tracerPlugin.tracingHalted));
 		toggleEditModeMenuItem.setEnabled(be);
 		toggleEditModeMenuItem.setState(be && editMode);
-		toggleEditModeMenuItem.setText((activePath != null) ? "Edit " + activePath
-			.getName() : AListener.EDIT_TOGGLE);
+		toggleEditModeMenuItem.setText(
+				String.format(AListener.EDIT_TOGGLE_FORMATTER, (activePath == null) ? " Mode" : activePath.getName()));
 		final boolean bp = uiReadyForModeChange(SNTUI.SNT_PAUSED);
 		togglePauseSNTMenuItem.setEnabled(bp);
 		togglePauseSNTMenuItem.setSelected(bp && tracerPlugin
@@ -142,8 +161,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				final String cmd = mItem.getActionCommand();
 
 				if (cmd.startsWith(AListener.FORK_NEAREST)) {
-					mItem.setText((tracerPlugin.requireShiftToFork) ? AListener.FORK_NEAREST_SHIFT_ALT
-							: AListener.FORK_NEAREST_ALT);
+					updateForkPointMenuItem(mItem);
+					continue;
 				}
 
 				if (togglePauseSNTMenuItem.isSelected() && !cmd.equals(
@@ -195,8 +214,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			return;
 		}
 		final String label = tracerPlugin.getPreviousEditingPath().getName() + " (node " + tracerPlugin.getPreviousEditingPath().getEditableNodeIndex() +")";
-		connectToSecondaryEditingPath.setText(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + label + 
-				AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_SUFFIX );
+		connectToSecondaryEditingPath.setText(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + label);
 	}
 
 
@@ -238,8 +256,21 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	private JMenuItem menuItem(final String cmdName, final ActionListener lstnr) {
-		final JMenuItem mi = new JMenuItem(cmdName);
+		final JMenuItem mi = GuiUtils.menuItemWithoutAccelerator();
+		mi.setText(cmdName);
 		mi.addActionListener(lstnr);
+		return mi;
+	}
+
+	private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke) {
+		final JMenuItem mi = menuItem(cmdName, lstnr);
+		mi.setAccelerator(keystroke);
+		return mi;
+	}
+
+	private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final int keyEventKey) {
+		final JMenuItem mi = menuItem(cmdName, lstnr, KeyStroke.getKeyStroke(keyEventKey, 0));
+		mi.setMnemonic(keyEventKey);
 		return mi;
 	}
 
@@ -279,17 +310,12 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			plane, shift_pressed, join_modifier_pressed);
 	}
 
-	public void clickAtMaxPoint() {
-		if (tracerPlugin.tracingHalted) {
-			getGuiUtils().tempMsg(
-				"Tracing functions currently disabled");
-			return;
-		}
+	protected void clickAtMaxPoint(final boolean join_modifier_pressed) {
 		final int x = (int) Math.round(last_x_in_pane_precise);
 		final int y = (int) Math.round(last_y_in_pane_precise);
 		final int[] p = new int[3];
 		tracerPlugin.findPointInStack(x, y, plane, p);
-		tracerPlugin.clickAtMaxPoint(x, y, plane);
+		tracerPlugin.clickAtMaxPoint(x, y, plane, join_modifier_pressed);
 	}
 
 	protected void startShollAnalysis() {
@@ -653,6 +679,14 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		return fillColor;
 	}
 
+	protected void toggleEditMode() {
+		toggleEditModeMenuItem.doClick();
+	}
+
+	protected  void togglePauseTracing() {
+		togglePauseTracingMenuItem.doClick();
+	}
+
 	/**
 	 * This class implements ActionListeners for
 	 * InteractiveTracerCanvas's contextual menu.
@@ -660,34 +694,26 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	private class AListener implements ActionListener, ItemListener {
 
 		/* Listed shortcuts are specified in QueueJumpingKeyListener */
-		public static final String CLICK_AT_MAX = "Click on Brightest Voxel Above/Below Cursor  [M]";
-		public static final String FORK_NEAREST = 
-			"Fork at Nearest Node  ";
-		public static final String FORK_NEAREST_SHIFT_ALT = 
-			FORK_NEAREST + "[Shift+Alt+Click]";
-		public static final String FORK_NEAREST_ALT = 
-			FORK_NEAREST + "[Alt+Click]";
-		public static final String SELECT_NEAREST =
-			"Select Nearest Path  [G] [Shift+G]";
+		public static final String CLICK_AT_MAX = "Click on Brightest Voxel Above/Below Cursor";
+		public static final String FORK_NEAREST = "Fork at Nearest Node";
+
+		public static final String SELECT_NEAREST = "Select Nearest Path";
+		public static final String APPEND_NEAREST = "Add Nearest Path to Selection";
 		public static final String EXTEND_SELECTED = "Continue Extending Path";
 		public static final String PAUSE_SNT_TOGGLE = "Pause SNT";
 		public static final String PAUSE_TRACING_TOGGLE = "Pause Tracing";
-		public static final String EDIT_TOGGLE = "Edit Path";
+		public static final String EDIT_TOGGLE_FORMATTER = "Edit %s";
+
 		private final static String NODE_RESET = "  Reset Active Node";
-		private final static String NODE_DELETE =
-			"  Delete Active Node  [D, Backspace]";
-		private final static String NODE_INSERT =
-			"  Insert New Node at Cursor Position  [I]";
-		private final static String NODE_MOVE =
-			"  Move Active Node to Cursor Position  [M]";
-		private final static String NODE_MOVE_Z =
-			"  Bring Active Node to Current Z-plane  [B]";
+		private final static String NODE_DELETE = "  Delete Active Node";
+		private final static String NODE_INSERT = "  Insert New Node at Cursor Position";
+		private final static String NODE_MOVE = "  Move Active Node to Cursor Position";
+		private final static String NODE_MOVE_Z = "  Bring Active Node to Current Z-plane";
 		private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root...";
 		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = "  Connect to ";
-		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_SUFFIX = "  [C]";
 		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER = NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX
-				+ "Unselected Crosshair Node" + AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_SUFFIX;
-		private final String START_SHOLL = "Sholl Analysis at Nearest Node  [Shift+Alt+A]";
+				+ "Unselected Crosshair Node";
+		private final static String START_SHOLL = "Sholl Analysis at Nearest Node";
 
 		@Override
 		public void itemStateChanged(final ItemEvent e) {
@@ -733,7 +759,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			}
 
 			else if (e.getActionCommand().equals(CLICK_AT_MAX)) {
-				clickAtMaxPoint();
+				clickAtMaxPoint(false);
 				return;
 			}
 			else if (e.getActionCommand().startsWith(FORK_NEAREST)) {
@@ -759,6 +785,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			else if (e.getActionCommand().equals(SELECT_NEAREST)) {
 				final boolean add = ((e.getModifiers() & ActionEvent.SHIFT_MASK) > 0);
 				selectNearestPathToMousePointer(add);
+				return;
+			}
+			else if (e.getActionCommand().equals(APPEND_NEAREST)) {
+				selectNearestPathToMousePointer(true);
 				return;
 			}
 			else if (e.getActionCommand().equals(START_SHOLL)) {

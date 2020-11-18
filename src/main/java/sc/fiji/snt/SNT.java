@@ -2670,7 +2670,6 @@ public class SNT extends MultiDThreePanes implements
 
 		SNTUtils.log("Looking for maxima at x=" + x_in_pane + " y=" + y_in_pane + " on pane " + plane);
 		final int[][] pointsToConsider = findAllPointsAlongLine(x_in_pane, y_in_pane, plane);
-		System.out.println("pointsToConsider.length "+ pointsToConsider.length);
 
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
 		float currentMaximum = stackMin;
