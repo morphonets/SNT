@@ -25,7 +25,6 @@ package sc.fiji.snt;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.Rectangle;
 import java.awt.geom.Line2D;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,6 +49,7 @@ import ij3d.Pipe;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -640,21 +640,44 @@ public class Path implements Comparable<Path> {
 	}
 
 	protected PointInCanvas getPointInCanvas(final int node) {
-		final PointInCanvas result = new PointInCanvas(getXUnscaledDouble(node),
-			getYUnscaledDouble(node), getZUnscaledDouble(node));
+		final PointInCanvas result = new PointInCanvas(getXUnscaledDouble(node), getYUnscaledDouble(node),
+				getZUnscaledDouble(node));
 		result.onPath = this;
 		return result;
 	}
 
-	protected boolean containsUnscaledNodesInViewPort(final TracerCanvas canvas) {
-		final Rectangle rect = canvas.getSrcRect();
-		final double minX = rect.getMinX();
-		final double minY = rect.getMinY();
-		final double maxX = rect.getMaxX();
-		final double maxY = rect.getMaxY();
+	protected PointInCanvas getPointInCanvas2D(final int node, final TracerCanvas canvas) {
+		final PointInCanvas result;
+		switch(canvas.getPlane()) {
+		case MultiDThreePanes.XZ_PLANE:
+			result = new PointInCanvas(getXUnscaledDouble(node), getZUnscaledDouble(node), 0);
+			break;
+		case MultiDThreePanes.ZY_PLANE:
+			result = new PointInCanvas(getZUnscaledDouble(node), getYUnscaledDouble(node), 0);
+			break;
+		default:
+			result = new PointInCanvas(getXUnscaledDouble(node), getYUnscaledDouble(node), 0);
+			break;
+		}
+		result.onPath = this;
+		return result;
+	}
+
+	protected List<PointInCanvas> getUnscaledNodesInViewPort(final TracerCanvas canvas) {
+		final BoundingBox box = canvas.getViewPort();
+		final List<PointInCanvas> nodes = new ArrayList<>();
 		for (int i = 0; i < size(); i++) {
-			final PointInCanvas node = getPointInCanvas(i);
-			if (node.x >= minX && node.y >= minY && node.x <= maxX && node.y <= maxY)
+			final PointInCanvas node = getPointInCanvas2D(i, canvas);
+			if (box.contains(node)) nodes.add(node);
+		}
+		return nodes;
+	}
+
+	protected boolean containsUnscaledNodesInViewPort(final TracerCanvas canvas) {
+		final BoundingBox box = canvas.getViewPort();
+		for (int i = 0; i < size(); i++) {
+			final PointInCanvas node = getPointInCanvas2D(i, canvas);
+			if (box.contains(node))
 				return true;
 		}
 		return false;

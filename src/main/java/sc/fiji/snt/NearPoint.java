@@ -22,6 +22,9 @@
 
 package sc.fiji.snt;
 
+import java.util.List;
+import java.util.PriorityQueue;
+
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 
@@ -327,4 +330,49 @@ public class NearPoint implements Comparable<NearPoint> {
 		i.distance = Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff * zdiff);
 		return i;
 	}
+}
+
+class NearPointInCanvas implements Comparable<NearPointInCanvas> {
+
+	private final double distanceSquared;
+	private final Path path;
+
+	protected NearPointInCanvas(final PointInCanvas nearPic, final PointInCanvas pic) {
+		this.path = nearPic.onPath;
+		this.distanceSquared = nearPic.distanceSquaredTo(pic);
+	}
+
+	@Override
+	public int compareTo(NearPointInCanvas other) {
+		final double d = getDistanceSquared();
+		final double od = other.getDistanceSquared();
+		return Double.compare(d, od);
+	}
+
+	public double getDistanceSquared() {
+		return distanceSquared;
+	}
+
+	public Path getPath() {
+		return path;
+	}
+
+	public static NearPointInCanvas nearestPointInCanvas(final List<PointInCanvas> points, final PointInCanvas pic) {
+
+		// Order all points in all paths by their Euclidean distance to pic:
+		final PriorityQueue<NearPointInCanvas> pq = new PriorityQueue<>();
+		for (final PointInCanvas point : points) {
+			pq.add(new NearPointInCanvas(point, pic));
+		}
+
+		while (true) {
+			final NearPointInCanvas np = pq.poll();
+			if (np == null)
+				return null;
+			if (np.getDistanceSquared() >= 0) {
+				return np;
+			}
+		}
+	}
+
 }

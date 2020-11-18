@@ -722,6 +722,20 @@ public class GuiUtils {
 		return c.getFontMetrics(font).getHeight();
 	}
 
+	public static JMenuItem menuItemWithoutAccelerator() {
+		class JMenuItemAcc extends JMenuItem {
+			// https://stackoverflow.com/a/1719250
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void setAccelerator(final KeyStroke keyStroke) {
+				super.setAccelerator(keyStroke);
+				getInputMap(WHEN_IN_FOCUSED_WINDOW).put(keyStroke, "none");
+			}
+		}
+		return new JMenuItemAcc();
+	}
+
 	public static String ctrlKey() {
 		return (PlatformUtils.isMac()) ? "Cmd" : "Ctrl";
 	}

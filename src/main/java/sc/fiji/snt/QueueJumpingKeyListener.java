@@ -163,6 +163,16 @@ class QueueJumpingKeyListener implements KeyListener {
 			canvas.fakeMouseMoved(shift_down, join_modifier_down);
 			e.consume();
 		}
+		else if (shift_down && (keyChar == 'e' || keyChar == 'E')) {
+			// IJ1 built-in: Shift+E Restore Selection
+			canvas.toggleEditMode();
+			e.consume();
+		}
+		else if (shift_down && (keyChar == 'p' || keyChar == 'P')) {
+			// IJ1 built-in: Shift+P Image Properties
+			canvas.togglePauseTracing();
+			e.consume();
+		}
 		else if (keyChar == 'g' || keyChar == 'G') {
 			// IJ1 built-in: Shift+G Take a screenshot
 			selectNearestPathToMousePointer(shift_down);
@@ -213,6 +223,9 @@ class QueueJumpingKeyListener implements KeyListener {
 			else if (keyChar == 'c' || keyChar == 'C') {
 				canvas.connectEditingPathToPreviousEditingPath();
 			}
+			else if (keyChar == 'v' || keyChar == 'V') {
+				canvas.clickAtMaxPoint(false);
+			}
 			e.consume();
 			return;
 		}
@@ -258,9 +271,9 @@ class QueueJumpingKeyListener implements KeyListener {
 				tracerPlugin.getUI().toggleFilteredImgTracing();
 				e.consume();
 			}
-			else if ((keyChar == 'm' || keyChar == 'M') && canvas != null) {
+			else if ((keyChar == 'v' || keyChar == 'V') && canvas != null) {
 				// IJ1 built-in: Measure
-				canvas.clickAtMaxPoint();
+				canvas.clickAtMaxPoint(join_modifier_down);
 				e.consume();
 			}
 			else if (keyChar == 's' || keyChar == 'S') {
