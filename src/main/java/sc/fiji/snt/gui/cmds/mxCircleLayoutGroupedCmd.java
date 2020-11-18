@@ -99,9 +99,7 @@ public class mxCircleLayoutGroupedCmd extends DynamicCommand {
         groupedLayout.setColorTable(colorTable);
         groupedLayout.setColorCode(colorByGroup);
         groupedLayout.setSortMidLevel(sortMidLevel);
-        if (center) {
-            groupedLayout.setCenterSource(true);
-        }
+        groupedLayout.setCenterSource(center);
         try {
             applyLayout(groupedLayout, adapter);
             applyParallelEdgeLayout(adapter);
