@@ -78,7 +78,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 	private void updateForkPointMenuItem(final JMenuItem forkNearestMenuItem) {
 		// FIXME: We should be setting the accelerator to Alt+Shit+Button1. but KeyEvent.BUTTON1_MASK is never registered!?
-		final String accelerator = (tracerPlugin.requireShiftToFork) ? "  [Alt+Shift+Left-click]" : "  [Alt+Left-click]";
+		final String accelerator = (tracerPlugin.requireShiftToFork) ? "  (or Alt+Shift+Click) " : "  (or Alt+Click)";
 		forkNearestMenuItem.setText( AListener.FORK_NEAREST + accelerator);
 	}
 
@@ -92,11 +92,12 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		pMenu.add(menuItem(AListener.APPEND_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_MASK)));
 		pMenu.addSeparator();
 
-		pMenu.add(menuItem(AListener.FORK_NEAREST, listener));
-		pMenu.add(menuItem(AListener.CLICK_AT_MAX, listener, KeyEvent.VK_V));
-
+		final JMenuItem mi = menuItem(AListener.CLICK_AT_MAX, listener, KeyEvent.VK_V);
+		mi.setEnabled(!tracerPlugin.is2D());
+		pMenu.add(mi);
 		extendPathMenuItem = menuItem(AListener.EXTEND_SELECTED, listener);
 		pMenu.add(extendPathMenuItem);
+		pMenu.add(menuItem(AListener.FORK_NEAREST, listener));
 		pMenu.addSeparator();
 
 		toggleEditModeMenuItem = new JCheckBoxMenuItem(AListener.EDIT_TOGGLE_FORMATTER);
@@ -110,6 +111,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M));
 		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B));
 		pMenu.add(menuItem(AListener.NODE_RESET, listener));
+		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
 		pMenu.addSeparator();
 
 		connectToSecondaryEditingPath = menuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER, listener);
@@ -117,9 +119,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		connectToSecondaryEditingPath.setMnemonic(KeyEvent.VK_C);
 		pMenu.add(connectToSecondaryEditingPath);
 		pMenu.add(helpOnConnectingMenuItem());
-		pMenu.addSeparator();
-
-		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
 		pMenu.addSeparator();
 
 		pMenu.add(menuItem(AListener.START_SHOLL, listener, 
@@ -184,15 +183,15 @@ class InteractiveTracerCanvas extends TracerCanvas {
 					mItem.setEnabled(false);
 				}
 				// commands only enabled in "Edit Mode"
-				else if (cmd.equals(AListener.NODE_RESET) || cmd.equals(
-					AListener.NODE_DELETE) || cmd.equals(AListener.NODE_INSERT) || cmd
-						.equals(AListener.NODE_MOVE) || cmd.equals(AListener.NODE_MOVE_Z) || cmd
-						.equals(AListener.NODE_SET_ROOT)  || 
-						cmd.startsWith(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX))
-				{
-					mItem.setEnabled(be && editMode);
+				else if (cmd.equals(AListener.NODE_MOVE_Z)) {
+					mItem.setEnabled(be && editMode && !tracerPlugin.is2D());
 				}
-				else {
+				else if (cmd.equals(AListener.NODE_RESET) || cmd.equals(AListener.NODE_DELETE)
+						|| cmd.equals(AListener.NODE_INSERT) || cmd.equals(AListener.NODE_MOVE)
+						|| cmd.equals(AListener.NODE_SET_ROOT)
+						|| cmd.startsWith(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX)) {
+					mItem.setEnabled(be && editMode);
+				} else {
 					mItem.setEnabled(true);
 				}
 
