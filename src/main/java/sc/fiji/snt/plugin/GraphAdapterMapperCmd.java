@@ -79,7 +79,8 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
     private boolean showLegend;
 
     @Parameter(required = false, label = "Remove Existing Color Coding",
-            callback = "removeColorCoding")
+            callback = "removeColorCoding",
+    		description="After removing exiting color coding, press 'Cancel' to dismiss this dialog")
     private Button removeColorCoding;
 
     @Parameter(label = "Editor")
