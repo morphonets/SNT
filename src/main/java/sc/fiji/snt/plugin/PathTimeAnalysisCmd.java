@@ -253,13 +253,10 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 			if (allSeries != null) {
 				final SNTTable table = new SNTTable();
 				for (final XYSeries series : allSeries) {
-					int initialRow = Math.max(0, table.getRowCount() - 1);
-					for (final double x : series.getXValues()) {
+					for (int i = 0; i < series.getXValues().size(); i++) {
 						final int row = table.insertRow(series.getLabel());
-						table.set("Frame", row, x);
-					}
-					for (final double y : series.getYValues()) {
-						table.set(metric, initialRow++, y);
+						table.set("Frame", row, series.getXValues().get(i));
+						table.set(metric, row, series.getYValues().get(i));
 					}
 				}
 				uiService.show("SNT_TimeProfile.csv", table);
