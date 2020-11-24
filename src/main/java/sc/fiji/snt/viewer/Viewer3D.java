@@ -4052,6 +4052,9 @@ public class Viewer3D {
 			} catch (final NullPointerException | IllegalArgumentException ex) {
 				guiUtils.error("An error occured and mesh could not be retrieved. See Console for details.");
 				ex.printStackTrace();
+			} catch (final RuntimeException e2) {
+				SNTUtils.error(e2.getMessage(), e2);
+				if (viewUpdatesEnabled) validate();
 			}
 		}
 
