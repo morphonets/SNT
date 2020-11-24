@@ -47,14 +47,26 @@ import java.util.stream.IntStream;
 @Plugin(type = Command.class, visible = false, label="Tree(s) from Skeleton Image...", initializer = "init")
 public class SkeletonConverterCmd extends ChooseDatasetCmd {
 
-	@Parameter(label = "Skeletonize image", description="<HTML>Wether the segmented image should be skeletonized.<br>"
+	@Parameter(label="Skeletonize image", description="<HTML>Wether the segmented image should be skeletonized.<br>"
 			+ "Unnecessary if segmented image is already a topological sekeleton")
 	private boolean skeletonizeImage;
 
-	@Parameter(label = "Prune singletons", description = "Wether single-node structures (isolated voxels) should be ignored")
-	private boolean pruneSingletons;
+	@Parameter(label="Prune by length", description="Whether to remove sub-threshold length trees from the result")
+	private boolean pruneByLength;
 
-	@Parameter(label = "Replace existing paths", description = "Wether any existing paths should be cleared before conversion")
+	@Parameter(label="Length threshold", description="The minimum tree length necessary to avoid pruning. " +
+			"This value is only used if pruneByLength is enabled.")
+	private double lengthThreshold;
+
+	@Parameter(label="Connect components", description="Whether to connect individual components of the result")
+	private boolean connectComponents;
+
+	@Parameter(label="Max connection distance", description="The maximum allowable distance between the " +
+			"closest pair of points for two components to be merged")
+	private double maxConnectDist;
+
+	@Parameter(label="Replace existing paths", description="Whether any existing paths should be cleared " +
+			"before conversion")
 	private boolean clearExisting;
 
 	@Override
@@ -161,6 +173,10 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 		}
 		status("Creating Trees from Skeleton...", false);
 		final SkeletonConverter converter = new SkeletonConverter(chosenImp, skeletonizeImage && isBinary);
+		converter.setPruneByLength(pruneByLength);
+		converter.setLengthThreshold(lengthThreshold);
+		converter.setConnectComponents(connectComponents);
+		converter.setMaxConnectDist(maxConnectDist);
 		final List<Tree> trees = converter.getTrees();
 		final PathAndFillManager pafm = sntService.getPathAndFillManager();
 		if (clearExisting) {
@@ -168,9 +184,6 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 			pafm.deletePaths(indices);
 		}
 		for (final Tree tree : trees) {
-			if (pruneSingletons && tree.getNodes().size() == 1) {
-				continue;
-			}
 			pafm.addTree(tree);
 		}
 

@@ -22,17 +22,23 @@
 
 package sc.fiji.snt.analysis;
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.measure.Calibration;
+import org.jgrapht.Graphs;
+import org.jgrapht.alg.connectivity.BiconnectivityInspector;
 import sc.fiji.analyzeSkeleton.*;
+import sc.fiji.analyzeSkeleton.Point;
 import sc.fiji.skeletonize3D.Skeletonize3D_;
-import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.Viewer3D;
-
+import smile.neighbor.KDTree;
+import smile.neighbor.Neighbor;
 import java.util.*;
+import java.util.List;
 
 /**
  * Class for generation of {@link Tree}s from a skeletonized {@link ImagePlus}.
@@ -54,6 +60,9 @@ public class SkeletonConverter {
     private boolean verbose = false;
     private boolean pruneByLength = false;
     private double lengthThreshold;
+    // Connection parameters
+    private boolean connectComponents = false;
+    private double maxConnectDist;
     // Scale parameters for generated reconstructions
     double pixelWidth;
     double pixelHeight;
@@ -115,11 +124,20 @@ public class SkeletonConverter {
      * @return the skeleton graph list
      */
     public List<DirectedWeightedGraph> getGraphs() {
-        final List<DirectedWeightedGraph> graphList = new ArrayList<>();
+        List<DirectedWeightedGraph> graphList = new ArrayList<>();
         for (final Graph skelGraph : getSkeletonGraphs()) {
             final DirectedWeightedGraph graph = sntGraphFromSkeletonGraph(skelGraph);
-            graph.updateVertexProperties();
+            if (pruneByLength && graph.sumEdgeWeights() < lengthThreshold) {
+                continue;
+            }
             graphList.add(graph);
+        }
+        if (connectComponents && graphList.size() > 1) {
+            graphList = connectComponents(graphList);
+        }
+        for (final DirectedWeightedGraph graph : graphList) {
+            convertToDirected(graph);
+            graph.updateVertexProperties();
         }
         return graphList;
     }
@@ -183,14 +201,14 @@ public class SkeletonConverter {
     }
 
     /**
-     * Sets whether or not to prune branches below a threshold length from the result.
+     * Sets whether or not to prune components below a threshold length from the result.
      */
     public void setPruneByLength(boolean pruneByLength) {
         this.pruneByLength = pruneByLength;
     }
 
     /**
-     * The minimum branch length necessary to avoid pruning. This value is only used
+     * The minimum component length necessary to avoid pruning. This value is only used
      * if {@link SkeletonConverter#pruneByLength} is true.
      *
      * @param lengthThreshold the length threshold
@@ -204,17 +222,36 @@ public class SkeletonConverter {
     }
 
     /**
+     * Whether to merge broken components in the skeleton result
+     *
+     * @param connectComponents
+     * @see SkeletonConverter#setMaxConnectDist(double) 
+     */
+    public void setConnectComponents(boolean connectComponents) {
+        this.connectComponents = connectComponents;
+    }
+
+    /**
+     * The maximum allowable distance between nearest neighbors to be considered for a merge
+     *
+     * @param maxConnectDist
+     * @see SkeletonConverter#setConnectComponents(boolean)
+     */
+    public void setMaxConnectDist(double maxConnectDist) {
+        if (maxConnectDist <= 0) {
+            throw new IllegalArgumentException("maxConnectDist must be > 0");
+        }
+        this.maxConnectDist = maxConnectDist;
+    }
+
+    /**
      * Runs AnalyzeSkeleton on the image and gets the Graph Array returned by {@link SkeletonResult#getGraph()}
      */
     private Graph[] getSkeletonGraphs() {
         final AnalyzeSkeleton_ skeleton = new AnalyzeSkeleton_();
         skeleton.setup("", imp);
         SkeletonResult skeletonResult;
-        if (pruneByLength) {
-            skeletonResult = skeleton.run(pruneMode, lengthThreshold, shortestPath, origIP, silent, verbose);
-        } else {
-            skeletonResult = skeleton.run(pruneMode, pruneEnds, shortestPath, origIP, silent, verbose);
-        }
+        skeletonResult = skeleton.run(pruneMode, pruneEnds, shortestPath, origIP, silent, verbose);
         return skeletonResult.getGraph();
     }
 
@@ -229,9 +266,15 @@ public class SkeletonConverter {
             final Point v = vertex.getPoints().get(0);
             /* Use dummy values for all fields except the point coordinates.
             These will be assigned real values automatically during conversion to Tree. */
-            final SWCPoint swcPoint = new SWCPoint(0, 0,
-                    v.x * pixelWidth, v.y * pixelHeight, v.z * pixelDepth,
-                    0, -1);
+            final SWCPoint swcPoint = new SWCPoint(
+                    0,
+                    0,
+                    v.x * pixelWidth,
+                    v.y * pixelHeight,
+                    v.z * pixelDepth,
+                    0,
+                    -1
+            );
             pointMap.put(v, swcPoint);
             sntGraph.addVertex(swcPoint);
         }
@@ -243,15 +286,27 @@ public class SkeletonConverter {
                 sntGraph.addEdge(p1, p2);
                 continue;
             }
-            SWCPoint swcSlab = new SWCPoint(0, 0,
-                    slabs.get(0).x * pixelWidth, slabs.get(0).y * pixelHeight, slabs.get(0).z * pixelDepth,
-                    0, -1);
+            SWCPoint swcSlab = new SWCPoint(
+                    0,
+                    0,
+                    slabs.get(0).x * pixelWidth,
+                    slabs.get(0).y * pixelHeight,
+                    slabs.get(0).z * pixelDepth,
+                    0,
+                    -1
+            );
             pointMap.put(slabs.get(0), swcSlab);
             sntGraph.addVertex(swcSlab);
             for (int i = 1; i < slabs.size(); i++) {
-                swcSlab = new SWCPoint(0, 0,
-                        slabs.get(i).x * pixelWidth, slabs.get(i).y * pixelHeight, slabs.get(i).z * pixelDepth,
-                        0, -1);
+                swcSlab = new SWCPoint(
+                        0,
+                        0,
+                        slabs.get(i).x * pixelWidth,
+                        slabs.get(i).y * pixelHeight,
+                        slabs.get(i).z * pixelDepth,
+                        0,
+                        -1
+                );
                 pointMap.put(slabs.get(i), swcSlab);
                 sntGraph.addVertex(swcSlab);
                 sntGraph.addEdge(pointMap.get(slabs.get(i - 1)), swcSlab);
@@ -259,7 +314,7 @@ public class SkeletonConverter {
             sntGraph.addEdge(p1, pointMap.get(slabs.get(0)));
             sntGraph.addEdge(pointMap.get(slabs.get(slabs.size() - 1)), p2);
         }
-        convertToDirected(sntGraph);
+
         return sntGraph;
     }
 
@@ -292,11 +347,101 @@ public class SkeletonConverter {
 		imp.updateImage();
 	}
 
+	private List<DirectedWeightedGraph> connectComponents(final List<DirectedWeightedGraph> graphList) {
+	    final List<SWCPoint> vertices = new ArrayList<>();
+	    int component = 0;
+	    for (final DirectedWeightedGraph graph : graphList) {
+	        for (final SWCPoint vertex : graph.vertexSet()) {
+	            if (graph.degreeOf(vertex) <= 1) {
+	                // Only consider endpoints and isolated vertices
+                    vertex.v = component;
+                    vertices.add(vertex);
+                }
+            }
+	        component++;
+        }
+	    SWCPoint[] vertexArray = new SWCPoint[vertices.size()];
+	    vertexArray = vertices.toArray(vertexArray);
+
+        final double[][] coordinates = new double[vertices.size()][];
+	    for (int i = 0; i < vertexArray.length; i++) {
+	        final SWCPoint vertex = vertexArray[i];
+	        coordinates[i] = new double[] {vertex.getX(), vertex.getY(), vertex.getZ()};
+        }
+
+        final KDTree<SWCPoint> kdtree = new KDTree<>(coordinates, vertexArray);
+        final List<VertexPair> pairList = new ArrayList<>();
+        for (int i = 0; i < coordinates.length; i++) {
+            final SWCPoint referenceVertex = vertexArray[i];
+            final List<Neighbor<double[],SWCPoint>> neighbors = new ArrayList<>();
+            // Query the ball around the reference vertex
+            kdtree.range(coordinates[i], maxConnectDist, neighbors);
+            for (final Neighbor<double[], SWCPoint> neighbor : neighbors) {
+                final SWCPoint neighborVertex = neighbor.value;
+                if (neighborVertex.v == referenceVertex.v) {
+                    // Skip neighbors that occur within the same component
+                    continue;
+                }
+                final double distance = neighbor.distance;
+                //System.out.println(distance);
+                pairList.add(new VertexPair(referenceVertex, neighborVertex, distance));
+                break; // Stop after finding closest neighbor in a different component
+            }
+        }
+        // Sort pairs ascending by distance
+        Collections.sort(pairList);
+        // Keep track of components that have been merged so we do not create loops
+        final Set<Integer> mergedComponents = new HashSet<>();
+        final DirectedWeightedGraph mergedGraph = new DirectedWeightedGraph();
+        graphList.forEach(graph -> Graphs.addGraph(mergedGraph, graph));
+        for (final VertexPair pair : pairList) {
+            if (mergedComponents.contains( (int) pair.v1.v ) && mergedComponents.contains( (int) pair.v2.v) ) {
+                continue;
+            }
+            mergedGraph.addEdge(pair.v1, pair.v2);
+            mergedComponents.add( (int) pair.v1.v );
+            mergedComponents.add( (int) pair.v2.v );
+        }
+        final List<DirectedWeightedGraph> finalComponentList = new ArrayList<>();
+        final BiconnectivityInspector<SWCPoint, SWCWeightedEdge> inspector = new BiconnectivityInspector<>(mergedGraph);
+        // There is probably a better way to do this (casting the subgraphs doesn't work)
+        // but for lack of time this will do for now
+        for (final org.jgrapht.Graph<SWCPoint, SWCWeightedEdge> graph : inspector.getConnectedComponents()) {
+            final DirectedWeightedGraph graphComponent = new DirectedWeightedGraph();
+            for (final SWCPoint v : graph.vertexSet()) {
+                graphComponent.addVertex(v);
+            }
+            for (final SWCWeightedEdge e : graph.edgeSet()) {
+                graphComponent.addEdge(e.getSource(), e.getTarget(), e);
+            }
+            finalComponentList.add(graphComponent);
+        }
+        return finalComponentList;
+    }
+
+    private static class VertexPair implements Comparable<VertexPair> {
+
+	    SWCPoint v1;
+	    SWCPoint v2;
+	    double distance;
+
+	    VertexPair(SWCPoint v1, SWCPoint v2, double distance) {
+            this.v1 = v1;
+            this.v2 = v2;
+            this.distance = distance;
+        }
+
+        @Override
+        public int compareTo(VertexPair o) {
+            return Double.compare(this.distance, o.distance);
+        }
+    }
+
     /* IDE debug method */
     public static void main(String[] args) {
-        //IJ.open("C:\\Users\\cam\\Desktop\\Drosophila_ddaC_Neuron.tif\\");
-        //ImagePlus imp = IJ.getImage();
-        ImagePlus imp = new SNTService().demoTrees().get(0).getSkeleton();
+        IJ.open("C:\\Users\\cam\\Desktop\\Drosophila_ddaC_Neuron.tif\\");
+        ImagePlus imp = IJ.getImage();
+        //ImagePlus imp = new SNTService().demoTrees().get(0).getSkeleton();
         SkeletonConverter converter = new SkeletonConverter(imp, false);
         converter.setPruneEnds(false);
         converter.setPruneMode(AnalyzeSkeleton_.SHORTEST_BRANCH);
