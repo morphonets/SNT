@@ -103,19 +103,19 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 	private String SPACER3;
 
 	@Parameter(label = "Starting node X neighborhood:",required = false, description="<HTML><div WIDTH=500>"
-			+ "Starting node location: Paths within this 'motion-shift' neighboorhood "
+			+ "Starting node location: Paths within this 'motion-shift' neighborhood "
 			+ "along the X-axis are assumed to share the same origin. Ignored if 'Starting "
 			+ "node location' is disabled. Assumes spatially calibrated units.")
 	private double xNeighborhood;
 
 	@Parameter(label = "Starting node Y neighborhood:", required = false, description="<HTML><div WIDTH=500>"
-			+ "Starting node location: Paths within this 'motion-shift' neighboorhood "
+			+ "Starting node location: Paths within this 'motion-shift' neighborhood "
 			+ "along the Y-axis are assumed to share the same origin. Ignored if 'Starting "
 			+ "node location' is disabled. Assumes spatially calibrated units.")
 	private double yNeighborhood;
 
 	@Parameter(label = "Starting node Z neighborhood:", required = false, description="<HTML><div WIDTH=500>"
-			+ "Starting node location: Paths within this 'motion-shift' neighboorhood "
+			+ "Starting node location: Paths within this 'motion-shift' neighborhood "
 			+ "along the Z-axis are assumed to share the same origin. Ignored if 'Starting "
 			+ "node location' is disabled. Assumes spatially calibrated units.")
 	private double zNeighborhood;

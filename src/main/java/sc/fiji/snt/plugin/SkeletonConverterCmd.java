@@ -91,8 +91,8 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 					choices.add(imp.getTitle());
 				}
 			}
+			if (!impMap.isEmpty()) Collections.sort(choices);
 		}
-		if (!impMap.isEmpty()) Collections.sort(choices);
 
 		final boolean accessToValidImageData = snt.accessToValidImageData();
 		if (accessToValidImageData) {
@@ -103,6 +103,10 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 			} else {
 				choices.add(0, "Copy of data being traced");
 			}
+		}
+		if (choices.isEmpty()) {
+			cancel("No Images are currently available.\n"
+					+ "Perhaps you'd like to run 'Script> Skeletons and ROIs> Reconstruction From Skeleton' instead?");
 		}
 		mItem.setChoices(choices);
 	}

@@ -205,9 +205,8 @@ class QueueJumpingKeyListener implements KeyListener {
 				e.consume();
 				return;
 			}
-			if (keyCode == KeyEvent.VK_BACK_SPACE || keyCode == KeyEvent.VK_DELETE ||
-				keyChar == 'd' || keyChar == 'D')
-			{
+			if (keyChar == 'd' || keyChar == 'D' || keyCode == KeyEvent.VK_BACK_SPACE
+					|| keyCode == KeyEvent.VK_DELETE) {
 				canvas.deleteEditingNode(false);
 			}
 			else if (keyChar == 'i' || keyChar == 'I')

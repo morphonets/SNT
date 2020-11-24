@@ -82,7 +82,8 @@ public class MultiTreeMapperCmd extends CommonDynamicCmd {
     private boolean showPlot = false;
 
     @Parameter(required = false, label = "Remove Existing Color Coding",
-            callback = "removeColorCoding")
+            callback = "removeColorCoding",
+    		description="After removing exiting color coding, press 'Cancel' to dismiss this dialog")
     private Button removeColorCoding;
 
     @Parameter(required = true)

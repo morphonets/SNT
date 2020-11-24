@@ -180,7 +180,7 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 			IJ.run(imp, CMD_LABEL, "threshold=" + thres);
 			imp = IJ.getImage(); // may display a dialog if image not available
 			imp.getProcessor().multiply( 0.5 * (cal.pixelWidth + cal.pixelHeight) / 2); // half of spatially calibrated diameters
-			imp.setTitle("Estimated Radii");
+			imp.setTitle("Estimated-Radii");
 			imp.setCalibration(cal);
 			displayHistogram(imp);
 		} catch (final RuntimeException ex) {

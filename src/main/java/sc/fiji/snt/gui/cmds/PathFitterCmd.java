@@ -94,7 +94,9 @@ public class PathFitterCmd extends ContextCommand {
 	private final String msg2 = HEADER +
 		"<b>Max. radius:</b> This setting defines (in pixels) the largest radius " //
 		+ "allowed in the fit. It constrains the optimization to minimize fitting " //
-		+ "artifacts caused from neighboring structures:";
+		+ "artifacts caused from neighboring structures (Tip: You can estimate the " //
+		+ "thickness of neurites by running <i>Estimate Radii</i> from the gear menu " //
+		+ "of the Auto-tracing widget):";
 	@Parameter(required = false, label = EMPTY_LABEL)
 	private int maxRadius = PathFitter.DEFAULT_MAX_RADIUS;
 

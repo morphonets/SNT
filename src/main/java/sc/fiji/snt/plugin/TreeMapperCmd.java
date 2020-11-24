@@ -85,7 +85,8 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 	private boolean showPlot = false;
 
 	@Parameter(required = false, label = "Remove Existing Color Coding",
-		callback = "removeColorCoding")
+		callback = "removeColorCoding",
+		description="After removing exiting color coding, press 'Cancel' to dismiss this dialog")
 	private Button removeColorCoding;
 
 	@Parameter(required = true)
@@ -156,6 +157,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 //		measurementChoiceInput.setValue(this, prefService.get(getClass(),
 //			"measurementChoice", TreeColorMapper.STRAHLER_NUMBER));
 		resolveInput("setValuesFromSNTService");
+		resolveInput("onlyConnectivitySafeMetrics");
 		if (lutChoice == null) lutChoice = prefService.get(getClass(), "lutChoice",
 			"mpl-viridis.lut");
 		setLUTs();
