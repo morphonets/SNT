@@ -2183,7 +2183,7 @@ public class SNTUI extends JDialog {
 			inputs.put("loader", new FlyCircuitLoader());
 			(new DynamicCmdRunner(RemoteSWCImporterCmd.class, inputs, LOADING, true)).run();
 		});
-		final JMenuItem importInsectBrainDb = new JMenuItem("Insect Brain Database...");
+		final JMenuItem importInsectBrainDb = new JMenuItem("InsectBrain...");
 		remoteSubmenu.add(importInsectBrainDb);
 		importInsectBrainDb.addActionListener(e -> {
 			final HashMap<String, Object> inputs = new HashMap<>();
