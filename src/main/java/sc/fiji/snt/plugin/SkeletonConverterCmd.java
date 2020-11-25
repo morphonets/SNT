@@ -51,7 +51,7 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 			+ "Unnecessary if segmented image is already a topological sekeleton")
 	private boolean skeletonizeImage;
 
-	@Parameter(label="Prune by length", description="Whether to remove sub-threshold length trees from the result")
+	@Parameter(label="Prune trees by length", description="Whether to remove sub-threshold length trees from the result")
 	private boolean pruneByLength;
 
 	@Parameter(label="Length threshold", description="The minimum tree length necessary to avoid pruning. " +
@@ -62,7 +62,8 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 	private boolean connectComponents;
 
 	@Parameter(label="Max connection distance", description="The maximum allowable distance between the " +
-			"closest pair of points for two components to be merged")
+			"closest pair of points for two components to be merged. " +
+			"This value is only used if connectComponents is enabled.")
 	private double maxConnectDist;
 
 	@Parameter(label="Replace existing paths", description="Whether any existing paths should be cleared " +
