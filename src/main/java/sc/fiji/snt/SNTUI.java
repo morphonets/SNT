@@ -2350,7 +2350,7 @@ public class SNTUI extends JDialog {
 			(new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
 		});
 		utilitiesMenu.addSeparator();
-		final JMenuItem skeletonConverter = new JMenuItem("Reconstruction(s) from Skeleton...",
+		final JMenuItem skeletonConverter = new JMenuItem("Extract Paths From Segmented Image...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.TREE));
 		utilitiesMenu.add(skeletonConverter);
 		skeletonConverter.addActionListener(e -> {
