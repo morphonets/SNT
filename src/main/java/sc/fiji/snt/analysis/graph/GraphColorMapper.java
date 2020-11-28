@@ -25,6 +25,7 @@ import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 import org.jgrapht.Graph;
 import org.jgrapht.alg.connectivity.BiconnectivityInspector;
+import org.jgrapht.alg.decomposition.HeavyPathDecomposition;
 import org.jgrapht.alg.scoring.BetweennessCentrality;
 import org.jgrapht.alg.scoring.PageRank;
 import org.jgrapht.alg.shortestpath.GraphMeasurer;
@@ -38,6 +39,7 @@ import sc.fiji.snt.analysis.ColorMapper;
 import java.io.IOException;
 import java.net.URL;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
 public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMapper {
@@ -77,6 +79,10 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
      * Flag for {@value #OUTGOING_WEIGHT} mapping.
      */
     public static final String OUTGOING_WEIGHT = "Outgoing weight";
+    /**
+     * Flag for {@value #HEAVY_PATH_DECOMPOSITION} mapping.
+     */
+    public static final String HEAVY_PATH_DECOMPOSITION = "Heavy path decomposition";
 
     public static final int VERTICES = 1;
     public static final int EDGES = 2;
@@ -94,6 +100,7 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
             OUT_DEGREE,
             INCOMING_WEIGHT,
             OUTGOING_WEIGHT,
+            HEAVY_PATH_DECOMPOSITION
     };
 
     @Parameter
@@ -206,6 +213,10 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
             case OUTGOING_WEIGHT:
                 mappedState = VERTICES;
                 mapToOutgoingWeight(colorTable);
+                break;
+            case HEAVY_PATH_DECOMPOSITION:
+                mappedState = EDGES;
+                mapToHeavyPathDecomposition(colorTable);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown metric");
@@ -388,6 +399,27 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
             ColorRGB c = getColorRGB(sum);
             graph.setVertexColor(vertex, c);
             graph.setVertexValue(vertex, sum / getMinMax()[1]);
+        }
+    }
+
+    protected void mapToHeavyPathDecomposition(ColorTable colorTable) {
+        if (!minMaxSet) {
+            setMinMax(0, 1);
+        }
+        V root = subgraph.vertexSet().stream().filter(v -> subgraph.inDegreeOf(v) == 0).findFirst().orElse(null);
+        if (root == null) {
+            return;
+        }
+        HeavyPathDecomposition<V, E> decomp = new HeavyPathDecomposition<V, E>(subgraph, root);
+        Set<E> heavyEdges = decomp.getHeavyEdges();
+        Set<E> lightEdges = decomp.getLightEdges();
+        for (E edge : heavyEdges) {
+            ColorRGB c = getColorRGB(1);
+            graph.setEdgeColor(edge, c);
+        }
+        for (E edge : lightEdges) {
+            ColorRGB c = getColorRGB(0);
+            graph.setEdgeColor(edge, c);
         }
     }
 

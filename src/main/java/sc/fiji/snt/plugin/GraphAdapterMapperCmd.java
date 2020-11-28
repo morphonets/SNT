@@ -36,6 +36,7 @@ import org.scijava.widget.Button;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.graph.GraphColorMapper;
 import sc.fiji.snt.analysis.graph.SNTGraph;
+import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.geditor.GraphEditor;
 import sc.fiji.snt.viewer.geditor.SNTGraphAdapter;
 
@@ -100,6 +101,11 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
         if (adapter == null) cancel("Input is null");
         cGraph = adapter.getSourceGraph();
         if (cGraph == null || cGraph.vertexSet().isEmpty()) cancel("Graph is invalid");
+        if (measurementChoice.equals(GraphColorMapper.HEAVY_PATH_DECOMPOSITION) &&
+                !(cGraph.vertexSet().iterator().next() instanceof SWCPoint)) {
+            cancel("This measurement requires a DirectedWeightedGraph");
+            return;
+        }
         final GraphColorMapper<Object, DefaultWeightedEdge> colorizer = new GraphColorMapper<>(context());
         int mappedState;
         SNTUtils.log("Color Coding Graph (" + measurementChoice + ") using " + lutChoice);
