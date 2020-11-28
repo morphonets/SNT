@@ -31,12 +31,12 @@ import java.util.PrimitiveIterator.OfInt;
 import java.util.stream.IntStream;
 
 import net.imglib2.display.ColorTable8;
+import sc.fiji.snt.SNTService;
 
 import org.scijava.table.DoubleTable;
 import org.scijava.table.TableLoader;
 
 import ij.ImagePlus;
-import ij.io.Opener;
 
 /**
  * Static utilities.
@@ -135,17 +135,7 @@ public class ShollUtils {
 	 * @return ddaC image, or null if image cannot be retrieved
 	 */
 	public static ImagePlus sampleImage() {
-		final URL url = getResource("tests/ddaC.tif");
-		if (url == null)
-			throw new NullPointerException("Could not retrieve ddaC.tif");
-		ImagePlus imp = null;
-		try {
-			final Opener opener = new Opener();
-			imp = opener.openTiff(url.openStream(), "Drosophila_ddaC_Neuron.tif");
-		} catch (final IOException exc) {
-			exc.printStackTrace();
-		}
-		return imp;
+		return new SNTService().demoImage("ddaC");
 	}
 
 }

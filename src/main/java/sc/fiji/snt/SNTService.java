@@ -486,8 +486,28 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * @return a reference to the loaded tree, or null if data could no be retrieved
 	 * @see #demoTreeImage()
 	 */
+	@Deprecated
 	public Tree demoTree() {
 		return getResourceSWCTree("tests/TreeV.swc");
+	}
+
+	/**
+	 * Returns a demo tree.
+	 *
+	 * @param tree a string describing the type of demo tree. Either 'fractal' for
+	 *             the L-system toy neuron or 'pyramidal' for the dendritic arbor of
+	 *             mouse pyramidal cell (MouseLight's cell AA0001)
+	 * @see #demoImage(String)
+	 * @see #demoTrees()
+	 */
+	public Tree demoTree(final String tree) {
+		if (tree == null)
+			return getResourceSWCTree("tests/TreeV.swc");
+		final String nTree = tree.toLowerCase().trim();
+		if (nTree.contains("fractal") || nTree.contains("toy") || nTree.contains("l-sys"))
+			return getResourceSWCTree("tests/TreeV.swc");
+		else
+			return getResourceSWCTree("ml/demo-trees/AA0001.swc");
 	}
 
 	private Tree getResourceSWCTree(final String resourcePath) {
@@ -523,12 +543,37 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * @return a reference to the image tree, or null if data could no be retrieved
 	 * @see #demoTree()
 	 */
+	@Deprecated
 	public ImagePlus demoTreeImage() {
+		return demoImage("fractal");
+	}
+
+	/**
+	 * Returns one of the demo images bundled with SNT image associated with the
+	 * demo (fractal) tree.
+	 *
+	 * @param img a string describing the type of demo image. Either 'fractal' for
+	 *            the L-system toy neuron or 'ddaC' for the C4 ddaC drosophila
+	 *            neuron, a demo image initially distributed with the Sholl plugin.
+	 * @return the demo image, or null if data could no be retrieved
+	 * @see #demoTree(String)
+	 */
+	public ImagePlus demoImage(final String img) {
+		if (img == null)
+			return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
+		final String nImg = img.toLowerCase().trim();
+		if (nImg.contains("droso") || nImg.contains("dda") || nImg.contains("c4") || nImg.contains("sholl"))
+			return demoImageInternal("tests/ddaC.tif", "Drosophila_ddaC_Neuron.tif");
+		else
+			return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
+	}
+
+	private ImagePlus demoImageInternal(final String path, final String displayTitle) {
 		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-		final InputStream is = classloader.getResourceAsStream("tests/TreeV.tif");
+		final InputStream is = classloader.getResourceAsStream(path);
 		final boolean redirecting = IJ.redirectingErrorMessages();
 		IJ.redirectErrorMessages(true);
-		final ImagePlus imp = new Opener().openTiff(is, "TreeV.tif");
+		final ImagePlus imp = new Opener().openTiff(is, displayTitle);
 		IJ.redirectErrorMessages(redirecting);
 		return imp;
 	}

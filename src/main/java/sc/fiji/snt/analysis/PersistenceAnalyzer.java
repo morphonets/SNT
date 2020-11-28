@@ -401,7 +401,7 @@ public class PersistenceAnalyzer {
 	public static void main(final String[] args) throws InterruptedException {
 		final ImageJ ij = new ImageJ();
 		final SNTService sntService = ij.context().getService(SNTService.class);
-		final Tree tree = sntService.demoTree();
+		final Tree tree = sntService.demoTree("fractal");
 		final PersistenceAnalyzer analyzer = new PersistenceAnalyzer(tree);
 		final ArrayList<ArrayList<Double>> diagram = analyzer.getDiagram("radial");
 		for (final ArrayList<Double> point : diagram) {
