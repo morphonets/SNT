@@ -26,6 +26,7 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.util.ArrayList;
 import java.util.PriorityQueue;
+import java.util.concurrent.CountDownLatch;
 
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -111,6 +112,7 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 
 	protected int exitReason;
 	private boolean verbose = SNTUtils.isDebugMode();
+	private CountDownLatch latch;
 
 
 	/*
@@ -241,7 +243,14 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 			reportThreadStatus();
 			SNTUtils.log("... leaving synchronized");
 		}
+		countDown();
 		SNTUtils.log("requestStop finished (threadStatus now " + threadStatus + ")");
+	}
+
+	private void countDown() {
+		if (latch != null && latch.getCount() > 0) {
+			latch.countDown();
+		}
 	}
 
 	/**
@@ -258,8 +267,10 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 	}
 
 	public void reportFinished(final boolean success) {
+		countDown(); // needs to be called before notifying progressListeners
 		for (final SearchProgressCallback progress : progressListeners)
 			progress.finished(this, success);
+
 	}
 
 	// Toggles the paused or unpaused status of the thread.
@@ -346,6 +357,7 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 			SNTUtils.error(
 				"SearchThread: One dimension of the calibration information was zero: (" +
 					x_spacing + "," + y_spacing + "," + z_spacing + ")");
+			countDown();
 			return;
 
 		}
@@ -698,8 +710,9 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 		catch (final Throwable t) {
 			SNTUtils.error("Exception in search thread", t);
 		}
-		return;
-
+		finally {
+			countDown();
+		}
 	}
 
 	/*
@@ -857,6 +870,11 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 
 		}
 
+	}
+
+	@Override
+	public void setCountDownLatch(final CountDownLatch latch) {
+		this.latch = latch;
 	}
 
 }

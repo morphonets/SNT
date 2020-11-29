@@ -23,6 +23,8 @@
 package sc.fiji.snt.plugin;
 
 import ij.ImagePlus;
+
+import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
@@ -51,22 +53,26 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 			+ "Unnecessary if segmented image is already a topological sekeleton")
 	private boolean skeletonizeImage;
 
-	@Parameter(label="Prune trees by length", description="Whether to remove sub-threshold length trees from the result")
+	@Parameter(label="<HTML>&nbsp;", required = false, visibility = ItemVisibility.MESSAGE)
+	private String SPACER;
+
+	@Parameter(label="Prune by length", description="<HTML>Whether to remove sub-threshold length trees from the result")
 	private boolean pruneByLength;
 
-	@Parameter(label="Length threshold", description="The minimum tree length necessary to avoid pruning. " +
-			"This value is only used if pruneByLength is enabled.")
+	@Parameter(label="Length threshold", description="<HTML>The minimum tree length necessary to avoid pruning.<br>" +
+			"This value is only used if \"Prune by length\" is enabled.")
 	private double lengthThreshold;
 
-	@Parameter(label="Connect components", description="Whether to connect individual components of the result")
+	@Parameter(label="Connect components", description="<HTML>If the skeletonized image is fragmented into multiple components:<br>"
+			+ "Should individual components be connected?")
 	private boolean connectComponents;
 
-	@Parameter(label="Max connection distance", description="The maximum allowable distance between the " +
-			"closest pair of points for two components to be merged. " +
-			"This value is only used if connectComponents is enabled.")
+	@Parameter(label="Max. connection distance", min = "0.0", description="<HTML>The maximum allowable distance between the " +
+			"closest pair of points for two components to be merged.<br>"
+			+ "This value is only used if \"Connect components\" is enabled")
 	private double maxConnectDist;
 
-	@Parameter(label="Replace existing paths", description="Whether any existing paths should be cleared " +
+	@Parameter(label="Replace existing paths", description="<HTML>Whether any existing paths should be cleared " +
 			"before conversion")
 	private boolean clearExisting;
 
@@ -126,6 +132,11 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 		if (choice == null) { // this should never happen
 			error("To run this command you need to first select a segmented/"
 					+ "skeletonized image from which paths can be extracted.");
+			return;
+		}
+
+		if (connectComponents && maxConnectDist <= 0d) {
+			error("Max. connection distance must be > 0.");
 			return;
 		}
 

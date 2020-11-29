@@ -3784,7 +3784,7 @@ public class Viewer3D {
 				runCmd(RemoteSWCImporterCmd.class, inputs, CmdWorker.DO_NOTHING);
 			});
 			remoteMenu.add(mi);
-			mi = new JMenuItem("InsectBrain Database...", 'I');
+			mi = new JMenuItem("InsectBrain...", 'I');
 			mi.addActionListener(e -> {
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("recViewer", Viewer3D.this);
@@ -4052,6 +4052,9 @@ public class Viewer3D {
 			} catch (final NullPointerException | IllegalArgumentException ex) {
 				guiUtils.error("An error occured and mesh could not be retrieved. See Console for details.");
 				ex.printStackTrace();
+			} catch (final RuntimeException e2) {
+				SNTUtils.error(e2.getMessage(), e2);
+				if (viewUpdatesEnabled) validate();
 			}
 		}
 

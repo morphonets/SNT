@@ -295,7 +295,7 @@ public class PathFitter implements Callable<Path> {
 		final double scaleInNormalPlane = path.getMinimumSeparation();
 		final double[] tangent = new double[3];
 
-		if (progress != null) progress.updateProgress(fitterIndex, 0);
+		if (progress != null) progress.updateProgress(0d, fitterIndex);
 
 		final double[] startValues = new double[3];
 		startValues[0] = sideSearch / 2.0;

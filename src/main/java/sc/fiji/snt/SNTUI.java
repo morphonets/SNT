@@ -38,8 +38,12 @@ import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.*;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -2124,12 +2128,18 @@ public class SNTUI extends JDialog {
 		fromList.addActionListener(e -> {
 			(new DynamicCmdRunner(ChooseDatasetCmd.class, null, LOADING)).run();
 		});
-		changeImpMenu.add(fromList);
 		final JMenuItem fromFile = new JMenuItem("From File...");
 		fromFile.addActionListener(e -> {
 			new ImportAction(ImportAction.IMAGE, null).run();
 		});
+		final JMenuItem fromDemo = new JMenuItem("From Demo...");
+		fromDemo.addActionListener(e -> {
+			new ImportAction(ImportAction.DEMO, null).run();
+		});
+		changeImpMenu.add(fromDemo);
 		changeImpMenu.add(fromFile);
+		changeImpMenu.add(fromList);
+
 		fileMenu.addSeparator();
 		fileMenu.add(changeImpMenu);
 
@@ -2183,7 +2193,7 @@ public class SNTUI extends JDialog {
 			inputs.put("loader", new FlyCircuitLoader());
 			(new DynamicCmdRunner(RemoteSWCImporterCmd.class, inputs, LOADING, true)).run();
 		});
-		final JMenuItem importInsectBrainDb = new JMenuItem("Insect Brain Database...");
+		final JMenuItem importInsectBrainDb = new JMenuItem("InsectBrain...");
 		remoteSubmenu.add(importInsectBrainDb);
 		importInsectBrainDb.addActionListener(e -> {
 			final HashMap<String, Object> inputs = new HashMap<>();
@@ -3832,6 +3842,7 @@ public class SNTUI extends JDialog {
 		private static final int JSON = 3;
 		private static final int IMAGE = 4;
 		private static final int ANY_RECONSTRUCTION = 5;
+		public static final int DEMO = 6;
 
 		private final int type;
 		private File file;
@@ -3849,6 +3860,33 @@ public class SNTUI extends JDialog {
 			if (!proceed()) return;
 			final HashMap<String, Object> inputs = new HashMap<>();
 			switch (type) {
+			case DEMO:
+				final String[] choices = new String[] { "L-Systems Fractal (2D)", "Drosophila ddaC neuron (2D)" };
+				final String choice = guiUtils.getChoice("Which demo image?", "Load Demo Image", choices, choices[0]);
+				if (choice == null)
+					return;
+				try {
+					final ImagePlus imp = new SNTService().demoImage(choice);
+					imp.deleteRoi();
+					plugin.initialize(imp);
+					if (pathAndFillManager.size() > 0
+							&& guiUtils.getConfirmation("Clear Existing Path(s)?", "Delete All Paths")) {
+						pathAndFillManager.clear();
+					}
+					if (pathAndFillManager.size() == 0 && choices[0].equals(choice)) {
+						final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+						final InputStream is = classloader.getResourceAsStream("tests/TreeV.swc");
+						final BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+						pathAndFillManager.importSWC(br, "TreeV", false, 0, 0, 0, 1, 1, 1, true);
+						plugin.updateAllViewers();
+					}
+				} catch (final Throwable ex) {
+					error("Loading of image failed (" + ex.getMessage() + " error). See Console for details.");
+					ex.printStackTrace();
+				} finally {
+					changeState(SNTUI.READY);
+				}
+				return;
 			case IMAGE:
 				if (file != null) inputs.put("file", file);
 				(new DynamicCmdRunner(OpenDatasetCmd.class, inputs, LOADING)).run();

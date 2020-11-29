@@ -483,7 +483,7 @@ public class SciViewSNT {
 
 		sciViewSNT.sciView.waitForSceneInitialisation();
 
-		final Tree tree = sntService.demoTree();
+		final Tree tree = sntService.demoTree("fractal");
 		tree.setColor(Colors.RED);
 //		final Tree tree2 = Tree.fromFile("/home/tferr/code/OP_1/OP_1.swc");
 //		tree2.setColor(Colors.YELLOW);

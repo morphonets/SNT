@@ -36,6 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 
 import javax.swing.SwingUtilities;
 
@@ -1338,14 +1339,17 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/* Start a search thread looking for the goal in the arguments: */
-
 	synchronized void testPathTo(final double world_x, final double world_y,
 		final double world_z, final PointInImage joinPoint)
 	{
+		testPathTo(world_x, world_y, world_z, joinPoint, false); // GUI execution
+	}
 
+	synchronized private void testPathTo(final double world_x, final double world_y,
+		final double world_z, final PointInImage joinPoint, final boolean attatchAwaitingLatch) // Script execution
+	{
 		if (!lastStartPointSet) {
 			statusService.showStatus(
-
 				"No initial start point has been set.  Do that with a mouse click." +
 					" (Or a Shift-" + GuiUtils.ctrlKey() +
 					"-click if the start of the path should join another neurite.");
@@ -1381,6 +1385,8 @@ public class SNT extends MultiDThreePanes implements
 		y_end = (int) Math.round(real_y_end / y_spacing);
 		z_end = (int) Math.round(real_z_end / z_spacing);
 
+		final CountDownLatch latch = (attatchAwaitingLatch) ?  new CountDownLatch(1) : null;
+
 		if (tubularGeodesicsTracingEnabled) {
 
 			// Then useful values are:
@@ -1396,8 +1402,8 @@ public class SNT extends MultiDThreePanes implements
 				y_end, z_end, x_spacing, y_spacing, z_spacing, spacing_units);
 			addThreadToDraw(tubularGeodesicsThread);
 			tubularGeodesicsThread.addProgressListener(this);
+			tubularGeodesicsThread.setCountDownLatch(latch);
 			tubularGeodesicsThread.start();
-
 		}
 
 		else if (!isAstarEnabled()) {
@@ -1405,6 +1411,7 @@ public class SNT extends MultiDThreePanes implements
 				last_start_point_y, last_start_point_z, x_end, y_end, z_end);
 			addThreadToDraw(manualSearchThread);
 			manualSearchThread.addProgressListener(this);
+			manualSearchThread.setCountDownLatch(latch);
 			manualSearchThread.start();
 		}
 		else {
@@ -1415,13 +1422,20 @@ public class SNT extends MultiDThreePanes implements
 			currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this
 																															// color a
 																															// preference
+			currentSearchThread.setCountDownLatch(latch);
 			currentSearchThread.setDrawingThreshold(-1);
 			currentSearchThread.addProgressListener(this);
 			currentSearchThread.start();
-
 		}
 
-		updateTracingViewers(true);
+		try {
+			if (latch != null) latch.await();
+		} catch (final InterruptedException e) {
+			e.printStackTrace();
+		} finally {
+			updateTracingViewers(true);
+		}
+
 	}
 
 	synchronized public void confirmTemporary() {
@@ -1586,7 +1600,7 @@ public class SNT extends MultiDThreePanes implements
 
 				// Append node and wait for search to be finished
 				final PointInImage node = pointList.get(i);
-				testPathTo(node.x, node.y, node.z, null);
+				testPathTo(node.x, node.y, node.z, null, true);
 				((Thread) getActiveSearchingThread()).join();
 
 			}
@@ -1597,15 +1611,15 @@ public class SNT extends MultiDThreePanes implements
 				showStatus(0, 0, "Search interrupted!");
 				SNTUtils.error("Search interrupted", ex);
 			}
-			catch (final ArrayIndexOutOfBoundsException
-					| IllegalArgumentException ex)
-			{
-				// It is likely that search failed for this node. These will be
-				// triggered if
-				// e.g., point- is out of image bounds,
-				showStatus(i, nNodes, "ERROR: Search failed!...");
-				SNTUtils.error("Search failed for node " + i);
-				// continue;
+				catch (final ArrayIndexOutOfBoundsException
+						| IllegalArgumentException ex)
+				{
+					// It is likely that search failed for this node. These will be
+					// triggered if
+					// e.g., point- is out of image bounds,
+					showStatus(i, nNodes, "ERROR: Search failed!...");
+					SNTUtils.error("Search failed for node " + i);
+					// continue;
 			}
 			finally {
 				showStatus(i, pointList.size(), "Confirming segment...");

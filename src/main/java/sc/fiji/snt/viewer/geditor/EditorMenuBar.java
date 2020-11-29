@@ -910,7 +910,7 @@ class EditorMenuBar extends JMenuBar
 			System.out.println("Graph properties:");
 			System.out.println("  Connected: " + isConnected);
 			System.out.println("  Simple: " + isSimple);
-			System.out.println("  Directed: " + isDirected);
+			//System.out.println("  Directed: " + isDirected);
 			System.out.println("  Tree: " + isTree);
 
 			boolean isCyclicDirected = mxGraphStructure.isCyclicDirected(aGraph);
