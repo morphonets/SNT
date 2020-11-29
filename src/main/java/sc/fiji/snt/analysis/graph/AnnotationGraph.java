@@ -40,7 +40,7 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
 
 	public static final String TIPS = "tips";
     public static final String LENGTH = "length";
-    public static final String BRANCH_POINTS = "branches";
+    public static final String BRANCH_POINTS = "branch points";
     public static final String EDGES = "edges";
     private static final String[] ALL_FLAGS = {
             TIPS,

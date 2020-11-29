@@ -239,7 +239,7 @@ public class SkeletonConverter {
      */
     public void setMaxConnectDist(double maxConnectDist) {
         if (maxConnectDist <= 0) {
-            throw new IllegalArgumentException("maxConnectDist must be > 0");
+            maxConnectDist = Double.MIN_VALUE;
         }
         this.maxConnectDist = maxConnectDist;
     }
@@ -309,10 +309,17 @@ public class SkeletonConverter {
                 );
                 pointMap.put(slabs.get(i), swcSlab);
                 sntGraph.addVertex(swcSlab);
-                sntGraph.addEdge(pointMap.get(slabs.get(i - 1)), swcSlab);
+                final SWCPoint previous = pointMap.get(slabs.get(i - 1));
+                final SWCWeightedEdge e = sntGraph.addEdge(previous, swcSlab);
+                sntGraph.setEdgeWeight(e, swcSlab.distanceTo(previous));
             }
-            sntGraph.addEdge(p1, pointMap.get(slabs.get(0)));
-            sntGraph.addEdge(pointMap.get(slabs.get(slabs.size() - 1)), p2);
+            SWCPoint firstSlabPoint = pointMap.get(slabs.get(0));
+            SWCWeightedEdge e1 = sntGraph.addEdge(p1, firstSlabPoint);
+            sntGraph.setEdgeWeight(e1, firstSlabPoint.distanceTo(p1));
+
+            SWCPoint lastSlabPoint = pointMap.get(slabs.get(slabs.size() - 1));
+            SWCWeightedEdge e2 = sntGraph.addEdge(lastSlabPoint, p2);
+            sntGraph.setEdgeWeight(e2, lastSlabPoint.distanceTo(p2));
         }
 
         return sntGraph;
