@@ -24,6 +24,7 @@ package sc.fiji.snt;
 
 import java.awt.Graphics;
 import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * A tracer thread for manual tracing.
@@ -43,6 +44,7 @@ public class ManualTracerThread extends Thread implements SearchInterface {
 		new ArrayList<>();
 	private volatile int threadStatus = SearchThread.PAUSED;
 	private Path result;
+	private CountDownLatch latch;
 
 	public ManualTracerThread(final SNT plugin,
 		final double start_x, final double start_y, final double start_z,
@@ -67,9 +69,9 @@ public class ManualTracerThread extends Thread implements SearchInterface {
 		result.addPointDouble(start_x, start_y, start_z);
 		result.addPointDouble(goal_x, goal_y, goal_z);
 		threadStatus = SearchThread.SUCCESS;
+		countDown();
 		for (final SearchProgressCallback progress : progListeners)
 			progress.finished(this, true);
-		return;
 	}
 
 	@Override
@@ -93,6 +95,7 @@ public class ManualTracerThread extends Thread implements SearchInterface {
 		synchronized (this) {
 			if (threadStatus == SearchThread.PAUSED) this.interrupt();
 			threadStatus = SearchThread.STOPPING;
+			countDown();
 			reportThreadStatus();
 		}
 	}
@@ -106,4 +109,14 @@ public class ManualTracerThread extends Thread implements SearchInterface {
 			progress.threadStatus(this, threadStatus);
 	}
 
+	@Override
+	public void setCountDownLatch(final CountDownLatch latch) {
+		this.latch = latch;
+	}
+
+	private void countDown() {
+		if (latch != null && latch.getCount() > 0) {
+			latch.countDown();
+		}
+	}
 }

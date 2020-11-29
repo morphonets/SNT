@@ -27,6 +27,7 @@ import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
 
 import ij.IJ;
 
@@ -35,6 +36,25 @@ import ij.IJ;
  * tubularity add-on to be installed)
  */
 public class TubularGeodesicsTracer extends Thread implements SearchInterface {
+
+	protected double x_spacing;
+	protected double y_spacing;
+	protected double z_spacing;
+	protected String spacing_units;
+
+	protected File oofFile;
+
+	protected float start_x_image;
+	protected float start_y_image;
+	protected float start_z_image;
+	protected float end_x_image;
+	protected float end_y_image;
+	protected float end_z_image;
+
+	protected PathResult lastPathResult;
+	PathResult temporaryPathResult;
+	private CountDownLatch latch;
+
 
 	public TubularGeodesicsTracer(final File oofFile, final float start_x_image,
 		final float start_y_image, final float start_z_image,
@@ -55,23 +75,6 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 		this.z_spacing = z_spacing;
 		this.spacing_units = SNTUtils.getSanitizedUnit(spacing_units);
 	}
-
-	protected double x_spacing;
-	protected double y_spacing;
-	protected double z_spacing;
-	protected String spacing_units;
-
-	protected File oofFile;
-
-	protected float start_x_image;
-	protected float start_y_image;
-	protected float start_z_image;
-
-	protected float end_x_image;
-	protected float end_y_image;
-	protected float end_z_image;
-
-	protected PathResult lastPathResult;
 
 	@Override
 	public Path getResult() {
@@ -188,10 +191,16 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 			System.out.println("Got an exception from call to ITK code: " + t);
 			t.printStackTrace();
 			IJ.error("There was an error in calling to ITK code: " + t);
+		} finally {
+			countDown();
 		}
 	}
 
-	PathResult temporaryPathResult;
+	private void countDown() {
+		if (latch != null && latch.getCount() > 0) {
+			latch.countDown();
+		}
+	}
 
 	@Override
 	public void run() {
@@ -289,11 +298,14 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 			System.out.println("Got an exception from call to ITK code: " + t);
 			t.printStackTrace();
 			IJ.error("There was an error in calling to ITK code: " + t);
+		} finally {
+			countDown();
 		}
 	}
 
 	public void reportFinished(final boolean success) {
 		if (success) lastPathResult = temporaryPathResult;
+		countDown();
 		for (final SearchProgressCallback progress : progressListeners)
 			progress.finished(this, success);
 		if (!success) {
@@ -304,6 +316,11 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 			 */
 			if (errorMessage != null) IJ.error("The tracing failed: " + errorMessage);
 		}
+	}
+
+	@Override
+	public void setCountDownLatch(CountDownLatch latch) {
+		this.latch = latch;
 	}
 
 }
