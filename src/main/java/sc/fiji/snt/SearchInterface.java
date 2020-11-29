@@ -23,6 +23,7 @@
 package sc.fiji.snt;
 
 import java.awt.Graphics;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * Tracer classes implementing searches between two points should implement this
@@ -36,5 +37,7 @@ public interface SearchInterface {
 		TracerCanvas canvas, Graphics g);
 
 	public void requestStop();
+
+	public void setCountDownLatch(CountDownLatch latch);
 
 }
