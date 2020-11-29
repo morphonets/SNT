@@ -239,7 +239,7 @@ public class SkeletonConverter {
      */
     public void setMaxConnectDist(double maxConnectDist) {
         if (maxConnectDist <= 0) {
-            throw new IllegalArgumentException("maxConnectDist must be > 0");
+            maxConnectDist = Double.MIN_VALUE;
         }
         this.maxConnectDist = maxConnectDist;
     }
