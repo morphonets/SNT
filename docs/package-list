@@ -2,6 +2,9 @@ sc.fiji.snt
 sc.fiji.snt.analysis
 sc.fiji.snt.analysis.graph
 sc.fiji.snt.analysis.sholl
+sc.fiji.snt.analysis.sholl.gui
+sc.fiji.snt.analysis.sholl.math
+sc.fiji.snt.analysis.sholl.parsers
 sc.fiji.snt.annotation
 sc.fiji.snt.event
 sc.fiji.snt.gui
@@ -9,6 +12,7 @@ sc.fiji.snt.gui.cmds
 sc.fiji.snt.hyperpanes
 sc.fiji.snt.io
 sc.fiji.snt.plugin
+sc.fiji.snt.plugin.ij1
 sc.fiji.snt.util
 sc.fiji.snt.viewer
 sc.fiji.snt.viewer.geditor
