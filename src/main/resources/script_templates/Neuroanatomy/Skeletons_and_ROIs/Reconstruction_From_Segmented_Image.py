@@ -3,6 +3,8 @@
 #@ boolean (label="Skeletonize image") skeletonizeImp
 #@ boolean (label="Prune trees by length") pruneByLength
 #@ Float (label="Length threshold", description="The minimum tree length necessary to avoid pruning") lengthThreshold
+#@ boolean (label="Connect components", description="Whether to connect individual components of the result") connectComponents
+#@ Float (label="Max connection distance", description="The maximum allowable distance between the closest pair of points for two components to be merged") maxConnectDist
 #@ boolean (label="Save result") saveResult
 #@ File (label="Output directory for reconstruction(s)", style="directory", required=false) outDir
 #@ Context context
@@ -39,10 +41,11 @@ def main():
 	# Use the image to create the reconstructions, first skeletonizing 
 	# if it is not already a skeleton.
 	converter = SkeletonConverter(imp, skeletonizeImp)
+	converter.setPruneByLength(pruneByLength)
+	converter.setLengthThreshold(lengthThreshold)
+	converter.setConnectComponents(connectComponents)
+	converter.setMaxConnectDist(maxConnectDist)
 	trees = converter.getTrees()
-	if pruneByLength:
-		# Remove sub-threshold length trees
-		trees = [t for t in trees if TreeAnalyzer(t).getCableLength() >= lengthThreshold]
 	# Display generated reconstructions
 	viewer = Viewer3D(context)
 	Tree.assignUniqueColors(trees)

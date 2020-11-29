@@ -3784,7 +3784,7 @@ public class Viewer3D {
 				runCmd(RemoteSWCImporterCmd.class, inputs, CmdWorker.DO_NOTHING);
 			});
 			remoteMenu.add(mi);
-			mi = new JMenuItem("InsectBrain Database...", 'I');
+			mi = new JMenuItem("InsectBrain...", 'I');
 			mi.addActionListener(e -> {
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("recViewer", Viewer3D.this);

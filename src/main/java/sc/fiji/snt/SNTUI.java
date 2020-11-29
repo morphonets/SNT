@@ -2183,7 +2183,7 @@ public class SNTUI extends JDialog {
 			inputs.put("loader", new FlyCircuitLoader());
 			(new DynamicCmdRunner(RemoteSWCImporterCmd.class, inputs, LOADING, true)).run();
 		});
-		final JMenuItem importInsectBrainDb = new JMenuItem("Insect Brain Database...");
+		final JMenuItem importInsectBrainDb = new JMenuItem("InsectBrain...");
 		remoteSubmenu.add(importInsectBrainDb);
 		importInsectBrainDb.addActionListener(e -> {
 			final HashMap<String, Object> inputs = new HashMap<>();
@@ -2350,7 +2350,7 @@ public class SNTUI extends JDialog {
 			(new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
 		});
 		utilitiesMenu.addSeparator();
-		final JMenuItem skeletonConverter = new JMenuItem("Reconstruction(s) from Skeleton...",
+		final JMenuItem skeletonConverter = new JMenuItem("Extract Paths From Segmented Image...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.TREE));
 		utilitiesMenu.add(skeletonConverter);
 		skeletonConverter.addActionListener(e -> {

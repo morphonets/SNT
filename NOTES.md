@@ -45,11 +45,13 @@ Key aspects of SNT are implemented from published literature:
 | Bi-directional Path Search: A* search                        | Hart, P. E., Nilsson, N. J., & Raphael, B. (1968). A formal basis for the heuristic determination of minimum cost paths. *IEEE transactions on Systems Science and Cybernetics*, *4*(2), 100-107. |
 | Bi-directional Path Search: Cost function                    | Wink, O., Niessen, W. J., & Viergever, M. A. (2000, September).  Minimum cost path determination using a simple heuristic function. In *Proceedings 15th International Conference on Pattern Recognition. ICPR-2000* (Vol. 3, pp. 998-1001). IEEE. |
 |                                                              |                                                              |
-| Image Processing: Hessian Analysis                           | Sato, Y., Nakajima, S., Shiraga, N., Atsumi, H., Yoshida, S., Koller,  T., ... & Kikinis, R. (1998). Three-dimensional multi-scale line  filter for segmentation and visualization of curvilinear structures in  medical images. *Medical image analysis*, *2*(2), 143-168. |
+| Image Processing: Hessian ("[Tubeness](https://javadoc.scijava.org/ImageJ/net/imagej/ops/filter/tubeness/DefaultTubeness.html)") Analysis | Sato, Y., Nakajima, S., Shiraga, N., Atsumi, H., Yoshida, S., Koller,  T., ... & Kikinis, R. (1998). Three-dimensional multi-scale line  filter for segmentation and visualization of curvilinear structures in  medical images. *Medical image analysis*, *2*(2), 143-168. |
 | Image Processing: [Tubular Geodesics](https://imagej.net/SNT:_Tubular_Geodesics) | Türetken, E., Benmansour, F., & Fua, P. (2012, June). Automated  reconstruction of tree structures using path classifiers and mixed  integer programming. In *2012 IEEE conference on computer vision and pattern recognition* (pp. 566-573). IEEE. |
-| Image Processing: Fangi Vesselness                           | Frangi, A. F., Niessen, W. J., Vincken, K. L., & Viergever, M. A.  (1998, October). Multiscale vessel enhancement filtering. In *International conference on medical image computing and computer-assisted intervention* (pp. 130-137). Springer, Berlin, Heidelberg. |
+| Image Processing: [Frangi](https://javadoc.scijava.org/ImageJ/net/imagej/ops/filter/vesselness/DefaultFrangi.html) Vesselness | Frangi, A. F., Niessen, W. J., Vincken, K. L., & Viergever, M. A.  (1998, October). Multiscale vessel enhancement filtering. In *International conference on medical image computing and computer-assisted intervention* (pp. 130-137). Springer, Berlin, Heidelberg. |
 |                                                              |                                                              |
 | Persistent homology: Topological Morphology Descriptor (*TMD*) algorithm | Kanari, L., Dłotko, P., Scolamiero, M., Levi, R., Shillcock, J., Hess,  K., & Markram, H. (2018). A topological representation of branching  neuronal morphologies. *Neuroinformatics*, *16*(1), 3-13. |
+| Persistent homology: Persistence Lanscapes                   | Bubenik,  P. (2015). Statistical Topological Data Analysis Using Persistence Landscapes. *Journal of Machine Learning Research* 16, 77-102 |
+|                                                              |                                                              |
 | [Cx3D simulation engine](https://imagej.net/SNT:_Modeling)   | Zubler, F., & Douglas, R. (2009). A framework for modeling the growth and development of neurons and networks. *Frontiers in computational neuroscience*, *3*, 25. |
 |                                                              |                                                              |
 | [L-measure](http://cng.gmu.edu:8080/Lm/) metrics             | Scorcioni, R., Polavaram, S., & Ascoli, G. A. (2008). L-Measure: a  web-accessible tool for the analysis, comparison and search of digital  reconstructions of neuronal morphologies. *Nature protocols*, *3*(5), 866. |
@@ -59,18 +61,19 @@ Key aspects of SNT are implemented from published literature:
 
 ### Dependencies
 
-[SNT](https://imagej.net/SNT) relies heavily on several [SciJava](https://scijava.org/), [SciView](https://imagej.net/SciView), and [Fiji](https://imagej.net/Fiji) libraries. It also relies on other packages developed under the [morphonets](https://github.com/morphonets) umbrella and other external open-source packages. Below is a non-exhaustive list of external libraries on top of which SNT is built:
+[SNT](https://imagej.net/SNT) relies heavily on several [SciJava](https://scijava.org/), [sciview](https://imagej.net/SciView) (and [scenery](https://github.com/scenerygraphics/scenery)), and [Fiji](https://imagej.net/Fiji) libraries. It also relies on other packages developed under the [morphonets](https://github.com/morphonets) umbrella and other external open-source packages. Below is a non-exhaustive list of external libraries on top of which SNT is built:
 
 | Libraries                                                    | Scope/Usage                                           |
 | ------------------------------------------------------------ | :---------------------------------------------------- |
-| [AnalyzeSkeleton](https://imagej.net/AnalyzeSkeleton), [Skeletonize3D](https://imagej.net/Skeletonize3D) | Handling of skeletonized images                       |
 | [3D Viewer](https://imagej.net/3D_Viewer)                    | Legacy 3D Viewer                                      |
+| [AnalyzeSkeleton](https://imagej.net/AnalyzeSkeleton), [Skeletonize3D](https://imagej.net/Skeletonize3D) | Handling of skeletonized images                       |
 | [Apache Commons](https://commons.apache.org/)                | Misc. utilities                                       |
 | [Apache XML Graphics](https://xmlgraphics.apache.org/)       | SVG/PDF export                                        |
 | [ImageJ1](https://github.com/imagej/imagej1)                 | ImagePlus and ROI handling                            |
 | [imagej-plot-service](https://github.com/maarzt/scijava-plot), [jfreechart](https://xmlgraphics.apache.org/) | Histograms and plots including Reconstruction Plotter |
-| [JIDE common layer](https://github.com/jidesoft/jide-oss), [font awesome](https://fontawesome.com/) | GUI customizations                                    |
 | [JGraphT](https://jgrapht.org/)                              | Graph theory -based analyses                          |
+| [JIDE common layer](https://github.com/jidesoft/jide-oss), [font awesome](https://fontawesome.com/) | GUI customizations                                    |
 | [JSON-Java](https://github.com/stleary/JSON-java), [okhttp](https://square.github.io/okhttp/) | Access/query of online databases                      |
 | [Jzy3D](http://www.jzy3d.org/)                               | Reconstruction Viewer                                 |
 | [pyimagej](https://pypi.org/project/pyimagej/)               | Python bindings                                       |
+| [SMILE](https://haifengl.github.io/)                         | Nearest neighbor search (KD-Tree)                     |
