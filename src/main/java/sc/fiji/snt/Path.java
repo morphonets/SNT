@@ -306,7 +306,7 @@ public class Path implements Comparable<Path> {
 		return startJoins;
 	}
 
-	public PointInImage getStartJoinsPoint() {
+	public PointInImage getStartJoinsPoint() { // TODO: this should be renamed?
 		return startJoinsPoint;
 	}
 
@@ -617,16 +617,32 @@ public class Path implements Comparable<Path> {
 	/**
 	 * Gets the node at the specified position.
 	 *
-	 * @param pos the position index (0-based)
+	 * @param pos the position index (0-based). NB: You can use -1 to retrieve the
+	 *            last node in the Path
 	 * @return the node
 	 * @throws IndexOutOfBoundsException if position is out-of-range
 	 */
 	public PointInImage getNode(final int pos) throws IndexOutOfBoundsException {
+		if (pos == -1)
+			return getNodeWithoutChecks(size()-1);
 		if ((pos < 0) || pos >= size()) {
 			throw new IndexOutOfBoundsException(
 				"getNode() was asked for an out-of-range point: " + pos);
 		}
 		return getNodeWithoutChecks(pos);
+	}
+
+	/**
+	 * Gets the nodes of this path.
+	 *
+	 * @return the list of nodes that form this path
+	 */
+	public List<PointInImage> getNodes() {
+		final List<PointInImage> list = new ArrayList<>(size());
+		for (int i = 0; i < size(); i++) {
+			list.add(getNodeWithoutChecks(i));
+		}
+		return list;
 	}
 
 	protected PointInImage getNodeWithoutChecks(final int pos) {
