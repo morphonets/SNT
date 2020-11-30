@@ -203,7 +203,7 @@ public class PathProfiler extends ContextCommand {
 	public void assignValues(final Path p, final int channel) throws IllegalArgumentException {
 		validateChannelRange(channel);
 		final double[] values = new double[p.size()];
-		if (imp.getNDimensions() == 2) {
+		if (imp.getNSlices() == 1 && imp.getNFrames() == 1) {
 			final int currentCh = imp.getChannel();
 			imp.setPositionWithoutUpdate(channel, imp.getZ(), imp.getFrame());
 			for (int i = 0; i < p.size(); i++) {
