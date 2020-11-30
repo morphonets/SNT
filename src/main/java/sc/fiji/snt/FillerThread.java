@@ -338,7 +338,8 @@ public class FillerThread extends SearchThread {
 
 	@Override
 	public Path getResult() {
-		throw new RuntimeException(
+		throw new IllegalArgumentException(
 			"BUG: getResult should never be called on a FillerThread");
 	}
+
 }

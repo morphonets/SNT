@@ -159,6 +159,8 @@ public class TracerThread extends SearchThread {
 
 	@Override
 	public Path getResult() {
+		if (result != null && minExpectedSize > 0 && result.size() < minExpectedSize)
+			return null;
 		return result;
 	}
 

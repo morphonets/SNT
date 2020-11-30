@@ -820,13 +820,17 @@ public class SNT extends MultiDThreePanes implements
 
 			removeSphere(targetBallName);
 
-			if (success) {
-				final Path result = source.getResult();
-				if (result == null) {
-					SNTUtils.error("Bug! Succeeded, but null result.");
-					return;
-				}
-				if (endJoin != null) {
+			try {
+				if (success) {
+					final Path result = source.getResult();
+					if (result == null) {
+						if (pathAndFillManager.enableUIupdates)
+							SNTUtils.error("Bug! Succeeded, but null result.");
+						else
+							SNTUtils.error("Scripted path yielded a null result.");
+						return;
+					}
+					if (endJoin != null) {
 					result.setEndJoin(endJoin, endJoinPoint);
 				}
 				setTemporaryPath(result);
@@ -847,13 +851,15 @@ public class SNT extends MultiDThreePanes implements
 			// Indicate in the dialog that we've finished...
 
 			if (source == currentSearchThread) {
-				currentSearchThread = null;
+					currentSearchThread = null;
+				}
+
+			} finally {
+
+				removeThreadToDraw(source);
+				updateTracingViewers(false);
 			}
-
 		}
-
-		removeThreadToDraw(source);
-		updateTracingViewers(false);
 
 	}
 
@@ -1342,11 +1348,11 @@ public class SNT extends MultiDThreePanes implements
 	synchronized void testPathTo(final double world_x, final double world_y,
 		final double world_z, final PointInImage joinPoint)
 	{
-		testPathTo(world_x, world_y, world_z, joinPoint, false); // GUI execution
+		testPathTo(world_x, world_y, world_z, joinPoint, false, -1); // GUI execution
 	}
 
 	synchronized private void testPathTo(final double world_x, final double world_y,
-		final double world_z, final PointInImage joinPoint, final boolean attatchAwaitingLatch) // Script execution
+		final double world_z, final PointInImage joinPoint, final boolean attatchAwaitingLatch, final int minPathSize)// Script execution
 	{
 		if (!lastStartPointSet) {
 			statusService.showStatus(
@@ -1423,6 +1429,7 @@ public class SNT extends MultiDThreePanes implements
 																															// color a
 																															// preference
 			currentSearchThread.setCountDownLatch(latch);
+			currentSearchThread.setMinExpectedSizeOfResult(minPathSize);
 			currentSearchThread.setDrawingThreshold(-1);
 			currentSearchThread.addProgressListener(this);
 			currentSearchThread.start();
@@ -1580,6 +1587,9 @@ public class SNT extends MultiDThreePanes implements
 		if (pointList == null || pointList.size() == 0)
 			throw new IllegalArgumentException("pointList cannot be null or empty");
 
+		final boolean existingEnableUIupdates = pathAndFillManager.enableUIupdates;
+		pathAndFillManager.enableUIupdates = false;
+
 		// Ensure there are no incomplete tracings around and disable UI
 		if (ui != null && ui.getState() != SNTUI.READY) ui.abortCurrentOperation();
 		final SNTUI existingUI = getUI();
@@ -1600,7 +1610,7 @@ public class SNT extends MultiDThreePanes implements
 
 				// Append node and wait for search to be finished
 				final PointInImage node = pointList.get(i);
-				testPathTo(node.x, node.y, node.z, null, true);
+				testPathTo(node.x, node.y, node.z, null, true, pointList.size());
 				((Thread) getActiveSearchingThread()).join();
 
 			}
@@ -1630,6 +1640,9 @@ public class SNT extends MultiDThreePanes implements
 
 		// restore UI state
 		showStatus(0, 0, "Tracing Complete");
+
+		pathAndFillManager.enableUIupdates = existingEnableUIupdates;
+		if (existingEnableUIupdates) pathAndFillManager.resetListeners(null);
 		ui = existingUI;
 		changeUIState(SNTUI.READY);
 
@@ -2807,7 +2820,8 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void discreteMsg(final String msg) { /* HTML format */
-		new GuiUtils(getActiveCanvas()).tempMsg(msg);
+		if (pathAndFillManager.enableUIupdates)
+			new GuiUtils(getActiveCanvas()).tempMsg(msg);
 	}
 
 	protected boolean getConfirmation(final String msg, final String title) {

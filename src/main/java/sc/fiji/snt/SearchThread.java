@@ -113,7 +113,7 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 	protected int exitReason;
 	private boolean verbose = SNTUtils.isDebugMode();
 	private CountDownLatch latch;
-
+	protected int minExpectedSize;
 
 	/*
 	 * This calculates the cost of moving to a new point in the image. This does not
@@ -877,4 +877,7 @@ public abstract class SearchThread extends Thread implements SearchInterface {
 		this.latch = latch;
 	}
 
+	public void setMinExpectedSizeOfResult(final int size) {
+		this.minExpectedSize = size;
+	}
 }
