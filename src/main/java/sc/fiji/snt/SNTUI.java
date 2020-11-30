@@ -1975,7 +1975,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private void loadCachedDataImage(final boolean warnUserOnMemory, final String type, final boolean isTubeness, final File file) {
-		if (warnUserOnMemory) {
+		if (warnUserOnMemory && plugin.getImagePlus() != null) {
 			final int byteDepth = 32 / 8;
 			final ImagePlus tracingImp = plugin.getImagePlus();
 			final long megaBytesExtra = (((long) tracingImp.getWidth()) * tracingImp.getHeight()

@@ -177,7 +177,10 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 		}
 		snt.loadSecondaryImage(filteredImp);
 		snt.setSecondaryImage(file);
-		if (show) filteredImp.show();
+		if (show) {
+			filteredImp.resetDisplayRange();
+			filteredImp.show();
+		}
 		resetUI();
 	}
 
