@@ -244,7 +244,6 @@ public class SigmaPalette extends Thread {
 			if (zSelector != null) label += "  z=" + SNTUtils.formatDouble(image.getCalibration().getZ(zSelector.getValue() - 1), 2);
 			return label;
 		}
-
 	}
 
 	private class PaletteCanvas extends ImageCanvas {
@@ -449,16 +448,20 @@ public class SigmaPalette extends Thread {
 		start();
 	}
 
-	public void dismiss() {
-		paletteWindow.dispose();
-		snt.changeUIState(SNTUI.READY);
+	private void flush() {
+		paletteWindow.close();
+		if (paletteImage != null) paletteImage.flush();
 		snt.setCanvasLabelAllPanes(null);
+	}
+
+	public void dismiss() {
+		flush();
+		snt.changeUIState(SNTUI.READY);
 	}
 
 	private void apply() {
 		//preprocess.setSelected(false);
-		paletteWindow.dispose();
-		snt.setCanvasLabelAllPanes(null);
+		flush();
 		hc.setSigmaAndMax(getSelectedSigma(), selectedMinMax[1]);
 		if (hc.isGaussianComputed())
 			snt.changeUIState(SNTUI.READY);
