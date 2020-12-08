@@ -1684,7 +1684,7 @@ public class Tree {
 	public static void main(final String[] args) {
 
 		//final Tree tree = new Tree("/home/tferr/Downloads/test_swc.swc");
-		final Tree tree = new SNTService().demoTree();
+		final Tree tree = new SNTService().demoTree("fractal");
 		tree.swapAxes(Z_AXIS, Y_AXIS);
 		TreeAnalyzer analyzer = new TreeAnalyzer(tree);
 		System.out.println("Creating graph...");

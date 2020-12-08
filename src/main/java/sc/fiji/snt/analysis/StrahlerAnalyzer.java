@@ -360,7 +360,7 @@ public class StrahlerAnalyzer {
 		final ImageJ ij = new ImageJ();
 		SNTUtils.setDebugMode(true);
 		final SNTService sntService = ij.context().getService(SNTService.class);
-		final Tree tree = sntService.demoTree();
+		final Tree tree = sntService.demoTree("fractal");
 		final StrahlerAnalyzer analyzer = new StrahlerAnalyzer(tree);
 		analyzer.getBranchCounts().forEach((order, counts) -> {
 			System.out.println("# branches order " + order + ": " + counts);

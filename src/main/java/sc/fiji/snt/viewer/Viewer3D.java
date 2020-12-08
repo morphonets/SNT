@@ -5587,7 +5587,7 @@ public class Viewer3D {
 		private float labelX = 2;
 		private float labelY = 0;
 
-		public OverlayAnnotation(final View view) {
+		private OverlayAnnotation(final View view) {
 			super(view);
 			control = ((IScreenCanvas) view.getCanvas()).getAnimator();
 			control.setUpdateFPSFrames(FPSCounter.DEFAULT_FRAMES_PER_INTERVAL, null);
@@ -5597,7 +5597,7 @@ public class Viewer3D {
 			color = new java.awt.Color(c.r, c.g, c.b);
 		}
 
-		public void setFont(final Font font, final float angle) {
+		private void setFont(final Font font, final float angle) {
 			if (angle == 0) {
 				this.labelFont = font;
 				return;
@@ -5607,7 +5607,7 @@ public class Viewer3D {
 			labelFont = font.deriveFont(affineTransform);
 		}
 
-		public void setLabelColor(final java.awt.Color labelColor) {
+		private void setLabelColor(final java.awt.Color labelColor) {
 			this.labelColor = labelColor;
 		}
 

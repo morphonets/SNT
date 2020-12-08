@@ -204,7 +204,7 @@ public class StrahlerCmd extends ContextCommand {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
-		final Tree tree = sntService.demoTree();
+		final Tree tree = sntService.demoTree("fractal");
 		final StrahlerCmd cmd = new StrahlerCmd(tree);
 		cmd.setContext(ij.context());
 		cmd.run();

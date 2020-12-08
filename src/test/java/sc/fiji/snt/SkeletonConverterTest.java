@@ -46,8 +46,8 @@ public class SkeletonConverterTest {
     @Before
     public void setUp() throws Exception {
         final SNTService sntService = new SNTService();
-        imp = sntService.demoTreeImage();
-        demoTree = sntService.demoTree();
+        imp = sntService.demoImage("fractal");
+        demoTree = sntService.demoTree("fractal");
         assumeNotNull(imp);
         assumeNotNull(demoTree);
     }

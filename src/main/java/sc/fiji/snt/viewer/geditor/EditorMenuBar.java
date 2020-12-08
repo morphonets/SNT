@@ -32,7 +32,6 @@ import javax.swing.*;
 import com.mxgraph.analysis.StructuralException;
 import com.mxgraph.analysis.mxGraphProperties.GraphType;
 import com.mxgraph.analysis.mxAnalysisGraph;
-import com.mxgraph.analysis.mxGraphProperties;
 import com.mxgraph.analysis.mxGraphStructure;
 import com.mxgraph.analysis.mxTraversal;
 import com.mxgraph.costfunction.mxCostFunction;
@@ -903,8 +902,8 @@ class EditorMenuBar extends JMenuBar
 			editor.status("Creating report...");
 			boolean isConnected = mxGraphStructure.isConnected(aGraph);
 			boolean isSimple = mxGraphStructure.isSimple(aGraph);
-			boolean isDirected = mxGraphProperties.isDirected(aGraph.getProperties(),
-					mxGraphProperties.DEFAULT_DIRECTED);
+//			boolean isDirected = mxGraphProperties.isDirected(aGraph.getProperties(),
+//					mxGraphProperties.DEFAULT_DIRECTED);
 			boolean isTree = mxGraphStructure.isTree(aGraph);
 
 			System.out.println("Graph properties:");

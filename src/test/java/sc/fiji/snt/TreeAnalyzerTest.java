@@ -44,7 +44,7 @@ public class TreeAnalyzerTest {
 
 	@Before
 	public void setUp() throws Exception {
-		tree = new SNTService().demoTree();
+		tree = new SNTService().demoTree("fractal");
 		analyzer = new TreeAnalyzer(tree);
 		assumeNotNull(tree);
 	}

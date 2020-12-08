@@ -108,7 +108,7 @@ public class mxCircleLayoutGroupedCmd extends DynamicCommand {
         }
     }
 
-    @SuppressWarnings("unused")
+    @SuppressWarnings({ "unused", "unchecked" })
     private void init() {
         if (lutChoice == null) lutChoice = prefService.get(getClass(), "lutChoice",
                 "mpl-viridis.lut");

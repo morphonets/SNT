@@ -485,7 +485,7 @@ public class Viewer2D extends TreeColorMapper {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		final Viewer2D pplot = new Viewer2D(ij.context());
-		final Tree tree = new SNTService().demoTree();
+		final Tree tree = new SNTService().demoTree("fractal");
 		tree.rotate(Tree.Z_AXIS, 180);
 		final SNTPoint root = tree.getRoot();
 		tree.translate(-root.getX(), -root.getY(), -root.getZ());
