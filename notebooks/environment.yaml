@@ -1,8 +1,0 @@
-name: scijava
-channels:
-  - conda-forge
-dependencies:
-  - python
-  - beakerx=1.3.0
-  - jupyter_contrib_nbextensions
-  - rise
