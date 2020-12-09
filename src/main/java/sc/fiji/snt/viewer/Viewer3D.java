@@ -680,9 +680,53 @@ public class Viewer3D {
 		chart.add(shapeTree.get(), viewUpdatesEnabled);
 	}
 
+	/**
+	 * Adds a collection of trees.
+	 *
+	 * @param trees     the trees to be added
+	 * @param color     the rendering color
+	 */
+	public void addTrees(final Collection<Tree> trees, final String color, final String commonTag) {
+		if (commonTag != null) {
+			trees.forEach(tree -> {
+				String label = tree.getLabel();
+				if (label == null) label = "";
+				tree.setLabel(label + "{" + commonTag + "}");
+			});
+		}
+		addTrees(trees, color);
+	}
+
+	/**
+	 * Adds a collection of trees.
+	 *
+	 * @param trees     the trees to be added
+	 * @param color     the rendering color
+	 * @param commonTag a common tag to be assigned to the group (to be displayed in
+	 *                  'RV Controls' list.
+	 */
+	public void addTrees(final Collection<Tree> trees, final String color) {
+		final ColorRGB c = new ColorRGB(color);
+		setSceneUpdatesEnabled(false);
+		trees.forEach(tree -> {
+			tree.setColor(c);
+			addTree(tree);
+		});
+		setSceneUpdatesEnabled(true);
+	}
+
+	/**
+	 * Adds a collection of trees.
+	 *
+	 * @param trees              the trees to be added
+	 * @param assignUniqueColors wether each tree in the collection should be
+	 *                           rendered with a unique color
+	 */
 	public void addTrees(final Collection<Tree> trees, final boolean assignUniqueColors) {
 		if (assignUniqueColors) Tree.assignUniqueColors(trees);
+		setSceneUpdatesEnabled(false);
 		trees.forEach(tree -> addTree(tree));
+		setSceneUpdatesEnabled(true);
 	}
 
 	/**
