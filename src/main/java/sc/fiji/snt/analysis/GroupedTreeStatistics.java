@@ -80,6 +80,7 @@ public class GroupedTreeStatistics {
 	private static final String N_BRANCH_POINTS = MultiTreeStatistics.N_BRANCH_POINTS;
 
 	private final LinkedHashMap<String, MultiTreeStatistics> groups;
+	private int minNoOfBins = -1;
 
 	/**
 	 * Instantiates a new grouped tree statistics.
@@ -129,6 +130,18 @@ public class GroupedTreeStatistics {
 	}
 
 	/**
+	 * Gets the number of Trees in a specified group.
+	 *
+	 * @param groupLabel the unique label identifying the group
+	 * @return the number of Trees or -1 if no group is mapped to
+	 *         {@code groupLabel}
+	 */
+	public int getN(final String groupLabel) {
+		final MultiTreeStatistics sts = groups.get(groupLabel);
+		return (sts == null) ? -1 : sts.getGroup().size();
+	}
+
+	/**
 	 * Gets the group identifiers currently queued for analysis.
 	 *
 	 * @return the group identifiers
@@ -147,25 +160,29 @@ public class GroupedTreeStatistics {
 	 * @return the frame holding the histogram
 	 * @see MultiTreeStatistics#getMetrics()
 	 * @see TreeStatistics#getMetrics()
+	 * @see #setMinNBins(int)
 	 */
 	public SNTChart getHistogram(final String measurement) {
 		final String normMeasurement = MultiTreeStatistics.getNormalizedMeasurement(measurement, true);
-		final int[] nBins = new int[] { 0 };
+		final int[] bins = new int[] { 0 };
 		// Retrieve all HistogramDatasetPlus instances
 		final LinkedHashMap<String, HDPlus> hdpMap = new LinkedHashMap<>();
 		for (final Entry<String, MultiTreeStatistics> entry : groups.entrySet()) {
 			final HDPlus hdp = entry.getValue().new HDPlus(normMeasurement);
 			hdp.compute();
-			nBins[0] += hdp.nBins;
+			bins[0] += hdp.nBins;
 			hdpMap.put(entry.getKey(), hdp);
 		}
-		nBins[0] = nBins[0] / groups.size();
+		bins[0] = bins[0] / groups.size();
+		if (minNoOfBins > 0) {
+			bins[0] = Math.max(minNoOfBins, bins[0]);
+		}
 
 		// Add all series
 		final HistogramDataset dataset = new HistogramDataset();
 		dataset.setType(HistogramType.RELATIVE_FREQUENCY);
 		hdpMap.forEach((label, hdp) -> {
-			dataset.addSeries(label, hdp.valuesAsArray(), nBins[0]);
+			dataset.addSeries(label, hdp.valuesAsArray(), bins[0]);
 		});
 		return AnalysisUtils.createHistogram(normMeasurement, hdpMap.size(), dataset);
 	}
@@ -504,5 +521,14 @@ public class GroupedTreeStatistics {
 		groupedStats.getHistogram(TreeStatistics.INTER_NODE_DISTANCE).show();
 		groupedStats.getBoxPlot("node dx sq").setVisible(true);
 
+	}
+
+	/**
+	 * Sets the minimum number of bins when assembling histograms.
+	 *
+	 * @param minNoOfBins the minimum number of bins.
+	 */
+	public void setMinNBins(int minNoOfBins) {
+		this.minNoOfBins = minNoOfBins;
 	}
 }

@@ -194,16 +194,21 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			super.resolveOutput("report");
 
 		} else {
+
+			stats.setMinNBins(4);
 			final SNTChart histFrame = stats.getHistogram(metric);
 			final SNTChart boxFrame = stats.getBoxPlot(metric);
 
+			long[] largestN = {Integer.MIN_VALUE};
 			final StringBuilder reportBuilder = new StringBuilder("    ").append(metric).append(" Statistics:\r\n");
 			final SummaryStatistics uberStats = new SummaryStatistics();
 			stats.getGroups().forEach(group -> {
 				final DescriptiveStatistics dStats = stats.getGroupStats(group).getDescriptiveStats(metric);
+				final long n = dStats.getN();
+				if (n > largestN[0]) largestN[0] = n;
 				reportBuilder.append(group).append(" Statistics:");
 				reportBuilder.append("\r\nFolder:\t").append(getDirPath(group));
-				reportBuilder.append("\r\nN:\t").append(dStats.getN());
+				reportBuilder.append("\r\nN:\t").append(n);
 				reportBuilder.append("\r\nMean:\t").append(dStats.getMean());
 				reportBuilder.append("\r\nStDev:\t").append(dStats.getStandardDeviation());
 				reportBuilder.append("\r\nMedian:\t").append(dStats.getPercentile(50));
@@ -231,7 +236,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 				exitMsg.append("<p>Some directories (").append(inputGroupsCounter - stats.getGroups().size());
 				exitMsg.append(") did not contain matching data and were skipped.</p>");
 			}
-			if (displayInMultiViewer) {
+			if (displayInMultiViewer && largestN[0] > 10) {
 				exitMsg.append((mappableMetric) ? "<p>NB: Only the first 10 cells of each group were mapped.</p>"
 						: "<p>NB: Metric is not mappable. Choice ignored.</p>");
 			}
