@@ -49,6 +49,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	private JMenuItem extendPathMenuItem;
 	private JCheckBoxMenuItem togglePauseTracingMenuItem;
 	private JCheckBoxMenuItem togglePauseSNTMenuItem;
+	private JCheckBoxMenuItem panMenuItem;
 	private JMenuItem connectToSecondaryEditingPath;
 	private double last_x_in_pane_precise = Double.MIN_VALUE;
 	private double last_y_in_pane_precise = Double.MIN_VALUE;
@@ -127,16 +128,17 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 		// Add a silly pan entry, just to remind users that the functionality exists.
 		// TODO: Since we are going through the trouble, should it sync all panes?
-		final JCheckBoxMenuItem panmi = new JCheckBoxMenuItem("Pan Mode  (or Hold Spacebar & Drag)");
-		panmi.addItemListener( e -> {
-			disableEvents(panmi.isSelected());
-			if (panmi.isSelected()) {
+		panMenuItem = new JCheckBoxMenuItem("Pan Mode  (or Hold Spacebar & Drag)", tracerPlugin.panMode);
+		panMenuItem.addItemListener( e -> {
+			tracerPlugin.panMode = panMenuItem.isSelected();
+			disableEvents(tracerPlugin.panMode);
+			if (tracerPlugin.panMode) {
 				IJ.setKeyDown(KeyEvent.VK_SPACE);
 			} else {
 				IJ.setKeyUp(KeyEvent.VK_SPACE);
 			}
 		});
-		pMenu.add(panmi);
+		pMenu.add(panMenuItem);
 		togglePauseTracingMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_TRACING_TOGGLE);
 		togglePauseTracingMenuItem.setAccelerator(KeyStroke.getKeyStroke("shift P"));
 		togglePauseTracingMenuItem.setMnemonic(KeyEvent.VK_P);
@@ -165,6 +167,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		togglePauseTracingMenuItem.setEnabled(!togglePauseSNTMenuItem.isSelected());
 		togglePauseTracingMenuItem.setEnabled(bp);
 		togglePauseTracingMenuItem.setSelected(tracerPlugin.tracingHalted);
+		panMenuItem.setSelected(tracerPlugin.panMode);
 
 		// Disable editing commands
 		for (final MenuElement me : pMenu.getSubElements()) {

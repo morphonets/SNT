@@ -29,9 +29,11 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.MouseEvent;
 import java.awt.geom.Line2D;
 import java.awt.geom.Rectangle2D;
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.Prefs;
 import ij.gui.ImageCanvas;
@@ -143,6 +145,15 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	}
 
 	@Override
+	public void mouseDragged(final MouseEvent e) {
+		final int x = e.getX();
+		final int y = e.getY();
+		final boolean pan = IJ.spaceBarDown();
+		super.mouseDragged(e); // e consumed!?
+		if (pan) owner.panEventOccured(myScreenXD(x), myScreenYD(y), plane);
+	}
+
+	@Override
 	public void zoomIn(final int sx, final int sy) {
 		super.zoomIn(sx, sy);
 		owner.zoomEventOccurred(true, offScreenX(sx), offScreenY(sy), plane);
@@ -216,6 +227,10 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 		current_x = x;
 		current_y = y;
 		current_z = z;
+	}
+
+	public void scrollTo(final int newOffscreenX, final int newOffscreenY) {
+		scroll(newOffscreenX, newOffscreenY);
 	}
 
 	/*

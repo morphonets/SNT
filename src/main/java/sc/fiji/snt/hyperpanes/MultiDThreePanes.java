@@ -780,4 +780,21 @@ public class MultiDThreePanes implements PaneOwner {
 		mdp.initialize(imp, 20);
 		mdp.reloadZYXZpanes(30);
 	}
+
+	@Override
+	public void panEventOccured(int off_screen_x, int off_screen_y, int in_plane) {
+		if (single_pane) return; // do nothing
+		final int point[] = new int[3];
+		findPointInStack(off_screen_x, off_screen_y, in_plane, point);
+		if (in_plane == ZY_PLANE) {
+			zy_canvas.scrollTo(point[2], point[1]);
+		}
+		else if (in_plane == XZ_PLANE) {
+			zy_canvas.scrollTo(point[0], point[2]);
+		}
+		else if (in_plane == XY_PLANE) {
+			zy_canvas.scrollTo(point[0], point[1]);
+		}
+		setZPositionAllPanes(point[0], point[1], point[2]);
+	}
 }
