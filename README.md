@@ -179,7 +179,7 @@ Use this button to open the project on the cloud using [Gitpod](https://gitpod.i
   3. Wait for all the dependencies to be downloaded, and run [snt/gui/cmds/SNTLoaderCmd/SNTLoaderCmd](./src/main/java/sc/fiji/snt/gui/cmds/SNTLoaderCmd.java). 
 
 Useful resources to start hacking SNT:
-  -  _main_ methods found on most classes: These test/showcase some of the class's functionality ([example](https://github.com/morphonets/SNT/blob/master/src/main/java/sc/fiji/snt/viewer/Viewer3D.java#L6130))
+  -  _main_ methods found on most classes: These test/showcase some of the class's functionality
   -  [JUnit tests](./src/test/java/sc/fiji/snt/),  [Script templates](./src/main/resources/script_templates/Neuroanatomy/) and [notebooks](./notebooks)
 
 
