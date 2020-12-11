@@ -3,11 +3,9 @@ jdk: openjdk8
 branches:
   only:
   - master
-  - scijava
   - "/.*-[0-9]+\\..*/"
 install: true
 script: ".travis/build.sh"
-env:
-  global:
-  - secure: jSE6qTbvfQfVp/AmAO0RCPkJ04esy20yr2dSwP/IuP1A16yRcNdzehyvK3Ctr8aYD4NHPYc74pVF6lK9TZuS6giY+w/LGv11VpjX+2JgtKj49go7SY1G9RXUBt1XDp7b9yMt6tZusmFI2eguNmLKPnLD12ccJYLMqJoXKafHmbw=
-  - secure: r+lu+funD8KDu1jXyCPOcUHXulFKu9PMaA7WFyGDD4FIaZMtMbQkdR7NQeX5NuSjBSIkq8bTz26Trx8mL//e+yXR32Nj07OigMp5y0/NYLlJ8DT3rOSzDIpMyqugBolYx9fVgDCL2dCdKMnklULnAbxT2axkpVenqqCxf/0Imtg=
+cache:
+  directories:
+  - "~/.m2/repository"
