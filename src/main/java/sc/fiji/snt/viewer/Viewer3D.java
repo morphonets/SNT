@@ -4392,17 +4392,29 @@ public class Viewer3D {
 
 		private void showSelectionInfo() {
 			final List<AllenCompartment> cs = getCheckedSelection();
+			Collections.sort(cs, (c1, c2) -> {
+				return c1.name().compareToIgnoreCase(c2.name());
+			});
 			if (cs == null) return;
-			final StringBuilder sb = new StringBuilder("<table>");
-			sb.append("<tr>")//
-			.append("<th>Name</th>").append("<th>Acronym</th>").append("<th>Id</th>").append("<th>Alias(es)</th>")//
-			.append("</tr>");
+			final StringBuilder sb = new StringBuilder("<header>");
+			sb.append(" <style>");
+			sb.append("  tr:nth-of-type(odd) {background-color:#ccc;}");
+			sb.append( " </style>");
+			sb.append( "</header>");
+			sb.append("<table>");
+			sb.append("<tr>");
+			sb.append("<th>Name</th>").append("<th>Acronym</th>").append("<th>Id</th>").append("<th>Parent</th>")
+			.append("<th>Ontology depth</th>").append("<th>Alias(es)</th>");
+			sb.append("</tr>");
 			for (final AllenCompartment c : cs) {
 				sb.append("<tr>");
-				sb.append("<td>").append(c.name()).append("</td>");
-				sb.append("<td>").append(c.acronym()).append("</td>");
-				sb.append("<td>").append(c.id()).append("</td>");
-				sb.append("<td>").append(String.join(",", c.aliases())).append("</td>");
+				sb.append("<td style='text-align:left'>").append(c.name()).append("</td>");
+				sb.append("<td style='text-align:center'>").append(c.acronym()).append("</td>");
+				sb.append("<td style='text-align:center'>").append(c.id()).append("</td>");
+				final AllenCompartment parent = c.getParent();
+				sb.append("<td style='text-align:center'>").append((parent == null) ? "-" : parent.toString()).append("</td>");
+				sb.append("<td style='text-align:center'>").append(c.getOntologyDepth()).append("</td>");
+				sb.append("<td style='text-align:center'>").append(String.join(",", c.aliases())).append("</td>");
 				sb.append("</tr>");
 			}
 			sb.append("</table>");
