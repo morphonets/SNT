@@ -293,6 +293,8 @@ public class InsectBrainLoader {
         private NeuronInfo() {
         }
 
+        public boolean hasReconstructions() { return hasReconstructions; }
+
         public int getNeuronID() {
             return neuronId;
         }
@@ -360,7 +362,7 @@ public class InsectBrainLoader {
             NeuronInfo neuronInfo = loader.getNeuronInfo();
             if (neuronInfo == null) continue;
             System.out.println("\nNeuron ID: " + neuronInfo.getNeuronID());
-            System.out.println("Has reconstructions: " + neuronInfo.hasReconstructions);
+            System.out.println("Has reconstructions: " + neuronInfo.hasReconstructions());
             System.out.println("Neuron name: " + neuronInfo.getFullName());
             System.out.println("Neuron short name: " + neuronInfo.getShortName());
             System.out.println("Soma location: " + neuronInfo.getSomaLocation());
