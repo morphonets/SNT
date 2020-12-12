@@ -78,6 +78,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import javax.swing.AbstractAction;
 import javax.swing.BoxLayout;
@@ -2980,8 +2981,10 @@ public class Viewer3D {
 			hideSomas.addActionListener(e -> displaySomas(false));
 			final JMenuItem hideBoxes = new JMenuItem("Bounding Box of Visible Meshes");
 			hideBoxes.addActionListener(e -> displayMeshBoundingBoxes(false));
-			final JMenuItem hideAll = new JMenuItem("All");
-			hideAll.addActionListener(e -> managerList.selectNone());
+//			final JMenuItem hideAll = new JMenuItem("All");
+//			hideAll.addActionListener(e -> managerList.selectNone());
+			final JMenuItem hideSelected = new JMenuItem("Selected");
+			hideSelected.addActionListener(e -> displaySelectedObjects(false));
 			hideMenu.add(hideTrees);
 			hideMenu.add(hideMeshes);
 			hideMenu.add(hideAnnotations);
@@ -2989,7 +2992,8 @@ public class Viewer3D {
 			hideMenu.add(hideSomas);
 			hideMenu.add(hideBoxes);
 			hideMenu.addSeparator();
-			hideMenu.add(hideAll);
+//			hideMenu.add(hideAll);
+			hideMenu.add(hideSelected);
 
 			// Show Menu
 			final JMenu showMenu = new JMenu("Show");
@@ -3004,8 +3008,10 @@ public class Viewer3D {
 			showSomas.addActionListener(e -> displaySomas(true));
 			final JMenuItem showBoxes = new JMenuItem("Bounding Box of Visible Meshes");
 			showBoxes.addActionListener(e -> displayMeshBoundingBoxes(true));
-			final JMenuItem showAll = new JMenuItem("All");
-			showAll.addActionListener(e -> managerList.selectAll());
+//			final JMenuItem showAll = new JMenuItem("All");
+//			showAll.addActionListener(e -> managerList.selectAll());
+			final JMenuItem showSelected = new JMenuItem("Selected");
+			showSelected.addActionListener(e -> displaySelectedObjects(true));
 			showMenu.add(showTrees);
 			showMenu.add(showMeshes);
 			showMenu.add(showAnnotations);
@@ -3013,7 +3019,8 @@ public class Viewer3D {
 			showMenu.add(showSomas);
 			showMenu.add(showBoxes);
 			showMenu.addSeparator();
-			showMenu.add(showAll);
+//			showMenu.add(showAll);
+			showMenu.add(showSelected);
 
 			final JMenuItem remove = new JMenuItem("Remove Selected...", IconFactory.getMenuIcon(GLYPH.TRASH));
 			remove.addActionListener(e -> {
@@ -3097,6 +3104,24 @@ public class Viewer3D {
 				indices[i++] = managerList.model.indexOf(k);
 			}
 			managerList.setSelectedIndices(indices);
+		}
+
+		private void displaySelectedObjects(final boolean display) {
+			if (noLoadedItemsGuiError()) {
+				return;
+			}
+			final int[] indices = managerList.getSelectedIndices();
+			SwingUtilities.invokeLater(() -> {
+				managerList.setValueIsAdjusting(true);
+				for (int i = 0; i < indices.length; i++) {
+					if (display)
+						managerList.addCheckBoxListSelectedIndex(i);
+					else
+						managerList.removeCheckBoxListSelectedIndex(i);
+				}
+				managerList.setValueIsAdjusting(false);
+			});
+
 		}
 
 		private void show(final Map<String, ?> map) {
