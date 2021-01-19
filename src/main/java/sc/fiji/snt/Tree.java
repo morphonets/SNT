@@ -1305,11 +1305,12 @@ public class Tree {
 	}
 
 	/**
-	 * Retrieves a list of {@link Tree}s from a single reconstruction file.
+	 * Retrieves a list of {@link Tree}s from a single file.
 	 * 
 	 *
 	 * @param tracesOrJsonFile the file containing the reconstructions (typically a
-	 *                         .traces or .json extension).
+	 *                         .traces or .json extension). A directory is also
+	 *                         supported.
 	 * @return the collection of imported {@link Tree}s. An empty list is retrieved
 	 *         if {@code tracesOrJsonFile} is not a valid, readable file.
 	 */
@@ -1317,6 +1318,9 @@ public class Tree {
 		final File f = new File(tracesOrJsonFile);
 		if (!f.exists())
 			throw new IllegalArgumentException("File does not exist: " + tracesOrJsonFile);
+		if (f.isDirectory()) {
+			return listFromDir(tracesOrJsonFile);
+		}
 		final Tree dummyTree = new Tree();
 		try {
 			dummyTree.initPathAndFillManagerFromFile(tracesOrJsonFile, "all");
