@@ -57,6 +57,7 @@ import sc.fiji.snt.viewer.OBJMesh;
  * Utility methods for accessing/handling {@link AllenCompartment}s
  * 
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
 public class AllenUtils {
 
@@ -464,6 +465,7 @@ public class AllenUtils {
 			throw new IllegalArgumentException(meshLabel + " not found");
 		final OBJMesh mesh = new OBJMesh(url, "um");
 		mesh.setColor(color, 95f);
+		mesh.setVolume(513578693035.138d); // pre-computed surface integral
 		mesh.setLabel(meshLabel);
 		return mesh;
 	}
