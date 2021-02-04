@@ -51,6 +51,7 @@ import sc.fiji.snt.viewer.OBJMesh;
  * are called.
  * 
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  *
  */
 public class AllenCompartment implements BrainAnnotation {
@@ -61,6 +62,8 @@ public class AllenCompartment implements BrainAnnotation {
 	private int structureId;
 	private UUID uuid;
 	private JSONObject jsonObj;
+	// Only access parentStructure via a call to getTreePath()
+	// This will ensure that parentStructure has been initialized
 	private ArrayList<AllenCompartment> parentStructure;
 
 	/**
@@ -124,7 +127,6 @@ public class AllenCompartment implements BrainAnnotation {
 	}
 
 	protected int depth() {
-		//initializeAsNeeded();
 		return jsonObj.getInt("depth");
 	}
 
@@ -133,7 +135,6 @@ public class AllenCompartment implements BrainAnnotation {
 	}
 
 	protected String getStructureIdPath() {
-		//initializeAsNeeded();
 		return jsonObj.optString("structureIdPath");
 	}
 
@@ -151,7 +152,7 @@ public class AllenCompartment implements BrainAnnotation {
 	 */
 	@Override
 	public boolean isChildOf(final BrainAnnotation childCompartment) {
-		if (childCompartment == null || !(childCompartment instanceof AllenCompartment))
+		if (!(childCompartment instanceof AllenCompartment))
 			return false;
 		final AllenCompartment cCompartment = (AllenCompartment) childCompartment;
 		return id() != cCompartment.id() && getStructureIdPath().contains(String.valueOf(cCompartment.id()));
@@ -197,8 +198,8 @@ public class AllenCompartment implements BrainAnnotation {
 	 */
 	public AllenCompartment getParent() {
 		if (getTreePath().size() < 2) return null;
-		final int lastIdx = Math.max(0, parentStructure.size() - 2);
-		return parentStructure.get(lastIdx);
+		final int lastIdx = Math.max(0, getTreePath().size() - 2);
+		return getTreePath().get(lastIdx);
 	}
 
 	/**
@@ -209,7 +210,7 @@ public class AllenCompartment implements BrainAnnotation {
 	 * @see #getTreePath()
 	 */
 	public List<AllenCompartment> getAncestors() {
-		return parentStructure.subList(0, parentStructure.size()-1);
+		return getTreePath().subList(0, getTreePath().size()-1);
 	}
 
 	/**
@@ -226,9 +227,9 @@ public class AllenCompartment implements BrainAnnotation {
 		if (level == 0) return getParent();
 		int normLevel = (level > 0) ? -level : level;
 		final int idx = getTreePath().size() - 1 + normLevel;
-		if (idx < 0 || idx >=  parentStructure.size() - 1)
+		if (idx < 0 || idx >=  getTreePath().size() - 1)
 			throw new IllegalArgumentException ("Ancestor level out of range. Compartment has "+ getOntologyDepth() + " ancestors.");
-		return parentStructure.get(idx);
+		return getTreePath().get(idx);
 	}
 
 	/**
@@ -258,7 +259,7 @@ public class AllenCompartment implements BrainAnnotation {
 		final ArrayList<AllenCompartment> children = new ArrayList<>();
 		final Collection<AllenCompartment> allCompartments = AllenUtils.getOntologies();
 		for (AllenCompartment c :  allCompartments) {
-			if (isChildOf(c) && c.getTreePath().size() <= maxLevel)
+			if (c.isChildOf(this) && c.getTreePath().size() <= maxLevel)
 				children.add(c);
 		}
 		return children;
@@ -266,25 +267,21 @@ public class AllenCompartment implements BrainAnnotation {
 
 	@Override
 	public int id() {
-		//initializeAsNeeded();
 		return structureId;
 	}
 
 	@Override
 	public String name() {
-		//initializeAsNeeded();
 		return name;
 	}
 
 	@Override
 	public String acronym() {
-		//initializeAsNeeded();
 		return acronym;
 	}
 
 	@Override
 	public String[] aliases() {
-		//initializeAsNeeded();
 		aliases = getArray(jsonObj.getJSONArray("aliases"));
 		return aliases;
 	}
@@ -295,7 +292,6 @@ public class AllenCompartment implements BrainAnnotation {
 	 * @return true, if a mesh is available.
 	 */
 	public boolean isMeshAvailable() {
-		//initializeAsNeeded();
 		return jsonObj.getBoolean("geometryEnable");
 	}
 
@@ -340,7 +336,7 @@ public class AllenCompartment implements BrainAnnotation {
 	 */
 	@Override
 	public boolean isParentOf(final BrainAnnotation childCompartment) {
-		if (childCompartment == null || !(childCompartment instanceof AllenCompartment))
+		if (!(childCompartment instanceof AllenCompartment))
 			return false;
 		final AllenCompartment cCompartment = (AllenCompartment) childCompartment;
 		return id() != cCompartment.id() && cCompartment.getStructureIdPath().contains(String.valueOf(id()));
