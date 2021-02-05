@@ -21,30 +21,10 @@
  */
 package sc.fiji.snt.annotation;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.UUID;
-
-import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeModel;
-import javax.swing.tree.TreeNode;
-
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 import org.scijava.util.ColorRGB;
-
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
@@ -52,6 +32,14 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.OBJMesh;
+
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreeNode;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.*;
 
 /**
  * Utility methods for accessing/handling {@link AllenCompartment}s
@@ -169,8 +157,8 @@ public class AllenUtils {
 	}
 
 	private static double[] crossProduct(double[] a, double[] b) {
-		if (a.length != b.length || a.length != 3 || b.length != 3) {
-			throw new IllegalArgumentException("Vectors a and b are not of equal length or are not 3-dimensional");
+		if (a.length != 3 || b.length != 3) {
+			throw new IllegalArgumentException("Vectors a and b must be 3-dimensional");
 		}
 		double[] c = new double[3];
 		c[0] = a[1] * b[2] - a[2] * b[1];
@@ -198,7 +186,7 @@ public class AllenUtils {
 		double norm = euclideanNorm(v);
 		double[] normalized = new double[v.length];
 		for (int i = 0; i < v.length; i++) {
-			normalized[i] = (double) v[i] / norm;
+			normalized[i] = v[i] / norm;
 		}
 		return normalized;
 	}
@@ -221,11 +209,10 @@ public class AllenUtils {
 		double d = -1 * a * planePoint[0] - b * planePoint[1] - c * planePoint[2];
 		// We need to use an affine transformation instead of linear
 		// since the plane of reflection does not go through the origin.
-		double[][] A = { {  1-2*a*a, -2*a*b,   -2*a*c,   -2*a*d },
+		return new double[][]{ {  1-2*a*a, -2*a*b,   -2*a*c,   -2*a*d },
 				{ -2*a*b,    1-2*b*b, -2*b*c,   -2*b*d },
-				{ -2*a*c,   -2*b*c,    1-2*c*c, -2*c*d }, 
+				{ -2*a*c,   -2*b*c,    1-2*c*c, -2*c*d },
 				{  0,        0,        0,        1 } };
-		return A;
 	}
 
 	/**
@@ -276,9 +263,10 @@ public class AllenUtils {
 	}
 
 	public static void assignHemisphereTags(final DirectedWeightedGraph graph) {
-		graph.vertexSet().forEach(node -> {
-			node.setHemisphere(isLeftHemisphere(node) ? BrainAnnotation.LEFT_HEMISPHERE : BrainAnnotation.RIGHT_HEMISPHERE);
-		});
+		graph.vertexSet().forEach(node ->
+				node.setHemisphere(
+						isLeftHemisphere(node) ? BrainAnnotation.LEFT_HEMISPHERE : BrainAnnotation.RIGHT_HEMISPHERE
+				));
 	}
 
 	/**
@@ -286,15 +274,17 @@ public class AllenUtils {
 	 *
 	 * @return the axis defining mid sagittal plane where X=0; Y=1; Z=2;
 	 */
+	@SuppressWarnings("SameReturnValue")
 	public static int getAxisDefiningMidSagittalPlane() {
 		return 0;
 	}
 
 	public static void assignHemisphereTags(final Tree tree) {
 		//TODO: Currently we have to tag both the tree nodes and graph vertices. This needs to be simplified!
-		tree.getNodes().forEach(node -> {
-			node.setHemisphere(isLeftHemisphere(node) ? BrainAnnotation.LEFT_HEMISPHERE : BrainAnnotation.RIGHT_HEMISPHERE);
-		});
+		tree.getNodes().forEach(node ->
+				node.setHemisphere(
+						isLeftHemisphere(node) ? BrainAnnotation.LEFT_HEMISPHERE : BrainAnnotation.RIGHT_HEMISPHERE
+				));
 		assignHemisphereTags(tree.getGraph());
 	}
 
@@ -335,6 +325,7 @@ public class AllenUtils {
 	 * 
 	 * @return the max number of ontology levels.
 	 */
+	@SuppressWarnings("SameReturnValue")
 	public static int getHighestOntologyDepth() {
 		// No need to compute, as this is unlikely to change
 		return 10; // computeHighestOntologyDepth();
@@ -365,7 +356,7 @@ public class AllenUtils {
 	 *
 	 * @return the "flattened" ontologies list
 	 */
-	public static Collection<AllenCompartment> getOntologies() {
+	public static List<AllenCompartment> getOntologies() {
 		return new AllenTreeModel().getOntologies();
 	}
 
@@ -381,12 +372,11 @@ public class AllenUtils {
 
 		private AllenCompartment getAreaListCompartment(final int idx) {
 			final JSONObject area = (JSONObject) areaList.get(idx);
-			final AllenCompartment ac = new AllenCompartment(UUID.fromString(area.getString("id")));
-			return ac;
+			return new AllenCompartment(UUID.fromString(area.getString("id")));
 		}
 
-		private Collection<AllenCompartment> getOntologies() {
-			final Collection<AllenCompartment> list = new ArrayList<>(areaList.length());
+		private List<AllenCompartment> getOntologies() {
+			final List<AllenCompartment> list = new ArrayList<>(areaList.length());
 			for (int n = 0; n < areaList.length(); n++) {
 				list.add(getAreaListCompartment(n));
 			}
@@ -395,7 +385,7 @@ public class AllenUtils {
 
 		private DefaultTreeModel getTreeModel(final boolean meshesOnly) {
 			final TreeSet<AllenCompartment> all = new TreeSet<>(
-					(ac1, ac2) -> ac1.getStructureIdPath().compareTo(ac2.getStructureIdPath()));
+					Comparator.comparing(AllenCompartment::getStructureIdPath));
 			final Map<Integer, AllenCompartment> idsMap = new HashMap<>();
 			final Set<Integer> visitedIds = new HashSet<>();
 			root = new DefaultMutableTreeNode();
