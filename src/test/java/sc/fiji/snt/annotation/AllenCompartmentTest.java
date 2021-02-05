@@ -132,7 +132,6 @@ public class AllenCompartmentTest {
             assertEquals(rootCompartment.hashCode(), new AllenCompartment(ROOT_STRUCTURE_ID).hashCode());
             assertEquals(rootCompartment.hashCode(), new AllenCompartment(ROOT_UUID).hashCode());
             assertEquals(rootCompartment.hashCode(), new AllenCompartment(ROOT_JSON_OBJECT, ROOT_UUID).hashCode());
-
         }
 
     }
@@ -183,12 +182,12 @@ public class AllenCompartmentTest {
                     .map(AllenCompartment::new)
                     .collect(Collectors.toList());
             for (int i = 0; i < compartmentList.size() - 1; i++) {
-                AllenCompartment parent = compartmentList.get(i);
-                for (AllenCompartment child : compartmentList.subList(i + 1, compartmentList.size())) {
+                final AllenCompartment parent = compartmentList.get(i);
+                for (final AllenCompartment child : compartmentList.subList(i + 1, compartmentList.size())) {
                     assertTrue(child.isChildOf(parent));
                 }
             }
-            AllenCompartment compartment = compartmentList.get(1);
+            final AllenCompartment compartment = compartmentList.get(1);
             assertFalse(compartment.isChildOf(new AllenCompartment(treePath.get(1))));
             assertFalse(compartment.isChildOf(compartmentList.get(2)));
         }
@@ -200,12 +199,12 @@ public class AllenCompartmentTest {
                     .map(AllenCompartment::new)
                     .collect(Collectors.toList());
             for (int i = 0; i < compartmentList.size() - 1; i++) {
-                AllenCompartment parent = compartmentList.get(i);
-                for (AllenCompartment child : compartmentList.subList(i + 1, compartmentList.size())) {
+                final AllenCompartment parent = compartmentList.get(i);
+                for (final AllenCompartment child : compartmentList.subList(i + 1, compartmentList.size())) {
                     assertTrue(parent.isParentOf(child));
                 }
             }
-            AllenCompartment compartment = compartmentList.get(1);
+            final AllenCompartment compartment = compartmentList.get(1);
             assertFalse(compartment.isParentOf(new AllenCompartment(treePath.get(1))));
             assertFalse(compartment.isParentOf(compartmentList.get(0)));
         }

@@ -46,35 +46,35 @@ public class AllenUtilsTest {
 
     @Test
     public void testGetBrainAreasList() {
-        JSONArray brainAreasList = AllenUtils.getBrainAreasList();
+        final JSONArray brainAreasList = AllenUtils.getBrainAreasList();
         assertEquals(1287, brainAreasList.length());
         for (int i = 0; i < brainAreasList.length(); i++) {
-            JSONObject jsonObject = brainAreasList.getJSONObject(i);
+            final JSONObject jsonObject = brainAreasList.getJSONObject(i);
             testJSONObject(jsonObject);
         }
     }
 
     @Test
     public void testGetBrainAreasByStructureId() {
-        JSONObject brainAreas = AllenUtils.getBrainAreasByStructureId();
+        final JSONObject brainAreas = AllenUtils.getBrainAreasByStructureId();
         assertEquals(1287, brainAreas.length());
-        Iterator<String> ids = brainAreas.keys();
+        final Iterator<String> ids = brainAreas.keys();
         while (ids.hasNext()) {
-            String idString = ids.next();
-            int idInt = Integer.parseInt(idString); // just check if an Integer is parsable
-            JSONObject jsonObj = brainAreas.getJSONObject(idString);
+            final String idString = ids.next();
+            final int idInt = Integer.parseInt(idString); // just check if an Integer is parsable
+            final JSONObject jsonObj = brainAreas.getJSONObject(idString);
             testJSONObject(jsonObj);
         }
     }
 
     @Test
     public void testGetBrainAreasByUUID() {
-        JSONObject brainAreas = AllenUtils.getBrainAreasByUUID();
+        final JSONObject brainAreas = AllenUtils.getBrainAreasByUUID();
         assertEquals(1287, brainAreas.length());
-        Iterator<String> uuids = brainAreas.keys();
+        final Iterator<String> uuids = brainAreas.keys();
         while (uuids.hasNext()) {
-            String uuidString = uuids.next();
-            JSONObject jsonObj = brainAreas.getJSONObject(uuidString);
+            final String uuidString = uuids.next();
+            final JSONObject jsonObj = brainAreas.getJSONObject(uuidString);
             testJSONObject(jsonObj);
         }
     }
