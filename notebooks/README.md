@@ -142,10 +142,42 @@ conda activate pyimagej
 conda install -c conda-forge matplotlib
 ```
 
-#### Converting from Java
-Java objects returned by SNT may need to be converted to the equivalent Python
-representation. This is achieved by calling pyimagej's `ij.py.from_java()`. For
-more details have a look at the [SNT](./1_overview.ipynb) and
+#### Converting to/from Java
+Certain Java objects returned by SNT may need to be converted to the equivalent Python
+representation, and vice versa. This is achieved by calling pyimagej's `ij.py.from_java()` 
+and `ij.py.to_java()` methods. However, for basic data types such as a Java `List`, it is possible to
+cast to a Python `list` by calling `list()`. Generally, it is only necessary to use these conversion methods if you run
+into an error when passing Python data types to Java methods and vice versa. Since pyimagej uses [JPype](https://github.com/jpype-project/jpype) internally, it is often possible to use certain Java objects as if
+they were Python objects. For example:
+
+```python
+>>> from scyjava import jimport
+>>> ArrayList = jimport('java.util.ArrayList')
+>>> arrayList = ArrayList([1,2,3,4,5])
+# Basic slicing is supported
+>>> arrayList[:-1]
+<java object 'java.util.ArrayList.SubList'>
+>>> print(arrayList[:-1])
+[1, 2, 3, 4]
+# As are certain Python list methods such as append() and extend()
+>>> arrayList.extend([6,7])
+>>> print(arrayList)
+[1, 2, 3, 4, 5, 6, 7]
+# However, if we try to stride...
+>>> arrayList[::-1]
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "C:\Users\cam\miniconda3\envs\pyimagej-1.0\lib\site-packages\jpype\_jcollection.py", line 91, in __getitem__
+    ndx = _sliceAdjust(ndx, self.size())
+  File "C:\Users\cam\miniconda3\envs\pyimagej-1.0\lib\site-packages\jpype\_jcollection.py", line 65, in _sliceAdjust
+    raise TypeError("Stride not supported")
+TypeError: Stride not supported
+# Nonetheless, we can simply cast to a Python list with list()
+>>> list(arrayList)[::-1]
+[7, 6, 5, 4, 3, 2, 1]
+```
+
+For more details have a look at the [SNT](./1_overview.ipynb) and
 [pyimagej][pyimagej_intro] introductory notebooks.
 
 
