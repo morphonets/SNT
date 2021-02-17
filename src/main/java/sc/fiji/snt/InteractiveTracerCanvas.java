@@ -25,6 +25,7 @@ package sc.fiji.snt;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.measure.Calibration;
+import org.jgrapht.Graphs;
 import org.scijava.util.PlatformUtils;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.gui.GuiUtils;
@@ -214,8 +215,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			return;
 		}
 		final Path source = tracerPlugin.getEditingPath();
-		final boolean startJoins = (source.getEditableNodeIndex() <= source.size() / 2);
-		connectToEditingPath(source, tracerPlugin.getPreviousEditingPath(), startJoins);
+		connectToEditingPath(source, tracerPlugin.getPreviousEditingPath());
 	}
 
 	private void updateConnectToSecondaryEditingPathMenuItem() {
@@ -232,29 +232,33 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		connectToSecondaryEditingPath.setText(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + label);
 	}
 
-
-	private void connectToEditingPath(final Path source, final Path destination, final boolean startJoins) {
-		final int nodeIndexP = destination.getEditableNodeIndex();
-		final int nodeIndexS = source.getEditableNodeIndex();
-		if (nodeIndexP * nodeIndexS != 0) {
+	private void connectToEditingPath(final Path source, final Path destination) {
+		if (source.getTreeID() == destination.getTreeID()) {
 			getGuiUtils().error("Cannot connect selected nodes: A loop would be created!",
 					"Reconstruction Cannot Contain Loops");
 			return;
 		}
-		final PointInImage tPim = destination.getNodeWithoutChecks(nodeIndexP);
-		source.moveNode(source.getEditableNodeIndex(), tPim);
-		if (startJoins) {
-			if (source.getStartJoins() != null)
-				source.unsetStartJoin();
-			source.setStartJoin(destination, tPim);
-		} else {
-			if (source.getEndJoins() != null)
-				source.unsetEndJoin();
-			source.setEndJoin(destination, tPim);
-		}
-		destination.setEditableNode(-1);
-		pathAndFillManager.resetListeners(null);
-		tracerPlugin.updateAllViewers();
+		final Tree destinationTree = getTreeFromID(destination.getTreeID());
+		final Tree sourceTree = getTreeFromID(source.getTreeID());
+		final DirectedWeightedGraph destinationGraph = destinationTree.getGraph();
+		// Source graph is merged into destination graph
+		Graphs.addGraph(destinationGraph, sourceTree.getGraph());
+		final SWCPoint destinationNode = getMatchingPointInGraph(destination.getNode(destination.getEditableNodeIndex()),
+				destinationGraph);
+		final SWCPoint sourceNode = getMatchingPointInGraph(source.getNode(source.getEditableNodeIndex()),
+				destinationGraph);
+		// Directed edge from destination node to source node
+		destinationGraph.addEdge(destinationNode, sourceNode);
+		final PointInImage destinationRoot = destinationTree.getRoot();
+		// Set the correct edge directions in the merged graph
+		destinationGraph.setRoot(getMatchingPointInGraph(destinationRoot, destinationGraph));
+		final Tree newTree = destinationGraph.getTree(true);
+		enableEditMode(false);
+		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
+		newTree.list().forEach(p -> p.setSpacing(cal));
+		pathAndFillManager.deletePaths(destinationTree.list());
+		pathAndFillManager.deletePaths(sourceTree.list());
+		pathAndFillManager.addTree(newTree);
 	}
 
 	private JMenuItem helpOnConnectingMenuItem() {
@@ -981,33 +985,34 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final Path editingPath = tracerPlugin.getEditingPath();
 		final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
 		final int treeID = editingPath.getTreeID();
-		final Tree editingTree = new Tree();
-		for (final Path p : pathAndFillManager.getPaths()) {
-			if (treeID == p.getTreeID()) {
-				editingTree.add(p);
-			}
-		}
+		final Tree editingTree = getTreeFromID(treeID);
 		final DirectedWeightedGraph editingGraph = editingTree.getGraph();
-		/* FIXME:
-		    currently, there is no efficient way to map a PointInImage to its corresponding SWCPoint in the graph.
-		    Workaround is to find the SWCPoint in the graph closest to the query PointInImage.
-		    This is likely to be slow with large or highly dense reconstructions. */
-		SWCPoint editingSWCPoint = null;
-		double minDist = Double.MAX_VALUE;
-		for (final SWCPoint p : editingGraph.vertexSet()) {
-			double d = p.distanceTo(editingNode);
-			if (d < minDist) {
-				minDist = d;
-				editingSWCPoint = p;
-			}
-		}
-		editingGraph.setRoot(editingSWCPoint);
+		editingGraph.setRoot(getMatchingPointInGraph(editingNode, editingGraph));
 		final Tree newTree = editingGraph.getTree(true);
 		enableEditMode(false);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		newTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(editingTree.list());
 		pathAndFillManager.addTree(newTree);
+	}
+
+	private Tree getTreeFromID(final int treeID) {
+		final Tree tree = new Tree();
+		for (final Path p : pathAndFillManager.getPaths()) {
+			if (treeID == p.getTreeID()) {
+				tree.add(p);
+			}
+		}
+		return tree;
+	}
+
+	private SWCPoint getMatchingPointInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
+		for (final SWCPoint p : graph.vertexSet()) {
+			if (p.isSameLocation(point)) {
+				return p;
+			}
+		}
+		return null;
 	}
 
 }
