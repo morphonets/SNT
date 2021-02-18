@@ -192,26 +192,29 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				}
 				else if (cmd.equals(AListener.NODE_RESET) || cmd.equals(AListener.NODE_DELETE)
 						|| cmd.equals(AListener.NODE_INSERT) || cmd.equals(AListener.NODE_MOVE)
-						|| cmd.equals(AListener.NODE_SET_ROOT)
-						|| cmd.startsWith(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX)) {
+						|| cmd.equals(AListener.NODE_SET_ROOT)) {
 					mItem.setEnabled(be && editMode);
 				} else {
 					mItem.setEnabled(true);
 				}
-
 			}
 		}
-
 		updateConnectToSecondaryEditingPathMenuItem();
 		pMenu.show(this, x, y);
 	}
 
 	protected void connectEditingPathToPreviousEditingPath() {
-		updateConnectToSecondaryEditingPathMenuItem();
-		if (!connectToSecondaryEditingPath.isEnabled()) {
+		// We need to check again here for two reasons.
+		// 1) In case the user arrived here via the keyboard shortcut instead of the menu item
+		// 2) It is possible for the editable node to change between the time the user opens the right-click menu
+		//    and the moment they select the menu item
+		if (!editMode || //
+				tracerPlugin.getEditingPath() == null || //
+				tracerPlugin.getPreviousEditingPath() == null || //
+				tracerPlugin.getPreviousEditingPath().getEditableNodeIndex() == -1) //
+		{
 			getGuiUtils().error(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + ": No connectable node exist.",
 					"No Connectable Nodes");
-			updateConnectToSecondaryEditingPathMenuItem();
 			return;
 		}
 		final Path source = tracerPlugin.getEditingPath();
@@ -228,6 +231,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			connectToSecondaryEditingPath.setEnabled(false);
 			return;
 		}
+		connectToSecondaryEditingPath.setEnabled(true);
 		final String label = tracerPlugin.getPreviousEditingPath().getName() + " (node " + tracerPlugin.getPreviousEditingPath().getEditableNodeIndex() +")";
 		connectToSecondaryEditingPath.setText(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + label);
 	}
