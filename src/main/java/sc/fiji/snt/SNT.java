@@ -370,7 +370,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @see #rebuildDisplayCanvases()
 	 */
 	public void updateDisplayCanvases() {
-		if (!accessToValidImageData() && getImagePlus() != null) {
+		if (!accessToValidImageData() && getImagePlus() == null) {
 			SNTUtils.log("Rebuilding canvases...");
 			rebuildDisplayCanvasesInternal();
 		}
