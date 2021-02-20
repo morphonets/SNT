@@ -57,6 +57,7 @@ import java.util.Stack;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -2777,13 +2778,15 @@ public class PathAndFillManager extends DefaultHandler implements
 		return allPaths;
 	}
 
-	public ArrayList<Path> getPathsFiltered() {
-		final ArrayList<Path> paths = new ArrayList<>();
-		for (final Path p : getPaths()) {
-			if (p == null || p.isFittedVersionOfAnotherPath()) continue;
-			paths.add(p);
-		}
-		return paths;
+	/**
+	 * Returns 'de facto' Paths.
+	 *
+	 * @return the paths associated with this PathAndFillManager instance excluding
+	 *         those that are null or fitted version of o paths.
+	 */
+	public List<Path> getPathsFiltered() {
+		return (List<Path>) getPaths().stream().filter(p -> p != null && !p.isFittedVersionOfAnotherPath())
+				.collect(Collectors.toList());
 	}
 
 	/* (non-Javadoc)
