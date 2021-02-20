@@ -1666,14 +1666,15 @@ public class SNTUI extends JDialog {
 			if (openingSciView && sciViewSNT != null) {
 				openingSciView = false;
 			}
-			if (!openingSciView && sciViewSNT == null || (sciViewSNT.getSciView() == null || sciViewSNT.getSciView().isClosed())) {
-				openingSciView = true;
-				try {
+			try {
+				if (!openingSciView && sciViewSNT == null
+						|| (sciViewSNT.getSciView() == null || sciViewSNT.getSciView().isClosed())) {
+					openingSciView = true;
 					new Thread(() -> new SciViewSNT(plugin).getSciView()).start();
-				} catch (final NoClassDefFoundError exc) {
-					exc.printStackTrace();
-					no3DcapabilitiesError("SciView");
 				}
+			} catch (final Throwable exc) {
+				exc.printStackTrace();
+				no3DcapabilitiesError("SciView");
 			}
 		});
 
@@ -1702,7 +1703,7 @@ public class SNTUI extends JDialog {
 
 	private void no3DcapabilitiesError(final String viewer) {
 		guiUtils.error(viewer + " could not be initialized. Your installation seems "
-				+ "to be missing essential 3D libraries. Please use the updater to re-instate any "
+				+ "to be missing essential 3D libraries. Please use the updater to install any "
 				+ "missing files. See Console for details.", "Error: Dependencies Missing");
 	}
 

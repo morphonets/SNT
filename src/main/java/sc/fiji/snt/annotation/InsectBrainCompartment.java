@@ -45,15 +45,24 @@ public class InsectBrainCompartment implements BrainAnnotation {
     private int id;
     private String name;
     private String acronym;
-    private String[] aliases;
+
+    @SuppressWarnings("unused")
+	private String[] aliases;
+
     private UUID uuid;
     private String objPath;
     private String objColor;
-    private Object hemisphere;
-    private int speciesId;
-    private String sex;
-    private String type;
-    private BrainAnnotation parent;
+
+    @SuppressWarnings("unused")
+	private Object hemisphere;
+    @SuppressWarnings("unused")
+	private int speciesId;
+    @SuppressWarnings("unused")
+	private String sex;
+    @SuppressWarnings("unused")
+	private String type;
+    @SuppressWarnings("unused")
+	private BrainAnnotation parent;
 
     protected InsectBrainCompartment() {
     }
