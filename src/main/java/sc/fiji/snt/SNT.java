@@ -377,6 +377,12 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private void rebuildDisplayCanvasesInternal() {
+		if (pathAndFillManager.spacingIsUnset) {
+			pathAndFillManager.resetSpatialSettings(); // set spacing to 1,1,1
+		}
+		if (!pathAndFillManager.getBoundingBox(false).hasDimensions()) {
+			pathAndFillManager.updateBoundingBox();
+		}
 		initialize(getSinglePane(), 1, 1);
 		updateUIFromInitializedImp(xy.isVisible());
 		pauseTracing(true, false);
@@ -443,8 +449,7 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 		BoundingBox box = pathAndFillManager.getBoundingBox(false);
-		if (Double.isNaN(box.getDiagonal())) box = pathAndFillManager
-			.getBoundingBox(true);
+		if (!box.hasDimensions()) box = pathAndFillManager.getBoundingBox(true);
 
 		final double[] dims = box.getDimensions(false);
 		width = (int) Math.round(dims[0]);
@@ -469,10 +474,8 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		// Enlarge canvas for easier access to edge nodes. Center all paths in
-		// canvas
-		// without translating their coordinates. This is more relevant for files
-		// with
-		// negative coordinates
+		// canvas without translating their coordinates. This is more relevant
+		// for e.g., files with negative coordinates
 		final int XY_PADDING = 50;
 		final int Z_PADDING = (singleSlice) ? 0 : 2;
 		width += XY_PADDING;

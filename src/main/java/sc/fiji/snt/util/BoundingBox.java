@@ -351,6 +351,10 @@ public class BoundingBox {
 		this.originOpposite = originOpposite;
 	}
 
+	public boolean hasDimensions() {
+		return origin.distanceSquaredTo(originOpposite) > 0;
+	}
+
 	@Override
 	public int hashCode() {
 		return Objects.hash(xSpacing, ySpacing, zSpacing, spacingUnit, origin, originOpposite);
@@ -383,5 +387,10 @@ public class BoundingBox {
 		clone.info = this.info;
 		clone.spacingUnit = this.spacingUnit;
 		return clone;
+	}
+
+	@Override
+	public String toString() {
+		return "Origin: " + origin.toString() + " OriginOpposite: " + originOpposite.toString();
 	}
 }

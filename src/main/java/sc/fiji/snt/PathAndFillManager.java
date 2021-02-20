@@ -217,7 +217,11 @@ public class PathAndFillManager extends DefaultHandler implements
 		y_spacing = boundingBox.ySpacing;
 		z_spacing = boundingBox.zSpacing;
 		spacing_units = boundingBox.getUnit();
-		plugin = null;
+		// plugin = null;
+		if (size() > 0) {
+			final Calibration cal = boundingBox.getCalibration();
+			getPaths().forEach(path -> path.setSpacing(cal));
+		}
 		spacingIsUnset = true;
 	}
 
@@ -547,6 +551,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	public BoundingBox getBoundingBox(final boolean compute) {
 		if (boundingBox == null) boundingBox = new BoundingBox();
 		if (!compute || getPaths().size() == 0) return boundingBox;
+		SNTUtils.log("Computing bounding box...");
 		final Iterator<PointInImage> allPointsIt = allPointsIterator();
 		boundingBox.compute(allPointsIt);
 		return boundingBox;
@@ -2046,6 +2051,8 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 		allPaths.clear();
 		allFills.clear();
+		if (plugin == null || (plugin != null && !plugin.accessToValidImageData()))
+			resetSpatialSettings();
 		resetListeners(null);
 	}
 
