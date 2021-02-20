@@ -368,7 +368,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		tracerPlugin.startSholl(centerScaled);
 	}
 
-	public void selectNearestPathToMousePointerOld(
+	/** @deprecated */
+	protected void selectNearestPathToMousePointerOld(
 		final boolean addToExistingSelection)
 	{
 		if (pathAndFillManager.size() == 0) {
