@@ -2292,7 +2292,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			}
 		}
 
-		// FIXME: This is really slow with large SWC files
+		// FIXME: This is slow with large SWC files
+		final boolean existingEnableUIupdates = enableUIupdates;
+		this.enableUIupdates = false;
 		final HashMap<SWCPoint, Path> pointToPath = new HashMap<>();
 		final PriorityQueue<SWCPoint> backtrackTo = new PriorityQueue<>(
 			primaryPoints);
@@ -2371,6 +2373,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			addPath(p);
 		}
 
+		this.enableUIupdates = existingEnableUIupdates;
 		resetListeners(null, true);
 
 		// Infer fields for when an image has not been specified. We'll assume
