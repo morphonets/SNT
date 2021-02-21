@@ -889,7 +889,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	protected void deleteEditingNode(final boolean warnOnFailure) {
 		if (impossibleEdit(warnOnFailure)) return;
 		final Path editingPath = tracerPlugin.getEditingPath();
-		if (editingPath.size() > 1) {
+		if (editingPath.size() > 2) {
 			try {
 				editingPath.removeNode(editingPath.getEditableNodeIndex());
 				redrawEditingPath("Node deleted");
@@ -899,10 +899,13 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			}
 		}
 		else if (new GuiUtils(this.getParent()).getConfirmation("Delete " +
-			editingPath + "?", "Delete Single-Point Path?"))
+			editingPath + "?", "Delete Path?"))
 		{
+			editingPath.disconnectFromAll(); // Fixes ghost connection at canvas origin after deleting last node
+											 // in a forked path
 			tracerPlugin.getPathAndFillManager().deletePath(editingPath);
-			tracerPlugin.detectEditingPath();
+			//tracerPlugin.detectEditingPath();
+			enableEditMode(false);
 			tracerPlugin.updateAllViewers();
 		}
 	}
