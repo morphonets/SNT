@@ -100,6 +100,7 @@ import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
+import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.gui.ColorMenu;
 import sc.fiji.snt.gui.IconFactory;
@@ -586,14 +587,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	private void deletePaths(final Collection<Path> pathsToBeDeleted) {
 		final boolean resetIDs = pathsToBeDeleted.size() == pathAndFillManager.size();
+		boolean rebuild = false;
 		for (final Path p : pathsToBeDeleted) {
 			if (plugin !=null && p.isBeingEdited()) plugin.enableEditMode(false);
+			if (new TreeAnalyzer(new Tree(Collections.singleton(p))).getBranchPoints().size() > 0) {
+				rebuild = true;
+			}
 			p.disconnectFromAll();
 			pathAndFillManager.deletePath(p);
 		}
 		if (resetIDs) {
 			pathAndFillManager.resetIDs();
 			plugin.unsavedPaths = false;
+		} else if (rebuild) {
+			pathAndFillManager.rebuildRelationships();
 		}
 		refreshManager(false, true);
 	}
