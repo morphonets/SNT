@@ -316,9 +316,21 @@ public class SNTUtils {
 		}
 	}
 
+	public static File findClosestPair (final File file, final String[] pairExts) {
+		SNTUtils.log("Finding closest pair for " + file);
+		for (final String ext : pairExts) {
+			final File candidate = findClosestPairInternal(file, ext);
+			if (candidate != null) return candidate;
+		}
+		return null;
+	}
+
 	public static File findClosestPair(final File file, final String pairExt) {
+		return findClosestPair(file, new String[] {pairExt});
+	}
+
+	private static File findClosestPairInternal(final File file, final String pairExt) {
 		try {
-			SNTUtils.log("Finding closest pair for " + file);
 			final File dir = file.getParentFile();
 			final String[] list = dir.list((f, s) -> s.endsWith(pairExt));
 			SNTUtils.log("Found " + list.length + " " + pairExt + " files");
