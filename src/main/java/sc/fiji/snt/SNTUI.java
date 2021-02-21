@@ -1085,12 +1085,21 @@ public class SNTUI extends JDialog {
 				return;
 			}
 			if (noImageData) {
+				if (!plugin.pathAndFillManager.allPathsShareSameSpatialCalibration()
+						&& guiUtils.getConfirmation("You seem to have loaded paths associated with " //
+								+ "images with conflicting spatial calibrations. Would you like to " //
+								+ "reset spatial calibrations of paths?<br><br>" //
+								+ "This will force display canvas(es) to have unitary spacing (e.g.," //1316
+								+ "1px&rarr;1" + GuiUtils.micrometer() + ")", "Reset Path Calibrations?")) {
+					plugin.pathAndFillManager.resetSpatialSettings();
+				}
 				changeState(LOADING);
 				showStatus("Resizing Canvas...", false);
 				updateSinglePaneFlag();
 				plugin.rebuildDisplayCanvases(); // will change UI state
 				arrangeCanvases(false);
 				showStatus("Canvas rebuilt...", true);
+
 			} else {
 				guiUtils.error("This command is only available for display canvases. To resize "
 						+ "current image use IJ's command <i>Image> Adjust> Canvas Size...</i> and press "
@@ -3637,7 +3646,7 @@ public class SNTUI extends JDialog {
 			final boolean rebuild = rebuildCanvas && plugin.accessToValidImageData() && 
 					guiUtils.getConfirmation("<HTML><div WIDTH=500>" //
 					+ "Coordinates of external reconstructions <i>may</i> fall outside the boundaries " //
-					+ "of current image. Would you like to close active image and use a display canvas " //
+					+ "of current image. Would you like to close the active image and use a display canvas " //
 					+ "with computed dimensions containing all the nodes of the imported file?", //
 					"Change to Display Canvas?", "Yes. Use Display Canvas", "No. Use Current Image");
 			if (rebuild) {

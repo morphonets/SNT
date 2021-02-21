@@ -317,7 +317,7 @@ public class SNTUtils {
 	}
 
 	public static File findClosestPair (final File file, final String[] pairExts) {
-		SNTUtils.log("Finding closest pair for " + file);
+		SNTUtils.log("Finding closest paired file for " + file);
 		for (final String ext : pairExts) {
 			final File candidate = findClosestPairInternal(file, ext);
 			if (candidate != null) return candidate;

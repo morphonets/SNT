@@ -573,6 +573,17 @@ public class PathAndFillManager extends DefaultHandler implements
 		return boundingBox;
 	}
 
+	protected boolean allPathsShareSameSpatialCalibration() {
+		if (!getPaths().isEmpty()) {
+			final Calibration ref = getPaths().get(0).getCalibration();
+			for (int i = 1; i < getPaths().size(); i++) {
+				if (!ref.equals(getPaths().get(i).getCalibration()))
+					return false;
+			}
+		}
+		return true;
+	}
+
 	/*
 	 * This method returns an array of the "primary paths", which should be
 	 * displayed at the top of a tree-like hierarchy.
