@@ -159,7 +159,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected PathAndFillManager(final SNT plugin) {
 		this();
 		this.plugin = plugin;
-		syncPluginSpatialSettings();
+		seSpatialSettingsFromPlugin();
 		addPathAndFillListener(plugin);
 	}
 
@@ -186,7 +186,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		spacingIsUnset = false;
 	}
 
-	protected void syncPluginSpatialSettings() {
+	protected void seSpatialSettingsFromPlugin() {
 		x_spacing = plugin.x_spacing;
 		y_spacing = plugin.y_spacing;
 		z_spacing = plugin.z_spacing;
@@ -196,6 +196,17 @@ public class PathAndFillManager extends DefaultHandler implements
 			spacing_units);
 		boundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
 		spacingIsUnset = false;
+	}
+
+	protected void setPluginSpatialSettings() {
+		plugin.x_spacing = x_spacing;
+		plugin.y_spacing = y_spacing;
+		plugin.z_spacing = z_spacing;
+		plugin.spacing_units = spacing_units;
+		final double[] dimensions = boundingBox.getDimensions(false);
+		plugin.width = (int) dimensions[0];
+		plugin.height = (int) dimensions[1];
+		plugin.depth = (int) dimensions[2];
 	}
 
 	protected void assignSpatialSettings(final ImagePlus imp) {
@@ -222,7 +233,12 @@ public class PathAndFillManager extends DefaultHandler implements
 			final Calibration cal = boundingBox.getCalibration();
 			getPaths().forEach(path -> path.setSpacing(cal));
 		}
-		spacingIsUnset = true;
+		// if the user is using a display canvas and has loaded reconstructions
+		// then we will keep using current spacing until user disposes all paths
+		if (size() > 0 && plugin != null && !plugin.accessToValidImageData())
+			spacingIsUnset = false;
+		else
+			spacingIsUnset = true;
 	}
 
 	/**
@@ -2390,7 +2406,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		{
 			if (boundingBox == null)
 				boundingBox = new BoundingBox();
-			boundingBox.compute(((TreeSet<? extends SNTPoint>) points).iterator());
+			boundingBox.append(((TreeSet<? extends SNTPoint>) points).iterator());
 
 			// If a plugin exists, warn user if its image cannot render imported nodes
 			if (plugin != null && plugin.getImagePlus() != null) {
@@ -2399,6 +2415,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				pluginBoundingBox.setOrigin(new PointInImage(0, 0, 0));
 				pluginBoundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
 				if (!pluginBoundingBox.contains(boundingBox)) {
+					if (!plugin.accessToValidImageData()) setPluginSpatialSettings();
 					SNTUtils.warn("Some nodes lay outside the image volume: you may need to "
 							+ "adjust import options or resize current image canvas");
 				}

@@ -336,7 +336,7 @@ public class SNT extends MultiDThreePanes implements
 				"One dimension of the calibration information was zero: (" + x_spacing +
 					"," + y_spacing + "," + z_spacing + ")");
 		}
-		pathAndFillManager.syncPluginSpatialSettings();
+		pathAndFillManager.seSpatialSettingsFromPlugin();
 		if (accessToValidImageData() && sourceImage.getOriginalFileInfo() != null) {
 			final String dir = sourceImage.getOriginalFileInfo().directory;
 			final String name = sourceImage.getOriginalFileInfo().fileName;
