@@ -26,8 +26,11 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import org.jgrapht.Graphs;
+import org.jgrapht.traverse.DepthFirstIterator;
 import org.scijava.util.PlatformUtils;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
+import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.util.PointInCanvas;
@@ -39,7 +42,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 class InteractiveTracerCanvas extends TracerCanvas {
 
@@ -114,6 +119,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B));
 		pMenu.add(menuItem(AListener.NODE_RESET, listener));
 		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
+		pMenu.add(menuItem(AListener.NODE_SPLIT, listener));
 		pMenu.addSeparator();
 
 		connectToSecondaryEditingPath = menuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER, listener);
@@ -739,6 +745,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		private final static String NODE_MOVE = "  Move Active Node to Cursor Position";
 		private final static String NODE_MOVE_Z = "  Bring Active Node to Current Z-plane";
 		private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root...";
+		private final static String NODE_SPLIT = "  Split Tree at Active Node";
 		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = "  Connect to ";
 		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER = NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX
 				+ "Unselected Crosshair Node";
@@ -853,6 +860,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 					break;
 				case NODE_SET_ROOT:
 					assignTreeRootToEditingNode(true);
+					break;
+				case NODE_SPLIT:
+					splitTreeAtEditingNode(true);
 					break;
 				default:
 					SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
@@ -998,6 +1008,41 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		newTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(editingTree.list());
 		pathAndFillManager.addTree(newTree);
+	}
+
+	protected void splitTreeAtEditingNode(final boolean warnOnFailure) {
+		if (impossibleEdit(warnOnFailure)) return;
+		final Path editingPath = tracerPlugin.getEditingPath();
+		final Tree editingTree = getTreeFromID(editingPath.getTreeID());
+		final PointInImage editingPoint = editingPath.getNode(editingPath.getEditableNodeIndex());
+		if (editingTree.getRoot().equals(editingPoint)) {
+			getGuiUtils().tempMsg("Cannot split Tree at root node.");
+			return;
+		}
+		final DirectedWeightedGraph editingGraph = editingTree.getGraph();
+		final SWCPoint editingVertex = getMatchingPointInGraph(editingPoint, editingGraph);
+		// incomingEdgesOf should never return an empty Set if we've arrived here
+		editingGraph.removeEdge(editingGraph.incomingEdgesOf(editingVertex).iterator().next());
+		final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator = editingGraph.getDepthFirstIterator(
+				editingVertex);
+		final Set<SWCPoint> descendantVertexSet = new HashSet<>();
+		while (depthFirstIterator.hasNext()) {
+			descendantVertexSet.add(depthFirstIterator.next());
+		}
+		final DirectedWeightedSubgraph descendantSubgraph = editingGraph.getSubgraph(descendantVertexSet);
+		final DirectedWeightedGraph descendantGraph = new DirectedWeightedGraph();
+		Graphs.addGraph(descendantGraph, descendantSubgraph);
+		// This also removes all related edges
+		editingGraph.removeAllVertices(descendantVertexSet);
+		final Tree ancestorTree = editingGraph.getTree(true);
+		final Tree descendentTree = descendantGraph.getTree(true);
+		enableEditMode(false);
+		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
+		ancestorTree.list().forEach(p -> p.setSpacing(cal));
+		descendentTree.list().forEach(p -> p.setSpacing(cal));
+		pathAndFillManager.deletePaths(editingTree.list());
+		pathAndFillManager.addTree(ancestorTree);
+		pathAndFillManager.addTree(descendentTree);
 	}
 
 	private Tree getTreeFromID(final int treeID) {
