@@ -198,7 +198,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				}
 				else if (cmd.equals(AListener.NODE_RESET) || cmd.equals(AListener.NODE_DELETE)
 						|| cmd.equals(AListener.NODE_INSERT) || cmd.equals(AListener.NODE_MOVE)
-						|| cmd.equals(AListener.NODE_SET_ROOT)) {
+						|| cmd.equals(AListener.NODE_SET_ROOT) || cmd.equals(AListener.NODE_SPLIT)) {
 					mItem.setEnabled(be && editMode);
 				} else {
 					mItem.setEnabled(true);
