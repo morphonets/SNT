@@ -456,7 +456,7 @@ public class SNT extends MultiDThreePanes implements
 		height = (int) Math.round(dims[1]);
 		depth = (int) Math.round(dims[2]);
 		spacing_units = box.getUnit();
-		singleSlice = depth == 1;
+		singleSlice = depth < 2;
 		setSinglePane(single_pane);
 
 		// Make canvas 2D if there is not enough memory (>80%) for a 3D stack
@@ -2365,6 +2365,10 @@ public class SNT extends MultiDThreePanes implements
 				break;
 		}
 		return (imp == null || imp.getProcessor() == null) ? null : imp;
+	}
+
+	protected ImagePlus getMainImagePlusWithoutChecks() {
+		return xy;
 	}
 
 	protected void error(final String msg) {

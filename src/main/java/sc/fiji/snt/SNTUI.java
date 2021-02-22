@@ -1068,8 +1068,10 @@ public class SNTUI extends JDialog {
 					t.printStackTrace();
 				}
 				plugin.setSinglePane(true);
-				if (noImageData)
+				if (noImageData) {
 					plugin.rebuildDisplayCanvases();
+					arrangeCanvases(false);
+				}
 				showStatus("Out of memory error...", true);
 			} finally {
 				resetState();
@@ -3427,13 +3429,14 @@ public class SNTUI extends JDialog {
 		/* ImageListener */
 		@Override
 		public void imageClosed(final ImagePlus imp) {
-			if (imp != plugin.getImagePlus())
+			if (imp != plugin.getMainImagePlusWithoutChecks())
 				return;
 			if (plugin.accessToValidImageData()) {
+				// the image being closed is not a display canvas
 				plugin.pauseTracing(true, false);
-			} else {
-				updateRebuildCanvasButton();
+				plugin.getPathAndFillManager().spacingIsUnset = true;
 			}
+			SwingUtilities.invokeLater(() -> updateRebuildCanvasButton());
 		}
 
 		/*
@@ -3930,9 +3933,8 @@ public class SNTUI extends JDialog {
 		}
 
 		private boolean proceed() {
-			return !plugin.isChangesUnsaved() || (plugin.isChangesUnsaved() && plugin.accessToValidImageData()
-					&& guiUtils.getConfirmation("There are unsaved paths. Do you really want to load new data?",
-							"Proceed with Import?"));
+			return !plugin.isChangesUnsaved() || (plugin.isChangesUnsaved() && guiUtils.getConfirmation(
+					"There are unsaved paths. Do you really want to load new data?", "Proceed with Import?"));
 		}
 	}
 

@@ -2292,17 +2292,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			}
 		}
 
-		if (spacingIsUnset) {
-			if (!headless) SNTUtils.log(
-				"Inferring pixel spacing from imported points... ");
-			boundingBox.inferSpacing(points);
-			x_spacing = boundingBox.xSpacing;
-			y_spacing = boundingBox.ySpacing;
-			z_spacing = boundingBox.zSpacing;
-			// NB: we must leave boundingBox origin unset so that it's dimensions can be properly computed
-			spacingIsUnset = false;
-		}
-
 		// We'll now iterate (again!) through the points to fix some ill-assembled
 		// files that do exist in the wild defined in pixel coordinates!
 		if (assumeCoordinatesInVoxels) {
