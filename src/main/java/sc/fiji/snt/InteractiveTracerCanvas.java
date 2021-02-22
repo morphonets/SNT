@@ -117,9 +117,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		pMenu.add(menuItem(AListener.NODE_INSERT, listener, KeyEvent.VK_I));
 		pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M));
 		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B));
-		pMenu.add(menuItem(AListener.NODE_RESET, listener));
-		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
-		pMenu.add(menuItem(AListener.NODE_SPLIT, listener));
+		pMenu.add(menuItem(AListener.NODE_SPLIT, listener, KeyEvent.VK_X));
 		pMenu.addSeparator();
 
 		connectToSecondaryEditingPath = menuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER, listener);
@@ -127,6 +125,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		connectToSecondaryEditingPath.setMnemonic(KeyEvent.VK_C);
 		pMenu.add(connectToSecondaryEditingPath);
 		pMenu.add(helpOnConnectingMenuItem());
+		pMenu.addSeparator();
+
+		pMenu.add(menuItem(AListener.NODE_RESET, listener));
+		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
 		pMenu.addSeparator();
 
 		pMenu.add(menuItem(AListener.START_SHOLL, listener, 
