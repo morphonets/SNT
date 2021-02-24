@@ -162,7 +162,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 		if (sourceImp.getOriginalFileInfo() != null) {
 			final String dir = sourceImp.getOriginalFileInfo().directory;
 			final String file = sourceImp.getOriginalFileInfo().fileName;
-			imageFile = (dir == null || file == null) ? null : new File(dir + file);
+			imageFile = (dir == null || file == null) ? null : new File(dir, file);
 		}
 		adjustFileFields(false);
 	}
@@ -217,14 +217,13 @@ public class SNTLoaderCmd extends DynamicCommand {
 				imageChoice = IMAGE_FILE;
 			}
 		}
-		for (final String ext : new String[] { "traces", "swc" , "json"}) {
-			final File candidate = SNTUtils.findClosestPair(imageFile, ext);
+		if (imageFile != null) {
+			final File candidate = SNTUtils.findClosestPair(imageFile, new String[] { "traces", "swc" , "json"});
 			if (candidate != null && candidate.exists()) {
 				tracesFile = candidate;
-				break;
 			}
-			adjustChannelInput();
 		}
+		adjustChannelInput();
 	}
 
 	@SuppressWarnings("unused")

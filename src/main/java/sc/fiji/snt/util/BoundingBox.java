@@ -112,6 +112,22 @@ public class BoundingBox {
 		originOpposite = new PointInImage(xStats.getMax(), yStats.getMax(), zStats.getMax());
 	}
 
+	/**
+	 * Computes the bounding box of the specified point cloud and appends it to this
+	 * bounding box, resizing it as needed.
+	 *
+	 * @param iterator the iterator of the points Collection
+	 */
+	public void append(final Iterator<? extends SNTPoint> iterator) {
+		if (hasDimensions()) {
+			final BoundingBox b = new BoundingBox();
+			b.compute(iterator);
+			combine(b);
+		} else {
+			compute(iterator);
+		}
+	}
+
 	public SNTPoint getCentroid() {
 		return new PointInImage((origin.x + originOpposite.x) / 2,
 				(origin.y + originOpposite.y) / 2,
@@ -261,6 +277,21 @@ public class BoundingBox {
 	}
 
 	/**
+	 * Combines Combines this bounding box with another one. It is asumed both boxes
+	 * share the same voxel spacing/Calibration.
+	 *
+	 * @param boundingBox the bounding box to be combined.
+	 */
+	public void combine(final BoundingBox boundingBox) {
+		origin.x = Math.min(origin.x, boundingBox.origin.x);
+		origin.y = Math.min(origin.y, boundingBox.origin.y);
+		origin.z = Math.min(origin.z, boundingBox.origin.z);
+		originOpposite.x = Math.max(originOpposite.x, boundingBox.originOpposite.x);
+		originOpposite.y = Math.max(originOpposite.y, boundingBox.originOpposite.y);
+		originOpposite.z = Math.max(originOpposite.z, boundingBox.originOpposite.z);
+	}
+
+	/**
 	 * Retrieves the origin of this box.
 	 *
 	 * @return the origin
@@ -351,6 +382,10 @@ public class BoundingBox {
 		this.originOpposite = originOpposite;
 	}
 
+	public boolean hasDimensions() {
+		return origin.distanceSquaredTo(originOpposite) > 0;
+	}
+
 	@Override
 	public int hashCode() {
 		return Objects.hash(xSpacing, ySpacing, zSpacing, spacingUnit, origin, originOpposite);
@@ -383,5 +418,10 @@ public class BoundingBox {
 		clone.info = this.info;
 		clone.spacingUnit = this.spacingUnit;
 		return clone;
+	}
+
+	@Override
+	public String toString() {
+		return "Origin: " + origin.toString() + " OriginOpposite: " + originOpposite.toString();
 	}
 }

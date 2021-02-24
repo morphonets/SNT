@@ -24,6 +24,7 @@ package sc.fiji.snt;
 
 import java.awt.Point;
 import java.io.File;
+import java.util.HashSet;
 
 import ij.Prefs;
 import ij.io.FileInfo;
@@ -36,6 +37,9 @@ import ij3d.ContentConstants;
  * @author Tiago Ferreira
  */
 public class SNTPrefs { // TODO: Adopt PrefService
+
+	public static final String NO_IMAGE_ASSOCIATED_DATA = "noImgData";
+	public static final String RESIZE_REQUIRED = "resizeNeeded";
 
 	private static final int DRAW_DIAMETERS_XY = 1;
 	private static final int SNAP_CURSOR = 2;
@@ -72,12 +76,14 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private boolean ij1ReverseSliderOrder;
 	private boolean ij1PointerCursor;
 	private int resFactor3Dcontent = -1;
+	private volatile static HashSet<String> tempKeys;
 
 	public SNTPrefs(final SNT snt) {
 		this.snt = snt;
 		getBooleans();
 		storeIJ1Prefs();
 		imposeIJ1Prefs();
+		wipeSessionPrefs();
 	}
 
 	protected int get3DViewerResamplingFactor() {
@@ -101,6 +107,26 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private void storeIJ1Prefs() {
 		ij1ReverseSliderOrder = Prefs.reverseNextPreviousOrder;
 		ij1PointerCursor = Prefs.usePointerCursor;
+	}
+
+	public boolean getTemp(final String key, final boolean defaultValue) {
+		final String k = "snt." + key;
+		return Prefs.get(k, defaultValue);
+	}
+
+	public void setTemp(final String key, final boolean value) {
+		final String k = "snt." + key;
+		Prefs.set(k, value);
+		tempKeys.add(k);
+	}
+
+	private static void wipeSessionPrefs() {
+		if (tempKeys == null) {
+			tempKeys = new HashSet<>();
+		} else {
+			tempKeys.forEach(key -> Prefs.set(key, null));
+			tempKeys.clear();
+		}
 	}
 
 	private void imposeIJ1Prefs() {
@@ -203,6 +229,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		if (snt.getFilteredImageFile() != null) {
 			Prefs.set(FILTERED_IMG_PATH, snt.getFilteredImageFile().getAbsolutePath());
 		}
+		wipeSessionPrefs();
 		if (restoreIJ1prefs) restoreIJ1Prefs();
 		clearLegacyPrefs();
 		Prefs.savePreferences();
@@ -260,6 +287,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(PATHWIN_LOC, null);
 		Prefs.set(FILTERED_IMG_PATH, null);
 		SNTPrefs.setThreads(0);
+		wipeSessionPrefs();
 		Prefs.savePreferences();
 	}
 

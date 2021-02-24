@@ -172,11 +172,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 			recViewer.setSceneUpdatesEnabled(true);
 		}
 
-		if (snt != null) {
-			// If a display canvas is being used, resize it as needed
-			snt.updateDisplayCanvases();
-			snt.updateAllViewers();
-		}
+		if (snt != null) notifyExternalDataLoaded();
 
 		if (recViewer != null) recViewer.validate();
 
@@ -193,7 +189,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 			status("Successful imported " + result.size() + " reconstruction(s)...",
 				true);
 		}
-		resetUI();
+		resetUI(!standAloneViewer && pafm.size() > lastExistingPathIdx);
 
 	}
 

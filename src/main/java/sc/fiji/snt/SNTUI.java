@@ -593,6 +593,10 @@ public class SNTUI extends JDialog {
 	 * @throws IllegalArgumentException if {@code cmd} was not found.
 	 */
 	public void runCommand(final String cmd) throws IllegalArgumentException {
+		if ("validateImgDimensions".equals(cmd)) {
+			validateImgDimensions();
+			return;
+		}
 		try {
 			runCommand(menuBar, cmd);
 		} catch (final IllegalArgumentException ie) {
@@ -715,7 +719,7 @@ public class SNTUI extends JDialog {
 
 	private void updateRebuildCanvasButton() {
 		final ImagePlus imp = plugin.getImagePlus();
-		final String label = (imp == null || !imp.isVisible() || imp.getProcessor() == null) ? "Create Canvas"
+		final String label = (imp == null || imp.getProcessor() == null || plugin.accessToValidImageData()) ? "Create Canvas"
 				: "Resize Canvas";
 		rebuildCanvasButton.setText(label);
 	}
@@ -1040,7 +1044,7 @@ public class SNTUI extends JDialog {
 		refreshPanesButton.addActionListener(e -> {
 			final boolean noImageData = !plugin.accessToValidImageData();
 			if (noImageData && pathAndFillManager.size() == 0) {
-				uncomputableCanvasError();
+				guiUtils.error("No paths exist to compute side-view canvases.");
 				return;
 			}
 			if (plugin.getImagePlus() == null) {
@@ -1068,8 +1072,10 @@ public class SNTUI extends JDialog {
 					t.printStackTrace();
 				}
 				plugin.setSinglePane(true);
-				if (noImageData)
+				if (noImageData) {
 					plugin.rebuildDisplayCanvases();
+					arrangeCanvases(false);
+				}
 				showStatus("Out of memory error...", true);
 			} finally {
 				resetState();
@@ -1079,23 +1085,31 @@ public class SNTUI extends JDialog {
 		rebuildCanvasButton = new JButton();
 		updateRebuildCanvasButton();
 		rebuildCanvasButton.addActionListener(e -> {
-			final boolean noImageData = !plugin.accessToValidImageData();
-			if (noImageData && pathAndFillManager.size() == 0) {
-				uncomputableCanvasError();
+			if (pathAndFillManager.size() == 0) {
+				guiUtils.error("No paths exist to compute a display canvas.");
 				return;
 			}
-			if (noImageData) {
+
+			String msg = "";
+			if (plugin.accessToValidImageData()) {
+				msg = "Replace current image with a display canvas and ";
+			} else if (plugin.getPrefs().getTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, false)) {
+				msg = "You have loaded paths without loading an image.";
+			} else if (!plugin.pathAndFillManager.allPathsShareSameSpatialCalibration())
+				msg = "You seem to have loaded paths associated with images with conflicting spatial calibration.";
+			if (!msg.isEmpty()) {
+				resetPathSpacings(msg);
+			}
+
+			if (!plugin.accessToValidImageData()) {
+				// depending on what the user chose in the resetPathSpacings() prompt
+				// we need to check again if the plugin has access to a valid image
 				changeState(LOADING);
 				showStatus("Resizing Canvas...", false);
 				updateSinglePaneFlag();
 				plugin.rebuildDisplayCanvases(); // will change UI state
 				arrangeCanvases(false);
 				showStatus("Canvas rebuilt...", true);
-			} else {
-				guiUtils.error("This command is only available for display canvases. To resize "
-						+ "current image use IJ's command <i>Image> Adjust> Canvas Size...</i> and press "
-						+ "<i>Reload</i> in the Data Source widget.");
-				return;
 			}
 		});
 
@@ -1107,14 +1121,60 @@ public class SNTUI extends JDialog {
 		return viewsPanel;
 	}
 
+	private boolean resetPathSpacings(final String promptReason) {
+		boolean nag = plugin.getPrefs().getTemp("pathscaling-nag", true);
+		boolean reset = plugin.getPrefs().getTemp("pathscaling", true);
+		if (nag) {
+			final boolean[] options = guiUtils.getPersistentConfirmation(promptReason //
+					+ " Reset spatial calibration of paths?<br>" //
+					+ "This will force paths and display canvas(es) to have unitary spacing (e.g.,"//
+					+ "1px&rarr;1" + GuiUtils.micrometer() + "). Path lengths will be preserved.",//
+					"Reset Path Calibrations?");
+			plugin.getPrefs().setTemp("pathscaling", reset = options[0]);
+			plugin.getPrefs().setTemp("pathscaling-nag", !options[1]);
+		}
+		if (reset) {
+			if (plugin.accessToValidImageData()) {
+				plugin.getImagePlus().close(); 
+				if (plugin.getImagePlus() != null) {
+					// user canceled the "save changes" dialog
+					return false;
+				}
+				plugin.closeAndResetAllPanes();
+				plugin.tracingHalted = true;
+			}
+			plugin.pathAndFillManager.resetSpatialSettings(true);
+		}
+		return reset;
+	}
+
+	private void validateImgDimensions() {
+		if (plugin.getPrefs().getTemp(SNTPrefs.RESIZE_REQUIRED, false)) {
+			boolean nag = plugin.getPrefs().getTemp("canvasResize-nag", true);
+			if (nag) {
+				final StringBuilder sb = new StringBuilder("Some nodes are being displayed outside the image canvas. To visualize them you can:<ul>");
+				String type = "canvas";
+				if (plugin.accessToValidImageData()) {
+					type = "image";
+					sb.append("<li>Use IJ's command Image&rarr;Adjust&rarr;Canvas Size... and press <i>Reload</i> in the Data Source widget of the Options pane</li>");
+					sb.append("<li>Close the current image and create a Display Canvas using the <i>Create Canvas</i> command in the Options pane</li>");
+				}
+				else {
+					sb.append("<li>Use the <i>Create/Resize Canvas</i> commands in the Options pane</li>");
+				}
+				sb.append("<li>Replace the current ").append(type).append(" using File&rarr;Choose Tracing Image...</li>");
+				nag = !guiUtils.getPersistentWarning(sb.toString(), "Image Needs Resizing");
+				plugin.getPrefs().setTemp("canvasResize-nag", nag);
+			} else {
+				showStatus("Some nodes rendered outside image!", false);
+			}
+		}
+	}
+
 	private void updateSinglePaneFlag() {
 		if (plugin.getImagePlus(MultiDThreePanes.XZ_PLANE) == null
 				&& plugin.getImagePlus(MultiDThreePanes.ZY_PLANE) == null)
 			plugin.setSinglePane(true);
-	}
-
-	private void uncomputableCanvasError() {
-		guiUtils.error("Image data is not available and no paths exist to compute a display canvas.");
 	}
 
 	private JPanel tracingPanel() {
@@ -1666,14 +1726,15 @@ public class SNTUI extends JDialog {
 			if (openingSciView && sciViewSNT != null) {
 				openingSciView = false;
 			}
-			if (!openingSciView && sciViewSNT == null || (sciViewSNT.getSciView() == null || sciViewSNT.getSciView().isClosed())) {
-				openingSciView = true;
-				try {
+			try {
+				if (!openingSciView && sciViewSNT == null
+						|| (sciViewSNT.getSciView() == null || sciViewSNT.getSciView().isClosed())) {
+					openingSciView = true;
 					new Thread(() -> new SciViewSNT(plugin).getSciView()).start();
-				} catch (final NoClassDefFoundError exc) {
-					exc.printStackTrace();
-					no3DcapabilitiesError("SciView");
 				}
+			} catch (final Throwable exc) {
+				exc.printStackTrace();
+				no3DcapabilitiesError("SciView");
 			}
 		});
 
@@ -1702,7 +1763,7 @@ public class SNTUI extends JDialog {
 
 	private void no3DcapabilitiesError(final String viewer) {
 		guiUtils.error(viewer + " could not be initialized. Your installation seems "
-				+ "to be missing essential 3D libraries. Please use the updater to re-instate any "
+				+ "to be missing essential 3D libraries. Please use the updater to install any "
 				+ "missing files. See Console for details.", "Error: Dependencies Missing");
 	}
 
@@ -2191,27 +2252,27 @@ public class SNTUI extends JDialog {
 		importFlyCircuit.addActionListener(e -> {
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("loader", new FlyCircuitLoader());
-			(new DynamicCmdRunner(RemoteSWCImporterCmd.class, inputs, LOADING, true)).run();
+			(new DynamicCmdRunner(RemoteSWCImporterCmd.class, inputs, LOADING)).run();
 		});
 		final JMenuItem importInsectBrainDb = new JMenuItem("InsectBrain...");
 		remoteSubmenu.add(importInsectBrainDb);
 		importInsectBrainDb.addActionListener(e -> {
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("recViewer", null);
-			(new DynamicCmdRunner(InsectBrainImporterCmd.class, inputs, LOADING, true)).run();
+			(new DynamicCmdRunner(InsectBrainImporterCmd.class, inputs, LOADING)).run();
 		});
 		final JMenuItem importMouselight = new JMenuItem("MouseLight...");
 		remoteSubmenu.add(importMouselight);
 		importMouselight.addActionListener(e -> {
 			final HashMap<String, Object> inputs = new HashMap<>();
-			(new DynamicCmdRunner(MLImporterCmd.class, inputs, LOADING, true)).run();
+			(new DynamicCmdRunner(MLImporterCmd.class, inputs, LOADING)).run();
 		});
 		final JMenuItem importNeuroMorpho = new JMenuItem("NeuroMorpho...");
 		remoteSubmenu.add(importNeuroMorpho);
 		importNeuroMorpho.addActionListener(e -> {
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("loader", new NeuroMorphoLoader());
-			(new DynamicCmdRunner(RemoteSWCImporterCmd.class, inputs, LOADING, true)).run();
+			(new DynamicCmdRunner(RemoteSWCImporterCmd.class, inputs, LOADING)).run();
 		});
 		importSubmenu.add(remoteSubmenu);
 
@@ -3417,13 +3478,13 @@ public class SNTUI extends JDialog {
 		/* ImageListener */
 		@Override
 		public void imageClosed(final ImagePlus imp) {
-			if (imp != plugin.getImagePlus())
+			if (imp != plugin.getMainImagePlusWithoutChecks())
 				return;
-			if (plugin.accessToValidImageData()) {
+			if (!plugin.isDisplayCanvas(imp)) {
+				// the image being closed contained valid data 
 				plugin.pauseTracing(true, false);
-			} else {
-				updateRebuildCanvasButton();
 			}
+			SwingUtilities.invokeLater(() -> updateRebuildCanvasButton());
 		}
 
 		/*
@@ -3604,24 +3665,17 @@ public class SNTUI extends JDialog {
 		private final int preRunState;
 		private final boolean run;
 		private HashMap<String, Object> inputs;
-		private boolean rebuildCanvas;
 
 		public DynamicCmdRunner(final Class<? extends Command> cmd, final HashMap<String, Object> inputs) {
-			this(cmd, inputs, getState(), false);
-		}
-	
-		public DynamicCmdRunner(final Class<? extends Command> cmd, final HashMap<String, Object> inputs,
-				final int uiStateDuringRun) {
-			this(cmd, inputs, uiStateDuringRun, false);
+			this(cmd, inputs, getState());
 		}
 
 		public DynamicCmdRunner(final Class<? extends Command> cmd, final HashMap<String, Object> inputs,
-				final int uiStateDuringRun, final boolean rebuildCanvas) {
+				final int uiStateDuringRun) {
 			assert SwingUtilities.isEventDispatchThread();
 			this.cmd = cmd;
 			this.preRunState = getState();
 			this.inputs = inputs;
-			this.rebuildCanvas = rebuildCanvas;
 			run = initialize();
 			if (run && preRunState != uiStateDuringRun)
 				changeState(uiStateDuringRun);
@@ -3632,21 +3686,6 @@ public class SNTUI extends JDialog {
 				guiUtils.error(
 						"Please finish editing " + plugin.getEditingPath().getName() + " before running this command.");
 				return false;
-			}
-			final boolean rebuild = rebuildCanvas && plugin.accessToValidImageData() && 
-					guiUtils.getConfirmation("<HTML><div WIDTH=500>" //
-					+ "Coordinates of external reconstructions <i>may</i> fall outside the boundaries " //
-					+ "of current image. Would you like to close active image and use a display canvas " //
-					+ "with computed dimensions containing all the nodes of the imported file?", //
-					"Change to Display Canvas?", "Yes. Use Display Canvas", "No. Use Current Image");
-			if (rebuild) {
-				plugin.getImagePlus().close();
-				if (plugin.getImagePlus() != null) {
-					// user canceled the "save changes" dialog
-					return false;
-				}
-				plugin.closeAndResetAllPanes();
-				plugin.tracingHalted = true;
 			}
 			return true;
 		}
@@ -3893,11 +3932,11 @@ public class SNTUI extends JDialog {
 				return;
 			case JSON:
 				if (file != null) inputs.put("file", file);
-				(new DynamicCmdRunner(JSONImporterCmd.class, inputs, LOADING, true)).run();
+				(new DynamicCmdRunner(JSONImporterCmd.class, inputs, LOADING)).run();
 				return;
 			case SWC_DIR:
 				if (file != null) inputs.put("dir", file);
-				(new DynamicCmdRunner(MultiSWCImporterCmd.class, inputs, LOADING, true)).run();
+				(new DynamicCmdRunner(MultiSWCImporterCmd.class, inputs, LOADING)).run();
 				return;
 			case TRACES:
 			case SWC:
@@ -3909,9 +3948,10 @@ public class SNTUI extends JDialog {
 				} else if (type == TRACES){
 					plugin.loadTracesFile(file);
 				} else if (type == ANY_RECONSTRUCTION){
-					if (file == null) file = openFile("Open Reconstruction File...", "swc");
+					if (file == null) file = openFile("Open Reconstruction File (Guessing Type)...", "swc");
 					if (file != null) plugin.loadTracings(file);
 				}
+				validateImgDimensions();
 				changeState(preLoadingState);
 				return;
 			default:
@@ -3920,9 +3960,8 @@ public class SNTUI extends JDialog {
 		}
 
 		private boolean proceed() {
-			return !plugin.isChangesUnsaved() || (plugin.isChangesUnsaved() && plugin.accessToValidImageData()
-					&& guiUtils.getConfirmation("There are unsaved paths. Do you really want to load new data?",
-							"Proceed with Import?"));
+			return !plugin.isChangesUnsaved() || (plugin.isChangesUnsaved() && guiUtils.getConfirmation(
+					"There are unsaved paths. Do you really want to load new data?", "Proceed with Import?"));
 		}
 	}
 

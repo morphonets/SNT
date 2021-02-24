@@ -57,6 +57,7 @@ import java.util.Stack;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -80,6 +81,7 @@ import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
@@ -116,7 +118,6 @@ public class PathAndFillManager extends DefaultHandler implements
 	private String spacing_units;
 	/** BoundingBox for existing Paths */
 	private BoundingBox boundingBox;
-	protected boolean spacingIsUnset;
 
 	private final ArrayList<Path> allPaths;
 	private final ArrayList<Fill> allFills;
@@ -152,13 +153,13 @@ public class PathAndFillManager extends DefaultHandler implements
 		allFills = new ArrayList<>();
 		listeners = new ArrayList<>();
 		selectedPathsSet = new HashSet<>();
-		resetSpatialSettings();
+		resetSpatialSettings(false);
 	}
 
 	protected PathAndFillManager(final SNT plugin) {
 		this();
 		this.plugin = plugin;
-		syncPluginSpatialSettings();
+		syncSpatialSettingsWithPlugin();
 		addPathAndFillListener(plugin);
 	}
 
@@ -182,10 +183,9 @@ public class PathAndFillManager extends DefaultHandler implements
 		this.y_spacing = y_spacing;
 		this.z_spacing = z_spacing;
 		this.spacing_units = boundingBox.getUnit();
-		spacingIsUnset = false;
 	}
 
-	protected void syncPluginSpatialSettings() {
+	protected void syncSpatialSettingsWithPlugin() {
 		x_spacing = plugin.x_spacing;
 		y_spacing = plugin.y_spacing;
 		z_spacing = plugin.z_spacing;
@@ -194,7 +194,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		boundingBox.setSpacing(x_spacing, y_spacing, z_spacing,
 			spacing_units);
 		boundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
-		spacingIsUnset = false;
 	}
 
 	protected void assignSpatialSettings(final ImagePlus imp) {
@@ -207,17 +206,25 @@ public class PathAndFillManager extends DefaultHandler implements
 		boundingBox.setSpacing(x_spacing, y_spacing, z_spacing,
 			spacing_units);
 		boundingBox.setDimensions(imp.getWidth(), imp.getHeight(), imp.getNSlices());
-		spacingIsUnset = false;
+		if (size() > 0) {
+			final PointInCanvas zeroOffset = new PointInCanvas(0, 0, 0);
+			getPaths().forEach(path -> {
+				path.setSpacing(cal);
+				path.setCanvasOffset(zeroOffset);
+			});
+		}
 	}
 
-	protected void resetSpatialSettings() {
+	protected void resetSpatialSettings(final boolean alsoResetPaths) {
 		boundingBox = new BoundingBox();
 		x_spacing = boundingBox.xSpacing;
 		y_spacing = boundingBox.ySpacing;
 		z_spacing = boundingBox.zSpacing;
 		spacing_units = boundingBox.getUnit();
-		plugin = null;
-		spacingIsUnset = true;
+		if (alsoResetPaths && size() > 0) {
+			final Calibration cal = boundingBox.getCalibration();
+			getPaths().forEach(path -> path.setSpacing(cal));
+		}
 	}
 
 	/**
@@ -527,7 +534,11 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	protected void updateBoundingBox() {
+		final BoundingBox previousBox = getBoundingBox(false);
 		boundingBox = getBoundingBox(true);
+		if (plugin != null) {
+			plugin.getPrefs().setTemp(SNTPrefs.RESIZE_REQUIRED, !previousBox.contains(boundingBox));
+		}
 	}
 
 	/**
@@ -546,9 +557,21 @@ public class PathAndFillManager extends DefaultHandler implements
 	public BoundingBox getBoundingBox(final boolean compute) {
 		if (boundingBox == null) boundingBox = new BoundingBox();
 		if (!compute || getPaths().size() == 0) return boundingBox;
+		SNTUtils.log("Computing bounding box...");
 		final Iterator<PointInImage> allPointsIt = allPointsIterator();
 		boundingBox.compute(allPointsIt);
 		return boundingBox;
+	}
+
+	protected boolean allPathsShareSameSpatialCalibration() {
+		if (!getPaths().isEmpty()) {
+			final Calibration ref = getPaths().get(0).getCalibration();
+			for (int i = 1; i < getPaths().size(); i++) {
+				if (!ref.equals(getPaths().get(i).getCalibration()))
+					return false;
+			}
+		}
+		return true;
 	}
 
 	/*
@@ -1456,13 +1479,14 @@ public class PathAndFillManager extends DefaultHandler implements
 					final int parsed_height = Integer.parseInt(attributes.getValue(
 							"height"));
 					final int parsed_depth = Integer.parseInt(attributes.getValue("depth"));
+					boundingBox.setOrigin(new PointInImage(0, 0, 0));
+					boundingBox.setDimensions(parsed_width, parsed_height, parsed_depth);
 					if (plugin != null && (parsed_width != plugin.width ||
 							parsed_height != plugin.height || parsed_depth != plugin.depth)) {
 						SNTUtils.warn(
 								"The image size in the traces file didn't match - it's probably for another image");
+						checkForAppropriateImageDimensions();
 					}
-					boundingBox.setOrigin(new PointInImage(0, 0, 0));
-					boundingBox.setDimensions(parsed_width, parsed_height, parsed_depth);
 				} catch (final NumberFormatException e) {
 					throw new TracesFileFormatException(
 							"There was an invalid attribute to <imagesize/>: " + e);
@@ -1472,6 +1496,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			case "samplespacing":
 
 				try {
+					final boolean spacingIsUnset = !boundingBox.isScaled();
 					final String xString = attributes.getValue("x");
 					final String yString = attributes.getValue("y");
 					final String zString = attributes.getValue("z");
@@ -1485,7 +1510,6 @@ public class PathAndFillManager extends DefaultHandler implements
 						y_spacing = boundingBox.ySpacing;
 						z_spacing = boundingBox.zSpacing;
 						spacing_units = spacingUnits;
-						spacingIsUnset = false;
 					}
 				} catch (final NumberFormatException e) {
 					throw new TracesFileFormatException(
@@ -2045,6 +2069,8 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 		allPaths.clear();
 		allFills.clear();
+		if (plugin == null || (plugin != null && !plugin.accessToValidImageData()))
+			resetSpatialSettings(false);
 		resetListeners(null);
 	}
 
@@ -2257,17 +2283,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			}
 		}
 
-		if (spacingIsUnset) {
-			if (!headless) SNTUtils.log(
-				"Inferring pixel spacing from imported points... ");
-			boundingBox.inferSpacing(points);
-			x_spacing = boundingBox.xSpacing;
-			y_spacing = boundingBox.ySpacing;
-			z_spacing = boundingBox.zSpacing;
-			// NB: we must leave boundingBox origin unset so that it's dimensions can be properly computed
-			spacingIsUnset = false;
-		}
-
 		// We'll now iterate (again!) through the points to fix some ill-assembled
 		// files that do exist in the wild defined in pixel coordinates!
 		if (assumeCoordinatesInVoxels) {
@@ -2292,7 +2307,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			}
 		}
 
-		// FIXME: This is really slow with large SWC files
+		// FIXME: This is slow with large SWC files
+		final boolean existingEnableUIupdates = enableUIupdates;
+		this.enableUIupdates = false;
 		final HashMap<SWCPoint, Path> pointToPath = new HashMap<>();
 		final PriorityQueue<SWCPoint> backtrackTo = new PriorityQueue<>(
 			primaryPoints);
@@ -2371,6 +2388,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			addPath(p);
 		}
 
+		this.enableUIupdates = existingEnableUIupdates;
 		resetListeners(null, true);
 
 		// Infer fields for when an image has not been specified. We'll assume
@@ -2379,19 +2397,8 @@ public class PathAndFillManager extends DefaultHandler implements
 		{
 			if (boundingBox == null)
 				boundingBox = new BoundingBox();
-			boundingBox.compute(((TreeSet<? extends SNTPoint>) points).iterator());
-
-			// If a plugin exists, warn user if its image cannot render imported nodes
-			if (plugin != null && plugin.getImagePlus() != null) {
-
-				final BoundingBox pluginBoundingBox = new BoundingBox();
-				pluginBoundingBox.setOrigin(new PointInImage(0, 0, 0));
-				pluginBoundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
-				if (!pluginBoundingBox.contains(boundingBox)) {
-					SNTUtils.warn("Some nodes lay outside the image volume: you may need to "
-							+ "adjust import options or resize current image canvas");
-				}
-			}
+			boundingBox.append(((TreeSet<? extends SNTPoint>) points).iterator());
+			checkForAppropriateImageDimensions();
 		}
 		return true;
 	}
@@ -2655,6 +2662,20 @@ public class PathAndFillManager extends DefaultHandler implements
 		return result;
 	}
 
+	private void checkForAppropriateImageDimensions() {
+		if (plugin != null && plugin.getImagePlus() != null) {
+			// If a plugin exists, warn user if its image cannot render imported nodes
+			final BoundingBox pluginBoundingBox = new BoundingBox();
+			pluginBoundingBox.setOrigin(new PointInImage(0, 0, 0));
+			pluginBoundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
+			if (!pluginBoundingBox.contains(boundingBox)) {
+				plugin.getPrefs().setTemp(SNTPrefs.RESIZE_REQUIRED, true);
+				SNTUtils.warn("Some nodes lay outside the image volume: you may need to "
+						+ "adjust import options or resize current image canvas");
+			}
+		}
+	}
+
 	/*
 	 * This method will set all the points in array that correspond to points on one
 	 * of the paths to 255, leaving everything else as it is. This is useful for
@@ -2774,13 +2795,15 @@ public class PathAndFillManager extends DefaultHandler implements
 		return allPaths;
 	}
 
-	public ArrayList<Path> getPathsFiltered() {
-		final ArrayList<Path> paths = new ArrayList<>();
-		for (final Path p : getPaths()) {
-			if (p == null || p.isFittedVersionOfAnotherPath()) continue;
-			paths.add(p);
-		}
-		return paths;
+	/**
+	 * Returns 'de facto' Paths.
+	 *
+	 * @return the paths associated with this PathAndFillManager instance excluding
+	 *         those that are null or fitted version of o paths.
+	 */
+	public List<Path> getPathsFiltered() {
+		return (List<Path>) getPaths().stream().filter(p -> p != null && !p.isFittedVersionOfAnotherPath())
+				.collect(Collectors.toList());
 	}
 
 	/* (non-Javadoc)

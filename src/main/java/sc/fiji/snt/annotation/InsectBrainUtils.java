@@ -32,7 +32,6 @@ import sc.fiji.snt.viewer.OBJMesh;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.Map.Entry;
 
 /**
  * Utility methods for retrieving species, brain, and neuron data from

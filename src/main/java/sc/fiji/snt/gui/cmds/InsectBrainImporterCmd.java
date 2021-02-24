@@ -147,8 +147,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 					// do nothing
 				}
 			}
-			// If a display canvas is being used, resize it as needed
-			sntService.getPlugin().updateDisplayCanvases();
+			notifyExternalDataLoaded();
 		}
 		else {
 			// We are importing into a stand-alone Reconstruction Viewer
@@ -166,7 +165,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 		else {
 			status("Successful imported " + trees.size() + " reconstruction(s)...", true);
 		}
-		resetUI();
+		resetUI(!isCanceled());
 	}
 
 	/**
