@@ -1044,7 +1044,7 @@ public class SNTUI extends JDialog {
 		refreshPanesButton.addActionListener(e -> {
 			final boolean noImageData = !plugin.accessToValidImageData();
 			if (noImageData && pathAndFillManager.size() == 0) {
-				uncomputableCanvasError();
+				guiUtils.error("No paths exist to compute side-view canvases.");
 				return;
 			}
 			if (plugin.getImagePlus() == null) {
@@ -1085,22 +1085,25 @@ public class SNTUI extends JDialog {
 		rebuildCanvasButton = new JButton();
 		updateRebuildCanvasButton();
 		rebuildCanvasButton.addActionListener(e -> {
-			final boolean noImageData = !plugin.accessToValidImageData();
-			if (noImageData && pathAndFillManager.size() == 0) {
-				uncomputableCanvasError();
+			if (pathAndFillManager.size() == 0) {
+				guiUtils.error("No paths exist to compute a display canvas.");
 				return;
 			}
-			String problem = "";
-			if (!noImageData) {
-				problem = "Replace current image with a display canvas and ";
+
+			String msg = "";
+			if (plugin.accessToValidImageData()) {
+				msg = "Replace current image with a display canvas and ";
 			} else if (plugin.getPrefs().getTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, false)) {
-				problem = "You have loaded paths without loading an image.";
+				msg = "You have loaded paths without loading an image.";
 			} else if (!plugin.pathAndFillManager.allPathsShareSameSpatialCalibration())
-				problem = "You seem to have loaded paths associated with images with conflicting spatial calibration.";
-			if (!problem.isEmpty()) {
-				resetPathSpacings(problem);
+				msg = "You seem to have loaded paths associated with images with conflicting spatial calibration.";
+			if (!msg.isEmpty()) {
+				resetPathSpacings(msg);
 			}
-			if (noImageData) {
+
+			if (!plugin.accessToValidImageData()) {
+				// depending on what the user chose in the resetPathSpacings() prompt
+				// we need to check again if the plugin has access to a valid image
 				changeState(LOADING);
 				showStatus("Resizing Canvas...", false);
 				updateSinglePaneFlag();
@@ -1152,11 +1155,12 @@ public class SNTUI extends JDialog {
 				final StringBuilder sb = new StringBuilder("Some nodes are being displayed outside the image canvas. To visualize them you can:<ul>");
 				String type = "canvas";
 				if (plugin.accessToValidImageData()) {
-					sb.append("<li>Use IJ's command Image&rarr;Adjust&rarr;Canvas Size... and press <i>Reload</i> in the Data Source widget of the Options pane</li>");
 					type = "image";
+					sb.append("<li>Use IJ's command Image&rarr;Adjust&rarr;Canvas Size... and press <i>Reload</i> in the Data Source widget of the Options pane</li>");
+					sb.append("<li>Close the current image and create a Display Canvas using the <i>Create Canvas</i> command in the Options pane</li>");
 				}
 				else {
-					sb.append("<li>Use the <i>Create/Resize Canvas</i> commands in the <i>Options</i> pane.</li>");
+					sb.append("<li>Use the <i>Create/Resize Canvas</i> commands in the Options pane</li>");
 				}
 				sb.append("<li>Replace the current ").append(type).append(" using File&rarr;Choose Tracing Image...</li>");
 				nag = !guiUtils.getPersistentWarning(sb.toString(), "Image Needs Resizing");
@@ -1171,10 +1175,6 @@ public class SNTUI extends JDialog {
 		if (plugin.getImagePlus(MultiDThreePanes.XZ_PLANE) == null
 				&& plugin.getImagePlus(MultiDThreePanes.ZY_PLANE) == null)
 			plugin.setSinglePane(true);
-	}
-
-	private void uncomputableCanvasError() {
-		guiUtils.error("Image data is not available and no paths exist to compute a display canvas.");
 	}
 
 	private JPanel tracingPanel() {
@@ -3948,9 +3948,10 @@ public class SNTUI extends JDialog {
 				} else if (type == TRACES){
 					plugin.loadTracesFile(file);
 				} else if (type == ANY_RECONSTRUCTION){
-					if (file == null) file = openFile("Open Reconstruction File...", "swc");
+					if (file == null) file = openFile("Open Reconstruction File (Guessing Type)...", "swc");
 					if (file != null) plugin.loadTracings(file);
 				}
+				validateImgDimensions();
 				changeState(preLoadingState);
 				return;
 			default:
