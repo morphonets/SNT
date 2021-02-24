@@ -155,8 +155,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			}
 		}
 
-		// If a display canvas is being used, resize it as needed
-		sntService.getPlugin().updateDisplayCanvases();
+		if (snt != null) notifyExternalDataLoaded();
 
 		if (recViewer != null) {
 			// A 'stand-alone' Reconstruction Viewer was specified
@@ -176,7 +175,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			status("Successful imported " + result.size() + " reconstruction(s)...",
 				true);
 		}
-		resetUI();
+		resetUI(recViewer == null);
 	}
 
 	/**

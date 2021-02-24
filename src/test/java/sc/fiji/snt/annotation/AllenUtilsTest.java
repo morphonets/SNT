@@ -61,7 +61,7 @@ public class AllenUtilsTest {
         final Iterator<String> ids = brainAreas.keys();
         while (ids.hasNext()) {
             final String idString = ids.next();
-            final int idInt = Integer.parseInt(idString); // just check if an Integer is parsable
+            //final int idInt = Integer.parseInt(idString); // just check if an Integer is parsable
             final JSONObject jsonObj = brainAreas.getJSONObject(idString);
             testJSONObject(jsonObj);
         }

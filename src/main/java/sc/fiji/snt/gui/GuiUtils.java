@@ -294,6 +294,17 @@ public class GuiUtils {
 		return new boolean[] { result, checkbox.isSelected() };
 	}
 
+	public boolean getPersistentWarning(final String msg, final String title) {
+		final JPanel msgPanel = new JPanel();
+		msgPanel.setLayout(new BorderLayout());
+		msgPanel.add(getLabel(msg), BorderLayout.CENTER);
+		final JCheckBox checkbox = new JCheckBox();
+		checkbox.setText(getWrappedText(checkbox, "Do not remind me again"));
+		msgPanel.add(checkbox, BorderLayout.SOUTH);
+		return JOptionPane.showConfirmDialog(parent, msgPanel, title, JOptionPane.DEFAULT_OPTION,
+				JOptionPane.WARNING_MESSAGE) == JOptionPane.OK_OPTION && checkbox.isSelected();
+	}
+
 	public String getString(final String promptMsg, final String promptTitle,
 		final String defaultValue)
 	{

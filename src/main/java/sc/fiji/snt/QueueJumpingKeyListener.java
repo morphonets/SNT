@@ -222,6 +222,9 @@ class QueueJumpingKeyListener implements KeyListener {
 			else if (keyChar == 'c' || keyChar == 'C') {
 				canvas.connectEditingPathToPreviousEditingPath();
 			}
+			else if (keyChar == 'x' || keyChar == 'X') {
+				canvas.splitTreeAtEditingNode(false);
+			}
 			else if (keyChar == 'v' || keyChar == 'V') {
 				canvas.clickAtMaxPoint(false);
 			}

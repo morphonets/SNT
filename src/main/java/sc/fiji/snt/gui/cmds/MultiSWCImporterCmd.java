@@ -37,6 +37,7 @@ import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 
 import sc.fiji.snt.PathAndFillManager;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
@@ -110,8 +111,10 @@ public class MultiSWCImporterCmd extends ContextCommand {
 			pafm.deletePaths(indices);
 		}
 
-		// If a display canvas is being used, resize it as needed
+		// see CommonDynamicCmd#notifyExternalDataLoaded();
 		sntService.getPlugin().updateDisplayCanvases();
+		sntService.getPlugin().updateAllViewers();
+		sntService.getPlugin().getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, true);
 
 		if (failures > 0) {
 			ui.error(String.format("%d/%d reconstructions could not be retrieved.",
@@ -126,6 +129,7 @@ public class MultiSWCImporterCmd extends ContextCommand {
 			ui.showStatus("Successful imported " + result.size() +
 				" reconstruction(s)...", true);
 		}
+		ui.runCommand("validateImgDimensions");
 	}
 
 	private ColorRGB getColor() {

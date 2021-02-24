@@ -1641,7 +1641,7 @@ public class Tree {
 		initPathAndFillManager();
 		Calibration cal;
 		if (imp == null) {
-			pafm.resetSpatialSettings();
+			pafm.resetSpatialSettings(true);
 			cal = new Calibration();
 		} else {
 			pafm.assignSpatialSettings(imp);

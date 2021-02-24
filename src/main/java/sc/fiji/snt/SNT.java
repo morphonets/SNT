@@ -336,12 +336,16 @@ public class SNT extends MultiDThreePanes implements
 				"One dimension of the calibration information was zero: (" + x_spacing +
 					"," + y_spacing + "," + z_spacing + ")");
 		}
-		pathAndFillManager.syncPluginSpatialSettings();
-		if (accessToValidImageData() && sourceImage.getOriginalFileInfo() != null) {
-			final String dir = sourceImage.getOriginalFileInfo().directory;
-			final String name = sourceImage.getOriginalFileInfo().fileName;
-			if (dir != null && name != null)
-				prefs.setRecentFile(new File(dir, name));
+		if (accessToValidImageData() && !isDisplayCanvas(sourceImage)) {
+			pathAndFillManager.assignSpatialSettings(sourceImage);
+			if (sourceImage.getOriginalFileInfo() != null) {
+				final String dir = sourceImage.getOriginalFileInfo().directory;
+				final String name = sourceImage.getOriginalFileInfo().fileName;
+				if (dir != null && name != null)
+					prefs.setRecentFile(new File(dir, name));
+			}
+		} else {
+			pathAndFillManager.syncSpatialSettingsWithPlugin();
 		}
 	}
 
@@ -370,13 +374,17 @@ public class SNT extends MultiDThreePanes implements
 	 * @see #rebuildDisplayCanvases()
 	 */
 	public void updateDisplayCanvases() {
-		if (!accessToValidImageData() && getImagePlus() != null) {
+		if (!accessToValidImageData() && getImagePlus() == null) {
 			SNTUtils.log("Rebuilding canvases...");
 			rebuildDisplayCanvasesInternal();
 		}
 	}
 
 	private void rebuildDisplayCanvasesInternal() {
+		if (!pathAndFillManager.getBoundingBox(false).hasDimensions()) {
+			pathAndFillManager.resetSpatialSettings(false);
+			pathAndFillManager.updateBoundingBox();
+		}
 		initialize(getSinglePane(), 1, 1);
 		updateUIFromInitializedImp(xy.isVisible());
 		pauseTracing(true, false);
@@ -390,6 +398,7 @@ public class SNT extends MultiDThreePanes implements
 			if (zy != null) zy.show();
 			if (xz != null) xz.show();
 		}
+		if (accessToValidImageData()) getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, false);
 	}
 
 	private void nullifyCanvases() {
@@ -424,12 +433,15 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public boolean accessToValidImageData() {
-		return getImagePlus() != null && !"SNT Display Canvas".equals(xy
-			.getInfoProperty());
+		return getImagePlus() != null && !isDisplayCanvas(xy);
 	}
 
 	private void setIsDisplayCanvas(final ImagePlus imp) {
 		imp.setProperty("Info", "SNT Display Canvas");
+	}
+
+	protected boolean isDisplayCanvas(final ImagePlus imp) {
+		return "SNT Display Canvas".equals(imp.getInfoProperty());
 	}
 
 	private void assembleDisplayCanvases() {
@@ -443,15 +455,14 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 		BoundingBox box = pathAndFillManager.getBoundingBox(false);
-		if (Double.isNaN(box.getDiagonal())) box = pathAndFillManager
-			.getBoundingBox(true);
+		if (!box.hasDimensions()) box = pathAndFillManager.getBoundingBox(true);
 
 		final double[] dims = box.getDimensions(false);
 		width = (int) Math.round(dims[0]);
 		height = (int) Math.round(dims[1]);
 		depth = (int) Math.round(dims[2]);
 		spacing_units = box.getUnit();
-		singleSlice = depth == 1;
+		singleSlice = depth < 2;
 		setSinglePane(single_pane);
 
 		// Make canvas 2D if there is not enough memory (>80%) for a 3D stack
@@ -469,10 +480,8 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		// Enlarge canvas for easier access to edge nodes. Center all paths in
-		// canvas
-		// without translating their coordinates. This is more relevant for files
-		// with
-		// negative coordinates
+		// canvas without translating their coordinates. This is more relevant
+		// for e.g., files with negative coordinates
 		final int XY_PADDING = 50;
 		final int Z_PADDING = (singleSlice) ? 0 : 2;
 		width += XY_PADDING;
@@ -1030,7 +1039,7 @@ public class SNT extends MultiDThreePanes implements
 			changeUIState(SNTUI.TRACING_PAUSED);
 			setDrawCrosshairsAllPanes(false);
 			setCanvasLabelAllPanes(InteractiveTracerCanvas.TRACING_PAUSED_LABEL);
-			enableSnapCursor(snapCursor && !accessToValidImageData());
+			enableSnapCursor(snapCursor && accessToValidImageData());
 		}
 		else {
 			tracingHalted = false;
@@ -2364,6 +2373,10 @@ public class SNT extends MultiDThreePanes implements
 		return (imp == null || imp.getProcessor() == null) ? null : imp;
 	}
 
+	protected ImagePlus getMainImagePlusWithoutChecks() {
+		return xy;
+	}
+
 	protected void error(final String msg) {
 		new GuiUtils(getActiveWindow()).error(msg);
 	}
@@ -2842,7 +2855,9 @@ public class SNT extends MultiDThreePanes implements
 		final boolean validImage = accessToValidImageData();
 		snapCursor = enable && validImage;
 		if (isUIready()) {
-			if (enable && !validImage) ui.noValidImageDataError();
+			if (enable && !validImage) {
+				ui.noValidImageDataError();
+			}
 			ui.useSnapWindow.setSelected(snapCursor);
 			ui.snapWindowXYsizeSpinner.setEnabled(snapCursor);
 			ui.snapWindowZsizeSpinner.setEnabled(snapCursor && !is2D());
