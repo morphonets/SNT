@@ -81,6 +81,7 @@ import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
@@ -117,7 +118,6 @@ public class PathAndFillManager extends DefaultHandler implements
 	private String spacing_units;
 	/** BoundingBox for existing Paths */
 	private BoundingBox boundingBox;
-	protected boolean spacingIsUnset;
 
 	private final ArrayList<Path> allPaths;
 	private final ArrayList<Fill> allFills;
@@ -153,13 +153,13 @@ public class PathAndFillManager extends DefaultHandler implements
 		allFills = new ArrayList<>();
 		listeners = new ArrayList<>();
 		selectedPathsSet = new HashSet<>();
-		resetSpatialSettings();
+		resetSpatialSettings(false);
 	}
 
 	protected PathAndFillManager(final SNT plugin) {
 		this();
 		this.plugin = plugin;
-		seSpatialSettingsFromPlugin();
+		syncSpatialSettingsWithPlugin();
 		addPathAndFillListener(plugin);
 	}
 
@@ -183,10 +183,9 @@ public class PathAndFillManager extends DefaultHandler implements
 		this.y_spacing = y_spacing;
 		this.z_spacing = z_spacing;
 		this.spacing_units = boundingBox.getUnit();
-		spacingIsUnset = false;
 	}
 
-	protected void seSpatialSettingsFromPlugin() {
+	protected void syncSpatialSettingsWithPlugin() {
 		x_spacing = plugin.x_spacing;
 		y_spacing = plugin.y_spacing;
 		z_spacing = plugin.z_spacing;
@@ -195,18 +194,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		boundingBox.setSpacing(x_spacing, y_spacing, z_spacing,
 			spacing_units);
 		boundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
-		spacingIsUnset = false;
-	}
-
-	protected void setPluginSpatialSettings() {
-		plugin.x_spacing = x_spacing;
-		plugin.y_spacing = y_spacing;
-		plugin.z_spacing = z_spacing;
-		plugin.spacing_units = spacing_units;
-		final double[] dimensions = boundingBox.getDimensions(false);
-		plugin.width = (int) dimensions[0];
-		plugin.height = (int) dimensions[1];
-		plugin.depth = (int) dimensions[2];
 	}
 
 	protected void assignSpatialSettings(final ImagePlus imp) {
@@ -220,25 +207,24 @@ public class PathAndFillManager extends DefaultHandler implements
 			spacing_units);
 		boundingBox.setDimensions(imp.getWidth(), imp.getHeight(), imp.getNSlices());
 		spacingIsUnset = false;
+			final PointInCanvas zeroOffset = new PointInCanvas(0, 0, 0);
+			getPaths().forEach(path -> {
+				path.setSpacing(cal);
+				path.setCanvasOffset(zeroOffset);
+			});
+		}
 	}
 
-	protected void resetSpatialSettings() {
+	protected void resetSpatialSettings(final boolean alsoResetPaths) {
 		boundingBox = new BoundingBox();
 		x_spacing = boundingBox.xSpacing;
 		y_spacing = boundingBox.ySpacing;
 		z_spacing = boundingBox.zSpacing;
 		spacing_units = boundingBox.getUnit();
-		// plugin = null;
-		if (size() > 0) {
+		if (alsoResetPaths && size() > 0) {
 			final Calibration cal = boundingBox.getCalibration();
 			getPaths().forEach(path -> path.setSpacing(cal));
 		}
-		// if the user is using a display canvas and has loaded reconstructions
-		// then we will keep using current spacing until user disposes all paths
-		if (size() > 0 && plugin != null && !plugin.accessToValidImageData())
-			spacingIsUnset = false;
-		else
-			spacingIsUnset = true;
 	}
 
 	/**
@@ -548,7 +534,11 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	protected void updateBoundingBox() {
+		final BoundingBox previousBox = getBoundingBox(false);
 		boundingBox = getBoundingBox(true);
+		if (plugin != null) {
+			plugin.getPrefs().setTemp(SNTPrefs.RESIZE_REQUIRED, !previousBox.contains(boundingBox));
+		}
 	}
 
 	/**
@@ -1505,6 +1495,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			case "samplespacing":
 
 				try {
+					final boolean spacingIsUnset = !boundingBox.isScaled();
 					final String xString = attributes.getValue("x");
 					final String yString = attributes.getValue("y");
 					final String zString = attributes.getValue("z");
@@ -1518,7 +1509,6 @@ public class PathAndFillManager extends DefaultHandler implements
 						y_spacing = boundingBox.ySpacing;
 						z_spacing = boundingBox.zSpacing;
 						spacing_units = spacingUnits;
-						spacingIsUnset = false;
 					}
 				} catch (final NumberFormatException e) {
 					throw new TracesFileFormatException(
@@ -2079,7 +2069,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		allPaths.clear();
 		allFills.clear();
 		if (plugin == null || (plugin != null && !plugin.accessToValidImageData()))
-			resetSpatialSettings();
+			resetSpatialSettings(false);
 		resetListeners(null);
 	}
 
@@ -2415,7 +2405,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				pluginBoundingBox.setOrigin(new PointInImage(0, 0, 0));
 				pluginBoundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
 				if (!pluginBoundingBox.contains(boundingBox)) {
-					if (!plugin.accessToValidImageData()) setPluginSpatialSettings();
+					plugin.getPrefs().setTemp(SNTPrefs.RESIZE_REQUIRED, true);
 					SNTUtils.warn("Some nodes lay outside the image volume: you may need to "
 							+ "adjust import options or resize current image canvas");
 				}
