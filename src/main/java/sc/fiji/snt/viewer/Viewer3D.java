@@ -372,15 +372,33 @@ public class Viewer3D {
 	 */
 	public Viewer3D(final Context context) {
 		this();
-		GuiUtils.setSystemLookAndFeel();
-		initManagerList();
-		context.inject(this);
-		prefs.setPreferences();
+		init(context);
+	}
+
+	/**
+	 * Script-friendly constructor.
+	 *
+	 * @param interactive if true, the viewer is displayed with GUI Controls to
+	 *                    import, manage and customize the Viewer's scene.
+	 */
+	public Viewer3D(final boolean interactive) {
+		this();
+		if (interactive) {
+			init(new Context(CommandService.class, DisplayService.class, PrefService.class, SNTService.class,
+					UIService.class));
+		}
 	}
 
 	protected Viewer3D(final SNT snt) {
 		this(snt.getContext());
 		sntInstance = true;
+	}
+
+	private void init(final Context context) {
+		GuiUtils.setSystemLookAndFeel();
+		initManagerList();
+		context.inject(this);
+		prefs.setPreferences();
 	}
 
 	protected static void workaroundIntelGraphicsBug() { // FIXME: This should go away with jogl 2.40?
