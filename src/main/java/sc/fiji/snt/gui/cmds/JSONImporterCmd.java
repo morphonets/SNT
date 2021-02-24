@@ -94,9 +94,7 @@ public class JSONImporterCmd extends CommonDynamicCmd {
 				pafm.deletePaths(indices);
 			}
 
-			// If a display canvas is being used, resize it as needed
-			sntService.getPlugin().updateDisplayCanvases();
-
+			if (snt != null) notifyExternalDataLoaded();
 			status("Successfully imported " + result.size() + " reconstruction(s)...", true);
 	
 		} catch (final FileNotFoundException | IllegalArgumentException | JSONException e) {

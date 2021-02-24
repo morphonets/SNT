@@ -44,7 +44,6 @@ import org.scijava.widget.Button;
 import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.PathAndFillManager;
-import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
@@ -156,11 +155,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			}
 		}
 
-		if (snt != null) {
-			snt.updateDisplayCanvases();
-			snt.updateAllViewers();
-			snt.getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, true);
-		}
+		if (snt != null) notifyExternalDataLoaded();
 
 		if (recViewer != null) {
 			// A 'stand-alone' Reconstruction Viewer was specified

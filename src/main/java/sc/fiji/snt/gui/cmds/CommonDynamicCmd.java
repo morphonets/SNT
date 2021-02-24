@@ -32,6 +32,7 @@ import org.scijava.ui.UIService;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTPrefs;
 
 /**
  * Command class for GUI commands extending DynamicCommand
@@ -117,6 +118,13 @@ public class CommonDynamicCmd extends DynamicCommand {
 				ui.runCommand("validateImgDimensions");
 		}
 		statusService.clearStatus();
+	}
+
+	protected void notifyExternalDataLoaded() { //TODO: Implement listener
+		// If a display canvas is being used notify plugin
+		snt.updateDisplayCanvases();
+		snt.updateAllViewers();
+		snt.getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, true);
 	}
 
 	@Override

@@ -41,7 +41,6 @@ import org.scijava.widget.Button;
 
 import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.PathAndFillManager;
-import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
@@ -173,12 +172,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 			recViewer.setSceneUpdatesEnabled(true);
 		}
 
-		if (snt != null) {
-			// If a display canvas is being used, resize it as needed
-			snt.updateDisplayCanvases();
-			snt.updateAllViewers();
-			snt.getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, true);
-		}
+		if (snt != null) notifyExternalDataLoaded();
 
 		if (recViewer != null) recViewer.validate();
 
