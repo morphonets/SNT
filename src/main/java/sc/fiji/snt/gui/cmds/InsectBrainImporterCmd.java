@@ -36,6 +36,7 @@ import org.scijava.widget.Button;
 
 import net.imagej.ImageJ;
 import sc.fiji.snt.PathAndFillManager;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
@@ -148,7 +149,10 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 				}
 			}
 			// If a display canvas is being used, resize it as needed
-			sntService.getPlugin().updateDisplayCanvases();
+			snt.updateDisplayCanvases();
+			snt.updateAllViewers();
+			snt.getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, true);
+
 		}
 		else {
 			// We are importing into a stand-alone Reconstruction Viewer
@@ -166,7 +170,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 		else {
 			status("Successful imported " + trees.size() + " reconstruction(s)...", true);
 		}
-		resetUI();
+		resetUI(!isCanceled());
 	}
 
 	/**

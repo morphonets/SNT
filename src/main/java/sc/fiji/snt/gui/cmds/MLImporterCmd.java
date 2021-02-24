@@ -44,6 +44,7 @@ import org.scijava.widget.Button;
 import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.PathAndFillManager;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
@@ -155,8 +156,11 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			}
 		}
 
-		// If a display canvas is being used, resize it as needed
-		sntService.getPlugin().updateDisplayCanvases();
+		if (snt != null) {
+			snt.updateDisplayCanvases();
+			snt.updateAllViewers();
+			snt.getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, true);
+		}
 
 		if (recViewer != null) {
 			// A 'stand-alone' Reconstruction Viewer was specified
@@ -176,7 +180,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			status("Successful imported " + result.size() + " reconstruction(s)...",
 				true);
 		}
-		resetUI();
+		resetUI(recViewer == null);
 	}
 
 	/**

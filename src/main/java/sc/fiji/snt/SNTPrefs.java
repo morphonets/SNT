@@ -38,6 +38,9 @@ import ij3d.ContentConstants;
  */
 public class SNTPrefs { // TODO: Adopt PrefService
 
+	public static final String NO_IMAGE_ASSOCIATED_DATA = "noImgData";
+	public static final String RESIZE_REQUIRED = "resizeNeeded";
+
 	private static final int DRAW_DIAMETERS_XY = 1;
 	private static final int SNAP_CURSOR = 2;
 	private static final int REQUIRE_SHIFT_FOR_FORK = 4;

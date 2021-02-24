@@ -102,7 +102,7 @@ public class JSONImporterCmd extends CommonDynamicCmd {
 		} catch (final FileNotFoundException | IllegalArgumentException | JSONException e) {
 			error(e.getMessage());
 		} finally {
-			resetUI();
+			resetUI(pafm.size() > lastExistingPathIdx);
 		}
 
 	}

@@ -336,12 +336,16 @@ public class SNT extends MultiDThreePanes implements
 				"One dimension of the calibration information was zero: (" + x_spacing +
 					"," + y_spacing + "," + z_spacing + ")");
 		}
-		pathAndFillManager.seSpatialSettingsFromPlugin();
+		if (!isDisplayCanvas(sourceImage)) {
 		if (accessToValidImageData() && sourceImage.getOriginalFileInfo() != null) {
-			final String dir = sourceImage.getOriginalFileInfo().directory;
-			final String name = sourceImage.getOriginalFileInfo().fileName;
-			if (dir != null && name != null)
-				prefs.setRecentFile(new File(dir, name));
+			if (sourceImage.getOriginalFileInfo() != null) {
+				final String dir = sourceImage.getOriginalFileInfo().directory;
+				final String name = sourceImage.getOriginalFileInfo().fileName;
+				if (dir != null && name != null)
+					prefs.setRecentFile(new File(dir, name));
+			}
+		} else {
+			pathAndFillManager.syncSpatialSettingsWithPlugin();
 		}
 	}
 
@@ -377,10 +381,8 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private void rebuildDisplayCanvasesInternal() {
-		if (pathAndFillManager.spacingIsUnset) {
-			pathAndFillManager.resetSpatialSettings(); // set spacing to 1,1,1
-		}
 		if (!pathAndFillManager.getBoundingBox(false).hasDimensions()) {
+			pathAndFillManager.resetSpatialSettings(false);
 			pathAndFillManager.updateBoundingBox();
 		}
 		initialize(getSinglePane(), 1, 1);
@@ -396,6 +398,7 @@ public class SNT extends MultiDThreePanes implements
 			if (zy != null) zy.show();
 			if (xz != null) xz.show();
 		}
+		if (accessToValidImageData()) getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, false);
 	}
 
 	private void nullifyCanvases() {
@@ -430,12 +433,15 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public boolean accessToValidImageData() {
-		return getImagePlus() != null && !"SNT Display Canvas".equals(xy
-			.getInfoProperty());
+		return getImagePlus() != null && !isDisplayCanvas(xy);
 	}
 
 	private void setIsDisplayCanvas(final ImagePlus imp) {
 		imp.setProperty("Info", "SNT Display Canvas");
+	}
+
+	protected boolean isDisplayCanvas(final ImagePlus imp) {
+		return "SNT Display Canvas".equals(imp.getInfoProperty());
 	}
 
 	private void assembleDisplayCanvases() {
@@ -1033,7 +1039,7 @@ public class SNT extends MultiDThreePanes implements
 			changeUIState(SNTUI.TRACING_PAUSED);
 			setDrawCrosshairsAllPanes(false);
 			setCanvasLabelAllPanes(InteractiveTracerCanvas.TRACING_PAUSED_LABEL);
-			enableSnapCursor(snapCursor && !accessToValidImageData());
+			enableSnapCursor(snapCursor && accessToValidImageData());
 		}
 		else {
 			tracingHalted = false;
@@ -2849,7 +2855,9 @@ public class SNT extends MultiDThreePanes implements
 		final boolean validImage = accessToValidImageData();
 		snapCursor = enable && validImage;
 		if (isUIready()) {
-			if (enable && !validImage) ui.noValidImageDataError();
+			if (enable && !validImage) {
+				ui.noValidImageDataError();
+			}
 			ui.useSnapWindow.setSelected(snapCursor);
 			ui.snapWindowXYsizeSpinner.setEnabled(snapCursor);
 			ui.snapWindowZsizeSpinner.setEnabled(snapCursor && !is2D());

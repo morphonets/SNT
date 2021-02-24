@@ -107,7 +107,15 @@ public class CommonDynamicCmd extends DynamicCommand {
 	}
 
 	protected void resetUI() {
-		if (ui != null) ui.changeState(SNTUI.READY);
+		resetUI(false);
+	}
+
+	protected void resetUI(final boolean validateDimensions) {
+		if (ui != null) {
+			ui.changeState(SNTUI.READY);
+			if (validateDimensions && !isCanceled())
+				ui.runCommand("validateImgDimensions");
+		}
 		statusService.clearStatus();
 	}
 
