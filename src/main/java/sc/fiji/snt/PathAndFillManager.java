@@ -1479,13 +1479,14 @@ public class PathAndFillManager extends DefaultHandler implements
 					final int parsed_height = Integer.parseInt(attributes.getValue(
 							"height"));
 					final int parsed_depth = Integer.parseInt(attributes.getValue("depth"));
+					boundingBox.setOrigin(new PointInImage(0, 0, 0));
+					boundingBox.setDimensions(parsed_width, parsed_height, parsed_depth);
 					if (plugin != null && (parsed_width != plugin.width ||
 							parsed_height != plugin.height || parsed_depth != plugin.depth)) {
 						SNTUtils.warn(
 								"The image size in the traces file didn't match - it's probably for another image");
+						checkForAppropriateImageDimensions();
 					}
-					boundingBox.setOrigin(new PointInImage(0, 0, 0));
-					boundingBox.setDimensions(parsed_width, parsed_height, parsed_depth);
 				} catch (final NumberFormatException e) {
 					throw new TracesFileFormatException(
 							"There was an invalid attribute to <imagesize/>: " + e);
@@ -2397,19 +2398,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (boundingBox == null)
 				boundingBox = new BoundingBox();
 			boundingBox.append(((TreeSet<? extends SNTPoint>) points).iterator());
-
-			// If a plugin exists, warn user if its image cannot render imported nodes
-			if (plugin != null && plugin.getImagePlus() != null) {
-
-				final BoundingBox pluginBoundingBox = new BoundingBox();
-				pluginBoundingBox.setOrigin(new PointInImage(0, 0, 0));
-				pluginBoundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
-				if (!pluginBoundingBox.contains(boundingBox)) {
-					plugin.getPrefs().setTemp(SNTPrefs.RESIZE_REQUIRED, true);
-					SNTUtils.warn("Some nodes lay outside the image volume: you may need to "
-							+ "adjust import options or resize current image canvas");
-				}
-			}
+			checkForAppropriateImageDimensions();
 		}
 		return true;
 	}
@@ -2671,6 +2660,20 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (boundingBox != null) boundingBox.info = file.getName();
 		}
 		return result;
+	}
+
+	private void checkForAppropriateImageDimensions() {
+		if (plugin != null && plugin.getImagePlus() != null) {
+			// If a plugin exists, warn user if its image cannot render imported nodes
+			final BoundingBox pluginBoundingBox = new BoundingBox();
+			pluginBoundingBox.setOrigin(new PointInImage(0, 0, 0));
+			pluginBoundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
+			if (!pluginBoundingBox.contains(boundingBox)) {
+				plugin.getPrefs().setTemp(SNTPrefs.RESIZE_REQUIRED, true);
+				SNTUtils.warn("Some nodes lay outside the image volume: you may need to "
+						+ "adjust import options or resize current image canvas");
+			}
+		}
 	}
 
 	/*
