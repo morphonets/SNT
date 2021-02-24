@@ -338,14 +338,15 @@ public class SNT extends MultiDThreePanes implements
 		}
 		if (!isDisplayCanvas(sourceImage)) {
 		if (accessToValidImageData() && sourceImage.getOriginalFileInfo() != null) {
-			if (sourceImage.getOriginalFileInfo() != null) {
-				final String dir = sourceImage.getOriginalFileInfo().directory;
-				final String name = sourceImage.getOriginalFileInfo().fileName;
-				if (dir != null && name != null)
-					prefs.setRecentFile(new File(dir, name));
+				if (sourceImage.getOriginalFileInfo() != null) {
+					final String dir = sourceImage.getOriginalFileInfo().directory;
+					final String name = sourceImage.getOriginalFileInfo().fileName;
+					if (dir != null && name != null)
+						prefs.setRecentFile(new File(dir, name));
+				}
+			} else {
+				pathAndFillManager.syncSpatialSettingsWithPlugin();
 			}
-		} else {
-			pathAndFillManager.syncSpatialSettingsWithPlugin();
 		}
 	}
 

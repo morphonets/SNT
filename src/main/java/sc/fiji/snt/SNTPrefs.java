@@ -107,6 +107,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private void storeIJ1Prefs() {
 		ij1ReverseSliderOrder = Prefs.reverseNextPreviousOrder;
 		ij1PointerCursor = Prefs.usePointerCursor;
+	}
 
 	public boolean getTemp(final String key, final boolean defaultValue) {
 		final String k = "snt." + key;

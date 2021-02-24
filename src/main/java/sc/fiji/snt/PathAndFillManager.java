@@ -206,7 +206,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		boundingBox.setSpacing(x_spacing, y_spacing, z_spacing,
 			spacing_units);
 		boundingBox.setDimensions(imp.getWidth(), imp.getHeight(), imp.getNSlices());
-		spacingIsUnset = false;
+		if (size() > 0) {
 			final PointInCanvas zeroOffset = new PointInCanvas(0, 0, 0);
 			getPaths().forEach(path -> {
 				path.setSpacing(cal);
