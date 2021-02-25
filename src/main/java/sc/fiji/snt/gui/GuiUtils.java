@@ -847,6 +847,9 @@ public class GuiUtils {
 		mi = menuItemTriggeringURL("Known Issues", "https://github.com/morphonets/SNT/issues");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BUG));
 		helpMenu.add(mi);
+		mi = menuItemTriggeringURL("Release Notes", "https://github.com/morphonets/SNT/releases");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.NEWSPAPER));
+		helpMenu.add(mi);
 
 		helpMenu.addSeparator();
 		mi = menuItemTriggeringURL("Scripting", URL + ":_Scripting");

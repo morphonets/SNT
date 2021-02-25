@@ -123,6 +123,7 @@ public class IconFactory {
 			MINUS('\uf146', false), //
 			NAVIGATE('\uf14e', false), //
 			MOVE('\uf0b2', true), //
+			NEWSPAPER('\uf1ea', false), //
 			NEXT('\uf35b', false), //
 			OPEN_FOLDER('\uf07c', false), //
 			OPTIONS('\uf013', true), //
