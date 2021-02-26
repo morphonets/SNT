@@ -9,7 +9,7 @@ from PyQt5.QtCore import QDir
 from PyQt5.QtWidgets import QFileDialog, QApplication
 
 # The path to your local Fiji.app installation
-local_fiji_dir = "/home/tferr/Fiji.app"
+local_fiji_dir = r"C:\Users\cam\Desktop\Fiji.app"
 
 def getpath(directory=expanduser("~")):
     # see https://stackoverflow.com/a/46814297
