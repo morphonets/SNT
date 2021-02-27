@@ -60,6 +60,7 @@ import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
 import ij.gui.ImageRoi;
+import ij.gui.ImageWindow;
 import ij.gui.NewImage;
 import ij.gui.Overlay;
 import ij.gui.StackWindow;
@@ -2929,14 +2930,14 @@ public class SNT extends MultiDThreePanes implements
 		removeMIPOverlayAllPanes();
 		if (!single_pane) {
 			final ImagePlus[] impPanes = { xz, zy };
-			final StackWindow[] winPanes = { xz_window, zy_window };
+			final ImageWindow[] winPanes = { xz_window, zy_window };
 			for (int i = 0; i < impPanes.length; ++i) {
 				if (impPanes[i] == null) continue;
 				final Overlay overlay = impPanes[i].getOverlay();
 				if (!impPanes[i].changes && (overlay == null || impPanes[i].getOverlay()
 					.size() == 0)) impPanes[i].close();
 				else {
-					winPanes[i] = new StackWindow(impPanes[i]);
+					winPanes[i] = new ImageWindow(impPanes[i]);
 					winPanes[i].getCanvas().add(ij.Menus.getPopupMenu());
 					impPanes[i].setOverlay(overlay);
 				}
@@ -2950,9 +2951,9 @@ public class SNT extends MultiDThreePanes implements
 		}
 		if (xy != null && xy.getImage() != null) {
 			if (original_xy_canvas != null) {
-				xy_window = new StackWindow(xy, original_xy_canvas);
+				xy_window = (xy.getNSlices()==1) ? new ImageWindow(xy, original_xy_canvas) : new StackWindow(xy, original_xy_canvas);
 			} else
-				xy_window = new StackWindow(xy);
+				xy_window = (xy.getNSlices()==1) ? new ImageWindow(xy) : new StackWindow(xy);
 			xy.setOverlay(overlay);
 			xy_window.getCanvas().add(ij.Menus.getPopupMenu());
 		}

@@ -28,6 +28,7 @@ import java.awt.image.ColorModel;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.ImageCanvas;
+import ij.gui.ImageWindow;
 import ij.gui.Overlay;
 import ij.gui.StackWindow;
 import ij.measure.Calibration;
@@ -56,9 +57,9 @@ public class MultiDThreePanes implements PaneOwner {
 	protected MultiDThreePanesCanvas xz_canvas;
 	protected MultiDThreePanesCanvas zy_canvas;
 	protected ImageCanvas original_xy_canvas;
-	protected StackWindow xy_window;
-	protected StackWindow xz_window;
-	protected StackWindow zy_window;
+	protected ImageWindow xy_window;
+	protected ImageWindow xz_window;
+	protected ImageWindow zy_window;
 	protected boolean single_pane;
 	protected boolean singleSlice;
 
@@ -691,7 +692,7 @@ public class MultiDThreePanes implements PaneOwner {
 		if (isDummy()) {
 			xy_window = null;
 		} else {
-			xy_window = new StackWindow(xy, xy_canvas); // will be showed
+			xy_window = (xy.getNSlices()==1) ? new ImageWindow(xy, xy_canvas) : new StackWindow(xy, xy_canvas); // will be showed
 			xy_canvas.requestFocusInWindow(); // Ensure keylisteners have focus
 		}
 
