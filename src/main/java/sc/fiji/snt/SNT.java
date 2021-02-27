@@ -64,9 +64,11 @@ import ij.gui.NewImage;
 import ij.gui.Overlay;
 import ij.gui.StackWindow;
 import ij.measure.Calibration;
+import ij.measure.Measurements;
 import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
+import ij.process.ImageStatistics;
 import ij.process.LUT;
 import ij.process.ShortProcessor;
 import ij3d.Content;
@@ -172,8 +174,8 @@ public class SNT extends MultiDThreePanes implements
 	protected byte[][] slices_data_b;
 	protected short[][] slices_data_s;
 	protected float[][] slices_data_f;
-	volatile protected float stackMax = Float.MIN_VALUE;
-	volatile protected float stackMin = Float.MAX_VALUE;
+	volatile protected float stackMax;
+	volatile protected float stackMin;
 
 	/* Hessian-based analysis */
 	private volatile boolean hessianEnabled = false;
@@ -607,6 +609,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private void loadData() {
+		statusService.showStatus("Loading data...");
 		final ImageStack s = xy.getStack();
 		switch (imageType) {
 			case ImagePlus.GRAY8:
@@ -623,36 +626,19 @@ public class SNT extends MultiDThreePanes implements
 				for (int z = 0; z < depth; ++z)
 					slices_data_s[z] = (short[]) s.getPixels(xy.getStackIndex(channel, z +
 						1, frame));
-				statusService.showStatus("Finding stack minimum / maximum");
-				for (int z = 0; z < depth; ++z) {
-					for (int y = 0; y < height; ++y)
-						for (int x = 0; x < width; ++x) {
-							final short v = slices_data_s[z][y * width + x];
-							if (v < stackMin) stackMin = v;
-							if (v > stackMax) stackMax = v;
-						}
-					statusService.showProgress(z, depth);
-				}
-				statusService.showProgress(0, 0);
 				break;
 			case ImagePlus.GRAY32:
 				slices_data_f = new float[depth][];
 				for (int z = 0; z < depth; ++z)
 					slices_data_f[z] = (float[]) s.getPixels(xy.getStackIndex(channel, z +
 						1, frame));
-				statusService.showStatus("Finding stack minimum / maximum");
-				for (int z = 0; z < depth; ++z) {
-					for (int y = 0; y < height; ++y)
-						for (int x = 0; x < width; ++x) {
-							final float v = slices_data_f[z][y * width + x];
-							if (v < stackMin) stackMin = v;
-							if (v > stackMax) stackMax = v;
-						}
-					statusService.showProgress(z, depth);
-				}
-				statusService.showProgress(0, 0);
 				break;
 		}
+		statusService.showStatus("Finding stack minimum / maximum");
+		xy.deleteRoi(); // if a ROI exists, compute min/ max for entire image
+		final ImageStatistics stats = xy.getStatistics(Measurements.MIN_MAX);
+		stackMin = (float) stats.min;
+		stackMax = (float) stats.max;
 		nullifyHessian(); // ensure it will be reloaded
 		updateLut();
 	}
