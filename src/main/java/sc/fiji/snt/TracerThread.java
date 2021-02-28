@@ -294,18 +294,14 @@ public class TracerThread extends SearchThread {
 				break;
 			case ImagePlus.GRAY16: {
 				value_at_new_point = slices_data_s[new_z][new_y * width + new_x];
-				value_at_new_point = 255.0 * (value_at_new_point - stackMin) /
-					(stackMax - stackMin);
 				break;
 			}
 			case ImagePlus.GRAY32: {
 				value_at_new_point = slices_data_f[new_z][new_y * width + new_x];
-				value_at_new_point = 255.0 * (value_at_new_point - stackMin) /
-					(stackMax - stackMin);
 				break;
 			}
 		}
-		return value_at_new_point;
+		return 255.0 * (value_at_new_point - stackMin) / (stackMax - stackMin);
 	}
 
 	@Override
