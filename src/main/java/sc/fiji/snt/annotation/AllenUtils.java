@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Utility methods for accessing/handling {@link AllenCompartment}s
@@ -358,6 +359,28 @@ public class AllenUtils {
 	 */
 	public static List<AllenCompartment> getOntologies() {
 		return new AllenTreeModel().getOntologies();
+	}
+
+
+	/**
+	 * Gets a flat (non-hierarchical) list of all the compartments of the specified
+	 * ontology depth.
+	 * 
+	 * @param depth  the ontology depth
+	 * @param meshes If true, only compartments with known meshes are retrieved
+	 * @return the "flattened" list of compartment
+	 */
+	public static List<AllenCompartment> getOntologies(final int depth, final boolean meshes) {
+		if (depth < 0 || depth > getHighestOntologyDepth()) {
+			throw new IllegalArgumentException("depth must be within 0-getHighestOntologyDepth()");
+		}
+		if (meshes) {
+			return new AllenTreeModel().getOntologies().stream()
+					.filter(c -> c.getOntologyDepth() == depth && c.isMeshAvailable()).collect(Collectors.toList());
+		} else {
+			return new AllenTreeModel().getOntologies().stream().filter(c -> c.getOntologyDepth() == depth)
+					.collect(Collectors.toList());
+		}
 	}
 
 	private static class AllenTreeModel {
