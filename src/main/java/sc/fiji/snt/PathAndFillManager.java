@@ -22,7 +22,7 @@
 
 package sc.fiji.snt;
 
-import java.awt.GraphicsEnvironment;
+import java.awt.*;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
@@ -819,7 +819,8 @@ public class PathAndFillManager extends DefaultHandler implements
 			final boolean realRadius = pathToUse.hasRadii();
 			final boolean hasAnnotations = pathToUse.hasNodeAnnotations();
 			final boolean hasHemisphereFlags = pathToUse.hasNodeHemisphereFlags();
-
+			final Color pathColor = pathToUse.getColor();
+			final String pathTags = PathManagerUI.extractTagsFromPath(pathToUse);
 			for (int i = indexToStartAt; i < pathToUse.size(); ++i) {
 
 				final boolean firstPoint = firstSWCPoint == null;
@@ -837,6 +838,9 @@ public class PathAndFillManager extends DefaultHandler implements
 						(firstPoint) ? nearestParentSWCPointID : currentPointID - 1 // parent
 				);
 				swcPoint.setPath(currentPath);
+				// Only use Path color, node colors are ignored
+				swcPoint.setColor(pathColor);
+				swcPoint.setTags(pathTags);
 				if (hasAnnotations) swcPoint.setAnnotation(pathToUse.getNodeAnnotation(i));
 				if (hasHemisphereFlags) swcPoint.setHemisphere(pathToUse.getNodeHemisphereFlag(i));
 
