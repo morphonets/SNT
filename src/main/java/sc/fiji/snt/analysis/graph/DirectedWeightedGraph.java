@@ -62,6 +62,12 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		init(tree.getNodesAsSWCPoints(), true);
 	}
 
+	public DirectedWeightedGraph(final Tree tree, final boolean assignDistancesToWeight) throws IllegalArgumentException {
+		this();
+		this.tree = tree;
+		init(tree.getNodesAsSWCPoints(), assignDistancesToWeight);
+	}
+
 	public DirectedWeightedGraph() {
 		super(null, SupplierUtil.createSupplier(SWCWeightedEdge.class), new DefaultGraphType.Builder()
 				.directed().allowMultipleEdges(false).allowSelfLoops(false).allowCycles(false).weighted(true)
@@ -375,7 +381,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	public Tree getTree(boolean createNewTree) {
 		if (createNewTree) {
 			updateVertexProperties();
-			return new Tree(this.vertexSet(), "");
+			return new Tree(this, "");
 		} else {
 			return tree;
 		}

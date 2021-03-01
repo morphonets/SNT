@@ -36,6 +36,8 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.jgrapht.Graphs;
+import org.jgrapht.traverse.DepthFirstIterator;
 import org.scijava.util.ColorRGB;
 
 import ij.IJ;
@@ -44,6 +46,7 @@ import ij.ImageStack;
 import ij.measure.Calibration;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.BoundingBox;
@@ -121,6 +124,47 @@ public class Tree {
 	public Tree(final Collection<SWCPoint> nodes, final String label) {
 		pafm = PathAndFillManager.createFromNodes(nodes);
 		tree = (pafm == null) ? new ArrayList<>() : pafm.getPaths();
+		setLabel(label);
+	}
+
+	public Tree(final DirectedWeightedGraph graph, final String label) {
+		pafm = new PathAndFillManager();
+		pafm.setHeadless(true);
+		tree = new ArrayList<>();
+		int pathID = 0;
+		int treeID = 1;
+		final SWCPoint root = graph.getRoot();
+		final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator = graph.getDepthFirstIterator(root);
+		Path currentPath = new Path(1d, 1d, 1d, "? units");
+		currentPath.createCircles();
+		boolean addStartJoin = false;
+		while (depthFirstIterator.hasNext()) {
+			final SWCPoint point = depthFirstIterator.next();
+			if (graph.inDegreeOf(point) == 0) {
+				currentPath.setIsPrimary(true);
+			}
+			if (addStartJoin) {
+				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
+				currentPath.addNode(previousPoint);
+				currentPath.setStartJoin(previousPoint.onPath, previousPoint);
+				addStartJoin = false;
+			}
+			currentPath.addNode(point);
+			point.setPath(currentPath);
+			if (graph.outDegreeOf(point) == 0) {
+				currentPath.setIDs(++pathID, treeID);
+				currentPath.setColor(point.getColor());
+				String tags = point.getTags();
+				String newName = pafm.getDefaultName(currentPath);
+				currentPath.setName((tags == null || tags.isEmpty()) ? newName : newName + "{" + tags + "}");
+				currentPath.setSWCType(point.type);
+				currentPath.setGuessedTangents(2);
+				tree.add(currentPath);
+				currentPath = new Path(1d, 1d, 1d, "? units");
+				currentPath.createCircles();
+				addStartJoin = true;
+			}
+		}
 		setLabel(label);
 	}
 
