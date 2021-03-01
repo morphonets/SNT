@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.util;
 
+import java.awt.*;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -63,6 +64,10 @@ public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 
 	/** Optional attribute: BrainAnnotation */
 	private BrainAnnotation annotation;
+
+	private String tags;
+
+	private Color color;
 
 	public SWCPoint(final int id, final int type, final double x, final double y,
 		final double z, final double radius, final int parent)
@@ -238,6 +243,22 @@ public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 	 */
 	public List<SWCPoint> getNextPoints() {
 		return nextPoints;
+	}
+
+	public void setTags(String tags) {
+		this.tags = tags;
+	}
+
+	public void setColor(Color color) {
+		this.color = color;
+	}
+
+	public String getTags() {
+		return tags;
+	}
+
+	public Color getColor() {
+		return color;
 	}
 
 }
