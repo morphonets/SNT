@@ -35,6 +35,8 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.jgrapht.Graphs;
+import org.jgrapht.traverse.DepthFirstIterator;
 import org.scijava.util.ColorRGB;
 
 import ij.IJ;
@@ -43,6 +45,7 @@ import ij.ImageStack;
 import ij.measure.Calibration;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.BoundingBox;
@@ -120,6 +123,12 @@ public class Tree {
 	public Tree(final Collection<SWCPoint> nodes, final String label) {
 		pafm = PathAndFillManager.createFromNodes(nodes);
 		tree = (pafm == null) ? new ArrayList<>() : pafm.getPaths();
+		setLabel(label);
+	}
+
+	public Tree(final DirectedWeightedGraph graph, final String label) {
+		pafm = PathAndFillManager.createFromGraph(graph);
+		tree = pafm.getPaths();
 		setLabel(label);
 	}
 

@@ -22,7 +22,7 @@
 
 package sc.fiji.snt;
 
-import java.awt.GraphicsEnvironment;
+import java.awt.*;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
@@ -64,6 +64,8 @@ import java.util.zip.GZIPOutputStream;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 
+import org.jgrapht.Graphs;
+import org.jgrapht.traverse.DepthFirstIterator;
 import org.json.JSONException;
 import org.scijava.java3d.View;
 import org.scijava.util.ColorRGB;
@@ -77,6 +79,8 @@ import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij3d.Content;
 import ij3d.UniverseListener;
+import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.gui.GuiUtils;
@@ -819,7 +823,8 @@ public class PathAndFillManager extends DefaultHandler implements
 			final boolean realRadius = pathToUse.hasRadii();
 			final boolean hasAnnotations = pathToUse.hasNodeAnnotations();
 			final boolean hasHemisphereFlags = pathToUse.hasNodeHemisphereFlags();
-
+			final Color pathColor = pathToUse.getColor();
+			final String pathTags = PathManagerUI.extractTagsFromPath(pathToUse);
 			for (int i = indexToStartAt; i < pathToUse.size(); ++i) {
 
 				final boolean firstPoint = firstSWCPoint == null;
@@ -837,6 +842,9 @@ public class PathAndFillManager extends DefaultHandler implements
 						(firstPoint) ? nearestParentSWCPointID : currentPointID - 1 // parent
 				);
 				swcPoint.setPath(currentPath);
+				// Only use Path color, node colors are ignored
+				swcPoint.setColor(pathColor);
+				swcPoint.setTags(pathTags);
 				if (hasAnnotations) swcPoint.setAnnotation(pathToUse.getNodeAnnotation(i));
 				if (hasHemisphereFlags) swcPoint.setHemisphere(pathToUse.getNodeHemisphereFlag(i));
 
@@ -986,6 +994,14 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	public void addPath(final Path p) {
 		addPath(p, false, false);
+	}
+
+	public void addPath(final Path p, final boolean retainTags) {
+		final String tags = PathManagerUI.extractTagsFromPath(p);
+		addPath(p, true, true);
+		if (retainTags) {
+			p.setName((tags.isEmpty()) ? p.getName() : p.getName() + "{" + tags + "}");
+		}
 	}
 
 	public synchronized void addPath(final Path p,
@@ -2005,6 +2021,42 @@ public class PathAndFillManager extends DefaultHandler implements
 			return pafm;
 		else
 			return null;
+	}
+
+	public static PathAndFillManager createFromGraph(final DirectedWeightedGraph graph) {
+		final PathAndFillManager pafm = new PathAndFillManager();
+		pafm.setHeadless(true);
+		final SWCPoint root = graph.getRoot();
+		final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator = graph.getDepthFirstIterator(root);
+		Path currentPath = new Path(1d, 1d, 1d, "? units");
+		currentPath.createCircles();
+		currentPath.setIsPrimary(true);
+		boolean addStartJoin = false;
+		while (depthFirstIterator.hasNext()) {
+			final SWCPoint point = depthFirstIterator.next();
+			if (addStartJoin) {
+				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
+				currentPath.addNode(previousPoint);
+				currentPath.setStartJoin(previousPoint.onPath, previousPoint);
+				addStartJoin = false;
+			}
+			currentPath.addNode(point);
+			point.setPath(currentPath);
+			if (graph.outDegreeOf(point) == 0) {
+				pafm.addPath(currentPath, true, true);
+				currentPath.setColor(point.getColor());
+				final String tags = point.getTags();
+				if (tags != null && !tags.isEmpty()) {
+					currentPath.setName(currentPath.getName() + "{" + tags + "}");
+				}
+				currentPath.setSWCType(point.type);
+				currentPath.setGuessedTangents(2);
+				currentPath = new Path(1d, 1d, 1d, "? units");
+				currentPath.createCircles();
+				addStartJoin = true;
+			}
+		}
+		return pafm;
 	}
 
 	private boolean load(final InputStream is) {

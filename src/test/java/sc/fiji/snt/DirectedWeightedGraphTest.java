@@ -92,12 +92,15 @@ public class DirectedWeightedGraphTest {
 		TreeAnalyzer analyzer = new TreeAnalyzer(changedTree);
 		
 		PointInImage newTreeRoot = changedTree.getRoot();
-		assertTrue("Graph to Tree: replace root", newTreeRoot.getX() == 0.5 && newTreeRoot.getY() == 0.5 && newTreeRoot.getZ() == 0.5);
+		assertTrue("Graph to Tree: replace root", newTreeRoot.getX() == 0.5 &&
+				newTreeRoot.getY() == 0.5 && newTreeRoot.getZ() == 0.5);
+		assertEquals("Graph to Tree: # Points", 5, changedTree.getNodes().size());
 		assertEquals("Graph to Tree: # Branches", 3, analyzer.getBranches().size());
 		assertEquals("Graph to Tree: Strahler #", 2, analyzer.getStrahlerNumber());
 		assertEquals("Graph to Tree: # Branch Points", 1, analyzer.getBranchPoints().size());
 		assertEquals("Graph to Tree: # Tips", 2, analyzer.getTips().size());
-		assertEquals(analyzer.getCableLength(), (newRoot.distanceTo(v1) + v1.distanceTo(v2) + v2.distanceTo(v3) + v2.distanceTo(v4)), precision);
+		assertEquals(analyzer.getCableLength(), (newRoot.distanceTo(v1) + v1.distanceTo(v2) + v2.distanceTo(v3) +
+				v2.distanceTo(v4)), precision);
 
 	}
 

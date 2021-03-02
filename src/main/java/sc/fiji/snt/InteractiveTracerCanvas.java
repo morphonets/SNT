@@ -252,9 +252,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		}
 		final Tree destinationTree = getTreeFromID(destination.getTreeID());
 		final Tree sourceTree = getTreeFromID(source.getTreeID());
-		final DirectedWeightedGraph destinationGraph = destinationTree.getGraph();
+		final DirectedWeightedGraph destinationGraph = new DirectedWeightedGraph(destinationTree, false);
 		// Source graph is merged into destination graph
-		Graphs.addGraph(destinationGraph, sourceTree.getGraph());
+		Graphs.addGraph(destinationGraph, new DirectedWeightedGraph(sourceTree, false));
 		final SWCPoint destinationNode = getMatchingPointInGraph(destination.getNode(destination.getEditableNodeIndex()),
 				destinationGraph);
 		final SWCPoint sourceNode = getMatchingPointInGraph(source.getNode(source.getEditableNodeIndex()),
@@ -270,7 +270,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		newTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(destinationTree.list());
 		pathAndFillManager.deletePaths(sourceTree.list());
-		pathAndFillManager.addTree(newTree);
+		newTree.list().forEach(p -> pathAndFillManager.addPath(p, true));
 	}
 
 	private JMenuItem helpOnConnectingMenuItem() {
@@ -1003,24 +1003,18 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			final boolean warnOnFailure)
 	{
 		if (impossibleEdit(warnOnFailure)) return;
-		if (!guiUtils.getConfirmation(" <HTML><div WIDTH=600><p><b>Warning</b>: This destructive operation will " +
-				"replace the Tree (i.e., single rooted structure) associated with the active node.</p> " +
-				"<p>All color, metadata and morphometry tags and existing fits associated with the current Tree " +
-				"will be discarded.</p>", "Confirm root change?")) {
-			return;
-		}
 		final Path editingPath = tracerPlugin.getEditingPath();
 		final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
 		final int treeID = editingPath.getTreeID();
 		final Tree editingTree = getTreeFromID(treeID);
-		final DirectedWeightedGraph editingGraph = editingTree.getGraph();
+		final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
 		editingGraph.setRoot(getMatchingPointInGraph(editingNode, editingGraph));
 		final Tree newTree = editingGraph.getTree(true);
 		enableEditMode(false);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		newTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(editingTree.list());
-		pathAndFillManager.addTree(newTree);
+		newTree.list().forEach(p -> pathAndFillManager.addPath(p, true));
 	}
 
 	protected void splitTreeAtEditingNode(final boolean warnOnFailure) {
@@ -1032,7 +1026,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			getGuiUtils().tempMsg("Cannot split Tree at root node.");
 			return;
 		}
-		final DirectedWeightedGraph editingGraph = editingTree.getGraph();
+		final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
 		final SWCPoint editingVertex = getMatchingPointInGraph(editingPoint, editingGraph);
 		// incomingEdgesOf should never return an empty Set if we've arrived here
 		editingGraph.removeEdge(editingGraph.incomingEdgesOf(editingVertex).iterator().next());
@@ -1054,8 +1048,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		ancestorTree.list().forEach(p -> p.setSpacing(cal));
 		descendentTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(editingTree.list());
-		pathAndFillManager.addTree(ancestorTree);
-		pathAndFillManager.addTree(descendentTree);
+		ancestorTree.list().forEach(p -> pathAndFillManager.addPath(p, true));
+		descendentTree.list().forEach(p -> pathAndFillManager.addPath(p, true));
 	}
 
 	private Tree getTreeFromID(final int treeID) {
