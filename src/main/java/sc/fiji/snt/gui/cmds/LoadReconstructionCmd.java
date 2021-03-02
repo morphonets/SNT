@@ -116,7 +116,9 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 		if (recViewer != null && recViewer.isSNTInstance()) {
 			msg = "NB: Loaded file(s) will not be listed in Path Manager";
 		}
-		else {
+		else if (importDir) {
+			msg = "NB: You can also drag & drop directories into viewer or 'RV Controls'";
+		} else {
 			msg = " ";
 		}
 	}
