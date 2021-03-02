@@ -635,6 +635,17 @@ public class Viewer3D {
 		return view.getBackgroundColor() == Color.BLACK;
 	}
 
+	/**
+	 * Checks whether axons and dendrites of imported Trees are set to be imported
+	 * as separated objects.
+	 *
+	 * @return if imported trees are set to be split into axonal and dendritic
+	 *         subtrees.
+	 */
+	public boolean isSplitDendritesFromAxons() {
+		return prefs.isSplitDendritesFromAxons();
+	}
+
 	private void addAllObjects() {
 		if (cBar != null) {
 			cBar.updateColors();
@@ -742,6 +753,8 @@ public class Viewer3D {
 	 *
 	 * @param trees     the trees to be added
 	 * @param color     the rendering color
+	 * @param commonTag a common tag to be assigned to the group (to be displayed in
+	 *                  'RV Controls' list.
 	 */
 	public void addTrees(final Collection<Tree> trees, final String color, final String commonTag) {
 		if (commonTag != null) {
@@ -759,8 +772,6 @@ public class Viewer3D {
 	 *
 	 * @param trees     the trees to be added
 	 * @param color     the rendering color
-	 * @param commonTag a common tag to be assigned to the group (to be displayed in
-	 *                  'RV Controls' list.
 	 */
 	public void addTrees(final Collection<Tree> trees, final String color) {
 		final ColorRGB c = new ColorRGB(color);
@@ -780,6 +791,14 @@ public class Viewer3D {
 		addCollection(trees);
 	}
 
+	/**
+	 * Adds a collection of trees from reconstruction files
+	 *
+	 * @param files the reconstruction files to be imported
+	 * @param color the color to be assigned to imported reconstructions. If null,
+	 *              trees will be assigned a unique color
+	 * @see #setSplitDendritesFromAxons(boolean)
+	 */
 	public void addTrees(final File[] files, final String color) {
 		final ColorRGB c = (color == null || color.trim().isEmpty()) ? null : new ColorRGB(color);
 		final GuiUtils g = (frame.managerPanel == null) ? frame.managerPanel.guiUtils : gUtils;
@@ -4373,7 +4392,6 @@ public class Viewer3D {
 		 */
 		private int[] loadGuessingType(final Collection<File> files) {
 			final int totalFiles = files.size();
-			final ColorRGB[] uniqueColors = SNTColor.getDistinctColors(totalFiles);
 			int failures = 0;
 			int idx = 0;
 			if (frame.managerPanel != null)
@@ -4390,10 +4408,10 @@ public class Viewer3D {
 				try {
 					if (fName.endsWith("swc") || fName.endsWith(".traces") || fName.endsWith(".json")) { // reconstruction:
 						final Tree tree = new Tree(file.getAbsolutePath());
-						tree.setColor(uniqueColors[idx]);
+						tree.setColor(importColors[idx]);
 						Viewer3D.this.addTree(tree);
 					} else if (fName.endsWith("obj")) {
-						loadMesh(file.getAbsolutePath(), uniqueColors[idx], 75d);
+						loadMesh(file.getAbsolutePath(), importColors[idx], 75d);
 					} else {
 						failures++;
 						SNTUtils.log("... failed. Not a supported file type");
@@ -4417,10 +4435,6 @@ public class Viewer3D {
 			escapePressed = false;
 			if (frame != null && frame.managerPanel != null)
 				frame.managerPanel.resetProgressBar();
-		}
-
-		private ColorRGB getImportColor(final int index) {
-			return importColors[index];
 		}
 
 		private void setImportColors(ColorRGB[] colors) {

@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
@@ -39,9 +38,7 @@ import org.scijava.util.Colors;
 import org.scijava.widget.FileWidget;
 
 import net.imagej.ImageJ;
-import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.Viewer3D;
-import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 
@@ -63,6 +60,11 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 	@Parameter(label = "File", required = true,
 		description = "Supported extensions: traces, (e)SWC, json")
 	private File file;
+
+	@Parameter(label = "Filenames containing", required = false, //
+			description = "<html>Only files containing this string will be considered." +
+				"<br>Leave blank to consider all reconstruction files in the directory.")
+	private String pattern;
 
 	@Parameter(required = false, label = "Color", choices = { COLOR_CHOICE_MONO,
 		COLOR_CHOICE_POLY })
@@ -96,6 +98,12 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 					"<br>Supported extensions: traces, (e)SWC, json");
 		}
 		else {
+			// hide the 'pattern' field
+			final MutableModuleItem<String> patternMitem = getInfo().getMutableInput(
+					"pattern", String.class);
+			patternMitem.setVisibility(ItemVisibility.INVISIBLE);
+			resolveInput("pattern");
+	
 			final MutableModuleItem<String> colorChoiceMitem = getInfo()
 				.getMutableInput("colorChoice", String.class);
 			colorChoiceMitem.setRequired(false);
@@ -139,80 +147,39 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 	public void run() {
 
 		try {
-			if (recViewer == null) recViewer = sntService.getRecViewer();
-		}
-		catch (final UnsupportedOperationException exc) {
-			error(
-				"SNT's Reconstruction Viewer is not open and no other Viewer was specified.");
+			if (recViewer == null)
+				recViewer = sntService.getRecViewer();
+		} catch (final UnsupportedOperationException exc) {
+			error("SNT's Reconstruction Viewer is not open and no other Viewer was specified.");
 		}
 
-		if (!file.exists()) error(file.getAbsolutePath() +
-			" is no longer available");
+		if (!file.exists())
+			error(file.getAbsolutePath() + " is no longer available");
 
+		final boolean splitState = recViewer.isSplitDendritesFromAxons();
+		recViewer.setSplitDendritesFromAxons(splitByType);
 		if (file.isFile()) {
 			try {
 				final Tree tree = new Tree(file.getAbsolutePath());
-				if (tree.isEmpty()) cancel(
-					"No Paths could be extracted from file. Invalid path?");
+				if (tree.isEmpty())
+					cancel("No Paths could be extracted from file. Invalid path?");
 				tree.setColor(color);
-				importTree(tree);
+				recViewer.addTree(tree);
 				recViewer.validate();
 				return;
-			}
-			catch (final IllegalArgumentException ex) {
+			} catch (final IllegalArgumentException ex) {
 				cancel(ex.getMessage());
 			}
 		}
 
 		if (file.isDirectory()) {
-			final File[] files = file.listFiles((dir, name) -> {
-				final String lcName = name.toLowerCase();
-				return (lcName.endsWith("swc") || lcName.endsWith("traces") || lcName
-					.endsWith("json"));
-			});
-			recViewer.setSceneUpdatesEnabled(false);
-			int failures = 0;
-			final ColorRGB[] colors = (colorChoice.contains("unique")) ? SNTColor
-				.getDistinctColors(files.length) : null;
-			int idx = 0;
-			for (final File file : files) {
-				try {
-					final Tree tree = new Tree(file.getAbsolutePath());
-					if (tree.isEmpty()) {
-						throw new IllegalArgumentException("Somehow tree is empty");
-					}
-					tree.setColor((colors == null) ? color : colors[idx++]);
-					importTree(tree);
-				} catch (final IllegalArgumentException ignored) {
-					SNTUtils.log("Skipping file... No Paths extracted from " + file.getAbsolutePath());
-					failures++;
-					continue;
-				}
+			File[] treeFiles = SNTUtils.getReconstructionFiles(file, pattern);
+			if (treeFiles.length == 0) {
+				error("Directory does not contain valid reconstructions");
 			}
-			if (failures == files.length) {
-				error("No files imported. Invalid Directory?");
-			}
-			recViewer.setSceneUpdatesEnabled(true);
-			recViewer.validate();
-			final String msg = "" + (files.length - failures) + "/" + files.length +
-				" files successfully imported.";
-			msg(msg, (failures == 0) ? "All Reconstructions Imported"
-				: "Partially Successful Import");
+			recViewer.addTrees(treeFiles, (colorChoice.contains("unique")) ? null : color.toHTMLColor());
 		}
-	}
-
-	private void importTree(final Tree tree) {
-		final Set<Integer> types = tree.getSWCTypes();
-		if (splitByType && types.size() > 1) {
-			final String label = tree.getLabel();
-			for (final int type : types) {
-				final Tree subTree = tree.subTree(type);
-				subTree.setLabel(label + " (" + Path.getSWCtypeName(type, true) + ")");
-				recViewer.addTree(subTree);
-			}
-		} else {
-			recViewer.addTree(tree);
-		}
+		recViewer.setSplitDendritesFromAxons(splitState);
 	}
 
 	/* IDE debug method **/
