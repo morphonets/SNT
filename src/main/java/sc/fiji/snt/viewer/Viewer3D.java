@@ -549,6 +549,19 @@ public class Viewer3D {
 	}
 
 	/**
+	 * Sets whether axons and dendrites should be imported as separated objects.
+	 *
+	 * @param split true to segregate imported Trees into axonal and dendritic
+	 *              subtrees. This is likely only relevant to allow for subtree
+	 *              customizations using the GUI commands provided by the "RV
+	 *              Controls" dialog. This parameter is ignored if Trees have no
+	 *              annotations.
+	 */
+	public void setSplitDendritesFromAxons(final boolean split) {
+		prefs.setSplitDendritesFromAxons(split);
+	}
+
+	/**
 	 * Rotates the scene.
 	 *
 	 * @param degrees the angle, in degrees
@@ -694,8 +707,28 @@ public class Viewer3D {
 	 * @see Tree#getLabel()
 	 * @see #removeTree(String)
 	 * @see #updateView()
+	 * @see #setSplitDendritesFromAxons(boolean)
 	 */
 	public void addTree(final Tree tree) {
+		if (prefs.isSplitDendritesFromAxons()) {
+			int countFailures = 0;
+			for (final String type : new String[] { "Dend.", "Axon" }) {
+				final Tree subTree = tree.subTree(type);
+				if (subTree == null || subTree.isEmpty())
+					countFailures++;
+				else {
+					subTree.setLabel(tree.getLabel() + " (" + type + ")");
+					addTreeInternal(subTree);
+				}
+			}
+			if (countFailures == 2)
+				addTreeInternal(tree);
+		} else {
+			addTreeInternal(tree);
+		}
+	}
+
+	private void addTreeInternal(final Tree tree) {
 		final String label = getUniqueLabel(plottedTrees, "Tree ", tree.getLabel());
 		final ShapeTree shapeTree = new ShapeTree(tree);
 		plottedTrees.put(label, shapeTree);
@@ -2522,6 +2555,8 @@ public class Viewer3D {
 		private static final boolean DEF_NAG_USER_ON_RETRIEVE_ALL = true;
 		private static final String DEF_TREE_COMPARTMENT_CHOICE = "Axon";
 		private static final boolean DEF_RETRIEVE_ALL_IF_NONE_SELECTED = true;
+		private static final boolean DEF_SPLIT_DENDRITES_FROM_AXONS = true;
+		private boolean splitDendritesFromAxons;
 		public boolean nagUserOnRetrieveAll;
 		public boolean retrieveAllIfNoneSelected;
 		public String treeCompartmentChoice;
@@ -2541,6 +2576,7 @@ public class Viewer3D {
 		}
 
 		private void setPreferences() {
+			splitDendritesFromAxons = DEF_SPLIT_DENDRITES_FROM_AXONS;
 			nagUserOnRetrieveAll = DEF_NAG_USER_ON_RETRIEVE_ALL;
 			retrieveAllIfNoneSelected = DEF_RETRIEVE_ALL_IF_NONE_SELECTED;
 			treeCompartmentChoice = DEF_TREE_COMPARTMENT_CHOICE;
@@ -2648,6 +2684,14 @@ public class Viewer3D {
 				default:
 					return DEF_ROTATION_STEP;
 			}
+		}
+
+		public boolean isSplitDendritesFromAxons() {
+			return splitDendritesFromAxons;
+		}
+
+		public void setSplitDendritesFromAxons(boolean splitDendritesFromAxons) {
+			this.splitDendritesFromAxons = splitDendritesFromAxons;
 		}
 
 	}
