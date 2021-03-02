@@ -40,6 +40,7 @@ if (recFile) {
     tree = snt.demoTree()
     imp = snt.demoTreeImage() // tree.getSkeleton2D()
     tree.assignImage(imp)
+    convertPaths = convertBranchPoints = convertTips = true
 }
 
 // Option 1: Store ROIs in the image overlay  

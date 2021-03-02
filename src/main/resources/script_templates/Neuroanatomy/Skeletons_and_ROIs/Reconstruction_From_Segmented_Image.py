@@ -25,10 +25,10 @@ from sc.fiji.snt.viewer import Viewer3D
 
 
 def get_sample_image():
-	IJ.run("ddaC Neuron (84K)", "")
-	imp = IJ.getImage()
-	IJ.run(imp, "Set Scale...", "distance=0 known=0 unit=pixel")
-	return imp
+    IJ.run("ddaC Neuron (84k)", "")
+    imp = IJ.getImage()
+    IJ.run(imp, "Set Scale...", "distance=0 known=0 unit=pixel")
+    return imp
 
 
 def main():
@@ -38,6 +38,7 @@ def main():
 		imp = IJ.openImage(impFile.getAbsolutePath())
 	elif choice == "None. Use demo image":
 		imp = get_sample_image()
+		skeletonizeImp = True
 	# Use the image to create the reconstructions, first skeletonizing 
 	# if it is not already a skeleton.
 	converter = SkeletonConverter(imp, skeletonizeImp)

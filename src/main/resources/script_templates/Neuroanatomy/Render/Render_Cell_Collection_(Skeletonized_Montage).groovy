@@ -21,6 +21,8 @@ if (recDir) {
 } else {
     // Directory is invalid. Let's retrieve demo data instead
     trees = snt.demoTrees()
+    autoSize = true
+    scale = 1
 }
 
 // First we'll handle 2D skeletons
@@ -39,10 +41,11 @@ if (autoSize) {
     N = trees.size()
     columns = (int)Math.floor(Math.sqrt(N))
     rows = (int)Math.ceil(N/columns)
-} 
+}
+
 montage = new ij.plugin.MontageMaker().makeMontage2(
                         treeStack, //image
-						columns, rows, scale,
+						Math.max(1, columns), Math.max(1, rows), Math.max(0.1d, scale as double),
 						1, treeStack.getNSlices(), 1,// from, to, step
 						0, false) // border thickness, labels?
 montage.setTitle("2D Skeletons")
