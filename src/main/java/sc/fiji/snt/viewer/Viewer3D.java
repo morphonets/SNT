@@ -96,6 +96,7 @@ import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSlider;
 import javax.swing.JTree;
@@ -434,6 +435,10 @@ public class Viewer3D {
 	 */
 	public void setSceneUpdatesEnabled(final boolean enabled) {
 		viewUpdatesEnabled = enabled;
+		if (managerList != null) {
+			managerList.model.setListenersEnabled(enabled);
+			if (enabled) managerList.model.update();
+		}
 	}
 
 	private boolean chartExists() {
@@ -725,12 +730,8 @@ public class Viewer3D {
 	 */
 	public void addTrees(final Collection<Tree> trees, final String color) {
 		final ColorRGB c = new ColorRGB(color);
-		setSceneUpdatesEnabled(false);
-		trees.forEach(tree -> {
-			tree.setColor(c);
-			addTree(tree);
-		});
-		setSceneUpdatesEnabled(true);
+		trees.forEach(tree -> tree.setColor(c));
+		addCollection(trees);
 	}
 
 	/**
@@ -742,9 +743,7 @@ public class Viewer3D {
 	 */
 	public void addTrees(final Collection<Tree> trees, final boolean assignUniqueColors) {
 		if (assignUniqueColors) Tree.assignUniqueColors(trees);
-		setSceneUpdatesEnabled(false);
-		trees.forEach(tree -> addTree(tree));
-		setSceneUpdatesEnabled(true);
+		addCollection(trees);
 	}
 
 	/**
@@ -998,6 +997,18 @@ public class Viewer3D {
 			view.shoot(); // !? without forceRepaint() dimensions are not updated
 			fitToVisibleObjects(false, false);
 		}
+	}
+
+	/**
+	 * Updates the scene bounds to ensure all visible objects are displayed.
+	 * 
+	 * @param updateManagerList if true, the list in "Controls" dialog is also
+	 *                          updated.
+	 * @see #updateView()
+	 */
+	public void updateView(final boolean updateManagerList) {
+		updateView();
+		if (updateManagerList) managerList.update();
 	}
 
 	/**
@@ -1344,22 +1355,34 @@ public class Viewer3D {
 				addTree((Tree) object);
 			} else if (object instanceof OBJMesh) {
 				addMesh((OBJMesh) object);
-			} else if (object instanceof Collection) {
-				final boolean updateStatus = viewUpdatesEnabled;
-				setSceneUpdatesEnabled(false);
-				((Collection<?>) object).forEach(item -> add(item));
-				setSceneUpdatesEnabled(updateStatus);
-				validate();
 			} else if (object instanceof String) {
 				addLabel((String) object);
 			} else if (object instanceof AbstractDrawable) {
 				chart.add((AbstractDrawable) object, viewUpdatesEnabled);
+			} else if (object instanceof Collection) {
+				addCollection(((Collection<?>) object));
 			} else {
 				throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
 			}
 		} catch (final ClassCastException ex) {
 			throw new IllegalArgumentException(ex.getMessage());
 		}
+	}
+
+	private void addCollection(final Collection<?> collection) {
+		final boolean updateStatus = viewUpdatesEnabled;
+		final boolean displayProgress = frame != null && frame.managerPanel != null;
+		setSceneUpdatesEnabled(false);
+		if (displayProgress)
+			frame.managerPanel.setProgressLimit(0, ((Collection<?>) collection).size());
+		int index = 0; // will be inaccurate if collection contains other collections
+		for(final Object o : collection) {
+			if (displayProgress) frame.managerPanel.setProgress(index++);
+			add(o);
+		}
+		if (displayProgress) frame.managerPanel.resetProgressBar();
+		setSceneUpdatesEnabled(updateStatus);
+		validate();
 	}
 
 	/**
@@ -2636,6 +2659,7 @@ public class Viewer3D {
 		private SNTTable table;
 		private JCheckBoxMenuItem debugCheckBox;
 		private final SNTSearchableBar searchableBar;
+		private final JProgressBar progressBar;
 
 		public ManagerPanel(final GuiUtils guiUtils) {
 			super();
@@ -2678,9 +2702,32 @@ public class Viewer3D {
 			scrollPane.revalidate();
 			add(barPanel);
 			add(buttonPanel());
+			progressBar = new JProgressBar();
+			progressBar.setStringPainted(true);
+			progressBar.setFocusable(false);
+			resetProgressBar();
+			add(progressBar);
 			new FileDropWorker(managerList, guiUtils);
 		}
 
+		private void resetProgressBar() {
+			progressBar.setIndeterminate(true);
+			progressBar.setVisible(false);
+			progressBar.setMinimum(0);
+			progressBar.setMaximum(100);
+		}
+
+		private void setProgressLimit(final int min, final int max) {
+			progressBar.setIndeterminate(false);
+			progressBar.setMinimum(min);
+			progressBar.setMaximum(max);
+			progressBar.setVisible(true);
+		}
+	
+		private void setProgress(final int value) {
+			progressBar.setValue(value);
+		}
+	
 		class Action extends AbstractAction {
 			static final String ALL = "All";
 			static final String ENTER_FULL_SCREEN = "Full Screen";
@@ -4197,8 +4244,8 @@ public class Viewer3D {
 					if (collection.size() > 20
 							&& !guiUtils.getConfirmation(
 									"Are you sure you would like to import " + collection.size() + " files? "
-											+ "Importing large collections of data using drag-and-drop "
-											+ "may cause the UI to become unresponsive.",
+											+ "Importing large collections of data using drag-and-drop? "
+											+ "You can press 'Esc' at any time to interrupt import.",
 									"Proceed with Batch import?")) {
 						return;
 					}
@@ -4216,7 +4263,7 @@ public class Viewer3D {
 						@Override
 						protected void done() {
 							setSceneUpdatesEnabled(true);
-							updateView();
+							updateView(true);
 							if (failuresAndSuccesses[0] > 0)
 								guiUtils.error("" + failuresAndSuccesses[0] + "/" + failuresAndSuccesses[1]
 										+ " dropped file(s) were not imported (Console log will"
@@ -4262,9 +4309,12 @@ public class Viewer3D {
 		 * in collection
 		 */
 		private int[] loadGuessingType(final Collection<File> files) {
-			final ColorRGB[] uniqueColors = SNTColor.getDistinctColors(files.size());
+			final int totalFiles = files.size();
+			final ColorRGB[] uniqueColors = SNTColor.getDistinctColors(totalFiles);
 			int failures = 0;
 			int idx = 0;
+			if (frame.managerPanel != null)
+				frame.managerPanel.setProgressLimit(0, totalFiles);
 			for (final File file : files) {
 				if (escapePressed()) {
 					SNTUtils.log("Aborting...");
@@ -4272,7 +4322,7 @@ public class Viewer3D {
 				}
 				if (!file.exists() || file.isDirectory())
 					continue;
-				SNTUtils.log("Loading " + file.getAbsolutePath());
+				SNTUtils.log(String.format("Loading %d/%d: %s", (idx+1), totalFiles, file.getAbsolutePath()));
 				final String fName = file.getName().toLowerCase();
 				try {
 					if (fName.endsWith("swc") || fName.endsWith(".traces") || fName.endsWith(".json")) { // reconstruction:
@@ -4285,6 +4335,8 @@ public class Viewer3D {
 						failures++;
 						SNTUtils.log("... failed. Not a supported file type");
 					}
+					if (frame.managerPanel != null)
+						frame.managerPanel.setProgress(idx);
 				} catch (final IllegalArgumentException ex) {
 					SNTUtils.log("... failed " + ex.getMessage());
 					failures++;
@@ -4300,6 +4352,8 @@ public class Viewer3D {
 
 		private void resetEscape() {
 			escapePressed = false;
+			if (frame != null && frame.managerPanel != null)
+				frame.managerPanel.resetProgressBar();
 		}
 
 	}
@@ -4635,6 +4689,10 @@ public class Viewer3D {
 
 		public void setIconsVisible(final boolean b) {
 			renderer.setIconsVisible(b);
+			update();
+		}
+
+		private void update() {
 			model.update();
 		}
 
@@ -4819,8 +4877,42 @@ public class Viewer3D {
 
 	class DefaultUpdatableListModel<T> extends DefaultListModel<T> {
 		private static final long serialVersionUID = 1L;
+		private boolean listenersEnabled = true;
+
 		public void update() {
-			fireContentsChanged(this, 0, getSize() - 1);
+			super.fireContentsChanged(this, 0, getSize() - 1);
+		}
+
+		public boolean getListenersEnabled() {
+			return listenersEnabled;
+		}
+
+		public void setListenersEnabled(final boolean enabled) {
+			listenersEnabled = enabled;
+			if (!enabled && frame != null && frame.managerPanel != null) {
+				frame.managerPanel.resetProgressBar();
+			}
+		}
+
+		@Override
+		public void fireContentsChanged(final Object source, final int index0, final int index1) {
+			if (getListenersEnabled()) {
+				super.fireContentsChanged(source, index0, index1);
+			}
+		}
+
+		@Override
+		public void fireIntervalAdded(final Object source, final int index0, final int index1) {
+			if (getListenersEnabled()) {
+				super.fireIntervalAdded(source, index0, index1);
+			}
+		}
+
+		@Override
+		public void fireIntervalRemoved(final Object source, final int index0, final int index1) {
+			if (getListenersEnabled()) {
+				super.fireIntervalAdded(source, index0, index1);
+			}
 		}
 	}
 
