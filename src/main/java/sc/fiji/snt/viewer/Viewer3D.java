@@ -5704,7 +5704,8 @@ public class Viewer3D {
 					return; // replaces continue in lambda expression;
 				}
 				final Shape shape = shapeTree.treeSubShape;
-				for (int i = 0; i < shapeTree.treeSubShape.size(); i++) {
+				if (shape == null) return;
+				for (int i = 0; i < shape.size(); i++) {
 					final List<Point> points = ((LineStripPlus) shape.get(i)).getPoints();
 					points.stream().forEach(p -> {
 						final Color pColor = p.getColor();
