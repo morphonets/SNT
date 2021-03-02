@@ -128,43 +128,8 @@ public class Tree {
 	}
 
 	public Tree(final DirectedWeightedGraph graph, final String label) {
-		pafm = new PathAndFillManager();
-		pafm.setHeadless(true);
-		tree = new ArrayList<>();
-		int pathID = 0;
-		int treeID = 1;
-		final SWCPoint root = graph.getRoot();
-		final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator = graph.getDepthFirstIterator(root);
-		Path currentPath = new Path(1d, 1d, 1d, "? units");
-		currentPath.createCircles();
-		boolean addStartJoin = false;
-		while (depthFirstIterator.hasNext()) {
-			final SWCPoint point = depthFirstIterator.next();
-			if (graph.inDegreeOf(point) == 0) {
-				currentPath.setIsPrimary(true);
-			}
-			if (addStartJoin) {
-				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
-				currentPath.addNode(previousPoint);
-				currentPath.setStartJoin(previousPoint.onPath, previousPoint);
-				addStartJoin = false;
-			}
-			currentPath.addNode(point);
-			point.setPath(currentPath);
-			if (graph.outDegreeOf(point) == 0) {
-				currentPath.setIDs(++pathID, treeID);
-				currentPath.setColor(point.getColor());
-				String tags = point.getTags();
-				String newName = pafm.getDefaultName(currentPath);
-				currentPath.setName((tags == null || tags.isEmpty()) ? newName : newName + "{" + tags + "}");
-				currentPath.setSWCType(point.type);
-				currentPath.setGuessedTangents(2);
-				tree.add(currentPath);
-				currentPath = new Path(1d, 1d, 1d, "? units");
-				currentPath.createCircles();
-				addStartJoin = true;
-			}
-		}
+		pafm = PathAndFillManager.createFromGraph(graph);
+		tree = pafm.getPaths();
 		setLabel(label);
 	}
 
