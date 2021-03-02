@@ -327,6 +327,7 @@ public class Viewer3D {
 	private MouseController mouseController;
 	private boolean viewUpdatesEnabled = true;
 	private ViewMode currentView;
+	private FileDropWorker fileDropWorker;
 
 	@Parameter
 	private Context context;
@@ -462,7 +463,7 @@ public class Viewer3D {
 		squarify("none", false);
 		currentView = ViewMode.DEFAULT;
 		gUtils = new GuiUtils((Component) chart.getCanvas());
-		new FileDropWorker((Component) chart.getCanvas(), gUtils);
+		fileDropWorker = new FileDropWorker((Component) chart.getCanvas(), gUtils);
 		return true;
 	}
 
@@ -777,6 +778,12 @@ public class Viewer3D {
 	public void addTrees(final Collection<Tree> trees, final boolean assignUniqueColors) {
 		if (assignUniqueColors) Tree.assignUniqueColors(trees);
 		addCollection(trees);
+	}
+
+	public void addTrees(final File[] files, final String color) {
+		final ColorRGB c = (color == null || color.trim().isEmpty()) ? null : new ColorRGB(color);
+		final GuiUtils g = (frame.managerPanel == null) ? frame.managerPanel.guiUtils : gUtils;
+		fileDropWorker.importTreesWithoutDrop(files, c, g);
 	}
 
 	/**
@@ -2751,7 +2758,7 @@ public class Viewer3D {
 			progressBar.setFocusable(false);
 			resetProgressBar();
 			add(progressBar);
-			new FileDropWorker(managerList, guiUtils);
+			fileDropWorker = new FileDropWorker(managerList, guiUtils);
 		}
 
 		private void resetProgressBar() {
@@ -4276,10 +4283,24 @@ public class Viewer3D {
 	private class FileDropWorker {
 
 		private boolean escapePressed;
+		private ColorRGB[] importColors;
 
 		FileDropWorker(final Component component, final GuiUtils guiUtils) {
 			addEscListener(component);
-			new FileDrop(component, files -> processFiles(files, true, guiUtils));
+			new FileDrop(component, files -> {
+				processFiles(files, true, guiUtils);
+			});
+		}
+	
+		void importTreesWithoutDrop(final File[] files, final ColorRGB color, final GuiUtils guiUtils) {
+			if (color == null) 
+				setImportColors(SNTColor.getDistinctColors(files.length));
+			else {
+				ColorRGB[] colors = new ColorRGB[files.length];
+				Arrays.fill(colors, color);
+				setImportColors(colors);
+			}
+			processFiles(files, false, guiUtils);
 		}
 
 		void processFiles(final File[] files, final boolean promptForConfirmation, final GuiUtils guiUtils) {
@@ -4289,31 +4310,32 @@ public class Viewer3D {
 					&& !guiUtils.getConfirmation(
 							"Are you sure you would like to import " + collection.size() + " files? "
 									+ "Importing large collections of data using drag-and-drop? "
-											+ "You can press 'Esc' at any time to interrupt import.",
-									"Proceed with Batch import?")) {
-						return;
-					}
+									+ "You can press 'Esc' at any time to interrupt import.",
+							"Proceed with Batch import?")) {
+				return;
+			}
+			setImportColors(SNTColor.getDistinctColors(files.length));
+			final SwingWorker<?, ?> worker = new SwingWorker<Object, Object>() {
+				int[] failuresAndSuccesses = new int[2];
 
-					final SwingWorker<?, ?> worker = new SwingWorker<Object, Object>() {
-						int[] failuresAndSuccesses = new int[2];
+				@Override
+				protected Object doInBackground() {
+					setSceneUpdatesEnabled(false);
+					failuresAndSuccesses = loadGuessingType(collection);
+					return null;
+				}
 
-						@Override
-						protected Object doInBackground() {
-							setSceneUpdatesEnabled(false);
-							failuresAndSuccesses = loadGuessingType(collection);
-							return null;
-						}
-
-						@Override
-						protected void done() {
-							setSceneUpdatesEnabled(true);
-							updateView(true);
-							if (failuresAndSuccesses[0] > 0)
-								guiUtils.error("" + failuresAndSuccesses[0] + "/" + failuresAndSuccesses[1]
-										+ " dropped file(s) were not imported (Console log will"
-										+ " have more details if you have enabled \"Debug mode\").");
-							resetEscape();
-						}
+				@Override
+				protected void done() {
+					setSceneUpdatesEnabled(true);
+					updateView(true);
+					if (failuresAndSuccesses[0] > 0)
+						guiUtils.error("" + failuresAndSuccesses[0] + "/" + failuresAndSuccesses[1]
+								+ " dropped file(s) were not imported (Console log will"
+								+ " have more details if you have enabled \"Debug mode\").");
+					resetEscape();
+					setImportColors(null);
+				}
 			};
 			worker.execute();
 		}
@@ -4397,8 +4419,16 @@ public class Viewer3D {
 				frame.managerPanel.resetProgressBar();
 		}
 
+		private ColorRGB getImportColor(final int index) {
+			return importColors[index];
+		}
+
+		private void setImportColors(ColorRGB[] colors) {
+			this.importColors = colors;
+		}
 	}
 
+	
 	private class AllenCCFNavigator {
 
 		private final SNTSearchableBar searchableBar;
