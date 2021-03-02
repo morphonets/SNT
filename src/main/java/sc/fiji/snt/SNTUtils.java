@@ -24,6 +24,7 @@ package sc.fiji.snt;
 
 import java.awt.Color;
 import java.io.File;
+import java.io.FileFilter;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -459,4 +460,30 @@ public class SNTUtils {
 		return BUILD_DATE;
 	}
 
+	/**
+	 * Retrieves a list of reconstruction files stored in a common directory
+	 * matching the specified criteria.
+	 *
+	 * @param dir     the directory containing the reconstruction files (.(e)swc,
+	 *                .traces, .json extension)
+	 * @param pattern the filename substring (case sensitive) to be matched. Only
+	 *                filenames containing {@code pattern} will be imported from the
+	 *                directory. {@code null} allowed.
+	 * @return the list of files. An empty list is retrieved if {@code dir} is not a
+	 *         valid, readable directory.
+	 */
+	public static File[] getReconstructionFiles(final File dir, final String pattern) {
+		if (dir == null || !dir.isDirectory() || !dir.exists() || !dir.canRead()) {
+			return null;
+		}
+		final String validatedPattern = (pattern == null) ? "" : pattern;
+		final FileFilter filter = (file) -> {
+			final String name = file.getName();
+			if (!name.contains(validatedPattern))
+				return false;
+			final String lName = name.toLowerCase();
+			return file.canRead() && (lName.endsWith("swc") || lName.endsWith(".traces") || lName.endsWith(".json"));
+		};
+		return dir.listFiles(filter);
+	}
 }

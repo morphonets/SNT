@@ -96,6 +96,7 @@ import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
 import javax.swing.JSlider;
 import javax.swing.JTree;
@@ -326,6 +327,7 @@ public class Viewer3D {
 	private MouseController mouseController;
 	private boolean viewUpdatesEnabled = true;
 	private ViewMode currentView;
+	private FileDropWorker fileDropWorker;
 
 	@Parameter
 	private Context context;
@@ -434,6 +436,10 @@ public class Viewer3D {
 	 */
 	public void setSceneUpdatesEnabled(final boolean enabled) {
 		viewUpdatesEnabled = enabled;
+		if (managerList != null) {
+			managerList.model.setListenersEnabled(enabled);
+			if (enabled) managerList.model.update();
+		}
 	}
 
 	private boolean chartExists() {
@@ -457,7 +463,7 @@ public class Viewer3D {
 		squarify("none", false);
 		currentView = ViewMode.DEFAULT;
 		gUtils = new GuiUtils((Component) chart.getCanvas());
-		new FileDropWorker((Component) chart.getCanvas(), gUtils);
+		fileDropWorker = new FileDropWorker((Component) chart.getCanvas(), gUtils);
 		return true;
 	}
 
@@ -544,6 +550,19 @@ public class Viewer3D {
 	}
 
 	/**
+	 * Sets whether axons and dendrites should be imported as separated objects.
+	 *
+	 * @param split true to segregate imported Trees into axonal and dendritic
+	 *              subtrees. This is likely only relevant to allow for subtree
+	 *              customizations using the GUI commands provided by the "RV
+	 *              Controls" dialog. This parameter is ignored if Trees have no
+	 *              annotations.
+	 */
+	public void setSplitDendritesFromAxons(final boolean split) {
+		prefs.setSplitDendritesFromAxons(split);
+	}
+
+	/**
 	 * Rotates the scene.
 	 *
 	 * @param degrees the angle, in degrees
@@ -614,6 +633,17 @@ public class Viewer3D {
 	 */
 	public boolean isDarkModeOn() {
 		return view.getBackgroundColor() == Color.BLACK;
+	}
+
+	/**
+	 * Checks whether axons and dendrites of imported Trees are set to be imported
+	 * as separated objects.
+	 *
+	 * @return if imported trees are set to be split into axonal and dendritic
+	 *         subtrees.
+	 */
+	public boolean isSplitDendritesFromAxons() {
+		return prefs.isSplitDendritesFromAxons();
 	}
 
 	private void addAllObjects() {
@@ -689,8 +719,28 @@ public class Viewer3D {
 	 * @see Tree#getLabel()
 	 * @see #removeTree(String)
 	 * @see #updateView()
+	 * @see #setSplitDendritesFromAxons(boolean)
 	 */
 	public void addTree(final Tree tree) {
+		if (prefs.isSplitDendritesFromAxons()) {
+			int countFailures = 0;
+			for (final String type : new String[] { "Dend.", "Axon" }) {
+				final Tree subTree = tree.subTree(type);
+				if (subTree == null || subTree.isEmpty())
+					countFailures++;
+				else {
+					subTree.setLabel(tree.getLabel() + " (" + type + ")");
+					addTreeInternal(subTree);
+				}
+			}
+			if (countFailures == 2)
+				addTreeInternal(tree);
+		} else {
+			addTreeInternal(tree);
+		}
+	}
+
+	private void addTreeInternal(final Tree tree) {
 		final String label = getUniqueLabel(plottedTrees, "Tree ", tree.getLabel());
 		final ShapeTree shapeTree = new ShapeTree(tree);
 		plottedTrees.put(label, shapeTree);
@@ -703,6 +753,8 @@ public class Viewer3D {
 	 *
 	 * @param trees     the trees to be added
 	 * @param color     the rendering color
+	 * @param commonTag a common tag to be assigned to the group (to be displayed in
+	 *                  'RV Controls' list.
 	 */
 	public void addTrees(final Collection<Tree> trees, final String color, final String commonTag) {
 		if (commonTag != null) {
@@ -720,17 +772,11 @@ public class Viewer3D {
 	 *
 	 * @param trees     the trees to be added
 	 * @param color     the rendering color
-	 * @param commonTag a common tag to be assigned to the group (to be displayed in
-	 *                  'RV Controls' list.
 	 */
 	public void addTrees(final Collection<Tree> trees, final String color) {
 		final ColorRGB c = new ColorRGB(color);
-		setSceneUpdatesEnabled(false);
-		trees.forEach(tree -> {
-			tree.setColor(c);
-			addTree(tree);
-		});
-		setSceneUpdatesEnabled(true);
+		trees.forEach(tree -> tree.setColor(c));
+		addCollection(trees);
 	}
 
 	/**
@@ -742,9 +788,21 @@ public class Viewer3D {
 	 */
 	public void addTrees(final Collection<Tree> trees, final boolean assignUniqueColors) {
 		if (assignUniqueColors) Tree.assignUniqueColors(trees);
-		setSceneUpdatesEnabled(false);
-		trees.forEach(tree -> addTree(tree));
-		setSceneUpdatesEnabled(true);
+		addCollection(trees);
+	}
+
+	/**
+	 * Adds a collection of trees from reconstruction files
+	 *
+	 * @param files the reconstruction files to be imported
+	 * @param color the color to be assigned to imported reconstructions. If null,
+	 *              trees will be assigned a unique color
+	 * @see #setSplitDendritesFromAxons(boolean)
+	 */
+	public void addTrees(final File[] files, final String color) {
+		final ColorRGB c = (color == null || color.trim().isEmpty()) ? null : new ColorRGB(color);
+		final GuiUtils g = (frame.managerPanel == null) ? frame.managerPanel.guiUtils : gUtils;
+		fileDropWorker.importTreesWithoutDrop(files, c, g);
 	}
 
 	/**
@@ -998,6 +1056,18 @@ public class Viewer3D {
 			view.shoot(); // !? without forceRepaint() dimensions are not updated
 			fitToVisibleObjects(false, false);
 		}
+	}
+
+	/**
+	 * Updates the scene bounds to ensure all visible objects are displayed.
+	 * 
+	 * @param updateManagerList if true, the list in "Controls" dialog is also
+	 *                          updated.
+	 * @see #updateView()
+	 */
+	public void updateView(final boolean updateManagerList) {
+		updateView();
+		if (updateManagerList) managerList.update();
 	}
 
 	/**
@@ -1344,22 +1414,34 @@ public class Viewer3D {
 				addTree((Tree) object);
 			} else if (object instanceof OBJMesh) {
 				addMesh((OBJMesh) object);
-			} else if (object instanceof Collection) {
-				final boolean updateStatus = viewUpdatesEnabled;
-				setSceneUpdatesEnabled(false);
-				((Collection<?>) object).forEach(item -> add(item));
-				setSceneUpdatesEnabled(updateStatus);
-				validate();
 			} else if (object instanceof String) {
 				addLabel((String) object);
 			} else if (object instanceof AbstractDrawable) {
 				chart.add((AbstractDrawable) object, viewUpdatesEnabled);
+			} else if (object instanceof Collection) {
+				addCollection(((Collection<?>) object));
 			} else {
 				throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
 			}
 		} catch (final ClassCastException ex) {
 			throw new IllegalArgumentException(ex.getMessage());
 		}
+	}
+
+	private void addCollection(final Collection<?> collection) {
+		final boolean updateStatus = viewUpdatesEnabled;
+		final boolean displayProgress = frame != null && frame.managerPanel != null;
+		setSceneUpdatesEnabled(false);
+		if (displayProgress)
+			frame.managerPanel.setProgressLimit(0, ((Collection<?>) collection).size());
+		int index = 0; // will be inaccurate if collection contains other collections
+		for(final Object o : collection) {
+			if (displayProgress) frame.managerPanel.setProgress(index++);
+			add(o);
+		}
+		if (displayProgress) frame.managerPanel.resetProgressBar();
+		setSceneUpdatesEnabled(updateStatus);
+		validate();
 	}
 
 	/**
@@ -2499,6 +2581,8 @@ public class Viewer3D {
 		private static final boolean DEF_NAG_USER_ON_RETRIEVE_ALL = true;
 		private static final String DEF_TREE_COMPARTMENT_CHOICE = "Axon";
 		private static final boolean DEF_RETRIEVE_ALL_IF_NONE_SELECTED = true;
+		private static final boolean DEF_SPLIT_DENDRITES_FROM_AXONS = true;
+		private boolean splitDendritesFromAxons;
 		public boolean nagUserOnRetrieveAll;
 		public boolean retrieveAllIfNoneSelected;
 		public String treeCompartmentChoice;
@@ -2518,6 +2602,7 @@ public class Viewer3D {
 		}
 
 		private void setPreferences() {
+			splitDendritesFromAxons = DEF_SPLIT_DENDRITES_FROM_AXONS;
 			nagUserOnRetrieveAll = DEF_NAG_USER_ON_RETRIEVE_ALL;
 			retrieveAllIfNoneSelected = DEF_RETRIEVE_ALL_IF_NONE_SELECTED;
 			treeCompartmentChoice = DEF_TREE_COMPARTMENT_CHOICE;
@@ -2627,6 +2712,14 @@ public class Viewer3D {
 			}
 		}
 
+		public boolean isSplitDendritesFromAxons() {
+			return splitDendritesFromAxons;
+		}
+
+		public void setSplitDendritesFromAxons(boolean splitDendritesFromAxons) {
+			this.splitDendritesFromAxons = splitDendritesFromAxons;
+		}
+
 	}
 
 	private class ManagerPanel extends JPanel {
@@ -2636,6 +2729,7 @@ public class Viewer3D {
 		private SNTTable table;
 		private JCheckBoxMenuItem debugCheckBox;
 		private final SNTSearchableBar searchableBar;
+		private final JProgressBar progressBar;
 
 		public ManagerPanel(final GuiUtils guiUtils) {
 			super();
@@ -2678,9 +2772,32 @@ public class Viewer3D {
 			scrollPane.revalidate();
 			add(barPanel);
 			add(buttonPanel());
-			new FileDropWorker(managerList, guiUtils);
+			progressBar = new JProgressBar();
+			progressBar.setStringPainted(true);
+			progressBar.setFocusable(false);
+			resetProgressBar();
+			add(progressBar);
+			fileDropWorker = new FileDropWorker(managerList, guiUtils);
 		}
 
+		private void resetProgressBar() {
+			progressBar.setIndeterminate(true);
+			progressBar.setVisible(false);
+			progressBar.setMinimum(0);
+			progressBar.setMaximum(100);
+		}
+
+		private void setProgressLimit(final int min, final int max) {
+			progressBar.setIndeterminate(false);
+			progressBar.setMinimum(min);
+			progressBar.setMaximum(max);
+			progressBar.setVisible(true);
+		}
+	
+		private void setProgress(final int value) {
+			progressBar.setValue(value);
+		}
+	
 		class Action extends AbstractAction {
 			static final String ALL = "All";
 			static final String ENTER_FULL_SCREEN = "Full Screen";
@@ -4185,50 +4302,62 @@ public class Viewer3D {
 	private class FileDropWorker {
 
 		private boolean escapePressed;
+		private ColorRGB[] importColors;
 
 		FileDropWorker(final Component component, final GuiUtils guiUtils) {
 			addEscListener(component);
-			new FileDrop(component, new FileDrop.Listener() {
-
-				@Override
-				public void filesDropped(final File[] files) {
-					final ArrayList<File> collection = new ArrayList<>();
-					assembleFlatFileCollection(collection, files);
-					if (collection.size() > 20
-							&& !guiUtils.getConfirmation(
-									"Are you sure you would like to import " + collection.size() + " files? "
-											+ "Importing large collections of data using drag-and-drop "
-											+ "may cause the UI to become unresponsive.",
-									"Proceed with Batch import?")) {
-						return;
-					}
-
-					final SwingWorker<?, ?> worker = new SwingWorker<Object, Object>() {
-						int[] failuresAndSuccesses = new int[2];
-
-						@Override
-						protected Object doInBackground() {
-							setSceneUpdatesEnabled(false);
-							failuresAndSuccesses = loadGuessingType(collection);
-							return null;
-						}
-
-						@Override
-						protected void done() {
-							setSceneUpdatesEnabled(true);
-							updateView();
-							if (failuresAndSuccesses[0] > 0)
-								guiUtils.error("" + failuresAndSuccesses[0] + "/" + failuresAndSuccesses[1]
-										+ " dropped file(s) were not imported (Console log will"
-										+ " have more details if you have enabled \"Debug mode\").");
-							resetEscape();
-						}
-					};
-					worker.execute();
-				}
+			new FileDrop(component, files -> {
+				processFiles(files, true, guiUtils);
 			});
 		}
+	
+		void importTreesWithoutDrop(final File[] files, final ColorRGB color, final GuiUtils guiUtils) {
+			if (color == null) 
+				setImportColors(SNTColor.getDistinctColors(files.length));
+			else {
+				ColorRGB[] colors = new ColorRGB[files.length];
+				Arrays.fill(colors, color);
+				setImportColors(colors);
+			}
+			processFiles(files, false, guiUtils);
+		}
 
+		void processFiles(final File[] files, final boolean promptForConfirmation, final GuiUtils guiUtils) {
+			final ArrayList<File> collection = new ArrayList<>();
+			assembleFlatFileCollection(collection, files);
+			if (collection.size() > 20 && promptForConfirmation
+					&& !guiUtils.getConfirmation(
+							"Are you sure you would like to import " + collection.size() + " files? "
+									+ "Importing large collections of data using drag-and-drop? "
+									+ "You can press 'Esc' at any time to interrupt import.",
+							"Proceed with Batch import?")) {
+				return;
+			}
+			setImportColors(SNTColor.getDistinctColors(files.length));
+			final SwingWorker<?, ?> worker = new SwingWorker<Object, Object>() {
+				int[] failuresAndSuccesses = new int[2];
+
+				@Override
+				protected Object doInBackground() {
+					setSceneUpdatesEnabled(false);
+					failuresAndSuccesses = loadGuessingType(collection);
+					return null;
+				}
+
+				@Override
+				protected void done() {
+					setSceneUpdatesEnabled(true);
+					updateView(true);
+					if (failuresAndSuccesses[0] > 0)
+						guiUtils.error("" + failuresAndSuccesses[0] + "/" + failuresAndSuccesses[1]
+								+ " dropped file(s) were not imported (Console log will"
+								+ " have more details if you have enabled \"Debug mode\").");
+					resetEscape();
+					setImportColors(null);
+				}
+			};
+			worker.execute();
+		}
 		private void addEscListener(final Component c) {
 			final KeyAdapter listener = new KeyAdapter() {
 				@Override
@@ -4262,9 +4391,11 @@ public class Viewer3D {
 		 * in collection
 		 */
 		private int[] loadGuessingType(final Collection<File> files) {
-			final ColorRGB[] uniqueColors = SNTColor.getDistinctColors(files.size());
+			final int totalFiles = files.size();
 			int failures = 0;
 			int idx = 0;
+			if (frame.managerPanel != null)
+				frame.managerPanel.setProgressLimit(0, totalFiles);
 			for (final File file : files) {
 				if (escapePressed()) {
 					SNTUtils.log("Aborting...");
@@ -4272,19 +4403,21 @@ public class Viewer3D {
 				}
 				if (!file.exists() || file.isDirectory())
 					continue;
-				SNTUtils.log("Loading " + file.getAbsolutePath());
+				SNTUtils.log(String.format("Loading %d/%d: %s", (idx+1), totalFiles, file.getAbsolutePath()));
 				final String fName = file.getName().toLowerCase();
 				try {
 					if (fName.endsWith("swc") || fName.endsWith(".traces") || fName.endsWith(".json")) { // reconstruction:
 						final Tree tree = new Tree(file.getAbsolutePath());
-						tree.setColor(uniqueColors[idx]);
+						tree.setColor(importColors[idx]);
 						Viewer3D.this.addTree(tree);
 					} else if (fName.endsWith("obj")) {
-						loadMesh(file.getAbsolutePath(), uniqueColors[idx], 75d);
+						loadMesh(file.getAbsolutePath(), importColors[idx], 75d);
 					} else {
 						failures++;
 						SNTUtils.log("... failed. Not a supported file type");
 					}
+					if (frame.managerPanel != null)
+						frame.managerPanel.setProgress(idx);
 				} catch (final IllegalArgumentException ex) {
 					SNTUtils.log("... failed " + ex.getMessage());
 					failures++;
@@ -4300,10 +4433,16 @@ public class Viewer3D {
 
 		private void resetEscape() {
 			escapePressed = false;
+			if (frame != null && frame.managerPanel != null)
+				frame.managerPanel.resetProgressBar();
 		}
 
+		private void setImportColors(ColorRGB[] colors) {
+			this.importColors = colors;
+		}
 	}
 
+	
 	private class AllenCCFNavigator {
 
 		private final SNTSearchableBar searchableBar;
@@ -4635,6 +4774,10 @@ public class Viewer3D {
 
 		public void setIconsVisible(final boolean b) {
 			renderer.setIconsVisible(b);
+			update();
+		}
+
+		private void update() {
 			model.update();
 		}
 
@@ -4819,8 +4962,42 @@ public class Viewer3D {
 
 	class DefaultUpdatableListModel<T> extends DefaultListModel<T> {
 		private static final long serialVersionUID = 1L;
+		private boolean listenersEnabled = true;
+
 		public void update() {
-			fireContentsChanged(this, 0, getSize() - 1);
+			super.fireContentsChanged(this, 0, getSize() - 1);
+		}
+
+		public boolean getListenersEnabled() {
+			return listenersEnabled;
+		}
+
+		public void setListenersEnabled(final boolean enabled) {
+			listenersEnabled = enabled;
+			if (!enabled && frame != null && frame.managerPanel != null) {
+				frame.managerPanel.resetProgressBar();
+			}
+		}
+
+		@Override
+		public void fireContentsChanged(final Object source, final int index0, final int index1) {
+			if (getListenersEnabled()) {
+				super.fireContentsChanged(source, index0, index1);
+			}
+		}
+
+		@Override
+		public void fireIntervalAdded(final Object source, final int index0, final int index1) {
+			if (getListenersEnabled()) {
+				super.fireIntervalAdded(source, index0, index1);
+			}
+		}
+
+		@Override
+		public void fireIntervalRemoved(final Object source, final int index0, final int index1) {
+			if (getListenersEnabled()) {
+				super.fireIntervalAdded(source, index0, index1);
+			}
 		}
 	}
 
@@ -5568,7 +5745,8 @@ public class Viewer3D {
 					return; // replaces continue in lambda expression;
 				}
 				final Shape shape = shapeTree.treeSubShape;
-				for (int i = 0; i < shapeTree.treeSubShape.size(); i++) {
+				if (shape == null) return;
+				for (int i = 0; i < shape.size(); i++) {
 					final List<Point> points = ((LineStripPlus) shape.get(i)).getPoints();
 					points.stream().forEach(p -> {
 						final Color pColor = p.getColor();

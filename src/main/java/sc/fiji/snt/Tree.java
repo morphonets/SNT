@@ -23,7 +23,6 @@
 package sc.fiji.snt;
 
 import java.io.File;
-import java.io.FileFilter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1382,21 +1381,10 @@ public class Tree {
 	 *         {@code dir} is not a valid, readable directory.
 	 */
 	public static List<Tree> listFromDir(final String dir, final String pattern, final String... swcTypes) {
-		final String validatedPattern = (pattern == null) ? "" : pattern;
-		final FileFilter filter = (file) -> {
-			final String name = file.getName();
-			if (!name.contains(validatedPattern))
-				return false;
-			final String lName = name.toLowerCase();
-			return file.canRead() && (lName.endsWith("swc") || lName.endsWith(".traces") || lName.endsWith(".json"));
-		};
 		final List<Tree> trees = new ArrayList<>();
 		if (dir == null) return trees;
 		final File dirFile = new File(dir);
-		if (!dirFile.isDirectory() || !dirFile.exists() || !dirFile.canRead()) {
-			return trees;
-		}
-		final File treeFiles[] = dirFile.listFiles(filter);
+		final File treeFiles[] = SNTUtils.getReconstructionFiles(dirFile, pattern);
 		if (treeFiles == null || treeFiles.length == 0) {
 			return trees;
 		}

@@ -264,7 +264,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 				index++;
 			}
 			recViewer.setSceneUpdatesEnabled(true);
-			recViewer.updateView();
+			recViewer.updateView(true);
 			if (recViewerIsNotVisible) recViewer.show();
 		}
 
