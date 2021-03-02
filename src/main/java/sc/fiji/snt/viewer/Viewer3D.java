@@ -4279,16 +4279,16 @@ public class Viewer3D {
 
 		FileDropWorker(final Component component, final GuiUtils guiUtils) {
 			addEscListener(component);
-			new FileDrop(component, new FileDrop.Listener() {
+			new FileDrop(component, files -> processFiles(files, true, guiUtils));
+		}
 
-				@Override
-				public void filesDropped(final File[] files) {
-					final ArrayList<File> collection = new ArrayList<>();
-					assembleFlatFileCollection(collection, files);
-					if (collection.size() > 20
-							&& !guiUtils.getConfirmation(
-									"Are you sure you would like to import " + collection.size() + " files? "
-											+ "Importing large collections of data using drag-and-drop? "
+		void processFiles(final File[] files, final boolean promptForConfirmation, final GuiUtils guiUtils) {
+			final ArrayList<File> collection = new ArrayList<>();
+			assembleFlatFileCollection(collection, files);
+			if (collection.size() > 20 && promptForConfirmation
+					&& !guiUtils.getConfirmation(
+							"Are you sure you would like to import " + collection.size() + " files? "
+									+ "Importing large collections of data using drag-and-drop? "
 											+ "You can press 'Esc' at any time to interrupt import.",
 									"Proceed with Batch import?")) {
 						return;
@@ -4314,12 +4314,9 @@ public class Viewer3D {
 										+ " have more details if you have enabled \"Debug mode\").");
 							resetEscape();
 						}
-					};
-					worker.execute();
-				}
-			});
+			};
+			worker.execute();
 		}
-
 		private void addEscListener(final Component c) {
 			final KeyAdapter listener = new KeyAdapter() {
 				@Override
