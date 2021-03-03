@@ -23,9 +23,8 @@
 package sc.fiji.snt.gui.cmds;
 
 import java.io.File;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import org.scijava.ItemVisibility;
@@ -33,6 +32,7 @@ import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.prefs.PrefService;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 import org.scijava.widget.FileWidget;
@@ -57,7 +57,13 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 	private static final String COLOR_CHOICE_POLY =
 		"Distinct (each file labelled uniquely)";
 
-	@Parameter(label = "File", required = true,
+	private static final String LAST_DIR_KEY = "lastDir";
+	private static final String LAST_FILE_KEY = "lastFile";
+
+	@Parameter
+	private PrefService prefService;
+
+	@Parameter(label = "File", required = true, persist = false,
 		description = "Supported extensions: traces, (e)SWC, json")
 	private File file;
 
@@ -74,8 +80,8 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 		description = "Rendering color of imported file(s)")
 	private ColorRGB color;
 
-	@Parameter(label = "Sub-compartments as separate objects", required = false,
-		description = "If the file contains multiple compartments (e.g., axons, dendrites, etc.), load each one individually.")
+	@Parameter(label = "Dendrites and axons as separate objects", required = false,
+		description = "If the file contains an axonal and dendritic arbor load each arbor individually.")
 	private boolean splitByType;
 
 	@Parameter(persist = false, visibility = ItemVisibility.MESSAGE)
@@ -96,6 +102,8 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 			fileMitem.setDescription(
 				"<HTML>Path to directory containing multiple files." +
 					"<br>Supported extensions: traces, (e)SWC, json");
+			String lastUsedDir = prefService.get(LoadReconstructionCmd.class, LAST_DIR_KEY);
+			if (lastUsedDir != null) new File(lastUsedDir);
 		}
 		else {
 			// hide the 'pattern' field
@@ -103,23 +111,6 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 					"pattern", String.class);
 			patternMitem.setVisibility(ItemVisibility.INVISIBLE);
 			resolveInput("pattern");
-	
-			final MutableModuleItem<String> colorChoiceMitem = getInfo()
-				.getMutableInput("colorChoice", String.class);
-			colorChoiceMitem.setRequired(false);
-			final List<String> options = new ArrayList<>();
-			options.add("Color specified below");
-			options.add("Black");
-			options.add("Blue");
-			options.add("Cyan");
-			options.add("Green");
-			options.add("Magenta");
-			options.add("Orange");
-			options.add("Red");
-			options.add("Yellow");
-			options.add("White");
-			colorChoiceMitem.setChoices(options);
-			colorChoiceMitem.setCallback("colorChoiceChanged");
 		}
 		if (recViewer != null && recViewer.isSNTInstance()) {
 			msg = "NB: Loaded file(s) will not be listed in Path Manager";
@@ -129,12 +120,23 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 		} else {
 			msg = " ";
 		}
+		populateLastUsedFile();
 	}
 
-	@SuppressWarnings("unused")
-	private void colorChoiceChanged() {
-		final ColorRGB colorTemp = Colors.getColor(colorChoice.toLowerCase());
-		if (colorTemp != null) color = colorTemp;
+	private void populateLastUsedFile() {
+		final String lastUsedFile = prefService.get(LoadReconstructionCmd.class, (importDir) ? LAST_DIR_KEY : LAST_FILE_KEY);
+		if (lastUsedFile != null) file = new File(lastUsedFile);
+	}
+
+	private void setLastUsedFile() {
+		prefService.put(LoadReconstructionCmd.class, (importDir) ? LAST_DIR_KEY : LAST_FILE_KEY, file.getAbsolutePath());
+	}
+
+	private ColorRGB getNonNullColor() {
+		if (color == null) {
+			return (recViewer.isDarkModeOn()) ? Colors.WHITE : Colors.BLACK;
+		}
+		return color;
 	}
 
 	/*
@@ -158,13 +160,13 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 
 		final boolean splitState = recViewer.isSplitDendritesFromAxons();
 		recViewer.setSplitDendritesFromAxons(splitByType);
+		final String importColor = (colorChoice.contains("unique")) ? null : getNonNullColor().toHTMLColor();
 		if (file.isFile()) {
 			try {
-				final Tree tree = new Tree(file.getAbsolutePath());
-				if (tree.isEmpty())
+				final Collection<Tree> trees = Tree.listFromFile(file.getAbsolutePath());
+				if (trees == null || trees.isEmpty())
 					cancel("No Paths could be extracted from file. Invalid path?");
-				tree.setColor(color);
-				recViewer.addTree(tree);
+				recViewer.addTrees(trees, importColor);
 				recViewer.validate();
 				return;
 			} catch (final IllegalArgumentException ex) {
@@ -173,13 +175,14 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 		}
 
 		if (file.isDirectory()) {
-			File[] treeFiles = SNTUtils.getReconstructionFiles(file, pattern);
+			final File[] treeFiles = SNTUtils.getReconstructionFiles(file, pattern);
 			if (treeFiles.length == 0) {
 				error("Directory does not contain valid reconstructions");
 			}
-			recViewer.addTrees(treeFiles, (colorChoice.contains("unique")) ? null : color.toHTMLColor());
+			recViewer.addTrees(treeFiles, importColor);
 		}
 		recViewer.setSplitDendritesFromAxons(splitState);
+		setLastUsedFile();
 	}
 
 	/* IDE debug method **/

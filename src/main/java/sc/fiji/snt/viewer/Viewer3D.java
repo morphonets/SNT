@@ -774,21 +774,21 @@ public class Viewer3D {
 	 * @param color     the rendering color
 	 */
 	public void addTrees(final Collection<Tree> trees, final String color) {
-		final ColorRGB c = new ColorRGB(color);
-		trees.forEach(tree -> tree.setColor(c));
+		if (color == null) {
+			Tree.assignUniqueColors(trees);
+		} else {
+			final ColorRGB c = new ColorRGB(color);
+			trees.forEach(tree -> tree.setColor(c));
+		}
 		addCollection(trees);
 	}
 
 	/**
-	 * Adds a collection of trees.
-	 *
-	 * @param trees              the trees to be added
-	 * @param assignUniqueColors wether each tree in the collection should be
-	 *                           rendered with a unique color
+	 * @deprecated use {@link #addTrees(Collection, String)} instead
 	 */
+	@Deprecated
 	public void addTrees(final Collection<Tree> trees, final boolean assignUniqueColors) {
-		if (assignUniqueColors) Tree.assignUniqueColors(trees);
-		addCollection(trees);
+		addTrees(trees, null);
 	}
 
 	/**
