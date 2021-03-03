@@ -73,21 +73,21 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	@Parameter(label = "<HTML><b>Groups:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
 	private String SPACER1;
 
-	@Parameter(label = "Group 1", style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 1 + COMMON_DESC_POST)
+	@Parameter(label = "Group 1 directory", style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 1 + COMMON_DESC_POST)
 	private File g1File;
-	@Parameter(label = "Group 2", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 2 + COMMON_DESC_POST)
+	@Parameter(label = "Group 2 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 2 + COMMON_DESC_POST)
 	private File g2File;
 
-	@Parameter(label = "Group 3", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 3 + COMMON_DESC_POST)
+	@Parameter(label = "Group 3 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 3 + COMMON_DESC_POST)
 	private File g3File;
 
-	@Parameter(label = "Group 4", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 4 + COMMON_DESC_POST)
+	@Parameter(label = "Group 4 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 4 + COMMON_DESC_POST)
 	private File g4File;
 
-	@Parameter(label = "Group 5", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 5 + COMMON_DESC_POST)
+	@Parameter(label = "Group 5 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 5 + COMMON_DESC_POST)
 	private File g5File;
 
-	@Parameter(label = "Group 6", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 6 + COMMON_DESC_POST)
+	@Parameter(label = "Group 6 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 6 + COMMON_DESC_POST)
 	private File g6File;
 
 	@Parameter(label = "<HTML>&nbsp;<br><b>Options:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
@@ -132,7 +132,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	@Parameter(required = false, label = "Comparison plots", description = "Display Histograms & Box-Plots?")
 	private boolean displayPlots;
 
-	@Parameter(required = false, label = "Mapped metric montage", description = "<HTML><div WIDTH=500>Assemble multiple-panel figure "
+	@Parameter(required = false, label = "Montage of mapped metric", description = "<HTML><div WIDTH=500>Assemble multiple-panel figure "
 			+ "from group exemplars? This option is only considered if chosen metric can be mapped to a LUT.")
 	private boolean displayInMultiViewer;
 

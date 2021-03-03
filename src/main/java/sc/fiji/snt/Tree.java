@@ -35,8 +35,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-import org.jgrapht.Graphs;
-import org.jgrapht.traverse.DepthFirstIterator;
 import org.scijava.util.ColorRGB;
 
 import ij.IJ;
@@ -45,7 +43,6 @@ import ij.ImageStack;
 import ij.measure.Calibration;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
-import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.BoundingBox;
@@ -368,6 +365,7 @@ public class Tree {
 				types.add(Path.SWC_DENDRITE);
 				break;
 			case "de":
+			case "dn":
 				types.add(Path.SWC_APICAL_DENDRITE);
 				types.add(Path.SWC_DENDRITE);
 				break;

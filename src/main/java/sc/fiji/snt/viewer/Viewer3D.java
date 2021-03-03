@@ -724,12 +724,12 @@ public class Viewer3D {
 	public void addTree(final Tree tree) {
 		if (prefs.isSplitDendritesFromAxons()) {
 			int countFailures = 0;
-			for (final String type : new String[] { "Dend.", "Axon" }) {
+			for (final String type : new String[] { "Dnd", "Axn" }) {
 				final Tree subTree = tree.subTree(type);
 				if (subTree == null || subTree.isEmpty())
 					countFailures++;
 				else {
-					subTree.setLabel(tree.getLabel() + " (" + type + ")");
+					subTree.setLabel(tree.getLabel() + "  " + type);
 					addTreeInternal(subTree);
 				}
 			}
