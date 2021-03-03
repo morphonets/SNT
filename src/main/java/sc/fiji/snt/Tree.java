@@ -75,6 +75,7 @@ public class Tree {
 
 	private ArrayList<Path> tree;
 	private String label;
+	private ColorRGB color;
 	private TreeBoundingBox box;
 	private PathAndFillManager pafm;
 	private DirectedWeightedGraph graph;
@@ -378,6 +379,7 @@ public class Tree {
 		final Tree subTree = subTree(types.stream().mapToInt(Integer::intValue).toArray());
 		if (getLabel() != null) 
 			subTree.setLabel(getLabel() + " " + Arrays.toString(swcTypes));
+		subTree.setColor(color);
 		return subTree;
 	}
 
@@ -1196,6 +1198,7 @@ public class Tree {
 			p.setColor(color);
 			if (color != null) p.setNodeColors(null);
 		});
+		this.color = color;
 	}
 
 	/**

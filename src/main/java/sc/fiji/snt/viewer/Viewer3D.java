@@ -4302,45 +4302,37 @@ public class Viewer3D {
 	private class FileDropWorker {
 
 		private boolean escapePressed;
-		private ColorRGB[] importColors;
 
 		FileDropWorker(final Component component, final GuiUtils guiUtils) {
 			addEscListener(component);
 			new FileDrop(component, files -> {
-				processFiles(files, true, guiUtils);
+				processFiles(files, true, null, guiUtils);
 			});
 		}
 	
-		void importTreesWithoutDrop(final File[] files, final ColorRGB color, final GuiUtils guiUtils) {
-			if (color == null) 
-				setImportColors(SNTColor.getDistinctColors(files.length));
-			else {
-				ColorRGB[] colors = new ColorRGB[files.length];
-				Arrays.fill(colors, color);
-				setImportColors(colors);
-			}
-			processFiles(files, false, guiUtils);
+		void importTreesWithoutDrop(final File[] files, final ColorRGB baseColor, final GuiUtils guiUtils) {
+			processFiles(files, false, baseColor, guiUtils);
 		}
 
-		void processFiles(final File[] files, final boolean promptForConfirmation, final GuiUtils guiUtils) {
+		void processFiles(final File[] files, final boolean promptForConfirmation, final ColorRGB baseColor, final GuiUtils guiUtils) {
 			final ArrayList<File> collection = new ArrayList<>();
 			assembleFlatFileCollection(collection, files);
-			if (collection.size() > 20 && promptForConfirmation
-					&& !guiUtils.getConfirmation(
-							"Are you sure you would like to import " + collection.size() + " files? "
-									+ "Importing large collections of data using drag-and-drop? "
-									+ "You can press 'Esc' at any time to interrupt import.",
-							"Proceed with Batch import?")) {
-				return;
+			if (promptForConfirmation && collection.size() > 10) {
+				final boolean[] confirmSplit = guiUtils.getConfirmationAndOption(
+							"Are you sure you would like to import " + collection.size() + " files?<br>"
+							+ "You can press 'Esc' at any time to interrupt import.",
+							"Proceed with Batch Import?", "Import axons and dendrites separately",
+							isSplitDendritesFromAxons());
+				if (!confirmSplit[0]) return;
+				setSplitDendritesFromAxons(confirmSplit[1]);
 			}
-			setImportColors(SNTColor.getDistinctColors(files.length));
 			final SwingWorker<?, ?> worker = new SwingWorker<Object, Object>() {
 				int[] failuresAndSuccesses = new int[2];
 
 				@Override
 				protected Object doInBackground() {
 					setSceneUpdatesEnabled(false);
-					failuresAndSuccesses = loadGuessingType(collection);
+					failuresAndSuccesses = loadGuessingType(collection, baseColor);
 					return null;
 				}
 
@@ -4353,7 +4345,6 @@ public class Viewer3D {
 								+ " dropped file(s) were not imported (Console log will"
 								+ " have more details if you have enabled \"Debug mode\").");
 					resetEscape();
-					setImportColors(null);
 				}
 			};
 			worker.execute();
@@ -4390,8 +4381,9 @@ public class Viewer3D {
 		 * Returns {n. of failed imports, n. successful imports}. Assumes no directories
 		 * in collection
 		 */
-		private int[] loadGuessingType(final Collection<File> files) {
+		private int[] loadGuessingType(final Collection<File> files, final ColorRGB baseColor) {
 			final int totalFiles = files.size();
+			final ColorRGB[] colors = getmportColors(baseColor, totalFiles);
 			int failures = 0;
 			int idx = 0;
 			if (frame.managerPanel != null)
@@ -4406,12 +4398,25 @@ public class Viewer3D {
 				SNTUtils.log(String.format("Loading %d/%d: %s", (idx+1), totalFiles, file.getAbsolutePath()));
 				final String fName = file.getName().toLowerCase();
 				try {
+					final ColorRGB color = colors[idx];
 					if (fName.endsWith("swc") || fName.endsWith(".traces") || fName.endsWith(".json")) { // reconstruction:
-						final Tree tree = new Tree(file.getAbsolutePath());
-						tree.setColor(importColors[idx]);
-						Viewer3D.this.addTree(tree);
+						try {
+							final Collection<Tree> treesInFile = Tree.listFromFile(file.getAbsolutePath());
+							treesInFile.forEach(tree -> {
+								tree.setColor(color);
+								addTree(tree);
+							});
+						} catch (final Exception ex) {
+							failures++;
+							SNTUtils.log("... failed");
+						}
 					} else if (fName.endsWith("obj")) {
-						loadMesh(file.getAbsolutePath(), importColors[idx], 75d);
+						try {
+							loadMesh(file.getAbsolutePath(), color, 75d);
+						} catch (final Exception ex) {
+							failures++;
+							SNTUtils.log("... failed");
+						}
 					} else {
 						failures++;
 						SNTUtils.log("... failed. Not a supported file type");
@@ -4437,8 +4442,15 @@ public class Viewer3D {
 				frame.managerPanel.resetProgressBar();
 		}
 
-		private void setImportColors(ColorRGB[] colors) {
-			this.importColors = colors;
+		private ColorRGB[] getmportColors(ColorRGB baseColor, final int n) {
+			if (baseColor == null) {
+				return SNTColor.getDistinctColors(n);
+			} else {
+				// this cold be more sophisticated: Hue shading, LUT, gradient, etc.
+				final ColorRGB[] colors = new ColorRGB[n];
+				Arrays.fill(colors, baseColor);
+				return colors;
+			}
 		}
 	}
 

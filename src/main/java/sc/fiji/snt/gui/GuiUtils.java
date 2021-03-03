@@ -283,12 +283,14 @@ public class GuiUtils {
 		return list.getSelectedValuesList();
 	}
 
-	public boolean[] getPersistentConfirmation(final String msg,
-		final String title)
-	{
+	public boolean[] getPersistentConfirmation(final String msg, final String title) {
+		return getConfirmationAndOption(msg, title, "Remember my choice and do not prompt me again", false);
+	}
+
+	public boolean[] getConfirmationAndOption(final String msg, final String title, final String checkboxLabel, final boolean checkboxDefault) {
 		final JCheckBox checkbox = new JCheckBox();
-		checkbox.setText(getWrappedText(checkbox,
-			"Remember my choice and do not prompt me again"));
+		checkbox.setText(getWrappedText(checkbox, checkboxLabel));
+		checkbox.setSelected(checkboxDefault);
 		final Object[] params = { getLabel(msg), checkbox };
 		final boolean result = yesNoDialog(params, title, null) == JOptionPane.YES_OPTION;
 		return new boolean[] { result, checkbox.isSelected() };
