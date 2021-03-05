@@ -825,6 +825,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			final boolean hasHemisphereFlags = pathToUse.hasNodeHemisphereFlags();
 			final Color pathColor = pathToUse.getColor();
 			final String pathTags = PathManagerUI.extractTagsFromPath(pathToUse);
+			final boolean hasNodeValues = pathToUse.hasNodeValues();
 			for (int i = indexToStartAt; i < pathToUse.size(); ++i) {
 
 				final boolean firstPoint = firstSWCPoint == null;
@@ -845,6 +846,9 @@ public class PathAndFillManager extends DefaultHandler implements
 				// Only use Path color, node colors are ignored
 				swcPoint.setColor(pathColor);
 				swcPoint.setTags(pathTags);
+				if (hasNodeValues) {
+					swcPoint.v = pathToUse.getNodeValue(i);
+				}
 				if (hasAnnotations) swcPoint.setAnnotation(pathToUse.getNodeAnnotation(i));
 				if (hasHemisphereFlags) swcPoint.setHemisphere(pathToUse.getNodeHemisphereFlag(i));
 
