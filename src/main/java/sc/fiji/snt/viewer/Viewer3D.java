@@ -752,7 +752,9 @@ public class Viewer3D {
 	 * Adds a collection of trees.
 	 *
 	 * @param trees     the trees to be added
-	 * @param color     the rendering color
+	 * @param color     Set it to {@code null}, {@code none} or {@code ""} to ignore
+	 *                  this option altogether. Set it to {@code unique} to assign unique
+	 *                  colors to each tree in the collection.
 	 * @param commonTag a common tag to be assigned to the group (to be displayed in
 	 *                  'RV Controls' list.
 	 */
@@ -770,15 +772,24 @@ public class Viewer3D {
 	/**
 	 * Adds a collection of trees.
 	 *
-	 * @param trees     the trees to be added
-	 * @param color     the rendering color
+	 * @param trees the trees to be added.
+	 * @param color the rendering color. Set it to {@code null}, {@code none} or {@code ""} to
+	 *              ignore this option altogether. Set it to {@code unique} to assign
+	 *              unique colors to each tree in the collection.
 	 */
 	public void addTrees(final Collection<Tree> trees, final String color) {
-		if (color == null) {
+		final String adjustedC = (color == null) ? "" : color.toLowerCase();
+		switch (adjustedC) {
+		case "unique":
 			Tree.assignUniqueColors(trees);
-		} else {
+			break;
+		case "":
+		case "none":
+			break;
+		default:
 			final ColorRGB c = new ColorRGB(color);
 			trees.forEach(tree -> tree.setColor(c));
+			break;
 		}
 		addCollection(trees);
 	}
@@ -788,7 +799,7 @@ public class Viewer3D {
 	 */
 	@Deprecated
 	public void addTrees(final Collection<Tree> trees, final boolean assignUniqueColors) {
-		addTrees(trees, null);
+		addTrees(trees, (assignUniqueColors) ? null : "");
 	}
 
 	/**
@@ -1056,18 +1067,7 @@ public class Viewer3D {
 			view.shoot(); // !? without forceRepaint() dimensions are not updated
 			fitToVisibleObjects(false, false);
 		}
-	}
-
-	/**
-	 * Updates the scene bounds to ensure all visible objects are displayed.
-	 * 
-	 * @param updateManagerList if true, the list in "Controls" dialog is also
-	 *                          updated.
-	 * @see #updateView()
-	 */
-	public void updateView(final boolean updateManagerList) {
-		updateView();
-		if (updateManagerList) managerList.update();
+		if (viewUpdatesEnabled) managerList.update();
 	}
 
 	/**
@@ -1441,14 +1441,16 @@ public class Viewer3D {
 		}
 		if (displayProgress) frame.managerPanel.resetProgressBar();
 		setSceneUpdatesEnabled(updateStatus);
+		updateView();
 		validate();
 	}
 
 	/**
 	 * Script friendly method to remove an object ({@link Tree}, {@link OBJMesh},
-	 * {@link AbstractDrawable}, etc.) from this viewer's scene.
+	 * {@link AbstractDrawable}, {@link String} (object label), etc.) from this viewer's scene.
 	 *
-	 * @param object the object to be removed, or the unique String identifying it
+	 * @param object the object to be removed, or the unique String identifying it.
+	 *               Collections supported.
 	 * @throws IllegalArgumentException if object is not supported
 	 */
 	public void remove(final Object object) {

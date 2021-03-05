@@ -116,9 +116,9 @@ public class AnnotationGraphRecViewerCmd extends DynamicCommand {
         Viewer3D viewer = new Viewer3D(getContext());
         viewer.add(meshes);
         if (colorMetric.equals(COLOR_UNIQUE)) {
-            viewer.addTrees(trees, true);
+            viewer.addTrees(trees, "unique");
         } else if (colorMetric.equals(COLOR_SOMA_MESH)) {
-            viewer.addTrees(trees, false);
+            viewer.addTrees(trees, "");
         } else {
             cancel("Unknown Tree coloring choice");
         }

@@ -160,7 +160,7 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 
 		final boolean splitState = recViewer.isSplitDendritesFromAxons();
 		recViewer.setSplitDendritesFromAxons(splitByType);
-		final String importColor = (colorChoice.contains("unique")) ? null : getNonNullColor().toHTMLColor();
+		final String importColor = (colorChoice.contains("unique")) ? "unique" : getNonNullColor().toHTMLColor();
 		if (file.isFile()) {
 			try {
 				final Collection<Tree> trees = Tree.listFromFile(file.getAbsolutePath());
