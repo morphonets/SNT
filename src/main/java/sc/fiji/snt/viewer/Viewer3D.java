@@ -509,7 +509,7 @@ public class Viewer3D {
 			updateView();
 			//if (managerList != null) managerList.selectAll();
 		}
-		catch (final GLException exc) {
+		catch (final GLException | NullPointerException exc) {
 			SNTUtils.error("Rebuild Error", exc);
 		}
 		if (frame != null) frame.replaceCurrentChart(chart);
@@ -1391,6 +1391,14 @@ public class Viewer3D {
 		if (!removeTree(label, managerEntry)) {
 			if (!removeMesh(label, managerEntry))
 				removeDrawable(getAnnotationDrawables(), label, managerEntry);
+		}
+	}
+
+	private boolean isEmptyScene() {
+		try {
+			return view.getScene().getGraph().getAll().isEmpty();
+		} catch (final Exception ignored) {
+			return true;
 		}
 	}
 
@@ -5569,11 +5577,11 @@ public class Viewer3D {
 			switch (e.getKeyChar()) {
 				case 'a':
 				case 'A':
-					toggleAxes();
+					if (!emptySceneMsg()) toggleAxes();
 					break;
 				case 'c':
 				case 'C':
-					changeCameraMode();
+					if (!emptySceneMsg()) changeCameraMode();
 					break;
 				case 'd':
 				case 'D':
@@ -5600,7 +5608,7 @@ public class Viewer3D {
 					if (e.isShiftDown()) {
 						frame.enterFullScreen();
 					} else {
-						fitToVisibleObjects(true, true);
+						if (!emptySceneMsg()) fitToVisibleObjects(true, true);
 					}
 					break;
 				case '+':
@@ -5663,9 +5671,8 @@ public class Viewer3D {
 			chart.setAxeDisplayed(!view.isAxeBoxDisplayed());
 		}
 
-		@SuppressWarnings("unused")
-		private boolean emptyScene() {
-			final boolean empty = view.getScene().getGraph().getAll().size() == 0;
+		private boolean emptySceneMsg() {
+			final boolean empty = Viewer3D.this.isEmptyScene();
 			if (empty) displayMsg("Scene is empty");
 			return empty;
 		}
