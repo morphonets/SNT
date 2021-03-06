@@ -1606,7 +1606,7 @@ public class SNT extends MultiDThreePanes implements
 
 				// Append node and wait for search to be finished
 				final PointInImage node = pointList.get(i);
-				testPathTo(node.x, node.y, node.z, null, true, pointList.size());
+				testPathTo(node.x, node.y, node.z, null, true, 1);
 				((Thread) getActiveSearchingThread()).join();
 
 			}
