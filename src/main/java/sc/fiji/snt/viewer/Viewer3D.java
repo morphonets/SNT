@@ -2860,7 +2860,7 @@ public class Viewer3D {
 				putValue(AbstractAction.ACCELERATOR_KEY, ks);
 				if (mod == 0) putValue(AbstractAction.MNEMONIC_KEY, key);
 				// register action in panel
-				registerKeyboardAction(this, ks, JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
+				registerKeyboardAction(this, ks, JComponent.WHEN_IN_FOCUSED_WINDOW);
 			}
 
 			@Override
@@ -3009,7 +3009,7 @@ public class Viewer3D {
 			final JMenuItem reset = new JMenuItem(new Action(Action.RESET, KeyEvent.VK_R, false, false));
 			reset.setIcon(IconFactory.getMenuIcon(GLYPH.BROOM));
 			sceneMenu.add(reset);
-			final JMenuItem reload = new JMenuItem(new Action(Action.RELOAD, KeyEvent.VK_R, true, false));
+			final JMenuItem reload = new JMenuItem(new Action(Action.RELOAD, KeyEvent.VK_R, false, true));
 			reload.setIcon(IconFactory.getMenuIcon(GLYPH.REDO));
 			sceneMenu.add(reload);
 			final JMenuItem rebuild = new JMenuItem(new Action(Action.REBUILD, KeyEvent.VK_R, true, true));
@@ -5622,7 +5622,12 @@ public class Viewer3D {
 					break;
 				case 'r':
 				case 'R':
-					resetView();
+					if (e.isShiftDown() && !sceneIsOK()) {
+						rebuild();
+						displayMsg("Scene reloaded");
+					} else {
+						resetView();
+					}
 					break;
 				case 's':
 				case 'S':
@@ -5873,6 +5878,10 @@ public class Viewer3D {
 			sb.append("  </tr>");
 			sb.append("    <td><u>R</u>eset View</td>");
 			sb.append("    <td>Press 'R'</td>");
+			sb.append("  </tr>");
+			sb.append("  </tr>");
+			sb.append("    <td><u>R</u>eload View</td>");
+			sb.append("    <td>Press Shift+'R'</td>");
 			sb.append("  </tr>");
 			sb.append("  <tr>");
 			sb.append("    <td><u>S</u>napshot</td>");
