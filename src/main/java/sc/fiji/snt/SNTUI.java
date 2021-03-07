@@ -2252,6 +2252,7 @@ public class SNTUI extends JDialog {
 		importFlyCircuit.addActionListener(e -> {
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("loader", new FlyCircuitLoader());
+			inputs.put("recViewer", null);
 			(new DynamicCmdRunner(RemoteSWCImporterCmd.class, inputs, LOADING)).run();
 		});
 		final JMenuItem importInsectBrainDb = new JMenuItem("InsectBrain...");
@@ -2265,6 +2266,7 @@ public class SNTUI extends JDialog {
 		remoteSubmenu.add(importMouselight);
 		importMouselight.addActionListener(e -> {
 			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("recViewer", null);
 			(new DynamicCmdRunner(MLImporterCmd.class, inputs, LOADING)).run();
 		});
 		final JMenuItem importNeuroMorpho = new JMenuItem("NeuroMorpho...");
@@ -2272,6 +2274,7 @@ public class SNTUI extends JDialog {
 		importNeuroMorpho.addActionListener(e -> {
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("loader", new NeuroMorphoLoader());
+			inputs.put("recViewer", null);
 			(new DynamicCmdRunner(RemoteSWCImporterCmd.class, inputs, LOADING)).run();
 		});
 		importSubmenu.add(remoteSubmenu);
