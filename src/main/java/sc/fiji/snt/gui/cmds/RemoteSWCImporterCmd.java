@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import net.imagej.ImageJ;
@@ -37,6 +38,7 @@ import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
+import org.scijava.util.Colors;
 import org.scijava.widget.Button;
 
 import sc.fiji.snt.viewer.Viewer3D;
@@ -143,10 +145,10 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 		status("Retrieving cells. Please wait...", false);
 		SNTUtils.log(database + " import: Downloading from URL(s)...");
 		final int lastExistingPathIdx = pafm.size() - 1;
-		final List<Tree> result = pafm.importSWCs(urlsMap, getColor());
-		final long failures = result.stream().filter(tree -> tree == null || tree
-			.isEmpty()).count();
-		if (failures == result.size()) {
+		final List<Tree> rawResult = pafm.importSWCs(urlsMap, getColor());
+		final List<Tree> filteredResult = rawResult.stream().filter(tree -> tree != null && !tree
+			.isEmpty()).collect(Collectors.toList());
+		if (filteredResult.isEmpty()) {
 			error("No reconstructions could be retrieved. Invalid ID(s)?");
 			status("Error... No reconstructions imported", true);
 			return;
@@ -165,28 +167,28 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 		}
 
 		if (standAloneViewer) {
-			recViewer.setSceneUpdatesEnabled(false);
-			result.forEach(tree -> {
-				if (tree != null && !tree.isEmpty()) recViewer.addTree(tree);
-			});
-			recViewer.setSceneUpdatesEnabled(true);
+			final boolean loaderUsesBuggySWCTypes = (loader instanceof FlyCircuitLoader);
+			final boolean splitState = recViewer.isSplitDendritesFromAxons();
+			if (loaderUsesBuggySWCTypes) recViewer.setSplitDendritesFromAxons(false);
+			recViewer.addTrees(filteredResult, ""); // will call recViewer.validate()
+			if (loaderUsesBuggySWCTypes) recViewer.setSplitDendritesFromAxons(splitState);
+		} else if (snt != null) {
+			notifyExternalDataLoaded();
 		}
 
-		if (snt != null) notifyExternalDataLoaded();
-
-		if (recViewer != null) recViewer.validate();
-
-		if (failures > 0) {
-			error(String.format("%d/%d reconstructions could not be retrieved.",
-				failures, result.size()));
+		if (filteredResult.size() < rawResult.size()) {
+			error(String.format("Only %d of %d reconstructions could be retrieved.",
+					filteredResult.size(), rawResult.size()));
 			status("Partially successful import...", true);
 			SNTUtils.log("Import failed for the following queried morphologies:");
-			result.forEach(tree -> {
-				if (tree.isEmpty()) SNTUtils.log(tree.getLabel());
-			});
+			if (SNTUtils.isDebugMode()) {
+				rawResult.forEach(tree -> {
+					if (!filteredResult.contains(tree)) SNTUtils.log(tree.getLabel());
+				});
+			}
 		}
 		else {
-			status("Successful imported " + result.size() + " reconstruction(s)...",
+			status("Successful imported " + filteredResult.size() + " reconstruction(s)...",
 				true);
 		}
 		resetUI(!standAloneViewer && pafm.size() > lastExistingPathIdx);
@@ -194,7 +196,11 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 	}
 
 	private ColorRGB getColor() {
-		return (colorChoice.contains("unique")) ? null : commonColor;
+		if (colorChoice.contains("unique"))
+			return null;
+		if (commonColor == null && recViewer != null)
+			return (recViewer.isDarkModeOn()) ? Colors.WHITE : Colors.BLACK;
+		return commonColor;
 	}
 
 	private LinkedHashMap<String, String> getURLmapFromQuery(final String query) {
