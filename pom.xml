@@ -127,14 +127,14 @@
 		<!-- Dependency versions for JitPack -->
 		<sciview.version>9c0918a</sciview.version>
 		<scenery.version>4e67655</scenery.version>
-		<jzy3d.version>4bb4999</jzy3d.version>
+		<jzy3d.version>1.0.3</jzy3d.version>
 
 		<jline.version>3.13.1</jline.version>
 		<jide-oss.version>3.6.18</jide-oss.version>
 		<imagej-plot-service.version>0.1.1</imagej-plot-service.version>
 		<okhttp.version>4.7.2</okhttp.version>
-		<font-awesome.version>5.13.0</font-awesome.version>
-		<json.version>20200518</json.version>
+		<font-awesome.version>5.15.2</font-awesome.version>
+		<json.version>20201115</json.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>deploy-to-scijava</releaseProfiles>
@@ -201,7 +201,7 @@
 			<artifactId>vecmath</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>com.github.jzy3d.jzy3d-api</groupId>
+			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-api</artifactId>
 			<version>${jzy3d.version}</version>
 			<exclusions>
