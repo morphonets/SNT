@@ -429,16 +429,18 @@ public class Viewer3D {
 
 	/**
 	 * Sets whether the scene should update (refresh) every time a new
-	 * reconstruction (or mesh) is added/removed from the scene. Should be set to
-	 * false when performing bulk operations;
+	 * reconstruction (or mesh) is added/removed from the scene.
 	 *
-	 * @param enabled Whether scene updates should be enabled
+	 * @param enabled Whether scene updates should be enabled. Should be set to
+	 *                {@code false} when performing bulk operations. Scene will
+	 *                update if set to {@code true}
 	 */
 	public void setSceneUpdatesEnabled(final boolean enabled) {
 		viewUpdatesEnabled = enabled;
+		if (enabled) view.shoot(); // same as char.render();
 		if (managerList != null) {
 			managerList.model.setListenersEnabled(enabled);
-			if (enabled) managerList.model.update();
+			if (viewUpdatesEnabled) managerList.model.update();
 		}
 	}
 
@@ -1014,12 +1016,12 @@ public class Viewer3D {
 	 */
 	public Annotation3D mergeAnnotations(final Collection<Annotation3D> annotations, final String label) {
 		final boolean updateFlag = viewUpdatesEnabled;
-		viewUpdatesEnabled = false;
+		setSceneUpdatesEnabled(false);;
 		annotations.forEach(annot -> {
 			final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels(annot.getLabel());
 			removeDrawable(getAnnotationDrawables(), labelAndManagerEntry[0], labelAndManagerEntry[1]);
 		});
-		viewUpdatesEnabled = updateFlag;
+		setSceneUpdatesEnabled(updateFlag);
 		final Annotation3D annotation = new Annotation3D(this, annotations);
 		final String uniqueLabel = getUniqueLabel(plottedAnnotations, "Merged Annot.", label);
 		annotation.setLabel(uniqueLabel);
@@ -1067,7 +1069,7 @@ public class Viewer3D {
 			view.shoot(); // !? without forceRepaint() dimensions are not updated
 			fitToVisibleObjects(false, false);
 		}
-		if (viewUpdatesEnabled) managerList.update();
+		if (managerList != null) managerList.update(); // force update the manager list
 	}
 
 	/**
@@ -1344,38 +1346,39 @@ public class Viewer3D {
 	 * Removes all loaded OBJ meshes from current viewer
 	 */
 	public void removeAllMeshes() {
-		final Iterator<Entry<String, RemountableDrawableVBO>> it = plottedObjs
-			.entrySet().iterator();
+		final boolean updateStatus = viewUpdatesEnabled;
+		final Iterator<OBJMesh> it = getMeshes().iterator();
+		setSceneUpdatesEnabled(false);
 		while (it.hasNext()) {
-			final Map.Entry<String, RemountableDrawableVBO> entry = it.next();
-			chart.getScene().getGraph().remove(entry.getValue(), false);
-			deleteItemFromManager(entry.getKey());
-			if (frame != null && frame.allenNavigator != null)
-				frame.allenNavigator.meshRemoved(entry.getKey());
+			removeMesh(it.next());
 			it.remove();
 		}
-		if (viewUpdatesEnabled) chart.render();
+		setSceneUpdatesEnabled(updateStatus);
+		validate();
 	}
 
 	/**
 	 * Removes all the Trees from current viewer
 	 */
 	public void removeAllTrees() {
-		final Iterator<Entry<String, ShapeTree>> it = plottedTrees.entrySet()
-			.iterator();
+		final boolean updateStatus = viewUpdatesEnabled;
+		final Iterator<Tree> it = getTrees().iterator();
+		setSceneUpdatesEnabled(false);
 		while (it.hasNext()) {
-			final Map.Entry<String, ShapeTree> entry = it.next();
-			chart.getScene().getGraph().remove(entry.getValue().get(), false);
-			deleteItemFromManager(entry.getKey());
+			Tree tree = it.next();
+			removeTree(tree);
 			it.remove();
 		}
-		if (viewUpdatesEnabled) chart.render();
+		setSceneUpdatesEnabled(updateStatus);
+		validate();
 	}
 
 	/**
 	 * Removes all the Annotations from current viewer
 	 */
 	protected void removeAllAnnotations() {
+		final boolean updateStatus = viewUpdatesEnabled;
+		setSceneUpdatesEnabled(false);
 		final Iterator<Entry<String, Annotation3D>> it = plottedAnnotations.entrySet()
 			.iterator();
 		while (it.hasNext()) {
@@ -1384,7 +1387,8 @@ public class Viewer3D {
 			deleteItemFromManager(entry.getKey());
 			it.remove();
 		}
-		if (viewUpdatesEnabled) chart.render();
+		setSceneUpdatesEnabled(updateStatus);
+		if (viewUpdatesEnabled) view.shoot();
 	}
 
 	private void removeSceneObject(final String label, final String managerEntry) {
@@ -1449,7 +1453,6 @@ public class Viewer3D {
 		}
 		if (displayProgress) frame.managerPanel.resetProgressBar();
 		setSceneUpdatesEnabled(updateStatus);
-		updateView();
 		validate();
 	}
 
@@ -1471,9 +1474,26 @@ public class Viewer3D {
 			removeSceneObject(labelAndManagerEntry[0], labelAndManagerEntry[1]);
 		} else if (object instanceof AbstractDrawable && chart != null) {
 			chart.getScene().getGraph().remove((AbstractDrawable) object, viewUpdatesEnabled);
+		} else if (object instanceof Collection) {
+			removeCollection(((Collection<?>) object));
 		} else {
+			validate();
 			throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
 		}
+	}
+
+	private void removeCollection(final Collection<?> collection) {
+		final boolean updateStatus = viewUpdatesEnabled;
+		setSceneUpdatesEnabled(false);
+		for (final Object o : collection) {
+			try {
+				remove(o);
+			} catch (final IllegalArgumentException ignored) {
+				// do nothing
+			}
+		}
+		setSceneUpdatesEnabled(updateStatus);
+		validate();
 	}
 
 	@SuppressWarnings("unchecked")
@@ -1552,18 +1572,19 @@ public class Viewer3D {
 	private boolean sceneIsOK() {
 		try {
 			updateView();
+			if (managerList == null) return true;
+			// now check that everything is visible
+			final List<String> selectedKeys = getLabelsCheckedInManager();
+			final BoundingBox3d viewBounds = chart.view().getBounds();
+			return allDrawablesRendered(viewBounds, plottedObjs, selectedKeys) &&
+				allDrawablesRendered(viewBounds, getTreeDrawables(), selectedKeys) &&
+				allDrawablesRendered(viewBounds, getAnnotationDrawables(), selectedKeys);
 		}
-		catch (final GLException ignored) {
+		catch (final GLException | ArrayIndexOutOfBoundsException ignored) {
 			SNTUtils.log("Upate view failed...");
 			return false;
 		}
-		// now check that everything is visible
-		if (managerList == null) return true;
-		final List<String> selectedKeys = getLabelsCheckedInManager();
-		final BoundingBox3d viewBounds = chart.view().getBounds();
-		return allDrawablesRendered(viewBounds, plottedObjs, selectedKeys) &&
-			allDrawablesRendered(viewBounds, getTreeDrawables(), selectedKeys) &&
-			allDrawablesRendered(viewBounds, getAnnotationDrawables(), selectedKeys);
+
 	}
 
 	/** returns true if a drawable was removed */
@@ -2538,7 +2559,7 @@ public class Viewer3D {
 				Viewer3D.this.frame.snapPanelToSide();
 				Viewer3D.this.frame.manager.setVisible(true);
 			}
-			if (sceneIsOK()) rebuild();
+			validate();
 		}
 
 		void warnOnX11Bug() {
@@ -4349,9 +4370,10 @@ public class Viewer3D {
 				@Override
 				protected void done() {
 					setSceneUpdatesEnabled(true);
-					updateView(true);
+					updateView();
 					if (failuresAndSuccesses[0] > 0)
-						guiUtils.error("" + failuresAndSuccesses[0] + "/" + failuresAndSuccesses[1]
+						guiUtils.error("" + failuresAndSuccesses[0] + " of "
+								+ (failuresAndSuccesses[0] + failuresAndSuccesses[1])
 								+ " dropped file(s) were not imported (Console log will"
 								+ " have more details if you have enabled \"Debug mode\").");
 					resetEscape();
@@ -4996,8 +5018,11 @@ public class Viewer3D {
 
 		public void setListenersEnabled(final boolean enabled) {
 			listenersEnabled = enabled;
-			if (!enabled && frame != null && frame.managerPanel != null) {
-				frame.managerPanel.resetProgressBar();
+			if (frame != null && frame.managerPanel != null) {
+				if (listenersEnabled)
+					update();
+				else
+					frame.managerPanel.resetProgressBar();
 			}
 		}
 
