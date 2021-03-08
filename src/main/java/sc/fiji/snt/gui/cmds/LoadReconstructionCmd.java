@@ -80,9 +80,19 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 		description = "Rendering color of imported file(s)")
 	private ColorRGB color;
 
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Options:")
+	private String HEADER;
+
 	@Parameter(label = "Dendrites and axons as separate objects", required = false,
 		description = "If the file contains an axonal and dendritic arbor load each arbor individually.")
 	private boolean splitByType;
+
+	@Parameter(label = "Clear existing reconstructions", required = false,
+			description = "Should the imported reconstruction(s) replace all of the existing ones?")
+	private boolean clearExisting;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "")
+	private String SPACER;
 
 	@Parameter(persist = false, visibility = ItemVisibility.MESSAGE)
 	private String msg;
@@ -102,8 +112,6 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 			fileMitem.setDescription(
 				"<HTML>Path to directory containing multiple files." +
 					"<br>Supported extensions: traces, (e)SWC, json");
-			String lastUsedDir = prefService.get(LoadReconstructionCmd.class, LAST_DIR_KEY);
-			if (lastUsedDir != null) new File(lastUsedDir);
 		}
 		else {
 			// hide the 'pattern' field
@@ -112,15 +120,13 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 			patternMitem.setVisibility(ItemVisibility.INVISIBLE);
 			resolveInput("pattern");
 		}
+		populateLastUsedFile();
 		if (recViewer != null && recViewer.isSNTInstance()) {
 			msg = "NB: Loaded file(s) will not be listed in Path Manager";
 		}
-		else if (importDir) {
-			msg = "NB: You can also drag & drop directories into viewer or 'RV Controls'";
-		} else {
-			msg = " ";
+		else {
+			msg = "NB: You can also drag & drop files into viewer or 'RV Controls'";
 		}
-		populateLastUsedFile();
 	}
 
 	private void populateLastUsedFile() {
@@ -161,12 +167,13 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 		notifyLoadingStart(recViewer);
 		final boolean splitState = recViewer.isSplitDendritesFromAxons();
 		recViewer.setSplitDendritesFromAxons(splitByType);
-		final String importColor = (colorChoice.contains("unique")) ? null : getNonNullColor().toHTMLColor();
+		final String importColor = (colorChoice.contains("unique")) ? "unique" : getNonNullColor().toHTMLColor();
 		if (file.isFile()) {
 			try {
 				final Collection<Tree> trees = Tree.listFromFile(file.getAbsolutePath());
 				if (trees == null || trees.isEmpty())
 					cancel("No Paths could be extracted from file. Invalid path?");
+				if (clearExisting) recViewer.removeAllTrees();
 				recViewer.addTrees(trees, importColor);
 				recViewer.validate();
 				return;

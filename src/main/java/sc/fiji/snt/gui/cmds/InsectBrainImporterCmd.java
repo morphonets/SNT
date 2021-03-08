@@ -66,11 +66,11 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 	@Parameter(required = false, label = EMPTY_LABEL)
 	private ColorRGB commonColor;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "<br>Utilities:")
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "<br>Options:")
 	private String HEADER3;
 	@Parameter(label = "Load associated meshes")
 	private boolean loadMeshes;
-	@Parameter(required = false, persist = true)
+	@Parameter(required = false)
 	private boolean clearExisting;
 
 	@Parameter(label = "Check Database Access", callback = "pingServer")
