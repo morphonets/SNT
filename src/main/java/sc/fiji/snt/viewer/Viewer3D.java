@@ -2757,7 +2757,11 @@ public class Viewer3D {
 
 	}
 
-	private class ManagerPanel extends JPanel {
+	public ManagerPanel getManagerPanel() {
+		return (frame == null) ? null : frame.managerPanel;
+	}
+
+	public class ManagerPanel extends JPanel {
 
 		private static final long serialVersionUID = 1L;
 		private final GuiUtils guiUtils;
@@ -2766,7 +2770,7 @@ public class Viewer3D {
 		private final SNTSearchableBar searchableBar;
 		private final JProgressBar progressBar;
 
-		public ManagerPanel(final GuiUtils guiUtils) {
+		private ManagerPanel(final GuiUtils guiUtils) {
 			super();
 			this.guiUtils = guiUtils;
 			setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
@@ -2815,21 +2819,20 @@ public class Viewer3D {
 			fileDropWorker = new FileDropWorker(managerList, guiUtils);
 		}
 
-		private void resetProgressBar() {
+		public void resetProgressBar() {
 			progressBar.setIndeterminate(true);
 			progressBar.setVisible(false);
 			progressBar.setMinimum(0);
 			progressBar.setMaximum(100);
 		}
 
-		private void setProgressLimit(final int min, final int max) {
+		public void setProgressLimit(final int min, final int max) {
 			progressBar.setMinimum(min);
 			progressBar.setMaximum(max);
-			progressBar.setString("Loading...");
 			progressBar.setVisible(true);
 		}
 	
-		private void setProgress(final int value) {
+		public void setProgress(final int value) {
 			if (value == -1) {
 				progressBar.setIndeterminate(true);
 				progressBar.setString("Loading...");

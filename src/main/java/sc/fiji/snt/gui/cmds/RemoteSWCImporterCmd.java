@@ -142,6 +142,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 				"Somehow neither a Viewer nor a SNT instance are available");
 		}
 
+		notifyLoadingStart(recViewer);
 		status("Retrieving cells. Please wait...", false);
 		SNTUtils.log(database + " import: Downloading from URL(s)...");
 		final int lastExistingPathIdx = pafm.size() - 1;
@@ -191,7 +192,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 			status("Successful imported " + filteredResult.size() + " reconstruction(s)...",
 				true);
 		}
-		resetUI(!standAloneViewer && pafm.size() > lastExistingPathIdx);
+		notifyLoadingEnd((!standAloneViewer && pafm.size() > lastExistingPathIdx), recViewer);
 
 	}
 

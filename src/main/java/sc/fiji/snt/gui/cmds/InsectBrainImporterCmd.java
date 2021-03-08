@@ -106,7 +106,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 			return;
 		}
 
-		if (ui != null) ui.changeState(SNTUI.LOADING);
+		notifyLoadingStart(recViewer);
 		status("Retrieving ids... Please wait...", false);
 		final List<Tree> trees = new ArrayList<>();
 		final List<OBJMesh> meshes = (loadMeshes) ? new ArrayList<>() : null;
@@ -165,7 +165,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 		else {
 			status("Successful imported " + trees.size() + " reconstruction(s)...", true);
 		}
-		resetUI(!isCanceled());
+		notifyLoadingEnd(!isCanceled(), recViewer);
 	}
 
 	/**
