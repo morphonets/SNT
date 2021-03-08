@@ -748,9 +748,9 @@ public class Viewer3D {
 	private void addTreeInternal(final Tree tree) {
 		final String label = getUniqueLabel(plottedTrees, "Tree ", tree.getLabel());
 		final ShapeTree shapeTree = new ShapeTree(tree);
-		shapeTree.setDisplayed(true);
 		plottedTrees.put(label, shapeTree);
 		addItemToManager(label);
+		shapeTree.setDisplayed(true);
 		chart.add(shapeTree.get(), viewUpdatesEnabled);
 	}
 
