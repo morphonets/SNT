@@ -437,10 +437,12 @@ public class Viewer3D {
 	 */
 	public void setSceneUpdatesEnabled(final boolean enabled) {
 		viewUpdatesEnabled = enabled;
-		if (enabled) view.shoot(); // same as char.render();
 		if (managerList != null) {
-			managerList.model.setListenersEnabled(enabled);
-			if (viewUpdatesEnabled) managerList.model.update();
+			managerList.model.setListenersEnabled(viewUpdatesEnabled);
+		}
+		if (viewUpdatesEnabled) {
+			chart.getView().updateBounds();
+			managerList.model.update();
 		}
 	}
 
@@ -526,6 +528,7 @@ public class Viewer3D {
 	 * @see #updateView()
 	 */
 	public void validate() {
+		if (!sceneIsOK()) chart.getView().updateBoundsForceUpdate(true);
 		if (!sceneIsOK()) rebuild();
 	}
 
@@ -745,6 +748,7 @@ public class Viewer3D {
 	private void addTreeInternal(final Tree tree) {
 		final String label = getUniqueLabel(plottedTrees, "Tree ", tree.getLabel());
 		final ShapeTree shapeTree = new ShapeTree(tree);
+		shapeTree.setDisplayed(true);
 		plottedTrees.put(label, shapeTree);
 		addItemToManager(label);
 		chart.add(shapeTree.get(), viewUpdatesEnabled);
@@ -1067,7 +1071,7 @@ public class Viewer3D {
 	public void updateView() {
 		if (view != null) {
 			view.shoot(); // !? without forceRepaint() dimensions are not updated
-			fitToVisibleObjects(false, false);
+			fitToVisibleObjects(false, false); //TODO: Why not use view.updateBounds()?
 		}
 		if (managerList != null) managerList.update(); // force update the manager list
 	}
@@ -2964,7 +2968,7 @@ public class Viewer3D {
 				}
 			}
 		}
-	
+
 		private JPanel buttonPanel() {
 			final JPanel buttonPanel = new JPanel(new GridLayout(1, 6));
 			buttonPanel.setBorder(null);
@@ -5643,8 +5647,8 @@ public class Viewer3D {
 					break;
 				case 'r':
 				case 'R':
-					if (e.isShiftDown() && !sceneIsOK()) {
-						rebuild();
+					if (e.isShiftDown()) {
+						validate();
 						displayMsg("Scene reloaded");
 					} else {
 						resetView();
