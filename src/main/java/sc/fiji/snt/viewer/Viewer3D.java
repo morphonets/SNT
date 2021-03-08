@@ -2819,14 +2819,21 @@ public class Viewer3D {
 		}
 
 		private void setProgressLimit(final int min, final int max) {
-			progressBar.setIndeterminate(false);
 			progressBar.setMinimum(min);
 			progressBar.setMaximum(max);
+			progressBar.setString("Loading...");
 			progressBar.setVisible(true);
 		}
 	
 		private void setProgress(final int value) {
-			progressBar.setValue(value);
+			if (value == -1) {
+				progressBar.setIndeterminate(true);
+				progressBar.setString("Loading...");
+			} else {
+				progressBar.setIndeterminate(false);
+				progressBar.setString(null);
+				progressBar.setValue(value);
+			}
 		}
 	
 		class Action extends AbstractAction {
@@ -4374,7 +4381,7 @@ public class Viewer3D {
 					if (failuresAndSuccesses[0] > 0)
 						guiUtils.error("" + failuresAndSuccesses[0] + " of "
 								+ (failuresAndSuccesses[0] + failuresAndSuccesses[1])
-								+ " dropped file(s) were not imported (Console log will"
+								+ " dropped file(s) could not be imported (Console log will"
 								+ " have more details if you have enabled \"Debug mode\").");
 					resetEscape();
 				}
@@ -4418,8 +4425,10 @@ public class Viewer3D {
 			final ColorRGB[] colors = getmportColors(baseColor, totalFiles);
 			int failures = 0;
 			int idx = 0;
-			if (frame.managerPanel != null)
+			if (frame.managerPanel != null) {
 				frame.managerPanel.setProgressLimit(0, totalFiles);
+				frame.managerPanel.setProgress(-1);
+			}
 			for (final File file : files) {
 				if (escapePressed()) {
 					SNTUtils.log("Aborting...");
@@ -4434,10 +4443,22 @@ public class Viewer3D {
 					if (fName.endsWith("swc") || fName.endsWith(".traces") || fName.endsWith(".json")) { // reconstruction:
 						try {
 							final Collection<Tree> treesInFile = Tree.listFromFile(file.getAbsolutePath());
-							treesInFile.forEach(tree -> {
-								tree.setColor(color);
-								addTree(tree);
-							});
+							if (treesInFile.size() > 1) {
+								if (frame.managerPanel != null)
+									frame.managerPanel.setProgressLimit(0, totalFiles + treesInFile.size());
+								Tree.assignUniqueColors(treesInFile);
+								int internalIdx = 0;
+								for (final Tree tree : treesInFile) {
+									addTree(tree);
+									if (frame.managerPanel != null)
+										frame.managerPanel.setProgress(idx + internalIdx++);
+								}
+							} else {
+								treesInFile.forEach(tree -> {
+									tree.setColor(color);
+									addTree(tree);
+								});
+							}
 						} catch (final Exception ex) {
 							failures++;
 							SNTUtils.log("... failed");
@@ -4461,7 +4482,7 @@ public class Viewer3D {
 				}
 				idx++;
 			}
-			return new int[] { failures, idx };
+			return new int[] { failures, idx-1 };
 		}
 
 		private boolean escapePressed() {
