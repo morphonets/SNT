@@ -116,7 +116,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 		}
 
 		if (loader instanceof NeuroMorphoLoader) {
-			((NeuroMorphoLoader)loader).enableSourceVersion(version.toLowerCase().contains("source"));
+			((NeuroMorphoLoader)loader).enableSourceVersion(version != null && version.toLowerCase().contains("source"));
 		}
 		final LinkedHashMap<String, String> urlsMap = getURLmapFromQuery(query);
 		if (urlsMap == null || urlsMap.isEmpty()) {

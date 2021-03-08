@@ -4031,9 +4031,7 @@ public class Viewer3D {
 			remoteMenu.add(mi);
 			mi = new JMenuItem("InsectBrain...", 'I');
 			mi.addActionListener(e -> {
-				final Map<String, Object> inputs = new HashMap<>();
-				inputs.put("recViewer", Viewer3D.this);
-				runCmd(InsectBrainImporterCmd.class, inputs, CmdWorker.DO_NOTHING);
+				runCmd(InsectBrainImporterCmd.class, null, CmdWorker.DO_NOTHING); // will assign "recViewer" input
 			});
 			remoteMenu.add(mi);
 			mi = new JMenuItem("MouseLight...", 'm');
