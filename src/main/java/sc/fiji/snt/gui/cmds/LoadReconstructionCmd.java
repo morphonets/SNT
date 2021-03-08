@@ -102,6 +102,7 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 
 	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
 	private boolean importDir = false;
+	private boolean splitState;
 
 	protected void init() {
 		if (importDir) {
@@ -158,40 +159,51 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 			if (recViewer == null)
 				recViewer = sntService.getRecViewer();
 		} catch (final UnsupportedOperationException exc) {
-			error("SNT's Reconstruction Viewer is not open and no other Viewer was specified.");
+			super.error("SNT's Reconstruction Viewer is not open and no other Viewer was specified.");
 		}
 
 		if (!file.exists())
-			error(file.getAbsolutePath() + " is no longer available");
+			super.error(file.getAbsolutePath() + " is no longer available");
 
+		setLastUsedFile();
 		notifyLoadingStart(recViewer);
-		final boolean splitState = recViewer.isSplitDendritesFromAxons();
+		splitState = recViewer.isSplitDendritesFromAxons();
 		recViewer.setSplitDendritesFromAxons(splitByType);
 		final String importColor = (colorChoice.contains("unique")) ? "unique" : getNonNullColor().toHTMLColor();
+		final Collection<Tree> trees;
 		if (file.isFile()) {
 			try {
-				final Collection<Tree> trees = Tree.listFromFile(file.getAbsolutePath());
-				if (trees == null || trees.isEmpty())
-					cancel("No Paths could be extracted from file. Invalid path?");
-				if (clearExisting) recViewer.removeAllTrees();
-				recViewer.addTrees(trees, importColor);
-				recViewer.validate();
-				return;
+				trees = Tree.listFromFile(file.getAbsolutePath());
+				if (trees == null || trees.isEmpty()) {
+					error("No Paths could be extracted from file. Invalid path?");
+				} else {
+					if (clearExisting) recViewer.removeAllTrees();
+					recViewer.addTrees(trees, importColor);
+				}
 			} catch (final IllegalArgumentException ex) {
-				cancel(ex.getMessage());
+				error(ex.getMessage());
 			}
-		}
-
-		if (file.isDirectory()) {
+		} else if (file.isDirectory()) {
 			final File[] treeFiles = SNTUtils.getReconstructionFiles(file, pattern);
 			if (treeFiles.length == 0) {
 				error("Directory does not contain valid reconstructions");
+			} else {
+				if (clearExisting) recViewer.removeAllTrees();
+				recViewer.addTrees(treeFiles, importColor);
 			}
-			recViewer.addTrees(treeFiles, importColor);
 		}
+		exit();
+	}
+
+	private void exit() {
 		recViewer.setSplitDendritesFromAxons(splitState);
-		setLastUsedFile();
 		notifyLoadingEnd(false, recViewer);
+	}
+
+	@Override
+	protected void error(final String msg) {
+		exit();
+		error(msg);
 	}
 
 	/* IDE debug method **/
