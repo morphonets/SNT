@@ -2757,6 +2757,12 @@ public class Viewer3D {
 
 	}
 
+	/**
+	 * Returns a reference to 'RV Controls' panel.
+	 *
+	 * @return the ManagerPanel associated with this Viewer, or null if the 'RV
+	 *         Controls' dialog is not being displayed.
+	 */
 	public ManagerPanel getManagerPanel() {
 		return (frame == null) ? null : frame.managerPanel;
 	}
@@ -2810,12 +2816,12 @@ public class Viewer3D {
 			add(scrollPane);
 			scrollPane.revalidate();
 			add(barPanel);
-			add(buttonPanel());
 			progressBar = new JProgressBar();
 			progressBar.setStringPainted(true);
 			progressBar.setFocusable(false);
 			resetProgressBar();
 			add(progressBar);
+			add(buttonPanel());
 			fileDropWorker = new FileDropWorker(managerList, guiUtils);
 		}
 
@@ -2836,13 +2842,14 @@ public class Viewer3D {
 			if (value == -1) {
 				progressBar.setIndeterminate(true);
 				progressBar.setString("Loading...");
+				progressBar.setVisible(true);
 			} else {
 				progressBar.setIndeterminate(false);
 				progressBar.setString(null);
-				progressBar.setValue(value);
+				progressBar.setValue(value); // assime it is visible already
 			}
 		}
-	
+
 		class Action extends AbstractAction {
 			static final String ALL = "All";
 			static final String ENTER_FULL_SCREEN = "Full Screen";
@@ -4220,7 +4227,8 @@ public class Viewer3D {
 					frame.allenNavigator.dialog.toFront();
 					return;
 				}
-				final JDialog tempSplash = frame.managerPanel.guiUtils.floatingMsg("Loading ontologies...", false);
+				//final JDialog tempSplash = frame.managerPanel.guiUtils.floatingMsg("Loading ontologies...", false);
+				frame.managerPanel.setProgress(-1);
 				final SwingWorker<AllenCCFNavigator, ?> worker = new SwingWorker<AllenCCFNavigator, Object>() {
 
 					@Override
@@ -4236,7 +4244,8 @@ public class Viewer3D {
 						} catch (final InterruptedException | ExecutionException e) {
 							SNTUtils.error(e.getMessage(), e);
 						} finally {
-							tempSplash.dispose();
+							//tempSplash.dispose();
+							frame.managerPanel.resetProgressBar();
 						}
 					}
 				};
@@ -4431,7 +4440,6 @@ public class Viewer3D {
 			int failures = 0;
 			int idx = 0;
 			if (frame.managerPanel != null) {
-				frame.managerPanel.setProgressLimit(0, totalFiles);
 				frame.managerPanel.setProgress(-1);
 			}
 			for (final File file : files) {

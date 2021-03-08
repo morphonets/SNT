@@ -177,6 +177,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	@Override
 	public void run() {
 
+		notifyLoadingStart(recViewer);
 		final GroupedTreeStatistics stats = new GroupedTreeStatistics();
 		inputGroupsCounter = 0;
 		addGroup(stats, g1File, "Group 1");
@@ -268,7 +269,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			if (recViewerIsNotVisible) recViewer.show();
 		}
 
-		resetUI();
+		notifyLoadingEnd(false, recViewer);
 
 	}
 

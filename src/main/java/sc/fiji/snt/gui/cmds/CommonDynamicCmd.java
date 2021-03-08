@@ -108,18 +108,17 @@ public class CommonDynamicCmd extends DynamicCommand {
 		}
 	}
 
-	protected void notifyLoadingStart(final Viewer3D recViewer) {
+	protected void notifyLoadingStart(final Viewer3D standAloneRecViewer) {
 		if (ui != null) ui.changeState(SNTUI.LOADING);
-		if (recViewer != null && recViewer.getManagerPanel() != null) {
-			recViewer.getManagerPanel().setProgressLimit(0, 100);
-			recViewer.getManagerPanel().setProgress(-1);
+		if (standAloneRecViewer != null && standAloneRecViewer.getManagerPanel() != null) {
+			standAloneRecViewer.getManagerPanel().setProgress(-1);
 		}
 	}
 
-	protected void notifyLoadingEnd(final boolean validateDimensions, final Viewer3D recViewer) {
-		resetUI(validateDimensions);
-		if (recViewer != null && recViewer.getManagerPanel() != null) {
-			recViewer.getManagerPanel().resetProgressBar();
+	protected void notifyLoadingEnd(final boolean validateDimensionsInMainUI, final Viewer3D standAloneRecViewer) {
+		resetUI(validateDimensionsInMainUI);
+		if (standAloneRecViewer != null && standAloneRecViewer.getManagerPanel() != null) {
+			standAloneRecViewer.getManagerPanel().resetProgressBar();
 		}
 	}
 

@@ -158,6 +158,7 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 		if (!file.exists())
 			error(file.getAbsolutePath() + " is no longer available");
 
+		notifyLoadingStart(recViewer);
 		final boolean splitState = recViewer.isSplitDendritesFromAxons();
 		recViewer.setSplitDendritesFromAxons(splitByType);
 		final String importColor = (colorChoice.contains("unique")) ? null : getNonNullColor().toHTMLColor();
@@ -183,6 +184,7 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 		}
 		recViewer.setSplitDendritesFromAxons(splitState);
 		setLastUsedFile();
+		notifyLoadingEnd(false, recViewer);
 	}
 
 	/* IDE debug method **/
