@@ -133,7 +133,8 @@ public class MLImporterCmd extends CommonDynamicCmd {
 		status("Retrieving ids... Please wait...", false);
 		final int lastExistingPathIdx = pafm.size() - 1;
 		final Map<String, TreeSet<SWCPoint>> inMap = new HashMap<>();
-		final String compartment = arborChoice.substring(0, arborChoice.indexOf(" ")); 
+		final String compartment = (arborChoice.indexOf(" ") == -1) ? arborChoice
+				: arborChoice.substring(0, arborChoice.indexOf(" "));
 		for (final String id : ids) {
 			final MouseLightLoader loader = new MouseLightLoader(id);
 			inMap.put(id, (loader.idExists()) ? loader.getNodes(compartment) : null);
@@ -161,8 +162,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			if (clearExisting) recViewer.removeAllTrees();
 			final boolean splitState = recViewer.isSplitDendritesFromAxons();
 			recViewer.setSplitDendritesFromAxons(arborChoice.toLowerCase().contains("split"));
-			final ColorRGB c = getColor(); // null means "assign unique
-			recViewer.addTrees(filteredResult, (c == null) ? "unique" : c.toHTMLColor());
+			recViewer.addTrees(filteredResult, ""); // colors have already been assigned
 			recViewer.setSplitDendritesFromAxons(splitState);
 		}
 
