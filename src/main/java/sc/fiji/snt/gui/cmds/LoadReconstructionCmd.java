@@ -203,7 +203,7 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 	@Override
 	protected void error(final String msg) {
 		exit();
-		error(msg);
+		super.error(msg);
 	}
 
 	/* IDE debug method **/
