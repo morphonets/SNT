@@ -151,6 +151,7 @@ public class SNTSearchableBar extends SearchableBar {
 
 	public void setStatusLabelPlaceholder(final String placeholder) {
 		statusLabelPlaceholder = placeholder;
+		if (_statusLabel != null) _statusLabel.setText(statusLabelPlaceholder);
 	}
 
 	@Override

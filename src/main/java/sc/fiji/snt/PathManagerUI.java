@@ -947,7 +947,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			root = newRoot;
 			tree.setModel(model);
 
-			model.reload();
+			tree.reload();
 
 			// Set back the expanded state:
 			if (expandAll) {
@@ -1254,6 +1254,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			addSelectionPath(tp);
 		}
 
+		public void reload() {
+			((DefaultTreeModel)tree.getModel()).reload();
+			if (searchableBar != null) {
+				searchableBar.setStatusLabelPlaceholder(String.format("%d Path(s) listed", getPathAndFillManager().size()));
+			}
+		}
 	}
 
 	/**
@@ -1652,7 +1658,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	public void reload() {
 		int[] selectedRows = tree.getSelectionRows();
 		final boolean expanded = tree.getExpandsSelectedPaths();
-		((DefaultTreeModel)tree.getModel()).reload();
+		tree.reload();
 		tree.setSelectionRows(selectedRows);
 		tree.setExpandsSelectedPaths(expanded);
 	}

@@ -2781,8 +2781,6 @@ public class Viewer3D {
 			this.guiUtils = guiUtils;
 			setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 			searchableBar = new SNTSearchableBar(new ListSearchable(managerList));
-			searchableBar.setStatusLabelPlaceholder(String.format(
-				"%d Item(s) listed", managerList.model.size()));
 			searchableBar.setGuiUtils(guiUtils);
 			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_CLOSE |
 				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
@@ -2853,7 +2851,7 @@ public class Viewer3D {
 		class Action extends AbstractAction {
 			static final String ALL = "All";
 			static final String ENTER_FULL_SCREEN = "Full Screen";
-			static final String FIND = "Find...";
+			static final String FIND = "Toggle Selection Toolbar";
 			static final String FIT = "Fit to Visible Objects";
 			static final String LOG = "Log Scene Details";
 			static final String NONE = "None";
@@ -3229,6 +3227,7 @@ public class Viewer3D {
 						final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels(k.toString());
 						removeSceneObject(labelAndManagerEntry[0], labelAndManagerEntry[1]);
 					});
+					managerList.update();
 				}
 			});
 
@@ -5043,7 +5042,7 @@ public class Viewer3D {
 		private boolean listenersEnabled = true;
 
 		public void update() {
-			super.fireContentsChanged(this, 0, getSize() - 1);
+			callFireContentsChangedOnSuper(this, 0, getSize() - 1);
 		}
 
 		public boolean getListenersEnabled() {
@@ -5060,10 +5059,18 @@ public class Viewer3D {
 			}
 		}
 
+		private void callFireContentsChangedOnSuper(final Object source, final int index0, final int index1) {
+			super.fireContentsChanged(source, index0, index1);
+			if (frame != null && frame.managerPanel != null) {
+				frame.managerPanel.searchableBar.setStatusLabelPlaceholder(String.format(
+						"%d item(s) listed", managerList.model.size() - 1));
+			}
+		}
+
 		@Override
 		public void fireContentsChanged(final Object source, final int index0, final int index1) {
 			if (getListenersEnabled()) {
-				super.fireContentsChanged(source, index0, index1);
+				callFireContentsChangedOnSuper(source, index0, index1);
 			}
 		}
 
