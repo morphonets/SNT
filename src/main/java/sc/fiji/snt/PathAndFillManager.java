@@ -2195,6 +2195,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			SNTUtils.log("Loading " + treeDescription + ": " + filePath);
 			final Tree tree = new Tree();
 			tree.setLabel(treeDescription);
+			tree.setColor(colors[colorIdx[0]]);
 			result.add(tree);
 			final int firstImportedPathIdx = size();
 			if (!importSWC(treeDescription, filePath)) {

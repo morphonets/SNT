@@ -80,9 +80,19 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 		description = "Rendering color of imported file(s)")
 	private ColorRGB color;
 
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Options:")
+	private String HEADER;
+
 	@Parameter(label = "Dendrites and axons as separate objects", required = false,
 		description = "If the file contains an axonal and dendritic arbor load each arbor individually.")
 	private boolean splitByType;
+
+	@Parameter(label = "Clear existing reconstructions", required = false,
+			description = "Should the imported reconstruction(s) replace all of the existing ones?")
+	private boolean clearExisting;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "")
+	private String SPACER;
 
 	@Parameter(persist = false, visibility = ItemVisibility.MESSAGE)
 	private String msg;
@@ -92,6 +102,7 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 
 	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
 	private boolean importDir = false;
+	private boolean splitState;
 
 	protected void init() {
 		if (importDir) {
@@ -102,8 +113,6 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 			fileMitem.setDescription(
 				"<HTML>Path to directory containing multiple files." +
 					"<br>Supported extensions: traces, (e)SWC, json");
-			String lastUsedDir = prefService.get(LoadReconstructionCmd.class, LAST_DIR_KEY);
-			if (lastUsedDir != null) new File(lastUsedDir);
 		}
 		else {
 			// hide the 'pattern' field
@@ -112,15 +121,13 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 			patternMitem.setVisibility(ItemVisibility.INVISIBLE);
 			resolveInput("pattern");
 		}
+		populateLastUsedFile();
 		if (recViewer != null && recViewer.isSNTInstance()) {
 			msg = "NB: Loaded file(s) will not be listed in Path Manager";
 		}
-		else if (importDir) {
-			msg = "NB: You can also drag & drop directories into viewer or 'RV Controls'";
-		} else {
-			msg = " ";
+		else {
+			msg = "NB: You can also drag & drop files into viewer or 'RV Controls'";
 		}
-		populateLastUsedFile();
 	}
 
 	private void populateLastUsedFile() {
@@ -152,37 +159,51 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 			if (recViewer == null)
 				recViewer = sntService.getRecViewer();
 		} catch (final UnsupportedOperationException exc) {
-			error("SNT's Reconstruction Viewer is not open and no other Viewer was specified.");
+			super.error("SNT's Reconstruction Viewer is not open and no other Viewer was specified.");
 		}
 
 		if (!file.exists())
-			error(file.getAbsolutePath() + " is no longer available");
+			super.error(file.getAbsolutePath() + " is no longer available");
 
-		final boolean splitState = recViewer.isSplitDendritesFromAxons();
+		setLastUsedFile();
+		notifyLoadingStart(recViewer);
+		splitState = recViewer.isSplitDendritesFromAxons();
 		recViewer.setSplitDendritesFromAxons(splitByType);
 		final String importColor = (colorChoice.contains("unique")) ? "unique" : getNonNullColor().toHTMLColor();
+		final Collection<Tree> trees;
 		if (file.isFile()) {
 			try {
-				final Collection<Tree> trees = Tree.listFromFile(file.getAbsolutePath());
-				if (trees == null || trees.isEmpty())
-					cancel("No Paths could be extracted from file. Invalid path?");
-				recViewer.addTrees(trees, importColor);
-				recViewer.validate();
-				return;
+				trees = Tree.listFromFile(file.getAbsolutePath());
+				if (trees == null || trees.isEmpty()) {
+					error("No Paths could be extracted from file. Invalid path?");
+				} else {
+					if (clearExisting) recViewer.removeAllTrees();
+					recViewer.addTrees(trees, importColor);
+				}
 			} catch (final IllegalArgumentException ex) {
-				cancel(ex.getMessage());
+				error(ex.getMessage());
 			}
-		}
-
-		if (file.isDirectory()) {
+		} else if (file.isDirectory()) {
 			final File[] treeFiles = SNTUtils.getReconstructionFiles(file, pattern);
 			if (treeFiles.length == 0) {
 				error("Directory does not contain valid reconstructions");
+			} else {
+				if (clearExisting) recViewer.removeAllTrees();
+				recViewer.addTrees(treeFiles, importColor);
 			}
-			recViewer.addTrees(treeFiles, importColor);
 		}
+		exit();
+	}
+
+	private void exit() {
 		recViewer.setSplitDendritesFromAxons(splitState);
-		setLastUsedFile();
+		notifyLoadingEnd(false, recViewer);
+	}
+
+	@Override
+	protected void error(final String msg) {
+		exit();
+		super.error(msg);
 	}
 
 	/* IDE debug method **/

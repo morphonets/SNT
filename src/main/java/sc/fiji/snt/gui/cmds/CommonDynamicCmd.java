@@ -31,6 +31,7 @@ import org.scijava.ui.UIService;
 
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 
@@ -104,6 +105,20 @@ public class CommonDynamicCmd extends DynamicCommand {
 		}
 		else {
 			uiService.showDialog(msg, title);
+		}
+	}
+
+	protected void notifyLoadingStart(final Viewer3D standAloneRecViewer) {
+		if (ui != null) ui.changeState(SNTUI.LOADING);
+		if (standAloneRecViewer != null && standAloneRecViewer.getManagerPanel() != null) {
+			standAloneRecViewer.getManagerPanel().setProgress(-1);
+		}
+	}
+
+	protected void notifyLoadingEnd(final boolean validateDimensionsInMainUI, final Viewer3D standAloneRecViewer) {
+		resetUI(validateDimensionsInMainUI);
+		if (standAloneRecViewer != null && standAloneRecViewer.getManagerPanel() != null) {
+			standAloneRecViewer.getManagerPanel().resetProgressBar();
 		}
 	}
 

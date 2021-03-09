@@ -29,6 +29,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import net.imagej.ImageJ;
@@ -64,6 +65,8 @@ public class MLImporterCmd extends CommonDynamicCmd {
 	private static final String CHOICE_DENDRITES = "Dendrites";
 	private static final String CHOICE_SOMA = "Soma";
 	private static final String CHOICE_BOTH = "All compartments";
+	private static final String CHOICE_BOTH_COMBINED = "All compartments (as single object)";
+	private static final String CHOICE_BOTH_SPLIT = "All compartments (splitted objects)";
 	private final static String DOI_MATCHER = ".*\\d+/janelia\\.\\d+.*";
 	private final static String ID_MATCHER = "[A-Z]{2}\\d{4}";
 
@@ -126,56 +129,52 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			return;
 		}
 
-		if (ui != null) ui.changeState(SNTUI.LOADING);
+		notifyLoadingStart(recViewer);
 		status("Retrieving ids... Please wait...", false);
 		final int lastExistingPathIdx = pafm.size() - 1;
 		final Map<String, TreeSet<SWCPoint>> inMap = new HashMap<>();
+		final String compartment = (arborChoice.indexOf(" ") == -1) ? arborChoice
+				: arborChoice.substring(0, arborChoice.indexOf(" "));
 		for (final String id : ids) {
 			final MouseLightLoader loader = new MouseLightLoader(id);
-			inMap.put(id, (loader.idExists()) ? loader.getNodes(arborChoice) : null);
+			inMap.put(id, (loader.idExists()) ? loader.getNodes(compartment) : null);
 		}
 		final Map<String, Tree> result = pafm.importNeurons(inMap, getColor(), "um");
-		final long failures = result.values().stream().filter(
-			tree -> (tree == null || tree.isEmpty())).count();
-		if (failures == ids.size()) {
+		final List<Tree> filteredResult = result.values().stream().filter(tree -> (tree != null && !tree.isEmpty()))
+				.collect(Collectors.toList());
+		if (filteredResult.isEmpty()) {
 			error("No reconstructions could be retrieved: Invalid Query?");
 			status("Error... No reconstructions imported", true);
 			return;
 		}
-		if (clearExisting) {
-			if (recViewer == null) {
-				// We are importing into a functional SNTUI with Path Manager
+
+		if (recViewer == null) {
+			// We are importing into a functional SNTUI with Path Manager
+			if (clearExisting) {
 				final int[] indices = IntStream.rangeClosed(0, lastExistingPathIdx)
-					.toArray();
-				pafm.deletePaths(indices);
+						.toArray();
+					pafm.deletePaths(indices);
 			}
-			else {
-				// We are importing into a stand-alone Reconstruction Viewer
-				recViewer.removeAllTrees();
-			}
-		}
-
-		if (snt != null) notifyExternalDataLoaded();
-
-		if (recViewer != null) {
+			if (snt != null) notifyExternalDataLoaded();
+			
+		} else {
 			// A 'stand-alone' Reconstruction Viewer was specified
-			recViewer.setSceneUpdatesEnabled(false);
-			result.forEach((id, tree) -> {
-				if (tree != null) recViewer.addTree(tree);
-			});
-			recViewer.setSceneUpdatesEnabled(true);
-			recViewer.validate();
+			if (clearExisting) recViewer.removeAllTrees();
+			final boolean splitState = recViewer.isSplitDendritesFromAxons();
+			recViewer.setSplitDendritesFromAxons(arborChoice.toLowerCase().contains("split"));
+			recViewer.addTrees(filteredResult, ""); // colors have already been assigned
+			recViewer.setSplitDendritesFromAxons(splitState);
 		}
-		if (failures > 0) {
-			error(String.format("%d/%d reconstructions could not be retrieved.",
-				failures, result.size()));
+
+		if (filteredResult.size() < result.size()) {
+			error(String.format("Only %d of %d reconstructions could be retrieved.",
+				filteredResult.size(), result.size()));
 			status("Partially successful import...", true);
 		}
 		else {
-			status("Successful imported " + result.size() + " reconstruction(s)...",
-				true);
+			status("Successful imported " + result.size() + " reconstruction(s)...", true);
 		}
-		resetUI(recViewer == null);
+		notifyLoadingEnd(recViewer == null, recViewer);
 	}
 
 	/**
@@ -215,26 +214,27 @@ public class MLImporterCmd extends CommonDynamicCmd {
 	}
 
 	protected void init() {
-		if (sntService.isActive()) {
+		if (recViewer != null) {
+			// If a stand-alone viewer was specified, customize options specific
+			// to the SNT UI
+			final MutableModuleItem<String> arborChoiceInput = getInfo()
+					.getMutableInput("arborChoice", String.class);
+			arborChoiceInput.setChoices(Arrays.asList(CHOICE_BOTH_COMBINED,
+					CHOICE_BOTH_SPLIT, CHOICE_AXONS, CHOICE_DENDRITES, CHOICE_SOMA));
+			final MutableModuleItem<Boolean> clearExistingInput = getInfo()
+				.getMutableInput("clearExisting", Boolean.class);
+			clearExistingInput.setLabel("Clear existing reconstructions");
+			pafm = new PathAndFillManager();
+			pafm.setHeadless(true);
+		} else if (sntService.isActive()) {
 			snt = sntService.getPlugin();
 			ui = sntService.getUI();
 			pafm = sntService.getPathAndFillManager();
 			if (ui != null) ui.changeState(SNTUI.RUNNING_CMD);
 		}
-		else {
-			pafm = new PathAndFillManager();
-			pafm.setHeadless(true);
-		}
 		if (query == null || query.isEmpty()) query = "AA0001";
 		pingMsg =
-			"Internet connection required. Retrieval of long lists may be rather slow...           ";
-		if (recViewer != null) {
-			// If a stand-alone viewer was specified, customize options specific
-			// to the SNT UI
-			final MutableModuleItem<Boolean> clearExistingInput = getInfo()
-				.getMutableInput("clearExisting", Boolean.class);
-			clearExistingInput.setLabel("Clear existing reconstructions");
-		}
+			"Internet connection required. Retrieval of long lists may be rather slow... ";
 	}
 
 	@SuppressWarnings("unused")

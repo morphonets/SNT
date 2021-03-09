@@ -107,9 +107,14 @@ public class LoadObjCmd extends ContextCommand {
 			final File[] files = file.listFiles((dir, name) -> name
 				.toLowerCase().endsWith("obj"));
 			recViewer.setSceneUpdatesEnabled(false);
+			if (recViewer.getManagerPanel() != null)
+				recViewer.getManagerPanel().setProgressLimit(0, files.length);
 			int failures = 0;
+			int idx = 0;
 			for (final File file : files) {
 				try {
+					if (recViewer.getManagerPanel() != null)
+						recViewer.getManagerPanel().setProgress(idx++);
 					if (!loadMesh(file.getAbsolutePath())) failures++;
 				}
 				catch (final IllegalArgumentException exc) {
@@ -119,6 +124,8 @@ public class LoadObjCmd extends ContextCommand {
 			if (failures == files.length) {
 				cancel(getExitMsg("No files imported. Invalid Directory?"));
 			}
+			if (recViewer.getManagerPanel() != null)
+				recViewer.getManagerPanel().resetProgressBar();
 			recViewer.setSceneUpdatesEnabled(true);
 			recViewer.validate();
 			final String msg = "" + (files.length - failures) + "/" + files.length +

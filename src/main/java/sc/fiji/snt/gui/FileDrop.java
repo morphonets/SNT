@@ -31,6 +31,8 @@ import java.io.Reader;
 
 import javax.swing.UIManager;
 
+import sc.fiji.snt.SNTUtils;
+
 
 /**
  * This class makes it easy to drag and drop files from the operating system to
@@ -414,12 +416,12 @@ public class FileDrop {
 						} // end else: not a file list
 					} // end try
 					catch (final java.io.IOException io) {
-						log(out, "FileDrop: IOException - abort:");
+						logToSNT(out, "FileDrop: IOException - abort:");
 						io.printStackTrace(out);
 						evt.rejectDrop();
 					} // end catch IOException
 					catch (final java.awt.datatransfer.UnsupportedFlavorException ufe) {
-						log(out,
+						logToSNT(out,
 								"FileDrop: UnsupportedFlavorException - abort:");
 						ufe.printStackTrace(out);
 						evt.rejectDrop();
@@ -467,7 +469,7 @@ public class FileDrop {
 			makeDropTarget(out, c, recursive);
 		} // end if: supports dnd
 		else {
-			log(out, "FileDrop: Drag and drop is not supported with this JVM");
+			logToSNT(out, "FileDrop: Drag and drop is not supported with this JVM");
 		} // end else: does not support DnD
 	} // end constructor
 
@@ -509,7 +511,7 @@ public class FileDrop {
 
 			return list.toArray(new File[list.size()]);
 		} catch (final IOException ex) {
-			log(out, "FileDrop: IOException");
+			logToSNT(out, "FileDrop: IOException");
 		}
 		return new File[0];
 	}
@@ -608,6 +610,11 @@ public class FileDrop {
 			out.println(message);
 	} // end log
 
+	private static void logToSNT(final java.io.PrintStream out, final String message) { // Log
+		if (out != null)
+			out.println(message);
+		SNTUtils.log(message);
+	}
 	/**
 	 * Removes the drag-and-drop hooks from the component and optionally from
 	 * the all children. You should call this if you add and remove components

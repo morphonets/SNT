@@ -46,7 +46,7 @@ public class TreeGraphRecViewerCmd extends DynamicCommand {
         Tree tree = graph.getTree(false);
         if (tree == null) cancel("Invalid Tree");
         Viewer3D viewer = new Viewer3D(getContext());
-        viewer.addTrees(Collections.singleton(tree), true);
+        viewer.addTrees(Collections.singleton(tree), "unique");
         viewer.show();
     }
 

@@ -66,11 +66,11 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 	@Parameter(required = false, label = EMPTY_LABEL)
 	private ColorRGB commonColor;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "<br>Utilities:")
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "<br>Options:")
 	private String HEADER3;
 	@Parameter(label = "Load associated meshes")
 	private boolean loadMeshes;
-	@Parameter(required = false, persist = true)
+	@Parameter(required = false)
 	private boolean clearExisting;
 
 	@Parameter(label = "Check Database Access", callback = "pingServer")
@@ -106,7 +106,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 			return;
 		}
 
-		if (ui != null) ui.changeState(SNTUI.LOADING);
+		notifyLoadingStart(recViewer);
 		status("Retrieving ids... Please wait...", false);
 		final List<Tree> trees = new ArrayList<>();
 		final List<OBJMesh> meshes = (loadMeshes) ? new ArrayList<>() : null;
@@ -165,7 +165,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 		else {
 			status("Successful imported " + trees.size() + " reconstruction(s)...", true);
 		}
-		resetUI(!isCanceled());
+		notifyLoadingEnd(!isCanceled(), recViewer);
 	}
 
 	/**
@@ -199,8 +199,12 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 			if (ui != null) ui.changeState(SNTUI.RUNNING_CMD);
 			runningFromMainSNT = true;
 		}
-		else {
-			runningFromMainSNT = false;
+		// If a recViewer instance has been specified, then we've be called from
+		// a standalone Reconstruction iewer even if SNT is currently running
+		runningFromMainSNT = runningFromMainSNT && recViewer == null;
+
+		if (!runningFromMainSNT && recViewer == null) {
+			cancel("Neither an SNT instance nor a standalone Reconstruction viewer seem available");
 		}
 		pingMsg = "Internet connection required. Retrieval of long lists may be rather slow...           ";
 

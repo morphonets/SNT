@@ -439,8 +439,11 @@ public class Viewer3D {
 		viewUpdatesEnabled = enabled;
 		if (enabled) view.shoot(); // same as char.render();
 		if (managerList != null) {
-			managerList.model.setListenersEnabled(enabled);
-			if (enabled) managerList.model.update();
+			managerList.model.setListenersEnabled(viewUpdatesEnabled);
+		}
+		if (viewUpdatesEnabled) {
+			chart.getView().updateBounds();
+			managerList.model.update();
 		}
 	}
 
@@ -526,6 +529,7 @@ public class Viewer3D {
 	 * @see #updateView()
 	 */
 	public void validate() {
+		if (!sceneIsOK()) chart.getView().updateBoundsForceUpdate(true);
 		if (!sceneIsOK()) rebuild();
 	}
 
@@ -747,6 +751,7 @@ public class Viewer3D {
 		final ShapeTree shapeTree = new ShapeTree(tree);
 		plottedTrees.put(label, shapeTree);
 		addItemToManager(label);
+		shapeTree.setDisplayed(true);
 		chart.add(shapeTree.get(), viewUpdatesEnabled);
 	}
 
@@ -1067,7 +1072,7 @@ public class Viewer3D {
 	public void updateView() {
 		if (view != null) {
 			view.shoot(); // !? without forceRepaint() dimensions are not updated
-			fitToVisibleObjects(false, false);
+			fitToVisibleObjects(false, false); //TODO: Why not use view.updateBounds()?
 		}
 		if (managerList != null) managerList.update(); // force update the manager list
 	}
@@ -2753,7 +2758,17 @@ public class Viewer3D {
 
 	}
 
-	private class ManagerPanel extends JPanel {
+	/**
+	 * Returns a reference to 'RV Controls' panel.
+	 *
+	 * @return the ManagerPanel associated with this Viewer, or null if the 'RV
+	 *         Controls' dialog is not being displayed.
+	 */
+	public ManagerPanel getManagerPanel() {
+		return (frame == null) ? null : frame.managerPanel;
+	}
+
+	public class ManagerPanel extends JPanel {
 
 		private static final long serialVersionUID = 1L;
 		private final GuiUtils guiUtils;
@@ -2762,13 +2777,11 @@ public class Viewer3D {
 		private final SNTSearchableBar searchableBar;
 		private final JProgressBar progressBar;
 
-		public ManagerPanel(final GuiUtils guiUtils) {
+		private ManagerPanel(final GuiUtils guiUtils) {
 			super();
 			this.guiUtils = guiUtils;
 			setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 			searchableBar = new SNTSearchableBar(new ListSearchable(managerList));
-			searchableBar.setStatusLabelPlaceholder(String.format(
-				"%d Item(s) listed", managerList.model.size()));
 			searchableBar.setGuiUtils(guiUtils);
 			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_CLOSE |
 				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
@@ -2799,40 +2812,49 @@ public class Viewer3D {
 			scrollPane.setWheelScrollingEnabled(true);
 			scrollPane.setBorder(null);
 			scrollPane.setViewportView(managerList);
-			add(scrollPane);
-			scrollPane.revalidate();
-			add(barPanel);
-			add(buttonPanel());
+
 			progressBar = new JProgressBar();
 			progressBar.setStringPainted(true);
 			progressBar.setFocusable(false);
 			resetProgressBar();
+
+			add(scrollPane);
+			scrollPane.revalidate();
 			add(progressBar);
+			add(barPanel);
+			add(buttonPanel());
 			fileDropWorker = new FileDropWorker(managerList, guiUtils);
 		}
 
-		private void resetProgressBar() {
+		public void resetProgressBar() {
 			progressBar.setIndeterminate(true);
 			progressBar.setVisible(false);
 			progressBar.setMinimum(0);
 			progressBar.setMaximum(100);
 		}
 
-		private void setProgressLimit(final int min, final int max) {
-			progressBar.setIndeterminate(false);
+		public void setProgressLimit(final int min, final int max) {
 			progressBar.setMinimum(min);
 			progressBar.setMaximum(max);
 			progressBar.setVisible(true);
 		}
 	
-		private void setProgress(final int value) {
-			progressBar.setValue(value);
+		public void setProgress(final int value) {
+			if (value == -1) {
+				progressBar.setIndeterminate(true);
+				progressBar.setString("Loading...");
+				progressBar.setVisible(true);
+			} else {
+				progressBar.setIndeterminate(false);
+				progressBar.setString(null);
+				progressBar.setValue(value); // assume it is visible already
+			}
 		}
-	
+
 		class Action extends AbstractAction {
 			static final String ALL = "All";
 			static final String ENTER_FULL_SCREEN = "Full Screen";
-			static final String FIND = "Find...";
+			static final String FIND = "Toggle Selection Toolbar";
 			static final String FIT = "Fit to Visible Objects";
 			static final String LOG = "Log Scene Details";
 			static final String NONE = "None";
@@ -2860,7 +2882,7 @@ public class Viewer3D {
 				putValue(AbstractAction.ACCELERATOR_KEY, ks);
 				if (mod == 0) putValue(AbstractAction.MNEMONIC_KEY, key);
 				// register action in panel
-				registerKeyboardAction(this, ks, JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
+				registerKeyboardAction(this, ks, JComponent.WHEN_IN_FOCUSED_WINDOW);
 			}
 
 			@Override
@@ -2957,7 +2979,7 @@ public class Viewer3D {
 				}
 			}
 		}
-	
+
 		private JPanel buttonPanel() {
 			final JPanel buttonPanel = new JPanel(new GridLayout(1, 6));
 			buttonPanel.setBorder(null);
@@ -3009,7 +3031,7 @@ public class Viewer3D {
 			final JMenuItem reset = new JMenuItem(new Action(Action.RESET, KeyEvent.VK_R, false, false));
 			reset.setIcon(IconFactory.getMenuIcon(GLYPH.BROOM));
 			sceneMenu.add(reset);
-			final JMenuItem reload = new JMenuItem(new Action(Action.RELOAD, KeyEvent.VK_R, true, false));
+			final JMenuItem reload = new JMenuItem(new Action(Action.RELOAD, KeyEvent.VK_R, false, true));
 			reload.setIcon(IconFactory.getMenuIcon(GLYPH.REDO));
 			sceneMenu.add(reload);
 			final JMenuItem rebuild = new JMenuItem(new Action(Action.REBUILD, KeyEvent.VK_R, true, true));
@@ -3112,7 +3134,7 @@ public class Viewer3D {
 			renderIcons.addItemListener(e -> {
 				managerList.setIconsVisible((renderIcons.isSelected()));
 			});
-
+	
 			// Select menu
 			final JMenu selectMenu = new JMenu("Select");
 			selectMenu.setIcon(IconFactory.getMenuIcon(GLYPH.POINTER));
@@ -3208,6 +3230,7 @@ public class Viewer3D {
 						final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels(k.toString());
 						removeSceneObject(labelAndManagerEntry[0], labelAndManagerEntry[1]);
 					});
+					managerList.update();
 				}
 			});
 
@@ -3787,7 +3810,11 @@ public class Viewer3D {
 			});
 			utilsMenu.add(mi);
 			utilsMenu.add(legendMenu());
-
+			mi = new JMenuItem("Annotation Label...", IconFactory.getMenuIcon(GLYPH.PEN));
+			mi.addActionListener(e -> {
+				runCmd(AddTextAnnotationCmd.class, null, CmdWorker.DO_NOTHING);
+			});
+			utilsMenu.add(mi);
 			final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.getMenuIcon(GLYPH.BULB));
 			light.addActionListener(e -> {
 //				guiUtils.centeredMsg(
@@ -4020,9 +4047,7 @@ public class Viewer3D {
 			remoteMenu.add(mi);
 			mi = new JMenuItem("InsectBrain...", 'I');
 			mi.addActionListener(e -> {
-				final Map<String, Object> inputs = new HashMap<>();
-				inputs.put("recViewer", Viewer3D.this);
-				runCmd(InsectBrainImporterCmd.class, inputs, CmdWorker.DO_NOTHING);
+				runCmd(InsectBrainImporterCmd.class, null, CmdWorker.DO_NOTHING); // will assign "recViewer" input
 			});
 			remoteMenu.add(mi);
 			mi = new JMenuItem("MouseLight...", 'm');
@@ -4208,7 +4233,8 @@ public class Viewer3D {
 					frame.allenNavigator.dialog.toFront();
 					return;
 				}
-				final JDialog tempSplash = frame.managerPanel.guiUtils.floatingMsg("Loading ontologies...", false);
+				//final JDialog tempSplash = frame.managerPanel.guiUtils.floatingMsg("Loading ontologies...", false);
+				getManagerPanel().setProgress(-1);
 				final SwingWorker<AllenCCFNavigator, ?> worker = new SwingWorker<AllenCCFNavigator, Object>() {
 
 					@Override
@@ -4224,7 +4250,8 @@ public class Viewer3D {
 						} catch (final InterruptedException | ExecutionException e) {
 							SNTUtils.error(e.getMessage(), e);
 						} finally {
-							tempSplash.dispose();
+							//tempSplash.dispose();
+							frame.managerPanel.resetProgressBar();
 						}
 					}
 				};
@@ -4279,17 +4306,42 @@ public class Viewer3D {
 				guiUtils.error("Remote server not reached. It is either down or you have no internet access.");
 				return;
 			}
-			try {
-				if (warnIfLoaded && getOBJs().keySet().contains(label))
-					guiUtils.error(label + " is already loaded.");
-				loadRefBrainInternal(label);
-			} catch (final NullPointerException | IllegalArgumentException ex) {
-				guiUtils.error("An error occured and mesh could not be retrieved. See Console for details.");
-				ex.printStackTrace();
-			} catch (final RuntimeException e2) {
-				SNTUtils.error(e2.getMessage(), e2);
-				if (viewUpdatesEnabled) validate();
+			if (warnIfLoaded && getOBJs().keySet().contains(label)) {
+				guiUtils.error(label + " is already loaded.");
+				return;
 			}
+			getManagerPanel().setProgress(-1);
+			final SwingWorker<?, ?> worker = new SwingWorker<Boolean, Object>() {
+
+				@Override
+				protected Boolean doInBackground() {
+					try {
+						loadRefBrainInternal(label);
+					} catch (final NullPointerException | IllegalArgumentException ex) {
+						guiUtils.error("An error occured and mesh could not be retrieved. See Console for details.");
+						ex.printStackTrace();
+						return false;
+					} catch (final RuntimeException e2) {
+						SNTUtils.error(e2.getMessage(), e2);
+						return false;
+					}
+					return true;
+				}
+
+				@Override
+				protected void done() {
+					try {
+						if (!get() && viewUpdatesEnabled)
+							validate();
+					} catch (final InterruptedException | ExecutionException e) {
+						SNTUtils.error(e.getMessage(), e);
+					} finally {
+						if (getManagerPanel() != null)
+							getManagerPanel().resetProgressBar();
+					}
+				}
+			};
+			worker.execute();
 		}
 
 		private void removeColorLegends(final boolean justLastOne) {
@@ -4374,7 +4426,7 @@ public class Viewer3D {
 					if (failuresAndSuccesses[0] > 0)
 						guiUtils.error("" + failuresAndSuccesses[0] + " of "
 								+ (failuresAndSuccesses[0] + failuresAndSuccesses[1])
-								+ " dropped file(s) were not imported (Console log will"
+								+ " dropped file(s) could not be imported (Console log will"
 								+ " have more details if you have enabled \"Debug mode\").");
 					resetEscape();
 				}
@@ -4418,8 +4470,9 @@ public class Viewer3D {
 			final ColorRGB[] colors = getmportColors(baseColor, totalFiles);
 			int failures = 0;
 			int idx = 0;
-			if (frame.managerPanel != null)
-				frame.managerPanel.setProgressLimit(0, totalFiles);
+			if (frame.managerPanel != null) {
+				frame.managerPanel.setProgress(-1);
+			}
 			for (final File file : files) {
 				if (escapePressed()) {
 					SNTUtils.log("Aborting...");
@@ -4434,10 +4487,22 @@ public class Viewer3D {
 					if (fName.endsWith("swc") || fName.endsWith(".traces") || fName.endsWith(".json")) { // reconstruction:
 						try {
 							final Collection<Tree> treesInFile = Tree.listFromFile(file.getAbsolutePath());
-							treesInFile.forEach(tree -> {
-								tree.setColor(color);
-								addTree(tree);
-							});
+							if (treesInFile.size() > 1) {
+								if (frame.managerPanel != null)
+									frame.managerPanel.setProgressLimit(0, totalFiles + treesInFile.size());
+								Tree.assignUniqueColors(treesInFile);
+								int internalIdx = 0;
+								for (final Tree tree : treesInFile) {
+									addTree(tree);
+									if (frame.managerPanel != null)
+										frame.managerPanel.setProgress(idx + internalIdx++);
+								}
+							} else {
+								treesInFile.forEach(tree -> {
+									tree.setColor(color);
+									addTree(tree);
+								});
+							}
 						} catch (final Exception ex) {
 							failures++;
 							SNTUtils.log("... failed");
@@ -4461,7 +4526,7 @@ public class Viewer3D {
 				}
 				idx++;
 			}
-			return new int[] { failures, idx };
+			return new int[] { failures, idx-1 };
 		}
 
 		private boolean escapePressed() {
@@ -5009,7 +5074,7 @@ public class Viewer3D {
 		private boolean listenersEnabled = true;
 
 		public void update() {
-			super.fireContentsChanged(this, 0, getSize() - 1);
+			callFireContentsChangedOnSuper(this, 0, getSize() - 1);
 		}
 
 		public boolean getListenersEnabled() {
@@ -5026,10 +5091,18 @@ public class Viewer3D {
 			}
 		}
 
+		private void callFireContentsChangedOnSuper(final Object source, final int index0, final int index1) {
+			super.fireContentsChanged(source, index0, index1);
+			if (frame != null && frame.managerPanel != null) {
+				frame.managerPanel.searchableBar.setStatusLabelPlaceholder(String.format(
+						"%d item(s) listed", managerList.model.size() - 1));
+			}
+		}
+
 		@Override
 		public void fireContentsChanged(final Object source, final int index0, final int index1) {
 			if (getListenersEnabled()) {
-				super.fireContentsChanged(source, index0, index1);
+				callFireContentsChangedOnSuper(source, index0, index1);
 			}
 		}
 
@@ -5622,7 +5695,12 @@ public class Viewer3D {
 					break;
 				case 'r':
 				case 'R':
-					resetView();
+					if (e.isShiftDown()) {
+						validate();
+						displayMsg("Scene reloaded");
+					} else {
+						resetView();
+					}
 					break;
 				case 's':
 				case 'S':
@@ -5873,6 +5951,10 @@ public class Viewer3D {
 			sb.append("  </tr>");
 			sb.append("    <td><u>R</u>eset View</td>");
 			sb.append("    <td>Press 'R'</td>");
+			sb.append("  </tr>");
+			sb.append("  </tr>");
+			sb.append("    <td><u>R</u>eload View</td>");
+			sb.append("    <td>Press Shift+'R'</td>");
 			sb.append("  </tr>");
 			sb.append("  <tr>");
 			sb.append("    <td><u>S</u>napshot</td>");
