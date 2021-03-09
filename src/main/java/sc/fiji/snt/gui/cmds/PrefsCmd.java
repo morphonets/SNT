@@ -129,6 +129,7 @@ public class PrefsCmd extends ContextCommand {
 	/** Clears all of SNT preferences. */
 	public void clearAll() {
 
+		prefService.clear(AddTextAnnotationCmd.class);
 		prefService.clear(AnalyzerCmd.class);
 		prefService.clear(AnnotationGraphRecViewerCmd.class);
 		prefService.clear(BrainAnnotationCmd.class);

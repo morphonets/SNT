@@ -104,6 +104,7 @@ public class IconFactory {
 			FONT('\uf031', true), //
 			FOOTPRINTS('\uf54b', true), //
 			//GLOBE('\uf0ac', true), //
+			GRADUATION_CAP('\uf19d', true), //
 			HAND('\uf256', false), //
 			HOME('\uf015', true), //
 			ID('\uf2c1', false), //
