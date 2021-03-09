@@ -3809,7 +3809,11 @@ public class Viewer3D {
 			});
 			utilsMenu.add(mi);
 			utilsMenu.add(legendMenu());
-
+			mi = new JMenuItem("Annotation Label...", IconFactory.getMenuIcon(GLYPH.PEN));
+			mi.addActionListener(e -> {
+				runCmd(AddTextAnnotationCmd.class, null, CmdWorker.DO_NOTHING);
+			});
+			utilsMenu.add(mi);
 			final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.getMenuIcon(GLYPH.BULB));
 			light.addActionListener(e -> {
 //				guiUtils.centeredMsg(
