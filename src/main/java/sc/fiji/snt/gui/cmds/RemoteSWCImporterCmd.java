@@ -150,6 +150,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 		final List<Tree> filteredResult = rawResult.stream().filter(tree -> tree != null && !tree
 			.isEmpty()).collect(Collectors.toList());
 		if (filteredResult.isEmpty()) {
+			notifyLoadingEnd(recViewer == null, recViewer);
 			error("No reconstructions could be retrieved. Invalid ID(s)?");
 			status("Error... No reconstructions imported", true);
 			return;
@@ -177,22 +178,24 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 			notifyExternalDataLoaded();
 		}
 
+		final boolean validateImgDimensions = !standAloneViewer && pafm.size() > lastExistingPathIdx;
+		notifyLoadingEnd(validateImgDimensions, recViewer);
+
 		if (filteredResult.size() < rawResult.size()) {
-			error(String.format("Only %d of %d reconstructions could be retrieved.",
-					filteredResult.size(), rawResult.size()));
-			status("Partially successful import...", true);
 			SNTUtils.log("Import failed for the following queried morphologies:");
 			if (SNTUtils.isDebugMode()) {
 				rawResult.forEach(tree -> {
 					if (!filteredResult.contains(tree)) SNTUtils.log(tree.getLabel());
 				});
 			}
+			status("Partially successful import...", true);
+			error(String.format("Only %d of %d reconstructions could be retrieved.",
+					filteredResult.size(), rawResult.size()));
 		}
 		else {
 			status("Successful imported " + filteredResult.size() + " reconstruction(s)...",
 				true);
 		}
-		notifyLoadingEnd((!standAloneViewer && pafm.size() > lastExistingPathIdx), recViewer);
 
 	}
 

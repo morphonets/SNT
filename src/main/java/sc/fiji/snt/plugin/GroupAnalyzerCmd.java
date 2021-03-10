@@ -73,7 +73,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	@Parameter(label = "<HTML><b>Groups:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
 	private String SPACER1;
 
-	@Parameter(label = "Group 1 directory", style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 1 + COMMON_DESC_POST)
+	@Parameter(label = "Group 1 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 1 + COMMON_DESC_POST)
 	private File g1File;
 	@Parameter(label = "Group 2 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 2 + COMMON_DESC_POST)
 	private File g2File;
@@ -177,6 +177,11 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	@Override
 	public void run() {
 
+		if (!atLeastOneValidGroup()) {
+			error("None of the specified directories is valid.");
+			return;
+		}
+
 		notifyLoadingStart(recViewer);
 		final GroupedTreeStatistics stats = new GroupedTreeStatistics();
 		inputGroupsCounter = 0;
@@ -188,7 +193,8 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 		addGroup(stats, g6File, "Group 6");
 
 		if (stats.getGroups().size() == 0) {
-			cancel("No matching reconstruction(s) could be retrieved from the specified path(s).");
+			notifyLoadingEnd(false, recViewer);
+			error("No matching reconstruction(s) could be retrieved from the specified path(s).");
 			return;
 		}
 		if (noMetrics) {
@@ -304,25 +310,18 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 		return Arrays.stream(MultiTreeColorMapper.PROPERTIES).anyMatch(metric::equals);
 	}
 
+	private boolean atLeastOneValidGroup() {
+		return validFile(g1File) || validFile(g2File) || validFile(g3File)
+				|| validFile(g4File) || validFile(g5File) || validFile(g6File);
+	}
+
 	private boolean addGroup(final GroupedTreeStatistics stats, final File file, final String label) {
 		if (!validFile(file)) return false;
 		inputGroupsCounter++;
-		final List<Tree> trees = Tree.listFromDir(file.getAbsolutePath(), "", getSWCTypes(scope));
+		final List<Tree> trees = Tree.listFromDir(file.getAbsolutePath(), ("all".equalsIgnoreCase(scope)) ? null : scope);
 		if (trees == null || trees.isEmpty()) return false;
 		stats.addGroup(trees, label);
 		return true;
-	}
-
-	private String[] getSWCTypes(final String scope) {
-		if (scope == null) return null;
-		switch(scope.toLowerCase()) {
-		case "axon":
-			return new String[] {Path.SWC_AXON_LABEL};
-		case "dendrites":
-			return new String[] {Path.SWC_APICAL_DENDRITE_LABEL, Path.SWC_DENDRITE_LABEL};
-		default:
-			return null;
-		}
 	}
 
 	private boolean validFile(final File file) {

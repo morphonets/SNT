@@ -163,7 +163,7 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 		}
 
 		if (!file.exists())
-			super.error(file.getAbsolutePath() + " is no longer available");
+			super.error(file.getAbsolutePath() + " is not available");
 
 		setLastUsedFile();
 		notifyLoadingStart(recViewer);

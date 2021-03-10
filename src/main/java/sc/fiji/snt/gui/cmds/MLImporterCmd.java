@@ -143,8 +143,9 @@ public class MLImporterCmd extends CommonDynamicCmd {
 		final List<Tree> filteredResult = result.values().stream().filter(tree -> (tree != null && !tree.isEmpty()))
 				.collect(Collectors.toList());
 		if (filteredResult.isEmpty()) {
-			error("No reconstructions could be retrieved: Invalid Query?");
+			notifyLoadingEnd(false, recViewer);
 			status("Error... No reconstructions imported", true);
+			error("No reconstructions could be retrieved: Invalid Query?");
 			return;
 		}
 
@@ -166,15 +167,15 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			recViewer.setSplitDendritesFromAxons(splitState);
 		}
 
+		notifyLoadingEnd(recViewer == null, recViewer);
 		if (filteredResult.size() < result.size()) {
+			status("Partially successful import...", true);
 			error(String.format("Only %d of %d reconstructions could be retrieved.",
 				filteredResult.size(), result.size()));
-			status("Partially successful import...", true);
 		}
 		else {
 			status("Successful imported " + result.size() + " reconstruction(s)...", true);
 		}
-		notifyLoadingEnd(recViewer == null, recViewer);
 	}
 
 	/**
