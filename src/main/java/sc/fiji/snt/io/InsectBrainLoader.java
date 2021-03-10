@@ -385,7 +385,7 @@ public class InsectBrainLoader {
         List<InsectBrainCompartment> brainCompartments = InsectBrainUtils.getBrainCompartments(speciesId, "MALE");
         Viewer3D viewer = new Viewer3D();
         viewer.add(brainCompartments.stream().map(InsectBrainCompartment::getMesh).collect(Collectors.toList()));
-        viewer.addTrees(trees, true);
+        viewer.addTrees(trees, "unique");
         viewer.show();
     }
 }

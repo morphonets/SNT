@@ -68,6 +68,8 @@ public class ScriptInstaller implements MenuKeyListener {
 	private ScriptService scriptService;
 
 	public static final Pattern DEMO_SCRIPT = Pattern.compile(".*demo.*", Pattern.CASE_INSENSITIVE);
+	public static final Pattern NON_DEMO_SCRIPT = Pattern.compile("^(?!.*demo).*$", Pattern.CASE_INSENSITIVE);
+
 	private final SNTUI ui;
 	private final GuiUtils guiUtils;
 	private TreeSet<ScriptInfo> scripts;
@@ -242,7 +244,9 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	/** Returns a UI list with all the bundled non-demo SNT scripts **/
 	public JMenu getScriptsMenu() {
-		return getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Render", "Skeletons_and_ROIs", "Tracing");
+		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Render", "Skeletons_and_ROIs", "Tracing");
+		menus.insert(getDemosMenu(), 5);
+		return menus;
 	}
 
 	/**
@@ -322,6 +326,14 @@ public class ScriptInstaller implements MenuKeyListener {
 			}
 		}
 		throw new IllegalArgumentException("Script not found");
+	}
+
+	private JMenu getDemosMenu() { // Will include demo scripts
+		final JMenu demoMenu = getMenu(null, NON_DEMO_SCRIPT, true);
+		demoMenu.setText("Demos");
+		demoMenu.setToolTipText("Demo scripts. Please save your work before running a demo mid-tracing");
+		demoMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.GRADUATION_CAP));
+		return demoMenu;
 	}
 
 	private JMenu getFullListMenu() { // Will include _ALL_ scripts (no exclusions)

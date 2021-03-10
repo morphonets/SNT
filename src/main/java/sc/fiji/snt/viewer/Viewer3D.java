@@ -437,6 +437,7 @@ public class Viewer3D {
 	 */
 	public void setSceneUpdatesEnabled(final boolean enabled) {
 		viewUpdatesEnabled = enabled;
+		if (enabled) view.shoot(); // same as char.render();
 		if (managerList != null) {
 			managerList.model.setListenersEnabled(viewUpdatesEnabled);
 		}
@@ -2811,14 +2812,16 @@ public class Viewer3D {
 			scrollPane.setWheelScrollingEnabled(true);
 			scrollPane.setBorder(null);
 			scrollPane.setViewportView(managerList);
-			add(scrollPane);
-			scrollPane.revalidate();
-			add(barPanel);
+
 			progressBar = new JProgressBar();
 			progressBar.setStringPainted(true);
 			progressBar.setFocusable(false);
 			resetProgressBar();
+
+			add(scrollPane);
+			scrollPane.revalidate();
 			add(progressBar);
+			add(barPanel);
 			add(buttonPanel());
 			fileDropWorker = new FileDropWorker(managerList, guiUtils);
 		}
@@ -2844,7 +2847,7 @@ public class Viewer3D {
 			} else {
 				progressBar.setIndeterminate(false);
 				progressBar.setString(null);
-				progressBar.setValue(value); // assime it is visible already
+				progressBar.setValue(value); // assume it is visible already
 			}
 		}
 
@@ -3131,7 +3134,7 @@ public class Viewer3D {
 			renderIcons.addItemListener(e -> {
 				managerList.setIconsVisible((renderIcons.isSelected()));
 			});
-
+	
 			// Select menu
 			final JMenu selectMenu = new JMenu("Select");
 			selectMenu.setIcon(IconFactory.getMenuIcon(GLYPH.POINTER));
@@ -3807,7 +3810,11 @@ public class Viewer3D {
 			});
 			utilsMenu.add(mi);
 			utilsMenu.add(legendMenu());
-
+			mi = new JMenuItem("Annotation Label...", IconFactory.getMenuIcon(GLYPH.PEN));
+			mi.addActionListener(e -> {
+				runCmd(AddTextAnnotationCmd.class, null, CmdWorker.DO_NOTHING);
+			});
+			utilsMenu.add(mi);
 			final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.getMenuIcon(GLYPH.BULB));
 			light.addActionListener(e -> {
 //				guiUtils.centeredMsg(
@@ -4227,7 +4234,7 @@ public class Viewer3D {
 					return;
 				}
 				//final JDialog tempSplash = frame.managerPanel.guiUtils.floatingMsg("Loading ontologies...", false);
-				frame.managerPanel.setProgress(-1);
+				getManagerPanel().setProgress(-1);
 				final SwingWorker<AllenCCFNavigator, ?> worker = new SwingWorker<AllenCCFNavigator, Object>() {
 
 					@Override
@@ -4299,17 +4306,42 @@ public class Viewer3D {
 				guiUtils.error("Remote server not reached. It is either down or you have no internet access.");
 				return;
 			}
-			try {
-				if (warnIfLoaded && getOBJs().keySet().contains(label))
-					guiUtils.error(label + " is already loaded.");
-				loadRefBrainInternal(label);
-			} catch (final NullPointerException | IllegalArgumentException ex) {
-				guiUtils.error("An error occured and mesh could not be retrieved. See Console for details.");
-				ex.printStackTrace();
-			} catch (final RuntimeException e2) {
-				SNTUtils.error(e2.getMessage(), e2);
-				if (viewUpdatesEnabled) validate();
+			if (warnIfLoaded && getOBJs().keySet().contains(label)) {
+				guiUtils.error(label + " is already loaded.");
+				return;
 			}
+			getManagerPanel().setProgress(-1);
+			final SwingWorker<?, ?> worker = new SwingWorker<Boolean, Object>() {
+
+				@Override
+				protected Boolean doInBackground() {
+					try {
+						loadRefBrainInternal(label);
+					} catch (final NullPointerException | IllegalArgumentException ex) {
+						guiUtils.error("An error occured and mesh could not be retrieved. See Console for details.");
+						ex.printStackTrace();
+						return false;
+					} catch (final RuntimeException e2) {
+						SNTUtils.error(e2.getMessage(), e2);
+						return false;
+					}
+					return true;
+				}
+
+				@Override
+				protected void done() {
+					try {
+						if (!get() && viewUpdatesEnabled)
+							validate();
+					} catch (final InterruptedException | ExecutionException e) {
+						SNTUtils.error(e.getMessage(), e);
+					} finally {
+						if (getManagerPanel() != null)
+							getManagerPanel().resetProgressBar();
+					}
+				}
+			};
+			worker.execute();
 		}
 
 		private void removeColorLegends(final boolean justLastOne) {
