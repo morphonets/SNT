@@ -22,8 +22,11 @@
 
 package sc.fiji.snt.analysis.graph;
 
+import org.jgrapht.Graph;
 import org.jgrapht.Graphs;
+import org.jgrapht.graph.AsUndirectedGraph;
 import org.jgrapht.graph.DefaultGraphType;
+import org.jgrapht.traverse.BreadthFirstIterator;
 import org.jgrapht.traverse.DepthFirstIterator;
 
 import org.jgrapht.util.SupplierUtil;
@@ -215,6 +218,77 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	}
 
 	/**
+	 * Return the sequence of nodes representing the
+	 * <a href="https://mathworld.wolfram.com/GraphDiameter.html">longest shortest-path</a>
+	 * in the graph.
+	 *
+	 * @param useDirected whether to treat the graph as directed.
+	 *                    If true, the longest shortest-path will always include the root and a terminal node.
+	 * @return the longest shortest-path
+	 */
+	public Path getLongestPath(final boolean useDirected) {
+		if (useDirected) {
+			return getLongestPathDirected();
+		} else {
+			return getLongestPathUndirected();
+		}
+	}
+
+	private Path getLongestPathDirected() {
+		final SWCPoint root = getRoot();
+		final SWCPoint deepestNode = deepestNodeFromStart(root, this);
+		final List<SWCPoint> longestShortestPathList = new ArrayList<>();
+		SWCPoint node = deepestNode;
+		longestShortestPathList.add(node);
+		while (Graphs.vertexHasPredecessors(this, node)) {
+			node = Graphs.predecessorListOf(this, node).get(0);
+			longestShortestPathList.add(node);
+		}
+		Collections.reverse(longestShortestPathList);
+		final Path longestShortestPath = longestShortestPathList.get(0).getPath().createPath();
+		longestShortestPath.setOrder(-1);
+		longestShortestPath.setName("Path between " + root.id + "and " + deepestNode.id);
+		for (final SWCPoint point : longestShortestPathList) {
+			longestShortestPath.addNode(point);
+		}
+		return longestShortestPath;
+	}
+
+	private Path getLongestPathUndirected() {
+		final AsUndirectedGraph<SWCPoint, SWCWeightedEdge> undirectedGraph = new AsUndirectedGraph<>(this);
+		// Choose an arbitrary node as start
+		final SWCPoint start = vertexSet().iterator().next();
+		final SWCPoint x = deepestNodeFromStart(start, undirectedGraph);
+		final SWCPoint y = deepestNodeFromStart(x, undirectedGraph);
+		final Path longestShortestPath = getShortestPath(x, y);
+		longestShortestPath.setOrder(-1);
+		longestShortestPath.setName("Path between " + x.id + "and " + y.id);
+		return longestShortestPath;
+	}
+
+	private static SWCPoint deepestNodeFromStart(final SWCPoint start, final Graph<SWCPoint, SWCWeightedEdge> graph) {
+		final BreadthFirstIterator<SWCPoint, SWCWeightedEdge> breadthFirstIterator = new BreadthFirstIterator<>(graph, start);
+		start.v = 0;
+		double maxWeight = 0;
+		SWCPoint deepestNode = null;
+		while (breadthFirstIterator.hasNext()) {
+			final SWCPoint node = breadthFirstIterator.next();
+			final SWCPoint previousNode = breadthFirstIterator.getParent(node);
+			if (previousNode == null) {
+				continue;
+			}
+			final SWCWeightedEdge edge = breadthFirstIterator.getSpanningTreeEdge(node);
+			final double weight = edge.getWeight();
+			node.v = previousNode.v + weight;
+			if (node.v > maxWeight) {
+				maxWeight = node.v;
+				deepestNode = node;
+			}
+		}
+		return deepestNode;
+	}
+
+	/**
 	 * Gets the shortest path between source and target vertex.
 	 * Since underlying edge direction is ignored, a shortest path will always exist between
 	 * any two vertices that share a connected component.
@@ -230,7 +304,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		if (v1 == v2) {
 			return null;
 		}
-		List<SWCPoint> shortestPathList = shortestPathInternal(v1, v2);
+		List<SWCPoint> shortestPathList = shortestPathInternal2(v1, v2);
 		if (shortestPathList == null) {
 			return null;
 		}
@@ -254,7 +328,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @return the List of SWCPoints representing the shortest path, or null if no path exists
 	 */
 	private List<SWCPoint> shortestPathInternal(SWCPoint v1, SWCPoint v2) {
-		List<SWCPoint> ancestorList1 = new ArrayList<>();
+		final List<SWCPoint> ancestorList1 = new ArrayList<>();
 		SWCPoint currentVertex = v1;
 		ancestorList1.add(currentVertex);
 		while (Graphs.vertexHasPredecessors(this, currentVertex)) {
@@ -264,18 +338,67 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		if (ancestorList1.contains(v2)) {
 			return ancestorList1.subList(0, ancestorList1.indexOf(v2) + 1);
 		}
-		List<SWCPoint> ancestorList2 = new ArrayList<>();
+		final List<SWCPoint> ancestorList2 = new ArrayList<>();
 		currentVertex = v2;
 		ancestorList2.add(currentVertex);
 		while (Graphs.vertexHasPredecessors(this, currentVertex)) {
 			currentVertex = Graphs.predecessorListOf(this, currentVertex).get(0);
 			ancestorList2.add(currentVertex);
 			if (ancestorList1.contains(currentVertex)) {
-				List<SWCPoint> firstList = ancestorList1.subList(0, ancestorList1.indexOf(currentVertex));
+				final List<SWCPoint> firstList = ancestorList1.subList(0, ancestorList1.indexOf(currentVertex));
 				Collections.reverse(ancestorList2);
 				firstList.addAll(ancestorList2);
 				return firstList;
 			}
+		}
+		return null;
+	}
+
+	private List<SWCPoint> shortestPathInternal2(SWCPoint v1, SWCPoint v2) {
+		final List<SWCPoint> ancestorList1 = new ArrayList<>();
+		SWCPoint currentVertex = v1;
+		ancestorList1.add(currentVertex);
+		while (Graphs.vertexHasPredecessors(this, currentVertex)) {
+			currentVertex = Graphs.predecessorListOf(this, currentVertex).get(0);
+			ancestorList1.add(currentVertex);
+		}
+		final List<SWCPoint> ancestorList2 = new ArrayList<>();
+		currentVertex = v2;
+		ancestorList2.add(currentVertex);
+		while (Graphs.vertexHasPredecessors(this, currentVertex)) {
+			currentVertex = Graphs.predecessorListOf(this, currentVertex).get(0);
+			ancestorList2.add(currentVertex);
+		}
+		int i = ancestorList1.size() - 1;
+		if (i == 0) {
+			Collections.reverse(ancestorList2);
+			return ancestorList2;
+		}
+		int j = ancestorList2.size() - 1;
+		if (j == 0) {
+			Collections.reverse(ancestorList1);
+			return ancestorList1;
+		}
+		int k = Math.min(i, j);
+		while (k >= 0) {
+			if (!ancestorList1.get(i).equals(ancestorList2.get(j))) {
+				final List<SWCPoint> firstList = ancestorList1.subList(0, i + 2);
+				final List<SWCPoint> secondList = ancestorList2.subList(0, j + 1);
+				Collections.reverse(secondList);
+				firstList.addAll(secondList);
+				return firstList;
+			}
+			i--;
+			j--;
+			k--;
+		}
+		if (i == -1) {
+			final List<SWCPoint> shortestPath = ancestorList2.subList(0, j + 2);
+			Collections.reverse(shortestPath);
+			return shortestPath;
+		}
+		if (j == -1) {
+			return ancestorList1.subList(0, i + 2);
 		}
 		return null;
 	}

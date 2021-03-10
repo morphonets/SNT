@@ -173,21 +173,39 @@ public class DirectedWeightedGraphTest {
 		List<SWCPoint> tips = graph.getTips();
 
 		// brute-force test
-//		Set<SWCPoint> nodes = graph.vertexSet();
-//		for (SWCPoint n1 : nodes) {
-//			for (SWCPoint n2 : nodes) {
-//				if (n1 == n2) continue;
-//				Path sp = graph.getShortestPath(n1, n2);
-//				GraphPath dsp = dijkstraShortestPath.getPath(n1, n2);
-//				assertEquals(sp.getLength(), dsp.getWeight(), precision);
-//			}
-//		}
+		Set<SWCPoint> nodes = graph.vertexSet();
+		long time0 = System.nanoTime();
+		for (SWCPoint n1 : nodes) {
+			for (SWCPoint n2 : nodes) {
+				if (n1 == n2) continue;
+				Path sp = graph.getShortestPath(n1, n2);
+				GraphPath<SWCPoint, SWCWeightedEdge> dsp = dijkstraShortestPath.getPath(n1, n2);
+				assertEquals(sp.getLength(), dsp.getWeight(), precision);
+			}
+		}
+		long time1 = System.nanoTime();
+		//System.out.println((time1 - time0) / 1e9);
+
+		Path longestPath = null;
+		double longestPathWeight = 0;
 		for (SWCPoint tip : tips) {
 			Path sp = graph.getShortestPath(root, tip);
 			GraphPath<SWCPoint, SWCWeightedEdge> dsp = dijkstraShortestPath.getPath(root, tip);
 			assertEquals(sp.getLength(), dsp.getWeight(), precision);
 			assertEquals(sp.size(), dsp.getVertexList().size());
+			double pathLength = sp.getLength();
+			if (sp.getLength() > longestPathWeight) {
+				longestPathWeight = pathLength;
+				longestPath = sp;
+			}
 		}
+		Path longestPathSNT = graph.getLongestPath(true);
+		assertEquals(longestPath.getLength(), longestPathSNT.getLength(), precision);
+		assertEquals(longestPath.size(), longestPathSNT.size());
+
+		tips.add(root);
+		longestPath = null;
+		longestPathWeight = 0;
 		for (SWCPoint t1 : tips) {
 			for (SWCPoint t2 : tips) {
 				if (t1 == t2) continue;
@@ -195,8 +213,17 @@ public class DirectedWeightedGraphTest {
 				GraphPath<SWCPoint, SWCWeightedEdge> dsp = dijkstraShortestPath.getPath(t1, t2);
 				assertEquals(sp.getLength(), dsp.getWeight(), precision);
 				assertEquals(sp.size(), dsp.getVertexList().size());
+				double pathLength = sp.getLength();
+				if (pathLength > longestPathWeight) {
+					longestPathWeight = pathLength;
+					longestPath = sp;
+				}
 			}
 		}
+		longestPathSNT = graph.getLongestPath(false);
+		assertEquals(longestPath.getLength(), longestPathSNT.getLength(), precision);
+		assertEquals(longestPath.size(), longestPathSNT.size());
+
 		// path between the same points should be null
 		assertNull(graph.getShortestPath(root, root));
 	}
