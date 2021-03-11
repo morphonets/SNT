@@ -77,12 +77,12 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 * Paths can be tagged, searched, grouped and filtered by morphometric properties (length, radius, etc.)
 * Paths can be edited, i.e., a path can be merged into a existing one, or split into two. Nodes can be moved, deleted, or inserted
 * Post-hoc refinement of node positioning by 'snapping' traces to the fluorescent signal associated with a a path
-* Generation of traces from segmented images (binarized skeletons)
+* Auto-tracing: Generation of traces from thresholded images (binarized skeletons)
 
 ### Analysis
 * *Extensive* repertoire of metrics, namely those provided by [L-measure](http://cng.gmu.edu:8080/Lm/help/index.htm) and [NeuroM](https://github.com/BlueBrain/NeuroM). Metrics can be collected from groups of cells, single cells, or parts thereof
 * Analysis based on neuropil annotations for whole-brain data such as [MouseLight](https://ml-neuronbrowser.janelia.org/)
-* Direct access to public databases, including [MouseLight](https://ml-neuronbrowser.janelia.org/), [FlyCircuit](http://www.flycircuit.tw) and [NeuroMorpho](http://neuromorpho.org/)
+* Direct access to public databases, including [FlyCircuit](http://www.flycircuit.tw), [Insect Brain Database](https://insectbraindb.org/app/), [MouseLight](https://ml-neuronbrowser.janelia.org/), [NeuroMorpho](http://neuromorpho.org/), and [Virtual Fly Brain](https://v2.virtualflybrain.org/)
 * Built-in commands for *immediate* retrieval of summary statistics, comparison plots and histograms
 * Graph theory-based analyses
 * Persistent homology-based analyses
@@ -93,7 +93,7 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 * [Reconstruction Viewer](https://imagej.net/SNT:_Reconstruction_Viewer): Standalone hardware-accelerated 3D visualization tool for both meshes and reconstructions.
 * Interactive and programmatic scenes (controlled rotations, panning, zoom, scaling, animation,  "dark/light mode", etc.)
 * Customizable views: Interactive management of scene elements, controls for transparency, color interpolation, lightning, path smoothing, etc.. Ability to render both local and remote files on the same scene
-* Built-in support for several template brains: Drosophila, zebrafish, and Allen CCF (Allen Mouse Brain Atlas)
+* Built-in support for several template brains: Drosophila, [zebrafish](https://fishatlas.neuro.mpg.de/), and Allen CCF (Allen Mouse Brain Atlas)
 * [SciView](https://github.com/scenerygraphics/sciview) integration
 * Connectivity diagrams
 * Quantitative, publication-quality visualization: Display neurons color coded by morphometric traits, or neuropil annotations. Export plots, reconstructions, diagrams and histograms as vector graphics.
