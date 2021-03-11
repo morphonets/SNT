@@ -54,8 +54,15 @@ public class SNTTable extends DefaultGenericTable {
 
 	public SNTTable(final String filePath) throws IOException {
 		super();
-		if (tableIO == null)
-			tableIO = new Context().getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
+		if (tableIO == null) {
+			final Context context = new Context(IOService.class);
+			tableIO = context.getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
+			try {
+				context.close();
+			} catch (final Exception ignored) {
+				// do nothing
+			}
+		}
 		final Table<?, ?> openedTable = tableIO.open(filePath);
 		for (int col = 0; col < openedTable.getColumnCount(); ++col) {
 			add(openedTable.get(col));

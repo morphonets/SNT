@@ -43,7 +43,6 @@ import org.scijava.widget.FileWidget;
 
 import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
-import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.GroupedTreeStatistics;
 import sc.fiji.snt.analysis.MultiTreeColorMapper;

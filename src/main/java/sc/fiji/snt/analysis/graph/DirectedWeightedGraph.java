@@ -327,6 +327,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @param v2 the target vertex
 	 * @return the List of SWCPoints representing the shortest path, or null if no path exists
 	 */
+	@SuppressWarnings("unused")
 	private List<SWCPoint> shortestPathInternal(SWCPoint v1, SWCPoint v2) {
 		final List<SWCPoint> ancestorList1 = new ArrayList<>();
 		SWCPoint currentVertex = v1;

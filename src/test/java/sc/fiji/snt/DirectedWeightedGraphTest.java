@@ -174,7 +174,7 @@ public class DirectedWeightedGraphTest {
 
 		// brute-force test
 		Set<SWCPoint> nodes = graph.vertexSet();
-		long time0 = System.nanoTime();
+		//long time0 = System.nanoTime();
 		for (SWCPoint n1 : nodes) {
 			for (SWCPoint n2 : nodes) {
 				if (n1 == n2) continue;
@@ -183,7 +183,7 @@ public class DirectedWeightedGraphTest {
 				assertEquals(sp.getLength(), dsp.getWeight(), precision);
 			}
 		}
-		long time1 = System.nanoTime();
+		//long time1 = System.nanoTime();
 		//System.out.println((time1 - time0) / 1e9);
 
 		Path longestPath = null;

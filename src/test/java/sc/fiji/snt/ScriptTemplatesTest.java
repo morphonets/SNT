@@ -59,6 +59,7 @@ public class ScriptTemplatesTest {
 		Assert.assertTrue(scriptTemplatesBaseDirectory.exists());
 		Context context = new Context(ScriptService.class);
 		scriptService = context.getService(ScriptService.class);
+		context.close();
 		File[] subDirectories = scriptTemplatesBaseDirectory.listFiles(File::isDirectory);
 		for (File subDirectory : subDirectories) {
 			scriptService.addScriptDirectory(subDirectory, new MenuPath(subDirectory.getName()));

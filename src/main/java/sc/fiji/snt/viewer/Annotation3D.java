@@ -125,9 +125,15 @@ public class Annotation3D {
 		for (final SNTPoint point : points) {
 			dmesh.vertices().add(point.getX(), point.getY(), point.getZ());
 		}
-		OpService ops = new Context(OpService.class, OpMatchingService.class).getService(OpService.class);
-		Mesh hull = (Mesh) ops.geom().convexHull(dmesh).get(0);
-		Triangles faces = hull.triangles();
+		final Context context = new Context(OpService.class, OpMatchingService.class);
+		final OpService ops = context.getService(OpService.class);
+		try {
+			context.close();
+		} catch (final Exception ignored) {
+			// do nothing
+		}
+		final Mesh hull = (Mesh) ops.geom().convexHull(dmesh).get(0);
+		final Triangles faces = hull.triangles();
 		if (computeVolume) {
 			/*
 			 * Approximate the hull volume using method described in
