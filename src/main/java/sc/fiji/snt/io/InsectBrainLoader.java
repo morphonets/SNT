@@ -113,6 +113,7 @@ public class InsectBrainLoader {
             final Tree tree = new Tree(pafm.getPaths());
             tree.setType(Path.SWC_UNDEFINED);
             tree.setLabel(neuronInfo.getFullName());
+            tree.getProperties().setProperty(TreeProperties.KEY_SOURCE, "IBD");
             return tree;
         }
         return null;

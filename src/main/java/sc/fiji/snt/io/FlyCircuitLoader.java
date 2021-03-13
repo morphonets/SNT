@@ -31,6 +31,7 @@ import java.net.URL;
 
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.TreeProperties;
 
 /**
  * Absurdly simple importer for retrieving SWC data from
@@ -43,6 +44,7 @@ public class FlyCircuitLoader implements RemoteSWCLoader {
 	private static final String BASE_URL =
 		"http://flycircuit.tw/flycircuitSourceData/NeuronData_v1.2/";
 	private static final String SWC_PREFIX = "_seg001_linesetTransformRelease.swc";
+	private static final String VERSION = "1.2";
 
 
 	/**
@@ -119,6 +121,8 @@ public class FlyCircuitLoader implements RemoteSWCLoader {
 		if (pafm.importSWC(cellId, getReconstructionURL(cellId))) {
 			final Tree tree = new Tree(pafm.getPaths());
 			tree.setLabel(cellId);
+			tree.getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, "um");
+			tree.getProperties().setProperty(TreeProperties.KEY_SOURCE, "FlyCircuit"+VERSION);
 			return tree;
 		}
 		return null;
