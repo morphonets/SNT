@@ -95,7 +95,6 @@ def run():
 
     # Visualize the longest path in Viewer3D (interactive instance)
     viewer = Viewer3D(context)
-    viewer.setSplitDendritesFromAxons(False)
 
     # Import results as sc.fiji.snt.Tree objects expected by Viewer3D
     axon_tree.setColor("cyan")
