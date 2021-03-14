@@ -2872,9 +2872,13 @@ public class Viewer3D {
 			static final long serialVersionUID = 1L;
 			final String name;
 
-			Action(final String name, final int key, final boolean requireCtrl, final boolean requireShift) {
+			Action(final String name) {
 				super(name);
 				this.name = name;
+			}
+
+			Action(final String name, final int key, final boolean requireCtrl, final boolean requireShift) {
+				this(name);
 				int mod = 0;
 				if (requireCtrl)
 					mod = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
@@ -2979,6 +2983,12 @@ public class Viewer3D {
 				default:
 					throw new IllegalArgumentException("Unrecognized action");
 				}
+			}
+
+			private void run() {
+				actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, null) {
+					private static final long serialVersionUID = 1L;
+				});
 			}
 		}
 
@@ -4318,7 +4328,7 @@ public class Viewer3D {
 				@Override
 				protected Boolean doInBackground() {
 					try {
-						loadRefBrainInternal(label);
+						return loadRefBrainInternal(label) != null;
 					} catch (final NullPointerException | IllegalArgumentException ex) {
 						guiUtils.error("An error occured and mesh could not be retrieved. See Console for details.");
 						ex.printStackTrace();
@@ -4327,14 +4337,12 @@ public class Viewer3D {
 						SNTUtils.error(e2.getMessage(), e2);
 						return false;
 					}
-					return true;
 				}
 
 				@Override
 				protected void done() {
 					try {
-						if (!get() && viewUpdatesEnabled)
-							validate();
+						if (get() && viewUpdatesEnabled) new Action(Action.RELOAD).run();
 					} catch (final InterruptedException | ExecutionException e) {
 						SNTUtils.error(e.getMessage(), e);
 					} finally {
