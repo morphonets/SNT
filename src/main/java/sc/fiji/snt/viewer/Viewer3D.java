@@ -4679,35 +4679,65 @@ public class Viewer3D {
 
 		private void downloadMeshes() {
 			final List<AllenCompartment> compartments = getCheckedSelection();
-			if (compartments == null)
+			if (compartments == null || compartments.isEmpty())
 				return;
-			int loadedCompartments = 0;
-			final ArrayList<String> failedCompartments = new ArrayList<>();
-			for (final AllenCompartment compartment : compartments) {
-				if (getOBJs().keySet().contains(compartment.name())) {
-					managerList.addCheckBoxListSelectedValue(compartment.name(), true);
-				} else {
-					final OBJMesh msh = compartment.getMesh();
-					if (msh == null) {
-						failedCompartments.add(compartment.name());
-						meshRemoved(compartment.name());
-					} else {
-						loadOBJMesh(msh);
-						meshLoaded(compartment.name());
-						loadedCompartments++;
+			final SwingWorker<?, ?> worker = new SwingWorker<Void, Object>() {
+
+				int loadedCompartments = 0;
+				final ArrayList<String> failedCompartments = new ArrayList<>();
+
+				@Override
+				protected Void doInBackground() {
+					viewUpdatesEnabled = compartments.size() == 1;
+					for (final AllenCompartment compartment : compartments) {
+						if (getOBJs().keySet().contains(compartment.name())) {
+							managerList.addCheckBoxListSelectedValue(compartment.name(), true);
+						} else {
+							try {
+								final OBJMesh msh = compartment.getMesh();
+								if (msh == null) {
+									failedCompartments.add(compartment.name());
+									meshRemoved(compartment.name());
+								} else {
+									loadOBJMesh(msh);
+									meshLoaded(compartment.name());
+									loadedCompartments++;
+								}
+							} catch (final GLException | NullPointerException | IllegalArgumentException ex) {
+								failedCompartments.add(compartment.name());
+								meshRemoved(compartment.name());
+							}
+						}
+					}
+					return null;
+				}
+
+				@Override
+				protected void done() {
+					try {
+						get();
+						if (loadedCompartments > 0)
+							Viewer3D.this.validate();
+						if (failedCompartments.size() > 0) {
+							final StringBuilder sb = new StringBuilder(String.valueOf(loadedCompartments)).append("/")
+									.append(loadedCompartments + failedCompartments.size())
+									.append(" meshes retrieved. The following compartments failed to load:")
+									.append("<br>&nbsp;<br>").append(String.join("; ", failedCompartments))
+									.append("<br>&nbsp;<br>")
+									.append("Either such meshes are not available or file(s) could not be reached. Check Console logs for details.");
+							guiUtils.centeredMsg(sb.toString(), "Exceptions Occured");
+						}
+					} catch (final InterruptedException | ExecutionException e) {
+						SNTUtils.error(e.getMessage(), e);
+					} finally {
+						if (getManagerPanel() != null)
+							getManagerPanel().resetProgressBar();
+						viewUpdatesEnabled = true;
 					}
 				}
-			}
-			if (loadedCompartments > 0)
-				Viewer3D.this.validate();
-			if (failedCompartments.size() > 0) {
-				final StringBuilder sb = new StringBuilder(String.valueOf(loadedCompartments)).append("/")
-						.append(loadedCompartments + failedCompartments.size())
-						.append(" meshes retrieved. The following compartments failed to load:").append("<br>&nbsp;<br>")
-						.append(String.join("; ", failedCompartments)).append("<br>&nbsp;<br>")
-						.append("Either such meshes are not available or file(s) could not be reached. Check Console logs for details.");
-				guiUtils.centeredMsg(sb.toString(), "Exceptions Occured");
-			}
+			};
+			getManagerPanel().setProgress(-1);
+			worker.execute();
 		}
 
 		private void showSelectionInfo() {
