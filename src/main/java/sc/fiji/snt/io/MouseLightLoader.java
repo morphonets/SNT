@@ -55,6 +55,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
@@ -84,6 +85,8 @@ public class MouseLightLoader {
 
 	private final String id;
 	private JSONObject jsonData;
+	private JSONObject jsonNeuron;
+
 
 	/**
 	 * Instantiates a new loader.
@@ -130,6 +133,14 @@ public class MouseLightLoader {
 		return id;
 	}
 
+	public String getDOI() {
+		return (getJSONNeuron() == null) ? null : jsonNeuron.getString("DOI");
+	}
+
+	public String getSampleInfo() {
+		return (getJSONNeuron() == null) ? null : jsonNeuron.getJSONObject("sample").toString();
+	}
+
 	/**
 	 * Extracts the nodes (single-point soma, axonal and dendritic arbor) of the
 	 * loaded neuron.
@@ -150,11 +161,16 @@ public class MouseLightLoader {
 	 */
 	public TreeSet<SWCPoint> getNodes(final String compartment) {
 		final String normCompartment = (compartment == null) ? "" : compartment.toLowerCase();
-		jsonData = getJSON();
-		if (jsonData == null) return null;
-		final JSONObject neuron = jsonData.getJSONObject("contents").getJSONArray("neurons").optJSONObject(0);
-		final TreeSet<SWCPoint> nodes = extractNodesFromJSONObject(normCompartment, neuron);
-		return nodes;
+		getJSONNeuron();
+		return (jsonNeuron == null) ? null : extractNodesFromJSONObject(normCompartment, jsonNeuron);
+	}
+
+	private JSONObject getJSONNeuron() {
+		if (getJSON() == null)
+			jsonNeuron = null;
+		else if(jsonNeuron == null)
+			jsonNeuron = jsonData.getJSONObject("contents").getJSONArray("neurons").optJSONObject(0);
+		return jsonNeuron;
 	}
 
 	public SWCPoint getSomaLocation() {
@@ -464,6 +480,11 @@ public class MouseLightLoader {
 			tree.setLabel(""+ id + " ("+ compartment + ")");
 		else
 			tree.setLabel(""+ id);
+		tree.getProperties().setProperty(TreeProperties.KEY_COMPARTMENT,
+				TreeProperties.getStandardizedCompartment(compartment));
+		tree.getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, "um");
+		tree.getProperties().setProperty(TreeProperties.KEY_ID, getID());
+		tree.getProperties().setProperty(TreeProperties.KEY_SOURCE, getDOI());
 		return tree;
 	}
 

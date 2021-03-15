@@ -157,6 +157,7 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 		if (pafm.importSWC(cellId, url)) {
 			final Tree tree = new Tree(pafm.getPaths());
 			tree.setLabel(cellId);
+			tree.getProperties().setProperty(Tree.KEY_SOURCE, "NeuroMorpho");
 			return tree;
 		}
 		return null;

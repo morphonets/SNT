@@ -206,6 +206,7 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
@@ -728,14 +729,15 @@ public class Viewer3D {
 	 * @see #setSplitDendritesFromAxons(boolean)
 	 */
 	public void addTree(final Tree tree) {
-		if (prefs.isSplitDendritesFromAxons()) {
+		final String assignedType = tree.getProperties().getProperty(TreeProperties.KEY_COMPARTMENT, TreeProperties.UNSET);
+		if (TreeProperties.UNSET.equals(assignedType) && prefs.isSplitDendritesFromAxons()) {
 			int countFailures = 0;
 			for (final String type : new String[] { "Dnd", "Axn" }) {
 				final Tree subTree = tree.subTree(type);
 				if (subTree == null || subTree.isEmpty())
 					countFailures++;
 				else {
-					subTree.setLabel(tree.getLabel() + "  " + type);
+					subTree.setLabel(tree.getLabel() + " " + type);
 					addTreeInternal(subTree);
 				}
 			}
@@ -2617,7 +2619,7 @@ public class Viewer3D {
 		private static final boolean DEF_NAG_USER_ON_RETRIEVE_ALL = true;
 		private static final String DEF_TREE_COMPARTMENT_CHOICE = "Axon";
 		private static final boolean DEF_RETRIEVE_ALL_IF_NONE_SELECTED = true;
-		private static final boolean DEF_SPLIT_DENDRITES_FROM_AXONS = true;
+		private static final boolean DEF_SPLIT_DENDRITES_FROM_AXONS = false;
 		private boolean splitDendritesFromAxons;
 		public boolean nagUserOnRetrieveAll;
 		public boolean retrieveAllIfNoneSelected;

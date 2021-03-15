@@ -32,6 +32,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
@@ -64,7 +65,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  *
  * @author Tiago Ferreira
  */
-public class Tree {
+public class Tree implements TreeProperties {
 
 	public static final int X_AXIS = 1;
 	public static final int Y_AXIS = 2;
@@ -78,6 +79,7 @@ public class Tree {
 	private DirectedWeightedGraph graph;
 	private DirectedWeightedGraph simplifiedGraph;
 	private double value;
+	private Properties properties;
 
 	/**
 	 * Instantiates a new empty Tree.
@@ -552,6 +554,17 @@ public class Tree {
 		tree.forEach(p -> p.setSWCType(type));
 		if (graph != null) graph.vertexSet().forEach(v -> v.type = type);
 		if (simplifiedGraph != null) simplifiedGraph.vertexSet().forEach(v -> v.type = type);
+		switch(type) {
+		case Path.SWC_APICAL_DENDRITE:
+		case Path.SWC_DENDRITE:
+			getProperties().setProperty(TreeProperties.KEY_COMPARTMENT, TreeProperties.DENDRITIC);
+			break;
+		case Path.SWC_AXON:
+			getProperties().setProperty(TreeProperties.KEY_COMPARTMENT, TreeProperties.AXONAL);
+			break;
+		default:
+			getProperties().setProperty(TreeProperties.KEY_COMPARTMENT, TreeProperties.UNSET);
+		}
 	}
 
 	/**
@@ -1225,12 +1238,32 @@ public class Tree {
 	}
 
 	/**
+	 * Returns the Properties instance holding the persistent set of properties.
+	 * Useful to associate metadata to this tree. E.g.
+	 * 
+	 * <pre>
+	 * {@code
+	 * getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, "um");
+	 * String unit = getProperties().getProperty(Tree.KEY_SPATIAL_UNIT);
+	 * getProperties().setProperty(Tree.KEY_COMPARTMENT, Tree.DENDRITIC);
+	 * }
+	 * </pre>
+	 *
+	 * @return the Properties instance
+	 */
+	public Properties getProperties() {
+		if (properties == null) properties = new Properties();
+		return properties;
+	}
+
+	/**
 	 * Sets an identifying label for this Tree.
 	 *
 	 * @param label the identifying string
 	 */
 	public void setLabel(final String label) {
 		this.label = label;
+		getProperties().setProperty(TreeProperties.KEY_LABEL, label);
 	}
 
 	/**
@@ -1646,6 +1679,7 @@ public class Tree {
 			cal = imp.getCalibration();
 		}
 		list().forEach(path -> path.setSpacing(cal));
+		getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, cal.getUnit());
 	}
 
 	/**
