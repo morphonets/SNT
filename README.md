@@ -115,51 +115,18 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 
 
 ## Installation
-
-### *Regular* Releases
-SNT is available in  [Fiji](https://imagej.net/Fiji) and is currently distributed through the *NeuroAnatomy* [update site](https://imagej.net/Update_Sites).
+SNT is available in  [Fiji](https://imagej.net/Fiji) and is currently distributed through the *Neuroanatomy* [update site](https://imagej.net/Update_Sites).
 
 The first time you start SNT from Fiji's menu structure (*Plugins>Neuroanatomy>SNT...* you should be prompted for automatic subscription and download of required dependencies. If not:
 
 1.  Run the Fiji Updater (*Help › Update...*, the penultimate entry in the  *Help ›*  menu)
 2.  Click *Manage update sites*
 3.  Select the *Neuroanatomy* checkbox
-4.  Click *Apply changes* and Restart Fiji. SNT commands are registered under _Plugins>Neuroanatomy>_ in the main menu and SNT scripts under _Templates>Neuroanatomy>_ in Fiji's Script Editor.
-
-<a name="sciview"></a>For extra [SciView](https://imagej.net/SciView) functionality you need to subscribe to the Sciview *Bleeding Edge* update site:
-
-1. Run the Fiji Updater (*Help › Update...*, the penultimate entry in the *Help ›*  menu)
-
-2.  Add the following entry to the *Manage update sites* table, by clicking on *Add update site*:
-    
-    | Name              | URL                                             |
-    | :---------------- | :---------------------------------------------- |
-    | SciView-edge      | https://sites.imagej.net/SciView-Unstable/      |
-
-3. Activate the newly added *SciView-edge* checkbox and unselect the *SciView* checkbox if you currently subscribing to Sciview's regular channel 
-
-4. Click *Apply changes* and restart Fiji
+4.  Optionally, select the *Sciview* checkbox. This is only required for <a name="sciview"></a>For extra [SciView](https://imagej.net/SciView) functionality
+5.  Click *Apply changes* and Restart Fiji. SNT commands are registered under _Plugins>Neuroanatomy>_ in the main menu and SNT scripts under _Templates>Neuroanatomy>_ in Fiji's Script Editor.
 
 Problems? Have a look at the full [documentation](https://imagej.net/SNT).
 
-### *Bleeding Edge* Releases
-
-Daily builds of SNT and SciView are pushed to the *Neuroanatomy-Unstable* update site. In this case, Sciview dependencies are already included, so you don't need to subscribe to other channels. Note that there is nothing inherently _unstable_ with these builds: this nomenclature is adopted from the [Debian release cycle](https://www.debian.org/releases/). Since the sites are not part of the official list (this may change in the future), you have to specify their location to the updater:
-
-1. Run the Fiji Updater (*Help › Update...*, the penultimate entry in the *Help ›* menu)
-
-2. Click *Manage update sites*
-
-3. If your are subscribing to the *Neuroanatomy*,  *SciView*, or *SciView-Unstable* channels, please unselect their checkboxes: The step below will install all the required dependencies
-
-4.  Add the following entry to the *Manage update sites* table, by clicking on *Add update site*:
-    
-    | Name              | URL                                             |
-    | :---------------- | :---------------------------------------------- |
-    | Neuroanatomy-edge | https://sites.imagej.net/Neuroanatomy-Unstable/ |
-    
-6. Activate the newly added *Neuroanatomy-edge* checkbox
-7. Click *Apply changes* and restart Fiji
 
 ## Developing
 
