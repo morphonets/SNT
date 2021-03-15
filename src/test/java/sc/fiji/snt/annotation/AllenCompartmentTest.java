@@ -27,12 +27,14 @@ import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.viewer.OBJMesh;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
+import static org.junit.Assume.assumeTrue;
 
 
 /**
@@ -218,6 +220,7 @@ public class AllenCompartmentTest {
 
         @Test
         public void testGetMesh() {
+            assumeTrue(MouseLightLoader.isDatabaseAvailable());
             // Parabrachial nucleus, lateral division, dorsal lateral part
             AllenCompartment compartment = new AllenCompartment(868);
             assertFalse(compartment.isMeshAvailable());
