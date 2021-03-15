@@ -104,7 +104,7 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 * Headless scripts supported
 
 ### Modeling
-* Modeling is performed through [Cortex3D (Cx3D)](https://github.com/morphonets/cx3d) and [SciView](https://imagej.net/SciView "SciView"), in which a modified version of [Cx3D](https://github.com/morphonets/cx3d) grows neuronal processes with [SciView](https://imagej.net/SciView)’s data structures.
+* Modeling is performed through [Cortex3D (Cx3D)](https://github.com/morphonets/cx3d) and [sciview](https://docs.scenery.graphics/sciview/ "SciView"), in which a modified version of [Cx3D](https://github.com/morphonets/cx3d) grows neuronal processes with [sciview](https://docs.scenery.graphics/sciview/)’s data structures.
 
 ### Backwards Compatibility
 * Special effort was put into backwards compatibility with  [Simple Neurite Tracer](https://github.com/fiji/SNT)  (including [TrakEM2](https://github.com/trakem2/TrakEM2) and [ITK](https://imagej.net/SNT:_Tubular_Geodesics) interaction). Inherited functionality has been improved, namely:
@@ -122,7 +122,7 @@ The first time you start SNT from Fiji's menu structure (*Plugins>Neuroanatomy>S
 1.  Run the Fiji Updater (*Help › Update...*, the penultimate entry in the  *Help ›*  menu)
 2.  Click *Manage update sites*
 3.  Select the *Neuroanatomy* checkbox
-4.  Optionally, select the *Sciview* checkbox. This is only required for <a name="sciview"></a>For extra [SciView](https://imagej.net/SciView) functionality
+4.  Optionally, select the *Sciview* checkbox. This is only required for extra [sciview](https://docs.scenery.graphics/sciview/) functionality
 5.  Click *Apply changes* and Restart Fiji. SNT commands are registered under _Plugins>Neuroanatomy>_ in the main menu and SNT scripts under _Templates>Neuroanatomy>_ in Fiji's Script Editor.
 
 Problems? Have a look at the full [documentation](https://imagej.net/SNT).
