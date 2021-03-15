@@ -51,7 +51,8 @@ Key aspects of SNT are implemented from published literature:
 |                                                              |                                                              |
 | [L-measure](http://cng.gmu.edu:8080/Lm/) metrics             | Scorcioni, R., Polavaram, S., & Ascoli, G. A. (2008). L-Measure: a  web-accessible tool for the analysis, comparison and search of digital  reconstructions of neuronal morphologies. *Nature protocols*, *3*(5), 866. |
 | Sholl-based metrics                                          | Ferreira, T. A., Blackman, A. V., Oyrer, J., Jayabal, S., Chung, A. J.,  Watt, A. J., Sjöström, P. J., & Van Meyel, D. J. (2014). Neuronal morphometry  directly from bitmap images. *Nature methods*, *11*(10), 982-984. |
-
+|                                                              |
+| Longest shortest-path (Graph Diameter)                       | Bulterman, R.W., van der Sommen, F.W., Zwaan, G., Verhoeff, T., van Gasteren, A.J.M., Feijen, W.H.J. (2002). On computing a longest path in a tree. Information Processing Letters, 81(2), 93-96.
 
 ## Databases
 
