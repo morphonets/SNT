@@ -4608,7 +4608,7 @@ public class Viewer3D {
 			GuiUtils.expandAllTreeNodes(tree);
 			tree.setClickInCheckBoxOnly(false);
 			searchableBar = new SNTSearchableBar(new TreeSearchable(tree));
-			searchableBar.setStatusLabelPlaceholder("Common Coordinate Framework v"+ AllenUtils.VERSION);
+			searchableBar.setStatusLabelPlaceholder("CCF v"+ AllenUtils.VERSION);
 			searchableBar.setVisibleButtons(
 				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
 				SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_STATUS);

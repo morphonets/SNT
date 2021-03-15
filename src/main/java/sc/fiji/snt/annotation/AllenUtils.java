@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 public class AllenUtils {
 
 	/** The version of the Common Coordinate Framework currently used by SNT */
-	public static final int VERSION = 3;
+	public static final String VERSION = "2.5 (ML legacy)";
 	protected static final int BRAIN_ROOT_ID = 997;
 	private final static PointInImage BRAIN_BARYCENTRE = new PointInImage(5687.5435f, 3849.6099f, 6595.3813f);
 

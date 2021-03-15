@@ -2529,6 +2529,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				SNTUtils.log("Successful import: " + success);
 				final Tree tree = new Tree();
 				tree.setLabel(k);
+				tree.setColor(colors[colorIdx[0]]);
 				for (int i = firstImportedPathIdx; i < size(); i++)
 					tree.add(getPath(i));
 				result.put(k, tree);
