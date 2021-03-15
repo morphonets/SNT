@@ -1947,8 +1947,8 @@ public class Viewer3D {
 	}
 
 	private OBJMesh loadOBJMesh(final OBJMesh objMesh) {
-		setAnimationEnabled(false);
-		chart.add(objMesh.drawable, false); // GLException if true
+		//setAnimationEnabled(false);
+		chart.add(objMesh.drawable, viewUpdatesEnabled); // this used to trigger GLException when true
 		final String label = getUniqueLabel(plottedObjs, "Mesh", objMesh.getLabel());
 		plottedObjs.put(label, objMesh.drawable);
 		addItemToManager(label);
