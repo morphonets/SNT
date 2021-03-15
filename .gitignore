@@ -16,6 +16,7 @@
 
 # Misc #
 .checksums
+pom.xml.releaseBackup
 
 # Binaries #
 *.jar
