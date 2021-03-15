@@ -121,6 +121,7 @@ import org.jzy3d.chart.controllers.ControllerType;
 import org.jzy3d.chart.controllers.camera.AbstractCameraController;
 import org.jzy3d.chart.controllers.mouse.AWTMouseUtilities;
 import org.jzy3d.chart.controllers.mouse.camera.AWTCameraMouseController;
+import org.jzy3d.chart.controllers.thread.camera.CameraThreadController;
 import org.jzy3d.chart.factories.AWTChartComponentFactory;
 import org.jzy3d.chart.factories.IChartComponentFactory;
 import org.jzy3d.chart.factories.IFrame;
@@ -162,6 +163,7 @@ import org.jzy3d.plot3d.rendering.view.modes.ViewBoundMode;
 import org.jzy3d.plot3d.rendering.view.modes.ViewPositionMode;
 import org.jzy3d.plot3d.transform.Transform;
 import org.jzy3d.plot3d.transform.Translate;
+import org.jzy3d.plot3d.transform.squarifier.ISquarifier;
 import org.jzy3d.plot3d.transform.squarifier.XYSquarifier;
 import org.jzy3d.plot3d.transform.squarifier.XZSquarifier;
 import org.jzy3d.plot3d.transform.squarifier.ZYSquarifier;
@@ -500,9 +502,17 @@ public class Viewer3D {
 		try {
 			// remember settings so that they can be restored
 			final boolean lighModeOn = !isDarkModeOn();
+			final boolean axesOn = view.isAxeBoxDisplayed();
 			final float currentZoomStep = keyController.zoomStep;
 			final double currentRotationStep = keyController.rotationStep;
 			final float currentPanStep = mouseController.panStep;
+			final ISquarifier squarifier = view.getSquarifier();
+			final boolean squared = view.getSquared();
+			final CameraMode currentCameraMode = view.getCameraMode();
+			final ViewportMode viewPortMode = view.getCamera().getMode();
+			final Coord3d currentViewPoint = view.getViewPoint();
+			final BoundingBox3d currentBox = view.getBounds();
+			final boolean isAnimating = mouseController.isAnimating();
 			chart.stopAnimator();
 			chart.dispose();
 			chart = null;
@@ -511,8 +521,16 @@ public class Viewer3D {
 			keyController.rotationStep = currentRotationStep;
 			mouseController.panStep = currentPanStep;
 			if (lighModeOn) keyController.toggleDarkMode();
+			if (axesOn) chart.setAxeDisplayed(axesOn);
+			view.setSquarifier(squarifier);
+			view.setSquared(squared);
+			view.setCameraMode(currentCameraMode);
+			view.getCamera().setViewportMode(viewPortMode);
+			view.setViewPoint(currentViewPoint);
+			view.setBoundManual(currentBox);
 			addAllObjects();
 			updateView();
+			if (isAnimating) setAnimationEnabled(true);
 			//if (managerList != null) managerList.selectAll();
 		}
 		catch (final GLException | NullPointerException exc) {
@@ -1517,6 +1535,8 @@ public class Viewer3D {
 		while (it.hasNext()) {
 			final Map.Entry<String, T> entry = it.next();
 			final T drawable = entry.getValue();
+			if (drawable instanceof RemountableDrawableVBO && !((RemountableDrawableVBO)drawable).hasMountedOnce())
+				return false;
 			final BoundingBox3d bounds = drawable.getBounds();
 			if (bounds == null || !viewBounds.contains(bounds)) return false;
 			if ((selectedKeys.contains(entry.getKey()) && !drawable.isDisplayed())) {
@@ -1928,7 +1948,7 @@ public class Viewer3D {
 
 	private OBJMesh loadOBJMesh(final OBJMesh objMesh) {
 		setAnimationEnabled(false);
-		chart.add(objMesh.drawable, false); // GLException if true
+		chart.add(objMesh.drawable, viewUpdatesEnabled); // this used to trigger a GLException when true?
 		final String label = getUniqueLabel(plottedObjs, "Mesh", objMesh.getLabel());
 		plottedObjs.put(label, objMesh.drawable);
 		addItemToManager(label);
@@ -2872,9 +2892,13 @@ public class Viewer3D {
 			static final long serialVersionUID = 1L;
 			final String name;
 
-			Action(final String name, final int key, final boolean requireCtrl, final boolean requireShift) {
+			Action(final String name) {
 				super(name);
 				this.name = name;
+			}
+
+			Action(final String name, final int key, final boolean requireCtrl, final boolean requireShift) {
+				this(name);
 				int mod = 0;
 				if (requireCtrl)
 					mod = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
@@ -2979,6 +3003,12 @@ public class Viewer3D {
 				default:
 					throw new IllegalArgumentException("Unrecognized action");
 				}
+			}
+
+			private void run() {
+				actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, null) {
+					private static final long serialVersionUID = 1L;
+				});
 			}
 		}
 
@@ -4186,7 +4216,7 @@ public class Viewer3D {
 			JMenuItem mi = new JMenuItem("Import OBJ File(s)...", IconFactory
 				.getMenuIcon(GLYPH.IMPORT));
 			mi.addActionListener(e -> runCmd(LoadObjCmd.class, null,
-				CmdWorker.DO_NOTHING));
+				CmdWorker.DO_NOTHING)); // LoadObjCmd will call validate()
 			meshMenu.add(mi);
 			addCustomizeMeshCommands(meshMenu);
 
@@ -4318,7 +4348,7 @@ public class Viewer3D {
 				@Override
 				protected Boolean doInBackground() {
 					try {
-						loadRefBrainInternal(label);
+						return loadRefBrainInternal(label) != null;
 					} catch (final NullPointerException | IllegalArgumentException ex) {
 						guiUtils.error("An error occured and mesh could not be retrieved. See Console for details.");
 						ex.printStackTrace();
@@ -4327,14 +4357,12 @@ public class Viewer3D {
 						SNTUtils.error(e2.getMessage(), e2);
 						return false;
 					}
-					return true;
 				}
 
 				@Override
 				protected void done() {
 					try {
-						if (!get() && viewUpdatesEnabled)
-							validate();
+						if (get() && viewUpdatesEnabled) new Action(Action.RELOAD).run();
 					} catch (final InterruptedException | ExecutionException e) {
 						SNTUtils.error(e.getMessage(), e);
 					} finally {
@@ -4424,7 +4452,7 @@ public class Viewer3D {
 				@Override
 				protected void done() {
 					setSceneUpdatesEnabled(true);
-					updateView();
+					validate();
 					if (failuresAndSuccesses[0] > 0)
 						guiUtils.error("" + failuresAndSuccesses[0] + " of "
 								+ (failuresAndSuccesses[0] + failuresAndSuccesses[1])
@@ -4651,35 +4679,65 @@ public class Viewer3D {
 
 		private void downloadMeshes() {
 			final List<AllenCompartment> compartments = getCheckedSelection();
-			if (compartments == null)
+			if (compartments == null || compartments.isEmpty())
 				return;
-			int loadedCompartments = 0;
-			final ArrayList<String> failedCompartments = new ArrayList<>();
-			for (final AllenCompartment compartment : compartments) {
-				if (getOBJs().keySet().contains(compartment.name())) {
-					managerList.addCheckBoxListSelectedValue(compartment.name(), true);
-				} else {
-					final OBJMesh msh = compartment.getMesh();
-					if (msh == null) {
-						failedCompartments.add(compartment.name());
-						meshRemoved(compartment.name());
-					} else {
-						loadOBJMesh(msh);
-						meshLoaded(compartment.name());
-						loadedCompartments++;
+			final SwingWorker<?, ?> worker = new SwingWorker<Void, Object>() {
+
+				int loadedCompartments = 0;
+				final ArrayList<String> failedCompartments = new ArrayList<>();
+
+				@Override
+				protected Void doInBackground() {
+					viewUpdatesEnabled = compartments.size() == 1;
+					for (final AllenCompartment compartment : compartments) {
+						if (getOBJs().keySet().contains(compartment.name())) {
+							managerList.addCheckBoxListSelectedValue(compartment.name(), true);
+						} else {
+							try {
+								final OBJMesh msh = compartment.getMesh();
+								if (msh == null) {
+									failedCompartments.add(compartment.name());
+									meshRemoved(compartment.name());
+								} else {
+									loadOBJMesh(msh);
+									meshLoaded(compartment.name());
+									loadedCompartments++;
+								}
+							} catch (final GLException | NullPointerException | IllegalArgumentException ex) {
+								failedCompartments.add(compartment.name());
+								meshRemoved(compartment.name());
+							}
+						}
+					}
+					return null;
+				}
+
+				@Override
+				protected void done() {
+					try {
+						get();
+						if (loadedCompartments > 0)
+							Viewer3D.this.validate();
+						if (failedCompartments.size() > 0) {
+							final StringBuilder sb = new StringBuilder(String.valueOf(loadedCompartments)).append("/")
+									.append(loadedCompartments + failedCompartments.size())
+									.append(" meshes retrieved. The following compartments failed to load:")
+									.append("<br>&nbsp;<br>").append(String.join("; ", failedCompartments))
+									.append("<br>&nbsp;<br>")
+									.append("Either such meshes are not available or file(s) could not be reached. Check Console logs for details.");
+							guiUtils.centeredMsg(sb.toString(), "Exceptions Occured");
+						}
+					} catch (final InterruptedException | ExecutionException e) {
+						SNTUtils.error(e.getMessage(), e);
+					} finally {
+						if (getManagerPanel() != null)
+							getManagerPanel().resetProgressBar();
+						viewUpdatesEnabled = true;
 					}
 				}
-			}
-			if (loadedCompartments > 0)
-				Viewer3D.this.validate();
-			if (failedCompartments.size() > 0) {
-				final StringBuilder sb = new StringBuilder(String.valueOf(loadedCompartments)).append("/")
-						.append(loadedCompartments + failedCompartments.size())
-						.append(" meshes retrieved. The following compartments failed to load:").append("<br>&nbsp;<br>")
-						.append(String.join("; ", failedCompartments)).append("<br>&nbsp;<br>")
-						.append("Either such meshes are not available or file(s) could not be reached. Check Console logs for details.");
-				guiUtils.centeredMsg(sb.toString(), "Exceptions Occured");
-			}
+			};
+			getManagerPanel().setProgress(-1);
+			worker.execute();
 		}
 
 		private void showSelectionInfo() {
@@ -5494,6 +5552,7 @@ public class Viewer3D {
 
 		public MouseController(final Chart chart) {
 			super(chart);
+			addSlaveThreadController(new CameraThreadControllerPlus(chart)); // will removeThreadController
 		}
 
 		private int getY(final MouseEvent e) {
@@ -5607,7 +5666,12 @@ public class Viewer3D {
 			super.mousePressed(e);
 			prevMouse3d = view.projectMouse(e.getX(), getY(e));
 		}
-	
+
+		public boolean isAnimating() {
+			return threadController != null && threadController instanceof CameraThreadControllerPlus
+					&& ((CameraThreadControllerPlus) threadController).isAnimating();
+		}
+
 		/*
 		 * (non-Javadoc)
 		 *
@@ -5653,6 +5717,19 @@ public class Viewer3D {
 				prevMouse3d = thisMouse3d;
 			}
 			prevMouse = mouse;
+		}
+	}
+
+	private class CameraThreadControllerPlus extends CameraThreadController {
+
+		//TODO: here we should be bale to override #move and #doRun to improve
+		// rotations, namely along anatomical axes rather than azymuths
+		public CameraThreadControllerPlus(final Chart chart) {
+			super(chart);
+		}
+
+		protected boolean isAnimating() {
+			return process != null && process.isAlive();
 		}
 	}
 

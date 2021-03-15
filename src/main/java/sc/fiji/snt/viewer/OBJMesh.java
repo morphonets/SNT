@@ -335,6 +335,18 @@ public class OBJMesh {
 			super.hasMountedOnce = false;
 		}
 
+		private void computeBoundingBoxAsNeeded() {
+			if (bbox == null || !bbox.valid() || bbox.isReset() || bbox.isPoint()) {
+				bbox = objMesh.getObj().computeBoundingBox();
+			}
+		}
+
+		@Override
+		public Coord3d getBarycentre() {
+			computeBoundingBoxAsNeeded();
+			return super.getBarycentre();
+		}
+
 	}
 
 	/**
@@ -384,11 +396,12 @@ public class OBJMesh {
 			final int pointer = 0;
 			final FloatBuffer vertices = obj.getCompiledVertices();
 			final IntBuffer indices = obj.getCompiledIndices();
-			final BoundingBox3d bounds = obj.computeBoundingBox();
 			drawable.doConfigure(pointer, size, byteOffset, normalOffset, dimensions);
 			drawable.doLoadArrayFloatBuffer(gl, vertexSize, vertices);
 			drawable.doLoadElementIntBuffer(gl, indexSize, indices);
-			drawable.doSetBoundingBox(bounds);
+			if (drawable.getBounds() == null || !drawable.getBounds().valid()) {
+				drawable.doSetBoundingBox(obj.computeBoundingBox());
+			}
 		}
 	}
 
