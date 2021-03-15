@@ -162,6 +162,7 @@ import org.jzy3d.plot3d.rendering.view.modes.ViewBoundMode;
 import org.jzy3d.plot3d.rendering.view.modes.ViewPositionMode;
 import org.jzy3d.plot3d.transform.Transform;
 import org.jzy3d.plot3d.transform.Translate;
+import org.jzy3d.plot3d.transform.squarifier.ISquarifier;
 import org.jzy3d.plot3d.transform.squarifier.XYSquarifier;
 import org.jzy3d.plot3d.transform.squarifier.XZSquarifier;
 import org.jzy3d.plot3d.transform.squarifier.ZYSquarifier;
@@ -500,9 +501,16 @@ public class Viewer3D {
 		try {
 			// remember settings so that they can be restored
 			final boolean lighModeOn = !isDarkModeOn();
+			final boolean axesOn = view.isAxeBoxDisplayed();
 			final float currentZoomStep = keyController.zoomStep;
 			final double currentRotationStep = keyController.rotationStep;
 			final float currentPanStep = mouseController.panStep;
+			final ISquarifier squarifier = view.getSquarifier();
+			final boolean squared = view.getSquared();
+			final CameraMode currentCameraMode = view.getCameraMode();
+			final ViewportMode viewPortMode = view.getCamera().getMode();
+			final Coord3d currentViewPoint = view.getViewPoint();
+			final BoundingBox3d currentBox = view.getBounds();
 			chart.stopAnimator();
 			chart.dispose();
 			chart = null;
@@ -511,6 +519,13 @@ public class Viewer3D {
 			keyController.rotationStep = currentRotationStep;
 			mouseController.panStep = currentPanStep;
 			if (lighModeOn) keyController.toggleDarkMode();
+			if (axesOn) chart.setAxeDisplayed(axesOn);
+			view.setSquarifier(squarifier);
+			view.setSquared(squared);
+			view.setCameraMode(currentCameraMode);
+			view.getCamera().setViewportMode(viewPortMode);
+			view.setViewPoint(currentViewPoint);
+			view.setBoundManual(currentBox);
 			addAllObjects();
 			updateView();
 			//if (managerList != null) managerList.selectAll();
@@ -1517,6 +1532,8 @@ public class Viewer3D {
 		while (it.hasNext()) {
 			final Map.Entry<String, T> entry = it.next();
 			final T drawable = entry.getValue();
+			if (drawable instanceof RemountableDrawableVBO && !((RemountableDrawableVBO)drawable).hasMountedOnce())
+				return false;
 			final BoundingBox3d bounds = drawable.getBounds();
 			if (bounds == null || !viewBounds.contains(bounds)) return false;
 			if ((selectedKeys.contains(entry.getKey()) && !drawable.isDisplayed())) {
