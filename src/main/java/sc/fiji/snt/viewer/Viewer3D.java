@@ -4216,7 +4216,7 @@ public class Viewer3D {
 			JMenuItem mi = new JMenuItem("Import OBJ File(s)...", IconFactory
 				.getMenuIcon(GLYPH.IMPORT));
 			mi.addActionListener(e -> runCmd(LoadObjCmd.class, null,
-				CmdWorker.DO_NOTHING));
+				CmdWorker.DO_NOTHING)); // LoadObjCmd will call validate()
 			meshMenu.add(mi);
 			addCustomizeMeshCommands(meshMenu);
 
@@ -4452,7 +4452,7 @@ public class Viewer3D {
 				@Override
 				protected void done() {
 					setSceneUpdatesEnabled(true);
-					updateView();
+					validate();
 					if (failuresAndSuccesses[0] > 0)
 						guiUtils.error("" + failuresAndSuccesses[0] + " of "
 								+ (failuresAndSuccesses[0] + failuresAndSuccesses[1])
