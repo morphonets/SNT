@@ -894,11 +894,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final Path editingPath = tracerPlugin.getEditingPath();
 		final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
 		if (editingPath.size() > 2) {
-			for (Path p : editingPath.somehowJoins) {
-				if (p.getJunctionNodes().stream().anyMatch(n -> n.equals(editingNode))) {
-					tempMsg("Cannot delete junction node. Try to split instead.");
-					return;
-				}
+			if (editingPath.getJunctionNodes().stream().anyMatch(n -> n.equals(editingNode))) {
+				tempMsg("Cannot delete junction node. Try to split instead.");
+				return;
 			}
 			try {
 				editingPath.removeNode(editingPath.getEditableNodeIndex());
