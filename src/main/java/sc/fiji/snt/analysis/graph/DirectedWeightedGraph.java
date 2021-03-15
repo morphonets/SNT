@@ -191,7 +191,9 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @param updateEdgeWeightsEuclidean if true, update all edge weights with
 	 *                                   inter-node Euclidean distances
 	 */
-	public void scale(final double xScale, final double yScale, final double zScale, final boolean updateEdgeWeightsEuclidean) {
+	public void scale(final double xScale, final double yScale, final double zScale,
+					  final boolean updateEdgeWeightsEuclidean)
+	{
 		for (final SWCPoint v : vertexSet()) {
 			v.scale(xScale, yScale, zScale);
 		}
@@ -209,18 +211,48 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		return edgeSet().stream().mapToDouble(SWCWeightedEdge::getWeight).sum();
 	}
 
+	/**
+	 * Gets a {@link DepthFirstIterator}, using the graph root as start vertex.
+	 *
+	 * @return the DepthFirstIterator
+	 */
 	public DepthFirstIterator<SWCPoint, SWCWeightedEdge> getDepthFirstIterator() {
-		return new DepthFirstIterator<>(this);
+		return new DepthFirstIterator<>(this, getRoot());
 	}
 
+	/**
+	 * Gets a {@link DepthFirstIterator}, using the specified start vertex.
+	 *
+	 * @param startVertex the start vertex
+	 * @return the DepthFirstIterator
+	 */
 	public DepthFirstIterator<SWCPoint, SWCWeightedEdge> getDepthFirstIterator(final SWCPoint startVertex) {
 		return new DepthFirstIterator<>(this, startVertex);
 	}
 
 	/**
+	 * Gets a {@link BreadthFirstIterator}, using the graph root as start vertex.
+	 *
+	 * @return the BreadthFirstIterator
+	 */
+	public BreadthFirstIterator<SWCPoint, SWCWeightedEdge> getBreadthFirstIterator() {
+		return new BreadthFirstIterator<>(this, getRoot());
+	}
+
+	/**
+	 * Gets a {@link BreadthFirstIterator}, using the specified start vertex.
+	 *
+	 * @param startVertex the start vertex
+	 * @return the BreadthFirstIterator
+	 */
+	public BreadthFirstIterator<SWCPoint, SWCWeightedEdge> getBreadthFirstIterator(final SWCPoint startVertex) {
+		return new BreadthFirstIterator<>(this, startVertex);
+	}
+
+	/**
 	 * Return the sequence of nodes representing the
 	 * <a href="https://mathworld.wolfram.com/GraphDiameter.html">longest shortest-path</a>
-	 * in the graph.
+	 * in the graph, as a {@link Path}.
 	 *
 	 * @param useDirected whether to treat the graph as directed.
 	 *                    If true, the longest shortest-path will always include the root and a terminal node.
@@ -228,49 +260,71 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 */
 	public Path getLongestPath(final boolean useDirected) {
 		if (useDirected) {
-			return getLongestPathDirected();
+			return vertexSequenceToPath(getLongestPathDirectedVertices());
 		} else {
-			return getLongestPathUndirected();
+			return vertexSequenceToPath(getLongestPathUndirectedVertices());
 		}
 	}
 
-	private Path getLongestPathDirected() {
+	/**
+	 * Return the sequence of nodes representing the
+	 * <a href="https://mathworld.wolfram.com/GraphDiameter.html">longest shortest-path</a>
+	 * in the graph, as a {@link Deque}. This eliminates the computational overhead of converting the vertex sequence
+	 * to a {@link Path} object, if a {@link Path} is not desired.
+	 *
+	 * @param useDirected whether to treat the graph as directed.
+	 *                    If true, the longest shortest-path will always include the root and a terminal node.
+	 * @return the longest shortest-path
+	 */
+	public Deque<SWCPoint> getLongestPathVertices(final boolean useDirected) {
+		if (useDirected) {
+			return getLongestPathDirectedVertices();
+		} else {
+			return getLongestPathUndirectedVertices();
+		}
+	}
+
+	private Deque<SWCPoint> getLongestPathDirectedVertices() {
+		if (vertexSet().isEmpty()) {
+			return null;
+		}
 		final SWCPoint root = getRoot();
 		final SWCPoint deepestNode = deepestNodeFromStart(root, this);
-		final List<SWCPoint> longestShortestPathList = new ArrayList<>();
+		if (root == deepestNode) {
+			return null;
+		}
+		final Deque<SWCPoint> longestShortestPathVertices = new ArrayDeque<>();
 		SWCPoint node = deepestNode;
-		longestShortestPathList.add(node);
-		while (Graphs.vertexHasPredecessors(this, node)) {
-			node = Graphs.predecessorListOf(this, node).get(0);
-			longestShortestPathList.add(node);
+		longestShortestPathVertices.addFirst(node);
+		while (true) {
+			Set<SWCWeightedEdge> inEdges = incomingEdgesOf(node);
+			if (inEdges.isEmpty()) {
+				break;
+			}
+			node = inEdges.iterator().next().getSource();
+			longestShortestPathVertices.addFirst(node);
 		}
-		Collections.reverse(longestShortestPathList);
-		final Path longestShortestPath = longestShortestPathList.get(0).getPath().createPath();
-		longestShortestPath.setOrder(-1);
-		longestShortestPath.setName("Path between " + root.id + "and " + deepestNode.id);
-		for (final SWCPoint point : longestShortestPathList) {
-			longestShortestPath.addNode(point);
-		}
-		return longestShortestPath;
+		return longestShortestPathVertices;
 	}
 
-	private Path getLongestPathUndirected() {
+	private Deque<SWCPoint> getLongestPathUndirectedVertices() {
+		if (vertexSet().isEmpty()) {
+			return null;
+		}
 		final AsUndirectedGraph<SWCPoint, SWCWeightedEdge> undirectedGraph = new AsUndirectedGraph<>(this);
 		// Choose an arbitrary node as start
 		final SWCPoint start = vertexSet().iterator().next();
 		final SWCPoint x = deepestNodeFromStart(start, undirectedGraph);
 		final SWCPoint y = deepestNodeFromStart(x, undirectedGraph);
-		final Path longestShortestPath = getShortestPath(x, y);
-		longestShortestPath.setOrder(-1);
-		longestShortestPath.setName("Path between " + x.id + "and " + y.id);
-		return longestShortestPath;
+		return getShortestPathVertices(x, y);
 	}
 
 	private static SWCPoint deepestNodeFromStart(final SWCPoint start, final Graph<SWCPoint, SWCWeightedEdge> graph) {
-		final BreadthFirstIterator<SWCPoint, SWCWeightedEdge> breadthFirstIterator = new BreadthFirstIterator<>(graph, start);
+		final BreadthFirstIterator<SWCPoint, SWCWeightedEdge> breadthFirstIterator =
+				new BreadthFirstIterator<>(graph, start);
 		start.v = 0;
 		double maxWeight = 0;
-		SWCPoint deepestNode = null;
+		SWCPoint deepestNode = start;
 		while (breadthFirstIterator.hasNext()) {
 			final SWCPoint node = breadthFirstIterator.next();
 			final SWCPoint previousNode = breadthFirstIterator.getParent(node);
@@ -289,7 +343,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	}
 
 	/**
-	 * Gets the shortest path between source and target vertex.
+	 * Gets the shortest path between source and target vertex as a {@link Path} object.
 	 * Since underlying edge direction is ignored, a shortest path will always exist between
 	 * any two vertices that share a connected component.
 	 *
@@ -297,109 +351,119 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @param v2 the target vertex
 	 * @return the shortest Path between source v1 and target v2, or null if no path exists
 	 */
-	public Path getShortestPath(SWCPoint v1, SWCPoint v2) {
-		if (!this.containsVertex(v1) || !this.containsVertex(v2)) {
-			return null;
+	public Path getShortestPath(final SWCPoint v1, final SWCPoint v2) {
+		return vertexSequenceToPath(getShortestPathVertices(v1, v2));
+	}
+
+	/**
+	 * Gets the shortest path between source and target vertex as a {@link Deque} of SWCPoint objects.
+	 * This eliminates the computational overhead of creating a {@link Path} object from the vertex sequence,
+	 * if a {@link Path} is not desired.
+	 * Since underlying edge direction is ignored, a shortest path will always exist between
+	 * any two vertices that share a connected component.
+	 *
+	 * @param v1 the source vertex
+	 * @param v2 the target vertex
+	 * @return the shortest path between source v1 and target v2, or null if no path exists
+	 */
+	public Deque<SWCPoint> getShortestPathVertices(final SWCPoint v1, final SWCPoint v2) {
+		if (!containsVertex(v1)) {
+			throw new IllegalArgumentException("Graph does not contain vertex " + v1);
+		}
+		if (!containsVertex(v2)) {
+			throw new IllegalArgumentException("Graph does not contain vertex " + v2);
 		}
 		if (v1 == v2) {
 			return null;
 		}
-		List<SWCPoint> shortestPathList = shortestPathInternal2(v1, v2);
-		if (shortestPathList == null) {
+		return shortestPathInternal(v1, v2);
+	}
+
+	private Path vertexSequenceToPath(final Deque<SWCPoint> vertexSequence) {
+		if (vertexSequence == null || vertexSequence.isEmpty()) {
 			return null;
 		}
-		Path shortestPath = shortestPathList.get(0).getPath().createPath();
-		shortestPath.setOrder(-1);
-		shortestPath.setName("Path between " + v1.id + "and " + v2.id);
-		for (SWCPoint point : shortestPathList) {
-			shortestPath.addNode(point);
+		Path path;
+		final Path onPath = vertexSequence.getFirst().getPath();
+		if (onPath == null) {
+			path = new Path(1d, 1d, 1d, "? units");
+		} else {
+			path = onPath.createPath();
 		}
-		return shortestPath;
+		path.setOrder(-1);
+		path.setName("Path between " + vertexSequence.getFirst() + " and " + vertexSequence.getLast());
+		for (SWCPoint vertex : vertexSequence) {
+			path.addNode(vertex);
+		}
+		return path;
 	}
 
 	/**
-	 * Uses the least common ancestor to find the shortest path between any two vertices.
-	 * This is much faster (and lighter) than any of the shortest path algorithms included with JGraphT, even
-	 * those based on LCA (i.e., TarjanLCAFinder, EulerTourRMQLCAFinder, etc.) since no preprocessing is required.
-	 * Since this is a custom implementation, it should be tested against one of the shortest path algos
-	 * included with JGraphT.
-	 * @param v1 the source vertex
-	 * @param v2 the target vertex
-	 * @return the List of SWCPoints representing the shortest path, or null if no path exists
+	 * Uses the lowest common ancestor to find the shortest path between any two vertices.
 	 */
-	@SuppressWarnings("unused")
-	private List<SWCPoint> shortestPathInternal(SWCPoint v1, SWCPoint v2) {
-		final List<SWCPoint> ancestorList1 = new ArrayList<>();
+	private Deque<SWCPoint> shortestPathInternal(final SWCPoint v1, final SWCPoint v2) {
+		final Deque<SWCPoint> firstPath = new ArrayDeque<>();
+		final Deque<SWCPoint> secondPath = new ArrayDeque<>();
 		SWCPoint currentVertex = v1;
-		ancestorList1.add(currentVertex);
-		while (Graphs.vertexHasPredecessors(this, currentVertex)) {
-			currentVertex = Graphs.predecessorListOf(this, currentVertex).get(0);
-			ancestorList1.add(currentVertex);
-		}
-		if (ancestorList1.contains(v2)) {
-			return ancestorList1.subList(0, ancestorList1.indexOf(v2) + 1);
-		}
-		final List<SWCPoint> ancestorList2 = new ArrayList<>();
-		currentVertex = v2;
-		ancestorList2.add(currentVertex);
-		while (Graphs.vertexHasPredecessors(this, currentVertex)) {
-			currentVertex = Graphs.predecessorListOf(this, currentVertex).get(0);
-			ancestorList2.add(currentVertex);
-			if (ancestorList1.contains(currentVertex)) {
-				final List<SWCPoint> firstList = ancestorList1.subList(0, ancestorList1.indexOf(currentVertex));
-				Collections.reverse(ancestorList2);
-				firstList.addAll(ancestorList2);
-				return firstList;
+		firstPath.add(currentVertex);
+		while (true) {
+			final Set<SWCWeightedEdge> inEdges = incomingEdgesOf(currentVertex);
+			if (inEdges.isEmpty()) {
+				break;
 			}
+			currentVertex = inEdges.iterator().next().getSource();
+			firstPath.add(currentVertex);
 		}
-		return null;
-	}
-
-	private List<SWCPoint> shortestPathInternal2(SWCPoint v1, SWCPoint v2) {
-		final List<SWCPoint> ancestorList1 = new ArrayList<>();
-		SWCPoint currentVertex = v1;
-		ancestorList1.add(currentVertex);
-		while (Graphs.vertexHasPredecessors(this, currentVertex)) {
-			currentVertex = Graphs.predecessorListOf(this, currentVertex).get(0);
-			ancestorList1.add(currentVertex);
-		}
-		final List<SWCPoint> ancestorList2 = new ArrayList<>();
 		currentVertex = v2;
-		ancestorList2.add(currentVertex);
-		while (Graphs.vertexHasPredecessors(this, currentVertex)) {
-			currentVertex = Graphs.predecessorListOf(this, currentVertex).get(0);
-			ancestorList2.add(currentVertex);
+		secondPath.addFirst(currentVertex);
+		while (true) {
+			final Set<SWCWeightedEdge> inEdges = incomingEdgesOf(currentVertex);
+			if (inEdges.isEmpty()) {
+				break;
+			}
+			currentVertex = inEdges.iterator().next().getSource();
+			secondPath.addFirst(currentVertex);
 		}
-		int i = ancestorList1.size() - 1;
-		if (i == 0) {
-			Collections.reverse(ancestorList2);
-			return ancestorList2;
+		int i = firstPath.size() ;
+		if (i == 1) {
+			return secondPath;
 		}
-		int j = ancestorList2.size() - 1;
-		if (j == 0) {
-			Collections.reverse(ancestorList1);
-			return ancestorList1;
+		int j = secondPath.size();
+		if (j == 1) {
+			return firstPath;
 		}
 		int k = Math.min(i, j);
-		while (k >= 0) {
-			if (!ancestorList1.get(i).equals(ancestorList2.get(j))) {
-				final List<SWCPoint> firstList = ancestorList1.subList(0, i + 2);
-				final List<SWCPoint> secondList = ancestorList2.subList(0, j + 1);
-				Collections.reverse(secondList);
-				firstList.addAll(secondList);
-				return firstList;
+		SWCPoint lca = null;
+		while (k > 0) {
+			// Find the first difference
+			final SWCPoint node1 = firstPath.removeLast();
+			final SWCPoint node2 = secondPath.removeFirst();
+			// Compare references
+			if (node1 == node2) {
+				lca = node1;
+			} else {
+				if (lca == null) {
+					// This could happen if the graph is not connected
+					return null;
+				}
+				// Last assigned lca is the true lca
+				firstPath.add(node1);
+				firstPath.add(lca);
+				secondPath.addFirst(node2);
+				firstPath.addAll(secondPath);
+				return firstPath;
 			}
 			i--;
 			j--;
 			k--;
 		}
-		if (i == -1) {
-			final List<SWCPoint> shortestPath = ancestorList2.subList(0, j + 2);
-			Collections.reverse(shortestPath);
-			return shortestPath;
+		if (i == 0) {
+			secondPath.addFirst(lca);
+			return secondPath;
 		}
-		if (j == -1) {
-			return ancestorList1.subList(0, i + 2);
+		if (j == 0) {
+			firstPath.add(lca);
+			return firstPath;
 		}
 		return null;
 	}
@@ -481,12 +545,12 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @return the root node.
 	 */
 	public SWCPoint getRoot() throws IllegalStateException {
-		List<SWCPoint> roots = vertexSet().stream().filter(v -> inDegreeOf(v) == 0).collect(Collectors.toList());
+		final List<SWCPoint> roots = vertexSet().stream().filter(v -> inDegreeOf(v) == 0).collect(Collectors.toList());
 		if (roots.size() == 0) {
-			throw new IllegalStateException("Graph has no root");
+			throw new IllegalStateException("Graph has no nodes with in-degree 0");
 		}
 		if (roots.size() > 1) {
-			throw new IllegalStateException("Graph has multiple connected components");
+			throw new IllegalStateException("Graph has multiple connected components and/or inconsistent edge directions");
 		}
 		return roots.get(0);
 	}
@@ -502,7 +566,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 *                      If false, returns the cached tree if it exists or null if it does not exist
 	 * @return the tree
 	 */
-	public Tree getTree(boolean createNewTree) {
+	public Tree getTree(final boolean createNewTree) {
 		if (createNewTree) {
 			updateVertexProperties();
 			return new Tree(this, "");
@@ -529,7 +593,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * all other nodes in the graph have the new root as ancestor.
 	 * @param newRoot the new root of the tree, which must be an existing vertex of the graph
 	 */
-	public void setRoot(SWCPoint newRoot) {
+	public void setRoot(final SWCPoint newRoot) {
 		if (!containsVertex(newRoot)) {
 			throw new IllegalArgumentException("Node not contained in graph");
 		}
