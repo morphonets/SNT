@@ -121,6 +121,7 @@ import org.jzy3d.chart.controllers.ControllerType;
 import org.jzy3d.chart.controllers.camera.AbstractCameraController;
 import org.jzy3d.chart.controllers.mouse.AWTMouseUtilities;
 import org.jzy3d.chart.controllers.mouse.camera.AWTCameraMouseController;
+import org.jzy3d.chart.controllers.thread.camera.CameraThreadController;
 import org.jzy3d.chart.factories.AWTChartComponentFactory;
 import org.jzy3d.chart.factories.IChartComponentFactory;
 import org.jzy3d.chart.factories.IFrame;
@@ -511,6 +512,7 @@ public class Viewer3D {
 			final ViewportMode viewPortMode = view.getCamera().getMode();
 			final Coord3d currentViewPoint = view.getViewPoint();
 			final BoundingBox3d currentBox = view.getBounds();
+			final boolean isAnimating = mouseController.isAnimating();
 			chart.stopAnimator();
 			chart.dispose();
 			chart = null;
@@ -528,6 +530,7 @@ public class Viewer3D {
 			view.setBoundManual(currentBox);
 			addAllObjects();
 			updateView();
+			if (isAnimating) setAnimationEnabled(true);
 			//if (managerList != null) managerList.selectAll();
 		}
 		catch (final GLException | NullPointerException exc) {
@@ -5519,6 +5522,7 @@ public class Viewer3D {
 
 		public MouseController(final Chart chart) {
 			super(chart);
+			addSlaveThreadController(new CameraThreadControllerPlus(chart)); // will removeThreadController
 		}
 
 		private int getY(final MouseEvent e) {
@@ -5632,7 +5636,12 @@ public class Viewer3D {
 			super.mousePressed(e);
 			prevMouse3d = view.projectMouse(e.getX(), getY(e));
 		}
-	
+
+		public boolean isAnimating() {
+			return threadController != null && threadController instanceof CameraThreadControllerPlus
+					&& ((CameraThreadControllerPlus) threadController).isAnimating();
+		}
+
 		/*
 		 * (non-Javadoc)
 		 *
@@ -5678,6 +5687,19 @@ public class Viewer3D {
 				prevMouse3d = thisMouse3d;
 			}
 			prevMouse = mouse;
+		}
+	}
+
+	private class CameraThreadControllerPlus extends CameraThreadController {
+
+		//TODO: here we should be bale to override #move and #doRun to improve
+		// rotations, namely along anatomical axes rather than azymuths
+		public CameraThreadControllerPlus(final Chart chart) {
+			super(chart);
+		}
+
+		protected boolean isAnimating() {
+			return process != null && process.isAlive();
 		}
 	}
 
