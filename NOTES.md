@@ -4,7 +4,6 @@
 SNT is both a scripting library and a GUI program. More formally, it is a collection of [SciJava](https://scijava.org/) commands (plugins), organized around a common API. The GUI is written in Swing.
 
 
-
 ## Projects
 
 SNT has incorporated several projects that were previously scattered across the Fiji ecosystem of plugins. Notably:
@@ -13,7 +12,6 @@ SNT has incorporated several projects that were previously scattered across the 
 * Simple Neurite Tracer: The founding ImageJ1 plugin released in 2010. SNT stems from its rewrite. Originally hosted at https://github.com/fiji/SNT
 
 An overview of SNT's history is also provided in the [FAQs](https://imagej.net/SNT:_FAQ).
-
 
 
 ## Publications
@@ -31,9 +29,6 @@ The _Sholl Analysis_ plugin is described in:
 Simple Neurite Tracer is described in:
 
 - Longair MH, Baker DA, Armstrong JD. [Simple Neurite Tracer: Open Source software for reconstruction, visualization and analysis of neuronal processes](http://bioinformatics.oxfordjournals.org/content/early/2011/07/04/bioinformatics.btr390.long). **Bioinformatics**, 2011
-
-
-
 
 
 ## Algorithms
@@ -55,11 +50,25 @@ Key aspects of SNT are implemented from published literature:
 | [Cx3D simulation engine](https://imagej.net/SNT:_Modeling)   | Zubler, F., & Douglas, R. (2009). A framework for modeling the growth and development of neurons and networks. *Frontiers in computational neuroscience*, *3*, 25. |
 |                                                              |                                                              |
 | [L-measure](http://cng.gmu.edu:8080/Lm/) metrics             | Scorcioni, R., Polavaram, S., & Ascoli, G. A. (2008). L-Measure: a  web-accessible tool for the analysis, comparison and search of digital  reconstructions of neuronal morphologies. *Nature protocols*, *3*(5), 866. |
-| Sholl-based metrics                                          | Ferreira, T. A., Blackman, A. V., Oyrer, J., Jayabal, S., Chung, A. J.,  Watt, A. J., ... & Van Meyel, D. J. (2014). Neuronal morphometry  directly from bitmap images. *Nature methods*, *11*(10), 982-984. |
+| Sholl-based metrics                                          | Ferreira, T. A., Blackman, A. V., Oyrer, J., Jayabal, S., Chung, A. J.,  Watt, A. J., Sjöström, P. J., & Van Meyel, D. J. (2014). Neuronal morphometry  directly from bitmap images. *Nature methods*, *11*(10), 982-984. |
 
 
+## Databases
 
-### Dependencies
+Any work that uses data from the supported databases and/or reference brains should acknowledge the data source directly.
+
+| Database                     | URL                                           | Reference                                                    |
+| :--------------------------- | :-------------------------------------------- | :----------------------------------------------------------- |
+| FlyCircuit                   | http://www.flycircuit.tw/                     | Chiang A, Lin C, Chuang C, et al., “Three-Dimensional Reconstruction of Brain-Wide Wiring Networks in Drosophila at Single-Cell Resolution.” https://doi.org/10.1016/j.cub.2010.11.056 |
+| FlyLight                     | https://www.janelia.org/project-team/flylight | Jenett A, Rubin GM, Ngo TB et al., “A GAL4-Driver Line Resource for Drosophila Neurobiology.” https://doi.org/10.1016/j.celrep.2012.09.011 |
+| InsectBrainDatabase          | https://insectbraindb.org/app/                | Heinze S, Jundi B, Berg B, et al., “InsectBrainDatabase - A Unified Platform to Manage, Share, and Archive Morphological and Functional Data.” https://doi.org/10.1101/2020.11.30.397489 |
+| mapzebrain (zebrafish atlas) | https://fishatlas.neuro.mpg.de/               | Kunst M, Laurell E, Mokayes N, et al. “A Cellular-Resolution Atlas of the Larval Zebrafish Brain.” https://doi.org/10.1016/j.neuron.2019.04.034 |
+| MouseLight                   | http://ml-neuronbrowser.janelia.org/          | Winnubst J, Bas E, Ferreira TA, et al., “Reconstruction of 1,000 Projection Neurons Reveals New Cell Types and Organization of Long-Range Connectivity in the Mouse Brain.” https://dx.doi.org/10.1016/j.cell.2019.07.042 |
+| NeuroMorpho                  | http://neuromorpho.org/                       | Ascoli GA, Donohue DE, Halavi M, “NeuroMorpho.Org: A Central Resource for Neuronal Morphologies.” https://dx.doi.org/10.1523/JNEUROSCI.2055-07.2007 |
+| Virtual Fly brain            | https://virtualflybrain.org/                  | Milyaev N, Osumi-Sutherlandet D, Reeve S, et al., “The Virtual Fly Brain Browser and Query Interface.” https://dx.doi.org/10.1093/bioinformatics/btr677 |
+
+
+## Dependencies
 
 [SNT](https://imagej.net/SNT) relies heavily on several [SciJava](https://scijava.org/), [sciview](https://imagej.net/SciView) (and [scenery](https://github.com/scenerygraphics/scenery)), and [Fiji](https://imagej.net/Fiji) libraries. It also relies on other packages developed under the [morphonets](https://github.com/morphonets) umbrella and other external open-source packages. Below is a non-exhaustive list of external libraries on top of which SNT is built:
 
