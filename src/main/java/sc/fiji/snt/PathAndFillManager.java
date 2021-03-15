@@ -2030,6 +2030,13 @@ public class PathAndFillManager extends DefaultHandler implements
 	public static PathAndFillManager createFromGraph(final DirectedWeightedGraph graph) {
 		final PathAndFillManager pafm = new PathAndFillManager();
 		pafm.setHeadless(true);
+		pafm.importGraph(graph);
+		return pafm;
+	}
+
+	protected void importGraph(final DirectedWeightedGraph graph) {
+		final boolean existingEnableUIupdates = enableUIupdates;
+		this.enableUIupdates = false;
 		final SWCPoint root = graph.getRoot();
 		final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator = graph.getDepthFirstIterator(root);
 		Path currentPath = new Path(1d, 1d, 1d, "? units");
@@ -2041,14 +2048,15 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (addStartJoin) {
 				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
 				currentPath.addNode(previousPoint);
-				currentPath.setStartJoin(previousPoint.onPath, previousPoint);
+				currentPath.setStartJoin(previousPoint.onPath, previousPoint.clone());
 				addStartJoin = false;
 			}
 			currentPath.addNode(point);
 			point.setPath(currentPath);
 			if (graph.outDegreeOf(point) == 0) {
-				pafm.addPath(currentPath, true, true);
+				currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
 				currentPath.setColor(point.getColor());
+				addPath(currentPath);
 				final String tags = point.getTags();
 				if (tags != null && !tags.isEmpty()) {
 					currentPath.setName(currentPath.getName() + "{" + tags + "}");
@@ -2060,7 +2068,18 @@ public class PathAndFillManager extends DefaultHandler implements
 				addStartJoin = true;
 			}
 		}
-		return pafm;
+		this.enableUIupdates = existingEnableUIupdates;
+		resetListeners(null, true);
+
+		// Infer fields for when an image has not been specified. We'll assume
+		// the image dimensions to be those of the coordinates bounding box.
+		// This allows us to open a SWC file without a source image
+		{
+			if (boundingBox == null)
+				boundingBox = new BoundingBox();
+			boundingBox.append(graph.vertexSet().iterator());
+			checkForAppropriateImageDimensions();
+		}
 	}
 
 	private boolean load(final InputStream is) {
