@@ -2813,7 +2813,7 @@ public class Viewer3D {
 		private SNTTable table;
 		private JCheckBoxMenuItem debugCheckBox;
 		private final SNTSearchableBar searchableBar;
-		private final JProgressBar progressBar;
+		private final ProgressBar progressBar;
 
 		private ManagerPanel(final GuiUtils guiUtils) {
 			super();
@@ -2850,14 +2850,9 @@ public class Viewer3D {
 			scrollPane.setWheelScrollingEnabled(true);
 			scrollPane.setBorder(null);
 			scrollPane.setViewportView(managerList);
-
-			progressBar = new JProgressBar();
-			progressBar.setStringPainted(true);
-			progressBar.setFocusable(false);
-			resetProgressBar();
-
 			add(scrollPane);
 			scrollPane.revalidate();
+			progressBar = new ProgressBar();
 			add(progressBar);
 			add(barPanel);
 			add(buttonPanel());
@@ -2865,27 +2860,83 @@ public class Viewer3D {
 		}
 
 		public void resetProgressBar() {
-			progressBar.setIndeterminate(true);
-			progressBar.setVisible(false);
-			progressBar.setMinimum(0);
-			progressBar.setMaximum(100);
+			progressBar.resetAndHideOrRestore();
 		}
 
 		public void setProgressLimit(final int min, final int max) {
-			progressBar.setMinimum(min);
-			progressBar.setMaximum(max);
-			progressBar.setVisible(true);
+			progressBar.init(min, max);
 		}
-	
+
 		public void setProgress(final int value) {
-			if (value == -1) {
-				progressBar.setIndeterminate(true);
-				progressBar.setString("Loading...");
-				progressBar.setVisible(true);
-			} else {
-				progressBar.setIndeterminate(false);
-				progressBar.setString(null);
-				progressBar.setValue(value); // assume it is visible already
+			progressBar.setProgress(value);
+		}
+
+		class ProgressBar extends JProgressBar {
+
+			private static final long serialVersionUID = 1L;
+			private int sMin;
+			private int sMax;
+			private String sString;
+			private boolean sInd;
+			private boolean snapshotExists;
+
+			ProgressBar() {
+				super();
+				setStringPainted(true);
+				setFocusable(false);
+				resetAndHideOrRestore();
+			}
+
+			void makeSnapshot() {
+				sMin = getMinimum();
+				sMax = getMaximum();
+				sString = getString();
+				sInd = isIndeterminate();
+				snapshotExists = true;
+			}
+
+			private void restoreSnapshot() {
+				setIndeterminate(sInd);
+				setMinimum(sMin);
+				setMaximum(sMax);
+				setString(sString);
+			}
+
+			void wipeSnapshot() {
+				sMin = sMax = 0; sString = null;
+				snapshotExists = false;
+			}
+
+			void resetAndHideOrRestore() {
+				if (snapshotExists) {
+					restoreSnapshot();
+					wipeSnapshot();
+				} else {
+					setVisible(false);
+					setIndeterminate(true);
+					setMinimum(0);
+					setMaximum(100);
+				}
+			}
+
+			void init(final int min, final int max) {
+				if (isVisible()) makeSnapshot();
+				setMinimum(min);
+				setMaximum(max);
+				setVisible(true);
+			}
+
+			void setProgress(final int value) {
+				if (value == -1) {
+					if (isVisible()) makeSnapshot();
+					setIndeterminate(true);
+					setString("Loading...");
+					setVisible(true);
+				} else {
+					setIndeterminate(false);
+					setString(null);
+					setValue(value); // assume it is visible already
+				}
 			}
 		}
 
@@ -4287,7 +4338,7 @@ public class Viewer3D {
 
 					@Override
 					protected AllenCCFNavigator doInBackground() {
-						loadRefBrainAction(false, MESH_LABEL_ALLEN);
+						loadRefBrainAction(false, MESH_LABEL_ALLEN, false);
 						return new AllenCCFNavigator();
 					}
 
@@ -4299,7 +4350,7 @@ public class Viewer3D {
 							SNTUtils.error(e.getMessage(), e);
 						} finally {
 							//tempSplash.dispose();
-							frame.managerPanel.resetProgressBar();
+							getManagerPanel().resetProgressBar();
 						}
 					}
 				};
@@ -4340,6 +4391,10 @@ public class Viewer3D {
 		}
 
 		private void loadRefBrainAction(final boolean warnIfLoaded, final String label) {
+			loadRefBrainAction(warnIfLoaded, label, true);
+		}
+
+		private void loadRefBrainAction(final boolean warnIfLoaded, final String label, final boolean setProgressBar) {
 			final boolean canProceed;
 			switch (label) {
 			case MESH_LABEL_L1:
@@ -4358,7 +4413,8 @@ public class Viewer3D {
 				guiUtils.error(label + " is already loaded.");
 				return;
 			}
-			getManagerPanel().setProgress(-1);
+			if (setProgressBar && getManagerPanel() != null)
+				getManagerPanel().setProgress(-1);
 			final SwingWorker<?, ?> worker = new SwingWorker<Boolean, Object>() {
 
 				@Override
@@ -4382,7 +4438,7 @@ public class Viewer3D {
 					} catch (final InterruptedException | ExecutionException e) {
 						SNTUtils.error(e.getMessage(), e);
 					} finally {
-						if (getManagerPanel() != null)
+						if (setProgressBar && getManagerPanel() != null)
 							getManagerPanel().resetProgressBar();
 					}
 				}
@@ -4438,7 +4494,7 @@ public class Viewer3D {
 				processFiles(files, true, null, guiUtils);
 			});
 		}
-	
+
 		void importTreesWithoutDrop(final File[] files, final ColorRGB baseColor, final GuiUtils guiUtils) {
 			processFiles(files, false, baseColor, guiUtils);
 		}
@@ -4491,7 +4547,7 @@ public class Viewer3D {
 							if (failuresAndSuccesses[0] > 0)
 								guiUtils.error("" + failuresAndSuccesses[0] + " of "
 										+ (failuresAndSuccesses[0] + failuresAndSuccesses[1])
-										+ " dropped file(s) could not be imported (Console log may"
+										+ " dropped file(s) could not be imported (Console may"
 										+ " have more details if you have enabled \"Debug mode\").");
 							break;
 						default:
