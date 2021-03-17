@@ -331,6 +331,7 @@ public class Viewer3D {
 	private boolean viewUpdatesEnabled = true;
 	private ViewMode currentView;
 	private FileDropWorker fileDropWorker;
+	private boolean abortCurrentOperation;
 
 	@Parameter
 	private Context context;
@@ -2421,8 +2422,23 @@ public class Viewer3D {
 			// dialog.setLocationRelativeTo(this);
 			dialog.setMinimumSize(new Dimension(dialog.getMinimumSize().width, getHeight()/2));
 			dialog.setContentPane(managerPanel);
+			attachAbortAction();
 			dialog.pack();
 			return dialog;
+		}
+
+		private void attachAbortAction() {
+			final KeyAdapter adapter = new KeyAdapter() {
+				@Override
+				public void keyPressed(final KeyEvent ke) {
+					if (KeyEvent.VK_ESCAPE == ke.getKeyCode()) {
+						abortCurrentOperation = true;
+					}
+				}
+			};
+			addKeyListener(adapter);
+			managerPanel.addKeyListener(adapter);
+			managerList.addKeyListener(adapter);
 		}
 
 		private void displayLightController() {
@@ -4414,11 +4430,11 @@ public class Viewer3D {
 
 	private class FileDropWorker {
 
-		private boolean escapePressed;
-
 		FileDropWorker(final Component component, final GuiUtils guiUtils) {
-			addEscListener(component);
 			new FileDrop(component, files -> {
+				if (frame.managerPanel != null) {
+					SwingUtilities.invokeLater(() -> frame.managerPanel.setProgress(-1));
+				}
 				processFiles(files, true, null, guiUtils);
 			});
 		}
@@ -4428,67 +4444,85 @@ public class Viewer3D {
 		}
 
 		void processFiles(final File[] files, final boolean promptForConfirmation, final ColorRGB baseColor, final GuiUtils guiUtils) {
-			final ArrayList<File> collection = new ArrayList<>();
-			assembleFlatFileCollection(collection, files);
-			if (promptForConfirmation && collection.size() > 10) {
-				final boolean[] confirmSplit = guiUtils.getConfirmationAndOption(
-							"Are you sure you would like to import " + collection.size() + " files?<br>"
-							+ "You can press 'Esc' at any time to interrupt import.",
-							"Proceed with Batch Import?", "Import axons and dendrites separately",
-							isSplitDendritesFromAxons());
-				if (!confirmSplit[0]) return;
-				setSplitDendritesFromAxons(confirmSplit[1]);
-			}
-			final SwingWorker<?, ?> worker = new SwingWorker<Object, Object>() {
+
+			final SwingWorker<?, ?> worker = new SwingWorker<Integer, Object>() {
 				int[] failuresAndSuccesses = new int[2];
+				private static final int ABORTED = 0;
+				private static final int INVALID = 1;
+				private static final int COMPLETED = 2;
 
 				@Override
-				protected Object doInBackground() {
+				protected Integer doInBackground() {
+
+					ArrayList<File> collection = new ArrayList<>();
+					if (abortCurrentOperation || assembleFlatFileCollection(collection, files) == null) {
+						return ABORTED;
+					}
+					if (collection.isEmpty()) {
+						guiUtils.error("Dragged file(s) do not contain valid data.");
+						return INVALID;
+					}
+					if (promptForConfirmation && collection.size() > 10) {
+						assert SwingUtilities.isEventDispatchThread();
+						final boolean[] confirmSplit = guiUtils.getConfirmationAndOption(
+									"Are you sure you would like to import " + collection.size() + " files?<br>"
+									+ "You can press 'Esc' at any time to interrupt import.",
+									"Proceed with Batch Import?", "Import axons and dendrites separately",
+									isSplitDendritesFromAxons());
+						if (!confirmSplit[0]) {
+							return ABORTED;
+						}
+						setSplitDendritesFromAxons(confirmSplit[1]);
+					}
 					setSceneUpdatesEnabled(false);
 					failuresAndSuccesses = loadGuessingType(collection, baseColor);
-					return null;
+					return COMPLETED;
 				}
 
 				@Override
 				protected void done() {
-					setSceneUpdatesEnabled(true);
-					validate();
-					if (failuresAndSuccesses[0] > 0)
-						guiUtils.error("" + failuresAndSuccesses[0] + " of "
-								+ (failuresAndSuccesses[0] + failuresAndSuccesses[1])
-								+ " dropped file(s) could not be imported (Console log will"
-								+ " have more details if you have enabled \"Debug mode\").");
-					resetEscape();
+					try {
+						switch(get()) {
+						case ABORTED:
+							displayMsg("Drag & drop operation aborted");
+							break;
+						case COMPLETED:
+							if (failuresAndSuccesses[1] > 0) validate();
+							if (failuresAndSuccesses[0] > 0)
+								guiUtils.error("" + failuresAndSuccesses[0] + " of "
+										+ (failuresAndSuccesses[0] + failuresAndSuccesses[1])
+										+ " dropped file(s) could not be imported (Console log may"
+										+ " have more details if you have enabled \"Debug mode\").");
+							break;
+						default:
+							break; // do nothing for now
+						}
+					} catch (InterruptedException | ExecutionException e) {
+						e.printStackTrace();
+					} finally {
+						setSceneUpdatesEnabled(true);
+						abortCurrentOperation = false;
+						if (frame.managerPanel != null) {
+							frame.managerPanel.resetProgressBar();
+						}
+					}
 				}
 			};
 			worker.execute();
 		}
-		private void addEscListener(final Component c) {
-			final KeyAdapter listener = new KeyAdapter() {
-				@Override
-				public void keyPressed(final KeyEvent e) {
-					if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-						escapePressed = true;
-					}
-				}
-			};
-			c.addKeyListener(listener);
-			if (c instanceof Container) {
-				final Container container = (Container) c;
-				final Component[] children = container.getComponents();
-				for (final Component child : children)
-					child.addKeyListener(listener);
-			}
-		}
 
 		private Collection<File> assembleFlatFileCollection(final Collection<File> collection, final File[] files) {
+			if (files == null) return collection; // can happen while pressing 'Esc'!?
 			for (final File file : files) {
-				if (file.isDirectory())
+				if (abortCurrentOperation) break;
+				if (file == null) // can happen with large collections!?
+					continue;
+				else if (file.isDirectory())
 					assembleFlatFileCollection(collection, file.listFiles());
-				else
+				else //if (!file.isHidden())
 					collection.add(file);
 			}
-			return collection;
+			return (abortCurrentOperation) ? null : collection;
 		}
 
 		/**
@@ -4500,16 +4534,15 @@ public class Viewer3D {
 			final ColorRGB[] colors = getmportColors(baseColor, totalFiles);
 			int failures = 0;
 			int idx = 0;
-			if (frame.managerPanel != null) {
-				frame.managerPanel.setProgress(-1);
-			}
 			for (final File file : files) {
-				if (escapePressed()) {
+				if (abortCurrentOperation) {
 					SNTUtils.log("Aborting...");
 					break;
 				}
-				if (!file.exists() || file.isDirectory())
+				if (!file.exists() || file.isDirectory()) {
+					failures++;
 					continue;
+				}
 				SNTUtils.log(String.format("Loading %d/%d: %s", (idx+1), totalFiles, file.getAbsolutePath()));
 				final String fName = file.getName().toLowerCase();
 				try {
@@ -4556,17 +4589,7 @@ public class Viewer3D {
 				}
 				idx++;
 			}
-			return new int[] { failures, idx-1 };
-		}
-
-		private boolean escapePressed() {
-			return escapePressed;
-		}
-
-		private void resetEscape() {
-			escapePressed = false;
-			if (frame != null && frame.managerPanel != null)
-				frame.managerPanel.resetProgressBar();
+			return new int[] { failures, (idx-failures) };
 		}
 
 		private ColorRGB[] getmportColors(ColorRGB baseColor, final int n) {
@@ -5831,7 +5854,10 @@ public class Viewer3D {
 								mouseController.rotateLive(new Coord2d(rotationStep, 0));
 							break;
 						case KeyEvent.VK_ESCAPE:
-							frame.exitFullScreen();
+							if (frame.isFullScreen)
+								frame.exitFullScreen();
+							else
+								abortCurrentOperation = true;
 							break;
 						default:
 							break;
@@ -5890,7 +5916,11 @@ public class Viewer3D {
 		 * @see java.awt.event.KeyListener#keyReleased(java.awt.event.KeyEvent)
 		 */
 		@Override
-		public void keyReleased(final KeyEvent e) {}
+		public void keyReleased(final KeyEvent e) {
+			if (KeyEvent.VK_ESCAPE == e.getKeyCode()) {
+				abortCurrentOperation = false;
+			}
+		}
 
 		private void changeCameraMode() {
 			final CameraMode newMode = (view.getCameraMode() == CameraMode.ORTHOGONAL)
