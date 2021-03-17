@@ -43,6 +43,7 @@ import java.awt.Insets;
 import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ComponentEvent;
@@ -239,9 +240,9 @@ public class GuiUtils {
 		// work around a bug in openjdk and MacOS in which prompts
 		// are not frontmost if the component hierarchy is > 3
 		if (forceBringToFront && PlatformUtils.isMac() && !dialog.hasFocus() && parent != null
-				&& parent instanceof JDialog) {
+				&& parent instanceof Window) {
 			try {
-				((JDialog) parent).toBack();
+				((Window) parent).toBack();
 				Thread.sleep(50);
 				dialog.toFront();
 			} catch (final InterruptedException e) {

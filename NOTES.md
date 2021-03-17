@@ -54,13 +54,10 @@ Key aspects of SNT are implemented from published literature:
 |                                                              |                                                              |
 | [Cx3D simulation engine](https://imagej.net/SNT:_Modeling)   | Zubler, F., & Douglas, R. (2009). A framework for modeling the growth and development of neurons and networks. *Frontiers in Computational Neuroscience*, 3, 25. https://doi.org/10.3389/neuro.10.025.2009 |
 |                                                              |                                                              |
-| [L-measure](http://cng.gmu.edu:8080/Lm/) metrics             | Scorcioni, R., Polavaram, S., & Ascoli, G. A. (2008). L-Measure: a  web-accessible tool for the analysis, comparison and search of digital  reconstructions of neuronal morphologies. *Nature protocols*, *3*(5), 866. |
-| Sholl-based metrics                                          | Ferreira, T. A., Blackman, A. V., Oyrer, J., Jayabal, S., Chung, A. J.,  Watt, A. J., Sjöström, P. J., & Van Meyel, D. J. (2014). Neuronal morphometry  directly from bitmap images. *Nature methods*, *11*(10), 982-984. |
-|                                                              |
-| Longest shortest-path (Graph Diameter)                       | Bulterman, R.W., van der Sommen, F.W., Zwaan, G., Verhoeff, T., van Gasteren, A.J.M., Feijen, W.H.J. (2002). On computing a longest path in a tree. Information Processing Letters, 81(2), 93-96.
 | [L-measure](http://cng.gmu.edu:8080/Lm/) metrics             | Scorcioni, R., Polavaram, S., & Ascoli, G. A. (2008). L-Measure: a  web-accessible tool for the analysis, comparison and search of digital  reconstructions of neuronal morphologies. *Nature Protocols*, 3(5), 866. https://doi.org/10.1038/nprot.2008.51 |
 | [Sholl-based metrics](https://imagej.net/Sholl.html#Metrics) | Ferreira, T., Blackman, A., Oyrer, J. *et al.* (2014). Neuronal morphometry directly from bitmap images. *Nature Methods*, 11, 982–984 . https://doi.org/10.1038/nmeth.3125<br/>Milosević, N.T. & Ristanović, D. (2007). The Sholl analysis of neuronal cell images: semi-log or log-log method? *Journal of Theoretical Biology* 245, 130–140. https://doi.org/10.1016/j.jtbi.2006.09.022<br/>Ristanović,  D.,  Milosević,  N.T.  &  Stulić,  V.  (2006). Application  of  modified  Sholl  analysis  to  neuronal  dendritic arborization of the cat spinal cord. *Journal of Neuroscience Methods* 158, 2120–218. https://doi.org/10.1016/j.jneumeth.2006.05.030 |
  
+
 
 ## Databases
 
