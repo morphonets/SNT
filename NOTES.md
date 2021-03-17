@@ -50,13 +50,13 @@ Key aspects of SNT are implemented from published literature:
 |                                                              |                                                              |
 | Persistent homology: Topological Morphology Descriptor (*TMD*) algorithm | Kanari, L., Dłotko, P., Scolamiero, M., *et al*. (2018). A topological representation of branching  neuronal morphologies. *Neuroinformatics*, 16(1), 3–13. https://doi.org/10.1007/s12021-017-9341-1 |
 | Persistent homology: Persistence Lanscapes                   | Bubenik,  P. (2015). Statistical Topological Data Analysis Using Persistence Landscapes. *Journal of Machine Learning Research*, 16(3), 77–102. https://arxiv.org/abs/1207.6437 |
-| Longest shortest-path (Graph Diameter)                       | Bulterman, R.W., van der Sommen, F.W., Zwaan, G., *et al*. (2002). On computing a longest path in a tree. *Information Processing Letter*s, 81(2), 93–96 |
+| Longest shortest-path (Graph Diameter)                       | Bulterman, R.W., van der Sommen, F.W., Zwaan, G., *et al*. (2002). On computing a longest path in a tree. *Information Processing Letter*s, 81(2), 93–96. https://doi.org/10.1016/S0020-0190(01)00198-3 |
 |                                                              |                                                              |
 | [Cx3D simulation engine](https://imagej.net/SNT:_Modeling)   | Zubler, F., & Douglas, R. (2009). A framework for modeling the growth and development of neurons and networks. *Frontiers in Computational Neuroscience*, 3, 25. https://doi.org/10.3389/neuro.10.025.2009 |
 |                                                              |                                                              |
 | [L-measure](http://cng.gmu.edu:8080/Lm/) metrics             | Scorcioni, R., Polavaram, S., & Ascoli, G. A. (2008). L-Measure: a  web-accessible tool for the analysis, comparison and search of digital  reconstructions of neuronal morphologies. *Nature Protocols*, 3(5), 866. https://doi.org/10.1038/nprot.2008.51 |
 | [Sholl-based metrics](https://imagej.net/Sholl.html#Metrics) | Ferreira, T., Blackman, A., Oyrer, J. *et al.* (2014). Neuronal morphometry directly from bitmap images. *Nature Methods*, 11, 982–984 . https://doi.org/10.1038/nmeth.3125<br/>Milosević, N.T. & Ristanović, D. (2007). The Sholl analysis of neuronal cell images: semi-log or log-log method? *Journal of Theoretical Biology* 245, 130–140. https://doi.org/10.1016/j.jtbi.2006.09.022<br/>Ristanović,  D.,  Milosević,  N.T.  &  Stulić,  V.  (2006). Application  of  modified  Sholl  analysis  to  neuronal  dendritic arborization of the cat spinal cord. *Journal of Neuroscience Methods* 158, 2120–218. https://doi.org/10.1016/j.jneumeth.2006.05.030 |
- 
+
 
 
 ## Databases
