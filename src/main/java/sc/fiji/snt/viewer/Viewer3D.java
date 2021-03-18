@@ -3953,10 +3953,10 @@ public class Viewer3D {
 			});
 			utilsMenu.add(jcbmi);
 	
-			addSeparator(utilsMenu, "Online Resources:");
+			addSeparator(utilsMenu, "Resources:");
 			final JMenu helpMenu = GuiUtils.helpMenu();
 			helpMenu.setIcon( IconFactory.getMenuIcon(GLYPH.QUESTION));
-			//utilsMenu.add(helpMenu.getItem(0));
+			utilsMenu.add(helpMenu.getItem(0));
 			utilsMenu.add(helpMenu.getItem(helpMenu.getItemCount()-1));
 			utilsMenu.add(helpMenu);
 			return utilsMenu;

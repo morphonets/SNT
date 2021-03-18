@@ -22,12 +22,21 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Container;
+import java.awt.Font;
+import java.awt.Image;
 import java.awt.event.ActionListener;
 import java.net.URL;
 
-import javax.swing.*;
-import javax.swing.border.*;
+import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JProgressBar;
+import javax.swing.JWindow;
+import javax.swing.Timer;
+import javax.swing.border.EmptyBorder;
 
 /* Large multichannel/timelapse images can take a while to load into SNT. This helps to maintain the GUI functional 
  * Recycled code from https://stackoverflow.com/a/11935045 and net.imagej.launcher.SplashScreen
@@ -54,36 +63,43 @@ class SplashScreen extends JWindow {
 		dispose();
 	}
 
+	static JLabel getIconAsLabel() {
+		try {
+			final ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+			URL logoURL = classLoader.getResource("misc/SNTLogo512x528.png");
+			if (logoURL != null) {
+				ImageIcon imageIcon = new ImageIcon(logoURL);
+				final Image image = imageIcon.getImage();
+				final Image newimg = image.getScaledInstance(256, 264, Image.SCALE_AREA_AVERAGING);
+				imageIcon = new ImageIcon(newimg);
+				final JLabel logoImage = new JLabel(imageIcon);
+				logoImage.setAlignmentX(JLabel.CENTER_ALIGNMENT);
+				logoImage.setBorder(new EmptyBorder(12, 12, 6, 12));
+				return logoImage;
+			}
+		} catch (final Exception ignored) {
+			return null;
+		}
+		return null;
+	}
+
+	static void assignStyle(final JLabel label, final int scalingFactor) {
+		label.setFont(new Font(Font.DIALOG, Font.BOLD, GuiUtils.getMenuItemHeight() * scalingFactor));
+		label.setAlignmentX(JLabel.CENTER_ALIGNMENT);
+	}
+
 	private void initAndDisplay() {
 		final Container container = getContentPane();
 		final JPanel panel = new JPanel();
 		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-		panel.setBorder(new EtchedBorder());
 		panel.setOpaque(false);
 		container.add(panel, BorderLayout.CENTER);
-		URL logoURL;
-		try {
-			final ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-			logoURL = classLoader.getResource("misc/SNTLogo512.png");
-			if (logoURL != null) {
-				ImageIcon imageIcon = new ImageIcon(logoURL);
-				final Image image = imageIcon.getImage();
-				// Smooth the image a little bit for better aesthetics
-				final Image newimg = image.getScaledInstance(384, 396, Image.SCALE_SMOOTH);
-				imageIcon = new ImageIcon(newimg);
-				final JLabel logoImage = new JLabel(imageIcon);
-				logoImage.setAlignmentX(JLabel.CENTER_ALIGNMENT);
-				logoImage.setBorder(new EmptyBorder(10, 10, 4, 10));
-				panel.add(logoImage);
-			}
-		} catch (final Exception ignored) {
-			logoURL = null;
-		}
-		final JLabel label = new JLabel((logoURL == null) ? "Initializing SNT..." : "Initializing...");
-		label.setAlignmentX(JLabel.CENTER_ALIGNMENT);
+		final JLabel logo = getIconAsLabel();
+		if (logo != null) panel.add(logo);
+		final JLabel label = new JLabel((logo == null) ? "Initializing SNT..." : "Initializing...");
 		// set font size reasonably for hiDPI displays
 		//FIXME: With jdk11 this should no longer be needed
-		label.setFont(new Font(Font.DIALOG, Font.BOLD, GuiUtils.getMenuItemHeight() * ((logoURL == null) ? 4 : 1)));
+		assignStyle(label, ((logo == null) ? 4 : 1) );
 		panel.add(label);
 		progressBar.setMaximum(PROGBAR_MAX);
 		container.add(progressBar, BorderLayout.SOUTH);
@@ -95,4 +111,9 @@ class SplashScreen extends JWindow {
 		progressBarTimer.start();
 	}
 
-}
+	/* IDE Debug method */
+	public static void main(final String[] args) {
+		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.initSplashScreen();
+		GuiUtils.showAboutDialog();
+	}}
