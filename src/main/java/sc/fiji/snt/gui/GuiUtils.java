@@ -95,6 +95,7 @@ import sc.fiji.snt.SNTUtils;
 /** Misc. utilities for SNT's GUI. */
 public class GuiUtils {
 
+	private static SplashScreen splashScreen;
 	final private Component parent;
 	private JidePopup popup;
 	private boolean popupExceptionTriggered;
@@ -217,8 +218,12 @@ public class GuiUtils {
 			JOptionPane.QUESTION_MESSAGE, JOptionPane.YES_NO_OPTION, null,
 			buttonLabels);
 		final JDialog d = optionPane.createDialog(parent, title);
+		// Work around prompt being displayed behind splashScreen on MacOS
+		final boolean splashScreenDisplaying = splashScreen != null && splashScreen.isVisible();
+		if (splashScreenDisplaying) splashScreen.setVisible(false);
 		makeVisible(d, true);
 		d.dispose();
+		if (splashScreenDisplaying) splashScreen.setVisible(true);
 		final Object result = optionPane.getValue();
 		if (result instanceof Integer) {
 			return (Integer) result;
@@ -637,6 +642,21 @@ public class GuiUtils {
 	}
 
 	/* Static methods */
+
+	public static void initSplashScreen() {
+		splashScreen = new SplashScreen();
+		splashScreen.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(final MouseEvent e) {
+				if (e.getClickCount() == 2) closeSplashScreen();
+			}
+		});
+	}
+
+	public static void closeSplashScreen() {
+		if (splashScreen != null) splashScreen.close();
+		splashScreen = null;
+	}
 
 	public static void collapseAllTreeNodes(final JTree tree) {
 		final int row1 = (tree.isRootVisible()) ? 1 : 0;

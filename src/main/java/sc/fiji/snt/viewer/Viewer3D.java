@@ -2521,6 +2521,12 @@ public class Viewer3D {
 				delayedMsg(300, "Press \"Esc\" to exit Full Screen", 3000); // without delay popup is not shown?
 			}
 		}
+
+		@Override
+		public void setVisible(final boolean b) {
+			SNTUtils.setIsLoading(false);
+			super.setVisible(b);
+		}
 	}
 
 	/* Workaround for nasty libx11 bug on linux */

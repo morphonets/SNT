@@ -126,7 +126,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 	@Override
 	public void initialize() {
 		if (sntService.isActive() && sntService.getUI() != null) {
-			cancel("SNT seems to be already running.");
+			exit("SNT seems to be already running.");
 			return;
 		}
 		GuiUtils.setSystemLookAndFeel(); // needs to be called here to set L&F of contextual menu
@@ -252,6 +252,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 	public void run() {
 
 	//	resetPrefs();
+		SNTUtils.setIsLoading(true);
 		final boolean noImg = IMAGE_NONE.equals(imageChoice) || (IMAGE_FILE.equals(
 			imageChoice) && imageFile == null);
 
@@ -261,7 +262,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 				pathAndFillManager.setHeadless(true);
 				if (!pathAndFillManager.load(tracesFile.getAbsolutePath()))
 				{
-					cancel(String.format("%s is not a valid file", tracesFile
+					exit(String.format("%s is not a valid file", tracesFile
 						.getAbsolutePath()));
 				}
 			}
@@ -273,19 +274,23 @@ public class SNTLoaderCmd extends DynamicCommand {
 		else if (IMAGE_FILE.equals(imageChoice)) {
 
 			sourceImp = openImage();
-			if (sourceImp == null)
+			if (sourceImp == null) {
+				exit("");
 				return; // error messages have been displayed by openImage()
-			else if (!sourceImp.isVisible())
+			} else if (!sourceImp.isVisible())
 				sourceImp.show();
 
 		}
 		else if (sourceImp == null) { // frontmost image does not exist
-			cancel("An image is required but none was found.");
+			exit("An image is required but none was found.");
 			return;
 		}
 
 		// Is spatial calibration set?
-		if (!validateImageDimensions()) return;
+		if (!validateImageDimensions()) {
+			exit("");
+			return;
+		}
 
 		// If user loaded an existing image, it is possible it can be RGB
 		if (ImagePlus.COLOR_RGB == sourceImp.getType()) {
@@ -294,7 +299,10 @@ public class SNTLoaderCmd extends DynamicCommand {
 					sourceImp.getTitle() +
 					" to a multichannel image. Would you like to do it now? (SNT will quit if you choose \"No\")",
 				"Convert to Multichannel?");
-			if (!convert) return;
+			if (!convert) {
+				exit("");
+				return;
+			}
 			sourceImp.hide();
 			sourceImp = CompositeConverter.makeComposite(sourceImp);
 			sourceImp.show();
@@ -304,7 +312,6 @@ public class SNTLoaderCmd extends DynamicCommand {
 			getContext(), sourceImp);
 		sntInstance.loadTracings(tracesFile);
 		initPlugin(sntInstance);
-
 	}
 
 	private ImagePlus openImage() {
@@ -330,13 +337,13 @@ public class SNTLoaderCmd extends DynamicCommand {
 			final String filename = imageFile.getName().toLowerCase();
 			if (title.contains(filename)) return imp;
 		} else if (nImagesAfter > nImagesBefore + 1) {
-			cancel("Import of " + imageFile.getName() + " resulted in several images open.\n"
+			exit("Import of " + imageFile.getName() + " resulted in several images open.\n"
 					+ "Since it is not clear which one should be chosen, please make\n"
 					+ "the relevant image frontmost and re-run SNT.");
 			return null;
 		}
 
-		cancel("Could not open image:\n" + imageFile.getAbsolutePath() + ".\n"
+		exit("Could not open image:\n" + imageFile.getAbsolutePath() + ".\n"
 				+ "If the file corresponds to a proprietary image format, please open it\n"
 				+ "using Plugins>Bio-Formats>Bio-Formats Importer..., then re-run SNT\n"
 				+ "with " + imageFile.getName() + " as the frontmost image.");
@@ -362,7 +369,9 @@ public class SNTLoaderCmd extends DynamicCommand {
 			else {
 				sb.append("select the \"").append(UI_SIMPLE).append("\" interface.");
 			}
-			cancel(sb.toString());
+			exit(sb.toString());
+		} finally {
+			exit("");
 		}
 	}
 
@@ -388,6 +397,11 @@ public class SNTLoaderCmd extends DynamicCommand {
 		return true;
 	}
 
+	private void exit(final String msg) {
+		SNTUtils.setIsLoading(false);
+		if (msg != null && !msg.isEmpty())
+			cancel(msg);
+	}
 	/*
 	 * IDE debug method
 	 *

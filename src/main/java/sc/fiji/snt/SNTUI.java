@@ -2833,6 +2833,7 @@ public class SNTUI extends JDialog {
 			arrangeCanvases(false);
 			resetState();
 			pack();
+			SNTUtils.setIsLoading(false);
 			setVisible(true);
 			{
 				// Adjust fields that resize the dialog unless it is visible
