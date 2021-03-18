@@ -780,7 +780,8 @@ public class GuiUtils {
 		try {
 			Desktop.getDesktop().browse(new URI(uri));
 		} catch (IOException | URISyntaxException ex) {
-			SNTUtils.log("Could not open " + uri);
+			if (uri != null && !uri.isEmpty())
+				SNTUtils.log("Could not open " + uri);
 		}
 	}
 

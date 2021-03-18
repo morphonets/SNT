@@ -2833,15 +2833,12 @@ public class SNTUI extends JDialog {
 			arrangeCanvases(false);
 			resetState();
 			pack();
-			SNTUtils.setIsLoading(false);
-			setVisible(true);
-			{
-				// Adjust fields that resize the dialog unless it is visible
-				updateFilteredImageFileWidget();
-			}
+			updateFilteredImageFileWidget();
 			pathAndFillManager.resetListeners(null, true); // update Path lists
 			setPathListVisible(true, false);
 			setFillListVisible(false);
+			setVisible(true);
+			SNTUtils.setIsLoading(false);
 			if (plugin.getImagePlus()!=null) plugin.getImagePlus().getWindow().toFront();
 		});
 	}
