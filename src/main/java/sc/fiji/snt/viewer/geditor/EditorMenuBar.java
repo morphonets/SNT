@@ -314,9 +314,10 @@ class EditorMenuBar extends JMenuBar
 		submenu.add(new EditorActions.ToggleConnectModeAction(mxResources.get("connectMode"), graphComponent.isConnectable()));
 
 		// DragAndDrop menu
-		submenu = (JMenu) menu.add(new JMenu(mxResources.get("dragAndDrop")));
-		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("dragEnabled"), "DragEnabled"));
-		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("dropEnabled"), "DropEnabled"));
+		//FIXME: java.io.NotSerializableException for both AllenCompartment and SWCPoint
+//		submenu = (JMenu) menu.add(new JMenu(mxResources.get("dragAndDrop")));
+//		submenu.add(new EditorActions.TogglePropertyItem(graphComponent, mxResources.get("dragEnabled"), "DragEnabled"));
+//		submenu.add(new EditorActions.TogglePropertyItem(graph, mxResources.get("dropEnabled"), "DropEnabled"));
 
 		// Validation menu
 		submenu = (JMenu) menu.add(new JMenu(mxResources.get("validation")));

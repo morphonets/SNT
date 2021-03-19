@@ -1066,7 +1066,8 @@ public class GraphEditor extends JPanel
 
 	private JPanel getNoLegendPanel() {
 		final JPanel panel = new JPanel();
-		final JLabel label = new JLabel("No Color Mapping Currently Exists");
+		final JLabel label = new JLabel("<HTML>No color legend currently exists.<br>"
+				+ "Use Analyze&rarr;Color Coding... to generate one");
 		label.setForeground(getForegroundColor());
 		panel.add(label);
 		return panel;
