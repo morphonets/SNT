@@ -1215,6 +1215,7 @@ public class Viewer3D {
 			final int h = (height < 0) ? dm.getHeight() : height;
 			frame = new ViewerFrame(chart, w, h, managerList != null, gConfiguration);
 		}
+		frame.setVisible(true);
 		displayMsg("Press 'H' or 'F1' for help", 3000);
 		return frame;
 	}
@@ -2389,7 +2390,6 @@ public class Viewer3D {
 				manager = getManager();
 				managerList.selectAll();
 				snapPanelToSide();
-				manager.setVisible(true);
 			}
 			toFront();
 		}
@@ -2474,7 +2474,6 @@ public class Viewer3D {
 					exitRequested(gUtils);
 				}
 			});
-			setVisible(true);
 		}
 
 		public void disposeFrame() {
@@ -2502,7 +2501,6 @@ public class Viewer3D {
 				setSize(dim);
 				setLocation(loc);
 				setVisible(true);
-				if (manager!= null) manager.setVisible(true);
 				if (lightController != null) lightController.setVisible(true);
 				if (allenNavigator != null) allenNavigator.dialog.setVisible(true);
 				isFullScreen = false;
@@ -2520,6 +2518,13 @@ public class Viewer3D {
 				isFullScreen = true;
 				delayedMsg(300, "Press \"Esc\" to exit Full Screen", 3000); // without delay popup is not shown?
 			}
+		}
+
+		@Override
+		public void setVisible(final boolean b) {
+			SNTUtils.setIsLoading(false);
+			super.setVisible(b);
+			if (manager != null) manager.setVisible(true);
 		}
 	}
 
@@ -3947,10 +3952,10 @@ public class Viewer3D {
 			});
 			utilsMenu.add(jcbmi);
 	
-			addSeparator(utilsMenu, "Online Resources:");
+			addSeparator(utilsMenu, "Resources:");
 			final JMenu helpMenu = GuiUtils.helpMenu();
 			helpMenu.setIcon( IconFactory.getMenuIcon(GLYPH.QUESTION));
-			//utilsMenu.add(helpMenu.getItem(0));
+			utilsMenu.add(helpMenu.getItem(0));
 			utilsMenu.add(helpMenu.getItem(helpMenu.getItemCount()-1));
 			utilsMenu.add(helpMenu);
 			return utilsMenu;
@@ -4606,7 +4611,9 @@ public class Viewer3D {
 					if (fName.endsWith("swc") || fName.endsWith(".traces") || fName.endsWith(".json")) { // reconstruction:
 						try {
 							final Collection<Tree> treesInFile = Tree.listFromFile(file.getAbsolutePath());
-							if (treesInFile.size() > 1) {
+							if (treesInFile.isEmpty()) {
+								failures++;
+							} else if (treesInFile.size() > 1) {
 								if (frame.managerPanel != null)
 									frame.managerPanel.setProgressLimit(0, totalFiles + treesInFile.size());
 								Tree.assignUniqueColors(treesInFile);
@@ -5567,6 +5574,7 @@ public class Viewer3D {
 		private final Map<String, Object> inputs;
 		private final int type;
 		private final boolean setRecViewerParamater;
+		private final boolean displayProgressBar;
 
 		public CmdWorker(final Class<? extends Command> cmd,
 			final Map<String, Object> inputs, final int type,
@@ -5576,6 +5584,8 @@ public class Viewer3D {
 			this.inputs = inputs;
 			this.type = type;
 			this.setRecViewerParamater = setRecViewerParamater;
+			displayProgressBar = getManagerPanel() != null;
+			if (displayProgressBar) getManagerPanel().setProgress(-1);
 		}
 
 		@Override
@@ -5619,6 +5629,8 @@ public class Viewer3D {
 			}
 			catch (final Exception ignored) {
 				// do nothing
+			} finally {
+				if (displayProgressBar) getManagerPanel().resetProgressBar();
 			}
 		}
 	}

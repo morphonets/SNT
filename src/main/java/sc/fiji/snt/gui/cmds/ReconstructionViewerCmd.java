@@ -28,6 +28,7 @@ import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Plugin;
 
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.gui.GuiUtils;
 
@@ -47,6 +48,7 @@ public class ReconstructionViewerCmd extends ContextCommand {
 	 */
 	@Override
 	public void run() {
+		SNTUtils.setIsLoading(true);
 		final Viewer3D viewer = new Viewer3D(getContext());
 		viewer.show();
 	}

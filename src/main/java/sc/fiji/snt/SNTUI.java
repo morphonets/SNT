@@ -2329,6 +2329,7 @@ public class SNTUI extends JDialog {
 			}
 		});
 		final JMenuItem plotMenuItem = new JMenuItem("Reconstruction Plotter...", IconFactory.getMenuIcon(IconFactory.GLYPH.DRAFT));
+		plotMenuItem.setToolTipText("Renders traced paths as vector graphics (2D)");
 		plotMenuItem.addActionListener( e -> {
 			if (noPathsError()) return;
 			final Tree tree = getPathManager().getSingleTree();
@@ -2351,6 +2352,10 @@ public class SNTUI extends JDialog {
 			pa.run();
 		});
 		analysisMenu.add(pathOrderAnalysis);
+		exportCSVMenuItem = new JMenuItem("Path Properties: Export CSV...", IconFactory.getMenuIcon(IconFactory.GLYPH.CSV));
+		exportCSVMenuItem.setToolTipText("Exports details (metrics, relationships, ...) of existing paths as tabular data");
+		exportCSVMenuItem.addActionListener(listener);
+		analysisMenu.add(exportCSVMenuItem);
 		analysisMenu.addSeparator();
 		final JMenuItem shollMenuItem = new JMenuItem("Sholl Analysis...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.BULLSEYE));
@@ -2364,7 +2369,6 @@ public class SNTUI extends JDialog {
 		});
 		analysisMenu.add(shollMenuItem);
 		analysisMenu.add(shollAnalysisHelpMenuItem());
-		analysisMenu.addSeparator();
 		final JMenuItem strahlerMenuItem = new JMenuItem("Strahler Analysis",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
 		strahlerMenuItem.addActionListener(e -> {
@@ -2377,11 +2381,8 @@ public class SNTUI extends JDialog {
 		});
 		analysisMenu.add(strahlerMenuItem);
 		analysisMenu.addSeparator();
-	
+
 		// Measuring options : All Paths
-		exportCSVMenuItem = new JMenuItem("Export CSV Properties...", IconFactory.getMenuIcon(IconFactory.GLYPH.CSV));
-		exportCSVMenuItem.addActionListener(listener);
-		analysisMenu.add(exportCSVMenuItem);
 		final JMenuItem measureWithPrompt = new JMenuItem("Measure...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
 		measureWithPrompt.addActionListener(e -> {
@@ -2398,7 +2399,8 @@ public class SNTUI extends JDialog {
 
 		// Utilities
 		utilitiesMenu.add(plotMenuItem);
-		final JMenuItem compareFiles = new JMenuItem("Compare Reconstructions...");
+		final JMenuItem compareFiles = new JMenuItem("Compare Reconstructions/Cell Groups...");
+		compareFiles.setToolTipText("Statistical comparisons between cell groups or individual files");
 		compareFiles.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BINOCULARS));
 		utilitiesMenu.add(compareFiles);
 		compareFiles.addActionListener(e -> {
@@ -2414,6 +2416,7 @@ public class SNTUI extends JDialog {
 		utilitiesMenu.addSeparator();
 		final JMenuItem graphGenerator = new JMenuItem("Create Dendrogram",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.DIAGRAM));
+		graphGenerator.setToolTipText("Displays traced structure(s) in Graph Viewer");
 		utilitiesMenu.add(graphGenerator);
 		graphGenerator.addActionListener(e -> {
 			if (noPathsError()) return;
@@ -2424,8 +2427,9 @@ public class SNTUI extends JDialog {
 			(new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
 		});
 		utilitiesMenu.addSeparator();
-		final JMenuItem skeletonConverter = new JMenuItem("Extract Paths From Segmented Image...",
+		final JMenuItem skeletonConverter = new JMenuItem("Extract Paths from Segmented Image...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.TREE));
+		skeletonConverter.setToolTipText("Runs automated tracing on a thresholded/binary image");
 		utilitiesMenu.add(skeletonConverter);
 		skeletonConverter.addActionListener(e -> {
 			(new DynamicCmdRunner(SkeletonConverterCmd.class, null)).run();
@@ -2833,14 +2837,12 @@ public class SNTUI extends JDialog {
 			arrangeCanvases(false);
 			resetState();
 			pack();
-			setVisible(true);
-			{
-				// Adjust fields that resize the dialog unless it is visible
-				updateFilteredImageFileWidget();
-			}
+			updateFilteredImageFileWidget();
 			pathAndFillManager.resetListeners(null, true); // update Path lists
 			setPathListVisible(true, false);
 			setFillListVisible(false);
+			setVisible(true);
+			SNTUtils.setIsLoading(false);
 			if (plugin.getImagePlus()!=null) plugin.getImagePlus().getWindow().toFront();
 		});
 	}

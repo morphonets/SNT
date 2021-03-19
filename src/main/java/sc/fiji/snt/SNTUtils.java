@@ -23,6 +23,7 @@
 package sc.fiji.snt;
 
 import java.awt.Color;
+import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileOutputStream;
@@ -63,6 +64,7 @@ import ij.process.LUT;
 import ij.process.StackConverter;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -485,5 +487,12 @@ public class SNTUtils {
 			return file.canRead() && (lName.endsWith("swc") || lName.endsWith(".traces") || lName.endsWith(".json"));
 		};
 		return dir.listFiles(filter);
+	}
+
+	public static void setIsLoading(boolean isLoading) {
+		if (isLoading && !GraphicsEnvironment.isHeadless())
+			GuiUtils.initSplashScreen();
+		else
+			GuiUtils.closeSplashScreen();
 	}
 }

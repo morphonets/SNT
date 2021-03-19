@@ -27,6 +27,7 @@ import com.jidesoft.popup.JidePopup;
 import com.jidesoft.utils.ProductNames;
 
 import ij.IJ;
+import ij.ImageJ;
 
 import java.awt.BorderLayout;
 import java.awt.Canvas;
@@ -95,6 +96,7 @@ import sc.fiji.snt.SNTUtils;
 /** Misc. utilities for SNT's GUI. */
 public class GuiUtils {
 
+	private static SplashScreen splashScreen;
 	final private Component parent;
 	private JidePopup popup;
 	private boolean popupExceptionTriggered;
@@ -217,8 +219,12 @@ public class GuiUtils {
 			JOptionPane.QUESTION_MESSAGE, JOptionPane.YES_NO_OPTION, null,
 			buttonLabels);
 		final JDialog d = optionPane.createDialog(parent, title);
+		// Work around prompt being displayed behind splashScreen on MacOS
+		final boolean splashScreenDisplaying = splashScreen != null && splashScreen.isVisible();
+		if (splashScreenDisplaying) splashScreen.setVisible(false);
 		makeVisible(d, true);
 		d.dispose();
+		if (splashScreenDisplaying) splashScreen.setVisible(true);
 		final Object result = optionPane.getValue();
 		if (result instanceof Integer) {
 			return (Integer) result;
@@ -243,7 +249,7 @@ public class GuiUtils {
 				&& parent instanceof Window) {
 			try {
 				((Window) parent).toBack();
-				Thread.sleep(50);
+				Thread.sleep(75);
 				dialog.toFront();
 			} catch (final InterruptedException e) {
 				// ignored
@@ -636,7 +642,71 @@ public class GuiUtils {
 		blinkingComponent.setForeground(prevColor);
 	}
 
+	static JDialog showAboutDialog() {
+		final JPanel main = new JPanel();
+		main.add(SplashScreen.getIconAsLabel());
+		final JPanel side = new JPanel();
+		main.add(side);
+		side.setLayout(new BoxLayout(side, BoxLayout.Y_AXIS));
+		final JLabel title = new JLabel("SNT " + SNTUtils.VERSION);
+		SplashScreen.assignStyle(title, 2);
+		side.add(title);
+		final JLabel subTitle = new JLabel("The ImageJ Framework for Neuroanatomy");
+		SplashScreen.assignStyle(subTitle, 1);
+		side.add(subTitle);
+		side.add(new JLabel(" ")); // spacer
+		final JLabel ijDetails = leftAlignedLabel(
+				"ImageJ " + ImageJ.VERSION + ImageJ.BUILD + "  |  Java " + System.getProperty("java.version"), "", true);
+		ijDetails.setAlignmentX(JLabel.CENTER_ALIGNMENT);
+		ijDetails.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(final MouseEvent e) {
+				if (IJ.getInstance() == null)
+					new ij.plugin.JavaProperties().run("");
+				else
+					IJ.doCommand("ImageJ Properties");
+			}
+
+		});
+		side.add(ijDetails);
+		side.add(new JLabel(" ")); // spacer
+		final JPanel urls = new JPanel();
+		side.add(urls);
+		JLabel url = leftAlignedLabel("Release Notes   ", "https://github.com/morphonets/SNT/releases", true);
+		urls.add(url);
+		url = leftAlignedLabel("Documentation   ", "https://imagej.net/SNT", true);
+		urls.add(url);
+		url = leftAlignedLabel("Forum   ", "https://forum.image.sc/tags/snt", true);
+		urls.add(url);
+		url = leftAlignedLabel("GitHub   ", "https://github.com/morphonets/SNT/", true);
+		urls.add(url);
+		url = leftAlignedLabel("Manuscript", "https://doi.org/10.1038/s41592-021-01105-7", true);
+		urls.add(url);
+		final JOptionPane optionPane = new JOptionPane(main, JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
+		final JDialog d = optionPane.createDialog("About SNT...");
+		d.setLocationRelativeTo(null);
+		d.setVisible(true);
+		d.toFront();
+		d.setAlwaysOnTop(!d.hasFocus()); // see makeVisible()
+		return d;
+	}
+
 	/* Static methods */
+
+	public static void initSplashScreen() {
+		splashScreen = new SplashScreen();
+		splashScreen.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(final MouseEvent e) {
+				closeSplashScreen();
+			}
+		});
+	}
+
+	public static void closeSplashScreen() {
+		if (splashScreen != null) splashScreen.close();
+		splashScreen = null;
+	}
 
 	public static void collapseAllTreeNodes(final JTree tree) {
 		final int row1 = (tree.isRootVisible()) ? 1 : 0;
@@ -710,7 +780,8 @@ public class GuiUtils {
 		try {
 			Desktop.getDesktop().browse(new URI(uri));
 		} catch (IOException | URISyntaxException ex) {
-			SNTUtils.log("Could not open " + uri);
+			if (uri != null && !uri.isEmpty())
+				SNTUtils.log("Could not open " + uri);
 		}
 	}
 
@@ -858,22 +929,27 @@ public class GuiUtils {
 		mi = menuItemTriggeringURL("Scripting", URL + ":_Scripting");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE));
 		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Python Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
+		mi = menuItemTriggeringURL("Jupyter Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SCROLL));
 		helpMenu.add(mi);
 		helpMenu.addSeparator();
 
-		mi = menuItemTriggeringURL("SNT's Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COGS));
-		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("SNT's API", "https://morphonets.github.io/SNT/");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE2));
 		helpMenu.add(mi);
-		helpMenu.addSeparator();
-
+		mi = menuItemTriggeringURL("SNT's Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COGS));
+		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("SNT Manuscript", "https://doi.org/10.1101/2020.07.13.179325");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FILE));
 		helpMenu.add(mi);
+		helpMenu.addSeparator();
+
+		final JMenuItem about = new JMenuItem("About...");
+		about.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.INFO));
+		about.addActionListener(e -> showAboutDialog());
+		helpMenu.add(about);
+
 		return helpMenu;
 	}
 
