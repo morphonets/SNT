@@ -5574,6 +5574,7 @@ public class Viewer3D {
 		private final Map<String, Object> inputs;
 		private final int type;
 		private final boolean setRecViewerParamater;
+		private final boolean displayProgressBar;
 
 		public CmdWorker(final Class<? extends Command> cmd,
 			final Map<String, Object> inputs, final int type,
@@ -5583,6 +5584,8 @@ public class Viewer3D {
 			this.inputs = inputs;
 			this.type = type;
 			this.setRecViewerParamater = setRecViewerParamater;
+			displayProgressBar = getManagerPanel() != null;
+			if (displayProgressBar) getManagerPanel().setProgress(-1);
 		}
 
 		@Override
@@ -5626,6 +5629,8 @@ public class Viewer3D {
 			}
 			catch (final Exception ignored) {
 				// do nothing
+			} finally {
+				if (displayProgressBar) getManagerPanel().resetProgressBar();
 			}
 		}
 	}
