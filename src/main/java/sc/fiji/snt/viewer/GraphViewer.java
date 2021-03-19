@@ -97,6 +97,7 @@ public class GraphViewer {
     	if (editor == null) initEditor();
         JFrame frame = editor.createFrame(getContext());
         //frame.pack(); //FIXME: Don't pack() otherwise stall occurs on openjdk
+        SNTUtils.setIsLoading(false);
         SwingUtilities.invokeLater(() -> frame.setVisible(true));
         return frame;
     }
