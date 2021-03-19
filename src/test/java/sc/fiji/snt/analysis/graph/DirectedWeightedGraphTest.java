@@ -71,20 +71,10 @@ public class DirectedWeightedGraphTest {
 		final SWCPoint v2 = new SWCPoint(0, 2, 1.0, 1.0, 1.0, 1.0, 0);
 		final SWCPoint v3 = v1;
 		pGraph.addVertex(v1);
-		try {
-			final boolean addSuccess = pGraph.addVertex(v2);
-			assertTrue(addSuccess);
-		} catch (IllegalArgumentException ex) {
-			ex.printStackTrace();
-			fail();
-		}
-		try {
-			final boolean addSuccess = pGraph.addVertex(v3);
-			assertFalse(addSuccess);
-		} catch (IllegalArgumentException ex) {
-			ex.printStackTrace();
-			fail();
-		}
+		boolean added = pGraph.addVertex(v2);
+		assertTrue(added);
+		added = pGraph.addVertex(v3);
+		assertFalse(added);
 	}
 
 	@Test
@@ -144,24 +134,24 @@ public class DirectedWeightedGraphTest {
 			}
 		}
 		assertNotNull(longestPathDSP);
+		final List<SWCPoint> longestPathDSPVertices = longestPathDSP.getVertexList();
 
 		final Path longestPathSNT = graph.getLongestPath(true);
 		assertNotNull(longestPathSNT);
-
-		assertEquals(longestPathDSP.getWeight(), longestPathSNT.getLength(), precision);
-
-		final List<SWCPoint> longestPathDSPVertexList = longestPathDSP.getVertexList();
-		assertEquals(longestPathDSPVertexList.size(), longestPathSNT.size());
-		// PointInImage and SWCPoint are not directly comparable, so use node location as proxy
-		for (int i = 0; i < longestPathSNT.size(); i++) {
-			assertTrue(longestPathDSPVertexList.get(i).isSameLocation(longestPathSNT.getNode(i)));
-		}
-
 		final Deque<SWCPoint> longestPathSNTVertices = graph.getLongestPathVertices(true);
 		assertNotNull(longestPathSNTVertices);
 
+		assertEquals(longestPathDSP.getWeight(), longestPathSNT.getLength(), precision);
+		assertEquals(longestPathDSPVertices.size(), longestPathSNT.size());
+		assertEquals(longestPathDSPVertices.size(), longestPathSNTVertices.size());
+
+		// PointInImage and SWCPoint are not directly comparable, so use node location as proxy
+		for (int i = 0; i < longestPathSNT.size(); i++) {
+			assertTrue(longestPathDSPVertices.get(i).isSameLocation(longestPathSNT.getNode(i)));
+		}
+
 		final Iterator<SWCPoint> longestPathSNTVerticesIterator = longestPathSNTVertices.iterator();
-		for (final SWCPoint swcPoint : longestPathDSPVertexList) {
+		for (final SWCPoint swcPoint : longestPathDSPVertices) {
 			assertEquals(swcPoint, longestPathSNTVerticesIterator.next());
 		}
 	}
@@ -191,48 +181,43 @@ public class DirectedWeightedGraphTest {
 			}
 		}
 		assertNotNull(longestPathDSP);
+		final List<SWCPoint> longestPathDSPVertices = longestPathDSP.getVertexList();
 
 		final Path longestPathSNT = graph.getLongestPath(false);
 		assertNotNull(longestPathSNT);
+		final Deque<SWCPoint> longestPathSNTVertices = graph.getLongestPathVertices(false);
+		assertNotNull(longestPathSNTVertices);
 
 		assertEquals(longestPathDSP.getWeight(), longestPathSNT.getLength(), precision);
+		assertEquals(longestPathDSPVertices.size(), longestPathSNT.size());
+		assertEquals(longestPathDSPVertices.size(), longestPathSNTVertices.size());
 
-		final List<SWCPoint> longestPathDSPVertexList = longestPathDSP.getVertexList();
-		assertEquals(longestPathDSPVertexList.size(), longestPathSNT.size());
 		// In the undirected case, it is possible for the dijkstra and SNT longest paths to be opposites of each other.
 		// This is not a bug, just need to check which case occurred.
-		if (longestPathDSPVertexList.get(0).isSameLocation(longestPathSNT.getNode(0))) {
+		if (longestPathDSPVertices.get(0).isSameLocation(longestPathSNT.getNode(0))) {
 			// PointInImage and SWCPoint are not directly comparable, so use node location as proxy
 			for (int i = 0; i < longestPathSNT.size(); i++) {
-				assertTrue(longestPathDSPVertexList.get(i).isSameLocation(longestPathSNT.getNode(i)));
+				assertTrue(longestPathDSPVertices.get(i).isSameLocation(longestPathSNT.getNode(i)));
 			}
-			final Deque<SWCPoint> longestPathSNTVertices = graph.getLongestPathVertices(false);
-			assertNotNull(longestPathSNTVertices);
-
-			final Iterator<SWCPoint> longestPathSNTVerticesIterator = longestPathSNTVertices.descendingIterator();
-			for (final SWCPoint swcPoint : longestPathDSPVertexList) {
+			final Iterator<SWCPoint> longestPathSNTVerticesIterator = longestPathSNTVertices.iterator();
+			for (final SWCPoint swcPoint : longestPathDSPVertices) {
 				assertEquals(swcPoint, longestPathSNTVerticesIterator.next());
 			}
-		} else if (longestPathDSPVertexList.get(0).isSameLocation(
+		} else if (longestPathDSPVertices.get(0).isSameLocation(
 				longestPathSNT.getNode(longestPathSNT.size() - 1))) {
 			// PointInImage and SWCPoint are not directly comparable, so use node location as proxy
 			for (int i = 0; i < longestPathSNT.size(); i++) {
-				assertTrue(longestPathDSPVertexList.get(i).isSameLocation(
+				assertTrue(longestPathDSPVertices.get(i).isSameLocation(
 						longestPathSNT.getNode(longestPathSNT.size() - (i + 1))));
 			}
-			final Deque<SWCPoint> longestPathSNTVertices = graph.getLongestPathVertices(false);
-			assertNotNull(longestPathSNTVertices);
-
 			final Iterator<SWCPoint> longestPathSNTVerticesIterator = longestPathSNTVertices.descendingIterator();
-			for (final SWCPoint swcPoint : longestPathDSPVertexList) {
+			for (final SWCPoint swcPoint : longestPathDSPVertices) {
 				assertEquals(swcPoint, longestPathSNTVerticesIterator.next());
 			}
-
 		} else {
 			// If we get here, something is wrong.
 			fail();
 		}
-
 	}
 
 	@Test
@@ -251,14 +236,18 @@ public class DirectedWeightedGraphTest {
 				final Path sp = graph.getShortestPath(n1, n2);
 				final Deque<SWCPoint> spDeque = graph.getShortestPathVertices(n1, n2);
 				final Iterator<SWCPoint> spDequeIterator = spDeque.iterator();
+
 				final GraphPath<SWCPoint, SWCWeightedEdge> dsp = dijkstraShortestPath.getPath(n1, n2);
 				final List<SWCPoint> dspVertexList = dsp.getVertexList();
+
 				assertEquals(dspVertexList.size(), sp.size());
 				assertEquals(dspVertexList.size(), spDeque.size());
+
 				for (int i = 0; i < dspVertexList.size(); i++) {
 					assertEquals(dspVertexList.get(i), spDequeIterator.next());
 					assertTrue(dspVertexList.get(i).isSameLocation(sp.getNode(i)));
 				}
+
 				assertEquals(sp.getLength(), dsp.getWeight(), precision);
 			}
 		}

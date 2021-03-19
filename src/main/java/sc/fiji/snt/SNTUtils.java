@@ -127,7 +127,7 @@ public class SNTUtils {
 		return viewerMap;
 	}
 
-	protected static synchronized void error(final String string) {
+	public static synchronized void error(final String string) {
 		if (SNTUtils.isDebugMode()) nonDebugError(string);
 	}
 

@@ -28,9 +28,9 @@ import org.jgrapht.graph.AsUndirectedGraph;
 import org.jgrapht.graph.DefaultGraphType;
 import org.jgrapht.traverse.BreadthFirstIterator;
 import org.jgrapht.traverse.DepthFirstIterator;
-
 import org.jgrapht.util.SupplierUtil;
 import sc.fiji.snt.Path;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.NodeStatistics;
 import sc.fiji.snt.annotation.BrainAnnotation;
@@ -59,18 +59,34 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @param tree the Tree to be converted
 	 * @throws IllegalArgumentException if Tree contains multiple roots
 	 */
-	public DirectedWeightedGraph(final Tree tree) throws IllegalArgumentException {
+	public DirectedWeightedGraph(final Tree tree) {
 		this();
 		this.tree = tree;
 		init(tree.getNodesAsSWCPoints(), true);
 	}
 
-	public DirectedWeightedGraph(final Tree tree, final boolean assignDistancesToWeight) throws IllegalArgumentException {
+	/**
+	 * Creates a DirectedWeightedGraph from a Tree, with the option to assign edge weights corresponding
+	 * to inter-node distances.
+	 *
+	 * @param tree the Tree to be converted
+	 * @param assignDistancesToWeight whether to assign inter-node distances between adjacent points as edge weights
+	 * @throws IllegalArgumentException if Tree contains multiple roots
+	 */
+	public DirectedWeightedGraph(final Tree tree, final boolean assignDistancesToWeight) {
 		this();
 		this.tree = tree;
 		init(tree.getNodesAsSWCPoints(), assignDistancesToWeight);
 	}
 
+	/**
+	 * Creates an empty DirectedWeightedGraph. Edges added to the graph are unweighted until
+	 * a weight is assigned manually.
+	 *
+	 * @see #assignEdgeWeightsEuclidean()
+	 * @see #setEdgeWeight(Object, Object, double)
+	 * @see #setEdgeWeight(Object, double)
+	 */
 	public DirectedWeightedGraph() {
 		super(null, SupplierUtil.createSupplier(SWCWeightedEdge.class), new DefaultGraphType.Builder()
 				.directed().allowMultipleEdges(false).allowSelfLoops(false).allowCycles(false).weighted(true)
@@ -85,14 +101,12 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @param assignDistancesToWeight if true, inter-node Euclidean distances are
 	 *                                 used as edge weights
 	 */
-	protected DirectedWeightedGraph(final Collection<SWCPoint> nodes, final boolean assignDistancesToWeight)
-			throws IllegalArgumentException {
+	protected DirectedWeightedGraph(final Collection<SWCPoint> nodes, final boolean assignDistancesToWeight) {
 		this();
 		init(nodes, assignDistancesToWeight);
 	}
 
-	private void init(final Collection<SWCPoint> nodes, final boolean assignDistancesToWeights)
-			throws IllegalArgumentException {
+	private void init(final Collection<SWCPoint> nodes, final boolean assignDistancesToWeights) {
 		final Map<Integer, SWCPoint> map = new HashMap<>();
 		for (final SWCPoint node : nodes) {
 			map.put(node.id, node);
@@ -112,10 +126,13 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	}
 
 	/**
-	 * Returns a simplified version graph in which slab nodes are removed and graph
-	 * is represented only by root, branch nodes and leaves.
+	 * Returns a simplified graph in which slab nodes are removed and the graph
+	 * is represented only by root, branch nodes and leaves. An edge weight in this
+	 * graph corresponds to the sum of edge weights along the path between the corresponding
+	 * vertices in the base graph.
 	 *
 	 * @return the simplified graph
+	 * @throws IllegalStateException if the base graph does not have exactly one root
 	 */
 	public DirectedWeightedGraph getSimplifiedGraph() {
 		final LinkedHashSet<SWCPoint> relevantNodes = new LinkedHashSet<>();
@@ -215,6 +232,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * Gets a {@link DepthFirstIterator}, using the graph root as start vertex.
 	 *
 	 * @return the DepthFirstIterator
+	 * @throws IllegalStateException if the graph does not have exactly one root
 	 */
 	public DepthFirstIterator<SWCPoint, SWCWeightedEdge> getDepthFirstIterator() {
 		return new DepthFirstIterator<>(this, getRoot());
@@ -234,6 +252,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * Gets a {@link BreadthFirstIterator}, using the graph root as start vertex.
 	 *
 	 * @return the BreadthFirstIterator
+	 * @throws IllegalStateException if the graph does not have exactly one root
 	 */
 	public BreadthFirstIterator<SWCPoint, SWCWeightedEdge> getBreadthFirstIterator() {
 		return new BreadthFirstIterator<>(this, getRoot());
@@ -257,6 +276,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @param useDirected whether to treat the graph as directed.
 	 *                    If true, the longest shortest-path will always include the root and a terminal node.
 	 * @return the longest shortest-path
+	 * @throws IllegalStateException if the graph does not have exactly one root
 	 */
 	public Path getLongestPath(final boolean useDirected) {
 		if (useDirected) {
@@ -275,6 +295,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @param useDirected whether to treat the graph as directed.
 	 *                    If true, the longest shortest-path will always include the root and a terminal node.
 	 * @return the longest shortest-path
+	 * @throws IllegalStateException if the graph does not have exactly one root
 	 */
 	public Deque<SWCPoint> getLongestPathVertices(final boolean useDirected) {
 		if (useDirected) {
@@ -350,6 +371,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @param v1 the source vertex
 	 * @param v2 the target vertex
 	 * @return the shortest Path between source v1 and target v2, or null if no path exists
+	 * @throws IllegalArgumentException if the graph does not contain both v1 and v2
 	 */
 	public Path getShortestPath(final SWCPoint v1, final SWCPoint v2) {
 		return vertexSequenceToPath(getShortestPathVertices(v1, v2));
@@ -365,17 +387,9 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @param v1 the source vertex
 	 * @param v2 the target vertex
 	 * @return the shortest path between source v1 and target v2, or null if no path exists
+	 * @throws IllegalArgumentException if the graph does not contain both v1 and v2
 	 */
 	public Deque<SWCPoint> getShortestPathVertices(final SWCPoint v1, final SWCPoint v2) {
-		if (!containsVertex(v1)) {
-			throw new IllegalArgumentException("Graph does not contain vertex " + v1);
-		}
-		if (!containsVertex(v2)) {
-			throw new IllegalArgumentException("Graph does not contain vertex " + v2);
-		}
-		if (v1 == v2) {
-			return null;
-		}
 		return shortestPathInternal(v1, v2);
 	}
 
@@ -402,8 +416,21 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * Uses the lowest common ancestor to find the shortest path between any two vertices.
 	 */
 	private Deque<SWCPoint> shortestPathInternal(final SWCPoint v1, final SWCPoint v2) {
+		if (!containsVertex(v1)) {
+			throw new IllegalArgumentException("Graph does not contain vertex " + v1);
+		}
+		if (!containsVertex(v2)) {
+			throw new IllegalArgumentException("Graph does not contain vertex " + v2);
+		}
+		if (v1 == v2) {
+			SNTUtils.log("Source " + v1 + " and target " + v2 + " are the same object.");
+			return null;
+		}
+
 		final Deque<SWCPoint> firstPath = new ArrayDeque<>();
 		final Deque<SWCPoint> secondPath = new ArrayDeque<>();
+
+		// Trace the path back to the root for v1
 		SWCPoint currentVertex = v1;
 		firstPath.add(currentVertex);
 		while (true) {
@@ -414,6 +441,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 			currentVertex = inEdges.iterator().next().getSource();
 			firstPath.add(currentVertex);
 		}
+		// Trace the path back to the root for v2, in reverse order
 		currentVertex = v2;
 		secondPath.addFirst(currentVertex);
 		while (true) {
@@ -424,6 +452,20 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 			currentVertex = inEdges.iterator().next().getSource();
 			secondPath.addFirst(currentVertex);
 		}
+
+		if (firstPath.getLast() != secondPath.getFirst()) {
+
+			/*
+			 * Source and target either do not share a connected component
+			 * or the graph is in some illegal configuration with regard to
+			 * topology (e.g., a node with multiple incoming edges) and/or edge direction.
+			 */
+			SNTUtils.error("Source " + v1 + " and target " + v2 + " do not share the same root ancestor." +
+					" Check that the graph forms a connected, rooted tree.");
+			return null;
+		}
+
+		// Check if either source or target is the graph root
 		int i = firstPath.size() ;
 		if (i == 1) {
 			return secondPath;
@@ -432,7 +474,8 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		if (j == 1) {
 			return firstPath;
 		}
-		int k = Math.min(i, j);
+
+		int k = Math.min(i, j);  // We only need to walk down the shorter of the two paths
 		SWCPoint lca = null;
 		while (k > 0) {
 			// Find the first difference
@@ -442,10 +485,6 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 			if (node1 == node2) {
 				lca = node1;
 			} else {
-				if (lca == null) {
-					// This could happen if the graph is not connected
-					return null;
-				}
 				// Last assigned lca is the true lca
 				firstPath.add(node1);
 				firstPath.add(lca);
@@ -457,6 +496,8 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 			j--;
 			k--;
 		}
+
+		// At this point, we know the lca is either the source or target vertex
 		if (i == 0) {
 			secondPath.addFirst(lca);
 			return secondPath;
@@ -465,6 +506,9 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 			firstPath.add(lca);
 			return firstPath;
 		}
+
+		SNTUtils.error("Somehow, a path could not be found between source " + v1 + " and target " +
+				v2 + ". Check that the graph forms a connected, rooted tree.");
 		return null;
 	}
 
@@ -472,6 +516,8 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * Re-assigns a unique Integer identifier to each vertex based on visit order
 	 * during Depth First Search. Also updates the parent and previousPoint fields
 	 * of each SWCPoint vertex contained in the Graph.
+	 *
+	 * @throws IllegalStateException if the graph does not contain exactly one root
 	 */
 	public void updateVertexProperties() {
 		final DepthFirstIterator<SWCPoint, SWCWeightedEdge> iter = getDepthFirstIterator(getRoot());
@@ -513,10 +559,21 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		return vertexSet().stream().filter(v -> outDegreeOf(v) == 0).collect(Collectors.toList());
 	}
 
+	/**
+	 * Gets a NodeStatistics instance for the vertex set
+	 *
+	 * @return the NodeStatistics instance
+	 */
 	public NodeStatistics<SWCPoint> getNodeStatistics() {
 		return getNodeStatistics("all");
 	}
 
+	/**
+	 * Gets a NodeStatistics instance for the nodes in the vertex set of the specified type
+	 *
+	 * @param type the vertex type (e.g., "tips"/"end-points", "junctions"/"branch points", "all")
+	 * @return the NodeStatistics instance
+	 */
 	public NodeStatistics<SWCPoint> getNodeStatistics(final String type) {
 		switch(type.toLowerCase()) {
 		case "all":
@@ -543,8 +600,9 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * Gets the root of this graph.
 	 *
 	 * @return the root node.
+	 * @throws IllegalStateException if the graph does not contain exactly one root
 	 */
-	public SWCPoint getRoot() throws IllegalStateException {
+	public SWCPoint getRoot() {
 		final List<SWCPoint> roots = vertexSet().stream().filter(v -> inDegreeOf(v) == 0).collect(Collectors.toList());
 		if (roots.size() == 0) {
 			throw new IllegalStateException("Graph has no nodes with in-degree 0");
@@ -555,7 +613,14 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		return roots.get(0);
 	}
 
-	public Tree getTree() throws IllegalStateException {
+	/**
+	 * Returns a new tree associated with this graph, using the current state of the
+	 * graph to build the tree.
+	 *
+	 * @return the tree
+	 * @throws IllegalStateException if the graph does not have exactly one root
+	 */
+	public Tree getTree() {
 		return getTree(true);
 	}
 
@@ -575,10 +640,23 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		}
 	}
 
+	/**
+	 * Returns the subgraph defined by the supplied subset of vertices, including their edges.
+	 *
+	 * @param nodeSubset a subset of this graph's vertex set
+	 * @return the subgraph
+	 */
 	public DirectedWeightedSubgraph getSubgraph(final Set<SWCPoint> nodeSubset) {
 		return new DirectedWeightedSubgraph(this, nodeSubset);
 	}
 
+	/**
+	 * Returns the subset of vertices contained in the given hemisphere
+	 *
+	 * @param lr the hemisphere (i.e., {@link BrainAnnotation#LEFT_HEMISPHERE}, {@link BrainAnnotation#RIGHT_HEMISPHERE}
+	 *           ,{@link BrainAnnotation#ANY_HEMISPHERE}
+	 * @return the vertex subset
+	 */
 	public Set<SWCPoint> vertexSet(final char lr) {
 		if (lr == BrainAnnotation.ANY_HEMISPHERE) return vertexSet();
 		final Set<SWCPoint> modifiable = new HashSet<>();
@@ -591,7 +669,9 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	/**
 	 * Sets the root of the tree. This modifies the edge directions such that
 	 * all other nodes in the graph have the new root as ancestor.
+	 *
 	 * @param newRoot the new root of the tree, which must be an existing vertex of the graph
+	 * @throws IllegalArgumentException if the graph does not contain newRoot
 	 */
 	public void setRoot(final SWCPoint newRoot) {
 		if (!containsVertex(newRoot)) {
@@ -622,6 +702,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * Displays this graph in a new instance of SNT's "Dendrogram Viewer".
 	 *
 	 * @return a reference to the displayed window.
+	 * @throws IllegalStateException if the graph does not have exactly one root
 	 */
 	public Window show() {
 		updateVertexProperties();
