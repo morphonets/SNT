@@ -249,7 +249,7 @@ public class GuiUtils {
 				&& parent instanceof Window) {
 			try {
 				((Window) parent).toBack();
-				Thread.sleep(50);
+				Thread.sleep(75);
 				dialog.toFront();
 			} catch (final InterruptedException e) {
 				// ignored
