@@ -115,7 +115,7 @@ public class SNTUtils {
 
 	public static synchronized void removeViewer(final Viewer3D viewer) {
 		if (viewerMap != null && viewer != null) {
-			viewerMap.values().removeIf(viewer::equals);
+			viewerMap.entrySet().removeIf(entry -> entry.getValue().equals(viewer));
 			if (plugin != null && plugin.getUI() != null) {
 				final Viewer3D v = plugin.getUI().getReconstructionViewer(false);
 				if (v != null && v.getID() == viewer.getID()) {

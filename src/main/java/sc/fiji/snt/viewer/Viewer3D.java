@@ -444,10 +444,10 @@ public class Viewer3D {
 		if (enabled) view.shoot(); // same as char.render();
 		if (managerList != null) {
 			managerList.model.setListenersEnabled(viewUpdatesEnabled);
+			managerList.model.update();
 		}
 		if (viewUpdatesEnabled) {
 			chart.getView().updateBounds();
-			managerList.model.update();
 		}
 	}
 
@@ -840,8 +840,11 @@ public class Viewer3D {
 	 */
 	public void addTrees(final File[] files, final String color) {
 		final ColorRGB c = (color == null || color.trim().isEmpty()) ? null : new ColorRGB(color);
-		final GuiUtils g = (frame.managerPanel == null) ? frame.managerPanel.guiUtils : gUtils;
-		fileDropWorker.importTreesWithoutDrop(files, c, g);
+		fileDropWorker.importTreesWithoutDrop(files, c);
+	}
+
+	private GuiUtils guiUtils() {
+		return (frame.manager != null) ? frame.managerPanel.guiUtils : gUtils;
 	}
 
 	/**
@@ -1418,10 +1421,39 @@ public class Viewer3D {
 		if (viewUpdatesEnabled) view.shoot();
 	}
 
+	private void removeColorLegends(final boolean justLastOne) {
+		final List<AbstractDrawable> allDrawables = chart.getScene().getGraph()
+			.getAll();
+		final Iterator<AbstractDrawable> iterator = allDrawables.iterator();
+		while (iterator.hasNext()) {
+			final AbstractDrawable drawable = iterator.next();
+			if (drawable != null && drawable.hasLegend() && drawable
+				.isLegendDisplayed())
+			{
+				iterator.remove();
+				if (justLastOne) break;
+			}
+		}
+		cBar = null;
+	}
+
 	private void removeSceneObject(final String label, final String managerEntry) {
 		if (!removeTree(label, managerEntry)) {
 			if (!removeMesh(label, managerEntry))
 				removeDrawable(getAnnotationDrawables(), label, managerEntry);
+		}
+	}
+
+	private void wipeScene() {
+		removeAllTrees();
+		removeAllMeshes();
+		removeAllAnnotations();
+		removeColorLegends(false);
+		// Ensure nothing else remains
+		chart.getScene().getGraph().getAll().clear();
+		if (frame.lightController != null) {
+			frame.lightController.dispose();
+			frame.lightController = null;
 		}
 	}
 
@@ -2410,7 +2442,8 @@ public class Viewer3D {
 		}
 
 		public JDialog getManager() {
-			final JDialog dialog = new JDialog(this, "RV Controls");
+			final String title = (isSNTInstance()) ? "RV Controls" : "RV Controls ("+ getID() + ")";
+			final JDialog dialog = new JDialog(this, title);
 			managerPanel = new ManagerPanel(new GuiUtils(dialog));
 			dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 			dialog.addWindowListener(new WindowAdapter() {
@@ -2522,9 +2555,13 @@ public class Viewer3D {
 
 		@Override
 		public void setVisible(final boolean b) {
+			setVisible(b, manager != null);
+		}
+
+		private void setVisible(final boolean b, final boolean managerVisible) {
 			SNTUtils.setIsLoading(false);
 			super.setVisible(b);
-			if (manager != null) manager.setVisible(true);
+			if (manager != null) manager.setVisible(managerVisible);
 		}
 	}
 
@@ -2595,6 +2632,7 @@ public class Viewer3D {
 		void rebuildOnNewScreen(final GraphicsConfiguration gConfiguration) {
 			final Dimension dim = frame.getSize();
 			final boolean hasManager = frame.manager != null;
+			final boolean visibleManager = hasManager && frame.manager.isVisible();
 			final boolean darkMode = isDarkModeOn();
 			frame.dispose();
 			if (hasManager) {
@@ -2605,7 +2643,7 @@ public class Viewer3D {
 			setEnableDarkMode(darkMode);
 			if (hasManager) {
 				Viewer3D.this.frame.snapPanelToSide();
-				Viewer3D.this.frame.manager.setVisible(true);
+				Viewer3D.this.frame.manager.setVisible(visibleManager);
 			}
 			validate();
 		}
@@ -3161,16 +3199,7 @@ public class Viewer3D {
 
 		private void wipeScene() {
 			if (guiUtils.getConfirmation("Remove all items from scene? This action cannot be undone.", "Wipe Scene?")) {
-				removeAllTrees();
-				removeAllMeshes();
-				removeAllAnnotations();
-				removeColorLegends(false);
-				// Ensure nothing else remains
-				chart.getScene().getGraph().getAll().clear();
-				if (frame.lightController != null) {
-					frame.lightController.dispose();
-					frame.lightController = null;
-				}
+				Viewer3D.this.wipeScene();
 			}
 		}
 
@@ -3900,25 +3929,13 @@ public class Viewer3D {
 
 		private JPopupMenu utilsMenu() {
 			final JPopupMenu utilsMenu = new JPopupMenu();
-			addSeparator(utilsMenu, "Actions & Utilities:");
-			final JMenuItem snapshot = new JMenuItem(new Action(Action.SNAPSHOT, KeyEvent.VK_S, false, false));
-			snapshot.setIcon(IconFactory.getMenuIcon(GLYPH.CAMERA));
-			utilsMenu.add(snapshot);
-			JMenuItem mi = new JMenuItem("Record Rotation", IconFactory
-				.getMenuIcon(GLYPH.VIDEO));
-			mi.addActionListener(e -> {
-				SwingUtilities.invokeLater(() -> {
-					displayMsg("Recording rotation...", 0);
-					new RecordWorker().execute();
-				});
-			});
-			utilsMenu.add(mi);
-			utilsMenu.add(legendMenu());
-			mi = new JMenuItem("Annotation Label...", IconFactory.getMenuIcon(GLYPH.PEN));
+			addSeparator(utilsMenu, "Utilities:");
+			JMenuItem mi = new JMenuItem("Annotation Label...", IconFactory.getMenuIcon(GLYPH.PEN));
 			mi.addActionListener(e -> {
 				runCmd(AddTextAnnotationCmd.class, null, CmdWorker.DO_NOTHING);
 			});
 			utilsMenu.add(mi);
+			utilsMenu.add(legendMenu());
 			final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.getMenuIcon(GLYPH.BULB));
 			light.addActionListener(e -> {
 //				guiUtils.centeredMsg(
@@ -3927,6 +3944,23 @@ public class Viewer3D {
 				frame.displayLightController();
 			});
 			utilsMenu.add(light);
+
+			addSeparator(utilsMenu, "Actions:");
+			final JMenuItem log = new JMenuItem(new Action(Action.LOG, KeyEvent.VK_L, false, false));
+			log.setIcon(IconFactory.getMenuIcon(GLYPH.STREAM));
+			utilsMenu.add(log);
+			mi = new JMenuItem("Record Rotation", IconFactory.getMenuIcon(GLYPH.VIDEO));
+			mi.addActionListener(e -> {
+				SwingUtilities.invokeLater(() -> {
+					displayMsg("Recording rotation...", 0);
+					new RecordWorker().execute();
+				});
+			});
+			utilsMenu.add(mi);
+			final JMenuItem snapshot = new JMenuItem(new Action(Action.SNAPSHOT, KeyEvent.VK_S, false, false));
+			snapshot.setIcon(IconFactory.getMenuIcon(GLYPH.CAMERA));
+			utilsMenu.add(snapshot);
+
 			addSeparator(utilsMenu, "Scripting:");
 			final JMenuItem script = new JMenuItem(new Action(Action.SCRIPT, KeyEvent.VK_OPEN_BRACKET, false, false));
 			script.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
@@ -3934,24 +3968,7 @@ public class Viewer3D {
 			mi = new JMenuItem("Script This Viewer In...");
 			mi.addActionListener(e -> runScriptEditor(null));
 			utilsMenu.add(mi);
-			final JMenuItem log = new JMenuItem(new Action(Action.LOG, KeyEvent.VK_L, false, false));
-			log.setIcon(IconFactory.getMenuIcon(GLYPH.STREAM));
-			utilsMenu.add(log);
-			final JMenuItem jcbmi = new JCheckBoxMenuItem("Debug Mode", SNTUtils.isDebugMode());
-			jcbmi.setEnabled(!isSNTInstance());
-			jcbmi.setIcon(IconFactory.getMenuIcon(GLYPH.STETHOSCOPE));
-			jcbmi.setMnemonic('d');
-			jcbmi.addItemListener(e -> {
-				final boolean debug = jcbmi.isSelected();
-				if (isSNTInstance()) {
-					sntService.getPlugin().getUI().setEnableDebugMode(debug);
-				} else {
-					SNTUtils.setDebugMode(debug);
-				}
-				if (debug) logGLDetails();
-			});
-			utilsMenu.add(jcbmi);
-	
+
 			addSeparator(utilsMenu, "Resources:");
 			final JMenu helpMenu = GuiUtils.helpMenu();
 			helpMenu.setIcon( IconFactory.getMenuIcon(GLYPH.QUESTION));
@@ -3968,6 +3985,22 @@ public class Viewer3D {
 			prefsMenu.add(zoomMenu());
 			prefsMenu.add(rotationMenu());
 			prefsMenu.addSeparator();
+
+			addSeparator(prefsMenu, "Advanced Settings:");
+			final JMenuItem jcbmi = new JCheckBoxMenuItem("Debug Mode", SNTUtils.isDebugMode());
+			jcbmi.setEnabled(!isSNTInstance());
+			jcbmi.setIcon(IconFactory.getMenuIcon(GLYPH.STETHOSCOPE));
+			jcbmi.setMnemonic('d');
+			jcbmi.addItemListener(e -> {
+				final boolean debug = jcbmi.isSelected();
+				if (isSNTInstance()) {
+					sntService.getPlugin().getUI().setEnableDebugMode(debug);
+				} else {
+					SNTUtils.setDebugMode(debug);
+				}
+				if (debug) logGLDetails();
+			});
+			prefsMenu.add(jcbmi);
 			final JMenuItem  jcbmi2= new JCheckBoxMenuItem("Enable Hardware Acceleration", Settings.getInstance().isHardwareAccelerated());
 			//jcbmi2.setEnabled(!isSNTInstance());
 			jcbmi2.setIcon(IconFactory.getMenuIcon(GLYPH.MICROCHIP));
@@ -3977,7 +4010,7 @@ public class Viewer3D {
 				logGLDetails();
 			});
 			prefsMenu.add(jcbmi2);
-			prefsMenu.addSeparator();
+			addSeparator(prefsMenu, "Persistent Settings:");
 			final JMenuItem mi = new JMenuItem("Global Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
 			mi.addActionListener(e -> {
 				runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, false);
@@ -4451,22 +4484,6 @@ public class Viewer3D {
 			worker.execute();
 		}
 
-		private void removeColorLegends(final boolean justLastOne) {
-			final List<AbstractDrawable> allDrawables = chart.getScene().getGraph()
-				.getAll();
-			final Iterator<AbstractDrawable> iterator = allDrawables.iterator();
-			while (iterator.hasNext()) {
-				final AbstractDrawable drawable = iterator.next();
-				if (drawable != null && drawable.hasLegend() && drawable
-					.isLegendDisplayed())
-				{
-					iterator.remove();
-					if (justLastOne) break;
-				}
-			}
-			cBar = null;
-		}
-
 		private void runCmd(final Class<? extends Command> cmdClass,
 			final Map<String, Object> inputs, final int cmdType)
 		{
@@ -4500,8 +4517,8 @@ public class Viewer3D {
 			});
 		}
 
-		void importTreesWithoutDrop(final File[] files, final ColorRGB baseColor, final GuiUtils guiUtils) {
-			processFiles(files, false, baseColor, guiUtils);
+		void importTreesWithoutDrop(final File[] files, final ColorRGB baseColor) {
+			processFiles(files, false, baseColor, guiUtils());
 		}
 
 		void processFiles(final File[] files, final boolean promptForConfirmation, final ColorRGB baseColor, final GuiUtils guiUtils) {
@@ -5668,8 +5685,11 @@ public class Viewer3D {
 				frame.setResizable(false);
 			}
 
+			final ManagerPanel managerPanel = getManagerPanel();
+			if (managerPanel != null) managerPanel.setProgressLimit(0, nSteps);
 			while (step++ < nSteps) {
 				try {
+					if (managerPanel != null) managerPanel.setProgress(step);
 					final File f = new File(dir, String.format("%05d.png", step));
 					rotate(new Coord2d(inc, 0d), false);
 					chart.screenshot(f);
@@ -5679,6 +5699,7 @@ public class Viewer3D {
 				}
 				finally {
 					if (frame != null) frame.setResizable(true);
+					if (managerPanel != null) managerPanel.setProgress(step);
 				}
 			}
 			return status;
@@ -5849,7 +5870,10 @@ public class Viewer3D {
 					break;
 				case 'c':
 				case 'C':
-					if (!emptySceneMsg()) changeCameraMode();
+					if (e.isShiftDown() && Viewer3D.this.frame.manager!= null)
+						frame.manager.setVisible(!frame.manager.isVisible());
+					else if (!emptySceneMsg())
+						changeCameraMode();
 					break;
 				case 'd':
 				case 'D':
@@ -6101,10 +6125,6 @@ public class Viewer3D {
 			sb.append("    <td>Snap to Top/Side View &nbsp; &nbsp;</td>");
 			sb.append("    <td>Ctrl + left-click</td>");
 			sb.append("  </tr>");
-			sb.append("  <tr>");
-			sb.append("    <td>Full Screen</td>");
-			sb.append("    <td>Shift+F (Esc to exit)</td>");
-			sb.append("  </tr>");
 			if (showInDialog) sb.append("  <tr>");
 			sb.append("  <tr>");
 			sb.append("    <td>Toggle <u>A</u>xes</td>");
@@ -6136,6 +6156,15 @@ public class Viewer3D {
 			sb.append("  <tr>");
 			sb.append("    <td><u>S</u>napshot</td>");
 			sb.append("    <td>Press 'S'</td>");
+			sb.append("  </tr>");
+			if (showInDialog) sb.append("  <tr>");
+			sb.append("  <tr>");
+			sb.append("    <td>Full Screen</td>");
+			sb.append("    <td>Shift+F (Esc to exit)</td>");
+			sb.append("  </tr>");
+			sb.append("  <tr>");
+			sb.append("    <td>Toggle Control Panel</td>");
+			sb.append("    <td>Shift+C</td>");
 			sb.append("  </tr>");
 			if (showInDialog) {
 				sb.append("  <tr>");
