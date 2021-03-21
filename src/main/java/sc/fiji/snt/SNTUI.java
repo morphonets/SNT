@@ -96,6 +96,7 @@ import ij.ImageListener;
 import ij.ImagePlus;
 import ij.Prefs;
 import ij.gui.ImageCanvas;
+import ij.gui.ImageWindow;
 import ij3d.Content;
 import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
@@ -2943,7 +2944,7 @@ public class SNTUI extends JDialog {
 
 	private void arrangeCanvases(final boolean displayErrorOnFailure) {
 
-		final Frame xy_window = (plugin.getImagePlus()==null) ? null : plugin.getImagePlus().getWindow();
+		final ImageWindow xy_window = (plugin.getImagePlus()==null) ? null : plugin.getImagePlus().getWindow();
 		if (xy_window == null) {
 			if (displayErrorOnFailure)
 				guiUtils.error("XY view is not available");
