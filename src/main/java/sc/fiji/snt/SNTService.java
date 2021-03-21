@@ -388,7 +388,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * or SNT-associated instance). A new instance is retrieved if none exists.
 	 *
 	 * @return The active {@link Viewer3D} instance. For stand-alone viewers, this
-	 *         is typically the last viewer initiated.
+	 *         is typically the viewer that is frontmost or the last initiated viewer.
 	 */
 	public Viewer3D getRecViewer() {
 		if (getUI() != null) {
@@ -415,6 +415,9 @@ public class SNTService extends AbstractService implements ImageJService {
 		final HashMap<Integer, Viewer3D> viewerMap = SNTUtils.getViewers();
 		if (viewerMap == null || viewerMap.isEmpty()) {
 			return newRecViewer(true);
+		}
+		for (final Viewer3D viewer : viewerMap.values()) {
+			if (viewer.isActive()) return viewer;
 		}
 		return viewerMap.get(Collections.max(viewerMap.keySet()));
 	}
@@ -462,7 +465,7 @@ public class SNTService extends AbstractService implements ImageJService {
 		return getSciViewSNT();
 	}
 
-	public SciViewSNT getSciViewSNT() throws NoClassDefFoundError {
+	public SciViewSNT getSciViewSNT() throws UnsupportedOperationException, NoClassDefFoundError {
 		accessActiveInstance(false);
 		if (getUI() != null && getUI().sciViewSNT != null)
 			return getUI().sciViewSNT;

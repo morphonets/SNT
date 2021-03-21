@@ -6687,6 +6687,15 @@ public class Viewer3D {
 		return sntInstance;
 	}
 
+	/**
+	 * Checks whether this instance is currently active 
+	 *
+	 * @return true, if active, false otherwise
+	 */
+	public boolean isActive() {
+		return (frame != null && frame.isActive());
+	}
+
 	@Override
 	public int hashCode() {
 		final int prime = 31;
