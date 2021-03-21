@@ -5991,9 +5991,15 @@ public class Viewer3D {
 					break;
 				case 'c':
 				case 'C':
-					if (e.isShiftDown() && Viewer3D.this.frame.manager!= null)
-						frame.manager.setVisible(!frame.manager.isVisible());
-					else if (!emptySceneMsg())
+					if (e.isShiftDown()) {
+						if (Viewer3D.this.frame.manager!= null) {
+							frame.manager.setVisible(!frame.manager.isVisible());
+							frame.toFront();
+							frame.requestFocus();
+							frame.canvas.requestFocusInWindow();
+						} else
+							displayMsg("Controls are not available for this viewer");
+					} else if (!emptySceneMsg())
 						changeCameraMode();
 					break;
 				case 'd':

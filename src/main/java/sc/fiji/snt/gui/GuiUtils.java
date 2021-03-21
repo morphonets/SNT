@@ -648,7 +648,7 @@ public class GuiUtils {
 		final JPanel side = new JPanel();
 		main.add(side);
 		side.setLayout(new BoxLayout(side, BoxLayout.Y_AXIS));
-		final JLabel title = new JLabel("SNT " + SNTUtils.VERSION);
+		final JLabel title = new JLabel(SNTUtils.getReadableVersion());
 		SplashScreen.assignStyle(title, 2);
 		side.add(title);
 		final JLabel subTitle = new JLabel("The ImageJ Framework for Neuroanatomy");

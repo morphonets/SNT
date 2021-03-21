@@ -159,7 +159,7 @@ public class ScriptInstaller implements MenuKeyListener {
 		if (ui != null) ui.showStatus("Running script...", false);
 		final Future<ScriptModule> fsm = scriptService.run(si, true,
 			(Map<String, Object>) null);
-		if (fsm.isCancelled()) {
+		if (fsm.isCancelled() && ui != null) {
 			ui.showStatus("Script canceled...", true);
 		}
 		else if (fsm.isDone() && ui != null) {
