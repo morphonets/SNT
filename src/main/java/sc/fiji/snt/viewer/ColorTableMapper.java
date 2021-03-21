@@ -45,11 +45,11 @@ class ColorTableMapper extends ColorMapper {
 	public Color getColor(final double mappedValue) {
 		final int idx;
 		if (mappedValue <= min) idx = 0;
-		else if (mappedValue > max) idx = colorTable.getLength() - 1;
-		else idx = (int) Math.round((colorTable.getLength() - 1) * (mappedValue -
+		else if (mappedValue > max) idx = getColorTable().getLength() - 1;
+		else idx = (int) Math.round((getColorTable().getLength() - 1) * (mappedValue -
 			min) / (max - min));
-		return new Color(colorTable.get(ColorTable.RED, idx), colorTable.get(
-			ColorTable.GREEN, idx), colorTable.get(ColorTable.BLUE, idx));
+		return new Color(getColorTable().get(ColorTable.RED, idx), getColorTable().get(
+			ColorTable.GREEN, idx), getColorTable().get(ColorTable.BLUE, idx));
 	}
 
 	@Override
@@ -71,5 +71,10 @@ class ColorTableMapper extends ColorMapper {
 	public void setMax(final double max) {
 		this.max = max;
 	}
+
+	public ColorTable getColorTable() {
+		return colorTable;
+	}
+	
 
 }

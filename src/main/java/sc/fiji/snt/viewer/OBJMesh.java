@@ -58,8 +58,8 @@ import sc.fiji.snt.util.SNTPoint;
  */
 public class OBJMesh {
 
-	protected final OBJFileLoaderPlus loader;
-	protected final RemountableDrawableVBO drawable;
+	protected OBJFileLoaderPlus loader;
+	protected RemountableDrawableVBO drawable;
 	private double xMirrorCoord = Double.NaN;
 	private String label;
 	protected String unit;
@@ -85,6 +85,23 @@ public class OBJMesh {
 		}
 		drawable = new RemountableDrawableVBO(loader, this);
 		unit = meshUnit;
+	}
+
+	private OBJMesh() {}
+
+	public OBJMesh duplicate() {
+		//return new OBJMesh(loader.url, unit);
+		final OBJMesh dup = new OBJMesh();
+		dup.loader = loader;
+		dup.drawable = new RemountableDrawableVBO(loader, dup);
+		dup.drawable.setColor(drawable.getColor());
+		dup.drawable.setBoundingBoxColor(drawable.getBoundingBoxColor());
+		dup.drawable.setBoundingBoxDisplayed(drawable.isBoundingBoxDisplayed());
+		dup.unit = unit;
+		dup.volume = volume;
+		dup.label = label;
+		dup.xMirrorCoord = xMirrorCoord;
+		return dup;
 	}
 
 	/**

@@ -458,9 +458,8 @@ public class Viewer3D {
 	/* returns true if chart was initialized */
 	private boolean initView() {
 		if (chartExists()) return false;
-		chart = new AChart(Quality.Nicest); // There does not seem to be a swing
-																					// implementation of
-		// ICameraMouseController so we are stuck with AWT
+		chart = new AChart(Quality.Nicest, this); // There does not seem to be a swing implementation of
+												  // ICameraMouseController so we are stuck with AWT
 		chart.black();
 		view = chart.getView();
 		view.setBoundMode(ViewBoundMode.AUTO_FIT);
@@ -537,8 +536,70 @@ public class Viewer3D {
 		catch (final GLException | NullPointerException exc) {
 			SNTUtils.error("Rebuild Error", exc);
 		}
-		if (frame != null) frame.replaceCurrentChart(chart);
+		if (frame != null) frame.replaceCurrentChart((AChart)chart);
 		updateView();
+	}
+
+	public Viewer3D duplicate() {
+		SNTUtils.log("Duplicating viewer...");
+
+		final Viewer3D dup = new Viewer3D();
+		dup.initView();
+		dup.setSceneUpdatesEnabled(false);
+		if (this.cBar != null) {
+			this.cBar.updateColors();
+			dup.chart.add(cBar.duplicate(dup.chart).get(), false);
+		}
+		plottedTrees.forEach((k, shapeTree) -> {
+			final ShapeTree dupShapeTree = new ShapeTree(shapeTree.tree);
+			dupShapeTree.setDisplayed(shapeTree.isDisplayed());
+			dup.chart.add(dupShapeTree.get(), false);
+			dup.plottedTrees.put(k, dupShapeTree);
+		});
+		plottedObjs.forEach((k, remountableDrawableVBO) -> {
+			final OBJMesh dupMesh = remountableDrawableVBO.objMesh.duplicate();
+			dupMesh.drawable.setDisplayed(remountableDrawableVBO.isDisplayed());
+			dup.chart.add(dupMesh.drawable, false);
+			dup.plottedObjs.put(k, dupMesh.drawable);
+		});
+		plottedAnnotations.forEach((k, annot) -> {
+			final Annotation3D dupAnnot = new Annotation3D(dup, Collections.singleton(annot));
+			dupAnnot.getDrawable().setDisplayed(annot.getDrawable().isDisplayed());
+			dup.chart.add(dupAnnot.getDrawable(), false);
+			dup.plottedAnnotations.put(k, dupAnnot);
+		});
+
+//		if (dup.managerList != null && managerList != null) {
+//			final DefaultUpdatableListModel<Object> dupModel = new DefaultUpdatableListModel<>();
+//			for (int i = 0; i < managerList.model.getSize(); i++) {
+//				Object element = managerList.model.elementAt(i);
+//				if (CheckBoxList.ALL_ENTRY.equals(element))
+//					dupModel.addElement(CheckBoxList.ALL_ENTRY);
+//				else
+//					dupModel.addElement(managerList.model.elementAt(i).toString());
+//			}
+//			dup.managerList.setModel(dupModel);
+//		}
+
+		dup.keyController.zoomStep = keyController.zoomStep;
+		dup.keyController.rotationStep = keyController.rotationStep;
+		dup.mouseController.panStep = mouseController.panStep;
+		if (!isDarkModeOn())
+			dup.keyController.toggleDarkMode();
+		dup.chart.setAxeDisplayed(view.isAxeBoxDisplayed());
+		dup.view.setSquarifier(view.getSquarifier());
+		dup.view.setSquared(view.getSquared());
+		dup.view.setCameraMode(view.getCameraMode());
+		dup.view.getCamera().setViewportMode(view.getCamera().getMode());
+		dup.view.setViewPoint(view.getViewPoint().clone());
+		dup.setSceneUpdatesEnabled(viewUpdatesEnabled);
+		dup.updateView();
+		dup.frame = new ViewerFrame((AChart) dup.chart, this.frame.getWidth(), this.frame.getHeight(),
+				dup.managerList != null, this.frame.getGraphicsConfiguration());
+		dup.frame.setLocationRelativeTo(this.frame);
+		final int spacer = this.frame.getInsets().top;
+		dup.frame.setLocation(this.frame.getX() + spacer, this.frame.getY() + spacer);
+		return dup;
 	}
 
 	/**
@@ -1211,12 +1272,12 @@ public class Viewer3D {
 			});
 		}
 		if (width == 0 || height == 0) {
-			frame = new ViewerFrame(chart, managerList != null, gConfiguration);
+			frame = new ViewerFrame((AChart)chart, managerList != null, gConfiguration);
 		} else {
 			final DisplayMode dm = gConfiguration.getDevice().getDisplayMode();
 			final int w = (width < 0) ? dm.getWidth() : width;
 			final int h = (height < 0) ? dm.getHeight() : height;
-			frame = new ViewerFrame(chart, w, h, managerList != null, gConfiguration);
+			frame = new ViewerFrame((AChart)chart, w, h, managerList != null, gConfiguration);
 		}
 		frame.setVisible(true);
 		displayMsg("Press 'H' or 'F1' for help", 3000);
@@ -2192,12 +2253,14 @@ public class Viewer3D {
 
 		private Coord3d previousViewPointPerspective;
 		private OverlayAnnotation overlayAnnotation;
+		private final Viewer3D viewer;
 
-		public AChart(final Quality quality) {
+		public AChart(final Quality quality, final Viewer3D viewer) {
 			super(new AChartComponentFactory(), quality, DEFAULT_WINDOWING_TOOLKIT,
 				org.jzy3d.chart.Settings.getInstance().getGLCapabilities());
 			currentView = ViewMode.DEFAULT;
 			addRenderer(overlayAnnotation = new OverlayAnnotation(getView()));
+			this.viewer = viewer;
 		}
 
 		// see super.setViewMode(mode);
@@ -2246,6 +2309,30 @@ public class Viewer3D {
 
 		private final Shape shape;
 		private final Font font;
+		private final ColorTableMapper mapper;
+		private final int precision;
+
+		private ColorLegend(ColorLegend colorLegend, final Chart chart) {
+			super(new Shape(), chart);
+			shape = (Shape) drawable;
+			this.font = colorLegend.font;
+			this.mapper = new ColorTableMapper(colorLegend.mapper.getColorTable(), colorLegend.mapper.getMin(), colorLegend.mapper.getMax());
+			shape.setColorMapper(mapper);
+			this.precision = colorLegend.precision;
+			shape.setLegend(this);
+			updateColors();
+			if (colorLegend.provider instanceof SmartTickProvider)
+				provider = new SmartTickProvider(colorLegend.provider.getDefaultSteps());
+			else
+				provider = new RegularTickProvider(colorLegend.provider.getDefaultSteps());
+			if (colorLegend.renderer instanceof ScientificNotationTickRenderer)
+				renderer = new ScientificNotationTickRenderer(-1 * colorLegend.precision);
+			else
+				renderer = new FixedDecimalTickRenderer(colorLegend.precision);
+			if (imageGenerator == null)
+				init();
+			imageGenerator.setFont(font);
+		}
 
 		public ColorLegend(final ColorTableMapper mapper, final Font font,
 			final int steps, final int precision)
@@ -2253,7 +2340,8 @@ public class Viewer3D {
 			super(new Shape(), chart);
 			shape = (Shape) drawable;
 			this.font = font;
-			shape.setColorMapper(mapper);
+			this.precision = precision;
+			shape.setColorMapper(this.mapper = mapper);
 			shape.setLegend(this);
 			updateColors();
 			provider = (steps < 0) ? new SmartTickProvider(5)
@@ -2275,6 +2363,10 @@ public class Viewer3D {
 				imageGenerator.setFont(imageGenerator.getFont().deriveFont(fontSize));
 			((ColorbarImageGenerator) imageGenerator).setMin(min);
 			((ColorbarImageGenerator) imageGenerator).setMax(max);
+		}
+
+		public ColorLegend duplicate(final Chart chart) {
+			return new ColorLegend(this, chart);
 		}
 
 		public Shape get() {
@@ -2384,7 +2476,7 @@ public class Viewer3D {
 		private static final int DEF_WIDTH = 800;
 		private static final int DEF_HEIGHT = 600;
 
-		private Chart chart;
+		private AChart chart;
 		private Component canvas;
 		private JDialog manager;
 		private LightController lightController;
@@ -2404,15 +2496,15 @@ public class Viewer3D {
 		 *          should be made visible
 		 * @param gConfiguration 
 		 */
-		public ViewerFrame(final Chart chart, final boolean includeManager, final GraphicsConfiguration gConfiguration) {
+		public ViewerFrame(final AChart chart, final boolean includeManager, final GraphicsConfiguration gConfiguration) {
 			this(chart, (int) (DEF_WIDTH * Prefs.SCALE_FACTOR), (int) (DEF_HEIGHT * Prefs.SCALE_FACTOR), includeManager,
 					gConfiguration);
 		}
 
-		public ViewerFrame(final Chart chart, final int width, final int height, final boolean includeManager,
+		public ViewerFrame(final AChart chart, final int width, final int height, final boolean includeManager,
 				final GraphicsConfiguration gConfiguration) {
 			super();
-			final String title = (isSNTInstance()) ? " (SNT)" : " ("+ getID() + ")";
+			final String title = (chart.viewer.isSNTInstance()) ? " (SNT)" : " ("+ chart.viewer.getID() + ")";
 			initialize(chart, new Rectangle(width, height), "Reconstruction Viewer" +
 				title);
 			if (PlatformUtils.isLinux()) new MultiDisplayUtil(this);
@@ -2420,7 +2512,7 @@ public class Viewer3D {
 			//setLocationRelativeTo(null); // ensures frame will not appear in between displays on a multidisplay setup
 			if (includeManager) {
 				manager = getManager();
-				managerList.selectAll();
+				chart.viewer.managerList.selectAll();
 				snapPanelToSide();
 			}
 			toFront();
@@ -2431,7 +2523,7 @@ public class Viewer3D {
 			manager.setLocation(parentLoc.x + getWidth() + 5, parentLoc.y);
 		}
 
-		public void replaceCurrentChart(final Chart chart) {
+		public void replaceCurrentChart(final AChart chart) {
 			this.chart = chart;
 			canvas = (Component) chart.getCanvas();
 			removeAll();
@@ -2442,7 +2534,7 @@ public class Viewer3D {
 		}
 
 		public JDialog getManager() {
-			final String title = (isSNTInstance()) ? "RV Controls" : "RV Controls ("+ getID() + ")";
+			final String title = (chart.viewer.isSNTInstance()) ? "RV Controls" : "RV Controls ("+ chart.viewer.getID() + ")";
 			final JDialog dialog = new JDialog(this, title);
 			managerPanel = new ManagerPanel(new GuiUtils(dialog));
 			dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
@@ -2465,13 +2557,13 @@ public class Viewer3D {
 				@Override
 				public void keyPressed(final KeyEvent ke) {
 					if (KeyEvent.VK_ESCAPE == ke.getKeyCode()) {
-						abortCurrentOperation = true;
+						chart.viewer.abortCurrentOperation = true;
 					}
 				}
 			};
 			addKeyListener(adapter);
 			managerPanel.addKeyListener(adapter);
-			managerList.addKeyListener(adapter);
+			chart.viewer.managerList.addKeyListener(adapter);
 		}
 
 		private void displayLightController() {
@@ -2482,7 +2574,7 @@ public class Viewer3D {
 		private void exitRequested(final GuiUtils gUtilsDefiningPrompt) {
 			if (gUtilsDefiningPrompt.getConfirmation("Quit Reconstruction Viewer?", "Quit?", "Yes. Quit Now",
 					"No. Keep Open")) {
-				Viewer3D.this.dispose();
+				chart.viewer.dispose();
 			}
 		}
 
@@ -2494,7 +2586,7 @@ public class Viewer3D {
 		 */
 		@Override
 		public void initialize(final Chart chart, final Rectangle bounds, final String title) {
-			this.chart = chart;
+			this.chart = (AChart)chart;
 			canvas = (Component) chart.getCanvas();
 			setTitle(title);
 			add(canvas);
@@ -3189,7 +3281,36 @@ public class Viewer3D {
 			help.setIcon(IconFactory.getMenuIcon(GLYPH.KEYBOARD));
 			sceneMenu.add(help);
 			sceneMenu.addSeparator();
+			final JMenuItem sup = new JMenuItem("Duplicate Scene", IconFactory.getMenuIcon(GLYPH.COPY));
+			sup.addActionListener(e -> {
+				class DupWorker extends SwingWorker<Viewer3D, Object> {
 
+					@Override
+					protected Viewer3D doInBackground() {
+						return duplicate();
+					}
+
+					@Override
+					protected void done() {
+						try {
+							final Viewer3D dup = get();
+							dup.show();
+							dup.view.setBoundManual(view.getBounds().clone());
+						} catch (final OutOfMemoryError e1) {
+							e1.printStackTrace();
+							guiUtils.error("There is not enough memory to complete command. See Console for details.");
+						} catch (NullPointerException | InterruptedException | ExecutionException e2) {
+							e2.printStackTrace();
+							guiUtils.error("Unfortunately an error occured. See Console for details.");
+						} finally {
+							resetProgressBar();
+						}
+					}
+				}
+				setProgress(-1);
+				new DupWorker().execute();
+			});
+			sceneMenu.add(sup);
 			final JMenuItem sync = new JMenuItem(new Action(Action.SYNC, KeyEvent.VK_S, true, true));
 			sync.setIcon(IconFactory.getMenuIcon(GLYPH.SYNC));
 			sync.setEnabled(isSNTInstance());
@@ -6751,10 +6872,10 @@ public class Viewer3D {
 	public static void main(final String[] args) throws InterruptedException {
 		GuiUtils.setSystemLookAndFeel();
 		final ImageJ ij = new ImageJ();
-		final Tree tree = new SNTService().demoTrees().get(0);
-		final TreeColorMapper colorizer = new TreeColorMapper(ij.getContext());
-		colorizer.map(tree, TreeColorMapper.PATH_ORDER, ColorTables.ICE);
-		final double[] bounds = colorizer.getMinMax();
+	final Tree tree = new SNTService().demoTrees().get(0);
+	final TreeColorMapper colorizer = new TreeColorMapper(ij.getContext());
+	colorizer.map(tree, TreeColorMapper.PATH_ORDER, ColorTables.ICE);
+	final double[] bounds = colorizer.getMinMax();
 		SNTUtils.setDebugMode(true);
 		final Viewer3D jzy3D = new Viewer3D(ij.context());
 		jzy3D.addColorBarLegend(ColorTables.ICE, (float) bounds[0],
