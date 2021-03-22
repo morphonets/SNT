@@ -48,6 +48,8 @@ Key aspects of SNT are implemented from published literature:
 | Image Processing: [Frangi](https://javadoc.scijava.org/ImageJ/net/imagej/ops/filter/vesselness/DefaultFrangi.html) Vesselness | Frangi, A. F., Niessen, W. J., Vincken, K. L., *et al*. (1998). Multiscale vessel enhancement filtering. In *International conference on medical image computing and computer-assisted intervention*. *MICCAI 1998* (pp. 130–137). https://doi.org/10.1007/BFb0056195 |
 | Image Processing: [Skeletonization](https://imagej.net/AnalyzeSkeleton) | Arganda-Carreras I., Fernandez-Gonzalez R., Munoz-Barrutia A., *et. al*. (2010). 3D reconstruction of histological sections: Application to mammary gland tissue. *Microscopy Research and Technique*, 73(11), 1019–1029.  https://doi.org/10.1002/jemt.20829 |
 |                                                              |                                                              |
+| Convex hull: Volume                                          | Goldman, R. N. (1991). IV.1 - AREA OF PLANAR POLYGONS AND VOLUME OF POLYHEDRA. In J. Arvo (Ed.), Graphics Gems II (pp. 170–171). Morgan Kaufmann. https://doi.org/10.1016/B978-0-08-050754-5.50043-8                                                         |
+|                                                              |
 | Persistent homology: Topological Morphology Descriptor (*TMD*) algorithm | Kanari, L., Dłotko, P., Scolamiero, M., *et al*. (2018). A topological representation of branching  neuronal morphologies. *Neuroinformatics*, 16(1), 3–13. https://doi.org/10.1007/s12021-017-9341-1 |
 | Persistent homology: Persistence Lanscapes                   | Bubenik,  P. (2015). Statistical Topological Data Analysis Using Persistence Landscapes. *Journal of Machine Learning Research*, 16(3), 77–102. https://arxiv.org/abs/1207.6437 |
 | Longest shortest-path (Graph Diameter)                       | Bulterman, R.W., van der Sommen, F.W., Zwaan, G., *et al*. (2002). On computing a longest path in a tree. *Information Processing Letter*s, 81(2), 93–96. https://doi.org/10.1016/S0020-0190(01)00198-3 |
@@ -87,7 +89,9 @@ Any work that uses data from the supported databases and/or reference brains sho
 | [Apache XML Graphics](https://xmlgraphics.apache.org/)       | SVG/PDF export                                        |
 | [ImageJ1](https://github.com/imagej/imagej1)                 | ImagePlus and ROI handling                            |
 | [imagej-plot-service](https://github.com/maarzt/scijava-plot), [jfreechart](https://xmlgraphics.apache.org/) | Histograms and plots including Reconstruction Plotter |
+| [ImageJ Ops](https://github.com/imagej/imagej-ops)           | Image processing and convex hull                      |
 | [JGraphT](https://jgrapht.org/)                              | Graph theory -based analyses                          |
+| [JGraphX](https://github.com/jgraph/jgraphx)                 | Graph Viewer                                          |
 | [JIDE common layer](https://github.com/jidesoft/jide-oss), [font awesome](https://fontawesome.com/) | GUI customizations                                    |
 | [JSON-Java](https://github.com/stleary/JSON-java), [okhttp](https://square.github.io/okhttp/) | Access/query of online databases                      |
 | [Jzy3D](http://www.jzy3d.org/)                               | Reconstruction Viewer                                 |
