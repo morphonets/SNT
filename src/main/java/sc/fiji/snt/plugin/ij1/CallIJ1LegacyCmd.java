@@ -24,7 +24,7 @@ package sc.fiji.snt.plugin.ij1;
 
 import net.imagej.ImageJ;
 import net.imagej.legacy.LegacyService;
-import sc.fiji.snt.gui.GUIHelper;
+import sc.fiji.snt.gui.GuiUtils;
 
 import java.util.HashMap;
 
@@ -82,7 +82,7 @@ public class CallIJ1LegacyCmd implements Command {
 		try {
 			legacyService.runLegacyCommand(cmdAndArg[0], cmdAndArg[1]);
 		} catch (final Exception ex) {
-			new GUIHelper(context).error("An exception occured. Maybe the command is no longer available?",
+			new GuiUtils().error("An exception occured. Maybe the command is no longer available?",
 					"Exception occured");
 			ex.printStackTrace();
 		}
