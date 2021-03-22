@@ -22,6 +22,10 @@
 
 package sc.fiji.snt.gui;
 
+import com.formdev.flatlaf.FlatDarculaLaf;
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatIntelliJLaf;
+import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
@@ -93,10 +97,17 @@ import org.scijava.util.ColorRGB;
 import org.scijava.util.PlatformUtils;
 import org.scijava.util.Types;
 
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 
 /** Misc. utilities for SNT's GUI. */
 public class GuiUtils {
+
+	public static final String LAF_LIGHT = FlatLightLaf.NAME;
+	public static final String LAF_LIGHT_INTJ = FlatIntelliJLaf.NAME;
+	public static final String LAF_DARK = FlatDarkLaf.NAME;
+	public static final String LAF_DARCULA = FlatDarculaLaf.NAME;
+	public static final String LAF_DEFAULT  = "System default";
 
 	private static SplashScreen splashScreen;
 	private static LookAndFeel existingLaf;
@@ -1167,28 +1178,18 @@ public class GuiUtils {
 		new GuiUtils().error(msg, "SNT v" + SNTUtils.VERSION);
 	}
 
+	public static String[] lookAndFeels() {
+		return new String[] { LAF_LIGHT, LAF_LIGHT_INTJ, LAF_DARK, LAF_DARCULA, LAF_DEFAULT };
+	}
+
 	public static void setLookAndFeel() {
-		try {
-			storeExistingLookAndFeel();
-			UIManager.setLookAndFeel(new FlatLightLaf());
-		} catch (final Exception ex) {
-			try {
-				// With Ubuntu and java 8 we need to ensure we're using
-				// GTK+ L&F otherwise no scaling occurs with hiDPI screens
-				UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-				LookAndFeelFactory.installDefaultLookAndFeelAndExtension();
-				LookAndFeelFactory.setProductsUsed(ProductNames.PRODUCT_COMMON);
-				// checkGTKLookAndFeel();
-			} catch (final Error | Exception ignored) {
-				// move on
-				existingLaf = null;
-			}
-		}
+		storeExistingLookAndFeel();
+		setLookAndFeel(SNTPrefs.getLookAndFeel(), false);
 	}
 
 	private static void storeExistingLookAndFeel() {
 		existingLaf = UIManager.getLookAndFeel();
-		if (existingLaf instanceof FlatLightLaf) 
+		if (existingLaf instanceof FlatLaf) 
 			existingLaf = null;
 	}
 
@@ -1198,6 +1199,59 @@ public class GuiUtils {
 		} catch (final Error | Exception ignored) {
 			// do nothing
 		}
+	}
+
+	public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice, final Component... componentsToUpdate) {
+		boolean success;
+		storeExistingLookAndFeel();
+		switch (lookAndFeelName) {
+		case (LAF_LIGHT):
+			success = FlatLightLaf.install();
+			break;
+		case (LAF_LIGHT_INTJ):
+			success = FlatIntelliJLaf.install();
+			break;
+		case (LAF_DARK):
+			success = FlatDarkLaf.install();
+			break;
+		case (LAF_DARCULA):
+			success = FlatDarculaLaf.install();
+			break;
+		default:
+			try {
+				// With Ubuntu and java 8 we need to ensure we're using
+				// GTK+ L&F otherwise no scaling occurs with hiDPI screens
+				UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+				LookAndFeelFactory.installDefaultLookAndFeelAndExtension();
+				LookAndFeelFactory.setProductsUsed(ProductNames.PRODUCT_COMMON);
+				success = true;
+				// checkGTKLookAndFeel();
+			} catch (final Error | Exception ignored) {
+				success = false;
+				existingLaf = null;
+			}
+			break;
+		}
+		if (success && componentsToUpdate != null) {
+			for (final Component component : componentsToUpdate) {
+				if (component == null)
+					continue;
+				final Window window = (component instanceof Window) ? (Window)component
+						: SwingUtilities.windowForComponent(component);
+				try {
+					if (window == null)
+						SwingUtilities.updateComponentTreeUI(component);
+					else
+						SwingUtilities.updateComponentTreeUI(window);
+				} catch (final Exception ex) {
+					SNTUtils.error("", ex);
+				}
+			}
+		}
+		if (success && persistentChoice) {
+			SNTPrefs.setLookAndFeel(lookAndFeelName);
+		}
+		return success;
 	}
 
 	/** HACK Font too big on ubuntu: https://stackoverflow.com/a/31345102 */

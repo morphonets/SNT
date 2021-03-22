@@ -1311,6 +1311,21 @@ public class Viewer3D {
 		}
 	}
 
+	public void setLookAndFeel(final String lookAndFeelName) {
+		if (frame == null) return;
+		final ArrayList<Component> components = new ArrayList<>();
+		components.add(frame);
+		if (frame.manager != null)
+			components.add(frame.manager);
+		if (frame.allenNavigator != null) {
+			components.add(frame.allenNavigator.dialog);
+			components.add(frame.allenNavigator.tree.getComponentPopupMenu());
+		}
+		if (managerList != null)
+			components.add(managerList.getComponentPopupMenu());
+		GuiUtils.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
+	}
+
 	private void displayMsg(final String msg) {
 		displayMsg(msg, 2500);
 	}
@@ -4135,7 +4150,7 @@ public class Viewer3D {
 			addSeparator(prefsMenu, "Persistent Settings:");
 			final JMenuItem mi = new JMenuItem("Global Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
 			mi.addActionListener(e -> {
-				runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, false);
+				runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, true);
 			});
 			prefsMenu.add(mi);
 			return prefsMenu;

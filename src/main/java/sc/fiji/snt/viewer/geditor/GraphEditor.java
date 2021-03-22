@@ -694,18 +694,17 @@ public class GraphEditor extends JPanel
 		GuiUtils.restoreLookAndFeel();
 	}
 
-	protected void setLookAndFeel(String clazz)
-	{
-		JFrame frame = (JFrame) SwingUtilities.windowForComponent(this);
-
-		if (frame != null) {
+	protected void setLookAndFeel(final String lookAndFeelName) {
+		{
 			try {
-				UIManager.setLookAndFeel(clazz);
-				SwingUtilities.updateComponentTreeUI(frame);
-
-				// Needs to assign the key bindings again
-				keyboardHandler = new EditorKeyboardHandler(graphComponent);
-			} catch (Exception e1) {
+				if (GuiUtils.setLookAndFeel(lookAndFeelName, false, GraphEditor.this))
+					try {
+						// Needs to assign the key bindings again
+						keyboardHandler = new EditorKeyboardHandler(graphComponent);
+					} catch (final Exception e2) {
+						e2.printStackTrace();
+					}
+			} catch (final Exception e1) {
 				e1.printStackTrace();
 			}
 		}

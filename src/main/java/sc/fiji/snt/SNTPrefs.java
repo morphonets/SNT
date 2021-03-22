@@ -30,6 +30,7 @@ import ij.Prefs;
 import ij.io.FileInfo;
 import ij3d.Content;
 import ij3d.ContentConstants;
+import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Class handling SNT preferences.
@@ -255,6 +256,14 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.setThreads(n);
 	}
 
+	public static String getLookAndFeel() {
+		return Prefs.get("snt.laf", GuiUtils.LAF_LIGHT);
+	}
+
+	public static void setLookAndFeel(final String laf) {
+		Prefs.set("snt.laf", laf);
+	}
+
 	public static int getThreads() {
 		return Prefs.getThreads();
 	}
@@ -286,6 +295,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(FILLWIN_LOC, null);
 		Prefs.set(PATHWIN_LOC, null);
 		Prefs.set(FILTERED_IMG_PATH, null);
+		setLookAndFeel(GuiUtils.LAF_LIGHT);
 		SNTPrefs.setThreads(0);
 		wipeSessionPrefs();
 		Prefs.savePreferences();

@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -116,7 +117,6 @@ import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.viewer.Viewer3D;
-
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 import sc.fiji.snt.gui.cmds.CompareFilesCmd;
 import sc.fiji.snt.gui.cmds.ComputeSecondaryImg;
@@ -1366,7 +1366,7 @@ public class SNTUI extends JDialog {
 		debugCheckBox.addItemListener(e -> SNTUtils.setDebugMode(e.getStateChange() == ItemEvent.SELECTED));
 		miscPanel.add(debugCheckBox, gdb);
 		++gdb.gridy;
-		final JButton prefsButton = GuiUtils.smallButton("Preferences...");
+		final JButton prefsButton = new JButton("Preferences...");
 		prefsButton.addActionListener(e -> {
 			(new CmdRunner(PrefsCmd.class)).execute();
 		});
@@ -2823,6 +2823,24 @@ public class SNTUI extends JDialog {
 			timer.start();
 			statusBarText.setText(msg);
 		});
+	}
+
+	public void setLookAndFeel(final String lookAndFeelName) {
+		final ArrayList<Component> components = new ArrayList<>();
+		components.add(SNTUI.this);
+		components.add(getPathManager());
+		components.add(getPathManager());
+		components.add(getFillManager());
+		if (plugin.getXYCanvas() != null)
+			plugin.getXYCanvas().setLookAndFeel(lookAndFeelName);
+		if (plugin.getXZCanvas() != null)
+			plugin.getXZCanvas().setLookAndFeel(lookAndFeelName);
+		if (plugin.getZYCanvas() != null)
+			plugin.getZYCanvas().setLookAndFeel(lookAndFeelName);
+		final Viewer3D recViewer = getReconstructionViewer(false);
+		if (recViewer != null)
+			recViewer.setLookAndFeel(lookAndFeelName);
+		GuiUtils.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
 	}
 
 	private JPanel getTab() {
