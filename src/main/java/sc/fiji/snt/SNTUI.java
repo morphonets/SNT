@@ -687,6 +687,7 @@ public class SNTUI extends JDialog {
 		plugin.closeAndResetAllPanes();
 		ImagePlus.removeImageListener(listener);
 		SNTUtils.setPlugin(null);
+		GuiUtils.restoreLookAndFeel();
 	}
 
 	private void setEnableAutoTracingComponents(final boolean enable, final boolean enableAstar) {

@@ -164,6 +164,11 @@
 
 	<dependencies>
 		<dependency>
+			<groupId>com.formdev</groupId>
+			<artifactId>flatlaf</artifactId>
+			<version>1.1</version>
+		</dependency>
+		<dependency>
 			<groupId>com.github.haifengl</groupId>
 			<artifactId>smile-core</artifactId>
 			<version>2.5.3</version>

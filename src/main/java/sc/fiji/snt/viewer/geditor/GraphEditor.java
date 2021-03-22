@@ -691,9 +691,10 @@ public class GraphEditor extends JPanel
 		if (frame != null && new GuiUtils(this).getConfirmation("Exit Graph Viewer?", "Really Quit?")) {
 			frame.dispose();
 		}
+		GuiUtils.restoreLookAndFeel();
 	}
 
-	public void setLookAndFeel(String clazz)
+	protected void setLookAndFeel(String clazz)
 	{
 		JFrame frame = (JFrame) SwingUtilities.windowForComponent(this);
 

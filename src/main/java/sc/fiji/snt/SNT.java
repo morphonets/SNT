@@ -645,7 +645,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void startUI() {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		final SNT thisPlugin = this;
 		ui = new SNTUI(thisPlugin);
 		guiUtils = new GuiUtils(ui);

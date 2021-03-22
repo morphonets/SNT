@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.gui;
 
+import com.formdev.flatlaf.FlatLightLaf;
 import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
 import com.jidesoft.utils.ProductNames;
@@ -98,6 +99,7 @@ import sc.fiji.snt.SNTUtils;
 public class GuiUtils {
 
 	private static SplashScreen splashScreen;
+	private static LookAndFeel existingLaf;
 	final private Component parent;
 	private JidePopup popup;
 	private boolean popupExceptionTriggered;
@@ -1165,17 +1167,36 @@ public class GuiUtils {
 		new GuiUtils().error(msg, "SNT v" + SNTUtils.VERSION);
 	}
 
-	public static void setSystemLookAndFeel() {
+	public static void setLookAndFeel() {
 		try {
-			// With Ubuntu and java 8 we need to ensure we're using
-			// GTK+ L&F otherwise no scaling occurs with hiDPI screens
-			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-			LookAndFeelFactory.installDefaultLookAndFeelAndExtension();
-			LookAndFeelFactory.setProductsUsed(ProductNames.PRODUCT_COMMON);
-		//	checkGTKLookAndFeel();
+			storeExistingLookAndFeel();
+			UIManager.setLookAndFeel(new FlatLightLaf());
+		} catch (final Exception ex) {
+			try {
+				// With Ubuntu and java 8 we need to ensure we're using
+				// GTK+ L&F otherwise no scaling occurs with hiDPI screens
+				UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+				LookAndFeelFactory.installDefaultLookAndFeelAndExtension();
+				LookAndFeelFactory.setProductsUsed(ProductNames.PRODUCT_COMMON);
+				// checkGTKLookAndFeel();
+			} catch (final Error | Exception ignored) {
+				// move on
+				existingLaf = null;
+			}
 		}
-		catch (final Error | Exception ignored) {
-			// move on
+	}
+
+	private static void storeExistingLookAndFeel() {
+		existingLaf = UIManager.getLookAndFeel();
+		if (existingLaf instanceof FlatLightLaf) 
+			existingLaf = null;
+	}
+
+	public static void restoreLookAndFeel() {
+		try {
+			if (existingLaf != null) UIManager.setLookAndFeel(existingLaf);
+		} catch (final Error | Exception ignored) {
+			// do nothing
 		}
 	}
 

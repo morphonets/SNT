@@ -82,7 +82,7 @@ public class GraphViewer {
         } else {
             throw new UnsupportedOperationException("Unsupported Graph Type.");
         }
-        GuiUtils.setSystemLookAndFeel();
+        GuiUtils.setLookAndFeel();
         editor = new GraphEditor("Graph Viewer", component);
         editor.setContext(getContext());
     }

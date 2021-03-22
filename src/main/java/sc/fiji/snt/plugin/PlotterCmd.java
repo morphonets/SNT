@@ -23,6 +23,8 @@
 package sc.fiji.snt.plugin;
 
 import java.awt.Dimension;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
@@ -123,7 +125,6 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 			resolveInput("tree");
 			statusService.showStatus(
 				"Please select one or more reconstruction files");
-			GuiUtils.setSystemLookAndFeel();
 			final FileFilter filter = (file) -> {
 				final String lName = file.getName().toLowerCase();
 				return lName.endsWith("swc") || lName.endsWith(".traces") || lName
@@ -164,7 +165,11 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 	@Override
 	public void run() {
 
-		if (tree == null || tree.isEmpty()) error("No paths to plot");
+		if (tree == null || tree.isEmpty()) {
+			error("No paths to plot");
+			return;
+		}
+		GuiUtils.setLookAndFeel();
 		status("Building Plot...", false);
 		// Tree rotation occurs in place so we'll copy plotting coordinates
 		// to a new Tree. To avoid rotation lags we'll keep it monochrome,
@@ -178,6 +183,14 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		frame.setPreferredSize(new Dimension(500, 500));
 		frame.pack();
 		frame.setVisible(true);
+		frame.addWindowListener(new WindowAdapter() {
+
+			@Override
+			public void windowClosing(final WindowEvent e) {
+				GuiUtils.restoreLookAndFeel();
+				super.windowClosing(e);
+			}
+		});
 		status(null, false);
 
 	}

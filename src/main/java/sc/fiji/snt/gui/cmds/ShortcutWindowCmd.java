@@ -23,6 +23,8 @@
 package sc.fiji.snt.gui.cmds;
 
 import java.awt.Dimension;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -222,13 +224,21 @@ public class ShortcutWindowCmd extends ContextCommand {
 
 	@Override
 	public void run() {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		frame = getFrame();
 		frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 		frame.setContentPane(getPanel());
 		frame.pack();
 		AWTWindows.centerWindow(frame);
 		frame.setVisible(true);
+		frame.addWindowListener(new WindowAdapter() {
+
+			@Override
+			public void windowClosing(final WindowEvent e) {
+				GuiUtils.restoreLookAndFeel();
+				super.windowClosing(e);
+			}
+		});
 		SwingUtilities.invokeLater(() -> frame.setVisible(true));
 	}
 

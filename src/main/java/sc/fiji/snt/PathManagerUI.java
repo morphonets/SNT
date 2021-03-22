@@ -2872,7 +2872,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	/* IDE debug method */
 	public static void main(final String[] args) {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		final ImagePlus imp = new ImagePlus();
 		final SNT snt = new SNT(ij.context(), imp);

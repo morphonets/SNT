@@ -104,7 +104,7 @@ public class ComputeTubenessImg extends CommonDynamicCmd {
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		ij.command().run(ComputeTubenessImg.class, true);

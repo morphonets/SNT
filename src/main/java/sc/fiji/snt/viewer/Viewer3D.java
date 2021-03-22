@@ -401,7 +401,7 @@ public class Viewer3D {
 	}
 
 	private void init(final Context context) {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		initManagerList();
 		context.inject(this);
 		prefs.setPreferences();
@@ -2575,6 +2575,7 @@ public class Viewer3D {
 			if (gUtilsDefiningPrompt.getConfirmation("Quit Reconstruction Viewer?", "Quit?", "Yes. Quit Now",
 					"No. Keep Open")) {
 				chart.viewer.dispose();
+				GuiUtils.restoreLookAndFeel();
 			}
 		}
 
@@ -3527,7 +3528,7 @@ public class Viewer3D {
 		private void displayMeshBoundingBoxes(final boolean display) {
 			final List<String> labels = getLabelsCheckedInManager();
 			if (labels.isEmpty()) {
-				displayMsg("There are no items selectedt");
+				displayMsg("There are no items selected");
 				return;
 			}
 			plottedObjs.forEach((k, mesh) -> {
@@ -6876,7 +6877,7 @@ public class Viewer3D {
 
 	/* IDE debug method */
 	public static void main(final String[] args) throws InterruptedException {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 	final Tree tree = new SNTService().demoTrees().get(0);
 	final TreeColorMapper colorizer = new TreeColorMapper(ij.getContext());

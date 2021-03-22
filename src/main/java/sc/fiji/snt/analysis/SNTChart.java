@@ -499,7 +499,7 @@ public class SNTChart extends ChartFrame {
 
 	/* IDE debug method */
 	public static void main(final String[] args) {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		final Tree tree = new SNTService().demoTrees().get(0);
 		final TreeStatistics treeStats = new TreeStatistics(tree);
 		final SNTChart chart = treeStats.getHistogram("contraction");
