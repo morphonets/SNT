@@ -51,7 +51,7 @@ import sc.fiji.snt.analysis.sholl.gui.ShollTable;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
-import sc.fiji.snt.gui.GUIHelper;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.Logger;
 
 /**
@@ -161,7 +161,7 @@ public class ShollAnalysisBulkTreeCmd extends ContextCommand
 
 
 	/* Instance variables */
-	private GUIHelper helper;
+	private GuiUtils helper;
 	private Logger logger;
 	private ShollTable commonSummaryTable;
 	private static final String SUMMARY_TABLE_NAME = "_Sholl_Metrics.csv";
@@ -251,7 +251,7 @@ public class ShollAnalysisBulkTreeCmd extends ContextCommand
 
 	@SuppressWarnings("unused")
 	private void init() {
-		helper = new GUIHelper(context());
+		helper = new GuiUtils();
 	}
 
 	@SuppressWarnings("unused")
@@ -277,8 +277,8 @@ public class ShollAnalysisBulkTreeCmd extends ContextCommand
 		if (stepSize == 0 && (normalizerDescription.contains("Annulus") ||
 			normalizerDescription.contains("shell")))
 		{
-			helper.errorPrompt(normalizerDescription +
-				" normalization requires radius step size to be ≥ 0", null);
+			GuiUtils.errorPrompt(normalizerDescription +
+				" normalization requires radius step size to be ≥ 0");
 			normalizerDescription = "Default";
 		}
 	}

@@ -39,7 +39,7 @@ import org.scijava.widget.Button;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
-import sc.fiji.snt.gui.GUIHelper;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.Logger;
 
 
@@ -75,7 +75,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 	/* Fields */
 	private final static String PLACEHOLDER_CHOICE = "Choose...";
-	private GUIHelper helper;
+	private GuiUtils helper;
 	private Logger logger;
 	private boolean restartRequired;
 
@@ -164,7 +164,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 	@SuppressWarnings("unused")
 	private void init() {
-		helper = new GUIHelper(context());
+		helper = new GuiUtils();
 		logger = new Logger(context(), "Sholl");
 		logger.debug("Prefs successfully initialized");
 		if (ignoreBitmapOptions) {
@@ -201,7 +201,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		sb.append("You are running Sholl Analysis SNTv").append(SNTUtils.VERSION);
 		sb.append(" ").append(SNTUtils.buildDate()).append("\n");
 		sb.append("on ImageJ ").append(appService.getApp().getVersion());
-		helper.infoMsg(sb.toString(), null);
+		helper.centeredMsg(sb.toString(), SNTUtils.getReadableVersion());
 	}
 
 	@SuppressWarnings("unused")
@@ -215,7 +215,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 	public void run() {
 		super.run();
 		if (restartRequired)
-			helper.infoMsg("You may need to restart the Sholl Analysis plugin for changes to take effect.",
+			helper.centeredMsg("You may need to restart the Sholl Analysis plugin for changes to take effect.",
 					"New Preferences Set");
 	}
 
@@ -244,7 +244,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		detailedMetrics = DEF_DETAILED_METRICS;
 //		autoClose = DEF_AUTO_CLOSE;
 
-		helper.infoMsg("Preferences were successfully reset.", null);
+		helper.centeredMsg("Preferences were successfully reset.", SNTUtils.getReadableVersion());
 		restartRequired = true;
 
 	}

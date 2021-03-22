@@ -84,6 +84,7 @@ import javax.swing.text.NumberFormatter;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
 
+import org.scijava.ui.DialogPrompt.Result;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.ui.swing.SwingDialog;
 import org.scijava.ui.swing.widget.SwingColorWidget;
@@ -210,6 +211,20 @@ public class GuiUtils {
 
 	public int yesNoDialog(final String msg, final String title) {
 		return yesNoDialog(new Object[] { getLabel(msg) }, title, null);
+	}
+
+	public Result yesNoPrompt(final String message, final String title) {
+		final int result = yesNoDialog(message, (title == null) ? SNTUtils.getReadableVersion() : title);
+		switch (result) {
+		case JOptionPane.YES_OPTION:
+			return Result.YES_OPTION;
+		case JOptionPane.NO_OPTION:
+			return Result.NO_OPTION;
+		case JOptionPane.CANCEL_OPTION:
+			return Result.CANCEL_OPTION;
+		default:
+			return Result.CLOSED_OPTION;
+		}
 	}
 
 	private int yesNoDialog(final Object[] components, final String title,

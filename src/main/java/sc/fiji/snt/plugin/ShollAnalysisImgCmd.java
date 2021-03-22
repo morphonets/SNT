@@ -85,7 +85,7 @@ import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser2D;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser3D;
-import sc.fiji.snt.gui.GUIHelper;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.Logger;
 import sc.fiji.snt.util.ShollPoint;
 
@@ -266,7 +266,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand {
 
 	/* Instance variables */
 	private Dataset dataset;
-	private GUIHelper helper;
+	private GuiUtils helper;
 	private Logger logger;
 	private PreviewOverlay previewOverlay;
 	private Map<String, URL> luts;
@@ -415,7 +415,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand {
 		}
 		loadDataset(newImp);
 		preview(); // activate new image
-		helper.infoMsg("Target image is now " + newImp.getTitle(), null);
+		helper.centeredMsg("Target image is now " + newImp.getTitle(), SNTUtils.getReadableVersion());
 		logger.debug("Changed scope of analysis to: " + newImp.getTitle());
 	}
 
@@ -461,7 +461,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand {
 
 	/* initializer method running before displaying prompt */
 	protected void init() {
-		helper = new GUIHelper(context());
+		helper = new GuiUtils();
 		logger = new Logger(context(), "Sholl");
 		readPreferences();
 		imp = legacyService.getImageMap().lookupImagePlus(imageDisplayService.getActiveImageDisplay());
@@ -696,7 +696,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand {
 		}
 		center = newCenter;
 		if (!previewShells) {
-			helper.infoMsg("New center set to " + centerDescription(), "Center Updated");
+			helper.centeredMsg("New center set to " + centerDescription(), "Center Updated");
 		}
 		overlayShells();
 	}
@@ -741,7 +741,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand {
 		}
 		cancel(cancelReason);
 		// previewShells = false;
-		helper.errorPrompt(uiMsg + ".", null);
+		helper.error(uiMsg + ".", null);
 	}
 
 	private boolean readThresholdFromImp() {

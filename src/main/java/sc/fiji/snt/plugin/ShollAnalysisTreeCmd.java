@@ -77,7 +77,6 @@ import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.gui.GUIHelper;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.Logger;
 import sc.fiji.snt.util.PointInCanvas;
@@ -220,7 +219,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private PointInImage center;
 
 	/* Instance variables */
-	private GUIHelper helper;
+	private GuiUtils helper;
 	private Logger logger;
 	private AnalysisRunner analysisRunner;
 	private Map<String, URL> luts;
@@ -340,7 +339,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 
 	/* initializer method running before displaying prompt */
 	protected void init() {
-		helper = new GUIHelper(context());
+		helper = new GuiUtils();
 		logger = new Logger(context(), "Sholl");
 		final boolean calledFromSNT = snt != null;
 		final boolean calledFromStandAloneRecViewer = snt == null && tree != null;
@@ -466,7 +465,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 
 	private void cancelAndFreezeUI(final String msg, final String title) {
 		cancel(title);
-		helper.errorPrompt(msg, title);
+		helper.error(msg, title);
 	}
 
 	private void multipleTreesExistError() {
