@@ -1205,6 +1205,20 @@ public class GuiUtils {
 		}
 	}
 
+	private static boolean setSystemLookAndFeel() {
+		try {
+			// With Ubuntu and java 8 we need to ensure we're using
+			// GTK+ L&F otherwise no scaling occurs with hiDPI screens
+			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+			LookAndFeelFactory.installDefaultLookAndFeelAndExtension();
+			LookAndFeelFactory.setProductsUsed(ProductNames.PRODUCT_COMMON);
+			return true;
+			// checkGTKLookAndFeel();
+		} catch (final Error | Exception ignored) {
+			return false;
+		}
+	}
+
 	public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice, final Component... componentsToUpdate) {
 		boolean success;
 		storeExistingLookAndFeel();
@@ -1224,18 +1238,8 @@ public class GuiUtils {
 			success = FlatDarculaLaf.install();
 			break;
 		default:
-			try {
-				// With Ubuntu and java 8 we need to ensure we're using
-				// GTK+ L&F otherwise no scaling occurs with hiDPI screens
-				UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-				LookAndFeelFactory.installDefaultLookAndFeelAndExtension();
-				LookAndFeelFactory.setProductsUsed(ProductNames.PRODUCT_COMMON);
-				success = true;
-				// checkGTKLookAndFeel();
-			} catch (final Error | Exception ignored) {
-				success = false;
-				existingLaf = null;
-			}
+			success = setSystemLookAndFeel();
+			if (!success) existingLaf = null;
 			break;
 		}
 		if (success && componentsToUpdate != null) {
