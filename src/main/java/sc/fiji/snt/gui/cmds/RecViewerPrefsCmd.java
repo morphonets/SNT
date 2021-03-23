@@ -116,10 +116,9 @@ public class RecViewerPrefsCmd extends ContextCommand {
 			required = false, visibility = ItemVisibility.MESSAGE)
 	private String HEADER4;
 
-	@Parameter(label =  "<HTML>&nbsp;", required = false,
-			description = "The Look and feel for all of SNT components",
-			choices = {GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK,
-					GuiUtils.LAF_DARCULA, GuiUtils.LAF_DEFAULT})
+	@Parameter(label = "<HTML>&nbsp;", required = false, description = "The Look and feel for all of SNT components", choices = {
+			GuiUtils.LAF_DEFAULT, GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK,
+			GuiUtils.LAF_DARCULA })
 	private String laf;
 
 	@Parameter(label = "<HTML>&nbsp;", required = false,
@@ -153,7 +152,7 @@ public class RecViewerPrefsCmd extends ContextCommand {
 		rotationFPS = 0;
 		sensitivity = null;
 		scriptExtension = null;
-		laf = GuiUtils.LAF_LIGHT;
+		laf = SNTPrefs.getDefaultLookAndFeel();
 		init();
 	}
 

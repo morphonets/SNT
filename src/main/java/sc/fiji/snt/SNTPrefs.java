@@ -257,7 +257,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	public static String getLookAndFeel() {
-		return Prefs.get("snt.laf", GuiUtils.LAF_LIGHT);
+		return Prefs.get("snt.laf", getDefaultLookAndFeel());
 	}
 
 	public static void setLookAndFeel(final String laf) {
@@ -295,10 +295,15 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(FILLWIN_LOC, null);
 		Prefs.set(PATHWIN_LOC, null);
 		Prefs.set(FILTERED_IMG_PATH, null);
-		setLookAndFeel(GuiUtils.LAF_LIGHT);
+		setLookAndFeel(getDefaultLookAndFeel());
 		SNTPrefs.setThreads(0);
 		wipeSessionPrefs();
 		Prefs.savePreferences();
+	}
+
+	public static String getDefaultLookAndFeel() {
+		//return PlatformUtils.isLinux() ? GuiUtils.LAF_LIGHT  : GuiUtils.LAF_DEFAULT;
+		return GuiUtils.LAF_DEFAULT;
 	}
 
 	private static void clearLegacyPrefs() {

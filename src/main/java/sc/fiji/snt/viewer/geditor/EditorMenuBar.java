@@ -407,7 +407,7 @@ class EditorMenuBar extends JMenuBar
 		submenu.addSeparator();
 		// Creates the Look and Feel menu
 		submenu = (JMenu) submenu.add(new JMenu("Look & Feel"));
-		final String[] lafs = GuiUtils.lookAndFeels();
+		final String[] lafs = GuiUtils.availableLookAndFeels();
 		for (final String laf : lafs) {
 			submenu.add(new AbstractAction(laf) {
 				private static final long serialVersionUID = 7588919504149148501L;

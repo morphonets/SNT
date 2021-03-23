@@ -71,8 +71,8 @@ public class PrefsCmd extends ContextCommand {
 	protected SNTService sntService;
 
 	@Parameter(label = "Look and feel;", required = false, description = "Restart may be required", choices = {
-			GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK, GuiUtils.LAF_DARCULA,
-			GuiUtils.LAF_DEFAULT })
+			GuiUtils.LAF_DEFAULT, GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK,
+			GuiUtils.LAF_DARCULA })
 	private String laf;
 
 	@Parameter(label="Remember window locations", description="Whether position of dialogs should be preserved across restarts")

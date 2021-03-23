@@ -1178,8 +1178,8 @@ public class GuiUtils {
 		new GuiUtils().error(msg, "SNT v" + SNTUtils.VERSION);
 	}
 
-	public static String[] lookAndFeels() {
-		return new String[] { LAF_LIGHT, LAF_LIGHT_INTJ, LAF_DARK, LAF_DARCULA, LAF_DEFAULT };
+	public static String[] availableLookAndFeels() {
+		return new String[] { LAF_DEFAULT, LAF_LIGHT, LAF_LIGHT_INTJ, LAF_DARK, LAF_DARCULA };
 	}
 
 	public static void setLookAndFeel() {
@@ -1204,6 +1204,8 @@ public class GuiUtils {
 	public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice, final Component... componentsToUpdate) {
 		boolean success;
 		storeExistingLookAndFeel();
+		// embedded menu bar make dialogs exaggeratedly wide in main UI
+		UIManager.put("TitlePane.menuBarEmbedded", false);
 		switch (lookAndFeelName) {
 		case (LAF_LIGHT):
 			success = FlatLightLaf.install();
