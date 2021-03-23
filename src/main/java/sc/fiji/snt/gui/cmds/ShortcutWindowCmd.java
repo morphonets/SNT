@@ -234,6 +234,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 	@Override
 	public void run() {
+		GuiUtils.setLookAndFeel(); // needs to be called here because frame uses swing
 		frame = getFrame();
 		frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 		frame.setContentPane(getPanel());

@@ -1188,7 +1188,9 @@ public class GuiUtils {
 
 	public static void setLookAndFeel() {
 		storeExistingLookAndFeel();
-		setLookAndFeel(SNTPrefs.getLookAndFeel(), false);
+		final String lafName = SNTPrefs.getLookAndFeel(); // never null
+		if (existingLaf == null || !lafName.equals(existingLaf.getName()))
+			setLookAndFeel(SNTPrefs.getLookAndFeel(), false);
 	}
 
 	private static void storeExistingLookAndFeel() {

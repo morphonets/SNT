@@ -4121,7 +4121,6 @@ public class Viewer3D {
 			prefsMenu.add(panMenu());
 			prefsMenu.add(zoomMenu());
 			prefsMenu.add(rotationMenu());
-			prefsMenu.addSeparator();
 
 			addSeparator(prefsMenu, "Advanced Settings:");
 			final JMenuItem jcbmi = new JCheckBoxMenuItem("Debug Mode", SNTUtils.isDebugMode());
@@ -4147,7 +4146,7 @@ public class Viewer3D {
 				logGLDetails();
 			});
 			prefsMenu.add(jcbmi2);
-			addSeparator(prefsMenu, "Persistent Settings:");
+			addSeparator(prefsMenu, "Other:");
 			final JMenuItem mi = new JMenuItem("Global Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
 			mi.addActionListener(e -> {
 				runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, true);

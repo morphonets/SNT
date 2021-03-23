@@ -70,6 +70,7 @@ public class GraphViewer {
     }
 
     private void initEditor() {
+        GuiUtils.setLookAndFeel();
         if (graph instanceof DirectedWeightedGraph) {
             adapter = new TreeGraphAdapter((DirectedWeightedGraph)this.graph);
             component = new TreeGraphComponent((TreeGraphAdapter) adapter, getContext());
@@ -82,7 +83,6 @@ public class GraphViewer {
         } else {
             throw new UnsupportedOperationException("Unsupported Graph Type.");
         }
-        GuiUtils.setLookAndFeel();
         editor = new GraphEditor("Graph Viewer", component);
         editor.setContext(getContext());
     }
