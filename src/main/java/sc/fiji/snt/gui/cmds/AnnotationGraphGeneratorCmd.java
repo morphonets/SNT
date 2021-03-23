@@ -76,7 +76,7 @@ public class AnnotationGraphGeneratorCmd extends NewGraphOptionsCmd {
                     " contain processes tagged as \"" + compartment + "\" and are annotated with neuropil labels.");
             return;
         }
-        SNTUtils.setIsLoading(true);
+        //SNTUtils.setIsLoading(true);
         statusService.showStatus("Generating graph...");
         final AnnotationGraph annotationGraph = new AnnotationGraph(annotatedTrees, metric, threshold, depth);
         final GraphViewer graphViewer = new GraphViewer(annotationGraph);
