@@ -272,7 +272,7 @@ public class MultiTreeColorMapper extends ColorMapper {
 	public MultiViewer2D getMultiViewer() {
 		final List<Viewer2D> viewers = new ArrayList<>(mappedTrees.size());
 		sortedMappedTrees().forEach(tree -> {
-			final Viewer2D viewer = new Viewer2D(new Context());
+			final Viewer2D viewer = new Viewer2D(SNTUtils.getContext());
 			viewer.add(tree);
 			viewers.add(viewer);
 		});

@@ -41,7 +41,6 @@ import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 import javax.swing.border.EmptyBorder;
 
-import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
 import org.scijava.command.ContextCommand;
@@ -54,6 +53,7 @@ import org.scijava.ui.awt.AWTWindows;
 
 import ij.IJ;
 import ij.plugin.PlugIn;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.plugin.PlotterCmd;
@@ -281,8 +281,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		// https://github.com/imagej/imagej-legacy/issues/179
 		final ShortcutWindowCmd swc = new ShortcutWindowCmd();
 		// get the existing Context from the running Fiji instance. 
-		final Context ctx = ( Context ) IJ.runPlugIn( "org.scijava.Context", "" ); 
-		swc.setContext(ctx);
+		swc.setContext(SNTUtils.getContext());
 		swc.run();
 	}
 }

@@ -60,7 +60,7 @@ public class GraphViewer {
 
     private Context getContext() {
         if (context == null)
-            setContext(new Context());
+            setContext(SNTUtils.getContext());
         return context;
     }
 

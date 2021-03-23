@@ -129,7 +129,6 @@ public class SNTLoaderCmd extends DynamicCommand {
 			exit("SNT seems to be already running.");
 			return;
 		}
-
 		// TODO: load defaults from prefService?
 		sourceImp = legacyService.getImageMap().lookupImagePlus(imageDisplayService
 			.getActiveImageDisplay());
@@ -307,8 +306,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 			sourceImp.show();
 		}
 
-		final SNT sntInstance = new SNT(
-			getContext(), sourceImp);
+		final SNT sntInstance = new SNT(getContext(), sourceImp);
 		sntInstance.loadTracings(tracesFile);
 		initPlugin(sntInstance);
 	}

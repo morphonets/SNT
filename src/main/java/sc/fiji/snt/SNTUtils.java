@@ -73,7 +73,6 @@ public class SNTUtils {
 
 	private static Context context;
 	private static LogService logService;
-	private static UIService uiService;
 
 	public static final String VERSION = getVersion();
 
@@ -85,10 +84,8 @@ public class SNTUtils {
 
 	private synchronized static void initialize() {
 		if (initialized) return;
-		if (context == null) context = (Context) IJ.runPlugIn("org.scijava.Context",
-			"");
+		if (context == null) getContext();
 		if (logService == null) logService = context.getService(LogService.class);
-		if (uiService == null) uiService = context.getService(UIService.class);
 		initialized = true;
 	}
 
@@ -135,7 +132,10 @@ public class SNTUtils {
 
 	protected static void setPlugin(final SNT plugin) {
 		SNTUtils.plugin = plugin;
-		if (context == null && plugin != null) context = plugin.getContext();
+		if (plugin == null)
+			context = null;
+		else if (context == null)
+			setContext(plugin.getContext());
 	}
 
 	public static SNT getPluginInstance() {
@@ -313,9 +313,13 @@ public class SNTUtils {
 		}
 		SNT.verbose = b;
 		if (isDebugMode()) {
-			log("Entering debug mode..."); // will initialize uiService
-			final ConsolePane<?> console = uiService.getDefaultUI().getConsolePane();
-			if (console != null) console.show();
+			log("Entering debug mode...");
+			try {
+				final ConsolePane<?> console = getContext().service(UIService.class).getDefaultUI().getConsolePane();
+				if (console != null) console.show();
+			} catch (final Exception ignored) {
+				// do nothing;
+			}
 		}
 	}
 
@@ -495,4 +499,27 @@ public class SNTUtils {
 		else
 			GuiUtils.closeSplashScreen();
 	}
+
+	/**
+	 * Convenience method to access the context of the running Fiji instance (mainly
+	 * for IJ1 plugins.
+	 * 
+	 * @return the context of the running Fiji instance
+	 */
+	public static Context getContext() {
+		if (context == null) {
+			try {
+				context =  (Context) IJ.runPlugIn( "org.scijava.Context", "" );
+			} catch (final Exception | Error ignored) {
+				error("Failed to retrieve context from IJ1", ignored);
+				context = new Context();
+			}
+		}
+		return context;
+	}
+
+	public static void setContext(final Context context) {
+		SNTUtils.context = context;
+	}
 }
+
