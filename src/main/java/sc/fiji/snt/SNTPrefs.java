@@ -253,7 +253,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	public static void setThreads(int n) {
-		Prefs.setThreads(n);
+		Prefs.setThreads((n < 1) ? Runtime.getRuntime().availableProcessors() : n);
 	}
 
 	public static String getLookAndFeel() {
@@ -296,7 +296,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(PATHWIN_LOC, null);
 		Prefs.set(FILTERED_IMG_PATH, null);
 		setLookAndFeel(getDefaultLookAndFeel());
-		SNTPrefs.setThreads(0);
+		setThreads(0);
 		wipeSessionPrefs();
 		Prefs.savePreferences();
 	}
