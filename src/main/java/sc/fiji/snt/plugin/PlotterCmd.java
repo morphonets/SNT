@@ -40,6 +40,8 @@ import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.Interactive;
 import org.scijava.log.LogService;
+import org.scijava.menu.MenuConstants;
+import org.scijava.plugin.Menu;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
@@ -60,9 +62,11 @@ import sc.fiji.snt.util.SNTColor;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = true,
-	menuPath = "Plugins>Neuroanatomy>Reconstruction Plotter...",
-	label = "Reconstruction Plotter", initializer = "init")
+@Plugin(type = Command.class, menu = {
+		@Menu(label = MenuConstants.PLUGINS_LABEL, weight = MenuConstants.PLUGINS_WEIGHT, mnemonic = MenuConstants.PLUGINS_MNEMONIC), //
+		@Menu(label = "Neuroanatomy", weight = GuiUtils.DEFAULT_MENU_WEIGHT), //
+		@Menu(label = "Reconstruction Plotter...") }, //
+		initializer = "init")
 public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 
 	@Parameter

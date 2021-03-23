@@ -109,6 +109,10 @@ public class GuiUtils {
 	public static final String LAF_DARCULA = FlatDarculaLaf.NAME;
 	public static final String LAF_DEFAULT  = "System default";
 
+	/** The default sorting weight for the Plugins>Neuroanatomy> submenu */
+	// define it here in case we need to change sorting priority again later on
+	public static final double DEFAULT_MENU_WEIGHT = org.scijava.MenuEntry.DEFAULT_WEIGHT;
+
 	private static SplashScreen splashScreen;
 	private static LookAndFeel existingLaf;
 	final private Component parent;

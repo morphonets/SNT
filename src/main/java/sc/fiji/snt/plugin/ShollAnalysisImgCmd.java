@@ -44,6 +44,7 @@ import org.scijava.convert.ConvertService;
 import org.scijava.display.Display;
 import org.scijava.display.DisplayService;
 import org.scijava.event.EventHandler;
+import org.scijava.menu.MenuConstants;
 import org.scijava.module.ModuleItem;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Menu;
@@ -95,8 +96,12 @@ import sc.fiji.snt.util.ShollPoint;
  * 
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, menu = { @Menu(label = "Plugins"), @Menu(label = "Neuroanatomy"),
-		@Menu(label = "Sholl", weight = 0.01d), @Menu(label = "Sholl Analysis (From Image)...") }, initializer = "init")
+@Plugin(type = Command.class, menu = {
+		@Menu(label = MenuConstants.PLUGINS_LABEL, weight = MenuConstants.PLUGINS_WEIGHT, mnemonic = MenuConstants.PLUGINS_MNEMONIC), //
+		@Menu(label = "Neuroanatomy", weight = GuiUtils.DEFAULT_MENU_WEIGHT), //
+		@Menu(label = "Sholl"), //
+		@Menu(label = "Sholl Analysis (From Image)...") }, //
+		initializer = "init", headless = false)
 public class ShollAnalysisImgCmd extends DynamicCommand {
 
 	@Parameter

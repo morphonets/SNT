@@ -43,6 +43,8 @@ import javax.swing.border.EmptyBorder;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
 import org.scijava.command.ContextCommand;
+import org.scijava.menu.MenuConstants;
+import org.scijava.plugin.Menu;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.thread.ThreadService;
@@ -62,7 +64,11 @@ import sc.fiji.snt.plugin.ij1.CallIJ1LegacyCmd;
  * 
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, menuPath = "Plugins>Neuroanatomy>Neuroanatomy Shortcut Window")
+@Plugin(type = Command.class, menu = {
+		@Menu(label = MenuConstants.PLUGINS_LABEL, weight = MenuConstants.PLUGINS_WEIGHT, mnemonic = MenuConstants.PLUGINS_MNEMONIC), //
+		@Menu(label = "Neuroanatomy", weight = GuiUtils.DEFAULT_MENU_WEIGHT), //
+		@Menu(label = "Neuroanatomy Shortcut Window") }, //
+		headless = false)
 public class ShortcutWindowCmd extends ContextCommand {
 
 	private static final String HTML_TOOLTIP = "<html><body><div style='width:500px'>";
