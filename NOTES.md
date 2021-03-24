@@ -92,7 +92,7 @@ Any work that uses data from the supported databases and/or reference brains sho
 | [ImageJ Ops](https://github.com/imagej/imagej-ops)           | Image processing and convex hull                      |
 | [JGraphT](https://jgrapht.org/)                              | Graph theory -based analyses                          |
 | [JGraphX](https://github.com/jgraph/jgraphx)                 | Graph Viewer                                          |
-| [JIDE common layer](https://github.com/jidesoft/jide-oss), [font awesome](https://fontawesome.com/) | GUI customizations                                    |
+| [JIDE common layer](https://github.com/jidesoft/jide-oss), [font awesome](https://fontawesome.com/), [FlatLaf](https://github.com/JFormDesigner/FlatLaf) | GUI customizations                                    |
 | [JSON-Java](https://github.com/stleary/JSON-java), [okhttp](https://square.github.io/okhttp/) | Access/query of online databases                      |
 | [Jzy3D](http://www.jzy3d.org/)                               | Reconstruction Viewer                                 |
 | [pyimagej](https://pypi.org/project/pyimagej/)               | Python bindings                                       |
