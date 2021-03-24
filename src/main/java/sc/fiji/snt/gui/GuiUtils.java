@@ -22,6 +22,11 @@
 
 package sc.fiji.snt.gui;
 
+import com.formdev.flatlaf.FlatDarculaLaf;
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatIntelliJLaf;
+import com.formdev.flatlaf.FlatLaf;
+import com.formdev.flatlaf.FlatLightLaf;
 import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
 import com.jidesoft.utils.ProductNames;
@@ -92,12 +97,24 @@ import org.scijava.util.ColorRGB;
 import org.scijava.util.PlatformUtils;
 import org.scijava.util.Types;
 
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 
 /** Misc. utilities for SNT's GUI. */
 public class GuiUtils {
 
+	public static final String LAF_LIGHT = FlatLightLaf.NAME;
+	public static final String LAF_LIGHT_INTJ = FlatIntelliJLaf.NAME;
+	public static final String LAF_DARK = FlatDarkLaf.NAME;
+	public static final String LAF_DARCULA = FlatDarculaLaf.NAME;
+	public static final String LAF_DEFAULT  = "System default";
+
+	/** The default sorting weight for the Plugins>Neuroanatomy> submenu */
+	// define it here in case we need to change sorting priority again later on
+	public static final double DEFAULT_MENU_WEIGHT = org.scijava.MenuEntry.DEFAULT_WEIGHT;
+
 	private static SplashScreen splashScreen;
+	private static LookAndFeel existingLaf;
 	final private Component parent;
 	private JidePopup popup;
 	private boolean popupExceptionTriggered;
@@ -1165,18 +1182,88 @@ public class GuiUtils {
 		new GuiUtils().error(msg, "SNT v" + SNTUtils.VERSION);
 	}
 
-	public static void setSystemLookAndFeel() {
+	public static String[] availableLookAndFeels() {
+		return new String[] { LAF_DEFAULT, LAF_LIGHT, LAF_LIGHT_INTJ, LAF_DARK, LAF_DARCULA };
+	}
+
+	public static void setLookAndFeel() {
+		storeExistingLookAndFeel();
+		final String lafName = SNTPrefs.getLookAndFeel(); // never null
+		if (existingLaf == null || !lafName.equals(existingLaf.getName()))
+			setLookAndFeel(SNTPrefs.getLookAndFeel(), false);
+	}
+
+	private static void storeExistingLookAndFeel() {
+		existingLaf = UIManager.getLookAndFeel();
+		if (existingLaf instanceof FlatLaf) 
+			existingLaf = null;
+	}
+
+	public static void restoreLookAndFeel() {
+		try {
+			if (existingLaf != null) UIManager.setLookAndFeel(existingLaf);
+		} catch (final Error | Exception ignored) {
+			// do nothing
+		}
+	}
+
+	private static boolean setSystemLookAndFeel() {
 		try {
 			// With Ubuntu and java 8 we need to ensure we're using
 			// GTK+ L&F otherwise no scaling occurs with hiDPI screens
 			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 			LookAndFeelFactory.installDefaultLookAndFeelAndExtension();
 			LookAndFeelFactory.setProductsUsed(ProductNames.PRODUCT_COMMON);
-		//	checkGTKLookAndFeel();
+			return true;
+			// checkGTKLookAndFeel();
+		} catch (final Error | Exception ignored) {
+			return false;
 		}
-		catch (final Error | Exception ignored) {
-			// move on
+	}
+
+	public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice, final Component... componentsToUpdate) {
+		boolean success;
+		storeExistingLookAndFeel();
+		// embedded menu bar make dialogs exaggeratedly wide in main UI
+		UIManager.put("TitlePane.menuBarEmbedded", false);
+		switch (lookAndFeelName) {
+		case (LAF_LIGHT):
+			success = FlatLightLaf.install();
+			break;
+		case (LAF_LIGHT_INTJ):
+			success = FlatIntelliJLaf.install();
+			break;
+		case (LAF_DARK):
+			success = FlatDarkLaf.install();
+			break;
+		case (LAF_DARCULA):
+			success = FlatDarculaLaf.install();
+			break;
+		default:
+			success = setSystemLookAndFeel();
+			if (!success) existingLaf = null;
+			break;
 		}
+		if (success && componentsToUpdate != null) {
+			for (final Component component : componentsToUpdate) {
+				if (component == null)
+					continue;
+				final Window window = (component instanceof Window) ? (Window)component
+						: SwingUtilities.windowForComponent(component);
+				try {
+					if (window == null)
+						SwingUtilities.updateComponentTreeUI(component);
+					else
+						SwingUtilities.updateComponentTreeUI(window);
+				} catch (final Exception ex) {
+					SNTUtils.error("", ex);
+				}
+			}
+		}
+		if (success && persistentChoice) {
+			SNTPrefs.setLookAndFeel(lookAndFeelName);
+		}
+		return success;
 	}
 
 	/** HACK Font too big on ubuntu: https://stackoverflow.com/a/31345102 */

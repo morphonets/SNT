@@ -113,7 +113,7 @@ class SplashScreen extends JWindow {
 
 	/* IDE Debug method */
 	public static void main(final String[] args) {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		GuiUtils.initSplashScreen();
 		GuiUtils.showAboutDialog();
 	}}

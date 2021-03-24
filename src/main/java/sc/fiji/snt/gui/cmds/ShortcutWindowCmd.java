@@ -23,6 +23,9 @@
 package sc.fiji.snt.gui.cmds;
 
 import java.awt.Dimension;
+import java.awt.Point;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -41,12 +44,16 @@ import javax.swing.border.EmptyBorder;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
 import org.scijava.command.ContextCommand;
+import org.scijava.menu.MenuConstants;
+import org.scijava.plugin.Menu;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.thread.ThreadService;
 import org.scijava.ui.awt.AWTWindows;
 
 import ij.IJ;
+import ij.plugin.PlugIn;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.plugin.PlotterCmd;
@@ -60,8 +67,12 @@ import sc.fiji.snt.plugin.ij1.CallIJ1LegacyCmd;
  * 
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, menuPath = "Plugins>Neuroanatomy>Neuroanatomy Shortcut Window")
-public class ShortcutWindowCmd extends ContextCommand {
+@Plugin(type = Command.class, menu = {
+		@Menu(label = MenuConstants.PLUGINS_LABEL, weight = MenuConstants.PLUGINS_WEIGHT, mnemonic = MenuConstants.PLUGINS_MNEMONIC), //
+		@Menu(label = "Neuroanatomy", weight = GuiUtils.DEFAULT_MENU_WEIGHT), //
+		@Menu(label = "Neuroanatomy Shortcut Window") }, //
+		headless = false)
+public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 	private static final String HTML_TOOLTIP = "<html><body><div style='width:500px'>";
 
@@ -73,6 +84,7 @@ public class ShortcutWindowCmd extends ContextCommand {
 
 	private JFrame frame;
 	private final ArrayList<JButton> buttons = new ArrayList<>();
+	private static final String WIN_LOC = "snt.sw.loc";
 
 
 	private JPanel getPanel() {
@@ -222,14 +234,31 @@ public class ShortcutWindowCmd extends ContextCommand {
 
 	@Override
 	public void run() {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel(); // needs to be called here because frame uses swing
 		frame = getFrame();
 		frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 		frame.setContentPane(getPanel());
 		frame.pack();
-		AWTWindows.centerWindow(frame);
+		//TODO: use ij1 for now because it detects if the location is valid. 
+		final Point loc = ij.Prefs.getLocation(WIN_LOC);
+		if (loc == null) 
+			AWTWindows.centerWindow(frame);
+		else
+			frame.setLocation(loc);
 		frame.setVisible(true);
+		frame.addWindowListener(new WindowAdapter() {
+
+			@Override
+			public void windowClosing(final WindowEvent e) {
+				ij.Prefs.saveLocation(WIN_LOC, frame.getLocation());
+				super.windowClosing(e);
+			}
+		});
 		SwingUtilities.invokeLater(() -> frame.setVisible(true));
+	}
+
+	public static void resetFrameLocation() {
+		ij.Prefs.saveLocation(WIN_LOC, null);
 	}
 
 	private class Shortcut {
@@ -244,5 +273,16 @@ public class ShortcutWindowCmd extends ContextCommand {
 			this.description = description;
 		}
 
+	}
+
+	@Override
+	public void run(final String ignored) {
+		// As sad as it is, this IJ1 code is just so that we can register this command as
+		// an IJ1 plugin in th plugins menu so that the Neuroanatomy menu is sorted properly. See e.g.
+		// https://github.com/imagej/imagej-legacy/issues/179
+		final ShortcutWindowCmd swc = new ShortcutWindowCmd();
+		// get the existing Context from the running Fiji instance. 
+		swc.setContext(SNTUtils.getContext());
+		swc.run();
 	}
 }

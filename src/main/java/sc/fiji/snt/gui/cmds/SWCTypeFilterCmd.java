@@ -103,7 +103,7 @@ public class SWCTypeFilterCmd extends ContextCommand {
 	public static void main(final String[] args) throws InterruptedException,
 		ExecutionException
 	{
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		final CommandModule cm = ij.command().run(SWCTypeFilterCmd.class, true)

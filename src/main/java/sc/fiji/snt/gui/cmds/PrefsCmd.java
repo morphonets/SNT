@@ -22,18 +22,16 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import net.imagej.ImageJ;
+import javax.swing.JOptionPane;
 
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
-import org.scijava.ui.DialogPrompt.MessageType;
-import org.scijava.ui.DialogPrompt.Result;
-import org.scijava.ui.UIService;
 import org.scijava.widget.Button;
 
+import net.imagej.ImageJ;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
@@ -67,13 +65,15 @@ import sc.fiji.snt.plugin.ij1.CallIJ1LegacyCmd;
 public class PrefsCmd extends ContextCommand {
 
 	@Parameter
-	private UIService uiService;
-
-	@Parameter
 	private PrefService prefService;
 
 	@Parameter
 	protected SNTService sntService;
+
+	@Parameter(label = "Look and feel", required = false, description = "How should SNT tools look? (Restart may be required)", choices = {
+			GuiUtils.LAF_DEFAULT, GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK,
+			GuiUtils.LAF_DARCULA })
+	private String laf;
 
 	@Parameter(label="Remember window locations", description="Whether position of dialogs should be preserved across restarts")
 	private boolean persistentWinLoc;
@@ -100,6 +100,16 @@ public class PrefsCmd extends ContextCommand {
 		snt.getPrefs().setSaveWinLocations(persistentWinLoc);
 		snt.getPrefs().setSaveCompressedTraces(compressTraces);
 		SNTPrefs.setThreads(Math.max(0, nThreads));
+		final String existingLaf = SNTPrefs.getLookAndFeel();
+		SNTPrefs.setLookAndFeel(laf);
+		if (!existingLaf.equals(laf) && snt.getUI() != null) {
+			// This causes all sort of inconsistencies. Give some heads-up
+			final int ans = new GuiUtils(snt.getUI()).yesNoDialog("It is <i>highly</i> recommended that you restart SNT for changes to take effect. "
+							+ "Alternatively, you can attempt to apply the new Look and Feel now, but SNT widgets may display erratically. "
+							+ "Do you want to try nevertheless?", "Restart Suggested", "Yes. Apply now.", "No. I will restart.");
+			if (ans == JOptionPane.YES_OPTION)
+				snt.getUI().setLookAndFeel(laf);
+		}
 	}
 
 	private void init() {
@@ -108,6 +118,7 @@ public class PrefsCmd extends ContextCommand {
 			persistentWinLoc = snt.getPrefs().isSaveWinLocations();
 			compressTraces = snt.getPrefs().isSaveCompressedTraces();
 			nThreads = SNTPrefs.getThreads();
+			laf = SNTPrefs.getLookAndFeel();
 		} catch (final NullPointerException npe) {
 			cancel("SNT is not running.");
 		}
@@ -115,13 +126,12 @@ public class PrefsCmd extends ContextCommand {
 
 	@SuppressWarnings("unused")
 	private void reset() {
-		final Result result = uiService.showDialog(
-			"Reset preferences to defaults? (A restart may be required)",
-			MessageType.QUESTION_MESSAGE);
-		if (Result.YES_OPTION == result || Result.OK_OPTION == result) {
+		final boolean confirm = new GuiUtils().getConfirmation(
+			"Reset preferences to defaults? (a restart may be required)", "Reset?");
+		if (confirm) {
 			clearAll();
 			init(); // update prompt;
-			uiService.showDialog("Preferences Reset. You should now restart"
+			new GuiUtils().centeredMsg("Preferences reset. You should now restart"
 					+ " SNT for changes to take effect.", "Restart Required");
 		}
 	}
@@ -187,7 +197,7 @@ public class PrefsCmd extends ContextCommand {
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		ij.command().run(PrefsCmd.class, true);

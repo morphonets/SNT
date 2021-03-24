@@ -129,8 +129,6 @@ public class SNTLoaderCmd extends DynamicCommand {
 			exit("SNT seems to be already running.");
 			return;
 		}
-		GuiUtils.setSystemLookAndFeel(); // needs to be called here to set L&F of contextual menu
-
 		// TODO: load defaults from prefService?
 		sourceImp = legacyService.getImageMap().lookupImagePlus(imageDisplayService
 			.getActiveImageDisplay());
@@ -308,8 +306,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 			sourceImp.show();
 		}
 
-		final SNT sntInstance = new SNT(
-			getContext(), sourceImp);
+		final SNT sntInstance = new SNT(getContext(), sourceImp);
 		sntInstance.loadTracings(tracesFile);
 		initPlugin(sntInstance);
 	}
@@ -353,6 +350,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 	private void initPlugin(final SNT snt)
 	{
 		try {
+			GuiUtils.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu
 			final boolean singlePane = IMAGE_NONE.equals(imageChoice) || uiChoice.equals(UI_SIMPLE);
 			final int frame = (sourceImp == null) ? 1 : sourceImp.getFrame();
 			snt.initialize(singlePane, channel, frame);
@@ -370,6 +368,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 				sb.append("select the \"").append(UI_SIMPLE).append("\" interface.");
 			}
 			exit(sb.toString());
+			GuiUtils.restoreLookAndFeel();
 		} finally {
 			exit("");
 		}

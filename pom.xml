@@ -130,7 +130,6 @@
 		<jzy3d.version>1.0.3</jzy3d.version>
 
 		<jline.version>3.13.1</jline.version>
-		<jide-oss.version>3.6.18</jide-oss.version>
 		<imagej-plot-service.version>0.1.1</imagej-plot-service.version>
 		<okhttp.version>4.7.2</okhttp.version>
 		<font-awesome.version>5.15.2</font-awesome.version>
@@ -163,6 +162,11 @@
 	</repositories>
 
 	<dependencies>
+		<dependency>
+			<groupId>com.formdev</groupId>
+			<artifactId>flatlaf</artifactId>
+			<version>1.1</version>
+		</dependency>
 		<dependency>
 			<groupId>com.github.haifengl</groupId>
 			<artifactId>smile-core</artifactId>
@@ -253,9 +257,14 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>com.jidesoft</groupId>
+			<groupId>com.formdev</groupId>
 			<artifactId>jide-oss</artifactId>
-			<version>${jide-oss.version}</version>
+			<version>3.7.11.1</version>
+		</dependency>
+		<dependency>
+			<groupId>com.formdev</groupId>
+			<artifactId>flatlaf-jide-oss</artifactId>
+			<version>1.1</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>

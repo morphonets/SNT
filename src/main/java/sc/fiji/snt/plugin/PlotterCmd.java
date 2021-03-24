@@ -23,6 +23,8 @@
 package sc.fiji.snt.plugin;
 
 import java.awt.Dimension;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.FileFilter;
 import java.util.ArrayList;
@@ -38,6 +40,8 @@ import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.Interactive;
 import org.scijava.log.LogService;
+import org.scijava.menu.MenuConstants;
+import org.scijava.plugin.Menu;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
@@ -58,9 +62,11 @@ import sc.fiji.snt.util.SNTColor;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = true,
-	menuPath = "Plugins>Neuroanatomy>Reconstruction Plotter...",
-	label = "Reconstruction Plotter", initializer = "init")
+@Plugin(type = Command.class, menu = {
+		@Menu(label = MenuConstants.PLUGINS_LABEL, weight = MenuConstants.PLUGINS_WEIGHT, mnemonic = MenuConstants.PLUGINS_MNEMONIC), //
+		@Menu(label = "Neuroanatomy", weight = GuiUtils.DEFAULT_MENU_WEIGHT), //
+		@Menu(label = "Reconstruction Plotter...") }, //
+		initializer = "init")
 public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 
 	@Parameter
@@ -123,7 +129,6 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 			resolveInput("tree");
 			statusService.showStatus(
 				"Please select one or more reconstruction files");
-			GuiUtils.setSystemLookAndFeel();
 			final FileFilter filter = (file) -> {
 				final String lName = file.getName().toLowerCase();
 				return lName.endsWith("swc") || lName.endsWith(".traces") || lName
@@ -164,7 +169,11 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 	@Override
 	public void run() {
 
-		if (tree == null || tree.isEmpty()) error("No paths to plot");
+		if (tree == null || tree.isEmpty()) {
+			error("No paths to plot");
+			return;
+		}
+		GuiUtils.setLookAndFeel();
 		status("Building Plot...", false);
 		// Tree rotation occurs in place so we'll copy plotting coordinates
 		// to a new Tree. To avoid rotation lags we'll keep it monochrome,
@@ -178,6 +187,14 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		frame.setPreferredSize(new Dimension(500, 500));
 		frame.pack();
 		frame.setVisible(true);
+		frame.addWindowListener(new WindowAdapter() {
+
+			@Override
+			public void windowClosing(final WindowEvent e) {
+				GuiUtils.restoreLookAndFeel();
+				super.windowClosing(e);
+			}
+		});
 		status(null, false);
 
 	}

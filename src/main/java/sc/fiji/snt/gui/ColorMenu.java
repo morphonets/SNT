@@ -322,7 +322,7 @@ public class ColorMenu extends JMenu {
 
 	/* IDE debug method */
 	public static void main(final String[] args) {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		final javax.swing.JFrame f = new javax.swing.JFrame();
 		final javax.swing.JMenuBar menuBar = new javax.swing.JMenuBar();
 		final ColorMenu menu = new ColorMenu("Test");

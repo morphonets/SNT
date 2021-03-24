@@ -1069,4 +1069,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		return null;
 	}
 
+	public void setLookAndFeel(final String lookAndFeelName) {
+		GuiUtils.setLookAndFeel(lookAndFeelName, false, pMenu);
+	}
 }

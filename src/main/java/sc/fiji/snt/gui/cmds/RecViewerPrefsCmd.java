@@ -24,6 +24,8 @@ package sc.fiji.snt.gui.cmds;
 
 import java.io.File;
 
+import javax.swing.JOptionPane;
+
 import net.imagej.ImageJ;
 
 import org.scijava.ItemVisibility;
@@ -31,13 +33,12 @@ import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-import org.scijava.ui.DialogPrompt.MessageType;
-import org.scijava.ui.DialogPrompt.Result;
-import org.scijava.ui.UIService;
 import org.scijava.widget.Button;
 import org.scijava.widget.NumberWidget;
 
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.viewer.Viewer3D;
 
 /**
  * Command implementing Reconstruction Viewer 'Preferences...' command.
@@ -55,9 +56,6 @@ public class RecViewerPrefsCmd extends ContextCommand {
 	public static int DEF_ROTATION_FPS = 30;
 	public static String DEF_CONTROLS_SENSITIVITY = "High";
 	public static String DEF_SCRIPT_EXTENSION = ".groovy";
-
-	@Parameter
-	private UIService uiService;
 
 	@Parameter(
 		label = "<HTML><b>I. Snapshot Recordings:",
@@ -111,8 +109,21 @@ public class RecViewerPrefsCmd extends ContextCommand {
 		private String scriptExtension;
 
 	@Parameter(label = "<HTML>&nbsp;", required = false,
-			visibility = ItemVisibility.MESSAGE)
+		visibility = ItemVisibility.MESSAGE)
 	private String msg3;
+
+	@Parameter(label = "<HTML><b>IV: Look and Feel:",
+			required = false, visibility = ItemVisibility.MESSAGE)
+	private String HEADER4;
+
+	@Parameter(label = "<HTML>&nbsp;", required = false, description = "How should SNT tools look? (Restart may be required)", choices = {
+			GuiUtils.LAF_DEFAULT, GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK,
+			GuiUtils.LAF_DARCULA })
+	private String laf;
+
+	@Parameter(label = "<HTML>&nbsp;", required = false,
+			visibility = ItemVisibility.MESSAGE)
+	private String msg4;
 
 	@Parameter(label = "Defaults", callback = "defaults")
 	private Button defaults;
@@ -120,6 +131,8 @@ public class RecViewerPrefsCmd extends ContextCommand {
 	@Parameter(label = "   Reset  ", callback = "reset")
 	private Button reset;
 
+	@Parameter(required = false)
+	private Viewer3D recViewer;
 
 	private void init() {
 		if (snapshotDir == null) snapshotDir = new File(DEF_SNAPSHOT_DIR);
@@ -129,6 +142,7 @@ public class RecViewerPrefsCmd extends ContextCommand {
 		if (rotationFPS == 0) rotationFPS = DEF_ROTATION_FPS;
 		if (sensitivity == null) sensitivity = DEF_CONTROLS_SENSITIVITY;
 		if (scriptExtension == null) scriptExtension = DEF_SCRIPT_EXTENSION;
+		laf = SNTPrefs.getLookAndFeel();
 	}
 
 	private void defaults() {
@@ -138,6 +152,7 @@ public class RecViewerPrefsCmd extends ContextCommand {
 		rotationFPS = 0;
 		sensitivity = null;
 		scriptExtension = null;
+		laf = SNTPrefs.getDefaultLookAndFeel();
 		init();
 	}
 
@@ -145,13 +160,12 @@ public class RecViewerPrefsCmd extends ContextCommand {
 	private void reset() {
 		final PrefsCmd pCmd = new PrefsCmd();
 		pCmd.setContext(getContext());
-		final Result result = uiService.showDialog(
-				"Reset preferences to defaults?\nThis will also reset all of SNT preferences!",
-				MessageType.QUESTION_MESSAGE);
-			if (Result.YES_OPTION == result || Result.OK_OPTION == result) {
+		final boolean reset = new GuiUtils().getConfirmation(
+				"Reset preferences to defaults?\nThis will also reset all of SNT preferences!", "Reset?");
+			if (reset) {
 				pCmd.clearAll();
 				defaults();
-				uiService.showDialog("Preferences Reset.\nYou may need to restart"
+				new GuiUtils().centeredMsg("Preferences reset.\nYou may need to restart"
 						+ " for changes to take effect.", "Restart May Be Required");
 			}
 	}
@@ -176,13 +190,25 @@ public class RecViewerPrefsCmd extends ContextCommand {
 	 */
 	@Override
 	public void run() {
+
+		final String existingLaf = SNTPrefs.getLookAndFeel();
+		if (!existingLaf.equals(laf) && recViewer != null) {
+			final int ans = new GuiUtils(recViewer.getManagerPanel()).yesNoDialog(
+					"It is <i>highly</i> recommended that you restart Reconstruction Viewer for changes to take effect. "
+							+ "Alternatively, you can attempt to apply the new Look and Feel now, but widgets may display erratically. "
+							+ "Do you want to try nevertheless?",
+					"Restart Suggested", "Yes. Apply now.", "No. I will restart.");
+			if (ans == JOptionPane.YES_OPTION && recViewer != null)
+				recViewer.setLookAndFeel(laf);
+		}
+
 		// The sole purpose of this run() is to store the parameters using the
 		// PrefService mechanism. Thus, we don't need to do nothing here
 	}
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		ij.command().run(RecViewerPrefsCmd.class, true);

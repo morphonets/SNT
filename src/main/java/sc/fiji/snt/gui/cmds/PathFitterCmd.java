@@ -34,7 +34,6 @@ import org.scijava.widget.Button;
 
 import sc.fiji.snt.PathFitter;
 import sc.fiji.snt.SNTPrefs;
-import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * GUI command for {@link PathFitter}
@@ -61,7 +60,7 @@ public class PathFitterCmd extends ContextCommand {
 	private static String HEADER;
 
 	static {
-		GuiUtils.setSystemLookAndFeel();
+		//GuiUtils.setLookAndFeel();
 		final javax.swing.JLabel label = new javax.swing.JLabel();
 		final int width = label.getFontMetrics(label.getFont()).stringWidth(
 			"Type of Fit" + CHOICE_BOTH);

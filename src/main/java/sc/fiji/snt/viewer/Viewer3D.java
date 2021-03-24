@@ -401,7 +401,7 @@ public class Viewer3D {
 	}
 
 	private void init(final Context context) {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		initManagerList();
 		context.inject(this);
 		prefs.setPreferences();
@@ -1309,6 +1309,21 @@ public class Viewer3D {
 		} else {
 			frame.setSize(w, h);
 		}
+	}
+
+	public void setLookAndFeel(final String lookAndFeelName) {
+		if (frame == null) return;
+		final ArrayList<Component> components = new ArrayList<>();
+		components.add(frame);
+		if (frame.manager != null)
+			components.add(frame.manager);
+		if (frame.allenNavigator != null) {
+			components.add(frame.allenNavigator.dialog);
+			components.add(frame.allenNavigator.tree.getComponentPopupMenu());
+		}
+		if (managerList != null)
+			components.add(managerList.getComponentPopupMenu());
+		GuiUtils.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
 	}
 
 	private void displayMsg(final String msg) {
@@ -2575,6 +2590,7 @@ public class Viewer3D {
 			if (gUtilsDefiningPrompt.getConfirmation("Quit Reconstruction Viewer?", "Quit?", "Yes. Quit Now",
 					"No. Keep Open")) {
 				chart.viewer.dispose();
+				GuiUtils.restoreLookAndFeel();
 			}
 		}
 
@@ -3527,7 +3543,7 @@ public class Viewer3D {
 		private void displayMeshBoundingBoxes(final boolean display) {
 			final List<String> labels = getLabelsCheckedInManager();
 			if (labels.isEmpty()) {
-				displayMsg("There are no items selectedt");
+				displayMsg("There are no items selected");
 				return;
 			}
 			plottedObjs.forEach((k, mesh) -> {
@@ -4105,7 +4121,6 @@ public class Viewer3D {
 			prefsMenu.add(panMenu());
 			prefsMenu.add(zoomMenu());
 			prefsMenu.add(rotationMenu());
-			prefsMenu.addSeparator();
 
 			addSeparator(prefsMenu, "Advanced Settings:");
 			final JMenuItem jcbmi = new JCheckBoxMenuItem("Debug Mode", SNTUtils.isDebugMode());
@@ -4131,10 +4146,10 @@ public class Viewer3D {
 				logGLDetails();
 			});
 			prefsMenu.add(jcbmi2);
-			addSeparator(prefsMenu, "Persistent Settings:");
+			addSeparator(prefsMenu, "Other:");
 			final JMenuItem mi = new JMenuItem("Global Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
 			mi.addActionListener(e -> {
-				runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, false);
+				runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, true);
 			});
 			prefsMenu.add(mi);
 			return prefsMenu;
@@ -6876,7 +6891,7 @@ public class Viewer3D {
 
 	/* IDE debug method */
 	public static void main(final String[] args) throws InterruptedException {
-		GuiUtils.setSystemLookAndFeel();
+		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 	final Tree tree = new SNTService().demoTrees().get(0);
 	final TreeColorMapper colorizer = new TreeColorMapper(ij.getContext());
