@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.scijava.Cancelable;
 import org.scijava.ItemIO;
 import org.scijava.ItemVisibility;
 import org.scijava.app.StatusService;
@@ -40,6 +41,7 @@ import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.command.DynamicCommand;
+import org.scijava.command.Interactive;
 import org.scijava.convert.ConvertService;
 import org.scijava.display.Display;
 import org.scijava.display.DisplayService;
@@ -102,7 +104,7 @@ import sc.fiji.snt.util.ShollPoint;
 		@Menu(label = "Sholl"), //
 		@Menu(label = "Sholl Analysis (From Image)...") }, //
 		initializer = "init", headless = false)
-public class ShollAnalysisImgCmd extends DynamicCommand {
+public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, Cancelable {
 
 	@Parameter
 	private CommandService cmdService;

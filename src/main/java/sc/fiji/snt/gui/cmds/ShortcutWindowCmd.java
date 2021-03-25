@@ -82,7 +82,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	@Parameter
 	private ThreadService threadService;
 
-	private JFrame frame;
+	private static JFrame frame;
 	private final ArrayList<JButton> buttons = new ArrayList<>();
 	private static final String WIN_LOC = "snt.sw.loc";
 
@@ -234,6 +234,13 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 	@Override
 	public void run() {
+
+		if (frame != null) {
+			frame.setVisible(true);
+			frame.toFront();
+			return;
+		}
+
 		GuiUtils.setLookAndFeel(); // needs to be called here because frame uses swing
 		frame = getFrame();
 		frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);

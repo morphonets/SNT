@@ -4745,12 +4745,16 @@ public class Viewer3D {
 		 */
 		private int[] loadGuessingType(final Collection<File> files, final ColorRGB baseColor) {
 			final int totalFiles = files.size();
+			if (frame.managerPanel != null) {
+				frame.managerPanel.setProgressLimit(0, totalFiles);
+			}
 			final ColorRGB[] colors = getmportColors(baseColor, totalFiles);
 			int failures = 0;
 			int idx = 0;
 			for (final File file : files) {
 				if (abortCurrentOperation) {
 					SNTUtils.log("Aborting...");
+					displayMsg(String.format("%d file(s) loaded", (idx+1)));
 					break;
 				}
 				if (!file.exists() || file.isDirectory()) {
