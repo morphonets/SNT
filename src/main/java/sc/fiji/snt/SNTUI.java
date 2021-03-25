@@ -1683,28 +1683,39 @@ public class SNTUI extends JDialog {
 		openRecViewer = new JButton("Open Reconstruction Viewer");
 		openRecViewer.addActionListener(e -> {
 			// if (noPathsError()) return;
-			if (recViewer == null) {
-				try {
-					getReconstructionViewer(true);
-				} catch (final NoClassDefFoundError | RuntimeException exc) {
-					exc.printStackTrace();
-					no3DcapabilitiesError("Reconstruction Viewer");
-					return;
-				}
-				recViewer.setDefaultColor(new ColorRGB(plugin.deselectedColor.getRed(),
-						plugin.deselectedColor.getGreen(), plugin.deselectedColor.getBlue()));
-				if (pathAndFillManager.size() > 0)
-					recViewer.syncPathManagerList();
-				recViewerFrame = recViewer.show();
-				recViewerFrame.addWindowListener(new WindowAdapter() {
+			class RecWorker extends SwingWorker<Boolean, Object> {
 
-					@Override
-					public void windowClosing(final WindowEvent e) {
-						openRecViewer.setEnabled(true);
-						recViewer = null;
-						recViewerFrame = null;
+				@Override
+				protected Boolean doInBackground() {
+					try {
+						recViewer = new SNTViewer3D();
+					} catch (final NoClassDefFoundError | RuntimeException exc) {
+						exc.printStackTrace();
+						return false;
 					}
-				});
+					if (pathAndFillManager.size() > 0) recViewer.syncPathManagerList();
+					recViewerFrame = recViewer.show();
+					return true;
+				}
+
+				@Override
+				protected void done() {
+					try {
+						if (!get())
+							no3DcapabilitiesError("Reconstruction Viewer");
+					} catch (final InterruptedException | ExecutionException e) {
+						guiUtils.error("Unfortunately an error occured. See Console for details.");
+						e.printStackTrace();
+					} finally {
+						setReconstructionViewer(recViewer);
+					}
+				}
+			}
+			if (recViewer == null) {
+				new RecWorker().execute();
+			} else { // button should be now disable. Code below is moot.
+				recViewerFrame.setVisible(true);
+				recViewerFrame.toFront();
 			}
 		});
 
@@ -3806,6 +3817,23 @@ public class SNTUI extends JDialog {
 	private class SNTViewer3D extends Viewer3D {
 		SNTViewer3D() {
 			super(SNTUI.this.plugin);
+			super.setDefaultColor(new ColorRGB(plugin.deselectedColor.getRed(),
+					plugin.deselectedColor.getGreen(), plugin.deselectedColor.getBlue()));
+		}
+
+		@Override
+		public Frame show() {
+			final Frame frame = super.show();
+			frame.addWindowListener(new WindowAdapter() {
+
+				@Override
+				public void windowClosing(final WindowEvent e) {
+					openRecViewer.setEnabled(true);
+					recViewer = null;
+					recViewerFrame = null;
+				}
+			});
+			return frame;
 		}
 	}
 
