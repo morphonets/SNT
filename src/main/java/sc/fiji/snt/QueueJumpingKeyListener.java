@@ -241,7 +241,7 @@ class QueueJumpingKeyListener implements KeyListener {
 				// IJ1 built-in: ROI Properties...
 				if (tracerPlugin.getUI().finishOnDoubleConfimation && doublePress)
 					tracerPlugin.finishedPath();
-				else tracerPlugin.confirmTemporary();
+				else tracerPlugin.confirmTemporary(true);
 				e.consume();
 			}
 			else if (keyChar == 'n' || keyChar == 'N') {

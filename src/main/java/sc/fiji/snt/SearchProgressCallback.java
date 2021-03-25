@@ -26,14 +26,14 @@ public interface SearchProgressCallback {
 
 	/* How many points have we considered? */
 
-	public void pointsInSearch(SearchInterface source, int inOpen, int inClosed);
+	void pointsInSearch(SearchInterface source, long inOpen, long inClosed);
 
 	/*
 	 * Once finished is called, you should be able to get the result from whatever
 	 * means you've implemented, e.g. TracerThreed.getResult()
 	 */
 
-	public void finished(SearchInterface source, boolean success);
+	void finished(SearchInterface source, boolean success);
 
 	/*
 	 * This reports the current status of the thread, which may be:
@@ -41,6 +41,6 @@ public interface SearchProgressCallback {
 	 * SearchThread.RUNNING SearchThread.PAUSED SearchThread.STOPPING
 	 */
 
-	public void threadStatus(SearchInterface source, int currentStatus);
+	void threadStatus(SearchInterface source, int currentStatus);
 
 }

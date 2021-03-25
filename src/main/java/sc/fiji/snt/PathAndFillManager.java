@@ -101,6 +101,7 @@ import util.XMLFunctions;
  * 
  * @author Mark Longair
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
 public class PathAndFillManager extends DefaultHandler implements
 	UniverseListener
@@ -127,7 +128,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	private final ArrayList<Fill> allFills;
 	private final ArrayList<PathAndFillListener> listeners;
 	private final HashSet<Path> selectedPathsSet;
-	private int maxUsedPathID = -1;
+	private int maxUsedPathID = 0;
 	private int maxUsedTreeID = 0;
 
 	private Fill current_fill;
@@ -1225,11 +1226,11 @@ public class PathAndFillManager extends DefaultHandler implements
 		if (updateInterface) resetListeners(null);
 	}
 
-	protected void reloadFill(final int index) {
-		final Fill toReload = allFills.get(index);
-		plugin.startFillerThread(FillerThread.fromFill(plugin.getImagePlus(),
-			plugin.stackMin, plugin.stackMax, true, toReload));
-
+	protected void reloadFills(int[] selectedIndices) {
+		for (int ind : selectedIndices) {
+			plugin.addFillerThread(FillerThread.fromFill(plugin.getImagePlus(),
+					plugin.stackMin, plugin.stackMax, false, allFills.get(ind)));
+		}
 	}
 
 	// FIXME: should probably use XMLStreamWriter instead of this ad-hoc

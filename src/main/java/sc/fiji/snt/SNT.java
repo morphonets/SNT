@@ -36,10 +36,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.*;
 
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 
+import com.google.common.collect.Lists;
 import org.scijava.Context;
 import org.scijava.NullContextException;
 import org.scijava.app.StatusService;
@@ -94,6 +95,7 @@ import sc.fiji.snt.util.PointInImage;
  * Implements the SNT plugin.
  *
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
 public class SNT extends MultiDThreePanes implements
 	SearchProgressCallback, GaussianGenerationCallback, PathAndFillListener
@@ -231,9 +233,10 @@ public class SNT extends MultiDThreePanes implements
 	protected SNTUI ui;
 	protected volatile boolean tracingHalted = false; // Tracing functions paused?
 
-	// This should only be assigned to when synchronized on this object
-	// (FIXME: check that that is true)
-	FillerThread filler = null;
+	final Set<FillerThread> fillerSet = new HashSet<>();
+	ExecutorService fillerThreadPool;
+
+	ExecutorService tracerThreadPool;
 
 	/* Colors */
 	private static final Color DEFAULT_SELECTED_COLOR = Color.GREEN;
@@ -710,12 +713,41 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void cancelSearch(final boolean cancelFillToo) {
-		if (currentSearchThread != null) currentSearchThread.requestStop();
-		if (manualSearchThread != null) manualSearchThread.requestStop();
-		if (tubularGeodesicsThread != null) tubularGeodesicsThread.requestStop();
+		// TODO: make this better
+		if (tracerThreadPool != null) {
+			tracerThreadPool.shutdownNow();
+			try {
+				long timeout = 1000L;
+				boolean terminated = tracerThreadPool.awaitTermination(timeout, TimeUnit.MILLISECONDS);
+				if (terminated) {
+					SNTUtils.log("Search cancelled.");
+				} else {
+					SNTUtils.log("Failed to terminate search within " + timeout + "ms");
+				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			} finally {
+				tracerThreadPool = null;
+			}
+		}
+		if (currentSearchThread != null) {
+			removeThreadToDraw(currentSearchThread);
+			currentSearchThread = null;
+		}
+		if (manualSearchThread != null) {
+			removeThreadToDraw(manualSearchThread);
+			manualSearchThread = null;
+		}
+		if (tubularGeodesicsThread != null) {
+			tubularGeodesicsThread.requestStop();
+			removeThreadToDraw(tubularGeodesicsThread);
+			tubularGeodesicsThread = null;
+		}
 		endJoin = null;
 		endJoinPoint = null;
-		if (cancelFillToo && filler != null) filler.requestStop();
+		if (cancelFillToo && fillerThreadPool != null) {
+			stopFilling();
+		}
 	}
 
 	@Override
@@ -732,31 +764,18 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	synchronized public void saveFill() {
-
-		if (filler != null) {
-			// The filler must be paused while we save to
-			// avoid concurrent modifications...
-
-			SNTUtils.log("[" + Thread.currentThread() +
-				"] going to lock filler in plugin.saveFill");
-			//synchronized (filler) 
-			{
-				SNTUtils.log("[" + Thread.currentThread() + "] acquired it");
-				if (SearchThread.PAUSED == filler.getThreadStatus()) {
-					// Then we can go ahead and save:
-					pathAndFillManager.addFill(filler.getFill());
-					// ... and then stop filling:
-					filler.requestStop();
-					changeUIState(SNTUI.WAITING_TO_START_PATH);
-					filler = null;
-				}
-				else {
-					guiUtils.error("The filler must be paused before saving the fill.");
-				}
-
-			}
-			SNTUtils.log("[" + Thread.currentThread() + "] left lock on filler");
+		if (fillerSet.isEmpty()) {
+			SNTUtils.log("No Fills to stash...");
+			return;
 		}
+
+		for (final FillerThread fillerThread : fillerSet) {
+			pathAndFillManager.addFill(fillerThread.getFill());
+			removeThreadToDraw(fillerThread);
+		}
+		fillerSet.clear();
+
+		changeUIState(SNTUI.WAITING_TO_START_PATH);
 	}
 
 	synchronized public void discardFill() {
@@ -764,19 +783,77 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	synchronized protected void discardFill(final boolean updateState) {
-		if (filler != null) {
-			synchronized (filler) {
-				filler.requestStop();
-				if (updateState) ui.resetState();
-				filler = null;
-			}
+		if (fillerSet.isEmpty()) {
+			SNTUtils.log("No Fill(s) to discard...");
 		}
+		for (FillerThread filler : fillerSet) {
+			removeThreadToDraw(filler);
+		}
+		fillerSet.clear();
+		fillerThreadPool = null;
+		changeUIState(SNTUI.WAITING_TO_START_PATH);
 	}
 
-	synchronized public void pauseOrRestartFilling() {
-		if (filler != null) {
-			filler.pauseOrUnpause();
+	synchronized protected void stopFilling() {
+
+		if (fillerThreadPool == null) {
+			SNTUtils.log("Attempted to shutdown null Filler");
+			return;
 		}
+		fillerThreadPool.shutdown();
+		try {
+			// Wait a while for existing tasks to terminate
+			if (!fillerThreadPool.awaitTermination(1L, TimeUnit.SECONDS)) {
+				fillerThreadPool.shutdownNow(); // Cancel currently executing tasks
+				// Wait a while for tasks to respond to being cancelled
+				if (!fillerThreadPool.awaitTermination(1L, TimeUnit.SECONDS))
+					System.err.println("Filler did not terminate");
+			}
+		} catch (InterruptedException ie) {
+			// (Re-)Cancel if current thread also interrupted
+			fillerThreadPool.shutdownNow();
+			// Preserve interrupt status
+			Thread.currentThread().interrupt();
+		} finally {
+			fillerThreadPool = null;
+		}
+
+	}
+
+	synchronized public void startFilling() {
+		if (fillerSet.isEmpty()) {
+			SNTUtils.log("No Fillers loaded");
+			return;
+		}
+		if (fillerThreadPool != null) {
+			SNTUtils.log("Filler already running...");
+			return;
+		}
+		fillerThreadPool = Executors.newFixedThreadPool(Math.max(1, SNTPrefs.getThreads()));
+		final List<Future<?>> futures = new ArrayList<>();
+		for (final FillerThread fillerThread : fillerSet) {
+			final Future<?> result = fillerThreadPool.submit(fillerThread);
+			futures.add(result);
+		}
+		SwingWorker<Object, Object> worker = new SwingWorker<Object, Object>() {
+			@Override
+			protected Object doInBackground() throws Exception {
+				for (final Future<?> future : futures) {
+					future.get();
+				}
+				return null;
+			}
+			@Override
+			protected void done() {
+				stopFilling();
+				SNTUtils.log("All fills completed.");
+				if (ui != null) {
+					ui.getFillManager().allFillsFinished(true);
+				}
+			}
+		};
+		worker.execute();
+
 	}
 
 	/* Listeners */
@@ -805,63 +882,53 @@ public class SNT extends MultiDThreePanes implements
 	@Override
 	public void finished(final SearchInterface source, final boolean success) {
 
-		/*
-		 * This is called by both filler and currentSearchThread, so distinguish these
-		 * cases:
-		 */
-
-		if (source == currentSearchThread || source == tubularGeodesicsThread ||
-			source == manualSearchThread)
+		if (source == currentSearchThread || source == tubularGeodesicsThread || source == manualSearchThread)
 		{
-
 			removeSphere(targetBallName);
 
-			try {
-				if (success) {
-					final Path result = source.getResult();
-					if (result == null) {
-						if (pathAndFillManager.enableUIupdates)
-							SNTUtils.error("Bug! Succeeded, but null result.");
-						else
-							SNTUtils.error("Scripted path yielded a null result.");
-						return;
-					}
-					if (endJoin != null) {
+			if (success) {
+				final Path result = source.getResult();
+				if (result == null) {
+					if (pathAndFillManager.enableUIupdates)
+						SNTUtils.error("Bug! Succeeded, but null result.");
+					else
+						SNTUtils.error("Scripted path yielded a null result.");
+					return;
+				}
+				if (endJoin != null) {
 					result.setEndJoin(endJoin, endJoinPoint);
 				}
 				setTemporaryPath(result);
-
-				if (ui != null && ui.confirmTemporarySegments) {
-					changeUIState(SNTUI.QUERY_KEEP);
+				if (ui == null) {
+					confirmTemporary(false);
+				} else {
+					if (ui.confirmTemporarySegments) {
+						changeUIState(SNTUI.QUERY_KEEP);
+					} else {
+						confirmTemporary(true);
+					}
 				}
-				else {
-					confirmTemporary();
-					changeUIState(SNTUI.PARTIAL_PATH);
-				}
-			}
-			else {
-
+			} else {
+				SNTUtils.log("Failed to find route.");
 				changeUIState(SNTUI.PARTIAL_PATH);
 			}
 
-			// Indicate in the dialog that we've finished...
-
 			if (source == currentSearchThread) {
-					currentSearchThread = null;
-				}
-
-			} finally {
-
-				removeThreadToDraw(source);
-				updateTracingViewers(false);
+				currentSearchThread = null;
+			} else if (source == manualSearchThread) {
+				manualSearchThread = null;
 			}
+
+			removeThreadToDraw(source);
+			updateTracingViewers(false);
+
 		}
 
 	}
 
 	@Override
-	public void pointsInSearch(final SearchInterface source, final int inOpen,
-		final int inClosed)
+	public void pointsInSearch(final SearchInterface source, final long inOpen,
+		final long inClosed)
 	{
 		// Just use this signal to repaint the canvas, in case there's
 		// been no mouse movement.
@@ -1219,10 +1286,10 @@ public class SNT extends MultiDThreePanes implements
 		statusService.showStatus(statusMessage);
 		repaintAllPanes(); // Or the crosshair isn't updated...
 
-		if (filler != null) {
-			synchronized (filler) {
-				final float distance = filler.getDistanceAtPoint(ix, iy, iz);
-				ui.getFillManager().showMouseThreshold(distance);
+		if (!fillerSet.isEmpty()) {
+			for (FillerThread fillerThread : fillerSet) {
+				final double distance = fillerThread.getDistanceAtPoint(ix, iy, iz);
+				ui.getFillManager().showMouseThreshold((float)distance);
 			}
 		}
 	}
@@ -1344,11 +1411,11 @@ public class SNT extends MultiDThreePanes implements
 	synchronized void testPathTo(final double world_x, final double world_y,
 		final double world_z, final PointInImage joinPoint)
 	{
-		testPathTo(world_x, world_y, world_z, joinPoint, false, -1); // GUI execution
+		testPathTo(world_x, world_y, world_z, joinPoint, -1); // GUI execution
 	}
 
 	synchronized private void testPathTo(final double world_x, final double world_y,
-		final double world_z, final PointInImage joinPoint, final boolean attatchAwaitingLatch, final int minPathSize)// Script execution
+		final double world_z, final PointInImage joinPoint, final int minPathSize)// Script execution
 	{
 		if (!lastStartPointSet) {
 			statusService.showStatus(
@@ -1387,7 +1454,9 @@ public class SNT extends MultiDThreePanes implements
 		y_end = (int) Math.round(real_y_end / y_spacing);
 		z_end = (int) Math.round(real_z_end / z_spacing);
 
-		final CountDownLatch latch = (attatchAwaitingLatch) ?  new CountDownLatch(1) : null;
+		if (tracerThreadPool == null || tracerThreadPool.isShutdown()) {
+			tracerThreadPool = Executors.newSingleThreadExecutor();
+		}
 
 		if (tubularGeodesicsTracingEnabled) {
 
@@ -1404,7 +1473,6 @@ public class SNT extends MultiDThreePanes implements
 				y_end, z_end, x_spacing, y_spacing, z_spacing, spacing_units);
 			addThreadToDraw(tubularGeodesicsThread);
 			tubularGeodesicsThread.addProgressListener(this);
-			tubularGeodesicsThread.setCountDownLatch(latch);
 			tubularGeodesicsThread.start();
 		}
 
@@ -1413,35 +1481,86 @@ public class SNT extends MultiDThreePanes implements
 				last_start_point_y, last_start_point_z, x_end, y_end, z_end);
 			addThreadToDraw(manualSearchThread);
 			manualSearchThread.addProgressListener(this);
-			manualSearchThread.setCountDownLatch(latch);
-			manualSearchThread.start();
+			tracerThreadPool.execute(manualSearchThread);
 		}
 		else {
 			currentSearchThread = new TracerThread(this, (int) Math.round(last_start_point_x),
 					(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end);
 
 			addThreadToDraw(currentSearchThread);
-			currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this
-																															// color a
-																															// preference
-			currentSearchThread.setCountDownLatch(latch);
+			currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this color a preference
 			currentSearchThread.setMinExpectedSizeOfResult(minPathSize);
 			currentSearchThread.setDrawingThreshold(-1);
 			currentSearchThread.addProgressListener(this);
-			currentSearchThread.start();
-		}
-
-		try {
-			if (latch != null) latch.await();
-		} catch (final InterruptedException e) {
-			e.printStackTrace();
-		} finally {
-			updateTracingViewers(true);
+			tracerThreadPool.execute(currentSearchThread);
 		}
 
 	}
 
-	synchronized public void confirmTemporary() {
+	public BidirectionalAStarSearch createSearch(final double world_x, final double world_y,
+												 final double world_z, final PointInImage joinPoint) {
+		if (!lastStartPointSet) {
+			statusService.showStatus(
+					"No initial start point has been set.  Do that with a mouse click." +
+							" (Or a Shift-" + GuiUtils.ctrlKey() +
+							"-click if the start of the path should join another neurite.");
+			return null;
+		}
+
+		if (temporaryPath != null) {
+			statusService.showStatus(
+					"There's already a temporary path; Press 'N' to cancel it or 'Y' to keep it.");
+			return null;
+		}
+
+		double real_x_end, real_y_end, real_z_end;
+
+		int x_end, y_end, z_end;
+		if (joinPoint == null) {
+			real_x_end = world_x;
+			real_y_end = world_y;
+			real_z_end = world_z;
+		}
+		else {
+			real_x_end = joinPoint.x;
+			real_y_end = joinPoint.y;
+			real_z_end = joinPoint.z;
+			endJoin = joinPoint.onPath;
+			endJoinPoint = joinPoint;
+		}
+
+		addSphere(targetBallName, real_x_end, real_y_end, real_z_end, getXYCanvas()
+				.getTemporaryPathColor(), x_spacing * ballRadiusMultiplier);
+
+		x_end = (int) Math.round(real_x_end / x_spacing);
+		y_end = (int) Math.round(real_y_end / y_spacing);
+		z_end = (int) Math.round(real_z_end / z_spacing);
+
+		return new BidirectionalAStarSearch(this, (int) Math.round(last_start_point_x),
+				(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end);
+
+	}
+
+	public BidirectionalAStarSearch createSearch2(final double start_x, final double start_y, final double start_z,
+												  final double world_x, final double world_y, final double world_z) {
+
+		int x_start, y_start, z_start;
+		int x_end, y_end, z_end;
+
+		x_start = (int) Math.round(start_x / x_spacing);
+		y_start = (int) Math.round(start_y / y_spacing);
+		z_start = (int) Math.round(start_z / z_spacing);
+
+		x_end = (int) Math.round(world_x / x_spacing);
+		y_end = (int) Math.round(world_y / y_spacing);
+		z_end = (int) Math.round(world_z / z_spacing);
+
+		return new BidirectionalAStarSearch(this, x_start,
+				y_start, z_start, x_end, y_end, z_end);
+
+	}
+
+	synchronized public void confirmTemporary(final boolean updateTracingViewers) {
 
 		if (temporaryPath == null)
 			// Just ignore the request to confirm a path (there isn't one):
@@ -1457,7 +1576,8 @@ public class SNT extends MultiDThreePanes implements
 		if (currentPath.endJoins == null) {
 			setTemporaryPath(null);
 			changeUIState(SNTUI.PARTIAL_PATH);
-			updateTracingViewers(true);
+			if (updateTracingViewers)
+				updateTracingViewers(true);
 		}
 		else {
 			setTemporaryPath(null);
@@ -1578,7 +1698,7 @@ public class SNT extends MultiDThreePanes implements
 	 *         list of points, a single-point path is generated.
 	 */
 	public Path autoTrace(final List<PointInImage> pointList,
-		final PointInImage forkPoint)
+						  final PointInImage forkPoint)
 	{
 		if (pointList == null || pointList.size() == 0)
 			throw new IllegalArgumentException("pointList cannot be null or empty");
@@ -1599,56 +1719,98 @@ public class SNT extends MultiDThreePanes implements
 		final int secondNodeIdx = (pointList.size() == 1) ? 0 : 1;
 		final int nNodes = pointList.size();
 
+		if (tracerThreadPool == null || tracerThreadPool.isShutdown()) {
+			tracerThreadPool = Executors.newSingleThreadExecutor();
+		}
+
 		// Now keep appending nodes to temporary path
 		for (int i = secondNodeIdx; i < nNodes; i++) {
+			// Append node and wait for search to be finished
+			final PointInImage node = pointList.get(i);
 
+			BidirectionalAStarSearch pathSearch = createSearch(node.x, node.y, node.z, null);
+			pathSearch.setDrawingColors(Color.CYAN, null);
+			pathSearch.setDrawingThreshold(-1);
+			addThreadToDraw(pathSearch);
+			pathSearch.addProgressListener(this);
+
+			Future<Path> result = tracerThreadPool.submit(pathSearch);
+			Path pathResult = null;
 			try {
+				pathResult = result.get();
+			} catch (InterruptedException | ExecutionException e) {
+				SNTUtils.error("Error during auto-trace", e);
+			} catch(Throwable t) {
+				SNTUtils.error("Unknown error during trace", t);
+			}
 
-				// Append node and wait for search to be finished
-				final PointInImage node = pointList.get(i);
-				testPathTo(node.x, node.y, node.z, null, true, 1);
-				((Thread) getActiveSearchingThread()).join();
+			removeThreadToDraw(pathSearch);
 
+			if (pathResult == null) {
+				SNTUtils.log("Auto-trace result was null.");
+				return null;
 			}
-			catch (final NullPointerException ex) {
-				// do nothing: search thread has already terminated or node is null
+
+			if (endJoin != null) {
+				pathResult.setEndJoin(endJoin, endJoinPoint);
 			}
-			catch (final InterruptedException ex) {
-				showStatus(0, 0, "Search interrupted!");
-				SNTUtils.error("Search interrupted", ex);
-			}
-				catch (final ArrayIndexOutOfBoundsException
-						| IllegalArgumentException ex)
-				{
-					// It is likely that search failed for this node. These will be
-					// triggered if
-					// e.g., point- is out of image bounds,
-					showStatus(i, nNodes, "ERROR: Search failed!...");
-					SNTUtils.error("Search failed for node " + i);
-					// continue;
-			}
-			finally {
-				showStatus(i, pointList.size(), "Confirming segment...");
-				confirmTemporary();
-			}
+			setTemporaryPath(pathResult);
+			confirmTemporary(true);
 		}
+
 		finishedPath();
 
 		// restore UI state
 		showStatus(0, 0, "Tracing Complete");
 
 		pathAndFillManager.enableUIupdates = existingEnableUIupdates;
-		if (existingEnableUIupdates) pathAndFillManager.resetListeners(null);
 		ui = existingUI;
+		if (existingEnableUIupdates) pathAndFillManager.resetListeners(null);
+
 		changeUIState(SNTUI.READY);
 
 		return pathAndFillManager.getPath(pathAndFillManager.size() - 1);
+
 	}
 
-	private SearchInterface getActiveSearchingThread() {
-		if (manualSearchThread != null) return manualSearchThread;
-		if (tubularGeodesicsThread != null) return tubularGeodesicsThread;
-		return currentSearchThread;
+	public Path autoTrace2(final List<PointInImage> pointList)
+	{
+		if (pointList == null || pointList.size() == 0)
+			throw new IllegalArgumentException("pointList cannot be null or empty");
+
+		if (tracerThreadPool == null || tracerThreadPool.isShutdown()) {
+			tracerThreadPool = Executors.newSingleThreadExecutor();
+		}
+
+		Path fullPath = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
+
+		// Now keep appending nodes to temporary path
+		for (int i=0; i<pointList.size()-1; i++) {
+			// Append node and wait for search to be finished
+			final PointInImage start = pointList.get(i);
+			final PointInImage end = pointList.get(i+1);
+
+			BidirectionalAStarSearch pathSearch = createSearch2(start.x, start.y, start.z, end.x, end.y, end.z);
+
+			Future<Path> result = tracerThreadPool.submit(pathSearch);
+			Path pathResult = null;
+			try {
+				pathResult = result.get();
+			} catch (InterruptedException | ExecutionException e) {
+				SNTUtils.error("Error during auto-trace", e);
+			} catch(Throwable t) {
+				SNTUtils.error("Unknown error during trace", t);
+			}
+
+			if (pathResult == null) {
+				SNTUtils.log("Auto-trace result was null.");
+				return null;
+			}
+			fullPath.add(pathResult);
+		}
+
+		return fullPath;
+
 	}
 
 	synchronized protected void replaceCurrentPath(final Path path) {
@@ -1682,7 +1844,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		// Is there an unconfirmed path? If so, confirm it first
-		if (temporaryPath != null) confirmTemporary();
+		if (temporaryPath != null) confirmTemporary(false);
 
 		if (justFirstPoint() && ui != null && ui.confirmTemporarySegments && !getConfirmation(
 			"Create a single point path? (such path is typically used to mark the cell soma)",
@@ -1742,7 +1904,7 @@ public class SNT extends MultiDThreePanes implements
 
 		if (temporaryPath != null) return;
 
-		if (filler != null) {
+		if (!fillerSet.isEmpty()) {
 			setFillThresholdFrom(world_x, world_y, world_z);
 			return;
 		}
@@ -1754,7 +1916,7 @@ public class SNT extends MultiDThreePanes implements
 			try {
 				testPathTo(world_x, world_y, world_z, joinPoint);
 				changeUIState(SNTUI.SEARCHING);
-			} catch (final IllegalArgumentException ex) {
+			} catch (final Exception ex) {
 				if (getUI() != null) {
 					getUI().error(ex.getMessage());
 					getUI().enableHessian(false);
@@ -1789,18 +1951,28 @@ public class SNT extends MultiDThreePanes implements
 	public void setFillThresholdFrom(final double world_x, final double world_y,
 		final double world_z)
 	{
+		double min_dist = Double.POSITIVE_INFINITY;
+		for (FillerThread fillerThread : fillerSet) {
+			final double distance = fillerThread.getDistanceAtPoint(world_x / x_spacing,
+					world_y / y_spacing, world_z / z_spacing);
+			if (distance > 0 && distance < min_dist) {
+				min_dist = distance;
+			}
+		}
+		if (min_dist == Double.POSITIVE_INFINITY) {
+			min_dist = -1.0f;
+		}
+		setFillThreshold(min_dist);
 
-		final float distance = filler.getDistanceAtPoint(world_x / x_spacing,
-			world_y / y_spacing, world_z / z_spacing);
-
-		setFillThreshold(distance);
 	}
 
 	public void setFillThreshold(final double distance) {
 		if (!Double.isNaN(distance) && distance > 0) {
 			SNTUtils.log("Setting new threshold of: " + distance);
 			if (ui != null) ui.thresholdChanged(distance);
-			filler.setThreshold(distance);
+			for (FillerThread fillerThread : fillerSet) {
+				fillerThread.setThreshold(distance);
+			}
 		}
 	}
 
@@ -1890,8 +2062,10 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public ImagePlus getFilledVolume(final boolean asMask) {
-		if (filler == null) return null;
-		return filler.fillAsImagePlus(!asMask);
+		if (fillerSet.isEmpty()) return null;
+		FillerThread filler = fillerSet.iterator().next();
+		return FillUtils.fillsAsImagePlus(fillerSet, filler.imagePlus, !asMask,
+				filler.imageType);
 	}
 
 	protected int guessResamplingFactor() {
@@ -1917,34 +2091,43 @@ public class SNT extends MultiDThreePanes implements
 		return ui.isVisible();
 	}
 
-	public void startFillerThread(final FillerThread filler) {
-		this.filler = filler;
+	public void addFillerThread(final FillerThread filler) {
+		fillerSet.add(filler);
 		filler.addProgressListener(this);
 		filler.addProgressListener(ui.getFillManager());
 		addThreadToDraw(filler);
-		filler.start();
 		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
-	synchronized public void startFillingPaths(final Set<Path> fromPaths) {
+	synchronized public void initPathsToFill(final Set<Path> fromPaths) {
 
-		// currentlyFilling = true;
 		if (ui != null) {
-			ui.getFillManager().pauseOrRestartFilling.setText("Pause");
+			ui.getFillManager().startFilling.setEnabled(true);
 			ui.getFillManager().thresholdChanged(0.03f);
 		}
-		filler = new FillerThread(xy, stackMin, stackMax, false, // startPaused
-			true, // reciprocal
-			0.03f, // Initial threshold to display
-			5000); // reportEveryMilliseconds
 
-		addThreadToDraw(filler);
-		filler.addProgressListener(this);
-		filler.addProgressListener(ui.getFillManager());
-		filler.setSourcePaths(fromPaths);
+		fillerSet.clear();
+		final int threads = Math.max(1, SNTPrefs.getThreads());
+		final List<Path> fromPathsList = new ArrayList<>(fromPaths);
+		SNTUtils.log("# Paths to fill: " + fromPathsList.size());
+		final int tasks = fromPathsList.size();
+		final int chunkSize = (tasks + threads - 1) / threads;
+		SNTUtils.log("# Paths per FillerThread: " + chunkSize);
+		List<List<Path>> chunked = Lists.partition(fromPathsList, chunkSize);
+		for (List<Path> chunk : chunked) {
+			final FillerThread filler = new FillerThread(xy, stackMin, stackMax, true, // reciprocal
+					0.03f, // Initial threshold to display
+					5000); // reportEveryMilliseconds
+			addThreadToDraw(filler);
+			filler.addProgressListener(this);
+			filler.addProgressListener(ui.getFillManager());
+			filler.setSourcePaths(chunk);
+			fillerSet.add(filler);
+		}
+		SNTUtils.log("# FillerThreads: " + fillerSet.size());
 
 		if (ui != null) ui.setFillListVisible(true);
-		filler.start();
+
 		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
@@ -2129,7 +2312,7 @@ public class SNT extends MultiDThreePanes implements
 
 	protected void loadTubenessImage(final HessianCaller hc, final ImagePlus imp, final boolean changeUIState) throws IllegalArgumentException {
 		if (xy == null) throw new IllegalArgumentException(
-				"Data can only be loaded after tracing image is known");;
+				"Data can only be loaded after tracing image is known");
 		if (!compatibleImp(imp)) {
 				throw new IllegalArgumentException("Dimensions do not match those of  " + xy.getTitle()
 				+ ". If this unexpected, check under 'Image>Properties...' that CZT axes are not swapped.");

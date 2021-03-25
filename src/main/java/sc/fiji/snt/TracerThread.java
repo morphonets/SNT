@@ -37,12 +37,15 @@ public class TracerThread extends SearchThread {
 	private int goal_x;
 	private int goal_y;
 	private int goal_z;
-	private boolean reciprocal;
-	private ComputeCurvatures hessian;
-	private double multiplier;
-	private float[][] cachedTubeness;
-	private boolean useHessian;
-	private boolean singleSlice;
+
+	private final boolean reciprocal;
+	private final ComputeCurvatures hessian;
+	private final double multiplier;
+	private final float[][] cachedTubeness;
+	private final boolean useHessian;
+
+	private final boolean singleSlice;
+
 	private Path result;
 
 
@@ -79,7 +82,6 @@ public class TracerThread extends SearchThread {
 	{
 		super(imagePlus, stackMin, stackMax, true, // bidirectional
 			true, // definedGoal
-			false, // startPaused,
 			timeoutSeconds, reportEveryMilliseconds);
 
 		this.reciprocal = reciprocal;
@@ -101,14 +103,13 @@ public class TracerThread extends SearchThread {
 		this.goal_z = goal_z;
 		// need to do this again since it needs to know if hessian is set...
 		minimum_cost_per_unit_distance = minimumCostPerUnitDistance();
-		final SearchNode s = createNewNode(start_x, start_y, start_z, 0,
+		final DefaultSearchNode s = createNewNode(start_x, start_y, start_z, 0,
 			estimateCostToGoal(start_x, start_y, start_z, true), null,
 			OPEN_FROM_START);
 		addNode(s, true);
-		final SearchNode g = createNewNode(goal_x, goal_y, goal_z, 0,
+		final DefaultSearchNode g = createNewNode(goal_x, goal_y, goal_z, 0,
 			estimateCostToGoal(goal_x, goal_y, goal_z, false), null, OPEN_FROM_GOAL);
 		addNode(g, false);
-		this.result = null;
 	}
 
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
@@ -119,7 +120,7 @@ public class TracerThread extends SearchThread {
 		final ComputeCurvatures hessian, final double multiplier)
 	{
 		this(imagePlus, stackMin, stackMax, 0, 1000, start_x, start_y, start_z,
-			goal_x, goal_y, goal_z, true, imagePlus.getNSlices() == 1, hessian,
+			goal_x, goal_y, goal_z, reciprocal, singleSlice, hessian,
 			multiplier, null, true);
 	}
 
@@ -197,7 +198,7 @@ public class TracerThread extends SearchThread {
 					final double[] hessianEigenValues = new double[2];
 
 					final boolean real = hessian.hessianEigenvaluesAtPoint2D(new_x, new_y,
-							true, hessianEigenValues, false, true, x_spacing, y_spacing);
+							true, hessianEigenValues, false, true, (float)x_spacing, (float)y_spacing);
 
 					// Just use the absolute value
 					// of the largest eigenvalue
@@ -225,8 +226,8 @@ public class TracerThread extends SearchThread {
 					final double[] hessianEigenValues = new double[3];
 
 					final boolean real = hessian.hessianEigenvaluesAtPoint3D(new_x, new_y,
-							new_z, true, hessianEigenValues, false, true, x_spacing, y_spacing,
-							z_spacing);
+							new_z, true, hessianEigenValues, false, true,
+							(float)x_spacing, (float)y_spacing, (float)z_spacing);
 
 					/*
 					 * FIXME: there's lots of literature on how to pick this rule (see Sato et al,
@@ -307,7 +308,7 @@ public class TracerThread extends SearchThread {
 	}
 
 	@Override
-	float estimateCostToGoal(final int current_x, final int current_y,
+	double estimateCostToGoal(final int current_x, final int current_y,
 		final int current_z, final boolean fromStart)
 	{
 
@@ -321,7 +322,7 @@ public class TracerThread extends SearchThread {
 		final double distance = Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff *
 			zdiff);
 
-		return (float) (minimum_cost_per_unit_distance * distance);
+		return (minimum_cost_per_unit_distance * distance);
 	}
 
 }

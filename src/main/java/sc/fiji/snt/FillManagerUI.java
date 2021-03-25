@@ -65,6 +65,7 @@ import sc.fiji.snt.gui.GuiUtils;
  * Implements the <i>Fill Manager</i> dialog.
  *
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
 public class FillManagerUI extends JDialog implements PathAndFillListener,
 	ActionListener, FillerProgressCallback
@@ -89,9 +90,10 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private JButton view3D;
 	private JPopupMenu viewFillsMenu;
 	private JCheckBox transparent;
-	protected JButton pauseOrRestartFilling;
+	protected JButton startFilling;
 	private JButton saveFill;
 	private JButton discardFill;
+	private JButton stopFill;
 	private JButton exportAsCSV;
 	private JRadioButton manualRButton;
 	private JRadioButton maxRButton;
@@ -140,7 +142,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		{
 			deleteFills = new JButton("Delete Fill(s)");
 			deleteFills.addActionListener(this);
-			reloadFill = new JButton("Reload Fill");
+			reloadFill = new JButton("Reload Fill(s)");
 			reloadFill.addActionListener(this);
 			final JPanel fillListCommandsPanel = new JPanel(new BorderLayout());
 			fillListCommandsPanel.add(deleteFills, BorderLayout.WEST);
@@ -221,9 +223,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		{
 			transparent = new JCheckBox(
 				" Transparent overlay (may slow down filling)");
-			transparent.addActionListener(e-> {
-				plugin.setFillTransparent(transparent.isSelected());
-			});
+			transparent.addActionListener(e-> plugin.setFillTransparent(transparent.isSelected()));
 			final JPanel transparencyPanel = leftAlignedPanel();
 			transparencyPanel.add(transparent);
 			add(transparencyPanel, c);
@@ -235,13 +235,15 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		++c.gridy;
 
 		{
-			pauseOrRestartFilling = new JButton("Pause");
-			pauseOrRestartFilling.addActionListener(this);
-			discardFill = new JButton("Stop");
-			discardFill.addActionListener(this);
-			saveFill = new JButton("Stash Progress");
+			startFilling = new JButton("Start");
+			startFilling.addActionListener(this);
+			stopFill = new JButton("Stop");
+			stopFill.addActionListener(this);
+			saveFill = new JButton("Stash");
 			saveFill.addActionListener(this);
-			fillControlPanel = SNTUI.buttonPanel(pauseOrRestartFilling, discardFill, saveFill);
+			discardFill = new JButton("Discard");
+			discardFill.addActionListener(this);
+			fillControlPanel = SNTUI.buttonPanel(startFilling, stopFill, saveFill, discardFill);
 			add(fillControlPanel, c);
 			++c.gridy;
 		}
@@ -284,13 +286,12 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private class FMCellRenderer extends DefaultListCellRenderer {
 
 		private static final long serialVersionUID = 1L;
-		static final String LIST_PLACEHOLDER = "To start filling, run \"Fill Out\" from Path Manager";
+		static final String LIST_PLACEHOLDER = "To start filling, press the \"Start\" button";
 
 		@Override
 		public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
 				boolean cellHasFocus) {
 			if (LIST_PLACEHOLDER.equals(value.toString())) {
-				isSelected = false;
 				return GuiUtils.leftAlignedLabel(LIST_PLACEHOLDER, false);
 			} else {
 				return super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
@@ -332,8 +333,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		view3D.setEnabled(true);
 		exportAsCSV.setEnabled(true);
 		transparent.setEnabled(true);
-		pauseOrRestartFilling.setEnabled(true);
+		startFilling.setEnabled(true);
 		saveFill.setEnabled(false);
+		stopFill.setEnabled(false);
 		discardFill.setEnabled(true);
 	}
 
@@ -351,8 +353,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		view3D.setEnabled(false);
 		exportAsCSV.setEnabled(false);
 		transparent.setEnabled(false);
-		pauseOrRestartFilling.setEnabled(false);
+		startFilling.setEnabled(false);
 		saveFill.setEnabled(false);
+		stopFill.setEnabled(false);
 		discardFill.setEnabled(false);
 	}
 
@@ -369,8 +372,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		view3D.setEnabled(false);
 		exportAsCSV.setEnabled(false);
 		transparent.setEnabled(false);
-		pauseOrRestartFilling.setEnabled(false);
+		startFilling.setEnabled(false);
 		saveFill.setEnabled(false);
+		stopFill.setEnabled(false);
 		discardFill.setEnabled(false);
 	}
 
@@ -437,12 +441,12 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 			if (noFillsError()) return;
 			final int[] selectedIndices = fillList.getSelectedIndices();
-			if (selectedIndices.length != 1) {
+			if (selectedIndices.length < 1) {
 				gUtils.error(
-					"You must have a single fill selected in order to reload.");
+					"You must have at least one fill selected in order to reload.");
 				return;
 			}
-			pathAndFillManager.reloadFill(selectedIndices[0]);
+			pathAndFillManager.reloadFills(selectedIndices);
 
 		}
 		else if (source == setMaxThreshold) {
@@ -463,8 +467,12 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			catch (final NumberFormatException nfe) {
 				gUtils.error("The threshold '" + thresholdField.getText() +
 					"' wasn't a valid number.");
-				return;
 			}
+
+		}
+		else if (source == stopFill) {
+
+			plugin.stopFilling();
 
 		}
 		else if (source == discardFill) {
@@ -477,9 +485,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			plugin.saveFill();
 
 		}
-		else if (source == pauseOrRestartFilling) {
+		else if (source == startFilling) {
 
-			plugin.pauseOrRestartFilling();
+			plugin.startFilling();
 
 		}
 		else if (source == exportAsCSV) {
@@ -507,7 +515,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	private boolean noFillsError() {
 		final boolean noFills = listModel.getSize() == 0 || FMCellRenderer.LIST_PLACEHOLDER.equals(
-				listModel.getElementAt(0).toString());
+				listModel.getElementAt(0));
 		if (noFills) gUtils.error("There are no stashed fills.");
 		return noFills;
 	}
@@ -564,8 +572,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 * @see SearchProgressCallback#pointsInSearch(SearchInterface, int, int)
 	 */
 	@Override
-	public void pointsInSearch(final SearchInterface source, final int inOpen,
-		final int inClosed)
+	public void pointsInSearch(final SearchInterface source, final long inOpen,
+		final long inClosed)
 	{
 		// Do nothing...
 	}
@@ -595,27 +603,35 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		SwingUtilities.invokeLater(() -> {
 			switch (currentStatus) {
 				case SearchThread.STOPPING:
-					pauseOrRestartFilling.setText("Stopped");
-					pauseOrRestartFilling.setEnabled(false);
-					saveFill.setEnabled(false);
-
-					break;
-				case SearchThread.PAUSED:
-					pauseOrRestartFilling.setText("Continue");
+					startFilling.setEnabled(true);
 					saveFill.setEnabled(true);
+					discardFill.setEnabled(true);
+					stopFill.setEnabled(false);
 					break;
 				case SearchThread.RUNNING:
-					pauseOrRestartFilling.setText("Pause");
-					saveFill.setEnabled(false);
+					startFilling.setEnabled(true);
+					saveFill.setEnabled(true);
+					discardFill.setEnabled(true);
+					stopFill.setEnabled(true);
 					break;
 			}
 			fillControlPanel.doLayout();
 		});
 	}
 
+	@Override
+	public void allFillsFinished(final boolean allSucceeded) {
+		SwingUtilities.invokeLater(() -> {
+			startFilling.setEnabled(true);
+			saveFill.setEnabled(true);
+			discardFill.setEnabled(true);
+			stopFill.setEnabled(false);
+		});
+	}
+
 	protected void showMouseThreshold(final float t) {
 		SwingUtilities.invokeLater(() -> {
-			String newStatus = null;
+			String newStatus;
 			if (t < 0) {
 				newStatus = "Cursor position: Not reached by search yet";
 			}

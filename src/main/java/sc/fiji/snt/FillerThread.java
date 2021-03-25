@@ -23,31 +23,23 @@
 package sc.fiji.snt;
 
 import java.awt.Graphics;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Hashtable;
-import java.util.Set;
+import java.util.*;
 
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ShortProcessor;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import sc.fiji.snt.util.SparseMatrix;
 
 public class FillerThread extends SearchThread {
-
-	/*
-	 * You should synchronize on this object if you want to rely on the pause status
-	 * not changing. (The run() method is not synchronized itself, for possibly
-	 * dubious performance reasons.)
-	 */
 
 	boolean reciprocal;
 
 	double reciprocal_fudge = 0.5;
 
-	public float getDistanceAtPoint(final double xd, final double yd,
+	public double getDistanceAtPoint(final double xd, final double yd,
 		final double zd)
 	{
 
@@ -55,11 +47,14 @@ public class FillerThread extends SearchThread {
 		final int y = (int) Math.round(yd);
 		final int z = (int) Math.round(zd);
 
-		final SearchNode[] slice = nodes_as_image_from_start[z];
-		if (slice == null) return -1.0f;
-
-		final SearchNode n = slice[y * width + x];
-		if (n == null) return -1.0f;
+		SparseMatrix<DefaultSearchNode> slice = nodes_as_image_from_start.getSlice(z);
+		if (slice == null) {
+			return -1.0;
+		}
+		final DefaultSearchNode n = slice.getValue(x, y);
+		if (n == null) {
+			return -1.0;
+		}
 		else return n.g;
 	}
 
@@ -67,35 +62,24 @@ public class FillerThread extends SearchThread {
 
 	Fill getFill() {
 
-		final Hashtable<SearchNode, Integer> h = new Hashtable<>();
+		final Hashtable<DefaultSearchNode, Integer> h = new Hashtable<>();
 
-		final ArrayList<SearchNode> a = new ArrayList<>();
+		final ArrayList<DefaultSearchNode> a = new ArrayList<>();
 
 		// The tricky bit here is that we want to create a
 		// Fill object with index
 
-		int openAtOrAbove;
-
 		int i = 0;
-
-		for (final SearchNode current : closed_from_start) {
-			/* if( current.g <= threshold ) { */
-			h.put(current, i);
-			a.add(current);
-			++i;
-			/* } */
-		}
-
-		openAtOrAbove = i;
-
-		SNTUtils.log("openAtOrAbove is: " + openAtOrAbove);
-
-		for (final SearchNode current : open_from_start) {
-			/* if( current.g <= threshold ) { */
-			h.put(current, i);
-			a.add(current);
-			++i;
-			/* } */
+		for (final SparseMatrix<DefaultSearchNode> slice : nodes_as_image_from_start) {
+			for (final Int2ObjectOpenHashMap<DefaultSearchNode> row : slice) {
+				for (final DefaultSearchNode current : row.values()) {
+					if (current.g <= threshold) {
+						h.put(current, i);
+						a.add(current);
+						++i;
+					}
+				}
+			}
 		}
 
 		final Fill fill = new Fill();
@@ -109,16 +93,24 @@ public class FillerThread extends SearchThread {
 		SNTUtils.log("... out of a.size() " + a.size() + " entries");
 
 		for (i = 0; i < a.size(); ++i) {
-			final SearchNode f = a.get(i);
+			final DefaultSearchNode f = a.get(i);
 			int previousIndex = -1;
-			final SearchNode previous = f.getPredecessor();
+			final DefaultSearchNode previous = f.getPredecessor();
 			if (previous != null) {
 				final Integer p = h.get(previous);
 				if (p != null) {
 					previousIndex = p;
 				}
 			}
-			fill.add(f.x, f.y, f.z, f.g, previousIndex, i >= openAtOrAbove);
+			boolean open;
+			if (f.searchStatus == SearchThread.OPEN_FROM_START || f.searchStatus == SearchThread.OPEN_FROM_GOAL) {
+				open = true;
+			} else if (f.searchStatus == SearchThread.CLOSED_FROM_START || f.searchStatus == SearchThread.CLOSED_FROM_GOAL) {
+				open = false;
+			} else {
+				throw new IllegalStateException("Somehow a FREE node is in the Fill.");
+			}
+			fill.add(f.x, f.y, f.z, f.g, previousIndex, open);
 		}
 
 		if (sourcePaths != null) {
@@ -152,21 +144,21 @@ public class FillerThread extends SearchThread {
 
 		SNTUtils.log("loading a fill with threshold: " + fill.getThreshold());
 
-		final FillerThread result = new FillerThread(imagePlus, stackMin, stackMax,
-			startPaused, reciprocal, fill.getThreshold(), 5000);
+		final FillerThread result = new FillerThread(imagePlus, stackMin, stackMax, reciprocal, fill.getThreshold(),
+				5000);
 
-		final ArrayList<SearchNode> tempNodes = new ArrayList<>();
+		final ArrayList<DefaultSearchNode> tempNodes = new ArrayList<>();
 
 		for (final Fill.Node n : fill.nodeList) {
 
-			final SearchNode s = new SearchNode(n.x, n.y, n.z, (float) n.distance, 0,
+			final DefaultSearchNode s = new DefaultSearchNode(n.x, n.y, n.z, (float) n.distance, 0,
 				null, SearchThread.FREE);
 			tempNodes.add(s);
 		}
 
 		for (int i = 0; i < tempNodes.size(); ++i) {
 			final Fill.Node n = fill.nodeList.get(i);
-			final SearchNode s = tempNodes.get(i);
+			final DefaultSearchNode s = tempNodes.get(i);
 			if (n.previous >= 0) {
 				s.setPredecessor(tempNodes.get(n.previous));
 			}
@@ -183,31 +175,30 @@ public class FillerThread extends SearchThread {
 		return result;
 	}
 
-	float threshold;
+	double threshold;
 
 	public void setThreshold(final double threshold) {
-		this.threshold = (float) threshold;
+		this.threshold = threshold;
 	}
 
-	public float getThreshold() {
+	public double getThreshold() {
 		return threshold;
 	}
 
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
 
 	public FillerThread(final ImagePlus imagePlus, final float stackMin,
-		final float stackMax, final boolean startPaused, final boolean reciprocal,
+		final float stackMax, final boolean reciprocal,
 		final double initialThreshold, final long reportEveryMilliseconds)
 	{
 
-		super(imagePlus, stackMin, stackMax, false, // bidirectional
-			false, // definedGoal
-			startPaused, 0, reportEveryMilliseconds);
+		super(imagePlus, stackMin, stackMax, false, false, 0,
+				reportEveryMilliseconds);
 
 		this.reciprocal = reciprocal;
 		setThreshold(initialThreshold);
 
-		setPriority(MIN_PRIORITY);
+		//setPriority(MIN_PRIORITY);
 	}
 
 	public void setSourcePaths(final Collection<Path> newSourcePaths) {
@@ -216,7 +207,7 @@ public class FillerThread extends SearchThread {
 		for (final Path p : newSourcePaths) {
 			if (p == null) return;
 			for (int k = 0; k < p.size(); ++k) {
-				final SearchNode f = new SearchNode(p.getXUnscaled(k), p.getYUnscaled(
+				final DefaultSearchNode f = new DefaultSearchNode(p.getXUnscaled(k), p.getYUnscaled(
 					k), p.getZUnscaled(k), 0, 0, null, OPEN_FROM_START);
 				addNode(f, true);
 			}
@@ -249,10 +240,10 @@ public class FillerThread extends SearchThread {
 		final ImageStack stack = new ImageStack(width, height);
 
 		for (int z = 0; z < depth; ++z) {
-			final SearchNode[] nodes_this_slice = nodes_as_image_from_start[z];
-			if (nodes_this_slice != null) for (int y = 0; y < height; ++y) {
+			final boolean nodes_this_slice = nodes_as_image_from_start.getSlice(z) != null;
+			if (nodes_this_slice) for (int y = 0; y < height; ++y) {
 				for (int x = 0; x < width; ++x) {
-					final SearchNode s = nodes_as_image_from_start[z][y * width + x];
+					final DefaultSearchNode s = nodes_as_image_from_start.getSlice(z).getValue(x, y);
 					if ((s != null) && (s.g <= threshold)) {
 						switch (imageType) {
 							case ImagePlus.GRAY8:
@@ -311,17 +302,17 @@ public class FillerThread extends SearchThread {
 		super.reportPointsInSearch();
 
 		// Find the minimum distance in the open list.
-		final SearchNode p = open_from_start.peek();
+		final DefaultSearchNode p = open_from_start.findMin().getKey();
 		if (p == null) return;
 
-		final float minimumDistanceInOpen = p.g;
+		final double minimumDistanceInOpen = p.g;
 
 		for (final SearchProgressCallback progress : progressListeners) {
 			if (progress instanceof FillerProgressCallback) {
 				final FillerProgressCallback fillerProgress =
 					(FillerProgressCallback) progress;
 				fillerProgress.maximumDistanceCompletelyExplored(this,
-					minimumDistanceInOpen);
+						(float)minimumDistanceInOpen);
 			}
 		}
 
@@ -338,8 +329,11 @@ public class FillerThread extends SearchThread {
 
 	@Override
 	public Path getResult() {
-		throw new IllegalArgumentException(
-			"BUG: getResult should never be called on a FillerThread");
+		throw new IllegalStateException("BUG: attempted to retrieve a Path from Filler");
 	}
 
+	@Override
+	public void reportFinished(boolean success) {
+		super.reportFinished(success);
+	}
 }

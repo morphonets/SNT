@@ -70,7 +70,7 @@ public class Tracing2DTest {
 			pixelHeight = calibration.pixelHeight;
 		}
 
-		int pointsExploredNormal = 0;
+		long pointsExploredNormal;
 		{
 			final TracerThread tracer = new TracerThread(image, 0, 255, -1, // timeoutSeconds
 				100, // reportEveryMilliseconds
@@ -94,7 +94,7 @@ public class Tracing2DTest {
 			pointsExploredNormal = tracer.pointsConsideredInSearch();
 		}
 
-		int pointsExploredHessian = 0;
+		long pointsExploredHessian;
 		{
 			final ComputeCurvatures hessian = new ComputeCurvatures(image,
 				minimumSeparation, null, calibration != null);

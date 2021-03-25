@@ -24,6 +24,8 @@ package sc.fiji.snt;
 
 interface FillerProgressCallback extends SearchProgressCallback {
 
-	public void maximumDistanceCompletelyExplored(SearchThread source, float f);
+	void maximumDistanceCompletelyExplored(SearchThread source, float f);
+
+	void allFillsFinished(boolean allSucceeded);
 
 }

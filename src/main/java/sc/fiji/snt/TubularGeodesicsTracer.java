@@ -53,7 +53,6 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 
 	protected PathResult lastPathResult;
 	PathResult temporaryPathResult;
-	private CountDownLatch latch;
 
 
 	public TubularGeodesicsTracer(final File oofFile, final float start_x_image,
@@ -116,7 +115,6 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 				proportionDone);
 	}
 
-	@Override
 	public void requestStop() {
 
 		try {
@@ -191,14 +189,6 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 			System.out.println("Got an exception from call to ITK code: " + t);
 			t.printStackTrace();
 			IJ.error("There was an error in calling to ITK code: " + t);
-		} finally {
-			countDown();
-		}
-	}
-
-	private void countDown() {
-		if (latch != null && latch.getCount() > 0) {
-			latch.countDown();
 		}
 	}
 
@@ -298,14 +288,11 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 			System.out.println("Got an exception from call to ITK code: " + t);
 			t.printStackTrace();
 			IJ.error("There was an error in calling to ITK code: " + t);
-		} finally {
-			countDown();
 		}
 	}
 
 	public void reportFinished(final boolean success) {
 		if (success) lastPathResult = temporaryPathResult;
-		countDown();
 		for (final SearchProgressCallback progress : progressListeners)
 			progress.finished(this, success);
 		if (!success) {
@@ -316,11 +303,6 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 			 */
 			if (errorMessage != null) IJ.error("The tracing failed: " + errorMessage);
 		}
-	}
-
-	@Override
-	public void setCountDownLatch(CountDownLatch latch) {
-		this.latch = latch;
 	}
 
 }

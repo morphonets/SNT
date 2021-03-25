@@ -3302,8 +3302,8 @@ public class SNTUI extends JDialog {
 			// went awry!?. Try to abort all possible lingering tasks
 			pmUI.cancelFit(true);
 			plugin.cancelSearch(true);
-			plugin.cancelGaussian();
 			plugin.discardFill();
+			plugin.cancelGaussian();
 			if (plugin.currentPath != null)
 				plugin.cancelPath();
 			if (plugin.temporaryPath != null)
@@ -3643,7 +3643,7 @@ public class SNTUI extends JDialog {
 
 			} else if (source == keepSegment) {
 
-				plugin.confirmTemporary();
+				plugin.confirmTemporary(true);
 
 			} else if (source == junkSegment) {
 

@@ -73,7 +73,7 @@ public class Tracing3DTest {
 
 		final boolean doNormal = false;
 
-		int pointsExploredNormal = 0;
+		long pointsExploredNormal = 0L;
 		// This is very slow without the preprocessing, so don't do that bit by
 		// default:
 		if (doNormal) {
@@ -99,7 +99,7 @@ public class Tracing3DTest {
 			pointsExploredNormal = tracer.pointsConsideredInSearch();
 		}
 
-		int pointsExploredHessian = 0;
+		long pointsExploredHessian;
 		{
 			final ComputeCurvatures hessian = new ComputeCurvatures(image, 0.721,
 				null, calibration != null);
