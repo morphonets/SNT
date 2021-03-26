@@ -895,12 +895,14 @@ public class Viewer3D {
 	 * Adds a collection of trees from reconstruction files
 	 *
 	 * @param files the reconstruction files to be imported
-	 * @param color the color to be assigned to imported reconstructions. If null,
-	 *              trees will be assigned a unique color
+	 * @param color the color to be assigned to imported reconstructions. If empty,
+	 *              {@code null}, or {@code unique} trees will be assigned a unique
+	 *              color
 	 * @see #setSplitDendritesFromAxons(boolean)
 	 */
 	public void addTrees(final File[] files, final String color) {
-		final ColorRGB c = (color == null || color.trim().isEmpty()) ? null : new ColorRGB(color);
+		final ColorRGB c = (color == null || color.trim().isEmpty() || "unique".equalsIgnoreCase(color)) ? null
+				: new ColorRGB(color);
 		fileDropWorker.importTreesWithoutDrop(files, c);
 	}
 
