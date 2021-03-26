@@ -69,6 +69,8 @@ public class TreeColorMapper extends ColorMapper {
 
 	/* For convenience keep references to TreeAnalyzer fields */
 
+	/** Flag for {@value #SHOLL_COUNTS} mapping. */
+	public static final String SHOLL_COUNTS = "Sholl inters. (root centered)"; //FIXME: getNormalizedMeasurement() will not allow '-'
 	/** Flag for {@value #STRAHLER_NUMBER} mapping. */
 	public static final String STRAHLER_NUMBER = MultiTreeStatistics.STRAHLER_NUMBER;
 	/** Flag for {@value #PATH_ORDER} mapping. */
@@ -107,11 +109,12 @@ public class TreeColorMapper extends ColorMapper {
 			N_NODES, //
 			MEAN_RADIUS, //
 			NODE_RADIUS, //
+			PATH_DISTANCE, //
+			SHOLL_COUNTS, //
 			X_COORDINATES, //
 			Y_COORDINATES, //
 			Z_COORDINATES, //
 			VALUES, //
-			PATH_DISTANCE, //
 			TAG_FILENAME,
 			PATH_FRAME};
 
@@ -182,17 +185,26 @@ public class TreeColorMapper extends ColorMapper {
 				integerScale = true;
 				mapToNodeProperty(VALUES, colorTable);
 				break;
+			case SHOLL_COUNTS:
+				final Tree tree = new Tree(paths);
+				final TreeParser parser = new TreeParser(tree);
+				parser.setCenter(tree.getRoot());
+				parser.setStepSize(0);
+				parser.parse();
+				map(tree, new LinearProfileStats(parser.getProfile()), colorTable);
+				integerScale = true;
+				break;
 			case PATH_DISTANCE:
-				final TreeParser parser = new TreeParser(new Tree(paths));
+				final TreeParser dummy = new TreeParser(new Tree(paths));
 				try {
-					parser.setCenter(TreeParser.ROOT_NODES_SOMA);
+					dummy.setCenter(TreeParser.ROOT_NODES_SOMA);
 				}
 				catch (final IllegalArgumentException ignored) {
 					SNTUtils.log(
 						"No soma attribute found... Defaulting to average of all root nodes");
-					parser.setCenter(TreeParser.ROOT_NODES_ANY);
+					dummy.setCenter(TreeParser.ROOT_NODES_ANY);
 				}
-				final PointInImage center = parser.getCenter();
+				final PointInImage center = dummy.getCenter();
 				final PointInImage root = new PointInImage(center.x, center.y,
 					center.z);
 				mapPathDistances(root);
@@ -520,6 +532,9 @@ public class TreeColorMapper extends ColorMapper {
 		if (normGuess.indexOf("strahler") != -1 || normGuess.indexOf("horton") != -1 || normGuess.indexOf("h-s") != -1) {
 			return STRAHLER_NUMBER;
 		}
+		if (normGuess.indexOf("sholl") != -1 || normGuess.indexOf("inters") != -1) {
+			return SHOLL_COUNTS;
+		}
 		if (normGuess.indexOf("path") != -1 && normGuess.indexOf("order") != -1) {
 			return PATH_ORDER;
 		}
@@ -681,7 +696,7 @@ public class TreeColorMapper extends ColorMapper {
 		final Viewer2D viewer2 = new Viewer2D(ij.context());
 
 		for (Tree tree : trees) {
-			mapper.map(tree, "Strahler order", "Ice.lut");
+			mapper.map(tree, SHOLL_COUNTS, "Ice.lut");
 			viewer.add(tree);
 			viewer2.add(tree);
 		}

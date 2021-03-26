@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.apache.commons.text.WordUtils;
-import org.scijava.Context;
 
 import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
