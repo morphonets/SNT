@@ -142,7 +142,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 				"Somehow neither a Viewer nor a SNT instance are available");
 		}
 
-		notifyLoadingStart(recViewer);
+		notifyLoadingStart();
 		status("Retrieving cells. Please wait...", false);
 		SNTUtils.log(database + " import: Downloading from URL(s)...");
 		final int lastExistingPathIdx = pafm.size() - 1;
@@ -150,7 +150,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 		final List<Tree> filteredResult = rawResult.stream().filter(tree -> tree != null && !tree
 			.isEmpty()).collect(Collectors.toList());
 		if (filteredResult.isEmpty()) {
-			notifyLoadingEnd(recViewer == null, recViewer);
+			resetUI(recViewer == null);
 			error("No reconstructions could be retrieved. Invalid ID(s)?");
 			status("Error... No reconstructions imported", true);
 			return;
@@ -179,7 +179,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 		}
 
 		final boolean validateImgDimensions = !standAloneViewer && pafm.size() > lastExistingPathIdx;
-		notifyLoadingEnd(validateImgDimensions, recViewer);
+		resetUI(validateImgDimensions);
 
 		if (filteredResult.size() < rawResult.size()) {
 			SNTUtils.log("Import failed for the following queried morphologies:");

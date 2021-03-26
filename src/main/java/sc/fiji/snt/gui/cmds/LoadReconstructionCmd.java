@@ -166,7 +166,7 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 			super.error(file.getAbsolutePath() + " is not available");
 
 		setLastUsedFile();
-		notifyLoadingStart(recViewer);
+		notifyLoadingStart();
 		splitState = recViewer.isSplitDendritesFromAxons();
 		recViewer.setSplitDendritesFromAxons(splitByType);
 		final String importColor = (colorChoice.contains("unique")) ? "unique" : getNonNullColor().toHTMLColor();
@@ -189,7 +189,7 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 				error("Directory does not contain valid reconstructions");
 			} else {
 				if (clearExisting) recViewer.removeAllTrees();
-				recViewer.addTrees(treeFiles, importColor);
+				recViewer.add(treeFiles, importColor);
 			}
 		}
 		exit();
@@ -197,7 +197,6 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 
 	private void exit() {
 		recViewer.setSplitDendritesFromAxons(splitState);
-		notifyLoadingEnd(false, recViewer);
 	}
 
 	@Override

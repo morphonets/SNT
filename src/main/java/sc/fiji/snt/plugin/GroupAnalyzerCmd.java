@@ -181,7 +181,6 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			return;
 		}
 
-		notifyLoadingStart(recViewer);
 		final GroupedTreeStatistics stats = new GroupedTreeStatistics();
 		inputGroupsCounter = 0;
 		addGroup(stats, g1File, "Group 1");
@@ -192,7 +191,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 		addGroup(stats, g6File, "Group 6");
 
 		if (stats.getGroups().size() == 0) {
-			notifyLoadingEnd(false, recViewer);
+			resetUI(false);
 			error("No matching reconstruction(s) could be retrieved from the specified path(s).");
 			return;
 		}
@@ -274,7 +273,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			if (recViewerIsNotVisible) recViewer.show();
 		}
 
-		notifyLoadingEnd(false, recViewer);
+		resetUI(false);
 
 	}
 

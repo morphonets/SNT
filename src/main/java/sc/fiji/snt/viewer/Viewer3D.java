@@ -45,6 +45,7 @@ import java.awt.event.ComponentEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.WindowAdapter;
@@ -892,18 +893,18 @@ public class Viewer3D {
 	}
 
 	/**
-	 * Adds a collection of trees from reconstruction files
+	 * Adds a collection of trees or meshes from input files.
 	 *
-	 * @param files the reconstruction files to be imported
-	 * @param color the color to be assigned to imported reconstructions. If empty,
-	 *              {@code null}, or {@code unique} trees will be assigned a unique
-	 *              color
+	 * @param files the files to be imported
+	 * @param color the color to be assigned to imported reconstructions/meshes. If
+	 *              empty, {@code null} or {@code unique}, objects will be assigned
+	 *              a unique color.
 	 * @see #setSplitDendritesFromAxons(boolean)
 	 */
-	public void addTrees(final File[] files, final String color) {
+	public void add(final File[] files, final String color) {
 		final ColorRGB c = (color == null || color.trim().isEmpty() || "unique".equalsIgnoreCase(color)) ? null
 				: new ColorRGB(color);
-		fileDropWorker.importTreesWithoutDrop(files, c);
+		fileDropWorker.importFilesWithoutDrop(files, c);
 	}
 
 	private GuiUtils guiUtils() {
@@ -1581,14 +1582,14 @@ public class Viewer3D {
 		final boolean updateStatus = viewUpdatesEnabled;
 		final boolean displayProgress = frame != null && frame.managerPanel != null;
 		setSceneUpdatesEnabled(false);
-		if (displayProgress)
-			frame.managerPanel.setProgressLimit(0, ((Collection<?>) collection).size());
-		int index = 0; // will be inaccurate if collection contains other collections
+		if (displayProgress) {
+			addProgressLoad(((Collection<?>) collection).size());
+		}
 		for(final Object o : collection) {
-			if (displayProgress) frame.managerPanel.setProgress(index++);
+			incrementProgress(); // will be inaccurate if collection contains other collections
 			add(o);
 		}
-		if (displayProgress) frame.managerPanel.resetProgressBar();
+		removeProgressLoad( ((Collection<?>) collection).size());
 		setSceneUpdatesEnabled(updateStatus);
 		validate();
 	}
@@ -3012,84 +3013,91 @@ public class Viewer3D {
 			fileDropWorker = new FileDropWorker(managerList, guiUtils);
 		}
 
-		public void resetProgressBar() {
-			progressBar.resetAndHideOrRestore();
-		}
-
-		public void setProgressLimit(final int min, final int max) {
-			progressBar.init(min, max);
-		}
-
-		public void setProgress(final int value) {
-			progressBar.setProgress(value);
-		}
-
 		class ProgressBar extends JProgressBar {
 
 			private static final long serialVersionUID = 1L;
-			private int sMin;
-			private int sMax;
-			private String sString;
-			private boolean sInd;
-			private boolean snapshotExists;
+			private int globalValue;
+			private int globalMax;
+			private boolean loadPending;
 
 			ProgressBar() {
 				super();
 				setStringPainted(true);
 				setFocusable(false);
-				resetAndHideOrRestore();
+				addMouseListener(new MouseAdapter() {
+					@Override
+					public void mouseClicked(final MouseEvent e) {
+						if (e.getClickCount() == 2) {
+							// dismiss. Useful as last resource in case the bar lingers around
+							reset(false);
+						}
+					}
+				});
+				reset(false);
 			}
 
-			void makeSnapshot() {
-				sMin = getMinimum();
-				sMax = getMaximum();
-				sString = getString();
-				sInd = isIndeterminate();
-				snapshotExists = true;
-			}
-
-			private void restoreSnapshot() {
-				setIndeterminate(sInd);
-				setMinimum(sMin);
-				setMaximum(sMax);
-				setString(sString);
-			}
-
-			void wipeSnapshot() {
-				sMin = sMax = 0; sString = null;
-				snapshotExists = false;
-			}
-
-			void resetAndHideOrRestore() {
-				if (snapshotExists) {
-					restoreSnapshot();
-					wipeSnapshot();
-				} else {
-					setVisible(false);
-					setIndeterminate(true);
-					setMinimum(0);
-					setMaximum(100);
+			private void addToGlobalValue(final int increment) {
+				globalValue = globalValue + increment;
+				if (globalValue < 0) {
+					reset(true);
+					return;
+				} else if (globalValue > globalMax) {
+					reset(false);
+					return;
 				}
+				super.setValue(globalValue);
 			}
 
-			void init(final int min, final int max) {
-				if (isVisible()) makeSnapshot();
-				setMinimum(min);
-				setMaximum(max);
-				setVisible(true);
+			@Override
+			public void setMinimum(final int ignored) {
+				super.setMinimum(0);
 			}
 
-			void setProgress(final int value) {
-				if (value == -1) {
-					if (isVisible()) makeSnapshot();
-					setIndeterminate(true);
-					setString("Loading...");
-					setVisible(true);
-				} else {
+			@Override
+			public int getMinimum() {
+				return 0;
+			}
+
+			@Override
+			public int getMaximum() {
+				return globalMax;
+			}
+
+			@Override
+			public int getValue() {
+				return globalValue;
+			}
+
+			@Override
+			public void setIndeterminate(final boolean newValue) {
+				super.setString((newValue) ? "Loading..." : null);
+				super.setIndeterminate(newValue);
+			}
+
+			public void addToGlobalMax(final int increment) {
+				globalMax = globalMax + increment;
+				if (globalMax < 1)
+					reset(false);
+				else {
 					setIndeterminate(false);
-					setString(null);
-					setValue(value); // assume it is visible already
+					SwingUtilities.invokeLater(() -> setVisible(true));
+					super.setMaximum(globalMax);
 				}
+			}
+
+			private void reset(final boolean setVisible) {
+				SwingUtilities.invokeLater(() -> setVisible(setVisible));
+				globalValue = 0;
+				globalMax = 0;
+				super.setValue(0);
+				super.setMinimum(0);
+				super.setMaximum(0);
+				setIndeterminate(true);
+				loadPending = false;
+			}
+
+			private void setLoadPending(boolean b) {
+				this.loadPending = b;
 			}
 		}
 
@@ -3097,6 +3105,7 @@ public class Viewer3D {
 			static final String ALL = "All";
 			static final String ENTER_FULL_SCREEN = "Full Screen";
 			static final String FIND = "Toggle Selection Toolbar";
+			static final String PROGRESS = "Toggle Progress Bar";
 			static final String FIT = "Fit to Visible Objects";
 			static final String LOG = "Log Scene Details";
 			static final String NONE = "None";
@@ -3143,6 +3152,16 @@ public class Viewer3D {
 					} else {
 						searchableBar.getInstaller().openSearchBar(searchableBar);
 						searchableBar.focusSearchField();
+					}
+					return;
+				case PROGRESS:
+					if (progressBar.isShowing()) {
+						progressBar.setVisible(false);
+					} else {
+						if (!progressBar.loadPending) { // indeterminate bar otherwise
+							progressBar.setIndeterminate(false);
+						}
+						progressBar.setVisible(true);
 					}
 					return;
 				case ENTER_FULL_SCREEN:
@@ -3321,11 +3340,11 @@ public class Viewer3D {
 							e2.printStackTrace();
 							guiUtils.error("Unfortunately an error occured. See Console for details.");
 						} finally {
-							resetProgressBar();
+							removeProgressLoad(-1);
 						}
 					}
 				}
-				setProgress(-1);
+				addProgressLoad(-1);
 				new DupWorker().execute();
 			});
 			sceneMenu.add(sup);
@@ -3518,6 +3537,7 @@ public class Viewer3D {
 			final JMenuItem find = new JMenuItem(new Action(Action.FIND, KeyEvent.VK_F, true, false));
 			find.setIcon(IconFactory.getMenuIcon(GLYPH.BINOCULARS));
 			pMenu.add(find);
+			pMenu.add(new JMenuItem(new Action(Action.PROGRESS)));
 			pMenu.addSeparator();
 			pMenu.add(sort);
 			pMenu.addSeparator();
@@ -3718,7 +3738,7 @@ public class Viewer3D {
 				initTable();
 				inputs.put("table", table);
 				inputs.put("calledFromPathManagerUI", false);
-				runCmd(AnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false);
+				runCmd(AnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
 			mi = new JMenuItem("Quick Measurements", IconFactory.getMenuIcon(GLYPH.ROCKET));
@@ -3764,7 +3784,7 @@ public class Viewer3D {
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("trees", trees);
 				inputs.put("calledFromPathManagerUI", false);
-				runCmd(DistributionBPCmd.class, inputs, CmdWorker.DO_NOTHING, false);
+				runCmd(DistributionBPCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
 			mi = new JMenuItem("Cell Properties...", IconFactory.getMenuIcon(GLYPH.CHART));
@@ -3775,7 +3795,7 @@ public class Viewer3D {
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("trees", trees);
 				inputs.put("calledFromPathManagerUI", false);
-				runCmd(DistributionCPCmd.class, inputs, CmdWorker.DO_NOTHING, false);
+				runCmd(DistributionCPCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
 			addSeparator(measureMenu, "Single-Cell Analysis:");
@@ -3785,7 +3805,7 @@ public class Viewer3D {
 				if (tree == null) return;
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("tree", tree);
-				runCmd(BrainAnnotationCmd.class, inputs, CmdWorker.DO_NOTHING, false);
+				runCmd(BrainAnnotationCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
 			mi = new JMenuItem("Create Dendrogram...", IconFactory.getMenuIcon(GLYPH.DIAGRAM));
@@ -3794,7 +3814,7 @@ public class Viewer3D {
 				if (tree == null) return;
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("tree", tree);
-				runCmd(GraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false);
+				runCmd(GraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
 			mi = new JMenuItem("Sholl Analysis...", IconFactory.getMenuIcon(GLYPH.BULLSEYE));
@@ -3804,7 +3824,7 @@ public class Viewer3D {
 				final Map<String, Object> input = new HashMap<>();
 				input.put("snt", null);
 				input.put("tree", tree);
-				runCmd(ShollAnalysisTreeCmd.class, input, CmdWorker.DO_NOTHING, false);
+				runCmd(ShollAnalysisTreeCmd.class, input, CmdWorker.DO_NOTHING, false, false);
 			});
 			measureMenu.add(mi);
 			mi = new JMenuItem("Strahler Analysis...", IconFactory.getMenuIcon(GLYPH.BRANCH_CODE));
@@ -3823,7 +3843,7 @@ public class Viewer3D {
 				if (trees == null || trees.isEmpty()) return;
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("trees", trees);
-				runCmd(AnnotationGraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false);
+				runCmd(AnnotationGraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
 			return measureMenu;
@@ -4151,7 +4171,7 @@ public class Viewer3D {
 			addSeparator(prefsMenu, "Other:");
 			final JMenuItem mi = new JMenuItem("Global Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
 			mi.addActionListener(e -> {
-				runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, true);
+				runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, true, false);
 			});
 			prefsMenu.add(mi);
 			return prefsMenu;
@@ -4290,7 +4310,7 @@ public class Viewer3D {
 			mi.addActionListener(e -> {
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("importDir", false);
-				runCmd(LoadReconstructionCmd.class, inputs, CmdWorker.DO_NOTHING);
+				runImportCmd(LoadReconstructionCmd.class, inputs);
 			});
 			tracesMenu.add(mi);
 			mi = new JMenuItem("Import Directory...", IconFactory.getMenuIcon(
@@ -4298,13 +4318,13 @@ public class Viewer3D {
 			mi.addActionListener(e -> {
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("importDir", true);
-				runCmd(LoadReconstructionCmd.class, inputs, CmdWorker.DO_NOTHING);
+				runImportCmd(LoadReconstructionCmd.class, inputs);
 			});
 			tracesMenu.add(mi);
 
 			mi = new JMenuItem("Import & Compare Groups...", IconFactory.getMenuIcon(GLYPH.MAGIC));
 			mi.addActionListener(e -> {
-				runCmd(GroupAnalyzerCmd.class, null, CmdWorker.DO_NOTHING);
+				runImportCmd(GroupAnalyzerCmd.class, null);
 			});
 			tracesMenu.add(mi);
 
@@ -4317,24 +4337,24 @@ public class Viewer3D {
 			mi.addActionListener(e -> {
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("loader", new FlyCircuitLoader());
-				runCmd(RemoteSWCImporterCmd.class, inputs, CmdWorker.DO_NOTHING);
+				runImportCmd(RemoteSWCImporterCmd.class, inputs);
 			});
 			remoteMenu.add(mi);
 			mi = new JMenuItem("InsectBrain...", 'I');
 			mi.addActionListener(e -> {
-				runCmd(InsectBrainImporterCmd.class, null, CmdWorker.DO_NOTHING); // will assign "recViewer" input
+				runImportCmd(InsectBrainImporterCmd.class, null);
 			});
 			remoteMenu.add(mi);
 			mi = new JMenuItem("MouseLight...", 'm');
 			mi.addActionListener(e -> {
-				runCmd(MLImporterCmd.class, null, CmdWorker.DO_NOTHING);
+				runImportCmd(MLImporterCmd.class, null);
 			});
 			remoteMenu.add(mi);
 			mi = new JMenuItem("NeuroMorpho...", 'n');
 			mi.addActionListener(e -> {
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("loader", new NeuroMorphoLoader());
-				runCmd(RemoteSWCImporterCmd.class, inputs, CmdWorker.DO_NOTHING);
+				runImportCmd(RemoteSWCImporterCmd.class, inputs);
 			});
 			remoteMenu.add(mi);
 
@@ -4458,8 +4478,7 @@ public class Viewer3D {
 			addSeparator(meshMenu, "Add:");
 			JMenuItem mi = new JMenuItem("Import OBJ File(s)...", IconFactory
 				.getMenuIcon(GLYPH.IMPORT));
-			mi.addActionListener(e -> runCmd(LoadObjCmd.class, null,
-				CmdWorker.DO_NOTHING)); // LoadObjCmd will call validate()
+			mi.addActionListener(e -> runImportCmd(LoadObjCmd.class, null)); // LoadObjCmd will call validate()
 			meshMenu.add(mi);
 			addCustomizeMeshCommands(meshMenu);
 
@@ -4509,7 +4528,7 @@ public class Viewer3D {
 					return;
 				}
 				//final JDialog tempSplash = frame.managerPanel.guiUtils.floatingMsg("Loading ontologies...", false);
-				getManagerPanel().setProgress(-1);
+				addProgressLoad(-1);
 				final SwingWorker<AllenCCFNavigator, ?> worker = new SwingWorker<AllenCCFNavigator, Object>() {
 
 					@Override
@@ -4526,7 +4545,7 @@ public class Viewer3D {
 							SNTUtils.error(e.getMessage(), e);
 						} finally {
 							//tempSplash.dispose();
-							getManagerPanel().resetProgressBar();
+							removeProgressLoad(-1);
 						}
 					}
 				};
@@ -4589,8 +4608,7 @@ public class Viewer3D {
 				guiUtils.error(label + " is already loaded.");
 				return;
 			}
-			if (setProgressBar && getManagerPanel() != null)
-				getManagerPanel().setProgress(-1);
+			if (setProgressBar) addProgressLoad(-1);
 			final SwingWorker<?, ?> worker = new SwingWorker<Boolean, Object>() {
 
 				@Override
@@ -4614,8 +4632,7 @@ public class Viewer3D {
 					} catch (final InterruptedException | ExecutionException e) {
 						SNTUtils.error(e.getMessage(), e);
 					} finally {
-						if (setProgressBar && getManagerPanel() != null)
-							getManagerPanel().resetProgressBar();
+						if (setProgressBar) removeProgressLoad(-1);
 					}
 				}
 			};
@@ -4625,12 +4642,16 @@ public class Viewer3D {
 		private void runCmd(final Class<? extends Command> cmdClass,
 			final Map<String, Object> inputs, final int cmdType)
 		{
-			runCmd(cmdClass, inputs, cmdType, true);
+			runCmd(cmdClass, inputs, cmdType, true, true);
+		}
+
+		private void runImportCmd(final Class<? extends Command> cmdClass, final Map<String, Object> inputs) {
+			runCmd(cmdClass, inputs, CmdWorker.DO_NOTHING, true, false); // cmd itself sets progressbar
 		}
 
 		private void runCmd(final Class<? extends Command> cmdClass,
 			final Map<String, Object> inputs, final int cmdType,
-			final boolean setRecViewerParamater)
+			final boolean setRecViewerParamater, final boolean setProgress)
 		{
 			if (cmdService == null) {
 				guiUtils.error(
@@ -4638,7 +4659,7 @@ public class Viewer3D {
 				return;
 			}
 			SwingUtilities.invokeLater(() -> {
-				(new CmdWorker(cmdClass, inputs, cmdType, setRecViewerParamater))
+				(new CmdWorker(cmdClass, inputs, cmdType, setRecViewerParamater, setProgress))
 					.execute();
 			});
 		}
@@ -4649,13 +4670,13 @@ public class Viewer3D {
 		FileDropWorker(final Component component, final GuiUtils guiUtils) {
 			new FileDrop(component, files -> {
 				if (frame.managerPanel != null) {
-					SwingUtilities.invokeLater(() -> frame.managerPanel.setProgress(-1));
+					SwingUtilities.invokeLater(() ->  addProgressLoad(-1));
 				}
 				processFiles(files, true, null, guiUtils);
 			});
 		}
 
-		void importTreesWithoutDrop(final File[] files, final ColorRGB baseColor) {
+		void importFilesWithoutDrop(final File[] files, final ColorRGB baseColor) {
 			processFiles(files, false, baseColor, guiUtils());
 		}
 
@@ -4670,12 +4691,12 @@ public class Viewer3D {
 				@Override
 				protected Integer doInBackground() {
 
-					ArrayList<File> collection = new ArrayList<>();
+					final ArrayList<File> collection = new ArrayList<>();
 					if (abortCurrentOperation || assembleFlatFileCollection(collection, files) == null) {
 						return ABORTED;
 					}
 					if (collection.isEmpty()) {
-						guiUtils.error("Dragged file(s) do not contain valid data.");
+						if (promptForConfirmation) guiUtils.error("Dragged file(s) do not contain valid data.");
 						return INVALID;
 					}
 					if (promptForConfirmation && collection.size() > 10) {
@@ -4718,12 +4739,11 @@ public class Viewer3D {
 					} finally {
 						setSceneUpdatesEnabled(true);
 						abortCurrentOperation = false;
-						if (frame.managerPanel != null) {
-							frame.managerPanel.resetProgressBar();
-						}
+						removeProgressLoad(-1);
 					}
 				}
 			};
+			addProgressLoad(-1);
 			worker.execute();
 		}
 
@@ -4747,25 +4767,30 @@ public class Viewer3D {
 		 */
 		private int[] loadGuessingType(final Collection<File> files, final ColorRGB baseColor) {
 			final int totalFiles = files.size();
-			if (frame.managerPanel != null) {
-				frame.managerPanel.setProgressLimit(0, totalFiles);
-			}
+			int previousProgress = Math.max(0, getCurrentProgress());
+			addProgressLoad(totalFiles);
 			final ColorRGB[] colors = getmportColors(baseColor, totalFiles);
 			int failures = 0;
 			int idx = 0;
 			for (final File file : files) {
+
 				if (abortCurrentOperation) {
 					SNTUtils.log("Aborting...");
 					displayMsg(String.format("%d file(s) loaded", (idx+1)));
+					removeProgressLoad(getCurrentProgress() - previousProgress);
+					previousProgress = 0;
 					break;
 				}
+
 				if (!file.exists() || file.isDirectory()) {
 					failures++;
 					continue;
 				}
+
 				SNTUtils.log(String.format("Loading %d/%d: %s", (idx+1), totalFiles, file.getAbsolutePath()));
 				final String fName = file.getName().toLowerCase();
 				try {
+					incrementProgress();
 					final ColorRGB color = colors[idx];
 					if (fName.endsWith("swc") || fName.endsWith(".traces") || fName.endsWith(".json")) { // reconstruction:
 						try {
@@ -4773,14 +4798,11 @@ public class Viewer3D {
 							if (treesInFile.isEmpty()) {
 								failures++;
 							} else if (treesInFile.size() > 1) {
-								if (frame.managerPanel != null)
-									frame.managerPanel.setProgressLimit(0, totalFiles + treesInFile.size());
+								addProgressLoad(treesInFile.size());
 								Tree.assignUniqueColors(treesInFile);
-								int internalIdx = 0;
 								for (final Tree tree : treesInFile) {
 									addTree(tree);
-									if (frame.managerPanel != null)
-										frame.managerPanel.setProgress(idx + internalIdx++);
+									incrementProgress();
 								}
 							} else {
 								treesInFile.forEach(tree -> {
@@ -4803,14 +4825,14 @@ public class Viewer3D {
 						failures++;
 						SNTUtils.log("... failed. Not a supported file type");
 					}
-					if (frame.managerPanel != null)
-						frame.managerPanel.setProgress(idx);
+
 				} catch (final IllegalArgumentException ex) {
 					SNTUtils.log("... failed " + ex.getMessage());
 					failures++;
 				}
 				idx++;
 			}
+			removeProgressLoad(getCurrentProgress() - previousProgress);
 			return new int[] { failures, (idx-failures) };
 		}
 
@@ -4935,6 +4957,7 @@ public class Viewer3D {
 				protected Void doInBackground() {
 					viewUpdatesEnabled = compartments.size() == 1;
 					for (final AllenCompartment compartment : compartments) {
+						Viewer3D.this.incrementProgress();
 						if (getOBJs().keySet().contains(compartment.name())) {
 							managerList.addCheckBoxListSelectedValue(compartment.name(), true);
 						} else {
@@ -4975,13 +4998,12 @@ public class Viewer3D {
 					} catch (final InterruptedException | ExecutionException e) {
 						SNTUtils.error(e.getMessage(), e);
 					} finally {
-						if (getManagerPanel() != null)
-							getManagerPanel().resetProgressBar();
+						removeProgressLoad(compartments.size());
 						viewUpdatesEnabled = true;
 					}
 				}
 			};
-			getManagerPanel().setProgress(-1);
+			addProgressLoad(compartments.size());
 			worker.execute();
 		}
 
@@ -5388,12 +5410,7 @@ public class Viewer3D {
 
 		public void setListenersEnabled(final boolean enabled) {
 			listenersEnabled = enabled;
-			if (frame != null && frame.managerPanel != null) {
-				if (listenersEnabled)
-					update();
-				else
-					frame.managerPanel.resetProgressBar();
-			}
+			if (frame != null && frame.managerPanel != null && listenersEnabled) update();
 		}
 
 		private void callFireContentsChangedOnSuper(final Object source, final int index0, final int index1) {
@@ -5737,14 +5754,14 @@ public class Viewer3D {
 
 		public CmdWorker(final Class<? extends Command> cmd,
 			final Map<String, Object> inputs, final int type,
-			final boolean setRecViewerParamater)
+			final boolean setRecViewerParamater, final boolean setPrgress)
 		{
 			this.cmd = cmd;
 			this.inputs = inputs;
 			this.type = type;
 			this.setRecViewerParamater = setRecViewerParamater;
-			displayProgressBar = getManagerPanel() != null;
-			if (displayProgressBar) getManagerPanel().setProgress(-1);
+			displayProgressBar = setPrgress && getManagerPanel() != null;
+			if (displayProgressBar) addProgressLoad(-1);
 		}
 
 		@Override
@@ -5789,7 +5806,7 @@ public class Viewer3D {
 			catch (final Exception ignored) {
 				// do nothing
 			} finally {
-				if (displayProgressBar) getManagerPanel().resetProgressBar();
+				if (displayProgressBar) removeProgressLoad(-1);
 			}
 		}
 	}
@@ -5826,24 +5843,20 @@ public class Viewer3D {
 				frame.canvas.setSize(w, h);
 				frame.setResizable(false);
 			}
-
-			final ManagerPanel managerPanel = getManagerPanel();
-			if (managerPanel != null) managerPanel.setProgressLimit(0, nSteps);
+			addProgressLoad(nSteps);
 			while (step++ < nSteps) {
 				try {
-					if (managerPanel != null) managerPanel.setProgress(step);
 					final File f = new File(dir, String.format("%05d.png", step));
 					rotate(new Coord2d(inc, 0d), false);
 					chart.screenshot(f);
+					incrementProgress();
 				}
 				catch (final IOException e) {
 					status = false;
 				}
-				finally {
-					if (frame != null) frame.setResizable(true);
-					if (managerPanel != null) managerPanel.setProgress(step);
-				}
 			}
+			if (frame != null) frame.setResizable(true);
+			removeProgressLoad(nSteps);
 			return status;
 		}
 
@@ -6893,6 +6906,34 @@ public class Viewer3D {
 		if (id != other.id)
 			return false;
 		return true;
+	}
+
+	private void incrementProgress() {
+		if (getManagerPanel()!= null)
+			frame.managerPanel.progressBar.addToGlobalValue(1);
+	}
+
+	private int getCurrentProgress() {
+		return (getManagerPanel() == null) ? -1 : frame.managerPanel.progressBar.globalValue;
+	}
+
+	/** will hide the bar if progress max becomes negative */
+	private void removeProgressLoad(final int loadSize) {
+		if (getManagerPanel()!= null) {
+			frame.managerPanel.progressBar.addToGlobalMax(-loadSize);
+		}
+	}
+
+	/** will show a undetermined bar if progress max is negative */
+	private void addProgressLoad(final int loadSize) {
+		if (getManagerPanel()!= null) {
+			if (loadSize == -1) {
+				frame.managerPanel.progressBar.reset(true);
+				frame.managerPanel.progressBar.setLoadPending(true);
+			} else {
+				frame.managerPanel.progressBar.addToGlobalMax(loadSize);
+			}
+		}
 	}
 
 	/* IDE debug method */

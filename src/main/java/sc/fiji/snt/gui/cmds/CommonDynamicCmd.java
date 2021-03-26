@@ -108,18 +108,9 @@ public class CommonDynamicCmd extends DynamicCommand {
 		}
 	}
 
-	protected void notifyLoadingStart(final Viewer3D standAloneRecViewer) {
+	protected void notifyLoadingStart() {
 		if (ui != null) ui.changeState(SNTUI.LOADING);
-		if (standAloneRecViewer != null && standAloneRecViewer.getManagerPanel() != null) {
-			standAloneRecViewer.getManagerPanel().setProgress(-1);
-		}
-	}
-
-	protected void notifyLoadingEnd(final boolean validateDimensionsInMainUI, final Viewer3D standAloneRecViewer) {
-		resetUI(validateDimensionsInMainUI);
-		if (standAloneRecViewer != null && standAloneRecViewer.getManagerPanel() != null) {
-			standAloneRecViewer.getManagerPanel().resetProgressBar();
-		}
+		// SwingerWorkees in Viewe3D will already notify standAloneRecViewer
 	}
 
 	protected void resetUI() {

@@ -23,14 +23,16 @@
 package sc.fiji.snt.gui.cmds;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 import net.imagej.ImageJ;
 
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
+import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
 import org.scijava.widget.NumberWidget;
 
@@ -51,7 +53,7 @@ public class LoadObjCmd extends ContextCommand {
 	private SNTService sntService;
 
 	@Parameter
-	private UIService uiService;
+	private LogService logService;
 
 	@Parameter(label = "File/Directory Path", required = true,
 		description = "Path to OBJ file, or directory containing multiple OBJ files")
@@ -90,6 +92,7 @@ public class LoadObjCmd extends ContextCommand {
 			" is no longer available");
 
 		if (transparency <= 0d) transparency = 5;
+
 		if (file.isFile()) {
 			try {
 				if (loadMesh(file.getAbsolutePath()))
@@ -107,39 +110,47 @@ public class LoadObjCmd extends ContextCommand {
 			final File[] files = file.listFiles((dir, name) -> name
 				.toLowerCase().endsWith("obj"));
 			recViewer.setSceneUpdatesEnabled(false);
-			if (recViewer.getManagerPanel() != null)
-				recViewer.getManagerPanel().setProgressLimit(0, files.length);
-			int failures = 0;
-			int idx = 0;
-			for (final File file : files) {
-				try {
-					if (recViewer.getManagerPanel() != null)
-						recViewer.getManagerPanel().setProgress(idx++);
-					if (!loadMesh(file.getAbsolutePath())) failures++;
-				}
-				catch (final IllegalArgumentException exc) {
-					failures++;
-				}
-			}
-			if (failures == files.length) {
+			final int result = loadMeshes(files);
+			if (result==0) {
 				cancel(getExitMsg("No files imported. Invalid Directory?"));
+			} else {
+				recViewer.setSceneUpdatesEnabled(true);
+				recViewer.validate();
+				final String msg = "" + result + "/" + files.length +
+						" files successfully imported.";
+				new GuiUtils().centeredMsg(msg, (result == files.length) ? "All Meshes Imported"
+						: "Partially Successful Import");
 			}
-			if (recViewer.getManagerPanel() != null)
-				recViewer.getManagerPanel().resetProgressBar();
-			recViewer.setSceneUpdatesEnabled(true);
-			recViewer.validate();
-			final String msg = "" + (files.length - failures) + "/" + files.length +
-				" files successfully imported.";
-			uiService.showDialog(msg, (failures == 0) ? "All Meshes Imported"
-				: "Partially Successful Import");
 		}
 	}
 
+	private int loadMeshes(final File[] files) {
+		final List<OBJMesh> meshes = new ArrayList<>(files.length);
+		for (final File file : files) {
+			try {
+				final OBJMesh objMesh = new OBJMesh(file.getAbsolutePath());
+				objMesh.setColor(color, transparency);
+				if (box) objMesh.setBoundingBoxColor(color);
+				meshes.add(objMesh);
+			} catch (final IllegalArgumentException ex) {
+				logService.error(String.format("%s: %s", file.getAbsolutePath(), ex.getMessage()));
+			}
+		}
+		final int existingMeshes = recViewer.getMeshes().size();
+		recViewer.add(meshes);
+		return recViewer.getMeshes().size() - existingMeshes;
+	}
+
 	private boolean loadMesh(final String filePath) {
-		final OBJMesh objMesh = new OBJMesh(filePath);
-		objMesh.setColor(color, transparency);
-		if (box) objMesh.setBoundingBoxColor(color);
-		return recViewer.addMesh(objMesh);
+		try {
+			final OBJMesh objMesh = new OBJMesh(filePath);
+			objMesh.setColor(color, transparency);
+			if (box) objMesh.setBoundingBoxColor(color);
+			return recViewer.addMesh(objMesh);
+		} catch (final IllegalArgumentException ex) {
+			logService.error(String.format("%s: %s", file.getAbsolutePath(), ex.getMessage()));
+			return false;
+		}
 	}
 
 	private String getExitMsg(final String msg) {

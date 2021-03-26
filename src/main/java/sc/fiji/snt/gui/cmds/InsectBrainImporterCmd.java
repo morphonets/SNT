@@ -106,7 +106,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 			return;
 		}
 
-		notifyLoadingStart(recViewer);
+		notifyLoadingStart();
 		status("Retrieving ids... Please wait...", false);
 		final List<Tree> trees = new ArrayList<>();
 		final List<OBJMesh> meshes = (loadMeshes) ? new ArrayList<>() : null;
@@ -122,7 +122,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 			}
 		}
 		if (failures == ids.size()) {
-			notifyLoadingEnd(false, recViewer);
+			resetUI(false);
 			status("Error... No reconstructions imported", true);
 			error("No reconstructions could be retrieved: Invalid ID(s)?");
 			return;
@@ -158,7 +158,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 			// recViewer.validate(); // Not needed: will be called by recViewer.add(Collection)
 		}
 
-		notifyLoadingEnd(recViewer == null, recViewer);
+		resetUI(recViewer == null);
 		if (failures > 0) {
 			error(String.format("%d/%d reconstructions could not be retrieved.",
 				failures, trees.size()));

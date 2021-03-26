@@ -129,7 +129,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			return;
 		}
 
-		notifyLoadingStart(recViewer);
+		notifyLoadingStart();
 		status("Retrieving ids... Please wait...", false);
 		final int lastExistingPathIdx = pafm.size() - 1;
 		final Map<String, TreeSet<SWCPoint>> inMap = new HashMap<>();
@@ -143,7 +143,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 		final List<Tree> filteredResult = result.values().stream().filter(tree -> (tree != null && !tree.isEmpty()))
 				.collect(Collectors.toList());
 		if (filteredResult.isEmpty()) {
-			notifyLoadingEnd(false, recViewer);
+			resetUI(false);
 			status("Error... No reconstructions imported", true);
 			error("No reconstructions could be retrieved: Invalid Query?");
 			return;
@@ -167,7 +167,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			recViewer.setSplitDendritesFromAxons(splitState);
 		}
 
-		notifyLoadingEnd(recViewer == null, recViewer);
+		resetUI(recViewer == null);
 		if (filteredResult.size() < result.size()) {
 			status("Partially successful import...", true);
 			error(String.format("Only %d of %d reconstructions could be retrieved.",
