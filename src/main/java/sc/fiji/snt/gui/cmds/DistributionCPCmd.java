@@ -85,34 +85,48 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 
 	@Override
 	public void run() {
-		final String scope = ("All".equals(compartment)) ? "AxDe" : compartment;
 		String failures = "";
-		try {
-			if (scope.contains("De")) {
-				final MultiTreeStatistics dStats = new MultiTreeStatistics(trees, "dendrites");
-				dStats.setLabel("Dendrites");
-				dStats.getHistogram(measurementChoice).setVisible(true);
+		String explanation = "";
+		if  ("All".equals(compartment)) {
+			try {
+			final MultiTreeStatistics dStats = new MultiTreeStatistics(trees);
+			dStats.setLabel("Dendrites");
+			dStats.getHistogram(measurementChoice).setVisible(true);
+			} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
+				failures = "all";
 			}
-		} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
-			failures += "dendritic";
-		}
-		try {
-			if (scope.contains("Ax")) {
-				final MultiTreeStatistics aStats = new MultiTreeStatistics(trees, "axon");
-				aStats.setLabel("Axons");
-				aStats.getHistogram(measurementChoice).setVisible(true);
+		} else {
+			explanation = " Perhaps branches have not been tagged as dendrites/axons? If this is the case, "
+					+ "you can re-run the analysis using 'All' as compartment choice.";
+			try {
+				if (compartment.contains("De")) {
+					final MultiTreeStatistics dStats = new MultiTreeStatistics(trees, "dendrites");
+					dStats.setLabel("Dendrites");
+					dStats.getHistogram(measurementChoice).setVisible(true);
+				}
+			} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
+				failures += "dendritic";
 			}
-		} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
-			failures += (failures.isEmpty()) ? "axonal" : " or axonal";
+			try {
+				if (compartment.contains("Ax")) {
+					final MultiTreeStatistics aStats = new MultiTreeStatistics(trees, "axon");
+					aStats.setLabel("Axons");
+					aStats.getHistogram(measurementChoice).setVisible(true);
+				}
+			} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
+				failures += (failures.isEmpty()) ? "axonal" : " or axonal";
+			}
 		}
+
 		if (!failures.isEmpty()) {
-			String error = "It was not possible to access data for " + failures + "compartment(s).";
+			String error = "It was not possible to access data for " + failures + " compartment(s).";
+			error += explanation;
 			if (calledFromPathManagerUI) {
-				error += "\nNote that some distributions can only be computed on \n"
-						+ "structures with a single root without disconnected paths.\n"
+				error += "Note that some distributions can only be computed on "
+						+ "structures with a single root without disconnected paths. "
 						+ "Please re-run the command with a valid selection.";
 			}
-			cancel(error);
+			new GuiUtils().error(error);
 		}
 		resetUI();
 	}
