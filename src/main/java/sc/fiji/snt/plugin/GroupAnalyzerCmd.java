@@ -96,7 +96,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	private String scope;
 
 	// II. Metrics
-	@Parameter(label = "<HTML>&nbsp;<br><b>Metrics:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
+	@Parameter(label = "<HTML>&nbsp;<br><b>Measurements:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
 	private String SPACER2;
 
 	@Parameter(label = "Metric", callback ="metricChanged", choices = {//
@@ -125,14 +125,13 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	})
 	private String metric;
 
-	@Parameter(label = "<HTML>&nbsp;<br><b>Output(s):", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
-	private String SPACER4;
-
-	@Parameter(required = false, label = "Comparison plots", description = "Display Histograms & Box-Plots?")
+	@Parameter(required = false, callback = "displayPlotsChanged", label = "Comparison plots",
+			description = "Display Histograms and Box-Plots? (Ignored if not metric is specified)")
 	private boolean displayPlots;
 
-	@Parameter(required = false, label = "Montage of mapped metric", description = "<HTML><div WIDTH=500>Assemble multiple-panel figure "
-			+ "from group exemplars? This option is only considered if chosen metric can be mapped to a LUT.")
+	@Parameter(required = false, callback = "displayInMultiViewerChanged", label = "Montage of mapped metric",
+			description = "<HTML><div WIDTH=500>Assemble multiple-panel figure from group exemplars? "
+					+ "This option is only considered if chosen metric can be mapped to a LUT.")
 	private boolean displayInMultiViewer;
 
 	@Parameter(required = false, label = "3D Scene", description = "Display groups on a dedicated instance of Reconstruction Viewer?")
@@ -159,12 +158,30 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			mChoices.add(0, "None. Skip measurements");
 			final MutableModuleItem<String> mInput = getInfo().getMutableInput("metric", String.class);
 			mInput.setChoices(mChoices);
+			metricChanged();
 		}
 	}
 
 	@SuppressWarnings("unused")
+	private void displayPlotsChanged() {
+		noMetrics = metric != null && metric.startsWith("None");
+		if (noMetrics) {
+			GuiUtils.errorPrompt("This option is only available when a metric is specified");
+			displayPlots = false;
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private void displayInMultiViewerChanged() {
+		noMetrics = metric != null && metric.startsWith("None");
+		if (noMetrics || !isMetricMappable(metric)) {
+			GuiUtils.errorPrompt("This option is only available when mappable metric is specified");
+			displayInMultiViewer = false;
+		}
+	}
+
 	private void metricChanged() {
-		noMetrics = metric.toLowerCase().contains("none");
+		noMetrics = metric != null && metric.startsWith("None");
 		if (noMetrics) {
 			displayInMultiViewer = false;
 			displayPlots = false;
@@ -181,6 +198,11 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			return;
 		}
 
+		if (noMetrics = metric.startsWith("None")) {
+			displayInMultiViewer = false;
+			displayPlots = false;
+		}
+	
 		final GroupedTreeStatistics stats = new GroupedTreeStatistics();
 		inputGroupsCounter = 0;
 		addGroup(stats, g1File, "Group 1");
@@ -192,7 +214,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 
 		if (stats.getGroups().size() == 0) {
 			resetUI(false);
-			error("No matching reconstruction(s) could be retrieved from the specified path(s).");
+			error("No matching reconstruction(s) could be retrieved from the specified path(s). " + warningOnCompartmentTags());
 			return;
 		}
 		if (noMetrics) {
@@ -240,13 +262,14 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			if (inputGroupsCounter != stats.getGroups().size()) {
 				exitMsg.append("<p>Some directories (").append(inputGroupsCounter - stats.getGroups().size());
 				exitMsg.append(") did not contain matching data and were skipped.</p>");
+				exitMsg.append("<p>").append(warningOnCompartmentTags()).append("</p>");
 			}
 			if (displayInMultiViewer && largestN[0] > 10) {
 				exitMsg.append((mappableMetric) ? "<p>NB: Only the first 10 cells of each group were mapped.</p>"
 						: "<p>NB: Metric is not mappable. Choice ignored.</p>");
 			}
 			if (exitMsg.length() > 10) {
-				uiService.showDialog(exitMsg.toString(), "Warning");
+				GuiUtils.errorPrompt(exitMsg.toString());
 			}
 		}
 		if (displayInRecViewer) {
@@ -275,6 +298,12 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 
 		resetUI(false);
 
+	}
+
+	private String warningOnCompartmentTags() {
+		return ("All".equals(scope)) ? ""
+				: " Perhaps branches have not been tagged as dendrites/axons? If this is the case, "
+						+ "you can re-run the analysis using 'All' as compartment choice.";
 	}
 
 	private String getDirPath(final String groupLabel) {
