@@ -48,7 +48,7 @@ public class GraphGeneratorCmd extends CommonDynamicCmd {
 		if (tree == null) {
 			init(true);
 			tree = sntService.getTree(false);
-			if (tree.isEmpty()) cancel("There are no traced paths.");
+			if (tree.isEmpty()) error("There are no traced paths.");
 		}
 	}
 
@@ -64,8 +64,8 @@ public class GraphGeneratorCmd extends CommonDynamicCmd {
 			tree.getGraph(true).show();
 		} catch (final IllegalArgumentException exc) { // multiple roots, etc..
 			//SNTUtils.setIsLoading(false);
-			error("Graph could not be created: " + exc.getLocalizedMessage() + "\n"
-			+ "Please ensure you select a single set of connected paths (one root exclusively)");
+			error("Graph could not be created: " + exc.getLocalizedMessage()
+			+ ". Please ensure you select a single set of connected paths (one root exclusively)");
 		} finally {
 			//SNTUtils.setIsLoading(false);
 			resetUI();

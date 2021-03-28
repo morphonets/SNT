@@ -205,7 +205,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 		runningFromMainSNT = runningFromMainSNT && recViewer == null;
 
 		if (!runningFromMainSNT && recViewer == null) {
-			cancel("Neither an SNT instance nor a standalone Reconstruction viewer seem available");
+			error("Neither an SNT instance nor a standalone Reconstruction viewer seem available");
 		}
 		pingMsg = "Internet connection required. Retrieval of long lists may be rather slow...           ";
 

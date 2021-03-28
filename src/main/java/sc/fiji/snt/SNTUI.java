@@ -3611,7 +3611,7 @@ public class SNTUI extends JDialog {
 				if (saveFile == null)
 					return; // user pressed cancel
 				if (saveFile.exists()) {
-					if (!guiUtils.getConfirmation("The file " + saveFile.getAbsolutePath() + " already exists.\n"
+					if (!guiUtils.getConfirmation("The file " + saveFile.getAbsolutePath() + " already exists. "
 							+ "Do you want to replace it?", "Override CSV file?"))
 						return;
 				}

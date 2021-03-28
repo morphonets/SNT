@@ -213,7 +213,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 					+ "can happen because paths are fitted independently from one another and "
 					+ "may not be aware of the original connectivity. When this happens, metrics "
 					+ "will be reported as <em>NaN</em>  and related errors reported to the "
-					+ "Console (when running in <em>Debug</em> mode).</p>\n"
+					+ "Console (when running in <em>Debug</em> mode).</p>"
 					+ "<p>If this becomes an issue in your analyses, consider fitting paths in situ "
 					+ "using the <em>Replace existing nodes</em> option instead. Also, remember that "
 					+ "you can also use the Path Manager&#39;s Edit&gt;Rebuild... command to discard "

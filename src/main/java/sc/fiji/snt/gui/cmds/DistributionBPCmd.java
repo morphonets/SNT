@@ -132,11 +132,11 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 		} catch (final IllegalArgumentException | NullPointerException ex) {
 			String error = "It was not possible to retrieve valid histogram data.";
 			if (calledFromPathManagerUI) {
-				error += "\nNote that some distributions can only be computed on \n"
-						+ "structures with a single root without disconnected paths.\n"
+				error += " Note that some distributions can only be computed on "
+						+ "structures with a single root without disconnected paths. "
 						+ "Please re-run the command with a valid selection.";
 			}
-			cancel(error);
+			error(error);
 			ex.printStackTrace();
 		}
 	}

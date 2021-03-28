@@ -65,7 +65,7 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 //			snt.initialize(imp);
 			final ImagePlus imp = IJ.openImage(file.getAbsolutePath());
 			if (imp.getType()==ImagePlus.COLOR_RGB) {
-				cancel("Invalid Image: RGB images not supported.");
+				error("Invalid Image: RGB images not supported.");
 			} else {
 				snt.initialize(imp);
 			}

@@ -157,7 +157,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				}
 			}
 			if (tree.isEmpty()) {
-				cancel("No reconstructions imported.");
+				error("No reconstructions imported.");
 			}
 			else {
 				logService.info("" + counter +

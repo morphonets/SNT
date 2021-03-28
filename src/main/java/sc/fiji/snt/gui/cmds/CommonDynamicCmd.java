@@ -31,7 +31,6 @@ import org.scijava.ui.UIService;
 
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 
@@ -95,7 +94,8 @@ public class CommonDynamicCmd extends DynamicCommand {
 			cancel();
 		}
 		else {
-			cancel(msg);
+			cancel("<HTML>"+msg);
+			cancel();
 		}
 	}
 

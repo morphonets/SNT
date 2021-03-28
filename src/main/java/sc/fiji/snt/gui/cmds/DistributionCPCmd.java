@@ -38,9 +38,9 @@ import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 
 import sc.fiji.snt.analysis.MultiTreeStatistics;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Command for plotting distributions of whole-cell morphometric properties of
@@ -70,7 +70,7 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 	protected void init() {
 		super.init(false);
 		if (trees == null || trees.isEmpty()) {
-			cancel("Collection of Trees required but none found.");
+			error("Collection of Trees required but none found.");
 		}
 		final MutableModuleItem<String> measurementChoiceInput = getInfo()
 			.getMutableInput("measurementChoice", String.class);
@@ -126,7 +126,7 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 						+ "structures with a single root without disconnected paths. "
 						+ "Please re-run the command with a valid selection.";
 			}
-			new GuiUtils().error(error);
+			error(error);
 		}
 		resetUI();
 	}

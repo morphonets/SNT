@@ -415,7 +415,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		}
 		final ImagePlus newImp = convertService.convert(newDataset, ImagePlus.class);
 		if (twoD != (newImp.getNSlices() == 1)) {
-			helper.error("Z-dimension of new dataset differs which will require a rebuild of the main dialog.\n" +
+			helper.error("Z-dimension of new dataset differs which will require a rebuild of the main dialog. " +
 				"Please restart the command to analyze " + newImp.getTitle(),
 				"Not a Suitable Choice");
 			return;
@@ -665,7 +665,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			return false;
 		final String oldPosition = "Channel " + posC + ", Frame " + posT;
 		final String newPosition = "Channel " + imp.getC() + ", Frame " + imp.getFrame();
-		final String msg = "Scope of analysis is currently %s.\nUpdate scope to active position (%s)?";
+		final String msg = "Scope of analysis is currently %s. Update scope to active position (%s)?";
 		final Result result = helper.yesNoPrompt(String.format(msg, oldPosition, newPosition),
 				"Dataset Position Changed");
 		if (result == Result.YES_OPTION) {
@@ -689,13 +689,13 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			return;
 		}
 		if (center != null && center.equals(newCenter)) {
-			helper.error("ROI already defines the same center currently in use\n(" + centerDescription()
+			helper.error("ROI already defines the same center currently in use (" + centerDescription()
 					+ "). No changes were made.", "Center Already Defined");
 			return;
 		}
 		if (center != null && newCenter.z != center.z) {
 			final Result result = helper.yesNoPrompt(
-					String.format("Current center was set at Z-position %s.\n" + "Move center to active Z-position %s?",
+					String.format("Current center was set at Z-position %s. Move center to active Z-position %s?",
 							ShollUtils.d2s(center.z), ShollUtils.d2s(newCenter.z)),
 					"Z-Position Changed");
 			if (result == Result.NO_OPTION)
@@ -725,7 +725,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		String uiMsg;
 		switch (cancelReason) {
 		case NO_CENTER:
-			uiMsg = "Please set an ROI, then press \"" + "Set New Center from Active ROI\".\n"
+			uiMsg = "Please set an ROI, then press \"" + "Set New Center from Active ROI\". "
 					+ "Center coordinates will be defined by the ROI's centroid.";
 			break;
 		case NO_RADII:
@@ -1106,7 +1106,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 					}
 				}
 				if (failures > 0)
-					helper.error("Some file(s) (" + failures + "/"+ outputs.size() +") could not be saved. \n"
+					helper.error("Some file(s) (" + failures + "/"+ outputs.size() +") could not be saved. "
 							+ "Please ensure \"Destination\" directory is valid.", "IO Failure");
 			}
 		}
@@ -1125,7 +1125,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			noOutput = noOutput && annotationsDescription.contains("None");
 			if (noOutput) {
 				cancel("Invalid output");
-				helper.error("Analysis can only proceed if at least one type\n" +
+				helper.error("Analysis can only proceed if at least one type " +
 					"of output (plot, table, annotation) is chosen.", "Invalid Output");
 			}
 			return !noOutput;

@@ -73,7 +73,7 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 	@SuppressWarnings("unused")
 	private void init() {
 		if (tree == null || tree.isEmpty() || tree.getRoot() == null) {
-			cancel("No reconstruction specified.");
+			error("No reconstruction specified.");
 			return;
 		}
 		final char hemiFlag = tree.getRoot().getHemisphere();
@@ -83,7 +83,7 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 		}
 		treeLabel = (tree.getLabel() == null) ? "Reconstruction" : tree.getLabel();
 		if (!tree.isAnnotated()) {
-			cancel(treeLabel + " has no neuropil labels.");
+			error(treeLabel + " has no neuropil labels.");
 			return;
 		}
 		if (tree.getSWCTypes().size() == 1) {
@@ -96,7 +96,7 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 	public void run() {
 
 		if (histogramType == null) {
-			cancel("Distribution type was not specified");
+			error("Distribution type was not specified");
 			return;
 		}
 
@@ -117,7 +117,7 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 			statusService.showStatus("Retrieving " + compartment + " arbor...");
 			tree = tree.subTree(compartment);
 			if (tree.isEmpty()) {
-				cancel(treeLabel + " does not contain processes tagged as \"" + compartment + "\".");
+				error(treeLabel + " does not contain processes tagged as \"" + compartment + "\".");
 				return;
 			}
 		}
