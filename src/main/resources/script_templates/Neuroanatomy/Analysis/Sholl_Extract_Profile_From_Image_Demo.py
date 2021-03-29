@@ -7,6 +7,7 @@ author:     Tiago Ferreira
 info:       Demonstrates how to programmatically obtain a Sholl profile from a 
             segmented image
 """
+from ij import IJ
 from sc.fiji.snt.analysis.sholl import (Profile, ShollUtils)
 from sc.fiji.snt.analysis.sholl.parsers import (ImageParser2D, ImageParser3D)
 
@@ -31,7 +32,6 @@ def main(imp):
     # 2. from the image itself: e.g., IJ.setAutoThreshold(imp, "Huang")
     # If the image is already binarized, we can skip setting threshold levels:
     if not (imp.isThreshold() or imp.getProcessor().isBinary()):
-        from ij import IJ
         IJ.setAutoThreshold(imp, "Otsu dark")
 
     # Center: the x,y,z coordinates of center of analysis. In a real-case usage
@@ -49,11 +49,22 @@ def main(imp):
     # Sampling distances: start radius (sr), end radius (er), and step size (ss).
     # A step size of zero would mean 'continuos sampling'. Note that end radius
     # could also be set programmatically, e.g., from a ROI
-    parser.setRadii(10, 5, parser.maxPossibleRadius()) # (sr, er, ss)
+    parser.setRadii(10, 5, parser.maxPossibleRadius()) # (sr, ss, er)
 
     # We could now set further options as we would do in the dialog prompt:
-    parser.setHemiShells('none')
+    parser.setHemiShells('none')  ## Use hemi-shells?
+    parser.setThreshold(100, 255) ## Threshold values for image segmentation
     # (...)
+
+    # Some options are only available in 2D, while others in 3D:
+    if imp.getNSlices() == 1:
+        parser.setRadiiSpan(5, ImageParser2D.MEDIAN)  ## 5 samples/radius w/ median integration
+        parser.setPosition(1, 1, 1)  ## the channel, slice, and frame to be parsed
+ 
+    else:
+        parser.setSkipSingleVoxels(True)  ## ignore small speckles?
+        parser.setPosition(1, 1)  ## the channel, and frame to be parsed
+        
 
     # Parse the image. This may take a while depending on image size. 3D images
     # will be parsed using the number of threads specified in ImageJ's settings:
@@ -84,8 +95,22 @@ def main(imp):
     profile.plot().show()
     
 
-# For this demo we are going to use the ddaC sample image
-demo_image = ShollUtils.sampleImage()
-demo_image.show()
-main(demo_image)
+# For this demo we are going to use the ddaC sample image. But you could specify
+# an image file as input. In that case you would be able to use the 'Batch' button
+# of the Script Editor (next to 'Run') to apply the script to multiple images
+# directly. Pretty neat, hm? Here is how it can be done:
+
+#@String(value="For a demo, leave the field below empty.", visibility="MESSAGE") msg
+#@File(label="Path to image:", required=false) img_file
+
+if img_file:
+    image = IJ.openImage(img_file.getAbsolutePath())
+else:
+    image = ShollUtils.sampleImage()
+
+if image:
+    image.show() ## Could be ommited. Image does not need to be displayed
+    main(image)
+else:
+    print("Image could not be obtained")
 
