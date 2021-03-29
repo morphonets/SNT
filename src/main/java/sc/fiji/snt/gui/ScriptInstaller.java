@@ -316,6 +316,18 @@ public class ScriptInstaller implements MenuKeyListener {
 		return sMenu;
 	}
 
+	public void openScript(final String folder, final String name) throws IllegalArgumentException{
+		for (final ScriptInfo si : scripts) {
+			final String path = si.getPath();
+			if (path == null || (folder != null && !path.contains(folder))) continue;
+			if (name.equals(getScriptLabel(si, true)) || name.equals(getScriptLabel(si, false))) {
+				openScript(si); 
+				return;
+			}
+		}
+		throw new IllegalArgumentException("Script not found");
+	}
+
 	public void runScript(final String folder, final String name) throws IllegalArgumentException{
 		for (final ScriptInfo si : scripts) {
 			final String path = si.getPath();

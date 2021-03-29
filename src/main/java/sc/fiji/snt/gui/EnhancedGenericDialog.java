@@ -344,8 +344,10 @@ public class EnhancedGenericDialog extends GenericDialogPlus {
 	/** Customizes macro recordings */
 	public static final void improveRecording() {
 		if (Recorder.record) {
-			String recordString = "// Recording Sholl Analysis version " + SNTUtils.VERSION + "\n" + "// Visit "
-					+ ShollUtils.URL + "#Batch_Processing for scripting tips\n";
+			String recordString = "// Recording the legacy (IJ1) Sholl Analysis plugin. Please\n" 
+					+ "// note the changes in command names (e.g., from 'Sholl Analysis'\n"
+					+ "// to 'Legacy: Sholl Analysis (From Image)...') when following the\n"
+					+ "// guide at " + ShollUtils.URL + "#Batch_Processing\n";
 			final String cmd = Recorder.getCommand();
 			final String cmdOptions = Recorder.getCommandOptions();
 			if (cmd == null || cmdOptions == null) {

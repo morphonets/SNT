@@ -68,6 +68,7 @@ import ij.gui.Overlay;
 import ij.gui.PointRoi;
 import ij.gui.Roi;
 import ij.measure.Calibration;
+import ij.plugin.frame.Recorder;
 import net.imagej.Dataset;
 import net.imagej.DatasetService;
 import net.imagej.display.ImageDisplayService;
@@ -313,7 +314,21 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 	@Override
 	public void run() {
-		// Do nothing. Actually analysis is performed by runAnalysis();
+		// User Pressed "OK"
+		if (Recorder.record) {
+			Recorder.recordString(
+					  "// Recording of this command may not be fully functional yet.\n" //
+					+ "// Please have a look at the example scripts in Templates>Neuroanatomy>\n"//
+					+ "// for more robust ways to automate Sholl. E.g., the script\n"//
+					+ "// 'Sholl_Extract_Profile_From_Image_Demo.py' exemplifies how to parse\n"//
+					+ "// an image programmatically. Alternatively, the Legacy IJ1 command remains\n"//
+					+ "// available with historical support for recorded calls.\n");
+		}
+		try {
+			runAnalysis();
+		} catch (InterruptedException e) {
+			cancel(e.getMessage());
+		}
 	}
 
 	/*

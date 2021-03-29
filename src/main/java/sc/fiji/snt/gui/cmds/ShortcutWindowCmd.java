@@ -24,6 +24,7 @@ package sc.fiji.snt.gui.cmds;
 
 import java.awt.Dimension;
 import java.awt.Point;
+import java.awt.event.InputEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
@@ -74,7 +75,7 @@ import sc.fiji.snt.plugin.ij1.CallIJ1LegacyCmd;
 		headless = false)
 public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
-	private static final String HTML_TOOLTIP = "<html><body><div style='width:500px'>";
+	private static final String HTML_TOOLTIP = "<html>";
 
 	@Parameter
 	private CommandService cmdService;
@@ -99,6 +100,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		buttons.add(null);
 		addShollButton();
 		addStrahlerButton();
+		buttons.add(null);
 		addScriptsButton();
 		buttons.add(null);
 		addButton(new Shortcut("Deprecated Cmds...", CallIJ1LegacyCmd.class,
@@ -137,8 +139,9 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	private void addStrahlerButton() {
 		final JPopupMenu popup = new JPopupMenu();
 		final JButton button = getPopupButton(popup, "Strahler Analysis",
-				"Single file analysis (skeletonized image or reconstruction). For bulk processing see Scripts>Batch>");
+				"Tools for skeletonized images and reconstructions");
 		JMenuItem jmi = new JMenuItem("Strahler Analysis (Image)...");
+		jmi.setToolTipText("Performs analysis directly from a (skeletonized) 2D/3D image");
 		jmi.addActionListener(e -> {
 			try {  // FIXME: We need to adopt SciJavaCommands for this
 				Class.forName("ipnat.skel.Strahler");
@@ -149,30 +152,71 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 			}
 		});
 		popup.add(jmi);
-		jmi = new JMenuItem("Strahler Analysis (Tracings)...");
-		jmi.addActionListener(e -> {
-			try {
-				new ScriptInstaller(getContext(), getFrame()).runScript("Analysis", "Strahler Analysis");
-			} catch (final IllegalArgumentException ignored){
-				new GuiUtils(getFrame()).error(ignored.getMessage());
-			}
-		});
+		jmi = getScriptMenuItem("Analysis", "Strahler_Analysis.py");
+		jmi.setText("Strahler Analysis (Tracings)...");
+		jmi.setToolTipText("Performs analysis directly from reconstruction");
 		popup.add(jmi);
-	
+		addScriptsSeparator(popup);
+		popup.add(getScriptMenuItem("Batch", "Strahler_Bulk_Analysis_(From_Reconstructions).py"));
 		buttons.add(button);
 	}
 
 	private void addShollButton() {
 		final JPopupMenu popup = new JPopupMenu();
 		final JButton button = getPopupButton(popup, "Sholl Analysis",
-				"Single file analysis (segmentable image or reconstruction). For bulk processing see Scripts>Batch>");
+				"Tools for thresholded images and reconstructions");
 		final ArrayList<Shortcut> shortcuts = new ArrayList<>();
 		shortcuts.add(new Shortcut("Sholl Analysis (Image)...", ShollAnalysisImgCmd.class,
 				"Performs Sholl Analysis directly from a 2D/3D image"));
 		shortcuts.add(new Shortcut("Sholl Analysis (Tracings)...", ShollAnalysisTreeCmd.class,
 				"Performs Sholl Analysis on reconstruction file(s) (traces/json/swc)"));
 		getMenuItems(shortcuts).forEach(mi -> popup.add(mi));
+		addSeparator("Legacy Commands:", popup);
+		for (String cmd : new String[]{"Legacy: Sholl Analysis (From Image)...", "Legacy: Sholl Metrics & Options..."}) {
+			final JMenuItem jmi = new JMenuItem(cmd);
+			jmi.setToolTipText("IJ1 command now deprecated but fully macro recordable");
+			jmi.addActionListener(e -> {
+				try {
+					IJ.doCommand(cmd);
+				} catch (final Exception ex){
+					new GuiUtils(getFrame()).error(ex.getMessage());
+				}
+			});
+			popup.add(jmi);
+		}
+		addScriptsSeparator(popup);
+		popup.add(getScriptMenuItem("Analysis", "Sholl_Merge_Grouped_Profiles.py"));
+		popup.add(getScriptMenuItem("Batch", "Sholl_Bulk_Analysis_(From_Reconstructions).groovy"));
+		popup.add(getScriptMenuItem("Analysis", "Sholl_Extensive_Stats_Demo.groovy"));
+		popup.add(getScriptMenuItem("Analysis", "Sholl_Extract_Profile_From_Image_Demo.py"));
 		buttons.add(button);
+	}
+
+	private JMenuItem getScriptMenuItem(final String scriptDirectory, final String scriptFileName) {
+		final String scriptName = scriptFileName.substring(0, scriptFileName.indexOf(".")).replace("_", " ");
+		final JMenuItem jmi = new JMenuItem(scriptName);
+		jmi.setToolTipText("Click holding Shift to open script");
+		jmi.addActionListener(e -> {
+			try {
+				if ((e.getModifiers() & InputEvent.SHIFT_MASK) != 0)
+					new ScriptInstaller(getContext(), getFrame()).openScript(scriptDirectory, scriptName);
+				else
+					new ScriptInstaller(getContext(), getFrame()).runScript(scriptDirectory, scriptName);
+			} catch (final IllegalArgumentException ex){
+				new GuiUtils(getFrame()).error(ex.getMessage());
+			}
+		});
+		return jmi;
+	}
+
+	private void addScriptsSeparator(final JPopupMenu menu) {
+		addSeparator("Related Scripts:", menu);
+	}
+
+	private void addSeparator(final String text, final JPopupMenu menu) {
+		final JLabel label = GuiUtils.leftAlignedLabel(text, false);
+		if (menu.getComponentCount() > 1) menu.addSeparator();
+		menu.add(label);
 	}
 
 	private void addButton(final Shortcut shortcut) {
@@ -215,7 +259,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	private void addScriptsButton() {
 		final ScriptInstaller installer = new ScriptInstaller(getContext(), getFrame());
 		final JButton button = new JButton("<HTML>Scripts &#9657;");
-		button.setToolTipText(HTML_TOOLTIP + "Bulk measurements, conversions, multi-panel figures, etc.");
+		button.setToolTipText(HTML_TOOLTIP + "All of SNT scripts: Bulk measurements, conversions, multi-panel figures, etc.");
 		final JPopupMenu sMenu = installer.getScriptsMenu().getPopupMenu();
 		button.addActionListener(e -> sMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 		buttons.add(button);

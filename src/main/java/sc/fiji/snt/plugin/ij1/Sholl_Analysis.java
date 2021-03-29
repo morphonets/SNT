@@ -247,7 +247,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 				return;
 			} else
 				img.show();
-		} else if (arg.equalsIgnoreCase("image")) {
+		} else if (arg.isEmpty() || arg.equalsIgnoreCase("image")) {
 			interactiveMode = true;
 			img = WindowManager.getCurrentImage();
 		}
