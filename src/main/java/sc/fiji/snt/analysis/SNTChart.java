@@ -26,6 +26,8 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -35,7 +37,12 @@ import java.util.Collection;
 import java.util.List;
 
 import javax.swing.JFileChooser;
+import javax.swing.JMenu;
 import javax.swing.JMenuItem;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JSpinner;
+import javax.swing.MenuElement;
 import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
@@ -257,6 +264,8 @@ public class SNTChart extends ChartFrame {
 		setFontSize(size, "axis");
 		setFontSize(size, "labels");
 		setFontSize(size, "legend");
+		getChartPanel().getChart().getPlot()
+				.setNoDataMessageFont(getChartPanel().getChart().getPlot().getNoDataMessageFont().deriveFont(size));
 	}
 
 	/**
@@ -425,7 +434,7 @@ public class SNTChart extends ChartFrame {
 	@SuppressWarnings("deprecation")
 	public void show() {
 		if (getChartPanel() != null && getChartPanel().getPopupMenu() != null) {
-			final JMenuItem mi = new JMenuItem("Export as CSV...");
+			final JMenuItem mi = new JMenuItem("Data to CSV...");
 			mi.addActionListener(e -> {
 				final JFileChooser fileChooser = new JFileChooser();
 				fileChooser.setDialogTitle("Export to CSV (Experimental)");
@@ -441,17 +450,59 @@ public class SNTChart extends ChartFrame {
 					}
 					try {
 						exportAsCSV(file);
-					} catch(final IllegalStateException ise) {
+					} catch (final IllegalStateException ise) {
 						new GuiUtils(this).error("Could not save data. See Console for details");
 						ise.printStackTrace();
 					}
 				}
 			});
+			final JMenu saveAs = getMenu(getChartPanel().getPopupMenu(), "Save as");
+			if (saveAs != null)
+				saveAs.add(mi);
+			else
+				getChartPanel().getPopupMenu().add(mi);
 			getChartPanel().getPopupMenu().addSeparator();
-			getChartPanel().getPopupMenu().add(mi);
+			getChartPanel().getPopupMenu().add(scalePanel());
 		}
 		AWTWindows.centerWindow(this);
 		SwingUtilities.invokeLater(() -> super.show());
+	}
+
+	private JPanel scalePanel() {
+		final float DEF_FONT_SIZE = defFontSize();
+		final JSpinner spinner = GuiUtils.doubleSpinner(1, 0.5, 4, 0.5, 1);
+		spinner.addChangeListener(e -> {
+			setFontSize( ((Double)spinner.getValue()).floatValue() * DEF_FONT_SIZE );
+		});
+		final JPanel p = new JPanel();
+		p.setLayout(new GridBagLayout());
+		final GridBagConstraints c = GuiUtils.defaultGbc();
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.gridwidth = 2;
+		c.ipadx = 0;
+		p.add(GuiUtils.leftAlignedLabel("Scaling: ", true));
+		c.gridx = 1;
+		p.add(spinner, c);
+		return p;
+	}
+
+	private JMenu getMenu(final JPopupMenu popup, final String menuName) {
+		for (final MenuElement element : popup.getSubElements()) {
+			if (element instanceof JMenu && menuName.equalsIgnoreCase(((JMenu) element).getText())) {
+				return (JMenu) element;
+			}
+		}
+		return null;
+	}
+
+	private float defFontSize() {
+		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+			return getXYPlot().getDomainAxis().getLabelFont().getSize2D();
+		}
+		else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+			return getCategoryPlot().getDomainAxis().getLabelFont().getSize2D();
+		}
+		return getChartPanel().getChart().getPlot().getNoDataMessageFont().getSize2D();
 	}
 
 	/* Experimental: Not all types of data are supported */
