@@ -53,7 +53,6 @@ import org.scijava.plugin.Menu;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
-import org.scijava.table.DefaultGenericTable;
 import org.scijava.thread.ThreadService;
 import org.scijava.ui.DialogPrompt.Result;
 import org.scijava.widget.Button;
@@ -77,6 +76,7 @@ import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.ProfileProperties;
@@ -148,6 +148,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	private static final int SCOPE_PROFILE = 1;
 	private static final int SCOPE_ABORT = 2;
 	private static final int SCOPE_CHANGE_DATASET = 3;
+	private static final int SCOPE_OPTIONS = 4;
 
 	/* Parameters */
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Shells:")
@@ -259,7 +260,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	@Parameter(label = "Action", required = false, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE, //
 			visibility = ItemVisibility.TRANSIENT, //
 			callback = "setAnalysisScope", choices = { "Analyze image", "Re-analyze parsed data",
-					"Abort current analysis", "Change image..."})
+					"Abort current analysis", "Change image...", "Options & Preferences"})
 	private String analysisAction;
 
 	@Parameter(label = "Analyze Image", callback = "runAnalysis")
@@ -268,9 +269,9 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	@Parameter(persist = false, required = false, visibility = ItemVisibility.MESSAGE, //
 			label = HEADER_HTML + EMPTY_LABEL)
 	private String HEADER6;
-
-	@Parameter(label = " Options, Preferences and Resources... ", callback = "runOptions")
-	private Button optionsButton;
+//
+//	@Parameter(label = " Options, Preferences and Resources... ", callback = "runOptions")
+//	private Button optionsButton;
 
 	/* Instance variables */
 	private Dataset dataset;
@@ -294,7 +295,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	private AnalysisRunner analysisRunner;
 	private Profile profile;
 	private int scope;
-	private DefaultGenericTable commonSummaryTable;
+	private SNTTable commonSummaryTable;
 	private Display<?> detailedTableDisplay;
 
 	/* Preferences */
@@ -307,28 +308,16 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	public void onEvent(final DataDeletedEvent evt) {
 		if (evt.getObject().equals(dataset)) {
 			imp = null;
-			cancel(NO_IMAGE);
+			setAnalysisScope();
 			logger.debug(evt);
 		}
 	}
 
 	@Override
 	public void run() {
-		// User Pressed "OK"
-		if (Recorder.record) {
-			Recorder.recordString(
-					  "// Recording of this command may not be fully functional yet.\n" //
-					+ "// Please have a look at the example scripts in Templates>Neuroanatomy>\n"//
-					+ "// for more robust ways to automate Sholl. E.g., the script\n"//
-					+ "// 'Sholl_Extract_Profile_From_Image_Demo.py' exemplifies how to parse\n"//
-					+ "// an image programmatically. Alternatively, the Legacy IJ1 command remains\n"//
-					+ "// available with historical support for recorded calls.\n");
-		}
-		try {
-			runAnalysis();
-		} catch (InterruptedException e) {
-			cancel(e.getMessage());
-		}
+		// the code here gets called once the prompt is displayed.
+		// There is no "OK" button in the prompt, so we don't need anything here
+		// All the code is run from callbacks
 	}
 
 	/*
@@ -338,10 +327,15 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	@Override
 	public void preview() {
 		if (imp == null) {
-			cancelAndFreezeUI(NO_IMAGE);
+			// We could call cancelAndFreezeUI(NO_IMAGE); but that can become too annoying easily
+			// we'll reset some fields instead and let the pop-up error appear when analysis cannot
+			// progress
+			previewShells = false;
+			setAnalysisScope(); // update analysisButotn
+
 		} else if (dataset != imageDisplayService.getActiveDataset()) {
 			// uiService.getDisplayViewer(impDisplay).getWindow().requestFocus();
-			imp.getWindow().requestFocus(); // Only works on legacy mode
+			imp.getWindow().requestFocus(); // Only works in legacy mode
 		}
 	}
 
@@ -365,8 +359,26 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	}
 
 	protected void runAnalysis() throws InterruptedException {
+		if (Recorder.record) {
+			Recorder.recordString(
+					  "// N.B.: Currently,recorded instances of the Sholl Analysis prompt may not allow for \n" //
+					+ "// fully automated macros(see e.g., https://github.com/imagej/imagej-legacy/pull/239.)\n" //
+					+ "// Please have a look at the example scripts in Templates>Neuroanatomy>\n"//
+					+ "// for more robust ways to automate Sholl. E.g., the script\n"//
+					+ "// 'Sholl_Extract_Profile_From_Image_Demo.py' exemplifies how to parse\n"//
+					+ "// an image programmatically. Alternatively, the Legacy IJ1 command remains\n"//
+					+ "// available with historical support for recorded calls.\n");
+		}
 		switch (scope) {
 		case SCOPE_IMP:
+			if (imp == null) {
+				if (twoD) attemptToLoadDemoImage(NO_IMAGE);
+				if (imp == null) {
+					analysisAction = "Change image...";
+					setAnalysisScope();
+					return;
+				}
+			}
 			if (!validRequirements())
 				return;
 			updateHyperStackPosition(); // Did channel/frame changed?
@@ -388,18 +400,69 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			logger.debug("Analysis aborted...");
 			break;
 		case SCOPE_CHANGE_DATASET:
-			threadService.newThread(() -> getNewDataset()).start();
+			//temporary use IJ1 code the following is not working reliably
+			// threadService.newThread(() -> getNewDataset()).start();
+			getNewDatasetUsingLegacyIJ1();
+			break;
+		case SCOPE_OPTIONS:
+			runOptions();
 			break;
 		default:
 			throw new IllegalArgumentException("Unrecognized option: " + scope);
 		}
 	}
 
+	private void getNewDatasetUsingLegacyIJ1() {
+		final List<String> choices = new ArrayList<>(Arrays.asList(ij.WindowManager.getImageTitles()));
+		if (choices.size() < 2) {
+			if (twoD)
+				attemptToLoadDemoImage("No other images are currently open");
+			else
+				helper.error("No other images are currently open");
+			return;
+		}
+		if (imp != null)
+			choices.remove(imp.getTitle());
+		if (!choices.contains("Drosophila_ddaC_Neuron.tif"))
+			choices.add("Demo Image");
+		final String choice = helper.getChoice("Choose new image", "Choose New Image", choices.toArray(new String[0]),
+				choices.get(0));
+		if (choice == null) // user pressed cancel
+			return;
+		final ImagePlus newImp;
+		if ("Demo Image".equals(choice)) {
+			attemptToLoadDemoImage(null);
+			newImp = imp;
+		} else {
+			newImp = ij.WindowManager.getImage(choice);
+		}
+		if (newImp == null) {
+			helper.error(
+					"Somehow, could not retrieve the chosen image. Please make it is frontmost, and restart the plugin.");
+			return;
+		}
+		if (twoD != (newImp.getNSlices() == 1)) {
+			helper.error("Z-dimension of new dataset differs which will require a rebuild of the main dialog. "
+					+ "Please restart the command to analyze " + newImp.getTitle(), "Not a Suitable Choice");
+			return;
+		}
+		loadDataset(newImp);
+		imp.getWindow().toFront();
+		helper.centeredMsg("Target image is now " + newImp.getTitle(), SNTUtils.getReadableVersion());
+		logger.debug("Changed scope of analysis to: " + newImp.getTitle());
+	}
+
+	@SuppressWarnings("unused")
 	private void getNewDataset() {
 		final List<Dataset> list = datasetService.getDatasets();
 		if (list == null || list.size() < 2) {
-			helper.error("No other images are open.", "No Other Images");
-			return;
+			if (twoD) {
+				attemptToLoadDemoImage("Initial image is no longer available");
+				return;
+			} else {
+				helper.error("No other images are open.", "No Other Images");
+				return;
+			}
 		}
 		try {
 			final Map<String, Object> input= new HashMap<>();
@@ -408,11 +471,11 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			cmdModule.get();
 			// FIXME: this throws a ClassCastException. not sure why
 			//ImageDisplay imgDisplay = (ImageDisplay) cmdModule.get().getOutput("chosen");
-		} catch (InterruptedException | ExecutionException | ClassCastException exc) {
-			exc.printStackTrace();
+		} catch (final NullPointerException | InterruptedException | ExecutionException | ClassCastException exc) {
+			if (logger.isDebug()) exc.printStackTrace();
 		}
 
-		final String result = prefService.get(ChooseDataset.class, "choice");
+		final String result = prefService.get(ChooseDataset.class, "choice", "");
 		if (result.isEmpty()) {
 			return; // ChooseImgDisplay canceled / not initialized
 		}
@@ -428,7 +491,19 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			logger.debug("Failed to change dataset");
 			return;
 		}
-		final ImagePlus newImp = convertService.convert(newDataset, ImagePlus.class);
+		ImagePlus newImp = null;
+		try {
+			newImp = convertService.convert(newDataset, ImagePlus.class);
+		} catch (final UnsupportedOperationException exc) {
+			// grrrr... this keeps happening with perfectly valid images //TODO: report this
+			// fallback to IJ1 retrieval
+			if (logger.isDebug()) exc.printStackTrace();
+			newImp = ij.WindowManager.getImage(result);
+		}
+		if (newImp == null) {
+			helper.error("Somehow, could not retrieve the chosen image. Please make it frontmost, and restart the plugin.");
+			return;
+		}
 		if (twoD != (newImp.getNSlices() == 1)) {
 			helper.error("Z-dimension of new dataset differs which will require a rebuild of the main dialog. " +
 				"Please restart the command to analyze " + newImp.getTitle(),
@@ -436,7 +511,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			return;
 		}
 		loadDataset(newImp);
-		preview(); // activate new image
+		imp.getWindow().toFront();
 		helper.centeredMsg("Target image is now " + newImp.getTitle(), SNTUtils.getReadableVersion());
 		logger.debug("Changed scope of analysis to: " + newImp.getTitle());
 	}
@@ -488,7 +563,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		readPreferences();
 		imp = legacyService.getImageMap().lookupImagePlus(imageDisplayService.getActiveImageDisplay());
 		if (imp == null)
-			displayDemoImage();
+			attemptToLoadDemoImage("No image is currently open");
 		if (imp == null) {
 			helper.error("A dataset is required but none was found", null);
 			cancel(null);
@@ -632,7 +707,10 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			}
 		} else if (analysisAction.contains("Change")) {
 			scope = SCOPE_CHANGE_DATASET;
-			label = "Choose new image";
+			label = "Choose new image...";
+		} else if (analysisAction.contains("Options")) {
+			scope = SCOPE_OPTIONS;
+			label = "Options Prompt...";
 		} else
 			label = analysisAction;
 		aButton.setLabel(
@@ -695,7 +773,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 	protected void setCenterFromROI() {
 		if (imp == null) {
-			cancelAndFreezeUI(NO_IMAGE);
+			proposeNewImageIfImageClosed();
 			return;
 		}
 		final ShollPoint newCenter = getCenterFromROI(false);
@@ -739,23 +817,36 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	private void cancelAndFreezeUI(final String cancelReason) {
 		String uiMsg;
 		switch (cancelReason) {
+		case NO_IMAGE:
+			previewShells = false;
+			annotationsDescription = "None. Show no annotations";
+			analysisAction = "Change image...";
+			setAnalysisScope();
+			uiMsg = NO_IMAGE;
+			break;
 		case NO_CENTER:
+			previewShells = false;
 			uiMsg = "Please set an ROI, then press \"" + "Set New Center from Active ROI\". "
 					+ "Center coordinates will be defined by the ROI's centroid.";
 			break;
 		case NO_RADII:
+			previewShells = false;
 			uiMsg = "Ending radius and Radius step size must be within range.";
 			break;
 		case NO_THRESHOLD:
-			uiMsg = "Image is not segmented. Please adjust threshold levels.";
+			uiMsg = "Image is not segmented. Please adjust threshold levels";
+			if (imp.getType() == ImagePlus.COLOR_RGB)
+				uiMsg += ".<br><br>Since applying a threshold to an RGB image is an ambigous operation, "
+						+ "you will need to first convert the image to a multichannel composite using IJ's "
+						+ " 'Channels Tool'. This will allow single channels to be parsed";
 			break;
 		case RUNNING:
 			uiMsg = "An analysis is currently running. Please wait...";
 			break;
 		default:
 			if (cancelReason.contains(",")) {
-				uiMsg = "Image cannot be analyzed. Muliple invalid requirements:\n- "
-						+ cancelReason.replace(", ", "\n- ");
+				uiMsg = "Image cannot be analyzed. Muliple invalid requirements:<br>- "
+						+ cancelReason.replace(", ", "<br>- ");
 			} else {
 				uiMsg = cancelReason;
 			}
@@ -782,16 +873,16 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		return successfulRead;
 	}
 
-	private void displayDemoImage() {
-		final Result result = helper.yesNoPrompt("No images are currently open. Run plugin on demo image?", null);
-		if (result != Result.YES_OPTION)
-			return;
-		imp = ShollUtils.sampleImage();
-		if (imp == null) {
-			helper.error("Demo image could not be loaded.", null);
-			return;
+	private void attemptToLoadDemoImage(final String promptMsgIgnoredIfNull) {
+		if (promptMsgIgnoredIfNull == null || helper.getConfirmation(promptMsgIgnoredIfNull + ". Run analysis on demo image?", "Open Demo Image?")) {
+			imp = ShollUtils.sampleImage();
+			if (imp == null)
+				helper.error("Demo image could not be loaded.", null);
+			else {
+				loadDataset(imp);
+				imp.show();
+			}
 		}
-		displayService.createDisplay(imp.getTitle(), imp);
 	}
 
 	private void setLUTs() {
@@ -922,16 +1013,49 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			save = false;
 	}
 
-	private void errorIfSaveDirInvalid() {
+	private String errorIfSaveDirInvalid() {
 		if (save && (saveDir == null || !saveDir.exists() || !saveDir.canWrite())) {
 			save = false;
-			helper.error("No files saved: Output directory is not valid or writable.", "Please Change Output Directory");
+			return "<dt>Invalid Output Directory</dt>"
+					+ "<dd>No files saved: Output directory is not valid or writable.</dd>";
+		}
+		return "";
+	}
+
+	private String errorIfInvalidOverlay() {
+		if (!annotationsDescription.contains("None") && imp == null) {
+			annotationsDescription = "None. Show no annotations";
+			return "<dt>" + NO_IMAGE + "</dt>"
+					+ "<dd>ROIs could not be added to the image overlay</dd>";
+		}
+		return "";
+	}
+
+	private void proposeNewImageIfImageClosed() {
+		final List<Dataset> list = datasetService.getDatasets();
+		final boolean imagesExist = list != null && !list.isEmpty();
+		if (imagesExist && helper.getConfirmation("Initial image is no longer available.", NO_IMAGE)) {
+			analysisAction = "Change image...";
+			setAnalysisScope();
+			try {
+				runAnalysis();
+			} catch (final InterruptedException e) {
+				e.printStackTrace();
+			}
+			return;
+		} else if (twoD) {
+			attemptToLoadDemoImage("Initial image is no longer available");
+		} else {
+			cancelAndFreezeUI(NO_IMAGE);
 		}
 	}
 
 	protected void overlayShells() {
-		if (imp == null)
+		if (imp == null) {
+			previewShells = false;
+			proposeNewImageIfImageClosed();
 			return;
+		}
 		previewShells = previewShells && validRadii();
 		threadService.newThread(previewOverlay).start();
 	}
@@ -957,7 +1081,6 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		return String.join(", ", cancelReasons);
 	}
 
-	@SuppressWarnings("unused")
 	private void runOptions() {
 		threadService.newThread(() -> {
 			final Map<String, Object> input = new HashMap<>();
@@ -1047,7 +1170,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			logger.debug("Sholl decay: " + nStats.getShollDecay());
 
 			// Set ROIs
-			if (!annotationsDescription.contains("None")) {
+			if (!annotationsDescription.contains("None") && imp != null) {
 				final ShollOverlay sOverlay = new ShollOverlay(profile, imp, true);
 				sOverlay.addCenter();
 				if (annotationsDescription.contains("shells"))
@@ -1087,7 +1210,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 				final ShollTable sTable = new ShollTable(lStats, nStats);
 				if (commonSummaryTable == null)
-					commonSummaryTable = new DefaultGenericTable();
+					commonSummaryTable = new SNTTable();
 				sTable.summarize(commonSummaryTable, imp.getTitle());
 				sTable.setTitle("Sholl Results");
 				outputs.add(sTable);
@@ -1102,7 +1225,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			setProfile(profile);
 
 			// Now save everything
-			errorIfSaveDirInvalid();
+			String consolidatedErrorMsg = errorIfSaveDirInvalid() + errorIfInvalidOverlay();
 			if (save) {
 				int failures = 0;
 				for (final Object output : outputs) {
@@ -1121,8 +1244,12 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 					}
 				}
 				if (failures > 0)
-					helper.error("Some file(s) (" + failures + "/"+ outputs.size() +") could not be saved. "
-							+ "Please ensure \"Destination\" directory is valid.", "IO Failure");
+					consolidatedErrorMsg += 
+							"<dt>IO Failures</dt>"
+									+ "<dd>Some file(s) (" + failures + "/"+ outputs.size() +") could not be saved.</dd>";
+			}
+			if (!consolidatedErrorMsg.isEmpty()) {
+				helper.error("<html><dl>" + consolidatedErrorMsg + "</dl>", "Errors");
 			}
 		}
 
@@ -1131,7 +1258,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			if (!lutChoice.contains("No LUT.")) mask.getProcessor().setLut(SNTUtils
 				.getLut(lutTable));
 			outputs.add(mask);
-			displayService.createDisplay(mask);
+			mask.show();
 		}
 
 		private boolean validOutput() {
