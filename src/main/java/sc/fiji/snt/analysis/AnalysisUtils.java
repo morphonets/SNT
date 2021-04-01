@@ -231,6 +231,7 @@ class AnalysisUtils {
 		long n;
 		double q1, q3, min, max;
 		private DescriptiveStatistics dStats;
+		private boolean computedAsPercentage;
 
 		HistogramDatasetPlus() {
 			values = new ArrayList<Double>();
@@ -255,9 +256,17 @@ class AnalysisUtils {
 		}
 
 		void compute() {
-			if (dStats == null) {
+			compute(false);
+		}
+
+		void compute(final boolean asPercentage) {
+			if (dStats == null || computedAsPercentage != asPercentage) {
 				dStats = new DescriptiveStatistics();
-				values.forEach(v -> dStats.addValue(v));
+				if (asPercentage) {
+					computedAsPercentage = true;
+					values.forEach(v -> dStats.addValue(v/values.size()));
+				} else
+					values.forEach(v -> dStats.addValue(v));
 			}
 			n = dStats.getN();
 			q1 = dStats.getPercentile(25);

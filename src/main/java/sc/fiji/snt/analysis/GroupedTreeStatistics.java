@@ -80,7 +80,7 @@ public class GroupedTreeStatistics {
 	private static final String N_BRANCH_POINTS = MultiTreeStatistics.N_BRANCH_POINTS;
 
 	private final LinkedHashMap<String, MultiTreeStatistics> groups;
-	private int minNoOfBins = -1;
+	private int minNoOfBins = 1;
 
 	/**
 	 * Instantiates a new grouped tree statistics.
@@ -164,25 +164,29 @@ public class GroupedTreeStatistics {
 	 */
 	public SNTChart getHistogram(final String measurement) {
 		final String normMeasurement = MultiTreeStatistics.getNormalizedMeasurement(measurement, true);
-		final int[] bins = new int[] { 0 };
 		// Retrieve all HistogramDatasetPlus instances
+		final double[] limits = new double[] {Double.MAX_VALUE, Double.MIN_VALUE};
+		for (final String groupLabel : getGroups()) {
+			final double groupMax = getGroupStats(groupLabel).getDescriptiveStats(normMeasurement).getMax();
+			final double groupMin = getGroupStats(groupLabel).getDescriptiveStats(normMeasurement).getMin();
+			if (groupMax < limits[0]) limits[0] = groupMin;
+			if (groupMax > limits[1]) limits[1] = groupMax;
+		}
 		final LinkedHashMap<String, HDPlus> hdpMap = new LinkedHashMap<>();
+		final ArrayList<Integer> bins = new ArrayList<>();
 		for (final Entry<String, MultiTreeStatistics> entry : groups.entrySet()) {
 			final HDPlus hdp = entry.getValue().new HDPlus(normMeasurement);
-			hdp.compute();
-			bins[0] += hdp.nBins;
+			hdp.compute(true);
+			bins.add(hdp.nBins);
 			hdpMap.put(entry.getKey(), hdp);
 		}
-		bins[0] = bins[0] / groups.size();
-		if (minNoOfBins > 0) {
-			bins[0] = Math.max(minNoOfBins, bins[0]);
-		}
-
 		// Add all series
+		final int maxBins = bins.stream().mapToInt(v -> v).max().orElse(1);
+		final int finalBinCount = Math.max(minNoOfBins, maxBins);
 		final HistogramDataset dataset = new HistogramDataset();
 		dataset.setType(HistogramType.RELATIVE_FREQUENCY);
 		hdpMap.forEach((label, hdp) -> {
-			dataset.addSeries(label, hdp.valuesAsArray(), bins[0]);
+			dataset.addSeries(label, hdp.valuesAsArray(), finalBinCount, limits[0], limits[1]);
 		});
 		return AnalysisUtils.createHistogram(normMeasurement, hdpMap.size(), dataset);
 	}

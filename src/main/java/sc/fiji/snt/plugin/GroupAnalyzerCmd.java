@@ -222,7 +222,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 
 		} else {
 
-			stats.setMinNBins(4);
+			stats.setMinNBins(3);
 			final SNTChart histFrame = stats.getHistogram(metric);
 			final SNTChart boxFrame = stats.getBoxPlot(metric);
 
