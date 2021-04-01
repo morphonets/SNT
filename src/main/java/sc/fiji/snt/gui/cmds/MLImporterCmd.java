@@ -129,7 +129,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			return;
 		}
 
-		notifyLoadingStart();
+		notifyLoadingStart(recViewer);
 		status("Retrieving ids... Please wait...", false);
 		final int lastExistingPathIdx = pafm.size() - 1;
 		final Map<String, TreeSet<SWCPoint>> inMap = new HashMap<>();
@@ -167,6 +167,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			recViewer.setSplitDendritesFromAxons(splitState);
 		}
 
+		notifyLoadingEnd(recViewer);
 		resetUI(recViewer == null);
 		if (filteredResult.size() < result.size()) {
 			status("Partially successful import...", true);

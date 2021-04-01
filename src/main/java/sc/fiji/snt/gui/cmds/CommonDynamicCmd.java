@@ -31,6 +31,7 @@ import org.scijava.ui.UIService;
 
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 
@@ -108,9 +109,17 @@ public class CommonDynamicCmd extends DynamicCommand {
 		}
 	}
 
-	protected void notifyLoadingStart() {
+	protected void notifyLoadingStart(final Viewer3D recViewer) {
 		if (ui != null) ui.changeState(SNTUI.LOADING);
-		// SwingerWorkees in Viewe3D will already notify standAloneRecViewer
+		if (recViewer != null && recViewer.getManagerPanel() != null) {
+			recViewer.getManagerPanel().showProgress(-1, 0);
+		}
+	}
+
+	protected void notifyLoadingEnd(final Viewer3D recViewer) {
+		if (recViewer != null && recViewer.getManagerPanel() != null) {
+			recViewer.getManagerPanel().showProgress(0, 0);
+		}
 	}
 
 	protected void resetUI() {

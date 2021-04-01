@@ -202,7 +202,10 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			displayInMultiViewer = false;
 			displayPlots = false;
 		}
-	
+
+		if (recViewer != null && recViewer.getManagerPanel() != null) {
+			recViewer.getManagerPanel().showProgress(-1, 0);
+		}
 		final GroupedTreeStatistics stats = new GroupedTreeStatistics();
 		inputGroupsCounter = 0;
 		addGroup(stats, g1File, "Group 1");
@@ -294,6 +297,8 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			recViewer.setSceneUpdatesEnabled(true);
 			recViewer.updateView();
 			if (recViewerIsNotVisible) recViewer.show();
+			resetUI(false); // even if running from main ui, cells are not loaded in Path manager
+			notifyLoadingEnd(recViewer);
 		}
 
 		resetUI(false);

@@ -3013,6 +3013,12 @@ public class Viewer3D {
 			fileDropWorker = new FileDropWorker(managerList, guiUtils);
 		}
 
+	 	/** Updates the progress bar. */
+		public void showProgress(int value, int maximum) {
+			progressBar.addToGlobalMax(maximum);
+			progressBar.addToGlobalValue(value);
+		}
+
 		class ProgressBar extends JProgressBar {
 
 			private static final long serialVersionUID = 1L;
@@ -3093,7 +3099,7 @@ public class Viewer3D {
 				super.setMinimum(0);
 				super.setMaximum(0);
 				setIndeterminate(true);
-				loadPending = false;
+				setLoadPending(false);
 			}
 
 			private void setLoadPending(boolean b) {
@@ -5770,11 +5776,8 @@ public class Viewer3D {
 				final Map<String, Object> input = new HashMap<>();
 				if (setRecViewerParamater) input.put("recViewer", Viewer3D.this);
 				if (inputs != null) input.putAll(inputs);
-				cmdService.run(cmd, true, input).get();
+				cmdService.run(cmd, true, input).get(); //FIXME: This returns null all the time with DynamicCommands and does not wait for get()
 				return true;
-			}
-			catch (final NullPointerException e1) {
-				return false;
 			}
 			catch (InterruptedException | ExecutionException e2) {
 				gUtils.error(
@@ -6920,7 +6923,7 @@ public class Viewer3D {
 	/** will hide the bar if progress max becomes negative */
 	private void removeProgressLoad(final int loadSize) {
 		if (getManagerPanel()!= null) {
-			frame.managerPanel.progressBar.addToGlobalMax(-loadSize);
+			frame.managerPanel.progressBar.addToGlobalMax((loadSize < 0) ? loadSize : -loadSize);
 		}
 	}
 
