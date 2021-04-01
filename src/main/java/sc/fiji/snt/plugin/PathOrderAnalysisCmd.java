@@ -37,13 +37,15 @@ import net.imagej.plot.MarkerStyle;
 import net.imagej.plot.PlotService;
 import net.imagej.plot.XYPlot;
 import net.imagej.plot.XYSeries;
+import net.imagej.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
 
 import org.scijava.table.DefaultGenericTable;
-
+import org.jfree.chart.JFreeChart;
 import org.scijava.plugin.Parameter;
 import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
 
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
@@ -137,7 +139,17 @@ public class PathOrderAnalysisCmd extends TreeAnalyzer {
 	}
 
 	public void displayPlot() {
+		getChart().show();
+	}
 
+	/**
+	 * Returns the analysis chart.
+	 *
+	 * @return the analysis chart
+	 * @see #getChart()
+	 * @throws IllegalArgumentException if tree contains multiple roots or loops
+	 */
+	public CategoryChart<Integer> getCategoryChart() throws IllegalArgumentException {	
 		final CategoryChart<Integer> chart = plotService.newCategoryChart(
 			Integer.class);
 		final List<Integer> categories = IntStream.rangeClosed(1, maxPathOrder)
@@ -163,7 +175,21 @@ public class PathOrderAnalysisCmd extends TreeAnalyzer {
 				MarkerStyle.CIRCLE));
 
 		chart.categoryAxis().setLabel("Path order");
-		uiService.show("SNT: Path Order Plot", chart);
+		return chart;
+	}
+
+	/**
+	 * A variant of {@link #getCategoryChart()} that returns the Analysis chart as a
+	 * {@link SNTChart} object.
+	 *
+	 * @return the Strahler chart as a {@link SNTChart} object
+	 * @throws IllegalArgumentException if tree contains multiple roots or loops
+	 */
+	public SNTChart getChart() throws IllegalArgumentException {
+		final CategoryChartConverter converter = new CategoryChartConverter();
+		final JFreeChart chart = converter.convert(getCategoryChart(), JFreeChart.class);
+		final String title = (tree.getLabel()== null) ? "Strahler Plot" : tree.getLabel() + "Strahler Plot";
+		return new SNTChart(title, chart);
 	}
 
 	@SuppressWarnings("unused")

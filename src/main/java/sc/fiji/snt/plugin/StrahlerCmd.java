@@ -109,7 +109,8 @@ public class StrahlerCmd extends ContextCommand {
 		}
 		try {
 			uiService.show("SNT: Strahler Table", getTable());
-			uiService.show("SNT: Strahler Plot", getCategoryChart());
+			getChart().show();
+			//uiService.show("SNT: Strahler Plot", getCategoryChart());
 		} catch (final IllegalArgumentException ex) {
 			cancel("Analysis could not be performed: " + ex.getLocalizedMessage() + "\n"
 			+ "Please ensure you select a single set of connected paths (one root exclusively)");
