@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFileChooser;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
@@ -56,6 +57,7 @@ import org.jfree.chart.annotations.TextAnnotation;
 import org.jfree.chart.annotations.XYAnnotation;
 import org.jfree.chart.annotations.XYPointerAnnotation;
 import org.jfree.chart.annotations.XYTextAnnotation;
+import org.jfree.chart.axis.Axis;
 import org.jfree.chart.axis.CategoryAnchor;
 import org.jfree.chart.plot.CategoryMarker;
 import org.jfree.chart.plot.CategoryPlot;
@@ -374,6 +376,81 @@ public class SNTChart extends ChartFrame {
 		}
 	}
 
+	private void replaceBackground(final Color oldColor, final Color newColor) {
+		if (this.getBackground() == oldColor)
+			this.setBackground(newColor);
+		if (getChartPanel().getBackground() == oldColor)
+			getChartPanel().setBackground(newColor);
+		if (getChartPanel().getChart().getBackgroundPaint() == oldColor)
+			getChartPanel().getChart().setBackgroundPaint(newColor);
+		final LegendTitle legend = getChartPanel().getChart().getLegend();
+		if (legend != null && legend.getBackgroundPaint() == oldColor) {
+			legend.setBackgroundPaint(newColor);
+		}
+		for (int i = 0; i < getChartPanel().getChart().getSubtitleCount(); i++) {
+			final Title title = getChartPanel().getChart().getSubtitle(i);
+			if (title instanceof TextTitle) {
+				final TextTitle tt = (TextTitle) title;
+				if (tt.getBackgroundPaint() == oldColor)
+					tt.setBackgroundPaint(newColor);
+			} else if (title instanceof LegendTitle) {
+				final LegendTitle lt = (LegendTitle) title;
+				if (lt.getBackgroundPaint() == oldColor)
+					lt.setBackgroundPaint(newColor);
+			}
+		}
+		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
+			if (plot.getBackgroundPaint() == oldColor)
+				plot.setBackgroundPaint(newColor);
+		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+			if (plot.getBackgroundPaint() == oldColor)
+				plot.setBackgroundPaint(newColor);
+		}
+	}
+
+	private void replaceForegroundColor(final Color oldColor, final Color newColor) {
+		if (this.getForeground() == oldColor)
+			this.setForeground(newColor);
+		if (getChartPanel().getForeground() == oldColor)
+			getChartPanel().setForeground(newColor);
+		if (getChartPanel().getChart().getBorderPaint() == oldColor)
+			getChartPanel().getChart().setBorderPaint(newColor);
+		final LegendTitle legend = getChartPanel().getChart().getLegend();
+		if (legend != null && legend.getItemPaint() == oldColor) {
+			legend.setItemPaint(newColor);
+		}
+		for (int i = 0; i < getChartPanel().getChart().getSubtitleCount(); i++) {
+			final Title title = getChartPanel().getChart().getSubtitle(i);
+			if (title instanceof TextTitle) {
+				final TextTitle tt = (TextTitle) title;
+				if (tt.getPaint() == oldColor)
+					tt.setPaint(newColor);
+			} else if (title instanceof LegendTitle) {
+				final LegendTitle lt = (LegendTitle) title;
+				if (lt.getItemPaint() == oldColor)
+					lt.setItemPaint(newColor);
+			}
+		}
+		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
+			setForegroundColor(plot.getDomainAxis(), newColor);
+			setForegroundColor(plot.getRangeAxis(), newColor);
+		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+			setForegroundColor(plot.getDomainAxis(), newColor);
+			setForegroundColor(plot.getRangeAxis(), newColor);
+		}
+	}
+
+	private void setForegroundColor(final Axis axis, final Color newColor) {
+		axis.setAxisLinePaint(newColor);
+		axis.setLabelPaint(newColor);
+		axis.setTickLabelPaint(newColor);
+		axis.setTickMarkPaint(newColor);
+	}
+
 	private Color getColorFromString(final String string) {
 		if (string == null) return Color.BLACK;
 		final ColorRGB c = new ColorRGB(string);
@@ -434,7 +511,7 @@ public class SNTChart extends ChartFrame {
 	@SuppressWarnings("deprecation")
 	public void show() {
 		if (getChartPanel() != null && getChartPanel().getPopupMenu() != null) {
-			final JMenuItem mi = new JMenuItem("Data to CSV...");
+			final JMenuItem mi = new JMenuItem("Data (as CSV)...");
 			mi.addActionListener(e -> {
 				final JFileChooser fileChooser = new JFileChooser();
 				fileChooser.setDialogTitle("Export to CSV (Experimental)");
@@ -461,29 +538,43 @@ public class SNTChart extends ChartFrame {
 				saveAs.add(mi);
 			else
 				getChartPanel().getPopupMenu().add(mi);
-			getChartPanel().getPopupMenu().addSeparator();
-			getChartPanel().getPopupMenu().add(scalePanel());
+			addCustomizationPanel(getChartPanel().getPopupMenu());
 		}
 		AWTWindows.centerWindow(this);
 		SwingUtilities.invokeLater(() -> super.show());
 	}
 
-	private JPanel scalePanel() {
+	private void addCustomizationPanel(final JPopupMenu popup) {
+		final JCheckBoxMenuItem dark = new JCheckBoxMenuItem("Dark Mode", false);
+		dark.addItemListener( e -> {
+			if (dark.isSelected()) {
+				replaceBackground(Color.WHITE, Color.BLACK);
+				replaceForegroundColor(Color.BLACK, Color.WHITE);
+			} else {
+				replaceBackground(Color.BLACK, Color.WHITE);
+				replaceForegroundColor(Color.WHITE, Color.BLACK);
+			}
+		});
+		popup.addSeparator();
+		popup.add(dark);
+
 		final float DEF_FONT_SIZE = defFontSize();
 		final JSpinner spinner = GuiUtils.doubleSpinner(1, 0.5, 4, 0.5, 1);
 		spinner.addChangeListener(e -> {
 			setFontSize( ((Double)spinner.getValue()).floatValue() * DEF_FONT_SIZE );
 		});
 		final JPanel p = new JPanel();
+		p.setBackground(popup.getBackground());
 		p.setLayout(new GridBagLayout());
 		final GridBagConstraints c = GuiUtils.defaultGbc();
 		c.fill = GridBagConstraints.HORIZONTAL;
 		c.gridwidth = 2;
 		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel("Scaling: ", true));
+		p.add(GuiUtils.leftAlignedLabel(" Scaling: ", true));
 		c.gridx = 1;
 		p.add(spinner, c);
-		return p;
+		popup.addSeparator();
+		popup.add(p);
 	}
 
 	private JMenu getMenu(final JPopupMenu popup, final String menuName) {
