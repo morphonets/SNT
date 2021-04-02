@@ -52,7 +52,6 @@ import org.jfree.chart.ChartPanel;
 import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.LegendItem;
-import org.jfree.chart.LegendItemCollection;
 import org.jfree.chart.LegendItemSource;
 import org.jfree.chart.annotations.CategoryAnnotation;
 import org.jfree.chart.annotations.CategoryTextAnnotation;
@@ -68,8 +67,6 @@ import org.jfree.chart.plot.Marker;
 import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
-import org.jfree.chart.renderer.category.CategoryItemRenderer;
-import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.chart.title.LegendTitle;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.title.Title;
@@ -409,12 +406,10 @@ public class SNTChart extends ChartFrame {
 			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
 			if (plot.getBackgroundPaint() == oldColor)
 				plot.setBackgroundPaint(newColor);
-			XYItemRenderer render = plot.getRenderer();
 		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
 			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
 			if (plot.getBackgroundPaint() == oldColor)
 				plot.setBackgroundPaint(newColor);
-			CategoryItemRenderer render = plot.getRenderer();
 		}
 	}
 

@@ -203,7 +203,7 @@ public class SNT extends MultiDThreePanes implements
 	/*
 	 * pathUnfinished indicates that we have started to create a path, but not yet
 	 * finished it (in the sense of moving on to a new path with a differen starting
-	 * point.) FIXME: this may be redundant - check that.
+	 * point.) //FIXME: this may be redundant - check that.
 	 */
 	volatile private boolean pathUnfinished = false;
 	private Path editingPath; // Path being edited when in 'Edit Mode'
@@ -2516,9 +2516,7 @@ public class SNT extends MultiDThreePanes implements
 		updateTracingViewers(true);
 	}
 
-	/*
-	 * FIXME: this can be very slow ... Perhaps do it in a separate thread?
-	 */
+	// FIXME: this can be very slow ... Perhaps do it in a separate thread?
 	@Deprecated
 	protected void setColorImage(final ImagePlus newColorImage) {
 		colorImage = newColorImage;

@@ -76,7 +76,7 @@ public final class InsectBrainUtils {
     }
 
 
-    /** FIXME: This is extremely slow!? */
+    //FIXME: This is extremely slow!?
 	protected static Map<String, List<Integer>> getAllNeuronIDsOrganizedBySpecies() {
 
 		final Map<Integer, String> speciesIDNameMap = new HashMap<>();

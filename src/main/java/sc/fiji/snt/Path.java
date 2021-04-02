@@ -119,10 +119,7 @@ public class Path implements Comparable<Path> {
 	/** String representation of {@link Path#SWC_CUSTOM} */
 	public static final String SWC_CUSTOM_LABEL = "custom";
 
-	/*
-	 * FIXME: this should be based on distance between points in the path, not a
-	 * static number:
-	 */
+	// FIXME: this should be based on distance between points in the path, not a static number:
 	protected static final int noMoreThanOneEvery = 2;
 
 	/* Path properties */
@@ -2053,14 +2050,12 @@ public class Path implements Comparable<Path> {
 
 	/**
 	 * This toString() method shows details of the path which is actually being
-	 * displayed, not necessarily this path object. FIXME: this is probably
-	 * horribly confusing.
+	 * displayed, not necessarily this path object.
 	 *
 	 * @return the string
 	 */
-
 	@Override
-	public String toString() {
+	public String toString() { //FIXME: this is probably horribly confusing.
 		if (useFitted) return getFitted().realToString();
 		return realToString();
 	}
