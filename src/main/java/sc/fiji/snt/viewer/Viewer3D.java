@@ -3521,13 +3521,14 @@ public class Viewer3D {
 					return;
 				}
 				if (guiUtils.getConfirmation("Remove selected item(s)?", "Confirm Deletion?")) {
+					managerList.model.setListenersEnabled(false);
 					selectedKeys.forEach(k -> {
 						if (k.equals(CheckBoxList.ALL_ENTRY))
 							return; // continue in lambda expression
 						final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels(k.toString());
 						removeSceneObject(labelAndManagerEntry[0], labelAndManagerEntry[1]);
 					});
-					managerList.update();
+					managerList.model.setListenersEnabled(true); // will call managerList.model.update();
 				}
 			});
 
