@@ -51,6 +51,9 @@ import org.jfree.chart.ChartFrame;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;
+import org.jfree.chart.LegendItem;
+import org.jfree.chart.LegendItemCollection;
+import org.jfree.chart.LegendItemSource;
 import org.jfree.chart.annotations.CategoryAnnotation;
 import org.jfree.chart.annotations.CategoryTextAnnotation;
 import org.jfree.chart.annotations.TextAnnotation;
@@ -64,6 +67,9 @@ import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.Marker;
 import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
+import org.jfree.chart.renderer.category.CategoryItemRenderer;
+import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.chart.title.LegendTitle;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.title.Title;
@@ -403,10 +409,12 @@ public class SNTChart extends ChartFrame {
 			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
 			if (plot.getBackgroundPaint() == oldColor)
 				plot.setBackgroundPaint(newColor);
+			XYItemRenderer render = plot.getRenderer();
 		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
 			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
 			if (plot.getBackgroundPaint() == oldColor)
 				plot.setBackgroundPaint(newColor);
+			CategoryItemRenderer render = plot.getRenderer();
 		}
 	}
 
@@ -424,24 +432,54 @@ public class SNTChart extends ChartFrame {
 		for (int i = 0; i < getChartPanel().getChart().getSubtitleCount(); i++) {
 			final Title title = getChartPanel().getChart().getSubtitle(i);
 			if (title instanceof TextTitle) {
-				final TextTitle tt = (TextTitle) title;
-				if (tt.getPaint() == oldColor)
-					tt.setPaint(newColor);
+				((TextTitle) title).setPaint(newColor);
 			} else if (title instanceof LegendTitle) {
-				final LegendTitle lt = (LegendTitle) title;
-				if (lt.getItemPaint() == oldColor)
-					lt.setItemPaint(newColor);
+				((LegendTitle) title).setItemPaint(newColor);
 			}
 		}
 		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
 			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
 			setForegroundColor(plot.getDomainAxis(), newColor);
 			setForegroundColor(plot.getRangeAxis(), newColor);
+			replaceForegroundColor(plot.getRenderer(), oldColor, newColor);
 		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
 			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
 			setForegroundColor(plot.getDomainAxis(), newColor);
 			setForegroundColor(plot.getRangeAxis(), newColor);
+			replaceForegroundColor(plot.getRenderer(), oldColor, newColor);
 		}
+	}
+
+	private void replaceForegroundColor(final LegendItemSource render, final Color oldColor, final Color newColor) {
+		for (int i = 0; i < render.getLegendItems().getItemCount(); i++) {
+			final LegendItem item = render.getLegendItems().get(i);
+			item.setLabelPaint(newColor);
+			if (item.getFillPaint() == oldColor)
+				item.setFillPaint(newColor);
+			if (item.getLinePaint() == oldColor)
+				item.setLinePaint(newColor);
+			if (item.getOutlinePaint() == oldColor)
+				item.setOutlinePaint(newColor);
+		}
+		if (render instanceof BoxAndWhiskerRenderer) {
+			final BoxAndWhiskerRenderer rndr = ((BoxAndWhiskerRenderer)render);
+			rndr.setDefaultItemLabelPaint(newColor);
+			rndr.setDefaultLegendTextPaint(newColor);
+			rndr.setArtifactPaint(newColor);
+			if (rndr.getDefaultFillPaint()  == oldColor)
+				rndr.setDefaultFillPaint(newColor);
+			if (rndr.getDefaultOutlinePaint()  == oldColor)
+				rndr.setDefaultOutlinePaint(newColor);
+			for (int series = 0; series < rndr.getRowCount(); series++) {
+				if (rndr.getSeriesFillPaint(series) == oldColor)
+					rndr.setSeriesFillPaint(series, newColor);
+				if (rndr.getSeriesOutlinePaint(series) == oldColor)
+					rndr.setSeriesOutlinePaint(series, newColor);
+				if (rndr.getSeriesItemLabelPaint(series) == oldColor)
+					rndr.setSeriesItemLabelPaint(series, newColor);
+			}
+		}
+		
 	}
 
 	private void setForegroundColor(final Axis axis, final Color newColor) {
