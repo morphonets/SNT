@@ -48,7 +48,6 @@ import fiji.util.gui.GenericDialogPlus;
 import ij.IJ;
 import ij.plugin.BrowserLauncher;
 import ij.plugin.frame.Recorder;
-import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.plugin.ij1.Sholl_Utils;
 
