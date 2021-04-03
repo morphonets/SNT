@@ -40,6 +40,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.PathAnalyzer;
+import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 
@@ -114,8 +115,8 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 	private void init() {
 		super.init(false);
 		if (table == null) {
-			table = (sntService.isActive()) ? sntService.getTable() : new DefaultGenericTable();
-			if (table == null) table = new DefaultGenericTable();
+			table = (sntService.isActive()) ? sntService.getTable() : new SNTTable();
+			if (table == null) table = new SNTTable();
 		}
 		resolveInput("table");
 		label = (proposedLabel == null) ? "" : proposedLabel;

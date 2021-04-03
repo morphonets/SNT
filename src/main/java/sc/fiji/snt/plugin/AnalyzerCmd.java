@@ -43,6 +43,7 @@ import net.imagej.ImageJ;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
+import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
@@ -194,8 +195,8 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 			resolveInput("tree");
 		}
 		if (table == null) {
-			table = (sntService.isActive()) ? sntService.getTable() : new DefaultGenericTable();
-			if (table == null) table = new DefaultGenericTable();
+			table = (sntService.isActive()) ? sntService.getTable() : new SNTTable();
+			if (table == null) table = new SNTTable();
 		}
 		resolveInput("table");
 		if (!calledFromPathManagerUI) {
