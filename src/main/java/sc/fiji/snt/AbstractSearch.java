@@ -201,8 +201,8 @@ public abstract class AbstractSearch implements SearchInterface {
      */
     protected abstract void reportPointsInSearch();
 
-    protected abstract SearchNode<?> anyNodeUnderThreshold(final int x, final int y, final int z,
-                                                           final double threshold);
+    protected abstract SearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
+                                                        final double threshold);
 
 
     protected void setDrawingColors(final Color openColor, final Color closedColor) {
@@ -245,7 +245,7 @@ public abstract class AbstractSearch implements SearchInterface {
             if (plane == MultiDThreePanes.XY_PLANE) {
                 for (int y = 0; y < height; ++y)
                     for (int x = 0; x < width; ++x) {
-                        final SearchNode<?> n = anyNodeUnderThreshold(x, y, currentSliceInPlane,
+                        final SearchNode n = anyNodeUnderThreshold(x, y, currentSliceInPlane,
                                 drawingThreshold);
                         if (n == null) continue;
                         final byte status = n.getSearchStatus();
@@ -257,7 +257,7 @@ public abstract class AbstractSearch implements SearchInterface {
             else if (plane == MultiDThreePanes.XZ_PLANE) {
                 for (int z = 0; z < depth; ++z)
                     for (int x = 0; x < width; ++x) {
-                        final SearchNode<?> n = anyNodeUnderThreshold(x, currentSliceInPlane, z,
+                        final SearchNode n = anyNodeUnderThreshold(x, currentSliceInPlane, z,
                                 drawingThreshold);
                         if (n == null) continue;
                         final byte status = n.getSearchStatus();
@@ -269,7 +269,7 @@ public abstract class AbstractSearch implements SearchInterface {
             else if (plane == MultiDThreePanes.ZY_PLANE) {
                 for (int y = 0; y < height; ++y)
                     for (int z = 0; z < depth; ++z) {
-                        final SearchNode<?> n = anyNodeUnderThreshold(currentSliceInPlane, y, z,
+                        final SearchNode n = anyNodeUnderThreshold(currentSliceInPlane, y, z,
                                 drawingThreshold);
                         if (n == null) continue;
                         final byte status = n.getSearchStatus();

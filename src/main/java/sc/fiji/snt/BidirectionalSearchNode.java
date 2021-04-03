@@ -24,12 +24,14 @@ package sc.fiji.snt;
 
 import org.jheaps.AddressableHeap;
 
+import static sc.fiji.snt.AbstractBidirectionalSearch.UNEXPLORED;
+
 /**
  * A {@link SearchNode} which can maintain both a from-start and from-goal search state.
  *
  * @author Cameron Arshadi
  */
-public class BidirectionalSearchNode implements SearchNode<BidirectionalSearchNode> {
+public class BidirectionalSearchNode implements SearchNode {
 
     public final int x;
     public final int y;
@@ -44,43 +46,53 @@ public class BidirectionalSearchNode implements SearchNode<BidirectionalSearchNo
     public BidirectionalSearchNode predecessorFromStart;
     public BidirectionalSearchNode predecessorFromGoal;
 
-    AddressableHeap.Handle<BidirectionalSearchNode, Void> heapHandle;
+    AddressableHeap.Handle<BidirectionalSearchNode, Void> heapHandleFromStart;
+    AddressableHeap.Handle<BidirectionalSearchNode, Void> heapHandleFromGoal;
 
-    public byte searchStatus;
+    public byte searchStatusFromStart;
+    public byte searchStatusFromGoal;
 
-    public boolean isNew;
+    public byte stateFromStart = UNEXPLORED;
+    public byte stateFromGoal = UNEXPLORED;
 
     public BidirectionalSearchNode(int x, int y, int z) {
+        this(
+                x, y, z,
+                Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
+                Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
+                null, null,
+                AbstractSearch.FREE, AbstractSearch.FREE
+        );
+    }
+
+    public BidirectionalSearchNode(int x, int y,  int z, double fFromStart, double fFromGoal,
+                                   double gFromStart, double gFromGoal,
+                                   BidirectionalSearchNode predecessorFromStart,
+                                   BidirectionalSearchNode predecessorFromGoal,
+                                   byte searchStatusFromStart, byte searchStatusFromGoal)
+    {
         this.x = x;
         this.y = y;
         this.z = z;
-        this.fFromStart = Double.NaN;
-        this.fFromGoal = Double.NaN;
-        this.gFromStart = Double.POSITIVE_INFINITY;
-        this.gFromGoal = Double.POSITIVE_INFINITY;
-        this.predecessorFromStart = null;
-        this.predecessorFromGoal = null;
-        this.searchStatus = AbstractSearch.FREE;
+        this.fFromStart = fFromStart;
+        this.fFromGoal = fFromGoal;
+        this.gFromStart = gFromStart;
+        this.gFromGoal = gFromGoal;
+        this.predecessorFromStart = predecessorFromStart;
+        this.predecessorFromGoal = predecessorFromGoal;
+        this.searchStatusFromStart = searchStatusFromStart;
+        this.searchStatusFromGoal = searchStatusFromGoal;
     }
+
 
     @Override
     public byte getSearchStatus() {
-        return searchStatus;
+        return searchStatusFromStart;
     }
 
     @Override
     public void setSearchStatus(byte searchStatus) {
-        this.searchStatus = searchStatus;
-    }
-
-    @Override
-    public AddressableHeap.Handle<BidirectionalSearchNode, Void> getHandle() {
-        return heapHandle;
-    }
-
-    @Override
-    public void setHandle(AddressableHeap.Handle<BidirectionalSearchNode, Void> handle) {
-        this.heapHandle = handle;
+        this.searchStatusFromStart = searchStatus;
     }
 
     @Override

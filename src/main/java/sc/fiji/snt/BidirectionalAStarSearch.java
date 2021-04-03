@@ -261,22 +261,28 @@ public class BidirectionalAStarSearch extends AbstractBidirectionalSearch {
         return 255.0 * (value_at_new_point - stackMin) / (stackMax - stackMin);
     }
 
+
+
     @Override
-    protected double estimateCostToGoal(final BidirectionalSearchNode from, final BidirectionalSearchNode to)
+    protected double estimateCostToGoal(final int source_x, final int source_y, final int source_z,
+             final int target_x, final int target_y, final int target_z)
     {
-        final double xdiff = (from.x - to.x) * x_spacing;
-        final double ydiff = (from.y - to.y) * y_spacing;
-        final double zdiff = (from.z - to.z) * z_spacing;
+        final double xdiff = (target_x - source_x) *
+                x_spacing;
+        final double ydiff = (target_y - source_y) *
+                y_spacing;
+        final double zdiff = (target_z - source_z) *
+                z_spacing;
 
         final double distance = Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff *
                 zdiff);
 
-        return minimum_cost_per_unit_distance * distance;
+        return (minimum_cost_per_unit_distance * distance);
     }
 
     @Override
     public Path getResult() {
-        throw new IllegalStateException();
+        return result;
     }
 
 }

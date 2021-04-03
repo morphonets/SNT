@@ -2642,6 +2642,7 @@ public class SNTUI extends JDialog {
 
 		searchAlgoChoice = new JComboBox<String>();
 		searchAlgoChoice.addItem("A* search");
+		searchAlgoChoice.addItem("NBA* search");
 		searchAlgoChoice.addItem("Fast marching");
 		searchAlgoChoice.addActionListener(event -> {
 			// if user did not trigger the event ignore it
@@ -2649,7 +2650,8 @@ public class SNTUI extends JDialog {
 				return;
 			@SuppressWarnings("unchecked")
 			final int idx = (int) ((JComboBox<String>) event.getSource()).getSelectedIndex();
-			setFastMarchSearchEnabled(idx == 1);
+			setNBAStarSearchEnabled(idx == 1);
+			setFastMarchSearchEnabled(idx == 2);
 		});
 
 		final JPanel aStarPanel = new JPanel(new GridBagLayout());
@@ -2663,6 +2665,10 @@ public class SNTUI extends JDialog {
 		checkboxPanel.add(GuiUtils.leftAlignedLabel(" algorithm", true));
 		aStarPanel.add(checkboxPanel, gc);
 		return aStarPanel;
+	}
+
+	private void setNBAStarSearchEnabled(boolean b) {
+		plugin.nbaStarSearchEnabled = b;
 	}
 
 	private JPanel filteredImgActivatePanel() {

@@ -326,7 +326,7 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 					p.searchStatus = CLOSED_FROM_GOAL;
 					closed_from_goal_count++;
 				}
-				nodes_as_image_this_search.getSlice(p.z).setValueWithoutChecks(p.x, p.y, p);
+				//nodes_as_image_this_search.getSlice(p.z).setValueWithoutChecks(p.x, p.y, p);
 
 				// Now look at the neighbours of p. We're going to consider
 				// the 26 neighbours in 3D.

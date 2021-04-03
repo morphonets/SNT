@@ -202,6 +202,9 @@ public class SNT extends MultiDThreePanes implements
 	protected boolean tubularGeodesicsTracingEnabled = false;
 	protected TubularGeodesicsTracer tubularGeodesicsThread;
 
+	protected boolean nbaStarSearchEnabled = false;
+	protected BidirectionalAStarSearch nbaStarSearch = null;
+
 	/*
 	 * pathUnfinished indicates that we have started to create a path, but not yet
 	 * finished it (in the sense of moving on to a new path with a differen starting
@@ -734,6 +737,10 @@ public class SNT extends MultiDThreePanes implements
 			removeThreadToDraw(currentSearchThread);
 			currentSearchThread = null;
 		}
+		if (nbaStarSearch != null) {
+			removeThreadToDraw(nbaStarSearch);
+			nbaStarSearch = null;
+		}
 		if (manualSearchThread != null) {
 			removeThreadToDraw(manualSearchThread);
 			manualSearchThread = null;
@@ -882,7 +889,8 @@ public class SNT extends MultiDThreePanes implements
 	@Override
 	public void finished(final SearchInterface source, final boolean success) {
 
-		if (source == currentSearchThread || source == tubularGeodesicsThread || source == manualSearchThread)
+		if (source == currentSearchThread || source == nbaStarSearch || source == tubularGeodesicsThread ||
+				source == manualSearchThread)
 		{
 			removeSphere(targetBallName);
 
@@ -917,6 +925,8 @@ public class SNT extends MultiDThreePanes implements
 				currentSearchThread = null;
 			} else if (source == manualSearchThread) {
 				manualSearchThread = null;
+			} else if (source == nbaStarSearch) {
+				nbaStarSearch = null;
 			}
 
 			removeThreadToDraw(source);
@@ -1484,15 +1494,26 @@ public class SNT extends MultiDThreePanes implements
 			tracerThreadPool.execute(manualSearchThread);
 		}
 		else {
-			currentSearchThread = new TracerThread(this, (int) Math.round(last_start_point_x),
-					(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end);
+			if (nbaStarSearchEnabled) {
+				nbaStarSearch = new BidirectionalAStarSearch(this, (int) Math.round(last_start_point_x),
+						(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end);
+				addThreadToDraw(nbaStarSearch);
+				nbaStarSearch.setDrawingColors(Color.CYAN, Color.ORANGE); // Stabilized, Rejected
+				nbaStarSearch.setMinExpectedSizeOfResult(-1);
+				nbaStarSearch.setDrawingThreshold(-1);
+				nbaStarSearch.addProgressListener(this);
+				tracerThreadPool.submit(nbaStarSearch);
+			} else {
+				currentSearchThread = new TracerThread(this, (int) Math.round(last_start_point_x),
+						(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end);
+				addThreadToDraw(currentSearchThread);
+				currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this color a preference
+				currentSearchThread.setMinExpectedSizeOfResult(minPathSize);
+				currentSearchThread.setDrawingThreshold(-1);
+				currentSearchThread.addProgressListener(this);
+				tracerThreadPool.execute(currentSearchThread);
+			}
 
-			addThreadToDraw(currentSearchThread);
-			currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this color a preference
-			currentSearchThread.setMinExpectedSizeOfResult(minPathSize);
-			currentSearchThread.setDrawingThreshold(-1);
-			currentSearchThread.addProgressListener(this);
-			tracerThreadPool.execute(currentSearchThread);
 		}
 
 	}
@@ -1729,7 +1750,7 @@ public class SNT extends MultiDThreePanes implements
 			final PointInImage node = pointList.get(i);
 
 			BidirectionalAStarSearch pathSearch = createSearch(node.x, node.y, node.z, null);
-			pathSearch.setDrawingColors(Color.CYAN, null);
+			pathSearch.setDrawingColors(Color.CYAN, Color.ORANGE);
 			pathSearch.setDrawingThreshold(-1);
 			addThreadToDraw(pathSearch);
 			pathSearch.addProgressListener(this);
@@ -2837,7 +2858,7 @@ public class SNT extends MultiDThreePanes implements
 							v = slices_data_f[z][xyIndex];
 							break;
 						default:
-							throw new IllegalArgumentException("Unknow image type: " + imageType);
+							throw new IllegalArgumentException("Unknown image type: " + imageType);
 					}
 					if (v == stackMin)
 						continue;
