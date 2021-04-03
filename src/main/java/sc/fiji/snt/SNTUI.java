@@ -38,12 +38,8 @@ import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.*;
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -3302,8 +3298,8 @@ public class SNTUI extends JDialog {
 			// went awry!?. Try to abort all possible lingering tasks
 			pmUI.cancelFit(true);
 			plugin.cancelSearch(true);
-			plugin.cancelGaussian();
 			plugin.discardFill();
+			plugin.cancelGaussian();
 			if (plugin.currentPath != null)
 				plugin.cancelPath();
 			if (plugin.temporaryPath != null)
@@ -3951,32 +3947,53 @@ public class SNTUI extends JDialog {
 			}
 			if (!proceed()) return;
 			final HashMap<String, Object> inputs = new HashMap<>();
+			final int priorState = currentState;
 			switch (type) {
 			case DEMO:
-				final String[] choices = new String[] { "L-Systems Fractal (2D)", "Drosophila ddaC neuron (2D)" };
-				final String choice = guiUtils.getChoice("Which demo image?", "Load Demo Image", choices, choices[0]);
-				if (choice == null)
+				changeState(LOADING);
+				showStatus("Retrieving demo data. Please wait...", false);
+				final String[] choices = new String[5];
+				choices[0] = "Drosophila ddaC neuron (2D, binary)";
+				choices[1] = "Drosophila OP neuron (3D, grayscale, w/ tracings)";
+				choices[2] = "Hippocampal neuron (2D, multichannel)";
+				choices[3] = "Hippocampal neuron (timelapse, w/ tracings)";
+				choices[4] = "L-Systems Fractal (2D, binary, w/ tracings)";
+				final String choice = guiUtils.getChoice("Which dataset?", "Load Demo Dataset", choices, choices[0]);
+				if (choice == null) {
+					changeState(priorState);
+					showStatus(null, true);
 					return;
+				}
 				try {
-					final ImagePlus imp = new SNTService().demoImage(choice);
+					final SNTService sntService = plugin.getContext().getService(SNTService.class);
+					final ImagePlus imp = sntService.demoImage(choice);
+					if (imp == null) {
+						error("Image could not be retrieved. Perhaps and internet connection is required but you are offline?");
+						changeState(priorState);
+						return;
+					}
 					imp.deleteRoi();
 					plugin.initialize(imp);
 					if (pathAndFillManager.size() > 0
 							&& guiUtils.getConfirmation("Clear Existing Path(s)?", "Delete All Paths")) {
 						pathAndFillManager.clear();
 					}
-					if (pathAndFillManager.size() == 0 && choices[0].equals(choice)) {
-						final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-						final InputStream is = classloader.getResourceAsStream("tests/TreeV.swc");
-						final BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-						pathAndFillManager.importSWC(br, "TreeV", false, 0, 0, 0, 1, 1, 1, true);
-						plugin.updateAllViewers();
+					if (choices[4].equals(choice)) {
+						plugin.getPathAndFillManager().addTree(sntService.demoTree("fractal"));
+					} else if (choices[3].equals(choice)) {
+						sntService.loadTracings(
+							"https://raw.githubusercontent.com/morphonets/SNTmanuscript/9b4b933a742244505f0544c29211e596c85a5da7/Fig01/traces/701.traces");
+					} else if (choices[1].equals(choice)) {
+						sntService.loadTracings(
+								"https://raw.githubusercontent.com/morphonets/SNT/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1-gs.swc");
 					}
+					plugin.updateAllViewers();
 				} catch (final Throwable ex) {
 					error("Loading of image failed (" + ex.getMessage() + " error). See Console for details.");
 					ex.printStackTrace();
 				} finally {
-					changeState(SNTUI.READY);
+					changeState(priorState);
+					showStatus(null, true);
 				}
 				return;
 			case IMAGE:
@@ -3994,7 +4011,6 @@ public class SNTUI extends JDialog {
 			case TRACES:
 			case SWC:
 			case ANY_RECONSTRUCTION:
-				final int preLoadingState = currentState;
 				changeState(LOADING);
 				if (type == SWC) {
 					plugin.loadSWCFile(file);
@@ -4005,7 +4021,7 @@ public class SNTUI extends JDialog {
 					if (file != null) plugin.loadTracings(file);
 				}
 				validateImgDimensions();
-				changeState(preLoadingState);
+				changeState(priorState);
 				return;
 			default:
 				throw new IllegalArgumentException("Unknown action");

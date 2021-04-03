@@ -2618,7 +2618,15 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	protected int guessTracesFileType(final String filename) {
+		try {
+			return guessTracesFileType(new FileInputStream(filename), true);
+		} catch (IOException e) {
+			errorStatic("The file '" + filename + "' could not be parsed.");
+			return -1;
+		}
+	}
 
+	private int guessTracesFileType(InputStream is, final boolean closeStreamAfterGuess) throws IOException {
 		/*
 		 * Look at the magic bytes at the start of the file:
 		 *
@@ -2627,32 +2635,25 @@ public class PathAndFillManager extends DefaultHandler implements
 		 * begins with '{"' assume it is a ML JSON file, otherwise assume it's an SWC
 		 * file.
 		 */
-		final File f = new File(filename);
-		if (!SNTUtils.fileAvailable(f)) {
-			errorStatic("The file '" + filename + "' is not available.");
-			return -1;
-		}
-		try {
-			if (!headless) SNTUtils.log("Guessing file type...");
-			InputStream is;
-			final byte[] buf = new byte[8];
-			is = new FileInputStream(filename);
-			is.read(buf, 0, 8);
+		if (!headless)
+			SNTUtils.log("Guessing file type...");
+		if (is.markSupported())
+			is.mark(-1);
+		final byte[] buf = new byte[8];
+		is.read(buf, 0, 8);
+		if (closeStreamAfterGuess)
 			is.close();
-			//SNT.log("buf[0]: " + buf[0] + ", buf[1]: " + buf[1]);
-			if (((buf[0] & 0xFF) == 0x1F) && ((buf[1] & 0xFF) == 0x8B)) {
-				return TRACES_FILE_TYPE_COMPRESSED_XML;
-			}
-			else if (((buf[0] == '<') && (buf[1] == '?') && (buf[2] == 'x') &&
-				(buf[3] == 'm') && (buf[4] == 'l') && (buf[5] == ' '))) {
-				return TRACES_FILE_TYPE_UNCOMPRESSED_XML;
-			} else if (((char)(buf[0] & 0xFF) == '{')) {
-				return TRACES_FILE_TYPE_ML_JSON;
-			}
+		else if (is.markSupported()) {
+			is.reset();
 		}
-		catch (final IOException e) {
-			SNTUtils.error("Couldn't read from file: " + filename, e);
-			return -1;
+		//System.out.println("buf[0]: " + (byte)buf[0] + ", buf[1]: " + (byte)buf[1] + ", buf[2]: " + buf[2] + ", buf[3]: " + buf[3] + ", buf[4]: " + buf[4]);
+		if(buf[ 0 ] == (byte) 0x1f && buf[ 1 ] == (byte) 0x8b ) { //check if matches standard gzip magic number
+			return TRACES_FILE_TYPE_COMPRESSED_XML;
+		} else if (((buf[0] == '<') && (buf[1] == '?') && (buf[2] == 'x') && (buf[3] == 'm') && (buf[4] == 'l')
+				&& (buf[5] == ' '))) {
+			return TRACES_FILE_TYPE_UNCOMPRESSED_XML;
+		} else if (((char) (buf[0] & 0xFF) == '{')) {
+			return TRACES_FILE_TYPE_ML_JSON;
 		}
 		return TRACES_FILE_TYPE_SWC;
 	}
@@ -2737,6 +2738,29 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (boundingBox != null) boundingBox.info = file.getName();
 		}
 		return result;
+	}
+
+	public boolean loadGuessingType(final String optionalDescription, final InputStream is) throws IOException {
+		final BufferedInputStream bis = (is instanceof BufferedInputStream) ? ((BufferedInputStream)is) : new BufferedInputStream(is);
+		final int guessedType = guessTracesFileType(bis, false);
+		switch (guessedType) {
+		case TRACES_FILE_TYPE_COMPRESSED_XML:
+			SNTUtils.log("Loading gzipped file...");
+			return load(new GZIPInputStream(bis));
+		case TRACES_FILE_TYPE_UNCOMPRESSED_XML:
+			SNTUtils.log("Loading uncompressed file...");
+			return load(bis);
+		case TRACES_FILE_TYPE_ML_JSON:
+			final Map<String, TreeSet<SWCPoint>> nMap = MouseLightLoader.extractNodes(bis, "all");
+			final Map<String, Tree> outMap = importNeurons(nMap, null, "um");
+			return outMap.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty());
+		case TRACES_FILE_TYPE_SWC:
+			final BufferedReader br = new BufferedReader(new InputStreamReader(bis, StandardCharsets.UTF_8));
+			return plugin.getPathAndFillManager().importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, true);
+		default:
+			SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);
+			return false;
+		}
 	}
 
 	private void checkForAppropriateImageDimensions() {

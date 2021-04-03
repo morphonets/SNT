@@ -692,7 +692,7 @@ public class MultiDThreePanes implements PaneOwner {
 		if (isDummy()) {
 			xy_window = null;
 		} else {
-			xy_window = (xy.getNSlices()==1) ? new ImageWindow(xy, xy_canvas) : new StackWindow(xy, xy_canvas); // will be showed
+			xy_window = (xy.getNDimensions() < 3) ? new ImageWindow(xy, xy_canvas) : new StackWindow(xy, xy_canvas); // will be showed
 			xy_canvas.requestFocusInWindow(); // Ensure keylisteners have focus
 		}
 

@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -199,12 +200,19 @@ public class SNTService extends AbstractService implements ImageJService {
 	/**
 	 * Loads the specified tracings file.
 	 *
-	 * @param filePath either a "SWC", "TRACES" or "JSON" file. Null not allowed.
+	 * @param filePathOrURL either a "SWC", "TRACES" or "JSON" file path. URLs
+	 *                      defining remote files also supported.. Null not allowed.
 	 * @throws UnsupportedOperationException if SNT is not running
+	 * @throws IOException                   if data cannot be imported
 	 */
-	public void loadTracings(final String filePath) {
+	public void loadTracings(final String filePathOrURL) throws UnsupportedOperationException, IOException {
 		accessActiveInstance(false);
-		plugin.loadTracings(new File(filePath));
+		if (filePathOrURL.startsWith("http") || filePathOrURL.indexOf("://") > 0) {
+			final String fileName = filePathOrURL.substring(filePathOrURL.lastIndexOf('/') + 1);
+			final String fileNameWithoutExtn = fileName.substring(0, fileName.lastIndexOf('.'));
+			plugin.pathAndFillManager.loadGuessingType(fileNameWithoutExtn, new URL(filePathOrURL).openStream());
+		} else
+			plugin.loadTracings(new File(filePathOrURL));
 	}
 
 	/**
@@ -217,6 +225,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * @throws UnsupportedOperationException if SNT is not running
 	 */
 	public void loadTree(final Tree tree) throws UnsupportedOperationException {
+		accessActiveInstance(false);
 		plugin.getPathAndFillManager().addTree(tree);
 	}
 
@@ -491,7 +500,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 */
 	@Deprecated
 	public Tree demoTree() {
-		return getResourceSWCTree("tests/TreeV.swc");
+		return getResourceSWCTree("TreeV", "tests/TreeV.swc");
 	}
 
 	/**
@@ -505,15 +514,14 @@ public class SNTService extends AbstractService implements ImageJService {
 	 */
 	public Tree demoTree(final String tree) {
 		if (tree == null)
-			return getResourceSWCTree("tests/TreeV.swc");
+			return getResourceSWCTree("TreeV", "tests/TreeV.swc");
 		final String nTree = tree.toLowerCase().trim();
 		if (nTree.contains("fractal") || nTree.contains("toy") || nTree.contains("l-sys"))
-			return getResourceSWCTree("tests/TreeV.swc");
-		else
-			return getResourceSWCTree("ml/demo-trees/AA0001.swc");
+			return getResourceSWCTree("TreeV", "tests/TreeV.swc");
+		return getResourceSWCTree("AA0001", "ml/demo-trees/AA0001.swc");
 	}
 
-	private Tree getResourceSWCTree(final String resourcePath) {
+	private Tree getResourceSWCTree(final String treeLabel, final String resourcePath) {
 		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 		final InputStream is = classloader.getResourceAsStream(resourcePath);
 		final PathAndFillManager pafm = new PathAndFillManager();
@@ -522,13 +530,13 @@ public class SNTService extends AbstractService implements ImageJService {
 		try {
 			final int idx1stPath = pafm.size();
 			final BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
-			if (pafm.importSWC(br, "TreeV", false, 0, 0, 0, 1, 1, 1, false)) {
+			if (pafm.importSWC(br, treeLabel, false, 0, 0, 0, 1, 1, 1, false)) {
 				tree = new Tree();
 				for (int i = idx1stPath; i < pafm.size(); i++) {
 					final Path p = pafm.getPath(i);
 					tree.add(p);
 				}
-				tree.setLabel("TreeV");
+				tree.setLabel(treeLabel);
 			} else {
 				return null;
 			}
@@ -565,10 +573,19 @@ public class SNTService extends AbstractService implements ImageJService {
 		if (img == null)
 			return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
 		final String nImg = img.toLowerCase().trim();
-		if (nImg.contains("droso") || nImg.contains("dda") || nImg.contains("c4") || nImg.contains("sholl"))
+		if (nImg.contains("dda") || nImg.contains("c4") || nImg.contains("sholl")) {
 			return demoImageInternal("tests/ddaC.tif", "Drosophila_ddaC_Neuron.tif");
-		else
-			return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
+		} else if (nImg.contains("op")) {
+			return ij.IJ.openImage(
+					"https://github.com/morphonets/SNT/raw/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1.tif");
+		} else if (nImg.contains("multichannel")) {
+			return ij.IJ.openImage("http://wsr.imagej.net/images/Rat_Hippocampal_Neuron.zip");
+		} else if (nImg.contains("4d") || nImg.contains("timelapse")) {
+			final ImagePlus imp = IJ.openImage("https://cildata.crbs.ucsd.edu/media/images/701/701.tif");
+			if (imp != null) imp.setDimensions(1, 1, imp.getNSlices());
+			return imp;
+		}
+		return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
 	}
 
 	private ImagePlus demoImageInternal(final String path, final String displayTitle) {
@@ -604,7 +621,7 @@ public class SNTService extends AbstractService implements ImageJService {
 		final String[] cells = {"AA0001", "AA0002", "AA0003", "AA0004"};
 		final List<Tree> trees = new ArrayList<>();
 		for (final String cell : cells) {
-			final Tree tree = getResourceSWCTree("ml/demo-trees/" + cell + ".swc");
+			final Tree tree = getResourceSWCTree(cell, "ml/demo-trees/" + cell + ".swc");
 			if (tree != null) tree.setLabel(cell);
 			trees.add(tree);
 		}

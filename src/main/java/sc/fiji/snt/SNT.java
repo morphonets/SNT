@@ -2978,9 +2978,10 @@ public class SNT extends MultiDThreePanes implements
 	public void showStatus(final int progress, final int maximum,
 		final String status)
 	{
-		if (status == null)
+		if (status == null) {
 			statusService.clearStatus();
-		else
+			statusService.showProgress(0, 0);
+		} else
 			statusService.showStatus(progress, maximum, status);
 		if (isUIready()) getUI().showStatus(status, true);
 	}
