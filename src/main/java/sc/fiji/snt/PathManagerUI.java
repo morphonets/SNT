@@ -660,6 +660,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		});
 	}
 
+	protected boolean selectionExists() {
+		return tree.getSelectionCount() > 0;
+	}
 	synchronized protected void cancelFit(final boolean updateUIState) {
 		if (fittingHelper != null) fittingHelper.cancelFit(updateUIState);
 	}

@@ -763,10 +763,9 @@ public class SNT extends MultiDThreePanes implements
 		return (ui == null) ? -1 : ui.getState();
 	}
 
-	synchronized public void saveFill() {
+	synchronized protected void saveFill() throws IllegalArgumentException {
 		if (fillerSet.isEmpty()) {
-			SNTUtils.log("No Fills to stash...");
-			return;
+			throw new IllegalArgumentException("No fills available.");
 		}
 
 		for (final FillerThread fillerThread : fillerSet) {
@@ -774,12 +773,9 @@ public class SNT extends MultiDThreePanes implements
 			removeThreadToDraw(fillerThread);
 		}
 		fillerSet.clear();
-
 		changeUIState(SNTUI.WAITING_TO_START_PATH);
-	}
-
-	synchronized public void discardFill() {
-		discardFill(true);
+		if (getUI() != null)
+			getUI().getFillManager().changeState(FillManagerUI.READY);
 	}
 
 	synchronized protected void discardFill(final boolean updateState) {
@@ -792,13 +788,14 @@ public class SNT extends MultiDThreePanes implements
 		fillerSet.clear();
 		fillerThreadPool = null;
 		changeUIState(SNTUI.WAITING_TO_START_PATH);
+		if (getUI() != null)
+			getUI().getFillManager().changeState(FillManagerUI.READY);
 	}
 
-	synchronized protected void stopFilling() {
+	synchronized protected void stopFilling() throws IllegalArgumentException {
 
 		if (fillerThreadPool == null) {
-			SNTUtils.log("Attempted to shutdown null Filler");
-			return;
+			throw new IllegalArgumentException("Attempted to shutdown null Filler");
 		}
 		fillerThreadPool.shutdown();
 		try {
@@ -816,19 +813,21 @@ public class SNT extends MultiDThreePanes implements
 			Thread.currentThread().interrupt();
 		} finally {
 			fillerThreadPool = null;
+			if (getUI() != null)
+				getUI().getFillManager().changeState(FillManagerUI.ENDED);
 		}
 
 	}
 
-	synchronized public void startFilling() {
+	synchronized protected void startFilling() throws IllegalArgumentException {
 		if (fillerSet.isEmpty()) {
-			SNTUtils.log("No Fillers loaded");
-			return;
+			throw new IllegalArgumentException("No Filters loaded");
 		}
 		if (fillerThreadPool != null) {
-			SNTUtils.log("Filler already running...");
-			return;
+			throw new IllegalArgumentException("Filler already running");
 		}
+		if (getUI() != null)
+			getUI().getFillManager().changeState(FillManagerUI.STARTED);
 		fillerThreadPool = Executors.newFixedThreadPool(Math.max(1, SNTPrefs.getThreads()));
 		final List<Future<?>> futures = new ArrayList<>();
 		for (final FillerThread fillerThread : fillerSet) {
@@ -2102,7 +2101,6 @@ public class SNT extends MultiDThreePanes implements
 	synchronized public void initPathsToFill(final Set<Path> fromPaths) {
 
 		if (ui != null) {
-			ui.getFillManager().startFilling.setEnabled(true);
 			ui.getFillManager().thresholdChanged(0.03f);
 		}
 

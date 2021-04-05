@@ -417,7 +417,6 @@ public class SNTUI extends JDialog {
 		add(new JLabel(" "), dialogGbc);
 		dialogGbc.gridy++;
 
-		dialogGbc.gridy++;
 		add(tabbedPane, dialogGbc);
 		dialogGbc.gridy++;
 		add(statusBar(), dialogGbc);
@@ -3265,7 +3264,7 @@ public class SNTUI extends JDialog {
 			break;
 		case (FILLING_PATHS):
 			showStatus("Filling out cancelled...", true);
-			plugin.discardFill(); // will change UI state
+			plugin.discardFill(true); // will change UI state
 			return;
 		case (FITTING_PATHS):
 			showStatus("Fitting cancelled...", true);
@@ -3298,7 +3297,7 @@ public class SNTUI extends JDialog {
 			// went awry!?. Try to abort all possible lingering tasks
 			pmUI.cancelFit(true);
 			plugin.cancelSearch(true);
-			plugin.discardFill();
+			plugin.discardFill(true);
 			plugin.cancelGaussian();
 			if (plugin.currentPath != null)
 				plugin.cancelPath();
