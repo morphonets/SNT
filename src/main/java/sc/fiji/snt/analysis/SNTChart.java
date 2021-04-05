@@ -82,6 +82,9 @@ import org.jfree.data.xy.XYDataset;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.ColorRGB;
 
+import net.imagej.plot.CategoryChart;
+import net.imagej.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
+import net.imagej.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
@@ -98,6 +101,14 @@ public class SNTChart extends ChartFrame {
 
 	public SNTChart(final String title, final JFreeChart chart) {
 		this(title, chart, new Dimension(400, 400));
+	}
+
+	public SNTChart(final String title, final net.imagej.plot.XYPlot xyplot) {
+		this(title, new XYPlotConverter().convert(xyplot, JFreeChart.class));
+	}
+
+	public SNTChart(final String title, final CategoryChart<?> categoryChart) {
+		this(title, new CategoryChartConverter().convert(categoryChart, JFreeChart.class));
 	}
 
 	protected SNTChart(final String title, final JFreeChart chart, final Dimension preferredSize) {

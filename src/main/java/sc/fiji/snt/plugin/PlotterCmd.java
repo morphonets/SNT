@@ -23,6 +23,8 @@
 package sc.fiji.snt.plugin;
 
 import java.awt.Dimension;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
@@ -44,6 +46,7 @@ import org.scijava.menu.MenuConstants;
 import org.scijava.plugin.Menu;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.ColorRGB;
 import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
@@ -186,6 +189,8 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		frame = new ChartFrame(tree.getLabel(), chart);
 		frame.setPreferredSize(new Dimension(500, 500));
 		frame.pack();
+		final Dimension s = Toolkit.getDefaultToolkit().getScreenSize();
+		AWTWindows.centerWindow(new Rectangle(0, 0, s.width/2, s.height), frame);
 		frame.setVisible(true);
 		frame.addWindowListener(new WindowAdapter() {
 
