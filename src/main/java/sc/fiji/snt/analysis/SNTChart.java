@@ -28,6 +28,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Paint;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -81,6 +82,9 @@ import org.jfree.data.xy.XYDataset;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.ColorRGB;
 
+import net.imagej.plot.CategoryChart;
+import net.imagej.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
+import net.imagej.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
@@ -97,6 +101,14 @@ public class SNTChart extends ChartFrame {
 
 	public SNTChart(final String title, final JFreeChart chart) {
 		this(title, chart, new Dimension(400, 400));
+	}
+
+	public SNTChart(final String title, final net.imagej.plot.XYPlot xyplot) {
+		this(title, new XYPlotConverter().convert(xyplot, JFreeChart.class));
+	}
+
+	public SNTChart(final String title, final CategoryChart<?> categoryChart) {
+		this(title, new CategoryChartConverter().convert(categoryChart, JFreeChart.class));
 	}
 
 	protected SNTChart(final String title, final JFreeChart chart, final Dimension preferredSize) {
@@ -534,6 +546,10 @@ public class SNTChart extends ChartFrame {
 		getXYPlot().addAnnotation(annot);
 	}
 
+	public void setDefaultDirectoryForSaveAs(final File directory) throws IllegalArgumentException {
+		getChartPanel().setDefaultDirectoryForSaveAs(directory);
+	}
+
 	public void show(final int width, final int height) {
 		setPreferredSize(new Dimension(width, height));
 		pack();
@@ -579,13 +595,21 @@ public class SNTChart extends ChartFrame {
 
 	private void addCustomizationPanel(final JPopupMenu popup) {
 		final JCheckBoxMenuItem dark = new JCheckBoxMenuItem("Dark Mode", false);
+		final Paint DEF_ZOP = getChartPanel().getZoomOutlinePaint();
+		final Paint DEF_ZFP = getChartPanel().getZoomFillPaint();
 		dark.addItemListener( e -> {
 			if (dark.isSelected()) {
 				replaceBackground(Color.WHITE, Color.BLACK);
 				replaceForegroundColor(Color.BLACK, Color.WHITE);
+				if (DEF_ZOP instanceof Color)
+					getChartPanel().setZoomOutlinePaint(((Color) DEF_ZOP).brighter());
+				if (DEF_ZFP instanceof Color)
+					getChartPanel().setZoomOutlinePaint(((Color) DEF_ZFP).brighter());
 			} else {
 				replaceBackground(Color.BLACK, Color.WHITE);
 				replaceForegroundColor(Color.WHITE, Color.BLACK);
+				getChartPanel().setZoomOutlinePaint(DEF_ZOP);
+				getChartPanel().setZoomOutlinePaint(DEF_ZFP);
 			}
 		});
 		popup.addSeparator();

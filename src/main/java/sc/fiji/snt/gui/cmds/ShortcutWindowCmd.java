@@ -23,6 +23,7 @@
 package sc.fiji.snt.gui.cmds;
 
 import java.awt.Dimension;
+import java.awt.Frame;
 import java.awt.Point;
 import java.awt.event.InputEvent;
 import java.awt.event.WindowAdapter;
@@ -308,8 +309,26 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		SwingUtilities.invokeLater(() -> frame.setVisible(true));
 	}
 
+	// convenience methods for macro access
 	public static void resetFrameLocation() {
 		ij.Prefs.saveLocation(WIN_LOC, null);
+		if (frame != null) AWTWindows.centerWindow(frame);
+	}
+
+	public static boolean isVisible() {
+		return frame != null && frame.isVisible() && frame.getState() != Frame.ICONIFIED;
+	}
+
+	public static void toggleVisibility() {
+		if (frame == null) {
+			final ShortcutWindowCmd swc = new ShortcutWindowCmd();
+			swc.setContext(SNTUtils.getContext());
+			swc.run();
+		} else {
+			frame.setVisible(!isVisible());
+			if (frame.isVisible() && frame.getState() == Frame.ICONIFIED)
+				frame.setState(Frame.NORMAL);
+		}
 	}
 
 	private class Shortcut {

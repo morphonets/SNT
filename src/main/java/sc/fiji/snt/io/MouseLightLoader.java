@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.io;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -219,12 +220,12 @@ public class MouseLightLoader {
 	 * @see #extractTrees(File, String)
 	 */
 	public static Map<String, TreeSet<SWCPoint>> extractNodes(final File jsonFile, final String compartment) throws JSONException, FileNotFoundException {
-		final JSONTokener tokener = new JSONTokener(new FileInputStream(jsonFile));
+		final JSONTokener tokener = new JSONTokener(new BufferedInputStream(new FileInputStream(jsonFile)));
 		return extractNodes(tokener, compartment);
 	}
 
 	public static Map<String, TreeSet<SWCPoint>> extractNodes(final InputStream stream, final String compartment) throws JSONException {
-		final JSONTokener tokener = new JSONTokener(stream);
+		final JSONTokener tokener = new JSONTokener((stream instanceof BufferedInputStream) ? stream : new BufferedInputStream(stream));
 		return extractNodes(tokener, compartment);
 	}
 

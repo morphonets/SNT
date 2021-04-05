@@ -37,6 +37,7 @@ import org.scijava.util.Colors;
 
 import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.GuiUtils;
 
@@ -91,8 +92,8 @@ public class CompareFilesCmd extends ContextCommand {
 		}
 	}
 
-	private DefaultGenericTable makeReport(final Tree tree1, final Tree tree2) {
-		final DefaultGenericTable table = new DefaultGenericTable();
+	private SNTTable makeReport(final Tree tree1, final Tree tree2) {
+		final SNTTable table = new SNTTable();
 		for (final Tree tree : new Tree[] { tree1, tree2 }) {
 			final TreeStatistics tStats = new TreeStatistics(tree);
 			tStats.setTable(table);

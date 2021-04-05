@@ -450,7 +450,7 @@ public class TreeAnalyzer extends ContextCommand {
 	 *                    annotations (axon, dendrite, etc.)
 	 */
 	public void measure(final String rowHeader, final Collection<String> metrics, final boolean groupByType) {
-		if (table == null) table = new DefaultGenericTable();
+		if (table == null) table = new SNTTable();
 		final Collection<String> measuringMetrics = (metrics == null || metrics.isEmpty()) ? getMetrics() : metrics;
 		if (groupByType) {
 			for (final int type : tree.getSWCTypes()) {

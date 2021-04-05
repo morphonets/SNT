@@ -52,6 +52,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.PathAnalyzer;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.GuiUtils;
@@ -169,7 +170,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 				series.setLabel("Un-matched paths");
 				series.setLegendVisible(false);
 			}
-			uiService.show("SNT: Time Profile", plot);
+			new SNTChart("SNT: Time Profile", plot).show();
 		}
 
 		if (outputChoice.toLowerCase().contains("table")) {
@@ -249,7 +250,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 				series.setValues(xValues, yValues);
 				if (allSeries != null) allSeries.add(series);
 			});
-			uiService.show("SNT: Time Profile", plot);
+			new SNTChart("SNT: Time Profile", plot).show();
 			if (allSeries != null) {
 				final SNTTable table = new SNTTable();
 				for (final XYSeries series : allSeries) {

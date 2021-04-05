@@ -26,7 +26,6 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-import org.jfree.chart.JFreeChart;
 import org.scijava.app.StatusService;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
@@ -39,7 +38,6 @@ import net.imagej.plot.LineSeries;
 import net.imagej.plot.LineStyle;
 import net.imagej.plot.MarkerStyle;
 import net.imagej.plot.PlotService;
-import net.imagej.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.SNTChart;
@@ -172,10 +170,8 @@ public class StrahlerCmd extends ContextCommand {
 	 * @throws IllegalArgumentException if tree contains multiple roots or loops
 	 */
 	public SNTChart getChart() throws IllegalArgumentException {
-		final CategoryChartConverter converter = new CategoryChartConverter();
-		final JFreeChart chart = converter.convert(getCategoryChart(), JFreeChart.class);
 		final String title = (tree.getLabel()== null) ? "Strahler Plot" : tree.getLabel() + "Strahler Plot";
-		return new SNTChart(title, chart);
+		return new SNTChart(title, getCategoryChart());
 	}
 
 	
