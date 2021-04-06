@@ -308,7 +308,7 @@ public class TracerThread extends SearchThread {
 	}
 
 	@Override
-	double estimateCostToGoal(final int current_x, final int current_y,
+	protected double estimateCostToGoal(final int current_x, final int current_y,
 		final int current_z, final boolean fromStart)
 	{
 

@@ -22,9 +22,7 @@
 
 package sc.fiji.snt;
 
-import org.jheaps.AddressableHeap;
-
-public interface SearchNode<T> {
+public interface SearchNode {
 
     int getX();
 
@@ -35,11 +33,5 @@ public interface SearchNode<T> {
     byte getSearchStatus();
 
     void setSearchStatus(byte searchStatus);
-
-    AddressableHeap.Handle<T, Void> getHandle();
-
-    void setHandle(AddressableHeap.Handle<T, Void> handle);
-
-
 
 }

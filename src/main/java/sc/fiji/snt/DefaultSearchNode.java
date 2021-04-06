@@ -24,7 +24,7 @@ package sc.fiji.snt;
 
 import org.jheaps.AddressableHeap;
 
-public class DefaultSearchNode implements SearchNode<DefaultSearchNode>, Comparable<DefaultSearchNode> {
+public class DefaultSearchNode implements SearchNode, Comparable<DefaultSearchNode> {
 
 	public int x;
 	public int y;
@@ -38,7 +38,7 @@ public class DefaultSearchNode implements SearchNode<DefaultSearchNode>, Compara
 
 	public double f; // should always be the sum of g and h
 
-	private DefaultSearchNode predecessor;
+	public DefaultSearchNode predecessor;
 
 	public DefaultSearchNode getPredecessor() {
 		return predecessor;
@@ -80,12 +80,12 @@ public class DefaultSearchNode implements SearchNode<DefaultSearchNode>, Compara
 		this.searchStatus = searchStatus;
 	}
 
-	@Override
+
 	public AddressableHeap.Handle<DefaultSearchNode, Void> getHandle() {
 		return heapHandle;
 	}
 
-	@Override
+
 	public void setHandle(AddressableHeap.Handle<DefaultSearchNode, Void> handle) {
 		this.heapHandle = handle;
 	}
