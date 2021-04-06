@@ -162,11 +162,11 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		snt.displayCustomPathColors = !getPref(ENFORCE_DEFAULT_PATH_COLORS);
 		snt.setShowOnlySelectedPaths(getPref(SHOW_ONLY_SELECTED), false);
 		if (!SNTUtils.isDebugMode()) SNTUtils.setDebugMode(getPref(DEBUG));
-		snt.cursorSnapWindowXY = (int) Prefs.get(SNAP_XY, 6);
+		snt.cursorSnapWindowXY = (int) Prefs.get(SNAP_XY, 4);
 		snt.cursorSnapWindowXY = whithinBoundaries(snt.cursorSnapWindowXY,
 			SNT.MIN_SNAP_CURSOR_WINDOW_XY,
 			SNT.MAX_SNAP_CURSOR_WINDOW_XY);
-		snt.cursorSnapWindowZ = (int) Prefs.get(SNAP_Z, 2);
+		snt.cursorSnapWindowZ = (int) Prefs.get(SNAP_Z, 0);
 		snt.cursorSnapWindowZ = whithinBoundaries(snt.cursorSnapWindowZ,
 			SNT.MIN_SNAP_CURSOR_WINDOW_Z,
 			SNT.MAX_SNAP_CURSOR_WINDOW_Z);
