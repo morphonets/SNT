@@ -76,6 +76,7 @@ import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
 import ij.ImagePlus;
+import ij.gui.Roi;
 import ij.measure.Calibration;
 import ij3d.Content;
 import ij3d.UniverseListener;
@@ -398,6 +399,23 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	public Set<Path> getSelectedPaths() {
 		return selectedPathsSet;
+	}
+
+	public Collection<Path> getPathsInROI(final Roi roi) {
+		final List<Path> paths = new ArrayList<>();
+		for (final Path p : getPaths()) {
+			if (containedByRoi(p, roi))
+				paths.add(p);
+		}
+		return paths;
+	}
+
+	private boolean containedByRoi(final Path p, final Roi roi) {
+		for (int i = 0; i < p.size(); i++) {
+			if (roi.contains(p.getXUnscaled(i), p.getYUnscaled(i)))
+				return true;
+		}
+		return false;
 	}
 
 	/**

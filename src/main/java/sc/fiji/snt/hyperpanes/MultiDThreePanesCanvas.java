@@ -54,6 +54,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	private String canvasText; // text to be rendered NW corner of canvas
 	private Color annotationsColor;
 	private boolean waveInteractionsToIJ;
+	protected boolean waitingForRoiDrawing;
 	protected boolean cursorLocked;
 
 	protected MultiDThreePanesCanvas(final ImagePlus imagePlus,
@@ -391,7 +392,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	 * @return whether SNT is being notified of mouse/key events
 	 */
 	public boolean isEventsDisabled() {
-		return waveInteractionsToIJ;
+		return waveInteractionsToIJ || waitingForRoiDrawing;
 	}
 
 	/**

@@ -24,6 +24,8 @@ package sc.fiji.snt;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.gui.Roi;
+import ij.gui.Toolbar;
 import ij.measure.Calibration;
 import org.jgrapht.Graphs;
 import org.jgrapht.traverse.DepthFirstIterator;
@@ -97,6 +99,22 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final AListener listener = new AListener();
 		pMenu.add(menuItem(AListener.SELECT_NEAREST, listener, KeyEvent.VK_G));
 		pMenu.add(menuItem(AListener.APPEND_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_MASK)));
+		final JMenuItem selectByRoi = new JMenuItem("Select by 2D ROI");
+		selectByRoi.addActionListener( e -> {
+			if (pathAndFillManager.size() == 0) {
+				getGuiUtils().error("There are no traced paths.", "Nothing to Select");
+				return;
+			}
+			if (getImage().getRoi() != null && selectPathsByRoi()) {
+				return; // a ROI existed and we successfully used it to select paths
+			} else {
+				// User still has to create ROI
+				waitingForRoiDrawing = true;
+				if (unsuitableToolForRoiSelection()) IJ.setTool("freehand");
+				getGuiUtils().tempMsg("Draw ROI around paths to be selected. Current tool: " + IJ.getToolName());
+			}
+		});
+		pMenu.add(selectByRoi);
 		pMenu.addSeparator();
 
 		final JMenuItem mi = menuItem(AListener.CLICK_AT_MAX, listener, KeyEvent.VK_V);
@@ -548,8 +566,30 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	public void mouseReleased(final MouseEvent me) {
 		if (tracerPlugin.panMode || isEventsDisabled()) {
 			super.mouseReleased(me);
-			return;
 		}
+		if (waitingForRoiDrawing && getImage().getRoi() != null && getImage().getRoi().getState() != Roi.CONSTRUCTING) { // ROI has been completed
+			selectPathsByRoi();
+			me.consume();
+		}
+	}
+
+	private boolean selectPathsByRoi() {
+		final HashSet<Path> paths = new HashSet<>(pathAndFillManager.getPathsInROI((getImage().getRoi())));
+		if (!paths.isEmpty()) {
+			if (tracerPlugin.getUI() != null)
+				tracerPlugin.getUI().getPathManager().setSelectedPaths(paths, this);
+			else
+				tracerPlugin.setSelectedPaths(paths, this);
+		}
+		getImage().deleteRoi();
+		waitingForRoiDrawing = false;
+		if (paths.isEmpty())
+			getGuiUtils().tempMsg("No paths selected. Invalid selection ROI?");
+		return !paths.isEmpty();
+	}
+
+	private boolean unsuitableToolForRoiSelection() {
+		return Toolbar.getToolId() > 3;
 	}
 
 	@Override
