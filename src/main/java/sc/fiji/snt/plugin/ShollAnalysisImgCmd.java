@@ -76,7 +76,6 @@ import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.ProfileProperties;
@@ -295,7 +294,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	private AnalysisRunner analysisRunner;
 	private Profile profile;
 	private int scope;
-	private SNTTable commonSummaryTable;
+	private ShollTable commonSummaryTable;
 	private Display<?> detailedTableDisplay;
 
 	/* Preferences */
@@ -1128,10 +1127,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 					return;
 				}
 			}
-			if (!parser.successful()) {
-				final Result result = helper.yesNoPrompt("Previous run did not yield a valid profile. Re-parse image?", null);
-				if (result != Result.YES_OPTION)
-					return;
+			if (!parser.successful() && helper.getConfirmation("Previous run did not yield a valid profile. Re-parse image?", "Parse Image Again?")) {
 				if (!updateHyperStackPosition()) {
 					initializeParser();
 					readThresholdFromImp();
@@ -1210,7 +1206,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 				final ShollTable sTable = new ShollTable(lStats, nStats);
 				if (commonSummaryTable == null)
-					commonSummaryTable = new SNTTable();
+					commonSummaryTable = new ShollTable();
 				sTable.summarize(commonSummaryTable, imp.getTitle());
 				sTable.setTitle("Sholl Results");
 				outputs.add(sTable);

@@ -156,7 +156,7 @@ public class ShollTable extends SNTTable {
 	 * @see #setDetailedSummary(boolean)
 	 * @see #summarize(String)
 	 */
-	public void summarize(final DefaultGenericTable table, final String header) {
+	public void summarize(final ShollTable table, final String header) {
 		summarize(header);
 		table.appendRow(header);
 		final int destinationRow = table.getRowCount() - 1;
