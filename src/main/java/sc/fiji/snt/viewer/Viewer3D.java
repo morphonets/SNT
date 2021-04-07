@@ -841,19 +841,19 @@ public class Viewer3D {
 	/**
 	 * Adds a collection of trees.
 	 *
-	 * @param trees     the trees to be added
-	 * @param color     Set it to {@code null}, {@code none} or {@code ""} to ignore
-	 *                  this option altogether. Set it to {@code unique} to assign unique
-	 *                  colors to each tree in the collection.
-	 * @param commonTag a common tag to be assigned to the group (to be displayed in
-	 *                  'RV Controls' list.
+	 * @param trees      the trees to be added
+	 * @param color      Set it to {@code null}, {@code none} or {@code ""} to
+	 *                   ignore this option altogether. Set it to {@code unique} to
+	 *                   assign unique colors to each tree in the collection.
+	 * @param commonTags common tag(s) to be assigned to the group (to be displayed
+	 *                   in 'RV Controls' list.
 	 */
-	public void addTrees(final Collection<Tree> trees, final String color, final String commonTag) {
-		if (commonTag != null) {
+	public void addTrees(final Collection<Tree> trees, final String color, final String... commonTags) {
+		if (commonTags != null) {
 			trees.forEach(tree -> {
 				String label = tree.getLabel();
 				if (label == null) label = "";
-				tree.setLabel(label + "{" + commonTag + "}");
+				tree.setLabel(label + "{" + String.join(",", commonTags)  + "}");
 			});
 		}
 		addTrees(trees, color);
