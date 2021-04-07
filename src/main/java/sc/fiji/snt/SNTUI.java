@@ -2769,7 +2769,7 @@ public class SNTUI extends JDialog {
 		final boolean enbl = enable && isFastMarchSearchAvailable();
 		plugin.tubularGeodesicsTracingEnabled = enbl;
 		if (!enbl) {
-			searchAlgoChoice.setSelectedIndex(0);
+			searchAlgoChoice.setSelectedIndex( (plugin.nbaStarSearchEnabled) ? 1 : 0);
 			if (plugin.tubularGeodesicsThread != null) {
 				plugin.tubularGeodesicsThread.requestStop();
 				plugin.tubularGeodesicsThread = null;
