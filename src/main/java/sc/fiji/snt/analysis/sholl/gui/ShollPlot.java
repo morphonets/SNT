@@ -233,26 +233,27 @@ public class ShollPlot extends Plot {
 	}
 
 	private static String defaultYtitle(final ShollStats stats) {
+		final boolean intensities = stats.getProfile().isIntDensityProfile();
 		if (stats instanceof NormalizedProfileStats) {
 			final int normMethod = (((NormalizedProfileStats) stats)).getMethod();
 			switch (normMethod) {
 			case ShollStats.ANNULUS:
-				return "log(No. Inters./Annulus)";
+				return (intensities) ? "log(N. Int. Dens./Annulus)" : "log(No. Inters./Annulus)";
 			case ShollStats.AREA:
-				return "log(No. Inters./Area)";
+				return (intensities) ? "log(N. Int. Dens./Area)" : "log(No. Inters./Area)";
 			case ShollStats.PERIMETER:
-				return "log(No. Inters./Perimeter)";
+				return (intensities) ? "log(N. Int. Dens./Perimeter)" : "log(No. Inters./Perimeter)";
 			case ShollStats.S_SHELL:
-				return "log(No. Inters./Spherical Shell)";
+				return (intensities) ? "log(N. Int. Dens./Spherical Shell)" : "log(No. Inters./Spherical Shell)";
 			case ShollStats.SURFACE:
-				return "log(No. Inters./Surface)";
+				return (intensities) ? "log(N. Int. Dens./Surface)" : "log(No. Inters./Surface)";
 			case ShollStats.VOLUME:
-				return "log(No. Inters./Volume)";
+				return (intensities) ? "log(N. Int. Dens./Volume)" : "log(No. Inters./Volume)";
 			default:
 				return "Normalized Inters.";
 			}
 		}
-		return "No. Intersections";
+		return (stats.getProfile().isIntDensityProfile()) ? "Norm. Integrated Density" : "No. Intersections";
 	}
 
 	private void drawDottedLine(final double x1, final double y1, final double x2, final double y2) {

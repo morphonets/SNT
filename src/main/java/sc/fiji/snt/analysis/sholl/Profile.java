@@ -50,6 +50,7 @@ public class Profile implements ProfileProperties {
 	private Calibration cal = new Calibration();
 	private Properties properties;
 	private double stepRadius = -1;
+	private boolean isIntDensityProfile;
 
 	/** Instantiates a new empty profile. */
 	public Profile() {
@@ -398,6 +399,14 @@ public class Profile implements ProfileProperties {
 
 	public boolean isEmpty() {
 		return profile == null || profile.size() == zeroCounts();
+	}
+
+	public void setIsIntDensityProfile(final boolean isIntDensityProfile) {
+		this.isIntDensityProfile = isIntDensityProfile;
+	}
+
+	public boolean isIntDensityProfile() {
+		return isIntDensityProfile;
 	}
 
 	@Override

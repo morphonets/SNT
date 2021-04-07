@@ -145,8 +145,14 @@ public class ImageParser2D extends ImageParser {
 
 				// Count the number of intersections
 				final Set<ShollPoint> thisBinIntersPoints = targetGroupsPositions(pixels, points);
-				binsamples[s] = thisBinIntersPoints.size();
-				pointsList.addAll(thisBinIntersPoints);
+				if (isRetrieveIntDensitiesSet()) {
+					double sum = 0;
+					for (final float v:getPixelIntensities(points)) sum += v;
+					binsamples[s] = sum / points.length;
+				} else {
+					binsamples[s] = thisBinIntersPoints.size();
+					pointsList.addAll(thisBinIntersPoints);
+				}
 			}
 			statusService.showProgress(i++, size * nSpans);
 
@@ -305,6 +311,26 @@ public class ImageParser2D extends ImageParser {
 			sPoints.add(new ShollPoint(points[pos][0], points[pos][1], cal));
 
 		return sPoints;
+	}
+
+	private float[] getPixelIntensities(final int[][] points) {
+
+		// Initialize the array to hold the pixel values. float 
+		// arrays are initialized to a default value of 0f
+		final float[] pixels = new float[points.length];
+
+		// Put the pixel value for each circumference point in the pixel array
+		for (int i = 0; i < pixels.length; i++) {
+
+			// We already filtered out of bounds coordinates in getCircumferencePoints
+			final int x = points[i][0];
+			final int y = points[i][1];
+			if (withinXYbounds(x, y)) {
+				final float value = (ip instanceof FloatProcessor) ? Float.intBitsToFloat(ip.getPixel(x, y)) : ip.getPixel(x, y);
+				if (withinThreshold(value)) pixels[i] = value;
+			}
+		}
+		return pixels;
 	}
 
 	protected int[] getPixels(final int[][] points) {

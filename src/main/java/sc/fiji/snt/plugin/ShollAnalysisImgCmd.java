@@ -224,7 +224,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	private String HEADER4;
 
 	@Parameter(label = "Plots", callback="saveOptionsChanged", choices = { "Linear plot", "Normalized plot", "Linear & normalized plots",
-			"None. Show no plots" })
+			"Norm. integrated density plot", "None. Show no plots" })
 	private String plotOutputDescription;
 
 	@Parameter(label = "Tables", callback="saveOptionsChanged", choices = { "Detailed table", "Summary table",
@@ -384,6 +384,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			previewShells = false;
 			imp.setOverlay(overlaySnapshot);
 			parser.reset();
+			parser.setRetrieveIntDensities(plotOutputDescription.contains("integrated"));
 			startAnalysisThread(false);
 			break;
 		case SCOPE_PROFILE:
@@ -517,7 +518,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 	private void startAnalysisThread(final boolean skipImageParsing) {
 		analysisRunner = new AnalysisRunner(parser);
-		analysisRunner.setSkipParsing(skipImageParsing);
+		analysisRunner.setSkipParsing(skipImageParsing || plotOutputDescription.contains("integrated") != parser.isRetrieveIntDensitiesSet());
 		statusService.showStatus("Analysis started");
 		logger.debug("Analysis started...");
 		analysisThread = threadService.newThread(analysisRunner);
@@ -858,14 +859,15 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 	private boolean readThresholdFromImp() {
 		boolean successfulRead = true;
-		final double minT = imp.getProcessor().getMinThreshold();
-		final double maxT = imp.getProcessor().getMaxThreshold();
 		if (imp.getProcessor().isBinary()) {
 			lowerT = 1;
 			upperT = 255;
 		} else if (imp.isThreshold()) {
-			lowerT = minT;
-			upperT = maxT;
+			lowerT = imp.getProcessor().getMinThreshold();
+			upperT = imp.getProcessor().getMaxThreshold();
+		} else if (plotOutputDescription.contains("integrated")) {
+			lowerT = Double.MIN_VALUE;
+			upperT = Double.MAX_VALUE;
 		} else {
 			successfulRead = false;
 		}
@@ -1179,7 +1181,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 			// Set Plots
 			outputs = new ArrayList<>();
-			if (plotOutputDescription.toLowerCase().contains("linear")) {
+			if (plotOutputDescription.toLowerCase().contains("integrated") || plotOutputDescription.toLowerCase().contains("linear")) {
 				final ShollPlot lPlot = lStats.getPlot();
 				outputs.add(lPlot);
 				lPlot.show();
