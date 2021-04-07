@@ -2540,6 +2540,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						p.somehowJoins.contains(refPath)) continue;
 					pathsToMerge.add(p);
 				}
+				if (pathsToMerge.isEmpty()) {
+					guiUtils.error("Only non-connected paths can be combined.");
+					return;
+				}
 				if (pathsToMerge.size() < n - 1 && !guiUtils.getConfirmation(
 					"Some of the selected paths are connected and cannot be combined. " +
 						"Proceed by combinining the " + pathsToMerge.size() +

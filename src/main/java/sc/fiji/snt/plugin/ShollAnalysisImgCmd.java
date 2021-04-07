@@ -339,11 +339,11 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		}
 	}
 
-	private boolean validRequirements() {
+	private boolean validRequirements(final boolean includeOngoingAnalysis) {
 		String cancelReason = "";
 		if (imp == null) {
 			cancelReason = NO_IMAGE;
-		} else if (ongoingAnalysis()) {
+		} else if (includeOngoingAnalysis && ongoingAnalysis()) {
 			cancelReason = RUNNING;
 		} else {
 			cancelReason = validateRequirements(true);
@@ -379,7 +379,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 					return;
 				}
 			}
-			if (!validRequirements())
+			if (!validRequirements(true))
 				return;
 			updateHyperStackPosition(); // Did channel/frame changed?
 			previewShells = false;
@@ -1136,10 +1136,10 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 					initializeParser();
 					readThresholdFromImp();
 				}
-				if (!validRequirements()) return;
+				if (!validRequirements(false)) return;
 				parser.parse();
 				if (!parser.successful()) {
-					helper.error("No valid profile retrieved.", "Re-run Failed");
+					helper.error("No valid profile retrieved. Maybe settings are not appropriate?", "Re-run Failed");
 					return;
 				}
 			}
