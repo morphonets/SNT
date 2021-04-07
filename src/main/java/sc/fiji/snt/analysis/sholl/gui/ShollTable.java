@@ -132,7 +132,7 @@ public class ShollTable extends SNTTable {
 				addCol(yHeader, nStats.getFitYvalues());
 			}
 		}
-
+		fillEmptyCells(Double.NaN);
 	}
 
 	/**

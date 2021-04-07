@@ -70,7 +70,19 @@ public class SNTTable extends DefaultGenericTable {
 		hasUnsavedData = false;
 	}
 
+	protected void validate() {
+		int maxRows = 0;
+		for (int col = 0; col < getColumnCount(); ++col) {
+			final int nRows = get(col).size();
+			if (nRows > maxRows) maxRows = nRows;
+		}
+		for (int col = 0; col < getColumnCount(); ++col) {
+			get(col).setSize(maxRows);
+		}
+	}
+
 	public void fillEmptyCells(final Object value) {
+		validate();
 		for (int col = 0; col < getColumnCount(); ++col) {
 			for (int row = 0; row < getRowCount(); ++row) {
 				if (get(col, row) == null) {
