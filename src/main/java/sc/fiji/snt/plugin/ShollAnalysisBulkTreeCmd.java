@@ -402,14 +402,14 @@ public class ShollAnalysisBulkTreeCmd extends ContextCommand
 
 			// Plots
 			if (plotOutputDescription.toLowerCase().contains("linear")) {
-				final ShollPlot lPlot = new ShollPlot(lStats);
+				final ShollPlot lPlot = lStats.getPlot(false);
 				if (lPlot.save(saveDir))
 					logger.info(TREE_LABEL + " Linear plot saved...");
 				else
 					logger.warn(TREE_LABEL + " Error while saving linear plot");
 			}
 			if (plotOutputDescription.toLowerCase().contains("normalized")) {
-				final ShollPlot nPlot = new ShollPlot(nStats);
+				final ShollPlot nPlot = nStats.getPlot(false);
 				if (nPlot.save(saveDir))
 					logger.info(TREE_LABEL + " Normalized plot saved...");
 				else

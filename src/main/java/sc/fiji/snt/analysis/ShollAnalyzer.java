@@ -300,6 +300,6 @@ public class ShollAnalyzer {
 		analyzer.getSecondaryMaxima().forEach(sMax -> {
 			System.out.println("Sec max occur at:\t" + Arrays.toString(sMax));
 		});
-		analyzer.getLinearStats().getPlot().show();
+		analyzer.getLinearStats().getPlot(false).show();
 	}
 }

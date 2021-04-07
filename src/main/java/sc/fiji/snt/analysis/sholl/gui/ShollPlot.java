@@ -68,6 +68,7 @@ public class ShollPlot extends Plot {
 	private final static double[] DUMMY_VALUES = null;
 
 	private boolean annotate;
+	private boolean preferCumulativeFrequencies;
 	private ShollStats stats;
 	private LinearProfileStats linearStats;
 	private NormalizedProfileStats normStats;
@@ -75,11 +76,15 @@ public class ShollPlot extends Plot {
 	private double xMin, xMax, yMin, yMax;
 
 	public ShollPlot(final Profile profile) {
-		this(new LinearProfileStats(profile));
+		this(new LinearProfileStats(profile), false);
 	}
 
 	public ShollPlot(final ShollStats stats) {
-		this(defaultTitle(stats), defaultXtitle(stats), defaultYtitle(stats), stats, true);
+		this(stats, false);
+	}
+
+	public ShollPlot(final ShollStats stats, final boolean cumulativeFrequencies) {
+		this(defaultTitle(stats), defaultXtitle(stats), defaultYtitle(stats), stats, true, cumulativeFrequencies);
 	}
 
 	public ShollPlot(final Profile... profiles) {
@@ -100,7 +105,7 @@ public class ShollPlot extends Plot {
 
 	@SuppressWarnings("deprecation")
 	public ShollPlot(final String title, final String xLabel, final String yLabel, final ShollStats stats,
-			final boolean annotate) {
+			final boolean annotate, final boolean preferCumulativeFrequencies) {
 
 		// initialize empty plot, so that sampled data can be plotted with a
 		// custom shape, otherwise the default Plot.Line would be used
@@ -120,11 +125,12 @@ public class ShollPlot extends Plot {
 		}
 
 		this.annotate = annotate;
+		this.preferCumulativeFrequencies = preferCumulativeFrequencies;
 		tempLegend = new StringBuffer();
 
 		// Set plot limits without grid lines
 		final double[] xValues = stats.getXvalues();
-		final double[] yValues = stats.getYvalues();
+		final double[] yValues = stats.getYvalues(preferCumulativeFrequencies);
 		xMin = StatUtils.min(xValues);
 		xMax = StatUtils.max(xValues);
 		yMin = StatUtils.min(yValues);
@@ -148,7 +154,7 @@ public class ShollPlot extends Plot {
 		// Add fitted data
 		setColor(FDATA_COLOR1);
 		if (linearStats != null && linearStats.validFit()) {
-			addPoints(linearStats.getXvalues(), linearStats.getFitYvalues(), THICK_LINE);
+			addPoints(linearStats.getXvalues(), linearStats.getFitYvalues(preferCumulativeFrequencies), THICK_LINE);
 			annotateLinearProfile(true);
 		}
 		if (normStats != null && normStats.validFit()) {
@@ -184,7 +190,7 @@ public class ShollPlot extends Plot {
 		if (isFrozen())
 			return;
 		final ShollPlot newPlot = new ShollPlot(defaultTitle(stats), defaultXtitle(stats), defaultYtitle(stats), stats,
-				annotate);
+				annotate, preferCumulativeFrequencies);
 		String title = pw.getTitle();
 		if (title != null && title.indexOf(" (") != -1) {
 			String statsLabel = "";
@@ -470,6 +476,10 @@ public class ShollPlot extends Plot {
 	public boolean isVisible() {
 		final PlotWindow pw = (PlotWindow) getImagePlus().getWindow();
 		return (pw != null && pw.isVisible());
+	}
+
+	public boolean isUsingCumulativeFrequencies() {
+		return preferCumulativeFrequencies;
 	}
 
 	public boolean save(String filepath) {

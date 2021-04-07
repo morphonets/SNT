@@ -224,16 +224,17 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	private String HEADER4;
 
 	@Parameter(label = "Plots", callback="saveOptionsChanged", choices = { "Linear plot", "Normalized plot", "Linear & normalized plots",
-			"Norm. integrated density plot", "None. Show no plots" })
+			"Norm. integrated density plot", "Cumulative: Linear plot", "Cumulative: Norm. integrated density plot", "None. Show no plots" })
 	private String plotOutputDescription;
 
 	@Parameter(label = "Tables", callback="saveOptionsChanged", choices = { "Detailed table", "Summary table",
 		"Detailed & Summary tables", "None. Show no tables" })
 	private String tableOutputDescription;
 
-	@Parameter(label = "Annotations", callback = "annotationsDescriptionChanged",
-		choices = { "ROIs (Sholl points only)", "ROIs (points and 2D shells)",
-			"ROIs and mask", "None. Show no annotations" })
+	@Parameter(label = "Annotations", description="Point ROIs are not created when retrieving \"Norm. integrated density plot\"",
+			callback = "annotationsDescriptionChanged",
+		choices = { "ROIs (points only)", "ROIs (points and 2D shells)",
+			"ROIs (points) and mask", "Mask", "None. Show no annotations" })
 	private String annotationsDescription;
 
 	@Parameter(label = "Annotations LUT", callback = "lutChoiceChanged",
@@ -1169,25 +1170,27 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 			// Set ROIs
 			if (!annotationsDescription.contains("None") && imp != null) {
-				final ShollOverlay sOverlay = new ShollOverlay(profile, imp, true);
-				sOverlay.addCenter();
-				if (annotationsDescription.contains("shells"))
-					sOverlay.setShellsLUT(lutTable, ShollOverlay.COUNT);
-				sOverlay.setPointsLUT(lutTable, ShollOverlay.COUNT);
-				sOverlay.updateDisplay();
-				overlaySnapshot = imp.getOverlay();
-				if (annotationsDescription.contains("mask")) showMask();
+				if (annotationsDescription.contains("ROIs")) {
+					final ShollOverlay sOverlay = new ShollOverlay(profile, imp, true);
+					sOverlay.addCenter();
+					if (annotationsDescription.contains("shells"))
+						sOverlay.setShellsLUT(lutTable, ShollOverlay.COUNT);
+					sOverlay.setPointsLUT(lutTable, ShollOverlay.COUNT);
+					sOverlay.updateDisplay();
+					overlaySnapshot = imp.getOverlay();
+				}
+				if (annotationsDescription.toLowerCase().contains("mask")) showMask();
 			}
 
 			// Set Plots
 			outputs = new ArrayList<>();
 			if (plotOutputDescription.toLowerCase().contains("integrated") || plotOutputDescription.toLowerCase().contains("linear")) {
-				final ShollPlot lPlot = lStats.getPlot();
+				final ShollPlot lPlot = lStats.getPlot(plotOutputDescription.toLowerCase().contains("cum"));
 				outputs.add(lPlot);
 				lPlot.show();
 			}
 			if (plotOutputDescription.toLowerCase().contains("normalized")) {
-				final ShollPlot nPlot = nStats.getPlot();
+				final ShollPlot nPlot = nStats.getPlot(false);
 				outputs.add(nPlot);
 				nPlot.show();
 			}

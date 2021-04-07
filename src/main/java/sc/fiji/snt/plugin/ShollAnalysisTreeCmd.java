@@ -805,7 +805,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				showStatus("Plot updated...");
 			}
 			else {
-				plot = new ShollPlot(stats);
+				plot = new ShollPlot(stats, false);
 				plot.show();
 			}
 			return plot;
