@@ -78,6 +78,9 @@ public class PrefsCmd extends ContextCommand {
 	@Parameter(label="Remember window locations", description="Whether position of dialogs should be preserved across restarts")
 	private boolean persistentWinLoc;
 
+	@Parameter(label="Prefer 2D display canvases", description="When no valid image exists, Adopt 2D or 3D canvases?")
+	private boolean force2DDisplayCanvas;
+
 	@Parameter(label="Use compression when saving traces", description="Wheter Gzip compression should be use when saving .traces files")
 	private boolean compressTraces;
 
@@ -99,6 +102,7 @@ public class PrefsCmd extends ContextCommand {
 	public void run() {
 		snt.getPrefs().setSaveWinLocations(persistentWinLoc);
 		snt.getPrefs().setSaveCompressedTraces(compressTraces);
+		snt.getPrefs().set2DDisplayCanvas(force2DDisplayCanvas);
 		SNTPrefs.setThreads(Math.max(0, nThreads));
 		final String existingLaf = SNTPrefs.getLookAndFeel();
 		SNTPrefs.setLookAndFeel(laf);
@@ -116,6 +120,7 @@ public class PrefsCmd extends ContextCommand {
 		try {
 			snt = sntService.getPlugin();
 			persistentWinLoc = snt.getPrefs().isSaveWinLocations();
+			force2DDisplayCanvas = snt.getPrefs().is2DDisplayCanvas();
 			compressTraces = snt.getPrefs().isSaveCompressedTraces();
 			nThreads = SNTPrefs.getThreads();
 			laf = SNTPrefs.getLookAndFeel();
