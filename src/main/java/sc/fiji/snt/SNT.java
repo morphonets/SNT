@@ -802,7 +802,7 @@ public class SNT extends MultiDThreePanes implements
 	synchronized protected void stopFilling() throws IllegalArgumentException {
 
 		if (fillerThreadPool == null) {
-			throw new IllegalArgumentException("Attempted to shutdown null Filler");
+			throw new IllegalArgumentException("No filler threads are currently running.");
 		}
 		fillerThreadPool.shutdown();
 		try {

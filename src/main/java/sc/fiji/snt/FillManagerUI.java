@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.stream.IntStream;
 
-import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultListCellRenderer;
@@ -101,7 +100,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private JCheckBox transparent;
 	protected JButton startFilling;
 	private JButton saveFill;
-	private JButton discardFill;
 	private JButton stopFill;
 	private JButton exportAsCSV;
 	private JRadioButton manualRButton;
@@ -112,7 +110,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private final int MARGIN = 10;
 	private JLabel statusText;
 
-	private int currentState;
+	private int currentState = -1;
 	protected static final String FILLING_URI = "https://imagej.net/SNT:_Step-By-Step_Instructions#Filling";
 
 	/**
@@ -284,8 +282,10 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		stopFill.addActionListener(this);
 		saveFill = GuiUtils.smallButton("Store");
 		saveFill.addActionListener(this);
-		discardFill = GuiUtils.smallButton("Discard");
-		discardFill.addActionListener(this);
+		final JButton discardFill = GuiUtils.smallButton("Cancel/Esc");
+		discardFill.addActionListener( e -> {
+			plugin.discardFill(true); // will change state
+		});
 		fillControlPanel = SNTUI.buttonPanel(startFilling, stopFill, saveFill, discardFill);
 		statusPanel.add(fillControlPanel, BorderLayout.SOUTH);
 		return statusPanel;
@@ -335,60 +335,34 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	protected void setEnabledWhileFilling() {
 		assert SwingUtilities.isEventDispatchThread();
-		fillList.setEnabled(false);
-		deleteFills.setEnabled(false);
-		reloadFill.setEnabled(false);
 		fillStatus.setEnabled(true);
 		manualRButton.setEnabled(true);
 		maxThreshold.setEnabled(maxRButton.isSelected());
 		currentThreshold.setEnabled(true);
 		fillStatus.setEnabled(true);
 		maxRButton.setEnabled(maxRButton.isSelected());
-		exportAsImp.setEnabled(true);
-		exportAsCSV.setEnabled(true);
 		transparent.setEnabled(true);
-//		startFilling.setEnabled(true);
-//		saveFill.setEnabled(false);
-//		stopFill.setEnabled(false);
-//		discardFill.setEnabled(true);
 	}
 
 	protected void setEnabledWhileNotFilling() {
 		assert SwingUtilities.isEventDispatchThread();
-		fillList.setEnabled(true);
-		deleteFills.setEnabled(true);
 		fillStatus.setEnabled(true);
 		manualRButton.setEnabled(false);
 		maxThreshold.setEnabled(false);
 		currentThreshold.setEnabled(false);
 		fillStatus.setEnabled(false);
 		maxRButton.setEnabled(false);
-		exportAsImp.setEnabled(false);
-		exportAsCSV.setEnabled(false);
 		transparent.setEnabled(false);
-//		startFilling.setEnabled(false);
-//		saveFill.setEnabled(false);
-//		stopFill.setEnabled(false);
-//		discardFill.setEnabled(false);
 	}
 
 	protected void setEnabledNone() {
 		assert SwingUtilities.isEventDispatchThread();
-		fillList.setEnabled(false);
-		deleteFills.setEnabled(false);
-		reloadFill.setEnabled(false);
 		fillStatus.setEnabled(false);
 		manualRButton.setEnabled(false);
 		maxThreshold.setEnabled(false);
 		currentThreshold.setEnabled(false);
 		maxRButton.setEnabled(false);
-		exportAsImp.setEnabled(false);
-		exportAsCSV.setEnabled(false);
 		transparent.setEnabled(false);
-//		startFilling.setEnabled(false);
-//		saveFill.setEnabled(false);
-//		stopFill.setEnabled(false);
-//		discardFill.setEnabled(false);
 	}
 
 	public void setFillTransparent(final boolean transparent) {
@@ -438,6 +412,10 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 		final Object source = ae.getSource();
 
+		if (noPathsError() || noValidImgError()) {
+			return;
+		}
+
 		if (source == deleteFills) {
 			if (noFillsError()) return;
 			final int[] selectedIndices = fillList.getSelectedIndices();
@@ -476,14 +454,12 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 		}
 		else if (source == stopFill) {
+
 			try {
 				plugin.stopFilling(); // will change state
 			} catch (final IllegalArgumentException ex) {
 				gUtils.error(ex.getMessage());
 			}
-		}
-		else if (source == discardFill) {
-			plugin.discardFill(true); // will change state
 		}
 		else if (source == saveFill) {
 			try {
@@ -495,9 +471,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		else if (source == startFilling) {
 			if (plugin.fillerThreadPool != null) {
 				gUtils.error ("A filling operation is already running.");
-				return;
-			}
-			if (noPathsError() || noValidImgError()) {
 				return;
 			}
 			if (plugin.fillerSet.isEmpty()) {
@@ -694,7 +667,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFilling.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(false);
-				discardFill.setEnabled(false);
 				break;
 
 			case STARTED:
@@ -702,7 +674,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFilling.setEnabled(false);
 				stopFill.setEnabled(true);
 				saveFill.setEnabled(false);
-				discardFill.setEnabled(false);
 				break;
 
 			case ABORTED:
@@ -710,7 +681,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFilling.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(true);
-				discardFill.setEnabled(true);
 				break;
 
 			case ENDED:
@@ -718,7 +688,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFilling.setEnabled(false);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(true);
-				discardFill.setEnabled(true);
 				break;
 
 			default:
