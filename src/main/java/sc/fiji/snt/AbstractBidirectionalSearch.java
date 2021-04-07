@@ -26,7 +26,8 @@ import ij.ImagePlus;
 import org.jheaps.AddressableHeap;
 import org.jheaps.tree.PairingHeap;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.util.SparseMatrix;
+import sc.fiji.snt.util.SearchImage;
+import sc.fiji.snt.util.SearchImageStack;
 import sc.fiji.snt.util.SparseMatrixStack;
 
 import java.awt.*;
@@ -65,7 +66,7 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
     protected AddressableHeap<BidirectionalSearchNode, Void> open_from_goal;
     protected long closed_from_start_count;
     protected long closed_from_goal_count;
-    protected SparseMatrixStack<BidirectionalSearchNode> nodes_as_image;
+    protected SearchImageStack<SearchNode> nodes_as_image;
 
     private double bestPathLength;
     private BidirectionalSearchNode touchNode;
@@ -129,148 +130,153 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
     @Override
     public Path call() throws Exception {
 
-        if (verbose) {
-            System.out.println("New SearchThread running!");
-            printStatus();
-        }
+        try {
+            if (verbose) {
+                System.out.println("New SearchThread running!");
+                printStatus();
+            }
 
-        started_at = lastReportMilliseconds = System.currentTimeMillis();
+            started_at = lastReportMilliseconds = System.currentTimeMillis();
 
-        start = new BidirectionalSearchNode(start_x, start_y, start_z);
-        goal = new BidirectionalSearchNode(goal_x, goal_y, goal_z);
+            start = new BidirectionalSearchNode(start_x, start_y, start_z);
+            goal = new BidirectionalSearchNode(goal_x, goal_y, goal_z);
 
-        start.searchStatusFromStart = OPEN_FROM_START;
-        goal.searchStatusFromGoal = OPEN_FROM_GOAL;
+            start.searchStatusFromStart = OPEN_FROM_START;
+            goal.searchStatusFromGoal = OPEN_FROM_GOAL;
 
-        start.gFromStart = 0d;
-        goal.gFromGoal = 0d;
+            start.gFromStart = 0d;
+            goal.gFromGoal = 0d;
 
-        double bestFScoreFromStart = estimateCostToGoal(start.x, start.y, start.z, goal.x, goal.y, goal.z);
-        double bestFScoreFromGoal = estimateCostToGoal(goal.x, goal.y, goal.z, start.x, start.y, start.z);
+            double bestFScoreFromStart = estimateCostToGoal(start.x, start.y, start.z, goal.x, goal.y, goal.z);
+            double bestFScoreFromGoal = estimateCostToGoal(goal.x, goal.y, goal.z, start.x, start.y, start.z);
 
-        start.fFromStart = bestFScoreFromStart;
-        goal.fFromGoal = bestFScoreFromGoal;
+            start.hFromStart = start.fFromStart = bestFScoreFromStart;
+            start.hFromGoal = goal.fFromGoal = bestFScoreFromGoal;
 
-        bestPathLength = Double.POSITIVE_INFINITY;
+            bestPathLength = Double.POSITIVE_INFINITY;
 
-        touchNode = null;
+            touchNode = null;
 
-        start.heapHandleFromStart = open_from_start.insert(start);
-        goal.heapHandleFromGoal = open_from_goal.insert(goal);
+            start.heapHandleFromStart = open_from_start.insert(start);
+            goal.heapHandleFromGoal = open_from_goal.insert(goal);
 
-        nodes_as_image.newSlice(start_z);
-        nodes_as_image.getSlice(start_z).setValue(start_x, start_y, start);
+            nodes_as_image.newSlice(start_z);
+            nodes_as_image.getSlice(start_z).setValue(start_x, start_y, start);
 
-        if (nodes_as_image.getSlice(goal_z) == null) {
-            nodes_as_image.newSlice(goal_z);
-        }
+            if (nodes_as_image.getSlice(goal_z) == null) {
+                nodes_as_image.newSlice(goal_z);
+            }
 
-        nodes_as_image.getSlice(goal_z).setValue(goal_x, goal_y, goal);
+            nodes_as_image.getSlice(goal_z).setValue(goal_x, goal_y, goal);
 
         while (!open_from_goal.isEmpty() && !open_from_start.isEmpty()) {
 
-            if (Thread.currentThread().isInterrupted()) {
-                if (verbose) System.out.println("Search thread interrupted, returning null result.");
+                if (Thread.currentThread().isInterrupted()) {
+                    if (verbose) System.out.println("Search thread interrupted, returning null result.");
+                    reportFinished(false);
+                    return null;
+                }
+
+                if (0 == (loops % 10000) && checkStatus()) {
+                    // search timed out
+                    reportFinished(false);
+                    return null;
+                }
+
+                if (open_from_start.size() < open_from_goal.size()) {
+
+                    BidirectionalSearchNode p;
+
+                    if (open_from_start.isEmpty()) continue;
+
+                    p = open_from_start.deleteMin().getKey();
+                    p.heapHandleFromStart = null;
+                    if (p.searchStatusFromGoal == CLOSED_FROM_GOAL) {
+                        continue;
+                    }
+
+                    bestFScoreFromStart = p.fFromStart;
+
+                    p.searchStatusFromStart = CLOSED_FROM_START;
+                    closed_from_start_count++;
+
+                    if (p.gFromStart + estimateCostToGoal(p.x, p.y, p.z, goal.x, goal.y, goal.z)
+                            >= bestPathLength
+                            ||
+                            p.gFromStart + bestFScoreFromGoal - estimateCostToGoal(p.x, p.y, p.z, start.x, start.y, start.z)
+                                    >= bestPathLength) {
+
+                        p.stateFromStart = REJECTED;
+
+                    } else {
+
+                        p.stateFromStart = STABILIZED;
+                        expandNeighbors(p, true);
+                    }
+
+
+                } else {
+
+                    BidirectionalSearchNode p;
+
+                    if (open_from_goal.isEmpty()) continue;
+
+                    p = open_from_goal.deleteMin().getKey();
+                    p.heapHandleFromGoal = null;
+                    if (p.searchStatusFromStart == CLOSED_FROM_START) {
+                        continue;
+                    }
+
+                    bestFScoreFromGoal = p.fFromGoal;
+
+                    p.searchStatusFromGoal = CLOSED_FROM_GOAL;
+                    closed_from_goal_count++;
+
+                    if (p.gFromGoal + estimateCostToGoal(p.x, p.y, p.z, start.x, start.y, start.z)
+                            >= bestPathLength
+                            ||
+                            p.gFromGoal + bestFScoreFromStart - estimateCostToGoal(p.x, p.y, p.z, goal.x, goal.y, goal.z)
+                                    >= bestPathLength) {
+
+                        p.stateFromGoal = REJECTED;
+
+                    } else {
+
+                        p.stateFromGoal = STABILIZED;
+                        expandNeighbors(p, false);
+                    }
+
+                }
+
+                ++loops;
+            }
+
+            if (touchNode == null) {
+                // Not sure how this would happen...
+                if (verbose) System.out.println("Touch node is null, returning null result");
                 reportFinished(false);
                 return null;
             }
 
-            if (0 == (loops % 10000) && checkStatus()) {
-                // search timed out
-                reportFinished(false);
-                return null;
+            // Success
+            if (verbose) {
+                System.out.println("Searches met!");
+                System.out.println("Cost for path = " + bestPathLength);
+                System.out.println("Total loops = " + loops);
+                System.out.println("Remaining open from start = " + open_from_start.size());
+                System.out.println("Remaining open from goal = " + open_from_goal.size());
+                System.out.println("Closed from start = " + closed_from_start_count);
+                System.out.println("Closed from goal = " + closed_from_goal_count);
             }
+            result = reconstructPath(x_spacing, y_spacing, z_spacing, spacing_units);
+            reportFinished(true);
+            return result;
 
-            if (open_from_start.size() < open_from_goal.size()) {
-
-                BidirectionalSearchNode p;
-
-                p = open_from_start.deleteMin().getKey();
-                if (p.searchStatusFromGoal == CLOSED_FROM_GOAL) {
-                    continue;
-                }
-
-                p.searchStatusFromStart = CLOSED_FROM_START;
-                closed_from_start_count++;
-
-                if (p.gFromStart + estimateCostToGoal(p.x, p.y, p.z, goal.x, goal.y, goal.z)
-                        >= bestPathLength
-                        ||
-                        p.gFromStart + bestFScoreFromGoal - estimateCostToGoal(p.x, p.y, p.z, start.x, start.y, start.z)
-                                >= bestPathLength) {
-
-                    p.stateFromStart = REJECTED;
-                    continue;
-
-                } else {
-
-                    p.stateFromStart = STABILIZED;
-                    expandNeighbors(p, true);
-                }
-
-                if (!open_from_start.isEmpty()) {
-                    BidirectionalSearchNode min = open_from_start.findMin().getKey();
-                    if (min.searchStatusFromGoal != CLOSED_FROM_GOAL) {
-                        bestFScoreFromStart = min.fFromStart;
-                    }
-                }
-
-            } else {
-
-                BidirectionalSearchNode p;
-
-                p = open_from_goal.deleteMin().getKey();
-                if (p.searchStatusFromStart == CLOSED_FROM_START) {
-                    continue;
-                }
-
-                p.searchStatusFromGoal = CLOSED_FROM_GOAL;
-                closed_from_goal_count++;
-
-                if (p.gFromGoal + estimateCostToGoal(p.x, p.y, p.z, start.x, start.y, start.z)
-                        >= bestPathLength
-                        ||
-                        p.gFromGoal + bestFScoreFromStart - estimateCostToGoal(p.x, p.y, p.z, goal.x, goal.y, goal.z)
-                                >= bestPathLength) {
-
-                    p.stateFromGoal = REJECTED;
-                    continue;
-
-                } else {
-
-                    p.stateFromGoal = STABILIZED;
-                    expandNeighbors(p, false);
-                }
-                if (!open_from_goal.isEmpty()) {
-                    BidirectionalSearchNode min = open_from_goal.findMin().getKey();
-                    if (min.searchStatusFromStart != CLOSED_FROM_START) {
-                        bestFScoreFromGoal = min.fFromGoal;
-                    }
-                }
-            }
-
-            ++loops;
-        }
-
-        if (touchNode == null) {
-            // Not sure how this would happen...
-            if (verbose) System.out.println("Touch node is null, returning null result");
+        } catch (Throwable t) {
+            SNTUtils.error("Exception during search", t);
             reportFinished(false);
             return null;
         }
-
-        // Success
-        if (verbose) {
-            System.out.println("Searches met!");
-            System.out.println("Total loops = " + loops);
-            System.out.println("Remaining open from start = " + open_from_start.size());
-            System.out.println("Remaining open from goal = " + open_from_goal.size());
-            System.out.println("Closed from start = " + closed_from_start_count);
-            System.out.println("Closed from goal = " + closed_from_goal_count);
-        }
-        result = reconstructPath(x_spacing, y_spacing, z_spacing, spacing_units);
-        reportFinished(true);
-        return result;
 
     }
 
@@ -279,7 +285,7 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
         for (int zdiff = -1; zdiff <= 1; zdiff++) {
             final int new_z = p.z + zdiff;
             if (new_z < 0 || new_z >= depth) continue;
-            SparseMatrix<BidirectionalSearchNode> currentSlice = nodes_as_image.getSlice(new_z);
+            SearchImage<SearchNode> currentSlice = nodes_as_image.getSlice(new_z);
             if (currentSlice == null) {
                 currentSlice = nodes_as_image.newSlice(new_z);
             }
@@ -291,12 +297,12 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
                     if (new_x < 0 || new_x >= width) continue;
                     if (new_y < 0 || new_y >= height) continue;
 
-                    BidirectionalSearchNode alreadyThereInEitherSearch = currentSlice.getValue(new_x, new_y);
-                    if (alreadyThereInEitherSearch != null &&
-                            (alreadyThereInEitherSearch.searchStatusFromStart == CLOSED_FROM_START ||
-                                    alreadyThereInEitherSearch.searchStatusFromGoal == CLOSED_FROM_GOAL)) {
-                        continue;
-                    }
+                    BidirectionalSearchNode alreadyThereInEitherSearch = (BidirectionalSearchNode) currentSlice.getValue(new_x, new_y);
+//                    if (alreadyThereInEitherSearch != null &&
+//                            (alreadyThereInEitherSearch.searchStatusFromStart == CLOSED_FROM_START ||
+//                                    alreadyThereInEitherSearch.searchStatusFromGoal == CLOSED_FROM_GOAL)) {
+//                        continue;
+//                    }
 
                     final double xdiffsq = (xdiff * x_spacing) * (xdiff * x_spacing);
                     final double ydiffsq = (ydiff * y_spacing) * (ydiff * y_spacing);
@@ -319,7 +325,7 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
                         if (alreadyThereInEitherSearch == null) {
 
                             alreadyThereInEitherSearch = new BidirectionalSearchNode(new_x, new_y, new_z,
-                                    g_for_new_point + h_for_new_point, Double.POSITIVE_INFINITY, // fFromStart, fFromGoal
+                                    h_for_new_point, Double.POSITIVE_INFINITY, // hFromStart, hFromGoal
                                     g_for_new_point, Double.POSITIVE_INFINITY, // gFromStart, gFromGoal
                                     p, null, // predecessorFromStart, predecessorFromGoal
                                     OPEN_FROM_START, FREE);  // searchStatusFromStart, searchStatusFromGoal
@@ -331,20 +337,15 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
                                     alreadyThereInEitherSearch.x, alreadyThereInEitherSearch.y,
                                     alreadyThereInEitherSearch);
 
-                        } else {
-
-                            if (alreadyThereInEitherSearch.searchStatusFromStart == FREE) {
-                                alreadyThereInEitherSearch.gFromStart = g_for_new_point;
-                                alreadyThereInEitherSearch.fFromStart = g_for_new_point + h_for_new_point;
-                                alreadyThereInEitherSearch.predecessorFromStart = p;
-                                alreadyThereInEitherSearch.searchStatusFromStart = OPEN_FROM_START;
-                                alreadyThereInEitherSearch.heapHandleFromStart = open_from_start.insert(
-                                        alreadyThereInEitherSearch);
-
-                            } else if (alreadyThereInEitherSearch.gFromStart > g_for_new_point) {
-                                alreadyThereInEitherSearch.gFromStart = g_for_new_point;
-                                alreadyThereInEitherSearch.fFromStart = g_for_new_point + h_for_new_point;
-                                alreadyThereInEitherSearch.predecessorFromStart = p;
+                        } else if (alreadyThereInEitherSearch.gFromStart > g_for_new_point) {
+                            alreadyThereInEitherSearch.gFromStart = g_for_new_point;
+                            alreadyThereInEitherSearch.hFromStart = h_for_new_point;
+                            alreadyThereInEitherSearch.fFromStart = g_for_new_point + h_for_new_point;
+                            alreadyThereInEitherSearch.predecessorFromStart = p;
+                            alreadyThereInEitherSearch.searchStatusFromStart = OPEN_FROM_START;
+                            if (alreadyThereInEitherSearch.heapHandleFromStart == null) {
+                                alreadyThereInEitherSearch.heapHandleFromStart = open_from_start.insert(alreadyThereInEitherSearch);
+                            } else {
                                 alreadyThereInEitherSearch.heapHandleFromStart.decreaseKey(alreadyThereInEitherSearch);
                             }
 
@@ -360,7 +361,7 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
                         if (alreadyThereInEitherSearch == null) {
 
                             alreadyThereInEitherSearch = new BidirectionalSearchNode(new_x, new_y, new_z,
-                                    Double.POSITIVE_INFINITY, g_for_new_point + h_for_new_point,
+                                    Double.POSITIVE_INFINITY, h_for_new_point,
                                     Double.POSITIVE_INFINITY, g_for_new_point,
                                     null, p,
                                     FREE, OPEN_FROM_GOAL);
@@ -372,20 +373,15 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
                                     alreadyThereInEitherSearch.x, alreadyThereInEitherSearch.y,
                                     alreadyThereInEitherSearch);
 
-                        } else {
-
-                            if (alreadyThereInEitherSearch.searchStatusFromGoal == FREE) {
-                                alreadyThereInEitherSearch.gFromGoal = g_for_new_point;
-                                alreadyThereInEitherSearch.fFromGoal = g_for_new_point + h_for_new_point;
-                                alreadyThereInEitherSearch.predecessorFromGoal = p;
-                                alreadyThereInEitherSearch.searchStatusFromGoal = OPEN_FROM_GOAL;
-                                alreadyThereInEitherSearch.heapHandleFromGoal = open_from_goal.insert(
-                                        alreadyThereInEitherSearch);
-
-                            } else if (alreadyThereInEitherSearch.gFromGoal > g_for_new_point) {
-                                alreadyThereInEitherSearch.gFromGoal = g_for_new_point;
-                                alreadyThereInEitherSearch.fFromGoal = g_for_new_point + h_for_new_point;
-                                alreadyThereInEitherSearch.predecessorFromGoal = p;
+                        } else if (alreadyThereInEitherSearch.gFromGoal > g_for_new_point) {
+                            alreadyThereInEitherSearch.gFromGoal = g_for_new_point;
+                            alreadyThereInEitherSearch.hFromGoal = h_for_new_point;
+                            alreadyThereInEitherSearch.fFromGoal = g_for_new_point + h_for_new_point;
+                            alreadyThereInEitherSearch.predecessorFromGoal = p;
+                            alreadyThereInEitherSearch.searchStatusFromGoal = OPEN_FROM_GOAL;
+                            if (alreadyThereInEitherSearch.heapHandleFromGoal == null) {
+                                alreadyThereInEitherSearch.heapHandleFromGoal = open_from_goal.insert(alreadyThereInEitherSearch);
+                            } else {
                                 alreadyThereInEitherSearch.heapHandleFromGoal.decreaseKey(alreadyThereInEitherSearch);
                             }
 
@@ -492,11 +488,11 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
     @Override
     protected BidirectionalSearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
                                                             final double threshold) {
-        final SparseMatrix<BidirectionalSearchNode> slice = nodes_as_image.getSlice(z);
+        final SearchImage<SearchNode> slice = nodes_as_image.getSlice(z);
         if (slice == null) {
             return null;
         }
-        return slice.getValue(x, y);
+        return (BidirectionalSearchNode) slice.getValue(x, y);
     }
 
     @Override
@@ -572,14 +568,70 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
     static class NodeComparatorFromStart implements Comparator<BidirectionalSearchNode> {
 
         public int compare(BidirectionalSearchNode n1, BidirectionalSearchNode n2) {
-            return Double.compare(n1.fFromStart, n2.fFromStart);
+            int result = Double.compare(n1.fFromStart, n2.fFromStart);
+            if (result != 0) {
+                return result;
+
+            }
+
+            int h_result = Double.compare(n1.hFromStart, n2.hFromStart);
+            if (h_result != 0) {
+                return h_result;
+            }
+
+            int x_compare = 0;
+            if (n1.x > n2.x) x_compare = 1;
+            if (n1.x < n2.x) x_compare = -1;
+
+            if (x_compare != 0) return x_compare;
+
+            int y_compare = 0;
+            if (n1.y > n2.y) y_compare = 1;
+            if (n1.y < n2.y) y_compare = -1;
+
+            if (y_compare != 0) return y_compare;
+
+            int z_compare = 0;
+            if (n1.z > n2.z) z_compare = 1;
+            if (n1.z < n2.z) z_compare = -1;
+
+            return z_compare;
+
         }
     }
+
 
     static class NodeComparatorFromGoal implements Comparator<BidirectionalSearchNode> {
 
         public int compare(BidirectionalSearchNode n1, BidirectionalSearchNode n2) {
-            return Double.compare(n1.fFromGoal, n2.fFromGoal);
+            int result = Double.compare(n1.fFromGoal, n2.fFromGoal);
+            if (result != 0) {
+                return result;
+            }
+
+            int h_result = Double.compare(n1.hFromGoal, n2.hFromGoal);
+            if (h_result != 0) {
+                return h_result;
+            }
+
+            int x_compare = 0;
+            if (n1.x > n2.x) x_compare = 1;
+            if (n1.x < n2.x) x_compare = -1;
+
+            if (x_compare != 0) return x_compare;
+
+            int y_compare = 0;
+            if (n1.y > n2.y) y_compare = 1;
+            if (n1.y < n2.y) y_compare = -1;
+
+            if (y_compare != 0) return y_compare;
+
+            int z_compare = 0;
+            if (n1.z > n2.z) z_compare = 1;
+            if (n1.z < n2.z) z_compare = -1;
+
+            return z_compare;
+
         }
     }
 

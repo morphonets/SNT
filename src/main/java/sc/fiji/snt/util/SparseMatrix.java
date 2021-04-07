@@ -23,6 +23,7 @@
 package sc.fiji.snt.util;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntSet;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Iterator;
@@ -32,9 +33,9 @@ import java.util.Iterator;
  *
  * @author Cameron Arshadi
  */
-public class SparseMatrix<V> implements Iterable<Int2ObjectOpenHashMap<V>> {
+public class SparseMatrix<V> implements SearchImage<V>, Iterable<Int2ObjectOpenHashMap<V>> {
 
-    public final Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<V>> doubleMap;
+    private final Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<V>> doubleMap;
 
     public SparseMatrix() {
         this.doubleMap = new Int2ObjectOpenHashMap<>();
@@ -50,6 +51,7 @@ public class SparseMatrix<V> implements Iterable<Int2ObjectOpenHashMap<V>> {
         return newRow;
     }
 
+    @Override
     public V getValue(final int x, final int y) {
         Int2ObjectOpenHashMap<V> row = getRow(y);
         if (row == null) {
@@ -58,6 +60,7 @@ public class SparseMatrix<V> implements Iterable<Int2ObjectOpenHashMap<V>> {
         return row.get(x);
     }
 
+    @Override
     public void setValue(final int x, final int y, final V value) {
         Int2ObjectOpenHashMap<V> row = getRow(y);
         if (row == null) {
@@ -69,6 +72,10 @@ public class SparseMatrix<V> implements Iterable<Int2ObjectOpenHashMap<V>> {
 
     public void setValueWithoutChecks(final int x, final int y, final V value) {
         doubleMap.get(y).put(x, value);
+    }
+
+    public IntSet rowKeySet() {
+        return doubleMap.keySet();
     }
 
     @NotNull

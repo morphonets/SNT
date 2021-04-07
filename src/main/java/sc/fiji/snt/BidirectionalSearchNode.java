@@ -40,6 +40,9 @@ public class BidirectionalSearchNode implements SearchNode {
     public double gFromStart;
     public double gFromGoal;
 
+    public double hFromStart;
+    public double hFromGoal;
+
     public double fFromStart;
     public double fFromGoal;
 
@@ -55,17 +58,8 @@ public class BidirectionalSearchNode implements SearchNode {
     public byte stateFromStart = UNEXPLORED;
     public byte stateFromGoal = UNEXPLORED;
 
-    public BidirectionalSearchNode(int x, int y, int z) {
-        this(
-                x, y, z,
-                Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-                Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-                null, null,
-                AbstractSearch.FREE, AbstractSearch.FREE
-        );
-    }
-
-    public BidirectionalSearchNode(int x, int y,  int z, double fFromStart, double fFromGoal,
+    public BidirectionalSearchNode(int x, int y,  int z,
+                                   double hFromStart, double hFromGoal,
                                    double gFromStart, double gFromGoal,
                                    BidirectionalSearchNode predecessorFromStart,
                                    BidirectionalSearchNode predecessorFromGoal,
@@ -74,14 +68,26 @@ public class BidirectionalSearchNode implements SearchNode {
         this.x = x;
         this.y = y;
         this.z = z;
-        this.fFromStart = fFromStart;
-        this.fFromGoal = fFromGoal;
+        this.hFromStart = hFromStart;
+        this.hFromGoal = hFromGoal;
         this.gFromStart = gFromStart;
         this.gFromGoal = gFromGoal;
+        this.fFromStart = gFromStart + hFromStart;
+        this.fFromGoal = gFromGoal + hFromGoal;
         this.predecessorFromStart = predecessorFromStart;
         this.predecessorFromGoal = predecessorFromGoal;
         this.searchStatusFromStart = searchStatusFromStart;
         this.searchStatusFromGoal = searchStatusFromGoal;
+    }
+
+    public BidirectionalSearchNode(int x, int y, int z) {
+        this(
+                x, y, z,
+                Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
+                Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
+                null, null,
+                AbstractSearch.FREE, AbstractSearch.FREE
+        );
     }
 
 

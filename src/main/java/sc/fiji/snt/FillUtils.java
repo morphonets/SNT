@@ -78,14 +78,14 @@ public class FillUtils {
         // Merge the individuals fills into a single stack
         final SparseMatrixStack<DefaultSearchNode> newStack = new SparseMatrixStack<>(depth);
         for (final FillerThread filler : fillers) {
-            for (final int sliceIdx : filler.nodes_as_image_from_start.stack.keySet()) {
+            for (int sliceIdx=0; sliceIdx < filler.nodes_as_image_from_start.stack.size(); sliceIdx++) {
                 final SparseMatrix<DefaultSearchNode> slice = filler.nodes_as_image_from_start.getSlice(sliceIdx);
                 if (slice == null) continue;
                 SparseMatrix<DefaultSearchNode> newSlice = newStack.getSlice(sliceIdx);
                 if (newSlice == null) {
                     newSlice = newStack.newSlice(sliceIdx);
                 }
-                for (final int rowIdx : slice.doubleMap.keySet()) {
+                for (final int rowIdx : slice.rowKeySet()) {
                     final Int2ObjectOpenHashMap<DefaultSearchNode> row = slice.getRow(rowIdx);
                     if (row == null) continue;
                     Int2ObjectOpenHashMap<DefaultSearchNode> newRow = newSlice.getRow(rowIdx);

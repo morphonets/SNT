@@ -71,6 +71,7 @@ public class FillerThread extends SearchThread {
 
 		int i = 0;
 		for (final SparseMatrix<DefaultSearchNode> slice : nodes_as_image_from_start) {
+			if (slice == null) continue;
 			for (final Int2ObjectOpenHashMap<DefaultSearchNode> row : slice) {
 				for (final DefaultSearchNode current : row.values()) {
 					if (current.g <= threshold) {

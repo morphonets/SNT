@@ -20,13 +20,13 @@
  * #L%
  */
 
-
 package sc.fiji.snt.util;
 
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * A container for storing and indexing a collection of {@link SparseMatrix}, backed by an
@@ -34,28 +34,33 @@ import java.util.Iterator;
  *
  * @author Cameron Arshadi
  */
-public class SparseMatrixStack<V> implements Iterable<SparseMatrix<V>> {
+public class SparseMatrixStack<V> implements SearchImageStack<V>, Iterable<SparseMatrix<V>> {
 
-    final public Int2ObjectOpenHashMap<SparseMatrix<V>> stack;
+    final public List<SparseMatrix<V>> stack;
 
     public SparseMatrixStack(final int nSlices) {
-        this.stack = new Int2ObjectOpenHashMap<>(nSlices * 2, 0.55f);
+        this.stack = new ArrayList<>(nSlices);
+        for (int i=0; i < nSlices; i++) {
+            this.stack.add(null);
+        }
     }
 
+    @Override
     public SparseMatrix<V> getSlice(final int z) {
         return stack.get(z);
     }
 
+    @Override
     public SparseMatrix<V> newSlice(final int z) {
         SparseMatrix<V> slice = new SparseMatrix<>();
-        stack.put(z, slice);
+        stack.set(z, slice);
         return slice;
     }
 
     @NotNull
     @Override
     public Iterator<SparseMatrix<V>> iterator() {
-        return stack.values().iterator();
+        return stack.iterator();
     }
 
 }

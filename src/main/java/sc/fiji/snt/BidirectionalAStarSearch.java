@@ -95,7 +95,7 @@ public class BidirectionalAStarSearch extends AbstractBidirectionalSearch {
                                     final ComputeCurvatures hessian, final double multiplier)
     {
         this(imagePlus, stackMin, stackMax, 0, 1000, start_x, start_y, start_z,
-                goal_x, goal_y, goal_z, true, imagePlus.getNSlices() == 1, hessian,
+                goal_x, goal_y, goal_z, reciprocal, singleSlice, hessian,
                 multiplier, null, true);
     }
 
@@ -267,12 +267,9 @@ public class BidirectionalAStarSearch extends AbstractBidirectionalSearch {
     protected double estimateCostToGoal(final int source_x, final int source_y, final int source_z,
              final int target_x, final int target_y, final int target_z)
     {
-        final double xdiff = (target_x - source_x) *
-                x_spacing;
-        final double ydiff = (target_y - source_y) *
-                y_spacing;
-        final double zdiff = (target_z - source_z) *
-                z_spacing;
+        final double xdiff = (target_x - source_x) * x_spacing;
+        final double ydiff = (target_y - source_y) * y_spacing;
+        final double zdiff = (target_z - source_z) * z_spacing;
 
         final double distance = Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff *
                 zdiff);
