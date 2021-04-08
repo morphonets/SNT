@@ -82,12 +82,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	private final SNT plugin;
 	private final PathAndFillManager pathAndFillManager;
-	private JScrollPane scrollPane;
 	private final JList<String> fillList;
 	private final DefaultListModel<String> listModel;
-	private JButton deleteFills;
-	private JButton reloadFill;
-	private JPanel fillControlPanel;
 	protected JLabel fillStatus;
 	private float maxThresholdValue = 0;
 	private JTextField thresholdField;
@@ -95,13 +91,11 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private JLabel currentThreshold;
 	private JButton setThreshold;
 	private JButton setMaxThreshold;
-	private JButton exportAsImp;
 	private JPopupMenu exportFillsMenu;
 	private JCheckBox transparent;
 	protected JButton startFilling;
 	private JButton saveFill;
 	private JButton stopFill;
-	private JButton exportAsCSV;
 	private JRadioButton manualRButton;
 	private JRadioButton maxRButton;
 
@@ -141,131 +135,142 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		add(statusPanel(), c);
 		c.gridy++;
 
-		{
-			addSeparator(" Search Status:", c);
-			setPlaceholderStatusLabels();
-			final int storedPady = c.ipady;
-			final Insets storedInsets = c.insets;
-			c.ipady = 0;
-			c.insets = new Insets(0, MARGIN, 0, MARGIN);
-			add(currentThreshold, c);
-			++c.gridy;
-			add(maxThreshold, c);
-			++c.gridy;
-			add(fillStatus, c);
-			++c.gridy;
-			c.ipady = storedPady;
-			c.insets = storedInsets;
-		}
+		addSeparator(" Search Status:", c);
+		setPlaceholderStatusLabels();
+		final int storedPady = c.ipady;
+		final Insets storedInsets = c.insets;
+		c.ipady = 0;
+		c.insets = new Insets(0, MARGIN, 0, MARGIN);
+		add(currentThreshold, c);
+		++c.gridy;
+		add(maxThreshold, c);
+		++c.gridy;
+		add(fillStatus, c);
+		++c.gridy;
+		c.ipady = storedPady;
+		c.insets = storedInsets;
 
 		addSeparator(" Distance Threshold for Fill Search:", c);
 
-		{
-			final JPanel distancePanel = new JPanel(new GridBagLayout());
-			final GridBagConstraints gdb = GuiUtils.defaultGbc();
-			final JRadioButton cursorRButton = new JRadioButton(
-				"Set by clicking on traced strucure (preferred)");
+		final JPanel distancePanel = new JPanel(new GridBagLayout());
+		final GridBagConstraints gdb = GuiUtils.defaultGbc();
+		final JRadioButton cursorRButton = new JRadioButton("Set by clicking on traced strucure (preferred)");
 
-			final JPanel t1Panel = leftAlignedPanel();
-			t1Panel.add(cursorRButton);
-			distancePanel.add(t1Panel, gdb);
-			++gdb.gridy;
+		final JPanel t1Panel = leftAlignedPanel();
+		t1Panel.add(cursorRButton);
+		distancePanel.add(t1Panel, gdb);
+		++gdb.gridy;
 
-			manualRButton = new JRadioButton("Specify manually:");
-			thresholdField = new JTextField("", 6);
-			setThreshold = GuiUtils.smallButton("Apply");
-			setThreshold.addActionListener(this);
-			final JPanel t2Panel = leftAlignedPanel();
-			t2Panel.add(manualRButton);
-			t2Panel.add(thresholdField);
-			t2Panel.add(setThreshold);
-			distancePanel.add(t2Panel, gdb);
-			++gdb.gridy;
+		manualRButton = new JRadioButton("Specify manually:");
+		thresholdField = new JTextField("", 6);
+		setThreshold = GuiUtils.smallButton("Apply");
+		setThreshold.addActionListener(this);
+		final JPanel t2Panel = leftAlignedPanel();
+		t2Panel.add(manualRButton);
+		t2Panel.add(thresholdField);
+		t2Panel.add(setThreshold);
+		distancePanel.add(t2Panel, gdb);
+		++gdb.gridy;
 
-			maxRButton = new JRadioButton("Use explored maximum");
-			setMaxThreshold = GuiUtils.smallButton("Apply");
-			setMaxThreshold.setEnabled(false);
-			setMaxThreshold.addActionListener(this);
-			final JPanel t3Panel = leftAlignedPanel();
-			t3Panel.add(maxRButton);
-			t3Panel.add(setMaxThreshold);
-			distancePanel.add(t3Panel, gdb);
-			add(distancePanel, c);
-			++c.gridy;
+		maxRButton = new JRadioButton("Use explored maximum");
+		setMaxThreshold = GuiUtils.smallButton("Apply");
+		setMaxThreshold.setEnabled(false);
+		setMaxThreshold.addActionListener(this);
+		final JPanel t3Panel = leftAlignedPanel();
+		t3Panel.add(maxRButton);
+		t3Panel.add(setMaxThreshold);
+		distancePanel.add(t3Panel, gdb);
+		add(distancePanel, c);
+		++c.gridy;
 
-			final ButtonGroup group = new ButtonGroup();
-			group.add(maxRButton);
-			group.add(manualRButton);
-			group.add(cursorRButton);
-			final RadioGroupListener listener = new RadioGroupListener();
-			cursorRButton.addActionListener(listener);
-			manualRButton.addActionListener(listener);
-			maxRButton.addActionListener(listener);
-			cursorRButton.setSelected(true);
-			thresholdField.setEnabled(false);
-			setThreshold.setEnabled(false);
-			setMaxThreshold.setEnabled(false);
-		}
+		final ButtonGroup group = new ButtonGroup();
+		group.add(maxRButton);
+		group.add(manualRButton);
+		group.add(cursorRButton);
+		final RadioGroupListener listener = new RadioGroupListener();
+		cursorRButton.addActionListener(listener);
+		manualRButton.addActionListener(listener);
+		maxRButton.addActionListener(listener);
+		cursorRButton.setSelected(true);
+		thresholdField.setEnabled(false);
+		setThreshold.setEnabled(false);
+		setMaxThreshold.setEnabled(false);
 
 		addSeparator(" Rendering Options:", c);
 
-		{
-			transparent = new JCheckBox(
-				" Transparent overlay (may slow down filling)");
-			transparent.addActionListener(e-> plugin.setFillTransparent(transparent.isSelected()));
-			final JPanel transparencyPanel = leftAlignedPanel();
-			transparencyPanel.add(transparent);
-			add(transparencyPanel, c);
-			c.gridy++;
-		}
+		transparent = new JCheckBox(" Transparent overlay (may slow down filling)");
+		transparent.addActionListener(e -> plugin.setFillTransparent(transparent.isSelected()));
+		final JPanel transparencyPanel = leftAlignedPanel();
+		transparencyPanel.add(transparent);
+		add(transparencyPanel, c);
+		c.gridy++;
 
 		GuiUtils.addSeparator((JComponent) getContentPane(), " Stored Fill(s):", true, c);
 		++c.gridy;
 
-		{
-			scrollPane = new JScrollPane();
-			scrollPane.getViewport().add(fillList);
-			final JPanel listPanel = new JPanel(new BorderLayout());
-			listPanel.add(scrollPane, BorderLayout.CENTER);
-			add(listPanel, c);
-			++c.gridy;
-			deleteFills = GuiUtils.smallButton("Delete");
-			deleteFills.addActionListener(this);
-			reloadFill = GuiUtils.smallButton("Reload");
-			reloadFill.addActionListener(this);
-			add(SNTUI.buttonPanel(deleteFills, reloadFill ), c);
-			++c.gridy;
-		}
+		final JScrollPane scrollPane = new JScrollPane();
+		scrollPane.getViewport().add(fillList);
+		final JPanel listPanel = new JPanel(new BorderLayout());
+		listPanel.add(scrollPane, BorderLayout.CENTER);
+		add(listPanel, c);
+		++c.gridy;
+		final JButton deleteFills = GuiUtils.smallButton("Delete");
+		deleteFills.addActionListener(e -> {
+			if (noFillsError())
+				return;
+			final int[] selectedIndices = fillList.getSelectedIndices();
+			if (selectedIndices.length < 1
+					&& gUtils.getConfirmation("No fill was select for deletion. Delete All?", "Delete All?")) {
+				pathAndFillManager.deleteFills(IntStream.range(0, fillList.getModel().getSize()).toArray());
+			}
+			pathAndFillManager.deleteFills(selectedIndices);
+			plugin.updateTracingViewers(false);
+
+		});
+		final JButton reloadFill = GuiUtils.smallButton("Reload");
+		reloadFill.addActionListener(e -> {
+			if (noFillsError())
+				return;
+			final int[] selectedIndices = fillList.getSelectedIndices();
+			if (selectedIndices.length < 1
+					&& gUtils.getConfirmation("No fill was select for reload. Reload All?", "Reload All?")) {
+				pathAndFillManager.reloadFills(IntStream.range(0, fillList.getModel().getSize()).toArray());
+			} else {
+				pathAndFillManager.reloadFills(selectedIndices);
+			}
+		});
+		add(SNTUI.buttonPanel(deleteFills, reloadFill), c);
+		++c.gridy;
 
 		GuiUtils.addSeparator((JComponent) getContentPane(), " Export:", true, c);
 		++c.gridy;
 
-		{
-			exportAsCSV = new JButton("CSV Summary...");
-			exportAsCSV.addActionListener(this);
-			assembleViewFillsMenu();
-			exportAsImp = new JButton("Image...");
-			exportAsImp.addMouseListener(new MouseAdapter() {
+		final JButton exportAsCSV = new JButton("CSV Summary...");
+		exportAsCSV.addActionListener(e -> saveFills());
+		assembleViewFillsMenu();
+		final JButton exportAsImp = new JButton("Image...");
+		exportAsImp.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mousePressed(final MouseEvent e) {
+				if (exportAsImp.isEnabled() && !noFillsError())
+					exportFillsMenu.show(e.getComponent(), e.getX(), e.getY());
+			}
+		});
+		add(SNTUI.buttonPanel(exportAsCSV, exportAsImp), c);
+		c.gridy++;
 
-				@Override
-				public void mousePressed(final MouseEvent e) {
-					if (exportAsImp.isEnabled() && !noFillsError())
-						exportFillsMenu.show(e.getComponent(), e.getX(), e.getY());
-				}
-			});
-			add(SNTUI.buttonPanel(exportAsCSV, exportAsImp), c);
-			c.gridy++;
-		}
+		pack();
 		adjustListPlaceholder();
 		changeState(READY);
 		setLocationRelativeTo(plugin.getUI());
-		pack();
 		addWindowListener(new WindowAdapter() {
 			@Override
 			public void windowClosing(final WindowEvent ignored) {
 				setVisible(false);
 			}
 		});
+
+
 	}
 
 	private JPanel statusPanel() {
@@ -286,8 +291,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		discardFill.addActionListener( e -> {
 			plugin.discardFill(true); // will change state
 		});
-		fillControlPanel = SNTUI.buttonPanel(startFilling, stopFill, saveFill, discardFill);
+		final JPanel fillControlPanel = SNTUI.buttonPanel(startFilling, stopFill, saveFill, discardFill);
 		statusPanel.add(fillControlPanel, BorderLayout.SOUTH);
+		fillControlPanel.doLayout(); // otherwise dialog becomes too wide
 		return statusPanel;
 	}
 
@@ -303,8 +309,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		static final String LIST_PLACEHOLDER = "No fillings currently exist";
 
 		@Override
-		public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
-				boolean cellHasFocus) {
+		public Component getListCellRendererComponent(final JList<?> list, final Object value, final int index, final boolean isSelected,
+				final boolean cellHasFocus) {
 			if (LIST_PLACEHOLDER.equals(value.toString())) {
 				return GuiUtils.leftAlignedLabel(LIST_PLACEHOLDER, false);
 			} else {
@@ -388,7 +394,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		SwingUtilities.invokeLater(() -> {
 			listModel.removeAllElements();
 			if (newList != null && newList.length > 0)
-				for (String s : newList) listModel.addElement(s);
+				for (final String s : newList) listModel.addElement(s);
 			adjustListPlaceholder();
 		});
 	}
@@ -416,26 +422,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			return;
 		}
 
-		if (source == deleteFills) {
-			if (noFillsError()) return;
-			final int[] selectedIndices = fillList.getSelectedIndices();
-			if (selectedIndices.length < 1 && gUtils.getConfirmation("No fill was select for deletion. Delete All?", "Delete All?")) {
-				pathAndFillManager.deleteFills(IntStream.range(0, fillList.getModel().getSize()).toArray());
-			}
-			pathAndFillManager.deleteFills(selectedIndices);
-			plugin.updateTracingViewers(false);
-		}
-		else if (source == reloadFill) {
-			if (noFillsError()) return;
-			final int[] selectedIndices = fillList.getSelectedIndices();
-			if (selectedIndices.length < 1 && gUtils.getConfirmation("No fill was select for reload. Reload All?", "Reload All?")) {
-				pathAndFillManager.reloadFills(IntStream.range(0, fillList.getModel().getSize()).toArray());
-			} else {
-				pathAndFillManager.reloadFills(selectedIndices);
-			}
-
-		}
-		else if (source == setMaxThreshold) {
+		if (source == setMaxThreshold) {
 			plugin.setFillThreshold(maxThresholdValue);
 		}
 		else if (source == setThreshold || source == thresholdField) {
@@ -464,7 +451,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		else if (source == saveFill) {
 			try {
 				plugin.saveFill(); // will change state
-			} catch (IllegalArgumentException ex) {
+			} catch (final IllegalArgumentException ex) {
 				gUtils.error(ex.getMessage());
 			}
 		}
@@ -488,29 +475,10 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			} else {
 				try {
 					plugin.startFilling(); //TODO: Check if this is the only thing left to do.
-				} catch (IllegalArgumentException ex) {
+				} catch (final IllegalArgumentException ex) {
 					gUtils.error(ex.getMessage());
 				}
 			}
-		}
-
-		else if (source == exportAsCSV) {
-
-			if (noFillsError()) return;
-			final File saveFile = plugin.getUI().saveFile("Export CSV Summary...", "Fills.csv", ".csv");
-			if (saveFile == null) return; // user pressed cancel;
-			plugin.getUI().showStatus("Exporting CSV data to " + saveFile
-				.getAbsolutePath(), false);
-			try {
-				pathAndFillManager.exportFillsAsCSV(saveFile);
-			}
-			catch (final IOException ioe) {
-				gUtils.error("Saving to " + saveFile.getAbsolutePath() +
-					" failed. See console for details");
-				SNTUtils.error("IO Error", ioe);
-				return;
-			}
-			plugin.getUI().showStatus("Done... ", true);
 		}
 
 		else {
@@ -542,24 +510,47 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	private void assembleViewFillsMenu() {
 		exportFillsMenu = new JPopupMenu();
-		JMenuItem jmi = new JMenuItem("As Grayscale Image...");
-		jmi.addActionListener(e-> {
-			final ImagePlus imp = plugin.getFilledVolume(false);
-			if (imp == null) 
-				noFillsError();
-			else
-				imp.show();
-		});
+		JMenuItem jmi = new JMenuItem("As Grayscale Image");
+		jmi.addActionListener(e-> showFilledVolumeImage(false));
 		exportFillsMenu.add(jmi);
-		jmi = new JMenuItem("As Binary Mask...");
-		jmi.addActionListener(e-> {
-			final ImagePlus imp = plugin.getFilledVolume(true);
-			if (imp == null) 
-				noFillsError();
-			else
-				imp.show();
-		});
+		jmi = new JMenuItem("As Binary Mask");
+		jmi.addActionListener(e-> showFilledVolumeImage(true));
 		exportFillsMenu.add(jmi);
+	}
+
+	private void showFilledVolumeImage(final boolean binary) {
+		final ImagePlus imp = plugin.getFilledVolume(binary);
+		if (imp == null && !noFillsError()) {
+			// there are fills stashed but SNT#fillerSet is empty
+			gUtils.error("Image could not be displayed. Please reload desired fill(s) and try again.");
+			return;
+		}
+		else {
+			imp.show();
+		}
+	}
+
+	private void saveFills() {
+		if (noFillsError()) return;
+
+		if (pathAndFillManager.getAllFills().isEmpty()) {
+			gUtils.error("There are currently no fills. CSV file would be empty.");
+			return;
+		}
+
+		final File saveFile = plugin.getUI().saveFile("Export CSV Summary...", "Fills.csv", ".csv");
+		if (saveFile == null) return; // user pressed cancel;
+		plugin.getUI().showStatus("Exporting CSV data to " + saveFile
+			.getAbsolutePath(), false);
+		try {
+			pathAndFillManager.exportFillsAsCSV(saveFile);
+			plugin.getUI().showStatus("Done... ", true);
+		}
+		catch (final IOException ioe) {
+			gUtils.error("Saving to " + saveFile.getAbsolutePath() +
+				" failed. See console for details");
+			SNTUtils.error("IO Error", ioe);
+		}
 	}
 
 	protected void thresholdChanged(final double f) {
@@ -624,7 +615,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		default:
 			throw new IllegalArgumentException("Unrecognized status");
 		}
-		SwingUtilities.invokeLater(() -> fillControlPanel.doLayout());
 	}
 
 	@Override

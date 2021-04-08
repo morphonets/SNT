@@ -3112,6 +3112,10 @@ public class PathAndFillManager extends DefaultHandler implements
 		return result;
 	}
 
+	protected List<Fill> getAllFills() {
+		return allFills;
+	}
+
 	/**
 	 * Export fills as CSV.
 	 *
