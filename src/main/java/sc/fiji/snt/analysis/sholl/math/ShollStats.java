@@ -55,9 +55,13 @@ public interface ShollStats {
 
 	double[] getYvalues();
 
+	double[] getYvalues(final boolean asCumulativeFrequencies);
+
 	// double[] getFitXvalues();
 
 	double[] getFitYvalues();
+
+	double[] getFitYvalues(final boolean asCumulativeFrequencies);
 
 	boolean validFit();
 

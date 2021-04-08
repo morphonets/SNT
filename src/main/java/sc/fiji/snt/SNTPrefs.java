@@ -49,7 +49,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final int AUTO_SELECTION_FINISHED_PATH = 16;
 	private static final int USE_THREE_PANE = 32;
 	private static final int USE_3D_VIEWER = 64;
-	// @Deprecated//private static final int LOOK_FOR_TUBES = 128;
+	private static final int FORCE_2D_DISPLAY_CANVAS = 128;
 	// @Deprecated//private static final int LOOK_FOR_OOF = 256;
 	private static final int SHOW_ONLY_SELECTED = 512;
 	private static final int STORE_WIN_LOCATIONS = 1024;
@@ -143,7 +143,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	private int getDefaultBooleans() {
-		return DRAW_DIAMETERS_XY + SNAP_CURSOR + COMPRESSED_XML + AUTO_CANVAS_ACTIVATION;
+		return DRAW_DIAMETERS_XY + SNAP_CURSOR + COMPRESSED_XML + FORCE_2D_DISPLAY_CANVAS + AUTO_CANVAS_ACTIVATION;
 	}
 
 	private void getBooleans() {
@@ -207,6 +207,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	protected void savePluginPrefs(final boolean restoreIJ1prefs) {
 		setSaveCompressedTraces(isSaveCompressedTraces());
+		set2DDisplayCanvas(is2DDisplayCanvas());
 		setPref(AUTO_CANVAS_ACTIVATION, snt.autoCanvasActivation);
 		setPref(AUTO_SELECTION_FINISHED_PATH, snt.activateFinishedPath);
 		setPref(REQUIRE_SHIFT_FOR_FORK, snt.requireShiftToFork);
@@ -234,6 +235,14 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		if (restoreIJ1prefs) restoreIJ1Prefs();
 		clearLegacyPrefs();
 		Prefs.savePreferences();
+	}
+
+	public boolean is2DDisplayCanvas() {
+		return getPref(FORCE_2D_DISPLAY_CANVAS);
+	}
+
+	public void set2DDisplayCanvas(final boolean bool) {
+		setPref(FORCE_2D_DISPLAY_CANVAS, bool);
 	}
 
 	public boolean isSaveCompressedTraces() {

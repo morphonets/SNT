@@ -76,7 +76,6 @@ import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.ProfileProperties;
@@ -225,16 +224,17 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	private String HEADER4;
 
 	@Parameter(label = "Plots", callback="saveOptionsChanged", choices = { "Linear plot", "Normalized plot", "Linear & normalized plots",
-			"None. Show no plots" })
+			"Norm. integrated density plot", "Cumulative: Linear plot", "Cumulative: Norm. integrated density plot", "None. Show no plots" })
 	private String plotOutputDescription;
 
 	@Parameter(label = "Tables", callback="saveOptionsChanged", choices = { "Detailed table", "Summary table",
 		"Detailed & Summary tables", "None. Show no tables" })
 	private String tableOutputDescription;
 
-	@Parameter(label = "Annotations", callback = "annotationsDescriptionChanged",
-		choices = { "ROIs (Sholl points only)", "ROIs (points and 2D shells)",
-			"ROIs and mask", "None. Show no annotations" })
+	@Parameter(label = "Annotations", description="Point ROIs are not created when retrieving \"Norm. integrated density plot\"",
+			callback = "annotationsDescriptionChanged",
+		choices = { "ROIs (points only)", "ROIs (points and 2D shells)",
+			"ROIs (points) and mask", "Mask", "None. Show no annotations" })
 	private String annotationsDescription;
 
 	@Parameter(label = "Annotations LUT", callback = "lutChoiceChanged",
@@ -295,7 +295,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	private AnalysisRunner analysisRunner;
 	private Profile profile;
 	private int scope;
-	private SNTTable commonSummaryTable;
+	private ShollTable commonSummaryTable;
 	private Display<?> detailedTableDisplay;
 
 	/* Preferences */
@@ -339,11 +339,11 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		}
 	}
 
-	private boolean validRequirements() {
+	private boolean validRequirements(final boolean includeOngoingAnalysis) {
 		String cancelReason = "";
 		if (imp == null) {
 			cancelReason = NO_IMAGE;
-		} else if (ongoingAnalysis()) {
+		} else if (includeOngoingAnalysis && ongoingAnalysis()) {
 			cancelReason = RUNNING;
 		} else {
 			cancelReason = validateRequirements(true);
@@ -379,12 +379,13 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 					return;
 				}
 			}
-			if (!validRequirements())
+			if (!validRequirements(true))
 				return;
 			updateHyperStackPosition(); // Did channel/frame changed?
 			previewShells = false;
 			imp.setOverlay(overlaySnapshot);
 			parser.reset();
+			parser.setRetrieveIntDensities(plotOutputDescription.contains("integrated"));
 			startAnalysisThread(false);
 			break;
 		case SCOPE_PROFILE:
@@ -518,7 +519,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 	private void startAnalysisThread(final boolean skipImageParsing) {
 		analysisRunner = new AnalysisRunner(parser);
-		analysisRunner.setSkipParsing(skipImageParsing);
+		analysisRunner.setSkipParsing(skipImageParsing || plotOutputDescription.contains("integrated") != parser.isRetrieveIntDensitiesSet());
 		statusService.showStatus("Analysis started");
 		logger.debug("Analysis started...");
 		analysisThread = threadService.newThread(analysisRunner);
@@ -859,14 +860,15 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 	private boolean readThresholdFromImp() {
 		boolean successfulRead = true;
-		final double minT = imp.getProcessor().getMinThreshold();
-		final double maxT = imp.getProcessor().getMaxThreshold();
 		if (imp.getProcessor().isBinary()) {
 			lowerT = 1;
 			upperT = 255;
 		} else if (imp.isThreshold()) {
-			lowerT = minT;
-			upperT = maxT;
+			lowerT = imp.getProcessor().getMinThreshold();
+			upperT = imp.getProcessor().getMaxThreshold();
+		} else if (plotOutputDescription.contains("integrated")) {
+			lowerT = Double.MIN_VALUE;
+			upperT = Double.MAX_VALUE;
 		} else {
 			successfulRead = false;
 		}
@@ -1128,18 +1130,15 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 					return;
 				}
 			}
-			if (!parser.successful()) {
-				final Result result = helper.yesNoPrompt("Previous run did not yield a valid profile. Re-parse image?", null);
-				if (result != Result.YES_OPTION)
-					return;
+			if (!parser.successful() && helper.getConfirmation("Previous run did not yield a valid profile. Re-parse image?", "Parse Image Again?")) {
 				if (!updateHyperStackPosition()) {
 					initializeParser();
 					readThresholdFromImp();
 				}
-				if (!validRequirements()) return;
+				if (!validRequirements(false)) return;
 				parser.parse();
 				if (!parser.successful()) {
-					helper.error("No valid profile retrieved.", "Re-run Failed");
+					helper.error("No valid profile retrieved. Maybe settings are not appropriate?", "Re-run Failed");
 					return;
 				}
 			}
@@ -1171,25 +1170,27 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 			// Set ROIs
 			if (!annotationsDescription.contains("None") && imp != null) {
-				final ShollOverlay sOverlay = new ShollOverlay(profile, imp, true);
-				sOverlay.addCenter();
-				if (annotationsDescription.contains("shells"))
-					sOverlay.setShellsLUT(lutTable, ShollOverlay.COUNT);
-				sOverlay.setPointsLUT(lutTable, ShollOverlay.COUNT);
-				sOverlay.updateDisplay();
-				overlaySnapshot = imp.getOverlay();
-				if (annotationsDescription.contains("mask")) showMask();
+				if (annotationsDescription.contains("ROIs")) {
+					final ShollOverlay sOverlay = new ShollOverlay(profile, imp, true);
+					sOverlay.addCenter();
+					if (annotationsDescription.contains("shells"))
+						sOverlay.setShellsLUT(lutTable, ShollOverlay.COUNT);
+					sOverlay.setPointsLUT(lutTable, ShollOverlay.COUNT);
+					sOverlay.updateDisplay();
+					overlaySnapshot = imp.getOverlay();
+				}
+				if (annotationsDescription.toLowerCase().contains("mask")) showMask();
 			}
 
 			// Set Plots
 			outputs = new ArrayList<>();
-			if (plotOutputDescription.toLowerCase().contains("linear")) {
-				final ShollPlot lPlot = lStats.getPlot();
+			if (plotOutputDescription.toLowerCase().contains("integrated") || plotOutputDescription.toLowerCase().contains("linear")) {
+				final ShollPlot lPlot = lStats.getPlot(plotOutputDescription.toLowerCase().contains("cum"));
 				outputs.add(lPlot);
 				lPlot.show();
 			}
 			if (plotOutputDescription.toLowerCase().contains("normalized")) {
-				final ShollPlot nPlot = nStats.getPlot();
+				final ShollPlot nPlot = nStats.getPlot(false);
 				outputs.add(nPlot);
 				nPlot.show();
 			}
@@ -1210,7 +1211,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 				final ShollTable sTable = new ShollTable(lStats, nStats);
 				if (commonSummaryTable == null)
-					commonSummaryTable = new SNTTable();
+					commonSummaryTable = new ShollTable();
 				sTable.summarize(commonSummaryTable, imp.getTitle());
 				sTable.setTitle("Sholl Results");
 				outputs.add(sTable);

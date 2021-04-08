@@ -107,8 +107,9 @@ public class ShollTable extends SNTTable {
 	 */
 	public void listProfileEntries() {
 
+		final boolean intensities = profile.isIntDensityProfile();
 		addCol("Radius", profile.radii());
-		addCol("Inters.", profile.counts());
+		addCol((intensities) ? "Norm. IntDen" : "Inters.", profile.counts());
 
 		if (stats == null)
 			return;
@@ -121,18 +122,19 @@ public class ShollTable extends SNTTable {
 			if (stat instanceof LinearProfileStats) {
 				final LinearProfileStats lStats = (LinearProfileStats) stat;
 				addCol("Radius (Polyn. fit)", lStats.getXvalues());
-				addCol("Inters. (Polyn. fit)", lStats.getFitYvalues());
+				addCol((intensities) ? "Norm. IntDen (Polyn. fit)" : "Inters. (Polyn. fit)", lStats.getFitYvalues());
 
 			} else if (stat instanceof NormalizedProfileStats) {
 				final NormalizedProfileStats nStats = (NormalizedProfileStats) stat;
 				final String xHeader = (nStats.getMethod() == NormalizedProfileStats.LOG_LOG) ? "log(Radius)"
 						: "Radius";
-				final String yHeader = "log(Inters. /" + nStats.getNormalizerDescription() + ")";
+				final String yHeader = (intensities) ? "log(Norm. IntDen /" + nStats.getNormalizerDescription() + ")"
+						: "log(Inters. /" + nStats.getNormalizerDescription() + ")";
 				addCol(xHeader, nStats.getXvalues());
 				addCol(yHeader, nStats.getFitYvalues());
 			}
 		}
-
+		fillEmptyCells(Double.NaN);
 	}
 
 	/**
@@ -156,7 +158,7 @@ public class ShollTable extends SNTTable {
 	 * @see #setDetailedSummary(boolean)
 	 * @see #summarize(String)
 	 */
-	public void summarize(final DefaultGenericTable table, final String header) {
+	public void summarize(final ShollTable table, final String header) {
 		summarize(header);
 		table.appendRow(header);
 		final int destinationRow = table.getRowCount() - 1;
@@ -224,7 +226,7 @@ public class ShollTable extends SNTTable {
 
 			if (stat instanceof LinearProfileStats) {
 				final LinearProfileStats lStats = (LinearProfileStats) stat;
-				if (detailedSummary) {
+				if (detailedSummary && !profile.isIntDensityProfile()) {
 					final String pLabel = (lStats.isPrimaryBranchesInferred()) ? "(inferred)" : "(specified)";
 					set(getCol("I branches " + pLabel), row, lStats.getPrimaryBranches());
 				}
@@ -250,13 +252,14 @@ public class ShollTable extends SNTTable {
 
 	private void addLinearStats(final int row, final LinearProfileStats lStats, final boolean fData) {
 
-		set(getCol(getHeader("Max inters.", fData)), row, lStats.getMax(fData));
-		set(getCol(getHeader("Max inters. radius", fData)), row, lStats.getCenteredMaximum(fData).x);
-		set(getCol(getHeader("Sum inters.", fData)), row, lStats.getSum(fData));
-		set(getCol(getHeader("Mean inters.", fData)), row, lStats.getMean(fData));
+		final String key = (profile.isIntDensityProfile()) ? "IntDen" : "inters.";
+		set(getCol(getHeader("Max " + key, fData)), row, lStats.getMax(fData));
+		set(getCol(getHeader("Max " + key + " radius", fData)), row, lStats.getCenteredMaximum(fData).x);
+		set(getCol(getHeader("Sum " + key, fData)), row, lStats.getSum(fData));
+		set(getCol(getHeader("Mean " + key , fData)), row, lStats.getMean(fData));
 
 		if (detailedSummary) {
-			set(getCol(getHeader("Median inters.", fData)), row, lStats.getMedian(fData));
+			set(getCol(getHeader("Median " + key, fData)), row, lStats.getMedian(fData));
 			set(getCol(getHeader("Skeweness", fData)), row, lStats.getSkewness(fData));
 			set(getCol(getHeader("Kurtosis", fData)), row, lStats.getKurtosis(fData));
 		}

@@ -2191,7 +2191,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 	/** Returns a plot with some axes customizations */
 	private ShollPlot plotValues(final String title, final String xLabel, final String yLabel, final double[][] xy) {
 		final LinearProfileStats stats = new LinearProfileStats(new Profile(xy));
-		final ShollPlot plot = new ShollPlot(title, xLabel, yLabel, stats, true);
+		final ShollPlot plot = new ShollPlot(title, xLabel, yLabel, stats, true, false);
 		return plot;
 	}
 

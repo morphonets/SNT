@@ -471,7 +471,7 @@ public class SNT extends MultiDThreePanes implements
 		height = (int) Math.round(dims[1]);
 		depth = (int) Math.round(dims[2]);
 		spacing_units = box.getUnit();
-		singleSlice = depth < 2;
+		singleSlice = prefs.is2DDisplayCanvas() || depth < 2;
 		setSinglePane(single_pane);
 
 		// Make canvas 2D if there is not enough memory (>80%) for a 3D stack
@@ -506,7 +506,7 @@ public class SNT extends MultiDThreePanes implements
 
 		// Create image
 		imageType = ImagePlus.GRAY8;
-		xy = NewImage.createByteImage("Display Canvas", width, height, depth,
+		xy = NewImage.createByteImage("Display Canvas", width, height, (singleSlice) ? 1 : depth,
 			NewImage.FILL_BLACK);
 		setIsDisplayCanvas(xy);
 		xy.setCalibration(box.getCalibration());

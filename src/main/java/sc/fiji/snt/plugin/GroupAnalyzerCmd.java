@@ -287,11 +287,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			int index = 0;
 			while (groupsIterator.hasNext()) {
 				final String groupLabel = groupsIterator.next();
-				for (final Tree tree : stats.getGroupStats(groupLabel).getGroup()) {
-					tree.setLabel((tree.getLabel() == null) ? "" : tree.getLabel() + " (" + groupLabel + ")");
-					tree.setColor(colors[index]);
-					recViewer.addTree(tree);
-				}
+				recViewer.addTrees(stats.getGroupStats(groupLabel).getGroup(), colors[index].toHTMLColor(), groupLabel);
 				index++;
 			}
 			recViewer.setSceneUpdatesEnabled(true);

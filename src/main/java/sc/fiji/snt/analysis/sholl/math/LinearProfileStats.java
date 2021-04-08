@@ -451,7 +451,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 			}
 		}
 		pFunction = bestFit;
-		if (pFunction != null && Arrays.stream(fCounts).allMatch(c -> c == 0d)) {
+		if (pFunction != null && fCounts != null && Arrays.stream(fCounts).allMatch(c -> c == 0d)) {
 			// this can happen if a convergenceException occurred on last fit.
 			fitPolynomial(bestDegree);
 		}

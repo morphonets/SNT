@@ -186,10 +186,11 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 			popup.add(jmi);
 		}
 		addScriptsSeparator(popup);
-		popup.add(getScriptMenuItem("Analysis", "Sholl_Merge_Grouped_Profiles.py"));
 		popup.add(getScriptMenuItem("Batch", "Sholl_Bulk_Analysis_(From_Reconstructions).groovy"));
 		popup.add(getScriptMenuItem("Analysis", "Sholl_Extensive_Stats_Demo.groovy"));
 		popup.add(getScriptMenuItem("Analysis", "Sholl_Extract_Profile_From_Image_Demo.py"));
+		popup.add(getScriptMenuItem("Analysis", "Sholl_Merge_Grouped_Profiles.py"));
+		popup.add(getScriptMenuItem("Analysis", "Sholl_Rasterize_Shells.py"));
 		buttons.add(button);
 	}
 

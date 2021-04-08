@@ -70,6 +70,7 @@ public class ImageParser extends ContextCommand implements Parser {
 	protected int yc;
 	protected int zc;
 	protected long start;
+	private boolean retrieveIntDensities;
 
 	protected volatile boolean running = true;
 
@@ -182,6 +183,14 @@ public class ImageParser extends ContextCommand implements Parser {
 		return Math.sqrt(max);
 	}
 
+	public void setRetrieveIntDensities(final boolean retrieveIntDensities) {
+		this.retrieveIntDensities = retrieveIntDensities;
+	}
+
+	public boolean isRetrieveIntDensitiesSet() {
+		return retrieveIntDensities;
+	}
+
 	protected void checkUnsetFields(final boolean includeThreshold) {
 		if (center == null || radii == null)
 			throw new IllegalArgumentException("Cannot proceed with undefined parameters");
@@ -196,7 +205,7 @@ public class ImageParser extends ContextCommand implements Parser {
 	}
 
 	protected void checkUnsetFields() {
-		checkUnsetFields(true);
+		checkUnsetFields(!retrieveIntDensities);
 	}
 
 	public void setHemiShells(final String flag) {
@@ -442,6 +451,8 @@ public class ImageParser extends ContextCommand implements Parser {
 
 	@Override
 	public Profile getProfile() {
+		if (profile != null)
+			profile.setIsIntDensityProfile(isRetrieveIntDensitiesSet());
 		return profile;
 	}
 

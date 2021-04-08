@@ -25,6 +25,7 @@ import java.util.NavigableSet;
 import java.util.TreeSet;
 
 import org.apache.commons.math3.exception.InsufficientDataException;
+import org.apache.commons.math3.stat.Frequency;
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
 import org.scijava.Context;
@@ -116,9 +117,9 @@ class CommonStats extends ContextCommand implements ShollStats {
 		return 1.0 - (ssRes / ssTot);
 	}
 
-	public ShollPlot getPlot() {
-		if (plot == null)
-			plot = new ShollPlot(this);
+	public ShollPlot getPlot(final boolean cumulativeFrequencies) {
+		if (plot == null || plot.isUsingCumulativeFrequencies() != cumulativeFrequencies)
+			plot = new ShollPlot(this, cumulativeFrequencies);
 		return plot;
 	}
 
@@ -192,6 +193,11 @@ class CommonStats extends ContextCommand implements ShollStats {
 	}
 
 	@Override
+	public double[] getYvalues(final boolean asCumulativeFrequencies) {
+		return (asCumulativeFrequencies) ? getCumFrequencies(getYvalues()) : getYvalues();
+	}
+
+	@Override
 	public int getN() {
 		return nPoints;
 	}
@@ -199,6 +205,28 @@ class CommonStats extends ContextCommand implements ShollStats {
 	@Override
 	public double[] getFitYvalues() {
 		return fCounts;
+	}
+
+	@Override
+	public double[] getFitYvalues(final boolean asCumulativeFrequencies) {
+		return (asCumulativeFrequencies) ? getCumFrequencies(getFitYvalues()) : getFitYvalues();
+	}
+
+	private double[] getCumFrequencies(final double[] array) {
+		final Frequency freq = new Frequency();
+		double min = Double.MAX_VALUE;
+		double max = Double.MIN_VALUE;
+		for (final double y : array) {
+			freq.addValue(y);
+			if (y < min) min = y;
+			if (y > max) max = y;
+		}
+		final double[] yValues = new double[array.length];
+		final double bin = (max - min) / (array.length - 1);
+		for (int i = 0; i < array.length; i++) {
+			yValues[i] = freq.getCumPct(min + i * bin);
+		}
+		return yValues;
 	}
 
 	/**

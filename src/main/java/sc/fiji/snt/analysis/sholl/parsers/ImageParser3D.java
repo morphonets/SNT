@@ -140,19 +140,18 @@ public class ImageParser3D extends ImageParser {
 					for (int z = zmin; z <= zmax; z++) {
 						for (int y = ymin; y <= ymax; y++) {
 							for (int x = xmin; x <= xmax; x++) {
-
 								if (!running)
 									return;
 								final ShollPoint p = new ShollPoint(x, y, z, cal);
 								final double dxSq = p.distanceSquaredTo(center);
 								if (dxSq > lowerR * lowerR && dxSq < upperR * upperR) {
-									if (!withinThreshold(stack.getVoxel(x, y, z)))
+									final double vxValue = stack.getVoxel(x, y, z);
+									if ( !withinThreshold(vxValue) || (skipSingleVoxels && !hasNeighbors(x, y, z)) )
 										continue;
-									if (skipSingleVoxels && !hasNeighbors(x, y, z))
-										continue;
-									pixelPoints.add(new ShollPoint(x, y, z, ShollPoint.NONE));
+									final ShollPoint point = new ShollPoint(x, y, z, ShollPoint.NONE);
+									if (isRetrieveIntDensitiesSet()) point.v = vxValue;
+									pixelPoints.add(point);
 								}
-
 							}
 						}
 					}
@@ -161,9 +160,14 @@ public class ImageParser3D extends ImageParser {
 					// surface of this shell: Check if they are
 					// clustered and add them in world coordinates
 					// to profile
-					final HashSet<ShollPoint> points = getUnique3Dgroups(pixelPoints);
-					ShollPoint.scale(points, cal);
-					profile.add(new ProfileEntry(r, points));
+					if (isRetrieveIntDensitiesSet()) {
+						final double sum = pixelPoints.stream().filter(o -> o.v > 10).mapToDouble(o -> o.v).sum();
+						profile.add(new ProfileEntry(r, sum/pixelPoints.size()));
+					} else {
+						final HashSet<ShollPoint> points = getUnique3Dgroups(pixelPoints);
+						ShollPoint.scale(points, cal);
+						profile.add(new ProfileEntry(r, points));
+					}
 
 				}
 			}
