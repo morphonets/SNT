@@ -3088,10 +3088,6 @@ public class SNTUI extends JDialog {
 		}
 	}
 
-	protected void thresholdChanged(final double f) {
-		fmUI.thresholdChanged(f);
-	}
-
 	protected boolean nearbySlices() {
 		assert SwingUtilities.isEventDispatchThread();
 		return showPartsNearby.isSelected();

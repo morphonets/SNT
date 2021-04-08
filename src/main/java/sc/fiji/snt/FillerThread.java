@@ -36,8 +36,8 @@ import sc.fiji.snt.util.SparseMatrix;
 public class FillerThread extends SearchThread {
 
 	boolean reciprocal;
-
 	double reciprocal_fudge = 0.5;
+	double threshold;
 
 	public double getDistanceAtPoint(final double xd, final double yd,
 		final double zd)
@@ -174,8 +174,6 @@ public class FillerThread extends SearchThread {
 		result.setSourcePaths(fill.sourcePaths);
 		return result;
 	}
-
-	double threshold;
 
 	public void setThreshold(final double threshold) {
 		this.threshold = threshold;
