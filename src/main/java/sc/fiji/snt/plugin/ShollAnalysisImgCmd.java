@@ -224,7 +224,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	private String HEADER4;
 
 	@Parameter(label = "Plots", callback="saveOptionsChanged", choices = { "Linear plot", "Normalized plot", "Linear & normalized plots",
-			"Norm. integrated density plot", "Cumulative: Linear plot", "Cumulative: Norm. integrated density plot", "None. Show no plots" })
+			"Integrated density plot", "Cumulative: Linear plot", "Cumulative: Integrated density plot", "None. Show no plots" })
 	private String plotOutputDescription;
 
 	@Parameter(label = "Tables", callback="saveOptionsChanged", choices = { "Detailed table", "Summary table",
@@ -385,7 +385,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			previewShells = false;
 			imp.setOverlay(overlaySnapshot);
 			parser.reset();
-			parser.setRetrieveIntDensities(plotOutputDescription.contains("integrated"));
+			parser.setRetrieveIntDensities(plotOutputDescription.toLowerCase().contains("integrated"));
 			startAnalysisThread(false);
 			break;
 		case SCOPE_PROFILE:
@@ -519,7 +519,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 	private void startAnalysisThread(final boolean skipImageParsing) {
 		analysisRunner = new AnalysisRunner(parser);
-		analysisRunner.setSkipParsing(skipImageParsing || plotOutputDescription.contains("integrated") != parser.isRetrieveIntDensitiesSet());
+		analysisRunner.setSkipParsing(skipImageParsing || plotOutputDescription.toLowerCase().contains("integrated") != parser.isRetrieveIntDensitiesSet());
 		statusService.showStatus("Analysis started");
 		logger.debug("Analysis started...");
 		analysisThread = threadService.newThread(analysisRunner);
@@ -866,7 +866,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		} else if (imp.isThreshold()) {
 			lowerT = imp.getProcessor().getMinThreshold();
 			upperT = imp.getProcessor().getMaxThreshold();
-		} else if (plotOutputDescription.contains("integrated")) {
+		} else if (plotOutputDescription.toLowerCase().contains("integrated")) {
 			lowerT = Double.MIN_VALUE;
 			upperT = Double.MAX_VALUE;
 		} else {

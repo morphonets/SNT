@@ -207,7 +207,9 @@ public class ShollPlot extends Plot {
 
 	private static String defaultTitle(final ShollStats stats) {
 		String plotTitle = "Sholl Profile";
-		if (stats instanceof LinearProfileStats)
+		if (stats.getProfile().isIntDensityProfile())
+			plotTitle += " (IntDen)";
+		else if (stats instanceof LinearProfileStats)
 			plotTitle += " (Linear)";
 		else if (stats instanceof NormalizedProfileStats)
 			plotTitle += " ("+ ((NormalizedProfileStats) stats).getMethodDescription() +")";
