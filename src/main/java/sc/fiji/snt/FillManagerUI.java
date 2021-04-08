@@ -702,6 +702,14 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		fm.setVisible(true);
 	}
 
+	protected void updateThresholdWidget(final double newThreshold) {
+		SwingUtilities.invokeLater(() -> {
+			final String value = SNTUtils.formatDouble(newThreshold, 3);
+			thresholdField.setText(value);
+			currentThreshold.setText("Current threshold distance: " + value);
+		});
+	}
+
 	private class RadioGroupListener implements ActionListener {
 
 		@Override

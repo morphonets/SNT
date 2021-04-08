@@ -152,7 +152,7 @@ public class SNT extends MultiDThreePanes implements
 	volatile protected boolean requireShiftToFork;
 
 	private boolean manualOverride = false;
-
+	private double fillThresholdDistance = 0.03d;
 
 	/*
 	 * Just for convenience, keep casted references to the superclass's
@@ -1986,14 +1986,21 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
-	public void setFillThreshold(final double distance) {
-		if (!Double.isNaN(distance) && distance > 0) {
-			SNTUtils.log("Setting new threshold of: " + distance);
-			if (ui != null) ui.thresholdChanged(distance);
-			for (FillerThread fillerThread : fillerSet) {
-				fillerThread.setThreshold(distance);
-			}
-		}
+	/**
+	 * Sets the fill threshold distance. Typically, this value is set before a
+	 * filling operation as a starting value for the {@link FillerThread}.
+	 *
+	 * @param distance the new threshold distance. Set it to {@code -1} to use SNT's
+	 *                 default.
+	 * @throws IllegalArgumentException If distance is not a valid positive value
+	 */
+	public void setFillThreshold(final double distance) throws IllegalArgumentException {
+		if (distance != -1d && (Double.isNaN(distance) || distance <= 0))
+			throw new IllegalArgumentException("Threshold distance must be a valid positive value");
+		this.fillThresholdDistance = (distance == -1d) ? 0.03d : distance;
+		if (ui != null)
+			ui.getFillManager().updateThresholdWidget(fillThresholdDistance);
+		fillerSet.forEach(f -> f.setThreshold(fillThresholdDistance)); // fillerSet never null
 	}
 
 	synchronized void startPath(final double world_x, final double world_y,
@@ -2121,10 +2128,6 @@ public class SNT extends MultiDThreePanes implements
 
 	synchronized public void initPathsToFill(final Set<Path> fromPaths) {
 
-		if (ui != null) {
-			ui.getFillManager().thresholdChanged(0.03f);
-		}
-
 		fillerSet.clear();
 		final int threads = Math.max(1, SNTPrefs.getThreads());
 		final List<Path> fromPathsList = new ArrayList<>(fromPaths);
@@ -2135,7 +2138,7 @@ public class SNT extends MultiDThreePanes implements
 		List<List<Path>> chunked = Lists.partition(fromPathsList, chunkSize);
 		for (List<Path> chunk : chunked) {
 			final FillerThread filler = new FillerThread(xy, stackMin, stackMax, true, // reciprocal
-					0.03f, // Initial threshold to display
+					fillThresholdDistance, // Initial threshold to display
 					5000); // reportEveryMilliseconds
 			addThreadToDraw(filler);
 			filler.addProgressListener(this);
