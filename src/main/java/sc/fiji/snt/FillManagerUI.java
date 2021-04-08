@@ -74,6 +74,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 {
 
 	private static final long serialVersionUID = 1L;
+	protected static final String FILLING_URI = "https://imagej.net/SNT:_Step-By-Step_Instructions#Filling";
+	private static final int MARGIN = 10;
 
 	protected static final int READY = 0;
 	protected static final int STARTED = 1;
@@ -84,28 +86,26 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private final PathAndFillManager pathAndFillManager;
 	private final JList<String> fillList;
 	private final DefaultListModel<String> listModel;
-	protected JLabel fillStatus;
+	private final GuiUtils gUtils;
 	private float maxThresholdValue = 0;
-	private JTextField thresholdField;
-	private JLabel maxThreshold;
-	private JLabel currentThreshold;
-	private JButton setThreshold;
-	private JButton setMaxThreshold;
-	private JPopupMenu exportFillsMenu;
-	private JCheckBox transparent;
-	protected JButton startFilling;
+	private int currentState = -1;
+
+	private JTextField manualThresholdInputField;
+	private JLabel maxThresholdLabel;
+	private JLabel currentThresholdLabel;
+	private JLabel cursorPositionLabel;
+	private JLabel statusText;
+	private JButton manualThresholdApplyButton;
+	private JButton exploredThresholdApplyButton;
+	private JButton startFill;
 	private JButton saveFill;
 	private JButton stopFill;
-	private JRadioButton manualRButton;
-	private JRadioButton maxRButton;
+	private JRadioButton cursorThresholdChoice;
+	private JRadioButton manualThresholdChoice;
+	private JRadioButton exploredThresholdChoice;
+	private JPopupMenu exportFillsMenu;
+	private JCheckBox transparentCheckbox;
 
-	private final GuiUtils gUtils;
-
-	private final int MARGIN = 10;
-	private JLabel statusText;
-
-	private int currentState = -1;
-	protected static final String FILLING_URI = "https://imagej.net/SNT:_Step-By-Step_Instructions#Filling";
 
 	/**
 	 * Instantiates a new Fill Manager Dialog
@@ -141,11 +141,11 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		final Insets storedInsets = c.insets;
 		c.ipady = 0;
 		c.insets = new Insets(0, MARGIN, 0, MARGIN);
-		add(currentThreshold, c);
+		add(currentThresholdLabel, c);
 		++c.gridy;
-		add(maxThreshold, c);
+		add(maxThresholdLabel, c);
 		++c.gridy;
-		add(fillStatus, c);
+		add(cursorPositionLabel, c);
 		++c.gridy;
 		c.ipady = storedPady;
 		c.insets = storedInsets;
@@ -154,54 +154,62 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 		final JPanel distancePanel = new JPanel(new GridBagLayout());
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
-		final JRadioButton cursorRButton = new JRadioButton("Set by clicking on traced strucure (preferred)");
+		cursorThresholdChoice = new JRadioButton("Set by clicking on traced strucure (preferred)"); // dummy. the default
 
 		final JPanel t1Panel = leftAlignedPanel();
-		t1Panel.add(cursorRButton);
+		t1Panel.add(cursorThresholdChoice);
 		distancePanel.add(t1Panel, gdb);
 		++gdb.gridy;
 
-		manualRButton = new JRadioButton("Specify manually:");
-		thresholdField = new JTextField("", 6);
-		setThreshold = GuiUtils.smallButton("Apply");
-		setThreshold.addActionListener(this);
+		manualThresholdChoice = new JRadioButton("Specify manually:");
+		manualThresholdInputField = new JTextField("", 6);
+		manualThresholdApplyButton = GuiUtils.smallButton("Apply");
+		manualThresholdApplyButton.addActionListener(this);
 		final JPanel t2Panel = leftAlignedPanel();
-		t2Panel.add(manualRButton);
-		t2Panel.add(thresholdField);
-		t2Panel.add(setThreshold);
+		t2Panel.add(manualThresholdChoice);
+		t2Panel.add(manualThresholdInputField);
+		t2Panel.add(manualThresholdApplyButton);
 		distancePanel.add(t2Panel, gdb);
 		++gdb.gridy;
 
-		maxRButton = new JRadioButton("Use explored maximum");
-		setMaxThreshold = GuiUtils.smallButton("Apply");
-		setMaxThreshold.setEnabled(false);
-		setMaxThreshold.addActionListener(this);
+		exploredThresholdChoice = new JRadioButton("Use explored maximum");
+		exploredThresholdApplyButton = GuiUtils.smallButton("Apply");
+		exploredThresholdApplyButton.addActionListener(this);
 		final JPanel t3Panel = leftAlignedPanel();
-		t3Panel.add(maxRButton);
-		t3Panel.add(setMaxThreshold);
+		t3Panel.add(exploredThresholdChoice);
+		t3Panel.add(exploredThresholdApplyButton);
 		distancePanel.add(t3Panel, gdb);
+		++gdb.gridy;
+
+		final JButton defaults = GuiUtils.smallButton("Defaults");
+		defaults.addActionListener( e -> {
+			plugin.setFillThreshold(-1);
+			cursorThresholdChoice.setSelected(true);
+		});
+		final JPanel defaultsPanel = leftAlignedPanel();
+		defaultsPanel.add(defaults);
+		distancePanel.add(defaultsPanel, gdb);
 		add(distancePanel, c);
 		++c.gridy;
 
 		final ButtonGroup group = new ButtonGroup();
-		group.add(maxRButton);
-		group.add(manualRButton);
-		group.add(cursorRButton);
+		group.add(cursorThresholdChoice);
+		group.add(exploredThresholdChoice);
+		group.add(manualThresholdChoice);
 		final RadioGroupListener listener = new RadioGroupListener();
-		cursorRButton.addActionListener(listener);
-		manualRButton.addActionListener(listener);
-		maxRButton.addActionListener(listener);
-		cursorRButton.setSelected(true);
-		thresholdField.setEnabled(false);
-		setThreshold.setEnabled(false);
-		setMaxThreshold.setEnabled(false);
+		cursorThresholdChoice.addActionListener(listener);
+		manualThresholdChoice.addActionListener(listener);
+		exploredThresholdChoice.addActionListener(listener);
+		cursorThresholdChoice.setSelected(true);
+		manualThresholdApplyButton.setEnabled(manualThresholdChoice.isSelected());
+		exploredThresholdApplyButton.setEnabled(exploredThresholdChoice.isSelected());
 
 		addSeparator(" Rendering Options:", c);
 
-		transparent = new JCheckBox(" Transparent overlay (may slow down filling)");
-		transparent.addActionListener(e -> plugin.setFillTransparent(transparent.isSelected()));
+		transparentCheckbox = new JCheckBox(" Transparent overlay (may slow down filling)");
+		transparentCheckbox.addActionListener(e -> plugin.setFillTransparent(transparentCheckbox.isSelected()));
 		final JPanel transparencyPanel = leftAlignedPanel();
-		transparencyPanel.add(transparent);
+		transparencyPanel.add(transparentCheckbox);
 		add(transparencyPanel, c);
 		c.gridy++;
 
@@ -281,8 +289,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		statusText.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED),
 				BorderFactory.createEmptyBorder(MARGIN, MARGIN, MARGIN, MARGIN)));
 		statusPanel.add(statusText, BorderLayout.CENTER);
-		startFilling = GuiUtils.smallButton("Start");
-		startFilling.addActionListener(this);
+		startFill = GuiUtils.smallButton("Start");
+		startFill.addActionListener(this);
 		stopFill = GuiUtils.smallButton("Stop");
 		stopFill.addActionListener(this);
 		saveFill = GuiUtils.smallButton("Store");
@@ -291,16 +299,16 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		discardFill.addActionListener( e -> {
 			plugin.discardFill(true); // will change state
 		});
-		final JPanel fillControlPanel = SNTUI.buttonPanel(startFilling, stopFill, saveFill, discardFill);
+		final JPanel fillControlPanel = SNTUI.buttonPanel(startFill, stopFill, saveFill, discardFill);
 		statusPanel.add(fillControlPanel, BorderLayout.SOUTH);
 		fillControlPanel.doLayout(); // otherwise dialog becomes too wide
 		return statusPanel;
 	}
 
 	private void setPlaceholderStatusLabels() {
-		currentThreshold = GuiUtils.leftAlignedLabel("No Pahs are currently being filled...", false);
-		maxThreshold = GuiUtils.leftAlignedLabel("Max. expplored distance: N/A", false);
-		fillStatus = GuiUtils.leftAlignedLabel("Cursor position: N/A", false);
+		currentThresholdLabel = GuiUtils.leftAlignedLabel("No Pahs are currently being filled...", false);
+		maxThresholdLabel = GuiUtils.leftAlignedLabel("Max. explored distance: N/A", false);
+		cursorPositionLabel = GuiUtils.leftAlignedLabel("Cursor position: N/A", false);
 	}
 
 	private class FMCellRenderer extends DefaultListCellRenderer {
@@ -341,39 +349,30 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	protected void setEnabledWhileFilling() {
 		assert SwingUtilities.isEventDispatchThread();
-		fillStatus.setEnabled(true);
-		manualRButton.setEnabled(true);
-		maxThreshold.setEnabled(maxRButton.isSelected());
-		currentThreshold.setEnabled(true);
-		fillStatus.setEnabled(true);
-		maxRButton.setEnabled(maxRButton.isSelected());
-		transparent.setEnabled(true);
+		cursorPositionLabel.setEnabled(true);
+		maxThresholdLabel.setEnabled(exploredThresholdChoice.isSelected());
+		currentThresholdLabel.setEnabled(true);
+		cursorPositionLabel.setEnabled(true);
 	}
 
 	protected void setEnabledWhileNotFilling() {
 		assert SwingUtilities.isEventDispatchThread();
-		fillStatus.setEnabled(true);
-		manualRButton.setEnabled(false);
-		maxThreshold.setEnabled(false);
-		currentThreshold.setEnabled(false);
-		fillStatus.setEnabled(false);
-		maxRButton.setEnabled(false);
-		transparent.setEnabled(false);
+		cursorPositionLabel.setEnabled(true);
+		maxThresholdLabel.setEnabled(false);
+		currentThresholdLabel.setEnabled(false);
+		cursorPositionLabel.setEnabled(false);
 	}
 
 	protected void setEnabledNone() {
 		assert SwingUtilities.isEventDispatchThread();
-		fillStatus.setEnabled(false);
-		manualRButton.setEnabled(false);
-		maxThreshold.setEnabled(false);
-		currentThreshold.setEnabled(false);
-		maxRButton.setEnabled(false);
-		transparent.setEnabled(false);
+		cursorPositionLabel.setEnabled(false);
+		maxThresholdLabel.setEnabled(false);
+		currentThresholdLabel.setEnabled(false);
 	}
 
 	public void setFillTransparent(final boolean transparent) {
-		if (this.transparent != null) {
-			SwingUtilities.invokeLater(() -> this.transparent.setSelected(transparent));
+		if (this.transparentCheckbox != null) {
+			SwingUtilities.invokeLater(() -> this.transparentCheckbox.setSelected(transparent));
 		}
 		plugin.setFillTransparent(transparent);
 	}
@@ -422,21 +421,22 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			return;
 		}
 
-		if (source == setMaxThreshold) {
-			plugin.setFillThreshold(maxThresholdValue);
-		}
-		else if (source == setThreshold || source == thresholdField) {
+		if (source == exploredThresholdApplyButton) {
 			try {
-				final double t = Double.parseDouble(thresholdField.getText());
-				if (t < 0) {
-					gUtils.error("The fill threshold cannot be negative.");
-					return;
-				}
-				plugin.setFillThreshold(t);
+				plugin.setFillThreshold(maxThresholdValue);
+			} catch (final IllegalArgumentException ignored) {
+				gUtils.error("No explored maximum exists yet.");
+				cursorThresholdChoice.setSelected(true);
 			}
-			catch (final NumberFormatException nfe) {
-				gUtils.error("The threshold '" + thresholdField.getText() +
-					"' wasn't a valid number.");
+		}
+		else if (source == manualThresholdApplyButton || source == manualThresholdInputField) {
+			try {
+				plugin.setFillThreshold(Double.parseDouble(manualThresholdInputField.getText())); // will call #setThreshold()
+			}
+			catch (final IllegalArgumentException ignored) { // includes NumberFormatException
+				gUtils.error("The threshold '" + manualThresholdInputField.getText() +
+					"' is not a valid option. Only positive values accepted.");
+				cursorThresholdChoice.setSelected(true);
 			}
 
 		}
@@ -455,7 +455,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				gUtils.error(ex.getMessage());
 			}
 		}
-		else if (source == startFilling) {
+		else if (source == startFill) {
 			if (plugin.fillerThreadPool != null) {
 				gUtils.error ("A filling operation is already running.");
 				return;
@@ -465,8 +465,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 					plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(false)));
 					plugin.startFilling();
 				} else  {
-					final int ans = gUtils.yesNoDialog("Start filling all paths listed in Path Manager? ",
-							"Fill All Paths?", "Yes.", "No. Let me select subsets.");
+					final int ans = gUtils.yesNoDialog("There are no paths selected in Path Manager. Would you like to "
+							+ "fill all paths? Alternatively, you can dismiss this prompt, select subsets in the Path "
+							+ "Manager list, and re-run. ", "Fill All Paths?", "Yes. Fill all.", "No. Let me select subsets.");
 					if (ans == JOptionPane.YES_OPTION) {
 						plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(true)));
 						plugin.startFilling();
@@ -553,15 +554,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		}
 	}
 
-	protected void thresholdChanged(final double f) {
-		SwingUtilities.invokeLater(() -> {
-			assert SwingUtilities.isEventDispatchThread();
-			final String value = SNTUtils.formatDouble(f, 3);
-			thresholdField.setText(SNTUtils.formatDouble(f, 3));
-			currentThreshold.setText("Current threshold distance: " + value);
-		});
-	}
-
 	/* (non-Javadoc)
 	 * @see FillerProgressCallback#maximumDistanceCompletelyExplored(SearchThread, float)
 	 */
@@ -570,7 +562,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		final float f)
 	{
 		SwingUtilities.invokeLater(() -> {
-			maxThreshold.setText("Max. explored distance: " + SNTUtils.formatDouble(f, 3));
+			maxThresholdLabel.setText("Max. explored distance: " + SNTUtils.formatDouble(f, 3));
 			maxThresholdValue = f;
 		});
 	}
@@ -632,7 +624,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				newStatus = "Cursor position: Distance from path is " + SNTUtils
 					.formatDouble(t, 3);
 			}
-			fillStatus.setText(newStatus);
+			cursorPositionLabel.setText(newStatus);
 		});
 	}
 
@@ -644,7 +636,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 * @param newState the new state, e.g., {@link FillManagerUI#READY},
 	 *                 {@link FillManagerUI#STOPPED}, etc.
 	 */
-	public void changeState(final int newState) {
+	protected void changeState(final int newState) {
 
 		if (newState == currentState)
 			return;
@@ -654,28 +646,28 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 			case READY:
 				updateStatusText("Press <i>Start</i> to initiate filling...");
-				startFilling.setEnabled(true);
+				startFill.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(false);
 				break;
 
 			case STARTED:
 				updateStatusText("Filling started...");
-				startFilling.setEnabled(false);
+				startFill.setEnabled(false);
 				stopFill.setEnabled(true);
 				saveFill.setEnabled(false);
 				break;
 
 			case ABORTED:
 				updateStatusText("Filling stopped...");
-				startFilling.setEnabled(true);
+				startFill.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(true);
 				break;
 
 			case ENDED:
 				updateStatusText("Filling concluded... Store result?");
-				startFilling.setEnabled(false);
+				startFill.setEnabled(false);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(true);
 				break;
@@ -705,8 +697,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	protected void updateThresholdWidget(final double newThreshold) {
 		SwingUtilities.invokeLater(() -> {
 			final String value = SNTUtils.formatDouble(newThreshold, 3);
-			thresholdField.setText(value);
-			currentThreshold.setText("Current threshold distance: " + value);
+			manualThresholdInputField.setText(value);
+			currentThresholdLabel.setText("Current threshold distance: " + value);
 		});
 	}
 
@@ -714,9 +706,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 		@Override
 		public void actionPerformed(final ActionEvent e) {
-			setThreshold.setEnabled(manualRButton.isSelected());
-			thresholdField.setEnabled(manualRButton.isSelected());
-			setMaxThreshold.setEnabled(maxRButton.isSelected());
+			manualThresholdApplyButton.setEnabled(manualThresholdChoice.isSelected());
+			exploredThresholdApplyButton.setEnabled(exploredThresholdChoice.isSelected());
 		}
 	}
 }
