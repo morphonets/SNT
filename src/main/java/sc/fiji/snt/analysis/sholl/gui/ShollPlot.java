@@ -105,11 +105,11 @@ public class ShollPlot extends Plot {
 
 	@SuppressWarnings("deprecation")
 	public ShollPlot(final String title, final String xLabel, final String yLabel, final ShollStats stats,
-			final boolean annotate, final boolean preferCumulativeFrequencies) {
+			final boolean annotate, final boolean useCumulativeFrequencies) {
 
 		// initialize empty plot, so that sampled data can be plotted with a
 		// custom shape, otherwise the default Plot.Line would be used
-		super(title, xLabel, yLabel, DUMMY_VALUES, DUMMY_VALUES, DEF_FLAGS);
+		super(title, xLabel, (useCumulativeFrequencies) ? "Cumulative Frequency" : yLabel, DUMMY_VALUES, DUMMY_VALUES, DEF_FLAGS);
 		this.stats = stats;
 		if (stats == null)
 			throw new IllegalArgumentException("Stats instance cannot be null");
@@ -125,7 +125,7 @@ public class ShollPlot extends Plot {
 		}
 
 		this.annotate = annotate;
-		this.preferCumulativeFrequencies = preferCumulativeFrequencies;
+		preferCumulativeFrequencies = useCumulativeFrequencies;
 		tempLegend = new StringBuffer();
 
 		// Set plot limits without grid lines
@@ -155,7 +155,7 @@ public class ShollPlot extends Plot {
 		setColor(FDATA_COLOR1);
 		if (linearStats != null && linearStats.validFit()) {
 			addPoints(linearStats.getXvalues(), linearStats.getFitYvalues(preferCumulativeFrequencies), THICK_LINE);
-			annotateLinearProfile(true);
+			annotateLinearProfile(!preferCumulativeFrequencies);
 		}
 		if (normStats != null && normStats.validFit()) {
 			final SimpleRegression reg = normStats.getRegression();
