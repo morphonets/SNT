@@ -326,7 +326,7 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 					p.searchStatus = CLOSED_FROM_GOAL;
 					closed_from_goal_count++;
 				}
-				//nodes_as_image_this_search.getSlice(p.z).setValueWithoutChecks(p.x, p.y, p);
+				nodes_as_image_this_search.getSlice(p.z).setValueWithoutChecks(p.x, p.y, p);
 
 				// Now look at the neighbours of p. We're going to consider
 				// the 26 neighbours in 3D.
@@ -450,7 +450,17 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 											result.add(p.asPathReversed(x_spacing, y_spacing,
 												z_spacing, spacing_units));
 										}
-										if (verbose) System.out.println("Searches met!");
+										if (verbose) {
+											System.out.println("Searches met!");
+											System.out.println("Cost for path = " +
+													(newNode.g + alreadyThereInOtherSearch.g));
+											System.out.println("Total loops = " + loops);
+											System.out.println("Remaining open from start = " + open_from_start.size());
+											System.out.println("Remaining open from goal = " + open_from_goal.size());
+											System.out.println("Closed from start = " + closed_from_start_count);
+											System.out.println("Closed from goal = " + closed_from_goal_count);
+										}
+
 										foundGoal(result);
 										setExitReason(SUCCESS);
 										reportFinished(true);

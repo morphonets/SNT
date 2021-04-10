@@ -40,9 +40,6 @@ public class BidirectionalSearchNode implements SearchNode {
     public double gFromStart;
     public double gFromGoal;
 
-    public double hFromStart;
-    public double hFromGoal;
-
     public double fFromStart;
     public double fFromGoal;
 
@@ -52,32 +49,23 @@ public class BidirectionalSearchNode implements SearchNode {
     AddressableHeap.Handle<BidirectionalSearchNode, Void> heapHandleFromStart;
     AddressableHeap.Handle<BidirectionalSearchNode, Void> heapHandleFromGoal;
 
-    public byte searchStatusFromStart;
-    public byte searchStatusFromGoal;
-
-    public byte stateFromStart = UNEXPLORED;
-    public byte stateFromGoal = UNEXPLORED;
+    public byte state = UNEXPLORED;
 
     public BidirectionalSearchNode(int x, int y,  int z,
-                                   double hFromStart, double hFromGoal,
+                                   double fFromStart, double fFromGoal,
                                    double gFromStart, double gFromGoal,
                                    BidirectionalSearchNode predecessorFromStart,
-                                   BidirectionalSearchNode predecessorFromGoal,
-                                   byte searchStatusFromStart, byte searchStatusFromGoal)
+                                   BidirectionalSearchNode predecessorFromGoal)
     {
         this.x = x;
         this.y = y;
         this.z = z;
-        this.hFromStart = hFromStart;
-        this.hFromGoal = hFromGoal;
         this.gFromStart = gFromStart;
         this.gFromGoal = gFromGoal;
-        this.fFromStart = gFromStart + hFromStart;
-        this.fFromGoal = gFromGoal + hFromGoal;
+        this.fFromStart = fFromStart;
+        this.fFromGoal = fFromGoal;
         this.predecessorFromStart = predecessorFromStart;
         this.predecessorFromGoal = predecessorFromGoal;
-        this.searchStatusFromStart = searchStatusFromStart;
-        this.searchStatusFromGoal = searchStatusFromGoal;
     }
 
     public BidirectionalSearchNode(int x, int y, int z) {
@@ -85,21 +73,18 @@ public class BidirectionalSearchNode implements SearchNode {
                 x, y, z,
                 Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
                 Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-                null, null,
-                AbstractSearch.FREE, AbstractSearch.FREE
+                null, null
         );
     }
 
 
     @Override
     public byte getSearchStatus() {
-        return searchStatusFromStart;
+        return 0;
     }
 
     @Override
-    public void setSearchStatus(byte searchStatus) {
-        this.searchStatusFromStart = searchStatus;
-    }
+    public void setSearchStatus(byte searchStatus) { }
 
     @Override
     public int getX() {
