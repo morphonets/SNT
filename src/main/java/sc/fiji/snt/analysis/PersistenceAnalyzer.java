@@ -22,14 +22,7 @@
 
 package sc.fiji.snt.analysis;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import org.jgrapht.Graphs;
 
@@ -107,6 +100,7 @@ public class PersistenceAnalyzer {
 			descriptorMap.put(node, descriptorFunc(graph, node, function));
 		}
 		final Set<SWCPoint> openSet = new HashSet<SWCPoint>();
+		Map<SWCPoint, SWCPoint> parentMap = new HashMap<>();
 		final List<SWCPoint> tips = graph.getTips();
 		SWCPoint maxTip = tips.get(0);
 		for (final SWCPoint t : tips) {
@@ -132,10 +126,11 @@ public class PersistenceAnalyzer {
 						toRemove.add(child);
 						if (!child.equals(survivor)) {
 							persistenceDiagram.add(new ArrayList<Double>(Arrays.asList(descriptorMap.get(p), child.v)));
-							persistenceNodes.add(new ArrayList<>(Arrays.asList(p, child)));
+							persistenceNodes.add(new ArrayList<>(Arrays.asList(p, backtrackToTip(child, parentMap))));
 						}
 					}
 					p.v = survivor.v;
+					parentMap.put(p, survivor);
 				}
 			}
 			openSet.addAll(toAdd);
@@ -143,11 +138,20 @@ public class PersistenceAnalyzer {
 		}
 
 		persistenceDiagram.add(new ArrayList<Double>(Arrays.asList(descriptorMap.get(root), root.v)));
-		persistenceNodes.add(new ArrayList<SWCPoint>(Arrays.asList(root, maxTip)));
+		root.v = 0;
+		persistenceNodes.add(new ArrayList<SWCPoint>(Arrays.asList(root, backtrackToTip(root, parentMap))));
 
 		persistenceDiagramMap.put(func, persistenceDiagram);
 		persistenceNodesMap.put(func, persistenceNodes);
 		nodeValuesAssigned = false; // reset field so that it can be recycled by a different func
+	}
+
+	private SWCPoint backtrackToTip(SWCPoint p, Map<SWCPoint, SWCPoint> parentMap) {
+		SWCPoint current = p;
+		while (parentMap.containsKey(current)) {
+			current = parentMap.get(current);
+		}
+		return current;
 	}
 
 	/**
@@ -167,12 +171,12 @@ public class PersistenceAnalyzer {
 			compute(descriptor);
 		}
 		final ArrayList<ArrayList<Double>> diagram = persistenceDiagramMap.get(descriptor);
-		Collections.sort(diagram, new Comparator<ArrayList<Double>>() {
-			@Override
-			public int compare(final ArrayList<Double> o1, final ArrayList<Double> o2) {
-				return o1.get(0).compareTo(o2.get(0));
-			}
-		});
+//		Collections.sort(diagram, new Comparator<ArrayList<Double>>() {
+//			@Override
+//			public int compare(final ArrayList<Double> o1, final ArrayList<Double> o2) {
+//				return o1.get(0).compareTo(o2.get(0));
+//			}
+//		});
 		return diagram;
 	}
 
@@ -213,12 +217,12 @@ public class PersistenceAnalyzer {
 		if (persistenceNodesMap.get(descriptor) == null || persistenceNodesMap.get(descriptor).isEmpty())
 			compute(descriptor);
 		final ArrayList<ArrayList<SWCPoint>> nodeDiagram = persistenceNodesMap.get(descriptor);
-		Collections.sort(nodeDiagram, new Comparator<ArrayList<SWCPoint>>() {
-			@Override
-			public int compare(final ArrayList<SWCPoint> o1, final ArrayList<SWCPoint> o2) {
-				return Double.compare(o1.get(0).v, o2.get(0).v);
-			}
-		});
+//		Collections.sort(nodeDiagram, new Comparator<ArrayList<SWCPoint>>() {
+//			@Override
+//			public int compare(final ArrayList<SWCPoint> o1, final ArrayList<SWCPoint> o2) {
+//				return Double.compare(o1.get(0).v, o2.get(0).v);
+//			}
+//		});
 		return nodeDiagram;
 	}
 	
