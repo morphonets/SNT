@@ -26,6 +26,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeNotNull;
 
+import ij.plugin.ZProjector;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -33,22 +34,25 @@ import org.junit.Test;
 import features.ComputeCurvatures;
 import ij.ImagePlus;
 import ij.measure.Calibration;
-import util.BatchOpener;
+
+import java.util.Objects;
 
 public class Tracing2DTest {
 
 	ImagePlus image;
 
-	double startX = 73.539;
-	double startY = 48.449;
-	double endX = 1.730;
-	double endY = 13.554;
+	int startX = 33;
+	int startY = 430;
+
+	int endX = 439;
+	int endY = 200;
 
 	@Before
 	public void setUp() {
-		image = BatchOpener.openFirstChannel(
-			"tests/sample-data/c061AG-small-section-z-max.tif");
-		assumeNotNull(image);
+		ImagePlus imp = new ImagePlus(
+				Objects.requireNonNull(getClass().getClassLoader().getResource("OP_1.tif")).getPath());
+		assumeNotNull(imp);
+		image = ZProjector.run (imp, "max");
 	}
 
 	@After
@@ -59,23 +63,14 @@ public class Tracing2DTest {
 	@Test
 	public void testTracing() {
 
-		double pixelWidth = 1;
-		double pixelHeight = 1;
-		double minimumSeparation = 1;
 		final Calibration calibration = image.getCalibration();
-		if (calibration != null) {
-			minimumSeparation = Math.min(Math.abs(calibration.pixelWidth), Math.min(
-				Math.abs(calibration.pixelHeight), Math.abs(calibration.pixelDepth)));
-			pixelWidth = calibration.pixelWidth;
-			pixelHeight = calibration.pixelHeight;
-		}
 
 		long pointsExploredNormal;
 		{
-			final TracerThread tracer = new TracerThread(image, 0, 255, -1, // timeoutSeconds
+			final TracerThread tracer = new TracerThread(image, 0, 254, -1, // timeoutSeconds
 				100, // reportEveryMilliseconds
-				(int) (startX / pixelWidth), (int) (startY / pixelHeight), 0,
-				(int) (endX / pixelWidth), (int) (endY / pixelHeight), 0, true, // reciprocal
+				startX, startY, 0,
+				endX, endY, 0, true, // reciprocal
 				true, // singleSlice
 				null, 1, // multiplier
 				null, false);
@@ -85,47 +80,97 @@ public class Tracing2DTest {
 			assertNotNull("Not path found", result);
 
 			final double foundPathLength = result.getLength();
-			assertTrue("Path length must be greater than 100 micrometres",
-				foundPathLength > 100);
 
-			assertTrue("Path length must be less than 105 micrometres",
-				foundPathLength < 105);
+			assertTrue("Path length must be greater than 191 micrometres",
+				foundPathLength > 191);
+
+			assertTrue("Path length must be less than 192 micrometres",
+				foundPathLength < 192);
 
 			pointsExploredNormal = tracer.pointsConsideredInSearch();
 		}
 
-		long pointsExploredHessian;
+		long pointsExploredNBAStar;
 		{
-			final ComputeCurvatures hessian = new ComputeCurvatures(image,
-				minimumSeparation, null, calibration != null);
-			hessian.run();
+			final BidirectionalAStarSearch tracer = new BidirectionalAStarSearch(image, 0, 254, -1, // timeoutSeconds
+					100, // reportEveryMilliseconds
+					startX, startY, 0,
+					endX, endY, 0, true, // reciprocal
+					true, // singleSlice
+					null, 1, // multiplier
+					null, false);
 
-			final TracerThread tracer = new TracerThread(image, 0, 255, -1, // timeoutSeconds
-				100, // reportEveryMilliseconds
-				(int) (startX / pixelWidth), (int) (startY / pixelHeight), 0,
-				(int) (endX / pixelWidth), (int) (endY / pixelHeight), 0, true, // reciprocal
-				true, // singleSlice
-				hessian, 50, // multiplier
-				null, true);
-
-			tracer.run();
-			final Path result = tracer.getResult();
+			final Path result = tracer.call();
 			assertNotNull("Not path found", result);
 
 			final double foundPathLength = result.getLength();
 
-			assertTrue("Path length must be greater than 92 micrometres",
-				foundPathLength > 92);
+			assertTrue("Path length must be greater than 191 micrometres",
+					foundPathLength > 191);
 
-			assertTrue("Path length must be less than 96 micrometres",
-				foundPathLength < 96);
+			assertTrue("Path length must be less than 192 micrometres",
+					foundPathLength < 192);
+
+			pointsExploredNBAStar = tracer.pointsConsideredInSearch();
+		}
+
+
+
+		{
+			long pointsExploredHessian;
+			long pointsExploredNBAStarHessian;
+
+			final ComputeCurvatures hessian = new ComputeCurvatures(image, 0.835,
+					null, calibration != null);
+			hessian.run();
+
+			final TracerThread tracer = new TracerThread(image, 0, 254, -1, // timeoutSeconds
+					100, // reportEveryMilliseconds
+					startX, startY, 0,
+					endX, endY, 0, true, // reciprocal
+					true, // singleSlice
+					hessian, 56, // multiplier
+					null, true);
+
+			final BidirectionalAStarSearch tracerNBAStar = new BidirectionalAStarSearch(image, 0, 254, -1, // timeoutSeconds
+					100, // reportEveryMilliseconds
+					startX, startY, 0,
+					endX, endY, 0, true, // reciprocal
+					true, // singleSlice
+					hessian, 56, // multiplier
+					null, true);
+
+			tracer.run();
+			final Path result = tracer.getResult();
+			final Path resultNBAStar = tracerNBAStar.call();
+			assertNotNull("Not path found", result);
+			assumeNotNull("Not path found", resultNBAStar);
+
+			final double foundPathLength = result.getLength();
+			final double foundPathLengthNBAStar = resultNBAStar.getLength();
+
+			assertTrue("Path length must be greater than 190 micrometres",
+				foundPathLength > 190);
+			assertTrue("Path length must be greater than 190 micrometres",
+					foundPathLengthNBAStar > 190);
+
+			assertTrue("Path length must be less than 191 micrometres",
+				foundPathLength < 191);
+			assertTrue("Path length must be less than 191 micrometres",
+					foundPathLengthNBAStar < 191);
 
 			pointsExploredHessian = tracer.pointsConsideredInSearch();
+			pointsExploredNBAStarHessian = tracerNBAStar.pointsConsideredInSearch();
 
 			assertTrue("Hessian-based analysis should reduce the points explored " +
 				"by at least a two fifths; in fact went from " + pointsExploredNormal +
 				" to " + pointsExploredHessian,
 				pointsExploredHessian < pointsExploredNormal * 0.8);
+
+			assertTrue("Hessian-based analysis should reduce the points explored " +
+							"by at least a two fifths; in fact went from " + pointsExploredNBAStar +
+							" to " + pointsExploredNBAStarHessian,
+					pointsExploredNBAStarHessian < pointsExploredNBAStar * 0.8);
 		}
 	}
 }
