@@ -222,7 +222,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		listPanel.add(scrollPane, BorderLayout.CENTER);
 		add(listPanel, c);
 		++c.gridy;
-		final JButton deleteFills = GuiUtils.smallButton("Delete");
+		final JButton deleteFills = new JButton("Delete");
 		deleteFills.addActionListener(e -> {
 			if (noFillsError())
 				return;
@@ -235,7 +235,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			plugin.updateTracingViewers(false);
 
 		});
-		final JButton reloadFill = GuiUtils.smallButton("Reload");
+		final JButton reloadFill = new JButton("Reload");
 		reloadFill.addActionListener(e -> {
 			if (noFillsError())
 				return;
@@ -247,25 +247,19 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				pathAndFillManager.reloadFills(selectedIndices);
 			}
 		});
-		add(SNTUI.buttonPanel(deleteFills, reloadFill), c);
-		++c.gridy;
 
-		GuiUtils.addSeparator((JComponent) getContentPane(), " Export:", true, c);
-		++c.gridy;
-
-		final JButton exportAsCSV = new JButton("CSV Summary...");
-		exportAsCSV.addActionListener(e -> saveFills());
-		assembleViewFillsMenu();
-		final JButton exportAsImp = new JButton("Image...");
-		exportAsImp.addMouseListener(new MouseAdapter() {
+		assembleExportFillsMenu();
+		final JButton exportFills = new JButton("Export...");
+		exportFills.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mousePressed(final MouseEvent e) {
-				if (exportAsImp.isEnabled() && !noFillsError())
+				if (exportFills.isEnabled() && !noFillsError())
 					exportFillsMenu.show(e.getComponent(), e.getX(), e.getY());
 			}
 		});
-		add(SNTUI.buttonPanel(exportAsCSV, exportAsImp), c);
-		c.gridy++;
+
+		add(SNTUI.buttonPanel(deleteFills, reloadFill, exportFills), c);
+		++c.gridy;
 
 		pack();
 		adjustListPlaceholder();
@@ -295,7 +289,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		stopFill.addActionListener(this);
 		saveFill = GuiUtils.smallButton("Store");
 		saveFill.addActionListener(this);
-		final JButton discardFill = GuiUtils.smallButton("Cancel/Esc");
+		final JButton discardFill = GuiUtils.smallButton("Cancel/Discard");
 		discardFill.addActionListener( e -> {
 			plugin.discardFill(true); // will change state
 		});
@@ -509,7 +503,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		return noPaths;
 	}
 
-	private void assembleViewFillsMenu() {
+	private void assembleExportFillsMenu() {
 		exportFillsMenu = new JPopupMenu();
 		JMenuItem jmi = new JMenuItem("As Grayscale Image");
 		jmi.addActionListener(e-> showFilledVolumeImage(false));
@@ -517,6 +511,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		jmi = new JMenuItem("As Binary Mask");
 		jmi.addActionListener(e-> showFilledVolumeImage(true));
 		exportFillsMenu.add(jmi);
+		exportFillsMenu.addSeparator();
+		jmi = new JMenuItem("CSV Summary");
+		jmi.addActionListener(e-> saveFills());
 	}
 
 	private void showFilledVolumeImage(final boolean binary) {
