@@ -22,10 +22,14 @@
 
 package sc.fiji.snt.analysis;
 
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.summingDouble;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -35,10 +39,13 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.text.WordUtils;
 
 import net.imagej.ImageJ;
+import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.util.PointInImage;
 
 /**
  * Computes summary and descriptive statistics from univariate properties of
@@ -164,6 +171,8 @@ public class MultiTreeStatistics extends TreeStatistics {
 	};
 
 	private Collection<Tree> groupOfTrees;
+	private Collection<DirectedWeightedGraph> groupOfGraphs;
+	
 
 	/**
 	 * Instantiates a new instance from a collection of Trees.
@@ -395,6 +404,13 @@ public class MultiTreeStatistics extends TreeStatistics {
 				super.tree.list().addAll(tree.list());
 		}
 	}
+	
+	private void populateGroupOfGraphs() {
+		if (groupOfGraphs == null) {
+			groupOfGraphs = new ArrayList<>();
+			groupOfTrees.forEach( t -> groupOfGraphs.add(t.getGraph()));
+		}
+	}
 
 	@Override
 	public void restrictToSWCType(final int... types) {
@@ -404,6 +420,16 @@ public class MultiTreeStatistics extends TreeStatistics {
 	@Override
 	public void resetRestrictions() {
 		throw new IllegalArgumentException("Operation not supported. Only filtering in constructor is supported");
+	}
+
+	@Override
+	public StrahlerAnalyzer getStrahlerAnalyzer() throws IllegalArgumentException {
+		throw new IllegalArgumentException("Operation currently not supported in MultiTreeStatistics");
+	}
+
+	@Override
+	public ShollAnalyzer getShollAnalyzer() {
+		throw new IllegalArgumentException("Operation currently not supported in MultiTreeStatistics");
 	}
 
 	@Override
@@ -418,22 +444,109 @@ public class MultiTreeStatistics extends TreeStatistics {
 		return super.getAnnotations(level);
 	}
 
-//	@Override
-//	public double getCableLength(final BrainAnnotation compartment) {
-//		assignGroupToSuperTree();
-//		return super.getCableLength(compartment);
-//	}
-//
-//	@Override
-//	public double getCableLength(final BrainAnnotation compartment, final boolean includeChildren) {
-//		assignGroupToSuperTree();
-//		return super.getCableLength(compartment, includeChildren);
-//	}
+	@Override
+	public double getCableLength(final BrainAnnotation compartment) {
+		assignGroupToSuperTree();
+		return getCableLength(compartment, true);
+	}
 
+	@Override
+	public Map<BrainAnnotation, Double> getAnnotatedLength(final int level, final String hemisphere) {
+		final char lrflag = BrainAnnotation.getHemisphereFlag(hemisphere);
+		populateGroupOfGraphs();
+		final List<Map<BrainAnnotation, Double>> mapList = new ArrayList<>();
+		groupOfGraphs.forEach(g -> mapList.add(getAnnotatedLength(g, level, lrflag)));
+		final Map<BrainAnnotation, Double> map = mapList.stream().flatMap(m -> m.entrySet().stream())
+				.collect(groupingBy(Map.Entry::getKey, summingDouble(Map.Entry::getValue)));
+		return map;
+	}
+
+	@Override
+	public Map<BrainAnnotation, Double> getAnnotatedLength(final int level) {
+		populateGroupOfGraphs();
+		return getAnnotatedLength(level, "both");
+	}
+
+	@Override
+	public Map<BrainAnnotation, double[]> getAnnotatedLengthsByHemisphere(final int level) {
+		populateGroupOfGraphs();
+		final List<Map<BrainAnnotation, double[]>> mapList = new ArrayList<>();
+		groupOfGraphs.forEach(g -> {
+			mapList.add(getAnnotatedLengthsByHemisphere(g, level));
+		});
+		final Map<BrainAnnotation, double[]> result = mapList.stream().flatMap(m -> m.entrySet().stream())
+				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+						(v1, v2) -> new double[] { v1[0] + v1[0], v1[1] + v1[1] }));
+		return result;
+	}
+
+	@Override
 	public SNTChart getHistogram(final String metric) {
 		final String normMeasurement = getNormalizedMeasurement(metric, true);
 		final HistogramDatasetPlusMulti datasetPlus = new HistogramDatasetPlusMulti(normMeasurement);
-		return getHistogram(normMeasurement, datasetPlus);
+		try {
+			return getHistogram(normMeasurement, datasetPlus);
+		} catch (IllegalArgumentException ex) {
+			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics", ex); 
+		}
+	}
+
+	@Override
+	public Set<PointInImage> getTips() {
+		assignGroupToSuperTree();
+		return super.getTips();
+	}
+
+	@Override
+	public Set<PointInImage> getBranchPoints() {
+		assignGroupToSuperTree();
+		return super.getBranchPoints();
+	}
+
+	@Override
+	public List<Path> getBranches() throws IllegalArgumentException {
+		final List<Path> allBranches = new ArrayList<>();
+		groupOfTrees.forEach(t -> {
+			final List<Path> list = new StrahlerAnalyzer(t).getBranches().values().stream().flatMap(List::stream)
+					.collect(Collectors.toList());
+			allBranches.addAll(list);
+		});
+		return allBranches;
+	}
+
+	@Override
+	public List<Path> getPrimaryBranches() {
+		if (primaryBranches == null) {
+			primaryBranches = new ArrayList<>();
+			groupOfTrees.forEach(t -> {
+				primaryBranches.addAll(new StrahlerAnalyzer(t).getRootAssociatedBranches());
+			});
+		}
+		return primaryBranches;
+	}
+
+	@Override
+	public List<Path> getInnerBranches() {
+		if (innerBranches == null) {
+			innerBranches = new ArrayList<>();
+			groupOfTrees.forEach(t -> {
+				final StrahlerAnalyzer sa = new StrahlerAnalyzer(t);
+				innerBranches.addAll(sa.getBranches(sa.getHighestBranchOrder()));
+			});
+		}
+		return innerBranches;
+	}
+
+	@Override
+	public List<Path> getTerminalBranches() {
+		if (terminalBranches == null) {
+			terminalBranches = new ArrayList<>();
+			groupOfTrees.forEach(t -> {
+				final StrahlerAnalyzer sa = new StrahlerAnalyzer(t);
+				terminalBranches.addAll(sa.getBranches(1));
+			});
+		}
+		return terminalBranches;
 	}
 
 	class HistogramDatasetPlusMulti extends HDPlus {

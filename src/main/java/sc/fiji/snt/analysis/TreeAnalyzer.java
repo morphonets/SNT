@@ -69,11 +69,13 @@ public class TreeAnalyzer extends ContextCommand {
 
 	protected Tree tree;
 	private Tree unfilteredTree;
-	private List<Path> primaryBranches;
-	private List<Path> innerBranches;
-	private List<Path> terminalBranches;
+
+	protected List<Path> primaryBranches;
+	protected List<Path> innerBranches;
+	protected List<Path> terminalBranches;
 	private Set<PointInImage> joints;
-	private Set<PointInImage> tips;
+	protected Set<PointInImage> tips;
+
 	protected DefaultGenericTable table;
 	private String tableTitle;
 	private StrahlerAnalyzer sAnalyzer;
@@ -686,6 +688,29 @@ public class TreeAnalyzer extends ContextCommand {
 	}
 
 	/**
+	 * Gets the number of end points in the analyzed tree associated with the
+	 * specified annotation.
+	 *
+	 * @param annot the BrainAnnotation to be queried.
+	 * @return the number of end points
+	 */
+	public int getNtips(final BrainAnnotation annot) {
+		return getTips(annot).size();
+	}
+
+	/**
+	 * Gets the percentage of end points in the analyzed tree associated with the
+	 * specified annotation
+	 *
+	 * @param annot the BrainAnnotation to be queried.
+	 * @return the ratio between the no. of branch points associated with
+	 *         {@code annot} and the total number of end points in the tree.
+	 */
+	public int getNtipsNorm(final BrainAnnotation annot) {
+		return getNtips(annot) / tips.size();
+	}
+
+	/**
 	 * Gets the position of all the branch points in the analyzed tree.
 	 *
 	 * @return the branch points positions
@@ -718,6 +743,29 @@ public class TreeAnalyzer extends ContextCommand {
 	}
 
 	/**
+	 * Gets the number of branch points in the analyzed tree associated with the
+	 * specified annotation.
+	 *
+	 * @param annot the BrainAnnotation to be queried.
+	 * @return the number of branch points
+	 */
+	public int getNbranchPoints(final BrainAnnotation annot) {
+		return getBranchPoints(annot).size();
+	}
+
+	/**
+	 * Gets the percentage of branch points in the analyzed tree associated with the
+	 * specified annotation
+	 *
+	 * @param annot the BrainAnnotation to be queried.
+	 * @return the ratio between the no. of branch points associated with
+	 *         {@code annot} and the total number of branch points in the tree.
+	 */
+	public int getNbranchPointsNorm(final BrainAnnotation annot) {
+		return getNbranchPoints(annot) / joints.size();
+	}
+
+	/**
 	 * Gets the cable length.
 	 *
 	 * @return the cable length of the tree
@@ -736,6 +784,18 @@ public class TreeAnalyzer extends ContextCommand {
 	 */
 	public double getCableLength(final BrainAnnotation compartment) {
 		return getCableLength(compartment, true);
+	}
+
+	/**
+	 * Gets the cable length associated with the specified compartment (neuropil
+	 * label) as a ratio of total length.
+	 *
+	 * @param compartment the query compartment (null not allowed). All of its
+	 *                    children will be considered
+	 * @return the filtered cable length normalized to total cable length
+	 */
+	public double getCableLengthNorm(final BrainAnnotation compartment) {
+		return getCableLength(compartment, true) / getCableLength();
 	}
 
 	/**

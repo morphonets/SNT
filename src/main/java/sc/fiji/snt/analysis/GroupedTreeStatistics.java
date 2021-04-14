@@ -192,7 +192,7 @@ public class GroupedTreeStatistics {
 	}
 
 	/**
-	 * Assembles a Box and Whisker Plot for the specified measurement.
+	 * Assembles a Box and Whisker Plot for the specified measurement (cell morphometry).
 	 *
 	 * @param measurement the measurement ({@link MultiTreeStatistics#N_NODES
 	 *                    N_NODES}, {@link MultiTreeStatistics#NODE_RADIUS
@@ -254,14 +254,40 @@ public class GroupedTreeStatistics {
 	}
 
 	/**
-	 * Gets the box plot.
+	 * Assembles a Box and Whisker Plot for the specified feature (absolute
+	 * measurements).
 	 *
-	 * @param feature the feature
-	 * @param annotations the annotations
-	 * @return the box plot
+	 * @param feature     the feature ({@value #LENGTH}, {@value #N_BRANCH_POINTS},
+	 *                    {@value #N_TIPS}, etc.). Note that the majority of
+	 *                    {@link #getAllMetrics()} metrics are currently not
+	 *                    supported.
+	 * @param annotations the BrainAnnotation to be queried. Null not allowed.
+	 * @return the frame holding the box plot
 	 */
 	public SNTChart getBoxPlot(final String feature, final Collection<BrainAnnotation> annotations) {
-		String normFeature = getBoxPlotFeature(feature);
+		return getBoxPlot(feature, annotations, Double.MIN_VALUE, false);
+	}
+
+	/**
+	 * Assembles a Box and Whisker Plot for the specified feature.
+	 *
+	 * @param feature     the feature ({@value #LENGTH}, {@value #N_BRANCH_POINTS},
+	 *                    {@value #N_TIPS}, etc.). Note that the majority of
+	 *                    {@link #getAllMetrics()} metrics are currently not
+	 *                    supported.
+	 * @param annotations the BrainAnnotation to be queried. Null not allowed.
+	 * @param cutoff      a filtering option. If the computed {@code feature} for an
+	 *                    annotation is below this value, that annotation is
+	 *                    excluded from the plot
+	 * @param normalize   If true, values are retrieved as ratios. E.g., If
+	 *                    {@code feature} is {@value #LENGTH}, and {@code cutoff}
+	 *                    0.1, BrainAnnotations in {@code annotations} associated
+	 *                    with less than 10% of cable length are ignored.
+	 * 
+	 * @return the frame holding the box plot
+	 */
+	public SNTChart getBoxPlot(final String feature, final Collection<BrainAnnotation> annotations, final double cutoff, final boolean normalize) {
+		final String normFeature = getBoxPlotFeature(feature);
 		if (normFeature.equalsIgnoreCase("unknown")) {
 			throw new IllegalArgumentException("Unrecognizable measurement \"" + feature);
 		}
@@ -274,23 +300,26 @@ public class GroupedTreeStatistics {
 				for (final BrainAnnotation annotation : annotations) {
 					if (annotation == null) continue;
 					final ArrayList<Double> values = new ArrayList<>();
-					map.put(annotation.acronym(), values);
 					for (final Tree tree: trees) {
 						if (tree == null) continue;
+						final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
+						double value;
 						switch (normFeature) {
 						case LENGTH:
-							values.add(new TreeAnalyzer(tree).getCableLength(annotation));
+							value = (normalize) ? analyzer.getCableLengthNorm(annotation) : analyzer.getCableLength(annotation);
 							break;
 						case N_BRANCH_POINTS:
-							values.add((double) new TreeAnalyzer(tree).getBranchPoints(annotation).size());
+							value = (normalize) ? analyzer.getNbranchPointsNorm(annotation) : analyzer.getNbranchPoints(annotation);
 							break;
 						case N_TIPS:
-							values.add((double) new TreeAnalyzer(tree).getTips(annotation).size());
+							value = (normalize) ? analyzer.getNtipsNorm(annotation) : analyzer.getNtips(annotation);
 							break;
 						default:
 							throw new IllegalArgumentException("Unrecognized feature");
 						}
+						if (value > cutoff) values.add(value);
 					}
+					if (!values.isEmpty()) map.put(annotation.acronym(), values);
 				}
 			}
 		}
