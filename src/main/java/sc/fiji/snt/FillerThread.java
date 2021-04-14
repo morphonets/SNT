@@ -22,16 +22,15 @@
 
 package sc.fiji.snt;
 
-import java.awt.Graphics;
-import java.util.*;
-
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ShortProcessor;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import sc.fiji.snt.util.SparseMatrix;
+import sc.fiji.snt.util.SearchImage;
+
+import java.awt.*;
+import java.util.*;
 
 public class FillerThread extends SearchThread {
 
@@ -47,7 +46,7 @@ public class FillerThread extends SearchThread {
 		final int y = (int) Math.round(yd);
 		final int z = (int) Math.round(zd);
 
-		SparseMatrix<DefaultSearchNode> slice = nodes_as_image_from_start.getSlice(z);
+		SearchImage<DefaultSearchNode> slice = nodes_as_image_from_start.getSlice(z);
 		if (slice == null) {
 			return -1.0;
 		}
@@ -70,15 +69,13 @@ public class FillerThread extends SearchThread {
 		// Fill object with index
 
 		int i = 0;
-		for (final SparseMatrix<DefaultSearchNode> slice : nodes_as_image_from_start) {
+		for (final SearchImage<DefaultSearchNode> slice : nodes_as_image_from_start) {
 			if (slice == null) continue;
-			for (final Int2ObjectOpenHashMap<DefaultSearchNode> row : slice) {
-				for (final DefaultSearchNode current : row.values()) {
-					if (current.g <= threshold) {
-						h.put(current, i);
-						a.add(current);
-						++i;
-					}
+			for (final DefaultSearchNode current : slice) {
+				if (current != null && current.g <= threshold) {
+					h.put(current, i);
+					a.add(current);
+					++i;
 				}
 			}
 		}

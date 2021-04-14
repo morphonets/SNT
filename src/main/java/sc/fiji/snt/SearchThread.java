@@ -27,8 +27,7 @@ import java.util.*;
 import ij.ImagePlus;
 import org.jheaps.AddressableHeap;
 import org.jheaps.tree.PairingHeap;
-import sc.fiji.snt.util.SparseMatrix;
-import sc.fiji.snt.util.SparseMatrixStack;
+import sc.fiji.snt.util.*;
 
 /**
  * Implements a common thread that explores the image using a variety of
@@ -73,8 +72,8 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 	private long closed_from_start_count;
 	private long closed_from_goal_count;
 
-	protected SparseMatrixStack<DefaultSearchNode> nodes_as_image_from_start;
-	protected SparseMatrixStack<DefaultSearchNode> nodes_as_image_from_goal;
+	protected SearchImageStack<DefaultSearchNode> nodes_as_image_from_start;
+	protected SearchImageStack<DefaultSearchNode> nodes_as_image_from_goal;
 
 	protected double minimum_cost_per_unit_distance;
 
@@ -106,9 +105,11 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 		if (bidirectional) {
 			open_from_goal = new PairingHeap<>();
 		}
-		nodes_as_image_from_start = new SparseMatrixStack<>(depth);
+		nodes_as_image_from_start = new SearchImageStack<>(depth,
+				SupplierUtil.createSupplier(ArraySearchImage.class, DefaultSearchNode.class, width, height));
 		if (bidirectional) {
-			nodes_as_image_from_goal = new SparseMatrixStack<>(depth);
+			nodes_as_image_from_goal = new SearchImageStack<>(depth,
+					SupplierUtil.createSupplier(ArraySearchImage.class, DefaultSearchNode.class, width, height));
 		}
 		progressListeners = new ArrayList<>();
 	}
@@ -295,9 +296,9 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 				final AddressableHeap<DefaultSearchNode, Void> open_queue = fromStart ? open_from_start
 					: open_from_goal;
 
-				final SparseMatrixStack<DefaultSearchNode> nodes_as_image_this_search = fromStart
+				final SearchImageStack<DefaultSearchNode> nodes_as_image_this_search = fromStart
 					? nodes_as_image_from_start : nodes_as_image_from_goal;
-				final SparseMatrixStack<DefaultSearchNode> nodes_as_image_other_search = fromStart
+				final SearchImageStack<DefaultSearchNode> nodes_as_image_other_search = fromStart
 					? nodes_as_image_from_goal : nodes_as_image_from_start;
 
 				DefaultSearchNode p;
@@ -326,7 +327,7 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 					p.searchStatus = CLOSED_FROM_GOAL;
 					closed_from_goal_count++;
 				}
-				nodes_as_image_this_search.getSlice(p.z).setValueWithoutChecks(p.x, p.y, p);
+				//nodes_as_image_this_search.getSlice(p.z).setValueWithoutChecks(p.x, p.y, p);
 
 				// Now look at the neighbours of p. We're going to consider
 				// the 26 neighbours in 3D.
@@ -530,8 +531,8 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 	protected DefaultSearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
 													  final double threshold)
 	{
-		final SparseMatrix<DefaultSearchNode> startSlice = nodes_as_image_from_start.getSlice(z);
-		SparseMatrix<DefaultSearchNode> goalSlice = null;
+		final SearchImage<DefaultSearchNode> startSlice = nodes_as_image_from_start.getSlice(z);
+		SearchImage<DefaultSearchNode> goalSlice = null;
 		if (nodes_as_image_from_goal != null) goalSlice = nodes_as_image_from_goal.getSlice(z);
 		DefaultSearchNode n = null;
 		if (startSlice != null) {
@@ -549,10 +550,10 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 
 	public void addNode(final DefaultSearchNode n, final boolean fromStart) {
 
-		final SparseMatrixStack<DefaultSearchNode> nodes_as_image = fromStart ? nodes_as_image_from_start
+		final SearchImageStack<DefaultSearchNode> nodes_as_image = fromStart ? nodes_as_image_from_start
 			: nodes_as_image_from_goal;
 
-		SparseMatrix<DefaultSearchNode> slice = nodes_as_image.getSlice(n.z);
+		SearchImage<DefaultSearchNode> slice = nodes_as_image.getSlice(n.z);
 		if (slice == null) {
 			slice = nodes_as_image.newSlice(n.z);
 		}

@@ -26,9 +26,7 @@ import ij.ImagePlus;
 import org.jheaps.AddressableHeap;
 import org.jheaps.tree.PairingHeap;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.util.SearchImage;
-import sc.fiji.snt.util.SearchImageStack;
-import sc.fiji.snt.util.SparseMatrixStack;
+import sc.fiji.snt.util.*;
 
 import java.awt.*;
 import java.util.List;
@@ -66,7 +64,7 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
     protected AddressableHeap<BidirectionalSearchNode, Void> open_from_goal;
     protected long closed_from_start_count;
     protected long closed_from_goal_count;
-    protected SearchImageStack<SearchNode> nodes_as_image;
+    protected SearchImageStack<BidirectionalSearchNode> nodes_as_image;
 
     private double bestPathLength;
     private BidirectionalSearchNode touchNode;
@@ -87,7 +85,8 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
     public AbstractBidirectionalSearch(final int start_x, final int start_y, final int start_z,
                                        final int goal_x, final int goal_y, final int goal_z,
                                        final ImagePlus imagePlus, final float stackMin, final float stackMax,
-                                       final int timeoutSeconds, final long reportEveryMilliseconds) {
+                                       final int timeoutSeconds, final long reportEveryMilliseconds,
+                                       Class<? extends SearchImage> searchImageType) {
         super(imagePlus, stackMin, stackMax, timeoutSeconds, reportEveryMilliseconds);
         this.start_x = start_x;
         this.start_y = start_y;
@@ -95,12 +94,14 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
         this.goal_x = goal_x;
         this.goal_y = goal_y;
         this.goal_z = goal_z;
+        nodes_as_image = new SearchImageStack<>(depth,
+                SupplierUtil.createSupplier(searchImageType, BidirectionalSearchNode.class, width, height));
         init();
     }
 
     protected AbstractBidirectionalSearch(final int start_x, final int start_y, final int start_z,
                                           final int goal_x, final int goal_y, final int goal_z,
-                                          final SNT snt) {
+                                          final SNT snt, Class<? extends SearchImage> searchImageType) {
         super(snt);
         this.start_x = start_x;
         this.start_y = start_y;
@@ -108,6 +109,8 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
         this.goal_x = goal_x;
         this.goal_y = goal_y;
         this.goal_z = goal_z;
+        nodes_as_image = new SearchImageStack<>(depth,
+                SupplierUtil.createSupplier(searchImageType, BidirectionalSearchNode.class, width, height));
         init();
     }
 
@@ -119,8 +122,6 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
 
         closed_from_start_count = 0L;
         closed_from_goal_count = 0L;
-
-        nodes_as_image = new SparseMatrixStack<>(depth);
 
         progressListeners = new ArrayList<>();
     }
@@ -268,7 +269,7 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
         for (int zdiff = -1; zdiff <= 1; zdiff++) {
             final int new_z = p.z + zdiff;
             if (new_z < 0 || new_z >= depth) continue;
-            SearchImage<SearchNode> currentSlice = nodes_as_image.getSlice(new_z);
+            SearchImage<BidirectionalSearchNode> currentSlice = nodes_as_image.getSlice(new_z);
             if (currentSlice == null) {
                 currentSlice = nodes_as_image.newSlice(new_z);
             }
@@ -280,8 +281,7 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
                     if (new_x < 0 || new_x >= width) continue;
                     if (new_y < 0 || new_y >= height) continue;
 
-                    BidirectionalSearchNode alreadyThereInEitherSearch =
-                            (BidirectionalSearchNode) currentSlice.getValue(new_x, new_y);
+                    BidirectionalSearchNode alreadyThereInEitherSearch = currentSlice.getValue(new_x, new_y);
 
                     final double xdiffsq = (xdiff * x_spacing) * (xdiff * x_spacing);
                     final double ydiffsq = (ydiff * y_spacing) * (ydiff * y_spacing);
@@ -479,11 +479,11 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
     @Override
     protected BidirectionalSearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
                                                             final double threshold) {
-        final SearchImage<SearchNode> slice = nodes_as_image.getSlice(z);
+        final SearchImage<BidirectionalSearchNode> slice = nodes_as_image.getSlice(z);
         if (slice == null) {
             return null;
         }
-        return (BidirectionalSearchNode) slice.getValue(x, y);
+        return slice.getValue(x, y);
     }
 
     @Override

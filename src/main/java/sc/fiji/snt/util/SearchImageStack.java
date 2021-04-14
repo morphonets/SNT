@@ -22,10 +22,59 @@
 
 package sc.fiji.snt.util;
 
-public interface SearchImageStack<V> {
+import org.jetbrains.annotations.NotNull;
+import sc.fiji.snt.SearchNode;
 
-    SearchImage<V> getSlice(int z);
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Supplier;
 
-    SearchImage<V> newSlice(int z);
+/**
+ * A stack of {@link SearchImage}s, backed by a List.
+ *
+ * @author Cameron Arshadi
+ */
+public class SearchImageStack<V extends SearchNode> implements Iterable<SearchImage<V>> {
+
+    List<SearchImage<V>> stack;
+    Supplier<SearchImage<V>> searchImageSupplier;
+
+    public SearchImageStack(final int nSlices) {
+        this.searchImageSupplier = new SupplierUtil.SparseMatrixSupplier<>();
+        initNullStack(nSlices);
+    }
+
+    public SearchImageStack(final int nSlices, final Supplier<SearchImage<V>> supplier) {
+        this.searchImageSupplier = supplier;
+        initNullStack(nSlices);
+    }
+
+    public SearchImage<V> getSlice(final int z) {
+        return stack.get(z);
+    }
+
+    public SearchImage<V> newSlice(final int z) {
+        SearchImage<V> slice = searchImageSupplier.get();
+        stack.set(z, slice);
+        return slice;
+    }
+
+    private void initNullStack(final int nSlices) {
+        stack = new ArrayList<>(nSlices);
+        for (int i=0; i < nSlices; i++) {
+            stack.add(null);
+        }
+    }
+
+    public int size() {
+        return stack.size();
+    }
+
+    @NotNull
+    @Override
+    public Iterator<SearchImage<V>> iterator() {
+        return stack.iterator();
+    }
 
 }

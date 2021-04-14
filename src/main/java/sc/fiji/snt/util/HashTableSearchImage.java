@@ -25,19 +25,22 @@ package sc.fiji.snt.util;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntSet;
 import org.jetbrains.annotations.NotNull;
+import sc.fiji.snt.SearchNode;
 
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * A sparse matrix implementation backed by a nested int to Object open addressed hash map
  *
  * @author Cameron Arshadi
  */
-public class SparseMatrix<V> implements SearchImage<V>, Iterable<Int2ObjectOpenHashMap<V>> {
+public class HashTableSearchImage<V extends SearchNode> implements SearchImage<V> {
 
     private final Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<V>> doubleMap;
 
-    public SparseMatrix() {
+    public HashTableSearchImage() {
         this.doubleMap = new Int2ObjectOpenHashMap<>();
     }
 
@@ -80,7 +83,11 @@ public class SparseMatrix<V> implements SearchImage<V>, Iterable<Int2ObjectOpenH
 
     @NotNull
     @Override
-    public Iterator<Int2ObjectOpenHashMap<V>> iterator() {
-        return doubleMap.values().iterator();
+    public Iterator<V> iterator() {
+        List<V> values = new ArrayList<>();
+        for (Int2ObjectOpenHashMap<V> row : doubleMap.values()) {
+            values.addAll(row.values());
+        }
+        return values.iterator();
     }
 }

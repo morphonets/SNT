@@ -22,7 +22,7 @@
 
 package sc.fiji.snt.util;
 
-public interface SearchImage<V> {
+public interface SearchImage<V> extends Iterable<V> {
 
     V getValue(int x, int y);
 

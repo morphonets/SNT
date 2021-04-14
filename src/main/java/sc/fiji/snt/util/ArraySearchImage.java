@@ -22,31 +22,41 @@
 
 package sc.fiji.snt.util;
 
-import sc.fiji.snt.SearchNode;
+import org.jetbrains.annotations.NotNull;
 
-public class SearchNodeArrayStack implements SearchImageStack<SearchNode> {
+import java.lang.reflect.Array;
+import java.util.Arrays;
+import java.util.Iterator;
+
+public class ArraySearchImage<V> implements SearchImage<V> {
 
     final int width;
     final int height;
-    final int depth;
-    SearchNodeArray[] stack;
+    final V[] arr;
 
-    public SearchNodeArrayStack(int width, int height, int depth) {
+    public ArraySearchImage(Class<V> c, final int width, final int height) {
         this.width = width;
         this.height = height;
-        this.depth = depth;
-        stack = new SearchNodeArray[depth];
+        @SuppressWarnings("unchecked")
+        final V[] arr = (V[]) Array.newInstance(c, width * height);
+        this.arr = arr;
     }
 
     @Override
-    public SearchImage<SearchNode> getSlice(int z) {
-        return stack[z];
+    public V getValue(final int x, final int y) {
+        return arr[y * width + x];
     }
 
     @Override
-    public SearchImage<SearchNode> newSlice(int z) {
-        SearchNodeArray arr = new SearchNodeArray(width, height);
-        stack[z] = arr;
-        return arr;
+    public void setValue(final int x, final int y, V node) {
+        arr[y * width + x] = node;
     }
+
+    @NotNull
+    @Override
+    public Iterator<V> iterator() {
+        return Arrays.stream(arr).iterator();
+    }
+
+
 }

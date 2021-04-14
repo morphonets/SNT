@@ -27,11 +27,12 @@ import ij.ImageStack;
 import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ShortProcessor;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import sc.fiji.snt.util.SparseMatrix;
-import sc.fiji.snt.util.SparseMatrixStack;
+import sc.fiji.snt.util.HashTableSearchImage;
+import sc.fiji.snt.util.SearchImage;
+import sc.fiji.snt.util.SearchImageStack;
+import sc.fiji.snt.util.SupplierUtil;
 
-import java.util.*;
+import java.util.Collection;
 
 /**
  * Static utilities for handling of {@link Fill}s
@@ -76,25 +77,25 @@ public class FillUtils {
         }
 
         // Merge the individuals fills into a single stack
-        final SparseMatrixStack<DefaultSearchNode> newStack = new SparseMatrixStack<>(depth);
+        final SearchImageStack<DefaultSearchNode> newStack =
+                new SearchImageStack<>(depth, new SupplierUtil.SparseMatrixSupplier<>());
+
         for (final FillerThread filler : fillers) {
-            for (int sliceIdx=0; sliceIdx < filler.nodes_as_image_from_start.stack.size(); sliceIdx++) {
-                final SparseMatrix<DefaultSearchNode> slice = filler.nodes_as_image_from_start.getSlice(sliceIdx);
+            for (int sliceIdx = 0; sliceIdx < filler.nodes_as_image_from_start.size(); sliceIdx++) {
+                final SearchImage<DefaultSearchNode> slice = filler.nodes_as_image_from_start.getSlice(sliceIdx);
                 if (slice == null) continue;
-                SparseMatrix<DefaultSearchNode> newSlice = newStack.getSlice(sliceIdx);
+                SearchImage<DefaultSearchNode> newSlice = newStack.getSlice(sliceIdx);
                 if (newSlice == null) {
                     newSlice = newStack.newSlice(sliceIdx);
                 }
-                for (final int rowIdx : slice.rowKeySet()) {
-                    final Int2ObjectOpenHashMap<DefaultSearchNode> row = slice.getRow(rowIdx);
-                    if (row == null) continue;
-                    Int2ObjectOpenHashMap<DefaultSearchNode> newRow = newSlice.getRow(rowIdx);
-                    if (newRow == null) {
-                        newRow = newSlice.newRow(rowIdx);
-                    }
-                    for (final DefaultSearchNode node : row.values()) {
+                for (final DefaultSearchNode node : slice) {
+                    if (node == null) continue;
+                    DefaultSearchNode existingNode = newSlice.getValue(node.x, node.y);
+                    if (existingNode == null) {
+                        newSlice.setValue(node.x, node.y, node);
+                    } else if (node.g < existingNode.g) {
                         // If there are two nodes with the same index, choose the one with lower g-score
-                        newRow.merge(node.x, node, (v1, v2) -> v1.g == Math.min(v1.g, v2.g) ? v1 : v2);
+                        newSlice.setValue(node.x, node.y, node);
                     }
                 }
             }
@@ -124,7 +125,7 @@ public class FillUtils {
         final ImageStack stack = new ImageStack(width, height);
         final double threshold = fillers.iterator().next().getThreshold();
         for (int z = 0; z < depth; ++z) {
-            final SparseMatrix<DefaultSearchNode> slice = newStack.getSlice(z);
+            final SearchImage<DefaultSearchNode> slice = newStack.getSlice(z);
             if (slice != null) for (int y = 0; y < height; ++y) {
                 for (int x = 0; x < width; ++x) {
                     final DefaultSearchNode s = slice.getValue(x,y);
