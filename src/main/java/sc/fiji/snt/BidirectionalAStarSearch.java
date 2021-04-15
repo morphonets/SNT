@@ -24,7 +24,7 @@ package sc.fiji.snt;
 
 import features.ComputeCurvatures;
 import ij.ImagePlus;
-import sc.fiji.snt.util.ArraySearchImage;
+import sc.fiji.snt.util.ListSearchImage;
 
 /**
  * SNT's default tracer thread: explores between two points in an image, doing
@@ -42,7 +42,7 @@ public class BidirectionalAStarSearch extends AbstractBidirectionalSearch {
 
     public BidirectionalAStarSearch(final SNT snt, final int start_x, final int start_y,
                                     final int start_z, final int goal_x, final int goal_y, final int goal_z) {
-        super(start_x, start_y, start_z, goal_x, goal_y, goal_z, snt, ArraySearchImage.class);
+        super(start_x, start_y, start_z, goal_x, goal_y, goal_z, snt, ListSearchImage.class);
         reciprocal = true;
         singleSlice = snt.is2D();
         useHessian = snt.isHessianEnabled((snt.isTracingOnSecondaryImageActive())?"secondary":"primary");
@@ -72,7 +72,7 @@ public class BidirectionalAStarSearch extends AbstractBidirectionalSearch {
                                     final float[][] cachedTubeness, final boolean useHessian)
     {
         super(start_x, start_y, start_z, goal_x, goal_y, goal_z, imagePlus, stackMin, stackMax,
-                timeoutSeconds, reportEveryMilliseconds, ArraySearchImage.class);
+                timeoutSeconds, reportEveryMilliseconds, ListSearchImage.class);
 
         this.reciprocal = reciprocal;
         this.singleSlice = singleSlice;

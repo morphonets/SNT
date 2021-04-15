@@ -36,11 +36,11 @@ import java.util.List;
  *
  * @author Cameron Arshadi
  */
-public class HashTableSearchImage<V extends SearchNode> implements SearchImage<V> {
+public class TableSearchImage<V extends SearchNode> implements SearchImage<V> {
 
     private final Int2ObjectOpenHashMap<Int2ObjectOpenHashMap<V>> doubleMap;
 
-    public HashTableSearchImage() {
+    public TableSearchImage() {
         this.doubleMap = new Int2ObjectOpenHashMap<>();
     }
 

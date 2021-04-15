@@ -41,7 +41,7 @@ public class SearchImageStack<V extends SearchNode> implements Iterable<SearchIm
     Supplier<SearchImage<V>> searchImageSupplier;
 
     public SearchImageStack(final int nSlices) {
-        this.searchImageSupplier = new SupplierUtil.SparseMatrixSupplier<>();
+        this.searchImageSupplier = new SupplierUtil.TableSearchImageSupplier<>();
         initNullStack(nSlices);
     }
 

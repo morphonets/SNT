@@ -33,9 +33,9 @@ import static sc.fiji.snt.AbstractBidirectionalSearch.UNEXPLORED;
  */
 public class BidirectionalSearchNode implements SearchNode {
 
-    public final int x;
-    public final int y;
-    public final int z;
+    public int x;
+    public int y;
+    public int z;
 
     public double gFromStart;
     public double gFromGoal;
@@ -50,6 +50,10 @@ public class BidirectionalSearchNode implements SearchNode {
     AddressableHeap.Handle<BidirectionalSearchNode, Void> heapHandleFromGoal;
 
     public byte state = UNEXPLORED;
+
+    public BidirectionalSearchNode() {
+
+    }
 
     public BidirectionalSearchNode(int x, int y,  int z,
                                    double fFromStart, double fFromGoal,

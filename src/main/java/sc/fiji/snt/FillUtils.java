@@ -27,7 +27,6 @@ import ij.ImageStack;
 import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ShortProcessor;
-import sc.fiji.snt.util.HashTableSearchImage;
 import sc.fiji.snt.util.SearchImage;
 import sc.fiji.snt.util.SearchImageStack;
 import sc.fiji.snt.util.SupplierUtil;
@@ -78,7 +77,7 @@ public class FillUtils {
 
         // Merge the individuals fills into a single stack
         final SearchImageStack<DefaultSearchNode> newStack =
-                new SearchImageStack<>(depth, new SupplierUtil.SparseMatrixSupplier<>());
+                new SearchImageStack<>(depth, new SupplierUtil.TableSearchImageSupplier<>());
 
         for (final FillerThread filler : fillers) {
             for (int sliceIdx = 0; sliceIdx < filler.nodes_as_image_from_start.size(); sliceIdx++) {
