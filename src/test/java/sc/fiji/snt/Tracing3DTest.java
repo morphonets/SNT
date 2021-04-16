@@ -28,6 +28,7 @@ import ij.measure.Calibration;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import sc.fiji.snt.util.ArraySearchImage;
 
 import java.util.Objects;
 
@@ -71,7 +72,7 @@ public class Tracing3DTest {
 					true, // reciprocal
 					false, // singleSlice
 					null, 1, // multiplier
-					null, false);
+					null, false, ArraySearchImage.class);
 
 			tracer.run();
 			final Path result = tracer.getResult();
@@ -95,7 +96,7 @@ public class Tracing3DTest {
 					true, // reciprocal
 					false, // singleSlice
 					null, 1, // multiplier
-					null, false);
+					null, false, ArraySearchImage.class);
 
 			Path result = tracer.call();
 			assertNotNull("Not path found", result);
@@ -123,7 +124,7 @@ public class Tracing3DTest {
 					true, // reciprocal
 					false, // singleSlice
 					hessian, 17.0, // multiplier
-					null, true);
+					null, true, ArraySearchImage.class);
 
 			final BidirectionalAStarSearch tracerNBAStar = new BidirectionalAStarSearch(image, 0, 254,
 					-1, // timeoutSeconds
@@ -132,7 +133,7 @@ public class Tracing3DTest {
 					true, // reciprocal
 					false, // singleSlice
 					hessian, 17.0, // multiplier
-					null, true);
+					null, true, ArraySearchImage.class);
 
 			tracer.run();
 			final Path result = tracer.getResult();

@@ -22,73 +22,6 @@
 
 package sc.fiji.snt;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Desktop;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.Frame;
-import java.awt.GraphicsConfiguration;
-import java.awt.GraphicsDevice;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.GridLayout;
-import java.awt.Insets;
-import java.awt.Point;
-import java.awt.Rectangle;
-import java.awt.event.*;
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.stream.IntStream;
-
-import javax.swing.AbstractAction;
-import javax.swing.BorderFactory;
-import javax.swing.BoxLayout;
-import javax.swing.ButtonGroup;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JMenu;
-import javax.swing.JMenuBar;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JSpinner;
-import javax.swing.JTabbedPane;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
-import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
-import javax.swing.SwingWorker;
-import javax.swing.Timer;
-import javax.swing.WindowConstants;
-import javax.swing.border.BevelBorder;
-import javax.swing.border.EmptyBorder;
-import javax.swing.event.ChangeListener;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-
-import org.scijava.command.Command;
-import org.scijava.command.CommandModule;
-import org.scijava.command.CommandService;
-import org.scijava.util.ColorRGB;
-import org.scijava.util.Types;
-
 import ij.ImageListener;
 import ij.ImagePlus;
 import ij.Prefs;
@@ -99,36 +32,43 @@ import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
 import ij3d.ImageWindow3D;
 import net.imagej.Dataset;
+import org.scijava.command.Command;
+import org.scijava.command.CommandModule;
+import org.scijava.command.CommandService;
+import org.scijava.util.ColorRGB;
+import org.scijava.util.Types;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.event.SNTEvent;
-import sc.fiji.snt.gui.ColorChooserButton;
-import sc.fiji.snt.gui.FileDrop;
-import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.IconFactory;
-import sc.fiji.snt.gui.ScriptInstaller;
-import sc.fiji.snt.gui.SigmaPalette;
+import sc.fiji.snt.gui.*;
+import sc.fiji.snt.gui.cmds.*;
+import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.*;
+import sc.fiji.snt.util.ArraySearchImage;
+import sc.fiji.snt.util.ListSearchImage;
+import sc.fiji.snt.util.TableSearchImage;
 import sc.fiji.snt.viewer.Viewer3D;
-import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
-import sc.fiji.snt.gui.cmds.CompareFilesCmd;
-import sc.fiji.snt.gui.cmds.ComputeSecondaryImg;
-import sc.fiji.snt.gui.cmds.ComputeTubenessImg;
-import sc.fiji.snt.gui.cmds.EnableSciViewUpdateSiteCmd;
-import sc.fiji.snt.gui.cmds.GraphGeneratorCmd;
-import sc.fiji.snt.gui.cmds.InsectBrainImporterCmd;
-import sc.fiji.snt.gui.cmds.JSONImporterCmd;
-import sc.fiji.snt.gui.cmds.MLImporterCmd;
-import sc.fiji.snt.gui.cmds.MultiSWCImporterCmd;
-import sc.fiji.snt.gui.cmds.OpenDatasetCmd;
-import sc.fiji.snt.gui.cmds.RemoteSWCImporterCmd;
-import sc.fiji.snt.gui.cmds.SNTLoaderCmd;
-import sc.fiji.snt.gui.cmds.PrefsCmd;
-import sc.fiji.snt.gui.cmds.ShowCorrespondencesCmd;
-import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+
+import javax.swing.Timer;
+import javax.swing.*;
+import javax.swing.border.BevelBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.ChangeListener;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import java.awt.*;
+import java.awt.event.*;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
 
 /**
  * Implements SNT's main dialog.
@@ -2659,6 +2599,27 @@ public class SNTUI extends JDialog {
 		checkboxPanel.add(searchAlgoChoice);
 		checkboxPanel.add(GuiUtils.leftAlignedLabel(" algorithm", true));
 		aStarPanel.add(checkboxPanel, gc);
+		final JPopupMenu optionsMenu = new JPopupMenu();
+		final JButton optionsButton = optionsButton(optionsMenu);
+		final JMenuItem jmiArraySearchImage = new JMenuItem("Array");
+		jmiArraySearchImage.addActionListener(e -> {
+			plugin.searchImageType = ArraySearchImage.class;
+			SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
+		});
+		optionsMenu.add(jmiArraySearchImage);
+		final JMenuItem jmiTableSearchImage = new JMenuItem("Hash Table");
+		jmiTableSearchImage.addActionListener(e -> {
+			plugin.searchImageType = TableSearchImage.class;
+			SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
+		});
+		optionsMenu.add(jmiTableSearchImage);
+		final JMenuItem jmiListSearchImage = new JMenuItem("ImgLib2 ListImg");
+		jmiListSearchImage.addActionListener(e -> {
+			plugin.searchImageType = ListSearchImage.class;
+			SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
+		});
+		optionsMenu.add(jmiListSearchImage);
+		checkboxPanel.add(optionsButton, BorderLayout.EAST);
 		return aStarPanel;
 	}
 

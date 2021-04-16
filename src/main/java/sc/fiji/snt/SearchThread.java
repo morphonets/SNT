@@ -84,11 +84,17 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
 	public SearchThread(final ImagePlus imagePlus, final float stackMin, final float stackMax,
 						final boolean bidirectional, final boolean definedGoal, final int timeoutSeconds,
-						final long reportEveryMilliseconds)
+						final long reportEveryMilliseconds, final Class<? extends SearchImage> searchImageType)
 	{
 		super(imagePlus, stackMin, stackMax, timeoutSeconds, reportEveryMilliseconds);
 		this.bidirectional = bidirectional;
 		this.definedGoal = definedGoal;
+		nodes_as_image_from_start = new SearchImageStack<>(depth,
+				SupplierUtil.createSupplier(searchImageType, DefaultSearchNode.class, width, height));
+		if (bidirectional) {
+			nodes_as_image_from_goal = new SearchImageStack<>(depth,
+					SupplierUtil.createSupplier(searchImageType, DefaultSearchNode.class, width, height));
+		}
 		init();
 	}
 
@@ -97,6 +103,12 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 		super(snt);
 		bidirectional = true;
 		definedGoal = true;
+		nodes_as_image_from_start = new SearchImageStack<>(depth,
+				SupplierUtil.createSupplier(snt.searchImageType, DefaultSearchNode.class, width, height));
+		if (bidirectional) {
+			nodes_as_image_from_goal = new SearchImageStack<>(depth,
+					SupplierUtil.createSupplier(snt.searchImageType, DefaultSearchNode.class, width, height));
+		}
 		init();
 	}
 
@@ -104,12 +116,6 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 		open_from_start = new PairingHeap<>();
 		if (bidirectional) {
 			open_from_goal = new PairingHeap<>();
-		}
-		nodes_as_image_from_start = new SearchImageStack<>(depth,
-				SupplierUtil.createSupplier(ArraySearchImage.class, DefaultSearchNode.class, width, height));
-		if (bidirectional) {
-			nodes_as_image_from_goal = new SearchImageStack<>(depth,
-					SupplierUtil.createSupplier(ArraySearchImage.class, DefaultSearchNode.class, width, height));
 		}
 		progressListeners = new ArrayList<>();
 	}

@@ -101,7 +101,7 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
 
     protected AbstractBidirectionalSearch(final int start_x, final int start_y, final int start_z,
                                           final int goal_x, final int goal_y, final int goal_z,
-                                          final SNT snt, Class<? extends SearchImage> searchImageType) {
+                                          final SNT snt) {
         super(snt);
         this.start_x = start_x;
         this.start_y = start_y;
@@ -110,7 +110,7 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
         this.goal_y = goal_y;
         this.goal_z = goal_z;
         nodes_as_image = new SearchImageStack<>(depth,
-                SupplierUtil.createSupplier(searchImageType, BidirectionalSearchNode.class, width, height));
+                SupplierUtil.createSupplier(snt.searchImageType, BidirectionalSearchNode.class, width, height));
         init();
     }
 

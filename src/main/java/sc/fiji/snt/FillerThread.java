@@ -28,6 +28,7 @@ import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ShortProcessor;
 import sc.fiji.snt.util.SearchImage;
+import sc.fiji.snt.util.TableSearchImage;
 
 import java.awt.*;
 import java.util.*;
@@ -189,7 +190,7 @@ public class FillerThread extends SearchThread {
 	{
 
 		super(imagePlus, stackMin, stackMax, false, false, 0,
-				reportEveryMilliseconds);
+				reportEveryMilliseconds, TableSearchImage.class);
 
 		this.reciprocal = reciprocal;
 		setThreshold(initialThreshold);

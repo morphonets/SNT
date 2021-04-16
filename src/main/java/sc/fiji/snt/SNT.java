@@ -86,9 +86,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
-import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.PointInCanvas;
-import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.*;
 
 
 /**
@@ -184,6 +182,9 @@ public class SNT extends MultiDThreePanes implements
 	private volatile boolean hessianEnabled = false;
 	protected final HessianCaller primaryHessian;
 	protected final HessianCaller secondaryHessian;
+
+	/* Search image type */
+	protected Class<? extends SearchImage> searchImageType = ArraySearchImage.class;
 
 	/* tracing threads */
 	private TracerThread currentSearchThread = null;
