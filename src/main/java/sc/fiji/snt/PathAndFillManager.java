@@ -1980,7 +1980,7 @@ public class PathAndFillManager extends DefaultHandler implements
 							throw new TracesFileFormatException(
 									"Malformed traces file: p didn't match p.fittedVersionOf.fitted");
 					}
-					if (p.useFitted && p.getFitted() == null) {
+					if (p.getUseFitted()) {
 						throw new TracesFileFormatException(
 								"Malformed traces file: p.useFitted was true but p.fitted was null");
 					}
@@ -3249,8 +3249,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (p.fittedVersionOf != null) return; // here interpreted as 'continue'
 
 			final boolean selected = p.isSelected();
-			final boolean customColor = (p.hasCustomColor &&
-				plugin.displayCustomPathColors);
+			final boolean customColor = plugin.displayCustomPathColors && p.hasCustomColor();
 			Color3f color3f;
 			if (customColor) color3f = new Color3f(p.getColor());
 			else if (selected) color3f = plugin.selectedColor3f;

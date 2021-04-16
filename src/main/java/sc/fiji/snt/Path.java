@@ -189,14 +189,14 @@ public class Path implements Comparable<Path> {
 	// If this path has a fitted version, this is it
 	protected Path fitted;
 	// Prefer the fitted flavor of this path
-	protected boolean useFitted = false;
+	private boolean useFitted;
 	// If this path is a fitted version of another one, this is the original
 	protected Path fittedVersionOf;
 
 	/* Color definitions */
 	private Color color;
-	protected Color3f realColor;
-	protected boolean hasCustomColor = false;
+	private Color3f realColor;
+	private boolean hasCustomColor;
 	private Color[] nodeColors;
 
 	/* Internal fields */
