@@ -64,9 +64,13 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 	@Parameter(required = true, label = "Measurement", choices = { //
 		TreeColorMapper.PATH_ORDER, TreeColorMapper.LENGTH,
 		TreeColorMapper.N_BRANCH_POINTS, //
-		TreeColorMapper.N_NODES, TreeColorMapper.PATH_DISTANCE,
+		TreeColorMapper.N_NODES, //
+		TreeColorMapper.N_SPINES, //
+		TreeColorMapper.PATH_DISTANCE, //
 		TreeColorMapper.MEAN_RADIUS, //
-		TreeColorMapper.NODE_RADIUS, TreeColorMapper.X_COORDINATES,
+		TreeColorMapper.MEAN_SPINE_DENSITY, //
+		TreeColorMapper.NODE_RADIUS, //
+		TreeColorMapper.X_COORDINATES,
 		TreeColorMapper.Y_COORDINATES, //
 		TreeColorMapper.Z_COORDINATES })
 	private String measurementChoice;

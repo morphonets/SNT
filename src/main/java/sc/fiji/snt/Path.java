@@ -164,6 +164,8 @@ public class Path implements Comparable<Path> {
 
 	// the channel and frame associated with this Path (1-based indices)
 	private final int[] ctPosition;
+	// the number of spines or varicosities associated with this path
+	private int spinesOrVaricosities;
 
 	/* Spatial calibration definitions */
 	protected double x_spacing;
@@ -1012,6 +1014,7 @@ public class Path implements Comparable<Path> {
 		other.setEditableNode((getEditableNodeIndex() < other.size()) ? getEditableNodeIndex() : -1);
 		other.setCanvasOffset(getCanvasOffset());
 		other.setColor(getColor());
+		other.setSpineOrVaricosityCount(getSpineOrVaricosityCount());
 		other.id = id;
 	}
 
@@ -1810,6 +1813,14 @@ public class Path implements Comparable<Path> {
 	 */
 	public boolean getUseFitted() {
 		return useFitted && fitted != null;
+	}
+
+	public int getSpineOrVaricosityCount() {
+		return spinesOrVaricosities;
+	}
+
+	public void setSpineOrVaricosityCount(final int newCount) {
+		this.spinesOrVaricosities = newCount;
 	}
 
 	/**

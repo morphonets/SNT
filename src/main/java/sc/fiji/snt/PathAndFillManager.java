@@ -1394,6 +1394,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				pw.print(" color=\"" + SNTUtils.getColorString(p.getColor()) + "\"");
 				pw.print(" channel=\"" + p.getChannel() + "\"");
 				pw.print(" frame=\"" + p.getFrame() + "\"");
+				pw.print(" spines=\"" + p.getSpineOrVaricosityCount() + "\"");
 
 				String startsString = "";
 				String endsString = "";
@@ -1563,6 +1564,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				final String colorString = attributes.getValue("color");
 				final String channelString = attributes.getValue("channel");
 				final String frameString = attributes.getValue("frame");
+				final String spineString = attributes.getValue("spines");
 				final String useFittedString = attributes.getValue("usefitted");
 				final String fittedIDString = attributes.getValue("fitted");
 				final String fittedVersionOfIDString = attributes.getValue(
@@ -1645,6 +1647,9 @@ public class PathAndFillManager extends DefaultHandler implements
 					if (channelString != null && frameString != null) {
 						current_path.setCTposition(Integer.parseInt(channelString), Integer
 								.parseInt(frameString));
+					}
+					if (spineString != null) {
+						current_path.setSpineOrVaricosityCount(Integer.parseInt(spineString));
 					}
 
 					if (startsonString == null) {

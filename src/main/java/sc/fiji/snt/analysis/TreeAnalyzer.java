@@ -1081,7 +1081,7 @@ public class TreeAnalyzer extends ContextCommand {
 		}
 		return (double) sumAngles / angles.size();
 	}
-	
+
 	/**
 	 * Gets the partition asymmetry at each bifurcation point in the analyzed tree.
 	 * Note that branch points with more than 2 children are ignored.
@@ -1123,7 +1123,7 @@ public class TreeAnalyzer extends ContextCommand {
 		}
 		return resultList;
 	}
-	
+
 	/**
 	 * Gets the average partition asymmetry of the analyzed tree.
 	 * Note that branch points with more than 2 children are ignored during the computation.
@@ -1139,7 +1139,7 @@ public class TreeAnalyzer extends ContextCommand {
 		}
 		return (double) sumAsymmetries / asymmetries.size();
 	}
-	
+
 	/**
 	 * Gets the fractal dimension of each branch in the analyzed tree.
 	 * Note that branches with less than 5 points are ignored.
@@ -1184,7 +1184,7 @@ public class TreeAnalyzer extends ContextCommand {
 		}
 		return fractalDims;
 	}
-	
+
 	/**
 	 * Gets the average fractal dimension of the analyzed tree.
 	 * Note that branches with less than 5 points are ignored during the computation.
@@ -1202,10 +1202,18 @@ public class TreeAnalyzer extends ContextCommand {
 		
 	}
 
+	public int getNoSpinesOrVaricosities() {
+		return tree.list().stream().mapToInt(p -> p.getSpineOrVaricosityCount()).sum();
+	}
+
+	public double getSpineOrVaricosityDensity() {
+		return getNoSpinesOrVaricosities()/getCableLength();
+	}
+
 	private double sumLength(final Collection<Path> paths) {
 		return paths.stream().mapToDouble(p -> p.getLength()).sum();
 	}
-	
+
 	/* IDE debug method */
 	public static void main(final String[] args) throws InterruptedException {
 		final ImageJ ij = new ImageJ();

@@ -94,11 +94,17 @@ public class TreeStatistics extends TreeAnalyzer {
 	/** Flag for {@value #N_BRANCH_POINTS} statistics. */
 	public static final String N_NODES = "No. of nodes";
 
+	/** Flag for {@value #N_SPINES} statistics. */
+	public static final String N_SPINES = "No. of spines/varicosities";
+
 	/** Flag for {@value #NODE_RADIUS} statistics. */
 	public static final String NODE_RADIUS = "Node radius";
 
 	/** Flag for {@value #MEAN_RADIUS} statistics. */
 	public static final String MEAN_RADIUS = "Path mean radius";
+
+	/** Flag for {@value #MEAN_SPINE_DENSITY} statistics. */
+	public static final String MEAN_SPINE_DENSITY = "Mean spine/varicosity density";
 
 	/** Flag for {@value #X_COORDINATES} statistics. */
 	public static final String X_COORDINATES = "X coordinates";
@@ -141,8 +147,10 @@ public class TreeStatistics extends TreeAnalyzer {
 			INTER_NODE_DISTANCE, //
 			INTER_NODE_DISTANCE_SQUARED, //
 			MEAN_RADIUS, //
+			MEAN_SPINE_DENSITY, //
 			N_BRANCH_POINTS, //
 			N_NODES, //
+			N_SPINES, //
 			NODE_RADIUS, //
 			PATH_CHANNEL,//
 			PATH_FRAME,//
@@ -503,6 +511,14 @@ public class TreeStatistics extends TreeAnalyzer {
 				return NODE_RADIUS;
 			}
 		}
+		if (normGuess.indexOf("spines") != -1 || normGuess.indexOf("varicosities") > -1) {
+			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1 || normGuess.indexOf("dens") != -1) {
+				return MEAN_SPINE_DENSITY;
+			}
+			else {
+				return N_SPINES;
+			}
+		}
 		if (normGuess.indexOf("values") != -1 || normGuess.indexOf("intensit") > -1) {
 			return VALUES;
 		}
@@ -640,6 +656,16 @@ public class TreeStatistics extends TreeAnalyzer {
 		case PATH_CHANNEL:
 			for (final Path p : tree.list()) {
 				stat.addValue(p.getChannel());
+			}
+			break;
+		case N_SPINES:
+			for (final Path p : tree.list()) {
+				stat.addValue(p.getSpineOrVaricosityCount());
+			}
+			break;
+		case MEAN_SPINE_DENSITY:
+			for (final Path p : tree.list()) {
+				stat.addValue(p.getSpineOrVaricosityCount()/p.getLength());
 			}
 			break;
 		case PRIMARY_LENGTH:
