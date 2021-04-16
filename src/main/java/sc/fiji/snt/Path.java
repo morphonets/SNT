@@ -1821,6 +1821,7 @@ public class Path implements Comparable<Path> {
 
 	public void setSpineOrVaricosityCount(final int newCount) {
 		this.spinesOrVaricosities = newCount;
+		if (fitted != null) fitted.setSpineOrVaricosityCount(newCount);
 	}
 
 	/**

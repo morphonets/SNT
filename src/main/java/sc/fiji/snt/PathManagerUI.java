@@ -227,6 +227,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CIRCLE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.SPECIFY_COUNTS_CMD);
+		jmi.setToolTipText("Assigns a no. of varicosities/spines to selected path(s)");
+		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.MAP_PIN));
+		jmi.addActionListener(multiPathListener);
+		editMenu.add(jmi);
+		editMenu.addSeparator();
+
 		jmi = new JMenuItem(MultiPathActionListener.DOWNSAMPLE_CMD);
 		jmi.setToolTipText("Reduces the no. of nodes in selected paths (lossy simplificatio)");
 		jmi.addActionListener(multiPathListener);
@@ -279,6 +286,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			MultiPathActionListener.MEAN_RADIUS_TAG_CMD, false);
 		tagRadiusCbmi.addItemListener(multiPathListener);
 		morphoTagsMenu.add(tagRadiusCbmi);
+		final JCheckBoxMenuItem tagCountsCbmi = new JCheckBoxMenuItem(
+				MultiPathActionListener.COUNT_TAG_CMD, false);
+		tagCountsCbmi.addItemListener(multiPathListener);
+		morphoTagsMenu.add(tagCountsCbmi);
 		tagsMenu.add(morphoTagsMenu);
 		final JCheckBoxMenuItem tagOrderCbmi = new JCheckBoxMenuItem(
 				MultiPathActionListener.ORDER_TAG_CMD, false);
@@ -2128,12 +2139,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String TREE_TAG_CMD = "Cell ID";
 		private final static String CHANNEL_TAG_CMD = "Traced Channel";
 		private final static String FRAME_TAG_CMD = "Traced Frame";
+		private final static String COUNT_TAG_CMD = "No. of Spines/Varicosities";
 		private final static String SLICE_LABEL_TAG_CMD = "Slice Labels";
 
 		private final static String REMOVE_ALL_TAGS_CMD = "Remove All Tags...";
 		private static final String FILL_OUT_CMD = "Fill Out...";
 		private static final String RESET_FITS = "Discard Fit(s)...";
 		private final static String SPECIFY_RADIUS_CMD = "Specify Radius...";
+		private final static String SPECIFY_COUNTS_CMD = "Specify No. Spines/Varicosities...";
+
 		//private final static String MEASURE_CMD_SUMMARY = "Quick Measurements";
 		private final static String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
 		private final static String CONVERT_TO_SKEL_CMD = "Skeletonize...";
@@ -2159,6 +2173,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			" ?\\[L:\\d+\\.?\\d+\\s?.+\\w+\\]";
 		private final static String TAG_RADIUS_PATTERN =
 			" ?\\[MR:\\d+\\.?\\d+\\s?.+\\w+\\]";
+		private final static String TAG_COUNT_PATTERN = " ?\\[#:\\d+\\]";
 		private final static String TAG_TREE_PATTERN = " ?\\|.*\\|";
 		private final static String TAG_ORDER_PATTERN = " ?\\[Order \\d+\\]";
 		private final static String TAG_CHANNEL_PATTERN = " ?\\[C:\\d+\\]";
@@ -2487,7 +2502,23 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				plugin.updateAllViewers();
 				return;
 			}
-
+			else if (SPECIFY_COUNTS_CMD.equals(e.getActionCommand())) {
+				final Double userCounts = guiUtils.getDouble("<HTML><body><div style='width:"
+						+ Math.min(getWidth(), 500) + ";'>"
+						+ "Please specify the no. of spines (or varicosities) to be associated to selected path(s).",
+						"Spine/Varicosity Counts", 0);
+				if (userCounts == null) {
+					return; // user pressed cancel
+				}
+				if (Double.isNaN(userCounts) || userCounts < 0) {
+					guiUtils.error("Invalid value.");
+					return;
+				}
+				selectedPaths.forEach(p -> {
+					p.setSpineOrVaricosityCount(userCounts.intValue());
+				});
+				return;
+			}
 			// Case 2: Commands that require some sort of confirmation
 			else if (DELETE_CMD.equals(cmd)) {
 				if (guiUtils.getConfirmation((assumeAll)
@@ -2806,6 +2837,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				}
 				else {
 					removeTags(selectedPaths, TAG_RADIUS_PATTERN);
+				}
+
+			}
+			else if (COUNT_TAG_CMD.equals(cmd)) {
+				if (jcbmi.isSelected()) {
+					for (final Path p : selectedPaths) {
+						final String countTag = " [#:" + p.getSpineOrVaricosityCount() + "]";
+						p.setName(p.getName() + countTag);
+					}
+				}
+				else {
+					removeTags(selectedPaths, TAG_COUNT_PATTERN);
 				}
 
 			}
