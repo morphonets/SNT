@@ -77,7 +77,7 @@ public class FillUtils {
 
         // Merge the individuals fills into a single stack
         final SearchImageStack<DefaultSearchNode> newStack =
-                new SearchImageStack<>(depth, new SupplierUtil.TableSearchImageSupplier<>());
+                new SearchImageStack<>(depth, new SupplierUtil.MapSearchImageSupplier<>(width, height));
 
         for (final FillerThread filler : fillers) {
             for (int sliceIdx = 0; sliceIdx < filler.nodes_as_image_from_start.size(); sliceIdx++) {

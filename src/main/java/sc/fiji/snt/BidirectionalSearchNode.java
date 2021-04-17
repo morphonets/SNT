@@ -51,9 +51,7 @@ public class BidirectionalSearchNode implements SearchNode {
 
     public byte state = UNEXPLORED;
 
-    public BidirectionalSearchNode() {
-
-    }
+    public BidirectionalSearchNode() { }
 
     public BidirectionalSearchNode(int x, int y,  int z,
                                    double fFromStart, double fFromGoal,

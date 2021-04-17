@@ -22,39 +22,40 @@
 
 package sc.fiji.snt.util;
 
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.jetbrains.annotations.NotNull;
 
-import java.lang.reflect.Array;
-import java.util.Arrays;
 import java.util.Iterator;
 
-public class ArraySearchImage<V> implements SearchImage<V> {
+/**
+ * A sparse matrix implementation backed by a single int to Object open addressed hash map
+ *
+ * @author Cameron Arshadi
+ */
+public class MapSearchImage<V> implements SearchImage<V> {
 
-    final int width;
-    final V[] arr;
+    private final Int2ObjectOpenHashMap<V> map;
+    private final int width;
 
-    public ArraySearchImage(Class<V> c, final int width, final int height) {
+    public MapSearchImage(final int width, final int height) {
         this.width = width;
-        @SuppressWarnings("unchecked")
-        final V[] arr = (V[]) Array.newInstance(c, width * height);
-        this.arr = arr;
+        this.map = new Int2ObjectOpenHashMap<>(); // TODO: worry about initial capacity / load factor?
     }
 
     @Override
     public V getValue(final int x, final int y) {
-        return arr[y * width + x];
+        return map.get(y * width + x);
     }
 
     @Override
-    public void setValue(final int x, final int y, V node) {
-        arr[y * width + x] = node;
+    public void setValue(final int x, final int y, final V value) {
+        map.put(y * width + x, value);
     }
 
     @NotNull
     @Override
     public Iterator<V> iterator() {
-        return Arrays.stream(arr).iterator();
+        return map.values().iterator();
     }
-
 
 }

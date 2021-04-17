@@ -49,7 +49,7 @@ import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.util.ArraySearchImage;
 import sc.fiji.snt.util.ListSearchImage;
-import sc.fiji.snt.util.TableSearchImage;
+import sc.fiji.snt.util.MapSearchImage;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.Timer;
@@ -2609,7 +2609,7 @@ public class SNTUI extends JDialog {
 		optionsMenu.add(jmiArraySearchImage);
 		final JMenuItem jmiTableSearchImage = new JMenuItem("Hash Table");
 		jmiTableSearchImage.addActionListener(e -> {
-			plugin.searchImageType = TableSearchImage.class;
+			plugin.searchImageType = MapSearchImage.class;
 			SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
 		});
 		optionsMenu.add(jmiTableSearchImage);

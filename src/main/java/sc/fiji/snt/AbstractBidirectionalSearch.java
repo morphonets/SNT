@@ -313,9 +313,7 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
                             alreadyThereInEitherSearch.heapHandleFromStart = open_from_start.insert(
                                     alreadyThereInEitherSearch);
 
-                            nodes_as_image.getSlice(new_z).setValue(
-                                    alreadyThereInEitherSearch.x, alreadyThereInEitherSearch.y,
-                                    alreadyThereInEitherSearch);
+                            nodes_as_image.getSlice(new_z).setValue(new_x, new_y, alreadyThereInEitherSearch);
 
                         } else if (alreadyThereInEitherSearch.fFromStart > f_for_new_point) {
                             alreadyThereInEitherSearch.gFromStart = g_for_new_point;
@@ -357,9 +355,7 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
                             alreadyThereInEitherSearch.heapHandleFromGoal = open_from_goal.insert(
                                     alreadyThereInEitherSearch);
 
-                            nodes_as_image.getSlice(new_z).setValue(
-                                    alreadyThereInEitherSearch.x, alreadyThereInEitherSearch.y,
-                                    alreadyThereInEitherSearch);
+                            nodes_as_image.getSlice(new_z).setValue(new_x, new_y, alreadyThereInEitherSearch);
 
                         } else if (alreadyThereInEitherSearch.fFromGoal > f_for_new_point) {
                             alreadyThereInEitherSearch.gFromGoal = g_for_new_point;
