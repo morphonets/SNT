@@ -27,6 +27,7 @@ import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.gui.Toolbar;
 import ij.measure.Calibration;
+
 import org.jgrapht.Graphs;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.scijava.util.PlatformUtils;
@@ -99,7 +100,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final AListener listener = new AListener();
 		pMenu.add(menuItem(AListener.SELECT_NEAREST, listener, KeyEvent.VK_G));
 		pMenu.add(menuItem(AListener.APPEND_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_MASK)));
-		final JMenuItem selectByRoi = new JMenuItem("Select by 2D ROI");
+		final JMenuItem selectByRoi = new JMenuItem("Select Paths by 2D ROI");
 		selectByRoi.addActionListener( e -> {
 			if (pathAndFillManager.size() == 0) {
 				getGuiUtils().error("There are no traced paths.", "Nothing to Select");
@@ -151,6 +152,18 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 		pMenu.add(menuItem(AListener.START_SHOLL, listener, 
 				KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_MASK + KeyEvent.ALT_MASK)));
+		final JMenuItem countSpines = new JMenuItem("Count Spine/Varicosities...");
+		final boolean[] firstTimeCallingCountSpines = {true};
+		countSpines.addActionListener(e -> {
+			if (!isEventsDisabled())
+				tracerPlugin.pause(true);
+			if (isEventsDisabled()) { // plugin successfully paused
+				IJ.setTool("multipoint");
+				if (firstTimeCallingCountSpines[0]) showHelpOnCountingSpines();
+				firstTimeCallingCountSpines[0] = false;
+			}
+		});
+		pMenu.add(countSpines);
 		pMenu.addSeparator();
 
 		// Add a silly pan entry, just to remind users that the functionality exists.
@@ -763,6 +776,32 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 	protected  void togglePauseTracing() {
 		togglePauseTracingMenuItem.doClick();
+	}
+
+	private void showHelpOnCountingSpines() {
+		final String HELP_MSG = "<html>" //
+				+ "<b>Counting Spines/Varicosities:</b>" //
+				+ "<ul>" //
+				+ "<li> Click over the features to be counted. Point placement may not need to be accurate, " //
+				+ "but w/ 3D images it should reflect the features Z-plane</li>" //
+				+ "<li> Once you have performed the count, select the Path(s) associated with the features " //
+				+ "(or select none, if all Paths are to be considered) and run Path Manager's " //
+				+ "<i>Analyze&rarr; Spine/Varicosity Utilities&rarr; Extract Counts from Multi-point ROIs...</i></li>" //
+				+ "<li> Note that SNT only keeps a tally of the features, so you may want to save the multi-point ROis " //
+				+ "in the ROI Manager during extraction</li>" //
+				+ "</ul>" //
+				+ "<br>" //
+				+ "<b>Multi-point Tool Usage:</b>" //
+				+ "<ul>" //
+				+ "<li> Click on a point and drag to move it</li>" //
+				+ "<li> Alt-click on a point to delete it</li>" //
+				+ "<li> To delete multiple points, create an area selection while holding down the Alt key</li>" //
+				+ "<li> Use <i>Edit&rarr; Selection&rarr; Select None</i> to delete a multi-point selection</li>" //
+				+ "<li> Use <i>Edit&rarr; Selection&rarr; Restore Selection</i> to restore a deleted multi-point selection</li>" //
+				+ "<li> Double-click on the Multi-point tool for further options and help</li>" //
+				+ "</ul>" //
+				+ " <br>";
+		getGuiUtils().showHTMLDialog(HELP_MSG, "Counting Spines/ Varicosities", false);
 	}
 
 	/**

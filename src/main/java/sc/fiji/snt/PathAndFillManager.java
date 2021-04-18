@@ -3040,7 +3040,12 @@ public class PathAndFillManager extends DefaultHandler implements
 		return paths;
 	}
 
-	protected NearPoint nearestPointOnAnyPath(final List<Path> paths,
+	public NearPoint nearestPointOnAnyPath(final Collection<Path> paths, final PointInCanvas pic,
+			final double distanceLimit) {
+		return nearestPointOnAnyPath(paths, pic, distanceLimit * distanceLimit, true);
+	}
+
+	protected NearPoint nearestPointOnAnyPath(final Collection<Path> paths,
 		final PointInImage pim, final double distanceLimitSquared,
 		final boolean unScaledPositions)
 	{

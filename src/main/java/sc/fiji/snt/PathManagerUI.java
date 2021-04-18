@@ -115,9 +115,11 @@ import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.MultiTreeMapperCmd;
 import sc.fiji.snt.plugin.PathAnalyzerCmd;
 import sc.fiji.snt.plugin.PathMatcherCmd;
+import sc.fiji.snt.plugin.PathSpineAnalysisCmd;
 import sc.fiji.snt.plugin.PathTimeAnalysisCmd;
 import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.plugin.SkeletonizerCmd;
+import sc.fiji.snt.plugin.SpineExtractorCmd;
 import sc.fiji.snt.plugin.TreeMapperCmd;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -392,7 +394,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SKEL_CMD);
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
+		advanced.addSeparator();
 
+		advanced.add(getSpineUtilsMenu(multiPathListener));
 		advanced.add(getTimeSequenceMenu(multiPathListener));
 
 		advanced.addSeparator();
@@ -455,6 +459,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		});
 		pack();
+	}
+
+	private JMenu getSpineUtilsMenu(final MultiPathActionListener multiPathListener) {
+		final JMenu menu = new JMenu("Spine/Varicosity Utilities");
+		menu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.MAP_PIN));
+		JMenuItem jmi = new JMenuItem(MultiPathActionListener.SPINE_COLOR_CODING_CMD);
+		jmi.addActionListener(multiPathListener);
+		menu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.SPINE_EXTRACT_CMD);
+		jmi.addActionListener(multiPathListener);
+		menu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.SPINE_PROFILE_CMD);
+		jmi.addActionListener(multiPathListener);
+		menu.add(jmi);
+		return menu;
 	}
 
 	private JMenu getTimeSequenceMenu(final MultiPathActionListener multiPathListener) {
@@ -2167,6 +2186,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String MATCH_PATHS_ACROSS_TIME_CMD = "Match Paths Across Time...";
 		private final static String TIME_PROFILE_CMD = "Time Profile...";
 		private final static String TIME_COLOR_CODING_CMD = "Color Code Paths Across Time...";
+		private final static String SPINE_PROFILE_CMD = "Density Profiles...";
+		private final static String SPINE_EXTRACT_CMD = "Extract Counts from Multi-point ROIs...";
+		private final static String SPINE_COLOR_CODING_CMD = "Color Code Paths Using Densities...";
 
 		// tags
 		private final static String TAG_LENGTH_PATTERN =
@@ -2314,6 +2336,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				(plugin.getUI().new DynamicCmdRunner(PathTimeAnalysisCmd.class, inputs)).run();
 				return;
 			}
+			else if (SPINE_PROFILE_CMD.equals(cmd)) {
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("paths", selectedPaths);
+				(plugin.getUI().new DynamicCmdRunner(PathSpineAnalysisCmd.class, inputs)).run();
+				return;
+			}
+			else if (SPINE_EXTRACT_CMD.equals(cmd)) {
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("paths", selectedPaths);
+				(plugin.getUI().new DynamicCmdRunner(SpineExtractorCmd.class, inputs)).run();
+				return;
+			}
 			else if (MATCH_PATHS_ACROSS_TIME_CMD.equals(cmd)) {
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("paths", selectedPaths);
@@ -2333,8 +2367,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				cmdService.run(TreeMapperCmd.class, true, input);
 				refreshManager(false, true);
 				return;
-			}
-			else if (CONVERT_TO_ROI_CMD.equals(cmd)) {
+			} else if (SPINE_COLOR_CODING_CMD.equals(cmd)) {
+				final Tree tree = new Tree(selectedPaths);
+				if (tree == null || tree.isEmpty()) return;
+				final Map<String, Object> input = new HashMap<>();
+				input.put("tree", tree);
+				input.put("onlyConnectivitySafeMetrics", true);
+				input.put("measurementChoice", TreeColorMapper.AVG_SPINE_DENSITY);
+				input.put("showInRecViewer", false);
+				input.put("showPlot", false);
+				final CommandService cmdService = plugin.getContext().getService(
+						CommandService.class);
+				cmdService.run(TreeMapperCmd.class, true, input);
+				refreshManager(false, true);
+				return;
+			} else if (CONVERT_TO_ROI_CMD.equals(cmd)) {
 				final Map<String, Object> input = new HashMap<>();
 				input.put("tree", new Tree(selectedPaths));
 				input.put("imp", plugin.getImagePlus());
@@ -2505,7 +2552,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			else if (SPECIFY_COUNTS_CMD.equals(e.getActionCommand())) {
 				final Double userCounts = guiUtils.getDouble("<HTML><body><div style='width:"
 						+ Math.min(getWidth(), 500) + ";'>"
-						+ "Please specify the no. of spines (or varicosities) to be associated to selected path(s).",
+						+ "Please specify the no. of spines (or varicosities) to be associated to selected path(s):",
 						"Spine/Varicosity Counts", 0);
 				if (userCounts == null) {
 					return; // user pressed cancel
