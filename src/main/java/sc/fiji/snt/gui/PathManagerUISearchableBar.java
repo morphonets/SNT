@@ -184,6 +184,9 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		mi1 = new JMenuItem(TreeStatistics.N_NODES + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_NODES, ""));
 		morphoFilteringMenu.add(mi1);
+		mi1 = new JMenuItem(TreeStatistics.N_SPINES + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_SPINES, ""));
+		morphoFilteringMenu.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.PATH_ORDER + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER, ""));
 		morphoFilteringMenu.add(mi1);
@@ -328,6 +331,9 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				case TreeStatistics.PATH_ORDER:
 					value = p.getOrder();
 					break;
+				case TreeStatistics.N_SPINES:
+					value = p.getSpineOrVaricosityCount();
+					break;
 				default:
 					throw new IllegalArgumentException("Unrecognized parameter");
 			}
@@ -389,6 +395,9 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		popup.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.N_NODES + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_NODES, ""));
+		popup.add(mi1);
+		mi1 = new JMenuItem(TreeStatistics.N_SPINES + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_SPINES, ""));
 		popup.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.PATH_ORDER + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER, ""));

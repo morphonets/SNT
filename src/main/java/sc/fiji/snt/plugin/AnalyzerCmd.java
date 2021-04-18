@@ -103,9 +103,12 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 	
 	@Parameter(label = MultiTreeStatistics.AVG_PARTITION_ASYMMETRY)
 	private boolean avgPartitionAsymmetry;
-	
+
 	@Parameter(label = MultiTreeStatistics.AVG_FRACTAL_DIMENSION)
 	private boolean avgFractalDimension;
+
+	@Parameter(label = MultiTreeStatistics.AVG_SPINE_DENSITY)
+	private boolean avgSpineDensity;
 
 	@Parameter(label = MultiTreeStatistics.N_BRANCH_POINTS)
 	private boolean nBPs;
@@ -121,6 +124,9 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 
 	@Parameter(label = MultiTreeStatistics.N_INNER_BRANCHES)
 	private boolean nInnerBranches;
+
+	@Parameter(label = MultiTreeStatistics.N_SPINES)
+	private boolean nSpinesOrVaricosities;
 
 	@Parameter(label = MultiTreeStatistics.N_TERMINAL_BRANCHES)
 	private boolean nTerminalBranches;
@@ -238,6 +244,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		avgRemoteAngle = enable;
 		avgPartitionAsymmetry = enable;
 		avgFractalDimension = enable;
+		avgSpineDensity = enable;
 		cableLength = enable;
 		depth = enable;
 		height = enable;
@@ -246,6 +253,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		nBranches = enable;
 		nPrimaryBranches = enable;
 		nInnerBranches = enable;
+		nSpinesOrVaricosities = enable;
 		nTerminalBranches = enable;
 		nTips = enable;
 		primaryLength = enable;
@@ -267,6 +275,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		if(avgRemoteAngle) metrics.add(MultiTreeStatistics.AVG_REMOTE_ANGLE);
 		if(avgPartitionAsymmetry) metrics.add(MultiTreeStatistics.AVG_PARTITION_ASYMMETRY);
 		if(avgFractalDimension) metrics.add(MultiTreeStatistics.AVG_FRACTAL_DIMENSION);
+		if(avgSpineDensity) metrics.add(MultiTreeStatistics.AVG_SPINE_DENSITY);
 		if(cableLength) metrics.add(MultiTreeStatistics.LENGTH);
 		if(terminalLength) metrics.add(MultiTreeStatistics.TERMINAL_LENGTH);
 		if(primaryLength) metrics.add(MultiTreeStatistics.PRIMARY_LENGTH);
@@ -277,6 +286,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		if(nPrimaryBranches) metrics.add(MultiTreeStatistics.N_PRIMARY_BRANCHES);
 		if(nInnerBranches) metrics.add(MultiTreeStatistics.N_INNER_BRANCHES);
 		if(nTerminalBranches) metrics.add(MultiTreeStatistics.N_TERMINAL_BRANCHES);
+		if(nSpinesOrVaricosities) metrics.add(MultiTreeStatistics.N_SPINES);
 		if(sNumber) metrics.add(MultiTreeStatistics.STRAHLER_NUMBER);
 		if(sRatio) metrics.add(MultiTreeStatistics.STRAHLER_RATIO);
 		if(width) metrics.add(MultiTreeStatistics.WIDTH);

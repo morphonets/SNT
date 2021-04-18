@@ -86,7 +86,7 @@ public class TreeColorMapper extends ColorMapper {
 	/** Flag for {@value #MEAN_RADIUS} mapping. */
 	public static final String MEAN_RADIUS = TreeStatistics.MEAN_RADIUS;
 	/** Flag for {@value #MEAN_SPINE_COUNT} mapping. */
-	public static final String MEAN_SPINE_DENSITY = TreeStatistics.MEAN_SPINE_DENSITY;
+	public static final String AVG_SPINE_DENSITY = TreeStatistics.AVG_SPINE_DENSITY;
 	/** Flag for {@value #NODE_RADIUS} mapping. */
 	public static final String NODE_RADIUS = TreeStatistics.NODE_RADIUS;
 	/** Flag for {@value #X_COORDINATES} mapping. */
@@ -113,7 +113,7 @@ public class TreeColorMapper extends ColorMapper {
 			N_NODES, //
 			N_SPINES, //
 			MEAN_RADIUS, //
-			MEAN_SPINE_DENSITY, //
+			AVG_SPINE_DENSITY, //
 			NODE_RADIUS, //
 			PATH_DISTANCE, //
 			SHOLL_COUNTS, //
@@ -218,7 +218,7 @@ public class TreeColorMapper extends ColorMapper {
 			case PATH_ORDER:
 			case LENGTH:
 			case MEAN_RADIUS:
-			case MEAN_SPINE_DENSITY:
+			case AVG_SPINE_DENSITY:
 			case N_NODES:
 			case N_BRANCH_POINTS:
 			case N_SPINES:
@@ -278,7 +278,7 @@ public class TreeColorMapper extends ColorMapper {
 				for (final Path p : paths)
 					mappedPaths.add(new MappedPath(p, p.getMeanRadius()));
 				break;
-			case MEAN_SPINE_DENSITY:
+			case AVG_SPINE_DENSITY:
 				integerScale = false;
 				for (final Path p : paths)
 					mappedPaths.add(new MappedPath(p, p.getSpineOrVaricosityCount()/p.getLength()));
@@ -572,7 +572,7 @@ public class TreeColorMapper extends ColorMapper {
 		}
 		if (normGuess.indexOf("spines") != -1 || normGuess.indexOf("varicosities") > -1) {
 			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1 || normGuess.indexOf("dens") != -1) {
-				return MEAN_SPINE_DENSITY;
+				return AVG_SPINE_DENSITY;
 			}
 			else {
 				return N_SPINES;

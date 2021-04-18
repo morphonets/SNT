@@ -101,6 +101,9 @@ public class MultiTreeStatistics extends TreeStatistics {
 	/** Flag for {@value #N_BRANCH_POINTS} statistics */
 	public static final String N_BRANCH_POINTS = "No. of branch points";
 
+	/** Flag for {@value #N_SPINES} statistics */
+	public static final String N_SPINES = "No of spines/varicosities";
+
 	/** Flag for {@value #AVG_CONTRACTION} statistics */
 	public static final String AVG_CONTRACTION = "Average contraction";
 
@@ -115,6 +118,9 @@ public class MultiTreeStatistics extends TreeStatistics {
 	
 	/** Flag specifying {@value #AVG_FRACTAL_DIMENSION} statistics */
 	public static final String AVG_FRACTAL_DIMENSION = "Average fractal dimension";
+
+	/** Flag for {@value #AVG_SPINE_DENSITY} statistics. */
+	public static final String AVG_SPINE_DENSITY = "Average spine/varicosity density";
 
 	/** Flag for {@value #N_PATHS} statistics */
 	public static final String N_PATHS = "No. of paths";
@@ -148,6 +154,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 			AVG_REMOTE_ANGLE, //
 			AVG_PARTITION_ASYMMETRY, //
 			AVG_FRACTAL_DIMENSION, //
+			AVG_SPINE_DENSITY, //
 			DEPTH, //
 			HEIGHT, //
 			HIGHEST_PATH_ORDER, //
@@ -160,6 +167,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 			N_PATHS, //
 			N_PRIMARY_BRANCHES, //
 			N_INNER_BRANCHES, //
+			N_SPINES, //
 			N_TERMINAL_BRANCHES, //
 			N_TIPS, //
 			PRIMARY_LENGTH, //
@@ -329,6 +337,14 @@ public class MultiTreeStatistics extends TreeStatistics {
 		if (normGuess.indexOf("tips") != -1 || normGuess.indexOf("termin") != -1 || normGuess.indexOf("end") != -1 ) {
 			// n tips/termini/terminals/end points/endings
 			return N_TIPS;
+		}
+		if (normGuess.indexOf("spines") != -1 || normGuess.indexOf("varicosities") > -1) {
+			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1 || normGuess.indexOf("dens") != -1) {
+				return AVG_SPINE_DENSITY;
+			}
+			else {
+				return N_SPINES;
+			}
 		}
 		if (normGuess.indexOf("paths") != -1) {
 			if (normGuess.indexOf("fit") != -1) {

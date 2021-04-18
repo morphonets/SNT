@@ -373,6 +373,8 @@ public class TreeAnalyzer extends ContextCommand {
 			return getAvgPartitionAsymmetry();
 		case MultiTreeStatistics.AVG_FRACTAL_DIMENSION:
 			return getAvgFractalDimension();
+		case MultiTreeStatistics.AVG_SPINE_DENSITY:
+			return getSpineOrVaricosityDensity();
 		case MultiTreeStatistics.DEPTH:
 			return getDepth();
 		case MultiTreeStatistics.HEIGHT:
@@ -402,6 +404,8 @@ public class TreeAnalyzer extends ContextCommand {
 			return getTerminalBranches().size();
 		case MultiTreeStatistics.N_TIPS:
 			return getTips().size();
+		case MultiTreeStatistics.N_SPINES:
+			return getNoSpinesOrVaricosities();
 		case MultiTreeStatistics.PRIMARY_LENGTH:
 			return getPrimaryLength();
 		case MultiTreeStatistics.INNER_LENGTH:
@@ -1202,12 +1206,24 @@ public class TreeAnalyzer extends ContextCommand {
 		
 	}
 
+	/**
+	 * Gets the number of spines/varicosities that have been (manually) assigned to
+	 * tree being analyzed.
+	 * 
+	 * @return the number of spines/varicosities
+	 */
 	public int getNoSpinesOrVaricosities() {
 		return tree.list().stream().mapToInt(p -> p.getSpineOrVaricosityCount()).sum();
 	}
 
+	/**
+	 * Gets the overall density of spines/varicosities associated with this tree
+	 * 
+	 * @return the spine/varicosity density (same as
+	 *         {@code getNoSpinesOrVaricosities()/getCableLength()})
+	 */
 	public double getSpineOrVaricosityDensity() {
-		return getNoSpinesOrVaricosities()/getCableLength();
+		return getNoSpinesOrVaricosities() / getCableLength();
 	}
 
 	private double sumLength(final Collection<Path> paths) {

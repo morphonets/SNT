@@ -103,8 +103,8 @@ public class TreeStatistics extends TreeAnalyzer {
 	/** Flag for {@value #MEAN_RADIUS} statistics. */
 	public static final String MEAN_RADIUS = "Path mean radius";
 
-	/** Flag for {@value #MEAN_SPINE_DENSITY} statistics. */
-	public static final String MEAN_SPINE_DENSITY = "Mean spine/varicosity density";
+	/** Flag for {@value #AVG_SPINE_DENSITY} statistics. */
+	public static final String AVG_SPINE_DENSITY = "Average spine/varicosity density";
 
 	/** Flag for {@value #X_COORDINATES} statistics. */
 	public static final String X_COORDINATES = "X coordinates";
@@ -147,7 +147,7 @@ public class TreeStatistics extends TreeAnalyzer {
 			INTER_NODE_DISTANCE, //
 			INTER_NODE_DISTANCE_SQUARED, //
 			MEAN_RADIUS, //
-			MEAN_SPINE_DENSITY, //
+			AVG_SPINE_DENSITY, //
 			N_BRANCH_POINTS, //
 			N_NODES, //
 			N_SPINES, //
@@ -513,7 +513,7 @@ public class TreeStatistics extends TreeAnalyzer {
 		}
 		if (normGuess.indexOf("spines") != -1 || normGuess.indexOf("varicosities") > -1) {
 			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1 || normGuess.indexOf("dens") != -1) {
-				return MEAN_SPINE_DENSITY;
+				return AVG_SPINE_DENSITY;
 			}
 			else {
 				return N_SPINES;
@@ -663,7 +663,7 @@ public class TreeStatistics extends TreeAnalyzer {
 				stat.addValue(p.getSpineOrVaricosityCount());
 			}
 			break;
-		case MEAN_SPINE_DENSITY:
+		case AVG_SPINE_DENSITY:
 			for (final Path p : tree.list()) {
 				stat.addValue(p.getSpineOrVaricosityCount()/p.getLength());
 			}

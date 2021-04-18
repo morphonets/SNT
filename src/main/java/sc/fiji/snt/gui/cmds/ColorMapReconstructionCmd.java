@@ -68,7 +68,7 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 		TreeColorMapper.N_SPINES, //
 		TreeColorMapper.PATH_DISTANCE, //
 		TreeColorMapper.MEAN_RADIUS, //
-		TreeColorMapper.MEAN_SPINE_DENSITY, //
+		TreeColorMapper.AVG_SPINE_DENSITY, //
 		TreeColorMapper.NODE_RADIUS, //
 		TreeColorMapper.X_COORDINATES,
 		TreeColorMapper.Y_COORDINATES, //
