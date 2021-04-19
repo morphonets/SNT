@@ -981,7 +981,7 @@ public class SNT extends MultiDThreePanes implements
 
 	protected void pause(final boolean pause) {
 		if (pause) {
-			if (!uiReadyForModeChange()) {
+			if (ui != null && ui.getState() != SNTUI.SNT_PAUSED && !uiReadyForModeChange()) {
 				guiUtils.error("Please finish/abort current task before pausing SNT.");
 				return;
 			}

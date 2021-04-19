@@ -1161,8 +1161,9 @@ public class SNTUI extends JDialog {
 					sb.append("<li>Use the <i>Create/Resize Canvas</i> commands in the Options pane</li>");
 				}
 				sb.append("<li>Replace the current ").append(type).append(" using File&rarr;Choose Tracing Image...</li>");
-				nag = !guiUtils.getPersistentWarning(sb.toString(), "Image Needs Resizing");
-				plugin.getPrefs().setTemp("canvasResize-nag", nag);
+				final Boolean userPrompt = guiUtils.getPersistentWarning(sb.toString(), "Image Needs Resizing");
+				if (userPrompt != null) // do nothing if user dismissed the dialog
+					plugin.getPrefs().setTemp("canvasResize-nag", !userPrompt.booleanValue());
 			} else {
 				showStatus("Some nodes rendered outside image!", false);
 			}
@@ -3590,6 +3591,7 @@ public class SNTUI extends JDialog {
 
 			} else if (source == exportAllSWCMenuItem && !noPathsError()) {
 
+				if (abortOnPutativeDataLoss()) return;
 				if (pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
 						"These tracings were obtained from a spatially uncalibrated "
 								+ "image but the SWC specification assumes all coordinates to be " + "in "
@@ -3922,6 +3924,24 @@ public class SNTUI extends JDialog {
 		return success;
 	}
 
+	private boolean abortOnPutativeDataLoss() {
+		boolean nag = plugin.getPrefs().getTemp("dataloss-nag", true);
+		if (nag) {
+			final Boolean prompt = guiUtils.getPersistentWarning(//
+					"The following data can only be saved in a <i>TRACES</i> file and will not be stored in SWC files:"
+					+ "<ul>" //
+					+ "  <li>Image details</li>"//
+					+ "  <li>Fits and Fills</li>"//
+					+ "  <li>Path metadata (tags, colors, traced channel and frame)</li>"//
+					+ "  <li>Spine/varicosity counts</li>"//
+					+ "</ul>", "Warning: Possible Data Loss");
+			if (prompt == null)
+				return true; // user dimissed prompt
+			plugin.getPrefs().setTemp("dataloss-nag", !prompt.booleanValue());
+		}
+		return false;
+	}
+
 	private class ImportAction {
 
 		private static final int TRACES = 0;
@@ -3953,18 +3973,20 @@ public class SNTUI extends JDialog {
 				changeState(LOADING);
 				showStatus("Retrieving demo data. Please wait...", false);
 				final String[] choices = new String[5];
-				choices[0] = "Drosophila ddaC neuron (2D, binary)";
-				choices[1] = "Drosophila OP neuron (3D, grayscale, w/ tracings)";
-				choices[2] = "Hippocampal neuron (2D, multichannel)";
-				choices[3] = "Hippocampal neuron (timelapse, w/ tracings)";
-				choices[4] = "L-Systems Fractal (2D, binary, w/ tracings)";
-				final String choice = guiUtils.getChoice("Which dataset?", "Load Demo Dataset", choices, choices[0]);
+				choices[0] = "Drosophila ddaC neuron (581K, 2D, binary)";
+				choices[1] = "Drosophila OP neuron (15MB, 3D, grayscale, w/ tracings)";
+				choices[2] = "Hippocampal neuron (2.5MB, 2D, multichannel)";
+				choices[3] = "Hippocampal neuron (52MB, timelapse, w/ tracings)";
+				choices[4] = "L-Systems Fractal (23K, 2D, binary, w/ tracings)";
+				final String defChoice = plugin.getPrefs().getTemp("demo", choices[4]);
+				final String choice = guiUtils.getChoice("Which dataset? (NB: Data may take a while to download)", "Load Demo Dataset", choices, defChoice);
 				if (choice == null) {
 					changeState(priorState);
 					showStatus(null, true);
 					return;
 				}
 				try {
+					plugin.getPrefs().setTemp("demo", choice);
 					final SNTService sntService = plugin.getContext().getService(SNTService.class);
 					final ImagePlus imp = sntService.demoImage(choice);
 					if (imp == null) {

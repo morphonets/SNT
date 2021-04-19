@@ -217,7 +217,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 				if (cmd.startsWith(AListener.FORK_NEAREST)) {
 					updateForkPointMenuItem(mItem);
-					continue;
 				}
 
 				if (togglePauseSNTMenuItem.isSelected() && !cmd.equals(

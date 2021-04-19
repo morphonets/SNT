@@ -57,6 +57,8 @@ import sc.fiji.snt.util.PointInCanvas;
  */
 @Plugin(type = Command.class, visible = false, label = "Extract Spine/Varicosity Counts from ROI(s)...", initializer = "init")
 public class SpineExtractorCmd extends CommonDynamicCmd {
+	
+	private static final String MSG = "<br>To initiate counts, right-click on image and run \"Count Spine/Varicosities...\"";
 
 	@Parameter(required = false, label = "Source of Multi-point ROI(s):", //
 			choices = { "Active ROI", "Image Overlay", "ROI Manager" })
@@ -151,19 +153,19 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 	private List<PointRoi> getROIs() {
 		if (roiSource.contains("Active")) {
 			if (imp == null || imp.getRoi() == null || !(imp.getRoi() instanceof PointRoi)) {
-				error("No active multi-point ROI(s) exist.");
+				error("No active multi-point ROI(s) exist." + MSG);
 				return null;
 			}
 			return Collections.singletonList((PointRoi) imp.getRoi());
 		} else if (roiSource.contains("Overlay")) {
 			if (imp == null || imp.getOverlay() == null) {
-				error("The image overlay is not accessible.");
+				error("The image overlay is not accessible." + MSG);
 				return null;
 			}
 			return assemblePointRoiList(imp.getOverlay().iterator(), "Image Overlay ");
 		} else if (roiSource.contains("Manager")) {
 			if (RoiManager.getInstance2() == null) {
-				error("Roi Manager is not available");
+				error("Roi Manager is not available. " + MSG);
 				return null;
 			}
 			return assemblePointRoiList(RoiManager.getInstance2().iterator(), "Roi Manager");
@@ -179,7 +181,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 				points.add((PointRoi) roi);
 		}
 		if (points.isEmpty()) {
-			error(sourceDescription + " does not contain Multi-point ROIs.");
+			error(sourceDescription + " does not contain Multi-point ROIs." + MSG);
 		}
 		return points;
 	}
