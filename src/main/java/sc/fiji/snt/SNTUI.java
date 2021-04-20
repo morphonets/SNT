@@ -966,10 +966,10 @@ public class SNTUI extends JDialog {
 		final boolean reload = newC == plugin.channel && newT == plugin.frame;
 		if (!reload && askUserConfirmation
 				&& !guiUtils
-						.getConfirmation(
-								"You are currently tracing position C=" + plugin.channel + ", T=" + plugin.frame
-										+ ". Start tracing C=" + newC + ", T=" + newT + "?",
-								"Change Hyperstack Position?")) {
+				.getConfirmation(
+						"You are currently tracing position C=" + plugin.channel + ", T=" + plugin.frame
+						+ ". Start tracing C=" + newC + ", T=" + newT + "?",
+						"Change Hyperstack Position?")) {
 			return;
 		}
 		// take this opportunity to update 3-pane status
@@ -983,19 +983,22 @@ public class SNTUI extends JDialog {
 		plugin.showMIPOverlays(0);
 		if (plugin.isSecondaryImageLoaded()) {
 			final String[] choices = new String[] { "Unload. I'll load new data manually", "Reload",
-					"Do nothing. Leave as is" };
+			"Do nothing. Leave as is" };
+			final String defChoice = plugin.getPrefs().getTemp("secreload", (reload) ? choices[1] : choices[0]);
 			final String choice = guiUtils.getChoice("What should be done with the secondary image currently cached?",
-					"Reload Filtered Data?", choices, (reload) ? choices[1] : choices[0]);
-			if (choice != null && choice.startsWith("Unload")) {
-				flushSecondaryData();
-			} else if (choice != null && choice.startsWith("Reload")) {
-				loadCachedDataImage(false, "secondary", false, plugin.secondaryImageFile);
+					"Reload Filtered Data?", choices, defChoice);
+			if (choice != null) {
+				if (choice.startsWith("Unload"))
+					flushSecondaryData();
+				else if (choice.startsWith("Reload"))
+					loadCachedDataImage(false, "secondary", false, plugin.secondaryImageFile);
+				plugin.getPrefs().setTemp("secreload", choice);
 			}
+			if (hessianDataExists)
+				enableHessian(true);
+			resetState();
+			showStatus(reload ? "Image reloaded into memory..." : null, true);
 		}
-		if (hessianDataExists)
-			enableHessian(true);
-		resetState();
-		showStatus(reload ? "Image reloaded into memory..." : null, true);
 	}
 
 	private JPanel viewsPanel() {
@@ -2415,8 +2418,11 @@ public class SNTUI extends JDialog {
 		utilitiesMenu.add(compareFiles);
 		compareFiles.addActionListener(e -> {
 			final String[] choices = { "Compare two files", "Compare groups of cells (two or more)" };
+			final String defChoice = plugin.getPrefs().getTemp("compare", choices[1]);
 			final String choice = guiUtils.getChoice("Which kind of comparison would you like to perform?",
-					"Single or Group Comparison?", choices, choices[1]);
+					"Single or Group Comparison?", choices, defChoice);
+			if (choice == null) return;
+			plugin.getPrefs().setTemp("compare", choice);
 			if (choices[0].equals(choice))
 				(new CmdRunner(CompareFilesCmd.class)).execute();
 			else {
@@ -2915,9 +2921,13 @@ public class SNTUI extends JDialog {
 	private String getPrimarySecondaryImgChoice(final String promptMsg) {
 		if (plugin.isTracingOnSecondaryImageAvailable()) {
 			final String[] choices = new String[] { "Primary (Main)", "Secondary" };
-			final String choice = guiUtils.getChoice(promptMsg, "Wich Image?", choices, choices[0]);
-			secondaryImgActivateCheckbox.setSelected(choices[1].equals(choice));
-			return choice;
+			final String defChoice = plugin.getPrefs().getTemp("pschoice", choices[0]);
+			final String choice = guiUtils.getChoice(promptMsg, "Wich Image?", choices, defChoice);
+			if (choice != null) {
+				plugin.getPrefs().setTemp("pschoice", choice);
+				secondaryImgActivateCheckbox.setSelected(choices[1].equals(choice));
+				return choice;
+			}
 		}
 		return "primary";
 	}

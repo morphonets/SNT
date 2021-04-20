@@ -158,10 +158,12 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				return;
 			}
 			final String[] choices = ids.toArray(new String[ids.size()]);
+			final String defChoice = pmui.getSNT().getPrefs().getTemp("cellidfilter", choices[0]);
 			final String chosenID = guiUtils.getChoice("Select Paths from which cell?", "Cell ID Filtering", choices,
-					choices[0]);
+					defChoice);
 			if (chosenID == null)
 				return;
+			pmui.getSNT().getPrefs().setTemp("cellidfilter", chosenID);
 			paths.removeIf(path -> !chosenID.equals(path.getTreeLabel()));
 			if (paths.isEmpty()) {
 				guiUtils.error("No Path matches the specified ID.");
@@ -370,10 +372,12 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				return;
 			}
 			final String[] choices = ids.toArray(new String[ids.size()]);
+			final String defChoice = pmui.getSNT().getPrefs().getTemp("cellidfilter", choices[0]);
 			final String chosenID = guiUtils.getChoice("Select Paths from which cell?", "Cell ID Filtering", choices,
-					choices[0]);
+					defChoice);
 			if (chosenID == null)
 				return;
+			pmui.getSNT().getPrefs().setTemp("cellidfilter", chosenID);
 			paths.removeIf(path -> !chosenID.equals(path.getTreeLabel()));
 			if (paths.isEmpty()) {
 				guiUtils.error("No Path matches the specified ID.");

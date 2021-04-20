@@ -70,8 +70,8 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 	private double maxDist;
 
 	@Parameter(label = "Add extracted counts to ROI Manager", //
-			description = "<HTML>Generates ROIs from the assigned counts and adds them to the ROI Manager.<br>"
-					+ "This allows you to validate the extraction, and ensure the assigments are correct.")
+			description = "<HTML>Generates new ROIs from the assigned counts and adds them to the ROI Manager.<br>"
+					+ "This allows you to validate the extraction and ensure the assigments are correct.")
 	private boolean addToManager;
 
 	@Parameter(required = true)
@@ -98,6 +98,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 		}
 		final MutableModuleItem<Double> maxItem = getInfo().getMutableInput("maxDist", Double.class);
 		maxItem.setLabel(maxItem.getLabel() + " (" + imp.getCalibration().getUnit() +")");
+		if (maxDist == 0) maxDist = 5; // A sensible default?
 	}
 
 	private void abort() {

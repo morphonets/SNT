@@ -1025,12 +1025,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		if (trees.size() == 1) return trees.iterator().next();
 		final ArrayList<String> treeLabels = new ArrayList<>(trees.size());
 		trees.forEach(t -> treeLabels.add(t.getLabel()));
+		final String defChoice = plugin.getPrefs().getTemp("singletree", treeLabels.get(0));
 		final String choice = guiUtils.getChoice("Multiple rooted structures exist. Which one should be considered?",
-				"Which Structure?", treeLabels.toArray(new String[trees.size()]), treeLabels.get(0));
-		for (final Tree t : trees) {
-			if (t.getLabel().equals(choice)) return t;
+				"Which Structure?", treeLabels.toArray(new String[trees.size()]), defChoice);
+		if (choice != null) {
+			plugin.getPrefs().setTemp("singletree", choice);
+			for (final Tree t : trees) {
+				if (t.getLabel().equals(choice)) return t;
+			}
 		}
-
 		return null; // user pressed canceled prompt
 	}
 
