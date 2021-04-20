@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.scijava.command.Command;
+import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
@@ -60,13 +61,12 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 	
 	private static final String MSG = "<br>To initiate counts, right-click on image and run \"Count Spine/Varicosities...\"";
 
-	@Parameter(required = false, label = "Source of Multi-point ROI(s):", //
-			choices = { "Active ROI", "Image Overlay", "ROI Manager" })
+	@Parameter(required = false, label = "Source of Multi-point ROI(s):") // choices set by #init()
 	private String roiSource;
 
-	@Parameter(label = "Max. association distance", min = "0.0", //
-			description = "<HTML>Optional: The maximum allowed distance between a point and its path<br>"
-					+ "Set it to -1 to disable this option...")
+	@Parameter(label = "Max. association distance", min = "-1", //
+			description = "<HTML>The maximum allowed distance between a point and its path<br>"
+					+ "Set it to -1 to disable this option.")
 	private double maxDist;
 
 	@Parameter(label = "Add extracted counts to ROI Manager", //
@@ -78,23 +78,51 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 	private Collection<Path> paths;
 
 	private ImagePlus imp;
+	private RoiManager rm;
 
 
 	@SuppressWarnings("unused")
 	private void init() {
 		super.init(true);
 		imp = snt.getImagePlus();
+		rm = RoiManager.getInstance();
+		final MutableModuleItem<String> mItem = getInfo().getMutableInput("roiSource", String.class);
+		final ArrayList<String> choices = new ArrayList<>(3);
+		if (imp.getRoi() != null) choices.add("Active ROI");
+		if (imp.getOverlay() != null) choices.add("Image Overlay");
+		if (rm != null) choices.add("ROI Manager");
+		if (choices.isEmpty()) {
+			abort();
+		} else {
+			mItem.setChoices(choices);
+		}
+		final MutableModuleItem<Double> maxItem = getInfo().getMutableInput("maxDist", Double.class);
+		maxItem.setLabel(maxItem.getLabel() + " (" + imp.getCalibration().getUnit() +")");
 	}
 
+	private void abort() {
+		resolveInput("roiSource");
+		resolveInput("maxDist");
+		resolveInput("addToManager");
+		resolveInput("paths");
+		error("No ROIs are available for extraction." + MSG);
+	}
 
 	@Override
 	public void run() {
-
 		final List<PointRoi> rois = getROIs();
 		if (rois == null || rois.isEmpty())
 			return; // error messages have been displayed
 
-		final double distanceLimit = (Double.isNaN(maxDist) || maxDist < 0) ? Double.MAX_VALUE / 2 : maxDist;
+		final double voxelSize = getVoxelSize();
+		double unscaledSqrtDistance;
+		if (Double.isNaN(maxDist) || maxDist < 0)
+			unscaledSqrtDistance = Double.MAX_VALUE / 2;
+		else if (maxDist == 0)
+			unscaledSqrtDistance = 1.25; // < Math.sqrt(2)
+		else
+			unscaledSqrtDistance = maxDist / voxelSize;
+
 		final HashMap<Path, List<PointInCanvas>> pathsToPoints = new HashMap<>();
 
 		for (final PointRoi roi : rois) {
@@ -102,7 +130,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 			for (int i = 0; i < roi.size(); i++) {
 				final PointInCanvas pic = new PointInCanvas(points2d.xpoints[i], points2d.ypoints[i],
 						roi.getPointPosition(i));
-				final NearPoint np = snt.getPathAndFillManager().nearestPointOnAnyPath(paths, pic, distanceLimit);
+				final NearPoint np = snt.getPathAndFillManager().nearestPointOnAnyPath(paths, pic, unscaledSqrtDistance);
 				if (np != null && np.getPath() != null) {
 					final List<PointInCanvas> pics = pathsToPoints.get(np.getPath());
 					if (pics == null) {
@@ -118,8 +146,8 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 
 		pathsToPoints.forEach((path, listOfPoints) -> path.setSpineOrVaricosityCount(listOfPoints.size()));
 		try {
-			// Assign tags. Currently there is no other public method to do so
-			ui.getPathManager().runCommand("No. of Spines/Varicosities");
+			// Assign tags
+			ui.getPathManager().applyDefaultTags("No. of Spines/Varicosities");
 		} catch (final IllegalArgumentException ignore) {
 			// do nothing
 		}
@@ -128,8 +156,9 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 
 			final TreeColorMapper mapper = new TreeColorMapper(getContext());
 			mapper.map(new Tree(paths), TreeColorMapper.N_SPINES, ColorTables.ICE);
+			if (ui != null) ui.getPathManager().update();
 
-			final RoiManager rm = (RoiManager.getInstance() == null) ? new RoiManager() : RoiManager.getInstance();
+			if (rm == null) rm = new RoiManager();
 			final int channel = imp.getC();
 			final int frame = imp.getT();
 			pathsToPoints.forEach((path, listOfPoints) -> {
@@ -148,6 +177,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 			});
 			rm.setVisible(true);
 		}
+		resetUI();
 	}
 
 	private List<PointRoi> getROIs() {
@@ -184,6 +214,12 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 			error(sourceDescription + " does not contain Multi-point ROIs." + MSG);
 		}
 		return points;
+	}
+
+	private double getVoxelSize() {
+		if (imp.getNSlices() == 1)
+			return (imp.getCalibration().pixelWidth + imp.getCalibration().pixelHeight) / 2;
+		return (imp.getCalibration().pixelWidth + imp.getCalibration().pixelHeight + imp.getCalibration().pixelDepth) / 3;
 	}
 
 	/* IDE debug method **/
