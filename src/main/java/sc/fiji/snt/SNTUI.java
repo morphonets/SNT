@@ -3994,7 +3994,6 @@ public class SNTUI extends JDialog {
 						changeState(priorState);
 						return;
 					}
-					imp.deleteRoi();
 					plugin.initialize(imp);
 					if (pathAndFillManager.size() > 0
 							&& guiUtils.getConfirmation("Clear Existing Path(s)?", "Delete All Paths")) {

@@ -63,6 +63,7 @@ import ij.gui.ImageRoi;
 import ij.gui.ImageWindow;
 import ij.gui.NewImage;
 import ij.gui.Overlay;
+import ij.gui.PointRoi;
 import ij.gui.StackWindow;
 import ij.measure.Calibration;
 import ij.measure.Measurements;
@@ -636,7 +637,10 @@ public class SNT extends MultiDThreePanes implements
 				break;
 		}
 		statusService.showStatus("Finding stack minimum / maximum");
+		final boolean restoreROI = xy.getRoi() != null && xy.getRoi() instanceof PointRoi;
+		if (restoreROI) xy.saveRoi();
 		xy.deleteRoi(); // if a ROI exists, compute min/ max for entire image
+		if (restoreROI) xy.restoreRoi();
 		final ImageStatistics stats = xy.getStatistics(Measurements.MIN_MAX);
 		stackMin = (float) stats.min;
 		stackMax = (float) stats.max;
