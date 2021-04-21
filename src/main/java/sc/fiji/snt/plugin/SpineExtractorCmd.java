@@ -34,6 +34,7 @@ import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.widget.Button;
 
 import ij.ImagePlus;
 import ij.gui.PointRoi;
@@ -65,7 +66,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 	private String roiSource;
 
 	@Parameter(label = "Max. association distance", min = "-1", //
-			description = "<HTML>The maximum allowed distance between a point and its path<br>"
+			description = "<HTML>The maximum allowed distance between a point and its path.<br>"
 					+ "Set it to -1 to disable this option.")
 	private double maxDist;
 
@@ -73,6 +74,11 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 			description = "<HTML>Generates new ROIs from the assigned counts and adds them to the ROI Manager.<br>"
 					+ "This allows you to validate the extraction and ensure the assigments are correct.")
 	private boolean addToManager;
+
+	@Parameter(label = "Clear Existing Counts", callback = "wipeExistingCounts",
+			description="<HTML>Resets all counts")
+	private Button wipeCounts;
+
 
 	@Parameter(required = true)
 	private Collection<Path> paths;
@@ -88,8 +94,8 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 		rm = RoiManager.getInstance();
 		final MutableModuleItem<String> mItem = getInfo().getMutableInput("roiSource", String.class);
 		final ArrayList<String> choices = new ArrayList<>(3);
-		if (imp.getRoi() != null) choices.add("Active ROI");
-		if (imp.getOverlay() != null) choices.add("Image Overlay");
+		if (imp != null && imp.getRoi() != null) choices.add("Active ROI");
+		if (imp != null && imp.getOverlay() != null) choices.add("Image Overlay");
 		if (rm != null) choices.add("ROI Manager");
 		if (choices.isEmpty()) {
 			abort();
@@ -97,14 +103,21 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 			mItem.setChoices(choices);
 		}
 		final MutableModuleItem<Double> maxItem = getInfo().getMutableInput("maxDist", Double.class);
-		maxItem.setLabel(maxItem.getLabel() + " (" + imp.getCalibration().getUnit() +")");
+		maxItem.setLabel(maxItem.getLabel() + " (" + snt.getPathAndFillManager().getBoundingBox(false).getUnit() +")");
 		if (maxDist == 0) maxDist = 5; // A sensible default?
+	}
+
+	@SuppressWarnings("unused")
+	private void wipeExistingCounts() {
+		paths.forEach(p -> p.setSpineOrVaricosityCount(0) );
+		if (ui != null) ui.getPathManager().update();
 	}
 
 	private void abort() {
 		resolveInput("roiSource");
 		resolveInput("maxDist");
 		resolveInput("addToManager");
+		resolveInput("wipeCounts");
 		resolveInput("paths");
 		error("No ROIs are available for extraction." + MSG);
 	}
@@ -112,10 +125,10 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 	@Override
 	public void run() {
 		final List<PointRoi> rois = getROIs();
-		if (rois == null || rois.isEmpty())
+		if (rois == null)
 			return; // error messages have been displayed
 
-		final double voxelSize = getVoxelSize();
+		final double voxelSize = snt.getMinimumSeparation();
 		double unscaledSqrtDistance;
 		if (Double.isNaN(maxDist) || maxDist < 0)
 			unscaledSqrtDistance = Double.MAX_VALUE / 2;
@@ -127,6 +140,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 		final HashMap<Path, List<PointInCanvas>> pathsToPoints = new HashMap<>();
 
 		for (final PointRoi roi : rois) {
+
 			final FloatPolygon points2d = roi.getFloatPolygon();
 			for (int i = 0; i < roi.size(); i++) {
 				final PointInCanvas pic = new PointInCanvas(points2d.xpoints[i], points2d.ypoints[i],
@@ -160,8 +174,8 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 			if (ui != null) ui.getPathManager().update();
 
 			if (rm == null) rm = new RoiManager();
-			final int channel = imp.getC();
-			final int frame = imp.getT();
+			final int channel = (imp ==null) ? 1 : imp.getC();
+			final int frame = (imp ==null) ? 1 : imp.getT();
 			pathsToPoints.forEach((path, listOfPoints) -> {
 				final PointRoi newRoi = new PointRoi();
 				newRoi.setName(path.getName() + " Spines/Varic.");
@@ -171,8 +185,12 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 				newRoi.setPointType(PointRoi.DOT);
 				newRoi.setSize(5);
 				listOfPoints.forEach(pic -> {
-					imp.setPositionWithoutUpdate(channel, (int) pic.z, frame);
-					newRoi.addPoint(imp, pic.x, pic.y);
+					if (imp == null) {
+						newRoi.addPoint(pic.x, pic.y);
+					} else {
+						imp.setPositionWithoutUpdate(channel, (int) pic.z, frame);
+						newRoi.addPoint(imp, pic.x, pic.y);
+					}
 				});
 				rm.addRoi(newRoi);
 			});
@@ -195,11 +213,11 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 			}
 			return assemblePointRoiList(imp.getOverlay().iterator(), "Image Overlay ");
 		} else if (roiSource.contains("Manager")) {
-			if (RoiManager.getInstance2() == null) {
+			if (rm == null) {
 				error("Roi Manager is not available. " + MSG);
 				return null;
 			}
-			return assemblePointRoiList(RoiManager.getInstance2().iterator(), "Roi Manager");
+			return assemblePointRoiList(rm.iterator(), "Roi Manager");
 		}
 		return null;
 	}
@@ -215,12 +233,6 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 			error(sourceDescription + " does not contain Multi-point ROIs." + MSG);
 		}
 		return points;
-	}
-
-	private double getVoxelSize() {
-		if (imp.getNSlices() == 1)
-			return (imp.getCalibration().pixelWidth + imp.getCalibration().pixelHeight) / 2;
-		return (imp.getCalibration().pixelWidth + imp.getCalibration().pixelHeight + imp.getCalibration().pixelDepth) / 3;
 	}
 
 	/* IDE debug method **/
