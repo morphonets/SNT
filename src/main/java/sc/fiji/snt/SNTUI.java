@@ -3286,7 +3286,7 @@ public class SNTUI extends JDialog {
 			showStatus("SNT is now active...", true);
 			if (plugin.getImagePlus() != null)
 				plugin.getImagePlus().unlock();
-			plugin.pause(false); // will change UI state
+			plugin.pause(false, false); // will change UI state
 			return;
 		case (TRACING_PAUSED):
 			if (!plugin.accessToValidImageData()) {

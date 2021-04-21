@@ -155,8 +155,12 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final JMenuItem countSpines = new JMenuItem("Count Spine/Varicosities...");
 		final boolean[] firstTimeCallingCountSpines = {true};
 		countSpines.addActionListener(e -> {
+			if (getPlane() != MultiDThreePanes.XY_PLANE) {
+				getGuiUtils().error("Currently, counting Spine/Varicosities is only supported on main view.");
+				return;
+			}
 			if (!isEventsDisabled())
-				tracerPlugin.pause(true);
+				tracerPlugin.pause(true, true); // FIXME: We should support counting on side panes too
 			if (isEventsDisabled()) { // plugin successfully paused
 				IJ.setTool("multipoint");
 				if (firstTimeCallingCountSpines[0]) showHelpOnCountingSpines();
@@ -838,7 +842,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				enableEditMode(toggleEditModeMenuItem.getState());
 			}
 			else if (e.getSource().equals(togglePauseSNTMenuItem)) {
-				tracerPlugin.pause(togglePauseSNTMenuItem.isSelected());
+				tracerPlugin.pause(togglePauseSNTMenuItem.isSelected(), false);
 			}
 			else if (e.getSource().equals(togglePauseTracingMenuItem)) {
 				tracerPlugin.pauseTracing(togglePauseTracingMenuItem.isSelected(), true);

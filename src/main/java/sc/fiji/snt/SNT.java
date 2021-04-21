@@ -982,7 +982,7 @@ public class SNT extends MultiDThreePanes implements
 		updateTracingViewers(false);
 	}
 
-	protected void pause(final boolean pause) {
+	protected void pause(final boolean pause, final boolean hideSideViewsOnPause) {
 		if (pause) {
 			if (ui != null && ui.getState() != SNTUI.SNT_PAUSED && !uiReadyForModeChange()) {
 				guiUtils.error("Please finish/abort current task before pausing SNT.");
@@ -994,6 +994,10 @@ public class SNT extends MultiDThreePanes implements
 			disableEventsAllPanes(true);
 			setDrawCrosshairsAllPanes(false);
 			setCanvasLabelAllPanes(InteractiveTracerCanvas.SNT_PAUSED_LABEL);
+			if (hideSideViewsOnPause) {
+				setSideViewsVisible(false);
+				getPrefs().setTemp("restoreviews", true);
+			}
 		}
 		else {
 			if (xy != null && xy.isLocked() && ui != null && !getConfirmation(
@@ -1007,12 +1011,13 @@ public class SNT extends MultiDThreePanes implements
 				final boolean changes = (boolean) xy.getProperty("snt-changes") && xy.changes;
 				if (!changes && xy.changes && ui != null && guiUtils.getConfirmation("<HTML><div WIDTH=500>" //
 							+ "Image seems to have been modified since you last paused SNT. "
-							+ "Would you like to reload it so that SNT can access the modified pixel data?", //
-							"Changes Detected. Reload Image?", "Yes. Reload Image", "No. Use Cached Data")) {
+								+ "Would you like to reload it so that SNT can access the modified pixel data?", //
+								"Changes Detected. Reload Image?", "Yes. Reload Image", "No. Use Cached Data")) {
 					ui.loadImagefromGUI(channel, frame);
 				}
 				xy.setProperty("snt-changes", false);
 			}
+			setSideViewsVisible(getPrefs().getTemp("restoreviews", true));
 		}
 	}
 
@@ -2361,6 +2366,13 @@ public class SNT extends MultiDThreePanes implements
 				break;
 		}
 		return (imp == null || imp.getProcessor() == null) ? null : imp;
+	}
+
+	private void setSideViewsVisible(final boolean visible) {
+		if (xz != null && xz.getWindow() != null)
+			xz.getWindow().setVisible(visible);
+		if (zy != null && zy.getWindow() != null)
+			zy.getWindow().setVisible(visible);
 	}
 
 	protected ImagePlus getMainImagePlusWithoutChecks() {
