@@ -2757,7 +2757,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 		if (result) {
 			final File file = new File(filePath);
-			if (getPlugin() != null) getPlugin().prefs.setRecentFile(file);
+			if (getPlugin() != null) getPlugin().getPrefs().setRecentFile(file);
 			if (boundingBox != null) boundingBox.info = file.getName();
 		}
 		return result;

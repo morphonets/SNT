@@ -657,7 +657,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	private boolean impossibleEdit(final boolean displayError) {
-		boolean invalid = !tracerPlugin.pathAndFillManager.isSelected(tracerPlugin
+		boolean invalid = !tracerPlugin.getPathAndFillManager().isSelected(tracerPlugin
 			.getEditingPath());
 		if (invalid && displayError) getGuiUtils().tempMsg(
 			"Editing path not selected");

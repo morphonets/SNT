@@ -123,8 +123,8 @@ public class SNT extends MultiDThreePanes implements
 	protected static final String targetBallName = "Target point";
 	protected static final int ballRadiusMultiplier = 5;
 
-	protected final PathAndFillManager pathAndFillManager;
-	protected final SNTPrefs prefs;
+	private final PathAndFillManager pathAndFillManager;
+	private final SNTPrefs prefs;
 	private GuiUtils guiUtils;
 
 	/* Legacy 3D Viewer. This is all deprecated stuff */

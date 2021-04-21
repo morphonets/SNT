@@ -672,7 +672,7 @@ public class SNTUI extends JDialog {
 		abortCurrentOperation();
 		plugin.cancelSearch(true);
 		plugin.notifyListeners(new SNTEvent(SNTEvent.QUIT));
-		plugin.prefs.savePluginPrefs(true);
+		plugin.getPrefs().savePluginPrefs(true);
 		pmUI.dispose();
 		pmUI.closeTable();
 		fmUI.dispose();
@@ -1096,7 +1096,7 @@ public class SNTUI extends JDialog {
 				msg = "Replace current image with a display canvas and ";
 			} else if (plugin.getPrefs().getTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, false)) {
 				msg = "You have loaded paths without loading an image.";
-			} else if (!plugin.pathAndFillManager.allPathsShareSameSpatialCalibration())
+			} else if (!plugin.getPathAndFillManager().allPathsShareSameSpatialCalibration())
 				msg = "You seem to have loaded paths associated with images with conflicting spatial calibration.";
 			if (!msg.isEmpty()) {
 				resetPathSpacings(msg);
@@ -1144,7 +1144,7 @@ public class SNTUI extends JDialog {
 				plugin.closeAndResetAllPanes();
 				plugin.tracingHalted = true;
 			}
-			plugin.pathAndFillManager.resetSpatialSettings(true);
+			plugin.getPathAndFillManager().resetSpatialSettings(true);
 		}
 		return reset;
 	}
@@ -1483,7 +1483,7 @@ public class SNTUI extends JDialog {
 
 					final int resFactor = (Double.isNaN(userResFactor) || userResFactor < 1) ? defResFactor
 							: userResFactor.intValue();
-					plugin.prefs.set3DViewerResamplingFactor(resFactor);
+					plugin.getPrefs().set3DViewerResamplingFactor(resFactor);
 					plugin.updateImageContent(resFactor);
 				}
 
@@ -2020,7 +2020,7 @@ public class SNTUI extends JDialog {
 	}
 
 	protected File openFile(final String promptMsg, final String extension) {
-		final File suggestedFile = SNTUtils.findClosestPair(plugin.prefs.getRecentFile(), extension);
+		final File suggestedFile = SNTUtils.findClosestPair(plugin.getPrefs().getRecentFile(), extension);
 		return openFile(promptMsg, suggestedFile);
 	}
 
@@ -2029,20 +2029,20 @@ public class SNTUI extends JDialog {
 		if (focused) toBack();
 		final File openedFile = plugin.legacyService.getIJ1Helper().openDialog(promptMsg, suggestedFile);
 		if (openedFile != null)
-			plugin.prefs.setRecentFile(openedFile);
+			plugin.getPrefs().setRecentFile(openedFile);
 		if (focused) toFront();
 		return openedFile;
 	}
 
 	protected File saveFile(final String promptMsg, final String suggestedFileName, final String fallbackExtension) {
-		final File fFile = new File(plugin.prefs.getRecentDir(),
-				(suggestedFileName == null) ? plugin.prefs.getRecentFile().getName() : suggestedFileName);
+		final File fFile = new File(plugin.getPrefs().getRecentDir(),
+				(suggestedFileName == null) ? plugin.getPrefs().getRecentFile().getName() : suggestedFileName);
 		final boolean focused = hasFocus();
 		if (focused)
 			toBack();
 		final File savedFile = plugin.legacyService.getIJ1Helper().saveDialog(promptMsg, fFile, fallbackExtension);
 		if (savedFile != null)
-			plugin.prefs.setRecentFile(savedFile);
+			plugin.getPrefs().setRecentFile(savedFile);
 		if (focused)
 			toFront();
 		return savedFile;
@@ -2866,7 +2866,7 @@ public class SNTUI extends JDialog {
 
 	protected void displayOnStarting() {
 		SwingUtilities.invokeLater(() -> {
-			if (plugin.prefs.isSaveWinLocations())
+			if (plugin.getPrefs().isSaveWinLocations())
 				arrangeDialogs();
 			arrangeCanvases(false);
 			resetState();
@@ -2961,10 +2961,10 @@ public class SNTUI extends JDialog {
 	}
 
 	private void arrangeDialogs() {
-		Point loc = plugin.prefs.getPathWindowLocation();
+		Point loc = plugin.getPrefs().getPathWindowLocation();
 		if (loc != null)
 			pmUI.setLocation(loc);
-		loc = plugin.prefs.getFillWindowLocation();
+		loc = plugin.getPrefs().getFillWindowLocation();
 		if (loc != null)
 			fmUI.setLocation(loc);
 		// final GraphicsDevice activeScreen =

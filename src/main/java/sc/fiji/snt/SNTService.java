@@ -210,7 +210,7 @@ public class SNTService extends AbstractService implements ImageJService {
 		if (filePathOrURL.startsWith("http") || filePathOrURL.indexOf("://") > 0) {
 			final String fileName = filePathOrURL.substring(filePathOrURL.lastIndexOf('/') + 1);
 			final String fileNameWithoutExtn = fileName.substring(0, fileName.lastIndexOf('.'));
-			plugin.pathAndFillManager.loadGuessingType(fileNameWithoutExtn, new URL(filePathOrURL).openStream());
+			plugin.getPathAndFillManager().loadGuessingType(fileNameWithoutExtn, new URL(filePathOrURL).openStream());
 		} else
 			plugin.loadTracings(new File(filePathOrURL));
 	}
@@ -759,7 +759,7 @@ public class SNTService extends AbstractService implements ImageJService {
 			SNTUtils.log("Disposing resources..");
 			plugin.cancelSearch(true);
 			plugin.notifyListeners(new SNTEvent(SNTEvent.QUIT));
-			plugin.prefs.savePluginPrefs(true);
+			plugin.getPrefs().savePluginPrefs(true);
 			if (getInstanceViewer() != null) getRecViewer().dispose();
 			plugin.closeAndResetAllPanes();
 			if (plugin.getImagePlus() != null) plugin.getImagePlus().close();
