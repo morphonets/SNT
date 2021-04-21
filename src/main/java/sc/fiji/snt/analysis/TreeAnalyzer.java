@@ -287,7 +287,7 @@ public class TreeAnalyzer extends ContextCommand {
 		measure(rowHeader, getMetrics(), true);
 	}
 
-	private int getNextRow(final String rowHeader) {
+	protected int getNextRow(final String rowHeader) {
 		table.appendRow((rowHeader==null)?"":rowHeader);
 		return table.getRowCount() - 1;
 	}
