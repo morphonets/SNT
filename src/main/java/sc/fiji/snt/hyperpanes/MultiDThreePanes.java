@@ -27,7 +27,6 @@ import java.awt.image.ColorModel;
 
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.gui.ImageCanvas;
 import ij.gui.ImageWindow;
 import ij.gui.Overlay;
 import ij.gui.StackWindow;
@@ -56,7 +55,6 @@ public class MultiDThreePanes implements PaneOwner {
 	protected MultiDThreePanesCanvas xy_canvas;
 	protected MultiDThreePanesCanvas xz_canvas;
 	protected MultiDThreePanesCanvas zy_canvas;
-	protected ImageCanvas original_xy_canvas;
 	protected ImageWindow xy_window;
 	protected ImageWindow xz_window;
 	protected ImageWindow zy_window;
@@ -279,11 +277,7 @@ public class MultiDThreePanes implements PaneOwner {
 			xz.close();
 		}
 		if (xy != null && xy.getImage() != null) {
-			if (original_xy_canvas != null) {
-				xy_window = new StackWindow(xy, original_xy_canvas);
-			} else
-				xy_window = new StackWindow(xy);
-			xy_window.getCanvas().add(ij.Menus.getPopupMenu());
+			xy.hide(); xy.show(); // rebuild ImageWindow
 		}
 	}
 
@@ -351,7 +345,6 @@ public class MultiDThreePanes implements PaneOwner {
 		final int height = xy.getHeight();
 		final int stackSize = xy.getNSlices();
 		int type;
-		original_xy_canvas = xy.getCanvas();
 
 		ImagePlus xyMonoChannel;
 
