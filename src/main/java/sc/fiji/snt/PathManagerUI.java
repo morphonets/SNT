@@ -864,7 +864,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @see PathAndFillListener#setSelectedPaths(java.util.HashSet, java.lang.Object)
 	 */
 	@Override
-	public void setSelectedPaths(final HashSet<Path> selectedPaths,
+	public void setSelectedPaths(final Collection<Path> selectedPaths,
 		final Object source)
 	{
 		SwingUtilities.invokeLater(new Runnable() {
@@ -883,7 +883,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @see PathAndFillListener#setPathList(java.lang.String[], Path, boolean)
 	 */
 	@Override
-	public void setPathList(final String[] pathList, final Path justAdded,
+	public void setPathList(final List<Path> pathList, final Path justAdded,
 		final boolean expandAll)
 	{
 
@@ -1002,7 +1002,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @see PathAndFillListener#setFillList(java.lang.String[])
 	 */
 	@Override
-	public void setFillList(final String[] fillList) {}
+	public void setFillList(final List<Fill> fillList) {}  // ignored
 
 	private class FitHelper {
 
@@ -2365,10 +2365,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String TAG_DEFAULT_PATTERN = " ?\\[.*\\]";
 
 		private void selectChildren(final Collection<Path> paths) {
-			final HashSet<Path> set = new HashSet<>(paths);
-			for (final Path p : paths) addChildrenToCollection(p, set);
-			setSelectedPaths(set, PathManagerUI.this);
-			refreshManager(true, true, set);
+			for (final Path p : paths) addChildrenToCollection(p, paths);
+			setSelectedPaths(paths, PathManagerUI.this);
+			refreshManager(true, true, paths);
 		}
 
 		private void addChildrenToCollection(final Path p, final Collection<Path> collection) {

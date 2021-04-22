@@ -961,43 +961,10 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected synchronized void resetListeners(final Path justAdded,
 		final boolean expandAll)
 	{
-
-		final ArrayList<String> pathListEntries = new ArrayList<>();
-
-		for (final Path p : allPaths) {
-			if (p == null) {
-				throw new IllegalArgumentException("BUG: A path in allPaths was null!");
-			}
-			pathListEntries.add(p.realToString());
-		}
-
 		for (final PathAndFillListener listener : listeners)
-			listener.setPathList(pathListEntries.toArray(new String[] {}), justAdded,
-				expandAll);
-
-		final int fills = allFills.size();
-
-		final String[] fillListEntries = new String[fills];
-
-		for (int i = 0; i < fills; ++i) {
-
-			final Fill f = allFills.get(i);
-			if (f == null) {
-				SNTUtils.log("fill was null with i " + i + " out of " + fills);
-				continue;
-			}
-
-			String name = "Fill (" + i + ")";
-
-			if ((f.sourcePaths != null) && (f.sourcePaths.size() > 0)) {
-				name += " from paths: " + f.getSourcePathsStringHuman();
-			}
-			fillListEntries[i] = name;
-		}
-
+			listener.setPathList(allPaths, justAdded, expandAll);
 		for (final PathAndFillListener pafl : listeners)
-			pafl.setFillList(fillListEntries);
-
+			pafl.setFillList(allFills);
 	}
 
 	/**
@@ -1225,7 +1192,8 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	protected void addFill(final Fill fill) {
 		allFills.add(fill);
-		resetListeners(null);
+		for (final PathAndFillListener pafl : listeners)
+			pafl.setFillList(allFills);
 	}
 
 	protected void deleteFills(final int[] indices) {
@@ -1233,14 +1201,15 @@ public class PathAndFillManager extends DefaultHandler implements
 		for (int i = indices.length - 1; i >= 0; --i) {
 			deleteFill(indices[i], false);
 		}
-		resetListeners(null);
+		for (final PathAndFillListener pafl : listeners)
+			pafl.setFillList(allFills);
 	}
 
-	private synchronized void deleteFill(final int index,
-		final boolean updateInterface)
-	{
+	private synchronized void deleteFill(final int index, final boolean updateInterface) {
 		allFills.remove(index);
-		if (updateInterface) resetListeners(null);
+		if (updateInterface)
+			for (final PathAndFillListener pafl : listeners)
+				pafl.setFillList(allFills);
 	}
 
 	protected void reloadFill(final int index) {

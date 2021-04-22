@@ -22,14 +22,15 @@
 
 package sc.fiji.snt;
 
-import java.util.HashSet;
+import java.util.Collection;
+import java.util.List;
 
 interface PathAndFillListener {
 
-	void setPathList(String[] pathList, Path justAdded, boolean expandAll);
+	void setPathList(List<Path> pathList, Path justAdded, boolean expandAll);
 
-	void setFillList(String[] fillList);
+	void setFillList(List<Fill> fillList);
 
-	void setSelectedPaths(HashSet<Path> selectedPathSet, Object source);
+	void setSelectedPaths(Collection<Path> selectedPathSet, Object source);
 
 }

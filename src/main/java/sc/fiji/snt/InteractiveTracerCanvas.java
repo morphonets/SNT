@@ -45,6 +45,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -590,7 +591,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	private boolean selectPathsByRoi() {
-		final HashSet<Path> paths = new HashSet<>(pathAndFillManager.getPathsInROI((getImage().getRoi())));
+		final Collection<Path> paths = pathAndFillManager.getPathsInROI((getImage().getRoi()));
 		if (!paths.isEmpty()) {
 			if (tracerPlugin.getUI() != null)
 				tracerPlugin.getUI().getPathManager().setSelectedPaths(paths, this);

@@ -2573,17 +2573,17 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	@Override
-	public void setPathList(final String[] newList, final Path justAdded,
-		final boolean expandAll)
+	public void setPathList(final List<Path> pathList, final Path justAdded,
+		final boolean expandAll) // ignored
 	{}
 
 	@Override
-	public void setFillList(final String[] newList) {}
+	public void setFillList(final List<Fill> fillList) {}  // ignored
 
 	// Note that rather unexpectedly the p.setSelcted calls make sure that
 	// the colour of the path in the 3D viewer is right... (FIXME)
 	@Override
-	public void setSelectedPaths(final HashSet<Path> selectedPathsSet,
+	public void setSelectedPaths(final Collection<Path> selectedPathsSet,
 		final Object source)
 	{
 		if (source == this) return;

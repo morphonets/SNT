@@ -170,7 +170,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				guiUtils.error("No Path matches the specified ID.");
 				return;
 			}
-			pmui.setSelectedPaths(new HashSet<>(paths), this);
+			pmui.setSelectedPaths(paths, this);
 			guiUtils.tempMsg(paths.size() + " Path(s) selected");
 		});
 		morphoFilteringMenu.add(mi1);
@@ -231,7 +231,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 						guiUtils.error("No Path matches the specified type(s).");
 						return;
 					}
-					pmui.setSelectedPaths(new HashSet<>(paths), this);
+					pmui.setSelectedPaths(paths, this);
 					guiUtils.tempMsg(paths.size() + " Path(s) selected");
 				}
 			}
@@ -266,7 +266,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				guiUtils.error("No Path matches the specified color tag.");
 				return;
 			}
-			pmui.setSelectedPaths(new HashSet<>(filteredPaths), this);
+			pmui.setSelectedPaths(filteredPaths, this);
 			guiUtils.tempMsg(filteredPaths.size() + " Path(s) selected");
 			// refreshManager(true, true);
 		});
@@ -346,7 +346,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			guiUtils.error("No Path matches the specified range.");
 			return;
 		}
-		pmui.setSelectedPaths(new HashSet<>(paths), this);
+		pmui.setSelectedPaths(paths, this);
 		guiUtils.tempMsg(paths.size() + " Path(s) selected");
 		// refreshManager(true, true);
 	}
@@ -384,7 +384,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				guiUtils.error("No Path matches the specified ID.");
 				return;
 			}
-			pmui.setSelectedPaths(new HashSet<>(paths), this);
+			pmui.setSelectedPaths(paths, this);
 			guiUtils.tempMsg(paths.size() + " Path(s) selected");
 		});
 		popup.add(mi1);
@@ -445,7 +445,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 						guiUtils.error("No Path matches the specified type(s).");
 						return;
 					}
-					pmui.setSelectedPaths(new HashSet<>(paths), this);
+					pmui.setSelectedPaths(paths, this);
 					guiUtils.tempMsg(paths.size() + " Path(s) selected");
 				}
 			}
@@ -480,7 +480,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				guiUtils.error("No Path matches the specified color tag.");
 				return;
 			}
-			pmui.setSelectedPaths(new HashSet<>(filteredPaths), this);
+			pmui.setSelectedPaths(filteredPaths, this);
 			guiUtils.tempMsg(filteredPaths.size() + " Path(s) selected");
 			// refreshManager(true, true);
 		});
