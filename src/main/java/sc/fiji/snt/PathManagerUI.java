@@ -81,7 +81,6 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.MutableTreeNode;
-import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
@@ -174,7 +173,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		pathAndFillManager = plugin.getPathAndFillManager();
 		pathAndFillManager.addPathAndFillListener(this);
 
-		root = new DefaultMutableTreeNode("All Paths");
+		root = new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL);
 		tree = new HelpfulJTree(root);
 		tree.setRootVisible(false);
 		tree.setVisibleRowCount(25);
@@ -861,40 +860,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		popup.show(me.getComponent(), me.getX(), me.getY());
 	}
 
-	private void getExpandedPaths(final HelpfulJTree tree, final TreeModel model,
-		final MutableTreeNode node, final HashSet<Path> set)
-	{
-		assert SwingUtilities.isEventDispatchThread();
-		final int count = model.getChildCount(node);
-		for (int i = 0; i < count; i++) {
-			final DefaultMutableTreeNode child = (DefaultMutableTreeNode) model
-				.getChild(node, i);
-			final Path p = (Path) child.getUserObject();
-			if (tree.isExpanded(child.getPath())) {
-				set.add(p);
-			}
-			if (!model.isLeaf(child)) getExpandedPaths(tree, model, child, set);
-		}
-	}
-
-	private void setExpandedPaths(final HelpfulJTree tree, final TreeModel model,
-		final MutableTreeNode node, final HashSet<Path> set, final Path justAdded)
-	{
-		assert SwingUtilities.isEventDispatchThread();
-		final int count = model.getChildCount(node);
-		for (int i = 0; i < count; i++) {
-			final DefaultMutableTreeNode child = (DefaultMutableTreeNode) model
-				.getChild(node, i);
-			final Path p = (Path) child.getUserObject();
-			if (set.contains(p) || ((justAdded != null) && (justAdded == p))) {
-				tree.setExpanded(child.getPath(), true);
-			}
-			if (!model.isLeaf(child)) setExpandedPaths(tree, model, child, set,
-				justAdded);
-		}
-
-	}
-
 	/* (non-Javadoc)
 	 * @see PathAndFillListener#setSelectedPaths(java.util.HashSet, java.lang.Object)
 	 */
@@ -909,28 +874,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				if (source == this || !pathAndFillManager.enableUIupdates) return;
 				final TreePath[] noTreePaths = {};
 				tree.setSelectionPaths(noTreePaths);
-				setSelectedPaths(tree, tree.getModel(), root, selectedPaths, selectedPaths.size()==1);
+				tree.setSelectedPaths(root, selectedPaths, selectedPaths.size()==1);
 			}
 		});
-	}
-
-	private void setSelectedPaths(final HelpfulJTree tree, final TreeModel model,
-		final MutableTreeNode node, final Collection<Path> set, final boolean updateCTpositon)
-	{
-		assert SwingUtilities.isEventDispatchThread();
-		final int count = model.getChildCount(node);
-		for (int i = 0; i < count; i++) {
-			final DefaultMutableTreeNode child = (DefaultMutableTreeNode) model
-				.getChild(node, i);
-			final Path p = (Path) child.getUserObject();
-			if (set.contains(p)) {
-				tree.setSelected(child.getPath());
-				if (updateCTpositon && plugin != null) {
-					updateHyperstackPosition(p);
-				}
-			}
-			if (!model.isLeaf(child)) setSelectedPaths(tree, model, child, set, updateCTpositon);
-		}
 	}
 
 	/* (non-Javadoc)
@@ -944,50 +890,30 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		if (!pathAndFillManager.enableUIupdates) return;
 		SwingUtilities.invokeLater(() -> {
 
-			// Save the selection state:
-			final TreePath[] selectedBefore = tree.getSelectionPaths();
-			final HashSet<Path> selectedPathsBefore = new HashSet<>();
-			final HashSet<Path> expandedPathsBefore = new HashSet<>();
-
-			if (selectedBefore != null) for (final TreePath tp : selectedBefore) {
-				final DefaultMutableTreeNode dmtn = (DefaultMutableTreeNode) tp
-						.getLastPathComponent();
-				if (dmtn != root) {
-					final Path p = (Path) dmtn.getUserObject();
-					selectedPathsBefore.add(p);
-				}
-			}
-
-			// Save the expanded state:
-			getExpandedPaths(tree, tree.getModel(), root, expandedPathsBefore);
+			// Save the selection and expanded states:
+			final List<Path> selectedPathsBefore = tree.getSelectedPaths();
+			final List<Path> expandedPathsBefore = tree.getExpandedPaths(root);
 
 			/*
 			 * Ignore the arguments and get the real path list from the PathAndFillManager:
 			 */
-			final DefaultMutableTreeNode newRoot = new DefaultMutableTreeNode(
-				"All Paths");
+			final DefaultMutableTreeNode newRoot = new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL);
 			final DefaultTreeModel model = new DefaultTreeModel(newRoot);
-			// DefaultTreeModel model = (DefaultTreeModel)tree.getModel();
 			final Path[] primaryPaths = pathAndFillManager.getPathsStructured();
 			for (final Path primaryPath : primaryPaths) {
-				// Add the primary path if it's not just a fitted version of
-				// another:
-				if (!primaryPath.isFittedVersionOfAnotherPath()) addNode(newRoot,
-						primaryPath, model);
+				// Add the primary path if it's not just a fitted version of another:
+				if (!primaryPath.isFittedVersionOfAnotherPath()) addNode(newRoot, primaryPath, model);
 			}
 			root = newRoot;
 			tree.setModel(model);
-
 			tree.reload();
-
 			// Set back the expanded state:
-			if (expandAll) {
-				for (int i3 = 0; i3 < tree.getRowCount(); ++i3)
-					tree.expandRow(i3);
-			}
-			else setExpandedPaths(tree, model, root, expandedPathsBefore, justAdded);
-
-			setSelectedPaths(tree, model, root, selectedPathsBefore, false);
+			if (expandAll)
+				GuiUtils.expandAllTreeNodes(tree);
+			else
+				tree.setExpandedPaths(root, expandedPathsBefore, justAdded);
+			// Set back the selection state
+			tree.setSelectedPaths(root, selectedPathsBefore, false);
 		});
 	}
 
@@ -1230,6 +1156,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private class HelpfulJTree extends JTree {
 
 		private static final long serialVersionUID = 1L;
+		private static final String ROOT_LABEL = "All Paths";
 		private final TreeSearchable searchable;
 
 		public HelpfulJTree(final TreeNode root) {
@@ -1262,6 +1189,73 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			addSelectionPath(tp);
 		}
 
+		public List<Path> getSelectedPaths() {
+			final TreePath[] selectionTreePath = tree.getSelectionPaths();
+			final List<Path> selectedPaths = new ArrayList<>();
+			if (selectionTreePath == null)
+				return selectedPaths;
+			for (final TreePath tp : selectionTreePath) {
+				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) tp.getLastPathComponent();
+				if (node != root) {
+					final Path p = (Path) node.getUserObject();
+					selectedPaths.add(p);
+				}
+			}
+			return selectedPaths;
+		}
+
+		public List<Path> getExpandedPaths(final MutableTreeNode node) {
+			final List<Path> list = new ArrayList<>();
+			getExpandedPathsInternal(node, list);
+			return list;
+		}
+
+		public void setSelectedPaths(final MutableTreeNode node, final Collection<Path> set,
+				final boolean updateCTpositon) {
+			assert SwingUtilities.isEventDispatchThread();
+			final int count = getModel().getChildCount(node);
+			for (int i = 0; i < count; i++) {
+				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
+				final Path p = (Path) child.getUserObject();
+				if (set.contains(p)) {
+					tree.setSelected(child.getPath());
+					if (updateCTpositon && plugin != null) {
+						updateHyperstackPosition(p);
+					}
+				}
+				if (!getModel().isLeaf(child))
+					setSelectedPaths(child, set, updateCTpositon);
+			}
+		}
+
+		public void setExpandedPaths(final MutableTreeNode node, final Collection<Path> set, final Path justAdded) {
+			assert SwingUtilities.isEventDispatchThread();
+			final int count = getModel().getChildCount(node);
+			for (int i = 0; i < count; i++) {
+				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
+				final Path p = (Path) child.getUserObject();
+				if (set.contains(p) || ((justAdded != null) && (justAdded == p))) {
+					tree.setExpanded(child.getPath(), true);
+				}
+				if (!getModel().isLeaf(child))
+					setExpandedPaths(child, set, justAdded);
+			}
+		}
+
+		private void getExpandedPathsInternal(final MutableTreeNode node, final List<Path> list) {
+			assert SwingUtilities.isEventDispatchThread();
+			final int count = getModel().getChildCount(node);
+			for (int i = 0; i < count; i++) {
+				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
+				final Path p = (Path) child.getUserObject();
+				if (tree.isExpanded(child.getPath())) {
+					list.add(p);
+				}
+				if (!getModel().isLeaf(child))
+					getExpandedPathsInternal(child, list);
+			}
+		}
+	
 		public void repaintAllNodes() {
 			final DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
 			final Enumeration<?> e = root.preorderEnumeration();
@@ -1290,6 +1284,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				searchableBar.setStatusLabelPlaceholder(String.format("%d Path(s) listed", getPathAndFillManager().size()));
 			}
 		}
+
 	}
 
 	private class NodeRender extends DefaultTreeCellRenderer {
