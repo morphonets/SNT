@@ -102,7 +102,6 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			final boolean clickOnHighlightAllNeeded = !isHighlightAll();
 			if (clickOnHighlightAllNeeded) _highlightsButton.doClick();
 			final Collection<Path> selectedPath = pmui.getSelectedPaths(false);
-			if (clickOnHighlightAllNeeded) _highlightsButton.doClick(); // restore status
 			if (selectedPath.isEmpty()) {
 				guiUtils.error("No Paths matching '" + findText + "'.",
 					"No Paths Selected");
@@ -113,6 +112,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 					findText + "\" in the " + selectedPath.size() +
 					" Path(s) currently selected:", "Replace Filtering Pattern", null);
 			if (replaceText == null) {
+				if (clickOnHighlightAllNeeded) _highlightsButton.doClick(); // restore status
 				return; // user pressed cancel
 			}
 			if (getSearchable().isWildcardEnabled()) {
@@ -127,12 +127,13 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				for (final Path p : selectedPath) {
 					p.setName(pattern.matcher(p.getName()).replaceAll(replaceText));
 				}
+				pmui.update();
 			}
-			catch (final IllegalArgumentException ex) {
+			catch (final IllegalArgumentException ex) { // PatternSyntaxException  etc.
 				guiUtils.error("Replacement pattern not valid: " + ex.getMessage());
-				return;
+			} finally {
+				if (clickOnHighlightAllNeeded) _highlightsButton.doClick(); // restore status
 			}
-			pmui.update();
 		});
 		return mi;
 	}
