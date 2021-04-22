@@ -125,7 +125,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 	@Override
 	public void run() {
 		final List<PointRoi> rois = getROIs();
-		if (rois == null)
+		if (rois == null || rois.isEmpty())
 			return; // error messages have been displayed
 
 		final double voxelSize = snt.getMinimumSeparation();
@@ -194,6 +194,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 				});
 				rm.addRoi(newRoi);
 			});
+			rm.runCommand(imp, "Show All");
 			rm.setVisible(true);
 		}
 		resetUI();

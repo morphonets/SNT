@@ -25,7 +25,6 @@ package sc.fiji.snt;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
@@ -874,7 +873,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				if (source == this || !pathAndFillManager.enableUIupdates) return;
 				final TreePath[] noTreePaths = {};
 				tree.setSelectionPaths(noTreePaths);
-				tree.setSelectedPaths(root, selectedPaths, selectedPaths.size()==1);
+				tree.setSelectedPaths(root, selectedPaths);
 			}
 		});
 	}
@@ -887,7 +886,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final boolean expandAll)
 	{
 
-		if (!pathAndFillManager.enableUIupdates) return;
 		SwingUtilities.invokeLater(() -> {
 
 			// Save the selection and expanded states:
@@ -913,7 +911,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			else
 				tree.setExpandedPaths(root, expandedPathsBefore, justAdded);
 			// Set back the selection state
-			tree.setSelectedPaths(root, selectedPathsBefore, false);
+			tree.setSelectedPaths(root, selectedPathsBefore);
 		});
 	}
 
@@ -1161,7 +1159,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		public HelpfulJTree(final TreeNode root) {
 			super(root);
-			//setLargeModel(true);
+			setLargeModel(true);
 			setCellRenderer(new NodeRender());
 			getSelectionModel().setSelectionMode(
 				TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION);
@@ -1210,21 +1208,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return list;
 		}
 
-		public void setSelectedPaths(final MutableTreeNode node, final Collection<Path> set,
-				final boolean updateCTpositon) {
+		public void setSelectedPaths(final MutableTreeNode node, final Collection<Path> set) {
 			assert SwingUtilities.isEventDispatchThread();
 			final int count = getModel().getChildCount(node);
+			final boolean updateCTposition = set.size() == 1;
 			for (int i = 0; i < count; i++) {
 				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
 				final Path p = (Path) child.getUserObject();
 				if (set.contains(p)) {
 					tree.setSelected(child.getPath());
-					if (updateCTpositon && plugin != null) {
+					if (updateCTposition && plugin != null) {
 						updateHyperstackPosition(p);
 					}
 				}
 				if (!getModel().isLeaf(child))
-					setSelectedPaths(child, set, updateCTpositon);
+					setSelectedPaths(child, set);
 			}
 		}
 
@@ -1293,7 +1291,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		public NodeRender() {
 			super();
-			setLayout(new FlowLayout(FlowLayout.LEADING, 0, 0)); // avoids truncated text in JLabels!?
 			setClosedIcon(new NodeIcon(NodeIcon.PLUS));
 			setOpenIcon(new NodeIcon(NodeIcon.MINUS));
 			setLeafIcon(new NodeIcon(NodeIcon.EMPTY));
@@ -1306,6 +1303,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		{
 			final Component c = super.getTreeCellRendererComponent(tree, value,
 				selected, expanded, isLeaf, row, focused);
+//			((JLabel)c).setOpaque(true);
+//			((JLabel)c).setBackground(Color.RED);
+
 			final TreePath tp = tree.getPathForRow(row);
 			if (tp == null) {
 				return c;
@@ -1727,13 +1727,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		tree.repaintAllNodes();
 	}
 
-	/** Reloads (re-renders) the Path Manager JTree */
+	/** Reloads the contents of {@link PathAndFillManager} */
 	public void reload() {
-		final int[] selectedRows = tree.getSelectionRows();
-		final boolean expanded = tree.getExpandsSelectedPaths();
-		tree.reload();
-		tree.setSelectionRows(selectedRows);
-		tree.setExpandsSelectedPaths(expanded);
+		setPathList(pathAndFillManager.getPaths(), null, true);
 	}
 
 	protected void closeTable() {

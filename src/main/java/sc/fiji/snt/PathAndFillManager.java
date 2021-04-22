@@ -961,10 +961,12 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected synchronized void resetListeners(final Path justAdded,
 		final boolean expandAll)
 	{
-		for (final PathAndFillListener listener : listeners)
-			listener.setPathList(allPaths, justAdded, expandAll);
-		for (final PathAndFillListener pafl : listeners)
-			pafl.setFillList(allFills);
+		if (enableUIupdates) {
+			for (final PathAndFillListener listener : listeners)
+				listener.setPathList(allPaths, justAdded, expandAll);
+			for (final PathAndFillListener pafl : listeners)
+				pafl.setFillList(allFills);
+		}
 	}
 
 	/**
