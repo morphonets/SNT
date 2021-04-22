@@ -2275,6 +2275,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private void applyCustomTags(final Collection<Path> selectedPaths, String customTag) {
 		customTag = customTag.replace("[", "(");
 		customTag = customTag.replace("]", ")");
+		customTag = customTag.replace("|", "-"); // No need to replace {} braces
 		for (final Path p : selectedPaths) {
 			p.setName(p.getName() + "{" + customTag + "}");
 		}
@@ -2357,8 +2358,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		// Custom tag definition: anything flanked by curly braces
 		private final static String TAG_CUSTOM_PATTERN = " ?\\{.*\\}";
-		// Built-in tag definition: anything flanked by square braces
-		private final static String TAG_DEFAULT_PATTERN = " ?\\[.*\\]";
+		// Built-in tag definition: anything flanked by square braces or |
+		private final static String TAG_DEFAULT_PATTERN = " ?(\\[|\\|).*(\\]|\\|)";
 
 		private void selectChildren(final Collection<Path> paths) {
 			for (final Path p : paths) addChildrenToCollection(p, paths);
@@ -2716,7 +2717,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					p.setName(p.getName().replaceAll(TAG_CUSTOM_PATTERN, ""));
 					p.setName(p.getName().replaceAll(TAG_DEFAULT_PATTERN, ""));
 				});
-				setSelectAllTagsMenu(false);
+				if (assumeAll || n == pathAndFillManager.size())
+					setSelectAllTagsMenu(false);
 				resetPathsColor(selectedPaths); // will call refreshManager
 				return;
 			}
