@@ -23,6 +23,7 @@ package sc.fiji.snt.analysis;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import sc.fiji.snt.Path;
@@ -37,6 +38,10 @@ public class PathAnalyzer extends TreeStatistics {
 	public PathAnalyzer(Collection<Path> paths, String label) {
 		super(new Tree(paths));
 		tree.setLabel(label);
+	}
+
+	private PathAnalyzer(final Path path) {
+		super(new Tree(Collections.singleton(path)));
 	}
 
 	@Override
@@ -79,7 +84,9 @@ public class PathAnalyzer extends TreeStatistics {
 		tree.list().forEach( path -> {
 			final int row = getNextRow(path.getName());
 			table.set(getCol("SWC Type"), row, Path.getSWCtypeName(path.getSWCType(), true));
-			measuringMetrics.forEach(metric -> table.set(getCol(metric), row, getMetricInternal(metric)));
+			measuringMetrics.forEach(metric -> {
+				table.set(getCol(metric), row,  new PathAnalyzer(path).getMetricInternal(metric));
+			});
 		});
 		if (getContext() != null) updateAndDisplayTable();
 	}
