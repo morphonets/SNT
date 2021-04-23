@@ -85,6 +85,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 
 	private ImagePlus imp;
 	private RoiManager rm;
+	private String unit;
 
 
 	@SuppressWarnings("unused")
@@ -102,8 +103,9 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 		} else {
 			mItem.setChoices(choices);
 		}
+		unit = snt.getPathAndFillManager().getBoundingBox(false).getUnit();
 		final MutableModuleItem<Double> maxItem = getInfo().getMutableInput("maxDist", Double.class);
-		maxItem.setLabel(maxItem.getLabel() + " (" + snt.getPathAndFillManager().getBoundingBox(false).getUnit() +")");
+		maxItem.setLabel(maxItem.getLabel() + " (" + unit +")");
 		if (maxDist == 0) maxDist = 5; // A sensible default?
 	}
 
@@ -139,14 +141,18 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 
 		final HashMap<Path, List<PointInCanvas>> pathsToPoints = new HashMap<>();
 
+		int matchedPoints = 0;
+		int inputPoints = 0;
 		for (final PointRoi roi : rois) {
 
 			final FloatPolygon points2d = roi.getFloatPolygon();
 			for (int i = 0; i < roi.size(); i++) {
+				inputPoints++;
 				final PointInCanvas pic = new PointInCanvas(points2d.xpoints[i], points2d.ypoints[i],
 						roi.getPointPosition(i));
 				final NearPoint np = snt.getPathAndFillManager().nearestPointOnAnyPath(paths, pic, unscaledSqrtDistance);
 				if (np != null && np.getPath() != null) {
+					matchedPoints++;
 					final List<PointInCanvas> pics = pathsToPoints.get(np.getPath());
 					if (pics == null) {
 						final List<PointInCanvas> list = new ArrayList<>();
@@ -162,12 +168,12 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 		pathsToPoints.forEach((path, listOfPoints) -> path.setSpineOrVaricosityCount(listOfPoints.size()));
 		try {
 			// Assign tags
-			ui.getPathManager().applyDefaultTags("No. of Spines/Varicosities");
+			if (matchedPoints > 0) ui.getPathManager().applyDefaultTags("No. of Spines/Varicosities");
 		} catch (final IllegalArgumentException ignore) {
 			// do nothing
 		}
 
-		if (addToManager) {
+		if (addToManager && matchedPoints > 0) {
 
 			final TreeColorMapper mapper = new TreeColorMapper(getContext());
 			mapper.map(new Tree(paths), TreeColorMapper.N_SPINES, ColorTables.ICE);
@@ -196,6 +202,14 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 			});
 			rm.runCommand(imp, "Show All");
 			rm.setVisible(true);
+		}
+
+		if (matchedPoints == 0 && roiSource.contains("Active") && imp != null && imp.getRoi() == null)
+			imp.restoreRoi();
+		if (matchedPoints < inputPoints) {
+			msg(String.format(
+					"%d/%d points were not matched. Perhaps the specified distance of %.1f %s is too restringent and should be increased?",
+					inputPoints - matchedPoints, inputPoints, maxDist, unit), "Incomplete Extraction");
 		}
 		resetUI();
 	}
