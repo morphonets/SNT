@@ -710,8 +710,8 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @return the ratio between the no. of branch points associated with
 	 *         {@code annot} and the total number of end points in the tree.
 	 */
-	public int getNtipsNorm(final BrainAnnotation annot) {
-		return getNtips(annot) / tips.size();
+	public double getNtipsNorm(final BrainAnnotation annot) {
+		return (double) (getNtips(annot)) / (double)(tips.size());
 	}
 
 	/**
@@ -765,8 +765,8 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @return the ratio between the no. of branch points associated with
 	 *         {@code annot} and the total number of branch points in the tree.
 	 */
-	public int getNbranchPointsNorm(final BrainAnnotation annot) {
-		return getNbranchPoints(annot) / joints.size();
+	public double getNbranchPointsNorm(final BrainAnnotation annot) {
+		return (double) (getNbranchPoints(annot)) / (double)(joints.size());
 	}
 
 	/**
