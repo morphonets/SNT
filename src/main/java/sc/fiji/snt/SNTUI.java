@@ -2656,15 +2656,20 @@ public class SNTUI extends JDialog {
 		});
 
 		final JPanel aStarPanel = new JPanel(new GridBagLayout());
-		final GridBagConstraints gc = GuiUtils.defaultGbc();
-		addSeparatorWithURL(aStarPanel, "Auto-tracing:", true, gc);
-		++gc.gridy;
+		GridBagConstraints c = GuiUtils.defaultGbc();
+		c.ipadx = 0;;
+		addSeparatorWithURL(aStarPanel, "Auto-tracing:", true, c);
+		++c.gridy;
 
-		final JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
-		checkboxPanel.add(aStarCheckBox);
-		checkboxPanel.add(searchAlgoChoice);
-		checkboxPanel.add(GuiUtils.leftAlignedLabel(" algorithm", true));
-		aStarPanel.add(checkboxPanel, gc);
+		final JPanel checkboxPanel = new JPanel(new BorderLayout(0,0));
+		checkboxPanel.add(aStarCheckBox, BorderLayout.WEST);
+		checkboxPanel.add(searchAlgoChoice, BorderLayout.CENTER);
+		checkboxPanel.add(GuiUtils.leftAlignedLabel(" algorithm", true), BorderLayout.EAST);
+		aStarPanel.add(checkboxPanel, c);
+
+		final JPopupMenu optionsMenu = new JPopupMenu();
+		final JButton optionsButton = optionsButton(optionsMenu);
+		aStarPanel.add(optionsButton, c);
 		return aStarPanel;
 	}
 

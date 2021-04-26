@@ -24,6 +24,7 @@ package sc.fiji.snt;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.gui.PointRoi;
 import ij.gui.Roi;
 import ij.gui.Toolbar;
 import ij.measure.Calibration;
@@ -40,6 +41,7 @@ import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SWCPoint;
+import scala.tools.nsc.typechecker.SuperAccessors.SuperAccTransformer;
 
 import javax.swing.*;
 import java.awt.*;
@@ -169,6 +171,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			}
 		});
 		pMenu.add(countSpines);
+		pMenu.addSeparator();
 		pMenu.addSeparator();
 
 		// Add a silly pan entry, just to remind users that the functionality exists.
