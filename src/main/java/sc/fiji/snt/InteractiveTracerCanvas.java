@@ -155,22 +155,19 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 		pMenu.add(menuItem(AListener.START_SHOLL, listener, 
 				KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_MASK + KeyEvent.ALT_MASK)));
-		final JMenuItem countSpines = new JMenuItem("Count Spine/Varicosities...");
-		final boolean[] firstTimeCallingCountSpines = {true};
-		countSpines.addActionListener(e -> {
-			if (getPlane() != MultiDThreePanes.XY_PLANE) {
-				getGuiUtils().error("Currently, counting Spine/Varicosities is only supported on main view.");
+		final JMenuItem assignPointRoiToSpines = new JMenuItem("Assign Multi-point ROIs to Spine Counts");
+		assignPointRoiToSpines.addActionListener( e -> {
+			if (super.getImage().getRoi() == null || !(getImage().getRoi() instanceof PointRoi)) {
+				getGuiUtils().error("No Multi-point ROIs exist.", "No Multi-point ROI");
 				return;
 			}
-			if (!isEventsDisabled())
-				tracerPlugin.pause(true, true); // FIXME: We should support counting on side panes too
-			if (isEventsDisabled()) { // plugin successfully paused
-				IJ.setTool("multipoint");
-				if (firstTimeCallingCountSpines[0]) showHelpOnCountingSpines();
-				firstTimeCallingCountSpines[0] = false;
+			if (pathAndFillManager.size() == 0) {
+				getGuiUtils().error("There are no traced paths. No ROIs can be assigned", "No Traced Paths");
+				return;
 			}
+			System.out.println("Bummer");
 		});
-		pMenu.add(countSpines);
+		pMenu.add(assignPointRoiToSpines);
 		pMenu.addSeparator();
 		pMenu.addSeparator();
 
