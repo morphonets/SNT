@@ -24,6 +24,7 @@ package sc.fiji.snt.analysis;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.stream.IntStream;
 
 import org.scijava.Context;
@@ -31,6 +32,7 @@ import org.scijava.io.IOService;
 import org.scijava.table.Column;
 import org.scijava.table.DefaultGenericTable;
 import org.scijava.table.DefaultTableIOPlugin;
+import org.scijava.table.DoubleColumn;
 import org.scijava.table.GenericTable;
 import org.scijava.table.Table;
 
@@ -99,6 +101,18 @@ public class SNTTable extends DefaultGenericTable {
 	public void appendToLastRow(final String colHeader, final Object value) {
 		if (getRowCount() == 0) appendRow();
 		set(getCol(colHeader), getRowCount() - 1, value);
+	}
+
+	public void addColumn(final String colHeader, final double[] array) {
+		final DoubleColumn col = new DoubleColumn(colHeader);
+		col.fill(array);
+		add(col);
+	}
+
+	public void addColumn(final String colHeader, final Collection<Double> array) {
+		final DoubleColumn col = new DoubleColumn(colHeader);
+		col.addAll(array);
+		add(col);
 	}
 
 	public int insertRow(final String header) {
