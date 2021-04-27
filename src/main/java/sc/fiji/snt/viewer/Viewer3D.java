@@ -734,6 +734,25 @@ public class Viewer3D {
 		return prefs.isSplitDendritesFromAxons();
 	}
 
+	/**
+	 * Does not allow scene to be interactive. Only static orthogonal views allowed.
+	 * 
+	 * @see #unfreeze()
+	 * 
+	 */
+	public void freeze() {
+		chart.getQuality().setAnimated(false);
+	}
+
+	/**
+	 * Allows scene to be interactive.
+	 * 
+	 * @see #freeze()
+	 */
+	public void unfreeze() {
+		chart.getQuality().setAnimated(true);
+	}
+
 	private void addAllObjects() {
 		if (cBar != null) {
 			cBar.updateColors();
@@ -1054,7 +1073,28 @@ public class Viewer3D {
 	 * @return the {@link Annotation3D}
 	 */
 	public Annotation3D annotatePoint(final SNTPoint point, final String label) {
-		final Annotation3D annotation = annotatePoints(Collections.singleton(point), label);
+		return annotatePoint(point, label, "red", getDefaultThickness() * 10);
+	}
+
+	/**
+	 * Adds an highlighting point annotation to this viewer.
+	 *
+	 * @param point the point to be highlighted
+	 * @param label the (optional) annotation identifier. If null or empty, a unique
+	 *              label will be generated.
+	 * @param point the annotation color
+	 * @return the {@link Annotation3D}
+	 */
+	public Annotation3D annotatePoint(final SNTPoint node, final String label, final String color, final float size) {
+		final Annotation3D annotation = new Annotation3D(this, Collections.singleton(node), Annotation3D.SCATTER);
+		final String defLabel = String.format("(%.1f,%.1f,%.1f)", node.getX(), node.getY(), node.getZ());
+		final String uniqueLabel = getUniqueLabel(plottedAnnotations, defLabel, label);
+		annotation.setLabel(uniqueLabel);
+		annotation.setColor(color, 30);
+		annotation.setSize(size);
+		plottedAnnotations.put(uniqueLabel, annotation);
+		addItemToManager(uniqueLabel);
+		chart.add(annotation.getDrawable(), viewUpdatesEnabled);
 		return annotation;
 	}
 
@@ -1067,6 +1107,9 @@ public class Viewer3D {
 	 * @return the {@link Annotation3D}
 	 */
 	public Annotation3D annotatePoints(final Collection<? extends SNTPoint> points, final String label) {
+		if (points.size() == 1) {
+			return annotatePoint(points.iterator().next(), label);
+		}
 		final Annotation3D annotation = new Annotation3D(this, points, Annotation3D.SCATTER);
 		final String uniqueLabel = getUniqueLabel(plottedAnnotations, "Surf. Annot.", label);
 		annotation.setLabel(uniqueLabel);
@@ -1562,6 +1605,12 @@ public class Viewer3D {
 		try {
 			if (object instanceof Tree) {
 				addTree((Tree) object);
+			} else if (object instanceof Path) {
+				final Tree tree = new Tree();
+				tree.add((Path) object);
+				addTree(tree);
+			} else if (object instanceof SNTPoint) {
+				annotatePoint((SNTPoint)object, null);
 			} else if (object instanceof OBJMesh) {
 				addMesh((OBJMesh) object);
 			} else if (object instanceof String) {

@@ -34,6 +34,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -65,9 +66,12 @@ import org.jfree.chart.axis.CategoryAnchor;
 import org.jfree.chart.plot.CategoryMarker;
 import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.Marker;
+import org.jfree.chart.plot.Plot;
 import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
+import org.jfree.chart.renderer.category.CategoryItemRenderer;
+import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.chart.title.LegendTitle;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.title.Title;
@@ -81,13 +85,16 @@ import org.jfree.data.general.Dataset;
 import org.jfree.data.xy.XYDataset;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.ColorRGB;
+import org.scijava.util.Colors;
 
 import net.imagej.plot.CategoryChart;
 import net.imagej.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
 import net.imagej.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
+import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
+
 
 /**
  * Extension of {@link ChartFrame} with convenience methods for plot annotations.
@@ -270,6 +277,84 @@ public class SNTChart extends ChartFrame {
 				catPlot.addAnnotation(annot);
 			}
 		}
+	}
+
+	/**
+	 * (Re)colors existing dataset series
+	 *
+	 * @param colors The series colors
+	 */
+	public void setColors(final String... colors) {
+		final Plot plot = getChartPanel().getChart().getPlot();
+		if (plot instanceof CategoryPlot) {
+			final CategoryItemRenderer renderer = ((CategoryPlot) plot).getRenderer();
+			final int nSeries = ((CategoryPlot) plot).getDataset().getRowCount();
+			setDatasetColors(renderer, nSeries, getColors(nSeries, colors));
+		} else if (plot instanceof XYPlot) {
+			final XYItemRenderer renderer = ((XYPlot) plot).getRenderer();
+			final int nSeries = ((XYPlot) plot).getDataset().getSeriesCount();
+			setDatasetColors(renderer, nSeries, getColors(nSeries, colors));
+		}
+	}
+
+	/**
+	 * (Re)colors existing dataset series
+	 *
+	 * @param colorTable The colorTable used to recolor series
+	 */
+	public void setColors(final ColorTable colorTable) {
+		final Plot plot = getChartPanel().getChart().getPlot();
+		if (plot instanceof CategoryPlot) {
+			final CategoryItemRenderer renderer = ((CategoryPlot) plot).getRenderer();
+			final int nSeries = ((CategoryPlot) plot).getDataset().getRowCount();
+			setDatasetColors(renderer, nSeries, getColors(nSeries, colorTable));
+		} else if (plot instanceof XYPlot) {
+			final XYItemRenderer renderer = ((XYPlot) plot).getRenderer();
+			final int nSeries = ((XYPlot) plot).getDataset().getSeriesCount();
+			setDatasetColors(renderer, nSeries, getColors(nSeries, colorTable));
+		}
+	}
+
+	private void setDatasetColors(CategoryItemRenderer renderer, int nSeries, Color[] colors) {
+		for (int series = 0; series < nSeries; series++) {
+			renderer.setSeriesPaint(series, colors[series]);
+			renderer.setSeriesOutlinePaint(series, colors[series]);
+			renderer.setSeriesItemLabelPaint(series, colors[series]);
+		}
+	}
+
+	private void setDatasetColors(XYItemRenderer renderer, int nSeries, Color[] colors) {
+		for (int series = 0; series < nSeries; series++) {
+			renderer.setSeriesPaint(series, colors[series]);
+			renderer.setSeriesOutlinePaint(series, colors[series]);
+			renderer.setSeriesItemLabelPaint(series, colors[series]);
+		}
+	}
+
+	private Color[] getColors(final int n, final String... colors) {
+		final Color[] baseColors = new Color[colors.length];
+		for (int i = 0; i < colors.length; i++) {
+			final ColorRGB crgb = Colors.getColor(colors[i]);
+			baseColors[i] = new Color(crgb.getRed(), crgb.getGreen(), crgb.getBlue());
+		}
+		if (n < baseColors.length) {
+			return Arrays.copyOfRange(baseColors, 0, n);
+		}
+		final Color[] paddedColors = Arrays.copyOf(baseColors, n);
+		for (int last = baseColors.length; last != 0 && last < n; last <<= 1) {
+			System.arraycopy(paddedColors, 0, paddedColors, last, Math.min(last << 1, n) - last);
+		}
+		return paddedColors;
+	}
+
+	private Color[] getColors(final int n, final ColorTable colortable) {
+		final Color[] colors = new Color[n];
+		for (int i = 0; i < n; i++) {
+			final int idx = (int) Math.round((colortable.getLength() - 1) * i / n);
+			colors[i] = new Color(colortable.get(ColorTable.RED, idx), colortable.get(ColorTable.GREEN, idx),
+					colortable.get(ColorTable.BLUE, idx));
+		}
+		return colors;
 	}
 
 	/**
