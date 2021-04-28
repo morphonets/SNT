@@ -24,7 +24,7 @@ package sc.fiji.snt;
 
 import org.jheaps.AddressableHeap;
 
-import static sc.fiji.snt.AbstractBidirectionalSearch.UNEXPLORED;
+import static sc.fiji.snt.BidirectionalHeuristicSearch.UNEXPLORED;
 
 /**
  * A {@link SearchNode} which can maintain both a from-start and from-goal search state.

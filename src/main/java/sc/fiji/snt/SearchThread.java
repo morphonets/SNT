@@ -22,11 +22,13 @@
 
 package sc.fiji.snt;
 
+import java.awt.*;
 import java.util.*;
 
 import ij.ImagePlus;
 import org.jheaps.AddressableHeap;
 import org.jheaps.tree.PairingHeap;
+import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.util.*;
 
 /**
@@ -38,6 +40,13 @@ import sc.fiji.snt.util.*;
  * @author Cameron Arshadi
  */
 public abstract class SearchThread extends AbstractSearch implements Runnable {
+
+	public static final byte OPEN_FROM_START = 1;
+	public static final byte CLOSED_FROM_START = 2;
+	public static final byte OPEN_FROM_GOAL = 3;
+	public static final byte CLOSED_FROM_GOAL = 4;
+	public static final byte FREE = 5; // Indicates that this node isn't in a list yet...
+
 
 	/** Thread state: the run method is going and the thread is unpaused */
 	public static final int RUNNING = 0;
@@ -82,6 +91,7 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 	protected int minExpectedSize;
 
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
+	@SuppressWarnings("rawtypes")
 	public SearchThread(final ImagePlus imagePlus, final float stackMin, final float stackMax,
 						final boolean bidirectional, final boolean definedGoal, final int timeoutSeconds,
 						final long reportEveryMilliseconds, final Class<? extends SearchImage> searchImageType)
@@ -592,6 +602,72 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 
 		}
 
+	}
+
+	/*
+	 * This draws over the Graphics object the current progress of the search at
+	 * this slice. If openColor or closedColor are null then that means
+	 * "don't bother to draw that list".
+	 */
+	@Override
+	public void drawProgressOnSlice(final int plane,
+									final int currentSliceInPlane, final TracerCanvas canvas, final Graphics g)
+	{
+
+		for (int i = 0; i < 2; ++i) {
+
+			/*
+			 * The first time through we draw the nodes in the open list, the second time
+			 * through we draw the nodes in the closed list.
+			 */
+
+			final byte start_status = (i == 0) ? OPEN_FROM_START : CLOSED_FROM_START;
+			final byte goal_status = (i == 0) ? OPEN_FROM_GOAL : CLOSED_FROM_GOAL;
+			final Color c = (i == 0) ? openColor : closedColor;
+			if (c == null) continue;
+
+			g.setColor(c);
+
+			int pixel_size = (int) canvas.getMagnification();
+			if (pixel_size < 1) pixel_size = 1;
+
+			if (plane == MultiDThreePanes.XY_PLANE) {
+				for (int y = 0; y < height; ++y)
+					for (int x = 0; x < width; ++x) {
+						final SearchNode n = anyNodeUnderThreshold(x, y, currentSliceInPlane,
+								drawingThreshold);
+						if (n == null) continue;
+						final byte status = n.getSearchStatus();
+						if (status == start_status || status == goal_status) g.fillRect(
+								canvas.myScreenX(x) - pixel_size / 2, canvas.myScreenY(y) -
+										pixel_size / 2, pixel_size, pixel_size);
+					}
+			}
+			else if (plane == MultiDThreePanes.XZ_PLANE) {
+				for (int z = 0; z < depth; ++z)
+					for (int x = 0; x < width; ++x) {
+						final SearchNode n = anyNodeUnderThreshold(x, currentSliceInPlane, z,
+								drawingThreshold);
+						if (n == null) continue;
+						final byte status = n.getSearchStatus();
+						if (status == start_status || status == goal_status) g.fillRect(
+								canvas.myScreenX(x) - pixel_size / 2, canvas.myScreenY(z) -
+										pixel_size / 2, pixel_size, pixel_size);
+					}
+			}
+			else if (plane == MultiDThreePanes.ZY_PLANE) {
+				for (int y = 0; y < height; ++y)
+					for (int z = 0; z < depth; ++z) {
+						final SearchNode n = anyNodeUnderThreshold(currentSliceInPlane, y, z,
+								drawingThreshold);
+						if (n == null) continue;
+						final byte status = n.getSearchStatus();
+						if (status == start_status || status == goal_status) g.fillRect(
+								canvas.myScreenX(z) - pixel_size / 2, canvas.myScreenY(y) -
+										pixel_size / 2, pixel_size, pixel_size);
+					}
+			}
+		}
 	}
 
 	public void setMinExpectedSizeOfResult(final int size) {

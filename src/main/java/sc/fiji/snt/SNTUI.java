@@ -2601,24 +2601,26 @@ public class SNTUI extends JDialog {
 		aStarPanel.add(checkboxPanel, gc);
 		final JPopupMenu optionsMenu = new JPopupMenu();
 		final JButton optionsButton = optionsButton(optionsMenu);
+		final JMenu dataStructureMenu =new JMenu("Data Structure");
 		final JMenuItem jmiArraySearchImage = new JMenuItem("Array");
 		jmiArraySearchImage.addActionListener(e -> {
 			plugin.searchImageType = ArraySearchImage.class;
 			SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
 		});
-		optionsMenu.add(jmiArraySearchImage);
+		dataStructureMenu.add(jmiArraySearchImage);
 		final JMenuItem jmiTableSearchImage = new JMenuItem("Hash Table");
 		jmiTableSearchImage.addActionListener(e -> {
 			plugin.searchImageType = MapSearchImage.class;
 			SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
 		});
-		optionsMenu.add(jmiTableSearchImage);
+		dataStructureMenu.add(jmiTableSearchImage);
 		final JMenuItem jmiListSearchImage = new JMenuItem("ImgLib2 ListImg");
 		jmiListSearchImage.addActionListener(e -> {
 			plugin.searchImageType = ListSearchImage.class;
 			SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
 		});
-		optionsMenu.add(jmiListSearchImage);
+		dataStructureMenu.add(jmiListSearchImage);
+		optionsMenu.add(dataStructureMenu);
 		checkboxPanel.add(optionsButton, BorderLayout.EAST);
 		return aStarPanel;
 	}
@@ -2660,7 +2662,25 @@ public class SNTUI extends JDialog {
 			(new DynamicCmdRunner(LocalThicknessCmd.class, null, RUNNING_CMD)).run();
 		});
 		optionsMenu.addSeparator();
-
+		// TODO nullify hessian once this changes
+		final JMenu analysisTypeMenu = new JMenu("Analysis Type");
+		JMenuItem jmiTubeness = new JMenuItem("Tubeness");
+		jmiTubeness.addActionListener(e -> {
+			plugin.costFunctionClass = TubenessCost.class;
+			plugin.primaryHessian.setAnalysisType(HessianCaller.TUBENESS);
+			plugin.secondaryHessian.setAnalysisType(HessianCaller.TUBENESS);
+			SNTUtils.log("Hessian analysis type changed to " + plugin.costFunctionClass.getName());
+		});
+		analysisTypeMenu.add(jmiTubeness);
+		JMenuItem jmiFrangi = new JMenuItem("Frangi Vesselness");
+		jmiFrangi.addActionListener(e -> {
+			plugin.costFunctionClass = FrangiCost.class;
+			plugin.primaryHessian.setAnalysisType(HessianCaller.FRANGI);
+			plugin.secondaryHessian.setAnalysisType(HessianCaller.FRANGI);
+			SNTUtils.log("Hessian analysis type changed to " + plugin.costFunctionClass.getName());
+		});
+		analysisTypeMenu.add(jmiFrangi);
+		optionsMenu.add(analysisTypeMenu);
 		optionsMenu.add(hessianCompMenu("Cached Computations (Main Image)", "primary"));
 		optionsMenu.add(hessianCompMenu("Cached Computations (Secondary Image)", "secondary"));
 		hessianPanel = new JPanel(new BorderLayout());

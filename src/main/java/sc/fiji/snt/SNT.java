@@ -22,25 +22,25 @@
 
 package sc.fiji.snt;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Window;
-import java.awt.event.KeyListener;
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.*;
-
-import javax.swing.*;
-
+import amira.AmiraMeshDecoder;
+import amira.AmiraParameters;
 import com.google.common.collect.Lists;
+import features.GaussianGenerationCallback;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.Prefs;
+import ij.gui.*;
+import ij.measure.Calibration;
+import ij.measure.Measurements;
+import ij.process.*;
+import ij3d.Content;
+import ij3d.ContentConstants;
+import ij3d.ContentCreator;
+import ij3d.Image3DUniverse;
+import io.scif.services.DatasetIOService;
+import net.imagej.Dataset;
+import net.imagej.legacy.LegacyService;
 import org.scijava.Context;
 import org.scijava.NullContextException;
 import org.scijava.app.StatusService;
@@ -52,34 +52,6 @@ import org.scijava.util.ColorRGB;
 import org.scijava.vecmath.Color3f;
 import org.scijava.vecmath.Point3d;
 import org.scijava.vecmath.Point3f;
-
-import amira.AmiraMeshDecoder;
-import amira.AmiraParameters;
-import features.GaussianGenerationCallback;
-import ij.IJ;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.Prefs;
-import ij.gui.ImageRoi;
-import ij.gui.ImageWindow;
-import ij.gui.NewImage;
-import ij.gui.Overlay;
-import ij.gui.StackWindow;
-import ij.measure.Calibration;
-import ij.measure.Measurements;
-import ij.process.ByteProcessor;
-import ij.process.FloatProcessor;
-import ij.process.ImageProcessor;
-import ij.process.ImageStatistics;
-import ij.process.LUT;
-import ij.process.ShortProcessor;
-import ij3d.Content;
-import ij3d.ContentConstants;
-import ij3d.ContentCreator;
-import ij3d.Image3DUniverse;
-import io.scif.services.DatasetIOService;
-import net.imagej.Dataset;
-import net.imagej.legacy.LegacyService;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.event.SNTListener;
 import sc.fiji.snt.gui.GuiUtils;
@@ -87,6 +59,15 @@ import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.util.*;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.KeyListener;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.*;
+import java.util.concurrent.*;
 
 
 /**
@@ -184,7 +165,12 @@ public class SNT extends MultiDThreePanes implements
 	protected final HessianCaller secondaryHessian;
 
 	/* Search image type */
+	@SuppressWarnings("rawtypes")
 	protected Class<? extends SearchImage> searchImageType = ArraySearchImage.class;
+
+	/* Cost function and heuristic estimate for search */
+	protected Class<? extends SearchCost> costFunctionClass = TubenessCost.class;
+	protected Class<? extends SearchHeuristic> heuristicClass = EuclideanHeuristic.class;
 
 	/* tracing threads */
 	private TracerThread currentSearchThread = null;
@@ -203,8 +189,9 @@ public class SNT extends MultiDThreePanes implements
 	protected boolean tubularGeodesicsTracingEnabled = false;
 	protected TubularGeodesicsTracer tubularGeodesicsThread;
 
+	// TODO: make this less awkward
 	protected boolean nbaStarSearchEnabled = false;
-	protected BidirectionalAStarSearch nbaStarSearch = null;
+	protected BidirectionalHeuristicSearch nbaStarSearch = null;
 
 	/*
 	 * pathUnfinished indicates that we have started to create a path, but not yet
@@ -1494,9 +1481,25 @@ public class SNT extends MultiDThreePanes implements
 			tracerThreadPool.execute(manualSearchThread);
 		}
 		else {
+			// TODO: figure out secondary image
+			SearchCost costFunction;
+			if (hessianEnabled) {
+				if (this.costFunctionClass == FrangiCost.class) {
+					costFunction = new FrangiCost(primaryHessian.hessian);
+				} else if (this.costFunctionClass == TubenessCost.class) {
+					costFunction = new TubenessCost(primaryHessian.hessian, primaryHessian.getMultiplier());
+				} else {
+					throw new IllegalArgumentException("BUG: Unknown cost function");
+				}
+
+			} else {
+				costFunction = new ReciprocalCost();
+			}
+			SearchHeuristic heuristic = new EuclideanHeuristic();
 			if (nbaStarSearchEnabled) {
-				nbaStarSearch = new BidirectionalAStarSearch(this, (int) Math.round(last_start_point_x),
-						(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end);
+				nbaStarSearch = new BidirectionalHeuristicSearch((int) Math.round(last_start_point_x),
+						(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end,
+						this, costFunction, heuristic);
 				addThreadToDraw(nbaStarSearch);
 				nbaStarSearch.setDrawingColors(Color.CYAN, Color.ORANGE); // Stabilized, Rejected
 				nbaStarSearch.setMinExpectedSizeOfResult(-1);
@@ -1504,8 +1507,9 @@ public class SNT extends MultiDThreePanes implements
 				nbaStarSearch.addProgressListener(this);
 				tracerThreadPool.submit(nbaStarSearch);
 			} else {
-				currentSearchThread = new TracerThread(this, (int) Math.round(last_start_point_x),
-						(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end);
+				currentSearchThread = new TracerThread((int) Math.round(last_start_point_x),
+						(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end,
+						this, costFunction, heuristic);
 				addThreadToDraw(currentSearchThread);
 				currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this color a preference
 				currentSearchThread.setMinExpectedSizeOfResult(minPathSize);
@@ -1518,7 +1522,7 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
-	public BidirectionalAStarSearch createSearch(final double world_x, final double world_y,
+	public BidirectionalHeuristicSearch createSearch(final double world_x, final double world_y,
 												 final double world_z, final PointInImage joinPoint) {
 		if (!lastStartPointSet) {
 			statusService.showStatus(
@@ -1557,12 +1561,16 @@ public class SNT extends MultiDThreePanes implements
 		y_end = (int) Math.round(real_y_end / y_spacing);
 		z_end = (int) Math.round(real_z_end / z_spacing);
 
-		return new BidirectionalAStarSearch(this, (int) Math.round(last_start_point_x),
-				(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end);
-
+		return new BidirectionalHeuristicSearch(
+				(int) Math.round(last_start_point_x),
+				(int) Math.round(last_start_point_y),
+				(int) Math.round(last_start_point_z),
+				x_end, y_end, z_end,
+				this,
+				new ReciprocalCost(), new EuclideanHeuristic());
 	}
 
-	public BidirectionalAStarSearch createSearch2(final double start_x, final double start_y, final double start_z,
+	public BidirectionalHeuristicSearch createSearch2(final double start_x, final double start_y, final double start_z,
 												  final double world_x, final double world_y, final double world_z) {
 
 		int x_start, y_start, z_start;
@@ -1576,9 +1584,11 @@ public class SNT extends MultiDThreePanes implements
 		y_end = (int) Math.round(world_y / y_spacing);
 		z_end = (int) Math.round(world_z / z_spacing);
 
-		return new BidirectionalAStarSearch(this, x_start,
-				y_start, z_start, x_end, y_end, z_end);
-
+		return new BidirectionalHeuristicSearch(
+				x_start, y_start, z_start,
+				x_end, y_end, z_end,
+				this,
+				new ReciprocalCost(), new EuclideanHeuristic());
 	}
 
 	synchronized public void confirmTemporary(final boolean updateTracingViewers) {
@@ -1749,7 +1759,7 @@ public class SNT extends MultiDThreePanes implements
 			// Append node and wait for search to be finished
 			final PointInImage node = pointList.get(i);
 
-			BidirectionalAStarSearch pathSearch = createSearch(node.x, node.y, node.z, null);
+			BidirectionalHeuristicSearch pathSearch = createSearch(node.x, node.y, node.z, null);
 			pathSearch.setDrawingColors(Color.CYAN, Color.ORANGE);
 			pathSearch.setDrawingThreshold(-1);
 			addThreadToDraw(pathSearch);
@@ -1811,7 +1821,7 @@ public class SNT extends MultiDThreePanes implements
 			final PointInImage start = pointList.get(i);
 			final PointInImage end = pointList.get(i+1);
 
-			BidirectionalAStarSearch pathSearch = createSearch2(start.x, start.y, start.z, end.x, end.y, end.z);
+			BidirectionalHeuristicSearch pathSearch = createSearch2(start.x, start.y, start.z, end.x, end.y, end.z);
 
 			Future<Path> result = tracerThreadPool.submit(pathSearch);
 			Path pathResult = null;

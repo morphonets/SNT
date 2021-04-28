@@ -40,16 +40,24 @@ public class HessianCaller {
 	static final int SECONDARY = 1;
 	static final double DEFAULT_MULTIPLIER = 4;
 
+	static final byte TUBENESS = 0;
+	static final byte FRANGI = 1;
+
 	private final int type;
 	double sigma = -1;
 	double multiplier = DEFAULT_MULTIPLIER;
-	protected ComputeCurvatures hessian;
+	protected HessianAnalyzer hessian;
 	protected float[][] cachedTubeness;
 	private ImagePlus imp;
+	private byte analysisType = TUBENESS;
 
 	HessianCaller(final SNT snt, final int type) {
 		this.snt = snt;
 		this.type = type;
+	}
+
+	public void setAnalysisType(final byte analysisType) {
+		this.analysisType = analysisType;
 	}
 
 	public void setSigmaAndMax(final double sigmaInCalibratedUnits, final double max) {
@@ -98,18 +106,22 @@ public class HessianCaller {
 	}
 
 	public Thread start() {
-		if (hessian == null && cachedTubeness == null) {
-			SNTUtils.log("Computing Gaussian "+ toString());
-			snt.changeUIState((type == PRIMARY) ? SNTUI.CALCULATING_GAUSSIAN_I : SNTUI.CALCULATING_GAUSSIAN_II);
-			if (sigma == -1)
-				sigma = getDefaultSigma();
-			setImp();
-			hessian = new ComputeCurvatures(imp, sigma, snt, true);
-			final Thread thread = new Thread(hessian);
-			thread.start();
-			return thread;
+		snt.changeUIState((type == PRIMARY) ? SNTUI.CALCULATING_GAUSSIAN_I : SNTUI.CALCULATING_GAUSSIAN_II);
+		if (sigma == -1)
+			sigma = getDefaultSigma();
+		setImp();
+		hessian = new HessianAnalyzer(imp);
+		Thread thread;
+		if (analysisType == TUBENESS) {
+			thread = new Thread(() -> hessian.processTubeness(sigma, false));
+		} else if (analysisType == FRANGI) {
+			// TODO: allow multi-selection in sigma palette and input dialog
+			thread = new Thread(() -> hessian.processFrangi(new double[]{sigma * 0.5, sigma, sigma * 2}, true));
+		} else {
+			throw new IllegalArgumentException("BUG: Unknown analysis type");
 		}
-		return null;
+		thread.start();
+		return thread;
 	}
 
 	private void setImp() {
@@ -122,7 +134,8 @@ public class HessianCaller {
 	}
 
 	protected void cancelGaussianGeneration() {
-		if (hessian != null) hessian.cancelGaussianGeneration();
+		// TODO
+//		if (hessian != null) hessian.cancelGaussianGeneration();
 	}
 
 	void nullify() {

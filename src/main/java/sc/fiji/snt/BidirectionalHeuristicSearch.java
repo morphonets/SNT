@@ -34,15 +34,17 @@ import java.util.*;
 import java.util.concurrent.Callable;
 
 /**
- * A skeletal implementation of the bidirectional A-star search algorithm described in
+ * A flexible implementation of the bidirectional heuristic search algorithm described in
  * Pijls, W.H.L.M. & Post, H., 2009. "Yet another bidirectional algorithm for shortest paths,"
  * Econometric Institute Research Papers EI 2009-10,
  * Erasmus University Rotterdam, Erasmus School of Economics (ESE), Econometric Institute.
- * Like {@link SearchThread}, this class is meant to be extended for use with custom heuristics.
+ *
+ * The search distance function ({@link SearchCost}) and heuristic estimate ({@link SearchHeuristic}) are
+ * supplied by the caller.
  *
  * @author Cameron Arshadi
  */
-public abstract class AbstractBidirectionalSearch extends AbstractSearch implements Callable<Path> {
+public class BidirectionalHeuristicSearch extends AbstractSearch implements Callable<Path> {
 
     protected static final byte STABILIZED = 0;
     protected static final byte REJECTED = 1;
@@ -55,10 +57,10 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
     protected final int goal_y;
     protected final int goal_z;
 
-    private BidirectionalSearchNode start;
-    private BidirectionalSearchNode goal;
-
     private final boolean verbose = SNTUtils.isDebugMode();
+
+    protected final SearchCost costFunction;
+    protected final SearchHeuristic heuristic;
 
     protected AddressableHeap<BidirectionalSearchNode, Void> open_from_start;
     protected AddressableHeap<BidirectionalSearchNode, Void> open_from_goal;
@@ -68,8 +70,6 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
 
     private double bestPathLength;
     private BidirectionalSearchNode touchNode;
-
-    protected double minimum_cost_per_unit_distance;
 
     protected int minExpectedSize;
 
@@ -82,11 +82,14 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
 
 
     /* If you specify 0 for timeoutSeconds then there is no timeout. */
-    public AbstractBidirectionalSearch(final int start_x, final int start_y, final int start_z,
-                                       final int goal_x, final int goal_y, final int goal_z,
-                                       final ImagePlus imagePlus, final float stackMin, final float stackMax,
-                                       final int timeoutSeconds, final long reportEveryMilliseconds,
-                                       Class<? extends SearchImage> searchImageType) {
+    @SuppressWarnings("rawtypes")
+    public BidirectionalHeuristicSearch(final int start_x, final int start_y, final int start_z,
+                                        final int goal_x, final int goal_y, final int goal_z,
+                                        final ImagePlus imagePlus, final float stackMin, final float stackMax,
+                                        final int timeoutSeconds, final long reportEveryMilliseconds,
+                                        Class<? extends SearchImage> searchImageType, SearchCost costFunction,
+                                        SearchHeuristic heuristic)
+    {
         super(imagePlus, stackMin, stackMax, timeoutSeconds, reportEveryMilliseconds);
         this.start_x = start_x;
         this.start_y = start_y;
@@ -94,14 +97,17 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
         this.goal_x = goal_x;
         this.goal_y = goal_y;
         this.goal_z = goal_z;
+        this.costFunction = costFunction;
+        this.heuristic = heuristic;
         nodes_as_image = new SearchImageStack<>(depth,
                 SupplierUtil.createSupplier(searchImageType, BidirectionalSearchNode.class, width, height));
         init();
     }
 
-    protected AbstractBidirectionalSearch(final int start_x, final int start_y, final int start_z,
-                                          final int goal_x, final int goal_y, final int goal_z,
-                                          final SNT snt) {
+    public BidirectionalHeuristicSearch(final int start_x, final int start_y, final int start_z,
+                                        final int goal_x, final int goal_y, final int goal_z,
+                                        final SNT snt, SearchCost costFunction, SearchHeuristic heuristic)
+    {
         super(snt);
         this.start_x = start_x;
         this.start_y = start_y;
@@ -109,6 +115,8 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
         this.goal_x = goal_x;
         this.goal_y = goal_y;
         this.goal_z = goal_z;
+        this.costFunction = costFunction;
+        this.heuristic = heuristic;
         nodes_as_image = new SearchImageStack<>(depth,
                 SupplierUtil.createSupplier(snt.searchImageType, BidirectionalSearchNode.class, width, height));
         init();
@@ -116,6 +124,9 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
 
 
     private void init() {
+
+        this.costFunction.setSearch(this);
+        this.heuristic.setSearch(this);
 
         open_from_start = new PairingHeap<>(new NodeComparatorFromStart());
         open_from_goal = new PairingHeap<>(new NodeComparatorFromGoal());
@@ -125,8 +136,6 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
 
         progressListeners = new ArrayList<>();
     }
-
-    protected abstract double minimumCostPerUnitDistance();
 
     @Override
     public Path call() {
@@ -139,14 +148,18 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
 
             started_at = lastReportMilliseconds = System.currentTimeMillis();
 
-            start = new BidirectionalSearchNode(start_x, start_y, start_z);
-            goal = new BidirectionalSearchNode(goal_x, goal_y, goal_z);
+            BidirectionalSearchNode start = new BidirectionalSearchNode(start_x, start_y, start_z);
+            BidirectionalSearchNode goal = new BidirectionalSearchNode(goal_x, goal_y, goal_z);
 
             start.gFromStart = 0d;
             goal.gFromGoal = 0d;
 
-            double bestFScoreFromStart = estimateCostToGoal(start.x, start.y, start.z, goal.x, goal.y, goal.z);
-            double bestFScoreFromGoal = estimateCostToGoal(goal.x, goal.y, goal.z, start.x, start.y, start.z);
+            double bestFScoreFromStart =
+                    heuristic.estimateCostToGoal(start.x, start.y, start.z, goal.x, goal.y, goal.z) *
+                            costFunction.minimumCostPerUnitDistance();
+            double bestFScoreFromGoal =
+                    heuristic.estimateCostToGoal(goal.x, goal.y, goal.z, start.x, start.y, start.z) *
+                            costFunction.minimumCostPerUnitDistance();
 
             start.fFromStart = bestFScoreFromStart;
             goal.fFromGoal = bestFScoreFromGoal;
@@ -191,10 +204,13 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
 
                     bestFScoreFromStart = p.fFromStart;
 
-                    if (p.gFromStart + estimateCostToGoal(p.x, p.y, p.z, goal.x, goal.y, goal.z)
+                    if (p.gFromStart + heuristic.estimateCostToGoal(p.x, p.y, p.z, goal.x, goal.y, goal.z) *
+                            costFunction.minimumCostPerUnitDistance()
                             >= bestPathLength
                             ||
-                            p.gFromStart + bestFScoreFromGoal - estimateCostToGoal(p.x, p.y, p.z, start.x, start.y, start.z)
+                            p.gFromStart + bestFScoreFromGoal -
+                                    heuristic.estimateCostToGoal(p.x, p.y, p.z, start.x, start.y, start.z) *
+                                            costFunction.minimumCostPerUnitDistance()
                                     >= bestPathLength) {
 
                         p.state = REJECTED;
@@ -215,10 +231,13 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
 
                     bestFScoreFromGoal = p.fFromGoal;
 
-                    if (p.gFromGoal + estimateCostToGoal(p.x, p.y, p.z, start.x, start.y, start.z)
+                    if (p.gFromGoal + heuristic.estimateCostToGoal(p.x, p.y, p.z, start.x, start.y, start.z) *
+                            costFunction.minimumCostPerUnitDistance()
                             >= bestPathLength
                             ||
-                            p.gFromGoal + bestFScoreFromStart - estimateCostToGoal(p.x, p.y, p.z, goal.x, goal.y, goal.z)
+                            p.gFromGoal + bestFScoreFromStart -
+                                    heuristic.estimateCostToGoal(p.x, p.y, p.z, goal.x, goal.y, goal.z) *
+                                            costFunction.minimumCostPerUnitDistance()
                                     >= bestPathLength) {
 
                         p.state = REJECTED;
@@ -287,11 +306,11 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
                     final double ydiffsq = (ydiff * y_spacing) * (ydiff * y_spacing);
                     final double zdiffsq = (zdiff * z_spacing) * (zdiff * z_spacing);
 
-                    double cost_moving_to_new_point = costMovingTo(new_x, new_y,
+                    double cost_moving_to_new_point = costFunction.costMovingTo(new_x, new_y,
                             new_z);
 
-                    if (cost_moving_to_new_point < minimum_cost_per_unit_distance) {
-                        cost_moving_to_new_point = minimum_cost_per_unit_distance;
+                    if (cost_moving_to_new_point < costFunction.minimumCostPerUnitDistance()) {
+                        cost_moving_to_new_point = costFunction.minimumCostPerUnitDistance();
                     }
 
                     if (fromStart) {
@@ -299,7 +318,9 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
                         final double g_for_new_point = p.gFromStart +
                                 Math.sqrt(xdiffsq + ydiffsq + zdiffsq) * cost_moving_to_new_point;
 
-                        final double h_for_new_point = estimateCostToGoal(new_x, new_y, new_z, goal.x, goal.y, goal.z);
+                        final double h_for_new_point =
+                                heuristic.estimateCostToGoal(new_x, new_y, new_z, goal_x, goal_y, goal_z) *
+                                        costFunction.minimumCostPerUnitDistance();
 
                         final double f_for_new_point = g_for_new_point + h_for_new_point;
 
@@ -341,7 +362,9 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
                         final double g_for_new_point = p.gFromGoal +
                                 Math.sqrt(xdiffsq + ydiffsq + zdiffsq) * cost_moving_to_new_point;
 
-                        final double h_for_new_point = estimateCostToGoal(new_x, new_y, new_z, start.x, start.y, start.z);
+                        final double h_for_new_point =
+                                heuristic.estimateCostToGoal(new_x, new_y, new_z, start_x, start_y, start_z) *
+                                        costFunction.minimumCostPerUnitDistance();
 
                         final double f_for_new_point = g_for_new_point + h_for_new_point;
 
@@ -458,6 +481,11 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
     }
 
     @Override
+    public Path getResult() {
+        return result;
+    }
+
+    @Override
     public void printStatus() {
         System.out.println("... Start nodes: open=" + open_from_start.size() +
                 " closed=" + closed_from_start_count);
@@ -540,16 +568,6 @@ public abstract class AbstractBidirectionalSearch extends AbstractSearch impleme
 
     public void setMinExpectedSizeOfResult(final int size) {
         this.minExpectedSize = size;
-    }
-
-    /*
-     * This is the heuristic value for the A* search. There's no defined goal in
-     * this default superclass implementation, so always return 0 so we end up with
-     * Dijkstra's algorithm.
-     */
-    protected double estimateCostToGoal(final int source_x, final int source_y, final int source_z,
-                                        final int target_x, final int target_y, final int target_z) {
-        return 0;
     }
 
     static class NodeComparatorFromStart implements Comparator<BidirectionalSearchNode> {
