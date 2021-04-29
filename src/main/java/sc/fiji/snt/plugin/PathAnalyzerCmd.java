@@ -100,7 +100,13 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 	@Parameter(label = "<HTML>&nbsp", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
 	private String SPACER;
 
-	@Parameter(label = "Description", persist = false, description = "An optional identifier describing the path(s) being measured")
+	@Parameter(label = "Measure individual paths", callback="singlePathsChanged", 
+			description = "<HTML>Measure paths as a group or individually?")
+	private boolean singlePaths;
+
+	@Parameter(label = "Description", persist = false, 
+			description = "<HTML>An optional identifier describing the group path(s) being measured.<br>"
+					+ "Ignored when <i>Measure single paths</i> is selected.")
 	private String label;
 
 	@Parameter(required = true)
@@ -121,8 +127,20 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 		resolveInput("table");
 		label = (proposedLabel == null) ? "" : proposedLabel;
 		resolveInput("proposedLabel");
+		singlePathsChanged();
 	}
 
+	private void singlePathsChanged() {
+		if (singlePaths) {
+			proposedLabel = label;
+			label = "";
+			avgLength = false;
+			nPaths = false;
+			nTips = false;
+		} else if (label.isEmpty() && proposedLabel != null){
+			label = proposedLabel;
+		}
+	}
 	@SuppressWarnings("unused")
 	private void actionChoiceSelected() {
 		if (actionChoice.contains("All")) {
@@ -153,27 +171,30 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 	public void run() {
 
 		final List<String> metrics = new ArrayList<>();
-		if(cableLength) metrics.add(MultiTreeStatistics.LENGTH);
-		if (avgLength) metrics.add(MultiTreeStatistics.AVG_BRANCH_LENGTH);
-		if(meanRadius) metrics.add(MultiTreeStatistics.MEAN_RADIUS);
-		if (nPaths) metrics.add(MultiTreeStatistics.N_PATHS);
+		if (cableLength) metrics.add(MultiTreeStatistics.LENGTH);
+		if (avgLength && !singlePaths) metrics.add(MultiTreeStatistics.AVG_BRANCH_LENGTH);
+		if (meanRadius) metrics.add(MultiTreeStatistics.MEAN_RADIUS);
+		if (nPaths && !singlePaths) metrics.add(MultiTreeStatistics.N_PATHS);
 		if (nBranchPoints) metrics.add(MultiTreeStatistics.N_BRANCH_POINTS);
-		if (nTips) metrics.add(MultiTreeStatistics.N_TIPS);
+		if (nTips && !singlePaths) metrics.add(MultiTreeStatistics.N_TIPS);
 		if (highestPathOrder) metrics.add(MultiTreeStatistics.HIGHEST_PATH_ORDER);
 		if (avgContraction) metrics.add(MultiTreeStatistics.AVG_CONTRACTION);
-		if(avgFractalDimension) metrics.add(MultiTreeStatistics.AVG_FRACTAL_DIMENSION);
+		if (avgFractalDimension) metrics.add(MultiTreeStatistics.AVG_FRACTAL_DIMENSION);
 		if (avgFragmentation) metrics.add(MultiTreeStatistics.AVG_FRAGMENTATION);
 		if (width) metrics.add(MultiTreeStatistics.WIDTH);
 		if (height) metrics.add(MultiTreeStatistics.HEIGHT);
 		if (depth) metrics.add(MultiTreeStatistics.DEPTH);
 		if (metrics.isEmpty()) {
-			error("No metrics chosen.");
+			error((singlePaths) ? "No valid metrics chosen." : "No metrics chosen.");
 			return;
 		}
 		final PathAnalyzer analyzer = new PathAnalyzer(paths, (label == null) ? "" : label);
 		analyzer.setContext(getContext());
 		analyzer.setTable(table, TABLE_TITLE);
-		analyzer.measure(label, metrics, false); // will display table
+		if (singlePaths)
+			analyzer.measureIndividualPaths(metrics); // will display table
+		else
+			analyzer.measure(label, metrics, false); // will display table
 		resetUI();
 	}
 

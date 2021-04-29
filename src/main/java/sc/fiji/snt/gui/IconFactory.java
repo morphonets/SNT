@@ -118,6 +118,7 @@ public class IconFactory {
 			LIST('\uf03a', true), //
 			LIST_ALT('\uf022', true), //
 			MAGIC('\uf0d0', true), //
+			MAP_PIN('\uf276', true), //
 			MARKER('\uf3c5', true), //
 			MASKS('\uf630', true), //
 			MICROCHIP('\uf2db', true), //

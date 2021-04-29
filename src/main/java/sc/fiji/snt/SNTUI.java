@@ -619,7 +619,7 @@ public class SNTUI extends JDialog {
 		abortCurrentOperation();
 		plugin.cancelSearch(true);
 		plugin.notifyListeners(new SNTEvent(SNTEvent.QUIT));
-		plugin.prefs.savePluginPrefs(true);
+		plugin.getPrefs().savePluginPrefs(true);
 		pmUI.dispose();
 		pmUI.closeTable();
 		fmUI.dispose();
@@ -912,10 +912,10 @@ public class SNTUI extends JDialog {
 		final boolean reload = newC == plugin.channel && newT == plugin.frame;
 		if (!reload && askUserConfirmation
 				&& !guiUtils
-						.getConfirmation(
-								"You are currently tracing position C=" + plugin.channel + ", T=" + plugin.frame
-										+ ". Start tracing C=" + newC + ", T=" + newT + "?",
-								"Change Hyperstack Position?")) {
+				.getConfirmation(
+						"You are currently tracing position C=" + plugin.channel + ", T=" + plugin.frame
+						+ ". Start tracing C=" + newC + ", T=" + newT + "?",
+						"Change Hyperstack Position?")) {
 			return;
 		}
 		// take this opportunity to update 3-pane status
@@ -929,19 +929,22 @@ public class SNTUI extends JDialog {
 		plugin.showMIPOverlays(0);
 		if (plugin.isSecondaryImageLoaded()) {
 			final String[] choices = new String[] { "Unload. I'll load new data manually", "Reload",
-					"Do nothing. Leave as is" };
+			"Do nothing. Leave as is" };
+			final String defChoice = plugin.getPrefs().getTemp("secreload", (reload) ? choices[1] : choices[0]);
 			final String choice = guiUtils.getChoice("What should be done with the secondary image currently cached?",
-					"Reload Filtered Data?", choices, (reload) ? choices[1] : choices[0]);
-			if (choice != null && choice.startsWith("Unload")) {
-				flushSecondaryData();
-			} else if (choice != null && choice.startsWith("Reload")) {
-				loadCachedDataImage(false, "secondary", false, plugin.secondaryImageFile);
+					"Reload Filtered Data?", choices, defChoice);
+			if (choice != null) {
+				if (choice.startsWith("Unload"))
+					flushSecondaryData();
+				else if (choice.startsWith("Reload"))
+					loadCachedDataImage(false, "secondary", false, plugin.secondaryImageFile);
+				plugin.getPrefs().setTemp("secreload", choice);
 			}
+			if (hessianDataExists)
+				enableHessian(true);
+			resetState();
+			showStatus(reload ? "Image reloaded into memory..." : null, true);
 		}
-		if (hessianDataExists)
-			enableHessian(true);
-		resetState();
-		showStatus(reload ? "Image reloaded into memory..." : null, true);
 	}
 
 	private JPanel viewsPanel() {
@@ -1039,7 +1042,7 @@ public class SNTUI extends JDialog {
 				msg = "Replace current image with a display canvas and ";
 			} else if (plugin.getPrefs().getTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, false)) {
 				msg = "You have loaded paths without loading an image.";
-			} else if (!plugin.pathAndFillManager.allPathsShareSameSpatialCalibration())
+			} else if (!plugin.getPathAndFillManager().allPathsShareSameSpatialCalibration())
 				msg = "You seem to have loaded paths associated with images with conflicting spatial calibration.";
 			if (!msg.isEmpty()) {
 				resetPathSpacings(msg);
@@ -1087,7 +1090,7 @@ public class SNTUI extends JDialog {
 				plugin.closeAndResetAllPanes();
 				plugin.tracingHalted = true;
 			}
-			plugin.pathAndFillManager.resetSpatialSettings(true);
+			plugin.getPathAndFillManager().resetSpatialSettings(true);
 		}
 		return reset;
 	}
@@ -1107,8 +1110,9 @@ public class SNTUI extends JDialog {
 					sb.append("<li>Use the <i>Create/Resize Canvas</i> commands in the Options pane</li>");
 				}
 				sb.append("<li>Replace the current ").append(type).append(" using File&rarr;Choose Tracing Image...</li>");
-				nag = !guiUtils.getPersistentWarning(sb.toString(), "Image Needs Resizing");
-				plugin.getPrefs().setTemp("canvasResize-nag", nag);
+				final Boolean userPrompt = guiUtils.getPersistentWarning(sb.toString(), "Image Needs Resizing");
+				if (userPrompt != null) // do nothing if user dismissed the dialog
+					plugin.getPrefs().setTemp("canvasResize-nag", !userPrompt.booleanValue());
 			} else {
 				showStatus("Some nodes rendered outside image!", false);
 			}
@@ -1425,7 +1429,7 @@ public class SNTUI extends JDialog {
 
 					final int resFactor = (Double.isNaN(userResFactor) || userResFactor < 1) ? defResFactor
 							: userResFactor.intValue();
-					plugin.prefs.set3DViewerResamplingFactor(resFactor);
+					plugin.getPrefs().set3DViewerResamplingFactor(resFactor);
 					plugin.updateImageContent(resFactor);
 				}
 
@@ -1962,7 +1966,7 @@ public class SNTUI extends JDialog {
 	}
 
 	protected File openFile(final String promptMsg, final String extension) {
-		final File suggestedFile = SNTUtils.findClosestPair(plugin.prefs.getRecentFile(), extension);
+		final File suggestedFile = SNTUtils.findClosestPair(plugin.getPrefs().getRecentFile(), extension);
 		return openFile(promptMsg, suggestedFile);
 	}
 
@@ -1971,20 +1975,20 @@ public class SNTUI extends JDialog {
 		if (focused) toBack();
 		final File openedFile = plugin.legacyService.getIJ1Helper().openDialog(promptMsg, suggestedFile);
 		if (openedFile != null)
-			plugin.prefs.setRecentFile(openedFile);
+			plugin.getPrefs().setRecentFile(openedFile);
 		if (focused) toFront();
 		return openedFile;
 	}
 
 	protected File saveFile(final String promptMsg, final String suggestedFileName, final String fallbackExtension) {
-		final File fFile = new File(plugin.prefs.getRecentDir(),
-				(suggestedFileName == null) ? plugin.prefs.getRecentFile().getName() : suggestedFileName);
+		final File fFile = new File(plugin.getPrefs().getRecentDir(),
+				(suggestedFileName == null) ? plugin.getPrefs().getRecentFile().getName() : suggestedFileName);
 		final boolean focused = hasFocus();
 		if (focused)
 			toBack();
 		final File savedFile = plugin.legacyService.getIJ1Helper().saveDialog(promptMsg, fFile, fallbackExtension);
 		if (savedFile != null)
-			plugin.prefs.setRecentFile(savedFile);
+			plugin.getPrefs().setRecentFile(savedFile);
 		if (focused)
 			toFront();
 		return savedFile;
@@ -2360,8 +2364,11 @@ public class SNTUI extends JDialog {
 		utilitiesMenu.add(compareFiles);
 		compareFiles.addActionListener(e -> {
 			final String[] choices = { "Compare two files", "Compare groups of cells (two or more)" };
+			final String defChoice = plugin.getPrefs().getTemp("compare", choices[1]);
 			final String choice = guiUtils.getChoice("Which kind of comparison would you like to perform?",
-					"Single or Group Comparison?", choices, choices[1]);
+					"Single or Group Comparison?", choices, defChoice);
+			if (choice == null) return;
+			plugin.getPrefs().setTemp("compare", choice);
 			if (choices[0].equals(choice))
 				(new CmdRunner(CompareFilesCmd.class)).execute();
 			else {
@@ -2857,7 +2864,7 @@ public class SNTUI extends JDialog {
 
 	protected void displayOnStarting() {
 		SwingUtilities.invokeLater(() -> {
-			if (plugin.prefs.isSaveWinLocations())
+			if (plugin.getPrefs().isSaveWinLocations())
 				arrangeDialogs();
 			arrangeCanvases(false);
 			resetState();
@@ -2912,9 +2919,13 @@ public class SNTUI extends JDialog {
 	private String getPrimarySecondaryImgChoice(final String promptMsg) {
 		if (plugin.isTracingOnSecondaryImageAvailable()) {
 			final String[] choices = new String[] { "Primary (Main)", "Secondary" };
-			final String choice = guiUtils.getChoice(promptMsg, "Wich Image?", choices, choices[0]);
-			secondaryImgActivateCheckbox.setSelected(choices[1].equals(choice));
-			return choice;
+			final String defChoice = plugin.getPrefs().getTemp("pschoice", choices[0]);
+			final String choice = guiUtils.getChoice(promptMsg, "Wich Image?", choices, defChoice);
+			if (choice != null) {
+				plugin.getPrefs().setTemp("pschoice", choice);
+				secondaryImgActivateCheckbox.setSelected(choices[1].equals(choice));
+				return choice;
+			}
 		}
 		return "primary";
 	}
@@ -2948,10 +2959,10 @@ public class SNTUI extends JDialog {
 	}
 
 	private void arrangeDialogs() {
-		Point loc = plugin.prefs.getPathWindowLocation();
+		Point loc = plugin.getPrefs().getPathWindowLocation();
 		if (loc != null)
 			pmUI.setLocation(loc);
-		loc = plugin.prefs.getFillWindowLocation();
+		loc = plugin.getPrefs().getFillWindowLocation();
 		if (loc != null)
 			fmUI.setLocation(loc);
 		// final GraphicsDevice activeScreen =
@@ -3269,7 +3280,7 @@ public class SNTUI extends JDialog {
 			showStatus("SNT is now active...", true);
 			if (plugin.getImagePlus() != null)
 				plugin.getImagePlus().unlock();
-			plugin.pause(false); // will change UI state
+			plugin.pause(false, false); // will change UI state
 			return;
 		case (TRACING_PAUSED):
 			if (!plugin.accessToValidImageData()) {
@@ -3584,6 +3595,7 @@ public class SNTUI extends JDialog {
 
 			} else if (source == exportAllSWCMenuItem && !noPathsError()) {
 
+				if (abortOnPutativeDataLoss()) return;
 				if (pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
 						"These tracings were obtained from a spatially uncalibrated "
 								+ "image but the SWC specification assumes all coordinates to be " + "in "
@@ -3917,6 +3929,24 @@ public class SNTUI extends JDialog {
 		return success;
 	}
 
+	private boolean abortOnPutativeDataLoss() {
+		boolean nag = plugin.getPrefs().getTemp("dataloss-nag", true);
+		if (nag) {
+			final Boolean prompt = guiUtils.getPersistentWarning(//
+					"The following data can only be saved in a <i>TRACES</i> file and will not be stored in SWC files:"
+					+ "<ul>" //
+					+ "  <li>Image details</li>"//
+					+ "  <li>Fits and Fills</li>"//
+					+ "  <li>Path metadata (tags, colors, traced channel and frame)</li>"//
+					+ "  <li>Spine/varicosity counts</li>"//
+					+ "</ul>", "Warning: Possible Data Loss");
+			if (prompt == null)
+				return true; // user dimissed prompt
+			plugin.getPrefs().setTemp("dataloss-nag", !prompt.booleanValue());
+		}
+		return false;
+	}
+
 	private class ImportAction {
 
 		private static final int TRACES = 0;
@@ -3948,18 +3978,20 @@ public class SNTUI extends JDialog {
 				changeState(LOADING);
 				showStatus("Retrieving demo data. Please wait...", false);
 				final String[] choices = new String[5];
-				choices[0] = "Drosophila ddaC neuron (2D, binary)";
-				choices[1] = "Drosophila OP neuron (3D, grayscale, w/ tracings)";
-				choices[2] = "Hippocampal neuron (2D, multichannel)";
-				choices[3] = "Hippocampal neuron (timelapse, w/ tracings)";
-				choices[4] = "L-Systems Fractal (2D, binary, w/ tracings)";
-				final String choice = guiUtils.getChoice("Which dataset?", "Load Demo Dataset", choices, choices[0]);
+				choices[0] = "Drosophila ddaC neuron (581K, 2D, binary)";
+				choices[1] = "Drosophila OP neuron (15MB, 3D, grayscale, w/ tracings)";
+				choices[2] = "Hippocampal neuron (2.5MB, 2D, multichannel)";
+				choices[3] = "Hippocampal neuron (52MB, timelapse, w/ tracings)";
+				choices[4] = "L-Systems Fractal (23K, 2D, binary, w/ tracings)";
+				final String defChoice = plugin.getPrefs().getTemp("demo", choices[4]);
+				final String choice = guiUtils.getChoice("Which dataset? (NB: Data may take a while to download)", "Load Demo Dataset", choices, defChoice);
 				if (choice == null) {
 					changeState(priorState);
 					showStatus(null, true);
 					return;
 				}
 				try {
+					plugin.getPrefs().setTemp("demo", choice);
 					final SNTService sntService = plugin.getContext().getService(SNTService.class);
 					final ImagePlus imp = sntService.demoImage(choice);
 					if (imp == null) {
@@ -3967,7 +3999,6 @@ public class SNTUI extends JDialog {
 						changeState(priorState);
 						return;
 					}
-					imp.deleteRoi();
 					plugin.initialize(imp);
 					if (pathAndFillManager.size() > 0
 							&& guiUtils.getConfirmation("Clear Existing Path(s)?", "Delete All Paths")) {

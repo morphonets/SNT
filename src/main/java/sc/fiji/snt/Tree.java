@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.util.ColorRGB;
 
@@ -700,6 +701,48 @@ public class Tree implements TreeProperties {
 	{
 		final PointInCanvas offset = new PointInCanvas(xOffset, yOffset, zOffset);
 		tree.forEach(p -> p.setCanvasOffset(offset));
+	}
+
+	/** Reverses the X-coordinates of this tree */
+	public void reverseX() {
+		tree.forEach(p -> {
+			final int startIdx = (p.startJoinsPoint == null) ? -1 : p.getNodeIndex(p.startJoinsPoint);
+			final int endIdx = (p.endJoinsPoint == null) ? -1 : p.getNodeIndex(p.endJoinsPoint);
+			ArrayUtils.reverse(p.precise_x_positions);
+			if (startIdx > -1)
+				p.startJoinsPoint.z = p.precise_x_positions[p.size() - startIdx + 1];
+			if (endIdx > -1)
+				p.startJoinsPoint.z = p.precise_x_positions[p.size() - endIdx + 1];
+		});
+		nullifyGraphsAndPafm();
+	}
+
+	/** Reverses the Y-coordinates of this tree */
+	public void reverseY() {
+		tree.forEach(p -> {
+			final int startIdx = (p.startJoinsPoint == null) ? -1 : p.getNodeIndex(p.startJoinsPoint);
+			final int endIdx = (p.endJoinsPoint == null) ? -1 : p.getNodeIndex(p.endJoinsPoint);
+			ArrayUtils.reverse(p.precise_y_positions);
+			if (startIdx > -1)
+				p.startJoinsPoint.z = p.precise_y_positions[p.size() - startIdx + 1];
+			if (endIdx > -1)
+				p.startJoinsPoint.z = p.precise_y_positions[p.size() - endIdx + 1];
+		});
+		nullifyGraphsAndPafm();
+	}
+
+	/** Reverses the Z-coordinates of this tree */
+	public void reverseZ() {
+		tree.forEach(p -> {
+			final int startIdx = (p.startJoinsPoint == null) ? -1 : p.getNodeIndex(p.startJoinsPoint);
+			final int endIdx = (p.endJoinsPoint == null) ? -1 : p.getNodeIndex(p.endJoinsPoint);
+			ArrayUtils.reverse(p.precise_z_positions);
+			if (startIdx > -1)
+				p.startJoinsPoint.z = p.precise_z_positions[p.size() - startIdx + 1];
+			if (endIdx > -1)
+				p.startJoinsPoint.z = p.precise_z_positions[p.size() - endIdx + 1];
+		});
+		nullifyGraphsAndPafm();
 	}
 
 	/**

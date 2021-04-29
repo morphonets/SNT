@@ -157,7 +157,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 
 	@Override
 	public void cancel() {
-		if (existingMatchesWiped && ui != null) ui.getPathManager().reload();
+		if (existingMatchesWiped && ui != null) ui.getPathManager().update();
 		super.cancel();
 	}
 
@@ -220,7 +220,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 						timePointsParsed), "Matching Completed");
 			}
 			if (ui != null) {
-				ui.getPathManager().reload();
+				ui.getPathManager().update();
 				resetUI();
 			}
 		}

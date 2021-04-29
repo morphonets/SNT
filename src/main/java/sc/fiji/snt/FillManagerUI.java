@@ -36,8 +36,9 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.stream.IntStream;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
@@ -375,19 +376,31 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 * @see PathAndFillListener#setPathList(java.lang.String[], Path, boolean)
 	 */
 	@Override
-	public void setPathList(final String[] pathList, final Path justAdded,
-		final boolean expandAll)
+	public void setPathList(final List<Path> pathList, final Path justAdded,
+		final boolean expandAll) // ignored
 	{}
 
 	/* (non-Javadoc)
 	 * @see PathAndFillListener#setFillList(java.lang.String[])
 	 */
 	@Override
-	public void setFillList(final String[] newList) {
+	public void setFillList(final List<Fill> fillList) {
+		final List<String> entries = new ArrayList<>();
+		int i = 0;
+		for (final Fill f : fillList) {
+			if (f == null) {
+				SNTUtils.log("fill was null at index " + fillList.indexOf(f));
+				continue;
+			}
+			String name = "Fill (" + (i++) + ")";
+			if ((f.sourcePaths != null) && (f.sourcePaths.size() > 0)) {
+				name += " from paths: " + f.getSourcePathsStringHuman();
+			}
+			entries.add(name);
+		}
 		SwingUtilities.invokeLater(() -> {
 			listModel.removeAllElements();
-			if (newList != null && newList.length > 0)
-				for (final String s : newList) listModel.addElement(s);
+			entries.forEach(entry -> listModel.addElement(entry));
 			adjustListPlaceholder();
 		});
 	}
@@ -396,7 +409,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 * @see PathAndFillListener#setSelectedPaths(java.util.HashSet, java.lang.Object)
 	 */
 	@Override
-	public void setSelectedPaths(final HashSet<Path> selectedPathSet,
+	public void setSelectedPaths(final Collection<Path> selectedPathSet,
 		final Object source)
 	{
 		// This dialog doesn't deal with paths, so ignore this.

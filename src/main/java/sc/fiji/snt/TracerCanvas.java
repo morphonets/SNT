@@ -104,7 +104,7 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 
 				// If the path suggests using the fitted version, draw that
 				// instead:
-				if (p.useFitted) {
+				if (p.getUseFitted()) {
 					drawPath = p.getFitted();
 				}
 
@@ -116,8 +116,7 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 					continue;
 				}
 
-				final boolean customColor = (drawPath.hasCustomColor &&
-					plugin.displayCustomPathColors);
+				final boolean customColor = plugin.displayCustomPathColors && drawPath.hasCustomColor();
 				Color color = deselectedColor;
 				if (isSelected && !customColor) color = selectedColor;
 				else if (customColor) color = drawPath.getColor();

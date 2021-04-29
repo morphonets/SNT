@@ -30,7 +30,11 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
-import ij.gui.*;
+import ij.gui.ImageRoi;
+import ij.gui.NewImage;
+import ij.gui.Overlay;
+import ij.gui.PointRoi;
+import ij.gui.Roi;
 import ij.measure.Calibration;
 import ij.measure.Measurements;
 import ij.process.*;
@@ -104,8 +108,8 @@ public class SNT extends MultiDThreePanes implements
 	protected static final String targetBallName = "Target point";
 	protected static final int ballRadiusMultiplier = 5;
 
-	protected final PathAndFillManager pathAndFillManager;
-	protected final SNTPrefs prefs;
+	private final PathAndFillManager pathAndFillManager;
+	private final SNTPrefs prefs;
 	private GuiUtils guiUtils;
 
 	/* Legacy 3D Viewer. This is all deprecated stuff */
@@ -630,7 +634,10 @@ public class SNT extends MultiDThreePanes implements
 				break;
 		}
 		statusService.showStatus("Finding stack minimum / maximum");
+		final boolean restoreROI = xy.getRoi() != null && xy.getRoi() instanceof PointRoi;
+		if (restoreROI) xy.saveRoi();
 		xy.deleteRoi(); // if a ROI exists, compute min/ max for entire image
+		if (restoreROI) xy.restoreRoi();
 		final ImageStatistics stats = xy.getStatistics(Measurements.MIN_MAX);
 		stackMin = (float) stats.min;
 		stackMax = (float) stats.max;
@@ -1043,9 +1050,9 @@ public class SNT extends MultiDThreePanes implements
 		updateTracingViewers(false);
 	}
 
-	protected void pause(final boolean pause) {
+	protected void pause(final boolean pause, final boolean hideSideViewsOnPause) {
 		if (pause) {
-			if (!uiReadyForModeChange()) {
+			if (ui != null && ui.getState() != SNTUI.SNT_PAUSED && !uiReadyForModeChange()) {
 				guiUtils.error("Please finish/abort current task before pausing SNT.");
 				return;
 			}
@@ -1055,6 +1062,10 @@ public class SNT extends MultiDThreePanes implements
 			disableEventsAllPanes(true);
 			setDrawCrosshairsAllPanes(false);
 			setCanvasLabelAllPanes(InteractiveTracerCanvas.SNT_PAUSED_LABEL);
+			if (hideSideViewsOnPause) {
+				setSideViewsVisible(false);
+				getPrefs().setTemp("restoreviews", true);
+			}
 		}
 		else {
 			if (xy != null && xy.isLocked() && ui != null && !getConfirmation(
@@ -1068,12 +1079,13 @@ public class SNT extends MultiDThreePanes implements
 				final boolean changes = (boolean) xy.getProperty("snt-changes") && xy.changes;
 				if (!changes && xy.changes && ui != null && guiUtils.getConfirmation("<HTML><div WIDTH=500>" //
 							+ "Image seems to have been modified since you last paused SNT. "
-							+ "Would you like to reload it so that SNT can access the modified pixel data?", //
-							"Changes Detected. Reload Image?", "Yes. Reload Image", "No. Use Cached Data")) {
+								+ "Would you like to reload it so that SNT can access the modified pixel data?", //
+								"Changes Detected. Reload Image?", "Yes. Reload Image", "No. Use Cached Data")) {
 					ui.loadImagefromGUI(channel, frame);
 				}
 				xy.setProperty("snt-changes", false);
 			}
+			setSideViewsVisible(getPrefs().getTemp("restoreviews", true));
 		}
 	}
 
@@ -2576,6 +2588,13 @@ public class SNT extends MultiDThreePanes implements
 		return (imp == null || imp.getProcessor() == null) ? null : imp;
 	}
 
+	private void setSideViewsVisible(final boolean visible) {
+		if (xz != null && xz.getWindow() != null)
+			xz.getWindow().setVisible(visible);
+		if (zy != null && zy.getWindow() != null)
+			zy.getWindow().setVisible(visible);
+	}
+
 	protected ImagePlus getMainImagePlusWithoutChecks() {
 		return xy;
 	}
@@ -2774,17 +2793,17 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	@Override
-	public void setPathList(final String[] newList, final Path justAdded,
-		final boolean expandAll)
+	public void setPathList(final List<Path> pathList, final Path justAdded,
+		final boolean expandAll) // ignored
 	{}
 
 	@Override
-	public void setFillList(final String[] newList) {}
+	public void setFillList(final List<Fill> fillList) {}  // ignored
 
 	// Note that rather unexpectedly the p.setSelcted calls make sure that
 	// the colour of the path in the 3D viewer is right... (FIXME)
 	@Override
-	public void setSelectedPaths(final HashSet<Path> selectedPathsSet,
+	public void setSelectedPaths(final Collection<Path> selectedPathsSet,
 		final Object source)
 	{
 		if (source == this) return;
@@ -3139,41 +3158,47 @@ public class SNT extends MultiDThreePanes implements
 	@Override
 	public void closeAndResetAllPanes() {
 		// Dispose xz/zy images unless the user stored some annotations (ROIs)
-		// on the image overlay or modified them somehow. In that case, restore
-		// them to the user
+		// on the image overlay or modified them somehow.
 		removeMIPOverlayAllPanes();
 		if (!single_pane) {
 			final ImagePlus[] impPanes = { xz, zy };
-			final ImageWindow[] winPanes = { xz_window, zy_window };
-			for (int i = 0; i < impPanes.length; ++i) {
-				if (impPanes[i] == null) continue;
-				final Overlay overlay = impPanes[i].getOverlay();
-				if (!impPanes[i].changes && (overlay == null || impPanes[i].getOverlay()
-					.size() == 0)) impPanes[i].close();
-				else {
-					winPanes[i] = new ImageWindow(impPanes[i]);
-					winPanes[i].getCanvas().add(ij.Menus.getPopupMenu());
-					impPanes[i].setOverlay(overlay);
-				}
+			for (final ImagePlus imp : impPanes) {
+				if (imp == null)
+					continue;
+				final Overlay overlay = imp.getOverlay();
+				if (!imp.changes && (overlay == null || imp.getOverlay().size() == 0)
+						&& !(imp.getRoi() != null && (imp.getRoi() instanceof PointRoi)))
+					imp.close();
+				else
+					rebuildWindow(imp);
 			}
 		}
 		// Restore main view
 		final Overlay overlay = (xy == null) ? null : xy.getOverlay();
-		if (xy != null && overlay == null && !accessToValidImageData()) {
+		final Roi roi = (xy == null) ? null : xy.getRoi();
+		if (xy != null && overlay == null && roi == null && !accessToValidImageData()) {
+			xy.changes = false;
 			xy.close();
-			return;
+		} else if (xy != null && xy.getImage() != null) {
+			rebuildWindow(xy);
 		}
-		if (xy != null && xy.getImage() != null) {
-			if (original_xy_canvas != null) {
-				xy_window = (xy.getNSlices()==1) ? new ImageWindow(xy, original_xy_canvas) : new StackWindow(xy, original_xy_canvas);
-			} else
-				xy_window = (xy.getNSlices()==1) ? new ImageWindow(xy) : new StackWindow(xy);
-			xy.setOverlay(overlay);
-			xy_window.getCanvas().add(ij.Menus.getPopupMenu());
-		}
-
 	}
 
+	private void rebuildWindow(final ImagePlus imp) {
+		// hiding the image will force the rebuild of its ImageWindow next time show() is
+		// called. We need to remove any PointRoi to bypass the "Save changes?" dialog.
+		// If spine/varicosity counts exist, set the images has changed to avoid data loss
+		final Roi roi = imp.getRoi();
+		final boolean existingChanges = imp.changes;
+		imp.changes = false;
+		imp.deleteRoi();
+		imp.hide();
+		imp.setRoi(roi);
+		imp.show();
+		imp.changes = existingChanges || (roi != null && roi instanceof PointRoi);
+	}
+
+	
 	public Context getContext() {
 		return context;
 	}

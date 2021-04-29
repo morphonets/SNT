@@ -962,43 +962,12 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected synchronized void resetListeners(final Path justAdded,
 		final boolean expandAll)
 	{
-
-		final ArrayList<String> pathListEntries = new ArrayList<>();
-
-		for (final Path p : allPaths) {
-			if (p == null) {
-				throw new IllegalArgumentException("BUG: A path in allPaths was null!");
-			}
-			pathListEntries.add(p.realToString());
+		if (enableUIupdates) {
+			for (final PathAndFillListener listener : listeners)
+				listener.setPathList(allPaths, justAdded, expandAll);
+			for (final PathAndFillListener pafl : listeners)
+				pafl.setFillList(allFills);
 		}
-
-		for (final PathAndFillListener listener : listeners)
-			listener.setPathList(pathListEntries.toArray(new String[] {}), justAdded,
-				expandAll);
-
-		final int fills = allFills.size();
-
-		final String[] fillListEntries = new String[fills];
-
-		for (int i = 0; i < fills; ++i) {
-
-			final Fill f = allFills.get(i);
-			if (f == null) {
-				SNTUtils.log("fill was null with i " + i + " out of " + fills);
-				continue;
-			}
-
-			String name = "Fill (" + i + ")";
-
-			if ((f.sourcePaths != null) && (f.sourcePaths.size() > 0)) {
-				name += " from paths: " + f.getSourcePathsStringHuman();
-			}
-			fillListEntries[i] = name;
-		}
-
-		for (final PathAndFillListener pafl : listeners)
-			pafl.setFillList(fillListEntries);
-
 	}
 
 	/**
@@ -1226,7 +1195,8 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	protected void addFill(final Fill fill) {
 		allFills.add(fill);
-		resetListeners(null);
+		for (final PathAndFillListener pafl : listeners)
+			pafl.setFillList(allFills);
 	}
 
 	protected void deleteFills(final int[] indices) {
@@ -1234,14 +1204,15 @@ public class PathAndFillManager extends DefaultHandler implements
 		for (int i = indices.length - 1; i >= 0; --i) {
 			deleteFill(indices[i], false);
 		}
-		resetListeners(null);
+		for (final PathAndFillListener pafl : listeners)
+			pafl.setFillList(allFills);
 	}
 
-	private synchronized void deleteFill(final int index,
-		final boolean updateInterface)
-	{
+	private synchronized void deleteFill(final int index, final boolean updateInterface) {
 		allFills.remove(index);
-		if (updateInterface) resetListeners(null);
+		if (updateInterface)
+			for (final PathAndFillListener pafl : listeners)
+				pafl.setFillList(allFills);
 	}
 
 	protected void reloadFills(int[] selectedIndices) {
@@ -1395,6 +1366,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				pw.print(" color=\"" + SNTUtils.getColorString(p.getColor()) + "\"");
 				pw.print(" channel=\"" + p.getChannel() + "\"");
 				pw.print(" frame=\"" + p.getFrame() + "\"");
+				pw.print(" spines=\"" + p.getSpineOrVaricosityCount() + "\"");
 
 				String startsString = "";
 				String endsString = "";
@@ -1564,6 +1536,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				final String colorString = attributes.getValue("color");
 				final String channelString = attributes.getValue("channel");
 				final String frameString = attributes.getValue("frame");
+				final String spineString = attributes.getValue("spines");
 				final String useFittedString = attributes.getValue("usefitted");
 				final String fittedIDString = attributes.getValue("fitted");
 				final String fittedVersionOfIDString = attributes.getValue(
@@ -1646,6 +1619,9 @@ public class PathAndFillManager extends DefaultHandler implements
 					if (channelString != null && frameString != null) {
 						current_path.setCTposition(Integer.parseInt(channelString), Integer
 								.parseInt(frameString));
+					}
+					if (spineString != null) {
+						current_path.setSpineOrVaricosityCount(Integer.parseInt(spineString));
 					}
 
 					if (startsonString == null) {
@@ -1981,7 +1957,7 @@ public class PathAndFillManager extends DefaultHandler implements
 							throw new TracesFileFormatException(
 									"Malformed traces file: p didn't match p.fittedVersionOf.fitted");
 					}
-					if (p.useFitted && p.getFitted() == null) {
+					if (p.getUseFitted()) {
 						throw new TracesFileFormatException(
 								"Malformed traces file: p.useFitted was true but p.fitted was null");
 					}
@@ -2753,7 +2729,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 		if (result) {
 			final File file = new File(filePath);
-			if (getPlugin() != null) getPlugin().prefs.setRecentFile(file);
+			if (getPlugin() != null) getPlugin().getPrefs().setRecentFile(file);
 			if (boundingBox != null) boundingBox.info = file.getName();
 		}
 		return result;
@@ -3036,7 +3012,12 @@ public class PathAndFillManager extends DefaultHandler implements
 		return paths;
 	}
 
-	protected NearPoint nearestPointOnAnyPath(final List<Path> paths,
+	public NearPoint nearestPointOnAnyPath(final Collection<Path> paths, final PointInCanvas pic,
+			final double distanceLimit) {
+		return nearestPointOnAnyPath(paths, pic, distanceLimit * distanceLimit, true);
+	}
+
+	protected NearPoint nearestPointOnAnyPath(final Collection<Path> paths,
 		final PointInImage pim, final double distanceLimitSquared,
 		final boolean unScaledPositions)
 	{
@@ -3254,8 +3235,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (p.fittedVersionOf != null) return; // here interpreted as 'continue'
 
 			final boolean selected = p.isSelected();
-			final boolean customColor = (p.hasCustomColor &&
-				plugin.displayCustomPathColors);
+			final boolean customColor = plugin.displayCustomPathColors && p.hasCustomColor();
 			Color3f color3f;
 			if (customColor) color3f = new Color3f(p.getColor());
 			else if (selected) color3f = plugin.selectedColor3f;

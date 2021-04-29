@@ -335,15 +335,23 @@ public class GuiUtils {
 		return new boolean[] { result, checkbox.isSelected() };
 	}
 
-	public boolean getPersistentWarning(final String msg, final String title) {
+	/* returns true if user does not want to be warned again */
+	public Boolean getPersistentWarning(final String msg, final String title) {
+		return getPersistentDialog(msg, title, JOptionPane.WARNING_MESSAGE);
+	}
+
+	private Boolean getPersistentDialog(final String msg, final String title, final int type) {
 		final JPanel msgPanel = new JPanel();
 		msgPanel.setLayout(new BorderLayout());
 		msgPanel.add(getLabel(msg), BorderLayout.CENTER);
 		final JCheckBox checkbox = new JCheckBox();
 		checkbox.setText(getWrappedText(checkbox, "Do not remind me again"));
 		msgPanel.add(checkbox, BorderLayout.SOUTH);
-		return JOptionPane.showConfirmDialog(parent, msgPanel, title, JOptionPane.DEFAULT_OPTION,
-				JOptionPane.WARNING_MESSAGE) == JOptionPane.OK_OPTION && checkbox.isSelected();
+		if (JOptionPane.showConfirmDialog(parent, msgPanel, title, JOptionPane.DEFAULT_OPTION,
+				type) != JOptionPane.OK_OPTION)
+			return null;
+		else
+			return checkbox.isSelected();
 	}
 
 	public String getString(final String promptMsg, final String promptTitle,

@@ -102,7 +102,6 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			final boolean clickOnHighlightAllNeeded = !isHighlightAll();
 			if (clickOnHighlightAllNeeded) _highlightsButton.doClick();
 			final Collection<Path> selectedPath = pmui.getSelectedPaths(false);
-			if (clickOnHighlightAllNeeded) _highlightsButton.doClick(); // restore status
 			if (selectedPath.isEmpty()) {
 				guiUtils.error("No Paths matching '" + findText + "'.",
 					"No Paths Selected");
@@ -113,6 +112,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 					findText + "\" in the " + selectedPath.size() +
 					" Path(s) currently selected:", "Replace Filtering Pattern", null);
 			if (replaceText == null) {
+				if (clickOnHighlightAllNeeded) _highlightsButton.doClick(); // restore status
 				return; // user pressed cancel
 			}
 			if (getSearchable().isWildcardEnabled()) {
@@ -127,12 +127,13 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				for (final Path p : selectedPath) {
 					p.setName(pattern.matcher(p.getName()).replaceAll(replaceText));
 				}
+				pmui.update();
 			}
-			catch (final IllegalArgumentException ex) {
+			catch (final IllegalArgumentException ex) { // PatternSyntaxException  etc.
 				guiUtils.error("Replacement pattern not valid: " + ex.getMessage());
-				return;
+			} finally {
+				if (clickOnHighlightAllNeeded) _highlightsButton.doClick(); // restore status
 			}
-			pmui.update();
 		});
 		return mi;
 	}
@@ -158,16 +159,18 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				return;
 			}
 			final String[] choices = ids.toArray(new String[ids.size()]);
+			final String defChoice = pmui.getSNT().getPrefs().getTemp("cellidfilter", choices[0]);
 			final String chosenID = guiUtils.getChoice("Select Paths from which cell?", "Cell ID Filtering", choices,
-					choices[0]);
+					defChoice);
 			if (chosenID == null)
 				return;
+			pmui.getSNT().getPrefs().setTemp("cellidfilter", chosenID);
 			paths.removeIf(path -> !chosenID.equals(path.getTreeLabel()));
 			if (paths.isEmpty()) {
 				guiUtils.error("No Path matches the specified ID.");
 				return;
 			}
-			pmui.setSelectedPaths(new HashSet<>(paths), this);
+			pmui.setSelectedPaths(paths, this);
 			guiUtils.tempMsg(paths.size() + " Path(s) selected");
 		});
 		morphoFilteringMenu.add(mi1);
@@ -183,6 +186,9 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		morphoFilteringMenu.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.N_NODES + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_NODES, ""));
+		morphoFilteringMenu.add(mi1);
+		mi1 = new JMenuItem(TreeStatistics.N_SPINES + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_SPINES, ""));
 		morphoFilteringMenu.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.PATH_ORDER + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER, ""));
@@ -225,7 +231,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 						guiUtils.error("No Path matches the specified type(s).");
 						return;
 					}
-					pmui.setSelectedPaths(new HashSet<>(paths), this);
+					pmui.setSelectedPaths(paths, this);
 					guiUtils.tempMsg(paths.size() + " Path(s) selected");
 				}
 			}
@@ -260,7 +266,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				guiUtils.error("No Path matches the specified color tag.");
 				return;
 			}
-			pmui.setSelectedPaths(new HashSet<>(filteredPaths), this);
+			pmui.setSelectedPaths(filteredPaths, this);
 			guiUtils.tempMsg(filteredPaths.size() + " Path(s) selected");
 			// refreshManager(true, true);
 		});
@@ -328,6 +334,9 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				case TreeStatistics.PATH_ORDER:
 					value = p.getOrder();
 					break;
+				case TreeStatistics.N_SPINES:
+					value = p.getSpineOrVaricosityCount();
+					break;
 				default:
 					throw new IllegalArgumentException("Unrecognized parameter");
 			}
@@ -337,7 +346,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			guiUtils.error("No Path matches the specified range.");
 			return;
 		}
-		pmui.setSelectedPaths(new HashSet<>(paths), this);
+		pmui.setSelectedPaths(paths, this);
 		guiUtils.tempMsg(paths.size() + " Path(s) selected");
 		// refreshManager(true, true);
 	}
@@ -364,16 +373,18 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				return;
 			}
 			final String[] choices = ids.toArray(new String[ids.size()]);
+			final String defChoice = pmui.getSNT().getPrefs().getTemp("cellidfilter", choices[0]);
 			final String chosenID = guiUtils.getChoice("Select Paths from which cell?", "Cell ID Filtering", choices,
-					choices[0]);
+					defChoice);
 			if (chosenID == null)
 				return;
+			pmui.getSNT().getPrefs().setTemp("cellidfilter", chosenID);
 			paths.removeIf(path -> !chosenID.equals(path.getTreeLabel()));
 			if (paths.isEmpty()) {
 				guiUtils.error("No Path matches the specified ID.");
 				return;
 			}
-			pmui.setSelectedPaths(new HashSet<>(paths), this);
+			pmui.setSelectedPaths(paths, this);
 			guiUtils.tempMsg(paths.size() + " Path(s) selected");
 		});
 		popup.add(mi1);
@@ -389,6 +400,9 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		popup.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.N_NODES + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_NODES, ""));
+		popup.add(mi1);
+		mi1 = new JMenuItem(TreeStatistics.N_SPINES + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_SPINES, ""));
 		popup.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.PATH_ORDER + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER, ""));
@@ -431,7 +445,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 						guiUtils.error("No Path matches the specified type(s).");
 						return;
 					}
-					pmui.setSelectedPaths(new HashSet<>(paths), this);
+					pmui.setSelectedPaths(paths, this);
 					guiUtils.tempMsg(paths.size() + " Path(s) selected");
 				}
 			}
@@ -466,7 +480,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				guiUtils.error("No Path matches the specified color tag.");
 				return;
 			}
-			pmui.setSelectedPaths(new HashSet<>(filteredPaths), this);
+			pmui.setSelectedPaths(filteredPaths, this);
 			guiUtils.tempMsg(filteredPaths.size() + " Path(s) selected");
 			// refreshManager(true, true);
 		});

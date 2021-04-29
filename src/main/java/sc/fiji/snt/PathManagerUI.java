@@ -46,6 +46,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -79,7 +80,6 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.MutableTreeNode;
-import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
@@ -115,9 +115,11 @@ import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.MultiTreeMapperCmd;
 import sc.fiji.snt.plugin.PathAnalyzerCmd;
 import sc.fiji.snt.plugin.PathMatcherCmd;
+import sc.fiji.snt.plugin.PathSpineAnalysisCmd;
 import sc.fiji.snt.plugin.PathTimeAnalysisCmd;
 import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.plugin.SkeletonizerCmd;
+import sc.fiji.snt.plugin.SpineExtractorCmd;
 import sc.fiji.snt.plugin.TreeMapperCmd;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -148,8 +150,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private final JMenuBar menuBar;
 	private final JPopupMenu popup;
 	private final JMenu swcTypeMenu;
-	private final JMenu morphoTagsMenu;
-	private final JMenu imageTagsMenu;
+	private final JMenu tagsMenu;
 	private ButtonGroup swcTypeButtonGroup;
 	private final ColorMenu colorMenu;
 	private final JMenuItem fitVolumeMenuItem;
@@ -171,7 +172,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		pathAndFillManager = plugin.getPathAndFillManager();
 		pathAndFillManager.addPathAndFillListener(this);
 
-		root = new DefaultMutableTreeNode("All Paths");
+		root = new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL);
 		tree = new HelpfulJTree(root);
 		tree.setRootVisible(false);
 		tree.setVisibleRowCount(25);
@@ -227,6 +228,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CIRCLE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.SPECIFY_COUNTS_CMD);
+		jmi.setToolTipText("Assigns a no. of varicosities/spines to selected path(s)");
+		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.MAP_PIN));
+		jmi.addActionListener(multiPathListener);
+		editMenu.add(jmi);
+		editMenu.addSeparator();
+
 		jmi = new JMenuItem(MultiPathActionListener.DOWNSAMPLE_CMD);
 		jmi.setToolTipText("Reduces the no. of nodes in selected paths (lossy simplificatio)");
 		jmi.addActionListener(multiPathListener);
@@ -239,7 +247,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 
-		final JMenu tagsMenu = new JMenu("Tag ");
+		tagsMenu = new JMenu("Tag ");
 		menuBar.add(tagsMenu);
 		swcTypeMenu = new JMenu("Type");
 		swcTypeMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ID));
@@ -250,7 +258,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		colorMenu.addActionListener(multiPathListener);
 		tagsMenu.add(colorMenu);
 
-		imageTagsMenu = new JMenu("Image Metadata");
+		final JMenu imageTagsMenu = new JMenu("Image Metadata");
 		imageTagsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.IMAGE));
 		final JCheckBoxMenuItem tagChannelCbmi = new JCheckBoxMenuItem(
 			MultiPathActionListener.CHANNEL_TAG_CMD, false);
@@ -265,7 +273,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		imageTagsMenu.add(jmi);
 		tagsMenu.add(imageTagsMenu);
 
-		morphoTagsMenu = new JMenu("Morphometry");
+		final JMenu morphoTagsMenu = new JMenu("Morphometry");
 		morphoTagsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RULER));
 		final JCheckBoxMenuItem tagTreeCbmi = new JCheckBoxMenuItem(
 				MultiPathActionListener.TREE_TAG_CMD, false);
@@ -279,6 +287,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			MultiPathActionListener.MEAN_RADIUS_TAG_CMD, false);
 		tagRadiusCbmi.addItemListener(multiPathListener);
 		morphoTagsMenu.add(tagRadiusCbmi);
+		final JCheckBoxMenuItem tagCountsCbmi = new JCheckBoxMenuItem(
+				MultiPathActionListener.COUNT_TAG_CMD, false);
+		tagCountsCbmi.addItemListener(multiPathListener);
+		morphoTagsMenu.add(tagCountsCbmi);
 		tagsMenu.add(morphoTagsMenu);
 		final JCheckBoxMenuItem tagOrderCbmi = new JCheckBoxMenuItem(
 				MultiPathActionListener.ORDER_TAG_CMD, false);
@@ -381,7 +393,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SKEL_CMD);
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
+		advanced.addSeparator();
 
+		advanced.add(getSpineUtilsMenu(multiPathListener));
 		advanced.add(getTimeSequenceMenu(multiPathListener));
 
 		advanced.addSeparator();
@@ -444,6 +458,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		});
 		pack();
+	}
+
+	private JMenu getSpineUtilsMenu(final MultiPathActionListener multiPathListener) {
+		final JMenu menu = new JMenu("Spine/Varicosity Utilities");
+		menu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.MAP_PIN));
+		JMenuItem jmi = new JMenuItem(MultiPathActionListener.SPINE_COLOR_CODING_CMD);
+		jmi.addActionListener(multiPathListener);
+		menu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.SPINE_PROFILE_CMD);
+		jmi.addActionListener(multiPathListener);
+		menu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.SPINE_EXTRACT_CMD);
+		jmi.addActionListener(multiPathListener);
+		menu.add(jmi);
+		return menu;
 	}
 
 	private JMenu getTimeSequenceMenu(final MultiPathActionListener multiPathListener) {
@@ -516,7 +545,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					return;
 				}
 				setSWCType(selectedPaths, key, color);
-				refreshManager(true, assignColors);
+				refreshManager(true, assignColors, selectedPaths);
 			});
 			swcTypeMenu.add(rbmi);
 		});
@@ -558,14 +587,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		if (applyPromptOptions && pathAndFillManager.size() > 0 && guiUtils
 			.getConfirmation("Apply new color options to all paths?", "Apply Colors"))
 		{
+			final List<Path> allPaths = pathAndFillManager.getPathsFiltered();
 			if (assignColors) {
-				pathAndFillManager.getPathsFiltered().forEach(p -> p.setColor(map.get(p
-					.getSWCType())));
+				allPaths.forEach(p -> p.setColor(map.get(p.getSWCType())));
 			}
 			else {
-				pathAndFillManager.getPathsFiltered().forEach(p -> p.setColor((Color)null));
+				allPaths.forEach(p -> p.setColor((Color)null));
 			}
-			refreshManager(false, true);
+			refreshManager(false, true, allPaths);
 		}
 	}
 
@@ -582,7 +611,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		for (final Path p : paths) {
 			p.setColor((Color)null);
 		}
-		refreshManager(true, true);
+		refreshManager(true, true, paths);
 	}
 
 	private void deletePaths(final Collection<Path> pathsToBeDeleted) {
@@ -602,7 +631,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		} else if (rebuild) {
 			pathAndFillManager.rebuildRelationships();
 		}
-		refreshManager(false, true);
+		refreshManager(false, true, pathAndFillManager.getPathsFiltered());
 	}
 
 	/**
@@ -833,45 +862,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		popup.show(me.getComponent(), me.getX(), me.getY());
 	}
 
-	private void getExpandedPaths(final HelpfulJTree tree, final TreeModel model,
-		final MutableTreeNode node, final HashSet<Path> set)
-	{
-		assert SwingUtilities.isEventDispatchThread();
-		final int count = model.getChildCount(node);
-		for (int i = 0; i < count; i++) {
-			final DefaultMutableTreeNode child = (DefaultMutableTreeNode) model
-				.getChild(node, i);
-			final Path p = (Path) child.getUserObject();
-			if (tree.isExpanded(child.getPath())) {
-				set.add(p);
-			}
-			if (!model.isLeaf(child)) getExpandedPaths(tree, model, child, set);
-		}
-	}
-
-	private void setExpandedPaths(final HelpfulJTree tree, final TreeModel model,
-		final MutableTreeNode node, final HashSet<Path> set, final Path justAdded)
-	{
-		assert SwingUtilities.isEventDispatchThread();
-		final int count = model.getChildCount(node);
-		for (int i = 0; i < count; i++) {
-			final DefaultMutableTreeNode child = (DefaultMutableTreeNode) model
-				.getChild(node, i);
-			final Path p = (Path) child.getUserObject();
-			if (set.contains(p) || ((justAdded != null) && (justAdded == p))) {
-				tree.setExpanded(child.getPath(), true);
-			}
-			if (!model.isLeaf(child)) setExpandedPaths(tree, model, child, set,
-				justAdded);
-		}
-
-	}
-
 	/* (non-Javadoc)
 	 * @see PathAndFillListener#setSelectedPaths(java.util.HashSet, java.lang.Object)
 	 */
 	@Override
-	public void setSelectedPaths(final HashSet<Path> selectedPaths,
+	public void setSelectedPaths(final Collection<Path> selectedPaths,
 		final Object source)
 	{
 		SwingUtilities.invokeLater(new Runnable() {
@@ -881,85 +876,45 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				if (source == this || !pathAndFillManager.enableUIupdates) return;
 				final TreePath[] noTreePaths = {};
 				tree.setSelectionPaths(noTreePaths);
-				setSelectedPaths(tree, tree.getModel(), root, selectedPaths, selectedPaths.size()==1);
+				tree.setSelectedPaths(root, selectedPaths);
 			}
 		});
-	}
-
-	private void setSelectedPaths(final HelpfulJTree tree, final TreeModel model,
-		final MutableTreeNode node, final Collection<Path> set, final boolean updateCTpositon)
-	{
-		assert SwingUtilities.isEventDispatchThread();
-		final int count = model.getChildCount(node);
-		for (int i = 0; i < count; i++) {
-			final DefaultMutableTreeNode child = (DefaultMutableTreeNode) model
-				.getChild(node, i);
-			final Path p = (Path) child.getUserObject();
-			if (set.contains(p)) {
-				tree.setSelected(child.getPath());
-				if (updateCTpositon && plugin != null) {
-					updateHyperstackPosition(p);
-				}
-			}
-			if (!model.isLeaf(child)) setSelectedPaths(tree, model, child, set, updateCTpositon);
-		}
 	}
 
 	/* (non-Javadoc)
 	 * @see PathAndFillListener#setPathList(java.lang.String[], Path, boolean)
 	 */
 	@Override
-	public void setPathList(final String[] pathList, final Path justAdded,
+	public void setPathList(final List<Path> pathList, final Path justAdded,
 		final boolean expandAll)
 	{
 
-		if (!pathAndFillManager.enableUIupdates) return;
 		SwingUtilities.invokeLater(() -> {
 
-			// Save the selection state:
-			final TreePath[] selectedBefore = tree.getSelectionPaths();
-			final HashSet<Path> selectedPathsBefore = new HashSet<>();
-			final HashSet<Path> expandedPathsBefore = new HashSet<>();
-
-			if (selectedBefore != null) for (final TreePath tp : selectedBefore) {
-				final DefaultMutableTreeNode dmtn = (DefaultMutableTreeNode) tp
-						.getLastPathComponent();
-				if (dmtn != root) {
-					final Path p = (Path) dmtn.getUserObject();
-					selectedPathsBefore.add(p);
-				}
-			}
-
-			// Save the expanded state:
-			getExpandedPaths(tree, tree.getModel(), root, expandedPathsBefore);
+			// Save the selection and expanded states:
+			final List<Path> selectedPathsBefore = tree.getSelectedPaths();
+			final List<Path> expandedPathsBefore = tree.getExpandedPaths(root);
 
 			/*
 			 * Ignore the arguments and get the real path list from the PathAndFillManager:
 			 */
-			final DefaultMutableTreeNode newRoot = new DefaultMutableTreeNode(
-				"All Paths");
+			final DefaultMutableTreeNode newRoot = new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL);
 			final DefaultTreeModel model = new DefaultTreeModel(newRoot);
-			// DefaultTreeModel model = (DefaultTreeModel)tree.getModel();
 			final Path[] primaryPaths = pathAndFillManager.getPathsStructured();
 			for (final Path primaryPath : primaryPaths) {
-				// Add the primary path if it's not just a fitted version of
-				// another:
-				if (!primaryPath.isFittedVersionOfAnotherPath()) addNode(newRoot,
-						primaryPath, model);
+				// Add the primary path if it's not just a fitted version of another:
+				if (!primaryPath.isFittedVersionOfAnotherPath()) addNode(newRoot, primaryPath, model);
 			}
 			root = newRoot;
 			tree.setModel(model);
-
 			tree.reload();
-
 			// Set back the expanded state:
-			if (expandAll) {
-				for (int i3 = 0; i3 < tree.getRowCount(); ++i3)
-					tree.expandRow(i3);
-			}
-			else setExpandedPaths(tree, model, root, expandedPathsBefore, justAdded);
-
-			setSelectedPaths(tree, model, root, selectedPathsBefore, false);
+			if (expandAll)
+				GuiUtils.expandAllTreeNodes(tree);
+			else
+				tree.setExpandedPaths(root, expandedPathsBefore, justAdded);
+			// Set back the selection state
+			tree.setSelectedPaths(root, selectedPathsBefore);
 		});
 	}
 
@@ -999,12 +954,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		if (trees.size() == 1) return trees.iterator().next();
 		final ArrayList<String> treeLabels = new ArrayList<>(trees.size());
 		trees.forEach(t -> treeLabels.add(t.getLabel()));
+		final String defChoice = plugin.getPrefs().getTemp("singletree", treeLabels.get(0));
 		final String choice = guiUtils.getChoice("Multiple rooted structures exist. Which one should be considered?",
-				"Which Structure?", treeLabels.toArray(new String[trees.size()]), treeLabels.get(0));
-		for (final Tree t : trees) {
-			if (t.getLabel().equals(choice)) return t;
+				"Which Structure?", treeLabels.toArray(new String[trees.size()]), defChoice);
+		if (choice != null) {
+			plugin.getPrefs().setTemp("singletree", choice);
+			for (final Tree t : trees) {
+				if (t.getLabel().equals(choice)) return t;
+			}
 		}
-
 		return null; // user pressed canceled prompt
 	}
 
@@ -1045,7 +1003,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @see PathAndFillListener#setFillList(java.lang.String[])
 	 */
 	@Override
-	public void setFillList(final String[] fillList) {}
+	public void setFillList(final List<Fill> fillList) {}  // ignored
 
 	private class FitHelper {
 
@@ -1136,10 +1094,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				@Override
 				protected void done() {
 					if (pathsToFit != null) {
-						// since paths wer fitted asynchronously, we need to rebuild connections
+						// since paths were fitted asynchronously, we need to rebuild connections
 						pathsToFit.forEach(p-> p.getPath().rebuildConnectionsOfFittedVersion());
 					}
-					refreshManager(true, false);
+					refreshManager(true, false, getSelectedPaths(true));
 					msg.dispose();
 					plugin.changeUIState(preFittingState);
 					setEnabledCommands(true);
@@ -1199,38 +1157,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private class HelpfulJTree extends JTree {
 
 		private static final long serialVersionUID = 1L;
+		private static final String ROOT_LABEL = "All Paths";
 		private final TreeSearchable searchable;
 
 		public HelpfulJTree(final TreeNode root) {
 			super(root);
-			@SuppressWarnings("serial")
-			final DefaultTreeCellRenderer renderer = new DefaultTreeCellRenderer() {
-
-				@Override
-				public Component getTreeCellRendererComponent(final JTree tree,
-					final Object value, final boolean selected, final boolean expanded,
-					final boolean isLeaf, final int row, final boolean focused)
-				{
-					final Component c = super.getTreeCellRendererComponent(tree, value,
-						selected, expanded, isLeaf, row, focused);
-					final TreePath tp = tree.getPathForRow(row);
-					if (tp == null) return c;
-					final DefaultMutableTreeNode node = (DefaultMutableTreeNode) (tp
-						.getLastPathComponent());
-					if (node == null || node == root) return c;
-					final Path p = (Path) node.getUserObject();
-					final Color color = p.getColor();
-					if (color == null) return c;
-					if (isLeaf) setIcon(new NodeIcon(NodeIcon.EMPTY, color));
-					else if (!expanded) setIcon(new NodeIcon(NodeIcon.PLUS, color));
-					else setIcon(new NodeIcon(NodeIcon.MINUS, color));
-					return c;
-				}
-			};
-			renderer.setClosedIcon(new NodeIcon(NodeIcon.PLUS));
-			renderer.setOpenIcon(new NodeIcon(NodeIcon.MINUS));
-			renderer.setLeafIcon(new NodeIcon(NodeIcon.EMPTY));
-			setCellRenderer(renderer);
+			setLargeModel(true);
+			setCellRenderer(new NodeRender());
 			getSelectionModel().setSelectionMode(
 				TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION);
 			setExpandsSelectedPaths(true);
@@ -1257,12 +1190,146 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			addSelectionPath(tp);
 		}
 
+		public List<Path> getSelectedPaths() {
+			final TreePath[] selectionTreePath = tree.getSelectionPaths();
+			final List<Path> selectedPaths = new ArrayList<>();
+			if (selectionTreePath == null)
+				return selectedPaths;
+			for (final TreePath tp : selectionTreePath) {
+				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) tp.getLastPathComponent();
+				if (node != root) {
+					final Path p = (Path) node.getUserObject();
+					selectedPaths.add(p);
+				}
+			}
+			return selectedPaths;
+		}
+
+		public List<Path> getExpandedPaths(final MutableTreeNode node) {
+			final List<Path> list = new ArrayList<>();
+			getExpandedPathsInternal(node, list);
+			return list;
+		}
+
+		public void setSelectedPaths(final MutableTreeNode node, final Collection<Path> set) {
+			assert SwingUtilities.isEventDispatchThread();
+			final int count = getModel().getChildCount(node);
+			final boolean updateCTposition = set.size() == 1;
+			for (int i = 0; i < count; i++) {
+				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
+				final Path p = (Path) child.getUserObject();
+				if (set.contains(p)) {
+					tree.setSelected(child.getPath());
+					if (updateCTposition && plugin != null) {
+						updateHyperstackPosition(p);
+					}
+				}
+				if (!getModel().isLeaf(child))
+					setSelectedPaths(child, set);
+			}
+		}
+
+		public void setExpandedPaths(final MutableTreeNode node, final Collection<Path> set, final Path justAdded) {
+			assert SwingUtilities.isEventDispatchThread();
+			final int count = getModel().getChildCount(node);
+			for (int i = 0; i < count; i++) {
+				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
+				final Path p = (Path) child.getUserObject();
+				if (set.contains(p) || ((justAdded != null) && (justAdded == p))) {
+					tree.setExpanded(child.getPath(), true);
+				}
+				if (!getModel().isLeaf(child))
+					setExpandedPaths(child, set, justAdded);
+			}
+		}
+
+		private void getExpandedPathsInternal(final MutableTreeNode node, final List<Path> list) {
+			assert SwingUtilities.isEventDispatchThread();
+			final int count = getModel().getChildCount(node);
+			for (int i = 0; i < count; i++) {
+				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
+				final Path p = (Path) child.getUserObject();
+				if (tree.isExpanded(child.getPath())) {
+					list.add(p);
+				}
+				if (!getModel().isLeaf(child))
+					getExpandedPathsInternal(child, list);
+			}
+		}
+	
+		public void repaintAllNodes() {
+			final DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+			final Enumeration<?> e = root.preorderEnumeration();
+			while (e.hasMoreElements()) {
+				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) e.nextElement();
+				if (node != root)
+					model.nodeChanged(node);
+			}
+		}
+
+		public void repaintSelectedNodes() {
+			final TreePath[] selectedPaths = getSelectionPaths();
+			if (selectedPaths != null) {
+				final DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+				for (final TreePath tp : selectedPaths) {
+					final DefaultMutableTreeNode node = (DefaultMutableTreeNode) (tp.getLastPathComponent());
+					if (node != root)
+						model.nodeChanged(node);
+				}
+			}
+		}
+
 		public void reload() {
-			((DefaultTreeModel)tree.getModel()).reload();
+			((DefaultTreeModel) tree.getModel()).reload();
 			if (searchableBar != null) {
 				searchableBar.setStatusLabelPlaceholder(String.format("%d Path(s) listed", getPathAndFillManager().size()));
 			}
 		}
+
+	}
+
+	private class NodeRender extends DefaultTreeCellRenderer {
+
+		private static final long serialVersionUID = 1L;
+
+		public NodeRender() {
+			super();
+			setClosedIcon(new NodeIcon(NodeIcon.PLUS));
+			setOpenIcon(new NodeIcon(NodeIcon.MINUS));
+			setLeafIcon(new NodeIcon(NodeIcon.EMPTY));
+		}
+
+		@Override
+		public Component getTreeCellRendererComponent(final JTree tree,
+			final Object value, final boolean selected, final boolean expanded,
+			final boolean isLeaf, final int row, final boolean focused)
+		{
+			final Component c = super.getTreeCellRendererComponent(tree, value,
+				selected, expanded, isLeaf, row, focused);
+//			((JLabel)c).setOpaque(true);
+//			((JLabel)c).setBackground(Color.RED);
+
+			final TreePath tp = tree.getPathForRow(row);
+			if (tp == null) {
+				return c;
+			}
+			final DefaultMutableTreeNode node = (DefaultMutableTreeNode) (tp
+				.getLastPathComponent());
+			if (node == null || node == root) return c;
+			final Path p = (Path) node.getUserObject();
+			final Color color = p.getColor();
+			if (color == null) {
+				return c;
+			}
+			if (isLeaf)
+				setIcon(new NodeIcon(NodeIcon.EMPTY, color));
+			else if (!expanded)
+				setIcon(new NodeIcon(NodeIcon.PLUS, color));
+			else
+				setIcon(new NodeIcon(NodeIcon.MINUS, color));
+			return c;
+		}
+
 	}
 
 	/**
@@ -1638,32 +1705,34 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	private void refreshManager(final boolean refreshCmds,
-		final boolean refreshViewers)
+		final boolean refreshViewers, final Collection<Path> selectedPaths)
 	{
-		pathAndFillManager.resetListeners(null);
-		if (refreshViewers) plugin.updateAllViewers();
-		if (!refreshCmds) return;
-		final Collection<Path> selectedPaths = getSelectedPaths(true);
-		if (tree.getSelectionCount() == 1) updateCmdsOneSelected(selectedPaths
-			.iterator().next());
-		else updateCmdsManyOrNoneSelected(selectedPaths);
+		if (refreshViewers)
+			plugin.updateAllViewers(); // will call #update()
+		else if (tree.getSelectionCount() == 0)
+			tree.repaintAllNodes();
+		else
+			tree.repaintSelectedNodes();
+		if (refreshCmds && selectedPaths != null) {
+			if (selectedPaths.size() == 1)
+				updateCmdsOneSelected(selectedPaths.iterator().next());
+			else
+				updateCmdsManyOrNoneSelected(selectedPaths);
+		}
 	}
 
 	/**
-	 * Refreshes (Repaints) the Path Manager JTree to reflect changes in Path
-	 * names/colors.
+	 * Refreshes (Repaints) the Path Manager JTree. Gets called by
+	 * {@link SNT#isOnlySelectedPathsVisible()} to reflect changes in path colors,
+	 * etc.
 	 */
 	public void update() {
-		final DefaultTreeModel model = ((DefaultTreeModel)tree.getModel());
-		model.nodeChanged((TreeNode) model.getRoot());
+		tree.repaintAllNodes();
 	}
 
+	/** Reloads the contents of {@link PathAndFillManager} */
 	public void reload() {
-		int[] selectedRows = tree.getSelectionRows();
-		final boolean expanded = tree.getExpandsSelectedPaths();
-		tree.reload();
-		tree.setSelectionRows(selectedRows);
-		tree.setExpandsSelectedPaths(expanded);
+		setPathList(pathAndFillManager.getPaths(), null, true);
 	}
 
 	protected void closeTable() {
@@ -1734,7 +1803,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	/**
-	 * Applies a tag/ color to selected Path(s).
+	 * Applies a custom tag/ color to selected Path(s).
 	 *
 	 * @param customTagOrColor The tag (or color) to be applied to selected Paths.
 	 */
@@ -1742,11 +1811,128 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final ColorRGB color = Colors.getColor(customTagOrColor);
 		if (color == null) {
 			applyCustomTags(getSelectedPaths(true), customTagOrColor);
-			refreshManager(false, false);
+			update();
 		} else {
-			getSelectedPaths(true).forEach( p-> p.setColor(color));
-			refreshManager(true, true);
+			final Collection<Path> paths = getSelectedPaths(true);
+			paths.forEach( p-> p.setColor(color));
+			refreshManager(true, true, paths);
 		}
+	}
+
+	/**
+	 * Applies a default (built-in) tag to selected Path(s).
+	 *
+	 * @param defaultTags The tags to be applied to selected Paths, as listed in the
+	 *                    "Tag" menu, e.g,
+	 *                    {@value MultiPathActionListener#CHANNEL_TAG_CMD},
+	 *                    {@value MultiPathActionListener#FRAME_TAG_CMD},
+	 *                    {@value MultiPathActionListener#COUNT_TAG_CMD}, etc.
+	 */
+	public void applyDefaultTags(final String... defaultTags) throws IllegalArgumentException {
+		final Collection<Path> paths = getSelectedPaths(true);
+		for (final String tag : defaultTags) {
+			removeOrReapplyDefaultTag(paths, tag, true, false);
+		}
+		refreshManager(false, false, paths);
+	}
+
+	/** Should be the only method called for toggling built-in tags **/
+	private void removeOrReapplyDefaultTag(final Collection<Path> paths, final String cmd, final boolean reapply, final boolean interactiveUI) {
+		switch (cmd) {
+		case MultiPathActionListener.CHANNEL_TAG_CMD:
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[C:\\d+\\]", "")));
+			if (reapply) {
+				paths.forEach( p -> {
+					p.setName(p.getName() + " [C:" + p.getChannel() + "]");
+				});
+			}
+			break;
+		case MultiPathActionListener.FRAME_TAG_CMD:
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[T:\\d+\\]", "")));
+			if (reapply) {
+				paths.forEach( p -> {
+						p.setName(p.getName() + " [T:" + p.getFrame() + "]");
+				});
+			}
+			break;
+		case MultiPathActionListener.TREE_TAG_CMD:
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\|.*\\|", "")));
+			if (reapply) {
+				paths.forEach( p -> {
+						p.setName(p.getName() + " |" + p.getTreeLabel() + "|");
+				});
+			}
+			break;
+		case MultiPathActionListener.ORDER_TAG_CMD:
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Order \\d+\\]", "")));
+			if (reapply) {
+				paths.forEach(p-> {
+					p.setName(p.getName() + " [Order " + p.getOrder() + "]");
+				});
+			}
+			break;
+		case MultiPathActionListener.LENGTH_TAG_CMD:
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[L:\\d+\\.?\\d+\\s?.+\\w+\\]", "")));
+			if (reapply) {
+				paths.forEach(p -> {
+					final String lengthTag = " [L:" + p.getRealLengthString() + p.spacing_units + "]";
+					p.setName(p.getName() + lengthTag);
+				});
+			}
+			break;
+		case MultiPathActionListener.MEAN_RADIUS_TAG_CMD:
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[MR:\\d+\\.?\\d+\\s?.+\\w+\\]", "")));
+			if (reapply) {
+				paths.forEach(p -> {
+					final String radiusTag = " [MR:" + SNTUtils.formatDouble(p.getMeanRadius(), 3) + p.spacing_units + "]";
+					p.setName(p.getName() + radiusTag);
+				});
+			}
+			break;
+		case MultiPathActionListener.COUNT_TAG_CMD:
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[#:\\d+\\]", "")));
+			if (reapply) {
+				paths.forEach(p -> {
+					final String countTag = " [#:" + p.getSpineOrVaricosityCount() + "]";
+					p.setName(p.getName() + countTag);
+				});
+			}
+			break;
+		case MultiPathActionListener.SLICE_LABEL_TAG_CMD:
+			if (reapply) { // Special case: not toggleable: Nothing to remove
+				int errorCounter = 0;
+				for (final Path p : paths) {
+					try {
+						String label = plugin.getImagePlus().getStack().getShortSliceLabel(
+							plugin.getImagePlus().getStackIndex(p.getChannel(), 1, p
+								.getFrame()));
+						if (label == null || label.isEmpty()) {
+							errorCounter++;
+							continue;
+						}
+						label = label.replace("[", "(");
+						label = label.replace("]", ")");
+						p.setName(p.getName() + "{" + label + "}");
+					}
+					catch (IllegalArgumentException | IndexOutOfBoundsException ignored) {
+						errorCounter++;
+					}
+				}
+				if (errorCounter > 0) {
+					final String errorMsg = "It was not possible to retrieve labels for " +
+						errorCounter + "/" + paths.size() + " paths.";
+					if (interactiveUI)
+						guiUtils.error(errorMsg);
+					else
+						System.out.println(errorMsg);
+				}
+			}
+			break;
+		default:
+			throw new IllegalArgumentException("Unrecognized tag " + cmd + ". Not a default option?");
+		}
+		selectTagCheckBoxMenu(cmd, reapply);
+		if (interactiveUI) refreshManager(false, false, paths);
 	}
 
 	/**
@@ -1984,19 +2170,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		plugin.getUI().showStatus(null, false);
 	}
 
-	private void removeTags(final Collection<Path> selectedPaths,
-		final String pattern)
-	{
-		for (final Path p : selectedPaths) {
-			p.setName(p.getName().replaceAll(pattern, ""));
-		}
-	}
-
-	private void removeAllOrderTags() {
-		tree.clearSelection();
-		removeTags(getSelectedPaths(true), MultiPathActionListener.TAG_ORDER_PATTERN);
-	}
-
 	/** ActionListener for commands that do not deal with paths */
 	private class NoPathActionListener implements ActionListener {
 
@@ -2058,7 +2231,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						} else {// Otherwise this is OK, change the name:
 							p.setName(s);
 						}
-						refreshManager(false, false);
+						refreshManager(false, false, Collections.singleton(p));
 					}
 					return;
 				case MAKE_PRIMARY_CMD:
@@ -2066,8 +2239,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					p.setIsPrimary(true);
 					pathsExplored.add(p);
 					p.unsetPrimaryForConnected(pathsExplored);
-					removeAllOrderTags();
-					refreshManager(false, false);
+					removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.ORDER_TAG_CMD, false, true);
 					return;
 
 				case DUPLICATE_CMD:
@@ -2080,8 +2252,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					if (!guiUtils.getConfirmation("Disconnect \"" + p.toString() +
 							"\" from all it connections?", "Confirm Disconnect")) return;
 					p.disconnectFromAll();
-					removeAllOrderTags();
-					refreshManager(false, false);
+					removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.ORDER_TAG_CMD, false, true);
 					return;
 
 				case EXPLORE_FIT_CMD:
@@ -2107,8 +2278,33 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private void applyCustomTags(final Collection<Path> selectedPaths, String customTag) {
 		customTag = customTag.replace("[", "(");
 		customTag = customTag.replace("]", ")");
+		customTag = customTag.replace("|", "-"); // No need to replace {} braces
 		for (final Path p : selectedPaths) {
 			p.setName(p.getName() + "{" + customTag + "}");
+		}
+	}
+
+	private void selectTagCheckBoxMenu(final String name, final boolean select) {
+		for (final Component c1 : tagsMenu.getMenuComponents()) {
+			if ((c1 instanceof JMenu)) {
+				for (final Component c2 : ((JMenu) c1).getMenuComponents()) {
+					if (c2 instanceof JCheckBoxMenuItem && ((JCheckBoxMenuItem) c2).getActionCommand().equals(name))
+						((JCheckBoxMenuItem) c2).setSelected(select);
+				}
+			} else if (c1 instanceof JCheckBoxMenuItem && ((JCheckBoxMenuItem) c1).getActionCommand().equals(name))
+				((JCheckBoxMenuItem) c1).setSelected(select);
+		}
+	}
+
+	private void setSelectAllTagsMenu(final boolean select) {
+		for (final Component c1 : tagsMenu.getMenuComponents()) {
+			if ((c1 instanceof JMenu)) {
+				for (final Component c2 : ((JMenu) c1).getMenuComponents()) {
+					if (c2 instanceof JCheckBoxMenuItem)
+						((JCheckBoxMenuItem) c2).setSelected(select);
+				}
+			} else if (c1 instanceof JCheckBoxMenuItem)
+				((JCheckBoxMenuItem) c1).setSelected(select);
 		}
 	}
 
@@ -2131,12 +2327,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String TREE_TAG_CMD = "Cell ID";
 		private final static String CHANNEL_TAG_CMD = "Traced Channel";
 		private final static String FRAME_TAG_CMD = "Traced Frame";
+		private final static String COUNT_TAG_CMD = "No. of Spines/Varicosities";
 		private final static String SLICE_LABEL_TAG_CMD = "Slice Labels";
 
 		private final static String REMOVE_ALL_TAGS_CMD = "Remove All Tags...";
 		private static final String FILL_OUT_CMD = "Fill Out...";
 		private static final String RESET_FITS = "Discard Fit(s)...";
 		private final static String SPECIFY_RADIUS_CMD = "Specify Radius...";
+		private final static String SPECIFY_COUNTS_CMD = "Specify No. Spines/Varicosities...";
+
 		//private final static String MEASURE_CMD_SUMMARY = "Quick Measurements";
 		private final static String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
 		private final static String CONVERT_TO_SKEL_CMD = "Skeletonize...";
@@ -2156,26 +2355,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String MATCH_PATHS_ACROSS_TIME_CMD = "Match Paths Across Time...";
 		private final static String TIME_PROFILE_CMD = "Time Profile...";
 		private final static String TIME_COLOR_CODING_CMD = "Color Code Paths Across Time...";
+		private final static String SPINE_PROFILE_CMD = "Density Profiles...";
+		private final static String SPINE_EXTRACT_CMD = "Extract Counts from Multi-point ROIs...";
+		private final static String SPINE_COLOR_CODING_CMD = "Color Code Paths Using Densities...";
 
-		// tags
-		private final static String TAG_LENGTH_PATTERN =
-			" ?\\[L:\\d+\\.?\\d+\\s?.+\\w+\\]";
-		private final static String TAG_RADIUS_PATTERN =
-			" ?\\[MR:\\d+\\.?\\d+\\s?.+\\w+\\]";
-		private final static String TAG_TREE_PATTERN = " ?\\|.*\\|";
-		private final static String TAG_ORDER_PATTERN = " ?\\[Order \\d+\\]";
-		private final static String TAG_CHANNEL_PATTERN = " ?\\[C:\\d+\\]";
-		private final static String TAG_FRAME_PATTERN = " ?\\[T:\\d+\\]";
-		private final static String TAG_CUSTOM_PATTERN = " ?\\{.*\\}"; // anything
-																																		// flanked
-																																		// by curly
-																																		// braces
+		// Custom tag definition: anything flanked by curly braces
+		private final static String TAG_CUSTOM_PATTERN = " ?\\{.*\\}";
+		// Built-in tag definition: anything flanked by square braces or |
+		private final static String TAG_DEFAULT_PATTERN = " ?(\\[|\\|).*(\\]|\\|)";
 
 		private void selectChildren(final Collection<Path> paths) {
-			final HashSet<Path> set = new HashSet<>(paths);
-			for (final Path p : paths) addChildrenToCollection(p, set);
-			setSelectedPaths(set, PathManagerUI.this);
-			refreshManager(true, true);
+			for (final Path p : paths) addChildrenToCollection(p, paths);
+			setSelectedPaths(paths, PathManagerUI.this);
+			refreshManager(true, true, paths);
 		}
 
 		private void addChildrenToCollection(final Path p, final Collection<Path> collection) {
@@ -2216,7 +2408,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final SNTColor swcColor = colorMenu.getSelectedSWCColor();
 				for (final Path p : selectedPaths)
 					p.setColor(swcColor.color());
-				refreshManager(true, true);
+				refreshManager(true, true, selectedPaths);
 				return;
 			}
 			else if (PLOT_PROFILE_CMD.equals(cmd)) {
@@ -2302,6 +2494,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				(plugin.getUI().new DynamicCmdRunner(PathTimeAnalysisCmd.class, inputs)).run();
 				return;
 			}
+			else if (SPINE_PROFILE_CMD.equals(cmd)) {
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("paths", selectedPaths);
+				(plugin.getUI().new DynamicCmdRunner(PathSpineAnalysisCmd.class, inputs)).run();
+				return;
+			}
+			else if (SPINE_EXTRACT_CMD.equals(cmd)) {
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("paths", selectedPaths);
+				(plugin.getUI().new DynamicCmdRunner(SpineExtractorCmd.class, inputs)).run();
+				return;
+			}
 			else if (MATCH_PATHS_ACROSS_TIME_CMD.equals(cmd)) {
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("paths", selectedPaths);
@@ -2318,11 +2522,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				input.put("showPlot", false);
 				final CommandService cmdService = plugin.getContext().getService(
 						CommandService.class);
-				cmdService.run(TreeMapperCmd.class, true, input);
-				refreshManager(false, true);
+				cmdService.run(TreeMapperCmd.class, true, input); // will call #update() via SNT#updateAllViewers();
 				return;
-			}
-			else if (CONVERT_TO_ROI_CMD.equals(cmd)) {
+			} else if (SPINE_COLOR_CODING_CMD.equals(cmd)) {
+				final Tree tree = new Tree(selectedPaths);
+				if (tree == null || tree.isEmpty()) return;
+				final Map<String, Object> input = new HashMap<>();
+				input.put("tree", tree);
+				input.put("onlyConnectivitySafeMetrics", true);
+				input.put("measurementChoice", TreeColorMapper.AVG_SPINE_DENSITY);
+				input.put("showInRecViewer", false);
+				input.put("showPlot", false);
+				final CommandService cmdService = plugin.getContext().getService(
+						CommandService.class);
+				cmdService.run(TreeMapperCmd.class, true, input); // will call #update() via SNT#updateAllViewers();
+				return;
+			} else if (CONVERT_TO_ROI_CMD.equals(cmd)) {
 				final Map<String, Object> input = new HashMap<>();
 				input.put("tree", new Tree(selectedPaths));
 				input.put("imp", plugin.getImagePlus());
@@ -2360,7 +2575,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 							CommandService.class);
 					cmdService.run(TreeMapperCmd.class, true, input);
 				}
-				refreshManager(false, true);
+				refreshManager(false, true, selectedPaths);
 				return;
 
 			} else if (COLORIZE_PATHS_CMD.equals(cmd)) {
@@ -2371,8 +2586,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				input.put("onlyConnectivitySafeMetrics", true);
 				final CommandService cmdService = plugin.getContext().getService(
 						CommandService.class);
-				cmdService.run(TreeMapperCmd.class, true, input);
-				refreshManager(false, true);
+				cmdService.run(TreeMapperCmd.class, true, input);  // will call #update() via SNT#updateAllViewers();
 				return;
 			}
 			else if (HISTOGRAM_TREES_CMD.equals(cmd)) {
@@ -2397,41 +2611,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				if (tags == null) return; // user pressed cancel
 				tags = tags.trim();
 				if (tags.isEmpty()) {
-					removeTags(selectedPaths, TAG_CUSTOM_PATTERN);
+					selectedPaths.forEach(p -> {
+						p.setName(p.getName().replaceAll(TAG_CUSTOM_PATTERN, ""));
+					});
 					displayTmpMsg("Tags removed");
 				}
 				else {
 					applyCustomTags(selectedPaths, tags);
 				}
-				refreshManager(false, false);
+				refreshManager(false, false, selectedPaths);
 				return;
 
 			}
 			if (SLICE_LABEL_TAG_CMD.equals(cmd)) {
-
-				int errorCounter = 0;
-				for (final Path p : selectedPaths) {
-					try {
-						String label = plugin.getImagePlus().getStack().getShortSliceLabel(
-							plugin.getImagePlus().getStackIndex(p.getChannel(), 1, p
-								.getFrame()));
-						if (label == null || label.isEmpty()) {
-							errorCounter++;
-							continue;
-						}
-						label = label.replace("[", "(");
-						label = label.replace("]", ")");
-						p.setName(p.getName() + "{" + label + "}");
-					}
-					catch (IllegalArgumentException | IndexOutOfBoundsException ignored) {
-						errorCounter++;
-					}
-				}
-				refreshManager(false, false);
-				if (errorCounter > 0) {
-					guiUtils.error("It was not possible to retrieve labels from " +
-						errorCounter + "/" + n + " paths.");
-				}
+				removeOrReapplyDefaultTag(selectedPaths, SLICE_LABEL_TAG_CMD, true, true);
 				return;
 			}
 
@@ -2490,7 +2683,23 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				plugin.updateAllViewers();
 				return;
 			}
-
+			else if (SPECIFY_COUNTS_CMD.equals(e.getActionCommand())) {
+				final Double userCounts = guiUtils.getDouble("<HTML><body><div style='width:"
+						+ Math.min(getWidth(), 500) + ";'>"
+						+ "Please specify the no. of spines (or varicosities) to be associated to selected path(s):",
+						"Spine/Varicosity Counts", 0);
+				if (userCounts == null) {
+					return; // user pressed cancel
+				}
+				if (Double.isNaN(userCounts) || userCounts < 0) {
+					guiUtils.error("Invalid value.");
+					return;
+				}
+				selectedPaths.forEach(p -> {
+					p.setSpineOrVaricosityCount(userCounts.intValue());
+				});
+				return;
+			}
 			// Case 2: Commands that require some sort of confirmation
 			else if (DELETE_CMD.equals(cmd)) {
 				if (guiUtils.getConfirmation((assumeAll)
@@ -2507,16 +2716,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				{
 					return;
 				}
-				removeTags(selectedPaths, TAG_TREE_PATTERN);
-				removeTags(selectedPaths, TAG_ORDER_PATTERN);
-				removeTags(selectedPaths, TAG_CHANNEL_PATTERN);
-				removeTags(selectedPaths, TAG_FRAME_PATTERN);
-				removeTags(selectedPaths, TAG_CUSTOM_PATTERN);
-				removeTags(selectedPaths, TAG_LENGTH_PATTERN);
-				removeTags(selectedPaths, TAG_RADIUS_PATTERN);
+				selectedPaths.forEach(p -> {
+					p.setName(p.getName().replaceAll(TAG_CUSTOM_PATTERN, ""));
+					p.setName(p.getName().replaceAll(TAG_DEFAULT_PATTERN, ""));
+				});
+				if (assumeAll || n == pathAndFillManager.size())
+					setSelectAllTagsMenu(false);
 				resetPathsColor(selectedPaths); // will call refreshManager
-				resetMenu(morphoTagsMenu);
-				resetMenu(imageTagsMenu);
 				return;
 			}
 			else if (COMBINE_CMD.equals(cmd)) {
@@ -2559,8 +2765,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					refPath.add(p);
 					getPathAndFillManager().deletePath(p);
 				}
-				removeAllOrderTags();
-				refreshManager(true, true);
+				removeOrReapplyDefaultTag(selectedPaths, ORDER_TAG_CMD, false, false);
+				refreshManager(true, true, selectedPaths);
 				return;
 
 			}
@@ -2603,8 +2809,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					primaryPath.moveNode(0, newSoma.getNode(0));
 					primaryPath.setStartJoin(newSoma, newSoma.getNode(0));
 				});
-				rebuildRelationShips();
-				refreshManager(true, true);
+				rebuildRelationShips(); // will call refreshManager()
 				return;
 			}
 			else if (REBUILD_CMD.equals(cmd)) {
@@ -2654,7 +2859,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				for (final Path p : selectedPaths) {
 					p.discardFit();
 				}
-				refreshManager(true, false);
+				refreshManager(true, false, selectedPaths);
 				return;
 
 			}
@@ -2664,7 +2869,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				if (fitVolumeMenuItem.getText().contains("Un-fit")) {
 					for (final Path p : selectedPaths)
 						p.setUseFitted(false);
-					refreshManager(true, false);
+					refreshManager(true, false, selectedPaths);
 					return;
 				}
 
@@ -2718,7 +2923,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					}
 				}
 				else {
-					refreshManager(true, false);
+					refreshManager(true, false, selectedPaths);
 				}
 				return;
 
@@ -2733,14 +2938,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private void rebuildRelationShips() {
 			tree.clearSelection(); // existing selections could change after the rebuild
 			pathAndFillManager.rebuildRelationships();
-			update();
-		}
-
-		private void resetMenu(final JMenu menu) {
-			for (int i = 0; i < menu.getItemCount(); i++) {
-				final JMenuItem c = menu.getItem(i);
-				if (c != null) c.setSelected(false);
-			}
+			refreshManager(true, true, null);
 		}
 
 		private boolean allPathNamesContain(final Collection<Path> selectedPaths,
@@ -2776,9 +2974,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		@Override
 		public void itemStateChanged(final ItemEvent e) {
-			// NB: Length & order tagging apply to all paths, independent of selection
-			final List<Path> selectedPaths = getPathAndFillManager()
-				.getPathsFiltered();
+			final List<Path> selectedPaths = getPathAndFillManager().getPathsFiltered();
 			final int n = selectedPaths.size();
 			if (n == 0) {
 				guiUtils.error("There are no traced paths.");
@@ -2786,76 +2982,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			final JCheckBoxMenuItem jcbmi = (JCheckBoxMenuItem) e.getSource();
 			final String cmd = jcbmi.getActionCommand();
-			if (LENGTH_TAG_CMD.equals(cmd)) {
-				if (jcbmi.isSelected()) {
-					for (final Path p : selectedPaths) {
-						final String lengthTag = " [L:" + p.getRealLengthString() +
-							p.spacing_units + "]";
-						p.setName(p.getName() + lengthTag);
-					}
-				}
-				else {
-					removeTags(selectedPaths, TAG_LENGTH_PATTERN);
-				}
-
-			}
-			else if (MEAN_RADIUS_TAG_CMD.equals(cmd)) {
-				if (jcbmi.isSelected()) {
-					for (final Path p : selectedPaths) {
-						final String radiusTag = " [MR:" + SNTUtils.formatDouble(p
-							.getMeanRadius(), 3) + p.spacing_units + "]";
-						p.setName(p.getName() + radiusTag);
-					}
-				}
-				else {
-					removeTags(selectedPaths, TAG_RADIUS_PATTERN);
-				}
-
-			}
-			else if (TREE_TAG_CMD.equals(cmd)) {
-				if (jcbmi.isSelected()) {
-					for (final Path p : selectedPaths) {
-						p.setName(p.getName() + " |" + p.getTreeLabel() + "|");
-					}
-				}
-				else {
-					removeTags(selectedPaths, TAG_TREE_PATTERN);
-				}
-			}
-			else if (ORDER_TAG_CMD.equals(cmd)) {
-				if (jcbmi.isSelected()) {
-					for (final Path p : selectedPaths) {
-						p.setName(p.getName() + " [Order " + p.getOrder() + "]");
-					}
-				}
-				else {
-					removeTags(selectedPaths, TAG_ORDER_PATTERN);
-				}
-			}
-			else if (CHANNEL_TAG_CMD.equals(cmd)) {
-				if (jcbmi.isSelected()) {
-					for (final Path p : selectedPaths) {
-						p.setName(p.getName() + " [C:" + p.getChannel() + "]");
-					}
-				}
-				else {
-					removeTags(selectedPaths, TAG_CHANNEL_PATTERN);
-				}
-			}
-			else if (FRAME_TAG_CMD.equals(cmd)) {
-				if (jcbmi.isSelected()) {
-					for (final Path p : selectedPaths) {
-						p.setName(p.getName() + " [T:" + p.getFrame() + "]");
-					}
-				}
-				else {
-					removeTags(selectedPaths, TAG_FRAME_PATTERN);
-				}
-			}
-			// update GUI
-			jcbmi.setSelected(jcbmi.isSelected());
-			refreshManager(false, false);
-			return;
+			removeOrReapplyDefaultTag(selectedPaths, cmd, jcbmi.isSelected(), true);
 		}
 
 	}

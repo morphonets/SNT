@@ -121,6 +121,17 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		tempKeys.add(k);
 	}
 
+	public String getTemp(final String key, final String defaultValue) {
+		final String k = "snt." + key;
+		return Prefs.get(k, defaultValue);
+	}
+
+	public void setTemp(final String key, final String value) {
+		final String k = "snt." + key;
+		Prefs.set(k, value);
+		tempKeys.add(k);
+	}
+
 	private static void wipeSessionPrefs() {
 		if (tempKeys == null) {
 			tempKeys = new HashSet<>();

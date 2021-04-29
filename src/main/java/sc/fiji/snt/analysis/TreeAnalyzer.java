@@ -69,11 +69,13 @@ public class TreeAnalyzer extends ContextCommand {
 
 	protected Tree tree;
 	private Tree unfilteredTree;
-	private List<Path> primaryBranches;
-	private List<Path> innerBranches;
-	private List<Path> terminalBranches;
+
+	protected List<Path> primaryBranches;
+	protected List<Path> innerBranches;
+	protected List<Path> terminalBranches;
 	private Set<PointInImage> joints;
-	private Set<PointInImage> tips;
+	protected Set<PointInImage> tips;
+
 	protected DefaultGenericTable table;
 	private String tableTitle;
 	private StrahlerAnalyzer sAnalyzer;
@@ -285,7 +287,7 @@ public class TreeAnalyzer extends ContextCommand {
 		measure(rowHeader, getMetrics(), true);
 	}
 
-	private int getNextRow(final String rowHeader) {
+	protected int getNextRow(final String rowHeader) {
 		table.appendRow((rowHeader==null)?"":rowHeader);
 		return table.getRowCount() - 1;
 	}
@@ -371,6 +373,8 @@ public class TreeAnalyzer extends ContextCommand {
 			return getAvgPartitionAsymmetry();
 		case MultiTreeStatistics.AVG_FRACTAL_DIMENSION:
 			return getAvgFractalDimension();
+		case MultiTreeStatistics.AVG_SPINE_DENSITY:
+			return getSpineOrVaricosityDensity();
 		case MultiTreeStatistics.DEPTH:
 			return getDepth();
 		case MultiTreeStatistics.HEIGHT:
@@ -400,6 +404,8 @@ public class TreeAnalyzer extends ContextCommand {
 			return getTerminalBranches().size();
 		case MultiTreeStatistics.N_TIPS:
 			return getTips().size();
+		case MultiTreeStatistics.N_SPINES:
+			return getNoSpinesOrVaricosities();
 		case MultiTreeStatistics.PRIMARY_LENGTH:
 			return getPrimaryLength();
 		case MultiTreeStatistics.INNER_LENGTH:
@@ -686,6 +692,29 @@ public class TreeAnalyzer extends ContextCommand {
 	}
 
 	/**
+	 * Gets the number of end points in the analyzed tree associated with the
+	 * specified annotation.
+	 *
+	 * @param annot the BrainAnnotation to be queried.
+	 * @return the number of end points
+	 */
+	public int getNtips(final BrainAnnotation annot) {
+		return getTips(annot).size();
+	}
+
+	/**
+	 * Gets the percentage of end points in the analyzed tree associated with the
+	 * specified annotation
+	 *
+	 * @param annot the BrainAnnotation to be queried.
+	 * @return the ratio between the no. of branch points associated with
+	 *         {@code annot} and the total number of end points in the tree.
+	 */
+	public double getNtipsNorm(final BrainAnnotation annot) {
+		return (double) (getNtips(annot)) / (double)(tips.size());
+	}
+
+	/**
 	 * Gets the position of all the branch points in the analyzed tree.
 	 *
 	 * @return the branch points positions
@@ -718,6 +747,29 @@ public class TreeAnalyzer extends ContextCommand {
 	}
 
 	/**
+	 * Gets the number of branch points in the analyzed tree associated with the
+	 * specified annotation.
+	 *
+	 * @param annot the BrainAnnotation to be queried.
+	 * @return the number of branch points
+	 */
+	public int getNbranchPoints(final BrainAnnotation annot) {
+		return getBranchPoints(annot).size();
+	}
+
+	/**
+	 * Gets the percentage of branch points in the analyzed tree associated with the
+	 * specified annotation
+	 *
+	 * @param annot the BrainAnnotation to be queried.
+	 * @return the ratio between the no. of branch points associated with
+	 *         {@code annot} and the total number of branch points in the tree.
+	 */
+	public double getNbranchPointsNorm(final BrainAnnotation annot) {
+		return (double) (getNbranchPoints(annot)) / (double)(joints.size());
+	}
+
+	/**
 	 * Gets the cable length.
 	 *
 	 * @return the cable length of the tree
@@ -736,6 +788,18 @@ public class TreeAnalyzer extends ContextCommand {
 	 */
 	public double getCableLength(final BrainAnnotation compartment) {
 		return getCableLength(compartment, true);
+	}
+
+	/**
+	 * Gets the cable length associated with the specified compartment (neuropil
+	 * label) as a ratio of total length.
+	 *
+	 * @param compartment the query compartment (null not allowed). All of its
+	 *                    children will be considered
+	 * @return the filtered cable length normalized to total cable length
+	 */
+	public double getCableLengthNorm(final BrainAnnotation compartment) {
+		return getCableLength(compartment, true) / getCableLength();
 	}
 
 	/**
@@ -1021,7 +1085,7 @@ public class TreeAnalyzer extends ContextCommand {
 		}
 		return (double) sumAngles / angles.size();
 	}
-	
+
 	/**
 	 * Gets the partition asymmetry at each bifurcation point in the analyzed tree.
 	 * Note that branch points with more than 2 children are ignored.
@@ -1063,7 +1127,7 @@ public class TreeAnalyzer extends ContextCommand {
 		}
 		return resultList;
 	}
-	
+
 	/**
 	 * Gets the average partition asymmetry of the analyzed tree.
 	 * Note that branch points with more than 2 children are ignored during the computation.
@@ -1079,7 +1143,7 @@ public class TreeAnalyzer extends ContextCommand {
 		}
 		return (double) sumAsymmetries / asymmetries.size();
 	}
-	
+
 	/**
 	 * Gets the fractal dimension of each branch in the analyzed tree.
 	 * Note that branches with less than 5 points are ignored.
@@ -1124,7 +1188,7 @@ public class TreeAnalyzer extends ContextCommand {
 		}
 		return fractalDims;
 	}
-	
+
 	/**
 	 * Gets the average fractal dimension of the analyzed tree.
 	 * Note that branches with less than 5 points are ignored during the computation.
@@ -1142,10 +1206,30 @@ public class TreeAnalyzer extends ContextCommand {
 		
 	}
 
+	/**
+	 * Gets the number of spines/varicosities that have been (manually) assigned to
+	 * tree being analyzed.
+	 * 
+	 * @return the number of spines/varicosities
+	 */
+	public int getNoSpinesOrVaricosities() {
+		return tree.list().stream().mapToInt(p -> p.getSpineOrVaricosityCount()).sum();
+	}
+
+	/**
+	 * Gets the overall density of spines/varicosities associated with this tree
+	 * 
+	 * @return the spine/varicosity density (same as
+	 *         {@code getNoSpinesOrVaricosities()/getCableLength()})
+	 */
+	public double getSpineOrVaricosityDensity() {
+		return getNoSpinesOrVaricosities() / getCableLength();
+	}
+
 	private double sumLength(final Collection<Path> paths) {
 		return paths.stream().mapToDouble(p -> p.getLength()).sum();
 	}
-	
+
 	/* IDE debug method */
 	public static void main(final String[] args) throws InterruptedException {
 		final ImageJ ij = new ImageJ();
