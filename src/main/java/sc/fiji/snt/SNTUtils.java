@@ -50,6 +50,7 @@ import org.scijava.log.LogService;
 import org.scijava.table.GenericTable;
 import org.scijava.ui.UIService;
 import org.scijava.ui.console.ConsolePane;
+import org.scijava.util.FileUtils;
 import org.scijava.util.VersionUtils;
 
 import fiji.util.Levenshtein;
@@ -228,6 +229,19 @@ public class SNTUtils {
 	public static String stripExtension(final String filename) {
 		final int lastDot = filename.lastIndexOf(".");
 		return (lastDot > 0) ? filename.substring(0, lastDot) : filename;
+	}
+
+	public static File getUniquelySuffixedFile(final File referenceFile) {
+		if (referenceFile.exists()) {
+			final String extension = "." + FileUtils.getExtension(referenceFile);
+			File uniqueFile = new File(referenceFile.getAbsolutePath().replace(extension, "-1" + extension));
+			int i = 1;
+			while (uniqueFile.exists()) {
+				uniqueFile = new File(uniqueFile.getAbsolutePath().replace(extension, "-" + i++ + extension));
+			}
+			return uniqueFile;
+		}
+		return referenceFile;
 	}
 
 	public static void saveTable(final GenericTable table, final File outputFile) throws IOException {

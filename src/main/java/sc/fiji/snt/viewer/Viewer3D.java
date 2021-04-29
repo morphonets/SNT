@@ -1087,7 +1087,8 @@ public class Viewer3D {
 	 */
 	public Annotation3D annotatePoint(final SNTPoint node, final String label, final String color, final float size) {
 		final Annotation3D annotation = new Annotation3D(this, Collections.singleton(node), Annotation3D.SCATTER);
-		final String uniqueLabel = getUniqueLabel(plottedAnnotations, ((SNTPoint)node).toString(), label);
+		final String defLabel = String.format("(%.1f,%.1f,%.1f)", node.getX(), node.getY(), node.getZ());
+		final String uniqueLabel = getUniqueLabel(plottedAnnotations, defLabel, label);
 		annotation.setLabel(uniqueLabel);
 		annotation.setColor(color, 30);
 		annotation.setSize(size);
@@ -1609,9 +1610,7 @@ public class Viewer3D {
 				tree.add((Path) object);
 				addTree(tree);
 			} else if (object instanceof SNTPoint) {
-				final Tree tree = new Tree();
-				tree.add((Path) object);
-				addTree(tree);
+				annotatePoint((SNTPoint)object, null);
 			} else if (object instanceof OBJMesh) {
 				addMesh((OBJMesh) object);
 			} else if (object instanceof String) {

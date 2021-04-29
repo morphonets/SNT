@@ -345,14 +345,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	protected void init() {
 		helper = new GuiUtils();
 		logger = new Logger(context(), "Sholl");
-		final boolean calledFromSNT = snt != null;
 		final boolean calledFromStandAloneRecViewer = snt == null && tree != null;
 		multipleTreesExist = false;
 		// Adjust Path filtering choices
 		final MutableModuleItem<String> mlitm =
 			(MutableModuleItem<String>) getInfo().getInput("filterChoice",
 				String.class);
-		if (calledFromSNT) {
+		if (snt != null) {
 			previewOverlay = new PreviewOverlay(snt.getImagePlus(), center
 				.getUnscaledPoint());
 			logger.setDebug(SNTUtils.isDebugMode());
@@ -497,8 +496,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	}
 
 	private boolean validOutput() {
-		boolean noOutput = plotOutputDescription.contains("None");
-//		noOutput = noOutput && tableOutputDescription.contains("None");
+		boolean noOutput = plotOutputDescription.contains("None") && tableOutputDescription.contains("None");
 		if (snt != null) noOutput = noOutput && annotationsDescription.contains(
 			"None");
 		return !noOutput;
@@ -784,7 +782,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 					}
 					else if (output instanceof ImagePlus) {
 						final ImagePlus imp = (ImagePlus)output;
-						final File outFile = new File(saveDir, imp.getTitle());
+						final File outFile = SNTUtils.getUniquelySuffixedFile(new File(saveDir, imp.getTitle()));
 						if (!IJ.saveAsTiff(imp, outFile.getAbsolutePath())) ++failures;
 					}
 				}
