@@ -50,6 +50,7 @@ import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.util.ArraySearchImage;
 import sc.fiji.snt.util.ListSearchImage;
 import sc.fiji.snt.util.MapSearchImage;
+import sc.fiji.snt.util.SearchImage;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.Timer;
@@ -107,8 +108,10 @@ public class SNTUI extends JDialog {
 	private JCheckBox debugCheckBox;
 
 	// UI controls for auto-tracing
+	//TODO: reduce the need for all these fields
 	private JComboBox<String> searchAlgoChoice;
 	private JPanel hessianPanel;
+	private JLabel hessianLabel;
 	private JCheckBox preprocess;
 	private JCheckBox aStarCheckBox;
 	private SigmaPalette sigmaPalette;
@@ -234,11 +237,15 @@ public class SNTUI extends JDialog {
 				++c1.gridy;
 				tab1.add(snappingPanel(), c1);
 				++c1.gridy;
+				addSeparatorWithURL(tab1, "Auto-tracing:", true, c1);
+				++c1.gridy;
 				tab1.add(aStarPanel(), c1);
 				++c1.gridy;
 				tab1.add(hessianPanel(), c1);
 				++c1.gridy;
+				c1.insets.top = MARGIN * 2; //tiny separator?
 				tab1.add(filteredImgActivatePanel(), c1);
+				c1.insets.top = 0;
 				++c1.gridy;
 				tab1.add(filteredImagePanel(), c1);
 				++c1.gridy;
@@ -579,24 +586,24 @@ public class SNTUI extends JDialog {
 		});
 	}
 
-	protected void updateHessianPanel() {
+	protected void updateHessianLabel() {
 		final HessianCaller hc = plugin.getHessianCaller((plugin.isTracingOnSecondaryImageActive()) ? "secondary" : "primary");
 		updateHessianPanel(hc);
 	}
 
 	protected void updateHessianPanel(final HessianCaller hc) {
-		final StringBuilder sb = new StringBuilder("Hessian-based analysis ");
+		final StringBuilder sb = new StringBuilder("    Active settings: ");
 		final double sigma = hc.getSigma(true);
 		if (sigma == -1)
-			sb.append("(\u03C3=?.??");
+			sb.append("\u03C3=?.??");
 		else
-			sb.append("(\u03C3=").append(SNTUtils.formatDouble(sigma, 2));
-		final double max = hc.getMax();
-		sb.append("; max=").append(SNTUtils.formatDouble(max, 1)).append(")");
-		final boolean scientificNotation = max < 0.01;
-		if (!scientificNotation) sb.append("&ensp;&ensp;");
-;		assert SwingUtilities.isEventDispatchThread();
-		preprocess.setText(hotKeyLabel(sb.toString(), "H"));
+			sb.append("\u03C3=").append(SNTUtils.formatDouble(sigma, 2));
+		if (hc.getAnalysisType()==HessianCaller.TUBENESS) {
+			sb.append("; max=").append(SNTUtils.formatDouble(hc.getMax(), 1));
+		}
+		sb.append("     ");
+		assert SwingUtilities.isEventDispatchThread();
+		hessianLabel.setText(sb.toString());
 	}
 
 	protected void exitRequested() {
@@ -2068,7 +2075,7 @@ public class SNTUI extends JDialog {
 					SNTUtils.error("ActiveWorker failure", e);
 				}
 				if (isTubeness) {
-					updateHessianPanel();
+					updateHessianLabel();
 				} else {
 					updateFilteredImgFields(plugin.isSecondaryImageLoaded());
 				}
@@ -2640,14 +2647,31 @@ public class SNTUI extends JDialog {
 		return panel;
 	}
 
+
 	private JPanel hessianPanel() {
-		hessianPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
-		preprocess = new JCheckBox();
-		updateHessianPanel();
+		preprocess = new JCheckBox(hotKeyLabel("Hessian-based", "H"));
 		preprocess.addActionListener(listener);
+		JComboBox<String> analysisTypeChoice = new JComboBox<String>();
+		analysisTypeChoice.addItem("Tubeness");
+		analysisTypeChoice.addItem("Frangi");
+		analysisTypeChoice.addActionListener(event -> {
+			if (!analysisTypeChoice.hasFocus()) return; // if user did not trigger the event ignore it
+			@SuppressWarnings("unchecked")
+			final int idx = (int) ((JComboBox<String>) event.getSource()).getSelectedIndex();
+			//TODO: nullify hessian once this changes
+			plugin.costFunctionClass = (idx == 0) ? TubenessCost.class : FrangiCost.class;
+			plugin.primaryHessian.setAnalysisType((idx == 0) ? HessianCaller.TUBENESS : HessianCaller.FRANGI);
+			plugin.secondaryHessian.setAnalysisType((idx == 0) ? HessianCaller.TUBENESS : HessianCaller.FRANGI);
+			SNTUtils.log("Hessian analysis type changed to " + plugin.costFunctionClass.getName());
+			updateHessianLabel();
+		});
+
+		final JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+		checkboxPanel.add(preprocess);
+		checkboxPanel.add(analysisTypeChoice);
+		checkboxPanel.add(GuiUtils.leftAlignedLabel(" analysis", true));
+
 		final JPopupMenu optionsMenu = new JPopupMenu();
-		final JButton optionsButton = optionsButton(optionsMenu);
-		hessianPanel.add(optionsButton);
 		final JMenuItem jmiVisual = new JMenuItem(GuiListener.EDIT_SIGMA_VISUALLY);
 		jmiVisual.addActionListener(listener);
 		optionsMenu.add(jmiVisual);
@@ -2662,30 +2686,18 @@ public class SNTUI extends JDialog {
 			(new DynamicCmdRunner(LocalThicknessCmd.class, null, RUNNING_CMD)).run();
 		});
 		optionsMenu.addSeparator();
-		// TODO nullify hessian once this changes
-		final JMenu analysisTypeMenu = new JMenu("Analysis Type");
-		JMenuItem jmiTubeness = new JMenuItem("Tubeness");
-		jmiTubeness.addActionListener(e -> {
-			plugin.costFunctionClass = TubenessCost.class;
-			plugin.primaryHessian.setAnalysisType(HessianCaller.TUBENESS);
-			plugin.secondaryHessian.setAnalysisType(HessianCaller.TUBENESS);
-			SNTUtils.log("Hessian analysis type changed to " + plugin.costFunctionClass.getName());
-		});
-		analysisTypeMenu.add(jmiTubeness);
-		JMenuItem jmiFrangi = new JMenuItem("Frangi Vesselness");
-		jmiFrangi.addActionListener(e -> {
-			plugin.costFunctionClass = FrangiCost.class;
-			plugin.primaryHessian.setAnalysisType(HessianCaller.FRANGI);
-			plugin.secondaryHessian.setAnalysisType(HessianCaller.FRANGI);
-			SNTUtils.log("Hessian analysis type changed to " + plugin.costFunctionClass.getName());
-		});
-		analysisTypeMenu.add(jmiFrangi);
-		optionsMenu.add(analysisTypeMenu);
 		optionsMenu.add(hessianCompMenu("Cached Computations (Main Image)", "primary"));
 		optionsMenu.add(hessianCompMenu("Cached Computations (Secondary Image)", "secondary"));
+		final JButton optionsButton = optionsButton(optionsMenu);
 		hessianPanel = new JPanel(new BorderLayout());
-		hessianPanel.add(preprocess, BorderLayout.CENTER);
+		hessianLabel = GuiUtils.leftAlignedLabel("Current settings", true);
+		final Font font = hessianLabel.getFont();
+		hessianLabel.setFont(font.deriveFont((float) (font.getSize() * .85)));
+		hessianLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		updateHessianLabel();
+		hessianPanel.add(checkboxPanel, BorderLayout.CENTER);
 		hessianPanel.add(optionsButton, BorderLayout.EAST);
+		hessianPanel.add(hessianLabel, BorderLayout.SOUTH);
 		return hessianPanel;
 	}
 
@@ -3384,7 +3396,7 @@ public class SNTUI extends JDialog {
 				if (plugin.getHessianCaller("secondary").hessian == null)
 					preprocess.setSelected(false);
 				else
-					updateHessianPanel();
+					updateHessianLabel();
 			}
 		} else if (enable) {
 			if (!plugin.accessToValidImageData()) {
