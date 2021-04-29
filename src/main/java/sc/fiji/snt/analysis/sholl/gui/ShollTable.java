@@ -34,6 +34,7 @@ import org.scijava.table.DefaultGenericTable;
 import org.scijava.table.DefaultTableIOPlugin;
 import org.scijava.table.DoubleColumn;
 
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
@@ -349,7 +350,7 @@ public class ShollTable extends SNTTable {
 			String fName = getTitle();
 			if (fName == null || fName.trim().isEmpty())
 				fName = "Sholl_Table.csv";
-			savedFile = new File(file, fName);
+			savedFile = SNTUtils.getUniquelySuffixedFile(new File(file, fName));
 		} else {
 			savedFile = file;
 		}

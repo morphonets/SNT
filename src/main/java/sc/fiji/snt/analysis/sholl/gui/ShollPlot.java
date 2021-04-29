@@ -38,6 +38,7 @@ import ij.measure.Measurements;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
 import ij.util.Tools;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
@@ -490,7 +491,9 @@ public class ShollPlot extends Plot {
 
 	public boolean save(final File file) {
 		if (file == null) return false;
-		final File outFile = (file.isDirectory()) ? new File(file, getImagePlus().getTitle()) : file;
+		final File outFile = (file.isDirectory())
+				? SNTUtils.getUniquelySuffixedFile(new File(file, getImagePlus().getTitle()))
+				: file;
 		return IJ.saveAsTiff(getImagePlus(), outFile.getAbsolutePath());
 	}
 
