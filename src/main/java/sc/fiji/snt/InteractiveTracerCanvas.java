@@ -41,7 +41,6 @@ import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SWCPoint;
-import scala.tools.nsc.typechecker.SuperAccessors.SuperAccTransformer;
 
 import javax.swing.*;
 import java.awt.*;
