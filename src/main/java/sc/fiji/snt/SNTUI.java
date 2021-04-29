@@ -110,6 +110,7 @@ public class SNTUI extends JDialog {
 	// UI controls for auto-tracing
 	//TODO: reduce the need for all these fields
 	private JComboBox<String> searchAlgoChoice;
+	private JPanel aStarPanel;
 	private JPanel hessianPanel;
 	private JLabel hessianLabel;
 	private JCheckBox preprocess;
@@ -635,8 +636,7 @@ public class SNTUI extends JDialog {
 	private void setEnableAutoTracingComponents(final boolean enable, final boolean enableAstar) {
 		if (hessianPanel != null) {
 			GuiUtils.enableComponents(hessianPanel, enable);
-			GuiUtils.enableComponents(preprocess.getParent(), enable);
-			GuiUtils.enableComponents(aStarCheckBox.getParent(), enableAstar);
+			GuiUtils.enableComponents(aStarPanel, enableAstar);
 			secondaryImgActivateCheckbox.setEnabled(enable);
 		}
 		updateFilteredImgFields(false);
@@ -2586,6 +2586,7 @@ public class SNTUI extends JDialog {
 		searchAlgoChoice.addItem("A* search");
 		searchAlgoChoice.addItem("NBA* search");
 		searchAlgoChoice.addItem("Fast marching");
+		//TODO: ensure choice reflects the current state of plugin when assembling GUI
 		searchAlgoChoice.addActionListener(event -> {
 			// if user did not trigger the event ignore it
 			if (!searchAlgoChoice.hasFocus())
@@ -2596,39 +2597,36 @@ public class SNTUI extends JDialog {
 			setFastMarchSearchEnabled(idx == 2);
 		});
 
-		final JPanel aStarPanel = new JPanel(new GridBagLayout());
-		final GridBagConstraints gc = GuiUtils.defaultGbc();
-		addSeparatorWithURL(aStarPanel, "Auto-tracing:", true, gc);
-		++gc.gridy;
-
 		final JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
 		checkboxPanel.add(aStarCheckBox);
 		checkboxPanel.add(searchAlgoChoice);
 		checkboxPanel.add(GuiUtils.leftAlignedLabel(" algorithm", true));
-		aStarPanel.add(checkboxPanel, gc);
+
 		final JPopupMenu optionsMenu = new JPopupMenu();
 		final JButton optionsButton = optionsButton(optionsMenu);
-		final JMenu dataStructureMenu =new JMenu("Data Structure");
-		final JMenuItem jmiArraySearchImage = new JMenuItem("Array");
-		jmiArraySearchImage.addActionListener(e -> {
-			plugin.searchImageType = ArraySearchImage.class;
-			SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
+		optionsMenu.add(GuiUtils.leftAlignedLabel("Data Structure:", false));
+		final ButtonGroup dataStructureButtonGroup = new ButtonGroup();
+
+		@SuppressWarnings("rawtypes")
+		final Map<String, Class<? extends SearchImage>> map = new TreeMap<>();
+		map.put("Array (Default)", ArraySearchImage.class);
+		map.put("Hash Table (Some minor description)", MapSearchImage.class);
+		map.put("ImgLib2 ListImg (Some minor description)", ListSearchImage.class);
+		map.forEach((lbl, clss) -> {
+			final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
+			dataStructureButtonGroup.add(rbmi);
+			optionsMenu.add(rbmi);
+			rbmi.setSelected(plugin.searchImageType == clss);
+			rbmi.addActionListener(e -> {
+				plugin.searchImageType = clss;
+				showStatus("Active data structure: " + lbl.substring(0, lbl.indexOf(" (")), true);
+				SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
+			});
 		});
-		dataStructureMenu.add(jmiArraySearchImage);
-		final JMenuItem jmiTableSearchImage = new JMenuItem("Hash Table");
-		jmiTableSearchImage.addActionListener(e -> {
-			plugin.searchImageType = MapSearchImage.class;
-			SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
-		});
-		dataStructureMenu.add(jmiTableSearchImage);
-		final JMenuItem jmiListSearchImage = new JMenuItem("ImgLib2 ListImg");
-		jmiListSearchImage.addActionListener(e -> {
-			plugin.searchImageType = ListSearchImage.class;
-			SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
-		});
-		dataStructureMenu.add(jmiListSearchImage);
-		optionsMenu.add(dataStructureMenu);
-		checkboxPanel.add(optionsButton, BorderLayout.EAST);
+
+		aStarPanel = new JPanel(new BorderLayout());
+		aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
+		aStarPanel.add(optionsButton, BorderLayout.EAST);
 		return aStarPanel;
 	}
 
@@ -2654,6 +2652,7 @@ public class SNTUI extends JDialog {
 		JComboBox<String> analysisTypeChoice = new JComboBox<String>();
 		analysisTypeChoice.addItem("Tubeness");
 		analysisTypeChoice.addItem("Frangi");
+		//TODO: ensure choice reflects the current state of plugin when assembling GUI
 		analysisTypeChoice.addActionListener(event -> {
 			if (!analysisTypeChoice.hasFocus()) return; // if user did not trigger the event ignore it
 			@SuppressWarnings("unchecked")
@@ -2712,6 +2711,7 @@ public class SNTUI extends JDialog {
 			loadCachedDataImage(true, type, true, null);
 		});
 		menu.add(jmi);
+		//TODO: Ensure this is still relevant when using Frangi
 		jmi = new JMenuItem("<HTML>Cache From Existing <i>Tubeness Image</i>...");
 		jmi.addActionListener(e -> {
 			if ("secondary".equalsIgnoreCase(type) && !plugin.isSecondaryImageLoaded()) {
@@ -3657,6 +3657,7 @@ public class SNTUI extends JDialog {
 
 			} else if (e.getActionCommand().equals(EDIT_SIGMA_MANUALLY)) {
 
+				//TODO: Do not prompt for max choice when using Frangi as analysis type
 				if (userPreferstoRunWizard("No. Adjust Manually...")) return;
 				final String choice = getPrimarySecondaryImgChoice("Adjust settings for wich image?");
 				if (choice == null) return;
