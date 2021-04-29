@@ -22,7 +22,6 @@
 
 package sc.fiji.snt;
 
-import features.ComputeCurvatures;
 import ij.ImagePlus;
 
 /**
