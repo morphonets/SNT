@@ -40,8 +40,8 @@ public class HessianCaller {
 	static final int SECONDARY = 1;
 	static final double DEFAULT_MULTIPLIER = 4;
 
-	static final byte TUBENESS = 0;
-	static final byte FRANGI = 1;
+	public static final byte TUBENESS = 0;
+	public static final byte FRANGI = 1;
 
 	private final int type;
 	double sigma = -1;
@@ -58,6 +58,10 @@ public class HessianCaller {
 
 	public void setAnalysisType(final byte analysisType) {
 		this.analysisType = analysisType;
+	}
+
+	public byte getAnalysisType() {
+		return analysisType;
 	}
 
 	public void setSigmaAndMax(final double sigmaInCalibratedUnits, final double max) {

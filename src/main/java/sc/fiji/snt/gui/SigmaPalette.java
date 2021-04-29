@@ -83,11 +83,14 @@ public class SigmaPalette extends Thread {
 	private final SNT snt;
 	private final HessianCaller hc;
 	private final HessianEvalueProcessor hep;
+	private boolean includeMaxInGui;
+
 
 	public SigmaPalette(final SNT snt, final HessianCaller caller) {
 		this.snt = snt;
 		hc = caller;
 		image = hc.getImp();
+		includeMaxInGui = hc.getAnalysisType() == HessianCaller.TUBENESS;
 		hep = new TubenessProcessor(true);
 	}
 
@@ -143,8 +146,6 @@ public class SigmaPalette extends Thread {
 			cButton.addActionListener(e -> dismiss());
 			applyButton = new Button("Apply s=###.##; max=###.##");
 			applyButton.addActionListener(e -> apply());
-			add(applyButton);
-			add(cButton);
 			final Panel buttonPanel = new Panel(new FlowLayout(FlowLayout.CENTER));
 			buttonPanel.add(cButton);
 			buttonPanel.add(applyButton);
@@ -219,12 +220,13 @@ public class SigmaPalette extends Thread {
 		}
 
 		private void updateLabels() {
-			final String min = SNTUtils.formatDouble(selectedMinMax[0], 2);
-			final String max = SNTUtils.formatDouble(selectedMinMax[1], 2);
+			final String min = SNTUtils.formatDouble(selectedMinMax[0], 1);
+			final String max = SNTUtils.formatDouble(selectedMinMax[1], 1);
 			minValueLabel.setText(min);
 			maxValueLabel.setText(max);
-			applyButton.setLabel(
-					"Apply \u03C3=" + SNTUtils.formatDouble(getSelectedSigma(), 2) + "; max=" + max);
+			applyButton.setLabel((includeMaxInGui)
+					? "Apply \u03C3=" + SNTUtils.formatDouble(getSelectedSigma(), 2) + "; max=" + max
+					: "     Apply \u03C3=" + SNTUtils.formatDouble(getSelectedSigma(), 2) + "     ");
 		}
 
 		private void minMaxChanged(final double newMin, final double newMax) {
@@ -512,7 +514,7 @@ public class SigmaPalette extends Thread {
 			final FloatProcessor fp = new FloatProcessor(paletteWidth, paletteHeight);
 			newStack.addSlice("", fp);
 		}
-		paletteImage = new ImagePlus("Pick Sigma & Max", newStack);
+		paletteImage = new ImagePlus( (includeMaxInGui) ? "Pick Sigma & Max" : "Pick Sigma", newStack);
 		paletteImage.setZ(initial_z - z_min + 1);
 		setOverlayLabel(0, new int[] { 0, 0 });
 		for (int sigmaIndex = 0; sigmaIndex < sigmaValues.length; ++sigmaIndex) {
