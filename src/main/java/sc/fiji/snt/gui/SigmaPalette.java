@@ -235,9 +235,12 @@ public class SigmaPalette extends Thread {
 
 		@Override
 		public String createSubtitle() {
-			String label = "Sigma preview grid: \u03C3=" + getMouseOverSigma();
-			if (zSelector != null) label += "  z=" + SNTUtils.formatDouble(image.getCalibration().getZ(zSelector.getValue() - 1), 2);
-			return label;
+			final StringBuilder sb = new StringBuilder((includeMaxInGui) ? "Tubeness" : "Frangi");
+			sb.append(" Preview Grid: \u03C3=").append(getMouseOverSigma());
+			if (zSelector != null) {
+				sb.append("  z=").append(SNTUtils.formatDouble(image.getCalibration().getZ(zSelector.getValue() - 1), 2));
+			}
+			return sb.toString();
 		}
 	}
 
