@@ -500,7 +500,7 @@ public class SigmaPalette extends Thread {
 		final int croppedDepth = (z_max - z_min) + 1;
 
 		final Roi existingRoi = image.getRoi();
-		image.setRoi(x_min, x_max, croppedWidth, croppedHeight);
+		image.setRoi(x_min, y_min, croppedWidth, croppedHeight);
 		final ImagePlus cropped = image.crop("" + z_min + "-" + z_max);
 		image.setRoi(existingRoi);
 
