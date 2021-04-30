@@ -127,6 +127,7 @@ public class SigmaPalette extends Thread {
 			c.fill = GridBagConstraints.HORIZONTAL;
 			assembleScrollbars(panel, c);
 			assembleButtonPanel(panel, c);
+			updateSliceSelector();
 			GUI.scale(panel);
 			updateLabels();
 			add(panel);
