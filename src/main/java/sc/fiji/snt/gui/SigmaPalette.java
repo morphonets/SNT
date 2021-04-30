@@ -48,11 +48,9 @@ import ij.gui.Overlay;
 import ij.gui.StackWindow;
 import ij.gui.TextRoi;
 import ij.process.FloatProcessor;
-import sc.fiji.snt.SNT;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import sc.fiji.snt.*;
 import stacks.ThreePaneCrop;
-import sc.fiji.snt.HessianCaller;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.SNTUI;
 import util.Limits;
 
 /**
@@ -523,8 +521,20 @@ public class SigmaPalette extends Thread {
 			final int offsetX = sigmaX * (croppedWidth + 1) + 1;
 			final int offsetY = sigmaY * (croppedHeight + 1) + 1;
 			final double sigma = sigmaValues[sigmaIndex];
-			hep.setSigma(sigma);
-			final ImagePlus processed = hep.generateImage(cropped);
+//			hep.setSigma(sigma);
+//			final ImagePlus processed = hep.generateImage(cropped);
+			final HessianAnalyzer hessian = new HessianAnalyzer(cropped);
+			ImagePlus processed;
+			if (hc.getAnalysisType() == HessianCaller.TUBENESS) {
+				hessian.processTubeness(sigma, false);
+				processed = ImageJFunctions.wrap(hessian.getTubenessImg(), "");
+			} else if (hc.getAnalysisType() == HessianCaller.FRANGI) {
+				// One scale
+				hessian.processFrangi(new double[]{sigma}, false);
+				processed = ImageJFunctions.wrap(hessian.getFrangiImg(), "");
+			} else {
+				throw new IllegalArgumentException("Unknown hessian analysis type");
+			}
 			final float[] limits = Limits.getStackLimits(processed);
 			defaultMin = limits[0];
 			defaultMax = limits[1];
