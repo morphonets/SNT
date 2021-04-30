@@ -37,21 +37,19 @@ import java.awt.Scrollbar;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
 
-import features.HessianEvalueProcessor;
-import features.TubenessProcessor;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
 import ij.gui.GUI;
 import ij.gui.ImageCanvas;
 import ij.gui.Overlay;
+import ij.gui.Roi;
 import ij.gui.StackWindow;
 import ij.gui.TextRoi;
 import ij.process.FloatProcessor;
+import ij.process.ImageStatistics;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import sc.fiji.snt.*;
-import stacks.ThreePaneCrop;
-import util.Limits;
 
 /**
  * Implements SNT 'Sigma wizard'. It relies heavily on java.awt because it
@@ -63,7 +61,6 @@ public class SigmaPalette extends Thread {
 	private double[] sigmaValues;
 	private int croppedWidth;
 	private int croppedHeight;
-	private int croppedDepth;
 	private PaletteStackWindow paletteWindow;
 	private ImagePlus paletteImage;
 
@@ -80,7 +77,6 @@ public class SigmaPalette extends Thread {
 	private final ImagePlus image;
 	private final SNT snt;
 	private final HessianCaller hc;
-	private final HessianEvalueProcessor hep;
 	private boolean includeMaxInGui;
 
 
@@ -89,7 +85,6 @@ public class SigmaPalette extends Thread {
 		hc = caller;
 		image = hc.getImp();
 		includeMaxInGui = hc.getAnalysisType() == HessianCaller.TUBENESS;
-		hep = new TubenessProcessor(true);
 	}
 
 	private class PaletteStackWindow extends StackWindow {
@@ -497,12 +492,14 @@ public class SigmaPalette extends Thread {
 	@Override
 	public void run() {
 
-		final ImagePlus cropped = ThreePaneCrop.performCrop(image, x_min, x_max,
-			y_min, y_max, z_min, z_max, false);
-
 		croppedWidth = (x_max - x_min) + 1;
 		croppedHeight = (y_max - y_min) + 1;
-		croppedDepth = (z_max - z_min) + 1;
+		final int croppedDepth = (z_max - z_min) + 1;
+
+		final Roi existingRoi = image.getRoi();
+		image.setRoi(x_min, x_max, croppedWidth, croppedHeight);
+		final ImagePlus cropped = image.crop("" + z_min + "-" + z_max);
+		image.setRoi(existingRoi);
 
 		final int paletteWidth = croppedWidth * sigmasAcross + (sigmasAcross + 1);
 		final int paletteHeight = croppedHeight * sigmasDown + (sigmasDown + 1);
@@ -521,8 +518,6 @@ public class SigmaPalette extends Thread {
 			final int offsetX = sigmaX * (croppedWidth + 1) + 1;
 			final int offsetY = sigmaY * (croppedHeight + 1) + 1;
 			final double sigma = sigmaValues[sigmaIndex];
-//			hep.setSigma(sigma);
-//			final ImagePlus processed = hep.generateImage(cropped);
 			final HessianAnalyzer hessian = new HessianAnalyzer(cropped);
 			ImagePlus processed;
 			if (hc.getAnalysisType() == HessianCaller.TUBENESS) {
@@ -535,9 +530,9 @@ public class SigmaPalette extends Thread {
 			} else {
 				throw new IllegalArgumentException("Unknown hessian analysis type");
 			}
-			final float[] limits = Limits.getStackLimits(processed);
-			defaultMin = limits[0];
-			defaultMax = limits[1];
+			final ImageStatistics stats = processed.getStatistics(ImagePlus.MIN_MAX);
+			defaultMin = stats.min;
+			defaultMax = stats.max;
 			copyIntoPalette(processed, paletteImage, offsetX, offsetY);
 			setMinMax(defaultMin, defaultMax);
 		}
