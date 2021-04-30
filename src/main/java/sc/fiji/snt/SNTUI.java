@@ -3321,13 +3321,13 @@ public class SNTUI extends JDialog {
 	protected void launchSigmaPaletteAround(final int x, final int y) {
 
 		final int either_side = 40;
-		final int z = plugin.getImagePlus().getZ() - 1;
+		final int z = plugin.getImagePlus().getZ();
 		int x_min = x - either_side;
 		int x_max = x + either_side;
 		int y_min = y - either_side;
 		int y_max = y + either_side;
-		int z_min = z - either_side;
-		int z_max = z + either_side;
+		int z_min = z - either_side; // 1-based index
+		int z_max = z + either_side; // 1-based index
 
 		final int originalWidth = plugin.getImagePlus().getWidth();
 		final int originalHeight = plugin.getImagePlus().getHeight();
@@ -3335,10 +3335,10 @@ public class SNTUI extends JDialog {
 
 		if (x_min < 0) x_min = 0;
 		if (y_min < 0) y_min = 0;
-		if (z_min < 0) z_min = 0;
+		if (z_min < 1) z_min = 1;
 		if (x_max >= originalWidth) x_max = originalWidth - 1;
 		if (y_max >= originalHeight) y_max = originalHeight - 1;
-		if (z_max >= originalDepth) z_max = originalDepth - 1;
+		if (z_max > originalDepth) z_max = originalDepth;
 
 		final double[] sigmas = new double[9];
 		for (int i = 0; i < sigmas.length; ++i) {

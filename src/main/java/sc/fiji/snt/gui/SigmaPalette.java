@@ -416,8 +416,8 @@ public class SigmaPalette extends Thread {
 	 * @param x_max image boundary for choice grid
 	 * @param y_min image boundary for choice grid
 	 * @param y_max image boundary for choice grid
-	 * @param z_min image boundary for choice grid
-	 * @param z_max image boundary for choice grid
+	 * @param z_min image boundary for choice grid (1-based index)
+	 * @param z_max image boundary for choice grid (1-based index)
 	 * @param sigmaValues the desired range of sigma values for choice grid
 	 * @param sigmasAcross the number of columns in choice grid
 	 * @param sigmasDown the number of rows in choice grid
@@ -437,8 +437,8 @@ public class SigmaPalette extends Thread {
 		this.x_max = x_max;
 		this.y_min = y_min;
 		this.y_max = y_max;
-		this.z_min = z_min;
-		this.z_max = z_max;
+		this.z_min = z_min; //1-based index
+		this.z_max = z_max; //1-based index
 		this.sigmaValues = sigmaValues;
 		this.sigmasAcross = sigmasAcross;
 		this.sigmasDown = sigmasDown;
