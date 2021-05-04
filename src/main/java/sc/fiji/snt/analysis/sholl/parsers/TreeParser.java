@@ -404,4 +404,13 @@ public class TreeParser implements Parser {
 		parser.getProfile().plot().show();
 	}
 
+	/**
+	 * Returns the tree associated with this parser
+	 * 
+	 * @return the profiled tree
+	 */
+	public Tree getTree() {
+		return tree;
+	}
+
 }

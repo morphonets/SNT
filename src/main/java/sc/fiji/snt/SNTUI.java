@@ -2374,10 +2374,11 @@ public class SNTUI extends JDialog {
 				IconFactory.getMenuIcon(IconFactory.GLYPH.BULLSEYE));
 		shollMenuItem.addActionListener(e -> {
 			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
+			final Tree tree = getPathManager().getMultipleTreesInASingleContainer();
 			if (tree == null) return;
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("tree", tree);
+			inputs.put("snt", plugin);
 			(new DynamicCmdRunner(ShollAnalysisTreeCmd.class, inputs, getState())).run();
 		});
 		analysisMenu.add(shollMenuItem);

@@ -675,6 +675,7 @@ public class Tree implements TreeProperties {
 	public PointInImage getRoot() {
 		if (isEmpty()) return null;
 		Path rootPath = get(0);
+		if (size() == 1) return rootPath.getNodeWithoutChecks(0);
 		if (!rootPath.isPrimary()) { // how would this ever happen?
 			rootPath = null;
 			for (final Path p : list()) {

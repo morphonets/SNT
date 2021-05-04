@@ -1890,8 +1890,8 @@ public class SNT extends MultiDThreePanes implements
 		final Map<String, Object> input = new HashMap<>();
 		input.put("snt", this);
 		input.put("center", centerScaled);
-		final Tree tree = new Tree(getPathAndFillManager().getPathsFiltered());
-		input.put("tree", tree);
+		input.put("tree", (getUI() == null) ? new Tree(getPathAndFillManager().getPathsFiltered())
+				: getUI().getPathManager().getMultipleTreesInASingleContainer());
 		final CommandService cmdService = getContext().getService(
 			CommandService.class);
 		cmdService.run(ShollAnalysisTreeCmd.class, true, input);

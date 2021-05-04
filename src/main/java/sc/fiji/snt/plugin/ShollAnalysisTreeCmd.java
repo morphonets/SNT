@@ -82,6 +82,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.Logger;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.util.ShollPoint;
 
 /**
@@ -233,6 +234,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private ShollTable commonSummaryTable;
 	private Display<?> detailedTableDisplay;
 	private boolean multipleTreesExist;
+	private boolean noFocalPointSpecified;
 
 	/* Interactive runs: References to previous outputs */
 	private ShollPlot lPlot;
@@ -265,8 +267,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private void runAnalysis() throws InterruptedException {
 		if (analysisFuture != null && !analysisFuture.isDone()) {
 			threadService.queue(() -> {
-				final boolean killExisting = new GuiUtils((snt != null) ? snt.getUI()
-					: null).getConfirmation("An analysis is already running. Abort it?",
+				final boolean killExisting = helper.getConfirmation("An analysis is already running. Abort it?",
 						"Ongoing Analysis");
 				if (killExisting) {
 					analysisFuture.cancel(true);
@@ -284,12 +285,21 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 					"Invalid Filter");
 				return;
 			}
-			tree.setBoundingBox(snt.getPathAndFillManager().getBoundingBox(false));
+			if (noFocalPointSpecified)
+				center = guessCenter(filteredTree);
+			if (center == null) {
+				cancelAndFreezeUI("Could not determine a suitable focal point... "
+						+ ((snt != null) ? " Perhaps you should try the 'Sholl Analysis at Nearest Node' command?"
+								: ""),
+						"Invalid Center");
+				return;
+			}
+			logger.info("Center:  " + center.toString());
+			filteredTree.setBoundingBox(snt.getPathAndFillManager().getBoundingBox(false));
 			logger.info("Considering " + filteredTree.size() + " paths out of " + tree
 				.size());
 			analysisRunner = new AnalysisRunner(filteredTree, center);
-		}
-		else {
+		} else {
 			if (tree == null && multipleTreesExist) {
 				multipleTreesExistError();
 				return;
@@ -322,14 +332,24 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		analysisFuture = threadService.run(analysisRunner);
 	}
 
+	private PointInImage guessCenter(final Tree paths) {
+		if (paths.list().size() > 1 && paths.list().stream().allMatch(p -> p.isPrimary())) {
+			// See https://forum.image.sc/t/51707/5
+			final List<PointInImage> startingNodes = new ArrayList<>();
+			paths.list().forEach( p -> startingNodes.add(p.getNode(0)));
+			return SNTPoint.average(startingNodes);
+		}
+		return paths.getRoot();
+	}
+
 	private NormalizedProfileStats getNormalizedProfileStats(
-		final Profile profile)
+		final Profile profile, boolean threeD)
 	{
 		String normString = normalizerDescription.toLowerCase();
 		if (normString.startsWith("default")) {
 			normString = "Area/Volume";
 		}
-		if (tree.is3D()) {
+		if (threeD) {
 			normString = normString.substring(normString.indexOf("/") + 1);
 		}
 		else {
@@ -351,9 +371,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		final MutableModuleItem<String> mlitm =
 			(MutableModuleItem<String>) getInfo().getInput("filterChoice",
 				String.class);
+
+		noFocalPointSpecified = center == null; // we'll use pre-determined centers;
 		if (snt != null) {
-			previewOverlay = new PreviewOverlay(snt.getImagePlus(), center
-				.getUnscaledPoint());
+			if (noFocalPointSpecified)
+				resolveInput("previewShells");
+			else
+				previewOverlay = new PreviewOverlay(snt.getImagePlus(), center.getUnscaledPoint());
 			logger.setDebug(SNTUtils.isDebugMode());
 			setLUTs();
 			resolveInput("file");
@@ -363,8 +387,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			if (!filteredchoices.contains("Selected paths")) filteredchoices.add(1,
 				"Selected paths");
 			mlitm.setChoices(filteredchoices);
-		}
-		else {
+		} else {
 			resolveInput("previewShells");
 			resolveInput("annotationsDescription");
 			resolveInput("lutChoice");
@@ -707,7 +730,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			}
 
 			/// Normalized profile stats
-			nStats = getNormalizedProfileStats(profile);
+			nStats = getNormalizedProfileStats(profile, tree.is3D());
 			logger.debug("Sholl decay: " + nStats.getShollDecay());
 
 			// Set Plots
@@ -761,7 +784,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 					showStatus("Color coding nodes...");
 					final TreeColorMapper treeColorizer = new TreeColorMapper(snt
 						.getContext());
-					treeColorizer.map(tree, lStats, lutTable);
+					treeColorizer.map(parser.getTree(), lStats, lutTable);
 					if (snt != null) snt.updateAllViewers();
 				}
 				annotationsDescription = "None";

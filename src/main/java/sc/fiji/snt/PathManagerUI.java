@@ -933,6 +933,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		return getMultipleTreesPrompt(true);
 	}
 
+	protected Tree getMultipleTreesInASingleContainer() {
+		final Collection<Tree> trees = getMultipleTrees();
+		if (trees == null) return null;
+		final Tree holdingTree = new Tree();
+		holdingTree.setLabel("Mixed Paths");
+		trees.forEach(tree -> tree.list().forEach(path -> holdingTree.add(path)));
+		return holdingTree;
+	}
+
 	private Collection<Tree> getTreesMimickingPrompt(final String description) {
 		final Collection<Tree> trees = pathAndFillManager.getTrees();
 		if (trees.size() == 1 || description.contains("All")) return trees;
