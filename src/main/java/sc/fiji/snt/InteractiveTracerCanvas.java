@@ -24,7 +24,6 @@ package sc.fiji.snt;
 
 import ij.IJ;
 import ij.ImagePlus;
-import ij.gui.PointRoi;
 import ij.gui.Roi;
 import ij.gui.Toolbar;
 import ij.measure.Calibration;

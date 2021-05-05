@@ -513,7 +513,6 @@ public class SNT extends MultiDThreePanes implements
 	@Override
 	public void initialize(final ImagePlus imp) {
 		nullifyCanvases();
-		xy = imp;
 		setFieldsFromImage(imp);
 		changeUIState(SNTUI.LOADING);
 		initialize(getSinglePane(), channel = imp.getC(), frame = imp.getT());

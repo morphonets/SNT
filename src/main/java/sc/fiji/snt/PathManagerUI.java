@@ -31,8 +31,6 @@ import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
@@ -2784,7 +2782,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 			}
 			else if (DISCONNECT_CMD.equals(cmd)) {
-				if (!guiUtils.getConfirmation("Disconnect " + n + " path(s) from all it connections? "
+				if (!guiUtils.getConfirmation("Disconnect " + n + " path(s) from all connections? "
 						+ "Connectivity will be re-assessed for <i>all</i> paths. IDs will be reset and "
 						+ "existing fits discarded.", "Confirm Disconnect?"))
 					return;
