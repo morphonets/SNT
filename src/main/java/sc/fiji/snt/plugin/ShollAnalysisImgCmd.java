@@ -1263,9 +1263,8 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		}
 
 		private boolean validOutput() {
-			boolean noOutput = plotOutputDescription.contains("None");
-//			noOutput = noOutput && tableOutputDescription.contains("None");
-			noOutput = noOutput && annotationsDescription.contains("None");
+			final boolean noOutput = plotOutputDescription.contains("None") && tableOutputDescription.contains("None")
+					&& annotationsDescription.contains("None");
 			if (noOutput) {
 				cancel("Invalid output");
 				helper.error("Analysis can only proceed if at least one type " +
