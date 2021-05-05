@@ -234,14 +234,26 @@ public class SNTUtils {
 	public static File getUniquelySuffixedFile(final File referenceFile) {
 		if (referenceFile.exists()) {
 			final String extension = "." + FileUtils.getExtension(referenceFile);
-			File uniqueFile = new File(referenceFile.getAbsolutePath().replace(extension, "-1" + extension));
-			int i = 1;
-			while (uniqueFile.exists()) {
-				uniqueFile = new File(uniqueFile.getAbsolutePath().replace(extension, "-" + i++ + extension));
-			}
-			return uniqueFile;
+			final String filenameWithoutExt = stripExtension(referenceFile.getName());
+			return getUniqueFileName(filenameWithoutExt, extension, referenceFile.getParentFile());
 		}
 		return referenceFile;
+	}
+
+	private static File getUniqueFileName(String filename, final String extension, final File parent) {
+		// From ij.WindowManaget#getUniqueName()
+		final int lastDash = filename.lastIndexOf("-");
+		final int len = filename.length();
+		if (lastDash != -1 && len - lastDash < 4 && lastDash < len - 1
+				&& Character.isDigit(filename.charAt(lastDash + 1)) && filename.charAt(lastDash + 1) != '0')
+			filename = filename.substring(0, lastDash);
+		for (int i = 1; i <= 500; i++) {
+			final String newName = filename + "-" + i;
+			final File putatiteUniqueFile = new File(parent, newName + extension);
+			if (!putatiteUniqueFile.exists())
+				return putatiteUniqueFile;
+		}
+		return new File(parent, filename + extension);
 	}
 
 	public static void saveTable(final GenericTable table, final File outputFile) throws IOException {
