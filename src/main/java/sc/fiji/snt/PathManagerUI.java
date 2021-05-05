@@ -216,10 +216,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
-		jmi = new JMenuItem(SinglePathActionListener.DISCONNECT_CMD);
-		jmi.setToolTipText("Disconnects a single path from all of its connections");
+		jmi = new JMenuItem(MultiPathActionListener.DISCONNECT_CMD);
+		jmi.setToolTipText("Disconnects paths from all of their connections");
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.UNLINK));
-		jmi.addActionListener(singlePathListener);
+		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 		editMenu.addSeparator();
 
@@ -236,7 +236,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		editMenu.addSeparator();
 
 		jmi = new JMenuItem(MultiPathActionListener.DOWNSAMPLE_CMD);
-		jmi.setToolTipText("Reduces the no. of nodes in selected paths (lossy simplificatio)");
+		jmi.setToolTipText("Reduces the no. of nodes in selected paths (lossy simplification)");
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 		editMenu.addSeparator();
@@ -2209,7 +2209,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String RENAME_CMD = "Rename...";
 		private final static String MAKE_PRIMARY_CMD = "Make Primary";
 		private final static String DUPLICATE_CMD = "Duplicate...";
-		private final static String DISCONNECT_CMD = "Disconnect...";
 		private final static String EXPLORE_FIT_CMD = "Explore/Preview Fit";
 
 		@Override
@@ -2252,13 +2251,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					final HashMap<String, Object> inputs = new HashMap<>();
 					inputs.put("path", p);
 					(plugin.getUI().new DynamicCmdRunner(DuplicateCmd.class, inputs)).run();
-					return;
-
-				case DISCONNECT_CMD:
-					if (!guiUtils.getConfirmation("Disconnect \"" + p.toString() +
-							"\" from all it connections?", "Confirm Disconnect")) return;
-					p.disconnectFromAll();
-					removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.ORDER_TAG_CMD, false, true);
 					return;
 
 				case EXPLORE_FIT_CMD:
@@ -2341,6 +2333,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String RESET_FITS = "Discard Fit(s)...";
 		private final static String SPECIFY_RADIUS_CMD = "Specify Radius...";
 		private final static String SPECIFY_COUNTS_CMD = "Specify No. Spines/Varicosities...";
+		private final static String DISCONNECT_CMD = "Disconnect...";
 
 		//private final static String MEASURE_CMD_SUMMARY = "Quick Measurements";
 		private final static String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
@@ -2775,6 +2768,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				refreshManager(true, true, selectedPaths);
 				return;
 
+			}
+			else if (DISCONNECT_CMD.equals(cmd)) {
+				if (!guiUtils.getConfirmation("Disconnect " + n + " path(s) from all it connections? "
+						+ "Connectivity will be re-assessed for <i>all</i> paths. IDs will be reset and "
+						+ "existing fits discarded.", "Confirm Disconnect?"))
+					return;
+				for (final Path p : selectedPaths)
+					p.disconnectFromAll();
+				rebuildRelationShips(); // will call refreshManager()
+				return;
 			}
 			else if (MERGE_PRIMARY_PATHS_CMD.equals(cmd)) {
 				if (n == 1) {
