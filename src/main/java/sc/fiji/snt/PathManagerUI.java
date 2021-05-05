@@ -260,14 +260,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		final JMenu imageTagsMenu = new JMenu("Image Metadata");
 		imageTagsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.IMAGE));
-		final JCheckBoxMenuItem tagChannelCbmi = new JCheckBoxMenuItem(
-			MultiPathActionListener.CHANNEL_TAG_CMD, false);
-		tagChannelCbmi.addItemListener(multiPathListener);
-		imageTagsMenu.add(tagChannelCbmi);
-		final JCheckBoxMenuItem tagFrameCbmi = new JCheckBoxMenuItem(
-			MultiPathActionListener.FRAME_TAG_CMD, false);
-		tagFrameCbmi.addItemListener(multiPathListener);
-		imageTagsMenu.add(tagFrameCbmi);
+		imageTagsMenu.add(new TagMenuItem(MultiPathActionListener.CHANNEL_TAG_CMD));
+		imageTagsMenu.add(new TagMenuItem(MultiPathActionListener.FRAME_TAG_CMD));
 		jmi = new JMenuItem(MultiPathActionListener.SLICE_LABEL_TAG_CMD);
 		jmi.addActionListener(multiPathListener);
 		imageTagsMenu.add(jmi);
@@ -275,27 +269,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		final JMenu morphoTagsMenu = new JMenu("Morphometry");
 		morphoTagsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RULER));
-		final JCheckBoxMenuItem tagTreeCbmi = new JCheckBoxMenuItem(
-				MultiPathActionListener.TREE_TAG_CMD, false);
-		tagTreeCbmi.addItemListener(multiPathListener);
-		morphoTagsMenu.add(tagTreeCbmi);
-		final JCheckBoxMenuItem tagLengthCbmi = new JCheckBoxMenuItem(
-			MultiPathActionListener.LENGTH_TAG_CMD, false);
-		tagLengthCbmi.addItemListener(multiPathListener);
-		morphoTagsMenu.add(tagLengthCbmi);
-		final JCheckBoxMenuItem tagRadiusCbmi = new JCheckBoxMenuItem(
-			MultiPathActionListener.MEAN_RADIUS_TAG_CMD, false);
-		tagRadiusCbmi.addItemListener(multiPathListener);
-		morphoTagsMenu.add(tagRadiusCbmi);
-		final JCheckBoxMenuItem tagCountsCbmi = new JCheckBoxMenuItem(
-				MultiPathActionListener.COUNT_TAG_CMD, false);
-		tagCountsCbmi.addItemListener(multiPathListener);
-		morphoTagsMenu.add(tagCountsCbmi);
+		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.TREE_TAG_CMD));
+		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.LENGTH_TAG_CMD));
+		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.MEAN_RADIUS_TAG_CMD));
+		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.COUNT_TAG_CMD));
+		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.ORDER_TAG_CMD));
 		tagsMenu.add(morphoTagsMenu);
-		final JCheckBoxMenuItem tagOrderCbmi = new JCheckBoxMenuItem(
-				MultiPathActionListener.ORDER_TAG_CMD, false);
-			tagOrderCbmi.addItemListener(multiPathListener);
-			morphoTagsMenu.add(tagOrderCbmi);
 		tagsMenu.addSeparator();
 
 		jmi = new JMenuItem(MultiPathActionListener.CUSTOM_TAG_CMD);
@@ -2294,6 +2273,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 	}
 
+	private List<String> guessTagsCurrentlyActive() {
+		List<String> selected = new ArrayList<>();
+		for (final Component c1 : tagsMenu.getMenuComponents()) {
+			if ((c1 instanceof JMenu)) {
+				for (final Component c2 : ((JMenu) c1).getMenuComponents()) {
+					if (c2 instanceof JCheckBoxMenuItem && ((JCheckBoxMenuItem) c2).isSelected())
+						selected.add(((JCheckBoxMenuItem) c2).getActionCommand());
+				}
+			} else if (c1 instanceof JCheckBoxMenuItem && ((JCheckBoxMenuItem) c1).isSelected())
+				selected.add(((JCheckBoxMenuItem) c1).getActionCommand());
+		}
+		return selected;
+	}
+
 	private void setSelectAllTagsMenu(final boolean select) {
 		for (final Component c1 : tagsMenu.getMenuComponents()) {
 			if ((c1 instanceof JMenu)) {
@@ -2306,10 +2299,30 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 	}
 
+	/** ActionListener for JCheckBoxMenuItem's "default tags" */
+	private class TagMenuItem extends JCheckBoxMenuItem implements ActionListener {
+
+
+		private TagMenuItem(final String tag) {
+			super(tag, false);
+			addActionListener(this);
+		}
+
+		@Override
+		public void actionPerformed(final ActionEvent e) {
+			final List<Path> selectedPaths = getPathAndFillManager().getPathsFiltered();
+			final int n = selectedPaths.size();
+			if (n == 0) {
+				guiUtils.error("There are no traced paths.");
+				return;
+			}
+			removeOrReapplyDefaultTag(selectedPaths, getActionCommand(), isSelected(), true);
+		}
+
+	}
+
 	/** ActionListener for commands that can operate on multiple paths */
-	private class MultiPathActionListener implements ActionListener,
-		ItemListener
-	{
+	private class MultiPathActionListener implements ActionListener {
 
 		private static final String APPEND_CHILDREN_CMD = "Append Children To Selection";
 		private final static String COLORS_MENU = "Color";
@@ -2701,10 +2714,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			// Case 2: Commands that require some sort of confirmation
 			else if (DELETE_CMD.equals(cmd)) {
-				if (guiUtils.getConfirmation((assumeAll)
-					? "Are you really sure you want to delete everything?"
-					: "Delete the selected " + n + " paths?", "Confirm Deletion?"))
+				if (guiUtils.getConfirmation((assumeAll) ? "Are you really sure you want to delete everything?"
+						: "Delete the selected " + n + " path(s)?", "Confirm Deletion?")) {
 					deletePaths(selectedPaths);
+					if (assumeAll) setSelectAllTagsMenu(false);
+				}
 				return;
 			}
 			else if (REMOVE_ALL_TAGS_CMD.equals(cmd)) {
@@ -2945,8 +2959,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 
 		private void rebuildRelationShips() {
+			final List<String> activeTags = guessTagsCurrentlyActive();
 			tree.clearSelection(); // existing selections could change after the rebuild
 			pathAndFillManager.rebuildRelationships();
+			activeTags.forEach( tag -> {
+				removeOrReapplyDefaultTag(pathAndFillManager.getPaths(), tag, true, false);
+			});
 			refreshManager(true, true, null);
 		}
 
@@ -2979,19 +2997,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					selectedPaths)) + "]";
 			}
 			return description;
-		}
-
-		@Override
-		public void itemStateChanged(final ItemEvent e) {
-			final List<Path> selectedPaths = getPathAndFillManager().getPathsFiltered();
-			final int n = selectedPaths.size();
-			if (n == 0) {
-				guiUtils.error("There are no traced paths.");
-				return;
-			}
-			final JCheckBoxMenuItem jcbmi = (JCheckBoxMenuItem) e.getSource();
-			final String cmd = jcbmi.getActionCommand();
-			removeOrReapplyDefaultTag(selectedPaths, cmd, jcbmi.isSelected(), true);
 		}
 
 	}
