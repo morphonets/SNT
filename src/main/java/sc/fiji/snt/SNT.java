@@ -1882,18 +1882,19 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void startSholl(final PointInImage centerScaled) {
-		setZPositionAllPanes((int) Math.round(centerScaled.x), (int) Math.round(
-			centerScaled.y), (int) Math.round(centerScaled.z));
-		setShowOnlySelectedPaths(false);
-		SNTUtils.log("Starting Sholl Analysis centered at " + centerScaled);
-		final Map<String, Object> input = new HashMap<>();
-		input.put("snt", this);
-		input.put("center", centerScaled);
-		input.put("tree", (getUI() == null) ? new Tree(getPathAndFillManager().getPathsFiltered())
-				: getUI().getPathManager().getMultipleTreesInASingleContainer());
-		final CommandService cmdService = getContext().getService(
-			CommandService.class);
-		cmdService.run(ShollAnalysisTreeCmd.class, true, input);
+		SwingUtilities.invokeLater(() -> {
+			setZPositionAllPanes((int) Math.round(centerScaled.x), (int) Math.round(centerScaled.y),
+					(int) Math.round(centerScaled.z));
+			setShowOnlySelectedPaths(false);
+			SNTUtils.log("Starting Sholl Analysis centered at " + centerScaled);
+			final Map<String, Object> input = new HashMap<>();
+			input.put("snt", this);
+			input.put("center", centerScaled);
+			input.put("tree", (getUI() == null) ? new Tree(getPathAndFillManager().getPathsFiltered())
+					: getUI().getPathManager().getMultipleTreesInASingleContainer());
+			final CommandService cmdService = getContext().getService(CommandService.class);
+			cmdService.run(ShollAnalysisTreeCmd.class, true, input);
+		});
 	}
 
 	public ImagePlus getFilledVolume(final boolean asMask) {
@@ -2399,7 +2400,7 @@ public class SNT extends MultiDThreePanes implements
 		return null;
 	}
 
-	private Component getActiveWindow() {
+	protected Component getActiveWindow() {
 		if (!isUIready()) return null;
 		if (ui.isActive()) return ui;
 		final Window[] images = { xy_window, xz_window, zy_window };

@@ -903,16 +903,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	protected Tree getSingleTree() {
-		return getSingleTreePrompt();
+		return getSingleTreePrompt((this.hasFocus()) ? guiUtils : new GuiUtils(plugin.getActiveWindow()));
 	}
 
 	protected Collection<Tree> getMultipleTrees() {
-		return getMultipleTreesPrompt(true);
+		return getMultipleTreesPrompt((this.hasFocus()) ? guiUtils : new GuiUtils(plugin.getActiveWindow()), true);
 	}
 
 	protected Tree getMultipleTreesInASingleContainer() {
 		final Collection<Tree> trees = getMultipleTrees();
 		if (trees == null) return null;
+		if (trees.size() == 1) trees.iterator().next();
 		final Tree holdingTree = new Tree();
 		holdingTree.setLabel("Mixed Paths");
 		trees.forEach(tree -> tree.list().forEach(path -> holdingTree.add(path)));
@@ -932,7 +933,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		return getTreesMimickingPrompt(description).iterator().next();
 	}
 
-	private Tree getSingleTreePrompt() {
+	private Tree getSingleTreePrompt(final GuiUtils guiUtils) {
 		final Collection<Tree> trees = pathAndFillManager.getTrees();
 		if (trees.size() == 1) return trees.iterator().next();
 		final ArrayList<String> treeLabels = new ArrayList<>(trees.size());
@@ -949,7 +950,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		return null; // user pressed canceled prompt
 	}
 
-	private Collection<Tree> getMultipleTreesPrompt(final boolean includeAll) {
+	private Collection<Tree> getMultipleTreesPrompt(final GuiUtils guiUtils, final boolean includeAll) {
 		final Collection<Tree> trees = pathAndFillManager.getTrees();
 		if (trees.size() == 1) return trees;
 		final ArrayList<String> treeLabels = new ArrayList<>(trees.size() + 1);
@@ -2300,6 +2301,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	/** ActionListener for JCheckBoxMenuItem's "default tags" */
 	private class TagMenuItem extends JCheckBoxMenuItem implements ActionListener {
 
+		private static final long serialVersionUID = 1L;
 
 		private TagMenuItem(final String tag) {
 			super(tag, false);

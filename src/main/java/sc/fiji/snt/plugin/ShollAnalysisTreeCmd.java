@@ -22,7 +22,6 @@
 
 package sc.fiji.snt.plugin;
 
-import java.awt.Color;
 import java.io.File;
 import java.net.URL;
 import java.util.ArrayList;
