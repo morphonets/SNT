@@ -466,7 +466,7 @@ public class TreeColorMapper extends ColorMapper {
 		final double stepSizeSq = stepSize * stepSize;
 		for (final ProfileEntry entry : stats.getProfile().entries()) {
 			final double entryRadiusSqed = entry.radiusSquared();
-			for (final Path p : paths) {
+			for (final Path p : tree.list()) {
 				for (int node = 0; node < p.size(); node++) {
 					final double dx = center.distanceSquaredTo(p.getNode(node));
 					if (dx >= entryRadiusSqed && dx < entryRadiusSqed + stepSizeSq) {

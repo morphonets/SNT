@@ -181,8 +181,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		"Detailed & Summary tables", "None. Show no tables" })
 	private String tableOutputDescription;
 
-	@Parameter(required = false, label = "Annotations", choices = { "None",
-		"Color coded nodes", "3D viewer labels image" })
+	@Parameter(required = false, callback = "annotationsDescriptionChanged",
+			label = "Annotations", choices = { "None", "Color coded nodes", "3D viewer labels image" })
 	private String annotationsDescription;
 
 	@Parameter(required = false, label = "Annotations LUT",
@@ -408,6 +408,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			}
 		}
 		readPreferences();
+		lutChoiceChanged();
 		getInfo().setLabel("Sholl Analysis SNT" + SNTUtils.VERSION);
 		adjustFittingOptions();
 	}
@@ -420,7 +421,6 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			choices.add(entry.getKey());
 		}
 		Collections.sort(choices);
-		choices.add(0, "None");
 		final MutableModuleItem<String> input = getInfo().getMutableInput(
 			"lutChoice", String.class);
 		input.setChoices(choices);
@@ -433,10 +433,23 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			lutTable = lutService.loadLUT(luts.get(lutChoice));
 		}
 		catch (final Exception ignored) {
-			// presumably "No Lut" was chosen
-			lutTable = ShollUtils.constantLUT(Color.GREEN);
+			// this should never happen?
 		}
 		overlayShells();
+	}
+
+	private void annotationsDescriptionChanged() {
+		if (!annotationsDescription.contains("None") && stepSize > 0) {
+			helper.error("Annotations can only be generated when 'Radius step size' is zero (continuous sampling).",
+					"Non-contiguos Annotations");
+			annotationsDescription = "None";
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private void saveChoiceChanged() {
+		if (save && saveDir == null)
+			saveDir = new File(IJ.getDirectory("current"));
 	}
 
 	private void readPreferences() {
@@ -458,7 +471,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		plotOutputDescription = prefService.get(ShollAnalysisTreeCmd.class, "plotOutputDescription", "Linear plot");
 		tableOutputDescription = prefService.get(ShollAnalysisTreeCmd.class, "tableOutputDescription", "Detailed table");
 		annotationsDescription = prefService.get(ShollAnalysisTreeCmd.class, "annotationsDescription", "None");
+		if (stepSize < 0) {
+			annotationsDescription = "None";
+		}
 		lutChoice = prefService.get(ShollAnalysisTreeCmd.class, "lutChoice", "mpl-viridis.lut");
+		if ("None".equalsIgnoreCase(lutChoice)) {
+			lutChoice = "Ice.lut"; // legacy preference
+		}
 		save = prefService.getBoolean(ShollAnalysisTreeCmd.class, "save", false);
 		saveDir = new File(prefService.get(ShollAnalysisTreeCmd.class, "saveDir", System.getProperty("user.home")));
 	}
@@ -778,21 +797,24 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				outputs.add(commonSummaryTable);
 			}
 
-			if (snt != null) {
-				if (annotationsDescription.contains("labels image")) {
-					showStatus("Creating labels image...");
-					final ImagePlus labelsImage = parser.getLabelsImage(snt.getImagePlus(), null);
-					outputs.add(labelsImage);
-					labelsImage.show();
+			if (snt != null && !"None".equalsIgnoreCase(annotationsDescription)) {
+				if (stepSize > 0) {
+					annotationsDescriptionChanged(); // display error
+				} else {
+					if (annotationsDescription.contains("labels image")) {
+						showStatus("Creating labels image...");
+						final ImagePlus labelsImage = parser.getLabelsImage(snt.getImagePlus(), lutTable);
+						outputs.add(labelsImage);
+						labelsImage.show();
+					}
+					if (annotationsDescription.contains("coded")) {
+						showStatus("Color coding nodes...");
+						final TreeColorMapper treeColorizer = new TreeColorMapper(snt
+							.getContext());
+						treeColorizer.map(parser.getTree(), lStats, lutTable);
+						if (snt != null) snt.updateAllViewers();
+					}
 				}
-				if (annotationsDescription.contains("coded")) {
-					showStatus("Color coding nodes...");
-					final TreeColorMapper treeColorizer = new TreeColorMapper(snt
-						.getContext());
-					treeColorizer.map(parser.getTree(), lStats, lutTable);
-					if (snt != null) snt.updateAllViewers();
-				}
-				annotationsDescription = "None";
 			}
 
 			// Now save everything

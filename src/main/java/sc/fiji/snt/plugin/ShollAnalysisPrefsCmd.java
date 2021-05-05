@@ -141,7 +141,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 	private String HEADER4;
 
 	@Parameter(label = "Include zero counts",
-			description = "Wether entries associated with 0 intersections should be included in detailed tables, plts, etc.")
+			description = "Wether entries associated with 0 intersections should be included in detailed tables, plots, etc.")
 	private boolean includeZeroCounts = DEF_INCLUDE_ZERO_COUNTS;
 
 	@Parameter(label = "Debug mode", callback = "flagRestart",
