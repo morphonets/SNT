@@ -537,6 +537,8 @@ public class SNTService extends AbstractService implements ImageJService {
 					tree.add(p);
 				}
 				tree.setLabel(treeLabel);
+				tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, "um");
+				tree.getProperties().setProperty(TreeProperties.KEY_SOURCE, "SNT Demo");
 			} else {
 				return null;
 			}

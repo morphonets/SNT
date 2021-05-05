@@ -4017,6 +4017,7 @@ public class SNTUI extends JDialog {
 					}
 					if (choices[4].equals(choice)) {
 						plugin.getPathAndFillManager().addTree(sntService.demoTree("fractal"));
+						plugin.getPathAndFillManager().assignSpatialSettings(imp);
 					} else if (choices[3].equals(choice)) {
 						sntService.loadTracings(
 							"https://raw.githubusercontent.com/morphonets/SNTmanuscript/9b4b933a742244505f0544c29211e596c85a5da7/Fig01/traces/701.traces");
