@@ -729,6 +729,11 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				}
 			}
 
+			if (!prefService.getBoolean(ShollAnalysisPrefsCmd.class, "includeZeroCounts",
+					ShollAnalysisPrefsCmd.DEF_INCLUDE_ZERO_COUNTS)) {
+				profile.trimZeroCounts();
+			}
+
 			/// Normalized profile stats
 			nStats = getNormalizedProfileStats(profile, tree.is3D());
 			logger.debug("Sholl decay: " + nStats.getShollDecay());

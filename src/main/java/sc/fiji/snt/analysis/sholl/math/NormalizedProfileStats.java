@@ -61,7 +61,7 @@ public class NormalizedProfileStats extends CommonStats implements ShollStats {
 
 	public NormalizedProfileStats(final Profile profile, final int normalizationFlag, final int methodFlag) {
 
-		super(profile, true);
+		super(profile, true, true);
 		normType = normalizationFlag;
 		if (profile.is2D() && is3Dnormalization())
 			throw new IllegalArgumentException("3D normalization specified on a 2D profile");

@@ -1164,6 +1164,11 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 				}
 			}
 
+			if (!prefService.getBoolean(ShollAnalysisPrefsCmd.class, "includeZeroCounts",
+					ShollAnalysisPrefsCmd.DEF_INCLUDE_ZERO_COUNTS)) {
+				profile.trimZeroCounts();
+			}
+
 			/// Normalized profile stats
 			final NormalizedProfileStats nStats = getNormalizedProfileStats(profile);
 			logger.debug("Sholl decay: " + nStats.getShollDecay());

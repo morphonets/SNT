@@ -54,26 +54,27 @@ class CommonStats extends ContextCommand implements ShollStats {
 	protected Logger logger;
 
 	protected CommonStats(final Profile profile) {
-		this(profile, false);
+		this(profile, false, false);
 	}
 
-	protected CommonStats(final Profile profile, final boolean trimZeroes) throws IllegalArgumentException {
+	protected CommonStats(final Profile profile, final boolean duplicateProfile, final boolean trimZeroes) throws IllegalArgumentException {
 
 		if (profile == null)
 			throw new IllegalArgumentException("Cannot instantiate analysis with a null profile");
-		// Remove all zeroes from input sample: this is required when e.g.,
-		// performing log transforms, since log(0) is undefined
-		if (trimZeroes)
-			profile.trimZeroCounts();
 		if (profile.isEmpty())
 			throw new IllegalArgumentException("Cannot instantiate analysis with an empty profile");
 
-		this.profile = profile;
-		nPoints = profile.size();
+		this.profile = (duplicateProfile) ? profile.duplicate() : profile;
+		// Remove all zeroes from input sample: this is required when e.g.,
+		// performing log transforms, since log(0) is undefined
+		if (trimZeroes)
+			this.profile.trimZeroCounts();
+
+		nPoints = this.profile.size();
 		inputRadii = new double[nPoints];
 		inputCounts = new double[nPoints];
 		int idx = 0;
-		for (final ProfileEntry entry : profile.entries()) {
+		for (final ProfileEntry entry : this.profile.entries()) {
 			inputRadii[idx] = entry.radius;
 			inputCounts[idx++] = entry.count;
 		}

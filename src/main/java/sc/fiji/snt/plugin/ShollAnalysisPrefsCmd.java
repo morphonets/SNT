@@ -63,6 +63,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 	/* DEFAULTS */
 	public final static boolean DEF_SKIP_SINGLE_VOXELS = true;
+	public final static boolean DEF_INCLUDE_ZERO_COUNTS = true;
 	public final static int DEF_ENCLOSING_RADIUS_CUTOFF = 1;
 	public final static int DEF_MIN_DEGREE = 2;
 	public final static int DEF_MAX_DEGREE = 20;
@@ -136,8 +137,12 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 	private int enclosingRadiusCutoff = DEF_ENCLOSING_RADIUS_CUTOFF;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-			label = HEADER_HTML + "<br>Advanced Options:")
+			label = HEADER_HTML + "<br>Misc:")
 	private String HEADER4;
+
+	@Parameter(label = "Include zero counts",
+			description = "Wether entries associated with 0 intersections should be included in detailed tables, plts, etc.")
+	private boolean includeZeroCounts = DEF_INCLUDE_ZERO_COUNTS;
 
 	@Parameter(label = "Debug mode", callback = "flagRestart",
 			description = "Whether computations should log "
@@ -235,6 +240,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 		// Reset inputs in prompt
 		skipSingleVoxels = DEF_SKIP_SINGLE_VOXELS;
+		includeZeroCounts = DEF_INCLUDE_ZERO_COUNTS;
 		enclosingRadiusCutoff = DEF_ENCLOSING_RADIUS_CUTOFF;
 		minDegree = DEF_MIN_DEGREE;
 		maxDegree = DEF_MAX_DEGREE;
