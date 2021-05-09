@@ -32,6 +32,7 @@ def get_sample_image():
 
 
 def main():
+	global skeletonizeImp
 	if choice == "Current image":
 		imp = IJ.getImage()
 	elif choice == "Image from path specified below":
