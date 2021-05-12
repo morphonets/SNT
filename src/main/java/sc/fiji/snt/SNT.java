@@ -872,16 +872,16 @@ public class SNT extends MultiDThreePanes implements
 
 	public void justDisplayNearSlices(final boolean value, final int eitherSide) {
 
-		xy_tracer_canvas.just_near_slices = value;
+		getXYCanvas().just_near_slices = value;
 		if (!single_pane) {
-			xz_tracer_canvas.just_near_slices = value;
-			zy_tracer_canvas.just_near_slices = value;
+			getXZCanvas().just_near_slices = value;
+			getZYCanvas().just_near_slices = value;
 		}
 
-		xy_tracer_canvas.eitherSide = eitherSide;
+		getXYCanvas().eitherSide = eitherSide;
 		if (!single_pane) {
-			xz_tracer_canvas.eitherSide = eitherSide;
-			zy_tracer_canvas.eitherSide = eitherSide;
+			getXZCanvas().eitherSide = eitherSide;
+			getZYCanvas().eitherSide = eitherSide;
 		}
 
 		updateTracingViewers(false);
@@ -973,10 +973,10 @@ public class SNT extends MultiDThreePanes implements
 		}
 		setDrawCrosshairsAllPanes(!enable);
 		setLockCursorAllPanes(enable);
-		xy_tracer_canvas.setEditMode(enable);
+		getXYCanvas().setEditMode(enable);
 		if (!single_pane) {
-			xz_tracer_canvas.setEditMode(enable);
-			zy_tracer_canvas.setEditMode(enable);
+			getXZCanvas().setEditMode(enable);
+			getZYCanvas().setEditMode(enable);
 		}
 		updateTracingViewers(false);
 	}
@@ -1050,10 +1050,10 @@ public class SNT extends MultiDThreePanes implements
 	protected void updateCursor(final double new_x, final double new_y,
 		final double new_z)
 	{
-		xy_tracer_canvas.updateCursor(new_x, new_y, new_z);
+		getXYCanvas().updateCursor(new_x, new_y, new_z);
 		if (!single_pane) {
-			xz_tracer_canvas.updateCursor(new_x, new_y, new_z);
-			zy_tracer_canvas.updateCursor(new_x, new_y, new_z);
+			getXZCanvas().updateCursor(new_x, new_y, new_z);
+			getZYCanvas().updateCursor(new_x, new_y, new_z);
 		}
 
 	}
@@ -1182,7 +1182,7 @@ public class SNT extends MultiDThreePanes implements
 			// find the nearest node to this cursor 2D position.
 			// then activate the Z-slice of the retrieved node
 			final int eNode = editingPath.indexNearestToCanvasPosition2D(x, y,
-				xy_tracer_canvas.nodeDiameter());
+					getXYCanvas().nodeDiameter());
 			if (eNode != -1) {
 				pim = editingPath.getNodeWithoutChecks(eNode);
 				editingPath.setEditableNode(eNode);
@@ -1241,10 +1241,10 @@ public class SNT extends MultiDThreePanes implements
 
 		final Path oldTemporaryPath = this.temporaryPath;
 
-		xy_tracer_canvas.setTemporaryPath(path);
+		getXYCanvas().setTemporaryPath(path);
 		if (!single_pane) {
-			zy_tracer_canvas.setTemporaryPath(path);
-			xz_tracer_canvas.setTemporaryPath(path);
+			getZYCanvas().setTemporaryPath(path);
+			getXZCanvas().setTemporaryPath(path);
 		}
 
 		temporaryPath = path;
@@ -1269,10 +1269,10 @@ public class SNT extends MultiDThreePanes implements
 				currentPath.setName("Current Path");
 			path.setSelected(true); // so it is rendered as an active path
 		}
-		xy_tracer_canvas.setCurrentPath(path);
+		getXYCanvas().setCurrentPath(path);
 		if (!single_pane) {
-			zy_tracer_canvas.setCurrentPath(path);
-			xz_tracer_canvas.setCurrentPath(path);
+			getZYCanvas().setCurrentPath(path);
+			getXZCanvas().setCurrentPath(path);
 		}
 		if (use3DViewer) {
 			if (oldCurrentPath != null) {
@@ -1290,26 +1290,26 @@ public class SNT extends MultiDThreePanes implements
 	protected void setPathUnfinished(final boolean unfinished) {
 
 		this.pathUnfinished = unfinished;
-		xy_tracer_canvas.setPathUnfinished(unfinished);
+		getXYCanvas().setPathUnfinished(unfinished);
 		if (!single_pane) {
-			zy_tracer_canvas.setPathUnfinished(unfinished);
-			xz_tracer_canvas.setPathUnfinished(unfinished);
+			getZYCanvas().setPathUnfinished(unfinished);
+			getXZCanvas().setPathUnfinished(unfinished);
 		}
 	}
 
 	void addThreadToDraw(final SearchInterface s) {
-		xy_tracer_canvas.addSearchThread(s);
+		getXYCanvas().addSearchThread(s);
 		if (!single_pane) {
-			zy_tracer_canvas.addSearchThread(s);
-			xz_tracer_canvas.addSearchThread(s);
+			getZYCanvas().addSearchThread(s);
+			getXZCanvas().addSearchThread(s);
 		}
 	}
 
 	void removeThreadToDraw(final SearchInterface s) {
-		xy_tracer_canvas.removeSearchThread(s);
+		getXYCanvas().removeSearchThread(s);
 		if (!single_pane) {
-			zy_tracer_canvas.removeSearchThread(s);
-			xz_tracer_canvas.removeSearchThread(s);
+			getZYCanvas().removeSearchThread(s);
+			getXZCanvas().removeSearchThread(s);
 		}
 	}
 
@@ -1957,10 +1957,10 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void setFillTransparent(final boolean transparent) {
-		xy_tracer_canvas.setFillTransparent(transparent);
+		getXYCanvas().setFillTransparent(transparent);
 		if (!single_pane) {
-			xz_tracer_canvas.setFillTransparent(transparent);
-			zy_tracer_canvas.setFillTransparent(transparent);
+			getXZCanvas().setFillTransparent(transparent);
+			getZYCanvas().setFillTransparent(transparent);
 		}
 	}
 
