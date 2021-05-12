@@ -1240,11 +1240,10 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel nodePanel() {
-		final InteractiveTracerCanvas canvas = plugin.getXYCanvas();
-		final JSpinner nodeSpinner = GuiUtils.doubleSpinner((canvas == null) ? 1 : canvas.nodeDiameter(), 0, 100, 1, 0);
+		final JSpinner nodeSpinner = GuiUtils.doubleSpinner((plugin.getXYCanvas() == null) ? 1 : plugin.getXYCanvas().nodeDiameter(), 0, 100, 1, 0);
 		nodeSpinner.addChangeListener(e -> {
 			final double value = (double) (nodeSpinner.getValue());
-			canvas.setNodeDiameter(value);
+			plugin.getXYCanvas().setNodeDiameter(value);
 			if (!plugin.getSinglePane()) {
 				plugin.getXZCanvas().setNodeDiameter(value);
 				plugin.getZYCanvas().setNodeDiameter(value);
