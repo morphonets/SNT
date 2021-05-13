@@ -860,12 +860,14 @@ public class Tree implements TreeProperties {
 	 *
 	 * @param axis the rotation axis. Either {@link #X_AXIS}, {@link #Y_AXIS}, or
 	 *          {@link #Z_AXIS}
-	 * @param angle the rotation angle in degrees
+	 * @param angle the rotation angle in degrees. Ignored if 0.
 	 */
 	public void rotate(final int axis, final double angle) {
-		// See http://www.petercollingridge.appspot.com/3D-tutorial
+		if (angle == 0d) return;
 		if (Double.isNaN(angle)) throw new IllegalArgumentException(
 			"Angle not valid");
+
+		// See http://www.petercollingridge.appspot.com/3D-tutorial
 		final double radAngle = Math.toRadians(angle);
 		final double sin = Math.sin(radAngle);
 		final double cos = Math.cos(radAngle);
@@ -873,24 +875,28 @@ public class Tree implements TreeProperties {
 			case Z_AXIS:
 				tree.forEach(p -> {
 					for (int node = 0; node < p.size(); node++) {
-						final PointInImage pim = p.getNodeWithoutChecks(node);
-						final double x = pim.x * cos - pim.y * sin;
-						final double y = pim.y * cos + pim.x * sin;
-						p.moveNode(node, new PointInImage(x, y, pim.z));
+						final double x = p.precise_x_positions[node];
+						final double y = p.precise_y_positions[node];
+						p.precise_x_positions[node] = x * cos - y * sin;
+						p.precise_y_positions[node] = y * cos + x * sin;
 					}
 					if (p.startJoinsPoint != null) {
 						final PointInImage sPim = p.startJoinsPoint;
 						final Path sPath = p.startJoins;
-						sPim.x = sPim.x * cos - sPim.y * sin;
-						sPim.y = sPim.y * cos + sPim.x * sin;
+						final double x = sPim.x;
+						final double y = sPim.y;
+						sPim.x = x * cos - y * sin;
+						sPim.y = y * cos + x * sin;
 						p.unsetStartJoin();
 						p.setStartJoin(sPath, sPim);
 					}
 					if (p.endJoinsPoint != null) {
 						final PointInImage ePim = p.endJoinsPoint;
 						final Path ePath = p.endJoins;
-						ePim.x = ePim.x * cos - ePim.y * sin;
-						ePim.y = ePim.y * cos + ePim.x * sin;
+						final double x = ePim.x;
+						final double y = ePim.y;
+						ePim.x = x * cos - y * sin;
+						ePim.y = y * cos + x * sin;
 						p.unsetEndJoin();
 						p.setEndJoin(ePath, ePim);
 					}
@@ -899,24 +905,28 @@ public class Tree implements TreeProperties {
 			case Y_AXIS:
 				tree.forEach(p -> {
 					for (int node = 0; node < p.size(); node++) {
-						final PointInImage pim = p.getNodeWithoutChecks(node);
-						final double x = pim.x * cos - pim.z * sin;
-						final double z = pim.z * cos + pim.x * sin;
-						p.moveNode(node, new PointInImage(x, pim.y, z));
+						final double x = p.precise_x_positions[node];
+						final double z = p.precise_z_positions[node];
+						p.precise_x_positions[node] = x * cos - z * sin;
+						p.precise_z_positions[node] = z * cos + x * sin;
 					}
 					if (p.startJoinsPoint != null) {
 						final PointInImage sPim = p.startJoinsPoint;
 						final Path sPath = p.startJoins;
-						sPim.x = sPim.x * cos - sPim.z * sin;
-						sPim.y = sPim.z * cos + sPim.x * sin;
+						final double x = sPim.x;
+						final double z = sPim.z;
+						sPim.x = x * cos - z * sin;
+						sPim.z = z * cos + x * sin;
 						p.unsetStartJoin();
 						p.setStartJoin(sPath, sPim);
 					}
 					if (p.endJoinsPoint != null) {
 						final PointInImage ePim = p.endJoinsPoint;
 						final Path ePath = p.endJoins;
-						ePim.x = ePim.x * cos - ePim.z * sin;
-						ePim.y = ePim.z * cos + ePim.x * sin;
+						final double x = ePim.x;
+						final double z = ePim.z;
+						ePim.x = x * cos - z * sin;
+						ePim.z = z * cos + x * sin;
 						p.unsetEndJoin();
 						p.setEndJoin(ePath, ePim);
 					}
@@ -925,24 +935,28 @@ public class Tree implements TreeProperties {
 			case X_AXIS:
 				tree.forEach(p -> {
 					for (int node = 0; node < p.size(); node++) {
-						final PointInImage pim = p.getNodeWithoutChecks(node);
-						final double y = pim.y * cos - pim.z * sin;
-						final double z = pim.z * cos + pim.y * sin;
-						p.moveNode(node, new PointInImage(pim.x, y, z));
+						final double y = p.precise_y_positions[node];
+						final double z = p.precise_z_positions[node];
+						p.precise_y_positions[node] = y * cos - z * sin;
+						p.precise_z_positions[node] = z * cos + y * sin;
 					}
 					if (p.startJoinsPoint != null) {
 						final PointInImage sPim = p.startJoinsPoint;
 						final Path sPath = p.startJoins;
-						sPim.x = sPim.y * cos - sPim.z * sin;
-						sPim.y = sPim.z * cos + sPim.y * sin;
+						final double y = sPim.y;
+						final double z = sPim.z;
+						sPim.y = y * cos - z * sin;
+						sPim.z = z * cos + y * sin;
 						p.unsetStartJoin();
 						p.setStartJoin(sPath, sPim);
 					}
 					if (p.endJoinsPoint != null) {
 						final PointInImage ePim = p.endJoinsPoint;
 						final Path ePath = p.endJoins;
-						ePim.x = ePim.y * cos - ePim.z * sin;
-						ePim.y = ePim.z * cos + ePim.y * sin;
+						final double y = ePim.y;
+						final double z = ePim.z;
+						ePim.y = y * cos - z * sin;
+						ePim.z = z * cos + y * sin;
 						p.unsetEndJoin();
 						p.setEndJoin(ePath, ePim);
 					}
