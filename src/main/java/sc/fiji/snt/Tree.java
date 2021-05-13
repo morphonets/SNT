@@ -35,7 +35,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.util.ColorRGB;
 
@@ -703,47 +702,49 @@ public class Tree implements TreeProperties {
 		tree.forEach(p -> p.setCanvasOffset(offset));
 	}
 
-	/** Reverses the X-coordinates of this tree */
-	public void reverseX() {
-		tree.forEach(p -> {
-			final int startIdx = (p.startJoinsPoint == null) ? -1 : p.getNodeIndex(p.startJoinsPoint);
-			final int endIdx = (p.endJoinsPoint == null) ? -1 : p.getNodeIndex(p.endJoinsPoint);
-			ArrayUtils.reverse(p.precise_x_positions);
-			if (startIdx > -1)
-				p.startJoinsPoint.z = p.precise_x_positions[p.size() - startIdx + 1];
-			if (endIdx > -1)
-				p.startJoinsPoint.z = p.precise_x_positions[p.size() - endIdx + 1];
-		});
-		nullifyGraphsAndPafm();
-	}
-
-	/** Reverses the Y-coordinates of this tree */
-	public void reverseY() {
-		tree.forEach(p -> {
-			final int startIdx = (p.startJoinsPoint == null) ? -1 : p.getNodeIndex(p.startJoinsPoint);
-			final int endIdx = (p.endJoinsPoint == null) ? -1 : p.getNodeIndex(p.endJoinsPoint);
-			ArrayUtils.reverse(p.precise_y_positions);
-			if (startIdx > -1)
-				p.startJoinsPoint.z = p.precise_y_positions[p.size() - startIdx + 1];
-			if (endIdx > -1)
-				p.startJoinsPoint.z = p.precise_y_positions[p.size() - endIdx + 1];
-		});
-		nullifyGraphsAndPafm();
-	}
-
-	/** Reverses the Z-coordinates of this tree */
-	public void reverseZ() {
-		tree.forEach(p -> {
-			final int startIdx = (p.startJoinsPoint == null) ? -1 : p.getNodeIndex(p.startJoinsPoint);
-			final int endIdx = (p.endJoinsPoint == null) ? -1 : p.getNodeIndex(p.endJoinsPoint);
-			ArrayUtils.reverse(p.precise_z_positions);
-			if (startIdx > -1)
-				p.startJoinsPoint.z = p.precise_z_positions[p.size() - startIdx + 1];
-			if (endIdx > -1)
-				p.startJoinsPoint.z = p.precise_z_positions[p.size() - endIdx + 1];
-		});
-		nullifyGraphsAndPafm();
-	}
+// FIXME: These reverse methods are not valid
+//
+//	/** Reverses the X-coordinates of this tree */
+//	public void reverseX() {
+//		tree.forEach(p -> {
+//			final int startIdx = (p.startJoinsPoint == null) ? -1 : p.getNodeIndex(p.startJoinsPoint);
+//			final int endIdx = (p.endJoinsPoint == null) ? -1 : p.getNodeIndex(p.endJoinsPoint);
+//			ArrayUtils.reverse(p.precise_x_positions);
+//			if (startIdx > -1)
+//				p.startJoinsPoint.x = p.precise_x_positions[p.size() - startIdx + 1];
+//			if (endIdx > -1)
+//				p.endJoinsPoint.x = p.precise_x_positions[p.size() - endIdx + 1];
+//		});
+//		nullifyGraphsAndPafm();
+//	}
+//
+//	/** Reverses the Y-coordinates of this tree */
+//	public void reverseY() {
+//		tree.forEach(p -> {
+//			final int startIdx = (p.startJoinsPoint == null) ? -1 : p.getNodeIndex(p.startJoinsPoint);
+//			final int endIdx = (p.endJoinsPoint == null) ? -1 : p.getNodeIndex(p.endJoinsPoint);
+//			ArrayUtils.reverse(p.precise_y_positions);
+//			if (startIdx > -1)
+//				p.startJoinsPoint.y = p.precise_y_positions[p.size() - startIdx + 1];
+//			if (endIdx > -1)
+//				p.endJoinsPoint.y = p.precise_y_positions[p.size() - endIdx + 1];
+//		});
+//		nullifyGraphsAndPafm();
+//	}
+//
+//	/** Reverses the Z-coordinates of this tree */
+//	public void reverseZ() {
+//		tree.forEach(p -> {
+//			final int startIdx = (p.startJoinsPoint == null) ? -1 : p.getNodeIndex(p.startJoinsPoint);
+//			final int endIdx = (p.endJoinsPoint == null) ? -1 : p.getNodeIndex(p.endJoinsPoint);
+//			ArrayUtils.reverse(p.precise_z_positions);
+//			if (startIdx > -1)
+//				p.startJoinsPoint.z = p.precise_z_positions[p.size() - startIdx + 1];
+//			if (endIdx > -1)
+//				p.endJoinsPoint.z = p.precise_z_positions[p.size() - endIdx + 1];
+//		});
+//		nullifyGraphsAndPafm();
+//	}
 
 	/**
 	 * Translates the tree by the specified offset.
@@ -990,9 +991,12 @@ public class Tree implements TreeProperties {
 	 * Assesses whether this Tree has depth.
 	 *
 	 * @return true, if is 3D
+	 * @throws IllegalArgumentException if tree is empty
 	 */
-	public boolean is3D() {
-		final double zRef = getRoot().getZ();
+	public boolean is3D() throws IllegalArgumentException {
+		if (isEmpty())
+			throw new IllegalArgumentException("Tree is empty");
+		final double zRef = tree.get(0).getNodeWithoutChecks(0).getZ();
 		for (final Path p : tree) {
 			for (int i = 0; i < p.size(); ++i) {
 				if (p.getNodeWithoutChecks(i).getZ() != zRef) return true;
@@ -1749,7 +1753,7 @@ public class Tree implements TreeProperties {
 	 *              {@link #Z_AXIS}
 	 */
 	public void swapAxes(final int axis1, final int axis2) {
-		List<Integer> validAxes = Arrays.asList(X_AXIS, Y_AXIS, Z_AXIS);
+		final List<Integer> validAxes = Arrays.asList(X_AXIS, Y_AXIS, Z_AXIS);
 		if (!validAxes.contains(axis1) || !validAxes.contains(axis2)) {
 			throw new IllegalArgumentException("Unrecognized axis");
 		}

@@ -3607,7 +3607,7 @@ public class SNTUI extends JDialog {
 			} else if (source == exportAllSWCMenuItem && !noPathsError()) {
 
 				if (abortOnPutativeDataLoss()) return;
-				if (pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
+				if (plugin.accessToValidImageData() && pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
 						"These tracings were obtained from a spatially uncalibrated "
 								+ "image but the SWC specification assumes all coordinates to be " + "in "
 								+ GuiUtils.micrometer() + ". Do you really want to proceed " + "with the SWC export?",
