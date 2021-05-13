@@ -860,112 +860,37 @@ public class Tree implements TreeProperties {
 	 * Rotates the tree.
 	 *
 	 * @param axis the rotation axis. Either {@link #X_AXIS}, {@link #Y_AXIS}, or
-	 *          {@link #Z_AXIS}
+	 *          {@link #Z_AXIS}.
 	 * @param angle the rotation angle in degrees. Ignored if 0.
 	 */
 	public void rotate(final int axis, final double angle) {
+		if (Double.isNaN(angle)) throw new IllegalArgumentException("Invalid angle");
 		if (angle == 0d) return;
-		if (Double.isNaN(angle)) throw new IllegalArgumentException(
-			"Angle not valid");
-
-		// See http://www.petercollingridge.appspot.com/3D-tutorial
 		final double radAngle = Math.toRadians(angle);
 		final double sin = Math.sin(radAngle);
 		final double cos = Math.cos(radAngle);
-		switch (axis) {
-			case Z_AXIS:
-				tree.forEach(p -> {
-					for (int node = 0; node < p.size(); node++) {
-						final double x = p.precise_x_positions[node];
-						final double y = p.precise_y_positions[node];
-						p.precise_x_positions[node] = x * cos - y * sin;
-						p.precise_y_positions[node] = y * cos + x * sin;
-					}
-					if (p.startJoinsPoint != null) {
-						final PointInImage sPim = p.startJoinsPoint;
-						final Path sPath = p.startJoins;
-						final double x = sPim.x;
-						final double y = sPim.y;
-						sPim.x = x * cos - y * sin;
-						sPim.y = y * cos + x * sin;
-						p.unsetStartJoin();
-						p.setStartJoin(sPath, sPim);
-					}
-					if (p.endJoinsPoint != null) {
-						final PointInImage ePim = p.endJoinsPoint;
-						final Path ePath = p.endJoins;
-						final double x = ePim.x;
-						final double y = ePim.y;
-						ePim.x = x * cos - y * sin;
-						ePim.y = y * cos + x * sin;
-						p.unsetEndJoin();
-						p.setEndJoin(ePath, ePim);
-					}
-				});
-				break;
-			case Y_AXIS:
-				tree.forEach(p -> {
-					for (int node = 0; node < p.size(); node++) {
-						final double x = p.precise_x_positions[node];
-						final double z = p.precise_z_positions[node];
-						p.precise_x_positions[node] = x * cos - z * sin;
-						p.precise_z_positions[node] = z * cos + x * sin;
-					}
-					if (p.startJoinsPoint != null) {
-						final PointInImage sPim = p.startJoinsPoint;
-						final Path sPath = p.startJoins;
-						final double x = sPim.x;
-						final double z = sPim.z;
-						sPim.x = x * cos - z * sin;
-						sPim.z = z * cos + x * sin;
-						p.unsetStartJoin();
-						p.setStartJoin(sPath, sPim);
-					}
-					if (p.endJoinsPoint != null) {
-						final PointInImage ePim = p.endJoinsPoint;
-						final Path ePath = p.endJoins;
-						final double x = ePim.x;
-						final double z = ePim.z;
-						ePim.x = x * cos - z * sin;
-						ePim.z = z * cos + x * sin;
-						p.unsetEndJoin();
-						p.setEndJoin(ePath, ePim);
-					}
-				});
-				break;
-			case X_AXIS:
-				tree.forEach(p -> {
-					for (int node = 0; node < p.size(); node++) {
-						final double y = p.precise_y_positions[node];
-						final double z = p.precise_z_positions[node];
-						p.precise_y_positions[node] = y * cos - z * sin;
-						p.precise_z_positions[node] = z * cos + y * sin;
-					}
-					if (p.startJoinsPoint != null) {
-						final PointInImage sPim = p.startJoinsPoint;
-						final Path sPath = p.startJoins;
-						final double y = sPim.y;
-						final double z = sPim.z;
-						sPim.y = y * cos - z * sin;
-						sPim.z = z * cos + y * sin;
-						p.unsetStartJoin();
-						p.setStartJoin(sPath, sPim);
-					}
-					if (p.endJoinsPoint != null) {
-						final PointInImage ePim = p.endJoinsPoint;
-						final Path ePath = p.endJoins;
-						final double y = ePim.y;
-						final double z = ePim.z;
-						ePim.y = y * cos - z * sin;
-						ePim.z = z * cos + y * sin;
-						p.unsetEndJoin();
-						p.setEndJoin(ePath, ePim);
-					}
-				});
-				break;
-			default:
-				throw new IllegalArgumentException("Unrecognized rotation axis" + axis);
-		}
+		tree.forEach(p -> {
+			for (int node = 0; node < p.size(); node++) {
+				final PointInImage current = p.getNodeWithoutChecks(node);
+				p.moveNode(node, rotate(current, cos, sin, axis));
+			}
+			if (p.startJoinsPoint != null) {
+				final PointInImage sPim = p.startJoinsPoint;
+				final Path sPath = p.startJoins;
+				final PointInImage sPimRotated = rotate(sPim, cos, sin, axis);
+				sPimRotated.onPath = sPim.onPath;
+				p.unsetStartJoin();
+				p.setStartJoin(sPath, sPimRotated);
+			}
+			if (p.endJoinsPoint != null) {
+				final PointInImage ePim = p.endJoinsPoint;
+				final Path ePath = p.endJoins;
+				final PointInImage ePimRotated = rotate(ePim, cos, sin, axis);
+				ePimRotated.onPath = ePim.onPath;
+				p.unsetEndJoin();
+				p.setEndJoin(ePath, ePimRotated);
+			}
+		});
 		if (box != null) box.setComputationNeeded(true);
 		nullifyGraphsAndPafm();
 	}
@@ -1795,6 +1720,20 @@ public class Tree implements TreeProperties {
 		coordMap.put(swapAxis2, pim.getCoordinateOnAxis(swapAxis1));
 		coordMap.put(unchangedAxis, pim.getCoordinateOnAxis(unchangedAxis));
 		return new PointInImage(coordMap.get(X_AXIS), coordMap.get(Y_AXIS), coordMap.get(Z_AXIS));
+	}
+
+	private PointInImage rotate(final PointInImage pim, final double cos, final double sin, final int untouchedAxis) {
+		switch (untouchedAxis) {
+		// See http://www.petercollingridge.appspot.com/3D-tutorial
+		case Z_AXIS:
+			return new PointInImage(pim.x * cos - pim.y * sin, pim.y * cos + pim.x * sin, pim.z);
+		case Y_AXIS:
+			return new PointInImage(pim.x * cos - pim.z * sin, pim.y, pim.z * cos + pim.x * sin);
+		case X_AXIS:
+			return new PointInImage(pim.x, pim.y * cos - pim.z * sin, pim.z * cos + pim.y * sin);
+		default:
+			throw new IllegalArgumentException("Unrecognized rotation axis" + untouchedAxis);
+		}
 	}
 
 	/* IDE debug method */
