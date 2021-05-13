@@ -1,8 +1,8 @@
 # @String(value="<HTML><b>Scale: Apply Scaling Factor(s)",visibility="MESSAGE") msg1
-# @double(label="X") xscale
-# @double(label="Y") yscale
-# @double(label="Z") zscale
-# @double(label="Radii") rscale
+# @double(label="X", min=0) xscale
+# @double(label="Y", min=0) yscale
+# @double(label="Z", min=0) zscale
+# @double(label="Radii", min=0) rscale
 # @boolean(label="Skip scaling") skip_scale
 # @String(value="<HTML><b>Translate: Apply Offset(s)  ",visibility="MESSAGE") msg2
 # @double(label="X") xtrans
@@ -76,4 +76,3 @@ def run():
 
 
 run()
-

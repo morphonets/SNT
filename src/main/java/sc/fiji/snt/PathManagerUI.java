@@ -2673,22 +2673,23 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					"<HTML><body><div style='width:" + Math.min(getWidth(), 500) + ";'>" +
 						"Please specify a constant radius to be applied to all the nodes " +
 						"of selected path(s). This setting only applies to unfitted " +
-						"paths and <b>overrides</b> any existing values.",
-					"Assign Constant Diameter", rad);
+						"paths and <b>overrides</b> any existing values.<br> NB: You can use " +
+						"the <i>Transform Paths</i> script to scale existing radii.",
+					"Assign Constant Radius", rad);
 				if (userRad == null) {
 					return; // user pressed cancel
 				}
 				if (Double.isNaN(userRad) || userRad < 0) {
-					guiUtils.error("Invalid diameter value.");
+					guiUtils.error("Invalid value.");
 					return;
 				}
 				if (userRad == 0d && !guiUtils.getConfirmation(
 					"Discard thickness information from selected paths?",
-					"Confirm Removal of Diameters"))
+					"Confirm?"))
 				{
 					return;
 				}
-				selectedPaths.parallelStream().forEach(p -> {
+				selectedPaths.forEach(p -> {
 					if (!p.isFittedVersionOfAnotherPath()) p.setRadius(userRad);
 				});
 				guiUtils.tempMsg("Command finished. Fitted path(s) ignored.");
