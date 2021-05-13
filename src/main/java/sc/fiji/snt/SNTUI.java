@@ -107,6 +107,7 @@ import sc.fiji.snt.gui.ColorChooserButton;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.SigmaPalette;
 import sc.fiji.snt.io.FlyCircuitLoader;
@@ -172,6 +173,7 @@ public class SNTUI extends JDialog {
 	private JCheckBox preprocess;
 	private JCheckBox aStarCheckBox;
 	private SigmaPalette sigmaPalette;
+	private final SNTCommandFinder commandFinder;
 
 	// UI controls for CT data source
 	private JPanel sourcePanel;
@@ -271,6 +273,7 @@ public class SNTUI extends JDialog {
 		new ClarifyingKeyListener(plugin).addKeyAndContainerListenerRecursively(this);
 		listener = new GuiListener();
 		pathAndFillManager = plugin.getPathAndFillManager();
+		commandFinder = new SNTCommandFinder(this);
 
 		setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowAdapter() {
@@ -669,6 +672,7 @@ public class SNTUI extends JDialog {
 			msg = "There are unsaved measurements. Do you really want to quit?";
 		if (!guiUtils.getConfirmation(msg, "Really Quit?"))
 			return;
+		commandFinder.dispose();
 		abortCurrentOperation();
 		plugin.cancelSearch(true);
 		plugin.notifyListeners(new SNTEvent(SNTEvent.QUIT));
@@ -2190,6 +2194,13 @@ public class SNTUI extends JDialog {
 		final JMenu viewMenu = new JMenu("View");
 		menuBar.add(viewMenu);
 		menuBar.add(GuiUtils.helpMenu());
+		final JMenuItem cFinder = new JMenuItem(IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH));
+		cFinder.addActionListener( e -> {
+			commandFinder.setLocationRelativeTo(cFinder);
+			commandFinder.toggleVisibility();
+		});
+		menuBar.add(cFinder);
+
 
 		fileMenu.add(importSubmenu);
 		fileMenu.add(exportSubmenu);
