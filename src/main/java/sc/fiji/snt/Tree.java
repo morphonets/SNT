@@ -1760,18 +1760,37 @@ public class Tree implements TreeProperties {
 		final int axis3 = X_AXIS + Y_AXIS + Z_AXIS - axis1 - axis2;
 		for (final Path p : this.list()) {
 			for (int i = 0; i < p.size(); i++) {
-				final PointInImage current = p.getNode(i);
+				final PointInImage current = p.getNodeWithoutChecks(i);
 				// swap axis1 and axis2
-				final Map<Integer, Double> coordMap = new HashMap<Integer, Double>();
-				coordMap.put(axis1, current.getCoordinateOnAxis(axis2));
-				coordMap.put(axis2, current.getCoordinateOnAxis(axis1));
-				coordMap.put(axis3, current.getCoordinateOnAxis(axis3));
-				p.moveNode(i, new PointInImage(coordMap.get(X_AXIS), coordMap.get(Y_AXIS), coordMap.get(Z_AXIS)));
+				p.moveNode(i, swap(current, axis1, axis2, axis3));
+			}
+			if (p.startJoinsPoint != null) {
+				final PointInImage sPim = p.startJoinsPoint;
+				final Path sPath = p.startJoins;
+				final PointInImage sPimSwapped = swap(sPim, axis1, axis2, axis3);
+				sPimSwapped.onPath = sPim.onPath;
+				p.unsetStartJoin();
+				p.setStartJoin(sPath, sPimSwapped);
+			}
+			if (p.endJoinsPoint != null) {
+				final PointInImage ePim = p.endJoinsPoint;
+				final Path ePath = p.endJoins;
+				final PointInImage ePimSwapped = swap(ePim, axis1, axis2, axis3);
+				ePimSwapped.onPath = ePim.onPath;
+				p.unsetEndJoin();
+				p.setEndJoin(ePath, ePimSwapped);
 			}
 		}
-		if (graph != null) {
-			rebuildGraph();
-		}
+		nullifyGraphsAndPafm();
+	}
+
+	private PointInImage swap(final PointInImage pim, int swapAxis1, int swapAxis2, int unchangedAxis) {
+		// swap axis1 and axis2
+		final Map<Integer, Double> coordMap = new HashMap<Integer, Double>();
+		coordMap.put(swapAxis1, pim.getCoordinateOnAxis(swapAxis2));
+		coordMap.put(swapAxis2, pim.getCoordinateOnAxis(swapAxis1));
+		coordMap.put(unchangedAxis, pim.getCoordinateOnAxis(unchangedAxis));
+		return new PointInImage(coordMap.get(X_AXIS), coordMap.get(Y_AXIS), coordMap.get(Z_AXIS));
 	}
 
 	/* IDE debug method */
