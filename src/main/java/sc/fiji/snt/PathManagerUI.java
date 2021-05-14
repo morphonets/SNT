@@ -403,6 +403,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final JMenu selectByMorphoMenu = searchableBar.getMorphoFilterMenu();
 		selectByMorphoMenu.setText("Select by Morphometric Trait");
 		popup.add(selectByMorphoMenu);
+		tree.setComponentPopupMenu(popup);
 		tree.addMouseListener(new MouseAdapter() {
 
 			@Override
@@ -416,14 +417,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 
 			private void handleMouseEvent(final MouseEvent e) {
-				if (e.isConsumed())
-					return;
-				if (e.isPopupTrigger()) {
-					showPopup(e);
-				} else if (tree.getRowForLocation(e.getX(), e.getY()) == -1) {
+				if (!e.isConsumed() && tree.getRowForLocation(e.getX(), e.getY()) == -1) {
 					tree.clearSelection(); // Deselect when clicking on 'empty space'
+					e.consume();
 				}
-				e.consume();
 			}
 		});
 
@@ -829,11 +826,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private void displayTmpMsg(final String msg) {
 		assert SwingUtilities.isEventDispatchThread();
 		guiUtils.tempMsg(msg);
-	}
-
-	private void showPopup(final MouseEvent me) {
-		assert SwingUtilities.isEventDispatchThread();
-		popup.show(me.getComponent(), me.getX(), me.getY());
 	}
 
 	/* (non-Javadoc)

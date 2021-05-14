@@ -777,6 +777,16 @@ public class GuiUtils {
 		if (vgap) c.insets.top = previousTopGap;
 	}
 
+	public static JMenuItem menubarButton(final Icon icon, final JMenuBar menuBar) {
+		final JMenuItem mi = new JMenuItem(icon);
+		mi.setMinimumSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
+		mi.setPreferredSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
+		mi.setMaximumSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
+		menuBar.add(javax.swing.Box.createHorizontalGlue());
+		menuBar.add(mi);
+		return mi;
+	}
+
 	public static JLabel leftAlignedLabel(final String text, final boolean enabled) {
 		return leftAlignedLabel(text, null, enabled);
 	}
@@ -890,9 +900,9 @@ public class GuiUtils {
 		return list;
 	}
 
-	public static List<JMenuItem> getMenuItems(final JPopupMenu menuBar) {
+	public static List<JMenuItem> getMenuItems(final JPopupMenu popupMenu) {
 		final List<JMenuItem> list = new ArrayList<>();
-		for (final MenuElement me : menuBar.getSubElements()) {
+		for (final MenuElement me : popupMenu.getSubElements()) {
 			if (me == null) {
 				continue;
 			} else if (me instanceof JMenuItem) {
