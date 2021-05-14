@@ -1164,6 +1164,11 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 				}
 			}
 
+			if (!prefService.getBoolean(ShollAnalysisPrefsCmd.class, "includeZeroCounts",
+					ShollAnalysisPrefsCmd.DEF_INCLUDE_ZERO_COUNTS)) {
+				profile.trimZeroCounts();
+			}
+
 			/// Normalized profile stats
 			final NormalizedProfileStats nStats = getNormalizedProfileStats(profile);
 			logger.debug("Sholl decay: " + nStats.getShollDecay());
@@ -1263,9 +1268,8 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		}
 
 		private boolean validOutput() {
-			boolean noOutput = plotOutputDescription.contains("None");
-//			noOutput = noOutput && tableOutputDescription.contains("None");
-			noOutput = noOutput && annotationsDescription.contains("None");
+			final boolean noOutput = plotOutputDescription.contains("None") && tableOutputDescription.contains("None")
+					&& annotationsDescription.contains("None");
 			if (noOutput) {
 				cancel("Invalid output");
 				helper.error("Analysis can only proceed if at least one type " +

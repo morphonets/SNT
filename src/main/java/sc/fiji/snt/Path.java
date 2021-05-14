@@ -1713,14 +1713,13 @@ public class Path implements Comparable<Path> {
 	}
 
 	/**
-	 * Assesses whether a custom color has been assigned to this Path, or its
-	 * nodes have been assigned an array of colors
+	 * Assesses whether a custom color has been assigned to this Path.
 	 *
 	 * @return true, if successful
 	 * @see #hasNodeColors()
 	 */
 	public boolean hasCustomColor() {
-		return (hasCustomColor && color != null) || hasNodeColors();
+		return (hasCustomColor && color != null); // backwards compatibility: we cannot include hasNodeColors()
 	}
 
 	/**

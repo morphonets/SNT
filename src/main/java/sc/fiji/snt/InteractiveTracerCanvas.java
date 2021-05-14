@@ -24,7 +24,6 @@ package sc.fiji.snt;
 
 import ij.IJ;
 import ij.ImagePlus;
-import ij.gui.PointRoi;
 import ij.gui.Roi;
 import ij.gui.Toolbar;
 import ij.measure.Calibration;
@@ -470,7 +469,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			return null;
 		}
 
-		System.out.println(last_x_in_pane_precise + ", " + last_y_in_pane_precise);
+//		System.out.println(last_x_in_pane_precise + ", " + last_y_in_pane_precise);
 		final double[] p = new double[3];
 		tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise,
 			last_y_in_pane_precise, plane, p);
@@ -485,8 +484,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final PointInImage cursor = new PointInImage(p[0], p[1], 0);
 		final double maxSquaredLength = Math.max(cursor.distanceSquaredTo(rectMin),
 			cursor.distanceSquaredTo(rectMax));
-		System.out.println(SNTUtils.formatDouble(last_x_in_pane_precise, 2) + ", " +
-			SNTUtils.formatDouble(last_y_in_pane_precise, 2) + " | dx:" + maxSquaredLength);
+//		System.out.println(SNTUtils.formatDouble(last_x_in_pane_precise, 2) + ", " +
+//			SNTUtils.formatDouble(last_y_in_pane_precise, 2) + " | dx:" + maxSquaredLength);
 
 		// Find the nearest point on unselected Paths currently displayed in
 		// viewPort

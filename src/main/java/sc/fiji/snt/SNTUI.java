@@ -44,6 +44,13 @@ import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.gui.ColorChooserButton;
+import sc.fiji.snt.gui.FileDrop;
+import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.SNTCommandFinder;
+import sc.fiji.snt.gui.ScriptInstaller;
+import sc.fiji.snt.gui.SigmaPalette;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.*;
@@ -116,6 +123,7 @@ public class SNTUI extends JDialog {
 	private JCheckBox preprocess;
 	private JCheckBox aStarCheckBox;
 	private SigmaPalette sigmaPalette;
+	private final SNTCommandFinder commandFinder;
 
 	// UI controls for CT data source
 	private JPanel sourcePanel;
@@ -215,6 +223,7 @@ public class SNTUI extends JDialog {
 		new ClarifyingKeyListener(plugin).addKeyAndContainerListenerRecursively(this);
 		listener = new GuiListener();
 		pathAndFillManager = plugin.getPathAndFillManager();
+		commandFinder = new SNTCommandFinder(this);
 
 		setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowAdapter() {
@@ -616,6 +625,7 @@ public class SNTUI extends JDialog {
 			msg = "There are unsaved measurements. Do you really want to quit?";
 		if (!guiUtils.getConfirmation(msg, "Really Quit?"))
 			return;
+		commandFinder.dispose();
 		abortCurrentOperation();
 		plugin.cancelSearch(true);
 		plugin.notifyListeners(new SNTEvent(SNTEvent.QUIT));
@@ -1186,11 +1196,10 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel nodePanel() {
-		final InteractiveTracerCanvas canvas = plugin.getXYCanvas();
-		final JSpinner nodeSpinner = GuiUtils.doubleSpinner((canvas == null) ? 1 : canvas.nodeDiameter(), 0, 100, 1, 0);
+		final JSpinner nodeSpinner = GuiUtils.doubleSpinner((plugin.getXYCanvas() == null) ? 1 : plugin.getXYCanvas().nodeDiameter(), 0, 100, 1, 0);
 		nodeSpinner.addChangeListener(e -> {
 			final double value = (double) (nodeSpinner.getValue());
-			canvas.setNodeDiameter(value);
+			plugin.getXYCanvas().setNodeDiameter(value);
 			if (!plugin.getSinglePane()) {
 				plugin.getXZCanvas().setNodeDiameter(value);
 				plugin.getZYCanvas().setNodeDiameter(value);
@@ -2137,6 +2146,13 @@ public class SNTUI extends JDialog {
 		final JMenu viewMenu = new JMenu("View");
 		menuBar.add(viewMenu);
 		menuBar.add(GuiUtils.helpMenu());
+		final JMenuItem cFinder = new JMenuItem(IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH));
+		cFinder.addActionListener( e -> {
+			commandFinder.setLocationRelativeTo(cFinder);
+			commandFinder.toggleVisibility();
+		});
+		menuBar.add(cFinder);
+
 
 		fileMenu.add(importSubmenu);
 		fileMenu.add(exportSubmenu);
@@ -2320,10 +2336,11 @@ public class SNTUI extends JDialog {
 				IconFactory.getMenuIcon(IconFactory.GLYPH.BULLSEYE));
 		shollMenuItem.addActionListener(e -> {
 			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
+			final Tree tree = getPathManager().getMultipleTreesInASingleContainer();
 			if (tree == null) return;
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("tree", tree);
+			inputs.put("snt", plugin);
 			(new DynamicCmdRunner(ShollAnalysisTreeCmd.class, inputs, getState())).run();
 		});
 		analysisMenu.add(shollMenuItem);
@@ -3598,7 +3615,7 @@ public class SNTUI extends JDialog {
 			} else if (source == exportAllSWCMenuItem && !noPathsError()) {
 
 				if (abortOnPutativeDataLoss()) return;
-				if (pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
+				if (plugin.accessToValidImageData() && pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
 						"These tracings were obtained from a spatially uncalibrated "
 								+ "image but the SWC specification assumes all coordinates to be " + "in "
 								+ GuiUtils.micrometer() + ". Do you really want to proceed " + "with the SWC export?",
@@ -4008,6 +4025,7 @@ public class SNTUI extends JDialog {
 					}
 					if (choices[4].equals(choice)) {
 						plugin.getPathAndFillManager().addTree(sntService.demoTree("fractal"));
+						plugin.getPathAndFillManager().assignSpatialSettings(imp);
 					} else if (choices[3].equals(choice)) {
 						sntService.loadTracings(
 							"https://raw.githubusercontent.com/morphonets/SNTmanuscript/9b4b933a742244505f0544c29211e596c85a5da7/Fig01/traces/701.traces");

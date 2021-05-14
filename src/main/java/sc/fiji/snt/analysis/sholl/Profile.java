@@ -128,6 +128,13 @@ public class Profile implements ProfileProperties {
 		return radii;
 	}
 
+	public Profile duplicate() {
+		final Profile dup = new Profile();
+		dup.profile.addAll(profile);
+		dup.properties = (Properties)properties.clone();
+		return dup;
+	}
+
 	public ArrayList<Double> radiiSquared() {
 		final ArrayList<Double> radii = new ArrayList<>();
 		for (final ProfileEntry e : profile)
