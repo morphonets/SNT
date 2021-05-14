@@ -109,11 +109,11 @@ public class HessianCaller {
 	}
 
 	public Thread start() {
-		snt.changeUIState((type == PRIMARY) ? SNTUI.CALCULATING_GAUSSIAN_I : SNTUI.CALCULATING_GAUSSIAN_II);
+		snt.changeUIState((type == PRIMARY) ? SNTUI.CALCULATING_HESSIAN_I : SNTUI.CALCULATING_HESSIAN_II);
 		if (sigma == -1)
 			sigma = getDefaultSigma();
 		setImp();
-		hessian = new HessianAnalyzer(imp);
+		hessian = new HessianAnalyzer(imp, snt);
 		Thread thread;
 		if (analysisType == TUBENESS) {
 			thread = new Thread(() -> hessian.processTubeness(sigma, false));

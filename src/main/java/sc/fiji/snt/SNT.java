@@ -81,7 +81,7 @@ import java.util.concurrent.*;
  * @author Cameron Arshadi
  */
 public class SNT extends MultiDThreePanes implements
-	SearchProgressCallback, GaussianGenerationCallback, PathAndFillListener
+	SearchProgressCallback, HessianGenerationCallback, PathAndFillListener
 {
 
 	@Parameter
@@ -2464,7 +2464,7 @@ public class SNT extends MultiDThreePanes implements
 		secondaryHessian.cancelGaussianGeneration();
 	}
 
-	private void nullifyHessian() {
+	protected void nullifyHessian() {
 		hessianEnabled = false;
 		primaryHessian.nullify();
 		secondaryHessian.nullify();

@@ -522,7 +522,7 @@ public class SigmaPalette extends Thread {
 			final int offsetX = sigmaX * (croppedWidth + 1) + 1;
 			final int offsetY = sigmaY * (croppedHeight + 1) + 1;
 			final double sigma = sigmaValues[sigmaIndex];
-			final HessianAnalyzer hessian = new HessianAnalyzer(cropped);
+			final HessianAnalyzer hessian = new HessianAnalyzer(cropped, null);
 			ImagePlus processed;
 			if (hc.getAnalysisType() == HessianCaller.TUBENESS) {
 				hessian.processTubeness(sigma, false);

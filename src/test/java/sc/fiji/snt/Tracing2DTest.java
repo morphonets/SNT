@@ -63,8 +63,6 @@ public class Tracing2DTest {
 	@Test
 	public void testTracing() {
 
-		final Calibration calibration = image.getCalibration();
-
 		long pointsExploredNormal;
 		{
 			final TracerThread tracer = new TracerThread(image, 0, 254, -1, // timeoutSeconds
@@ -117,22 +115,22 @@ public class Tracing2DTest {
 			long pointsExploredHessian;
 			long pointsExploredNBAStarHessian;
 
-			final HessianAnalyzer hessian2 = new HessianAnalyzer(image);
-			hessian2.processFrangi(new double[]{0.66, 0.98}, true);
-			//hessian2.processTubeness(0.835, false);
+			final HessianAnalyzer hessian = new HessianAnalyzer(image, null);
+			//hessian2.processFrangi(new double[]{0.66, 0.98}, true);
+			hessian.processTubeness(0.835, false);
 
 			final TracerThread tracer = new TracerThread(image, 0, 254, -1, // timeoutSeconds
 					100, // reportEveryMilliseconds
 					startX, startY, 0,
 					endX, endY, 0,
-					ArraySearchImage.class, new FrangiCost(hessian2), new EuclideanHeuristic());
+					ArraySearchImage.class, new TubenessCost(hessian, 4), new EuclideanHeuristic());
 
 			final BidirectionalHeuristicSearch tracerNBAStar = new BidirectionalHeuristicSearch(
 					startX, startY, 0,
 					endX, endY, 0,
 					image, 0, 254,
-					-1, 100, // reciprocal
-					ArraySearchImage.class, new FrangiCost(hessian2), new EuclideanHeuristic()
+					-1, 100,
+					ArraySearchImage.class, new TubenessCost(hessian, 4), new EuclideanHeuristic()
 			);
 
 			tracer.run();
@@ -143,16 +141,14 @@ public class Tracing2DTest {
 
 			final double foundPathLength = result.getLength();
 			final double foundPathLengthNBAStar = resultNBAStar.getLength();
+//			System.out.println(foundPathLengthNBAStar);
+//			System.out.println(foundPathLength);
 
-			assertTrue("Path length must be greater than 202.83 micrometres",
-				foundPathLength > 202.83);
-			assertTrue("Path length must be greater than 202.83 micrometres",
-					foundPathLengthNBAStar > 202.83);
+			assertTrue(foundPathLength > 193.83);
+			assertTrue(foundPathLengthNBAStar > 193.83);
 
-			assertTrue("Path length must be less than 202.84 micrometres",
-				foundPathLength < 202.84);
-			assertTrue("Path length must be less than 202.84 micrometres",
-					foundPathLengthNBAStar < 202.84);
+			assertTrue(foundPathLength < 193.84);
+			assertTrue(foundPathLengthNBAStar < 193.84);
 
 //			pointsExploredHessian = tracer.pointsConsideredInSearch();
 //			pointsExploredNBAStarHessian = tracerNBAStar.pointsConsideredInSearch();
@@ -160,12 +156,12 @@ public class Tracing2DTest {
 //			assertTrue("Hessian-based analysis should reduce the points explored " +
 //				"by at least a two fifths; in fact went from " + pointsExploredNormal +
 //				" to " + pointsExploredHessian,
-//				pointsExploredHessian < pointsExploredNormal * 0.8);
+//				pointsExploredHessian < pointsExploredNormal * 0.85);
 //
 //			assertTrue("Hessian-based analysis should reduce the points explored " +
 //							"by at least a two fifths; in fact went from " + pointsExploredNBAStar +
 //							" to " + pointsExploredNBAStarHessian,
-//					pointsExploredNBAStarHessian < pointsExploredNBAStar * 0.8);
+//					pointsExploredNBAStarHessian < pointsExploredNBAStar * 0.85);
 		}
 	}
 }

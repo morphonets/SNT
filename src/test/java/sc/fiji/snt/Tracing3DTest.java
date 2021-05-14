@@ -31,6 +31,7 @@ import org.junit.Test;
 import sc.fiji.snt.util.ArraySearchImage;
 
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeNotNull;
@@ -77,7 +78,7 @@ public class Tracing3DTest {
 			assertNotNull("Not path found", result);
 
 			final double foundPathLength = result.getLength();
-			System.out.println(foundPathLength);
+//			System.out.println(foundPathLength);
 
 			assertTrue(foundPathLength > 227.4);
 			assertTrue(foundPathLength < 227.6);
@@ -99,7 +100,7 @@ public class Tracing3DTest {
 			assertNotNull("Not path found", result);
 
 			final double foundPathLength = result.getLength();
-			System.out.println(foundPathLength);
+//			System.out.println(foundPathLength);
 			assertTrue(foundPathLength > 227.4);
 			assertTrue(foundPathLength < 227.6);
 
@@ -111,24 +112,25 @@ public class Tracing3DTest {
 			long pointsExploredHessian;
 			long pointsExploredNBAStarHessian;
 
-			final HessianAnalyzer hessian = new HessianAnalyzer(image);
-			hessian.setNumThreads(1);
-			hessian.processTubeness(0.98, false);
-			//hessian.processFrangi(new double[]{0.66, 0.98, 1.3}, true);
+			final HessianAnalyzer hessian = new HessianAnalyzer(image, null);
+			hessian.processTubeness(0.84, false);
+			//hessian.processFrangi(new double[]{0.54, 0.77, 0.843}, true);
 
 			final TracerThread tracer = new TracerThread(image, 0, 254, -1, // timeoutSeconds
 					100, // reportEveryMilliseconds
-					startX, startY, startZ, endX, endY, endZ, ArraySearchImage.class,
-					new TubenessCost(hessian, 63),
+					startX, startY, startZ,
+					endX, endY, endZ,
+					ArraySearchImage.class,
+					new TubenessCost(hessian, 5),
 					new EuclideanHeuristic());
 
 			final BidirectionalHeuristicSearch tracerNBAStar = new BidirectionalHeuristicSearch(
-					startX, startY, 0,
-					endX, endY, 0,
+					startX, startY, startZ,
+					endX, endY, endZ,
 					image, 0, 254,
 					-1, 100, // reciprocal
 					ArraySearchImage.class,
-					new TubenessCost(hessian, 63),
+					new TubenessCost(hessian, 5),
 					new EuclideanHeuristic());
 
 			tracer.run();
@@ -140,21 +142,21 @@ public class Tracing3DTest {
 
 			final double foundPathLength = result.getLength();
 			final double foundPathLengthNBAStar = resultNBAStar.getLength();
+//			System.out.println(foundPathLength);
+//			System.out.println(foundPathLengthNBAStar);
 
+			assertTrue(foundPathLength > 226.4);
+			assertTrue(foundPathLengthNBAStar > 226.4);
 
-			assertTrue(foundPathLength > 226);
-			assertTrue(foundPathLengthNBAStar > 226);
-
-			assertTrue(foundPathLength < 226.2);
-			assertTrue(foundPathLengthNBAStar < 226.2);
+			assertTrue(foundPathLength < 226.5);
+			assertTrue(foundPathLengthNBAStar < 226.5);
 
 			pointsExploredHessian = tracer.pointsConsideredInSearch();
 			pointsExploredNBAStarHessian = tracerNBAStar.pointsConsideredInSearch();
-
-			assertTrue("Hessian-based analysis should explore less than 46000 points",
-				pointsExploredHessian < 46000);
-			assertTrue("Hessian-based analysis should explore less than 46000 points",
-				pointsExploredNBAStarHessian < 46000);
+//			System.out.println(pointsExploredHessian);
+//			System.out.println(pointsExploredNBAStarHessian);
+			assertTrue(pointsExploredHessian < 49000);
+			assertTrue(pointsExploredNBAStarHessian < 49000);
 
 			assertTrue("Hessian-based analysis should reduce the points explored " +
 				"by at least a third; in fact went from " + pointsExploredNormal +

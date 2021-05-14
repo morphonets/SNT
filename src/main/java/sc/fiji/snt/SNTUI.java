@@ -163,8 +163,8 @@ public class SNTUI extends JDialog {
 	public static final int RUNNING_CMD = 4;
 	static final int CACHING_DATA = 5;
 	static final int FILLING_PATHS = 6;
-	static final int CALCULATING_GAUSSIAN_I = 7;
-	static final int CALCULATING_GAUSSIAN_II = 8;
+	static final int CALCULATING_HESSIAN_I = 7;
+	static final int CALCULATING_HESSIAN_II = 8;
 	static final int WAITING_FOR_SIGMA_POINT_I = 9;
 	static final int WAITING_FOR_SIGMA_POINT_II = 10;
 	static final int WAITING_FOR_SIGMA_CHOICE = 11;
@@ -778,15 +778,15 @@ public class SNTUI extends JDialog {
 				disableEverything();
 				break;
 
-			case CALCULATING_GAUSSIAN_I:
-				updateStatusText("Calculating Gaussian...");
-				showStatus("Computing Gaussian for main image...", false);
+			case CALCULATING_HESSIAN_I:
+				updateStatusText("Calculating Hessian...");
+				showStatus("Computing Hessian for main image...", false);
 				disableEverything();
 				break;
 
-			case CALCULATING_GAUSSIAN_II:
-				updateStatusText("Calculating Gaussian (II Image)..");
-				showStatus("Computing Gaussian (secondary image)...", false);
+			case CALCULATING_HESSIAN_II:
+				updateStatusText("Calculating Hessian (II Image)..");
+				showStatus("Computing Hessian (secondary image)...", false);
 				disableEverything();
 				break;
 
@@ -2664,7 +2664,9 @@ public class SNTUI extends JDialog {
 			if (!analysisTypeChoice.hasFocus()) return; // if user did not trigger the event ignore it
 			@SuppressWarnings("unchecked")
 			final int idx = (int) ((JComboBox<String>) event.getSource()).getSelectedIndex();
-			//TODO: nullify hessian once this changes
+			//TODO: Tiago please check this
+			plugin.nullifyHessian();
+			preprocess.setSelected(false);
 			plugin.costFunctionClass = (idx == 0) ? TubenessCost.class : FrangiCost.class;
 			plugin.primaryHessian.setAnalysisType((idx == 0) ? HessianCaller.TUBENESS : HessianCaller.FRANGI);
 			plugin.secondaryHessian.setAnalysisType((idx == 0) ? HessianCaller.TUBENESS : HessianCaller.FRANGI);
@@ -3246,9 +3248,9 @@ public class SNTUI extends JDialog {
 		case (RUNNING_CMD):
 			updateStatusText("Requesting command cancellation", true);
 			break;
-		case (CALCULATING_GAUSSIAN_I):
-		case (CALCULATING_GAUSSIAN_II):
-			updateStatusText("Cancelling Gaussian generation...", true);
+		case (CALCULATING_HESSIAN_I):
+		case (CALCULATING_HESSIAN_II):
+			updateStatusText("Cancelling Hessian generation...", true);
 			plugin.cancelGaussian();
 			break;
 		case (WAITING_FOR_SIGMA_POINT_I):
@@ -3367,10 +3369,10 @@ public class SNTUI extends JDialog {
 			return "RUNNING_CMD";
 		case FILLING_PATHS:
 			return "FILLING_PATHS";
-		case CALCULATING_GAUSSIAN_I:
-			return "CALCULATING_GAUSSIAN_I";
-		case CALCULATING_GAUSSIAN_II:
-			return "CALCULATING_GAUSSIAN_II";
+		case CALCULATING_HESSIAN_I:
+			return "CALCULATING_HESSIAN_I";
+		case CALCULATING_HESSIAN_II:
+			return "CALCULATING_HESSIAN_II";
 		case WAITING_FOR_SIGMA_POINT_I:
 			return "WAITING_FOR_SIGMA_POINT_I";
 		case WAITING_FOR_SIGMA_POINT_II:
@@ -3671,7 +3673,7 @@ public class SNTUI extends JDialog {
 
 				//TODO: Do not prompt for max choice when using Frangi as analysis type
 				if (userPreferstoRunWizard("No. Adjust Manually...")) return;
-				final String choice = getPrimarySecondaryImgChoice("Adjust settings for wich image?");
+				final String choice = getPrimarySecondaryImgChoice("Adjust settings for which image?");
 				if (choice == null) return;
 				final HessianCaller hc = plugin.getHessianCaller(choice);
 				if (hc.cachedTubeness == null) {
@@ -3684,7 +3686,7 @@ public class SNTUI extends JDialog {
 				}
 
 			} else if (e.getActionCommand().equals(EDIT_SIGMA_VISUALLY)) {
-				final String choice = getPrimarySecondaryImgChoice("Adjust settings for wich image?");
+				final String choice = getPrimarySecondaryImgChoice("Adjust settings for which image?");
 				if (choice == null) return;
 				if (okToFlushCachedTubeness(choice)) {
 					changeState(("secondary".equalsIgnoreCase(choice)) ? WAITING_FOR_SIGMA_POINT_II
