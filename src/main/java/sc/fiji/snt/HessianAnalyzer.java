@@ -22,8 +22,11 @@
 
 package sc.fiji.snt;
 
+import ij.IJ;
+import net.imagej.ImageJ;
 import ij.ImagePlus;
 import ij.measure.Calibration;
+import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.algorithm.convolution.fast_gauss.FastGauss;
@@ -45,7 +48,6 @@ import net.imglib2.util.Intervals;
 import net.imglib2.util.RealSum;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
-import org.scijava.Context;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,6 +64,14 @@ import java.util.concurrent.Executors;
  * @author Cameron Arshadi
  */
 public class HessianAnalyzer {
+    static class TrivialProgressDisplayer implements HessianGenerationCallback {
+        public void proportionDone(double proportion) {
+            if (proportion < 0)
+                IJ.showProgress(1.0);
+            else
+                IJ.showProgress(proportion);
+        }
+    }
 
     final RandomAccessibleInterval<? extends RealType<?>> img;
     final long[] imgDim;
@@ -81,9 +91,12 @@ public class HessianAnalyzer {
     RandomAccess<FloatType> frangiAccess;
     ImgStats frangiStats;
 
+    private final HessianGenerationCallback callback;
+
     private int nThreads;
 
-    public HessianAnalyzer(final ImagePlus imp) {
+
+    public HessianAnalyzer(final ImagePlus imp, final HessianGenerationCallback callback) {
         if (imp == null) {
             throw new IllegalArgumentException("BUG: ImagePlus cannot be null");
         }
@@ -101,188 +114,16 @@ public class HessianAnalyzer {
             this.pixelHeight = 1.0d;
             this.pixelDepth = 1.0d;
         }
+        if (callback == null) {
+            this.callback = new TrivialProgressDisplayer();
+        } else {
+            this.callback = callback;
+        }
         this.nThreads = SNTPrefs.getThreads();
     }
 
     public void setNumThreads(final int nThreads) {
         this.nThreads = nThreads;
-    }
-
-    protected RandomAccessibleInterval<FloatType> tubeness2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                                                             final TaskExecutor ex)
-    {
-        final int d = eigenvalueRai.numDimensions() - 1;
-        final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
-        final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
-        final RandomAccessibleInterval<FloatType> tubenessRai = ArrayImgs.floats(Intervals.dimensionsAsLongArray(evs0));
-        LoopBuilder.setImages(evs0, evs1, tubenessRai).multiThreaded(ex).forEachPixel(
-                (ev0, ev1, v) -> {
-                    double e0 = ev0.getRealDouble();
-                    double e1 = ev1.getRealDouble();
-                    final List<Double> dl = Arrays.asList(e0, e1);
-                    dl.sort(Comparator.comparingDouble(Math::abs));
-                    e1 = dl.get(1);
-                    double result = 0;
-                    if (e1 < 0) {
-                        result = Math.abs(e1);
-                    }
-                    v.set((float) result);
-                }
-        );
-        return tubenessRai;
-    }
-
-    protected RandomAccessibleInterval<FloatType> tubeness3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                                                             final TaskExecutor ex)
-    {
-        final int d = eigenvalueRai.numDimensions() - 1;
-        final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
-        final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
-        final IntervalView<FloatType> evs2 = Views.hyperSlice(eigenvalueRai, d, 2);
-        final RandomAccessibleInterval<FloatType> tubenessRai = ArrayImgs.floats(Intervals.dimensionsAsLongArray(evs0));
-        LoopBuilder.setImages(evs0, evs1, evs2, tubenessRai).multiThreaded(ex).forEachPixel(
-                (ev0, ev1, ev2, v) -> {
-                    float e0 = ev0.getRealFloat();
-                    float e1 = ev1.getRealFloat();
-                    float e2 = ev2.getRealFloat();
-                    final List<Float> dl = Arrays.asList(e0, e1, e2);
-                    dl.sort(Comparator.comparingDouble(Math::abs));
-                    e1 = dl.get(1);
-                    e2 = dl.get(2);
-                    double result = 0;
-                    if (e1 < 0 && e2 < 0) {
-                        result = Math.sqrt(e1 * e2);
-                    }
-                    v.set((float) result);
-                }
-        );
-        return tubenessRai;
-    }
-
-    protected float maxSquaredFrobenius(final RandomAccessibleInterval<FloatType> hessianRai, final TaskExecutor ex) {
-        final RandomAccessibleInterval<FloatType> sum = ArrayImgs.floats(this.imgDim);
-        for (int d = 0; d < hessianRai.dimension(hessianRai.numDimensions() - 1); ++d) {
-            final IntervalView<FloatType> hessian = Views.hyperSlice(hessianRai, hessianRai.numDimensions() - 1, d);
-            LoopBuilder.setImages(sum, hessian).multiThreaded(ex).forEachPixel(
-                    (s, h) -> s.set(s.getRealFloat() + h.getRealFloat() * h.getRealFloat())
-            );
-        }
-        final ComputeMinMax<FloatType> minMax = new ComputeMinMax<>(Views.iterable(sum), new FloatType(), new FloatType());
-        minMax.setNumThreads(Runtime.getRuntime().availableProcessors());
-        minMax.process();
-        return minMax.getMax().getRealFloat();
-    }
-
-    protected RandomAccessibleInterval<FloatType> frangi2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                                                           final double beta, final double c, final TaskExecutor ex)
-    {
-        final double betaDen = 2 * beta * beta;
-        final double cDen = 2 * c * c;
-
-        final int d = eigenvalueRai.numDimensions() - 1;
-        final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
-        final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
-
-        final RandomAccessibleInterval<FloatType> vesselnessRai = ArrayImgs.floats(Intervals.dimensionsAsLongArray(evs0));
-
-        LoopBuilder.setImages(evs0, evs1, vesselnessRai).multiThreaded(ex).forEachPixel(
-                (ev0, ev1, v) -> {
-                    float e0 = ev0.getRealFloat();
-                    float e1 = ev1.getRealFloat();
-                    final List<Float> dl = Arrays.asList(e0, e1);
-                    dl.sort(Comparator.comparingDouble(Math::abs));
-                    e0 = dl.get(0);
-                    e1 = dl.get(1);
-                    double result = 0;
-                    if (e1 < 0) {
-                        double rb = e0 / e1;
-                        double rbsq = rb * rb;
-                        double s = Math.sqrt(e0 * e0 + e1 * e1);
-                        double ssq = s * s;
-                        result = Math.exp(-rbsq / betaDen) * (1 - Math.exp(-ssq / cDen));
-                        if (Double.isNaN(result)) {
-                            result = 0;
-                        }
-                    }
-                    v.set((float) result);
-                }
-        );
-        return vesselnessRai;
-    }
-
-    protected RandomAccessibleInterval<FloatType> frangi3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                                                           final double alpha, final double beta, final double c,
-                                                           final TaskExecutor ex)
-    {
-        final double alphaDen = 2 * alpha * alpha;
-        final double betaDen = 2 * beta * beta;
-        final double cDen = 2 * c * c;
-
-        final int d = eigenvalueRai.numDimensions() - 1;
-        final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
-        final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
-        final IntervalView<FloatType> evs2 = Views.hyperSlice(eigenvalueRai, d, 2);
-
-        final RandomAccessibleInterval<FloatType> vesselnessRai = ArrayImgs.floats(Intervals.dimensionsAsLongArray(evs0));
-
-        LoopBuilder.setImages(evs0, evs1, evs2, vesselnessRai).multiThreaded(ex).forEachPixel(
-                (ev0, ev1, ev2, v) -> {
-                    float e0 = ev0.getRealFloat();
-                    float e1 = ev1.getRealFloat();
-                    float e2 = ev2.getRealFloat();
-                    final List<Float> dl = Arrays.asList(e0, e1, e2);
-                    dl.sort(Comparator.comparingDouble(Math::abs));
-                    e0 = dl.get(0);
-                    e1 = dl.get(1);
-                    e2 = dl.get(2);
-                    double result = 0;
-                    if (e1 < 0 && e2 < 0) {
-                        final double rb = Math.abs(e0) / Math.sqrt(Math.abs(e1 * e2));
-                        final double rbsq = rb * rb;
-                        final double ra = Math.abs(e1) / Math.abs(e2);
-                        final double rasq = ra * ra;
-                        final double s = Math.sqrt(e0 * e0 + e1 * e1 + e2 * e2);
-                        final double ssq = s * s;
-                        result = (1 - Math.exp(-rasq / alphaDen)) * Math.exp(-rbsq / betaDen) * (1 - Math.exp(-ssq / cDen));
-                        if (Double.isNaN(result)) {
-                            result = 0;
-                        }
-                    }
-                    v.set((float) result);
-                }
-        );
-        return vesselnessRai;
-    }
-
-    protected RandomAccessibleInterval<FloatType> hessianMatrix(final RandomAccessibleInterval<FloatType> gaussianRai,
-                                                                final int nThreads, final ExecutorService es)
-            throws ExecutionException, InterruptedException
-    {
-        // FIXME: THIS USES A LOT OF MEMORY
-        return HessianMatrix.calculateMatrix(
-                Views.extendBorder(gaussianRai),
-                this.is3D ? ArrayImgs.floats(this.imgDim[0], this.imgDim[1], this.imgDim[2], 3) :
-                        ArrayImgs.floats(this.imgDim[0], this.imgDim[1], 2),
-                this.is3D ? ArrayImgs.floats(this.imgDim[0], this.imgDim[1], this.imgDim[2], 6) :
-                        ArrayImgs.floats(this.imgDim[0], this.imgDim[1], 3),
-                new OutOfBoundsBorderFactory<>(),
-                nThreads,
-                es);
-    }
-
-    protected RandomAccessibleInterval<FloatType> hessianEigenvalues(final RandomAccessibleInterval<FloatType> hessianMatrix,
-                                                                     final int nThreads, final ExecutorService es)
-            throws IncompatibleTypeException
-    {
-        return TensorEigenValues.calculateEigenValuesSymmetric(hessianMatrix,
-                TensorEigenValues.createAppropriateResultImg(hessianMatrix, new ArrayImgFactory<>(new FloatType())),
-                nThreads, es);
-    }
-
-    protected RandomAccessibleInterval<FloatType> gauss(final double[] sigmas) {
-        RandomAccessibleInterval<FloatType> gaussian = ArrayImgs.floats(this.imgDim);
-        FastGauss.convolve(sigmas, Views.extendBorder(this.img), gaussian);
-        return gaussian;
     }
 
     public void processGaussian(final double[] sigmas) {
@@ -293,113 +134,35 @@ public class HessianAnalyzer {
     }
 
     public void processTubeness(final double sigma, final boolean computeStats) {
-
         SNTUtils.log("Computing Tubeness at sigma: " + sigma);
-
-        final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
-        final TaskExecutor ex = new DefaultTaskExecutor(es);
-
-        double[] sigmaArr;
         if (this.is3D) {
-            sigmaArr = new double[]{sigma / this.pixelWidth, sigma / this.pixelHeight, sigma / this.pixelDepth};
+            processTubeness3D(sigma);
         } else {
-            sigmaArr = new double[]{sigma / this.pixelWidth, sigma / this.pixelHeight};
+            processTubeness2D(sigma);
         }
-
-        RandomAccessibleInterval<FloatType> result;
-        try {
-            result = hessianMatrix(gauss(sigmaArr), this.nThreads, es);
-        } catch (final ExecutionException e) {
-            SNTUtils.error(e.getMessage(), e);
-            es.shutdownNow();
-            ex.close();
-            return;
-        } catch (final InterruptedException e) {
-            SNTUtils.error("Tubeness interrupted.", e);
-            es.shutdownNow();
-            ex.close();
-            Thread.currentThread().interrupt();
-            return;
-        }
-
-        result = hessianEigenvalues(result, this.nThreads, es);
-        result = is3D ? tubeness3D(result, ex) : tubeness2D(result, ex);
-
-        es.shutdown();
-        ex.close();
-
-        this.tubenessImg = (Img<FloatType>) result;
-        this.tubenessAccess = this.tubenessImg.randomAccess();
-
         SNTUtils.log("Done computing Tubeness.");
-
         if (computeStats) {
             SNTUtils.log("Computing Tubeness stats");
             this.tubenessStats = new ImgStats(Views.iterable(this.tubenessImg));
             this.tubenessStats.process();
             SNTUtils.log("Tubeness stats: " + this.tubenessStats);
         }
-
     }
 
-    public void processFrangi(double[] scales, boolean computeStats) {
-
+    public void processFrangi(final double[] scales, final boolean computeStats) {
         SNTUtils.log("Computing Frangi at scales: " + Arrays.toString(scales));
-
-        final List<double[]> sigmas = new ArrayList<>();
         if (this.is3D) {
-            for (final double sc : scales) {
-                final double[] sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight, sc / this.pixelDepth};
-                sigmas.add(sigma);
-            }
+            processFrangi3D(scales);
         } else {
-            for (final double sc : scales) {
-                final double[] sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight};
-                sigmas.add(sigma);
-            }
+            processFrangi2D(scales);
         }
-
-        final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
-        final TaskExecutor ex = new DefaultTaskExecutor(es);
-
-        this.frangiImg = ArrayImgs.floats(Intervals.dimensionsAsLongArray(this.img));
-        for (final double[] sigma : sigmas) {
-            RandomAccessibleInterval<FloatType> result = gauss(sigma);
-            try {
-                result = hessianMatrix(result, this.nThreads, es);
-            } catch (final ExecutionException e) {
-                SNTUtils.error(e.getMessage(), e);
-                es.shutdownNow();
-                ex.close();
-                return;
-            } catch (final InterruptedException e) {
-                SNTUtils.error("Frangi interrupted.", e);
-                es.shutdownNow();
-                ex.close();
-                Thread.currentThread().interrupt();
-                return;
-            }
-            final double c = Math.sqrt(maxSquaredFrobenius(result, ex)) * 0.5;
-            result = hessianEigenvalues(result, this.nThreads, es);
-            result = this.is3D ? frangi3D(result, 0.5, 0.5, c, ex) : frangi2D(result, 0.5, c, ex);
-            LoopBuilder.setImages(this.frangiImg, result).multiThreaded(ex).forEachPixel(
-                    (resultv, v) -> resultv.set(Math.max(resultv.getRealFloat(), v.getRealFloat()))
-            );
-        }
-        this.frangiAccess = this.frangiImg.randomAccess();
-
-        es.shutdown();
-        ex.close();
-
         SNTUtils.log("Done computing Frangi.");
-
         if (computeStats) {
             SNTUtils.log("Computing Frangi stats");
             this.frangiStats = new ImgStats(Views.iterable(this.frangiImg));
             this.frangiStats.process();
             SNTUtils.log("Frangi stats: " + this.frangiStats);
         }
-
     }
 
     public ImgStats getTubenessStats() {
@@ -441,6 +204,489 @@ public class HessianAnalyzer {
             throw new IllegalArgumentException("Frangi Img is null. You must first call processFrangi()");
         }
         ImageJFunctions.show(this.frangiImg, "Frangi Vesselness");
+    }
+
+    protected RandomAccessibleInterval<FloatType> tubeness2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
+                                                             final RandomAccessibleInterval<FloatType> tubenessRai,
+                                                             final TaskExecutor ex)
+    {
+        final int d = eigenvalueRai.numDimensions() - 1;
+        final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
+        final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
+        LoopBuilder.setImages(evs0, evs1, tubenessRai).multiThreaded(ex).forEachPixel(
+                (ev0, ev1, v) -> {
+                    double e0 = ev0.getRealDouble();
+                    double e1 = ev1.getRealDouble();
+                    final List<Double> dl = Arrays.asList(e0, e1);
+                    dl.sort(Comparator.comparingDouble(Math::abs));
+                    e1 = dl.get(1);
+                    double result = 0;
+                    if (e1 < 0) {
+                        result = Math.abs(e1);
+                    }
+                    v.set((float) result);
+                }
+        );
+        return tubenessRai;
+    }
+
+    protected RandomAccessibleInterval<FloatType> tubeness3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
+                                                             final RandomAccessibleInterval<FloatType> tubenessRai,
+                                                             final TaskExecutor ex)
+    {
+        final int d = eigenvalueRai.numDimensions() - 1;
+        final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
+        final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
+        final IntervalView<FloatType> evs2 = Views.hyperSlice(eigenvalueRai, d, 2);
+        LoopBuilder.setImages(evs0, evs1, evs2, tubenessRai).multiThreaded(ex).forEachPixel(
+                (ev0, ev1, ev2, v) -> {
+                    double e0 = ev0.getRealDouble();
+                    double e1 = ev1.getRealDouble();
+                    double e2 = ev2.getRealDouble();
+                    final List<Double> dl = Arrays.asList(e0, e1, e2);
+                    dl.sort(Comparator.comparingDouble(Math::abs));
+                    e1 = dl.get(1);
+                    e2 = dl.get(2);
+                    double result = 0;
+                    if (e1 < 0 && e2 < 0) {
+                        result = Math.sqrt(e1 * e2);
+                    }
+                    v.set((float) result);
+                }
+        );
+        return tubenessRai;
+    }
+
+    protected float maxSquaredFrobenius(final RandomAccessibleInterval<FloatType> hessianRai, final TaskExecutor ex)
+    {
+        final RandomAccessibleInterval<FloatType> sum = ArrayImgs.floats(this.imgDim);
+        for (int d = 0; d < hessianRai.dimension(hessianRai.numDimensions() - 1); ++d) {
+            final IntervalView<FloatType> hessian = Views.hyperSlice(hessianRai, hessianRai.numDimensions() - 1, d);
+            LoopBuilder.setImages(sum, hessian).multiThreaded(ex).forEachPixel(
+                    (s, h) -> s.set(s.getRealFloat() + h.getRealFloat() * h.getRealFloat())
+            );
+        }
+        final ComputeMinMax<FloatType> minMax = new ComputeMinMax<>(Views.iterable(sum), new FloatType(), new FloatType());
+        minMax.setNumThreads(Runtime.getRuntime().availableProcessors());
+        minMax.process();
+        return minMax.getMax().getRealFloat();
+    }
+
+    protected RandomAccessibleInterval<FloatType> frangi2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
+                                                           final RandomAccessibleInterval<FloatType> frangiRai,
+                                                           final double beta, final double c, final TaskExecutor ex)
+    {
+        final double betaDen = 2 * beta * beta;
+        final double cDen = 2 * c * c;
+
+        final int d = eigenvalueRai.numDimensions() - 1;
+        final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
+        final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
+
+        LoopBuilder.setImages(evs0, evs1, frangiRai).multiThreaded(ex).forEachPixel(
+                (ev0, ev1, v) -> {
+                    double e0 = ev0.getRealDouble();
+                    double e1 = ev1.getRealDouble();
+                    final List<Double> dl = Arrays.asList(e0, e1);
+                    dl.sort(Comparator.comparingDouble(Math::abs));
+                    e0 = dl.get(0);
+                    e1 = dl.get(1);
+                    double result = 0;
+                    if (e1 < 0) {
+                        double rb = e0 / e1;
+                        double rbsq = rb * rb;
+                        double s = Math.sqrt(e0 * e0 + e1 * e1);
+                        double ssq = s * s;
+                        result = Math.exp(-rbsq / betaDen) * (1 - Math.exp(-ssq / cDen));
+                        if (Double.isNaN(result)) {
+                            result = 0;
+                        }
+                    }
+                    v.set((float) result);
+                }
+        );
+        return frangiRai;
+    }
+
+    protected RandomAccessibleInterval<FloatType> frangi3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
+                                                           final RandomAccessibleInterval<FloatType> frangiRai,
+                                                           final double alpha, final double beta, final double c,
+                                                           final TaskExecutor ex)
+    {
+        final double alphaDen = 2 * alpha * alpha;
+        final double betaDen = 2 * beta * beta;
+        final double cDen = 2 * c * c;
+
+        final int d = eigenvalueRai.numDimensions() - 1;
+        final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
+        final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
+        final IntervalView<FloatType> evs2 = Views.hyperSlice(eigenvalueRai, d, 2);
+
+        LoopBuilder.setImages(evs0, evs1, evs2, frangiRai).multiThreaded(ex).forEachPixel(
+                (ev0, ev1, ev2, v) -> {
+                    double e0 = ev0.getRealDouble();
+                    double e1 = ev1.getRealDouble();
+                    double e2 = ev2.getRealDouble();
+                    final List<Double> dl = Arrays.asList(e0, e1, e2);
+                    dl.sort(Comparator.comparingDouble(Math::abs));
+                    e0 = dl.get(0);
+                    e1 = dl.get(1);
+                    e2 = dl.get(2);
+                    double result = 0;
+                    if (e1 < 0 && e2 < 0) {
+                        final double rb = Math.abs(e0) / Math.sqrt(Math.abs(e1 * e2));
+                        final double rbsq = rb * rb;
+                        final double ra = Math.abs(e1) / Math.abs(e2);
+                        final double rasq = ra * ra;
+                        final double s = Math.sqrt(e0 * e0 + e1 * e1 + e2 * e2);
+                        final double ssq = s * s;
+                        result = (1 - Math.exp(-rasq / alphaDen)) * Math.exp(-rbsq / betaDen) * (1 - Math.exp(-ssq / cDen));
+                        if (Double.isNaN(result)) {
+                            result = 0;
+                        }
+                    }
+                    v.set((float) result);
+                }
+        );
+        return frangiRai;
+    }
+
+    protected RandomAccessibleInterval<FloatType> hessian2D(final RandomAccessibleInterval<FloatType> gaussianRai,
+                                                            final int nThreads, final ExecutorService es)
+            throws ExecutionException, InterruptedException
+    {
+        return HessianMatrix.calculateMatrix(
+                Views.extendBorder(gaussianRai),
+                ArrayImgs.floats(this.imgDim[0], this.imgDim[1], 2),
+                ArrayImgs.floats(this.imgDim[0], this.imgDim[1], 3),
+                new OutOfBoundsBorderFactory<>(),
+                nThreads,
+                es);
+    }
+
+    protected RandomAccessibleInterval<FloatType> hessianEigenvalues(final RandomAccessibleInterval<FloatType> hessianRai,
+                                                                     final RandomAccessibleInterval<FloatType> eigenvalueRai,
+                                                                     final int nThreads, final ExecutorService es)
+            throws IncompatibleTypeException
+    {
+        return TensorEigenValues.calculateEigenValuesSymmetric(hessianRai, eigenvalueRai, nThreads, es);
+    }
+
+    protected RandomAccessibleInterval<FloatType> gauss(final double[] sigmas)
+    {
+        RandomAccessibleInterval<FloatType> gaussian = ArrayImgs.floats(this.imgDim);
+        FastGauss.convolve(sigmas, Views.extendBorder(this.img), gaussian);
+        return gaussian;
+    }
+
+    protected void processTubeness3D(final double sigma)
+    {
+
+        callback.proportionDone(0.0);
+
+        double[] sigmaArr = new double[]{sigma / this.pixelWidth, sigma / this.pixelHeight, sigma / this.pixelDepth};
+
+        final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
+        final TaskExecutor ex = new DefaultTaskExecutor(es);
+
+        final Img<FloatType> output = ArrayImgs.floats(this.imgDim);
+
+//        final RandomAccessibleInterval< FloatType > gaussian = ArrayImgs.floats(this.imgDim);
+//        FastGauss.convolve(sigmaArr, Views.extendBorder(this.img), gaussian);
+
+        // FIXME: check if this makes sense
+        final RandomAccessibleInterval<FloatType> tmpGaussian = ArrayImgs.floats(
+                output.dimension(0),
+                output.dimension(1),
+                5);
+
+        // allocate storage for gradient
+        final RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(
+                output.dimension(0),
+                output.dimension(1),
+                3,
+                3);
+
+        // allocate storage for hessian
+        final RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(
+                output.dimension(0),
+                output.dimension(1),
+                1,
+                6);
+
+        final RandomAccessibleInterval<FloatType> tmpEigenvalues = ArrayImgs.floats(
+                output.dimension(0),
+                output.dimension(1),
+                1,
+                3
+        );
+
+        for (int z = 0; z < output.dimension(output.numDimensions() - 1); ++z) {
+
+            final FinalInterval interval = Intervals.createMinMax(
+                    output.min(0), output.min(1), z,
+                    output.max(0), output.max(1), z);
+
+            // FIXME: check if this makes sense
+            RandomAccessibleInterval<FloatType> gaussian = Views.translate(tmpGaussian, 0, 0, z - 2);
+            FastGauss.convolve(sigmaArr, Views.extendMirrorSingle(this.img), gaussian);
+
+            // gradient contains the 3 slices centered at z, i.e. [z-1, z, z+1]
+            RandomAccessibleInterval<FloatType> gradient = Views.translate(tmpGradient, 0, 0, z - 1, 0);
+
+            // hessian is the single slice at z
+            RandomAccessibleInterval<FloatType> hessian = Views.translate(tmpHessian, 0, 0, z, 0);
+
+            try {
+                HessianMatrix.calculateMatrix(
+                        gaussian,
+                        gradient,
+                        hessian,
+                        new OutOfBoundsBorderFactory<>(),
+                        Runtime.getRuntime().availableProcessors(),
+                        es);
+            } catch (final ExecutionException e) {
+                SNTUtils.error(e.getMessage(), e);
+                es.shutdownNow();
+                ex.close();
+                callback.proportionDone(-1);
+                return;
+            } catch (final InterruptedException e) {
+                SNTUtils.error("Tubeness interrupted.", e);
+                es.shutdownNow();
+                ex.close();
+                callback.proportionDone(-1);
+                Thread.currentThread().interrupt();
+                return;
+            }
+
+            hessianEigenvalues(hessian, tmpEigenvalues, nThreads, es);
+
+            tubeness3D(tmpEigenvalues, Views.interval(output, interval), ex);
+
+            callback.proportionDone((double) z / output.dimension(output.numDimensions() - 1));
+
+        }
+
+        es.shutdown();
+        ex.close();
+
+        this.tubenessImg = output;
+        this.tubenessAccess = this.tubenessImg.randomAccess();
+
+        callback.proportionDone(1.0);
+
+    }
+
+    protected void processTubeness2D(final double sigma)
+    {
+
+        callback.proportionDone(0.0);
+
+        final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
+        final TaskExecutor ex = new DefaultTaskExecutor(es);
+
+        double[] sigmaArr;
+        sigmaArr = new double[]{sigma / this.pixelWidth, sigma / this.pixelHeight};
+
+        RandomAccessibleInterval<FloatType> result;
+        try {
+            result = hessian2D(gauss(sigmaArr), this.nThreads, es);
+        } catch (final ExecutionException e) {
+            SNTUtils.error(e.getMessage(), e);
+            es.shutdownNow();
+            ex.close();
+            callback.proportionDone(-1);
+            return;
+        } catch (final InterruptedException e) {
+            SNTUtils.error("Tubeness interrupted.", e);
+            es.shutdownNow();
+            ex.close();
+            callback.proportionDone(-1);
+            Thread.currentThread().interrupt();
+            return;
+        }
+
+        result = hessianEigenvalues(result, TensorEigenValues.createAppropriateResultImg(result,
+                new ArrayImgFactory<>(new FloatType())), this.nThreads, es);
+
+        result = tubeness2D(result, ArrayImgs.floats(this.imgDim), ex);
+
+        es.shutdown();
+        ex.close();
+
+        this.tubenessImg = (Img<FloatType>) result;
+        this.tubenessAccess = this.tubenessImg.randomAccess();
+
+        callback.proportionDone(1.0);
+
+    }
+
+    protected void processFrangi3D(double[] scales)
+    {
+
+        callback.proportionDone(0.0);
+
+        final List<double[]> sigmas = new ArrayList<>();
+        for (final double sc : scales) {
+            final double[] sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight, sc / this.pixelDepth};
+            sigmas.add(sigma);
+        }
+
+        final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
+        final TaskExecutor ex = new DefaultTaskExecutor(es);
+
+        this.frangiImg = ArrayImgs.floats(Intervals.dimensionsAsLongArray(this.img));
+
+        // FIXME: check if this makes sense
+        final RandomAccessibleInterval<FloatType> tmpGaussian = ArrayImgs.floats(
+                this.img.dimension(0),
+                this.img.dimension(1),
+                5);
+
+        // allocate storage for gradient
+        final RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(
+                this.img.dimension(0),
+                this.img.dimension(1),
+                3,
+                3);
+
+        // allocate storage for hessian
+        final RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(
+                this.img.dimension(0),
+                this.img.dimension(1),
+                1,
+                6);
+
+        final RandomAccessibleInterval<FloatType> tmpEigenvalues = ArrayImgs.floats(
+                this.imgDim[0],
+                this.imgDim[1],
+                1,
+                3);
+
+        final RandomAccessibleInterval<FloatType> tmpFrangi = ArrayImgs.floats(
+                this.imgDim[0],
+                this.imgDim[1],
+                1);
+
+        int nIterations = sigmas.size() * (int) this.img.dimension(this.img.numDimensions() - 1);
+        int iter = 0;
+        for (final double[] sigma : sigmas) {
+
+            for (int z = 0; z < this.img.dimension(this.img.numDimensions() - 1); ++z) {
+
+                final FinalInterval interval = Intervals.createMinMax(
+                        this.img.min(0), this.img.min(1), z,
+                        this.img.max(0), this.img.max(1), z);
+
+                // FIXME: check if this makes sense
+                RandomAccessibleInterval<FloatType> gaussian = Views.translate(tmpGaussian, 0, 0, z - 2);
+                FastGauss.convolve(sigma, Views.extendMirrorSingle(this.img), gaussian);
+
+                // gradient contains the 3 slices centered at z, i.e. [z-1, z, z+1]
+                RandomAccessibleInterval<FloatType> gradient = Views.translate(tmpGradient, 0, 0, z - 1, 0);
+
+                // hessian is the single slice at z
+                RandomAccessibleInterval<FloatType> hessian = Views.translate(tmpHessian, 0, 0, z, 0);
+
+                try {
+                    HessianMatrix.calculateMatrix(
+                            gaussian,
+                            gradient,
+                            hessian,
+                            new OutOfBoundsBorderFactory<>(),
+                            Runtime.getRuntime().availableProcessors(),
+                            es);
+                } catch (final ExecutionException e) {
+                    SNTUtils.error(e.getMessage(), e);
+                    es.shutdownNow();
+                    ex.close();
+                    callback.proportionDone(-1);
+                    return;
+                } catch (final InterruptedException e) {
+                    SNTUtils.error("Frangi interrupted.", e);
+                    es.shutdownNow();
+                    ex.close();
+                    callback.proportionDone(-1);
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+
+                hessianEigenvalues(hessian, tmpEigenvalues, nThreads, es);
+
+                frangi3D(tmpEigenvalues, tmpFrangi, 0.5, 0.5, 200, ex);
+
+                LoopBuilder.setImages(Views.interval(this.frangiImg, interval), tmpFrangi)
+                        .multiThreaded(ex)
+                        .forEachPixel((f, t) -> f.set(Math.max(f.getRealFloat(), t.getRealFloat())));
+
+                callback.proportionDone(++iter / (double) nIterations);
+
+            }
+
+        }
+
+        es.shutdown();
+        ex.close();
+
+        this.frangiAccess = this.frangiImg.randomAccess();
+
+        callback.proportionDone(1.0);
+
+    }
+
+    protected void processFrangi2D(double[] scales)
+    {
+
+        callback.proportionDone(0.0);
+
+        final List<double[]> sigmas = new ArrayList<>();
+        for (final double sc : scales) {
+            final double[] sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight};
+            sigmas.add(sigma);
+        }
+
+        final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
+        final TaskExecutor ex = new DefaultTaskExecutor(es);
+
+        this.frangiImg = ArrayImgs.floats(Intervals.dimensionsAsLongArray(this.img));
+        for (final double[] sigma : sigmas) {
+            RandomAccessibleInterval<FloatType> tmpFrangi = gauss(sigma);
+            try {
+                tmpFrangi = hessian2D(tmpFrangi, this.nThreads, es);
+            } catch (final ExecutionException e) {
+                SNTUtils.error(e.getMessage(), e);
+                es.shutdownNow();
+                ex.close();
+                callback.proportionDone(-1);
+                return;
+            } catch (final InterruptedException e) {
+                SNTUtils.error("Frangi interrupted.", e);
+                es.shutdownNow();
+                ex.close();
+                callback.proportionDone(-1);
+                Thread.currentThread().interrupt();
+                return;
+            }
+
+            final double c = Math.sqrt(maxSquaredFrobenius(tmpFrangi, ex)) * 0.5;
+
+            tmpFrangi = hessianEigenvalues(tmpFrangi, TensorEigenValues.createAppropriateResultImg(tmpFrangi,
+                    new ArrayImgFactory<>(new FloatType())), this.nThreads, es);
+
+            tmpFrangi = frangi2D(tmpFrangi, ArrayImgs.floats(this.imgDim), 0.5, c, ex);
+
+            LoopBuilder.setImages(this.frangiImg, tmpFrangi).multiThreaded(ex).forEachPixel(
+                    (f, t) -> f.set(Math.max(f.getRealFloat(), t.getRealFloat()))
+            );
+        }
+        this.frangiAccess = this.frangiImg.randomAccess();
+
+        callback.proportionDone(1.0);
+
+        es.shutdown();
+        ex.close();
+
     }
 
     public static class ImgStats {
@@ -498,14 +744,15 @@ public class HessianAnalyzer {
 
     }
 
-    public static void main(final String[] args) {
-        SNTService snt = new SNTService();
-        snt.setContext(new Context());
+    public static void main(final String[] args) throws ExecutionException, InterruptedException {
+        ImageJ ij = new ImageJ();
+        ij.ui().showUI();
+        SNTService snt = ij.context().getService(SNTService.class);
         SNTUtils.setDebugMode(true);
-        final HessianAnalyzer hessian = new HessianAnalyzer(new SNTService().demoImage("OP_1"));
-        hessian.processTubeness(0.84, true);
-        hessian.showTubeness();
-        hessian.processFrangi(new double[]{0.33, 0.66, 0.99}, true);
+        final HessianAnalyzer hessian = new HessianAnalyzer(snt.demoImage("OP_1"), null);
+        //hessian.processTubeness(0.84, true);
+        //hessian.showTubeness();
+        hessian.processFrangi(new double[]{1.0}, true);
         hessian.showFrangi();
     }
 
