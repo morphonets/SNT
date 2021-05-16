@@ -779,9 +779,12 @@ public class GuiUtils {
 
 	public static JMenuItem menubarButton(final Icon icon, final JMenuBar menuBar) {
 		final JMenuItem mi = new JMenuItem(icon);
-		mi.setMinimumSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
+		mi.setBackground(menuBar.getBackground());
 		mi.setPreferredSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
-		mi.setMaximumSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
+		mi.setMinimumSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
+		if (!ij.IJ.isMacOSX()) {// icon displayed off-bounds on MacOS?
+			mi.setMaximumSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
+		}
 		menuBar.add(javax.swing.Box.createHorizontalGlue());
 		menuBar.add(mi);
 		return mi;

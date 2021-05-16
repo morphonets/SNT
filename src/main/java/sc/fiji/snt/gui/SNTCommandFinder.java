@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.Hashtable;
 
 import javax.swing.AbstractButton;
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -70,7 +71,7 @@ import sc.fiji.snt.gui.IconFactory.GLYPH;
 
 public class SNTCommandFinder {
 
-	private static final int TABLE_WIDTH = 640;
+	private static final int TABLE_WIDTH = 520;
 	private static final int TABLE_ROWS = 18;
 
 	private static JFrame frame;
@@ -97,14 +98,17 @@ public class SNTCommandFinder {
 				win.addComponentListener(new ComponentAdapter() {
 					@Override
 					public void componentMoved(final ComponentEvent ce) {
-						super.componentMoved(ce);
+						if (frame != null && frame.isVisible())
+							setFrameLocation();
+					}
+					@Override
+					public void componentResized(final ComponentEvent ce) {
 						if (frame != null && frame.isVisible())
 							setFrameLocation();
 					}
 				});
 			}
 		}
-
 	}
 
 	public void dispose() {
@@ -217,19 +221,25 @@ public class SNTCommandFinder {
 	}
 
 	private void helpMsg() {
-		new GuiUtils(frame).tempMsg(" " //
-				+ "<dl>"//
-				+ "  <dt>&uarr; &darr;</dt>" //
-				+ "  <dd>Select command</dd>" //
-				+ "  <dt>&crarr;</dt>" //
-				+ "  <dd>Run command</dd>" //
-				+ "  <dt>A-Z</dt>" //
-				+ "  <dd>Alphabetic scroll</dd>" //
-				+ "  <dt>&#9003;</dt>" //
-				+ "  <dd>Activate search field</dd>" //
-				+ "  <dt>Esc</dt>" //
-				+ "  <dd>Dismiss</dd>" //
-				+ "</dl>");
+		new GuiUtils(frame).tempMsg("Shortcuts:" //
+				+ "<table>" //
+				+ " <tr>" //
+				+ "  <td>&uarr; &darr;<br></td>" //
+				+ "  <td>Select Commands</td>" //
+				+ " </tr>" //
+				+ " <tr>" //
+				+ "  <td>&crarr;</td>" //
+				+ "  <td>Run Command</td>" //
+				+ " </tr>" //
+				+ " <tr>" //
+				+ "  <td>A-Z</td>" //
+				+ "  <td>Alphabetic scroll</td>" //
+				+ " </tr>" //
+				+ " <tr>" //
+				+ "  <td><&#9003;</td>" //
+				+ "  <td>Activate search field</td>" //
+				+ " </tr>" //
+				+ "</table>");
 	}
 
 	private void runCommand(final String command) {
@@ -405,11 +415,18 @@ public class SNTCommandFinder {
 				if (relativeToComponent == null || (relativeToComponent != null && !relativeToComponent.focusTimer.isRunning()))
 					hideWindow();
 			}
+
+			@Override
+			public void windowActivated(WindowEvent e) {
+				// HACK: fix flickering of top menu bar on MacOS
+				if (ij.IJ.isMacOSX()) frame.setMenuBar(ij.Menus.getMenuBar());
+			}
 		});
 
 		final JPanel northPanel = new JPanel(new BorderLayout());
 		final JButton searchLabel = new JButton(IconFactory.getButtonIcon(GLYPH.SEARCH));
 		searchLabel.addActionListener(e -> helpMsg());
+		searchLabel.setToolTipText("Click for shortcut list");
 		northPanel.add(searchLabel, BorderLayout.WEST);
 		searchField = new GuiUtils().textField("Search");
 		searchField.getDocument().addDocumentListener(new PromptDocumentListener());
@@ -430,7 +447,7 @@ public class SNTCommandFinder {
 
 		// Adjustments to row height and column width
 		resizeColumnWidthAndRowHeight();
-		table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF); // frame is not resizable: 'activate' scrollpane's scrollbars
+		table.setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
 		final Dimension dim = new Dimension(TABLE_WIDTH, table.getRowHeight() * TABLE_ROWS);
 		table.setPreferredScrollableViewportSize(dim);
 		table.addKeyListener(keyListener);
@@ -469,7 +486,13 @@ public class SNTCommandFinder {
 		final JScrollPane scrollPane = new JScrollPane(table, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
 				JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 		contentPane.add(scrollPane, BorderLayout.CENTER);
+
+		// Make frame resizable
+		final int BORDER = (ij.IJ.isMacOSX()) ? 1 : 2;
+		frame.getRootPane().setBorder(BorderFactory.createEmptyBorder(0, 0, BORDER, BORDER));
+		new ComponentResizer(frame); 
 		frame.pack();
+
 	}
 
 	public void toggleVisibility() {
@@ -489,13 +512,14 @@ public class SNTCommandFinder {
 		}
 		setFrameLocation();
 		frame.setVisible(true);
+		searchField.requestFocus();
 		if (relativeToComponent != null) relativeToComponent.focusTimer.restart();
 	}
 
 	private void resizeColumnWidthAndRowHeight() {
 		resizeRowHeight();
 		final int MIN_ROW_WIDTH = 20;
-		final int MAX_ROW_WIDTH = 400;
+		final int MAX_ROW_WIDTH = TABLE_WIDTH * 2/3;
 		final TableColumnModel columnModel = table.getColumnModel();
 		for (int column = 0; column < table.getColumnCount(); column++) {
 			int width = MIN_ROW_WIDTH;
@@ -513,9 +537,11 @@ public class SNTCommandFinder {
 	private void resizeRowHeight() {
 		// this just seems to be needed on Linux, in which cells appear truncated
 		// vertically?
-		final int ROW_HEIGHT = new JLabel().getFont().getSize();
-		for (int row = 0; row < table.getRowCount(); row++) {
-			table.setRowHeight(row, ROW_HEIGHT);
+		if (ij.IJ.isLinux()) {
+			final int ROW_HEIGHT = new JLabel().getFont().getSize();
+			for (int row = 0; row < table.getRowCount(); row++) {
+				table.setRowHeight(row, ROW_HEIGHT);
+			}
 		}
 	}
 
