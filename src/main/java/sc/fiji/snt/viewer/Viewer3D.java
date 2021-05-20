@@ -2571,6 +2571,7 @@ public class Viewer3D {
 		public ViewerFrame(final AChart chart, final int width, final int height, final boolean includeManager,
 				final GraphicsConfiguration gConfiguration) {
 			super();
+			GuiUtils.removeIcon(this);
 			final String title = (chart.viewer.isSNTInstance()) ? " (SNT)" : " ("+ chart.viewer.getID() + ")";
 			initialize(chart, new Rectangle(width, height), "Reconstruction Viewer" +
 				title);
@@ -2603,6 +2604,7 @@ public class Viewer3D {
 		public JDialog getManager() {
 			final String title = (chart.viewer.isSNTInstance()) ? "RV Controls" : "RV Controls ("+ chart.viewer.getID() + ")";
 			final JDialog dialog = new JDialog(this, title);
+			GuiUtils.removeIcon(dialog);
 			managerPanel = new ManagerPanel(new GuiUtils(dialog));
 			dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 			dialog.addWindowListener(new WindowAdapter() {
@@ -5276,7 +5278,7 @@ public class Viewer3D {
 		@SuppressWarnings({ "unchecked", "rawtypes" })
 		private void createEditPopup() {
 			// Use a text field as the editor
-			editTextField = new GuiUtils(this).textField("Tags:");
+			editTextField = GuiUtils.textField("Tags:");
 			final Border border = javax.swing.UIManager.getBorder("List.focusCellHighlightBorder");
 			editTextField.setBorder(border);
 			// Add an Action to the text field to save the new value to the model

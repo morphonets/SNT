@@ -187,6 +187,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final MultiPathActionListener multiPathListener =
 			new MultiPathActionListener();
 
+		GuiUtils.removeIcon(this);
 		menuBar = new JMenuBar();
 		setJMenuBar(menuBar);
 

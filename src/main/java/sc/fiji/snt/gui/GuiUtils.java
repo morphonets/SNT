@@ -930,8 +930,12 @@ public class GuiUtils {
 		}
 	}
 
-	public JTextField textField(final String placeholder) {
+	public static JTextField textField(final String placeholder) {
 		return new TextFieldWithPlaceholder(placeholder);
+	}
+
+	public static void removeIcon(final Window window) {
+		window.setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
 	}
 
 	public static JMenu helpMenu() {

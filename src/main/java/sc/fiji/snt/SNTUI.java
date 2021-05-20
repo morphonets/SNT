@@ -283,6 +283,8 @@ public class SNTUI extends JDialog {
 				exitRequested();
 			}
 		});
+		
+		GuiUtils.removeIcon(this);
 
 		assert SwingUtilities.isEventDispatchThread();
 		final JTabbedPane tabbedPane = getTabbedPane();
@@ -1840,7 +1842,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel filteredImagePanel() {
-		secondaryImgPathField = guiUtils.textField("File:");
+		secondaryImgPathField = GuiUtils.textField("File:");
 		final JPopupMenu optionsMenu = new JPopupMenu();
 		final JButton filteredImgBrowseButton =  IconFactory.getButton(IconFactory.GLYPH.OPEN_FOLDER);
 		secondaryImgOptionsButton = optionsButton(optionsMenu);

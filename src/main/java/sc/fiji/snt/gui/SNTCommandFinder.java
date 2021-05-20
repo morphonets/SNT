@@ -428,7 +428,7 @@ public class SNTCommandFinder {
 		searchLabel.addActionListener(e -> helpMsg());
 		searchLabel.setToolTipText("Click for shortcut list");
 		northPanel.add(searchLabel, BorderLayout.WEST);
-		searchField = new GuiUtils().textField("Search");
+		searchField = GuiUtils.textField("Search");
 		searchField.getDocument().addDocumentListener(new PromptDocumentListener());
 		final InternalKeyListener keyListener = new InternalKeyListener();
 		searchField.addKeyListener(keyListener);

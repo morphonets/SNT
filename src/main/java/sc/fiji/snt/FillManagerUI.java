@@ -116,7 +116,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		this.plugin = plugin;
 		pathAndFillManager = plugin.getPathAndFillManager();
 		pathAndFillManager.addPathAndFillListener(this);
-
+		GuiUtils.removeIcon(this);
 		gUtils = new GuiUtils(this);
 		listModel = new DefaultListModel<>();
 		fillList = new JList<>(listModel);
