@@ -2111,11 +2111,22 @@ public class SNT extends MultiDThreePanes implements
 		});
 	}
 
-	public ImagePlus getFilledVolume(final boolean asMask) {
+	public ImagePlus getFilledBinaryImp() {
 		if (fillerSet.isEmpty()) return null;
 		FillerThread filler = fillerSet.iterator().next();
-		return FillUtils.fillsAsImagePlus(fillerSet, filler.imagePlus, !asMask,
-				filler.imageType);
+		return new FillConverter(fillerSet, filler.imagePlus).getBinaryImp();
+	}
+
+	public ImagePlus getFilledGreyImp() {
+		if (fillerSet.isEmpty()) return null;
+		FillerThread filler = fillerSet.iterator().next();
+		return new FillConverter(fillerSet, filler.imagePlus).getGreyImp();
+	}
+
+	public ImagePlus getFilledDistanceImp() {
+		if (fillerSet.isEmpty()) return null;
+		FillerThread filler = fillerSet.iterator().next();
+		return new FillConverter(fillerSet, filler.imagePlus).getDistanceImp();
 	}
 
 	protected int guessResamplingFactor() {

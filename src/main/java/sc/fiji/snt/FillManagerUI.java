@@ -256,7 +256,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		exportFills.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mousePressed(final MouseEvent e) {
-				if (exportFills.isEnabled() && !noFillsError())
+				if (exportFills.isEnabled())
 					exportFillsMenu.show(e.getComponent(), e.getX(), e.getY());
 			}
 		});
@@ -402,7 +402,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		}
 		SwingUtilities.invokeLater(() -> {
 			listModel.removeAllElements();
-			entries.forEach(entry -> listModel.addElement(entry));
+			entries.forEach(listModel::addElement);
 			adjustListPlaceholder();
 		});
 	}
@@ -521,26 +521,44 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private void assembleExportFillsMenu() {
 		exportFillsMenu = new JPopupMenu();
 		JMenuItem jmi = new JMenuItem("As Grayscale Image");
-		jmi.addActionListener(e-> showFilledVolumeImage(false));
+		jmi.addActionListener(e-> {
+			final ImagePlus imp = plugin.getFilledGreyImp();
+			if (imp == null) {
+				// there are fills stashed but SNT#fillerSet is empty
+				gUtils.error("Image could not be displayed. Please reload desired fill(s) and try again.");
+			}
+			else {
+				imp.show();
+			}
+		});
 		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("As Binary Mask");
-		jmi.addActionListener(e-> showFilledVolumeImage(true));
+		jmi.addActionListener(e-> {
+			final ImagePlus imp = plugin.getFilledBinaryImp();
+			if (imp == null) {
+				// there are fills stashed but SNT#fillerSet is empty
+				gUtils.error("Image could not be displayed. Please reload desired fill(s) and try again.");
+			}
+			else {
+				imp.show();
+			}
+		});
+		exportFillsMenu.add(jmi);
+		jmi = new JMenuItem("As Distance Image");
+		jmi.addActionListener(e-> {
+			final ImagePlus imp = plugin.getFilledDistanceImp();
+			if (imp == null) {
+				// there are fills stashed but SNT#fillerSet is empty
+				gUtils.error("Image could not be displayed. Please reload desired fill(s) and try again.");
+			}
+			else {
+				imp.show();
+			}
+		});
 		exportFillsMenu.add(jmi);
 		exportFillsMenu.addSeparator();
 		jmi = new JMenuItem("CSV Summary");
 		jmi.addActionListener(e-> saveFills());
-	}
-
-	private void showFilledVolumeImage(final boolean binary) {
-		final ImagePlus imp = plugin.getFilledVolume(binary);
-		if (imp == null && !noFillsError()) {
-			// there are fills stashed but SNT#fillerSet is empty
-			gUtils.error("Image could not be displayed. Please reload desired fill(s) and try again.");
-			return;
-		}
-		else {
-			imp.show();
-		}
 	}
 
 	private void saveFills() {
@@ -646,7 +664,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 * current UI state
 	 *
 	 * @param newState the new state, e.g., {@link FillManagerUI#READY},
-	 *                 {@link FillManagerUI#STOPPED}, etc.
+	 *                 {@link FillManagerUI#STARTED}, etc.
 	 */
 	protected void changeState(final int newState) {
 
@@ -686,7 +704,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 			default:
 				SNTUtils.error("BUG: switching to an unknown state");
-				return;
 			}
 		});
 	}
