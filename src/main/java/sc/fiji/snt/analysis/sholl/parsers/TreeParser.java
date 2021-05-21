@@ -99,6 +99,7 @@ public class TreeParser implements Parser {
 	private volatile boolean running = true;
 	private double[] squaredRangeStarts;
 	private int[] crossingsPastEach;
+	private boolean skipSomaticSegments;
 
 	/**
 	 * Instantiates a new Tree Parser.
@@ -240,9 +241,13 @@ public class TreeParser implements Parser {
 
 	private void assembleSortedShollPointList() {
 		shollPointsList = new ArrayList<>();
+		final PointInImage soma = tree.getRoot();
+		final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
+				&& soma.onPath.getSWCType() == Path.SWC_SOMA;
 		tree.list().forEach(p -> {
 			if (!running) return;
-			for (int i = 0; i < p.size() - 1; ++i) {
+			final int firstIdx = (skipFirstNode && p.isPrimary()) ? 1 : 0;
+			for (int i = firstIdx; i < p.size() - 1; ++i) {
 				final PointInImage pim1 = p.getNode(i);
 				final PointInImage pim2 = p.getNode(i + 1);
 				final double distanceSquaredFirst = pim1.distanceSquaredTo(center);
@@ -411,6 +416,24 @@ public class TreeParser implements Parser {
 	 */
 	public Tree getTree() {
 		return tree;
+	}
+
+	/** @see #setSkipSomaticSegments(boolean) */
+	public boolean isSkipSomaticSegments() {
+		return skipSomaticSegments;
+	}
+
+	/**
+	 * If primary paths start far-away from the soma (expected to be defined by a
+	 * single-point (soma centroid)), should segments between the soma and neurite
+	 * be ignored. Useful when somas are large relatively to the length of arbor, as
+	 * in microglia cells. See e.g.,
+	 * <a href=" https://forum.image.sc/t//51707/">this forum thread</a>.
+	 * 
+	 * @param skipSomaticSegments the skipFirsNode to set
+	 */
+	public void setSkipSomaticSegments(boolean skipSomaticSegments) {
+		this.skipSomaticSegments = skipSomaticSegments;
 	}
 
 }

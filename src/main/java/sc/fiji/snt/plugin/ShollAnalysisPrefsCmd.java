@@ -64,6 +64,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 	/* DEFAULTS */
 	public final static boolean DEF_SKIP_SINGLE_VOXELS = true;
 	public final static boolean DEF_INCLUDE_ZERO_COUNTS = true;
+	public final static boolean DEF_SKIP_SOMATIC_SEGMENTS = true;
 	public final static int DEF_ENCLOSING_RADIUS_CUTOFF = 1;
 	public final static int DEF_MIN_DEGREE = 2;
 	public final static int DEF_MAX_DEGREE = 20;
@@ -140,6 +141,12 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 			label = HEADER_HTML + "<br>Misc:")
 	private String HEADER4;
 
+	@Parameter(label = "Skip somatic segments",
+			description = DESCRIPTION_HTML + "If primary paths start far-away from the soma, should "
+					+ "segments between the soma and neurite be ignored?<br><br>This option is only "
+					+ "considered when the arbor being analyzed is rooted on a single-node Path tagged as 'Soma'.")
+	private boolean skipSomaticSegments = DEF_SKIP_SOMATIC_SEGMENTS;
+
 	@Parameter(label = "Include zero counts",
 			description = "Wether entries associated with 0 intersections should be included in detailed tables, plots, etc.")
 	private boolean includeZeroCounts = DEF_INCLUDE_ZERO_COUNTS;
@@ -175,6 +182,8 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		if (ignoreBitmapOptions) {
 			resolveInput("HEADER_SAMPLING");
 			resolveInput("skipSingleVoxels");
+		} else {
+			resolveInput("skipSomaticSegments");
 		}
 	}
 
@@ -240,6 +249,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 		// Reset inputs in prompt
 		skipSingleVoxels = DEF_SKIP_SINGLE_VOXELS;
+		skipSomaticSegments = DEF_SKIP_SOMATIC_SEGMENTS;
 		includeZeroCounts = DEF_INCLUDE_ZERO_COUNTS;
 		enclosingRadiusCutoff = DEF_ENCLOSING_RADIUS_CUTOFF;
 		minDegree = DEF_MIN_DEGREE;

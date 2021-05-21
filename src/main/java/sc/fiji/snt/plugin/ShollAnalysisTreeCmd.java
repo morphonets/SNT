@@ -698,6 +698,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		public void runAnalysis() {
 			showStatus("Obtaining profile...");
 			parser.setStepSize(adjustedStepSize());
+			parser.setSkipSomaticSegments(prefService.getBoolean(ShollAnalysisPrefsCmd.class, "skipSomaticSegments",
+						ShollAnalysisPrefsCmd.DEF_SKIP_SOMATIC_SEGMENTS));
 			try {
 				parser.parse();
 			} catch (IllegalArgumentException ex) {
