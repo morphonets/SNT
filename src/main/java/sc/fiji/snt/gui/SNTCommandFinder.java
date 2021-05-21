@@ -118,13 +118,13 @@ public class SNTCommandFinder {
 	}
 
 	public void register(final AbstractButton button, final String descriptionOfComponentHostingButton,
-			final String descriptionOfPath) {
+			final String descriptionOfPathToButton) {
 		if (otherCmdsHash == null)
 			otherCmdsHash = new Hashtable<String, CommandAction>();
-		register(otherCmdsHash, button, descriptionOfComponentHostingButton, descriptionOfPath);
+		register(otherCmdsHash, button, descriptionOfComponentHostingButton, descriptionOfPathToButton);
 	}
 
-	private void findAllMenuItems() {
+	private void findAllMenuItemsInSNTUI() {
 		parseMenuBar("Main", sntui.getJMenuBar());
 		parsePopupMenu("PM", sntui.getPathManager().getJTree().getComponentPopupMenu()); // before PM's menu bar
 		parseMenuBar("PM", sntui.getPathManager().getJMenuBar());
@@ -189,10 +189,12 @@ public class SNTCommandFinder {
 	private String[] makeRow(final String command, final CommandAction ca) {
 		final String[] result = new String[tableModel.getColumnCount()];
 		result[0] = command;
-		if (ca.buttonHostDescription != null)
-			result[1] = ca.buttonHostDescription;
-		if (ca.buttonLocationDescription != null)
-			result[2] = ca.buttonLocationDescription;
+		if (ca.buttonLocationDescription != null) {
+			if (ca.buttonHostDescription == null)
+				result[1] = ca.buttonLocationDescription;
+			else
+				result[1] = ca.buttonHostDescription + ": " + ca.buttonLocationDescription;
+		}
 		return result;
 	}
 
@@ -362,7 +364,8 @@ public class SNTCommandFinder {
 
 		if (frame != null)
 			frame.setVisible(false); // Is this really needed?
-		findAllMenuItems();
+		if (sntui != null)
+			findAllMenuItemsInSNTUI();
 
 		/*
 		 * Sort the commands, generate list labels for each and put them into a hash:
@@ -443,7 +446,7 @@ public class SNTCommandFinder {
 		// table.setShowHorizontalLines(false);
 		table.setRowSelectionAllowed(true);
 		table.setColumnSelectionAllowed(false);
-		table.getTableHeader().setDefaultRenderer(new TableHeaderRenderer(table.getTableHeader().getDefaultRenderer()));
+		//table.getTableHeader().setDefaultRenderer(new TableHeaderRenderer(table.getTableHeader().getDefaultRenderer()));
 
 		// Adjustments to row height and column width
 		resizeColumnWidthAndRowHeight();
@@ -519,7 +522,7 @@ public class SNTCommandFinder {
 	private void resizeColumnWidthAndRowHeight() {
 		resizeRowHeight();
 		final int MIN_ROW_WIDTH = 20;
-		final int MAX_ROW_WIDTH = TABLE_WIDTH * 2/3;
+		final int MAX_ROW_WIDTH = TABLE_WIDTH * 3/4;
 		final TableColumnModel columnModel = table.getColumnModel();
 		for (int column = 0; column < table.getColumnCount(); column++) {
 			int width = MIN_ROW_WIDTH;
@@ -573,7 +576,7 @@ public class SNTCommandFinder {
 	private class TableModel extends AbstractTableModel {
 		private static final long serialVersionUID = 1L;
 		protected ArrayList<String[]> list;
-		public final static int COLUMNS = 3;
+		public final static int COLUMNS = 2;
 
 		public TableModel() {
 			list = new ArrayList<>();
@@ -593,8 +596,6 @@ public class SNTCommandFinder {
 			case 0:
 				return "Command";
 			case 1:
-				return "Dialog";
-			case 2:
 				return "Where?";
 			}
 			return null;
@@ -620,8 +621,9 @@ public class SNTCommandFinder {
 
 	}
 
-	// https://stackoverflow.com/a/7794786
+	@SuppressWarnings("unused")
 	private class TableHeaderRenderer implements TableCellRenderer {
+		// https://stackoverflow.com/a/7794786
 
 		private final TableCellRenderer delegate;
 
