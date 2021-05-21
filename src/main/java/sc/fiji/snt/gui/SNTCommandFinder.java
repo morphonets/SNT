@@ -90,6 +90,10 @@ public class SNTCommandFinder {
 		this.sntui = sntui;
 	}
 
+	public SNTCommandFinder() {
+		this(null);
+	}
+
 	public void setLocationRelativeTo(final Component c) {
 		if (c != null) {
 			this.relativeToComponent = new ComponentWithFocusTimer(c);
@@ -115,6 +119,10 @@ public class SNTCommandFinder {
 		if (frame != null)
 			frame.dispose();
 		frame = null;
+	}
+
+	public void register(final AbstractButton button, final String descriptionOfPathToButton) {
+		register(button, null, descriptionOfPathToButton);
 	}
 
 	public void register(final AbstractButton button, final String descriptionOfComponentHostingButton,
@@ -246,7 +254,10 @@ public class SNTCommandFinder {
 
 	private void runCommand(final String command) {
 		hideWindow(); // hide before running, in case command opens a dialog
-		defaultCmdsHash.get(command).button.doClick();
+		if (defaultCmdsHash.get(command) != null)
+			defaultCmdsHash.get(command).button.doClick();
+		else
+			otherCmdsHash.get(command).button.doClick();
 	}
 
 	private static Window findWindow(final Component c) {

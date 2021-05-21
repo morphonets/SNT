@@ -81,6 +81,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import javax.swing.AbstractAction;
+import javax.swing.AbstractButton;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.DefaultListCellRenderer;
@@ -219,6 +220,7 @@ import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
+import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.SNTSearchableBar;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.io.FlyCircuitLoader;
@@ -3019,10 +3021,12 @@ public class Viewer3D {
 		private JCheckBoxMenuItem debugCheckBox;
 		private final SNTSearchableBar searchableBar;
 		private final ProgressBar progressBar;
+		private SNTCommandFinder cmdFinder;
 
 		private ManagerPanel(final GuiUtils guiUtils) {
 			super();
 			this.guiUtils = guiUtils;
+			cmdFinder = new SNTCommandFinder();
 			setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 			searchableBar = new SNTSearchableBar(new ListSearchable(managerList));
 			searchableBar.setGuiUtils(guiUtils);
@@ -3309,7 +3313,7 @@ public class Viewer3D {
 		}
 
 		private JPanel buttonPanel() {
-			final JPanel buttonPanel = new JPanel(new GridLayout(1, 6));
+			final JPanel buttonPanel = new JPanel(new GridLayout(1, 7));
 			buttonPanel.setBorder(null);
 			// do not allow panel to resize vertically
 			setFixedHeightToPanel(buttonPanel);
@@ -3320,6 +3324,14 @@ public class Viewer3D {
 			buttonPanel.add(menuButton(GLYPH.CALCULATOR, measureMenu(), "Analyze & Measure"));
 			buttonPanel.add(menuButton(GLYPH.TOOL, utilsMenu(), "Utilities"));
 			buttonPanel.add(menuButton(GLYPH.COG, prefsMenu(), "Settings"));
+			final JButton cFinder = new JButton(IconFactory.getButtonIcon(IconFactory.GLYPH.SEARCH));
+			cFinder.setToolTipText("Search for commands");
+			cFinder.addActionListener(e -> {
+				cmdFinder.setLocationRelativeTo(cFinder);
+				cmdFinder.toggleVisibility();
+			});
+			buttonPanel.add(cFinder);
+
 			return buttonPanel;
 		}
 
@@ -3332,6 +3344,7 @@ public class Viewer3D {
 		private JButton menuButton(final GLYPH glyph, final JPopupMenu menu, final String tooltipMsg) {
 			final JButton button = new JButton(IconFactory.getButtonIcon(glyph));
 			button.setToolTipText(tooltipMsg);
+			registerMenuInCmdFinder(menu, tooltipMsg);
 			button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 			return button;
 		}
@@ -3410,6 +3423,27 @@ public class Viewer3D {
 			sync.setEnabled(isSNTInstance());
 			sceneMenu.add(sync);
 			return sceneMenu;
+		}
+
+		private void registerMenuInCmdFinder(final JPopupMenu menu, final String description) {
+			for (final Component component : menu.getComponents()) {
+				if (component instanceof JMenu)
+					registerMenuInCmdFinder((JMenu)component, description + ">" + ((JMenu)component).getText());
+				else if (component instanceof AbstractButton)
+					cmdFinder.register((AbstractButton)component, description);
+			}
+		}
+	
+		private void registerMenuInCmdFinder(final JMenu menu, final String description) {
+			for (final Component component : menu.getMenuComponents()) {
+				if (component instanceof JMenu) {
+					registerMenuInCmdFinder((JMenu)component, description + ">" + ((JMenu)component).getText());
+				}
+				else if (component instanceof JMenuItem) {
+					cmdFinder.register((JMenuItem)component, description);
+				}
+
+			}
 		}
 
 		private void wipeScene() {
@@ -3600,6 +3634,7 @@ public class Viewer3D {
 			pMenu.add(sort);
 			pMenu.addSeparator();
 			pMenu.add(remove);
+			registerMenuInCmdFinder(pMenu, "Contextual Menu");
 			return pMenu;
 		}
 
