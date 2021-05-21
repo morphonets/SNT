@@ -476,9 +476,9 @@ public class HessianProcessor {
 
         try {
             result = HessianMatrix.calculateMatrix(
-                    result,
-                    ArrayImgs.floats(this.imgDim[0], this.imgDim[1], this.imgDim[2], 2),
-                    ArrayImgs.floats(this.imgDim[0], this.imgDim[1], this.imgDim[2], 3),
+                    Views.extendBorder(result),
+                    ArrayImgs.floats(this.imgDim[0], this.imgDim[1], 2),
+                    ArrayImgs.floats(this.imgDim[0], this.imgDim[1], 3),
                     new OutOfBoundsBorderFactory<>(),
                     this.nThreads,
                     es);
@@ -643,9 +643,9 @@ public class HessianProcessor {
             FastGauss.convolve(sigma, Views.extendBorder(this.img), tmpFrangi);
             try {
                 tmpFrangi = HessianMatrix.calculateMatrix(
-                        tmpFrangi,
-                        ArrayImgs.floats(this.imgDim[0], this.imgDim[1], this.imgDim[2], 2),
-                        ArrayImgs.floats(this.imgDim[0], this.imgDim[1], this.imgDim[2], 3),
+                        Views.extendBorder(tmpFrangi),
+                        ArrayImgs.floats(this.imgDim[0], this.imgDim[1], 2),
+                        ArrayImgs.floats(this.imgDim[0], this.imgDim[1], 3),
                         new OutOfBoundsBorderFactory<>(),
                         this.nThreads,
                         es);
