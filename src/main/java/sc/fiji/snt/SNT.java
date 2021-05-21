@@ -25,7 +25,6 @@ package sc.fiji.snt;
 import amira.AmiraMeshDecoder;
 import amira.AmiraParameters;
 import com.google.common.collect.Lists;
-import features.GaussianGenerationCallback;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -167,6 +166,9 @@ public class SNT extends MultiDThreePanes implements
 	private volatile boolean hessianEnabled = false;
 	protected final HessianCaller primaryHessian;
 	protected final HessianCaller secondaryHessian;
+
+	/* current selected SearchInterface type */
+	protected Class<? extends SearchInterface> searchType = TracerThread.class;
 
 	/* Search image type */
 	@SuppressWarnings("rawtypes")
@@ -1422,7 +1424,7 @@ public class SNT extends MultiDThreePanes implements
 		testPathTo(world_x, world_y, world_z, joinPoint, -1); // GUI execution
 	}
 
-	synchronized private void testPathTo(final double world_x, final double world_y,
+	synchronized private void testPathTo2(final double world_x, final double world_y,
 		final double world_z, final PointInImage joinPoint, final int minPathSize)// Script execution
 	{
 		if (!lastStartPointSet) {
@@ -1530,6 +1532,125 @@ public class SNT extends MultiDThreePanes implements
 			}
 
 		}
+
+	}
+
+	synchronized private void testPathTo(final double world_x, final double world_y, final double world_z,
+										 final PointInImage joinPoint, final int minPathSize)
+	{
+		if (!lastStartPointSet) {
+			statusService.showStatus(
+				"No initial start point has been set.  Do that with a mouse click." +
+					" (Or a Shift-" + GuiUtils.ctrlKey() +
+					"-click if the start of the path should join another neurite.");
+			return;
+		}
+
+		if (temporaryPath != null) {
+			statusService.showStatus(
+				"There's already a temporary path; Press 'N' to cancel it or 'Y' to keep it.");
+			return;
+		}
+
+		double real_x_end, real_y_end, real_z_end;
+
+		int x_end, y_end, z_end;
+		if (joinPoint == null) {
+			real_x_end = world_x;
+			real_y_end = world_y;
+			real_z_end = world_z;
+		}
+		else {
+			real_x_end = joinPoint.x;
+			real_y_end = joinPoint.y;
+			real_z_end = joinPoint.z;
+			endJoin = joinPoint.onPath;
+			endJoinPoint = joinPoint;
+		}
+
+		addSphere(targetBallName, real_x_end, real_y_end, real_z_end, getXYCanvas()
+			.getTemporaryPathColor(), x_spacing * ballRadiusMultiplier);
+
+		x_end = (int) Math.round(real_x_end / x_spacing);
+		y_end = (int) Math.round(real_y_end / y_spacing);
+		z_end = (int) Math.round(real_z_end / z_spacing);
+
+		if (tracerThreadPool == null || tracerThreadPool.isShutdown()) {
+			tracerThreadPool = Executors.newSingleThreadExecutor();
+		}
+
+		if (tubularGeodesicsTracingEnabled) {
+
+			// Then useful values are:
+			// oofFile.getAbsolutePath() - the filename of the OOF file
+			// last_start_point_[xyz] - image coordinates of the start point
+			// [xyz]_end - image coordinates of the end point
+
+			// [xyz]_spacing
+
+			tubularGeodesicsThread = new TubularGeodesicsTracer(secondaryImageFile,
+					(int) Math.round(last_start_point_x), (int) Math.round(
+					last_start_point_y), (int) Math.round(last_start_point_z), x_end,
+					y_end, z_end, x_spacing, y_spacing, z_spacing, spacing_units);
+			addThreadToDraw(tubularGeodesicsThread);
+			tubularGeodesicsThread.addProgressListener(this);
+			tubularGeodesicsThread.start();
+			return;
+		}
+
+		if (!isAstarEnabled()) {
+			manualSearchThread = new ManualTracerThread(this, last_start_point_x,
+					last_start_point_y, last_start_point_z, x_end, y_end, z_end);
+			addThreadToDraw(manualSearchThread);
+			manualSearchThread.addProgressListener(this);
+			tracerThreadPool.execute(manualSearchThread);
+			return;
+		}
+
+		SearchCost costFunction;
+		if (isHessianEnabled( isTracingOnSecondaryImageActive() ? "secondary" : "primary" )) {
+			final boolean secondary = isTracingOnSecondaryImageActive();
+			HessianCaller hessian = secondary ? secondaryHessian : primaryHessian;
+			if (this.costFunctionClass == FrangiCost.class) {
+				costFunction = new FrangiCost(hessian.hessian);
+			} else if (this.costFunctionClass == TubenessCost.class) {
+				costFunction = new TubenessCost(hessian.hessian, hessian.getMultiplier());
+			} else {
+				throw new IllegalArgumentException("BUG: Unknown cost function");
+			}
+		} else {
+			costFunction = new ReciprocalCost();
+		}
+		SearchHeuristic heuristic = new EuclideanHeuristic();
+
+		// TODO: unify api for these two
+		if (searchType == TracerThread.class) {
+			currentSearchThread = new TracerThread((int) Math.round(last_start_point_x),
+					(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end,
+					this, costFunction, heuristic);
+			addThreadToDraw(currentSearchThread);
+			currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this color a preference
+			currentSearchThread.setMinExpectedSizeOfResult(minPathSize);
+			currentSearchThread.setDrawingThreshold(-1);
+			currentSearchThread.addProgressListener(this);
+			tracerThreadPool.execute(currentSearchThread);
+			return;
+
+		}
+		if (searchType == BidirectionalHeuristicSearch.class) {
+			nbaStarSearch = new BidirectionalHeuristicSearch((int) Math.round(last_start_point_x),
+					(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end,
+					this, costFunction, heuristic);
+			addThreadToDraw(nbaStarSearch);
+			nbaStarSearch.setDrawingColors(Color.CYAN, Color.ORANGE); // Stabilized, Rejected
+			nbaStarSearch.setMinExpectedSizeOfResult(-1);
+			nbaStarSearch.setDrawingThreshold(-1);
+			nbaStarSearch.addProgressListener(this);
+			tracerThreadPool.submit(nbaStarSearch);
+			return;
+		}
+
+		throw new IllegalArgumentException("BUG: Search class not set");
 
 	}
 
@@ -2485,7 +2606,7 @@ public class SNT extends MultiDThreePanes implements
 		return prefs;
 	}
 
-	// This is the implementation of GaussianGenerationCallback
+	// This is the implementation of HessianGenerationCallback
 	@Override
 	public void proportionDone(final double proportion) {
 		if (proportion < 0) {

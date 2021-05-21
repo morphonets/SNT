@@ -31,7 +31,6 @@ import org.junit.Test;
 import sc.fiji.snt.util.ArraySearchImage;
 
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeNotNull;
@@ -112,7 +111,7 @@ public class Tracing3DTest {
 			long pointsExploredHessian;
 			long pointsExploredNBAStarHessian;
 
-			final HessianAnalyzer hessian = new HessianAnalyzer(image, null);
+			final HessianProcessor hessian = new HessianProcessor(image, null);
 			hessian.processTubeness(0.84, false);
 			//hessian.processFrangi(new double[]{0.54, 0.77, 0.843}, true);
 

@@ -32,6 +32,9 @@ import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
 import ij3d.ImageWindow3D;
 import net.imagej.Dataset;
+import net.imglib2.img.Img;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.real.FloatType;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
@@ -41,7 +44,6 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.event.SNTEvent;
-import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.gui.ColorChooserButton;
@@ -2446,8 +2448,8 @@ public class SNTUI extends JDialog {
 		hideViewsMenu.add(threeDViewerMenuItem);
 		viewMenu.add(hideViewsMenu);
 		viewMenu.addSeparator();
-		final JMenuItem tItem = showTubenessImpMenuItem(null);
-		tItem.setText("<HTML>Show Cached <i>Hessian (Tubeness) Image</i>...");
+		final JMenuItem tItem = showHessianImpMenuItem(null);
+		tItem.setText("<HTML>Show Cached <i>Hessian Image</i>...");
 		viewMenu.add(tItem);
 		final JMenuItem fItem = showFilteredImpMenuItem();
 		fItem.setText("<HTML>Show Cached <i>Secondary Image</i>");
@@ -2455,20 +2457,26 @@ public class SNTUI extends JDialog {
 		return menuBar;
 	}
 
-	private JMenuItem showTubenessImpMenuItem(final String type) {
-		final JMenuItem menuItem = new JMenuItem("<HTML>Show Cached <i>Tubeness Image...</i>");
+	private JMenuItem showHessianImpMenuItem(final String type) {
+		final JMenuItem menuItem = new JMenuItem("<HTML>Show Cached <i>Hessian Image...</i>");
 		menuItem.addActionListener(e -> {
-			final String choice = (type == null) ? getPrimarySecondaryImgChoice("Which data would you like to display?") : type;
-			if (choice == null) return;
-			final ImagePlus imp = plugin.getCachedTubenessDataAsImp(choice);
-			if (imp == null) {
-				guiUtils.error("No \"Tubeness\" image has been loaded/computed.<br>"
+			final String choice = (type == null) ?
+					getPrimarySecondaryImgChoice("Which data would you like to display?") : type;
+
+			final HessianCaller hc = choice.equalsIgnoreCase("secondary") ? plugin.secondaryHessian :
+					plugin.primaryHessian;
+
+			final String analysisType = hc.getAnalysisType() == HessianCaller.TUBENESS ? "Tubeness" : "Frangi";
+
+			if (hc.hessian == null) {
+				guiUtils.error("No " + analysisType + " image has been loaded/computed.<br>"
 						+ "Image can only be displayed after running <i>Compute Now</i> "
-						+ "or <i>Load Precomputed \"Tubeness\" Image...</i> from the"
+						+ "or <i>Load Precomputed " + analysisType + " Image...</i> from the"
 						+ "<i>Cache Computation</i> menu(s).");
 			} else {
-				final HessianCaller hc = plugin.getHessianCaller(choice);
-				imp.setDisplayRange(0, hc.getMax());
+				Img<FloatType> img = (hc.getAnalysisType() == HessianCaller.TUBENESS) ? hc.hessian.getTubenessImg() :
+						hc.hessian.getFrangiImg();
+				ImagePlus imp = ImageJFunctions.wrap(img, "Cached " + analysisType);
 				imp.show();
 			}
 		});
@@ -2611,14 +2619,33 @@ public class SNTUI extends JDialog {
 		searchAlgoChoice.addItem("NBA* search");
 		searchAlgoChoice.addItem("Fast marching");
 		//TODO: ensure choice reflects the current state of plugin when assembling GUI
-		searchAlgoChoice.addActionListener(event -> {
-			// if user did not trigger the event ignore it
-			if (!searchAlgoChoice.hasFocus())
-				return;
-			@SuppressWarnings("unchecked")
-			final int idx = (int) ((JComboBox<String>) event.getSource()).getSelectedIndex();
-			setNBAStarSearchEnabled(idx == 1);
-			setFastMarchSearchEnabled(idx == 2);
+		searchAlgoChoice.addItemListener(new ItemListener() {
+
+			Object previousSelection = null;
+
+			@Override
+			public void itemStateChanged(ItemEvent e) {
+				// This is called twice during a selection change, so handle each state accordingly
+				if( e.getStateChange() == ItemEvent.DESELECTED ) {
+					previousSelection = e.getItem();
+
+				} else if ( e.getStateChange() == ItemEvent.SELECTED ) {
+					@SuppressWarnings("unchecked")
+					final int idx = ((JComboBox<String>) e.getSource()).getSelectedIndex();
+					if (idx == 0) {
+						enableTracerThread();
+						setFastMarchSearchEnabled(false);
+					} else if (idx == 1) {
+						enableNBAStar();
+						setFastMarchSearchEnabled(false);
+					} else if (idx == 2) {
+						if (!setFastMarchSearchEnabled(true)) {
+							searchAlgoChoice.setSelectedItem(previousSelection);
+						}
+					}
+
+				}
+			}
 		});
 
 		final JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
@@ -2654,8 +2681,14 @@ public class SNTUI extends JDialog {
 		return aStarPanel;
 	}
 
-	private void setNBAStarSearchEnabled(boolean b) {
-		plugin.nbaStarSearchEnabled = b;
+	private void enableTracerThread() {
+		plugin.searchType = TracerThread.class;
+		refreshHessianPanelState();
+	}
+
+	private void enableNBAStar() {
+		plugin.searchType = BidirectionalHeuristicSearch.class;
+		refreshHessianPanelState();
 	}
 
 	private JPanel filteredImgActivatePanel() {
@@ -2755,7 +2788,7 @@ public class SNTUI extends JDialog {
 		});
 		menu.add(jmi);
 		menu.addSeparator();
-		menu.add(showTubenessImpMenuItem(type));
+		menu.add(showHessianImpMenuItem(type));
 		return menu;
 	}
 
@@ -2784,17 +2817,21 @@ public class SNTUI extends JDialog {
 		return statusBar;
 	}
 
-	private void setFastMarchSearchEnabled(final boolean enable) {
-		final boolean enbl = enable && isFastMarchSearchAvailable();
-		plugin.tubularGeodesicsTracingEnabled = enbl;
-		if (!enbl) {
-			searchAlgoChoice.setSelectedIndex( (plugin.nbaStarSearchEnabled) ? 1 : 0);
+	private boolean setFastMarchSearchEnabled(boolean enable) {
+		if (enable && isFastMarchSearchAvailable()) {
+			plugin.tubularGeodesicsTracingEnabled = true;
+			searchAlgoChoice.setSelectedIndex(2);
+			refreshHessianPanelState();
+			return true;
+		} else {
+			plugin.tubularGeodesicsTracingEnabled = false;
 			if (plugin.tubularGeodesicsThread != null) {
 				plugin.tubularGeodesicsThread.requestStop();
 				plugin.tubularGeodesicsThread = null;
 			}
+			refreshHessianPanelState();
+			return false;
 		}
-		refreshHessianPanelState();
 	}
 
 	private boolean isFastMarchSearchAvailable() {
@@ -2939,7 +2976,7 @@ public class SNTUI extends JDialog {
 		if (plugin.isTracingOnSecondaryImageAvailable()) {
 			final String[] choices = new String[] { "Primary (Main)", "Secondary" };
 			final String defChoice = plugin.getPrefs().getTemp("pschoice", choices[0]);
-			final String choice = guiUtils.getChoice(promptMsg, "Wich Image?", choices, defChoice);
+			final String choice = guiUtils.getChoice(promptMsg, "Which Image?", choices, defChoice);
 			if (choice != null) {
 				plugin.getPrefs().setTemp("pschoice", choice);
 				secondaryImgActivateCheckbox.setSelected(choices[1].equals(choice));
@@ -3339,14 +3376,15 @@ public class SNTUI extends JDialog {
 
 	protected void launchSigmaPaletteAround(final int x, final int y) {
 
-		final int either_side = 40;
+		final int either_side_xy = 40;
+		final int either_side_z = 15;
 		final int z = plugin.getImagePlus().getZ();
-		int x_min = x - either_side;
-		int x_max = x + either_side;
-		int y_min = y - either_side;
-		int y_max = y + either_side;
-		int z_min = z - either_side; // 1-based index
-		int z_max = z + either_side; // 1-based index
+		int x_min = x - either_side_xy;
+		int x_max = x + either_side_xy;
+		int y_min = y - either_side_xy;
+		int y_max = y + either_side_xy;
+		int z_min = z - either_side_z; // 1-based index
+		int z_max = z + either_side_z; // 1-based index
 
 		final int originalWidth = plugin.getImagePlus().getWidth();
 		final int originalHeight = plugin.getImagePlus().getHeight();

@@ -29,11 +29,11 @@ public class TubenessCost implements SearchCost {
 
     static final double MINIMUM_COST_PER_UNIT_DISTANCE = 1 / 60.0;
 
-    HessianAnalyzer hessian;
+    HessianProcessor hessian;
     double multiplier;
     AbstractSearch search;
 
-    public TubenessCost(HessianAnalyzer hessian, double multiplier) {
+    public TubenessCost(HessianProcessor hessian, double multiplier) {
         this.hessian = hessian;
         this.multiplier = multiplier;
     }

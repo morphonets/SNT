@@ -37,10 +37,10 @@ public class FrangiCost implements SearchCost {
     static final double STEP_COST_LOWER_BOUND = 1e-60;
     final double minStepCost;
 
-    HessianAnalyzer hessian;
+    HessianProcessor hessian;
     SearchInterface search;
 
-    public FrangiCost(HessianAnalyzer hessian) {
+    public FrangiCost(HessianProcessor hessian) {
         if (hessian == null) {
             throw new IllegalArgumentException("HessianAnalyzer cannot be null");
         }

@@ -32,7 +32,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import ij.ImagePlus;
-import ij.measure.Calibration;
 import sc.fiji.snt.util.ArraySearchImage;
 
 import java.util.Objects;
@@ -115,7 +114,7 @@ public class Tracing2DTest {
 			long pointsExploredHessian;
 			long pointsExploredNBAStarHessian;
 
-			final HessianAnalyzer hessian = new HessianAnalyzer(image, null);
+			final HessianProcessor hessian = new HessianProcessor(image, null);
 			//hessian2.processFrangi(new double[]{0.66, 0.98}, true);
 			hessian.processTubeness(0.835, false);
 

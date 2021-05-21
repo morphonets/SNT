@@ -123,7 +123,6 @@ public class SigmaPalette extends Thread {
 			final GridBagConstraints c = new GridBagConstraints();
 			c.ipadx = 0;
 			c.insets = new Insets(0, 0, 0, 0);
-			c.ipadx = 0;
 			c.fill = GridBagConstraints.HORIZONTAL;
 			assembleScrollbars(panel, c);
 			assembleButtonPanel(panel, c);
@@ -522,7 +521,7 @@ public class SigmaPalette extends Thread {
 			final int offsetX = sigmaX * (croppedWidth + 1) + 1;
 			final int offsetY = sigmaY * (croppedHeight + 1) + 1;
 			final double sigma = sigmaValues[sigmaIndex];
-			final HessianAnalyzer hessian = new HessianAnalyzer(cropped, null);
+			final HessianProcessor hessian = new HessianProcessor(cropped, null);
 			ImagePlus processed;
 			if (hc.getAnalysisType() == HessianCaller.TUBENESS) {
 				hessian.processTubeness(sigma, false);
@@ -534,6 +533,7 @@ public class SigmaPalette extends Thread {
 			} else {
 				throw new IllegalArgumentException("Unknown hessian analysis type");
 			}
+			// FIXME: these values are no longer suitable for the scale of values in processed
 			final ImageStatistics stats = processed.getStatistics(ImagePlus.MIN_MAX);
 			defaultMin = stats.min;
 			defaultMax = stats.max;

@@ -31,6 +31,7 @@ import ij.ImagePlus;
  * adopt other approaches.
  * 
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
 public class HessianCaller {
 
@@ -45,7 +46,7 @@ public class HessianCaller {
 	private final int type;
 	double sigma = -1;
 	double multiplier = DEFAULT_MULTIPLIER;
-	protected HessianAnalyzer hessian;
+	protected HessianProcessor hessian;
 	protected float[][] cachedTubeness;
 	private ImagePlus imp;
 	private byte analysisType = TUBENESS;
@@ -69,7 +70,7 @@ public class HessianCaller {
 		this.sigma = sigmaInCalibratedUnits;
 		this.multiplier = impMax() / max;
 		if (snt.ui != null) snt.ui.updateHessianPanel(this);
-		SNTUtils.log("Hessian parameters adjusted "+ toString());
+		SNTUtils.log("Hessian parameters adjusted "+ this);
 	}
 
 	protected double getSigma(final boolean physicalUnits) {
@@ -113,7 +114,7 @@ public class HessianCaller {
 		if (sigma == -1)
 			sigma = getDefaultSigma();
 		setImp();
-		hessian = new HessianAnalyzer(imp, snt);
+		hessian = new HessianProcessor(imp, snt);
 		Thread thread;
 		if (analysisType == TUBENESS) {
 			thread = new Thread(() -> hessian.processTubeness(sigma, false));
@@ -138,7 +139,6 @@ public class HessianCaller {
 
 	protected void cancelGaussianGeneration() {
 		// TODO
-//		if (hessian != null) hessian.cancelGaussianGeneration();
 	}
 
 	void nullify() {
@@ -151,8 +151,6 @@ public class HessianCaller {
 
 	@Override
 	public String toString() {
-		final StringBuilder sb = new StringBuilder((type == PRIMARY) ? "(main" : "(secondary");
-		sb.append(" image): sigma=").append(sigma).append(", m=").append(multiplier);
-		return sb.toString();
+		return ((type == PRIMARY) ? "(main" : "(secondary") + " image): sigma=" + sigma + ", m=" + multiplier;
 	}
 }
