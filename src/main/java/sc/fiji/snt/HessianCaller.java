@@ -68,7 +68,7 @@ public class HessianCaller {
 		if (sigma != sigmaInCalibratedUnits)
 			hessian = null;
 		this.sigma = sigmaInCalibratedUnits;
-		this.multiplier = impMax() / max;
+		this.multiplier = 256 / max; // (tubeness * multiplier) is always clipped to [0, 256]
 		if (snt.ui != null) snt.ui.updateHessianPanel(this);
 		SNTUtils.log("Hessian parameters adjusted "+ this);
 	}
@@ -83,11 +83,11 @@ public class HessianCaller {
 	}
 
 	protected double getMax() {
-		return Math.min(impMax(), 256) / multiplier;
+		return 256 / multiplier;
 	}
 
 	protected double getDefaultMax() {
-		return Math.min(impMax(), 256) / DEFAULT_MULTIPLIER;
+		return 256 / DEFAULT_MULTIPLIER;
 	}
 
 	protected double getDefaultSigma() {

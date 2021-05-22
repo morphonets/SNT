@@ -66,10 +66,9 @@ public class SigmaPalette extends Thread {
 
 	private int selectedSigmaIndex = 0;
 	private int mouseMovedSigmaIndex = -1;
-	private final double[] selectedMinMax = {Double.NaN, Double.NaN};
+	private double selectedMax = Double.NaN;
 	private int x_min, x_max, y_min, y_max, z_min, z_max;
-	private double defaultMin;
-	private double defaultMax;
+	private double suggestedMax = -Double.MAX_VALUE;
 	private int sigmasAcross;
 	private int sigmasDown;
 	private int initial_z;
@@ -91,9 +90,7 @@ public class SigmaPalette extends Thread {
 
 		private static final long serialVersionUID = 1L;
 		private Button applyButton;
-		private Scrollbar minValueScrollbar;
 		private Scrollbar maxValueScrollbar;
-		private Label minValueLabel;
 		private Label maxValueLabel;
 		private final double defaultMax;
 
@@ -150,51 +147,32 @@ public class SigmaPalette extends Thread {
 		}
 
 		private void assembleScrollbars(final Panel panel, final GridBagConstraints c) {
-			final double[] limits = hc.impRange();
-			final double multiplier = 100 / (limits[1] - limits[0]);
-			minValueScrollbar = new Scrollbar(Scrollbar.HORIZONTAL, //
-					(int) (defaultMin * multiplier), //
-					1, //
-					(int) (limits[0] * multiplier), (int) (limits[1]*multiplier));
-			minValueScrollbar.setFocusable(false); // prevents scroll bar from flickering on windows!?
-			minValueScrollbar.addAdjustmentListener(e -> {
-				minMaxChanged(e.getValue()/multiplier, selectedMinMax[1]);
-			});
-			minValueLabel = new Label("###.##");
-			final Button resetMin = new Button("Reset");
-			resetMin.addActionListener(e -> {
-				minValueScrollbar.setValue((int)(defaultMin*multiplier));
-				minMaxChanged(defaultMin, selectedMinMax[1]);
-			});
-
 			c.gridy++;
 			c.gridx =0;
 			c.weightx = 0;
-			panel.add(new Label("Min."), c);
+			//panel.add(new Label("Min."), c);
 			c.gridx++;
 			c.weightx = 1;
-			panel.add(minValueScrollbar, c);
+			//panel.add(minValueScrollbar, c);
 			c.gridx++;
 			c.weightx = 0;
-			panel.add(minValueLabel, c);
+			//panel.add(minValueLabel, c);
 			c.gridx++;
-			panel.add(resetMin, c);
+			//panel.add(resetMin, c);
 			c.gridx++;
 
 			// Max scrollbar
-			maxValueScrollbar = new Scrollbar(Scrollbar.HORIZONTAL, //
-					(int) (defaultMax * multiplier), //
-					1, //
-					(int) ((limits[0]) * multiplier), (int) (limits[1]*multiplier));
+			maxValueScrollbar = new Scrollbar(Scrollbar.HORIZONTAL, (int) (defaultMax), 1, 1,
+					(int) image.getDisplayRangeMax());
 			maxValueScrollbar.setFocusable(false); // prevents scroll bar from flickering on windows!?
 			maxValueScrollbar.addAdjustmentListener(e -> {
-				minMaxChanged(selectedMinMax[0], e.getValue()/multiplier);
+				maxChanged(e.getValue());
 			});
 			maxValueLabel = new Label("###.##");
 			final Button resetMax = new Button("Reset");
 			resetMax.addActionListener(e -> {
-				maxValueScrollbar.setValue((int) (defaultMax * multiplier));
-				minMaxChanged(selectedMinMax[0], defaultMax);
+				maxValueScrollbar.setValue((int) defaultMax);
+				maxChanged(defaultMax);
 			});
 
 			c.gridy++;
@@ -213,17 +191,15 @@ public class SigmaPalette extends Thread {
 		}
 
 		private void updateLabels() {
-			final String min = SNTUtils.formatDouble(selectedMinMax[0], 1);
-			final String max = SNTUtils.formatDouble(selectedMinMax[1], 1);
-			minValueLabel.setText(min);
+			final String max = SNTUtils.formatDouble(selectedMax, 1);
 			maxValueLabel.setText(max);
 			applyButton.setLabel((includeMaxInGui)
 					? "Apply \u03C3=" + SNTUtils.formatDouble(getSelectedSigma(), 2) + "; max=" + max
 					: "     Apply \u03C3=" + SNTUtils.formatDouble(getSelectedSigma(), 2) + "     ");
 		}
 
-		private void minMaxChanged(final double newMin, final double newMax) {
-			setMinMax(newMin, newMax);
+		private void maxChanged(final double newMax) {
+			setMax(newMax);
 			updateLabels();
 		}
 
@@ -369,10 +345,9 @@ public class SigmaPalette extends Thread {
 		}
 	}
 
-	private void setMinMax(final double min, final double max) {
-		selectedMinMax[0] = min;
-		selectedMinMax[1] = max;
-		paletteImage.getProcessor().setMinAndMax(min, max);
+	private void setMax(final double max) {
+		selectedMax = max;
+		paletteImage.getProcessor().setMinAndMax(0, max);
 		paletteImage.updateAndDraw();
 	}
 
@@ -460,7 +435,7 @@ public class SigmaPalette extends Thread {
 	private void apply() {
 		//preprocess.setSelected(false);
 		flush();
-		hc.setSigmaAndMax(getSelectedSigma(), selectedMinMax[1]);
+		hc.setSigmaAndMax(getSelectedSigma(), selectedMax);
 		if (hc.isGaussianComputed())
 			snt.changeUIState(SNTUI.READY);
 		else 
@@ -535,15 +510,14 @@ public class SigmaPalette extends Thread {
 			}
 			// FIXME: these values are no longer suitable for the scale of values in processed
 			final ImageStatistics stats = processed.getStatistics(ImagePlus.MIN_MAX);
-			defaultMin = stats.min;
-			defaultMax = stats.max;
+			suggestedMax = Math.max(stats.max, suggestedMax);
+			setMax(suggestedMax);
 			copyIntoPalette(processed, paletteImage, offsetX, offsetY);
-			setMinMax(defaultMin, defaultMax);
 		}
 
 		final PaletteCanvas paletteCanvas = new PaletteCanvas(paletteImage, croppedWidth, croppedHeight,
 			sigmasAcross, sigmasDown);
-		paletteWindow = new PaletteStackWindow(paletteImage, paletteCanvas, defaultMax);
+		paletteWindow = new PaletteStackWindow(paletteImage, paletteCanvas, suggestedMax);
 		paletteCanvas.requestFocusInWindow(); // required to trigger keylistener events
 	}
 
