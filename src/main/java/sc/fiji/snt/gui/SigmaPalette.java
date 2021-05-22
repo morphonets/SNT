@@ -508,7 +508,6 @@ public class SigmaPalette extends Thread {
 			} else {
 				throw new IllegalArgumentException("Unknown hessian analysis type");
 			}
-			// FIXME: these values are no longer suitable for the scale of values in processed
 			final ImageStatistics stats = processed.getStatistics(ImagePlus.MIN_MAX);
 			suggestedMax = Math.max(stats.max, suggestedMax);
 			setMax(suggestedMax);
