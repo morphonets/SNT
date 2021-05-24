@@ -63,7 +63,7 @@ import java.util.concurrent.Executors;
  */
 public class HessianProcessor {
 
-    static class TrivialProgressDisplayer implements HessianGenerationCallback {
+    static class TrivialProgressBar implements HessianGenerationCallback {
         public void proportionDone(double proportion) {
             if (proportion < 0)
                 IJ.showProgress(1.0);
@@ -87,10 +87,11 @@ public class HessianProcessor {
     RandomAccess<FloatType> frangiAccess;
     ImgStats frangiStats;
 
-    private final HessianGenerationCallback callback;
+    private HessianGenerationCallback callback;
 
     private int nThreads;
-    private int nBlocks;
+
+    // TODO: implement logic if user wants to override suggested block dimensions
 
     public HessianProcessor(final ImagePlus imp, final HessianGenerationCallback callback) {
         if (imp == null) {
@@ -111,15 +112,15 @@ public class HessianProcessor {
             this.pixelDepth = 1.0d;
         }
         if (callback == null) {
-            this.callback = new TrivialProgressDisplayer();
+            this.callback = new TrivialProgressBar();
         } else {
             this.callback = callback;
         }
         this.nThreads = SNTPrefs.getThreads();
     }
 
-    public void setNumBlocks(final int nBlocks) {
-        this.nBlocks = nBlocks;
+    public void setProgressListener(final HessianGenerationCallback callback) {
+        this.callback = callback;
     }
 
     public void setNumThreads(final int nThreads) {
@@ -129,11 +130,11 @@ public class HessianProcessor {
     public void processTubeness(final double sigma, final boolean computeStats) {
         SNTUtils.log("Computing Tubeness at sigma: " + sigma);
         this.callback.proportionDone(0);
-        if (this.is3D) {
-            processTubeness3D(sigma);
-        } else {
-            processTubeness2D(sigma);
+        this.tubenessImg = (Img<FloatType>) tubenessInternal(sigma);
+        if (this.tubenessImg == null) {
+            return;
         }
+        this.tubenessAccess = this.tubenessImg.randomAccess();
         SNTUtils.log("Done computing Tubeness.");
         if (computeStats) {
             SNTUtils.log("Computing Tubeness stats");
@@ -147,11 +148,11 @@ public class HessianProcessor {
     public void processFrangi(final double[] scales, final boolean computeStats) {
         SNTUtils.log("Computing Frangi at scales: " + Arrays.toString(scales));
         this.callback.proportionDone(0);
-        if (this.is3D) {
-            processFrangi3D(scales);
-        } else {
-            processFrangi2D(scales);
+        this.frangiImg = (Img<FloatType>) frangiInternal(scales);
+        if (this.frangiImg == null) {
+            return;
         }
+        this.frangiAccess = this.frangiImg.randomAccess();
         SNTUtils.log("Done computing Frangi.");
         if (computeStats) {
             SNTUtils.log("Computing Frangi stats");
@@ -192,13 +193,13 @@ public class HessianProcessor {
         ImageJFunctions.show(this.frangiImg, "Frangi Vesselness");
     }
 
-    protected RandomAccessibleInterval<FloatType> tubeness2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                                                             final RandomAccessibleInterval<FloatType> tubenessRai,
-                                                             final TaskExecutor ex)
+    protected void tubeness2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
+                              final RandomAccessibleInterval<FloatType> tubenessRai, final TaskExecutor ex)
     {
         final int d = eigenvalueRai.numDimensions() - 1;
         final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
         final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
+
         LoopBuilder.setImages(evs0, evs1, tubenessRai).multiThreaded(ex).forEachPixel(
                 (ev0, ev1, v) -> {
                     double e0 = ev0.getRealDouble();
@@ -214,30 +215,30 @@ public class HessianProcessor {
                     v.set((float) result);
                 }
         );
-        return tubenessRai;
     }
 
     protected void tubeness3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                              final RandomAccessibleInterval<FloatType> tubenessRai,
-                              final TaskExecutor ex)
+                              final RandomAccessibleInterval<FloatType> tubenessRai, final TaskExecutor ex)
     {
         final int d = eigenvalueRai.numDimensions() - 1;
         final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
         final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
         final IntervalView<FloatType> evs2 = Views.hyperSlice(eigenvalueRai, d, 2);
+
         LoopBuilder.setImages(evs0, evs1, evs2, tubenessRai).multiThreaded(ex).forEachPixel(
                 (ev0, ev1, ev2, v) -> {
                     double e0 = ev0.getRealDouble();
                     double e1 = ev1.getRealDouble();
                     double e2 = ev2.getRealDouble();
                     // Sort by absolute value
+                    double temp;
                     if (Math.abs(e0) > Math.abs(e1)) {
-                        double temp = e0;
+                        temp = e0;
                         e0 = e1;
                         e1 = temp;
                     }
                     if (Math.abs(e1) > Math.abs(e2)) {
-                        double temp = e1;
+                        temp = e1;
                         e1 = e2;
                         e2 = temp;
                     }
@@ -254,8 +255,7 @@ public class HessianProcessor {
         );
     }
 
-    protected float maxSquaredFrobenius(final RandomAccessibleInterval<FloatType> hessianRai, final TaskExecutor ex)
-    {
+    protected double maxSquaredFrobenius(final RandomAccessibleInterval<FloatType> hessianRai, final TaskExecutor ex) {
         final long[] dims = new long[hessianRai.numDimensions() - 1];
         for (int d = 0; d < hessianRai.numDimensions() - 1; ++d) {
             dims[d] = hessianRai.dimension(d);
@@ -264,20 +264,23 @@ public class HessianProcessor {
         for (int d = 0; d < hessianRai.dimension(hessianRai.numDimensions() - 1); ++d) {
             final IntervalView<FloatType> hessian = Views.hyperSlice(hessianRai, hessianRai.numDimensions() - 1, d);
             LoopBuilder.setImages(sum, hessian).multiThreaded(ex).forEachPixel(
-                    (s, h) -> s.set(s.getRealFloat() + h.getRealFloat() * h.getRealFloat())
+                    (s, h) -> {
+                        float sf = s.getRealFloat();
+                        float hf = h.getRealFloat();
+                        s.set(sf + hf * hf);
+                    }
             );
         }
         final ComputeMinMax<FloatType> minMax = new ComputeMinMax<>(
                 Views.iterable(sum), new FloatType(), new FloatType());
         minMax.setNumThreads(this.nThreads);
         minMax.process();
-        return minMax.getMax().getRealFloat();
+        return minMax.getMax().getRealDouble();
     }
 
-    protected RandomAccessibleInterval<FloatType> frangi2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                                                           final RandomAccessibleInterval<FloatType> frangiRai,
-                                                           final double beta, final double c,
-                                                           final TaskExecutor ex)
+    protected void frangi2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
+                            final RandomAccessibleInterval<FloatType> frangiRai, final double beta, final double c,
+                            final TaskExecutor ex)
     {
         final double betaDen = 2 * beta * beta;
         final double cDen = 2 * c * c;
@@ -310,13 +313,11 @@ public class HessianProcessor {
                     v.set((float) result);
                 }
         );
-        return frangiRai;
     }
 
     protected void frangi3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
                             final RandomAccessibleInterval<FloatType> frangiRai,
-                            final double alpha, final double beta, final double c,
-                            final TaskExecutor ex)
+                            final double alpha, final double beta, final double c, final TaskExecutor ex)
     {
         final double alphaDen = 2 * alpha * alpha;
         final double betaDen = 2 * beta * beta;
@@ -333,18 +334,19 @@ public class HessianProcessor {
                     double e1 = ev1.getRealDouble();
                     double e2 = ev2.getRealDouble();
                     // Sort by absolute value
+                    double temp;
                     if (Math.abs(e0) > Math.abs(e1)) {
-                        double temp = e0;
+                        temp = e0;
                         e0 = e1;
                         e1 = temp;
                     }
                     if (Math.abs(e1) > Math.abs(e2)) {
-                        double temp = e1;
+                        temp = e1;
                         e1 = e2;
                         e2 = temp;
                     }
                     if (Math.abs(e0) > Math.abs(e1)) {
-                        double temp = e0;
+                        temp = e0;
                         e0 = e1;
                         e1 = temp;
                     }
@@ -366,26 +368,35 @@ public class HessianProcessor {
         );
     }
 
-    protected void processTubeness3D(final double sigma) {
+    protected RandomAccessibleInterval<FloatType> tubenessInternal(final double sigma) {
 
-        final double[] sigmaArr = new double[]{
-                sigma / this.pixelWidth,
-                sigma / this.pixelHeight,
-                sigma / this.pixelDepth };
+        final long[] bestBlockSize = suggestBlockDimensions(this.imgDim);
 
         final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
-        final DefaultTaskExecutor ex = new DefaultTaskExecutor(es);
-
-        final long[] bestBlockSize = computeOptimalBlockDimensions(this.imgDim);
-
-        try {
-
+        try (TaskExecutor ex = new DefaultTaskExecutor(es)) {
             // TODO: maybe use one of the cached imglib2 data structures instead?
-            final Img<FloatType> output = ArrayImgs.floats(Intervals.dimensionsAsLongArray(this.img));
-            final List<IntervalView<FloatType>> blocks = imgToBlocks3D(output, bestBlockSize);
-
+            RandomAccessibleInterval<FloatType> output = ArrayImgs.floats(this.imgDim);
+            final List<IntervalView<FloatType>> blocks = splitIntoBlocks(output, bestBlockSize);
             if (blocks.size() == 0) {
-                throw new IllegalArgumentException("Num blocks == 0");
+                throw new IllegalStateException("Num blocks == 0");
+            }
+
+            final long[] gaussianPad = new long[this.imgDim.length];
+            final long[] gaussianOffset = new long[this.imgDim.length];
+
+            final long[] gradientPad = new long[this.imgDim.length + 1];
+            gradientPad[gradientPad.length - 1] = this.is3D ? 3 : 2;
+            final long[] gradientOffset = new long[this.imgDim.length + 1];
+
+            final long[] hessianPad = new long[this.imgDim.length + 1];
+            hessianPad[hessianPad.length - 1] = this.is3D ? 6 : 3;
+            final long[] hessianOffset = new long[this.imgDim.length + 1];
+
+            final double[] sigmaArr;
+            if (this.is3D) {
+                sigmaArr = new double[]{sigma / this.pixelWidth, sigma / this.pixelHeight, sigma / this.pixelDepth};
+            } else {
+                sigmaArr = new double[]{sigma / this.pixelWidth, sigma / this.pixelHeight};
             }
 
             int iter = 0;
@@ -393,58 +404,52 @@ public class HessianProcessor {
 
                 final long[] blockSize = Intervals.dimensionsAsLongArray(block);
 
+                for (int d = 0; d < blockSize.length; ++d) {
+                    gaussianPad[d] = blockSize[d] + 6;
+                    gaussianOffset[d] = block.min(d) - 2;
+                }
                 RandomAccessibleInterval<FloatType> tmpGaussian = Views.translate(
-                        ArrayImgs.floats(blockSize[0] + 4, blockSize[1] + 4, blockSize[2] + 4),
-                        block.min(0) - 2, block.min(1) - 2, block.min(2) - 2);
+                        ArrayImgs.floats(gaussianPad), gaussianOffset);
 
                 FastGauss.convolve(sigmaArr, Views.extendMirrorSingle(this.img), tmpGaussian);
 
-                RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(
-                        blockSize[0] + 2,
-                        blockSize[1] + 2,
-                        blockSize[2] + 2,
-                        3);
-
-                RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(
-                        blockSize[0],
-                        blockSize[1],
-                        blockSize[2],
-                        6);
+                for (int d = 0; d < gradientPad.length - 1; ++d) {
+                    gradientPad[d] = blockSize[d] + 4;
+                    gradientOffset[d] = block.min(d) - 1;
+                    hessianPad[d] = blockSize[d];
+                    hessianOffset[d] = block.min(d);
+                }
+                RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(gradientPad);
+                RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(hessianPad);
 
                 HessianMatrix.calculateMatrix(
                         Views.extendBorder(tmpGaussian),
-                        Views.translate(tmpGradient, block.min(0) - 1, block.min(1) - 1, block.min(2) - 1, 0),
-                        Views.translate(tmpHessian, block.min(0), block.min(1), block.min(2), 0),
+                        Views.translate(tmpGradient, gradientOffset),
+                        Views.translate(tmpHessian, hessianOffset),
                         new OutOfBoundsBorderFactory<>(),
                         this.nThreads,
                         es);
 
-                tmpGaussian = null;
-                tmpGradient = null;
-
-                final RandomAccessibleInterval<FloatType> tmpEigenvalues = ArrayImgs.floats(
-                        blockSize[0],
-                        blockSize[1],
-                        blockSize[2],
-                        3);
-
+                RandomAccessibleInterval<FloatType> tmpEigenvalues =
+                        TensorEigenValues.createAppropriateResultImg(
+                                tmpHessian,
+                                new ArrayImgFactory<>(new FloatType()));
                 TensorEigenValues.calculateEigenValuesSymmetric(tmpHessian, tmpEigenvalues, this.nThreads, es);
 
-                tmpHessian = null;
-
-                tubeness3D(tmpEigenvalues, block, ex);
-
-                this.callback.proportionDone(++iter / (double)blocks.size());
-
+                if (this.is3D) {
+                    tubeness3D(tmpEigenvalues, block, ex);
+                } else {
+                    tubeness2D(tmpEigenvalues, block, ex);
+                }
+                this.callback.proportionDone(iter / (double) blocks.size());
+                ++iter;
             }
-
-            this.tubenessImg = output;
-            this.tubenessAccess = this.tubenessImg.randomAccess();
+            return output;
 
         } catch (final OutOfMemoryError e) {
-            IJ.error("Out of memory when computing Tubeness. Rrequires around " +
-                    (estimateBlockMemory(this.imgDim, bestBlockSize) / (1024 * 1024)) + "MiB for block size " +
-                    Arrays.toString(bestBlockSize) + ". Try increasing num blocks.");
+            IJ.error("Out of memory when computing Tubeness. Requires around " +
+                    (estimateMemoryRequirement(this.imgDim, bestBlockSize) / (1024 * 1024)) + "MiB for block size " +
+                    Arrays.toString(bestBlockSize));
             this.callback.proportionDone(-1);
 
         } catch (final ExecutionException e) {
@@ -455,85 +460,51 @@ public class HessianProcessor {
             SNTUtils.error("Tubeness interrupted.", e);
             this.callback.proportionDone(-1);
             Thread.currentThread().interrupt();
-
-        } finally {
-            ex.close();
         }
-
+        return null;
     }
 
-    protected void processTubeness2D(final double sigma) {
+    protected RandomAccessibleInterval<FloatType> frangiInternal(final double[] scales) {
+
+        final long[] bestBlockSize = suggestBlockDimensions(this.imgDim);
 
         final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
-        final TaskExecutor ex = new DefaultTaskExecutor(es);
 
-        final double[] sigmaArr = new double[]{sigma / this.pixelWidth, sigma / this.pixelHeight};
-
-        // TODO: maybe use one of the cached imglib2 data structures instead?
-        RandomAccessibleInterval<FloatType> result = ArrayImgs.floats(this.imgDim);
-
-        FastGauss.convolve(sigmaArr, Views.extendBorder(this.img), result);
-
-        try {
-            result = HessianMatrix.calculateMatrix(
-                    Views.extendBorder(result),
-                    ArrayImgs.floats(this.imgDim[0], this.imgDim[1], 2),
-                    ArrayImgs.floats(this.imgDim[0], this.imgDim[1], 3),
-                    new OutOfBoundsBorderFactory<>(),
-                    this.nThreads,
-                    es);
-
-        } catch (final ExecutionException e) {
-            SNTUtils.error(e.getMessage(), e);
-            ex.close();
-            this.callback.proportionDone(-1);
-            return;
-
-        } catch (final InterruptedException e) {
-            SNTUtils.error("Tubeness interrupted.", e);
-            ex.close();
-            this.callback.proportionDone(-1);
-            Thread.currentThread().interrupt();
-            return;
-        }
-
-        result = TensorEigenValues.calculateEigenValuesSymmetric(
-                result,
-                TensorEigenValues.createAppropriateResultImg(result, new ArrayImgFactory<>(new FloatType())),
-                this.nThreads,
-                es);
-
-        result = tubeness2D(result, ArrayImgs.floats(this.imgDim), ex);
-
-        ex.close();
-
-        this.tubenessImg = (Img<FloatType>) result;
-        this.tubenessAccess = this.tubenessImg.randomAccess();
-
-    }
-
-    protected void processFrangi3D(final double[] scales) {
-
-        final List<double[]> sigmas = new ArrayList<>();
-        for (final double sc : scales) {
-            final double[] sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight, sc / this.pixelDepth};
-            sigmas.add(sigma);
-        }
-
-        final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
-        final DefaultTaskExecutor ex = new DefaultTaskExecutor(es);
-
-        final long[] bestBlockSize = computeOptimalBlockDimensions(this.imgDim);
-
-        try {
-
-            // TODO: maybe use one of the cached imglib2 data structures instead?
+        try (final DefaultTaskExecutor ex = new DefaultTaskExecutor(es)) {
+            // TODO: maybe use one of the disk cached imglib2 data structures instead?
             final Img<FloatType> output = ArrayImgs.floats(Intervals.dimensionsAsLongArray(this.img));
-            final List<IntervalView<FloatType>> blocks = imgToBlocks3D(output, bestBlockSize);
-
+            final List<IntervalView<FloatType>> blocks = splitIntoBlocks(output, bestBlockSize);
             if (blocks.size() == 0) {
-                throw new IllegalArgumentException("Num blocks == 0");
+                throw new IllegalStateException("Num blocks == 0");
             }
+
+            final long[] gaussianPad = new long[this.imgDim.length];
+            final long[] gaussianOffset = new long[this.imgDim.length];
+
+            final long[] gradientPad = new long[this.imgDim.length + 1];
+            gradientPad[gradientPad.length - 1] = this.is3D ? 3 : 2;
+            final long[] gradientOffset = new long[this.imgDim.length + 1];
+
+            final long[] hessianPad = new long[this.imgDim.length + 1];
+            hessianPad[hessianPad.length - 1] = this.is3D ? 6 : 3;
+            final long[] hessianOffset = new long[this.imgDim.length + 1];
+
+            final List<double[]> sigmas = new ArrayList<>();
+            for (final double sc : scales) {
+                final double[] sigma;
+                if (this.is3D) {
+                    sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight, sc / this.pixelDepth};
+                } else {
+                    sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight};
+                }
+                sigmas.add(sigma);
+            }
+
+            // Since we might not be able to compute this over the entire hessian image at once,
+            // keep track of the max over all visited blocks and use that for the current block.
+            // This seems to work well enough, judging by the looks of the output.
+            // At the very least, it is a lot better than using the max of each block...
+            double maxSquaredFrobienusNorm = -Double.MAX_VALUE;
 
             int iter = 0;
             final int nIterations = sigmas.size() * blocks.size();
@@ -542,72 +513,61 @@ public class HessianProcessor {
 
                     final long[] blockSize = Intervals.dimensionsAsLongArray(block);
 
+                    for (int d = 0; d < blockSize.length; ++d) {
+                        gaussianPad[d] = blockSize[d] + 6;
+                        gaussianOffset[d] = block.min(d) - 2;
+                    }
                     RandomAccessibleInterval<FloatType> tmpGaussian = Views.translate(
-                            ArrayImgs.floats(blockSize[0] + 4, blockSize[1] + 4, blockSize[2] + 4),
-                            block.min(0) - 2, block.min(1) - 2, block.min(2) - 2);
+                            ArrayImgs.floats(gaussianPad), gaussianOffset);
 
                     FastGauss.convolve(sigma, Views.extendMirrorSingle(this.img), tmpGaussian);
 
-                    RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(
-                            blockSize[0] + 2,
-                            blockSize[1] + 2,
-                            blockSize[2] + 2,
-                            3);
-
-                    RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(
-                            blockSize[0],
-                            blockSize[1],
-                            blockSize[2],
-                            6);
+                    for (int d = 0; d < gradientPad.length - 1; ++d) {
+                        gradientPad[d] = blockSize[d] + 4;
+                        gradientOffset[d] = block.min(d) - 1;
+                        hessianPad[d] = blockSize[d];
+                        hessianOffset[d] = block.min(d);
+                    }
+                    RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(gradientPad);
+                    RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(hessianPad);
 
                     HessianMatrix.calculateMatrix(
                             Views.extendBorder(tmpGaussian),
-                            Views.translate(tmpGradient, block.min(0) - 1, block.min(1) - 1, block.min(2) - 1, 0),
-                            Views.translate(tmpHessian, block.min(0), block.min(1), block.min(2), 0),
+                            Views.translate(tmpGradient, gradientOffset),
+                            Views.translate(tmpHessian, hessianOffset),
                             new OutOfBoundsBorderFactory<>(),
                             this.nThreads,
                             es);
 
-                    tmpGaussian = null;
-                    tmpGradient = null;
+                    maxSquaredFrobienusNorm = Math.max(maxSquaredFrobenius(tmpHessian, ex), maxSquaredFrobienusNorm);
+                    final double c = Math.sqrt(maxSquaredFrobienusNorm) * 0.5;
 
-                    final double c = Math.sqrt(maxSquaredFrobenius(tmpHessian, ex)) * 0.5;
-
-                    // allocate storage for eigenvalues
-                    RandomAccessibleInterval<FloatType> tmpEigenvalues = ArrayImgs.floats(
-                            blockSize[0],
-                            blockSize[1],
-                            blockSize[2],
-                            3);
-
+                    RandomAccessibleInterval<FloatType> tmpEigenvalues =
+                            TensorEigenValues.createAppropriateResultImg(
+                                    tmpHessian,
+                                    new ArrayImgFactory<>(new FloatType()));
                     TensorEigenValues.calculateEigenValuesSymmetric(tmpHessian, tmpEigenvalues, this.nThreads, es);
 
-                    tmpHessian = null;
-
-                    final RandomAccessibleInterval<FloatType> tmpFrangi = ArrayImgs.floats(
-                            blockSize[0],
-                            blockSize[1],
-                            blockSize[2]);
-
-                    frangi3D(tmpEigenvalues, tmpFrangi, 0.5, 0.5, c, ex);
-
-                    tmpEigenvalues = null;
-
+                    RandomAccessibleInterval<FloatType> tmpFrangi = ArrayImgs.floats(blockSize);
+                    if (this.is3D) {
+                        frangi3D(tmpEigenvalues, tmpFrangi, 0.5, 0.5, c, ex);
+                    } else {
+                        frangi2D(tmpEigenvalues, tmpFrangi, 0.5, c, ex);
+                    }
                     LoopBuilder.setImages(block, tmpFrangi)
                             .multiThreaded(ex)
                             .forEachPixel((f, t) -> f.set(Math.max(f.getRealFloat(), t.getRealFloat())));
 
-                    this.callback.proportionDone(++iter / (double) nIterations);
+                    this.callback.proportionDone(iter / (double) nIterations);
+                    ++iter;
                 }
             }
-
-            this.frangiImg = output;
-            this.frangiAccess = this.frangiImg.randomAccess();
+            return output;
 
         } catch (final OutOfMemoryError e) {
-            IJ.error("Out of memory when computing Frangi. Rrequires around " +
-                    (estimateBlockMemory(this.imgDim, bestBlockSize) / (1024 * 1024)) + "MiB for block size " +
-                    Arrays.toString(bestBlockSize) + ". Try increasing num blocks.");
+            IJ.error("Out of memory when computing Frangi. Requires around " +
+                    (estimateMemoryRequirement(this.imgDim, bestBlockSize) / (1024 * 1024)) + "MiB for block size " +
+                    Arrays.toString(bestBlockSize));
             this.callback.proportionDone(-1);
 
         } catch (final ExecutionException e) {
@@ -618,107 +578,63 @@ public class HessianProcessor {
             SNTUtils.error("Frangi interrupted.", e);
             this.callback.proportionDone(-1);
             Thread.currentThread().interrupt();
-
-        } finally {
-            ex.close();
         }
-
+        return null;
     }
 
-    protected void processFrangi2D(final double[] scales) {
-
-        final List<double[]> sigmas = new ArrayList<>();
-        for (final double sc : scales) {
-            final double[] sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight};
-            sigmas.add(sigma);
-        }
-
-        final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
-        final TaskExecutor ex = new DefaultTaskExecutor(es);
-
-        this.frangiImg = ArrayImgs.floats(this.imgDim);
-        RandomAccessibleInterval<FloatType> tmpFrangi = ArrayImgs.floats(this.imgDim);
-
-        for (final double[] sigma : sigmas) {
-            FastGauss.convolve(sigma, Views.extendBorder(this.img), tmpFrangi);
-            try {
-                tmpFrangi = HessianMatrix.calculateMatrix(
-                        Views.extendBorder(tmpFrangi),
-                        ArrayImgs.floats(this.imgDim[0], this.imgDim[1], 2),
-                        ArrayImgs.floats(this.imgDim[0], this.imgDim[1], 3),
-                        new OutOfBoundsBorderFactory<>(),
-                        this.nThreads,
-                        es);
-
-            } catch (final ExecutionException e) {
-                SNTUtils.error(e.getMessage(), e);
-                ex.close();
-                this.callback.proportionDone(-1);
-                return;
-
-            } catch (final InterruptedException e) {
-                SNTUtils.error("Frangi interrupted.", e);
-                ex.close();
-                this.callback.proportionDone(-1);
-                Thread.currentThread().interrupt();
-                return;
-            }
-
-            final double c = Math.sqrt(maxSquaredFrobenius(tmpFrangi, ex)) * 0.5;
-
-            tmpFrangi = TensorEigenValues.calculateEigenValuesSymmetric(
-                    tmpFrangi,
-                    TensorEigenValues.createAppropriateResultImg(tmpFrangi,
-                            new ArrayImgFactory<>(new FloatType())),
-                    this.nThreads,
-                    es);
-
-            tmpFrangi = frangi2D(tmpFrangi, ArrayImgs.floats(this.imgDim), 0.5, c, ex);
-
-            LoopBuilder.setImages(this.frangiImg, tmpFrangi).multiThreaded(ex).forEachPixel(
-                    (f, t) -> f.set(Math.max(f.getRealFloat(), t.getRealFloat()))
-            );
-        }
-        this.frangiAccess = this.frangiImg.randomAccess();
-
-        ex.close();
-
-    }
-
-    private static <T extends RealType<T>> List<IntervalView<T>> imgToBlocks3D(final RandomAccessibleInterval<T> source,
-                                                                               final long[] blockSize)
-    {
-        //long totalSum = 0L;
+    protected static <T extends RealType<T>> List<IntervalView<T>> splitIntoBlocks(final RandomAccessibleInterval<T> source,
+                                                                                   final long[] blockDimensions) {
         final List<IntervalView<T>> views = new ArrayList<>();
-        for (int zMin = 0; zMin < source.dimension(2); zMin += blockSize[2]) {
-            for (int yMin = 0; yMin < source.dimension(1); yMin += blockSize[1]) {
-                for (int xMin = 0; xMin < source.dimension(0); xMin += blockSize[0]) {
-                    final long zMax = Math.min(zMin + blockSize[2] - 1, source.dimension(2) - 1);
-                    final long yMax = Math.min(yMin + blockSize[1] - 1, source.dimension(1) - 1);
-                    final long xMax = Math.min(xMin + blockSize[0] - 1, source.dimension(0) - 1);
-                    final FinalInterval interval = Intervals.createMinMax(xMin, yMin, zMin, xMax, yMax, zMax);
-                    //totalSum += (interval.dimension(0) * interval.dimension(1) * interval.dimension(2));
-                    final IntervalView<T> current = Views.interval(source, interval);
-                    views.add(current);
-                }
-            }
+        for (final FinalInterval interval : createBlocks(Intervals.dimensionsAsLongArray(source), blockDimensions)) {
+            views.add(Views.interval(source, interval));
         }
-        //System.out.println(totalSum == (imgDim[0] * imgDim[1] * imgDim[2]));
         return views;
     }
 
-    private static long[] computeOptimalBlockDimensions(final long[] sourceDimensions) {
-        // "Optimal" might be a bold statement here...
-        final long[] blockDimensions = Arrays.copyOf(sourceDimensions, sourceDimensions.length);
-        final long freeBytes = Runtime.getRuntime().freeMemory();
-        while (freeBytes < estimateBlockMemory(sourceDimensions, blockDimensions)) {
-            final int d = maxDimension(blockDimensions);
-            blockDimensions[d] = blockDimensions[d] / 2;
-            if (blockDimensions[d] <= 1) {
-                throw new UnsupportedOperationException("Insufficient memory");
+    private static List<FinalInterval> createBlocks(final long[] sourceDimensions, final long[] blockDimensions) {
+        final List<FinalInterval> intervals = new ArrayList<>();
+        final long[] min = new long[sourceDimensions.length];
+        final long[] max = new long[sourceDimensions.length];
+        createBlocksRecursionLoop(intervals, sourceDimensions, blockDimensions, min, max, 0);
+        return intervals;
+    }
+
+    private static void createBlocksRecursionLoop(final List<FinalInterval> intervals, final long[] sourceDimensions,
+                                                  final long[] blockDimensions, final long[] min, final long[] max,
+                                                  final int d) {
+        if (d == min.length) {
+            for (int m = 0; m < min.length; ++m) {
+                max[m] = Math.min(min[m] + blockDimensions[m] - 1, sourceDimensions[m] - 1);
+            }
+            intervals.add(new FinalInterval(min, max));
+        } else {
+            for (min[d] = 0; min[d] < sourceDimensions[d]; min[d] += blockDimensions[d]) {
+                createBlocksRecursionLoop(intervals, sourceDimensions, blockDimensions, min, max, d + 1);
             }
         }
+    }
+
+    protected static long[] suggestBlockDimensions(final long[] sourceDimensions) {
+        // "Optimal" might be a bold statement here...
+        //final long slack = 209715200L; // 200 MiB
+        final long slack = 0L;
+        // dimensionLowerBound has to be > 1
+        // Ideally, it should be at minimum twice the diameter of the largest tubular process, in pixels
+        final long dimensionLowerBound = 8L;
+        final long[] blockDimensions = Arrays.copyOf(sourceDimensions, sourceDimensions.length);
+        final long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+        final long totalFreeMemory = Runtime.getRuntime().maxMemory() - usedMemory;
+        long memoryEstimate = estimateMemoryRequirement(sourceDimensions, blockDimensions);
+        while (totalFreeMemory - memoryEstimate < slack) {
+            final int d = maxDimension(blockDimensions);
+            blockDimensions[d] = (long) Math.ceil(blockDimensions[d] / 2.0);
+            if (blockDimensions[d] < dimensionLowerBound) {
+                throw new UnsupportedOperationException("Insufficient memory");
+            }
+            memoryEstimate = estimateMemoryRequirement(sourceDimensions, blockDimensions);
+        }
         SNTUtils.log("Computed block dimensions: " + Arrays.toString(blockDimensions));
+        SNTUtils.log("Estimated memory usage (MiB): " + (memoryEstimate / (1024 * 1024)));
         return blockDimensions;
     }
 
@@ -735,13 +651,28 @@ public class HessianProcessor {
         return dimensionArgMax;
     }
 
-    private static long estimateBlockMemory(final long[] sourceDims, final long[] blockDims) {
-        // From my tests this seems somewhat reasonable as a lower bound
-        final long outBytes = sourceDims[0] * sourceDims[1] * sourceDims[2] * 16;
-        final long gaussBytes = (blockDims[0] + 4) * (blockDims[1] + 4) * (blockDims[2] + 4) * 16;
-        final long gradientBytes = (blockDims[0] + 2) * (blockDims[1] + 2) * (blockDims[2] + 2) * 3 * 16;
-        final long hessianBytes = blockDims[0] * blockDims[1] * blockDims[2] * 6 * 16;
-        return outBytes + gaussBytes + gradientBytes + hessianBytes;
+    protected static long estimateMemoryRequirement(final long[] sourceDimensions, final long[] blockDimensions) {
+        long outputBytes = 1L, gaussBytes = 1L, gradientBytes = 1L, hessianBytes = 1L;
+        for (int d = 0; d < sourceDimensions.length; ++d) {
+            outputBytes *= sourceDimensions[d];
+            gaussBytes *= (blockDimensions[d] + 6);
+            gradientBytes *= (blockDimensions[d] + 4);
+            hessianBytes *= blockDimensions[d];
+        }
+        outputBytes *= 16;
+        gaussBytes *= 16;
+        gradientBytes *= 16;
+        hessianBytes *= 16;
+        if (sourceDimensions.length == 3) {
+            gradientBytes *= 3;
+            hessianBytes *= 6;
+        } else if (sourceDimensions.length == 2) {
+            gradientBytes *= 2;
+            hessianBytes *= 3;
+        } else {
+            throw new UnsupportedOperationException("Only 2 and 3 dimensional images are supported.");
+        }
+        return outputBytes + gaussBytes + gradientBytes + hessianBytes;
     }
 
     public static class ImgStats {
@@ -794,7 +725,7 @@ public class HessianProcessor {
 
         @Override
         public String toString() {
-            return "min=" + this.min + ", max=" + this.max + ", avg=" + this.avg + ", stdev=" + this.stdDev;
+            return "min=" + this.min + ", max=" + this.max + ", avg=" + this.avg + ", std=" + this.stdDev;
         }
 
     }
@@ -808,7 +739,7 @@ public class HessianProcessor {
         final HessianProcessor hessian = new HessianProcessor(imp, null);
         hessian.processTubeness(0.835, true);
         hessian.showTubeness();
-        hessian.processFrangi(new double[]{0.835}, true);
+        hessian.processFrangi(new double[]{0.64, 0.835, 1.2}, true);
         hessian.showFrangi();
     }
 
