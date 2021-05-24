@@ -25,6 +25,7 @@ package sc.fiji.snt.gui;
 import java.awt.Button;
 import java.awt.Color;
 import java.awt.Cursor;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.GridBagConstraints;
@@ -32,10 +33,13 @@ import java.awt.GridBagLayout;
 import java.awt.Image;
 import java.awt.Insets;
 import java.awt.Label;
+import java.awt.MenuItem;
 import java.awt.Panel;
+import java.awt.PopupMenu;
 import java.awt.Scrollbar;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
+import java.awt.image.IndexColorModel;
 
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -44,8 +48,10 @@ import ij.gui.GUI;
 import ij.gui.ImageCanvas;
 import ij.gui.Overlay;
 import ij.gui.Roi;
+import ij.gui.ScrollbarWithLabel;
 import ij.gui.StackWindow;
 import ij.gui.TextRoi;
+import ij.plugin.LutLoader;
 import ij.process.FloatProcessor;
 import ij.process.ImageStatistics;
 import net.imglib2.img.display.imagej.ImageJFunctions;
@@ -139,6 +145,7 @@ public class SigmaPalette extends Thread {
 			final Panel buttonPanel = new Panel(new FlowLayout(FlowLayout.CENTER));
 			buttonPanel.add(cButton);
 			buttonPanel.add(applyButton);
+			buttonPanel.add(assembleOptionsButton());
 			c.gridy++;
 			c.gridx =0;
 			c.weightx = 1;
@@ -146,32 +153,56 @@ public class SigmaPalette extends Thread {
 			panel.add(buttonPanel, c);
 		}
 
+		private Button assembleOptionsButton() {
+			final PopupMenu pm = new PopupMenu();
+			GUI.scalePopupMenu(pm);
+			add(pm); // Menu must be added before being displayed
+			final Button menuButton = new Button("More \u00bb"); // for consistency with IJ1
+			menuButton.addActionListener(e -> {
+				pm.show(menuButton, menuButton.getWidth() / 2, menuButton.getHeight() / 2);
+			});
+			pm.add("Display LUT:");
+			addLutEntry(pm, "   Default", "reset");
+			addLutEntry(pm, "   Edges", "edges");
+			addLutEntry(pm, "   Fire", "fire");
+			addLutEntry(pm, "   Grayscale ", "grays");
+			addLutEntry(pm, "   Inferno", "mpl--inferno");
+			addLutEntry(pm, "   Magma", "mpl-magma");
+			addLutEntry(pm, "   Plasma", "mpl-plasma");
+			addLutEntry(pm, "   Viridis", "mpl-viridis");
+			pm.addSeparator();
+			final MenuItem mi = new MenuItem("Help");
+			mi.addActionListener(e -> helpMsg());
+			pm.add(mi);
+			return menuButton;
+		}
+
+		private void addLutEntry(final PopupMenu pm, final String menuItemLabel, final String lutName) {
+			final MenuItem mi = new MenuItem(menuItemLabel);
+			mi.addActionListener(e -> applyLUT(lutName));
+			pm.add(mi);
+		}
+
+		private void helpMsg() {
+			final String msg = "To be done";
+			new GuiUtils(this).showHTMLDialog(msg, "Tuning Paramaters for Hessian=based Analysis", true);
+		}
+
 		private void assembleScrollbars(final Panel panel, final GridBagConstraints c) {
 			c.gridy++;
 			c.gridx =0;
 			c.weightx = 0;
-			//panel.add(new Label("Min."), c);
-			c.gridx++;
-			c.weightx = 1;
-			//panel.add(minValueScrollbar, c);
-			c.gridx++;
-			c.weightx = 0;
-			//panel.add(minValueLabel, c);
-			c.gridx++;
-			//panel.add(resetMin, c);
-			c.gridx++;
-
-			// Max scrollbar
-			maxValueScrollbar = new Scrollbar(Scrollbar.HORIZONTAL, (int) (defaultMax), 1, 1,
-					(int) image.getDisplayRangeMax());
-			maxValueScrollbar.setFocusable(false); // prevents scroll bar from flickering on windows!?
+			maxValueScrollbar = new RangeScrollbar(defaultMax);
 			maxValueScrollbar.addAdjustmentListener(e -> {
-				maxChanged(e.getValue());
+				final double fraction = (double) maxValueScrollbar.getValue()
+						/ (double) (maxValueScrollbar.getMaximum() - maxValueScrollbar.getMinimum() + 1);
+				maxChanged(fraction * (image.getDisplayRangeMax() - image.getDisplayRangeMin() + 1)
+						+ image.getDisplayRangeMin());
 			});
 			maxValueLabel = new Label("###.##");
-			final Button resetMax = new Button("Reset");
+			final Button resetMax = new Button("Auto");
 			resetMax.addActionListener(e -> {
-				maxValueScrollbar.setValue((int) defaultMax);
+				maxValueScrollbar.setValue( (int)Math.round(defaultMax));
 				maxChanged(defaultMax);
 			});
 
@@ -187,7 +218,6 @@ public class SigmaPalette extends Thread {
 			panel.add(maxValueLabel, c);
 			c.gridx++;
 			panel.add(resetMax, c);
-			c.gridx++;
 		}
 
 		private void updateLabels() {
@@ -217,6 +247,29 @@ public class SigmaPalette extends Thread {
 				sb.append("  z=").append(SNTUtils.formatDouble(image.getCalibration().getZ(zSelector.getValue() - 1), 2));
 			}
 			return sb.toString();
+		}
+	}
+
+	private class RangeScrollbar extends Scrollbar {
+
+		private static final long serialVersionUID = 1L;
+		private final ScrollbarWithLabel REF = new ScrollbarWithLabel((PaletteStackWindow) null, 1, 0, 1, 0, '\u0000');
+
+		public RangeScrollbar(final double value) {
+			super(Scrollbar.HORIZONTAL, (int) (value), 1, (int) Math.round(image.getDisplayRangeMin()),
+					(int) Math.round(image.getDisplayRangeMax()));
+			setFocusable(false); // prevents scroll bar from flickering on windows!?
+			GUI.fixScrollbar(this);
+		}
+
+		@Override
+		public Dimension getPreferredSize() {
+			return REF.getPreferredSize();
+		}
+
+		@Override
+		public Dimension getMinimumSize() {
+			return REF.getMinimumSize();
 		}
 	}
 
@@ -489,6 +542,7 @@ public class SigmaPalette extends Thread {
 		}
 		paletteImage = new ImagePlus( (includeMaxInGui) ? "Pick Sigma & Max" : "Pick Sigma", newStack);
 		paletteImage.setZ(initial_z - z_min + 1);
+		applyLUT("reset");
 		setOverlayLabel(0, new int[] { 0, 0 });
 		for (int sigmaIndex = 0; sigmaIndex < sigmaValues.length; ++sigmaIndex) {
 			final int sigmaY = sigmaIndex / sigmasAcross;
@@ -513,11 +567,30 @@ public class SigmaPalette extends Thread {
 			setMax(suggestedMax);
 			copyIntoPalette(processed, paletteImage, offsetX, offsetY);
 		}
-
 		final PaletteCanvas paletteCanvas = new PaletteCanvas(paletteImage, croppedWidth, croppedHeight,
 			sigmasAcross, sigmasDown);
 		paletteWindow = new PaletteStackWindow(paletteImage, paletteCanvas, suggestedMax);
 		paletteCanvas.requestFocusInWindow(); // required to trigger keylistener events
+	}
+
+	private void applyLUT(final String lutname) {
+		if ("reset".equals(lutname) && image.getLuts().length > 0) {
+			final double min = paletteImage.getDisplayRangeMin();
+			final double max = paletteImage.getDisplayRangeMax();
+			paletteImage.setLut(image.getLuts()[0]);
+			paletteImage.setDisplayRange(min, max);
+			return;
+		}
+		final IndexColorModel lut = LutLoader.getLut(lutname);
+		if (lut == null) {
+			new GuiUtils(paletteWindow).error(
+					"Somehow LUT could not be retrieved. Perhaps some file(s) are missing from your installation?");
+		} else {
+			paletteImage.getProcessor().setColorModel(lut);
+			if (paletteImage.getStackSize() > 1)
+				paletteImage.getStack().setColorModel(lut);
+			paletteImage.updateAndDraw();
+		}
 	}
 
 }
