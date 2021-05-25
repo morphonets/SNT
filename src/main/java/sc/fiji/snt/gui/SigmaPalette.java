@@ -23,6 +23,7 @@
 package sc.fiji.snt.gui;
 
 import java.awt.Button;
+import java.awt.CheckboxMenuItem;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
@@ -46,6 +47,7 @@ import ij.ImageStack;
 import ij.Prefs;
 import ij.gui.GUI;
 import ij.gui.ImageCanvas;
+import ij.gui.ImageRoi;
 import ij.gui.Overlay;
 import ij.gui.Roi;
 import ij.gui.ScrollbarWithLabel;
@@ -170,6 +172,16 @@ public class SigmaPalette extends Thread {
 			addLutEntry(pm, "   Magma", "mpl-magma");
 			addLutEntry(pm, "   Plasma", "mpl-plasma");
 			addLutEntry(pm, "   Viridis", "mpl-viridis");
+			pm.addSeparator();
+			final CheckboxMenuItem showMip = new CheckboxMenuItem("Overlay MIP");
+			showMip.addItemListener(e -> {
+				if (showMip.getState())
+					createMIP();
+				else
+					disposeMIP();
+			});
+			showMip.setEnabled(paletteImage.getNSlices() > 1);
+			pm.add(showMip);
 			pm.addSeparator();
 			final MenuItem mi = new MenuItem("Help");
 			mi.addActionListener(e -> helpMsg());
@@ -400,8 +412,9 @@ public class SigmaPalette extends Thread {
 
 	private void setMax(final double max) {
 		selectedMax = max;
-		paletteImage.getProcessor().setMinAndMax(0, max);
+		paletteImage.getProcessor().setMinAndMax(paletteImage.getProcessor().getMin(), max);
 		paletteImage.updateAndDraw();
+		updateMIP();
 	}
 
 	private int getSelectedSigmaIndex() {
@@ -573,12 +586,42 @@ public class SigmaPalette extends Thread {
 		paletteCanvas.requestFocusInWindow(); // required to trigger keylistener events
 	}
 
+	private void createMIP() {
+		Overlay existingOverlay = paletteImage.getOverlay();
+		if (existingOverlay == null) {
+			existingOverlay = new Overlay();
+			existingOverlay.selectable(false);
+			paletteImage.setOverlay(existingOverlay);
+		}
+		
+		final ImagePlus mip = SNTUtils.getMIP(paletteImage); // will have same lut
+		mip.setDisplayRange(paletteImage.getDisplayRangeMin(), paletteImage.getDisplayRangeMax());
+		mip.updateAndDraw();
+		final ImageRoi roi = new ImageRoi(0, 0, mip.getProcessor());
+		roi.setName("mip");
+		roi.setOpacity(0.2);
+		existingOverlay.add(roi);
+		paletteImage.setHideOverlay(false);
+	}
+
+	private void disposeMIP() {
+		paletteImage.setOverlay(null);
+	}
+
+	private void updateMIP() {
+		if (paletteImage.getOverlay() != null && paletteImage.getOverlay().get("mip") != null) {
+			// TODO: Is this really the most efficient way to 'refresh' an ImageRoi?
+			disposeMIP(); createMIP();
+		}
+	}
+
 	private void applyLUT(final String lutname) {
 		if ("reset".equals(lutname) && image.getLuts().length > 0) {
 			final double min = paletteImage.getDisplayRangeMin();
 			final double max = paletteImage.getDisplayRangeMax();
 			paletteImage.setLut(image.getLuts()[0]);
 			paletteImage.setDisplayRange(min, max);
+			updateMIP();
 			return;
 		}
 		final IndexColorModel lut = LutLoader.getLut(lutname);
@@ -590,6 +633,7 @@ public class SigmaPalette extends Thread {
 			if (paletteImage.getStackSize() > 1)
 				paletteImage.getStack().setColorModel(lut);
 			paletteImage.updateAndDraw();
+			updateMIP();
 		}
 	}
 
