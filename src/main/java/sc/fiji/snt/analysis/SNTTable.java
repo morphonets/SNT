@@ -162,6 +162,16 @@ public class SNTTable extends DefaultGenericTable {
 		}
 	}
 
+	/**
+	 * Sets a SciJava context to this table.
+	 * @param context the SciJava application context
+	 */
+	public void setContext(final Context context) throws IllegalArgumentException {
+		context.inject(this);
+		if (tableIO == null)
+			tableIO = context.getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
+	}
+
 	public void save(final File outputFile) throws IOException {
 		SNTUtils.saveTable(this, outputFile);
 		hasUnsavedData = false;

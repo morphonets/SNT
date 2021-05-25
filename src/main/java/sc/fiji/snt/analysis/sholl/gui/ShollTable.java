@@ -328,10 +328,9 @@ public class ShollTable extends SNTTable {
 	 * @throws IllegalArgumentException If {@code context} cannot provide the
 	 *                                  services required by this ShollTable
 	 */
+	@Override
 	public void setContext(final Context context) throws IllegalStateException, IllegalArgumentException {
-		context.inject(this);
-		if (tableIO == null)
-			tableIO = context.getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
+		super.setContext(context);
 		if (prefService != null) {
 			final boolean detailedMetrics = prefService.getBoolean(ShollAnalysisPrefsCmd.class, "detailedMetrics", ShollAnalysisPrefsCmd.DEF_DETAILED_METRICS);
 			setDetailedSummary(detailedMetrics);
