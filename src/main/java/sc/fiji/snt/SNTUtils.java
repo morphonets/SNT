@@ -191,6 +191,8 @@ public class SNTUtils {
 
 	public static ImagePlus getMIP(final ImagePlus imp) {
 		final ImagePlus mip = ZProjector.run(imp, "max");
+		mip.setLut(imp.getLuts()[0]);
+		mip.copyScale(imp);
 		new ContrastEnhancer().stretchHistogram(mip, 0.35);
 		return mip;
 	}
