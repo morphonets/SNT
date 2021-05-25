@@ -2886,4 +2886,26 @@ public class Path implements Comparable<Path> {
 		}
 	}
 
+	public boolean isConnectedTo(final Path other) {
+		return (getStartJoins() != null && getStartJoins().equals(other))
+			|| (getEndJoins() != null && getEndJoins().equals(other))
+			|| (somehowJoins != null && somehowJoins.contains(other));
+	}
+
+// FIXME: Implementing hasCode() and equals() breaks current TreeAnalyzer tests
+//	@Override
+//	public int hashCode() {
+//		return Objects.hash(id, points, name, order, swcType, treeLabel);
+//	}
+//
+//	@Override
+//	public boolean equals(Object obj) {
+//		if (this == obj) return true;
+//		if (obj == null) return false;
+//		if (getClass() != obj.getClass()) return false;
+//		final Path other = (Path) obj;
+//		return id == other.id && points == other.points && Objects.equals(name, other.name)
+//				&& order == other.order && swcType == other.swcType && Objects.equals(treeLabel, other.treeLabel);
+//	}
+
 }

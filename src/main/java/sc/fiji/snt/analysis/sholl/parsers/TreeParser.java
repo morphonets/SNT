@@ -245,9 +245,14 @@ public class TreeParser implements Parser {
 		final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
 				&& soma.onPath.getSWCType() == Path.SWC_SOMA;
 		tree.list().forEach(p -> {
-			if (!running) return;
-			final int firstIdx = (skipFirstNode && p.isPrimary()) ? 1 : 0;
-			for (int i = firstIdx; i < p.size() - 1; ++i) {
+			if (!running || p.size() == 0 || (skipFirstNode && p.equals(soma.onPath)))
+				return;
+			final int firstIdx = (skipFirstNode && p.isConnectedTo(soma.onPath)) ? 1 : 0;
+			if (firstIdx == 1 && p.size() < 3) {
+				final PointInImage pim = p.getNode(p.size() - 1);
+				shollPointsList.add(new ComparableShollPoint(pim.distanceSquaredTo(center), true));
+			}
+			else for (int i = firstIdx; i < p.size() - 1; ++i) {
 				final PointInImage pim1 = p.getNode(i);
 				final PointInImage pim2 = p.getNode(i + 1);
 				final double distanceSquaredFirst = pim1.distanceSquaredTo(center);
