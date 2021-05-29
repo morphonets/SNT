@@ -22,26 +22,11 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Button;
-import java.awt.CheckboxMenuItem;
-import java.awt.Color;
-import java.awt.Cursor;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Graphics;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Image;
-import java.awt.Insets;
-import java.awt.Label;
-import java.awt.MenuItem;
-import java.awt.Panel;
-import java.awt.PopupMenu;
-import java.awt.Scrollbar;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowEvent;
+import java.awt.*;
+import java.awt.event.*;
 import java.awt.image.IndexColorModel;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import ij.ImagePlus;
@@ -117,6 +102,7 @@ public class SigmaPalette extends Thread {
 		private Scrollbar scalesScrollbar;
 		private Label maxValueLabel;
 		private Label selectedScaleLabel;
+		private Label scaleMsgLabel;
 		private final double defaultMax;
 
 		public PaletteStackWindow(final ImagePlus imp, final ImageCanvas ic,
@@ -195,7 +181,7 @@ public class SigmaPalette extends Thread {
 				if (showMip.getState())
 					createMIP();
 				else
-					disposeMIP();
+					disposeMIP(true);
 			});
 			showMip.setEnabled(paletteImage.getNSlices() > 1);
 			pm.add(showMip);
@@ -204,7 +190,7 @@ public class SigmaPalette extends Thread {
 			mi.addActionListener(e -> helpMsg());
 			pm.add(mi);
 			pm.addSeparator();
-			mi = new MenuItem("Dismiss This Wizard");
+			mi = new MenuItem("Dismiss");
 			mi.addActionListener(e -> dismiss());
 			pm.add(mi);
 			return menuButton;
@@ -225,6 +211,7 @@ public class SigmaPalette extends Thread {
 
 			scalesScrollbar = new RangeScrollbar(1, 1, getMaxScales() + 1);
 			selectedScaleLabel = new Label("1  ");
+			scaleMsgLabel = new Label("Unset");
 			scalesScrollbar.addAdjustmentListener(e -> selectedScaleChanged(scalesScrollbar.getValue()));
 			maxValueScrollbar = new RangeScrollbar(defaultMax);
 			maxValueScrollbar.addAdjustmentListener(e -> {
@@ -263,6 +250,9 @@ public class SigmaPalette extends Thread {
 			c.gridx++;
 			c.weightx = 0;
 			panel.add(selectedScaleLabel, c);
+			c.gridx++;
+			panel.add(scaleMsgLabel, c);
+			c.gridy++;
 		}
 
 		private void updateLabels() {
@@ -285,7 +275,9 @@ public class SigmaPalette extends Thread {
 				setSelectedSigmaIndex(sigmaIndex);
 				maxValueScrollbar.setValue((int) Math.round(settings[1]));
 				maxChanged(settings[1]); // will call updateLabels();
+				scaleMsgLabel.setText("Set");
 			} else {
+				scaleMsgLabel.setText("Unset");
 				updateLabels();
 			}
 			repaint(); // will call drawInfo(getGraphics()) to update subtitle
@@ -348,6 +340,7 @@ public class SigmaPalette extends Thread {
 		private final int croppedHeight;
 		private final int sigmasAcross;
 		private final int sigmasDown;
+		private Overlay overlay;
 
 		public PaletteCanvas(final ImagePlus imagePlus, final int croppedWidth,
 			final int croppedHeight, final int sigmasAcross, final int sigmasDown)
@@ -357,6 +350,7 @@ public class SigmaPalette extends Thread {
 			this.croppedHeight = croppedHeight;
 			this.sigmasAcross = sigmasAcross;
 			this.sigmasDown = sigmasDown;
+			initOverlay();
 		}
 
 		private int[] getTileXY(final MouseEvent e) {
@@ -369,9 +363,66 @@ public class SigmaPalette extends Thread {
 			return new int[] { sigmaX, sigmaY };
 		}
 
-		@SuppressWarnings("unused")
-		private int sigmaIndexFromMouseEvent(final MouseEvent e) {
-			return sigmaIndexFromTilePosition(getTileXY(e));
+		private void initOverlay() {
+			overlay = new Overlay();
+			overlay.selectable(false);
+			getImage().setHideOverlay(false);
+			for (int i = 0; i < sigmasAcross; i++) {
+				for (int j = 0; j < sigmasDown; j++) {
+					overlay.add(getSigmaLabel(new int[] { i, j }, Color.MAGENTA));
+				}
+			}
+			getImage().setOverlay(overlay);
+		}
+
+		private TextRoi getSigmaLabel(final int[] xyTile, final Color color) {
+			final int sigmaIndex = sigmaIndexFromTilePosition(xyTile);
+			final String label = "\u03C3=" + SNTUtils.formatDouble(sigmaValues[sigmaIndex], 2);
+			final TextRoi roi = new TextRoi(xyTile[0] * croppedWidth + 2, xyTile[1] * croppedHeight + 2, label);
+			roi.setStrokeColor(color);
+			roi.setAntialiased(true);
+			final String name = "label" + Arrays.toString(xyTile);
+			roi.setName(name);
+			return roi;
+		}
+
+		private TextRoi getSetSigmaLabel(final int sigmaIndex, final int[] xyTile) {
+			final int sigmaSetIndex = indexOfSigmaInScaleSettings(sigmaValues[sigmaIndex]);
+			final String label = (sigmaSetIndex == -1) ? "" : "Scale " + (sigmaSetIndex + 1);
+			final TextRoi roi = new TextRoi(xyTile[0] * croppedWidth + 2,
+					xyTile[1] * croppedHeight + TextRoi.getDefaultFontSize() - 2, label);
+			final boolean selected = getSelectedSigmaIndex() == sigmaIndex;
+			setTextRoiColor(roi, selected, mouseMovedSigmaIndex == sigmaIndex);
+			roi.setAntialiased(true);
+			roi.setFontSize(roi.getCurrentFont().getSize() - 2);
+			roi.setName("set" + Arrays.toString(xyTile));
+			return roi;
+		}
+
+		private void setTextRoiColor(final Roi roi, final boolean isSelected, final boolean isMouseOver) {
+			if (roi != null) {
+				if (isSelected)
+					roi.setStrokeColor(Color.GREEN);
+				else if (isMouseOver)
+					roi.setStrokeColor(Color.MAGENTA);
+				else
+					roi.setStrokeColor(Color.CYAN);
+			}
+		}
+
+		private void updateOverlayLabels() {
+			for (int i = 0; i < sigmasAcross; i++) {
+				for (int j = 0; j < sigmasDown; j++) {
+					final int[] tilePosition = new int[] { i, j };
+					final String nameSeed = Arrays.toString(tilePosition);
+					final int sigmaIndex = sigmaIndexFromTilePosition(tilePosition);
+					final boolean selected = getSelectedSigmaIndex() == sigmaIndex;
+					final Roi roi = overlay.get("label" + nameSeed);
+					setTextRoiColor(roi, selected, mouseMovedSigmaIndex == sigmaIndex);
+					overlay.remove("set" + nameSeed);
+					overlay.add(getSetSigmaLabel(sigmaIndex, tilePosition));
+				}
+			}
 		}
 
 		private int sigmaIndexFromTilePosition(final int[] tilePosition) {
@@ -389,14 +440,15 @@ public class SigmaPalette extends Thread {
 			if (mouseMovedSigmaIndex > -1) {
 				if (e.getClickCount() > 0)
 					setSelectedSigmaIndex(mouseMovedSigmaIndex);
-				setOverlayLabel(mouseMovedSigmaIndex, tilePosition);
+				// setOverlayLabel(mouseMovedSigmaIndex, tilePosition);
+				updateOverlayLabels();
 				paletteWindow.repaint(); // call createSubtitle()
 				paletteImage.getCanvas().repaint();
 			}
 		}
 
 		@Override
-		public void mouseClicked(MouseEvent e) {
+		public void mouseClicked(final MouseEvent e) {
 			super.mouseClicked(e);
 			updateSigmaFromMouseEvent(e);
 			paletteWindow.updateLabels();
@@ -526,21 +578,6 @@ public class SigmaPalette extends Thread {
 		paletteImage.getCanvas().repaint();
 	}
 
-	private void setOverlayLabel(final int sigmaIndex, final int[] xyTile) {
-		final String label = "\u03C3=" + SNTUtils.formatDouble(sigmaValues[sigmaIndex],
-			2);
-		final boolean selected = getSelectedSigmaIndex() == sigmaIndex;
-		final TextRoi roi = new TextRoi(xyTile[0] * croppedWidth + 2, xyTile[1] *
-			croppedHeight + 2, label);
-		roi.setStrokeColor((selected) ? Color.GREEN : Color.MAGENTA);
-		roi.setAntialiased(true);
-		final String name = (selected) ? "sigLblTemp" : "sigLblFixed";
-		roi.setName(name);
-		final Overlay overlay = getOverlay();
-		overlay.remove(name);
-		overlay.add(roi);
-	}
-
 	/**
 	 * Displays the Sigma wizard in a separate thread.
 	 *
@@ -595,6 +632,16 @@ public class SigmaPalette extends Thread {
 		return scaleSettings;
 	}
 
+	private int indexOfSigmaInScaleSettings(final double sigma) {
+		if (scaleSettings == null)
+			return -1;
+		for (final double[] setting : scaleSettings) {
+			if (setting[0] == sigma)
+				return scaleSettings.indexOf(setting);
+		}
+		return -1;
+	}
+
 	private void setSettingsForSelectedScale() {
 		if (selectedScale < 0 || selectedScale > getMaxScales())
 			throw new IllegalArgumentException("BUG: selectedScale index out-of-range");
@@ -613,10 +660,19 @@ public class SigmaPalette extends Thread {
 		final double[] settings = new double[2];
 		settings[0] = getSelectedSigma();
 		settings[1] = selectedMax;
+		final int existingIdx = indexOfSigmaInScaleSettings(settings[0]);
+		if (existingIdx > -1) {
+			new GuiUtils(paletteWindow)
+					.error(String.format("This value of sigma has already been set for scale %d.", (existingIdx + 1)));
+			return;
+		}
 		if (scaleSettings.isEmpty() || selectedScale -1 == scaleSettings.size())
 			scaleSettings.add(settings);
 		else
 			scaleSettings.set(selectedScale -1, settings);
+		paletteWindow.scaleMsgLabel.setText("Set!");
+		((PaletteCanvas)paletteWindow.getCanvas()).updateOverlayLabels();
+		paletteWindow.getCanvas().repaint();
 		SNTUtils.log(String.format("Scale %d set: sigma=%.1f, max=%.1f", selectedScale, settings[0], settings[1]));
 	}
 
@@ -694,7 +750,6 @@ public class SigmaPalette extends Thread {
 		paletteImage = new ImagePlus( (includeMaxInGui) ? "Pick Sigma & Max" : "Pick Sigma", newStack);
 		paletteImage.setZ(initial_z - z_min + 1);
 		applyLUT("reset");
-		setOverlayLabel(0, new int[] { 0, 0 });
 		for (int sigmaIndex = 0; sigmaIndex < sigmaValues.length; ++sigmaIndex) {
 			final int sigmaY = sigmaIndex / sigmasAcross;
 			final int sigmaX = sigmaIndex % sigmasAcross;
@@ -724,36 +779,26 @@ public class SigmaPalette extends Thread {
 		paletteCanvas.requestFocusInWindow(); // required to trigger keylistener events
 	}
 
-	private Overlay getOverlay() {
-		Overlay existingOverlay = paletteImage.getOverlay();
-		if (existingOverlay == null) {
-			existingOverlay = new Overlay();
-			existingOverlay.selectable(false);
-			paletteImage.setOverlay(existingOverlay);
-		}
-		return existingOverlay;
-	}
-
 	private void createMIP() {
-		final Overlay overlay = getOverlay();
 		final ImagePlus mip = SNTUtils.getMIP(paletteImage); // will have same lut
 		mip.setDisplayRange(paletteImage.getDisplayRangeMin(), paletteImage.getDisplayRangeMax());
 		mip.updateAndDraw();
 		final ImageRoi roi = new ImageRoi(0, 0, mip.getProcessor());
 		roi.setName("mip");
 		roi.setOpacity(0.2);
-		overlay.add(roi);
-		paletteImage.setHideOverlay(false);
+		paletteImage.getOverlay().add(roi);
+		paletteImage.getCanvas().repaint();
 	}
 
-	private void disposeMIP() {
-		paletteImage.setOverlay(null);
+	private void disposeMIP(final boolean update) {
+		paletteImage.getOverlay().remove("mip");
+		if (update) paletteImage.getCanvas().repaint();
 	}
 
 	private void updateMIP() {
 		if (paletteImage.getOverlay() != null && paletteImage.getOverlay().get("mip") != null) {
 			// TODO: Is this really the most efficient way to 'refresh' an ImageRoi?
-			disposeMIP(); createMIP();
+			disposeMIP(false); createMIP();
 		}
 	}
 
