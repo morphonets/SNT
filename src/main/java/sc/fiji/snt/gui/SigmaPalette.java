@@ -53,7 +53,11 @@ import sc.fiji.snt.*;
  */
 public class SigmaPalette extends Thread {
 
+	private static final Color COLOR_DEFAULT = Color.CYAN;
+	private static final Color COLOR_MOUSEOVER = Color.MAGENTA;
+	private static final Color COLOR_SELECTED = Color.GREEN;
 	private static final int DEF_N_SCALES = 9;
+
 	private double[] sigmaValues;
 	private int croppedWidth;
 	private int croppedHeight;
@@ -85,7 +89,7 @@ public class SigmaPalette extends Thread {
 		includeMaxInGui = hc.getAnalysisType() == HessianCaller.TUBENESS;
 	}
 
-	public void setMaxScales(final int nScales) {
+	private void setMaxScales(final int nScales) {
 		this.maxScales = nScales;
 	}
 
@@ -104,6 +108,7 @@ public class SigmaPalette extends Thread {
 		private Label selectedScaleLabel;
 		private Label scaleMsgLabel;
 		private final double defaultMax;
+		private final GuiUtils guiUtils;
 
 		public PaletteStackWindow(final ImagePlus imp, final ImageCanvas ic,
 			final double defaultMax)
@@ -111,6 +116,7 @@ public class SigmaPalette extends Thread {
 			super(imp, ic);
 			setLocationRelativeTo(snt.getImagePlus().getWindow());
 			this.defaultMax = defaultMax;
+			guiUtils = new GuiUtils(this);
 			ic.disablePopupMenu(true);
 			ic.setShowCursorStatus(false);
 			ic.setCursor(new Cursor(Cursor.HAND_CURSOR));
@@ -166,16 +172,16 @@ public class SigmaPalette extends Thread {
 			menuButton.addActionListener(e -> {
 				pm.show(menuButton, menuButton.getWidth() / 2, menuButton.getHeight() / 2);
 			});
-			pm.add("Display LUT:");
-			addLutEntry(pm, "   Default", "reset");
-			addLutEntry(pm, "   Edges", "edges");
-			addLutEntry(pm, "   Fire", "fire");
-			addLutEntry(pm, "   Grayscale ", "grays");
-			addLutEntry(pm, "   Inferno", "mpl--inferno");
-			addLutEntry(pm, "   Magma", "mpl-magma");
-			addLutEntry(pm, "   Plasma", "mpl-plasma");
-			addLutEntry(pm, "   Viridis", "mpl-viridis");
-			pm.addSeparator();
+			final Menu lutMenu = new Menu("Display LUT");
+			pm.add(lutMenu);
+			addLutEntry(lutMenu, "Default", "reset");
+			addLutEntry(lutMenu, "Edges", "edges");
+			addLutEntry(lutMenu, "Fire", "fire");
+			addLutEntry(lutMenu, "Grayscale ", "grays");
+			addLutEntry(lutMenu, "Inferno", "mpl--inferno");
+			addLutEntry(lutMenu, "Magma", "mpl-magma");
+			addLutEntry(lutMenu, "Plasma", "mpl-plasma");
+			addLutEntry(lutMenu, "Viridis", "mpl-viridis");
 			final CheckboxMenuItem showMip = new CheckboxMenuItem("Overlay MIP");
 			showMip.addItemListener(e -> {
 				if (showMip.getState())
@@ -190,21 +196,30 @@ public class SigmaPalette extends Thread {
 			mi.addActionListener(e -> helpMsg());
 			pm.add(mi);
 			pm.addSeparator();
+			 mi = new MenuItem("Reset All Scales");
+			mi.addActionListener(e -> {
+				if (scaleSettings != null && !scaleSettings.isEmpty()) {
+					scaleSettings.clear();
+					advanceToFirstScale();
+					((PaletteCanvas)getCanvas()).updateOverlayLabels();
+				}
+			});
+			pm.add(mi);
 			mi = new MenuItem("Dismiss");
 			mi.addActionListener(e -> dismiss());
 			pm.add(mi);
 			return menuButton;
 		}
 
-		private void addLutEntry(final PopupMenu pm, final String menuItemLabel, final String lutName) {
+		private void addLutEntry(final Menu menu, final String menuItemLabel, final String lutName) {
 			final MenuItem mi = new MenuItem(menuItemLabel);
 			mi.addActionListener(e -> applyLUT(lutName));
-			pm.add(mi);
+			menu.add(mi);
 		}
 
 		private void helpMsg() {
 			final String msg = "To be done";
-			new GuiUtils(this).showHTMLDialog(msg, "Tuning Paramaters for Hessian=based Analysis", true);
+			guiUtils.showHTMLDialog(msg, "Tuning Paramaters for Hessian=based Analysis", true);
 		}
 
 		private void assembleScrollbars(final Panel panel, final GridBagConstraints c) {
@@ -253,6 +268,22 @@ public class SigmaPalette extends Thread {
 			c.gridx++;
 			panel.add(scaleMsgLabel, c);
 			c.gridy++;
+		}
+
+		private void advanceToNextScale() {
+			final int currentValue = scalesScrollbar.getValue();
+			scalesScrollbar.setValue(Math.min(scalesScrollbar.getMaximum(), currentValue + 1));
+			if (currentValue != scalesScrollbar.getValue()) {
+				selectedScaleChanged(scalesScrollbar.getValue());
+				//guiUtils.tempMsg(String.format("Scale %d successfully set.", currentValue));
+			}
+		}
+
+		private void advanceToFirstScale() {
+			if (scalesScrollbar.getValue() != 1) {
+				scalesScrollbar.setValue(1);
+				selectedScaleChanged(1);
+			}
 		}
 
 		private void updateLabels() {
@@ -369,7 +400,7 @@ public class SigmaPalette extends Thread {
 			getImage().setHideOverlay(false);
 			for (int i = 0; i < sigmasAcross; i++) {
 				for (int j = 0; j < sigmasDown; j++) {
-					overlay.add(getSigmaLabel(new int[] { i, j }, Color.MAGENTA));
+					overlay.add(getSigmaLabel(new int[] { i, j }, COLOR_DEFAULT));
 				}
 			}
 			getImage().setOverlay(overlay);
@@ -402,11 +433,11 @@ public class SigmaPalette extends Thread {
 		private void setTextRoiColor(final Roi roi, final boolean isSelected, final boolean isMouseOver) {
 			if (roi != null) {
 				if (isSelected)
-					roi.setStrokeColor(Color.GREEN);
+					roi.setStrokeColor(COLOR_SELECTED);
 				else if (isMouseOver)
-					roi.setStrokeColor(Color.MAGENTA);
+					roi.setStrokeColor(COLOR_MOUSEOVER);
 				else
-					roi.setStrokeColor(Color.CYAN);
+					roi.setStrokeColor(COLOR_DEFAULT);
 			}
 		}
 
@@ -423,6 +454,7 @@ public class SigmaPalette extends Thread {
 					overlay.add(getSetSigmaLabel(sigmaIndex, tilePosition));
 				}
 			}
+			repaint();
 		}
 
 		private int sigmaIndexFromTilePosition(final int[] tilePosition) {
@@ -440,16 +472,14 @@ public class SigmaPalette extends Thread {
 			if (mouseMovedSigmaIndex > -1) {
 				if (e.getClickCount() > 0)
 					setSelectedSigmaIndex(mouseMovedSigmaIndex);
-				// setOverlayLabel(mouseMovedSigmaIndex, tilePosition);
 				updateOverlayLabels();
 				paletteWindow.repaint(); // call createSubtitle()
-				paletteImage.getCanvas().repaint();
 			}
 		}
 
 		@Override
 		public void mouseClicked(final MouseEvent e) {
-			super.mouseClicked(e);
+			super.mouseClicked(e); // change cursor, etc.
 			updateSigmaFromMouseEvent(e);
 			paletteWindow.updateLabels();
 		}
@@ -505,7 +535,8 @@ public class SigmaPalette extends Thread {
 		}
 
 		private void drawOverlayGrid(final Graphics g) {
-			g.setColor(java.awt.Color.MAGENTA);
+			g.setColor(COLOR_DEFAULT);
+			((Graphics2D)g).setStroke(new BasicStroke(1));
 			final int width = imp.getWidth();
 			final int height = imp.getHeight();
 
@@ -523,11 +554,12 @@ public class SigmaPalette extends Thread {
 				g.drawLine(screenX(0), screen_y, screenX(width - 1), screen_y);
 			}
 
-			// If there's a selected sigma, highlight that in green:
+			// If there's a selected sigma, highlight that
 			final int selectedSigmaIndex = getSelectedSigmaIndex();
 
 			if (selectedSigmaIndex >= 0 && selectedSigmaIndex < sigmaValues.length) {
-				g.setColor(java.awt.Color.GREEN);
+				g.setColor(COLOR_SELECTED);
+				((Graphics2D)g).setStroke(new BasicStroke(3));
 				final int sigmaY = selectedSigmaIndex / sigmasAcross;
 				final int sigmaX = selectedSigmaIndex % sigmasAcross;
 				final int leftX = screenX(sigmaX * (croppedWidth + 1));
@@ -612,6 +644,7 @@ public class SigmaPalette extends Thread {
 		this.sigmasAcross = sigmasAcross;
 		this.sigmasDown = sigmasDown;
 		this.initial_z = initial_z;
+		setMaxScales(sigmaValues.length);
 		start();
 	}
 
@@ -647,12 +680,14 @@ public class SigmaPalette extends Thread {
 			throw new IllegalArgumentException("BUG: selectedScale index out-of-range");
 		if (scaleSettings == null)
 			scaleSettings = new ArrayList<>();
+		boolean autoAdvance = true;
 		if (selectedScale > 1 && selectedScale > scaleSettings.size() + 1) {
-			if (new GuiUtils(paletteWindow)
+			if (paletteWindow.guiUtils
 					.getConfirmation("You are adjusting scale " + selectedScale + " but previous scale positions are unset."
 									+ " Adjust scale " + (scaleSettings.size() + 1) + " instead?", "Non-contiguos Scale Positions")) {
 				paletteWindow.scalesScrollbar.setValue(scaleSettings.size()+1);
 				paletteWindow.selectedScaleChanged(scaleSettings.size()+1);
+				autoAdvance = false;
 			} else {
 				return;
 			}
@@ -661,25 +696,28 @@ public class SigmaPalette extends Thread {
 		settings[0] = getSelectedSigma();
 		settings[1] = selectedMax;
 		final int existingIdx = indexOfSigmaInScaleSettings(settings[0]);
-		if (existingIdx > -1) {
-			new GuiUtils(paletteWindow)
+		if (existingIdx > -1 && existingIdx != selectedScale -1) {
+			paletteWindow.guiUtils
 					.error(String.format("This value of sigma has already been set for scale %d.", (existingIdx + 1)));
 			return;
 		}
-		if (scaleSettings.isEmpty() || selectedScale -1 == scaleSettings.size())
+		if (scaleSettings.isEmpty() || selectedScale -1 == scaleSettings.size()) {
 			scaleSettings.add(settings);
-		else
+		} else {
 			scaleSettings.set(selectedScale -1, settings);
-		paletteWindow.scaleMsgLabel.setText("Set!");
+		}
 		((PaletteCanvas)paletteWindow.getCanvas()).updateOverlayLabels();
-		paletteWindow.getCanvas().repaint();
+		if (autoAdvance) {
+			paletteWindow.advanceToNextScale();
+		} else
+			paletteWindow.scaleMsgLabel.setText("Set!");
 		SNTUtils.log(String.format("Scale %d set: sigma=%.1f, max=%.1f", selectedScale, settings[0], settings[1]));
 	}
 
 	private void apply() {
 		//preprocess.setSelected(false);
 		if (scaleSettings == null || scaleSettings.isEmpty()) {
-			new GuiUtils(paletteWindow).error("You must specify settings for at least one scale.");
+			paletteWindow.guiUtils.error("You must specify settings for at least one scale.");
 			return;
 		} else {
 			final StringBuilder sb = new StringBuilder("Commit the following settings across ");
@@ -690,7 +728,7 @@ public class SigmaPalette extends Thread {
 				sb.append("</li>");
 			}
 			sb.append("</ol>");
-			if (!new GuiUtils(paletteWindow).getConfirmation(sb.toString(), "Commit Settings?"))
+			if (!paletteWindow.guiUtils.getConfirmation(sb.toString(), "Commit Settings?"))
 				return;
 		}
 		flush();
@@ -813,7 +851,7 @@ public class SigmaPalette extends Thread {
 		}
 		final IndexColorModel lut = LutLoader.getLut(lutname);
 		if (lut == null) {
-			new GuiUtils(paletteWindow).error(
+			paletteWindow.guiUtils.error(
 					"Somehow LUT could not be retrieved. Perhaps some file(s) are missing from your installation?");
 		} else {
 			paletteImage.getProcessor().setColorModel(lut);
