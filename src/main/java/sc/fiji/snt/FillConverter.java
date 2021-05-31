@@ -28,8 +28,9 @@ import net.imglib2.RandomAccess;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.NativeType;
+import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
-import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import sc.fiji.snt.util.SearchImage;
@@ -54,42 +55,15 @@ public class FillConverter {
         this.originalImp = originalImp;
     }
 
-    public ImagePlus getGreyImp()
-    {
+    public <T extends RealType<T> & NativeType<T>> ImagePlus getGreyImp() {
         final int width = originalImp.getWidth();
         final int height = originalImp.getHeight();
         final int depth = originalImp.getNSlices();
 
-        final int imageType = originalImp.getType();
-        byte[][] slices_data_b = null;
-        short[][] slices_data_s = null;
-        float[][] slices_data_f = null;
-        Img<UnsignedByteType> newImgB = null;
-        Img<UnsignedShortType> newImgS = null;
-        Img<FloatType> newImgF = null;
-        RandomAccess<UnsignedByteType> newImgBAccess = null;
-        RandomAccess<UnsignedShortType> newImgSAccess = null;
-        RandomAccess<FloatType> newImgFAccess = null;
-        switch (imageType) {
-            case ImagePlus.GRAY8:
-            case ImagePlus.COLOR_256:
-                newImgB = ArrayImgs.unsignedBytes(width, height, depth);
-                newImgBAccess = newImgB.randomAccess();
-                slices_data_b = fillers.iterator().next().slices_data_b;
-                break;
-            case ImagePlus.GRAY16:
-                newImgS = ArrayImgs.unsignedShorts(width, height, depth);
-                newImgSAccess = newImgS.randomAccess();
-                slices_data_s = fillers.iterator().next().slices_data_s;
-                break;
-            case ImagePlus.GRAY32:
-                newImgF = ArrayImgs.floats(width, height, depth);
-                newImgFAccess = newImgF.randomAccess();
-                slices_data_f = fillers.iterator().next().slices_data_f;
-                break;
-            default:
-                throw new IllegalArgumentException("Unsupported image type");
-        }
+        Img<T> img = ImageJFunctions.wrap(originalImp);
+        RandomAccess<T> imgAccess = img.randomAccess();
+        Img<T> newImg = img.factory().create(width, height, depth);
+        RandomAccess<T> newImgAccess = newImg.randomAccess();
 
         if (newStack == null) {
             newStack = new SearchImageStack<>(depth, new SupplierUtil.MapSearchImageSupplier<>(width, height));
@@ -103,58 +77,21 @@ public class FillConverter {
                 pos[0] = node.x;
                 pos[1] = node.y;
                 pos[2] = node.z;
-                switch (imageType) {
-                    case ImagePlus.GRAY8:
-                    case ImagePlus.COLOR_256:
-                        newImgBAccess.setPositionAndGet(pos).set(slices_data_b[node.z][node.y * width + node.x] & 0xFF);
-                        break;
-                    case ImagePlus.GRAY16:
-                        newImgSAccess.setPositionAndGet(pos).set(slices_data_s[node.z][node.y * width + node.x] & 0xFFFF);
-                        break;
-                    case ImagePlus.GRAY32:
-                        newImgFAccess.setPositionAndGet(pos).set(slices_data_f[node.z][node.y * width + node.x]);
-                        break;
-                    default:
-                        break;
-                }
+                newImgAccess.setPositionAndGet(pos).set(imgAccess.setPositionAndGet(pos));
             }
         }
 
-        // Swapping 'C' and 'Z' requires permuting the last two dimensions
-        ImagePlus imp = null;
-        switch (imageType) {
-            case ImagePlus.GRAY8:
-            case ImagePlus.COLOR_256:
-                imp = ImageJFunctions.wrap(
-                        Views.permute(
-                                Views.addDimension(newImgB, 0, 0),
-                                2, 3),
-                        "Fill");
-                break;
-            case ImagePlus.GRAY16:
-                imp = ImageJFunctions.wrap(
-                        Views.permute(
-                                Views.addDimension(newImgS, 0, 0),
-                                2, 3),
-                        "Fill");
-                break;
-            case ImagePlus.GRAY32:
-                imp = ImageJFunctions.wrap(
-                        Views.permute(
-                                Views.addDimension(newImgF, 0, 0),
-                                2, 3),
-                        "Fill");
-                break;
-            default:
-                break;
-        }
+        ImagePlus newImp = ImageJFunctions.wrap(
+                Views.permute(
+                        Views.addDimension(newImg, 0, 0),
+                        2, 3),
+                "Fill");
 
-        final ImageStatistics stats = imp.getStatistics(ImageStatistics.MIN_MAX);
-        imp.setDisplayRange(stats.min, stats.max);
-        imp.setCalibration(originalImp.getCalibration());
+        final ImageStatistics stats = newImp.getStatistics(ImageStatistics.MIN_MAX);
+        newImp.setDisplayRange(stats.min, stats.max);
+        newImp.setCalibration(originalImp.getCalibration());
 
-        return imp;
-
+        return newImp;
     }
 
     public ImagePlus getBinaryImp()
