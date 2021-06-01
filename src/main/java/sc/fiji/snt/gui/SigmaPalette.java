@@ -67,6 +67,8 @@ public class SigmaPalette extends Thread {
 	private int selectedSigmaIndex = 0;
 	private int mouseMovedSigmaIndex = -1;
 	private double selectedMax = Double.NaN;
+	private int mouseMovedAcceptedSigmaIndex = -1;
+
 	private int selectedScale = 1;
 	private int x_min, x_max, y_min, y_max, z_min, z_max;
 	private double suggestedMax = -Double.MAX_VALUE;
@@ -226,7 +228,8 @@ public class SigmaPalette extends Thread {
 
 			scalesScrollbar = new RangeScrollbar(1, 1, getMaxScales() + 1);
 			selectedScaleLabel = new Label("1  ");
-			scaleMsgLabel = new Label("Unset");
+			scaleMsgLabel = new Label("Status: Unset");
+
 			scalesScrollbar.addAdjustmentListener(e -> selectedScaleChanged(scalesScrollbar.getValue()));
 			maxValueScrollbar = new RangeScrollbar(defaultMax);
 			maxValueScrollbar.addAdjustmentListener(e -> {
@@ -286,6 +289,12 @@ public class SigmaPalette extends Thread {
 			}
 		}
 
+		private void advanceToScale(final int scaleIndex) {
+			if (scaleIndex >= scalesScrollbar.getMinimum() && scaleIndex <= scalesScrollbar.getMaximum()) {
+				scalesScrollbar.setValue(scaleIndex);
+				selectedScaleChanged(scaleIndex);
+			}
+		}
 		private void updateLabels() {
 			final String max = SNTUtils.formatDouble(selectedMax, 1);
 			maxValueLabel.setText(max);
@@ -305,10 +314,9 @@ public class SigmaPalette extends Thread {
 				final int sigmaIndex = getSigmaIndexFromValue(settings[0]);
 				setSelectedSigmaIndex(sigmaIndex);
 				maxValueScrollbar.setValue((int) Math.round(settings[1]));
-				maxChanged(settings[1]); // will call updateLabels();
-				scaleMsgLabel.setText("Set");
+				scaleMsgLabel.setText("Status: Set");
 			} else {
-				scaleMsgLabel.setText("Unset");
+				scaleMsgLabel.setText("Status: Unset");
 				updateLabels();
 			}
 			repaint(); // will call drawInfo(getGraphics()) to update subtitle
@@ -469,11 +477,26 @@ public class SigmaPalette extends Thread {
 		private void updateSigmaFromMouseEvent(final MouseEvent e) {
 			final int[] tilePosition = getTileXY(e);
 			mouseMovedSigmaIndex = sigmaIndexFromTilePosition(tilePosition);
-			if (mouseMovedSigmaIndex > -1) {
-				if (e.getClickCount() > 0)
+			if (mouseMovedSigmaIndex > -1 && mouseMovedAcceptedSigmaIndex != mouseMovedSigmaIndex) {
+				if (e.getClickCount() > 0) {
 					setSelectedSigmaIndex(mouseMovedSigmaIndex);
+					final int indexInScaleSettings = indexOfSigmaInScaleSettings(sigmaValues[mouseMovedSigmaIndex]);
+					if (indexInScaleSettings > -1) {
+						//  user clicked on a previously set tile
+						if (e.isAltDown()) { // remove this scale
+							scaleSettings.remove(indexInScaleSettings);
+						} else { // select it
+							paletteWindow.advanceToScale(indexInScaleSettings + 1); // 1-based index
+						}
+					} else if (e.isShiftDown()) { // commit selection immediately
+						setSettingsForSelectedScale();
+						mouseMovedAcceptedSigmaIndex = mouseMovedSigmaIndex;
+						return;
+					}
+				}
 				updateOverlayLabels();
 				paletteWindow.repaint(); // call createSubtitle()
+				mouseMovedAcceptedSigmaIndex = -1;
 			}
 		}
 
