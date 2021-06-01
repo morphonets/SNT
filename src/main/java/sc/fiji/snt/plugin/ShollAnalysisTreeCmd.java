@@ -97,6 +97,8 @@ import sc.fiji.snt.util.ShollPoint;
 		initializer = "init", headless = false)
 public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive, Cancelable {
 
+	private static final String SUMMARY_TABLE_NAME = "_Sholl_Metrics.csv";
+
 	@Parameter
 	private CommandService cmdService;
 	@Parameter
@@ -795,7 +797,6 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				if (!filterChoice.contains("None")) header += "(" + filterChoice + ")";
 				sTable.summarize(commonSummaryTable, header);
 				updateAndDisplayCommonSummaryTable();
-				outputs.add(commonSummaryTable);
 			}
 
 			if (snt != null && !"None".equalsIgnoreCase(annotationsDescription)) {
@@ -822,6 +823,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			errorIfSaveDirInvalid();
 			if (save) {
 				int failures = 0;
+				if (commonSummaryTable != null && !commonSummaryTable.saveSilently(new File(saveDir, SUMMARY_TABLE_NAME)))
+					++failures;
 				for (final Object output : outputs) {
 					if (output instanceof ShollPlot) {
 						if (!((ShollPlot)output).save(saveDir)) ++failures;
@@ -861,13 +864,12 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		}
 
 		private void updateAndDisplayCommonSummaryTable() {
-			final String DISPLAY_NAME = "Sholl Metrics";
-			final Display<?> display = displayService.getDisplay(DISPLAY_NAME);
+			final Display<?> display = displayService.getDisplay(SUMMARY_TABLE_NAME);
 			if (display != null && display.isDisplaying(commonSummaryTable)) {
 				display.update();
 			}
 			else {
-				displayService.createDisplay(DISPLAY_NAME, commonSummaryTable);
+				displayService.createDisplay(SUMMARY_TABLE_NAME, commonSummaryTable);
 			}
 		}
 
