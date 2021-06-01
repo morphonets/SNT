@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
@@ -79,16 +80,16 @@ public class SigmaPalette extends Thread {
 	private final ImagePlus image;
 	private final SNT snt;
 	private final HessianCaller hc;
-	private final boolean includeMaxInGui;
+	private final boolean isTubeness;
 	private int maxScales;
-	private List<double[]> scaleSettings;
+	private List<Double> scaleSettings; //TODO: This should be a SET
 
 
 	public SigmaPalette(final SNT snt, final HessianCaller caller) {
 		this.snt = snt;
 		hc = caller;
 		image = hc.getImp();
-		includeMaxInGui = hc.getAnalysisType() == HessianCaller.TUBENESS;
+		isTubeness = hc.getAnalysisType() == HessianCaller.TUBENESS;
 	}
 
 	private void setMaxScales(final int nScales) {
@@ -104,11 +105,11 @@ public class SigmaPalette extends Thread {
 
 		private static final long serialVersionUID = 1L;
 		private Button setButton;
+		private Button commitButton;
 		private Scrollbar maxValueScrollbar;
 		private Scrollbar scalesScrollbar;
 		private Label maxValueLabel;
 		private Label selectedScaleLabel;
-		private Label scaleMsgLabel;
 		private final double defaultMax;
 		private final GuiUtils guiUtils;
 
@@ -151,13 +152,13 @@ public class SigmaPalette extends Thread {
 		}
 
 		private void assembleButtonPanel(final Panel panel, final GridBagConstraints c) {
-			setButton = new Button("Set s=###.##; max=###.## (Scale ##)");
-			setButton.addActionListener(e -> setSettingsForSelectedScale());
-			final Button applyButton = new Button("Apply");
-			applyButton.addActionListener(e -> apply());
+			commitButton = new Button("Commit S Values (### Scale(s))");
+			commitButton.addActionListener(e -> apply());
+			final Button cancelButton = new Button("B&C");
+			cancelButton.addActionListener(e -> IJ.doCommand("Brightness/Contrast..."));
 			final Panel buttonPanel = new Panel(new FlowLayout(FlowLayout.CENTER));
-			buttonPanel.add(setButton);
-			buttonPanel.add(applyButton);
+			buttonPanel.add(commitButton);
+			buttonPanel.add(cancelButton);
 			buttonPanel.add(assembleOptionsButton());
 			c.gridy++;
 			c.gridx = 0;
@@ -228,7 +229,8 @@ public class SigmaPalette extends Thread {
 
 			scalesScrollbar = new RangeScrollbar(1, 1, getMaxScales() + 1);
 			selectedScaleLabel = new Label("1  ");
-			scaleMsgLabel = new Label("Status: Unset");
+			setButton = new Button("Set");
+			setButton.addActionListener(e -> setSettingsForSelectedScale());
 
 			scalesScrollbar.addAdjustmentListener(e -> selectedScaleChanged(scalesScrollbar.getValue()));
 			maxValueScrollbar = new RangeScrollbar(defaultMax);
@@ -245,19 +247,19 @@ public class SigmaPalette extends Thread {
 				maxChanged(defaultMax);
 			});
 
-			c.gridy++;
-			c.gridx =0;
-			c.weightx = 0;
-			panel.add(new Label("Max."), c);
-			c.gridx++;
-			c.weightx = 1;
-			panel.add(maxValueScrollbar, c);
-			c.gridx++;
-			c.weightx = 0;
-			panel.add(maxValueLabel, c);
-			c.gridx++;
-			panel.add(resetMax, c);
-			c.gridy++;
+//			c.gridy++;
+//			c.gridx =0;
+//			c.weightx = 0;
+//			panel.add(new Label("Max."), c);
+//			c.gridx++;
+//			c.weightx = 1;
+//			panel.add(maxValueScrollbar, c);
+//			c.gridx++;
+//			c.weightx = 0;
+//			panel.add(maxValueLabel, c);
+//			c.gridx++;
+//			panel.add(resetMax, c);
+//			c.gridy++;
 
 			c.gridx =0;
 			c.weightx = 0;
@@ -269,7 +271,7 @@ public class SigmaPalette extends Thread {
 			c.weightx = 0;
 			panel.add(selectedScaleLabel, c);
 			c.gridx++;
-			panel.add(scaleMsgLabel, c);
+			panel.add(setButton, c);
 			c.gridy++;
 		}
 
@@ -298,25 +300,19 @@ public class SigmaPalette extends Thread {
 		private void updateLabels() {
 			final String max = SNTUtils.formatDouble(selectedMax, 1);
 			maxValueLabel.setText(max);
-			final StringBuilder sb = new StringBuilder("Set \u03C3=");
-			sb.append(SNTUtils.formatDouble(getSelectedSigma(), 2));
-			if (includeMaxInGui)
-				sb.append("; max=").append(max);
-			sb.append(" (Scale ").append(selectedScale).append(")");
-			setButton.setLabel(sb.toString());
+			final int nScales = (scaleSettings == null) ? 0 : scaleSettings.size();
+			commitButton.setLabel(String.format("Commit \u03C3 Values [%d Scale(s)]", nScales));
 		}
 
 		private void selectedScaleChanged(final int newScaleIndex) {
 			selectedScale = newScaleIndex;
 			selectedScaleLabel.setText(String.valueOf(selectedScale));
 			if (scaleSettings != null && selectedScale <= scaleSettings.size() && scaleSettings.get(selectedScale -1) != null) {
-				final double[] settings = scaleSettings.get(selectedScale -1);
-				final int sigmaIndex = getSigmaIndexFromValue(settings[0]);
+				final double sigma = scaleSettings.get(selectedScale -1);
+				final int sigmaIndex = getSigmaIndexFromValue(sigma);
 				setSelectedSigmaIndex(sigmaIndex);
-				maxValueScrollbar.setValue((int) Math.round(settings[1]));
-				scaleMsgLabel.setText("Status: Set");
+//				maxValueScrollbar.setValue((int) Math.round(settings[1]));
 			} else {
-				scaleMsgLabel.setText("Status: Unset");
 				updateLabels();
 			}
 			repaint(); // will call drawInfo(getGraphics()) to update subtitle
@@ -335,8 +331,8 @@ public class SigmaPalette extends Thread {
 
 		@Override
 		public String createSubtitle() {
-			final StringBuilder sb = new StringBuilder((includeMaxInGui) ? "Tubeness" : "Frangi");
-			sb.append(" Preview: Scale ").append(selectedScale);
+			final StringBuilder sb = new StringBuilder((isTubeness) ? "Tubeness" : "Frangi");
+			sb.append(" Preview: Setting Scale ").append(selectedScale);
 			sb.append(" \u03C3=").append(getMouseOverSigma());
 			if (zSelector != null) {
 				sb.append("  z=").append(SNTUtils.formatDouble(image.getCalibration().getZ(zSelector.getValue() - 1), 2));
@@ -682,7 +678,7 @@ public class SigmaPalette extends Thread {
 		snt.changeUIState(SNTUI.READY);
 	}
 
-	public List<double[]> getMultiScaleSettings() {
+	public List<Double> getMultiScaleSettings() {
 		if (scaleSettings == null)
 			throw new IllegalArgumentException("getMultiScaleSettings() called before any setting being defined");
 		return scaleSettings;
@@ -691,11 +687,7 @@ public class SigmaPalette extends Thread {
 	private int indexOfSigmaInScaleSettings(final double sigma) {
 		if (scaleSettings == null)
 			return -1;
-		for (final double[] setting : scaleSettings) {
-			if (setting[0] == sigma)
-				return scaleSettings.indexOf(setting);
-		}
-		return -1;
+		return scaleSettings.indexOf(sigma);
 	}
 
 	private void setSettingsForSelectedScale() {
@@ -715,26 +707,23 @@ public class SigmaPalette extends Thread {
 				return;
 			}
 		}
-		final double[] settings = new double[2];
-		settings[0] = getSelectedSigma();
-		settings[1] = selectedMax;
-		final int existingIdx = indexOfSigmaInScaleSettings(settings[0]);
+		final double sigma = getSelectedSigma();
+		final int existingIdx = indexOfSigmaInScaleSettings(sigma);
 		if (existingIdx > -1 && existingIdx != selectedScale -1) {
 			paletteWindow.guiUtils
 					.error(String.format("This value of sigma has already been set for scale %d.", (existingIdx + 1)));
 			return;
 		}
 		if (scaleSettings.isEmpty() || selectedScale -1 == scaleSettings.size()) {
-			scaleSettings.add(settings);
+			scaleSettings.add(sigma);
 		} else {
-			scaleSettings.set(selectedScale -1, settings);
+			scaleSettings.set(selectedScale -1, sigma);
 		}
 		((PaletteCanvas)paletteWindow.getCanvas()).updateOverlayLabels();
 		if (autoAdvance) {
 			paletteWindow.advanceToNextScale();
 		} else
-			paletteWindow.scaleMsgLabel.setText("Set!");
-		SNTUtils.log(String.format("Scale %d set: sigma=%.1f, max=%.1f", selectedScale, settings[0], settings[1]));
+		SNTUtils.log(String.format("Scale %d set: sigma=%.1f", selectedScale, sigma));
 	}
 
 	private void apply() {
@@ -745,9 +734,9 @@ public class SigmaPalette extends Thread {
 		} else {
 			final StringBuilder sb = new StringBuilder("Commit the following settings across ");
 			sb.append(scaleSettings.size()).append(" scale(s)? <ol>");
-			for (final double[] setting : scaleSettings) {
-				sb.append("<li>\u03C3= ").append(SNTUtils.formatDouble(setting[0], 2));
-				sb.append("; max= ").append(SNTUtils.formatDouble(setting[1], 1));
+			for (final double setting : scaleSettings) {
+				sb.append("<li>\u03C3= ").append(SNTUtils.formatDouble(setting, 2));
+//				sb.append("; max= ").append(SNTUtils.formatDouble(setting[1], 1));
 				sb.append("</li>");
 			}
 			sb.append("</ol>");
@@ -756,7 +745,7 @@ public class SigmaPalette extends Thread {
 		}
 		flush();
 		//TODO: Make this aware of multiple scales
-		hc.setSigmaAndMax(getSelectedSigma(), selectedMax);
+		hc.setSigmaAndMax(getSelectedSigma(), Double.NaN);
 		if (hc.isGaussianComputed())
 			snt.changeUIState(SNTUI.READY);
 		else 
@@ -808,7 +797,7 @@ public class SigmaPalette extends Thread {
 			final FloatProcessor fp = new FloatProcessor(paletteWidth, paletteHeight);
 			newStack.addSlice("", fp);
 		}
-		paletteImage = new ImagePlus( (includeMaxInGui) ? "Pick Sigma & Max" : "Pick Sigma", newStack);
+		paletteImage = new ImagePlus("Pick Sigmas", newStack);
 		paletteImage.setZ(initial_z - z_min + 1);
 		applyLUT("reset");
 		for (int sigmaIndex = 0; sigmaIndex < sigmaValues.length; ++sigmaIndex) {
