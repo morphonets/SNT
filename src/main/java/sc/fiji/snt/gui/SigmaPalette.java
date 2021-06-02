@@ -745,11 +745,9 @@ public class SigmaPalette extends Thread {
 		}
 		flush();
 		//TODO: Make this aware of multiple scales
-		hc.setSigmaAndMax(getSelectedSigma(), Double.NaN);
-		if (hc.isGaussianComputed())
-			snt.changeUIState(SNTUI.READY);
-		else 
-			hc.start();
+		hc.setSigmas(getMultiScaleSettings());
+		// recompute after changing scales
+		hc.start();
 	}
 
 	private void copyIntoPalette(final ImagePlus smallImage,
@@ -809,7 +807,8 @@ public class SigmaPalette extends Thread {
 			final HessianProcessor hessian = new HessianProcessor(cropped, null);
 			ImagePlus processed;
 			if (hc.getAnalysisType() == HessianCaller.TUBENESS) {
-				hessian.processTubeness(sigma, false);
+				// One scale
+				hessian.processTubeness(new double[]{sigma}, false);
 				processed = ImageJFunctions.wrap(hessian.getTubenessImg(), "");
 			} else if (hc.getAnalysisType() == HessianCaller.FRANGI) {
 				// One scale

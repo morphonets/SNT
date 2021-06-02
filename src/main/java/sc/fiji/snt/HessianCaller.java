@@ -24,10 +24,13 @@ package sc.fiji.snt;
 
 import ij.ImagePlus;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
- * This class is responsible for initiating Heassian analysis on both the
+ * This class is responsible for initiating Hessian analysis on both the
  * <i>primary</i> (main) and the <i>secondary</i> image. Currently computations
- * are performed by {@link features.ComputeCurvatures}, but could be extended to
+ * are performed by {@link HessianProcessor}, but could be extended to
  * adopt other approaches.
  * 
  * @author Tiago Ferreira
@@ -38,14 +41,12 @@ public class HessianCaller {
 	private final SNT snt;
 	static final int PRIMARY = 0;
 	static final int SECONDARY = 1;
-	static final double DEFAULT_MULTIPLIER = 4;
 
 	public static final byte TUBENESS = 0;
 	public static final byte FRANGI = 1;
 
-	private final int type;
-	double sigma = -1;
-	double multiplier = DEFAULT_MULTIPLIER;
+	private final int imageType;
+	double[] sigmas;
 	protected HessianProcessor hessian;
 	protected float[][] cachedTubeness;
 	private ImagePlus imp;
@@ -53,7 +54,7 @@ public class HessianCaller {
 
 	HessianCaller(final SNT snt, final int type) {
 		this.snt = snt;
-		this.type = type;
+		this.imageType = type;
 	}
 
 	public void setAnalysisType(final byte analysisType) {
@@ -64,63 +65,48 @@ public class HessianCaller {
 		return analysisType;
 	}
 
-	public void setSigmaAndMax(final double sigmaInCalibratedUnits, final double max) {
-		if (sigma != sigmaInCalibratedUnits)
-			hessian = null;
-		this.sigma = sigmaInCalibratedUnits;
-		this.multiplier = 256 / max; // (tubeness * multiplier) is always clipped to [0, 256]
-		if (snt.ui != null) snt.ui.updateHessianPanel(this);
-		SNTUtils.log("Hessian parameters adjusted "+ this);
+	public void setSigmas(final List<Double> scaleSettings) {
+		this.sigmas = new double[scaleSettings.size()];
+		for (int i = 0; i < scaleSettings.size(); ++i) {
+			this.sigmas[i] = scaleSettings.get(i);
+		}
 	}
 
-	protected double getSigma(final boolean physicalUnits) {
-		if (sigma == -1) sigma = (physicalUnits) ? getDefaultSigma() : 1;
-		return (physicalUnits) ? sigma : Math.round(sigma / snt.getAverageSeparation());
+	protected double[] getSigmas(final boolean physicalUnits) {
+		if (sigmas == null) {
+			return (physicalUnits) ? getDefaultSigma() : new double[]{1.0};
+		}
+		if (physicalUnits) {
+			return sigmas;
+		}
+		double[] unscaledSigmas = new double[sigmas.length];
+		for (int i = 0; i < sigmas.length; ++i) {
+			unscaledSigmas[i] = (double)Math.round(sigmas[i] / snt.getAverageSeparation());
+		}
+		return unscaledSigmas;
 	}
 
-	protected double getMultiplier() {
-		return multiplier;
-	}
-
-	protected double getMax() {
-		return 256 / multiplier;
-	}
-
-	protected double getDefaultMax() {
-		return 256 / DEFAULT_MULTIPLIER;
-	}
-
-	protected double getDefaultSigma() {
+	protected double[] getDefaultSigma() {
 		final double minSep = snt.getMinimumSeparation();
 		final double avgSep = snt.getAverageSeparation();
-		return (minSep == avgSep) ? 2 * minSep : avgSep;
+		return (minSep == avgSep) ? new double[]{2 * minSep} : new double[]{avgSep};
 	}
 
-	private double impMax() {
-		return (type == PRIMARY) ? snt.stackMax : snt.stackMaxSecondary;
-	}
-
-	public double[] impRange() {
-		return (type == PRIMARY) ? new double[] { snt.stackMin, snt.stackMax }
-				: new double[] { snt.stackMinSecondary, snt.stackMaxSecondary };
-	}
-
-	public boolean isGaussianComputed() {
+	public boolean isHessianComputed() {
 		return hessian != null;
 	}
 
 	public Thread start() {
-		snt.changeUIState((type == PRIMARY) ? SNTUI.CALCULATING_HESSIAN_I : SNTUI.CALCULATING_HESSIAN_II);
-		if (sigma == -1)
-			sigma = getDefaultSigma();
+		snt.changeUIState((imageType == PRIMARY) ? SNTUI.CALCULATING_HESSIAN_I : SNTUI.CALCULATING_HESSIAN_II);
+		if (sigmas == null)
+			sigmas = getDefaultSigma();
 		setImp();
 		hessian = new HessianProcessor(imp, snt);
 		Thread thread;
 		if (analysisType == TUBENESS) {
-			thread = new Thread(() -> hessian.processTubeness(sigma, false));
+			thread = new Thread(() -> hessian.processTubeness(sigmas, true));
 		} else if (analysisType == FRANGI) {
-			// TODO: allow multi-selection in sigma palette and input dialog
-			thread = new Thread(() -> hessian.processFrangi(new double[]{sigma * 0.5, sigma, sigma * 2}, true));
+			thread = new Thread(() -> hessian.processFrangi(sigmas, true));
 		} else {
 			throw new IllegalArgumentException("BUG: Unknown analysis type");
 		}
@@ -129,7 +115,7 @@ public class HessianCaller {
 	}
 
 	private void setImp() {
-		if (imp == null) imp = (type == PRIMARY) ? snt.getLoadedDataAsImp() : snt.getSecondaryDataAsImp();
+		if (imp == null) imp = (imageType == PRIMARY) ? snt.getLoadedDataAsImp() : snt.getSecondaryDataAsImp();
 	}
 
 	public ImagePlus getImp() {
@@ -137,20 +123,19 @@ public class HessianCaller {
 		return imp;
 	}
 
-	protected void cancelGaussianGeneration() {
+	protected void cancelHessianGeneration() {
 		// TODO
 	}
 
 	void nullify() {
 		hessian = null;
-		sigma = -1;
-		multiplier = DEFAULT_MULTIPLIER;
+		sigmas = null;
 		cachedTubeness = null;
 		imp = null;
 	}
 
 	@Override
 	public String toString() {
-		return ((type == PRIMARY) ? "(main" : "(secondary") + " image): sigma=" + sigma + ", m=" + multiplier;
+		return ((imageType == PRIMARY) ? "(main" : "(secondary") + " image): sigmas=" + Arrays.toString(sigmas);
 	}
 }

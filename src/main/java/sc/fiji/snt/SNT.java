@@ -2374,7 +2374,9 @@ public class SNT extends MultiDThreePanes implements
 
 	public void startHessian(final String image, final double sigma, final double max, final boolean wait) {
 		final HessianCaller hc = getHessianCaller(image);
-		hc.setSigmaAndMax(sigma, max);
+		List<Double> settings = new ArrayList<>();
+		settings.add(sigma);
+		hc.setSigmas(settings);
 		if (wait) {
 			try {
 				hc.start().join();
@@ -2480,7 +2482,7 @@ public class SNT extends MultiDThreePanes implements
 		final ImagePlus imp = openCachedDataImage(file);
 		final HessianCaller hc = getHessianCaller(type);
 		loadTubenessImage(hc, imp, true);
-		hc.sigma = -1;
+		hc.sigmas = null;
 	}
 
 	public void loadTubenessImage(final String type, final ImagePlus imp) throws IllegalArgumentException {
@@ -2495,9 +2497,8 @@ public class SNT extends MultiDThreePanes implements
 				+ ". If this unexpected, check under 'Image>Properties...' that CZT axes are not swapped.");
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
-		SNTUtils.log("Loading tubeness image multiplier=" + hc.multiplier + " max=" + stackMaxSecondary);
+		SNTUtils.log("Loading tubeness image max=" + stackMaxSecondary);
 		loadCachedData(imp, hc.cachedTubeness = new float[depth][]);
-		hc.setSigmaAndMax(hc.getSigma(true), stackMaxSecondary);
 		if (changeUIState) {
 			getUI().updateHessianPanel(hc);
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
@@ -2592,8 +2593,8 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected synchronized void cancelGaussian() {
-		primaryHessian.cancelGaussianGeneration();
-		secondaryHessian.cancelGaussianGeneration();
+		primaryHessian.cancelHessianGeneration();
+		secondaryHessian.cancelHessianGeneration();
 	}
 
 	protected void nullifyHessian() {
@@ -3254,12 +3255,12 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public boolean isHessianEnabled(final String image) {
 		if ("secondary".equalsIgnoreCase(image))
-			return hessianEnabled && isTracingOnSecondaryImageAvailable() && secondaryHessian.sigma > -1;
-		return hessianEnabled && primaryHessian.sigma > -1;
+			return hessianEnabled && isTracingOnSecondaryImageAvailable() && secondaryHessian.sigmas != null;
+		return hessianEnabled && primaryHessian.sigmas != null;
 	}
 
-	public double getHessianSigma(final String image, final boolean physicalUnits) {
-		return getHessianCaller(image).getSigma(physicalUnits);
+	public double[] getHessianSigma(final String image, final boolean physicalUnits) {
+		return getHessianCaller(image).getSigmas(physicalUnits);
 	}
 
 	public boolean isTubenessImageCached(final String image) {

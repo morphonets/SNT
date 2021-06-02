@@ -90,6 +90,8 @@ public class HessianProcessor {
     private HessianGenerationCallback callback;
 
     private int nThreads;
+    private long[] blockDimensions;
+    private boolean isAutoBlockDimensions = true;
 
     // TODO: implement logic if user wants to override suggested block dimensions
 
@@ -99,8 +101,11 @@ public class HessianProcessor {
         }
         this.img = ImageJFunctions.wrapReal(imp);
         SNTUtils.log("Wrapped ImagePlus with type: " + this.img.getClass());
-        this.is3D = imp.getStackSize() > 1;
         this.imgDim = Intervals.dimensionsAsLongArray(this.img);
+        if (this.imgDim.length < 2 || this.imgDim.length > 3) {
+            throw new UnsupportedOperationException("Only 2 or 3 dimensional images are supported");
+        }
+        this.is3D = imp.getStackSize() > 1;
         final Calibration cal = imp.getCalibration();
         if (cal != null) {
             this.pixelWidth = cal.pixelWidth;
@@ -127,10 +132,26 @@ public class HessianProcessor {
         this.nThreads = nThreads;
     }
 
-    public void processTubeness(final double sigma, final boolean computeStats) {
-        SNTUtils.log("Computing Tubeness at sigma: " + sigma);
+    public void setBlockDimensions(final long[] dimensions) {
+        this.blockDimensions = dimensions;
+    }
+
+    public void setAutoBlockDimensions(boolean useAutoBlockSize) {
+        this.isAutoBlockDimensions = useAutoBlockSize;
+    }
+
+    public boolean isAutoBlockDimensions() {
+        return this.isAutoBlockDimensions;
+    }
+
+    public long[] getBlockDimensions() {
+        return this.blockDimensions;
+    }
+
+    public void processTubeness(final double[] sigmas, final boolean computeStats) {
+        SNTUtils.log("Computing Tubeness at sigma: " + Arrays.toString(sigmas));
         this.callback.proportionDone(0);
-        this.tubenessImg = (Img<FloatType>) tubenessInternal(sigma);
+        this.tubenessImg = (Img<FloatType>) tubenessInternal(sigmas);
         if (this.tubenessImg == null) {
             return;
         }
@@ -145,10 +166,10 @@ public class HessianProcessor {
         this.callback.proportionDone(1.0);
     }
 
-    public void processFrangi(final double[] scales, final boolean computeStats) {
-        SNTUtils.log("Computing Frangi at scales: " + Arrays.toString(scales));
+    public void processFrangi(final double[] sigmas, final boolean computeStats) {
+        SNTUtils.log("Computing Frangi at scales: " + Arrays.toString(sigmas));
         this.callback.proportionDone(0);
-        this.frangiImg = (Img<FloatType>) frangiInternal(scales);
+        this.frangiImg = (Img<FloatType>) frangiInternal(sigmas);
         if (this.frangiImg == null) {
             return;
         }
@@ -194,11 +215,14 @@ public class HessianProcessor {
     }
 
     protected void tubeness2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                              final RandomAccessibleInterval<FloatType> tubenessRai, final TaskExecutor ex)
+                              final RandomAccessibleInterval<FloatType> tubenessRai, double sigma,
+                              final TaskExecutor ex)
     {
         final int d = eigenvalueRai.numDimensions() - 1;
         final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
         final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
+        // normalize filter response for fair comparison at multiple scales
+        final double norm = sigma * sigma;
 
         LoopBuilder.setImages(evs0, evs1, tubenessRai).multiThreaded(ex).forEachPixel(
                 (ev0, ev1, v) -> {
@@ -210,7 +234,7 @@ public class HessianProcessor {
                     }
                     double result = 0;
                     if (e1 < 0) {
-                        result = Math.abs(e1);
+                        result = norm * Math.abs(e1);
                     }
                     v.set((float) result);
                 }
@@ -218,12 +242,15 @@ public class HessianProcessor {
     }
 
     protected void tubeness3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                              final RandomAccessibleInterval<FloatType> tubenessRai, final TaskExecutor ex)
+                              final RandomAccessibleInterval<FloatType> tubenessRai, double sigma,
+                              final TaskExecutor ex)
     {
         final int d = eigenvalueRai.numDimensions() - 1;
         final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
         final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
         final IntervalView<FloatType> evs2 = Views.hyperSlice(eigenvalueRai, d, 2);
+        // normalize filter response for fair comparison at multiple scales
+        final double norm = sigma * sigma;
 
         LoopBuilder.setImages(evs0, evs1, evs2, tubenessRai).multiThreaded(ex).forEachPixel(
                 (ev0, ev1, ev2, v) -> {
@@ -248,7 +275,7 @@ public class HessianProcessor {
                     }
                     double result = 0;
                     if (e1 < 0 && e2 < 0) {
-                        result = Math.sqrt(e1 * e2);
+                        result = norm * Math.sqrt(e1 * e2);
                     }
                     v.set((float) result);
                 }
@@ -368,112 +395,17 @@ public class HessianProcessor {
         );
     }
 
-    protected RandomAccessibleInterval<FloatType> tubenessInternal(final double sigma) {
+    protected RandomAccessibleInterval<FloatType> tubenessInternal(final double[] scales) {
 
-        final long[] bestBlockSize = suggestBlockDimensions(this.imgDim);
+        if (this.isAutoBlockDimensions) {
+            this.blockDimensions = suggestBlockDimensions(this.imgDim);
+        }
 
         final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
         try (TaskExecutor ex = new DefaultTaskExecutor(es)) {
             // TODO: maybe use one of the cached imglib2 data structures instead?
             RandomAccessibleInterval<FloatType> output = ArrayImgs.floats(this.imgDim);
-            final List<IntervalView<FloatType>> blocks = splitIntoBlocks(output, bestBlockSize);
-            if (blocks.size() == 0) {
-                throw new IllegalStateException("Num blocks == 0");
-            }
-
-            final long[] gaussianPad = new long[this.imgDim.length];
-            final long[] gaussianOffset = new long[this.imgDim.length];
-
-            final long[] gradientPad = new long[this.imgDim.length + 1];
-            gradientPad[gradientPad.length - 1] = this.is3D ? 3 : 2;
-            final long[] gradientOffset = new long[this.imgDim.length + 1];
-
-            final long[] hessianPad = new long[this.imgDim.length + 1];
-            hessianPad[hessianPad.length - 1] = this.is3D ? 6 : 3;
-            final long[] hessianOffset = new long[this.imgDim.length + 1];
-
-            final double[] sigmaArr;
-            if (this.is3D) {
-                sigmaArr = new double[]{sigma / this.pixelWidth, sigma / this.pixelHeight, sigma / this.pixelDepth};
-            } else {
-                sigmaArr = new double[]{sigma / this.pixelWidth, sigma / this.pixelHeight};
-            }
-
-            int iter = 0;
-            for (final IntervalView<FloatType> block : blocks) {
-
-                final long[] blockSize = Intervals.dimensionsAsLongArray(block);
-
-                for (int d = 0; d < blockSize.length; ++d) {
-                    gaussianPad[d] = blockSize[d] + 6;
-                    gaussianOffset[d] = block.min(d) - 2;
-                }
-                RandomAccessibleInterval<FloatType> tmpGaussian = Views.translate(
-                        ArrayImgs.floats(gaussianPad), gaussianOffset);
-
-                FastGauss.convolve(sigmaArr, Views.extendMirrorSingle(this.img), tmpGaussian);
-
-                for (int d = 0; d < gradientPad.length - 1; ++d) {
-                    gradientPad[d] = blockSize[d] + 4;
-                    gradientOffset[d] = block.min(d) - 1;
-                    hessianPad[d] = blockSize[d];
-                    hessianOffset[d] = block.min(d);
-                }
-                RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(gradientPad);
-                RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(hessianPad);
-
-                HessianMatrix.calculateMatrix(
-                        Views.extendBorder(tmpGaussian),
-                        Views.translate(tmpGradient, gradientOffset),
-                        Views.translate(tmpHessian, hessianOffset),
-                        new OutOfBoundsBorderFactory<>(),
-                        this.nThreads,
-                        es);
-
-                RandomAccessibleInterval<FloatType> tmpEigenvalues =
-                        TensorEigenValues.createAppropriateResultImg(
-                                tmpHessian,
-                                new ArrayImgFactory<>(new FloatType()));
-                TensorEigenValues.calculateEigenValuesSymmetric(tmpHessian, tmpEigenvalues, this.nThreads, es);
-
-                if (this.is3D) {
-                    tubeness3D(tmpEigenvalues, block, ex);
-                } else {
-                    tubeness2D(tmpEigenvalues, block, ex);
-                }
-                this.callback.proportionDone(iter / (double) blocks.size());
-                ++iter;
-            }
-            return output;
-
-        } catch (final OutOfMemoryError e) {
-            IJ.error("Out of memory when computing Tubeness. Requires around " +
-                    (estimateMemoryRequirement(this.imgDim, bestBlockSize) / (1024 * 1024)) + "MiB for block size " +
-                    Arrays.toString(bestBlockSize));
-            this.callback.proportionDone(-1);
-
-        } catch (final ExecutionException e) {
-            SNTUtils.error(e.getMessage(), e);
-            this.callback.proportionDone(-1);
-
-        } catch (final InterruptedException e) {
-            SNTUtils.error("Tubeness interrupted.", e);
-            this.callback.proportionDone(-1);
-            Thread.currentThread().interrupt();
-        }
-        return null;
-    }
-
-    protected RandomAccessibleInterval<FloatType> frangiInternal(final double[] scales) {
-
-        final long[] bestBlockSize = suggestBlockDimensions(this.imgDim);
-
-        final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
-
-        try (final DefaultTaskExecutor ex = new DefaultTaskExecutor(es)) {
-            // TODO: maybe use one of the disk cached imglib2 data structures instead?
-            final Img<FloatType> output = ArrayImgs.floats(Intervals.dimensionsAsLongArray(this.img));
-            final List<IntervalView<FloatType>> blocks = splitIntoBlocks(output, bestBlockSize);
+            final List<IntervalView<FloatType>> blocks = splitIntoBlocks(output, this.blockDimensions);
             if (blocks.size() == 0) {
                 throw new IllegalStateException("Num blocks == 0");
             }
@@ -499,12 +431,6 @@ public class HessianProcessor {
                 }
                 sigmas.add(sigma);
             }
-
-            // Since we might not be able to compute this over the entire hessian image at once,
-            // keep track of the max over all visited blocks and use that for the current block.
-            // This seems to work well enough, judging by the looks of the output.
-            // At the very least, it is a lot better than using the max of each block...
-            double maxSquaredFrobienusNorm = -Double.MAX_VALUE;
 
             int iter = 0;
             final int nIterations = sigmas.size() * blocks.size();
@@ -539,6 +465,140 @@ public class HessianProcessor {
                             this.nThreads,
                             es);
 
+                    RandomAccessibleInterval<FloatType> tmpEigenvalues =
+                            TensorEigenValues.createAppropriateResultImg(
+                                    tmpHessian,
+                                    new ArrayImgFactory<>(new FloatType()));
+                    TensorEigenValues.calculateEigenValuesSymmetric(tmpHessian, tmpEigenvalues, this.nThreads, es);
+
+                    // FIXME: this normalizes the filter response using the average voxel separation at a scale
+                    double avgSigma = 0d;
+                    for (double s : sigma) {
+                        avgSigma += s;
+                    }
+                    avgSigma /= sigma.length;
+
+                    RandomAccessibleInterval<FloatType> tmpTubeness = ArrayImgs.floats(blockSize);
+                    if (this.is3D) {
+                        tubeness3D(tmpEigenvalues, tmpTubeness, avgSigma, ex);
+                    } else {
+                        tubeness2D(tmpEigenvalues, tmpTubeness, avgSigma, ex);
+                    }
+                    LoopBuilder.setImages(block, tmpTubeness)
+                            .multiThreaded(ex)
+                            .forEachPixel((b, t) -> b.set(Math.max(b.getRealFloat(), t.getRealFloat())));
+
+                    this.callback.proportionDone(iter / (double) nIterations);
+                    ++iter;
+                }
+            }
+            return output;
+
+        } catch (final OutOfMemoryError e) {
+            IJ.error("Out of memory when computing Tubeness. Requires around " +
+                    (estimateMemoryRequirement(this.imgDim, this.blockDimensions) / (1024 * 1024)) + "MiB for block size " +
+                    Arrays.toString(this.blockDimensions));
+            this.callback.proportionDone(-1);
+
+        } catch (final ExecutionException e) {
+            SNTUtils.error(e.getMessage(), e);
+            this.callback.proportionDone(-1);
+
+        } catch (final InterruptedException e) {
+            SNTUtils.error("Tubeness interrupted.", e);
+            this.callback.proportionDone(-1);
+            Thread.currentThread().interrupt();
+        }
+        return null;
+    }
+
+    protected RandomAccessibleInterval<FloatType> frangiInternal(final double[] scales) {
+
+        if (this.isAutoBlockDimensions) {
+            this.blockDimensions = suggestBlockDimensions(this.imgDim);
+        }
+
+        final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
+
+        try (final DefaultTaskExecutor ex = new DefaultTaskExecutor(es)) {
+            // TODO: maybe use one of the disk cached imglib2 data structures instead?
+            final Img<FloatType> output = ArrayImgs.floats(Intervals.dimensionsAsLongArray(this.img));
+            final List<IntervalView<FloatType>> blocks = splitIntoBlocks(output, this.blockDimensions);
+            if (blocks.size() == 0) {
+                throw new IllegalStateException("Num blocks == 0");
+            }
+
+            final long[] gaussianPad = new long[this.imgDim.length];
+            final long[] gaussianOffset = new long[this.imgDim.length];
+
+            final long[] gradientPad = new long[this.imgDim.length + 1];
+            gradientPad[gradientPad.length - 1] = this.is3D ? 3 : 2;
+            final long[] gradientOffset = new long[this.imgDim.length + 1];
+
+            final long[] hessianPad = new long[this.imgDim.length + 1];
+            hessianPad[hessianPad.length - 1] = this.is3D ? 6 : 3;
+            final long[] hessianOffset = new long[this.imgDim.length + 1];
+
+            final List<double[]> sigmas = new ArrayList<>();
+            for (final double sc : scales) {
+                final double[] sigma;
+                if (this.is3D) {
+                    sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight, sc / this.pixelDepth};
+                } else {
+                    sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight};
+                }
+                sigmas.add(sigma);
+            }
+
+            int iter = 0;
+            final int nIterations = sigmas.size() * blocks.size();
+            for (final double[] sigma : sigmas) {
+
+                // Since we might not be able to compute this over the entire hessian image at once,
+                // keep track of the max over all visited blocks and use that for the current block.
+                // This seems to work well enough, judging by the looks of the output.
+                // At the very least, it is a lot better than using the max of each block...
+                double maxSquaredFrobienusNorm = -Double.MAX_VALUE;
+
+                for (final IntervalView<FloatType> block : blocks) {
+
+                    final long[] blockSize = Intervals.dimensionsAsLongArray(block);
+
+                    for (int d = 0; d < blockSize.length; ++d) {
+                        gaussianPad[d] = blockSize[d] + 6;
+                        gaussianOffset[d] = block.min(d) - 2;
+                    }
+                    RandomAccessibleInterval<FloatType> tmpGaussian = Views.translate(
+                            ArrayImgs.floats(gaussianPad), gaussianOffset);
+
+                    FastGauss.convolve(sigma, Views.extendMirrorSingle(this.img), tmpGaussian);
+
+                    for (int d = 0; d < gradientPad.length - 1; ++d) {
+                        gradientPad[d] = blockSize[d] + 4;
+                        gradientOffset[d] = block.min(d) - 1;
+                        hessianPad[d] = blockSize[d];
+                        hessianOffset[d] = block.min(d);
+                    }
+                    RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(gradientPad);
+                    RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(hessianPad);
+
+                    HessianMatrix.calculateMatrix(
+                            Views.extendBorder(tmpGaussian),
+                            Views.translate(tmpGradient, gradientOffset),
+                            Views.translate(tmpHessian, hessianOffset),
+                            new OutOfBoundsBorderFactory<>(),
+                            this.nThreads,
+                            es);
+
+                    // FIXME: this normalizes the filter response using the average voxel separation at a scale
+                    double avgSigma = 0d;
+                    for (double s : sigma) {
+                        avgSigma += s;
+                    }
+                    avgSigma /= sigma.length;
+                    final double norm = avgSigma * avgSigma;
+                    LoopBuilder.setImages(tmpHessian).multiThreaded(ex).forEachPixel((h) -> h.mul(norm));
+
                     maxSquaredFrobienusNorm = Math.max(maxSquaredFrobenius(tmpHessian, ex), maxSquaredFrobienusNorm);
                     final double c = Math.sqrt(maxSquaredFrobienusNorm) * 0.5;
 
@@ -556,7 +616,7 @@ public class HessianProcessor {
                     }
                     LoopBuilder.setImages(block, tmpFrangi)
                             .multiThreaded(ex)
-                            .forEachPixel((f, t) -> f.set(Math.max(f.getRealFloat(), t.getRealFloat())));
+                            .forEachPixel((b, t) -> b.set(Math.max(b.getRealFloat(), t.getRealFloat())));
 
                     this.callback.proportionDone(iter / (double) nIterations);
                     ++iter;
@@ -566,8 +626,8 @@ public class HessianProcessor {
 
         } catch (final OutOfMemoryError e) {
             IJ.error("Out of memory when computing Frangi. Requires around " +
-                    (estimateMemoryRequirement(this.imgDim, bestBlockSize) / (1024 * 1024)) + "MiB for block size " +
-                    Arrays.toString(bestBlockSize));
+                    (estimateMemoryRequirement(this.imgDim, this.blockDimensions) / (1024 * 1024)) + "MiB for block size " +
+                    Arrays.toString(this.blockDimensions));
             this.callback.proportionDone(-1);
 
         } catch (final ExecutionException e) {
@@ -622,6 +682,8 @@ public class HessianProcessor {
         // Ideally, it should be at minimum twice the diameter of the largest tubular process, in pixels
         final long dimensionLowerBound = 8L;
         final long[] blockDimensions = Arrays.copyOf(sourceDimensions, sourceDimensions.length);
+        // FIXME: something more elegant
+        System.gc();
         final long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         final long totalFreeMemory = Runtime.getRuntime().maxMemory() - usedMemory;
         long memoryEstimate = estimateMemoryRequirement(sourceDimensions, blockDimensions);
@@ -652,6 +714,7 @@ public class HessianProcessor {
     }
 
     protected static long estimateMemoryRequirement(final long[] sourceDimensions, final long[] blockDimensions) {
+        // FIXME: This certainly isn't ideal, though I have yet to run out of memory on a 64-bit jre...
         long outputBytes = 1L, gaussBytes = 1L, gradientBytes = 1L, hessianBytes = 1L;
         for (int d = 0; d < sourceDimensions.length; ++d) {
             outputBytes *= sourceDimensions[d];
@@ -737,9 +800,9 @@ public class HessianProcessor {
         SNTUtils.setDebugMode(true);
         ImagePlus imp = snt.demoImage("OP_1");
         final HessianProcessor hessian = new HessianProcessor(imp, null);
-        hessian.processTubeness(0.835, true);
+        hessian.processTubeness(new double[]{0.5, 0.7, 0.9, 1.1}, true);
         hessian.showTubeness();
-        hessian.processFrangi(new double[]{0.64, 0.835, 1.2}, true);
+        hessian.processFrangi(new double[]{0.5, 0.7, 0.9, 1.1}, true);
         hessian.showFrangi();
     }
 

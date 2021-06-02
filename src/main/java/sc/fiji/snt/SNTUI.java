@@ -605,14 +605,11 @@ public class SNTUI extends JDialog {
 
 	protected void updateHessianPanel(final HessianCaller hc) {
 		final StringBuilder sb = new StringBuilder("    Active settings: ");
-		final double sigma = hc.getSigma(true);
-		if (sigma == -1)
+		final double[] sigma = hc.getSigmas(true);
+		if (sigma == null)
 			sb.append("\u03C3=?.??");
 		else
-			sb.append("\u03C3=").append(SNTUtils.formatDouble(sigma, 2));
-		if (hc.getAnalysisType()==HessianCaller.TUBENESS) {
-			sb.append("; max=").append(SNTUtils.formatDouble(hc.getMax(), 1));
-		}
+			sb.append("\u03C3=").append(Arrays.toString(sigma));
 		sb.append("     ");
 		assert SwingUtilities.isEventDispatchThread();
 		hessianLabel.setText(sb.toString());
@@ -2936,8 +2933,10 @@ public class SNTUI extends JDialog {
 	}
 
 	private void setMultiplierForCachedTubenessFromUser(final String primarySecondaryChoice) {
+		// TODO repurpose this for MaxScalingCost
 		final HessianCaller hc = plugin.getHessianCaller(primarySecondaryChoice);
-		final double defaultValue = hc.getDefaultMax();
+		//final double defaultValue = hc.getDefaultMax();
+		final double defaultValue = 64;
 		String promptMsg = "<HTML><body><div style='width:500;'>" //
 				+ "Enter the maximum pixel intensity on the cached "//
 				+ "<i>Tubeness</i> image beyond which the cost function for A* search "//
@@ -2957,7 +2956,7 @@ public class SNTUI extends JDialog {
 			guiUtils.error("Maximum must be a positive number.", "Invalid Input");
 			return;
 		}
-		hc.setSigmaAndMax(hc.getSigma(true), max);
+		// TODO repurpose this for MaxScalingCost
 	}
 
 	private boolean okToFlushCachedTubeness(final String type) {
@@ -2988,29 +2987,29 @@ public class SNTUI extends JDialog {
 
 	private void setSigmaFromUser(final String primarySecondaryChoice) {
 		final HessianCaller hc = plugin.getHessianCaller(primarySecondaryChoice);
-		final JTextField sigmaField = new JTextField(SNTUtils.formatDouble(hc.getSigma(true), 5), 5);
-		final JTextField maxField = new JTextField(SNTUtils.formatDouble(hc.getMax(), 1), 5);
-		final Object[] contents = { "<html><b>Sigma</b><br>Enter the approximate radius of the structures you are<br>" //
-				+ "tracing. The default is the average of voxel dimensions<br>" //
+		final JTextField sigmaField = new JTextField(5);
+		final Object[] contents = { "<html><b>Sigma</b><br>Enter the approximate radii of the structures you are<br>" //
+				+ "tracing, separated by comma. The default is the average of voxel dimensions<br>" //
 				+ "(anisotropic images) or twice the voxel size (isotropic),<br>" //
-				+ "i.e., " + SNTUtils.formatDouble(hc.getDefaultSigma(), 3) //
-				+ plugin.spacing_units + " for active image:", sigmaField, //
-				"<html><br><b>Maximum</b><br>Enter the maximum pixel intensity on the <i>Tubeness</i><br>"
-						+ "image beyond which the cost function for A* search<br>" + "is minimized (the default "
-						+ "for current image is " + SNTUtils.formatDouble(hc.getDefaultMax(), 1) + "):",
-				maxField, };
-		final int result = JOptionPane.showConfirmDialog(this, contents, "Hessian Settings ("+ primarySecondaryChoice +" Image)",
+				+ "i.e., " + SNTUtils.formatDouble(hc.getDefaultSigma()[0], 2) //
+				+ plugin.spacing_units + " for active image:", sigmaField};
+		final int result = JOptionPane.showConfirmDialog(this, contents, "Hessian Settings (" +
+						primarySecondaryChoice +" Image)",
 				JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 		if (result == JOptionPane.OK_OPTION) {
-			final double sigma = GuiUtils.extractDouble(sigmaField);
-			final double max = GuiUtils.extractDouble(maxField);
-			if (Double.isNaN(sigma) || sigma <= 0 || Double.isNaN(max) || max <= 0) {
-				guiUtils.error("Sigma and max must be positive numbers.", "Invalid Input");
-				return;
+			List<Double> settings = new ArrayList<>();
+			String[] items = sigmaField.getText().split(",");
+			for (String item : items) {
+				double sigma = Double.parseDouble(item.trim());
+				if (Double.isNaN(sigma) || sigma <= 0) {
+					guiUtils.error("Sigmas must be positive numbers.", "Invalid Input");
+					return;
+				}
+				settings.add(sigma);
 			}
 			preprocess.setSelected(false);
-			hc.setSigmaAndMax(sigma, max);
-			if (hc.hessian == null) hc.start();
+			hc.setSigmas(settings);
+			hc.start();
 		}
 	}
 
@@ -3733,9 +3732,6 @@ public class SNTUI extends JDialog {
 				final HessianCaller hc = plugin.getHessianCaller(choice);
 				if (hc.cachedTubeness == null) {
 					setSigmaFromUser(choice);
-				} else if (hc.getMultiplier() == -1) {
-					// An image has been loaded and sigma is not known
-					setMultiplierForCachedTubenessFromUser(choice);
 				} else if (okToFlushCachedTubeness(choice)) {
 					setSigmaFromUser(choice);
 				}
