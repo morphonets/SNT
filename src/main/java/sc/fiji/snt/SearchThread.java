@@ -22,16 +22,18 @@
 
 package sc.fiji.snt;
 
-import java.awt.*;
-import java.util.*;
-
 import ij.measure.Calibration;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 import org.jheaps.AddressableHeap;
 import org.jheaps.tree.PairingHeap;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.util.*;
+import sc.fiji.snt.util.SearchImage;
+import sc.fiji.snt.util.SearchImageStack;
+import sc.fiji.snt.util.SupplierUtil;
+
+import java.awt.*;
+import java.util.ArrayList;
 
 /**
  * Implements a common thread that explores the image using a variety of
