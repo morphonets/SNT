@@ -70,7 +70,8 @@ public class ComputeTubenessImg extends CommonDynamicCmd {
 	@Override
 	public void run() {
 		status("Computing whole-image Hessian data...", false);
-		sigma = snt.getHessianSigma("primary", true);
+		// TODO this class may not be necessary anymore
+		sigma = snt.getHessianSigma("primary", true)[0];
 		SNTUtils.log("Generating Tubeness image: sigma=" + sigma);
 		final ImagePlus inputImp = sntService.getPlugin().getLoadedDataAsImp();
 		processUsingIJ1(inputImp); //processUsingOps(inputImp);

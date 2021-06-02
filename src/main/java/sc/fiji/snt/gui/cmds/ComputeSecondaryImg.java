@@ -121,49 +121,49 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 	 */
 	@Override
 	public void run() {
-
-		status("Computing secondary image...", false);
-		final ImagePlus inputImp = sntService.getPlugin().getLoadedDataAsImp();
-
-		if (NONE.equals(filter)) {
-			filteredImp = inputImp;
-			apply();
-			return;
-		}
-
-		final Img<FloatType> in = ImageJFunctions.convertFloat(inputImp);
-		final double sigmaScaled = sntService.getPlugin().getHessianSigma("primary", true);
-		final double[] voxelDimensions = new double[] { inputImp.getCalibration().pixelWidth,
-				inputImp.getCalibration().pixelHeight, inputImp.getCalibration().pixelDepth };
-
-		switch (filter) {
-		case FRANGI:
-		case FRANGI_NO_GAUS:
-
-			final int sigmaUnscaled = (int) sntService.getPlugin().getHessianSigma("primary", false);
-			final Img<FloatType> frangiResult = ops.create().img(in);
-			final RandomAccessibleInterval<FloatType> vesselnessInput = (filter.equals(FRANGI_NO_GAUS)) ? in
-					: ops.filter().gauss(in, sigmaScaled);
-			ops.filter().frangiVesselness(frangiResult, vesselnessInput, voxelDimensions, sigmaUnscaled);
-			filteredImp = ImageJFunctions.wrap(frangiResult,
-					String.format("%s: Sigma=%.1f Scale=%dpixels", filter, sigmaScaled, sigmaUnscaled));
-			break;
-
-		case TUBENESS:
-
-			final Img<DoubleType> out = ops.create().img(in, new DoubleType());
-			ops.filter().tubeness(out, in, sigmaScaled, voxelDimensions[0], voxelDimensions[1], voxelDimensions[2]);
-			filteredImp = ImageJFunctions.wrap(out, String.format("Tubeness: Sigma=%.1f", sigmaScaled));
-			break;
-
-		default:
-			throw new IllegalArgumentException("Unrecognized filter " + filter);
-		}
-
-		// In legacy mode dimensions gets scrambled!?. Ensure it is correct
-		filteredImp.setDimensions(inputImp.getNChannels(), inputImp.getNSlices(), inputImp.getNFrames());
-		filteredImp.copyScale(inputImp);
-		apply();
+		// TODO rewrite this with HessianProcessor, if necessary
+//		status("Computing secondary image...", false);
+//		final ImagePlus inputImp = sntService.getPlugin().getLoadedDataAsImp();
+//
+//		if (NONE.equals(filter)) {
+//			filteredImp = inputImp;
+//			apply();
+//			return;
+//		}
+//
+//		final Img<FloatType> in = ImageJFunctions.convertFloat(inputImp);
+//		final double[] sigmaScaled = sntService.getPlugin().getHessianSigma("primary", true);
+//		final double[] voxelDimensions = new double[] { inputImp.getCalibration().pixelWidth,
+//				inputImp.getCalibration().pixelHeight, inputImp.getCalibration().pixelDepth };
+//
+//		switch (filter) {
+//		case FRANGI:
+//		case FRANGI_NO_GAUS:
+//
+//			final int sigmaUnscaled = (int) sntService.getPlugin().getHessianSigma("primary", false);
+//			final Img<FloatType> frangiResult = ops.create().img(in);
+//			final RandomAccessibleInterval<FloatType> vesselnessInput = (filter.equals(FRANGI_NO_GAUS)) ? in
+//					: ops.filter().gauss(in, sigmaScaled);
+//			ops.filter().frangiVesselness(frangiResult, vesselnessInput, voxelDimensions, sigmaUnscaled);
+//			filteredImp = ImageJFunctions.wrap(frangiResult,
+//					String.format("%s: Sigma=%.1f Scale=%dpixels", filter, sigmaScaled, sigmaUnscaled));
+//			break;
+//
+//		case TUBENESS:
+//
+//			final Img<DoubleType> out = ops.create().img(in, new DoubleType());
+//			ops.filter().tubeness(out, in, sigmaScaled, voxelDimensions[0], voxelDimensions[1], voxelDimensions[2]);
+//			filteredImp = ImageJFunctions.wrap(out, String.format("Tubeness: Sigma=%.1f", sigmaScaled));
+//			break;
+//
+//		default:
+//			throw new IllegalArgumentException("Unrecognized filter " + filter);
+//		}
+//
+//		// In legacy mode dimensions gets scrambled!?. Ensure it is correct
+//		filteredImp.setDimensions(inputImp.getNChannels(), inputImp.getNSlices(), inputImp.getNFrames());
+//		filteredImp.copyScale(inputImp);
+//		apply();
 	}
 
 	private void apply() {
