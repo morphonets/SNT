@@ -23,12 +23,12 @@
 package sc.fiji.snt;
 
 import ij.ImagePlus;
-import ij.ImageStack;
-import ij.process.ByteProcessor;
-import ij.process.FloatProcessor;
-import ij.process.ShortProcessor;
-import sc.fiji.snt.util.SearchImage;
+import ij.measure.Calibration;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.util.MapSearchImage;
+import sc.fiji.snt.util.SearchImage;
 
 import java.awt.*;
 import java.util.*;
@@ -36,7 +36,6 @@ import java.util.*;
 public class FillerThread extends SearchThread {
 
 	boolean reciprocal;
-	double reciprocal_fudge = 0.5;
 	double threshold;
 
 	public double getDistanceAtPoint(final double xd, final double yd,
@@ -122,18 +121,15 @@ public class FillerThread extends SearchThread {
 	Set<Path> sourcePaths;
 
 	public static FillerThread fromFill(final ImagePlus imagePlus,
-		final float stackMin, final float stackMax, final boolean startPaused,
-		final Fill fill)
+		final float stackMin, final float stackMax, final Fill fill)
 	{
-
-		boolean reciprocal;
 		final String metric = fill.getMetric();
 
 		if (metric.equals("reciprocal-intensity-scaled")) {
-			reciprocal = true;
+			// TODO update for new cost functions
 		}
 		else if (metric.equals("256-minus-intensity-scaled")) {
-			reciprocal = false;
+			// TODO update for new cost functions
 		}
 		else {
 			SNTUtils.error("Trying to load a fill with an unknown metric ('" + metric +
@@ -143,8 +139,8 @@ public class FillerThread extends SearchThread {
 
 		SNTUtils.log("loading a fill with threshold: " + fill.getThreshold());
 
-		final FillerThread result = new FillerThread(imagePlus, stackMin, stackMax, reciprocal, fill.getThreshold(),
-				5000);
+		final FillerThread result = new FillerThread(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(),
+				fill.getThreshold(), 5000, new ReciprocalCost(stackMin, stackMax));
 
 		final ArrayList<DefaultSearchNode> tempNodes = new ArrayList<>();
 
@@ -184,15 +180,13 @@ public class FillerThread extends SearchThread {
 
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
 
-	public FillerThread(final ImagePlus imagePlus, final float stackMin,
-		final float stackMax, final boolean reciprocal,
-		final double initialThreshold, final long reportEveryMilliseconds)
+	public FillerThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
+						final double initialThreshold, final long reportEveryMilliseconds,
+						final SearchCost costFunction)
 	{
+		super(image, calibration, false, false, 0,
+				reportEveryMilliseconds, MapSearchImage.class, costFunction);
 
-		super(imagePlus, stackMin, stackMax, false, false, 0,
-				reportEveryMilliseconds, MapSearchImage.class);
-
-		this.reciprocal = reciprocal;
 		setThreshold(initialThreshold);
 
 		//setPriority(MIN_PRIORITY);
@@ -209,88 +203,6 @@ public class FillerThread extends SearchThread {
 				addNode(f, true);
 			}
 		}
-	}
-
-	public ImagePlus fillAsImagePlus(final boolean realData) {
-
-		final byte[][] new_slice_data_b = new byte[depth][];
-		final short[][] new_slice_data_s = new short[depth][];
-		final float[][] new_slice_data_f = new float[depth][];
-
-		for (int z = 0; z < depth; ++z) {
-			switch (imageType) {
-				case ImagePlus.GRAY8:
-				case ImagePlus.COLOR_256:
-					new_slice_data_b[z] = new byte[width * height];
-					break;
-				case ImagePlus.GRAY16:
-					new_slice_data_s[z] = new short[width * height];
-					break;
-				case ImagePlus.GRAY32:
-					new_slice_data_f[z] = new float[width * height];
-					break;
-				default:
-					throw new IllegalArgumentException("Unsupported image type");
-			}
-		}
-
-		final ImageStack stack = new ImageStack(width, height);
-
-		for (int z = 0; z < depth; ++z) {
-			final boolean nodes_this_slice = nodes_as_image_from_start.getSlice(z) != null;
-			if (nodes_this_slice) for (int y = 0; y < height; ++y) {
-				for (int x = 0; x < width; ++x) {
-					final DefaultSearchNode s = nodes_as_image_from_start.getSlice(z).getValue(x, y);
-					if ((s != null) && (s.g <= threshold)) {
-						switch (imageType) {
-							case ImagePlus.GRAY8:
-							case ImagePlus.COLOR_256:
-								new_slice_data_b[z][y * width + x] = realData
-									? slices_data_b[z][y * width + x] : (byte) 255;
-								break;
-							case ImagePlus.GRAY16:
-								new_slice_data_s[z][y * width + x] = realData
-									? slices_data_s[z][y * width + x] : 255;
-								break;
-							case ImagePlus.GRAY32:
-								new_slice_data_f[z][y * width + x] = realData
-									? slices_data_f[z][y * width + x] : 255;
-								break;
-							default:
-								break;
-						}
-					}
-				}
-			}
-
-			switch (imageType) {
-				case ImagePlus.GRAY8:
-				case ImagePlus.COLOR_256:
-					final ByteProcessor bp = new ByteProcessor(width, height);
-					bp.setPixels(new_slice_data_b[z]);
-					stack.addSlice(null, bp);
-					break;
-				case ImagePlus.GRAY16:
-					final ShortProcessor sp = new ShortProcessor(width, height);
-					sp.setPixels(new_slice_data_s[z]);
-					stack.addSlice(null, sp);
-					break;
-				case ImagePlus.GRAY32:
-					final FloatProcessor fp = new FloatProcessor(width, height);
-					fp.setPixels(new_slice_data_f[z]);
-					stack.addSlice(null, fp);
-					break;
-				default:
-					break;
-			}
-
-		}
-
-		final ImagePlus imp = new ImagePlus("filled neuron", stack);
-
-		imp.setCalibration(imagePlus.getCalibration());
-
-		return imp;
 	}
 
 	@Override

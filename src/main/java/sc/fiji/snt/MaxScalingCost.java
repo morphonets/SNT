@@ -22,26 +22,34 @@
 
 package sc.fiji.snt;
 
-import ij.measure.Calibration;
-
 /**
  * TODO
  */
-public class DijkstraHeuristic implements SearchHeuristic {
+public class MaxScalingCost implements SearchCost {
 
-    /**
-     * Since Dijkstra's algorithm is equivalent to an A* search where h(x) = 0, return 0.
-     *
-     * @return 0
-     */
-    @Override
-    public double estimateCostToGoal(int current_x, int current_y, int current_z, int goal_x, int goal_y, int goal_z) {
-        return 0;
+    static final double MIN_COST_PER_UNIT_DISTANCE = 1.0 / 256;
+
+    private final double multiplier;
+
+    public MaxScalingCost(double maximum) {
+        this.multiplier = 256.0 / maximum;
     }
 
     @Override
-    public void setCalibration(final Calibration calibration) {
-        // do nothing
+    public double costMovingTo(double valueAtNewPoint) {
+        if (valueAtNewPoint == 0) {
+            return Double.MAX_VALUE;
+        }
+        valueAtNewPoint *= multiplier;
+        if (valueAtNewPoint > 256) {
+            valueAtNewPoint = 256;
+        }
+        return 1.0 / valueAtNewPoint;
+    }
+
+    @Override
+    public double minimumCostPerUnitDistance() {
+        return MIN_COST_PER_UNIT_DISTANCE;
     }
 
 }

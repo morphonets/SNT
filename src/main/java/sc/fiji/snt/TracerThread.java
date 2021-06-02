@@ -23,6 +23,10 @@
 package sc.fiji.snt;
 
 import ij.ImagePlus;
+import ij.measure.Calibration;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.util.SearchImage;
 
 /**
@@ -39,50 +43,70 @@ public class TracerThread extends SearchThread {
 	private int goal_z;
 
 	private final SearchHeuristic heuristic;
-	private final SearchCost costFunction;
 
 	private Path result;
 
-	public TracerThread(final int start_x, final int start_y, final int start_z,
+	public TracerThread(final SNT snt, final ImagePlus imagePlus,
+						final int start_x, final int start_y, final int start_z,
 						final int goal_x, final int goal_y, final int goal_z,
-						final SNT snt, SearchCost costFunction, SearchHeuristic heuristic)
+						SearchCost costFunction, SearchHeuristic heuristic) {
+		this(snt, ImageJFunctions.wrapReal(imagePlus), start_x, start_y, start_z, goal_x, goal_y, goal_z,
+				costFunction, heuristic);
+	}
+
+	public TracerThread(final SNT snt, final RandomAccessibleInterval<? extends RealType<?>> image,
+						final int start_x, final int start_y, final int start_z,
+						final int goal_x, final int goal_y, final int goal_z,
+						SearchCost costFunction, SearchHeuristic heuristic)
 	{
-		// TODO: figure out how to handle secondary image
-		super(snt);
-		this.costFunction = costFunction;
+		super(snt, image, costFunction);
 		this.heuristic = heuristic;
+		final Calibration cal = new Calibration();
+		cal.pixelWidth = snt.x_spacing;
+		cal.pixelHeight = snt.y_spacing;
+		cal.pixelDepth = snt.z_spacing;
+		this.heuristic.setCalibration(cal);
 		init(start_x, start_y, start_z, goal_x, goal_y, goal_z);
+	}
+
+	@SuppressWarnings("rawtypes")
+	public TracerThread(final ImagePlus imagePlus,
+						final int start_x, final int start_y, final int start_z,
+						final int goal_x, final int goal_y, final int goal_z,
+						final int timeoutSeconds, final long reportEveryMilliseconds,
+						final Class<? extends SearchImage> searchImageType,
+						SearchCost costFunction, SearchHeuristic heuristic)
+	{
+		this(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(), start_x, start_y, start_z,
+				goal_x, goal_y ,goal_z, timeoutSeconds, reportEveryMilliseconds, searchImageType,
+				costFunction, heuristic);
 	}
 
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
 	@SuppressWarnings("rawtypes")
-	public TracerThread(final ImagePlus imagePlus, final float stackMin,
-		final float stackMax, final int timeoutSeconds,
-		final long reportEveryMilliseconds, final int start_x, final int start_y,
-		final int start_z, final int goal_x, final int goal_y, final int goal_z,
-						final Class<? extends SearchImage> searchImageType, SearchCost costFunction,
-						SearchHeuristic heuristic)
+	public TracerThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
+												final int start_x, final int start_y, final int start_z,
+												final int goal_x, final int goal_y, final int goal_z,
+												final int timeoutSeconds, final long reportEveryMilliseconds,
+												final Class<? extends SearchImage> searchImageType,
+												SearchCost costFunction, SearchHeuristic heuristic)
 	{
-		super(imagePlus, stackMin, stackMax, true, // bidirectional
-			true, // definedGoal
-			timeoutSeconds, reportEveryMilliseconds, searchImageType);
-		this.costFunction = costFunction;
+		super(image, calibration, true, true, timeoutSeconds, reportEveryMilliseconds,
+				searchImageType, costFunction);
 		this.heuristic = heuristic;
+		this.heuristic.setCalibration(calibration);
 		init(start_x, start_y, start_z, goal_x, goal_y, goal_z);
 	}
 
 	private void init(final int start_x, final int start_y, final int start_z, final int goal_x, final int goal_y,
-			final int goal_z) {
-		this.costFunction.setSearch(this);
-		this.heuristic.setSearch(this);
+					  final int goal_z)
+	{
 		this.start_x = start_x;
 		this.start_y = start_y;
 		this.start_z = start_z;
 		this.goal_x = goal_x;
 		this.goal_y = goal_y;
 		this.goal_z = goal_z;
-		// need to do this again since it needs to know if hessian is set...
-		minimum_cost_per_unit_distance = minimumCostPerUnitDistance();
 		final DefaultSearchNode s = createNewNode(start_x, start_y, start_z, 0,
 			estimateCostToGoal(start_x, start_y, start_z, true), null,
 			OPEN_FROM_START);
@@ -110,39 +134,17 @@ public class TracerThread extends SearchThread {
 		return result;
 	}
 
-	/*
-	 * This cost doesn't take into account the distance between the points - it will
-	 * be post-multiplied by that value.
-	 *
-	 * The minimum cost should be > 0 - it is the value that is used in calculating
-	 * the heuristic for how far a given point is from the goal.
-	 */
-
 	@Override
-	protected double costMovingTo(int new_x, int new_y, int new_z) {
-		return this.costFunction.costMovingTo(new_x, new_y, new_z);
-	}
-
-	@Override
-	protected double estimateCostToGoal(final int current_x, final int current_y,
-										final int current_z, final boolean fromStart)
+	protected double estimateCostToGoal(final int current_x, final int current_y, final int current_z,
+										final boolean fromStart)
 	{
-
-		final double xdiff = ((fromStart ? goal_x : start_x) - current_x) *
-				x_spacing;
-		final double ydiff = ((fromStart ? goal_y : start_y) - current_y) *
-				y_spacing;
-		final double zdiff = ((fromStart ? goal_z : start_z) - current_z) *
-				z_spacing;
-
-		final double distance = Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff *
-				zdiff);
-
-		return (minimum_cost_per_unit_distance * distance);
+		return costFunction.minimumCostPerUnitDistance() * heuristic.estimateCostToGoal(
+				current_x,
+				current_y,
+				current_z,
+				fromStart ? goal_x : start_x,
+				fromStart ? goal_y : start_y,
+				fromStart ? goal_z : start_z);
 	}
 
-	@Override
-	protected double minimumCostPerUnitDistance() {
-		return this.costFunction.minimumCostPerUnitDistance();
-	}
 }

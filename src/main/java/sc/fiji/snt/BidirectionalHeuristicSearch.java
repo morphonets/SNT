@@ -23,6 +23,10 @@
 package sc.fiji.snt;
 
 import ij.ImagePlus;
+import ij.measure.Calibration;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.RealType;
 import org.jheaps.AddressableHeap;
 import org.jheaps.tree.PairingHeap;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
@@ -31,7 +35,6 @@ import sc.fiji.snt.util.*;
 import java.awt.*;
 import java.util.List;
 import java.util.*;
-import java.util.concurrent.Callable;
 
 /**
  * A flexible implementation of the bidirectional heuristic search algorithm described in
@@ -44,7 +47,7 @@ import java.util.concurrent.Callable;
  *
  * @author Cameron Arshadi
  */
-public class BidirectionalHeuristicSearch extends AbstractSearch implements Callable<Path> {
+public class BidirectionalHeuristicSearch extends AbstractSearch {
 
     protected static final byte STABILIZED = 0;
     protected static final byte REJECTED = 1;
@@ -71,26 +74,39 @@ public class BidirectionalHeuristicSearch extends AbstractSearch implements Call
     private double bestPathLength;
     private BidirectionalSearchNode touchNode;
 
-    protected int minExpectedSize;
-
     protected Path result;
 
     long started_at;
     long loops;
     long loops_at_last_report;
     long lastReportMilliseconds;
+    private int[] imgPosition;
+
+    @SuppressWarnings("rawtypes")
+    public BidirectionalHeuristicSearch(final ImagePlus imagePlus,
+                                        final int start_x, final int start_y, final int start_z,
+                                        final int goal_x, final int goal_y, final int goal_z,
+                                        final int timeoutSeconds, final long reportEveryMilliseconds,
+                                        Class<? extends SearchImage> searchImageType,
+                                        SearchCost costFunction, SearchHeuristic heuristic)
+    {
+        this(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(), start_x, start_y, start_z,
+                goal_x, goal_y, goal_z, timeoutSeconds, reportEveryMilliseconds, searchImageType,
+                costFunction, heuristic);
+    }
 
 
     /* If you specify 0 for timeoutSeconds then there is no timeout. */
     @SuppressWarnings("rawtypes")
-    public BidirectionalHeuristicSearch(final int start_x, final int start_y, final int start_z,
+    public BidirectionalHeuristicSearch(final RandomAccessibleInterval<? extends RealType<?>> image,
+                                        final Calibration calibration,
+                                        final int start_x, final int start_y, final int start_z,
                                         final int goal_x, final int goal_y, final int goal_z,
-                                        final ImagePlus imagePlus, final float stackMin, final float stackMax,
                                         final int timeoutSeconds, final long reportEveryMilliseconds,
-                                        Class<? extends SearchImage> searchImageType, SearchCost costFunction,
-                                        SearchHeuristic heuristic)
+                                        Class<? extends SearchImage> searchImageType,
+                                        SearchCost costFunction, SearchHeuristic heuristic)
     {
-        super(imagePlus, stackMin, stackMax, timeoutSeconds, reportEveryMilliseconds);
+        super(image, calibration, timeoutSeconds, reportEveryMilliseconds);
         this.start_x = start_x;
         this.start_y = start_y;
         this.start_z = start_z;
@@ -99,16 +115,27 @@ public class BidirectionalHeuristicSearch extends AbstractSearch implements Call
         this.goal_z = goal_z;
         this.costFunction = costFunction;
         this.heuristic = heuristic;
+        this.heuristic.setCalibration(calibration);
         nodes_as_image = new SearchImageStack<>(depth,
                 SupplierUtil.createSupplier(searchImageType, BidirectionalSearchNode.class, width, height));
         init();
     }
 
-    public BidirectionalHeuristicSearch(final int start_x, final int start_y, final int start_z,
+    public BidirectionalHeuristicSearch(final SNT snt, final ImagePlus imagePlus,
+                                        final int start_x, final int start_y, final int start_z,
                                         final int goal_x, final int goal_y, final int goal_z,
-                                        final SNT snt, SearchCost costFunction, SearchHeuristic heuristic)
+                                        SearchCost costFunction, SearchHeuristic heuristic)
     {
-        super(snt);
+        this(snt, ImageJFunctions.wrapReal(imagePlus), start_x, start_y, start_z, goal_x, goal_y, goal_z,
+                costFunction, heuristic);
+    }
+
+    public BidirectionalHeuristicSearch(final SNT snt, final RandomAccessibleInterval<? extends RealType<?>> image,
+                                        final int start_x, final int start_y, final int start_z,
+                                        final int goal_x, final int goal_y, final int goal_z,
+                                        SearchCost costFunction, SearchHeuristic heuristic)
+    {
+        super(snt, image);
         this.start_x = start_x;
         this.start_y = start_y;
         this.start_z = start_z;
@@ -117,6 +144,11 @@ public class BidirectionalHeuristicSearch extends AbstractSearch implements Call
         this.goal_z = goal_z;
         this.costFunction = costFunction;
         this.heuristic = heuristic;
+        Calibration cal = new Calibration();
+        cal.pixelWidth = snt.x_spacing;
+        cal.pixelHeight = snt.y_spacing;
+        cal.pixelDepth = snt.z_spacing;
+        this.heuristic.setCalibration(cal);
         nodes_as_image = new SearchImageStack<>(depth,
                 SupplierUtil.createSupplier(snt.searchImageType, BidirectionalSearchNode.class, width, height));
         init();
@@ -124,9 +156,6 @@ public class BidirectionalHeuristicSearch extends AbstractSearch implements Call
 
 
     private void init() {
-
-        this.costFunction.setSearch(this);
-        this.heuristic.setSearch(this);
 
         open_from_start = new PairingHeap<>(new NodeComparatorFromStart());
         open_from_goal = new PairingHeap<>(new NodeComparatorFromGoal());
@@ -138,7 +167,7 @@ public class BidirectionalHeuristicSearch extends AbstractSearch implements Call
     }
 
     @Override
-    public Path call() {
+    public void run() {
 
         try {
             if (verbose) {
@@ -180,18 +209,20 @@ public class BidirectionalHeuristicSearch extends AbstractSearch implements Call
 
             nodes_as_image.getSlice(goal_z).setValue(goal_x, goal_y, goal);
 
+            this.imgPosition = new int[3];
+
             while (!open_from_goal.isEmpty() && !open_from_start.isEmpty()) {
 
                 if (Thread.currentThread().isInterrupted()) {
                     if (verbose) System.out.println("Search thread interrupted, returning null result.");
                     reportFinished(false);
-                    return null;
+                    return;
                 }
 
                 if (0 == (loops % 10000) && checkStatus()) {
                     // search timed out
                     reportFinished(false);
-                    return null;
+                    return;
                 }
 
                 if (open_from_start.size() < open_from_goal.size()) {
@@ -257,7 +288,7 @@ public class BidirectionalHeuristicSearch extends AbstractSearch implements Call
                 // Not sure how this would happen...
                 if (verbose) System.out.println("Touch node is null, returning null result");
                 reportFinished(false);
-                return null;
+                return;
             }
 
             // Success
@@ -273,12 +304,10 @@ public class BidirectionalHeuristicSearch extends AbstractSearch implements Call
 
             result = reconstructPath(x_spacing, y_spacing, z_spacing, spacing_units);
             reportFinished(true);
-            return result;
 
         } catch (Exception ex) {
             SNTUtils.error("Exception during search", ex);
             reportFinished(false);
-            return null;
         }
 
     }
@@ -306,8 +335,11 @@ public class BidirectionalHeuristicSearch extends AbstractSearch implements Call
                     final double ydiffsq = (ydiff * y_spacing) * (ydiff * y_spacing);
                     final double zdiffsq = (zdiff * z_spacing) * (zdiff * z_spacing);
 
-                    double cost_moving_to_new_point = costFunction.costMovingTo(new_x, new_y,
-                            new_z);
+                    imgPosition[0] = new_x;
+                    imgPosition[1] = new_y;
+                    imgPosition[2] = new_z;
+                    double value_at_new_point = imgAccess.setPositionAndGet(imgPosition).getRealDouble();
+                    double cost_moving_to_new_point = costFunction.costMovingTo(value_at_new_point);
 
                     if (cost_moving_to_new_point < costFunction.minimumCostPerUnitDistance()) {
                         cost_moving_to_new_point = costFunction.minimumCostPerUnitDistance();
@@ -442,6 +474,7 @@ public class BidirectionalHeuristicSearch extends AbstractSearch implements Call
         return path;
     }
 
+    @Override
     public void addProgressListener(final SearchProgressCallback callback) {
         progressListeners.add(callback);
     }
@@ -563,11 +596,6 @@ public class BidirectionalHeuristicSearch extends AbstractSearch implements Call
                     }
             }
         }
-    }
-
-
-    public void setMinExpectedSizeOfResult(final int size) {
-        this.minExpectedSize = size;
     }
 
     static class NodeComparatorFromStart implements Comparator<BidirectionalSearchNode> {

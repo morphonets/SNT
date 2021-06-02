@@ -25,7 +25,9 @@ package sc.fiji.snt;
 import java.awt.*;
 import java.util.*;
 
-import ij.ImagePlus;
+import ij.measure.Calibration;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
 import org.jheaps.AddressableHeap;
 import org.jheaps.tree.PairingHeap;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
@@ -39,14 +41,13 @@ import sc.fiji.snt.util.*;
  * @author Tiago Ferreira
  * @author Cameron Arshadi
  */
-public abstract class SearchThread extends AbstractSearch implements Runnable {
+public abstract class SearchThread extends AbstractSearch {
 
 	public static final byte OPEN_FROM_START = 1;
 	public static final byte CLOSED_FROM_START = 2;
 	public static final byte OPEN_FROM_GOAL = 3;
 	public static final byte CLOSED_FROM_GOAL = 4;
 	public static final byte FREE = 5; // Indicates that this node isn't in a list yet...
-
 
 	/** Thread state: the run method is going and the thread is unpaused */
 	public static final int RUNNING = 0;
@@ -69,6 +70,8 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 	/* The search may only be bidirectional if definedGoal is true */
 	private final boolean bidirectional;
 
+	protected final SearchCost costFunction;
+
 	/*
 	 * If there is no definedGoal then the search is just Dijkstra's algorithm (h =
 	 * 0 in the A* search algorithm.
@@ -84,53 +87,51 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 	protected SearchImageStack<DefaultSearchNode> nodes_as_image_from_start;
 	protected SearchImageStack<DefaultSearchNode> nodes_as_image_from_goal;
 
-	protected double minimum_cost_per_unit_distance;
-
 	protected int exitReason;
 	private final boolean verbose = SNTUtils.isDebugMode();
-	protected int minExpectedSize;
 
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
 	@SuppressWarnings("rawtypes")
-	public SearchThread(final ImagePlus imagePlus, final float stackMin, final float stackMax,
-						final boolean bidirectional, final boolean definedGoal, final int timeoutSeconds,
-						final long reportEveryMilliseconds, final Class<? extends SearchImage> searchImageType)
+	public SearchThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
+						final boolean bidirectional, final boolean definedGoal,
+						final int timeoutSeconds, final long reportEveryMilliseconds,
+						final Class<? extends SearchImage> searchImageType,
+						final SearchCost costFunction)
 	{
-		super(imagePlus, stackMin, stackMax, timeoutSeconds, reportEveryMilliseconds);
+		super(image, calibration, timeoutSeconds, reportEveryMilliseconds);
 		this.bidirectional = bidirectional;
 		this.definedGoal = definedGoal;
-		nodes_as_image_from_start = new SearchImageStack<>(depth,
+		this.nodes_as_image_from_start = new SearchImageStack<>(depth,
 				SupplierUtil.createSupplier(searchImageType, DefaultSearchNode.class, width, height));
 		if (bidirectional) {
-			nodes_as_image_from_goal = new SearchImageStack<>(depth,
+			this.nodes_as_image_from_goal = new SearchImageStack<>(depth,
 					SupplierUtil.createSupplier(searchImageType, DefaultSearchNode.class, width, height));
 		}
+		this.costFunction = costFunction;
 		init();
 	}
 
-	protected SearchThread(final SNT snt)
+	protected SearchThread(final SNT snt, final RandomAccessibleInterval<? extends RealType<?>> image,
+						   final SearchCost costFunction)
 	{
-		super(snt);
-		bidirectional = true;
-		definedGoal = true;
-		nodes_as_image_from_start = new SearchImageStack<>(depth,
+		super(snt, image);
+		this.costFunction = costFunction;
+		this.bidirectional = true;
+		this.definedGoal = true;
+		this.nodes_as_image_from_start = new SearchImageStack<>(depth,
 				SupplierUtil.createSupplier(snt.searchImageType, DefaultSearchNode.class, width, height));
-		if (bidirectional) {
-			nodes_as_image_from_goal = new SearchImageStack<>(depth,
-					SupplierUtil.createSupplier(snt.searchImageType, DefaultSearchNode.class, width, height));
-		}
+		this.nodes_as_image_from_goal = new SearchImageStack<>(depth,
+				SupplierUtil.createSupplier(snt.searchImageType, DefaultSearchNode.class, width, height));
 		init();
 	}
 
 	private void init() {
-		open_from_start = new PairingHeap<>();
-		if (bidirectional) {
-			open_from_goal = new PairingHeap<>();
+		this.open_from_start = new PairingHeap<>();
+		if (this.bidirectional) {
+			this.open_from_goal = new PairingHeap<>();
 		}
-		progressListeners = new ArrayList<>();
+		this.progressListeners = new ArrayList<>();
 	}
-
-
 
 	@Override
 	protected void reportPointsInSearch() {
@@ -170,22 +171,11 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 		 */
 	}
 
-	protected boolean atGoal(final int x, final int y, final int z,
-		final boolean fromStart)
-	{
+	protected boolean atGoal(final int x, final int y, final int z, final boolean fromStart) {
 		return false;
 	}
 
-	/*
-	 * If you need to force the distance between two points to always be greater
-	 * than some value (e.g. to make your A star heuristic valid or something, then
-	 * you should override this method and return that value.
-	 */
-	protected double minimumCostPerUnitDistance() {
-		return 0.0;
-	}
-
-
+	@Override
 	public void addProgressListener(final SearchProgressCallback callback) {
 		progressListeners.add(callback);
 	}
@@ -193,14 +183,6 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 	public int getThreadStatus() {
 		return threadStatus;
 	}
-
-	/**
-	 * This method can be overridden if one needs to find out when a point was
-	 * first discovered.
-	 *
-	 * @param n the search node
-	 */
-	protected void addingNode(final DefaultSearchNode n) {}
 
 	public void reportThreadStatus() {
 		for (final SearchProgressCallback progress : progressListeners)
@@ -253,6 +235,7 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 			 * arrays that are indexed in the same way as voxels in the image.
 			 */
 
+			final int[] imgPosition = new int[3];
 			while ((open_from_start.size() > 0) || (bidirectional && (open_from_goal
 				.size() > 0)))
 			{
@@ -376,10 +359,14 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 							final double h_for_new_point = estimateCostToGoal(new_x, new_y,
 								new_z, fromStart);
 
-							double cost_moving_to_new_point = costMovingTo(new_x, new_y,
-								new_z);
-							if (cost_moving_to_new_point < minimum_cost_per_unit_distance) {
-								cost_moving_to_new_point = minimum_cost_per_unit_distance;
+							imgPosition[0] = new_x;
+							imgPosition[1] = new_y;
+							imgPosition[2] = new_z;
+							double value_at_new_point = imgAccess.setPositionAndGet(imgPosition).getRealDouble();
+
+							double cost_moving_to_new_point = costFunction.costMovingTo(value_at_new_point);
+							if (cost_moving_to_new_point < costFunction.minimumCostPerUnitDistance()) {
+								cost_moving_to_new_point = costFunction.minimumCostPerUnitDistance();
 							}
 
 							final double g_for_new_point = (p.g + Math.sqrt(xdiffsq +
@@ -403,7 +390,6 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 								newNode.searchStatus = fromStart ? OPEN_FROM_START
 										: OPEN_FROM_GOAL;
 								newNode.heapHandle = open_queue.insert(newNode);
-								addingNode(newNode);
 								nodes_as_image_this_search.getSlice(new_z).setValue(newNode.x, newNode.y, newNode);
 							}
 							else {
@@ -427,8 +413,6 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 									else if (alreadyThereInThisSearch.searchStatus == (fromStart
 										? CLOSED_FROM_START : CLOSED_FROM_GOAL))
 									{
-
-										//closed_queue.remove(alreadyThereInThisSearch);
 										alreadyThereInThisSearch.setFrom(newNode);
 										alreadyThereInThisSearch.searchStatus = fromStart
 											? OPEN_FROM_START : OPEN_FROM_GOAL;
@@ -670,7 +654,4 @@ public abstract class SearchThread extends AbstractSearch implements Runnable {
 		}
 	}
 
-	public void setMinExpectedSizeOfResult(final int size) {
-		this.minExpectedSize = size;
-	}
 }

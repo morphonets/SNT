@@ -22,34 +22,32 @@
 
 package sc.fiji.snt;
 
+import ij.measure.Calibration;
+
 /**
  * A* search heuristic using euclidean distance from current node to goal node
  */
 public class EuclideanHeuristic implements SearchHeuristic {
 
-    private double x_spacing;
-    private double y_spacing;
-    private double z_spacing;
+    private Calibration calibration;
 
-    public EuclideanHeuristic() { }
-
-    @Override
-    public void setSearch(AbstractSearch search) {
-        this.x_spacing = search.x_spacing;
-        this.y_spacing = search.y_spacing;
-        this.z_spacing = search.z_spacing;
-    }
+    public EuclideanHeuristic() {}
 
     @Override
     public double estimateCostToGoal(final int source_x, final int source_y, final int source_z,
                                         final int target_x, final int target_y, final int target_z)
     {
-        final double xdiff = (target_x - source_x) * x_spacing;
-        final double ydiff = (target_y - source_y) * y_spacing;
-        final double zdiff = (target_z - source_z) * z_spacing;
+        final double xdiff = (target_x - source_x) * calibration.pixelWidth;
+        final double ydiff = (target_y - source_y) * calibration.pixelHeight;
+        final double zdiff = (target_z - source_z) * calibration.pixelDepth;
 
         return Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff *
                 zdiff);
+    }
+
+    @Override
+    public void setCalibration(final Calibration calibration) {
+        this.calibration = calibration;
     }
 
 }

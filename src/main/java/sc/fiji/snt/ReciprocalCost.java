@@ -22,45 +22,27 @@
 
 package sc.fiji.snt;
 
-import ij.ImagePlus;
-
 /**
  * Uses the reciprocal of voxel intensity to compute the cost of moving to a neighbor node.
  */
 public class ReciprocalCost implements SearchCost {
 
     static final double RECIPROCAL_FUDGE = 0.5;
-    static final double MINIMUM_COST_PER_UNIT_DISTANCE = 1 / 255.0;
-    AbstractSearch search;
+    static final double MIN_COST_PER_UNIT_DISTANCE = 1 / 255.0;
 
-    public ReciprocalCost() { }
+    private final double stackMin;
+    private final double stackMax;
 
-    private double getValueAtNewPoint(final int new_x, final int new_y, final int new_z) {
-        double value_at_new_point = -1;
-        switch (search.imageType) {
-            case ImagePlus.GRAY8:
-            case ImagePlus.COLOR_256:
-                value_at_new_point = search.slices_data_b[new_z][new_y * search.width + new_x] & 0xFF;
-                break;
-            case ImagePlus.GRAY16: {
-                value_at_new_point = search.slices_data_s[new_z][new_y * search.width + new_x];
-                value_at_new_point = 255.0 * (value_at_new_point - search.stackMin) / (search.stackMax - search.stackMin);
-                break;
-            }
-            case ImagePlus.GRAY32: {
-                value_at_new_point = search.slices_data_f[new_z][new_y * search.width + new_x];
-                value_at_new_point = 255.0 * (value_at_new_point - search.stackMin) / (search.stackMax - search.stackMin);
-                break;
-            }
-        }
-        return value_at_new_point;
+    public ReciprocalCost(final double stackMin, final double stackMax) {
+        this.stackMin = stackMin;
+        this.stackMax = stackMax;
     }
 
     @Override
-    public double costMovingTo(int new_x, int new_y, int new_z) {
-        double value = getValueAtNewPoint(new_x, new_y, new_z);
-        if (value != 0) {
-            return 1.0 / value;
+    public double costMovingTo(double valueAtNewPoint) {
+        if (valueAtNewPoint != 0) {
+            valueAtNewPoint = 255.0 * (valueAtNewPoint - stackMin) / (stackMax - stackMin);
+            return 1.0 / valueAtNewPoint;
         } else {
             return 1 / RECIPROCAL_FUDGE;
         }
@@ -68,12 +50,7 @@ public class ReciprocalCost implements SearchCost {
 
     @Override
     public double minimumCostPerUnitDistance() {
-        return MINIMUM_COST_PER_UNIT_DISTANCE;
-    }
-
-    @Override
-    public void setSearch(AbstractSearch search) {
-        this.search = search;
+        return MIN_COST_PER_UNIT_DISTANCE;
     }
 
 }

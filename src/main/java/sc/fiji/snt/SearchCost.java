@@ -27,10 +27,8 @@ package sc.fiji.snt;
  */
 public interface SearchCost {
 
-    double costMovingTo(final int new_x, final int new_y, final int new_z);
+    double costMovingTo(final double valueAtNewPoint);
 
     double minimumCostPerUnitDistance();
-
-    void setSearch(AbstractSearch search);
 
 }

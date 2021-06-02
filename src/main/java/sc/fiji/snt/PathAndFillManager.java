@@ -1218,7 +1218,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected void reloadFills(int[] selectedIndices) {
 		for (int ind : selectedIndices) {
 			plugin.addFillerThread(FillerThread.fromFill(plugin.getImagePlus(),
-					plugin.stackMin, plugin.stackMax, false, allFills.get(ind)));
+					plugin.stackMin, plugin.stackMax, allFills.get(ind)));
 		}
 	}
 

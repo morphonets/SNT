@@ -2671,6 +2671,19 @@ public class SNTUI extends JDialog {
 				SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
 			});
 		});
+		optionsMenu.addSeparator();
+
+		JMenu costFunctionMenu = new JMenu("Cost Function");
+		JMenuItem reciprocalJmi = new JMenuItem("Reciprocal of intensity");
+		reciprocalJmi.addActionListener(e -> plugin.costFunctionClass = ReciprocalCost.class);
+		costFunctionMenu.add(reciprocalJmi);
+		JMenuItem scalingJmi = new JMenuItem("Reciprocal of scaled intensity");
+		scalingJmi.addActionListener(e -> plugin.costFunctionClass = MaxScalingCost.class);
+		costFunctionMenu.add(scalingJmi);
+		JMenuItem statJmi = new JMenuItem("Probability of intensity");
+		statJmi.addActionListener(e -> plugin.costFunctionClass = OneMinusErfCost.class);
+		costFunctionMenu.add(statJmi);
+		optionsMenu.add(costFunctionMenu);
 
 		aStarPanel = new JPanel(new BorderLayout());
 		aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
@@ -2710,14 +2723,11 @@ public class SNTUI extends JDialog {
 		analysisTypeChoice.addActionListener(event -> {
 			if (!analysisTypeChoice.hasFocus()) return; // if user did not trigger the event ignore it
 			@SuppressWarnings("unchecked")
-			final int idx = (int) ((JComboBox<String>) event.getSource()).getSelectedIndex();
-			//TODO: Tiago please check this
+			final int idx = ((JComboBox<String>) event.getSource()).getSelectedIndex();
 			plugin.nullifyHessian();
 			preprocess.setSelected(false);
-			plugin.costFunctionClass = (idx == 0) ? TubenessCost.class : FrangiCost.class;
 			plugin.primaryHessian.setAnalysisType((idx == 0) ? HessianCaller.TUBENESS : HessianCaller.FRANGI);
 			plugin.secondaryHessian.setAnalysisType((idx == 0) ? HessianCaller.TUBENESS : HessianCaller.FRANGI);
-			SNTUtils.log("Hessian analysis type changed to " + plugin.costFunctionClass.getName());
 			updateHessianLabel();
 		});
 

@@ -22,11 +22,12 @@
 
 package sc.fiji.snt;
 
+import ij.measure.Calibration;
+
 public interface SearchHeuristic {
 
-    double estimateCostToGoal(int current_x, int current_y, int current_z,
-                              int goal_x, int goal_y, int goal_z);
+    void setCalibration(Calibration calibration);
 
-    void setSearch(AbstractSearch search);
+    double estimateCostToGoal(int current_x, int current_y, int current_z, int goal_x, int goal_y, int goal_z);
 
 }
