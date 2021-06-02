@@ -2697,7 +2697,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private void enableNBAStar() {
-		plugin.searchType = BidirectionalHeuristicSearch.class;
+		plugin.searchType = BidirectionalSearch.class;
 		refreshHessianPanelState();
 	}
 

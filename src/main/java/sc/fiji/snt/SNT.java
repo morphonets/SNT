@@ -1536,8 +1536,8 @@ public class SNT extends MultiDThreePanes implements
 					x_end, y_end, z_end,
 					costFunction, heuristic);
 
-		} else if (searchType.equals(BidirectionalHeuristicSearch.class)) {
-			currentSearchThread = new BidirectionalHeuristicSearch(
+		} else if (searchType.equals(BidirectionalSearch.class)) {
+			currentSearchThread = new BidirectionalSearch(
 					this, img,
 					(int) Math.round(last_start_point_x),
 					(int) Math.round(last_start_point_y),
@@ -1557,8 +1557,8 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
-	public BidirectionalHeuristicSearch createSearch(final double world_x, final double world_y,
-												 final double world_z, final PointInImage joinPoint) {
+	public BidirectionalSearch createSearch(final double world_x, final double world_y,
+											final double world_z, final PointInImage joinPoint) {
 		if (!lastStartPointSet) {
 			statusService.showStatus(
 					"No initial start point has been set.  Do that with a mouse click." +
@@ -1596,7 +1596,7 @@ public class SNT extends MultiDThreePanes implements
 		y_end = (int) Math.round(real_y_end / y_spacing);
 		z_end = (int) Math.round(real_z_end / z_spacing);
 
-		return new BidirectionalHeuristicSearch(
+		return new BidirectionalSearch(
 				this, getLoadedDataAsImp(),
 				(int) Math.round(last_start_point_x),
 				(int) Math.round(last_start_point_y),
@@ -1606,8 +1606,8 @@ public class SNT extends MultiDThreePanes implements
 				new EuclideanHeuristic());
 	}
 
-	public BidirectionalHeuristicSearch createSearch2(final double start_x, final double start_y, final double start_z,
-												  final double world_x, final double world_y, final double world_z) {
+	public BidirectionalSearch createSearch2(final double start_x, final double start_y, final double start_z,
+											 final double world_x, final double world_y, final double world_z) {
 
 		int x_start, y_start, z_start;
 		int x_end, y_end, z_end;
@@ -1620,7 +1620,7 @@ public class SNT extends MultiDThreePanes implements
 		y_end = (int) Math.round(world_y / y_spacing);
 		z_end = (int) Math.round(world_z / z_spacing);
 
-		return new BidirectionalHeuristicSearch(this, getLoadedDataAsImp(),
+		return new BidirectionalSearch(this, getLoadedDataAsImp(),
 				x_start, y_start, z_start,
 				x_end, y_end, z_end,
 				new ReciprocalCost(stackMin, stackMax),
@@ -1796,7 +1796,7 @@ public class SNT extends MultiDThreePanes implements
 			// Append node and wait for search to be finished
 			final PointInImage node = pointList.get(i);
 
-			BidirectionalHeuristicSearch pathSearch = createSearch(node.x, node.y, node.z, null);
+			BidirectionalSearch pathSearch = createSearch(node.x, node.y, node.z, null);
 			pathSearch.setDrawingColors(Color.CYAN, Color.ORANGE);
 			pathSearch.setDrawingThreshold(-1);
 			addThreadToDraw(pathSearch);
@@ -1859,7 +1859,7 @@ public class SNT extends MultiDThreePanes implements
 			final PointInImage start = pointList.get(i);
 			final PointInImage end = pointList.get(i+1);
 
-			BidirectionalHeuristicSearch pathSearch = createSearch2(start.x, start.y, start.z, end.x, end.y, end.z);
+			BidirectionalSearch pathSearch = createSearch2(start.x, start.y, start.z, end.x, end.y, end.z);
 
 			Future<?> result = tracerThreadPool.submit(pathSearch);
 			Path pathResult = null;

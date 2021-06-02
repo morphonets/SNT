@@ -101,7 +101,7 @@ public class Tracing2DTest {
 
 		long pointsExploredNBAStar;
 		{
-			final BidirectionalHeuristicSearch tracer = new BidirectionalHeuristicSearch(
+			final BidirectionalSearch tracer = new BidirectionalSearch(
 					img, cal,
 					startX, startY, 0,
 					endX, endY, 0,
@@ -145,7 +145,7 @@ public class Tracing2DTest {
 					new MaxScalingCost(maximum),
 					new EuclideanHeuristic());
 
-			final BidirectionalHeuristicSearch tracerNBAStar = new BidirectionalHeuristicSearch(
+			final BidirectionalSearch tracerNBAStar = new BidirectionalSearch(
 					tubenessImg, cal,
 					startX, startY, 0,
 					endX, endY, 0,

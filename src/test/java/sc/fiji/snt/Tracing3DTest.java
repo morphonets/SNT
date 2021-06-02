@@ -101,7 +101,7 @@ public class Tracing3DTest {
 
 		long pointsExploredNBAStar;
 		{
-			final BidirectionalHeuristicSearch tracer = new BidirectionalHeuristicSearch(
+			final BidirectionalSearch tracer = new BidirectionalSearch(
 					img, cal,
 					startX, startY, startZ,
 					endX, endY, endZ,
@@ -141,7 +141,7 @@ public class Tracing3DTest {
 					new OneMinusErfCost(frangiStats.getMin(), frangiStats.getMax(), frangiStats.getAvg(), frangiStats.getStdDev()),
 					new EuclideanHeuristic());
 
-			final BidirectionalHeuristicSearch tracerNBAStar = new BidirectionalHeuristicSearch(
+			final BidirectionalSearch tracerNBAStar = new BidirectionalSearch(
 					frangiImg, cal,
 					startX, startY, startZ,
 					endX, endY, endZ,

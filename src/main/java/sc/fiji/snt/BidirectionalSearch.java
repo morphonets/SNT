@@ -47,7 +47,7 @@ import java.util.*;
  *
  * @author Cameron Arshadi
  */
-public class BidirectionalHeuristicSearch extends AbstractSearch {
+public class BidirectionalSearch extends AbstractSearch {
 
     protected static final byte STABILIZED = 0;
     protected static final byte REJECTED = 1;
@@ -83,12 +83,12 @@ public class BidirectionalHeuristicSearch extends AbstractSearch {
     private int[] imgPosition;
 
     @SuppressWarnings("rawtypes")
-    public BidirectionalHeuristicSearch(final ImagePlus imagePlus,
-                                        final int start_x, final int start_y, final int start_z,
-                                        final int goal_x, final int goal_y, final int goal_z,
-                                        final int timeoutSeconds, final long reportEveryMilliseconds,
-                                        Class<? extends SearchImage> searchImageType,
-                                        SearchCost costFunction, SearchHeuristic heuristic)
+    public BidirectionalSearch(final ImagePlus imagePlus,
+                               final int start_x, final int start_y, final int start_z,
+                               final int goal_x, final int goal_y, final int goal_z,
+                               final int timeoutSeconds, final long reportEveryMilliseconds,
+                               Class<? extends SearchImage> searchImageType,
+                               SearchCost costFunction, SearchHeuristic heuristic)
     {
         this(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(), start_x, start_y, start_z,
                 goal_x, goal_y, goal_z, timeoutSeconds, reportEveryMilliseconds, searchImageType,
@@ -98,13 +98,13 @@ public class BidirectionalHeuristicSearch extends AbstractSearch {
 
     /* If you specify 0 for timeoutSeconds then there is no timeout. */
     @SuppressWarnings("rawtypes")
-    public BidirectionalHeuristicSearch(final RandomAccessibleInterval<? extends RealType<?>> image,
-                                        final Calibration calibration,
-                                        final int start_x, final int start_y, final int start_z,
-                                        final int goal_x, final int goal_y, final int goal_z,
-                                        final int timeoutSeconds, final long reportEveryMilliseconds,
-                                        Class<? extends SearchImage> searchImageType,
-                                        SearchCost costFunction, SearchHeuristic heuristic)
+    public BidirectionalSearch(final RandomAccessibleInterval<? extends RealType<?>> image,
+                               final Calibration calibration,
+                               final int start_x, final int start_y, final int start_z,
+                               final int goal_x, final int goal_y, final int goal_z,
+                               final int timeoutSeconds, final long reportEveryMilliseconds,
+                               Class<? extends SearchImage> searchImageType,
+                               SearchCost costFunction, SearchHeuristic heuristic)
     {
         super(image, calibration, timeoutSeconds, reportEveryMilliseconds);
         this.start_x = start_x;
@@ -121,19 +121,19 @@ public class BidirectionalHeuristicSearch extends AbstractSearch {
         init();
     }
 
-    public BidirectionalHeuristicSearch(final SNT snt, final ImagePlus imagePlus,
-                                        final int start_x, final int start_y, final int start_z,
-                                        final int goal_x, final int goal_y, final int goal_z,
-                                        SearchCost costFunction, SearchHeuristic heuristic)
+    public BidirectionalSearch(final SNT snt, final ImagePlus imagePlus,
+                               final int start_x, final int start_y, final int start_z,
+                               final int goal_x, final int goal_y, final int goal_z,
+                               SearchCost costFunction, SearchHeuristic heuristic)
     {
         this(snt, ImageJFunctions.wrapReal(imagePlus), start_x, start_y, start_z, goal_x, goal_y, goal_z,
                 costFunction, heuristic);
     }
 
-    public BidirectionalHeuristicSearch(final SNT snt, final RandomAccessibleInterval<? extends RealType<?>> image,
-                                        final int start_x, final int start_y, final int start_z,
-                                        final int goal_x, final int goal_y, final int goal_z,
-                                        SearchCost costFunction, SearchHeuristic heuristic)
+    public BidirectionalSearch(final SNT snt, final RandomAccessibleInterval<? extends RealType<?>> image,
+                               final int start_x, final int start_y, final int start_z,
+                               final int goal_x, final int goal_y, final int goal_z,
+                               SearchCost costFunction, SearchHeuristic heuristic)
     {
         super(snt, image);
         this.start_x = start_x;
