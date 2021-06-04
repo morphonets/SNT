@@ -8,8 +8,9 @@ from subprocess import check_output
 from PyQt5.QtCore import QDir
 from PyQt5.QtWidgets import QFileDialog, QApplication
 
-# The path to your local Fiji.app installation
-local_fiji_dir = r"C:\Users\cam\Desktop\Fiji.app"
+# The path to your local Fiji.app installation. Here we'll define in a platform
+# agnostic way a Fiji.app directory in the desktop of the current user account
+local_fiji_dir = os.path.join(expanduser('~'), 'Desktop', 'Fiji.app')
 
 def getpath(directory=expanduser("~")):
     # see https://stackoverflow.com/a/46814297
