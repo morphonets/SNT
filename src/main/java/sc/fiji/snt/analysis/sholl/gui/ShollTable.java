@@ -348,7 +348,7 @@ public class ShollTable extends SNTTable {
 		if (file.isDirectory()) {
 			String fName = getTitle();
 			if (fName == null || fName.trim().isEmpty())
-				fName = "Sholl_Table.csv";
+				fName = "Sholl_Table-1.csv";
 			savedFile = SNTUtils.getUniquelySuffixedFile(new File(file, fName));
 		} else {
 			savedFile = file;

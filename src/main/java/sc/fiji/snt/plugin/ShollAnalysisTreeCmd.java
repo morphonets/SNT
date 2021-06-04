@@ -836,7 +836,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 					}
 					else if (output instanceof ImagePlus) {
 						final ImagePlus imp = (ImagePlus)output;
-						final File outFile = SNTUtils.getUniquelySuffixedFile(new File(saveDir, imp.getTitle()));
+						final File outFile = SNTUtils.getUniquelySuffixedTifFile(new File(saveDir, imp.getTitle()));
 						if (!IJ.saveAsTiff(imp, outFile.getAbsolutePath())) ++failures;
 					}
 				}
@@ -853,10 +853,11 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			final ShollStats stats)
 		{
 			if (plot != null && plot.isVisible() && !plot.isFrozen()) {
-				plot.rebuild(stats);
-				showStatus("Plot updated...");
+				// TODO: Check why plot#rebuild keeps reference to old plot#ImagePlus
+//				plot.rebuild(stats); showStatus("Plot updated..."); 
+				plot.getImagePlus().close(); // Dispose image for now, until plot#rebuild is not patched
 			}
-			else {
+			{
 				plot = new ShollPlot(stats, false);
 				plot.show();
 			}

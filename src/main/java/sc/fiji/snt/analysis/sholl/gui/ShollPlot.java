@@ -492,7 +492,7 @@ public class ShollPlot extends Plot {
 	public boolean save(final File file) {
 		if (file == null) return false;
 		final File outFile = (file.isDirectory())
-				? SNTUtils.getUniquelySuffixedFile(new File(file, getImagePlus().getTitle()))
+				? SNTUtils.getUniquelySuffixedTifFile(new File(file, getImagePlus().getTitle()))
 				: file;
 		return IJ.saveAsTiff(getImagePlus(), outFile.getAbsolutePath());
 	}
