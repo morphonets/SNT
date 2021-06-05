@@ -526,7 +526,7 @@ public class SNTCommandFinder {
 		}
 		setFrameLocation();
 		frame.setVisible(true);
-		searchField.requestFocus();
+		if (searchField != null) searchField.requestFocus();
 		if (relativeToComponent != null) relativeToComponent.focusTimer.restart();
 	}
 
