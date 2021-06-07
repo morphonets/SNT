@@ -97,6 +97,8 @@ import sc.fiji.snt.util.ShollPoint;
 		initializer = "init", headless = false)
 public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive, Cancelable {
 
+	private static final String SUMMARY_TABLE_NAME = "_Sholl_Metrics.csv";
+
 	@Parameter
 	private CommandService cmdService;
 	@Parameter
@@ -698,6 +700,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		public void runAnalysis() {
 			showStatus("Obtaining profile...");
 			parser.setStepSize(adjustedStepSize());
+			parser.setSkipSomaticSegments(prefService.getBoolean(ShollAnalysisPrefsCmd.class, "skipSomaticSegments",
+						ShollAnalysisPrefsCmd.DEF_SKIP_SOMATIC_SEGMENTS));
 			try {
 				parser.parse();
 			} catch (IllegalArgumentException ex) {
@@ -793,7 +797,6 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				if (!filterChoice.contains("None")) header += "(" + filterChoice + ")";
 				sTable.summarize(commonSummaryTable, header);
 				updateAndDisplayCommonSummaryTable();
-				outputs.add(commonSummaryTable);
 			}
 
 			if (snt != null && !"None".equalsIgnoreCase(annotationsDescription)) {
@@ -820,6 +823,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			errorIfSaveDirInvalid();
 			if (save) {
 				int failures = 0;
+				if (commonSummaryTable != null && !commonSummaryTable.saveSilently(new File(saveDir, SUMMARY_TABLE_NAME)))
+					++failures;
 				for (final Object output : outputs) {
 					if (output instanceof ShollPlot) {
 						if (!((ShollPlot)output).save(saveDir)) ++failures;
@@ -831,7 +836,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 					}
 					else if (output instanceof ImagePlus) {
 						final ImagePlus imp = (ImagePlus)output;
-						final File outFile = SNTUtils.getUniquelySuffixedFile(new File(saveDir, imp.getTitle()));
+						final File outFile = SNTUtils.getUniquelySuffixedTifFile(new File(saveDir, imp.getTitle()));
 						if (!IJ.saveAsTiff(imp, outFile.getAbsolutePath())) ++failures;
 					}
 				}
@@ -848,10 +853,11 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			final ShollStats stats)
 		{
 			if (plot != null && plot.isVisible() && !plot.isFrozen()) {
-				plot.rebuild(stats);
-				showStatus("Plot updated...");
+				// TODO: Check why plot#rebuild keeps reference to old plot#ImagePlus
+//				plot.rebuild(stats); showStatus("Plot updated..."); 
+				plot.getImagePlus().close(); // Dispose image for now, until plot#rebuild is not patched
 			}
-			else {
+			{
 				plot = new ShollPlot(stats, false);
 				plot.show();
 			}
@@ -859,13 +865,12 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		}
 
 		private void updateAndDisplayCommonSummaryTable() {
-			final String DISPLAY_NAME = "Sholl Metrics";
-			final Display<?> display = displayService.getDisplay(DISPLAY_NAME);
+			final Display<?> display = displayService.getDisplay(SUMMARY_TABLE_NAME);
 			if (display != null && display.isDisplaying(commonSummaryTable)) {
 				display.update();
 			}
 			else {
-				displayService.createDisplay(DISPLAY_NAME, commonSummaryTable);
+				displayService.createDisplay(SUMMARY_TABLE_NAME, commonSummaryTable);
 			}
 		}
 

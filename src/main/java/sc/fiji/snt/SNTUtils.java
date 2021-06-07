@@ -233,6 +233,13 @@ public class SNTUtils {
 		return (lastDot > 0) ? filename.substring(0, lastDot) : filename;
 	}
 
+	public static File getUniquelySuffixedTifFile(final File referenceFile) {
+		if (referenceFile != null && !referenceFile.isDirectory() && !referenceFile.getName().endsWith(".tif")) {
+			return getUniquelySuffixedFile(new File(referenceFile.getAbsolutePath() + ".tif"));
+		}
+		return getUniquelySuffixedFile(referenceFile);
+	}
+
 	public static File getUniquelySuffixedFile(final File referenceFile) {
 		if (referenceFile.exists()) {
 			final String extension = "." + FileUtils.getExtension(referenceFile);

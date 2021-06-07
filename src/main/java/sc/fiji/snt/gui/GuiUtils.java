@@ -777,6 +777,19 @@ public class GuiUtils {
 		if (vgap) c.insets.top = previousTopGap;
 	}
 
+	public static JMenuItem menubarButton(final Icon icon, final JMenuBar menuBar) {
+		final JMenuItem mi = new JMenuItem(icon);
+		mi.setBackground(menuBar.getBackground());
+		mi.setPreferredSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
+		mi.setMinimumSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
+		if (!ij.IJ.isMacOSX()) {// icon displayed off-bounds on MacOS?
+			mi.setMaximumSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
+		}
+		menuBar.add(javax.swing.Box.createHorizontalGlue());
+		menuBar.add(mi);
+		return mi;
+	}
+
 	public static JLabel leftAlignedLabel(final String text, final boolean enabled) {
 		return leftAlignedLabel(text, null, enabled);
 	}
@@ -890,9 +903,9 @@ public class GuiUtils {
 		return list;
 	}
 
-	public static List<JMenuItem> getMenuItems(final JPopupMenu menuBar) {
+	public static List<JMenuItem> getMenuItems(final JPopupMenu popupMenu) {
 		final List<JMenuItem> list = new ArrayList<>();
-		for (final MenuElement me : menuBar.getSubElements()) {
+		for (final MenuElement me : popupMenu.getSubElements()) {
 			if (me == null) {
 				continue;
 			} else if (me instanceof JMenuItem) {
@@ -917,8 +930,12 @@ public class GuiUtils {
 		}
 	}
 
-	public JTextField textField(final String placeholder) {
+	public static JTextField textField(final String placeholder) {
 		return new TextFieldWithPlaceholder(placeholder);
+	}
+
+	public static void removeIcon(final Window window) {
+		window.setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
 	}
 
 	public static JMenu helpMenu() {

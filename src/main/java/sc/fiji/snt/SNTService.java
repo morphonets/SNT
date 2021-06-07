@@ -717,10 +717,12 @@ public class SNTService extends AbstractService implements ImageJService {
 		return captureView(holdingView, view, viewPlane);
 	}
 
-	public ImagePlus captureView(final ImagePlus holdingImp, final String viewDescription, final int viewPlane) {
+	private ImagePlus captureView(final ImagePlus holdingImp, final String viewDescription, final int viewPlane) {
 		// NB: overlay will be flatten but not active ROI
 		final TracerCanvas canvas = new TracerCanvas(holdingImp, plugin, viewPlane, plugin
 			.getPathAndFillManager());
+		if (plugin.getXYCanvas() != null)
+			canvas.setNodeDiameter(plugin.getXYCanvas().nodeDiameter());
 		final BufferedImage bi = new BufferedImage(holdingImp.getWidth(), holdingImp
 			.getHeight(), BufferedImage.TYPE_INT_ARGB);
 		final Graphics2D g = canvas.getGraphics2D(bi.getGraphics());

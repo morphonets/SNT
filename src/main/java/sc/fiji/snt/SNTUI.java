@@ -240,6 +240,8 @@ public class SNTUI extends JDialog {
 				exitRequested();
 			}
 		});
+		
+		GuiUtils.removeIcon(this);
 
 		assert SwingUtilities.isEventDispatchThread();
 		final JTabbedPane tabbedPane = getTabbedPane();
@@ -386,6 +388,7 @@ public class SNTUI extends JDialog {
 		add(statusBar(), dialogGbc);
 		pack();
 		addFileDrop(this, guiUtils);
+		registerMainButtonsInCommandFinder();
 		toFront();
 
 		if (pmUI == null) {
@@ -405,10 +408,12 @@ public class SNTUI extends JDialog {
 					}
 				});
 			}
+			registerCommandFinder(this.pmUI.getJMenuBar());
 		} else {
 			this.pmUI = pmUI;
 		}
 		addFileDrop(this.pmUI, this.pmUI.guiUtils);
+		registerCommandFinder(menuBar);
 
 		if (fmUI == null) {
 			this.fmUI = new FillManagerUI(plugin);
@@ -430,6 +435,7 @@ public class SNTUI extends JDialog {
 		} else {
 			this.fmUI = fmUI;
 		}
+
 	}
 
 	private JTabbedPane getTabbedPane() {
@@ -1331,6 +1337,7 @@ public class SNTUI extends JDialog {
 		});
 		gdb.fill = GridBagConstraints.NONE;
 		miscPanel.add(prefsButton, gdb);
+		commandFinder.register(prefsButton, "Main", "Options tab");
 		return miscPanel;
 	}
 
@@ -1753,6 +1760,13 @@ public class SNTUI extends JDialog {
 		return buttonPanel(keepSegment, junkSegment, completePath, abortButton);
 	}
 
+	private void registerMainButtonsInCommandFinder() {
+		commandFinder.register(openRecViewer, "Main", "3D tab");
+		commandFinder.register(openSciView, "Main", "3D tab");
+		commandFinder.register(rebuildCanvasButton, "Main", "Options tab");
+		commandFinder.register(debugCheckBox, "Main", "Options tab");
+	}
+
 	protected static JPanel buttonPanel(final JButton... buttons) {
 		final JPanel p = new JPanel();
 		p.setLayout(new GridBagLayout());
@@ -1784,7 +1798,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel filteredImagePanel() {
-		secondaryImgPathField = guiUtils.textField("File:");
+		secondaryImgPathField = GuiUtils.textField("File:");
 		final JPopupMenu optionsMenu = new JPopupMenu();
 		final JButton filteredImgBrowseButton =  IconFactory.getButton(IconFactory.GLYPH.OPEN_FOLDER);
 		secondaryImgOptionsButton = optionsButton(optionsMenu);
@@ -2150,14 +2164,6 @@ public class SNTUI extends JDialog {
 		final JMenu viewMenu = new JMenu("View");
 		menuBar.add(viewMenu);
 		menuBar.add(GuiUtils.helpMenu());
-		final JMenuItem cFinder = new JMenuItem(IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH));
-		cFinder.addActionListener( e -> {
-			commandFinder.setLocationRelativeTo(cFinder);
-			commandFinder.toggleVisibility();
-		});
-		menuBar.add(cFinder);
-
-
 		fileMenu.add(importSubmenu);
 		fileMenu.add(exportSubmenu);
 
@@ -4029,6 +4035,14 @@ public class SNTUI extends JDialog {
 			plugin.getPrefs().setTemp("dataloss-nag", !prompt.booleanValue());
 		}
 		return false;
+	}
+
+	private void registerCommandFinder(final JMenuBar menubar) {
+		final JMenuItem cFinder = GuiUtils.menubarButton(IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH), menubar);
+		cFinder.addActionListener(e -> {
+			commandFinder.setLocationRelativeTo(cFinder);
+			commandFinder.toggleVisibility();
+		});
 	}
 
 	private class ImportAction {
