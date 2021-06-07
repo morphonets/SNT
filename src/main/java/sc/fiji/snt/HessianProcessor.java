@@ -72,7 +72,7 @@ public class HessianProcessor {
         }
     }
 
-    final Img<? extends RealType<?>> img;
+    final RandomAccessibleInterval<? extends RealType<?>> img;
     final long[] imgDim;
     final boolean is3D;
     final double pixelWidth;
@@ -116,6 +116,26 @@ public class HessianProcessor {
             this.pixelHeight = 1.0d;
             this.pixelDepth = 1.0d;
         }
+        if (callback == null) {
+            this.callback = new TrivialProgressBar();
+        } else {
+            this.callback = callback;
+        }
+        this.nThreads = SNTPrefs.getThreads();
+    }
+
+    public HessianProcessor(final RandomAccessibleInterval<? extends RealType<?>> img, final Calibration calibration,
+                            final HessianGenerationCallback callback)
+    {
+        if (img == null) {
+            throw new IllegalArgumentException("BUG: Image cannot be null");
+        }
+        this.img = img;
+        this.imgDim = Intervals.dimensionsAsLongArray(img);
+        this.is3D = this.imgDim.length == 3;
+        this.pixelWidth = calibration.pixelWidth;
+        this.pixelHeight = calibration.pixelHeight;
+        this.pixelDepth = calibration.pixelDepth;
         if (callback == null) {
             this.callback = new TrivialProgressBar();
         } else {
@@ -741,10 +761,10 @@ public class HessianProcessor {
     public static class ImgStats {
 
         final Iterable<? extends RealType<?>> input;
-        double min;
-        double max;
-        double avg;
-        double stdDev;
+        public double min;
+        public double max;
+        public double mean;
+        public double stdDev;
 
         public ImgStats(final Iterable<? extends RealType<?>> input) {
             this.input = input;
@@ -758,8 +778,8 @@ public class HessianProcessor {
             return this.max;
         }
 
-        public double getAvg() {
-            return this.avg;
+        public double getMean() {
+            return this.mean;
         }
 
         public double getStdDev() {
@@ -778,17 +798,17 @@ public class HessianProcessor {
                 realSum.add(d);
                 ++count;
             }
-            this.avg = realSum.getSum() / count;
+            this.mean = realSum.getSum() / count;
             final RealSum sumsq = new RealSum();
             for (final RealType<?> type : this.input) {
-                sumsq.add(Math.pow(type.getRealDouble() - this.avg, 2));
+                sumsq.add(Math.pow(type.getRealDouble() - this.mean, 2));
             }
             this.stdDev = Math.sqrt(sumsq.getSum() / count);
         }
 
         @Override
         public String toString() {
-            return "min=" + this.min + ", max=" + this.max + ", avg=" + this.avg + ", std=" + this.stdDev;
+            return "min=" + this.min + ", max=" + this.max + ", mean=" + this.mean + ", stdDev=" + this.stdDev;
         }
 
     }
