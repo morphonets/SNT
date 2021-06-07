@@ -29,8 +29,8 @@ import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.NativeType;
+import net.imglib2.type.logic.BitType;
 import net.imglib2.type.numeric.RealType;
-import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import sc.fiji.snt.util.SearchImage;
@@ -48,39 +48,36 @@ public class FillConverter {
 
     final Collection<FillerThread> fillers;
     final ImagePlus originalImp;
+    private final int width;
+    private final int height;
+    private final int depth;
     SearchImageStack<DefaultSearchNode> newStack;
 
     public FillConverter(final Collection<FillerThread> fillers, final ImagePlus originalImp) {
         this.fillers = fillers;
         this.originalImp = originalImp;
+        width = originalImp.getWidth();
+        height = originalImp.getHeight();
+        depth = originalImp.getNSlices();
     }
 
     public <T extends RealType<T> & NativeType<T>> ImagePlus getGreyImp() {
-        final int width = originalImp.getWidth();
-        final int height = originalImp.getHeight();
-        final int depth = originalImp.getNSlices();
-
         Img<T> img = ImageJFunctions.wrap(originalImp);
         RandomAccess<T> imgAccess = img.randomAccess();
         Img<T> newImg = img.factory().create(width, height, depth);
         RandomAccess<T> newImgAccess = newImg.randomAccess();
-
-        if (newStack == null) {
-            newStack = new SearchImageStack<>(depth, new SupplierUtil.MapSearchImageSupplier<>(width, height));
-            mergeFills(fillers, newStack);
-        }
-
+        SearchImageStack<DefaultSearchNode> newStack = getStack();
         final int[] pos = new int[3];
         for (final SearchImage<DefaultSearchNode> slice : newStack) {
             if (slice == null) continue;
             for (final DefaultSearchNode node : slice) {
+                if (node == null) continue;
                 pos[0] = node.x;
                 pos[1] = node.y;
                 pos[2] = node.z;
                 newImgAccess.setPositionAndGet(pos).set(imgAccess.setPositionAndGet(pos));
             }
         }
-
         ImagePlus newImp = ImageJFunctions.wrap(
                 Views.permute(
                         Views.addDimension(newImg, 0, 0),
@@ -90,36 +87,25 @@ public class FillConverter {
         final ImageStatistics stats = newImp.getStatistics(ImageStatistics.MIN_MAX);
         newImp.setDisplayRange(stats.min, stats.max);
         newImp.setCalibration(originalImp.getCalibration());
-
         return newImp;
     }
 
-    public ImagePlus getBinaryImp()
-    {
-        final int width = originalImp.getWidth();
-        final int height = originalImp.getHeight();
-        final int depth = originalImp.getNSlices();
-
-        if (newStack == null) {
-            newStack = new SearchImageStack<>(depth, new SupplierUtil.MapSearchImageSupplier<>(width, height));
-            mergeFills(fillers, newStack);
-        }
-
-        final Img<UnsignedByteType> binaryImg = ArrayImgs.unsignedBytes(width, height, depth);
-        final RandomAccess<UnsignedByteType> binaryAccess = binaryImg.randomAccess();
-
+    public ImagePlus getBinaryImp() {
+        SearchImageStack<DefaultSearchNode> newStack = getStack();
+        final Img<BitType> binaryImg = ArrayImgs.bits(width, height, depth);
+        final RandomAccess<BitType> binaryAccess = binaryImg.randomAccess();
         final int[] pos = new int[3];
         for (final SearchImage<DefaultSearchNode> slice : newStack) {
             if (slice == null) continue;
             for (final DefaultSearchNode node : slice) {
+                if (node == null) continue;
                 pos[0] = node.x;
                 pos[1] = node.y;
                 pos[2] = node.z;
-                binaryAccess.setPositionAndGet(pos).set(255);
+                binaryAccess.setPositionAndGet(pos).set(true);
             }
         }
-
-        final ImagePlus imp = ImageJFunctions.wrap(
+        final ImagePlus imp = ImageJFunctions.wrapBit(
                 Views.permute(
                         Views.addDimension(binaryImg, 0, 0),
                         2, 3),
@@ -128,36 +114,25 @@ public class FillConverter {
         final ImageStatistics stats = imp.getStatistics(ImageStatistics.MIN_MAX);
         imp.setDisplayRange(stats.min, stats.max);
         imp.setCalibration(originalImp.getCalibration());
-
         return imp;
     }
 
-    public ImagePlus getDistanceImp()
-    {
-        final int width = originalImp.getWidth();
-        final int height = originalImp.getHeight();
-        final int depth = originalImp.getNSlices();
-
-        if (newStack == null) {
-            newStack = new SearchImageStack<>(depth, new SupplierUtil.MapSearchImageSupplier<>(width, height));
-            mergeFills(fillers, newStack);
-        }
-
+    public ImagePlus getDistanceImp() {
+        SearchImageStack<DefaultSearchNode> newStack = getStack();
         final Img<FloatType> distanceImg = ArrayImgs.floats(width, height, depth);
         final RandomAccess<FloatType> distanceAccess = distanceImg.randomAccess();
-
         final int[] pos = new int[3];
         for (final SearchImage<DefaultSearchNode> slice : newStack) {
             if (slice == null) continue;
             for (final DefaultSearchNode node : slice) {
+                if (node == null) continue;
                 pos[0] = node.x;
                 pos[1] = node.y;
                 pos[2] = node.z;
                 distanceAccess.setPositionAndGet(pos).set((float)node.g);
             }
         }
-
-        final ImagePlus imp = ImageJFunctions.wrap(
+        final ImagePlus imp = ImageJFunctions.wrapFloat(
                 Views.permute(
                         Views.addDimension(distanceImg, 0, 0),
                         2, 3),
@@ -165,9 +140,7 @@ public class FillConverter {
         final ImageStatistics stats = imp.getStatistics(ImageStatistics.MIN_MAX);
         imp.setDisplayRange(stats.min, stats.max);
         imp.setCalibration(originalImp.getCalibration());
-
         return imp;
-
     }
 
     public static void mergeFills(final Collection<FillerThread> fillers,
@@ -175,16 +148,16 @@ public class FillConverter {
     {
         // Merge the individuals fills into a single stack
         for (final FillerThread filler : fillers) {
-            for (int sliceIdx = 0; sliceIdx < filler.nodes_as_image_from_start.size(); sliceIdx++) {
-                final SearchImage<DefaultSearchNode> slice = filler.nodes_as_image_from_start.getSlice(sliceIdx);
+            for (Integer sliceIdx : filler.nodes_as_image_from_start.keySet()) {
+                SearchImage<DefaultSearchNode> slice = filler.nodes_as_image_from_start.getSlice(sliceIdx);
                 if (slice == null) continue;
                 SearchImage<DefaultSearchNode> newSlice = newStack.getSlice(sliceIdx);
                 if (newSlice == null) {
                     newSlice = newStack.newSlice(sliceIdx);
                 }
                 for (final DefaultSearchNode node : slice) {
-                    if (node == null) continue;
-                    DefaultSearchNode existingNode = newSlice.getValue(node.x, node.y);
+                    if (node == null || node.g > filler.getThreshold()) continue;
+                    final DefaultSearchNode existingNode = newSlice.getValue(node.x, node.y);
                     if (existingNode == null) {
                         newSlice.setValue(node.x, node.y, node);
                     } else if (node.g < existingNode.g) {
@@ -194,6 +167,14 @@ public class FillConverter {
                 }
             }
         }
+    }
+
+    private SearchImageStack<DefaultSearchNode> getStack() {
+        if (newStack == null) {
+            newStack = new SearchImageStack<>(new SupplierUtil.MapSearchImageSupplier<>());
+            mergeFills(fillers, newStack);
+        }
+        return newStack;
     }
 
 }
