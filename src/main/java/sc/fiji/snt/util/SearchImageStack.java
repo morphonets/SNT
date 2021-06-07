@@ -22,32 +22,32 @@
 
 package sc.fiji.snt.util;
 
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.jetbrains.annotations.NotNull;
 import sc.fiji.snt.SearchNode;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.function.Supplier;
 
 /**
- * A stack of {@link SearchImage}s, backed by a List.
+ * A stack of {@link SearchImage}s, backed by a {@link Map}. Slices may be inserted and accessed
+ * at arbitrary Integer values.
  *
  * @author Cameron Arshadi
  */
 public class SearchImageStack<V extends SearchNode> implements Iterable<SearchImage<V>> {
 
-    List<SearchImage<V>> stack;
-    Supplier<SearchImage<V>> searchImageSupplier;
+    private final Int2ObjectOpenHashMap<SearchImage<V>> stack;
+    private final Supplier<SearchImage<V>> searchImageSupplier;
 
-    public SearchImageStack(final int width, final int height, final int depth) {
-        this.searchImageSupplier = new SupplierUtil.MapSearchImageSupplier<>(width, height);
-        initNullStack(depth);
+    public SearchImageStack() {
+        this.searchImageSupplier = new SupplierUtil.MapSearchImageSupplier<>();
+        this.stack = new Int2ObjectOpenHashMap<>();
     }
 
-    public SearchImageStack(final int depth, final Supplier<SearchImage<V>> supplier) {
+    public SearchImageStack(final Supplier<SearchImage<V>> supplier) {
         this.searchImageSupplier = supplier;
-        initNullStack(depth);
+        this.stack = new Int2ObjectOpenHashMap<>();
     }
 
     public SearchImage<V> getSlice(final int z) {
@@ -56,25 +56,22 @@ public class SearchImageStack<V extends SearchNode> implements Iterable<SearchIm
 
     public SearchImage<V> newSlice(final int z) {
         SearchImage<V> slice = searchImageSupplier.get();
-        stack.set(z, slice);
+        stack.put(z, slice);
         return slice;
-    }
-
-    private void initNullStack(final int nSlices) {
-        stack = new ArrayList<>(nSlices);
-        for (int i=0; i < nSlices; i++) {
-            stack.add(null);
-        }
     }
 
     public int size() {
         return stack.size();
     }
 
+    public Set<Integer> keySet() {
+        return stack.keySet();
+    }
+
     @NotNull
     @Override
     public Iterator<SearchImage<V>> iterator() {
-        return stack.iterator();
+        return stack.values().iterator();
     }
 
 }

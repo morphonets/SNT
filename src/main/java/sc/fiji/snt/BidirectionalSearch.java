@@ -116,8 +116,8 @@ public class BidirectionalSearch extends AbstractSearch {
         this.costFunction = costFunction;
         this.heuristic = heuristic;
         this.heuristic.setCalibration(calibration);
-        nodes_as_image = new SearchImageStack<>(depth,
-                SupplierUtil.createSupplier(searchImageType, BidirectionalSearchNode.class, width, height));
+        nodes_as_image = new SearchImageStack<>(
+                SupplierUtil.createSupplier(searchImageType, BidirectionalSearchNode.class, imgWidth, imgHeight));
         init();
     }
 
@@ -149,8 +149,8 @@ public class BidirectionalSearch extends AbstractSearch {
         cal.pixelHeight = snt.y_spacing;
         cal.pixelDepth = snt.z_spacing;
         this.heuristic.setCalibration(cal);
-        nodes_as_image = new SearchImageStack<>(depth,
-                SupplierUtil.createSupplier(snt.searchImageType, BidirectionalSearchNode.class, width, height));
+        nodes_as_image = new SearchImageStack<>(
+                SupplierUtil.createSupplier(snt.searchImageType, BidirectionalSearchNode.class, imgWidth, imgHeight));
         init();
     }
 
@@ -219,6 +219,8 @@ public class BidirectionalSearch extends AbstractSearch {
                     return;
                 }
 
+                ++loops;
+
                 if (0 == (loops % 10000) && checkStatus()) {
                     // search timed out
                     reportFinished(false);
@@ -281,11 +283,9 @@ public class BidirectionalSearch extends AbstractSearch {
 
                 }
 
-                ++loops;
             }
 
             if (touchNode == null) {
-                // Not sure how this would happen...
                 if (verbose) System.out.println("Touch node is null, returning null result");
                 reportFinished(false);
                 return;
@@ -302,7 +302,7 @@ public class BidirectionalSearch extends AbstractSearch {
                 System.out.println("Closed from goal = " + closed_from_goal_count);
             }
 
-            result = reconstructPath(x_spacing, y_spacing, z_spacing, spacing_units);
+            result = reconstructPath(xSep, ySep, zSep, spacing_units);
             reportFinished(true);
 
         } catch (Exception ex) {
@@ -316,7 +316,7 @@ public class BidirectionalSearch extends AbstractSearch {
 
         for (int zdiff = -1; zdiff <= 1; zdiff++) {
             final int new_z = p.z + zdiff;
-            if (new_z < 0 || new_z >= depth) continue;
+            if (new_z < intervalMin[2] || new_z > intervalMax[2]) continue;
             SearchImage<BidirectionalSearchNode> currentSlice = nodes_as_image.getSlice(new_z);
             if (currentSlice == null) {
                 currentSlice = nodes_as_image.newSlice(new_z);
@@ -326,14 +326,14 @@ public class BidirectionalSearch extends AbstractSearch {
                     if ((xdiff == 0) && (ydiff == 0) && (zdiff == 0)) continue;
                     final int new_x = p.x + xdiff;
                     final int new_y = p.y + ydiff;
-                    if (new_x < 0 || new_x >= width) continue;
-                    if (new_y < 0 || new_y >= height) continue;
+                    if (new_x < intervalMin[0] || new_x > intervalMax[0]) continue;
+                    if (new_y < intervalMin[1] || new_y > intervalMax[1]) continue;
 
                     BidirectionalSearchNode alreadyThereInEitherSearch = currentSlice.getValue(new_x, new_y);
 
-                    final double xdiffsq = (xdiff * x_spacing) * (xdiff * x_spacing);
-                    final double ydiffsq = (ydiff * y_spacing) * (ydiff * y_spacing);
-                    final double zdiffsq = (zdiff * z_spacing) * (zdiff * z_spacing);
+                    final double xdiffsq = (xdiff * xSep) * (xdiff * xSep);
+                    final double ydiffsq = (ydiff * ySep) * (ydiff * ySep);
+                    final double zdiffsq = (zdiff * zSep) * (zdiff * zSep);
 
                     imgPosition[0] = new_x;
                     imgPosition[1] = new_y;
@@ -559,8 +559,8 @@ public class BidirectionalSearch extends AbstractSearch {
             if (pixel_size < 1) pixel_size = 1;
 
             if (plane == MultiDThreePanes.XY_PLANE) {
-                for (int y = 0; y < height; ++y)
-                    for (int x = 0; x < width; ++x) {
+                for (int y = 0; y < imgHeight; ++y)
+                    for (int x = 0; x < imgWidth; ++x) {
                         final BidirectionalSearchNode n = anyNodeUnderThreshold(x, y, currentSliceInPlane,
                                 drawingThreshold);
                         if (n == null) continue;
@@ -571,8 +571,8 @@ public class BidirectionalSearch extends AbstractSearch {
                         }
                     }
             } else if (plane == MultiDThreePanes.XZ_PLANE) {
-                for (int z = 0; z < depth; ++z)
-                    for (int x = 0; x < width; ++x) {
+                for (int z = 0; z < imgDepth; ++z)
+                    for (int x = 0; x < imgWidth; ++x) {
                         final BidirectionalSearchNode n = anyNodeUnderThreshold(x, currentSliceInPlane, z,
                                 drawingThreshold);
                         if (n == null) continue;
@@ -583,8 +583,8 @@ public class BidirectionalSearch extends AbstractSearch {
                         }
                     }
             } else if (plane == MultiDThreePanes.ZY_PLANE) {
-                for (int y = 0; y < height; ++y)
-                    for (int z = 0; z < depth; ++z) {
+                for (int y = 0; y < imgHeight; ++y)
+                    for (int z = 0; z < imgDepth; ++z) {
                         final BidirectionalSearchNode n = anyNodeUnderThreshold(currentSliceInPlane, y, z,
                                 drawingThreshold);
                         if (n == null) continue;

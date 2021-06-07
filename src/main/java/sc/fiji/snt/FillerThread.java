@@ -86,7 +86,7 @@ public class FillerThread extends SearchThread {
 		if (reciprocal) fill.setMetric("reciprocal-intensity-scaled");
 		else fill.setMetric("256-minus-intensity-scaled");
 
-		fill.setSpacing(x_spacing, y_spacing, z_spacing, spacing_units);
+		fill.setSpacing(xSep, ySep, zSep, spacing_units);
 
 		SNTUtils.log("... out of a.size() " + a.size() + " entries");
 
@@ -121,7 +121,7 @@ public class FillerThread extends SearchThread {
 	Set<Path> sourcePaths;
 
 	public static FillerThread fromFill(final ImagePlus imagePlus,
-		final float stackMin, final float stackMax, final Fill fill)
+		final double stackMin, final double stackMax, final Fill fill)
 	{
 		final String metric = fill.getMetric();
 

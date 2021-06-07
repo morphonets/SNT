@@ -23,7 +23,9 @@
 package sc.fiji.snt;
 
 /**
- * Uses the reciprocal of voxel intensity to compute the cost of moving to a neighbor node.
+ * Uses the reciprocal of voxel intensity, rescaled to the interval (double precision)
+ * 255.0 * (intensity - stackMin) / (stackMax - stackMin)
+ * to compute the cost of moving to a neighbor node.
  */
 public class ReciprocalCost implements SearchCost {
 

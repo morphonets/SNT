@@ -103,11 +103,11 @@ public abstract class SearchThread extends AbstractSearch {
 		super(image, calibration, timeoutSeconds, reportEveryMilliseconds);
 		this.bidirectional = bidirectional;
 		this.definedGoal = definedGoal;
-		this.nodes_as_image_from_start = new SearchImageStack<>(depth,
-				SupplierUtil.createSupplier(searchImageType, DefaultSearchNode.class, width, height));
+		this.nodes_as_image_from_start = new SearchImageStack<>(
+				SupplierUtil.createSupplier(searchImageType, DefaultSearchNode.class, imgWidth, imgHeight));
 		if (bidirectional) {
-			this.nodes_as_image_from_goal = new SearchImageStack<>(depth,
-					SupplierUtil.createSupplier(searchImageType, DefaultSearchNode.class, width, height));
+			this.nodes_as_image_from_goal = new SearchImageStack<>(
+					SupplierUtil.createSupplier(searchImageType, DefaultSearchNode.class, imgWidth, imgHeight));
 		}
 		this.costFunction = costFunction;
 		init();
@@ -120,10 +120,10 @@ public abstract class SearchThread extends AbstractSearch {
 		this.costFunction = costFunction;
 		this.bidirectional = true;
 		this.definedGoal = true;
-		this.nodes_as_image_from_start = new SearchImageStack<>(depth,
-				SupplierUtil.createSupplier(snt.searchImageType, DefaultSearchNode.class, width, height));
-		this.nodes_as_image_from_goal = new SearchImageStack<>(depth,
-				SupplierUtil.createSupplier(snt.searchImageType, DefaultSearchNode.class, width, height));
+		this.nodes_as_image_from_start = new SearchImageStack<>(
+				SupplierUtil.createSupplier(snt.searchImageType, DefaultSearchNode.class, imgWidth, imgHeight));
+		this.nodes_as_image_from_goal = new SearchImageStack<>(
+				SupplierUtil.createSupplier(snt.searchImageType, DefaultSearchNode.class, imgWidth, imgHeight));
 		init();
 	}
 
@@ -252,6 +252,8 @@ public abstract class SearchThread extends AbstractSearch {
 					return;
 				}
 
+				++loops;
+
 				// We only check every thousandth loop for
 				// whether we should report the progress, etc.
 
@@ -312,9 +314,9 @@ public abstract class SearchThread extends AbstractSearch {
 				// Has the route from the start found the goal?
 				if (definedGoal && atGoal(p.x, p.y, p.z, fromStart)) {
 					if (verbose) System.out.println("Found the goal!");
-					if (fromStart) foundGoal(p.asPath(x_spacing, y_spacing, z_spacing,
+					if (fromStart) foundGoal(p.asPath(xSep, ySep, zSep,
 						spacing_units));
-					else foundGoal(p.asPathReversed(x_spacing, y_spacing, z_spacing,
+					else foundGoal(p.asPathReversed(xSep, ySep, zSep,
 						spacing_units));
 					setExitReason(SUCCESS);
 					reportFinished(true);
@@ -336,7 +338,7 @@ public abstract class SearchThread extends AbstractSearch {
 				for (int zdiff = -1; zdiff <= 1; zdiff++) {
 
 					final int new_z = p.z + zdiff;
-					if (new_z < 0 || new_z >= depth) continue;
+					if (new_z < intervalMin[2] || new_z > intervalMax[2]) continue;
 
 					if (nodes_as_image_this_search.getSlice(new_z) == null) {
 						nodes_as_image_this_search.newSlice(new_z);
@@ -348,15 +350,14 @@ public abstract class SearchThread extends AbstractSearch {
 							if ((xdiff == 0) && (ydiff == 0) && (zdiff == 0)) continue;
 
 							final int new_x = p.x + xdiff;
+							if (new_x < intervalMin[0] || new_x > intervalMax[0]) continue;
+
 							final int new_y = p.y + ydiff;
+							if (new_y < intervalMin[1] || new_y > intervalMax[1]) continue;
 
-							if (new_x < 0 || new_x >= width) continue;
-
-							if (new_y < 0 || new_y >= height) continue;
-
-							final double xdiffsq = (xdiff * x_spacing) * (xdiff * x_spacing);
-							final double ydiffsq = (ydiff * y_spacing) * (ydiff * y_spacing);
-							final double zdiffsq = (zdiff * z_spacing) * (zdiff * z_spacing);
+							final double xdiffsq = (xdiff * xSep) * (xdiff * xSep);
+							final double ydiffsq = (ydiff * ySep) * (ydiff * ySep);
+							final double zdiffsq = (zdiff * zSep) * (zdiff * zSep);
 
 							final double h_for_new_point = estimateCostToGoal(new_x, new_y,
 								new_z, fromStart);
@@ -440,18 +441,18 @@ public abstract class SearchThread extends AbstractSearch {
 									{
 
 										if (fromStart) {
-											result = p.asPath(x_spacing, y_spacing, z_spacing,
+											result = p.asPath(xSep, ySep, zSep,
 												spacing_units);
 											final Path fromGoalReversed = alreadyThereInOtherSearch
-												.asPathReversed(x_spacing, y_spacing, z_spacing,
+												.asPathReversed(xSep, ySep, zSep,
 													spacing_units);
 											result.add(fromGoalReversed);
 										}
 										else {
-											result = alreadyThereInOtherSearch.asPath(x_spacing,
-												y_spacing, z_spacing, spacing_units);
-											result.add(p.asPathReversed(x_spacing, y_spacing,
-												z_spacing, spacing_units));
+											result = alreadyThereInOtherSearch.asPath(xSep,
+													ySep, zSep, spacing_units);
+											result.add(p.asPathReversed(xSep, ySep,
+													zSep, spacing_units));
 										}
 										if (verbose) {
 											System.out.println("Searches met!");
@@ -473,7 +474,7 @@ public abstract class SearchThread extends AbstractSearch {
 							}
 						}
 				}
-				++loops;
+
 			}
 
 			/*
@@ -618,8 +619,8 @@ public abstract class SearchThread extends AbstractSearch {
 			if (pixel_size < 1) pixel_size = 1;
 
 			if (plane == MultiDThreePanes.XY_PLANE) {
-				for (int y = 0; y < height; ++y)
-					for (int x = 0; x < width; ++x) {
+				for (int y = 0; y < imgHeight; ++y)
+					for (int x = 0; x < imgWidth; ++x) {
 						final SearchNode n = anyNodeUnderThreshold(x, y, currentSliceInPlane,
 								drawingThreshold);
 						if (n == null) continue;
@@ -630,8 +631,8 @@ public abstract class SearchThread extends AbstractSearch {
 					}
 			}
 			else if (plane == MultiDThreePanes.XZ_PLANE) {
-				for (int z = 0; z < depth; ++z)
-					for (int x = 0; x < width; ++x) {
+				for (int z = 0; z < imgDepth; ++z)
+					for (int x = 0; x < imgWidth; ++x) {
 						final SearchNode n = anyNodeUnderThreshold(x, currentSliceInPlane, z,
 								drawingThreshold);
 						if (n == null) continue;
@@ -642,8 +643,8 @@ public abstract class SearchThread extends AbstractSearch {
 					}
 			}
 			else if (plane == MultiDThreePanes.ZY_PLANE) {
-				for (int y = 0; y < height; ++y)
-					for (int z = 0; z < depth; ++z) {
+				for (int y = 0; y < imgHeight; ++y)
+					for (int z = 0; z < imgDepth; ++z) {
 						final SearchNode n = anyNodeUnderThreshold(currentSliceInPlane, y, z,
 								drawingThreshold);
 						if (n == null) continue;

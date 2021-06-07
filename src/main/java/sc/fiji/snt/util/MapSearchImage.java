@@ -22,40 +22,43 @@
 
 package sc.fiji.snt.util;
 
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Iterator;
 
 /**
- * A sparse matrix implementation backed by a single int to Object open addressed hash map
+ * A sparse matrix implementation backed by a map
  *
  * @author Cameron Arshadi
  */
 public class MapSearchImage<V> implements SearchImage<V> {
 
-    private final Int2ObjectOpenHashMap<V> map;
-    private final int width;
+    private final Long2ObjectOpenHashMap<V> map;
 
-    public MapSearchImage(final int width, final int height) {
-        this.width = width;
-        this.map = new Int2ObjectOpenHashMap<>(); // TODO: worry about initial capacity / load factor?
+    public MapSearchImage() {
+        this.map = new Long2ObjectOpenHashMap<>(); // TODO: worry about initial capacity / load factor?
     }
 
     @Override
     public V getValue(final int x, final int y) {
-        return map.get(y * width + x);
+        return map.get(pairingFunction(x, y));
     }
 
     @Override
     public void setValue(final int x, final int y, final V value) {
-        map.put(y * width + x, value);
+        map.put(pairingFunction(x, y), value);
     }
 
     @NotNull
     @Override
     public Iterator<V> iterator() {
         return map.values().iterator();
+    }
+
+    // http://szudzik.com/ElegantPairing.pdf
+    private long pairingFunction(long a, long b) {
+        return a >= b ? a * a + a + b : a + b * b;
     }
 
 }

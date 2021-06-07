@@ -27,14 +27,19 @@ import ij.ImagePlus;
 import ij.Prefs;
 import ij.gui.ImageCanvas;
 import ij.gui.ImageWindow;
+import ij.process.ImageStatistics;
 import ij3d.Content;
 import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
 import ij3d.ImageWindow3D;
 import net.imagej.Dataset;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.stats.ComputeMinMax;
 import net.imglib2.img.Img;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.view.IntervalView;
+import net.imglib2.view.Views;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
@@ -2471,9 +2476,25 @@ public class SNTUI extends JDialog {
 						+ "or <i>Load Precomputed " + analysisType + " Image...</i> from the"
 						+ "<i>Cache Computation</i> menu(s).");
 			} else {
-				Img<FloatType> img = (hc.getAnalysisType() == HessianCaller.TUBENESS) ? hc.hessian.getTubenessImg() :
-						hc.hessian.getFrangiImg();
+				RandomAccessibleInterval<FloatType> img;
+				switch (hc.getAnalysisType()) {
+					case HessianCaller.TUBENESS:
+						img = hc.hessian.getTubenessImg();
+						break;
+					case HessianCaller.FRANGI:
+						img = hc.hessian.getFrangiImg();
+						break;
+					default:
+						throw new IllegalArgumentException("Unknown Hessian analysis type");
+				}
+				if (img.numDimensions() == 3) {
+					img = Views.permute(
+							Views.addDimension(img, 0, 0),
+							2,
+							3);
+				}
 				ImagePlus imp = ImageJFunctions.wrap(img, "Cached " + analysisType);
+				imp.setCalibration(plugin.getImagePlus().getCalibration());
 				imp.show();
 			}
 		});

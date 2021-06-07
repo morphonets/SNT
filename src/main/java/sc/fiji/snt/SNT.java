@@ -163,8 +163,10 @@ public class SNT extends MultiDThreePanes implements
 	protected byte[][] slices_data_b;
 	protected short[][] slices_data_s;
 	protected float[][] slices_data_f;
-	volatile protected float stackMax;
-	volatile protected float stackMin;
+	volatile protected double stackMax;
+	volatile protected double stackMin;
+	volatile protected double stackMean;
+	volatile protected double stackStdDev;
 
 	/* Hessian-based analysis */
 	private volatile boolean hessianEnabled = false;
@@ -248,6 +250,8 @@ public class SNT extends MultiDThreePanes implements
 	protected Color deselectedColor = DEFAULT_DESELECTED_COLOR;
 	protected boolean displayCustomPathColors = true;
 	private HessianProcessor.ImgStats imgStats;
+	protected RandomAccessibleInterval<? extends RealType<?>> img;
+	private ImageStatistics stats;
 
 
 	/**
@@ -558,7 +562,9 @@ public class SNT extends MultiDThreePanes implements
 		zy_tracer_canvas = (InteractiveTracerCanvas) zy_canvas;
 		addListener(xy_tracer_canvas);
 
-		if (accessToValidImageData()) loadData();
+		if (accessToValidImageData()) {
+			loadData();
+		}
 
 		if (!single_pane) {
 			final double min = xy.getDisplayRangeMin();
@@ -611,6 +617,7 @@ public class SNT extends MultiDThreePanes implements
 
 	private void loadData() {
 		statusService.showStatus("Loading data...");
+		this.img = ImageJFunctions.wrapReal(xy);
 		final ImageStack s = xy.getStack();
 		switch (imageType) {
 			case ImagePlus.GRAY8:
@@ -640,9 +647,12 @@ public class SNT extends MultiDThreePanes implements
 		if (restoreROI) xy.saveRoi();
 		xy.deleteRoi(); // if a ROI exists, compute min/ max for entire image
 		if (restoreROI) xy.restoreRoi();
-		final ImageStatistics stats = xy.getStatistics(Measurements.MIN_MAX);
-		stackMin = (float) stats.min;
-		stackMax = (float) stats.max;
+		final ImageStatistics stats = xy.getStatistics();
+		stackMin = stats.min;
+		stackMax = stats.max;
+		stackMean = stats.mean;
+		stackStdDev = stats.stdDev;
+		this.stats = stats;
 		nullifyHessian(); // ensure it will be reloaded
 		updateLut();
 	}
@@ -1506,21 +1516,21 @@ public class SNT extends MultiDThreePanes implements
 				throw new IllegalArgumentException("BUG: Unknown hessian analysis type " + hessian.getAnalysisType());
 			}
 		} else {
-			ImagePlus imp = useSecondary ? getSecondaryDataAsImp() : getLoadedDataAsImp();
-			// TODO wrap this once on startup, ideally we will move to imglib2 for everything
-			img = ImageJFunctions.wrapReal(imp);
-			if (this.imgStats == null) {
-				this.imgStats = new HessianProcessor.ImgStats(Views.iterable(img));
-				this.imgStats.process();
-			}
-			stats = this.imgStats;
+			//ImagePlus imp = useSecondary ? getSecondaryDataAsImp() : getLoadedDataAsImp();
+			img = this.img;
+			// FIXME terrible hack
+			stats = new HessianProcessor.ImgStats(Views.iterable(img));
+			stats.min = this.stats.min;
+			stats.max = this.stats.max;
+			stats.mean = this.stats.mean;
+			stats.stdDev = this.stats.stdDev;
 		}
 		if (ReciprocalCost.class.equals(costFunctionClass)) {
-			costFunction = new ReciprocalCost(stats.getMin(), stats.getMax());
+			costFunction = new ReciprocalCost(stats.min, stats.max);
 		} else if (MaxScalingCost.class.equals(costFunctionClass)) {
-			costFunction = new MaxScalingCost(stats.getMax());
+			costFunction = new MaxScalingCost(stats.max);
 		} else if (OneMinusErfCost.class.equals(costFunctionClass)) {
-			costFunction = new OneMinusErfCost(stats.getMin(), stats.getMax(), stats.getAvg(), stats.getStdDev());
+			costFunction = new OneMinusErfCost(stats.max, stats.mean, stats.stdDev);
 		} else {
 			throw new IllegalArgumentException("BUG: Unknown cost function class " + costFunctionClass);
 		}
@@ -1558,7 +1568,16 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public BidirectionalSearch createSearch(final double world_x, final double world_y,
-											final double world_z, final PointInImage joinPoint) {
+											final double world_z, final PointInImage joinPoint,
+											SearchCost costFunction, SearchHeuristic heuristic)
+	{
+		return createSearch(this.img, world_x, world_y, world_z, joinPoint, costFunction, heuristic);
+	}
+
+	public BidirectionalSearch createSearch(final RandomAccessibleInterval<? extends RealType<?>> img,
+											final double world_x, final double world_y,
+											final double world_z, final PointInImage joinPoint,
+											SearchCost costFunction, SearchHeuristic heuristic) {
 		if (!lastStartPointSet) {
 			statusService.showStatus(
 					"No initial start point has been set.  Do that with a mouse click." +
@@ -1597,13 +1616,13 @@ public class SNT extends MultiDThreePanes implements
 		z_end = (int) Math.round(real_z_end / z_spacing);
 
 		return new BidirectionalSearch(
-				this, getLoadedDataAsImp(),
+				this, img,
 				(int) Math.round(last_start_point_x),
 				(int) Math.round(last_start_point_y),
 				(int) Math.round(last_start_point_z),
 				x_end, y_end, z_end,
-				new ReciprocalCost(stackMin, stackMax),
-				new EuclideanHeuristic());
+				costFunction,
+				heuristic);
 	}
 
 	public BidirectionalSearch createSearch2(final double start_x, final double start_y, final double start_z,
@@ -1620,7 +1639,7 @@ public class SNT extends MultiDThreePanes implements
 		y_end = (int) Math.round(world_y / y_spacing);
 		z_end = (int) Math.round(world_z / z_spacing);
 
-		return new BidirectionalSearch(this, getLoadedDataAsImp(),
+		return new BidirectionalSearch(this, this.img,
 				x_start, y_start, z_start,
 				x_end, y_end, z_end,
 				new ReciprocalCost(stackMin, stackMax),
@@ -1736,7 +1755,7 @@ public class SNT extends MultiDThreePanes implements
 		final ArrayList<PointInImage> list = new ArrayList<>();
 		list.add(start);
 		list.add(end);
-		return autoTrace(list, forkPoint);
+		return autoTrace(list, forkPoint, new ReciprocalCost(stackMin, stackMax), new EuclideanHeuristic());
 	}
 
 	/**
@@ -1765,8 +1784,8 @@ public class SNT extends MultiDThreePanes implements
 	 *         Manager list.If a path cannot be fully computed from the specified
 	 *         list of points, a single-point path is generated.
 	 */
-	public Path autoTrace(final List<PointInImage> pointList,
-						  final PointInImage forkPoint)
+	public Path autoTrace(final List<PointInImage> pointList, final PointInImage forkPoint,
+						  final SearchCost costFunction, final SearchHeuristic heuristic)
 	{
 		if (pointList == null || pointList.size() == 0)
 			throw new IllegalArgumentException("pointList cannot be null or empty");
@@ -1796,7 +1815,11 @@ public class SNT extends MultiDThreePanes implements
 			// Append node and wait for search to be finished
 			final PointInImage node = pointList.get(i);
 
-			BidirectionalSearch pathSearch = createSearch(node.x, node.y, node.z, null);
+			BidirectionalSearch pathSearch = createSearch(
+					node.x, node.y, node.z,
+					null, // joinPoint
+					costFunction, heuristic);
+
 			pathSearch.setDrawingColors(Color.CYAN, Color.ORANGE);
 			pathSearch.setDrawingThreshold(-1);
 			addThreadToDraw(pathSearch);
@@ -2912,11 +2935,11 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
-		float currentMaximum = stackMin;
+		double currentMaximum = stackMin;
 		for (int x = startx; x < stopx; ++x) {
 			for (int y = starty; y < stopy; ++y) {
 				for (int z = startz; z < stopz; ++z) {
-					float v = stackMin;
+					double v = stackMin;
 					final int xyIndex = y * width + x;
 					switch (imageType) {
 						case ImagePlus.GRAY8:
@@ -2973,9 +2996,9 @@ public class SNT extends MultiDThreePanes implements
 		final int[][] pointsToConsider = findAllPointsAlongLine(x_in_pane, y_in_pane, plane);
 
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
-		float currentMaximum = stackMin;
+		double currentMaximum = stackMin;
 		for (int[] ints : pointsToConsider) {
-			float v = stackMin;
+			double v = stackMin;
 			final int[] p = ints;
 			final int xyIndex = p[1] * width + p[0];
 			switch (imageType) {

@@ -40,24 +40,20 @@ public class OneMinusErfCost implements SearchCost {
     static final double STEP_COST_LOWER_BOUND = 1e-60;
     final double minCostPerUnitDistance;
 
-    private final double min;
     private final double max;
     private final double avg;
     private final double stdDev;
 
-    // multiplier for the z-score
-    double zFudge = 0.8;
+    // multiplier for the intensity z-score
+    double zFudge = 0.4;
 
     /**
      *
-     * @param min the minimum intensity value of the image
-     * @param max the maximum intensity value of the image
-     * @param average the average intensity value of the image
-     * @param standardDeviation the standard deviation of the intensity values of the image
+     * @param max the maximum intensity value of the image, used to compute the minimum step cost
+     * @param average the average intensity value of the image, used to compute the intensity z-score
+     * @param standardDeviation the standard deviation of the intensity values of the image, used to compute the intensity z-score
      */
-    public OneMinusErfCost(final double min, final double max, final double average, final double standardDeviation)
-    {
-        this.min = min;
+    public OneMinusErfCost(final double max, final double average, final double standardDeviation) {
         this.max = max;
         this.avg = average;
         this.stdDev = standardDeviation;
@@ -70,7 +66,11 @@ public class OneMinusErfCost implements SearchCost {
         return Erf.erfc(zFudge * zScore(valueAtNewPoint));
     }
 
-    public void setFudge(final double zFudge) {
+    /**
+     * Scale factor for intensity z-score, default is 0.4
+     * @param zFudge the z-score is post-multiplied by this value
+     */
+    public void setZFudge(final double zFudge) {
         this.zFudge = zFudge;
     }
 

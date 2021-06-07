@@ -39,17 +39,11 @@ public class SupplierUtil {
 
     public static class MapSearchImageSupplier<V extends SearchNode> implements Supplier<SearchImage<V>> {
 
-        private final int width;
-        private final int height;
-
-        public MapSearchImageSupplier(final int width, final int height) {
-            this.width = width;
-            this.height = height;
-        }
+        public MapSearchImageSupplier() { }
 
         @Override
         public MapSearchImage<V> get() {
-            return new MapSearchImage<>(width, height);
+            return new MapSearchImage<>();
         }
 
     }
@@ -106,7 +100,7 @@ public class SupplierUtil {
         } else if (clazz == ListSearchImage.class) {
             return new ListSearchImageSupplier<>(searchNodeClass, width, height);
         } else if (clazz == MapSearchImage.class) {
-            return new MapSearchImageSupplier<>(width, height);
+            return new MapSearchImageSupplier<>();
         }
         else {
             throw new IllegalArgumentException("Unrecognized SearchImage Class");

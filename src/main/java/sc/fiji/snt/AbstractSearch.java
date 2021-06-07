@@ -38,13 +38,15 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
 
     protected RandomAccessibleInterval<? extends RealType<?>> img;
     protected RandomAccess<? extends RealType<?>> imgAccess;
-    protected double x_spacing;
-    protected double y_spacing;
-    protected double z_spacing;
+    protected double xSep;
+    protected double ySep;
+    protected double zSep;
     protected String spacing_units;
-    protected int width;
-    protected int height;
-    protected int depth;
+    protected int imgWidth;
+    protected int imgHeight;
+    protected int imgDepth;
+    protected long[] intervalMin;
+    protected long[] intervalMax;
 
     protected Color openColor;
     protected Color closedColor;
@@ -75,17 +77,19 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
             this.img = image;
         }
         this.imgAccess  = this.img.randomAccess();
-        this.width = (int) this.img.dimension(0);
-        this.height = (int) this.img.dimension(1);
-        this.depth = (int) this.img.dimension(2);
-        this.x_spacing = calibration.pixelWidth;
-        this.y_spacing = calibration.pixelHeight;
-        this.z_spacing = calibration.pixelDepth;
+        this.imgWidth = (int) this.img.dimension(0);
+        this.imgHeight = (int) this.img.dimension(1);
+        this.imgDepth = (int) this.img.dimension(2);
+        this.intervalMin = this.img.minAsLongArray();
+        this.intervalMax = this.img.maxAsLongArray();
+        this.xSep = calibration.pixelWidth;
+        this.ySep = calibration.pixelHeight;
+        this.zSep = calibration.pixelDepth;
         spacing_units = SNTUtils.getSanitizedUnit(calibration.getUnit());
-        if ((x_spacing == 0.0) || (y_spacing == 0.0) || (z_spacing == 0.0)) {
+        if ((xSep == 0.0) || (ySep == 0.0) || (zSep == 0.0)) {
             SNTUtils.error(
                     "SearchThread: One dimension of the calibration information was zero: (" +
-                            x_spacing + "," + y_spacing + "," + z_spacing + ")");
+                            xSep + "," + ySep + "," + zSep + ")");
             return;
         }
         this.timeoutSeconds = timeoutSeconds;
@@ -103,12 +107,14 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
             this.img = image;
         }
         this.imgAccess  = this.img.randomAccess();
-        this.width = snt.width;
-        this.height = snt.height;
-        this.depth = snt.depth;
-        this.x_spacing = snt.x_spacing;
-        this.y_spacing = snt.y_spacing;
-        this.z_spacing = snt.z_spacing;
+        this.imgWidth = snt.width;
+        this.imgHeight = snt.height;
+        this.imgDepth = snt.depth;
+        this.intervalMin = this.img.minAsLongArray();
+        this.intervalMax = this.img.maxAsLongArray();
+        this.xSep = snt.x_spacing;
+        this.ySep = snt.y_spacing;
+        this.zSep = snt.z_spacing;
         this.spacing_units = snt.spacing_units;
         this.timeoutSeconds = 0;
         this.reportEveryMilliseconds = 1000;
