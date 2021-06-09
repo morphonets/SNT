@@ -342,7 +342,17 @@ public class MouseLightLoader {
 			}
 		};
 		final int allenId = node.optInt("allenId", -1);
-		point.setAnnotation((allenId==-1)?null:new AllenCompartment(allenId));
+		// TODO: add support for Allen v3
+		// return null if allenId is valid but does not exist in brainAreas.json
+		// This is a workaround for until we migrate to Allen CCF v3
+		AllenCompartment comp = null;
+		if (allenId != -1) {
+			comp = AllenUtils.getCompartment(allenId);
+			if (comp == null) {
+				SNTUtils.error("Unknown structureId " + allenId);
+			}
+		}
+		point.setAnnotation(comp);
 		point.setHemisphere(AllenUtils.isLeftHemisphere(point) ? BrainAnnotation.LEFT_HEMISPHERE
 				: BrainAnnotation.RIGHT_HEMISPHERE);
 		return point;
