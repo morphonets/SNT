@@ -208,6 +208,13 @@ public class Path implements Comparable<Path> {
 
 
 	/**
+	 * Instantiates a new path under default settings (isotropic 1um pixel spacing)
+	 */
+	public Path() {
+		this(1, 1, 1, "um");
+	}
+
+	/**
 	 * Instantiates a new path.
 	 *
 	 * @param x_spacing Pixel width in spacing_units
