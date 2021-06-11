@@ -138,7 +138,7 @@ public class Tracing3DTest {
 					endX, endY, endZ,
 					-1, 100,
 					ArraySearchImage.class,
-					new OneMinusErfCost(frangiStats.getMin(), frangiStats.getMax(), frangiStats.getAvg(), frangiStats.getStdDev()),
+					new OneMinusErfCost(frangiStats.getMax(), frangiStats.getMean(), frangiStats.getStdDev()),
 					new EuclideanHeuristic());
 
 			final BidirectionalSearch tracerNBAStar = new BidirectionalSearch(
@@ -147,7 +147,7 @@ public class Tracing3DTest {
 					endX, endY, endZ,
 					-1, 100, // reciprocal
 					ArraySearchImage.class,
-					new OneMinusErfCost(frangiStats.getMin(), frangiStats.getMax(), frangiStats.getAvg(), frangiStats.getStdDev()),
+					new OneMinusErfCost(frangiStats.getMax(), frangiStats.getMean(), frangiStats.getStdDev()),
 					new EuclideanHeuristic());
 
 			tracer.run();
