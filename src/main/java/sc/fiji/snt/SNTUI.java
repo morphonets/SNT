@@ -1238,7 +1238,10 @@ public class SNTUI extends JDialog {
 		++gdb.gridy;
 		intPanel.add(nodePanel(), gdb);
 		++gdb.gridy;
-
+		intPanel.add(transparencyDefPanel(), gdb);
+		++gdb.gridy;
+		intPanel.add(transparencyOutOfBoundsPanel(), gdb);
+		++gdb.gridy;
 		final JCheckBox canvasCheckBox = new JCheckBox("Activate canvas on mouse hovering",
 				plugin.autoCanvasActivation);
 		guiUtils.addTooltip(canvasCheckBox, "Whether the image window should be brought to front as soon as the mouse "
@@ -1286,6 +1289,89 @@ public class SNTUI extends JDialog {
 		c.gridx = 2;
 		p.add(defaultsButton);
 		return p;
+	}
+
+	private JPanel transparencyDefPanel() {
+		final JSpinner defTransparencySpinner = GuiUtils.integerSpinner(
+				(plugin.getXYCanvas() == null) ? 100 : plugin.getXYCanvas().getDefaultTransparency(), 0, 100, 1, true);
+		defTransparencySpinner.addChangeListener(e -> {
+			setDefaultTransparency(Integer.valueOf(defTransparencySpinner.getValue().toString()));
+		});
+		final JButton defTransparencyButton = new JButton("Default");
+		defTransparencyButton.addActionListener(e -> {
+			setDefaultTransparency(100);
+			defTransparencySpinner.setValue(100);
+			showStatus("Default transparency reset", true);
+		});
+
+		final JPanel p = new JPanel();
+		guiUtils.addTooltip(p, "Rendering opacity (0-100%) for lines connecting nodes");
+		p.setLayout(new GridBagLayout());
+		final GridBagConstraints c = GuiUtils.defaultGbc();
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.gridx = 0;
+		c.gridy = 0;
+		c.gridwidth = 3;
+		c.ipadx = 0;
+		p.add(GuiUtils.leftAlignedLabel("Path centerlines opacity (%): ", true));
+		c.gridx = 1;
+		p.add(defTransparencySpinner, c);
+		c.fill = GridBagConstraints.NONE;
+		c.gridx = 2;
+		p.add(defTransparencyButton);
+		return p;
+	}
+
+	private JPanel transparencyOutOfBoundsPanel() {
+		final JSpinner transparencyOutOfBoundsSpinner = GuiUtils.integerSpinner(
+				(plugin.getXYCanvas() == null) ? 100 : plugin.getXYCanvas().getOutOfBoundsTransparency(), 0, 100, 1,
+				true);
+		transparencyOutOfBoundsSpinner.addChangeListener(e -> {
+			setOutOfBoundsTransparency(Integer.valueOf(transparencyOutOfBoundsSpinner.getValue().toString()));
+		});
+		final JButton defaultOutOfBoundsButton = new JButton("Default");
+		defaultOutOfBoundsButton.addActionListener(e -> {
+			setOutOfBoundsTransparency(50);
+			transparencyOutOfBoundsSpinner.setValue(50);
+			showStatus("Default transparency reset", true);
+		});
+
+		final JPanel p = new JPanel();
+		guiUtils.addTooltip(p, "The opacity (0-100%) of segments that are out-of-plane. "
+				+ "Only considered when tracing 3D images and the visibility filter is "
+				+ "<i>Only nodes within # nearby Z-slices</i>");
+		p.setLayout(new GridBagLayout());
+		final GridBagConstraints c = GuiUtils.defaultGbc();
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.gridx = 0;
+		c.gridy = 0;
+		c.gridwidth = 3;
+		c.ipadx = 0;
+		p.add(GuiUtils.leftAlignedLabel("Opacity of out-of-plane segments (%): ", true));
+		c.gridx = 1;
+		p.add(transparencyOutOfBoundsSpinner, c);
+		c.fill = GridBagConstraints.NONE;
+		c.gridx = 2;
+		p.add(defaultOutOfBoundsButton);
+		return p;
+	}
+
+	private void setDefaultTransparency(final int value) {
+		plugin.getXYCanvas().setDefaultTransparency(value);
+		if (!plugin.getSinglePane()) {
+			plugin.getXZCanvas().setDefaultTransparency(value);
+			plugin.getZYCanvas().setDefaultTransparency(value);
+		}
+		plugin.updateTracingViewers(false);
+	}
+
+	private void setOutOfBoundsTransparency(final int value) {
+		plugin.getXYCanvas().setOutOfBoundsTransparency(value);
+		if (!plugin.getSinglePane()) {
+			plugin.getXZCanvas().setOutOfBoundsTransparency(value);
+			plugin.getZYCanvas().setOutOfBoundsTransparency(value);
+		}
+		plugin.updateTracingViewers(false);
 	}
 
 	private JPanel extraColorsPanel() {
