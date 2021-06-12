@@ -135,6 +135,7 @@ import org.jzy3d.maths.Coord2d;
 import org.jzy3d.maths.Coord3d;
 import org.jzy3d.maths.Rectangle;
 import org.jzy3d.plot2d.primitive.AWTColorbarImageGenerator;
+import org.jzy3d.plot3d.primitives.AbstractComposite;
 import org.jzy3d.plot3d.primitives.AbstractDrawable;
 import org.jzy3d.plot3d.primitives.AbstractWireframeable;
 import org.jzy3d.plot3d.primitives.LineStrip;
@@ -255,30 +256,30 @@ public class Viewer3D {
 			 */
 			DEFAULT("Default"), //
 			/**
-			 * Enforce a lateral view point of the scene.
-			 */
-			SIDE("Side Constrained"), //
-			/**
-			 * Enforce a top view point of the scene with disabled rotation.
-			 */
-			TOP("Top Constrained"),
-			/**
-			 * Enforce an 'overview (two-point perspective) view point of the scene.
-			 */
-			PERSPECTIVE("Perspective");
+		 * Enforce a lateral view point of the scene.
+		 */
+		SIDE("Side Constrained"), //
+		/**
+		 * Enforce a top view point of the scene with disabled rotation.
+		 */
+		TOP("Top Constrained"),
+		/**
+		 * Enforce an 'overview (two-point perspective) view point of the scene.
+		 */
+		PERSPECTIVE("Perspective");
 
 		private String description;
 
 		private ViewMode next() {
 			switch (this) {
-				case DEFAULT:
-					return TOP;
-				case TOP:
-					return SIDE;
-				case SIDE:
-					return PERSPECTIVE;
-				default:
-					return DEFAULT;
+			case DEFAULT:
+				return TOP;
+			case TOP:
+				return SIDE;
+			case SIDE:
+				return PERSPECTIVE;
+			default:
+				return DEFAULT;
 			}
 		}
 
@@ -481,22 +482,22 @@ public class Viewer3D {
 	private void squarify(final String axes, final boolean enable) {
 		final String parsedAxes = (enable) ? axes.toLowerCase() : "none";
 		switch (parsedAxes) {
-			case "xy":
-				view.setSquarifier(new XYSquarifier());
-				view.setSquared(true);
-				return;
-			case "zy":
-				view.setSquarifier(new ZYSquarifier());
-				view.setSquared(true);
-				return;
-			case "xz":
-				view.setSquarifier(new XZSquarifier());
-				view.setSquared(true);
-				return;
-			default:
-				view.setSquarifier(null);
-				view.setSquared(false);
-				return;
+		case "xy":
+			view.setSquarifier(new XYSquarifier());
+			view.setSquared(true);
+			return;
+		case "zy":
+			view.setSquarifier(new ZYSquarifier());
+			view.setSquared(true);
+			return;
+		case "xz":
+			view.setSquarifier(new XZSquarifier());
+			view.setSquared(true);
+			return;
+		default:
+			view.setSquarifier(null);
+			view.setSquared(false);
+			return;
 		}
 	}
 
@@ -1208,6 +1209,58 @@ public class Viewer3D {
 			fitToVisibleObjects(false, false); //TODO: Why not use view.updateBounds()?
 		}
 		if (managerList != null) managerList.update(); // force update the manager list
+	}
+
+	private AbstractDrawable getDrawableFromObject(final Object object) {
+		if (object instanceof AbstractDrawable) {
+			return (AbstractDrawable) object;
+		} else if (object instanceof Annotation3D) {
+			return ((Annotation3D) object).getDrawable();
+		} else if (object instanceof OBJMesh) {
+			return ((OBJMesh) object).getDrawable();
+		} else if (object instanceof Tree) {
+			return plottedTrees.get(((Tree) object).getLabel());
+		} else if (object instanceof String) {
+			final ShapeTree treeShape = plottedTrees.get((String) object);
+			if (treeShape != null) return treeShape;
+			final DrawableVBO obj = plottedObjs.get((String) object);
+			if (obj != null) return obj;
+			final Annotation3D annot = plottedAnnotations.get((String) object);
+			if (annot != null) return annot.getDrawable();
+		} else if (object instanceof Collection) {
+			final AbstractComposite composite = new Shape();
+			for(final Object o : (Collection<?>)object) {
+				composite.add(getDrawableFromObject(o));
+			}
+			return composite;
+		} else {
+			throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
+		}
+		return null;
+	}
+
+	/**
+	 * Zooms the scene into the bounding box enclosing the specified objects.
+	 *
+	 * @param objects the objects to be zoomed into. These can be {@link OBJMesh},
+	 *                {@link Tree}, {@link Annotation3D}, etc., or string(s)
+	 *                defining objects listed in the "RV Controls" dialog.
+	 *                Collections of supported objects are also supported.
+	 */
+	public void zoomTo(final Object... objects) {
+		final BoundingBox3d bounds = new BoundingBox3d(0, 0, 0, 0, 0, 0);
+		for (final Object obj : objects) {
+			final AbstractDrawable d = getDrawableFromObject(obj);
+			if (d != null && d.isDisplayed() && d.getBounds() != null && !d.getBounds().isReset()) {
+				bounds.add(d.getBounds());
+			}
+		}
+		if (bounds.isPoint())
+			return;
+		// chart.view().lookToBox(bounds); seems to 'loose'
+		BoundingBox3d zoomedBox = bounds.scale(new Coord3d(.85f, .85f, .85f));
+		zoomedBox = zoomedBox.shift((bounds.getCenter().sub(zoomedBox.getCenter())));
+		chart.view().lookToBox(zoomedBox);
 	}
 
 	/**
@@ -3354,6 +3407,15 @@ public class Viewer3D {
 			final JMenuItem fit = new JMenuItem(new Action(Action.FIT, KeyEvent.VK_F, false, false));
 			fit.setIcon(IconFactory.getMenuIcon(GLYPH.EXPAND));
 			sceneMenu.add(fit);
+			final JMenuItem fitToSelection = new JMenuItem("Fit To Selection", IconFactory.getMenuIcon(GLYPH.CROSSHAIR));
+			fitToSelection.addActionListener(e -> {
+				final List<?> selection = managerList.getSelectedValuesList();
+				if (selection.isEmpty())
+					guiUtils.error("No Items are currently selected.");
+				else
+					zoomTo(selection);
+			});
+			sceneMenu.add(fitToSelection);
 			// Aspect-ratio controls
 			final JMenuItem jcbmiFill = new JCheckBoxMenuItem("Stretch-to-Fill");
 			jcbmiFill.setIcon(IconFactory.getMenuIcon(GLYPH.EXPAND_ARROWS1));
