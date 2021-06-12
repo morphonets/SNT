@@ -438,7 +438,7 @@ public class SNTCommandFinder {
 		});
 
 		final JPanel northPanel = new JPanel(new BorderLayout());
-		final JButton searchLabel = new JButton(IconFactory.getButtonIcon(GLYPH.SEARCH));
+		final JButton searchLabel = new JButton(IconFactory.getButtonIcon(GLYPH.KEYBOARD));
 		searchLabel.addActionListener(e -> helpMsg());
 		searchLabel.setToolTipText("Click for shortcut list");
 		northPanel.add(searchLabel, BorderLayout.WEST);

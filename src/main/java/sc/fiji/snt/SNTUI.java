@@ -83,6 +83,7 @@ import javax.swing.event.ChangeListener;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
+import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
@@ -1245,7 +1246,7 @@ public class SNTUI extends JDialog {
 		final JCheckBox canvasCheckBox = new JCheckBox("Activate canvas on mouse hovering",
 				plugin.autoCanvasActivation);
 		guiUtils.addTooltip(canvasCheckBox, "Whether the image window should be brought to front as soon as the mouse "
-				+ "pointer enters it. This ensures shortcuts work as expected.");
+				+ "pointer enters it. This may be needed to ensure single key shortcuts work as expected when tracing.");
 		canvasCheckBox.addItemListener(e -> plugin.enableAutoActivation(e.getStateChange() == ItemEvent.SELECTED));
 		intPanel.add(canvasCheckBox, gdb);
 		++gdb.gridy;
@@ -1253,7 +1254,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel nodePanel() {
-		final JSpinner nodeSpinner = GuiUtils.doubleSpinner((plugin.getXYCanvas() == null) ? 1 : plugin.getXYCanvas().nodeDiameter(), 0, 100, 1, 0);
+		final JSpinner nodeSpinner = GuiUtils.doubleSpinner((plugin.getXYCanvas() == null) ? 1 : plugin.getXYCanvas().nodeDiameter(), 0.5, 100, .5, 1);
 		nodeSpinner.addChangeListener(e -> {
 			final double value = (double) (nodeSpinner.getValue());
 			plugin.getXYCanvas().setNodeDiameter(value);
@@ -1273,7 +1274,6 @@ public class SNTUI extends JDialog {
 			nodeSpinner.setValue(plugin.getXYCanvas().nodeDiameter());
 			showStatus("Node scale reset", true);
 		});
-
 		final JPanel p = new JPanel();
 		p.setLayout(new GridBagLayout());
 		final GridBagConstraints c = GuiUtils.defaultGbc();
@@ -1282,12 +1282,13 @@ public class SNTUI extends JDialog {
 		c.gridy = 0;
 		c.gridwidth = 3;
 		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel("Path nodes rendering scale: ", true));
+		p.add(GuiUtils.leftAlignedLabel("Path rendering scale: ", true));
 		c.gridx = 1;
 		p.add(nodeSpinner, c);
 		c.fill = GridBagConstraints.NONE;
 		c.gridx = 2;
 		p.add(defaultsButton);
+		guiUtils.addTooltip(p, "The scaling factor for path nodes");
 		return p;
 	}
 
@@ -1305,7 +1306,6 @@ public class SNTUI extends JDialog {
 		});
 
 		final JPanel p = new JPanel();
-		guiUtils.addTooltip(p, "Rendering opacity (0-100%) for lines connecting nodes");
 		p.setLayout(new GridBagLayout());
 		final GridBagConstraints c = GuiUtils.defaultGbc();
 		c.fill = GridBagConstraints.HORIZONTAL;
@@ -1313,12 +1313,13 @@ public class SNTUI extends JDialog {
 		c.gridy = 0;
 		c.gridwidth = 3;
 		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel("Path centerlines opacity (%): ", true));
+		p.add(GuiUtils.leftAlignedLabel("Path centerline opacity (%): ", true));
 		c.gridx = 1;
 		p.add(defTransparencySpinner, c);
 		c.fill = GridBagConstraints.NONE;
 		c.gridx = 2;
 		p.add(defTransparencyButton);
+		guiUtils.addTooltip(p, "Rendering opacity (0-100%) for lines connecting nodes");
 		return p;
 	}
 
@@ -1337,9 +1338,6 @@ public class SNTUI extends JDialog {
 		});
 
 		final JPanel p = new JPanel();
-		guiUtils.addTooltip(p, "The opacity (0-100%) of segments that are out-of-plane. "
-				+ "Only considered when tracing 3D images and the visibility filter is "
-				+ "<i>Only nodes within # nearby Z-slices</i>");
 		p.setLayout(new GridBagLayout());
 		final GridBagConstraints c = GuiUtils.defaultGbc();
 		c.fill = GridBagConstraints.HORIZONTAL;
@@ -1353,6 +1351,9 @@ public class SNTUI extends JDialog {
 		c.fill = GridBagConstraints.NONE;
 		c.gridx = 2;
 		p.add(defaultOutOfBoundsButton);
+		guiUtils.addTooltip(p, "The opacity (0-100%) of segments that are out-of-plane. "
+				+ "Only considered when tracing 3D images and the visibility filter is "
+				+ "<i>Only nodes within # nearby Z-slices</i>");
 		return p;
 	}
 
@@ -1380,8 +1381,8 @@ public class SNTUI extends JDialog {
 		final InteractiveTracerCanvas canvas = plugin.getXYCanvas();
 		hm.put("Canvas annotations", (canvas == null) ? null : canvas.getAnnotationsColor());
 		hm.put("Fills", (canvas == null) ? null : canvas.getFillColor());
-		hm.put("Unconfirmed paths", (canvas == null) ? null : canvas.getUnconfirmedPathColor());
 		hm.put("Temporary paths", (canvas == null) ? null : canvas.getTemporaryPathColor());
+		hm.put("Unconfirmed paths", (canvas == null) ? null : canvas.getUnconfirmedPathColor());
 
 		final JComboBox<String> colorChoice = new JComboBox<>();
 		for (final Entry<String, Color> entry : hm.entrySet())
@@ -2639,6 +2640,7 @@ public class SNTUI extends JDialog {
 		row1.add(showPathsSelected);
 
 		showPartsNearby = new JCheckBox(hotKeyLabel("2. Only nodes within ", "2"));
+		guiUtils.addTooltip(showPartsNearby, "See the Options pane for further display settings");
 		showPartsNearby.setEnabled(isStackAvailable());
 		showPartsNearby.addItemListener(listener);
 		final JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -2699,8 +2701,6 @@ public class SNTUI extends JDialog {
 
 		final JPanel tracingOptionsPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
 		useSnapWindow = new JCheckBox(hotKeyLabel("Enable Snapping within: XY", "S"), plugin.snapCursor);
-		guiUtils.addTooltip(useSnapWindow, "Whether the mouse pointer should snap to the brightest voxel "
-				+ "searched within the specified neighborhood (in pixels). If Z=0 snapping occurs in 2D.");
 		useSnapWindow.addItemListener(listener);
 		tracingOptionsPanel.add(useSnapWindow);
 
@@ -2719,6 +2719,8 @@ public class SNTUI extends JDialog {
 		snapWindowZsizeSpinner
 				.addChangeListener(e -> plugin.cursorSnapWindowZ = (int) snapWindowZsizeSpinner.getValue() / 2);
 		tracingOptionsPanel.add(snapWindowZsizeSpinner);
+		guiUtils.addTooltip(tracingOptionsPanel, "Whether the mouse pointer should snap to the brightest voxel "
+				+ "searched within the specified neighborhood (in pixels). When Z=0 snapping occurs in 2D.");
 		// ensure same alignment of all other panels using defaultGbc
 		final JPanel container = new JPanel(new GridBagLayout());
 		container.add(tracingOptionsPanel, GuiUtils.defaultGbc());
@@ -2931,7 +2933,7 @@ public class SNTUI extends JDialog {
 			if (!plugin.accessToValidImageData()) {
 				defaultText = "Image data unavailable...";
 			} else {
-				defaultText = "Tracing " + plugin.getImagePlus().getShortTitle() + ", C=" + plugin.channel + ", T="
+				defaultText = "Tracing " + StringUtils.abbreviate(plugin.getImagePlus().getShortTitle(), 25) + ", C=" + plugin.channel + ", T="
 						+ plugin.frame;
 			}
 
