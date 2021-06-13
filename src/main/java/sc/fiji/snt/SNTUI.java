@@ -141,7 +141,7 @@ import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 public class SNTUI extends JDialog {
 
 	/* UI */
-	private static final int MARGIN = 4;
+	private static final int MARGIN = 2;
 	private final JMenuBar menuBar;
 	private JCheckBox showPathsSelected;
 	protected JCheckBox showPartsNearby;
@@ -1264,7 +1264,7 @@ public class SNTUI extends JDialog {
 			}
 			plugin.updateTracingViewers(false);
 		});
-		final JButton defaultsButton = new JButton("Default");
+		final JButton defaultsButton = new JButton("Reset");
 		defaultsButton.addActionListener(e -> {
 			plugin.getXYCanvas().setNodeDiameter(-1);
 			if (!plugin.getSinglePane()) {
@@ -1298,7 +1298,7 @@ public class SNTUI extends JDialog {
 		defTransparencySpinner.addChangeListener(e -> {
 			setDefaultTransparency(Integer.valueOf(defTransparencySpinner.getValue().toString()));
 		});
-		final JButton defTransparencyButton = new JButton("Default");
+		final JButton defTransparencyButton = new JButton("Reset");
 		defTransparencyButton.addActionListener(e -> {
 			setDefaultTransparency(100);
 			defTransparencySpinner.setValue(100);
@@ -1313,13 +1313,13 @@ public class SNTUI extends JDialog {
 		c.gridy = 0;
 		c.gridwidth = 3;
 		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel("Path centerline opacity (%): ", true));
+		p.add(GuiUtils.leftAlignedLabel("Centerline opacity (%): ", true));
 		c.gridx = 1;
 		p.add(defTransparencySpinner, c);
 		c.fill = GridBagConstraints.NONE;
 		c.gridx = 2;
 		p.add(defTransparencyButton);
-		guiUtils.addTooltip(p, "Rendering opacity (0-100%) for lines connecting nodes");
+		guiUtils.addTooltip(p, "Rendering opacity (0-100%) for lines connecting path nodes");
 		return p;
 	}
 
@@ -1330,7 +1330,7 @@ public class SNTUI extends JDialog {
 		transparencyOutOfBoundsSpinner.addChangeListener(e -> {
 			setOutOfBoundsTransparency(Integer.valueOf(transparencyOutOfBoundsSpinner.getValue().toString()));
 		});
-		final JButton defaultOutOfBoundsButton = new JButton("Default");
+		final JButton defaultOutOfBoundsButton = new JButton("Reset");
 		defaultOutOfBoundsButton.addActionListener(e -> {
 			setOutOfBoundsTransparency(50);
 			transparencyOutOfBoundsSpinner.setValue(50);
@@ -1345,13 +1345,13 @@ public class SNTUI extends JDialog {
 		c.gridy = 0;
 		c.gridwidth = 3;
 		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel("Opacity of out-of-plane segments (%): ", true));
+		p.add(GuiUtils.leftAlignedLabel("Out-of-plane opacity (%): ", true));
 		c.gridx = 1;
 		p.add(transparencyOutOfBoundsSpinner, c);
 		c.fill = GridBagConstraints.NONE;
 		c.gridx = 2;
 		p.add(defaultOutOfBoundsButton);
-		guiUtils.addTooltip(p, "The opacity (0-100%) of segments that are out-of-plane. "
+		guiUtils.addTooltip(p, "The opacity (0-100%) of path segments that are out-of-plane. "
 				+ "Only considered when tracing 3D images and the visibility filter is "
 				+ "<i>Only nodes within # nearby Z-slices</i>");
 		return p;
@@ -2969,7 +2969,7 @@ public class SNTUI extends JDialog {
 
 	private JPanel getTab() {
 		final JPanel tab = new JPanel();
-		tab.setBorder(BorderFactory.createEmptyBorder(MARGIN * 2, MARGIN / 2, MARGIN / 2, MARGIN));
+		tab.setBorder(BorderFactory.createEmptyBorder(MARGIN, MARGIN / 2, MARGIN / 2, MARGIN));
 		tab.setLayout(new GridBagLayout());
 		return tab;
 	}

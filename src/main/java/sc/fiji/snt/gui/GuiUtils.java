@@ -779,8 +779,7 @@ public class GuiUtils {
 		final int previousTopGap = c.insets.top;
 		final Font font = label.getFont();
 		label.setFont(font.deriveFont((float) (font.getSize() * .85)));
-		if (vgap) c.insets.top = (int) (component.getFontMetrics(font).getHeight() *
-			1.5);
+		if (vgap) c.insets.top = (int) (component.getFontMetrics(font).getHeight());
 		component.add(label, c);
 		if (vgap) c.insets.top = previousTopGap;
 	}
