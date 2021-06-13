@@ -1,4 +1,4 @@
-# @String(visibility="MESSAGE",value="<html>This script merges Sholl profiles from multiple files into a single table and plot.<br>It assumes that files share the same structure and profiles the same <i>starting<br> radius</i> and <i>radius step size</i>.<br><br>Tip: Subscribe to the BAR update site to use <i>BAR>Data Analysis></i> routines to plot<br>processed data in a more flexible way.<br>&nbsp;") MSG
+# @String(visibility="MESSAGE",value="<html>This script merges Sholl profiles from multiple files into a single table and plot,<br>obtaining Mean&plusmn;StdDev profiles for groups of cells. It assumes that files share<br>the same structure and profiles the same <i>starting radius</i> and <i>radius step size</i>.<br><br>Tip: Subscribe to the BAR update site to use <i>BAR>Data Analysis></i> routines to plot<br>processed data for multiple groups in a more flexible way.<br>&nbsp;") MSG
 # @File(label="Input directory", style="directory", description="The directory containing the files with the tabular profiles to be parsed") dir
 # @String(label="Filename contains", value="", description="<html>Only files containing this string will be considered.<br>Leave blank to consider all files. Glob patterns accepted.") pattern
 # @String(label="File extension", choices={".csv",".txt",".xls",".ods", "any extension"}, description="<html>The extension of the files to be parsed.") extension
@@ -83,6 +83,7 @@ def main():
 
     uiservice.getDefaultUI().getConsolePane().show()
     log("Parsing %s for files matching '%s'" % (str(dir), glob_pattern))
+    log("Column header(s) (case-sensitive, exact match expected): ['%s', '%s']" % (xcolumn_header, ycolumn_header))
 
     xvalues, all_ydata = [], []
     first_valid_idx = 0
@@ -119,7 +120,7 @@ def main():
                 xcolumn_idx = header_row.index(xcolumn_header)
                 ycolumn_idx = header_row.index(ycolumn_header)
             except ValueError:
-                log("Skipping... file does not contain enough columns", "warn")
+                log("Skipping... Column header(s) not found in file", "warn")
                 continue
   
             for row_idx, row in enumerate(incsv):
@@ -129,7 +130,7 @@ def main():
                         xvalues.append(tofloat(row[xcolumn_idx]))
                         last_row = row_idx
                 except IndexError:
-                    log("Skipping... file does not contain enough columns", "warn")
+                    log("Skipping... Column header(s) not found in file", "warn")
                     continue
 
     if not all_ydata:
@@ -140,7 +141,7 @@ def main():
     data_identifier = "Col_%s_%s" % (ycolumn_header, pattern)
 
     log("Building table with merged Y-data...")
-    table = newtable(ycolumn_header, xvalues)
+    table = newtable(xcolumn_header, xvalues)
     for filename, row, row_value in all_ydata:
         table.set(filename, row, row_value)
     uiservice.show("MergedFiles_%s" % data_identifier, table)

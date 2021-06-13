@@ -208,6 +208,13 @@ public class Path implements Comparable<Path> {
 
 
 	/**
+	 * Instantiates a new path under default settings (isotropic 1um pixel spacing)
+	 */
+	public Path() {
+		this(1, 1, 1, "um");
+	}
+
+	/**
 	 * Instantiates a new path.
 	 *
 	 * @param x_spacing Pixel width in spacing_units
@@ -1385,7 +1392,8 @@ public class Path implements Comparable<Path> {
 			final PathNode pn = new PathNode(this, i, canvas);
 			final boolean outOfDepthBounds = (either_side >= 0) && (Math.abs(
 				slice_of_point - slice) > either_side);
-			g2.setColor(SNTColor.alphaColor(c, (outOfDepthBounds) ? 50 : 100));
+			g2.setColor(SNTColor.alphaColor(c,
+					(outOfDepthBounds) ? canvas.getOutOfBoundsTransparency() : canvas.getDefaultTransparency()));
 
 			// If there was a previous point in this path, draw a line from there to
 			// here:

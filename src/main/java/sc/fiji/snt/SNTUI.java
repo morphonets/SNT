@@ -22,6 +22,74 @@
 
 package sc.fiji.snt;
 
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Desktop;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.GraphicsConfiguration;
+import java.awt.GraphicsDevice;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.event.*;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
+
+import javax.swing.AbstractAction;
+import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
+import javax.swing.ButtonGroup;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JSpinner;
+import javax.swing.JTabbedPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
+import javax.swing.Timer;
+import javax.swing.WindowConstants;
+import javax.swing.border.BevelBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.ChangeListener;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+
+import org.apache.commons.lang3.StringUtils;
+import org.scijava.command.Command;
+import org.scijava.command.CommandModule;
+import org.scijava.command.CommandService;
+import org.scijava.util.ColorRGB;
+import org.scijava.util.Types;
+
 import ij.ImageListener;
 import ij.ImagePlus;
 import ij.Prefs;
@@ -1190,11 +1258,14 @@ public class SNTUI extends JDialog {
 		++gdb.gridy;
 		intPanel.add(nodePanel(), gdb);
 		++gdb.gridy;
-
+		intPanel.add(transparencyDefPanel(), gdb);
+		++gdb.gridy;
+		intPanel.add(transparencyOutOfBoundsPanel(), gdb);
+		++gdb.gridy;
 		final JCheckBox canvasCheckBox = new JCheckBox("Activate canvas on mouse hovering",
 				plugin.autoCanvasActivation);
 		guiUtils.addTooltip(canvasCheckBox, "Whether the image window should be brought to front as soon as the mouse "
-				+ "pointer enters it. This ensures shortcuts work as expected.");
+				+ "pointer enters it. This may be needed to ensure single key shortcuts work as expected when tracing.");
 		canvasCheckBox.addItemListener(e -> plugin.enableAutoActivation(e.getStateChange() == ItemEvent.SELECTED));
 		intPanel.add(canvasCheckBox, gdb);
 		++gdb.gridy;
@@ -1202,7 +1273,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel nodePanel() {
-		final JSpinner nodeSpinner = GuiUtils.doubleSpinner((plugin.getXYCanvas() == null) ? 1 : plugin.getXYCanvas().nodeDiameter(), 0, 100, 1, 0);
+		final JSpinner nodeSpinner = GuiUtils.doubleSpinner((plugin.getXYCanvas() == null) ? 1 : plugin.getXYCanvas().nodeDiameter(), 0.5, 100, .5, 1);
 		nodeSpinner.addChangeListener(e -> {
 			final double value = (double) (nodeSpinner.getValue());
 			plugin.getXYCanvas().setNodeDiameter(value);
@@ -1222,6 +1293,36 @@ public class SNTUI extends JDialog {
 			nodeSpinner.setValue(plugin.getXYCanvas().nodeDiameter());
 			showStatus("Node scale reset", true);
 		});
+		final JPanel p = new JPanel();
+		p.setLayout(new GridBagLayout());
+		final GridBagConstraints c = GuiUtils.defaultGbc();
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.gridx = 0;
+		c.gridy = 0;
+		c.gridwidth = 3;
+		c.ipadx = 0;
+		p.add(GuiUtils.leftAlignedLabel("Path rendering scale: ", true));
+		c.gridx = 1;
+		p.add(nodeSpinner, c);
+		c.fill = GridBagConstraints.NONE;
+		c.gridx = 2;
+		p.add(defaultsButton);
+		guiUtils.addTooltip(p, "The scaling factor for path nodes");
+		return p;
+	}
+
+	private JPanel transparencyDefPanel() {
+		final JSpinner defTransparencySpinner = GuiUtils.integerSpinner(
+				(plugin.getXYCanvas() == null) ? 100 : plugin.getXYCanvas().getDefaultTransparency(), 0, 100, 1, true);
+		defTransparencySpinner.addChangeListener(e -> {
+			setDefaultTransparency(Integer.valueOf(defTransparencySpinner.getValue().toString()));
+		});
+		final JButton defTransparencyButton = new JButton("Default");
+		defTransparencyButton.addActionListener(e -> {
+			setDefaultTransparency(100);
+			defTransparencySpinner.setValue(100);
+			showStatus("Default transparency reset", true);
+		});
 
 		final JPanel p = new JPanel();
 		p.setLayout(new GridBagLayout());
@@ -1231,13 +1332,66 @@ public class SNTUI extends JDialog {
 		c.gridy = 0;
 		c.gridwidth = 3;
 		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel("Path nodes rendering scale: ", true));
+		p.add(GuiUtils.leftAlignedLabel("Path centerline opacity (%): ", true));
 		c.gridx = 1;
-		p.add(nodeSpinner, c);
+		p.add(defTransparencySpinner, c);
 		c.fill = GridBagConstraints.NONE;
 		c.gridx = 2;
-		p.add(defaultsButton);
+		p.add(defTransparencyButton);
+		guiUtils.addTooltip(p, "Rendering opacity (0-100%) for lines connecting nodes");
 		return p;
+	}
+
+	private JPanel transparencyOutOfBoundsPanel() {
+		final JSpinner transparencyOutOfBoundsSpinner = GuiUtils.integerSpinner(
+				(plugin.getXYCanvas() == null) ? 100 : plugin.getXYCanvas().getOutOfBoundsTransparency(), 0, 100, 1,
+				true);
+		transparencyOutOfBoundsSpinner.addChangeListener(e -> {
+			setOutOfBoundsTransparency(Integer.valueOf(transparencyOutOfBoundsSpinner.getValue().toString()));
+		});
+		final JButton defaultOutOfBoundsButton = new JButton("Default");
+		defaultOutOfBoundsButton.addActionListener(e -> {
+			setOutOfBoundsTransparency(50);
+			transparencyOutOfBoundsSpinner.setValue(50);
+			showStatus("Default transparency reset", true);
+		});
+
+		final JPanel p = new JPanel();
+		p.setLayout(new GridBagLayout());
+		final GridBagConstraints c = GuiUtils.defaultGbc();
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.gridx = 0;
+		c.gridy = 0;
+		c.gridwidth = 3;
+		c.ipadx = 0;
+		p.add(GuiUtils.leftAlignedLabel("Opacity of out-of-plane segments (%): ", true));
+		c.gridx = 1;
+		p.add(transparencyOutOfBoundsSpinner, c);
+		c.fill = GridBagConstraints.NONE;
+		c.gridx = 2;
+		p.add(defaultOutOfBoundsButton);
+		guiUtils.addTooltip(p, "The opacity (0-100%) of segments that are out-of-plane. "
+				+ "Only considered when tracing 3D images and the visibility filter is "
+				+ "<i>Only nodes within # nearby Z-slices</i>");
+		return p;
+	}
+
+	private void setDefaultTransparency(final int value) {
+		plugin.getXYCanvas().setDefaultTransparency(value);
+		if (!plugin.getSinglePane()) {
+			plugin.getXZCanvas().setDefaultTransparency(value);
+			plugin.getZYCanvas().setDefaultTransparency(value);
+		}
+		plugin.updateTracingViewers(false);
+	}
+
+	private void setOutOfBoundsTransparency(final int value) {
+		plugin.getXYCanvas().setOutOfBoundsTransparency(value);
+		if (!plugin.getSinglePane()) {
+			plugin.getXZCanvas().setOutOfBoundsTransparency(value);
+			plugin.getZYCanvas().setOutOfBoundsTransparency(value);
+		}
+		plugin.updateTracingViewers(false);
 	}
 
 	private JPanel extraColorsPanel() {
@@ -1246,8 +1400,8 @@ public class SNTUI extends JDialog {
 		final InteractiveTracerCanvas canvas = plugin.getXYCanvas();
 		hm.put("Canvas annotations", (canvas == null) ? null : canvas.getAnnotationsColor());
 		hm.put("Fills", (canvas == null) ? null : canvas.getFillColor());
-		hm.put("Unconfirmed paths", (canvas == null) ? null : canvas.getUnconfirmedPathColor());
 		hm.put("Temporary paths", (canvas == null) ? null : canvas.getTemporaryPathColor());
+		hm.put("Unconfirmed paths", (canvas == null) ? null : canvas.getUnconfirmedPathColor());
 
 		final JComboBox<String> colorChoice = new JComboBox<>();
 		for (final Entry<String, Color> entry : hm.entrySet())
@@ -2527,6 +2681,7 @@ public class SNTUI extends JDialog {
 		row1.add(showPathsSelected);
 
 		showPartsNearby = new JCheckBox(hotKeyLabel("2. Only nodes within ", "2"));
+		guiUtils.addTooltip(showPartsNearby, "See the Options pane for further display settings");
 		showPartsNearby.setEnabled(isStackAvailable());
 		showPartsNearby.addItemListener(listener);
 		final JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -2587,8 +2742,6 @@ public class SNTUI extends JDialog {
 
 		final JPanel tracingOptionsPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
 		useSnapWindow = new JCheckBox(hotKeyLabel("Enable Snapping within: XY", "S"), plugin.snapCursor);
-		guiUtils.addTooltip(useSnapWindow, "Whether the mouse pointer should snap to the brightest voxel "
-				+ "searched within the specified neighborhood (in pixels). If Z=0 snapping occurs in 2D.");
 		useSnapWindow.addItemListener(listener);
 		tracingOptionsPanel.add(useSnapWindow);
 
@@ -2607,6 +2760,8 @@ public class SNTUI extends JDialog {
 		snapWindowZsizeSpinner
 				.addChangeListener(e -> plugin.cursorSnapWindowZ = (int) snapWindowZsizeSpinner.getValue() / 2);
 		tracingOptionsPanel.add(snapWindowZsizeSpinner);
+		guiUtils.addTooltip(tracingOptionsPanel, "Whether the mouse pointer should snap to the brightest voxel "
+				+ "searched within the specified neighborhood (in pixels). When Z=0 snapping occurs in 2D.");
 		// ensure same alignment of all other panels using defaultGbc
 		final JPanel container = new JPanel(new GridBagLayout());
 		container.add(tracingOptionsPanel, GuiUtils.defaultGbc());
@@ -2910,7 +3065,7 @@ public class SNTUI extends JDialog {
 			if (!plugin.accessToValidImageData()) {
 				defaultText = "Image data unavailable...";
 			} else {
-				defaultText = "Tracing " + plugin.getImagePlus().getShortTitle() + ", C=" + plugin.channel + ", T="
+				defaultText = "Tracing " + StringUtils.abbreviate(plugin.getImagePlus().getShortTitle(), 25) + ", C=" + plugin.channel + ", T="
 						+ plugin.frame;
 			}
 

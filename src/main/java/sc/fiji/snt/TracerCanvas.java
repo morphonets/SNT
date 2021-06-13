@@ -42,6 +42,8 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 	protected int eitherSide;
 	private final ArrayList<SearchInterface> searchThreads = new ArrayList<>();
 	private double nodeSize = -1;
+	private int[]transparencies; //in percentage, [0]: default; [1]: out of bounds
+
 
 	public TracerCanvas(final ImagePlus imagePlus, final PaneOwner owner,
 		final int plane, final PathAndFillManager pathAndFillManager)
@@ -208,6 +210,28 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 	 */
 	public void setNodeDiameter(final double diameter) {
 		nodeSize = diameter;
+	}
+
+	protected void setDefaultTransparency(final int percentage) {
+		if (transparencies == null)
+			transparencies = new int[] {percentage, 50};
+		else
+			transparencies[0] = percentage;
+	}
+
+	protected void setOutOfBoundsTransparency(final int percentage) {
+		if (transparencies == null)
+			transparencies = new int[] {100, percentage};
+		else
+			transparencies[1] = percentage;
+	}
+
+	protected int getDefaultTransparency() { // in percentage
+		return  (transparencies == null) ? 100 : transparencies[0];
+	}
+
+	protected int getOutOfBoundsTransparency() { // in percentage
+		return  (transparencies == null) ? 50 : transparencies[1];
 	}
 
 }
