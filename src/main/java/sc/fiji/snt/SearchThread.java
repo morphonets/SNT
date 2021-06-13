@@ -368,8 +368,8 @@ public abstract class SearchThread extends AbstractSearch {
 							double value_at_new_point = imgAccess.setPositionAndGet(imgPosition).getRealDouble();
 
 							double cost_moving_to_new_point = costFunction.costMovingTo(value_at_new_point);
-							if (cost_moving_to_new_point < costFunction.minimumCostPerUnitDistance()) {
-								cost_moving_to_new_point = costFunction.minimumCostPerUnitDistance();
+							if (cost_moving_to_new_point < costFunction.minStepCost()) {
+								cost_moving_to_new_point = costFunction.minStepCost();
 							}
 
 							final double g_for_new_point = (p.g + Math.sqrt(xdiffsq +

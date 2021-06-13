@@ -74,6 +74,10 @@ public class OneMinusErfCost implements SearchCost {
         this.zFudge = zFudge;
     }
 
+    public double getZFudge() {
+        return this.zFudge;
+    }
+
     protected double zScore(final double valueAtNewPoint) {
         return (valueAtNewPoint - this.avg) / this.stdDev;
     }
@@ -83,7 +87,7 @@ public class OneMinusErfCost implements SearchCost {
     }
 
     @Override
-    public double minimumCostPerUnitDistance() {
+    public double minStepCost() {
         return minCostPerUnitDistance;
     }
 

@@ -42,16 +42,17 @@ public class ReciprocalCost implements SearchCost {
 
     @Override
     public double costMovingTo(double valueAtNewPoint) {
-        if (valueAtNewPoint != 0) {
-            valueAtNewPoint = 255.0 * (valueAtNewPoint - stackMin) / (stackMax - stackMin);
-            return 1.0 / valueAtNewPoint;
-        } else {
-            return 1 / RECIPROCAL_FUDGE;
+        valueAtNewPoint = 255.0 * (valueAtNewPoint - stackMin) / (stackMax - stackMin);
+        if (valueAtNewPoint <= 0) {
+            valueAtNewPoint = RECIPROCAL_FUDGE;
+        } else if (valueAtNewPoint > 255) {
+            valueAtNewPoint = 255;
         }
+        return 1.0 / valueAtNewPoint;
     }
 
     @Override
-    public double minimumCostPerUnitDistance() {
+    public double minStepCost() {
         return MIN_COST_PER_UNIT_DISTANCE;
     }
 
