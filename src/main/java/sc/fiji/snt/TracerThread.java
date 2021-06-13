@@ -139,7 +139,7 @@ public class TracerThread extends SearchThread {
 	protected double estimateCostToGoal(final int current_x, final int current_y, final int current_z,
 										final boolean fromStart)
 	{
-		return costFunction.minimumCostPerUnitDistance() * heuristic.estimateCostToGoal(
+		return costFunction.minStepCost() * heuristic.estimateCostToGoal(
 				current_x,
 				current_y,
 				current_z,

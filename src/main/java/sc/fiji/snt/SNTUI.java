@@ -27,18 +27,14 @@ import ij.ImagePlus;
 import ij.Prefs;
 import ij.gui.ImageCanvas;
 import ij.gui.ImageWindow;
-import ij.process.ImageStatistics;
 import ij3d.Content;
 import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
 import ij3d.ImageWindow3D;
 import net.imagej.Dataset;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.algorithm.stats.ComputeMinMax;
-import net.imglib2.img.Img;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.real.FloatType;
-import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
@@ -2708,7 +2704,10 @@ public class SNTUI extends JDialog {
 		scalingJmi.addActionListener(e -> plugin.costFunctionClass = MaxScalingCost.class);
 		costFunctionMenu.add(scalingJmi);
 		JMenuItem statJmi = new JMenuItem("Probability of intensity");
-		statJmi.addActionListener(e -> plugin.costFunctionClass = OneMinusErfCost.class);
+		statJmi.addActionListener(e -> {
+			plugin.costFunctionClass = OneMinusErfCost.class;
+			setZFudgeFromUser();
+		});
 		costFunctionMenu.add(statJmi);
 		optionsMenu.add(costFunctionMenu);
 
@@ -2994,6 +2993,25 @@ public class SNTUI extends JDialog {
 			return;
 		}
 		// TODO repurpose this for MaxScalingCost
+	}
+
+	private void setZFudgeFromUser() {
+		final double defaultValue = new OneMinusErfCost(0,0,0).getZFudge();
+		String promptMsg = "<HTML><body><div style='width:250;'>" //
+				+ "Enter multiplier for intensity z-score."//
+				+ "Values < 1 make it easier to numerically distinguish bright voxels "//
+				+ "The current default is "//
+				+ SNTUtils.formatDouble(defaultValue, 2) + ".";
+		final Double fudge = guiUtils.getDouble(promptMsg, "Z-score fudge", defaultValue);
+		if (fudge == null) {
+			return; // user pressed cancel
+		}
+		if (Double.isNaN(fudge) || fudge < 0) {
+			guiUtils.error("Fudge must be a positive number.", "Invalid Input");
+			return;
+		}
+		plugin.oneMinusErfZFudge = fudge;
+		SNTUtils.log("Z-fudge changed. Now using " + plugin.oneMinusErfZFudge);
 	}
 
 	private boolean okToFlushCachedTubeness(final String type) {

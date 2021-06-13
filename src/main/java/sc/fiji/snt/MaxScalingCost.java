@@ -48,7 +48,7 @@ public class MaxScalingCost implements SearchCost {
     }
 
     @Override
-    public double minimumCostPerUnitDistance() {
+    public double minStepCost() {
         return MIN_COST_PER_UNIT_DISTANCE;
     }
 

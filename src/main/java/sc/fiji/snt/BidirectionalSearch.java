@@ -185,10 +185,10 @@ public class BidirectionalSearch extends AbstractSearch {
 
             double bestFScoreFromStart =
                     heuristic.estimateCostToGoal(start.x, start.y, start.z, goal.x, goal.y, goal.z) *
-                            costFunction.minimumCostPerUnitDistance();
+                            costFunction.minStepCost();
             double bestFScoreFromGoal =
                     heuristic.estimateCostToGoal(goal.x, goal.y, goal.z, start.x, start.y, start.z) *
-                            costFunction.minimumCostPerUnitDistance();
+                            costFunction.minStepCost();
 
             start.fFromStart = bestFScoreFromStart;
             goal.fFromGoal = bestFScoreFromGoal;
@@ -238,12 +238,12 @@ public class BidirectionalSearch extends AbstractSearch {
                     bestFScoreFromStart = p.fFromStart;
 
                     if (p.gFromStart + heuristic.estimateCostToGoal(p.x, p.y, p.z, goal.x, goal.y, goal.z) *
-                            costFunction.minimumCostPerUnitDistance()
+                            costFunction.minStepCost()
                             >= bestPathLength
                             ||
                             p.gFromStart + bestFScoreFromGoal -
                                     heuristic.estimateCostToGoal(p.x, p.y, p.z, start.x, start.y, start.z) *
-                                            costFunction.minimumCostPerUnitDistance()
+                                            costFunction.minStepCost()
                                     >= bestPathLength) {
 
                         p.state = REJECTED;
@@ -265,12 +265,12 @@ public class BidirectionalSearch extends AbstractSearch {
                     bestFScoreFromGoal = p.fFromGoal;
 
                     if (p.gFromGoal + heuristic.estimateCostToGoal(p.x, p.y, p.z, start.x, start.y, start.z) *
-                            costFunction.minimumCostPerUnitDistance()
+                            costFunction.minStepCost()
                             >= bestPathLength
                             ||
                             p.gFromGoal + bestFScoreFromStart -
                                     heuristic.estimateCostToGoal(p.x, p.y, p.z, goal.x, goal.y, goal.z) *
-                                            costFunction.minimumCostPerUnitDistance()
+                                            costFunction.minStepCost()
                                     >= bestPathLength) {
 
                         p.state = REJECTED;
@@ -341,8 +341,8 @@ public class BidirectionalSearch extends AbstractSearch {
                     double value_at_new_point = imgAccess.setPositionAndGet(imgPosition).getRealDouble();
                     double cost_moving_to_new_point = costFunction.costMovingTo(value_at_new_point);
 
-                    if (cost_moving_to_new_point < costFunction.minimumCostPerUnitDistance()) {
-                        cost_moving_to_new_point = costFunction.minimumCostPerUnitDistance();
+                    if (cost_moving_to_new_point < costFunction.minStepCost()) {
+                        cost_moving_to_new_point = costFunction.minStepCost();
                     }
 
                     if (fromStart) {
@@ -352,7 +352,7 @@ public class BidirectionalSearch extends AbstractSearch {
 
                         final double h_for_new_point =
                                 heuristic.estimateCostToGoal(new_x, new_y, new_z, goal_x, goal_y, goal_z) *
-                                        costFunction.minimumCostPerUnitDistance();
+                                        costFunction.minStepCost();
 
                         final double f_for_new_point = g_for_new_point + h_for_new_point;
 
@@ -396,7 +396,7 @@ public class BidirectionalSearch extends AbstractSearch {
 
                         final double h_for_new_point =
                                 heuristic.estimateCostToGoal(new_x, new_y, new_z, start_x, start_y, start_z) *
-                                        costFunction.minimumCostPerUnitDistance();
+                                        costFunction.minStepCost();
 
                         final double f_for_new_point = g_for_new_point + h_for_new_point;
 

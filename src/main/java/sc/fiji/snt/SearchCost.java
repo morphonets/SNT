@@ -29,6 +29,6 @@ public interface SearchCost {
 
     double costMovingTo(final double valueAtNewPoint);
 
-    double minimumCostPerUnitDistance();
+    double minStepCost();
 
 }

@@ -184,6 +184,9 @@ public class SNT extends MultiDThreePanes implements
 	protected Class<? extends SearchCost> costFunctionClass = ReciprocalCost.class;
 	protected Class<? extends SearchHeuristic> heuristicClass = EuclideanHeuristic.class;
 
+	/* adjustable parameters for cost functions */
+	double oneMinusErfZFudge = 0.1;
+
 	/* tracing threads */
 	private AbstractSearch currentSearchThread = null;
 	private ManualTracerThread manualSearchThread = null;
@@ -1530,7 +1533,9 @@ public class SNT extends MultiDThreePanes implements
 		} else if (MaxScalingCost.class.equals(costFunctionClass)) {
 			costFunction = new MaxScalingCost(stats.max);
 		} else if (OneMinusErfCost.class.equals(costFunctionClass)) {
-			costFunction = new OneMinusErfCost(stats.max, stats.mean, stats.stdDev);
+			OneMinusErfCost cost = new OneMinusErfCost(stats.max, stats.mean, stats.stdDev);
+			cost.setZFudge(oneMinusErfZFudge);
+			costFunction = cost;
 		} else {
 			throw new IllegalArgumentException("BUG: Unknown cost function class " + costFunctionClass);
 		}
