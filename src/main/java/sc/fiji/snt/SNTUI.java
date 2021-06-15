@@ -109,6 +109,7 @@ import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTCommandFinder;
+import sc.fiji.snt.gui.SaveMeasurementsCmd;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.SigmaPalette;
 import sc.fiji.snt.io.FlyCircuitLoader;
@@ -2326,8 +2327,11 @@ public class SNTUI extends JDialog {
 		loadLabelsMenuItem.addActionListener(listener);
 		fileMenu.add(loadLabelsMenuItem);
 		final JMenuItem saveTable = new JMenuItem("Save Measurements...", IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
+		saveTable.setToolTipText("Saves all tables, plots, and charts currently open.");
 		saveTable.addActionListener(e -> {
-			pmUI.saveTable();
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("snt", plugin);
+			(new DynamicCmdRunner(SaveMeasurementsCmd.class, inputs, getState())).run();
 			return;
 		});
 		fileMenu.add(saveTable);

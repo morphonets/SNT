@@ -36,6 +36,7 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.SaveMeasurementsCmd;
 import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.BrainAnnotationCmd;
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
@@ -187,6 +188,7 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(RecViewerPrefsCmd.class);
 		prefService.clear(RemoteSWCImporterCmd.class);
 		prefService.clear(ROIExporterCmd.class);
+		prefService.clear(SaveMeasurementsCmd.class);
 		prefService.clear(ShollAnalysisBulkTreeCmd.class);
 		prefService.clear(ShollAnalysisImgCmd.class);
 		prefService.clear(ShollAnalysisPrefsCmd.class);

@@ -3910,24 +3910,10 @@ public class Viewer3D {
 				});
 			});
 			measureMenu.add(mi);
-			mi = new JMenuItem("Save Table...", IconFactory.getMenuIcon(GLYPH.SAVE));
+			mi = new JMenuItem("Save Measurements...", IconFactory.getMenuIcon(GLYPH.SAVE));
+			mi.setToolTipText("Saves all tables, plots, and charts currently open.");
 			mi.addActionListener(e -> {
-				if (table == null || table.isEmpty() || table.getRowCount() == 0) {
-					guiUtils.error("No data in measurements table.");
-				} else {
-					final File file = context.getService(UIService.class)
-							.chooseFile(new File(prefs.lastDir, "SNT-Measurements.csv"), FileWidget.SAVE_STYLE);
-					if (file != null)
-						try {
-							table.save(file);
-							prefs.lastDir = file.getParentFile();
-						} catch (final IOException e1) {
-							guiUtils.error("An error occured while saving table. See Console for details and data.");
-							e1.printStackTrace();
-							System.out.println("###   ###   ###   Tabular Data:    ###   ###   ###");
-							System.out.println(table);
-						}
-				}
+				runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING);
 			});
 			measureMenu.add(mi);
 			addSeparator(measureMenu, "Distribution Analysis:");
