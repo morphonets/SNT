@@ -27,6 +27,8 @@ package sc.fiji.snt;
  */
 public class MaxScalingCost implements SearchCost {
 
+    // For 0 intensity, use half the smallest possible rescaled value (assuming we don't allow DoubleType)
+    static final double RECIPROCAL_FUDGE = (255 * 0.5 * (double)Float.MIN_VALUE) / (double)Float.MAX_VALUE;
     static final double MIN_COST_PER_UNIT_DISTANCE = 1.0 / 256;
 
     private final double multiplier;
@@ -37,11 +39,10 @@ public class MaxScalingCost implements SearchCost {
 
     @Override
     public double costMovingTo(double valueAtNewPoint) {
-        if (valueAtNewPoint == 0) {
-            return Double.MAX_VALUE;
-        }
         valueAtNewPoint *= multiplier;
-        if (valueAtNewPoint > 256) {
+        if (valueAtNewPoint <= 0) {
+            valueAtNewPoint = RECIPROCAL_FUDGE;
+        } else if (valueAtNewPoint > 256) {
             valueAtNewPoint = 256;
         }
         return 1.0 / valueAtNewPoint;

@@ -29,7 +29,8 @@ package sc.fiji.snt;
  */
 public class ReciprocalCost implements SearchCost {
 
-    static final double RECIPROCAL_FUDGE = 0.5;
+    // For 0 intensity, use half the smallest possible rescaled value (assuming we don't allow DoubleType)
+    static final double RECIPROCAL_FUDGE = (255 * 0.5 * (double)Float.MIN_VALUE) / (double)Float.MAX_VALUE;
     static final double MIN_COST_PER_UNIT_DISTANCE = 1 / 255.0;
 
     private final double stackMin;
