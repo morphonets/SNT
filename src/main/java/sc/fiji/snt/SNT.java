@@ -833,6 +833,7 @@ public class SNT extends MultiDThreePanes implements
 			removeThreadToDraw(fillerThread);
 		}
 		fillerSet.clear();
+		fillerThreadPool = null;
 		changeUIState(SNTUI.WAITING_TO_START_PATH);
 		if (getUI() != null)
 			getUI().getFillManager().changeState(FillManagerUI.READY);
@@ -2268,20 +2269,13 @@ public class SNT extends MultiDThreePanes implements
 	synchronized public void initPathsToFill(final Set<Path> fromPaths) {
 
 		fillerSet.clear();
-		final int threads = Math.max(1, SNTPrefs.getThreads());
-		final List<Path> fromPathsList = new ArrayList<>(fromPaths);
-		SNTUtils.log("# Paths to fill: " + fromPathsList.size());
-		final int tasks = fromPathsList.size();
-		final int chunkSize = (tasks + threads - 1) / threads;
-		SNTUtils.log("# Paths per FillerThread: " + chunkSize);
-		List<List<Path>> chunked = Lists.partition(fromPathsList, chunkSize);
-		for (List<Path> chunk : chunked) {
+		for (Path path : fromPaths) {
 			final FillerThread filler = new FillerThread(sliceAtCT, xy.getCalibration(), fillThresholdDistance,
 					5000, new ReciprocalCost(stats.min, stats.max));
 			addThreadToDraw(filler);
 			filler.addProgressListener(this);
 			filler.addProgressListener(ui.getFillManager());
-			filler.setSourcePaths(chunk);
+			filler.setSourcePaths(Collections.singleton(path));
 			fillerSet.add(filler);
 		}
 		SNTUtils.log("# FillerThreads: " + fillerSet.size());
