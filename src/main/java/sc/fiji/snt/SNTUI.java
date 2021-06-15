@@ -2124,7 +2124,8 @@ public class SNTUI extends JDialog {
 	}
 
 	protected File openFile(final String promptMsg, final String extension) {
-		final File suggestedFile = SNTUtils.findClosestPair(plugin.getPrefs().getRecentFile(), extension);
+		final String suggestFilename = (plugin.accessToValidImageData()) ? plugin.getImagePlus().getShortTitle() : "SNT_Data";
+		final File suggestedFile = SNTUtils.findClosestPair(new File(plugin.getPrefs().getRecentDir(), suggestFilename), extension);
 		return openFile(promptMsg, suggestedFile);
 	}
 
@@ -2133,20 +2134,20 @@ public class SNTUI extends JDialog {
 		if (focused) toBack();
 		final File openedFile = plugin.legacyService.getIJ1Helper().openDialog(promptMsg, suggestedFile);
 		if (openedFile != null)
-			plugin.getPrefs().setRecentFile(openedFile);
+			plugin.getPrefs().setRecentDir(openedFile);
 		if (focused) toFront();
 		return openedFile;
 	}
 
 	protected File saveFile(final String promptMsg, final String suggestedFileName, final String fallbackExtension) {
 		final File fFile = new File(plugin.getPrefs().getRecentDir(),
-				(suggestedFileName == null) ? plugin.getPrefs().getRecentFile().getName() : suggestedFileName);
+				(suggestedFileName == null) ? "SNT_Data" : suggestedFileName);
 		final boolean focused = hasFocus();
 		if (focused)
 			toBack();
 		final File savedFile = plugin.legacyService.getIJ1Helper().saveDialog(promptMsg, fFile, fallbackExtension);
 		if (savedFile != null)
-			plugin.getPrefs().setRecentFile(savedFile);
+			plugin.getPrefs().setRecentDir(savedFile);
 		if (focused)
 			toFront();
 		return savedFile;
