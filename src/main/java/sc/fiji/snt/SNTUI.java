@@ -1225,7 +1225,7 @@ public class SNTUI extends JDialog {
 
 		final JCheckBox requireShiftToForkCheckbox = new JCheckBox("Require 'Shift' to branch off a path", plugin.requireShiftToFork);
 		guiUtils.addTooltip(requireShiftToForkCheckbox, "When branching off a path: Use Shift+Alt+click or Alt+click at the forking node? "
-				+ "NB: Alt+click is a common trigger for window dragging on Linux. Use Super+Alt+click to circunvent it");
+				+ "NB: Alt+click is a common trigger for window dragging on Linux. Use Super+Alt+click to circumvent OS conflics.");
 		requireShiftToForkCheckbox.addItemListener(e ->plugin.requireShiftToFork = e.getStateChange() == ItemEvent.SELECTED);
 		tPanel.add(requireShiftToForkCheckbox, gdb);
 		return tPanel;
@@ -2838,7 +2838,7 @@ public class SNTUI extends JDialog {
 				noSecondaryImgAvailableError();
 				return;
 			}
-			final File file = openFile("Choose \"Tubeness\" Image...", ".tubes.tif");
+			final File file = openFile("Choose \"Tubeness\" Image...", "tubes.tif");
 			if (file != null) loadCachedDataImage(true, type, true, file);
 		});
 		menu.add(jmi);
@@ -3754,7 +3754,7 @@ public class SNTUI extends JDialog {
 
 			} else if (source == loadLabelsMenuItem) {
 
-				final File openFile = openFile("Select Labels File...", ".labels");
+				final File openFile = openFile("Select Labels File...", "labels");
 				if (openFile != null) { // null if user pressed cancel;
 					plugin.loadLabelsFile(openFile.getAbsolutePath());
 					return;

@@ -82,7 +82,7 @@ public class PrefsCmd extends ContextCommand {
 	@Parameter(label="Remember window locations", description="Whether position of dialogs should be preserved across restarts")
 	private boolean persistentWinLoc;
 
-	@Parameter(label="Prefer 2D display canvases", description="When no valid image exists, Adopt 2D or 3D canvases?")
+	@Parameter(label="Prefer 2D display canvases", description="When no valid image exists, adopt 2D or 3D canvases?")
 	private boolean force2DDisplayCanvas;
 
 	@Parameter(label="Use compression when saving traces", description="Wheter Gzip compression should be use when saving .traces files")
