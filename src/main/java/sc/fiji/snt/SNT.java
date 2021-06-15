@@ -29,14 +29,12 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
-import ij.gui.ImageRoi;
-import ij.gui.NewImage;
-import ij.gui.Overlay;
-import ij.gui.PointRoi;
-import ij.gui.Roi;
+import ij.gui.*;
 import ij.measure.Calibration;
-import ij.measure.Measurements;
-import ij.process.*;
+import ij.process.FloatProcessor;
+import ij.process.ImageStatistics;
+import ij.process.LUT;
+import ij.process.ShortProcessor;
 import ij3d.Content;
 import ij3d.ContentConstants;
 import ij3d.ContentCreator;
@@ -44,9 +42,13 @@ import ij3d.Image3DUniverse;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
 import net.imagej.legacy.LegacyService;
+import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.NativeType;
+import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
 import org.scijava.Context;
 import org.scijava.NullContextException;
@@ -159,14 +161,14 @@ public class SNT extends MultiDThreePanes implements
 	protected int frame;
 	private LUT lut;
 
-	/* loaded pixels (main image) */
-	protected byte[][] slices_data_b;
-	protected short[][] slices_data_s;
-	protected float[][] slices_data_f;
-	volatile protected double stackMax;
-	volatile protected double stackMin;
-	volatile protected double stackMean;
-	volatile protected double stackStdDev;
+	/* all tracing-related functions are performed on the RandomAccessibleInterval */
+	@SuppressWarnings("rawtypes")
+	protected RandomAccessibleInterval img;
+	@SuppressWarnings("rawtypes")
+	private RandomAccessibleInterval sliceAtCT;
+
+	/* statistics for main image*/
+	protected ImageStatistics stats;
 
 	/* Hessian-based analysis */
 	private volatile boolean hessianEnabled = false;
@@ -252,9 +254,7 @@ public class SNT extends MultiDThreePanes implements
 	protected Color selectedColor = DEFAULT_SELECTED_COLOR;
 	protected Color deselectedColor = DEFAULT_DESELECTED_COLOR;
 	protected boolean displayCustomPathColors = true;
-	private HessianProcessor.ImgStats imgStats;
-	protected RandomAccessibleInterval<? extends RealType<?>> img;
-	private ImageStatistics stats;
+
 
 
 	/**
@@ -437,9 +437,6 @@ public class SNT extends MultiDThreePanes implements
 		xy_tracer_canvas = null;
 		xz_tracer_canvas = null;
 		zy_tracer_canvas = null;
-		slices_data_b = null;
-		slices_data_s = null;
-		slices_data_f = null;
 		nullifyHessian();
 	}
 
@@ -618,44 +615,94 @@ public class SNT extends MultiDThreePanes implements
 		if (!xz.isVisible()) xz.show();
 	}
 
-	private void loadData() {
+	private <T extends NumericType<T> & NativeType<T>> void loadData() {
 		statusService.showStatus("Loading data...");
-		this.img = ImageJFunctions.wrapReal(xy);
-		final ImageStack s = xy.getStack();
-		switch (imageType) {
-			case ImagePlus.GRAY8:
-			case ImagePlus.COLOR_256:
-				slices_data_b = new byte[depth][];
-				for (int z = 0; z < depth; ++z)
-					slices_data_b[z] = (byte[]) s.getPixels(xy.getStackIndex(channel, z +
-						1, frame));
-				stackMin = 0;
-				stackMax = 255;
-				break;
-			case ImagePlus.GRAY16:
-				slices_data_s = new short[depth][];
-				for (int z = 0; z < depth; ++z)
-					slices_data_s[z] = (short[]) s.getPixels(xy.getStackIndex(channel, z +
-						1, frame));
-				break;
-			case ImagePlus.GRAY32:
-				slices_data_f = new float[depth][];
-				for (int z = 0; z < depth; ++z)
-					slices_data_f[z] = (float[]) s.getPixels(xy.getStackIndex(channel, z +
-						1, frame));
-				break;
+		RandomAccessibleInterval<T> img = ImageJFunctions.wrap(xy);
+		RandomAccessibleInterval<T> added;
+		// FIXME
+		if (img.numDimensions() == 2) {
+			//System.out.println("2D image");
+			added = Views.addDimension(
+					Views.addDimension(
+							Views.addDimension(
+									img,
+									0,
+									0),
+							0,
+							0),
+					0,
+					0);
+		} else if (img.numDimensions() == 3 && xy.getNChannels() > 1) {
+			//System.out.println("2D multichannel");
+			added = Views.addDimension(
+					Views.addDimension(
+							img,
+							0,
+							0),
+					0,
+					0);
+		} else if (img.numDimensions() == 3 && xy.getNFrames() > 1) {
+			//System.out.println("2D timelapse");
+			added = Views.permute(
+					Views.addDimension(
+							Views.addDimension(
+									img,
+									0,
+									0),
+							0,
+							0),
+					2,
+					4);
+		} else if (img.numDimensions() == 3 && xy.getStackSize() > 1) {
+			//System.out.println("3D image");
+			added = Views.permute(
+					Views.addDimension(
+							Views.addDimension(
+									img,
+									0,
+									0),
+							0,
+							0),
+					2,
+					3);
+		} else if (img.numDimensions() == 4 && xy.getStackSize() > 1) {
+			//System.out.println("3D multichannel");
+			added = Views.addDimension(img, 1, 1);
+		} else if (img.numDimensions() == 4 && xy.getStackSize() > 1) {
+			//System.out.println("2D multichannel timelapse");
+			added = Views.permute(
+					Views.addDimension(
+							img,
+							0,
+							0),
+					3,
+					4);
+		} else if (img.numDimensions() == 4 && xy.getNFrames() > 1 && xy.getStackSize() > 1) {
+			//System.out.println("3D timelapse");
+			added = Views.permute(
+					Views.permute(
+							Views.addDimension(
+									img,
+									0,
+									0),
+							2,
+							4),
+					3,
+					4);
+		} else {
+			//System.out.println("5D image");
+			added = img;
 		}
+		this.img = added;
+		this.sliceAtCT = Views.hyperSlice(Views.hyperSlice(added, 2, channel - 1), 3, frame - 1);
+		SNTUtils.log("Added dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(added)));
+		SNTUtils.log("CT Slice dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(this.sliceAtCT)));
 		statusService.showStatus("Finding stack minimum / maximum");
 		final boolean restoreROI = xy.getRoi() != null && xy.getRoi() instanceof PointRoi;
 		if (restoreROI) xy.saveRoi();
 		xy.deleteRoi(); // if a ROI exists, compute min/ max for entire image
 		if (restoreROI) xy.restoreRoi();
-		final ImageStatistics stats = xy.getStatistics();
-		stackMin = stats.min;
-		stackMax = stats.max;
-		stackMean = stats.mean;
-		stackStdDev = stats.stdDev;
-		this.stats = stats;
+		this.stats = xy.getStatistics();
 		nullifyHessian(); // ensure it will be reloaded
 		updateLut();
 	}
@@ -1520,7 +1567,7 @@ public class SNT extends MultiDThreePanes implements
 			}
 		} else {
 			//ImagePlus imp = useSecondary ? getSecondaryDataAsImp() : getLoadedDataAsImp();
-			img = this.img;
+			img = this.sliceAtCT;
 			// FIXME terrible hack
 			stats = new HessianProcessor.ImgStats(Views.iterable(img));
 			stats.min = this.stats.min;
@@ -1576,7 +1623,7 @@ public class SNT extends MultiDThreePanes implements
 											final double world_z, final PointInImage joinPoint,
 											SearchCost costFunction, SearchHeuristic heuristic)
 	{
-		return createSearch(this.img, world_x, world_y, world_z, joinPoint, costFunction, heuristic);
+		return createSearch(this.sliceAtCT, world_x, world_y, world_z, joinPoint, costFunction, heuristic);
 	}
 
 	public BidirectionalSearch createSearch(final RandomAccessibleInterval<? extends RealType<?>> img,
@@ -1644,10 +1691,10 @@ public class SNT extends MultiDThreePanes implements
 		y_end = (int) Math.round(world_y / y_spacing);
 		z_end = (int) Math.round(world_z / z_spacing);
 
-		return new BidirectionalSearch(this, this.img,
+		return new BidirectionalSearch(this, this.sliceAtCT,
 				x_start, y_start, z_start,
 				x_end, y_end, z_end,
-				new ReciprocalCost(stackMin, stackMax),
+				new ReciprocalCost(stats.min, stats.max),
 				new EuclideanHeuristic());
 
 	}
@@ -1760,7 +1807,7 @@ public class SNT extends MultiDThreePanes implements
 		final ArrayList<PointInImage> list = new ArrayList<>();
 		list.add(start);
 		list.add(end);
-		return autoTrace(list, forkPoint, new ReciprocalCost(stackMin, stackMax), new EuclideanHeuristic());
+		return autoTrace(list, forkPoint);
 	}
 
 	/**
@@ -1789,11 +1836,13 @@ public class SNT extends MultiDThreePanes implements
 	 *         Manager list.If a path cannot be fully computed from the specified
 	 *         list of points, a single-point path is generated.
 	 */
-	public Path autoTrace(final List<PointInImage> pointList, final PointInImage forkPoint,
-						  final SearchCost costFunction, final SearchHeuristic heuristic)
+	public Path autoTrace(final List<PointInImage> pointList, final PointInImage forkPoint)
 	{
 		if (pointList == null || pointList.size() == 0)
 			throw new IllegalArgumentException("pointList cannot be null or empty");
+
+		SearchCost costFunction = new ReciprocalCost(stats.min, stats.max);
+		SearchHeuristic heuristic = new EuclideanHeuristic();
 
 		final boolean existingEnableUIupdates = pathAndFillManager.enableUIupdates;
 		pathAndFillManager.enableUIupdates = false;
@@ -2226,11 +2275,9 @@ public class SNT extends MultiDThreePanes implements
 		final int chunkSize = (tasks + threads - 1) / threads;
 		SNTUtils.log("# Paths per FillerThread: " + chunkSize);
 		List<List<Path>> chunked = Lists.partition(fromPathsList, chunkSize);
-		// TODO wrap this once, should use the same img as tracing
-		RandomAccessibleInterval<? extends RealType<?>> img = ImageJFunctions.wrapReal(xy);
 		for (List<Path> chunk : chunked) {
-			final FillerThread filler = new FillerThread(img, xy.getCalibration(), fillThresholdDistance,
-					5000, new ReciprocalCost(stackMin, stackMax));
+			final FillerThread filler = new FillerThread(sliceAtCT, xy.getCalibration(), fillThresholdDistance,
+					5000, new ReciprocalCost(stats.min, stats.max));
 			addThreadToDraw(filler);
 			filler.addProgressListener(this);
 			filler.addProgressListener(ui.getFillManager());
@@ -2270,41 +2317,16 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public ImagePlus getLoadedDataAsImp() {
 		if (!inputImageLoaded()) return null;
-		final ImageStack stack = new ImageStack(xy.getWidth(), xy.getHeight());
-		switch (imageType) {
-			case ImagePlus.GRAY8:
-			case ImagePlus.COLOR_256:
-				for (int z = 0; z < depth; ++z) {
-					final ImageProcessor ip = new ByteProcessor(xy.getWidth(), xy
-						.getHeight());
-					ip.setPixels(slices_data_b[z]);
-					stack.addSlice(ip);
-				}
-				break;
-			case ImagePlus.GRAY16:
-				for (int z = 0; z < depth; ++z) {
-					final ImageProcessor ip = new ShortProcessor(xy.getWidth(), xy
-						.getHeight());
-					ip.setPixels(slices_data_s[z]);
-					stack.addSlice(ip);
-				}
-				break;
-			case ImagePlus.GRAY32:
-				for (int z = 0; z < depth; ++z) {
-					final ImageProcessor ip = new FloatProcessor(xy.getWidth(), xy
-						.getHeight());
-					ip.setPixels(slices_data_f[z]);
-					stack.addSlice(ip);
-				}
-				break;
-			default:
-				throw new IllegalArgumentException("Bug: unsupported type somehow");
-		}
-		final ImagePlus imp = new ImagePlus("C" + channel + "F" + frame, stack);
-		updateLut(); // If the LUT meanwhile changed, update it
-		imp.setLut(lut); // ignored if null
-		imp.copyScale(xy);
-		imp.setFileInfo(xy.getOriginalFileInfo());
+		@SuppressWarnings("unchecked")
+		ImagePlus imp = ImageJFunctions.wrap(
+				Views.permute(
+						Views.addDimension(
+								sliceAtCT,
+								0,
+								0),
+						2,
+						3),
+				"Image");
 		return imp;
 	}
 
@@ -2343,7 +2365,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected boolean inputImageLoaded() {
-		return slices_data_b != null || slices_data_s != null || slices_data_f != null;
+		return this.img != null;
 	}
 
 	protected boolean isTracingOnSecondaryImageAvailable() {
@@ -2909,8 +2931,8 @@ public class SNT extends MultiDThreePanes implements
 		setAsFirstKeyListener(c.getParent(), firstKeyListener);
 	}
 
-	protected synchronized void findSnappingPointInXYview(final double x_in_pane,
-		final double y_in_pane, final double[] point)
+	protected synchronized void findSnappingPointInXView(final double x_in_pane,
+														 final double y_in_pane, final double[] point)
 	{
 
 		// if (width == 0 || height == 0 || depth == 0)
@@ -2938,30 +2960,17 @@ public class SNT extends MultiDThreePanes implements
 		else if (stopz > depth) {
 			stopz = depth;
 		}
-
+		@SuppressWarnings("unchecked")
+		final RandomAccess<? extends RealType<?>> access = this.img.randomAccess();
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
-		double currentMaximum = stackMin;
+		double currentMaximum = stats.min;
 		for (int x = startx; x < stopx; ++x) {
 			for (int y = starty; y < stopy; ++y) {
 				for (int z = startz; z < stopz; ++z) {
-					double v = stackMin;
-					final int xyIndex = y * width + x;
-					switch (imageType) {
-						case ImagePlus.GRAY8:
-						case ImagePlus.COLOR_256:
-							v = 0xFF & slices_data_b[z][xyIndex];
-							break;
-						case ImagePlus.GRAY16:
-							v = slices_data_s[z][xyIndex];
-							break;
-						case ImagePlus.GRAY32:
-							v = slices_data_f[z][xyIndex];
-							break;
-						default:
-							throw new IllegalArgumentException("Unknown image type: " + imageType);
-					}
-					if (v == stackMin)
+					double v = access.setPositionAndGet(x, y, channel-1, z, frame-1).getRealDouble();
+					if (v == stats.min) {
 						continue;
+					}
 					else if (v > currentMaximum) {
 						pointsAtMaximum.add(new int[] { x, y, z });
 						currentMaximum = v;
@@ -2999,35 +3008,20 @@ public class SNT extends MultiDThreePanes implements
 
 		SNTUtils.log("Looking for maxima at x=" + x_in_pane + " y=" + y_in_pane + " on pane " + plane);
 		final int[][] pointsToConsider = findAllPointsAlongLine(x_in_pane, y_in_pane, plane);
-
+		@SuppressWarnings("unchecked")
+		final RandomAccess<? extends RealType<?>> access = this.img.randomAccess();
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
-		double currentMaximum = stackMin;
+		double currentMaximum = stats.min;
 		for (int[] ints : pointsToConsider) {
-			double v = stackMin;
-			final int[] p = ints;
-			final int xyIndex = p[1] * width + p[0];
-			switch (imageType) {
-				case ImagePlus.GRAY8:
-				case ImagePlus.COLOR_256:
-					v = 0xFF & slices_data_b[p[2]][xyIndex];
-					break;
-				case ImagePlus.GRAY16:
-					v = slices_data_s[p[2]][xyIndex];
-					break;
-				case ImagePlus.GRAY32:
-					v = slices_data_f[p[2]][xyIndex];
-					break;
-				default:
-					throw new IllegalArgumentException("Unknow image type: " + imageType);
-			}
-			if (v == stackMin) {
+			double v = access.setPositionAndGet(ints[0], ints[1], channel-1, ints[2], frame-1).getRealDouble();
+			if (v == stats.min) {
 				continue;
 			} else if (v > currentMaximum) {
-				pointsAtMaximum.add(p);
+				pointsAtMaximum.add(ints);
 				currentMaximum = v;
 			}
 			else if (v == currentMaximum) {
-				pointsAtMaximum.add(p);
+				pointsAtMaximum.add(ints);
 			}
 		}
 		/*
@@ -3039,7 +3033,7 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 		final int[] p = pointsAtMaximum.get(pointsAtMaximum.size() / 2);
-		SNTUtils.log(" Detected: x=" + p[0] + ", y=" + p[1] + ", z=" + p[2] + ", value=" + stackMax);
+		SNTUtils.log(" Detected: x=" + p[0] + ", y=" + p[1] + ", z=" + p[2] + ", value=" + stats.max);
 		setZPositionAllPanes(p[0], p[1], p[2]);
 		if (!tracingHalted) { // click only if tracing
 			clickForTrace(p[0] * x_spacing, p[1] * y_spacing, p[2] * z_spacing, join);

@@ -104,11 +104,6 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
-import org.scijava.command.Command;
-import org.scijava.command.CommandModule;
-import org.scijava.command.CommandService;
-import org.scijava.util.ColorRGB;
-import org.scijava.util.Types;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
@@ -131,23 +126,8 @@ import sc.fiji.snt.util.MapSearchImage;
 import sc.fiji.snt.util.SearchImage;
 import sc.fiji.snt.viewer.Viewer3D;
 
-import javax.swing.Timer;
 import javax.swing.*;
-import javax.swing.border.BevelBorder;
-import javax.swing.border.EmptyBorder;
-import javax.swing.event.ChangeListener;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import java.awt.*;
-import java.awt.event.*;
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
 import java.util.*;
-import java.util.Map.Entry;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.stream.IntStream;
 
 /**
  * Implements SNT's main dialog.
@@ -1026,9 +1006,9 @@ public class SNTUI extends JDialog {
 			}
 			if (hessianDataExists)
 				enableHessian(true);
-			resetState();
-			showStatus(reload ? "Image reloaded into memory..." : null, true);
 		}
+		resetState();
+		showStatus(reload ? "Image reloaded into memory..." : null, true);
 	}
 
 	private JPanel viewsPanel() {

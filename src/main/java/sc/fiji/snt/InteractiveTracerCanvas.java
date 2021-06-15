@@ -524,7 +524,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			!shift_key_down && tracerPlugin.accessToValidImageData())
 		{
 			final double[] p = new double[3];
-			tracerPlugin.findSnappingPointInXYview(last_x_in_pane_precise,
+			tracerPlugin.findSnappingPointInXView(last_x_in_pane_precise,
 				last_y_in_pane_precise, p);
 			last_x_in_pane_precise = p[0];
 			last_y_in_pane_precise = p[1];
