@@ -3908,8 +3908,8 @@ public class Viewer3D {
 				});
 			});
 			measureMenu.add(mi);
-			mi = new JMenuItem("Save Measurements...", IconFactory.getMenuIcon(GLYPH.SAVE));
-			mi.setToolTipText("Saves all tables, plots, and charts currently open.");
+			mi = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.getMenuIcon(GLYPH.SAVE));
+			mi.setToolTipText("Save all tables, plots, and charts currently open.");
 			mi.addActionListener(e -> {
 				runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING);
 			});

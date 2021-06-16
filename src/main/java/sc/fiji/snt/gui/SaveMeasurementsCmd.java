@@ -119,7 +119,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 
 	@Parameter(required = false, label = "Column delimiter", choices = { "Comma", "Space", "Semicolon",
 			"Tab" }, style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE, 
-			description = "NB: Traditional ImageJ1 tables only support 'tab' and 'comma'")
+			description = "NB: 'Space' and 'Semicolon' are not supported by ImageJ1 tables")
 	private String columnDelimiter;
 
 	@Parameter(required = false, label = "Save column headers")
@@ -201,6 +201,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		for (int i = 0; i < nSciTables; i++) {
 			final MutableModuleItem<Boolean> input = getInfo().getMutableInput("sciTable" + (i + 1), Boolean.class);
 			input.setLabel(getTableLabel(sciTables.get(i)));
+			input.setDescription("SciJava table. Will be saved as .CSV independently of chosen delimiter");
 			input.setValue(this, true);
 		}
 		for (int i = sciTables.size(); i < MAX_N; i++) {
@@ -212,6 +213,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		for (int i = 0; i < nIJ1Tables; i++) {
 			final MutableModuleItem<Boolean> input = getInfo().getMutableInput("ij1Table" + (i + 1), Boolean.class);
 			input.setLabel(ij1Tables.get(i).title);
+			input.setDescription("ImageJ1 table. Will be saved as .CSV or .TSV");
 			input.setValue(this, true);
 		}
 		for (int i = ij1Tables.size(); i < MAX_N; i++) {
@@ -223,6 +225,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		for (int i = 0; i < nSNTCharts; i++) {
 			final MutableModuleItem<Boolean> input = getInfo().getMutableInput("sntChart" + (i + 1), Boolean.class);
 			input.setLabel(sntCharts.get(i).getTitle());
+			input.setDescription("SNTChart: Will be saved as PNG. Right-click on chart for other saving options");
 			input.setValue(this, true);
 		}
 		for (int i = sntCharts.size(); i < MAX_N; i++) {
@@ -234,6 +237,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		for (int i = 0; i < nIJ1Plots; i++) {
 			final MutableModuleItem<Boolean> input = getInfo().getMutableInput("plotWin" + (i + 1), Boolean.class);
 			input.setLabel(ij1Plots.get(i).getTitle());
+			input.setDescription("ImageJ Plot: Will be saved as TIFF");
 			input.setValue(this, true);
 		}
 		for (int i = ij1Plots.size(); i < MAX_N; i++) {
@@ -243,15 +247,27 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		}
 
 		// prettify prompt
-		if (nSciTables + nIJ1Tables == 1) {
+		if (nSciTables + nIJ1Tables == 1 && !plotsExist) {
 			resolveInput("HEADER_TABLE1");
 			resolveInput("sciTable1");
 			resolveInput("ij1Table1");
 		}
-		if (nSNTCharts + nIJ1Plots == 1) {
+		if (nSNTCharts + nIJ1Plots == 1 && !tablesExist) {
 			resolveInput("HEADER_CHART1");
 			resolveInput("sntChart1");
 			resolveInput("plotWin1");
+		}
+		if (nSciTables + nIJ1Tables + nSNTCharts + nIJ1Plots == 1) {
+			final MutableModuleItem<String> input = getInfo().getMutableInput("HEADER_GENERAL", String.class);
+			input.setLabel("Saving Options for");
+			if (nSciTables == 1)
+				input.setValue(this, getTableLabel(sciTables.get(0)));
+			else if (nIJ1Tables == 1)
+				input.setValue(this, ij1Tables.get(0).title);
+			else if (nSNTCharts == 1)
+				input.setValue(this, sntCharts.get(0).getTitle());
+			else if (nIJ1Plots == 1)
+				input.setValue(this, ij1Plots.get(0).getTitle());
 		}
 
 		// adjust destination

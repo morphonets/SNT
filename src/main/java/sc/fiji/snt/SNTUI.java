@@ -2326,13 +2326,10 @@ public class SNTUI extends JDialog {
 		loadLabelsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAG));
 		loadLabelsMenuItem.addActionListener(listener);
 		fileMenu.add(loadLabelsMenuItem);
-		final JMenuItem saveTable = new JMenuItem("Save Measurements...", IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
-		saveTable.setToolTipText("Saves all tables, plots, and charts currently open.");
+		final JMenuItem saveTable = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
+		saveTable.setToolTipText("Save all tables, plots, and charts currently open.");
 		saveTable.addActionListener(e -> {
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("snt", plugin);
-			(new DynamicCmdRunner(SaveMeasurementsCmd.class, inputs, getState())).run();
-			return;
+			(new DynamicCmdRunner(SaveMeasurementsCmd.class, null, getState())).run();
 		});
 		fileMenu.add(saveTable);
 
