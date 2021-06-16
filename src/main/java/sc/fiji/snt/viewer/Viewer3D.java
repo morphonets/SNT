@@ -186,7 +186,6 @@ import org.scijava.util.ColorRGBA;
 import org.scijava.util.Colors;
 import org.scijava.util.FileUtils;
 import org.scijava.util.PlatformUtils;
-import org.scijava.widget.FileWidget;
 
 import com.jidesoft.swing.CheckBoxList;
 import com.jidesoft.swing.CheckBoxTree;
@@ -223,6 +222,7 @@ import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.SNTSearchableBar;
+import sc.fiji.snt.gui.SaveMeasurementsCmd;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.MouseLightLoader;
@@ -2926,7 +2926,6 @@ public class Viewer3D {
 		private final MouseController mc;
 		private String storedSensitivity;
 		private String snapshotDir;
-		private File lastDir;
 
 
 		public Prefs(final Viewer3D tp) {
@@ -2941,7 +2940,6 @@ public class Viewer3D {
 			retrieveAllIfNoneSelected = DEF_RETRIEVE_ALL_IF_NONE_SELECTED;
 			treeCompartmentChoice = DEF_TREE_COMPARTMENT_CHOICE;
 			setSnapshotDirectory();
-			lastDir = new File(System.getProperty("user.home"));
 			if (tp.prefService == null) {
 				kc.zoomStep = DEF_ZOOM_STEP;
 				kc.rotationStep = DEF_ROTATION_STEP;

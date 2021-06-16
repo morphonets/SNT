@@ -27,11 +27,9 @@ import java.util.Properties;
 
 import org.scijava.Context;
 import org.scijava.NullContextException;
-import org.scijava.io.IOService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 import org.scijava.table.DefaultGenericTable;
-import org.scijava.table.DefaultTableIOPlugin;
 import org.scijava.table.DoubleColumn;
 
 import sc.fiji.snt.SNTUtils;
