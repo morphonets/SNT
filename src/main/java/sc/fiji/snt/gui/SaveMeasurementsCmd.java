@@ -56,12 +56,12 @@ import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 
 /**
- * Implements the 'Save Measurements...' command: A single prompt for saving all
+ * Implements the 'Save Tables and Analysis Plots...' command: A single prompt for saving all
  * tables, plots and charts currently open.
  *
  * @author Tiago Ferreira
  */
-@Plugin(initializer = "init", type = Command.class, visible = false, label = "Save Measurements...")
+@Plugin(initializer = "init", type = Command.class, visible = false, label = "Save Tables & Analysis Plots...")
 public class SaveMeasurementsCmd extends CommonDynamicCmd {
 
 	private static final int MAX_N = 5;
@@ -201,7 +201,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		for (int i = 0; i < nSciTables; i++) {
 			final MutableModuleItem<Boolean> input = getInfo().getMutableInput("sciTable" + (i + 1), Boolean.class);
 			input.setLabel(getTableLabel(sciTables.get(i)));
-			input.setDescription("SciJava table. Will be saved as .CSV independently of chosen delimiter");
+			input.setDescription("SciJava table. Will be saved with a .CSV extension independently of chosen delimiter");
 			input.setValue(this, true);
 		}
 		for (int i = sciTables.size(); i < MAX_N; i++) {
@@ -213,7 +213,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		for (int i = 0; i < nIJ1Tables; i++) {
 			final MutableModuleItem<Boolean> input = getInfo().getMutableInput("ij1Table" + (i + 1), Boolean.class);
 			input.setLabel(ij1Tables.get(i).title);
-			input.setDescription("ImageJ1 table. Will be saved as .CSV or .TSV");
+			input.setDescription("ImageJ1 table. Will be saved with a .CSV or .TSV extension");
 			input.setValue(this, true);
 		}
 		for (int i = ij1Tables.size(); i < MAX_N; i++) {

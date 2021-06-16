@@ -26,7 +26,6 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.DisplayMode;
-import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.Graphics;
@@ -2681,6 +2680,8 @@ public class Viewer3D {
 				@Override
 				public void keyPressed(final KeyEvent ke) {
 					if (KeyEvent.VK_ESCAPE == ke.getKeyCode()) {
+						if (managerPanel.cmdFinder != null)
+							managerPanel.cmdFinder.setVisible(false);
 						chart.viewer.abortCurrentOperation = true;
 					}
 				}
@@ -3084,25 +3085,23 @@ public class Viewer3D {
 			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_CLOSE |
 				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
 				SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_STATUS);
-			final JPanel barPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-			setFixedHeightToPanel(barPanel);
-			barPanel.add(searchableBar);
-			barPanel.setVisible(false);
+			setFixedHeight(searchableBar);
+			searchableBar.setVisible(false);
 			searchableBar.setInstaller(new SearchableBar.Installer() {
 
 				@Override
 				public void openSearchBar(final SearchableBar searchableBar) {
-					final Container dialog = getRootPane().getParent();
-					dialog.setSize(searchableBar.getWidth(), dialog.getHeight());
-					barPanel.setVisible(true);
+					if (ManagerPanel.this.getWidth() < searchableBar.getWidth())
+						ManagerPanel.this.setSize(searchableBar.getWidth(), ManagerPanel.this.getHeight());
+					searchableBar.setVisible(true);
 					searchableBar.focusSearchField();
 				}
 
 				@Override
 				public void closeSearchBar(final SearchableBar searchableBar) {
-					final Container dialog = getRootPane().getParent();
-					barPanel.setVisible(false);
-					dialog.setSize(getPreferredSize().width, dialog.getHeight());
+					searchableBar.setVisible(false);
+					if (ManagerPanel.this.getPreferredSize().width < searchableBar.getWidth())
+						ManagerPanel.this.setSize(ManagerPanel.this.getPreferredSize().width, ManagerPanel.this.getHeight());
 				}
 			});
 			final JScrollPane scrollPane = new JScrollPane(managerList);
@@ -3114,7 +3113,7 @@ public class Viewer3D {
 			scrollPane.revalidate();
 			progressBar = new ProgressBar();
 			add(progressBar);
-			add(barPanel);
+			add(searchableBar);
 			add(buttonPanel());
 			fileDropWorker = new FileDropWorker(managerList, guiUtils);
 		}
@@ -3367,7 +3366,7 @@ public class Viewer3D {
 			final JPanel buttonPanel = new JPanel(new GridLayout(1, 7));
 			buttonPanel.setBorder(null);
 			// do not allow panel to resize vertically
-			setFixedHeightToPanel(buttonPanel);
+			setFixedHeight(buttonPanel);
 			buttonPanel.add(menuButton(GLYPH.MASKS, sceneMenu(), "Scene Controls"));
 			buttonPanel.add(menuButton(GLYPH.TREE, treesMenu(), "Neuronal Arbors"));
 			buttonPanel.add(menuButton(GLYPH.CUBE, meshMenu(), "3D Meshes"));
@@ -3386,10 +3385,9 @@ public class Viewer3D {
 			return buttonPanel;
 		}
 
-		private void setFixedHeightToPanel(final JPanel panel) {
-			// do not allow panel to resize vertically
-			panel.setMaximumSize(
-					new Dimension(panel.getMaximumSize().width, (int) panel.getPreferredSize().getHeight()));
+		private void setFixedHeight(final JComponent c) {
+			// do not allow component to resize vertically
+			c.setMaximumSize(new Dimension(c.getMaximumSize().width, (int) c.getPreferredSize().getHeight()));
 		}
 
 		private JButton menuButton(final GLYPH glyph, final JPopupMenu menu, final String tooltipMsg) {
@@ -5193,22 +5191,21 @@ public class Viewer3D {
 				}
 			});
 			dialog.setContentPane(getContentPane());
+			GuiUtils.collapseAllTreeNodes(tree); // compute sizes based on collapsed tree
 			dialog.pack();
-			dialog.setSize(new Dimension(searchableBar.getWidth(), dialog.getHeight()));
+			GuiUtils.expandAllTreeNodes(tree);
 			dialog.setVisible(true);
 			return dialog;
 		}
 
 		private JPanel getContentPane() {
-			final JPanel barPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-			frame.managerPanel.setFixedHeightToPanel(barPanel);
-			barPanel.add(searchableBar);
+			frame.managerPanel.setFixedHeight(searchableBar);
 			final JScrollPane scrollPane = new JScrollPane(tree);
 			tree.setComponentPopupMenu(popupMenu());
 			scrollPane.setWheelScrollingEnabled(true);
 			final JPanel contentPane = new JPanel();
 			contentPane.setLayout(new BoxLayout(contentPane, BoxLayout.Y_AXIS));
-			contentPane.add(barPanel);
+			contentPane.add(searchableBar);
 			contentPane.add(scrollPane);
 			contentPane.add(buttonPanel());
 			return contentPane;
@@ -5217,7 +5214,7 @@ public class Viewer3D {
 		private JPanel buttonPanel() {
 			final JPanel buttonPanel = new JPanel(new GridLayout(1,2));
 			buttonPanel.setBorder(null);
-			frame.managerPanel.setFixedHeightToPanel(buttonPanel);
+			frame.managerPanel.setFixedHeight(buttonPanel);
 			JButton button = new JButton(IconFactory.getButtonIcon(GLYPH.INFO));
 			button.addActionListener(e -> showSelectionInfo());
 			buttonPanel.add(button);

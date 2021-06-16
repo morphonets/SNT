@@ -34,13 +34,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 import javax.swing.JButton;
-import javax.swing.JComboBox;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.JToggleButton;
 import javax.swing.SwingWorker;
-import javax.swing.UIManager;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.command.CommandModule;
@@ -64,11 +62,6 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	private final PathManagerUI pmui;
 	private final GuiUtils guiUtils;
 	private boolean subFilteringEnabled;
-
-	static {
-		buttonHeight = (int) new JComboBox<String>().getPreferredSize().getHeight();
-		iconHeight = UIManager.getFont("Label.font").getSize();
-	}
 
 	/**
 	 * Creates PathManagerUI's SearchableBar

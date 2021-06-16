@@ -26,6 +26,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
@@ -1392,6 +1393,9 @@ public class SNTUI extends JDialog {
 		final String selectedKey = String.valueOf(colorChoice.getSelectedItem());
 		final ColorChooserButton cChooser = new ColorChooserButton(hm.get(selectedKey), "Change", 1,
 				SwingConstants.RIGHT);
+		cChooser.setPreferredSize(new Dimension(cChooser.getPreferredSize().width, colorChoice.getPreferredSize().height));
+		cChooser.setMinimumSize(new Dimension(cChooser.getMinimumSize().width, colorChoice.getMinimumSize().height));
+		cChooser.setMaximumSize(new Dimension(cChooser.getMaximumSize().width, colorChoice.getMaximumSize().height));
 
 		colorChoice.addActionListener(
 				e -> cChooser.setSelectedColor(hm.get(String.valueOf(colorChoice.getSelectedItem())), false));
@@ -3353,6 +3357,8 @@ public class SNTUI extends JDialog {
 	}
 
 	protected void abortCurrentOperation() {// FIXME: MOVE TO SNT?
+		if (commandFinder != null)
+			commandFinder.setVisible(false);
 		switch (currentState) {
 		case (SEARCHING):
 			updateStatusText("Cancelling path search...", true);
@@ -4065,7 +4071,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private void registerCommandFinder(final JMenuBar menubar) {
-		final JMenuItem cFinder = GuiUtils.menubarButton(IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH), menubar);
+		final JMenuItem cFinder = GuiUtils.menubarButton(IconFactory.GLYPH.SEARCH, menubar);
 		cFinder.addActionListener(e -> {
 			commandFinder.setLocationRelativeTo(cFinder);
 			commandFinder.toggleVisibility();
