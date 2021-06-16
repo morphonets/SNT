@@ -23,6 +23,14 @@
 package sc.fiji.snt;
 
 import ij.ImagePlus;
+import ij.process.ImageStatistics;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.real.FloatType;
+import sc.fiji.snt.filter.AbstractFilter;
+import sc.fiji.snt.filter.Frangi;
+import sc.fiji.snt.filter.Tubeness;
 
 import java.util.Arrays;
 import java.util.List;
@@ -30,7 +38,7 @@ import java.util.List;
 /**
  * This class is responsible for initiating Hessian analysis on both the
  * <i>primary</i> (main) and the <i>secondary</i> image. Currently computations
- * are performed by {@link HessianProcessor}, but could be extended to
+ * are performed by {@link sc.fiji.snt.filter}, but could be extended to
  * adopt other approaches.
  * 
  * @author Tiago Ferreira
@@ -45,15 +53,22 @@ public class HessianCaller {
 	public static final byte TUBENESS = 0;
 	public static final byte FRANGI = 1;
 
+	private byte analysisType = TUBENESS;
+
 	private final int imageType;
 	double[] sigmas;
-	protected HessianProcessor hessian;
+	protected RandomAccessibleInterval<FloatType> hessianImg;
+	protected ImageStatistics hessianStats;
 	protected float[][] cachedTubeness;
 	private ImagePlus imp;
-	private byte analysisType = TUBENESS;
+	private RandomAccessibleInterval<? extends RealType<?>> img;
+
+	private HessianGenerationCallback callback;
+
 
 	HessianCaller(final SNT snt, final int type) {
 		this.snt = snt;
+		this.callback = snt;
 		this.imageType = type;
 	}
 
@@ -93,7 +108,7 @@ public class HessianCaller {
 	}
 
 	public boolean isHessianComputed() {
-		return hessian != null;
+		return hessianImg != null;
 	}
 
 	public Thread start() {
@@ -101,15 +116,26 @@ public class HessianCaller {
 		if (sigmas == null)
 			sigmas = getDefaultSigma();
 		setImp();
-		hessian = new HessianProcessor(imp, snt);
-		Thread thread;
+		AbstractFilter filter;
 		if (analysisType == TUBENESS) {
-			thread = new Thread(() -> hessian.processTubeness(sigmas, true));
+			filter = new Tubeness(imp, sigmas);
 		} else if (analysisType == FRANGI) {
-			thread = new Thread(() -> hessian.processFrangi(sigmas, true));
+			filter = new Frangi(imp, sigmas);
 		} else {
 			throw new IllegalArgumentException("BUG: Unknown analysis type");
 		}
+		Thread thread = new Thread(() -> {
+			callback.proportionDone(0);
+			try {
+				filter.process();
+				hessianImg = filter.getResult();
+				hessianStats = ImageJFunctions.wrap(hessianImg, "").getStatistics(
+						ImageStatistics.MEAN | ImageStatistics.STD_DEV | ImageStatistics.MIN_MAX);
+				callback.proportionDone(1);
+			} catch (UnsupportedOperationException e) {
+				callback.proportionDone(-1);
+			}
+		});
 		thread.start();
 		return thread;
 	}
@@ -128,7 +154,7 @@ public class HessianCaller {
 	}
 
 	void nullify() {
-		hessian = null;
+		hessianImg = null;
 		sigmas = null;
 		cachedTubeness = null;
 		imp = null;

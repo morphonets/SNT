@@ -28,7 +28,9 @@ import static org.junit.Assume.assumeNotNull;
 
 import ij.measure.Calibration;
 import ij.plugin.ZProjector;
+import ij.process.ImageStatistics;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.stats.ComputeMinMax;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.real.FloatType;
@@ -38,6 +40,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import ij.ImagePlus;
+import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.util.ArraySearchImage;
 
 import java.util.Objects;
@@ -70,8 +73,7 @@ public class Tracing2DTest {
 
 		final Calibration cal = image.getCalibration();
 		final RandomAccessibleInterval<UnsignedByteType> img = ImageJFunctions.wrap(image);
-		final HessianProcessor.ImgStats stats = new HessianProcessor.ImgStats(Views.iterable(img));
-		stats.process();
+		ImageStatistics stats = image.getStatistics();
 
 		long pointsExploredNormal;
 		{
@@ -81,7 +83,7 @@ public class Tracing2DTest {
 					endX, endY, 0,
 					-1, 100,
 					ArraySearchImage.class,
-					new ReciprocalCost(stats.getMin(), stats.getMax()),
+					new ReciprocalCost(stats.min, stats.max),
 					new EuclideanHeuristic());
 
 			tracer.run();
@@ -107,7 +109,7 @@ public class Tracing2DTest {
 					endX, endY, 0,
 					-1, 100, // reciprocal
 					ArraySearchImage.class,
-					new ReciprocalCost(stats.getMin(), stats.getMax()),
+					new ReciprocalCost(stats.min, stats.max),
 					new EuclideanHeuristic()
 			);
 
@@ -132,10 +134,14 @@ public class Tracing2DTest {
 			long pointsExploredHessian;
 			long pointsExploredNBAStarHessian;
 
-			final HessianProcessor hessian = new HessianProcessor(image, null);
-			hessian.processTubeness(new double[]{0.835}, true);
-			final RandomAccessibleInterval<FloatType> tubenessImg = hessian.getTubenessImg();
-			final double maximum = hessian.getTubenessStats().getMax() / 2.0;
+			final Tubeness tubeness = new Tubeness(image, new double[]{0.835});
+			tubeness.process();
+			final RandomAccessibleInterval<FloatType> tubenessImg = tubeness.getResult();
+			final ComputeMinMax<FloatType> minMax = new ComputeMinMax<>(Views.iterable(tubenessImg),
+					new FloatType(), new FloatType());
+			minMax.process();
+			double maximum = minMax.getMax().get();
+			maximum *= 0.6;
 
 			final TracerThread tracer = new TracerThread(tubenessImg, cal,
 					startX, startY, 0,
@@ -167,11 +173,11 @@ public class Tracing2DTest {
 //			System.out.println(foundPathLengthNBAStar);
 //			System.out.println(foundPathLength);
 
-			assertTrue(foundPathLength > 191.8);
-			assertTrue(foundPathLengthNBAStar > 191.8);
+			assertTrue(foundPathLength > 192.2);
+			assertTrue(foundPathLengthNBAStar > 192.2);
 
-			assertTrue(foundPathLength < 191.9);
-			assertTrue(foundPathLengthNBAStar < 191.9);
+			assertTrue(foundPathLength < 192.3);
+			assertTrue(foundPathLengthNBAStar < 192.3);
 
 			pointsExploredHessian = tracer.pointsConsideredInSearch();
 			pointsExploredNBAStarHessian = tracerNBAStar.pointsConsideredInSearch();

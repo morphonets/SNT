@@ -2606,23 +2606,13 @@ public class SNTUI extends JDialog {
 
 			final String analysisType = hc.getAnalysisType() == HessianCaller.TUBENESS ? "Tubeness" : "Frangi";
 
-			if (hc.hessian == null) {
+			if (hc.hessianImg == null) {
 				guiUtils.error("No " + analysisType + " image has been loaded/computed.<br>"
 						+ "Image can only be displayed after running <i>Compute Now</i> "
 						+ "or <i>Load Precomputed " + analysisType + " Image...</i> from the"
 						+ "<i>Cache Computation</i> menu(s).");
 			} else {
-				RandomAccessibleInterval<FloatType> img;
-				switch (hc.getAnalysisType()) {
-					case HessianCaller.TUBENESS:
-						img = hc.hessian.getTubenessImg();
-						break;
-					case HessianCaller.FRANGI:
-						img = hc.hessian.getFrangiImg();
-						break;
-					default:
-						throw new IllegalArgumentException("Unknown Hessian analysis type");
-				}
+				RandomAccessibleInterval<FloatType> img = hc.hessianImg;
 				if (img.numDimensions() == 3) {
 					img = Views.permute(
 							Views.addDimension(img, 0, 0),
@@ -3650,7 +3640,7 @@ public class SNTUI extends JDialog {
 			plugin.doSearchOnSecondaryData = enable;
 			secondaryImgActivateCheckbox.setSelected(enable);
 			if (preprocess.isSelected()) {
-				if (plugin.getHessianCaller("secondary").hessian == null)
+				if (plugin.getHessianCaller("secondary").hessianImg == null)
 					preprocess.setSelected(false);
 				else
 					updateHessianLabel();

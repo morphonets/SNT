@@ -24,7 +24,6 @@ package sc.fiji.snt;
 
 import amira.AmiraMeshDecoder;
 import amira.AmiraParameters;
-import com.google.common.collect.Lists;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -1553,35 +1552,24 @@ public class SNT extends MultiDThreePanes implements
 
 		SearchCost costFunction;
 		RandomAccessibleInterval<? extends RealType<?>> img;
-		HessianProcessor.ImgStats stats;
+		ImageStatistics imgStats;
 		boolean useSecondary = isTracingOnSecondaryImageActive();
 		if (isHessianEnabled( useSecondary ? "secondary" : "primary" )) {
 			HessianCaller hessian = useSecondary ? secondaryHessian : primaryHessian;
-			if (hessian.getAnalysisType() == HessianCaller.TUBENESS) {
-				img = hessian.hessian.getTubenessImg();
-				stats = hessian.hessian.getTubenessStats();
-			} else if (hessian.getAnalysisType() == HessianCaller.FRANGI) {
-				img = hessian.hessian.getFrangiImg();
-				stats = hessian.hessian.getFrangiStats();;
-			} else {
-				throw new IllegalArgumentException("BUG: Unknown hessian analysis type " + hessian.getAnalysisType());
-			}
+			img = hessian.hessianImg;
+			imgStats = hessian.hessianStats;
 		} else {
+			// TODO
 			//ImagePlus imp = useSecondary ? getSecondaryDataAsImp() : getLoadedDataAsImp();
 			img = this.sliceAtCT;
-			// FIXME terrible hack
-			stats = new HessianProcessor.ImgStats(Views.iterable(img));
-			stats.min = this.stats.min;
-			stats.max = this.stats.max;
-			stats.mean = this.stats.mean;
-			stats.stdDev = this.stats.stdDev;
+			imgStats = this.stats;
 		}
 		if (ReciprocalCost.class.equals(costFunctionClass)) {
-			costFunction = new ReciprocalCost(stats.min, stats.max);
+			costFunction = new ReciprocalCost(imgStats.min, imgStats.max);
 		} else if (MaxScalingCost.class.equals(costFunctionClass)) {
-			costFunction = new MaxScalingCost(stats.max);
+			costFunction = new MaxScalingCost(imgStats.max);
 		} else if (OneMinusErfCost.class.equals(costFunctionClass)) {
-			OneMinusErfCost cost = new OneMinusErfCost(stats.max, stats.mean, stats.stdDev);
+			OneMinusErfCost cost = new OneMinusErfCost(imgStats.max, imgStats.mean, imgStats.stdDev);
 			cost.setZFudge(oneMinusErfZFudge);
 			costFunction = cost;
 		} else {
@@ -2324,7 +2312,11 @@ public class SNT extends MultiDThreePanes implements
 		return imp;
 	}
 
-	public void startHessian(final String image, final double sigma, final double max, final boolean wait) {
+	public <T extends RealType<T>> RandomAccessibleInterval<T> getLoadedData() {
+		return this.sliceAtCT;
+	}
+
+	public void startHessian(final String image, final double sigma, final boolean wait) {
 		final HessianCaller hc = getHessianCaller(image);
 		List<Double> settings = new ArrayList<>();
 		settings.add(sigma);

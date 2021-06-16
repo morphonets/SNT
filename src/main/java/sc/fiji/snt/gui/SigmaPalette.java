@@ -46,6 +46,8 @@ import ij.process.FloatProcessor;
 import ij.process.ImageStatistics;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import sc.fiji.snt.*;
+import sc.fiji.snt.filter.Frangi;
+import sc.fiji.snt.filter.Tubeness;
 
 /**
  * Implements SNT 'Sigma wizard'. It relies heavily on java.awt because it
@@ -804,16 +806,17 @@ public class SigmaPalette extends Thread {
 			final int offsetX = sigmaX * (croppedWidth + 1) + 1;
 			final int offsetY = sigmaY * (croppedHeight + 1) + 1;
 			final double sigma = sigmaValues[sigmaIndex];
-			final HessianProcessor hessian = new HessianProcessor(cropped, null);
 			ImagePlus processed;
 			if (hc.getAnalysisType() == HessianCaller.TUBENESS) {
 				// One scale
-				hessian.processTubeness(new double[]{sigma}, false);
-				processed = ImageJFunctions.wrap(hessian.getTubenessImg(), "");
+				Tubeness filter = new Tubeness(cropped, new double[]{sigma});
+				filter.process();
+				processed = ImageJFunctions.wrap(filter.getResult(), "");
 			} else if (hc.getAnalysisType() == HessianCaller.FRANGI) {
 				// One scale
-				hessian.processFrangi(new double[]{sigma}, false);
-				processed = ImageJFunctions.wrap(hessian.getFrangiImg(), "");
+				Frangi filter = new Frangi(cropped, new double[]{sigma});
+				filter.process();
+				processed = ImageJFunctions.wrap(filter.getResult(), "");
 			} else {
 				throw new IllegalArgumentException("Unknown hessian analysis type");
 			}

@@ -24,16 +24,16 @@ package sc.fiji.snt;
 
 import ij.ImagePlus;
 import ij.measure.Calibration;
+import ij.process.ImageStatistics;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.img.Img;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.real.FloatType;
-import net.imglib2.view.Views;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
+import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.util.ArraySearchImage;
 
 import java.util.Objects;
@@ -65,14 +65,12 @@ public class Tracing3DTest {
 		if (image != null) image.close();
 	}
 
-	@Ignore
 	@Test
 	public void testTracing() {
 
 		final Calibration cal = image.getCalibration();
 		final RandomAccessibleInterval<UnsignedByteType> img = ImageJFunctions.wrap(image);
-		final HessianProcessor.ImgStats stats = new HessianProcessor.ImgStats(Views.iterable(img));
-		stats.process();
+		ImageStatistics stats = image.getStatistics();
 
 		long pointsExploredNormal;
 		{
@@ -82,7 +80,7 @@ public class Tracing3DTest {
 					endX, endY, endZ,
 					-1, 100,
 					ArraySearchImage.class,
-					new ReciprocalCost(stats.getMin(), stats.getMax()),
+					new ReciprocalCost(stats.min, stats.max),
 					new EuclideanHeuristic());
 
 			tracer.run();
@@ -106,7 +104,7 @@ public class Tracing3DTest {
 					startX, startY, startZ,
 					endX, endY, endZ,
 					-1, 100,
-					ArraySearchImage.class, new ReciprocalCost(stats.getMin(), stats.getMax()),
+					ArraySearchImage.class, new ReciprocalCost(stats.min, stats.max),
 					new EuclideanHeuristic());
 
 			tracer.run();
@@ -126,11 +124,12 @@ public class Tracing3DTest {
 			long pointsExploredHessian;
 			long pointsExploredNBAStarHessian;
 
-			final HessianProcessor hessian = new HessianProcessor(image, null);
-			hessian.processFrangi(new double[]{0.835}, true);
-			Img<FloatType> frangiImg = hessian.getFrangiImg();
-			HessianProcessor.ImgStats frangiStats = hessian.getFrangiStats();
-			double multiplier = 256 / hessian.getFrangiStats().getMax();
+			final Frangi hessian = new Frangi(image, new double[]{0.835});
+			hessian.process();
+			RandomAccessibleInterval<FloatType> frangiImg = hessian.getResult();
+			ImageStatistics frangiStats = ImageJFunctions.wrapFloat(frangiImg, "").getStatistics(
+					ImageStatistics.MIN_MAX | ImageStatistics.MEAN | ImageStatistics.STD_DEV);
+			double multiplier = 256 / frangiStats.max;
 			multiplier *= 1.0;
 
 			final TracerThread tracer = new TracerThread(frangiImg, cal,
@@ -138,7 +137,7 @@ public class Tracing3DTest {
 					endX, endY, endZ,
 					-1, 100,
 					ArraySearchImage.class,
-					new OneMinusErfCost(frangiStats.getMax(), frangiStats.getMean(), frangiStats.getStdDev()),
+					new OneMinusErfCost(frangiStats.max, frangiStats.mean, frangiStats.stdDev),
 					new EuclideanHeuristic());
 
 			final BidirectionalSearch tracerNBAStar = new BidirectionalSearch(
@@ -147,7 +146,7 @@ public class Tracing3DTest {
 					endX, endY, endZ,
 					-1, 100, // reciprocal
 					ArraySearchImage.class,
-					new OneMinusErfCost(frangiStats.getMax(), frangiStats.getMean(), frangiStats.getStdDev()),
+					new OneMinusErfCost(frangiStats.max, frangiStats.mean, frangiStats.stdDev),
 					new EuclideanHeuristic());
 
 			tracer.run();
