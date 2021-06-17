@@ -827,7 +827,7 @@ public class SigmaPalette extends Thread {
 			if (result == null) {
 				throw new NullPointerException("BUG: Filter result is null");
 			}
-			processed = ImageJFunctions.wrap(filter.getResult(), "");
+			processed = ImageJFunctions.wrap(result, "");
 			final ImageStatistics stats = processed.getStatistics(ImagePlus.MIN_MAX);
 			suggestedMax = Math.max(stats.max, suggestedMax);
 			setMax(suggestedMax);
