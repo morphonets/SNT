@@ -44,8 +44,11 @@ import ij.gui.TextRoi;
 import ij.plugin.LutLoader;
 import ij.process.FloatProcessor;
 import ij.process.ImageStatistics;
+import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.real.FloatType;
 import sc.fiji.snt.*;
+import sc.fiji.snt.filter.AbstractFilter;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Tubeness;
 
@@ -806,20 +809,25 @@ public class SigmaPalette extends Thread {
 			final int offsetX = sigmaX * (croppedWidth + 1) + 1;
 			final int offsetY = sigmaY * (croppedHeight + 1) + 1;
 			final double sigma = sigmaValues[sigmaIndex];
+			AbstractFilter filter;
 			ImagePlus processed;
-			if (hc.getAnalysisType() == HessianCaller.TUBENESS) {
-				// One scale
-				Tubeness filter = new Tubeness(cropped, new double[]{sigma});
-				filter.process();
-				processed = ImageJFunctions.wrap(filter.getResult(), "");
-			} else if (hc.getAnalysisType() == HessianCaller.FRANGI) {
-				// One scale
-				Frangi filter = new Frangi(cropped, new double[]{sigma});
-				filter.process();
-				processed = ImageJFunctions.wrap(filter.getResult(), "");
-			} else {
-				throw new IllegalArgumentException("Unknown hessian analysis type");
+			// One scale
+			switch (hc.getAnalysisType()) {
+				case HessianCaller.TUBENESS:
+					filter = new Tubeness(cropped, new double[]{sigma});
+					break;
+				case HessianCaller.FRANGI:
+					filter = new Frangi(cropped, new double[]{sigma});
+					break;
+				default:
+					throw new IllegalArgumentException("Unknown hessian analysis type");
 			}
+			filter.process();
+			RandomAccessibleInterval<FloatType> result = filter.getResult();
+			if (result == null) {
+				throw new NullPointerException("BUG: Filter result is null");
+			}
+			processed = ImageJFunctions.wrap(filter.getResult(), "");
 			final ImageStatistics stats = processed.getStatistics(ImagePlus.MIN_MAX);
 			suggestedMax = Math.max(stats.max, suggestedMax);
 			setMax(suggestedMax);

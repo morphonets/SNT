@@ -84,15 +84,14 @@ public class Frangi extends AbstractFilter {
         this.scales = scales;
     }
 
-    public void process() {
-        this.result = frangi();
-    }
-
     public void setScales(final double[] scales) {
         this.scales = scales;
     }
 
-    protected RandomAccessibleInterval<FloatType> frangi() {
+    @Override
+    public void process() {
+
+        this.result = null;
 
         if (this.isAutoBlockDimensions) {
             this.blockDimensions = ImgUtils.suggestBlockDimensions(this.imgDim);
@@ -201,7 +200,7 @@ public class Frangi extends AbstractFilter {
                     ++iter;
                 }
             }
-            return output;
+            this.result = output;
 
         } catch (final OutOfMemoryError e) {
             SNTUtils.error("Out of memory when computing Frangi. Requires around " +
@@ -215,7 +214,7 @@ public class Frangi extends AbstractFilter {
             SNTUtils.error("Frangi interrupted.", e);
             Thread.currentThread().interrupt();
         }
-        return null;
+
     }
 
     protected void frangi2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
@@ -322,9 +321,8 @@ public class Frangi extends AbstractFilter {
                     hessianRai, hessianRai.numDimensions() - 1, d);
             LoopBuilder.setImages(sum, hessian).multiThreaded(ex).forEachPixel(
                     (s, h) -> {
-                        float sf = s.getRealFloat();
-                        float hf = h.getRealFloat();
-                        s.set(sf + hf * hf);
+                        final float hf = h.getRealFloat();
+                        s.set(s.getRealFloat() + hf * hf);
                     }
             );
         }

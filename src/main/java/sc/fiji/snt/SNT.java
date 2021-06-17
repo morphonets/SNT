@@ -1565,7 +1565,7 @@ public class SNT extends MultiDThreePanes implements
 			imgStats = this.stats;
 		}
 		if (ReciprocalCost.class.equals(costFunctionClass)) {
-			costFunction = new ReciprocalCost(imgStats.min, imgStats.max);
+			costFunction = new ReciprocalCost(imgStats.mean, imgStats.max);
 		} else if (OneMinusErfCost.class.equals(costFunctionClass)) {
 			OneMinusErfCost cost = new OneMinusErfCost(imgStats.max, imgStats.mean, imgStats.stdDev);
 			cost.setZFudge(oneMinusErfZFudge);

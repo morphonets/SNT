@@ -85,15 +85,14 @@ public class Tubeness extends AbstractFilter {
         this.scales = scales;
     }
 
-    public void process() {
-        this.result = tubeness();
-    }
-
     public void setScales(double[] scales) {
         this.scales = scales;
     }
 
-    protected RandomAccessibleInterval<FloatType> tubeness() {
+    @Override
+    public void process() {
+
+        this.result = null;
 
         if (this.isAutoBlockDimensions) {
             this.blockDimensions = ImgUtils.suggestBlockDimensions(this.imgDim);
@@ -189,7 +188,7 @@ public class Tubeness extends AbstractFilter {
                     ++iter;
                 }
             }
-            return output;
+            this.result = output;
 
         } catch (final OutOfMemoryError e) {
             SNTUtils.error("Out of memory when computing Tubeness. Requires around " +
@@ -203,7 +202,7 @@ public class Tubeness extends AbstractFilter {
             SNTUtils.error("Tubeness interrupted.", e);
             Thread.currentThread().interrupt();
         }
-        return null;
+
     }
 
 

@@ -31,7 +31,6 @@ import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.real.FloatType;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.util.ArraySearchImage;
