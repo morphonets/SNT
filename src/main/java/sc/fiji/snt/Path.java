@@ -38,6 +38,7 @@ import java.util.stream.DoubleStream;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.stat.StatUtils;
 import org.scijava.util.ColorRGB;
+import org.scijava.util.ColorRGBA;
 import org.scijava.vecmath.Color3f;
 import org.scijava.vecmath.Point3f;
 
@@ -1710,7 +1711,12 @@ public class Path implements Comparable<Path> {
 	 *              to {@code ColorRGB} to avoid ambiguous method overload
 	 */
 	public void setColor(final ColorRGB color) {
-		setColor((color == null) ? null : new Color(color.getARGB()));
+		if (color == null)
+			setColor((Color)null);
+		else if (color instanceof ColorRGBA)
+			setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha()));
+		else
+			setColor(new Color(color.getARGB()));
 	}
 
 	/**

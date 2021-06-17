@@ -38,6 +38,7 @@ public interface TreeProperties {
 	final String KEY_FRAME_POS = "frame";
 	final String KEY_COMPARTMENT = "compartment";
 	final String KEY_SPATIAL_UNIT = "unit";
+	final String KEY_COLOR = "color";
 
 	final String DENDRITIC = "dendritic";
 	final String AXONAL = "axonal";

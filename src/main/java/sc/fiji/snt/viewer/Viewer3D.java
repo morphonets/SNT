@@ -898,10 +898,24 @@ public class Viewer3D {
 		case "none":
 			break;
 		default:
-			final ColorRGB c = new ColorRGB(color);
-			trees.forEach(tree -> tree.setColor(c));
+			trees.forEach(tree -> tree.setColor(color));
 			break;
 		}
+		addCollection(trees);
+	}
+
+	/**
+	 * Adds a collection of trees.
+	 *
+	 * @param trees               the trees to be added.
+	 * @param color               the color to be applied, either a HTML color codes
+	 *                            starting with hash ({@code #}), a color preset
+	 *                            ("red", "blue", etc.), or integer triples of the
+	 *                            form {@code r,g,b} and range {@code [0, 255]}
+	 * @param transparencyPercent the color transparency (in percentage)
+	 */
+	public void addTrees(final Collection<Tree> trees, final String color, final double transparencyPercent) {
+		trees.forEach(tree -> tree.setColor(color, transparencyPercent));
 		addCollection(trees);
 	}
 
