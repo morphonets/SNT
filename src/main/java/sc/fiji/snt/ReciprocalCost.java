@@ -24,7 +24,7 @@ package sc.fiji.snt;
 
 /**
  * Uses the reciprocal of voxel intensity, rescaled to the interval (double precision)
- * 255.0 * (intensity - stackMin) / (stackMax - stackMin)
+ * 255.0 * (intensity - min) / (max - min)
  * to compute the cost of moving to a neighbor node.
  */
 public class ReciprocalCost implements SearchCost {
@@ -33,17 +33,17 @@ public class ReciprocalCost implements SearchCost {
     static final double RECIPROCAL_FUDGE = (255 * 0.5 * (double)Float.MIN_VALUE) / (double)Float.MAX_VALUE;
     static final double MIN_COST_PER_UNIT_DISTANCE = 1 / 255.0;
 
-    private final double stackMin;
-    private final double stackMax;
+    private final double min;
+    private final double max;
 
-    public ReciprocalCost(final double stackMin, final double stackMax) {
-        this.stackMin = stackMin;
-        this.stackMax = stackMax;
+    public ReciprocalCost(final double min, final double max) {
+        this.min = min;
+        this.max = max;
     }
 
     @Override
     public double costMovingTo(double valueAtNewPoint) {
-        valueAtNewPoint = 255.0 * (valueAtNewPoint - stackMin) / (stackMax - stackMin);
+        valueAtNewPoint = 255.0 * (valueAtNewPoint - min) / (max - min);
         if (valueAtNewPoint <= 0) {
             valueAtNewPoint = RECIPROCAL_FUDGE;
         } else if (valueAtNewPoint > 255) {

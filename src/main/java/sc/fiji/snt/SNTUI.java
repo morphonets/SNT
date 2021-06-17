@@ -2822,12 +2822,9 @@ public class SNTUI extends JDialog {
 		optionsMenu.addSeparator();
 
 		JMenu costFunctionMenu = new JMenu("Cost Function");
-		JMenuItem reciprocalJmi = new JMenuItem("Reciprocal of intensity");
+		JMenuItem reciprocalJmi = new JMenuItem("Reciprocal of scaled intensity");
 		reciprocalJmi.addActionListener(e -> plugin.costFunctionClass = ReciprocalCost.class);
 		costFunctionMenu.add(reciprocalJmi);
-		JMenuItem scalingJmi = new JMenuItem("Reciprocal of scaled intensity");
-		scalingJmi.addActionListener(e -> plugin.costFunctionClass = MaxScalingCost.class);
-		costFunctionMenu.add(scalingJmi);
 		JMenuItem statJmi = new JMenuItem("Probability of intensity");
 		statJmi.addActionListener(e -> {
 			plugin.costFunctionClass = OneMinusErfCost.class;

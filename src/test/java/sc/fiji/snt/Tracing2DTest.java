@@ -148,7 +148,7 @@ public class Tracing2DTest {
 					endX, endY, 0,
 					-1, 100,
 					ArraySearchImage.class,
-					new MaxScalingCost(maximum),
+					new ReciprocalCost(0, maximum),
 					new EuclideanHeuristic());
 
 			final BidirectionalSearch tracerNBAStar = new BidirectionalSearch(
@@ -157,7 +157,7 @@ public class Tracing2DTest {
 					endX, endY, 0,
 					-1, 100,
 					ArraySearchImage.class,
-					new MaxScalingCost(maximum),
+					new ReciprocalCost(0, maximum),
 					new EuclideanHeuristic()
 			);
 
