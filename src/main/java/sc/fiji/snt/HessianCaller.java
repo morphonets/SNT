@@ -133,6 +133,7 @@ public class HessianCaller {
 						ImageStatistics.MEAN | ImageStatistics.STD_DEV | ImageStatistics.MIN_MAX);
 				callback.proportionDone(1);
 			} catch (UnsupportedOperationException e) {
+				SNTUtils.error(e.getMessage(), e);
 				callback.proportionDone(-1);
 			}
 		});

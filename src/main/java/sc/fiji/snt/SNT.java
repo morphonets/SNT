@@ -2300,15 +2300,21 @@ public class SNT extends MultiDThreePanes implements
 	public ImagePlus getLoadedDataAsImp() {
 		if (!inputImageLoaded()) return null;
 		@SuppressWarnings("unchecked")
-		ImagePlus imp = ImageJFunctions.wrap(
+		final ImagePlus imp = ImageJFunctions.wrap(
 				Views.permute(
 						Views.addDimension(
-								sliceAtCT,
+								this.sliceAtCT,
 								0,
 								0),
 						2,
 						3),
 				"Image");
+		final Calibration calibration = new Calibration();
+		calibration.pixelWidth = this.x_spacing;
+		calibration.pixelHeight = this.y_spacing;
+		calibration.pixelDepth = this.z_spacing;
+		calibration.setUnit(this.spacing_units);
+		imp.setCalibration(calibration);
 		return imp;
 	}
 
