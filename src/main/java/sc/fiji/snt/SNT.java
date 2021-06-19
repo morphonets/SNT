@@ -666,7 +666,7 @@ public class SNT extends MultiDThreePanes implements
 					3);
 		} else if (img.numDimensions() == 4 && xy.getStackSize() > 1) {
 			//System.out.println("3D multichannel");
-			added = Views.addDimension(img, 1, 1);
+			added = Views.addDimension(img, 0, 0);
 		} else if (img.numDimensions() == 4 && xy.getStackSize() > 1) {
 			//System.out.println("2D multichannel timelapse");
 			added = Views.permute(
