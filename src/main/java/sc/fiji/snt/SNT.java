@@ -187,6 +187,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/* adjustable parameters for cost functions */
 	double oneMinusErfZFudge = 0.1;
+	float[] searchMinMax;
 
 	/* tracing threads */
 	private AbstractSearch currentSearchThread = null;
@@ -702,6 +703,7 @@ public class SNT extends MultiDThreePanes implements
 		xy.deleteRoi(); // if a ROI exists, compute min/ max for entire image
 		if (restoreROI) xy.restoreRoi();
 		this.stats = xy.getStatistics();
+		this.searchMinMax = new float[]{(float)this.stats.min, (float)this.stats.max};
 		nullifyHessian(); // ensure it will be reloaded
 		updateLut();
 	}
@@ -1561,15 +1563,17 @@ public class SNT extends MultiDThreePanes implements
 		} else {
 			// TODO
 			//ImagePlus imp = useSecondary ? getSecondaryDataAsImp() : getLoadedDataAsImp();
-			img = this.sliceAtCT;
+			img = getLoadedData();
 			imgStats = this.stats;
 		}
 		if (ReciprocalCost.class.equals(costFunctionClass)) {
-			costFunction = new ReciprocalCost(imgStats.mean, imgStats.max);
+			costFunction = new ReciprocalCost(searchMinMax[0], searchMinMax[1]);
 		} else if (OneMinusErfCost.class.equals(costFunctionClass)) {
 			OneMinusErfCost cost = new OneMinusErfCost(imgStats.max, imgStats.mean, imgStats.stdDev);
 			cost.setZFudge(oneMinusErfZFudge);
 			costFunction = cost;
+		} else if (DifferenceCost.class.equals(costFunctionClass)) {
+			costFunction = new DifferenceCost(searchMinMax[0], searchMinMax[1]);
 		} else {
 			throw new IllegalArgumentException("BUG: Unknown cost function class " + costFunctionClass);
 		}

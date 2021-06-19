@@ -2823,8 +2823,17 @@ public class SNTUI extends JDialog {
 
 		JMenu costFunctionMenu = new JMenu("Cost Function");
 		JMenuItem reciprocalJmi = new JMenuItem("Reciprocal of scaled intensity");
-		reciprocalJmi.addActionListener(e -> plugin.costFunctionClass = ReciprocalCost.class);
+		reciprocalJmi.addActionListener(e -> {
+			plugin.costFunctionClass = ReciprocalCost.class;
+			setMinMaxFromUser();
+		});
 		costFunctionMenu.add(reciprocalJmi);
+		JMenuItem differenceJmi = new JMenuItem("Difference of intensity");
+		differenceJmi.addActionListener(e -> {
+			plugin.costFunctionClass = DifferenceCost.class;
+			setMinMaxFromUser();
+		});
+		costFunctionMenu.add(differenceJmi);
 		JMenuItem statJmi = new JMenuItem("Probability of intensity");
 		statJmi.addActionListener(e -> {
 			plugin.costFunctionClass = OneMinusErfCost.class;
@@ -3134,6 +3143,23 @@ public class SNTUI extends JDialog {
 		}
 		plugin.oneMinusErfZFudge = fudge;
 		SNTUtils.log("Z-fudge changed. Now using " + plugin.oneMinusErfZFudge);
+	}
+
+	private void setMinMaxFromUser() {
+		final float[] defaultValues = new float[]{(float)plugin.stats.min, (float)plugin.stats.max};
+		String promptMsg = "<HTML><body><div style='width:400;'>" //
+				+ "Enter the min-max range for the A* search.<br>"//
+				+ "Values less than or equal to Min maximize the A* cost function.<br>"
+				+ "Values greater than or equal to Max minimize the A* cost function.<br>"//
+				+ "The current min-max is " + defaultValues[0] + "-" + defaultValues[1];
+		// FIXME: scientific notation is parsed incorrectly
+		final float[] minMax = guiUtils.getRange(promptMsg, "Setting min-max",
+				defaultValues);
+		if (minMax == null) {
+			return; // user pressed cancel
+		}
+		plugin.searchMinMax = minMax;
+		SNTUtils.log("min-max changed. Now using " + Arrays.toString(plugin.searchMinMax));
 	}
 
 	private boolean okToFlushCachedTubeness(final String type) {
