@@ -2316,7 +2316,7 @@ public class SNT extends MultiDThreePanes implements
 		return imp;
 	}
 
-	public <T extends RealType<T>> RandomAccessibleInterval<T> getLoadedData() {
+	public RandomAccessibleInterval<? extends RealType<?>> getLoadedData() {
 		return this.sliceAtCT;
 	}
 

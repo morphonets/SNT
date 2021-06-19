@@ -22,10 +22,16 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.io.File;
-import java.io.IOException;
-import java.net.URL;
-
+import ij.IJ;
+import ij.ImagePlus;
+import ij.io.FileInfo;
+import net.imagej.ImageJ;
+import net.imagej.legacy.LegacyService;
+import net.imagej.ops.OpService;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.RealType;
+import net.imglib2.view.Views;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.io.IOService;
@@ -34,33 +40,28 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.FileUtils;
 import org.scijava.widget.Button;
-
-import ij.IJ;
-import ij.ImagePlus;
-import ij.io.FileInfo;
-import net.imagej.ImageJ;
-import net.imagej.legacy.LegacyService;
-import net.imagej.ops.OpService;
-import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.img.Img;
-import net.imglib2.img.display.imagej.ImageJFunctions;
-import net.imglib2.type.numeric.real.DoubleType;
-import net.imglib2.type.numeric.real.FloatType;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.filter.AbstractFilter;
+import sc.fiji.snt.filter.Frangi;
+import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.gui.GuiUtils;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.URL;
+import java.util.Arrays;
 
 /**
  * Implements the "Generate Secondary Image" command.
  *
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
 @Plugin(type = Command.class, visible = false, initializer = "init", label = "Compute \"Secondary Image\"")
 public class ComputeSecondaryImg extends CommonDynamicCmd {
 
-	private static final String NONE = "None. Duplicate primary image"
-			+ "";
+	private static final String NONE = "None. Duplicate primary image";
 	private static final String FRANGI = "Frangi";
-	private static final String FRANGI_NO_GAUS = "Frangi (without Gaussian)";
 	private static final String TUBENESS = "Tubeness";
 
 	@Parameter
@@ -75,7 +76,7 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 	@Parameter
 	private IOService io;
 
-	@Parameter(label = "Ops filter", choices = { FRANGI, FRANGI_NO_GAUS, TUBENESS, NONE })
+	@Parameter(label = "Filter", choices = { FRANGI, TUBENESS, NONE })
 	private String filter;
 
 	@Parameter(label = "Display", required = false)
@@ -121,49 +122,32 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 	 */
 	@Override
 	public void run() {
-		// TODO rewrite this with HessianProcessor, if necessary
-//		status("Computing secondary image...", false);
-//		final ImagePlus inputImp = sntService.getPlugin().getLoadedDataAsImp();
-//
-//		if (NONE.equals(filter)) {
-//			filteredImp = inputImp;
-//			apply();
-//			return;
-//		}
-//
-//		final Img<FloatType> in = ImageJFunctions.convertFloat(inputImp);
-//		final double[] sigmaScaled = sntService.getPlugin().getHessianSigma("primary", true);
-//		final double[] voxelDimensions = new double[] { inputImp.getCalibration().pixelWidth,
-//				inputImp.getCalibration().pixelHeight, inputImp.getCalibration().pixelDepth };
-//
-//		switch (filter) {
-//		case FRANGI:
-//		case FRANGI_NO_GAUS:
-//
-//			final int sigmaUnscaled = (int) sntService.getPlugin().getHessianSigma("primary", false);
-//			final Img<FloatType> frangiResult = ops.create().img(in);
-//			final RandomAccessibleInterval<FloatType> vesselnessInput = (filter.equals(FRANGI_NO_GAUS)) ? in
-//					: ops.filter().gauss(in, sigmaScaled);
-//			ops.filter().frangiVesselness(frangiResult, vesselnessInput, voxelDimensions, sigmaUnscaled);
-//			filteredImp = ImageJFunctions.wrap(frangiResult,
-//					String.format("%s: Sigma=%.1f Scale=%dpixels", filter, sigmaScaled, sigmaUnscaled));
-//			break;
-//
-//		case TUBENESS:
-//
-//			final Img<DoubleType> out = ops.create().img(in, new DoubleType());
-//			ops.filter().tubeness(out, in, sigmaScaled, voxelDimensions[0], voxelDimensions[1], voxelDimensions[2]);
-//			filteredImp = ImageJFunctions.wrap(out, String.format("Tubeness: Sigma=%.1f", sigmaScaled));
-//			break;
-//
-//		default:
-//			throw new IllegalArgumentException("Unrecognized filter " + filter);
-//		}
-//
-//		// In legacy mode dimensions gets scrambled!?. Ensure it is correct
-//		filteredImp.setDimensions(inputImp.getNChannels(), inputImp.getNSlices(), inputImp.getNFrames());
-//		filteredImp.copyScale(inputImp);
-//		apply();
+		final ImagePlus inputImp = sntService.getPlugin().getLoadedDataAsImp();
+		if (NONE.equals(filter)) {
+			filteredImp = inputImp;
+			apply();
+			return;
+		}
+		final RandomAccessibleInterval<? extends RealType<?>> in = Views.dropSingletonDimensions(
+				sntService.getPlugin().getLoadedData());
+		final double[] sigmas = sntService.getPlugin().getHessianSigma("primary", true);
+		AbstractFilter processor;
+		switch (filter) {
+			case FRANGI:
+				processor = new Frangi(in, sigmas, inputImp.getCalibration());
+				break;
+			case TUBENESS:
+				processor = new Tubeness(in, sigmas, inputImp.getCalibration());
+				break;
+			default:
+				throw new IllegalArgumentException("Unrecognized filter " + filter);
+		}
+		processor.process();
+		filteredImp = ImageJFunctions.wrap(processor.getResult(),
+				"scales=" + Arrays.toString(sigmas));
+		filteredImp.setDimensions(inputImp.getNChannels(), inputImp.getNSlices(), inputImp.getNFrames());
+		filteredImp.copyScale(inputImp);
+		apply();
 	}
 
 	private void apply() {
