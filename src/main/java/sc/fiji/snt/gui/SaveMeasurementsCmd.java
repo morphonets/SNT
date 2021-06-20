@@ -119,7 +119,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 
 	@Parameter(required = false, label = "Column delimiter", choices = { "Comma", "Space", "Semicolon",
 			"Tab" }, style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE, 
-			description = "NB: 'Space' and 'Semicolon' are not supported by ImageJ1 tables")
+			description = "<HTML>NB: 'Space' and 'Semicolon' are not supported by ImageJ1 tables")
 	private String columnDelimiter;
 
 	@Parameter(required = false, label = "Save column headers")
@@ -132,15 +132,16 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 	private String HEADER_GENERAL;
 
 	@Parameter(label = "Directory", required = false, style = FileWidget.DIRECTORY_STYLE,
-			description = "Saving directory (will be created if it does not exist)")
+			description = "<HTML>Saving directory (will be created if it does not exist)")
 	private File outputFile;
 
 	@Parameter(required = false, label = "Override existing file(s)",
-			description = "If similar files exist in the directory, filenames will not be assigned a unique sufix and data will be overridden")
+			description = "<HTML>Override data if similar files exist in the directory?<br>"
+					+ "Otherwise, assign a unique sufix to filenames so that no data is overridden")
 	private boolean override;
 
 	@Parameter(required = false, label = "Close after saving",
-			description = "Close table(s) and plot(s) after being successfully saved?")
+			description = "<HTML>Close file(s) after being successfully saved?")
 	private boolean close = true;
 
 	@Parameter
@@ -258,16 +259,14 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 			resolveInput("plotWin1");
 		}
 		if (nSciTables + nIJ1Tables + nSNTCharts + nIJ1Plots == 1) {
-			final MutableModuleItem<String> input = getInfo().getMutableInput("HEADER_GENERAL", String.class);
-			input.setLabel("Saving Options for");
 			if (nSciTables == 1)
-				input.setValue(this, getTableLabel(sciTables.get(0)));
+				getInfo().setLabel("Save " + getTableLabel(sciTables.get(0)) + "...");
 			else if (nIJ1Tables == 1)
-				input.setValue(this, ij1Tables.get(0).title);
+				getInfo().setLabel("Save " + ij1Tables.get(0).title + "...");
 			else if (nSNTCharts == 1)
-				input.setValue(this, sntCharts.get(0).getTitle());
+				getInfo().setLabel("Save " + sntCharts.get(0).getTitle() + "...");
 			else if (nIJ1Plots == 1)
-				input.setValue(this, ij1Plots.get(0).getTitle());
+				getInfo().setLabel("Save " + ij1Plots.get(0).getTitle() + "...");
 		}
 
 		// adjust destination

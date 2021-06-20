@@ -49,7 +49,7 @@ import java.util.stream.IntStream;
 @Plugin(type = Command.class, visible = false, label="Tree(s) from Skeleton Image...", initializer = "init")
 public class SkeletonConverterCmd extends ChooseDatasetCmd {
 
-	@Parameter(label="Skeletonize image", description="<HTML>Wether the segmented image should be skeletonized.<br>"
+	@Parameter(label="Skeletonize image", description="<HTML>whether the segmented image should be skeletonized.<br>"
 			+ "Unnecessary if segmented image is already a topological sekeleton")
 	private boolean skeletonizeImage;
 
