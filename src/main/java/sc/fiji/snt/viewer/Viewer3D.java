@@ -26,7 +26,6 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.DisplayMode;
-import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.Graphics;
@@ -186,7 +185,6 @@ import org.scijava.util.ColorRGBA;
 import org.scijava.util.Colors;
 import org.scijava.util.FileUtils;
 import org.scijava.util.PlatformUtils;
-import org.scijava.widget.FileWidget;
 
 import com.jidesoft.swing.CheckBoxList;
 import com.jidesoft.swing.CheckBoxTree;
@@ -223,6 +221,7 @@ import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.SNTSearchableBar;
+import sc.fiji.snt.gui.SaveMeasurementsCmd;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.MouseLightLoader;
@@ -899,10 +898,24 @@ public class Viewer3D {
 		case "none":
 			break;
 		default:
-			final ColorRGB c = new ColorRGB(color);
-			trees.forEach(tree -> tree.setColor(c));
+			trees.forEach(tree -> tree.setColor(color));
 			break;
 		}
+		addCollection(trees);
+	}
+
+	/**
+	 * Adds a collection of trees.
+	 *
+	 * @param trees               the trees to be added.
+	 * @param color               the color to be applied, either a HTML color codes
+	 *                            starting with hash ({@code #}), a color preset
+	 *                            ("red", "blue", etc.), or integer triples of the
+	 *                            form {@code r,g,b} and range {@code [0, 255]}
+	 * @param transparencyPercent the color transparency (in percentage)
+	 */
+	public void addTrees(final Collection<Tree> trees, final String color, final double transparencyPercent) {
+		trees.forEach(tree -> tree.setColor(color, transparencyPercent));
 		addCollection(trees);
 	}
 
@@ -2681,6 +2694,8 @@ public class Viewer3D {
 				@Override
 				public void keyPressed(final KeyEvent ke) {
 					if (KeyEvent.VK_ESCAPE == ke.getKeyCode()) {
+						if (managerPanel.cmdFinder != null)
+							managerPanel.cmdFinder.setVisible(false);
 						chart.viewer.abortCurrentOperation = true;
 					}
 				}
@@ -2926,7 +2941,6 @@ public class Viewer3D {
 		private final MouseController mc;
 		private String storedSensitivity;
 		private String snapshotDir;
-		private File lastDir;
 
 
 		public Prefs(final Viewer3D tp) {
@@ -2941,7 +2955,6 @@ public class Viewer3D {
 			retrieveAllIfNoneSelected = DEF_RETRIEVE_ALL_IF_NONE_SELECTED;
 			treeCompartmentChoice = DEF_TREE_COMPARTMENT_CHOICE;
 			setSnapshotDirectory();
-			lastDir = new File(System.getProperty("user.home"));
 			if (tp.prefService == null) {
 				kc.zoomStep = DEF_ZOOM_STEP;
 				kc.rotationStep = DEF_ROTATION_STEP;
@@ -3086,25 +3099,23 @@ public class Viewer3D {
 			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_CLOSE |
 				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
 				SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_STATUS);
-			final JPanel barPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-			setFixedHeightToPanel(barPanel);
-			barPanel.add(searchableBar);
-			barPanel.setVisible(false);
+			setFixedHeight(searchableBar);
+			searchableBar.setVisible(false);
 			searchableBar.setInstaller(new SearchableBar.Installer() {
 
 				@Override
 				public void openSearchBar(final SearchableBar searchableBar) {
-					final Container dialog = getRootPane().getParent();
-					dialog.setSize(searchableBar.getWidth(), dialog.getHeight());
-					barPanel.setVisible(true);
+					if (ManagerPanel.this.getWidth() < searchableBar.getWidth())
+						ManagerPanel.this.setSize(searchableBar.getWidth(), ManagerPanel.this.getHeight());
+					searchableBar.setVisible(true);
 					searchableBar.focusSearchField();
 				}
 
 				@Override
 				public void closeSearchBar(final SearchableBar searchableBar) {
-					final Container dialog = getRootPane().getParent();
-					barPanel.setVisible(false);
-					dialog.setSize(getPreferredSize().width, dialog.getHeight());
+					searchableBar.setVisible(false);
+					if (ManagerPanel.this.getPreferredSize().width < searchableBar.getWidth())
+						ManagerPanel.this.setSize(ManagerPanel.this.getPreferredSize().width, ManagerPanel.this.getHeight());
 				}
 			});
 			final JScrollPane scrollPane = new JScrollPane(managerList);
@@ -3116,7 +3127,7 @@ public class Viewer3D {
 			scrollPane.revalidate();
 			progressBar = new ProgressBar();
 			add(progressBar);
-			add(barPanel);
+			add(searchableBar);
 			add(buttonPanel());
 			fileDropWorker = new FileDropWorker(managerList, guiUtils);
 		}
@@ -3369,7 +3380,7 @@ public class Viewer3D {
 			final JPanel buttonPanel = new JPanel(new GridLayout(1, 7));
 			buttonPanel.setBorder(null);
 			// do not allow panel to resize vertically
-			setFixedHeightToPanel(buttonPanel);
+			setFixedHeight(buttonPanel);
 			buttonPanel.add(menuButton(GLYPH.MASKS, sceneMenu(), "Scene Controls"));
 			buttonPanel.add(menuButton(GLYPH.TREE, treesMenu(), "Neuronal Arbors"));
 			buttonPanel.add(menuButton(GLYPH.CUBE, meshMenu(), "3D Meshes"));
@@ -3388,10 +3399,9 @@ public class Viewer3D {
 			return buttonPanel;
 		}
 
-		private void setFixedHeightToPanel(final JPanel panel) {
-			// do not allow panel to resize vertically
-			panel.setMaximumSize(
-					new Dimension(panel.getMaximumSize().width, (int) panel.getPreferredSize().getHeight()));
+		private void setFixedHeight(final JComponent c) {
+			// do not allow component to resize vertically
+			c.setMaximumSize(new Dimension(c.getMaximumSize().width, (int) c.getPreferredSize().getHeight()));
 		}
 
 		private JButton menuButton(final GLYPH glyph, final JPopupMenu menu, final String tooltipMsg) {
@@ -3910,24 +3920,10 @@ public class Viewer3D {
 				});
 			});
 			measureMenu.add(mi);
-			mi = new JMenuItem("Save Table...", IconFactory.getMenuIcon(GLYPH.SAVE));
+			mi = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.getMenuIcon(GLYPH.SAVE));
+			mi.setToolTipText("Save all tables, plots, and charts currently open.");
 			mi.addActionListener(e -> {
-				if (table == null || table.isEmpty() || table.getRowCount() == 0) {
-					guiUtils.error("No data in measurements table.");
-				} else {
-					final File file = context.getService(UIService.class)
-							.chooseFile(new File(prefs.lastDir, "SNT-Measurements.csv"), FileWidget.SAVE_STYLE);
-					if (file != null)
-						try {
-							table.save(file);
-							prefs.lastDir = file.getParentFile();
-						} catch (final IOException e1) {
-							guiUtils.error("An error occured while saving table. See Console for details and data.");
-							e1.printStackTrace();
-							System.out.println("###   ###   ###   Tabular Data:    ###   ###   ###");
-							System.out.println(table);
-						}
-				}
+				runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING);
 			});
 			measureMenu.add(mi);
 			addSeparator(measureMenu, "Distribution Analysis:");
@@ -5209,22 +5205,21 @@ public class Viewer3D {
 				}
 			});
 			dialog.setContentPane(getContentPane());
+			GuiUtils.collapseAllTreeNodes(tree); // compute sizes based on collapsed tree
 			dialog.pack();
-			dialog.setSize(new Dimension(searchableBar.getWidth(), dialog.getHeight()));
+			GuiUtils.expandAllTreeNodes(tree);
 			dialog.setVisible(true);
 			return dialog;
 		}
 
 		private JPanel getContentPane() {
-			final JPanel barPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-			frame.managerPanel.setFixedHeightToPanel(barPanel);
-			barPanel.add(searchableBar);
+			frame.managerPanel.setFixedHeight(searchableBar);
 			final JScrollPane scrollPane = new JScrollPane(tree);
 			tree.setComponentPopupMenu(popupMenu());
 			scrollPane.setWheelScrollingEnabled(true);
 			final JPanel contentPane = new JPanel();
 			contentPane.setLayout(new BoxLayout(contentPane, BoxLayout.Y_AXIS));
-			contentPane.add(barPanel);
+			contentPane.add(searchableBar);
 			contentPane.add(scrollPane);
 			contentPane.add(buttonPanel());
 			return contentPane;
@@ -5233,7 +5228,7 @@ public class Viewer3D {
 		private JPanel buttonPanel() {
 			final JPanel buttonPanel = new JPanel(new GridLayout(1,2));
 			buttonPanel.setBorder(null);
-			frame.managerPanel.setFixedHeightToPanel(buttonPanel);
+			frame.managerPanel.setFixedHeight(buttonPanel);
 			JButton button = new JButton(IconFactory.getButtonIcon(GLYPH.INFO));
 			button.addActionListener(e -> showSelectionInfo());
 			buttonPanel.add(button);

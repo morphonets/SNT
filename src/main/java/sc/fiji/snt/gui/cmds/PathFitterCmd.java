@@ -104,7 +104,7 @@ public class PathFitterCmd extends ContextCommand {
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg3 = HEADER +
-		"<b>Replace nodes:</b> Defines wether fitted paths should immediately "
+		"<b>Replace nodes:</b> Defines whether fitted paths should immediately "
 		+ "replace (override) input path(s):";
 
 	@Parameter(required = false, label = EMPTY_LABEL, choices = {

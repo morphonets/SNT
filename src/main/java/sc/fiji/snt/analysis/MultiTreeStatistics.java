@@ -472,6 +472,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 		populateGroupOfGraphs();
 		final List<Map<BrainAnnotation, Double>> mapList = new ArrayList<>();
 		groupOfGraphs.forEach(g -> mapList.add(getAnnotatedLength(g, level, lrflag)));
+		mapList.forEach(e -> e.keySet().remove(null)); // remove all null keys (untagged nodes)
 		final Map<BrainAnnotation, Double> map = mapList.stream().flatMap(m -> m.entrySet().stream())
 				.collect(groupingBy(Map.Entry::getKey, summingDouble(Map.Entry::getValue)));
 		return map;

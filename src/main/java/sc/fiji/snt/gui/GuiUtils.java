@@ -779,20 +779,19 @@ public class GuiUtils {
 		final int previousTopGap = c.insets.top;
 		final Font font = label.getFont();
 		label.setFont(font.deriveFont((float) (font.getSize() * .85)));
-		if (vgap) c.insets.top = (int) (component.getFontMetrics(font).getHeight() *
-			1.5);
+		if (vgap) c.insets.top = (int) (component.getFontMetrics(font).getHeight());
 		component.add(label, c);
 		if (vgap) c.insets.top = previousTopGap;
 	}
 
-	public static JMenuItem menubarButton(final Icon icon, final JMenuBar menuBar) {
+	public static JMenuItem menubarButton(final IconFactory.GLYPH glyphIcon, final JMenuBar menuBar) {
+		final Icon icon = IconFactory.getMenuIcon(glyphIcon);
 		final JMenuItem mi = new JMenuItem(icon);
+//		if (menuBar.getMenuCount() > 0)
+//			mi.setMargin(menuBar.getMenu(menuBar.getMenuCount()-1).getMargin());
 		mi.setBackground(menuBar.getBackground());
-		mi.setPreferredSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
-		mi.setMinimumSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
-		if (!ij.IJ.isMacOSX()) {// icon displayed off-bounds on MacOS?
-			mi.setMaximumSize(new Dimension(icon.getIconWidth() * 2, icon.getIconHeight()));
-		}
+		mi.setMinimumSize(new Dimension(icon.getIconWidth(), icon.getIconHeight()));
+		mi.setMaximumSize(new Dimension((int) (icon.getIconWidth() * 1.5), icon.getIconHeight()));
 		menuBar.add(javax.swing.Box.createHorizontalGlue());
 		menuBar.add(mi);
 		return mi;

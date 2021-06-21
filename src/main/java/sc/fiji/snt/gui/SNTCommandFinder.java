@@ -234,7 +234,7 @@ public class SNTCommandFinder {
 		new GuiUtils(frame).tempMsg("Shortcuts:" //
 				+ "<table>" //
 				+ " <tr>" //
-				+ "  <td>&uarr; &darr;<br></td>" //
+				+ "  <td>&uarr; &darr;</td>" //
 				+ "  <td>Select Commands</td>" //
 				+ " </tr>" //
 				+ " <tr>" //
@@ -248,6 +248,10 @@ public class SNTCommandFinder {
 				+ " <tr>" //
 				+ "  <td><&#9003;</td>" //
 				+ "  <td>Activate search field</td>" //
+				+ " </tr>" //
+				+ " <tr>" //
+				+ "  <td>Esc</td>" //
+				+ "  <td>Dismiss</td>" //
 				+ " </tr>" //
 				+ "</table>");
 	}

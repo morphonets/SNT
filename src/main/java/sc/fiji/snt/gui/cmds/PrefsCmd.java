@@ -36,6 +36,7 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.SaveMeasurementsCmd;
 import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.BrainAnnotationCmd;
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
@@ -82,7 +83,7 @@ public class PrefsCmd extends ContextCommand {
 	@Parameter(label="Remember window locations", description="Whether position of dialogs should be preserved across restarts")
 	private boolean persistentWinLoc;
 
-	@Parameter(label="Prefer 2D display canvases", description="When no valid image exists, Adopt 2D or 3D canvases?")
+	@Parameter(label="Prefer 2D display canvases", description="When no valid image exists, adopt 2D or 3D canvases?")
 	private boolean force2DDisplayCanvas;
 
 	@Parameter(label="Use compression when saving traces", description="Wheter Gzip compression should be use when saving .traces files")
@@ -187,6 +188,7 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(RecViewerPrefsCmd.class);
 		prefService.clear(RemoteSWCImporterCmd.class);
 		prefService.clear(ROIExporterCmd.class);
+		prefService.clear(SaveMeasurementsCmd.class);
 		prefService.clear(ShollAnalysisBulkTreeCmd.class);
 		prefService.clear(ShollAnalysisImgCmd.class);
 		prefService.clear(ShollAnalysisPrefsCmd.class);

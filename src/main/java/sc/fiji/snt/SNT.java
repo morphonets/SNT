@@ -353,7 +353,7 @@ public class SNT extends MultiDThreePanes implements
 				final String dir = sourceImage.getOriginalFileInfo().directory;
 				final String name = sourceImage.getOriginalFileInfo().fileName;
 				if (dir != null && name != null)
-					prefs.setRecentFile(new File(dir, name));
+					prefs.setRecentDir(new File(dir));
 			}
 		} else {
 			pathAndFillManager.syncSpatialSettingsWithPlugin();
@@ -720,7 +720,7 @@ public class SNT extends MultiDThreePanes implements
 		if (file != null && file.exists()) {
 			if (isUIready()) ui.changeState(SNTUI.LOADING);
 			if (pathAndFillManager.load(file.getAbsolutePath())) {
-				prefs.setRecentFile(file);
+				prefs.setRecentDir(file);
 			}
 			if (isUIready()) ui.resetState();
 		}
@@ -1222,7 +1222,7 @@ public class SNT extends MultiDThreePanes implements
 	/** Assumes UI is available */
 	synchronized protected void loadTracesFile(File file) {
 		loading = true;
-		if (file == null) file = ui.openFile("Open .traces File...", ".traces");
+		if (file == null) file = ui.openFile("Open .traces File...", "traces");
 		if (file == null) return; // user pressed cancel;
 		if (!file.exists()) {
 			guiUtils.error(file.getAbsolutePath() + " is no longer available");

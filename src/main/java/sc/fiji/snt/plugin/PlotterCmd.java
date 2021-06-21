@@ -211,7 +211,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 	}
 
 	private void updatePlot() {
-		if (preview && msg.isEmpty()) {
+		if (preview && msg.isEmpty() && hasInitialized()) {
 			msg = BUSY_MSG;
 			buildPlot();
 			chart.getXYPlot().setDataset(plot.getJFreeChart().getXYPlot().getDataset());
@@ -236,23 +236,38 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 
 	@SuppressWarnings("unused")
 	private void currentXangleChanged() {
-		plottingTree.rotate(Tree.X_AXIS, angleX - previousXangle);
-		previousXangle = (int)angleX;
-		updatePlot();
+		if (hasInitialized()) {
+			plottingTree.rotate(Tree.X_AXIS, angleX - previousXangle);
+			previousXangle = (int)angleX;
+			updatePlot();
+		}
 	}
 
 	@SuppressWarnings("unused")
 	private void currentYangleChanged() {
-		plottingTree.rotate(Tree.Y_AXIS, angleY - previousYangle);
-		previousYangle = (int)angleY;
-		updatePlot();
+		if (hasInitialized()) {
+			plottingTree.rotate(Tree.Y_AXIS, angleY - previousYangle);
+			previousYangle = (int)angleY;
+			updatePlot();
+		}
 	}
 
 	@SuppressWarnings("unused")
 	private void currentZangleChanged() {
-		plottingTree.rotate(Tree.Z_AXIS, angleZ - previousZangle);
-		previousZangle = (int)angleZ;
-		updatePlot();
+		if (hasInitialized()) {
+			plottingTree.rotate(Tree.Z_AXIS, angleZ - previousZangle);
+			previousZangle = (int)angleZ;
+			updatePlot();
+		}
+	}
+
+	private boolean hasInitialized() {
+		if (plottingTree == null) {
+			new GuiUtils().error("Somehow Plotter could not be initialized. "
+					+ "Chosen structure may not be renderable as is, and paths may need to be rebuild?");
+			return false;
+		}
+		return true;
 	}
 
 	private int getBoundedAngle(int angle) {
@@ -263,6 +278,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 
 	@SuppressWarnings("unused")
 	private void runAction() {
+		if (!hasInitialized()) return;
 		switch (actionChoice) {
 			case ACTION_NONE:
 				return;

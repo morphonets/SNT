@@ -26,6 +26,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
@@ -115,6 +116,7 @@ import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTCommandFinder;
+import sc.fiji.snt.gui.SaveMeasurementsCmd;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.SigmaPalette;
 import sc.fiji.snt.io.FlyCircuitLoader;
@@ -138,7 +140,7 @@ import java.util.*;
 public class SNTUI extends JDialog {
 
 	/* UI */
-	private static final int MARGIN = 4;
+	private static final int MARGIN = 2;
 	private final JMenuBar menuBar;
 	private JCheckBox showPathsSelected;
 	protected JCheckBox showPartsNearby;
@@ -1224,7 +1226,7 @@ public class SNTUI extends JDialog {
 
 		final JCheckBox requireShiftToForkCheckbox = new JCheckBox("Require 'Shift' to branch off a path", plugin.requireShiftToFork);
 		guiUtils.addTooltip(requireShiftToForkCheckbox, "When branching off a path: Use Shift+Alt+click or Alt+click at the forking node? "
-				+ "NB: Alt+click is a common trigger for window dragging on Linux. Use Super+Alt+click to circunvent it");
+				+ "NB: Alt+click is a common trigger for window dragging on Linux. Use Super+Alt+click to circumvent OS conflics.");
 		requireShiftToForkCheckbox.addItemListener(e ->plugin.requireShiftToFork = e.getStateChange() == ItemEvent.SELECTED);
 		tPanel.add(requireShiftToForkCheckbox, gdb);
 		return tPanel;
@@ -1263,7 +1265,7 @@ public class SNTUI extends JDialog {
 			}
 			plugin.updateTracingViewers(false);
 		});
-		final JButton defaultsButton = new JButton("Default");
+		final JButton defaultsButton = new JButton("Reset");
 		defaultsButton.addActionListener(e -> {
 			plugin.getXYCanvas().setNodeDiameter(-1);
 			if (!plugin.getSinglePane()) {
@@ -1297,7 +1299,7 @@ public class SNTUI extends JDialog {
 		defTransparencySpinner.addChangeListener(e -> {
 			setDefaultTransparency(Integer.valueOf(defTransparencySpinner.getValue().toString()));
 		});
-		final JButton defTransparencyButton = new JButton("Default");
+		final JButton defTransparencyButton = new JButton("Reset");
 		defTransparencyButton.addActionListener(e -> {
 			setDefaultTransparency(100);
 			defTransparencySpinner.setValue(100);
@@ -1312,13 +1314,13 @@ public class SNTUI extends JDialog {
 		c.gridy = 0;
 		c.gridwidth = 3;
 		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel("Path centerline opacity (%): ", true));
+		p.add(GuiUtils.leftAlignedLabel("Centerline opacity (%): ", true));
 		c.gridx = 1;
 		p.add(defTransparencySpinner, c);
 		c.fill = GridBagConstraints.NONE;
 		c.gridx = 2;
 		p.add(defTransparencyButton);
-		guiUtils.addTooltip(p, "Rendering opacity (0-100%) for lines connecting nodes");
+		guiUtils.addTooltip(p, "Rendering opacity (0-100%) for lines connecting path nodes");
 		return p;
 	}
 
@@ -1329,7 +1331,7 @@ public class SNTUI extends JDialog {
 		transparencyOutOfBoundsSpinner.addChangeListener(e -> {
 			setOutOfBoundsTransparency(Integer.valueOf(transparencyOutOfBoundsSpinner.getValue().toString()));
 		});
-		final JButton defaultOutOfBoundsButton = new JButton("Default");
+		final JButton defaultOutOfBoundsButton = new JButton("Reset");
 		defaultOutOfBoundsButton.addActionListener(e -> {
 			setOutOfBoundsTransparency(50);
 			transparencyOutOfBoundsSpinner.setValue(50);
@@ -1344,13 +1346,13 @@ public class SNTUI extends JDialog {
 		c.gridy = 0;
 		c.gridwidth = 3;
 		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel("Opacity of out-of-plane segments (%): ", true));
+		p.add(GuiUtils.leftAlignedLabel("Out-of-plane opacity (%): ", true));
 		c.gridx = 1;
 		p.add(transparencyOutOfBoundsSpinner, c);
 		c.fill = GridBagConstraints.NONE;
 		c.gridx = 2;
 		p.add(defaultOutOfBoundsButton);
-		guiUtils.addTooltip(p, "The opacity (0-100%) of segments that are out-of-plane. "
+		guiUtils.addTooltip(p, "The opacity (0-100%) of path segments that are out-of-plane. "
 				+ "Only considered when tracing 3D images and the visibility filter is "
 				+ "<i>Only nodes within # nearby Z-slices</i>");
 		return p;
@@ -1390,6 +1392,9 @@ public class SNTUI extends JDialog {
 		final String selectedKey = String.valueOf(colorChoice.getSelectedItem());
 		final ColorChooserButton cChooser = new ColorChooserButton(hm.get(selectedKey), "Change", 1,
 				SwingConstants.RIGHT);
+		cChooser.setPreferredSize(new Dimension(cChooser.getPreferredSize().width, colorChoice.getPreferredSize().height));
+		cChooser.setMinimumSize(new Dimension(cChooser.getMinimumSize().width, colorChoice.getMinimumSize().height));
+		cChooser.setMaximumSize(new Dimension(cChooser.getMaximumSize().width, colorChoice.getMaximumSize().height));
 
 		colorChoice.addActionListener(
 				e -> cChooser.setSelectedColor(hm.get(String.valueOf(colorChoice.getSelectedItem())), false));
@@ -2123,7 +2128,8 @@ public class SNTUI extends JDialog {
 	}
 
 	protected File openFile(final String promptMsg, final String extension) {
-		final File suggestedFile = SNTUtils.findClosestPair(plugin.getPrefs().getRecentFile(), extension);
+		final String suggestFilename = (plugin.accessToValidImageData()) ? plugin.getImagePlus().getShortTitle() : "SNT_Data";
+		final File suggestedFile = SNTUtils.findClosestPair(new File(plugin.getPrefs().getRecentDir(), suggestFilename), extension);
 		return openFile(promptMsg, suggestedFile);
 	}
 
@@ -2132,20 +2138,20 @@ public class SNTUI extends JDialog {
 		if (focused) toBack();
 		final File openedFile = plugin.legacyService.getIJ1Helper().openDialog(promptMsg, suggestedFile);
 		if (openedFile != null)
-			plugin.getPrefs().setRecentFile(openedFile);
+			plugin.getPrefs().setRecentDir(openedFile);
 		if (focused) toFront();
 		return openedFile;
 	}
 
 	protected File saveFile(final String promptMsg, final String suggestedFileName, final String fallbackExtension) {
 		final File fFile = new File(plugin.getPrefs().getRecentDir(),
-				(suggestedFileName == null) ? plugin.getPrefs().getRecentFile().getName() : suggestedFileName);
+				(suggestedFileName == null) ? "SNT_Data" : suggestedFileName);
 		final boolean focused = hasFocus();
 		if (focused)
 			toBack();
 		final File savedFile = plugin.legacyService.getIJ1Helper().saveDialog(promptMsg, fFile, fallbackExtension);
 		if (savedFile != null)
-			plugin.getPrefs().setRecentFile(savedFile);
+			plugin.getPrefs().setRecentDir(savedFile);
 		if (focused)
 			toFront();
 		return savedFile;
@@ -2323,10 +2329,10 @@ public class SNTUI extends JDialog {
 		loadLabelsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAG));
 		loadLabelsMenuItem.addActionListener(listener);
 		fileMenu.add(loadLabelsMenuItem);
-		final JMenuItem saveTable = new JMenuItem("Save Measurements...", IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
+		final JMenuItem saveTable = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
+		saveTable.setToolTipText("Save all tables, plots, and charts currently open.");
 		saveTable.addActionListener(e -> {
-			pmUI.saveTable();
-			return;
+			(new DynamicCmdRunner(SaveMeasurementsCmd.class, null, getState())).run();
 		});
 		fileMenu.add(saveTable);
 
@@ -2941,7 +2947,7 @@ public class SNTUI extends JDialog {
 				noSecondaryImgAvailableError();
 				return;
 			}
-			final File file = openFile("Choose \"Tubeness\" Image...", ".tubes.tif");
+			final File file = openFile("Choose \"Tubeness\" Image...", "tubes.tif");
 			if (file != null) loadCachedDataImage(true, type, true, file);
 		});
 		menu.add(jmi);
@@ -3077,7 +3083,7 @@ public class SNTUI extends JDialog {
 
 	private JPanel getTab() {
 		final JPanel tab = new JPanel();
-		tab.setBorder(BorderFactory.createEmptyBorder(MARGIN * 2, MARGIN / 2, MARGIN / 2, MARGIN));
+		tab.setBorder(BorderFactory.createEmptyBorder(MARGIN, MARGIN / 2, MARGIN / 2, MARGIN));
 		tab.setLayout(new GridBagLayout());
 		return tab;
 	}
@@ -3493,6 +3499,8 @@ public class SNTUI extends JDialog {
 	}
 
 	protected void abortCurrentOperation() {// FIXME: MOVE TO SNT?
+		if (commandFinder != null)
+			commandFinder.setVisible(false);
 		switch (currentState) {
 		case (SEARCHING):
 			updateStatusText("Cancelling path search...", true);
@@ -3896,7 +3904,7 @@ public class SNTUI extends JDialog {
 
 			} else if (source == loadLabelsMenuItem) {
 
-				final File openFile = openFile("Select Labels File...", ".labels");
+				final File openFile = openFile("Select Labels File...", "labels");
 				if (openFile != null) { // null if user pressed cancel;
 					plugin.loadLabelsFile(openFile.getAbsolutePath());
 					return;
@@ -4204,7 +4212,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private void registerCommandFinder(final JMenuBar menubar) {
-		final JMenuItem cFinder = GuiUtils.menubarButton(IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH), menubar);
+		final JMenuItem cFinder = GuiUtils.menubarButton(IconFactory.GLYPH.SEARCH, menubar);
 		cFinder.addActionListener(e -> {
 			commandFinder.setLocationRelativeTo(cFinder);
 			commandFinder.toggleVisibility();

@@ -32,6 +32,7 @@ import java.util.stream.IntStream;
 
 import net.imglib2.display.ColorTable8;
 import sc.fiji.snt.SNTService;
+import sc.fiji.snt.analysis.sholl.parsers.TabularParser;
 
 import org.scijava.table.DoubleTable;
 import org.scijava.table.TableLoader;
@@ -71,6 +72,12 @@ public class ShollUtils {
 			// proceed with return null;
 		}
 		return resource;
+	}
+
+	public static Profile demoProfile() {
+		final TabularParser parser = new TabularParser(csvSample(), "radii_um", "counts");
+		parser.parse();
+		return parser.getProfile();
 	}
 
 	public static DoubleTable csvSample() {

@@ -37,6 +37,7 @@ import java.util.Set;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.util.ColorRGB;
+import org.scijava.util.ColorRGBA;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -1198,6 +1199,12 @@ public class Tree implements TreeProperties {
 			if (color != null) p.setNodeColors(null);
 		});
 		this.color = color;
+		if (color == null)
+			getProperties().remove(TreeProperties.KEY_COLOR);
+		else if (color instanceof ColorRGBA)
+			getProperties().setProperty(TreeProperties.KEY_COLOR, color.toString() + "," + ((ColorRGBA)color).getAlpha());
+		else
+			getProperties().setProperty(TreeProperties.KEY_COLOR, color.toString());
 	}
 
 	/**
@@ -1211,6 +1218,24 @@ public class Tree implements TreeProperties {
 	 */
 	public void setColor(final String color) {
 		setColor(new ColorRGB(color));
+	}
+
+	/**
+	 * Assigns a color to all the paths in this tree. Note that assigning a non-null
+	 * color will remove node colors from Paths.
+	 * 
+	 * @param color               the color to be applied, either a 1) HTML color
+	 *                            codes starting with hash ({@code #}), a color
+	 *                            preset ("red", "blue", etc.), or integer triples
+	 *                            of the form {@code r,g,b} and range
+	 *                            {@code [0, 255]}
+	 * @param transparencyPercent the color transparency (in percentage)
+	 */
+	public void setColor(final String color, final double transparencyPercent) {
+		final ColorRGB baseColor = new ColorRGB(color);
+		final ColorRGBA finalColor = new ColorRGBA(baseColor.getRed(), baseColor.getGreen(),
+				baseColor.getBlue(), (int) Math.round((100 - transparencyPercent) * 255 / 100));
+		setColor(finalColor);
 	}
 
 	/**

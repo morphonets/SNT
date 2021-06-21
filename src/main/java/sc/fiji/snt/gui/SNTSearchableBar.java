@@ -24,16 +24,16 @@ package sc.fiji.snt.gui;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.util.List;
 
 import javax.swing.AbstractAction;
 import javax.swing.AbstractButton;
 import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -43,6 +43,7 @@ import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.UIManager;
 import javax.swing.plaf.basic.BasicComboBoxEditor;
@@ -67,19 +68,14 @@ public class SNTSearchableBar extends SearchableBar {
 	public static final int SHOW_SEARCH_OPTIONS = 0x80;
 	protected List<AbstractButton> _extraButtons;
 	protected boolean containsCheckboxes;
-	protected static int buttonHeight;
-	protected static float iconHeight;
+	private int buttonHeight;
+	private float iconHeight;
 	private int buttonCount;
 
 	private String statusLabelPlaceholder;
 	private String objectDescription;
 	private GuiUtils guiUtils;
 	private JMenuItem findAndReplaceMenuItem;
-
-	static {
-		buttonHeight = (int) new JComboBox<String>().getPreferredSize().getHeight();
-		iconHeight = UIManager.getFont("Label.font").getSize();
-	}
 
 	public SNTSearchableBar(final Searchable searchable) {
 		this(searchable, "Find:");
@@ -97,8 +93,7 @@ public class SNTSearchableBar extends SearchableBar {
 		setBorder(BorderFactory.createEmptyBorder());
 		setMismatchForeground(Color.RED);
 		setMaxHistoryLength(10);
-		setHighlightAll(false); // TODO: update to 3.6.19 see bugfix
-		// https://github.com/jidesoft/jide-oss/commit/149bd6a53846a973dfbb589fffcc82abbc49610b
+		setHighlightAll(true);
 		updatPlaceholderText();
 	}
 
@@ -156,13 +151,28 @@ public class SNTSearchableBar extends SearchableBar {
 
 	@Override
 	protected void installComponents() {
-		final JPanel mainPanel = leftAlignedPanel();
-		final JPanel buttonPanel = new JPanel();
+
+		setLayout(new GridBagLayout());
+		final GridBagConstraints gbc = new GridBagConstraints();
+
+		// close button (if any)
+		gbc.gridx = 0;
+		gbc.gridy = 1;
+		gbc.fill = GridBagConstraints.HORIZONTAL;
 		if ((getVisibleButtons() & SHOW_CLOSE) != 0) {
-			mainPanel.add(_closeButton);
+			add(_closeButton, gbc);
 		}
-		mainPanel.add(_textField);
-		mainPanel.add(_comboBox);
+
+		// search field
+		gbc.gridx = 1;
+		gbc.gridy = 1;
+		gbc.weightx = 1.0;
+		gbc.anchor = GridBagConstraints.WEST;
+		gbc.fill = GridBagConstraints.HORIZONTAL;
+		add((getMaxHistoryLength() == 0) ? _textField : _comboBox, gbc);
+
+		// button panel
+		final JPanel buttonPanel = new JPanel();
 		if ((getVisibleButtons() & SHOW_SEARCH_OPTIONS) != 0) {
 			addButton(buttonPanel, createSearchOptionsButton());
 		}
@@ -176,28 +186,36 @@ public class SNTSearchableBar extends SearchableBar {
 		if ((getVisibleButtons() & SHOW_MATCHCASE) != 0) {
 			addButton(buttonPanel, _matchCaseCheckBox);
 		}
-		if ((getVisibleButtons() & SHOW_WHOLE_WORDS) != 0 &&
-			getSearchable() instanceof WholeWordsSupport)
-		{
+		if ((getVisibleButtons() & SHOW_WHOLE_WORDS) != 0 && getSearchable() instanceof WholeWordsSupport) {
 			addButton(buttonPanel, _wholeWordsCheckBox);
 		}
 		if ((getVisibleButtons() & SHOW_REPEATS) != 0) {
 			addButton(buttonPanel, _repeatCheckBox);
 		}
 		if (_extraButtons != null) {
-			buttonPanel.add(Box.createHorizontalGlue());
+			// buttonPanel.add(Box.createHorizontalGlue());
 			_extraButtons.forEach(b -> addButton(buttonPanel, b));
 		}
 		if (buttonCount > 0) {
-			if (!containsCheckboxes) buttonPanel.setLayout(new GridLayout(1,
-				buttonCount));
-			mainPanel.add(buttonPanel);
+			normalizeButtons(buttonPanel);
+			buttonPanel.setLayout(new GridLayout(1, buttonCount));
+			gbc.gridx = 2;
+			gbc.gridy = 1;
+			gbc.fill = GridBagConstraints.BOTH;
+			gbc.weightx = 0.0;
+			add(buttonPanel, gbc);
 		}
-		add(mainPanel);
+
+		// status label
 		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
-			setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
-			add(statusPanel());
+			gbc.gridx = 0;
+			gbc.gridy = 2;
+			gbc.gridwidth = 3;
+			gbc.weightx = 1;
+			gbc.anchor = GridBagConstraints.WEST;
+			add(statusLabel(), gbc);
 		}
+
 	}
 
 	protected void setSearcheableObjectDescription(final String objectDescription) {
@@ -291,22 +309,15 @@ public class SNTSearchableBar extends SearchableBar {
 		buttonCount++;
 	}
 
-	private JPanel leftAlignedPanel() {
-		final JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
-		return panel;
-	}
-
-	private JPanel statusPanel() {
-		final JPanel statusPanel = leftAlignedPanel();
+	private JLabel statusLabel() {
 		_statusLabel = new JLabel(statusLabelPlaceholder);
-		statusPanel.add(_statusLabel);
 		_statusLabel.addPropertyChangeListener("text", evt -> {
 			final String text = _statusLabel.getText();
 			if (text == null || text.isEmpty()) _statusLabel.setText(
 				statusLabelPlaceholder);
 		});
-		return statusPanel;
+		_statusLabel.setBackground(Color.CYAN);
+		return _statusLabel;
 	}
 
 	public void setStatus(final String text) {
@@ -355,7 +366,11 @@ public class SNTSearchableBar extends SearchableBar {
 	}
 
 	protected void formatButton(final AbstractButton button, final IconFactory.GLYPH glyph) {
-		button.setPreferredSize(new Dimension(buttonHeight, buttonHeight));
+		if (buttonHeight == 0)
+			buttonHeight = (getMaxHistoryLength() == 0) ? new JTextField().getHeight() : new JComboBox<String>().getHeight();
+		if (iconHeight == 0)
+			iconHeight = UIManager.getFont("Label.font").getSize();
+		button.setSize(new Dimension(buttonHeight, buttonHeight));
 		IconFactory.applyIcon(button, iconHeight, glyph);
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
@@ -366,5 +381,30 @@ public class SNTSearchableBar extends SearchableBar {
 			button.setSelectedIcon(selectIcon);
 			button.setRolloverSelectedIcon(selectIcon);
 		}
+	}
+
+	private void normalizeButtons(final Container container) {
+		// Some L&Fs/JDK versions render buttons inconsistently!? Attempt to fix it
+		final JToggleButton template = firstToggleButton(container);
+		if (template != null) {
+			for (final Component component : container.getComponents()) {
+				if (component instanceof AbstractButton) {
+					((AbstractButton) component).setBackground(template.getBackground());
+					((AbstractButton) component).setBorder(template.getBorder());
+					((AbstractButton) component).setBorderPainted(template.isBorderPainted());
+					((AbstractButton) component).setContentAreaFilled(template.isContentAreaFilled());
+					((AbstractButton) component).setMargin(template.getMargin());
+					((AbstractButton) component).setOpaque(template.isOpaque());
+				}
+			}
+		}
+	}
+
+	private JToggleButton firstToggleButton(final Container container) {
+		for (final Component component : container.getComponents()) {
+			if (component instanceof JToggleButton)
+				return (JToggleButton) component;
+		}
+		return null;
 	}
 }

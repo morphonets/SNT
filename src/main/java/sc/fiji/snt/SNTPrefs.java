@@ -69,7 +69,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	@Deprecated
 	private static final String LOAD_DIRECTORY_KEY = "tracing.snt.lastdir";
 
-	private static File recentFile;
+	private static File recentDir;
 
 	private final SNT snt;
 	private final int UNSET_PREFS = -1;
@@ -331,26 +331,24 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set("tracing.Simple_Neurite_Tracer.drawDiametersXY", null);
 	}
 
-	protected void setRecentFile(final File file) {
-		recentFile = file;
+	public void setRecentDir(final File file) {
+		if (file != null && !file.isDirectory())
+			recentDir = file.getParentFile();
+		else
+			recentDir = file;
 	}
 
-	protected File getRecentFile() {
-		if (recentFile == null && snt.accessToValidImageData()) {
+	public File getRecentDir() {
+		if (recentDir == null && snt.accessToValidImageData()) {
 				try {
 					final FileInfo fInfo = snt.getImagePlus().getOriginalFileInfo();
-					recentFile = new File(fInfo.directory, fInfo.fileName);
+					recentDir = new File(fInfo.directory);
 				} catch (final NullPointerException npe) {
 					// ignored;
 				}
 		}
-		if (recentFile == null)
-			recentFile = new File(System.getProperty("user.home"), "SNT_data");
-		return recentFile;
+		if (recentDir == null)
+			recentDir = new File(System.getProperty("user.home"));
+		return recentDir;
 	}
-
-	protected File getRecentDir() {
-		return (getRecentFile() == null) ? new File(System.getProperty("user.home")) : recentFile.getParentFile();
-	}
-
 }
