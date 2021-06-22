@@ -859,18 +859,18 @@ public class SNTUI extends JDialog {
 			case WAITING_FOR_SIGMA_POINT_I:
 				updateStatusText("Click on a representative structure...");
 				showStatus("Adjusting Hessian (main image)...", false);
-				disableEverything();
+				//disableEverything();
 				break;
 
 			case WAITING_FOR_SIGMA_POINT_II:
 				updateStatusText("Click on a representative structure...");
 				showStatus("Adjusting Hessian (secondary image)...", false);
-				disableEverything();
+				//disableEverything();
 				break;
 
 			case WAITING_FOR_SIGMA_CHOICE:
 				updateStatusText("Close 'Pick Sigma &amp; Max' to continue...");
-				disableEverything();
+				//disableEverything();
 				break;
 
 			case LOADING:
@@ -1976,6 +1976,19 @@ public class SNTUI extends JDialog {
 				loadSecondaryImageFile(new File(secondaryImgPathField.getText()));
 			}
 		});
+		final JMenuItem jmiVisual = new JMenuItem(GuiListener.EDIT_SIGMA_VISUALLY);
+		jmiVisual.addActionListener(listener);
+		optionsMenu.add(jmiVisual);
+		JMenuItem jmiManual = new JMenuItem(GuiListener.EDIT_SIGMA_MANUALLY);
+		jmiManual.addActionListener(listener);
+		optionsMenu.add(jmiManual);
+		final JMenuItem thicknessCmdItem = new JMenuItem("Estimate Radii (Local Thickness)...");
+		thicknessCmdItem.setToolTipText("<HTML><div WIDTH=500>Computes the distribution of the radii of all the structures across the image");
+		//thicknessCmdItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DOTCIRCLE));
+		optionsMenu.add(thicknessCmdItem);
+		thicknessCmdItem.addActionListener(e -> {
+			(new DynamicCmdRunner(LocalThicknessCmd.class, null, RUNNING_CMD)).run();
+		});
 		final JMenuItem makeImgMenuItem = new JMenuItem("Generate Secondary Image...");
 		optionsMenu.add(makeImgMenuItem);
 		makeImgMenuItem.addActionListener(e -> {
@@ -1984,23 +1997,6 @@ public class SNTUI extends JDialog {
 				return;
 			}
 			loadCachedDataImage(true, "secondary", false, null);
-		});
-		final JMenuItem adjustRangeMenuItem = new JMenuItem("Adjust Min-Max...");
-		optionsMenu.add(adjustRangeMenuItem);
-		adjustRangeMenuItem.addActionListener(e -> {
-			if (!plugin.isSecondaryImageLoaded()) {
-				noSecondaryImgAvailableError();
-				return;
-			}
-			final float[] currentRange = plugin.getSecondaryImageMinMax();
-			final float[] newRange = guiUtils.getRange("Min-max range for A* search:", "Specify Min-Max", currentRange);
-			if (newRange == null)
-				return; // user pressed cancel
-			if (Float.isNaN(newRange[0]) || Float.isNaN(newRange[1])) {
-				guiUtils.error("Invalid range. Please specify two valid numbers separated by a single hyphen.");
-			} else {
-				plugin.setSecondaryImageMinMax(newRange[0], newRange[1]);
-			}
 		});
 		optionsMenu.addSeparator();
 		optionsMenu.add(showFilteredImpMenuItem());
@@ -2831,13 +2827,11 @@ public class SNTUI extends JDialog {
 		JMenuItem reciprocalJmi = new JMenuItem("Reciprocal of scaled intensity");
 		reciprocalJmi.addActionListener(e -> {
 			plugin.costFunctionClass = ReciprocalCost.class;
-			setMinMaxFromUser();
 		});
 		costFunctionMenu.add(reciprocalJmi);
 		JMenuItem differenceJmi = new JMenuItem("Difference of intensity");
 		differenceJmi.addActionListener(e -> {
 			plugin.costFunctionClass = DifferenceCost.class;
-			setMinMaxFromUser();
 		});
 		costFunctionMenu.add(differenceJmi);
 		JMenuItem statJmi = new JMenuItem("Probability of intensity");
@@ -2847,7 +2841,12 @@ public class SNTUI extends JDialog {
 		});
 		costFunctionMenu.add(statJmi);
 		optionsMenu.add(costFunctionMenu);
-
+		optionsMenu.addSeparator();
+		JMenuItem minMaxJmi = new JMenuItem("Adjust Min-Max...");
+		minMaxJmi.addActionListener(e -> {
+			setMinMaxFromUser();
+		});
+		optionsMenu.add(minMaxJmi);
 		aStarPanel = new JPanel(new BorderLayout());
 		aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
 		aStarPanel.add(optionsButton, BorderLayout.EAST);
@@ -2875,7 +2874,7 @@ public class SNTUI extends JDialog {
 		return panel;
 	}
 
-
+	@Deprecated
 	private JPanel hessianPanel() {
 		preprocess = new JCheckBox(hotKeyLabel("Hessian-based", "H"));
 		preprocess.addActionListener(listener);
@@ -2913,9 +2912,6 @@ public class SNTUI extends JDialog {
 		thicknessCmdItem.addActionListener(e -> {
 			(new DynamicCmdRunner(LocalThicknessCmd.class, null, RUNNING_CMD)).run();
 		});
-		optionsMenu.addSeparator();
-		optionsMenu.add(hessianCompMenu("Cached Computations (Main Image)", "primary"));
-		optionsMenu.add(hessianCompMenu("Cached Computations (Secondary Image)", "secondary"));
 		final JButton optionsButton = optionsButton(optionsMenu);
 		hessianPanel = new JPanel(new BorderLayout());
 		hessianLabel = GuiUtils.leftAlignedLabel("Current settings", true);
@@ -2929,6 +2925,7 @@ public class SNTUI extends JDialog {
 		return hessianPanel;
 	}
 
+	@Deprecated
 	private JMenu hessianCompMenu(final String title, final String type) {
 		final JMenu menu = new JMenu(title);
 		JMenuItem jmi = new JMenuItem("<HTML>Cache Now...");
@@ -3105,33 +3102,6 @@ public class SNTUI extends JDialog {
 		});
 	}
 
-	private void setMultiplierForCachedTubenessFromUser(final String primarySecondaryChoice) {
-		// TODO repurpose this for MaxScalingCost
-		final HessianCaller hc = plugin.getHessianCaller(primarySecondaryChoice);
-		//final double defaultValue = hc.getDefaultMax();
-		final double defaultValue = 64;
-		String promptMsg = "<HTML><body><div style='width:500;'>" //
-				+ "Enter the maximum pixel intensity on the cached "//
-				+ "<i>Tubeness</i> image beyond which the cost function for A* search "//
-				+ "is minimized. The current default is "//
-				+ SNTUtils.formatDouble(defaultValue, 1) + ".";
-		if (plugin.secondaryData == null) {
-			// min/max belong to plugin.cachedTubeness
-			promptMsg += " The image min-max range is "//
-					+ SNTUtils.formatDouble(plugin.stackMinSecondary, 1) + "-"//
-					+ SNTUtils.formatDouble(plugin.stackMaxSecondary, 1) + ".";
-		}
-		final Double max = guiUtils.getDouble(promptMsg, "Hessian Settings (Cached Image)", defaultValue);
-		if (max == null) {
-			return; // user pressed cancel
-		}
-		if (Double.isNaN(max) || max < 0) {
-			guiUtils.error("Maximum must be a positive number.", "Invalid Input");
-			return;
-		}
-		// TODO repurpose this for MaxScalingCost
-	}
-
 	private void setZFudgeFromUser() {
 		final double defaultValue = new OneMinusErfCost(0,0,0).getZFudge();
 		String promptMsg = "<HTML><body><div style='width:250;'>" //
@@ -3152,7 +3122,10 @@ public class SNTUI extends JDialog {
 	}
 
 	private void setMinMaxFromUser() {
-		final float[] defaultValues = new float[]{(float)plugin.stats.min, (float)plugin.stats.max};
+		final boolean useSecondary = plugin.isTracingOnSecondaryImageActive();
+		final float[] defaultValues = new float[2];
+		defaultValues[0] = useSecondary ? (float)plugin.stackMinSecondary : (float)plugin.stackMin;
+		defaultValues[1] = useSecondary ? (float)plugin.stackMaxSecondary : (float)plugin.stackMax;
 		String promptMsg = "<HTML><body><div style='width:400;'>" //
 				+ "Enter the min-max range for the A* search.<br>"//
 				+ "Values less than or equal to Min maximize the A* cost function.<br>"
@@ -3164,8 +3137,17 @@ public class SNTUI extends JDialog {
 		if (minMax == null) {
 			return; // user pressed cancel
 		}
-		plugin.searchMinMax = minMax;
-		SNTUtils.log("min-max changed. Now using " + Arrays.toString(plugin.searchMinMax));
+		if (Double.isNaN(minMax[0]) || Double.isNaN(minMax[1])) {
+			guiUtils.error("Invalid range. Please specify two valid numbers separated by a single hyphen.");
+		}
+		if (useSecondary) {
+			plugin.stackMinSecondary = minMax[0];
+			plugin.stackMaxSecondary = minMax[1];
+		} else {
+			plugin.stackMin = minMax[0];
+			plugin.stackMax = minMax[1];
+		}
+
 	}
 
 	private boolean okToFlushCachedTubeness(final String type) {
@@ -3218,7 +3200,7 @@ public class SNTUI extends JDialog {
 			}
 			preprocess.setSelected(false);
 			hc.setSigmas(settings);
-			hc.start();
+			//hc.start();
 		}
 	}
 
@@ -3761,7 +3743,7 @@ public class SNTUI extends JDialog {
 				+ "at least once to ensure A* is properly tuned. Would you like to adjust them now "
 				+ "by clicking on a representative region of the image?",
 				"Adjust Hessian Visually?", "Yes. Adjust Visually...", noButtonLabel)) {
-			final String choice = getPrimarySecondaryImgChoice("Adjust settings for wich image?");
+			final String choice = getPrimarySecondaryImgChoice("Adjust settings for which image?");
 			if (choice == null) return false;
 			changeState(("secondary".equalsIgnoreCase(choice)) ? WAITING_FOR_SIGMA_POINT_II : WAITING_FOR_SIGMA_POINT_I);
 			return true;

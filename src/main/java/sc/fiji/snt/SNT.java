@@ -67,6 +67,7 @@ import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.util.*;
+import net.imglib2.type.numeric.real.FloatType;
 
 import javax.swing.*;
 import java.awt.*;
@@ -186,8 +187,9 @@ public class SNT extends MultiDThreePanes implements
 	protected Class<? extends SearchHeuristic> heuristicClass = EuclideanHeuristic.class;
 
 	/* adjustable parameters for cost functions */
-	double oneMinusErfZFudge = 0.1;
-	float[] searchMinMax;
+	protected volatile double oneMinusErfZFudge = 0.1;
+	protected volatile double stackMin;
+	protected volatile double stackMax;
 
 	/* tracing threads */
 	private AbstractSearch currentSearchThread = null;
@@ -199,10 +201,11 @@ public class SNT extends MultiDThreePanes implements
 	 * third-party class that will parse it
 	 */
 	protected boolean doSearchOnSecondaryData;
-	protected float[][] secondaryData;
+	protected RandomAccessibleInterval<FloatType> secondaryData;
 	protected File secondaryImageFile = null;
-	volatile protected float stackMaxSecondary = Float.MIN_VALUE;
-	volatile protected float stackMinSecondary = Float.MAX_VALUE;
+	private ImageStatistics statsSecondary;
+	volatile protected double stackMaxSecondary = Float.MIN_VALUE;
+	volatile protected double stackMinSecondary = Float.MAX_VALUE;
 	protected boolean tubularGeodesicsTracingEnabled = false;
 	protected TubularGeodesicsTracer tubularGeodesicsThread;
 
@@ -703,7 +706,8 @@ public class SNT extends MultiDThreePanes implements
 		xy.deleteRoi(); // if a ROI exists, compute min/ max for entire image
 		if (restoreROI) xy.restoreRoi();
 		this.stats = xy.getStatistics();
-		this.searchMinMax = new float[]{(float)this.stats.min, (float)this.stats.max};
+		this.stackMin = this.stats.min;
+		this.stackMax = this.stats.max;
 		nullifyHessian(); // ensure it will be reloaded
 		updateLut();
 	}
@@ -1552,28 +1556,21 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 
-		SearchCost costFunction;
-		RandomAccessibleInterval<? extends RealType<?>> img;
-		ImageStatistics imgStats;
 		boolean useSecondary = isTracingOnSecondaryImageActive();
-		if (isHessianEnabled( useSecondary ? "secondary" : "primary" )) {
-			HessianCaller hessian = useSecondary ? secondaryHessian : primaryHessian;
-			img = hessian.hessianImg;
-			imgStats = hessian.hessianStats;
-		} else {
-			// TODO
-			//ImagePlus imp = useSecondary ? getSecondaryDataAsImp() : getLoadedDataAsImp();
-			img = getLoadedData();
-			imgStats = this.stats;
-		}
+		RandomAccessibleInterval<? extends RealType<?>> img = useSecondary ? getSecondaryData() : getLoadedData();
+		ImageStatistics imgStats = useSecondary ? statsSecondary : stats;
+		double min = useSecondary ? stackMinSecondary : stackMin;
+		double max = useSecondary ? stackMaxSecondary : stackMax;
+
+		SearchCost costFunction;
 		if (ReciprocalCost.class.equals(costFunctionClass)) {
-			costFunction = new ReciprocalCost(searchMinMax[0], searchMinMax[1]);
+			costFunction = new ReciprocalCost(min, max);
 		} else if (OneMinusErfCost.class.equals(costFunctionClass)) {
 			OneMinusErfCost cost = new OneMinusErfCost(imgStats.max, imgStats.mean, imgStats.stdDev);
 			cost.setZFudge(oneMinusErfZFudge);
 			costFunction = cost;
 		} else if (DifferenceCost.class.equals(costFunctionClass)) {
-			costFunction = new DifferenceCost(searchMinMax[0], searchMinMax[1]);
+			costFunction = new DifferenceCost(min, max);
 		} else {
 			throw new IllegalArgumentException("BUG: Unknown cost function class " + costFunctionClass);
 		}
@@ -2404,18 +2401,26 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public float[] getSecondaryImageMinMax() {
-		return new float[] { stackMinSecondary, stackMaxSecondary };
+		return new float[] { (float)stackMinSecondary, (float)stackMaxSecondary };
 	}
 
 	protected void loadSecondaryImage(final ImagePlus imp, final boolean changeUIState) throws IllegalArgumentException {
-		if (imp != null && secondaryImageFile != null && secondaryImageFile.getName().toLowerCase().contains(".oof")) {
+		assert imp != null;
+		if (secondaryImageFile != null && secondaryImageFile.getName().toLowerCase().contains(".oof")) {
 			showStatus(0, 0, "Optimally Oriented Flux image detected");
 			SNTUtils.log("Optimally Oriented Flux image detected. Image won't be cached...");
 			tubularGeodesicsTracingEnabled = true;
 			return;
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
-		loadCachedData(imp, secondaryData = new float[depth][]);
+		secondaryData = ImageJFunctions.wrap(imp);
+		SNTUtils.log("Secondary data dimensions: " +
+				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
+		ImageStatistics impStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
+				ImageStatistics.STD_DEV);
+		stackMinSecondary = impStats.min;
+		stackMaxSecondary = impStats.max;
+		statsSecondary = impStats;
 		File file = null;
 		if (isSecondaryImageLoaded() && (imp.getFileInfo() != null)) {
 			file = new File(imp.getFileInfo().directory, imp.getFileInfo().fileName);
@@ -2430,6 +2435,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
+	@Deprecated
 	public void loadTubenessImage(final String type, final File file) throws IOException, IllegalArgumentException {
 		final ImagePlus imp = openCachedDataImage(file);
 		final HessianCaller hc = getHessianCaller(type);
@@ -2437,10 +2443,12 @@ public class SNT extends MultiDThreePanes implements
 		hc.sigmas = null;
 	}
 
+	@Deprecated
 	public void loadTubenessImage(final String type, final ImagePlus imp) throws IllegalArgumentException {
 		loadTubenessImage(getHessianCaller(type), imp, true);
 	}
 
+	@Deprecated
 	protected void loadTubenessImage(final HessianCaller hc, final ImagePlus imp, final boolean changeUIState) throws IllegalArgumentException {
 		if (xy == null) throw new IllegalArgumentException(
 				"Data can only be loaded after tracing image is known");
@@ -2457,6 +2465,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
+	@Deprecated
 	private void loadCachedData(final ImagePlus imp, final float[][] destination) {
 		showStatus(0, 0, "Loading secondary image");
 		SNTUtils.convertTo32bit(imp);
@@ -2511,7 +2520,18 @@ public class SNT extends MultiDThreePanes implements
 	 * @see #loadSecondaryImage(File)
 	 */
 	public ImagePlus getSecondaryDataAsImp() {
-		return (isSecondaryImageLoaded()) ? getFilteredDataFromCachedData("Secondary Data", secondaryData) : null;
+		if (!isSecondaryImageLoaded()) {
+			return null;
+		}
+		ImagePlus imp = ImageJFunctions.wrap(secondaryData, "Secondary Data");
+		updateLut();
+		imp.setLut(lut);
+		imp.copyScale(xy);
+		return imp;
+	}
+
+	public RandomAccessibleInterval<FloatType> getSecondaryData() {
+		return secondaryData;
 	}
 
 	protected ImagePlus getCachedTubenessDataAsImp(final String type) {
