@@ -29,12 +29,14 @@ import java.util.stream.IntStream;
 
 import org.scijava.Context;
 import org.scijava.io.IOService;
+import org.scijava.io.location.FileLocation;
 import org.scijava.table.Column;
 import org.scijava.table.DefaultGenericTable;
 import org.scijava.table.DefaultTableIOPlugin;
 import org.scijava.table.DoubleColumn;
 import org.scijava.table.GenericTable;
 import org.scijava.table.Table;
+import org.scijava.table.io.TableIOOptions;
 
 import sc.fiji.snt.SNTUtils;
 
@@ -57,7 +59,7 @@ public class SNTTable extends DefaultGenericTable {
 	public SNTTable(final String filePath) throws IOException {
 		super();
 		if (tableIO == null) {
-			final Context context = new Context(IOService.class);
+			final Context context = new Context(); // Failure if new Context(IOservice.class); !?
 			tableIO = context.getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
 			try {
 				context.close();
@@ -65,7 +67,8 @@ public class SNTTable extends DefaultGenericTable {
 				// do nothing
 			}
 		}
-		final Table<?, ?> openedTable = tableIO.open(filePath);
+		final TableIOOptions options = new TableIOOptions().readColumnHeaders(true).readColumnHeaders(true);
+		final Table<?, ?> openedTable = tableIO.open(new FileLocation(filePath), options);
 		for (int col = 0; col < openedTable.getColumnCount(); ++col) {
 			add(openedTable.get(col));
 		}
@@ -163,12 +166,7 @@ public class SNTTable extends DefaultGenericTable {
 		}
 		try {
 			final String fPath = (filePath.toLowerCase().endsWith(".csv")) ? filePath : filePath + ".csv";
-			if (tableIO == null) {
-				save(new File(fPath));
-			} else {
-				tableIO.save(this, fPath);
-				hasUnsavedData = false;
-			}
+			save(new File(fPath));
 			return true;
 		} catch (final ArrayIndexOutOfBoundsException | NullPointerException | IOException ignored) {
 			return false;
@@ -186,9 +184,14 @@ public class SNTTable extends DefaultGenericTable {
 	}
 
 	public void save(final File outputFile) throws IOException {
-		SNTUtils.saveTable(this, outputFile);
+		if (tableIO == null) {
+			SNTUtils.saveTable(this, ',', true, true, outputFile);
+		} else {
+			tableIO.save(this, outputFile.getAbsolutePath());
+		}
 		hasUnsavedData = false;
 	}
+
 
 	public static String toString(final GenericTable table, final int firstRow, final int lastRow) {
 		final int fRow = Math.max(0, firstRow);
