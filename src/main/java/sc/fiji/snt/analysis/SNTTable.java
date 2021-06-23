@@ -109,6 +109,19 @@ public class SNTTable extends DefaultGenericTable {
 		add(col);
 	}
 
+	public void set(final String colHeader, final String rowHeader, final Object value) {
+		set(getCol(colHeader), getRow(rowHeader), value);
+	}
+
+	private int getRow(final String header) {
+		int idx = getRowIndex(header);
+		if (idx == -1) {
+			appendRow(header);
+			idx = getRowCount() - 1;
+		}
+		return idx;
+	}
+
 	public void addColumn(final String colHeader, final Collection<Double> array) {
 		final DoubleColumn col = new DoubleColumn(colHeader);
 		col.addAll(array);
