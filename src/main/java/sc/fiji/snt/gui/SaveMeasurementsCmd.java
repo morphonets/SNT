@@ -325,9 +325,16 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		final File file = getFile(getTableLabel(tableDisplay) + ".csv");
 		SNTUtils.log("Saving SciJava table: " + file);
 		try { // FIXME: This seems to only accept csv as extension
-			final TableIOOptions options = new TableIOOptions().writeColumnHeaders(writeColHeaders)
-					.writeRowHeaders(writeRowHeaders).columnDelimiter(getDelimiter(columnDelimiter));
-			tableIO.save(tableDisplay.get(0), file.getAbsolutePath(), options);
+			try {
+				final TableIOOptions options = new TableIOOptions().writeColumnHeaders(writeColHeaders)
+						.writeRowHeaders(writeRowHeaders).columnDelimiter(getDelimiter(columnDelimiter));
+				tableIO.save(tableDisplay.get(0), file.getAbsolutePath(), options);
+			} catch (final UnsupportedOperationException exc1) {
+				// TODO: this should no longer be needed once this is solved:
+				// https://forum.image.sc/t/unsupportedoperationexception-defaulttableioservice/54197/
+				SNTUtils.saveTable(tableDisplay.get(0), getDelimiter(columnDelimiter),
+						writeColHeaders, writeRowHeaders, file);
+			}
 			if (close)
 				tableDisplay.close();
 		} catch (final IOException exc) {
