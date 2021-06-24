@@ -286,13 +286,15 @@ public class TreeParser implements Parser {
 		int nSamples;
 		if (stepSize > 0) { // Discontinuous sampling
 
+			final double minDistance = Math.sqrt(squaredRangeStarts[0]);
 			final double maxDistance = Math.sqrt(squaredRangeStarts[n - 1]);
-			nSamples = (int) Math.ceil(maxDistance / stepSize);
-			for (int i = 0; i < nSamples; ++i) {
+			for (int i = 0; i < Math.ceil(maxDistance / stepSize); ++i) {
 				final double x = i * stepSize;
-				final double y = crossingsAtDistanceSquared(x * x);
-				final ProfileEntry entry = new ProfileEntry(x, y, null);
-				profile.add(entry);
+				if ( x >= minDistance) {
+					final double y = crossingsAtDistanceSquared(x * x);
+					final ProfileEntry entry = new ProfileEntry(x, y, null);
+					profile.add(entry);
+				}
 			}
 
 		}
