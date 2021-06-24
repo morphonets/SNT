@@ -247,20 +247,16 @@ public class TreeParser implements Parser {
 		tree.list().forEach(p -> {
 			if (!running || p.size() == 0 || (skipFirstNode && p.equals(soma.onPath)))
 				return;
-			final int firstIdx = (skipFirstNode && p.isConnectedTo(soma.onPath)) ? 1 : 0;
-			if (firstIdx == 1 && p.size() < 3) {
-				final PointInImage pim = p.getNode(p.size() - 1);
-				shollPointsList.add(new ComparableShollPoint(pim.distanceSquaredTo(center), true));
-			}
-			else for (int i = firstIdx; i < p.size() - 1; ++i) {
+			for (int i = 0; i < p.size() - 1; ++i) {
 				final PointInImage pim1 = p.getNode(i);
 				final PointInImage pim2 = p.getNode(i + 1);
 				final double distanceSquaredFirst = pim1.distanceSquaredTo(center);
 				final double distanceSquaredSecond = pim2.distanceSquaredTo(center);
-				shollPointsList.add(new ComparableShollPoint(distanceSquaredFirst,
-					distanceSquaredFirst < distanceSquaredSecond));
-				shollPointsList.add(new ComparableShollPoint(distanceSquaredSecond,
-					distanceSquaredFirst >= distanceSquaredSecond));
+				final boolean nearer = distanceSquaredFirst < distanceSquaredSecond;
+				if (i == 0 && skipFirstNode)
+					continue;
+				shollPointsList.add(new ComparableShollPoint(distanceSquaredFirst, nearer));
+				shollPointsList.add(new ComparableShollPoint(distanceSquaredSecond, !nearer));
 			}
 		});
 		// Ensure we are not keeping duplicated data points
@@ -283,29 +279,22 @@ public class TreeParser implements Parser {
 			crossingsPastEach[i] = currentCrossings;
 		}
 		if (!running) return;
-		int nSamples;
 		if (stepSize > 0) { // Discontinuous sampling
-
 			final double minDistance = Math.sqrt(squaredRangeStarts[0]);
 			final double maxDistance = Math.sqrt(squaredRangeStarts[n - 1]);
 			for (int i = 0; i < Math.ceil(maxDistance / stepSize); ++i) {
 				final double x = i * stepSize;
 				if ( x >= minDistance) {
 					final double y = crossingsAtDistanceSquared(x * x);
-					final ProfileEntry entry = new ProfileEntry(x, y, null);
-					profile.add(entry);
+					profile.add(new ProfileEntry(x, y, null));
 				}
 			}
-
 		}
 		else { // Continuous sampling
-
-			nSamples = squaredRangeStarts.length;
-			for (int i = 0; i < nSamples; ++i) {
+			for (int i = 0; i < squaredRangeStarts.length; ++i) {
 				final double x = Math.sqrt(squaredRangeStarts[i]);
 				final double y = crossingsAtDistanceSquared(squaredRangeStarts[i]);
-				final ProfileEntry entry = new ProfileEntry(x, y, null);
-				profile.add(entry);
+				profile.add(new ProfileEntry(x, y, null));
 			}
 		}
 
@@ -352,8 +341,8 @@ public class TreeParser implements Parser {
 			if (o == null) return false;
 			if (!(o instanceof ComparableShollPoint)) return false;
 			final ComparableShollPoint other = (ComparableShollPoint) o;
-			return (nearer == other.nearer &&
-				distanceSquared == other.distanceSquared);
+			return nearer == other.nearer
+					&& Double.doubleToLongBits(distanceSquared) == Double.doubleToLongBits(other.distanceSquared);
 		}
 	}
 
