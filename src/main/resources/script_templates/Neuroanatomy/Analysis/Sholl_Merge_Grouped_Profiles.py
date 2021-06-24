@@ -29,26 +29,20 @@ def error(msg):
     uiservice.showDialog(msg, "Error")
 
 
-def mean(data):
-    """ Returns the arithmetic mean of a list """
-    return sum(data)/float(len(data))
-
-
-def ss(data):
+def ss(data, mean):
     """ Returns the sum of square deviations
        (see http://stackoverflow.com/a/27758326)
     """
-    c = mean(data)
-    ss = sum((x-c)**2 for x in data)
+    ss = sum((x-mean)**2 for x in data)
     return ss
 
 
-def stdev(data):
+def stdev(data, mean):
     """Calculates the (population) standard deviation"""
     n = len(data)
     if n < 2:
         return float('nan')
-    ssd = ss(data)
+    ssd = ss(data, mean)
     svar = ssd/(n)
     return svar**0.5
 
@@ -153,13 +147,16 @@ def main():
 
     row_stats = {}
     for row_key, row_values in list_of_rows.iteritems():
-        row_stats[row_key] = (mean(row_values), stdev(row_values), len(row_values))
+        the_sum = sum(row_values)
+        the_avg = the_sum/float(len(row_values))
+        row_stats[row_key] = (the_avg, stdev(row_values, the_avg), the_sum, len(row_values))
 
     table = newtable(xcolumn_header, xvalues)
     for key, value in row_stats.iteritems():
         table.set("Mean", int(key), value[0])
         table.set("StdDev", int(key), value[1])
-        table.set("N", int(key), value[2])
+        table.set("Sum", int(key), value[2])
+        table.set("N", int(key), value[3])
     uiservice.show("Stats_%s" % data_identifier, table)
 
     plot = Plot("Mean Sholl Plot [%s]" % ycolumn_header, xcolumn_header, "N. of intersections")
