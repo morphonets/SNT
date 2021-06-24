@@ -283,7 +283,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		for (final Frame w : WindowManager.getNonImageWindows()) {
 			if (w instanceof ij.text.TextWindow) {
 				ij.text.TextWindow rtWindow = (ij.text.TextWindow) w;
-				ij.measure.ResultsTable rt = ((ij.text.TextWindow) w).getTextPanel().getResultsTable();
+				ij.measure.ResultsTable rt = rtWindow.getTextPanel().getResultsTable();
 				if (rt != null) {
 					ij1Tables.add(new IJ1Table(rtWindow.getTitle(), rt));
 				}
@@ -309,7 +309,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 	private List<SNTChart> getSNTCharts() {
 		sntCharts = new ArrayList<>();
 		for (final Window win : Window.getWindows()) {
-			if (win != null && win instanceof SNTChart) {
+			if (win != null && win instanceof SNTChart && ((SNTChart)win).containsValidData()) {
 				sntCharts.add((SNTChart) win);
 			}
 		}
@@ -352,8 +352,12 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 			ij1Table.rt.saveColumnHeaders(writeColHeaders);
 			ij1Table.rt.showRowNumbers(writeRowHeaders);
 			ij1Table.rt.saveAs(file.getAbsolutePath());
-			if (close)
-				WindowManager.getWindow(ij1Table.title).dispose();
+			if (close) {
+				final Window win = WindowManager.getWindow(ij1Table.title);
+				if (win != null && win instanceof ij.text.TextWindow) {
+					((ij.text.TextWindow)win).close();
+				}
+			}
 		} catch (final IOException exc) {
 			log.error("\t" + exc.getMessage());
 			return false;
@@ -382,10 +386,10 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		if (!override)
 			file = SNTUtils.getUniquelySuffixedTifFile(file);
 		final boolean result = ij.IJ.saveAsTiff(pw.getImagePlus(), file.getAbsolutePath());
-		if (close)
-			pw.dispose();
 		if (!result)
 			log.error("\tCould not save " + file.getAbsolutePath());
+		else if (close)
+			pw.close();
 		return result;
 	}
 
