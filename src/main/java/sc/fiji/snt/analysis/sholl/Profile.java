@@ -24,6 +24,7 @@ package sc.fiji.snt.analysis.sholl;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import java.util.SortedSet;
@@ -65,7 +66,7 @@ public class Profile implements ProfileProperties {
 	 * @param sampledInters
 	 *            sampled intersection counts
 	 */
-	public Profile(final ArrayList<Number> radii, final ArrayList<Number> sampledInters) {
+	public Profile(final List<Number> radii, final List<Number> sampledInters) {
 		if (radii == null || sampledInters == null)
 			throw new IllegalArgumentException("Lists cannot be null");
 		final int n = radii.size();

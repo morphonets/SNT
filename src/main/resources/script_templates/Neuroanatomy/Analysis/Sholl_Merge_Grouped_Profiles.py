@@ -1,4 +1,4 @@
-# @String(visibility="MESSAGE",value="<html>This script merges Sholl profiles from multiple files into a single table and plot,<br>obtaining Mean&plusmn;StdDev profiles for groups of cells. It assumes that files share<br>the same structure and the same column headings.<br>&nbsp;") MSG
+# @String(visibility="MESSAGE",value="<html>This script merges Sholl profiles from multiple files into a single table and plot,<br>obtaining Mean&plusmn;StdDev profiles for groups of cells. It assumes that files share<br>the same structure and the same (case-sensitive) column headings.<br>&nbsp;") MSG
 # @File(label="Input directory", style="directory", description="The directory containing the files with the tabular profiles to be parsed") dir
 # @String(label="Filename contains", value="", description="<html>Only files containing this string will be considered.<br>Leave blank to consider all files. Glob patterns accepted.") pattern
 # @String(label="File extension", choices={".csv",".txt",".xls",".ods", "any extension"}, description="<html>The extension of the files to be parsed.") extension
@@ -11,15 +11,20 @@
 # @double(label="Radius step size", min=0) step_size
 # @boolean(label="Impose end radius", description="<html>If selected, merged profiles will end at the radius specified below") impose_eradius
 # @double(label="Ending radius",min=0) eradius
+# @boolean(label="Fit averaged profile", description="<html>Apply a 'best-fit' polynomal regression to averaged profile?") fit_avg
 
 # @UIService uiservice
 # @LogService lservice
 
-from __future__ import with_statement
+
 import csv, glob, math, os
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict
+from java.lang import IllegalArgumentException
 from sc.fiji.snt.analysis import SNTTable
-from ij.gui import Plot 
+from sc.fiji.snt.analysis.sholl import Profile
+from sc.fiji.snt.analysis.sholl.gui import ShollPlot
+from sc.fiji.snt.analysis.sholl.math import LinearProfileStats
+
 
 
 def log(msg, level = "info"):
@@ -56,18 +61,21 @@ def stdev(data, mean):
     return svar**0.5
 
 
-def tofloat(v):
-    try:
-        return float(v)
-    except ValueError:
-        #log("Non-numeric entry: %s" % v, "warn")
-        return v
+
+def addfit(plot, lstats):
+    lstats.findBestFit(2, 50, 0.2, -1)
+    if lstats.validFit():
+        rsqred = lstats.getRSquaredOfFit(True)
+        poly = lstats.getPolynomialAsString()
+        label = u'%s fit (R\u00B2=%.2f)' % (poly, rsqred)
+        plot.setColor("red")
+        plot.addPoints(lstats.getXvalues(), lstats.getFitYvalues(), label)
 
 
 def main():
 
-    global dir, eradius, extension, impose_eradius, impose_sradius, impose_step_size
-    global pattern, sradius, step_size, xcolumn_header, ycolumn_header
+    global dir, eradius, extension, fit_avg, impose_eradius, impose_sradius
+    global impose_step_size, pattern, sradius, step_size, xcolumn_header, ycolumn_header
 
     ext = "" if "any" in extension else extension
     glob_pattern = "*%s*%s" % (pattern, ext)
@@ -119,19 +127,20 @@ def main():
 
             for row_idx, row in enumerate(incsv):
                 try:
-                    xvalue = round(tofloat(row[xcolumn_idx]), 4)
+                    xvalue = round(float(row[xcolumn_idx]), 4)
                     if impose_sradius and xvalue < sradius:
                         continue
                     if not xvalue in all_data:
                         all_data[xvalue] = []
-                    all_data[xvalue].append((filename, tofloat(row[ycolumn_idx])))
-                except IndexError:
-                    log("Skipping... Column header(s) not found in file", "warn")
+                    all_data[xvalue].append((filename, float(row[ycolumn_idx])))
+                except ValueError:
+                    log("Skipping... Non-numeric data found in table!?", "warn")
                     continue
 
     if not all_data:
         error("%s files were parsed but no valid data existed.\nPlease revise"\
-              " settings or check the Console for details." % len(files))
+              " settings or check the Console for details.\nNote that column"\
+              " headings are case-sensitive." % len(files))
         return
 
 
@@ -145,7 +154,7 @@ def main():
     uiservice.show("MergedProfiles_Inputs", table)
     
     log("Assembling stats...")
-    # define number of intervals we'll be dealing with
+    # Define the number of intervals we'll be dealing with
     min_radius = sradius if impose_sradius and sradius >= 0 else min(all_data.keys())
     max_radius = eradius if impose_eradius and eradius > 0 else max(all_data.keys()) 
     if not impose_step_size or step_size <= 0:
@@ -154,7 +163,7 @@ def main():
     nbins = int(math.ceil((max_radius-min_radius)/step_size))
     bins_start = [min_radius + i * step_size for i in range(nbins)]
 
-    # For every imported file keep a list of the instersection values that fall within each bin
+    # For every imported file, keep a list of instersection values that fall within each bin
     stats = OrderedDict()
     for bin_start in bins_start:
         stats[bin_start] = []
@@ -178,6 +187,7 @@ def main():
 
     log("Assembling table with statistics...")
     table = SNTTable()
+
     for bin_start, interval_means in stats.items():
         if len(interval_means) == 0:
             continue
@@ -191,13 +201,13 @@ def main():
         table.appendToLastRow("N", len(interval_means))
     uiservice.show("MergedProfiles_Stats", table)
 
-    plot = Plot("Mean Sholl Plot [%s]" % ycolumn_header, xcolumn_header, "No. of intersections")
-    label = "Mean" + u'\u00B1' + "SD"
-    plot.setLegend(label, Plot.LEGEND_TRANSPARENT + Plot.AUTO_POSITION)
+    plot = ShollPlot("Mean Sholl Plot", xcolumn_header, ycolumn_header)
     plot.setColor("cyan", "blue")
-    plot.addPoints(table.get(0), table.get(1), table.get(2), Plot.CONNECTED_CIRCLES, label)
+    plot.addPoints(table.get(0), table.get(1), table.get(2), u'Mean\u00B1SD')
+    if fit_avg:
+        addfit(plot, LinearProfileStats(Profile(table.get(0), table.get(1))))
+    plot.enableLegend(True)
     plot.show()
-
     log("Parsing concluded.")
  
 main()
