@@ -47,7 +47,7 @@ import java.util.jar.Manifest;
 
 import org.scijava.Context;
 import org.scijava.log.LogService;
-import org.scijava.table.GenericTable;
+import org.scijava.table.Table;
 import org.scijava.ui.UIService;
 import org.scijava.ui.console.ConsolePane;
 import org.scijava.util.FileUtils;
@@ -265,29 +265,35 @@ public class SNTUtils {
 		return new File(parent, filename + extension);
 	}
 
-	public static void saveTable(final GenericTable table, final File outputFile) throws IOException {
-		final String sep = ",";
+	public static void saveTable(final Table<?, ?> table, final char columnSep, final boolean saveColHeaders,
+			final boolean saveRowHeaders, final File outputFile) throws IOException {
 		final PrintWriter pw = new PrintWriter(
 				new OutputStreamWriter(new FileOutputStream(outputFile.getAbsolutePath()), StandardCharsets.UTF_8));
 		final int columns = table.getColumnCount();
 		final int rows = table.getRowCount();
-
+		final boolean saveRows = saveRowHeaders && table.getRowHeader(0) != null;
 		// Print a column header to hold row headers
-		SNTUtils.csvQuoteAndPrint(pw, "Description");
-		pw.print(sep);
-		for (int col = 0; col < columns; ++col) {
-			SNTUtils.csvQuoteAndPrint(pw, table.getColumnHeader(col));
-			if (col < (columns - 1))
-				pw.print(sep);
+		if (saveRows) {
+			SNTUtils.csvQuoteAndPrint(pw, "-");
+			pw.print(columnSep);
 		}
-		pw.print("\r\n");
+		if (saveColHeaders) {
+			for (int col = 0; col < columns; ++col) {
+				SNTUtils.csvQuoteAndPrint(pw, table.getColumnHeader(col));
+				if (col < (columns - 1))
+					pw.print(columnSep);
+			}
+			pw.print("\r\n");
+		}
 		for (int row = 0; row < rows; row++) {
-			SNTUtils.csvQuoteAndPrint(pw, table.getRowHeader(row));
-			pw.print(sep);
+			if (saveRows) {
+				SNTUtils.csvQuoteAndPrint(pw, table.getRowHeader(row));
+				pw.print(columnSep);
+			}
 			for (int col = 0; col < columns; col++) {
 				SNTUtils.csvQuoteAndPrint(pw, table.get(col, row));
 				if (col < (columns - 1))
-					pw.print(sep);
+					pw.print(columnSep);
 			}
 			pw.print("\r\n");
 		}

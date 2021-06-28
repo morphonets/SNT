@@ -642,6 +642,19 @@ public class SNTChart extends ChartFrame {
 	}
 
 	@Override
+	public void dispose() {
+		super.dispose();
+		if (getChartPanel() != null) {
+			getChartPanel().removeAll();
+			getChartPanel().setChart(null);
+		}
+	}
+
+	public boolean containsValidData() {
+		return getChartPanel() != null && getChartPanel().getChart() != null;
+	}
+
+	@Override
 	@SuppressWarnings("deprecation")
 	public void show() {
 		if (getChartPanel() != null && getChartPanel().getPopupMenu() != null) {

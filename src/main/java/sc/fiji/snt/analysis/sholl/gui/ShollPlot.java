@@ -26,6 +26,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Rectangle;
 import java.io.File;
+import java.util.List;
 
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
@@ -75,6 +76,17 @@ public class ShollPlot extends Plot {
 	private NormalizedProfileStats normStats;
 	private StringBuffer tempLegend;
 	private double xMin, xMax, yMin, yMax;
+
+	/**
+	 * Constructs a new empty Plot.
+	 * 
+	 * @param title  the plot title
+	 * @param xLabel the x-axis label
+	 * @param yLabel the y-axis label
+	 */
+	public ShollPlot(String title, String xLabel, String yLabel) {
+		super(title, xLabel, yLabel);
+	}
 
 	public ShollPlot(final Profile profile) {
 		this(new LinearProfileStats(profile), false);
@@ -204,6 +216,22 @@ public class ShollPlot extends Plot {
 			pw.setTitle(title);
 		}
 		pw.drawPlot(newPlot);
+	}
+
+	public void enableLegend(final boolean enable) {
+		final StringBuilder sb = new StringBuilder();
+		for (final String d : getDataObjectDesignations()) {
+			if (d == null || d.trim().isEmpty())
+				continue;
+			if (!d.endsWith(" data points)") && d.indexOf(": ") > -1) {
+				sb.append(d.substring(d.indexOf(": ") + 2)).append("\n");
+			} else {
+				sb.append(d).append("\n");
+			}
+		}
+		setColor(Color.WHITE);
+		setLegend(sb.toString(), (enable) ? LEGEND_TRANSPARENT + AUTO_POSITION : 0);
+		resetDrawing();
 	}
 
 	private static String defaultTitle(final ShollStats stats) {
@@ -516,6 +544,34 @@ public class ShollPlot extends Plot {
 		} else {
 			super.addPoints(x, y, shape);
 		}
+	}
+
+	public void addPoints(final double[] x, final double[] y, final double[] yErrorBars, final String label) {
+		addPoints(Tools.toFloat(x), Tools.toFloat(y), Tools.toFloat(yErrorBars),
+				(yErrorBars == null) ? LINE : CONNECTED_CIRCLES, label);
+	}
+
+	public void addPoints(final double[] x, final double[] y, final String label) {
+		addPoints(x, y, null, label);
+	}
+
+	public void addPoints(final List<Number> xValues, final List<Number> yValues, final String label) {
+		addPoints(xValues, yValues, null, label);
+	}
+
+	public void addPoints(final List<Number> xValues, final List<Number> yValues, final List<Number> yErrorBars,
+			final String label) {
+		super.addPoints(toArray(xValues), toArray(yValues), toArray(yErrorBars),
+				(yErrorBars == null) ? LINE : CONNECTED_CIRCLES, label);
+	}
+
+	private float[] toArray(final List<Number> values) {
+		if (values == null)
+			return null;
+		final float[] fArray = new float[values.size()];
+		for (int i = 0; i < values.size(); i++)
+			fArray[i] = values.get(i).floatValue();
+		return fArray;
 	}
 
 	private void resetDrawing() {
