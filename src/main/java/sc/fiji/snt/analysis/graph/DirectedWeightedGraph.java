@@ -200,7 +200,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	}
 
 	/**
-	 * Scales each vertex SWCVertex by the specified factors.
+	 * Scales the point coordinates of each vertex by the specified factors.
 	 *
 	 * @param xScale                     the scaling factor for x coordinates
 	 * @param yScale                     the scaling factor for y coordinates
