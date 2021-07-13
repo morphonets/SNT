@@ -22,15 +22,15 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.io.FileInfo;
+import ij.measure.Calibration;
 import net.imagej.ImageJ;
 import net.imagej.legacy.LegacyService;
 import net.imagej.ops.OpService;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
@@ -40,16 +40,12 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.FileUtils;
 import org.scijava.widget.Button;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.filter.AbstractFilter;
-import sc.fiji.snt.filter.Frangi;
-import sc.fiji.snt.filter.Tubeness;
+import sc.fiji.snt.filter.*;
 import sc.fiji.snt.gui.GuiUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.util.Arrays;
 
 /**
  * Implements the "Generate Secondary Image" command.
@@ -93,7 +89,7 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 	@Parameter(label = "Online Help", callback = "help")
 	private Button button;
 
-	private ImagePlus filteredImp;
+	private RandomAccessibleInterval<FloatType> filteredImg;
 
 	protected void init() {
 		super.init(true);
@@ -124,47 +120,43 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 	public void run() {
 		final ImagePlus inputImp = sntService.getPlugin().getLoadedDataAsImp();
 		if (NONE.equals(filter)) {
-			filteredImp = inputImp;
+			//snt.loadSecondaryImage(sntService.getPlugin().getLoadedData());
 			apply();
 			return;
 		}
 		final RandomAccessibleInterval<? extends RealType<?>> in = Views.dropSingletonDimensions(
 				sntService.getPlugin().getLoadedData());
 		final double[] sigmas = sntService.getPlugin().getHessianSigma("primary", true);
-		AbstractFilter processor;
+		Calibration cal = inputImp.getCalibration();
+		double[] spacing = new double[3];
+		spacing[0] = cal.pixelWidth;
+		spacing[1] = cal.pixelHeight;
+		spacing[2] = cal.pixelDepth;
 		switch (filter) {
 			case FRANGI:
-				processor = new Frangi(in, sigmas, inputImp.getCalibration());
+				Frangi frangi = new Frangi(in, sigmas, spacing, sntService.getPlugin().getStackMax());
+				filteredImg = Lazy.process(
+						in,
+						new int[]{256, 256, 256},
+						new FloatType(),
+						frangi);
 				break;
 			case TUBENESS:
-				processor = new Tubeness(in, sigmas, inputImp.getCalibration());
+				Tubeness tubeness = new Tubeness(in, sigmas, spacing);
+				filteredImg = Lazy.process(
+						in,
+						new int[]{256, 256, 256},
+						new FloatType(),
+						tubeness);
 				break;
 			default:
 				throw new IllegalArgumentException("Unrecognized filter " + filter);
 		}
-		processor.process();
-		filteredImp = ImageJFunctions.wrap(processor.getResult(),
-				"scales=" + Arrays.toString(sigmas));
-		filteredImp.setDimensions(inputImp.getNChannels(), inputImp.getNSlices(), inputImp.getNFrames());
-		filteredImp.copyScale(inputImp);
 		apply();
 	}
 
 	private void apply() {
-		final File file = (save) ? getSaveFile() : null;
-		if (file != null) {
-			//TODO: Move to IOService, once it supports saving of ImagePlus
-			final boolean saved = IJ.saveAsTiff(filteredImp, file.getAbsolutePath());
-			SNTUtils.log("Saving to " + file.getAbsolutePath() + "... " + ((saved) ? "success" : "failed"));
-			if (!saved)
-				msg("An error occured while saving image.", "IO Error");
-		}
-		snt.loadSecondaryImage(filteredImp);
-		snt.setSecondaryImage(file);
-		if (show) {
-			filteredImp.resetDisplayRange();
-			filteredImp.show();
-		}
+		snt.loadSecondaryImage(filteredImg);
 		resetUI();
 	}
 

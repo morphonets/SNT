@@ -41,6 +41,8 @@ import ij3d.Image3DUniverse;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
 import net.imagej.legacy.LegacyService;
+import net.imagej.ops.OpService;
+import net.imglib2.IterableInterval;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
@@ -48,6 +50,7 @@ import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
+import net.imglib2.util.Pair;
 import net.imglib2.view.Views;
 import org.scijava.Context;
 import org.scijava.NullContextException;
@@ -2321,18 +2324,9 @@ public class SNT extends MultiDThreePanes implements
 		return this.sliceAtCT;
 	}
 
+	@Deprecated
 	public void startHessian(final String image, final double sigma, final boolean wait) {
-		final HessianCaller hc = getHessianCaller(image);
-		List<Double> settings = new ArrayList<>();
-		settings.add(sigma);
-		hc.setSigmas(settings);
-		if (wait) {
-			try {
-				hc.start().join();
-			} catch (final InterruptedException e) {
-				SNTUtils.error(e.getMessage(), e);
-			}
-		} else hc.start();
+		// do nothing
 	}
 
 	/**
@@ -2395,6 +2389,11 @@ public class SNT extends MultiDThreePanes implements
 		loadSecondaryImage(imp, true);
 	}
 
+	public void loadSecondaryImage(final RandomAccessibleInterval<FloatType> img)
+	{
+		loadSecondaryImage(img, true);
+	}
+
 	public void setSecondaryImageMinMax(final float min, final float max) {
 		stackMinSecondary = min;
 		stackMaxSecondary = max;
@@ -2404,7 +2403,7 @@ public class SNT extends MultiDThreePanes implements
 		return new float[] { (float)stackMinSecondary, (float)stackMaxSecondary };
 	}
 
-	protected void loadSecondaryImage(final ImagePlus imp, final boolean changeUIState) throws IllegalArgumentException {
+	protected void loadSecondaryImage(final ImagePlus imp, final boolean changeUIState) {
 		assert imp != null;
 		if (secondaryImageFile != null && secondaryImageFile.getName().toLowerCase().contains(".oof")) {
 			showStatus(0, 0, "Optimally Oriented Flux image detected");
@@ -2426,6 +2425,42 @@ public class SNT extends MultiDThreePanes implements
 			file = new File(imp.getFileInfo().directory, imp.getFileInfo().fileName);
 		}
 		setSecondaryImage(file);
+		if (changeUIState) {
+			changeUIState(SNTUI.WAITING_TO_START_PATH);
+			if (getUI() != null) {
+				getUI().enableHessian(false);
+				getUI().enableSecondaryImgTracing(true);
+			}
+		}
+	}
+
+	protected void loadSecondaryImage(final RandomAccessibleInterval<FloatType> img,
+															  final boolean changeUIState)
+	{
+		assert img != null;
+		if (secondaryImageFile != null && secondaryImageFile.getName().toLowerCase().contains(".oof")) {
+			showStatus(0, 0, "Optimally Oriented Flux image detected");
+			SNTUtils.log("Optimally Oriented Flux image detected. Image won't be cached...");
+			tubularGeodesicsTracingEnabled = true;
+			return;
+		}
+		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
+		secondaryData =  img;
+		SNTUtils.log("Secondary data dimensions: " +
+				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
+		OpService opService = getContext().getService(OpService.class);
+		IterableInterval<FloatType> iterableView = Views.iterable(img);
+		Pair<FloatType, FloatType> p = opService.stats().minMax(iterableView);
+		stackMinSecondary = p.getA().getRealDouble();
+		stackMaxSecondary = p.getB().getRealDouble();
+		double mean = opService.stats().mean(iterableView).getRealDouble();
+		double stdDev = opService.stats().stdDev(iterableView).getRealDouble();
+		// HACK
+		statsSecondary = new ImageStatistics();
+		statsSecondary.min = stackMinSecondary;
+		statsSecondary.max = stackMaxSecondary;
+		statsSecondary.mean = mean;
+		statsSecondary.stdDev = stdDev;
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
 			if (getUI() != null) {
@@ -2554,14 +2589,9 @@ public class SNT extends MultiDThreePanes implements
 		return impFiltered;
 	}
 
+	@Deprecated
 	public synchronized void enableHessian(final boolean enable) {
-		if (enable) {
-			if (isTracingOnSecondaryImageActive())
-				secondaryHessian.start();
-			else
-				primaryHessian.start();
-		}
-		hessianEnabled = enable;
+		// do nothing
 	}
 
 	protected synchronized void cancelGaussian() {
@@ -3306,5 +3336,29 @@ public class SNT extends MultiDThreePanes implements
 
 	public HessianCaller getHessianCaller(final String image) {
 		return ("secondary".equalsIgnoreCase(image)) ? secondaryHessian : primaryHessian;
+	}
+
+	public double getOneMinusErfZFudge() {
+		return oneMinusErfZFudge;
+	}
+
+	public double getStackMin() {
+		return stackMin;
+	}
+
+	public double getStackMax() {
+		return stackMax;
+	}
+
+	public ImageStatistics getStatsSecondary() {
+		return statsSecondary;
+	}
+
+	public double getStackMaxSecondary() {
+		return stackMaxSecondary;
+	}
+
+	public double getStackMinSecondary() {
+		return stackMinSecondary;
 	}
 }

@@ -1,25 +1,3 @@
-/*-
- * #%L
- * Fiji distribution of ImageJ for the life sciences.
- * %%
- * Copyright (C) 2010 - 2021 Fiji developers.
- * %%
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/gpl-3.0.html>.
- * #L%
- */
-
 package sc.fiji.snt.filter;
 
 import ij.ImagePlus;
@@ -28,10 +6,9 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.algorithm.convolution.fast_gauss.FastGauss;
 import net.imglib2.algorithm.gradient.HessianMatrix;
 import net.imglib2.algorithm.linalg.eigen.TensorEigenValues;
-import net.imglib2.algorithm.stats.ComputeMinMax;
-import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.array.ArrayImgs;
+import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.loops.LoopBuilder;
 import net.imglib2.outofbounds.OutOfBoundsBorderFactory;
 import net.imglib2.parallel.DefaultTaskExecutor;
@@ -41,185 +18,141 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
-/**
- * A.F. Frangi, W.J. Niessen, K.L. Vincken, M.A. Viergever (1998). Multiscale vessel enhancement filtering.
- * In Medical Image Computing and Computer-Assisted Intervention - MICCAI'98, W.M. Wells, A. Colchester and S.L. Delp (Eds.),
- * Lecture Notes in Computer Science, vol. 1496 - Springer Verlag, Berlin, Germany, pp. 130-137.
- *
- * @author Cameron Arshadi
- */
-public class Frangi extends AbstractFilter {
+public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
 
+    private final RandomAccessibleInterval<? extends RealType<?>> source;
+    private final List<double[]> sigmas;
+    private final int nDim;
     private final boolean is3D;
-    private double[] scales;
+    private final double stackMax;
 
-    public Frangi(final RandomAccessibleInterval<? extends RealType<?>> img, final double[] scales,
-                  final Calibration calibration)
+    public Frangi(final RandomAccessibleInterval<? extends RealType<?>> source, final double[] scales,
+                  final double[] spacing, final double stackMax)
     {
-        super(img, calibration);
-        final int nDim = img.numDimensions();
-        if (nDim < 2 || nDim > 3) {
-            throw new IllegalArgumentException("Only 2 or 3 dimensional images are supported.");
+        this.source = source;
+        this.nDim = source.numDimensions();
+        if (nDim > 3 || nDim < 2) {
+            throw new IllegalArgumentException("Only 2D and 3D images are supported");
         }
-        this.is3D = nDim == 3;
-        this.scales = scales;
+        this.is3D = (nDim == 3);
+        this.stackMax = stackMax;
+        final List<double[]> sigmas = new ArrayList<>();
+        for (final double sc : scales) {
+            final double[] sigma;
+            if (is3D) {
+                sigma = new double[]{sc / spacing[0], sc / spacing[1], sc / spacing[2]};
+            } else {
+                sigma = new double[]{sc / spacing[0], sc / spacing[1]};
+            }
+            sigmas.add(sigma);
+        }
+        this.sigmas = sigmas;
     }
 
-    public Frangi(final ImagePlus imp, final double[] scales) {
-        super(imp);
-        final int nDim = this.img.numDimensions();
-        if (nDim < 2 || nDim > 3) {
-            throw new IllegalArgumentException("Only 2 or 3 dimensional images are supported.");
-        }
-        this.is3D = nDim == 3;
-        this.scales = scales;
+    public Frangi(final RandomAccessibleInterval<? extends RealType<?>> source, final double[] scales,
+                    final Calibration cal, final double stackMax)
+    {
+        this(source, scales, new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth}, stackMax);
     }
 
-    public void setScales(final double[] scales) {
-        this.scales = scales;
+    public Frangi(final ImagePlus imp, final double[] scales, final double stackMax) {
+        this(ImageJFunctions.wrapReal(imp), scales, imp.getCalibration(), stackMax);
     }
 
     @Override
-    public void process() {
+    public void accept(RandomAccessibleInterval<FloatType> output) {
+        final long[] gaussianPad = new long[nDim];
+        final long[] gaussianOffset = new long[nDim];
 
-        this.result = null;
+        final long[] gradientPad = new long[nDim + 1];
+        gradientPad[gradientPad.length - 1] = this.is3D ? 3 : 2;
+        final long[] gradientOffset = new long[nDim + 1];
 
-        if (this.isAutoBlockDimensions) {
-            this.blockDimensions = ImgUtils.suggestBlockDimensions(this.imgDim);
+        final long[] hessianPad = new long[nDim + 1];
+        hessianPad[hessianPad.length - 1] = this.is3D ? 6 : 3;
+        final long[] hessianOffset = new long[nDim + 1];
+
+        final ExecutorService es = Executors.newFixedThreadPool(SNTPrefs.getThreads());
+        final TaskExecutor ex = new DefaultTaskExecutor(es);
+
+        for (double[] sigma : sigmas) {
+            final long[] blockSize = Intervals.dimensionsAsLongArray(output);
+
+            for (int d = 0; d < blockSize.length; ++d) {
+                gaussianPad[d] = blockSize[d] + 6;
+                gaussianOffset[d] = output.min(d) - 2;
+            }
+            RandomAccessibleInterval<FloatType> tmpGaussian = Views.translate(
+                    ArrayImgs.floats(gaussianPad), gaussianOffset);
+
+            FastGauss.convolve(sigma, Views.extendBorder(source), tmpGaussian);
+
+            for (int d = 0; d < gradientPad.length - 1; ++d) {
+                gradientPad[d] = blockSize[d] + 4;
+                gradientOffset[d] = output.min(d) - 1;
+                hessianPad[d] = blockSize[d];
+                hessianOffset[d] = output.min(d);
+            }
+            RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(gradientPad);
+            RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(hessianPad);
+
+            try {
+                HessianMatrix.calculateMatrix(
+                        Views.extendBorder(tmpGaussian),
+                        Views.translate(tmpGradient, gradientOffset),
+                        Views.translate(tmpHessian, hessianOffset),
+                        new OutOfBoundsBorderFactory<>(),
+                        SNTPrefs.getThreads(),
+                        es);
+            } catch (InterruptedException | ExecutionException e) {
+                SNTUtils.error("Error during hessian matrix computation", e);
+                return;
+            }
+            // FIXME: this normalizes the filter response using the average voxel separation at a scale
+            double avgSigma = 0d;
+            for (double s : sigma) {
+                avgSigma += s;
+            }
+            avgSigma /= sigma.length;
+            final double norm = avgSigma * avgSigma;
+            LoopBuilder.setImages(tmpHessian).multiThreaded(ex).forEachPixel((h) -> h.mul(norm));
+
+            RandomAccessibleInterval<FloatType> tmpEigenvalues = TensorEigenValues.createAppropriateResultImg(
+                    tmpHessian,
+                    new ArrayImgFactory<>(new FloatType()));
+
+            TensorEigenValues.calculateEigenValuesSymmetric(
+                    tmpHessian,
+                    tmpEigenvalues,
+                    SNTPrefs.getThreads(),
+                    es);
+
+            final double c = stackMax / 4.0;
+            RandomAccessibleInterval<FloatType> tmpFrangi = ArrayImgs.floats(blockSize);
+            if (is3D) {
+                frangi3D(tmpEigenvalues, tmpFrangi, 0.5, 0.5, c, ex);
+            } else {
+                frangi2D(tmpEigenvalues, tmpFrangi, 0.5, c, ex);
+            }
+            LoopBuilder.setImages(output, tmpFrangi).multiThreaded(ex).forEachPixel((b, t) ->
+                    b.set(Math.max(b.getRealFloat(), t.getRealFloat())));
         }
-
-        final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
-
-        try (final DefaultTaskExecutor ex = new DefaultTaskExecutor(es)) {
-            // TODO: maybe use one of the disk-cached imglib2 data structures instead?
-            final Img<FloatType> output = ArrayImgs.floats(Intervals.dimensionsAsLongArray(this.img));
-            final List<IntervalView<FloatType>> blocks = ImgUtils.splitIntoBlocks(output, this.blockDimensions);
-            if (blocks.size() == 0) {
-                throw new IllegalStateException("Num blocks == 0");
-            }
-
-            final long[] gaussianPad = new long[this.imgDim.length];
-            final long[] gaussianOffset = new long[this.imgDim.length];
-
-            final long[] gradientPad = new long[this.imgDim.length + 1];
-            gradientPad[gradientPad.length - 1] = this.is3D ? 3 : 2;
-            final long[] gradientOffset = new long[this.imgDim.length + 1];
-
-            final long[] hessianPad = new long[this.imgDim.length + 1];
-            hessianPad[hessianPad.length - 1] = this.is3D ? 6 : 3;
-            final long[] hessianOffset = new long[this.imgDim.length + 1];
-
-            final List<double[]> sigmas = new ArrayList<>();
-            for (final double sc : this.scales) {
-                final double[] sigma;
-                if (this.is3D) {
-                    sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight, sc / this.pixelDepth};
-                } else {
-                    sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight};
-                }
-                sigmas.add(sigma);
-            }
-
-            int iter = 0;
-            final int nIterations = sigmas.size() * blocks.size();
-            for (final double[] sigma : sigmas) {
-
-                // Since we might not be able to compute this over the entire hessian image at once,
-                // keep track of the max over all visited blocks and use that for the current block.
-                // This seems to work well enough, judging by the looks of the output.
-                // At the very least, it is a lot better than using the max of each block...
-                double maxSquaredFrobienusNorm = -Double.MAX_VALUE;
-
-                for (final IntervalView<FloatType> block : blocks) {
-
-                    final long[] blockSize = Intervals.dimensionsAsLongArray(block);
-
-                    for (int d = 0; d < blockSize.length; ++d) {
-                        gaussianPad[d] = blockSize[d] + 6;
-                        gaussianOffset[d] = block.min(d) - 2;
-                    }
-                    RandomAccessibleInterval<FloatType> tmpGaussian = Views.translate(
-                            ArrayImgs.floats(gaussianPad), gaussianOffset);
-
-                    FastGauss.convolve(sigma, Views.extendMirrorSingle(this.img), tmpGaussian);
-
-                    for (int d = 0; d < gradientPad.length - 1; ++d) {
-                        gradientPad[d] = blockSize[d] + 4;
-                        gradientOffset[d] = block.min(d) - 1;
-                        hessianPad[d] = blockSize[d];
-                        hessianOffset[d] = block.min(d);
-                    }
-                    RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(gradientPad);
-                    RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(hessianPad);
-
-                    HessianMatrix.calculateMatrix(
-                            Views.extendBorder(tmpGaussian),
-                            Views.translate(tmpGradient, gradientOffset),
-                            Views.translate(tmpHessian, hessianOffset),
-                            new OutOfBoundsBorderFactory<>(),
-                            this.nThreads,
-                            es);
-
-                    // FIXME: this normalizes the filter response using the average voxel separation at a scale
-                    double avgSigma = 0d;
-                    for (double s : sigma) {
-                        avgSigma += s;
-                    }
-                    avgSigma /= sigma.length;
-                    final double norm = avgSigma * avgSigma;
-                    LoopBuilder.setImages(tmpHessian).multiThreaded(ex).forEachPixel((h) -> h.mul(norm));
-
-                    maxSquaredFrobienusNorm = Math.max(maxSquaredFrobenius(tmpHessian, ex), maxSquaredFrobienusNorm);
-                    final double c = Math.sqrt(maxSquaredFrobienusNorm) * 0.5;
-
-                    RandomAccessibleInterval<FloatType> tmpEigenvalues =
-                            TensorEigenValues.createAppropriateResultImg(
-                                    tmpHessian,
-                                    new ArrayImgFactory<>(new FloatType()));
-                    TensorEigenValues.calculateEigenValuesSymmetric(tmpHessian, tmpEigenvalues, this.nThreads, es);
-
-                    RandomAccessibleInterval<FloatType> tmpFrangi = ArrayImgs.floats(blockSize);
-                    if (this.is3D) {
-                        frangi3D(tmpEigenvalues, tmpFrangi, 0.5, 0.5, c, ex);
-                    } else {
-                        frangi2D(tmpEigenvalues, tmpFrangi, 0.5, c, ex);
-                    }
-                    LoopBuilder.setImages(block, tmpFrangi)
-                            .multiThreaded(ex)
-                            .forEachPixel((b, t) -> b.set(Math.max(b.getRealFloat(), t.getRealFloat())));
-
-                    ++iter;
-                }
-            }
-            this.result = output;
-
-        } catch (final OutOfMemoryError e) {
-            SNTUtils.error("Out of memory when computing Frangi. Requires around " +
-                    (ImgUtils.estimateMemoryRequirement(this.imgDim, this.blockDimensions) / (1024 * 1024)) +
-                    "MiB for block size " + Arrays.toString(this.blockDimensions));
-
-        } catch (final ExecutionException e) {
-            SNTUtils.error(e.getMessage(), e);
-
-        } catch (final InterruptedException e) {
-            SNTUtils.error("Frangi interrupted.", e);
-            Thread.currentThread().interrupt();
-        }
-
+        ex.close();
     }
 
-    protected void frangi2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                            final RandomAccessibleInterval<FloatType> frangiRai,
-                            final double beta, final double c, final TaskExecutor ex)
+    private static void frangi2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
+                                   final RandomAccessibleInterval<FloatType> frangiRai,
+                                   final double beta, final double c, final TaskExecutor ex)
     {
         final double betaDen = 2 * beta * beta;
         final double cDen = 2 * c * c;
@@ -254,9 +187,9 @@ public class Frangi extends AbstractFilter {
         );
     }
 
-    protected void frangi3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                            final RandomAccessibleInterval<FloatType> frangiRai,
-                            final double alpha, final double beta, final double c, final TaskExecutor ex)
+    private static void frangi3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
+                                   final RandomAccessibleInterval<FloatType> frangiRai,
+                                   final double alpha, final double beta, final double c, final TaskExecutor ex)
     {
         final double alphaDen = 2 * alpha * alpha;
         final double betaDen = 2 * beta * beta;
@@ -309,28 +242,5 @@ public class Frangi extends AbstractFilter {
         );
     }
 
-    protected double maxSquaredFrobenius(final RandomAccessibleInterval<FloatType> hessianRai, final TaskExecutor ex)
-    {
-        final long[] dims = new long[hessianRai.numDimensions() - 1];
-        for (int d = 0; d < hessianRai.numDimensions() - 1; ++d) {
-            dims[d] = hessianRai.dimension(d);
-        }
-        final RandomAccessibleInterval<FloatType> sum = ArrayImgs.floats(dims);
-        for (int d = 0; d < hessianRai.dimension(hessianRai.numDimensions() - 1); ++d) {
-            final IntervalView<FloatType> hessian = Views.hyperSlice(
-                    hessianRai, hessianRai.numDimensions() - 1, d);
-            LoopBuilder.setImages(sum, hessian).multiThreaded(ex).forEachPixel(
-                    (s, h) -> {
-                        final float hf = h.getRealFloat();
-                        s.set(s.getRealFloat() + hf * hf);
-                    }
-            );
-        }
-        final ComputeMinMax<FloatType> minMax = new ComputeMinMax<>(
-                Views.iterable(sum), new FloatType(), new FloatType());
-        minMax.setNumThreads(this.nThreads);
-        minMax.process();
-        return minMax.getMax().getRealDouble();
-    }
 
 }

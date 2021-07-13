@@ -25,12 +25,8 @@ package sc.fiji.snt;
 import ij.ImagePlus;
 import ij.process.ImageStatistics;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.FloatType;
-import sc.fiji.snt.filter.AbstractFilter;
-import sc.fiji.snt.filter.Frangi;
-import sc.fiji.snt.filter.Tubeness;
 
 import java.util.Arrays;
 import java.util.List;
@@ -111,34 +107,9 @@ public class HessianCaller {
 		return hessianImg != null;
 	}
 
+	@Deprecated
 	public Thread start() {
-		snt.changeUIState((imageType == PRIMARY) ? SNTUI.CALCULATING_HESSIAN_I : SNTUI.CALCULATING_HESSIAN_II);
-		if (sigmas == null)
-			sigmas = getDefaultSigma();
-		setImp();
-		AbstractFilter filter;
-		if (analysisType == TUBENESS) {
-			filter = new Tubeness(imp, sigmas);
-		} else if (analysisType == FRANGI) {
-			filter = new Frangi(imp, sigmas);
-		} else {
-			throw new IllegalArgumentException("BUG: Unknown analysis type");
-		}
-		Thread thread = new Thread(() -> {
-			callback.proportionDone(0);
-			try {
-				filter.process();
-				hessianImg = filter.getResult();
-				hessianStats = ImageJFunctions.wrap(hessianImg, "").getStatistics(
-						ImageStatistics.MEAN | ImageStatistics.STD_DEV | ImageStatistics.MIN_MAX);
-				callback.proportionDone(1);
-			} catch (UnsupportedOperationException e) {
-				SNTUtils.error(e.getMessage(), e);
-				callback.proportionDone(-1);
-			}
-		});
-		thread.start();
-		return thread;
+		return null;
 	}
 
 	private void setImp() {

@@ -31,6 +31,7 @@ import ij.plugin.ZProjector;
 import ij.process.ImageStatistics;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.algorithm.stats.ComputeMinMax;
+import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.real.FloatType;
@@ -134,9 +135,12 @@ public class Tracing2DTest {
 			long pointsExploredHessian;
 			long pointsExploredNBAStarHessian;
 
-			final Tubeness tubeness = new Tubeness(image, new double[]{0.835});
-			tubeness.process();
-			final RandomAccessibleInterval<FloatType> tubenessImg = tubeness.getResult();
+			double[] spacing = new double[2];
+			spacing[0] = cal.pixelWidth;
+			spacing[1] = cal.pixelHeight;
+			final Tubeness op = new Tubeness(img, new double[]{0.835}, spacing);;
+			final RandomAccessibleInterval<FloatType> tubenessImg = ArrayImgs.floats(img.dimensionsAsLongArray());
+			op.accept(tubenessImg);
 			final ComputeMinMax<FloatType> minMax = new ComputeMinMax<>(Views.iterable(tubenessImg),
 					new FloatType(), new FloatType());
 			minMax.process();

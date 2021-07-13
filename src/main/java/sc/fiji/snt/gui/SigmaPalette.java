@@ -28,6 +28,7 @@ import java.awt.image.IndexColorModel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -45,10 +46,10 @@ import ij.plugin.LutLoader;
 import ij.process.FloatProcessor;
 import ij.process.ImageStatistics;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.real.FloatType;
 import sc.fiji.snt.*;
-import sc.fiji.snt.filter.AbstractFilter;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Tubeness;
 
@@ -809,21 +810,22 @@ public class SigmaPalette extends Thread {
 			final int offsetX = sigmaX * (croppedWidth + 1) + 1;
 			final int offsetY = sigmaY * (croppedHeight + 1) + 1;
 			final double sigma = sigmaValues[sigmaIndex];
-			AbstractFilter filter;
 			ImagePlus processed;
 			// One scale
+			final RandomAccessibleInterval<FloatType> result = ArrayImgs.floats(
+					cropped.getWidth(), cropped.getHeight(), cropped.getStackSize());
+			final Consumer<RandomAccessibleInterval<FloatType>> op;
 			switch (hc.getAnalysisType()) {
 				case HessianCaller.TUBENESS:
-					filter = new Tubeness(cropped, new double[]{sigma});
+					op = new Tubeness(cropped, new double[]{sigma});
 					break;
 				case HessianCaller.FRANGI:
-					filter = new Frangi(cropped, new double[]{sigma});
+					op = new Frangi(cropped, new double[]{sigma}, snt.getStackMax());
 					break;
 				default:
 					throw new IllegalArgumentException("Unknown hessian analysis type");
 			}
-			filter.process();
-			RandomAccessibleInterval<FloatType> result = filter.getResult();
+			op.accept(result);
 			if (result == null) {
 				throw new NullPointerException("BUG: Filter result is null");
 			}

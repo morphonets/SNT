@@ -30,6 +30,7 @@ import net.imglib2.algorithm.gradient.HessianMatrix;
 import net.imglib2.algorithm.linalg.eigen.TensorEigenValues;
 import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.array.ArrayImgs;
+import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.loops.LoopBuilder;
 import net.imglib2.outofbounds.OutOfBoundsBorderFactory;
 import net.imglib2.parallel.DefaultTaskExecutor;
@@ -39,6 +40,7 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 
 import java.util.ArrayList;
@@ -47,6 +49,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 
 /**
@@ -57,156 +60,128 @@ import java.util.concurrent.Executors;
  *
  * @author Cameron Arshadi
  */
-public class Tubeness extends AbstractFilter {
+public class Tubeness implements Consumer<RandomAccessibleInterval<FloatType>> {
 
     private final boolean is3D;
-    private double[] scales;
+    private final RandomAccessibleInterval<? extends RealType<?>> source;
+    private final int nDim;
+    private final List<double[]> sigmas;
 
-    public Tubeness(final RandomAccessibleInterval<? extends RealType<?>> img, final double[] scales,
-                    final Calibration calibration)
+    public Tubeness(final RandomAccessibleInterval<? extends RealType<?>> source, final double[] scales,
+                  final double[] spacing)
     {
-        super(img, calibration);
-        final int nDim = img.numDimensions();
-        if (nDim < 2 || nDim > 3) {
-            throw new IllegalArgumentException("Only 2 or 3 dimensional images are supported.");
+        this.source = source;
+        this.nDim = source.numDimensions();
+        if (nDim > 3 || nDim < 2) {
+            throw new IllegalArgumentException("Only 2D and 3D images are supported");
         }
-        this.is3D = nDim == 3;
-        this.scales = scales;
+        this.is3D = (nDim == 3);
+        final List<double[]> sigmas = new ArrayList<>();
+        for (final double sc : scales) {
+            final double[] sigma;
+            if (is3D) {
+                sigma = new double[]{sc / spacing[0], sc / spacing[1], sc / spacing[2]};
+            } else {
+                sigma = new double[]{sc / spacing[0], sc / spacing[1]};
+            }
+            sigmas.add(sigma);
+        }
+        this.sigmas = sigmas;
     }
 
-    public Tubeness(final ImagePlus imp, final double[] scales)
+    public Tubeness(final RandomAccessibleInterval<? extends RealType<?>> source, final double[] scales,
+                    final Calibration cal)
     {
-        super(imp);
-        final int nDim = img.numDimensions();
-        if (nDim < 2 || nDim > 3) {
-            throw new IllegalArgumentException("Only 2 or 3 dimensional images are supported.");
-        }
-        this.is3D = nDim == 3;
-        this.scales = scales;
+        this(source, scales, new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth});
     }
 
-    public void setScales(double[] scales) {
-        this.scales = scales;
+    public Tubeness(final ImagePlus imp, final double[] scales) {
+        this(ImageJFunctions.wrapReal(imp), scales, imp.getCalibration());
     }
 
     @Override
-    public void process() {
+    public void accept(RandomAccessibleInterval<FloatType> output) {
+        final long[] gaussianPad = new long[nDim];
+        final long[] gaussianOffset = new long[nDim];
 
-        this.result = null;
+        final long[] gradientPad = new long[nDim + 1];
+        gradientPad[gradientPad.length - 1] = this.is3D ? 3 : 2;
+        final long[] gradientOffset = new long[nDim + 1];
 
-        if (this.isAutoBlockDimensions) {
-            this.blockDimensions = ImgUtils.suggestBlockDimensions(this.imgDim);
+        final long[] hessianPad = new long[nDim + 1];
+        hessianPad[hessianPad.length - 1] = this.is3D ? 6 : 3;
+        final long[] hessianOffset = new long[nDim + 1];
+
+        final ExecutorService es = Executors.newFixedThreadPool(SNTPrefs.getThreads());
+        final TaskExecutor ex = new DefaultTaskExecutor(es);
+
+        for (final double[] sigma : sigmas) {
+
+            final long[] blockSize = Intervals.dimensionsAsLongArray(output);
+
+            for (int d = 0; d < blockSize.length; ++d) {
+                gaussianPad[d] = blockSize[d] + 6;
+                gaussianOffset[d] = output.min(d) - 2;
+            }
+            RandomAccessibleInterval<FloatType> tmpGaussian = Views.translate(
+                    ArrayImgs.floats(gaussianPad), gaussianOffset);
+
+            FastGauss.convolve(sigma, Views.extendBorder(source), tmpGaussian);
+
+            for (int d = 0; d < gradientPad.length - 1; ++d) {
+                gradientPad[d] = blockSize[d] + 4;
+                gradientOffset[d] = output.min(d) - 1;
+                hessianPad[d] = blockSize[d];
+                hessianOffset[d] = output.min(d);
+            }
+            RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(gradientPad);
+            RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(hessianPad);
+
+            try {
+                HessianMatrix.calculateMatrix(
+                        Views.extendBorder(tmpGaussian),
+                        Views.translate(tmpGradient, gradientOffset),
+                        Views.translate(tmpHessian, hessianOffset),
+                        new OutOfBoundsBorderFactory<>(),
+                        SNTPrefs.getThreads(),
+                        es);
+            } catch (InterruptedException | ExecutionException e) {
+                SNTUtils.error("Error during hessian matrix computation", e);
+                return;
+            }
+
+            RandomAccessibleInterval<FloatType> tmpEigenvalues = TensorEigenValues.createAppropriateResultImg(
+                    tmpHessian,
+                    new ArrayImgFactory<>(new FloatType()));
+
+            TensorEigenValues.calculateEigenValuesSymmetric(
+                    tmpHessian,
+                    tmpEigenvalues,
+                    SNTPrefs.getThreads(),
+                    es);
+
+            // FIXME: this normalizes the filter response using the average voxel separation at a scale
+            double avgSigma = 0d;
+            for (double s : sigma) {
+                avgSigma += s;
+            }
+            avgSigma /= sigma.length;
+
+            RandomAccessibleInterval<FloatType> tmpTubeness = ArrayImgs.floats(blockSize);
+            if (this.is3D) {
+                tubeness3D(tmpEigenvalues, tmpTubeness, avgSigma, ex);
+            } else {
+                tubeness2D(tmpEigenvalues, tmpTubeness, avgSigma, ex);
+            }
+            LoopBuilder.setImages(output, tmpTubeness)
+                    .multiThreaded(ex)
+                    .forEachPixel((b, t) -> b.set(Math.max(b.getRealFloat(), t.getRealFloat())));
+
         }
-
-        final ExecutorService es = Executors.newFixedThreadPool(this.nThreads);
-        try (TaskExecutor ex = new DefaultTaskExecutor(es)) {
-            // TODO: maybe use one of the cached imglib2 data structures instead?
-            RandomAccessibleInterval<FloatType> output = ArrayImgs.floats(this.imgDim);
-            final List<IntervalView<FloatType>> blocks = ImgUtils.splitIntoBlocks(output, this.blockDimensions);
-            if (blocks.size() == 0) {
-                throw new IllegalStateException("Num blocks == 0");
-            }
-
-            final long[] gaussianPad = new long[this.imgDim.length];
-            final long[] gaussianOffset = new long[this.imgDim.length];
-
-            final long[] gradientPad = new long[this.imgDim.length + 1];
-            gradientPad[gradientPad.length - 1] = this.is3D ? 3 : 2;
-            final long[] gradientOffset = new long[this.imgDim.length + 1];
-
-            final long[] hessianPad = new long[this.imgDim.length + 1];
-            hessianPad[hessianPad.length - 1] = this.is3D ? 6 : 3;
-            final long[] hessianOffset = new long[this.imgDim.length + 1];
-
-            final List<double[]> sigmas = new ArrayList<>();
-            for (final double sc : this.scales) {
-                final double[] sigma;
-                if (this.is3D) {
-                    sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight, sc / this.pixelDepth};
-                } else {
-                    sigma = new double[]{sc / this.pixelWidth, sc / this.pixelHeight};
-                }
-                sigmas.add(sigma);
-            }
-
-            int iter = 0;
-            final int nIterations = sigmas.size() * blocks.size();
-            for (final double[] sigma : sigmas) {
-                for (final IntervalView<FloatType> block : blocks) {
-
-                    final long[] blockSize = Intervals.dimensionsAsLongArray(block);
-
-                    for (int d = 0; d < blockSize.length; ++d) {
-                        gaussianPad[d] = blockSize[d] + 6;
-                        gaussianOffset[d] = block.min(d) - 2;
-                    }
-                    RandomAccessibleInterval<FloatType> tmpGaussian = Views.translate(
-                            ArrayImgs.floats(gaussianPad), gaussianOffset);
-
-                    FastGauss.convolve(sigma, Views.extendMirrorSingle(this.img), tmpGaussian);
-
-                    for (int d = 0; d < gradientPad.length - 1; ++d) {
-                        gradientPad[d] = blockSize[d] + 4;
-                        gradientOffset[d] = block.min(d) - 1;
-                        hessianPad[d] = blockSize[d];
-                        hessianOffset[d] = block.min(d);
-                    }
-                    RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(gradientPad);
-                    RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(hessianPad);
-
-                    HessianMatrix.calculateMatrix(
-                            Views.extendBorder(tmpGaussian),
-                            Views.translate(tmpGradient, gradientOffset),
-                            Views.translate(tmpHessian, hessianOffset),
-                            new OutOfBoundsBorderFactory<>(),
-                            this.nThreads,
-                            es);
-
-                    RandomAccessibleInterval<FloatType> tmpEigenvalues =
-                            TensorEigenValues.createAppropriateResultImg(
-                                    tmpHessian,
-                                    new ArrayImgFactory<>(new FloatType()));
-                    TensorEigenValues.calculateEigenValuesSymmetric(tmpHessian, tmpEigenvalues, this.nThreads, es);
-
-                    // FIXME: this normalizes the filter response using the average voxel separation at a scale
-                    double avgSigma = 0d;
-                    for (double s : sigma) {
-                        avgSigma += s;
-                    }
-                    avgSigma /= sigma.length;
-
-                    RandomAccessibleInterval<FloatType> tmpTubeness = ArrayImgs.floats(blockSize);
-                    if (this.is3D) {
-                        tubeness3D(tmpEigenvalues, tmpTubeness, avgSigma, ex);
-                    } else {
-                        tubeness2D(tmpEigenvalues, tmpTubeness, avgSigma, ex);
-                    }
-                    LoopBuilder.setImages(block, tmpTubeness)
-                            .multiThreaded(ex)
-                            .forEachPixel((b, t) -> b.set(Math.max(b.getRealFloat(), t.getRealFloat())));
-
-                    ++iter;
-                }
-            }
-            this.result = output;
-
-        } catch (final OutOfMemoryError e) {
-            SNTUtils.error("Out of memory when computing Tubeness. Requires around " +
-                    (ImgUtils.estimateMemoryRequirement(this.imgDim, this.blockDimensions) / (1024 * 1024)) +
-                    "MiB for block size " + Arrays.toString(this.blockDimensions));
-
-        } catch (final ExecutionException e) {
-            SNTUtils.error(e.getMessage(), e);
-
-        } catch (final InterruptedException e) {
-            SNTUtils.error("Tubeness interrupted.", e);
-            Thread.currentThread().interrupt();
-        }
-
+        ex.close();
     }
 
-
-    protected void tubeness2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
+    private static void tubeness2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
                               final RandomAccessibleInterval<FloatType> tubenessRai, double sigma,
                               final TaskExecutor ex)
     {
@@ -233,7 +208,7 @@ public class Tubeness extends AbstractFilter {
         );
     }
 
-    protected void tubeness3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
+    private static void tubeness3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
                               final RandomAccessibleInterval<FloatType> tubenessRai, double sigma,
                               final TaskExecutor ex)
     {
