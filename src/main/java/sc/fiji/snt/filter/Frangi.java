@@ -1,3 +1,25 @@
+/*-
+ * #%L
+ * Fiji distribution of ImageJ for the life sciences.
+ * %%
+ * Copyright (C) 2010 - 2021 Fiji developers.
+ * %%
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public
+ * License along with this program.  If not, see
+ * <http://www.gnu.org/licenses/gpl-3.0.html>.
+ * #L%
+ */
+
 package sc.fiji.snt.filter;
 
 import ij.ImagePlus;
@@ -28,6 +50,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
+/**
+ * A.F. Frangi, W.J. Niessen, K.L. Vincken, M.A. Viergever (1998). Multiscale vessel enhancement filtering.
+ * In Medical Image Computing and Computer-Assisted Intervention - MICCAI'98, W.M. Wells, A. Colchester and S.L. Delp (Eds.),
+ * Lecture Notes in Computer Science, vol. 1496 - Springer Verlag, Berlin, Germany, pp. 130-137.
+ *
+ * @author Cameron Arshadi
+ */
 public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
 
     private final RandomAccessibleInterval<? extends RealType<?>> source;
@@ -60,7 +89,7 @@ public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
     }
 
     public Frangi(final RandomAccessibleInterval<? extends RealType<?>> source, final double[] scales,
-                    final Calibration cal, final double stackMax)
+                  final Calibration cal, final double stackMax)
     {
         this(source, scales, new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth}, stackMax);
     }
@@ -151,8 +180,8 @@ public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
     }
 
     private static void frangi2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                                   final RandomAccessibleInterval<FloatType> frangiRai,
-                                   final double beta, final double c, final TaskExecutor ex)
+                                 final RandomAccessibleInterval<FloatType> frangiRai,
+                                 final double beta, final double c, final TaskExecutor ex)
     {
         final double betaDen = 2 * beta * beta;
         final double cDen = 2 * c * c;
@@ -188,8 +217,8 @@ public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
     }
 
     private static void frangi3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                                   final RandomAccessibleInterval<FloatType> frangiRai,
-                                   final double alpha, final double beta, final double c, final TaskExecutor ex)
+                                 final RandomAccessibleInterval<FloatType> frangiRai,
+                                 final double alpha, final double beta, final double c, final TaskExecutor ex)
     {
         final double alphaDen = 2 * alpha * alpha;
         final double betaDen = 2 * beta * beta;
@@ -241,6 +270,5 @@ public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
                 }
         );
     }
-
-
+    
 }

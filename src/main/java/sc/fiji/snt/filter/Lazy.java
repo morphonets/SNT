@@ -2,10 +2,7 @@ package sc.fiji.snt.filter;
 
 import net.imglib2.Interval;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.cache.img.CachedCellImg;
-import net.imglib2.cache.img.CellLoader;
-import net.imglib2.cache.img.DiskCachedCellImgFactory;
-import net.imglib2.cache.img.DiskCachedCellImgOptions;
+import net.imglib2.cache.img.*;
 import net.imglib2.cache.img.optional.CacheOptions;
 import net.imglib2.type.NativeType;
 import net.imglib2.util.Intervals;
@@ -27,18 +24,17 @@ public class Lazy {
             final T type,
             final CellLoader<T> loader)
     {
-        final long[] dimensions = Intervals.dimensionsAsLongArray(targetInterval);
-        DiskCachedCellImgFactory<T> factory = new DiskCachedCellImgFactory<>(
+        return new DiskCachedCellImgFactory<>(
                 type,
                 DiskCachedCellImgOptions.options()
                         .cellDimensions(blockSize)
                         .cacheType(CacheOptions.CacheType.SOFTREF)
-                        .initializeCellsAsDirty(true));
-        return factory.create(dimensions, loader);
+                        .initializeCellsAsDirty(true))
+                .create(Intervals.dimensionsAsLongArray(targetInterval), loader);
     }
 
     /**
-     * Create a memory {@link CachedCellImg} with a cell generator {@link Consumer}.
+     * Create a {@link DiskCachedCellImg} with a cell generator {@link Consumer}.
      *
      * @param targetInterval
      * @param blockSize
