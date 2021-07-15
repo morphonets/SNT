@@ -238,17 +238,19 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	protected void rebuildRelationships() {
 
-		// Discard all fitted paths, including imported ones
-		allPaths.forEach( p -> {
-			p.discardFit();
-			p.fittedVersionOf = null;
-		});
 		Path[] primaryPaths = getPathsStructured(allPaths);
 		if (primaryPaths == null || primaryPaths.length == 0) {
 			return;
 		}
 
 		enableUIupdates = false;
+		// Reset tree labels, discard all fitted paths, including imported ones
+		allPaths.forEach( p -> {
+			p.discardFit();
+			p.fittedVersionOf = null;
+			p.setTreeLabel(null);
+		});
+
 		resetIDs();
 		for (Path p : primaryPaths) {
 			++maxUsedTreeID;

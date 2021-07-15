@@ -1,19 +1,32 @@
-# @String(visibility="MESSAGE",value="<html>This script merges Sholl profiles from multiple files into a single table and plot,<br>obtaining Mean&plusmn;StdDev profiles for groups of cells. It assumes that files share<br>the same structure and profiles the same <i>starting radius</i> and <i>radius step size</i>.<br><br>Tip: Subscribe to the BAR update site to use <i>BAR>Data Analysis></i> routines to plot<br>processed data for multiple groups in a more flexible way.<br>&nbsp;") MSG
+# @String(visibility="MESSAGE",value="<html>This script merges Sholl profiles from multiple files into a single table and plot,<br>obtaining Mean&plusmn;StdDev profiles for groups of cells. It assumes that files share<br>the same structure and the same (case-sensitive) column headings.<br>&nbsp;") MSG
 # @File(label="Input directory", style="directory", description="The directory containing the files with the tabular profiles to be parsed") dir
 # @String(label="Filename contains", value="", description="<html>Only files containing this string will be considered.<br>Leave blank to consider all files. Glob patterns accepted.") pattern
 # @String(label="File extension", choices={".csv",".txt",".xls",".ods", "any extension"}, description="<html>The extension of the files to be parsed.") extension
-# @String(label="X-values column", min=1, value="radii", description="<html>The header of the column containing the distances shared by all profiles (case-sensitive).<br>It will be retrieved from the <b>first valid file</b> found in the directory.") xcolumn_header
-# @String(label="Y-values column", min=1, value="counts", description="<html>The header of the column containing the Y-values to be agregated (case-sensitive).<br>It will be extracted from all files.") ycolumn_header
+# @String(label="'Radius' column", value="radii", description="<html>The header of the column containing the distances of the profiles <b>(case-sensitive)</b>") xcolumn_header
+# @String(label="'Intersections' column", value="counts", description="<html>The header of the column containing the Y-values to be agregated <b>(case-sensitive)</b>.") ycolumn_header
+# @String(visibility="MESSAGE",value="<html>&nbsp;") SPACER
+# @boolean(label="Impose starting radius", description="<html>If selected, merged profiles will start at the radius specified below") impose_sradius
+# @double(label="Starting radius") sradius
+# @boolean(label="Impose radius step size", min=0, description="<html>If selected, merged profiles will have the radius step size specified below") impose_step_size
+# @double(label="Radius step size", min=0) step_size
+# @String(label="Integration method", choices={"Mean","Median","Max"}, description="<html>If multiple measurements exist within the specified step size, how should they be integrated?") integration
+# @boolean(label="Impose end radius", description="<html>If selected, merged profiles will end at the radius specified below") impose_eradius
+# @double(label="Ending radius",min=0) eradius
+# @boolean(label="Fit averaged profile", description="<html>Apply a 'best-fit' polynomal regression to averaged profile?") fit_avg
+
 # @UIService uiservice
 # @LogService lservice
 
-from __future__ import with_statement
-import csv, glob, os
-from collections import defaultdict
-from sc.fiji.snt.analysis import SNTTable
-from ij.gui import Plot 
 
-def log(msg, level = "info"):
+import csv, glob, math, os
+from collections import OrderedDict
+from sc.fiji.snt.analysis import SNTTable
+from sc.fiji.snt.analysis.sholl import Profile
+from sc.fiji.snt.analysis.sholl.gui import ShollPlot
+from sc.fiji.snt.analysis.sholl.math import LinearProfileStats
+
+
+def log(msg, level="info"):
     # https://forum.image.sc/t/logservice-issue-with-jython-slim-2-7-2-and-scripting-jython-1-0-0/
     from org.scijava.log import LogLevel
     if "warn" in level:
@@ -23,61 +36,54 @@ def log(msg, level = "info"):
     else:
         lservice.log(LogLevel.INFO, msg)
 
-
 def error(msg):
     """ Displays an error message """
     uiservice.showDialog(msg, "Error")
 
-
-def mean(data):
-    """ Returns the arithmetic mean of a list """
-    return sum(data)/float(len(data))
-
-
-def ss(data):
+def ss(data, mean):
     """ Returns the sum of square deviations
        (see http://stackoverflow.com/a/27758326)
     """
-    c = mean(data)
-    ss = sum((x-c)**2 for x in data)
+    ss = sum((x-mean)**2 for x in data)
     return ss
 
-
-def stdev(data):
+def stdev(data, mean):
     """Calculates the (population) standard deviation"""
     n = len(data)
     if n < 2:
         return float('nan')
-    ssd = ss(data)
+    ssd = ss(data, mean)
     svar = ssd/(n)
     return svar**0.5
 
+def median(data):
+    """Calculates the median of a list"""
+    n = len(data)
+    index = n // 2
+    if n % 2:
+        return sorted(data)[index]
+    return sum(sorted(data)[index - 1:index + 1]) / 2
 
-def tofloat(v):
-    try:
-        return float(v)
-    except ValueError:
-        #log("Non-numeric entry: %s" % v, "warn")
-        return v
-
-
-def newtable(header, values):
-    """Returns a table populated with the specified column"""
-    table = SNTTable()
-    for v in values:
-        table.appendRow()
-        table.appendToLastRow(header, v)
-    return table
-
+def addfit(plot, lstats):
+    lstats.findBestFit(2, 50, 0.2, -1)
+    if lstats.validFit():
+        rsqred = lstats.getRSquaredOfFit(True)
+        poly = lstats.getPolynomialAsString()
+        label = u'%s fit (R\u00B2=%.2f)' % (poly, rsqred)
+        plot.setColor("red")
+        plot.addPoints(lstats.getXvalues(), lstats.getFitYvalues(), label)
 
 def main():
+
+    global dir, eradius, extension, fit_avg, impose_eradius, impose_sradius
+    global impose_step_size, pattern, sradius, step_size, xcolumn_header, ycolumn_header
 
     ext = "" if "any" in extension else extension
     glob_pattern = "*%s*%s" % (pattern, ext)
     files = sorted(glob.glob(os.path.join(str(dir), glob_pattern)))
 
     if not files:
-        error("The directory %s\ndoes not contain files matching the specified"\
+        error("The directory %s\ndoes not contain files matching the specified"
               " pattern (or it does not exist)." % dir)
         return
 
@@ -85,10 +91,7 @@ def main():
     log("Parsing %s for files matching '%s'" % (str(dir), glob_pattern))
     log("Column header(s) (case-sensitive, exact match expected): ['%s', '%s']" % (xcolumn_header, ycolumn_header))
 
-    xvalues, all_ydata = [], []
-    first_valid_idx = 0
-    last_row = -1
-
+    all_data = OrderedDict()
     for f_idx, f in enumerate(files):
 
         filename = os.path.basename(f)
@@ -114,7 +117,7 @@ def main():
             if not has_header:
                 log("Skipping... File has no column headings...")
                 continue
-            
+
             header_row = incsv.next()
             try:
                 xcolumn_idx = header_row.index(xcolumn_header)
@@ -122,53 +125,95 @@ def main():
             except ValueError:
                 log("Skipping... Column header(s) not found in file", "warn")
                 continue
-  
+
             for row_idx, row in enumerate(incsv):
                 try:
-                    all_ydata.append((filename, row_idx, tofloat(row[ycolumn_idx])))
-                    if row_idx > last_row:
-                        xvalues.append(tofloat(row[xcolumn_idx]))
-                        last_row = row_idx
-                except IndexError:
-                    log("Skipping... Column header(s) not found in file", "warn")
+                    xvalue = round(float(row[xcolumn_idx]), 4)
+                    if impose_sradius and xvalue < sradius:
+                        continue
+                    if not xvalue in all_data:
+                        all_data[xvalue] = []
+                    all_data[xvalue].append((filename, float(row[ycolumn_idx])))
+                except ValueError:
+                    log("Skipping... Non-numeric data found in table!?", "warn")
                     continue
 
-    if not all_ydata:
-        error("%s files were parsed but no valid data existed.\nPlease revise"\
-              " settings or check the Console for details." % len(files))
+    if not all_data:
+        error("%s files were parsed but no valid data existed.\nPlease revise"
+              " settings or check the Console for details.\nNote that column"
+              " headings are case-sensitive." % len(files))
         return
 
-    data_identifier = "Col_%s_%s" % (ycolumn_header, pattern)
+    log("Assembling table with merged data...")
+    table = SNTTable()
+    for radius, entries in all_data.items():
+        table.appendRow()
+        table.appendToLastRow("Radius", radius)
+        for entry in entries:
+            table.appendToLastRow(entry[0], entry[1])
+    uiservice.show("MergedProfiles_Inputs", table)
 
-    log("Building table with merged Y-data...")
-    table = newtable(xcolumn_header, xvalues)
-    for filename, row, row_value in all_ydata:
-        table.set(filename, row, row_value)
-    uiservice.show("MergedFiles_%s" % data_identifier, table)
+    log("Assembling stats...")
+    # Define the number of intervals we'll be dealing with
+    min_radius = sradius if impose_sradius and sradius >= 0 else min(all_data.keys())
+    max_radius = eradius if impose_eradius and eradius > 0 else max(all_data.keys())
+    if not impose_step_size or step_size <= 0:
+        log("Computing step size...")
+        step_size = max([all_data.keys()[i+1]-all_data.keys()[i] for i in range(len(all_data.keys())-1)])
+    nbins = int(math.ceil((max_radius-min_radius)/step_size))
+    bins_start = [min_radius + i * step_size for i in range(nbins)]
 
-    log("Retrieving statistics for merged Y-data...")
-    list_of_rows = defaultdict(list)
-    for data in all_ydata:
-        list_of_rows[data[1]].append(data[2])
+    # For every imported file, keep a list of instersection values that fall within each bin
+    stats = OrderedDict()
+    for bin_start in bins_start:
+        stats[bin_start] = []
+        for col_idx in range(1, table.getColumnCount()):
+            interval_inters = []
+            for row_idx in range(0, table.getRowCount()):
+                radius = table.get(0, row_idx)
+                if radius >= bin_start and radius < bin_start + step_size:
+                    value = table.get(col_idx, row_idx)
+                    if value:
+                        interval_inters.append(table.get(col_idx, row_idx))
+            if interval_inters:
+                # if intersections existed in this range, integrate them in a single value
+                if integration == 'Median':
+                    stats[bin_start].append(median(interval_inters))
+                elif integration == 'Max':
+                    stats[bin_start].append(max(interval_inters))
+                else:
+                    stats[bin_start].append(sum(interval_inters)/float(len(interval_inters)))
 
-    row_stats = {}
-    for row_key, row_values in list_of_rows.iteritems():
-        row_stats[row_key] = (mean(row_values), stdev(row_values), len(row_values))
+    if not stats:
+        error("It was not possible to assemble statistical data.\n"
+              "Please revise settings.")
+        return
 
-    table = newtable(xcolumn_header, xvalues)
-    for key, value in row_stats.iteritems():
-        table.set("Mean", int(key), value[0])
-        table.set("StdDev", int(key), value[1])
-        table.set("N", int(key), value[2])
-    uiservice.show("Stats_%s" % data_identifier, table)
+    log("Assembling table with statistics...")
+    table = SNTTable()
 
-    plot = Plot("Mean Sholl Plot [%s]" % ycolumn_header, xcolumn_header, "N. of intersections")
-    plot.setLegend("Mean"+ u'\u00B1' +"SD", Plot.LEGEND_TRANSPARENT + Plot.AUTO_POSITION)
-    plot.setColor("cyan", "blue")
-    plot.addPoints(table.get(0), table.get(1), table.get(2), Plot.CONNECTED_CIRCLES, data_identifier)
+    for bin_start, interval_means in stats.items():
+        if len(interval_means) == 0:
+            continue
+        table.appendRow()
+        the_sum = sum(interval_means)
+        the_avg = the_sum/len(interval_means)
+        table.appendToLastRow("Radius (interval start)", bin_start)
+        table.appendToLastRow("Mean (of %ss)" % integration, the_avg)
+        table.appendToLastRow("StDev", stdev(interval_means, the_avg))
+        table.appendToLastRow("Sum", the_sum)
+        table.appendToLastRow("N", len(interval_means))
+    uiservice.show("MergedProfiles_Stats", table)
+
+    # Plot averaged profile. Add polynomial fit
+    plot = ShollPlot("Merged Sholl Plot", xcolumn_header, ycolumn_header)
+    plot.setLineWidth(2)
+    plot.setColor(("cyan" if nbins > 100 else "blue"), "blue")
+    plot.addPoints(table.get(0), table.get(1), table.get(2), u'Mean\u00B1SD')
+    if fit_avg:
+        addfit(plot, LinearProfileStats(Profile(table.get(0), table.get(1))))
+    plot.enableLegend(True)
     plot.show()
-
     log("Parsing concluded.")
-
-
+ 
 main()
