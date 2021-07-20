@@ -2389,9 +2389,9 @@ public class SNT extends MultiDThreePanes implements
 		loadSecondaryImage(imp, true);
 	}
 
-	public void loadSecondaryImage(final RandomAccessibleInterval<FloatType> img)
+	public void loadSecondaryImage(final RandomAccessibleInterval<FloatType> img, final boolean computeStatistics)
 	{
-		loadSecondaryImage(img, true);
+		loadSecondaryImage(img, true, computeStatistics);
 	}
 
 	public void setSecondaryImageMinMax(final float min, final float max) {
@@ -2434,8 +2434,8 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
-	protected void loadSecondaryImage(final RandomAccessibleInterval<FloatType> img,
-															  final boolean changeUIState)
+	protected void loadSecondaryImage(final RandomAccessibleInterval<FloatType> img, final boolean changeUIState,
+									  final boolean computeStatistics)
 	{
 		assert img != null;
 		if (secondaryImageFile != null && secondaryImageFile.getName().toLowerCase().contains(".oof")) {
@@ -2448,19 +2448,21 @@ public class SNT extends MultiDThreePanes implements
 		secondaryData =  img;
 		SNTUtils.log("Secondary data dimensions: " +
 				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
-		OpService opService = getContext().getService(OpService.class);
-		IterableInterval<FloatType> iterableView = Views.iterable(img);
-		Pair<FloatType, FloatType> p = opService.stats().minMax(iterableView);
-		stackMinSecondary = p.getA().getRealDouble();
-		stackMaxSecondary = p.getB().getRealDouble();
-		double mean = opService.stats().mean(iterableView).getRealDouble();
-		double stdDev = opService.stats().stdDev(iterableView).getRealDouble();
-		// HACK
-		statsSecondary = new ImageStatistics();
-		statsSecondary.min = stackMinSecondary;
-		statsSecondary.max = stackMaxSecondary;
-		statsSecondary.mean = mean;
-		statsSecondary.stdDev = stdDev;
+		if (computeStatistics) {
+			OpService opService = getContext().getService(OpService.class);
+			IterableInterval<FloatType> iterableView = Views.iterable(img);
+			Pair<FloatType, FloatType> p = opService.stats().minMax(iterableView);
+			stackMinSecondary = p.getA().getRealDouble();
+			stackMaxSecondary = p.getB().getRealDouble();
+			double mean = opService.stats().mean(iterableView).getRealDouble();
+			double stdDev = opService.stats().stdDev(iterableView).getRealDouble();
+			// HACK
+			statsSecondary = new ImageStatistics();
+			statsSecondary.min = stackMinSecondary;
+			statsSecondary.max = stackMaxSecondary;
+			statsSecondary.mean = mean;
+			statsSecondary.stdDev = stdDev;
+		}
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
 			if (getUI() != null) {

@@ -46,6 +46,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.util.function.Consumer;
 
 /**
  * Implements the "Generate Secondary Image" command.
@@ -74,6 +75,9 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 
 	@Parameter(label = "Filter", choices = { FRANGI, TUBENESS, NONE })
 	private String filter;
+
+	@Parameter(label = "Compute statistics")
+	private boolean computeStats;
 
 	@Parameter(label = "Display", required = false)
 	private boolean show;
@@ -118,6 +122,7 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 	 */
 	@Override
 	public void run() {
+		// TODO fix type mismatch here, probably will need to convert...
 		final ImagePlus inputImp = sntService.getPlugin().getLoadedDataAsImp();
 		if (NONE.equals(filter)) {
 			//snt.loadSecondaryImage(sntService.getPlugin().getLoadedData());
@@ -127,36 +132,33 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 		final RandomAccessibleInterval<? extends RealType<?>> in = Views.dropSingletonDimensions(
 				sntService.getPlugin().getLoadedData());
 		final double[] sigmas = sntService.getPlugin().getHessianSigma("primary", true);
-		Calibration cal = inputImp.getCalibration();
-		double[] spacing = new double[3];
+		final Calibration cal = inputImp.getCalibration();
+		final double[] spacing = new double[3];
 		spacing[0] = cal.pixelWidth;
 		spacing[1] = cal.pixelHeight;
 		spacing[2] = cal.pixelDepth;
+		Consumer<RandomAccessibleInterval<FloatType>> op;
 		switch (filter) {
 			case FRANGI:
-				Frangi frangi = new Frangi(in, sigmas, spacing, sntService.getPlugin().getStackMax());
-				filteredImg = Lazy.process(
-						in,
-						new int[]{256, 256, 256},
-						new FloatType(),
-						frangi);
+				op = new Frangi(in, sigmas, spacing, sntService.getPlugin().getStackMax());
 				break;
 			case TUBENESS:
-				Tubeness tubeness = new Tubeness(in, sigmas, spacing);
-				filteredImg = Lazy.process(
-						in,
-						new int[]{256, 256, 256},
-						new FloatType(),
-						tubeness);
+				op = new Tubeness(in, sigmas, spacing);
 				break;
 			default:
 				throw new IllegalArgumentException("Unrecognized filter " + filter);
 		}
+		// TODO: let user set cell dims?
+		filteredImg = Lazy.process(
+				in,
+				new int[]{60, 60, 60},
+				new FloatType(),
+				op);
 		apply();
 	}
 
 	private void apply() {
-		snt.loadSecondaryImage(filteredImg);
+		snt.loadSecondaryImage(filteredImg, computeStats);
 		resetUI();
 	}
 
