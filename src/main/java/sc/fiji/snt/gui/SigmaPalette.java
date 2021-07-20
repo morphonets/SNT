@@ -49,6 +49,7 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.view.Views;
 import sc.fiji.snt.*;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Tubeness;
@@ -810,10 +811,9 @@ public class SigmaPalette extends Thread {
 			final int offsetX = sigmaX * (croppedWidth + 1) + 1;
 			final int offsetY = sigmaY * (croppedHeight + 1) + 1;
 			final double sigma = sigmaValues[sigmaIndex];
-			ImagePlus processed;
 			// One scale
-			final RandomAccessibleInterval<FloatType> result = ArrayImgs.floats(
-					cropped.getWidth(), cropped.getHeight(), cropped.getStackSize());
+			final RandomAccessibleInterval<FloatType> result  = Views.dropSingletonDimensions(
+					ArrayImgs.floats(cropped.getWidth(), cropped.getHeight(), cropped.getStackSize()));
 			final Consumer<RandomAccessibleInterval<FloatType>> op;
 			switch (hc.getAnalysisType()) {
 				case HessianCaller.TUBENESS:
@@ -829,7 +829,7 @@ public class SigmaPalette extends Thread {
 			if (result == null) {
 				throw new NullPointerException("BUG: Filter result is null");
 			}
-			processed = ImageJFunctions.wrap(result, "");
+			final ImagePlus processed = ImageJFunctions.wrap(result, "");
 			final ImageStatistics stats = processed.getStatistics(ImagePlus.MIN_MAX);
 			suggestedMax = Math.max(stats.max, suggestedMax);
 			setMax(suggestedMax);
