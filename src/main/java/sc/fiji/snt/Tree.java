@@ -128,7 +128,11 @@ public class Tree implements TreeProperties {
 	}
 
 	public Tree(final DirectedWeightedGraph graph, final String label) {
-		pafm = PathAndFillManager.createFromGraph(graph);
+		this(graph, label, false);
+	}
+
+	public Tree(final DirectedWeightedGraph graph, final String label, final boolean keepTreePathStructure) {
+		pafm = PathAndFillManager.createFromGraph(graph, keepTreePathStructure);
 		tree = pafm.getPaths();
 		setLabel(label);
 	}

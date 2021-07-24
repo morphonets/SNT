@@ -41,20 +41,8 @@ import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.Set;
-import java.util.Stack;
-import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -65,7 +53,6 @@ import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 
 import org.jgrapht.Graphs;
-import org.jgrapht.traverse.DepthFirstIterator;
 import org.json.JSONException;
 import org.scijava.java3d.View;
 import org.scijava.util.ColorRGB;
@@ -2023,24 +2010,35 @@ public class PathAndFillManager extends DefaultHandler implements
 			return null;
 	}
 
-	public static PathAndFillManager createFromGraph(final DirectedWeightedGraph graph) {
+	/**
+	 * create a new PathAndFillManager instance from the graph.
+	 *
+	 * @param graph The input graph
+	 * @param keepTreePathStructure Whether to maintain the path hierarchy of the Tree backing the input graph.
+	 *                              Note this may not always be possible.
+	 */
+	public static PathAndFillManager createFromGraph(final DirectedWeightedGraph graph,
+													 final boolean keepTreePathStructure)
+	{
 		final PathAndFillManager pafm = new PathAndFillManager();
 		pafm.setHeadless(true);
-		pafm.importGraph(graph);
+		pafm.importGraph(graph, keepTreePathStructure);
 		return pafm;
 	}
 
-	protected void importGraph(final DirectedWeightedGraph graph) {
+	protected void importGraph(final DirectedWeightedGraph graph, final boolean keepTreePathStructure) {
 		final boolean existingEnableUIupdates = enableUIupdates;
 		this.enableUIupdates = false;
 		final SWCPoint root = graph.getRoot();
-		final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator = graph.getDepthFirstIterator(root);
-		Path currentPath = new Path(1d, 1d, 1d, "? units");
+		Path currentPath = keepTreePathStructure ? root.getPath().createPath() : new Path();
+		if (keepTreePathStructure) currentPath.setName(root.getPath().getName());
 		currentPath.createCircles();
 		currentPath.setIsPrimary(true);
+		final Deque<SWCPoint> stack = new ArrayDeque<>();
+		stack.push(root);
 		boolean addStartJoin = false;
-		while (depthFirstIterator.hasNext()) {
-			final SWCPoint point = depthFirstIterator.next();
+		while (!stack.isEmpty()) {
+			final SWCPoint point = stack.pop();
 			if (addStartJoin) {
 				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
 				currentPath.addNode(previousPoint);
@@ -2049,19 +2047,38 @@ public class PathAndFillManager extends DefaultHandler implements
 			}
 			currentPath.addNode(point);
 			point.setPath(currentPath);
-			if (graph.outDegreeOf(point) == 0) {
-				currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
-				currentPath.setColor(point.getColor());
-				addPath(currentPath);
-				final String tags = point.getTags();
-				if (tags != null && !tags.isEmpty()) {
-					currentPath.setName(currentPath.getName() + "{" + tags + "}");
+			final Set<SWCPoint> children = graph.outgoingEdgesOf(point).stream()
+					.map(SWCWeightedEdge::getTarget)
+					.collect(Collectors.toSet());
+			if (children.size() == 1) {
+				stack.push(children.iterator().next());
+			} else if (children.size() > 1) {
+				if (keepTreePathStructure) {
+					final Set<SWCPoint> addLast = new HashSet<>();
+					for (final SWCPoint child : children) {
+						if (child.getPath().getID() == currentPath.getID()) {
+							addLast.add(child);
+							continue;
+						}
+						stack.push(child);
+					}
+					if (!addLast.isEmpty()) {
+						addLast.forEach(stack::push);
+					}
+				} else {
+					children.forEach(stack::push);
 				}
-				currentPath.setSWCType(point.type);
+			} else {
+				currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
+				addPath(currentPath, true);
 				currentPath.setGuessedTangents(2);
-				currentPath = new Path(1d, 1d, 1d, "? units");
-				currentPath.createCircles();
-				addStartJoin = true;
+				final SWCPoint peeked = stack.peek();
+				if (peeked != null) {
+					currentPath = keepTreePathStructure ? peeked.getPath().createPath() : new Path();
+					 if (keepTreePathStructure) currentPath.setName(peeked.getPath().getName());
+					currentPath.createCircles();
+					addStartJoin = true;
+				}
 			}
 		}
 		this.enableUIupdates = existingEnableUIupdates;
