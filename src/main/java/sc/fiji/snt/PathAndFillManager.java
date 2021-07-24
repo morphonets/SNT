@@ -22,37 +22,13 @@
 
 package sc.fiji.snt;
 
-import java.awt.*;
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.io.Reader;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.text.DecimalFormat;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.*;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
-
-import javax.xml.parsers.SAXParser;
-import javax.xml.parsers.SAXParserFactory;
-
+import ij.ImagePlus;
+import ij.gui.Roi;
+import ij.measure.Calibration;
+import ij3d.Content;
+import ij3d.UniverseListener;
 import org.jgrapht.Graphs;
+import org.jgrapht.traverse.DepthFirstIterator;
 import org.json.JSONException;
 import org.scijava.java3d.View;
 import org.scijava.util.ColorRGB;
@@ -61,25 +37,32 @@ import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
-
-import ij.ImagePlus;
-import ij.gui.Roi;
-import ij.measure.Calibration;
-import ij3d.Content;
-import ij3d.UniverseListener;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
-import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.PointInCanvas;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.util.SWCPoint;
+import sc.fiji.snt.util.*;
 import util.Bresenham3D;
 import util.XMLFunctions;
+
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
+import java.awt.*;
+import java.io.*;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * The PathAndFillManager is responsible for importing, handling and managing of
@@ -2011,27 +1994,87 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	/**
-	 * create a new PathAndFillManager instance from the graph.
+	 * Create a new PathAndFillManager instance from the graph.
 	 *
-	 * @param graph The input graph
+	 * @param graph                 The input graph
 	 * @param keepTreePathStructure Whether to maintain the path hierarchy of the Tree backing the input graph.
-	 *                              Note this may not always be possible.
+	 *                              If this is set to true, the graph must have been created from operations on
+	 *                              at least one Tree.
+	 *                              Note that even if the graph is backed by a Tree, this may not always be possible.
+	 *                              For instance, consider the case where two graphs oriented in opposing directions
+	 *                              are merged at an edge. One graph will need to be re-oriented, which will change
+	 *                              the Path hierarchy of the result.
 	 */
 	public static PathAndFillManager createFromGraph(final DirectedWeightedGraph graph,
-													 final boolean keepTreePathStructure)
-	{
+													 final boolean keepTreePathStructure) {
 		final PathAndFillManager pafm = new PathAndFillManager();
 		pafm.setHeadless(true);
-		pafm.importGraph(graph, keepTreePathStructure);
+		if (keepTreePathStructure) {
+			pafm.importGraphWithPathStructure(graph);
+		} else {
+			pafm.importGraph(graph);
+		}
 		return pafm;
 	}
 
-	protected void importGraph(final DirectedWeightedGraph graph, final boolean keepTreePathStructure) {
+	protected void importGraph(final DirectedWeightedGraph graph) {
 		final boolean existingEnableUIupdates = enableUIupdates;
 		this.enableUIupdates = false;
 		final SWCPoint root = graph.getRoot();
-		Path currentPath = keepTreePathStructure ? root.getPath().createPath() : new Path();
-		if (keepTreePathStructure) currentPath.setName(root.getPath().getName());
+		final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator = graph.getDepthFirstIterator(root);
+		Path currentPath = new Path(1d, 1d, 1d, "? units");
+		currentPath.createCircles();
+		currentPath.setIsPrimary(true);
+		boolean addStartJoin = false;
+		while (depthFirstIterator.hasNext()) {
+			final SWCPoint point = depthFirstIterator.next();
+			if (addStartJoin) {
+				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
+				currentPath.addNode(previousPoint);
+				currentPath.setStartJoin(previousPoint.onPath, previousPoint.clone());
+				addStartJoin = false;
+			}
+			currentPath.addNode(point);
+			point.setPath(currentPath);
+			if (graph.outDegreeOf(point) == 0) {
+				currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
+				currentPath.setColor(point.getColor());
+				addPath(currentPath);
+				final String tags = point.getTags();
+				if (tags != null && !tags.isEmpty()) {
+					currentPath.setName(currentPath.getName() + "{" + tags + "}");
+				}
+				currentPath.setSWCType(point.type);
+				currentPath.setGuessedTangents(2);
+				currentPath = new Path(1d, 1d, 1d, "? units");
+				currentPath.createCircles();
+				addStartJoin = true;
+			}
+		}
+		this.enableUIupdates = existingEnableUIupdates;
+		resetListeners(null, true);
+
+		// Infer fields for when an image has not been specified. We'll assume
+		// the image dimensions to be those of the coordinates bounding box.
+		// This allows us to open a SWC file without a source image
+		{
+			if (boundingBox == null)
+				boundingBox = new BoundingBox();
+			boundingBox.append(graph.vertexSet().iterator());
+			checkForAppropriateImageDimensions();
+		}
+	}
+
+	protected void importGraphWithPathStructure(final DirectedWeightedGraph graph) {
+		final boolean existingEnableUIupdates = enableUIupdates;
+		this.enableUIupdates = false;
+		final SWCPoint root = graph.getRoot();
+		if (root.getPath() == null) {
+			throw new IllegalArgumentException("The root vertex does not have an associated Path. " +
+					"Was this graph created from a Tree?");
+		}
+		Path currentPath = root.getPath().createPath();
+		currentPath.setName(root.getPath().getName());
 		currentPath.createCircles();
 		currentPath.setIsPrimary(true);
 		final Deque<SWCPoint> stack = new ArrayDeque<>();
@@ -2051,31 +2094,52 @@ public class PathAndFillManager extends DefaultHandler implements
 					.map(SWCWeightedEdge::getTarget)
 					.collect(Collectors.toSet());
 			if (children.size() == 1) {
-				stack.push(children.iterator().next());
-			} else if (children.size() > 1) {
-				if (keepTreePathStructure) {
-					final Set<SWCPoint> addLast = new HashSet<>();
-					for (final SWCPoint child : children) {
-						if (child.getPath().getID() == currentPath.getID()) {
-							addLast.add(child);
-							continue;
-						}
-						stack.push(child);
-					}
-					if (!addLast.isEmpty()) {
-						addLast.forEach(stack::push);
-					}
-				} else {
-					children.forEach(stack::push);
+				final SWCPoint child = children.iterator().next();
+				stack.push(child);
+				if (child.getPath().getID() != currentPath.getID() ||
+						child.getPath().getTreeID() != currentPath.getTreeID()) {
+					currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
+					addPath(currentPath, true);
+					currentPath.setGuessedTangents(2);
+					currentPath = child.getPath().createPath();
+					currentPath.setName(child.getPath().getName());
+					currentPath.createCircles();
+					addStartJoin = true;
 				}
+
+			} else if (children.size() > 1) {
+				Set<SWCPoint> addLast = new HashSet<>();
+				for (final SWCPoint child : children) {
+					if (child.getPath().getID() == currentPath.getID() &&
+							child.getPath().getTreeID() == currentPath.getTreeID()) {
+						addLast.add(child);
+						continue;
+					}
+					stack.push(child);
+				}
+				if (!addLast.isEmpty()) {
+					addLast.forEach(stack::push);
+				} else {
+					currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
+					addPath(currentPath, true);
+					currentPath.setGuessedTangents(2);
+					final SWCPoint peeked = stack.peek();
+					if (peeked != null) {
+						currentPath = peeked.getPath().createPath();
+						currentPath.setName(peeked.getPath().getName());
+						currentPath.createCircles();
+						addStartJoin = true;
+					}
+				}
+
 			} else {
 				currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
 				addPath(currentPath, true);
 				currentPath.setGuessedTangents(2);
 				final SWCPoint peeked = stack.peek();
 				if (peeked != null) {
-					currentPath = keepTreePathStructure ? peeked.getPath().createPath() : new Path();
-					 if (keepTreePathStructure) currentPath.setName(peeked.getPath().getName());
+					currentPath = peeked.getPath().createPath();
+					currentPath.setName(peeked.getPath().getName());
 					currentPath.createCircles();
 					addStartJoin = true;
 				}

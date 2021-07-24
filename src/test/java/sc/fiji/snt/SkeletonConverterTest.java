@@ -65,7 +65,7 @@ public class SkeletonConverterTest {
         assertEquals("# Branches", demoAnalyzer.getNBranches(), skelAnalyzer.getNBranches());
         assertEquals("# Tips", demoAnalyzer.getTips().size(), skelAnalyzer.getTips().size());
         assertEquals("# I paths", demoAnalyzer.getPrimaryPaths().size(), skelAnalyzer.getPrimaryPaths().size());
-        //assertEquals("# Highest path order", demoAnalyzer.getHighestPathOrder(), skelAnalyzer.getHighestPathOrder());
+        assertEquals("# Highest path order", demoAnalyzer.getHighestPathOrder(), skelAnalyzer.getHighestPathOrder());
         assertEquals("Sum length of all paths", demoAnalyzer.getCableLength(), skelAnalyzer.getCableLength(), 10.0);
         assertEquals("Average branch length", demoAnalyzer.getAvgBranchLength(), skelAnalyzer.getAvgBranchLength(), 0.5);
     }
