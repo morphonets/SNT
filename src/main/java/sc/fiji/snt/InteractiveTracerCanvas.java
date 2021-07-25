@@ -1145,7 +1145,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 	private SWCPoint getMatchingPointInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
 		for (final SWCPoint p : graph.vertexSet()) {
-			if (p.isSameLocation(point)) {
+			if (p.isSameLocation(point) && p.getPath().equals(point.getPath())) {
 				return p;
 			}
 		}
