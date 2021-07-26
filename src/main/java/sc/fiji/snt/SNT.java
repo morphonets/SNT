@@ -828,19 +828,16 @@ public class SNT extends MultiDThreePanes implements
 							SNTUtils.error("Scripted path yielded a null result.");
 						return;
 					}
-					if (endJoin != null) {
-					result.setEndJoin(endJoin, endJoinPoint);
-				}
-				setTemporaryPath(result);
+					setTemporaryPath(result);
 
-				if (ui != null && ui.confirmTemporarySegments) {
-					changeUIState(SNTUI.QUERY_KEEP);
+					if (ui != null && ui.confirmTemporarySegments) {
+						changeUIState(SNTUI.QUERY_KEEP);
+					}
+					else {
+						confirmTemporary();
+						changeUIState(SNTUI.PARTIAL_PATH);
+					}
 				}
-				else {
-					confirmTemporary();
-					changeUIState(SNTUI.PARTIAL_PATH);
-				}
-			}
 			else {
 
 				changeUIState(SNTUI.PARTIAL_PATH);
@@ -1461,15 +1458,10 @@ public class SNT extends MultiDThreePanes implements
 		last_start_point_y = (int) Math.round(last.y / y_spacing);
 		last_start_point_z = (int) Math.round(last.z / z_spacing);
 
-		if (currentPath.endJoins == null) {
+		{
 			setTemporaryPath(null);
 			changeUIState(SNTUI.PARTIAL_PATH);
 			updateTracingViewers(true);
-		}
-		else {
-			setTemporaryPath(null);
-			// Since joining onto another path for the end must finish the path:
-			finishedPath();
 		}
 
 		/*
@@ -1495,11 +1487,6 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		removeSphere(targetBallName);
-
-		if (temporaryPath.endJoins != null) {
-			temporaryPath.unsetEndJoin();
-		}
-
 		setTemporaryPath(null);
 
 		endJoin = null;
@@ -1520,9 +1507,8 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 
-		if (currentPath != null) {
-			if (currentPath.startJoins != null) currentPath.unsetStartJoin();
-			if (currentPath.endJoins != null) currentPath.unsetEndJoin();
+		if (currentPath != null && currentPath.startJoins != null) {
+			currentPath.unsetStartJoin();
 		}
 
 		removeSphere(targetBallName);
@@ -1703,7 +1689,6 @@ public class SNT extends MultiDThreePanes implements
 				last_start_point_y * y_spacing, last_start_point_z * z_spacing);
 			p.onPath = currentPath;
 			currentPath.addPointDouble(p.x, p.y, p.z);
-			currentPath.endJoinsPoint = p;
 			currentPath.startJoinsPoint = p;
 			cancelSearch(false);
 		}

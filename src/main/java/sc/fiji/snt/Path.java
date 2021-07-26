@@ -177,8 +177,6 @@ public class Path implements Comparable<Path> {
 	/* Branching */
 	protected Path startJoins;
 	protected PointInImage startJoinsPoint = null;
-	protected Path endJoins;
-	protected PointInImage endJoinsPoint = null;
 	// This is a symmetrical relationship, showing
 	// all the other paths this one is joined to...
 	protected ArrayList<Path> somehowJoins;
@@ -317,14 +315,6 @@ public class Path implements Comparable<Path> {
 		return startJoinsPoint;
 	}
 
-	public Path getEndJoins() {
-		return endJoins;
-	}
-
-	public PointInImage getEndJoinsPoint() {
-		return endJoinsPoint;
-	}
-
 	/**
 	 * Sets this Path's name. Set it to null or {@code ""}, to reset it to the
 	 * default.
@@ -435,7 +425,7 @@ public class Path implements Comparable<Path> {
 	 * @return true, if is primary (root)
 	 */
 	public boolean isPrimary() {
-		return order == 1 || (startJoins == null && endJoins == null);
+		return order == 1 || (startJoins == null);
 	}
 
 	/*
@@ -443,19 +433,14 @@ public class Path implements Comparable<Path> {
 	 */
 	protected void disconnectFromAll() {
 		/*
-		 * This path can be connected to other ones either if: - this starts on other -
-		 * this ends on other - other starts on this - other ends on this In any of
-		 * these cases, we need to also remove this from other's somehowJoins and other
-		 * from this's somehowJoins.
+		 * This path can be connected to other ones either if: 1) this starts on other;
+		 * 2) other starts on this In any of these cases, we need to also remove this
+		 * from other's somehowJoins and other from this's somehowJoins.
 		 */
 		for (final Path other : somehowJoins) {
 			if (other.startJoins == this) {
 				other.startJoins = null;
 				other.startJoinsPoint = null;
-			}
-			if (other.endJoins == this) {
-				other.endJoins = null;
-				other.endJoinsPoint = null;
 			}
 			final int indexInOtherSomehowJoins = other.somehowJoins.indexOf(this);
 			if (indexInOtherSomehowJoins >= 0) other.somehowJoins.remove(
@@ -464,8 +449,6 @@ public class Path implements Comparable<Path> {
 		somehowJoins.clear();
 		startJoins = null;
 		startJoinsPoint = null;
-		endJoins = null;
-		endJoinsPoint = null;
 		setIsPrimary(true);
 	}
 
@@ -473,6 +456,7 @@ public class Path implements Comparable<Path> {
 		setJoin(PATH_START, other, joinPoint);
 	}
 
+	// TODO: this needs patching: imported traces file will call this method when an end-joined has been detected
 	public void setEndJoin(final Path other, final PointInImage joinPoint) {
 		setJoin(PATH_END, other, joinPoint);
 	}
@@ -534,17 +518,6 @@ public class Path implements Comparable<Path> {
 //			System.out.println(fitted.getName() + " connected to " + fitted.getStartJoins().getName());
 //			System.out.println("        fitted.startJoinsPoint.onPath: " + fitted.startJoinsPoint.onPath.getName());
 
-		}
-		if (getEndJoins() != null) {
-			if (fitted.endJoins != null) fitted.unsetEndJoin();
-
-			if (endJoins.getUseFitted()) {
-				final int index = endJoins.fitted.indexNearestTo(endJoinsPoint.x, endJoinsPoint.y, endJoinsPoint.z);
-				final PointInImage pim = (index == -1) ? endJoinsPoint : endJoins.fitted.getNodeWithoutChecks(index);
-				fitted.setEndJoin(endJoins.getFitted(), pim);
-			} else {
-				fitted.setEndJoin(endJoins, endJoinsPoint);
-			}
 		}
 
 		// FIXME: This shouldn't be needed!?
@@ -1066,8 +1039,6 @@ public class Path implements Comparable<Path> {
 		dup.children = (ArrayList<Path>) children.clone();
 		if (startJoins != null) dup.startJoins = startJoins.clone();
 		if (startJoinsPoint != null) dup.startJoinsPoint = startJoinsPoint.clone(); 
-		if (endJoins != null) dup.endJoins = endJoins.clone();
-		if (endJoinsPoint != null) dup.endJoinsPoint = endJoinsPoint.clone();
 		if (getFitted() != null) dup.setFitted(getFitted().clone());
 		dup.setNodeColors(getNodeColors());
 		applyCommonProperties(dup);
@@ -1087,11 +1058,6 @@ public class Path implements Comparable<Path> {
 				final PointInImage dupSPoint = dupChild.getStartJoinsPoint().clone();
 				dupChild.unsetStartJoin();
 				dupChild.setStartJoin(dup, dupSPoint);
-			}
-			if (dupChild.getEndJoinsPoint() != null) {
-				final PointInImage dupEPoint = dupChild.getEndJoinsPoint().clone();
-				dupChild.unsetEndJoin();
-				dupChild.setEndJoin(dup, dupEPoint);
 			}
 			dup.children.add(dupChild);
 		}
@@ -1218,14 +1184,6 @@ public class Path implements Comparable<Path> {
 		if (hasRadii() && other.hasRadii()) {
 			System.arraycopy(other.radii, toSkip, radii, points, other.points -
 				toSkip);
-		}
-
-		if (endJoins != null) throw new IllegalArgumentException(
-			"BUG: we should never be adding to a path that already endJoins");
-
-		if (other.endJoins != null) {
-			setEndJoin(other.endJoins, other.endJoinsPoint);
-			other.disconnectFromAll();
 		}
 
 		points = points + (other.points - toSkip);
@@ -2694,15 +2652,9 @@ public class Path implements Comparable<Path> {
 		if (startJoinsPoint != null) {
 			result.add(startJoinsPoint);
 		}
-		if (endJoinsPoint != null) {
-			result.add(endJoinsPoint);
-		}
 		for (final Path other : somehowJoins) {
 			if (other.startJoins == this) {
 				result.add(other.startJoinsPoint);
-			}
-			if (other.endJoins == this) {
-				result.add(other.endJoinsPoint);
 			}
 		}
 		return result;
@@ -2902,7 +2854,6 @@ public class Path implements Comparable<Path> {
 
 	public boolean isConnectedTo(final Path other) {
 		return (getStartJoins() != null && getStartJoins().equals(other))
-			|| (getEndJoins() != null && getEndJoins().equals(other))
 			|| (somehowJoins != null && somehowJoins.contains(other));
 	}
 

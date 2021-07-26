@@ -714,12 +714,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		if (unconfirmedSegment != null) {
 			unconfirmedSegment.drawPathAsPoints(this, g, getUnconfirmedPathColor(),
 				plane, drawDiametersXY, sliceZeroIndexed, eitherSideParameter);
-			if (unconfirmedSegment.endJoins != null) {
-				final PathNode pn = new PathNode(unconfirmedSegment, unconfirmedSegment
-					.size() - 1, this);
-				pn.setSize(spotDiameter);
-				pn.draw(g, getUnconfirmedPathColor());
-			}
 		}
 
 		final Path currentPathFromTracer = tracerPlugin.getCurrentPath();

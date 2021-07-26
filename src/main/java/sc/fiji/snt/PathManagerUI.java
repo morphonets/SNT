@@ -2738,12 +2738,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					return;
 				}
 				final Path refPath = selectedPaths.iterator().next();
-				if (refPath.getEndJoins() != null) {
-					guiUtils.error(
-						"The first path in the selection cannot have an end-point junction.",
-						"Invalid Selection");
-					return;
-				}
 				if (!guiUtils.getConfirmation("Combine " + n +
 					" selected paths? (this destructive operation cannot be undone!)",
 					"Confirm Destructive Operation?"))
