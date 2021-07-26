@@ -220,9 +220,6 @@ public class SNT extends MultiDThreePanes implements
 	protected double last_start_point_y;
 	protected double last_start_point_z;
 
-	private Path endJoin;
-	private PointInImage endJoinPoint;
-
 	// Any method that deals with these two fields should be synchronized.
 	protected Path temporaryPath = null; // result of A* search that hasn't yet been confirmed 
 	protected Path currentPath = null;
@@ -715,8 +712,6 @@ public class SNT extends MultiDThreePanes implements
 		if (currentSearchThread != null) currentSearchThread.requestStop();
 		if (manualSearchThread != null) manualSearchThread.requestStop();
 		if (tubularGeodesicsThread != null) tubularGeodesicsThread.requestStop();
-		endJoin = null;
-		endJoinPoint = null;
 		if (cancelFillToo && filler != null) filler.requestStop();
 	}
 
@@ -1380,8 +1375,6 @@ public class SNT extends MultiDThreePanes implements
 			real_x_end = joinPoint.x;
 			real_y_end = joinPoint.y;
 			real_z_end = joinPoint.z;
-			endJoin = joinPoint.onPath;
-			endJoinPoint = joinPoint;
 		}
 
 		addSphere(targetBallName, real_x_end, real_y_end, real_z_end, getXYCanvas()
@@ -1488,10 +1481,6 @@ public class SNT extends MultiDThreePanes implements
 
 		removeSphere(targetBallName);
 		setTemporaryPath(null);
-
-		endJoin = null;
-		endJoinPoint = null;
-
 		updateTracingViewers(false);
 	}
 
@@ -1799,9 +1788,6 @@ public class SNT extends MultiDThreePanes implements
 	synchronized void startPath(final double world_x, final double world_y,
 		final double world_z, final PointInImage joinPoint)
 	{
-
-		endJoin = null;
-		endJoinPoint = null;
 
 		if (lastStartPointSet) {
 			statusService.showStatus(
