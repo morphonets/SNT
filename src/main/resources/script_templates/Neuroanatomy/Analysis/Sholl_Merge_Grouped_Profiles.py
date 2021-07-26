@@ -199,6 +199,7 @@ def main():
         the_sum = sum(interval_means)
         the_avg = the_sum/len(interval_means)
         table.appendToLastRow("Radius (interval start)", bin_start)
+        table.appendToLastRow("Radius (interval end)", bin_start + step_size)
         table.appendToLastRow("Mean (of %ss)" % integration, the_avg)
         table.appendToLastRow("StDev", stdev(interval_means, the_avg))
         table.appendToLastRow("Sum", the_sum)
@@ -209,11 +210,12 @@ def main():
     plot = ShollPlot("Merged Sholl Plot", xcolumn_header, ycolumn_header)
     plot.setLineWidth(2)
     plot.setColor(("cyan" if nbins > 100 else "blue"), "blue")
-    plot.addPoints(table.get(0), table.get(1), table.get(2), u'Mean\u00B1SD')
+    bin_centers = [(s + e) / 2.0 for s, e in zip(table.get(0), table.get(1))]
+    plot.addPoints(bin_centers, table.get(2), table.get(3), u'Mean\u00B1SD')
     if fit_avg:
-        addfit(plot, LinearProfileStats(Profile(table.get(0), table.get(1))))
+        addfit(plot, LinearProfileStats(Profile(bin_centers, table.get(2))))
     plot.enableLegend(True)
     plot.show()
     log("Parsing concluded.")
- 
+
 main()
