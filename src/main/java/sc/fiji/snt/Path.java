@@ -201,8 +201,6 @@ public class Path implements Comparable<Path> {
 	private Color[] nodeColors;
 
 	/* Internal fields */
-	private static final int PATH_START = 0;
-	private static final int PATH_END = 1;
 	private int maxPoints;
 
 
@@ -453,41 +451,17 @@ public class Path implements Comparable<Path> {
 	}
 
 	public void setStartJoin(final Path other, final PointInImage joinPoint) {
-		setJoin(PATH_START, other, joinPoint);
-	}
-
-	// TODO: this needs patching: imported traces file will call this method when an end-joined has been detected
-	public void setEndJoin(final Path other, final PointInImage joinPoint) {
-		setJoin(PATH_END, other, joinPoint);
-	}
-
-	/*
-	 * This should be the only method that links one path to another
-	 */
-	protected void setJoin(final int startOrEnd, final Path other,
-		final PointInImage joinPoint)
-	{
 		if (other == null) {
 			throw new IllegalArgumentException(
 				"setJoin should never take a null path");
 		}
-		if (startOrEnd == PATH_START) {
+		{
 			// If there was an existing path, that's an error:
 			if (startJoins != null) throw new IllegalArgumentException(
 				"setJoin for START should not replace another join");
 			startJoins = other;
 			startJoinsPoint = joinPoint;
 			startJoinsPoint.onPath = this;
-		}
-		else if (startOrEnd == PATH_END) {
-			if (endJoins != null) throw new IllegalArgumentException(
-				"setJoin for END should not replace another join");
-			endJoins = other;
-			endJoinsPoint = joinPoint;
-			endJoinsPoint.onPath = this;
-		}
-		else {
-			SNTUtils.log("BUG: unknown first parameter to setJoin");
 		}
 		// Also update the somehowJoins list:
 		if (somehowJoins.indexOf(other) < 0) {
@@ -530,41 +504,19 @@ public class Path implements Comparable<Path> {
 	}
 
 	public void unsetStartJoin() {
-		unsetJoin(PATH_START);
-	}
-
-	public void unsetEndJoin() {
-		unsetJoin(PATH_END);
-	}
-
-	private void unsetJoin(final int startOrEnd) {
-		Path other;
-		Path leaveAloneJoin;
-		if (startOrEnd == PATH_START) {
-			other = startJoins;
-			leaveAloneJoin = endJoins;
-		}
-		else {
-			other = endJoins;
-			leaveAloneJoin = startJoins;
-		}
+		Path other = startJoins;
 		if (other == null) {
 			throw new IllegalArgumentException(
 				"Don't call unsetJoin if the other Path is already null");
 		}
-		if (!(other.startJoins == this || other.endJoins == this ||
-			leaveAloneJoin == other))
+		if (!(other.startJoins == this))
 		{
 			somehowJoins.remove(other);
 			other.somehowJoins.remove(this);
 		}
-		if (startOrEnd == PATH_START) {
+		{
 			startJoins = null;
 			startJoinsPoint = null;
-		}
-		else {
-			endJoins = null;
-			endJoinsPoint = null;
 		}
 		setOrder(-1);
 	}
@@ -761,8 +713,6 @@ public class Path implements Comparable<Path> {
 			nodeValues = ArrayUtils.remove(nodeValues, index);
 		}
 		if (p.equals(startJoinsPoint)) startJoinsPoint = getNodeWithoutChecks(0);
-		if (p.equals(endJoinsPoint) && points > 0) endJoinsPoint = getNodeWithoutChecks(
-			points - 1);
 	}
 
 	/**
@@ -1203,8 +1153,7 @@ public class Path implements Comparable<Path> {
 	}
 
 	protected Path reversed() {
-		final Path c = new Path(x_spacing, y_spacing, z_spacing, spacing_units,
-			points);
+		final Path c = createPath();
 		c.points = points;
 		for (int i = 0; i < points; ++i) {
 			c.precise_x_positions[i] = precise_x_positions[(points - 1) - i];

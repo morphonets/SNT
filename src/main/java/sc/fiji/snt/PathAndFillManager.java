@@ -106,9 +106,14 @@ public class PathAndFillManager extends DefaultHandler implements
 	private HashMap<Integer, Integer> startJoins;
 	private HashMap<Integer, Integer> startJoinsIndices;
 	private HashMap<Integer, PointInImage> startJoinsPoints;
+
+	@Deprecated
 	private HashMap<Integer, Integer> endJoins;
+	@Deprecated
 	private HashMap<Integer, Integer> endJoinsIndices;
+	@Deprecated
 	private HashMap<Integer, PointInImage> endJoinsPoints;
+
 	private HashMap<Integer, Boolean> useFittedFields;
 	private HashMap<Integer, Integer> fittedFields;
 	private HashMap<Integer, Integer> fittedVersionOfFields;
@@ -1867,12 +1872,17 @@ public class PathAndFillManager extends DefaultHandler implements
 						p.setStartJoin(startPath, startJoinPoint);
 					}
 					if (endID != null) {
-						final Path endPath = getPathFromID(endID);
+						Path endPath = getPathFromID(endID);
 						if (endJoinPoint == null) {
 							// Then we have to get it from endIndexInteger:
 							endJoinPoint = endPath.getNodeWithoutChecks(endIndexInteger);
 						}
-						p.setEndJoin(endPath, endJoinPoint);
+						// We no longer support end point joining, so we'll reverse everything
+						// and apply a 'start join';
+						SNTUtils.log("End joining no longer supported: Establishing a star-join' on reversed path");
+						endPath = endPath.reversed();
+						endJoinPoint = endPath.getNodeWithoutChecks(endPath.size() -1 - endIndexInteger);
+						p.setStartJoin(endPath, endJoinPoint);
 					}
 					if (fittedID != null) {
 						final Path fitted = getPathFromID(fittedID);
