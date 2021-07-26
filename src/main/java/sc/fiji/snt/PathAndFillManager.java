@@ -106,9 +106,14 @@ public class PathAndFillManager extends DefaultHandler implements
 	private HashMap<Integer, Integer> startJoins;
 	private HashMap<Integer, Integer> startJoinsIndices;
 	private HashMap<Integer, PointInImage> startJoinsPoints;
+
+	@Deprecated
 	private HashMap<Integer, Integer> endJoins;
+	@Deprecated
 	private HashMap<Integer, Integer> endJoinsIndices;
+	@Deprecated
 	private HashMap<Integer, PointInImage> endJoinsPoints;
+
 	private HashMap<Integer, Boolean> useFittedFields;
 	private HashMap<Integer, Integer> fittedFields;
 	private HashMap<Integer, Integer> fittedVersionOfFields;
@@ -880,13 +885,9 @@ public class PathAndFillManager extends DefaultHandler implements
 				if (currentPath.getStartJoins() != null && currentPath
 					.getStartJoins() == parent) connectingPoint =
 						currentPath.startJoinsPoint;
-				else if (currentPath.endJoins != null && currentPath.endJoins == parent)
-					connectingPoint = currentPath.endJoinsPoint;
 				else if (parent.getStartJoins() != null && parent
 					.getStartJoins() == currentPath) connectingPoint =
 						parent.startJoinsPoint;
-				else if (parent.endJoins != null && parent.endJoins == currentPath)
-					connectingPoint = parent.endJoinsPoint;
 				else throw new SWCExportException(
 					"Couldn't find the link between parent \"" + parent +
 						"\"\nand child \"" + currentPath + "\" which are somehow joined");
@@ -1091,9 +1092,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		if (!assumeMaxUsedTreeID && !isPrimary) {
 			if (p.getStartJoins() != null)
 				treeID = p.getStartJoins().getTreeID();
-			else
-				if (p.getEndJoins() != null)
-					treeID = p.getEndJoins().getTreeID();
 		}
 		p.setIDs((forceNewId || p.getID() < 0) ? ++maxUsedPathID : p.getID(), treeID);
 		if (maxUsedPathID < p.getID()) maxUsedPathID = p.getID();
@@ -1231,10 +1229,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (p.getStartJoins() == unfittedPathToDelete) {
 				p.startJoins = null;
 				p.startJoinsPoint = null;
-			}
-			if (p.endJoins == unfittedPathToDelete) {
-				p.endJoins = null;
-				p.endJoinsPoint = null;
 			}
 		}
 
@@ -1457,20 +1451,6 @@ public class PathAndFillManager extends DefaultHandler implements
 						"\"" + " startz=\"" + p.startJoinsPoint.z + "\"";
 					if (nearestIndexOnStartPath >= 0) startsString += " startsindex=\"" +
 						nearestIndexOnStartPath + "\"";
-				}
-				if (p.endJoins != null) {
-					final int endPathID = p.endJoins.getID();
-					// Find the nearest index for backward compatibility:
-					int nearestIndexOnEndPath = -1;
-					if (p.endJoins.size() > 0) {
-						nearestIndexOnEndPath = p.endJoins.indexNearestTo(p.endJoinsPoint.x,
-							p.endJoinsPoint.y, p.endJoinsPoint.z);
-					}
-					endsString = " endson=\"" + endPathID + "\"" + " endsx=\"" +
-						p.endJoinsPoint.x + "\"" + " endsy=\"" + p.endJoinsPoint.y + "\"" +
-						" endsz=\"" + p.endJoinsPoint.z + "\"";
-					if (nearestIndexOnEndPath >= 0) endsString += " endsindex=\"" +
-						nearestIndexOnEndPath + "\"";
 				}
 				if (p.isPrimary()) pw.print(" primary=\"true\"");
 				pw.print(" usefitted=\"" + p.getUseFitted() + "\"");
@@ -1995,12 +1975,17 @@ public class PathAndFillManager extends DefaultHandler implements
 						p.setStartJoin(startPath, startJoinPoint);
 					}
 					if (endID != null) {
-						final Path endPath = getPathFromID(endID);
+						Path endPath = getPathFromID(endID);
 						if (endJoinPoint == null) {
 							// Then we have to get it from endIndexInteger:
 							endJoinPoint = endPath.getNodeWithoutChecks(endIndexInteger);
 						}
-						p.setEndJoin(endPath, endJoinPoint);
+						// We no longer support end point joining, so we'll reverse everything
+						// and apply a 'start join';
+						SNTUtils.log("End joining no longer supported: Establishing a star-join' on reversed path");
+						endPath = endPath.reversed();
+						endJoinPoint = endPath.getNodeWithoutChecks(endPath.size() -1 - endIndexInteger);
+						p.setStartJoin(endPath, endJoinPoint);
 					}
 					if (fittedID != null) {
 						final Path fitted = getPathFromID(fittedID);
@@ -2986,14 +2971,6 @@ public class PathAndFillManager extends DefaultHandler implements
 					.getYUnscaled(i), p.getZUnscaled(i)));
 			}
 
-			if (p.endJoins != null) {
-				final PointInImage s = p.endJoinsPoint;
-				final Path sp = p.endJoins;
-				final int spi = sp.indexNearestTo(s.x, s.y, s.z);
-				pointsToJoin.add(new Bresenham3D.IntegerPoint(sp.getXUnscaled(spi), sp
-					.getYUnscaled(spi), sp.getZUnscaled(spi)));
-			}
-
 			Bresenham3D.IntegerPoint previous = null;
 			for (final Bresenham3D.IntegerPoint current : pointsToJoin) {
 				if (previous == null) {
@@ -3360,8 +3337,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			pw.print(",");
 			if (p.startJoins != null) pw.print("" + p.startJoins.getID());
 			pw.print(",");
-			if (p.endJoins != null) pw.print("" + p.endJoins.getID());
-			pw.print(",");
 			SNTUtils.csvQuoteAndPrint(pw, p.somehowJoinsAsString());
 			pw.print(",");
 			SNTUtils.csvQuoteAndPrint(pw, p.childrenAsString());
@@ -3460,11 +3435,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			pixelHeight, pixelDepth, units);
 
 		final int[] startJoinsIndices = new int[size()];
-		final int[] endJoinsIndices = new int[size()];
-
 		final PointInImage[] startJoinsPoints = new PointInImage[size()];
-		final PointInImage[] endJoinsPoints = new PointInImage[size()];
-
 		final Path[] addedPaths = new Path[size()];
 
 		int i = 0;
@@ -3473,25 +3444,12 @@ public class PathAndFillManager extends DefaultHandler implements
 			final Path startJoin = p.getStartJoins();
 			if (startJoin == null) {
 				startJoinsIndices[i] = -1;
-				endJoinsPoints[i] = null;
 			}
 			else {
 				startJoinsIndices[i] = allPaths.indexOf(startJoin);
 				final PointInImage transformedPoint = p.getStartJoinsPoint().transform(
 					transformation);
 				if (transformedPoint.isReal()) startJoinsPoints[i] = transformedPoint;
-			}
-
-			final Path endJoin = p.getEndJoins();
-			if (endJoin == null) {
-				endJoinsIndices[i] = -1;
-				endJoinsPoints[i] = null;
-			}
-			else {
-				endJoinsIndices[i] = allPaths.indexOf(endJoin);
-				final PointInImage transformedPoint = p.getEndJoinsPoint().transform(
-					transformation);
-				if (transformedPoint.isReal()) endJoinsPoints[i] = transformedPoint;
 			}
 
 			final Path transformedPath = p.transform(transformation, templateImage,
@@ -3506,12 +3464,9 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		for (i = 0; i < size(); ++i) {
 			final int si = startJoinsIndices[i];
-			final int ei = endJoinsIndices[i];
 			if (addedPaths[i] != null) {
 				if (si >= 0 && addedPaths[si] != null && startJoinsPoints[i] != null)
 					addedPaths[i].setStartJoin(addedPaths[si], startJoinsPoints[i]);
-				if (ei >= 0 && addedPaths[ei] != null && endJoinsPoints[i] != null)
-					addedPaths[i].setEndJoin(addedPaths[ei], endJoinsPoints[i]);
 			}
 		}
 
