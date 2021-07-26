@@ -22,8 +22,7 @@
 
 package sc.fiji.snt;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.junit.Assume.assumeNotNull;
 
 import java.io.IOException;
@@ -61,7 +60,7 @@ public class IOTest {
 	public void testTreeIO() {
 		trees.forEach(tree -> {
 			final List<PointInImage> nodes = tree.getNodes();
-			assertTrue(nodes.size() == tree.getNodesAsSWCPoints().size());
+			assertEquals(nodes.size(), tree.getNodesAsSWCPoints().size());
 			final double cableLength = new TreeAnalyzer(tree).getCableLength();
 			final Set<PointInImage> bps = new TreeAnalyzer(tree).getBranchPoints();
 			try {
@@ -70,20 +69,20 @@ public class IOTest {
 				final String swcPath = folder.newFile(tree.getLabel() + ".swc").getAbsolutePath();
 				assertTrue("Saving to "+ swcPath, tree.saveAsSWC(swcPath));
 				final Tree swcTree = new Tree(swcPath);
-				assertTrue("Reading file "+ swcPath, swcTree != null && !swcTree.isEmpty());
+				assertFalse("Reading file " + swcPath, swcTree.isEmpty());
 
 				// Did tree change when saving to SWC?
-				assertTrue(bps.equals(new TreeAnalyzer(swcTree).getBranchPoints()));
+				assertEquals(bps, new TreeAnalyzer(swcTree).getBranchPoints());
 				assertEquals(cableLength, new TreeAnalyzer(swcTree).getCableLength(), precision);
 
 				// TRACES I/O
 				final String tracesPath = folder.newFile(tree.getLabel() + ".traces").getAbsolutePath();
 				assertTrue("Saving to "+ tracesPath, tree.save(tracesPath));
 				final Tree tracesTree = new Tree(tracesPath);
-				assertTrue("Reading file "+ tracesPath, tracesTree != null && !tracesTree.isEmpty());
+				assertFalse("Reading file " + tracesPath, tracesTree.isEmpty());
 
 				// Did tree change when saving to TRACES?
-				assertTrue(bps.equals(new TreeAnalyzer(tracesTree).getBranchPoints()));
+				assertEquals(bps, new TreeAnalyzer(tracesTree).getBranchPoints());
 				assertEquals(cableLength, new TreeAnalyzer(tracesTree).getCableLength(), precision);
 			} catch (final IOException e) {
 				e.printStackTrace();

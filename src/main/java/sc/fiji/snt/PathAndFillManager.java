@@ -694,6 +694,109 @@ public class PathAndFillManager extends DefaultHandler implements
 		return primaryPaths.toArray(new Path[] {});
 	}
 
+
+	public synchronized List<SWCPoint> getSWCFor(final Collection<Path> paths)
+			throws SWCExportException
+	{
+		final Map<Path, List<Path>> pathChildrenMap = new HashMap<>();
+		final Set<PointInImage> joinPointSet = new HashSet<>();
+		final Set<Path> primaryPaths = new HashSet<>();
+		for (final Path path : paths) {
+			final Path startJoins = path.getStartJoins();
+			if (startJoins == null) {
+				primaryPaths.add(path);
+				continue;
+			}
+			// HACK: this will let us find the SWCPoint id of the startJoinsPoint later
+			// PointInImage equality depends on both xyz location and onPath
+			// clone the point so we don't change the onPath property of the input startJoinsPoint
+			final PointInImage startJoinsPoint = path.getStartJoinsPoint().clone();
+			startJoinsPoint.onPath = startJoins;
+			joinPointSet.add(startJoinsPoint);
+			pathChildrenMap.putIfAbsent(startJoins, new ArrayList<>());
+			pathChildrenMap.get(startJoins).add(path);
+		}
+		if (primaryPaths.isEmpty()) {
+			throw new SWCExportException("The paths you select for SWC export must include a primary path " +
+					"(i.e., one at the top level in the Path Manager tree)");
+		}
+		else if (primaryPaths.size() > 1) {
+			throw new SWCExportException("Multiple primary Paths detected");
+		}
+		int swcPointId = 1;
+		final Set<Path> pathsAlreadyDone = new HashSet<>();
+		final List<SWCPoint> result = new ArrayList<>();
+		final Map<PointInImage, Integer> joinPointIdMap = new HashMap<>();
+		final Deque<Path> pathStack = new ArrayDeque<>();
+		pathStack.push(primaryPaths.iterator().next());
+		while (!pathStack.isEmpty()) {
+			final Path path = pathStack.pop();
+			final boolean hasAnnotations = path.hasNodeAnnotations();
+			final boolean hasHemisphereFlags = path.hasNodeHemisphereFlags();
+			final Color pathColor = path.getColor();
+			final String pathTags = PathManagerUI.extractTagsFromPath(path);
+			final boolean hasNodeValues = path.hasNodeValues();
+			for (int i = 0; i < path.size(); ++i) {
+				final PointInImage pim = path.getNode(i);
+				// This is where our hack comes into play
+				if (joinPointSet.contains(pim)) {
+					joinPointIdMap.put(pim, swcPointId);
+				}
+				int parentId;
+				if (i == 0) {
+					if (path.getStartJoins() == null) {
+						parentId = -1;
+					} else {
+						// HACK so that equality comparisons work
+						final PointInImage startJoinsPoint = path.getStartJoinsPoint().clone();
+						startJoinsPoint.onPath = path.getStartJoins();
+						parentId = joinPointIdMap.get(startJoinsPoint);
+					}
+				} else {
+					parentId = swcPointId - 1;
+				}
+				final SWCPoint swcPoint = new SWCPoint(
+						swcPointId,
+						path.getSWCType(),
+						pim.getX(),
+						pim.getY(),
+						pim.getZ(),
+						path.getNodeRadius(i),
+						parentId);
+				swcPoint.setPath(path);
+				// Only use Path color, node colors are ignored
+				swcPoint.setColor(pathColor);
+				swcPoint.setTags(pathTags);
+				if (hasNodeValues) swcPoint.v = path.getNodeValue(i);
+				if (hasAnnotations) swcPoint.setAnnotation(path.getNodeAnnotation(i));
+				if (hasHemisphereFlags) swcPoint.setHemisphere(path.getNodeHemisphereFlag(i));
+				result.add(swcPoint);
+				swcPointId++;
+			}
+			final List<Path> children = pathChildrenMap.get(path);
+			if (children != null) {
+				children.forEach(pathStack::push);
+			}
+			pathsAlreadyDone.add(path);
+		}
+
+		// Now check that all selectedPaths are in pathsAlreadyDone, otherwise
+		// give an error:
+		Path disconnectedExample = null;
+		int selectedAndNotConnected = 0;
+		for (final Path selectedPath : paths) {
+			if (!pathsAlreadyDone.contains(selectedPath)) {
+				++selectedAndNotConnected;
+				if (disconnectedExample == null) disconnectedExample = selectedPath;
+			}
+		}
+		if (selectedAndNotConnected > 0) throw new SWCExportException(
+				"You must select all the connected paths\n(" + selectedAndNotConnected +
+						" paths (e.g. \"" + disconnectedExample + "\") were not connected.)");
+
+		return result;
+	}
+
 	/**
 	 * Gets the list of SWCPoints associated with a collection of Paths.
 	 *
@@ -702,7 +805,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 *         {@code paths}
 	 * @throws SWCExportException if list could not be retrieved
 	 */
-	public synchronized List<SWCPoint> getSWCFor(final Collection<Path> paths)
+	public synchronized List<SWCPoint> getSWCForOld(final Collection<Path> paths)
 		throws SWCExportException
 	{
 
@@ -2015,7 +2118,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			final SWCPoint point = depthFirstIterator.next();
 			if (addStartJoin) {
 				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
-				currentPath.addNode(previousPoint);
 				currentPath.setStartJoin(previousPoint.onPath, previousPoint.clone());
 				addStartJoin = false;
 			}
@@ -2069,7 +2171,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			final SWCPoint point = stack.pop();
 			if (addStartJoin) {
 				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
-				currentPath.addNode(previousPoint);
 				currentPath.setStartJoin(previousPoint.onPath, previousPoint.clone());
 				addStartJoin = false;
 			}
@@ -2465,7 +2566,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (beforeStart != null) {
 				pathStartsOnSWCPoint.put(currentPath, beforeStart);
 				pathStartsAtPointInImage.put(currentPath, beforeStart);
-				currentPath.addNode(beforeStart);
 			}
 
 			// Now we can start adding points to the path:

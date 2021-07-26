@@ -1227,7 +1227,14 @@ public class TreeAnalyzer extends ContextCommand {
 	}
 
 	private double sumLength(final Collection<Path> paths) {
-		return paths.stream().mapToDouble(p -> p.getLength()).sum();
+		double totalLength = 0d;
+		for (final Path p : paths) {
+			if (p.getStartJoins() != null) {
+				totalLength += p.getStartJoinsPoint().distanceTo(p.getNode(0));
+			}
+			totalLength += p.getLength();
+		}
+		return totalLength;
 	}
 
 	/* IDE debug method */

@@ -182,6 +182,10 @@ class PathNode {
 		return type;
 	}
 
+	public void setType(final int type) {
+		this.type = type;
+	}
+
 	/**
 	 * Draws this node.
 	 *
