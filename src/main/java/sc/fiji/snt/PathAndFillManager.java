@@ -2133,7 +2133,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			final SWCPoint point = depthFirstIterator.next();
 			if (addStartJoin) {
 				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
-				currentPath.addNode(previousPoint);
 				currentPath.setStartJoin(previousPoint.onPath, previousPoint.clone());
 				addStartJoin = false;
 			}
@@ -2187,7 +2186,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			final SWCPoint point = stack.pop();
 			if (addStartJoin) {
 				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
-				currentPath.addNode(previousPoint);
 				currentPath.setStartJoin(previousPoint.onPath, previousPoint.clone());
 				addStartJoin = false;
 			}
@@ -2583,7 +2581,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (beforeStart != null) {
 				pathStartsOnSWCPoint.put(currentPath, beforeStart);
 				pathStartsAtPointInImage.put(currentPath, beforeStart);
-				currentPath.addNode(beforeStart);
 			}
 
 			// Now we can start adding points to the path:

@@ -910,7 +910,7 @@ public class Tree implements TreeProperties {
 		for (final Path p : tree) {
 			// The first node of a child path is the same as the forked point
 			// on its parent, so we'll skip it if this is a child path
-			for (int i =  (p.isPrimary()) ? 0 : 1; i < p.size(); ++i) {
+			for (int i = 0; i < p.size(); ++i) {
 				list.add(p.getNodeWithoutChecks(i));
 			}
 		}

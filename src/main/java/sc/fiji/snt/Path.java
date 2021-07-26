@@ -22,40 +22,27 @@
 
 package sc.fiji.snt;
 
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.geom.Line2D;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.stream.DoubleStream;
-
+import ij.ImagePlus;
+import ij.measure.Calibration;
+import ij3d.Content;
+import ij3d.Image3DUniverse;
+import ij3d.Pipe;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.stat.StatUtils;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.ColorRGBA;
 import org.scijava.vecmath.Color3f;
 import org.scijava.vecmath.Point3f;
-
-import ij.ImagePlus;
-import ij.measure.Calibration;
-import ij3d.Content;
-import ij3d.Image3DUniverse;
-import ij3d.Pipe;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.PointInCanvas;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.util.SWCPoint;
+import sc.fiji.snt.util.*;
+
+import java.awt.*;
+import java.awt.geom.Line2D;
+import java.util.List;
+import java.util.*;
+import java.util.stream.DoubleStream;
 
 /**
  * This class represents a traced segment (i.e., a <i>Path</i>) in a
@@ -1344,8 +1331,13 @@ public class Path implements Comparable<Path> {
 					if (notFirstPoint) {
 						previous_x_on_screen = canvas.myScreenXDprecise(getXUnscaledDouble(
 							i - 1));
-						previous_y_on_screen = canvas.myScreenYDprecise(getXUnscaledDouble(
+						previous_y_on_screen = canvas.myScreenYDprecise(getYUnscaledDouble(
 							i - 1));
+					} else if (startJoinsPoint != null) {
+						previous_x_on_screen = canvas.myScreenXDprecise(
+								startJoinsPoint.getX() / x_spacing + canvasOffset.x);
+						previous_y_on_screen = canvas.myScreenYDprecise(
+								startJoinsPoint.getY() / y_spacing + canvasOffset.y);
 					}
 					if (notLastPoint) {
 						next_x_on_screen = canvas.myScreenXDprecise(getXUnscaledDouble(i +
@@ -1361,6 +1353,11 @@ public class Path implements Comparable<Path> {
 							i - 1));
 						previous_y_on_screen = canvas.myScreenYDprecise(getZUnscaledDouble(
 							i - 1));
+					} else if (startJoinsPoint != null) {
+						previous_x_on_screen = canvas.myScreenXDprecise(
+								startJoinsPoint.getX() / x_spacing + canvasOffset.x);
+						previous_y_on_screen = canvas.myScreenYDprecise(
+								startJoinsPoint.getZ() / z_spacing + canvasOffset.z);
 					}
 					if (notLastPoint) {
 						next_x_on_screen = canvas.myScreenXDprecise(getXUnscaledDouble(i +
@@ -1376,6 +1373,11 @@ public class Path implements Comparable<Path> {
 							i - 1));
 						previous_y_on_screen = canvas.myScreenYDprecise(getYUnscaledDouble(
 							i - 1));
+					} else if (startJoinsPoint != null) {
+						previous_x_on_screen = canvas.myScreenXDprecise(
+								startJoinsPoint.getZ() / z_spacing + canvasOffset.z);
+						previous_y_on_screen = canvas.myScreenYDprecise(
+								startJoinsPoint.getY() / y_spacing + canvasOffset.y);
 					}
 					if (notLastPoint) {
 						next_x_on_screen = canvas.myScreenXDprecise(getZUnscaledDouble(i +
@@ -1405,6 +1407,13 @@ public class Path implements Comparable<Path> {
 						pn.x, pn.y));
 					startIndexOfLastDrawnLine = i - 1;
 				}
+			} else if (startJoinsPoint != null) {
+				PathNode jointNode = new PathNode(startJoinsPoint, canvas);
+				jointNode.setType(PathNode.JOINT);
+				jointNode.draw(g2, c);
+				pn.setType(PathNode.SLAB);
+				g2.draw(new Line2D.Double(previous_x_on_screen, previous_y_on_screen,
+						pn.x, pn.y));
 			}
 
 			// If there's a next point in this path, draw a line from here to there:
