@@ -299,7 +299,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final PointInImage destinationRoot = destinationTree.getRoot();
 		// Set the correct edge directions in the merged graph
 		destinationGraph.setRoot(getMatchingPointInGraph(destinationRoot, destinationGraph));
-		final Tree newTree = destinationGraph.getTree(true);
+		final Tree newTree = destinationGraph.getTreeWithSamePathStructure();
 		enableEditMode(false);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		newTree.list().forEach(p -> p.setSpacing(cal));
@@ -714,12 +714,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		if (unconfirmedSegment != null) {
 			unconfirmedSegment.drawPathAsPoints(this, g, getUnconfirmedPathColor(),
 				plane, drawDiametersXY, sliceZeroIndexed, eitherSideParameter);
-			if (unconfirmedSegment.endJoins != null) {
-				final PathNode pn = new PathNode(unconfirmedSegment, unconfirmedSegment
-					.size() - 1, this);
-				pn.setSize(spotDiameter);
-				pn.draw(g, getUnconfirmedPathColor());
-			}
 		}
 
 		final Path currentPathFromTracer = tracerPlugin.getCurrentPath();
@@ -1090,7 +1084,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final Tree editingTree = getTreeFromID(treeID);
 		final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
 		editingGraph.setRoot(getMatchingPointInGraph(editingNode, editingGraph));
-		final Tree newTree = editingGraph.getTree(true);
+		final Tree newTree = editingGraph.getTreeWithSamePathStructure();
 		enableEditMode(false);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		newTree.list().forEach(p -> p.setSpacing(cal));
@@ -1122,8 +1116,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		Graphs.addGraph(descendantGraph, descendantSubgraph);
 		// This also removes all related edges
 		editingGraph.removeAllVertices(descendantVertexSet);
-		final Tree ancestorTree = editingGraph.getTree(true);
-		final Tree descendentTree = descendantGraph.getTree(true);
+		final Tree ancestorTree = editingGraph.getTreeWithSamePathStructure();
+		final Tree descendentTree = descendantGraph.getTreeWithSamePathStructure();
 		enableEditMode(false);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		ancestorTree.list().forEach(p -> p.setSpacing(cal));
@@ -1145,7 +1139,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 	private SWCPoint getMatchingPointInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
 		for (final SWCPoint p : graph.vertexSet()) {
-			if (p.isSameLocation(point)) {
+			if (p.isSameLocation(point) && p.getPath().equals(point.getPath())) {
 				return p;
 			}
 		}

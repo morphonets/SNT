@@ -22,40 +22,27 @@
 
 package sc.fiji.snt;
 
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.geom.Line2D;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.stream.DoubleStream;
-
+import ij.ImagePlus;
+import ij.measure.Calibration;
+import ij3d.Content;
+import ij3d.Image3DUniverse;
+import ij3d.Pipe;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.stat.StatUtils;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.ColorRGBA;
 import org.scijava.vecmath.Color3f;
 import org.scijava.vecmath.Point3f;
-
-import ij.ImagePlus;
-import ij.measure.Calibration;
-import ij3d.Content;
-import ij3d.Image3DUniverse;
-import ij3d.Pipe;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.PointInCanvas;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.util.SWCPoint;
+import sc.fiji.snt.util.*;
+
+import java.awt.*;
+import java.awt.geom.Line2D;
+import java.util.List;
+import java.util.*;
+import java.util.stream.DoubleStream;
 
 /**
  * This class represents a traced segment (i.e., a <i>Path</i>) in a
@@ -177,8 +164,6 @@ public class Path implements Comparable<Path> {
 	/* Branching */
 	protected Path startJoins;
 	protected PointInImage startJoinsPoint = null;
-	protected Path endJoins;
-	protected PointInImage endJoinsPoint = null;
 	// This is a symmetrical relationship, showing
 	// all the other paths this one is joined to...
 	protected ArrayList<Path> somehowJoins;
@@ -203,8 +188,6 @@ public class Path implements Comparable<Path> {
 	private Color[] nodeColors;
 
 	/* Internal fields */
-	private static final int PATH_START = 0;
-	private static final int PATH_END = 1;
 	private int maxPoints;
 
 
@@ -317,14 +300,6 @@ public class Path implements Comparable<Path> {
 		return startJoinsPoint;
 	}
 
-	public Path getEndJoins() {
-		return endJoins;
-	}
-
-	public PointInImage getEndJoinsPoint() {
-		return endJoinsPoint;
-	}
-
 	/**
 	 * Sets this Path's name. Set it to null or {@code ""}, to reset it to the
 	 * default.
@@ -435,7 +410,7 @@ public class Path implements Comparable<Path> {
 	 * @return true, if is primary (root)
 	 */
 	public boolean isPrimary() {
-		return order == 1 || (startJoins == null && endJoins == null);
+		return order == 1 || (startJoins == null);
 	}
 
 	/*
@@ -443,19 +418,14 @@ public class Path implements Comparable<Path> {
 	 */
 	protected void disconnectFromAll() {
 		/*
-		 * This path can be connected to other ones either if: - this starts on other -
-		 * this ends on other - other starts on this - other ends on this In any of
-		 * these cases, we need to also remove this from other's somehowJoins and other
-		 * from this's somehowJoins.
+		 * This path can be connected to other ones either if: 1) this starts on other;
+		 * 2) other starts on this In any of these cases, we need to also remove this
+		 * from other's somehowJoins and other from this's somehowJoins.
 		 */
 		for (final Path other : somehowJoins) {
 			if (other.startJoins == this) {
 				other.startJoins = null;
 				other.startJoinsPoint = null;
-			}
-			if (other.endJoins == this) {
-				other.endJoins = null;
-				other.endJoinsPoint = null;
 			}
 			final int indexInOtherSomehowJoins = other.somehowJoins.indexOf(this);
 			if (indexInOtherSomehowJoins >= 0) other.somehowJoins.remove(
@@ -464,46 +434,21 @@ public class Path implements Comparable<Path> {
 		somehowJoins.clear();
 		startJoins = null;
 		startJoinsPoint = null;
-		endJoins = null;
-		endJoinsPoint = null;
 		setIsPrimary(true);
 	}
 
 	public void setStartJoin(final Path other, final PointInImage joinPoint) {
-		setJoin(PATH_START, other, joinPoint);
-	}
-
-	public void setEndJoin(final Path other, final PointInImage joinPoint) {
-		setJoin(PATH_END, other, joinPoint);
-	}
-
-	/*
-	 * This should be the only method that links one path to another
-	 */
-	protected void setJoin(final int startOrEnd, final Path other,
-		final PointInImage joinPoint)
-	{
 		if (other == null) {
 			throw new IllegalArgumentException(
 				"setJoin should never take a null path");
 		}
-		if (startOrEnd == PATH_START) {
+		{
 			// If there was an existing path, that's an error:
 			if (startJoins != null) throw new IllegalArgumentException(
 				"setJoin for START should not replace another join");
 			startJoins = other;
 			startJoinsPoint = joinPoint;
 			startJoinsPoint.onPath = this;
-		}
-		else if (startOrEnd == PATH_END) {
-			if (endJoins != null) throw new IllegalArgumentException(
-				"setJoin for END should not replace another join");
-			endJoins = other;
-			endJoinsPoint = joinPoint;
-			endJoinsPoint.onPath = this;
-		}
-		else {
-			SNTUtils.log("BUG: unknown first parameter to setJoin");
 		}
 		// Also update the somehowJoins list:
 		if (somehowJoins.indexOf(other) < 0) {
@@ -535,17 +480,6 @@ public class Path implements Comparable<Path> {
 //			System.out.println("        fitted.startJoinsPoint.onPath: " + fitted.startJoinsPoint.onPath.getName());
 
 		}
-		if (getEndJoins() != null) {
-			if (fitted.endJoins != null) fitted.unsetEndJoin();
-
-			if (endJoins.getUseFitted()) {
-				final int index = endJoins.fitted.indexNearestTo(endJoinsPoint.x, endJoinsPoint.y, endJoinsPoint.z);
-				final PointInImage pim = (index == -1) ? endJoinsPoint : endJoins.fitted.getNodeWithoutChecks(index);
-				fitted.setEndJoin(endJoins.getFitted(), pim);
-			} else {
-				fitted.setEndJoin(endJoins, endJoinsPoint);
-			}
-		}
 
 		// FIXME: This shouldn't be needed!?
 		final HashSet<Path> children = new HashSet<Path>();
@@ -557,41 +491,19 @@ public class Path implements Comparable<Path> {
 	}
 
 	public void unsetStartJoin() {
-		unsetJoin(PATH_START);
-	}
-
-	public void unsetEndJoin() {
-		unsetJoin(PATH_END);
-	}
-
-	private void unsetJoin(final int startOrEnd) {
-		Path other;
-		Path leaveAloneJoin;
-		if (startOrEnd == PATH_START) {
-			other = startJoins;
-			leaveAloneJoin = endJoins;
-		}
-		else {
-			other = endJoins;
-			leaveAloneJoin = startJoins;
-		}
+		Path other = startJoins;
 		if (other == null) {
 			throw new IllegalArgumentException(
 				"Don't call unsetJoin if the other Path is already null");
 		}
-		if (!(other.startJoins == this || other.endJoins == this ||
-			leaveAloneJoin == other))
+		if (!(other.startJoins == this))
 		{
 			somehowJoins.remove(other);
 			other.somehowJoins.remove(this);
 		}
-		if (startOrEnd == PATH_START) {
+		{
 			startJoins = null;
 			startJoinsPoint = null;
-		}
-		else {
-			endJoins = null;
-			endJoinsPoint = null;
 		}
 		setOrder(-1);
 	}
@@ -788,8 +700,6 @@ public class Path implements Comparable<Path> {
 			nodeValues = ArrayUtils.remove(nodeValues, index);
 		}
 		if (p.equals(startJoinsPoint)) startJoinsPoint = getNodeWithoutChecks(0);
-		if (p.equals(endJoinsPoint) && points > 0) endJoinsPoint = getNodeWithoutChecks(
-			points - 1);
 	}
 
 	/**
@@ -1066,8 +976,6 @@ public class Path implements Comparable<Path> {
 		dup.children = (ArrayList<Path>) children.clone();
 		if (startJoins != null) dup.startJoins = startJoins.clone();
 		if (startJoinsPoint != null) dup.startJoinsPoint = startJoinsPoint.clone(); 
-		if (endJoins != null) dup.endJoins = endJoins.clone();
-		if (endJoinsPoint != null) dup.endJoinsPoint = endJoinsPoint.clone();
 		if (getFitted() != null) dup.setFitted(getFitted().clone());
 		dup.setNodeColors(getNodeColors());
 		applyCommonProperties(dup);
@@ -1087,11 +995,6 @@ public class Path implements Comparable<Path> {
 				final PointInImage dupSPoint = dupChild.getStartJoinsPoint().clone();
 				dupChild.unsetStartJoin();
 				dupChild.setStartJoin(dup, dupSPoint);
-			}
-			if (dupChild.getEndJoinsPoint() != null) {
-				final PointInImage dupEPoint = dupChild.getEndJoinsPoint().clone();
-				dupChild.unsetEndJoin();
-				dupChild.setEndJoin(dup, dupEPoint);
 			}
 			dup.children.add(dupChild);
 		}
@@ -1220,14 +1123,6 @@ public class Path implements Comparable<Path> {
 				toSkip);
 		}
 
-		if (endJoins != null) throw new IllegalArgumentException(
-			"BUG: we should never be adding to a path that already endJoins");
-
-		if (other.endJoins != null) {
-			setEndJoin(other.endJoins, other.endJoinsPoint);
-			other.disconnectFromAll();
-		}
-
 		points = points + (other.points - toSkip);
 
 		if (hasRadii()) {
@@ -1245,8 +1140,7 @@ public class Path implements Comparable<Path> {
 	}
 
 	protected Path reversed() {
-		final Path c = new Path(x_spacing, y_spacing, z_spacing, spacing_units,
-			points);
+		final Path c = createPath();
 		c.points = points;
 		for (int i = 0; i < points; ++i) {
 			c.precise_x_positions[i] = precise_x_positions[(points - 1) - i];
@@ -1344,8 +1238,13 @@ public class Path implements Comparable<Path> {
 					if (notFirstPoint) {
 						previous_x_on_screen = canvas.myScreenXDprecise(getXUnscaledDouble(
 							i - 1));
-						previous_y_on_screen = canvas.myScreenYDprecise(getXUnscaledDouble(
+						previous_y_on_screen = canvas.myScreenYDprecise(getYUnscaledDouble(
 							i - 1));
+					} else if (startJoinsPoint != null) {
+						previous_x_on_screen = canvas.myScreenXDprecise(
+								startJoinsPoint.getX() / x_spacing + canvasOffset.x);
+						previous_y_on_screen = canvas.myScreenYDprecise(
+								startJoinsPoint.getY() / y_spacing + canvasOffset.y);
 					}
 					if (notLastPoint) {
 						next_x_on_screen = canvas.myScreenXDprecise(getXUnscaledDouble(i +
@@ -1361,6 +1260,11 @@ public class Path implements Comparable<Path> {
 							i - 1));
 						previous_y_on_screen = canvas.myScreenYDprecise(getZUnscaledDouble(
 							i - 1));
+					} else if (startJoinsPoint != null) {
+						previous_x_on_screen = canvas.myScreenXDprecise(
+								startJoinsPoint.getX() / x_spacing + canvasOffset.x);
+						previous_y_on_screen = canvas.myScreenYDprecise(
+								startJoinsPoint.getZ() / z_spacing + canvasOffset.z);
 					}
 					if (notLastPoint) {
 						next_x_on_screen = canvas.myScreenXDprecise(getXUnscaledDouble(i +
@@ -1376,6 +1280,11 @@ public class Path implements Comparable<Path> {
 							i - 1));
 						previous_y_on_screen = canvas.myScreenYDprecise(getYUnscaledDouble(
 							i - 1));
+					} else if (startJoinsPoint != null) {
+						previous_x_on_screen = canvas.myScreenXDprecise(
+								startJoinsPoint.getZ() / z_spacing + canvasOffset.z);
+						previous_y_on_screen = canvas.myScreenYDprecise(
+								startJoinsPoint.getY() / y_spacing + canvasOffset.y);
 					}
 					if (notLastPoint) {
 						next_x_on_screen = canvas.myScreenXDprecise(getZUnscaledDouble(i +
@@ -1405,6 +1314,13 @@ public class Path implements Comparable<Path> {
 						pn.x, pn.y));
 					startIndexOfLastDrawnLine = i - 1;
 				}
+			} else if (startJoinsPoint != null) {
+				PathNode jointNode = new PathNode(startJoinsPoint, canvas);
+				jointNode.setType(PathNode.JOINT);
+				jointNode.draw(g2, c);
+				pn.setType(PathNode.SLAB);
+				g2.draw(new Line2D.Double(previous_x_on_screen, previous_y_on_screen,
+						pn.x, pn.y));
 			}
 
 			// If there's a next point in this path, draw a line from here to there:
@@ -2694,15 +2610,9 @@ public class Path implements Comparable<Path> {
 		if (startJoinsPoint != null) {
 			result.add(startJoinsPoint);
 		}
-		if (endJoinsPoint != null) {
-			result.add(endJoinsPoint);
-		}
 		for (final Path other : somehowJoins) {
 			if (other.startJoins == this) {
 				result.add(other.startJoinsPoint);
-			}
-			if (other.endJoins == this) {
-				result.add(other.endJoinsPoint);
 			}
 		}
 		return result;
@@ -2902,7 +2812,6 @@ public class Path implements Comparable<Path> {
 
 	public boolean isConnectedTo(final Path other) {
 		return (getStartJoins() != null && getStartJoins().equals(other))
-			|| (getEndJoins() != null && getEndJoins().equals(other))
 			|| (somehowJoins != null && somehowJoins.contains(other));
 	}
 

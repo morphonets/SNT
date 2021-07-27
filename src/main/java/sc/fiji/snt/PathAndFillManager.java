@@ -22,48 +22,11 @@
 
 package sc.fiji.snt;
 
-import java.awt.*;
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.io.Reader;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.text.DecimalFormat;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.Set;
-import java.util.Stack;
-import java.util.TreeSet;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
-
-import javax.xml.parsers.SAXParser;
-import javax.xml.parsers.SAXParserFactory;
-
+import ij.ImagePlus;
+import ij.gui.Roi;
+import ij.measure.Calibration;
+import ij3d.Content;
+import ij3d.UniverseListener;
 import org.jgrapht.Graphs;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.json.JSONException;
@@ -74,25 +37,32 @@ import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
-
-import ij.ImagePlus;
-import ij.gui.Roi;
-import ij.measure.Calibration;
-import ij3d.Content;
-import ij3d.UniverseListener;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
-import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.PointInCanvas;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.util.SWCPoint;
+import sc.fiji.snt.util.*;
 import util.Bresenham3D;
 import util.XMLFunctions;
+
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
+import java.awt.*;
+import java.io.*;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.List;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * The PathAndFillManager is responsible for importing, handling and managing of
@@ -136,9 +106,14 @@ public class PathAndFillManager extends DefaultHandler implements
 	private HashMap<Integer, Integer> startJoins;
 	private HashMap<Integer, Integer> startJoinsIndices;
 	private HashMap<Integer, PointInImage> startJoinsPoints;
+
+	@Deprecated
 	private HashMap<Integer, Integer> endJoins;
+	@Deprecated
 	private HashMap<Integer, Integer> endJoinsIndices;
+	@Deprecated
 	private HashMap<Integer, PointInImage> endJoinsPoints;
+
 	private HashMap<Integer, Boolean> useFittedFields;
 	private HashMap<Integer, Integer> fittedFields;
 	private HashMap<Integer, Integer> fittedVersionOfFields;
@@ -719,6 +694,109 @@ public class PathAndFillManager extends DefaultHandler implements
 		return primaryPaths.toArray(new Path[] {});
 	}
 
+
+	public synchronized List<SWCPoint> getSWCFor(final Collection<Path> paths)
+			throws SWCExportException
+	{
+		final Map<Path, List<Path>> pathChildrenMap = new HashMap<>();
+		final Set<PointInImage> joinPointSet = new HashSet<>();
+		final Set<Path> primaryPaths = new HashSet<>();
+		for (final Path path : paths) {
+			final Path startJoins = path.getStartJoins();
+			if (startJoins == null) {
+				primaryPaths.add(path);
+				continue;
+			}
+			// HACK: this will let us find the SWCPoint id of the startJoinsPoint later
+			// PointInImage equality depends on both xyz location and onPath
+			// clone the point so we don't change the onPath property of the input startJoinsPoint
+			final PointInImage startJoinsPoint = path.getStartJoinsPoint().clone();
+			startJoinsPoint.onPath = startJoins;
+			joinPointSet.add(startJoinsPoint);
+			pathChildrenMap.putIfAbsent(startJoins, new ArrayList<>());
+			pathChildrenMap.get(startJoins).add(path);
+		}
+		if (primaryPaths.isEmpty()) {
+			throw new SWCExportException("The paths you select for SWC export must include a primary path " +
+					"(i.e., one at the top level in the Path Manager tree)");
+		}
+		else if (primaryPaths.size() > 1) {
+			throw new SWCExportException("Multiple primary Paths detected");
+		}
+		int swcPointId = 1;
+		final Set<Path> pathsAlreadyDone = new HashSet<>();
+		final List<SWCPoint> result = new ArrayList<>();
+		final Map<PointInImage, Integer> joinPointIdMap = new HashMap<>();
+		final Deque<Path> pathStack = new ArrayDeque<>();
+		pathStack.push(primaryPaths.iterator().next());
+		while (!pathStack.isEmpty()) {
+			final Path path = pathStack.pop();
+			final boolean hasAnnotations = path.hasNodeAnnotations();
+			final boolean hasHemisphereFlags = path.hasNodeHemisphereFlags();
+			final Color pathColor = path.getColor();
+			final String pathTags = PathManagerUI.extractTagsFromPath(path);
+			final boolean hasNodeValues = path.hasNodeValues();
+			for (int i = 0; i < path.size(); ++i) {
+				final PointInImage pim = path.getNode(i);
+				// This is where our hack comes into play
+				if (joinPointSet.contains(pim)) {
+					joinPointIdMap.put(pim, swcPointId);
+				}
+				int parentId;
+				if (i == 0) {
+					if (path.getStartJoins() == null) {
+						parentId = -1;
+					} else {
+						// HACK so that equality comparisons work
+						final PointInImage startJoinsPoint = path.getStartJoinsPoint().clone();
+						startJoinsPoint.onPath = path.getStartJoins();
+						parentId = joinPointIdMap.get(startJoinsPoint);
+					}
+				} else {
+					parentId = swcPointId - 1;
+				}
+				final SWCPoint swcPoint = new SWCPoint(
+						swcPointId,
+						path.getSWCType(),
+						pim.getX(),
+						pim.getY(),
+						pim.getZ(),
+						path.getNodeRadius(i),
+						parentId);
+				swcPoint.setPath(path);
+				// Only use Path color, node colors are ignored
+				swcPoint.setColor(pathColor);
+				swcPoint.setTags(pathTags);
+				if (hasNodeValues) swcPoint.v = path.getNodeValue(i);
+				if (hasAnnotations) swcPoint.setAnnotation(path.getNodeAnnotation(i));
+				if (hasHemisphereFlags) swcPoint.setHemisphere(path.getNodeHemisphereFlag(i));
+				result.add(swcPoint);
+				swcPointId++;
+			}
+			final List<Path> children = pathChildrenMap.get(path);
+			if (children != null) {
+				children.forEach(pathStack::push);
+			}
+			pathsAlreadyDone.add(path);
+		}
+
+		// Now check that all selectedPaths are in pathsAlreadyDone, otherwise
+		// give an error:
+		Path disconnectedExample = null;
+		int selectedAndNotConnected = 0;
+		for (final Path selectedPath : paths) {
+			if (!pathsAlreadyDone.contains(selectedPath)) {
+				++selectedAndNotConnected;
+				if (disconnectedExample == null) disconnectedExample = selectedPath;
+			}
+		}
+		if (selectedAndNotConnected > 0) throw new SWCExportException(
+				"You must select all the connected paths\n(" + selectedAndNotConnected +
+						" paths (e.g. \"" + disconnectedExample + "\") were not connected.)");
+
+		return result;
+	}
+
 	/**
 	 * Gets the list of SWCPoints associated with a collection of Paths.
 	 *
@@ -727,7 +805,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 *         {@code paths}
 	 * @throws SWCExportException if list could not be retrieved
 	 */
-	public synchronized List<SWCPoint> getSWCFor(final Collection<Path> paths)
+	public synchronized List<SWCPoint> getSWCForOld(final Collection<Path> paths)
 		throws SWCExportException
 	{
 
@@ -807,13 +885,9 @@ public class PathAndFillManager extends DefaultHandler implements
 				if (currentPath.getStartJoins() != null && currentPath
 					.getStartJoins() == parent) connectingPoint =
 						currentPath.startJoinsPoint;
-				else if (currentPath.endJoins != null && currentPath.endJoins == parent)
-					connectingPoint = currentPath.endJoinsPoint;
 				else if (parent.getStartJoins() != null && parent
 					.getStartJoins() == currentPath) connectingPoint =
 						parent.startJoinsPoint;
-				else if (parent.endJoins != null && parent.endJoins == currentPath)
-					connectingPoint = parent.endJoinsPoint;
 				else throw new SWCExportException(
 					"Couldn't find the link between parent \"" + parent +
 						"\"\nand child \"" + currentPath + "\" which are somehow joined");
@@ -1018,9 +1092,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		if (!assumeMaxUsedTreeID && !isPrimary) {
 			if (p.getStartJoins() != null)
 				treeID = p.getStartJoins().getTreeID();
-			else
-				if (p.getEndJoins() != null)
-					treeID = p.getEndJoins().getTreeID();
 		}
 		p.setIDs((forceNewId || p.getID() < 0) ? ++maxUsedPathID : p.getID(), treeID);
 		if (maxUsedPathID < p.getID()) maxUsedPathID = p.getID();
@@ -1158,10 +1229,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (p.getStartJoins() == unfittedPathToDelete) {
 				p.startJoins = null;
 				p.startJoinsPoint = null;
-			}
-			if (p.endJoins == unfittedPathToDelete) {
-				p.endJoins = null;
-				p.endJoinsPoint = null;
 			}
 		}
 
@@ -1384,20 +1451,6 @@ public class PathAndFillManager extends DefaultHandler implements
 						"\"" + " startz=\"" + p.startJoinsPoint.z + "\"";
 					if (nearestIndexOnStartPath >= 0) startsString += " startsindex=\"" +
 						nearestIndexOnStartPath + "\"";
-				}
-				if (p.endJoins != null) {
-					final int endPathID = p.endJoins.getID();
-					// Find the nearest index for backward compatibility:
-					int nearestIndexOnEndPath = -1;
-					if (p.endJoins.size() > 0) {
-						nearestIndexOnEndPath = p.endJoins.indexNearestTo(p.endJoinsPoint.x,
-							p.endJoinsPoint.y, p.endJoinsPoint.z);
-					}
-					endsString = " endson=\"" + endPathID + "\"" + " endsx=\"" +
-						p.endJoinsPoint.x + "\"" + " endsy=\"" + p.endJoinsPoint.y + "\"" +
-						" endsz=\"" + p.endJoinsPoint.z + "\"";
-					if (nearestIndexOnEndPath >= 0) endsString += " endsindex=\"" +
-						nearestIndexOnEndPath + "\"";
 				}
 				if (p.isPrimary()) pw.print(" primary=\"true\"");
 				pw.print(" usefitted=\"" + p.getUseFitted() + "\"");
@@ -1922,12 +1975,17 @@ public class PathAndFillManager extends DefaultHandler implements
 						p.setStartJoin(startPath, startJoinPoint);
 					}
 					if (endID != null) {
-						final Path endPath = getPathFromID(endID);
+						Path endPath = getPathFromID(endID);
 						if (endJoinPoint == null) {
 							// Then we have to get it from endIndexInteger:
 							endJoinPoint = endPath.getNodeWithoutChecks(endIndexInteger);
 						}
-						p.setEndJoin(endPath, endJoinPoint);
+						// We no longer support end point joining, so we'll reverse everything
+						// and apply a 'start join';
+						SNTUtils.log("End joining no longer supported: Establishing a star-join' on reversed path");
+						endPath = endPath.reversed();
+						endJoinPoint = endPath.getNodeWithoutChecks(endPath.size() -1 - endIndexInteger);
+						p.setStartJoin(endPath, endJoinPoint);
 					}
 					if (fittedID != null) {
 						final Path fitted = getPathFromID(fittedID);
@@ -2023,10 +2081,27 @@ public class PathAndFillManager extends DefaultHandler implements
 			return null;
 	}
 
-	public static PathAndFillManager createFromGraph(final DirectedWeightedGraph graph) {
+	/**
+	 * Create a new PathAndFillManager instance from the graph.
+	 *
+	 * @param graph                 The input graph
+	 * @param keepTreePathStructure Whether to maintain the path hierarchy of the Tree backing the input graph.
+	 *                              If this is set to true, the graph must have been created from operations on
+	 *                              at least one Tree.
+	 *                              Note that even if the graph is backed by a Tree, this may not always be possible.
+	 *                              For instance, consider the case where two graphs oriented in opposing directions
+	 *                              are merged at an edge. One graph will need to be re-oriented, which will change
+	 *                              the Path hierarchy of the result.
+	 */
+	public static PathAndFillManager createFromGraph(final DirectedWeightedGraph graph,
+													 final boolean keepTreePathStructure) {
 		final PathAndFillManager pafm = new PathAndFillManager();
 		pafm.setHeadless(true);
-		pafm.importGraph(graph);
+		if (keepTreePathStructure) {
+			pafm.importGraphWithPathStructure(graph);
+		} else {
+			pafm.importGraph(graph);
+		}
 		return pafm;
 	}
 
@@ -2043,7 +2118,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			final SWCPoint point = depthFirstIterator.next();
 			if (addStartJoin) {
 				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
-				currentPath.addNode(previousPoint);
 				currentPath.setStartJoin(previousPoint.onPath, previousPoint.clone());
 				addStartJoin = false;
 			}
@@ -2062,6 +2136,99 @@ public class PathAndFillManager extends DefaultHandler implements
 				currentPath = new Path(1d, 1d, 1d, "? units");
 				currentPath.createCircles();
 				addStartJoin = true;
+			}
+		}
+		this.enableUIupdates = existingEnableUIupdates;
+		resetListeners(null, true);
+
+		// Infer fields for when an image has not been specified. We'll assume
+		// the image dimensions to be those of the coordinates bounding box.
+		// This allows us to open a SWC file without a source image
+		{
+			if (boundingBox == null)
+				boundingBox = new BoundingBox();
+			boundingBox.append(graph.vertexSet().iterator());
+			checkForAppropriateImageDimensions();
+		}
+	}
+
+	protected void importGraphWithPathStructure(final DirectedWeightedGraph graph) {
+		final boolean existingEnableUIupdates = enableUIupdates;
+		this.enableUIupdates = false;
+		final SWCPoint root = graph.getRoot();
+		if (root.getPath() == null) {
+			throw new IllegalArgumentException("The root vertex does not have an associated Path. " +
+					"Was this graph created from a Tree?");
+		}
+		Path currentPath = root.getPath().createPath();
+		currentPath.setName(root.getPath().getName());
+		currentPath.createCircles();
+		currentPath.setIsPrimary(true);
+		final Deque<SWCPoint> stack = new ArrayDeque<>();
+		stack.push(root);
+		boolean addStartJoin = false;
+		while (!stack.isEmpty()) {
+			final SWCPoint point = stack.pop();
+			if (addStartJoin) {
+				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
+				currentPath.setStartJoin(previousPoint.onPath, previousPoint.clone());
+				addStartJoin = false;
+			}
+			currentPath.addNode(point);
+			point.setPath(currentPath);
+			final Set<SWCPoint> children = graph.outgoingEdgesOf(point).stream()
+					.map(SWCWeightedEdge::getTarget)
+					.collect(Collectors.toSet());
+			if (children.size() == 1) {
+				final SWCPoint child = children.iterator().next();
+				stack.push(child);
+				if (child.getPath().getID() != currentPath.getID() ||
+						child.getPath().getTreeID() != currentPath.getTreeID()) {
+					currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
+					addPath(currentPath, true);
+					currentPath.setGuessedTangents(2);
+					currentPath = child.getPath().createPath();
+					currentPath.setName(child.getPath().getName());
+					currentPath.createCircles();
+					addStartJoin = true;
+				}
+
+			} else if (children.size() > 1) {
+				Set<SWCPoint> addLast = new HashSet<>();
+				for (final SWCPoint child : children) {
+					if (child.getPath().getID() == currentPath.getID() &&
+							child.getPath().getTreeID() == currentPath.getTreeID()) {
+						addLast.add(child);
+						continue;
+					}
+					stack.push(child);
+				}
+				if (!addLast.isEmpty()) {
+					addLast.forEach(stack::push);
+				} else {
+					currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
+					addPath(currentPath, true);
+					currentPath.setGuessedTangents(2);
+					final SWCPoint peeked = stack.peek();
+					if (peeked != null) {
+						currentPath = peeked.getPath().createPath();
+						currentPath.setName(peeked.getPath().getName());
+						currentPath.createCircles();
+						addStartJoin = true;
+					}
+				}
+
+			} else {
+				currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
+				addPath(currentPath, true);
+				currentPath.setGuessedTangents(2);
+				final SWCPoint peeked = stack.peek();
+				if (peeked != null) {
+					currentPath = peeked.getPath().createPath();
+					currentPath.setName(peeked.getPath().getName());
+					currentPath.createCircles();
+					addStartJoin = true;
+				}
 			}
 		}
 		this.enableUIupdates = existingEnableUIupdates;
@@ -2399,7 +2566,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (beforeStart != null) {
 				pathStartsOnSWCPoint.put(currentPath, beforeStart);
 				pathStartsAtPointInImage.put(currentPath, beforeStart);
-				currentPath.addNode(beforeStart);
 			}
 
 			// Now we can start adding points to the path:
@@ -2805,14 +2971,6 @@ public class PathAndFillManager extends DefaultHandler implements
 					.getYUnscaled(i), p.getZUnscaled(i)));
 			}
 
-			if (p.endJoins != null) {
-				final PointInImage s = p.endJoinsPoint;
-				final Path sp = p.endJoins;
-				final int spi = sp.indexNearestTo(s.x, s.y, s.z);
-				pointsToJoin.add(new Bresenham3D.IntegerPoint(sp.getXUnscaled(spi), sp
-					.getYUnscaled(spi), sp.getZUnscaled(spi)));
-			}
-
 			Bresenham3D.IntegerPoint previous = null;
 			for (final Bresenham3D.IntegerPoint current : pointsToJoin) {
 				if (previous == null) {
@@ -3179,8 +3337,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			pw.print(",");
 			if (p.startJoins != null) pw.print("" + p.startJoins.getID());
 			pw.print(",");
-			if (p.endJoins != null) pw.print("" + p.endJoins.getID());
-			pw.print(",");
 			SNTUtils.csvQuoteAndPrint(pw, p.somehowJoinsAsString());
 			pw.print(",");
 			SNTUtils.csvQuoteAndPrint(pw, p.childrenAsString());
@@ -3279,11 +3435,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			pixelHeight, pixelDepth, units);
 
 		final int[] startJoinsIndices = new int[size()];
-		final int[] endJoinsIndices = new int[size()];
-
 		final PointInImage[] startJoinsPoints = new PointInImage[size()];
-		final PointInImage[] endJoinsPoints = new PointInImage[size()];
-
 		final Path[] addedPaths = new Path[size()];
 
 		int i = 0;
@@ -3292,25 +3444,12 @@ public class PathAndFillManager extends DefaultHandler implements
 			final Path startJoin = p.getStartJoins();
 			if (startJoin == null) {
 				startJoinsIndices[i] = -1;
-				endJoinsPoints[i] = null;
 			}
 			else {
 				startJoinsIndices[i] = allPaths.indexOf(startJoin);
 				final PointInImage transformedPoint = p.getStartJoinsPoint().transform(
 					transformation);
 				if (transformedPoint.isReal()) startJoinsPoints[i] = transformedPoint;
-			}
-
-			final Path endJoin = p.getEndJoins();
-			if (endJoin == null) {
-				endJoinsIndices[i] = -1;
-				endJoinsPoints[i] = null;
-			}
-			else {
-				endJoinsIndices[i] = allPaths.indexOf(endJoin);
-				final PointInImage transformedPoint = p.getEndJoinsPoint().transform(
-					transformation);
-				if (transformedPoint.isReal()) endJoinsPoints[i] = transformedPoint;
 			}
 
 			final Path transformedPath = p.transform(transformation, templateImage,
@@ -3325,12 +3464,9 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		for (i = 0; i < size(); ++i) {
 			final int si = startJoinsIndices[i];
-			final int ei = endJoinsIndices[i];
 			if (addedPaths[i] != null) {
 				if (si >= 0 && addedPaths[si] != null && startJoinsPoints[i] != null)
 					addedPaths[i].setStartJoin(addedPaths[si], startJoinsPoints[i]);
-				if (ei >= 0 && addedPaths[ei] != null && endJoinsPoints[i] != null)
-					addedPaths[i].setEndJoin(addedPaths[ei], endJoinsPoints[i]);
 			}
 		}
 

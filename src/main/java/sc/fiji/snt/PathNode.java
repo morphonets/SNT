@@ -94,11 +94,10 @@ class PathNode {
 		else if (index == 0 && path.startJoins == null) {
 			type = START;
 		}
-		else if (index == path.size() - 1 && path.endJoins == null) {
+		else if (index == path.size() - 1) {
 			type = END;
 		}
-		else if ((index == 0 && path.startJoins != null) || (index == path.size() -
-			1 && path.endJoins != null))
+		else if ((index == 0 && path.startJoins != null) || (index == path.size() - 1))
 		{
 			type = JOINT;
 		}
@@ -181,6 +180,10 @@ class PathNode {
 	 */
 	public int type() {
 		return type;
+	}
+
+	public void setType(final int type) {
+		this.type = type;
 	}
 
 	/**

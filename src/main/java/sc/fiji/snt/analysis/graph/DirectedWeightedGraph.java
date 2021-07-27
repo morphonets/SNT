@@ -640,6 +640,11 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		}
 	}
 
+	public Tree getTreeWithSamePathStructure() {
+		updateVertexProperties();
+		return new Tree(this, "", true);
+	}
+
 	/**
 	 * Returns the subgraph defined by the supplied subset of vertices, including their edges.
 	 *
