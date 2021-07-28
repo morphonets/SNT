@@ -2185,7 +2185,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				if (child.getPath().getID() != currentPath.getID() ||
 						child.getPath().getTreeID() != currentPath.getTreeID()) {
 					currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
-					addPath(currentPath, true);
+					addPath(currentPath, false, true);
 					currentPath.setGuessedTangents(2);
 					currentPath = child.getPath().createPath();
 					currentPath.setName(child.getPath().getName());
@@ -2207,7 +2207,7 @@ public class PathAndFillManager extends DefaultHandler implements
 					addLast.forEach(stack::push);
 				} else {
 					currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
-					addPath(currentPath, true);
+					addPath(currentPath, false, true);
 					currentPath.setGuessedTangents(2);
 					final SWCPoint peeked = stack.peek();
 					if (peeked != null) {
@@ -2220,7 +2220,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 			} else {
 				currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
-				addPath(currentPath, true);
+				addPath(currentPath, false, true);
 				currentPath.setGuessedTangents(2);
 				final SWCPoint peeked = stack.peek();
 				if (peeked != null) {
