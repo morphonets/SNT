@@ -712,9 +712,24 @@ public class Path implements Comparable<Path> {
 	public void moveNode(final int index, final PointInImage destination) {
 		if (index < 0 || index >= size()) throw new IllegalArgumentException(
 			"moveNode() asked for an out-of-range point: " + index);
+		final PointInImage thisLoc = getNodeWithoutChecks(index);
 		precise_x_positions[index] = destination.x;
 		precise_y_positions[index] = destination.y;
 		precise_z_positions[index] = destination.z;
+		// if this is a joint point, upadate its coordinates
+		if (getStartJoinsPoint() != null && thisLoc.isSameLocation(getStartJoinsPoint())) {
+			getStartJoinsPoint().x = destination.x;
+			getStartJoinsPoint().y = destination.y;
+			getStartJoinsPoint().z = destination.z;
+		}
+		// now percolate changes to children, if any
+		if (getChildren() != null) {
+			getChildren().forEach( child -> {
+				if (thisLoc.isSameLocation(child.getNode(0))) { // FIXME: spurious check!?
+					child.moveNode(0, destination);
+				}
+			});
+		}
 	}
 
 	/**
