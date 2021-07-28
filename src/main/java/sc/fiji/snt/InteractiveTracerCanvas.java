@@ -310,14 +310,30 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 	private JMenuItem helpOnConnectingMenuItem() {
 		final String msg = "<HTML>To connect two paths in <i>Edit Mode</i>:<ol>" +
-			"  <li>Select the source node on the path being edited by hovering over it</li>" +
-			"  <li>Activate the 2nd path by pressing 'G'. Select the destination node on it</li>" +
-			"  <li>Link the two by pressing 'C' (<u>C</u>onnect To... command)</li>" +
-			"</ol>" +
-			"Note that loop-forming connections are not allowed.";
-		final GuiUtils guiUtils = new GuiUtils(this.getParent());
+			"  <li>Select parent path. If not yet editable, make it so by choosing <i><u>E</u>dit Path</i> (Shift+E)</li>" +
+			"  <li>Select source node on parent path by hovering cursor over it</li>" +
+			"  <li>Activate child path by pressing 'G' and select its destination node</li>" +
+			"  <li>Link the two highlighted nodes by pressing 'C' (<u>C</u>onnect To... command)</li>" +
+			"</ol>NB:<ol>" +
+			"  <li>The direction of merge matters and it is assumed to be always from parent to child. " +
+			"If child path is oriented in the wrong direction (i.e., moving “towards” its parent at the point " +
+			"of merge), it will re-oriented so that single root connectivity is maintained</li>" +
+			"  <li>Loop-forming connections are not allowed</li>" +
+			"  <li>To concatenate (combine) two paths, use the 'Fuse Paths' option ('F' shortcut)</li>" +
+			"</ol>";
 		final JMenuItem helpItem = new JMenuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help...");
-		helpItem.addActionListener(e -> guiUtils.centeredMsg(msg, AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help"));
+		helpItem.addActionListener(e -> {
+			final boolean canvasActivationState = tracerPlugin.autoCanvasActivation;
+			tracerPlugin.enableAutoActivation(false); // this will not update the checkbox state in SNTUI, but 
+													  // ensures the help dialog will maintain its frontmost state
+			getGuiUtils().showHTMLDialog(msg, AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help", false)
+					.addWindowListener(new WindowAdapter() {
+						@Override
+						public void windowClosing(final WindowEvent e) {
+							tracerPlugin.enableAutoActivation(canvasActivationState);
+						}
+					});
+		});
 		return helpItem;
 	}
 

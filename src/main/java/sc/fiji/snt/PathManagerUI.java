@@ -2155,7 +2155,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		private final static String EXPAND_ALL_CMD = "Expand All";
 		private final static String COLLAPSE_ALL_CMD = "Collapse All";
-		private final static String SELECT_NONE_CMD = "Deselect / Select All";
+		private final static String SELECT_NONE_CMD = "Deselect (Same as Select All)";
 
 		@Override
 		public void actionPerformed(final ActionEvent e) {

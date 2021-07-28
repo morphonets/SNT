@@ -1379,8 +1379,10 @@ public class GuiUtils {
 		timer.start();
 	}
 
-	public void showHTMLDialog(final String msg, final String title, final boolean modal) {
-		new HTMLDialog(msg, title, modal).setVisible(true);
+	public JDialog showHTMLDialog(final String msg, final String title, final boolean modal) {
+		final JDialog dialog = new HTMLDialog(msg, title, modal);
+		dialog.setVisible(true);
+		return dialog;
 	}
 
 	/** Tweaked version of ij.gui.HTMLDialog that is aware of parent */
