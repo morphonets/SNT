@@ -958,7 +958,7 @@ public class Path implements Comparable<Path> {
 	 */
 	public Path createPath() {
 		final Calibration cal = getCalibration();
-		final Path dup = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit(), size());
+		final Path dup = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit());
 		applyCommonProperties(dup);
 		return dup;
 	}
@@ -1989,16 +1989,10 @@ public class Path implements Comparable<Path> {
 		this.precise_z_positions = optimized_z.clone();
 	}
 
-	public String realToString() {
+	private String realToString() {
 		String name = getName();
 		if (name == null) name = "Path " + getID();
 		if (size() == 1) name += " [Single Point]";
-//		if (startJoins != null) {
-//			name += ", starts on " + startJoins.getName();
-//		}
-//		if (endJoins != null) {
-//			name += ", ends on " + endJoins.getName();
-//		}
 		if (swcType != SWC_UNDEFINED) name += " [" + getSWCtypeName(swcType,
 			false) + "]";
 		return name;

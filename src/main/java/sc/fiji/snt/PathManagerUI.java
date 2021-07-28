@@ -2806,9 +2806,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					return;
 				}
 				// create a new empty Path with the same properties (i.e., spatial calibration)
-				// of the first path found in the Path Manager list (In SNT, scaling is set on
-				// a per-Path basis). Assign unique IDs to avoid conflicts with existing IDs
-				Path newSoma = pathAndFillManager.getPath(0).createPath();
+				// of the first path found in the list (In SNT, scaling is set on a per-Path basis).
+				// Assign unique IDs to avoid conflicts with existing IDs
+				final Path newSoma = primaryPaths.get(0).createPath();
 				newSoma.setIsPrimary(true);
 				newSoma.setName("Root centroid");
 				// Add a node to the newly defined path, corresponding to the centroid of
