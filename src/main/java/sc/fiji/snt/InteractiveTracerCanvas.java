@@ -305,7 +305,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		newTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(destinationTree.list());
 		pathAndFillManager.deletePaths(sourceTree.list());
-		newTree.list().forEach(p -> pathAndFillManager.addPath(p, true));
+		newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
 	}
 
 	private JMenuItem helpOnConnectingMenuItem() {
@@ -1089,7 +1089,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		newTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(editingTree.list());
-		newTree.list().forEach(p -> pathAndFillManager.addPath(p, true));
+		newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
 	}
 
 	protected void splitTreeAtEditingNode(final boolean warnOnFailure) {
@@ -1123,8 +1123,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		ancestorTree.list().forEach(p -> p.setSpacing(cal));
 		descendentTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(editingTree.list());
-		ancestorTree.list().forEach(p -> pathAndFillManager.addPath(p, true));
-		descendentTree.list().forEach(p -> pathAndFillManager.addPath(p, true));
+		ancestorTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
+		descendentTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
 	}
 
 	private Tree getTreeFromID(final int treeID) {
