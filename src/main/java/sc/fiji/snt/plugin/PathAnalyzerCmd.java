@@ -63,6 +63,9 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 	@Parameter(label = MultiTreeStatistics.N_BRANCH_POINTS)
 	private boolean nBranchPoints;
 
+	@Parameter(label = MultiTreeStatistics.N_NODES)
+	private boolean nNodes;
+
 	@Parameter(label = MultiTreeStatistics.N_TIPS)
 	private boolean nTips;
 
@@ -160,6 +163,7 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 		meanRadius = enable;
 		nBranchPoints = enable;
 		nTips = enable;
+		nNodes = enable;
 		nPaths = enable;
 		width = enable;
 		height = enable;
@@ -177,6 +181,7 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 		if (nPaths && !singlePaths) metrics.add(MultiTreeStatistics.N_PATHS);
 		if (nBranchPoints) metrics.add(MultiTreeStatistics.N_BRANCH_POINTS);
 		if (nTips && !singlePaths) metrics.add(MultiTreeStatistics.N_TIPS);
+		if (nNodes) metrics.add(MultiTreeStatistics.N_NODES);
 		if (highestPathOrder) metrics.add(MultiTreeStatistics.HIGHEST_PATH_ORDER);
 		if (avgContraction) metrics.add(MultiTreeStatistics.AVG_CONTRACTION);
 		if (avgFractalDimension) metrics.add(MultiTreeStatistics.AVG_FRACTAL_DIMENSION);
