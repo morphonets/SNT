@@ -2542,6 +2542,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 							if (join.getStartJoinsPoint() != null && join.getStartJoinsPoint().isSameLocation(pim)) {
 								join.unsetStartJoin();
 								join.setStartJoin(mergedPath, pim);
+								break;
 							}
 						}
 					}
@@ -2557,6 +2558,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						if (join.getStartJoins() != null && join.getStartJoinsPoint().isSameLocation(pim)) {
 							join.unsetStartJoin();
 							join.setStartJoin(mergedPath, pim);
+							break;
 						}
 					}
 				}
