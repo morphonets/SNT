@@ -234,9 +234,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			while (!pathStack.isEmpty()) {
 				Path current = pathStack.pop();
 				current.setIDs(++maxUsedPathID, maxUsedTreeID);
-				String tags = PathManagerUI.extractTagsFromPath(current);
-				String newName = getDefaultName(current);
-				current.setName((tags.isEmpty()) ? newName : newName + "{" + tags + "}");
+				//String tags = PathManagerUI.extractTagsFromPath(current);
+				//String newName = getDefaultName(current);
+				//current.setName((tags.isEmpty()) ? newName : newName + "{" + tags + "}");
 				current.discardFit();
 				for (Path child : current.children) {
 					child.setOrder(current.getOrder() +1);
