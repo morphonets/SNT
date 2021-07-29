@@ -48,6 +48,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
@@ -395,7 +396,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		pjmi.addActionListener(noPathListener);
 		pjmi = popup.add(NoPathActionListener.SELECT_NONE_CMD);
 		pjmi.addActionListener(noPathListener);
-		pjmi = popup.add(MultiPathActionListener.APPEND_CHILDREN_CMD);
+		pjmi = popup.add(MultiPathActionListener.APPEND_DIRECT_CHILDREN_CMD);
+		pjmi.addActionListener(multiPathListener);
+		pjmi = popup.add(MultiPathActionListener.APPEND_ALL_CHILDREN_CMD);
 		pjmi.addActionListener(multiPathListener);
 		popup.addSeparator();
 		final JMenu selectByColorMenu = searchableBar.getColorFilterMenu();
@@ -643,11 +646,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @return the selected paths. Note that children of a Path are not returned
 	 *         if unselected.
 	 */
-	public Collection<Path> getSelectedPaths(final boolean ifNoneSelectedGetAll) {
+	public List<Path> getSelectedPaths(final boolean ifNoneSelectedGetAll) {
 		return SwingSafeResult.getResult(() -> {
 			if (ifNoneSelectedGetAll && tree.getSelectionCount() == 0)
 				return pathAndFillManager.getPathsFiltered();
-			final Collection<Path> result = new ArrayList<>();
+			final List<Path> result = new ArrayList<>();
 			final TreePath[] selectedPaths = tree.getSelectionPaths();
 			if (selectedPaths == null || selectedPaths.length == 0) {
 				return result;
@@ -2317,7 +2320,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	/** ActionListener for commands that can operate on multiple paths */
 	private class MultiPathActionListener implements ActionListener {
 
-		private static final String APPEND_CHILDREN_CMD = "Append Children To Selection";
+		private static final String APPEND_ALL_CHILDREN_CMD = "Append All Children To Selection";
+		private static final String APPEND_DIRECT_CHILDREN_CMD = "Append Direct Children To Selection";
 		private final static String COLORS_MENU = "Color";
 		private final static String DELETE_CMD = "Delete...";
 		private final static String COMBINE_CMD = "Combine...";
@@ -2369,16 +2373,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		// Built-in tag definition: anything flanked by square braces or |
 		private final static String TAG_DEFAULT_PATTERN = " ?(\\[|\\|).*(\\]|\\|)";
 
-		private void selectChildren(final Collection<Path> paths) {
-			for (final Path p : paths) addChildrenToCollection(p, paths);
+		private void selectChildren(final List<Path> paths, final boolean recursive) {
+			final ListIterator<Path> iter = paths.listIterator();
+			while(iter.hasNext()){
+				final Path p = iter.next();
+				appendChildren(iter, p, recursive);
+			}
 			setSelectedPaths(paths, PathManagerUI.this);
 			refreshManager(true, true, paths);
 		}
 
-		private void addChildrenToCollection(final Path p, final Collection<Path> collection) {
+		private void appendChildren(final ListIterator<Path> iter, final Path p, final boolean recursive) {
 			if (p.children != null && !p.children.isEmpty()) {
-				collection.addAll(p.children);
-				for (final Path cp : p.children) addChildrenToCollection(cp, collection);
+				p.children.forEach(child -> {
+					iter.add(child);
+					if (recursive) appendChildren(iter, child, true);
+				});
 			}
 		}
 
@@ -2386,7 +2396,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		public void actionPerformed(final ActionEvent e) {
 
 			final String cmd = e.getActionCommand();
-			final Collection<Path> selectedPaths = getSelectedPaths(true);
+			final List<Path> selectedPaths = getSelectedPaths(true);
 			final int n = selectedPaths.size();
 
 			if (n == 0) {
@@ -2402,11 +2412,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			// if (noSelection && !assumeAll) return;
 
 			// Case 1: Non-destructive commands that do not require confirmation
-			if (APPEND_CHILDREN_CMD.equals(cmd)) {
+			if (APPEND_ALL_CHILDREN_CMD.equals(cmd) || APPEND_DIRECT_CHILDREN_CMD.equals(cmd)) {
 				if (assumeAll)
 					guiUtils.error("No Path(s) are currently selected.");
 				else 
-					selectChildren(selectedPaths);
+					selectChildren(selectedPaths, APPEND_ALL_CHILDREN_CMD.equals(cmd));
 				return;
 			}
 			else if (COLORS_MENU.equals(cmd)) {
