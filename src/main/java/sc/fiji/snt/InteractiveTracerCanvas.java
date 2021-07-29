@@ -319,7 +319,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			"If child path is oriented in the wrong direction (i.e., moving “towards” its parent at the point " +
 			"of merge), it will re-oriented so that single root connectivity is maintained</li>" +
 			"  <li>Loop-forming connections are not allowed</li>" +
-			"  <li>To concatenate (combine) two paths, use the 'Fuse Paths' option ('F' shortcut)</li>" +
+			"  <li>To concatenate or combine paths, use the respective commands in Path Manager's Edit menu</li>" +
 			"</ol>";
 		final JMenuItem helpItem = new JMenuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help...");
 		helpItem.addActionListener(e -> {
