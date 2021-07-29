@@ -716,19 +716,14 @@ public class Path implements Comparable<Path> {
 		precise_x_positions[index] = destination.x;
 		precise_y_positions[index] = destination.y;
 		precise_z_positions[index] = destination.z;
-		// if this is a joint point, upadate its coordinates
-		if (getStartJoinsPoint() != null && thisLoc.isSameLocation(getStartJoinsPoint())) {
-			getStartJoinsPoint().x = destination.x;
-			getStartJoinsPoint().y = destination.y;
-			getStartJoinsPoint().z = destination.z;
-		}
-		// now percolate changes to children, if any
-		if (getChildren() != null) {
-			getChildren().forEach( child -> {
-				if (thisLoc.isSameLocation(child.getNode(0))) { // FIXME: spurious check!?
-					child.moveNode(0, destination);
-				}
-			});
+		// If this is a start join for other paths, update those as well
+		for (final Path p : somehowJoins) {
+			final PointInImage startJoinsPoint = p.getStartJoinsPoint();
+			if (startJoinsPoint != null && startJoinsPoint.isSameLocation(thisLoc)) {
+				startJoinsPoint.x = destination.x;
+				startJoinsPoint.y = destination.y;
+				startJoinsPoint.z = destination.z;
+			}
 		}
 	}
 

@@ -854,14 +854,6 @@ public class Tree implements TreeProperties {
 				final PointInImage current = p.getNodeWithoutChecks(node);
 				p.moveNode(node, rotate(current, cos, sin, axis));
 			}
-			if (p.startJoinsPoint != null) {
-				final PointInImage sPim = p.startJoinsPoint;
-				final Path sPath = p.startJoins;
-				final PointInImage sPimRotated = rotate(sPim, cos, sin, axis);
-				sPimRotated.onPath = sPim.onPath;
-				p.unsetStartJoin();
-				p.setStartJoin(sPath, sPimRotated);
-			}
 		});
 		if (box != null) box.setComputationNeeded(true);
 		nullifyGraphsAndPafm();
@@ -1676,14 +1668,6 @@ public class Tree implements TreeProperties {
 				final PointInImage current = p.getNodeWithoutChecks(i);
 				// swap axis1 and axis2
 				p.moveNode(i, swap(current, axis1, axis2, axis3));
-			}
-			if (p.startJoinsPoint != null) {
-				final PointInImage sPim = p.startJoinsPoint;
-				final Path sPath = p.startJoins;
-				final PointInImage sPimSwapped = swap(sPim, axis1, axis2, axis3);
-				sPimSwapped.onPath = sPim.onPath;
-				p.unsetStartJoin();
-				p.setStartJoin(sPath, sPimSwapped);
 			}
 		}
 		nullifyGraphsAndPafm();

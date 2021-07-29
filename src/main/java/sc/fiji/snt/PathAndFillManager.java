@@ -234,9 +234,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			while (!pathStack.isEmpty()) {
 				Path current = pathStack.pop();
 				current.setIDs(++maxUsedPathID, maxUsedTreeID);
-				String tags = PathManagerUI.extractTagsFromPath(current);
-				String newName = getDefaultName(current);
-				current.setName((tags.isEmpty()) ? newName : newName + "{" + tags + "}");
+				//String tags = PathManagerUI.extractTagsFromPath(current);
+				//String newName = getDefaultName(current);
+				//current.setName((tags.isEmpty()) ? newName : newName + "{" + tags + "}");
 				current.discardFit();
 				for (Path child : current.children) {
 					child.setOrder(current.getOrder() +1);
@@ -1225,7 +1225,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		// We don't just delete; have to fix up the references
 		// in other paths (for start and end joins):
-		for (final Path p : allPaths) {
+		for (final Path p : unfittedPathToDelete.somehowJoins) {
 			if (p.getStartJoins() == unfittedPathToDelete) {
 				p.startJoins = null;
 				p.startJoinsPoint = null;

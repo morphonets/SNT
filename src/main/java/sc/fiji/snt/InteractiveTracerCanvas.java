@@ -1002,9 +1002,17 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		else if (new GuiUtils(this.getParent()).getConfirmation("Delete " +
 			editingPath + "?", "Delete Path?"))
 		{
+			boolean rebuild = false;
+			for (final Path p : editingPath.somehowJoins) {
+				if (p.getStartJoins() == editingPath) {
+					rebuild = true;
+					break;
+				}
+			}
 			editingPath.disconnectFromAll(); // Fixes ghost connection at canvas origin after deleting last node
 											 // in a forked path
 			tracerPlugin.getPathAndFillManager().deletePath(editingPath);
+			if (rebuild) tracerPlugin.getPathAndFillManager().rebuildRelationships();
 			//tracerPlugin.detectEditingPath();
 			enableEditMode(false);
 			tracerPlugin.updateAllViewers();
