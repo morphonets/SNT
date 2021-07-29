@@ -5700,12 +5700,13 @@ public class Viewer3D {
 				final LineStripPlus line = new LineStripPlus(p.size(), p.getSWCType());
 				for (int i = 0; i < p.size(); ++i) {
 					final PointInImage pim = p.getNode(i);
-					final Coord3d coord = new Coord3d(pim.x, pim.y, pim.z);
-					final Color color = fromAWTColor(p.hasNodeColors() ? p.getNodeColor(i)
-						: p.getColor());
-					final float width = Math.max((float) p.getNodeRadius(i),
-						DEF_NODE_RADIUS);
-					line.add(new Point(coord, color, width));
+					final Color color = fromAWTColor(p.hasNodeColors() ? p.getNodeColor(i) : p.getColor());
+					final float width = Math.max((float) p.getNodeRadius(i), DEF_NODE_RADIUS);
+					if (i == 0 && p.getStartJoinsPoint() != null) {
+						final Coord3d joint = new Coord3d(p.getStartJoinsPoint().x, p.getStartJoinsPoint().y, p.getStartJoinsPoint().z);
+						line.add(new Point(joint, color, width));
+					}
+					line.add(new Point(new Coord3d(pim.x, pim.y, pim.z), color, width));
 				}
 				line.setShowPoints(false);
 				line.setWireframeWidth(defThickness);
