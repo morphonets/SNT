@@ -41,19 +41,12 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 import javax.swing.ButtonGroup;
 import javax.swing.Icon;
@@ -98,7 +91,6 @@ import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
-import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.gui.ColorMenu;
 import sc.fiji.snt.gui.IconFactory;
@@ -594,7 +586,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		boolean rebuild = false;
 		for (final Path p : pathsToBeDeleted) {
 			if (plugin !=null && p.isBeingEdited()) plugin.enableEditMode(false);
-			if (new TreeAnalyzer(new Tree(Collections.singleton(p))).getBranchPoints().size() > 0) {
+			if (!p.somehowJoins.isEmpty()) {
 				rebuild = true;
 			}
 			p.disconnectFromAll();
@@ -2764,6 +2756,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				}
 				for (final Path p : pathsToMerge) {
 					refPath.add(p);
+					p.disconnectFromAll();
 					getPathAndFillManager().deletePath(p);
 				}
 				removeOrReapplyDefaultTag(selectedPaths, ORDER_TAG_CMD, false, false);

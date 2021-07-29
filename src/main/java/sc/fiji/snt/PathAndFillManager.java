@@ -1225,7 +1225,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		// We don't just delete; have to fix up the references
 		// in other paths (for start and end joins):
-		for (final Path p : allPaths) {
+		for (final Path p : unfittedPathToDelete.somehowJoins) {
 			if (p.getStartJoins() == unfittedPathToDelete) {
 				p.startJoins = null;
 				p.startJoinsPoint = null;
