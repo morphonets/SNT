@@ -2810,7 +2810,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				pathAndFillManager.addPath(newSoma, false, true);
 				// Now connect all of root nodes to it
 				primaryPaths.forEach(primaryPath -> {
-					primaryPath.moveNode(0, newSoma.getNode(0));
 					primaryPath.setStartJoin(newSoma, newSoma.getNode(0));
 				});
 				rebuildRelationShips(); // will call refreshManager()
