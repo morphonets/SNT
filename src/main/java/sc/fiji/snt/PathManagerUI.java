@@ -203,7 +203,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		editMenu.addSeparator();
 
 		jmi = new JMenuItem(MultiPathActionListener.COMBINE_CMD);
-		jmi.setToolTipText("Concatenates 2 or more paths into a single one");
+		jmi.setToolTipText("Concatenates 2 or more disconnected paths into a single one");
+		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
+		jmi.addActionListener(multiPathListener);
+		editMenu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.CONCATENATE_CMD);
+		jmi.setToolTipText("Concatenates 2 or more end-connected Paths into a single one. " +
+				"All paths must be oriented in the same direction");
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
@@ -2313,6 +2319,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String COLORS_MENU = "Color";
 		private final static String DELETE_CMD = "Delete...";
 		private final static String COMBINE_CMD = "Combine...";
+		private final static String CONCATENATE_CMD = "Concatenate...";
 		private final static String MERGE_PRIMARY_PATHS_CMD = "Merge Primary Paths(s) Into Shared Root...";
 		private final static String REBUILD_CMD = "Rebuild...";
 		private final static String DOWNSAMPLE_CMD = "Ramer-Douglas-Peucker Downsampling...";
@@ -2484,6 +2491,76 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				inputs.put("table", getTable());
 				(plugin.getUI().new DynamicCmdRunner(PathAnalyzerCmd.class, inputs)).run();
 				return;
+			}
+			else if (CONCATENATE_CMD.equals(cmd)) {
+				if (selectedPaths.size() < 2) {
+					guiUtils.error("You must have at least 2 Paths selected.");
+					return;
+				}
+				final Map<Path, List<Path>> map = new HashMap<>();
+				for (final Path p : selectedPaths) {
+					if (p.getStartJoins() == null ||
+							!selectedPaths.contains(p.getStartJoins()) ||
+							!p.getStartJoinsPoint().isSameLocation(
+									p.getStartJoins().getNode(p.getStartJoins().size() - 1)))
+					{
+						continue;
+					}
+					map.putIfAbsent(p.getStartJoins(), new ArrayList<>());
+					map.get(p.getStartJoins()).add(p);
+				}
+				if (map.keySet().size() != selectedPaths.size() - 1 ||
+						map.values().stream().anyMatch(l -> l.size() != 1))
+				{
+					guiUtils.error("Selected Paths must form a single, un-branched segment!");
+					return;
+				}
+				final List<Path> sortedPaths = map.keySet().stream()
+						.sorted(Comparator.comparingInt(Path::getOrder))
+						.collect(Collectors.toList());
+				final Path mergedPath = sortedPaths.get(0).createPath();
+				mergedPath.setName(sortedPaths.get(0).getName());
+				mergedPath.createCircles();
+				mergedPath.setIsPrimary(sortedPaths.get(0).isPrimary());
+				final Path firstStartJoin = sortedPaths.get(0).getStartJoins();
+				final PointInImage firstStartJoinPoint = sortedPaths.get(0).getStartJoinsPoint();
+				for (final Path p : sortedPaths) {
+					mergedPath.add(p);
+					// avoid CME
+					for (final Path join : new ArrayList<>(p.somehowJoins)) {
+						for (int i = 0; i < mergedPath.size(); ++i) {
+							final PointInImage pim = mergedPath.getNode(i);
+							if (join.getStartJoinsPoint() != null && join.getStartJoinsPoint().isSameLocation(pim)) {
+								join.unsetStartJoin();
+								join.setStartJoin(mergedPath, pim);
+							}
+						}
+					}
+					p.disconnectFromAll();
+					pathAndFillManager.deletePath(p);
+				}
+				final Path lastChild = map.get(sortedPaths.get(sortedPaths.size()-1)).get(0);
+				mergedPath.add(lastChild);
+				// avoid CME
+				for (final Path join : new ArrayList<>(lastChild.somehowJoins)) {
+					for (int i = 0; i < mergedPath.size(); ++i) {
+						final PointInImage pim = mergedPath.getNode(i);
+						if (join.getStartJoins() != null && join.getStartJoinsPoint().isSameLocation(pim)) {
+							join.unsetStartJoin();
+							join.setStartJoin(mergedPath, pim);
+						}
+					}
+				}
+				lastChild.disconnectFromAll();
+				pathAndFillManager.deletePath(lastChild);
+				if (firstStartJoin != null) {
+					mergedPath.setStartJoin(
+							firstStartJoin,
+							firstStartJoinPoint);
+				}
+				pathAndFillManager.addPath(mergedPath, false, false);
+				// treeID is always overridden when adding a Path, so re-set it after adding
+				mergedPath.setIDs(sortedPaths.get(0).getID(), sortedPaths.get(0).getTreeID());
 			}
 			else if (TIME_PROFILE_CMD.equals(cmd)) {
 				final HashMap<String, Object> inputs = new HashMap<>();
