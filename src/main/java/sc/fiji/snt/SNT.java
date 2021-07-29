@@ -933,7 +933,10 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void setEditingPath(final Path path) {
-		if (previousEditingPath != null) previousEditingPath.setEditableNode(-1);
+		if (previousEditingPath != null) {
+			previousEditingPath.setEditableNode(-1);
+			previousEditingPath.setEditableNodeLocked(false);
+		}
 		previousEditingPath = editingPath;
 		editingPath = path;
 	}
@@ -1170,7 +1173,7 @@ public class SNT extends MultiDThreePanes implements
 			// find the nearest node to this cursor position
 			pim = pathAndFillManager.nearestJoinPointOnSelectedPaths(x, y, z);
 		}
-		else if (editing) {
+		else if (editing && !editingPath.isEditableNodeLocked()) {
 			// find the nearest node to this cursor 2D position.
 			// then activate the Z-slice of the retrieved node
 			final int eNode = editingPath.indexNearestToCanvasPosition2D(x, y,

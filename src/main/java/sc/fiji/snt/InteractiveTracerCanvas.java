@@ -133,10 +133,11 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		toggleEditModeMenuItem.setMnemonic(KeyEvent.VK_E);
 		pMenu.add(toggleEditModeMenuItem);
 
+		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B));
 		pMenu.add(menuItem(AListener.NODE_DELETE, listener, KeyEvent.VK_D));
 		pMenu.add(menuItem(AListener.NODE_INSERT, listener, KeyEvent.VK_I));
+		pMenu.add(menuItem(AListener.NODE_LOCK, listener, KeyEvent.VK_L));
 		pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M));
-		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B));
 		pMenu.add(menuItem(AListener.NODE_SPLIT, listener, KeyEvent.VK_X));
 		pMenu.addSeparator();
 
@@ -234,8 +235,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 					mItem.setEnabled(be && editMode && !tracerPlugin.is2D());
 				}
 				else if (cmd.equals(AListener.NODE_RESET) || cmd.equals(AListener.NODE_DELETE)
-						|| cmd.equals(AListener.NODE_INSERT) || cmd.equals(AListener.NODE_MOVE)
-						|| cmd.equals(AListener.NODE_SET_ROOT) || cmd.equals(AListener.NODE_SPLIT)) {
+						|| cmd.equals(AListener.NODE_INSERT) || cmd.equals(AListener.NODE_LOCK)
+						|| cmd.equals(AListener.NODE_MOVE) || cmd.equals(AListener.NODE_SET_ROOT)
+						|| cmd.equals(AListener.NODE_SPLIT)) {
 					mItem.setEnabled(be && editMode);
 				} else {
 					mItem.setEnabled(true);
@@ -838,6 +840,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		private final static String NODE_RESET = "  Reset Active Node";
 		private final static String NODE_DELETE = "  Delete Active Node";
 		private final static String NODE_INSERT = "  Insert New Node at Cursor Position";
+		private final static String NODE_LOCK = "  Lock Active Node";
 		private final static String NODE_MOVE = "  Move Active Node to Cursor Position";
 		private final static String NODE_MOVE_Z = "  Bring Active Node to Current Z-plane";
 		private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root...";
@@ -948,6 +951,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				case NODE_INSERT:
 					appendLastCanvasPositionToEditingNode(true);
 					break;
+				case NODE_LOCK:
+					toggleEditingNode(true);
+					break;
 				case NODE_MOVE:
 					moveEditingNodeToLastCanvasPosition(true);
 					break;
@@ -980,6 +986,17 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 	protected void setEditMode(final boolean editMode) {
 		this.editMode = editMode;
+	}
+
+	protected void toggleEditingNode(final boolean warnOnFailure) {
+		if (impossibleEdit(warnOnFailure)) return;
+		final Path editingPath = tracerPlugin.getEditingPath();
+		if (editingPath.getEditableNodeIndex() < 0) {
+			tempMsg("No editable node detected!");
+		} else {
+			editingPath.setEditableNodeLocked(!editingPath.isEditableNodeLocked());
+			redrawEditingPath("Lock toggled on active node");
+		}
 	}
 
 	protected void deleteEditingNode(final boolean warnOnFailure) {

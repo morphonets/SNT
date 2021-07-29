@@ -147,6 +147,9 @@ public class Path implements Comparable<Path> {
 	private boolean selected;
 	// the node being edited when in 'Analysis mode'
 	private int editableNodeIndex = -1;
+	// whether node being edited is locked
+	private boolean editableNodeLocked;
+
 	// the display offset for this Path in a tracing canvas
 	protected PointInCanvas canvasOffset = new PointInCanvas(0, 0, 0);
 
@@ -863,6 +866,15 @@ public class Path implements Comparable<Path> {
 		editableNodeIndex = -1;
 	}
 
+	protected boolean isEditableNodeLocked() {
+		return editableNodeLocked;
+	}
+
+	protected void setEditableNodeLocked(final boolean editableNodeLocked) {
+		this.editableNodeLocked = editableNodeLocked;
+		System.out.println(getName()+ " is now " + isEditableNodeLocked());
+	}
+
 	public int getXUnscaled(final int i) {
 		return (int) Math.round(getXUnscaledDouble(i));
 	}
@@ -1403,7 +1415,7 @@ public class Path implements Comparable<Path> {
 			}
 
 			// Draw node
-			pn.setEditable(getEditableNodeIndex() == i);
+			pn.setEditable(getEditableNodeIndex() == i, isEditableNodeLocked());
 			pn.draw(g2, c);
 			// g2.setColor(c); // reset color transparencies. Not really needed
 		}
