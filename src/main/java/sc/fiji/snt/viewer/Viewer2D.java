@@ -132,6 +132,10 @@ public class Viewer2D extends TreeColorMapper {
 			series.setLabel(p.getName());
 			final List<Double> xc = new ArrayList<>();
 			final List<Double> yc = new ArrayList<>();
+			if (p.getStartJoinsPoint() != null) {
+				xc.add(p.getStartJoinsPoint().x);
+				yc.add(p.getStartJoinsPoint().y);
+			}
 			for (int node = 0; node < p.size(); node++) {
 				final PointInImage pim = p.getNode(node);
 				xc.add(pim.x);
@@ -148,6 +152,20 @@ public class Viewer2D extends TreeColorMapper {
 	}
 
 	private void plotColoredNodePaths(final Path p) {
+		if (p.getStartJoinsPoint() != null) {
+			final XYSeries series = plot.addXYSeries();
+			final List<Double> xc = new ArrayList<>();
+			final List<Double> yc = new ArrayList<>();
+			xc.add(p.getStartJoinsPoint().x);
+			yc.add(p.getStartJoinsPoint().y);
+			series.setValues(xc, yc);
+			series.setLegendVisible(false);
+			final Color c = p.getNodeColor(0);
+			final ColorRGB cc = (c == null) ? defaultColor : new ColorRGB(c.getRed(),
+					c.getGreen(), c.getBlue());
+			series.setStyle(plot.newSeriesStyle(cc, LineStyle.NONE,
+					MarkerStyle.FILLEDCIRCLE));
+		}
 		for (int node = 0; node < p.size(); node++) {
 			final XYSeries series = plot.addXYSeries();
 			final List<Double> xc = new ArrayList<>();
