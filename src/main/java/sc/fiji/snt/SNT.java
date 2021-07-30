@@ -954,7 +954,9 @@ public class SNT extends MultiDThreePanes implements
 	protected void enableEditMode(final boolean enable) {
 		if (enable) {
 			changeUIState(SNTUI.EDITING);
-			if (isUIready() && !getUI().nearbySlices()) getUI().togglePartsChoice();
+			// We used to automatically enable hiding of out-of-focus nodes.
+			// But without notifying user, this seems not intuitive, so disabling it for now.
+//			if (isUIready() && !getUI().nearbySlices()) getUI().togglePartsChoice();
 		}
 		else {
 			if (ui != null) ui.resetState();
