@@ -29,6 +29,7 @@ import java.awt.Shape;
 import java.awt.Stroke;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Line2D;
+import java.awt.geom.Rectangle2D;
 
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -59,6 +60,7 @@ class PathNode {
 	private double size = -1; // see assignRenderingSize()
 	private int type;
 	private boolean editable;
+	private boolean locked;
 	protected double x;
 	protected double y;
 
@@ -94,11 +96,10 @@ class PathNode {
 		else if (index == 0 && path.startJoins == null) {
 			type = START;
 		}
-		else if (index == path.size() - 1 && path.endJoins == null) {
+		else if (index == path.size() - 1) {
 			type = END;
 		}
-		else if ((index == 0 && path.startJoins != null) || (index == path.size() -
-			1 && path.endJoins != null))
+		else if ((index == 0 && path.startJoins != null) || (index == path.size() - 1))
 		{
 			type = JOINT;
 		}
@@ -183,6 +184,10 @@ class PathNode {
 		return type;
 	}
 
+	public void setType(final int type) {
+		this.type = type;
+	}
+
 	/**
 	 * Draws this node.
 	 *
@@ -196,8 +201,8 @@ class PathNode {
 		if (path.isBeingEdited() && !editable) return; // draw only editable node
 
 		assignRenderingSize();
-		final Shape node = new Ellipse2D.Double(x - size / 2, y - size / 2, size,
-			size);
+		final Shape node = (locked) ? new Rectangle2D.Double(x - size / 2, y - size / 2, size, size)
+				: new Ellipse2D.Double(x - size / 2, y - size / 2, size, size);
 		if (color == null) color = c;
 		if (editable) {
 			// opaque crosshair and border, transparent fill
@@ -248,9 +253,11 @@ class PathNode {
 	 * Enables the node as editable/non-editable.
 	 *
 	 * @param editable true to render the node as editable.
+	 * @param locked true to render editable node as 'locked'
 	 */
-	public void setEditable(final boolean editable) {
+	public void setEditable(final boolean editable, final boolean locked) {
 		this.editable = editable;
+		this.locked = locked;
 	}
 
 }

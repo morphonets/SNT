@@ -133,10 +133,11 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		toggleEditModeMenuItem.setMnemonic(KeyEvent.VK_E);
 		pMenu.add(toggleEditModeMenuItem);
 
+		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B));
 		pMenu.add(menuItem(AListener.NODE_DELETE, listener, KeyEvent.VK_D));
 		pMenu.add(menuItem(AListener.NODE_INSERT, listener, KeyEvent.VK_I));
+		pMenu.add(menuItem(AListener.NODE_LOCK, listener, KeyEvent.VK_L));
 		pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M));
-		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B));
 		pMenu.add(menuItem(AListener.NODE_SPLIT, listener, KeyEvent.VK_X));
 		pMenu.addSeparator();
 
@@ -234,8 +235,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 					mItem.setEnabled(be && editMode && !tracerPlugin.is2D());
 				}
 				else if (cmd.equals(AListener.NODE_RESET) || cmd.equals(AListener.NODE_DELETE)
-						|| cmd.equals(AListener.NODE_INSERT) || cmd.equals(AListener.NODE_MOVE)
-						|| cmd.equals(AListener.NODE_SET_ROOT) || cmd.equals(AListener.NODE_SPLIT)) {
+						|| cmd.equals(AListener.NODE_INSERT) || cmd.equals(AListener.NODE_LOCK)
+						|| cmd.equals(AListener.NODE_MOVE) || cmd.equals(AListener.NODE_SET_ROOT)
+						|| cmd.equals(AListener.NODE_SPLIT)) {
 					mItem.setEnabled(be && editMode);
 				} else {
 					mItem.setEnabled(true);
@@ -299,25 +301,41 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final PointInImage destinationRoot = destinationTree.getRoot();
 		// Set the correct edge directions in the merged graph
 		destinationGraph.setRoot(getMatchingPointInGraph(destinationRoot, destinationGraph));
-		final Tree newTree = destinationGraph.getTree(true);
+		final Tree newTree = destinationGraph.getTreeWithSamePathStructure();
 		enableEditMode(false);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		newTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(destinationTree.list());
 		pathAndFillManager.deletePaths(sourceTree.list());
-		newTree.list().forEach(p -> pathAndFillManager.addPath(p, true));
+		newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
 	}
 
 	private JMenuItem helpOnConnectingMenuItem() {
 		final String msg = "<HTML>To connect two paths in <i>Edit Mode</i>:<ol>" +
-			"  <li>Select the source node on the path being edited by hovering over it</li>" +
-			"  <li>Activate the 2nd path by pressing 'G'. Select the destination node on it</li>" +
-			"  <li>Link the two by pressing 'C' (<u>C</u>onnect To... command)</li>" +
-			"</ol>" +
-			"Note that loop-forming connections are not allowed.";
-		final GuiUtils guiUtils = new GuiUtils(this.getParent());
+			"  <li>Select parent path. If not yet editable, make it so by choosing <i><u>E</u>dit Path</i> (Shift+E)</li>" +
+			"  <li>Select source node on parent path by hovering cursor over it</li>" +
+			"  <li>Activate child path by pressing 'G' and select its destination node</li>" +
+			"  <li>Link the two highlighted nodes by pressing 'C' (<u>C</u>onnect To... command)</li>" +
+			"</ol>NB:<ol>" +
+			"  <li>The direction of merge matters and it is assumed to be always from parent to child. " +
+			"If child path is oriented in the wrong direction (i.e., moving “towards” its parent at the point " +
+			"of merge), it will re-oriented so that single root connectivity is maintained</li>" +
+			"  <li>Loop-forming connections are not allowed</li>" +
+			"  <li>To concatenate or combine paths, use the respective commands in Path Manager's Edit menu</li>" +
+			"</ol>";
 		final JMenuItem helpItem = new JMenuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help...");
-		helpItem.addActionListener(e -> guiUtils.centeredMsg(msg, AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help"));
+		helpItem.addActionListener(e -> {
+			final boolean canvasActivationState = tracerPlugin.autoCanvasActivation;
+			tracerPlugin.enableAutoActivation(false); // this will not update the checkbox state in SNTUI, but 
+													  // ensures the help dialog will maintain its frontmost state
+			getGuiUtils().showHTMLDialog(msg, AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help", false)
+					.addWindowListener(new WindowAdapter() {
+						@Override
+						public void windowClosing(final WindowEvent e) {
+							tracerPlugin.enableAutoActivation(canvasActivationState);
+						}
+					});
+		});
 		return helpItem;
 	}
 
@@ -706,13 +724,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 		if (unconfirmedSegment != null) {
 			unconfirmedSegment.drawPathAsPoints(this, g, getUnconfirmedPathColor(),
-					plane, drawDiametersXY, sliceZeroIndexed, eitherSideParameter);
-			if (unconfirmedSegment.endJoins != null) {
-				final PathNode pn = new PathNode(unconfirmedSegment, unconfirmedSegment
-						.size() - 1, this);
-				pn.setSize(spotDiameter);
-				pn.draw(g, getUnconfirmedPathColor());
-			}
+				plane, drawDiametersXY, sliceZeroIndexed, eitherSideParameter);
 		}
 
 
@@ -822,6 +834,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		private final static String NODE_RESET = "  Reset Active Node";
 		private final static String NODE_DELETE = "  Delete Active Node";
 		private final static String NODE_INSERT = "  Insert New Node at Cursor Position";
+		private final static String NODE_LOCK = "  Lock Active Node";
 		private final static String NODE_MOVE = "  Move Active Node to Cursor Position";
 		private final static String NODE_MOVE_Z = "  Bring Active Node to Current Z-plane";
 		private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root...";
@@ -932,6 +945,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				case NODE_INSERT:
 					appendLastCanvasPositionToEditingNode(true);
 					break;
+				case NODE_LOCK:
+					toggleEditingNode(true);
+					break;
 				case NODE_MOVE:
 					moveEditingNodeToLastCanvasPosition(true);
 					break;
@@ -965,6 +981,17 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		this.editMode = editMode;
 	}
 
+	protected void toggleEditingNode(final boolean warnOnFailure) {
+		if (impossibleEdit(warnOnFailure)) return;
+		final Path editingPath = tracerPlugin.getEditingPath();
+		if (editingPath.getEditableNodeIndex() < 0) {
+			tempMsg("No editable node detected!");
+		} else {
+			editingPath.setEditableNodeLocked(!editingPath.isEditableNodeLocked());
+			redrawEditingPath("Lock toggled on active node");
+		}
+	}
+
 	protected void deleteEditingNode(final boolean warnOnFailure) {
 		if (impossibleEdit(warnOnFailure)) return;
 		final Path editingPath = tracerPlugin.getEditingPath();
@@ -985,9 +1012,17 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		else if (new GuiUtils(this.getParent()).getConfirmation("Delete " +
 			editingPath + "?", "Delete Path?"))
 		{
+			boolean rebuild = false;
+			for (final Path p : editingPath.somehowJoins) {
+				if (p.getStartJoins() == editingPath) {
+					rebuild = true;
+					break;
+				}
+			}
 			editingPath.disconnectFromAll(); // Fixes ghost connection at canvas origin after deleting last node
 											 // in a forked path
 			tracerPlugin.getPathAndFillManager().deletePath(editingPath);
+			if (rebuild) tracerPlugin.getPathAndFillManager().rebuildRelationships();
 			//tracerPlugin.detectEditingPath();
 			enableEditMode(false);
 			tracerPlugin.updateAllViewers();
@@ -1081,12 +1116,12 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final Tree editingTree = getTreeFromID(treeID);
 		final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
 		editingGraph.setRoot(getMatchingPointInGraph(editingNode, editingGraph));
-		final Tree newTree = editingGraph.getTree(true);
+		final Tree newTree = editingGraph.getTreeWithSamePathStructure();
 		enableEditMode(false);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		newTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(editingTree.list());
-		newTree.list().forEach(p -> pathAndFillManager.addPath(p, true));
+		newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
 	}
 
 	protected void splitTreeAtEditingNode(final boolean warnOnFailure) {
@@ -1113,15 +1148,15 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		Graphs.addGraph(descendantGraph, descendantSubgraph);
 		// This also removes all related edges
 		editingGraph.removeAllVertices(descendantVertexSet);
-		final Tree ancestorTree = editingGraph.getTree(true);
-		final Tree descendentTree = descendantGraph.getTree(true);
+		final Tree ancestorTree = editingGraph.getTreeWithSamePathStructure();
+		final Tree descendentTree = descendantGraph.getTreeWithSamePathStructure();
 		enableEditMode(false);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		ancestorTree.list().forEach(p -> p.setSpacing(cal));
 		descendentTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(editingTree.list());
-		ancestorTree.list().forEach(p -> pathAndFillManager.addPath(p, true));
-		descendentTree.list().forEach(p -> pathAndFillManager.addPath(p, true));
+		ancestorTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
+		descendentTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
 	}
 
 	private Tree getTreeFromID(final int treeID) {
@@ -1136,7 +1171,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 	private SWCPoint getMatchingPointInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
 		for (final SWCPoint p : graph.vertexSet()) {
-			if (p.isSameLocation(point)) {
+			if (p.isSameLocation(point) && p.getPath().equals(point.getPath())) {
 				return p;
 			}
 		}

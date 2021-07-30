@@ -62,9 +62,7 @@ class QueueJumpingKeyListener implements KeyListener {
 			// Stack navigation keys
 			KeyEvent.VK_COMMA, KeyEvent.VK_PERIOD, KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT, //
 			// Extra navigation/zoom keys
-			KeyEvent.VK_PLUS, KeyEvent.VK_LESS, KeyEvent.VK_GREATER, KeyEvent.VK_TAB, //
-			// Command Finder
-			KeyEvent.VK_L };
+			KeyEvent.VK_PLUS, KeyEvent.VK_LESS, KeyEvent.VK_GREATER, KeyEvent.VK_TAB };
 
 	public QueueJumpingKeyListener(final SNT tracerPlugin,
 		final InteractiveTracerCanvas canvas)
@@ -212,6 +210,9 @@ class QueueJumpingKeyListener implements KeyListener {
 			else if (keyChar == 'i' || keyChar == 'I')
 			{
 				canvas.appendLastCanvasPositionToEditingNode(false);
+			}
+			else if (keyChar == 'l' || keyChar == 'L') {
+				canvas.toggleEditingNode(true);
 			}
 			else if (keyChar == 'm' || keyChar == 'M') {
 				canvas.moveEditingNodeToLastCanvasPosition(false);

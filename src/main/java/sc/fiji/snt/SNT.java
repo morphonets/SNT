@@ -232,9 +232,6 @@ public class SNT extends MultiDThreePanes implements
 	protected double last_start_point_y;
 	protected double last_start_point_z;
 
-	private Path endJoin;
-	private PointInImage endJoinPoint;
-
 	// Any method that deals with these two fields should be synchronized.
 	protected Path temporaryPath = null; // result of A* search that hasn't yet been confirmed 
 	protected Path currentPath = null;
@@ -811,8 +808,6 @@ public class SNT extends MultiDThreePanes implements
 			removeThreadToDraw(tubularGeodesicsThread);
 			tubularGeodesicsThread = null;
 		}
-		endJoin = null;
-		endJoinPoint = null;
 		if (cancelFillToo && fillerThreadPool != null) {
 			stopFilling();
 		}
@@ -963,9 +958,6 @@ public class SNT extends MultiDThreePanes implements
 						SNTUtils.error("Scripted path yielded a null result.");
 					return;
 				}
-				if (endJoin != null) {
-					result.setEndJoin(endJoin, endJoinPoint);
-				}
 				setTemporaryPath(result);
 				if (ui == null) {
 					confirmTemporary(false);
@@ -1074,7 +1066,10 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void setEditingPath(final Path path) {
-		if (previousEditingPath != null) previousEditingPath.setEditableNode(-1);
+		if (previousEditingPath != null) {
+			previousEditingPath.setEditableNode(-1);
+			previousEditingPath.setEditableNodeLocked(false);
+		}
 		previousEditingPath = editingPath;
 		editingPath = path;
 	}
@@ -1092,7 +1087,9 @@ public class SNT extends MultiDThreePanes implements
 	protected void enableEditMode(final boolean enable) {
 		if (enable) {
 			changeUIState(SNTUI.EDITING);
-			if (isUIready() && !getUI().nearbySlices()) getUI().togglePartsChoice();
+			// We used to automatically enable hiding of out-of-focus nodes.
+			// But without notifying user, this seems not intuitive, so disabling it for now.
+//			if (isUIready() && !getUI().nearbySlices()) getUI().togglePartsChoice();
 		}
 		else {
 			if (ui != null) ui.resetState();
@@ -1311,7 +1308,7 @@ public class SNT extends MultiDThreePanes implements
 			// find the nearest node to this cursor position
 			pim = pathAndFillManager.nearestJoinPointOnSelectedPaths(x, y, z);
 		}
-		else if (editing) {
+		else if (editing && !editingPath.isEditableNodeLocked()) {
 			// find the nearest node to this cursor 2D position.
 			// then activate the Z-slice of the retrieved node
 			final int eNode = editingPath.indexNearestToCanvasPosition2D(x, y,
@@ -1516,8 +1513,6 @@ public class SNT extends MultiDThreePanes implements
 			real_x_end = joinPoint.x;
 			real_y_end = joinPoint.y;
 			real_z_end = joinPoint.z;
-			endJoin = joinPoint.onPath;
-			endJoinPoint = joinPoint;
 		}
 
 		addSphere(targetBallName, real_x_end, real_y_end, real_z_end, getXYCanvas()
@@ -1647,8 +1642,6 @@ public class SNT extends MultiDThreePanes implements
 			real_x_end = joinPoint.x;
 			real_y_end = joinPoint.y;
 			real_z_end = joinPoint.z;
-			endJoin = joinPoint.onPath;
-			endJoinPoint = joinPoint;
 		}
 
 		addSphere(targetBallName, real_x_end, real_y_end, real_z_end, getXYCanvas()
@@ -1703,16 +1696,11 @@ public class SNT extends MultiDThreePanes implements
 		last_start_point_y = (int) Math.round(last.y / y_spacing);
 		last_start_point_z = (int) Math.round(last.z / z_spacing);
 
-		if (currentPath.endJoins == null) {
+		{
 			setTemporaryPath(null);
 			changeUIState(SNTUI.PARTIAL_PATH);
 			if (updateTracingViewers)
 				updateTracingViewers(true);
-		}
-		else {
-			setTemporaryPath(null);
-			// Since joining onto another path for the end must finish the path:
-			finishedPath();
 		}
 
 		/*
@@ -1738,16 +1726,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		removeSphere(targetBallName);
-
-		if (temporaryPath.endJoins != null) {
-			temporaryPath.unsetEndJoin();
-		}
-
 		setTemporaryPath(null);
-
-		endJoin = null;
-		endJoinPoint = null;
-
 		updateTracingViewers(false);
 	}
 
@@ -1763,9 +1742,8 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 
-		if (currentPath != null) {
-			if (currentPath.startJoins != null) currentPath.unsetStartJoin();
-			if (currentPath.endJoins != null) currentPath.unsetEndJoin();
+		if (currentPath != null && currentPath.startJoins != null) {
+			currentPath.unsetStartJoin();
 		}
 
 		removeSphere(targetBallName);
@@ -1888,9 +1866,6 @@ public class SNT extends MultiDThreePanes implements
 				return null;
 			}
 
-			if (endJoin != null) {
-				pathResult.setEndJoin(endJoin, endJoinPoint);
-			}
 			setTemporaryPath(pathResult);
 			confirmTemporary(true);
 		}
@@ -1996,7 +1971,6 @@ public class SNT extends MultiDThreePanes implements
 				last_start_point_y * y_spacing, last_start_point_z * z_spacing);
 			p.onPath = currentPath;
 			currentPath.addPointDouble(p.x, p.y, p.z);
-			currentPath.endJoinsPoint = p;
 			currentPath.startJoinsPoint = p;
 			cancelSearch(false);
 		}
@@ -2124,9 +2098,6 @@ public class SNT extends MultiDThreePanes implements
 	synchronized void startPath(final double world_x, final double world_y,
 		final double world_z, final PointInImage joinPoint)
 	{
-
-		endJoin = null;
-		endJoinPoint = null;
 
 		if (lastStartPointSet) {
 			statusService.showStatus(

@@ -1512,8 +1512,13 @@ public class SNTUI extends JDialog {
 			hm.put(VIEWER_WITH_IMAGE, null);
 		}
 		hm.put(VIEWER_EMPTY, null);
-		for (final Image3DUniverse univ : Image3DUniverse.universes) {
-			hm.put(univ.allContentsString(), univ);
+		try {
+			for (final Image3DUniverse univ : Image3DUniverse.universes) {
+				hm.put(univ.allContentsString(), univ);
+			}
+		} catch (final Exception ex) {
+			SNTUtils.error("Legacy Image3DUniverse unavailable?", ex);
+			hm.put("Initialization Error...", null);
 		}
 
 		// Build choices widget for viewers
@@ -1522,8 +1527,8 @@ public class SNTUI extends JDialog {
 			univChoice.addItem(entry.getKey());
 		}
 		univChoice.addActionListener(e -> {
-
-			final boolean none = VIEWER_NONE.equals(String.valueOf(univChoice.getSelectedItem()));
+			final boolean none = VIEWER_NONE.equals(String.valueOf(univChoice.getSelectedItem()))
+					|| String.valueOf(univChoice.getSelectedItem()).endsWith("Error...");
 			applyUnivChoice.setEnabled(!none);
 		});
 		applyUnivChoice.addActionListener(new ActionListener() {

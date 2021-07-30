@@ -24,16 +24,7 @@ package sc.fiji.snt;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.util.ColorRGB;
@@ -129,7 +120,11 @@ public class Tree implements TreeProperties {
 	}
 
 	public Tree(final DirectedWeightedGraph graph, final String label) {
-		pafm = PathAndFillManager.createFromGraph(graph);
+		this(graph, label, false);
+	}
+
+	public Tree(final DirectedWeightedGraph graph, final String label, final boolean keepTreePathStructure) {
+		pafm = PathAndFillManager.createFromGraph(graph, keepTreePathStructure);
 		tree = pafm.getPaths();
 		setLabel(label);
 	}
@@ -415,8 +410,6 @@ public class Tree implements TreeProperties {
 				p.children.clear();
 				p.startJoins = null;
 				p.startJoinsPoint = null;
-				p.endJoins = null;
-				p.endJoinsPoint = null;
 
 				for (final Path joins : currentPath.somehowJoins) {
 					if (matchesType(joins, swcTypes)) {
@@ -428,16 +421,13 @@ public class Tree implements TreeProperties {
 						p.children.add(child);
 					}
 				}
-				if (currentPath.startJoins != null && matchesType(currentPath.startJoins, swcTypes)) {
+				if (p.startJoins == null)
+					p.setIsPrimary(true);
+				else if (currentPath.startJoins != null && matchesType(currentPath.startJoins, swcTypes)) {
 					p.startJoins = currentPath.startJoins;
 					p.startJoinsPoint = currentPath.startJoinsPoint;
 				}
-				if (currentPath.endJoins != null && matchesType(currentPath.endJoins, swcTypes)) {
-					p.endJoins = currentPath.endJoins;
-					p.endJoinsPoint = currentPath.endJoinsPoint;
-				}
-				if (p.startJoins == null && p.endJoins == null)
-					p.setIsPrimary(true);
+
 				subtree.add(p);
 			}
 		}
@@ -480,16 +470,12 @@ public class Tree implements TreeProperties {
 					childrenIt.remove();
 				}
 			}
-			if (p.startJoins != null && !matchesType(p.startJoins, swcTypes)) {
+			if (p.startJoins == null)
+				p.setIsPrimary(true);
+			else if (p.startJoins != null && !matchesType(p.startJoins, swcTypes)) {
 				p.startJoins = null;
 				p.startJoinsPoint = null;
 			}
-			if (p.endJoins != null && !matchesType(p.endJoins, swcTypes)) {
-				p.endJoins = null;
-				p.endJoinsPoint = null;
-			}
-			if (p.startJoins == null && p.endJoins == null)
-				p.setIsPrimary(true);
 		}
 
 		if (getLabel() != null) subtree.setLabel(getLabel() + " (filtered)");
@@ -773,15 +759,6 @@ public class Tree implements TreeProperties {
 				p.unsetStartJoin();
 				p.setStartJoin(sPath, sPim);
 			}
-			if (p.endJoinsPoint != null) {
-				final PointInImage ePim = p.endJoinsPoint;
-				final Path ePath = p.endJoins;
-				ePim.x += xOffset;
-				ePim.y += yOffset;
-				ePim.z += zOffset;
-				p.unsetEndJoin();
-				p.setEndJoin(ePath, ePim);
-			}
 		});
 		if (box != null) {
 			box.origin().x += xOffset;
@@ -816,13 +793,6 @@ public class Tree implements TreeProperties {
 				sPim.scale(xScale, yScale, zScale);
 				p.unsetStartJoin();
 				p.setStartJoin(sPath, sPim);
-			}
-			if (p.endJoinsPoint != null) {
-				final PointInImage ePim = p.endJoinsPoint;
-				final Path ePath = p.endJoins;
-				ePim.scale(xScale, yScale, zScale);
-				p.unsetEndJoin();
-				p.setEndJoin(ePath, ePim);
 			}
 		});
 		if (box != null) {
@@ -876,22 +846,6 @@ public class Tree implements TreeProperties {
 				final PointInImage current = p.getNodeWithoutChecks(node);
 				p.moveNode(node, rotate(current, cos, sin, axis));
 			}
-			if (p.startJoinsPoint != null) {
-				final PointInImage sPim = p.startJoinsPoint;
-				final Path sPath = p.startJoins;
-				final PointInImage sPimRotated = rotate(sPim, cos, sin, axis);
-				sPimRotated.onPath = sPim.onPath;
-				p.unsetStartJoin();
-				p.setStartJoin(sPath, sPimRotated);
-			}
-			if (p.endJoinsPoint != null) {
-				final PointInImage ePim = p.endJoinsPoint;
-				final Path ePath = p.endJoins;
-				final PointInImage ePimRotated = rotate(ePim, cos, sin, axis);
-				ePimRotated.onPath = ePim.onPath;
-				p.unsetEndJoin();
-				p.setEndJoin(ePath, ePimRotated);
-			}
 		});
 		if (box != null) box.setComputationNeeded(true);
 		nullifyGraphsAndPafm();
@@ -907,7 +861,7 @@ public class Tree implements TreeProperties {
 		for (final Path p : tree) {
 			// The first node of a child path is the same as the forked point
 			// on its parent, so we'll skip it if this is a child path
-			for (int i =  (p.isPrimary()) ? 0 : 1; i < p.size(); ++i) {
+			for (int i = 0; i < p.size(); ++i) {
 				list.add(p.getNodeWithoutChecks(i));
 			}
 		}
@@ -1600,37 +1554,17 @@ public class Tree implements TreeProperties {
 		for (final Path path : list()) {
 			final Path clonePath = path.clone();
 			idToPathMap.put(clonePath.getID(), clonePath);
+			// Clear these, but don't unset startJoin yet
+			clonePath.somehowJoins.clear();
+			clonePath.children.clear();
 			clone.add(clonePath);
 		}
-		for (final Path path : list()) {
-			final Path clonePath = idToPathMap.get(path.getID());
-			clonePath.disconnectFromAll();
-			clonePath.setChildren(new HashSet<>());
-			if (path.getStartJoins() != null) {
-				final PointInImage startJoinsPoint = path.getStartJoinsPoint();
-				// Path#getNodeIndex() does not work for some reason...
-				final int startJoinsPointIdx = path.indexNearestTo(
-						startJoinsPoint.x,
-						startJoinsPoint.y,
-						startJoinsPoint.z
-				);
-				clonePath.setStartJoin(
-						idToPathMap.get(path.getStartJoins().getID()),
-						clonePath.getNode(startJoinsPointIdx)
-				);
-			}
-			if (path.getEndJoins() != null) {
-				final PointInImage endJoinsPoint = path.getEndJoinsPoint();
-				int endJoinsPointIdx = path.indexNearestTo(
-						endJoinsPoint.x,
-						endJoinsPoint.y,
-						endJoinsPoint.z
-				);
-				clonePath.setEndJoin(
-						idToPathMap.get(path.getEndJoins().getID()),
-						clonePath.getNode(endJoinsPointIdx)
-				);
-			}
+		for (final Path path : clone.list()) {
+			if (path.getStartJoins() == null) continue;
+			final Path join = idToPathMap.get(path.getStartJoins().getID());
+			final PointInImage joinPoint = path.getStartJoinsPoint().clone();
+			path.unsetStartJoin();
+			path.setStartJoin(join, joinPoint);
 		}
 		return clone;
 	}
@@ -1718,22 +1652,6 @@ public class Tree implements TreeProperties {
 				final PointInImage current = p.getNodeWithoutChecks(i);
 				// swap axis1 and axis2
 				p.moveNode(i, swap(current, axis1, axis2, axis3));
-			}
-			if (p.startJoinsPoint != null) {
-				final PointInImage sPim = p.startJoinsPoint;
-				final Path sPath = p.startJoins;
-				final PointInImage sPimSwapped = swap(sPim, axis1, axis2, axis3);
-				sPimSwapped.onPath = sPim.onPath;
-				p.unsetStartJoin();
-				p.setStartJoin(sPath, sPimSwapped);
-			}
-			if (p.endJoinsPoint != null) {
-				final PointInImage ePim = p.endJoinsPoint;
-				final Path ePath = p.endJoins;
-				final PointInImage ePimSwapped = swap(ePim, axis1, axis2, axis3);
-				ePimSwapped.onPath = ePim.onPath;
-				p.unsetEndJoin();
-				p.setEndJoin(ePath, ePimSwapped);
 			}
 		}
 		nullifyGraphsAndPafm();

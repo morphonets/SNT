@@ -22,16 +22,22 @@
 package sc.fiji.snt.analysis.graph;
 
 import org.jgrapht.GraphType;
+import org.jgrapht.Graphs;
 import org.jgrapht.graph.AbstractBaseGraph;
 
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.util.ColorRGB;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Supplier;
+import java.util.*;
+import java.util.function.*;
+import java.util.stream.Collectors;
 
-public abstract class SNTGraph<V, E extends DefaultWeightedEdge> extends AbstractBaseGraph<V, E> {
+/**
+ *
+ */
+public abstract class SNTGraph<V, E extends DefaultWeightedEdge>
+        extends AbstractBaseGraph<V, E>
+{
 
 	private static final long serialVersionUID = 8458292348918037500L;
 
@@ -91,4 +97,87 @@ public abstract class SNTGraph<V, E extends DefaultWeightedEdge> extends Abstrac
     public Map<V, Double> getVertexValueMap() {
         return vertexValueMap;
     }
+
+    /**
+     * Remove vertices from this graph that do not match the given predicate. Edges incident to removed vertices
+     * are also removed from the graph.
+     *
+     * @param predicate a non-interfering, stateless predicate to apply to each vertex to determine if it
+     * should be retained in the vertex set.
+     */
+    public void filterVertices(final Predicate<V> predicate) {
+        removeAllVertices(vertexSet().parallelStream().filter(v -> !predicate.test(v)).collect(Collectors.toSet()));
+    }
+
+    /**
+     * Remove edges from this graph that do not match the given predicate. Vertices incident to removed edges
+     * are _not_ removed from the graph.
+     *
+     * @param predicate a non-interfering, stateless predicate to apply to each edge to determine if it
+     * should be retained in the edge set.
+     */
+    public void filterEdges(final Predicate<E> predicate) {
+        removeAllEdges(edgeSet().parallelStream().filter(e -> !predicate.test(e)).collect(Collectors.toSet()));
+    }
+
+    /**
+     * Apply the given operator over the vertex set. If a vertex is changed as a result of the function
+     * (on the basis of equality, e.g., vIn.equals(vOut)), the input vertex is replaced with the
+     * output vertex and all neighboring edges of the input vertex are re-assigned to the output vertex.
+     * If the output vertex is null, the input vertex and its neighboring edges are removed from the graph.
+     *
+     * @param operator a non-interfering, stateless operator to apply to each vertex
+     */
+    public void applyVertices(final UnaryOperator<V> operator) {
+        final Map<V, V> toReplace = new HashMap<>();
+        for (final V input : vertexSet()) {
+            final V output = operator.apply(input);
+            if (output == null || !output.equals(input)) {
+                toReplace.put(input, output);
+            }
+        }
+        for (final V input : toReplace.keySet()) {
+            final V output = toReplace.get(input);
+            if (output == null) {
+                removeVertex(input);
+                continue;
+            }
+            addVertex(output);
+            for (final V neighbor : Graphs.neighborSetOf(this, input)) {
+                removeEdge(input, neighbor);
+                addEdge(output, neighbor);
+            }
+            removeVertex(input);
+        }
+    }
+
+    /**
+     * Apply the given operator over the edge set. If an edge is changed as a result of the function
+     * (on the basis of equality, e.g., edgeIn.equals(edgeOut)), the input edge between source and target
+     * is replaced with the output edge.
+     * If the output edge is null, the input edge is removed from the graph.
+     *
+     * @param operator a non-interfering, stateless operator to apply to each edge
+     */
+    public void applyEdges(final UnaryOperator<E> operator) {
+        final Map<E, E> toReplace = new HashMap<>();
+        for (final E input : edgeSet()) {
+            final E output = operator.apply(input);
+            if (output == null || !output.equals(input)) {
+                toReplace.put(input, output);
+            }
+        }
+        for (final E input : toReplace.keySet()) {
+            final E output = toReplace.get(input);
+            if (output == null) {
+                removeEdge(input);
+                continue;
+            }
+            final V source = getEdgeSource(input);
+            final V target = getEdgeTarget(input);
+            removeEdge(input);
+            addEdge(source, target, output);
+        }
+    }
+
 }

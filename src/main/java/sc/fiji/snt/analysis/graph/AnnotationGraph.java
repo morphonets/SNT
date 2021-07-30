@@ -21,17 +21,22 @@
  */
 package sc.fiji.snt.analysis.graph;
 
+import net.imagej.ImageJ;
 import org.jgrapht.graph.DefaultGraphType;
 import org.jgrapht.util.SupplierUtil;
+import org.scijava.util.ColorRGB;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
+import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.viewer.GraphViewer;
 
 import java.util.List;
 import java.util.*;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeightedEdge> {
@@ -316,7 +321,7 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
         removeAllEdges(toRemove);
     }
 
-    public void removeOrphanedNodes() {
+    public Set<BrainAnnotation> removeOrphans() {
         Set<BrainAnnotation> toRemove = new HashSet<>();
         for (BrainAnnotation node : vertexSet()) {
             if (this.degreeOf(node) == 0) {
@@ -324,6 +329,7 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
             }
         }
         removeAllVertices(toRemove);
+        return toRemove;
     }
 
     /**
@@ -361,5 +367,23 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
 	public String getMetric() {
 		return metric;
 	}
+
+	public static void main(String[] args) {
+        ImageJ ij = new ImageJ();
+        ij.ui().showUI();
+        Tree t = new MouseLightLoader("AA0001").getTree();
+        final AnnotationGraph g = new AnnotationGraph(Collections.singleton(t), AnnotationGraph.LENGTH, 0,
+                AllenUtils.getHighestOntologyDepth());
+        BrainAnnotation cortex = AllenUtils.getCompartment("cerebral cortex");
+        UnaryOperator<BrainAnnotation> op = a -> a.isChildOf(cortex) ? cortex : a;
+        UnaryOperator<BrainAnnotation> op2 = a -> a.getOntologyDepth() > 7 ? a.getAncestor(7 - a.getOntologyDepth()) : a;
+        UnaryOperator<BrainAnnotation> op3 = (a) -> a.isChildOf(cortex) ? null : a;
+        UnaryOperator<BrainAnnotation> op4 = (a) -> a.isMeshAvailable() ? a : null;
+        UnaryOperator<BrainAnnotation> op5 = (a) -> g.edgesOf(a).stream()
+                .mapToDouble(AnnotationWeightedEdge::getWeight)
+                .sum() < 1000 ? null : a;
+        g.applyEdges((e) -> e.getWeight() < 2000 ? null : e);
+        g.show();
+    }
 
 }

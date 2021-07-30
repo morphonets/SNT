@@ -228,15 +228,11 @@ public class DuplicateCmd extends CommonDynamicCmd {
 
 		// Disconnect duplicated path by default
 		if (dup.getStartJoins() != null) dup.unsetStartJoin();
-		if (dup.getEndJoins() != null) dup.unsetEndJoin();
 
 		// Now connect it to the parent of the original path if requested. Do nothing if original path has no parent
 		if (!path.isPrimary() && !disconnect) {
 			if (path.getStartJoins() != null) {
 				dup.setStartJoin(path.getStartJoins(), path.getStartJoinsPoint());
-			}
-			if (path.getEndJoins() != null) {
-				dup.setEndJoin(path.getEndJoins(), path.getEndJoinsPoint());
 			}
 		}
 
