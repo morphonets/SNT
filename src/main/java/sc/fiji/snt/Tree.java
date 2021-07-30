@@ -24,16 +24,7 @@ package sc.fiji.snt;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.util.ColorRGB;
@@ -1562,25 +1553,17 @@ public class Tree implements TreeProperties {
 		for (final Path path : list()) {
 			final Path clonePath = path.clone();
 			idToPathMap.put(clonePath.getID(), clonePath);
+			// Clear these, but don't unset startJoin yet
+			clonePath.somehowJoins.clear();
+			clonePath.children.clear();
 			clone.add(clonePath);
 		}
-		for (final Path path : list()) {
-			final Path clonePath = idToPathMap.get(path.getID());
-			clonePath.disconnectFromAll();
-			clonePath.setChildren(new HashSet<>());
-			if (path.getStartJoins() != null) {
-				final PointInImage startJoinsPoint = path.getStartJoinsPoint();
-				// Path#getNodeIndex() does not work for some reason...
-				final int startJoinsPointIdx = path.indexNearestTo(
-						startJoinsPoint.x,
-						startJoinsPoint.y,
-						startJoinsPoint.z
-				);
-				clonePath.setStartJoin(
-						idToPathMap.get(path.getStartJoins().getID()),
-						clonePath.getNode(startJoinsPointIdx)
-				);
-			}
+		for (final Path path : clone.list()) {
+			if (path.getStartJoins() == null) continue;
+			final Path join = idToPathMap.get(path.getStartJoins().getID());
+			final PointInImage joinPoint = path.getStartJoinsPoint().clone();
+			path.unsetStartJoin();
+			path.setStartJoin(join, joinPoint);
 		}
 		return clone;
 	}
