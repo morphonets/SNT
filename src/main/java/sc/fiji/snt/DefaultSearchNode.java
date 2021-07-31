@@ -207,7 +207,7 @@ public class DefaultSearchNode implements SearchNode, Comparable<DefaultSearchNo
 			p = p.predecessor;
 		}
 		while (p != null);
-		return creversed.reversed();
+		return creversed.reversed(false);
 	}
 
 	public Path asPathReversed(final double x_spacing, final double y_spacing,
