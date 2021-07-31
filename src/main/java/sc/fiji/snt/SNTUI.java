@@ -172,11 +172,11 @@ public class SNTUI extends JDialog {
 	private JComboBox<String> searchAlgoChoice;
 	private JPanel aStarPanel;
 	private JPanel hessianPanel;
-	private JLabel hessianLabel;
 	private JCheckBox preprocess;
 	private JCheckBox aStarCheckBox;
 	private SigmaPalette sigmaPalette;
 	private final SNTCommandFinder commandFinder;
+	private JTextArea settingsArea;
 
 	// UI controls for CT data source
 	private JPanel sourcePanel;
@@ -308,11 +308,11 @@ public class SNTUI extends JDialog {
 				++c1.gridy;
 				tab1.add(hessianPanel(), c1);
 				++c1.gridy;
-				c1.insets.top = MARGIN * 2; //tiny separator?
-				tab1.add(filteredImgActivatePanel(), c1);
-				c1.insets.top = 0;
-				++c1.gridy;
 				tab1.add(filteredImagePanel(), c1);
+				++c1.gridy;
+				GuiUtils.addSeparator(tab1, GuiUtils.leftAlignedLabel("Current Settings:", false), true, c1);
+				++c1.gridy;
+				tab1.add(settingsPanel(), c1);
 				++c1.gridy;
 				addSeparatorWithURL(tab1, "Filters for Visibility of Paths:", true, c1);
 				++c1.gridy;
@@ -655,21 +655,25 @@ public class SNTUI extends JDialog {
 		});
 	}
 
-	protected void updateHessianLabel() {
-		final HessianCaller hc = plugin.getHessianCaller((plugin.isTracingOnSecondaryImageActive()) ? "secondary" : "primary");
-		updateHessianPanel(hc);
+	public void refresh() {
+		updateSettingsString();
+		refreshStatus();
 	}
 
-	protected void updateHessianPanel(final HessianCaller hc) {
-		final StringBuilder sb = new StringBuilder("    Active settings: ");
-		final double[] sigma = hc.getSigmas(true);
-		if (sigma == null)
-			sb.append("\u03C3=?.??");
-		else
-			sb.append("\u03C3=").append(Arrays.toString(sigma));
-		sb.append("     ");
+	protected void updateSettingsString() {
+		final StringBuilder sb = new StringBuilder();
+		sb.append("Auto-tracing: ").append((plugin.isAstarEnabled()) ? searchAlgoChoice.getSelectedItem() : "Disabled");
+		sb.append("\n");
+		sb.append("Data structure: ").append(plugin.searchImageType.getSimpleName());
+		sb.append("\n");
+		sb.append("Hessian (main): ").append(plugin.primaryHessian.toString());
+		sb.append("\n");
+		sb.append("Secondary image: ").append( (plugin.isSecondaryImageLoaded()) ? "Loaded" : "Not loaded");
+		sb.append("\n");
+		sb.append("Hessian (secondary): ").append(plugin.secondaryHessian.toString());
 		assert SwingUtilities.isEventDispatchThread();
-		hessianLabel.setText(sb.toString());
+		settingsArea.setText(sb.toString());
+		settingsArea.setCaretPosition(0);
 	}
 
 	protected void exitRequested() {
@@ -705,6 +709,7 @@ public class SNTUI extends JDialog {
 			GuiUtils.enableComponents(aStarPanel, enableAstar);
 			secondaryImgActivateCheckbox.setEnabled(enable);
 		}
+		updateSettingsString();
 		updateFilteredImgFields(false);
 	}
 
@@ -1925,6 +1930,18 @@ public class SNTUI extends JDialog {
 		return p;
 	}
 
+	private JPanel settingsPanel() {
+		final JPanel settingsPanel = new JPanel(new BorderLayout());
+		settingsPanel.setBorder(BorderFactory.createEmptyBorder(MARGIN, MARGIN, MARGIN * MARGIN, MARGIN));
+		settingsArea = new JTextArea();
+		final JScrollPane sp = new JScrollPane(settingsArea);
+		settingsPanel.add(sp);
+		settingsArea.setRows(4); // TODO: CHECK this height on all OSes. May be too large for MacOS
+		settingsArea.setEnabled(false);
+		settingsArea.setFont(settingsArea.getFont().deriveFont((float) (settingsArea.getFont().getSize() * .85)));
+		return settingsPanel;
+	}
+
 	private JPanel statusPanel() {
 		final JPanel statusPanel = new JPanel();
 		statusPanel.setLayout(new BorderLayout());
@@ -1938,6 +1955,11 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel filteredImagePanel() {
+		secondaryImgActivateCheckbox = new JCheckBox(hotKeyLabel("Trace on Secondary Image", "I"));
+		guiUtils.addTooltip(secondaryImgActivateCheckbox,
+				"Whether auto-tracing should be computed on the secondary image");
+		secondaryImgActivateCheckbox
+				.addActionListener(e -> enableSecondaryImgTracing(secondaryImgActivateCheckbox.isSelected()));
 		secondaryImgPathField = GuiUtils.textField("File:");
 		final JPopupMenu optionsMenu = new JPopupMenu();
 		final JButton filteredImgBrowseButton =  IconFactory.getButton(IconFactory.GLYPH.OPEN_FOLDER);
@@ -2028,8 +2050,15 @@ public class SNTUI extends JDialog {
 		c.ipadx = 0;
 
 		// header row
-		addSeparatorWithURL(secondaryImgPanel, "Tracing on Secondary Image:", true, c);
+		//addSeparatorWithURL(secondaryImgPanel, "Tracing on Secondary Image:", true, c);
+		//c.gridy++;
+
+		// row 0
+		c.insets.top = MARGIN * 2; // separator
+		secondaryImgPanel.add(secondaryImgActivateCheckbox, c);
+		c.insets.top = 0;
 		c.gridy++;
+		c.insets.left = (int) new JCheckBox("").getPreferredSize().getWidth();
 
 		// row 1
 		JPanel filePanel = new JPanel(new BorderLayout(0,0));
@@ -2125,7 +2154,7 @@ public class SNTUI extends JDialog {
 	private void flushCachedTubeness(final String type) {
 		final HessianCaller hc = plugin.getHessianCaller(type);
 		if (hc !=null) hc.cachedTubeness = null;
-		updateHessianPanel(hc);
+		updateSettingsString();
 	}
 
 	protected File openFile(final String promptMsg, final String extension) {
@@ -2243,7 +2272,7 @@ public class SNTUI extends JDialog {
 					SNTUtils.error("ActiveWorker failure", e);
 				}
 				if (isTubeness) {
-					updateHessianLabel();
+					updateSettingsString();
 				} else {
 					updateFilteredImgFields(plugin.isSecondaryImageLoaded());
 				}
@@ -2823,7 +2852,8 @@ public class SNTUI extends JDialog {
 			rbmi.addActionListener(e -> {
 				plugin.searchImageType = clss;
 				showStatus("Active data structure: " + lbl.substring(0, lbl.indexOf(" (")), true);
-				SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
+				updateSettingsString();
+			//	SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
 			});
 		});
 		optionsMenu.addSeparator();
@@ -2895,7 +2925,7 @@ public class SNTUI extends JDialog {
 			preprocess.setSelected(false);
 			plugin.primaryHessian.setAnalysisType((idx == 0) ? HessianCaller.TUBENESS : HessianCaller.FRANGI);
 			plugin.secondaryHessian.setAnalysisType((idx == 0) ? HessianCaller.TUBENESS : HessianCaller.FRANGI);
-			updateHessianLabel();
+			updateSettingsString();
 		});
 
 		final JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
@@ -2919,14 +2949,8 @@ public class SNTUI extends JDialog {
 		});
 		final JButton optionsButton = optionsButton(optionsMenu);
 		hessianPanel = new JPanel(new BorderLayout());
-		hessianLabel = GuiUtils.leftAlignedLabel("Current settings", true);
-		final Font font = hessianLabel.getFont();
-		hessianLabel.setFont(font.deriveFont((float) (font.getSize() * .85)));
-		hessianLabel.setHorizontalAlignment(SwingConstants.CENTER);
-		updateHessianLabel();
 		hessianPanel.add(checkboxPanel, BorderLayout.CENTER);
 		hessianPanel.add(optionsButton, BorderLayout.EAST);
-		hessianPanel.add(hessianLabel, BorderLayout.SOUTH);
 		return hessianPanel;
 	}
 
@@ -3096,6 +3120,7 @@ public class SNTUI extends JDialog {
 				arrangeDialogs();
 			arrangeCanvases(false);
 			resetState();
+			updateSettingsString();
 			pack();
 			updateFilteredImageFileWidget();
 			pathAndFillManager.resetListeners(null, true); // update Path lists
@@ -3660,8 +3685,6 @@ public class SNTUI extends JDialog {
 			if (preprocess.isSelected()) {
 				if (plugin.getHessianCaller("secondary").hessianImg == null)
 					preprocess.setSelected(false);
-				else
-					updateHessianLabel();
 			}
 		} else if (enable) {
 			if (!plugin.accessToValidImageData()) {
@@ -3703,14 +3726,8 @@ public class SNTUI extends JDialog {
 	}
 
 	protected void enableHessian(final boolean enable) {
-		final HessianCaller hc = plugin.getHessianCaller((plugin.isTracingOnSecondaryImageActive()) ? "secondary" : "primary");
-		enableHessian(hc, enable);
-	}
-
-	protected void enableHessian(final HessianCaller hc, final boolean enable) {
-		plugin.enableHessian(enable);
 		preprocess.setSelected(enable); // will not trigger ActionEvent
-		if (secondaryImgActivateCheckbox.isSelected()) updateHessianPanel(hc);
+		updateSettingsString();
 		showStatus("Hessian " + ((enable) ? "enabled" : "disabled"), true);
 	}
 

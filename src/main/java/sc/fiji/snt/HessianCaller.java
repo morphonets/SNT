@@ -28,6 +28,7 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.FloatType;
 
+import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.List;
 
@@ -81,6 +82,7 @@ public class HessianCaller {
 		for (int i = 0; i < scaleSettings.size(); ++i) {
 			this.sigmas[i] = scaleSettings.get(i);
 		}
+		if (snt.getUI() != null) snt.getUI().refresh();
 	}
 
 	protected double[] getSigmas(final boolean physicalUnits) {
@@ -134,6 +136,20 @@ public class HessianCaller {
 
 	@Override
 	public String toString() {
-		return ((imageType == PRIMARY) ? "(main" : "(secondary") + " image): sigmas=" + Arrays.toString(sigmas);
+		final StringBuilder sb = new StringBuilder();
+		sb.append((hessianImg == null) ? "Disabled" : "Enabled");
+		sb.append("; \u03C3=");
+		if (sigmas == null)
+			sb.append("NaN");
+		else {
+			final DecimalFormat df = new DecimalFormat("0.00");
+			sb.append("[");
+			Arrays.stream(sigmas).forEach(s -> sb.append(df.format(s) + ", "));
+			sb.setLength(sb.length() - 2);
+			sb.append("]");
+		}
+		sb.append("; type: ").append( (analysisType == FRANGI) ? "Frangi" : "Tubeness");
+		//sb.append("; ").append( (imageType == PRIMARY) ? " Main" : " Secondary");
+		return sb.toString();
 	}
 }

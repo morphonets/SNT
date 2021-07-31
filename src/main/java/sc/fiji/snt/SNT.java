@@ -2468,7 +2468,7 @@ public class SNT extends MultiDThreePanes implements
 		SNTUtils.log("Loading tubeness image max=" + stackMaxSecondary);
 		loadCachedData(imp, hc.cachedTubeness = new float[depth][]);
 		if (changeUIState) {
-			getUI().updateHessianPanel(hc);
+			getUI().updateSettingsString();
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
 		}
 	}
