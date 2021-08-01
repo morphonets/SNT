@@ -430,11 +430,11 @@ public class Path implements Comparable<Path> {
 				other.startJoins = null;
 				other.startJoinsPoint = null;
 			}
-			final int indexInOtherSomehowJoins = other.somehowJoins.indexOf(this);
-			if (indexInOtherSomehowJoins >= 0) other.somehowJoins.remove(
-				indexInOtherSomehowJoins);
+			other.somehowJoins.remove(this);
+			other.children.remove(this);
 		}
 		somehowJoins.clear();
+		children.clear();
 		startJoins = null;
 		startJoinsPoint = null;
 		setIsPrimary(true);
@@ -454,11 +454,14 @@ public class Path implements Comparable<Path> {
 			startJoinsPoint.onPath = this;
 		}
 		// Also update the somehowJoins list:
-		if (somehowJoins.indexOf(other) < 0) {
+		if (!somehowJoins.contains(other)) {
 			somehowJoins.add(other);
 		}
-		if (other.somehowJoins.indexOf(this) < 0) {
+		if (!other.somehowJoins.contains(this)) {
 			other.somehowJoins.add(this);
+		}
+		if (!other.children.contains(this)) {
+			other.children.add(this);
 		}
 		// update order
 		setOrder(other.order + 1);
@@ -503,6 +506,7 @@ public class Path implements Comparable<Path> {
 		{
 			somehowJoins.remove(other);
 			other.somehowJoins.remove(this);
+			other.children.remove(this);
 		}
 		{
 			startJoins = null;

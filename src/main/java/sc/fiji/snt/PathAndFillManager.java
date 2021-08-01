@@ -95,6 +95,9 @@ public class PathAndFillManager extends DefaultHandler implements
 	private BoundingBox boundingBox;
 
 	private final ArrayList<Path> allPaths;
+	private final Map<Integer, Path> pathIdMap;
+	private final Map<String, Path> pathNameMap;
+	private final Map<String, Path> pathNameLowercaseMap;
 	private final ArrayList<Fill> allFills;
 	private final ArrayList<PathAndFillListener> listeners;
 	private final HashSet<Path> selectedPathsSet;
@@ -130,6 +133,9 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	public PathAndFillManager() {
 		allPaths = new ArrayList<>();
+		pathIdMap = new HashMap<>();
+		pathNameMap = new HashMap<>();
+		pathNameLowercaseMap = new HashMap<>();
 		allFills = new ArrayList<>();
 		listeners = new ArrayList<>();
 		selectedPathsSet = new HashSet<>();
@@ -293,15 +299,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	public synchronized Path getPathFromName(final String name,
 		final boolean caseSensitive)
 	{
-		for (final Path p : allPaths) {
-			if (caseSensitive) {
-				if (name.equals(p.getName())) return p;
-			}
-			else {
-				if (name.equalsIgnoreCase(p.getName())) return p;
-			}
-		}
-		return null;
+		return caseSensitive ? pathNameMap.get(name) : pathNameLowercaseMap.get(name.toLowerCase(Locale.ROOT));
 	}
 
 	protected synchronized Path getPathFrom3DViewerName(final String name) {
@@ -319,12 +317,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @return the Path with the specified id, or null if id was not found.
 	 */
 	public synchronized Path getPathFromID(final int id) {
-		for (final Path p : allPaths) {
-			if (id == p.getID()) {
-				return p;
-			}
-		}
-		return null;
+		return pathIdMap.get(id);
 	}
 
 	/*
@@ -630,6 +623,31 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	public synchronized Path[] getPathsStructured(final Collection<Path> paths) {
+		final ArrayList<Path> primaryPaths = new ArrayList<>();
+
+		/*
+		 * Some paths may be explicitly marked as primary, so extract those and
+		 * everything connected to them first. If you encounter another path marked as
+		 * primary when exploring from these then that's an error...
+		 */
+
+		final Map<Path, List<Path>> pathChildrenMap = new HashMap<>();
+		for (final Path p : paths) {
+			if (p.isPrimary()) {
+				primaryPaths.add(p);
+				continue;
+			}
+			pathChildrenMap.putIfAbsent(p.getStartJoins(), new ArrayList<>());
+			pathChildrenMap.get(p.getStartJoins()).add(p);
+		}
+		for (final Path p : pathChildrenMap.keySet()) {
+			p.children.clear();
+			p.children.addAll(pathChildrenMap.get(p));
+		}
+		return primaryPaths.toArray(new Path[] {});
+	}
+
+	private synchronized Path[] getPathsStructuredOld(final Collection<Path> paths) {
 
 		final ArrayList<Path> primaryPaths = new ArrayList<>();
 
@@ -1133,6 +1151,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			p.addTo3DViewer(plugin.univ, plugin.deselectedColor3f, plugin.colorImage);
 		}
 		allPaths.add(p);
+		pathIdMap.put(p.getID(), p);
+		pathNameMap.put(p.getName(), p);
+		pathNameLowercaseMap.put(p.getName().toLowerCase(Locale.ROOT), p);
 		resetListeners(p);
 	}
 
@@ -1219,8 +1240,15 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 
 		boolean removed = allPaths.remove(unfittedPathToDelete);
-		if (fittedPathToDelete != null)
+		pathIdMap.remove(unfittedPathToDelete.getID());
+		pathNameMap.remove(unfittedPathToDelete.getName());
+		pathNameLowercaseMap.remove(unfittedPathToDelete.getName().toLowerCase(Locale.ROOT));
+		if (fittedPathToDelete != null) {
 			removed = removed || allPaths.remove(fittedPathToDelete);
+			pathIdMap.remove(fittedPathToDelete.getID());
+			pathNameMap.remove(fittedPathToDelete.getName());
+			pathNameLowercaseMap.remove(fittedPathToDelete.getName().toLowerCase(Locale.ROOT));
+		}
 		if (removed && plugin != null) plugin.unsavedPaths = true;
 
 		// We don't just delete; have to fix up the references
@@ -1944,6 +1972,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			case "path":
 
 				allPaths.add(current_path);
+				pathIdMap.put(current_path.getID(), current_path);
+				pathNameMap.put(current_path.getName(), current_path);
+				pathNameLowercaseMap.put(current_path.getName().toLowerCase(Locale.ROOT), current_path);
 
 				break;
 			case "fill":
@@ -2306,6 +2337,9 @@ public class PathAndFillManager extends DefaultHandler implements
 				p.removeFrom3DViewer(plugin.univ);
 		}
 		allPaths.clear();
+		pathIdMap.clear();
+		pathNameMap.clear();
+		pathNameLowercaseMap.clear();
 		allFills.clear();
 		if (plugin == null || (plugin != null && !plugin.accessToValidImageData()))
 			resetSpatialSettings(false);
