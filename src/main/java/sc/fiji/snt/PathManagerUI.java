@@ -1207,17 +1207,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 
 		public void setExpandedPaths(final MutableTreeNode node, final Collection<Path> set, final Path justAdded) {
-			assert SwingUtilities.isEventDispatchThread();
-			final int count = getModel().getChildCount(node);
-			for (int i = 0; i < count; i++) {
-				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
-				final Path p = (Path) child.getUserObject();
-				if (set.contains(p) || ((justAdded != null) && (justAdded == p))) {
-					tree.setExpanded(child.getPath(), true);
-				}
-				if (!getModel().isLeaf(child))
-					setExpandedPaths(child, set, justAdded);
-			}
+			// FIXME: this slows down many operations dramatically.
+			//  Figure out a better way to only do this as necessary...
+//			assert SwingUtilities.isEventDispatchThread();
+//			final int count = getModel().getChildCount(node);
+//			for (int i = 0; i < count; i++) {
+//				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
+//				final Path p = (Path) child.getUserObject();
+//				if (set.contains(p) || ((justAdded != null) && (justAdded == p))) {
+//					tree.setExpanded(child.getPath(), true);
+//				}
+//				if (!getModel().isLeaf(child))
+//					setExpandedPaths(child, set, justAdded);
+//			}
 		}
 
 		private void getExpandedPathsInternal(final MutableTreeNode node, final List<Path> list) {
