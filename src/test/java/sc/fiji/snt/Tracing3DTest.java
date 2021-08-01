@@ -72,7 +72,7 @@ public class Tracing3DTest {
 
 		final Calibration cal = image.getCalibration();
 		final RandomAccessibleInterval<UnsignedByteType> img = ImageJFunctions.wrap(image);
-		ImageStatistics stats = image.getStatistics();
+		ImageStatistics stats = image.getStatistics(ImageStatistics.MIN_MAX);
 
 		long pointsExploredNormal;
 		{
@@ -90,10 +90,9 @@ public class Tracing3DTest {
 			assertNotNull("Not path found", result);
 
 			final double foundPathLength = result.getLength();
-			System.out.println(foundPathLength);
 
-//			assertTrue(foundPathLength > 227.4);
-//			assertTrue(foundPathLength < 227.6);
+			assertTrue(foundPathLength > 227.3);
+			assertTrue(foundPathLength < 227.6);
 
 			pointsExploredNormal = tracer.pointsConsideredInSearch();
 
@@ -115,8 +114,8 @@ public class Tracing3DTest {
 
 			final double foundPathLength = result.getLength();
 //			System.out.println(foundPathLength);
-//			assertTrue(foundPathLength > 227.4);
-//			assertTrue(foundPathLength < 227.6);
+			assertTrue(foundPathLength > 227.4);
+			assertTrue(foundPathLength < 227.6);
 
 			pointsExploredNBAStar = tracer.pointsConsideredInSearch();
 

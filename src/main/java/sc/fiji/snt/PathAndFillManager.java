@@ -1984,7 +1984,7 @@ public class PathAndFillManager extends DefaultHandler implements
 						// We no longer support end point joining, so we'll reverse everything
 						// and apply a 'start join';
 						SNTUtils.log("End joining no longer supported: Establishing a star-join' on reversed path");
-						endPath = endPath.reversed();
+						endPath = endPath.reversed(true);
 						endJoinPoint = endPath.getNodeWithoutChecks(endPath.size() -1 - endIndexInteger);
 						p.setStartJoin(endPath, endJoinPoint);
 					}

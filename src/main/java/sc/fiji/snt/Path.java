@@ -1161,8 +1161,9 @@ public class Path implements Comparable<Path> {
 		}
 	}
 
-	protected Path reversed() {
-		final Path c = createPath();
+	protected Path reversed(final boolean createPathFromThis) {
+		final Path c = createPathFromThis ? createPath() :
+				new Path(x_spacing, y_spacing, z_spacing, spacing_units, points);
 		c.points = points;
 		for (int i = 0; i < points; ++i) {
 			c.precise_x_positions[i] = precise_x_positions[(points - 1) - i];
