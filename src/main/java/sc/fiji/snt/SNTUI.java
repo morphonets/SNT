@@ -81,8 +81,6 @@ import javax.swing.WindowConstants;
 import javax.swing.border.BevelBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.ChangeListener;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 
 import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.Command;
@@ -184,7 +182,7 @@ public class SNTUI extends JDialog {
 
 	// UI controls for loading  on secondary image
 	private JPanel secondaryImgPanel;
-	private JTextField secondaryImgPathField;
+	private GuiUtils.JTextFieldFile secondaryImgPathField;
 	private JButton secondaryImgOptionsButton;
 	private JCheckBox secondaryImgOverlayCheckbox;
 	private JCheckBox secondaryImgActivateCheckbox;
@@ -310,8 +308,6 @@ public class SNTUI extends JDialog {
 				tab1.add(hessianPanel(), c1);
 				++c1.gridy;
 				tab1.add(filteredImagePanel(), c1);
-				++c1.gridy;
-				GuiUtils.addSeparator(tab1, GuiUtils.leftAlignedLabel("Current Settings:", false), true, c1);
 				++c1.gridy;
 				tab1.add(settingsPanel(), c1);
 				++c1.gridy;
@@ -1226,12 +1222,12 @@ public class SNTUI extends JDialog {
 
 		confirmCheckbox.addItemListener(e -> finishOnDoubleConfimation = (e.getStateChange() == ItemEvent.SELECTED));
 		confirmCheckbox.addItemListener(e -> discardOnDoubleCancellation = (e.getStateChange() == ItemEvent.SELECTED));
-		gdb.insets = new Insets(0, MARGIN * 3, 0, 0);
+		gdb.insets.left = (int) new JCheckBox("").getPreferredSize().getWidth();
 		tPanel.add(confirmCheckbox, gdb);
 		++gdb.gridy;
 		tPanel.add(finishCheckbox, gdb);
 		++gdb.gridy;
-		gdb.insets = new Insets(0, 0, 0, 0);
+		gdb.insets.left = 0;
 
 		final JCheckBox activateFinishedPathCheckbox = new JCheckBox("Finishing a path selects it",
 				plugin.activateFinishedPath);
@@ -1991,31 +1987,16 @@ public class SNTUI extends JDialog {
 				"Whether auto-tracing should be computed on the secondary image");
 		secondaryImgActivateCheckbox
 				.addActionListener(e -> enableSecondaryImgTracing(secondaryImgActivateCheckbox.isSelected()));
-		secondaryImgPathField = GuiUtils.textField("File:");
+		secondaryImgPathField = guiUtils.new JTextFieldFile();
+		//secondaryImgPathField.setEditable(false);
+		secondaryImgPathField.setDescription("Path to a matched image (32-bit preferred)");
 		final JPopupMenu optionsMenu = new JPopupMenu();
 		final JButton filteredImgBrowseButton =  IconFactory.getButton(IconFactory.GLYPH.OPEN_FOLDER);
 		secondaryImgOptionsButton = optionsButton(optionsMenu);
-		secondaryImgPathField.getDocument().addDocumentListener(new DocumentListener() {
 
-			@Override
-			public void changedUpdate(final DocumentEvent e) {
-				updateFilteredFileField();
-			}
-
-			@Override
-			public void removeUpdate(final DocumentEvent e) {
-				updateFilteredFileField();
-			}
-
-			@Override
-			public void insertUpdate(final DocumentEvent e) {
-				updateFilteredFileField();
-			}
-
-		});
 
 		filteredImgBrowseButton.addActionListener(e -> {
-			final File file = openFile("Choose Secondary Image", new File(secondaryImgPathField.getText()));
+			final File file = openFile("Choose Secondary Image", secondaryImgPathField.getFile());
 			if (file == null)
 				return;
 			secondaryImgPathField.setText(file.getAbsolutePath());
@@ -2031,7 +2012,7 @@ public class SNTUI extends JDialog {
 					return;
 				flushSecondaryData();
 			} else {
-				loadSecondaryImageFile(new File(secondaryImgPathField.getText()));
+				loadSecondaryImageFile(secondaryImgPathField.getFile());
 			}
 		});
 		final JMenuItem jmiVisual = new JMenuItem(GuiListener.EDIT_SIGMA_VISUALLY);
@@ -2061,7 +2042,7 @@ public class SNTUI extends JDialog {
 		final JMenuItem revealMenuItem = new JMenuItem("Show Path in File Explorer");
 		revealMenuItem.addActionListener(e -> {
 			try {
-				final File file = new File(secondaryImgPathField.getText());
+				final File file = secondaryImgPathField.getFile();
 				if (SNTUtils.fileAvailable(file)) {
 					Desktop.getDesktop().open(file.getParentFile());
 					// TODO: Move to java9
@@ -2177,7 +2158,7 @@ public class SNTUI extends JDialog {
 		if (plugin.tubularGeodesicsTracingEnabled) {
 			setFastMarchSearchEnabled(false);
 		}
-		if ("Cached image".equals(secondaryImgPathField.getText()))
+		if ("..Cached image".equals(secondaryImgPathField.getText()))
 			secondaryImgPathField.setText("");
 		updateFilteredImgFields(true);
 	}
@@ -2330,17 +2311,6 @@ public class SNTUI extends JDialog {
 			if (!successfullyLoaded)
 				secondaryImgActivateCheckbox.setSelected(false);
 		});
-	}
-
-	private void updateFilteredFileField() {
-		if (secondaryImgPathField == null)
-			return;
-		final String path = secondaryImgPathField.getText();
-		final boolean validFile = path != null && SNTUtils.fileAvailable(new File(path));
-		secondaryImgPathField.setForeground((validFile) ? new JTextField().getForeground() : Color.RED);
-		final String tooltext = "<HTML>Path to a matched image (32-bit preferred). Current file:<br>" + path + " ("
-				+ ((validFile) ? "valid" : "invalid") + " path)";
-		secondaryImgPathField.setToolTipText(tooltext);
 	}
 
 	@SuppressWarnings("deprecation")
@@ -2778,7 +2748,7 @@ public class SNTUI extends JDialog {
 	private JPanel snappingPanel() {
 
 		final JPanel tracingOptionsPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
-		useSnapWindow = new JCheckBox(hotKeyLabel("Enable Snapping within: XY", "S"), plugin.snapCursor);
+		useSnapWindow = new JCheckBox(hotKeyLabel("Enable Snapping within XY", "S"), plugin.snapCursor);
 		useSnapWindow.addItemListener(listener);
 		tracingOptionsPanel.add(useSnapWindow);
 
@@ -2927,17 +2897,6 @@ public class SNTUI extends JDialog {
 	private void enableNBAStar() {
 		plugin.searchType = BidirectionalSearch.class;
 		refreshHessianPanelState();
-	}
-
-	private JPanel filteredImgActivatePanel() {
-		final JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
-		secondaryImgActivateCheckbox = new JCheckBox(hotKeyLabel("Trace on Secondary Image", "I"));
-		guiUtils.addTooltip(secondaryImgActivateCheckbox,
-				"Whether auto-tracing should be computed on the secondary image");
-		secondaryImgActivateCheckbox
-				.addActionListener(e -> enableSecondaryImgTracing(secondaryImgActivateCheckbox.isSelected()));
-		panel.add(secondaryImgActivateCheckbox);
-		return panel;
 	}
 
 	@Deprecated
@@ -3187,7 +3146,7 @@ public class SNTUI extends JDialog {
 		final float[] defaultValues = new float[2];
 		defaultValues[0] = useSecondary ? (float)plugin.stackMinSecondary : (float)plugin.stackMin;
 		defaultValues[1] = useSecondary ? (float)plugin.stackMaxSecondary : (float)plugin.stackMax;
-		String promptMsg = "<HTML><body><div style='width:400;'>" //
+		String promptMsg = "<HTML><body><div style='width:500;'>" //
 				+ "Enter the min-max range for the A* search.<br>"//
 				+ "Values less than or equal to Min maximize the A* cost function.<br>"
 				+ "Values greater than or equal to Max minimize the A* cost function.<br>"//
@@ -3444,13 +3403,12 @@ public class SNTUI extends JDialog {
 		if (file != null) {
 			secondaryImgPathField.setText(file.getAbsolutePath()); 
 		} else if (plugin.isSecondaryImageLoaded()) {
-			secondaryImgPathField.setText("Cached image"); 
+			secondaryImgPathField.setText("..Cached image"); 
 		} else {
 			secondaryImgPathField.setText(""); 
 		}
 		if (plugin.isSecondaryImageLoaded())
 			secondaryImgLoadFlushMenuItem.setText("Flush Cached Image...");
-		updateFilteredFileField();
 	}
 
 	/**
@@ -3738,7 +3696,6 @@ public class SNTUI extends JDialog {
 		secondaryImgOverlayCheckbox.setSelected(false);
 		secondaryImgActivateCheckbox.setSelected(false);
 		plugin.doSearchOnSecondaryData = false;
-		updateFilteredFileField();
 	}
 
 	protected void toggleFilteredImgTracing() {

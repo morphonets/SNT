@@ -81,6 +81,8 @@ import javax.swing.*;
 import javax.swing.JSpinner.DefaultEditor;
 import javax.swing.border.EmptyBorder;
 import javax.swing.colorchooser.AbstractColorChooserPanel;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.HyperlinkListener;
 import javax.swing.filechooser.FileFilter;
@@ -937,6 +939,90 @@ public class GuiUtils {
 		}
 	}
 
+	public class JTextFieldFile extends TextFieldWithPlaceholder {
+
+		private static final long serialVersionUID = 6943445407475634685L;
+		private File file;
+		private String tooltipPrefix;
+		private final Color defaultColor;
+
+		public JTextFieldFile() {
+			super("File:");
+			defaultColor = super.getForeground();
+			getDocument().addDocumentListener(new DocumentListener() {
+
+				@Override
+				public void changedUpdate(final DocumentEvent e) {
+					updateField();
+				}
+
+				@Override
+				public void removeUpdate(final DocumentEvent e) {
+					updateField();
+				}
+
+				@Override
+				public void insertUpdate(final DocumentEvent e) {
+					updateField();
+				}
+
+			});
+		}
+
+		@Override
+		public void setText(final String text) {
+			if ( (text == null || text.isEmpty()) && file != null) {
+				super.setText(".." + getFile().getName());
+				return;
+			}
+			try {
+				file = new File(text);
+				super.setText(".." + getFile().getName());
+			} catch (final Exception ignored) {
+				file = null;
+				super.setText(text);
+			}
+		}
+
+		@Override
+		public String getText() {
+			return (file == null) ? super.getText() : file.getAbsolutePath();
+		}
+
+		public File getFile() {
+			return file;
+		}
+
+		public void setDescription(final String tooltipPrefix) {
+			this.tooltipPrefix = tooltipPrefix;
+		}
+
+		private boolean lastLoadedFileAvailable() {
+			return fileAvailable(file);
+		}
+
+		private boolean fileAvailable(final File file) {
+			try {
+				return file != null && file.exists();
+			} catch (final SecurityException ignored) {
+				return false;
+			}
+		}
+
+		private void updateField() {
+			setForeground((super.getText().startsWith("..") || fileAvailable(new File(super.getText())))
+					? defaultColor : Color.RED);
+			final StringBuilder sb = new StringBuilder("<HTML>");
+			sb.append(tooltipPrefix);
+			if (lastLoadedFileAvailable()) {
+				sb.append("<br>Current file:<br>").append(file.getAbsolutePath());
+			} else {
+				sb.append("<br>Current file: Invalid path");
+			}
+			setToolTipText(sb.toString());
+		}
+	}
+
 	public static JTextField textField(final String placeholder) {
 		return new TextFieldWithPlaceholder(placeholder);
 	}
@@ -1047,7 +1133,7 @@ public class GuiUtils {
 		@Override
 		protected void paintComponent(final java.awt.Graphics g) {
 			super.paintComponent(g);
-			if (getText().isEmpty() && !(FocusManager.getCurrentKeyboardFocusManager().getFocusOwner() == this)) {
+			if (super.getText().isEmpty() && !(FocusManager.getCurrentKeyboardFocusManager().getFocusOwner() == this)) {
 				final Graphics2D g2 = (Graphics2D) g.create();
 				g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
 						RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
