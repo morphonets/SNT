@@ -115,6 +115,7 @@ import sc.fiji.snt.gui.ColorChooserButton;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.SaveMeasurementsCmd;
 import sc.fiji.snt.gui.ScriptInstaller;
@@ -664,13 +665,23 @@ public class SNTUI extends JDialog {
 		final StringBuilder sb = new StringBuilder();
 		sb.append("Auto-tracing: ").append((plugin.isAstarEnabled()) ? searchAlgoChoice.getSelectedItem() : "Disabled");
 		sb.append("\n");
+		if (plugin.isTracingOnSecondaryImageActive()) {
+			sb.append("Secondary image: Active");
+			sb.append("\n");
+			sb.append("Min-Max: ").append(plugin.stackMinSecondary).append("-").append(plugin.stackMaxSecondary);
+			sb.append("\n");
+			sb.append("Hessian: ").append(plugin.secondaryHessian.toString());
+		} else {
+			sb.append("Secondary image: Disabled");
+			sb.append("\n");
+			sb.append("Min-Max: ").append(plugin.stackMin).append("-").append(plugin.stackMax);
+			sb.append("\n");
+			sb.append("Hessian: ").append(plugin.primaryHessian.toString());
+		}
+		sb.append("\n");
+		sb.append("Cost function: ").append(plugin.costFunctionClass.getSimpleName());
+		sb.append("\n");
 		sb.append("Data structure: ").append(plugin.searchImageType.getSimpleName());
-		sb.append("\n");
-		sb.append("Hessian (main): ").append(plugin.primaryHessian.toString());
-		sb.append("\n");
-		sb.append("Secondary image: ").append( (plugin.isSecondaryImageLoaded()) ? "Loaded" : "Not loaded");
-		sb.append("\n");
-		sb.append("Hessian (secondary): ").append(plugin.secondaryHessian.toString());
 		assert SwingUtilities.isEventDispatchThread();
 		settingsArea.setText(sb.toString());
 		settingsArea.setCaretPosition(0);
@@ -1931,14 +1942,34 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel settingsPanel() {
-		final JPanel settingsPanel = new JPanel(new BorderLayout());
-		settingsPanel.setBorder(BorderFactory.createEmptyBorder(MARGIN, MARGIN, MARGIN * MARGIN, MARGIN));
+		final JPanel settingsPanel = new JPanel(new GridBagLayout());
 		settingsArea = new JTextArea();
 		final JScrollPane sp = new JScrollPane(settingsArea);
-		settingsPanel.add(sp);
+		// sp.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_ALWAYS);
 		settingsArea.setRows(4); // TODO: CHECK this height on all OSes. May be too large for MacOS
-		settingsArea.setEnabled(false);
+		// settingsArea.setEnabled(false);
+		settingsArea.setEditable(false);
 		settingsArea.setFont(settingsArea.getFont().deriveFont((float) (settingsArea.getFont().getSize() * .85)));
+		settingsArea.setFocusable(false);
+
+		final GridBagConstraints c = GuiUtils.defaultGbc();
+		GuiUtils.addSeparator(settingsPanel, GuiUtils.leftAlignedLabel("Computation Settings:", true), true, c);
+		++c.gridy;
+		settingsPanel.add(sp, c);
+
+		final JPopupMenu pMenu = new JPopupMenu();
+		JMenuItem mi = new JMenuItem("Copy", IconFactory.getMenuIcon(GLYPH.COPY));
+		mi.addActionListener(e -> {
+			settingsArea.selectAll();
+			settingsArea.copy();
+			settingsArea.setCaretPosition(0);
+		});
+		pMenu.add(mi);
+		mi = new JMenuItem("Refresh", IconFactory.getMenuIcon(GLYPH.REDO));
+		mi.addActionListener(e -> refresh());
+		pMenu.add(mi);
+		settingsArea.setComponentPopupMenu(pMenu);
+
 		return settingsPanel;
 	}
 
@@ -3177,7 +3208,7 @@ public class SNTUI extends JDialog {
 			plugin.stackMin = minMax[0];
 			plugin.stackMax = minMax[1];
 		}
-
+		updateSettingsString();
 	}
 
 	private boolean okToFlushCachedTubeness(final String type) {
