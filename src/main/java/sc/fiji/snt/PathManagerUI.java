@@ -1202,21 +1202,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return set;
 		}
 
-		public void setSelectedPaths(final MutableTreeNode node, final Collection<Path> set) {
+		public void setSelectedPaths(final MutableTreeNode nodenn, final Collection<Path> set) {
 			assert SwingUtilities.isEventDispatchThread();
-			final int count = getModel().getChildCount(node);
 			final boolean updateCTposition = set.size() == 1;
-			for (int i = 0; i < count; i++) {
-				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
-				final Path p = (Path) child.getUserObject();
-				if (set.contains(p)) {
-					setSelected(child.getPath());
+			final Enumeration<?> children = getRoot().depthFirstEnumeration();
+			while (children.hasMoreElements()) {
+				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) children.nextElement();
+				final Object o = node.getUserObject();
+				if (o instanceof Path && set.contains((Path) o)) { // 'invisible root' is not a SNT Path
+					addSelectionPath(new TreePath(node.getPath()));
 					if (updateCTposition && plugin != null) {
-						updateHyperstackPosition(p);
+						updateHyperstackPosition((Path) o);
 					}
 				}
-				if (!getModel().isLeaf(child))
-					setSelectedPaths(child, set);
 			}
 		}
 
