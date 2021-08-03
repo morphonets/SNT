@@ -867,12 +867,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			/*
 			 * Ignore the arguments and get the real path list from the PathAndFillManager:
 			 */
-			final DefaultMutableTreeNode newRoot = new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL);
-			final DefaultTreeModel model = new DefaultTreeModel(newRoot);
+			final HelpfulTreeModel model = new HelpfulTreeModel();
 			final Path[] primaryPaths = pathAndFillManager.getPathsStructured();
 			for (final Path primaryPath : primaryPaths) {
 				// Add the primary path if it's not just a fitted version of another:
-				if (!primaryPath.isFittedVersionOfAnotherPath()) addNode(newRoot, primaryPath, model);
+				if (!primaryPath.isFittedVersionOfAnotherPath())
+					model.addNode(model.root(), primaryPath);
 			}
 			tree.setModel(model);
 			tree.reload();
@@ -885,18 +885,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 
 			// Set back the selection state
-			tree.setSelectedPaths(newRoot, selectedPathsBefore);
+			tree.setSelectedPaths(model.root(), selectedPathsBefore);
 		});
-	}
-
-	private void addNode(final MutableTreeNode parent, final Path childPath,
-		final DefaultTreeModel model)
-	{
-		assert SwingUtilities.isEventDispatchThread();
-		final MutableTreeNode newNode = new DefaultMutableTreeNode(childPath);
-		model.insertNodeInto(newNode, parent, parent.getChildCount());
-		for (final Path p : childPath.children)
-			addNode(newNode, p, model);
 	}
 
 	protected Tree getSingleTree() {
@@ -1134,6 +1124,26 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 	}
 
+	/** This class defines the model for the JTree hosting traced paths */
+	private class HelpfulTreeModel extends DefaultTreeModel {
+
+		private static final long serialVersionUID = 1697148395459880568L;
+
+		public HelpfulTreeModel() {
+			super(new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL));
+		}
+
+		public DefaultMutableTreeNode root() {
+			return (DefaultMutableTreeNode) root;
+		}
+
+		public void addNode(final MutableTreeNode parent, final Path childPath) {
+			final MutableTreeNode newNode = new DefaultMutableTreeNode(childPath);
+			insertNodeInto(newNode, parent, parent.getChildCount());
+			childPath.getChildren().forEach(p -> addNode(newNode, p));
+		}
+	}
+
 	/** This class defines the JTree hosting traced paths */
 	private class HelpfulJTree extends JTree {
 
@@ -1156,7 +1166,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private DefaultMutableTreeNode getRoot() {
 			return ((DefaultMutableTreeNode) getModel().getRoot());
 		}
-
 
 		public void setSelected(final Object[] path) {
 			assert SwingUtilities.isEventDispatchThread();
@@ -1223,7 +1232,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 
 		public void repaintAllNodes() {
-			final DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+			final DefaultTreeModel model = (DefaultTreeModel) getModel();
 			final Enumeration<?> e = getRoot().preorderEnumeration();
 			while (e.hasMoreElements()) {
 				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) e.nextElement();
@@ -1234,11 +1243,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		public void repaintSelectedNodes() {
 			final TreePath[] selectedPaths = getSelectionPaths();
 			if (selectedPaths != null) {
-				final DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+				final DefaultTreeModel model = (DefaultTreeModel) getModel();
 				for (final TreePath tp : selectedPaths) {
 					final DefaultMutableTreeNode node = (DefaultMutableTreeNode) (tp.getLastPathComponent());
-					if (!node.isRoot())
-						model.nodeChanged(node);
+					model.nodeChanged(node);
 				}
 			}
 		}
