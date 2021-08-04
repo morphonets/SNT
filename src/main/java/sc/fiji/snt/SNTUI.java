@@ -2775,6 +2775,7 @@ public class SNTUI extends JDialog {
 		return container;
 	}
 
+	@SuppressWarnings("unchecked")
 	private JPanel aStarPanel() {
 		aStarCheckBox = new JCheckBox("Enable ", plugin.isAstarEnabled());
 		aStarCheckBox.addActionListener(e -> {
@@ -2841,11 +2842,11 @@ public class SNTUI extends JDialog {
 		final ButtonGroup dataStructureButtonGroup = new ButtonGroup();
 
 		@SuppressWarnings("rawtypes")
-		final Map<String, Class<? extends SearchImage>> map = new TreeMap<>();
-		map.put("Array (Default)", ArraySearchImage.class);
-		map.put("Hash Table (Some minor description)", MapSearchImage.class);
-		map.put("ImgLib2 ListImg (Some minor description)", ListSearchImage.class);
-		map.forEach((lbl, clss) -> {
+		final Map<String, Class<? extends SearchImage>> searchMap = new TreeMap<>();
+		searchMap.put("Array (Default)", ArraySearchImage.class);
+		searchMap.put("Hash Table (Some minor description)", MapSearchImage.class);
+		searchMap.put("ImgLib2 ListImg (Some minor description)", ListSearchImage.class);
+		searchMap.forEach((lbl, clss) -> {
 			final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
 			dataStructureButtonGroup.add(rbmi);
 			optionsMenu.add(rbmi);
@@ -2859,24 +2860,43 @@ public class SNTUI extends JDialog {
 		});
 		optionsMenu.addSeparator();
 
-		JMenu costFunctionMenu = new JMenu("Cost Function");
-		JMenuItem reciprocalJmi = new JMenuItem("Reciprocal of scaled intensity");
-		reciprocalJmi.addActionListener(e -> {
-			plugin.costFunctionClass = ReciprocalCost.class;
+		optionsMenu.add(GuiUtils.leftAlignedLabel("Cost Function:", false));
+		final ButtonGroup costFunctionButtonGroup = new ButtonGroup();
+		final Map<String, Class<? extends SearchCost>> costMap = new TreeMap<>();
+		costMap.put("Reciprocal of Scaled Intensity", ReciprocalCost.class);
+		costMap.put("Difference of Intensity", DifferenceCost.class);
+		costMap.put("Probability of Intensity...", OneMinusErfCost.class);
+		costMap.forEach((lbl, clsss) -> {
+			final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
+			costFunctionButtonGroup.add(rbmi);
+			optionsMenu.add(rbmi);
+			rbmi.setActionCommand(clsss.getSimpleName());
+			rbmi.setSelected(plugin.costFunctionClass == clsss);
+			rbmi.addActionListener(e -> {
+				if (clsss == OneMinusErfCost.class) {
+					final Double fudge = getZFudgeFromUser();
+					if (fudge == null) { // no value set: restore previous state
+						costFunctionButtonGroup.clearSelection();
+						final Enumeration<AbstractButton> buttons = costFunctionButtonGroup.getElements();
+						while (buttons.hasMoreElements()) {
+							final AbstractButton button = (AbstractButton) buttons.nextElement();
+							if (button.getActionCommand().equals(plugin.costFunctionClass.getSimpleName()))
+								button.setSelected(true);
+								break;
+						}
+						showStatus("Cost function unchnanged...", true);
+						return;
+					}
+					plugin.oneMinusErfZFudge = fudge;
+					SNTUtils.log("Z-fudge changed to " + fudge);
+				}
+				plugin.costFunctionClass = (Class<? extends SearchCost>) clsss;
+				updateSettingsString();
+				showStatus("Cost function: " + lbl, true);
+				SNTUtils.log("Cost function: Now using " + plugin.costFunctionClass.getName());
+			});
 		});
-		costFunctionMenu.add(reciprocalJmi);
-		JMenuItem differenceJmi = new JMenuItem("Difference of intensity");
-		differenceJmi.addActionListener(e -> {
-			plugin.costFunctionClass = DifferenceCost.class;
-		});
-		costFunctionMenu.add(differenceJmi);
-		JMenuItem statJmi = new JMenuItem("Probability of intensity");
-		statJmi.addActionListener(e -> {
-			plugin.costFunctionClass = OneMinusErfCost.class;
-			setZFudgeFromUser();
-		});
-		costFunctionMenu.add(statJmi);
-		optionsMenu.add(costFunctionMenu);
+
 		optionsMenu.addSeparator();
 		JMenuItem minMaxJmi = new JMenuItem("Adjust Min-Max...");
 		minMaxJmi.addActionListener(e -> {
@@ -3122,23 +3142,22 @@ public class SNTUI extends JDialog {
 		});
 	}
 
-	private void setZFudgeFromUser() {
+	
+	private Double getZFudgeFromUser() {
 		final double defaultValue = new OneMinusErfCost(0,0,0).getZFudge();
-		String promptMsg = "<HTML><body><div style='width:250;'>" //
-				+ "Enter multiplier for intensity z-score."//
-				+ "Values < 1 make it easier to numerically distinguish bright voxels "//
+		String promptMsg = "Enter multiplier for intensity z-score. "//
+				+ "Values < 1 make it easier to numerically distinguish bright voxels. "//
 				+ "The current default is "//
 				+ SNTUtils.formatDouble(defaultValue, 2) + ".";
 		final Double fudge = guiUtils.getDouble(promptMsg, "Z-score fudge", defaultValue);
 		if (fudge == null) {
-			return; // user pressed cancel
+			return null; // user pressed cancel
 		}
 		if (Double.isNaN(fudge) || fudge < 0) {
 			guiUtils.error("Fudge must be a positive number.", "Invalid Input");
-			return;
+			return null;
 		}
-		plugin.oneMinusErfZFudge = fudge;
-		SNTUtils.log("Z-fudge changed. Now using " + plugin.oneMinusErfZFudge);
+		return fudge;
 	}
 
 	private void setMinMaxFromUser() {
