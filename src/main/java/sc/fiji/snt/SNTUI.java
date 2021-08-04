@@ -1974,8 +1974,8 @@ public class SNTUI extends JDialog {
 			loadSecondaryImageFile(file);
 		});
 
+		// Assemble options menu
 		secondaryImgLoadFlushMenuItem = new JMenuItem("Load Specified File");
-		optionsMenu.add(secondaryImgLoadFlushMenuItem);
 		secondaryImgLoadFlushMenuItem.addActionListener(e -> {
 			// toggle menuitem: label is updated before menu is shown as per #optionsButton
 			if (plugin.isSecondaryImageLoaded()) {
@@ -1986,30 +1986,6 @@ public class SNTUI extends JDialog {
 				loadSecondaryImageFile(secondaryImgPathField.getFile());
 			}
 		});
-		final JMenuItem jmiVisual = new JMenuItem(GuiListener.EDIT_SIGMA_VISUALLY);
-		jmiVisual.addActionListener(listener);
-		optionsMenu.add(jmiVisual);
-		JMenuItem jmiManual = new JMenuItem(GuiListener.EDIT_SIGMA_MANUALLY);
-		jmiManual.addActionListener(listener);
-		optionsMenu.add(jmiManual);
-		final JMenuItem thicknessCmdItem = new JMenuItem("Estimate Radii (Local Thickness)...");
-		thicknessCmdItem.setToolTipText("Computes the distribution of the radii of all the structures across the image");
-		//thicknessCmdItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DOTCIRCLE));
-		optionsMenu.add(thicknessCmdItem);
-		thicknessCmdItem.addActionListener(e -> {
-			(new DynamicCmdRunner(LocalThicknessCmd.class, null, RUNNING_CMD)).run();
-		});
-		final JMenuItem makeImgMenuItem = new JMenuItem("Generate Secondary Image...");
-		optionsMenu.add(makeImgMenuItem);
-		makeImgMenuItem.addActionListener(e -> {
-			if (plugin.isSecondaryImageLoaded()
-					&& !guiUtils.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
-				return;
-			}
-			loadCachedDataImage(true, "secondary", false, null);
-		});
-		optionsMenu.addSeparator();
-		optionsMenu.add(showFilteredImpMenuItem());
 		final JMenuItem revealMenuItem = new JMenuItem("Show Path in File Explorer");
 		revealMenuItem.addActionListener(e -> {
 			try {
@@ -2026,6 +2002,20 @@ public class SNTUI extends JDialog {
 			}
 		});
 		optionsMenu.add(revealMenuItem);
+		optionsMenu.addSeparator();
+		optionsMenu.add(secondaryImgLoadFlushMenuItem);
+		optionsMenu.add(showFilteredImpMenuItem());
+		optionsMenu.addSeparator();
+		final JMenuItem makeImgMenuItem = new JMenuItem("Generate Secondary Image...");
+		optionsMenu.add(makeImgMenuItem);
+		makeImgMenuItem.addActionListener(e -> {
+			if (plugin.isSecondaryImageLoaded()
+					&& !guiUtils.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
+				return;
+			}
+			loadCachedDataImage(true, "secondary", false, null);
+		});
+
 
 		secondaryImgPanel = new JPanel();
 		secondaryImgPanel.setLayout(new GridBagLayout());
