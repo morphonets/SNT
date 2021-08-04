@@ -676,6 +676,9 @@ public class SNTUI extends JDialog {
 		}
 		sb.append("\n");
 		sb.append("Cost function: ").append(plugin.costFunctionClass.getSimpleName());
+		if (plugin.costFunctionClass == OneMinusErfCost.class) {
+			sb.append("; Z-fudge: ").append(SNTUtils.formatDouble(plugin.getOneMinusErfZFudge(), 3));
+		}
 		sb.append("\n");
 		sb.append("Data structure: ").append(plugin.searchImageType.getSimpleName());
 		assert SwingUtilities.isEventDispatchThread();
