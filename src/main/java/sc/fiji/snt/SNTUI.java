@@ -3133,16 +3133,20 @@ public class SNTUI extends JDialog {
 	}
 
 	private void setMinMaxFromUser() {
-		final boolean useSecondary = plugin.isTracingOnSecondaryImageActive();
+		final String choice = getPrimarySecondaryImgChoice("Adjust range for which image?");
+		if (choice == null) return;
+		final boolean useSecondary = "Secondary".equalsIgnoreCase(choice);
 		final float[] defaultValues = new float[2];
 		defaultValues[0] = useSecondary ? (float)plugin.stackMinSecondary : (float)plugin.stackMin;
 		defaultValues[1] = useSecondary ? (float)plugin.stackMaxSecondary : (float)plugin.stackMax;
-		String promptMsg = "Enter the min-max range for the A* search. "//
-				+ "Values less than or equal to <i>Min</i> maximize the A* cost function. "
+		String promptMsg = "Enter the min-max range for the A* search";
+		if (useSecondary)
+			promptMsg += " for secondary image";
+		promptMsg +=  ". Values less than or equal to <i>Min</i> maximize the A* cost function. "
 				+ "Values greater than or equal to <i>Max</i> minimize the A* cost function. "//
 				+ "The current min-max range is " + defaultValues[0] + "-" + defaultValues[1];
 		// FIXME: scientific notation is parsed incorrectly
-		final float[] minMax = guiUtils.getRange(promptMsg, "Setting min-max",
+		final float[] minMax = guiUtils.getRange(promptMsg, "Setting Min-Max Range",
 				defaultValues);
 		if (minMax == null) {
 			return; // user pressed cancel
