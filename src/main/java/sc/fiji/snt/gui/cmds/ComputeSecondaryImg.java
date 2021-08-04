@@ -23,7 +23,6 @@
 package sc.fiji.snt.gui.cmds;
 
 import ij.ImagePlus;
-import ij.io.FileInfo;
 import ij.measure.Calibration;
 import net.imagej.ImageJ;
 import net.imagej.legacy.LegacyService;
@@ -34,12 +33,14 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
+import org.scijava.display.DisplayService;
 import org.scijava.io.IOService;
 import org.scijava.platform.PlatformService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-import org.scijava.util.FileUtils;
 import org.scijava.widget.Button;
+
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.filter.*;
 import sc.fiji.snt.gui.GuiUtils;
 
@@ -60,6 +61,9 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 	private static final String NONE = "None. Duplicate primary image";
 	private static final String FRANGI = "Frangi";
 	private static final String TUBENESS = "Tubeness";
+
+	@Parameter
+	private DisplayService displayService;
 
 	@Parameter
 	private LegacyService legacyService;
@@ -85,9 +89,9 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 	@Parameter(label = "Save", required = false)
 	private boolean save;
 
-	@Parameter(label = "N.B.:", persist = false, visibility = ItemVisibility.MESSAGE)
-	private String msg = "<HTML>It is assumed that the current sigma value for the primary image in<br>"
-			+ "the Auto-tracing widget reflects the size of structures to be filtered.<br>"
+	@Parameter(label = "<HTML>&nbsp;", persist = false, visibility = ItemVisibility.MESSAGE)
+	private String msg = "<HTML>It is assumed that the current sigma values for the primary image in<br>"
+			+ "the Auto-tracing widget reflect the size of structures to be filtered.<br>"
 			+ "If that is not the case, you should dismiss this prompt and adjust it.";
 
 	@Parameter(label = "Online Help", callback = "help")
@@ -101,7 +105,6 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 			error("Valid image data is required for computation.");
 			return;
 		}
-
 	}
 
 	@SuppressWarnings("unused")
@@ -110,8 +113,7 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 		try {
 			platformService.open(new URL(url));
 		} catch (final IOException e) {
-			msg("<HTML><div WIDTH=400>Web page could not be open. " + "Please visit " + url
-					+ " using your web browser.", "Error");
+			error("Web page could not be open. " + "Please visit " + url + " using your web browser.");
 		}
 	}
 
@@ -159,24 +161,29 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 
 	private void apply() {
 		snt.loadSecondaryImage(filteredImg, computeStats);
+		if (show) {
+			displayService.createDisplay(getImageName(), filteredImg); // virtual stack!?
+		}
+		if (save) {
+			try {
+				io.save(filteredImg, getSaveFile().getAbsolutePath());
+			} catch (final IOException e) {
+				error("An error occurred when trying to save image. See console for details");
+				e.printStackTrace();
+			}
+		}
 		resetUI();
 	}
 
+	private String getImageName() {
+		final String basename = SNTUtils.stripExtension(sntService.getPlugin().getImagePlus().getTitle());
+		final String sfx = (NONE.equals(filter)) ? "DUP" : filter;
+		return basename + " Sec Img [" + sfx + "].tif";
+	}
+
 	private File getSaveFile() {
-		final String impTitle = sntService.getPlugin().getImagePlus().getTitle();
-		final String filename = impTitle.replace("." + FileUtils.getExtension(impTitle), "");
-		final FileInfo fInfo = sntService.getPlugin().getImagePlus().getOriginalFileInfo();
-		File file;
-		if (fInfo != null && fInfo.directory != null && !fInfo.directory.isEmpty()) {
-			file = new File(fInfo.directory, filename + "[" + filter + "].tif");
-		} else {
-			file = new File(System.getProperty("user.home"), filename + "[" + filter + "].tif");
-		}
-		int i = 0;
-		while (file.exists()) {
-			i++;
-			file = new File(file.getAbsolutePath().replace("].tif", "-" + String.valueOf(i) + "].tif"));
-		}
+		File file = new File(sntService.getPlugin().getPrefs().getRecentDir(), getImageName());
+		file = SNTUtils.getUniquelySuffixedTifFile(file);
 		return legacyService.getIJ1Helper().saveDialog("Save \"Filtered Image\"", file, ".tif");
 	}
 
