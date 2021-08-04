@@ -129,7 +129,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private static final long serialVersionUID = 1L;
 	private static final String FIT_URI = "https://imagej.net/SNT:_Manual#Refine.2FFit";
 	private final HelpfulJTree tree;
-	private DefaultMutableTreeNode root;
 	private final SNT plugin;
 	private final PathAndFillManager pathAndFillManager;
 	private SNTTable table;
@@ -162,8 +161,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		pathAndFillManager = plugin.getPathAndFillManager();
 		pathAndFillManager.addPathAndFillListener(this);
 
-		root = new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL);
-		tree = new HelpfulJTree(root);
+		tree = new HelpfulJTree();
 		tree.setRootVisible(false);
 		tree.setVisibleRowCount(25);
 		tree.setDoubleBuffered(true);
@@ -655,13 +653,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			for (final TreePath tp : selectedPaths) {
 				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) (tp
 					.getLastPathComponent());
-				if (node != root) {
+				if (!node.isRoot()) {
 					final Path p = (Path) node.getUserObject();
 					result.add(p);
 				}
 			}
 			return result;
 		});
+	}
+
+	protected boolean selectionExists() {
+		return tree.getSelectionCount() > 0;
 	}
 
 	synchronized protected void cancelFit(final boolean updateUIState) {
@@ -843,7 +845,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				if (source == this || !pathAndFillManager.enableUIupdates) return;
 				final TreePath[] noTreePaths = {};
 				tree.setSelectionPaths(noTreePaths);
-				tree.setSelectedPaths(root, selectedPaths);
+				tree.setSelectedPaths(tree.getRoot(), selectedPaths);
 			}
 		});
 	}
@@ -859,8 +861,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		SwingUtilities.invokeLater(() -> {
 
 			// Save the selection and expanded states:
-			final List<Path> selectedPathsBefore = tree.getSelectedPaths();
-			final List<Path> expandedPathsBefore = tree.getExpandedPaths(root);
+			final Set<Path> selectedPathsBefore = tree.getSelectedPaths();
+			final Set<Path> expandedPathsBefore = tree.getExpandedPaths();
 
 			/*
 			 * Ignore the arguments and get the real path list from the PathAndFillManager:
@@ -872,16 +874,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				// Add the primary path if it's not just a fitted version of another:
 				if (!primaryPath.isFittedVersionOfAnotherPath()) addNode(newRoot, primaryPath, model);
 			}
-			root = newRoot;
 			tree.setModel(model);
 			tree.reload();
 			// Set back the expanded state:
 			if (expandAll)
 				GuiUtils.expandAllTreeNodes(tree);
-			else
-				tree.setExpandedPaths(root, expandedPathsBefore, justAdded);
+			else {
+				expandedPathsBefore.add(justAdded);
+				tree.setExpandedPaths(expandedPathsBefore);
+			}
+
 			// Set back the selection state
-			tree.setSelectedPaths(root, selectedPathsBefore);
+			tree.setSelectedPaths(newRoot, selectedPathsBefore);
 		});
 	}
 
@@ -1137,8 +1141,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String ROOT_LABEL = "All Paths";
 		private final TreeSearchable searchable;
 
-		public HelpfulJTree(final TreeNode root) {
-			super(root);
+		public HelpfulJTree() {
+			super(new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL));
 			setLargeModel(true);
 			setCellRenderer(new NodeRender());
 			getSelectionModel().setSelectionMode(
@@ -1149,17 +1153,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			searchable = new TreeSearchable(this);
 		}
 
-		public boolean isExpanded(final Object[] path) {
-			assert SwingUtilities.isEventDispatchThread();
-			final TreePath tp = new TreePath(path);
-			return isExpanded(tp);
+		private DefaultMutableTreeNode getRoot() {
+			return ((DefaultMutableTreeNode) getModel().getRoot());
 		}
 
-		public void setExpanded(final Object[] path, final boolean expanded) {
-			assert SwingUtilities.isEventDispatchThread();
-			final TreePath tp = new TreePath(path);
-			setExpandedState(tp, expanded);
-		}
 
 		public void setSelected(final Object[] path) {
 			assert SwingUtilities.isEventDispatchThread();
@@ -1167,25 +1164,33 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			addSelectionPath(tp);
 		}
 
-		public List<Path> getSelectedPaths() {
-			final TreePath[] selectionTreePath = tree.getSelectionPaths();
-			final List<Path> selectedPaths = new ArrayList<>();
+		public Set<Path> getSelectedPaths() {
+			final TreePath[] selectionTreePath = getSelectionPaths();
+			final Set<Path> selectedPaths = new HashSet<>();
 			if (selectionTreePath == null)
 				return selectedPaths;
 			for (final TreePath tp : selectionTreePath) {
 				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) tp.getLastPathComponent();
-				if (node != root) {
-					final Path p = (Path) node.getUserObject();
-					selectedPaths.add(p);
+				if (!node.isRoot()) { // 'invisible root' is not a SNT Path
+					selectedPaths.add((Path) node.getUserObject());
 				}
 			}
 			return selectedPaths;
 		}
 
-		public List<Path> getExpandedPaths(final MutableTreeNode node) {
-			final List<Path> list = new ArrayList<>();
-			getExpandedPathsInternal(node, list);
-			return list;
+		public Set<Path> getExpandedPaths() {
+			final Set<Path> set = new HashSet<>();
+			final Enumeration<?> children = getRoot().depthFirstEnumeration();
+			while (children.hasMoreElements()) {
+				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) children.nextElement();
+				if (isExpanded(new TreePath(node.getPath()))) {
+					final Object o = node.getUserObject();
+					if (o instanceof Path) { // 'invisible root' is not a SNT Path
+						set.add( (Path) o);
+					}
+				}
+			}
+			return set;
 		}
 
 		public void setSelectedPaths(final MutableTreeNode node, final Collection<Path> set) {
@@ -1196,7 +1201,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
 				final Path p = (Path) child.getUserObject();
 				if (set.contains(p)) {
-					tree.setSelected(child.getPath());
+					setSelected(child.getPath());
 					if (updateCTposition && plugin != null) {
 						updateHyperstackPosition(p);
 					}
@@ -1206,43 +1211,23 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		}
 
-		public void setExpandedPaths(final MutableTreeNode node, final Collection<Path> set, final Path justAdded) {
-			// FIXME: this slows down many operations dramatically.
-			//  Figure out a better way to only do this as necessary...
-//			assert SwingUtilities.isEventDispatchThread();
-//			final int count = getModel().getChildCount(node);
-//			for (int i = 0; i < count; i++) {
-//				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
-//				final Path p = (Path) child.getUserObject();
-//				if (set.contains(p) || ((justAdded != null) && (justAdded == p))) {
-//					tree.setExpanded(child.getPath(), true);
-//				}
-//				if (!getModel().isLeaf(child))
-//					setExpandedPaths(child, set, justAdded);
-//			}
-		}
-
-		private void getExpandedPathsInternal(final MutableTreeNode node, final List<Path> list) {
+		public void setExpandedPaths(final Collection<Path> set) {
 			assert SwingUtilities.isEventDispatchThread();
-			final int count = getModel().getChildCount(node);
-			for (int i = 0; i < count; i++) {
-				final DefaultMutableTreeNode child = (DefaultMutableTreeNode) getModel().getChild(node, i);
-				final Path p = (Path) child.getUserObject();
-				if (tree.isExpanded(child.getPath())) {
-					list.add(p);
-				}
-				if (!getModel().isLeaf(child))
-					getExpandedPathsInternal(child, list);
+			final Enumeration<?> children = getRoot().depthFirstEnumeration();
+			while (children.hasMoreElements()) {
+				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) children.nextElement();
+				final Object o = node.getUserObject();
+				if (o instanceof Path && set.contains((Path) o)) // 'invisible root' is not a SNT Path
+					expandPath(new TreePath(node.getPath()));
 			}
 		}
-	
+
 		public void repaintAllNodes() {
 			final DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
-			final Enumeration<?> e = root.preorderEnumeration();
+			final Enumeration<?> e = getRoot().preorderEnumeration();
 			while (e.hasMoreElements()) {
 				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) e.nextElement();
-				if (node != root)
-					model.nodeChanged(node);
+				model.nodeChanged(node); // will also update the 'invisible'/unrendered root
 			}
 		}
 
@@ -1252,14 +1237,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
 				for (final TreePath tp : selectedPaths) {
 					final DefaultMutableTreeNode node = (DefaultMutableTreeNode) (tp.getLastPathComponent());
-					if (node != root)
+					if (!node.isRoot())
 						model.nodeChanged(node);
 				}
 			}
 		}
 
 		public void reload() {
-			((DefaultTreeModel) tree.getModel()).reload();
+			((DefaultTreeModel) getModel()).reload();
 			if (searchableBar != null) {
 				searchableBar.setStatusLabelPlaceholder(String.format("%d Path(s) listed", getPathAndFillManager().size()));
 			}
@@ -1294,7 +1279,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			final DefaultMutableTreeNode node = (DefaultMutableTreeNode) (tp
 				.getLastPathComponent());
-			if (node == null || node == root) return c;
+			if (node == null || node.isRoot()) return c;
 			final Path p = (Path) node.getUserObject();
 			final Color color = p.getColor();
 			if (color == null) {
