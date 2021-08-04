@@ -558,7 +558,8 @@ public class GuiUtils {
 	private Object getObj(final String promptMsg, final String promptTitle,
 		final Object defaultValue)
 	{
-		return JOptionPane.showInputDialog(parent, promptMsg, promptTitle,
+		final String wrappedText = (parent == null) ? promptMsg : getWrappedText(new JLabel(), promptMsg);
+		return JOptionPane.showInputDialog(parent, wrappedText, promptTitle,
 			JOptionPane.PLAIN_MESSAGE, null, null, defaultValue);
 	}
 

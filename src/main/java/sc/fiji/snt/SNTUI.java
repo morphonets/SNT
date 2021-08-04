@@ -1588,9 +1588,8 @@ public class SNTUI extends JDialog {
 
 					final int defResFactor = Content.getDefaultResamplingFactor(plugin.getImagePlus(),
 							ContentConstants.VOLUME);
-					final Double userResFactor = guiUtils.getDouble("<HTML><body><div style='width:"
-							+ Math.min(getWidth(), 500) + ";'>"
-							+ "Please specify the image resampling factor. The default factor for current image is "
+					final Double userResFactor = guiUtils.getDouble(
+							"Please specify the image resampling factor. The default factor for current image is "
 							+ defResFactor + ".", "Image Resampling Factor", defResFactor);
 
 					if (userResFactor == null) { // user pressed cancel
@@ -2022,7 +2021,7 @@ public class SNTUI extends JDialog {
 		jmiManual.addActionListener(listener);
 		optionsMenu.add(jmiManual);
 		final JMenuItem thicknessCmdItem = new JMenuItem("Estimate Radii (Local Thickness)...");
-		thicknessCmdItem.setToolTipText("<HTML><div WIDTH=500>Computes the distribution of the radii of all the structures across the image");
+		thicknessCmdItem.setToolTipText("Computes the distribution of the radii of all the structures across the image");
 		//thicknessCmdItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DOTCIRCLE));
 		optionsMenu.add(thicknessCmdItem);
 		thicknessCmdItem.addActionListener(e -> {
@@ -2950,8 +2949,9 @@ public class SNTUI extends JDialog {
 		JMenuItem jmiManual = new JMenuItem(GuiListener.EDIT_SIGMA_MANUALLY);
 		jmiManual.addActionListener(listener);
 		optionsMenu.add(jmiManual);
+		optionsMenu.addSeparator();
 		final JMenuItem thicknessCmdItem = new JMenuItem("Estimate Radii (Local Thickness)...");
-		thicknessCmdItem.setToolTipText("<HTML><div WIDTH=500>Computes the distribution of the radii of all the structures across the image");
+		thicknessCmdItem.setToolTipText("Computes the distribution of the radii of all the structures across the image");
 		//thicknessCmdItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DOTCIRCLE));
 		optionsMenu.add(thicknessCmdItem);
 		thicknessCmdItem.addActionListener(e -> {
@@ -3165,11 +3165,10 @@ public class SNTUI extends JDialog {
 		final float[] defaultValues = new float[2];
 		defaultValues[0] = useSecondary ? (float)plugin.stackMinSecondary : (float)plugin.stackMin;
 		defaultValues[1] = useSecondary ? (float)plugin.stackMaxSecondary : (float)plugin.stackMax;
-		String promptMsg = "<HTML><body><div style='width:500;'>" //
-				+ "Enter the min-max range for the A* search.<br>"//
-				+ "Values less than or equal to Min maximize the A* cost function.<br>"
-				+ "Values greater than or equal to Max minimize the A* cost function.<br>"//
-				+ "The current min-max is " + defaultValues[0] + "-" + defaultValues[1];
+		String promptMsg = "Enter the min-max range for the A* search. "//
+				+ "Values less than or equal to <i>Min</i> maximize the A* cost function. "
+				+ "Values greater than or equal to <i>Max</i> minimize the A* cost function. "//
+				+ "The current min-max range is " + defaultValues[0] + "-" + defaultValues[1];
 		// FIXME: scientific notation is parsed incorrectly
 		final float[] minMax = guiUtils.getRange(promptMsg, "Setting min-max",
 				defaultValues);
