@@ -1964,8 +1964,6 @@ public class SNTUI extends JDialog {
 		final JPopupMenu optionsMenu = new JPopupMenu();
 		final JButton filteredImgBrowseButton =  IconFactory.getButton(IconFactory.GLYPH.OPEN_FOLDER);
 		secondaryImgOptionsButton = optionsButton(optionsMenu);
-
-
 		filteredImgBrowseButton.addActionListener(e -> {
 			final File file = openFile("Choose Secondary Image", secondaryImgPathField.getFile());
 			if (file == null)
@@ -2774,7 +2772,6 @@ public class SNTUI extends JDialog {
 					previousSelection = e.getItem();
 
 				} else if ( e.getStateChange() == ItemEvent.SELECTED ) {
-					@SuppressWarnings("unchecked")
 					final int idx = ((JComboBox<String>) e.getSource()).getSelectedIndex();
 					if (idx == 0) {
 						enableTracerThread();
@@ -2860,9 +2857,7 @@ public class SNTUI extends JDialog {
 
 		optionsMenu.addSeparator();
 		JMenuItem minMaxJmi = new JMenuItem("Adjust Min-Max...");
-		minMaxJmi.addActionListener(e -> {
-			setMinMaxFromUser();
-		});
+		minMaxJmi.addActionListener(e -> setMinMaxFromUser());
 		optionsMenu.add(minMaxJmi);
 		aStarPanel = new JPanel(new BorderLayout());
 		aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
@@ -3183,11 +3178,12 @@ public class SNTUI extends JDialog {
 	private void setSigmaFromUser(final String primarySecondaryChoice) {
 		final HessianCaller hc = plugin.getHessianCaller(primarySecondaryChoice);
 		final JTextField sigmaField = new JTextField(5);
-		final Object[] contents = { "<html><b>Sigma</b><br>Enter the approximate radii of the structures you are<br>" //
-				+ "tracing, separated by comma. The default is the average of voxel dimensions<br>" //
-				+ "(anisotropic images) or twice the voxel size (isotropic),<br>" //
-				+ "i.e., " + SNTUtils.formatDouble(hc.getDefaultSigma()[0], 2) //
-				+ plugin.spacing_units + " for active image:", sigmaField};
+		final Object[] contents = { "<html><HTML><div WIDTH=500><b>Ajusting sigma:</b><br>"//
+				+ "Enter the approximate radii of the structures you are " //
+				+ "tracing, separated by comma. The default is the average of voxel dimensions " //
+				+ "(anisotropic images) or twice the voxel size (isotropic). For the current " //
+				+ "image the default is " + SNTUtils.formatDouble(hc.getDefaultSigma()[0], 2) //
+				+ plugin.spacing_units + ".", sigmaField};
 		final int result = JOptionPane.showConfirmDialog(this, contents, "Hessian Settings (" +
 						primarySecondaryChoice +" Image)",
 				JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
