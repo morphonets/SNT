@@ -39,6 +39,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SWCPoint;
 
@@ -57,6 +58,7 @@ public class DirectedWeightedGraphTest {
 
 	@Before
 	public void setUp() throws Exception {
+//		tree = new MouseLightLoader("AA0103").getTree();
 		tree = new SNTService().demoTrees().get(0);
 		analyzer = new TreeAnalyzer(tree);
 		graph = tree.getGraph();

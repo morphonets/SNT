@@ -135,57 +135,31 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @throws IllegalStateException if the base graph does not have exactly one root
 	 */
 	public DirectedWeightedGraph getSimplifiedGraph() {
+		final DirectedWeightedGraph simplifiedGraph = new DirectedWeightedGraph();
+		transferCommonProperties(simplifiedGraph);
 		final LinkedHashSet<SWCPoint> relevantNodes = new LinkedHashSet<>();
 		relevantNodes.add(getRoot());
 		relevantNodes.addAll(getBPs());
 		relevantNodes.addAll(getTips());
-		final DirectedWeightedGraph simplifiedGraph = new DirectedWeightedGraph();
-		transferCommonProperties(simplifiedGraph);
 		relevantNodes.forEach(simplifiedGraph::addVertex);
 		for (final SWCPoint node : relevantNodes) {
-			final SimplifiedVertex ancestor = firstRelevantAncestor(node);
-			if (ancestor != null && ancestor.associatedWeight > 0) {
-				try {
-					final SWCWeightedEdge edge = simplifiedGraph.addEdge(ancestor.vertex, node);
-					simplifiedGraph.setEdgeWeight(edge, ancestor.associatedWeight);
-				} catch (final IllegalArgumentException ignored) {
-					// do nothing. ancestor.vertex not found in simplifiedGraph
+			if (inDegreeOf(node) == 0) {
+				// Skip root
+				continue;
+			}
+			double pathWeight = 0;
+			SWCPoint current = node;
+			while (inDegreeOf(current) > 0) {
+				final SWCWeightedEdge inEdge = incomingEdgesOf(current).iterator().next();
+				pathWeight += inEdge.getWeight();
+				current = inEdge.getSource();
+				if (outDegreeOf(current) > 1) {
+					break;
 				}
 			}
+			simplifiedGraph.setEdgeWeight(simplifiedGraph.addEdge(current, node), pathWeight);
 		}
-		simplifiedGraph.updateVertexProperties();
 		return simplifiedGraph;
-	}
-
-	private SimplifiedVertex firstRelevantAncestor(SWCPoint node) {
-		if (!Graphs.vertexHasPredecessors(this, node)) {
-			return null;
-		}
-		double pathWeight = 0;
-		SWCPoint parent;
-		while (true) {
-			try {
-				parent = Graphs.predecessorListOf(this, node).get(0);
-				final double edgeWeight = getEdge(parent, node).getWeight();
-				pathWeight += edgeWeight;
-				if (inDegreeOf(parent) == 0 || outDegreeOf(parent) > 1) {
-					return new SimplifiedVertex(parent, pathWeight);
-				}
-				node = parent;
-			} catch (final IndexOutOfBoundsException | NullPointerException ignored) {
-				return null;
-			}
-		}
-	}
-
-	private static class SimplifiedVertex {
-		final SWCPoint vertex;
-		final double associatedWeight;
-
-		SimplifiedVertex(final SWCPoint vertex, final double associatedWeight) {
-			this.vertex = vertex;
-			this.associatedWeight = associatedWeight;
-		}
 	}
 
 	/**
