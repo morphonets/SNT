@@ -969,7 +969,7 @@ public class Path implements Comparable<Path> {
 	 */
 	public Path createPath() {
 		final Calibration cal = getCalibration();
-		final Path dup = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit());
+		final Path dup = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit(), points);
 		applyCommonProperties(dup);
 		return dup;
 	}

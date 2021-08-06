@@ -1986,7 +1986,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 				// Then we've finished...
 
-				for (final Path p : allPaths) {
+				for (final Path p : new ArrayList<>(allPaths)) {
 					final Integer startID = startJoins.get(p.getID());
 					final Integer startIndexInteger = startJoinsIndices.get(p.getID());
 					PointInImage startJoinPoint = startJoinsPoints.get(p.getID());
@@ -2014,9 +2014,19 @@ public class PathAndFillManager extends DefaultHandler implements
 						// We no longer support end point joining, so we'll reverse everything
 						// and apply a 'start join';
 						SNTUtils.log("End joining no longer supported: Establishing a star-join' on reversed path");
-						endPath = endPath.reversed();
-						endJoinPoint = endPath.getNodeWithoutChecks(endPath.size() -1 - endIndexInteger);
-						p.setStartJoin(endPath, endJoinPoint);
+						Path pReversed = p.reversed();
+						// replace the path in all data structures...
+						allPaths.remove(p);
+						pathIdMap.remove(p.getID(), p);
+						pathNameMap.remove(p.getName(), p);
+						pathNameLowercaseMap.remove(p.getName().toLowerCase(Locale.ROOT), p);
+
+						allPaths.add(pReversed);
+						pathIdMap.put(pReversed.getID(), pReversed);
+						pathNameMap.put(pReversed.getName(), pReversed);
+						pathNameLowercaseMap.put(pReversed.getName().toLowerCase(Locale.ROOT), pReversed);
+
+						pReversed.setStartJoin(endPath, endJoinPoint);
 					}
 					if (fittedID != null) {
 						final Path fitted = getPathFromID(fittedID);
