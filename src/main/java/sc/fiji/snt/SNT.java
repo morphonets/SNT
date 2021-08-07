@@ -166,7 +166,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/* all tracing-related functions are performed on the RandomAccessibleInterval */
 	@SuppressWarnings("rawtypes")
-	protected RandomAccessibleInterval img;
+	private RandomAccessibleInterval img;
 	@SuppressWarnings("rawtypes")
 	private RandomAccessibleInterval sliceAtCT;
 
@@ -705,7 +705,7 @@ public class SNT extends MultiDThreePanes implements
 		if (restoreROI) xy.saveRoi();
 		xy.deleteRoi(); // if a ROI exists, compute min/ max for entire image
 		if (restoreROI) xy.restoreRoi();
-		this.stats = xy.getStatistics();
+		this.stats = xy.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN | ImageStatistics.STD_DEV);
 		this.stackMin = this.stats.min;
 		this.stackMax = this.stats.max;
 		nullifyHessian(); // ensure it will be reloaded
@@ -2228,21 +2228,37 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	synchronized public void initPathsToFill(final Set<Path> fromPaths) {
-
 		fillerSet.clear();
-		for (Path path : fromPaths) {
-			final FillerThread filler = new FillerThread(sliceAtCT, xy.getCalibration(), fillThresholdDistance,
-					5000, new ReciprocalCost(stats.min, stats.max));
-			addThreadToDraw(filler);
-			filler.addProgressListener(this);
-			filler.addProgressListener(ui.getFillManager());
-			filler.setSourcePaths(Collections.singleton(path));
-			fillerSet.add(filler);
+		final boolean useSecondary = isTracingOnSecondaryImageActive();
+		@SuppressWarnings("unchecked")
+		final RandomAccessibleInterval<? extends RealType<?>> data = useSecondary ? secondaryData : sliceAtCT;
+		double min = useSecondary ? stackMinSecondary : stackMin;
+		double max = useSecondary ? stackMaxSecondary : stackMax;
+		double mean = useSecondary ? statsSecondary.mean : stats.mean;
+		double stdDev = useSecondary ? statsSecondary.stdDev : stats.stdDev;
+		SearchCost costFunction;
+		if (costFunctionClass.equals(ReciprocalCost.class)) {
+			costFunction = new ReciprocalCost(min, max);
+		} else if (costFunctionClass.equals(DifferenceCost.class)) {
+			costFunction = new DifferenceCost(min, max);
+		} else if (costFunctionClass.equals(OneMinusErfCost.class)) {
+			costFunction = new OneMinusErfCost(max, mean, stdDev);
+		} else {
+			throw new IllegalArgumentException("BUG: Unrecognized cost function " + costFunctionClass.getSimpleName());
 		}
-		SNTUtils.log("# FillerThreads: " + fillerSet.size());
-
+		final FillerThread filler = new FillerThread(
+				data,
+				xy.getCalibration(),
+				fillThresholdDistance,
+				1000,
+				costFunction);
+		addThreadToDraw(filler);
+		filler.addProgressListener(this);
+		filler.addProgressListener(ui.getFillManager());
+		filler.setSourcePaths(fromPaths);
+		fillerSet.add(filler);
+		//SNTUtils.log("# FillerThreads: " + fillerSet.size());
 		if (ui != null) ui.setFillListVisible(true);
-
 		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
