@@ -644,11 +644,15 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void startUI() {
-		GuiUtils.setLookAndFeel();
-		final SNT thisPlugin = this;
-		ui = new SNTUI(thisPlugin);
-		guiUtils = new GuiUtils(ui);
-		SwingUtilities.invokeLater(() -> { ui.displayOnStarting(); });
+		try {
+			GuiUtils.setLookAndFeel();
+			final SNT thisPlugin = this;
+			ui = new SNTUI(thisPlugin);
+			guiUtils = new GuiUtils(ui);
+			ui.displayOnStarting();
+		} catch (final Exception e) {
+			e.printStackTrace();
+		}
 	}
 
 	public void loadTracings(final File file) {
