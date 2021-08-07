@@ -1749,9 +1749,11 @@ public class PathAndFillManager extends DefaultHandler implements
 				}
 
 				// Assign ID
-				if (startsOnInteger == null || (primaryString != null && primaryString.equals("true"))) {
+				if (startsOnInteger == null) {
 					current_path.setIsPrimary(true);
 					++maxUsedTreeID;
+				} else if (primaryString != null && primaryString.equals("true")) {
+					current_path.setIsPrimary(true);
 				}
 				current_path.setIDs(id, maxUsedTreeID);
 				if (id > maxUsedPathID) maxUsedPathID = id;
@@ -2027,6 +2029,15 @@ public class PathAndFillManager extends DefaultHandler implements
 						pathNameLowercaseMap.put(pReversed.getName().toLowerCase(Locale.ROOT), pReversed);
 
 						pReversed.setStartJoin(endPath, endJoinPoint);
+
+						for (final Path join : new ArrayList<>(p.somehowJoins)) {
+							if (join.getStartJoins() == p) {
+								final PointInImage joinPoint = join.getStartJoinsPoint();
+								join.unsetStartJoin();
+								join.setStartJoin(pReversed, joinPoint);
+							}
+						}
+
 					}
 					if (fittedID != null) {
 						final Path fitted = getPathFromID(fittedID);
@@ -2079,7 +2090,10 @@ public class PathAndFillManager extends DefaultHandler implements
 					}
 					f.setSourcePaths(realSourcePaths);
 				}
-
+				// FIXME: after import there still can be different Cell IDs within the same Tree,
+				//  so do a final rebuild to ensure everything makes sense. This is a workaround until
+				//  we can figure out why it is happening in the first place.
+				rebuildRelationships();
 				setSelected(new ArrayList<Path>(), this);
 				resetListeners(null, true);
 				break;
