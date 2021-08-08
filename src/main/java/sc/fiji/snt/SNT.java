@@ -105,6 +105,12 @@ public class SNT extends MultiDThreePanes implements
 	@Parameter
 	protected ConvertService convertService;
 
+	enum SearchType {ASTAR, NBASTAR}
+
+	enum CostFunctionType {RECIPROCAL, DIFFERENCE, PROBABILITY}
+
+	enum HeuristicType {EUCLIDEAN, DIJKSTRA}
+
 	protected static boolean verbose = false; // FIXME: Use prefservice
 
 	protected static final int MIN_SNAP_CURSOR_WINDOW_XY = 2;
@@ -164,7 +170,7 @@ public class SNT extends MultiDThreePanes implements
 	protected int frame;
 	private LUT lut;
 
-	/* all tracing-related functions are performed on the RandomAccessibleInterval */
+	/* all tracing and filling-related functions are performed on the RandomAccessibleIntervals */
 	@SuppressWarnings("rawtypes")
 	private RandomAccessibleInterval img;
 	@SuppressWarnings("rawtypes")
@@ -179,15 +185,15 @@ public class SNT extends MultiDThreePanes implements
 	protected final HessianCaller secondaryHessian;
 
 	/* current selected SearchInterface type */
-	protected Class<? extends SearchInterface> searchType = TracerThread.class;
+	protected SearchType searchType = SearchType.ASTAR;
 
 	/* Search image type */
 	@SuppressWarnings("rawtypes")
-	protected Class<? extends SearchImage> searchImageType = ArraySearchImage.class;
+	protected Class<? extends SearchImage> searchImageType = MapSearchImage.class;
 
 	/* Cost function and heuristic estimate for search */
-	protected Class<? extends SearchCost> costFunctionClass = ReciprocalCost.class;
-	protected Class<? extends SearchHeuristic> heuristicClass = EuclideanHeuristic.class;
+	protected CostFunctionType costFunctionType = CostFunctionType.RECIPROCAL;
+	protected HeuristicType heuristicType = HeuristicType.EUCLIDEAN;
 
 	/* adjustable parameters for cost functions */
 	protected volatile double oneMinusErfZFudge = 0.1;
@@ -1561,41 +1567,55 @@ public class SNT extends MultiDThreePanes implements
 		double max = useSecondary ? stackMaxSecondary : stackMax;
 
 		SearchCost costFunction;
-		if (ReciprocalCost.class.equals(costFunctionClass)) {
-			costFunction = new ReciprocalCost(min, max);
-		} else if (OneMinusErfCost.class.equals(costFunctionClass)) {
-			OneMinusErfCost cost = new OneMinusErfCost(imgStats.max, imgStats.mean, imgStats.stdDev);
-			cost.setZFudge(oneMinusErfZFudge);
-			costFunction = cost;
-		} else if (DifferenceCost.class.equals(costFunctionClass)) {
-			costFunction = new DifferenceCost(min, max);
-		} else {
-			throw new IllegalArgumentException("BUG: Unknown cost function class " + costFunctionClass);
+		switch (costFunctionType) {
+			case RECIPROCAL:
+				costFunction = new ReciprocalCost(min, max);
+				break;
+			case PROBABILITY:
+				OneMinusErfCost cost = new OneMinusErfCost(imgStats.max, imgStats.mean, imgStats.stdDev);
+				cost.setZFudge(oneMinusErfZFudge);
+				costFunction = cost;
+				break;
+			case DIFFERENCE:
+				costFunction = new DifferenceCost(min, max);
+				break;
+			default:
+				throw new IllegalArgumentException("BUG: Unknown cost function " + costFunctionType);
 		}
-		SearchHeuristic heuristic = new EuclideanHeuristic();
 
-		// TODO: unify api for these two
-		if (searchType.equals(TracerThread.class)) {
-			currentSearchThread = new TracerThread(
-					this, img,
-					(int) Math.round(last_start_point_x),
-					(int) Math.round(last_start_point_y),
-					(int) Math.round(last_start_point_z),
-					x_end, y_end, z_end,
-					costFunction, heuristic);
+		SearchHeuristic heuristic;
+		switch (heuristicType) {
+			case EUCLIDEAN:
+				heuristic = new EuclideanHeuristic();
+				break;
+			case DIJKSTRA:
+				heuristic = new DijkstraHeuristic();
+				break;
+			default:
+				throw new IllegalArgumentException("BUG: Unknown heuristic " + heuristicType);
+		}
 
-		} else if (searchType.equals(BidirectionalSearch.class)) {
-			currentSearchThread = new BidirectionalSearch(
-					this, img,
-					(int) Math.round(last_start_point_x),
-					(int) Math.round(last_start_point_y),
-					(int) Math.round(last_start_point_z),
-					x_end, y_end, z_end,
-					costFunction, heuristic);
-
-		} else {
-			throw new IllegalArgumentException("BUG: Unknown search class");
-
+		switch (searchType) {
+			case ASTAR:
+				currentSearchThread = new TracerThread(
+						this, img,
+						(int) Math.round(last_start_point_x),
+						(int) Math.round(last_start_point_y),
+						(int) Math.round(last_start_point_z),
+						x_end, y_end, z_end,
+						costFunction, heuristic);
+				break;
+			case NBASTAR:
+				currentSearchThread = new BidirectionalSearch(
+						this, img,
+						(int) Math.round(last_start_point_x),
+						(int) Math.round(last_start_point_y),
+						(int) Math.round(last_start_point_z),
+						x_end, y_end, z_end,
+						costFunction, heuristic);
+				break;
+			default:
+				throw new IllegalArgumentException("BUG: Unknown search class");
 		}
 		addThreadToDraw(currentSearchThread);
 		currentSearchThread.setDrawingColors(Color.CYAN, Color.ORANGE);// TODO: Make this color a preference
@@ -2237,14 +2257,18 @@ public class SNT extends MultiDThreePanes implements
 		double mean = useSecondary ? statsSecondary.mean : stats.mean;
 		double stdDev = useSecondary ? statsSecondary.stdDev : stats.stdDev;
 		SearchCost costFunction;
-		if (costFunctionClass.equals(ReciprocalCost.class)) {
-			costFunction = new ReciprocalCost(min, max);
-		} else if (costFunctionClass.equals(DifferenceCost.class)) {
-			costFunction = new DifferenceCost(min, max);
-		} else if (costFunctionClass.equals(OneMinusErfCost.class)) {
-			costFunction = new OneMinusErfCost(max, mean, stdDev);
-		} else {
-			throw new IllegalArgumentException("BUG: Unrecognized cost function " + costFunctionClass.getSimpleName());
+		switch (costFunctionType) {
+			case RECIPROCAL:
+				costFunction = new ReciprocalCost(min, max);
+				break;
+			case PROBABILITY:
+				costFunction = new OneMinusErfCost(max, mean, stdDev);
+				break;
+			case DIFFERENCE:
+				costFunction = new DifferenceCost(min, max);
+				break;
+			default:
+				throw new IllegalArgumentException("BUG: Unrecognized cost function " + costFunctionType);
 		}
 		final FillerThread filler = new FillerThread(
 				data,

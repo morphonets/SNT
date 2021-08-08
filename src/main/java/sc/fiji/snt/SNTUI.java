@@ -644,8 +644,8 @@ public class SNTUI extends JDialog {
 			sb.append("Hessian: ").append(plugin.primaryHessian.toString());
 		}
 		sb.append("\n");
-		sb.append("Cost function: ").append(plugin.costFunctionClass.getSimpleName());
-		if (plugin.costFunctionClass == OneMinusErfCost.class) {
+		sb.append("Cost function: ").append(plugin.costFunctionType);
+		if (plugin.costFunctionType == SNT.CostFunctionType.PROBABILITY) {
 			sb.append("; Z-fudge: ").append(SNTUtils.formatDouble(plugin.getOneMinusErfZFudge(), 3));
 		}
 		sb.append("\n");
@@ -2820,25 +2820,25 @@ public class SNTUI extends JDialog {
 
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Cost Function:", false));
 		final ButtonGroup costFunctionButtonGroup = new ButtonGroup();
-		final Map<String, Class<? extends SearchCost>> costMap = new TreeMap<>();
-		costMap.put("Reciprocal of Scaled Intensity", ReciprocalCost.class);
-		costMap.put("Difference of Intensity", DifferenceCost.class);
-		costMap.put("Probability of Intensity...", OneMinusErfCost.class);
+		final Map<String, SNT.CostFunctionType> costMap = new TreeMap<>();
+		costMap.put("Reciprocal of Scaled Intensity", SNT.CostFunctionType.RECIPROCAL);
+		costMap.put("Difference of Intensity", SNT.CostFunctionType.DIFFERENCE);
+		costMap.put("Probability of Intensity...", SNT.CostFunctionType.PROBABILITY);
 		costMap.forEach((lbl, clsss) -> {
 			final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
 			costFunctionButtonGroup.add(rbmi);
 			optionsMenu.add(rbmi);
-			rbmi.setActionCommand(clsss.getSimpleName());
-			rbmi.setSelected(plugin.costFunctionClass == clsss);
+			rbmi.setActionCommand(String.valueOf(clsss));
+			rbmi.setSelected(plugin.costFunctionType == clsss);
 			rbmi.addActionListener(e -> {
-				if (clsss == OneMinusErfCost.class) {
+				if (clsss == SNT.CostFunctionType.PROBABILITY) {
 					final Double fudge = getZFudgeFromUser();
 					if (fudge == null) { // no value set: restore previous state
 						costFunctionButtonGroup.clearSelection();
 						final Enumeration<AbstractButton> buttons = costFunctionButtonGroup.getElements();
 						while (buttons.hasMoreElements()) {
 							final AbstractButton button = (AbstractButton) buttons.nextElement();
-							if (button.getActionCommand().equals(plugin.costFunctionClass.getSimpleName()))
+							if (button.getActionCommand().equals(String.valueOf(plugin.costFunctionType)))
 								button.setSelected(true);
 								break;
 						}
@@ -2848,10 +2848,10 @@ public class SNTUI extends JDialog {
 					plugin.oneMinusErfZFudge = fudge;
 					SNTUtils.log("Z-fudge changed to " + fudge);
 				}
-				plugin.costFunctionClass = (Class<? extends SearchCost>) clsss;
+				plugin.costFunctionType = clsss;
 				updateSettingsString();
 				showStatus("Cost function: " + lbl, true);
-				SNTUtils.log("Cost function: Now using " + plugin.costFunctionClass.getName());
+				SNTUtils.log("Cost function: Now using " + plugin.costFunctionType);
 			});
 		});
 
@@ -2866,12 +2866,12 @@ public class SNTUI extends JDialog {
 	}
 
 	private void enableTracerThread() {
-		plugin.searchType = TracerThread.class;
+		plugin.searchType = SNT.SearchType.ASTAR;
 		refreshHessianPanelState();
 	}
 
 	private void enableNBAStar() {
-		plugin.searchType = BidirectionalSearch.class;
+		plugin.searchType = SNT.SearchType.NBASTAR;
 		refreshHessianPanelState();
 	}
 
