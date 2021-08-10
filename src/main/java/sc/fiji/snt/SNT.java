@@ -1493,8 +1493,12 @@ public class SNT extends MultiDThreePanes implements
 		return testPathTo(world_x, world_y, world_z, joinPoint, -1); // GUI execution
 	}
 
-	synchronized private Future<?> testPathTo(final double world_x, final double world_y, final double world_z,
-											  final PointInImage joinPoint, final int minPathSize) {
+	synchronized private Future<?> testPathTo(final double world_x,
+											  final double world_y,
+											  final double world_z,
+											  final PointInImage joinPoint,
+											  final int minPathSize)
+	{
 
 		if (!lastStartPointSet) {
 			statusService.showStatus(
@@ -1589,9 +1593,14 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private <T> RandomAccessibleInterval<T> getSubVolume(final RandomAccessibleInterval<T> img,
-														 final long x1, final long y1, final long z1,
-														 final long x2, final long y2, final long z2,
-														 final int padPixels) {
+														 final long x1,
+														 final long y1,
+														 final long z1,
+														 final long x2,
+														 final long y2,
+														 final long z2,
+														 final int padPixels)
+	{
 		// Create some padding around the start and goal nodes
 		final long[] imgMin = Intervals.minAsLongArray(img);
 		final long[] imgMax = Intervals.maxAsLongArray(img);
@@ -1606,7 +1615,8 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
-																	final CostFunctionType costFunctionType) {
+																	final CostFunctionType costFunctionType)
+	{
 
 		final ImageStatistics imgStats = new ImageStatistics();
 		switch (costFunctionType) {
@@ -1649,9 +1659,13 @@ public class SNT extends MultiDThreePanes implements
 		return imgStats;
 	}
 
-	private AbstractSearch createSearch(final double world_x_start, final double world_y_start,
-										final double world_z_start, final double world_x_end,
-										final double world_y_end, final double world_z_end) {
+	private AbstractSearch createSearch(final double world_x_start,
+										final double world_y_start,
+										final double world_z_start,
+										final double world_x_end,
+										final double world_y_end,
+										final double world_z_end)
+	{
 		return createSearch(
 				(int) Math.round(world_x_start / x_spacing),
 				(int) Math.round(world_y_start / y_spacing),
@@ -1664,9 +1678,13 @@ public class SNT extends MultiDThreePanes implements
 	/* This method uses the plugin's current search parameters to construct an isolated A* search instance using
 	 * the given start and end voxel coordinates. */
 
-	private <T extends RealType<T>> AbstractSearch createSearch(final int x_start, final int y_start,
-																final int z_start, final int x_end,
-																final int y_end, final int z_end) {
+	private <T extends RealType<T>> AbstractSearch createSearch(final int x_start,
+																final int y_start,
+																final int z_start,
+																final int x_end,
+																final int y_end,
+																final int z_end)
+	{
 
 		final boolean useSecondary = isTracingOnSecondaryImageActive();
 		@SuppressWarnings("unchecked") final RandomAccessibleInterval<T> img =
