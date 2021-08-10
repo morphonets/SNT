@@ -131,8 +131,8 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 			apply();
 			return;
 		}
-		final RandomAccessibleInterval<? extends RealType<?>> in = Views.dropSingletonDimensions(
-				sntService.getPlugin().getLoadedData());
+		final RandomAccessibleInterval<? extends RealType<?>> data = sntService.getPlugin().getLoadedData();
+		final RandomAccessibleInterval<? extends RealType<?>> in = Views.dropSingletonDimensions(data);
 		final double[] sigmas = sntService.getPlugin().getHessianSigma("primary", true);
 		final Calibration cal = inputImp.getCalibration();
 		final double[] spacing = new double[3];
@@ -153,7 +153,7 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 		// TODO: let user set cell dims?
 		filteredImg = Lazy.process(
 				in,
-				new int[]{60, 60, 60},
+				new int[]{30, 30, 30},
 				new FloatType(),
 				op);
 		apply();

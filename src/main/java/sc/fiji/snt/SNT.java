@@ -42,9 +42,8 @@ import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
 import net.imagej.legacy.LegacyService;
 import net.imagej.ops.OpService;
-import net.imglib2.IterableInterval;
+import net.imglib2.*;
 import net.imglib2.RandomAccess;
-import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.NumericType;
@@ -104,6 +103,8 @@ public class SNT extends MultiDThreePanes implements
 	protected DatasetIOService datasetIOService;
 	@Parameter
 	protected ConvertService convertService;
+	@Parameter
+	protected OpService opService;
 
 	enum SearchType {ASTAR, NBASTAR}
 
@@ -194,6 +195,9 @@ public class SNT extends MultiDThreePanes implements
 	/* Cost function and heuristic estimate for search */
 	protected CostFunctionType costFunctionType = CostFunctionType.RECIPROCAL;
 	protected HeuristicType heuristicType = HeuristicType.EUCLIDEAN;
+
+	/* Compute image statistics on the bounding box sub-volume given by the start and goal nodes */
+	protected volatile boolean useSubVolumeStats = true;
 
 	/* adjustable parameters for cost functions */
 	protected volatile double oneMinusErfZFudge = 0.1;
@@ -1490,43 +1494,50 @@ public class SNT extends MultiDThreePanes implements
 		testPathTo(world_x, world_y, world_z, joinPoint, -1); // GUI execution
 	}
 
-	synchronized private void testPathTo(final double world_x, final double world_y, final double world_z,
-										 final PointInImage joinPoint, final int minPathSize)
+	synchronized private <T extends RealType<T>> void testPathTo(final double world_x, final double world_y,
+																 final double world_z, final PointInImage joinPoint,
+																 final int minPathSize)
 	{
 		if (!lastStartPointSet) {
 			statusService.showStatus(
-				"No initial start point has been set.  Do that with a mouse click." +
-					" (Or a Shift-" + GuiUtils.ctrlKey() +
-					"-click if the start of the path should join another neurite.");
+					"No initial start point has been set.  Do that with a mouse click." +
+							" (Or a Shift-" + GuiUtils.ctrlKey() +
+							"-click if the start of the path should join another neurite.");
 			return;
 		}
 
 		if (temporaryPath != null) {
 			statusService.showStatus(
-				"There's already a temporary path; Press 'N' to cancel it or 'Y' to keep it.");
+					"There's already a temporary path; Press 'N' to cancel it or 'Y' to keep it.");
 			return;
 		}
 
 		double real_x_end, real_y_end, real_z_end;
-
-		int x_end, y_end, z_end;
 		if (joinPoint == null) {
 			real_x_end = world_x;
 			real_y_end = world_y;
 			real_z_end = world_z;
-		}
-		else {
+		} else {
 			real_x_end = joinPoint.x;
 			real_y_end = joinPoint.y;
 			real_z_end = joinPoint.z;
 		}
 
-		addSphere(targetBallName, real_x_end, real_y_end, real_z_end, getXYCanvas()
-			.getTemporaryPathColor(), x_spacing * ballRadiusMultiplier);
+		addSphere(
+				targetBallName,
+				real_x_end,
+				real_y_end,
+				real_z_end,
+				getXYCanvas().getTemporaryPathColor(),
+				x_spacing * ballRadiusMultiplier);
 
-		x_end = (int) Math.round(real_x_end / x_spacing);
-		y_end = (int) Math.round(real_y_end / y_spacing);
-		z_end = (int) Math.round(real_z_end / z_spacing);
+		final int x_start = (int) Math.round(last_start_point_x);
+		final int y_start = (int) Math.round(last_start_point_y);
+		final int z_start = (int) Math.round(last_start_point_z);
+
+		final int x_end = (int) Math.round(real_x_end / x_spacing);
+		final int y_end = (int) Math.round(real_y_end / y_spacing);
+		final int z_end = (int) Math.round(real_z_end / z_spacing);
 
 		if (tracerThreadPool == null || tracerThreadPool.isShutdown()) {
 			tracerThreadPool = Executors.newSingleThreadExecutor();
@@ -1541,10 +1552,18 @@ public class SNT extends MultiDThreePanes implements
 
 			// [xyz]_spacing
 
-			tubularGeodesicsThread = new TubularGeodesicsTracer(secondaryImageFile,
-					(int) Math.round(last_start_point_x), (int) Math.round(
-					last_start_point_y), (int) Math.round(last_start_point_z), x_end,
-					y_end, z_end, x_spacing, y_spacing, z_spacing, spacing_units);
+			tubularGeodesicsThread = new TubularGeodesicsTracer(
+					secondaryImageFile,
+					x_start,
+					y_start,
+					z_start,
+					x_end,
+					y_end,
+					z_end,
+					x_spacing,
+					y_spacing,
+					z_spacing,
+					spacing_units);
 			addThreadToDraw(tubularGeodesicsThread);
 			tubularGeodesicsThread.addProgressListener(this);
 			tubularGeodesicsThread.start();
@@ -1552,24 +1571,47 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		if (!isAstarEnabled()) {
-			manualSearchThread = new ManualTracerThread(this, last_start_point_x,
-					last_start_point_y, last_start_point_z, x_end, y_end, z_end);
+			manualSearchThread = new ManualTracerThread(
+					this,
+					last_start_point_x,
+					last_start_point_y,
+					last_start_point_z,
+					x_end,
+					y_end,
+					z_end);
 			addThreadToDraw(manualSearchThread);
 			manualSearchThread.addProgressListener(this);
 			tracerThreadPool.execute(manualSearchThread);
 			return;
 		}
 
-		boolean useSecondary = isTracingOnSecondaryImageActive();
-		RandomAccessibleInterval<? extends RealType<?>> img = useSecondary ? getSecondaryData() : getLoadedData();
-		ImageStatistics imgStats = useSecondary ? statsSecondary : stats;
-		double min = useSecondary ? stackMinSecondary : stackMin;
-		double max = useSecondary ? stackMaxSecondary : stackMax;
+		final boolean useSecondary = isTracingOnSecondaryImageActive();
+		@SuppressWarnings("unchecked") final RandomAccessibleInterval<T> img =
+				useSecondary ? (RandomAccessibleInterval<T>) getSecondaryData() : getLoadedData();
+
+		final ImageStatistics imgStats;
+		if (useSubVolumeStats) {
+			// Create some padding around the start and goal nodes
+			final int padPixels = 10;
+			final long[] imgMin = Intervals.minAsLongArray(img);
+			final long[] imgMax = Intervals.maxAsLongArray(img);
+			final FinalInterval interval = Intervals.createMinMax(
+					Math.max(imgMin[0], Math.min(x_start, x_end) - padPixels),
+					Math.max(imgMin[1], Math.min(y_start, y_end) - padPixels),
+					Math.max(imgMin[2], Math.min(z_start, z_end) - padPixels),
+					Math.min(imgMax[0], Math.max(x_start, x_end) + padPixels),
+					Math.min(imgMax[1], Math.max(y_start, y_end) + padPixels),
+					Math.min(imgMax[2], Math.max(z_start, z_end) + padPixels));
+			final IterableInterval<T> subVolume = Views.iterable(Views.interval(img, interval));
+			imgStats = computeImgStats(subVolume, costFunctionType);
+		} else {
+			imgStats = useSecondary ? statsSecondary : stats;
+		}
 
 		SearchCost costFunction;
 		switch (costFunctionType) {
 			case RECIPROCAL:
-				costFunction = new ReciprocalCost(min, max);
+				costFunction = new ReciprocalCost(imgStats.min, imgStats.max);
 				break;
 			case PROBABILITY:
 				OneMinusErfCost cost = new OneMinusErfCost(imgStats.max, imgStats.mean, imgStats.stdDev);
@@ -1577,7 +1619,7 @@ public class SNT extends MultiDThreePanes implements
 				costFunction = cost;
 				break;
 			case DIFFERENCE:
-				costFunction = new DifferenceCost(min, max);
+				costFunction = new DifferenceCost(imgStats.min, imgStats.max);
 				break;
 			default:
 				throw new IllegalArgumentException("BUG: Unknown cost function " + costFunctionType);
@@ -1598,31 +1640,78 @@ public class SNT extends MultiDThreePanes implements
 		switch (searchType) {
 			case ASTAR:
 				currentSearchThread = new TracerThread(
-						this, img,
-						(int) Math.round(last_start_point_x),
-						(int) Math.round(last_start_point_y),
-						(int) Math.round(last_start_point_z),
-						x_end, y_end, z_end,
-						costFunction, heuristic);
+						this,
+						img,
+						x_start,
+						y_start,
+						z_start,
+						x_end,
+						y_end,
+						z_end,
+						costFunction,
+						heuristic);
 				break;
 			case NBASTAR:
 				currentSearchThread = new BidirectionalSearch(
-						this, img,
-						(int) Math.round(last_start_point_x),
-						(int) Math.round(last_start_point_y),
-						(int) Math.round(last_start_point_z),
-						x_end, y_end, z_end,
-						costFunction, heuristic);
+						this,
+						img,
+						x_start,
+						y_start,
+						z_start,
+						x_end,
+						y_end,
+						z_end,
+						costFunction,
+						heuristic);
 				break;
 			default:
 				throw new IllegalArgumentException("BUG: Unknown search class");
 		}
 		addThreadToDraw(currentSearchThread);
-		currentSearchThread.setDrawingColors(Color.CYAN, Color.ORANGE);// TODO: Make this color a preference
+		currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this color a preference
 		currentSearchThread.setDrawingThreshold(-1);
 		currentSearchThread.addProgressListener(this);
 		tracerThreadPool.execute(currentSearchThread);
+	}
 
+	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> subVolume,
+																	final CostFunctionType costFunctionType)
+	{
+		final ImageStatistics imgStats = new ImageStatistics();
+		switch (costFunctionType) {
+			case PROBABILITY: {
+				imgStats.max = opService.stats().max(subVolume).getRealDouble();
+				imgStats.mean = opService.stats().mean(subVolume).getRealDouble();
+				imgStats.stdDev = opService.stats().stdDev(subVolume).getRealDouble();
+				SNTUtils.log("Subvolume statistics: min=" + imgStats.min +
+						", max=" + imgStats.max +
+						", mean=" + imgStats.mean +
+						", stdDev=" + imgStats.stdDev);
+				break;
+			}
+			case RECIPROCAL:
+			case DIFFERENCE: {
+				final Pair<T, T> minMax = opService.stats().minMax(subVolume);
+				imgStats.min = minMax.getA().getRealDouble();
+				imgStats.max = minMax.getB().getRealDouble();
+				SNTUtils.log("Subvolume statistics: min=" + imgStats.min + ", max=" + imgStats.max);
+				break;
+			}
+			default: {
+				final Pair<T, T> minMax = opService.stats().minMax(subVolume);
+				imgStats.min = minMax.getA().getRealDouble();
+				imgStats.max = minMax.getB().getRealDouble();
+				imgStats.mean = opService.stats().mean(subVolume).getRealDouble();
+				imgStats.stdDev = opService.stats().stdDev(subVolume).getRealDouble();
+			}
+		}
+		if (imgStats.min == imgStats.max) {
+			// This can happen if the image data in the bounding box between the start and goal is uniform
+			//  (e.g., a black region)
+			imgStats.min = 0;
+			imgStats.max = 255;
+		}
+		return imgStats;
 	}
 
 	public BidirectionalSearch createSearch(final double world_x, final double world_y,
@@ -2331,8 +2420,10 @@ public class SNT extends MultiDThreePanes implements
 		return imp;
 	}
 
-	public RandomAccessibleInterval<? extends RealType<?>> getLoadedData() {
-		return this.sliceAtCT;
+	public <T extends RealType<T>> RandomAccessibleInterval<T> getLoadedData() {
+		@SuppressWarnings("unchecked")
+		final RandomAccessibleInterval<T> data = this.sliceAtCT;
+		return data;
 	}
 
 	@Deprecated
@@ -3374,4 +3465,9 @@ public class SNT extends MultiDThreePanes implements
 	public double getStackMinSecondary() {
 		return stackMinSecondary;
 	}
+
+	public void setUseSubVolumeStats(final boolean useSubVolumeStatistics) {
+		this.useSubVolumeStats = useSubVolumeStatistics;
+	}
+
 }
