@@ -1584,6 +1584,7 @@ public class SNT extends MultiDThreePanes implements
 			manualSearchThread.addProgressListener(this);
 			return tracerThreadPool.submit(manualSearchThread);
 		}
+
 		currentSearchThread = createSearch(x_start, y_start, z_start, x_end, y_end, z_end);
 		addThreadToDraw(currentSearchThread);
 		currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this color a preference
@@ -1602,8 +1603,12 @@ public class SNT extends MultiDThreePanes implements
 														 final int padPixels)
 	{
 		// Create some padding around the start and goal nodes
-		final long[] imgMin = Intervals.minAsLongArray(img);
-		final long[] imgMax = Intervals.maxAsLongArray(img);
+		long[] imgMin = Intervals.minAsLongArray(img);
+		long[] imgMax = Intervals.maxAsLongArray(img);
+		if (img.numDimensions() == 2) {
+			imgMin = Arrays.copyOf(imgMin, 3);
+			imgMax = Arrays.copyOf(imgMax, 3);
+		}
 		final FinalInterval interval = Intervals.createMinMax(
 				Math.max(imgMin[0], Math.min(x1, x2) - padPixels),
 				Math.max(imgMin[1], Math.min(y1, y2) - padPixels),
@@ -1692,6 +1697,7 @@ public class SNT extends MultiDThreePanes implements
 
 		final ImageStatistics imgStats;
 		if (useSubVolumeStats) {
+			SNTUtils.log("Computing subvolume statistics...");
 			final IterableInterval<T> subVolume = Views.iterable(
 					getSubVolume(
 							img,
@@ -2115,9 +2121,8 @@ public class SNT extends MultiDThreePanes implements
 					getUI().error(ex.getMessage());
 					getUI().enableHessian(false);
 					getUI().reset();
-				} else {
-					ex.printStackTrace();
 				}
+				SNTUtils.error(ex.getMessage(), ex);
 			}
 		}
 		else {
