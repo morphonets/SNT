@@ -1488,28 +1488,26 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/* Start a search thread looking for the goal in the arguments: */
-	synchronized void testPathTo(final double world_x, final double world_y,
-		final double world_z, final PointInImage joinPoint)
-	{
-		testPathTo(world_x, world_y, world_z, joinPoint, -1); // GUI execution
+	synchronized Future<?> testPathTo(final double world_x, final double world_y,
+									  final double world_z, final PointInImage joinPoint) {
+		return testPathTo(world_x, world_y, world_z, joinPoint, -1); // GUI execution
 	}
 
-	synchronized private <T extends RealType<T>> void testPathTo(final double world_x, final double world_y,
-																 final double world_z, final PointInImage joinPoint,
-																 final int minPathSize)
-	{
+	synchronized private Future<?> testPathTo(final double world_x, final double world_y, final double world_z,
+											  final PointInImage joinPoint, final int minPathSize) {
+
 		if (!lastStartPointSet) {
 			statusService.showStatus(
 					"No initial start point has been set.  Do that with a mouse click." +
 							" (Or a Shift-" + GuiUtils.ctrlKey() +
 							"-click if the start of the path should join another neurite.");
-			return;
+			return null;
 		}
 
 		if (temporaryPath != null) {
 			statusService.showStatus(
 					"There's already a temporary path; Press 'N' to cancel it or 'Y' to keep it.");
-			return;
+			return null;
 		}
 
 		double real_x_end, real_y_end, real_z_end;
@@ -1566,8 +1564,7 @@ public class SNT extends MultiDThreePanes implements
 					spacing_units);
 			addThreadToDraw(tubularGeodesicsThread);
 			tubularGeodesicsThread.addProgressListener(this);
-			tubularGeodesicsThread.start();
-			return;
+			return tracerThreadPool.submit(tubularGeodesicsThread);
 		}
 
 		if (!isAstarEnabled()) {
@@ -1581,9 +1578,95 @@ public class SNT extends MultiDThreePanes implements
 					z_end);
 			addThreadToDraw(manualSearchThread);
 			manualSearchThread.addProgressListener(this);
-			tracerThreadPool.execute(manualSearchThread);
-			return;
+			return tracerThreadPool.submit(manualSearchThread);
 		}
+		currentSearchThread = createSearch(x_start, y_start, z_start, x_end, y_end, z_end);
+		addThreadToDraw(currentSearchThread);
+		currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this color a preference
+		currentSearchThread.setDrawingThreshold(-1);
+		currentSearchThread.addProgressListener(this);
+		return tracerThreadPool.submit(currentSearchThread);
+	}
+
+	private <T> RandomAccessibleInterval<T> getSubVolume(final RandomAccessibleInterval<T> img,
+														 final long x1, final long y1, final long z1,
+														 final long x2, final long y2, final long z2,
+														 final int padPixels) {
+		// Create some padding around the start and goal nodes
+		final long[] imgMin = Intervals.minAsLongArray(img);
+		final long[] imgMax = Intervals.maxAsLongArray(img);
+		final FinalInterval interval = Intervals.createMinMax(
+				Math.max(imgMin[0], Math.min(x1, x2) - padPixels),
+				Math.max(imgMin[1], Math.min(y1, y2) - padPixels),
+				Math.max(imgMin[2], Math.min(z1, z2) - padPixels),
+				Math.min(imgMax[0], Math.max(x1, x2) + padPixels),
+				Math.min(imgMax[1], Math.max(y1, y2) + padPixels),
+				Math.min(imgMax[2], Math.max(z1, z2) + padPixels));
+		return Views.interval(img, interval);
+	}
+
+	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
+																	final CostFunctionType costFunctionType) {
+
+		final ImageStatistics imgStats = new ImageStatistics();
+		switch (costFunctionType) {
+			case PROBABILITY: {
+				imgStats.max = opService.stats().max(in).getRealDouble();
+				imgStats.mean = opService.stats().mean(in).getRealDouble();
+				imgStats.stdDev = opService.stats().stdDev(in).getRealDouble();
+				SNTUtils.log("Subvolume statistics: max=" + imgStats.max +
+						", mean=" + imgStats.mean +
+						", stdDev=" + imgStats.stdDev);
+				break;
+			}
+			case RECIPROCAL:
+			case DIFFERENCE: {
+				final Pair<T, T> minMax = opService.stats().minMax(in);
+				imgStats.min = minMax.getA().getRealDouble();
+				imgStats.max = minMax.getB().getRealDouble();
+				SNTUtils.log("Subvolume statistics: min=" + imgStats.min +
+						", max=" + imgStats.max);
+				break;
+			}
+			default: {
+				final Pair<T, T> minMax = opService.stats().minMax(in);
+				imgStats.min = minMax.getA().getRealDouble();
+				imgStats.max = minMax.getB().getRealDouble();
+				imgStats.mean = opService.stats().mean(in).getRealDouble();
+				imgStats.stdDev = opService.stats().stdDev(in).getRealDouble();
+				SNTUtils.log("Subvolume statistics: min=" + imgStats.min +
+						", max=" + imgStats.max +
+						", mean=" + imgStats.mean +
+						", stdDev=" + imgStats.stdDev);
+			}
+		}
+		if (imgStats.min == imgStats.max) {
+			// This can happen if the image data in the bounding box between the start and goal is uniform
+			//  (e.g., a black region)
+			imgStats.min = 0;
+			imgStats.max = Math.pow(2, 16) - 1;
+		}
+		return imgStats;
+	}
+
+	private AbstractSearch createSearch(final double world_x_start, final double world_y_start,
+										final double world_z_start, final double world_x_end,
+										final double world_y_end, final double world_z_end) {
+		return createSearch(
+				(int) Math.round(world_x_start / x_spacing),
+				(int) Math.round(world_y_start / y_spacing),
+				(int) Math.round(world_z_start / z_spacing),
+				(int) Math.round(world_x_end / x_spacing),
+				(int) Math.round(world_y_end / y_spacing),
+				(int) Math.round(world_z_end / z_spacing));
+	}
+
+	/* This method uses the plugin's current search parameters to construct an isolated A* search instance using
+	 * the given start and end voxel coordinates. */
+
+	private <T extends RealType<T>> AbstractSearch createSearch(final int x_start, final int y_start,
+																final int z_start, final int x_end,
+																final int y_end, final int z_end) {
 
 		final boolean useSecondary = isTracingOnSecondaryImageActive();
 		@SuppressWarnings("unchecked") final RandomAccessibleInterval<T> img =
@@ -1591,18 +1674,16 @@ public class SNT extends MultiDThreePanes implements
 
 		final ImageStatistics imgStats;
 		if (useSubVolumeStats) {
-			// Create some padding around the start and goal nodes
-			final int padPixels = 10;
-			final long[] imgMin = Intervals.minAsLongArray(img);
-			final long[] imgMax = Intervals.maxAsLongArray(img);
-			final FinalInterval interval = Intervals.createMinMax(
-					Math.max(imgMin[0], Math.min(x_start, x_end) - padPixels),
-					Math.max(imgMin[1], Math.min(y_start, y_end) - padPixels),
-					Math.max(imgMin[2], Math.min(z_start, z_end) - padPixels),
-					Math.min(imgMax[0], Math.max(x_start, x_end) + padPixels),
-					Math.min(imgMax[1], Math.max(y_start, y_end) + padPixels),
-					Math.min(imgMax[2], Math.max(z_start, z_end) + padPixels));
-			final IterableInterval<T> subVolume = Views.iterable(Views.interval(img, interval));
+			final IterableInterval<T> subVolume = Views.iterable(
+					getSubVolume(
+							img,
+							x_start,
+							y_start,
+							z_start,
+							x_end,
+							y_end,
+							z_end,
+							10));
 			imgStats = computeImgStats(subVolume, costFunctionType);
 		} else {
 			imgStats = useSecondary ? statsSecondary : stats;
@@ -1637,9 +1718,10 @@ public class SNT extends MultiDThreePanes implements
 				throw new IllegalArgumentException("BUG: Unknown heuristic " + heuristicType);
 		}
 
+		AbstractSearch search;
 		switch (searchType) {
 			case ASTAR:
-				currentSearchThread = new TracerThread(
+				search = new TracerThread(
 						this,
 						img,
 						x_start,
@@ -1652,7 +1734,7 @@ public class SNT extends MultiDThreePanes implements
 						heuristic);
 				break;
 			case NBASTAR:
-				currentSearchThread = new BidirectionalSearch(
+				search = new BidirectionalSearch(
 						this,
 						img,
 						x_start,
@@ -1667,129 +1749,8 @@ public class SNT extends MultiDThreePanes implements
 			default:
 				throw new IllegalArgumentException("BUG: Unknown search class");
 		}
-		addThreadToDraw(currentSearchThread);
-		currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this color a preference
-		currentSearchThread.setDrawingThreshold(-1);
-		currentSearchThread.addProgressListener(this);
-		tracerThreadPool.execute(currentSearchThread);
-	}
 
-	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> subVolume,
-																	final CostFunctionType costFunctionType)
-	{
-		final ImageStatistics imgStats = new ImageStatistics();
-		switch (costFunctionType) {
-			case PROBABILITY: {
-				imgStats.max = opService.stats().max(subVolume).getRealDouble();
-				imgStats.mean = opService.stats().mean(subVolume).getRealDouble();
-				imgStats.stdDev = opService.stats().stdDev(subVolume).getRealDouble();
-				SNTUtils.log("Subvolume statistics: min=" + imgStats.min +
-						", max=" + imgStats.max +
-						", mean=" + imgStats.mean +
-						", stdDev=" + imgStats.stdDev);
-				break;
-			}
-			case RECIPROCAL:
-			case DIFFERENCE: {
-				final Pair<T, T> minMax = opService.stats().minMax(subVolume);
-				imgStats.min = minMax.getA().getRealDouble();
-				imgStats.max = minMax.getB().getRealDouble();
-				SNTUtils.log("Subvolume statistics: min=" + imgStats.min + ", max=" + imgStats.max);
-				break;
-			}
-			default: {
-				final Pair<T, T> minMax = opService.stats().minMax(subVolume);
-				imgStats.min = minMax.getA().getRealDouble();
-				imgStats.max = minMax.getB().getRealDouble();
-				imgStats.mean = opService.stats().mean(subVolume).getRealDouble();
-				imgStats.stdDev = opService.stats().stdDev(subVolume).getRealDouble();
-			}
-		}
-		if (imgStats.min == imgStats.max) {
-			// This can happen if the image data in the bounding box between the start and goal is uniform
-			//  (e.g., a black region)
-			imgStats.min = 0;
-			imgStats.max = 255;
-		}
-		return imgStats;
-	}
-
-	public BidirectionalSearch createSearch(final double world_x, final double world_y,
-											final double world_z, final PointInImage joinPoint,
-											SearchCost costFunction, SearchHeuristic heuristic)
-	{
-		return createSearch(this.sliceAtCT, world_x, world_y, world_z, joinPoint, costFunction, heuristic);
-	}
-
-	public BidirectionalSearch createSearch(final RandomAccessibleInterval<? extends RealType<?>> img,
-											final double world_x, final double world_y,
-											final double world_z, final PointInImage joinPoint,
-											SearchCost costFunction, SearchHeuristic heuristic) {
-		if (!lastStartPointSet) {
-			statusService.showStatus(
-					"No initial start point has been set.  Do that with a mouse click." +
-							" (Or a Shift-" + GuiUtils.ctrlKey() +
-							"-click if the start of the path should join another neurite.");
-			return null;
-		}
-
-		if (temporaryPath != null) {
-			statusService.showStatus(
-					"There's already a temporary path; Press 'N' to cancel it or 'Y' to keep it.");
-			return null;
-		}
-
-		double real_x_end, real_y_end, real_z_end;
-
-		int x_end, y_end, z_end;
-		if (joinPoint == null) {
-			real_x_end = world_x;
-			real_y_end = world_y;
-			real_z_end = world_z;
-		}
-		else {
-			real_x_end = joinPoint.x;
-			real_y_end = joinPoint.y;
-			real_z_end = joinPoint.z;
-		}
-
-		addSphere(targetBallName, real_x_end, real_y_end, real_z_end, getXYCanvas()
-				.getTemporaryPathColor(), x_spacing * ballRadiusMultiplier);
-
-		x_end = (int) Math.round(real_x_end / x_spacing);
-		y_end = (int) Math.round(real_y_end / y_spacing);
-		z_end = (int) Math.round(real_z_end / z_spacing);
-
-		return new BidirectionalSearch(
-				this, img,
-				(int) Math.round(last_start_point_x),
-				(int) Math.round(last_start_point_y),
-				(int) Math.round(last_start_point_z),
-				x_end, y_end, z_end,
-				costFunction,
-				heuristic);
-	}
-
-	public BidirectionalSearch createSearch2(final double start_x, final double start_y, final double start_z,
-											 final double world_x, final double world_y, final double world_z) {
-
-		int x_start, y_start, z_start;
-		int x_end, y_end, z_end;
-
-		x_start = (int) Math.round(start_x / x_spacing);
-		y_start = (int) Math.round(start_y / y_spacing);
-		z_start = (int) Math.round(start_z / z_spacing);
-
-		x_end = (int) Math.round(world_x / x_spacing);
-		y_end = (int) Math.round(world_y / y_spacing);
-		z_end = (int) Math.round(world_z / z_spacing);
-
-		return new BidirectionalSearch(this, this.sliceAtCT,
-				x_start, y_start, z_start,
-				x_end, y_end, z_end,
-				new ReciprocalCost(stats.min, stats.max),
-				new EuclideanHeuristic());
-
+		return search;
 	}
 
 	synchronized public void confirmTemporary(final boolean updateTracingViewers) {
@@ -1879,13 +1840,22 @@ public class SNT extends MultiDThreePanes implements
 	 * @return the path a reference to the computed path.
 	 * @see #autoTrace(List, PointInImage)
 	 */
-	public Path autoTrace(final PointInImage start, final PointInImage end,
+	public Path autoTrace(final SNTPoint start, final SNTPoint end,
 		final PointInImage forkPoint)
 	{
-		final ArrayList<PointInImage> list = new ArrayList<>();
+		final List<SNTPoint> list = new ArrayList<>();
 		list.add(start);
 		list.add(end);
 		return autoTrace(list, forkPoint);
+	}
+
+	public Path autoTrace(final SNTPoint start, final SNTPoint end, final PointInImage forkPoint,
+						  final boolean headless)
+	{
+		final List<SNTPoint> list = new ArrayList<>();
+		list.add(start);
+		list.add(end);
+		return autoTrace(list, forkPoint, headless);
 	}
 
 	/**
@@ -1914,7 +1884,7 @@ public class SNT extends MultiDThreePanes implements
 	 *         Manager list.If a path cannot be fully computed from the specified
 	 *         list of points, a single-point path is generated.
 	 */
-	public Path autoTrace(final List<PointInImage> pointList, final PointInImage forkPoint)
+	public Path autoTrace(final List<SNTPoint> pointList, final PointInImage forkPoint)
 	{
 		if (pointList == null || pointList.size() == 0)
 			throw new IllegalArgumentException("pointList cannot be null or empty");
@@ -1932,8 +1902,8 @@ public class SNT extends MultiDThreePanes implements
 		ui = null;
 
 		// Start path from first point in list
-		final PointInImage start = pointList.get(0);
-		startPath(start.x, start.y, start.z, forkPoint);
+		final SNTPoint start = pointList.get(0);
+		startPath(start.getX(), start.getY(), start.getZ(), forkPoint);
 
 		final int secondNodeIdx = (pointList.size() == 1) ? 0 : 1;
 		final int nNodes = pointList.size();
@@ -1945,38 +1915,14 @@ public class SNT extends MultiDThreePanes implements
 		// Now keep appending nodes to temporary path
 		for (int i = secondNodeIdx; i < nNodes; i++) {
 			// Append node and wait for search to be finished
-			final PointInImage node = pointList.get(i);
+			final SNTPoint node = pointList.get(i);
 
-			BidirectionalSearch pathSearch = createSearch(
-					node.x, node.y, node.z,
-					null, // joinPoint
-					costFunction, heuristic);
-
-			pathSearch.setDrawingColors(Color.CYAN, Color.ORANGE);
-			pathSearch.setDrawingThreshold(-1);
-			addThreadToDraw(pathSearch);
-			pathSearch.addProgressListener(this);
-
-			Future<?> result = tracerThreadPool.submit(pathSearch);
-			Path pathResult = null;
+			Future<?> result = testPathTo(node.getX(), node.getY(), node.getZ(), null);
 			try {
 				result.get();
-				pathResult = pathSearch.getResult();
 			} catch (InterruptedException | ExecutionException e) {
 				SNTUtils.error("Error during auto-trace", e);
-			} catch(Throwable t) {
-				SNTUtils.error("Unknown error during trace", t);
 			}
-
-			removeThreadToDraw(pathSearch);
-
-			if (pathResult == null) {
-				SNTUtils.log("Auto-trace result was null.");
-				return null;
-			}
-
-			setTemporaryPath(pathResult);
-			confirmTemporary(true);
 		}
 
 		finishedPath();
@@ -1994,8 +1940,14 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
-	public Path autoTrace2(final List<PointInImage> pointList)
-	{
+	public Path autoTrace(final List<SNTPoint> pointList, final PointInImage forkPoint, final boolean headless) {
+		if (headless) {
+			return autoTraceHeadless(pointList, forkPoint);
+		}
+		return autoTrace(pointList, forkPoint);
+	}
+
+	private Path autoTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint) {
 		if (pointList == null || pointList.size() == 0)
 			throw new IllegalArgumentException("pointList cannot be null or empty");
 
@@ -2006,13 +1958,17 @@ public class SNT extends MultiDThreePanes implements
 		Path fullPath = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
 
 		// Now keep appending nodes to temporary path
-		for (int i=0; i<pointList.size()-1; i++) {
+		for (int i = 0; i < pointList.size() - 1; i++) {
 			// Append node and wait for search to be finished
-			final PointInImage start = pointList.get(i);
-			final PointInImage end = pointList.get(i+1);
-
-			BidirectionalSearch pathSearch = createSearch2(start.x, start.y, start.z, end.x, end.y, end.z);
-
+			final SNTPoint start = pointList.get(i);
+			final SNTPoint end = pointList.get(i + 1);
+			AbstractSearch pathSearch = createSearch(
+					start.getX(),
+					start.getY(),
+					start.getZ(),
+					end.getX(),
+					end.getY(),
+					end.getZ());
 			Future<?> result = tracerThreadPool.submit(pathSearch);
 			Path pathResult = null;
 			try {
@@ -2020,10 +1976,7 @@ public class SNT extends MultiDThreePanes implements
 				pathResult = pathSearch.getResult();
 			} catch (InterruptedException | ExecutionException e) {
 				SNTUtils.error("Error during auto-trace", e);
-			} catch(Throwable t) {
-				SNTUtils.error("Unknown error during trace", t);
 			}
-
 			if (pathResult == null) {
 				SNTUtils.log("Auto-trace result was null.");
 				return null;
@@ -2031,8 +1984,10 @@ public class SNT extends MultiDThreePanes implements
 			fullPath.add(pathResult);
 		}
 
+		if (forkPoint != null) {
+			fullPath.setStartJoin(forkPoint.getPath(), forkPoint);
+		}
 		return fullPath;
-
 	}
 
 	synchronized protected void replaceCurrentPath(final Path path) {
