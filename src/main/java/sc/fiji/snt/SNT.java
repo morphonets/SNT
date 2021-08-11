@@ -1912,9 +1912,6 @@ public class SNT extends MultiDThreePanes implements
 		if (pointList == null || pointList.size() == 0)
 			throw new IllegalArgumentException("pointList cannot be null or empty");
 
-		SearchCost costFunction = new ReciprocalCost(stats.min, stats.max);
-		SearchHeuristic heuristic = new EuclideanHeuristic();
-
 		final boolean existingEnableUIupdates = pathAndFillManager.enableUIupdates;
 		pathAndFillManager.enableUIupdates = false;
 
@@ -1930,10 +1927,6 @@ public class SNT extends MultiDThreePanes implements
 
 		final int secondNodeIdx = (pointList.size() == 1) ? 0 : 1;
 		final int nNodes = pointList.size();
-
-		if (tracerThreadPool == null || tracerThreadPool.isShutdown()) {
-			tracerThreadPool = Executors.newSingleThreadExecutor();
-		}
 
 		// Now keep appending nodes to temporary path
 		for (int i = secondNodeIdx; i < nNodes; i++) {
