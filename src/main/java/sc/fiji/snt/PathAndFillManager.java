@@ -96,6 +96,9 @@ public class PathAndFillManager extends DefaultHandler implements
 	private BoundingBox boundingBox;
 
 	private final ArrayList<Path> allPaths;
+	private final Map<Integer, Path> pathIdMap;
+	private final Map<String, Path> pathNameMap;
+	private final Map<String, Path> pathNameLowercaseMap;
 	private final ArrayList<Fill> allFills;
 	private final ArrayList<PathAndFillListener> listeners;
 	private final HashSet<Path> selectedPathsSet;
@@ -131,6 +134,9 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	public PathAndFillManager() {
 		allPaths = new ArrayList<>();
+		pathIdMap = new HashMap<>();
+		pathNameMap = new HashMap<>();
+		pathNameLowercaseMap = new HashMap<>();
 		allFills = new ArrayList<>();
 		listeners = new ArrayList<>();
 		selectedPathsSet = new HashSet<>();
@@ -294,15 +300,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	public synchronized Path getPathFromName(final String name,
 		final boolean caseSensitive)
 	{
-		for (final Path p : allPaths) {
-			if (caseSensitive) {
-				if (name.equals(p.getName())) return p;
-			}
-			else {
-				if (name.equalsIgnoreCase(p.getName())) return p;
-			}
-		}
-		return null;
+		return caseSensitive ? pathNameMap.get(name) : pathNameLowercaseMap.get(name.toLowerCase(Locale.ROOT));
 	}
 
 	protected synchronized Path getPathFrom3DViewerName(final String name) {
@@ -320,12 +318,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @return the Path with the specified id, or null if id was not found.
 	 */
 	public synchronized Path getPathFromID(final int id) {
-		for (final Path p : allPaths) {
-			if (id == p.getID()) {
-				return p;
-			}
-		}
-		return null;
+		return pathIdMap.get(id);
 	}
 
 	/*
@@ -631,6 +624,31 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	public synchronized Path[] getPathsStructured(final Collection<Path> paths) {
+		final ArrayList<Path> primaryPaths = new ArrayList<>();
+
+		/*
+		 * Some paths may be explicitly marked as primary, so extract those and
+		 * everything connected to them first. If you encounter another path marked as
+		 * primary when exploring from these then that's an error...
+		 */
+
+		final Map<Path, List<Path>> pathChildrenMap = new HashMap<>();
+		for (final Path p : paths) {
+			if (p.isPrimary()) {
+				primaryPaths.add(p);
+				continue;
+			}
+			pathChildrenMap.putIfAbsent(p.getStartJoins(), new ArrayList<>());
+			pathChildrenMap.get(p.getStartJoins()).add(p);
+		}
+		for (final Path p : pathChildrenMap.keySet()) {
+			p.children.clear();
+			p.children.addAll(pathChildrenMap.get(p));
+		}
+		return primaryPaths.toArray(new Path[] {});
+	}
+
+	private synchronized Path[] getPathsStructuredOld(final Collection<Path> paths) {
 
 		final ArrayList<Path> primaryPaths = new ArrayList<>();
 
@@ -1134,6 +1152,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			p.addTo3DViewer(plugin.univ, plugin.deselectedColor3f, plugin.colorImage);
 		}
 		allPaths.add(p);
+		pathIdMap.put(p.getID(), p);
+		pathNameMap.put(p.getName(), p);
+		pathNameLowercaseMap.put(p.getName().toLowerCase(Locale.ROOT), p);
 		resetListeners(p);
 	}
 
@@ -1220,8 +1241,15 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 
 		boolean removed = allPaths.remove(unfittedPathToDelete);
-		if (fittedPathToDelete != null)
+		pathIdMap.remove(unfittedPathToDelete.getID());
+		pathNameMap.remove(unfittedPathToDelete.getName());
+		pathNameLowercaseMap.remove(unfittedPathToDelete.getName().toLowerCase(Locale.ROOT));
+		if (fittedPathToDelete != null) {
 			removed = removed || allPaths.remove(fittedPathToDelete);
+			pathIdMap.remove(fittedPathToDelete.getID());
+			pathNameMap.remove(fittedPathToDelete.getName());
+			pathNameLowercaseMap.remove(fittedPathToDelete.getName().toLowerCase(Locale.ROOT));
+		}
 		if (removed && plugin != null) plugin.unsavedPaths = true;
 
 		// We don't just delete; have to fix up the references
@@ -1722,9 +1750,11 @@ public class PathAndFillManager extends DefaultHandler implements
 				}
 
 				// Assign ID
-				if (startsOnInteger == null || (primaryString != null && primaryString.equals("true"))) {
+				if (startsOnInteger == null) {
 					current_path.setIsPrimary(true);
 					++maxUsedTreeID;
+				} else if (primaryString != null && primaryString.equals("true")) {
+					current_path.setIsPrimary(true);
 				}
 				current_path.setIDs(id, maxUsedTreeID);
 				if (id > maxUsedPathID) maxUsedPathID = id;
@@ -1945,6 +1975,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			case "path":
 
 				allPaths.add(current_path);
+				pathIdMap.put(current_path.getID(), current_path);
+				pathNameMap.put(current_path.getName(), current_path);
+				pathNameLowercaseMap.put(current_path.getName().toLowerCase(Locale.ROOT), current_path);
 
 				break;
 			case "fill":
@@ -1956,7 +1989,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 				// Then we've finished...
 
-				for (final Path p : allPaths) {
+				for (final Path p : new ArrayList<>(allPaths)) {
 					final Integer startID = startJoins.get(p.getID());
 					final Integer startIndexInteger = startJoinsIndices.get(p.getID());
 					PointInImage startJoinPoint = startJoinsPoints.get(p.getID());
@@ -1984,9 +2017,28 @@ public class PathAndFillManager extends DefaultHandler implements
 						// We no longer support end point joining, so we'll reverse everything
 						// and apply a 'start join';
 						SNTUtils.log("End joining no longer supported: Establishing a star-join' on reversed path");
-						endPath = endPath.reversed(true);
-						endJoinPoint = endPath.getNodeWithoutChecks(endPath.size() -1 - endIndexInteger);
-						p.setStartJoin(endPath, endJoinPoint);
+						Path pReversed = p.reversed();
+						// replace the path in all data structures...
+						allPaths.remove(p);
+						pathIdMap.remove(p.getID(), p);
+						pathNameMap.remove(p.getName(), p);
+						pathNameLowercaseMap.remove(p.getName().toLowerCase(Locale.ROOT), p);
+
+						allPaths.add(pReversed);
+						pathIdMap.put(pReversed.getID(), pReversed);
+						pathNameMap.put(pReversed.getName(), pReversed);
+						pathNameLowercaseMap.put(pReversed.getName().toLowerCase(Locale.ROOT), pReversed);
+
+						pReversed.setStartJoin(endPath, endJoinPoint);
+
+						for (final Path join : new ArrayList<>(p.somehowJoins)) {
+							if (join.getStartJoins() == p) {
+								final PointInImage joinPoint = join.getStartJoinsPoint();
+								join.unsetStartJoin();
+								join.setStartJoin(pReversed, joinPoint);
+							}
+						}
+
 					}
 					if (fittedID != null) {
 						final Path fitted = getPathFromID(fittedID);
@@ -2039,7 +2091,10 @@ public class PathAndFillManager extends DefaultHandler implements
 					}
 					f.setSourcePaths(realSourcePaths);
 				}
-
+				// FIXME: after import there still can be different Cell IDs within the same Tree,
+				//  so do a final rebuild to ensure everything makes sense. This is a workaround until
+				//  we can figure out why it is happening in the first place.
+				rebuildRelationships();
 				setSelected(new ArrayList<Path>(), this);
 				resetListeners(null, true);
 				break;
@@ -2307,6 +2362,9 @@ public class PathAndFillManager extends DefaultHandler implements
 				p.removeFrom3DViewer(plugin.univ);
 		}
 		allPaths.clear();
+		pathIdMap.clear();
+		pathNameMap.clear();
+		pathNameLowercaseMap.clear();
 		allFills.clear();
 		if (plugin == null || (plugin != null && !plugin.accessToValidImageData()))
 			resetSpatialSettings(false);

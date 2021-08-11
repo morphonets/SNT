@@ -287,6 +287,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 					"Reconstruction Cannot Contain Loops");
 			return;
 		}
+		long start = System.currentTimeMillis();
 		final Tree destinationTree = getTreeFromID(destination.getTreeID());
 		final Tree sourceTree = getTreeFromID(source.getTreeID());
 		final DirectedWeightedGraph destinationGraph = new DirectedWeightedGraph(destinationTree, false);
@@ -305,9 +306,13 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		enableEditMode(false);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		newTree.list().forEach(p -> p.setSpacing(cal));
+		final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
+		pathAndFillManager.enableUIupdates = false;
 		pathAndFillManager.deletePaths(destinationTree.list());
 		pathAndFillManager.deletePaths(sourceTree.list());
 		newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
+		SNTUtils.log("Finished merge in " + (System.currentTimeMillis() - start) + "ms");
+		pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
 	}
 
 	private JMenuItem helpOnConnectingMenuItem() {
@@ -1110,6 +1115,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			final boolean warnOnFailure)
 	{
 		if (impossibleEdit(warnOnFailure)) return;
+		long start = System.currentTimeMillis();
 		final Path editingPath = tracerPlugin.getEditingPath();
 		final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
 		final int treeID = editingPath.getTreeID();
@@ -1120,12 +1126,17 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		enableEditMode(false);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		newTree.list().forEach(p -> p.setSpacing(cal));
+		final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
+		pathAndFillManager.enableUIupdates = false;
 		pathAndFillManager.deletePaths(editingTree.list());
 		newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
+		SNTUtils.log("Finished re-root in " + (System.currentTimeMillis() - start) + "ms");
+		pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
 	}
 
 	protected void splitTreeAtEditingNode(final boolean warnOnFailure) {
 		if (impossibleEdit(warnOnFailure)) return;
+		long start = System.currentTimeMillis();
 		final Path editingPath = tracerPlugin.getEditingPath();
 		final Tree editingTree = getTreeFromID(editingPath.getTreeID());
 		final PointInImage editingPoint = editingPath.getNode(editingPath.getEditableNodeIndex());
@@ -1154,9 +1165,13 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		ancestorTree.list().forEach(p -> p.setSpacing(cal));
 		descendentTree.list().forEach(p -> p.setSpacing(cal));
+		final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
+		pathAndFillManager.enableUIupdates = false;
 		pathAndFillManager.deletePaths(editingTree.list());
 		ancestorTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
 		descendentTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
+		SNTUtils.log("Finished split in " + (System.currentTimeMillis() - start) + "ms");
+		pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
 	}
 
 	private Tree getTreeFromID(final int treeID) {

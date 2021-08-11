@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
+ * 
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
+ * 
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -168,7 +168,7 @@ public class PersistenceAnalyzer {
                 }
             }
             openSet.addAll(toAdd);
-            openSet.removeAll(toRemove);
+            toRemove.forEach(openSet::remove);
         }
 
         persistenceDiagram.add(new ArrayList<>(Arrays.asList(descriptorMap.get(root), root.v)));
@@ -356,7 +356,6 @@ public class PersistenceAnalyzer {
             int midIndex = Math.min(Math.max((int) Math.ceil((0.5 * (py + px) - sampleRange[0]) / stepX), 0), resolution);
             int maxIndex = Math.min(Math.max((int) Math.ceil((py - sampleRange[0]) / stepX), 0), resolution);
             if (minIndex < resolution && maxIndex > 0) {
-
                 double landscapeValue = sampleRange[0] + minIndex * stepX - px;
                 for (int k = minIndex; k < midIndex; k++) {
                     events.get(k).add(landscapeValue);
@@ -410,7 +409,7 @@ public class PersistenceAnalyzer {
     }
 
     /* IDE debug method */
-    public static void main(final String[] args) throws InterruptedException {
+    public static void main(final String[] args) {
         final ImageJ ij = new ImageJ();
         final SNTService sntService = ij.context().getService(SNTService.class);
         final Tree tree = sntService.demoTree("fractal");
@@ -422,7 +421,6 @@ public class PersistenceAnalyzer {
         System.out.println(diagram.size());
         double[] landscape = analyzer.getLandscape("radial", 5, 100);
         System.out.println(landscape.length);
-
     }
 
 }
