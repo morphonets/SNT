@@ -106,11 +106,11 @@ public class SNT extends MultiDThreePanes implements
 	@Parameter
 	protected OpService opService;
 
-	enum SearchType {ASTAR, NBASTAR}
+	public enum SearchType {ASTAR, NBASTAR}
 
-	enum CostFunctionType {RECIPROCAL, DIFFERENCE, PROBABILITY}
+	public enum CostFunctionType {RECIPROCAL, DIFFERENCE, PROBABILITY}
 
-	enum HeuristicType {EUCLIDEAN, DIJKSTRA}
+	public enum HeuristicType {EUCLIDEAN, DIJKSTRA}
 
 	protected static boolean verbose = false; // FIXME: Use prefservice
 
