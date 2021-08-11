@@ -142,7 +142,7 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 		Consumer<RandomAccessibleInterval<FloatType>> op;
 		switch (filter) {
 			case FRANGI:
-				op = new Frangi(in, sigmas, spacing, sntService.getPlugin().getStackMax());
+				op = new Frangi(in, sigmas, spacing, sntService.getPlugin().getStats().max);
 				break;
 			case TUBENESS:
 				op = new Tubeness(in, sigmas, spacing);
@@ -153,7 +153,7 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 		// TODO: let user set cell dims?
 		filteredImg = Lazy.process(
 				in,
-				new int[]{30, 30, 30},
+				new int[]{60, 60, 60},
 				new FloatType(),
 				op);
 		apply();

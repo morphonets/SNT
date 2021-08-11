@@ -633,19 +633,19 @@ public class SNTUI extends JDialog {
 		if (plugin.isTracingOnSecondaryImageActive()) {
 			sb.append("Secondary image: Active");
 			sb.append("\n");
-			sb.append("Min-Max: ").append(plugin.stackMinSecondary).append("-").append(plugin.stackMaxSecondary);
+			sb.append("Min-Max: ").append(plugin.getStatsSecondary().min).append("-").append(plugin.getStatsSecondary().max);
 			sb.append("\n");
 			sb.append("Hessian: ").append(plugin.secondaryHessian.toString());
 		} else {
 			sb.append("Secondary image: Disabled");
 			sb.append("\n");
-			sb.append("Min-Max: ").append(plugin.stackMin).append("-").append(plugin.stackMax);
+			sb.append("Min-Max: ").append(plugin.getStats().min).append("-").append(plugin.getStats().max);
 			sb.append("\n");
 			sb.append("Hessian: ").append(plugin.primaryHessian.toString());
 		}
 		sb.append("\n");
-		sb.append("Cost function: ").append(plugin.costFunctionType);
-		if (plugin.costFunctionType == SNT.CostFunctionType.PROBABILITY) {
+		sb.append("Cost function: ").append(plugin.getCostType());
+		if (plugin.getCostType() == SNT.CostType.PROBABILITY) {
 			sb.append("; Z-fudge: ").append(SNTUtils.formatDouble(plugin.getOneMinusErfZFudge(), 3));
 		}
 		sb.append("\n");
@@ -2820,25 +2820,25 @@ public class SNTUI extends JDialog {
 
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Cost Function:", false));
 		final ButtonGroup costFunctionButtonGroup = new ButtonGroup();
-		final Map<String, SNT.CostFunctionType> costMap = new TreeMap<>();
-		costMap.put("Reciprocal of Scaled Intensity", SNT.CostFunctionType.RECIPROCAL);
-		costMap.put("Difference of Intensity", SNT.CostFunctionType.DIFFERENCE);
-		costMap.put("Probability of Intensity...", SNT.CostFunctionType.PROBABILITY);
-		costMap.forEach((lbl, clsss) -> {
+		final Map<String, SNT.CostType> costMap = new TreeMap<>();
+		costMap.put("Reciprocal of Intensity", SNT.CostType.RECIPROCAL);
+		costMap.put("Difference of Intensity", SNT.CostType.DIFFERENCE);
+		costMap.put("Probability of Intensity...", SNT.CostType.PROBABILITY);
+		costMap.forEach((lbl, type) -> {
 			final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
 			costFunctionButtonGroup.add(rbmi);
 			optionsMenu.add(rbmi);
-			rbmi.setActionCommand(String.valueOf(clsss));
-			rbmi.setSelected(plugin.costFunctionType == clsss);
+			rbmi.setActionCommand(String.valueOf(type));
+			rbmi.setSelected(plugin.getCostType() == type);
 			rbmi.addActionListener(e -> {
-				if (clsss == SNT.CostFunctionType.PROBABILITY) {
+				if (type == SNT.CostType.PROBABILITY) {
 					final Double fudge = getZFudgeFromUser();
 					if (fudge == null) { // no value set: restore previous state
 						costFunctionButtonGroup.clearSelection();
 						final Enumeration<AbstractButton> buttons = costFunctionButtonGroup.getElements();
 						while (buttons.hasMoreElements()) {
 							final AbstractButton button = (AbstractButton) buttons.nextElement();
-							if (button.getActionCommand().equals(String.valueOf(plugin.costFunctionType)))
+							if (button.getActionCommand().equals(String.valueOf(plugin.getCostType())))
 								button.setSelected(true);
 								break;
 						}
@@ -2848,10 +2848,10 @@ public class SNTUI extends JDialog {
 					plugin.oneMinusErfZFudge = fudge;
 					SNTUtils.log("Z-fudge changed to " + fudge);
 				}
-				plugin.costFunctionType = clsss;
+				plugin.setCostType(type);
 				updateSettingsString();
 				showStatus("Cost function: " + lbl, true);
-				SNTUtils.log("Cost function: Now using " + plugin.costFunctionType);
+				SNTUtils.log("Cost function: Now using " + plugin.getCostType());
 			});
 		});
 
@@ -2866,12 +2866,12 @@ public class SNTUI extends JDialog {
 	}
 
 	private void enableTracerThread() {
-		plugin.searchType = SNT.SearchType.ASTAR;
+		plugin.setSearchType(SNT.SearchType.ASTAR);
 		refreshHessianPanelState();
 	}
 
 	private void enableNBAStar() {
-		plugin.searchType = SNT.SearchType.NBASTAR;
+		plugin.setSearchType(SNT.SearchType.NBASTAR);
 		refreshHessianPanelState();
 	}
 
@@ -3122,8 +3122,8 @@ public class SNTUI extends JDialog {
 		if (choice == null) return;
 		final boolean useSecondary = "Secondary".equalsIgnoreCase(choice);
 		final float[] defaultValues = new float[2];
-		defaultValues[0] = useSecondary ? (float)plugin.stackMinSecondary : (float)plugin.stackMin;
-		defaultValues[1] = useSecondary ? (float)plugin.stackMaxSecondary : (float)plugin.stackMax;
+		defaultValues[0] = useSecondary ? (float)plugin.getStatsSecondary().min : (float)plugin.getStats().min;
+		defaultValues[1] = useSecondary ? (float)plugin.getStatsSecondary().max : (float)plugin.getStats().max;
 		String promptMsg = "Enter the min-max range for the A* search";
 		if (useSecondary)
 			promptMsg += " for secondary image";
@@ -3140,11 +3140,11 @@ public class SNTUI extends JDialog {
 			guiUtils.error("Invalid range. Please specify two valid numbers separated by a single hyphen.");
 		}
 		if (useSecondary) {
-			plugin.stackMinSecondary = minMax[0];
-			plugin.stackMaxSecondary = minMax[1];
+			plugin.getStatsSecondary().min = minMax[0];
+			plugin.getStatsSecondary().max = minMax[1];
 		} else {
-			plugin.stackMin = minMax[0];
-			plugin.stackMax = minMax[1];
+			plugin.getStats().min = minMax[0];
+			plugin.getStats().max = minMax[1];
 		}
 		updateSettingsString();
 	}

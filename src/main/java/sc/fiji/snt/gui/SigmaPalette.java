@@ -820,7 +820,7 @@ public class SigmaPalette extends Thread {
 					op = new Tubeness(cropped, new double[]{sigma});
 					break;
 				case HessianCaller.FRANGI:
-					op = new Frangi(cropped, new double[]{sigma}, snt.getStackMax());
+					op = new Frangi(cropped, new double[]{sigma}, snt.getStats().max);
 					break;
 				default:
 					throw new IllegalArgumentException("Unknown hessian analysis type");

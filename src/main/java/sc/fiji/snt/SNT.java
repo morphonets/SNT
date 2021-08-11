@@ -108,7 +108,7 @@ public class SNT extends MultiDThreePanes implements
 
 	public enum SearchType {ASTAR, NBASTAR}
 
-	public enum CostFunctionType {RECIPROCAL, DIFFERENCE, PROBABILITY}
+	public enum CostType {RECIPROCAL, DIFFERENCE, PROBABILITY}
 
 	public enum HeuristicType {EUCLIDEAN, DIJKSTRA}
 
@@ -178,31 +178,29 @@ public class SNT extends MultiDThreePanes implements
 	private RandomAccessibleInterval sliceAtCT;
 
 	/* statistics for main image*/
-	protected ImageStatistics stats;
+	private final ImageStatistics stats = new ImageStatistics();
 
 	/* Hessian-based analysis */
 	private volatile boolean hessianEnabled = false;
 	protected final HessianCaller primaryHessian;
 	protected final HessianCaller secondaryHessian;
 
-	/* current selected SearchInterface type */
-	protected SearchType searchType = SearchType.ASTAR;
+	/* current selected search algorithm type */
+	private SearchType searchType = SearchType.ASTAR;
 
 	/* Search image type */
 	@SuppressWarnings("rawtypes")
 	protected Class<? extends SearchImage> searchImageType = MapSearchImage.class;
 
 	/* Cost function and heuristic estimate for search */
-	protected CostFunctionType costFunctionType = CostFunctionType.RECIPROCAL;
-	protected HeuristicType heuristicType = HeuristicType.EUCLIDEAN;
+	private CostType costType = CostType.RECIPROCAL;
+	private HeuristicType heuristicType = HeuristicType.EUCLIDEAN;
 
 	/* Compute image statistics on the bounding box sub-volume given by the start and goal nodes */
 	protected volatile boolean useSubVolumeStats = true;
 
 	/* adjustable parameters for cost functions */
 	protected volatile double oneMinusErfZFudge = 0.1;
-	protected volatile double stackMin;
-	protected volatile double stackMax;
 
 	/* tracing threads */
 	private AbstractSearch currentSearchThread = null;
@@ -216,9 +214,7 @@ public class SNT extends MultiDThreePanes implements
 	protected boolean doSearchOnSecondaryData;
 	protected RandomAccessibleInterval<FloatType> secondaryData;
 	protected File secondaryImageFile = null;
-	private ImageStatistics statsSecondary;
-	volatile protected double stackMaxSecondary = Float.MIN_VALUE;
-	volatile protected double stackMinSecondary = Float.MAX_VALUE;
+	private final ImageStatistics statsSecondary = new ImageStatistics();
 	protected boolean tubularGeodesicsTracingEnabled = false;
 	protected TubularGeodesicsTracer tubularGeodesicsThread;
 
@@ -715,9 +711,12 @@ public class SNT extends MultiDThreePanes implements
 		if (restoreROI) xy.saveRoi();
 		xy.deleteRoi(); // if a ROI exists, compute min/ max for entire image
 		if (restoreROI) xy.restoreRoi();
-		this.stats = xy.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN | ImageStatistics.STD_DEV);
-		this.stackMin = this.stats.min;
-		this.stackMax = this.stats.max;
+		ImageStatistics imgStats = xy.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
+				ImageStatistics.STD_DEV);
+		this.stats.min = imgStats.min;
+		this.stats.max = imgStats.max;
+		this.stats.mean = imgStats.mean;
+		this.stats.stdDev = imgStats.stdDev;
 		nullifyHessian(); // ensure it will be reloaded
 		updateLut();
 	}
@@ -1620,11 +1619,11 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
-																	final CostFunctionType costFunctionType)
+																	final CostType costType)
 	{
 
 		final ImageStatistics imgStats = new ImageStatistics();
-		switch (costFunctionType) {
+		switch (costType) {
 			case PROBABILITY: {
 				imgStats.max = opService.stats().max(in).getRealDouble();
 				imgStats.mean = opService.stats().mean(in).getRealDouble();
@@ -1708,13 +1707,13 @@ public class SNT extends MultiDThreePanes implements
 							y_end,
 							z_end,
 							10));
-			imgStats = computeImgStats(subVolume, costFunctionType);
+			imgStats = computeImgStats(subVolume, costType);
 		} else {
 			imgStats = useSecondary ? statsSecondary : stats;
 		}
 
 		SearchCost costFunction;
-		switch (costFunctionType) {
+		switch (costType) {
 			case RECIPROCAL:
 				costFunction = new ReciprocalCost(imgStats.min, imgStats.max);
 				break;
@@ -1727,7 +1726,7 @@ public class SNT extends MultiDThreePanes implements
 				costFunction = new DifferenceCost(imgStats.min, imgStats.max);
 				break;
 			default:
-				throw new IllegalArgumentException("BUG: Unknown cost function " + costFunctionType);
+				throw new IllegalArgumentException("BUG: Unknown cost function " + costType);
 		}
 
 		SearchHeuristic heuristic;
@@ -2319,12 +2318,12 @@ public class SNT extends MultiDThreePanes implements
 		final boolean useSecondary = isTracingOnSecondaryImageActive();
 		@SuppressWarnings("unchecked")
 		final RandomAccessibleInterval<? extends RealType<?>> data = useSecondary ? secondaryData : sliceAtCT;
-		double min = useSecondary ? stackMinSecondary : stackMin;
-		double max = useSecondary ? stackMaxSecondary : stackMax;
+		double min = useSecondary ? statsSecondary.min : stats.min;
+		double max = useSecondary ? statsSecondary.max : stats.max;
 		double mean = useSecondary ? statsSecondary.mean : stats.mean;
 		double stdDev = useSecondary ? statsSecondary.stdDev : stats.stdDev;
 		SearchCost costFunction;
-		switch (costFunctionType) {
+		switch (costType) {
 			case RECIPROCAL:
 				costFunction = new ReciprocalCost(min, max);
 				break;
@@ -2335,7 +2334,7 @@ public class SNT extends MultiDThreePanes implements
 				costFunction = new DifferenceCost(min, max);
 				break;
 			default:
-				throw new IllegalArgumentException("BUG: Unrecognized cost function " + costFunctionType);
+				throw new IllegalArgumentException("BUG: Unrecognized cost function " + costType);
 		}
 		final FillerThread filler = new FillerThread(
 				data,
@@ -2475,12 +2474,12 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void setSecondaryImageMinMax(final float min, final float max) {
-		stackMinSecondary = min;
-		stackMaxSecondary = max;
+		statsSecondary.min = min;
+		statsSecondary.max = max;
 	}
 
 	public float[] getSecondaryImageMinMax() {
-		return new float[] { (float)stackMinSecondary, (float)stackMaxSecondary };
+		return new float[] { (float)statsSecondary.min, (float)statsSecondary.max };
 	}
 
 	protected void loadSecondaryImage(final ImagePlus imp, final boolean changeUIState) {
@@ -2495,11 +2494,12 @@ public class SNT extends MultiDThreePanes implements
 		secondaryData = ImageJFunctions.wrap(imp);
 		SNTUtils.log("Secondary data dimensions: " +
 				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
-		ImageStatistics impStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
+		ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
 				ImageStatistics.STD_DEV);
-		stackMinSecondary = impStats.min;
-		stackMaxSecondary = impStats.max;
-		statsSecondary = impStats;
+		statsSecondary.min = imgStats.min;
+		statsSecondary.max = imgStats.max;
+		statsSecondary.mean = imgStats.mean;
+		statsSecondary.stdDev = imgStats.stdDev;
 		File file = null;
 		if (isSecondaryImageLoaded() && (imp.getFileInfo() != null)) {
 			file = new File(imp.getFileInfo().directory, imp.getFileInfo().fileName);
@@ -2531,15 +2531,11 @@ public class SNT extends MultiDThreePanes implements
 		if (computeStatistics) {
 			OpService opService = getContext().getService(OpService.class);
 			IterableInterval<FloatType> iterableView = Views.iterable(img);
-			Pair<FloatType, FloatType> p = opService.stats().minMax(iterableView);
-			stackMinSecondary = p.getA().getRealDouble();
-			stackMaxSecondary = p.getB().getRealDouble();
+			Pair<FloatType, FloatType> minMax = opService.stats().minMax(iterableView);
 			double mean = opService.stats().mean(iterableView).getRealDouble();
 			double stdDev = opService.stats().stdDev(iterableView).getRealDouble();
-			// HACK
-			statsSecondary = new ImageStatistics();
-			statsSecondary.min = stackMinSecondary;
-			statsSecondary.max = stackMaxSecondary;
+			statsSecondary.min = minMax.getA().getRealDouble();
+			statsSecondary.max = minMax.getB().getRealDouble();
 			statsSecondary.mean = mean;
 			statsSecondary.stdDev = stdDev;
 		}
@@ -2574,7 +2570,7 @@ public class SNT extends MultiDThreePanes implements
 				+ ". If this unexpected, check under 'Image>Properties...' that CZT axes are not swapped.");
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
-		SNTUtils.log("Loading tubeness image max=" + stackMaxSecondary);
+		SNTUtils.log("Loading tubeness image max=" + statsSecondary.max);
 		loadCachedData(imp, hc.cachedTubeness = new float[depth][]);
 		if (changeUIState) {
 			getUI().updateSettingsString();
@@ -2594,8 +2590,8 @@ public class SNT extends MultiDThreePanes implements
 			for (int y = 0; y < height; ++y) {
 				for (int x = 0; x < width; ++x) {
 					final float v = destination[z][y * width + x];
-					if (v < stackMinSecondary) stackMinSecondary = v;
-					if (v > stackMaxSecondary) stackMaxSecondary = v;
+					if (v < statsSecondary.min) statsSecondary.min = v;
+					if (v > statsSecondary.max) statsSecondary.max = v;
 				}
 			}
 		}
@@ -3420,32 +3416,44 @@ public class SNT extends MultiDThreePanes implements
 		return ("secondary".equalsIgnoreCase(image)) ? secondaryHessian : primaryHessian;
 	}
 
-	public double getOneMinusErfZFudge() {
+	protected double getOneMinusErfZFudge() {
 		return oneMinusErfZFudge;
 	}
 
-	public double getStackMin() {
-		return stackMin;
-	}
-
-	public double getStackMax() {
-		return stackMax;
+	public ImageStatistics getStats() {
+		return stats;
 	}
 
 	public ImageStatistics getStatsSecondary() {
 		return statsSecondary;
 	}
 
-	public double getStackMaxSecondary() {
-		return stackMaxSecondary;
-	}
-
-	public double getStackMinSecondary() {
-		return stackMinSecondary;
-	}
-
 	public void setUseSubVolumeStats(final boolean useSubVolumeStatistics) {
 		this.useSubVolumeStats = useSubVolumeStatistics;
+	}
+
+	public SearchType getSearchType() {
+		return searchType;
+	}
+
+	public void setSearchType(final SearchType searchType) {
+		this.searchType = searchType;
+	}
+
+	public CostType getCostType() {
+		return costType;
+	}
+
+	public void setCostType(final CostType costType) {
+		this.costType = costType;
+	}
+
+	public HeuristicType getHeuristicType() {
+		return heuristicType;
+	}
+
+	public void setHeuristicType(final HeuristicType heuristicType) {
+		this.heuristicType = heuristicType;
 	}
 
 }
