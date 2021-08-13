@@ -35,7 +35,7 @@ import net.imglib2.outofbounds.OutOfBoundsBorderFactory;
 import net.imglib2.parallel.DefaultTaskExecutor;
 import net.imglib2.parallel.TaskExecutor;
 import net.imglib2.type.numeric.RealType;
-import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
@@ -102,7 +102,16 @@ public class Frangi<T extends RealType<T>, U extends RealType<U>> extends
     }
 
     @Override
-    public void compute(RandomAccessibleInterval<T> input, RandomAccessibleInterval<U> output) {
+    public void compute(final RandomAccessibleInterval<T> input, final RandomAccessibleInterval<U> output) {
+
+        final int nDim = input.numDimensions();
+        if (nDim > 3 || nDim < 2) {
+            throw new IllegalArgumentException("Only 2D and 3D images are supported");
+        }
+        if (output.numDimensions() != nDim) {
+            throw new IllegalArgumentException("input and output must have same dimensions");
+        }
+        final boolean is3D = (nDim == 3);
 
         if (scales == null)
             throw new IllegalArgumentException("scales array is null");
@@ -118,20 +127,12 @@ public class Frangi<T extends RealType<T>, U extends RealType<U>> extends
         else
             this.numThreads = Math.min(numThreads, Runtime.getRuntime().availableProcessors());
 
-        final int nDim = input.numDimensions();
-        if (nDim > 3 || nDim < 2) {
-            throw new IllegalArgumentException("Only 2D and 3D images are supported");
-        }
-        final boolean is3D = (nDim == 3);
-
         // Convert the desired scales (physical units) into sigmas (pixel units)
         final List<double[]> sigmas = new ArrayList<>();
         for (final double sc : scales) {
-            final double[] sigma;
-            if (is3D) {
-                sigma = new double[]{sc / spacing[0], sc / spacing[1], sc / spacing[2]};
-            } else {
-                sigma = new double[]{sc / spacing[0], sc / spacing[1]};
+            final double[] sigma = new double[nDim];
+            for (int d = 0; d < nDim; ++d) {
+                sigma[d] = sc / spacing[d];
             }
             sigmas.add(sigma);
         }
@@ -140,39 +141,38 @@ public class Frangi<T extends RealType<T>, U extends RealType<U>> extends
         final long[] gaussianOffset = new long[nDim];
 
         final long[] gradientPad = new long[nDim + 1];
-        gradientPad[gradientPad.length - 1] = is3D ? 3 : 2;
+        gradientPad[gradientPad.length - 1] = nDim;
         final long[] gradientOffset = new long[nDim + 1];
 
         final long[] hessianPad = new long[nDim + 1];
-        hessianPad[hessianPad.length - 1] = is3D ? 6 : 3;
+        hessianPad[hessianPad.length - 1] = nDim * (nDim + 1) / 2;
         final long[] hessianOffset = new long[nDim + 1];
 
         final ExecutorService es = Executors.newFixedThreadPool(numThreads);
-        final TaskExecutor ex = new DefaultTaskExecutor(es);
 
-        for (final double[] sigma : sigmas) {
+        try (TaskExecutor ex = new DefaultTaskExecutor(es)) {
+            for (final double[] sigma : sigmas) {
 
-            final long[] blockSize = Intervals.dimensionsAsLongArray(output);
+                final long[] blockSize = Intervals.dimensionsAsLongArray(output);
 
-            for (int d = 0; d < blockSize.length; ++d) {
-                gaussianPad[d] = blockSize[d] + 6;
-                gaussianOffset[d] = output.min(d) - 2;
-            }
-            RandomAccessibleInterval<FloatType> tmpGaussian = Views.translate(
-                    ArrayImgs.floats(gaussianPad), gaussianOffset);
+                for (int d = 0; d < blockSize.length; ++d) {
+                    gaussianPad[d] = blockSize[d] + 6;
+                    gaussianOffset[d] = output.min(d) - 2;
+                }
+                RandomAccessibleInterval<DoubleType> tmpGaussian = Views.translate(
+                        ArrayImgs.doubles(gaussianPad), gaussianOffset);
 
-            FastGauss.convolve(sigma, Views.extendBorder(input), tmpGaussian);
+                FastGauss.convolve(sigma, Views.extendBorder(input), tmpGaussian);
 
-            for (int d = 0; d < gradientPad.length - 1; ++d) {
-                gradientPad[d] = blockSize[d] + 4;
-                gradientOffset[d] = output.min(d) - 1;
-                hessianPad[d] = blockSize[d];
-                hessianOffset[d] = output.min(d);
-            }
-            RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(gradientPad);
-            RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(hessianPad);
+                for (int d = 0; d < gradientPad.length - 1; ++d) {
+                    gradientPad[d] = blockSize[d] + 4;
+                    gradientOffset[d] = output.min(d) - 1;
+                    hessianPad[d] = blockSize[d];
+                    hessianOffset[d] = output.min(d);
+                }
+                RandomAccessibleInterval<DoubleType> tmpGradient = ArrayImgs.doubles(gradientPad);
+                RandomAccessibleInterval<DoubleType> tmpHessian = ArrayImgs.doubles(hessianPad);
 
-            try {
                 HessianMatrix.calculateMatrix(
                         Views.extendBorder(tmpGaussian),
                         Views.translate(tmpGradient, gradientOffset),
@@ -180,52 +180,61 @@ public class Frangi<T extends RealType<T>, U extends RealType<U>> extends
                         new OutOfBoundsBorderFactory<>(),
                         numThreads,
                         es);
-            } catch (InterruptedException | ExecutionException e) {
-                SNTUtils.error("Error during hessian matrix computation", e);
-                return;
-            }
-            // FIXME: this normalizes the filter response using the average voxel separation at a scale
-            double avgSigma = 0d;
-            for (double s : sigma) {
-                avgSigma += s;
-            }
-            avgSigma /= sigma.length;
-            final double norm = avgSigma * avgSigma;
-            LoopBuilder.setImages(tmpHessian).multiThreaded(ex).forEachPixel((h) -> h.mul(norm));
 
-            RandomAccessibleInterval<FloatType> tmpEigenvalues = TensorEigenValues.createAppropriateResultImg(
-                    tmpHessian,
-                    new ArrayImgFactory<>(new FloatType()));
+                // FIXME: this normalizes the filter response using the average voxel separation at a scale
+                double avgSigma = 0d;
+                for (double s : sigma) {
+                    avgSigma += s;
+                }
+                avgSigma /= sigma.length;
+                final double norm = avgSigma * avgSigma;
+                LoopBuilder.setImages(tmpHessian).multiThreaded(ex).forEachPixel((h) -> h.mul(norm));
 
-            TensorEigenValues.calculateEigenValuesSymmetric(
-                    tmpHessian,
-                    tmpEigenvalues,
-                    numThreads,
-                    es);
+                RandomAccessibleInterval<DoubleType> tmpEigenvalues = TensorEigenValues.createAppropriateResultImg(
+                        tmpHessian,
+                        new ArrayImgFactory<>(new DoubleType()));
 
-            final double c = stackMax / 4.0;
-            RandomAccessibleInterval<FloatType> tmpFrangi = ArrayImgs.floats(blockSize);
-            if (is3D) {
-                frangi3D(tmpEigenvalues, tmpFrangi, 0.5, 0.5, c, ex);
-            } else {
-                frangi2D(tmpEigenvalues, tmpFrangi, 0.5, c, ex);
+                TensorEigenValues.calculateEigenValuesSymmetric(
+                        tmpHessian,
+                        tmpEigenvalues,
+                        numThreads,
+                        es);
+
+                final double c = stackMax / 4.0;
+                RandomAccessibleInterval<DoubleType> tmpFrangi = ArrayImgs.doubles(blockSize);
+                if (is3D) {
+                    frangi3D(tmpEigenvalues, tmpFrangi, 0.5, 0.5, c, ex);
+                } else {
+                    frangi2D(tmpEigenvalues, tmpFrangi, 0.5, c, ex);
+                }
+                LoopBuilder.setImages(output, tmpFrangi).multiThreaded(ex).forEachPixel((b, t) ->
+                        b.setReal(Math.max(b.getRealDouble(), t.getRealDouble())));
+
             }
-            LoopBuilder.setImages(output, tmpFrangi).multiThreaded(ex).forEachPixel((b, t) ->
-                    b.setReal(Math.max(b.getRealDouble(), t.getRealDouble())));
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            SNTUtils.error("Frangi interrupted", e);
+
+        } catch (ExecutionException e) {
+            SNTUtils.error("Error during Frangi", e);
+
+        } catch (OutOfMemoryError e) {
+            SNTUtils.error("Out of memory. Try using Lazy processing instead.");
         }
-        ex.close();
+
     }
 
-    private static void frangi2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                                 final RandomAccessibleInterval<FloatType> frangiRai,
+    private static void frangi2D(final RandomAccessibleInterval<DoubleType> eigenvalueRai,
+                                 final RandomAccessibleInterval<DoubleType> frangiRai,
                                  final double beta, final double c, final TaskExecutor ex)
     {
         final double betaDen = 2 * beta * beta;
         final double cDen = 2 * c * c;
 
         final int d = eigenvalueRai.numDimensions() - 1;
-        final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
-        final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
+        final IntervalView<DoubleType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
+        final IntervalView<DoubleType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
 
         LoopBuilder.setImages(evs0, evs1, frangiRai).multiThreaded(ex).forEachPixel(
                 (ev0, ev1, v) -> {
@@ -253,8 +262,8 @@ public class Frangi<T extends RealType<T>, U extends RealType<U>> extends
         );
     }
 
-    private static void frangi3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                                 final RandomAccessibleInterval<FloatType> frangiRai,
+    private static void frangi3D(final RandomAccessibleInterval<DoubleType> eigenvalueRai,
+                                 final RandomAccessibleInterval<DoubleType> frangiRai,
                                  final double alpha, final double beta, final double c, final TaskExecutor ex)
     {
         final double alphaDen = 2 * alpha * alpha;
@@ -262,9 +271,9 @@ public class Frangi<T extends RealType<T>, U extends RealType<U>> extends
         final double cDen = 2 * c * c;
 
         final int d = eigenvalueRai.numDimensions() - 1;
-        final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
-        final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
-        final IntervalView<FloatType> evs2 = Views.hyperSlice(eigenvalueRai, d, 2);
+        final IntervalView<DoubleType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
+        final IntervalView<DoubleType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
+        final IntervalView<DoubleType> evs2 = Views.hyperSlice(eigenvalueRai, d, 2);
 
         LoopBuilder.setImages(evs0, evs1, evs2, frangiRai).multiThreaded(ex).forEachPixel(
                 (ev0, ev1, ev2, v) -> {

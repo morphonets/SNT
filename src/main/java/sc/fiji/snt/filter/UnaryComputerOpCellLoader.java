@@ -58,12 +58,6 @@ public class UnaryComputerOpCellLoader<T, S extends NativeType<S>, R extends Ran
 
         this.source = source;
 
-        /*
-         * TODO Ugh!
-         * Instead of passing instances, passing Type would be better, Computers.unary
-         * does not yet support Type though and classes loose their generic parameters by
-         * erasure.
-         */
         op = Computers.unary(
                 opService,
                 opClass,

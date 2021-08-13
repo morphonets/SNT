@@ -35,10 +35,11 @@ import net.imglib2.outofbounds.OutOfBoundsBorderFactory;
 import net.imglib2.parallel.DefaultTaskExecutor;
 import net.imglib2.parallel.TaskExecutor;
 import net.imglib2.type.numeric.RealType;
-import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
+import org.scijava.Priority;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import sc.fiji.snt.SNTUtils;
@@ -59,11 +60,10 @@ import java.util.function.Consumer;
  *
  * @author Cameron Arshadi
  */
-@Plugin(type = Ops.Filter.Tubeness.class)
+@Plugin(type = Ops.Filter.Tubeness.class, priority = Priority.HIGH)
 public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
         AbstractUnaryComputerOp<RandomAccessibleInterval<T>, RandomAccessibleInterval<U>>
-        implements Ops.Filter.Tubeness, Consumer<RandomAccessibleInterval<U>>
-{
+        implements Ops.Filter.Tubeness, Consumer<RandomAccessibleInterval<U>> {
 
     @Parameter
     private double[] spacing;
@@ -99,7 +99,16 @@ public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
     }
 
     @Override
-    public void compute(RandomAccessibleInterval<T> input, RandomAccessibleInterval<U> output) {
+    public void compute(final RandomAccessibleInterval<T> input, final RandomAccessibleInterval<U> output) {
+
+        final int nDim = input.numDimensions();
+        if (nDim > 3 || nDim < 2) {
+            throw new IllegalArgumentException("Only 2D and 3D images are supported");
+        }
+        if (output.numDimensions() != nDim) {
+            throw new IllegalArgumentException("input and output must have same dimensions");
+        }
+        final boolean is3D = (nDim == 3);
 
         if (scales == null)
             throw new IllegalArgumentException("scales array is null");
@@ -112,20 +121,12 @@ public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
         else
             this.numThreads = Math.min(numThreads, Runtime.getRuntime().availableProcessors());
 
-        final int nDim = input.numDimensions();
-        if (nDim > 3 || nDim < 2) {
-            throw new IllegalArgumentException("Only 2D and 3D images are supported");
-        }
-        final boolean is3D = (nDim == 3);
-
-        // Convert the desired scales into pixel units
+        // Convert the desired scales (physical units) into sigmas (pixel units)
         final List<double[]> sigmas = new ArrayList<>();
         for (final double sc : scales) {
-            final double[] sigma;
-            if (is3D) {
-                sigma = new double[]{sc / spacing[0], sc / spacing[1], sc / spacing[2]};
-            } else {
-                sigma = new double[]{sc / spacing[0], sc / spacing[1]};
+            final double[] sigma = new double[nDim];
+            for (int d = 0; d < nDim; ++d) {
+                sigma[d] = sc / spacing[d];
             }
             sigmas.add(sigma);
         }
@@ -134,39 +135,38 @@ public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
         final long[] gaussianOffset = new long[nDim];
 
         final long[] gradientPad = new long[nDim + 1];
-        gradientPad[gradientPad.length - 1] = is3D ? 3 : 2;
+        gradientPad[gradientPad.length - 1] = nDim;
         final long[] gradientOffset = new long[nDim + 1];
 
         final long[] hessianPad = new long[nDim + 1];
-        hessianPad[hessianPad.length - 1] = is3D ? 6 : 3;
+        hessianPad[hessianPad.length - 1] = nDim * (nDim + 1) / 2;
         final long[] hessianOffset = new long[nDim + 1];
 
         final ExecutorService es = Executors.newFixedThreadPool(numThreads);
-        final TaskExecutor ex = new DefaultTaskExecutor(es);
 
-        for (final double[] sigma : sigmas) {
+        try (final TaskExecutor ex = new DefaultTaskExecutor(es)) {
+            for (final double[] sigma : sigmas) {
 
-            final long[] blockSize = Intervals.dimensionsAsLongArray(output);
+                final long[] blockSize = Intervals.dimensionsAsLongArray(output);
 
-            for (int d = 0; d < blockSize.length; ++d) {
-                gaussianPad[d] = blockSize[d] + 6;
-                gaussianOffset[d] = output.min(d) - 2;
-            }
-            RandomAccessibleInterval<FloatType> tmpGaussian = Views.translate(
-                    ArrayImgs.floats(gaussianPad), gaussianOffset);
+                for (int d = 0; d < blockSize.length; ++d) {
+                    gaussianPad[d] = blockSize[d] + 6;
+                    gaussianOffset[d] = output.min(d) - 2;
+                }
+                RandomAccessibleInterval<DoubleType> tmpGaussian = Views.translate(
+                        ArrayImgs.doubles(gaussianPad), gaussianOffset);
 
-            FastGauss.convolve(sigma, Views.extendBorder(input), tmpGaussian);
+                FastGauss.convolve(sigma, Views.extendBorder(input), tmpGaussian);
 
-            for (int d = 0; d < gradientPad.length - 1; ++d) {
-                gradientPad[d] = blockSize[d] + 4;
-                gradientOffset[d] = output.min(d) - 1;
-                hessianPad[d] = blockSize[d];
-                hessianOffset[d] = output.min(d);
-            }
-            RandomAccessibleInterval<FloatType> tmpGradient = ArrayImgs.floats(gradientPad);
-            RandomAccessibleInterval<FloatType> tmpHessian = ArrayImgs.floats(hessianPad);
+                for (int d = 0; d < gradientPad.length - 1; ++d) {
+                    gradientPad[d] = blockSize[d] + 4;
+                    gradientOffset[d] = output.min(d) - 1;
+                    hessianPad[d] = blockSize[d];
+                    hessianOffset[d] = output.min(d);
+                }
+                RandomAccessibleInterval<DoubleType> tmpGradient = ArrayImgs.doubles(gradientPad);
+                RandomAccessibleInterval<DoubleType> tmpHessian = ArrayImgs.doubles(hessianPad);
 
-            try {
                 HessianMatrix.calculateMatrix(
                         Views.extendBorder(tmpGaussian),
                         Views.translate(tmpGradient, gradientOffset),
@@ -174,49 +174,57 @@ public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
                         new OutOfBoundsBorderFactory<>(),
                         numThreads,
                         es);
-            } catch (InterruptedException | ExecutionException e) {
-                SNTUtils.error("Error during hessian matrix computation", e);
-                return;
+
+                RandomAccessibleInterval<DoubleType> tmpEigenvalues = TensorEigenValues.createAppropriateResultImg(
+                        tmpHessian,
+                        new ArrayImgFactory<>(new DoubleType()));
+
+                TensorEigenValues.calculateEigenValuesSymmetric(
+                        tmpHessian,
+                        tmpEigenvalues,
+                        numThreads,
+                        es);
+
+                // FIXME: this normalizes the filter response using the average voxel separation at a scale
+                double avgSigma = 0d;
+                for (double s : sigma) {
+                    avgSigma += s;
+                }
+                avgSigma /= sigma.length;
+
+                RandomAccessibleInterval<DoubleType> tmpTubeness = ArrayImgs.doubles(blockSize);
+                if (is3D) {
+                    tubeness3D(tmpEigenvalues, tmpTubeness, avgSigma, ex);
+                } else {
+                    tubeness2D(tmpEigenvalues, tmpTubeness, avgSigma, ex);
+                }
+                LoopBuilder.setImages(output, tmpTubeness)
+                        .multiThreaded(ex)
+                        .forEachPixel((b, t) -> b.setReal(Math.max(b.getRealDouble(), t.getRealDouble())));
+
             }
 
-            RandomAccessibleInterval<FloatType> tmpEigenvalues = TensorEigenValues.createAppropriateResultImg(
-                    tmpHessian,
-                    new ArrayImgFactory<>(new FloatType()));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            SNTUtils.error("Tubeness interrupted", e);
 
-            TensorEigenValues.calculateEigenValuesSymmetric(
-                    tmpHessian,
-                    tmpEigenvalues,
-                    numThreads,
-                    es);
+        } catch (ExecutionException e) {
+            SNTUtils.error("Error during Tubeness", e);
 
-            // FIXME: this normalizes the filter response using the average voxel separation at a scale
-            double avgSigma = 0d;
-            for (double s : sigma) {
-                avgSigma += s;
-            }
-            avgSigma /= sigma.length;
-
-            RandomAccessibleInterval<FloatType> tmpTubeness = ArrayImgs.floats(blockSize);
-            if (is3D) {
-                tubeness3D(tmpEigenvalues, tmpTubeness, avgSigma, ex);
-            } else {
-                tubeness2D(tmpEigenvalues, tmpTubeness, avgSigma, ex);
-            }
-            LoopBuilder.setImages(output, tmpTubeness)
-                    .multiThreaded(ex)
-                    .forEachPixel((b, t) -> b.setReal(Math.max(b.getRealDouble(), t.getRealDouble())));
-
+        } catch (OutOfMemoryError e) {
+            SNTUtils.error("Out of memory. Try using Lazy processing instead.");
         }
-        ex.close();
+
     }
 
-    private static void tubeness2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                                   final RandomAccessibleInterval<FloatType> tubenessRai, double sigma,
-                                   final TaskExecutor ex)
+    private void tubeness2D(final RandomAccessibleInterval<DoubleType> eigenvalueRai,
+                            final RandomAccessibleInterval<DoubleType> tubenessRai,
+                            final double sigma,
+                            final TaskExecutor ex)
     {
         final int d = eigenvalueRai.numDimensions() - 1;
-        final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
-        final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
+        final IntervalView<DoubleType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
+        final IntervalView<DoubleType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
         // normalize filter response for fair comparison at multiple scales
         final double norm = sigma * sigma;
 
@@ -237,14 +245,15 @@ public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
         );
     }
 
-    private static void tubeness3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                                   final RandomAccessibleInterval<FloatType> tubenessRai, double sigma,
-                                   final TaskExecutor ex)
+    private void tubeness3D(final RandomAccessibleInterval<DoubleType> eigenvalueRai,
+                            final RandomAccessibleInterval<DoubleType> tubenessRai,
+                            final double sigma,
+                            final TaskExecutor ex)
     {
         final int d = eigenvalueRai.numDimensions() - 1;
-        final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
-        final IntervalView<FloatType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
-        final IntervalView<FloatType> evs2 = Views.hyperSlice(eigenvalueRai, d, 2);
+        final IntervalView<DoubleType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
+        final IntervalView<DoubleType> evs1 = Views.hyperSlice(eigenvalueRai, d, 1);
+        final IntervalView<DoubleType> evs2 = Views.hyperSlice(eigenvalueRai, d, 2);
         // normalize filter response for fair comparison at multiple scales
         final double norm = sigma * sigma;
 
