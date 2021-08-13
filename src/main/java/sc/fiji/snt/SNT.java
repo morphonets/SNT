@@ -64,6 +64,7 @@ import org.scijava.vecmath.Point3d;
 import org.scijava.vecmath.Point3f;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.event.SNTListener;
+import sc.fiji.snt.filter.ImgUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
@@ -1596,32 +1597,6 @@ public class SNT extends MultiDThreePanes implements
 		return tracerThreadPool.submit(currentSearchThread);
 	}
 
-	private <T> RandomAccessibleInterval<T> getSubVolume(final RandomAccessibleInterval<T> img,
-														 final long x1,
-														 final long y1,
-														 final long z1,
-														 final long x2,
-														 final long y2,
-														 final long z2,
-														 final int padPixels)
-	{
-		// Create some padding around the start and goal nodes
-		long[] imgMin = Intervals.minAsLongArray(img);
-		long[] imgMax = Intervals.maxAsLongArray(img);
-		if (img.numDimensions() == 2) {
-			imgMin = Arrays.copyOf(imgMin, 3);
-			imgMax = Arrays.copyOf(imgMax, 3);
-		}
-		final FinalInterval interval = Intervals.createMinMax(
-				Math.max(imgMin[0], Math.min(x1, x2) - padPixels),
-				Math.max(imgMin[1], Math.min(y1, y2) - padPixels),
-				Math.max(imgMin[2], Math.min(z1, z2) - padPixels),
-				Math.min(imgMax[0], Math.max(x1, x2) + padPixels),
-				Math.min(imgMax[1], Math.max(y1, y2) + padPixels),
-				Math.min(imgMax[2], Math.max(z1, z2) + padPixels));
-		return Views.interval(img, interval);
-	}
-
 	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
 																	final CostType costType)
 	{
@@ -1702,7 +1677,7 @@ public class SNT extends MultiDThreePanes implements
 		if (useSubVolumeStats) {
 			SNTUtils.log("Computing subvolume statistics...");
 			final IterableInterval<T> subVolume = Views.iterable(
-					getSubVolume(
+					ImgUtils.getSubVolume(
 							img,
 							x_start,
 							y_start,

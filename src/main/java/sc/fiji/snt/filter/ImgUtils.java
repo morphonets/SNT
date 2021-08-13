@@ -28,21 +28,19 @@ import net.imglib2.type.Type;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
-import sc.fiji.snt.SNTUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 /**
- * TODO
+ * Static utilities for handling and manipulation of {@link RandomAccessibleInterval}s
  *
  * @author Cameron Arshadi
  */
 public class ImgUtils {
 
-    private ImgUtils() {
-    }
+    private ImgUtils() { }
 
     public static int maxDimension(final long[] dimensions) {
         long dimensionMax = Long.MIN_VALUE;
@@ -57,10 +55,34 @@ public class ImgUtils {
         return dimensionArgMax;
     }
 
+    public static <T> RandomAccessibleInterval<T> getSubVolume(final RandomAccessibleInterval<T> img,
+                                                               final long x1, final long y1, final long z1,
+                                                               final long x2, final long y2, final long z2,
+                                                               final int padPixels)
+    {
+        // Create some padding around the start and goal nodes
+        long[] imgMin = Intervals.minAsLongArray(img);
+        long[] imgMax = Intervals.maxAsLongArray(img);
+        if (img.numDimensions() == 2) {
+            imgMin = Arrays.copyOf(imgMin, 3);
+            imgMax = Arrays.copyOf(imgMax, 3);
+        }
+        final FinalInterval interval = Intervals.createMinMax(
+                Math.max(imgMin[0], Math.min(x1, x2) - padPixels),
+                Math.max(imgMin[1], Math.min(y1, y2) - padPixels),
+                Math.max(imgMin[2], Math.min(z1, z2) - padPixels),
+                Math.min(imgMax[0], Math.max(x1, x2) + padPixels),
+                Math.min(imgMax[1], Math.max(y1, y2) + padPixels),
+                Math.min(imgMax[2], Math.max(z1, z2) + padPixels));
+        return Views.interval(img, interval);
+    }
+
     public static <T extends Type<T>> List<IntervalView<T>> splitIntoBlocks(final RandomAccessibleInterval<T> source,
-                                                                            final long[] blockDimensions) {
+                                                                            final long[] blockDimensions)
+    {
         final List<IntervalView<T>> views = new ArrayList<>();
-        for (final FinalInterval interval : createIntervals(Intervals.dimensionsAsLongArray(source), blockDimensions)) {
+        for (final FinalInterval interval : createIntervals(Intervals.dimensionsAsLongArray(source), blockDimensions))
+        {
             views.add(Views.interval(source, interval));
         }
         return views;
@@ -76,7 +98,8 @@ public class ImgUtils {
 
     private static void createBlocksRecursionLoop(final List<FinalInterval> intervals, final long[] sourceDimensions,
                                                   final long[] blockDimensions, final long[] min, final long[] max,
-                                                  final int d) {
+                                                  final int d)
+    {
         if (d == min.length) {
             for (int m = 0; m < min.length; ++m) {
                 max[m] = Math.min(min[m] + blockDimensions[m] - 1, sourceDimensions[m] - 1);
