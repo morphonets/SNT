@@ -539,7 +539,13 @@ public abstract class SearchThread extends AbstractSearch {
 		if (nodes_as_image_from_goal != null) goalSlice = nodes_as_image_from_goal.getSlice(z);
 		DefaultSearchNode n = null;
 		if (startSlice != null) {
-			n = startSlice.getValue(x, y);
+			try{
+				n = startSlice.getValue(x, y);
+			} catch (ArrayIndexOutOfBoundsException e) {
+				// FIXME: This only occurs with MapSearchImage
+				//  possibly a synchronization issue going on...
+				return null;
+			}
 			if (n != null && threshold >= 0 && n.g > threshold) n = null;
 			if (n == null && goalSlice != null) {
 				n = goalSlice.getValue(x, y);

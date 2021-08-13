@@ -540,7 +540,13 @@ public class BidirectionalSearch extends AbstractSearch {
         if (slice == null) {
             return null;
         }
-        return slice.getValue(x, y);
+        try {
+            return slice.getValue(x, y);
+        } catch (ArrayIndexOutOfBoundsException e) {
+            // FIXME: This only occurs with MapSearchImage
+            //  possibly a synchronization issue going on...
+            return null;
+        }
     }
 
     @Override
