@@ -22,15 +22,14 @@
 
 package sc.fiji.snt.filter;
 
-import ij.ImagePlus;
-import ij.measure.Calibration;
+import net.imagej.ops.Ops;
+import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.algorithm.convolution.fast_gauss.FastGauss;
 import net.imglib2.algorithm.gradient.HessianMatrix;
 import net.imglib2.algorithm.linalg.eigen.TensorEigenValues;
 import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.array.ArrayImgs;
-import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.loops.LoopBuilder;
 import net.imglib2.outofbounds.OutOfBoundsBorderFactory;
 import net.imglib2.parallel.DefaultTaskExecutor;
@@ -40,11 +39,11 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
-import sc.fiji.snt.SNTPrefs;
+import org.scijava.plugin.Parameter;
+import org.scijava.plugin.Plugin;
 import sc.fiji.snt.SNTUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -60,22 +59,66 @@ import java.util.function.Consumer;
  *
  * @author Cameron Arshadi
  */
-public class Tubeness implements Consumer<RandomAccessibleInterval<FloatType>> {
+@Plugin(type = Ops.Filter.Tubeness.class)
+public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
+        AbstractUnaryComputerOp<RandomAccessibleInterval<T>, RandomAccessibleInterval<U>>
+        implements Ops.Filter.Tubeness, Consumer<RandomAccessibleInterval<U>>
+{
 
-    private final boolean is3D;
-    private final RandomAccessibleInterval<? extends RealType<?>> source;
-    private final int nDim;
-    private final List<double[]> sigmas;
+    @Parameter
+    private double[] spacing;
+    @Parameter
+    private double[] scales;
+    @Parameter
+    private int numThreads;
 
-    public Tubeness(final RandomAccessibleInterval<? extends RealType<?>> source, final double[] scales,
-                  final double[] spacing)
-    {
-        this.source = source;
-        this.nDim = source.numDimensions();
+    public Tubeness(final double[] scales, final double[] spacing) {
+        this(scales, spacing, Runtime.getRuntime().availableProcessors());
+    }
+
+    public Tubeness(final double[] scales, final double[] spacing, final int numThreads) {
+        this.scales = scales;
+        this.spacing = spacing;
+        this.numThreads = numThreads;
+    }
+
+    @Override
+    public void run() {
+        compute(in(), out());
+    }
+
+    @Override
+    public RandomAccessibleInterval<U> run(final RandomAccessibleInterval<U> output) {
+        compute(in(), output);
+        return output;
+    }
+
+    @Override
+    public void accept(final RandomAccessibleInterval<U> output) {
+        compute(in(), output);
+    }
+
+    @Override
+    public void compute(RandomAccessibleInterval<T> input, RandomAccessibleInterval<U> output) {
+
+        if (scales == null)
+            throw new IllegalArgumentException("scales array is null");
+
+        if (spacing == null)
+            throw new IllegalArgumentException("spacing array is null");
+
+        if (numThreads < 1)
+            this.numThreads = 1;
+        else
+            this.numThreads = Math.min(numThreads, Runtime.getRuntime().availableProcessors());
+
+        final int nDim = input.numDimensions();
         if (nDim > 3 || nDim < 2) {
             throw new IllegalArgumentException("Only 2D and 3D images are supported");
         }
-        this.is3D = (nDim == 3);
+        final boolean is3D = (nDim == 3);
+
+        // Convert the desired scales into pixel units
         final List<double[]> sigmas = new ArrayList<>();
         for (final double sc : scales) {
             final double[] sigma;
@@ -86,33 +129,19 @@ public class Tubeness implements Consumer<RandomAccessibleInterval<FloatType>> {
             }
             sigmas.add(sigma);
         }
-        this.sigmas = sigmas;
-    }
 
-    public Tubeness(final RandomAccessibleInterval<? extends RealType<?>> source, final double[] scales,
-                    final Calibration cal)
-    {
-        this(source, scales, new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth});
-    }
-
-    public Tubeness(final ImagePlus imp, final double[] scales) {
-        this(ImageJFunctions.wrapReal(imp), scales, imp.getCalibration());
-    }
-
-    @Override
-    public void accept(RandomAccessibleInterval<FloatType> output) {
         final long[] gaussianPad = new long[nDim];
         final long[] gaussianOffset = new long[nDim];
 
         final long[] gradientPad = new long[nDim + 1];
-        gradientPad[gradientPad.length - 1] = this.is3D ? 3 : 2;
+        gradientPad[gradientPad.length - 1] = is3D ? 3 : 2;
         final long[] gradientOffset = new long[nDim + 1];
 
         final long[] hessianPad = new long[nDim + 1];
-        hessianPad[hessianPad.length - 1] = this.is3D ? 6 : 3;
+        hessianPad[hessianPad.length - 1] = is3D ? 6 : 3;
         final long[] hessianOffset = new long[nDim + 1];
 
-        final ExecutorService es = Executors.newFixedThreadPool(SNTPrefs.getThreads());
+        final ExecutorService es = Executors.newFixedThreadPool(numThreads);
         final TaskExecutor ex = new DefaultTaskExecutor(es);
 
         for (final double[] sigma : sigmas) {
@@ -126,7 +155,7 @@ public class Tubeness implements Consumer<RandomAccessibleInterval<FloatType>> {
             RandomAccessibleInterval<FloatType> tmpGaussian = Views.translate(
                     ArrayImgs.floats(gaussianPad), gaussianOffset);
 
-            FastGauss.convolve(sigma, Views.extendBorder(source), tmpGaussian);
+            FastGauss.convolve(sigma, Views.extendBorder(input), tmpGaussian);
 
             for (int d = 0; d < gradientPad.length - 1; ++d) {
                 gradientPad[d] = blockSize[d] + 4;
@@ -143,7 +172,7 @@ public class Tubeness implements Consumer<RandomAccessibleInterval<FloatType>> {
                         Views.translate(tmpGradient, gradientOffset),
                         Views.translate(tmpHessian, hessianOffset),
                         new OutOfBoundsBorderFactory<>(),
-                        SNTPrefs.getThreads(),
+                        numThreads,
                         es);
             } catch (InterruptedException | ExecutionException e) {
                 SNTUtils.error("Error during hessian matrix computation", e);
@@ -157,7 +186,7 @@ public class Tubeness implements Consumer<RandomAccessibleInterval<FloatType>> {
             TensorEigenValues.calculateEigenValuesSymmetric(
                     tmpHessian,
                     tmpEigenvalues,
-                    SNTPrefs.getThreads(),
+                    numThreads,
                     es);
 
             // FIXME: this normalizes the filter response using the average voxel separation at a scale
@@ -168,22 +197,22 @@ public class Tubeness implements Consumer<RandomAccessibleInterval<FloatType>> {
             avgSigma /= sigma.length;
 
             RandomAccessibleInterval<FloatType> tmpTubeness = ArrayImgs.floats(blockSize);
-            if (this.is3D) {
+            if (is3D) {
                 tubeness3D(tmpEigenvalues, tmpTubeness, avgSigma, ex);
             } else {
                 tubeness2D(tmpEigenvalues, tmpTubeness, avgSigma, ex);
             }
             LoopBuilder.setImages(output, tmpTubeness)
                     .multiThreaded(ex)
-                    .forEachPixel((b, t) -> b.set(Math.max(b.getRealFloat(), t.getRealFloat())));
+                    .forEachPixel((b, t) -> b.setReal(Math.max(b.getRealDouble(), t.getRealDouble())));
 
         }
         ex.close();
     }
 
     private static void tubeness2D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                              final RandomAccessibleInterval<FloatType> tubenessRai, double sigma,
-                              final TaskExecutor ex)
+                                   final RandomAccessibleInterval<FloatType> tubenessRai, double sigma,
+                                   final TaskExecutor ex)
     {
         final int d = eigenvalueRai.numDimensions() - 1;
         final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
@@ -203,14 +232,14 @@ public class Tubeness implements Consumer<RandomAccessibleInterval<FloatType>> {
                     if (e1 < 0) {
                         result = norm * Math.abs(e1);
                     }
-                    v.set((float) result);
+                    v.setReal(result);
                 }
         );
     }
 
     private static void tubeness3D(final RandomAccessibleInterval<FloatType> eigenvalueRai,
-                              final RandomAccessibleInterval<FloatType> tubenessRai, double sigma,
-                              final TaskExecutor ex)
+                                   final RandomAccessibleInterval<FloatType> tubenessRai, double sigma,
+                                   final TaskExecutor ex)
     {
         final int d = eigenvalueRai.numDimensions() - 1;
         final IntervalView<FloatType> evs0 = Views.hyperSlice(eigenvalueRai, d, 0);
@@ -244,8 +273,9 @@ public class Tubeness implements Consumer<RandomAccessibleInterval<FloatType>> {
                     if (e1 < 0 && e2 < 0) {
                         result = norm * Math.sqrt(e1 * e2);
                     }
-                    v.set((float) result);
+                    v.setReal(result);
                 }
         );
     }
+
 }

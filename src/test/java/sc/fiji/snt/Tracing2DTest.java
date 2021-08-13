@@ -138,9 +138,9 @@ public class Tracing2DTest {
 			double[] spacing = new double[2];
 			spacing[0] = cal.pixelWidth;
 			spacing[1] = cal.pixelHeight;
-			final Tubeness op = new Tubeness(img, new double[]{0.835}, spacing);;
+			final Tubeness<UnsignedByteType, FloatType> op = new Tubeness<>(new double[]{0.835}, spacing);
 			final RandomAccessibleInterval<FloatType> tubenessImg = ArrayImgs.floats(img.dimensionsAsLongArray());
-			op.accept(tubenessImg);
+			op.compute(img, tubenessImg);
 			final ComputeMinMax<FloatType> minMax = new ComputeMinMax<>(Views.iterable(tubenessImg),
 					new FloatType(), new FloatType());
 			minMax.process();

@@ -2385,12 +2385,7 @@ public class SNT extends MultiDThreePanes implements
 						2,
 						3),
 				"Image");
-		final Calibration calibration = new Calibration();
-		calibration.pixelWidth = this.x_spacing;
-		calibration.pixelHeight = this.y_spacing;
-		calibration.pixelDepth = this.z_spacing;
-		calibration.setUnit(this.spacing_units);
-		imp.setCalibration(calibration);
+		imp.setCalibration(xy.getCalibration());
 		return imp;
 	}
 

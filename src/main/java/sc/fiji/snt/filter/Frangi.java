@@ -22,15 +22,14 @@
 
 package sc.fiji.snt.filter;
 
-import ij.ImagePlus;
-import ij.measure.Calibration;
+import net.imagej.ops.Ops;
+import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.algorithm.convolution.fast_gauss.FastGauss;
 import net.imglib2.algorithm.gradient.HessianMatrix;
 import net.imglib2.algorithm.linalg.eigen.TensorEigenValues;
 import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.array.ArrayImgs;
-import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.loops.LoopBuilder;
 import net.imglib2.outofbounds.OutOfBoundsBorderFactory;
 import net.imglib2.parallel.DefaultTaskExecutor;
@@ -40,7 +39,9 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
-import sc.fiji.snt.SNTPrefs;
+import org.scijava.Priority;
+import org.scijava.plugin.Parameter;
+import org.scijava.plugin.Plugin;
 import sc.fiji.snt.SNTUtils;
 
 import java.util.ArrayList;
@@ -57,24 +58,73 @@ import java.util.function.Consumer;
  *
  * @author Cameron Arshadi
  */
-public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
+@Plugin(type = Ops.Filter.FrangiVesselness.class, priority = Priority.HIGH)
+public class Frangi<T extends RealType<T>, U extends RealType<U>> extends
+        AbstractUnaryComputerOp<RandomAccessibleInterval<T>, RandomAccessibleInterval<U>>
+        implements Ops.Filter.FrangiVesselness, Consumer<RandomAccessibleInterval<U>>
+{
 
-    private final RandomAccessibleInterval<? extends RealType<?>> source;
-    private final List<double[]> sigmas;
-    private final int nDim;
-    private final boolean is3D;
-    private final double stackMax;
+    @Parameter
+    private double[] spacing;
+    @Parameter
+    private double[] scales;
+    @Parameter
+    private double stackMax;
+    @Parameter
+    private int numThreads;
 
-    public Frangi(final RandomAccessibleInterval<? extends RealType<?>> source, final double[] scales,
-                  final double[] spacing, final double stackMax)
-    {
-        this.source = source;
-        this.nDim = source.numDimensions();
+
+    public Frangi(final double[] scales, final double[] spacing, final double stackMax) {
+        this(scales, spacing, stackMax, Runtime.getRuntime().availableProcessors());
+    }
+
+    public Frangi(final double[] scales, final double[] spacing, final double stackMax, final int numThreads) {
+        this.scales = scales;
+        this.spacing = spacing;
+        this.stackMax = stackMax;
+        this.numThreads = numThreads;
+    }
+
+    @Override
+    public void run() {
+        compute(in(), out());
+    }
+
+    @Override
+    public RandomAccessibleInterval<U> run(final RandomAccessibleInterval<U> output) {
+        compute(in(), output);
+        return output;
+    }
+
+    @Override
+    public void accept(final RandomAccessibleInterval<U> output) {
+        compute(in(), output);
+    }
+
+    @Override
+    public void compute(RandomAccessibleInterval<T> input, RandomAccessibleInterval<U> output) {
+
+        if (scales == null)
+            throw new IllegalArgumentException("scales array is null");
+
+        if (spacing == null)
+            throw new IllegalArgumentException("spacing array is null");
+
+        if (stackMax <= 0)
+            throw new IllegalArgumentException("stackMax must be greater than 0");
+
+        if (numThreads < 1)
+            this.numThreads = 1;
+        else
+            this.numThreads = Math.min(numThreads, Runtime.getRuntime().availableProcessors());
+
+        final int nDim = input.numDimensions();
         if (nDim > 3 || nDim < 2) {
             throw new IllegalArgumentException("Only 2D and 3D images are supported");
         }
-        this.is3D = (nDim == 3);
-        this.stackMax = stackMax;
+        final boolean is3D = (nDim == 3);
+
+        // Convert the desired scales (physical units) into sigmas (pixel units)
         final List<double[]> sigmas = new ArrayList<>();
         for (final double sc : scales) {
             final double[] sigma;
@@ -85,36 +135,23 @@ public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
             }
             sigmas.add(sigma);
         }
-        this.sigmas = sigmas;
-    }
 
-    public Frangi(final RandomAccessibleInterval<? extends RealType<?>> source, final double[] scales,
-                  final Calibration cal, final double stackMax)
-    {
-        this(source, scales, new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth}, stackMax);
-    }
-
-    public Frangi(final ImagePlus imp, final double[] scales, final double stackMax) {
-        this(ImageJFunctions.wrapReal(imp), scales, imp.getCalibration(), stackMax);
-    }
-
-    @Override
-    public void accept(RandomAccessibleInterval<FloatType> output) {
         final long[] gaussianPad = new long[nDim];
         final long[] gaussianOffset = new long[nDim];
 
         final long[] gradientPad = new long[nDim + 1];
-        gradientPad[gradientPad.length - 1] = this.is3D ? 3 : 2;
+        gradientPad[gradientPad.length - 1] = is3D ? 3 : 2;
         final long[] gradientOffset = new long[nDim + 1];
 
         final long[] hessianPad = new long[nDim + 1];
-        hessianPad[hessianPad.length - 1] = this.is3D ? 6 : 3;
+        hessianPad[hessianPad.length - 1] = is3D ? 6 : 3;
         final long[] hessianOffset = new long[nDim + 1];
 
-        final ExecutorService es = Executors.newFixedThreadPool(SNTPrefs.getThreads());
+        final ExecutorService es = Executors.newFixedThreadPool(numThreads);
         final TaskExecutor ex = new DefaultTaskExecutor(es);
 
-        for (double[] sigma : sigmas) {
+        for (final double[] sigma : sigmas) {
+
             final long[] blockSize = Intervals.dimensionsAsLongArray(output);
 
             for (int d = 0; d < blockSize.length; ++d) {
@@ -124,7 +161,7 @@ public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
             RandomAccessibleInterval<FloatType> tmpGaussian = Views.translate(
                     ArrayImgs.floats(gaussianPad), gaussianOffset);
 
-            FastGauss.convolve(sigma, Views.extendBorder(source), tmpGaussian);
+            FastGauss.convolve(sigma, Views.extendBorder(input), tmpGaussian);
 
             for (int d = 0; d < gradientPad.length - 1; ++d) {
                 gradientPad[d] = blockSize[d] + 4;
@@ -141,7 +178,7 @@ public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
                         Views.translate(tmpGradient, gradientOffset),
                         Views.translate(tmpHessian, hessianOffset),
                         new OutOfBoundsBorderFactory<>(),
-                        SNTPrefs.getThreads(),
+                        numThreads,
                         es);
             } catch (InterruptedException | ExecutionException e) {
                 SNTUtils.error("Error during hessian matrix computation", e);
@@ -163,7 +200,7 @@ public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
             TensorEigenValues.calculateEigenValuesSymmetric(
                     tmpHessian,
                     tmpEigenvalues,
-                    SNTPrefs.getThreads(),
+                    numThreads,
                     es);
 
             final double c = stackMax / 4.0;
@@ -174,7 +211,7 @@ public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
                 frangi2D(tmpEigenvalues, tmpFrangi, 0.5, c, ex);
             }
             LoopBuilder.setImages(output, tmpFrangi).multiThreaded(ex).forEachPixel((b, t) ->
-                    b.set(Math.max(b.getRealFloat(), t.getRealFloat())));
+                    b.setReal(Math.max(b.getRealDouble(), t.getRealDouble())));
         }
         ex.close();
     }
@@ -211,7 +248,7 @@ public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
                             result = 0;
                         }
                     }
-                    v.set((float) result);
+                    v.setReal(result);
                 }
         );
     }
@@ -266,9 +303,9 @@ public class Frangi implements Consumer<RandomAccessibleInterval<FloatType>> {
                             result = 0;
                         }
                     }
-                    v.set((float) result);
+                    v.setReal(result);
                 }
         );
     }
-    
+
 }

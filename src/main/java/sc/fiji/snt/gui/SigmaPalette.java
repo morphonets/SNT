@@ -28,7 +28,6 @@ import java.awt.image.IndexColorModel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -42,12 +41,14 @@ import ij.gui.Roi;
 import ij.gui.ScrollbarWithLabel;
 import ij.gui.StackWindow;
 import ij.gui.TextRoi;
+import ij.measure.Calibration;
 import ij.plugin.LutLoader;
 import ij.process.FloatProcessor;
 import ij.process.ImageStatistics;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import sc.fiji.snt.*;
@@ -794,6 +795,9 @@ public class SigmaPalette extends Thread {
 		final ImagePlus cropped = image.crop("" + z_min + "-" + z_max);
 		image.setRoi(existingRoi);
 
+		final Calibration cal = image.getCalibration();
+		final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
+
 		final int paletteWidth = croppedWidth * sigmasAcross + (sigmasAcross + 1);
 		final int paletteHeight = croppedHeight * sigmasDown + (sigmasDown + 1);
 
@@ -814,18 +818,25 @@ public class SigmaPalette extends Thread {
 			// One scale
 			final RandomAccessibleInterval<FloatType> result  = Views.dropSingletonDimensions(
 					ArrayImgs.floats(cropped.getWidth(), cropped.getHeight(), cropped.getStackSize()));
-			final Consumer<RandomAccessibleInterval<FloatType>> op;
 			switch (hc.getAnalysisType()) {
-				case HessianCaller.TUBENESS:
-					op = new Tubeness(cropped, new double[]{sigma});
+				case HessianCaller.TUBENESS: {
+					Tubeness<? extends RealType<?>, FloatType> op = new Tubeness<>(
+							new double[]{sigma},
+							spacing);
+					op.compute(ImageJFunctions.wrapReal(cropped), result);
 					break;
-				case HessianCaller.FRANGI:
-					op = new Frangi(cropped, new double[]{sigma}, snt.getStats().max);
+				}
+				case HessianCaller.FRANGI: {
+					Frangi<? extends RealType<?>, FloatType> op = new Frangi<>(
+							new double[]{sigma},
+							spacing,
+							snt.getStats().max);
+					op.compute(ImageJFunctions.wrapReal(cropped), result);
 					break;
+				}
 				default:
 					throw new IllegalArgumentException("Unknown hessian analysis type");
 			}
-			op.accept(result);
 			if (result == null) {
 				throw new NullPointerException("BUG: Filter result is null");
 			}

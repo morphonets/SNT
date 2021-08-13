@@ -125,12 +125,21 @@ public class Tracing3DTest {
 			long pointsExploredHessian;
 			long pointsExploredNBAStarHessian;
 
-			final Frangi op = new Frangi(img, new double[]{0.835}, cal, stats.max);
-			RandomAccessibleInterval<FloatType> frangiImg = Lazy.process(
+			final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
+			final double[] scales = new double[]{0.84};
+
+			final Frangi<UnsignedByteType, FloatType> op = new Frangi<>(
+					scales,
+					spacing,
+					254,
+					2);
+			op.setInput(img);
+			final RandomAccessibleInterval<FloatType> frangiImg = Lazy.process(
 					img,
-					new int[]{32, 32, 32},
+					new int[]{30, 30, 10},
 					new FloatType(),
 					op);
+
 			ImageStatistics frangiStats = ImageJFunctions.wrapFloat(frangiImg, "").getStatistics(
 					ImageStatistics.MIN_MAX | ImageStatistics.MEAN | ImageStatistics.STD_DEV);
 			double multiplier = 256 / frangiStats.max;

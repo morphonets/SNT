@@ -28,6 +28,9 @@ import net.imagej.ImageJ;
 import net.imagej.legacy.LegacyService;
 import net.imagej.ops.OpService;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.neighborhood.RectangleShape;
+import net.imglib2.img.array.ArrayImgFactory;
+import net.imglib2.img.cell.CellImgFactory;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
@@ -40,6 +43,7 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.Button;
 
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.filter.*;
 import sc.fiji.snt.gui.GuiUtils;
@@ -47,7 +51,6 @@ import sc.fiji.snt.gui.GuiUtils;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
-import java.util.function.Consumer;
 
 /**
  * Implements the "Generate Secondary Image" command.
@@ -56,11 +59,13 @@ import java.util.function.Consumer;
  * @author Cameron Arshadi
  */
 @Plugin(type = Command.class, visible = false, initializer = "init", label = "Compute \"Secondary Image\"")
-public class ComputeSecondaryImg extends CommonDynamicCmd {
+public class ComputeSecondaryImg<T extends RealType<T>> extends CommonDynamicCmd {
 
 	private static final String NONE = "None. Duplicate primary image";
-	private static final String FRANGI = "Frangi";
+	private static final String FRANGI = "Frangi Vesselness";
 	private static final String TUBENESS = "Tubeness";
+	private static final String GAUSS = "Gaussian Blur";
+	private static final String MEDIAN = "Median";
 
 	@Parameter
 	private DisplayService displayService;
@@ -77,11 +82,14 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 	@Parameter
 	private IOService io;
 
-	@Parameter(label = "Filter", choices = { FRANGI, TUBENESS, NONE })
+	@Parameter(label = "Filter", choices = { FRANGI, TUBENESS, GAUSS, MEDIAN, NONE })
 	private String filter;
 
-	@Parameter(label = "Compute statistics")
-	private boolean computeStats;
+	@Parameter(label = "Lazy processing")
+	private boolean useLazy;
+
+	@Parameter(label = "Number of threads", min = "1", stepSize = "1")
+	private int numThreads;
 
 	@Parameter(label = "Display", required = false)
 	private boolean show;
@@ -124,45 +132,117 @@ public class ComputeSecondaryImg extends CommonDynamicCmd {
 	 */
 	@Override
 	public void run() {
-		// TODO fix type mismatch here, probably will need to convert...
+		if (numThreads > SNTPrefs.getThreads()) {
+			numThreads = SNTPrefs.getThreads();
+		}
+		final int cellDim = 30; // side length for cell
 		final ImagePlus inputImp = sntService.getPlugin().getLoadedDataAsImp();
 		if (NONE.equals(filter)) {
-			//snt.loadSecondaryImage(sntService.getPlugin().getLoadedData());
+			final RandomAccessibleInterval<T> loadedData = sntService.getPlugin().getLoadedData();
+			snt.loadSecondaryImage(ops.convert().float32(Views.iterable(loadedData)), true);
 			apply();
 			return;
 		}
-		final RandomAccessibleInterval<? extends RealType<?>> data = sntService.getPlugin().getLoadedData();
-		final RandomAccessibleInterval<? extends RealType<?>> in = Views.dropSingletonDimensions(data);
+		final RandomAccessibleInterval<T> data = sntService.getPlugin().getLoadedData();
+		final RandomAccessibleInterval<T> in = Views.dropSingletonDimensions(data);
 		final double[] sigmas = sntService.getPlugin().getHessianSigma("primary", true);
 		final Calibration cal = inputImp.getCalibration();
-		final double[] spacing = new double[3];
-		spacing[0] = cal.pixelWidth;
-		spacing[1] = cal.pixelHeight;
-		spacing[2] = cal.pixelDepth;
-		Consumer<RandomAccessibleInterval<FloatType>> op;
+		final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
 		switch (filter) {
-			case FRANGI:
-				op = new Frangi(in, sigmas, spacing, sntService.getPlugin().getStats().max);
+			case FRANGI: {
+				Frangi<T, FloatType> op = new Frangi<>(
+						sigmas,
+						spacing,
+						sntService.getPlugin().getStats().max,
+						numThreads);
+
+				if (useLazy) {
+					filteredImg = Lazy.process(
+							in,
+							in,
+							new int[]{cellDim, cellDim, cellDim},
+							new FloatType(),
+							op);
+				} else {
+					filteredImg = ops.create().img(in, new FloatType(), new CellImgFactory<>(new FloatType()));;
+					op.compute(in, filteredImg);
+				}
+
 				break;
-			case TUBENESS:
-				op = new Tubeness(in, sigmas, spacing);
+			}
+			case TUBENESS: {
+				Tubeness<T, FloatType> op = new Tubeness<>(sigmas, spacing, numThreads);
+				if (useLazy) {
+					filteredImg = Lazy.process(
+							in,
+							in,
+							new int[]{cellDim, cellDim, cellDim},
+							new FloatType(),
+							op);
+				} else {
+					filteredImg = ops.create().img(in, new FloatType(), new CellImgFactory<>(new FloatType()));
+					op.compute(in, filteredImg);
+				}
+
 				break;
+			}
+			case GAUSS: {
+				final double sig = sigmas[0]; // just pick the first sigma I guess...
+				if (useLazy) {
+					filteredImg = Lazy.process(
+							in,
+							in,
+							new int[]{cellDim, cellDim, cellDim},
+							new FloatType(),
+							ops,
+							net.imagej.ops.filter.gauss.DefaultGaussRAI.class,
+							(Object) new double[]{sig / spacing[0], sig / spacing[1], sig / spacing[2]});
+				} else {
+					filteredImg = ops.create().img(in, new FloatType(), new CellImgFactory<>(new FloatType()));
+					ops.filter().gauss(
+							filteredImg,
+							in,
+							sig / spacing[0], sig / spacing[1], sig / spacing[2]);
+				}
+
+				break;
+			}
+			case MEDIAN: {
+				final double sig = sigmas[0];
+				final long span = Math.round(( sig/spacing[0] + sig/spacing[1] + sig/spacing[2] ) / 3);
+				if (useLazy) {
+					filteredImg = Lazy.process(
+							in,
+							in,
+							new int[]{cellDim, cellDim, cellDim},
+							new FloatType(),
+							ops,
+							net.imagej.ops.filter.median.DefaultMedianFilter.class,
+							new RectangleShape((int) span, false));
+				} else {
+					// FIXME: CellImgFactory produces nonsensical results!?
+					filteredImg = ops.create().img(in, new FloatType(), new ArrayImgFactory<>(new FloatType()));
+					ops.filter().median(
+							Views.iterable(filteredImg),
+							ops.convert().float32(Views.iterable(in)),
+							new RectangleShape((int) span, false));
+				}
+
+				break;
+			}
+
 			default:
 				throw new IllegalArgumentException("Unrecognized filter " + filter);
 		}
-		// TODO: let user set cell dims?
-		filteredImg = Lazy.process(
-				in,
-				new int[]{60, 60, 60},
-				new FloatType(),
-				op);
+
 		apply();
 	}
 
 	private void apply() {
-		snt.loadSecondaryImage(filteredImg, computeStats);
+		snt.loadSecondaryImage(filteredImg, !useLazy);
 		if (show) {
 			displayService.createDisplay(getImageName(), filteredImg); // virtual stack!?
+//			ImageJFunctions.show(filteredImg, getImageName());
 		}
 		if (save) {
 			try {
