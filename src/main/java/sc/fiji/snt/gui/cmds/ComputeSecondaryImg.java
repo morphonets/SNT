@@ -139,7 +139,7 @@ public class ComputeSecondaryImg<T extends RealType<T>> extends CommonDynamicCmd
 		final ImagePlus inputImp = sntService.getPlugin().getLoadedDataAsImp();
 		if (NONE.equals(filter)) {
 			final RandomAccessibleInterval<T> loadedData = sntService.getPlugin().getLoadedData();
-			snt.loadSecondaryImage(ops.convert().float32(Views.iterable(loadedData)), true);
+			filteredImg = ops.convert().float32(Views.iterable(loadedData));
 			apply();
 			return;
 		}
