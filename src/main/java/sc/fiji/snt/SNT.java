@@ -2238,19 +2238,16 @@ public class SNT extends MultiDThreePanes implements
 
 	public ImagePlus getFilledBinaryImp() {
 		if (fillerSet.isEmpty()) return null;
-		FillerThread filler = fillerSet.iterator().next();
 		return new FillConverter(fillerSet, getLoadedDataAsImp()).getBinaryImp();
 	}
 
-	public ImagePlus getFilledGreyImp() {
+	public ImagePlus getFilledImp() {
 		if (fillerSet.isEmpty()) return null;
-		FillerThread filler = fillerSet.iterator().next();
-		return new FillConverter(fillerSet, getLoadedDataAsImp()).getGreyImp();
+		return new FillConverter(fillerSet, getLoadedDataAsImp()).getImp();
 	}
 
 	public ImagePlus getFilledDistanceImp() {
 		if (fillerSet.isEmpty()) return null;
-		FillerThread filler = fillerSet.iterator().next();
 		return new FillConverter(fillerSet, getLoadedDataAsImp()).getDistanceImp();
 	}
 

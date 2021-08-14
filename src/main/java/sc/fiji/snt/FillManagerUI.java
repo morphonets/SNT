@@ -524,7 +524,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		exportFillsMenu = new JPopupMenu();
 		JMenuItem jmi = new JMenuItem("As Grayscale Image");
 		jmi.addActionListener(e-> {
-			final ImagePlus imp = plugin.getFilledGreyImp();
+			final ImagePlus imp = plugin.getFilledImp();
 			if (imp == null) {
 				// there are fills stashed but SNT#fillerSet is empty
 				gUtils.error("Image could not be displayed. Please reload desired fill(s) and try again.");
