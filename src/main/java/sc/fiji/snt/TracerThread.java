@@ -70,12 +70,11 @@ public class TracerThread extends SearchThread {
 		init(start_x, start_y, start_z, goal_x, goal_y, goal_z);
 	}
 
-	@SuppressWarnings("rawtypes")
 	public TracerThread(final ImagePlus imagePlus,
 						final int start_x, final int start_y, final int start_z,
 						final int goal_x, final int goal_y, final int goal_z,
 						final int timeoutSeconds, final long reportEveryMilliseconds,
-						final Class<? extends SearchImage> searchImageType,
+						final SNT.SearchImageType searchImageType,
 						SearchCost costFunction, SearchHeuristic heuristic)
 	{
 		this(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(), start_x, start_y, start_z,
@@ -84,12 +83,11 @@ public class TracerThread extends SearchThread {
 	}
 
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
-	@SuppressWarnings("rawtypes")
 	public TracerThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
 						final int start_x, final int start_y, final int start_z,
 						final int goal_x, final int goal_y, final int goal_z,
 						final int timeoutSeconds, final long reportEveryMilliseconds,
-						final Class<? extends SearchImage> searchImageType,
+						final SNT.SearchImageType searchImageType,
 						SearchCost costFunction, SearchHeuristic heuristic)
 	{
 		super(image, calibration, true, true, timeoutSeconds, reportEveryMilliseconds,

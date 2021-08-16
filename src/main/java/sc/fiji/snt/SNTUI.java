@@ -649,7 +649,7 @@ public class SNTUI extends JDialog {
 			sb.append("; Z-fudge: ").append(SNTUtils.formatDouble(plugin.getOneMinusErfZFudge(), 3));
 		}
 		sb.append("\n");
-		sb.append("Data structure: ").append(plugin.searchImageType.getSimpleName());
+		sb.append("Data structure: ").append(plugin.searchImageType);
 		assert SwingUtilities.isEventDispatchThread();
 		settingsArea.setText(sb.toString());
 		settingsArea.setCaretPosition(0);
@@ -2800,20 +2800,18 @@ public class SNTUI extends JDialog {
 		final ButtonGroup dataStructureButtonGroup = new ButtonGroup();
 
 		@SuppressWarnings("rawtypes")
-		final Map<String, Class<? extends SearchImage>> searchMap = new TreeMap<>();
-		searchMap.put("Array (Default)", ArraySearchImage.class);
-		searchMap.put("Hash Table (Some minor description)", MapSearchImage.class);
-		searchMap.put("ImgLib2 ListImg (Some minor description)", ListSearchImage.class);
-		searchMap.forEach((lbl, clss) -> {
+		final Map<String, SNT.SearchImageType> searchMap = new TreeMap<>();
+		searchMap.put("Array (Default)", SNT.SearchImageType.ARRAY);
+		searchMap.put("Hash Table (Some minor description)", SNT.SearchImageType.MAP);
+		searchMap.forEach((lbl, type) -> {
 			final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
 			dataStructureButtonGroup.add(rbmi);
 			optionsMenu.add(rbmi);
-			rbmi.setSelected(plugin.searchImageType == clss);
+			rbmi.setSelected(plugin.searchImageType == type);
 			rbmi.addActionListener(e -> {
-				plugin.searchImageType = clss;
+				plugin.searchImageType = type;
 				showStatus("Active data structure: " + lbl.substring(0, lbl.indexOf(" (")), true);
 				updateSettingsString();
-			//	SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
 			});
 		});
 		optionsMenu.addSeparator();

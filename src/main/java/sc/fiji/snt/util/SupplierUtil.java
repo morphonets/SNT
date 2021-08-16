@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.util;
 
+import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SearchNode;
 
@@ -67,6 +68,7 @@ public class SupplierUtil {
 
     }
 
+    @SuppressWarnings("unused")
     public static class ListSearchImageSupplier<V extends SearchNode> implements Supplier<SearchImage<V>> {
 
         private final int width;
@@ -91,15 +93,13 @@ public class SupplierUtil {
     }
 
     public static <V extends SearchNode> Supplier<SearchImage<V>> createSupplier(
-            Class<? extends SearchImage> clazz,
+            SNT.SearchImageType clazz,
             Class<V> searchNodeClass,
             int width, int height)
     {
-        if (clazz == ArraySearchImage.class) {
+        if (clazz == SNT.SearchImageType.ARRAY) {
             return new ArraySearchImageSupplier<>(searchNodeClass, width, height);
-        } else if (clazz == ListSearchImage.class) {
-            return new ListSearchImageSupplier<>(searchNodeClass, width, height);
-        } else if (clazz == MapSearchImage.class) {
+        } else if (clazz == SNT.SearchImageType.MAP) {
             return new MapSearchImageSupplier<>();
         }
         else {

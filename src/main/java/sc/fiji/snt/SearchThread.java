@@ -93,11 +93,10 @@ public abstract class SearchThread extends AbstractSearch {
 	private final boolean verbose = SNTUtils.isDebugMode();
 
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
-	@SuppressWarnings("rawtypes")
 	public SearchThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
 						final boolean bidirectional, final boolean definedGoal,
 						final int timeoutSeconds, final long reportEveryMilliseconds,
-						final Class<? extends SearchImage> searchImageType,
+						final SNT.SearchImageType searchImageType,
 						final SearchCost costFunction)
 	{
 		super(image, calibration, timeoutSeconds, reportEveryMilliseconds);
@@ -549,7 +548,12 @@ public abstract class SearchThread extends AbstractSearch {
 			}
 			if (n != null && threshold >= 0 && n.g > threshold) n = null;
 			if (n == null && goalSlice != null) {
-				n = goalSlice.getValue(x, y);
+				try {
+					n = goalSlice.getValue(x, y);
+				} catch (ArrayIndexOutOfBoundsException e) {
+					return null;
+				}
+
 				if (threshold >= 0 && n.g > threshold) n = null;
 			}
 		}

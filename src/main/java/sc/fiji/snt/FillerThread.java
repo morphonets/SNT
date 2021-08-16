@@ -185,7 +185,7 @@ public class FillerThread extends SearchThread {
 						final SearchCost costFunction)
 	{
 		super(image, calibration, false, false, 0,
-				reportEveryMilliseconds, MapSearchImage.class, costFunction);
+				reportEveryMilliseconds, SNT.SearchImageType.MAP, costFunction);
 
 		setThreshold(initialThreshold);
 

@@ -82,12 +82,11 @@ public class BidirectionalSearch extends AbstractSearch {
     long lastReportMilliseconds;
     private int[] imgPosition;
 
-    @SuppressWarnings("rawtypes")
     public BidirectionalSearch(final ImagePlus imagePlus,
                                final int start_x, final int start_y, final int start_z,
                                final int goal_x, final int goal_y, final int goal_z,
                                final int timeoutSeconds, final long reportEveryMilliseconds,
-                               Class<? extends SearchImage> searchImageType,
+                               SNT.SearchImageType searchImageType,
                                SearchCost costFunction, SearchHeuristic heuristic)
     {
         this(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(), start_x, start_y, start_z,
@@ -97,13 +96,12 @@ public class BidirectionalSearch extends AbstractSearch {
 
 
     /* If you specify 0 for timeoutSeconds then there is no timeout. */
-    @SuppressWarnings("rawtypes")
     public BidirectionalSearch(final RandomAccessibleInterval<? extends RealType<?>> image,
                                final Calibration calibration,
                                final int start_x, final int start_y, final int start_z,
                                final int goal_x, final int goal_y, final int goal_z,
                                final int timeoutSeconds, final long reportEveryMilliseconds,
-                               Class<? extends SearchImage> searchImageType,
+                               SNT.SearchImageType searchImageType,
                                SearchCost costFunction, SearchHeuristic heuristic)
     {
         super(image, calibration, timeoutSeconds, reportEveryMilliseconds);

@@ -109,6 +109,8 @@ public class SNT extends MultiDThreePanes implements
 
 	public enum SearchType {ASTAR, NBASTAR}
 
+	public enum SearchImageType {ARRAY, MAP}
+
 	public enum CostType {RECIPROCAL, DIFFERENCE, PROBABILITY}
 
 	public enum HeuristicType {EUCLIDEAN, DIJKSTRA}
@@ -190,8 +192,7 @@ public class SNT extends MultiDThreePanes implements
 	private SearchType searchType = SearchType.ASTAR;
 
 	/* Search image type */
-	@SuppressWarnings("rawtypes")
-	protected Class<? extends SearchImage> searchImageType = MapSearchImage.class;
+	protected SearchImageType searchImageType = SearchImageType.MAP;
 
 	/* Cost function and heuristic estimate for search */
 	private CostType costType = CostType.RECIPROCAL;
@@ -3418,6 +3419,14 @@ public class SNT extends MultiDThreePanes implements
 
 	public void setHeuristicType(final HeuristicType heuristicType) {
 		this.heuristicType = heuristicType;
+	}
+
+	public SearchImageType getSearchImageType() {
+		return searchImageType;
+	}
+
+	public void setSearchImageType(final SearchImageType searchImageType) {
+		this.searchImageType = searchImageType;
 	}
 
 }
