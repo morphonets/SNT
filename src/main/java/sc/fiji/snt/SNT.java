@@ -2607,26 +2607,6 @@ public class SNT extends MultiDThreePanes implements
 		return secondaryData;
 	}
 
-	protected ImagePlus getCachedTubenessDataAsImp(final String type) {
-		final HessianCaller hc = getHessianCaller(type);
-		return (hc.cachedTubeness == null) ? null : getFilteredDataFromCachedData("Tubeness Data ["+ type + "]", hc.cachedTubeness);
-	}
-
-	private ImagePlus getFilteredDataFromCachedData(final String title, final float[][] data) {
-		final ImageStack stack = new ImageStack(xy.getWidth(), xy.getHeight());
-		for (int z = 0; z < depth; ++z) {
-			final FloatProcessor ip = new FloatProcessor(xy.getWidth(), xy.getHeight());
-			if (data[z]==null) continue;
-			ip.setPixels(data[z]);
-			stack.addSlice(ip);
-		}
-		final ImagePlus impFiltered = new ImagePlus(title, stack);
-		updateLut();
-		impFiltered.setLut(lut);
-		impFiltered.copyScale(xy);
-		return impFiltered;
-	}
-
 	protected synchronized void cancelGaussian() {
 		primaryHessian.cancelHessianGeneration();
 	}
