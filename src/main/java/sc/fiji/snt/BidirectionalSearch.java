@@ -484,6 +484,7 @@ public class BidirectionalSearch extends AbstractSearch {
             progress.finished(this, success);
     }
 
+    @Override
     public long pointsConsideredInSearch() {
         return open_from_start.size() + open_from_goal.size() + closed_from_start_count + closed_from_goal_count;
     }

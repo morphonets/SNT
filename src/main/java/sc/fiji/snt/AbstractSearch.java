@@ -130,6 +130,8 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
      */
     protected abstract void reportPointsInSearch();
 
+    public abstract long pointsConsideredInSearch();
+
     protected abstract SearchNode anyNodeUnderThreshold(final int x, final int y, final int z, final double threshold);
 
     public void setDrawingColors(final Color openColor, final Color closedColor) {

@@ -143,6 +143,7 @@ public abstract class SearchThread extends AbstractSearch {
 					? closed_from_goal_count : 0));
 	}
 
+	@Override
 	public long pointsConsideredInSearch() {
 		return open_from_start.size() + (bidirectional ? open_from_goal.size()
 			: 0) + closed_from_start_count + (bidirectional ? closed_from_goal_count
