@@ -30,7 +30,6 @@ import ij.ImageStack;
 import ij.Prefs;
 import ij.gui.*;
 import ij.measure.Calibration;
-import ij.process.FloatProcessor;
 import ij.process.ImageStatistics;
 import ij.process.LUT;
 import ij.process.ShortProcessor;
@@ -184,7 +183,6 @@ public class SNT extends MultiDThreePanes implements
 	/* Hessian-based analysis */
 	private volatile boolean hessianEnabled = false;
 	protected final HessianCaller primaryHessian;
-	protected final HessianCaller secondaryHessian;
 
 	/* current selected search algorithm type */
 	private SearchType searchType = SearchType.ASTAR;
@@ -293,7 +291,6 @@ public class SNT extends MultiDThreePanes implements
 		setFieldsFromImage(sourceImage);
 		prefs.loadPluginPrefs();
 		primaryHessian = new HessianCaller(this, HessianCaller.PRIMARY);
-		secondaryHessian = new HessianCaller(this, HessianCaller.SECONDARY);
 	}
 
 	/**
@@ -334,7 +331,6 @@ public class SNT extends MultiDThreePanes implements
 		enableSnapCursor(false);
 		pathAndFillManager.setHeadless(false);
 		primaryHessian = new HessianCaller(this, HessianCaller.PRIMARY);
-		secondaryHessian = new HessianCaller(this, HessianCaller.SECONDARY);
 	}
 
 	private void setFieldsFromImage(final ImagePlus sourceImage) {
@@ -2090,7 +2086,7 @@ public class SNT extends MultiDThreePanes implements
 			} catch (final Exception ex) {
 				if (getUI() != null) {
 					getUI().error(ex.getMessage());
-					getUI().enableHessian(false);
+					getUI().enableSecondaryLayerBuiltin(false);
 					getUI().reset();
 				}
 				SNTUtils.error(ex.getMessage(), ex);
@@ -2389,7 +2385,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @return true, if image has been loaded into memory.
 	 */
 	public boolean isSecondaryImageLoaded() {
-		return secondaryData != null;
+		return getSecondaryData() != null && getFilteredImageFile()!= null;
 	}
 
 	protected boolean inputImageLoaded() {
@@ -2631,20 +2627,13 @@ public class SNT extends MultiDThreePanes implements
 		return impFiltered;
 	}
 
-	@Deprecated
-	public synchronized void enableHessian(final boolean enable) {
-		// do nothing
-	}
-
 	protected synchronized void cancelGaussian() {
 		primaryHessian.cancelHessianGeneration();
-		secondaryHessian.cancelHessianGeneration();
 	}
 
 	protected void nullifyHessian() {
 		hessianEnabled = false;
 		primaryHessian.nullify();
-		secondaryHessian.nullify();
 	}
 
 	public SNTPrefs getPrefs() {
@@ -3269,19 +3258,12 @@ public class SNT extends MultiDThreePanes implements
 	 *
 	 * @return true, if Hessian analysis is enabled, otherwise false
 	 */
-	public boolean isHessianEnabled(final String image) {
-		if ("secondary".equalsIgnoreCase(image))
-			return hessianEnabled && isTracingOnSecondaryImageAvailable() && secondaryHessian.sigmas != null;
+	public boolean isHessianEnabled() {
 		return hessianEnabled && primaryHessian.sigmas != null;
 	}
 
-	public double[] getHessianSigma(final String image, final boolean physicalUnits) {
-		return getHessianCaller(image).getSigmas(physicalUnits);
-	}
-
-	public boolean isTubenessImageCached(final String image) {
-		final HessianCaller hc = getHessianCaller(image);
-		return hc != null && hc.cachedTubeness != null;
+	public double[] getHessianSigma(final boolean physicalUnits) {
+		return getHessianCaller().getSigmas(physicalUnits);
 	}
 
 	/**
@@ -3376,8 +3358,8 @@ public class SNT extends MultiDThreePanes implements
 		if (isUIready()) getUI().showStatus(status, true);
 	}
 
-	public HessianCaller getHessianCaller(final String image) {
-		return ("secondary".equalsIgnoreCase(image)) ? secondaryHessian : primaryHessian;
+	public HessianCaller getHessianCaller() {
+		return primaryHessian;
 	}
 
 	protected double getOneMinusErfZFudge() {
