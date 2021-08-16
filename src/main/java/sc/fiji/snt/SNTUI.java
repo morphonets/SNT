@@ -139,8 +139,6 @@ public class SNTUI extends JDialog {
 	//TODO: reduce the need for all these fields
 	private JComboBox<String> searchAlgoChoice;
 	private JPanel aStarPanel;
-	private JPanel hessianPanel;
-	private JCheckBox preprocess;
 	private JCheckBox aStarCheckBox;
 	private SigmaPalette sigmaPalette;
 	private final SNTCommandFinder commandFinder;
@@ -149,13 +147,16 @@ public class SNTUI extends JDialog {
 	// UI controls for CT data source
 	private JPanel sourcePanel;
 
-	// UI controls for loading  on secondary image
-	private JPanel secondaryImgPanel;
-	private GuiUtils.JTextFieldFile secondaryImgPathField;
-	private JButton secondaryImgOptionsButton;
-	private JCheckBox secondaryImgOverlayCheckbox;
-	private JCheckBox secondaryImgActivateCheckbox;
-	private JMenuItem secondaryImgLoadFlushMenuItem;
+	// UI controls for loading  on 'secondary layer'
+	private JPanel secLayerPanel;
+	private JCheckBox secLayerActivateCheckbox;
+	private JRadioButton secLayerBuiltinRadioButton;
+	private JRadioButton secLayerExternalRadioButton;
+	private JComboBox<String> secLayerFilterChoice;
+
+	private JButton secLayerExternalImgOptionsButton;
+	private JCheckBox secLayerExternalImgOverlayCheckbox;
+	private JMenuItem secLayerExternalImgLoadFlushMenuItem;
 
 	private ActiveWorker activeWorker;
 	private volatile int currentState = -1;
@@ -195,7 +196,7 @@ public class SNTUI extends JDialog {
 	static final int CALCULATING_HESSIAN_I = 7;
 	static final int CALCULATING_HESSIAN_II = 8;
 	static final int WAITING_FOR_SIGMA_POINT_I = 9;
-	static final int WAITING_FOR_SIGMA_POINT_II = 10;
+	//static final int WAITING_FOR_SIGMA_POINT_II = 10;
 	static final int WAITING_FOR_SIGMA_CHOICE = 11;
 	static final int SAVING = 12;
 	/** Flag specifying UI is currently waiting for I/0 operations to conclude */
@@ -274,9 +275,9 @@ public class SNTUI extends JDialog {
 				++c1.gridy;
 				tab1.add(aStarPanel(), c1);
 				++c1.gridy;
-				tab1.add(hessianPanel(), c1);
-				++c1.gridy;
-				tab1.add(filteredImagePanel(), c1);
+				//tab1.add(hessianPanel(), c1);
+				//++c1.gridy;
+				tab1.add(secondaryDataPanel(), c1);
 				++c1.gridy;
 				tab1.add(settingsPanel(), c1);
 				++c1.gridy;
@@ -615,7 +616,7 @@ public class SNTUI extends JDialog {
 
 	protected void gaussianCalculated(final boolean succeeded) {
 		SwingUtilities.invokeLater(() -> {
-			preprocess.setSelected(succeeded);
+			secLayerBuiltinRadioButton.setSelected(succeeded);
 			changeState(READY);
 			showStatus("Gaussian " + ((succeeded) ? " completed" : "failed"), true);
 		});
@@ -634,8 +635,6 @@ public class SNTUI extends JDialog {
 			sb.append("Secondary image: Active");
 			sb.append("\n");
 			sb.append("Min-Max: ").append(plugin.getStatsSecondary().min).append("-").append(plugin.getStatsSecondary().max);
-			sb.append("\n");
-			sb.append("Hessian: ").append(plugin.secondaryHessian.toString());
 		} else {
 			sb.append("Secondary image: Disabled");
 			sb.append("\n");
@@ -683,13 +682,13 @@ public class SNTUI extends JDialog {
 	}
 
 	private void setEnableAutoTracingComponents(final boolean enable, final boolean enableAstar) {
-		if (hessianPanel != null) {
-			GuiUtils.enableComponents(hessianPanel, enable);
+		if (secLayerPanel != null) {
+			GuiUtils.enableComponents(secLayerPanel, enable);
 			GuiUtils.enableComponents(aStarPanel, enableAstar);
-			secondaryImgActivateCheckbox.setEnabled(enable);
+			secLayerActivateCheckbox.setEnabled(enable);
 		}
 		updateSettingsString();
-		updateFilteredImgFields(false);
+		updateExternalImgWidgets();
 	}
 
 	protected void disableImageDependentComponents() {
@@ -846,12 +845,6 @@ public class SNTUI extends JDialog {
 				//disableEverything();
 				break;
 
-			case WAITING_FOR_SIGMA_POINT_II:
-				updateStatusText("Click on a representative structure...");
-				showStatus("Adjusting Hessian (secondary image)...", false);
-				//disableEverything();
-				break;
-
 			case WAITING_FOR_SIGMA_CHOICE:
 				updateStatusText("Close 'Pick Sigma &amp; Max' to continue...");
 				//disableEverything();
@@ -972,7 +965,7 @@ public class SNTUI extends JDialog {
 		updateSinglePaneFlag();
 		abortCurrentOperation();
 		changeState(LOADING);
-		final boolean hessianDataExists = plugin.isHessianEnabled("primary");
+		final boolean hessianDataExists = plugin.isHessianEnabled();
 		plugin.reloadImage(newC, newT); // nullifies hessianData
 		if (!reload)
 			plugin.getImagePlus().setPosition(newC, plugin.getImagePlus().getZ(), newT);
@@ -991,7 +984,7 @@ public class SNTUI extends JDialog {
 				plugin.getPrefs().setTemp("secreload", choice);
 			}
 			if (hessianDataExists)
-				enableHessian(true);
+				enableSecondaryLayerBuiltin(true);
 		}
 		resetState();
 		showStatus(reload ? "Image reloaded into memory..." : null, true);
@@ -1952,44 +1945,117 @@ public class SNTUI extends JDialog {
 		return statusPanel;
 	}
 
-	private JPanel filteredImagePanel() {
-		secondaryImgActivateCheckbox = new JCheckBox(hotKeyLabel("Trace on Secondary Image", "I"));
-		guiUtils.addTooltip(secondaryImgActivateCheckbox,
-				"Whether auto-tracing should be computed on the secondary image");
-		secondaryImgActivateCheckbox
-				.addActionListener(e -> enableSecondaryImgTracing(secondaryImgActivateCheckbox.isSelected()));
-		secondaryImgPathField = guiUtils.new JTextFieldFile();
-		//secondaryImgPathField.setEditable(false);
-		secondaryImgPathField.setDescription("Path to a matched image (32-bit preferred)");
-		final JPopupMenu optionsMenu = new JPopupMenu();
-		final JButton filteredImgBrowseButton =  IconFactory.getButton(IconFactory.GLYPH.OPEN_FOLDER);
-		secondaryImgOptionsButton = optionsButton(optionsMenu);
-		filteredImgBrowseButton.addActionListener(e -> {
-			final File file = openFile("Choose Secondary Image", secondaryImgPathField.getFile());
-			if (file == null)
-				return;
-			secondaryImgPathField.setText(file.getAbsolutePath());
-			loadSecondaryImageFile(file);
+	private JPanel secondaryDataPanel() {
+
+		secLayerActivateCheckbox = new JCheckBox(hotKeyLabel("Trace on Secondary Layer", "L"));
+		guiUtils.addTooltip(secLayerActivateCheckbox,
+				"Whether auto-tracing should be computed on a filtered flavor of current image");
+		secLayerActivateCheckbox.addActionListener(listener);
+
+		// Major options: built-in filters vs external image
+		secLayerBuiltinRadioButton = new JRadioButton("Built-in Filter", true); // default
+		secLayerExternalRadioButton = new JRadioButton("External Image");
+		secLayerBuiltinRadioButton.addActionListener(listener);
+		secLayerExternalRadioButton.addActionListener(listener);
+		final ButtonGroup group = new ButtonGroup();
+		group.add(secLayerBuiltinRadioButton);
+		group.add(secLayerExternalRadioButton);
+
+
+		// Built-in filters:
+		secLayerFilterChoice = new JComboBox<String>();
+		secLayerFilterChoice.addItem("Tubeness");
+		secLayerFilterChoice.addItem("Frangi");
+		secLayerFilterChoice.addItem("Gauss");
+		secLayerFilterChoice.addItem("Other...");
+		secLayerFilterChoice.setSelectedIndex(0); // default
+
+		secLayerFilterChoice.addActionListener(event -> {
+			if (!secLayerFilterChoice.hasFocus()) return; // if user did not trigger the event ignore it
+			@SuppressWarnings("unchecked")
+			final int idx = ((JComboBox<String>) event.getSource()).getSelectedIndex();
+			switch (idx) {
+			case 0: // TUBENESS
+				plugin.nullifyHessian();
+				plugin.primaryHessian.setAnalysisType(HessianCaller.TUBENESS);
+				break;
+			case 1: // FRANGI
+				plugin.nullifyHessian();
+				plugin.primaryHessian.setAnalysisType(HessianCaller.FRANGI);
+				break;
+			case 2: // GAUSS
+				// FIXME
+				break;
+			case 3:
+				if (plugin.isSecondaryImageLoaded() && !guiUtils
+						.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
+					return;
+				}
+				loadCachedDataImage(true, "secondary", false, null);
+				break;
+			default:
+				throw new IllegalArgumentException("Invalid Option");
+			}
+			updateSettingsString();
 		});
+		final JPanel builtinFilterPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+		builtinFilterPanel.add(secLayerBuiltinRadioButton);
+		builtinFilterPanel.add(secLayerFilterChoice);
+
+
+		// Options for builtinFilterPanel
+		final JPopupMenu builtinFilterOptionsMenu = new JPopupMenu();
+		builtinFilterOptionsMenu.add(GuiUtils.leftAlignedLabel("Size/Scale(s) of Traced Structures:", false));
+		final JMenuItem jmiVisual = new JMenuItem(GuiListener.EDIT_SIGMA_VISUALLY);
+		jmiVisual.addActionListener(listener);
+		builtinFilterOptionsMenu.add(jmiVisual);
+		JMenuItem jmiManual = new JMenuItem(GuiListener.EDIT_SIGMA_MANUALLY);
+		jmiManual.addActionListener(listener);
+		builtinFilterOptionsMenu.add(jmiManual);
+		builtinFilterOptionsMenu.addSeparator();
+		builtinFilterOptionsMenu.add(GuiUtils.leftAlignedLabel("Utilities:", false));
+		final JMenuItem thicknessCmdItem = new JMenuItem("Estimate Radii (Local Thickness)...");
+		thicknessCmdItem.setToolTipText("Computes the distribution of the radii of all the structures across the image");
+		//thicknessCmdItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DOTCIRCLE));
+		builtinFilterOptionsMenu.add(thicknessCmdItem);
+		thicknessCmdItem.addActionListener(e -> {
+			(new DynamicCmdRunner(LocalThicknessCmd.class, null, RUNNING_CMD)).run();
+		});
+		final JMenuItem showCmdItem = new JMenuItem("Display Filter Image");
+		showCmdItem.addActionListener(e -> displayBuiltinFilteredImg());
+		builtinFilterOptionsMenu.add(showCmdItem);
+
+		final JButton builtinFilterOptionsButton = optionsButton(builtinFilterOptionsMenu);
+
+		// Options for builtinFilterPanel
+		final JPopupMenu externalImgOptionsMenu = new JPopupMenu();
+		secLayerExternalImgOptionsButton = optionsButton(externalImgOptionsMenu);
 
 		// Assemble options menu
-		secondaryImgLoadFlushMenuItem = new JMenuItem("Load Specified File");
-		secondaryImgLoadFlushMenuItem.addActionListener(e -> {
+		secLayerExternalImgLoadFlushMenuItem = new JMenuItem("Choose File...");
+		secLayerExternalImgLoadFlushMenuItem.addActionListener(e -> {
 			// toggle menuitem: label is updated before menu is shown as per #optionsButton
 			if (plugin.isSecondaryImageLoaded()) {
 				if (!guiUtils.getConfirmation("Disable access to secondary image?", "Unload Image?"))
 					return;
 				flushSecondaryData();
 			} else {
-				loadSecondaryImageFile(secondaryImgPathField.getFile());
+				final File proposedFile = (plugin.getFilteredImageFile() == null) ? plugin.getPrefs().getRecentDir() : plugin.getFilteredImageFile();
+				final File file = openFile("Choose Secondary Image", proposedFile);
+				if (file == null)
+					return;
+				loadSecondaryImageFile(file);
 			}
 		});
-		final JMenuItem revealMenuItem = new JMenuItem("Show Path in File Explorer");
+		final JMenuItem revealMenuItem = new JMenuItem("Reveal Loaded File in File Explorer");
 		revealMenuItem.addActionListener(e -> {
 			try {
-				final File file = secondaryImgPathField.getFile();
-				if (SNTUtils.fileAvailable(file)) {
-					Desktop.getDesktop().open(file.getParentFile());
+				if (!plugin.isSecondaryImageLoaded()) {
+					noSecondaryImgAvailableError();
+					return;
+				}
+				if (SNTUtils.fileAvailable(plugin.getFilteredImageFile())) {
+					Desktop.getDesktop().open(plugin.getFilteredImageFile().getParentFile());
 					// TODO: Move to java9
 					// Desktop.getDesktop().browseFileDirectory(file);
 				} else {
@@ -1999,24 +2065,27 @@ public class SNTUI extends JDialog {
 				guiUtils.error("An error occured: image directory not available?");
 			}
 		});
-		optionsMenu.add(revealMenuItem);
-		optionsMenu.addSeparator();
-		optionsMenu.add(secondaryImgLoadFlushMenuItem);
-		optionsMenu.add(showFilteredImpMenuItem());
-		optionsMenu.addSeparator();
-		final JMenuItem makeImgMenuItem = new JMenuItem("Generate Secondary Image...");
-		optionsMenu.add(makeImgMenuItem);
-		makeImgMenuItem.addActionListener(e -> {
-			if (plugin.isSecondaryImageLoaded()
-					&& !guiUtils.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
+		final JMenuItem showImpMenuItem = new JMenuItem("Display Loaded Image");
+		showImpMenuItem.addActionListener(e -> {
+			if (!plugin.isSecondaryImageLoaded()) {
+				noSecondaryImgAvailableError();
 				return;
 			}
-			loadCachedDataImage(true, "secondary", false, null);
+			final ImagePlus imp = plugin.getSecondaryDataAsImp();
+			if (imp == null) {
+				guiUtils.error("Somehow image could not be created.", "Secondary Image Unavailable?");
+			} else {
+				imp.show();
+			}
 		});
+		externalImgOptionsMenu.add(secLayerExternalImgLoadFlushMenuItem);
+		externalImgOptionsMenu.addSeparator();
+		externalImgOptionsMenu.add(showImpMenuItem);
+		externalImgOptionsMenu.add(revealMenuItem);
 
 
-		secondaryImgPanel = new JPanel();
-		secondaryImgPanel.setLayout(new GridBagLayout());
+		secLayerPanel = new JPanel();
+		secLayerPanel.setLayout(new GridBagLayout());
 		GridBagConstraints c = GuiUtils.defaultGbc();
 		c.ipadx = 0;
 
@@ -2026,41 +2095,87 @@ public class SNTUI extends JDialog {
 
 		// row 0
 		c.insets.top = MARGIN * 2; // separator
-		secondaryImgPanel.add(secondaryImgActivateCheckbox, c);
+		secLayerPanel.add(secLayerActivateCheckbox, c);
 		c.insets.top = 0;
 		c.gridy++;
 		c.insets.left = (int) new JCheckBox("").getPreferredSize().getWidth();
 
 		// row 1
 		JPanel filePanel = new JPanel(new BorderLayout(0,0));
-		filePanel.add(secondaryImgPathField, BorderLayout.CENTER);
-		filePanel.add(filteredImgBrowseButton, BorderLayout.EAST);
-		secondaryImgPanel.add(filePanel, c);
+		filePanel.add(builtinFilterPanel, BorderLayout.CENTER);
+		filePanel.add(builtinFilterOptionsButton, BorderLayout.EAST);
+		secLayerPanel.add(filePanel, c);
 		c.gridy++;
 
 		// row 2
-		secondaryImgOverlayCheckbox = new JCheckBox("Render in overlay at ");
+		JPanel row2Panel = new JPanel(new BorderLayout(0,0));
+		row2Panel.add(secLayerExternalRadioButton, BorderLayout.CENTER);
+		row2Panel.add(secLayerExternalImgOptionsButton, BorderLayout.EAST);
+		secLayerPanel.add(row2Panel, c);
+		c.gridy++;
+
+		// row 3
+		secLayerExternalImgOverlayCheckbox = new JCheckBox("Render in overlay at ");
 		final JSpinner mipSpinner = GuiUtils.integerSpinner(20, 10, 80, 1, true);
-		mipSpinner.addChangeListener(e -> secondaryImgOverlayCheckbox.setSelected(false));
-		secondaryImgOverlayCheckbox.addActionListener(e -> {
+		mipSpinner.addChangeListener(e -> secLayerExternalImgOverlayCheckbox.setSelected(false));
+		secLayerExternalImgOverlayCheckbox.addActionListener(e -> {
 			if (!plugin.isSecondaryImageLoaded()) {
 				noSecondaryImgAvailableError();
 				return;
 			}
 			plugin.showMIPOverlays(true,
-					(secondaryImgOverlayCheckbox.isSelected()) ? (int) mipSpinner.getValue() * 0.01 : 0);
+					(secLayerExternalImgOverlayCheckbox.isSelected()) ? (int) mipSpinner.getValue() * 0.01 : 0);
 		});
 		final JPanel overlayPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-		overlayPanel.add(secondaryImgOverlayCheckbox);
+		overlayPanel.add(secLayerExternalImgOverlayCheckbox);
 		overlayPanel.add(mipSpinner);
 		overlayPanel.add(GuiUtils.leftAlignedLabel(" % opacity", true));
 		JPanel overlayPanelHolder = new JPanel(new BorderLayout());
 		overlayPanelHolder.add(overlayPanel, BorderLayout.CENTER);
 		//equalizeButtons(filteredImgOptionsButton, filteredImgBrowseButton);
-		overlayPanelHolder.add(secondaryImgOptionsButton, BorderLayout.EAST);	
-		secondaryImgPanel.add(overlayPanelHolder, c);
+	//	overlayPanelHolder.add(secondaryImgOptionsButton, BorderLayout.EAST);
+		c.insets.left = 2 * c.insets.left;
+		secLayerPanel.add(overlayPanelHolder, c);
 		c.gridy++;
-		return secondaryImgPanel;
+		return secLayerPanel;
+	}
+
+	private void displayBuiltinFilteredImg() { //TODO: This needs OutOfMemory detection
+		if (!plugin.accessToValidImageData()) {
+			noValidImageDataError();
+			return;
+		}
+		if (plugin.getSecondaryData() != null && plugin.getFilteredImageFile() != null) {
+			// A secondary layer exists and was generated using 'built-in' filters
+			plugin.getSecondaryDataAsImp().show();
+		} else if (plugin.getSecondaryData() == null && plugin.getFilteredImageFile() != null) {
+			// A secondary layer has been set using 'built-in' filters, but img is not
+			// available
+			if (plugin.getHessianCaller().isHessianComputed()) {
+				// then we just need to display it
+				displayRAI(plugin.getHessianCaller().hessianImg, "Secondary Layer");
+			} else {
+				// then we can compute it
+				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("filter", secLayerFilterChoice.getSelectedItem().toString());
+				inputs.put("useLazy", true);
+				inputs.put("show", true);
+				inputs.put("save", false);
+				inputs.put("skipPrompt", true);
+				cmdService.run(ComputeSecondaryImg.class, true, inputs); // will not block thread
+				enableSecondaryLayerBuiltin(true);
+			}
+		}
+	}
+
+	private void displayRAI(RandomAccessibleInterval<FloatType> img, final String title) {
+		if (img.numDimensions() == 3) { //FIXME: // IS this really required?
+			img = Views.permute(Views.addDimension(img, 0, 0), 2, 3);
+		}
+		final ImagePlus imp = ImageJFunctions.wrap(img, title);
+		imp.setCalibration(plugin.getImagePlus().getCalibration());
+		imp.show();
 	}
 
 	private void loadSecondaryImageFile(final File imgFile) {
@@ -2082,8 +2197,13 @@ public class SNTUI extends JDialog {
 			@Override
 			public void mousePressed(final MouseEvent e) {
 				// Update menuitem labels in case we ended-up in some weird UI state
-				secondaryImgLoadFlushMenuItem
-						.setText((plugin.isSecondaryImageLoaded()) ? "Flush Cached Image..." : "Load Specified File");
+				if (plugin.isSecondaryImageLoaded()) {
+					secLayerExternalImgLoadFlushMenuItem.setText("Flush Loaded Image...");
+					secLayerExternalImgLoadFlushMenuItem.setIcon(IconFactory.getMenuIcon(GLYPH.TRASH));
+				} else {
+					secLayerExternalImgLoadFlushMenuItem.setText("Choose File...");
+					secLayerExternalImgLoadFlushMenuItem.setIcon(IconFactory.getMenuIcon(GLYPH.OPEN_FOLDER));
+				}
 				if (optionsButton.isEnabled())
 					optionsMenu.show(optionsButton, optionsButton.getWidth() / 2, optionsButton.getHeight() / 2);
 			}
@@ -2110,22 +2230,22 @@ public class SNTUI extends JDialog {
 	private void flushSecondaryData() {
 		plugin.secondaryData = null;
 		plugin.doSearchOnSecondaryData = false;
-		if (secondaryImgOverlayCheckbox.isSelected()) {
-			secondaryImgOverlayCheckbox.setSelected(false);
+		if (secLayerExternalImgOverlayCheckbox.isSelected()) {
+			secLayerExternalImgOverlayCheckbox.setSelected(false);
 			plugin.showMIPOverlays(true, 0);
 		}
 		if (plugin.tubularGeodesicsTracingEnabled) {
 			setFastMarchSearchEnabled(false);
 		}
-		if ("..Cached image".equals(secondaryImgPathField.getText()))
-			secondaryImgPathField.setText("");
-		updateFilteredImgFields(true);
+		plugin.setSecondaryImage(null);
+		updateExternalImgWidgets();
 	}
 
-	private void flushCachedTubeness(final String type) {
-		final HessianCaller hc = plugin.getHessianCaller(type);
-		if (hc !=null) hc.cachedTubeness = null;
-		updateSettingsString();
+	private void flushCachedTubeness() {
+		if (plugin.getHessianCaller() !=null) {
+			plugin.getHessianCaller().nullify();
+			updateSettingsString();
+		}
 	}
 
 	protected File openFile(final String promptMsg, final String extension) {
@@ -2158,7 +2278,7 @@ public class SNTUI extends JDialog {
 		return savedFile;
 	}
 
-	private void loadCachedDataImage(final boolean warnUserOnMemory, final String type, final boolean isTubeness, final File file) {
+	private void loadCachedDataImage(final boolean warnUserOnMemory, final String type, final boolean isTubeness, final File file) { // FIXME: THIS is likely all outdated now
 		if (warnUserOnMemory && plugin.getImagePlus() != null) {
 			final int byteDepth = 32 / 8;
 			final ImagePlus tracingImp = plugin.getImagePlus();
@@ -2181,8 +2301,12 @@ public class SNTUI extends JDialog {
 
 		} else if (!isTubeness && file == null) {
 			// filtered image and no file provided
-			final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-			cmdService.run(ComputeSecondaryImg.class, true); // will not block thread
+			if (plugin.accessToValidImageData()) {
+				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+				cmdService.run(ComputeSecondaryImg.class, true); // will not block thread
+			} else {
+				noValidImageDataError();
+			}
 		} else {
 			// file provided
 			loadImageData(type, isTubeness, file);
@@ -2219,7 +2343,7 @@ public class SNTUI extends JDialog {
 
 			private void flushData() {
 				if (isTubeness) {
-					flushCachedTubeness(type);
+					flushCachedTubeness();
 				} else {
 					flushSecondaryData();
 				}
@@ -2245,7 +2369,7 @@ public class SNTUI extends JDialog {
 				if (isTubeness) {
 					updateSettingsString();
 				} else {
-					updateFilteredImgFields(plugin.isSecondaryImageLoaded());
+					updateExternalImgWidgets();
 				}
 				resetState();
 				showStatus(null, false);
@@ -2254,21 +2378,15 @@ public class SNTUI extends JDialog {
 		activeWorker.run();
 	}
 
-	private void updateFilteredImgFields(final boolean disableHessian) {
+	protected void updateExternalImgWidgets() {
 		SwingUtilities.invokeLater(() -> {
 			if (!plugin.isAstarEnabled() || plugin.tracingHalted || getState() == SNTUI.SNT_PAUSED) {
-				GuiUtils.enableComponents(secondaryImgPanel, false);
+				//GuiUtils.enableComponents(secondaryImgPanel, false);
 				return;
 			}
-			if (disableHessian) enableHessian(false);
-			final boolean successfullyLoaded = plugin.isTracingOnSecondaryImageAvailable();
-			GuiUtils.enableComponents(secondaryImgPathField.getParent(), !successfullyLoaded);
-			GuiUtils.enableComponents(secondaryImgOverlayCheckbox.getParent(), successfullyLoaded);
-			secondaryImgOverlayCheckbox.setEnabled(successfullyLoaded);
-			secondaryImgActivateCheckbox.setEnabled(successfullyLoaded);
-			secondaryImgOptionsButton.setEnabled(true);
-			if (!successfullyLoaded)
-				secondaryImgActivateCheckbox.setSelected(false);
+			//GuiUtils.enableComponents(secondaryImgOverlayCheckbox.getParent(), successfullyLoaded);
+			secLayerExternalImgOverlayCheckbox.setEnabled(plugin.isTracingOnSecondaryImageAvailable());
+			secLayerExternalImgLoadFlushMenuItem.setText((plugin.isSecondaryImageLoaded()) ? "Choose File..." : "Flush Loaded Image...");
 		});
 	}
 
@@ -2556,7 +2674,7 @@ public class SNTUI extends JDialog {
 		utilitiesMenu.add(scriptUtilsMenu);
 
 		// View menu
-		final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Views");
+		final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Tracing Views");
 		arrangeWindowsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.WINDOWS));
 		arrangeWindowsMenuItem.addActionListener(e -> arrangeCanvases(true));
 		viewMenu.add(arrangeWindowsMenuItem);
@@ -2581,60 +2699,7 @@ public class SNTUI extends JDialog {
 		});
 		hideViewsMenu.add(threeDViewerMenuItem);
 		viewMenu.add(hideViewsMenu);
-		viewMenu.addSeparator();
-		final JMenuItem tItem = showHessianImpMenuItem(null);
-		tItem.setText("<HTML>Show Cached <i>Hessian Image</i>...");
-		viewMenu.add(tItem);
-		final JMenuItem fItem = showFilteredImpMenuItem();
-		fItem.setText("<HTML>Show Cached <i>Secondary Image</i>");
-		viewMenu.add(fItem);
 		return menuBar;
-	}
-
-	private JMenuItem showHessianImpMenuItem(final String type) {
-		final JMenuItem menuItem = new JMenuItem("<HTML>Show Cached <i>Hessian Image...</i>");
-		menuItem.addActionListener(e -> {
-			final String choice = (type == null) ?
-					getPrimarySecondaryImgChoice("Which data would you like to display?") : type;
-
-			final HessianCaller hc = choice.equalsIgnoreCase("secondary") ? plugin.secondaryHessian :
-					plugin.primaryHessian;
-
-			final String analysisType = hc.getAnalysisType() == HessianCaller.TUBENESS ? "Tubeness" : "Frangi";
-
-			if (hc.hessianImg == null) {
-				guiUtils.error("No " + analysisType + " image has been loaded/computed.<br>"
-						+ "Image can only be displayed after running <i>Compute Now</i> "
-						+ "or <i>Load Precomputed " + analysisType + " Image...</i> from the"
-						+ "<i>Cache Computation</i> menu(s).");
-			} else {
-				RandomAccessibleInterval<FloatType> img = hc.hessianImg;
-				if (img.numDimensions() == 3) {
-					img = Views.permute(
-							Views.addDimension(img, 0, 0),
-							2,
-							3);
-				}
-				ImagePlus imp = ImageJFunctions.wrap(img, "Cached " + analysisType);
-				imp.setCalibration(plugin.getImagePlus().getCalibration());
-				imp.show();
-			}
-		});
-		return menuItem;
-	}
-
-	private JMenuItem showFilteredImpMenuItem() {
-		final JMenuItem menuItem = new JMenuItem("Show Cached Image");
-		menuItem.addActionListener(e -> {
-			final ImagePlus imp = plugin.getSecondaryDataAsImp();
-			if (imp == null) {
-				guiUtils.error("No \"Secondary Image\" has been loaded.");
-			} else {
-				imp.resetDisplayRange();
-				imp.show();
-			}
-		});
-		return menuItem;
 	}
 
 	private JPanel renderingPanel() {
@@ -2800,10 +2865,10 @@ public class SNTUI extends JDialog {
 		final ButtonGroup dataStructureButtonGroup = new ButtonGroup();
 
 		@SuppressWarnings("rawtypes")
-		final Map<String, Class<? extends SearchImage>> searchMap = new TreeMap<>();
-		searchMap.put("Array (Default)", ArraySearchImage.class);
-		searchMap.put("Hash Table (Some minor description)", MapSearchImage.class);
-		searchMap.put("ImgLib2 ListImg (Some minor description)", ListSearchImage.class);
+		final Map<String, Class<? extends SearchImage>> searchMap = new LinkedHashMap<>();
+		searchMap.put("Hash Table (Default)", MapSearchImage.class);
+		searchMap.put("Array", ArraySearchImage.class);
+		searchMap.put("ImgLib2 ListImg", ListSearchImage.class);
 		searchMap.forEach((lbl, clss) -> {
 			final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
 			dataStructureButtonGroup.add(rbmi);
@@ -2811,7 +2876,7 @@ public class SNTUI extends JDialog {
 			rbmi.setSelected(plugin.searchImageType == clss);
 			rbmi.addActionListener(e -> {
 				plugin.searchImageType = clss;
-				showStatus("Active data structure: " + lbl.substring(0, lbl.indexOf(" (")), true);
+				showStatus("Active data structure: " + lbl, true);
 				updateSettingsString();
 			//	SNTUtils.log("Search image type changed, now using " + plugin.searchImageType.getName());
 			});
@@ -2820,8 +2885,8 @@ public class SNTUI extends JDialog {
 
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Cost Function:", false));
 		final ButtonGroup costFunctionButtonGroup = new ButtonGroup();
-		final Map<String, SNT.CostType> costMap = new TreeMap<>();
-		costMap.put("Reciprocal of Intensity", SNT.CostType.RECIPROCAL);
+		final Map<String, SNT.CostType> costMap = new  LinkedHashMap<>();
+		costMap.put("Reciprocal of Intensity (Default)", SNT.CostType.RECIPROCAL);
 		costMap.put("Difference of Intensity", SNT.CostType.DIFFERENCE);
 		costMap.put("Probability of Intensity...", SNT.CostType.PROBABILITY);
 		costMap.forEach((lbl, type) -> {
@@ -2856,9 +2921,20 @@ public class SNTUI extends JDialog {
 		});
 
 		optionsMenu.addSeparator();
-		JMenuItem minMaxJmi = new JMenuItem("Adjust Min-Max...");
-		minMaxJmi.addActionListener(e -> setMinMaxFromUser());
-		optionsMenu.add(minMaxJmi);
+
+		optionsMenu.add(GuiUtils.leftAlignedLabel("Min-Max:", false));
+		final ButtonGroup minMaxButtonGroup = new ButtonGroup();
+		JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem("Compute While Tracing (Default)", true); // FIXME: Read from plugin
+		minMaxButtonGroup.add(rbmi);
+		optionsMenu.add(rbmi);
+		rbmi.addActionListener(e -> {
+			// FIXME: Implement
+		});
+		rbmi = new JRadioButtonMenuItem("Specify Fixed Range...");
+		minMaxButtonGroup.add(rbmi);
+		optionsMenu.add(rbmi);
+		rbmi.addActionListener(e -> setMinMaxFromUser());
+
 		aStarPanel = new JPanel(new BorderLayout());
 		aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
 		aStarPanel.add(optionsButton, BorderLayout.EAST);
@@ -2867,92 +2943,10 @@ public class SNTUI extends JDialog {
 
 	private void enableTracerThread() {
 		plugin.setSearchType(SNT.SearchType.ASTAR);
-		refreshHessianPanelState();
 	}
 
 	private void enableNBAStar() {
 		plugin.setSearchType(SNT.SearchType.NBASTAR);
-		refreshHessianPanelState();
-	}
-
-	@Deprecated
-	private JPanel hessianPanel() {
-		preprocess = new JCheckBox(hotKeyLabel("Hessian-based", "H"));
-		preprocess.addActionListener(listener);
-		JComboBox<String> analysisTypeChoice = new JComboBox<String>();
-		analysisTypeChoice.addItem("Tubeness");
-		analysisTypeChoice.addItem("Frangi");
-		//TODO: ensure choice reflects the current state of plugin when assembling GUI
-		analysisTypeChoice.addActionListener(event -> {
-			if (!analysisTypeChoice.hasFocus()) return; // if user did not trigger the event ignore it
-			@SuppressWarnings("unchecked")
-			final int idx = ((JComboBox<String>) event.getSource()).getSelectedIndex();
-			plugin.nullifyHessian();
-			preprocess.setSelected(false);
-			plugin.primaryHessian.setAnalysisType((idx == 0) ? HessianCaller.TUBENESS : HessianCaller.FRANGI);
-			plugin.secondaryHessian.setAnalysisType((idx == 0) ? HessianCaller.TUBENESS : HessianCaller.FRANGI);
-			updateSettingsString();
-		});
-
-		final JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
-		checkboxPanel.add(preprocess);
-		checkboxPanel.add(analysisTypeChoice);
-		checkboxPanel.add(GuiUtils.leftAlignedLabel(" analysis", true));
-
-		final JPopupMenu optionsMenu = new JPopupMenu();
-		final JMenuItem jmiVisual = new JMenuItem(GuiListener.EDIT_SIGMA_VISUALLY);
-		jmiVisual.addActionListener(listener);
-		optionsMenu.add(jmiVisual);
-		JMenuItem jmiManual = new JMenuItem(GuiListener.EDIT_SIGMA_MANUALLY);
-		jmiManual.addActionListener(listener);
-		optionsMenu.add(jmiManual);
-		optionsMenu.addSeparator();
-		final JMenuItem thicknessCmdItem = new JMenuItem("Estimate Radii (Local Thickness)...");
-		thicknessCmdItem.setToolTipText("Computes the distribution of the radii of all the structures across the image");
-		//thicknessCmdItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DOTCIRCLE));
-		optionsMenu.add(thicknessCmdItem);
-		thicknessCmdItem.addActionListener(e -> {
-			(new DynamicCmdRunner(LocalThicknessCmd.class, null, RUNNING_CMD)).run();
-		});
-		final JButton optionsButton = optionsButton(optionsMenu);
-		hessianPanel = new JPanel(new BorderLayout());
-		hessianPanel.add(checkboxPanel, BorderLayout.CENTER);
-		hessianPanel.add(optionsButton, BorderLayout.EAST);
-		return hessianPanel;
-	}
-
-	@Deprecated
-	private JMenu hessianCompMenu(final String title, final String type) {
-		final JMenu menu = new JMenu(title);
-		JMenuItem jmi = new JMenuItem("<HTML>Cache Now...");
-		jmi.addActionListener(e -> {
-			if ("secondary".equalsIgnoreCase(type) && !plugin.isSecondaryImageLoaded()) {
-				noSecondaryImgAvailableError();
-				return;
-			}
-			loadCachedDataImage(true, type, true, null);
-		});
-		menu.add(jmi);
-		//TODO: Ensure this is still relevant when using Frangi
-		jmi = new JMenuItem("<HTML>Cache From Existing <i>Tubeness Image</i>...");
-		jmi.addActionListener(e -> {
-			if ("secondary".equalsIgnoreCase(type) && !plugin.isSecondaryImageLoaded()) {
-				noSecondaryImgAvailableError();
-				return;
-			}
-			final File file = openFile("Choose \"Tubeness\" Image...", "tubes.tif");
-			if (file != null) loadCachedDataImage(true, type, true, file);
-		});
-		menu.add(jmi);
-		jmi = new JMenuItem("<HTML>Flush Cached Data...");
-		jmi.addActionListener(e -> {
-			if (okToFlushCachedTubeness(type))
-				showStatus("Cached data for " + type + " image flushed", true);
-		});
-		menu.add(jmi);
-		menu.addSeparator();
-		menu.add(showHessianImpMenuItem(type));
-		return menu;
 	}
 
 	private JPanel hideWindowsPanel() {
@@ -2984,7 +2978,6 @@ public class SNTUI extends JDialog {
 		if (enable && isFastMarchSearchAvailable()) {
 			plugin.tubularGeodesicsTracingEnabled = true;
 			searchAlgoChoice.setSelectedIndex(2);
-			refreshHessianPanelState();
 			return true;
 		} else {
 			plugin.tubularGeodesicsTracingEnabled = false;
@@ -2992,7 +2985,6 @@ public class SNTUI extends JDialog {
 				plugin.tubularGeodesicsThread.requestStop();
 				plugin.tubularGeodesicsThread = null;
 			}
-			refreshHessianPanelState();
 			return false;
 		}
 	}
@@ -3089,7 +3081,6 @@ public class SNTUI extends JDialog {
 			resetState();
 			updateSettingsString();
 			pack();
-			updateFilteredImageFileWidget();
 			pathAndFillManager.resetListeners(null, true); // update Path lists
 			setPathListVisible(true, false);
 			setFillListVisible(false);
@@ -3149,15 +3140,15 @@ public class SNTUI extends JDialog {
 		updateSettingsString();
 	}
 
-	private boolean okToFlushCachedTubeness(final String type) {
-		final HessianCaller hc = plugin.getHessianCaller(type);
+	private boolean okToFlushCachedTubeness() { //FIXME
+		final HessianCaller hc = plugin.getHessianCaller();
 		if (hc == null || hc.cachedTubeness == null)
 			return true;
 		final boolean ok = hc.cachedTubeness != null && guiUtils.getConfirmation(
 				"Hessian computations for the entire image currently exist. Discard such data?",
 				"Discard Existing Computations?", "Yes. Discard Computations", "Cancel");
 		if (ok)
-			flushCachedTubeness(type);
+			flushCachedTubeness();
 		return ok;
 	}
 
@@ -3168,15 +3159,15 @@ public class SNTUI extends JDialog {
 			final String choice = guiUtils.getChoice(promptMsg, "Which Image?", choices, defChoice);
 			if (choice != null) {
 				plugin.getPrefs().setTemp("pschoice", choice);
-				secondaryImgActivateCheckbox.setSelected(choices[1].equals(choice));
+				secLayerActivateCheckbox.setSelected(choices[1].equals(choice));
 				return choice;
 			}
 		}
 		return "primary";
 	}
 
-	private void setSigmaFromUser(final String primarySecondaryChoice) {
-		final HessianCaller hc = plugin.getHessianCaller(primarySecondaryChoice);
+	private void setSigmaFromUser() {
+		final HessianCaller hc = plugin.getHessianCaller();
 		final JTextField sigmaField = new JTextField(5);
 		final Object[] contents = { "<html><HTML><div WIDTH=500><b>Ajusting sigma:</b><br>"//
 				+ "Enter the approximate radii of the structures you are " //
@@ -3184,8 +3175,7 @@ public class SNTUI extends JDialog {
 				+ "(anisotropic images) or twice the voxel size (isotropic). For the current " //
 				+ "image the default is " + SNTUtils.formatDouble(hc.getDefaultSigma()[0], 2) //
 				+ plugin.spacing_units + ".", sigmaField};
-		final int result = JOptionPane.showConfirmDialog(this, contents, "Hessian Settings (" +
-						primarySecondaryChoice +" Image)",
+		final int result = JOptionPane.showConfirmDialog(this, contents, "Hessian Settings",
 				JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 		if (result == JOptionPane.OK_OPTION) {
 			List<Double> settings = new ArrayList<>();
@@ -3198,7 +3188,7 @@ public class SNTUI extends JDialog {
 				}
 				settings.add(sigma);
 			}
-			preprocess.setSelected(false);
+			secLayerBuiltinRadioButton.setSelected(false);
 			hc.setSigmas(settings);
 			//hc.start();
 		}
@@ -3377,20 +3367,6 @@ public class SNTUI extends JDialog {
 		return mi;
 	}
 
-	protected void updateFilteredImageFileWidget() {
-		if (secondaryImgPathField == null) return;
-		final File file = plugin.getFilteredImageFile();
-		if (file != null) {
-			secondaryImgPathField.setText(file.getAbsolutePath()); 
-		} else if (plugin.isSecondaryImageLoaded()) {
-			secondaryImgPathField.setText("..Cached image"); 
-		} else {
-			secondaryImgPathField.setText(""); 
-		}
-		if (plugin.isSecondaryImageLoaded())
-			secondaryImgLoadFlushMenuItem.setText("Flush Cached Image...");
-	}
-
 	/**
 	 * Gets the Path Manager dialog.
 	 *
@@ -3499,7 +3475,6 @@ public class SNTUI extends JDialog {
 			plugin.cancelGaussian();
 			break;
 		case (WAITING_FOR_SIGMA_POINT_I):
-		case (WAITING_FOR_SIGMA_POINT_II):
 			if (sigmaPalette != null) sigmaPalette.dismiss();
 			showStatus("Sigma adjustment cancelled...", true);
 			break;
@@ -3593,8 +3568,7 @@ public class SNTUI extends JDialog {
 			sigmas[i] = ((i + 1) * plugin.getMinimumSeparation()) / 2;
 		}
 
-		sigmaPalette = new SigmaPalette(plugin,
-				plugin.getHessianCaller((getState() == WAITING_FOR_SIGMA_POINT_II) ? "secondary" : "primary"));
+		sigmaPalette = new SigmaPalette(plugin, plugin.getHessianCaller());
 		sigmaPalette.makePalette(x_min, x_max, y_min, y_max, z_min, z_max, sigmas, 3, 3, z);
 		updateStatusText("Adjusting \u03C3 and max visually...");
 	}
@@ -3621,8 +3595,6 @@ public class SNTUI extends JDialog {
 			return "CALCULATING_HESSIAN_II";
 		case WAITING_FOR_SIGMA_POINT_I:
 			return "WAITING_FOR_SIGMA_POINT_I";
-		case WAITING_FOR_SIGMA_POINT_II:
-			return "WAITING_FOR_SIGMA_POINT_II";
 		case WAITING_FOR_SIGMA_CHOICE:
 			return "WAITING_FOR_SIGMA_CHOICE";
 		case SAVING:
@@ -3647,56 +3619,63 @@ public class SNTUI extends JDialog {
 		showPathsSelected.setSelected(!showPathsSelected.isSelected());
 	}
 
-	protected void enableSecondaryImgTracing(final boolean enable) {
-		if (plugin.isTracingOnSecondaryImageAvailable()) {
+	protected void enableSecondaryLayerTracing(final boolean enable) {
+		if (plugin.getSecondaryData() != null) {
 			plugin.doSearchOnSecondaryData = enable;
-			secondaryImgActivateCheckbox.setSelected(enable);
-			if (preprocess.isSelected()) {
-				if (plugin.getHessianCaller("secondary").hessianImg == null)
-					preprocess.setSelected(false);
-			}
+			secLayerActivateCheckbox.setSelected(enable);
 		} else if (enable) {
 			if (!plugin.accessToValidImageData()) {
 				noValidImageDataError();
-			} else {
+			} else if (!plugin.isSecondaryImageLoaded()){
 				noSecondaryImgAvailableError();
 			}
-			secondaryImgActivateCheckbox.setSelected(false);
+			secLayerActivateCheckbox.setSelected(false);
 		}
-		//refreshHessianPanelState();
-	}
-
-	private void refreshHessianPanelState() {
-		GuiUtils.enableComponents(hessianPanel,
-				!plugin.doSearchOnSecondaryData && !plugin.tubularGeodesicsTracingEnabled);
+		updateSettingsString();
 	}
 
 	private void noSecondaryImgAvailableError() {
 		guiUtils.error("No secondary image has been loaded. Please load it first.", "Secondary Image Unavailable");
-		secondaryImgOverlayCheckbox.setSelected(false);
-		secondaryImgActivateCheckbox.setSelected(false);
+		secLayerExternalImgOverlayCheckbox.setSelected(false);
+		secLayerExternalRadioButton.setSelected(false);
 		plugin.doSearchOnSecondaryData = false;
 	}
 
-	protected void toggleFilteredImgTracing() {
+	protected void toggleSecondaryLayerTracing() {
 		assert SwingUtilities.isEventDispatchThread();
-		// Do nothing if we are not allowed to enable FilteredImgTracing
-		if (!secondaryImgActivateCheckbox.isEnabled()) {
-			showStatus("Ignored: Secondary imaged not available", true);
+		if (secLayerActivateCheckbox.isEnabled()) enableSecondaryLayerTracing(!secLayerActivateCheckbox.isSelected());
+	}
+
+	protected void toggleSecondaryLayerBuiltin() {
+		assert SwingUtilities.isEventDispatchThread();
+		if (secLayerBuiltinRadioButton.isEnabled()) enableSecondaryLayerBuiltin(!secLayerBuiltinRadioButton.isSelected());
+	}
+
+	protected void toggleSecondaryLayerExternal() {
+		assert SwingUtilities.isEventDispatchThread();
+		if (secLayerExternalRadioButton.isEnabled()) enableSecondaryLayerExternal(!secLayerExternalRadioButton.isSelected());
+	}
+
+	protected void enableSecondaryLayerBuiltin(final boolean enable) {
+		if (!secLayerActivateCheckbox.isEnabled()) {
+			// Do nothing if we are not allowed to enable FilteredImgTracing
+			showStatus("Ignored: Operation not available", true);
 			return;
 		}
-		enableSecondaryImgTracing(!secondaryImgActivateCheckbox.isSelected());
-	}
-
-	protected void toggleHessian() {
-		assert SwingUtilities.isEventDispatchThread();
-		if (preprocess.isEnabled()) enableHessian(!preprocess.isSelected());
-	}
-
-	protected void enableHessian(final boolean enable) {
-		preprocess.setSelected(enable); // will not trigger ActionEvent
+		secLayerBuiltinRadioButton.setSelected(enable); // will not trigger ActionEvent
 		updateSettingsString();
 		showStatus("Hessian " + ((enable) ? "enabled" : "disabled"), true);
+	}
+
+	protected void enableSecondaryLayerExternal(final boolean enable) {
+		if (!secLayerActivateCheckbox.isEnabled()) {
+			// Do nothing if we are not allowed to enable FilteredImgTracing
+			showStatus("Ignored: Operation not available", true);
+			return;
+		}
+		secLayerExternalRadioButton.setSelected(enable); // will not trigger ActionEvent
+		updateSettingsString();
+		showStatus("External Image " + ((enable) ? "enabled" : "disabled"), true);
 	}
 
 	/** Should only be called by {@link SNT#enableAstar(boolean)} */
@@ -3733,9 +3712,7 @@ public class SNTUI extends JDialog {
 				+ "at least once to ensure A* is properly tuned. Would you like to adjust them now "
 				+ "by clicking on a representative region of the image?",
 				"Adjust Hessian Visually?", "Yes. Adjust Visually...", noButtonLabel)) {
-			final String choice = getPrimarySecondaryImgChoice("Adjust settings for which image?");
-			if (choice == null) return false;
-			changeState(("secondary".equalsIgnoreCase(choice)) ? WAITING_FOR_SIGMA_POINT_II : WAITING_FOR_SIGMA_POINT_I);
+			changeState(WAITING_FOR_SIGMA_POINT_I);
 			return true;
 		}
 		return false;
@@ -3744,8 +3721,8 @@ public class SNTUI extends JDialog {
 	private class GuiListener
 			implements ActionListener, ItemListener, ImageListener {
 
-		private final static String EDIT_SIGMA_MANUALLY = "Adjust Settings Manually...";
-		private final static String EDIT_SIGMA_VISUALLY = "Adjust Settings Visually...";
+		private final static String EDIT_SIGMA_MANUALLY = "Specify Manually...";
+		private final static String EDIT_SIGMA_VISUALLY = "Specify Visually...";
 
 		public GuiListener() {
 			ImagePlus.addImageListener(this);
@@ -3815,10 +3792,32 @@ public class SNTUI extends JDialog {
 
 			final Object source = e.getSource();
 
-			if (source == preprocess) {
-				final boolean activate = preprocess.isSelected();
-				if (activate && userPreferstoRunWizard("No. Use Existing Values")) return;
-				enableHessian(activate);
+			if (source == secLayerActivateCheckbox) {
+
+				if (secLayerActivateCheckbox.isSelected() && !plugin.accessToValidImageData()) {
+					secLayerActivateCheckbox.setSelected(false);
+					noValidImageDataError();
+					return;
+				}
+				if (secLayerBuiltinRadioButton.isSelected()) {
+					if (secLayerActivateCheckbox.isSelected() && userPreferstoRunWizard("No. Use Existing Values")) {
+						enableSecondaryLayerBuiltin(false);
+						return;
+					}
+					enableSecondaryLayerBuiltin(true);
+
+				} else if (secLayerExternalRadioButton.isSelected()) {
+					if (plugin.isSecondaryImageLoaded()) {
+						enableSecondaryLayerExternal(true);
+					} else {
+						secLayerActivateCheckbox.setSelected(false);
+						noSecondaryImgAvailableError();
+					}
+				}
+
+			} else if (source == secLayerExternalRadioButton) {
+				if (!plugin.isSecondaryImageLoaded() )
+					enableSecondaryLayerExternal(false);
 			} else if (source == saveMenuItem && !noPathsError()) {
 
 				final File saveFile = saveFile("Save Traces As...", null, ".traces");
@@ -3910,21 +3909,16 @@ public class SNTUI extends JDialog {
 
 				//TODO: Do not prompt for max choice when using Frangi as analysis type
 				if (userPreferstoRunWizard("No. Adjust Manually...")) return;
-				final String choice = getPrimarySecondaryImgChoice("Adjust settings for which image?");
-				if (choice == null) return;
-				final HessianCaller hc = plugin.getHessianCaller(choice);
+				final HessianCaller hc = plugin.getHessianCaller();
 				if (hc.cachedTubeness == null) {
-					setSigmaFromUser(choice);
-				} else if (okToFlushCachedTubeness(choice)) {
-					setSigmaFromUser(choice);
+					setSigmaFromUser();
+				} else if (okToFlushCachedTubeness()) {
+					setSigmaFromUser();
 				}
 
 			} else if (e.getActionCommand().equals(EDIT_SIGMA_VISUALLY)) {
-				final String choice = getPrimarySecondaryImgChoice("Adjust settings for which image?");
-				if (choice == null) return;
-				if (okToFlushCachedTubeness(choice)) {
-					changeState(("secondary".equalsIgnoreCase(choice)) ? WAITING_FOR_SIGMA_POINT_II
-							: WAITING_FOR_SIGMA_POINT_I);
+				if (okToFlushCachedTubeness()) {
+					changeState(WAITING_FOR_SIGMA_POINT_I);
 					plugin.setCanvasLabelAllPanes("Choosing Sigma");
 				}
 			}

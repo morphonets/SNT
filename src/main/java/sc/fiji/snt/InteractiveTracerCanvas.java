@@ -647,7 +647,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				impossibleEdit(true);
 				break;
 			case SNTUI.WAITING_FOR_SIGMA_POINT_I:
-			case SNTUI.WAITING_FOR_SIGMA_POINT_II:
 				startSigmaWizard(e.getX(), e.getY());
 				break;
 			case SNTUI.WAITING_FOR_SIGMA_CHOICE:

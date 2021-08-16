@@ -2403,7 +2403,7 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public void setSecondaryImage(final File file) {
 		secondaryImageFile = file;
-		if (ui != null) ui.updateFilteredImageFileWidget();
+		if (ui != null) ui.updateExternalImgWidgets();
 	}
 
 	/**
@@ -2461,15 +2461,14 @@ public class SNT extends MultiDThreePanes implements
 		statsSecondary.mean = imgStats.mean;
 		statsSecondary.stdDev = imgStats.stdDev;
 		File file = null;
-		if (isSecondaryImageLoaded() && (imp.getFileInfo() != null)) {
+		if ((imp.getFileInfo() != null)) {
 			file = new File(imp.getFileInfo().directory, imp.getFileInfo().fileName);
 		}
 		setSecondaryImage(file);
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
 			if (getUI() != null) {
-				getUI().enableHessian(false);
-				getUI().enableSecondaryImgTracing(true);
+				getUI().enableSecondaryLayerExternal(true);
 			}
 		}
 	}
@@ -2502,8 +2501,7 @@ public class SNT extends MultiDThreePanes implements
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
 			if (getUI() != null) {
-				getUI().enableHessian(false);
-				getUI().enableSecondaryImgTracing(true);
+				getUI().enableSecondaryLayerExternal(true);
 			}
 		}
 	}
@@ -2511,14 +2509,14 @@ public class SNT extends MultiDThreePanes implements
 	@Deprecated
 	public void loadTubenessImage(final String type, final File file) throws IOException, IllegalArgumentException {
 		final ImagePlus imp = openCachedDataImage(file);
-		final HessianCaller hc = getHessianCaller(type);
+		final HessianCaller hc = getHessianCaller();
 		loadTubenessImage(hc, imp, true);
 		hc.sigmas = null;
 	}
 
 	@Deprecated
-	public void loadTubenessImage(final String type, final ImagePlus imp) throws IllegalArgumentException {
-		loadTubenessImage(getHessianCaller(type), imp, true);
+	public void loadTubenessImage(final ImagePlus imp) throws IllegalArgumentException {
+		loadTubenessImage(getHessianCaller(), imp, true);
 	}
 
 	@Deprecated
@@ -2593,13 +2591,14 @@ public class SNT extends MultiDThreePanes implements
 	 * @see #loadSecondaryImage(File)
 	 */
 	public ImagePlus getSecondaryDataAsImp() {
-		if (!isSecondaryImageLoaded()) {
+		if (secondaryData == null) {
 			return null;
 		}
-		ImagePlus imp = ImageJFunctions.wrap(secondaryData, "Secondary Data");
+		ImagePlus imp = ImageJFunctions.wrap(secondaryData, "Secondary Layer");
 		updateLut();
 		imp.setLut(lut);
 		imp.copyScale(xy);
+		imp.resetDisplayRange();
 		return imp;
 	}
 
