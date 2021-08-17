@@ -40,13 +40,13 @@ import ij3d.ContentCreator;
 import ij3d.Image3DUniverse;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
+import net.imagej.axis.Axes;
 import net.imagej.legacy.LegacyService;
 import net.imagej.ops.OpService;
-import net.imglib2.*;
+import net.imglib2.IterableInterval;
 import net.imglib2.RandomAccess;
+import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
-import net.imglib2.type.NativeType;
-import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.Pair;
@@ -69,8 +69,10 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
-import sc.fiji.snt.util.*;
-import net.imglib2.type.numeric.real.FloatType;
+import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.PointInCanvas;
+import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.SNTPoint;
 
 import javax.swing.*;
 import java.awt.*;
@@ -174,9 +176,8 @@ public class SNT extends MultiDThreePanes implements
 	protected int frame;
 	private LUT lut;
 
-	/* all tracing and filling-related functions are performed on the RandomAccessibleIntervals */
-	@SuppressWarnings("rawtypes")
-	private RandomAccessibleInterval img;
+	/* all tracing and filling-related functions are performed on the Imgs */
+	private Dataset dataset;
 	@SuppressWarnings("rawtypes")
 	private RandomAccessibleInterval sliceAtCT;
 
@@ -214,7 +215,8 @@ public class SNT extends MultiDThreePanes implements
 	 * third-party class that will parse it
 	 */
 	protected boolean doSearchOnSecondaryData;
-	protected RandomAccessibleInterval<FloatType> secondaryData;
+	@SuppressWarnings("rawtypes")
+	protected RandomAccessibleInterval secondaryData;
 	protected File secondaryImageFile = null;
 	private final ImageStatistics statsSecondary = new ImageStatistics();
 	protected boolean tubularGeodesicsTracingEnabled = false;
@@ -574,7 +576,7 @@ public class SNT extends MultiDThreePanes implements
 		addListener(xy_tracer_canvas);
 
 		if (accessToValidImageData()) {
-			loadData();
+			loadDatasetFromImagePlus(getImagePlus());
 		}
 
 		if (!single_pane) {
@@ -606,7 +608,7 @@ public class SNT extends MultiDThreePanes implements
 		final boolean currentSinglePane = getSinglePane();
 		setFieldsFromImage(getImagePlus()); // In case image properties changed outside SNT 
 		setSinglePane(currentSinglePane);
-		loadData(); // will call nullifyHessian();
+		loadDatasetFromImagePlus(getImagePlus()); // will call nullifyHessian();
 		if (use3DViewer && imageContent != null) {
 			updateImageContent(prefs.get3DViewerResamplingFactor());
 		}
@@ -626,94 +628,37 @@ public class SNT extends MultiDThreePanes implements
 		if (!xz.isVisible()) xz.show();
 	}
 
-	private <T extends NumericType<T> & NativeType<T>> void loadData() {
-		statusService.showStatus("Loading data...");
-		RandomAccessibleInterval<T> img = ImageJFunctions.wrap(xy);
-		RandomAccessibleInterval<T> added;
-		// FIXME
-		if (img.numDimensions() == 2) {
-			//System.out.println("2D image");
-			added = Views.addDimension(
-					Views.addDimension(
-							Views.addDimension(
-									img,
-									0,
-									0),
-							0,
-							0),
-					0,
-					0);
-		} else if (img.numDimensions() == 3 && xy.getNChannels() > 1) {
-			//System.out.println("2D multichannel");
-			added = Views.addDimension(
-					Views.addDimension(
-							img,
-							0,
-							0),
-					0,
-					0);
-		} else if (img.numDimensions() == 3 && xy.getNFrames() > 1) {
-			//System.out.println("2D timelapse");
-			added = Views.permute(
-					Views.addDimension(
-							Views.addDimension(
-									img,
-									0,
-									0),
-							0,
-							0),
-					2,
-					4);
-		} else if (img.numDimensions() == 3 && xy.getStackSize() > 1) {
-			//System.out.println("3D image");
-			added = Views.permute(
-					Views.addDimension(
-							Views.addDimension(
-									img,
-									0,
-									0),
-							0,
-							0),
-					2,
-					3);
-		} else if (img.numDimensions() == 4 && xy.getStackSize() > 1) {
-			//System.out.println("3D multichannel");
-			added = Views.addDimension(img, 0, 0);
-		} else if (img.numDimensions() == 4 && xy.getStackSize() > 1) {
-			//System.out.println("2D multichannel timelapse");
-			added = Views.permute(
-					Views.addDimension(
-							img,
-							0,
-							0),
-					3,
-					4);
-		} else if (img.numDimensions() == 4 && xy.getNFrames() > 1 && xy.getStackSize() > 1) {
-			//System.out.println("3D timelapse");
-			added = Views.permute(
-					Views.permute(
-							Views.addDimension(
-									img,
-									0,
-									0),
-							2,
-							4),
-					3,
-					4);
-		} else {
-			//System.out.println("5D image");
-			added = img;
+	private static <T extends RealType<T>> RandomAccessibleInterval<T> getCTSlice(final Dataset dataset,
+																				  final int channelIndex,
+																				  final int frameIndex)
+	{
+		@SuppressWarnings("unchecked")
+		RandomAccessibleInterval<T> slice = (RandomAccessibleInterval<T>) dataset;
+		if (dataset.getFrames() > 1) {
+			slice = Views.hyperSlice(slice, dataset.dimensionIndex(Axes.TIME), frameIndex);
 		}
-		this.img = added;
-		this.sliceAtCT = Views.hyperSlice(Views.hyperSlice(added, 2, channel - 1), 3, frame - 1);
-		SNTUtils.log("Added dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(added)));
+		if (dataset.getChannels() > 1) {
+			slice = Views.hyperSlice(slice, dataset.dimensionIndex(Axes.CHANNEL), channelIndex);
+		}
+		if (slice.numDimensions() == 2) {
+			// bump to 3D
+			slice = Views.addDimension(slice, 0, 0);
+		}
+		return slice;
+	}
+
+	private void loadDatasetFromImagePlus(final ImagePlus imp) {
+		statusService.showStatus("Loading data...");
+		this.dataset = convertService.convert(imp, Dataset.class);
+		this.sliceAtCT = getCTSlice(this.dataset, channel - 1, frame - 1);
+		SNTUtils.log("Added dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(dataset)));
 		SNTUtils.log("CT Slice dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(this.sliceAtCT)));
 		statusService.showStatus("Finding stack minimum / maximum");
-		final boolean restoreROI = xy.getRoi() != null && xy.getRoi() instanceof PointRoi;
-		if (restoreROI) xy.saveRoi();
-		xy.deleteRoi(); // if a ROI exists, compute min/ max for entire image
-		if (restoreROI) xy.restoreRoi();
-		ImageStatistics imgStats = xy.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
+		final boolean restoreROI = imp.getRoi() != null && imp.getRoi() instanceof PointRoi;
+		if (restoreROI) imp.saveRoi();
+		imp.deleteRoi(); // if a ROI exists, compute min/ max for entire image
+		if (restoreROI) imp.restoreRoi();
+		ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
 				ImageStatistics.STD_DEV);
 		this.stats.min = imgStats.min;
 		this.stats.max = imgStats.max;
@@ -1678,7 +1623,7 @@ public class SNT extends MultiDThreePanes implements
 		if (useSubVolumeStats) {
 			SNTUtils.log("Computing subvolume statistics...");
 			final IterableInterval<T> subVolume = Views.iterable(
-					ImgUtils.getSubVolume(
+					ImgUtils.subVolume(
 							img,
 							x_start,
 							y_start,
@@ -2394,7 +2339,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected boolean inputImageLoaded() {
-		return this.img != null;
+		return this.dataset != null;
 	}
 
 	protected boolean isTracingOnSecondaryImageAvailable() {
@@ -2433,7 +2378,8 @@ public class SNT extends MultiDThreePanes implements
 		loadSecondaryImage(imp, true);
 	}
 
-	public void loadSecondaryImage(final RandomAccessibleInterval<FloatType> img, final boolean computeStatistics)
+	public <T extends RealType<T>> void loadSecondaryImage(final RandomAccessibleInterval<T> img,
+																		   final boolean computeStatistics)
 	{
 		loadSecondaryImage(img, true, computeStatistics);
 	}
@@ -2456,7 +2402,7 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
-		secondaryData = ImageJFunctions.wrap(imp);
+		secondaryData = ImageJFunctions.wrapReal(imp);
 		SNTUtils.log("Secondary data dimensions: " +
 				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
 		ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
@@ -2479,8 +2425,9 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
-	protected void loadSecondaryImage(final RandomAccessibleInterval<FloatType> img, final boolean changeUIState,
-									  final boolean computeStatistics)
+	protected <T extends RealType<T>> void loadSecondaryImage(final RandomAccessibleInterval<T> img,
+																			  final boolean changeUIState,
+																			  final boolean computeStatistics)
 	{
 		assert img != null;
 		if (secondaryImageFile != null && secondaryImageFile.getName().toLowerCase().contains(".oof")) {
@@ -2495,8 +2442,8 @@ public class SNT extends MultiDThreePanes implements
 				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
 		if (computeStatistics) {
 			OpService opService = getContext().getService(OpService.class);
-			IterableInterval<FloatType> iterableView = Views.iterable(img);
-			Pair<FloatType, FloatType> minMax = opService.stats().minMax(iterableView);
+			IterableInterval<T> iterableView = Views.iterable(img);
+			Pair<T, T> minMax = opService.stats().minMax(iterableView);
 			double mean = opService.stats().mean(iterableView).getRealDouble();
 			double stdDev = opService.stats().stdDev(iterableView).getRealDouble();
 			statsSecondary.min = minMax.getA().getRealDouble();
@@ -2608,8 +2555,10 @@ public class SNT extends MultiDThreePanes implements
 		return imp;
 	}
 
-	public RandomAccessibleInterval<FloatType> getSecondaryData() {
-		return secondaryData;
+	public <T extends RealType<T>> RandomAccessibleInterval<T> getSecondaryData() {
+		@SuppressWarnings("unchecked")
+		final RandomAccessibleInterval<T> data  = secondaryData;
+		return data;
 	}
 
 	protected ImagePlus getCachedTubenessDataAsImp(final String type) {
@@ -3048,13 +2997,13 @@ public class SNT extends MultiDThreePanes implements
 			stopz = depth;
 		}
 		@SuppressWarnings("unchecked")
-		final RandomAccess<? extends RealType<?>> access = this.img.randomAccess();
+		final RandomAccess<? extends RealType<?>> access = this.sliceAtCT.randomAccess();
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
 		double currentMaximum = stats.min;
 		for (int x = startx; x < stopx; ++x) {
 			for (int y = starty; y < stopy; ++y) {
 				for (int z = startz; z < stopz; ++z) {
-					double v = access.setPositionAndGet(x, y, channel-1, z, frame-1).getRealDouble();
+					double v = access.setPositionAndGet(x, y, z).getRealDouble();
 					if (v == stats.min) {
 						continue;
 					}
@@ -3096,11 +3045,11 @@ public class SNT extends MultiDThreePanes implements
 		SNTUtils.log("Looking for maxima at x=" + x_in_pane + " y=" + y_in_pane + " on pane " + plane);
 		final int[][] pointsToConsider = findAllPointsAlongLine(x_in_pane, y_in_pane, plane);
 		@SuppressWarnings("unchecked")
-		final RandomAccess<? extends RealType<?>> access = this.img.randomAccess();
+		final RandomAccess<? extends RealType<?>> access = this.sliceAtCT.randomAccess();
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
 		double currentMaximum = stats.min;
 		for (int[] ints : pointsToConsider) {
-			double v = access.setPositionAndGet(ints[0], ints[1], channel-1, ints[2], frame-1).getRealDouble();
+			double v = access.setPositionAndGet(ints[0], ints[1], ints[2]).getRealDouble();
 			if (v == stats.min) {
 				continue;
 			} else if (v > currentMaximum) {
