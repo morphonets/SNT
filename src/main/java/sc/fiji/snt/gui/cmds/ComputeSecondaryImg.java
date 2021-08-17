@@ -27,10 +27,10 @@ import ij.measure.Calibration;
 import net.imagej.ImageJ;
 import net.imagej.legacy.LegacyService;
 import net.imagej.ops.OpService;
+import net.imagej.util.Images;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.algorithm.neighborhood.RectangleShape;
-import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.cell.CellImgFactory;
+import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
@@ -59,7 +59,8 @@ import java.net.URL;
  * @author Cameron Arshadi
  */
 @Plugin(type = Command.class, visible = false, initializer = "init", label = "Compute \"Secondary Image\"")
-public class ComputeSecondaryImg<T extends RealType<T>> extends CommonDynamicCmd {
+public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends CommonDynamicCmd
+{
 
 	private static final String NONE = "None. Duplicate primary image";
 	private static final String FRANGI = "Frangi Vesselness";
@@ -82,7 +83,7 @@ public class ComputeSecondaryImg<T extends RealType<T>> extends CommonDynamicCmd
 	@Parameter
 	private IOService io;
 
-	@Parameter(label = "Filter", choices = { FRANGI, TUBENESS, GAUSS, MEDIAN, NONE })
+	@Parameter(label = "Filter", choices = { FRANGI, TUBENESS, GAUSS, NONE })
 	private String filter;
 
 	@Parameter(label = "Lazy processing")
@@ -105,7 +106,8 @@ public class ComputeSecondaryImg<T extends RealType<T>> extends CommonDynamicCmd
 	@Parameter(label = "Online Help", callback = "help")
 	private Button button;
 
-	private RandomAccessibleInterval<FloatType> filteredImg;
+	@SuppressWarnings("rawtypes")
+	private RandomAccessibleInterval filteredImg;
 
 	protected void init() {
 		super.init(true);
@@ -130,23 +132,25 @@ public class ComputeSecondaryImg<T extends RealType<T>> extends CommonDynamicCmd
 	 *
 	 * @see java.lang.Runnable#run()
 	 */
+	@SuppressWarnings("unchecked")
 	@Override
 	public void run() {
 		if (numThreads > SNTPrefs.getThreads()) {
 			numThreads = SNTPrefs.getThreads();
 		}
 		final int cellDim = 30; // side length for cell
-		final ImagePlus inputImp = sntService.getPlugin().getLoadedDataAsImp();
 		if (NONE.equals(filter)) {
 			final RandomAccessibleInterval<T> loadedData = sntService.getPlugin().getLoadedData();
-			filteredImg = ops.convert().float32(Views.iterable(loadedData));
+			final RandomAccessibleInterval<T> copy = ops.create().img(loadedData);
+			Images.copy(loadedData, copy);
+			filteredImg = copy;
 			apply();
 			return;
 		}
 		final RandomAccessibleInterval<T> data = sntService.getPlugin().getLoadedData();
 		final RandomAccessibleInterval<T> in = Views.dropSingletonDimensions(data);
 		final double[] sigmas = sntService.getPlugin().getHessianSigma("primary", true);
-		final Calibration cal = inputImp.getCalibration();
+		final Calibration cal = sntService.getPlugin().getImagePlus().getCalibration();
 		final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
 		switch (filter) {
 			case FRANGI: {
@@ -207,29 +211,6 @@ public class ComputeSecondaryImg<T extends RealType<T>> extends CommonDynamicCmd
 
 				break;
 			}
-			case MEDIAN: {
-				final double sig = sigmas[0];
-				final long span = Math.round(( sig/spacing[0] + sig/spacing[1] + sig/spacing[2] ) / 3);
-				if (useLazy) {
-					filteredImg = Lazy.process(
-							in,
-							in,
-							new int[]{cellDim, cellDim, cellDim},
-							new FloatType(),
-							ops,
-							net.imagej.ops.filter.median.DefaultMedianFilter.class,
-							new RectangleShape((int) span, false));
-				} else {
-					// FIXME: CellImgFactory produces nonsensical results!?
-					filteredImg = ops.create().img(in, new FloatType(), new ArrayImgFactory<>(new FloatType()));
-					ops.filter().median(
-							Views.iterable(filteredImg),
-							ops.convert().float32(Views.iterable(in)),
-							new RectangleShape((int) span, false));
-				}
-
-				break;
-			}
 
 			default:
 				throw new IllegalArgumentException("Unrecognized filter " + filter);
@@ -238,6 +219,7 @@ public class ComputeSecondaryImg<T extends RealType<T>> extends CommonDynamicCmd
 		apply();
 	}
 
+	@SuppressWarnings("unchecked")
 	private void apply() {
 		snt.loadSecondaryImage(filteredImg, !useLazy);
 		if (show) {
