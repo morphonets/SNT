@@ -128,10 +128,10 @@ public class FillConverter {
                         fillImgAccess.setPositionAndGet(pos).set(imgAccess.setPositionAndGet(pos));
                         break;
                     case BINARY_MASK:
-                        fillImgAccess.setPositionAndGet(pos).set((T) new BitType(true));
+                        fillImgAccess.setPositionAndGet(pos).setOne();
                         break;
                     case DISTANCE:
-                        fillImgAccess.setPositionAndGet(pos).set((T) new FloatType((float) node.g));
+                        fillImgAccess.setPositionAndGet(pos).set((T) new FloatType((float)node.g));
                         break;
                     default:
                         throw new IllegalArgumentException("Unknown result type " + resultType);
