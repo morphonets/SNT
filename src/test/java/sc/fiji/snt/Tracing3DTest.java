@@ -66,136 +66,136 @@ public class Tracing3DTest {
 		if (image != null) image.close();
 	}
 
-	@Ignore
-	@Test
-	public void testTracing() {
-
-		final Calibration cal = image.getCalibration();
-		final RandomAccessibleInterval<UnsignedByteType> img = ImageJFunctions.wrap(image);
-		ImageStatistics stats = image.getStatistics(ImageStatistics.MIN_MAX);
-
-		long pointsExploredNormal;
-		{
-			final TracerThread tracer = new TracerThread(
-					img, cal,
-					startX, startY, startZ,
-					endX, endY, endZ,
-					-1, 100,
-					ArraySearchImage.class,
-					new ReciprocalCost(stats.min, stats.max),
-					new EuclideanHeuristic());
-
-			tracer.run();
-			final Path result = tracer.getResult();
-			assertNotNull("Not path found", result);
-
-			final double foundPathLength = result.getLength();
-
-			assertTrue(foundPathLength > 227.3);
-			assertTrue(foundPathLength < 227.6);
-
-			pointsExploredNormal = tracer.pointsConsideredInSearch();
-
-		}
-
-		long pointsExploredNBAStar;
-		{
-			final BidirectionalSearch tracer = new BidirectionalSearch(
-					img, cal,
-					startX, startY, startZ,
-					endX, endY, endZ,
-					-1, 100,
-					ArraySearchImage.class, new ReciprocalCost(stats.min, stats.max),
-					new EuclideanHeuristic());
-
-			tracer.run();
-			Path result = tracer.getResult();
-			assertNotNull("Not path found", result);
-
-			final double foundPathLength = result.getLength();
-//			System.out.println(foundPathLength);
-			assertTrue(foundPathLength > 227.4);
-			assertTrue(foundPathLength < 227.6);
-
-			pointsExploredNBAStar = tracer.pointsConsideredInSearch();
-
-		}
-
-		{
-			long pointsExploredHessian;
-			long pointsExploredNBAStarHessian;
-
-			final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
-			final double[] scales = new double[]{0.84};
-
-			final Frangi<UnsignedByteType, FloatType> op = new Frangi<>(
-					scales,
-					spacing,
-					254,
-					2);
-			op.setInput(img);
-			final RandomAccessibleInterval<FloatType> frangiImg = Lazy.process(
-					img,
-					new int[]{30, 30, 10},
-					new FloatType(),
-					op);
-
-			ImageStatistics frangiStats = ImageJFunctions.wrapFloat(frangiImg, "").getStatistics(
-					ImageStatistics.MIN_MAX | ImageStatistics.MEAN | ImageStatistics.STD_DEV);
-			double multiplier = 256 / frangiStats.max;
-			multiplier *= 1.0;
-
-			final TracerThread tracer = new TracerThread(frangiImg, cal,
-					startX, startY, startZ,
-					endX, endY, endZ,
-					-1, 100,
-					ArraySearchImage.class,
-					new OneMinusErfCost(frangiStats.max, frangiStats.mean, frangiStats.stdDev),
-					new EuclideanHeuristic());
-
-			final BidirectionalSearch tracerNBAStar = new BidirectionalSearch(
-					frangiImg, cal,
-					startX, startY, startZ,
-					endX, endY, endZ,
-					-1, 100, // reciprocal
-					ArraySearchImage.class,
-					new OneMinusErfCost(frangiStats.max, frangiStats.mean, frangiStats.stdDev),
-					new EuclideanHeuristic());
-
-			tracer.run();
-			final Path result = tracer.getResult();
-			assertNotNull("Not path found", result);
-
-			tracerNBAStar.run();
-			final Path resultNBAStar = tracerNBAStar.getResult();
-			assertNotNull("Not path found", resultNBAStar);
-
-			final double foundPathLength = result.getLength();
-			final double foundPathLengthNBAStar = resultNBAStar.getLength();
-//			System.out.println(foundPathLength);
-//			System.out.println(foundPathLengthNBAStar);
-
-//			assertTrue(foundPathLength > 226.4);
-//			assertTrue(foundPathLengthNBAStar > 226.4);
+//	@Ignore
+//	@Test
+//	public void testTracing() {
 //
-//			assertTrue(foundPathLength < 226.5);
-//			assertTrue(foundPathLengthNBAStar < 226.5);
-
-			pointsExploredHessian = tracer.pointsConsideredInSearch();
-			pointsExploredNBAStarHessian = tracerNBAStar.pointsConsideredInSearch();
-//			System.out.println(pointsExploredHessian);
-//			System.out.println(pointsExploredNBAStarHessian);
-			assertTrue(pointsExploredHessian < 49000);
-			assertTrue(pointsExploredNBAStarHessian < 49000);
-
-			assertTrue("Hessian-based analysis should reduce the points explored " +
-				"by at least a third; in fact went from " + pointsExploredNormal +
-				" to " + pointsExploredHessian,
-				pointsExploredHessian < pointsExploredNormal * 0.6666);
-			assertTrue("Hessian-based analysis should reduce the points explored " +
-				"by at least a third; in fact went from " + pointsExploredNBAStar +
-				" to " + pointsExploredNBAStarHessian,
-				pointsExploredNBAStarHessian < pointsExploredNBAStar * 0.6666);
-		}
-	}
+//		final Calibration cal = image.getCalibration();
+//		final RandomAccessibleInterval<UnsignedByteType> img = ImageJFunctions.wrap(image);
+//		ImageStatistics stats = image.getStatistics(ImageStatistics.MIN_MAX);
+//
+//		long pointsExploredNormal;
+//		{
+//			final TracerThread tracer = new TracerThread(
+//					img, cal,
+//					startX, startY, startZ,
+//					endX, endY, endZ,
+//					-1, 100,
+//					ArraySearchImage.class,
+//					new ReciprocalCost(stats.min, stats.max),
+//					new EuclideanHeuristic());
+//
+//			tracer.run();
+//			final Path result = tracer.getResult();
+//			assertNotNull("Not path found", result);
+//
+//			final double foundPathLength = result.getLength();
+//
+//			assertTrue(foundPathLength > 227.3);
+//			assertTrue(foundPathLength < 227.6);
+//
+//			pointsExploredNormal = tracer.pointsConsideredInSearch();
+//
+//		}
+//
+//		long pointsExploredNBAStar;
+//		{
+//			final BidirectionalSearch tracer = new BidirectionalSearch(
+//					img, cal,
+//					startX, startY, startZ,
+//					endX, endY, endZ,
+//					-1, 100,
+//					ArraySearchImage.class, new ReciprocalCost(stats.min, stats.max),
+//					new EuclideanHeuristic());
+//
+//			tracer.run();
+//			Path result = tracer.getResult();
+//			assertNotNull("Not path found", result);
+//
+//			final double foundPathLength = result.getLength();
+////			System.out.println(foundPathLength);
+//			assertTrue(foundPathLength > 227.4);
+//			assertTrue(foundPathLength < 227.6);
+//
+//			pointsExploredNBAStar = tracer.pointsConsideredInSearch();
+//
+//		}
+//
+//		{
+//			long pointsExploredHessian;
+//			long pointsExploredNBAStarHessian;
+//
+//			final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
+//			final double[] scales = new double[]{0.84};
+//
+//			final Frangi<UnsignedByteType, FloatType> op = new Frangi<>(
+//					scales,
+//					spacing,
+//					254,
+//					2);
+//			op.setInput(img);
+//			final RandomAccessibleInterval<FloatType> frangiImg = Lazy.process(
+//					img,
+//					new int[]{30, 30, 10},
+//					new FloatType(),
+//					op);
+//
+//			ImageStatistics frangiStats = ImageJFunctions.wrapFloat(frangiImg, "").getStatistics(
+//					ImageStatistics.MIN_MAX | ImageStatistics.MEAN | ImageStatistics.STD_DEV);
+//			double multiplier = 256 / frangiStats.max;
+//			multiplier *= 1.0;
+//
+//			final TracerThread tracer = new TracerThread(frangiImg, cal,
+//					startX, startY, startZ,
+//					endX, endY, endZ,
+//					-1, 100,
+//					ArraySearchImage.class,
+//					new OneMinusErfCost(frangiStats.max, frangiStats.mean, frangiStats.stdDev),
+//					new EuclideanHeuristic());
+//
+//			final BidirectionalSearch tracerNBAStar = new BidirectionalSearch(
+//					frangiImg, cal,
+//					startX, startY, startZ,
+//					endX, endY, endZ,
+//					-1, 100, // reciprocal
+//					ArraySearchImage.class,
+//					new OneMinusErfCost(frangiStats.max, frangiStats.mean, frangiStats.stdDev),
+//					new EuclideanHeuristic());
+//
+//			tracer.run();
+//			final Path result = tracer.getResult();
+//			assertNotNull("Not path found", result);
+//
+//			tracerNBAStar.run();
+//			final Path resultNBAStar = tracerNBAStar.getResult();
+//			assertNotNull("Not path found", resultNBAStar);
+//
+//			final double foundPathLength = result.getLength();
+//			final double foundPathLengthNBAStar = resultNBAStar.getLength();
+////			System.out.println(foundPathLength);
+////			System.out.println(foundPathLengthNBAStar);
+//
+////			assertTrue(foundPathLength > 226.4);
+////			assertTrue(foundPathLengthNBAStar > 226.4);
+////
+////			assertTrue(foundPathLength < 226.5);
+////			assertTrue(foundPathLengthNBAStar < 226.5);
+//
+//			pointsExploredHessian = tracer.pointsConsideredInSearch();
+//			pointsExploredNBAStarHessian = tracerNBAStar.pointsConsideredInSearch();
+////			System.out.println(pointsExploredHessian);
+////			System.out.println(pointsExploredNBAStarHessian);
+//			assertTrue(pointsExploredHessian < 49000);
+//			assertTrue(pointsExploredNBAStarHessian < 49000);
+//
+//			assertTrue("Hessian-based analysis should reduce the points explored " +
+//				"by at least a third; in fact went from " + pointsExploredNormal +
+//				" to " + pointsExploredHessian,
+//				pointsExploredHessian < pointsExploredNormal * 0.6666);
+//			assertTrue("Hessian-based analysis should reduce the points explored " +
+//				"by at least a third; in fact went from " + pointsExploredNBAStar +
+//				" to " + pointsExploredNBAStarHessian,
+//				pointsExploredNBAStarHessian < pointsExploredNBAStar * 0.6666);
+//		}
+//	}
 }
