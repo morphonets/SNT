@@ -106,11 +106,21 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	@Parameter(label = "Online Help", callback = "help")
 	private Button button;
 
+	@Parameter(required = false, persist = false)
+	private boolean skipPrompt;
+
 	@SuppressWarnings("rawtypes")
 	private RandomAccessibleInterval filteredImg;
 
 	protected void init() {
 		super.init(true);
+		if (skipPrompt) {
+			resolveInput("numThreads");
+			numThreads = SNTPrefs.getThreads();
+			resolveInput("button");
+			resolveInput("msg");
+		}
+		resolveInput("skipPrompt");
 		if (!snt.accessToValidImageData()) {
 			error("Valid image data is required for computation.");
 			return;
@@ -135,6 +145,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	@SuppressWarnings("unchecked")
 	@Override
 	public void run() {
+		if (isCanceled() || !snt.accessToValidImageData())
+			return;
 		if (numThreads > SNTPrefs.getThreads()) {
 			numThreads = SNTPrefs.getThreads();
 		}
@@ -149,7 +161,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 		}
 		final RandomAccessibleInterval<T> data = sntService.getPlugin().getLoadedData();
 		final RandomAccessibleInterval<T> in = Views.dropSingletonDimensions(data);
-		final double[] sigmas = sntService.getPlugin().getHessianSigma("primary", true);
+		final double[] sigmas = sntService.getPlugin().getHessianSigma(true);
 		final Calibration cal = sntService.getPlugin().getImagePlus().getCalibration();
 		final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
 		switch (filter) {

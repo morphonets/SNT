@@ -306,7 +306,15 @@ public class GuiUtils {
 	}
 
 	public boolean getConfirmation(final String msg, final String title, final String yesLabel, final String noLabel) {
-		return (yesNoDialog(msg, title, yesLabel, noLabel) == JOptionPane.YES_OPTION);
+		final Boolean result = getConfirmation2(msg, title, yesLabel, noLabel);
+		return result != null && result.booleanValue();
+	}
+
+	public Boolean getConfirmation2(final String msg, final String title, final String yesLabel, final String noLabel) {
+		final int result = yesNoDialog(msg, title, yesLabel, noLabel);
+		if (result == SwingDialog.UNKNOWN_OPTION)
+			return null;
+		return result == JOptionPane.YES_OPTION;
 	}
 
 	public String getChoice(final String message, final String title, final String[] choices,
