@@ -118,6 +118,7 @@ public class ComputeSecondaryImg<T extends RealType<T>> extends CommonDynamicCmd
 			resolveInput("button");
 			resolveInput("msg");
 		}
+		resolveInput("skipPrompt");
 		if (!snt.accessToValidImageData()) {
 			error("Valid image data is required for computation.");
 			return;
