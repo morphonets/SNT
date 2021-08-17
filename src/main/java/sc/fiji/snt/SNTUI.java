@@ -255,7 +255,7 @@ public class SNTUI extends JDialog {
 				exitRequested();
 			}
 		});
-		
+
 		GuiUtils.removeIcon(this);
 
 		assert SwingUtilities.isEventDispatchThread();
@@ -631,12 +631,13 @@ public class SNTUI extends JDialog {
 		final StringBuilder sb = new StringBuilder();
 		sb.append("Auto-tracing: ").append((plugin.isAstarEnabled()) ? searchAlgoChoice.getSelectedItem() : "Disabled");
 		sb.append("\n");
-		if (plugin.isTracingOnSecondaryImageActive()) {
-			sb.append("Secondary image: Active");
+		if (plugin.getSecondaryData() != null) {
+			sb.append("Secondary layer: Active");
 			sb.append("\n");
-			sb.append("Min-Max: ").append(plugin.getStatsSecondary().min).append("-").append(plugin.getStatsSecondary().max);
+			sb.append("Min-Max: ").append(plugin.getStatsSecondary().min).append("-")
+					.append(plugin.getStatsSecondary().max);
 		} else {
-			sb.append("Secondary image: Disabled");
+			sb.append("Secondary layer: Disabled");
 			sb.append("\n");
 			sb.append("Min-Max: ").append(plugin.getStats().min).append("-").append(plugin.getStats().max);
 			sb.append("\n");
@@ -1987,11 +1988,14 @@ public class SNTUI extends JDialog {
 				// FIXME
 				break;
 			case 3:
-				if (plugin.isSecondaryImageLoaded() && !guiUtils
-						.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
-					return;
-				}
-				loadCachedDataImage(true, "secondary", false, null);
+				SwingUtilities.invokeLater(() -> {
+					// we must wait, otherwise upcoming prompts will appear behind the popup choice-menu
+					if (plugin.isSecondaryImageLoaded() && !guiUtils
+							.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
+						return;
+					}
+					loadCachedDataImage(true, "secondary", false, null);
+				});
 				break;
 			default:
 				throw new IllegalArgumentException("Invalid Option");
@@ -3706,14 +3710,16 @@ public class SNTUI extends JDialog {
 		guiUtils.error("This option requires valid image data to be loaded.");
 	}
 
-	private boolean userPreferstoRunWizard(final String noButtonLabel) {
-		if (askUserConfirmation && sigmaPalette == null && guiUtils.getConfirmation(//
-				"You have not yet previewed Hessian parameters. It is recommended that you do so "
-				+ "at least once to ensure A* is properly tuned. Would you like to adjust them now "
-				+ "by clicking on a representative region of the image?",
-				"Adjust Hessian Visually?", "Yes. Adjust Visually...", noButtonLabel)) {
-			changeState(WAITING_FOR_SIGMA_POINT_I);
-			return true;
+	private Boolean userPreferstoRunWizard(final String noButtonLabel) {
+		if (askUserConfirmation && sigmaPalette == null) {
+			final Boolean decision = guiUtils.getConfirmation2(//
+					"You have not yet previewed filtering parameters. It is recommended that you do so "
+							+ "at least once to ensure auto-tracing is properly tuned. Would you like to "
+							+ "preview paramaters now by clicking on a representative region of the image?",
+					"Adjust Parameters Visually?", "Yes. Adjust Visually...", noButtonLabel);
+				if (decision != null && decision)
+					changeState(WAITING_FOR_SIGMA_POINT_I);
+			return decision;
 		}
 		return false;
 	}
@@ -3800,11 +3806,22 @@ public class SNTUI extends JDialog {
 					return;
 				}
 				if (secLayerBuiltinRadioButton.isSelected()) {
-					if (secLayerActivateCheckbox.isSelected() && userPreferstoRunWizard("No. Use Existing Values")) {
-						enableSecondaryLayerBuiltin(false);
-						return;
+					if (!secLayerActivateCheckbox.isSelected()) return; // do nothing
+					final Boolean wizardChoice = userPreferstoRunWizard("No. Use Existing Values");
+					if (wizardChoice == null) { // user pressed cancel
+						secLayerActivateCheckbox.setSelected(false);
 					}
-					enableSecondaryLayerBuiltin(true);
+					else if (!wizardChoice) {
+						// Apply defaults
+						final HessianCaller hc = plugin.getHessianCaller();
+						if (hc.sigmas == null || hc.sigmas.length == 0) {
+							List<Double> sigmas = new ArrayList<>();
+							Arrays.stream(hc.getDefaultSigma()).forEach( s -> sigmas.add(s));
+							hc.setSigmas(sigmas);
+						}
+					}
+					// else do nothing. SigmaPalette _should_ be waiting for point
+					return;
 
 				} else if (secLayerExternalRadioButton.isSelected()) {
 					if (plugin.isSecondaryImageLoaded()) {
@@ -3908,7 +3925,8 @@ public class SNTUI extends JDialog {
 			} else if (e.getActionCommand().equals(EDIT_SIGMA_MANUALLY)) {
 
 				//TODO: Do not prompt for max choice when using Frangi as analysis type
-				if (userPreferstoRunWizard("No. Adjust Manually...")) return;
+				final Boolean wizardChoice = userPreferstoRunWizard("No. Adjust Manually...");
+				if (wizardChoice == null || wizardChoice.booleanValue()) return;
 				final HessianCaller hc = plugin.getHessianCaller();
 				if (hc.cachedTubeness == null) {
 					setSigmaFromUser();
