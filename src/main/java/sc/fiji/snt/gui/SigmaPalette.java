@@ -45,12 +45,13 @@ import ij.measure.Calibration;
 import ij.plugin.LutLoader;
 import ij.process.FloatProcessor;
 import ij.process.ImageStatistics;
+import net.imagej.ops.OpService;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.display.imagej.ImageJFunctions;
-import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
+import org.scijava.plugin.Parameter;
 import sc.fiji.snt.*;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Tubeness;
@@ -61,6 +62,9 @@ import sc.fiji.snt.filter.Tubeness;
  * now deprecated.
  */
 public class SigmaPalette extends Thread {
+
+	@Parameter
+	OpService opService;
 
 	private static final Color COLOR_DEFAULT = Color.CYAN;
 	private static final Color COLOR_MOUSEOVER = Color.MAGENTA;
@@ -87,17 +91,18 @@ public class SigmaPalette extends Thread {
 
 	private final ImagePlus image;
 	private final SNT snt;
-	private final HessianCaller hc;
-	private final boolean isTubeness;
+	private final SigmaHelper sigmaHelper;
+	private final SigmaHelper.Analysis analysisType;
 	private int maxScales;
 	private List<Double> scaleSettings; //TODO: This should be a SET
 
 
-	public SigmaPalette(final SNT snt, final HessianCaller caller) {
+	public SigmaPalette(final SNT snt, final SigmaHelper sigmaHelper) {
+		snt.getContext().inject(this);
 		this.snt = snt;
-		hc = caller;
-		image = hc.getImp();
-		isTubeness = hc.getAnalysisType() == HessianCaller.TUBENESS;
+		this.sigmaHelper = sigmaHelper;
+		analysisType = this.sigmaHelper.getAnalysisType();
+		image = snt.getLoadedDataAsImp();
 	}
 
 	private void setMaxScales(final int nScales) {
@@ -339,7 +344,7 @@ public class SigmaPalette extends Thread {
 
 		@Override
 		public String createSubtitle() {
-			final StringBuilder sb = new StringBuilder((isTubeness) ? "Tubeness" : "Frangi");
+			final StringBuilder sb = new StringBuilder(analysisType.toString());
 			sb.append(" Preview: Setting Scale ").append(selectedScale);
 			sb.append(" \u03C3=").append(getMouseOverSigma());
 			if (zSelector != null) {
@@ -753,7 +758,7 @@ public class SigmaPalette extends Thread {
 		}
 		flush();
 		//TODO: Make this aware of multiple scales
-		hc.setSigmas(getMultiScaleSettings());
+		sigmaHelper.setSigmas(getMultiScaleSettings());
 		// recompute after changing scales
 		//hc.start();
 	}
@@ -816,26 +821,30 @@ public class SigmaPalette extends Thread {
 			final int offsetY = sigmaY * (croppedHeight + 1) + 1;
 			final double sigma = sigmaValues[sigmaIndex];
 			// One scale
+			final RandomAccessibleInterval<FloatType> input = ImageJFunctions.convertFloat(cropped);
 			final RandomAccessibleInterval<FloatType> result  = Views.dropSingletonDimensions(
 					ArrayImgs.floats(cropped.getWidth(), cropped.getHeight(), cropped.getStackSize()));
-			switch (hc.getAnalysisType()) {
-				case HessianCaller.TUBENESS: {
-					Tubeness<? extends RealType<?>, FloatType> op = new Tubeness<>(
+			switch (analysisType) {
+				case TUBENESS: {
+					Tubeness<FloatType, FloatType> op = new Tubeness<>(
 							new double[]{sigma},
 							spacing);
-					op.compute(ImageJFunctions.wrapReal(cropped), result);
+					op.compute(input, result);
 					break;
 				}
-				case HessianCaller.FRANGI: {
-					Frangi<? extends RealType<?>, FloatType> op = new Frangi<>(
+				case FRANGI: {
+					Frangi<FloatType, FloatType> op = new Frangi<>(
 							new double[]{sigma},
 							spacing,
 							snt.getStats().max);
-					op.compute(ImageJFunctions.wrapReal(cropped), result);
+					op.compute(input, result);
+					break;
+				} case GAUSS: {
+					opService.filter().gauss(result, input, sigma/spacing[0], sigma/spacing[1], sigma/spacing[2]);
 					break;
 				}
 				default:
-					throw new IllegalArgumentException("Unknown hessian analysis type");
+					throw new IllegalArgumentException("Unknown filter type");
 			}
 			if (result == null) {
 				throw new NullPointerException("BUG: Filter result is null");

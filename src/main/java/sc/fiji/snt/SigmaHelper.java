@@ -22,58 +22,44 @@
 
 package sc.fiji.snt;
 
-import ij.ImagePlus;
-import ij.process.ImageStatistics;
-import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.type.numeric.RealType;
-import net.imglib2.type.numeric.real.FloatType;
+import org.apache.commons.lang3.StringUtils;
 
 import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * This class is responsible for initiating Hessian analysis on both the
- * <i>primary</i> (main) and the <i>secondary</i> image. Currently computations
- * are performed by {@link sc.fiji.snt.filter}, but could be extended to
- * adopt other approaches.
- * 
- * @author Tiago Ferreira
- * @author Cameron Arshadi
- */
-public class HessianCaller {
+import static sc.fiji.snt.SigmaHelper.Analysis.TUBENESS;
+
+
+@Deprecated
+public class SigmaHelper {
 
 	private final SNT snt;
-	static final int PRIMARY = 0;
-	static final int SECONDARY = 1;
 
-	public static final byte TUBENESS = 0;
-	public static final byte FRANGI = 1;
+	public enum Analysis {
+		TUBENESS, FRANGI, GAUSS;
 
-	private byte analysisType = TUBENESS;
-
-	private final int imageType;
-	double[] sigmas;
-	protected RandomAccessibleInterval<FloatType> hessianImg;
-	protected ImageStatistics hessianStats;
-	protected float[][] cachedTubeness;
-	private ImagePlus imp;
-	private RandomAccessibleInterval<? extends RealType<?>> img;
-
-	private HessianGenerationCallback callback;
-
-
-	HessianCaller(final SNT snt, final int type) {
-		this.snt = snt;
-		this.callback = snt;
-		this.imageType = type;
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
 	}
 
-	public void setAnalysisType(final byte analysisType) {
+	private Analysis analysisType = TUBENESS;
+
+	double[] sigmas;
+	protected float[][] cachedTubeness;
+
+
+	SigmaHelper(final SNT snt) {
+		this.snt = snt;
+	}
+
+	public void setAnalysisType(final Analysis analysisType) {
 		this.analysisType = analysisType;
 	}
 
-	public byte getAnalysisType() {
+	public Analysis getAnalysisType() {
 		return analysisType;
 	}
 
@@ -87,7 +73,7 @@ public class HessianCaller {
 
 	protected double[] getSigmas(final boolean physicalUnits) {
 		if (sigmas == null) {
-			return (physicalUnits) ? getDefaultSigma() : new double[]{1.0};
+			return null;
 		}
 		if (physicalUnits) {
 			return sigmas;
@@ -100,56 +86,30 @@ public class HessianCaller {
 	}
 
 	protected double[] getDefaultSigma() {
-		final double minSep = snt.getMinimumSeparation();
 		final double avgSep = snt.getAverageSeparation();
-		return (minSep == avgSep) ? new double[]{2 * minSep} : new double[]{avgSep};
-	}
-
-	public boolean isHessianComputed() {
-		return hessianImg != null;
-	}
-
-	@Deprecated
-	public Thread start() {
-		return null;
-	}
-
-	private void setImp() {
-		if (imp == null) imp = (imageType == PRIMARY) ? snt.getLoadedDataAsImp() : snt.getSecondaryDataAsImp();
-	}
-
-	public ImagePlus getImp() {
-		setImp();
-		return imp;
-	}
-
-	protected void cancelHessianGeneration() {
-		// TODO
+		final double step = avgSep / 2;
+		return new double[]{step, 2 * step, 3 * step};
 	}
 
 	void nullify() {
-		hessianImg = null;
 		sigmas = null;
-		cachedTubeness = null;
-		imp = null;
 	}
 
 	@Override
 	public String toString() {
 		final StringBuilder sb = new StringBuilder();
-		sb.append((hessianImg == null) ? "Disabled" : "Enabled");
+		sb.append((snt.getSecondaryData() == null) ? "Disabled" : "Enabled");
 		sb.append("; \u03C3=");
 		if (sigmas == null)
 			sb.append("NaN");
 		else {
 			final DecimalFormat df = new DecimalFormat("0.00");
 			sb.append("[");
-			Arrays.stream(sigmas).forEach(s -> sb.append(df.format(s) + ", "));
+			Arrays.stream(sigmas).forEach(s -> sb.append(df.format(s)).append(", "));
 			sb.setLength(sb.length() - 2);
 			sb.append("]");
 		}
-		sb.append("; type: ").append( (analysisType == FRANGI) ? "Frangi" : "Tubeness");
-		//sb.append("; ").append( (imageType == PRIMARY) ? " Main" : " Secondary");
+		sb.append("; type: ").append(analysisType);
 		return sb.toString();
 	}
 }

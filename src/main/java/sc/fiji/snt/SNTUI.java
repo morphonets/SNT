@@ -641,7 +641,7 @@ public class SNTUI extends JDialog {
 			sb.append("\n");
 			sb.append("Min-Max: ").append(plugin.getStats().min).append("-").append(plugin.getStats().max);
 			sb.append("\n");
-			sb.append("Hessian: ").append(plugin.primaryHessian.toString());
+			sb.append("Hessian: ").append(plugin.sigmaHelper.toString());
 		}
 		sb.append("\n");
 		sb.append("Cost function: ").append(plugin.getCostType());
@@ -1978,14 +1978,15 @@ public class SNTUI extends JDialog {
 			switch (idx) {
 			case 0: // TUBENESS
 				plugin.nullifyHessian();
-				plugin.primaryHessian.setAnalysisType(HessianCaller.TUBENESS);
+				plugin.sigmaHelper.setAnalysisType(SigmaHelper.Analysis.TUBENESS);
 				break;
 			case 1: // FRANGI
 				plugin.nullifyHessian();
-				plugin.primaryHessian.setAnalysisType(HessianCaller.FRANGI);
+				plugin.sigmaHelper.setAnalysisType(SigmaHelper.Analysis.FRANGI);
 				break;
 			case 2: // GAUSS
-				// FIXME
+				plugin.nullifyHessian();
+				plugin.sigmaHelper.setAnalysisType(SigmaHelper.Analysis.GAUSS);
 				break;
 			case 3:
 				SwingUtilities.invokeLater(() -> {
@@ -2246,8 +2247,8 @@ public class SNTUI extends JDialog {
 	}
 
 	private void flushCachedTubeness() {
-		if (plugin.getHessianCaller() !=null) {
-			plugin.getHessianCaller().nullify();
+		if (plugin.getSigmaHelper() !=null) {
+			plugin.getSigmaHelper().nullify();
 			updateSettingsString();
 		}
 	}
@@ -3169,7 +3170,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private void setSigmaFromUser() {
-		final HessianCaller hc = plugin.getHessianCaller();
+		final SigmaHelper hc = plugin.getSigmaHelper();
 		final JTextField sigmaField = new JTextField(5);
 		final Object[] contents = { "<html><HTML><div WIDTH=500><b>Ajusting sigma:</b><br>"//
 				+ "Enter the approximate radii of the structures you are " //
@@ -3474,7 +3475,6 @@ public class SNTUI extends JDialog {
 		case (CALCULATING_HESSIAN_I):
 		case (CALCULATING_HESSIAN_II):
 			updateStatusText("Cancelling Hessian generation...", true);
-			plugin.cancelGaussian();
 			break;
 		case (WAITING_FOR_SIGMA_POINT_I):
 			if (sigmaPalette != null) sigmaPalette.dismiss();
@@ -3528,7 +3528,6 @@ public class SNTUI extends JDialog {
 			pmUI.cancelFit(true);
 			plugin.cancelSearch(true);
 			plugin.discardFill(true);
-			plugin.cancelGaussian();
 			if (plugin.currentPath != null)
 				plugin.cancelPath();
 			if (plugin.temporaryPath != null)
@@ -3570,7 +3569,7 @@ public class SNTUI extends JDialog {
 			sigmas[i] = ((i + 1) * plugin.getMinimumSeparation()) / 2;
 		}
 
-		sigmaPalette = new SigmaPalette(plugin, plugin.getHessianCaller());
+		sigmaPalette = new SigmaPalette(plugin, plugin.getSigmaHelper());
 		sigmaPalette.makePalette(x_min, x_max, y_min, y_max, z_min, z_max, sigmas, 3, 3, z);
 		updateStatusText("Adjusting \u03C3 and max visually...");
 	}
@@ -3804,22 +3803,25 @@ public class SNTUI extends JDialog {
 					return;
 				}
 				if (secLayerBuiltinRadioButton.isSelected()) {
-					if (!secLayerActivateCheckbox.isSelected()) return; // do nothing
-					final Boolean wizardChoice = userPreferstoRunWizard("No. Use Existing Values");
-					if (wizardChoice == null) { // user pressed cancel
-						secLayerActivateCheckbox.setSelected(false);
+					if (!secLayerActivateCheckbox.isSelected()) {
+						return; // do nothing
 					}
-					else if (!wizardChoice) {
-						// Apply defaults
-						final HessianCaller hc = plugin.getHessianCaller();
-						if (hc.sigmas == null || hc.sigmas.length == 0) {
-							List<Double> sigmas = new ArrayList<>();
-							Arrays.stream(hc.getDefaultSigma()).forEach( s -> sigmas.add(s));
-							hc.setSigmas(sigmas);
+					if (plugin.getSigmaHelper().getSigmas(true) == null) {
+						final Boolean wizardChoice = userPreferstoRunWizard("No. Use Existing Values");
+						if (wizardChoice == null) { // user pressed cancel
+							secLayerActivateCheckbox.setSelected(false);
+						}
+						else if (!wizardChoice) {
+							// Apply defaults
+							final SigmaHelper hc = plugin.getSigmaHelper();
+							if (hc.sigmas == null || hc.sigmas.length == 0) {
+								List<Double> sigmas = new ArrayList<>();
+								Arrays.stream(hc.getDefaultSigma()).forEach(sigmas::add);
+								hc.setSigmas(sigmas);
+							}
 						}
 					}
-					// else do nothing. SigmaPalette _should_ be waiting for point
-					return;
+					// TODO: Figure out how to proceed
 
 				} else if (secLayerExternalRadioButton.isSelected()) {
 					if (plugin.isSecondaryImageLoaded()) {
@@ -3922,21 +3924,13 @@ public class SNTUI extends JDialog {
 
 			} else if (e.getActionCommand().equals(EDIT_SIGMA_MANUALLY)) {
 
-				//TODO: Do not prompt for max choice when using Frangi as analysis type
 				final Boolean wizardChoice = userPreferstoRunWizard("No. Adjust Manually...");
-				if (wizardChoice == null || wizardChoice.booleanValue()) return;
-				final HessianCaller hc = plugin.getHessianCaller();
-				if (hc.cachedTubeness == null) {
-					setSigmaFromUser();
-				} else if (okToFlushCachedTubeness()) {
-					setSigmaFromUser();
-				}
+				if (wizardChoice == null || wizardChoice) return;
+				setSigmaFromUser();
 
 			} else if (e.getActionCommand().equals(EDIT_SIGMA_VISUALLY)) {
-				if (okToFlushCachedTubeness()) {
-					changeState(WAITING_FOR_SIGMA_POINT_I);
-					plugin.setCanvasLabelAllPanes("Choosing Sigma");
-				}
+				changeState(WAITING_FOR_SIGMA_POINT_I);
+				plugin.setCanvasLabelAllPanes("Choosing Sigma");
 			}
 
 		}

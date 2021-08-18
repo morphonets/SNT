@@ -185,7 +185,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/* Hessian-based analysis */
 	private volatile boolean hessianEnabled = false;
-	protected final HessianCaller primaryHessian;
+	protected final SigmaHelper sigmaHelper;
 
 	/* current selected search algorithm type */
 	private SearchType searchType = SearchType.ASTAR;
@@ -293,7 +293,7 @@ public class SNT extends MultiDThreePanes implements
 		pathAndFillManager = new PathAndFillManager(this);
 		setFieldsFromImage(sourceImage);
 		prefs.loadPluginPrefs();
-		primaryHessian = new HessianCaller(this, HessianCaller.PRIMARY);
+		sigmaHelper = new SigmaHelper(this);
 	}
 
 	/**
@@ -333,7 +333,7 @@ public class SNT extends MultiDThreePanes implements
 		enableAstar(false);
 		enableSnapCursor(false);
 		pathAndFillManager.setHeadless(false);
-		primaryHessian = new HessianCaller(this, HessianCaller.PRIMARY);
+		sigmaHelper = new SigmaHelper(this);
 	}
 
 	private void setFieldsFromImage(final ImagePlus sourceImage) {
@@ -2556,13 +2556,9 @@ public class SNT extends MultiDThreePanes implements
 		return data;
 	}
 
-	protected synchronized void cancelGaussian() {
-		primaryHessian.cancelHessianGeneration();
-	}
-
 	protected void nullifyHessian() {
 		hessianEnabled = false;
-		primaryHessian.nullify();
+		sigmaHelper.nullify();
 	}
 
 	public SNTPrefs getPrefs() {
@@ -3188,11 +3184,11 @@ public class SNT extends MultiDThreePanes implements
 	 * @return true, if Hessian analysis is enabled, otherwise false
 	 */
 	public boolean isHessianEnabled() {
-		return hessianEnabled && primaryHessian.sigmas != null;
+		return hessianEnabled && sigmaHelper.sigmas != null;
 	}
 
 	public double[] getHessianSigma(final boolean physicalUnits) {
-		return getHessianCaller().getSigmas(physicalUnits);
+		return getSigmaHelper().getSigmas(physicalUnits);
 	}
 
 	/**
@@ -3287,8 +3283,8 @@ public class SNT extends MultiDThreePanes implements
 		if (isUIready()) getUI().showStatus(status, true);
 	}
 
-	public HessianCaller getHessianCaller() {
-		return primaryHessian;
+	public SigmaHelper getSigmaHelper() {
+		return sigmaHelper;
 	}
 
 	protected double getOneMinusErfZFudge() {
