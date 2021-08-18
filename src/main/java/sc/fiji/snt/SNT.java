@@ -50,6 +50,7 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.Pair;
 import net.imglib2.view.Views;
+import org.apache.commons.lang3.StringUtils;
 import org.scijava.Context;
 import org.scijava.NullContextException;
 import org.scijava.app.StatusService;
@@ -108,13 +109,34 @@ public class SNT extends MultiDThreePanes implements
 	@Parameter
 	protected OpService opService;
 
-	public enum SearchType {ASTAR, NBASTAR}
-
-	public enum SearchImageType {ARRAY, MAP}
-
-	public enum CostType {RECIPROCAL, DIFFERENCE, PROBABILITY}
-
-	public enum HeuristicType {EUCLIDEAN, DIJKSTRA}
+	public enum SearchType {
+		ASTAR, NBASTAR;
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
+	public enum SearchImageType {
+		ARRAY, MAP;
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
+	public enum CostType {
+		RECIPROCAL, DIFFERENCE, PROBABILITY;
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
+	public enum HeuristicType {
+		EUCLIDEAN, DIJKSTRA;
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
 
 	protected static boolean verbose = false; // FIXME: Use prefservice
 
@@ -633,6 +655,7 @@ public class SNT extends MultiDThreePanes implements
 		if (dataset.getFrames() > 1) {
 			slice = Views.hyperSlice(slice, dataset.dimensionIndex(Axes.TIME), frameIndex);
 		}
+		// Assuming time always comes after channel, we can use the same index as the Dataset
 		if (dataset.getChannels() > 1) {
 			slice = Views.hyperSlice(slice, dataset.dimensionIndex(Axes.CHANNEL), channelIndex);
 		}
@@ -2375,7 +2398,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public <T extends RealType<T>> void loadSecondaryImage(final RandomAccessibleInterval<T> img,
-																		   final boolean computeStatistics)
+														   final boolean computeStatistics)
 	{
 		loadSecondaryImage(img, true, computeStatistics);
 	}
@@ -2492,6 +2515,7 @@ public class SNT extends MultiDThreePanes implements
 		if (secondaryData == null) {
 			return null;
 		}
+		@SuppressWarnings("unchecked")
 		ImagePlus imp = ImageJFunctions.wrap(secondaryData, "Secondary Layer");
 		updateLut();
 		imp.setLut(lut);
