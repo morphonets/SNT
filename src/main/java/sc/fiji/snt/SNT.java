@@ -2454,56 +2454,6 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
-	@Deprecated
-	public void loadTubenessImage(final String type, final File file) throws IOException, IllegalArgumentException {
-		final ImagePlus imp = openCachedDataImage(file);
-		final HessianCaller hc = getHessianCaller();
-		loadTubenessImage(hc, imp, true);
-		hc.sigmas = null;
-	}
-
-	@Deprecated
-	public void loadTubenessImage(final ImagePlus imp) throws IllegalArgumentException {
-		loadTubenessImage(getHessianCaller(), imp, true);
-	}
-
-	@Deprecated
-	protected void loadTubenessImage(final HessianCaller hc, final ImagePlus imp, final boolean changeUIState) throws IllegalArgumentException {
-		if (xy == null) throw new IllegalArgumentException(
-				"Data can only be loaded after tracing image is known");
-		if (!compatibleImp(imp)) {
-				throw new IllegalArgumentException("Dimensions do not match those of  " + xy.getTitle()
-				+ ". If this unexpected, check under 'Image>Properties...' that CZT axes are not swapped.");
-		}
-		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
-		SNTUtils.log("Loading tubeness image max=" + statsSecondary.max);
-		loadCachedData(imp, hc.cachedTubeness = new float[depth][]);
-		if (changeUIState) {
-			getUI().updateSettingsString();
-			changeUIState(SNTUI.WAITING_TO_START_PATH);
-		}
-	}
-
-	@Deprecated
-	private void loadCachedData(final ImagePlus imp, final float[][] destination) {
-		showStatus(0, 0, "Loading secondary image");
-		SNTUtils.convertTo32bit(imp);
-		final ImageStack s = imp.getStack();
-		for (int z = 0; z < depth; ++z) {
-			showStatus(z, depth, "Loading image/Computing range...");
-			final int pos = imp.getStackIndex(channel, z + 1, frame);
-			destination[z] = (float[]) s.getPixels(pos);
-			for (int y = 0; y < height; ++y) {
-				for (int x = 0; x < width; ++x) {
-					final float v = destination[z][y * width + x];
-					if (v < statsSecondary.min) statsSecondary.min = v;
-					if (v > statsSecondary.max) statsSecondary.max = v;
-				}
-			}
-		}
-		showStatus(0, 0, null);
-	}
-
 	private boolean compatibleImp(final ImagePlus imp) {
 		return imp.getNChannels() <= channel && imp.getNFrames() <= frame && imp.getWidth() == xy.getWidth()
 				&& imp.getHeight() == xy.getHeight() && imp.getNSlices() == xy.getNSlices();

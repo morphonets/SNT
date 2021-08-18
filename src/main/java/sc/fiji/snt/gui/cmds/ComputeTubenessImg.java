@@ -75,7 +75,7 @@ public class ComputeTubenessImg extends CommonDynamicCmd {
 		SNTUtils.log("Generating Tubeness image: sigma=" + sigma);
 		final ImagePlus inputImp = sntService.getPlugin().getLoadedDataAsImp();
 		processUsingIJ1(inputImp); //processUsingOps(inputImp);
-		snt.loadTubenessImage(tubenessImp);
+		snt.loadSecondaryImage(tubenessImp);
 		resetUI();
 		status("Computation completed.", true);
 	}

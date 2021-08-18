@@ -51,6 +51,8 @@ import javax.swing.border.BevelBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.ChangeListener;
 
+import net.imglib2.type.numeric.NumericType;
+import net.imglib2.type.numeric.RealType;
 import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
@@ -70,7 +72,6 @@ import ij3d.ImageWindow3D;
 import net.imagej.Dataset;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
-import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
@@ -90,10 +91,6 @@ import sc.fiji.snt.gui.SigmaPalette;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.*;
-import sc.fiji.snt.util.ArraySearchImage;
-import sc.fiji.snt.util.ListSearchImage;
-import sc.fiji.snt.util.MapSearchImage;
-import sc.fiji.snt.util.SearchImage;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.*;
@@ -981,7 +978,7 @@ public class SNTUI extends JDialog {
 				if (choice.startsWith("Unload"))
 					flushSecondaryData();
 				else if (choice.startsWith("Reload"))
-					loadCachedDataImage(false, "secondary", false, plugin.secondaryImageFile);
+					loadCachedDataImage(false, plugin.secondaryImageFile);
 				plugin.getPrefs().setTemp("secreload", choice);
 			}
 			if (hessianDataExists)
@@ -1995,7 +1992,7 @@ public class SNTUI extends JDialog {
 							.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
 						return;
 					}
-					loadCachedDataImage(true, "secondary", false, null);
+					loadCachedDataImage(true, null);
 				});
 				break;
 			default:
@@ -2145,36 +2142,48 @@ public class SNTUI extends JDialog {
 		return secLayerPanel;
 	}
 
-	private void displayBuiltinFilteredImg() { //TODO: This needs OutOfMemory detection
+//	private void displayBuiltinFilteredImg2() { //TODO: This needs OutOfMemory detection
+//		if (!plugin.accessToValidImageData()) {
+//			noValidImageDataError();
+//			return;
+//		}
+//		if (plugin.getSecondaryData() != null && plugin.getFilteredImageFile() != null) {
+//			// A secondary layer exists and was generated using 'built-in' filters
+//			plugin.getSecondaryDataAsImp().show();
+//		} else if (plugin.getSecondaryData() == null && plugin.getFilteredImageFile() != null) {
+//			// A secondary layer has been set using 'built-in' filters, but img is not
+//			// available
+//			if (plugin.getHessianCaller().isHessianComputed()) {
+//				// then we just need to display it
+//				displayRAI(plugin.getHessianCaller().hessianImg, "Secondary Layer");
+//			} else {
+//				// then we can compute it
+//				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+//				final HashMap<String, Object> inputs = new HashMap<>();
+//				inputs.put("filter", secLayerFilterChoice.getSelectedItem().toString());
+//				inputs.put("useLazy", true);
+//				inputs.put("show", true);
+//				inputs.put("save", false);
+//				inputs.put("skipPrompt", true);
+//				cmdService.run(ComputeSecondaryImg.class, true, inputs); // will not block thread
+//				enableSecondaryLayerBuiltin(true);
+//			}
+//		}
+//	}
+
+	private <T extends RealType<T>> void displayBuiltinFilteredImg() {
 		if (!plugin.accessToValidImageData()) {
 			noValidImageDataError();
 			return;
 		}
-		if (plugin.getSecondaryData() != null && plugin.getFilteredImageFile() != null) {
-			// A secondary layer exists and was generated using 'built-in' filters
-			plugin.getSecondaryDataAsImp().show();
-		} else if (plugin.getSecondaryData() == null && plugin.getFilteredImageFile() != null) {
-			// A secondary layer has been set using 'built-in' filters, but img is not
-			// available
-			if (plugin.getHessianCaller().isHessianComputed()) {
-				// then we just need to display it
-				displayRAI(plugin.getHessianCaller().hessianImg, "Secondary Layer");
-			} else {
-				// then we can compute it
-				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-				final HashMap<String, Object> inputs = new HashMap<>();
-				inputs.put("filter", secLayerFilterChoice.getSelectedItem().toString());
-				inputs.put("useLazy", true);
-				inputs.put("show", true);
-				inputs.put("save", false);
-				inputs.put("skipPrompt", true);
-				cmdService.run(ComputeSecondaryImg.class, true, inputs); // will not block thread
-				enableSecondaryLayerBuiltin(true);
-			}
+		if (plugin.getSecondaryData() == null) {
+			noSecondaryImgAvailableError();
 		}
+		final RandomAccessibleInterval<T> data = plugin.getSecondaryData();
+		displayRAI(data, "Secondary Layer");
 	}
 
-	private void displayRAI(RandomAccessibleInterval<FloatType> img, final String title) {
+	private <T extends NumericType<T>> void displayRAI(RandomAccessibleInterval<T> img, final String title) {
 		if (img.numDimensions() == 3) { //FIXME: // IS this really required?
 			img = Views.permute(Views.addDimension(img, 0, 0), 2, 3);
 		}
@@ -2189,7 +2198,7 @@ public class SNTUI extends JDialog {
 			return;
 		}
 		plugin.secondaryImageFile = imgFile;
-		loadCachedDataImage(true, "secondary", false, plugin.secondaryImageFile);
+		loadCachedDataImage(true, plugin.secondaryImageFile);
 		setFastMarchSearchEnabled(plugin.tubularGeodesicsTracingEnabled);
 	}
 
@@ -2283,7 +2292,8 @@ public class SNTUI extends JDialog {
 		return savedFile;
 	}
 
-	private void loadCachedDataImage(final boolean warnUserOnMemory, final String type, final boolean isTubeness, final File file) { // FIXME: THIS is likely all outdated now
+	private void loadCachedDataImage(final boolean warnUserOnMemory,
+									 final File file) { // FIXME: THIS is likely all outdated now
 		if (warnUserOnMemory && plugin.getImagePlus() != null) {
 			final int byteDepth = 32 / 8;
 			final ImagePlus tracingImp = plugin.getImagePlus();
@@ -2293,18 +2303,13 @@ public class SNTUI extends JDialog {
 			if (megaBytesExtra > 0.8 * maxMemory && !guiUtils.getConfirmation( //
 					"Loading an extra image will likely require " + megaBytesExtra + "MiB of " //
 							+ "RAM. Currently only " + maxMemory + " MiB are available. " //
-							+ "Proceed nevertheless?",
+							+ "Consider enabling real-time processing.",
 					"Confirm Loading?")) {
 				return;
 			}
 		}
 
-		if (isTubeness && file == null) {
-			// tubeness image and no file provided
-			final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-			cmdService.run(ComputeTubenessImg.class, true); // will not block thread
-
-		} else if (!isTubeness && file == null) {
+		if (file == null) {
 			// filtered image and no file provided
 			if (plugin.accessToValidImageData()) {
 				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
@@ -2314,25 +2319,21 @@ public class SNTUI extends JDialog {
 			}
 		} else {
 			// file provided
-			loadImageData(type, isTubeness, file);
+			loadImageData(file);
 		}
 	}
 
-	private void loadImageData(final String type, final boolean isTubeness, final File file) {
+	private void loadImageData(final File file) {
 
 		showStatus("Loading image. Please wait...", false);
 		changeState(CACHING_DATA);
 		activeWorker = new ActiveWorker() {
 
 			@Override
-			protected String doInBackground() throws Exception {
+			protected String doInBackground() {
 
 				try {
-					if (isTubeness) {
-						plugin.loadTubenessImage(type, file);
-					} else {
-						plugin.loadSecondaryImage(file);
-					}
+					plugin.loadSecondaryImage(file);
 				} catch (final IllegalArgumentException e1) {
 					return ("Could not load " + file.getAbsolutePath() + ":<br>"
 							+ e1.getMessage());
@@ -2347,11 +2348,7 @@ public class SNTUI extends JDialog {
 			}
 
 			private void flushData() {
-				if (isTubeness) {
-					flushCachedTubeness();
-				} else {
-					flushSecondaryData();
-				}
+				flushSecondaryData();
 			}
 
 			@Override
@@ -2371,11 +2368,7 @@ public class SNTUI extends JDialog {
 				} catch (InterruptedException | ExecutionException e) {
 					SNTUtils.error("ActiveWorker failure", e);
 				}
-				if (isTubeness) {
-					updateSettingsString();
-				} else {
-					updateExternalImgWidgets();
-				}
+				updateExternalImgWidgets();
 				resetState();
 				showStatus(null, false);
 			}
@@ -3141,18 +3134,6 @@ public class SNTUI extends JDialog {
 			plugin.getStats().max = minMax[1];
 		}
 		updateSettingsString();
-	}
-
-	private boolean okToFlushCachedTubeness() { //FIXME
-		final HessianCaller hc = plugin.getHessianCaller();
-		if (hc == null || hc.cachedTubeness == null)
-			return true;
-		final boolean ok = hc.cachedTubeness != null && guiUtils.getConfirmation(
-				"Hessian computations for the entire image currently exist. Discard such data?",
-				"Discard Existing Computations?", "Yes. Discard Computations", "Cancel");
-		if (ok)
-			flushCachedTubeness();
-		return ok;
 	}
 
 	private String getPrimarySecondaryImgChoice(final String promptMsg) {
