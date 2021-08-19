@@ -149,7 +149,7 @@ public class SNTUI extends JDialog {
 	private JCheckBox secLayerActivateCheckbox;
 	private JRadioButton secLayerBuiltinRadioButton;
 	private JRadioButton secLayerExternalRadioButton;
-	private JComboBox<String> secLayerFilterChoice;
+	private JButton secLayerGenerate;
 
 	private JButton secLayerExternalImgOptionsButton;
 	private JCheckBox secLayerExternalImgOverlayCheckbox;
@@ -192,7 +192,7 @@ public class SNTUI extends JDialog {
 	static final int FILLING_PATHS = 6;
 	static final int CALCULATING_HESSIAN_I = 7;
 	static final int CALCULATING_HESSIAN_II = 8;
-	static final int WAITING_FOR_SIGMA_POINT_I = 9;
+	public static final int WAITING_FOR_SIGMA_POINT_I = 9;
 	//static final int WAITING_FOR_SIGMA_POINT_II = 10;
 	static final int WAITING_FOR_SIGMA_CHOICE = 11;
 	static final int SAVING = 12;
@@ -1951,7 +1951,7 @@ public class SNTUI extends JDialog {
 		secLayerActivateCheckbox.addActionListener(listener);
 
 		// Major options: built-in filters vs external image
-		secLayerBuiltinRadioButton = new JRadioButton("Built-in Filter", true); // default
+		secLayerBuiltinRadioButton = new JRadioButton("Built-in Filter    ", true); // default
 		secLayerExternalRadioButton = new JRadioButton("External Image");
 		secLayerBuiltinRadioButton.addActionListener(listener);
 		secLayerExternalRadioButton.addActionListener(listener);
@@ -1961,48 +1961,17 @@ public class SNTUI extends JDialog {
 
 
 		// Built-in filters:
-		secLayerFilterChoice = new JComboBox<String>();
-		secLayerFilterChoice.addItem("Tubeness");
-		secLayerFilterChoice.addItem("Frangi");
-		secLayerFilterChoice.addItem("Gauss");
-		secLayerFilterChoice.addItem("Other...");
-		secLayerFilterChoice.setSelectedIndex(0); // default
-
-		secLayerFilterChoice.addActionListener(event -> {
-			if (!secLayerFilterChoice.hasFocus()) return; // if user did not trigger the event ignore it
-			@SuppressWarnings("unchecked")
-			final int idx = ((JComboBox<String>) event.getSource()).getSelectedIndex();
-			switch (idx) {
-			case 0: // TUBENESS
-				plugin.nullifyHessian();
-				plugin.sigmaHelper.setAnalysisType(SigmaHelper.Analysis.TUBENESS);
-				break;
-			case 1: // FRANGI
-				plugin.nullifyHessian();
-				plugin.sigmaHelper.setAnalysisType(SigmaHelper.Analysis.FRANGI);
-				break;
-			case 2: // GAUSS
-				plugin.nullifyHessian();
-				plugin.sigmaHelper.setAnalysisType(SigmaHelper.Analysis.GAUSS);
-				break;
-			case 3:
-				SwingUtilities.invokeLater(() -> {
-					// we must wait, otherwise upcoming prompts will appear behind the popup choice-menu
-					if (plugin.isSecondaryImageLoaded() && !guiUtils
-							.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
-						return;
-					}
-					loadCachedDataImage(true, null);
-				});
-				break;
-			default:
-				throw new IllegalArgumentException("Invalid Option");
+		secLayerGenerate =  GuiUtils.smallButton("Choose...");
+		secLayerGenerate.addActionListener(event -> {
+			if (plugin.isSecondaryImageLoaded()
+					&& !guiUtils.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
+				return;
 			}
-			updateSettingsString();
+			loadCachedDataImage(true, null);
 		});
 		final JPanel builtinFilterPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
 		builtinFilterPanel.add(secLayerBuiltinRadioButton);
-		builtinFilterPanel.add(secLayerFilterChoice);
+		builtinFilterPanel.add(secLayerGenerate);
 
 
 		// Options for builtinFilterPanel
@@ -3705,8 +3674,8 @@ public class SNTUI extends JDialog {
 	private class GuiListener
 			implements ActionListener, ItemListener, ImageListener {
 
-		private final static String EDIT_SIGMA_MANUALLY = "Specify Manually...";
-		private final static String EDIT_SIGMA_VISUALLY = "Specify Visually...";
+		private final static String EDIT_SIGMA_MANUALLY = "Adjust Manually...";
+		private final static String EDIT_SIGMA_VISUALLY = "Adjust Visually...";
 
 		public GuiListener() {
 			ImagePlus.addImageListener(this);

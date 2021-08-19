@@ -36,14 +36,17 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
+import org.scijava.command.Interactive;
 import org.scijava.display.DisplayService;
 import org.scijava.io.IOService;
+import org.scijava.module.MutableModuleItem;
 import org.scijava.platform.PlatformService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.Button;
 
 import sc.fiji.snt.SNTPrefs;
+import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.filter.*;
 import sc.fiji.snt.gui.GuiUtils;
@@ -59,7 +62,7 @@ import java.net.URL;
  * @author Cameron Arshadi
  */
 @Plugin(type = Command.class, visible = false, initializer = "init", label = "Compute \"Secondary Image\"")
-public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends CommonDynamicCmd
+public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends CommonDynamicCmd implements Interactive
 {
 
 	private static final String NONE = "None. Duplicate primary image";
@@ -83,25 +86,36 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	@Parameter
 	private IOService io;
 
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Filtering:")
+	private String HEADER1;
+
 	@Parameter(label = "Filter", choices = { FRANGI, TUBENESS, GAUSS, NONE })
 	private String filter;
 
-	@Parameter(label = "Lazy processing")
-	private boolean useLazy;
+	@Parameter(label = "Size(s) of structures being traced", description="Comma separated list", required = false)
+	private String sizeOfStructuresString;
+	
+	@Parameter(label = "Select Visually", callback="triggerSigmaPalette")
+	private Button triggerSigmaPalette;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Performance/Memory:")
+	private String HEADER2;
+
+	@Parameter(label = "Strategy", choices = { "Save memory (Dilute computation time across searches)",
+			"Cache filtering (Compute once and store result in RAM)" })
+	private String useLazyChoice;
 
 	@Parameter(label = "Number of threads", min = "1", stepSize = "1")
 	private int numThreads;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Options:")
+	private String HEADER3;
 
 	@Parameter(label = "Display", required = false)
 	private boolean show;
 
 	@Parameter(label = "Save", required = false)
 	private boolean save;
-
-	@Parameter(label = "<HTML>&nbsp;", persist = false, visibility = ItemVisibility.MESSAGE)
-	private String msg = "<HTML>It is assumed that the current sigma values for the primary image in<br>"
-			+ "the Auto-tracing widget reflect the size of structures to be filtered.<br>"
-			+ "If that is not the case, you should dismiss this prompt and adjust it.";
 
 	@Parameter(label = "Online Help", callback = "help")
 	private Button button;
@@ -111,6 +125,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 
 	@SuppressWarnings("rawtypes")
 	private RandomAccessibleInterval filteredImg;
+	private boolean useLazy;
 
 	protected void init() {
 		super.init(true);
@@ -125,6 +140,15 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 			error("Valid image data is required for computation.");
 			return;
 		}
+	}
+
+	@SuppressWarnings("unused")
+	private void triggerSigmaPalette() {
+		ui.changeState(SNTUI.WAITING_FOR_SIGMA_POINT_I);
+		snt.setCanvasLabelAllPanes("Choosing Sigma");
+		final String buttonLabel = (ui.getState() == SNTUI.WAITING_FOR_SIGMA_POINT_I) ? "Now click on a representative structure" : "Select Visually";
+		final MutableModuleItem<Button> mmi = getInfo().getMutableInput("triggerSigmaPalette", Button.class);
+		mmi.setLabel(buttonLabel);
 	}
 
 	@SuppressWarnings("unused")
@@ -150,6 +174,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 		if (numThreads > SNTPrefs.getThreads()) {
 			numThreads = SNTPrefs.getThreads();
 		}
+		useLazy = useLazyChoice.toLowerCase().startsWith("save memory");
+
 		final int cellDim = 30; // side length for cell
 		if (NONE.equals(filter)) {
 			final RandomAccessibleInterval<T> loadedData = sntService.getPlugin().getLoadedData();
