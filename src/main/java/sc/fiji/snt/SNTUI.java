@@ -2271,6 +2271,9 @@ public class SNTUI extends JDialog {
 
 	private void loadCachedDataImage(final boolean warnUserOnMemory,
 									 final File file) { // FIXME: THIS is likely all outdated now
+		if (file == null) {
+			throw new IllegalArgumentException("Secondary image File is null");
+		}
 		if (warnUserOnMemory && plugin.getImagePlus() != null) {
 			final int byteDepth = 32 / 8;
 			final ImagePlus tracingImp = plugin.getImagePlus();
@@ -2285,12 +2288,7 @@ public class SNTUI extends JDialog {
 				return;
 			}
 		}
-		if (file == null) {
-			noValidImageDataError();
-		} else {
-			// file provided
-			loadImageData(file);
-		}
+		loadImageData(file);
 	}
 
 	private void loadImageData(final File file) {
