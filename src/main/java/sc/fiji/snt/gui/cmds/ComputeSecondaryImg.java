@@ -47,6 +47,7 @@ import org.scijava.module.MutableModuleItem;
 import org.scijava.platform.PlatformService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
 
 import ij.measure.Calibration;
@@ -110,6 +111,9 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	@Parameter
 	private IOService io;
 
+	@Parameter
+	private PrefService prefService;
+
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Filtering:")
 	private String HEADER1;
 
@@ -129,7 +133,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	private String HEADER2;
 
 	@Parameter(label = "Strategy", choices = { LAZY_LOADING_FALSE, LAZY_LOADING_TRUE }, //
-			description = "<HTML><b>Save computations</b>: Allows for faster tracing when images are small.<br>"
+			description = "<HTML><b>Save computations</b>: Allows for faster tracing when enough RAM is available.<br>"
 					+ "<b>Save Computations</b>: Allows for tracing of large images when available RAM is limited.")
 	private String useLazyChoice;
 
@@ -167,12 +171,13 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	private AbstractButton refreshButtonAsSwingComponent;
 
 	protected void init() {
+		getInfo().setLabel(PROMPT_TITLE); // needs to be set before any getPrompt() calls
 		super.init(true);
 		if (!snt.accessToValidImageData()) {
 			error("Valid image data is required for computation.");
 			return;
 		}
-		getInfo().setLabel(PROMPT_TITLE);
+		loadPreferences();
 	}
 
 	@SuppressWarnings("unused")
@@ -184,7 +189,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	@SuppressWarnings("unused")
 	private void triggerSigmaPalette() {
 		if (NONE.equals(filter)) {
-			msg("Current filter choice does not require size parameters.", "Unnecessary Operation");
+			msg("Current filter does not require size parameters.", "Unnecessary Operation");
 			return;
 		}
 		switch (paletteStatus) {
@@ -193,6 +198,12 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 			ui.changeState(SNTUI.WAITING_FOR_SIGMA_POINT_I);
 			paletteStatus = PALETTE_WAITING;
 			break;
+		case PALETTE_WAITING:
+			msg("Click on a representative structure (e.g., branch point or neurite) on the image being traced. "
+					+ "Once you have done so, this prompt will be replaced by a preview grid, that will allow you "
+					+ "better select the right kernel size(s) for the filtering operation. The selected values will "
+					+ "then be transfered to this dialog.", "Click on a Representative Structure: How-To");
+			return;
 		default:
 			break; // do nothing;
 		}
@@ -364,6 +375,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 		if (getPrompt() != null) getPrompt().dispose();
 		if (ui != null) ui.changeState(SNTUI.READY);
 		prompt = null;
+		savePreferences();
 	}
 
 	private String getImageName() {
@@ -450,7 +462,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	private void setPromptVisible(final boolean visible) {
 		if (getPrompt() == null) return;
 		SwingUtilities.invokeLater(() ->  {
-			if (getPrompt().isVisible() != visible) getPrompt().setVisible(visible);
+			if (getPrompt().isVisible() != visible) getPrompt().setVisible(visible); // toggling logic required to avoid duplication of prompt!?
 			if (visible) ui.changeState(SNTUI.RUNNING_CMD); // ensure state for as long this prompt is being displayed
 		});
 	}
@@ -483,6 +495,44 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	public void setSigmas(final List<Double> list) {
 		this.sigmas = list;
 		updateSigmasField();
+	}
+
+	@Override
+	protected void msg(final String msg, final String title) {
+		if (getPrompt() == null) {
+			super.msg(msg, title);
+		} else {
+			new GuiUtils(getPrompt()).centeredMsg(msg, title);
+		}
+	}
+
+	@Override
+	protected void error(final String msg) {
+		if (getPrompt() == null) {
+			super.error(msg);
+		} else {
+			new GuiUtils(getPrompt()).error(msg);
+		}
+	}
+
+	private void loadPreferences() {
+		// FIXME: Somehow values are not persisting!? Maybe because we are implementing Interactive? 
+		prefService.get(getClass(), "filter", TUBENESS);
+		prefService.get(getClass(), "sizeOfStructuresString", ""); // leave empty by default?
+		prefService.get(getClass(), "useLazyChoice", LAZY_LOADING_FALSE);
+		prefService.getInt(getClass(), "numThreads", SNTPrefs.getThreads());
+		prefService.getBoolean(getClass(), "show", false);
+		prefService.getBoolean(getClass(), "save", false);
+	}
+
+	private void savePreferences() {
+		// FIXME: Somehow values are not persisting!? Maybe because we are implementing Interactive? 
+		prefService.put(getClass(), "filter", filter);
+		prefService.put(getClass(), "sizeOfStructuresString", sizeOfStructuresString);
+		prefService.put(getClass(), "useLazyChoice", useLazyChoice);
+		prefService.put(getClass(), "numThreads", numThreads);
+		prefService.put(getClass(), "show", show);
+		prefService.put(getClass(), "save", save);
 	}
 
 
