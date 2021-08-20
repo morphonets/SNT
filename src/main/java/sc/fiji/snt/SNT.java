@@ -2348,7 +2348,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @return true, if image has been loaded into memory.
 	 */
 	public boolean isSecondaryImageLoaded() {
-		return getSecondaryData() != null && getFilteredImageFile() != null;
+		return getSecondaryData() != null;
 	}
 
 	protected boolean inputImageLoaded() {

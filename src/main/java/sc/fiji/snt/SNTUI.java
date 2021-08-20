@@ -51,6 +51,7 @@ import javax.swing.border.BevelBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.ChangeListener;
 
+import net.imglib2.cache.img.DiskCachedCellImg;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
 import org.apache.commons.lang3.StringUtils;
@@ -977,9 +978,15 @@ public class SNTUI extends JDialog {
 					"Reload Filtered Data?", choices, defChoice);
 			if (choice != null) {
 				if (choice.startsWith("Unload"))
+				{
 					flushSecondaryData();
-				else if (choice.startsWith("Reload"))
-					loadCachedDataImage(false, plugin.secondaryImageFile);
+					enableSecondaryLayerTracing(false);
+				}
+				else if (choice.startsWith("Reload")) {
+					flushSecondaryData();
+					enableSecondaryLayerTracing(false);
+					// TODO the image will need to be re-generated using the new CT slice
+				}
 				plugin.getPrefs().setTemp("secreload", choice);
 			}
 		}
@@ -1966,7 +1973,12 @@ public class SNTUI extends JDialog {
 					&& !guiUtils.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
 				return;
 			}
-			loadCachedDataImage(true, null);
+			flushSecondaryData();
+			if (plugin.accessToValidImageData()) {
+				(new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
+			} else {
+				noValidImageDataError();
+			}
 		});
 		final JPanel builtinFilterPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
 		builtinFilterPanel.add(secLayerBuiltinRadioButton);
@@ -2210,6 +2222,10 @@ public class SNTUI extends JDialog {
 	}
 
 	private void flushSecondaryData() {
+		if (plugin.secondaryData instanceof DiskCachedCellImg) {
+			SNTUtils.log("Shutting down IOSync");
+			((DiskCachedCellImg<?, ?>) plugin.secondaryData).shutdown();
+		}
 		plugin.secondaryData = null;
 		plugin.doSearchOnSecondaryData = false;
 		if (secLayerExternalImgOverlayCheckbox.isSelected()) {
@@ -2269,14 +2285,8 @@ public class SNTUI extends JDialog {
 				return;
 			}
 		}
-
 		if (file == null) {
-			// filtered image and no file provided
-			if (plugin.accessToValidImageData()) {
-				(new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
-			} else {
-				noValidImageDataError();
-			}
+			noValidImageDataError();
 		} else {
 			// file provided
 			loadImageData(file);
@@ -3753,21 +3763,11 @@ public class SNTUI extends JDialog {
 					if (!secLayerActivateCheckbox.isSelected()) {
 						return; // do nothing
 					}
-					if (plugin.getSigmaHelper().getSigmas(true) == null) {
-						final Boolean wizardChoice = userPreferstoRunWizard("No. Use Existing Values");
-						if (wizardChoice == null) { // user pressed cancel
-							secLayerActivateCheckbox.setSelected(false);
-						}
-						else if (!wizardChoice) {
-							// Apply defaults
-							final SigmaHelper hc = plugin.getSigmaHelper();
-							if (hc.sigmas == null || hc.sigmas.length == 0) {
-								List<Double> sigmas = new ArrayList<>();
-								Arrays.stream(hc.getDefaultSigma()).forEach(sigmas::add);
-								hc.setSigmas(sigmas);
-							}
-						}
+					if (plugin.getSecondaryData() == null) {
+						noSecondaryImgAvailableError();
+						return;
 					}
+					enableSecondaryLayerTracing(true);
 					// TODO: Figure out how to proceed
 
 				} else if (secLayerExternalRadioButton.isSelected()) {
