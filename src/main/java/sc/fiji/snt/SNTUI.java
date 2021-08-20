@@ -86,6 +86,7 @@ import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.SaveMeasurementsCmd;
+import sc.fiji.snt.gui.SigmaPaletteListener;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.SigmaPalette;
 import sc.fiji.snt.io.FlyCircuitLoader;
@@ -222,6 +223,7 @@ public class SNTUI extends JDialog {
 	protected boolean discardOnDoubleCancellation = true;
 	protected boolean askUserConfirmation = true;
 	private boolean openingSciView;
+	private SigmaPaletteListener sigmaPaletteListener;
 
 	/**
 	 * Instantiates SNT's main UI and associated {@link PathManagerUI} and
@@ -1951,7 +1953,7 @@ public class SNTUI extends JDialog {
 		secLayerActivateCheckbox.addActionListener(listener);
 
 		// Major options: built-in filters vs external image
-		secLayerBuiltinRadioButton = new JRadioButton("Built-in Filter    ", true); // default
+		secLayerBuiltinRadioButton = new JRadioButton("Built-in Filter  ", true); // default
 		secLayerExternalRadioButton = new JRadioButton("External Image");
 		secLayerBuiltinRadioButton.addActionListener(listener);
 		secLayerExternalRadioButton.addActionListener(listener);
@@ -2281,8 +2283,7 @@ public class SNTUI extends JDialog {
 		if (file == null) {
 			// filtered image and no file provided
 			if (plugin.accessToValidImageData()) {
-				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-				cmdService.run(ComputeSecondaryImg.class, true); // will not block thread
+				(new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
 			} else {
 				noValidImageDataError();
 			}
@@ -3320,6 +3321,10 @@ public class SNTUI extends JDialog {
 		return mi;
 	}
 
+	public void setSigmaPaletteListener(final SigmaPaletteListener listener) {
+		sigmaPaletteListener = listener;
+	}
+
 	/**
 	 * Gets the Path Manager dialog.
 	 *
@@ -3521,6 +3526,8 @@ public class SNTUI extends JDialog {
 
 		sigmaPalette = new SigmaPalette(plugin, plugin.getSigmaHelper());
 		sigmaPalette.makePalette(x_min, x_max, y_min, y_max, z_min, z_max, sigmas, 3, 3, z);
+		sigmaPalette.addListener(sigmaPaletteListener);
+		if (sigmaPaletteListener != null) sigmaPalette.setParent(sigmaPaletteListener.getParent());
 		updateStatusText("Adjusting \u03C3 and max visually...");
 	}
 

@@ -38,6 +38,7 @@ import java.awt.BorderLayout;
 import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Cursor;
 import java.awt.Desktop;
 import java.awt.Dimension;
@@ -74,6 +75,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Stack;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -1318,6 +1320,23 @@ public class GuiUtils {
 		final String lafName = SNTPrefs.getLookAndFeel(); // never null
 		if (existingLaf == null || !lafName.equals(existingLaf.getName()))
 			setLookAndFeel(SNTPrefs.getLookAndFeel(), false);
+	}
+
+	public static AbstractButton getButton(final Container parent, final String label) {
+		final Stack<Component> stack = new Stack<>();
+		stack.push(parent);
+		while (!stack.isEmpty()) {
+			final Component current = stack.pop();
+			if (current instanceof AbstractButton && label.equals(((AbstractButton) current).getText())) {
+				return (AbstractButton) current;
+			}
+			else if (current instanceof Container) {
+				for (final Component child : ((Container) current).getComponents()) {
+					stack.add(child);
+				}
+			}
+		}
+		return null;
 	}
 
 	private static void storeExistingLookAndFeel() {

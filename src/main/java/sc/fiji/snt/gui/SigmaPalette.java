@@ -52,6 +52,8 @@ import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import org.scijava.plugin.Parameter;
+import org.scijava.ui.awt.AWTWindows;
+
 import sc.fiji.snt.*;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Tubeness;
@@ -95,7 +97,8 @@ public class SigmaPalette extends Thread {
 	private final SigmaHelper.Analysis analysisType;
 	private int maxScales;
 	private List<Double> scaleSettings; //TODO: This should be a SET
-
+	private final List<SigmaPaletteListener> listeners;
+	private Window parent;
 
 	public SigmaPalette(final SNT snt, final SigmaHelper sigmaHelper) {
 		snt.getContext().inject(this);
@@ -103,6 +106,11 @@ public class SigmaPalette extends Thread {
 		this.sigmaHelper = sigmaHelper;
 		analysisType = this.sigmaHelper.getAnalysisType();
 		image = snt.getLoadedDataAsImp();
+		listeners = new ArrayList<>();
+	}
+
+	public void setParent(final Window parent) {
+		this.parent = parent;
 	}
 
 	private void setMaxScales(final int nScales) {
@@ -130,7 +138,10 @@ public class SigmaPalette extends Thread {
 			final double defaultMax)
 		{
 			super(imp, ic);
-			setLocationRelativeTo(snt.getImagePlus().getWindow());
+			if (parent == null)
+				setLocationRelativeTo(snt.getImagePlus().getWindow());
+			else
+				AWTWindows.centerWindow(parent, this);
 			this.defaultMax = defaultMax;
 			guiUtils = new GuiUtils(this);
 			ic.disablePopupMenu(true);
@@ -338,6 +349,7 @@ public class SigmaPalette extends Thread {
 
 		@Override
 		public void windowClosing(final WindowEvent e) {
+			listeners.forEach( listener -> listener.paletteDismissed());
 			dismiss();
 			super.windowClosing(e);
 		}
@@ -681,6 +693,7 @@ public class SigmaPalette extends Thread {
 	}
 
 	private void flush() {
+		listeners.forEach( listener -> listener.paletteDismissed());
 		paletteWindow.close();
 		if (paletteImage != null) paletteImage.flush();
 		snt.setCanvasLabelAllPanes(null);
@@ -688,7 +701,8 @@ public class SigmaPalette extends Thread {
 
 	public void dismiss() {
 		flush();
-		snt.changeUIState(SNTUI.READY);
+		if (listeners.isEmpty())
+			snt.changeUIState(SNTUI.READY);
 	}
 
 	public List<Double> getMultiScaleSettings() {
@@ -756,9 +770,11 @@ public class SigmaPalette extends Thread {
 			if (!paletteWindow.guiUtils.getConfirmation(sb.toString(), "Commit Settings?"))
 				return;
 		}
+		listeners.forEach( listener -> listener.setSigmas(getMultiScaleSettings()));
+		sigmaHelper.setSigmas(getMultiScaleSettings());
 		flush();
 		//TODO: Make this aware of multiple scales
-		sigmaHelper.setSigmas(getMultiScaleSettings());
+
 		// recompute after changing scales
 		//hc.start();
 	}
@@ -859,6 +875,7 @@ public class SigmaPalette extends Thread {
 			sigmasAcross, sigmasDown);
 		paletteWindow = new PaletteStackWindow(paletteImage, paletteCanvas, suggestedMax);
 		paletteCanvas.requestFocusInWindow(); // required to trigger keylistener events
+		listeners.forEach( listener -> listener.paletteDisplayed());
 	}
 
 	private void createMIP() {
@@ -904,6 +921,14 @@ public class SigmaPalette extends Thread {
 			paletteImage.updateAndDraw();
 			updateMIP();
 		}
+	}
+
+	public void addListener(final SigmaPaletteListener listener) {
+		if (listener != null) listeners.add(listener);
+	}
+
+	public void removeListener(final SigmaPaletteListener listener) {
+		listeners.remove(listener);
 	}
 
 }
