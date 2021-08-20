@@ -965,7 +965,6 @@ public class SNTUI extends JDialog {
 		updateSinglePaneFlag();
 		abortCurrentOperation();
 		changeState(LOADING);
-		final boolean hessianDataExists = plugin.isHessianEnabled();
 		plugin.reloadImage(newC, newT); // nullifies hessianData
 		if (!reload)
 			plugin.getImagePlus().setPosition(newC, plugin.getImagePlus().getZ(), newT);
@@ -983,8 +982,6 @@ public class SNTUI extends JDialog {
 					loadCachedDataImage(false, plugin.secondaryImageFile);
 				plugin.getPrefs().setTemp("secreload", choice);
 			}
-			if (hessianDataExists)
-				enableSecondaryLayerBuiltin(true);
 		}
 		resetState();
 		showStatus(reload ? "Image reloaded into memory..." : null, true);
@@ -2224,13 +2221,6 @@ public class SNTUI extends JDialog {
 		}
 		plugin.setSecondaryImage(null);
 		updateExternalImgWidgets();
-	}
-
-	private void flushCachedTubeness() {
-		if (plugin.getSigmaHelper() !=null) {
-			plugin.getSigmaHelper().nullify();
-			updateSettingsString();
-		}
 	}
 
 	protected File openFile(final String promptMsg, final String extension) {

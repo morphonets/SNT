@@ -397,7 +397,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 			}
 		}
 		// no values exist. Some logic to read values from elsewwhere could go here
-		return snt.getHessianSigma(true); //FIXME:getHessianSigma() is in limbo. Better to return null?
+		return snt.getSigmas(true); //FIXME:getHessianSigma() is in limbo. Better to return null?
 	}
 
 	private void updateSigmasField() {
@@ -500,5 +500,5 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 		// the built-in filter 'gear menu should be cleansed of redundant options now implemented here?
 		// - The Median filter was just introduced for testing callbacks. If we are not going to use it, it should be removed
 		// - the getPrompt() hack only works _AFTER_ interacting with certain widgets in the prompt. If the prompt is closed before such interactions, UI may remain in some unexpected state
-	
+
 }

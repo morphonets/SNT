@@ -205,8 +205,7 @@ public class SNT extends MultiDThreePanes implements
 	/* statistics for main image*/
 	private final ImageStatistics stats = new ImageStatistics();
 
-	/* Hessian-based analysis */
-	private volatile boolean hessianEnabled = false;
+	/* Filter-based analysis */
 	protected final SigmaHelper sigmaHelper;
 
 	/* current selected search algorithm type */
@@ -468,7 +467,7 @@ public class SNT extends MultiDThreePanes implements
 		xy_tracer_canvas = null;
 		xz_tracer_canvas = null;
 		zy_tracer_canvas = null;
-		nullifyHessian();
+		nullifySigmaHelper();
 	}
 
 	public boolean accessToValidImageData() {
@@ -626,7 +625,7 @@ public class SNT extends MultiDThreePanes implements
 		final boolean currentSinglePane = getSinglePane();
 		setFieldsFromImage(getImagePlus()); // In case image properties changed outside SNT 
 		setSinglePane(currentSinglePane);
-		loadDatasetFromImagePlus(getImagePlus()); // will call nullifyHessian();
+		loadDatasetFromImagePlus(getImagePlus()); // will call nullifySigmaHelper();
 		if (use3DViewer && imageContent != null) {
 			updateImageContent(prefs.get3DViewerResamplingFactor());
 		}
@@ -683,7 +682,7 @@ public class SNT extends MultiDThreePanes implements
 		this.stats.max = imgStats.max;
 		this.stats.mean = imgStats.mean;
 		this.stats.stdDev = imgStats.stdDev;
-		nullifyHessian(); // ensure it will be reloaded
+		nullifySigmaHelper(); // ensure it will be reloaded
 		updateLut();
 	}
 
@@ -2332,11 +2331,6 @@ public class SNT extends MultiDThreePanes implements
 		return data;
 	}
 
-	@Deprecated
-	public void startHessian(final String image, final double sigma, final boolean wait) {
-		// do nothing
-	}
-
 	/**
 	 * Returns the file of the 'secondary image', if any.
 	 *
@@ -2530,8 +2524,7 @@ public class SNT extends MultiDThreePanes implements
 		return data;
 	}
 
-	protected void nullifyHessian() {
-		hessianEnabled = false;
+	protected void nullifySigmaHelper() {
 		sigmaHelper.nullify();
 	}
 
@@ -2543,13 +2536,12 @@ public class SNT extends MultiDThreePanes implements
 	@Override
 	public void proportionDone(final double proportion) {
 		if (proportion < 0) {
-			nullifyHessian();
+			nullifySigmaHelper();
 			if (ui != null) ui.gaussianCalculated(false);
 			statusService.showProgress(1, 1);
 			return;
 		}
 		else if (proportion >= 1.0) {
-			hessianEnabled = true;
 			if (ui != null) ui.gaussianCalculated(true);
 		}
 		statusService.showProgress((int) proportion, 1); // FIXME:
@@ -3152,16 +3144,7 @@ public class SNT extends MultiDThreePanes implements
 		return !manualOverride;
 	}
 
-	/**
-	 * Checks if Hessian analysis is enabled
-	 *
-	 * @return true, if Hessian analysis is enabled, otherwise false
-	 */
-	public boolean isHessianEnabled() {
-		return hessianEnabled && sigmaHelper.sigmas != null;
-	}
-
-	public double[] getHessianSigma(final boolean physicalUnits) {
+	public double[] getSigmas(final boolean physicalUnits) {
 		return getSigmaHelper().getSigmas(physicalUnits);
 	}
 
