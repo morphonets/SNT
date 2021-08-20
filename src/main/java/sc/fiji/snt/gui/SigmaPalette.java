@@ -672,10 +672,8 @@ public class SigmaPalette extends Thread {
 			final int z_min, final int z_max, final double[] sigmaValues, //
 			final int sigmasAcross, final int sigmasDown, final int initial_z) {
 
-		if (sigmaValues.length > sigmasAcross * sigmasDown) {
-			throw new IllegalArgumentException("A " + sigmasAcross + "x" +
-				sigmasDown + " layout is not large enough for " + (sigmaValues.length +1 ) +
-				" images");
+		if (sigmaValues.length != sigmasAcross * sigmasDown) {
+			throw new IllegalArgumentException(sigmasAcross + "x" + sigmasDown + "must equal the number of sigmas");
 		}
 
 		this.x_min = x_min;

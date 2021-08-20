@@ -3509,13 +3509,13 @@ public class SNTUI extends JDialog {
 		if (y_max >= originalHeight) y_max = originalHeight - 1;
 		if (z_max > originalDepth) z_max = originalDepth;
 
-		final double[] sigmas = new double[9];
+		final double[] sigmas = new double[16];
 		for (int i = 0; i < sigmas.length; ++i) {
 			sigmas[i] = ((i + 1) * plugin.getMinimumSeparation()) / 2;
 		}
 
 		sigmaPalette = new SigmaPalette(plugin, plugin.getSigmaHelper());
-		sigmaPalette.makePalette(x_min, x_max, y_min, y_max, z_min, z_max, sigmas, 3, 3, z);
+		sigmaPalette.makePalette(x_min, x_max, y_min, y_max, z_min, z_max, sigmas, 4, 4, z);
 		sigmaPalette.addListener(sigmaPaletteListener);
 		if (sigmaPaletteListener != null) sigmaPalette.setParent(sigmaPaletteListener.getParent());
 		updateStatusText("Adjusting \u03C3 and max visually...");
