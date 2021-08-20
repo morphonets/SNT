@@ -117,9 +117,9 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	private String filter;
 
 	@Parameter(label = "Size of traced structures", required = false, //
-			description = "<HTML>Aprox. thickness of structures being traced (comma separated list).<br>There are two ways "
+			description = "<HTML>Aprox. thickness (radius) of structures being traced (comma separated list).<br>There are two ways "
 					+ "of setting this field: Using <i>Select visually...</i> for an<br>interactive prompt, or manually, if you "
-					+ "know a priori such thicknesses.<br>Note that the 'gear menu' also hosts commands for to estimation of radii.")
+					+ "know a priori such thicknesses.<br>Note that the 'gear menu' also hosts commands for estimation of radii.")
 	private String sizeOfStructuresString;
 
 	@Parameter(label = "Select visually...", callback="triggerSigmaPalette")
@@ -183,6 +183,10 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 
 	@SuppressWarnings("unused")
 	private void triggerSigmaPalette() {
+		if (NONE.equals(filter)) {
+			msg("Current filter choice does not require size parameters.", "Unnecessary Operation");
+			return;
+		}
 		switch (paletteStatus) {
 		case PALETTE_CLOSED:
 			ui.setSigmaPaletteListener(this);
@@ -261,7 +265,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 			return;
 		}
 		final double[] sigmas = getSigmas();
-		if (sigmas == null || sigmas.length == 0) {
+		if (!NONE.equals(filter) && (sigmas == null || sigmas.length == 0)) {
 			error("No valid sizes have been specified.");
 			return;
 		}
