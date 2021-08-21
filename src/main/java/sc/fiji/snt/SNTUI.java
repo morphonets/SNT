@@ -2227,7 +2227,7 @@ public class SNTUI extends JDialog {
 			((DiskCachedCellImg<?, ?>) plugin.secondaryData).shutdown();
 		}
 		plugin.secondaryData = null;
-		plugin.doSearchOnSecondaryData = false;
+		enableSecondaryLayerTracing(false);
 		if (secLayerExternalImgOverlayCheckbox.isSelected()) {
 			secLayerExternalImgOverlayCheckbox.setSelected(false);
 			plugin.showMIPOverlays(true, 0);
