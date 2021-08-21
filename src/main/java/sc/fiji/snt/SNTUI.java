@@ -52,8 +52,6 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.event.ChangeListener;
 
 import net.imglib2.cache.img.DiskCachedCellImg;
-import net.imglib2.type.numeric.NumericType;
-import net.imglib2.type.numeric.RealType;
 import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
@@ -71,9 +69,6 @@ import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
 import ij3d.ImageWindow3D;
 import net.imagej.Dataset;
-import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.img.display.imagej.ImageJFunctions;
-import net.imglib2.view.Views;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
@@ -1987,14 +1982,6 @@ public class SNTUI extends JDialog {
 
 		// Options for builtinFilterPanel
 		final JPopupMenu builtinFilterOptionsMenu = new JPopupMenu();
-		builtinFilterOptionsMenu.add(GuiUtils.leftAlignedLabel("Size/Scale(s) of Traced Structures:", false));
-		final JMenuItem jmiVisual = new JMenuItem(GuiListener.EDIT_SIGMA_VISUALLY);
-		jmiVisual.addActionListener(listener);
-		builtinFilterOptionsMenu.add(jmiVisual);
-		JMenuItem jmiManual = new JMenuItem(GuiListener.EDIT_SIGMA_MANUALLY);
-		jmiManual.addActionListener(listener);
-		builtinFilterOptionsMenu.add(jmiManual);
-		builtinFilterOptionsMenu.addSeparator();
 		builtinFilterOptionsMenu.add(GuiUtils.leftAlignedLabel("Utilities:", false));
 		final JMenuItem thicknessCmdItem = new JMenuItem("Estimate Radii (Local Thickness)...");
 		thicknessCmdItem.setToolTipText("Computes the distribution of the radii of all the structures across the image");
@@ -2003,9 +1990,6 @@ public class SNTUI extends JDialog {
 		thicknessCmdItem.addActionListener(e -> {
 			(new DynamicCmdRunner(LocalThicknessCmd.class, null, RUNNING_CMD)).run();
 		});
-		final JMenuItem showCmdItem = new JMenuItem("Display Filter Image");
-		showCmdItem.addActionListener(e -> displayBuiltinFilteredImg());
-		builtinFilterOptionsMenu.add(showCmdItem);
 
 		final JButton builtinFilterOptionsButton = optionsButton(builtinFilterOptionsMenu);
 
@@ -2032,7 +2016,7 @@ public class SNTUI extends JDialog {
 		final JMenuItem revealMenuItem = new JMenuItem("Reveal Loaded File in File Explorer");
 		revealMenuItem.addActionListener(e -> {
 			try {
-				if (!plugin.isSecondaryImageFileLoaded()) {
+				if (!plugin.isSecondaryDataAvailable() || !plugin.isSecondaryImageFileLoaded()) {
 					noSecondaryImgFileAvailableError();
 					return;
 				}
@@ -2041,30 +2025,15 @@ public class SNTUI extends JDialog {
 					// TODO: Move to java9
 					// Desktop.getDesktop().browseFileDirectory(file);
 				} else {
-					guiUtils.error("Current file path is not valid.");
+					guiUtils.error("<HTML>Could not access<br>" + plugin.getFilteredImageFile().getAbsolutePath());
 				}
 			} catch (final NullPointerException | IllegalArgumentException | IOException iae) {
-				guiUtils.error("An error occured: image directory not available?");
-			}
-		});
-		final JMenuItem showImpMenuItem = new JMenuItem("Display Loaded Image");
-		showImpMenuItem.addActionListener(e -> {
-			if (!plugin.isSecondaryImageFileLoaded()) {
-				noSecondaryImgFileAvailableError();
-				return;
-			}
-			final ImagePlus imp = plugin.getSecondaryDataAsImp();
-			if (imp == null) {
-				guiUtils.error("Somehow image could not be created.", "Secondary Image Unavailable?");
-			} else {
-				imp.show();
+				guiUtils.error("An error occured: Image directory not available?");
 			}
 		});
 		externalImgOptionsMenu.add(secLayerExternalImgLoadFlushMenuItem);
 		externalImgOptionsMenu.addSeparator();
-		externalImgOptionsMenu.add(showImpMenuItem);
 		externalImgOptionsMenu.add(revealMenuItem);
-
 
 		secLayerPanel = new JPanel();
 		secLayerPanel.setLayout(new GridBagLayout());
@@ -2120,56 +2089,6 @@ public class SNTUI extends JDialog {
 		secLayerPanel.add(overlayPanelHolder, c);
 		c.gridy++;
 		return secLayerPanel;
-	}
-
-//	private void displayBuiltinFilteredImg2() { //TODO: This needs OutOfMemory detection
-//		if (!plugin.accessToValidImageData()) {
-//			noValidImageDataError();
-//			return;
-//		}
-//		if (plugin.getSecondaryData() != null && plugin.getFilteredImageFile() != null) {
-//			// A secondary layer exists and was generated using 'built-in' filters
-//			plugin.getSecondaryDataAsImp().show();
-//		} else if (plugin.getSecondaryData() == null && plugin.getFilteredImageFile() != null) {
-//			// A secondary layer has been set using 'built-in' filters, but img is not
-//			// available
-//			if (plugin.getHessianCaller().isHessianComputed()) {
-//				// then we just need to display it
-//				displayRAI(plugin.getHessianCaller().hessianImg, "Secondary Layer");
-//			} else {
-//				// then we can compute it
-//				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-//				final HashMap<String, Object> inputs = new HashMap<>();
-//				inputs.put("filter", secLayerFilterChoice.getSelectedItem().toString());
-//				inputs.put("useLazy", true);
-//				inputs.put("show", true);
-//				inputs.put("save", false);
-//				inputs.put("skipPrompt", true);
-//				cmdService.run(ComputeSecondaryImg.class, true, inputs); // will not block thread
-//				enableSecondaryLayerBuiltin(true);
-//			}
-//		}
-//	}
-
-	private <T extends RealType<T>> void displayBuiltinFilteredImg() {
-		if (!plugin.accessToValidImageData()) {
-			noValidImageDataError();
-			return;
-		}
-		if (plugin.getSecondaryData() == null) {
-			noSecondaryDataAvailableError();
-		}
-		final RandomAccessibleInterval<T> data = plugin.getSecondaryData();
-		displayRAI(data, "Secondary Layer");
-	}
-
-	private <T extends NumericType<T>> void displayRAI(RandomAccessibleInterval<T> img, final String title) {
-		if (img.numDimensions() == 3) { //FIXME: // IS this really required?
-			img = Views.permute(Views.addDimension(img, 0, 0), 2, 3);
-		}
-		final ImagePlus imp = ImageJFunctions.wrap(img, title);
-		imp.setCalibration(plugin.getImagePlus().getCalibration());
-		imp.show();
 	}
 
 	private void loadSecondaryImageFile(final File imgFile) {
@@ -2644,6 +2563,21 @@ public class SNTUI extends JDialog {
 		arrangeWindowsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.WINDOWS));
 		arrangeWindowsMenuItem.addActionListener(e -> arrangeCanvases(true));
 		viewMenu.add(arrangeWindowsMenuItem);
+		final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image");
+		showImpMenuItem.addActionListener(e -> {
+			if (!plugin.isSecondaryDataAvailable()) {
+				noSecondaryDataAvailableError();
+				return;
+			}
+			final ImagePlus imp = plugin.getSecondaryDataAsImp();
+			if (imp == null) {
+				guiUtils.error("Somehow image could not be created.", "Secondary Image Unavailable?");
+			} else {
+				imp.show();
+			}
+		});
+		viewMenu.add(showImpMenuItem);
+		viewMenu.addSeparator();
 		final JMenu hideViewsMenu = new JMenu("Hide Tracing Canvas");
 		hideViewsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EYE_SLASH));
 		final JCheckBoxMenuItem xyCanvasMenuItem = new JCheckBoxMenuItem("Hide XY View");
@@ -3116,34 +3050,6 @@ public class SNTUI extends JDialog {
 			}
 		}
 		return "primary";
-	}
-
-	private void setSigmaFromUser() {
-		final SigmaHelper hc = plugin.getSigmaHelper();
-		final JTextField sigmaField = new JTextField(5);
-		final Object[] contents = { "<html><HTML><div WIDTH=500><b>Ajusting sigma:</b><br>"//
-				+ "Enter the approximate radii of the structures you are " //
-				+ "tracing, separated by comma. The default is the average of voxel dimensions " //
-				+ "(anisotropic images) or twice the voxel size (isotropic). For the current " //
-				+ "image the default is " + SNTUtils.formatDouble(hc.getDefaultSigma()[0], 2) //
-				+ plugin.spacing_units + ".", sigmaField};
-		final int result = JOptionPane.showConfirmDialog(this, contents, "Hessian Settings",
-				JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
-		if (result == JOptionPane.OK_OPTION) {
-			List<Double> settings = new ArrayList<>();
-			String[] items = sigmaField.getText().split(",");
-			for (String item : items) {
-				double sigma = Double.parseDouble(item.trim());
-				if (Double.isNaN(sigma) || sigma <= 0) {
-					guiUtils.error("Sigmas must be positive numbers.", "Invalid Input");
-					return;
-				}
-				settings.add(sigma);
-			}
-			secLayerBuiltinRadioButton.setSelected(false);
-			hc.setSigmas(settings);
-			//hc.start();
-		}
 	}
 
 	private void arrangeDialogs() {
@@ -3619,7 +3525,8 @@ public class SNTUI extends JDialog {
 	}
 
 	private void noSecondaryDataAvailableError() {
-		guiUtils.error("No secondary layer has been generated. Please generate it first.", "Secondary Layer Unavailable");
+		guiUtils.error("No secondary image has been defined. Please create or load one first.", "Secondary Image Unavailable");
+		enableSecondaryLayerTracing(false);
 	}
 
 	protected void toggleSecondaryLayerTracing() {
@@ -3703,9 +3610,6 @@ public class SNTUI extends JDialog {
 
 	private class GuiListener
 			implements ActionListener, ItemListener, ImageListener {
-
-		private final static String EDIT_SIGMA_MANUALLY = "Adjust Manually...";
-		private final static String EDIT_SIGMA_VISUALLY = "Adjust Visually...";
 
 		public GuiListener() {
 			ImagePlus.addImageListener(this);
@@ -3792,8 +3696,7 @@ public class SNTUI extends JDialog {
 						enableSecondaryLayerBuiltin(true);
 					} else if (secLayerExternalRadioButton.isSelected()) {
 						if (!plugin.isSecondaryImageFileLoaded()) {
-							enableSecondaryLayerTracing(false);
-							noSecondaryImgFileAvailableError();
+							noSecondaryDataAvailableError();
 							return;
 						}
 						enableSecondaryLayerExternal(true);
@@ -3808,7 +3711,7 @@ public class SNTUI extends JDialog {
 				if (!plugin.isSecondaryImageFileLoaded() ) {
 					noSecondaryImgFileAvailableError();
 					enableSecondaryLayerExternal(false);
-					enableSecondaryLayerBuiltin(true);
+					enableSecondaryLayerBuiltin(true); //FIXME: IS this needed?
 				}
 
 			} else if (source == saveMenuItem && !noPathsError()) {
@@ -3898,15 +3801,6 @@ public class SNTUI extends JDialog {
 
 				toggleFillListVisibility();
 
-			} else if (e.getActionCommand().equals(EDIT_SIGMA_MANUALLY)) {
-
-				final Boolean wizardChoice = userPreferstoRunWizard("No. Adjust Manually...");
-				if (wizardChoice == null || wizardChoice) return;
-				setSigmaFromUser();
-
-			} else if (e.getActionCommand().equals(EDIT_SIGMA_VISUALLY)) {
-				changeState(WAITING_FOR_SIGMA_POINT_I);
-				plugin.setCanvasLabelAllPanes("Choosing Sigma");
 			}
 
 		}
