@@ -2347,8 +2347,12 @@ public class SNT extends MultiDThreePanes implements
 	 *
 	 * @return true, if image has been loaded into memory.
 	 */
-	public boolean isSecondaryImageLoaded() {
+	public boolean isSecondaryDataAvailable() {
 		return getSecondaryData() != null;
+	}
+
+	public boolean isSecondaryImageFileLoaded() {
+		return secondaryImageFile != null;
 	}
 
 	protected boolean inputImageLoaded() {
@@ -2356,7 +2360,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected boolean isTracingOnSecondaryImageAvailable() {
-		return isSecondaryImageLoaded() || tubularGeodesicsTracingEnabled;
+		return isSecondaryDataAvailable() || tubularGeodesicsTracingEnabled;
 	}
 
 	/**
@@ -2378,13 +2382,13 @@ public class SNT extends MultiDThreePanes implements
 	 * @throws IOException              If image could not be loaded
 	 * @throws IllegalArgumentException if dimensions are unexpected, or image type
 	 *                                  is not supported
-	 * @see #isSecondaryImageLoaded()
+	 * @see #isSecondaryDataAvailable()
 	 * @see #getSecondaryDataAsImp()
 	 */
 	public void loadSecondaryImage(final File file) throws IOException, IllegalArgumentException {
 		final ImagePlus imp = openCachedDataImage(file);
 		loadSecondaryImage(imp, true);
-		setSecondaryImage(isSecondaryImageLoaded() ? file : null);
+		setSecondaryImage(isSecondaryDataAvailable() && isSecondaryImageFileLoaded() ? file : null);
 	}
 
 	public void loadSecondaryImage(final ImagePlus imp) throws IllegalArgumentException {
@@ -2501,7 +2505,7 @@ public class SNT extends MultiDThreePanes implements
 	 * ImagePlus object. Returned image is always of 32-bit type.
 	 *
 	 * @return the loaded data or null if no image has been loaded.
-	 * @see #isSecondaryImageLoaded()
+	 * @see #isSecondaryDataAvailable()
 	 * @see #loadSecondaryImage(ImagePlus)
 	 * @see #loadSecondaryImage(File)
 	 */
@@ -3122,7 +3126,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected boolean isTracingOnSecondaryImageActive() {
-		return doSearchOnSecondaryData && isSecondaryImageLoaded();
+		return doSearchOnSecondaryData && isSecondaryDataAvailable();
 	}
 
 	/**

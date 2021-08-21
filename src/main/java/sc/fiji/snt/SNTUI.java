@@ -970,7 +970,7 @@ public class SNTUI extends JDialog {
 		if (!reload)
 			plugin.getImagePlus().setPosition(newC, plugin.getImagePlus().getZ(), newT);
 		plugin.showMIPOverlays(0);
-		if (plugin.isSecondaryImageLoaded()) {
+		if (plugin.isSecondaryDataAvailable()) {
 			final String[] choices = new String[] { "Unload. I'll load new data manually", "Reload",
 			"Do nothing. Leave as is" };
 			final String defChoice = plugin.getPrefs().getTemp("secreload", (reload) ? choices[1] : choices[0]);
@@ -1969,7 +1969,7 @@ public class SNTUI extends JDialog {
 		// Built-in filters:
 		secLayerGenerate =  GuiUtils.smallButton("Choose...");
 		secLayerGenerate.addActionListener(event -> {
-			if (plugin.isSecondaryImageLoaded()
+			if (plugin.isSecondaryDataAvailable()
 					&& !guiUtils.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
 				return;
 			}
@@ -2017,7 +2017,7 @@ public class SNTUI extends JDialog {
 		secLayerExternalImgLoadFlushMenuItem = new JMenuItem("Choose File...");
 		secLayerExternalImgLoadFlushMenuItem.addActionListener(e -> {
 			// toggle menuitem: label is updated before menu is shown as per #optionsButton
-			if (plugin.isSecondaryImageLoaded()) {
+			if (plugin.isSecondaryDataAvailable()) {
 				if (!guiUtils.getConfirmation("Disable access to secondary image?", "Unload Image?"))
 					return;
 				flushSecondaryData();
@@ -2032,8 +2032,8 @@ public class SNTUI extends JDialog {
 		final JMenuItem revealMenuItem = new JMenuItem("Reveal Loaded File in File Explorer");
 		revealMenuItem.addActionListener(e -> {
 			try {
-				if (!plugin.isSecondaryImageLoaded()) {
-					noSecondaryImgAvailableError();
+				if (!plugin.isSecondaryImageFileLoaded()) {
+					noSecondaryImgFileAvailableError();
 					return;
 				}
 				if (SNTUtils.fileAvailable(plugin.getFilteredImageFile())) {
@@ -2049,8 +2049,8 @@ public class SNTUI extends JDialog {
 		});
 		final JMenuItem showImpMenuItem = new JMenuItem("Display Loaded Image");
 		showImpMenuItem.addActionListener(e -> {
-			if (!plugin.isSecondaryImageLoaded()) {
-				noSecondaryImgAvailableError();
+			if (!plugin.isSecondaryImageFileLoaded()) {
+				noSecondaryImgFileAvailableError();
 				return;
 			}
 			final ImagePlus imp = plugin.getSecondaryDataAsImp();
@@ -2101,8 +2101,8 @@ public class SNTUI extends JDialog {
 		final JSpinner mipSpinner = GuiUtils.integerSpinner(20, 10, 80, 1, true);
 		mipSpinner.addChangeListener(e -> secLayerExternalImgOverlayCheckbox.setSelected(false));
 		secLayerExternalImgOverlayCheckbox.addActionListener(e -> {
-			if (!plugin.isSecondaryImageLoaded()) {
-				noSecondaryImgAvailableError();
+			if (!plugin.isSecondaryImageFileLoaded()) {
+				noSecondaryImgFileAvailableError();
 				return;
 			}
 			plugin.showMIPOverlays(true,
@@ -2157,7 +2157,7 @@ public class SNTUI extends JDialog {
 			return;
 		}
 		if (plugin.getSecondaryData() == null) {
-			noSecondaryImgAvailableError();
+			noSecondaryDataAvailableError();
 		}
 		final RandomAccessibleInterval<T> data = plugin.getSecondaryData();
 		displayRAI(data, "Secondary Layer");
@@ -2191,7 +2191,7 @@ public class SNTUI extends JDialog {
 			@Override
 			public void mousePressed(final MouseEvent e) {
 				// Update menuitem labels in case we ended-up in some weird UI state
-				if (plugin.isSecondaryImageLoaded()) {
+				if (plugin.isSecondaryDataAvailable()) {
 					secLayerExternalImgLoadFlushMenuItem.setText("Flush Loaded Image...");
 					secLayerExternalImgLoadFlushMenuItem.setIcon(IconFactory.getMenuIcon(GLYPH.TRASH));
 				} else {
@@ -2352,7 +2352,7 @@ public class SNTUI extends JDialog {
 			}
 			//GuiUtils.enableComponents(secondaryImgOverlayCheckbox.getParent(), successfullyLoaded);
 			secLayerExternalImgOverlayCheckbox.setEnabled(plugin.isTracingOnSecondaryImageAvailable());
-			secLayerExternalImgLoadFlushMenuItem.setText((plugin.isSecondaryImageLoaded()) ? "Choose File..." : "Flush Loaded Image...");
+			secLayerExternalImgLoadFlushMenuItem.setText((plugin.isSecondaryDataAvailable()) ? "Choose File..." : "Flush Loaded Image...");
 		});
 	}
 
@@ -3576,25 +3576,50 @@ public class SNTUI extends JDialog {
 	}
 
 	protected void enableSecondaryLayerTracing(final boolean enable) {
-		if (plugin.getSecondaryData() != null) {
-			plugin.doSearchOnSecondaryData = enable;
-			secLayerActivateCheckbox.setSelected(enable);
-		} else if (enable) {
+		if (enable) {
 			if (!plugin.accessToValidImageData()) {
 				noValidImageDataError();
-			} else if (!plugin.isSecondaryImageLoaded()){
-				noSecondaryImgAvailableError();
+				plugin.doSearchOnSecondaryData = false;
+				secLayerActivateCheckbox.setSelected(false);
+				return;
 			}
+			if (!plugin.isSecondaryDataAvailable()) {
+				noSecondaryDataAvailableError();
+				plugin.doSearchOnSecondaryData = false;
+				secLayerActivateCheckbox.setSelected(false);
+				return;
+			}
+			plugin.doSearchOnSecondaryData = true;
+			secLayerActivateCheckbox.setSelected(true);
+		} else {
+			plugin.doSearchOnSecondaryData = false;
 			secLayerActivateCheckbox.setSelected(false);
 		}
 		updateSettingsString();
+//		if (plugin.getSecondaryData() != null) {
+//			plugin.doSearchOnSecondaryData = enable;
+//			secLayerActivateCheckbox.setSelected(enable);
+//		} else if (enable) {
+//			if (!plugin.accessToValidImageData()) {
+//				noValidImageDataError();
+//			} else if (!plugin.isSecondaryDataAvailable()){
+//				noSecondaryDataAvailableError();
+//			}
+//			secLayerActivateCheckbox.setSelected(false);
+//			plugin.doSearchOnSecondaryData = false;
+//		}
+//		updateSettingsString();
 	}
 
-	private void noSecondaryImgAvailableError() {
+	private void noSecondaryImgFileAvailableError() {
 		guiUtils.error("No secondary image has been loaded. Please load it first.", "Secondary Image Unavailable");
 		secLayerExternalImgOverlayCheckbox.setSelected(false);
 		secLayerExternalRadioButton.setSelected(false);
-		plugin.doSearchOnSecondaryData = false;
+//		plugin.doSearchOnSecondaryData = false;
+	}
+
+	private void noSecondaryDataAvailableError() {
+		guiUtils.error("No secondary layer has been generated. Please generate it first.", "Secondary Layer Unavailable");
 	}
 
 	protected void toggleSecondaryLayerTracing() {
@@ -3752,34 +3777,40 @@ public class SNTUI extends JDialog {
 
 			if (source == secLayerActivateCheckbox) {
 
-				if (secLayerActivateCheckbox.isSelected() && !plugin.accessToValidImageData()) {
-					secLayerActivateCheckbox.setSelected(false);
-					noValidImageDataError();
-					return;
-				}
-				if (secLayerBuiltinRadioButton.isSelected()) {
-					if (!secLayerActivateCheckbox.isSelected()) {
-						return; // do nothing
-					}
-					if (plugin.getSecondaryData() == null) {
-						noSecondaryImgAvailableError();
+				if (secLayerActivateCheckbox.isSelected()) {
+					if (!plugin.accessToValidImageData()) {
+						enableSecondaryLayerTracing(false);
+						noValidImageDataError();
 						return;
 					}
-					enableSecondaryLayerTracing(true);
-					// TODO: Figure out how to proceed
-
-				} else if (secLayerExternalRadioButton.isSelected()) {
-					if (plugin.isSecondaryImageLoaded()) {
+					if (secLayerBuiltinRadioButton.isSelected()) {
+						if (!plugin.isSecondaryDataAvailable()) {
+							enableSecondaryLayerTracing(false);
+							noSecondaryDataAvailableError();
+							return;
+						}
+						enableSecondaryLayerBuiltin(true);
+					} else if (secLayerExternalRadioButton.isSelected()) {
+						if (!plugin.isSecondaryImageFileLoaded()) {
+							enableSecondaryLayerTracing(false);
+							noSecondaryImgFileAvailableError();
+							return;
+						}
 						enableSecondaryLayerExternal(true);
-					} else {
-						secLayerActivateCheckbox.setSelected(false);
-						noSecondaryImgAvailableError();
 					}
+					enableSecondaryLayerTracing(true);
+
+				} else {
+					enableSecondaryLayerTracing(false);
 				}
 
 			} else if (source == secLayerExternalRadioButton) {
-				if (!plugin.isSecondaryImageLoaded() )
+				if (!plugin.isSecondaryImageFileLoaded() ) {
+					noSecondaryImgFileAvailableError();
 					enableSecondaryLayerExternal(false);
+					enableSecondaryLayerBuiltin(true);
+				}
+
 			} else if (source == saveMenuItem && !noPathsError()) {
 
 				final File saveFile = saveFile("Save Traces As...", null, ".traces");
