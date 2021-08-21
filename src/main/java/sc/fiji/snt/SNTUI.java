@@ -1913,6 +1913,7 @@ public class SNTUI extends JDialog {
 
 		final GridBagConstraints c = GuiUtils.defaultGbc();
 		GuiUtils.addSeparator(settingsPanel, GuiUtils.leftAlignedLabel("Computation Settings:", true), true, c);
+		c.fill = GridBagConstraints.BOTH; // avoid collapsing of panel on resizing
 		++c.gridy;
 		settingsPanel.add(sp, c);
 
@@ -1992,10 +1993,12 @@ public class SNTUI extends JDialog {
 		});
 
 		final JButton builtinFilterOptionsButton = optionsButton(builtinFilterOptionsMenu);
+		guiUtils.addTooltip(builtinFilterOptionsButton, "Image processing utilities");
 
 		// Options for builtinFilterPanel
 		final JPopupMenu externalImgOptionsMenu = new JPopupMenu();
 		secLayerExternalImgOptionsButton = optionsButton(externalImgOptionsMenu);
+		guiUtils.addTooltip(secLayerExternalImgOptionsButton, "Controls for handling external images");
 
 		// Assemble options menu
 		secLayerExternalImgLoadFlushMenuItem = new JMenuItem("Choose File...");
@@ -2761,13 +2764,13 @@ public class SNTUI extends JDialog {
 
 		final JPopupMenu optionsMenu = new JPopupMenu();
 		final JButton optionsButton = optionsButton(optionsMenu);
+		guiUtils.addTooltip(optionsButton, "Algorithm settings");
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Data Structure:", false));
 		final ButtonGroup dataStructureButtonGroup = new ButtonGroup();
 
-		@SuppressWarnings("rawtypes")
 		final Map<String, SNT.SearchImageType> searchMap = new LinkedHashMap<>();
-		searchMap.put("Map (lightweight)", SNT.SearchImageType.MAP);
-		searchMap.put("Array (fast)", SNT.SearchImageType.ARRAY);
+		searchMap.put("Map (Lightweight)", SNT.SearchImageType.MAP);
+		searchMap.put("Array (Fast)", SNT.SearchImageType.ARRAY);
 		searchMap.forEach((lbl, type) -> {
 			final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
 			dataStructureButtonGroup.add(rbmi);

@@ -231,6 +231,14 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	private void defaults() {
 		numThreads = SNTPrefs.getThreads();
 		useLazyChoice = LAZY_LOADING_FALSE;
+		sigmas = new ArrayList<>();
+		final double minSep = snt.getMinimumSeparation(); // FIXME: This should be the avgSeparation?
+		sigmas.add(minSep);
+		sigmas.add(2 * minSep);
+		sigmas.add(3 * minSep);
+		updateSigmasField();
+		show = false;
+		save = false;
 	}
 
 	@SuppressWarnings("unused")
