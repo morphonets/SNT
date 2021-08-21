@@ -391,12 +391,10 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	}
 
 	private double[] getSigmas() {
-		if (sigmas != null) {
-			// values have been set from the sigma palette
-			return sigmas.stream().mapToDouble(Double::doubleValue).toArray();
-		}
 		if (sizeOfStructuresString != null && !sizeOfStructuresString.trim().isEmpty()) {
-			// read from prompt in case user entered values
+			// interactive prompt: values may have been set by the user, the sigma palette or both.
+			// The easiest is to simply read the values in the field, even if we may be loosing
+			// precision from the ping-pongie  double>String>double conversion
 			try {
 				final Matcher matcher = Pattern.compile("(\\d+(?:\\.\\d+)?)").matcher(sizeOfStructuresString);
 				sigmas = new ArrayList<>();
@@ -407,16 +405,18 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 			} catch (final NumberFormatException e) {
 				return null;
 			}
+		} else if (sigmas != null) { // values have been set from the sigma palette only!?
+			return sigmas.stream().mapToDouble(Double::doubleValue).toArray();
 		}
-		// no values exist. Some logic to read values from elsewwhere could go here
-		return snt.getSigmas(true); //FIXME:getHessianSigma() is in limbo. Better to return null?
+		// else no values exist.
+		return snt.getSigmas(true);
 	}
 
 	private void updateSigmasField() {
 		if (sigmas == null) {
 			sizeOfStructuresString = "";
 		} else {
-			final DecimalFormat df = new DecimalFormat("0.00");
+			final DecimalFormat df = new DecimalFormat("0.000");
 			final StringBuilder sb = new StringBuilder();
 			sigmas.forEach(s -> sb.append(df.format(s)).append(", "));
 			sb.setLength(sb.length() - 2);
