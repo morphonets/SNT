@@ -2825,17 +2825,17 @@ public class SNTUI extends JDialog {
 
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Min-Max:", false));
 		final ButtonGroup minMaxButtonGroup = new ButtonGroup();
-		JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem("Compute While Tracing (Default)", true); // FIXME: Read from plugin
+		JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem("Compute While Tracing", plugin.useSubVolumeStats);
 		minMaxButtonGroup.add(rbmi);
 		optionsMenu.add(rbmi);
-		rbmi.addActionListener(e -> {
-			// FIXME: Implement
-		});
+		rbmi.addActionListener(e -> plugin.setUseSubVolumeStats(true));
 		rbmi = new JRadioButtonMenuItem("Specify Fixed Range...");
 		minMaxButtonGroup.add(rbmi);
 		optionsMenu.add(rbmi);
-		rbmi.addActionListener(e -> setMinMaxFromUser());
-
+		rbmi.addActionListener(e -> {
+			plugin.setUseSubVolumeStats(false);
+			setMinMaxFromUser();
+		});
 		aStarPanel = new JPanel(new BorderLayout());
 		aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
 		aStarPanel.add(optionsButton, BorderLayout.EAST);

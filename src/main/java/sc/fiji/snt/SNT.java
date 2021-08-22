@@ -219,7 +219,7 @@ public class SNT extends MultiDThreePanes implements
 	private HeuristicType heuristicType = HeuristicType.EUCLIDEAN;
 
 	/* Compute image statistics on the bounding box sub-volume given by the start and goal nodes */
-	protected volatile boolean useSubVolumeStats = true;
+	protected volatile boolean useSubVolumeStats = false;
 
 	/* adjustable parameters for cost functions */
 	protected volatile double oneMinusErfZFudge = 0.1;

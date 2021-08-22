@@ -365,6 +365,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	@SuppressWarnings("unchecked")
 	private void apply() {
 		snt.loadSecondaryImage(filteredImg, !useLazy);
+		snt.setUseSubVolumeStats(useLazy);
 		if (show) {
 			displayService.createDisplay(getImageName(), filteredImg); // virtual stack!?
 //			ImageJFunctions.show(filteredImg, getImageName());
