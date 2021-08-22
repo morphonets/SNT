@@ -314,7 +314,7 @@ public class BidirectionalSearch extends AbstractSearch {
 
         for (int zdiff = -1; zdiff <= 1; zdiff++) {
             final int new_z = p.z + zdiff;
-            if (new_z < intervalMin[2] || new_z > intervalMax[2]) continue;
+            if (new_z < zMin || new_z > zMax) continue;
             SearchImage<BidirectionalSearchNode> currentSlice = nodes_as_image.getSlice(new_z);
             if (currentSlice == null) {
                 currentSlice = nodes_as_image.newSlice(new_z);
@@ -324,8 +324,8 @@ public class BidirectionalSearch extends AbstractSearch {
                     if ((xdiff == 0) && (ydiff == 0) && (zdiff == 0)) continue;
                     final int new_x = p.x + xdiff;
                     final int new_y = p.y + ydiff;
-                    if (new_x < intervalMin[0] || new_x > intervalMax[0]) continue;
-                    if (new_y < intervalMin[1] || new_y > intervalMax[1]) continue;
+                    if (new_x < xMin || new_x > xMax) continue;
+                    if (new_y < yMin || new_y > yMax) continue;
 
                     BidirectionalSearchNode alreadyThereInEitherSearch = currentSlice.getValue(new_x, new_y);
 

@@ -29,24 +29,34 @@ import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
 
 import java.awt.*;
 import java.util.ArrayList;
 
+/**
+ * Abstract class for path-finding over {@link RandomAccessibleInterval}s
+ *
+ * @author Cameron Arshadi
+ */
 public abstract class AbstractSearch implements SearchInterface, Runnable {
 
-    protected RandomAccessibleInterval<? extends RealType<?>> img;
-    protected RandomAccess<? extends RealType<?>> imgAccess;
-    protected double xSep;
-    protected double ySep;
-    protected double zSep;
-    protected String spacing_units;
-    protected int imgWidth;
-    protected int imgHeight;
-    protected int imgDepth;
-    protected long[] intervalMin;
-    protected long[] intervalMax;
+    protected final RandomAccessibleInterval<? extends RealType<?>> img;
+    protected final RandomAccess<? extends RealType<?>> imgAccess;
+    protected final double xSep;
+    protected final double ySep;
+    protected final double zSep;
+    protected final String spacing_units;
+    protected final int imgWidth;
+    protected final int imgHeight;
+    protected final int imgDepth;
+    protected final long xMin;
+    protected final long yMin;
+    protected final long zMin;
+    protected final long xMax;
+    protected final long yMax;
+    protected final long zMax;
 
     protected Color openColor;
     protected Color closedColor;
@@ -59,6 +69,7 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
     protected int exitReason;
     protected final boolean verbose = SNTUtils.isDebugMode();
     protected int minExpectedSize;
+
 
     protected AbstractSearch(final ImagePlus imagePlus, final int timeoutSeconds, final long reportEveryMilliseconds)
     {
@@ -80,8 +91,14 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
         this.imgWidth = (int) this.img.dimension(0);
         this.imgHeight = (int) this.img.dimension(1);
         this.imgDepth = (int) this.img.dimension(2);
-        this.intervalMin = this.img.minAsLongArray();
-        this.intervalMax = this.img.maxAsLongArray();
+        final long[] intervalMin = Intervals.minAsLongArray(img);
+        this.xMin = intervalMin[0];
+        this.yMin = intervalMin[1];
+        this.zMin = intervalMin[2];
+        final long[] intervalMax = Intervals.maxAsLongArray(img);
+        this.xMax = intervalMax[0];
+        this.yMax = intervalMax[1];
+        this.zMax = intervalMax[2];
         this.xSep = calibration.pixelWidth;
         this.ySep = calibration.pixelHeight;
         this.zSep = calibration.pixelDepth;
@@ -110,8 +127,14 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
         this.imgWidth = snt.width;
         this.imgHeight = snt.height;
         this.imgDepth = snt.depth;
-        this.intervalMin = this.img.minAsLongArray();
-        this.intervalMax = this.img.maxAsLongArray();
+        final long[] intervalMin = Intervals.minAsLongArray(img);
+        this.xMin = intervalMin[0];
+        this.yMin = intervalMin[1];
+        this.zMin = intervalMin[2];
+        final long[] intervalMax = Intervals.maxAsLongArray(img);
+        this.xMax = intervalMax[0];
+        this.yMax = intervalMax[1];
+        this.zMax = intervalMax[2];
         this.xSep = snt.x_spacing;
         this.ySep = snt.y_spacing;
         this.zSep = snt.z_spacing;

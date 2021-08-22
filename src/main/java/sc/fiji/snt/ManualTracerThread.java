@@ -39,9 +39,7 @@ public class ManualTracerThread extends Thread implements SearchInterface {
 	private final double goal_y;
 	private final double goal_z;
 	private final SNT plugin;
-	private final ArrayList<SearchProgressCallback> progListeners =
-		new ArrayList<>();
-	private volatile int threadStatus = SearchThread.PAUSED;
+	private final ArrayList<SearchProgressCallback> progListeners = new ArrayList<>();
 	private Path result;
 
 	public ManualTracerThread(final SNT plugin,
@@ -66,7 +64,6 @@ public class ManualTracerThread extends Thread implements SearchInterface {
 		result.setCTposition(plugin.channel, plugin.frame);
 		result.addPointDouble(start_x, start_y, start_z);
 		result.addPointDouble(goal_x, goal_y, goal_z);
-		threadStatus = SearchThread.SUCCESS;
 		for (final SearchProgressCallback progress : progListeners)
 			progress.finished(this, true);
 	}
@@ -83,26 +80,10 @@ public class ManualTracerThread extends Thread implements SearchInterface {
 		// do nothing.
 	}
 
-	public int getThreadStatus() {
-		return threadStatus;
-	}
-
-	public void requestStop() {
-		synchronized (this) {
-			if (threadStatus == SearchThread.PAUSED) this.interrupt();
-			threadStatus = SearchThread.STOPPING;
-			reportThreadStatus();
-		}
-	}
-
 	public void addProgressListener(final SearchProgressCallback callback) {
 		progListeners.add(callback);
 	}
 
-	public void reportThreadStatus() {
-		for (final SearchProgressCallback progress : progListeners)
-			progress.threadStatus(this, threadStatus);
-	}
 
 
 }

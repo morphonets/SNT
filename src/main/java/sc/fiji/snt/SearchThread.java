@@ -83,14 +83,19 @@ public abstract class SearchThread extends AbstractSearch {
 	protected AddressableHeap<DefaultSearchNode, Void> open_from_start;
 	private AddressableHeap<DefaultSearchNode, Void> open_from_goal;
 
-	private long closed_from_start_count;
-	private long closed_from_goal_count;
+	protected long closed_from_start_count;
+	protected long closed_from_goal_count;
 
 	protected SearchImageStack<DefaultSearchNode> nodes_as_image_from_start;
 	protected SearchImageStack<DefaultSearchNode> nodes_as_image_from_goal;
 
 	protected int exitReason;
-	private final boolean verbose = SNTUtils.isDebugMode();
+	protected final boolean verbose = SNTUtils.isDebugMode();
+
+	protected long started_at;
+	protected long loops;
+	protected long loops_at_last_report;
+	protected long lastReportMilliseconds;
 
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
 	public SearchThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
@@ -198,13 +203,37 @@ public abstract class SearchThread extends AbstractSearch {
 
 	@Override
 	public void printStatus() {
-		System.out.println("... Start nodes: open=" + open_from_start.size() +
+		SNTUtils.log("... Start nodes: open=" + open_from_start.size() +
 			" closed=" + closed_from_start_count);
 		if (bidirectional) {
-			System.out.println("...  Goal nodes: open=" + open_from_goal.size() +
+			SNTUtils.log("...  Goal nodes: open=" + open_from_goal.size() +
 				" closed=" + closed_from_goal_count);
 		}
-		else System.out.println(" ... unidirectional search");
+		else SNTUtils.log(" ... unidirectional search");
+	}
+
+	protected boolean checkStatus() {
+		final long currentMilliseconds = System.currentTimeMillis();
+		final long millisecondsSinceStart = currentMilliseconds - started_at;
+
+		if ((timeoutSeconds > 0) && (millisecondsSinceStart > (1000L * timeoutSeconds))) {
+			return true;
+		}
+
+		final long since_last_report = currentMilliseconds - lastReportMilliseconds;
+		if ((reportEveryMilliseconds > 0) && (since_last_report > reportEveryMilliseconds)) {
+			final long loops_since_last_report = loops - loops_at_last_report;
+			if (verbose) {
+				System.out.println("" + (since_last_report / (double) loops_since_last_report) + "ms/loop");
+				printStatus();
+			}
+
+			reportPointsInSearch();
+
+			loops_at_last_report = loops;
+			lastReportMilliseconds = currentMilliseconds;
+		}
+		return false;
 	}
 
 	@Override
@@ -217,16 +246,7 @@ public abstract class SearchThread extends AbstractSearch {
 				printStatus();
 			}
 
-			synchronized (this) {
-				threadStatus = RUNNING;
-				reportThreadStatus();
-			}
-
-			long lastReportMilliseconds;
-			final long started_at = lastReportMilliseconds = System.currentTimeMillis();
-
-			int loops_at_last_report = 0;
-			int loops = 0;
+			started_at = lastReportMilliseconds = System.currentTimeMillis();
 
 			/*
 			 * We maintain the list of nodes in the search in a couple of different data
@@ -238,6 +258,7 @@ public abstract class SearchThread extends AbstractSearch {
 			 */
 
 			final int[] imgPosition = new int[3];
+
 			while ((open_from_start.size() > 0) || (bidirectional && (open_from_goal
 				.size() > 0)))
 			{
@@ -257,39 +278,11 @@ public abstract class SearchThread extends AbstractSearch {
 				// We only check every thousandth loop for
 				// whether we should report the progress, etc.
 
-				if (0 == (loops % 10000)) {
-
-					final long currentMilliseconds = System.currentTimeMillis();
-
-					final long millisecondsSinceStart = currentMilliseconds - started_at;
-
-					if ((timeoutSeconds > 0) && (millisecondsSinceStart > (1000L * timeoutSeconds)))
-					{
-						if (verbose) System.out.println("Timed out...");
-						setExitReason(TIMED_OUT);
-						reportFinished(false);
-						return;
-					}
-
-					final long since_last_report = currentMilliseconds -
-							lastReportMilliseconds;
-
-					if ((reportEveryMilliseconds > 0) &&
-						(since_last_report > reportEveryMilliseconds))
-					{
-						final int loops_since_last_report = loops - loops_at_last_report;
-
-						if (verbose) {
-							System.out.println("" + (since_last_report / (double)loops_since_last_report) + "ms/loop");
-							printStatus();
-						}
-
-						reportPointsInSearch();
-
-						loops_at_last_report = loops;
-
-						lastReportMilliseconds = currentMilliseconds;
-					}
+				if (0 == (loops % 10000) && checkStatus()) {
+					SNTUtils.log("Timed out...");
+					setExitReason(TIMED_OUT);
+					reportFinished(false);
+					return;
 				}
 
 				boolean fromStart = true;
@@ -338,7 +331,7 @@ public abstract class SearchThread extends AbstractSearch {
 				for (int zdiff = -1; zdiff <= 1; zdiff++) {
 
 					final int new_z = p.z + zdiff;
-					if (new_z < intervalMin[2] || new_z > intervalMax[2]) continue;
+					if (new_z < zMin || new_z > zMax) continue;
 
 					if (nodes_as_image_this_search.getSlice(new_z) == null) {
 						nodes_as_image_this_search.newSlice(new_z);
@@ -350,10 +343,10 @@ public abstract class SearchThread extends AbstractSearch {
 							if ((xdiff == 0) && (ydiff == 0) && (zdiff == 0)) continue;
 
 							final int new_x = p.x + xdiff;
-							if (new_x < intervalMin[0] || new_x > intervalMax[0]) continue;
+							if (new_x < xMin || new_x > xMax) continue;
 
 							final int new_y = p.y + ydiff;
-							if (new_y < intervalMin[1] || new_y > intervalMax[1]) continue;
+							if (new_y < yMin || new_y > yMax) continue;
 
 							final double xdiffsq = (xdiff * xSep) * (xdiff * xSep);
 							final double ydiffsq = (ydiff * ySep) * (ydiff * ySep);
@@ -374,11 +367,6 @@ public abstract class SearchThread extends AbstractSearch {
 
 							final double g_for_new_point = (p.g + Math.sqrt(xdiffsq +
 								ydiffsq + zdiffsq) * cost_moving_to_new_point);
-
-							if (!definedGoal && g_for_new_point > drawingThreshold) {
-								// Only fill up to the threshold
-								continue;
-							}
 
 							final double f_for_new_point = h_for_new_point + g_for_new_point;
 
@@ -489,11 +477,6 @@ public abstract class SearchThread extends AbstractSearch {
 				setExitReason(POINTS_EXHAUSTED);
 				reportFinished(false);
 			}
-			else {
-				if (verbose) System.out.println("Fill complete for thread " + Thread.currentThread());
-				setExitReason(SUCCESS);
-				reportFinished(true);
-			}
 
 		}
 		catch (final OutOfMemoryError oome) {
@@ -598,6 +581,8 @@ public abstract class SearchThread extends AbstractSearch {
 
 			slice.setValue(n.x, n.y, n);
 
+		} else {
+			throw new IllegalArgumentException("BUG: Unknown status for SearchNode: " + n.searchStatus);
 		}
 
 	}
