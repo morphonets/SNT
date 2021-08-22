@@ -792,6 +792,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 		if (cancelFillToo && fillerThreadPool != null) {
 			stopFilling();
+			discardFill();
 		}
 	}
 
@@ -808,7 +809,7 @@ public class SNT extends MultiDThreePanes implements
 		return (ui == null) ? -1 : ui.getState();
 	}
 
-	synchronized protected void saveFill() throws IllegalArgumentException {
+	synchronized protected void saveFill() {
 		if (fillerSet.isEmpty()) {
 			throw new IllegalArgumentException("No fills available.");
 		}
@@ -824,7 +825,7 @@ public class SNT extends MultiDThreePanes implements
 			getUI().getFillManager().changeState(FillManagerUI.READY);
 	}
 
-	synchronized protected void discardFill(final boolean updateState) {
+	synchronized protected void discardFill() {
 		if (fillerSet.isEmpty()) {
 			SNTUtils.log("No Fill(s) to discard...");
 		}
@@ -838,10 +839,11 @@ public class SNT extends MultiDThreePanes implements
 			getUI().getFillManager().changeState(FillManagerUI.READY);
 	}
 
-	synchronized protected void stopFilling() throws IllegalArgumentException {
+	synchronized protected void stopFilling() {
 
 		if (fillerThreadPool == null) {
-			throw new IllegalArgumentException("No filler threads are currently running.");
+			SNTUtils.log("No filler threads are currently running.");
+			return;
 		}
 		fillerThreadPool.shutdown();
 		try {
@@ -860,12 +862,12 @@ public class SNT extends MultiDThreePanes implements
 		} finally {
 			fillerThreadPool = null;
 			if (getUI() != null)
-				getUI().getFillManager().changeState(FillManagerUI.ENDED);
+				getUI().getFillManager().changeState(FillManagerUI.ABORTED);
 		}
 
 	}
 
-	synchronized protected void startFilling() throws IllegalArgumentException {
+	synchronized protected void startFilling() {
 		if (fillerSet.isEmpty()) {
 			throw new IllegalArgumentException("No Filters loaded");
 		}
@@ -890,10 +892,17 @@ public class SNT extends MultiDThreePanes implements
 			}
 			@Override
 			protected void done() {
+				// FIXME: this is a bad solution to make sure we get the correct state when cancelling
 				stopFilling();
-				SNTUtils.log("All fills completed.");
 				if (ui != null) {
-					ui.getFillManager().allFillsFinished(true);
+					if (fillerSet.isEmpty()) {
+						// This means someone called discardFills() before all future tasks returned
+						ui.getFillManager().changeState(FillManagerUI.READY);
+					} else {
+						boolean allSucceeded = fillerSet.stream()
+								.noneMatch(f -> f.getExitReason() == SearchThread.CANCELLED);
+						ui.getFillManager().changeState(allSucceeded ? FillManagerUI.ENDED : FillManagerUI.ABORTED);
+					}
 				}
 			}
 		};
@@ -2284,7 +2293,6 @@ public class SNT extends MultiDThreePanes implements
 		filler.addProgressListener(ui.getFillManager());
 		filler.setSourcePaths(fromPaths);
 		fillerSet.add(filler);
-		//SNTUtils.log("# FillerThreads: " + fillerSet.size());
 		if (ui != null) ui.setFillListVisible(true);
 		changeUIState(SNTUI.FILLING_PATHS);
 	}

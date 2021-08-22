@@ -85,13 +85,13 @@ public class Fill {
 		sourcePaths.addAll(newSourcePaths);
 	}
 
-	public String metric;
+	public SNT.CostType metric;
 
-	public void setMetric(final String metric) {
-		this.metric = metric;
+	public void setMetric(final SNT.CostType cost) {
+		this.metric = cost;
 	}
 
-	public String getMetric() {
+	public SNT.CostType getMetric() {
 		return metric;
 	}
 
@@ -135,7 +135,7 @@ public class Fill {
 			pw.print("\"");
 		}
 		pw.print(" volume=\"" + getVolume() + "\"");
-		pw.println(" metric=\"" + getMetric() + "\" threshold=\"" + getThreshold() +
+		pw.println(" metric=\"" + getMetric().toString() + "\" threshold=\"" + getThreshold() +
 			"\">");
 		writeNodesXML(pw);
 		pw.println("  </fill>");

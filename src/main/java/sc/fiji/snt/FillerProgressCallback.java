@@ -26,6 +26,4 @@ interface FillerProgressCallback extends SearchProgressCallback {
 
 	void maximumDistanceCompletelyExplored(SearchThread source, float f);
 
-	void allFillsFinished(boolean allSucceeded);
-
 }

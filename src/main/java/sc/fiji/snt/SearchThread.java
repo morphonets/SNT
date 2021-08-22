@@ -51,13 +51,6 @@ public abstract class SearchThread extends AbstractSearch {
 	public static final byte CLOSED_FROM_GOAL = 4;
 	public static final byte FREE = 5; // Indicates that this node isn't in a list yet...
 
-	/** Thread state: the run method is going and the thread is unpaused */
-	public static final int RUNNING = 0;
-	/** Thread state: run() hasn't been started yet or the thread is paused */
-	public static final int PAUSED = 1;
-	/** Thread state: the thread cannot be used again */
-	public static final int STOPPING = 2;
-
 	public static final int SUCCESS = 0;
 	public static final int CANCELLED = 1;
 	public static final int TIMED_OUT = 2;
@@ -65,9 +58,6 @@ public abstract class SearchThread extends AbstractSearch {
 	public static final int OUT_OF_MEMORY = 4;
 	public static final String[] EXIT_REASONS_STRINGS = { "SUCCESS", "CANCELLED",
 		"TIMED_OUT", "POINTS_EXHAUSTED", "OUT_OF_MEMORY" };
-
-	/* This can only be changed in a block synchronized on this object */
-	private volatile int threadStatus = PAUSED;
 
 	/* The search may only be bidirectional if definedGoal is true */
 	private final boolean bidirectional;
@@ -187,15 +177,6 @@ public abstract class SearchThread extends AbstractSearch {
 		progressListeners.add(callback);
 	}
 
-	public int getThreadStatus() {
-		return threadStatus;
-	}
-
-	public void reportThreadStatus() {
-		for (final SearchProgressCallback progress : progressListeners)
-			progress.threadStatus(this, threadStatus);
-	}
-
 	public void reportFinished(final boolean success) {
 		for (final SearchProgressCallback progress : progressListeners)
 			progress.finished(this, success);
@@ -264,10 +245,6 @@ public abstract class SearchThread extends AbstractSearch {
 			{
 
 				if (Thread.currentThread().isInterrupted()) {
-					synchronized (this) {
-						threadStatus = STOPPING;
-					}
-					reportThreadStatus();
 					setExitReason(CANCELLED);
 					reportFinished(false);
 					return;

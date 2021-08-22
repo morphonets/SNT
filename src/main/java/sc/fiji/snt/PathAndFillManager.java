@@ -1315,7 +1315,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected void reloadFills(int[] selectedIndices) {
 		for (int ind : selectedIndices) {
 			plugin.addFillerThread(FillerThread.fromFill(plugin.getImagePlus(),
-					plugin.getStats().min, plugin.getStats().max, allFills.get(ind)));
+					plugin.getStats(), allFills.get(ind)));
 		}
 	}
 
@@ -1866,8 +1866,17 @@ public class PathAndFillManager extends DefaultHandler implements
 
 					current_fill = new Fill();
 
+					// TODO: serialize the cost somehow?
 					final String metric = attributes.getValue("metric");
-					current_fill.setMetric(metric);
+					if (Objects.equals(metric, SNT.CostType.RECIPROCAL.toString())) {
+						current_fill.setMetric(SNT.CostType.RECIPROCAL);
+					} else if (Objects.equals(metric, SNT.CostType.DIFFERENCE.toString())) {
+						current_fill.setMetric(SNT.CostType.DIFFERENCE);
+					} else if (Objects.equals(metric, SNT.CostType.PROBABILITY.toString())) {
+						current_fill.setMetric(SNT.CostType.PROBABILITY);
+					} else {
+						current_fill.setMetric(SNT.CostType.RECIPROCAL);
+					}
 
 					last_fill_node_id = -1;
 

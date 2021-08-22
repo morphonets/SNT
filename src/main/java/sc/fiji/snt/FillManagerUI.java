@@ -294,7 +294,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		saveFill.addActionListener(this);
 		final JButton discardFill = GuiUtils.smallButton("Cancel/Discard");
 		discardFill.addActionListener( e -> {
-			plugin.discardFill(true); // will change state
+			plugin.stopFilling();
+			plugin.discardFill(); // will change state
 		});
 		final JPanel fillControlPanel = SNTUI.buttonPanel(startFill, stopFill, saveFill, discardFill);
 		statusPanel.add(fillControlPanel, BorderLayout.SOUTH);
@@ -472,16 +473,14 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			if (plugin.fillerSet.isEmpty()) {
 				if (plugin.getUI().getPathManager().selectionExists()) {
 					plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(false)));
-					// FIXME
-//					plugin.startFilling();
+					plugin.startFilling();
 				} else  {
 					final int ans = gUtils.yesNoDialog("There are no paths selected in Path Manager. Would you like to "
 							+ "fill all paths? Alternatively, you can dismiss this prompt, select subsets in the Path "
 							+ "Manager list, and re-run. ", "Fill All Paths?", "Yes. Fill all.", "No. Let me select subsets.");
 					if (ans == JOptionPane.YES_OPTION) {
 						plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(true)));
-						// FIXME
-//						plugin.startFilling();
+						plugin.startFilling();
 					}
 				}
 			} else {
@@ -620,6 +619,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				final String reason = SearchThread.EXIT_REASONS_STRINGS[((SearchThread) source).exitReason];
 				new GuiUtils(this).error("Filling thread exited prematurely (Error code: '" + reason + "'). "
 						+ "With debug mode on, see Console for details.", "Filling Error");
+			} else {
+				changeState(ABORTED);
 			}
 		}
 	}
@@ -629,21 +630,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 */
 	@Override
 	public void threadStatus(final SearchInterface source, final int currentStatus) {
-		switch (currentStatus) {
-		case SearchThread.STOPPING:
-			changeState(ABORTED);
-			break;
-		case SearchThread.RUNNING:
-			changeState(STARTED);
-			break;
-		default:
-			throw new IllegalArgumentException("Unrecognized status");
-		}
-	}
-
-	@Override
-	public void allFillsFinished(final boolean allSucceeded) {
-		changeState(ENDED);
+		// do nothing
 	}
 
 	protected void showMouseThreshold(final float t) {
@@ -699,7 +686,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 			case ENDED:
 				updateStatusText("Filling concluded... Store result?");
-				startFill.setEnabled(false);
+				startFill.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(true);
 				break;

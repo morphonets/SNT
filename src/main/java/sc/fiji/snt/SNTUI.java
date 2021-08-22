@@ -763,7 +763,7 @@ public class SNTUI extends JDialog {
 				pmUI.valueChanged(null); // Fake a selection change in the path tree:
 				showPartsNearby.setEnabled(isStackAvailable());
 				setEnableAutoTracingComponents(false, false);
-				plugin.discardFill(false);
+				plugin.discardFill();
 				fmUI.setEnabledWhileNotFilling();
 				// setFillListVisible(false);
 				loadLabelsMenuItem.setEnabled(true);
@@ -3356,7 +3356,8 @@ public class SNTUI extends JDialog {
 			break;
 		case (FILLING_PATHS):
 			showStatus("Filling out cancelled...", true);
-			plugin.discardFill(true); // will change UI state
+			plugin.stopFilling(); // will change UI state
+			plugin.discardFill();
 			return;
 		case (FITTING_PATHS):
 			showStatus("Fitting cancelled...", true);
@@ -3389,7 +3390,6 @@ public class SNTUI extends JDialog {
 			// went awry!?. Try to abort all possible lingering tasks
 			pmUI.cancelFit(true);
 			plugin.cancelSearch(true);
-			plugin.discardFill(true);
 			if (plugin.currentPath != null)
 				plugin.cancelPath();
 			if (plugin.temporaryPath != null)
