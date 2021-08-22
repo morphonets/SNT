@@ -38,6 +38,11 @@ import javax.swing.AbstractButton;
 import javax.swing.JDialog;
 import javax.swing.SwingUtilities;
 
+import net.imglib2.algorithm.neighborhood.DiamondShape;
+import net.imglib2.img.Img;
+import net.imglib2.img.array.ArrayImgFactory;
+import net.imglib2.type.numeric.real.DoubleType;
+import net.imglib2.util.Util;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.Interactive;
@@ -61,14 +66,13 @@ import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
-import sc.fiji.snt.SNTPrefs;
-import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.*;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SigmaPaletteListener;
+import sc.fiji.snt.util.SigmaUtils;
 
 /**
  * Implements the "Generate Secondary Layer" command.
@@ -77,7 +81,8 @@ import sc.fiji.snt.gui.SigmaPaletteListener;
  * @author Cameron Arshadi
  */
 @Plugin(type = Command.class, visible = false, initializer = "init")
-public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends CommonDynamicCmd implements Interactive, SigmaPaletteListener
+public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extends RealType<U> & NativeType<U>>
+		extends CommonDynamicCmd implements Interactive, SigmaPaletteListener
 {
 
 	private static final String PROMPT_TITLE = "Compute Secondary Layer...    "; // THIS MUST BE UNIQUE for getPrompt() to work
@@ -95,6 +100,9 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	private static final String TUBENESS = "Tubeness";
 	private static final String GAUSS = "Gaussian Blur";
 	private static final String MEDIAN = "Median (Must be computed once)";
+
+	private static final String FLOAT = "32-bit";
+	private static final String DOUBLE = "64-bit";
 
 	@Parameter
 	private DisplayService displayService;
@@ -118,7 +126,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	private String HEADER1;
 
 	@Parameter(label = "Filter", choices = { FRANGI, TUBENESS, GAUSS, MEDIAN, NONE }, callback = "filterChanged")
-	private String filter;
+	private String filter = FRANGI;
 
 	@Parameter(label = "Size of traced structures", required = false, //
 			description = "<HTML>Aprox. thickness (radius) of structures being traced (comma separated list).<br>There are two ways "
@@ -136,6 +144,9 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 			description = "<HTML><b>Save computations</b>: Allows for faster tracing when enough RAM is available.<br>"
 					+ "<b>Save Computations</b>: Allows for tracing of large images when available RAM is limited.")
 	private String useLazyChoice;
+
+	@Parameter(label = "Output precision", choices = { FLOAT, DOUBLE })
+	private String outputType = FLOAT;
 
 	@Parameter(label = "No. of threads", min = "1", stepSize = "1")
 	private int numThreads;
@@ -160,8 +171,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 			description="Generates the filtered image")
 	private Button run;
 
-	@SuppressWarnings("rawtypes")
-	private RandomAccessibleInterval filteredImg;
+	private Img<U> filteredImg;
 	private boolean useLazy;
 	private List<Double> sigmas;
 	private int paletteStatus = PALETTE_CLOSED;
@@ -184,6 +194,21 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	private void filterChanged() {
 		if (MEDIAN.equals(filter))
 			useLazyChoice = LAZY_LOADING_FALSE;
+
+		switch (filter) {
+			case TUBENESS:
+				snt.setFilterType(SNT.FilterType.TUBENESS);
+				break;
+			case FRANGI:
+				snt.setFilterType(SNT.FilterType.FRANGI);
+				break;
+			case GAUSS:
+				snt.setFilterType(SNT.FilterType.GAUSS);
+				break;
+			case MEDIAN:
+				snt.setFilterType(SNT.FilterType.MEDIAN);
+				break;
+		}
 	}
 
 	@SuppressWarnings("unused")
@@ -232,10 +257,10 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 		numThreads = SNTPrefs.getThreads();
 		useLazyChoice = LAZY_LOADING_FALSE;
 		sigmas = new ArrayList<>();
-		final double minSep = snt.getMinimumSeparation(); // FIXME: This should be the avgSeparation?
-		sigmas.add(minSep);
-		sigmas.add(2 * minSep);
-		sigmas.add(3 * minSep);
+		final double step = snt.getAverageSeparation() * 0.5;
+		sigmas.add(step);
+		sigmas.add(2 * step);
+		sigmas.add(4 * step);
 		updateSigmasField();
 		show = false;
 		save = false;
@@ -263,21 +288,19 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	private void runCommand() {
 		if (isCanceled() || !snt.accessToValidImageData())
 			return;
-		if (numThreads > SNTPrefs.getThreads()) {
-			numThreads = SNTPrefs.getThreads();
-		}
-		useLazy = LAZY_LOADING_TRUE.equals(useLazyChoice);
 
-		final int cellDim = 30; // side length for cell
+		if (numThreads > SNTPrefs.getThreads())
+			numThreads = SNTPrefs.getThreads();
+
+		useLazy = LAZY_LOADING_TRUE.equals(useLazyChoice);
 		if (NONE.equals(filter)) {
 			final RandomAccessibleInterval<T> loadedData = sntService.getPlugin().getLoadedData();
-			final RandomAccessibleInterval<T> copy = ops.create().img(loadedData);
+			final Img<T> copy = ops.create().img(loadedData);
 			Images.copy(loadedData, copy);
-			filteredImg = copy;
+			filteredImg = (Img<U>) copy;
 			apply();
 			return;
 		}
-
 		// validate inputs
 		if (MEDIAN.equals(filter) && useLazy) {
 			error("Current filter is not compatible with the current performance strategy.");
@@ -288,45 +311,57 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 			error("No valid sizes have been specified.");
 			return;
 		}
-
 		final RandomAccessibleInterval<T> data = sntService.getPlugin().getLoadedData();
 		final RandomAccessibleInterval<T> in = Views.dropSingletonDimensions(data);
 		final Calibration cal = sntService.getPlugin().getImagePlus().getCalibration();
 		final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
+		final U type;
+		switch (outputType) {
+			case FLOAT:
+				type = (U) new FloatType();
+				break;
+			case DOUBLE:
+				type = (U) new DoubleType();
+				break;
+			default:
+				throw new IllegalArgumentException("Unknown output type");
+		}
+		final int cellDim = 30; // side length for cell
+		final Img<U> out;
 		switch (filter) {
 			case FRANGI: {
-				Frangi<T, FloatType> op = new Frangi<>(
+				Frangi<T, U> op = new Frangi<>(
 						sigmas,
 						spacing,
 						sntService.getPlugin().getStats().max,
 						numThreads);
 
 				if (useLazy) {
-					filteredImg = Lazy.process(
+					out = Lazy.process(
 							in,
 							in,
 							new int[]{cellDim, cellDim, cellDim},
-							new FloatType(),
+							type,
 							op);
 				} else {
-					filteredImg = ops.create().img(in, new FloatType(), new CellImgFactory<>(new FloatType()));;
-					op.compute(in, filteredImg);
+					out = ops.create().img(in, type, new CellImgFactory<>(type));;
+					op.compute(in, out);
 				}
 
 				break;
 			}
 			case TUBENESS: {
-				Tubeness<T, FloatType> op = new Tubeness<>(sigmas, spacing, numThreads);
+				Tubeness<T, U> op = new Tubeness<>(sigmas, spacing, numThreads);
 				if (useLazy) {
-					filteredImg = Lazy.process(
+					out = Lazy.process(
 							in,
 							in,
 							new int[]{cellDim, cellDim, cellDim},
-							new FloatType(),
+							type,
 							op);
 				} else {
-					filteredImg = ops.create().img(in, new FloatType(), new CellImgFactory<>(new FloatType()));
-					op.compute(in, filteredImg);
+					out = ops.create().img(in, type, new CellImgFactory<>(type));
+					op.compute(in, out);
 				}
 
 				break;
@@ -334,18 +369,18 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 			case GAUSS: {
 				final double sig = sigmas[0]; // just pick the first sigma I guess...
 				if (useLazy) {
-					filteredImg = Lazy.process(
+					out = Lazy.process(
 							in,
 							in,
 							new int[]{cellDim, cellDim, cellDim},
-							new FloatType(),
+							type,
 							ops,
 							net.imagej.ops.filter.gauss.DefaultGaussRAI.class,
 							(Object) new double[]{sig / spacing[0], sig / spacing[1], sig / spacing[2]});
 				} else {
-					filteredImg = ops.create().img(in, new FloatType(), new CellImgFactory<>(new FloatType()));
+					out = ops.create().img(in, type, new CellImgFactory<>(type));
 					ops.filter().gauss(
-							filteredImg,
+							out,
 							in,
 							sig / spacing[0], sig / spacing[1], sig / spacing[2]);
 				}
@@ -354,15 +389,29 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 			}
 			case MEDIAN: {
 				// FIXME: TO BE IMPLEMENTED
+				final double sig = sigmas[0]; // just pick the first sigma I guess...
+				int radius;
+				if (in.numDimensions() == 2) {
+					radius = (int) Math.round((sig/spacing[0] + sig/spacing[1]) / 2.0);
+				} else {
+					radius = (int) Math.round((sig/spacing[0] + sig/spacing[1] + sig/spacing[2]) / 3.0);
+				}
+				Img<T> tmp = ops.create().img(
+						in,
+						Util.getTypeFromInterval(in),
+						new ArrayImgFactory<>(Util.getTypeFromInterval(in)));
+				ops.filter().median(tmp, in, new DiamondShape(radius));
+				out = (Img<U>) tmp;
+				break;
 			}
 			default:
 				throw new IllegalArgumentException("Unrecognized filter " + filter);
 		}
 
+		filteredImg = out;
 		apply();
 	}
 
-	@SuppressWarnings("unchecked")
 	private void apply() {
 		snt.loadSecondaryImage(filteredImg, !useLazy);
 		snt.setUseSubVolumeStats(useLazy);
@@ -381,9 +430,9 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 				}
 			}
 		}
-		if (getPrompt() != null) getPrompt().dispose();
+//		if (getPrompt() != null) getPrompt().dispose();
 		if (ui != null) ui.changeState(SNTUI.READY);
-		prompt = null;
+//		prompt = null;
 		savePreferences();
 	}
 
@@ -418,7 +467,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 			return sigmas.stream().mapToDouble(Double::doubleValue).toArray();
 		}
 		// else no values exist.
-		return snt.getSigmas(true);
+		return SigmaUtils.getDefaultSigma(snt);
 	}
 
 	private void updateSigmasField() {
@@ -480,12 +529,12 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>> extends 
 	public void paletteDisplayed() {
 		paletteStatus = PALETTE_IS_RUNNING;
 		updatePrompt();
-		setPromptVisible(false);
+		//setPromptVisible(false);
 	}
 
 	@Override
 	public void paletteDismissed() {
-		setPromptVisible(true);
+		//setPromptVisible(true);
 		paletteStatus = PALETTE_CLOSED;
 		if (refreshButtonAsSwingComponent != null) {
 			refreshButtonAsSwingComponent.doClick();

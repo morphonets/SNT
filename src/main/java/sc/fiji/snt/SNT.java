@@ -46,6 +46,7 @@ import net.imglib2.IterableInterval;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.Pair;
@@ -137,6 +138,13 @@ public class SNT extends MultiDThreePanes implements
 			return StringUtils.capitalize(super.toString().toLowerCase());
 		}
 	}
+	public enum FilterType {
+		TUBENESS, FRANGI, GAUSS, MEDIAN;
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
 
 	protected static boolean verbose = false; // FIXME: Use prefservice
 
@@ -205,8 +213,8 @@ public class SNT extends MultiDThreePanes implements
 	/* statistics for main image*/
 	private final ImageStatistics stats = new ImageStatistics();
 
-	/* Filter-based analysis */
-	protected final SigmaHelper sigmaHelper;
+	/* filter type */
+	protected FilterType filterType = FilterType.TUBENESS;
 
 	/* current selected search algorithm type */
 	private SearchType searchType = SearchType.ASTAR;
@@ -314,7 +322,6 @@ public class SNT extends MultiDThreePanes implements
 		pathAndFillManager = new PathAndFillManager(this);
 		setFieldsFromImage(sourceImage);
 		prefs.loadPluginPrefs();
-		sigmaHelper = new SigmaHelper(this);
 	}
 
 	/**
@@ -354,7 +361,6 @@ public class SNT extends MultiDThreePanes implements
 		enableAstar(false);
 		enableSnapCursor(false);
 		pathAndFillManager.setHeadless(false);
-		sigmaHelper = new SigmaHelper(this);
 	}
 
 	private void setFieldsFromImage(final ImagePlus sourceImage) {
@@ -467,7 +473,6 @@ public class SNT extends MultiDThreePanes implements
 		xy_tracer_canvas = null;
 		xz_tracer_canvas = null;
 		zy_tracer_canvas = null;
-		nullifySigmaHelper();
 	}
 
 	public boolean accessToValidImageData() {
@@ -682,7 +687,6 @@ public class SNT extends MultiDThreePanes implements
 		this.stats.max = imgStats.max;
 		this.stats.mean = imgStats.mean;
 		this.stats.stdDev = imgStats.stdDev;
-		nullifySigmaHelper(); // ensure it will be reloaded
 		updateLut();
 	}
 
@@ -2298,7 +2302,7 @@ public class SNT extends MultiDThreePanes implements
 				: Math.min(Math.abs(x_spacing), Math.min(Math.abs(y_spacing), Math.abs(z_spacing)));
 	}
 
-	protected double getAverageSeparation() {
+	public double getAverageSeparation() {
 		return (is2D()) ? (x_spacing + y_spacing) / 2 : (x_spacing + y_spacing + z_spacing) / 3;
 	}
 
@@ -2309,19 +2313,19 @@ public class SNT extends MultiDThreePanes implements
 	 * @return the loaded data corresponding to the C,T position currently being
 	 *         traced, or null if no image data has been loaded into memory.
 	 */
-	public ImagePlus getLoadedDataAsImp() {
+	public <T extends NumericType<T>> ImagePlus getLoadedDataAsImp() {
 		if (!inputImageLoaded()) return null;
 		@SuppressWarnings("unchecked")
-		final ImagePlus imp = ImageJFunctions.wrap(
-				Views.permute(
-						Views.addDimension(
-								this.sliceAtCT,
-								0,
-								0),
-						2,
-						3),
-				"Image");
-		imp.setCalibration(xy.getCalibration());
+		RandomAccessibleInterval<T> data = this.sliceAtCT;
+		data = Views.dropSingletonDimensions(data);
+		if (data.numDimensions() == 3) {
+			data = Views.permute(Views.addDimension(data, 0, 0), 2, 3);
+		}
+		final ImagePlus imp = ImageJFunctions.wrap(data,"Image");
+		updateLut();
+		imp.setLut(lut);
+		imp.copyScale(xy);
+		imp.resetDisplayRange();
 		return imp;
 	}
 
@@ -2436,6 +2440,7 @@ public class SNT extends MultiDThreePanes implements
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
 			if (getUI() != null) {
+				getUI().enableSecondaryLayerTracing(true);
 				getUI().enableSecondaryLayerExternal(true);
 			}
 		}
@@ -2470,7 +2475,8 @@ public class SNT extends MultiDThreePanes implements
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
 			if (getUI() != null) {
-				getUI().enableSecondaryLayerExternal(true);
+				getUI().enableSecondaryLayerTracing(true);
+				getUI().enableSecondaryLayerBuiltin(true);
 			}
 		}
 	}
@@ -2509,12 +2515,16 @@ public class SNT extends MultiDThreePanes implements
 	 * @see #loadSecondaryImage(ImagePlus)
 	 * @see #loadSecondaryImage(File)
 	 */
-	public ImagePlus getSecondaryDataAsImp() {
+	@SuppressWarnings({"unchecked"})
+	public <T extends NumericType<T>> ImagePlus getSecondaryDataAsImp() {
 		if (secondaryData == null) {
 			return null;
 		}
-		@SuppressWarnings("unchecked")
-		ImagePlus imp = ImageJFunctions.wrap(secondaryData, "Secondary Layer");
+		RandomAccessibleInterval<T> img = secondaryData;
+		if (secondaryData.numDimensions() == 3) {
+			img = Views.permute(Views.addDimension(img, 0,0), 2,3);
+		}
+		ImagePlus imp = ImageJFunctions.wrap(img, "Secondary Layer");
 		updateLut();
 		imp.setLut(lut);
 		imp.copyScale(xy);
@@ -2528,10 +2538,6 @@ public class SNT extends MultiDThreePanes implements
 		return data;
 	}
 
-	protected void nullifySigmaHelper() {
-		sigmaHelper.nullify();
-	}
-
 	public SNTPrefs getPrefs() {
 		return prefs;
 	}
@@ -2540,7 +2546,6 @@ public class SNT extends MultiDThreePanes implements
 	@Override
 	public void proportionDone(final double proportion) {
 		if (proportion < 0) {
-			nullifySigmaHelper();
 			if (ui != null) ui.gaussianCalculated(false);
 			statusService.showProgress(1, 1);
 			return;
@@ -3148,10 +3153,6 @@ public class SNT extends MultiDThreePanes implements
 		return !manualOverride;
 	}
 
-	public double[] getSigmas(final boolean physicalUnits) {
-		return getSigmaHelper().getSigmas(physicalUnits);
-	}
-
 	/**
 	 * @return true if the image currently loaded does not have a depth (Z)
 	 *         dimension
@@ -3244,10 +3245,6 @@ public class SNT extends MultiDThreePanes implements
 		if (isUIready()) getUI().showStatus(status, true);
 	}
 
-	public SigmaHelper getSigmaHelper() {
-		return sigmaHelper;
-	}
-
 	protected double getOneMinusErfZFudge() {
 		return oneMinusErfZFudge;
 	}
@@ -3294,6 +3291,14 @@ public class SNT extends MultiDThreePanes implements
 
 	public void setSearchImageType(final SearchImageType searchImageType) {
 		this.searchImageType = searchImageType;
+	}
+
+	public FilterType getFilterType() {
+		return filterType;
+	}
+
+	public void setFilterType(final FilterType filterType) {
+		this.filterType = filterType;
 	}
 
 }

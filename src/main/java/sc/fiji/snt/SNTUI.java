@@ -636,7 +636,7 @@ public class SNTUI extends JDialog {
 			sb.append("\n");
 			sb.append("Min-Max: ").append(plugin.getStats().min).append("-").append(plugin.getStats().max);
 			sb.append("\n");
-			sb.append("Hessian: ").append(plugin.sigmaHelper.toString());
+			sb.append("Filter: ").append(plugin.getFilterType());
 		}
 		sb.append("\n");
 		sb.append("Cost function: ").append(plugin.getCostType());
@@ -3431,7 +3431,7 @@ public class SNTUI extends JDialog {
 			sigmas[i] = ((i + 1) * plugin.getMinimumSeparation()) / 2;
 		}
 
-		sigmaPalette = new SigmaPalette(plugin, plugin.getSigmaHelper());
+		sigmaPalette = new SigmaPalette(plugin);
 		sigmaPalette.makePalette(x_min, x_max, y_min, y_max, z_min, z_max, sigmas, 4, 4, z);
 		sigmaPalette.addListener(sigmaPaletteListener);
 		if (sigmaPaletteListener != null) sigmaPalette.setParent(sigmaPaletteListener.getParent());
@@ -3505,26 +3505,12 @@ public class SNTUI extends JDialog {
 			secLayerActivateCheckbox.setSelected(false);
 		}
 		updateSettingsString();
-//		if (plugin.getSecondaryData() != null) {
-//			plugin.doSearchOnSecondaryData = enable;
-//			secLayerActivateCheckbox.setSelected(enable);
-//		} else if (enable) {
-//			if (!plugin.accessToValidImageData()) {
-//				noValidImageDataError();
-//			} else if (!plugin.isSecondaryDataAvailable()){
-//				noSecondaryDataAvailableError();
-//			}
-//			secLayerActivateCheckbox.setSelected(false);
-//			plugin.doSearchOnSecondaryData = false;
-//		}
-//		updateSettingsString();
 	}
 
 	private void noSecondaryImgFileAvailableError() {
 		guiUtils.error("No secondary image has been loaded. Please load it first.", "Secondary Image Unavailable");
 		secLayerExternalImgOverlayCheckbox.setSelected(false);
 		secLayerExternalRadioButton.setSelected(false);
-//		plugin.doSearchOnSecondaryData = false;
 	}
 
 	private void noSecondaryDataAvailableError() {
@@ -3692,14 +3678,13 @@ public class SNTUI extends JDialog {
 					}
 					if (secLayerBuiltinRadioButton.isSelected()) {
 						if (!plugin.isSecondaryDataAvailable()) {
-							enableSecondaryLayerTracing(false);
 							noSecondaryDataAvailableError();
 							return;
 						}
 						enableSecondaryLayerBuiltin(true);
 					} else if (secLayerExternalRadioButton.isSelected()) {
 						if (!plugin.isSecondaryImageFileLoaded()) {
-							noSecondaryDataAvailableError();
+							noSecondaryImgFileAvailableError();
 							return;
 						}
 						enableSecondaryLayerExternal(true);

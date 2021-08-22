@@ -93,18 +93,16 @@ public class SigmaPalette extends Thread {
 
 	private final ImagePlus image;
 	private final SNT snt;
-	private final SigmaHelper sigmaHelper;
-	private final SigmaHelper.Analysis analysisType;
+	private final SNT.FilterType analysisType;
 	private int maxScales;
 	private List<Double> scaleSettings; //TODO: This should be a SET
 	private final List<SigmaPaletteListener> listeners;
 	private Window parent;
 
-	public SigmaPalette(final SNT snt, final SigmaHelper sigmaHelper) {
+	public SigmaPalette(final SNT snt) {
 		snt.getContext().inject(this);
 		this.snt = snt;
-		this.sigmaHelper = sigmaHelper;
-		analysisType = this.sigmaHelper.getAnalysisType();
+		analysisType = snt.getFilterType();
 		image = snt.getLoadedDataAsImp();
 		listeners = new ArrayList<>();
 	}
@@ -769,7 +767,6 @@ public class SigmaPalette extends Thread {
 				return;
 		}
 		listeners.forEach( listener -> listener.setSigmas(getMultiScaleSettings()));
-		sigmaHelper.setSigmas(getMultiScaleSettings());
 		flush();
 		//TODO: Make this aware of multiple scales
 
