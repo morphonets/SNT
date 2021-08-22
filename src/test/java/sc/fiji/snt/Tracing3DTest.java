@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -25,177 +25,242 @@ package sc.fiji.snt;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.process.ImageStatistics;
+import net.imagej.ops.OpService;
+import net.imagej.ops.special.computer.UnaryComputerOp;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.stats.ComputeMinMax;
+import net.imglib2.img.Img;
 import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.real.FloatType;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
+import net.imglib2.view.Views;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.scijava.Context;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Lazy;
-import sc.fiji.snt.util.ArraySearchImage;
+import sc.fiji.snt.filter.Tubeness;
 
 import java.util.Objects;
 
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeNotNull;
+import static sc.fiji.snt.SNT.SearchImageType.ARRAY;
 
 public class Tracing3DTest {
 
-	ImagePlus image;
+	private static OpService opService;
+	private static Img<UnsignedByteType> img;
+	private static Calibration cal;
+	private static double[] spacing;
+	private static ImageStatistics stats;
+	private final int startX = 33;
+	private final int startY = 430;
+	private final int startZ = 1;
+	private final int endX = 439;
+	private final int endY = 200;
+	private final int endZ = 45;
 
-	int startX = 33;
-	int startY = 430;
-	int startZ = 1;
-
-	int endX = 439;
-	int endY = 200;
-	int endZ = 45;
-
-	@Before
-	public void setUp() {
-		image = new ImagePlus(
-				Objects.requireNonNull(getClass().getClassLoader().getResource("OP_1.tif")).getPath());
-		assumeNotNull(image);
+	@BeforeClass
+	public static void setUp() {
+		ImagePlus imp = new ImagePlus(
+				Objects.requireNonNull(Tracing3DTest.class.getClassLoader().getResource("OP_1.tif")).getPath());
+		assumeNotNull(imp);
+		stats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN | ImageStatistics.STD_DEV);
+		cal = imp.getCalibration();
+		spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
+		img = ImageJFunctions.wrap(imp);
+		opService = new Context(OpService.class).getService(OpService.class);
 	}
 
-	@After
-	public void tearDown() {
-		if (image != null) image.close();
+	private <T extends RealType<T>> AbstractSearch createSearch(RandomAccessibleInterval<T> img,
+																SearchCost cost,
+																SNT.SearchType searchType,
+																SNT.SearchImageType imageClass,
+																SNT.HeuristicType heuristicType)
+	{
+		SearchHeuristic heuristic;
+		switch (heuristicType) {
+			case EUCLIDEAN:
+				heuristic = new EuclideanHeuristic();
+				break;
+			case DIJKSTRA:
+				heuristic = new DijkstraHeuristic();
+				break;
+			default:
+				throw new IllegalArgumentException("Unknown heuristic type " + heuristicType);
+		}
+		switch (searchType) {
+			case ASTAR:
+				return new TracerThread(
+						img, cal,
+						startX, startY, startZ,
+						endX, endY, endZ,
+						-1, 100,
+						imageClass,
+						cost,
+						heuristic);
+			case NBASTAR:
+				return new BidirectionalSearch(
+						img, cal,
+						startX, startY, startZ,
+						endX, endY, endZ,
+						-1, 100,
+						imageClass,
+						cost,
+						heuristic);
+			default:
+				throw new IllegalArgumentException("Unknown search type " + searchType);
+
+		}
 	}
 
-//	@Ignore
-//	@Test
-//	public void testTracing() {
-//
-//		final Calibration cal = image.getCalibration();
-//		final RandomAccessibleInterval<UnsignedByteType> img = ImageJFunctions.wrap(image);
-//		ImageStatistics stats = image.getStatistics(ImageStatistics.MIN_MAX);
-//
-//		long pointsExploredNormal;
-//		{
-//			final TracerThread tracer = new TracerThread(
-//					img, cal,
-//					startX, startY, startZ,
-//					endX, endY, endZ,
-//					-1, 100,
-//					ArraySearchImage.class,
-//					new ReciprocalCost(stats.min, stats.max),
-//					new EuclideanHeuristic());
-//
-//			tracer.run();
-//			final Path result = tracer.getResult();
-//			assertNotNull("Not path found", result);
-//
-//			final double foundPathLength = result.getLength();
-//
-//			assertTrue(foundPathLength > 227.3);
-//			assertTrue(foundPathLength < 227.6);
-//
-//			pointsExploredNormal = tracer.pointsConsideredInSearch();
-//
-//		}
-//
-//		long pointsExploredNBAStar;
-//		{
-//			final BidirectionalSearch tracer = new BidirectionalSearch(
-//					img, cal,
-//					startX, startY, startZ,
-//					endX, endY, endZ,
-//					-1, 100,
-//					ArraySearchImage.class, new ReciprocalCost(stats.min, stats.max),
-//					new EuclideanHeuristic());
-//
-//			tracer.run();
-//			Path result = tracer.getResult();
-//			assertNotNull("Not path found", result);
-//
-//			final double foundPathLength = result.getLength();
-////			System.out.println(foundPathLength);
-//			assertTrue(foundPathLength > 227.4);
-//			assertTrue(foundPathLength < 227.6);
-//
-//			pointsExploredNBAStar = tracer.pointsConsideredInSearch();
-//
-//		}
-//
-//		{
-//			long pointsExploredHessian;
-//			long pointsExploredNBAStarHessian;
-//
-//			final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
-//			final double[] scales = new double[]{0.84};
-//
-//			final Frangi<UnsignedByteType, FloatType> op = new Frangi<>(
-//					scales,
-//					spacing,
-//					254,
-//					2);
-//			op.setInput(img);
-//			final RandomAccessibleInterval<FloatType> frangiImg = Lazy.process(
-//					img,
-//					new int[]{30, 30, 10},
-//					new FloatType(),
-//					op);
-//
-//			ImageStatistics frangiStats = ImageJFunctions.wrapFloat(frangiImg, "").getStatistics(
-//					ImageStatistics.MIN_MAX | ImageStatistics.MEAN | ImageStatistics.STD_DEV);
-//			double multiplier = 256 / frangiStats.max;
-//			multiplier *= 1.0;
-//
-//			final TracerThread tracer = new TracerThread(frangiImg, cal,
-//					startX, startY, startZ,
-//					endX, endY, endZ,
-//					-1, 100,
-//					ArraySearchImage.class,
-//					new OneMinusErfCost(frangiStats.max, frangiStats.mean, frangiStats.stdDev),
-//					new EuclideanHeuristic());
-//
-//			final BidirectionalSearch tracerNBAStar = new BidirectionalSearch(
-//					frangiImg, cal,
-//					startX, startY, startZ,
-//					endX, endY, endZ,
-//					-1, 100, // reciprocal
-//					ArraySearchImage.class,
-//					new OneMinusErfCost(frangiStats.max, frangiStats.mean, frangiStats.stdDev),
-//					new EuclideanHeuristic());
-//
-//			tracer.run();
-//			final Path result = tracer.getResult();
-//			assertNotNull("Not path found", result);
-//
-//			tracerNBAStar.run();
-//			final Path resultNBAStar = tracerNBAStar.getResult();
-//			assertNotNull("Not path found", resultNBAStar);
-//
-//			final double foundPathLength = result.getLength();
-//			final double foundPathLengthNBAStar = resultNBAStar.getLength();
-////			System.out.println(foundPathLength);
-////			System.out.println(foundPathLengthNBAStar);
-//
-////			assertTrue(foundPathLength > 226.4);
-////			assertTrue(foundPathLengthNBAStar > 226.4);
-////
-////			assertTrue(foundPathLength < 226.5);
-////			assertTrue(foundPathLengthNBAStar < 226.5);
-//
-//			pointsExploredHessian = tracer.pointsConsideredInSearch();
-//			pointsExploredNBAStarHessian = tracerNBAStar.pointsConsideredInSearch();
-////			System.out.println(pointsExploredHessian);
-////			System.out.println(pointsExploredNBAStarHessian);
-//			assertTrue(pointsExploredHessian < 49000);
-//			assertTrue(pointsExploredNBAStarHessian < 49000);
-//
-//			assertTrue("Hessian-based analysis should reduce the points explored " +
-//				"by at least a third; in fact went from " + pointsExploredNormal +
-//				" to " + pointsExploredHessian,
-//				pointsExploredHessian < pointsExploredNormal * 0.6666);
-//			assertTrue("Hessian-based analysis should reduce the points explored " +
-//				"by at least a third; in fact went from " + pointsExploredNBAStar +
-//				" to " + pointsExploredNBAStarHessian,
-//				pointsExploredNBAStarHessian < pointsExploredNBAStar * 0.6666);
-//		}
-//	}
+	private void searchTest(final AbstractSearch search, final double minLength, final double maxLength) {
+		search.run();
+		Path result = search.getResult();
+		assertNotNull(result);
+		double length = result.getLength();
+//		System.out.println(length);
+		assertTrue(length >= minLength);
+		assertTrue(length <= maxLength);
+	}
+
+	private void costTest(final SearchCost cost, final double minLength, final double maxLength) {
+		searchTest(
+				createSearch(img, cost, SNT.SearchType.ASTAR, ARRAY, SNT.HeuristicType.EUCLIDEAN),
+				minLength, maxLength);
+	}
+
+	@Test
+	public void testReciprocalCost() {
+		costTest(new ReciprocalCost(stats.min, stats.max), 227.3, 227.4);
+	}
+
+	@Test
+	public void testDifferenceCost() {
+		costTest(new DifferenceCost(stats.min, stats.max), 240.5, 240.6);
+	}
+
+	@Test
+	public void testOneMinusErfCost() {
+		OneMinusErfCost cost = new OneMinusErfCost(stats.max, stats.mean, stats.stdDev);
+		costTest(cost, 355.9, 356);
+		cost.setZFudge(0.2);
+		costTest(cost, 341.0, 341.1);
+	}
+
+	@Test
+	public void testSearchImageEquality() {
+		for (SNT.SearchImageType searchImageType : SNT.SearchImageType.values()) {
+			AbstractSearch search = createSearch(
+					img,
+					new ReciprocalCost(stats.min, stats.max), SNT.SearchType.ASTAR,
+					searchImageType,
+					SNT.HeuristicType.EUCLIDEAN);
+			searchTest(search, 227.326, 227.327);
+		}
+	}
+
+	@Test
+	public void testAstarAdmissibility() {
+		// Since Dijkstra is guaranteed to produce the optimal path (assuming our implementation is correct),
+		//  compare the heuristic searches against that to ensure the A* implementations are correct
+		AbstractSearch search = createSearch(
+				img,
+				new ReciprocalCost(stats.min, stats.max), SNT.SearchType.ASTAR,
+				ARRAY,
+				SNT.HeuristicType.DIJKSTRA);
+		search.run();
+		final double optimalLength = search.getResult().getLength();
+		for (SNT.HeuristicType heuristicType : SNT.HeuristicType.values()) {
+			for (SNT.SearchType searchType : SNT.SearchType.values()) {
+				// SearchThread is not guaranteed to yield the optimal path,
+				// since it terminates as soon as the two opposing searches meet.
+				// So ignore it for now.
+				if (searchType == SNT.SearchType.ASTAR) continue;
+				search = createSearch(
+						img,
+						new ReciprocalCost(stats.min, stats.max), searchType,
+						ARRAY,
+						heuristicType);
+				search.run();
+				assertEquals(optimalLength, search.getResult().getLength(), 1e-12);
+			}
+		}
+	}
+
+	private void filterTest(final RandomAccessibleInterval<FloatType> filteredImg, final ReciprocalCost cost,
+							final double reductionFactor)
+	{
+		AbstractSearch filterSearch = createSearch(
+				filteredImg,
+				cost, SNT.SearchType.ASTAR,
+				ARRAY,
+				SNT.HeuristicType.EUCLIDEAN);
+		filterSearch.run();
+		assertNotNull(filterSearch.getResult());
+
+		AbstractSearch search = createSearch(
+				img,
+				new ReciprocalCost(stats.min, stats.max), SNT.SearchType.ASTAR,
+				ARRAY,
+				SNT.HeuristicType.EUCLIDEAN);
+		search.run();
+		assertNotNull(search.getResult());
+
+		assertTrue(filterSearch.pointsConsideredInSearch() <=
+				search.pointsConsideredInSearch() * reductionFactor);
+	}
+
+	private RandomAccessibleInterval<FloatType> createLazyImg(
+			UnaryComputerOp<RandomAccessibleInterval<UnsignedByteType>, RandomAccessibleInterval<FloatType>> op)
+	{
+		return Lazy.process(
+				img,
+				img,
+				new int[]{60, 60, 60},
+				new FloatType(),
+				op);
+	}
+
+	@Test
+	public void testFrangi() {
+		final double[] scales = new double[]{0.75};
+		final RandomAccessibleInterval<FloatType> frangi = createLazyImg(new Frangi<>(scales, spacing, stats.max));
+		ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(Views.iterable(frangi), new FloatType(), new FloatType());
+		cmm.process();
+		filterTest(frangi, new ReciprocalCost(cmm.getMin().getRealDouble(), cmm.getMax().getRealDouble() / 4.0),
+				0.95);
+	}
+
+	@Test
+	public void testTubeness() {
+		final double[] scales = new double[]{0.75};
+		final RandomAccessibleInterval<FloatType> tubeness = createLazyImg(new Tubeness<>(scales, spacing));
+		ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(Views.iterable(tubeness), new FloatType(), new FloatType());
+		cmm.process();
+		filterTest(tubeness, new ReciprocalCost(cmm.getMin().getRealDouble(), cmm.getMax().getRealDouble() / 4.0),
+				0.8);
+	}
+
+	@Test
+	public void testGauss() {
+		double s = cal.pixelWidth * 2;
+		double[] sigmas = new double[]{s / cal.pixelWidth, s / cal.pixelHeight, s / cal.pixelDepth};
+		final RandomAccessibleInterval<FloatType> gaussian = Lazy.process(
+				img,
+				img,
+				new int[]{60,60,60},
+				new FloatType(),
+				opService,
+				net.imagej.ops.filter.gauss.DefaultGaussRAI.class,
+				(Object) sigmas);
+		ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(Views.iterable(gaussian), new FloatType(), new FloatType());
+		cmm.process();
+		SearchCost cost = new ReciprocalCost(cmm.getMin().getRealDouble(), cmm.getMax().getRealDouble());
+		AbstractSearch search = createSearch(gaussian, cost, SNT.SearchType.ASTAR, ARRAY, SNT.HeuristicType.EUCLIDEAN);
+		searchTest(search, 230.1, 230.2);
+	}
+
 }

@@ -29,7 +29,6 @@ import ij.process.ImageStatistics;
 import net.imagej.ops.OpService;
 import net.imagej.ops.special.computer.UnaryComputerOp;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.algorithm.neighborhood.RectangleShape;
 import net.imglib2.algorithm.stats.ComputeMinMax;
 import net.imglib2.img.Img;
 import net.imglib2.img.display.imagej.ImageJFunctions;
@@ -38,7 +37,6 @@ import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.scijava.Context;
 import sc.fiji.snt.filter.Frangi;
@@ -81,20 +79,6 @@ public class Tracing2DTest {
                                                                 SearchCost cost,
                                                                 SNT.HeuristicType heuristicType)
     {
-//		SearchCost cost;
-//		switch (costType) {
-//			case RECIPROCAL:
-//				cost = new ReciprocalCost(stats.min, stats.max);
-//				break;
-//			case PROBABILITY:
-//				cost = new OneMinusErfCost(stats.max, stats.mean, stats.stdDev);
-//				break;
-//			case DIFFERENCE:
-//				cost = new DifferenceCost(stats.min, stats.max);
-//				break;
-//			default:
-//				throw new IllegalArgumentException("Unknown costType " + costType);
-//		}
         SearchHeuristic heuristic;
         switch (heuristicType) {
             case EUCLIDEAN:
@@ -136,7 +120,7 @@ public class Tracing2DTest {
         Path result = search.getResult();
         assertNotNull(result);
         double length = result.getLength();
-        System.out.println(length);
+//        System.out.println(length);
         assertTrue(length >= minLength);
         assertTrue(length <= maxLength);
     }
@@ -223,9 +207,6 @@ public class Tracing2DTest {
         search.run();
         assertNotNull(search.getResult());
 
-//        System.out.println(filterSearch.pointsConsideredInSearch());
-//        System.out.println(search.pointsConsideredInSearch());
-
         assertTrue(filterSearch.pointsConsideredInSearch() <=
                 search.pointsConsideredInSearch() * reductionFactor);
     }
@@ -243,7 +224,7 @@ public class Tracing2DTest {
 
     @Test
     public void testFrangi() {
-        final double[] scales = new double[]{0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.3, 1.45};
+        final double[] scales = new double[]{0.75};
         final RandomAccessibleInterval<FloatType> frangi = createLazyImg(new Frangi<>(scales, spacing, stats.max));
         ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(Views.iterable(frangi), new FloatType(), new FloatType());
         cmm.process();
@@ -253,7 +234,7 @@ public class Tracing2DTest {
 
     @Test
     public void testTubeness() {
-        final double[] scales = new double[]{0.3, 0.45, 0.6, 0.75, 0.9, 1.05};
+        final double[] scales = new double[]{0.75};
         final RandomAccessibleInterval<FloatType> tubeness = createLazyImg(new Tubeness<>(scales, spacing));
         ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(Views.iterable(tubeness), new FloatType(), new FloatType());
         cmm.process();
