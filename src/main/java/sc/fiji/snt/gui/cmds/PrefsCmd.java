@@ -158,7 +158,6 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(ColorMapReconstructionCmd.class);
 		prefService.clear(CompareFilesCmd.class);
 		prefService.clear(ComputeSecondaryImg.class);
-		prefService.clear(ComputeTubenessImg.class);
 		prefService.clear(CustomizeLegendCmd.class);
 		prefService.clear(CustomizeObjCmd.class);
 		prefService.clear(CustomizeTreeCmd.class);
