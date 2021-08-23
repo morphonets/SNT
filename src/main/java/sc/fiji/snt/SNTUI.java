@@ -88,6 +88,7 @@ import sc.fiji.snt.gui.SigmaPalette;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.*;
+import sc.fiji.snt.tracing.OneMinusErfCost;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.*;
@@ -2825,7 +2826,7 @@ public class SNTUI extends JDialog {
 
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Min-Max:", false));
 		final ButtonGroup minMaxButtonGroup = new ButtonGroup();
-		JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem("Compute While Tracing", plugin.useSubVolumeStats);
+		JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem("Compute While Tracing", plugin.isUseSubVolumeStats);
 		minMaxButtonGroup.add(rbmi);
 		optionsMenu.add(rbmi);
 		rbmi.addActionListener(e -> plugin.setUseSubVolumeStats(true));

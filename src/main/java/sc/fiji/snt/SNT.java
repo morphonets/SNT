@@ -227,7 +227,7 @@ public class SNT extends MultiDThreePanes implements
 	private HeuristicType heuristicType = HeuristicType.EUCLIDEAN;
 
 	/* Compute image statistics on the bounding box sub-volume given by the start and goal nodes */
-	protected volatile boolean useSubVolumeStats = false;
+	protected volatile boolean isUseSubVolumeStats = false;
 
 	/* adjustable parameters for cost functions */
 	protected volatile double oneMinusErfZFudge = 0.1;
@@ -1578,10 +1578,9 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
+																	final ImageStatistics imgStats,
 																	final CostType costType)
 	{
-
-		final ImageStatistics imgStats = new ImageStatistics();
 		switch (costType) {
 			case PROBABILITY: {
 				imgStats.max = opService.stats().max(in).getRealDouble();
@@ -1653,8 +1652,8 @@ public class SNT extends MultiDThreePanes implements
 		@SuppressWarnings("unchecked") final RandomAccessibleInterval<T> img =
 				useSecondary ? (RandomAccessibleInterval<T>) getSecondaryData() : getLoadedData();
 
-		final ImageStatistics imgStats;
-		if (useSubVolumeStats) {
+		final ImageStatistics imgStats = useSecondary ? statsSecondary : stats;
+		if (isUseSubVolumeStats) {
 			SNTUtils.log("Computing subvolume statistics...");
 			final IterableInterval<T> subVolume = Views.iterable(
 					ImgUtils.subVolume(
@@ -1666,9 +1665,7 @@ public class SNT extends MultiDThreePanes implements
 							y_end,
 							z_end,
 							10));
-			imgStats = computeImgStats(subVolume, costType);
-		} else {
-			imgStats = useSecondary ? statsSecondary : stats;
+			computeImgStats(subVolume, imgStats, costType);
 		}
 
 		SearchCost costFunction;
@@ -3269,7 +3266,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void setUseSubVolumeStats(final boolean useSubVolumeStatistics) {
-		this.useSubVolumeStats = useSubVolumeStatistics;
+		this.isUseSubVolumeStats = useSubVolumeStatistics;
 	}
 
 	public SearchType getSearchType() {
