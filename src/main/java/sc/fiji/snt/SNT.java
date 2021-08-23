@@ -70,6 +70,14 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
+import sc.fiji.snt.tracing.*;
+import sc.fiji.snt.tracing.cost.DifferenceCost;
+import sc.fiji.snt.tracing.cost.OneMinusErfCost;
+import sc.fiji.snt.tracing.cost.ReciprocalCost;
+import sc.fiji.snt.tracing.cost.SearchCost;
+import sc.fiji.snt.tracing.heuristic.DijkstraHeuristic;
+import sc.fiji.snt.tracing.heuristic.EuclideanHeuristic;
+import sc.fiji.snt.tracing.heuristic.SearchHeuristic;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
@@ -3307,6 +3315,42 @@ public class SNT extends MultiDThreePanes implements
 
 	public void setFilterType(final FilterType filterType) {
 		this.filterType = filterType;
+	}
+
+	public int getWidth() {
+		return width;
+	}
+
+	public int getHeight() {
+		return height;
+	}
+
+	public int getDepth() {
+		return depth;
+	}
+
+	public double getPixelWidth() {
+		return x_spacing;
+	}
+
+	public double getPixelHeight() {
+		return y_spacing;
+	}
+
+	public double getPixelDepth() {
+		return z_spacing;
+	}
+
+	public String getSpacingUnits() {
+		return spacing_units;
+	}
+
+	public int getChannel() {
+		return channel;
+	}
+
+	public int getFrame() {
+	 return frame;
 	}
 
 }

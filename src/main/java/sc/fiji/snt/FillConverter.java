@@ -33,9 +33,11 @@ import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
-import sc.fiji.snt.util.SearchImage;
-import sc.fiji.snt.util.SearchImageStack;
-import sc.fiji.snt.util.SupplierUtil;
+import sc.fiji.snt.tracing.DefaultSearchNode;
+import sc.fiji.snt.tracing.FillerThread;
+import sc.fiji.snt.tracing.image.SearchImage;
+import sc.fiji.snt.tracing.image.SearchImageStack;
+import sc.fiji.snt.tracing.image.SupplierUtil;
 
 import java.util.Collection;
 
@@ -176,8 +178,8 @@ public class FillConverter {
     {
         // Merge the individuals fills into a single stack
         for (final FillerThread filler : fillers) {
-            for (Integer sliceIdx : filler.nodes_as_image_from_start.keySet()) {
-                SearchImage<DefaultSearchNode> slice = filler.nodes_as_image_from_start.getSlice(sliceIdx);
+            for (Integer sliceIdx : filler.getNodesAsImage().keySet()) {
+                SearchImage<DefaultSearchNode> slice = filler.getNodesAsImage().getSlice(sliceIdx);
                 if (slice == null) continue;
                 SearchImage<DefaultSearchNode> newSlice = newStack.getSlice(sliceIdx);
                 if (newSlice == null) {

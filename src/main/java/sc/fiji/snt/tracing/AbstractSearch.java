@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing;
 
 import ij.ImagePlus;
 import ij.measure.Calibration;
@@ -31,8 +31,10 @@ import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
+import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.SearchProgressCallback;
 
-import java.awt.*;
 import java.util.ArrayList;
 
 /**
@@ -44,9 +46,9 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
 
     protected final RandomAccessibleInterval<? extends RealType<?>> img;
     protected final RandomAccess<? extends RealType<?>> imgAccess;
-    protected final int imgWidth;
-    protected final int imgHeight;
-    protected final int imgDepth;
+    public final int imgWidth;
+    public final int imgHeight;
+    public final int imgDepth;
     protected final long xMin;
     protected final long yMin;
     protected final long zMin;
@@ -58,7 +60,7 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
     protected final double zSep;
     protected final String spacing_units;
 
-    protected double drawingThreshold;
+    public double drawingThreshold;
 
     protected int timeoutSeconds;
     protected long reportEveryMilliseconds;
@@ -120,9 +122,9 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
             this.img = image;
         }
         this.imgAccess  = this.img.randomAccess();
-        this.imgWidth = snt.width;
-        this.imgHeight = snt.height;
-        this.imgDepth = snt.depth;
+        this.imgWidth = (int) img.dimension(0);
+        this.imgHeight = (int) img.dimension(1);
+        this.imgDepth = (int) img.dimension(2);
         final long[] intervalMin = Intervals.minAsLongArray(img);
         this.xMin = intervalMin[0];
         this.yMin = intervalMin[1];
@@ -131,10 +133,10 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
         this.xMax = intervalMax[0];
         this.yMax = intervalMax[1];
         this.zMax = intervalMax[2];
-        this.xSep = snt.x_spacing;
-        this.ySep = snt.y_spacing;
-        this.zSep = snt.z_spacing;
-        this.spacing_units = snt.spacing_units;
+        this.xSep = snt.getPixelWidth();
+        this.ySep = snt.getPixelHeight();
+        this.zSep = snt.getPixelDepth();
+        this.spacing_units = snt.getSpacingUnits();
         this.timeoutSeconds = 0;
         this.reportEveryMilliseconds = 1000;
     }

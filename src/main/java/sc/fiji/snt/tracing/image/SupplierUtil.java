@@ -20,11 +20,15 @@
  * #L%
  */
 
-package sc.fiji.snt.util;
+package sc.fiji.snt.tracing.image;
 
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.SearchNode;
+import sc.fiji.snt.tracing.SearchNode;
+import sc.fiji.snt.tracing.image.ArraySearchImage;
+import sc.fiji.snt.tracing.image.ListSearchImage;
+import sc.fiji.snt.tracing.image.MapSearchImage;
+import sc.fiji.snt.tracing.image.SearchImage;
 
 import java.util.function.Supplier;
 
@@ -67,6 +71,8 @@ public class SupplierUtil {
         }
 
     }
+
+    /* I'm not sure how useful this one will be */
 
     @SuppressWarnings("unused")
     public static class ListSearchImageSupplier<V extends SearchNode> implements Supplier<SearchImage<V>> {

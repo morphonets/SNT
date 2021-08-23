@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing;
 
 import ij.ImagePlus;
 import ij.measure.Calibration;
@@ -28,9 +28,14 @@ import ij.process.ImageStatistics;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
-import sc.fiji.snt.util.SearchImage;
+import sc.fiji.snt.*;
+import sc.fiji.snt.tracing.cost.DifferenceCost;
+import sc.fiji.snt.tracing.cost.OneMinusErfCost;
+import sc.fiji.snt.tracing.cost.ReciprocalCost;
+import sc.fiji.snt.tracing.cost.SearchCost;
+import sc.fiji.snt.tracing.image.SearchImage;
+import sc.fiji.snt.tracing.image.SearchImageStack;
 
-import java.awt.*;
 import java.util.*;
 
 /**
@@ -112,7 +117,7 @@ public class FillerThread extends SearchThread {
 
         final ArrayList<DefaultSearchNode> tempNodes = new ArrayList<>();
 
-        for (final Fill.Node n : fill.nodeList) {
+        for (final Fill.Node n : fill.getNodeList()) {
 
             final DefaultSearchNode s = new DefaultSearchNode(n.x, n.y, n.z, (float) n.distance, 0,
                     null, SearchThread.FREE);
@@ -120,7 +125,7 @@ public class FillerThread extends SearchThread {
         }
 
         for (int i = 0; i < tempNodes.size(); ++i) {
-            final Fill.Node n = fill.nodeList.get(i);
+            final Fill.Node n = fill.getNodeList().get(i);
             final DefaultSearchNode s = tempNodes.get(i);
             if (n.previous >= 0) {
                 s.setPredecessor(tempNodes.get(n.previous));
@@ -132,7 +137,7 @@ public class FillerThread extends SearchThread {
             }
             result.addNode(s, true);
         }
-        result.setSourcePaths(fill.sourcePaths);
+        result.setSourcePaths(fill.getSourcePaths());
         return result;
     }
 
@@ -154,7 +159,7 @@ public class FillerThread extends SearchThread {
         } else return n.g;
     }
 
-    Fill getFill() {
+    public Fill getFill() {
 
         final Hashtable<DefaultSearchNode, Integer> h = new Hashtable<>();
 
@@ -395,6 +400,10 @@ public class FillerThread extends SearchThread {
                 }
             }
         }
+    }
+
+    public SearchImageStack<DefaultSearchNode> getNodesAsImage() {
+        return nodes_as_image_from_start;
     }
 
     @Override

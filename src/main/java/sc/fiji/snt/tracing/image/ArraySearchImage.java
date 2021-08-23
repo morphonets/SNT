@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.util;
+package sc.fiji.snt.tracing.image;
 
 import org.jetbrains.annotations.NotNull;
 

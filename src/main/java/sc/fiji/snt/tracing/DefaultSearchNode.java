@@ -20,9 +20,10 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing;
 
 import org.jheaps.AddressableHeap;
+import sc.fiji.snt.Path;
 
 public class DefaultSearchNode implements SearchNode, Comparable<DefaultSearchNode> {
 
@@ -30,7 +31,7 @@ public class DefaultSearchNode implements SearchNode, Comparable<DefaultSearchNo
 	public int y;
 	public int z;
 
-	AddressableHeap.Handle<DefaultSearchNode, Void> heapHandle;
+	public AddressableHeap.Handle<DefaultSearchNode, Void> heapHandle;
 
 	public double g; // cost of the path so far (up to and including this node)
 	public double h; // heuristic esimate of the cost of going from here to the
@@ -196,7 +197,7 @@ public class DefaultSearchNode implements SearchNode, Comparable<DefaultSearchNo
 	}
 
 	public Path asPath(final double x_spacing, final double y_spacing,
-		final double z_spacing, final String spacing_units)
+					   final double z_spacing, final String spacing_units)
 	{
 		final Path creversed = new Path(x_spacing, y_spacing, z_spacing,
 			spacing_units);

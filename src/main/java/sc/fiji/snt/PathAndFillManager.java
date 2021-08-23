@@ -42,6 +42,7 @@ import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
+import sc.fiji.snt.tracing.FillerThread;
 import sc.fiji.snt.util.*;
 import util.Bresenham3D;
 import util.XMLFunctions;

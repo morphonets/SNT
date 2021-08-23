@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing.cost;
 
 /**
  * Uses the reciprocal of voxel intensity, rescaled to the interval (double precision)

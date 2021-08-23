@@ -20,19 +20,22 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing;
 
 import ij.measure.Calibration;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 import org.jheaps.AddressableHeap;
 import org.jheaps.tree.PairingHeap;
-import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.util.SearchImage;
-import sc.fiji.snt.util.SearchImageStack;
-import sc.fiji.snt.util.SupplierUtil;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.SearchProgressCallback;
+import sc.fiji.snt.tracing.cost.SearchCost;
+import sc.fiji.snt.tracing.image.SearchImage;
+import sc.fiji.snt.tracing.image.SearchImageStack;
+import sc.fiji.snt.tracing.image.SupplierUtil;
 
-import java.awt.*;
 import java.util.ArrayList;
 
 /**
@@ -115,9 +118,9 @@ public abstract class SearchThread extends AbstractSearch {
 		this.bidirectional = true;
 		this.definedGoal = true;
 		this.nodes_as_image_from_start = new SearchImageStack<>(
-				SupplierUtil.createSupplier(snt.searchImageType, DefaultSearchNode.class, imgWidth, imgHeight));
+				SupplierUtil.createSupplier(snt.getSearchImageType(), DefaultSearchNode.class, imgWidth, imgHeight));
 		this.nodes_as_image_from_goal = new SearchImageStack<>(
-				SupplierUtil.createSupplier(snt.searchImageType, DefaultSearchNode.class, imgWidth, imgHeight));
+				SupplierUtil.createSupplier(snt.getSearchImageType(), DefaultSearchNode.class, imgWidth, imgHeight));
 		init();
 	}
 
@@ -486,12 +489,12 @@ public abstract class SearchThread extends AbstractSearch {
 	 * Use this to find out why the thread exited if you're not adding listeners to
 	 * do that.
 	 */
-	int getExitReason() {
+	public int getExitReason() {
 		return exitReason;
 	}
 
 	@Override
-	protected DefaultSearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
+	public DefaultSearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
 													  final double threshold)
 	{
 		final SearchImage<DefaultSearchNode> startSlice = nodes_as_image_from_start.getSlice(z);

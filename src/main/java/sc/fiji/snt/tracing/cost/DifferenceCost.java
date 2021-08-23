@@ -20,14 +20,29 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing.cost;
 
-import ij.measure.Calibration;
+public class DifferenceCost implements SearchCost {
 
-public interface SearchHeuristic {
+    static final double MIN_COST_PER_UNIT_DISTANCE = 1;
 
-    void setCalibration(Calibration calibration);
+    final double min;
+    final double max;
 
-    double estimateCostToGoal(int current_x, int current_y, int current_z, int goal_x, int goal_y, int goal_z);
+    public DifferenceCost(final double min, final double max) {
+        this.min = min;
+        this.max = max;
+    }
 
+    @Override
+    public double costMovingTo(double valueAtNewPoint) {
+        valueAtNewPoint = 255.0 * (valueAtNewPoint - min) / (max - min);
+        if (valueAtNewPoint > 255) valueAtNewPoint = 255;
+        return 256 - valueAtNewPoint;
+    }
+
+    @Override
+    public double minStepCost() {
+        return MIN_COST_PER_UNIT_DISTANCE;
+    }
 }

@@ -23,6 +23,9 @@
 package sc.fiji.snt;
 
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.tracing.SearchInterface;
+import sc.fiji.snt.tracing.SearchNode;
+import sc.fiji.snt.tracing.SearchThread;
 
 import java.awt.*;
 

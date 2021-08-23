@@ -20,18 +20,19 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing.cost;
 
-public interface SearchNode {
+import sc.fiji.snt.tracing.SearchInterface;
 
-    int getX();
+/**
+ * Interface for cost function implementations used by {@link SearchInterface}
+ *
+ * @author Cameron Arshadi
+ */
+public interface SearchCost {
 
-    int getY();
+    double costMovingTo(final double valueAtNewPoint);
 
-    int getZ();
-
-    byte getSearchStatus();
-
-    void setSearchStatus(byte searchStatus);
+    double minStepCost();
 
 }

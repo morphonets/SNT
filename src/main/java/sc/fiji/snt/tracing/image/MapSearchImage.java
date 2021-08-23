@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.util;
+package sc.fiji.snt.tracing.image;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import org.jetbrains.annotations.NotNull;
@@ -28,7 +28,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Iterator;
 
 /**
- * A sparse matrix implementation backed by a map
+ * A sparse matrix implementation backed by a {@link Long2ObjectOpenHashMap}
  *
  * @author Cameron Arshadi
  */

@@ -20,17 +20,17 @@
  * #L%
  */
 
-package sc.fiji.snt.util;
+package sc.fiji.snt.tracing.image;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import org.jetbrains.annotations.NotNull;
-import sc.fiji.snt.SearchNode;
+import sc.fiji.snt.tracing.SearchNode;
 
 import java.util.*;
 import java.util.function.Supplier;
 
 /**
- * A stack of {@link SearchImage}s, backed by a {@link Map}. Slices may be inserted and accessed
+ * A stack of {@link SearchImage}s, backed by a {@link Int2ObjectOpenHashMap}. Slices may be inserted and accessed
  * at arbitrary Integer values.
  *
  * @author Cameron Arshadi

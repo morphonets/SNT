@@ -22,6 +22,11 @@
 
 package sc.fiji.snt;
 
+import sc.fiji.snt.tracing.BiSearch;
+import sc.fiji.snt.tracing.FillerThread;
+import sc.fiji.snt.tracing.SearchInterface;
+import sc.fiji.snt.tracing.TracerThread;
+
 import java.awt.*;
 
 /**

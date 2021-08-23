@@ -20,8 +20,9 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing.cost;
 
+import sc.fiji.snt.SNTUtils;
 import smile.math.special.Erf;
 
 /**

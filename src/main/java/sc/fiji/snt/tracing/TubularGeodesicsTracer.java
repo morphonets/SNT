@@ -20,15 +20,17 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing;
 
-import java.awt.Graphics;
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 
 import ij.IJ;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.SearchProgressCallback;
 
 /**
  * A tracer thread for {@code FijiITKInterface.TubularGeodesics} (assumes the
@@ -88,7 +90,7 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 			final int start = i * 4;
 			realResult.addPointDouble(points[start], points[start + 1], points[start +
 				2]);
-			realResult.radii[i] = points[start + 3];
+			realResult.setRadius(points[start + 3], i);
 			// System.out.println("point "+i+" is "+points[start]+",
 			// "+points[start+1]+", "+points[start+2]+", "+points[start+3]);
 		}

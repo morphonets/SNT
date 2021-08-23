@@ -88,7 +88,7 @@ import sc.fiji.snt.gui.SigmaPalette;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.*;
-import sc.fiji.snt.tracing.OneMinusErfCost;
+import sc.fiji.snt.tracing.cost.OneMinusErfCost;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.*;

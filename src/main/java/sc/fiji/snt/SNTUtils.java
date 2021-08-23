@@ -437,7 +437,7 @@ public class SNTUtils {
 		return !(pixelDepthDifference > epsilon);
 	}
 
-	protected static String getSanitizedUnit(final String unit) {
+	public static String getSanitizedUnit(final String unit) {
 		final BoundingBox bd = new BoundingBox();
 		bd.setUnit(unit);
 		return bd.getUnit();

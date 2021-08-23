@@ -23,6 +23,9 @@
 package sc.fiji.snt;
 
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.tracing.BiSearch;
+import sc.fiji.snt.tracing.BiSearchNode;
+import sc.fiji.snt.tracing.SearchInterface;
 
 import java.awt.*;
 

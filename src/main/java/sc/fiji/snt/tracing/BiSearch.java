@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing;
 
 import ij.ImagePlus;
 import ij.measure.Calibration;
@@ -29,12 +29,16 @@ import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
 import org.jheaps.AddressableHeap;
 import org.jheaps.tree.PairingHeap;
-import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.util.SearchImage;
-import sc.fiji.snt.util.SearchImageStack;
-import sc.fiji.snt.util.SupplierUtil;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.SearchProgressCallback;
+import sc.fiji.snt.tracing.cost.SearchCost;
+import sc.fiji.snt.tracing.heuristic.SearchHeuristic;
+import sc.fiji.snt.tracing.image.SearchImage;
+import sc.fiji.snt.tracing.image.SearchImageStack;
+import sc.fiji.snt.tracing.image.SupplierUtil;
 
-import java.awt.*;
 import java.util.List;
 import java.util.*;
 
@@ -136,12 +140,12 @@ public class BiSearch extends AbstractSearch {
         this.costFunction = costFunction;
         this.heuristic = heuristic;
         Calibration cal = new Calibration();
-        cal.pixelWidth = snt.x_spacing;
-        cal.pixelHeight = snt.y_spacing;
-        cal.pixelDepth = snt.z_spacing;
+        cal.pixelWidth = snt.getPixelWidth();
+        cal.pixelHeight = snt.getPixelHeight();
+        cal.pixelDepth = snt.getPixelDepth();
         this.heuristic.setCalibration(cal);
         nodes_as_image = new SearchImageStack<>(
-                SupplierUtil.createSupplier(snt.searchImageType, BiSearchNode.class, imgWidth, imgHeight));
+                SupplierUtil.createSupplier(snt.getSearchImageType(), BiSearchNode.class, imgWidth, imgHeight));
         init();
     }
 
@@ -462,7 +466,7 @@ public class BiSearch extends AbstractSearch {
     }
 
     @Override
-    protected BiSearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
+    public BiSearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
                                                  final double threshold)
     {
         final SearchImage<BiSearchNode> slice = nodes_as_image.getSlice(z);

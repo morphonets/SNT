@@ -42,6 +42,14 @@ import org.scijava.Context;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
+import sc.fiji.snt.tracing.*;
+import sc.fiji.snt.tracing.cost.DifferenceCost;
+import sc.fiji.snt.tracing.cost.OneMinusErfCost;
+import sc.fiji.snt.tracing.cost.ReciprocalCost;
+import sc.fiji.snt.tracing.cost.SearchCost;
+import sc.fiji.snt.tracing.heuristic.DijkstraHeuristic;
+import sc.fiji.snt.tracing.heuristic.EuclideanHeuristic;
+import sc.fiji.snt.tracing.heuristic.SearchHeuristic;
 
 import java.util.Objects;
 

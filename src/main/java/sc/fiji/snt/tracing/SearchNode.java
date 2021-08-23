@@ -20,29 +20,18 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing;
 
-public class DifferenceCost implements SearchCost {
+public interface SearchNode {
 
-    static final double MIN_COST_PER_UNIT_DISTANCE = 1;
+    int getX();
 
-    final double min;
-    final double max;
+    int getY();
 
-    public DifferenceCost(final double min, final double max) {
-        this.min = min;
-        this.max = max;
-    }
+    int getZ();
 
-    @Override
-    public double costMovingTo(double valueAtNewPoint) {
-        valueAtNewPoint = 255.0 * (valueAtNewPoint - min) / (max - min);
-        if (valueAtNewPoint > 255) valueAtNewPoint = 255;
-        return 256 - valueAtNewPoint;
-    }
+    byte getSearchStatus();
 
-    @Override
-    public double minStepCost() {
-        return MIN_COST_PER_UNIT_DISTANCE;
-    }
+    void setSearchStatus(byte searchStatus);
+
 }

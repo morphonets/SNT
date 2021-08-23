@@ -20,14 +20,17 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing;
 
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
-import sc.fiji.snt.util.SearchImage;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SNT;
+import sc.fiji.snt.tracing.cost.SearchCost;
+import sc.fiji.snt.tracing.heuristic.SearchHeuristic;
 
 /**
  * SNT's default tracer thread: explores between two points in an image, doing
@@ -47,9 +50,9 @@ public class TracerThread extends SearchThread {
 	private Path result;
 
 	public TracerThread(final SNT snt, final ImagePlus imagePlus,
-						final int start_x, final int start_y, final int start_z,
-						final int goal_x, final int goal_y, final int goal_z,
-						SearchCost costFunction, SearchHeuristic heuristic)
+                        final int start_x, final int start_y, final int start_z,
+                        final int goal_x, final int goal_y, final int goal_z,
+                        SearchCost costFunction, SearchHeuristic heuristic)
 	{
 		this(snt, ImageJFunctions.wrapReal(imagePlus), start_x, start_y, start_z, goal_x, goal_y, goal_z,
 				costFunction, heuristic);
@@ -63,9 +66,9 @@ public class TracerThread extends SearchThread {
 		super(snt, image, costFunction);
 		this.heuristic = heuristic;
 		final Calibration cal = new Calibration();
-		cal.pixelWidth = snt.x_spacing;
-		cal.pixelHeight = snt.y_spacing;
-		cal.pixelDepth = snt.z_spacing;
+		cal.pixelWidth = snt.getPixelWidth();
+		cal.pixelHeight = snt.getPixelHeight();
+		cal.pixelDepth = snt.getPixelDepth();
 		this.heuristic.setCalibration(cal);
 		init(start_x, start_y, start_z, goal_x, goal_y, goal_z);
 	}

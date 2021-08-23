@@ -22,6 +22,8 @@
 
 package sc.fiji.snt;
 
+import sc.fiji.snt.tracing.SearchInterface;
+
 public interface SearchProgressCallback {
 
 	/* How many points have we considered? */

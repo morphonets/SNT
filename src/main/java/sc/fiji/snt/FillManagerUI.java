@@ -65,6 +65,9 @@ import javax.swing.border.BevelBorder;
 import ij.ImagePlus;
 import net.imagej.ImageJ;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.tracing.FillerThread;
+import sc.fiji.snt.tracing.SearchInterface;
+import sc.fiji.snt.tracing.SearchThread;
 
 /**
  * Implements the <i>Fill Manager</i> dialog.
@@ -400,7 +403,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				continue;
 			}
 			String name = "Fill (" + (i++) + ")";
-			if ((f.sourcePaths != null) && (f.sourcePaths.size() > 0)) {
+			if ((f.getSourcePaths() != null) && (f.getSourcePaths().size() > 0)) {
 				name += " from paths: " + f.getSourcePathsStringHuman();
 			}
 			entries.add(name);
@@ -593,7 +596,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 * @see FillerProgressCallback#maximumDistanceCompletelyExplored(SearchThread, float)
 	 */
 	@Override
-	public void maximumDistanceCompletelyExplored(final SearchThread source,
+	public void maximumDistanceCompletelyExplored(final FillerThread source,
 		final float f)
 	{
 		SwingUtilities.invokeLater(() -> {
@@ -607,7 +610,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 */
 	@Override
 	public void pointsInSearch(final SearchInterface source, final long inOpen,
-		final long inClosed)
+							   final long inClosed)
 	{
 		// Do nothing...
 	}
@@ -618,9 +621,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	@Override
 	public void finished(final SearchInterface source, final boolean success) {
 		if (!success) {
-			final int exitReason = ((SearchThread) source).exitReason;
+			final int exitReason = ((SearchThread) source).getExitReason();
 			if (exitReason != SearchThread.CANCELLED) {
-				final String reason = SearchThread.EXIT_REASONS_STRINGS[((SearchThread) source).exitReason];
+				final String reason = SearchThread.EXIT_REASONS_STRINGS[((SearchThread) source).getExitReason()];
 				new GuiUtils(this).error("Filling thread exited prematurely (Error code: '" + reason + "'). "
 						+ "With debug mode on, see Console for details.", "Filling Error");
 			} else {

@@ -20,8 +20,14 @@
  * #L%
  */
 
-package sc.fiji.snt.util;
+package sc.fiji.snt.tracing.image;
 
+/**
+ * General interface for data structures used to keep track
+ * of encountered nodes during image-based searches.
+ *
+ * @author Cameron Arshadi
+ */
 public interface SearchImage<V> extends Iterable<V> {
 
     V getValue(int x, int y);
