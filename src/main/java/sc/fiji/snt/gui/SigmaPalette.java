@@ -47,6 +47,7 @@ import ij.process.FloatProcessor;
 import ij.process.ImageStatistics;
 import net.imagej.ops.OpService;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.neighborhood.DiamondShape;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.real.FloatType;
@@ -852,6 +853,10 @@ public class SigmaPalette extends Thread {
 					break;
 				} case GAUSS: {
 					opService.filter().gauss(result, input, sigma/spacing[0], sigma/spacing[1], sigma/spacing[2]);
+					break;
+				} case MEDIAN: {
+					int radius = (int) Math.round(sigma / snt.getAverageSeparation());
+					opService.filter().median(Views.iterable(result), input, new DiamondShape(radius));
 					break;
 				}
 				default:
