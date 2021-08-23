@@ -29,7 +29,7 @@ import sc.fiji.snt.tracing.SearchInterface;
  *
  * @author Cameron Arshadi
  */
-public interface SearchCost {
+public interface Cost {
 
     double costMovingTo(final double valueAtNewPoint);
 

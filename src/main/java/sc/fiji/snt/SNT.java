@@ -71,13 +71,13 @@ import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.tracing.*;
-import sc.fiji.snt.tracing.cost.DifferenceCost;
-import sc.fiji.snt.tracing.cost.OneMinusErfCost;
-import sc.fiji.snt.tracing.cost.ReciprocalCost;
-import sc.fiji.snt.tracing.cost.SearchCost;
-import sc.fiji.snt.tracing.heuristic.DijkstraHeuristic;
-import sc.fiji.snt.tracing.heuristic.EuclideanHeuristic;
-import sc.fiji.snt.tracing.heuristic.SearchHeuristic;
+import sc.fiji.snt.tracing.cost.Difference;
+import sc.fiji.snt.tracing.cost.OneMinusErf;
+import sc.fiji.snt.tracing.cost.Reciprocal;
+import sc.fiji.snt.tracing.cost.Cost;
+import sc.fiji.snt.tracing.heuristic.Dijkstra;
+import sc.fiji.snt.tracing.heuristic.Euclidean;
+import sc.fiji.snt.tracing.heuristic.Heuristic;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
@@ -1676,30 +1676,30 @@ public class SNT extends MultiDThreePanes implements
 			computeImgStats(subVolume, imgStats, costType);
 		}
 
-		SearchCost costFunction;
+		Cost costFunction;
 		switch (costType) {
 			case RECIPROCAL:
-				costFunction = new ReciprocalCost(imgStats.min, imgStats.max);
+				costFunction = new Reciprocal(imgStats.min, imgStats.max);
 				break;
 			case PROBABILITY:
-				OneMinusErfCost cost = new OneMinusErfCost(imgStats.max, imgStats.mean, imgStats.stdDev);
+				OneMinusErf cost = new OneMinusErf(imgStats.max, imgStats.mean, imgStats.stdDev);
 				cost.setZFudge(oneMinusErfZFudge);
 				costFunction = cost;
 				break;
 			case DIFFERENCE:
-				costFunction = new DifferenceCost(imgStats.min, imgStats.max);
+				costFunction = new Difference(imgStats.min, imgStats.max);
 				break;
 			default:
 				throw new IllegalArgumentException("BUG: Unknown cost function " + costType);
 		}
 
-		SearchHeuristic heuristic;
+		Heuristic heuristic;
 		switch (heuristicType) {
 			case EUCLIDEAN:
-				heuristic = new EuclideanHeuristic();
+				heuristic = new Euclidean();
 				break;
 			case DIJKSTRA:
-				heuristic = new DijkstraHeuristic();
+				heuristic = new Dijkstra();
 				break;
 			default:
 				throw new IllegalArgumentException("BUG: Unknown heuristic " + heuristicType);
@@ -2276,16 +2276,16 @@ public class SNT extends MultiDThreePanes implements
 		double max = useSecondary ? statsSecondary.max : stats.max;
 		double mean = useSecondary ? statsSecondary.mean : stats.mean;
 		double stdDev = useSecondary ? statsSecondary.stdDev : stats.stdDev;
-		SearchCost costFunction;
+		Cost costFunction;
 		switch (costType) {
 			case RECIPROCAL:
-				costFunction = new ReciprocalCost(min, max);
+				costFunction = new Reciprocal(min, max);
 				break;
 			case PROBABILITY:
-				costFunction = new OneMinusErfCost(max, mean, stdDev);
+				costFunction = new OneMinusErf(max, mean, stdDev);
 				break;
 			case DIFFERENCE:
-				costFunction = new DifferenceCost(min, max);
+				costFunction = new Difference(min, max);
 				break;
 			default:
 				throw new IllegalArgumentException("BUG: Unrecognized cost function " + costType);

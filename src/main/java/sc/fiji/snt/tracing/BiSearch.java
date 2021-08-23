@@ -33,8 +33,8 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SearchProgressCallback;
-import sc.fiji.snt.tracing.cost.SearchCost;
-import sc.fiji.snt.tracing.heuristic.SearchHeuristic;
+import sc.fiji.snt.tracing.cost.Cost;
+import sc.fiji.snt.tracing.heuristic.Heuristic;
 import sc.fiji.snt.tracing.image.SearchImage;
 import sc.fiji.snt.tracing.image.SearchImageStack;
 import sc.fiji.snt.tracing.image.SupplierUtil;
@@ -48,7 +48,7 @@ import java.util.*;
  * Econometric Institute Research Papers EI 2009-10,
  * Erasmus University Rotterdam, Erasmus School of Economics (ESE), Econometric Institute.
  * <p>
- * The search distance function ({@link SearchCost}) and heuristic estimate ({@link SearchHeuristic}) are
+ * The search distance function ({@link Cost}) and heuristic estimate ({@link Heuristic}) are
  * supplied by the caller.
  *
  * @author Cameron Arshadi
@@ -63,8 +63,8 @@ public class BiSearch extends AbstractSearch {
     protected final int goal_x;
     protected final int goal_y;
     protected final int goal_z;
-    protected final SearchCost costFunction;
-    protected final SearchHeuristic heuristic;
+    protected final Cost costFunction;
+    protected final Heuristic heuristic;
     protected AddressableHeap<BiSearchNode, Void> open_from_start;
     protected AddressableHeap<BiSearchNode, Void> open_from_goal;
     protected long closed_from_start_count;
@@ -84,7 +84,7 @@ public class BiSearch extends AbstractSearch {
                     final int goal_x, final int goal_y, final int goal_z,
                     final int timeoutSeconds, final long reportEveryMilliseconds,
                     final SNT.SearchImageType searchImageType,
-                    final SearchCost costFunction, final SearchHeuristic heuristic)
+                    final Cost costFunction, final Heuristic heuristic)
     {
         this(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(), start_x, start_y, start_z,
                 goal_x, goal_y, goal_z, timeoutSeconds, reportEveryMilliseconds, searchImageType,
@@ -99,7 +99,7 @@ public class BiSearch extends AbstractSearch {
                     final int goal_x, final int goal_y, final int goal_z,
                     final int timeoutSeconds, final long reportEveryMilliseconds,
                     final SNT.SearchImageType searchImageType,
-                    final SearchCost costFunction, final SearchHeuristic heuristic)
+                    final Cost costFunction, final Heuristic heuristic)
     {
         super(image, calibration, timeoutSeconds, reportEveryMilliseconds);
         this.start_x = start_x;
@@ -119,7 +119,7 @@ public class BiSearch extends AbstractSearch {
     public BiSearch(final SNT snt, final ImagePlus imagePlus,
                     final int start_x, final int start_y, final int start_z,
                     final int goal_x, final int goal_y, final int goal_z,
-                    SearchCost costFunction, SearchHeuristic heuristic)
+                    Cost costFunction, Heuristic heuristic)
     {
         this(snt, ImageJFunctions.wrapReal(imagePlus), start_x, start_y, start_z, goal_x, goal_y, goal_z,
                 costFunction, heuristic);
@@ -128,7 +128,7 @@ public class BiSearch extends AbstractSearch {
     public BiSearch(final SNT snt, final RandomAccessibleInterval<? extends RealType<?>> image,
                     final int start_x, final int start_y, final int start_z,
                     final int goal_x, final int goal_y, final int goal_z,
-                    SearchCost costFunction, SearchHeuristic heuristic)
+                    Cost costFunction, Heuristic heuristic)
     {
         super(snt, image);
         this.start_x = start_x;

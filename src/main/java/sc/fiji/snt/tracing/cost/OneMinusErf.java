@@ -36,7 +36,7 @@ import smile.math.special.Erf;
  *
  * @author Cameron Arshadi
  */
-public class OneMinusErfCost implements SearchCost {
+public class OneMinusErf implements Cost {
 
     static final double STEP_COST_LOWER_BOUND = 1e-60;
     final double minCostPerUnitDistance;
@@ -54,7 +54,7 @@ public class OneMinusErfCost implements SearchCost {
      * @param average the average intensity value of the image, used to compute the intensity z-score
      * @param standardDeviation the standard deviation of the intensity values of the image, used to compute the intensity z-score
      */
-    public OneMinusErfCost(final double max, final double average, final double standardDeviation) {
+    public OneMinusErf(final double max, final double average, final double standardDeviation) {
         this.max = max;
         this.avg = average;
         this.stdDev = standardDeviation;

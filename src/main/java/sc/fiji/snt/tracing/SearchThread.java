@@ -31,7 +31,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SearchProgressCallback;
-import sc.fiji.snt.tracing.cost.SearchCost;
+import sc.fiji.snt.tracing.cost.Cost;
 import sc.fiji.snt.tracing.image.SearchImage;
 import sc.fiji.snt.tracing.image.SearchImageStack;
 import sc.fiji.snt.tracing.image.SupplierUtil;
@@ -65,7 +65,7 @@ public abstract class SearchThread extends AbstractSearch {
 	/* The search may only be bidirectional if definedGoal is true */
 	private final boolean bidirectional;
 
-	protected final SearchCost costFunction;
+	protected final Cost costFunction;
 
 	/*
 	 * If there is no definedGoal then the search is just Dijkstra's algorithm (h =
@@ -95,7 +95,7 @@ public abstract class SearchThread extends AbstractSearch {
 						final boolean bidirectional, final boolean definedGoal,
 						final int timeoutSeconds, final long reportEveryMilliseconds,
 						final SNT.SearchImageType searchImageType,
-						final SearchCost costFunction)
+						final Cost costFunction)
 	{
 		super(image, calibration, timeoutSeconds, reportEveryMilliseconds);
 		this.bidirectional = bidirectional;
@@ -111,7 +111,7 @@ public abstract class SearchThread extends AbstractSearch {
 	}
 
 	protected SearchThread(final SNT snt, final RandomAccessibleInterval<? extends RealType<?>> image,
-						   final SearchCost costFunction)
+						   final Cost costFunction)
 	{
 		super(snt, image);
 		this.costFunction = costFunction;

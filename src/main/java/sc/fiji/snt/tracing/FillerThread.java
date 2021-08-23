@@ -29,10 +29,10 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.*;
-import sc.fiji.snt.tracing.cost.DifferenceCost;
-import sc.fiji.snt.tracing.cost.OneMinusErfCost;
-import sc.fiji.snt.tracing.cost.ReciprocalCost;
-import sc.fiji.snt.tracing.cost.SearchCost;
+import sc.fiji.snt.tracing.cost.Difference;
+import sc.fiji.snt.tracing.cost.OneMinusErf;
+import sc.fiji.snt.tracing.cost.Reciprocal;
+import sc.fiji.snt.tracing.cost.Cost;
 import sc.fiji.snt.tracing.image.SearchImage;
 import sc.fiji.snt.tracing.image.SearchImageStack;
 
@@ -43,7 +43,7 @@ import java.util.*;
  * variant of Dijkstra's algorithm. The threshold sets the maximum allowable distance for a node to be included in the
  * {@link Fill}. This distance is represented in the g-score of a node, which is the length of the shortest path from a
  * seed point to that node. The magnitudes of these distances are heavily dependent on the supplied cost function
- * {@link SearchCost}, so the threshold should be set with a particular cost function in mind. It often helps to adjust
+ * {@link Cost}, so the threshold should be set with a particular cost function in mind. It often helps to adjust
  * the threshold interactively.
  *
  * @author Cameron Arshadi
@@ -58,21 +58,21 @@ public class FillerThread extends SearchThread {
 
 
     public FillerThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
-                        final double initialThreshold, final SearchCost costFunction)
+                        final double initialThreshold, final Cost costFunction)
     {
         this(image, calibration, initialThreshold, 0, 0, costFunction);
     }
 
     public FillerThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
                         final double initialThreshold, final long reportEveryMilliseconds,
-                        final SearchCost costFunction)
+                        final Cost costFunction)
     {
         this(image, calibration, initialThreshold, 0, reportEveryMilliseconds, costFunction);
     }
 
     public FillerThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
                         final double initialThreshold, int timeoutSeconds, final long reportEveryMilliseconds,
-                        final SearchCost costFunction)
+                        final Cost costFunction)
     {
         this(image, calibration, initialThreshold, timeoutSeconds, reportEveryMilliseconds,
                 costFunction, SNT.SearchImageType.MAP);
@@ -84,7 +84,7 @@ public class FillerThread extends SearchThread {
 
     public FillerThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
                         final double initialThreshold, int timeoutSeconds, final long reportEveryMilliseconds,
-                        final SearchCost costFunction, final SNT.SearchImageType searchImageType)
+                        final Cost costFunction, final SNT.SearchImageType searchImageType)
     {
         super(image, calibration, false, false, timeoutSeconds, reportEveryMilliseconds,
                 searchImageType, costFunction);
@@ -98,16 +98,16 @@ public class FillerThread extends SearchThread {
 
         SNTUtils.log("loading a fill with threshold: " + fill.getThreshold() +
                 ", metric: " + fill.getMetric().toString());
-        final SearchCost cost;
+        final Cost cost;
         switch (fill.getMetric()) {
             case RECIPROCAL:
-                cost = new ReciprocalCost(stats.min, stats.max);
+                cost = new Reciprocal(stats.min, stats.max);
                 break;
             case DIFFERENCE:
-                cost = new DifferenceCost(stats.min, stats.max);
+                cost = new Difference(stats.min, stats.max);
                 break;
             case PROBABILITY:
-                cost = new OneMinusErfCost(stats.max, stats.mean, stats.stdDev);
+                cost = new OneMinusErf(stats.max, stats.mean, stats.stdDev);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown cost: " + fill.getMetric());
@@ -185,11 +185,11 @@ public class FillerThread extends SearchThread {
 
         fill.setThreshold(threshold);
         // FIXME
-        if (costFunction instanceof ReciprocalCost)
+        if (costFunction instanceof Reciprocal)
             fill.setMetric(SNT.CostType.RECIPROCAL);
-        else if (costFunction instanceof DifferenceCost)
+        else if (costFunction instanceof Difference)
             fill.setMetric(SNT.CostType.DIFFERENCE);
-        else if (costFunction instanceof OneMinusErfCost)
+        else if (costFunction instanceof OneMinusErf)
             fill.setMetric(SNT.CostType.PROBABILITY);
         else
             throw new IllegalArgumentException("Unknown cost " + costFunction.getClass());

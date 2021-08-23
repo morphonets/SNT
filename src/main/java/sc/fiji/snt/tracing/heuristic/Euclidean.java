@@ -23,18 +23,31 @@
 package sc.fiji.snt.tracing.heuristic;
 
 import ij.measure.Calibration;
-import sc.fiji.snt.tracing.SearchInterface;
 
 /**
- * Interface for heuristic estimates to the goal used by classes implementing {@link SearchInterface}.
- * This useful for heuristic-informed searches like A*.
- *
- * @author Cameron Arshadi
+ * A* search heuristic using euclidean distance from current node to goal node
  */
-public interface SearchHeuristic {
+public class Euclidean implements Heuristic {
 
-    void setCalibration(Calibration calibration);
+    private Calibration calibration;
 
-    double estimateCostToGoal(int current_x, int current_y, int current_z, int goal_x, int goal_y, int goal_z);
+    public Euclidean() {}
+
+    @Override
+    public double estimateCostToGoal(final int source_x, final int source_y, final int source_z,
+                                        final int target_x, final int target_y, final int target_z)
+    {
+        final double xdiff = (target_x - source_x) * calibration.pixelWidth;
+        final double ydiff = (target_y - source_y) * calibration.pixelHeight;
+        final double zdiff = (target_z - source_z) * calibration.pixelDepth;
+
+        return Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff *
+                zdiff);
+    }
+
+    @Override
+    public void setCalibration(final Calibration calibration) {
+        this.calibration = calibration;
+    }
 
 }

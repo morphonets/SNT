@@ -20,29 +20,21 @@
  * #L%
  */
 
-package sc.fiji.snt.tracing.cost;
+package sc.fiji.snt.tracing.heuristic;
 
-public class DifferenceCost implements SearchCost {
+import ij.measure.Calibration;
+import sc.fiji.snt.tracing.SearchInterface;
 
-    static final double MIN_COST_PER_UNIT_DISTANCE = 1;
+/**
+ * Interface for heuristic estimates to the goal used by classes implementing {@link SearchInterface}.
+ * This useful for heuristic-informed searches like A*.
+ *
+ * @author Cameron Arshadi
+ */
+public interface Heuristic {
 
-    final double min;
-    final double max;
+    void setCalibration(Calibration calibration);
 
-    public DifferenceCost(final double min, final double max) {
-        this.min = min;
-        this.max = max;
-    }
+    double estimateCostToGoal(int current_x, int current_y, int current_z, int goal_x, int goal_y, int goal_z);
 
-    @Override
-    public double costMovingTo(double valueAtNewPoint) {
-        valueAtNewPoint = 255.0 * (valueAtNewPoint - min) / (max - min);
-        if (valueAtNewPoint > 255) valueAtNewPoint = 255;
-        return 256 - valueAtNewPoint;
-    }
-
-    @Override
-    public double minStepCost() {
-        return MIN_COST_PER_UNIT_DISTANCE;
-    }
 }

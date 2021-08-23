@@ -27,7 +27,7 @@ package sc.fiji.snt.tracing.cost;
  * 255.0 * (intensity - min) / (max - min)
  * to compute the cost of moving to a neighbor node.
  */
-public class ReciprocalCost implements SearchCost {
+public class Reciprocal implements Cost {
 
     // For 0 intensity, use half the smallest possible rescaled value (assuming we don't allow DoubleType)
     static final double RECIPROCAL_FUDGE = (255 * 0.5 * (double)Float.MIN_VALUE) / (double)Float.MAX_VALUE;
@@ -36,7 +36,7 @@ public class ReciprocalCost implements SearchCost {
     private final double min;
     private final double max;
 
-    public ReciprocalCost(final double min, final double max) {
+    public Reciprocal(final double min, final double max) {
         this.min = min;
         this.max = max;
     }

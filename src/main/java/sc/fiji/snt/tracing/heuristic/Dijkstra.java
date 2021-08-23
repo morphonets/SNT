@@ -27,7 +27,7 @@ import ij.measure.Calibration;
 /**
  * @author Cameron Arshadi
  */
-public class DijkstraHeuristic implements SearchHeuristic {
+public class Dijkstra implements Heuristic {
 
     /**
      * Since Dijkstra's algorithm is equivalent to an A* search where h(x) = 0, return 0.

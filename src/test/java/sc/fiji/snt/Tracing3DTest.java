@@ -42,13 +42,13 @@ import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.tracing.*;
-import sc.fiji.snt.tracing.cost.DifferenceCost;
-import sc.fiji.snt.tracing.cost.OneMinusErfCost;
-import sc.fiji.snt.tracing.cost.ReciprocalCost;
-import sc.fiji.snt.tracing.cost.SearchCost;
-import sc.fiji.snt.tracing.heuristic.DijkstraHeuristic;
-import sc.fiji.snt.tracing.heuristic.EuclideanHeuristic;
-import sc.fiji.snt.tracing.heuristic.SearchHeuristic;
+import sc.fiji.snt.tracing.cost.Difference;
+import sc.fiji.snt.tracing.cost.OneMinusErf;
+import sc.fiji.snt.tracing.cost.Reciprocal;
+import sc.fiji.snt.tracing.cost.Cost;
+import sc.fiji.snt.tracing.heuristic.Dijkstra;
+import sc.fiji.snt.tracing.heuristic.Euclidean;
+import sc.fiji.snt.tracing.heuristic.Heuristic;
 
 import java.util.Objects;
 
@@ -83,18 +83,18 @@ public class Tracing3DTest {
 	}
 
 	private <T extends RealType<T>> AbstractSearch createSearch(RandomAccessibleInterval<T> img,
-																SearchCost cost,
+																Cost cost,
 																SNT.SearchType searchType,
 																SNT.SearchImageType imageClass,
 																SNT.HeuristicType heuristicType)
 	{
-		SearchHeuristic heuristic;
+		Heuristic heuristic;
 		switch (heuristicType) {
 			case EUCLIDEAN:
-				heuristic = new EuclideanHeuristic();
+				heuristic = new Euclidean();
 				break;
 			case DIJKSTRA:
-				heuristic = new DijkstraHeuristic();
+				heuristic = new Dijkstra();
 				break;
 			default:
 				throw new IllegalArgumentException("Unknown heuristic type " + heuristicType);
@@ -134,7 +134,7 @@ public class Tracing3DTest {
 		assertTrue(length <= maxLength);
 	}
 
-	private void costTest(final SearchCost cost, final double minLength, final double maxLength) {
+	private void costTest(final Cost cost, final double minLength, final double maxLength) {
 		searchTest(
 				createSearch(img, cost, SNT.SearchType.ASTAR, ARRAY, SNT.HeuristicType.EUCLIDEAN),
 				minLength, maxLength);
@@ -142,17 +142,17 @@ public class Tracing3DTest {
 
 	@Test
 	public void testReciprocalCost() {
-		costTest(new ReciprocalCost(stats.min, stats.max), 227.3, 227.4);
+		costTest(new Reciprocal(stats.min, stats.max), 227.3, 227.4);
 	}
 
 	@Test
 	public void testDifferenceCost() {
-		costTest(new DifferenceCost(stats.min, stats.max), 240.5, 240.6);
+		costTest(new Difference(stats.min, stats.max), 240.5, 240.6);
 	}
 
 	@Test
 	public void testOneMinusErfCost() {
-		OneMinusErfCost cost = new OneMinusErfCost(stats.max, stats.mean, stats.stdDev);
+		OneMinusErf cost = new OneMinusErf(stats.max, stats.mean, stats.stdDev);
 		costTest(cost, 355.9, 356);
 		cost.setZFudge(0.2);
 		costTest(cost, 341.0, 341.1);
@@ -163,7 +163,7 @@ public class Tracing3DTest {
 		for (SNT.SearchImageType searchImageType : SNT.SearchImageType.values()) {
 			AbstractSearch search = createSearch(
 					img,
-					new ReciprocalCost(stats.min, stats.max), SNT.SearchType.ASTAR,
+					new Reciprocal(stats.min, stats.max), SNT.SearchType.ASTAR,
 					searchImageType,
 					SNT.HeuristicType.EUCLIDEAN);
 			searchTest(search, 227.326, 227.327);
@@ -176,7 +176,7 @@ public class Tracing3DTest {
 		//  compare the heuristic searches against that to ensure the A* implementations are correct
 		AbstractSearch search = createSearch(
 				img,
-				new ReciprocalCost(stats.min, stats.max), SNT.SearchType.ASTAR,
+				new Reciprocal(stats.min, stats.max), SNT.SearchType.ASTAR,
 				ARRAY,
 				SNT.HeuristicType.DIJKSTRA);
 		search.run();
@@ -189,7 +189,7 @@ public class Tracing3DTest {
 				if (searchType == SNT.SearchType.ASTAR) continue;
 				search = createSearch(
 						img,
-						new ReciprocalCost(stats.min, stats.max), searchType,
+						new Reciprocal(stats.min, stats.max), searchType,
 						ARRAY,
 						heuristicType);
 				search.run();
@@ -198,7 +198,7 @@ public class Tracing3DTest {
 		}
 	}
 
-	private void filterTest(final RandomAccessibleInterval<FloatType> filteredImg, final ReciprocalCost cost,
+	private void filterTest(final RandomAccessibleInterval<FloatType> filteredImg, final Reciprocal cost,
 							final double reductionFactor)
 	{
 		AbstractSearch filterSearch = createSearch(
@@ -211,7 +211,7 @@ public class Tracing3DTest {
 
 		AbstractSearch search = createSearch(
 				img,
-				new ReciprocalCost(stats.min, stats.max), SNT.SearchType.ASTAR,
+				new Reciprocal(stats.min, stats.max), SNT.SearchType.ASTAR,
 				ARRAY,
 				SNT.HeuristicType.EUCLIDEAN);
 		search.run();
@@ -238,7 +238,7 @@ public class Tracing3DTest {
 		final RandomAccessibleInterval<FloatType> frangi = createLazyImg(new Frangi<>(scales, spacing, stats.max));
 		ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(Views.iterable(frangi), new FloatType(), new FloatType());
 		cmm.process();
-		filterTest(frangi, new ReciprocalCost(cmm.getMin().getRealDouble(), cmm.getMax().getRealDouble() / 4.0),
+		filterTest(frangi, new Reciprocal(cmm.getMin().getRealDouble(), cmm.getMax().getRealDouble() / 4.0),
 				0.95);
 	}
 
@@ -248,7 +248,7 @@ public class Tracing3DTest {
 		final RandomAccessibleInterval<FloatType> tubeness = createLazyImg(new Tubeness<>(scales, spacing));
 		ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(Views.iterable(tubeness), new FloatType(), new FloatType());
 		cmm.process();
-		filterTest(tubeness, new ReciprocalCost(cmm.getMin().getRealDouble(), cmm.getMax().getRealDouble() / 4.0),
+		filterTest(tubeness, new Reciprocal(cmm.getMin().getRealDouble(), cmm.getMax().getRealDouble() / 4.0),
 				0.8);
 	}
 
@@ -266,7 +266,7 @@ public class Tracing3DTest {
 				(Object) sigmas);
 		ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(Views.iterable(gaussian), new FloatType(), new FloatType());
 		cmm.process();
-		SearchCost cost = new ReciprocalCost(cmm.getMin().getRealDouble(), cmm.getMax().getRealDouble());
+		Cost cost = new Reciprocal(cmm.getMin().getRealDouble(), cmm.getMax().getRealDouble());
 		AbstractSearch search = createSearch(gaussian, cost, SNT.SearchType.ASTAR, ARRAY, SNT.HeuristicType.EUCLIDEAN);
 		searchTest(search, 230.1, 230.2);
 	}

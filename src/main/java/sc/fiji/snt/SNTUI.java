@@ -88,7 +88,7 @@ import sc.fiji.snt.gui.SigmaPalette;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.*;
-import sc.fiji.snt.tracing.cost.OneMinusErfCost;
+import sc.fiji.snt.tracing.cost.OneMinusErf;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.*;
@@ -2994,7 +2994,7 @@ public class SNTUI extends JDialog {
 
 	
 	private Double getZFudgeFromUser() {
-		final double defaultValue = new OneMinusErfCost(0,0,0).getZFudge();
+		final double defaultValue = new OneMinusErf(0,0,0).getZFudge();
 		String promptMsg = "Enter multiplier for intensity z-score. "//
 				+ "Values < 1 make it easier to numerically distinguish bright voxels. "//
 				+ "The current default is "//
