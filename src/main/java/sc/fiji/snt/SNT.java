@@ -1698,7 +1698,7 @@ public class SNT extends MultiDThreePanes implements
 		Heuristic heuristic;
 		switch (heuristicType) {
 			case EUCLIDEAN:
-				heuristic = new Euclidean();
+				heuristic = new Euclidean(xy.getCalibration());
 				break;
 			case DIJKSTRA:
 				heuristic = new Dijkstra();

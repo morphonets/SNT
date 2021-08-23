@@ -110,7 +110,6 @@ public class BiSearch extends AbstractSearch {
         this.goal_z = goal_z;
         this.costFunction = costFunction;
         this.heuristic = heuristic;
-        this.heuristic.setCalibration(calibration);
         nodes_as_image = new SearchImageStack<>(
                 SupplierUtil.createSupplier(searchImageType, BiSearchNode.class, imgWidth, imgHeight));
         init();
@@ -143,7 +142,6 @@ public class BiSearch extends AbstractSearch {
         cal.pixelWidth = snt.getPixelWidth();
         cal.pixelHeight = snt.getPixelHeight();
         cal.pixelDepth = snt.getPixelDepth();
-        this.heuristic.setCalibration(cal);
         nodes_as_image = new SearchImageStack<>(
                 SupplierUtil.createSupplier(snt.getSearchImageType(), BiSearchNode.class, imgWidth, imgHeight));
         init();

@@ -29,9 +29,11 @@ import ij.measure.Calibration;
  */
 public class Euclidean implements Heuristic {
 
-    private Calibration calibration;
+    private final Calibration calibration;
 
-    public Euclidean() {}
+    public Euclidean(final Calibration calibration) {
+        this.calibration = calibration;
+    }
 
     @Override
     public double estimateCostToGoal(final int source_x, final int source_y, final int source_z,
@@ -41,13 +43,7 @@ public class Euclidean implements Heuristic {
         final double ydiff = (target_y - source_y) * calibration.pixelHeight;
         final double zdiff = (target_z - source_z) * calibration.pixelDepth;
 
-        return Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff *
-                zdiff);
-    }
-
-    @Override
-    public void setCalibration(final Calibration calibration) {
-        this.calibration = calibration;
+        return Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff * zdiff);
     }
 
 }

@@ -69,7 +69,6 @@ public class TracerThread extends SearchThread {
 		cal.pixelWidth = snt.getPixelWidth();
 		cal.pixelHeight = snt.getPixelHeight();
 		cal.pixelDepth = snt.getPixelDepth();
-		this.heuristic.setCalibration(cal);
 		init(start_x, start_y, start_z, goal_x, goal_y, goal_z);
 	}
 
@@ -96,7 +95,6 @@ public class TracerThread extends SearchThread {
 		super(image, calibration, true, true, timeoutSeconds, reportEveryMilliseconds,
 				searchImageType, costFunction);
 		this.heuristic = heuristic;
-		this.heuristic.setCalibration(calibration);
 		init(start_x, start_y, start_z, goal_x, goal_y, goal_z);
 	}
 

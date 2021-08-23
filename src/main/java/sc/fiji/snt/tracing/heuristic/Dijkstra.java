@@ -22,26 +22,20 @@
 
 package sc.fiji.snt.tracing.heuristic;
 
-import ij.measure.Calibration;
-
 /**
  * @author Cameron Arshadi
  */
 public class Dijkstra implements Heuristic {
 
     /**
-     * Since Dijkstra's algorithm is equivalent to an A* search where h(x) = 0, return 0.
+     * Since Dijkstra's algorithm is equivalent to an A* search where the heuristic function h(x) = 0, return 0.
      *
      * @return 0
      */
     @Override
-    public double estimateCostToGoal(int current_x, int current_y, int current_z, int goal_x, int goal_y, int goal_z) {
+    public double estimateCostToGoal(int current_x, int current_y, int current_z, int goal_x, int goal_y, int goal_z)
+    {
         return 0;
-    }
-
-    @Override
-    public void setCalibration(final Calibration calibration) {
-        // do nothing
     }
 
 }

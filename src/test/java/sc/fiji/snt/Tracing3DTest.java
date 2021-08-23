@@ -91,7 +91,7 @@ public class Tracing3DTest {
 		Heuristic heuristic;
 		switch (heuristicType) {
 			case EUCLIDEAN:
-				heuristic = new Euclidean();
+				heuristic = new Euclidean(cal);
 				break;
 			case DIJKSTRA:
 				heuristic = new Dijkstra();

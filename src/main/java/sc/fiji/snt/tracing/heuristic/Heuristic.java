@@ -22,7 +22,6 @@
 
 package sc.fiji.snt.tracing.heuristic;
 
-import ij.measure.Calibration;
 import sc.fiji.snt.tracing.SearchInterface;
 
 /**
@@ -32,8 +31,6 @@ import sc.fiji.snt.tracing.SearchInterface;
  * @author Cameron Arshadi
  */
 public interface Heuristic {
-
-    void setCalibration(Calibration calibration);
 
     double estimateCostToGoal(int current_x, int current_y, int current_z, int goal_x, int goal_y, int goal_z);
 
