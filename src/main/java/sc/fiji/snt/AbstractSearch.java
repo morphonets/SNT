@@ -44,10 +44,6 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
 
     protected final RandomAccessibleInterval<? extends RealType<?>> img;
     protected final RandomAccess<? extends RealType<?>> imgAccess;
-    protected final double xSep;
-    protected final double ySep;
-    protected final double zSep;
-    protected final String spacing_units;
     protected final int imgWidth;
     protected final int imgHeight;
     protected final int imgDepth;
@@ -57,6 +53,10 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
     protected final long xMax;
     protected final long yMax;
     protected final long zMax;
+    protected final double xSep;
+    protected final double ySep;
+    protected final double zSep;
+    protected final String spacing_units;
 
     protected Color openColor;
     protected Color closedColor;
@@ -66,9 +66,7 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
     protected long reportEveryMilliseconds;
     protected ArrayList<SearchProgressCallback> progressListeners;
 
-    protected int exitReason;
     protected final boolean verbose = SNTUtils.isDebugMode();
-    protected int minExpectedSize;
 
 
     protected AbstractSearch(final ImagePlus imagePlus, final int timeoutSeconds, final long reportEveryMilliseconds)

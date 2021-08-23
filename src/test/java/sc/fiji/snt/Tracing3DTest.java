@@ -102,7 +102,7 @@ public class Tracing3DTest {
 						cost,
 						heuristic);
 			case NBASTAR:
-				return new BidirectionalSearch(
+				return new BiSearch(
 						img, cal,
 						startX, startY, startZ,
 						endX, endY, endZ,

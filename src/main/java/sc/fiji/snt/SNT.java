@@ -1713,7 +1713,7 @@ public class SNT extends MultiDThreePanes implements
 						heuristic);
 				break;
 			case NBASTAR:
-				search = new BidirectionalSearch(
+				search = new BiSearch(
 						this,
 						img,
 						x_start,
