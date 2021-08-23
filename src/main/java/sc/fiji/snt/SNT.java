@@ -822,7 +822,7 @@ public class SNT extends MultiDThreePanes implements
 		fillerThreadPool = null;
 		changeUIState(SNTUI.WAITING_TO_START_PATH);
 		if (getUI() != null)
-			getUI().getFillManager().changeState(FillManagerUI.READY);
+			getUI().getFillManager().changeState(FillManagerUI.State.READY);
 	}
 
 	synchronized protected void discardFill() {
@@ -836,7 +836,7 @@ public class SNT extends MultiDThreePanes implements
 		fillerThreadPool = null;
 		changeUIState(SNTUI.WAITING_TO_START_PATH);
 		if (getUI() != null)
-			getUI().getFillManager().changeState(FillManagerUI.READY);
+			getUI().getFillManager().changeState(FillManagerUI.State.READY);
 	}
 
 	synchronized protected void stopFilling() {
@@ -862,7 +862,7 @@ public class SNT extends MultiDThreePanes implements
 		} finally {
 			fillerThreadPool = null;
 			if (getUI() != null)
-				getUI().getFillManager().changeState(FillManagerUI.ABORTED);
+				getUI().getFillManager().changeState(FillManagerUI.State.STOPPED);
 		}
 
 	}
@@ -875,7 +875,7 @@ public class SNT extends MultiDThreePanes implements
 			throw new IllegalArgumentException("Filler already running");
 		}
 		if (getUI() != null)
-			getUI().getFillManager().changeState(FillManagerUI.STARTED);
+			getUI().getFillManager().changeState(FillManagerUI.State.STARTED);
 		fillerThreadPool = Executors.newFixedThreadPool(Math.max(1, SNTPrefs.getThreads()));
 		final List<Future<?>> futures = new ArrayList<>();
 		for (final FillerThread fillerThread : fillerSet) {
@@ -897,11 +897,12 @@ public class SNT extends MultiDThreePanes implements
 				if (ui != null) {
 					if (fillerSet.isEmpty()) {
 						// This means someone called discardFills() before all future tasks returned
-						ui.getFillManager().changeState(FillManagerUI.READY);
+						ui.getFillManager().changeState(FillManagerUI.State.READY);
 					} else {
 						boolean allSucceeded = fillerSet.stream()
 								.noneMatch(f -> f.getExitReason() == SearchThread.CANCELLED);
-						ui.getFillManager().changeState(allSucceeded ? FillManagerUI.ENDED : FillManagerUI.ABORTED);
+						ui.getFillManager().changeState(
+								allSucceeded ? FillManagerUI.State.ENDED : FillManagerUI.State.STOPPED);
 					}
 				}
 			}

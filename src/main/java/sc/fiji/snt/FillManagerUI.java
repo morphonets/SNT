@@ -80,10 +80,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	protected static final String FILLING_URI = "https://imagej.net/SNT:_Step-By-Step_Instructions#Filling";
 	private static final int MARGIN = 10;
 
-	protected static final int READY = 0;
-	protected static final int STARTED = 1;
-	protected static final int ABORTED = 2;
-	protected static final int ENDED = 3;
+	public enum State {READY, STARTED, ENDED, LOADED, STOPPED}
 
 	private final SNT plugin;
 	private final PathAndFillManager pathAndFillManager;
@@ -91,7 +88,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private final DefaultListModel<String> listModel;
 	private final GuiUtils gUtils;
 	private float maxThresholdValue = 0;
-	private int currentState = -1;
+	private State currentState;
 
 	private JTextField manualThresholdInputField;
 	private JLabel maxThresholdLabel;
@@ -242,13 +239,15 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		reloadFill.addActionListener(e -> {
 			if (noFillsError())
 				return;
-			final int[] selectedIndices = fillList.getSelectedIndices();
-			if (selectedIndices.length < 1
-					&& gUtils.getConfirmation("No fill was select for reload. Reload All?", "Reload All?")) {
-				pathAndFillManager.reloadFills(IntStream.range(0, fillList.getModel().getSize()).toArray());
-			} else {
-				pathAndFillManager.reloadFills(selectedIndices);
+			int[] selectedIndices = fillList.getSelectedIndices();
+			if (selectedIndices.length < 1 &&
+					gUtils.getConfirmation("No fill was select for reload. Reload All?", "Reload All?"))
+			{
+				selectedIndices = IntStream.range(0, fillList.getModel().getSize()).toArray();
 			}
+			pathAndFillManager.reloadFills(selectedIndices);
+			fillList.setSelectedIndices(selectedIndices);
+			changeState(State.LOADED);
 		});
 
 		assembleExportFillsMenu();
@@ -266,7 +265,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 		pack();
 		adjustListPlaceholder();
-		changeState(READY);
+		changeState(State.READY);
 		setLocationRelativeTo(plugin.getUI());
 		addWindowListener(new WindowAdapter() {
 			@Override
@@ -316,10 +315,15 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 		@Override
 		public Component getListCellRendererComponent(final JList<?> list, final Object value, final int index, final boolean isSelected,
-				final boolean cellHasFocus) {
+				final boolean cellHasFocus)
+		{
+
 			if (LIST_PLACEHOLDER.equals(value.toString())) {
 				return GuiUtils.leftAlignedLabel(LIST_PLACEHOLDER, false);
 			} else {
+				if (isSelected) {
+					setBackground(getBackground().darker());
+				}
 				return super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 			}
 		}
@@ -620,7 +624,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				new GuiUtils(this).error("Filling thread exited prematurely (Error code: '" + reason + "'). "
 						+ "With debug mode on, see Console for details.", "Filling Error");
 			} else {
-				changeState(ABORTED);
+				changeState(State.STOPPED);
 			}
 		}
 	}
@@ -652,10 +656,10 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 * Changes this UI to a new state. Does nothing if {@code newState} is the
 	 * current UI state
 	 *
-	 * @param newState the new state, e.g., {@link FillManagerUI#READY},
-	 *                 {@link FillManagerUI#STARTED}, etc.
+	 * @param newState the new state, e.g., {@link State#READY},
+	 *                 {@link State#STARTED}, etc.
 	 */
-	protected void changeState(final int newState) {
+	protected void changeState(final State newState) {
 
 		if (newState == currentState)
 			return;
@@ -677,7 +681,14 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				saveFill.setEnabled(false);
 				break;
 
-			case ABORTED:
+			case LOADED:
+				updateStatusText("Press <i>Start</i> to initiate filling...");
+				startFill.setEnabled(true);
+				stopFill.setEnabled(false);
+				saveFill.setEnabled(true);
+				break;
+
+			case STOPPED:
 				updateStatusText("Filling stopped...");
 				startFill.setEnabled(true);
 				stopFill.setEnabled(false);
