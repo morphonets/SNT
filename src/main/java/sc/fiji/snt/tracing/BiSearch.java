@@ -22,10 +22,8 @@
 
 package sc.fiji.snt.tracing;
 
-import ij.ImagePlus;
 import ij.measure.Calibration;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
 import org.jheaps.AddressableHeap;
 import org.jheaps.tree.PairingHeap;
@@ -34,6 +32,8 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SearchProgressCallback;
 import sc.fiji.snt.tracing.cost.Cost;
+import sc.fiji.snt.tracing.cost.Reciprocal;
+import sc.fiji.snt.tracing.heuristic.Euclidean;
 import sc.fiji.snt.tracing.heuristic.Heuristic;
 import sc.fiji.snt.tracing.image.SearchImage;
 import sc.fiji.snt.tracing.image.SearchImageStack;
@@ -55,8 +55,6 @@ import java.util.*;
  */
 public class BiSearch extends AbstractSearch {
 
-    public enum NodeState {OPEN_FROM_START, OPEN_FROM_GOAL, CLOSED_FROM_START, CLOSED_FROM_GOAL, FREE}
-
     protected final int start_x;
     protected final int start_y;
     protected final int start_z;
@@ -69,7 +67,7 @@ public class BiSearch extends AbstractSearch {
     protected AddressableHeap<BiSearchNode, Void> open_from_goal;
     protected long closed_from_start_count;
     protected long closed_from_goal_count;
-    protected SearchImageStack<BiSearchNode> nodes_as_image;
+    protected final SearchImageStack<BiSearchNode> nodes_as_image;
     protected Path result;
     long started_at;
     long loops;
@@ -77,19 +75,6 @@ public class BiSearch extends AbstractSearch {
     long lastReportMilliseconds;
     private double bestPathLength;
     private BiSearchNode touchNode;
-
-
-    public BiSearch(final ImagePlus imagePlus,
-                    final int start_x, final int start_y, final int start_z,
-                    final int goal_x, final int goal_y, final int goal_z,
-                    final int timeoutSeconds, final long reportEveryMilliseconds,
-                    final SNT.SearchImageType searchImageType,
-                    final Cost costFunction, final Heuristic heuristic)
-    {
-        this(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(), start_x, start_y, start_z,
-                goal_x, goal_y, goal_z, timeoutSeconds, reportEveryMilliseconds, searchImageType,
-                costFunction, heuristic);
-    }
 
 
     /* If you specify 0 for timeoutSeconds then there is no timeout. */
@@ -115,15 +100,6 @@ public class BiSearch extends AbstractSearch {
         init();
     }
 
-    public BiSearch(final SNT snt, final ImagePlus imagePlus,
-                    final int start_x, final int start_y, final int start_z,
-                    final int goal_x, final int goal_y, final int goal_z,
-                    Cost costFunction, Heuristic heuristic)
-    {
-        this(snt, ImageJFunctions.wrapReal(imagePlus), start_x, start_y, start_z, goal_x, goal_y, goal_z,
-                costFunction, heuristic);
-    }
-
     public BiSearch(final SNT snt, final RandomAccessibleInterval<? extends RealType<?>> image,
                     final int start_x, final int start_y, final int start_z,
                     final int goal_x, final int goal_y, final int goal_z,
@@ -138,10 +114,45 @@ public class BiSearch extends AbstractSearch {
         this.goal_z = goal_z;
         this.costFunction = costFunction;
         this.heuristic = heuristic;
-        Calibration cal = new Calibration();
+        nodes_as_image = new SearchImageStack<>(
+                SupplierUtil.createSupplier(snt.getSearchImageType(), BiSearchNode.class, imgWidth, imgHeight));
+        init();
+    }
+
+    public BiSearch(final SNT snt, final int start_x, final int start_y, final int start_z,
+                    final int goal_x, final int goal_y, final int goal_z,
+                    Cost costFunction, Heuristic heuristic)
+    {
+        super(snt, snt.getLoadedData());
+        this.start_x = start_x;
+        this.start_y = start_y;
+        this.start_z = start_z;
+        this.goal_x = goal_x;
+        this.goal_y = goal_y;
+        this.goal_z = goal_z;
+        this.costFunction = costFunction;
+        this.heuristic = heuristic;
+        nodes_as_image = new SearchImageStack<>(
+                SupplierUtil.createSupplier(snt.getSearchImageType(), BiSearchNode.class, imgWidth, imgHeight));
+        init();
+    }
+
+    public BiSearch(final SNT snt, final int start_x, final int start_y, final int start_z,
+                    final int goal_x, final int goal_y, final int goal_z)
+    {
+        super(snt, snt.getLoadedData());
+        this.start_x = start_x;
+        this.start_y = start_y;
+        this.start_z = start_z;
+        this.goal_x = goal_x;
+        this.goal_y = goal_y;
+        this.goal_z = goal_z;
+        this.costFunction = new Reciprocal(snt.getStats().min, snt.getStats().max);
+        final Calibration cal = new Calibration();
         cal.pixelWidth = snt.getPixelWidth();
         cal.pixelHeight = snt.getPixelHeight();
         cal.pixelDepth = snt.getPixelDepth();
+        this.heuristic  = new Euclidean(cal);
         nodes_as_image = new SearchImageStack<>(
                 SupplierUtil.createSupplier(snt.getSearchImageType(), BiSearchNode.class, imgWidth, imgHeight));
         init();
@@ -164,34 +175,33 @@ public class BiSearch extends AbstractSearch {
 
         try {
             if (verbose) {
-                System.out.println("New SearchThread running!");
+                SNTUtils.log("New " + getClass().getSimpleName() + " running!");
                 printStatus();
             }
 
             started_at = lastReportMilliseconds = System.currentTimeMillis();
 
-            BiSearchNode start = new BiSearchNode(start_x, start_y, start_z);
-            BiSearchNode goal = new BiSearchNode(goal_x, goal_y, goal_z);
+            final BiSearchNode start = new BiSearchNode(start_x, start_y, start_z);
+            final BiSearchNode goal = new BiSearchNode(goal_x, goal_y, goal_z);
 
-            start.gFromStart = 0d;
-            goal.gFromGoal = 0d;
+            start.setgFromStart(0d);
+            goal.setgFromGoal(0d);
 
-            double bestFScoreFromStart =
-                    heuristic.estimateCostToGoal(start.x, start.y, start.z, goal.x, goal.y, goal.z) *
-                            costFunction.minStepCost();
-            double bestFScoreFromGoal =
-                    heuristic.estimateCostToGoal(goal.x, goal.y, goal.z, start.x, start.y, start.z) *
-                            costFunction.minStepCost();
+            double bestFScoreFromStart = heuristic.estimateCostToGoal(start.getX(), start.getY(), start.getZ(),
+                    goal.getX(), goal.getY(), goal.getZ()) * costFunction.minStepCost();
 
-            start.fFromStart = bestFScoreFromStart;
-            goal.fFromGoal = bestFScoreFromGoal;
+            double bestFScoreFromGoal = heuristic.estimateCostToGoal(goal.getX(), goal.getY(), goal.getZ(),
+                    start.getX(), start.getY(), start.getZ()) * costFunction.minStepCost();
+
+            start.setfFromStart(bestFScoreFromStart);
+            goal.setfFromGoal(bestFScoreFromGoal);
 
             bestPathLength = Double.POSITIVE_INFINITY;
 
             touchNode = null;
 
-            start.heapHandleFromStart = open_from_start.insert(start);
-            goal.heapHandleFromGoal = open_from_goal.insert(goal);
+            start.setHeapHandleFromStart(open_from_start.insert(start));
+            goal.setHeapHandleFromGoal(open_from_goal.insert(goal));
 
             nodes_as_image.newSlice(start_z);
             nodes_as_image.getSlice(start_z).setValue(start_x, start_y, start);
@@ -205,7 +215,7 @@ public class BiSearch extends AbstractSearch {
             while (!open_from_goal.isEmpty() && !open_from_start.isEmpty()) {
 
                 if (Thread.currentThread().isInterrupted()) {
-                    if (verbose) System.out.println("Search thread interrupted, returning null result.");
+                    SNTUtils.log("Search thread interrupted.");
                     reportFinished(false);
                     return;
                 }
@@ -223,18 +233,19 @@ public class BiSearch extends AbstractSearch {
                 if (fromStart) {
 
                     final BiSearchNode p = open_from_start.deleteMin().getKey();
-                    p.heapHandleFromStart = null;
-                    p.stateFromStart = NodeState.CLOSED_FROM_START;
+                    p.setHeapHandleFromStart(null);
+                    p.setStateFromStart(BiSearchNode.State.CLOSED_FROM_START);
                     closed_from_start_count++;
 
-                    bestFScoreFromStart = p.fFromStart;
+                    bestFScoreFromStart = p.getfFromStart();
 
-                    if (p.gFromStart + heuristic.estimateCostToGoal(p.x, p.y, p.z, goal.x, goal.y, goal.z) *
-                            costFunction.minStepCost() >= bestPathLength
+                    if (p.getgFromStart() + heuristic.estimateCostToGoal(p.getX(), p.getY(), p.getZ(),
+                            goal.getX(), goal.getY(), goal.getZ()) * costFunction.minStepCost()
+                            >= bestPathLength
                             ||
-                            p.gFromStart + bestFScoreFromGoal -
-                                    heuristic.estimateCostToGoal(p.x, p.y, p.z, start.x, start.y, start.z) *
-                                            costFunction.minStepCost() >= bestPathLength)
+                            p.getgFromStart() + bestFScoreFromGoal - heuristic.estimateCostToGoal(p.getX(), p.getY(),
+                                    p.getZ(), start.getX(), start.getY(), start.getZ()) * costFunction.minStepCost()
+                                    >= bestPathLength)
                     {
                         // REJECTED
                         continue;
@@ -247,18 +258,20 @@ public class BiSearch extends AbstractSearch {
                 } else {
 
                     final BiSearchNode p = open_from_goal.deleteMin().getKey();
-                    p.heapHandleFromGoal = null;
-                    p.stateFromGoal = NodeState.CLOSED_FROM_GOAL;
+                    p.setHeapHandleFromGoal(null);
+                    p.setStateFromGoal(BiSearchNode.State.CLOSED_FROM_GOAL);
                     closed_from_goal_count++;
 
-                    bestFScoreFromGoal = p.fFromGoal;
+                    bestFScoreFromGoal = p.getfFromGoal();
 
-                    if (p.gFromGoal + heuristic.estimateCostToGoal(p.x, p.y, p.z, start.x, start.y, start.z) *
-                            costFunction.minStepCost() >= bestPathLength
+                    if (p.getgFromGoal() + heuristic.estimateCostToGoal(p.getX(), p.getY(), p.getZ(), start.getX(),
+                            start.getY(), start.getZ()) * costFunction.minStepCost()
+                            >= bestPathLength
                             ||
-                            p.gFromGoal + bestFScoreFromStart -
-                                    heuristic.estimateCostToGoal(p.x, p.y, p.z, goal.x, goal.y, goal.z) *
-                                            costFunction.minStepCost() >= bestPathLength)
+                            p.getgFromGoal() + bestFScoreFromStart -
+                                    heuristic.estimateCostToGoal(p.getX(), p.getY(), p.getZ(), goal.getX(), goal.getY(),
+                                            goal.getZ()) * costFunction.minStepCost()
+                                    >= bestPathLength)
                     {
                         // REJECTED
                         continue;
@@ -270,6 +283,7 @@ public class BiSearch extends AbstractSearch {
                 }
             }
 
+            // Failure
             if (touchNode == null) {
                 SNTUtils.error("Searches did not meet.");
                 reportFinished(false);
@@ -278,9 +292,9 @@ public class BiSearch extends AbstractSearch {
 
             // Success
             if (verbose) {
-                System.out.println("Searches met!");
-                System.out.println("Cost for path = " + bestPathLength);
-                System.out.println("Total loops = " + loops);
+                SNTUtils.log("Searches met!");
+                SNTUtils.log("Cost for path = " + bestPathLength);
+                SNTUtils.log("Total loops = " + loops);
             }
 
             result = reconstructPath(xSep, ySep, zSep, spacing_units);
@@ -295,10 +309,11 @@ public class BiSearch extends AbstractSearch {
 
     protected void expandNeighbors(final BiSearchNode p, final boolean fromStart) {
         for (int zdiff = -1; zdiff <= 1; ++zdiff) {
-            final int new_z = p.z + zdiff;
+            final int new_z = p.getZ() + zdiff;
             // We check whether the neighbor is outside the bounds of the min-max of the interval,
             //  which may or may not have the origin at (0, 0, 0)
-            if (new_z < zMin || new_z > zMax) continue;
+            if (new_z < zMin || new_z > zMax)
+                continue;
             SearchImage<BiSearchNode> slice = nodes_as_image.getSlice(new_z);
             if (slice == null) {
                 slice = nodes_as_image.newSlice(new_z);
@@ -306,14 +321,17 @@ public class BiSearch extends AbstractSearch {
             imgAccess.setPosition(new_z, 2);
 
             for (int xdiff = -1; xdiff <= 1; xdiff++) {
-                final int new_x = p.x + xdiff;
-                if (new_x < xMin || new_x > xMax) continue;
+                final int new_x = p.getX() + xdiff;
+                if (new_x < xMin || new_x > xMax)
+                    continue;
                 imgAccess.setPosition(new_x, 0);
 
                 for (int ydiff = -1; ydiff <= 1; ydiff++) {
-                    if ((xdiff == 0) && (ydiff == 0) && (zdiff == 0)) continue;
-                    final int new_y = p.y + ydiff;
-                    if (new_y < yMin || new_y > yMax) continue;
+                    if ((xdiff == 0) && (ydiff == 0) && (zdiff == 0))
+                        continue;
+                    final int new_y = p.getY() + ydiff;
+                    if (new_y < yMin || new_y > yMax)
+                        continue;
                     imgAccess.setPosition(new_y, 1);
 
                     double cost_moving_to_new_point = costFunction.costMovingTo(imgAccess.get().getRealDouble());
@@ -321,7 +339,7 @@ public class BiSearch extends AbstractSearch {
                         cost_moving_to_new_point = costFunction.minStepCost();
                     }
 
-                    final double current_g = fromStart ? p.gFromStart : p.gFromGoal;
+                    final double current_g = fromStart ? p.getgFromStart() : p.getgFromGoal();
                     final double tentative_g = current_g + Math.sqrt(
                             Math.pow(xdiff * xSep, 2) + Math.pow(ydiff * ySep, 2) + Math.pow(zdiff * zSep, 2))
                             * cost_moving_to_new_point;
@@ -354,13 +372,13 @@ public class BiSearch extends AbstractSearch {
             final BiSearchNode newNode = new BiSearchNode(new_x, new_y, new_z);
             newNode.setFrom(tentative_g, tentative_f, predecessor, fromStart);
             newNode.heapInsert(open_queue, fromStart);
-            nodes_as_image.getSlice(newNode.z).setValue(newNode.x, newNode.y, newNode);
+            nodes_as_image.getSlice(newNode.getZ()).setValue(newNode.getX(), newNode.getY(), newNode);
 
-        } else if ((fromStart ? alreadyThere.fFromStart : alreadyThere.fFromGoal) > tentative_f) {
+        } else if ((fromStart ? alreadyThere.getfFromStart() : alreadyThere.getfFromGoal()) > tentative_f) {
 
             alreadyThere.setFrom(tentative_g, tentative_f, predecessor, fromStart);
             alreadyThere.heapInsertOrDecrease(open_queue, fromStart);
-            final double pathLength = alreadyThere.gFromStart + alreadyThere.gFromGoal;
+            final double pathLength = alreadyThere.getgFromStart() + alreadyThere.getgFromGoal();
             if (pathLength < bestPathLength)
             {
                 bestPathLength = pathLength;
@@ -373,31 +391,31 @@ public class BiSearch extends AbstractSearch {
                                    final String spacing_units)
     {
 
-        Deque<BiSearchNode> forwardPath = new ArrayDeque<>();
-        BiSearchNode p = touchNode.predecessorFromStart;
+        final Deque<BiSearchNode> forwardPath = new ArrayDeque<>();
+        BiSearchNode p = touchNode.getPredecessorFromStart();
         while (p != null) {
             forwardPath.addFirst(p);
-            p = p.predecessorFromStart;
+            p = p.getPredecessorFromStart();
         }
 
-        List<BiSearchNode> backwardsPath = new ArrayList<>();
-        p = touchNode.predecessorFromGoal;
+        final List<BiSearchNode> backwardsPath = new ArrayList<>();
+        p = touchNode.getPredecessorFromGoal();
         while (p != null) {
             backwardsPath.add(p);
-            p = p.predecessorFromGoal;
+            p = p.getPredecessorFromGoal();
         }
 
-        Path path = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
+        final Path path = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
 
-        for (BiSearchNode n : forwardPath) {
-            path.addPointDouble(n.x * x_spacing, n.y * y_spacing, n.z * z_spacing);
+        for (final BiSearchNode n : forwardPath) {
+            path.addPointDouble(n.getX() * x_spacing, n.getY() * y_spacing, n.getZ() * z_spacing);
         }
 
-        path.addPointDouble(touchNode.x * x_spacing, touchNode.y * y_spacing,
-                touchNode.z * z_spacing);
+        path.addPointDouble(touchNode.getX() * x_spacing, touchNode.getY() * y_spacing,
+                touchNode.getZ() * z_spacing);
 
-        for (BiSearchNode n : backwardsPath) {
-            path.addPointDouble(n.x * x_spacing, n.y * y_spacing, n.z * z_spacing);
+        for (final BiSearchNode n : backwardsPath) {
+            path.addPointDouble(n.getX() * x_spacing, n.getY() * y_spacing, n.getZ() * z_spacing);
         }
 
         return path;
@@ -423,7 +441,7 @@ public class BiSearch extends AbstractSearch {
         final long millisecondsSinceStart = currentMilliseconds - started_at;
 
         if ((timeoutSeconds > 0) && (millisecondsSinceStart > (1000L * timeoutSeconds))) {
-            if (verbose) System.out.println("Timed out...");
+            SNTUtils.log("Timed out...");
             return true;
         }
 
@@ -431,7 +449,7 @@ public class BiSearch extends AbstractSearch {
         if ((reportEveryMilliseconds > 0) && (since_last_report > reportEveryMilliseconds)) {
             final long loops_since_last_report = loops - loops_at_last_report;
             if (verbose) {
-                System.out.println("" + (since_last_report / (double) loops_since_last_report) + "ms/loop");
+                SNTUtils.log("" + (since_last_report / (double) loops_since_last_report) + "ms/loop");
                 printStatus();
             }
 
@@ -450,9 +468,9 @@ public class BiSearch extends AbstractSearch {
 
     @Override
     public void printStatus() {
-        System.out.println("... Start nodes: open=" + open_from_start.size() +
+        SNTUtils.log("... Start nodes: open=" + open_from_start.size() +
                 " closed=" + closed_from_start_count);
-        System.out.println("...  Goal nodes: open=" + open_from_goal.size() +
+        SNTUtils.log("...  Goal nodes: open=" + open_from_goal.size() +
                 " closed=" + closed_from_goal_count);
     }
 
@@ -464,9 +482,7 @@ public class BiSearch extends AbstractSearch {
     }
 
     @Override
-    public BiSearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
-                                                 final double threshold)
-    {
+    public BiSearchNode anyNodeUnderThreshold(final int x, final int y, final int z, final double threshold) {
         final SearchImage<BiSearchNode> slice = nodes_as_image.getSlice(z);
         if (slice == null) {
             return null;
@@ -483,26 +499,26 @@ public class BiSearch extends AbstractSearch {
     static class NodeComparatorFromStart implements Comparator<BiSearchNode> {
 
         public int compare(BiSearchNode n1, BiSearchNode n2) {
-            int result = Double.compare(n1.fFromStart, n2.fFromStart);
+            int result = Double.compare(n1.getfFromStart(), n2.getfFromStart());
             if (result != 0) {
                 return result;
 
             } else {
                 int x_compare = 0;
-                if (n1.x > n2.x) x_compare = 1;
-                if (n1.x < n2.x) x_compare = -1;
+                if (n1.getX() > n2.getX()) x_compare = 1;
+                if (n1.getX() < n2.getX()) x_compare = -1;
 
                 if (x_compare != 0) return x_compare;
 
                 int y_compare = 0;
-                if (n1.y > n2.y) y_compare = 1;
-                if (n1.y < n2.y) y_compare = -1;
+                if (n1.getY() > n2.getY()) y_compare = 1;
+                if (n1.getY() < n2.getY()) y_compare = -1;
 
                 if (y_compare != 0) return y_compare;
 
                 int z_compare = 0;
-                if (n1.z > n2.z) z_compare = 1;
-                if (n1.z < n2.z) z_compare = -1;
+                if (n1.getZ() > n2.getZ()) z_compare = 1;
+                if (n1.getZ() < n2.getZ()) z_compare = -1;
 
                 return z_compare;
             }
@@ -513,26 +529,26 @@ public class BiSearch extends AbstractSearch {
     static class NodeComparatorFromGoal implements Comparator<BiSearchNode> {
 
         public int compare(BiSearchNode n1, BiSearchNode n2) {
-            int result = Double.compare(n1.fFromGoal, n2.fFromGoal);
+            int result = Double.compare(n1.getfFromGoal(), n2.getfFromGoal());
             if (result != 0) {
                 return result;
 
             } else {
                 int x_compare = 0;
-                if (n1.x > n2.x) x_compare = 1;
-                if (n1.x < n2.x) x_compare = -1;
+                if (n1.getX() > n2.getX()) x_compare = 1;
+                if (n1.getX() < n2.getX()) x_compare = -1;
 
                 if (x_compare != 0) return x_compare;
 
                 int y_compare = 0;
-                if (n1.y > n2.y) y_compare = 1;
-                if (n1.y < n2.y) y_compare = -1;
+                if (n1.getY() > n2.getY()) y_compare = 1;
+                if (n1.getY() < n2.getY()) y_compare = -1;
 
                 if (y_compare != 0) return y_compare;
 
                 int z_compare = 0;
-                if (n1.z > n2.z) z_compare = 1;
-                if (n1.z < n2.z) z_compare = -1;
+                if (n1.getZ() > n2.getZ()) z_compare = 1;
+                if (n1.getZ() < n2.getZ()) z_compare = -1;
 
                 return z_compare;
             }

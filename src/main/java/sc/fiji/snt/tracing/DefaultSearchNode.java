@@ -73,17 +73,6 @@ public class DefaultSearchNode implements SearchNode, Comparable<DefaultSearchNo
 		this.searchStatus = searchStatus;
 	}
 
-	@Override
-	public byte getSearchStatus() {
-		return searchStatus;
-	}
-
-	@Override
-	public void setSearchStatus(final byte searchStatus) {
-		this.searchStatus = searchStatus;
-	}
-
-
 	public AddressableHeap.Handle<DefaultSearchNode, Void> getHandle() {
 		return heapHandle;
 	}

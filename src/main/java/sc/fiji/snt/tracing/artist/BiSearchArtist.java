@@ -60,10 +60,10 @@ public class BiSearchArtist implements SearchArtist {
              * through we draw the nodes in the closed list.
              */
 
-            final BiSearch.NodeState start_status = (i == 0) ? BiSearch.NodeState.OPEN_FROM_START :
-                    BiSearch.NodeState.CLOSED_FROM_START;
-            final BiSearch.NodeState goal_status = (i == 0) ? BiSearch.NodeState.OPEN_FROM_GOAL :
-                    BiSearch.NodeState.CLOSED_FROM_GOAL;
+            final BiSearchNode.State start_status = (i == 0) ? BiSearchNode.State.OPEN_FROM_START :
+                    BiSearchNode.State.CLOSED_FROM_START;
+            final BiSearchNode.State goal_status = (i == 0) ? BiSearchNode.State.OPEN_FROM_GOAL :
+                    BiSearchNode.State.CLOSED_FROM_GOAL;
             final Color c = (i == 0) ? openColor : closedColor;
             if (c == null) continue;
 

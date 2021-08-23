@@ -30,6 +30,8 @@ import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.tracing.cost.Cost;
+import sc.fiji.snt.tracing.cost.Reciprocal;
+import sc.fiji.snt.tracing.heuristic.Euclidean;
 import sc.fiji.snt.tracing.heuristic.Heuristic;
 
 /**
@@ -49,12 +51,19 @@ public class TracerThread extends SearchThread {
 
 	private Path result;
 
-	public TracerThread(final SNT snt, final ImagePlus imagePlus,
-                        final int start_x, final int start_y, final int start_z,
-                        final int goal_x, final int goal_y, final int goal_z,
-                        Cost costFunction, Heuristic heuristic)
+	public TracerThread(final SNT snt, final int start_x, final int start_y, final int start_z,
+						final int goal_x, final int goal_y, final int goal_z)
 	{
-		this(snt, ImageJFunctions.wrapReal(imagePlus), start_x, start_y, start_z, goal_x, goal_y, goal_z,
+		this(snt, snt.getLoadedData(), start_x, start_y, start_z, goal_x, goal_y, goal_z,
+				new Reciprocal(snt.getStats().min, snt.getStats().max),
+				new Euclidean(snt.getImagePlus().getCalibration()));
+	}
+
+	public TracerThread(final SNT snt, final int start_x, final int start_y, final int start_z,
+						final int goal_x, final int goal_y, final int goal_z,
+						Cost costFunction, Heuristic heuristic)
+	{
+		this(snt, snt.getLoadedData(), start_x, start_y, start_z, goal_x, goal_y, goal_z,
 				costFunction, heuristic);
 	}
 
@@ -65,23 +74,7 @@ public class TracerThread extends SearchThread {
 	{
 		super(snt, image, costFunction);
 		this.heuristic = heuristic;
-		final Calibration cal = new Calibration();
-		cal.pixelWidth = snt.getPixelWidth();
-		cal.pixelHeight = snt.getPixelHeight();
-		cal.pixelDepth = snt.getPixelDepth();
 		init(start_x, start_y, start_z, goal_x, goal_y, goal_z);
-	}
-
-	public TracerThread(final ImagePlus imagePlus,
-                        final int start_x, final int start_y, final int start_z,
-                        final int goal_x, final int goal_y, final int goal_z,
-                        final int timeoutSeconds, final long reportEveryMilliseconds,
-                        final SNT.SearchImageType searchImageType,
-                        Cost costFunction, Heuristic heuristic)
-	{
-		this(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(), start_x, start_y, start_z,
-				goal_x, goal_y, goal_z, timeoutSeconds, reportEveryMilliseconds, searchImageType,
-				costFunction, heuristic);
 	}
 
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
@@ -120,8 +113,10 @@ public class TracerThread extends SearchThread {
 	protected boolean atGoal(final int x, final int y, final int z,
 		final boolean fromStart)
 	{
-		if (fromStart) return (x == goal_x) && (y == goal_y) && (z == goal_z);
-		else return (x == start_x) && (y == start_y) && (z == start_z);
+		if (fromStart)
+			return (x == goal_x) && (y == goal_y) && (z == goal_z);
+		else
+			return (x == start_x) && (y == start_y) && (z == start_z);
 	}
 
 	@Override

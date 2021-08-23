@@ -24,8 +24,8 @@ package sc.fiji.snt.tracing.artist;
 
 import sc.fiji.snt.TracerCanvas;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.tracing.DefaultSearchNode;
 import sc.fiji.snt.tracing.SearchInterface;
-import sc.fiji.snt.tracing.SearchNode;
 import sc.fiji.snt.tracing.SearchThread;
 
 import java.awt.*;
@@ -72,10 +72,10 @@ public class SearchThreadArtist implements SearchArtist {
             if (plane == MultiDThreePanes.XY_PLANE) {
                 for (int y = 0; y < search.imgHeight; ++y)
                     for (int x = 0; x < search.imgWidth; ++x) {
-                        final SearchNode n = search.anyNodeUnderThreshold(x, y, currentSliceInPlane,
+                        final DefaultSearchNode n = search.anyNodeUnderThreshold(x, y, currentSliceInPlane,
                                 search.drawingThreshold);
                         if (n == null) continue;
-                        final byte status = n.getSearchStatus();
+                        final byte status = n.searchStatus;
                         if (status == start_status || status == goal_status) g.fillRect(
                                 canvas.myScreenX(x) - pixel_size / 2, canvas.myScreenY(y) -
                                         pixel_size / 2, pixel_size, pixel_size);
@@ -84,10 +84,10 @@ public class SearchThreadArtist implements SearchArtist {
             else if (plane == MultiDThreePanes.XZ_PLANE) {
                 for (int z = 0; z < search.imgDepth; ++z)
                     for (int x = 0; x < search.imgWidth; ++x) {
-                        final SearchNode n = search.anyNodeUnderThreshold(x, currentSliceInPlane, z,
+                        final DefaultSearchNode n = search.anyNodeUnderThreshold(x, currentSliceInPlane, z,
                                 search.drawingThreshold);
                         if (n == null) continue;
-                        final byte status = n.getSearchStatus();
+                        final byte status = n.searchStatus;
                         if (status == start_status || status == goal_status) g.fillRect(
                                 canvas.myScreenX(x) - pixel_size / 2, canvas.myScreenY(z) -
                                         pixel_size / 2, pixel_size, pixel_size);
@@ -96,10 +96,10 @@ public class SearchThreadArtist implements SearchArtist {
             else if (plane == MultiDThreePanes.ZY_PLANE) {
                 for (int y = 0; y < search.imgHeight; ++y)
                     for (int z = 0; z < search.imgDepth; ++z) {
-                        final SearchNode n = search.anyNodeUnderThreshold(currentSliceInPlane, y, z,
+                        final DefaultSearchNode n = search.anyNodeUnderThreshold(currentSliceInPlane, y, z,
                                 search.drawingThreshold);
                         if (n == null) continue;
-                        final byte status = n.getSearchStatus();
+                        final byte status = n.searchStatus;
                         if (status == start_status || status == goal_status) g.fillRect(
                                 canvas.myScreenX(z) - pixel_size / 2, canvas.myScreenY(y) -
                                         pixel_size / 2, pixel_size, pixel_size);

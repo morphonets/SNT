@@ -226,7 +226,7 @@ public abstract class SearchThread extends AbstractSearch {
 		try {
 
 			if (verbose) {
-				System.out.println("New SearchThread running!");
+				SNTUtils.log("New " + getClass().getSimpleName() + " running!");
 				printStatus();
 			}
 
@@ -286,7 +286,7 @@ public abstract class SearchThread extends AbstractSearch {
 
 				// Has the route from the start found the goal?
 				if (definedGoal && atGoal(p.x, p.y, p.z, fromStart)) {
-					if (verbose) System.out.println("Found the goal!");
+					SNTUtils.log("Found the goal!");
 					if (fromStart) foundGoal(p.asPath(xSep, ySep, zSep,
 						spacing_units));
 					else foundGoal(p.asPathReversed(xSep, ySep, zSep,
@@ -423,14 +423,10 @@ public abstract class SearchThread extends AbstractSearch {
 													zSep, spacing_units));
 										}
 										if (verbose) {
-											System.out.println("Searches met!");
-											System.out.println("Cost for path = " +
-													(newNode.g + alreadyThereInOtherSearch.g));
-											System.out.println("Total loops = " + loops);
-											System.out.println("Remaining open from start = " + open_from_start.size());
-											System.out.println("Remaining open from goal = " + open_from_goal.size());
-											System.out.println("Closed from start = " + closed_from_start_count);
-											System.out.println("Closed from goal = " + closed_from_goal_count);
+											SNTUtils.log("Searches met!");
+											SNTUtils.log("Cost for path = "
+													+ (newNode.g + alreadyThereInOtherSearch.g));
+											SNTUtils.log("Total loops = " + loops);
 										}
 
 										foundGoal(result);
@@ -453,7 +449,7 @@ public abstract class SearchThread extends AbstractSearch {
 			 */
 
 			if (definedGoal) {
-				if (verbose) System.out.println("FAILED to find a route.  Shouldn't happen...");
+				SNTUtils.log("FAILED to find a route.  Shouldn't happen...");
 				setExitReason(POINTS_EXHAUSTED);
 				reportFinished(false);
 			}

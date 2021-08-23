@@ -30,8 +30,4 @@ public interface SearchNode {
 
     int getZ();
 
-    byte getSearchStatus();
-
-    void setSearchStatus(byte searchStatus);
-
 }
