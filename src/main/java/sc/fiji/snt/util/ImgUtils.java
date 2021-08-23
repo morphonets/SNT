@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.filter;
+package sc.fiji.snt.util;
 
 import net.imglib2.*;
 import net.imglib2.util.Intervals;

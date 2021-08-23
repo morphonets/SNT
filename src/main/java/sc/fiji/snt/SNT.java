@@ -65,7 +65,7 @@ import org.scijava.vecmath.Point3d;
 import org.scijava.vecmath.Point3f;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.event.SNTListener;
-import sc.fiji.snt.filter.ImgUtils;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
