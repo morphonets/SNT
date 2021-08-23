@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing.artist;
 
 import sc.fiji.snt.tracing.BiSearch;
 import sc.fiji.snt.tracing.FillerThread;

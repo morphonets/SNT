@@ -20,14 +20,15 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing.artist;
 
+import sc.fiji.snt.TracerCanvas;
 import sc.fiji.snt.tracing.SearchInterface;
 
 import java.awt.*;
 
 /**
- * Interface for classes that draw the progress of a {@link SearchInterface} on a canvas.
+ * Interface for classes that draw the progress of a {@link SearchInterface} on a {@link TracerCanvas}.
  *
  * @author Cameron Arshadi
  */

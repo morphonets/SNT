@@ -71,6 +71,8 @@ import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.tracing.*;
+import sc.fiji.snt.tracing.artist.SearchArtist;
+import sc.fiji.snt.tracing.artist.SearchArtistFactory;
 import sc.fiji.snt.tracing.cost.Difference;
 import sc.fiji.snt.tracing.cost.OneMinusErf;
 import sc.fiji.snt.tracing.cost.Reciprocal;
@@ -1431,20 +1433,20 @@ public class SNT extends MultiDThreePanes implements
 	void addThreadToDraw(final SearchInterface s) {
 		SearchArtist artist = new SearchArtistFactory().create(s);
 		searchArtists.put(s, artist);
-		getXYCanvas().addSearchThread(artist);
+		getXYCanvas().addSearchArtist(artist);
 		if (!single_pane) {
-			getZYCanvas().addSearchThread(artist);
-			getXZCanvas().addSearchThread(artist);
+			getZYCanvas().addSearchArtist(artist);
+			getXZCanvas().addSearchArtist(artist);
 		}
 	}
 
 	void removeThreadToDraw(final SearchInterface s) {
 		SearchArtist artist = searchArtists.get(s);
 		if (artist == null) return;
-		getXYCanvas().removeSearchThread(artist);
+		getXYCanvas().removeSearchArtist(artist);
 		if (!single_pane) {
-			getZYCanvas().removeSearchThread(artist);
-			getXZCanvas().removeSearchThread(artist);
+			getZYCanvas().removeSearchArtist(artist);
+			getXZCanvas().removeSearchArtist(artist);
 		}
 	}
 

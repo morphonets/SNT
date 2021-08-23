@@ -32,9 +32,9 @@ import java.util.*;
 import ij.ImagePlus;
 import sc.fiji.snt.hyperpanes.MultiDThreePanesCanvas;
 import sc.fiji.snt.hyperpanes.PaneOwner;
+import sc.fiji.snt.tracing.artist.SearchArtist;
 
-@SuppressWarnings("serial")
-class TracerCanvas extends MultiDThreePanesCanvas {
+public class TracerCanvas extends MultiDThreePanesCanvas {
 
 	protected PathAndFillManager pathAndFillManager;
 
@@ -45,7 +45,7 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 	private int[]transparencies; //in percentage, [0]: default; [1]: out of bounds
 
 
-	public TracerCanvas(final ImagePlus imagePlus, final PaneOwner owner,
+	TracerCanvas(final ImagePlus imagePlus, final PaneOwner owner,
 		final int plane, final PathAndFillManager pathAndFillManager)
 	{
 
@@ -53,13 +53,13 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 		this.pathAndFillManager = pathAndFillManager;
 	}
 
-	public void addSearchThread(final SearchArtist s) {
+	protected void addSearchArtist(final SearchArtist s) {
 		synchronized (searchArtists) {
 			searchArtists.add(s);
 		}
 	}
 
-	public void removeSearchThread(final SearchArtist s) {
+	protected void removeSearchArtist(final SearchArtist s) {
 		synchronized (searchArtists) {
 			searchArtists.remove(s);
 		}
@@ -178,7 +178,7 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 	 *
 	 * @return Either MultiDThreePanes.XY_PLANE, XZ_PLANE, or ZY_PLANE
 	 */
-	public int getPlane() {
+	protected int getPlane() {
 		return super.plane;
 	}
 
@@ -187,7 +187,7 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 	 *
 	 * @return the baseline rendering diameter of a path node
 	 */
-	public double nodeDiameter() {
+	protected double nodeDiameter() {
 		if (nodeSize < 0) {
 			if (magnification < 4) return 2;
 			else if (magnification > 16) return magnification / 2;
@@ -203,7 +203,7 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 	 *          to -1 for adopting the default value. Set it to zero to suppress
 	 *          node rendering
 	 */
-	public void setNodeDiameter(final double diameter) {
+	protected void setNodeDiameter(final double diameter) {
 		nodeSize = diameter;
 	}
 
