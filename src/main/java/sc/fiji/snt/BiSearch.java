@@ -478,64 +478,6 @@ public class BiSearch extends AbstractSearch {
         }
     }
 
-    @Override
-    public void drawProgressOnSlice(final int plane,
-                                    final int currentSliceInPlane, final TracerCanvas canvas, final Graphics g)
-    {
-
-        for (int i = 0; i < 2; ++i) {
-
-            /*
-             * The first time through we draw the nodes in the open list, the second time
-             * through we draw the nodes in the closed list.
-             */
-
-            final NodeState start_status = (i == 0) ? NodeState.OPEN_FROM_START : NodeState.CLOSED_FROM_START;
-            final NodeState goal_status = (i == 0) ? NodeState.OPEN_FROM_GOAL : NodeState.CLOSED_FROM_GOAL;
-            final Color c = (i == 0) ? openColor : closedColor;
-            if (c == null) continue;
-
-            g.setColor(c);
-
-            int pixel_size = (int) canvas.getMagnification();
-            if (pixel_size < 1) pixel_size = 1;
-
-            if (plane == MultiDThreePanes.XY_PLANE) {
-                for (int y = 0; y < imgHeight; ++y)
-                    for (int x = 0; x < imgWidth; ++x) {
-                        final BiSearchNode n = anyNodeUnderThreshold(x, y, currentSliceInPlane,
-                                drawingThreshold);
-                        if (n == null) continue;
-                        if (n.getStateFromStart() == start_status || n.getStateFromGoal() == goal_status) g.fillRect(
-                                canvas.myScreenX(x) - pixel_size / 2, canvas.myScreenY(y) -
-                                        pixel_size / 2, pixel_size, pixel_size);
-                    }
-            }
-            else if (plane == MultiDThreePanes.XZ_PLANE) {
-                for (int z = 0; z < imgDepth; ++z)
-                    for (int x = 0; x < imgWidth; ++x) {
-                        final BiSearchNode n = anyNodeUnderThreshold(x, currentSliceInPlane, z,
-                                drawingThreshold);
-                        if (n == null) continue;
-                        if (n.getStateFromStart() == start_status || n.getStateFromGoal() == goal_status) g.fillRect(
-                                canvas.myScreenX(x) - pixel_size / 2, canvas.myScreenY(z) -
-                                        pixel_size / 2, pixel_size, pixel_size);
-                    }
-            }
-            else if (plane == MultiDThreePanes.ZY_PLANE) {
-                for (int y = 0; y < imgHeight; ++y)
-                    for (int z = 0; z < imgDepth; ++z) {
-                        final BiSearchNode n = anyNodeUnderThreshold(currentSliceInPlane, y, z,
-                                drawingThreshold);
-                        if (n == null) continue;
-                        if (n.getStateFromStart() == start_status || n.getStateFromGoal() == goal_status) g.fillRect(
-                                canvas.myScreenX(z) - pixel_size / 2, canvas.myScreenY(y) -
-                                        pixel_size / 2, pixel_size, pixel_size);
-                    }
-            }
-        }
-    }
-
     static class NodeComparatorFromStart implements Comparator<BiSearchNode> {
 
         public int compare(BiSearchNode n1, BiSearchNode n2) {

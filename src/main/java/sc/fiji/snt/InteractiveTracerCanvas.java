@@ -711,7 +711,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 		if (!tracerPlugin.fillerSet.isEmpty()) {
 			for (final FillerThread fillerThread : tracerPlugin.fillerSet) {
-				fillerThread.setDrawingColors(getFillColor(), getFillColor());
 				fillerThread.setDrawingThreshold(fillerThread.getThreshold());
 			}
 		}

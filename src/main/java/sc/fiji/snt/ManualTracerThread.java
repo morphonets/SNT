@@ -73,13 +73,6 @@ public class ManualTracerThread extends Thread implements SearchInterface {
 		return result;
 	}
 
-	@Override
-	public void drawProgressOnSlice(final int plane,
-		final int currentSliceInPlane, final TracerCanvas canvas, final Graphics g)
-	{
-		// do nothing.
-	}
-
 	public void addProgressListener(final SearchProgressCallback callback) {
 		progListeners.add(callback);
 	}

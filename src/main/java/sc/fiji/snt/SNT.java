@@ -236,6 +236,9 @@ public class SNT extends MultiDThreePanes implements
 	private AbstractSearch currentSearchThread = null;
 	private ManualTracerThread manualSearchThread = null;
 
+	/* Search artists */
+	private final Map<SearchInterface, SearchArtist> searchArtists = new HashMap<>();
+
 	/*
 	 * Fields for tracing on secondary data: a filtered image. This can work in one
 	 * of two ways: image is loaded into memory or we waive its file path to a
@@ -782,12 +785,10 @@ public class SNT extends MultiDThreePanes implements
 			currentSearchThread = null;
 		}
 		if (manualSearchThread != null) {
-			removeThreadToDraw(manualSearchThread);
 			manualSearchThread = null;
 		}
 		if (tubularGeodesicsThread != null) {
 			tubularGeodesicsThread.requestStop();
-			removeThreadToDraw(tubularGeodesicsThread);
 			tubularGeodesicsThread = null;
 		}
 		if (cancelFillToo && fillerThreadPool != null) {
@@ -1420,18 +1421,22 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	void addThreadToDraw(final SearchInterface s) {
-		getXYCanvas().addSearchThread(s);
+		SearchArtist artist = new SearchArtistFactory().create(s);
+		searchArtists.put(s, artist);
+		getXYCanvas().addSearchThread(artist);
 		if (!single_pane) {
-			getZYCanvas().addSearchThread(s);
-			getXZCanvas().addSearchThread(s);
+			getZYCanvas().addSearchThread(artist);
+			getXZCanvas().addSearchThread(artist);
 		}
 	}
 
 	void removeThreadToDraw(final SearchInterface s) {
-		getXYCanvas().removeSearchThread(s);
+		SearchArtist artist = searchArtists.get(s);
+		if (artist == null) return;
+		getXYCanvas().removeSearchThread(artist);
 		if (!single_pane) {
-			getZYCanvas().removeSearchThread(s);
-			getXZCanvas().removeSearchThread(s);
+			getZYCanvas().removeSearchThread(artist);
+			getXZCanvas().removeSearchThread(artist);
 		}
 	}
 
@@ -1548,7 +1553,6 @@ public class SNT extends MultiDThreePanes implements
 					y_spacing,
 					z_spacing,
 					spacing_units);
-			addThreadToDraw(tubularGeodesicsThread);
 			tubularGeodesicsThread.addProgressListener(this);
 			return tracerThreadPool.submit(tubularGeodesicsThread);
 		}
@@ -1562,14 +1566,12 @@ public class SNT extends MultiDThreePanes implements
 					x_end,
 					y_end,
 					z_end);
-			addThreadToDraw(manualSearchThread);
 			manualSearchThread.addProgressListener(this);
 			return tracerThreadPool.submit(manualSearchThread);
 		}
 
 		currentSearchThread = createSearch(x_start, y_start, z_start, x_end, y_end, z_end);
 		addThreadToDraw(currentSearchThread);
-		currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this color a preference
 		currentSearchThread.setDrawingThreshold(-1);
 		currentSearchThread.addProgressListener(this);
 		return tracerThreadPool.submit(currentSearchThread);

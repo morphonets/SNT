@@ -96,11 +96,6 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 		return realResult;
 	}
 
-	@Override
-	public void drawProgressOnSlice(final int plane,
-		final int currentSliceInPlane, final TracerCanvas canvas, final Graphics g)
-	{}
-
 	protected ArrayList<SearchProgressCallback> progressListeners =
 		new ArrayList<>();
 

@@ -234,7 +234,6 @@ public class FillerThread extends SearchThread {
 
     public void setThreshold(final double threshold) {
         this.threshold = threshold;
-        this.drawingThreshold = threshold;
     }
 
     public void setSourcePaths(final Collection<Path> newSourcePaths) {
@@ -417,15 +416,6 @@ public class FillerThread extends SearchThread {
                         (float) minimumDistanceInOpen);
             }
         }
-
-    }
-
-    @Override
-    public void drawProgressOnSlice(final int plane,
-                                    final int currentSliceInPlane, final TracerCanvas canvas, final Graphics g)
-    {
-
-        super.drawProgressOnSlice(plane, currentSliceInPlane, canvas, g);
 
     }
 

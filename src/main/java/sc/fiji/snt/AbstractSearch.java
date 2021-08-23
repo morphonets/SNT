@@ -58,8 +58,6 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
     protected final double zSep;
     protected final String spacing_units;
 
-    protected Color openColor;
-    protected Color closedColor;
     protected double drawingThreshold;
 
     protected int timeoutSeconds;
@@ -154,11 +152,6 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
     public abstract long pointsConsideredInSearch();
 
     protected abstract SearchNode anyNodeUnderThreshold(final int x, final int y, final int z, final double threshold);
-
-    public void setDrawingColors(final Color openColor, final Color closedColor) {
-        this.openColor = openColor;
-        this.closedColor = closedColor;
-    }
 
     public void setDrawingThreshold(final double threshold) {
         this.drawingThreshold = threshold;

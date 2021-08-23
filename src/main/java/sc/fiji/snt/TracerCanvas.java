@@ -27,7 +27,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Stroke;
-import java.util.ArrayList;
+import java.util.*;
 
 import ij.ImagePlus;
 import sc.fiji.snt.hyperpanes.MultiDThreePanesCanvas;
@@ -40,7 +40,7 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 
 	protected boolean just_near_slices = false;
 	protected int eitherSide;
-	private final ArrayList<SearchInterface> searchThreads = new ArrayList<>();
+	private final Set<SearchArtist> searchArtists = new HashSet<>();
 	private double nodeSize = -1;
 	private int[]transparencies; //in percentage, [0]: default; [1]: out of bounds
 
@@ -53,20 +53,15 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 		this.pathAndFillManager = pathAndFillManager;
 	}
 
-	public void addSearchThread(final SearchInterface s) {
-		synchronized (searchThreads) {
-			searchThreads.add(s);
+	public void addSearchThread(final SearchArtist s) {
+		synchronized (searchArtists) {
+			searchArtists.add(s);
 		}
 	}
 
-	public void removeSearchThread(final SearchInterface s) {
-		synchronized (searchThreads) {
-			int index = -1;
-			for (int i = 0; i < searchThreads.size(); ++i) {
-				final SearchInterface inList = searchThreads.get(i);
-				if (s == inList) index = i;
-			}
-			if (index >= 0) searchThreads.remove(index);
+	public void removeSearchThread(final SearchArtist s) {
+		synchronized (searchArtists) {
+			searchArtists.remove(s);
 		}
 	}
 
@@ -83,9 +78,9 @@ class TracerCanvas extends MultiDThreePanesCanvas {
 
 		final int current_z = imp.getZ() - 1;
 
-		synchronized (searchThreads) {
-			for (final SearchInterface st : searchThreads)
-				st.drawProgressOnSlice(plane, current_z, this, g);
+		synchronized (searchArtists) {
+			for (final SearchArtist sa : searchArtists)
+				sa.drawProgressOnSlice(plane, current_z, this, g);
 		}
 
 		final SNT plugin = pathAndFillManager.getPlugin();
