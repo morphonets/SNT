@@ -240,17 +240,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		});
 		final JButton reloadFill = new JButton("Reload");
 		reloadFill.addActionListener(e -> {
-			if (noFillsError())
-				return;
-			int[] selectedIndices = fillList.getSelectedIndices();
-			if (selectedIndices.length < 1 &&
-					gUtils.getConfirmation("No fill was select for reload. Reload All?", "Reload All?"))
-			{
-				selectedIndices = IntStream.range(0, fillList.getModel().getSize()).toArray();
-			}
-			pathAndFillManager.reloadFills(selectedIndices);
-			fillList.setSelectedIndices(selectedIndices);
-			changeState(State.LOADED);
+			if (!noFillsError()) reload("Reload");
 		});
 
 		assembleExportFillsMenu();
@@ -278,6 +268,17 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		});
 
 
+	}
+
+	private void reload(final String msg) {
+		int[] selectedIndices = (fillList.getModel().getSize() == 1 ) ? new int[] {0} : fillList.getSelectedIndices();
+		if (selectedIndices.length < 1 && gUtils
+				.getConfirmation("No fill was select for " + msg.toLowerCase() + ". " + msg + " all?", msg + " All?")) {
+			selectedIndices = IntStream.range(0, fillList.getModel().getSize()).toArray();
+		}
+		pathAndFillManager.reloadFills(selectedIndices);
+		fillList.setSelectedIndices(selectedIndices);
+		changeState(State.LOADED);
 	}
 
 	private JPanel statusPanel() {
@@ -529,44 +530,45 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private void assembleExportFillsMenu() {
 		exportFillsMenu = new JPopupMenu();
 		JMenuItem jmi = new JMenuItem("As Grayscale Image");
-		jmi.addActionListener(e-> {
-			final ImagePlus imp = plugin.getFilledImp();
-			if (imp == null) {
-				// there are fills stashed but SNT#fillerSet is empty
-				gUtils.error("Image could not be displayed. Please reload desired fill(s) and try again.");
-			}
-			else {
-				imp.show();
-			}
-		});
+		jmi.addActionListener(e-> exportAsImp("grayscale"));
 		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("As Binary Mask");
-		jmi.addActionListener(e-> {
-			final ImagePlus imp = plugin.getFilledBinaryImp();
-			if (imp == null) {
-				// there are fills stashed but SNT#fillerSet is empty
-				gUtils.error("Image could not be displayed. Please reload desired fill(s) and try again.");
-			}
-			else {
-				imp.show();
-			}
-		});
+		jmi.addActionListener(e-> exportAsImp("binary"));
 		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("As Distance Image");
-		jmi.addActionListener(e-> {
-			final ImagePlus imp = plugin.getFilledDistanceImp();
-			if (imp == null) {
-				// there are fills stashed but SNT#fillerSet is empty
-				gUtils.error("Image could not be displayed. Please reload desired fill(s) and try again.");
-			}
-			else {
-				imp.show();
-			}
-		});
+		jmi.addActionListener(e-> exportAsImp("distance"));
 		exportFillsMenu.add(jmi);
 		exportFillsMenu.addSeparator();
 		jmi = new JMenuItem("CSV Summary");
 		jmi.addActionListener(e-> saveFills());
+		exportFillsMenu.add(jmi);
+	}
+
+	private void exportAsImp(final String type) {
+		if (noFillsError())
+			return;
+		if (plugin.fillerSet.isEmpty())
+			reload("Export");
+		ImagePlus imp;
+		switch (type.toLowerCase()) {
+		case "grayscale":
+			imp = plugin.getFilledImp();
+			break;
+		case "binary":
+			imp = plugin.getFilledBinaryImp();
+			break;
+		case "distance":
+			imp = plugin.getFilledDistanceImp();
+			break;
+		default:
+			throw new IllegalArgumentException("Unrecognized option");
+		}
+		if (imp == null) {
+			// there are fills stashed but SNT#fillerSet is empty
+			gUtils.error("Image could not be displayed. Please reload desired fill(s) and try again.");
+		} else {
+			imp.show();
+		}
 	}
 
 	private void saveFills() {
