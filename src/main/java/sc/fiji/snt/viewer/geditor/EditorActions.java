@@ -542,7 +542,8 @@ class EditorActions
 						wd = System.getProperty("user.dir");
 					}
 
-					JFileChooser fc = new JFileChooser(wd);
+					final JFileChooser fc = GuiUtils.getDnDFileChooser();
+					fc.setCurrentDirectory(new File(wd));
 
 					// Adds the default file format
 					FileFilter defaultFilter = xmlPngFilter;
@@ -1450,7 +1451,8 @@ class EditorActions
 						String wd = (lastDir != null) ? lastDir : System
 								.getProperty("user.dir");
 
-						JFileChooser fc = new JFileChooser(wd);
+						final JFileChooser fc = GuiUtils.getDnDFileChooser();
+						fc.setCurrentDirectory(new File(wd));
 
 						// Adds file filter for supported file format
 						DefaultFileFilter defaultFilter = new DefaultFileFilter(

@@ -660,7 +660,7 @@ public class SNTChart extends ChartFrame {
 		if (getChartPanel() != null && getChartPanel().getPopupMenu() != null) {
 			final JMenuItem mi = new JMenuItem("Data (as CSV)...");
 			mi.addActionListener(e -> {
-				final JFileChooser fileChooser = new JFileChooser();
+				final JFileChooser fileChooser = GuiUtils.getDnDFileChooser();
 				fileChooser.setDialogTitle("Export to CSV (Experimental)");
 				final FileNameExtensionFilter csvFilter = new FileNameExtensionFilter("CSV files (*.csv)", "csv");
 				fileChooser.addChoosableFileFilter(csvFilter);
