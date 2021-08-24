@@ -20,27 +20,32 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing;
 
-public class SearchNode implements Comparable<SearchNode> {
+import org.jheaps.AddressableHeap;
+import sc.fiji.snt.Path;
+
+public class DefaultSearchNode implements SearchNode, Comparable<DefaultSearchNode> {
 
 	public int x;
 	public int y;
 	public int z;
 
-	public float g; // cost of the path so far (up to and including this node)
-	public float h; // heuristic esimate of the cost of going from here to the
+	public AddressableHeap.Handle<DefaultSearchNode, Void> heapHandle;
+
+	public double g; // cost of the path so far (up to and including this node)
+	public double h; // heuristic esimate of the cost of going from here to the
 	// goal
 
-	public float f; // should always be the sum of g and h
+	public double f; // should always be the sum of g and h
 
-	private SearchNode predecessor;
+	public DefaultSearchNode predecessor;
 
-	public SearchNode getPredecessor() {
+	public DefaultSearchNode getPredecessor() {
 		return predecessor;
 	}
 
-	public void setPredecessor(final SearchNode p) {
+	public void setPredecessor(final DefaultSearchNode p) {
 		this.predecessor = p;
 	}
 
@@ -53,8 +58,10 @@ public class SearchNode implements Comparable<SearchNode> {
 
 	public byte searchStatus;
 
-	public SearchNode(final int x, final int y, final int z, final float g,
-		final float h, final SearchNode predecessor, final byte searchStatus)
+	public DefaultSearchNode() {};
+
+	public DefaultSearchNode(final int x, final int y, final int z, final double g,
+							 final double h, final DefaultSearchNode predecessor, final byte searchStatus)
 	{
 		this.x = x;
 		this.y = y;
@@ -66,24 +73,51 @@ public class SearchNode implements Comparable<SearchNode> {
 		this.searchStatus = searchStatus;
 	}
 
-	// FIXME: check whether this is used any more:
+	public AddressableHeap.Handle<DefaultSearchNode, Void> getHandle() {
+		return heapHandle;
+	}
+
+
+	public void setHandle(AddressableHeap.Handle<DefaultSearchNode, Void> handle) {
+		this.heapHandle = handle;
+	}
 
 	@Override
-	public boolean equals(final Object other) {
-		final SearchNode o = (SearchNode) other;
-		return (x == o.x) && (y == o.y) && (z == o.z);
+	public int getX() {
+		return x;
+	}
+
+	@Override
+	public int getY() {
+		return y;
+	}
+
+	@Override
+	public int getZ() {
+		return z;
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+
+		DefaultSearchNode other = (DefaultSearchNode) o;
+
+		if (x != other.x) return false;
+		if (y != other.y) return false;
+		return z == other.z;
 	}
 
 	@Override
 	public int hashCode() {
-		int hash = 3;
-		hash = 67 * hash + this.x;
-		hash = 67 * hash + this.y;
-		hash = 67 * hash + this.z;
-		return hash;
+		int result = x;
+		result = 31 * result + y;
+		result = 31 * result + z;
+		return result;
 	}
 
-	public void setFrom(final SearchNode another) {
+	public void setFrom(final DefaultSearchNode another) {
 		this.x = another.x;
 		this.y = another.y;
 		this.z = another.z;
@@ -97,7 +131,7 @@ public class SearchNode implements Comparable<SearchNode> {
 	/* This is used by PriorityQueue: */
 
 	@Override
-	public int compareTo(final SearchNode o) {
+	public int compareTo(final DefaultSearchNode o) {
 
 		int compare_f_result = 0;
 		if (f > o.f) compare_f_result = 1;
@@ -152,11 +186,11 @@ public class SearchNode implements Comparable<SearchNode> {
 	}
 
 	public Path asPath(final double x_spacing, final double y_spacing,
-		final double z_spacing, final String spacing_units)
+					   final double z_spacing, final String spacing_units)
 	{
 		final Path creversed = new Path(x_spacing, y_spacing, z_spacing,
 			spacing_units);
-		SearchNode p = this;
+		DefaultSearchNode p = this;
 		do {
 			creversed.addPointDouble(p.x * x_spacing, p.y * y_spacing, p.z *
 				z_spacing);
@@ -171,7 +205,7 @@ public class SearchNode implements Comparable<SearchNode> {
 	{
 		final Path result = new Path(x_spacing, y_spacing, z_spacing,
 			spacing_units);
-		SearchNode p = this;
+		DefaultSearchNode p = this;
 		do {
 			result.addPointDouble(p.x * x_spacing, p.y * y_spacing, p.z * z_spacing);
 			p = p.predecessor;

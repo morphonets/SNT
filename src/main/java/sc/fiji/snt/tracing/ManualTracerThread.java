@@ -20,11 +20,13 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing;
 
-import java.awt.Graphics;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SNT;
+import sc.fiji.snt.SearchProgressCallback;
+
 import java.util.ArrayList;
-import java.util.concurrent.CountDownLatch;
 
 /**
  * A tracer thread for manual tracing.
@@ -40,36 +42,31 @@ public class ManualTracerThread extends Thread implements SearchInterface {
 	private final double goal_y;
 	private final double goal_z;
 	private final SNT plugin;
-	private final ArrayList<SearchProgressCallback> progListeners =
-		new ArrayList<>();
-	private volatile int threadStatus = SearchThread.PAUSED;
+	private final ArrayList<SearchProgressCallback> progListeners = new ArrayList<>();
 	private Path result;
-	private CountDownLatch latch;
 
 	public ManualTracerThread(final SNT plugin,
 		final double start_x, final double start_y, final double start_z,
 		final double goal_x, final double goal_y, final double goal_z)
 	{
-		if (goal_x > plugin.width || goal_y > plugin.width || goal_z > plugin.depth)
+		if (goal_x > plugin.getWidth()|| goal_y > plugin.getHeight() || goal_z > plugin.getDepth())
 			throw new IllegalArgumentException("Out-of bounds goal");
-		this.start_x = start_x * plugin.x_spacing;
-		this.start_y = start_y * plugin.y_spacing;
-		this.start_z = start_z * plugin.z_spacing;
-		this.goal_x = goal_x * plugin.x_spacing;
-		this.goal_y = goal_y * plugin.y_spacing;
-		this.goal_z = goal_z * plugin.z_spacing;
+		this.start_x = start_x * plugin.getPixelWidth();
+		this.start_y = start_y * plugin.getPixelHeight();
+		this.start_z = start_z * plugin.getPixelDepth();
+		this.goal_x = goal_x * plugin.getPixelWidth();
+		this.goal_y = goal_y * plugin.getPixelHeight();
+		this.goal_z = goal_z * plugin.getPixelDepth();
 		this.plugin = plugin;
 	}
 
 	@Override
 	public void run() {
-		result = new Path(plugin.x_spacing, plugin.y_spacing, plugin.z_spacing,
-			plugin.spacing_units);
-		result.setCTposition(plugin.channel, plugin.frame);
+		result = new Path(plugin.getPixelWidth(), plugin.getPixelHeight(), plugin.getPixelDepth(),
+			plugin.getSpacingUnits());
+		result.setCTposition(plugin.getChannel(), plugin.getFrame());
 		result.addPointDouble(start_x, start_y, start_z);
 		result.addPointDouble(goal_x, goal_y, goal_z);
-		threadStatus = SearchThread.SUCCESS;
-		countDown();
 		for (final SearchProgressCallback progress : progListeners)
 			progress.finished(this, true);
 	}
@@ -79,44 +76,10 @@ public class ManualTracerThread extends Thread implements SearchInterface {
 		return result;
 	}
 
-	@Override
-	public void drawProgressOnSlice(final int plane,
-		final int currentSliceInPlane, final TracerCanvas canvas, final Graphics g)
-	{
-		// do nothing.
-	}
-
-	public int getThreadStatus() {
-		return threadStatus;
-	}
-
-	@Override
-	public void requestStop() {
-		synchronized (this) {
-			if (threadStatus == SearchThread.PAUSED) this.interrupt();
-			threadStatus = SearchThread.STOPPING;
-			countDown();
-			reportThreadStatus();
-		}
-	}
-
 	public void addProgressListener(final SearchProgressCallback callback) {
 		progListeners.add(callback);
 	}
 
-	public void reportThreadStatus() {
-		for (final SearchProgressCallback progress : progListeners)
-			progress.threadStatus(this, threadStatus);
-	}
 
-	@Override
-	public void setCountDownLatch(final CountDownLatch latch) {
-		this.latch = latch;
-	}
 
-	private void countDown() {
-		if (latch != null && latch.getCount() > 0) {
-			latch.countDown();
-		}
-	}
 }

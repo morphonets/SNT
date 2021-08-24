@@ -96,8 +96,12 @@ public class PathProfiler extends ContextCommand {
 	 *          intensities will be retrieved as {@code Float#NaN}
 	 */
 	public PathProfiler(final Tree tree, final ImagePlus imp) {
-		if (imp == null || tree == null) throw new IllegalArgumentException(
-			"Image and Tree cannot be null");
+		if (imp == null){
+			throw new IllegalArgumentException("Image cannot be null");
+		}
+		if (tree == null){
+			throw new IllegalArgumentException("Tree cannot be null");
+		}
 		this.tree = tree;
 		this.imp = imp;
 		this.stack = imp.getImageStack();

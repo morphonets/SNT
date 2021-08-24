@@ -411,7 +411,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
 		ij.ui().show("Demo image", sntService.demoImage("fractal"));
-		SNTUtils.setDebugMode(true);
+		SNTUtils.setDebugMode(false);
 		ij.command().run(SNTLoaderCmd.class, true);
 	}
 

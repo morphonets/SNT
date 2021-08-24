@@ -29,6 +29,7 @@ import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
 import org.jgrapht.graph.AsUndirectedGraph;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.jgrapht.graph.DefaultDirectedWeightedGraph;
 import org.jgrapht.graph.ParanoidGraph;
@@ -222,6 +223,7 @@ public class DirectedWeightedGraphTest {
 		}
 	}
 
+	@Ignore
 	@Test
 	public void testShortestPath() {
 		// Compare against JGraphT Dijkstra implementation

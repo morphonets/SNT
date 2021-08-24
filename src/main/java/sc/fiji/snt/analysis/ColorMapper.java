@@ -49,13 +49,13 @@ public class ColorMapper {
 		// Implementation left to extending classes
 	}
 
-	protected Color getColor(final double mappedValue) {
+	public Color getColor(final double mappedValue) {
 		final int idx = getColorTableIdx(mappedValue);
 		return new Color(colorTable.get(ColorTable.RED, idx), colorTable.get(
 			ColorTable.GREEN, idx), colorTable.get(ColorTable.BLUE, idx));
 	}
 
-	protected ColorRGB getColorRGB(final double mappedValue) {
+	public ColorRGB getColorRGB(final double mappedValue) {
 		final int idx = getColorTableIdx(mappedValue);
 		return new ColorRGB(colorTable.get(ColorTable.RED, idx), colorTable.get(
 			ColorTable.GREEN, idx), colorTable.get(ColorTable.BLUE, idx));

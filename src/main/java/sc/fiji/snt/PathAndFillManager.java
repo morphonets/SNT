@@ -42,6 +42,7 @@ import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
+import sc.fiji.snt.tracing.FillerThread;
 import sc.fiji.snt.util.*;
 import util.Bresenham3D;
 import util.XMLFunctions;
@@ -72,6 +73,7 @@ import java.util.zip.GZIPOutputStream;
  * 
  * @author Mark Longair
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
 public class PathAndFillManager extends DefaultHandler implements
 	UniverseListener
@@ -101,7 +103,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	private final ArrayList<Fill> allFills;
 	private final ArrayList<PathAndFillListener> listeners;
 	private final HashSet<Path> selectedPathsSet;
-	private int maxUsedPathID = -1;
+	private int maxUsedPathID = 0;
 	private int maxUsedTreeID = 0;
 
 	private Fill current_fill;
@@ -1311,11 +1313,11 @@ public class PathAndFillManager extends DefaultHandler implements
 				pafl.setFillList(allFills);
 	}
 
-	protected void reloadFill(final int index) {
-		final Fill toReload = allFills.get(index);
-		plugin.startFillerThread(FillerThread.fromFill(plugin.getImagePlus(),
-			plugin.stackMin, plugin.stackMax, true, toReload));
-
+	protected void reloadFills(int[] selectedIndices) {
+		for (int ind : selectedIndices) {
+			plugin.addFillerThread(FillerThread.fromFill(plugin.getImagePlus(),
+					plugin.getStats(), allFills.get(ind)));
+		}
 	}
 
 	// FIXME: should probably use XMLStreamWriter instead of this ad-hoc
@@ -1865,8 +1867,17 @@ public class PathAndFillManager extends DefaultHandler implements
 
 					current_fill = new Fill();
 
+					// TODO: serialize the cost somehow?
 					final String metric = attributes.getValue("metric");
-					current_fill.setMetric(metric);
+					if (Objects.equals(metric, SNT.CostType.RECIPROCAL.toString())) {
+						current_fill.setMetric(SNT.CostType.RECIPROCAL);
+					} else if (Objects.equals(metric, SNT.CostType.DIFFERENCE.toString())) {
+						current_fill.setMetric(SNT.CostType.DIFFERENCE);
+					} else if (Objects.equals(metric, SNT.CostType.PROBABILITY.toString())) {
+						current_fill.setMetric(SNT.CostType.PROBABILITY);
+					} else {
+						current_fill.setMetric(SNT.CostType.RECIPROCAL);
+					}
 
 					last_fill_node_id = -1;
 
@@ -3308,6 +3319,10 @@ public class PathAndFillManager extends DefaultHandler implements
 			result.add(np);
 		}
 		return result;
+	}
+
+	protected List<Fill> getAllFills() {
+		return allFills;
 	}
 
 	/**

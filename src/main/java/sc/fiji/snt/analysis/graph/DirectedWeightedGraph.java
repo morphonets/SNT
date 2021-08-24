@@ -101,7 +101,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @param assignDistancesToWeight if true, inter-node Euclidean distances are
 	 *                                 used as edge weights
 	 */
-	protected DirectedWeightedGraph(final Collection<SWCPoint> nodes, final boolean assignDistancesToWeight) {
+	public DirectedWeightedGraph(final Collection<SWCPoint> nodes, final boolean assignDistancesToWeight) {
 		this();
 		init(nodes, assignDistancesToWeight);
 	}
@@ -160,6 +160,12 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 			simplifiedGraph.setEdgeWeight(simplifiedGraph.addEdge(current, node), pathWeight);
 		}
 		return simplifiedGraph;
+	}
+
+	public SWCPoint addVertex(final double x, final double y, final double z) {
+		SWCPoint v = new SWCPoint(0, 0, x, y, z, 0, 0);
+		addVertex(v);
+		return v;
 	}
 
 	/**
