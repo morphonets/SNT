@@ -2719,7 +2719,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			else if (FILL_OUT_CMD.equals(cmd)) {
 				if (noValidImageDataError()) return;
-				plugin.startFillingPaths(new HashSet<>(selectedPaths));
+				plugin.initPathsToFill(new HashSet<>(selectedPaths));
 				return;
 
 			}

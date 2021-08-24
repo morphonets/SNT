@@ -23,17 +23,14 @@
 package sc.fiji.snt;
 
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Defines a filled structure.
  * 
  * @author Mark Longair
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
 public class Fill {
 
@@ -56,6 +53,10 @@ public class Fill {
 
 	ArrayList<Node> nodeList;
 
+	public List<Node> getNodeList() {
+		return nodeList;
+	}
+
 	public Fill() {
 		nodeList = new ArrayList<>();
 	}
@@ -75,6 +76,10 @@ public class Fill {
 
 	Set<Path> sourcePaths;
 
+	public Set<Path> getSourcePaths() {
+		return sourcePaths;
+	}
+
 	public void setSourcePaths(final Path[] newSourcePaths) {
 		sourcePaths = new HashSet<>();
 		Collections.addAll(sourcePaths, newSourcePaths);
@@ -85,13 +90,13 @@ public class Fill {
 		sourcePaths.addAll(newSourcePaths);
 	}
 
-	public String metric;
+	public SNT.CostType metric;
 
-	public void setMetric(final String metric) {
-		this.metric = metric;
+	public void setMetric(final SNT.CostType cost) {
+		this.metric = cost;
 	}
 
-	public String getMetric() {
+	public SNT.CostType getMetric() {
 		return metric;
 	}
 
@@ -135,7 +140,7 @@ public class Fill {
 			pw.print("\"");
 		}
 		pw.print(" volume=\"" + getVolume() + "\"");
-		pw.println(" metric=\"" + getMetric() + "\" threshold=\"" + getThreshold() +
+		pw.println(" metric=\"" + getMetric().toString() + "\" threshold=\"" + getThreshold() +
 			"\">");
 		writeNodesXML(pw);
 		pw.println("  </fill>");
@@ -157,7 +162,7 @@ public class Fill {
 
 	// FIXME: the next two should just be one method, really:
 
-	protected String getSourcePathsStringMachine() {
+	public String getSourcePathsStringMachine() {
 
 		final StringBuilder result = new StringBuilder();
 
@@ -173,7 +178,7 @@ public class Fill {
 		return result.toString();
 	}
 
-	protected String getSourcePathsStringHuman() {
+	public String getSourcePathsStringHuman() {
 
 		final StringBuilder result = new StringBuilder();
 		final Path[] sortedSourcePaths = sourcePaths.toArray(new Path[] {});

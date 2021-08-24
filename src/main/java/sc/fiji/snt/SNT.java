@@ -22,24 +22,36 @@
 
 package sc.fiji.snt;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Window;
-import java.awt.event.KeyListener;
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-
-import javax.swing.SwingUtilities;
-
+import amira.AmiraMeshDecoder;
+import amira.AmiraParameters;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.Prefs;
+import ij.gui.*;
+import ij.measure.Calibration;
+import ij.process.ImageStatistics;
+import ij.process.LUT;
+import ij.process.ShortProcessor;
+import ij3d.Content;
+import ij3d.ContentConstants;
+import ij3d.ContentCreator;
+import ij3d.Image3DUniverse;
+import io.scif.services.DatasetIOService;
+import net.imagej.Dataset;
+import net.imagej.axis.Axes;
+import net.imagej.legacy.LegacyService;
+import net.imagej.ops.OpService;
+import net.imglib2.IterableInterval;
+import net.imglib2.RandomAccess;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.NumericType;
+import net.imglib2.type.numeric.RealType;
+import net.imglib2.util.Intervals;
+import net.imglib2.util.Pair;
+import net.imglib2.view.Views;
+import org.apache.commons.lang3.StringUtils;
 import org.scijava.Context;
 import org.scijava.NullContextException;
 import org.scijava.app.StatusService;
@@ -51,52 +63,46 @@ import org.scijava.util.ColorRGB;
 import org.scijava.vecmath.Color3f;
 import org.scijava.vecmath.Point3d;
 import org.scijava.vecmath.Point3f;
-
-import amira.AmiraMeshDecoder;
-import amira.AmiraParameters;
-import features.GaussianGenerationCallback;
-import ij.IJ;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.Prefs;
-import ij.gui.ImageRoi;
-import ij.gui.NewImage;
-import ij.gui.Overlay;
-import ij.gui.PointRoi;
-import ij.gui.Roi;
-import ij.measure.Calibration;
-import ij.measure.Measurements;
-import ij.process.ByteProcessor;
-import ij.process.FloatProcessor;
-import ij.process.ImageProcessor;
-import ij.process.ImageStatistics;
-import ij.process.LUT;
-import ij.process.ShortProcessor;
-import ij3d.Content;
-import ij3d.ContentConstants;
-import ij3d.ContentCreator;
-import ij3d.Image3DUniverse;
-import io.scif.services.DatasetIOService;
-import net.imagej.Dataset;
-import net.imagej.legacy.LegacyService;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.event.SNTListener;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
+import sc.fiji.snt.tracing.*;
+import sc.fiji.snt.tracing.artist.SearchArtist;
+import sc.fiji.snt.tracing.artist.SearchArtistFactory;
+import sc.fiji.snt.tracing.cost.Difference;
+import sc.fiji.snt.tracing.cost.OneMinusErf;
+import sc.fiji.snt.tracing.cost.Reciprocal;
+import sc.fiji.snt.tracing.cost.Cost;
+import sc.fiji.snt.tracing.heuristic.Dijkstra;
+import sc.fiji.snt.tracing.heuristic.Euclidean;
+import sc.fiji.snt.tracing.heuristic.Heuristic;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.SNTPoint;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.KeyListener;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.*;
+import java.util.concurrent.*;
 
 
 /**
  * Implements the SNT plugin.
  *
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
 public class SNT extends MultiDThreePanes implements
-	SearchProgressCallback, GaussianGenerationCallback, PathAndFillListener
+	SearchProgressCallback, HessianGenerationCallback, PathAndFillListener
 {
 
 	@Parameter
@@ -111,6 +117,44 @@ public class SNT extends MultiDThreePanes implements
 	protected DatasetIOService datasetIOService;
 	@Parameter
 	protected ConvertService convertService;
+	@Parameter
+	protected OpService opService;
+
+	public enum SearchType {
+		ASTAR, NBASTAR;
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
+	public enum SearchImageType {
+		ARRAY, MAP;
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
+	public enum CostType {
+		RECIPROCAL, DIFFERENCE, PROBABILITY;
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
+	public enum HeuristicType {
+		EUCLIDEAN, DIJKSTRA;
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
+	public enum FilterType {
+		TUBENESS, FRANGI, GAUSS, MEDIAN;
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
 
 	protected static boolean verbose = false; // FIXME: Use prefservice
 
@@ -150,7 +194,7 @@ public class SNT extends MultiDThreePanes implements
 	volatile protected boolean requireShiftToFork;
 
 	private boolean manualOverride = false;
-
+	private double fillThresholdDistance = 0.03d;
 
 	/*
 	 * Just for convenience, keep casted references to the superclass's
@@ -171,21 +215,39 @@ public class SNT extends MultiDThreePanes implements
 	protected int frame;
 	private LUT lut;
 
-	/* loaded pixels (main image) */
-	protected byte[][] slices_data_b;
-	protected short[][] slices_data_s;
-	protected float[][] slices_data_f;
-	volatile protected float stackMax;
-	volatile protected float stackMin;
+	/* all tracing and filling-related functions are performed on the Imgs */
+	private Dataset dataset;
+	@SuppressWarnings("rawtypes")
+	private RandomAccessibleInterval sliceAtCT;
 
-	/* Hessian-based analysis */
-	private volatile boolean hessianEnabled = false;
-	protected final HessianCaller primaryHessian;
-	protected final HessianCaller secondaryHessian;
+	/* statistics for main image*/
+	private final ImageStatistics stats = new ImageStatistics();
+
+	/* filter type */
+	protected FilterType filterType = FilterType.TUBENESS;
+
+	/* current selected search algorithm type */
+	private SearchType searchType = SearchType.ASTAR;
+
+	/* Search image type */
+	protected SearchImageType searchImageType = SearchImageType.MAP;
+
+	/* Cost function and heuristic estimate for search */
+	private CostType costType = CostType.RECIPROCAL;
+	private HeuristicType heuristicType = HeuristicType.EUCLIDEAN;
+
+	/* Compute image statistics on the bounding box sub-volume given by the start and goal nodes */
+	protected volatile boolean isUseSubVolumeStats = false;
+
+	/* adjustable parameters for cost functions */
+	protected volatile double oneMinusErfZFudge = 0.1;
 
 	/* tracing threads */
-	private TracerThread currentSearchThread = null;
+	private AbstractSearch currentSearchThread = null;
 	private ManualTracerThread manualSearchThread = null;
+
+	/* Search artists */
+	private final Map<SearchInterface, SearchArtist> searchArtists = new HashMap<>();
 
 	/*
 	 * Fields for tracing on secondary data: a filtered image. This can work in one
@@ -193,10 +255,10 @@ public class SNT extends MultiDThreePanes implements
 	 * third-party class that will parse it
 	 */
 	protected boolean doSearchOnSecondaryData;
-	protected float[][] secondaryData;
+	@SuppressWarnings("rawtypes")
+	protected RandomAccessibleInterval secondaryData;
 	protected File secondaryImageFile = null;
-	volatile protected float stackMaxSecondary = Float.MIN_VALUE;
-	volatile protected float stackMinSecondary = Float.MAX_VALUE;
+	private final ImageStatistics statsSecondary = new ImageStatistics();
 	protected boolean tubularGeodesicsTracingEnabled = false;
 	protected TubularGeodesicsTracer tubularGeodesicsThread;
 
@@ -228,9 +290,10 @@ public class SNT extends MultiDThreePanes implements
 	protected SNTUI ui;
 	protected volatile boolean tracingHalted = false; // Tracing functions paused?
 
-	// This should only be assigned to when synchronized on this object
-	// (FIXME: check that that is true)
-	FillerThread filler = null;
+	final Set<FillerThread> fillerSet = new HashSet<>();
+	ExecutorService fillerThreadPool;
+
+	ExecutorService tracerThreadPool;
 
 	/* Colors */
 	private static final Color DEFAULT_SELECTED_COLOR = Color.GREEN;
@@ -244,6 +307,7 @@ public class SNT extends MultiDThreePanes implements
 	protected Color selectedColor = DEFAULT_SELECTED_COLOR;
 	protected Color deselectedColor = DEFAULT_DESELECTED_COLOR;
 	protected boolean displayCustomPathColors = true;
+
 
 
 	/**
@@ -271,8 +335,6 @@ public class SNT extends MultiDThreePanes implements
 		pathAndFillManager = new PathAndFillManager(this);
 		setFieldsFromImage(sourceImage);
 		prefs.loadPluginPrefs();
-		primaryHessian = new HessianCaller(this, HessianCaller.PRIMARY);
-		secondaryHessian = new HessianCaller(this, HessianCaller.SECONDARY);
 	}
 
 	/**
@@ -312,8 +374,6 @@ public class SNT extends MultiDThreePanes implements
 		enableAstar(false);
 		enableSnapCursor(false);
 		pathAndFillManager.setHeadless(false);
-		primaryHessian = new HessianCaller(this, HessianCaller.PRIMARY);
-		secondaryHessian = new HessianCaller(this, HessianCaller.SECONDARY);
 	}
 
 	private void setFieldsFromImage(final ImagePlus sourceImage) {
@@ -426,10 +486,6 @@ public class SNT extends MultiDThreePanes implements
 		xy_tracer_canvas = null;
 		xz_tracer_canvas = null;
 		zy_tracer_canvas = null;
-		slices_data_b = null;
-		slices_data_s = null;
-		slices_data_f = null;
-		nullifyHessian();
 	}
 
 	public boolean accessToValidImageData() {
@@ -554,7 +610,9 @@ public class SNT extends MultiDThreePanes implements
 		zy_tracer_canvas = (InteractiveTracerCanvas) zy_canvas;
 		addListener(xy_tracer_canvas);
 
-		if (accessToValidImageData()) loadData();
+		if (accessToValidImageData()) {
+			loadDatasetFromImagePlus(getImagePlus());
+		}
 
 		if (!single_pane) {
 			final double min = xy.getDisplayRangeMin();
@@ -585,7 +643,7 @@ public class SNT extends MultiDThreePanes implements
 		final boolean currentSinglePane = getSinglePane();
 		setFieldsFromImage(getImagePlus()); // In case image properties changed outside SNT 
 		setSinglePane(currentSinglePane);
-		loadData(); // will call nullifyHessian();
+		loadDatasetFromImagePlus(getImagePlus()); // will call nullifySigmaHelper();
 		if (use3DViewer && imageContent != null) {
 			updateImageContent(prefs.get3DViewerResamplingFactor());
 		}
@@ -605,41 +663,43 @@ public class SNT extends MultiDThreePanes implements
 		if (!xz.isVisible()) xz.show();
 	}
 
-	private void loadData() {
-		statusService.showStatus("Loading data...");
-		final ImageStack s = xy.getStack();
-		switch (imageType) {
-			case ImagePlus.GRAY8:
-			case ImagePlus.COLOR_256:
-				slices_data_b = new byte[depth][];
-				for (int z = 0; z < depth; ++z)
-					slices_data_b[z] = (byte[]) s.getPixels(xy.getStackIndex(channel, z +
-						1, frame));
-				stackMin = 0;
-				stackMax = 255;
-				break;
-			case ImagePlus.GRAY16:
-				slices_data_s = new short[depth][];
-				for (int z = 0; z < depth; ++z)
-					slices_data_s[z] = (short[]) s.getPixels(xy.getStackIndex(channel, z +
-						1, frame));
-				break;
-			case ImagePlus.GRAY32:
-				slices_data_f = new float[depth][];
-				for (int z = 0; z < depth; ++z)
-					slices_data_f[z] = (float[]) s.getPixels(xy.getStackIndex(channel, z +
-						1, frame));
-				break;
+	private static <T extends RealType<T>> RandomAccessibleInterval<T> getCTSlice(final Dataset dataset,
+																				  final int channelIndex,
+																				  final int frameIndex)
+	{
+		@SuppressWarnings("unchecked")
+		RandomAccessibleInterval<T> slice = (RandomAccessibleInterval<T>) dataset;
+		if (dataset.getFrames() > 1) {
+			slice = Views.hyperSlice(slice, dataset.dimensionIndex(Axes.TIME), frameIndex);
 		}
+		// Assuming time always comes after channel, we can use the same index as the Dataset
+		if (dataset.getChannels() > 1) {
+			slice = Views.hyperSlice(slice, dataset.dimensionIndex(Axes.CHANNEL), channelIndex);
+		}
+		if (slice.numDimensions() == 2) {
+			// bump to 3D
+			slice = Views.addDimension(slice, 0, 0);
+		}
+		return slice;
+	}
+
+	private void loadDatasetFromImagePlus(final ImagePlus imp) {
+		statusService.showStatus("Loading data...");
+		this.dataset = convertService.convert(imp, Dataset.class);
+		this.sliceAtCT = getCTSlice(this.dataset, channel - 1, frame - 1);
+		SNTUtils.log("Added dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(dataset)));
+		SNTUtils.log("CT Slice dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(this.sliceAtCT)));
 		statusService.showStatus("Finding stack minimum / maximum");
-		final boolean restoreROI = xy.getRoi() != null && xy.getRoi() instanceof PointRoi;
-		if (restoreROI) xy.saveRoi();
-		xy.deleteRoi(); // if a ROI exists, compute min/ max for entire image
-		if (restoreROI) xy.restoreRoi();
-		final ImageStatistics stats = xy.getStatistics(Measurements.MIN_MAX);
-		stackMin = (float) stats.min;
-		stackMax = (float) stats.max;
-		nullifyHessian(); // ensure it will be reloaded
+		final boolean restoreROI = imp.getRoi() != null && imp.getRoi() instanceof PointRoi;
+		if (restoreROI) imp.saveRoi();
+		imp.deleteRoi(); // if a ROI exists, compute min/ max for entire image
+		if (restoreROI) imp.restoreRoi();
+		ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
+				ImageStatistics.STD_DEV);
+		this.stats.min = imgStats.min;
+		this.stats.max = imgStats.max;
+		this.stats.mean = imgStats.mean;
+		this.stats.stdDev = imgStats.stdDev;
 		updateLut();
 	}
 
@@ -713,10 +773,38 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void cancelSearch(final boolean cancelFillToo) {
-		if (currentSearchThread != null) currentSearchThread.requestStop();
-		if (manualSearchThread != null) manualSearchThread.requestStop();
-		if (tubularGeodesicsThread != null) tubularGeodesicsThread.requestStop();
-		if (cancelFillToo && filler != null) filler.requestStop();
+		// TODO: make this better
+		if (tracerThreadPool != null) {
+			tracerThreadPool.shutdownNow();
+			try {
+				long timeout = 1000L;
+				boolean terminated = tracerThreadPool.awaitTermination(timeout, TimeUnit.MILLISECONDS);
+				if (terminated) {
+					SNTUtils.log("Search cancelled.");
+				} else {
+					SNTUtils.log("Failed to terminate search within " + timeout + "ms");
+				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			} finally {
+				tracerThreadPool = null;
+			}
+		}
+		if (currentSearchThread != null) {
+			removeThreadToDraw(currentSearchThread);
+			currentSearchThread = null;
+		}
+		if (manualSearchThread != null) {
+			manualSearchThread = null;
+		}
+		if (tubularGeodesicsThread != null) {
+			tubularGeodesicsThread.requestStop();
+			tubularGeodesicsThread = null;
+		}
+		if (cancelFillToo && fillerThreadPool != null) {
+			stopFilling();
+			discardFill();
+		}
 	}
 
 	@Override
@@ -732,52 +820,106 @@ public class SNT extends MultiDThreePanes implements
 		return (ui == null) ? -1 : ui.getState();
 	}
 
-	synchronized public void saveFill() {
+	synchronized protected void saveFill() {
+		if (fillerSet.isEmpty()) {
+			throw new IllegalArgumentException("No fills available.");
+		}
 
-		if (filler != null) {
-			// The filler must be paused while we save to
-			// avoid concurrent modifications...
+		for (final FillerThread fillerThread : fillerSet) {
+			pathAndFillManager.addFill(fillerThread.getFill());
+			removeThreadToDraw(fillerThread);
+		}
+		fillerSet.clear();
+		fillerThreadPool = null;
+		changeUIState(SNTUI.WAITING_TO_START_PATH);
+		if (getUI() != null)
+			getUI().getFillManager().changeState(FillManagerUI.State.READY);
+	}
 
-			SNTUtils.log("[" + Thread.currentThread() +
-				"] going to lock filler in plugin.saveFill");
-			//synchronized (filler) 
-			{
-				SNTUtils.log("[" + Thread.currentThread() + "] acquired it");
-				if (SearchThread.PAUSED == filler.getThreadStatus()) {
-					// Then we can go ahead and save:
-					pathAndFillManager.addFill(filler.getFill());
-					// ... and then stop filling:
-					filler.requestStop();
-					changeUIState(SNTUI.WAITING_TO_START_PATH);
-					filler = null;
-				}
-				else {
-					guiUtils.error("The filler must be paused before saving the fill.");
-				}
+	synchronized protected void discardFill() {
+		if (fillerSet.isEmpty()) {
+			SNTUtils.log("No Fill(s) to discard...");
+		}
+		for (FillerThread filler : fillerSet) {
+			removeThreadToDraw(filler);
+		}
+		fillerSet.clear();
+		fillerThreadPool = null;
+		changeUIState(SNTUI.WAITING_TO_START_PATH);
+		if (getUI() != null)
+			getUI().getFillManager().changeState(FillManagerUI.State.READY);
+	}
 
+	synchronized protected void stopFilling() {
+
+		if (fillerThreadPool == null) {
+			SNTUtils.log("No filler threads are currently running.");
+			return;
+		}
+		fillerThreadPool.shutdown();
+		try {
+			// Wait a while for existing tasks to terminate
+			if (!fillerThreadPool.awaitTermination(1L, TimeUnit.SECONDS)) {
+				fillerThreadPool.shutdownNow(); // Cancel currently executing tasks
+				// Wait a while for tasks to respond to being cancelled
+				if (!fillerThreadPool.awaitTermination(1L, TimeUnit.SECONDS))
+					System.err.println("Filler did not terminate");
 			}
-			SNTUtils.log("[" + Thread.currentThread() + "] left lock on filler");
+		} catch (InterruptedException ie) {
+			// (Re-)Cancel if current thread also interrupted
+			fillerThreadPool.shutdownNow();
+			// Preserve interrupt status
+			Thread.currentThread().interrupt();
+		} finally {
+			fillerThreadPool = null;
+			if (getUI() != null)
+				getUI().getFillManager().changeState(FillManagerUI.State.STOPPED);
 		}
+
 	}
 
-	synchronized public void discardFill() {
-		discardFill(true);
-	}
-
-	synchronized protected void discardFill(final boolean updateState) {
-		if (filler != null) {
-			synchronized (filler) {
-				filler.requestStop();
-				if (updateState) ui.resetState();
-				filler = null;
+	synchronized protected void startFilling() {
+		if (fillerSet.isEmpty()) {
+			throw new IllegalArgumentException("No Filters loaded");
+		}
+		if (fillerThreadPool != null) {
+			throw new IllegalArgumentException("Filler already running");
+		}
+		if (getUI() != null)
+			getUI().getFillManager().changeState(FillManagerUI.State.STARTED);
+		fillerThreadPool = Executors.newFixedThreadPool(Math.max(1, SNTPrefs.getThreads()));
+		final List<Future<?>> futures = new ArrayList<>();
+		for (final FillerThread fillerThread : fillerSet) {
+			final Future<?> result = fillerThreadPool.submit(fillerThread);
+			futures.add(result);
+		}
+		SwingWorker<Object, Object> worker = new SwingWorker<Object, Object>() {
+			@Override
+			protected Object doInBackground() throws Exception {
+				for (final Future<?> future : futures) {
+					future.get();
+				}
+				return null;
 			}
-		}
-	}
+			@Override
+			protected void done() {
+				// FIXME: this is a bad solution to make sure we get the correct state when cancelling
+				stopFilling();
+				if (ui != null) {
+					if (fillerSet.isEmpty()) {
+						// This means someone called discardFills() before all future tasks returned
+						ui.getFillManager().changeState(FillManagerUI.State.READY);
+					} else {
+						boolean allSucceeded = fillerSet.stream()
+								.noneMatch(f -> f.getExitReason() == SearchThread.CANCELLED);
+						ui.getFillManager().changeState(
+								allSucceeded ? FillManagerUI.State.ENDED : FillManagerUI.State.STOPPED);
+					}
+				}
+			}
+		};
+		worker.execute();
 
-	synchronized public void pauseOrRestartFilling() {
-		if (filler != null) {
-			filler.pauseOrUnpause();
-		}
 	}
 
 	/* Listeners */
@@ -806,60 +948,50 @@ public class SNT extends MultiDThreePanes implements
 	@Override
 	public void finished(final SearchInterface source, final boolean success) {
 
-		/*
-		 * This is called by both filler and currentSearchThread, so distinguish these
-		 * cases:
-		 */
-
-		if (source == currentSearchThread || source == tubularGeodesicsThread ||
-			source == manualSearchThread)
+		if (source == currentSearchThread ||  source == tubularGeodesicsThread || source == manualSearchThread)
 		{
-
 			removeSphere(targetBallName);
 
-			try {
-				if (success) {
-					final Path result = source.getResult();
-					if (result == null) {
-						if (pathAndFillManager.enableUIupdates)
-							SNTUtils.error("Bug! Succeeded, but null result.");
-						else
-							SNTUtils.error("Scripted path yielded a null result.");
-						return;
-					}
-					setTemporaryPath(result);
-
-					if (ui != null && ui.confirmTemporarySegments) {
+			if (success) {
+				final Path result = source.getResult();
+				if (result == null) {
+					if (pathAndFillManager.enableUIupdates)
+						SNTUtils.error("Bug! Succeeded, but null result.");
+					else
+						SNTUtils.error("Scripted path yielded a null result.");
+					return;
+				}
+				setTemporaryPath(result);
+				if (ui == null) {
+					confirmTemporary(false);
+				} else {
+					if (ui.confirmTemporarySegments) {
 						changeUIState(SNTUI.QUERY_KEEP);
-					}
-					else {
-						confirmTemporary();
-						changeUIState(SNTUI.PARTIAL_PATH);
+					} else {
+						confirmTemporary(true);
 					}
 				}
-			else {
-
+			} else {
+				SNTUtils.log("Failed to find route.");
 				changeUIState(SNTUI.PARTIAL_PATH);
 			}
 
-			// Indicate in the dialog that we've finished...
-
 			if (source == currentSearchThread) {
-					currentSearchThread = null;
-				}
-
-			} finally {
-
-				removeThreadToDraw(source);
-				updateTracingViewers(false);
+				currentSearchThread = null;
+			} else if (source == manualSearchThread) {
+				manualSearchThread = null;
 			}
+
+			removeThreadToDraw(source);
+			updateTracingViewers(false);
+
 		}
 
 	}
 
 	@Override
-	public void pointsInSearch(final SearchInterface source, final int inOpen,
-		final int inClosed)
+	public void pointsInSearch(final SearchInterface source, final long inOpen,
+		final long inClosed)
 	{
 		// Just use this signal to repaint the canvas, in case there's
 		// been no mouse movement.
@@ -1227,10 +1359,10 @@ public class SNT extends MultiDThreePanes implements
 		statusService.showStatus(statusMessage);
 		repaintAllPanes(); // Or the crosshair isn't updated...
 
-		if (filler != null) {
-			synchronized (filler) {
-				final float distance = filler.getDistanceAtPoint(ix, iy, iz);
-				ui.getFillManager().showMouseThreshold(distance);
+		if (!fillerSet.isEmpty()) {
+			for (FillerThread fillerThread : fillerSet) {
+				final double distance = fillerThread.getDistanceAtPoint(ix, iy, iz);
+				ui.getFillManager().showMouseThreshold((float)distance);
 			}
 		}
 	}
@@ -1299,18 +1431,22 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	void addThreadToDraw(final SearchInterface s) {
-		getXYCanvas().addSearchThread(s);
+		SearchArtist artist = new SearchArtistFactory().create(s);
+		searchArtists.put(s, artist);
+		getXYCanvas().addSearchArtist(artist);
 		if (!single_pane) {
-			getZYCanvas().addSearchThread(s);
-			getXZCanvas().addSearchThread(s);
+			getZYCanvas().addSearchArtist(artist);
+			getXZCanvas().addSearchArtist(artist);
 		}
 	}
 
 	void removeThreadToDraw(final SearchInterface s) {
-		getXYCanvas().removeSearchThread(s);
+		SearchArtist artist = searchArtists.get(s);
+		if (artist == null) return;
+		getXYCanvas().removeSearchArtist(artist);
 		if (!single_pane) {
-			getZYCanvas().removeSearchThread(s);
-			getXZCanvas().removeSearchThread(s);
+			getZYCanvas().removeSearchArtist(artist);
+			getXZCanvas().removeSearchArtist(artist);
 		}
 	}
 
@@ -1349,51 +1485,62 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/* Start a search thread looking for the goal in the arguments: */
-	synchronized void testPathTo(final double world_x, final double world_y,
-		final double world_z, final PointInImage joinPoint)
-	{
-		testPathTo(world_x, world_y, world_z, joinPoint, false, -1); // GUI execution
+	synchronized Future<?> testPathTo(final double world_x, final double world_y,
+									  final double world_z, final PointInImage joinPoint) {
+		return testPathTo(world_x, world_y, world_z, joinPoint, -1); // GUI execution
 	}
 
-	synchronized private void testPathTo(final double world_x, final double world_y,
-		final double world_z, final PointInImage joinPoint, final boolean attatchAwaitingLatch, final int minPathSize)// Script execution
+	synchronized private Future<?> testPathTo(final double world_x,
+											  final double world_y,
+											  final double world_z,
+											  final PointInImage joinPoint,
+											  final int minPathSize)
 	{
+
 		if (!lastStartPointSet) {
 			statusService.showStatus(
-				"No initial start point has been set.  Do that with a mouse click." +
-					" (Or a Shift-" + GuiUtils.ctrlKey() +
-					"-click if the start of the path should join another neurite.");
-			return;
+					"No initial start point has been set.  Do that with a mouse click." +
+							" (Or a Shift-" + GuiUtils.ctrlKey() +
+							"-click if the start of the path should join another neurite.");
+			return null;
 		}
 
 		if (temporaryPath != null) {
 			statusService.showStatus(
-				"There's already a temporary path; Press 'N' to cancel it or 'Y' to keep it.");
-			return;
+					"There's already a temporary path; Press 'N' to cancel it or 'Y' to keep it.");
+			return null;
 		}
 
 		double real_x_end, real_y_end, real_z_end;
-
-		int x_end, y_end, z_end;
 		if (joinPoint == null) {
 			real_x_end = world_x;
 			real_y_end = world_y;
 			real_z_end = world_z;
-		}
-		else {
+		} else {
 			real_x_end = joinPoint.x;
 			real_y_end = joinPoint.y;
 			real_z_end = joinPoint.z;
 		}
 
-		addSphere(targetBallName, real_x_end, real_y_end, real_z_end, getXYCanvas()
-			.getTemporaryPathColor(), x_spacing * ballRadiusMultiplier);
+		addSphere(
+				targetBallName,
+				real_x_end,
+				real_y_end,
+				real_z_end,
+				getXYCanvas().getTemporaryPathColor(),
+				x_spacing * ballRadiusMultiplier);
 
-		x_end = (int) Math.round(real_x_end / x_spacing);
-		y_end = (int) Math.round(real_y_end / y_spacing);
-		z_end = (int) Math.round(real_z_end / z_spacing);
+		final int x_start = (int) Math.round(last_start_point_x);
+		final int y_start = (int) Math.round(last_start_point_y);
+		final int z_start = (int) Math.round(last_start_point_z);
 
-		final CountDownLatch latch = (attatchAwaitingLatch) ?  new CountDownLatch(1) : null;
+		final int x_end = (int) Math.round(real_x_end / x_spacing);
+		final int y_end = (int) Math.round(real_y_end / y_spacing);
+		final int z_end = (int) Math.round(real_z_end / z_spacing);
+
+		if (tracerThreadPool == null || tracerThreadPool.isShutdown()) {
+			tracerThreadPool = Executors.newSingleThreadExecutor();
+		}
 
 		if (tubularGeodesicsTracingEnabled) {
 
@@ -1404,50 +1551,198 @@ public class SNT extends MultiDThreePanes implements
 
 			// [xyz]_spacing
 
-			tubularGeodesicsThread = new TubularGeodesicsTracer(secondaryImageFile,
-				(int) Math.round(last_start_point_x), (int) Math.round(
-					last_start_point_y), (int) Math.round(last_start_point_z), x_end,
-				y_end, z_end, x_spacing, y_spacing, z_spacing, spacing_units);
-			addThreadToDraw(tubularGeodesicsThread);
+			tubularGeodesicsThread = new TubularGeodesicsTracer(
+					secondaryImageFile,
+					x_start,
+					y_start,
+					z_start,
+					x_end,
+					y_end,
+					z_end,
+					x_spacing,
+					y_spacing,
+					z_spacing,
+					spacing_units);
 			tubularGeodesicsThread.addProgressListener(this);
-			tubularGeodesicsThread.setCountDownLatch(latch);
-			tubularGeodesicsThread.start();
+			return tracerThreadPool.submit(tubularGeodesicsThread);
 		}
 
-		else if (!isAstarEnabled()) {
-			manualSearchThread = new ManualTracerThread(this, last_start_point_x,
-				last_start_point_y, last_start_point_z, x_end, y_end, z_end);
-			addThreadToDraw(manualSearchThread);
+		if (!isAstarEnabled()) {
+			manualSearchThread = new ManualTracerThread(
+					this,
+					last_start_point_x,
+					last_start_point_y,
+					last_start_point_z,
+					x_end,
+					y_end,
+					z_end);
 			manualSearchThread.addProgressListener(this);
-			manualSearchThread.setCountDownLatch(latch);
-			manualSearchThread.start();
-		}
-		else {
-			currentSearchThread = new TracerThread(this, (int) Math.round(last_start_point_x),
-					(int) Math.round(last_start_point_y), (int) Math.round(last_start_point_z), x_end, y_end, z_end);
-
-			addThreadToDraw(currentSearchThread);
-			currentSearchThread.setDrawingColors(Color.CYAN, null);// TODO: Make this
-																															// color a
-																															// preference
-			currentSearchThread.setCountDownLatch(latch);
-			currentSearchThread.setMinExpectedSizeOfResult(minPathSize);
-			currentSearchThread.setDrawingThreshold(-1);
-			currentSearchThread.addProgressListener(this);
-			currentSearchThread.start();
+			return tracerThreadPool.submit(manualSearchThread);
 		}
 
-		try {
-			if (latch != null) latch.await();
-		} catch (final InterruptedException e) {
-			e.printStackTrace();
-		} finally {
-			updateTracingViewers(true);
-		}
-
+		currentSearchThread = createSearch(x_start, y_start, z_start, x_end, y_end, z_end);
+		addThreadToDraw(currentSearchThread);
+		currentSearchThread.setDrawingThreshold(-1);
+		currentSearchThread.addProgressListener(this);
+		return tracerThreadPool.submit(currentSearchThread);
 	}
 
-	synchronized public void confirmTemporary() {
+	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
+																	final ImageStatistics imgStats,
+																	final CostType costType)
+	{
+		switch (costType) {
+			case PROBABILITY: {
+				imgStats.max = opService.stats().max(in).getRealDouble();
+				imgStats.mean = opService.stats().mean(in).getRealDouble();
+				imgStats.stdDev = opService.stats().stdDev(in).getRealDouble();
+				SNTUtils.log("Subvolume statistics: max=" + imgStats.max +
+						", mean=" + imgStats.mean +
+						", stdDev=" + imgStats.stdDev);
+				break;
+			}
+			case RECIPROCAL:
+			case DIFFERENCE: {
+				final Pair<T, T> minMax = opService.stats().minMax(in);
+				imgStats.min = minMax.getA().getRealDouble();
+				imgStats.max = minMax.getB().getRealDouble();
+				SNTUtils.log("Subvolume statistics: min=" + imgStats.min +
+						", max=" + imgStats.max);
+				break;
+			}
+			default: {
+				final Pair<T, T> minMax = opService.stats().minMax(in);
+				imgStats.min = minMax.getA().getRealDouble();
+				imgStats.max = minMax.getB().getRealDouble();
+				imgStats.mean = opService.stats().mean(in).getRealDouble();
+				imgStats.stdDev = opService.stats().stdDev(in).getRealDouble();
+				SNTUtils.log("Subvolume statistics: min=" + imgStats.min +
+						", max=" + imgStats.max +
+						", mean=" + imgStats.mean +
+						", stdDev=" + imgStats.stdDev);
+			}
+		}
+		if (imgStats.min == imgStats.max) {
+			// This can happen if the image data in the bounding box between the start and goal is uniform
+			//  (e.g., a black region)
+			imgStats.min = 0;
+			imgStats.max = Math.pow(2, 16) - 1;
+		}
+		return imgStats;
+	}
+
+	private AbstractSearch createSearch(final double world_x_start,
+										final double world_y_start,
+										final double world_z_start,
+										final double world_x_end,
+										final double world_y_end,
+										final double world_z_end)
+	{
+		return createSearch(
+				(int) Math.round(world_x_start / x_spacing),
+				(int) Math.round(world_y_start / y_spacing),
+				(int) Math.round(world_z_start / z_spacing),
+				(int) Math.round(world_x_end / x_spacing),
+				(int) Math.round(world_y_end / y_spacing),
+				(int) Math.round(world_z_end / z_spacing));
+	}
+
+	/* This method uses the plugin's current search parameters to construct an isolated A* search instance using
+	 * the given start and end voxel coordinates. */
+
+	private <T extends RealType<T>> AbstractSearch createSearch(final int x_start,
+																final int y_start,
+																final int z_start,
+																final int x_end,
+																final int y_end,
+																final int z_end)
+	{
+
+		final boolean useSecondary = isTracingOnSecondaryImageActive();
+		@SuppressWarnings("unchecked") final RandomAccessibleInterval<T> img =
+				useSecondary ? (RandomAccessibleInterval<T>) getSecondaryData() : getLoadedData();
+
+		final ImageStatistics imgStats = useSecondary ? statsSecondary : stats;
+		if (isUseSubVolumeStats) {
+			SNTUtils.log("Computing subvolume statistics...");
+			final IterableInterval<T> subVolume = Views.iterable(
+					ImgUtils.subVolume(
+							img,
+							x_start,
+							y_start,
+							z_start,
+							x_end,
+							y_end,
+							z_end,
+							10));
+			computeImgStats(subVolume, imgStats, costType);
+		}
+
+		Cost costFunction;
+		switch (costType) {
+			case RECIPROCAL:
+				costFunction = new Reciprocal(imgStats.min, imgStats.max);
+				break;
+			case PROBABILITY:
+				OneMinusErf cost = new OneMinusErf(imgStats.max, imgStats.mean, imgStats.stdDev);
+				cost.setZFudge(oneMinusErfZFudge);
+				costFunction = cost;
+				break;
+			case DIFFERENCE:
+				costFunction = new Difference(imgStats.min, imgStats.max);
+				break;
+			default:
+				throw new IllegalArgumentException("BUG: Unknown cost function " + costType);
+		}
+
+		Heuristic heuristic;
+		switch (heuristicType) {
+			case EUCLIDEAN:
+				heuristic = new Euclidean(xy.getCalibration());
+				break;
+			case DIJKSTRA:
+				heuristic = new Dijkstra();
+				break;
+			default:
+				throw new IllegalArgumentException("BUG: Unknown heuristic " + heuristicType);
+		}
+
+		AbstractSearch search;
+		switch (searchType) {
+			case ASTAR:
+				search = new TracerThread(
+						this,
+						img,
+						x_start,
+						y_start,
+						z_start,
+						x_end,
+						y_end,
+						z_end,
+						costFunction,
+						heuristic);
+				break;
+			case NBASTAR:
+				search = new BiSearch(
+						this,
+						img,
+						x_start,
+						y_start,
+						z_start,
+						x_end,
+						y_end,
+						z_end,
+						costFunction,
+						heuristic);
+				break;
+			default:
+				throw new IllegalArgumentException("BUG: Unknown search class");
+		}
+
+		return search;
+	}
+
+	synchronized public void confirmTemporary(final boolean updateTracingViewers) {
 
 		if (temporaryPath == null)
 			// Just ignore the request to confirm a path (there isn't one):
@@ -1463,7 +1758,8 @@ public class SNT extends MultiDThreePanes implements
 		{
 			setTemporaryPath(null);
 			changeUIState(SNTUI.PARTIAL_PATH);
-			updateTracingViewers(true);
+			if (updateTracingViewers)
+				updateTracingViewers(true);
 		}
 
 		/*
@@ -1533,13 +1829,22 @@ public class SNT extends MultiDThreePanes implements
 	 * @return the path a reference to the computed path.
 	 * @see #autoTrace(List, PointInImage)
 	 */
-	public Path autoTrace(final PointInImage start, final PointInImage end,
+	public Path autoTrace(final SNTPoint start, final SNTPoint end,
 		final PointInImage forkPoint)
 	{
-		final ArrayList<PointInImage> list = new ArrayList<>();
+		final List<SNTPoint> list = new ArrayList<>();
 		list.add(start);
 		list.add(end);
 		return autoTrace(list, forkPoint);
+	}
+
+	public Path autoTrace(final SNTPoint start, final SNTPoint end, final PointInImage forkPoint,
+						  final boolean headless)
+	{
+		final List<SNTPoint> list = new ArrayList<>();
+		list.add(start);
+		list.add(end);
+		return autoTrace(list, forkPoint, headless);
 	}
 
 	/**
@@ -1568,8 +1873,7 @@ public class SNT extends MultiDThreePanes implements
 	 *         Manager list.If a path cannot be fully computed from the specified
 	 *         list of points, a single-point path is generated.
 	 */
-	public Path autoTrace(final List<PointInImage> pointList,
-		final PointInImage forkPoint)
+	public Path autoTrace(final List<SNTPoint> pointList, final PointInImage forkPoint)
 	{
 		if (pointList == null || pointList.size() == 0)
 			throw new IllegalArgumentException("pointList cannot be null or empty");
@@ -1584,62 +1888,88 @@ public class SNT extends MultiDThreePanes implements
 		ui = null;
 
 		// Start path from first point in list
-		final PointInImage start = pointList.get(0);
-		startPath(start.x, start.y, start.z, forkPoint);
+		final SNTPoint start = pointList.get(0);
+		startPath(start.getX(), start.getY(), start.getZ(), forkPoint);
 
 		final int secondNodeIdx = (pointList.size() == 1) ? 0 : 1;
 		final int nNodes = pointList.size();
 
 		// Now keep appending nodes to temporary path
 		for (int i = secondNodeIdx; i < nNodes; i++) {
+			// Append node and wait for search to be finished
+			final SNTPoint node = pointList.get(i);
 
+			Future<?> result = testPathTo(node.getX(), node.getY(), node.getZ(), null);
 			try {
-
-				// Append node and wait for search to be finished
-				final PointInImage node = pointList.get(i);
-				testPathTo(node.x, node.y, node.z, null, true, 1);
-				((Thread) getActiveSearchingThread()).join();
-
-			}
-			catch (final NullPointerException ex) {
-				// do nothing: search thread has already terminated or node is null
-			}
-			catch (final InterruptedException ex) {
-				showStatus(0, 0, "Search interrupted!");
-				SNTUtils.error("Search interrupted", ex);
-			}
-				catch (final ArrayIndexOutOfBoundsException
-						| IllegalArgumentException ex)
-				{
-					// It is likely that search failed for this node. These will be
-					// triggered if
-					// e.g., point- is out of image bounds,
-					showStatus(i, nNodes, "ERROR: Search failed!...");
-					SNTUtils.error("Search failed for node " + i);
-					// continue;
-			}
-			finally {
-				showStatus(i, pointList.size(), "Confirming segment...");
-				confirmTemporary();
+				result.get();
+			} catch (InterruptedException | ExecutionException e) {
+				SNTUtils.error("Error during auto-trace", e);
 			}
 		}
+
 		finishedPath();
 
 		// restore UI state
 		showStatus(0, 0, "Tracing Complete");
 
 		pathAndFillManager.enableUIupdates = existingEnableUIupdates;
-		if (existingEnableUIupdates) pathAndFillManager.resetListeners(null);
 		ui = existingUI;
+		if (existingEnableUIupdates) pathAndFillManager.resetListeners(null);
+
 		changeUIState(SNTUI.READY);
 
 		return pathAndFillManager.getPath(pathAndFillManager.size() - 1);
+
 	}
 
-	private SearchInterface getActiveSearchingThread() {
-		if (manualSearchThread != null) return manualSearchThread;
-		if (tubularGeodesicsThread != null) return tubularGeodesicsThread;
-		return currentSearchThread;
+	public Path autoTrace(final List<SNTPoint> pointList, final PointInImage forkPoint, final boolean headless) {
+		if (headless) {
+			return autoTraceHeadless(pointList, forkPoint);
+		}
+		return autoTrace(pointList, forkPoint);
+	}
+
+	private Path autoTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint) {
+		if (pointList == null || pointList.size() == 0)
+			throw new IllegalArgumentException("pointList cannot be null or empty");
+
+		if (tracerThreadPool == null || tracerThreadPool.isShutdown()) {
+			tracerThreadPool = Executors.newSingleThreadExecutor();
+		}
+
+		Path fullPath = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
+
+		// Now keep appending nodes to temporary path
+		for (int i = 0; i < pointList.size() - 1; i++) {
+			// Append node and wait for search to be finished
+			final SNTPoint start = pointList.get(i);
+			final SNTPoint end = pointList.get(i + 1);
+			AbstractSearch pathSearch = createSearch(
+					start.getX(),
+					start.getY(),
+					start.getZ(),
+					end.getX(),
+					end.getY(),
+					end.getZ());
+			Future<?> result = tracerThreadPool.submit(pathSearch);
+			Path pathResult = null;
+			try {
+				result.get();
+				pathResult = pathSearch.getResult();
+			} catch (InterruptedException | ExecutionException e) {
+				SNTUtils.error("Error during auto-trace", e);
+			}
+			if (pathResult == null) {
+				SNTUtils.log("Auto-trace result was null.");
+				return null;
+			}
+			fullPath.add(pathResult);
+		}
+
+		if (forkPoint != null) {
+			fullPath.setStartJoin(forkPoint.getPath(), forkPoint);
+		}
+		return fullPath;
 	}
 
 	synchronized protected void replaceCurrentPath(final Path path) {
@@ -1673,7 +2003,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		// Is there an unconfirmed path? If so, confirm it first
-		if (temporaryPath != null) confirmTemporary();
+		if (temporaryPath != null) confirmTemporary(false);
 
 		if (justFirstPoint() && ui != null && ui.confirmTemporarySegments && !getConfirmation(
 			"Create a single point path? (such path is typically used to mark the cell soma)",
@@ -1732,7 +2062,7 @@ public class SNT extends MultiDThreePanes implements
 
 		if (temporaryPath != null) return;
 
-		if (filler != null) {
+		if (!fillerSet.isEmpty()) {
 			setFillThresholdFrom(world_x, world_y, world_z);
 			return;
 		}
@@ -1744,14 +2074,13 @@ public class SNT extends MultiDThreePanes implements
 			try {
 				testPathTo(world_x, world_y, world_z, joinPoint);
 				changeUIState(SNTUI.SEARCHING);
-			} catch (final IllegalArgumentException ex) {
+			} catch (final Exception ex) {
 				if (getUI() != null) {
 					getUI().error(ex.getMessage());
-					getUI().enableHessian(false);
+					getUI().enableSecondaryLayerBuiltin(false);
 					getUI().reset();
-				} else {
-					ex.printStackTrace();
 				}
+				SNTUtils.error(ex.getMessage(), ex);
 			}
 		}
 		else {
@@ -1779,19 +2108,36 @@ public class SNT extends MultiDThreePanes implements
 	public void setFillThresholdFrom(final double world_x, final double world_y,
 		final double world_z)
 	{
+		double min_dist = Double.POSITIVE_INFINITY;
+		for (FillerThread fillerThread : fillerSet) {
+			final double distance = fillerThread.getDistanceAtPoint(world_x / x_spacing,
+					world_y / y_spacing, world_z / z_spacing);
+			if (distance > 0 && distance < min_dist) {
+				min_dist = distance;
+			}
+		}
+		if (min_dist == Double.POSITIVE_INFINITY) {
+			min_dist = -1.0f;
+		}
+		setFillThreshold(min_dist);
 
-		final float distance = filler.getDistanceAtPoint(world_x / x_spacing,
-			world_y / y_spacing, world_z / z_spacing);
-
-		setFillThreshold(distance);
 	}
 
-	public void setFillThreshold(final double distance) {
-		if (!Double.isNaN(distance) && distance > 0) {
-			SNTUtils.log("Setting new threshold of: " + distance);
-			if (ui != null) ui.thresholdChanged(distance);
-			filler.setThreshold(distance);
-		}
+	/**
+	 * Sets the fill threshold distance. Typically, this value is set before a
+	 * filling operation as a starting value for the {@link FillerThread}.
+	 *
+	 * @param distance the new threshold distance. Set it to {@code -1} to use SNT's
+	 *                 default.
+	 * @throws IllegalArgumentException If distance is not a valid positive value
+	 */
+	public void setFillThreshold(final double distance) throws IllegalArgumentException {
+		if (distance != -1d && (Double.isNaN(distance) || distance <= 0))
+			throw new IllegalArgumentException("Threshold distance must be a valid positive value");
+		this.fillThresholdDistance = (distance == -1d) ? 0.03d : distance;
+		if (ui != null)
+			ui.getFillManager().updateThresholdWidget(fillThresholdDistance);
+		fillerSet.forEach(f -> f.setThreshold(fillThresholdDistance)); // fillerSet never null
 	}
 
 	synchronized void startPath(final double world_x, final double world_y,
@@ -1877,9 +2223,19 @@ public class SNT extends MultiDThreePanes implements
 		});
 	}
 
-	public ImagePlus getFilledVolume(final boolean asMask) {
-		if (filler == null) return null;
-		return filler.fillAsImagePlus(!asMask);
+	public ImagePlus getFilledBinaryImp() {
+		if (fillerSet.isEmpty()) return null;
+		return new FillConverter(fillerSet, getLoadedDataAsImp()).getBinaryImp();
+	}
+
+	public ImagePlus getFilledImp() {
+		if (fillerSet.isEmpty()) return null;
+		return new FillConverter(fillerSet, getLoadedDataAsImp()).getImp();
+	}
+
+	public ImagePlus getFilledDistanceImp() {
+		if (fillerSet.isEmpty()) return null;
+		return new FillConverter(fillerSet, getLoadedDataAsImp()).getDistanceImp();
 	}
 
 	protected int guessResamplingFactor() {
@@ -1905,34 +2261,49 @@ public class SNT extends MultiDThreePanes implements
 		return ui.isVisible();
 	}
 
-	public void startFillerThread(final FillerThread filler) {
-		this.filler = filler;
+	public void addFillerThread(final FillerThread filler) {
+		fillerSet.add(filler);
 		filler.addProgressListener(this);
 		filler.addProgressListener(ui.getFillManager());
 		addThreadToDraw(filler);
-		filler.start();
 		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
-	synchronized public void startFillingPaths(final Set<Path> fromPaths) {
-
-		// currentlyFilling = true;
-		if (ui != null) {
-			ui.getFillManager().pauseOrRestartFilling.setText("Pause");
-			ui.getFillManager().thresholdChanged(0.03f);
+	synchronized public void initPathsToFill(final Set<Path> fromPaths) {
+		fillerSet.clear();
+		final boolean useSecondary = isTracingOnSecondaryImageActive();
+		@SuppressWarnings("unchecked")
+		final RandomAccessibleInterval<? extends RealType<?>> data = useSecondary ? secondaryData : sliceAtCT;
+		double min = useSecondary ? statsSecondary.min : stats.min;
+		double max = useSecondary ? statsSecondary.max : stats.max;
+		double mean = useSecondary ? statsSecondary.mean : stats.mean;
+		double stdDev = useSecondary ? statsSecondary.stdDev : stats.stdDev;
+		Cost costFunction;
+		switch (costType) {
+			case RECIPROCAL:
+				costFunction = new Reciprocal(min, max);
+				break;
+			case PROBABILITY:
+				costFunction = new OneMinusErf(max, mean, stdDev);
+				break;
+			case DIFFERENCE:
+				costFunction = new Difference(min, max);
+				break;
+			default:
+				throw new IllegalArgumentException("BUG: Unrecognized cost function " + costType);
 		}
-		filler = new FillerThread(xy, stackMin, stackMax, false, // startPaused
-			true, // reciprocal
-			0.03f, // Initial threshold to display
-			5000); // reportEveryMilliseconds
-
+		final FillerThread filler = new FillerThread(
+				data,
+				xy.getCalibration(),
+				fillThresholdDistance,
+				1000,
+				costFunction);
 		addThreadToDraw(filler);
 		filler.addProgressListener(this);
 		filler.addProgressListener(ui.getFillManager());
 		filler.setSourcePaths(fromPaths);
-
+		fillerSet.add(filler);
 		if (ui != null) ui.setFillListVisible(true);
-		filler.start();
 		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
@@ -1949,7 +2320,7 @@ public class SNT extends MultiDThreePanes implements
 				: Math.min(Math.abs(x_spacing), Math.min(Math.abs(y_spacing), Math.abs(z_spacing)));
 	}
 
-	protected double getAverageSeparation() {
+	public double getAverageSeparation() {
 		return (is2D()) ? (x_spacing + y_spacing) / 2 : (x_spacing + y_spacing + z_spacing) / 3;
 	}
 
@@ -1960,56 +2331,26 @@ public class SNT extends MultiDThreePanes implements
 	 * @return the loaded data corresponding to the C,T position currently being
 	 *         traced, or null if no image data has been loaded into memory.
 	 */
-	public ImagePlus getLoadedDataAsImp() {
+	public <T extends NumericType<T>> ImagePlus getLoadedDataAsImp() {
 		if (!inputImageLoaded()) return null;
-		final ImageStack stack = new ImageStack(xy.getWidth(), xy.getHeight());
-		switch (imageType) {
-			case ImagePlus.GRAY8:
-			case ImagePlus.COLOR_256:
-				for (int z = 0; z < depth; ++z) {
-					final ImageProcessor ip = new ByteProcessor(xy.getWidth(), xy
-						.getHeight());
-					ip.setPixels(slices_data_b[z]);
-					stack.addSlice(ip);
-				}
-				break;
-			case ImagePlus.GRAY16:
-				for (int z = 0; z < depth; ++z) {
-					final ImageProcessor ip = new ShortProcessor(xy.getWidth(), xy
-						.getHeight());
-					ip.setPixels(slices_data_s[z]);
-					stack.addSlice(ip);
-				}
-				break;
-			case ImagePlus.GRAY32:
-				for (int z = 0; z < depth; ++z) {
-					final ImageProcessor ip = new FloatProcessor(xy.getWidth(), xy
-						.getHeight());
-					ip.setPixels(slices_data_f[z]);
-					stack.addSlice(ip);
-				}
-				break;
-			default:
-				throw new IllegalArgumentException("Bug: unsupported type somehow");
+		@SuppressWarnings("unchecked")
+		RandomAccessibleInterval<T> data = this.sliceAtCT;
+		data = Views.dropSingletonDimensions(data);
+		if (data.numDimensions() == 3) {
+			data = Views.permute(Views.addDimension(data, 0, 0), 2, 3);
 		}
-		final ImagePlus imp = new ImagePlus("C" + channel + "F" + frame, stack);
-		updateLut(); // If the LUT meanwhile changed, update it
-		imp.setLut(lut); // ignored if null
+		final ImagePlus imp = ImageJFunctions.wrap(data,"Image");
+		updateLut();
+		imp.setLut(lut);
 		imp.copyScale(xy);
-		imp.setFileInfo(xy.getOriginalFileInfo());
+		imp.resetDisplayRange();
 		return imp;
 	}
 
-	public void startHessian(final String image, final double sigma, final double max, final boolean wait) {
-		final HessianCaller hc = getHessianCaller(image);
-		hc.setSigmaAndMax(sigma, max);
-		if (wait) {
-			try {
-				hc.start().join();
-			} catch (final InterruptedException e) {
-				SNTUtils.error(e.getMessage(), e);
-			}
-		} else hc.start();
+	public <T extends RealType<T>> RandomAccessibleInterval<T> getLoadedData() {
+		@SuppressWarnings("unchecked")
+		final RandomAccessibleInterval<T> data = this.sliceAtCT;
+		return data;
 	}
 
 	/**
@@ -2028,16 +2369,20 @@ public class SNT extends MultiDThreePanes implements
 	 *
 	 * @return true, if image has been loaded into memory.
 	 */
-	public boolean isSecondaryImageLoaded() {
-		return secondaryData != null;
+	public boolean isSecondaryDataAvailable() {
+		return getSecondaryData() != null;
+	}
+
+	public boolean isSecondaryImageFileLoaded() {
+		return secondaryImageFile != null;
 	}
 
 	protected boolean inputImageLoaded() {
-		return slices_data_b != null || slices_data_s != null || slices_data_f != null;
+		return this.dataset != null;
 	}
 
 	protected boolean isTracingOnSecondaryImageAvailable() {
-		return isSecondaryImageLoaded() || tubularGeodesicsTracingEnabled;
+		return isSecondaryDataAvailable() || tubularGeodesicsTracingEnabled;
 	}
 
 	/**
@@ -2047,7 +2392,7 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public void setSecondaryImage(final File file) {
 		secondaryImageFile = file;
-		if (ui != null) ui.updateFilteredImageFileWidget();
+		if (ui != null) ui.updateExternalImgWidgets();
 	}
 
 	/**
@@ -2059,96 +2404,99 @@ public class SNT extends MultiDThreePanes implements
 	 * @throws IOException              If image could not be loaded
 	 * @throws IllegalArgumentException if dimensions are unexpected, or image type
 	 *                                  is not supported
-	 * @see #isSecondaryImageLoaded()
+	 * @see #isSecondaryDataAvailable()
 	 * @see #getSecondaryDataAsImp()
 	 */
 	public void loadSecondaryImage(final File file) throws IOException, IllegalArgumentException {
 		final ImagePlus imp = openCachedDataImage(file);
 		loadSecondaryImage(imp, true);
-		setSecondaryImage(isSecondaryImageLoaded() ? file : null);
+		setSecondaryImage(isSecondaryDataAvailable() && isSecondaryImageFileLoaded() ? file : null);
 	}
 
 	public void loadSecondaryImage(final ImagePlus imp) throws IllegalArgumentException {
 		loadSecondaryImage(imp, true);
 	}
 
+	public <T extends RealType<T>> void loadSecondaryImage(final RandomAccessibleInterval<T> img,
+														   final boolean computeStatistics)
+	{
+		loadSecondaryImage(img, true, computeStatistics);
+	}
+
 	public void setSecondaryImageMinMax(final float min, final float max) {
-		stackMinSecondary = min;
-		stackMaxSecondary = max;
+		statsSecondary.min = min;
+		statsSecondary.max = max;
 	}
 
 	public float[] getSecondaryImageMinMax() {
-		return new float[] { stackMinSecondary, stackMaxSecondary };
+		return new float[] { (float)statsSecondary.min, (float)statsSecondary.max };
 	}
 
-	protected void loadSecondaryImage(final ImagePlus imp, final boolean changeUIState) throws IllegalArgumentException {
-		if (imp != null && secondaryImageFile != null && secondaryImageFile.getName().toLowerCase().contains(".oof")) {
+	protected void loadSecondaryImage(final ImagePlus imp, final boolean changeUIState) {
+		assert imp != null;
+		if (secondaryImageFile != null && secondaryImageFile.getName().toLowerCase().contains(".oof")) {
 			showStatus(0, 0, "Optimally Oriented Flux image detected");
 			SNTUtils.log("Optimally Oriented Flux image detected. Image won't be cached...");
 			tubularGeodesicsTracingEnabled = true;
 			return;
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
-		loadCachedData(imp, secondaryData = new float[depth][]);
+		secondaryData = ImageJFunctions.wrapReal(imp);
+		SNTUtils.log("Secondary data dimensions: " +
+				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
+		ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
+				ImageStatistics.STD_DEV);
+		statsSecondary.min = imgStats.min;
+		statsSecondary.max = imgStats.max;
+		statsSecondary.mean = imgStats.mean;
+		statsSecondary.stdDev = imgStats.stdDev;
 		File file = null;
-		if (isSecondaryImageLoaded() && (imp.getFileInfo() != null)) {
+		if ((imp.getFileInfo() != null)) {
 			file = new File(imp.getFileInfo().directory, imp.getFileInfo().fileName);
 		}
 		setSecondaryImage(file);
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
 			if (getUI() != null) {
-				getUI().enableHessian(false);
-				getUI().enableSecondaryImgTracing(true);
+				getUI().enableSecondaryLayerTracing(true);
+				getUI().enableSecondaryLayerExternal(true);
 			}
 		}
 	}
 
-	public void loadTubenessImage(final String type, final File file) throws IOException, IllegalArgumentException {
-		final ImagePlus imp = openCachedDataImage(file);
-		final HessianCaller hc = getHessianCaller(type);
-		loadTubenessImage(hc, imp, true);
-		hc.sigma = -1;
-	}
-
-	public void loadTubenessImage(final String type, final ImagePlus imp) throws IllegalArgumentException {
-		loadTubenessImage(getHessianCaller(type), imp, true);
-	}
-
-	protected void loadTubenessImage(final HessianCaller hc, final ImagePlus imp, final boolean changeUIState) throws IllegalArgumentException {
-		if (xy == null) throw new IllegalArgumentException(
-				"Data can only be loaded after tracing image is known");;
-		if (!compatibleImp(imp)) {
-				throw new IllegalArgumentException("Dimensions do not match those of  " + xy.getTitle()
-				+ ". If this unexpected, check under 'Image>Properties...' that CZT axes are not swapped.");
+	protected <T extends RealType<T>> void loadSecondaryImage(final RandomAccessibleInterval<T> img,
+																			  final boolean changeUIState,
+																			  final boolean computeStatistics)
+	{
+		assert img != null;
+		if (secondaryImageFile != null && secondaryImageFile.getName().toLowerCase().contains(".oof")) {
+			showStatus(0, 0, "Optimally Oriented Flux image detected");
+			SNTUtils.log("Optimally Oriented Flux image detected. Image won't be cached...");
+			tubularGeodesicsTracingEnabled = true;
+			return;
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
-		SNTUtils.log("Loading tubeness image multiplier=" + hc.multiplier + " max=" + stackMaxSecondary);
-		loadCachedData(imp, hc.cachedTubeness = new float[depth][]);
-		hc.setSigmaAndMax(hc.getSigma(true), stackMaxSecondary);
-		if (changeUIState) {
-			getUI().updateHessianPanel(hc);
-			changeUIState(SNTUI.WAITING_TO_START_PATH);
+		secondaryData =  img;
+		SNTUtils.log("Secondary data dimensions: " +
+				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
+		if (computeStatistics) {
+			OpService opService = getContext().getService(OpService.class);
+			IterableInterval<T> iterableView = Views.iterable(img);
+			Pair<T, T> minMax = opService.stats().minMax(iterableView);
+			double mean = opService.stats().mean(iterableView).getRealDouble();
+			double stdDev = opService.stats().stdDev(iterableView).getRealDouble();
+			statsSecondary.min = minMax.getA().getRealDouble();
+			statsSecondary.max = minMax.getB().getRealDouble();
+			statsSecondary.mean = mean;
+			statsSecondary.stdDev = stdDev;
 		}
-	}
-
-	private void loadCachedData(final ImagePlus imp, final float[][] destination) {
-		showStatus(0, 0, "Loading secondary image");
-		SNTUtils.convertTo32bit(imp);
-		final ImageStack s = imp.getStack();
-		for (int z = 0; z < depth; ++z) {
-			showStatus(z, depth, "Loading image/Computing range...");
-			final int pos = imp.getStackIndex(channel, z + 1, frame);
-			destination[z] = (float[]) s.getPixels(pos);
-			for (int y = 0; y < height; ++y) {
-				for (int x = 0; x < width; ++x) {
-					final float v = destination[z][y * width + x];
-					if (v < stackMinSecondary) stackMinSecondary = v;
-					if (v > stackMaxSecondary) stackMaxSecondary = v;
-				}
+		if (changeUIState) {
+			changeUIState(SNTUI.WAITING_TO_START_PATH);
+			if (getUI() != null) {
+				getUI().enableSecondaryLayerTracing(true);
+				getUI().enableSecondaryLayerBuiltin(true);
 			}
 		}
-		showStatus(0, 0, null);
 	}
 
 	private boolean compatibleImp(final ImagePlus imp) {
@@ -2181,70 +2529,46 @@ public class SNT extends MultiDThreePanes implements
 	 * ImagePlus object. Returned image is always of 32-bit type.
 	 *
 	 * @return the loaded data or null if no image has been loaded.
-	 * @see #isSecondaryImageLoaded()
+	 * @see #isSecondaryDataAvailable()
 	 * @see #loadSecondaryImage(ImagePlus)
 	 * @see #loadSecondaryImage(File)
 	 */
-	public ImagePlus getSecondaryDataAsImp() {
-		return (isSecondaryImageLoaded()) ? getFilteredDataFromCachedData("Secondary Data", secondaryData) : null;
-	}
-
-	protected ImagePlus getCachedTubenessDataAsImp(final String type) {
-		final HessianCaller hc = getHessianCaller(type);
-		return (hc.cachedTubeness == null) ? null : getFilteredDataFromCachedData("Tubeness Data ["+ type + "]", hc.cachedTubeness);
-	}
-
-	private ImagePlus getFilteredDataFromCachedData(final String title, final float[][] data) {
-		final ImageStack stack = new ImageStack(xy.getWidth(), xy.getHeight());
-		for (int z = 0; z < depth; ++z) {
-			final FloatProcessor ip = new FloatProcessor(xy.getWidth(), xy.getHeight());
-			if (data[z]==null) continue;
-			ip.setPixels(data[z]);
-			stack.addSlice(ip);
+	@SuppressWarnings({"unchecked"})
+	public <T extends NumericType<T>> ImagePlus getSecondaryDataAsImp() {
+		if (secondaryData == null) {
+			return null;
 		}
-		final ImagePlus impFiltered = new ImagePlus(title, stack);
+		RandomAccessibleInterval<T> img = secondaryData;
+		if (secondaryData.numDimensions() == 3) {
+			img = Views.permute(Views.addDimension(img, 0,0), 2,3);
+		}
+		ImagePlus imp = ImageJFunctions.wrap(img, "Secondary Layer");
 		updateLut();
-		impFiltered.setLut(lut);
-		impFiltered.copyScale(xy);
-		return impFiltered;
+		imp.setLut(lut);
+		imp.copyScale(xy);
+		imp.resetDisplayRange();
+		return imp;
 	}
 
-	public synchronized void enableHessian(final boolean enable) {
-		if (enable) {
-			if (isTracingOnSecondaryImageActive())
-				secondaryHessian.start();
-			else
-				primaryHessian.start();
-		}
-		hessianEnabled = enable;
-	}
-
-	protected synchronized void cancelGaussian() {
-		primaryHessian.cancelGaussianGeneration();
-		secondaryHessian.cancelGaussianGeneration();
-	}
-
-	private void nullifyHessian() {
-		hessianEnabled = false;
-		primaryHessian.nullify();
-		secondaryHessian.nullify();
+	public <T extends RealType<T>> RandomAccessibleInterval<T> getSecondaryData() {
+		@SuppressWarnings("unchecked")
+		final RandomAccessibleInterval<T> data  = secondaryData;
+		return data;
 	}
 
 	public SNTPrefs getPrefs() {
 		return prefs;
 	}
 
-	// This is the implementation of GaussianGenerationCallback
+	// This is the implementation of HessianGenerationCallback
 	@Override
 	public void proportionDone(final double proportion) {
 		if (proportion < 0) {
-			nullifyHessian();
 			if (ui != null) ui.gaussianCalculated(false);
 			statusService.showProgress(1, 1);
 			return;
 		}
 		else if (proportion >= 1.0) {
-			hessianEnabled = true;
 			if (ui != null) ui.gaussianCalculated(true);
 		}
 		statusService.showProgress((int) proportion, 1); // FIXME:
@@ -2600,8 +2924,8 @@ public class SNT extends MultiDThreePanes implements
 		setAsFirstKeyListener(c.getParent(), firstKeyListener);
 	}
 
-	protected synchronized void findSnappingPointInXYview(final double x_in_pane,
-		final double y_in_pane, final double[] point)
+	protected synchronized void findSnappingPointInXView(final double x_in_pane,
+														 final double y_in_pane, final double[] point)
 	{
 
 		// if (width == 0 || height == 0 || depth == 0)
@@ -2629,30 +2953,17 @@ public class SNT extends MultiDThreePanes implements
 		else if (stopz > depth) {
 			stopz = depth;
 		}
-
+		@SuppressWarnings("unchecked")
+		final RandomAccess<? extends RealType<?>> access = this.sliceAtCT.randomAccess();
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
-		float currentMaximum = stackMin;
+		double currentMaximum = stats.min;
 		for (int x = startx; x < stopx; ++x) {
 			for (int y = starty; y < stopy; ++y) {
 				for (int z = startz; z < stopz; ++z) {
-					float v = stackMin;
-					final int xyIndex = y * width + x;
-					switch (imageType) {
-						case ImagePlus.GRAY8:
-						case ImagePlus.COLOR_256:
-							v = 0xFF & slices_data_b[z][xyIndex];
-							break;
-						case ImagePlus.GRAY16:
-							v = slices_data_s[z][xyIndex];
-							break;
-						case ImagePlus.GRAY32:
-							v = slices_data_f[z][xyIndex];
-							break;
-						default:
-							throw new IllegalArgumentException("Unknow image type: " + imageType);
-					}
-					if (v == stackMin)
+					double v = access.setPositionAndGet(x, y, z).getRealDouble();
+					if (v == stats.min) {
 						continue;
+					}
 					else if (v > currentMaximum) {
 						pointsAtMaximum.add(new int[] { x, y, z });
 						currentMaximum = v;
@@ -2690,35 +3001,20 @@ public class SNT extends MultiDThreePanes implements
 
 		SNTUtils.log("Looking for maxima at x=" + x_in_pane + " y=" + y_in_pane + " on pane " + plane);
 		final int[][] pointsToConsider = findAllPointsAlongLine(x_in_pane, y_in_pane, plane);
-
+		@SuppressWarnings("unchecked")
+		final RandomAccess<? extends RealType<?>> access = this.sliceAtCT.randomAccess();
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
-		float currentMaximum = stackMin;
+		double currentMaximum = stats.min;
 		for (int[] ints : pointsToConsider) {
-			float v = stackMin;
-			final int[] p = ints;
-			final int xyIndex = p[1] * width + p[0];
-			switch (imageType) {
-				case ImagePlus.GRAY8:
-				case ImagePlus.COLOR_256:
-					v = 0xFF & slices_data_b[p[2]][xyIndex];
-					break;
-				case ImagePlus.GRAY16:
-					v = slices_data_s[p[2]][xyIndex];
-					break;
-				case ImagePlus.GRAY32:
-					v = slices_data_f[p[2]][xyIndex];
-					break;
-				default:
-					throw new IllegalArgumentException("Unknow image type: " + imageType);
-			}
-			if (v == stackMin) {
+			double v = access.setPositionAndGet(ints[0], ints[1], ints[2]).getRealDouble();
+			if (v == stats.min) {
 				continue;
 			} else if (v > currentMaximum) {
-				pointsAtMaximum.add(p);
+				pointsAtMaximum.add(ints);
 				currentMaximum = v;
 			}
 			else if (v == currentMaximum) {
-				pointsAtMaximum.add(p);
+				pointsAtMaximum.add(ints);
 			}
 		}
 		/*
@@ -2730,7 +3026,7 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 		final int[] p = pointsAtMaximum.get(pointsAtMaximum.size() / 2);
-		SNTUtils.log(" Detected: x=" + p[0] + ", y=" + p[1] + ", z=" + p[2] + ", value=" + stackMax);
+		SNTUtils.log(" Detected: x=" + p[0] + ", y=" + p[1] + ", z=" + p[2] + ", value=" + stats.max);
 		setZPositionAllPanes(p[0], p[1], p[2]);
 		if (!tracingHalted) { // click only if tracing
 			clickForTrace(p[0] * x_spacing, p[1] * y_spacing, p[2] * z_spacing, join);
@@ -2853,7 +3149,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected boolean isTracingOnSecondaryImageActive() {
-		return doSearchOnSecondaryData && isSecondaryImageLoaded();
+		return doSearchOnSecondaryData && isSecondaryDataAvailable();
 	}
 
 	/**
@@ -2873,26 +3169,6 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public boolean isAstarEnabled() {
 		return !manualOverride;
-	}
-
-	/**
-	 * Checks if Hessian analysis is enabled
-	 *
-	 * @return true, if Hessian analysis is enabled, otherwise false
-	 */
-	public boolean isHessianEnabled(final String image) {
-		if ("secondary".equalsIgnoreCase(image))
-			return hessianEnabled && isTracingOnSecondaryImageAvailable() && secondaryHessian.sigma > -1;
-		return hessianEnabled && primaryHessian.sigma > -1;
-	}
-
-	public double getHessianSigma(final String image, final boolean physicalUnits) {
-		return getHessianCaller(image).getSigma(physicalUnits);
-	}
-
-	public boolean isTubenessImageCached(final String image) {
-		final HessianCaller hc = getHessianCaller(image);
-		return hc != null && hc.cachedTubeness != null;
 	}
 
 	/**
@@ -2987,7 +3263,96 @@ public class SNT extends MultiDThreePanes implements
 		if (isUIready()) getUI().showStatus(status, true);
 	}
 
-	public HessianCaller getHessianCaller(final String image) {
-		return ("secondary".equalsIgnoreCase(image)) ? secondaryHessian : primaryHessian;
+	protected double getOneMinusErfZFudge() {
+		return oneMinusErfZFudge;
 	}
+
+	public ImageStatistics getStats() {
+		return stats;
+	}
+
+	public ImageStatistics getStatsSecondary() {
+		return statsSecondary;
+	}
+
+	public void setUseSubVolumeStats(final boolean useSubVolumeStatistics) {
+		this.isUseSubVolumeStats = useSubVolumeStatistics;
+	}
+
+	public SearchType getSearchType() {
+		return searchType;
+	}
+
+	public void setSearchType(final SearchType searchType) {
+		this.searchType = searchType;
+	}
+
+	public CostType getCostType() {
+		return costType;
+	}
+
+	public void setCostType(final CostType costType) {
+		this.costType = costType;
+	}
+
+	public HeuristicType getHeuristicType() {
+		return heuristicType;
+	}
+
+	public void setHeuristicType(final HeuristicType heuristicType) {
+		this.heuristicType = heuristicType;
+	}
+
+	public SearchImageType getSearchImageType() {
+		return searchImageType;
+	}
+
+	public void setSearchImageType(final SearchImageType searchImageType) {
+		this.searchImageType = searchImageType;
+	}
+
+	public FilterType getFilterType() {
+		return filterType;
+	}
+
+	public void setFilterType(final FilterType filterType) {
+		this.filterType = filterType;
+	}
+
+	public int getWidth() {
+		return width;
+	}
+
+	public int getHeight() {
+		return height;
+	}
+
+	public int getDepth() {
+		return depth;
+	}
+
+	public double getPixelWidth() {
+		return x_spacing;
+	}
+
+	public double getPixelHeight() {
+		return y_spacing;
+	}
+
+	public double getPixelDepth() {
+		return z_spacing;
+	}
+
+	public String getSpacingUnits() {
+		return spacing_units;
+	}
+
+	public int getChannel() {
+		return channel;
+	}
+
+	public int getFrame() {
+	 return frame;
+	}
+
 }

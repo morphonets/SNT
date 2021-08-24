@@ -331,6 +331,7 @@ public class SNTUtils {
 		if ((absValue > 0 && absValue < 0.01) || absValue >= 1000) pattern.append("E0");
 		final NumberFormat nf = NumberFormat.getNumberInstance(Locale.US);
 		final DecimalFormat df = (DecimalFormat)nf;
+		df.applyLocalizedPattern(pattern.toString());
 		return df;
 	}
 
@@ -436,7 +437,7 @@ public class SNTUtils {
 		return !(pixelDepthDifference > epsilon);
 	}
 
-	protected static String getSanitizedUnit(final String unit) {
+	public static String getSanitizedUnit(final String unit) {
 		final BoundingBox bd = new BoundingBox();
 		bd.setUnit(unit);
 		return bd.getUnit();

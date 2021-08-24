@@ -44,11 +44,13 @@ import org.jzy3d.plot3d.primitives.Polygon;
 import org.jzy3d.plot3d.primitives.Scatter;
 import org.jzy3d.plot3d.primitives.Shape;
 import org.scijava.Context;
+import org.scijava.NoSuchServiceException;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 import org.scijava.vecmath.Vector3d;
 
 import sc.fiji.snt.Path;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.Viewer3D.Utils;
@@ -125,12 +127,14 @@ public class Annotation3D {
 		for (final SNTPoint point : points) {
 			dmesh.vertices().add(point.getX(), point.getY(), point.getZ());
 		}
-		final Context context = new Context(OpService.class, OpMatchingService.class);
-		final OpService ops = context.getService(OpService.class);
-		try {
-			context.close();
-		} catch (final Exception ignored) {
-			// do nothing
+		OpService ops = null;
+		try (final Context context = new Context(OpService.class, OpMatchingService.class)) {
+			ops = context.getService(OpService.class);
+		} catch (final Exception e) {
+			SNTUtils.error(e.getMessage(), e);
+		}
+		if (ops == null) {
+			throw new NoSuchServiceException("Failed to initialize OpService");
 		}
 		final Mesh hull = (Mesh) ops.geom().convexHull(dmesh).get(0);
 		final Triangles faces = hull.triangles();

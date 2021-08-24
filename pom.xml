@@ -185,10 +185,6 @@
 			<artifactId>Skeletonize3D_</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>sc.fiji</groupId>
-			<artifactId>VIB-lib</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>org.jfree</groupId>
 			<artifactId>jfreechart</artifactId>
 		</dependency>
@@ -314,6 +310,16 @@
 		<dependency>
 			<groupId>net.imagej</groupId>
 			<artifactId>imagej-updater</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>it.unimi.dsi</groupId>
+			<artifactId>fastutil-core</artifactId>
+			<version>8.5.4</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jheaps</groupId>
+			<artifactId>jheaps</artifactId>
+			<version>0.14</version>
 		</dependency>
 	</dependencies>
 

@@ -8,53 +8,35 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing.artist;
 
-class PathResult {
+import sc.fiji.snt.TracerCanvas;
+import sc.fiji.snt.tracing.SearchInterface;
 
-	protected float[] pathPoints;
-	protected float[] numberOfPoints;
-	protected String errorMessage;
-	protected boolean succeeded;
+import java.awt.*;
 
-	public float[] getPath() {
-		return pathPoints;
-	}
+/**
+ * Interface for classes that draw the progress of a {@link SearchInterface} on a {@link TracerCanvas}.
+ *
+ * @author Cameron Arshadi
+ */
+public interface SearchArtist {
 
-	public int getNumberOfPoints() {
-		return pathPoints.length / 4;
-	}
+    void drawProgressOnSlice(final int plane, final int currentSliceInPlane, final TracerCanvas canvas,
+                             final Graphics g);
 
-	public void setPath(final float[] pathPoints) {
-		this.pathPoints = pathPoints;
-	}
-
-	public void setErrorMessage(final String message) {
-		this.errorMessage = message;
-	}
-
-	public String getErrorMessage() {
-		return this.errorMessage;
-	}
-
-	public void setSuccess(final boolean succeeded) {
-		this.succeeded = succeeded;
-	}
-
-	public boolean getSuccess() {
-		return this.succeeded;
-	}
+    SearchInterface getSearch();
 
 }

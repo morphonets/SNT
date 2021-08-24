@@ -20,24 +20,18 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.util;
 
-import java.awt.Graphics;
-import java.util.concurrent.CountDownLatch;
+import sc.fiji.snt.SNT;
 
-/**
- * Tracer classes implementing searches between two points should implement this
- * interface.
- */
-public interface SearchInterface {
+public class SigmaUtils {
 
-	public Path getResult();
+	private SigmaUtils() {};
 
-	public void drawProgressOnSlice(int plane, int currentSliceInPlane,
-		TracerCanvas canvas, Graphics g);
-
-	public void requestStop();
-
-	public void setCountDownLatch(CountDownLatch latch);
+	public static double[] getDefaultSigma(SNT snt) {
+		final double avgSep = snt.getAverageSeparation();
+		final double step = avgSep / 2;
+		return new double[]{step, 2 * step, 3 * step};
+	}
 
 }

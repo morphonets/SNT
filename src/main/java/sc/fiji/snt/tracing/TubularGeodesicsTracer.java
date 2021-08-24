@@ -20,16 +20,17 @@
  * #L%
  */
 
-package sc.fiji.snt;
+package sc.fiji.snt.tracing;
 
-import java.awt.Graphics;
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.concurrent.CountDownLatch;
 
 import ij.IJ;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.SearchProgressCallback;
 
 /**
  * A tracer thread for {@code FijiITKInterface.TubularGeodesics} (assumes the
@@ -53,7 +54,6 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 
 	protected PathResult lastPathResult;
 	PathResult temporaryPathResult;
-	private CountDownLatch latch;
 
 
 	public TubularGeodesicsTracer(final File oofFile, final float start_x_image,
@@ -90,18 +90,13 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 			final int start = i * 4;
 			realResult.addPointDouble(points[start], points[start + 1], points[start +
 				2]);
-			realResult.radii[i] = points[start + 3];
+			realResult.setRadius(points[start + 3], i);
 			// System.out.println("point "+i+" is "+points[start]+",
 			// "+points[start+1]+", "+points[start+2]+", "+points[start+3]);
 		}
 		realResult.setGuessedTangents(2);
 		return realResult;
 	}
-
-	@Override
-	public void drawProgressOnSlice(final int plane,
-		final int currentSliceInPlane, final TracerCanvas canvas, final Graphics g)
-	{}
 
 	protected ArrayList<SearchProgressCallback> progressListeners =
 		new ArrayList<>();
@@ -116,7 +111,6 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 				proportionDone);
 	}
 
-	@Override
 	public void requestStop() {
 
 		try {
@@ -191,14 +185,6 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 			System.out.println("Got an exception from call to ITK code: " + t);
 			t.printStackTrace();
 			IJ.error("There was an error in calling to ITK code: " + t);
-		} finally {
-			countDown();
-		}
-	}
-
-	private void countDown() {
-		if (latch != null && latch.getCount() > 0) {
-			latch.countDown();
 		}
 	}
 
@@ -298,14 +284,11 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 			System.out.println("Got an exception from call to ITK code: " + t);
 			t.printStackTrace();
 			IJ.error("There was an error in calling to ITK code: " + t);
-		} finally {
-			countDown();
 		}
 	}
 
 	public void reportFinished(final boolean success) {
 		if (success) lastPathResult = temporaryPathResult;
-		countDown();
 		for (final SearchProgressCallback progress : progressListeners)
 			progress.finished(this, success);
 		if (!success) {
@@ -316,11 +299,6 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 			 */
 			if (errorMessage != null) IJ.error("The tracing failed: " + errorMessage);
 		}
-	}
-
-	@Override
-	public void setCountDownLatch(CountDownLatch latch) {
-		this.latch = latch;
 	}
 
 }

@@ -114,7 +114,7 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 					Integer.class);
 			maxZinput.setMaximumValue(maxZ);
 		}
-		if (!snt.isSecondaryImageLoaded()) {
+		if (!snt.isSecondaryDataAvailable()) {
 			resolveInput("imgChoice");
 		}
 		if (thres == 0) applyDefaults();

@@ -36,6 +36,7 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.tracing.FillerThread;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -518,12 +519,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			return null;
 		}
 		cursor.z = Double.NaN; // ignore Z-positioning of path nodes
-		final NearPoint np = pathAndFillManager.nearestPointOnAnyPath(paths, cursor,
+		return pathAndFillManager.nearestPointOnAnyPath(paths, cursor,
 			maxSquaredLength, true);
-		if (np == null) {
-			return null;
-		}
-		return np;
 	}
 
 	@Override
@@ -551,7 +548,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			!shift_key_down && tracerPlugin.accessToValidImageData())
 		{
 			final double[] p = new double[3];
-			tracerPlugin.findSnappingPointInXYview(last_x_in_pane_precise,
+			tracerPlugin.findSnappingPointInXView(last_x_in_pane_precise,
 				last_y_in_pane_precise, p);
 			last_x_in_pane_precise = p[0];
 			last_y_in_pane_precise = p[1];
@@ -598,7 +595,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			.isUIready())
 		{
 			super.mousePressed(me);
-			return;
 		}
 	}
 
@@ -652,7 +648,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				impossibleEdit(true);
 				break;
 			case SNTUI.WAITING_FOR_SIGMA_POINT_I:
-			case SNTUI.WAITING_FOR_SIGMA_POINT_II:
 				startSigmaWizard(e.getX(), e.getY());
 				break;
 			case SNTUI.WAITING_FOR_SIGMA_CHOICE:
@@ -699,9 +694,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	private void tempMsg(final String msg) {
-		SwingUtilities.invokeLater(() -> {
-			getGuiUtils().tempMsg(msg);
-		});
+		SwingUtilities.invokeLater(() -> InteractiveTracerCanvas.this.getGuiUtils().tempMsg(msg));
 	}
 
 	private void redrawEditingPath(final Graphics2D g) {
@@ -710,7 +703,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 	@Override
 	protected void drawOverlay(final Graphics2D g) {
-
 		if (tracerPlugin.loading) return;
 
 		final boolean drawDiametersXY = tracerPlugin.getDrawDiametersXY();
@@ -718,10 +710,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		int eitherSideParameter = eitherSide;
 		if (!just_near_slices) eitherSideParameter = -1;
 
-		final FillerThread filler = tracerPlugin.filler;
-		if (filler != null) {
-			filler.setDrawingColors(getFillColor(), getFillColor());
-			filler.setDrawingThreshold(filler.getThreshold());
+		if (!tracerPlugin.fillerSet.isEmpty()) {
+			for (final FillerThread fillerThread : tracerPlugin.fillerSet) {
+				fillerThread.setDrawingThreshold(fillerThread.getThreshold());
+			}
 		}
 
 		super.drawOverlay(g); // draw all paths, crosshair, etc.
@@ -739,24 +731,25 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				plane, drawDiametersXY, sliceZeroIndexed, eitherSideParameter);
 		}
 
+
 		final Path currentPathFromTracer = tracerPlugin.getCurrentPath();
 
 		if (currentPathFromTracer != null) {
 			currentPathFromTracer.drawPathAsPoints(this, g, getTemporaryPathColor(),
-				plane, drawDiametersXY, sliceZeroIndexed, eitherSideParameter);
+					plane, drawDiametersXY, sliceZeroIndexed, eitherSideParameter);
 
-			if (lastPathUnfinished && currentPath.size() == 0) { // first point in
-																														// path
+			if (lastPathUnfinished && currentPath.size() == 0) { // first point in path
 				final PointInImage p = new PointInImage(
-					tracerPlugin.last_start_point_x * tracerPlugin.x_spacing,
-					tracerPlugin.last_start_point_y * tracerPlugin.y_spacing,
-					tracerPlugin.last_start_point_z * tracerPlugin.z_spacing);
+						tracerPlugin.last_start_point_x * tracerPlugin.x_spacing,
+						tracerPlugin.last_start_point_y * tracerPlugin.y_spacing,
+						tracerPlugin.last_start_point_z * tracerPlugin.z_spacing);
 				p.onPath = currentPath;
 				final PathNode pn = new PathNode(p, this);
 				pn.setSize(spotDiameter);
 				pn.draw(g, getUnconfirmedPathColor());
 			}
 		}
+
 
 	}
 
@@ -973,7 +966,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 					break;
 				default:
 					SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
-					return;
 			}
 
 		}
@@ -1061,7 +1053,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		catch (final IllegalArgumentException exc) {
 			tempMsg("Node insertion failed!");
 		}
-		return;
 	}
 
 	protected void moveEditingNodeToLastCanvasPosition(
@@ -1083,7 +1074,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		catch (final IllegalArgumentException exc) {
 			tempMsg("Node displacement failed!");
 		}
-		return;
 	}
 
 	protected void assignLastCanvasZPositionToEditNode(

@@ -393,7 +393,7 @@ public class Path implements Comparable<Path> {
 		return String.format("%.3f", getLength());
 	}
 
-	protected void createCircles() {
+	public void createCircles() {
 		if (tangents_x != null || tangents_y != null || tangents_z != null ||
 			radii != null) throw new IllegalArgumentException(
 				"Trying to create circles data arrays when at least one is already there");
@@ -1097,7 +1097,7 @@ public class Path implements Comparable<Path> {
 		maxPoints = newMaxPoints;
 	}
 
-	protected void add(final Path other) {
+	public void add(final Path other) {
 
 		if (other == null) {
 			SNTUtils.warn("BUG: Trying to add null Path");
@@ -1165,7 +1165,7 @@ public class Path implements Comparable<Path> {
 		}
 	}
 
-	protected Path reversed() {
+	public Path reversed() {
 		final Path c = createPath();
 		c.points = points;
 		for (int i = 0; i < points; ++i) {
@@ -1199,7 +1199,7 @@ public class Path implements Comparable<Path> {
 		if (point.getHemisphere() != BrainAnnotation.ANY_HEMISPHERE) setNodeHemisphere(point.getHemisphere(), size() - 1);
 	}
 
-	protected void addPointDouble(final double x, final double y, final double z) {
+	public void addPointDouble(final double x, final double y, final double z) {
 		if (points >= maxPoints) {
 			final int newReserved = (int) (maxPoints * 1.2 + 1);
 			expandTo(newReserved);
@@ -1819,7 +1819,7 @@ public class Path implements Comparable<Path> {
 		return fitted;
 	}
 
-	protected void setGuessedTangents(final int pointsEitherSide) {
+	public void setGuessedTangents(final int pointsEitherSide) {
 		if (tangents_x == null || tangents_y == null || tangents_z == null)
 			throw new IllegalArgumentException(
 				"BUG: setGuessedTangents called with one of the tangent arrays null");
@@ -2804,6 +2804,15 @@ public class Path implements Comparable<Path> {
 			}
 			Arrays.fill(radii, r);
 		}
+	}
+
+	public void setRadius(final double r, final int index) {
+		if (Double.isNaN(r)) return;
+		if (radii == null) {
+			createCircles();
+			setGuessedTangents(2);
+		}
+		radii[index] = r;
 	}
 
 	/**

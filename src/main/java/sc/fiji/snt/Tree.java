@@ -56,6 +56,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  * loops.
  *
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
 public class Tree implements TreeProperties {
 
