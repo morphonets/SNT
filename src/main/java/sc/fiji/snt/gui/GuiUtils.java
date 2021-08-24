@@ -1407,16 +1407,16 @@ public class GuiUtils {
 		UIManager.put("TitlePane.menuBarEmbedded", false);
 		switch (lookAndFeelName) {
 		case (LAF_LIGHT):
-			success = FlatLightLaf.install();
+			success = FlatLightLaf.setup();
 			break;
 		case (LAF_LIGHT_INTJ):
-			success = FlatIntelliJLaf.install();
+			success = FlatIntelliJLaf.setup();
 			break;
 		case (LAF_DARK):
-			success = FlatDarkLaf.install();
+			success = FlatDarkLaf.setup();
 			break;
 		case (LAF_DARCULA):
-			success = FlatDarculaLaf.install();
+			success = FlatDarculaLaf.setup();
 			break;
 		default:
 			success = setSystemLookAndFeel();
