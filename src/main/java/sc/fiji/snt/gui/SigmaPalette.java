@@ -166,12 +166,31 @@ public class SigmaPalette extends Thread {
 			c.fill = GridBagConstraints.HORIZONTAL;
 			assembleScrollbars(panel, c);
 			assembleButtonPanel(panel, c);
+
+			// shortcuts
+			removeKeyListener(IJ.getInstance());
+			getCanvas().removeKeyListener(IJ.getInstance());
+			addKeyListener(new KeyAdapter() {
+				@Override
+				public void keyPressed(final KeyEvent e) {
+					helpMsg(e);
+				}
+			});
+			getCanvas().addKeyListener(new KeyAdapter() {
+				@Override
+				public void keyPressed(final KeyEvent e) {
+						helpMsg(e);
+				}
+			});
+
+			// final rendering
 			updateSliceSelector();
 			GUI.scale(panel);
 			updateLabels();
 			add(panel);
 			pack();
 			repaint();
+			guiUtils.tempMsg("Press 'H' or 'F1' for help", 3000);
 		}
 
 		private void assembleButtonPanel(final Panel panel, final GridBagConstraints c) {
@@ -198,9 +217,14 @@ public class SigmaPalette extends Thread {
 			menuButton.addActionListener(e -> {
 				pm.show(menuButton, menuButton.getWidth() / 2, menuButton.getHeight() / 2);
 			});
-			final Menu lutMenu = new Menu("Display LUT");
+			MenuItem mi = new MenuItem("Help    (H or F1)");
+			mi.addActionListener(e -> helpMsg());
+			pm.add(mi);
+			pm.addSeparator();
+			final Menu lutMenu = new Menu("Lookup Tables");
 			pm.add(lutMenu);
 			addLutEntry(lutMenu, "Default", "reset");
+			lutMenu.addSeparator();
 			addLutEntry(lutMenu, "Edges", "edges");
 			addLutEntry(lutMenu, "Fire", "fire");
 			addLutEntry(lutMenu, "Grayscale ", "grays");
@@ -218,11 +242,7 @@ public class SigmaPalette extends Thread {
 			showMip.setEnabled(paletteImage.getNSlices() > 1);
 			pm.add(showMip);
 			pm.addSeparator();
-			MenuItem mi = new MenuItem("Help");
-			mi.addActionListener(e -> helpMsg());
-			pm.add(mi);
-			pm.addSeparator();
-			 mi = new MenuItem("Reset All Scales");
+			mi = new MenuItem("Reset All Scales");
 			mi.addActionListener(e -> {
 				if (scaleSettings != null && !scaleSettings.isEmpty()) {
 					scaleSettings.clear();
@@ -243,9 +263,30 @@ public class SigmaPalette extends Thread {
 			menu.add(mi);
 		}
 
+		private void helpMsg(KeyEvent e) {
+			if (KeyEvent.VK_F1 == e.getKeyCode() || e.getKeyChar() == 'h' || e.getKeyChar() == 'H')
+				helpMsg();
+		}
+
 		private void helpMsg() {
-			final String msg = "To be done";
-			guiUtils.showHTMLDialog(msg, "Tuning Paramaters for Hessian=based Analysis", true);
+			final String msg = //
+					"<p>" //
+					+ "Each tile in the grid previews the effect of the <i>Sigma parameter</i> (&sigma;) &ndash an " //
+					+ "estimate of the radii of the structures being traced &ndash on an image processing filter:"
+					+ "</p>" //
+					+"<p><b>How to Use the <i>Sigma Preview Palette</i>:</b></p>" //
+					+ "<ul>" //
+					+ "<li>With 3D images, use the main slider to peruse Z-planes</li>" //
+					+ "<li>To select a &sigma; value, click on its tile while holding <kbd>Shift</kbd></li>" //
+					+ "<li>To un-select a value, click on its tile while holding <kbd>Alt</kbd></li>" //
+					+ "<li>You can select has many values (scales) as relevant</li>" //
+					+ "</ul>" //
+					+ "<p>" //
+					+ "You can also use the <i>Scale</i> slider and its <i>Set</i> button to set/replace " //
+					+ "a value. Use the B&amp;C button to adjust the Brightness/Contrast of the " //
+					+ "grid. Have a look at the <i>More &raquo;</i> menu for further options."//
+					+ "</p>"; //
+			guiUtils.showHTMLDialog(msg, "Help: How to Choose Scale(s)", true);
 		}
 
 		private void assembleScrollbars(final Panel panel, final GridBagConstraints c) {
@@ -269,20 +310,6 @@ public class SigmaPalette extends Thread {
 				maxValueScrollbar.setValue( (int)Math.round(defaultMax));
 				maxChanged(defaultMax);
 			});
-
-//			c.gridy++;
-//			c.gridx =0;
-//			c.weightx = 0;
-//			panel.add(new Label("Max."), c);
-//			c.gridx++;
-//			c.weightx = 1;
-//			panel.add(maxValueScrollbar, c);
-//			c.gridx++;
-//			c.weightx = 0;
-//			panel.add(maxValueLabel, c);
-//			c.gridx++;
-//			panel.add(resetMax, c);
-//			c.gridy++;
 
 			c.gridx =0;
 			c.weightx = 0;

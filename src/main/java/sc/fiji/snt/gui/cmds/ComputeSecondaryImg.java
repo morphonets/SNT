@@ -226,8 +226,10 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		case PALETTE_WAITING:
 			msg("Click on a representative structure (e.g., branch point or neurite) on the image being traced. "
 					+ "Once you have done so, this prompt will be replaced by a preview grid, that will allow you "
-					+ "better select the right kernel size(s) for the filtering operation. The selected values will "
-					+ "then be transfered to this dialog.", "Click on a Representative Structure: How-To");
+					+ "to better select the right kernel size(s) for the filtering operation. The selected values "
+					+ "will then be transfered to this dialog.<br><br>If you have never used the preview grid before, "
+					+ "you can press 'H' (<u>H</u>elp) once it opens to access its built-in documentation.",//
+					"Click on a Representative Structure: How-To");
 			return;
 		default:
 			break; // do nothing;
