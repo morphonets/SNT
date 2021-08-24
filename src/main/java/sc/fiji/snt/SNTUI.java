@@ -349,7 +349,7 @@ public class SNTUI extends JDialog {
 			tab3.add(reconstructionViewerPanel(), c3);
 			c3.gridy++;
 			addSpacer(tab3, c3);
-			addSeparatorWithURL(tab3, "SciView:", true, c3);
+			addSeparatorWithURL(tab3, "sciview:", true, c3);
 			++c3.gridy;
 			final String msg3 =
 				"IJ2's modern 3D visualization framework supporting large image volumes, " +
@@ -627,25 +627,27 @@ public class SNTUI extends JDialog {
 		final StringBuilder sb = new StringBuilder();
 		sb.append("Auto-tracing: ").append((plugin.isAstarEnabled()) ? searchAlgoChoice.getSelectedItem() : "Disabled");
 		sb.append("\n");
-		if (plugin.getSecondaryData() != null) {
-			sb.append("Secondary layer: Active");
-			sb.append("\n");
-			sb.append("Min-Max: ").append(plugin.getStatsSecondary().min).append("-")
-					.append(plugin.getStatsSecondary().max);
-		} else {
-			sb.append("Secondary layer: Disabled");
-			sb.append("\n");
-			sb.append("Min-Max: ").append(plugin.getStats().min).append("-").append(plugin.getStats().max);
-			sb.append("\n");
-			sb.append("Filter: ").append(plugin.getFilterType());
-		}
+		sb.append("    Data structure: ").append(plugin.searchImageType);
 		sb.append("\n");
-		sb.append("Cost function: ").append(plugin.getCostType());
+		sb.append("    Cost function: ").append(plugin.getCostType());
 		if (plugin.getCostType() == SNT.CostType.PROBABILITY) {
 			sb.append("; Z-fudge: ").append(SNTUtils.formatDouble(plugin.getOneMinusErfZFudge(), 3));
 		}
 		sb.append("\n");
-		sb.append("Data structure: ").append(plugin.searchImageType);
+		sb.append("    Min-Max: ").append(SNTUtils.formatDouble(plugin.getStats().min, 3)).append("-")
+				.append(SNTUtils.formatDouble(plugin.getStats().max, 3));
+		sb.append("\n");
+		if (plugin.getSecondaryData() != null) {
+			sb.append("Secondary layer: Active");
+			sb.append("\n");
+			sb.append("    Filter: ")
+					.append((plugin.isSecondaryImageFileLoaded()) ? "External" : plugin.getFilterType());
+			sb.append("\n");
+			sb.append("    Min-Max: ").append(SNTUtils.formatDouble(plugin.getStatsSecondary().min, 3)).append("-")
+					.append(SNTUtils.formatDouble(plugin.getStatsSecondary().max, 3));
+		} else {
+			sb.append("Secondary layer: Disabled");
+		}
 		assert SwingUtilities.isEventDispatchThread();
 		settingsArea.setText(sb.toString());
 		settingsArea.setCaretPosition(0);
@@ -1811,7 +1813,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel sciViewerPanel() {
-		openSciView = new JButton("Open SciView Viewer");
+		openSciView = new JButton("Open Sciview Viewer");
 		openSciView.addActionListener(e -> {
 			if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
 				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
@@ -1829,7 +1831,7 @@ public class SNTUI extends JDialog {
 				}
 			} catch (final Throwable exc) {
 				exc.printStackTrace();
-				no3DcapabilitiesError("SciView");
+				no3DcapabilitiesError("sciview");
 			}
 		});
 
@@ -1837,11 +1839,11 @@ public class SNTUI extends JDialog {
 		svSyncPathManager.setToolTipText("Refreshes Viewer contents to reflect Path Manager changes");
 		svSyncPathManager.addActionListener(e -> {
 			if (sciViewSNT == null || sciViewSNT.getSciView() == null || sciViewSNT.getSciView().isClosed()) {
-				guiUtils.error("The SciView Viewer is not open.");
+				guiUtils.error("sciview is not open.");
 				openSciView.setEnabled(true);
 			} else {
 				sciViewSNT.syncPathManagerList();
-				final String msg = (pathAndFillManager.size() == 0) ? "There are no traced paths" : "SciView Viewer synchronized";
+				final String msg = (pathAndFillManager.size() == 0) ? "There are no traced paths" : "sciview synchronized";
 				showStatus(msg, true);
 			}
 		});
@@ -1857,9 +1859,11 @@ public class SNTUI extends JDialog {
 	}
 
 	private void no3DcapabilitiesError(final String viewer) {
-		guiUtils.error(viewer + " could not be initialized. Your installation seems "
+		SwingUtilities.invokeLater(() -> {
+			guiUtils.error(viewer + " could not be initialized. Your installation seems "
 				+ "to be missing essential 3D libraries. Please use the updater to install any "
 				+ "missing files. See Console for details.", "Error: Dependencies Missing");
+		});
 	}
 
 	private JPanel statusButtonPanel() {
@@ -2753,7 +2757,7 @@ public class SNTUI extends JDialog {
 							searchAlgoChoice.setSelectedItem(previousSelection);
 						}
 					}
-
+					updateSettingsString();
 				}
 			}
 		});
@@ -3509,7 +3513,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private void noSecondaryImgFileAvailableError() {
-		guiUtils.error("No secondary image has been loaded. Please load it first.", "Secondary Image Unavailable");
+		guiUtils.error("No external secondary image has been loaded. Please load it first.", "External Image Unavailable");
 		secLayerExternalImgOverlayCheckbox.setSelected(false);
 		secLayerExternalRadioButton.setSelected(false);
 	}
