@@ -24,7 +24,6 @@ package sc.fiji.snt.analysis.graph;
 import net.imagej.ImageJ;
 import org.jgrapht.graph.DefaultGraphType;
 import org.jgrapht.util.SupplierUtil;
-import org.scijava.util.ColorRGB;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;

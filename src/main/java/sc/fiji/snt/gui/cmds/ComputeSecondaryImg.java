@@ -519,6 +519,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		return prompt;
 	}
 
+	@SuppressWarnings("unused")
 	private void setPromptVisible(final boolean visible) {
 		if (getPrompt() == null) return;
 		SwingUtilities.invokeLater(() ->  {
