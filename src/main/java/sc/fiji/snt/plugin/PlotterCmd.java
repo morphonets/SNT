@@ -36,7 +36,6 @@ import java.util.Map;
 
 import net.imagej.ImageJ;
 
-import org.jfree.chart.ChartFrame;
 import org.jfree.chart.JFreeChart;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
@@ -48,6 +47,7 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.ColorRGB;
+import org.scijava.util.Colors;
 import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
 
@@ -55,6 +55,7 @@ import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.SNTColor;
@@ -93,6 +94,9 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		callback = "currentZangleChanged")
 	private double angleZ = 0;
 
+	@Parameter(required = false, label = "Default color", callback = "currentColorChanged")
+	private ColorRGB color;
+
 	@Parameter(required = false, persist = false, label = "Actions", choices = {
 		ACTION_NONE, ACTION_FLIP_H, ACTION_FLIP_V, ACTION_RESET, ACTION_SNAPSHOT },
 		callback = "runAction")
@@ -114,13 +118,13 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 	private static final String ACTION_RESET = "Reset rotation";
 	private static final String ACTION_FLIP_H = "Flip horizontally";
 	private static final String ACTION_FLIP_V = "Flip vertically";
-	private static final String ACTION_SNAPSHOT = "Render final (colorized) plot";
-	private static final ColorRGB DEF_COLOR = new ColorRGB("black");
+	private static final String ACTION_SNAPSHOT = "Snapshot [w/ color-mapping (if any)]";
+	private static final ColorRGB DEF_COLOR = Colors.RED;
 	private static final String BUSY_MSG = "Rendering. Please wait...";
 
 	private Viewer2D plot;
 	private JFreeChart chart;
-	private ChartFrame frame;
+	private SNTChart frame;
 	private Tree plottingTree;
 	private Tree snapshotTree;
 	private int previousXangle = 0;
@@ -167,6 +171,8 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 					" reconstruction(s) successfully imported ");
 			}
 		}
+		if (color == null)
+			color = DEF_COLOR;
 	}
 
 	@Override
@@ -183,10 +189,10 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		// We'll store input colors to be restored by the 'snapshot' action
 		plottingTree = tree.clone();
 		snapshotTree = tree.clone();
-		plottingTree.setColor(DEF_COLOR);
+		plottingTree.setColor(color);
 		buildPlot();
 		chart = plot.getJFreeChart();
-		frame = new ChartFrame(tree.getLabel(), chart);
+		frame = new SNTChart(tree.getLabel(), chart);
 		frame.setPreferredSize(new Dimension(500, 500));
 		frame.pack();
 		final Dimension s = Toolkit.getDefaultToolkit().getScreenSize();
@@ -206,7 +212,8 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 
 	private void buildPlot() {
 		plot = new Viewer2D(context());
-		plot.setDefaultColor(DEF_COLOR);
+		plot.setDefaultColor(color);
+		plottingTree.setColor(color);
 		plot.add(plottingTree);
 	}
 
@@ -214,10 +221,10 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		if (preview && msg.isEmpty() && hasInitialized()) {
 			msg = BUSY_MSG;
 			buildPlot();
-			chart.getXYPlot().setDataset(plot.getJFreeChart().getXYPlot().getDataset());
+			frame.getChartPanel().setChart(plot.getJFreeChart());
 			frame.setVisible(true); // re-open frame if it has been closed
+			//frame.toFront();
 			msg = "";
-			// frame.toFront();
 		}
 	}
 
@@ -257,6 +264,14 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		if (hasInitialized()) {
 			plottingTree.rotate(Tree.Z_AXIS, angleZ - previousZangle);
 			previousZangle = (int)angleZ;
+			updatePlot();
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private void currentColorChanged() {
+		if (hasInitialized()) {
+			plottingTree.setColor(color);
 			updatePlot();
 		}
 	}
