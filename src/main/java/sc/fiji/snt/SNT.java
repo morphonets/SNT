@@ -65,6 +65,7 @@ import org.scijava.vecmath.Point3d;
 import org.scijava.vecmath.Point3f;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.event.SNTListener;
+import sc.fiji.snt.tracing.cost.*;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SWCImportOptionsDialog;
@@ -73,10 +74,6 @@ import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.tracing.*;
 import sc.fiji.snt.tracing.artist.SearchArtist;
 import sc.fiji.snt.tracing.artist.SearchArtistFactory;
-import sc.fiji.snt.tracing.cost.Difference;
-import sc.fiji.snt.tracing.cost.OneMinusErf;
-import sc.fiji.snt.tracing.cost.Reciprocal;
-import sc.fiji.snt.tracing.cost.Cost;
 import sc.fiji.snt.tracing.heuristic.Dijkstra;
 import sc.fiji.snt.tracing.heuristic.Euclidean;
 import sc.fiji.snt.tracing.heuristic.Heuristic;
@@ -135,7 +132,8 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 	public enum CostType {
-		RECIPROCAL, DIFFERENCE, PROBABILITY;
+		RECIPROCAL, DIFFERENCE, DIFFERENCE_SQUARED, PROBABILITY;
+
 		@Override
 		public String toString() {
 			return StringUtils.capitalize(super.toString().toLowerCase());
@@ -1602,7 +1600,8 @@ public class SNT extends MultiDThreePanes implements
 				break;
 			}
 			case RECIPROCAL:
-			case DIFFERENCE: {
+			case DIFFERENCE:
+			case DIFFERENCE_SQUARED: {
 				final Pair<T, T> minMax = opService.stats().minMax(in);
 				imgStats.min = minMax.getA().getRealDouble();
 				imgStats.max = minMax.getB().getRealDouble();
@@ -1690,6 +1689,9 @@ public class SNT extends MultiDThreePanes implements
 				break;
 			case DIFFERENCE:
 				costFunction = new Difference(imgStats.min, imgStats.max);
+				break;
+			case DIFFERENCE_SQUARED:
+				costFunction = new DifferenceSq(imgStats.min, imgStats.max);
 				break;
 			default:
 				throw new IllegalArgumentException("BUG: Unknown cost function " + costType);
@@ -2288,6 +2290,9 @@ public class SNT extends MultiDThreePanes implements
 				break;
 			case DIFFERENCE:
 				costFunction = new Difference(min, max);
+				break;
+			case DIFFERENCE_SQUARED:
+				costFunction = new DifferenceSq(min, max);
 				break;
 			default:
 				throw new IllegalArgumentException("BUG: Unrecognized cost function " + costType);

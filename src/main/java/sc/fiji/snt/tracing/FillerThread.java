@@ -29,10 +29,7 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.*;
-import sc.fiji.snt.tracing.cost.Difference;
-import sc.fiji.snt.tracing.cost.OneMinusErf;
-import sc.fiji.snt.tracing.cost.Reciprocal;
-import sc.fiji.snt.tracing.cost.Cost;
+import sc.fiji.snt.tracing.cost.*;
 import sc.fiji.snt.tracing.image.SearchImage;
 import sc.fiji.snt.tracing.image.SearchImageStack;
 
@@ -94,8 +91,9 @@ public class FillerThread extends SearchThread {
 
     // FIXME: may be buggy, synchronization issues
 
-    public static FillerThread fromFill(final ImagePlus imagePlus, final ImageStatistics stats, final Fill fill) {
-
+    public static FillerThread fromFill(final RandomAccessibleInterval<? extends RealType<?>> image,
+                                        final Calibration calibration, final ImageStatistics stats, final Fill fill)
+    {
         SNTUtils.log("loading a fill with threshold: " + fill.getThreshold() +
                 ", metric: " + fill.getMetric().toString());
         final Cost cost;
@@ -106,13 +104,16 @@ public class FillerThread extends SearchThread {
             case DIFFERENCE:
                 cost = new Difference(stats.min, stats.max);
                 break;
+            case DIFFERENCE_SQUARED:
+                cost = new DifferenceSq(stats.min, stats.max);
+                break;
             case PROBABILITY:
                 cost = new OneMinusErf(stats.max, stats.mean, stats.stdDev);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown cost: " + fill.getMetric());
         }
-        final FillerThread result = new FillerThread(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(),
+        final FillerThread result = new FillerThread(image, calibration,
                 fill.getThreshold(), 1000, cost);
 
         final ArrayList<DefaultSearchNode> tempNodes = new ArrayList<>();
@@ -139,6 +140,10 @@ public class FillerThread extends SearchThread {
         }
         result.setSourcePaths(fill.getSourcePaths());
         return result;
+    }
+
+    public static FillerThread fromFill(final ImagePlus imagePlus, final ImageStatistics stats, final Fill fill) {
+        return fromFill(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(), stats, fill);
     }
 
     public double getDistanceAtPoint(final double xd, final double yd,
@@ -185,11 +190,13 @@ public class FillerThread extends SearchThread {
 
         fill.setThreshold(threshold);
         // FIXME
-        if (costFunction instanceof Reciprocal)
+        if (costFunction.getClass().equals(Reciprocal.class))
             fill.setMetric(SNT.CostType.RECIPROCAL);
-        else if (costFunction instanceof Difference)
+        else if (costFunction.getClass().equals(Difference.class))
             fill.setMetric(SNT.CostType.DIFFERENCE);
-        else if (costFunction instanceof OneMinusErf)
+        else if (costFunction.getClass().equals(DifferenceSq.class))
+            fill.setMetric(SNT.CostType.DIFFERENCE_SQUARED);
+        else if (costFunction.getClass().equals(OneMinusErf.class))
             fill.setMetric(SNT.CostType.PROBABILITY);
         else
             throw new IllegalArgumentException("Unknown cost " + costFunction.getClass());

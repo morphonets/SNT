@@ -42,10 +42,7 @@ import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.tracing.*;
-import sc.fiji.snt.tracing.cost.Difference;
-import sc.fiji.snt.tracing.cost.OneMinusErf;
-import sc.fiji.snt.tracing.cost.Reciprocal;
-import sc.fiji.snt.tracing.cost.Cost;
+import sc.fiji.snt.tracing.cost.*;
 import sc.fiji.snt.tracing.heuristic.Dijkstra;
 import sc.fiji.snt.tracing.heuristic.Euclidean;
 import sc.fiji.snt.tracing.heuristic.Heuristic;
@@ -151,8 +148,14 @@ public class Tracing3DTest {
 	}
 
 	@Test
+	public void testDifferenceSqCost() {
+		costTest(new DifferenceSq(stats.min, stats.max), 247, 248);
+	}
+
+	@Test
 	public void testOneMinusErfCost() {
 		OneMinusErf cost = new OneMinusErf(stats.max, stats.mean, stats.stdDev);
+		cost.setZFudge(0.4);
 		costTest(cost, 355.9, 356);
 		cost.setZFudge(0.2);
 		costTest(cost, 341.0, 341.1);

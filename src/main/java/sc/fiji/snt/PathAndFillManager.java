@@ -1249,8 +1249,8 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	protected void reloadFills(int[] selectedIndices) {
 		for (int ind : selectedIndices) {
-			plugin.addFillerThread(FillerThread.fromFill(plugin.getImagePlus(),
-					plugin.getStats(), allFills.get(ind)));
+			plugin.addFillerThread(FillerThread.fromFill(plugin.getLoadedData(),
+					plugin.getImagePlus().getCalibration(), plugin.getStats(), allFills.get(ind)));
 		}
 	}
 
@@ -1807,6 +1807,8 @@ public class PathAndFillManager extends DefaultHandler implements
 						current_fill.setMetric(SNT.CostType.RECIPROCAL);
 					} else if (Objects.equals(metric, SNT.CostType.DIFFERENCE.toString())) {
 						current_fill.setMetric(SNT.CostType.DIFFERENCE);
+					} else if (Objects.equals(metric, SNT.CostType.DIFFERENCE_SQUARED.toString())){
+						current_fill.setMetric(SNT.CostType.DIFFERENCE_SQUARED);
 					} else if (Objects.equals(metric, SNT.CostType.PROBABILITY.toString())) {
 						current_fill.setMetric(SNT.CostType.PROBABILITY);
 					} else {
