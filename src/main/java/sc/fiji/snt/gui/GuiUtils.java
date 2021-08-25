@@ -528,17 +528,17 @@ public class GuiUtils {
 	private JFileChooser fileChooser(final String title, final File file,
 		final int type, final List<String> allowedExtensions)
 	{
-		final JFileChooser chooser = new JFileChooser(file);
-		if (file != null) {
-			if (file.exists()) {
-				chooser.setSelectedFile(file);
+		final JFileChooser chooser = getDnDFileChooser();
+		if (file != null && file.exists()) {
+			if (file.isDirectory()) {
+				chooser.setCurrentDirectory(file);
 			} else {
 				chooser.setCurrentDirectory(file.getParentFile());
+				chooser.setSelectedFile(file);
 			}
 		}
 		chooser.setDialogTitle(title);
 		chooser.setFileSelectionMode(type);
-		chooser.setDragEnabled(true);
 		if (allowedExtensions != null && !allowedExtensions.isEmpty()) {
 			chooser.setFileFilter(new FileFilter() {
 
@@ -1339,6 +1339,39 @@ public class GuiUtils {
 		return null;
 	}
 
+	public static JFileChooser getDnDFileChooser() {
+		final JFileChooser fileChooser = new JFileChooser();
+		fileChooser.setDragEnabled(true);
+		new FileDrop(fileChooser, new FileDrop.Listener() {
+
+			final GuiUtils guiUtils = new GuiUtils(fileChooser);
+
+			@Override
+			public void filesDropped(final File[] files) {
+				if (files.length == 0) { // Is this even possible?
+					guiUtils.error("Dropped file(s) not recognized.");
+					return;
+				}
+				// see ij.io.DragAndDropHandler
+				final File firstFile = files[0];
+				if (fileChooser.isMultiSelectionEnabled()) {
+					final File dir = firstFile.getParentFile();
+					fileChooser.setCurrentDirectory(dir);
+					fileChooser.setSelectedFiles(files);
+				} else {
+					if (fileChooser.getFileSelectionMode() == JFileChooser.DIRECTORIES_ONLY && !firstFile.isDirectory())
+						fileChooser.setCurrentDirectory(firstFile.getParentFile());
+					if (fileChooser.getDialogType() == JFileChooser.SAVE_DIALOG && firstFile.isDirectory())
+						fileChooser.setCurrentDirectory(firstFile);
+					else
+						fileChooser.setSelectedFile(firstFile);
+				}
+				fileChooser.rescanCurrentDirectory();
+			}
+		});
+		return fileChooser;
+	}
+
 	private static void storeExistingLookAndFeel() {
 		existingLaf = UIManager.getLookAndFeel();
 		if (existingLaf instanceof FlatLaf) 
@@ -1374,16 +1407,16 @@ public class GuiUtils {
 		UIManager.put("TitlePane.menuBarEmbedded", false);
 		switch (lookAndFeelName) {
 		case (LAF_LIGHT):
-			success = FlatLightLaf.install();
+			success = FlatLightLaf.setup();
 			break;
 		case (LAF_LIGHT_INTJ):
-			success = FlatIntelliJLaf.install();
+			success = FlatIntelliJLaf.setup();
 			break;
 		case (LAF_DARK):
-			success = FlatDarkLaf.install();
+			success = FlatDarkLaf.setup();
 			break;
 		case (LAF_DARCULA):
-			success = FlatDarculaLaf.install();
+			success = FlatDarculaLaf.setup();
 			break;
 		default:
 			success = setSystemLookAndFeel();

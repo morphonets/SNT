@@ -1167,12 +1167,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return ((DefaultMutableTreeNode) getModel().getRoot());
 		}
 
-		public void setSelected(final Object[] path) {
-			assert SwingUtilities.isEventDispatchThread();
-			final TreePath tp = new TreePath(path);
-			addSelectionPath(tp);
-		}
-
 		public Set<Path> getSelectedPaths() {
 			final TreePath[] selectionTreePath = getSelectionPaths();
 			final Set<Path> selectedPaths = new HashSet<>();

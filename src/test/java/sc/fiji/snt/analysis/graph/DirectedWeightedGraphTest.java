@@ -40,7 +40,6 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.TreeAnalyzer;
-import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SWCPoint;
 

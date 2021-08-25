@@ -6,8 +6,8 @@ import sc.fiji.snt.SciViewSNT
 
 
 /**
- * Exemplifies how bridge SNT with SciView. Have a look at 
- * https://imagej.net/SNT#Installation if SciView is not available in your system
+ * Exemplifies how bridge SNT with sciview. Have a look at 
+ * https://docs.scenery.graphics/sciview/ if sciview is not available in your system
  * 
  * TF, KH 20190827
  */

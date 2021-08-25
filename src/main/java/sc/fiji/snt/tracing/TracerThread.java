@@ -22,10 +22,8 @@
 
 package sc.fiji.snt.tracing;
 
-import ij.ImagePlus;
 import ij.measure.Calibration;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;

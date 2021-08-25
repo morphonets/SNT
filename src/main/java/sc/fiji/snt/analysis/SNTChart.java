@@ -69,6 +69,8 @@ import org.jfree.chart.plot.Marker;
 import org.jfree.chart.plot.Plot;
 import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.AbstractRenderer;
+import org.jfree.chart.renderer.category.AbstractCategoryItemRenderer;
 import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
 import org.jfree.chart.renderer.category.CategoryItemRenderer;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
@@ -223,15 +225,32 @@ public class SNTChart extends ChartFrame {
 		}
 	}
 
+	private boolean isOutlineVisible() {
+		return getChartPanel().getChart().getPlot().isOutlineVisible();
+	}
+
+	private boolean isGridlinesVisible() {
+		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
+			return plot.isDomainGridlinesVisible() || plot.isRangeGridlinesVisible();
+		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+			return plot.isDomainGridlinesVisible() || plot.isRangeGridlinesVisible();
+		}
+		return false;
+	}
+
 	public void setGridlinesVisible(final boolean visible) {
 		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
 			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
-			plot.setDomainGridlinesVisible(false);
-			plot.setRangeGridlinesVisible(false);
+			plot.setDomainGridlinesVisible(visible);
+			plot.setRangeGridlinesVisible(visible);
+			plot.setRangeMinorGridlinesVisible(visible);
 		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
 			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
-			plot.setDomainGridlinesVisible(false);
-			plot.setRangeGridlinesVisible(false);
+			plot.setDomainGridlinesVisible(visible);
+			plot.setRangeGridlinesVisible(visible);
+			plot.setRangeMinorGridlinesVisible(visible);
 		}
 	}
 
@@ -534,11 +553,13 @@ public class SNTChart extends ChartFrame {
 			setForegroundColor(plot.getDomainAxis(), newColor);
 			setForegroundColor(plot.getRangeAxis(), newColor);
 			replaceForegroundColor(plot.getRenderer(), oldColor, newColor);
+			replaceSeriesColor(plot.getRenderer(), oldColor, newColor);
 		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
 			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
 			setForegroundColor(plot.getDomainAxis(), newColor);
 			setForegroundColor(plot.getRangeAxis(), newColor);
 			replaceForegroundColor(plot.getRenderer(), oldColor, newColor);
+			replaceSeriesColor(plot.getRenderer(), oldColor, newColor);
 		}
 	}
 
@@ -553,15 +574,17 @@ public class SNTChart extends ChartFrame {
 			if (item.getOutlinePaint() == oldColor)
 				item.setOutlinePaint(newColor);
 		}
-		if (render instanceof BoxAndWhiskerRenderer) {
-			final BoxAndWhiskerRenderer rndr = ((BoxAndWhiskerRenderer)render);
+		if (render instanceof AbstractRenderer) {
+			final AbstractRenderer rndr = ((AbstractRenderer)render);
 			rndr.setDefaultItemLabelPaint(newColor);
 			rndr.setDefaultLegendTextPaint(newColor);
-			rndr.setArtifactPaint(newColor);
 			if (rndr.getDefaultFillPaint()  == oldColor)
 				rndr.setDefaultFillPaint(newColor);
 			if (rndr.getDefaultOutlinePaint()  == oldColor)
 				rndr.setDefaultOutlinePaint(newColor);
+		}
+		if (render instanceof AbstractCategoryItemRenderer) {
+			final AbstractCategoryItemRenderer rndr = ((AbstractCategoryItemRenderer)render);
 			for (int series = 0; series < rndr.getRowCount(); series++) {
 				if (rndr.getSeriesFillPaint(series) == oldColor)
 					rndr.setSeriesFillPaint(series, newColor);
@@ -571,7 +594,32 @@ public class SNTChart extends ChartFrame {
 					rndr.setSeriesItemLabelPaint(series, newColor);
 			}
 		}
-		
+		if (render instanceof BoxAndWhiskerRenderer)
+			((BoxAndWhiskerRenderer)render).setArtifactPaint(newColor);
+	}
+
+	private void replaceSeriesColor(final CategoryItemRenderer renderer, final Color oldColor, final Color newColor) {
+		final int nSeries = renderer.getPlot().getDataset().getRowCount();
+		for (int series = 0; series < nSeries; series++) {
+			if (renderer.getSeriesFillPaint(series) == oldColor)
+				renderer.setSeriesFillPaint(series, newColor);
+			if (renderer.getSeriesOutlinePaint(series) == oldColor)
+				renderer.setSeriesOutlinePaint(series, newColor);
+			if (renderer.getSeriesItemLabelPaint(series) == oldColor)
+				renderer.setSeriesItemLabelPaint(series, newColor);
+		}
+	}
+
+	private void replaceSeriesColor(final XYItemRenderer renderer, final Color oldColor, final Color newColor) {
+		final int nSeries = renderer.getPlot().getDataset().getSeriesCount();
+		for (int series = 0; series < nSeries; series++) {
+			if (renderer.getSeriesFillPaint(series) == oldColor)
+				renderer.setSeriesFillPaint(series, newColor);
+			if (renderer.getSeriesOutlinePaint(series) == oldColor)
+				renderer.setSeriesOutlinePaint(series, newColor);
+			if (renderer.getSeriesItemLabelPaint(series) == oldColor)
+				renderer.setSeriesItemLabelPaint(series, newColor);
+		}
 	}
 
 	private void setForegroundColor(final Axis axis, final Color newColor) {
@@ -657,10 +705,10 @@ public class SNTChart extends ChartFrame {
 	@Override
 	@SuppressWarnings("deprecation")
 	public void show() {
-		if (getChartPanel() != null && getChartPanel().getPopupMenu() != null) {
+		if (!isVisible() && getChartPanel() != null && getChartPanel().getPopupMenu() != null) {
 			final JMenuItem mi = new JMenuItem("Data (as CSV)...");
 			mi.addActionListener(e -> {
-				final JFileChooser fileChooser = new JFileChooser();
+				final JFileChooser fileChooser = GuiUtils.getDnDFileChooser();
 				fileChooser.setDialogTitle("Export to CSV (Experimental)");
 				final FileNameExtensionFilter csvFilter = new FileNameExtensionFilter("CSV files (*.csv)", "csv");
 				fileChooser.addChoosableFileFilter(csvFilter);
@@ -686,8 +734,8 @@ public class SNTChart extends ChartFrame {
 			else
 				getChartPanel().getPopupMenu().add(mi);
 			addCustomizationPanel(getChartPanel().getPopupMenu());
+			AWTWindows.centerWindow(this);
 		}
-		AWTWindows.centerWindow(this);
 		SwingUtilities.invokeLater(() -> super.show());
 	}
 
@@ -711,6 +759,16 @@ public class SNTChart extends ChartFrame {
 			}
 		});
 		popup.addSeparator();
+
+		final JMenu grids = new JMenu("Frame & Grid Lines");
+		popup.add(grids);
+		JMenuItem jmi = new JMenuItem("Toogle Grid Lines");
+		jmi.addActionListener( e -> setGridlinesVisible(!isGridlinesVisible()));
+		grids.add(jmi);
+		jmi = new JMenuItem("Toogle Outline");
+		jmi.addActionListener( e -> setOutlineVisible(!isOutlineVisible()));
+		grids.add(jmi);
+		popup.add(grids);
 		popup.add(dark);
 
 		final float DEF_FONT_SIZE = defFontSize();
@@ -725,7 +783,7 @@ public class SNTChart extends ChartFrame {
 		c.fill = GridBagConstraints.HORIZONTAL;
 		c.gridwidth = 2;
 		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel(" Scaling: ", true));
+		p.add(GuiUtils.leftAlignedLabel(" Scale: ", true));
 		c.gridx = 1;
 		p.add(spinner, c);
 		popup.addSeparator();
