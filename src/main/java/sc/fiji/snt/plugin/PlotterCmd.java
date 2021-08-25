@@ -22,9 +22,6 @@
 
 package sc.fiji.snt.plugin;
 
-import java.awt.Dimension;
-import java.awt.Rectangle;
-import java.awt.Toolkit;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
@@ -45,7 +42,6 @@ import org.scijava.menu.MenuConstants;
 import org.scijava.plugin.Menu;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 import org.scijava.widget.FileWidget;
@@ -94,11 +90,11 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		callback = "currentZangleChanged")
 	private double angleZ = 0;
 
-	@Parameter(required = false, label = "Default color", callback = "currentColorChanged")
+	@Parameter(required = false, label = "Color", callback = "updatePlot")
 	private ColorRGB color;
 
 	@Parameter(required = false, persist = false, label = "Actions", choices = {
-		ACTION_NONE, ACTION_FLIP_H, ACTION_FLIP_V, ACTION_RESET, ACTION_SNAPSHOT },
+		ACTION_NONE, ACTION_FLIP_H, ACTION_FLIP_V, ACTION_RESET_ROT, ACTION_RESET_COLOR, ACTION_SNAPSHOT },
 		callback = "runAction")
 	private String actionChoice = ACTION_NONE;
 
@@ -115,11 +111,12 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 	private Tree tree;
 
 	private static final String ACTION_NONE = "Choose...";
-	private static final String ACTION_RESET = "Reset rotation";
+	private static final String ACTION_RESET_ROT = "Reset rotation";
+	private static final String ACTION_RESET_COLOR = "Reset color";
 	private static final String ACTION_FLIP_H = "Flip horizontally";
 	private static final String ACTION_FLIP_V = "Flip vertically";
 	private static final String ACTION_SNAPSHOT = "Snapshot [w/ color-mapping (if any)]";
-	private static final ColorRGB DEF_COLOR = Colors.RED;
+	private static final ColorRGB DEF_COLOR = Colors.BLACK;
 	private static final String BUSY_MSG = "Rendering. Please wait...";
 
 	private Viewer2D plot;
@@ -193,11 +190,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		buildPlot();
 		chart = plot.getJFreeChart();
 		frame = new SNTChart(tree.getLabel(), chart);
-		frame.setPreferredSize(new Dimension(500, 500));
-		frame.pack();
-		final Dimension s = Toolkit.getDefaultToolkit().getScreenSize();
-		AWTWindows.centerWindow(new Rectangle(0, 0, s.width/2, s.height), frame);
-		frame.setVisible(true);
+		frame.setSize(500, 500);
 		frame.addWindowListener(new WindowAdapter() {
 
 			@Override
@@ -206,6 +199,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				super.windowClosing(e);
 			}
 		});
+		frame.show();
 		status(null, false);
 
 	}
@@ -268,14 +262,6 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		}
 	}
 
-	@SuppressWarnings("unused")
-	private void currentColorChanged() {
-		if (hasInitialized()) {
-			plottingTree.setColor(color);
-			updatePlot();
-		}
-	}
-
 	private boolean hasInitialized() {
 		if (plottingTree == null) {
 			new GuiUtils().error("Somehow Plotter could not be initialized. "
@@ -297,8 +283,13 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		switch (actionChoice) {
 			case ACTION_NONE:
 				return;
-			case ACTION_RESET:
+			case ACTION_RESET_ROT:
 				resetRotation();
+				actionChoice = ACTION_NONE;
+				return;
+			case ACTION_RESET_COLOR:
+				color = DEF_COLOR;
+				updatePlot();
 				actionChoice = ACTION_NONE;
 				return;
 			case ACTION_SNAPSHOT:
@@ -335,8 +326,9 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		buildPlot();
 		plot.setTitle("[X " + angleX + "deg Y " + angleY + "deg Z " + angleZ +
 			"deg]");
-		plot.setPreferredSize(frame.getWidth(), frame.getHeight());
-		plot.show();
+		final SNTChart snapshotChart = plot.getChart();
+		snapshotChart.applyStyle(frame);
+		snapshotChart.show();
 		// make tree monochrome
 		for (final Path p : plottingTree.list()) {
 			p.setColor((java.awt.Color)null);
