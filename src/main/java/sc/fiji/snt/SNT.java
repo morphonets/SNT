@@ -3279,6 +3279,10 @@ public class SNT extends MultiDThreePanes implements
 		this.isUseSubVolumeStats = useSubVolumeStatistics;
 	}
 
+	public boolean getUseSubVolumeStats() {
+		return isUseSubVolumeStats;
+	}
+
 	public SearchType getSearchType() {
 		return searchType;
 	}
