@@ -64,6 +64,9 @@ import javax.swing.border.BevelBorder;
 
 import ij.ImagePlus;
 import net.imagej.ImageJ;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.img.ImgView;
+import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.tracing.FillerThread;
 import sc.fiji.snt.tracing.SearchInterface;
@@ -90,7 +93,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private final JList<String> fillList;
 	private final DefaultListModel<String> listModel;
 	private final GuiUtils gUtils;
-	private float maxThresholdValue = 0;
+	private double maxThresholdValue = 0;
 	private State currentState;
 
 	private JTextField manualThresholdInputField;
@@ -103,6 +106,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private JButton startFill;
 	private JButton saveFill;
 	private JButton stopFill;
+	private JButton reloadFill;
 	private JRadioButton cursorThresholdChoice;
 	private JRadioButton manualThresholdChoice;
 	private JRadioButton exploredThresholdChoice;
@@ -238,7 +242,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			plugin.updateTracingViewers(false);
 
 		});
-		final JButton reloadFill = new JButton("Reload");
+		reloadFill = new JButton("Reload");
 		reloadFill.addActionListener(e -> {
 			if (!noFillsError()) reload("Reload");
 		});
@@ -270,12 +274,29 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	}
 
-	private void reload(final String msg) {
+	private int[] getSelectedIndices(final String msg) {
 		int[] selectedIndices = (fillList.getModel().getSize() == 1 ) ? new int[] {0} : fillList.getSelectedIndices();
-		if (selectedIndices.length < 1 && gUtils
-				.getConfirmation("No fill was select for " + msg.toLowerCase() + ". " + msg + " all?", msg + " All?")) {
+		if (selectedIndices.length < 1 && gUtils.getConfirmation(
+				"No fill was select for " + msg.toLowerCase() + ". " + msg + " all?", msg + " All?"))
+		{
 			selectedIndices = IntStream.range(0, fillList.getModel().getSize()).toArray();
 		}
+		return selectedIndices;
+	}
+
+	private List<FillerThread> getSelectedFills(final String msg) {
+		int[] selectedIndices = getSelectedIndices(msg);
+		final List<FillerThread> fills = new ArrayList<>();
+		for (int i : selectedIndices) {
+			FillerThread filler = FillerThread.fromFill(plugin.getLoadedData(), plugin.getImagePlus().getCalibration(),
+					plugin.getStats(), pathAndFillManager.getAllFills().get(i));
+			fills.add(filler);
+		}
+		return fills;
+	}
+
+	private void reload(final String msg) {
+		int[] selectedIndices = getSelectedIndices(msg);
 		pathAndFillManager.reloadFills(selectedIndices);
 		fillList.setSelectedIndices(selectedIndices);
 		changeState(State.LOADED);
@@ -481,6 +502,11 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			if (plugin.fillerSet.isEmpty()) {
 				if (plugin.getUI().getPathManager().selectionExists()) {
 					plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(false)));
+					if (!manualThresholdChoice.isSelected()) {
+						plugin.setStopFillAtThreshold(false);
+					} else {
+						plugin.setStopFillAtThreshold(true);
+					}
 					plugin.startFilling();
 				} else  {
 					final int ans = gUtils.yesNoDialog("There are no paths selected in Path Manager. Would you like to "
@@ -488,11 +514,21 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 							+ "Manager list, and re-run. ", "Fill All Paths?", "Yes. Fill all.", "No. Let me select subsets.");
 					if (ans == JOptionPane.YES_OPTION) {
 						plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(true)));
+						if (!manualThresholdChoice.isSelected()) {
+							plugin.setStopFillAtThreshold(false);
+						} else {
+							plugin.setStopFillAtThreshold(true);
+						}
 						plugin.startFilling();
 					}
 				}
 			} else {
 				try {
+					if (!manualThresholdChoice.isSelected()) {
+						plugin.setStopFillAtThreshold(false);
+					} else {
+						plugin.setStopFillAtThreshold(true);
+					}
 					plugin.startFilling(); //TODO: Check if this is the only thing left to do.
 				} catch (final IllegalArgumentException ex) {
 					gUtils.error(ex.getMessage());
@@ -530,13 +566,13 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private void assembleExportFillsMenu() {
 		exportFillsMenu = new JPopupMenu();
 		JMenuItem jmi = new JMenuItem("As Grayscale Image");
-		jmi.addActionListener(e-> exportAsImp("grayscale"));
+		jmi.addActionListener(e-> exportAsImp(FillConverter.ResultType.SAME));
 		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("As Binary Mask");
-		jmi.addActionListener(e-> exportAsImp("binary"));
+		jmi.addActionListener(e-> exportAsImp(FillConverter.ResultType.BINARY_MASK));
 		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("As Distance Image");
-		jmi.addActionListener(e-> exportAsImp("distance"));
+		jmi.addActionListener(e-> exportAsImp(FillConverter.ResultType.DISTANCE));
 		exportFillsMenu.add(jmi);
 		exportFillsMenu.addSeparator();
 		jmi = new JMenuItem("CSV Summary");
@@ -544,31 +580,21 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		exportFillsMenu.add(jmi);
 	}
 
-	private void exportAsImp(final String type) {
+	private <T extends RealType<T>> void exportAsImp(final FillConverter.ResultType type)
+	{
 		if (noFillsError())
 			return;
-		if (plugin.fillerSet.isEmpty())
-			reload("Export");
-		ImagePlus imp;
-		switch (type.toLowerCase()) {
-		case "grayscale":
-			imp = plugin.getFilledImp();
-			break;
-		case "binary":
-			imp = plugin.getFilledBinaryImp();
-			break;
-		case "distance":
-			imp = plugin.getFilledDistanceImp();
-			break;
-		default:
-			throw new IllegalArgumentException("Unrecognized option");
+		final List<FillerThread> fillers = getSelectedFills("export");
+		if (fillers.isEmpty()) {
+			gUtils.error("You must select at least one Fill for export");
+			return;
 		}
-		if (imp == null) {
-			// there are fills stashed but SNT#fillerSet is empty
-			gUtils.error("Image could not be displayed. Please reload desired fill(s) and try again.");
-		} else {
-			imp.show();
-		}
+		final RandomAccessibleInterval<T> in = plugin.getLoadedData();
+		final FillConverter converter = new FillConverter(
+				fillers,
+				ImgView.wrap(in));
+		final ImagePlus imp = converter.getImp(type);
+		imp.show();
 	}
 
 	private void saveFills() {
@@ -595,11 +621,11 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	/* (non-Javadoc)
-	 * @see FillerProgressCallback#maximumDistanceCompletelyExplored(SearchThread, float)
+	 * @see FillerProgressCallback#maximumDistanceCompletelyExplored(SearchThread, double)
 	 */
 	@Override
 	public void maximumDistanceCompletelyExplored(final FillerThread source,
-		final float f)
+		final double f)
 	{
 		SwingUtilities.invokeLater(() -> {
 			maxThresholdLabel.setText("Max. explored distance: " + SNTUtils.formatDouble(f, 3));
@@ -642,7 +668,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		// do nothing
 	}
 
-	protected void showMouseThreshold(final float t) {
+	protected void showMouseThreshold(final double t) {
 		SwingUtilities.invokeLater(() -> {
 			String newStatus;
 			if (t < 0) {
@@ -677,6 +703,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFill.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(false);
+				reloadFill.setEnabled(true);
 				break;
 
 			case STARTED:
@@ -684,6 +711,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFill.setEnabled(false);
 				stopFill.setEnabled(true);
 				saveFill.setEnabled(false);
+				reloadFill.setEnabled(false);
 				break;
 
 			case LOADED:
@@ -691,6 +719,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFill.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(true);
+				reloadFill.setEnabled(false);
 				break;
 
 			case STOPPED:
@@ -698,6 +727,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFill.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(true);
+				reloadFill.setEnabled(false);
 				break;
 
 			case ENDED:
@@ -705,6 +735,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFill.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(true);
+				reloadFill.setEnabled(false);
 				break;
 
 			default:

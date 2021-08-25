@@ -26,6 +26,6 @@ import sc.fiji.snt.tracing.FillerThread;
 
 public interface FillerProgressCallback extends SearchProgressCallback {
 
-	void maximumDistanceCompletelyExplored(FillerThread source, float f);
+	void maximumDistanceCompletelyExplored(FillerThread source, double f);
 
 }

@@ -2142,6 +2142,12 @@ public class SNT extends MultiDThreePanes implements
 		fillerSet.forEach(f -> f.setThreshold(fillThresholdDistance)); // fillerSet never null
 	}
 
+	synchronized void setStopFillAtThreshold(final boolean stopFillAtThreshold) {
+		for (final FillerThread filler : fillerSet) {
+			filler.setStopAtThreshold(stopFillAtThreshold);
+		}
+	}
+
 	synchronized void startPath(final double world_x, final double world_y,
 		final double world_z, final PointInImage joinPoint)
 	{

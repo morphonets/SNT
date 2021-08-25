@@ -25,6 +25,7 @@ package sc.fiji.snt.tracing;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.process.ImageStatistics;
+import it.unimi.dsi.fastutil.objects.*;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
@@ -49,9 +50,11 @@ import java.util.*;
  */
 public class FillerThread extends SearchThread {
 
-    double threshold;
-    Set<Path> sourcePaths;
+    private Set<Path> sourcePaths;
     private Set<DefaultSearchNode> aboveThresholdNodeSet;
+    private double threshold;
+    private boolean isStopAtThreshold = true;
+    private double maxExploredDistance;
 
 
     public FillerThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
@@ -89,6 +92,10 @@ public class FillerThread extends SearchThread {
         setThreshold(initialThreshold);
     }
 
+    public void setStopAtThreshold(final boolean stopAtThreshold) {
+        this.isStopAtThreshold = stopAtThreshold;
+    }
+
     // FIXME: may be buggy, synchronization issues
 
     public static FillerThread fromFill(final RandomAccessibleInterval<? extends RealType<?>> image,
@@ -116,11 +123,11 @@ public class FillerThread extends SearchThread {
         final FillerThread result = new FillerThread(image, calibration,
                 fill.getThreshold(), 1000, cost);
 
-        final ArrayList<DefaultSearchNode> tempNodes = new ArrayList<>();
+        final List<DefaultSearchNode> tempNodes = new ArrayList<>();
 
         for (final Fill.Node n : fill.getNodeList()) {
 
-            final DefaultSearchNode s = new DefaultSearchNode(n.x, n.y, n.z, (float) n.distance, 0,
+            final DefaultSearchNode s = new DefaultSearchNode(n.x, n.y, n.z, n.distance, 0,
                     null, SearchThread.FREE);
             tempNodes.add(s);
         }
@@ -146,9 +153,7 @@ public class FillerThread extends SearchThread {
         return fromFill(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(), stats, fill);
     }
 
-    public double getDistanceAtPoint(final double xd, final double yd,
-                                     final double zd)
-    {
+    public double getDistanceAtPoint(final double xd, final double yd, final double zd) {
 
         final int x = (int) Math.round(xd);
         final int y = (int) Math.round(yd);
@@ -166,18 +171,20 @@ public class FillerThread extends SearchThread {
 
     public Fill getFill() {
 
-        final Hashtable<DefaultSearchNode, Integer> h = new Hashtable<>();
+        final Object2IntOpenHashMap<DefaultSearchNode> h = new Object2IntOpenHashMap<>();
 
         final ArrayList<DefaultSearchNode> a = new ArrayList<>();
 
-        // The tricky bit here is that we want to create a
-        // Fill object with index
-
+        // FIXME: if we include all the above-threshold nodes in the open set
+        //  it takes forever to store the Fill and wastes memory. Since most of these nodes are junk,
+        //  only include the ones within some fraction of the maximum explored distance to
+        //  add back into the open set. They will be re-expanded during the next search anyways.
+        final double epsilon = Math.sqrt(maxExploredDistance);
         int i = 0;
         for (final SearchImage<DefaultSearchNode> slice : nodes_as_image_from_start) {
             if (slice == null) continue;
             for (final DefaultSearchNode current : slice) {
-                if (current != null) {
+                if (current != null && current.g < threshold + epsilon) {
                     h.put(current, i);
                     a.add(current);
                     ++i;
@@ -187,9 +194,7 @@ public class FillerThread extends SearchThread {
 
         final Fill fill = new Fill();
 
-
         fill.setThreshold(threshold);
-        // FIXME
         if (costFunction.getClass().equals(Reciprocal.class))
             fill.setMetric(SNT.CostType.RECIPROCAL);
         else if (costFunction.getClass().equals(Difference.class))
@@ -210,8 +215,8 @@ public class FillerThread extends SearchThread {
             int previousIndex = -1;
             final DefaultSearchNode previous = f.getPredecessor();
             if (previous != null) {
-                final Integer p = h.get(previous);
-                if (p != null) {
+                final int p = h.getOrDefault(previous, -1);
+                if (p != -1) {
                     previousIndex = p;
                 }
             }
@@ -224,7 +229,7 @@ public class FillerThread extends SearchThread {
             else if (f.searchStatus == SearchThread.CLOSED_FROM_START ||
                     f.searchStatus == SearchThread.CLOSED_FROM_GOAL)
             {
-                open = false;
+                open = f.g > threshold;
             }
             else
             {
@@ -306,14 +311,16 @@ public class FillerThread extends SearchThread {
 
             // For nodes that are above-threshold, add them back into the open set
             //  so that we may resume progress using this same instance.
-            for (DefaultSearchNode newNode : aboveThresholdNodeSet) {
-                // Is this newNode really new?
-                SearchImage<DefaultSearchNode> slice = nodes_as_image_from_start.getSlice(newNode.z);
-                if (slice == null) {
-                    slice = nodes_as_image_from_start.newSlice(newNode.z);
+            if (isStopAtThreshold) {
+                for (final DefaultSearchNode newNode : aboveThresholdNodeSet) {
+                    // Is this newNode really new?
+                    SearchImage<DefaultSearchNode> slice = nodes_as_image_from_start.getSlice(newNode.z);
+                    if (slice == null) {
+                        slice = nodes_as_image_from_start.newSlice(newNode.z);
+                    }
+                    // Only add them if they are better than the current nodes (if they exist)
+                    testNeighbor(newNode, slice);
                 }
-                // Only add them if they are better than the current nodes (if they exist)
-                testNeighbor(newNode, slice);
             }
 
             SNTUtils.log("Fill complete for thread " + Thread.currentThread());
@@ -367,9 +374,7 @@ public class FillerThread extends SearchThread {
                             p,
                             FREE);
 
-                    // TODO add an option to just let it run indefinitely,
-                    //  but be wary of memory use
-                    if (g_for_new_point > threshold) {
+                    if (isStopAtThreshold && g_for_new_point > threshold) {
                         // Only fill up to the threshold
                         aboveThresholdNodeSet.add(newNode);
                         continue;
@@ -422,14 +427,13 @@ public class FillerThread extends SearchThread {
         final DefaultSearchNode p = open_from_start.findMin().getKey();
         if (p == null) return;
 
-        final double minimumDistanceInOpen = p.g;
+        maxExploredDistance = p.g;
 
         for (final SearchProgressCallback progress : progressListeners) {
             if (progress instanceof FillerProgressCallback) {
                 final FillerProgressCallback fillerProgress =
                         (FillerProgressCallback) progress;
-                fillerProgress.maximumDistanceCompletelyExplored(this,
-                        (float) minimumDistanceInOpen);
+                fillerProgress.maximumDistanceCompletelyExplored(this, maxExploredDistance);
             }
         }
 
@@ -437,7 +441,7 @@ public class FillerThread extends SearchThread {
 
     @Override
     public Path getResult() {
-        throw new IllegalStateException("BUG: attempted to retrieve a Path from Filler");
+        throw new UnsupportedOperationException("Attempted to retrieve a Path from Filler");
     }
 
     @Override

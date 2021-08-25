@@ -27,7 +27,6 @@ import ij.measure.Calibration;
 import net.imglib2.RandomAccess;
 import net.imglib2.img.Img;
 import net.imglib2.img.display.imagej.ImageJFunctions;
-import net.imglib2.type.NativeType;
 import net.imglib2.type.logic.BitType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.real.FloatType;
@@ -53,7 +52,7 @@ public class FillConverter {
     final Collection<FillerThread> fillers;
     @SuppressWarnings("rawtypes")
     final Img img;
-    final Calibration calibration;
+    Calibration calibration;
     final long[] imgDimensions;
     SearchImageStack<DefaultSearchNode> newStack;
 
@@ -64,9 +63,9 @@ public class FillConverter {
         this.calibration = originalImp.getCalibration();
     }
 
-    public <T extends NumericType<T> & NativeType<T>> FillConverter(final Collection<FillerThread> fillers,
-                                                                    final Img<T> originalImg,
-                                                                    final Calibration calibration)
+    public <T extends NumericType<T>> FillConverter(final Collection<FillerThread> fillers,
+                                                    final Img<T> originalImg,
+                                                    final Calibration calibration)
     {
         this.fillers = fillers;
         this.img = originalImg;
@@ -74,12 +73,28 @@ public class FillConverter {
         this.calibration = calibration;
     }
 
-    public <T extends NumericType<T> & NativeType<T>> Img<T> getImg() {
+    public <T extends NumericType<T>> FillConverter(final Collection<FillerThread> fillers,
+                                                    final Img<T> originalImg)
+    {
+        this.fillers = fillers;
+        this.img = originalImg;
+        this.imgDimensions = Intervals.dimensionsAsLongArray(originalImg);
+    }
+
+    public <T extends NumericType<T>> Img<T> getImg() {
         return createImg(ResultType.SAME);
+    }
+
+    public <T extends NumericType<T>> Img<T> getImg(ResultType type) {
+        return createImg(type);
     }
 
     public ImagePlus getImp() {
         return createImp(ResultType.SAME);
+    }
+
+    public ImagePlus getImp(ResultType type) {
+        return createImp(type);
     }
 
     public Img<BitType> getBinaryImg() {
@@ -99,7 +114,7 @@ public class FillConverter {
     }
 
     @SuppressWarnings({"unchecked"})
-    private <T extends NumericType<T> & NativeType<T>> Img<T> createImg(final ResultType resultType) {
+    private <T extends NumericType<T>> Img<T> createImg(final ResultType resultType) {
         final Img<T> fillImg;
         switch (resultType) {
             case SAME:
@@ -143,7 +158,7 @@ public class FillConverter {
         return fillImg;
     }
 
-    private <T extends NumericType<T> & NativeType<T>> ImagePlus createImp(final ResultType resultType) {
+    private <T extends NumericType<T>> ImagePlus createImp(final ResultType resultType) {
         final Img<T> img = createImg(resultType);
         final ImagePlus fillImp;
         if (img.numDimensions() == 3) {

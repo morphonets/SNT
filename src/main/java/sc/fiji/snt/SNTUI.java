@@ -1952,7 +1952,7 @@ public class SNTUI extends JDialog {
 
 	private JPanel secondaryDataPanel() {
 
-		secLayerActivateCheckbox = new JCheckBox(hotKeyLabel("Trace on Secondary Layer", "L"));
+		secLayerActivateCheckbox = new JCheckBox(hotKeyLabel("Trace/Fill on Secondary Layer", "L"));
 		guiUtils.addTooltip(secLayerActivateCheckbox,
 				"Whether auto-tracing should be computed on a filtered flavor of current image");
 		secLayerActivateCheckbox.addActionListener(listener);
