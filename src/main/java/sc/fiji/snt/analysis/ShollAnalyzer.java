@@ -47,25 +47,25 @@ import sc.fiji.snt.util.ShollPoint;
  */
 public class ShollAnalyzer {
 
-	static final String MEAN = "Mean";
+	public static final String MEAN = "Mean";
 	static final String MEDIAN = "Median";
-	static final String MAX = "Max";
-	static final String MAX_FITTED = "Max (fitted)";
-	static final String MAX_FITTED_RADIUS = "Max (fitted) radius";
-	static final String POLY_FIT_DEGREE = "Degree of Polynomial fit";
-	static final String N_MAX = "No. maxima";
+	public static final String MAX = "Max";
+	public static final String MAX_FITTED = "Max (fitted)";
+	public static final String MAX_FITTED_RADIUS = "Max (fitted) radius";
+	public static final String POLY_FIT_DEGREE = "Degree of Polynomial fit";
+	public static final String N_MAX = "No. maxima";
 	static final String CENTROID = "Centroid";
 	static final String CENTROID_RADIUS = "Centroid radius";
-	static final String SUM = "Sum";
+	public static final String SUM = "Sum";
 	static final String VARIANCE = "Variance";
 	static final String SKEWENESS = "Skeweness";
 	static final String KURTOSIS = "Kurtosis";
-	static final String N_SECONDARY_MAX = "No. secondary maxima";
+	public static final String N_SECONDARY_MAX = "No. secondary maxima";
 	static final String MAX_RADIUS_PREFIX = "Max radius";
 	static final String SECONDARY_MAX_PREFIX = "Secondary max";
 	static final String SECONDARY_MAX_RADIUS_PREFIX = "Secondary max radius";
 	static final String ENCLOSING_RADIUS = "Enclosing radius";
-	static final String DECAY = "Decay";
+	public static final String DECAY = "Decay";
 	static final String INTERCEPT = "Intercept";
 
 	static final String[] ALL_FLAGS = { //

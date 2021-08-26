@@ -304,6 +304,7 @@ public class TreeAnalyzer extends ContextCommand {
 		final ArrayList<String> metrics = new ArrayList<>(MultiTreeStatistics.getMetrics());
 		metrics.add("Sholl: "+ ShollAnalyzer.MEAN);
 		metrics.add("Sholl: "+ ShollAnalyzer.SUM);
+		metrics.add("Sholl: "+ ShollAnalyzer.MAX);
 		metrics.add("Sholl: "+ ShollAnalyzer.N_MAX);
 		metrics.add("Sholl: "+ ShollAnalyzer.N_SECONDARY_MAX);
 		metrics.add("Sholl: "+ ShollAnalyzer.MAX_FITTED);
