@@ -241,7 +241,7 @@ public class SNT extends MultiDThreePanes implements
 	protected volatile boolean isUseSubVolumeStats = false;
 
 	/* adjustable parameters for cost functions */
-	protected volatile double oneMinusErfZFudge = 0.1;
+	protected volatile double oneMinusErfZFudge = 1.0;
 
 	/* tracing threads */
 	private AbstractSearch currentSearchThread = null;
@@ -2500,8 +2500,8 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected <T extends RealType<T>> void loadSecondaryImage(final RandomAccessibleInterval<T> img,
-																			  final boolean changeUIState,
-																			  final boolean computeStatistics)
+															  final boolean changeUIState,
+															  final boolean computeStatistics)
 	{
 		assert img != null;
 		if (secondaryImageFile != null && secondaryImageFile.getName().toLowerCase().contains(".oof")) {

@@ -174,7 +174,7 @@ public class Tracing2DTest {
     }
 
     @Test
-    public void testHeuristicConsistency() {
+    public void testAstarAdmissibility() {
         AbstractSearch search = createSearch(
                 img,
                 SNT.SearchType.ASTAR,

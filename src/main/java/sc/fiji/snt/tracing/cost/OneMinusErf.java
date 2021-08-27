@@ -46,7 +46,7 @@ public class OneMinusErf implements Cost {
     private final double stdDev;
 
     // multiplier for the intensity z-score
-    double zFudge = 0.4;
+    private double zFudge = 1.0;
 
     /**
      *
@@ -68,11 +68,14 @@ public class OneMinusErf implements Cost {
     }
 
     /**
-     * Scale factor for intensity z-score, default is 0.4
+     * Scale factor for intensity z-score. Values less than 1 help numerically distinguish very bright voxels,
+     * and will cause more nodes to be explored. Default is 1.0.
      * @param zFudge the z-score is post-multiplied by this value
      */
     public void setZFudge(final double zFudge) {
         this.zFudge = zFudge;
+        // We have to re-compute the minimum step cost when changing the z-fudge, since it is used in the calculation.
+        computeMinStepCost();
     }
 
     public double getZFudge() {

@@ -155,8 +155,7 @@ public class Tracing3DTest {
 	@Test
 	public void testOneMinusErfCost() {
 		OneMinusErf cost = new OneMinusErf(stats.max, stats.mean, stats.stdDev);
-		cost.setZFudge(0.4);
-		costTest(cost, 355.9, 356);
+		costTest(cost, 222.9, 223.0);
 		cost.setZFudge(0.2);
 		costTest(cost, 341.0, 341.1);
 	}

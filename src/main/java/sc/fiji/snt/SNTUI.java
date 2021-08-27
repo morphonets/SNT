@@ -2803,23 +2803,6 @@ public class SNTUI extends JDialog {
 			rbmi.setActionCommand(String.valueOf(type));
 			rbmi.setSelected(plugin.getCostType() == type);
 			rbmi.addActionListener(e -> {
-				if (type == SNT.CostType.PROBABILITY) {
-					final Double fudge = getZFudgeFromUser();
-					if (fudge == null) { // no value set: restore previous state
-						costFunctionButtonGroup.clearSelection();
-						final Enumeration<AbstractButton> buttons = costFunctionButtonGroup.getElements();
-						while (buttons.hasMoreElements()) {
-							final AbstractButton button = (AbstractButton) buttons.nextElement();
-							if (button.getActionCommand().equals(String.valueOf(plugin.getCostType())))
-								button.setSelected(true);
-								break;
-						}
-						showStatus("Cost function unchnanged...", true);
-						return;
-					}
-					plugin.oneMinusErfZFudge = fudge;
-					SNTUtils.log("Z-fudge changed to " + fudge);
-				}
 				plugin.setCostType(type);
 				updateSettingsString();
 				showStatus("Cost function: " + lbl, true);
