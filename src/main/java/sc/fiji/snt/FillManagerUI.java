@@ -107,7 +107,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		fillList = new JList<>(listModel);
 		fillList.setCellRenderer(new FMCellRenderer());
 		fillList.setVisibleRowCount(5);
-//		fillList.setPrototypeCellValue(FMCellRenderer.LIST_PLACEHOLDER);
+		fillList.setPrototypeCellValue(PrototypeFill.instance);
 		gUtils = new GuiUtils(this);
 
 		assert SwingUtilities.isEventDispatchThread();
@@ -312,17 +312,31 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private class FMCellRenderer extends DefaultListCellRenderer {
 
 		private static final long serialVersionUID = 1L;
-		//static final String LIST_PLACEHOLDER = "No fillings currently exist";
 
 		@Override
 		public Component getListCellRendererComponent(final JList<?> list, final Object value, final int index,
 													  final boolean isSelected, final boolean cellHasFocus)
 		{
-			Fill fill = (Fill) value;
+
+			final Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+
+			final Fill fill = (Fill) value;
 			if (isFillLoaded(fill)) {
-				setBackground(getBackground().darker());
+				c.setFont(getFont().deriveFont(Font.BOLD));
+				//setBackground(getBackground().darker()); // Problematic when using Dark themes!?
+			} else if (fill instanceof PrototypeFill) {
+				c.setEnabled(false);
 			}
-			return super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+			return c;
+		}
+
+	}
+
+	private static class PrototypeFill extends Fill {
+		private static final PrototypeFill instance = new PrototypeFill();
+		@Override
+		public String toString() {
+			return "No fillings currently exist";
 		}
 	}
 
@@ -331,11 +345,11 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	protected void adjustListPlaceholder() {
-//		if (listModel.isEmpty()) {
-//				listModel.addElement(FMCellRenderer.LIST_PLACEHOLDER);
-//		} else if (listModel.getSize() > 1 ){
-//			listModel.removeElement(FMCellRenderer.LIST_PLACEHOLDER);
-//		}
+		if (listModel.isEmpty()) {
+			listModel.addElement(PrototypeFill.instance);
+		} else {
+			listModel.removeElement(PrototypeFill.instance);
+		}
 	}
 
 	private void addSeparator(final String label, final GridBagConstraints c) {
@@ -393,19 +407,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 */
 	@Override
 	public void setFillList(final List<Fill> fillList) {
-//		final List<String> entries = new ArrayList<>();
-//		int i = 0;
-//		for (final Fill f : fillList) {
-//			if (f == null) {
-//				SNTUtils.log("fill was null at index " + fillList.indexOf(f));
-//				continue;
-//			}
-//			String name = "Fill (" + (i++) + ")";
-//			if ((f.getSourcePaths() != null) && (f.getSourcePaths().size() > 0)) {
-//				name += " from paths: " + f.getSourcePathsStringHuman();
-//			}
-//			entries.add(name);
-//		}
 		SwingUtilities.invokeLater(() -> {
 			listModel.removeAllElements();
 			fillList.forEach(listModel::addElement);
@@ -519,7 +520,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	private boolean noFillsError() {
-		final boolean noFills = listModel.getSize() == 0;
+		final boolean noFills = listModel.getSize() == 0 || listModel.get(0) instanceof PrototypeFill;
 		if (noFills) gUtils.error("There are no fills stored.");
 		return noFills;
 	}
@@ -558,9 +559,15 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private <T extends RealType<T>> void exportAsImp(final FillConverter.ResultType resultType) {
 		if (noFillsError())
 			return;
+		if (plugin.fillerSet.isEmpty()) {
+			gUtils.error("All stored Fills are currently unloaded. Currently, only loaded fills "
+					+ "(those highlighted in the <i>Stored Fill(s)</i> list) can be exported into an "
+					+ "image. Please reload the Fill(s) you are attempting to export and re-try.");
+			return;
+		}
 		final List<FillerThread> fillers = getSelectedFills("export");
 		if (fillers.isEmpty()) {
-			gUtils.error("You must select at least one Fill for export");
+			gUtils.error("You must select at least one Fill for export.");
 			return;
 		}
 		final ImagePlus imp;
