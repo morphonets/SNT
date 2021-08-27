@@ -74,7 +74,8 @@ public class OneMinusErf implements Cost {
      */
     public void setZFudge(final double zFudge) {
         this.zFudge = zFudge;
-        // We have to re-compute the minimum step cost when changing the z-fudge, since it is used in the calculation.
+        // We have to re-compute the minimum step cost when changing the z-fudge,
+        // since it is used in the calculation.
         computeMinStepCost();
     }
 

@@ -2795,9 +2795,10 @@ public class SNTUI extends JDialog {
 		costMap.put("Reciprocal of Intensity (Default)", SNT.CostType.RECIPROCAL);
 		costMap.put("Difference of Intensity", SNT.CostType.DIFFERENCE);
 		costMap.put("Difference of Intensity Squared", SNT.CostType.DIFFERENCE_SQUARED);
-		costMap.put("Probability of Intensity...", SNT.CostType.PROBABILITY);
+		costMap.put("Probability of Intensity", SNT.CostType.PROBABILITY);
 		costMap.forEach((lbl, type) -> {
 			final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
+			rbmi.setToolTipText(type.getDescription());
 			costFunctionButtonGroup.add(rbmi);
 			optionsMenu.add(rbmi);
 			rbmi.setActionCommand(String.valueOf(type));
@@ -2807,14 +2808,17 @@ public class SNTUI extends JDialog {
 				updateSettingsString();
 				showStatus("Cost function: " + lbl, true);
 				SNTUtils.log("Cost function: Now using " + plugin.getCostType());
+				if (type == SNT.CostType.PROBABILITY) {
+					plugin.setUseSubVolumeStats(true);
+				}
 			});
 		});
 
 		optionsMenu.addSeparator();
 
-		optionsMenu.add(GuiUtils.leftAlignedLabel("Min-Max:", false));
+		optionsMenu.add(GuiUtils.leftAlignedLabel("Image Statistics:", false));
 		final ButtonGroup minMaxButtonGroup = new ButtonGroup();
-		JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem("Compute While Tracing", plugin.getUseSubVolumeStats());
+		JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem("Compute real-time", plugin.getUseSubVolumeStats());
 		minMaxButtonGroup.add(rbmi);
 		optionsMenu.add(rbmi);
 		rbmi.addActionListener(e -> plugin.setUseSubVolumeStats(true));

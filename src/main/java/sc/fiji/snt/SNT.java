@@ -137,6 +137,21 @@ public class SNT extends MultiDThreePanes implements
 	public enum CostType {
 		RECIPROCAL, DIFFERENCE, DIFFERENCE_SQUARED, PROBABILITY;
 
+		public String getDescription() {
+			switch (this) {
+				case RECIPROCAL:
+					return "Robust under a wide range of image conditions";
+				case DIFFERENCE:
+					return "Faster on images with right-shifted intensity distributions (i.e., mean >> 0)";
+				case DIFFERENCE_SQUARED:
+					return "Similar to Difference, usually faster";
+				case PROBABILITY:
+					return "Fast, especially on noisy or distribution-offset images. Use with real-time statistics";
+				default:
+					return "";
+			}
+		}
+
 		@Override
 		public String toString() {
 			return StringUtils.capitalize(super.toString().toLowerCase());
@@ -241,7 +256,7 @@ public class SNT extends MultiDThreePanes implements
 	protected volatile boolean isUseSubVolumeStats = false;
 
 	/* adjustable parameters for cost functions */
-	protected volatile double oneMinusErfZFudge = 1.0;
+	protected volatile double oneMinusErfZFudge = 0.8;
 
 	/* tracing threads */
 	private AbstractSearch currentSearchThread = null;
