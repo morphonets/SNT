@@ -2253,20 +2253,23 @@ public class SNT extends MultiDThreePanes implements
 
 	public ImagePlus getFilledBinaryImp() {
 		if (fillerSet.isEmpty()) return null;
-		FillConverter converter = new FillConverter(fillerSet);
+		final FillConverter converter = new FillConverter(fillerSet);
 		final RandomAccessibleInterval<BitType> out = Util.getSuitableImgFactory(getLoadedData(), new BitType())
 				.create(getLoadedData());
 		converter.convertBinary(out);
-		return ImgUtils.raiToImp(out, "Fill");
+		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
+		imp.copyScale(getImagePlus());
+		imp.resetDisplayRange();
+		return imp;
 	}
 
 	public <T extends RealType<T>> ImagePlus getFilledImp() {
 		if (fillerSet.isEmpty()) return null;
-		FillConverter converter = new FillConverter(fillerSet);
+		final FillConverter converter = new FillConverter(fillerSet);
 		final RandomAccessibleInterval<T> in = getLoadedData();
 		final RandomAccessibleInterval<T> out = Util.getSuitableImgFactory(in, Util.getTypeFromInterval(in)).create(in);
 		converter.convert(in, out);
-		ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
+		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
 		imp.copyScale(getImagePlus());
 		imp.resetDisplayRange();
 		return imp;
@@ -2274,11 +2277,11 @@ public class SNT extends MultiDThreePanes implements
 
 	public ImagePlus getFilledDistanceImp() {
 		if (fillerSet.isEmpty()) return null;
-		FillConverter converter = new FillConverter(fillerSet);
+		final FillConverter converter = new FillConverter(fillerSet);
 		final RandomAccessibleInterval<FloatType> out = Util.getSuitableImgFactory(
 				getLoadedData(), new FloatType()).create(getLoadedData());
 		converter.convertDistance(out);
-		ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
+		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
 		imp.copyScale(getImagePlus());
 		imp.resetDisplayRange();
 		return imp;
