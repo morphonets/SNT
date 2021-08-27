@@ -39,7 +39,7 @@ import smile.math.special.Erf;
 public class OneMinusErf implements Cost {
 
     static final double STEP_COST_LOWER_BOUND = 1e-60;
-    final double minCostPerUnitDistance;
+    private double minCostPerUnitDistance;
 
     private final double max;
     private final double avg;
@@ -76,7 +76,7 @@ public class OneMinusErf implements Cost {
         this.zFudge = zFudge;
         // We have to re-compute the minimum step cost when changing the z-fudge,
         // since it is used in the calculation.
-        computeMinStepCost();
+        this.minCostPerUnitDistance = computeMinStepCost();
     }
 
     public double getZFudge() {
