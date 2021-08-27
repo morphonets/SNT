@@ -46,10 +46,13 @@ import net.imglib2.IterableInterval;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.logic.BitType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.Pair;
+import net.imglib2.util.Util;
 import net.imglib2.view.Views;
 import org.apache.commons.lang3.StringUtils;
 import org.scijava.Context;
@@ -828,6 +831,7 @@ public class SNT extends MultiDThreePanes implements
 			removeThreadToDraw(fillerThread);
 		}
 		fillerSet.clear();
+		pathAndFillManager.getLoadedFills().clear();
 		fillerThreadPool = null;
 		changeUIState(SNTUI.WAITING_TO_START_PATH);
 		if (getUI() != null)
@@ -842,6 +846,7 @@ public class SNT extends MultiDThreePanes implements
 			removeThreadToDraw(filler);
 		}
 		fillerSet.clear();
+		pathAndFillManager.getLoadedFills().clear();
 		fillerThreadPool = null;
 		changeUIState(SNTUI.WAITING_TO_START_PATH);
 		if (getUI() != null)
@@ -2233,17 +2238,35 @@ public class SNT extends MultiDThreePanes implements
 
 	public ImagePlus getFilledBinaryImp() {
 		if (fillerSet.isEmpty()) return null;
-		return new FillConverter(fillerSet, getLoadedDataAsImp()).getBinaryImp();
+		FillConverter converter = new FillConverter(fillerSet);
+		final RandomAccessibleInterval<BitType> out = Util.getSuitableImgFactory(getLoadedData(), new BitType())
+				.create(getLoadedData());
+		converter.convertBinary(out);
+		return ImgUtils.raiToImp(out, "Fill");
 	}
 
-	public ImagePlus getFilledImp() {
+	public <T extends RealType<T>> ImagePlus getFilledImp() {
 		if (fillerSet.isEmpty()) return null;
-		return new FillConverter(fillerSet, getLoadedDataAsImp()).getImp();
+		FillConverter converter = new FillConverter(fillerSet);
+		final RandomAccessibleInterval<T> in = getLoadedData();
+		final RandomAccessibleInterval<T> out = Util.getSuitableImgFactory(in, Util.getTypeFromInterval(in)).create(in);
+		converter.convert(in, out);
+		ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
+		imp.copyScale(getImagePlus());
+		imp.resetDisplayRange();
+		return imp;
 	}
 
 	public ImagePlus getFilledDistanceImp() {
 		if (fillerSet.isEmpty()) return null;
-		return new FillConverter(fillerSet, getLoadedDataAsImp()).getDistanceImp();
+		FillConverter converter = new FillConverter(fillerSet);
+		final RandomAccessibleInterval<FloatType> out = Util.getSuitableImgFactory(
+				getLoadedData(), new FloatType()).create(getLoadedData());
+		converter.convertDistance(out);
+		ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
+		imp.copyScale(getImagePlus());
+		imp.resetDisplayRange();
+		return imp;
 	}
 
 	protected int guessResamplingFactor() {
@@ -2279,6 +2302,7 @@ public class SNT extends MultiDThreePanes implements
 
 	synchronized public void initPathsToFill(final Set<Path> fromPaths) {
 		fillerSet.clear();
+		pathAndFillManager.getLoadedFills().clear();
 		final boolean useSecondary = isTracingOnSecondaryImageActive();
 		@SuppressWarnings("unchecked")
 		final RandomAccessibleInterval<? extends RealType<?>> data = useSecondary ? secondaryData : sliceAtCT;
