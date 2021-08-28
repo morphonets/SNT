@@ -192,4 +192,13 @@ public class Fill {
 
 		return result.toString();
 	}
+
+	@Override
+	public String toString() {
+		String name = "Fill";
+		if ((getSourcePaths() != null) && (getSourcePaths().size() > 0)) {
+			name += " from paths: " + getSourcePathsStringHuman();
+		}
+		return name;
+	}
 }

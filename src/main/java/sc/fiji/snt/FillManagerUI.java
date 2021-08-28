@@ -22,12 +22,7 @@
 
 package sc.fiji.snt;
 
-import java.awt.BorderLayout;
-import java.awt.Component;
-import java.awt.FlowLayout;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
@@ -42,28 +37,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.stream.IntStream;
 
-import javax.swing.BorderFactory;
-import javax.swing.ButtonGroup;
-import javax.swing.DefaultListCellRenderer;
-import javax.swing.DefaultListModel;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JRadioButton;
-import javax.swing.JScrollPane;
-import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 import javax.swing.border.BevelBorder;
 
 import ij.ImagePlus;
 import net.imagej.ImageJ;
+import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.tracing.FillerThread;
 import sc.fiji.snt.tracing.SearchInterface;
@@ -87,10 +66,10 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	private final SNT plugin;
 	private final PathAndFillManager pathAndFillManager;
-	private final JList<String> fillList;
-	private final DefaultListModel<String> listModel;
+	private final JList<Fill> fillList;
+	private final DefaultListModel<Fill> listModel;
 	private final GuiUtils gUtils;
-	private float maxThresholdValue = 0;
+	private double maxThresholdValue = 0;
 	private State currentState;
 
 	private JTextField manualThresholdInputField;
@@ -103,6 +82,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private JButton startFill;
 	private JButton saveFill;
 	private JButton stopFill;
+	private JButton reloadFill;
 	private JRadioButton cursorThresholdChoice;
 	private JRadioButton manualThresholdChoice;
 	private JRadioButton exploredThresholdChoice;
@@ -127,7 +107,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		fillList = new JList<>(listModel);
 		fillList.setCellRenderer(new FMCellRenderer());
 		fillList.setVisibleRowCount(5);
-		fillList.setPrototypeCellValue(FMCellRenderer.LIST_PLACEHOLDER);
+		fillList.setPrototypeCellValue(PrototypeFill.instance);
 		gUtils = new GuiUtils(this);
 
 		assert SwingUtilities.isEventDispatchThread();
@@ -238,7 +218,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			plugin.updateTracingViewers(false);
 
 		});
-		final JButton reloadFill = new JButton("Reload");
+		reloadFill = new JButton("Reload");
 		reloadFill.addActionListener(e -> {
 			if (!noFillsError()) reload("Reload");
 		});
@@ -270,12 +250,29 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	}
 
-	private void reload(final String msg) {
+	private int[] getSelectedIndices(final String msg) {
 		int[] selectedIndices = (fillList.getModel().getSize() == 1 ) ? new int[] {0} : fillList.getSelectedIndices();
-		if (selectedIndices.length < 1 && gUtils
-				.getConfirmation("No fill was select for " + msg.toLowerCase() + ". " + msg + " all?", msg + " All?")) {
+		if (selectedIndices.length < 1 && gUtils.getConfirmation(
+				"No fill was select for " + msg.toLowerCase() + ". " + msg + " all?", msg + " All?"))
+		{
 			selectedIndices = IntStream.range(0, fillList.getModel().getSize()).toArray();
 		}
+		return selectedIndices;
+	}
+
+	private List<FillerThread> getSelectedFills(final String msg) {
+		int[] selectedIndices = getSelectedIndices(msg);
+		final List<FillerThread> fills = new ArrayList<>();
+		for (int i : selectedIndices) {
+			FillerThread filler = FillerThread.fromFill(plugin.getLoadedData(), plugin.getImagePlus().getCalibration(),
+					plugin.getStats(), pathAndFillManager.getAllFills().get(i));
+			fills.add(filler);
+		}
+		return fills;
+	}
+
+	private void reload(final String msg) {
+		int[] selectedIndices = getSelectedIndices(msg);
 		pathAndFillManager.reloadFills(selectedIndices);
 		fillList.setSelectedIndices(selectedIndices);
 		changeState(State.LOADED);
@@ -315,29 +312,43 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private class FMCellRenderer extends DefaultListCellRenderer {
 
 		private static final long serialVersionUID = 1L;
-		static final String LIST_PLACEHOLDER = "No fillings currently exist";
 
 		@Override
-		public Component getListCellRendererComponent(final JList<?> list, final Object value, final int index, final boolean isSelected,
-				final boolean cellHasFocus)
+		public Component getListCellRendererComponent(final JList<?> list, final Object value, final int index,
+													  final boolean isSelected, final boolean cellHasFocus)
 		{
 
-			if (LIST_PLACEHOLDER.equals(value.toString())) {
-				return GuiUtils.leftAlignedLabel(LIST_PLACEHOLDER, false);
-			} else {
-				if (isSelected) {
-					setBackground(getBackground().darker());
-				}
-				return super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+			final Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+
+			final Fill fill = (Fill) value;
+			if (isFillLoaded(fill)) {
+				c.setFont(getFont().deriveFont(Font.BOLD));
+				//setBackground(getBackground().darker()); // Problematic when using Dark themes!?
+			} else if (fill instanceof PrototypeFill) {
+				c.setEnabled(false);
 			}
+			return c;
 		}
+
+	}
+
+	private static class PrototypeFill extends Fill {
+		private static final PrototypeFill instance = new PrototypeFill();
+		@Override
+		public String toString() {
+			return "No fillings currently exist";
+		}
+	}
+
+	private boolean isFillLoaded(Fill fill) {
+		return plugin.getPathAndFillManager().getLoadedFills().containsKey(fill);
 	}
 
 	protected void adjustListPlaceholder() {
 		if (listModel.isEmpty()) {
-				listModel.addElement(FMCellRenderer.LIST_PLACEHOLDER);
-		} else if (listModel.getSize() > 1 ){
-			listModel.removeElement(FMCellRenderer.LIST_PLACEHOLDER);
+			listModel.addElement(PrototypeFill.instance);
+		} else {
+			listModel.removeElement(PrototypeFill.instance);
 		}
 	}
 
@@ -396,22 +407,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 */
 	@Override
 	public void setFillList(final List<Fill> fillList) {
-		final List<String> entries = new ArrayList<>();
-		int i = 0;
-		for (final Fill f : fillList) {
-			if (f == null) {
-				SNTUtils.log("fill was null at index " + fillList.indexOf(f));
-				continue;
-			}
-			String name = "Fill (" + (i++) + ")";
-			if ((f.getSourcePaths() != null) && (f.getSourcePaths().size() > 0)) {
-				name += " from paths: " + f.getSourcePathsStringHuman();
-			}
-			entries.add(name);
-		}
 		SwingUtilities.invokeLater(() -> {
 			listModel.removeAllElements();
-			entries.forEach(listModel::addElement);
+			fillList.forEach(listModel::addElement);
 			adjustListPlaceholder();
 		});
 	}
@@ -481,6 +479,11 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			if (plugin.fillerSet.isEmpty()) {
 				if (plugin.getUI().getPathManager().selectionExists()) {
 					plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(false)));
+					if (!manualThresholdChoice.isSelected()) {
+						plugin.setStopFillAtThreshold(false);
+					} else {
+						plugin.setStopFillAtThreshold(true);
+					}
 					plugin.startFilling();
 				} else  {
 					final int ans = gUtils.yesNoDialog("There are no paths selected in Path Manager. Would you like to "
@@ -488,11 +491,21 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 							+ "Manager list, and re-run. ", "Fill All Paths?", "Yes. Fill all.", "No. Let me select subsets.");
 					if (ans == JOptionPane.YES_OPTION) {
 						plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(true)));
+						if (!manualThresholdChoice.isSelected()) {
+							plugin.setStopFillAtThreshold(false);
+						} else {
+							plugin.setStopFillAtThreshold(true);
+						}
 						plugin.startFilling();
 					}
 				}
 			} else {
 				try {
+					if (!manualThresholdChoice.isSelected()) {
+						plugin.setStopFillAtThreshold(false);
+					} else {
+						plugin.setStopFillAtThreshold(true);
+					}
 					plugin.startFilling(); //TODO: Check if this is the only thing left to do.
 				} catch (final IllegalArgumentException ex) {
 					gUtils.error(ex.getMessage());
@@ -507,8 +520,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	private boolean noFillsError() {
-		final boolean noFills = listModel.getSize() == 0 || FMCellRenderer.LIST_PLACEHOLDER.equals(
-				listModel.getElementAt(0));
+		final boolean noFills = listModel.getSize() == 0 || listModel.get(0) instanceof PrototypeFill;
 		if (noFills) gUtils.error("There are no fills stored.");
 		return noFills;
 	}
@@ -530,13 +542,13 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private void assembleExportFillsMenu() {
 		exportFillsMenu = new JPopupMenu();
 		JMenuItem jmi = new JMenuItem("As Grayscale Image");
-		jmi.addActionListener(e-> exportAsImp("grayscale"));
+		jmi.addActionListener(e-> exportAsImp(FillConverter.ResultType.SAME));
 		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("As Binary Mask");
-		jmi.addActionListener(e-> exportAsImp("binary"));
+		jmi.addActionListener(e-> exportAsImp(FillConverter.ResultType.BINARY_MASK));
 		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("As Distance Image");
-		jmi.addActionListener(e-> exportAsImp("distance"));
+		jmi.addActionListener(e-> exportAsImp(FillConverter.ResultType.DISTANCE));
 		exportFillsMenu.add(jmi);
 		exportFillsMenu.addSeparator();
 		jmi = new JMenuItem("CSV Summary");
@@ -544,31 +556,38 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		exportFillsMenu.add(jmi);
 	}
 
-	private void exportAsImp(final String type) {
+	private <T extends RealType<T>> void exportAsImp(final FillConverter.ResultType resultType) {
 		if (noFillsError())
 			return;
-		if (plugin.fillerSet.isEmpty())
-			reload("Export");
-		ImagePlus imp;
-		switch (type.toLowerCase()) {
-		case "grayscale":
-			imp = plugin.getFilledImp();
-			break;
-		case "binary":
-			imp = plugin.getFilledBinaryImp();
-			break;
-		case "distance":
-			imp = plugin.getFilledDistanceImp();
-			break;
-		default:
-			throw new IllegalArgumentException("Unrecognized option");
+		if (plugin.fillerSet.isEmpty()) {
+			gUtils.error("All stored Fills are currently unloaded. Currently, only loaded fills "
+					+ "(those highlighted in the <i>Stored Fill(s)</i> list) can be exported into an "
+					+ "image. Please reload the Fill(s) you are attempting to export and re-try.");
+			return;
 		}
-		if (imp == null) {
-			// there are fills stashed but SNT#fillerSet is empty
-			gUtils.error("Image could not be displayed. Please reload desired fill(s) and try again.");
-		} else {
-			imp.show();
+		final List<FillerThread> fillers = getSelectedFills("export");
+		if (fillers.isEmpty()) {
+			gUtils.error("You must select at least one Fill for export.");
+			return;
 		}
+		final ImagePlus imp;
+		switch (resultType) {
+			case SAME: {
+				imp = plugin.getFilledImp();
+				break;
+			}
+			case BINARY_MASK: {
+				imp = plugin.getFilledBinaryImp();
+				break;
+			}
+			case DISTANCE: {
+				imp = plugin.getFilledDistanceImp();
+				break;
+			}
+			default:
+				throw new IllegalArgumentException("Unknown result type: " + resultType);
+		}
+		imp.show();
 	}
 
 	private void saveFills() {
@@ -595,11 +614,11 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	/* (non-Javadoc)
-	 * @see FillerProgressCallback#maximumDistanceCompletelyExplored(SearchThread, float)
+	 * @see FillerProgressCallback#maximumDistanceCompletelyExplored(SearchThread, double)
 	 */
 	@Override
 	public void maximumDistanceCompletelyExplored(final FillerThread source,
-		final float f)
+		final double f)
 	{
 		SwingUtilities.invokeLater(() -> {
 			maxThresholdLabel.setText("Max. explored distance: " + SNTUtils.formatDouble(f, 3));
@@ -642,7 +661,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		// do nothing
 	}
 
-	protected void showMouseThreshold(final float t) {
+	protected void showMouseThreshold(final double t) {
 		SwingUtilities.invokeLater(() -> {
 			String newStatus;
 			if (t < 0) {
@@ -677,6 +696,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFill.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(false);
+				reloadFill.setEnabled(true);
 				break;
 
 			case STARTED:
@@ -684,6 +704,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFill.setEnabled(false);
 				stopFill.setEnabled(true);
 				saveFill.setEnabled(false);
+				reloadFill.setEnabled(false);
 				break;
 
 			case LOADED:
@@ -691,6 +712,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFill.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(true);
+				reloadFill.setEnabled(false);
 				break;
 
 			case STOPPED:
@@ -698,6 +720,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFill.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(true);
+				reloadFill.setEnabled(false);
 				break;
 
 			case ENDED:
@@ -705,6 +728,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				startFill.setEnabled(true);
 				stopFill.setEnabled(false);
 				saveFill.setEnabled(true);
+				reloadFill.setEnabled(false);
 				break;
 
 			default:

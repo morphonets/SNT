@@ -215,7 +215,6 @@ public class BiSearch extends AbstractSearch {
             while (!open_from_goal.isEmpty() && !open_from_start.isEmpty()) {
 
                 if (Thread.currentThread().isInterrupted()) {
-                    SNTUtils.log("Search thread interrupted.");
                     reportFinished(false);
                     return;
                 }
@@ -234,7 +233,7 @@ public class BiSearch extends AbstractSearch {
 
                     final BiSearchNode p = open_from_start.deleteMin().getKey();
                     p.setHeapHandleFromStart(null);
-                    p.setStateFromStart(BiSearchNode.State.CLOSED_FROM_START);
+                    p.setStateFromStart(BiSearchNode.State.CLOSED);
                     closed_from_start_count++;
 
                     bestFScoreFromStart = p.getfFromStart();
@@ -259,7 +258,7 @@ public class BiSearch extends AbstractSearch {
 
                     final BiSearchNode p = open_from_goal.deleteMin().getKey();
                     p.setHeapHandleFromGoal(null);
-                    p.setStateFromGoal(BiSearchNode.State.CLOSED_FROM_GOAL);
+                    p.setStateFromGoal(BiSearchNode.State.CLOSED);
                     closed_from_goal_count++;
 
                     bestFScoreFromGoal = p.getfFromGoal();
@@ -371,13 +370,20 @@ public class BiSearch extends AbstractSearch {
         if (alreadyThere == null) {
             final BiSearchNode newNode = new BiSearchNode(new_x, new_y, new_z);
             newNode.setFrom(tentative_g, tentative_f, predecessor, fromStart);
+            newNode.setState(BiSearchNode.State.OPEN, fromStart);
             newNode.heapInsert(open_queue, fromStart);
             nodes_as_image.getSlice(newNode.getZ()).setValue(newNode.getX(), newNode.getY(), newNode);
 
-        } else if ((fromStart ? alreadyThere.getfFromStart() : alreadyThere.getfFromGoal()) > tentative_f) {
+        } else if (alreadyThere.getF(fromStart) > tentative_f) {
 
             alreadyThere.setFrom(tentative_g, tentative_f, predecessor, fromStart);
-            alreadyThere.heapInsertOrDecrease(open_queue, fromStart);
+            AddressableHeap.Handle<BiSearchNode, Void> handle = alreadyThere.getHeapHandle(fromStart);
+            if (handle == null) {
+                alreadyThere.setState(BiSearchNode.State.OPEN, fromStart);
+                alreadyThere.heapInsert(open_queue, fromStart);
+            } else {
+                alreadyThere.heapDecreaseKey(fromStart);
+            }
             final double pathLength = alreadyThere.getgFromStart() + alreadyThere.getgFromGoal();
             if (pathLength < bestPathLength)
             {

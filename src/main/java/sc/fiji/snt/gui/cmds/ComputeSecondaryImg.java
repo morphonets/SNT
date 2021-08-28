@@ -88,8 +88,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	private static final String PROMPT_TITLE = "Compute Secondary Layer...    "; // THIS MUST BE UNIQUE for getPrompt() to work
 	private static final String REFRESH_BUTTON_TITLE = "Refresh";
 
-	private static final String LAZY_LOADING_FALSE = "Save computations (Compute once and store result in RAM)";
-	private static final String LAZY_LOADING_TRUE = "Save memory (Dilute computation time across searches)";
+	private static final String LAZY_LOADING_FALSE = "Preprocess (Compute full image and store in RAM)";
+	private static final String LAZY_LOADING_TRUE = "Compute while tracing (Filter locally and cache in RAM)";
 
 	private static final int PALETTE_CLOSED = 0;
 	private static final int PALETTE_WAITING = 1;
@@ -141,8 +141,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	private String HEADER2;
 
 	@Parameter(label = "Strategy", choices = { LAZY_LOADING_FALSE, LAZY_LOADING_TRUE }, //
-			description = "<HTML><b>Save computations</b>: Allows for faster tracing when enough RAM is available.<br>"
-					+ "<b>Save Computations</b>: Allows for tracing of large images when available RAM is limited.")
+			description = "<HTML><b>Preprocess</b>: Cache entire image in RAM for fast searches<br>"
+					+ "<b>Compute while tracing</b>: Allows for tracing of large images when available RAM is limited.")
 	private String useLazyChoice;
 
 	@Parameter(label = "Output precision", choices = { FLOAT, DOUBLE })
@@ -328,7 +328,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			default:
 				throw new IllegalArgumentException("Unknown output type");
 		}
-		final int cellDim = 30; // side length for cell
+		final int cellDim = 32; // side length for cell
 		final Img<U> out;
 		switch (filter) {
 			case FRANGI: {

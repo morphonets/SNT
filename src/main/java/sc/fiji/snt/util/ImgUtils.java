@@ -22,7 +22,10 @@
 
 package sc.fiji.snt.util;
 
+import ij.ImagePlus;
 import net.imglib2.*;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.type.numeric.NumericType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
@@ -107,6 +110,16 @@ public class ImgUtils {
                 createBlocksRecursionLoop(intervals, sourceDimensions, blockDimensions, min, max, d + 1);
             }
         }
+    }
+
+    public static <T extends NumericType<T>> ImagePlus raiToImp(final RandomAccessibleInterval<T> rai,
+                                                                final String title)
+    {
+        RandomAccessibleInterval<T> axisCorrected = rai;
+        if (rai.numDimensions() == 3) {
+            axisCorrected = Views.permute(Views.addDimension(rai, 0, 0), 2, 3);
+        }
+        return ImageJFunctions.wrap(axisCorrected, title);
     }
 
 }

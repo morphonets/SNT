@@ -22,17 +22,11 @@
 
 package sc.fiji.snt;
 
-import ij.ImagePlus;
-import ij.measure.Calibration;
 import net.imglib2.RandomAccess;
-import net.imglib2.img.Img;
-import net.imglib2.img.display.imagej.ImageJFunctions;
-import net.imglib2.type.NativeType;
-import net.imglib2.type.logic.BitType;
-import net.imglib2.type.numeric.NumericType;
+import net.imglib2.RandomAccessible;
+import net.imglib2.type.Type;
 import net.imglib2.type.numeric.real.FloatType;
-import net.imglib2.util.Intervals;
-import net.imglib2.view.Views;
+import net.imglib2.type.operators.SetOne;
 import sc.fiji.snt.tracing.DefaultSearchNode;
 import sc.fiji.snt.tracing.FillerThread;
 import sc.fiji.snt.tracing.image.SearchImage;
@@ -42,7 +36,7 @@ import sc.fiji.snt.tracing.image.SupplierUtil;
 import java.util.Collection;
 
 /**
- * Convert a collection of {@link FillerThread}s to an {@link Img} or {@link ImagePlus}.
+ * Map filled nodes from a {@link Collection} of {@link FillerThread}s to a {@link RandomAccessible}.
  *
  * @author Cameron Arshadi
  */
@@ -50,73 +44,19 @@ public class FillConverter {
 
     public enum ResultType {SAME, BINARY_MASK, DISTANCE}
 
-    final Collection<FillerThread> fillers;
-    @SuppressWarnings("rawtypes")
-    final Img img;
-    final Calibration calibration;
-    final long[] imgDimensions;
-    SearchImageStack<DefaultSearchNode> newStack;
+    private final Collection<FillerThread> fillers;
+    private SearchImageStack<DefaultSearchNode> fillerStack;
 
-    public FillConverter(final Collection<FillerThread> fillers, final ImagePlus originalImp) {
+    public FillConverter(final Collection<FillerThread> fillers) {
         this.fillers = fillers;
-        this.img = ImageJFunctions.wrap(originalImp);
-        this.imgDimensions = Intervals.dimensionsAsLongArray(this.img);
-        this.calibration = originalImp.getCalibration();
     }
 
-    public <T extends NumericType<T> & NativeType<T>> FillConverter(final Collection<FillerThread> fillers,
-                                                                    final Img<T> originalImg,
-                                                                    final Calibration calibration)
+    public <T extends Type<T>> void convert(final RandomAccessible<T> in, 
+                                            final RandomAccessible<T> out)
     {
-        this.fillers = fillers;
-        this.img = originalImg;
-        this.imgDimensions = Intervals.dimensionsAsLongArray(originalImg);
-        this.calibration = calibration;
-    }
-
-    public <T extends NumericType<T> & NativeType<T>> Img<T> getImg() {
-        return createImg(ResultType.SAME);
-    }
-
-    public ImagePlus getImp() {
-        return createImp(ResultType.SAME);
-    }
-
-    public Img<BitType> getBinaryImg() {
-        return createImg(ResultType.BINARY_MASK);
-    }
-
-    public ImagePlus getBinaryImp() {
-        return createImp(ResultType.BINARY_MASK);
-    }
-
-    public Img<FloatType> getDistanceImg() {
-        return createImg(ResultType.DISTANCE);
-    }
-
-    public ImagePlus getDistanceImp() {
-        return createImp(ResultType.DISTANCE);
-    }
-
-    @SuppressWarnings({"unchecked"})
-    private <T extends NumericType<T> & NativeType<T>> Img<T> createImg(final ResultType resultType) {
-        final Img<T> fillImg;
-        switch (resultType) {
-            case SAME:
-                fillImg = (Img<T>) img.factory().create(imgDimensions);
-                break;
-            case BINARY_MASK:
-                fillImg = img.factory().imgFactory(new BitType()).create(imgDimensions);
-                break;
-            case DISTANCE:
-                fillImg = img.factory().imgFactory(new FloatType()).create(imgDimensions);
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown Fill image type " + resultType);
-        }
-        final RandomAccess<T> imgAccess = img.randomAccess();
-        final RandomAccess<T> fillImgAccess = fillImg.randomAccess();
-        final SearchImageStack<DefaultSearchNode> newStack = getStack();
+        final RandomAccess<T> inAccess = in.randomAccess();
+        final RandomAccess<T> outAccess = out.randomAccess();
+        final SearchImageStack<DefaultSearchNode> newStack = getFillerStack();
         final int[] pos = new int[3];
         for (final SearchImage<DefaultSearchNode> slice : newStack) {
             if (slice == null) continue;
@@ -125,52 +65,51 @@ public class FillConverter {
                 pos[0] = node.x;
                 pos[1] = node.y;
                 pos[2] = node.z;
-                switch (resultType) {
-                    case SAME:
-                        fillImgAccess.setPositionAndGet(pos).set(imgAccess.setPositionAndGet(pos));
-                        break;
-                    case BINARY_MASK:
-                        fillImgAccess.setPositionAndGet(pos).setOne();
-                        break;
-                    case DISTANCE:
-                        fillImgAccess.setPositionAndGet(pos).set((T) new FloatType((float)node.g));
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unknown result type " + resultType);
-                }
+                outAccess.setPositionAndGet(pos).set(inAccess.setPositionAndGet(pos));
             }
         }
-        return fillImg;
     }
 
-    private <T extends NumericType<T> & NativeType<T>> ImagePlus createImp(final ResultType resultType) {
-        final Img<T> img = createImg(resultType);
-        final ImagePlus fillImp;
-        if (img.numDimensions() == 3) {
-            // Swap C and T
-            fillImp = ImageJFunctions.wrap(
-                    Views.permute(
-                            Views.addDimension(
-                                    img,
-                                    0,
-                                    0),
-                            2,
-                            3),
-                    "Fill");
-        } else {
-            fillImp = ImageJFunctions.wrap(img, "Fill");
+    public <T extends SetOne> void convertBinary(final RandomAccessible<T> out)
+    {
+        final RandomAccess<T> outAccess = out.randomAccess();
+        final SearchImageStack<DefaultSearchNode> newStack = getFillerStack();
+        final int[] pos = new int[3];
+        for (final SearchImage<DefaultSearchNode> slice : newStack) {
+            if (slice == null) continue;
+            for (final DefaultSearchNode node : slice) {
+                if (node == null) continue;
+                pos[0] = node.x;
+                pos[1] = node.y;
+                pos[2] = node.z;
+                outAccess.setPositionAndGet(pos).setOne();
+            }
         }
-        fillImp.resetDisplayRange();
-        fillImp.setCalibration(calibration);
-        return fillImp;
     }
 
-    private SearchImageStack<DefaultSearchNode> getStack() {
-        if (newStack == null) {
-            newStack = new SearchImageStack<>(new SupplierUtil.MapSearchImageSupplier<>());
-            mergeFills(fillers, newStack);
+    public void convertDistance(final RandomAccessible<FloatType> out)
+    {
+        final RandomAccess<FloatType> outAccess = out.randomAccess();
+        final SearchImageStack<DefaultSearchNode> newStack = getFillerStack();
+        final int[] pos = new int[3];
+        for (final SearchImage<DefaultSearchNode> slice : newStack) {
+            if (slice == null) continue;
+            for (final DefaultSearchNode node : slice) {
+                if (node == null) continue;
+                pos[0] = node.x;
+                pos[1] = node.y;
+                pos[2] = node.z;
+                outAccess.setPositionAndGet(pos).set((float)node.g);
+            }
         }
-        return newStack;
+    }
+
+    public SearchImageStack<DefaultSearchNode> getFillerStack() {
+        if (fillerStack == null) {
+            fillerStack = new SearchImageStack<>(new SupplierUtil.MapSearchImageSupplier<>());
+            mergeFills(fillers, fillerStack);
+        }
+        return fillerStack;
     }
 
     private static void mergeFills(final Collection<FillerThread> fillers,

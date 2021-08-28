@@ -174,7 +174,7 @@ public class Tracing2DTest {
     }
 
     @Test
-    public void testHeuristicConsistency() {
+    public void testAstarAdmissibility() {
         AbstractSearch search = createSearch(
                 img,
                 SNT.SearchType.ASTAR,
@@ -185,6 +185,11 @@ public class Tracing2DTest {
         final double optimalLength = search.getResult().getLength();
         for (SNT.HeuristicType heuristicType : SNT.HeuristicType.values()) {
             for (SNT.SearchType searchType : SNT.SearchType.values()) {
+                // SearchThread is not guaranteed to yield the optimal path,
+                // since it terminates as soon as the two opposing searches meet.
+                // So ignore it for now.
+                if (searchType == SNT.SearchType.ASTAR)
+                    continue;
                 search = createSearch(
                         img,
                         searchType,

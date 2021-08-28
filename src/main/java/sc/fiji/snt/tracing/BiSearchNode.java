@@ -32,7 +32,7 @@ import org.jheaps.AddressableHeap;
  */
 public class BiSearchNode implements SearchNode {
 
-    public enum State {OPEN_FROM_START, OPEN_FROM_GOAL, CLOSED_FROM_START, CLOSED_FROM_GOAL, FREE}
+    public enum State {OPEN, CLOSED, FREE}
 
     private int x;
     private int y;
@@ -105,33 +105,17 @@ public class BiSearchNode implements SearchNode {
 
     public void heapInsert(final AddressableHeap<BiSearchNode, Void> heap, final boolean fromStart) {
         if (fromStart) {
-            this.stateFromStart = State.OPEN_FROM_START;
             heapHandleFromStart = heap.insert(this);
         } else {
-            this.stateFromGoal = State.OPEN_FROM_GOAL;
             heapHandleFromGoal = heap.insert(this);
         }
     }
 
-    public void heapInsertOrDecrease(final AddressableHeap<BiSearchNode, Void> heap, final boolean fromStart) {
+    public void heapDecreaseKey(final boolean fromStart) {
         if (fromStart) {
-            if (heapHandleFromStart == null) {
-                assert stateFromStart != State.OPEN_FROM_START;
-                stateFromStart = State.OPEN_FROM_START;
-                heapHandleFromStart = heap.insert(this);
-            } else {
-                assert stateFromStart == State.OPEN_FROM_START;
-                heapHandleFromStart.decreaseKey(this);
-            }
+            heapHandleFromStart.decreaseKey(this);
         } else {
-            if (heapHandleFromGoal == null) {
-                assert stateFromGoal != State.OPEN_FROM_GOAL;
-                stateFromGoal = State.OPEN_FROM_GOAL;
-                heapHandleFromGoal = heap.insert(this);
-            } else {
-                assert stateFromGoal == State.OPEN_FROM_GOAL;
-                heapHandleFromGoal.decreaseKey(this);
-            }
+            heapHandleFromGoal.decreaseKey(this);
         }
     }
 
@@ -141,6 +125,18 @@ public class BiSearchNode implements SearchNode {
 
     public State getStateFromGoal() {
         return stateFromGoal;
+    }
+
+    public State getState(final boolean fromStart) {
+        return fromStart ? stateFromStart : stateFromGoal;
+    }
+
+    public void setState(State state, final boolean fromStart) {
+        if (fromStart) {
+            setStateFromStart(state);
+        } else {
+            setStateFromGoal(state);
+        }
     }
 
     public void setStateFromStart(State stateFromStart) {
@@ -187,6 +183,14 @@ public class BiSearchNode implements SearchNode {
         this.predecessorFromGoal = predecessorFromGoal;
     }
 
+    public void setHeapHandle(final AddressableHeap.Handle<BiSearchNode, Void> handle, final boolean fromStart) {
+        if (fromStart) {
+            setHeapHandleFromStart(handle);
+        } else {
+            setHeapHandleFromGoal(handle);
+        }
+    }
+
     public void setHeapHandleFromStart(AddressableHeap.Handle<BiSearchNode, Void> heapHandleFromStart) {
         this.heapHandleFromStart = heapHandleFromStart;
     }
@@ -203,6 +207,10 @@ public class BiSearchNode implements SearchNode {
         return gFromGoal;
     }
 
+    public double getF(final boolean fromStart) {
+        return fromStart ? getfFromStart() : getfFromGoal();
+    }
+
     public double getfFromStart() {
         return fFromStart;
     }
@@ -217,6 +225,10 @@ public class BiSearchNode implements SearchNode {
 
     public BiSearchNode getPredecessorFromGoal() {
         return predecessorFromGoal;
+    }
+
+    public AddressableHeap.Handle<BiSearchNode, Void> getHeapHandle(final boolean fromStart) {
+        return fromStart ? getHeapHandleFromStart() : getHeapHandleFromGoal();
     }
 
     public AddressableHeap.Handle<BiSearchNode, Void> getHeapHandleFromStart() {

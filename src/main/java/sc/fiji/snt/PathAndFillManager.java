@@ -101,6 +101,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	private final Map<String, Path> pathNameMap;
 	private final Map<String, Path> pathNameLowercaseMap;
 	private final ArrayList<Fill> allFills;
+	private final Map<Fill, FillerThread> loadedFills;
 	private final ArrayList<PathAndFillListener> listeners;
 	private final HashSet<Path> selectedPathsSet;
 	private int maxUsedPathID = 0;
@@ -139,6 +140,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		pathNameMap = new HashMap<>();
 		pathNameLowercaseMap = new HashMap<>();
 		allFills = new ArrayList<>();
+		loadedFills = new HashMap<>();
 		listeners = new ArrayList<>();
 		selectedPathsSet = new HashSet<>();
 		resetSpatialSettings(false);
@@ -1247,10 +1249,20 @@ public class PathAndFillManager extends DefaultHandler implements
 				pafl.setFillList(allFills);
 	}
 
+	public Map<Fill, FillerThread> getLoadedFills() {
+		return loadedFills;
+	}
+
 	protected void reloadFills(int[] selectedIndices) {
 		for (int ind : selectedIndices) {
-			plugin.addFillerThread(FillerThread.fromFill(plugin.getLoadedData(),
-					plugin.getImagePlus().getCalibration(), plugin.getStats(), allFills.get(ind)));
+			Fill fill = allFills.get(ind);
+			FillerThread filler = FillerThread.fromFill(
+					plugin.getLoadedData(),
+					plugin.getImagePlus().getCalibration(),
+					plugin.getStats(),
+					fill);
+			loadedFills.put(fill, filler);
+			plugin.addFillerThread(filler);
 		}
 	}
 

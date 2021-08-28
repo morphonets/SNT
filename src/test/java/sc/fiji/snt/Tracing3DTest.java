@@ -155,8 +155,7 @@ public class Tracing3DTest {
 	@Test
 	public void testOneMinusErfCost() {
 		OneMinusErf cost = new OneMinusErf(stats.max, stats.mean, stats.stdDev);
-		cost.setZFudge(0.4);
-		costTest(cost, 355.9, 356);
+		costTest(cost, 222.9, 223.0);
 		cost.setZFudge(0.2);
 		costTest(cost, 341.0, 341.1);
 	}
@@ -186,10 +185,11 @@ public class Tracing3DTest {
 		final double optimalLength = search.getResult().getLength();
 		for (SNT.HeuristicType heuristicType : SNT.HeuristicType.values()) {
 			for (SNT.SearchType searchType : SNT.SearchType.values()) {
-				// SearchThread is not guaranteed to yield the optimal path,
+				// SearchThread is not guaranteed to yield the optimal path
 				// since it terminates as soon as the two opposing searches meet.
 				// So ignore it for now.
-				if (searchType == SNT.SearchType.ASTAR) continue;
+				if (searchType == SNT.SearchType.ASTAR)
+					continue;
 				search = createSearch(
 						img,
 						new Reciprocal(stats.min, stats.max), searchType,

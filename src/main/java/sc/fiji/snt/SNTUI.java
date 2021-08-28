@@ -1952,7 +1952,7 @@ public class SNTUI extends JDialog {
 
 	private JPanel secondaryDataPanel() {
 
-		secLayerActivateCheckbox = new JCheckBox(hotKeyLabel("Trace on Secondary Layer", "L"));
+		secLayerActivateCheckbox = new JCheckBox(hotKeyLabel("Trace/Fill on Secondary Layer", "L"));
 		guiUtils.addTooltip(secLayerActivateCheckbox,
 				"Whether auto-tracing should be computed on a filtered flavor of current image");
 		secLayerActivateCheckbox.addActionListener(listener);
@@ -2795,43 +2795,30 @@ public class SNTUI extends JDialog {
 		costMap.put("Reciprocal of Intensity (Default)", SNT.CostType.RECIPROCAL);
 		costMap.put("Difference of Intensity", SNT.CostType.DIFFERENCE);
 		costMap.put("Difference of Intensity Squared", SNT.CostType.DIFFERENCE_SQUARED);
-		costMap.put("Probability of Intensity...", SNT.CostType.PROBABILITY);
+		costMap.put("Probability of Intensity", SNT.CostType.PROBABILITY);
 		costMap.forEach((lbl, type) -> {
 			final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
+			rbmi.setToolTipText(type.getDescription());
 			costFunctionButtonGroup.add(rbmi);
 			optionsMenu.add(rbmi);
 			rbmi.setActionCommand(String.valueOf(type));
 			rbmi.setSelected(plugin.getCostType() == type);
 			rbmi.addActionListener(e -> {
-				if (type == SNT.CostType.PROBABILITY) {
-					final Double fudge = getZFudgeFromUser();
-					if (fudge == null) { // no value set: restore previous state
-						costFunctionButtonGroup.clearSelection();
-						final Enumeration<AbstractButton> buttons = costFunctionButtonGroup.getElements();
-						while (buttons.hasMoreElements()) {
-							final AbstractButton button = (AbstractButton) buttons.nextElement();
-							if (button.getActionCommand().equals(String.valueOf(plugin.getCostType())))
-								button.setSelected(true);
-								break;
-						}
-						showStatus("Cost function unchnanged...", true);
-						return;
-					}
-					plugin.oneMinusErfZFudge = fudge;
-					SNTUtils.log("Z-fudge changed to " + fudge);
-				}
 				plugin.setCostType(type);
 				updateSettingsString();
 				showStatus("Cost function: " + lbl, true);
 				SNTUtils.log("Cost function: Now using " + plugin.getCostType());
+				if (type == SNT.CostType.PROBABILITY) {
+					plugin.setUseSubVolumeStats(true);
+				}
 			});
 		});
 
 		optionsMenu.addSeparator();
 
-		optionsMenu.add(GuiUtils.leftAlignedLabel("Min-Max:", false));
+		optionsMenu.add(GuiUtils.leftAlignedLabel("Image Statistics:", false));
 		final ButtonGroup minMaxButtonGroup = new ButtonGroup();
-		JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem("Compute While Tracing", plugin.getUseSubVolumeStats());
+		JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem("Compute real-time", plugin.getUseSubVolumeStats());
 		minMaxButtonGroup.add(rbmi);
 		optionsMenu.add(rbmi);
 		rbmi.addActionListener(e -> plugin.setUseSubVolumeStats(true));
