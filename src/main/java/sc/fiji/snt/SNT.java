@@ -68,6 +68,7 @@ import org.scijava.vecmath.Point3d;
 import org.scijava.vecmath.Point3f;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.event.SNTListener;
+import sc.fiji.snt.tracing.artist.FillerThreadArtist;
 import sc.fiji.snt.tracing.cost.*;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.gui.GuiUtils;
@@ -1600,7 +1601,6 @@ public class SNT extends MultiDThreePanes implements
 
 		currentSearchThread = createSearch(x_start, y_start, z_start, x_end, y_end, z_end);
 		addThreadToDraw(currentSearchThread);
-		currentSearchThread.setDrawingThreshold(-1);
 		currentSearchThread.addProgressListener(this);
 		return tracerThreadPool.submit(currentSearchThread);
 	}
@@ -2366,6 +2366,11 @@ public class SNT extends MultiDThreePanes implements
 			getXZCanvas().setFillTransparent(transparent);
 			getZYCanvas().setFillTransparent(transparent);
 		}
+		searchArtists.values().stream()
+				.filter(a -> a instanceof FillerThreadArtist)
+				.forEach(a -> ((FillerThreadArtist) a)
+						.setTransparency(transparent ? 50 : 100));
+
 	}
 
 	public double getMinimumSeparation() {

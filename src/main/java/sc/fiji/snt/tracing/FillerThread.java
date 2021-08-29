@@ -302,6 +302,8 @@ public class FillerThread extends SearchThread {
                 final DefaultSearchNode p = open_from_start.deleteMin().getKey();
                 if (p == null) continue;
 
+                maxExploredDistance = Math.max(p.g, maxExploredDistance);
+
                 p.searchStatus = CLOSED_FROM_START;
                 closed_from_start_count++;
 
@@ -422,12 +424,6 @@ public class FillerThread extends SearchThread {
     protected void reportPointsInSearch() {
 
         super.reportPointsInSearch();
-
-        // Find the minimum distance in the open list.
-        final DefaultSearchNode p = open_from_start.findMin().getKey();
-        if (p == null) return;
-
-        maxExploredDistance = p.g;
 
         for (final SearchProgressCallback progress : progressListeners) {
             if (progress instanceof FillerProgressCallback) {

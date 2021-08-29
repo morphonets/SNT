@@ -51,9 +51,9 @@ public class SearchArtistFactory {
         }
     }
 
-    public SearchThreadArtist create(FillerThread search) {
+    public FillerThreadArtist create(FillerThread search) {
         Color fillColor = new Color(0, 128, 0);
-        return new SearchThreadArtist(search, fillColor, fillColor);
+        return new FillerThreadArtist(search, Color.CYAN, fillColor);
     }
 
     public SearchThreadArtist create(TracerThread search) {

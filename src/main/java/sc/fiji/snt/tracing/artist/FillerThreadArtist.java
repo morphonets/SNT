@@ -25,20 +25,21 @@ package sc.fiji.snt.tracing.artist;
 import sc.fiji.snt.TracerCanvas;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.tracing.DefaultSearchNode;
+import sc.fiji.snt.tracing.FillerThread;
 import sc.fiji.snt.tracing.SearchInterface;
 import sc.fiji.snt.tracing.SearchThread;
 import sc.fiji.snt.tracing.image.SearchImage;
+import sc.fiji.snt.util.SNTColor;
 
 import java.awt.*;
 
-public class SearchThreadArtist implements SearchArtist {
+public class FillerThreadArtist implements SearchArtist {
 
-    private final SearchThread search;
+    private final FillerThread search;
     private Color openColor;
     private Color closedColor;
-    private double drawingThreshold = -1;
 
-    public SearchThreadArtist(final SearchThread search, final Color openColor, final Color closedColor) {
+    public FillerThreadArtist(final FillerThread search, final Color openColor, final Color closedColor) {
         this.search = search;
         this.openColor = openColor;
         this.closedColor = closedColor;
@@ -52,20 +53,18 @@ public class SearchThreadArtist implements SearchArtist {
         this.closedColor = color;
     }
 
-    public void setDrawingThreshold(final double threshold) {
-        this.drawingThreshold =  threshold;
+    public void setTransparency(final double percent) {
+        this.openColor = SNTColor.alphaColor(openColor, percent);
+        this.closedColor = SNTColor.alphaColor(closedColor, percent);
     }
 
-    /*
-     * This draws over the Graphics object the current progress of the search at
-     * this slice. If openColor or closedColor are null then that means
-     * "don't bother to draw that list".
-     */
-    @Override
-    public void drawProgressOnSlice(final int plane,
-                                    final int currentSliceInPlane, final TracerCanvas canvas, final Graphics g)
-    {
 
+    @Override
+    public void drawProgressOnSlice(int plane,
+                                    int currentSliceInPlane,
+                                    TracerCanvas canvas,
+                                    Graphics g)
+    {
         for (int i = 0; i < 2; ++i) {
 
             /*
@@ -74,7 +73,6 @@ public class SearchThreadArtist implements SearchArtist {
              */
 
             final byte start_status = (i == 0) ? SearchThread.OPEN_FROM_START : SearchThread.CLOSED_FROM_START;
-            final byte goal_status = (i == 0) ? SearchThread.OPEN_FROM_GOAL : SearchThread.CLOSED_FROM_GOAL;
             final Color c = (i == 0) ? openColor : closedColor;
             if (c == null) continue;
 
@@ -86,10 +84,11 @@ public class SearchThreadArtist implements SearchArtist {
             if (plane == MultiDThreePanes.XY_PLANE) {
                 for (int y = 0; y < search.imgHeight; ++y)
                     for (int x = 0; x < search.imgWidth; ++x) {
-                        final DefaultSearchNode n = anyNodeUnderThreshold(x, y, currentSliceInPlane, drawingThreshold);
+                        final DefaultSearchNode n = anyNodeUnderThreshold(x, y, currentSliceInPlane,
+                                search.getThreshold());
                         if (n == null) continue;
                         final byte status = n.searchStatus;
-                        if (status == start_status || status == goal_status) g.fillRect(
+                        if (status == start_status) g.fillRect(
                                 canvas.myScreenX(x) - pixel_size / 2, canvas.myScreenY(y) -
                                         pixel_size / 2, pixel_size, pixel_size);
                     }
@@ -97,10 +96,11 @@ public class SearchThreadArtist implements SearchArtist {
             else if (plane == MultiDThreePanes.XZ_PLANE) {
                 for (int z = 0; z < search.imgDepth; ++z)
                     for (int x = 0; x < search.imgWidth; ++x) {
-                        final DefaultSearchNode n = anyNodeUnderThreshold(x, currentSliceInPlane, z, drawingThreshold);
+                        final DefaultSearchNode n = anyNodeUnderThreshold(x, currentSliceInPlane, z,
+                                search.getThreshold());
                         if (n == null) continue;
                         final byte status = n.searchStatus;
-                        if (status == start_status || status == goal_status) g.fillRect(
+                        if (status == start_status) g.fillRect(
                                 canvas.myScreenX(x) - pixel_size / 2, canvas.myScreenY(z) -
                                         pixel_size / 2, pixel_size, pixel_size);
                     }
@@ -108,10 +108,11 @@ public class SearchThreadArtist implements SearchArtist {
             else if (plane == MultiDThreePanes.ZY_PLANE) {
                 for (int y = 0; y < search.imgHeight; ++y)
                     for (int z = 0; z < search.imgDepth; ++z) {
-                        final DefaultSearchNode n = anyNodeUnderThreshold(currentSliceInPlane, y, z, drawingThreshold);
+                        final DefaultSearchNode n = anyNodeUnderThreshold(currentSliceInPlane, y, z,
+                                search.getThreshold());
                         if (n == null) continue;
                         final byte status = n.searchStatus;
-                        if (status == start_status || status == goal_status) g.fillRect(
+                        if (status == start_status) g.fillRect(
                                 canvas.myScreenX(z) - pixel_size / 2, canvas.myScreenY(y) -
                                         pixel_size / 2, pixel_size, pixel_size);
                     }
@@ -119,48 +120,26 @@ public class SearchThreadArtist implements SearchArtist {
         }
     }
 
+    public DefaultSearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
+                                                   final double threshold)
+    {
+        final SearchImage<DefaultSearchNode> startSlice = search.getNodesAsImageFromStart().getSlice(z);
+        if (startSlice == null)
+            return null;
+        try {
+            final DefaultSearchNode n = startSlice.getValue(x, y);
+            if ( n == null || (threshold >= 0 && n.g > threshold) ) {
+                return null;
+            }
+            return n;
+        } catch (ArrayIndexOutOfBoundsException e) {
+            // ignored
+        }
+        return null;
+    }
+
     @Override
     public SearchInterface getSearch() {
         return search;
     }
-
-    public DefaultSearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
-                                                   final double threshold)
-    {
-        SearchImage<DefaultSearchNode> startSlice = null;
-        try {
-            startSlice = search.getNodesAsImageFromStart().getSlice(z);
-        } catch (ArrayIndexOutOfBoundsException e) {
-            // ignored
-        }
-        SearchImage<DefaultSearchNode> goalSlice = null;
-        if (search.getNodesAsImageFromGoal() != null)
-            try {
-                goalSlice = search.getNodesAsImageFromGoal().getSlice(z);
-            } catch (ArrayIndexOutOfBoundsException e) {
-                // ignored
-            }
-        DefaultSearchNode n = null;
-        if (startSlice != null) {
-            try{
-                n = startSlice.getValue(x, y);
-            } catch (ArrayIndexOutOfBoundsException e) {
-                // FIXME: This only occurs with MapSearchImage
-                //  possibly a synchronization issue going on...
-                return null;
-            }
-            if (n != null && threshold >= 0 && n.g > threshold) n = null;
-            if (n == null && goalSlice != null) {
-                try {
-                    n = goalSlice.getValue(x, y);
-                } catch (ArrayIndexOutOfBoundsException e) {
-                    return null;
-                }
-
-                if (threshold >= 0 && n.g > threshold) n = null;
-            }
-        }
-        return n;
-    }
-
 }

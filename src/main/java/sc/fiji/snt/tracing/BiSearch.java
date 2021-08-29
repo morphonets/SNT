@@ -487,19 +487,8 @@ public class BiSearch extends AbstractSearch {
                     closed_from_start_count + closed_from_goal_count);
     }
 
-    @Override
-    public BiSearchNode anyNodeUnderThreshold(final int x, final int y, final int z, final double threshold) {
-        final SearchImage<BiSearchNode> slice = nodes_as_image.getSlice(z);
-        if (slice == null) {
-            return null;
-        }
-        try {
-            return slice.getValue(x, y);
-        } catch (ArrayIndexOutOfBoundsException e) {
-            // FIXME: This only occurs with MapSearchImage
-            //  possibly a synchronization issue going on...
-            return null;
-        }
+    public SearchImageStack<BiSearchNode> getNodesAsImage() {
+        return nodes_as_image;
     }
 
     static class NodeComparatorFromStart implements Comparator<BiSearchNode> {

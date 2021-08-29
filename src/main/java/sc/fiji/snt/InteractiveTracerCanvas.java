@@ -710,12 +710,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		int eitherSideParameter = eitherSide;
 		if (!just_near_slices) eitherSideParameter = -1;
 
-		if (!tracerPlugin.fillerSet.isEmpty()) {
-			for (final FillerThread fillerThread : tracerPlugin.fillerSet) {
-				fillerThread.setDrawingThreshold(fillerThread.getThreshold());
-			}
-		}
-
 		super.drawOverlay(g); // draw all paths, crosshair, etc.
 
 		if (editMode && tracerPlugin.getEditingPath() != null) {

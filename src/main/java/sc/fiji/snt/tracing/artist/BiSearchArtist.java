@@ -27,6 +27,7 @@ import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.tracing.BiSearch;
 import sc.fiji.snt.tracing.BiSearchNode;
 import sc.fiji.snt.tracing.SearchInterface;
+import sc.fiji.snt.tracing.image.SearchImage;
 
 import java.awt.*;
 
@@ -34,13 +35,26 @@ import java.awt.*;
 public class BiSearchArtist implements SearchArtist {
 
     private final BiSearch search;
-    private final Color openColor;
-    private final Color closedColor;
+    private Color openColor;
+    private Color closedColor;
+    private double drawingThreshold = -1;
 
     public BiSearchArtist(final BiSearch search, final Color openColor, final Color closedColor) {
         this.search = search;
         this.openColor = openColor;
         this.closedColor = closedColor;
+    }
+
+    public void setOpenColor(final Color color) {
+        this.openColor = color;
+    }
+
+    public void setClosedColor(final Color color) {
+        this.closedColor = color;
+    }
+
+    public void setDrawingThreshold(final double threshold) {
+        this.drawingThreshold =  threshold;
     }
 
     /*
@@ -75,8 +89,7 @@ public class BiSearchArtist implements SearchArtist {
             if (plane == MultiDThreePanes.XY_PLANE) {
                 for (int y = 0; y < search.imgHeight; ++y)
                     for (int x = 0; x < search.imgWidth; ++x) {
-                        final BiSearchNode n = search.anyNodeUnderThreshold(x, y, currentSliceInPlane,
-                                search.drawingThreshold);
+                        final BiSearchNode n = anyNodeUnderThreshold(x, y, currentSliceInPlane, drawingThreshold);
                         if (n == null) continue;
                         if (n.getStateFromStart() == start_status || n.getStateFromGoal() == goal_status) g.fillRect(
                                 canvas.myScreenX(x) - pixel_size / 2, canvas.myScreenY(y) -
@@ -86,8 +99,7 @@ public class BiSearchArtist implements SearchArtist {
             else if (plane == MultiDThreePanes.XZ_PLANE) {
                 for (int z = 0; z < search.imgDepth; ++z)
                     for (int x = 0; x < search.imgWidth; ++x) {
-                        final BiSearchNode n = search.anyNodeUnderThreshold(x, currentSliceInPlane, z,
-                                search.drawingThreshold);
+                        final BiSearchNode n = anyNodeUnderThreshold(x, currentSliceInPlane, z, drawingThreshold);
                         if (n == null) continue;
                         if (n.getStateFromStart() == start_status || n.getStateFromGoal() == goal_status) g.fillRect(
                                 canvas.myScreenX(x) - pixel_size / 2, canvas.myScreenY(z) -
@@ -97,8 +109,7 @@ public class BiSearchArtist implements SearchArtist {
             else if (plane == MultiDThreePanes.ZY_PLANE) {
                 for (int y = 0; y < search.imgHeight; ++y)
                     for (int z = 0; z < search.imgDepth; ++z) {
-                        final BiSearchNode n = search.anyNodeUnderThreshold(currentSliceInPlane, y, z,
-                                search.drawingThreshold);
+                        final BiSearchNode n = anyNodeUnderThreshold(currentSliceInPlane, y, z, drawingThreshold);
                         if (n == null) continue;
                         if (n.getStateFromStart() == start_status || n.getStateFromGoal() == goal_status) g.fillRect(
                                 canvas.myScreenX(z) - pixel_size / 2, canvas.myScreenY(y) -
@@ -111,6 +122,32 @@ public class BiSearchArtist implements SearchArtist {
     @Override
     public SearchInterface getSearch() {
         return search;
+    }
+
+    public BiSearchNode anyNodeUnderThreshold(final int x, final int y, final int z, final double threshold) {
+        final SearchImage<BiSearchNode> slice;
+        try {
+             slice = search.getNodesAsImage().getSlice(z);
+
+        } catch (ArrayIndexOutOfBoundsException e) {
+            return null;
+        }
+        if (slice == null) {
+            return null;
+        }
+        try {
+            BiSearchNode n = slice.getValue(x, y);
+            if ( n == null || threshold >= 0 && n.getgFromGoal() > threshold && n.getgFromStart() > threshold )
+            {
+                return null;
+            }
+            return n;
+
+        } catch (ArrayIndexOutOfBoundsException e) {
+            // FIXME: This only occurs with MapSearchImage
+            //  possibly a synchronization issue going on...
+        }
+        return null;
     }
 
 

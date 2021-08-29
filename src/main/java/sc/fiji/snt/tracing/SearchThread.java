@@ -489,36 +489,6 @@ public abstract class SearchThread extends AbstractSearch {
 		return exitReason;
 	}
 
-	@Override
-	public DefaultSearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
-													  final double threshold)
-	{
-		final SearchImage<DefaultSearchNode> startSlice = nodes_as_image_from_start.getSlice(z);
-		SearchImage<DefaultSearchNode> goalSlice = null;
-		if (nodes_as_image_from_goal != null) goalSlice = nodes_as_image_from_goal.getSlice(z);
-		DefaultSearchNode n = null;
-		if (startSlice != null) {
-			try{
-				n = startSlice.getValue(x, y);
-			} catch (ArrayIndexOutOfBoundsException e) {
-				// FIXME: This only occurs with MapSearchImage
-				//  possibly a synchronization issue going on...
-				return null;
-			}
-			if (n != null && threshold >= 0 && n.g > threshold) n = null;
-			if (n == null && goalSlice != null) {
-				try {
-					n = goalSlice.getValue(x, y);
-				} catch (ArrayIndexOutOfBoundsException e) {
-					return null;
-				}
-
-				if (threshold >= 0 && n.g > threshold) n = null;
-			}
-		}
-		return n;
-	}
-
 	// Add a node, ignoring requests to add duplicate nodes:
 
 	public void addNode(final DefaultSearchNode n, final boolean fromStart) {
@@ -561,6 +531,14 @@ public abstract class SearchThread extends AbstractSearch {
 			throw new IllegalArgumentException("BUG: Unknown status for SearchNode: " + n.searchStatus);
 		}
 
+	}
+
+	public SearchImageStack<DefaultSearchNode> getNodesAsImageFromStart() {
+		return nodes_as_image_from_start;
+	}
+
+	public SearchImageStack<DefaultSearchNode> getNodesAsImageFromGoal() {
+		return nodes_as_image_from_goal;
 	}
 
 }
