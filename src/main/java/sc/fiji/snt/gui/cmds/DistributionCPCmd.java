@@ -38,6 +38,7 @@ import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 
 import sc.fiji.snt.analysis.MultiTreeStatistics;
+import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
@@ -74,7 +75,7 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 		}
 		final MutableModuleItem<String> measurementChoiceInput = getInfo()
 			.getMutableInput("measurementChoice", String.class);
-		final List<String> choices = MultiTreeStatistics.getMetrics();
+		final List<String> choices = TreeAnalyzer.getMetrics(); // sMultiTreeStatistics.getMetrics() + common Sholl metrics
 		if (!calledFromPathManagerUI) choices.remove(MultiTreeStatistics.VALUES);
 		Collections.sort(choices);
 		measurementChoiceInput.setChoices(choices);

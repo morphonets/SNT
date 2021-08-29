@@ -44,6 +44,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.SNTTable;
+import sc.fiji.snt.analysis.ShollAnalyzer;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
@@ -149,11 +150,38 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 	@Parameter(label = MultiTreeStatistics.MEAN_RADIUS)
 	private boolean meanRadius;
 
+	@Parameter(label = "Sholl: "+ ShollAnalyzer.MEAN)
+	private boolean shollMean;
+
+	@Parameter(label = "Sholl: "+ ShollAnalyzer.SUM)
+	private boolean shollSum;
+
+	@Parameter(label = "Sholl: "+ ShollAnalyzer.MAX)
+	private boolean shollMax;
+
+	@Parameter(label = "Sholl: "+ ShollAnalyzer.N_MAX)
+	private boolean shollNMax;
+
+	@Parameter(label = "Sholl: "+ ShollAnalyzer.N_SECONDARY_MAX)
+	private boolean shollNSecMax;
+
+	@Parameter(label = "Sholl: "+ ShollAnalyzer.MAX_FITTED)
+	private boolean shollMaxFitted;
+
+	@Parameter(label = "Sholl: "+ ShollAnalyzer.MAX_FITTED_RADIUS)
+	private boolean shollMaxFittedRadius;
+
+	@Parameter(label = "Sholl: "+ ShollAnalyzer.POLY_FIT_DEGREE)
+	private boolean shollDegree;
+
+	@Parameter(label = "Sholl: "+ ShollAnalyzer.DECAY)
+	private boolean shollDecay;
+
 	// III. Options
 	@Parameter(label = "<HTML>&nbsp;<br><b>Options:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
 	private String SPACER3;
 
-	@Parameter(label = "Action", choices = {"Choose", "Select All", "Select None"}, callback="actionChoiceSelected")
+	@Parameter(label = "Action", choices = {"Choose", "Select All", "Select None", "Reverse selection"}, callback="actionChoiceSelected")
 	private String actionChoice;
 
 	@Parameter(label = "Distinguish compartments", description="<HTML><div WIDTH=500>Whether measurements "
@@ -234,6 +262,8 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 			setAllCheckboxesEnabled(true);
 		} else if (actionChoice.contains("None")) {
 			setAllCheckboxesEnabled(false);
+		} else if (actionChoice.contains("Reverse")) {
+			reverseCheckboxes();
 		}
 	}
 
@@ -262,6 +292,52 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		sRatio = enable;
 		terminalLength = enable;
 		width = enable;
+		shollMean = enable;
+		shollSum = enable;
+		shollMax = enable;
+		shollNMax = enable;
+		shollNSecMax = enable;
+		shollMaxFitted = enable;
+		shollMaxFittedRadius = enable;
+		shollDegree = enable;
+		shollDecay = enable;
+		actionChoice = "Choose";
+	}
+
+	private void reverseCheckboxes() {
+		avgBranchLength = !avgBranchLength;
+		avgContraction = !avgContraction;
+		avgFragmentation = !avgFragmentation;
+		avgRemoteAngle = !avgRemoteAngle;
+		avgPartitionAsymmetry = !avgPartitionAsymmetry;
+		avgFractalDimension = !avgFractalDimension;
+		avgSpineDensity = !avgSpineDensity;
+		cableLength = !cableLength;
+		depth = !depth;
+		height = !height;
+		meanRadius = !meanRadius;
+		nBPs = !nBPs;
+		nBranches = !nBranches;
+		nPrimaryBranches = !nPrimaryBranches;
+		nInnerBranches = !nInnerBranches;
+		nSpinesOrVaricosities = !nSpinesOrVaricosities;
+		nTerminalBranches = !nTerminalBranches;
+		nTips = !nTips;
+		primaryLength = !primaryLength;
+		innerLength = !innerLength;
+		sNumber = !sNumber;
+		sRatio = !sRatio;
+		terminalLength = !terminalLength;
+		width = !width;
+		shollMean = !shollMean;
+		shollSum = !shollSum;
+		shollMax = !shollMax;
+		shollNMax = !shollNMax;
+		shollNSecMax = !shollNSecMax;
+		shollMaxFitted = !shollMaxFitted;
+		shollMaxFittedRadius = !shollMaxFittedRadius;
+		shollDegree = !shollDegree;
+		shollDecay = !shollDecay;
 		actionChoice = "Choose";
 	}
 
@@ -293,7 +369,15 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		if(height) metrics.add(MultiTreeStatistics.HEIGHT);
 		if(depth) metrics.add(MultiTreeStatistics.DEPTH);
 		if(meanRadius) metrics.add(MultiTreeStatistics.MEAN_RADIUS);
-	
+		if(shollMean) metrics.add("Sholl: " + ShollAnalyzer.MEAN);
+		if(shollSum) metrics.add("Sholl: " + ShollAnalyzer.SUM);
+		if(shollMax) metrics.add("Sholl: " + ShollAnalyzer.MAX);
+		if(shollNMax) metrics.add("Sholl: " + ShollAnalyzer.N_MAX);
+		if(shollNSecMax) metrics.add("Sholl: " + ShollAnalyzer.N_SECONDARY_MAX);
+		if(shollMaxFitted) metrics.add("Sholl: " + ShollAnalyzer.MAX_FITTED);
+		if(shollMaxFittedRadius) metrics.add("Sholl: " + ShollAnalyzer.MAX_FITTED_RADIUS);
+		if(shollDegree) metrics.add("Sholl: " + ShollAnalyzer.POLY_FIT_DEGREE);
+		if(shollDecay) metrics.add("Sholl: " + ShollAnalyzer.DECAY);
 		if (metrics.isEmpty()) {
 			error("No metrics chosen.");
 			return;

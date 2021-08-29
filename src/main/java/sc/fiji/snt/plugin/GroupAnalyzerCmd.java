@@ -48,6 +48,7 @@ import sc.fiji.snt.analysis.GroupedTreeStatistics;
 import sc.fiji.snt.analysis.MultiTreeColorMapper;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.SNTChart;
+import sc.fiji.snt.analysis.ShollAnalyzer;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.SNTColor;
@@ -123,7 +124,16 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			MultiTreeStatistics.WIDTH,
 			MultiTreeStatistics.HEIGHT,
 			MultiTreeStatistics.DEPTH,
-			MultiTreeStatistics.MEAN_RADIUS
+			MultiTreeStatistics.MEAN_RADIUS,
+			"Sholl: "+ ShollAnalyzer.MEAN,
+			"Sholl: "+ ShollAnalyzer.SUM,
+			"Sholl: "+ ShollAnalyzer.MAX,
+			"Sholl: "+ ShollAnalyzer.N_MAX,
+			"Sholl: "+ ShollAnalyzer.N_SECONDARY_MAX,
+			"Sholl: "+ ShollAnalyzer.MAX_FITTED,
+			"Sholl: "+ ShollAnalyzer.MAX_FITTED_RADIUS,
+			"Sholl: "+ ShollAnalyzer.POLY_FIT_DEGREE,
+			"Sholl: "+ ShollAnalyzer.DECAY
 	})
 	private String metric;
 

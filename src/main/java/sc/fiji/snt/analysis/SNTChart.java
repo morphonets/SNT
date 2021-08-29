@@ -75,6 +75,7 @@ import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
 import org.jfree.chart.renderer.category.CategoryItemRenderer;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.chart.title.LegendTitle;
+import org.jfree.chart.title.PaintScaleLegend;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.title.Title;
 import org.jfree.chart.ui.Layer;
@@ -423,7 +424,12 @@ public class SNTChart extends ChartFrame {
 				legend.setItemFont(legend.getItemFont().deriveFont(size));
 			for (int i = 0; i < getChartPanel().getChart().getSubtitleCount(); i++) {
 				final Title title = getChartPanel().getChart().getSubtitle(i);
-				if (title instanceof TextTitle) {
+				if (title instanceof PaintScaleLegend) {
+					final PaintScaleLegend lt = (PaintScaleLegend) title;
+					lt.getAxis().setLabelFont(lt.getAxis().getLabelFont().deriveFont(size));
+					lt.getAxis().setTickLabelFont(lt.getAxis().getTickLabelFont().deriveFont(size));
+				}
+				else if (title instanceof TextTitle) {
 					final TextTitle tt = (TextTitle) title;
 					tt.setFont(tt.getFont().deriveFont(size));
 				} else if (title instanceof LegendTitle) {
@@ -475,6 +481,43 @@ public class SNTChart extends ChartFrame {
 			}
 			break;
 		}
+	}
+
+	private int getFontSize(final String scope) {
+		switch(scope.toLowerCase()) {
+		case "axis":
+		case "axes":
+		case "ticks":
+			if (getChartPanel().getChart().getPlot() instanceof XYPlot)
+				return getXYPlot().getDomainAxis().getTickLabelFont().getSize();
+			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot)
+				return getCategoryPlot().getDomainAxis().getTickLabelFont().getSize();
+			break;
+		case "legend":
+		case "legends":
+		case "subtitle":
+		case "subtitles":
+			final LegendTitle legend = getChartPanel().getChart().getLegend();
+			if (legend != null)
+				return legend.getItemFont().getSize();
+			for (int i = 0; i < getChartPanel().getChart().getSubtitleCount(); i++) {
+				final Title title = getChartPanel().getChart().getSubtitle(i);
+				if (title instanceof TextTitle) {
+					return ((TextTitle) title).getFont().getSize();
+				} else if (title instanceof LegendTitle) {
+					return ((LegendTitle) title).getItemFont().getSize();
+				}
+			}
+			break;
+		default: // labels  annotations
+			if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+				return getXYPlot().getDomainAxis().getLabelFont().getSize();
+			}
+			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+				return getCategoryPlot().getDomainAxis().getLabelFont().getSize();
+			}
+		}
+		return getChartPanel().getFont().getSize();
 	}
 
 	public void saveAsPNG(final File file) throws IOException {
@@ -536,6 +579,8 @@ public class SNTChart extends ChartFrame {
 			getChartPanel().setForeground(newColor);
 		if (getChartPanel().getChart().getBorderPaint() == oldColor)
 			getChartPanel().getChart().setBorderPaint(newColor);
+		if (getChartPanel().getChart().getTitle() != null)
+			getChartPanel().getChart().getTitle().setPaint(newColor);
 		final LegendTitle legend = getChartPanel().getChart().getLegend();
 		if (legend != null && legend.getItemPaint() == oldColor) {
 			legend.setItemPaint(newColor);
@@ -633,6 +678,52 @@ public class SNTChart extends ChartFrame {
 		if (string == null) return Color.BLACK;
 		final ColorRGB c = new ColorRGB(string);
 		return (c==null) ? Color.BLACK : new Color(c.getRed(), c.getGreen(), c.getBlue());
+	}
+
+	public void applyStyle(final SNTChart template) {
+		// misc
+		setPreferredSize(template.getPreferredSize());
+		setSize(template.getSize());
+		setGridlinesVisible(template.isGridlinesVisible());
+		setOutlineVisible(template.isOutlineVisible());
+
+		// colors (non-exhaustive)
+		setBackground(template.getBackground());
+		setForeground(template.getForeground());
+		getChartPanel().setBackground(template.getChartPanel().getBackground());
+		getChartPanel().setForeground(template.getChartPanel().getForeground());
+		getChartPanel().getChart().setBackgroundPaint(template.getChartPanel().getChart().getBackgroundPaint());
+		getChartPanel().getChart().setBorderPaint(template.getChartPanel().getChart().getBorderPaint());
+		if (getChartPanel().getChart().getLegend() != null && template.getChartPanel().getChart().getLegend() != null) {
+			getChartPanel().getChart().getLegend().setBackgroundPaint(template.getChartPanel().getChart().getLegend().getBackgroundPaint());
+			getChartPanel().getChart().getLegend().setItemPaint(template.getChartPanel().getChart().getLegend().getItemPaint());
+		}
+		getChartPanel().getChart().getPlot().setBackgroundPaint(template.getChartPanel().getChart().getPlot().getBackgroundPaint());
+		getChartPanel().getChart().getPlot().setOutlinePaint(template.getChartPanel().getChart().getPlot().getOutlinePaint());
+		getChartPanel().getChart().getPlot().setNoDataMessagePaint(template.getChartPanel().getChart().getPlot().getNoDataMessagePaint());
+		getChartPanel().setZoomOutlinePaint(template.getChartPanel().getZoomOutlinePaint());
+		getChartPanel().setZoomFillPaint(template.getChartPanel().getZoomFillPaint());
+		if (getChartPanel().getChart().getPlot() instanceof XYPlot && template.getChartPanel().getChart().getPlot() instanceof XYPlot) {
+			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
+			final XYPlot tPlot = (XYPlot)(template.getChartPanel().getChart().getPlot());
+			if (tPlot.getDomainAxis().getAxisLinePaint() instanceof Color)
+				setForegroundColor(plot.getDomainAxis(), (Color)tPlot.getDomainAxis().getAxisLinePaint());
+			if (tPlot.getRangeAxis().getAxisLinePaint() instanceof Color)
+				setForegroundColor(plot.getRangeAxis(), (Color)tPlot.getRangeAxis().getAxisLinePaint());
+		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+			final CategoryPlot tPlot = (CategoryPlot)(template.getChartPanel().getChart().getPlot());
+			if (tPlot.getDomainAxis().getAxisLinePaint() instanceof Color)
+				setForegroundColor(plot.getDomainAxis(), (Color)tPlot.getDomainAxis().getAxisLinePaint());
+			if (tPlot.getRangeAxis().getAxisLinePaint() instanceof Color)
+				setForegroundColor(plot.getRangeAxis(), (Color)tPlot.getRangeAxis().getAxisLinePaint());
+		}
+		// fonts
+		setFontSize(template.getFontSize("axis"), "axis");
+		setFontSize(template.getFontSize("labels"), "labels");
+		setFontSize(template.getFontSize("legend"), "legend");
+		getChartPanel().getChart().getPlot()
+				.setNoDataMessageFont(template.getChartPanel().getChart().getPlot().getNoDataMessageFont());
 	}
 
 	/**

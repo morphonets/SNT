@@ -507,8 +507,9 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * Returns a demo tree.
 	 *
 	 * @param tree a string describing the type of demo tree. Either 'fractal' for
-	 *             the L-system toy neuron or 'pyramidal' for the dendritic arbor of
-	 *             mouse pyramidal cell (MouseLight's cell AA0001)
+	 *             the L-system toy neuron, 'pyramidal' for the dendritic arbor of
+	 *             mouse pyramidal cell (MouseLight's cell AA0001), or 'OP1'for the
+	 *             DIADEM OP_1 reconstruction.
 	 * @see #demoImage(String)
 	 * @see #demoTrees()
 	 */
@@ -518,6 +519,9 @@ public class SNTService extends AbstractService implements ImageJService {
 		final String nTree = tree.toLowerCase().trim();
 		if (nTree.contains("fractal") || nTree.contains("toy") || nTree.contains("l-sys"))
 			return getResourceSWCTree("TreeV", "tests/TreeV.swc");
+		else if (nTree.contains("op") || nTree.contains("olfactory projection") || nTree.contains("diadem"))
+			return getResourceSWCTree("OP_1", "tests/OP_1-gs.swc");
+		else 
 		return getResourceSWCTree("AA0001", "ml/demo-trees/AA0001.swc");
 	}
 
