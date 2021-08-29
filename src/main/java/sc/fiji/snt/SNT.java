@@ -2369,7 +2369,7 @@ public class SNT extends MultiDThreePanes implements
 		searchArtists.values().stream()
 				.filter(a -> a instanceof FillerThreadArtist)
 				.forEach(a -> ((FillerThreadArtist) a)
-						.setTransparency(transparent ? 50 : 100));
+						.setOpacity(transparent ? 50 : 100));
 
 	}
 

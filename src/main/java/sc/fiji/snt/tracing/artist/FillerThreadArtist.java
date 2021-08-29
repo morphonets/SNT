@@ -53,7 +53,7 @@ public class FillerThreadArtist implements SearchArtist {
         this.closedColor = color;
     }
 
-    public void setTransparency(final double percent) {
+    public void setOpacity(final double percent) {
         this.openColor = SNTColor.alphaColor(openColor, percent);
         this.closedColor = SNTColor.alphaColor(closedColor, percent);
     }

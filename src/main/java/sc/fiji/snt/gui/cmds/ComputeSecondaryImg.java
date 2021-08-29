@@ -125,7 +125,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Filtering:")
 	private String HEADER1;
 
-	@Parameter(label = "Filter", choices = { FRANGI, TUBENESS, GAUSS, MEDIAN, NONE }, callback = "filterChanged")
+	@Parameter(label = "Filter", choices = {TUBENESS, FRANGI, GAUSS, MEDIAN, NONE }, callback = "filterChanged")
 	private String filter = FRANGI;
 
 	@Parameter(label = "Size of traced structures", required = false, //

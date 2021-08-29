@@ -2818,7 +2818,7 @@ public class SNTUI extends JDialog {
 
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Image Statistics:", false));
 		final ButtonGroup minMaxButtonGroup = new ButtonGroup();
-		JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem("Compute real-time", plugin.getUseSubVolumeStats());
+		JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem("Compute Real-Time", plugin.getUseSubVolumeStats());
 		minMaxButtonGroup.add(rbmi);
 		optionsMenu.add(rbmi);
 		rbmi.addActionListener(e -> plugin.setUseSubVolumeStats(true));
