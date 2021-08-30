@@ -590,14 +590,15 @@ public class PathAndFillManager extends DefaultHandler implements
 	public Collection<Tree> getTrees() {
 		final HashMap<String, Tree> map = new HashMap<>();
 		allPaths.forEach(p->{
-			final String treeID = p.getTreeLabel();
+			final Path pathToUse = (p.getUseFitted()) ? p.getFitted() : p;
+			String treeID = pathToUse.getTreeLabel();
 			if (map.get(treeID) == null) {
 				final Tree tree = new Tree();
 				tree.setLabel(treeID);
-				tree.add(p);
+				tree.add(pathToUse);
 				map.put(treeID, tree);
 			} else {
-				map.get(treeID).add(p);
+				map.get(treeID).add(pathToUse);
 			}
 		});
 		map.values().forEach( tree -> renameTreeAfterPrimaryPath(tree));

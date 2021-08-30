@@ -1042,15 +1042,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 							final PathFitter pf = pathsToFit.get(i);
 							pf.setScope(fitType);
 							pf.setMaxRadius(maxRadius);
-							pf.setReplaceNodes(fitInPlace);
 							pf.setProgressCallback(i, progress);
 						}
-						for (final Future<Path> future : es.invokeAll(pathsToFit)) {
-							final Path path = future.get();
-							if (!fitInPlace) pathAndFillManager.addPath(path);
-						}
+						es.invokeAll(pathsToFit);
 					}
-					catch (InterruptedException | ExecutionException | RuntimeException e) {
+					catch (final InterruptedException | RuntimeException e) {
 						msg.dispose();
 						guiUtils.error(
 							"Unfortunately an Exception occured. See Console for details");
@@ -1058,6 +1054,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					}
 					finally {
 						progress.done();
+						try {
+							es.shutdown();
+						} catch (final Exception ex) {
+							ex.printStackTrace();
+						}
 					}
 					return null;
 				}
@@ -1066,7 +1067,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				protected void done() {
 					if (pathsToFit != null) {
 						// since paths were fitted asynchronously, we need to rebuild connections
-						pathsToFit.forEach(p-> p.getPath().rebuildConnectionsOfFittedVersion());
+						if (fitInPlace) {
+							pathsToFit.forEach(p-> p.getPath().replaceNodesWithFittedVersion());
+						} else {
+							pathsToFit.forEach(p-> p.getPath().rebuildConnectionsOfFittedVersion());
+						}
 					}
 					refreshManager(true, false, getSelectedPaths(true));
 					msg.dispose();

@@ -266,10 +266,14 @@ public class Path implements Comparable<Path> {
 
 	protected void setTreeLabel(final String treeLabel) {
 		this.treeLabel = treeLabel;
+		if (getFitted() != null) getFitted().setTreeLabel(treeLabel); 
 	}
 
 	public String getTreeLabel() {
-		return (treeLabel == null) ? "Cell "+ getTreeID() : treeLabel;
+		if (isFittedVersionOfAnotherPath()) {
+			return fittedVersionOf.getTreeLabel();
+		}
+		return (treeLabel == null) ? "Cell " + getTreeID() : treeLabel;
 	}
 
 	/**
@@ -467,7 +471,35 @@ public class Path implements Comparable<Path> {
 		setOrder(other.order + 1);
 	}
 
-	public void rebuildConnectionsOfFittedVersion() {
+	protected void replaceNodesWithFittedVersion() {
+		if (fitted == null) {
+			throw new IllegalArgumentException("assignFittedNodes() called but path has no fitted flavor");
+		}
+		points = fitted.points;
+		precise_x_positions = fitted.precise_x_positions.clone();
+		precise_y_positions = fitted.precise_y_positions.clone();
+		precise_z_positions = fitted.precise_z_positions.clone();
+		if (fitted.radii != null) radii = fitted.radii.clone();
+		if (fitted.tangents_x != null) tangents_x = fitted.tangents_x.clone();
+		if (fitted.tangents_y != null) tangents_y = fitted.tangents_y.clone();
+		if (fitted.tangents_z != null) tangents_z = fitted.tangents_z.clone();
+		if (fitted.nodeValues != null) nodeValues = fitted.nodeValues.clone();
+		if (fitted.nodeAnnotations != null) nodeAnnotations = fitted.nodeAnnotations.clone();
+		if (fitted.nodeHemisphereFlags != null) nodeHemisphereFlags = fitted.nodeHemisphereFlags.clone();
+		setNodeColors(fitted.getNodeColors());
+		if (!getName().contains(" [Fitted*]")) setName( getName() + " [Fitted*]");
+		if (getStartJoins() != null) {
+			final int index = startJoins.indexNearestTo(precise_x_positions[0], precise_y_positions[0], precise_z_positions[0]);
+			final PointInImage pim = (index == -1) ? startJoinsPoint : startJoins.getNodeWithoutChecks(index);
+			startJoinsPoint.x = pim.x;
+			startJoinsPoint.y = pim.y;
+			startJoinsPoint.z = pim.z;
+		}
+		setUseFitted(false);
+		fitted = null;
+	}
+
+	protected void rebuildConnectionsOfFittedVersion() {
 		if (fitted == null) return;
 		if (isPrimary()) {
 			fitted.disconnectFromAll();
@@ -482,9 +514,6 @@ public class Path implements Comparable<Path> {
 			} else {
 				fitted.setStartJoin(startJoins, startJoinsPoint);
 			}
-//			System.out.println(fitted.getName() + " connected to " + fitted.getStartJoins().getName());
-//			System.out.println("        fitted.startJoinsPoint.onPath: " + fitted.startJoinsPoint.onPath.getName());
-
 		}
 
 		// FIXME: This shouldn't be needed!?
@@ -1988,25 +2017,15 @@ public class Path implements Comparable<Path> {
 		final double[] radii, final double[] optimized_x,
 		final double[] optimized_y, final double[] optimized_z)
 	{
-
 		this.points = nPoints;
 		if (tangents_x != null) this.tangents_x = tangents_x.clone();
-		if (tangents_x != null) this.tangents_y = tangents_y.clone();
-		if (tangents_x != null) this.tangents_z = tangents_z.clone();
+		if (tangents_y != null) this.tangents_y = tangents_y.clone();
+		if (tangents_z != null) this.tangents_z = tangents_z.clone();
 		if (radii != null) this.radii = radii.clone();
 
 		this.precise_x_positions = optimized_x.clone();
 		this.precise_y_positions = optimized_y.clone();
 		this.precise_z_positions = optimized_z.clone();
-	}
-
-	private String realToString() {
-		String name = getName();
-		if (name == null) name = "Path " + getID();
-		if (size() == 1) name += " [Single Point]";
-		if (swcType != SWC_UNDEFINED) name += " [" + getSWCtypeName(swcType,
-			false) + "]";
-		return name;
 	}
 
 	/**
@@ -2016,9 +2035,15 @@ public class Path implements Comparable<Path> {
 	 * @return the string
 	 */
 	@Override
-	public String toString() { //FIXME: this is probably horribly confusing.
-		if (useFitted) return getFitted().realToString();
-		return realToString();
+	public String toString() {
+		final StringBuilder sb = new StringBuilder(getName());
+		if (getUseFitted())
+			sb.append(" (Fitted)");
+		if (size() == 1)
+			sb.append(" [Single Point]");
+		if (swcType != SWC_UNDEFINED)
+			sb.append(" [").append(getSWCtypeName(swcType, false)).append(" ]");
+		return sb.toString();
 	}
 
 	/**

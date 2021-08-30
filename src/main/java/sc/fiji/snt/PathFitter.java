@@ -73,7 +73,6 @@ public class PathFitter implements Callable<Path> {
 	private int sideSearch = DEFAULT_MAX_RADIUS;
 	private int fitScope = RADII_AND_MIDPOINTS;
 	private Path fitted;
-	private boolean fitInPlace;
 
 
 	/**
@@ -129,20 +128,6 @@ public class PathFitter implements Callable<Path> {
 	}
 
 	/**
-	 * Sets whether fitting should occur "in place".
-	 *
-	 * @param replaceNodes If true, the nodes of the input Path will be replaced by
-	 *                     those of the fitted result. If false, the fitted result
-	 *                     is kept as a separated Path linked to the input as per
-	 *                     {@link Path#getFitted()}. Note that in the latter case,
-	 *                     some topological operations (e.g., forking) performed on
-	 *                     the fitted result may not percolate to the unfitted Path.
-	 */
-	public void setReplaceNodes(final boolean replaceNodes) {
-		fitInPlace = replaceNodes;
-	}
-
-	/**
 	 * Sets whether an interactive image of the result should be displayed.
 	 *
 	 * @param showAnnotatedView If true, an interactive stack (cross-section view)
@@ -163,7 +148,8 @@ public class PathFitter implements Callable<Path> {
 	/**
 	 * Takes the signal from the image specified in the constructor to fit
 	 * cross-section circles around the nodes of input path. Computation of fit is
-	 * confined to the neighborhood specified by {@link #setMaxRadius(int)}
+	 * confined to the neighborhood specified by {@link #setMaxRadius(int)}.
+	 * Note that connectivity of path may need to be rebuild upon fit.
 	 *
 	 * @return the reference to the computed result. This Path is automatically
 	 *         set as the fitted version of input Path.
@@ -176,24 +162,12 @@ public class PathFitter implements Callable<Path> {
 		fitCircles();
 		if (fitted == null) {
 			succeeded = false;
-			return (fitInPlace) ? path : null;
+			return null;
 		}
 		succeeded = true;
-		if (fitInPlace) {
-			final String name = path.getName();
-			if (!name.contains(" [Fitted*]")) path.setName( name + " [Fitted*]");
-			// coordinates/radii were already applied 
-			return path;
-		}
-
-		// All common properties have been set using Path#creatPath(),
-		// so we just need to adjust the name and set relationships
-		fitted.setName("Fitted Path [" + path.getID() + "]");
-
+		// Common properties have been set using Path#creatPath(),
 		path.setFitted(fitted);
 		path.setUseFitted(true);
-		path.rebuildConnectionsOfFittedVersion();
-
 		return fitted;
 	}
 
@@ -389,8 +363,9 @@ public class PathFitter implements Callable<Path> {
 				y_basis_in_plane[0] * y_from_centre_in_plane;
 			centre_real_y -= x_basis_in_plane[1] * x_from_centre_in_plane +
 				y_basis_in_plane[1] * y_from_centre_in_plane;
-			centre_real_z -= x_basis_in_plane[2] * x_from_centre_in_plane +
-				y_basis_in_plane[2] * y_from_centre_in_plane;
+			if (depth > 1)
+				centre_real_z -= x_basis_in_plane[2] * x_from_centre_in_plane +
+					y_basis_in_plane[2] * y_from_centre_in_plane;
 
 			SNTUtils.log("    Adjusted coordinates: " + centre_real_x + "," +
 				centre_real_y + "," + centre_real_z);
@@ -430,13 +405,6 @@ public class PathFitter implements Callable<Path> {
 			bp.setPixels(normalPlane);
 			stack.addSlice("Node " + (i + 1), bp);
 
-		}
-
-		if (!fitRadii && !showDetailedFittingResults) {
-			fitted.setFittedCircles(totalPoints, path.tangents_x, path.tangents_y,
-				path.tangents_z, path.radii, //
-				optimized_x, optimized_y, optimized_z);
-			SNTUtils.log("Done (radius fitting skipped)");
 		}
 
 		/*
@@ -625,15 +593,8 @@ public class PathFitter implements Callable<Path> {
 			++added;
 		}
 
-		if (fitInPlace) {
-			path.setFittedCircles(fittedPoints, fitted_ts_x, fitted_ts_y, fitted_ts_z,
-					fitted_rs, //
-					fitted_optimized_x, fitted_optimized_y, fitted_optimized_z);
-		} else {
-			fitted.setFittedCircles(fittedPoints, fitted_ts_x, fitted_ts_y, fitted_ts_z,
-					fitted_rs, //
-					fitted_optimized_x, fitted_optimized_y, fitted_optimized_z);
-		}
+		fitted.setFittedCircles(fittedPoints, fitted_ts_x, fitted_ts_y, fitted_ts_z, fitted_rs, //
+				fitted_optimized_x, fitted_optimized_y, fitted_optimized_z);
 
 		SNTUtils.log("Done. With " + fittedPoints + "/" + totalPoints +
 			" accepted fits");
