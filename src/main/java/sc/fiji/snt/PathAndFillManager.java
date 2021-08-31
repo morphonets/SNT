@@ -1404,9 +1404,27 @@ public class PathAndFillManager extends DefaultHandler implements
 				"\" height=\"" + plugin.height + "\" depth=\"" + plugin.depth + "\"/>");
 
 			for (final Path p : allPaths) {
-				// This probably should be a String returning
-				// method of Path.
-				pw.print("  <path id=\"" + p.getID() + "\"");
+				writePathToXML(pw, p);
+				if (p.getFitted() != null)
+					writePathToXML(pw, p.getFitted());
+			}
+			// Now output the fills:
+			int fillIndex = 0;
+			for (final Fill f : allFills) {
+				f.writeXML(pw, fillIndex);
+				++fillIndex;
+			}
+			pw.println("</tracings>");
+		}
+		finally {
+			if (pw != null) pw.close();
+		}
+	}
+
+	private void writePathToXML(final PrintWriter pw, final Path p) {
+		// This probably should be a String returning
+		// method of Path.
+		pw.print("  <path id=\"" + p.getID() + "\"");
 				pw.print(" swctype=\"" + p.getSWCType() + "\"");
 				pw.print(" color=\"" + SNTUtils.getColorString(p.getColor()) + "\"");
 				pw.print(" channel=\"" + p.getChannel() + "\"");
@@ -1436,15 +1454,12 @@ public class PathAndFillManager extends DefaultHandler implements
 				}
 				if (p.fittedVersionOf != null) {
 					pw.print(" fittedversionof=\"" + p.fittedVersionOf.getID() + "\"");
-				}
-				pw.print(startsString);
-				pw.print(endsString);
-				if (p.getName() != null) {
-					pw.print(" name=\"" + XMLFunctions.escapeForXMLAttributeValue(p
-						.getName()) + "\"");
-				}
-				pw.print(" reallength=\"" + p.getLength() + "\"");
-				pw.println(">");
+		}
+		pw.print(startsString);
+		pw.print(endsString);
+		pw.print(" name=\"" + XMLFunctions.escapeForXMLAttributeValue(p.toString()) + "\"");
+		pw.print(" reallength=\"" + p.getLength() + "\"");
+		pw.println(">");
 
 				for (int i = 0; i < p.size(); ++i) {
 					final int px = p.getXUnscaled(i);
@@ -1463,20 +1478,8 @@ public class PathAndFillManager extends DefaultHandler implements
 						attributes += " r=\"" + p.radii[i] + "\"";
 					}
 					pw.println("    <point " + attributes + "/>");
-				}
-				pw.println("  </path>");
-			}
-			// Now output the fills:
-			int fillIndex = 0;
-			for (final Fill f : allFills) {
-				f.writeXML(pw, fillIndex);
-				++fillIndex;
-			}
-			pw.println("</tracings>");
 		}
-		finally {
-			if (pw != null) pw.close();
-		}
+		pw.println("  </path>");
 	}
 
 	/* (non-Javadoc)

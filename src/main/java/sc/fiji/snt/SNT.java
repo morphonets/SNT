@@ -737,6 +737,7 @@ public class SNT extends MultiDThreePanes implements
 			if (isUIready()) ui.changeState(SNTUI.LOADING);
 			if (pathAndFillManager.load(file.getAbsolutePath())) {
 				prefs.setRecentDir(file);
+				if (ui != null) ui.getPathManager().updateMenuCommands();
 			}
 			if (isUIready()) ui.resetState();
 		}
