@@ -49,6 +49,7 @@ public class PathFitterCmd extends ContextCommand {
 	public static final String FITCHOICE_KEY = "choice";
 	public static final String MAXRADIUS_KEY = "maxrad";
 	public static final String FITINPLACE_KEY = "inplace";
+	public static final String SECLAYER_KEY = "secondary";
 
 	private static final String EMPTY_LABEL = "<html>&nbsp;";
 	private static final String CHOICE_RADII =
@@ -94,9 +95,11 @@ public class PathFitterCmd extends ContextCommand {
 		"<b>Max. radius:</b> This setting defines (in pixels) the largest radius " //
 		+ "allowed in the fit. It constrains the optimization to minimize fitting " //
 		+ "artifacts caused from neighboring structures (Tip: You can estimate the " //
-		+ "thickness of neurites by running <i>Estimate Radii</i> from the gear menu " //
-		+ "of the Auto-tracing widget):";
-	@Parameter(required = false, label = EMPTY_LABEL)
+		+ "thickness of neurites by running <i>Estimate Radii</i> from one of the " //
+		+ "gear menus of the Auto-tracing widget):";
+	@Parameter(required = false, label = EMPTY_LABEL, description="<HTML>NB: An exaggerated " //
+		+ "radius may originate jagged paths.<br>When in doubt, start with a smaller radius " //
+		+ "and repeat fitting in smaller increments")
 	private int maxRadius = PathFitter.DEFAULT_MAX_RADIUS;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
@@ -104,23 +107,31 @@ public class PathFitterCmd extends ContextCommand {
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg3 = HEADER +
-		"<b>Replace nodes:</b> Defines whether fitted paths should immediately "
-		+ "replace (override) input path(s):";
+		"<b>Target image:</b> Which image should be used for fitting?";
+	@Parameter(required = false, label = EMPTY_LABEL, choices= {"Main image", "Secondary (if available)"})
+	private String impChoice;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+	private final String spacer3 = EMPTY_LABEL;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+	private final String msg4 = HEADER +
+		"<b>Replace nodes:</b> Defines whether fitted coordinates/radii should "
+		+ "replace (override) those of input path(s):";
 
 	@Parameter(required = false, label = EMPTY_LABEL, choices = {
 			"Keep original path(s)", "Replace existing nodes (undoable operation)" })
 	private String fitInPlaceChoice;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
-	private final String spacer3 = EMPTY_LABEL;
+	private final String spacer4 = EMPTY_LABEL;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 			description="Press 'Reset' or set it to 0 to use the available processors on your computer")
-	private final String msg4 = HEADER +
+	private final String msg5 = HEADER +
 		"<b>Multithreading:</b> Number of parallel threads:";
 
-	@Parameter(required = false, label = EMPTY_LABEL, persist = false, min = "0", stepSize = "1",
-			description="Press 'Reset' or set it to 0 to use the available processors on your computer")
+	@Parameter(required = false, label = EMPTY_LABEL, persist = false, min = "0", stepSize = "1")
 	private int nThreads = SNTPrefs.getThreads();
 
 	@Parameter(required = false, label = "Reset Defaults", callback = "reset")
@@ -146,6 +157,7 @@ public class PathFitterCmd extends ContextCommand {
 					PathFitter.RADII_AND_MIDPOINTS);
 				break;
 		}
+		prefService.put(PathFitterCmd.class, SECLAYER_KEY, impChoice.toLowerCase().contains("secondary"));
 		prefService.put(PathFitterCmd.class, MAXRADIUS_KEY, maxRadius);
 		prefService.put(PathFitterCmd.class, FITINPLACE_KEY, fitInPlaceChoice.toLowerCase().contains("replace"));
 		nThreads = getAdjustedThreadNumber(nThreads);
@@ -163,6 +175,7 @@ public class PathFitterCmd extends ContextCommand {
 	private void reset() {
 		fitChoice = PathFitterCmd.CHOICE_RADII;
 		maxRadius = PathFitter.DEFAULT_MAX_RADIUS;
+		impChoice = "Main image";
 		fitInPlaceChoice = null;
 		nThreads = getAdjustedThreadNumber(0);
 		prefService.clear(PathFitterCmd.class); // useful if user dismisses dialog after pressing "Reset"

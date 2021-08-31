@@ -43,7 +43,7 @@ import pal.math.MultivariateFunction;
 public class PathFitter implements Callable<Path> {
 
 	/** The default max radius constraining the fit. */
-	public static int DEFAULT_MAX_RADIUS = 40;
+	public static int DEFAULT_MAX_RADIUS = 10;
 
 	/**
 	 * Flag specifying that the computed path should only inherit fitted radii
@@ -64,7 +64,7 @@ public class PathFitter implements Callable<Path> {
 	public static final int RADII_AND_MIDPOINTS = 4;
 
 	private final SNT plugin;
-	private final ImagePlus imp;
+	private ImagePlus imp;
 	private Path path;
 	private boolean showDetailedFittingResults;
 	private int fitterIndex;
@@ -96,9 +96,7 @@ public class PathFitter implements Callable<Path> {
 			"Cannot fit a null path");
 		if (path.isFittedVersionOfAnotherPath()) throw new IllegalArgumentException(
 			"Trying to fit an already fitted path");
-		if (imp == null) throw new IllegalArgumentException(
-			"Cannot fit a null image");
-		this.imp = imp;
+		setImp(imp);
 		this.plugin = null;
 		this.path = path;
 		this.fitterIndex = -1;
@@ -121,7 +119,7 @@ public class PathFitter implements Callable<Path> {
 		if (path.isFittedVersionOfAnotherPath()) throw new IllegalArgumentException(
 			"Trying to fit an already fitted path");
 		this.plugin = plugin;
-		this.imp = plugin.getLoadedDataAsImp();
+		setImp(plugin.getLoadedDataAsImp());
 		this.path = path;
 		this.fitterIndex = -1;
 		this.progress = null;
@@ -982,6 +980,18 @@ public class PathFitter implements Callable<Path> {
 		y_basis_vector[2] = bz_s;
 
 		return result;
+	}
+
+	/**
+	 * Sets the target image
+	 *
+	 * @param imp the Image containing the signal to which the fit will be
+	 *          performed
+	 */
+	public void setImp(final ImagePlus imp) {
+		if (imp == null) throw new IllegalArgumentException(
+				"Cannot fit a null image");
+		this.imp = imp;
 	}
 
 	private class CircleAttempt implements MultivariateFunction,

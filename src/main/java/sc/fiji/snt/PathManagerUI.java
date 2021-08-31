@@ -982,6 +982,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private int fitType = PathFitter.RADII;
 		private int maxRadius = PathFitter.DEFAULT_MAX_RADIUS;
 		private boolean fitInPlace = false;
+		private boolean secondary = false;
 		private SwingWorker<Object, Object> fitWorker;
 		private List<PathFitter> pathsToFit;
 
@@ -1037,9 +1038,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					final ExecutorService es = Executors.newFixedThreadPool(processors);
 					final FittingProgress progress = new FittingProgress(plugin.getUI(),
 						plugin.statusService, numberOfPathsToFit);
+					final ImagePlus imp = (secondary && plugin.isSecondaryDataAvailable()) ? plugin.getSecondaryDataAsImp()
+							: plugin.getLoadedDataAsImp();
 					try {
 						for (int i = 0; i < numberOfPathsToFit; ++i) {
 							final PathFitter pf = pathsToFit.get(i);
+							pf.setImp(imp);
 							pf.setScope(fitType);
 							pf.setMaxRadius(maxRadius);
 							pf.setProgressCallback(i, progress);
@@ -1109,6 +1113,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final String maxRadiustring = prefService.get(PathFitterCmd.class, PathFitterCmd.MAXRADIUS_KEY);
 				fitHelper.maxRadius = Integer.parseInt(maxRadiustring);
 				fitHelper.fitInPlace = prefService.getBoolean(PathFitterCmd.class, PathFitterCmd.FITINPLACE_KEY, false);
+				fitHelper.secondary = prefService.getBoolean(PathFitterCmd.class, PathFitterCmd.SECLAYER_KEY, false);
 			} catch (final InterruptedException | ExecutionException ignored) {
 				return null;
 			} catch (final NumberFormatException ex) {
