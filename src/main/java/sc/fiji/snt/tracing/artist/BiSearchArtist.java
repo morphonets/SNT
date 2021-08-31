@@ -137,7 +137,7 @@ public class BiSearchArtist implements SearchArtist {
         }
         try {
             BiSearchNode n = slice.getValue(x, y);
-            if ( n == null || threshold >= 0 && n.getgFromGoal() > threshold && n.getgFromStart() > threshold )
+            if ( n == null || threshold >= 0 && n.getGFromGoal() > threshold && n.getGFromStart() > threshold )
             {
                 return null;
             }

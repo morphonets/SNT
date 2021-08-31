@@ -159,27 +159,27 @@ public class BiSearchNode implements SearchNode {
         this.z = z;
     }
 
-    public void setgFromStart(double gFromStart) {
+    public void setGFromStart(final double gFromStart) {
         this.gFromStart = gFromStart;
     }
 
-    public void setgFromGoal(double gFromGoal) {
+    public void setGFromGoal(final double gFromGoal) {
         this.gFromGoal = gFromGoal;
     }
 
-    public void setfFromStart(double fFromStart) {
+    public void setFFromStart(final double fFromStart) {
         this.fFromStart = fFromStart;
     }
 
-    public void setfFromGoal(double fFromGoal) {
+    public void setFFromGoal(final double fFromGoal) {
         this.fFromGoal = fFromGoal;
     }
 
-    public void setPredecessorFromStart(BiSearchNode predecessorFromStart) {
+    public void setPredecessorFromStart(final BiSearchNode predecessorFromStart) {
         this.predecessorFromStart = predecessorFromStart;
     }
 
-    public void setPredecessorFromGoal(BiSearchNode predecessorFromGoal) {
+    public void setPredecessorFromGoal(final BiSearchNode predecessorFromGoal) {
         this.predecessorFromGoal = predecessorFromGoal;
     }
 
@@ -191,31 +191,35 @@ public class BiSearchNode implements SearchNode {
         }
     }
 
-    public void setHeapHandleFromStart(AddressableHeap.Handle<BiSearchNode, Void> heapHandleFromStart) {
+    public void setHeapHandleFromStart(final AddressableHeap.Handle<BiSearchNode, Void> heapHandleFromStart) {
         this.heapHandleFromStart = heapHandleFromStart;
     }
 
-    public void setHeapHandleFromGoal(AddressableHeap.Handle<BiSearchNode, Void> heapHandleFromGoal) {
+    public void setHeapHandleFromGoal(final AddressableHeap.Handle<BiSearchNode, Void> heapHandleFromGoal) {
         this.heapHandleFromGoal = heapHandleFromGoal;
     }
 
-    public double getgFromStart() {
+    public double getG(final boolean fromStart) {
+        return fromStart ? getGFromStart() : getGFromGoal();
+    }
+
+    public double getGFromStart() {
         return gFromStart;
     }
 
-    public double getgFromGoal() {
+    public double getGFromGoal() {
         return gFromGoal;
     }
 
     public double getF(final boolean fromStart) {
-        return fromStart ? getfFromStart() : getfFromGoal();
+        return fromStart ? getFFromStart() : getFFromGoal();
     }
 
-    public double getfFromStart() {
+    public double getFFromStart() {
         return fFromStart;
     }
 
-    public double getfFromGoal() {
+    public double getFFromGoal() {
         return fFromGoal;
     }
 

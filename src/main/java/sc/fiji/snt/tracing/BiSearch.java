@@ -184,8 +184,8 @@ public class BiSearch extends AbstractSearch {
             final BiSearchNode start = new BiSearchNode(start_x, start_y, start_z);
             final BiSearchNode goal = new BiSearchNode(goal_x, goal_y, goal_z);
 
-            start.setgFromStart(0d);
-            goal.setgFromGoal(0d);
+            start.setGFromStart(0d);
+            goal.setGFromGoal(0d);
 
             double bestFScoreFromStart = heuristic.estimateCostToGoal(start.getX(), start.getY(), start.getZ(),
                     goal.getX(), goal.getY(), goal.getZ()) * costFunction.minStepCost();
@@ -193,8 +193,8 @@ public class BiSearch extends AbstractSearch {
             double bestFScoreFromGoal = heuristic.estimateCostToGoal(goal.getX(), goal.getY(), goal.getZ(),
                     start.getX(), start.getY(), start.getZ()) * costFunction.minStepCost();
 
-            start.setfFromStart(bestFScoreFromStart);
-            goal.setfFromGoal(bestFScoreFromGoal);
+            start.setFFromStart(bestFScoreFromStart);
+            goal.setFFromGoal(bestFScoreFromGoal);
 
             bestPathLength = Double.POSITIVE_INFINITY;
 
@@ -236,13 +236,13 @@ public class BiSearch extends AbstractSearch {
                     p.setStateFromStart(BiSearchNode.State.CLOSED);
                     closed_from_start_count++;
 
-                    bestFScoreFromStart = p.getfFromStart();
+                    bestFScoreFromStart = p.getFFromStart();
 
-                    if (p.getgFromStart() + heuristic.estimateCostToGoal(p.getX(), p.getY(), p.getZ(),
+                    if (p.getGFromStart() + heuristic.estimateCostToGoal(p.getX(), p.getY(), p.getZ(),
                             goal.getX(), goal.getY(), goal.getZ()) * costFunction.minStepCost()
                             >= bestPathLength
                             ||
-                            p.getgFromStart() + bestFScoreFromGoal - heuristic.estimateCostToGoal(p.getX(), p.getY(),
+                            p.getGFromStart() + bestFScoreFromGoal - heuristic.estimateCostToGoal(p.getX(), p.getY(),
                                     p.getZ(), start.getX(), start.getY(), start.getZ()) * costFunction.minStepCost()
                                     >= bestPathLength)
                     {
@@ -261,13 +261,13 @@ public class BiSearch extends AbstractSearch {
                     p.setStateFromGoal(BiSearchNode.State.CLOSED);
                     closed_from_goal_count++;
 
-                    bestFScoreFromGoal = p.getfFromGoal();
+                    bestFScoreFromGoal = p.getFFromGoal();
 
-                    if (p.getgFromGoal() + heuristic.estimateCostToGoal(p.getX(), p.getY(), p.getZ(), start.getX(),
+                    if (p.getGFromGoal() + heuristic.estimateCostToGoal(p.getX(), p.getY(), p.getZ(), start.getX(),
                             start.getY(), start.getZ()) * costFunction.minStepCost()
                             >= bestPathLength
                             ||
-                            p.getgFromGoal() + bestFScoreFromStart -
+                            p.getGFromGoal() + bestFScoreFromStart -
                                     heuristic.estimateCostToGoal(p.getX(), p.getY(), p.getZ(), goal.getX(), goal.getY(),
                                             goal.getZ()) * costFunction.minStepCost()
                                     >= bestPathLength)
@@ -338,9 +338,12 @@ public class BiSearch extends AbstractSearch {
                         cost_moving_to_new_point = costFunction.minStepCost();
                     }
 
-                    final double current_g = fromStart ? p.getgFromStart() : p.getgFromGoal();
-                    final double tentative_g = current_g + Math.sqrt(
-                            Math.pow(xdiff * xSep, 2) + Math.pow(ydiff * ySep, 2) + Math.pow(zdiff * zSep, 2))
+                    final double current_g = p.getG(fromStart);
+                    final double tentative_g = current_g +
+                            Math.sqrt(
+                                    Math.pow(xdiff * xSep, 2) +
+                                    Math.pow(ydiff * ySep, 2) +
+                                    Math.pow(zdiff * zSep, 2))
                             * cost_moving_to_new_point;
 
                     final double tentative_h = heuristic.estimateCostToGoal(
@@ -384,7 +387,7 @@ public class BiSearch extends AbstractSearch {
             } else {
                 alreadyThere.heapDecreaseKey(fromStart);
             }
-            final double pathLength = alreadyThere.getgFromStart() + alreadyThere.getgFromGoal();
+            final double pathLength = alreadyThere.getGFromStart() + alreadyThere.getGFromGoal();
             if (pathLength < bestPathLength)
             {
                 bestPathLength = pathLength;
@@ -494,7 +497,7 @@ public class BiSearch extends AbstractSearch {
     static class NodeComparatorFromStart implements Comparator<BiSearchNode> {
 
         public int compare(BiSearchNode n1, BiSearchNode n2) {
-            int result = Double.compare(n1.getfFromStart(), n2.getfFromStart());
+            int result = Double.compare(n1.getFFromStart(), n2.getFFromStart());
             if (result != 0) {
                 return result;
 
@@ -524,7 +527,7 @@ public class BiSearch extends AbstractSearch {
     static class NodeComparatorFromGoal implements Comparator<BiSearchNode> {
 
         public int compare(BiSearchNode n1, BiSearchNode n2) {
-            int result = Double.compare(n1.getfFromGoal(), n2.getfFromGoal());
+            int result = Double.compare(n1.getFFromGoal(), n2.getFFromGoal());
             if (result != 0) {
                 return result;
 
