@@ -257,7 +257,8 @@ public class SNT extends MultiDThreePanes implements
 	protected volatile boolean isUseSubVolumeStats = false;
 
 	/* adjustable parameters for cost functions */
-	protected volatile double oneMinusErfZFudge = 0.8;
+	// This should be less than 1, prevents meandering path
+	protected volatile double oneMinusErfZFudge = 0.2;
 
 	/* tracing threads */
 	private AbstractSearch currentSearchThread = null;
