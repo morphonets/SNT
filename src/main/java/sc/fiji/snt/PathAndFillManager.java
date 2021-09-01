@@ -1913,15 +1913,17 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	@SuppressWarnings("deprecation")
-	private void addTo3DViewer(final Path p) {
-		if (plugin != null && plugin.use3DViewer && p.fittedVersionOf == null && p
-			.size() > 1)
-		{
-			Path pathToAdd;
-			if (p.getUseFitted()) pathToAdd = p.getFitted();
-			else pathToAdd = p;
-			pathToAdd.addTo3DViewer(plugin.univ, plugin.deselectedColor,
-				plugin.colorImage);
+	private void addImportedPathsTo3DViewer() {
+		if (plugin != null && plugin.use3DViewer) {
+			for (final Path p : allPaths) {
+				if (p.isFittedVersionOfAnotherPath() || p.size() < 2)
+					continue;
+				Path pathToAdd;
+				if (p.getUseFitted()) pathToAdd = p.getFitted();
+				else pathToAdd = p;
+				pathToAdd.addTo3DViewer(plugin.univ, plugin.deselectedColor,
+					plugin.colorImage);
+			}
 		}
 	}
 
@@ -2031,15 +2033,23 @@ public class PathAndFillManager extends DefaultHandler implements
 							throw new TracesFileFormatException(
 									"Malformed traces file: p didn't match p.fittedVersionOf.fitted");
 					}
-					if (p.getUseFitted()) {
+					else if (p.getUseFitted()) {
 						throw new TracesFileFormatException(
 								"Malformed traces file: p.useFitted was true but p.fitted was null");
 					}
 				}
 
-				// Now we're safe to add them all to the 3D Viewer
-				for (final Path p : allPaths) {
-					addTo3DViewer(p);
+				// allPaths have been used to store all imported paths, including fitted ones.
+				// Fitted paths are accessed through the Path#fitted field of each path, not
+				// through this manager, so now we'll delete those. //FIXME: this is not efficient
+				for (final Iterator<Path> itr = allPaths.iterator(); itr.hasNext();) {
+					final Path p = itr.next();
+					if (p.isFittedVersionOfAnotherPath()) {
+						itr.remove();
+						pathIdMap.remove(p.getID(), p);
+						pathNameMap.remove(p.getName(), p);
+						pathNameLowercaseMap.remove(p.getName().toLowerCase(Locale.ROOT), p);
+					}
 				}
 
 				// Now turn the source paths into real paths...
@@ -2057,7 +2067,9 @@ public class PathAndFillManager extends DefaultHandler implements
 				//  so do a final rebuild to ensure everything makes sense. This is a workaround until
 				//  we can figure out why it is happening in the first place.
 				rebuildRelationships();
-				setSelected(new ArrayList<Path>(), this);
+
+				addImportedPathsTo3DViewer(); // Now we're safe to add them all to the 3D Viewer
+				if (plugin != null) plugin.updateTracingViewers(true);
 				resetListeners(null, true);
 				break;
 		}
@@ -3072,12 +3084,12 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	/**
-	 * Returns 'de facto' Paths.
+	 * Returns the 'de facto' Paths.
 	 *
 	 * @return the paths associated with this PathAndFillManager instance excluding
 	 *         those that are null or fitted version of o paths.
 	 */
-	public List<Path> getPathsFiltered() {
+	public List<Path> getPathsFiltered() { // FIXME: this is no longer needed
 		return (List<Path>) getPaths().stream().filter(p -> p != null && !p.isFittedVersionOfAnotherPath())
 				.collect(Collectors.toList());
 	}

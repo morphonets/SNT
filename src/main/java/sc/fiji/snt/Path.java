@@ -1202,6 +1202,8 @@ public class Path implements Comparable<Path> {
 			c.precise_y_positions[i] = precise_y_positions[(points - 1) - i];
 			c.precise_z_positions[i] = precise_z_positions[(points - 1) - i];
 		}
+		if (c.fitted != null)
+			c.fitted = c.fitted.reversed();
 		return c;
 	}
 
