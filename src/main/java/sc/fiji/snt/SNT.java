@@ -293,7 +293,6 @@ public class SNT extends MultiDThreePanes implements
 	private String[] materialList;
 	private byte[][] labelData;
 
-	protected volatile boolean loading = false;
 	private volatile boolean lastStartPointSet = false;
 
 	protected double last_start_point_x;
@@ -738,7 +737,6 @@ public class SNT extends MultiDThreePanes implements
 			if (isUIready()) ui.changeState(SNTUI.LOADING);
 			if (pathAndFillManager.load(file.getAbsolutePath())) {
 				prefs.setRecentDir(file);
-				if (ui != null) ui.getPathManager().updateMenuCommands();
 			}
 			if (isUIready()) ui.resetState();
 		}
@@ -1249,12 +1247,10 @@ public class SNT extends MultiDThreePanes implements
 
 	/** Assumes UI is available */
 	synchronized protected void loadTracesFile(File file) {
-		loading = true;
 		if (file == null) file = ui.openFile("Open .traces File...", "traces");
 		if (file == null) return; // user pressed cancel;
 		if (!file.exists()) {
 			guiUtils.error(file.getAbsolutePath() + " is no longer available");
-			loading = false;
 			return;
 		}
 		final int guessedType = pathAndFillManager.guessTracesFileType(file
@@ -1273,17 +1269,14 @@ public class SNT extends MultiDThreePanes implements
 					" is not a valid traces file.");
 				break;
 		}
-		loading = false;
 	}
 
 	/** Assumes UI is available */
 	synchronized protected void loadSWCFile(File file) {
-		loading = true;
 		if (file == null) file = ui.openFile("Open (e)SWC File...", "swc");
 		if (file == null) return; // user pressed cancel;
 		if (!file.exists()) {
 			guiUtils.error(file.getAbsolutePath() + " is no longer available");
-			loading = false;
 			return;
 		}
 		final int guessedType = pathAndFillManager.guessTracesFileType(file
@@ -1306,7 +1299,6 @@ public class SNT extends MultiDThreePanes implements
 					" does not seem to contain valid SWC data.");
 				break;
 		}
-		loading = false;
 	}
 
 	public void mouseMovedTo(final double x_in_pane, final double y_in_pane,

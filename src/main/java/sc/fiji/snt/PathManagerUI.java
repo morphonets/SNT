@@ -1678,10 +1678,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}).start();
 	}
 
-	protected void updateMenuCommands() {
-		updateCmdsManyOrNoneSelected(getSelectedPaths(true));
-	}
-
 	private void refreshManager(final boolean refreshCmds,
 		final boolean refreshViewers, final Collection<Path> selectedPaths)
 	{

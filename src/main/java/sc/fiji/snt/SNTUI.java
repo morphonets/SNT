@@ -739,7 +739,7 @@ public class SNTUI extends JDialog {
 				junkSegment.setEnabled(false);
 				completePath.setEnabled(false);
 
-				pmUI.valueChanged(null); // Fake a selection change in the path tree:
+				//FIXME: Check that we really don't need this: pmUI.valueChanged(null); // Fake a selection change in the path tree
 				showPartsNearby.setEnabled(isStackAvailable());
 				setEnableAutoTracingComponents(plugin.isAstarEnabled(), true);
 				fmUI.setEnabledWhileNotFilling();

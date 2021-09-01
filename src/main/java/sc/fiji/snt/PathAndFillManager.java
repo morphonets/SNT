@@ -2278,8 +2278,10 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	private boolean load(final InputStream is) {
 
+		final boolean existingEnableUiUpdates = enableUIupdates;
 		try {
 
+			enableUIupdates = false;
 			final SAXParserFactory factory = SAXParserFactory.newInstance();
 			factory.setValidating(true);
 			final SAXParser parser = factory.newSAXParser();
@@ -2321,8 +2323,10 @@ public class PathAndFillManager extends DefaultHandler implements
 			e.printStackTrace();
 			return false;
 
+		} finally {
+			enableUIupdates = existingEnableUiUpdates;
 		}
-
+		resetListeners(null, true);
 		return true;
 
 	}
@@ -2909,6 +2913,8 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @return true, if successful
 	 */
 	public boolean load(final String filePath, final int... swcTypes) {
+		final boolean existingEnableUiUpdates = enableUIupdates;
+		enableUIupdates = false;
 		final int guessedType = guessTracesFileType(filePath);
 		boolean result;
 		switch (guessedType) {
@@ -2928,10 +2934,12 @@ public class PathAndFillManager extends DefaultHandler implements
 				SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);
 				return false;
 		}
+		enableUIupdates = existingEnableUiUpdates;
 		if (result) {
 			final File file = new File(filePath);
 			if (getPlugin() != null) getPlugin().getPrefs().setRecentDir(file);
 			if (boundingBox != null) boundingBox.info = file.getName();
+			resetListeners(null, true);
 		}
 		return result;
 	}
@@ -2939,24 +2947,35 @@ public class PathAndFillManager extends DefaultHandler implements
 	public boolean loadGuessingType(final String optionalDescription, final InputStream is) throws IOException {
 		final BufferedInputStream bis = (is instanceof BufferedInputStream) ? ((BufferedInputStream)is) : new BufferedInputStream(is);
 		final int guessedType = guessTracesFileType(bis, false);
+		final boolean existingEnableUiUpdates = enableUIupdates;
+		enableUIupdates = false;
+		boolean result;
 		switch (guessedType) {
 		case TRACES_FILE_TYPE_COMPRESSED_XML:
 			SNTUtils.log("Loading gzipped file...");
-			return load(new GZIPInputStream(bis));
+			result = load(new GZIPInputStream(bis));
+			break;
 		case TRACES_FILE_TYPE_UNCOMPRESSED_XML:
 			SNTUtils.log("Loading uncompressed file...");
-			return load(bis);
+			result = load(bis);
+			break;
 		case TRACES_FILE_TYPE_ML_JSON:
 			final Map<String, TreeSet<SWCPoint>> nMap = MouseLightLoader.extractNodes(bis, "all");
 			final Map<String, Tree> outMap = importNeurons(nMap, null, "um");
-			return outMap.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty());
+			result = outMap.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty());
+			break;
 		case TRACES_FILE_TYPE_SWC:
 			final BufferedReader br = new BufferedReader(new InputStreamReader(bis, StandardCharsets.UTF_8));
-			return plugin.getPathAndFillManager().importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, true);
+			result = plugin.getPathAndFillManager().importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, true);
+			break;
 		default:
 			SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);
-			return false;
+			result = false;
+			break;
 		}
+		enableUIupdates = existingEnableUiUpdates;
+		resetListeners(null, true);
+		return result;
 	}
 
 	private void checkForAppropriateImageDimensions() {
