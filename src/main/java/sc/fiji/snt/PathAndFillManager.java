@@ -1457,7 +1457,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 		pw.print(startsString);
 		pw.print(endsString);
-		pw.print(" name=\"" + XMLFunctions.escapeForXMLAttributeValue(p.toString()) + "\"");
+		pw.print(" name=\"" + XMLFunctions.escapeForXMLAttributeValue(p.getName()) + "\"");
 		pw.print(" reallength=\"" + p.getLength() + "\"");
 		pw.println(">");
 
@@ -2063,10 +2063,11 @@ public class PathAndFillManager extends DefaultHandler implements
 					}
 					f.setSourcePaths(realSourcePaths);
 				}
+
 				// FIXME: after import there still can be different Cell IDs within the same Tree,
 				//  so do a final rebuild to ensure everything makes sense. This is a workaround until
 				//  we can figure out why it is happening in the first place.
-				rebuildRelationships();
+				//rebuildRelationships(); // will remove imported Fits
 
 				addImportedPathsTo3DViewer(); // Now we're safe to add them all to the 3D Viewer
 				if (plugin != null) plugin.updateTracingViewers(true);

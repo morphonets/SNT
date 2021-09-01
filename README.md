@@ -71,12 +71,12 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 
 * Support for up to 5D multidimensional images (including multichannel, and those with a time axis). While tracing, visibility of non-traced channels can be toggled at will
 * Precise placement of nodes is aided by a local search that automatically snaps the cursor to neurites wihin a 3D neighborhood
-* A* search can be performed on a second, non-displayed image. This allows for e.g., tracing on a pre-process (filtered) image while interacting with the unfiltered image (or vice-versa). If enough RAM is available toggling between the two data sources is immediate
+* A* search can be performed on a secondary, non-displayed image. This allows for e.g., tracing on a pre-processed or locally generated filtered image while interacting with the unfiltered image (or vice-versa). Toggling between the two data sources is immediate.
 * Tracing can be interleaved with image processing routines
 * Tracing is scriptable. Interactive scripts allow for real-time inspection of results
 * Paths can be tagged, searched, grouped and filtered by morphometric properties (length, radius, etc.)
-* Paths can be edited, i.e., a path can be merged into a existing one, or split into two. Nodes can be moved, deleted, or inserted
-* Post-hoc refinement of node positioning by 'snapping' traces to the fluorescent signal associated with a a path
+* Paths can be edited, i.e., a path can be linked or merged together, or split into two. Nodes can be moved, deleted, or inserted
+* Post-hoc refinement of node positioning and radii by 'fitting' traces to the fluorescent signal associated with a path
 * Auto-tracing: Generation of traces from thresholded images (binarized skeletons)
 
 ### Analysis

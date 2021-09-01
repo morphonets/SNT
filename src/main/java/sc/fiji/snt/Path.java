@@ -2039,7 +2039,7 @@ public class Path implements Comparable<Path> {
 	@Override
 	public String toString() {
 		final StringBuilder sb = new StringBuilder(getName());
-		if (getUseFitted())
+		if (getUseFitted() && sb.lastIndexOf("(Fitted)") < 0)
 			sb.append(" (Fitted)");
 		if (size() == 1)
 			sb.append(" [Single Point]");
