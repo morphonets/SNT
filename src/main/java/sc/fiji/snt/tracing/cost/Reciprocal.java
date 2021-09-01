@@ -24,14 +24,18 @@ package sc.fiji.snt.tracing.cost;
 
 /**
  * Uses the reciprocal of voxel intensity, rescaled to the interval (double precision)
- * 255.0 * (intensity - min) / (max - min)
+ * (2^16 - 1) * (intensity - min) / (max - min)
  * to compute the cost of moving to a neighbor node.
  */
 public class Reciprocal implements Cost {
 
-    // For 0 intensity, use half the smallest possible rescaled value (assuming we don't allow DoubleType)
-    static final double RECIPROCAL_FUDGE = (255 * 0.5 * (double)Float.MIN_VALUE) / (double)Float.MAX_VALUE;
-    static final double MIN_COST_PER_UNIT_DISTANCE = 1 / 255.0;
+    // In theory, this value should be smaller than any intensity we can reasonably expect from a 32-bit image,
+    //  since a value of 0 should have maximal cost. In practice, setting this any smaller than ~1E-10 leads to
+    //  erratic search behavior at light / dark boundaries. 1E-6 appears to behave well over different bit depths and
+    //  intensity ranges.
+    public static final double RECIPROCAL_FUDGE = 1E-6;
+    public static final double CONST_16 = Math.pow(2, 16) - 1;
+    public static final double MIN_COST_PER_UNIT_DISTANCE = 1 / CONST_16;
 
     private final double min;
     private final double max;
@@ -43,11 +47,11 @@ public class Reciprocal implements Cost {
 
     @Override
     public double costMovingTo(double valueAtNewPoint) {
-        valueAtNewPoint = 255.0 * (valueAtNewPoint - min) / (max - min);
+        valueAtNewPoint = CONST_16 * (valueAtNewPoint - min) / (max - min);
         if (valueAtNewPoint <= 0) {
             valueAtNewPoint = RECIPROCAL_FUDGE;
-        } else if (valueAtNewPoint > 255) {
-            valueAtNewPoint = 255;
+        } else if (valueAtNewPoint > CONST_16) {
+            valueAtNewPoint = CONST_16;
         }
         return 1.0 / valueAtNewPoint;
     }

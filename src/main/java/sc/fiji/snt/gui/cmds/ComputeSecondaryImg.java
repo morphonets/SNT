@@ -142,7 +142,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 
 	@Parameter(label = "Strategy", choices = { LAZY_LOADING_FALSE, LAZY_LOADING_TRUE }, //
 			description = "<HTML><b>Preprocess</b>: Cache entire image in RAM for fast searches<br>"
-					+ "<b>Compute while tracing</b>: Allows for tracing of large images when available RAM is limited.")
+					+ "<b>Compute while tracing</b>: Allows for tracing of large images when available RAM is limited.",
+			callback = "useLazyChoiceChanged")
 	private String useLazyChoice;
 
 	@Parameter(label = "Output precision", choices = { FLOAT, DOUBLE })
@@ -157,10 +158,10 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Options:")
 	private String HEADER3;
 
-	@Parameter(label = "Display image")
+	@Parameter(label = "Display image", callback = "showChoiceChanged")
 	private boolean show;
 
-	@Parameter(label = "Save to file")
+	@Parameter(label = "Save to file", callback = "saveChoiceChanged")
 	private boolean save;
 
 	@Parameter(label = REFRESH_BUTTON_TITLE, callback = "updatePrompt", //
@@ -188,6 +189,28 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			return;
 		}
 		loadPreferences();
+	}
+
+	@SuppressWarnings("unused")
+	private void showChoiceChanged() {
+		if (show && LAZY_LOADING_TRUE.equals(useLazyChoice)) {
+			show = false;
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private void useLazyChoiceChanged() {
+		if (LAZY_LOADING_TRUE.equals(useLazyChoice)) {
+			show = false;
+			save = false;
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private void saveChoiceChanged() {
+		if (save && LAZY_LOADING_TRUE.equals(useLazyChoice)) {
+			save = false;
+		}
 	}
 
 	@SuppressWarnings("unused")
