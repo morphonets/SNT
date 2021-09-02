@@ -1073,9 +1073,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						// since paths were fitted asynchronously, we need to rebuild connections
 						if (fitInPlace) {
 							pathsToFit.forEach(p-> p.getPath().replaceNodesWithFittedVersion());
-						} else {
-							pathsToFit.forEach(p-> p.getPath().rebuildConnectionsOfFittedVersion());
 						}
+						pathAndFillManager.rebuildRelationships();
 					}
 					refreshManager(true, false, getSelectedPaths(true));
 					msg.dispose();
@@ -2851,8 +2850,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			else if (DISCONNECT_CMD.equals(cmd)) {
 				if (!guiUtils.getConfirmation("Disconnect " + n + " path(s) from all connections? "
-						+ "Connectivity will be re-assessed for <i>all</i> paths. IDs will be reset and "
-						+ "existing fits discarded.", "Confirm Disconnect?"))
+						+ "Connectivity will be re-assessed for <i>all</i> paths and IDs will be reset.",
+						"Confirm Disconnect?"))
 					return;
 				for (final Path p : selectedPaths)
 					p.disconnectFromAll();
@@ -2903,7 +2902,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			else if (REBUILD_CMD.equals(cmd)) {
 				if (!guiUtils.getConfirmation("Rebuild all path relationships? " +
 						"This will reset all IDs and recompute connectivity for all " +
-						"paths. Existing fits will be discarded.", "Confirm Rebuild?"))
+						"paths.", "Confirm Rebuild?"))
 				{
 					return;
 				}

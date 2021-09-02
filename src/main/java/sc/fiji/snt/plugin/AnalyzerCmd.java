@@ -243,16 +243,15 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 	@SuppressWarnings("unused")
 	private void fittingHelpMsgPressed() {
 		new GuiUtils().showHTMLDialog("<HTML><div WIDTH=550>"
-					+ "<p>Some branch-based metrics may not be available if you fitted paths "
-					+ "while using the <em>Retain original path coordinates</em> option. This "
-					+ "can happen because paths are fitted independently from one another and "
-					+ "may not be aware of the original connectivity. When this happens, metrics "
-					+ "will be reported as <em>NaN</em>  and related errors reported to the "
-					+ "Console (when running in <em>Debug</em> mode).</p>"
+					+ "<p>Some branch-based metrics may not be available when mixing fitted and "
+					+ "un-fitted paths because paths are fitted independently from one another and "
+					+ "may not be aware of the original connectivity. "
+					+ "When this happens, metrics will be reported as <em>NaN</em> and related errors "
+					+ "reported to the Console (when running in <em>Debug</em> mode).</p>"
 					+ "<p>If this becomes an issue in your analyses, consider fitting paths in situ "
 					+ "using the <em>Replace existing nodes</em> option instead. Also, remember that "
-					+ "you can also use the Path Manager&#39;s Edit&gt;Rebuild... command to discard "
-					+ "temporary fits and rebuilt relationships between paths.</p>",
+					+ "you can also use the Path Manager&#39;s Edit&gt;Rebuild... command to re-compute "
+					+ "relationships between paths.</p>",
 					"Warning on Fitted Paths", true);
 	}
 

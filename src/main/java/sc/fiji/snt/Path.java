@@ -505,7 +505,7 @@ public class Path implements Comparable<Path> {
 			fitted.disconnectFromAll();
 			return;
 		}
-		if (getStartJoins() != null) {
+		if (getStartJoins() != null) { // this is always the case if not primary
 			if (fitted.startJoins != null) fitted.unsetStartJoin();
 			if (startJoins.getUseFitted()) {
 				final int index = startJoins.fitted.indexNearestTo(startJoinsPoint.x, startJoinsPoint.y, startJoinsPoint.z);

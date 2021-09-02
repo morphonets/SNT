@@ -228,10 +228,8 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 
 		enableUIupdates = false;
-		// Reset tree labels, discard all fitted paths, including imported ones
+		// Reset tree labels
 		allPaths.forEach( p -> {
-			p.discardFit();
-			p.fittedVersionOf = null;
 			p.setTreeLabel(null);
 		});
 
@@ -247,7 +245,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				//String tags = PathManagerUI.extractTagsFromPath(current);
 				//String newName = getDefaultName(current);
 				//current.setName((tags.isEmpty()) ? newName : newName + "{" + tags + "}");
-				current.discardFit();
+				current.rebuildConnectionsOfFittedVersion(); ////current.discardFit();
 				for (Path child : current.children) {
 					child.setOrder(current.getOrder() +1);
 					pathStack.push(child);
@@ -2067,7 +2065,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				// FIXME: after import there still can be different Cell IDs within the same Tree,
 				//  so do a final rebuild to ensure everything makes sense. This is a workaround until
 				//  we can figure out why it is happening in the first place.
-				//rebuildRelationships(); // will remove imported Fits
+				rebuildRelationships();
 
 				addImportedPathsTo3DViewer(); // Now we're safe to add them all to the 3D Viewer
 				if (plugin != null) plugin.updateTracingViewers(true);
