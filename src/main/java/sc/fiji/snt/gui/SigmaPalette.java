@@ -72,7 +72,6 @@ public class SigmaPalette extends Thread {
 	private static final Color COLOR_DEFAULT = Color.CYAN;
 	private static final Color COLOR_MOUSEOVER = Color.MAGENTA;
 	private static final Color COLOR_SELECTED = Color.GREEN;
-	private static final int DEF_N_SCALES = 9;
 
 	private double[] sigmaValues;
 	private int croppedWidth;
@@ -95,7 +94,6 @@ public class SigmaPalette extends Thread {
 	private final ImagePlus image;
 	private final SNT snt;
 	private final SNT.FilterType analysisType;
-	private int maxScales;
 	private List<Double> scaleSettings; //TODO: This should be a SET
 	private final List<SigmaPaletteListener> listeners;
 	private Window parent;
@@ -112,13 +110,15 @@ public class SigmaPalette extends Thread {
 		this.parent = parent;
 	}
 
-	private void setMaxScales(final int nScales) {
-		this.maxScales = nScales;
-	}
-
 	private int getMaxScales() {
-		if (maxScales < 1) maxScales = DEF_N_SCALES;
-		return maxScales;
+		switch(analysisType) {
+		case GAUSS:
+		case MEDIAN:
+			return 1;
+		default:
+			return sigmaValues.length;
+		
+		}
 	}
 
 	private class PaletteStackWindow extends StackWindow {
@@ -313,14 +313,16 @@ public class SigmaPalette extends Thread {
 
 			c.gridx =0;
 			c.weightx = 0;
-			panel.add(new Label("Scale"), c);
-			c.gridx++;
-			c.weightx = 1;
-			panel.add(scalesScrollbar, c);
-			c.gridx++;
-			c.weightx = 0;
-			panel.add(selectedScaleLabel, c);
-			c.gridx++;
+			if (getMaxScales() > 1) {
+				panel.add(new Label("Scale"), c);
+				c.gridx++;
+				c.weightx = 1;
+				panel.add(scalesScrollbar, c);
+				c.gridx++;
+				c.weightx = 0;
+				panel.add(selectedScaleLabel, c);
+				c.gridx++;
+			}
 			panel.add(setButton, c);
 			c.gridy++;
 		}
@@ -351,7 +353,10 @@ public class SigmaPalette extends Thread {
 			final String max = SNTUtils.formatDouble(selectedMax, 1);
 			maxValueLabel.setText(max);
 			final int nScales = (scaleSettings == null) ? 0 : scaleSettings.size();
-			commitButton.setLabel(String.format("Commit \u03C3 Values [%d Scale(s)]", nScales));
+			if (getMaxScales() == 1)
+				commitButton.setLabel("Commit \u03C3 Value");
+			else
+				commitButton.setLabel(String.format("Commit \u03C3 Values [%d Scale(s)]", nScales));
 		}
 
 		private void selectedScaleChanged(final int newScaleIndex) {
@@ -712,7 +717,6 @@ public class SigmaPalette extends Thread {
 		this.sigmasAcross = sigmasAcross;
 		this.sigmasDown = sigmasDown;
 		this.initial_z = initial_z;
-		setMaxScales(sigmaValues.length);
 		start();
 	}
 

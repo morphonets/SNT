@@ -284,8 +284,10 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		sigmas = new ArrayList<>();
 		final double step = snt.getAverageSeparation() * 0.5;
 		sigmas.add(step);
-		sigmas.add(2 * step);
-		sigmas.add(4 * step);
+		if (TUBENESS.equals(filter) || FRANGI.equals(filter)) {
+			sigmas.add(2 * step);
+			sigmas.add(4 * step);
+		}
 		updateSigmasField();
 		show = false;
 		save = false;
