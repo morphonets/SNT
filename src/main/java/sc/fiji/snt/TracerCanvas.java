@@ -40,7 +40,7 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 
 	protected boolean just_near_slices = false;
 	protected int eitherSide;
-	private final Set<SearchArtist> searchArtists = new HashSet<>();
+	protected final Set<SearchArtist> searchArtists = new HashSet<>();
 	private double nodeSize = -1;
 	private int[]transparencies; //in percentage, [0]: default; [1]: out of bounds
 

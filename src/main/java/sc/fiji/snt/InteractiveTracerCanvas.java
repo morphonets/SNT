@@ -36,7 +36,8 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.tracing.FillerThread;
+import sc.fiji.snt.tracing.artist.FillerThreadArtist;
+import sc.fiji.snt.tracing.artist.SearchArtist;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -702,6 +703,15 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	@Override
+	protected void addSearchArtist(final SearchArtist a) {
+		super.addSearchArtist(a);
+		if (a instanceof FillerThreadArtist) {
+			((FillerThreadArtist) a).setOpenColor(getFillColor());
+			((FillerThreadArtist) a).setClosedColor(getFillColor());
+		}
+	}
+
+	@Override
 	protected void drawOverlay(final Graphics2D g) {
 		if (!tracerPlugin.getPathAndFillManager().enableUIupdates) return;
 
@@ -762,6 +772,12 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 	public void setFillColor(final Color color) {
 		this.fillColor = color;
+		for (SearchArtist artist : searchArtists) {
+			if (artist instanceof FillerThreadArtist) {
+				((FillerThreadArtist) artist).setOpenColor(color);
+				((FillerThreadArtist) artist).setClosedColor(color);
+			}
+		}
 	}
 
 	public Color getTemporaryPathColor() {

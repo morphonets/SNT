@@ -60,7 +60,7 @@ import java.util.function.Consumer;
  *
  * @author Cameron Arshadi
  */
-@Plugin(type = Ops.Filter.Tubeness.class, priority = Priority.HIGH)
+@Plugin(type = Ops.Filter.Tubeness.class, priority = Priority.NORMAL)
 public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
         AbstractUnaryComputerOp<RandomAccessibleInterval<T>, RandomAccessibleInterval<U>>
         implements Ops.Filter.Tubeness, Consumer<RandomAccessibleInterval<U>> {

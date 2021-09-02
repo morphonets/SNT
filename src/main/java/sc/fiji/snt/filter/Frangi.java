@@ -58,7 +58,7 @@ import java.util.function.Consumer;
  *
  * @author Cameron Arshadi
  */
-@Plugin(type = Ops.Filter.FrangiVesselness.class, priority = Priority.HIGH)
+@Plugin(type = Ops.Filter.FrangiVesselness.class, priority = Priority.NORMAL)
 public class Frangi<T extends RealType<T>, U extends RealType<U>> extends
         AbstractUnaryComputerOp<RandomAccessibleInterval<T>, RandomAccessibleInterval<U>>
         implements Ops.Filter.FrangiVesselness, Consumer<RandomAccessibleInterval<U>>
