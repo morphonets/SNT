@@ -276,10 +276,11 @@ public class SigmaPalette extends Thread {
 					+ "</p>" //
 					+"<p><b>How to Use the <i>Sigma Preview Palette</i>:</b></p>" //
 					+ "<ul>" //
-					+ "<li>With 3D images, use the main slider to peruse Z-planes</li>" //
+					+ "<li>With 3D images, use the main slider to navigate Z-planes</li>" //
 					+ "<li>To select a &sigma; value, click on its tile while holding <kbd>Shift</kbd></li>" //
 					+ "<li>To un-select a value, click on its tile while holding <kbd>Alt</kbd></li>" //
-					+ "<li>You can select has many values (scales) as relevant</li>" //
+					+ "<li>You can select has many values (scales) as relevant: Some filters (e.g., Tubeness, Frangi)"
+					+ "    allow multiple scales, while others (e.g., Gaussian, Median) only a single scale.</li>" //
 					+ "</ul>" //
 					+ "<p>" //
 					+ "You can also use the <i>Scale</i> slider and its <i>Set</i> button to set/replace " //
@@ -786,7 +787,7 @@ public class SigmaPalette extends Thread {
 		if (scaleSettings == null || scaleSettings.isEmpty()) {
 			paletteWindow.guiUtils.error("You must specify settings for at least one scale.");
 			return;
-		} else {
+		} else if (getMaxScales() > 1) {
 			final StringBuilder sb = new StringBuilder("Commit the following settings across ");
 			sb.append(scaleSettings.size()).append(" scale(s)? <ol>");
 			for (final double setting : scaleSettings) {

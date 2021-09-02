@@ -466,7 +466,7 @@ public class SNTUI extends JDialog {
 			final int selectedTab = source.getSelectedIndex();
 
 			// Do not allow secondary tabs to be selected while operations are pending 
-			if (selectedTab > 0 && getState() > WAITING_TO_START_PATH && getState() < EDITING) {
+			if (selectedTab > 0 && userInteractionConstrained()) {
 				tabbedPane.setSelectedIndex(0);
 				guiUtils.blinkingError(statusText,
 						"Please complete current task before selecting the "+ source.getTitleAt(selectedTab) +" tab.");
@@ -532,6 +532,23 @@ public class SNTUI extends JDialog {
 		if (plugin.tracingHalted && currentState == READY)
 			currentState = TRACING_PAUSED;
 		return currentState;
+	}
+
+	private boolean userInteractionConstrained() {
+		switch (getState()) {
+		case PARTIAL_PATH:
+		case SEARCHING:
+		case QUERY_KEEP:
+		case RUNNING_CMD:
+		case CALCULATING_HESSIAN_I:
+		case CALCULATING_HESSIAN_II:
+		case WAITING_FOR_SIGMA_POINT_I:
+		case WAITING_FOR_SIGMA_CHOICE:
+		case LOADING:
+			return true;
+		default:
+			return false;
+		}
 	}
 
 	/**
