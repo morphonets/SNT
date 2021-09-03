@@ -76,6 +76,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private JLabel maxThresholdLabel;
 	private JLabel currentThresholdLabel;
 	private JLabel cursorPositionLabel;
+	private JLabel fillTypeLabel;
 	private JLabel statusText;
 	private JButton manualThresholdApplyButton;
 	private JButton exploredThresholdApplyButton;
@@ -109,6 +110,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		fillList.setVisibleRowCount(5);
 		fillList.setPrototypeCellValue(PrototypeFill.instance);
 		gUtils = new GuiUtils(this);
+		setPlaceholderStatusLabels();
 
 		assert SwingUtilities.isEventDispatchThread();
 
@@ -117,12 +119,16 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 		add(statusPanel(), c);
 		c.gridy++;
-
-		addSeparator(" Search Status:", c);
-		setPlaceholderStatusLabels();
+		addSeparator(" Search Type:", c);
 		final int storedPady = c.ipady;
 		final Insets storedInsets = c.insets;
 		c.ipady = 0;
+		c.insets = new Insets(0, MARGIN, 0, MARGIN);
+		add(fillTypeLabel, c);
+		++c.gridy;
+		c.ipady = storedPady;
+		c.insets = storedInsets;
+		addSeparator(" Search Status:", c);
 		c.insets = new Insets(0, MARGIN, 0, MARGIN);
 		add(currentThresholdLabel, c);
 		++c.gridy;
@@ -304,9 +310,19 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	private void setPlaceholderStatusLabels() {
+		fillTypeLabel = GuiUtils.leftAlignedLabel("Target image: primary. Cost-function f(xxx)...", false);
+		fillTypeLabel.setToolTipText("Modifiable in the Auto-tracing panel of SNT's main dialog");
 		currentThresholdLabel = GuiUtils.leftAlignedLabel("No Pahs are currently being filled...", false);
 		maxThresholdLabel = GuiUtils.leftAlignedLabel("Max. explored distance: N/A", false);
 		cursorPositionLabel = GuiUtils.leftAlignedLabel("Cursor position: N/A", false);
+		updateSettingsString();
+	}
+
+	protected void updateSettingsString() {
+		final StringBuilder sb = new StringBuilder();
+		sb.append("Image: ").append( (plugin.isTracingOnSecondaryImageActive()) ? "Secondary" : "Main");
+		sb.append("; Cost func.: ").append(plugin.getCostType());
+		fillTypeLabel.setText(sb.toString());
 	}
 
 	private class FMCellRenderer extends DefaultListCellRenderer {
@@ -366,6 +382,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	protected void setEnabledWhileFilling() {
 		assert SwingUtilities.isEventDispatchThread();
+		fillTypeLabel.setEnabled(true);
 		cursorPositionLabel.setEnabled(true);
 		maxThresholdLabel.setEnabled(exploredThresholdChoice.isSelected());
 		currentThresholdLabel.setEnabled(true);
@@ -374,6 +391,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	protected void setEnabledWhileNotFilling() {
 		assert SwingUtilities.isEventDispatchThread();
+		fillTypeLabel.setEnabled(true);
 		cursorPositionLabel.setEnabled(true);
 		maxThresholdLabel.setEnabled(false);
 		currentThresholdLabel.setEnabled(false);
@@ -382,6 +400,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	protected void setEnabledNone() {
 		assert SwingUtilities.isEventDispatchThread();
+		fillTypeLabel.setEnabled(false);
 		cursorPositionLabel.setEnabled(false);
 		maxThresholdLabel.setEnabled(false);
 		currentThresholdLabel.setEnabled(false);

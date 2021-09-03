@@ -668,6 +668,7 @@ public class SNTUI extends JDialog {
 		assert SwingUtilities.isEventDispatchThread();
 		settingsArea.setText(sb.toString());
 		settingsArea.setCaretPosition(0);
+		if (fmUI != null) fmUI.updateSettingsString();
 	}
 
 	protected void exitRequested() {

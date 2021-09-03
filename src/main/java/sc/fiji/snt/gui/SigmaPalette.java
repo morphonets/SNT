@@ -243,6 +243,7 @@ public class SigmaPalette extends Thread {
 			pm.add(showMip);
 			pm.addSeparator();
 			mi = new MenuItem("Reset All Scales");
+			mi.setEnabled(getMaxScales() > 1);
 			mi.addActionListener(e -> {
 				if (scaleSettings != null && !scaleSettings.isEmpty()) {
 					scaleSettings.clear();
@@ -272,22 +273,30 @@ public class SigmaPalette extends Thread {
 			final String msg = //
 					"<p>" //
 					+ "Each tile in the grid previews the effect of the <i>Sigma parameter</i> (&sigma;) &ndash an " //
-					+ "estimate of the radii of the structures being traced &ndash on an image processing filter:"
+					+ "estimate of the radii of the structures being traced &ndash on the the image processing filter:"
 					+ "</p>" //
 					+"<p><b>How to Use the <i>Sigma Preview Palette</i>:</b></p>" //
 					+ "<ul>" //
-					+ "<li>With 3D images, use the main slider to navigate Z-planes</li>" //
-					+ "<li>To select a &sigma; value, click on its tile while holding <kbd>Shift</kbd></li>" //
-					+ "<li>To un-select a value, click on its tile while holding <kbd>Alt</kbd></li>" //
 					+ "<li>You can select has many values (scales) as relevant: Some filters (e.g., Tubeness, Frangi)"
-					+ "    allow multiple scales, while others (e.g., Gaussian, Median) only a single scale.</li>" //
+					+ "    allow multiple scales, while others (e.g., Gaussian, Median) only a single scale</li>" //
+					+ "<li>With 3D images, use the main slider to navigate Z-planes</li>" //
+					+ "<li>Setting multiple scales:</li>"
+					+ "<ul>"//
+					+ "<li>To select a &sigma; value, click on its tile while holding <kbd>Shift</kbd></li>" //
+					+ "<li>To un-select a &sigma; value, click on its tile while holding <kbd>Alt</kbd></li>" //
+					+ "<li>You can also use the <i>Scale</i> slider and its <i>Set</i> button to "//
+					+ "set/replace a value" //
+					+ "</ul>" //
+					+ "<li>Setting a single scale:</li>"
+					+ "<ul>"//
+					+ "<li>Simply click on a tile to select its &sigma; value</li>" //
+					+ "</ul>" //
 					+ "</ul>" //
 					+ "<p>" //
-					+ "You can also use the <i>Scale</i> slider and its <i>Set</i> button to set/replace " //
-					+ "a value. Use the B&amp;C button to adjust the Brightness/Contrast of the " //
-					+ "grid. Have a look at the <i>More &raquo;</i> menu for further options."//
+					+ "Use the B&amp;C button to adjust the Brightness/Contrast of the grid. Have a look at the " //
+					+ "<i>More &raquo;</i> menu for further options." //
 					+ "</p>"; //
-			guiUtils.showHTMLDialog(msg, "Help: How to Choose Scale(s)", true);
+			guiUtils.showHTMLDialog(msg, "Help: How to Choose Scale(s)", false);
 		}
 
 		private void assembleScrollbars(final Panel panel, final GridBagConstraints c) {
@@ -312,9 +321,9 @@ public class SigmaPalette extends Thread {
 				maxChanged(defaultMax);
 			});
 
-			c.gridx =0;
-			c.weightx = 0;
 			if (getMaxScales() > 1) {
+				c.gridx =0;
+				c.weightx = 0;
 				panel.add(new Label("Scale"), c);
 				c.gridx++;
 				c.weightx = 1;
@@ -323,9 +332,10 @@ public class SigmaPalette extends Thread {
 				c.weightx = 0;
 				panel.add(selectedScaleLabel, c);
 				c.gridx++;
+				panel.add(setButton, c);
+				c.gridy++;
 			}
-			panel.add(setButton, c);
-			c.gridy++;
+
 		}
 
 		private void advanceToNextScale() {
@@ -541,7 +551,7 @@ public class SigmaPalette extends Thread {
 						} else { // select it
 							paletteWindow.advanceToScale(indexInScaleSettings + 1); // 1-based index
 						}
-					} else if (e.isShiftDown()) { // commit selection immediately
+					} else if (e.isShiftDown() || getMaxScales() == 1) { // commit selection immediately
 						setSettingsForSelectedScale();
 						mouseMovedAcceptedSigmaIndex = mouseMovedSigmaIndex;
 						return;
@@ -783,16 +793,19 @@ public class SigmaPalette extends Thread {
 	}
 
 	private void apply() {
-		//preprocess.setSelected(false);
-		if (scaleSettings == null || scaleSettings.isEmpty()) {
-			paletteWindow.guiUtils.error("You must specify settings for at least one scale.");
-			return;
+		if (scaleSettings == null || scaleSettings.isEmpty() || getSelectedSigma() == -1) {
+			if (getMaxScales() > 1) {
+				paletteWindow.guiUtils.error("You must specify settings for at least one scale.");
+				return;
+			} else { // just set it ourselves
+				scaleSettings = new ArrayList<>();
+				scaleSettings.add(getSelectedSigma());
+			}
 		} else if (getMaxScales() > 1) {
 			final StringBuilder sb = new StringBuilder("Commit the following settings across ");
 			sb.append(scaleSettings.size()).append(" scale(s)? <ol>");
 			for (final double setting : scaleSettings) {
 				sb.append("<li>\u03C3= ").append(SNTUtils.formatDouble(setting, 2));
-//				sb.append("; max= ").append(SNTUtils.formatDouble(setting[1], 1));
 				sb.append("</li>");
 			}
 			sb.append("</ol>");
