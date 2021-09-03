@@ -367,6 +367,7 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
 		return metric;
 	}
 
+	@SuppressWarnings("unused")
 	public static void main(String[] args) {
         ImageJ ij = new ImageJ();
         ij.ui().showUI();

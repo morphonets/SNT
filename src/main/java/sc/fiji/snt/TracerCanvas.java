@@ -36,6 +36,8 @@ import sc.fiji.snt.tracing.artist.SearchArtist;
 
 public class TracerCanvas extends MultiDThreePanesCanvas {
 
+	private static final long serialVersionUID = 3620108290844138287L;
+
 	protected PathAndFillManager pathAndFillManager;
 
 	protected boolean just_near_slices = false;

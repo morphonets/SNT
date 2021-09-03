@@ -66,7 +66,8 @@ public class Tracing2DTest {
     private final int endX = 439;
     private final int endY = 200;
 
-    @BeforeClass
+    @SuppressWarnings("resource")
+	@BeforeClass
     public static void setUp() {
         ImagePlus imp = new ImagePlus(
                 Objects.requireNonNull(Tracing2DTest.class.getClassLoader().getResource("OP_1.tif")).getPath());

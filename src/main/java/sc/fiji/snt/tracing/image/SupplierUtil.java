@@ -70,7 +70,6 @@ public class SupplierUtil {
 
     /* I'm not sure how useful this one will be */
 
-    @SuppressWarnings("unused")
     public static class ListSearchImageSupplier<V extends SearchNode> implements Supplier<SearchImage<V>> {
 
         private final int width;

@@ -3002,7 +3002,7 @@ public class SNTUI extends JDialog {
 		});
 	}
 
-	
+	@SuppressWarnings("unused")
 	private Double getZFudgeFromUser() {
 		final double defaultValue = new OneMinusErf(0,0,0).getZFudge();
 		String promptMsg = "Enter multiplier for intensity z-score. "//
@@ -3594,6 +3594,7 @@ public class SNTUI extends JDialog {
 		guiUtils.error("This option requires valid image data to be loaded.");
 	}
 
+	@SuppressWarnings("unused")
 	private Boolean userPreferstoRunWizard(final String noButtonLabel) {
 		if (askUserConfirmation && sigmaPalette == null) {
 			final Boolean decision = guiUtils.getConfirmation2(//

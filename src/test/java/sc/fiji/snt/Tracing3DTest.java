@@ -67,6 +67,7 @@ public class Tracing3DTest {
 	private final int endY = 200;
 	private final int endZ = 45;
 
+	@SuppressWarnings("resource")
 	@BeforeClass
 	public static void setUp() {
 		ImagePlus imp = new ImagePlus(

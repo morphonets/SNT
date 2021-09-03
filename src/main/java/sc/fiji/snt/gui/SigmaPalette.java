@@ -814,10 +814,6 @@ public class SigmaPalette extends Thread {
 		}
 		listeners.forEach( listener -> listener.setSigmas(getMultiScaleSettings()));
 		flush();
-		//TODO: Make this aware of multiple scales
-
-		// recompute after changing scales
-		//hc.start();
 	}
 
 	private void copyIntoPalette(final ImagePlus smallImage,

@@ -48,7 +48,7 @@ public class UnaryComputerOpCellLoader<T, S extends NativeType<S>, R extends Ran
         this.op = op;
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public UnaryComputerOpCellLoader(
             final R source,
             final OpService opService,
