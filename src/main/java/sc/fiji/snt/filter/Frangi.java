@@ -42,7 +42,6 @@ import net.imglib2.view.Views;
 import org.scijava.Priority;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-import sc.fiji.snt.SNTUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -214,13 +213,13 @@ public class Frangi<T extends RealType<T>, U extends RealType<U>> extends
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            SNTUtils.error("Frangi interrupted", e);
 
         } catch (ExecutionException e) {
-            SNTUtils.error("Error during Frangi", e);
+            e.printStackTrace();
 
         } catch (OutOfMemoryError e) {
-            SNTUtils.error("Out of memory. Try using Lazy processing instead.");
+            System.err.println("Out of memory computing Frangi. Try Lazy processing instead.");
+            e.printStackTrace();
         }
 
     }

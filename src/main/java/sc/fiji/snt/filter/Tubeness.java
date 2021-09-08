@@ -42,7 +42,6 @@ import net.imglib2.view.Views;
 import org.scijava.Priority;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-import sc.fiji.snt.SNTUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +62,8 @@ import java.util.function.Consumer;
 @Plugin(type = Ops.Filter.Tubeness.class, priority = Priority.NORMAL)
 public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
         AbstractUnaryComputerOp<RandomAccessibleInterval<T>, RandomAccessibleInterval<U>>
-        implements Ops.Filter.Tubeness, Consumer<RandomAccessibleInterval<U>> {
+        implements Ops.Filter.Tubeness, Consumer<RandomAccessibleInterval<U>>
+{
 
     @Parameter
     private double[] spacing;
@@ -206,13 +206,13 @@ public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            SNTUtils.error("Tubeness interrupted", e);
 
         } catch (ExecutionException e) {
-            SNTUtils.error("Error during Tubeness", e);
+            e.printStackTrace();
 
         } catch (OutOfMemoryError e) {
-            SNTUtils.error("Out of memory. Try using Lazy processing instead.");
+            System.err.println("Out of memory computing Tubeness. Try Lazy processing instead.");
+            e.printStackTrace();
         }
 
     }
