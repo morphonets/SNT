@@ -211,7 +211,7 @@ public class SNT extends MultiDThreePanes implements
 	volatile protected boolean requireShiftToFork;
 
 	private boolean manualOverride = false;
-	private double fillThresholdDistance = 0.03d;
+	private double fillThresholdDistance = 0.1d;
 
 	/*
 	 * Just for convenience, keep casted references to the superclass's
@@ -2316,25 +2316,37 @@ public class SNT extends MultiDThreePanes implements
 		fillerSet.clear();
 		pathAndFillManager.getLoadedFills().clear();
 		final boolean useSecondary = isTracingOnSecondaryImageActive();
-		@SuppressWarnings("unchecked")
-		final RandomAccessibleInterval<? extends RealType<?>> data = useSecondary ? secondaryData : sliceAtCT;
-		double min = useSecondary ? statsSecondary.min : stats.min;
-		double max = useSecondary ? statsSecondary.max : stats.max;
-		double mean = useSecondary ? statsSecondary.mean : stats.mean;
-		double stdDev = useSecondary ? statsSecondary.stdDev : stats.stdDev;
+		final RandomAccessibleInterval<? extends RealType<?>> data = useSecondary ? getSecondaryData() : getLoadedData();
+		final ImageStatistics imgStats = useSecondary ? getStatsSecondary() : getStats();
 		Cost costFunction;
 		switch (costType) {
 			case RECIPROCAL:
-				costFunction = new Reciprocal(min, max);
+				if (imgStats.max == 0) {
+					invalidStatsError(useSecondary);
+					return;
+				}
+				costFunction = new Reciprocal(imgStats.min, imgStats.max);
 				break;
 			case PROBABILITY:
-				costFunction = new OneMinusErf(max, mean, stdDev);
+				if (imgStats.max == 0 || imgStats.mean == 0 || imgStats.stdDev == 0) {
+					invalidStatsError(useSecondary);
+					return;
+				}
+				costFunction = new OneMinusErf(imgStats.max, imgStats.mean, imgStats.stdDev);
 				break;
 			case DIFFERENCE:
-				costFunction = new Difference(min, max);
+				if (imgStats.max == 0) {
+					invalidStatsError(useSecondary);
+					return;
+				}
+				costFunction = new Difference(imgStats.min, imgStats.max);
 				break;
 			case DIFFERENCE_SQUARED:
-				costFunction = new DifferenceSq(min, max);
+				if (imgStats.max == 0) {
+					invalidStatsError(useSecondary);
+					return;
+				}
+				costFunction = new DifferenceSq(imgStats.min, imgStats.max);
 				break;
 			default:
 				throw new IllegalArgumentException("BUG: Unrecognized cost function " + costType);
@@ -2352,6 +2364,12 @@ public class SNT extends MultiDThreePanes implements
 		fillerSet.add(filler);
 		if (ui != null) ui.setFillListVisible(true);
 		changeUIState(SNTUI.FILLING_PATHS);
+	}
+
+	private void invalidStatsError(final boolean isSecondary) {
+		guiUtils.error("Statistics for the " + (isSecondary ? "Secondary Layer" : "main image") +
+				" have not been computed. First, make sure the \"Compute Real-Time\" option in the" +
+				"\"Auto-tracing\" menu is enabled. Then, trace a small Path over a relevant feature to compute them.");
 	}
 
 	protected void setFillTransparent(final boolean transparent) {
