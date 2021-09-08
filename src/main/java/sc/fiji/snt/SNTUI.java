@@ -987,24 +987,7 @@ public class SNTUI extends JDialog {
 			plugin.getImagePlus().setPosition(newC, plugin.getImagePlus().getZ(), newT);
 		plugin.showMIPOverlays(0);
 		if (plugin.isSecondaryDataAvailable()) {
-			final String[] choices = new String[] { "Unload. I'll load new data manually", "Reload",
-			"Do nothing. Leave as is" };
-			final String defChoice = plugin.getPrefs().getTemp("secreload", (reload) ? choices[1] : choices[0]);
-			final String choice = guiUtils.getChoice("What should be done with the secondary image currently cached?",
-					"Reload Filtered Data?", choices, defChoice);
-			if (choice != null) {
-				if (choice.startsWith("Unload"))
-				{
-					flushSecondaryData();
-					enableSecondaryLayerTracing(false);
-				}
-				else if (choice.startsWith("Reload")) {
-					flushSecondaryData();
-					enableSecondaryLayerTracing(false);
-					// TODO the image will need to be re-generated using the new CT slice
-				}
-				plugin.getPrefs().setTemp("secreload", choice);
-			}
+			flushSecondaryDataPrompt();
 		}
 		resetState();
 		showStatus(reload ? "Image reloaded into memory..." : null, true);
@@ -2327,14 +2310,23 @@ public class SNTUI extends JDialog {
 		changeImpMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FILE_IMAGE));
 		final JMenuItem fromList = new JMenuItem("From Open Image...");
 		fromList.addActionListener(e -> {
+			if (plugin.isSecondaryDataAvailable()) {
+				flushSecondaryDataPrompt();
+			}
 			(new DynamicCmdRunner(ChooseDatasetCmd.class, null, LOADING)).run();
 		});
 		final JMenuItem fromFile = new JMenuItem("From File...");
 		fromFile.addActionListener(e -> {
+			if (plugin.isSecondaryDataAvailable()) {
+				flushSecondaryDataPrompt();
+			}
 			new ImportAction(ImportAction.IMAGE, null).run();
 		});
 		final JMenuItem fromDemo = new JMenuItem("From Demo...");
 		fromDemo.addActionListener(e -> {
+			if (plugin.isSecondaryDataAvailable()) {
+				flushSecondaryDataPrompt();
+			}
 			new ImportAction(ImportAction.DEMO, null).run();
 		});
 		changeImpMenu.add(fromDemo);
@@ -4176,6 +4168,19 @@ public class SNTUI extends JDialog {
 		private boolean proceed() {
 			return !plugin.isChangesUnsaved() || (plugin.isChangesUnsaved() && guiUtils.getConfirmation(
 					"There are unsaved paths. Do you really want to load new data?", "Proceed with Import?"));
+		}
+	}
+
+	private void flushSecondaryDataPrompt() {
+		final String[] choices = new String[] { "Flush. I'll load new data manually", "Do nothing. Leave as is" };
+		final String choice = guiUtils.getChoice("What should be done with the secondary image currently cached?",
+				"Flush Filtered Data?", choices, choices[0]);
+		if (choice != null) {
+			if (choice.startsWith("Flush"))
+			{
+				flushSecondaryData();
+				enableSecondaryLayerTracing(false);
+			}
 		}
 	}
 
