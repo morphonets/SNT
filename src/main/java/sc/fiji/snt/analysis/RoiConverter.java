@@ -23,7 +23,10 @@
 package sc.fiji.snt.analysis;
 
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import ij.ImagePlus;
@@ -77,6 +80,17 @@ public class RoiConverter extends TreeAnalyzer {
 	/**
 	 * Instantiates a new Converter.
 	 *
+	 * @param path the Path to be converted
+	 * @param imp the image associated with the Tree, used to properly assign C,T
+	 *          positions of converted nodes
+	 */
+	public RoiConverter(final Path path, ImagePlus imp) {
+		this(new Tree(Collections.singleton(path)), imp);
+	}
+
+	/**
+	 * Instantiates a new Converter.
+	 *
 	 * @param tree the Tree to be converted
 	 * @param imp the image associated with the Tree, used to properly assign C,T
 	 *          positions of converted nodes
@@ -105,6 +119,65 @@ public class RoiConverter extends TreeAnalyzer {
 				convertPoints(pim, overlay, getColor(p), "SPP");
 			}
 		}
+	}
+
+	public List<PolygonRoi> getROIs(final Path path) {
+
+		final List<PolygonRoi> polygons = new ArrayList<>();
+		final String basename = path.getName();
+		final Color color = getColor(path);
+		final float stroke = (width < 0f) ? (float) path.getMeanRadius() * 2 : width;
+		//if (stroke == 0f) stroke = 1f;
+		FloatPolygon polygon = new FloatPolygon();
+		int current_roi_slice = Integer.MIN_VALUE;
+		int roi_identifier = 1;
+		final int[] roi_pos = new int[] { path.getChannel(), 1, path.getFrame() };
+		for (int i = 0; i < path.size(); ++i) {
+
+			double x = Integer.MIN_VALUE;
+			double y = Integer.MIN_VALUE;
+			int slice_of_point = Integer.MIN_VALUE;
+
+			switch (exportPlane) {
+				case XY_PLANE:
+					x = path.getXUnscaledDouble(i);
+					y = path.getYUnscaledDouble(i);
+					slice_of_point = path.getZUnscaled(i) + 1;
+					break;
+				case XZ_PLANE:
+					x = path.getXUnscaledDouble(i);
+					y = path.getZUnscaledDouble(i);
+					slice_of_point = path.getYUnscaled(i) + 1;
+					break;
+				case ZY_PLANE:
+					x = path.getZUnscaledDouble(i);
+					y = path.getYUnscaledDouble(i);
+					slice_of_point = path.getXUnscaled(i) + 1;
+					break;
+				default:
+					throw new IllegalArgumentException("exportPlane is not valid");
+			}
+
+			if (current_roi_slice == slice_of_point || i == 0) {
+				polygon.addPoint(x, y);
+			}
+			else {
+				roi_pos[1] = current_roi_slice;
+				final PolygonRoi polyline = polygonToRoi(polygon, roi_pos, basename, roi_identifier, color, stroke);
+				if (polyline != null) polygons.add(polyline);
+				polygon = new FloatPolygon(); // reset ROI
+				polygon.addPoint(x, y);
+			}
+			current_roi_slice = slice_of_point;
+			roi_pos[1] = current_roi_slice;
+
+		}
+
+		// Create ROI from any remaining points
+		final PolygonRoi polyline = polygonToRoi(polygon, roi_pos, basename, roi_identifier, color, stroke);
+		if (polyline != null) polygons.add(polyline);
+
+		return polygons;
 	}
 
 	/**
@@ -221,65 +294,11 @@ public class RoiConverter extends TreeAnalyzer {
 	}
 
 	private void drawPathSegments(final Path path, final Overlay overlay) {
-
-		final String basename = path.getName();
-		final Color color = getColor(path);
-		final float stroke = (width < 0f) ? (float) path.getMeanRadius() * 2 : width;
-		//if (stroke == 0f) stroke = 1f;
-		FloatPolygon polygon = new FloatPolygon();
-		int current_roi_slice = Integer.MIN_VALUE;
-		int roi_identifier = 1;
-		final int[] roi_pos = new int[] { path.getChannel(), 1, path.getFrame() };
-		for (int i = 0; i < path.size(); ++i) {
-
-			double x = Integer.MIN_VALUE;
-			double y = Integer.MIN_VALUE;
-			int slice_of_point = Integer.MIN_VALUE;
-
-			switch (exportPlane) {
-				case XY_PLANE:
-					x = path.getXUnscaledDouble(i);
-					y = path.getYUnscaledDouble(i);
-					slice_of_point = path.getZUnscaled(i) + 1;
-					break;
-				case XZ_PLANE:
-					x = path.getXUnscaledDouble(i);
-					y = path.getZUnscaledDouble(i);
-					slice_of_point = path.getYUnscaled(i) + 1;
-					break;
-				case ZY_PLANE:
-					x = path.getZUnscaledDouble(i);
-					y = path.getYUnscaledDouble(i);
-					slice_of_point = path.getXUnscaled(i) + 1;
-					break;
-				default:
-					throw new IllegalArgumentException("exportPlane is not valid");
-			}
-
-			if (current_roi_slice == slice_of_point || i == 0) {
-				polygon.addPoint(x, y);
-			}
-			else {
-				roi_pos[1] = current_roi_slice;
-				addPolyLineToOverlay(polygon, roi_pos, basename,
-					roi_identifier++, color, stroke, overlay);
-				polygon = new FloatPolygon(); // reset ROI
-				polygon.addPoint(x, y);
-			}
-			current_roi_slice = slice_of_point;
-			roi_pos[1] = current_roi_slice;
-
-		}
-
-		// Create ROI from any remaining points
-		addPolyLineToOverlay(polygon, roi_pos, basename, roi_identifier, color, stroke,
-			overlay);
-
+		getROIs(path).forEach( roi -> overlay.add(roi));
 	}
 
-	private void addPolyLineToOverlay(final FloatPolygon p,
-		final int[] impPosition, final String basename, final int roi_id,
-		final Color color, final float strokeWidth, final Overlay overlay)
+	private PolygonRoi polygonToRoi(final FloatPolygon p, final int[] impPosition,
+			final String basename, final int roi_id, final Color color, final float strokeWidth)
 	{
 		final String sPlane = getExportPlaneAsString();
 		if (p.npoints > 0) {
@@ -296,8 +315,9 @@ public class RoiConverter extends TreeAnalyzer {
 			polyline.setStrokeWidth(strokeWidth);
 			polyline.setName(String.format("%s-%s-%04d", basename, sPlane, roi_id));
 			setPosition(polyline, impPosition);
-			overlay.add(polyline);
+			return polyline;
 		}
+		return null;
 	}
 
 	private void setPosition(final Roi roi, final int[] positions) {

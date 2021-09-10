@@ -90,6 +90,7 @@ import ij.ImagePlus;
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import sc.fiji.snt.analysis.PathProfiler;
+import sc.fiji.snt.analysis.PathStraightener;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.gui.ColorMenu;
@@ -366,6 +367,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		advanced.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SKEL_CMD);
 		jmi.addActionListener(multiPathListener);
+		advanced.add(jmi);
+		jmi = new JMenuItem(SinglePathActionListener.STRAIGHTEN);
+		jmi.addActionListener(singlePathListener);
 		advanced.add(jmi);
 		advanced.addSeparator();
 
@@ -2177,6 +2181,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String MAKE_PRIMARY_CMD = "Make Primary";
 		private final static String DUPLICATE_CMD = "Duplicate...";
 		private final static String EXPLORE_FIT_CMD = "Explore/Preview Fit";
+		private final static String STRAIGHTEN = "Straighten...";
 
 		@Override
 		public void actionPerformed(final ActionEvent e) {
@@ -2184,7 +2189,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			// Process nothing without a single path selection
 			final Collection<Path> selectedPaths = getSelectedPaths(false);
 			if (selectedPaths.size() != 1) {
-				guiUtils.error("You must have exactly one path selected.");
+				guiUtils.error("This command accepts only a single path. Please re-run after having only one path selected.");
 				return;
 			}
 			final Path p = selectedPaths.iterator().next();
@@ -2234,9 +2239,34 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					}
 					exploreFit(p);
 					return;
+				case STRAIGHTEN:
+					straightenPath(p);
+					return;
 			}
 
 			SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
+		}
+	}
+
+	private void straightenPath(final Path p) {
+		if (noValidImageDataError()) return;
+		if (p.size() < 2) {
+			guiUtils.error("Path must have at least two nodes.");
+			return;
+		}
+		final Double width = guiUtils.getDouble("Width of straightened image (in pixels):", "Width...", 20);
+		if (width == null) return;
+		if (Double.isNaN(width)) {
+			 guiUtils.error("Invalid value. Width must be a valid non-negative integer.");
+			return;
+		}
+		try {
+			final PathStraightener straightener = new PathStraightener(p, plugin);
+			straightener.setWidth(width.intValue());
+			straightener.straighten().show();
+		} catch (final Exception ex) {
+			guiUtils.error(ex.getMessage());
+			ex.printStackTrace();
 		}
 	}
 
