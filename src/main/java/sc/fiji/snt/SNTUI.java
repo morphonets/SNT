@@ -2828,16 +2828,20 @@ public class SNTUI extends JDialog {
 
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Image Statistics:", false));
 		final ButtonGroup minMaxButtonGroup = new ButtonGroup();
-		JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem("Compute Real-Time", plugin.getUseSubVolumeStats());
-		minMaxButtonGroup.add(rbmi);
-		optionsMenu.add(rbmi);
-		rbmi.addActionListener(e -> plugin.setUseSubVolumeStats(true));
-		rbmi = new JRadioButtonMenuItem("Specify Fixed Range...", !plugin.getUseSubVolumeStats());
-		minMaxButtonGroup.add(rbmi);
-		optionsMenu.add(rbmi);
-		rbmi.addActionListener(e -> {
-			plugin.setUseSubVolumeStats(false);
-			setMinMaxFromUser();
+		JRadioButtonMenuItem autoRbmi = new JRadioButtonMenuItem("Compute Real-Time", plugin.getUseSubVolumeStats());
+		minMaxButtonGroup.add(autoRbmi);
+		optionsMenu.add(autoRbmi);
+		autoRbmi.addActionListener(e -> plugin.setUseSubVolumeStats(autoRbmi.isSelected()));
+		final JRadioButtonMenuItem manRbmi = new JRadioButtonMenuItem("Specify Manually...", !plugin.getUseSubVolumeStats());
+		minMaxButtonGroup.add(manRbmi);
+		optionsMenu.add(manRbmi);
+		manRbmi.addActionListener(e -> {
+			final boolean prevStatsState = plugin.getUseSubVolumeStats();
+			final boolean successfullySet = setMinMaxFromUser();
+			final boolean newStatsState = (successfullySet) ? false : prevStatsState;
+			plugin.setUseSubVolumeStats(newStatsState);
+			manRbmi.setSelected(!newStatsState);
+			autoRbmi.setSelected(newStatsState);
 		});
 		aStarPanel = new JPanel(new BorderLayout());
 		aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
@@ -3012,9 +3016,11 @@ public class SNTUI extends JDialog {
 		return fudge;
 	}
 
-	private void setMinMaxFromUser() {
+	/* returns true if min/max successfully set by user */
+	private boolean setMinMaxFromUser() {
 		final String choice = getPrimarySecondaryImgChoice("Adjust range for which image?");
-		if (choice == null) return;
+		if (choice == null) return false;
+
 		final boolean useSecondary = "Secondary".equalsIgnoreCase(choice);
 		final float[] defaultValues = new float[2];
 		defaultValues[0] = useSecondary ? (float)plugin.getStatsSecondary().min : (float)plugin.getStats().min;
@@ -3029,10 +3035,11 @@ public class SNTUI extends JDialog {
 		final float[] minMax = guiUtils.getRange(promptMsg, "Setting Min-Max Range",
 				defaultValues);
 		if (minMax == null) {
-			return; // user pressed cancel
+			return false; // user pressed cancel
 		}
 		if (Double.isNaN(minMax[0]) || Double.isNaN(minMax[1])) {
 			guiUtils.error("Invalid range. Please specify two valid numbers separated by a single hyphen.");
+			return false;
 		}
 		if (useSecondary) {
 			plugin.getStatsSecondary().min = minMax[0];
@@ -3042,6 +3049,7 @@ public class SNTUI extends JDialog {
 			plugin.getStats().max = minMax[1];
 		}
 		updateSettingsString();
+		return true;
 	}
 
 	private String getPrimarySecondaryImgChoice(final String promptMsg) {
@@ -3052,8 +3060,8 @@ public class SNTUI extends JDialog {
 			if (choice != null) {
 				plugin.getPrefs().setTemp("pschoice", choice);
 				secLayerActivateCheckbox.setSelected(choices[1].equals(choice));
-				return choice;
 			}
+			return choice;
 		}
 		return "primary";
 	}
