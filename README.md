@@ -14,8 +14,8 @@
     <img alt="GitHub license" src="https://img.shields.io/github/license/morphonets/SNT">
   </a>
   <!-- Build Status -->
-  <a href="https://travis-ci.org/morphonets/SNT">
-    <img alt="build" src="https://travis-ci.org/morphonets/SNT.svg?branch=master">
+  <a href="https://github.com/morphonets/SNT/actions/workflows/build-main.yml/badge.svg)](https://github.com/morphonets/SNT/actions/workflows/build-main.yml)
+    <img alt="build" src="https://github.com/morphonets/SNT/actions/workflows/build-main.yml/badge.svg)](https://github.com/morphonets/SNT/actions/workflows/build-main.yml)
   </a>
     <!-- Issues -->
   <a href="https://github.com/morphonets/SNT/issues">
