@@ -85,7 +85,7 @@ public class TreeColorMapper extends ColorMapper {
 	public static final String N_SPINES =  TreeStatistics.N_SPINES;
 	/** Flag for {@value #MEAN_RADIUS} mapping. */
 	public static final String MEAN_RADIUS = TreeStatistics.MEAN_RADIUS;
-	/** Flag for {@value #MEAN_SPINE_COUNT} mapping. */
+	/** Flag for {@value #AVG_SPINE_DENSITY} mapping. */
 	public static final String AVG_SPINE_DENSITY = TreeStatistics.AVG_SPINE_DENSITY;
 	/** Flag for {@value #NODE_RADIUS} mapping. */
 	public static final String NODE_RADIUS = TreeStatistics.NODE_RADIUS;

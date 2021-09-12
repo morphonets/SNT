@@ -257,10 +257,11 @@ public class GroupedTreeStatistics {
 	 * Assembles a Box and Whisker Plot for the specified feature (absolute
 	 * measurements).
 	 *
-	 * @param feature     the feature ({@value #LENGTH}, {@value #N_BRANCH_POINTS},
-	 *                    {@value #N_TIPS}, etc.). Note that the majority of
-	 *                    {@link #getAllMetrics()} metrics are currently not
-	 *                    supported.
+	 * @param feature     the feature ({@value MultiTreeStatistics#LENGTH},
+	 *                    {@value MultiTreeStatistics#N_BRANCH_POINTS},
+	 *                    {@value MultiTreeStatistics#N_TIPS}, etc.). Note that the
+	 *                    majority of {@link MultiTreeStatistics#getAllMetrics()}
+	 *                    metrics are currently not supported.
 	 * @param annotations the BrainAnnotation to be queried. Null not allowed.
 	 * @return the frame holding the box plot
 	 */
@@ -271,18 +272,20 @@ public class GroupedTreeStatistics {
 	/**
 	 * Assembles a Box and Whisker Plot for the specified feature.
 	 *
-	 * @param feature     the feature ({@value #LENGTH}, {@value #N_BRANCH_POINTS},
-	 *                    {@value #N_TIPS}, etc.). Note that the majority of
-	 *                    {@link #getAllMetrics()} metrics are currently not
-	 *                    supported.
+	 * @param feature     the feature ({@value MultiTreeStatistics#LENGTH},
+	 *                    {@value MultiTreeStatistics#N_BRANCH_POINTS},
+	 *                    {@value MultiTreeStatistics#N_TIPS}, etc.). Note that the
+	 *                    majority of {@link MultiTreeStatistics#getAllMetrics()}
+	 *                    metrics are currently not supported.
 	 * @param annotations the BrainAnnotation to be queried. Null not allowed.
 	 * @param cutoff      a filtering option. If the computed {@code feature} for an
 	 *                    annotation is below this value, that annotation is
 	 *                    excluded from the plot
 	 * @param normalize   If true, values are retrieved as ratios. E.g., If
-	 *                    {@code feature} is {@value #LENGTH}, and {@code cutoff}
-	 *                    0.1, BrainAnnotations in {@code annotations} associated
-	 *                    with less than 10% of cable length are ignored.
+	 *                    {@code feature} is {@value MultiTreeStatistics#LENGTH},
+	 *                    and {@code cutoff} 0.1, BrainAnnotations in
+	 *                    {@code annotations} associated with less than 10% of cable
+	 *                    length are ignored.
 	 * 
 	 * @return the frame holding the box plot
 	 */
