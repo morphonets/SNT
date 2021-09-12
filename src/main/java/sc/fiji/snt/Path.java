@@ -1863,7 +1863,7 @@ public class Path implements Comparable<Path> {
 		}
 	}
 
-	protected void getTangent(final int i, final int pointsEitherSide,
+	public void getTangent(final int i, final int pointsEitherSide,
 		final double[] result)
 	{
 		int min_index = i - pointsEitherSide;
