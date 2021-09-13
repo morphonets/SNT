@@ -115,7 +115,7 @@ Most importantly, SNT can be used as a regular application or as a scripting lib
 
 
 ## Installation
-SNT is available in  [Fiji](https://imagej.net/Fiji) and is currently distributed through the *Neuroanatomy* [update site](https://imagej.net/Update_Sites).
+SNT is a [Fiji](https://imagej.net/Fiji) plugin, currently distributed through the *Neuroanatomy* [update site](https://imagej.net/Update_Sites).
 
 The first time you start SNT from Fiji's menu structure (*Plugins>Neuroanatomy>SNT...* you should be prompted for automatic subscription and download of required dependencies. If not:
 

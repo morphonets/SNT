@@ -123,6 +123,7 @@
 		<license.copyrightOwners>Fiji developers.</license.copyrightOwners>
 		<license.projectName>Fiji distribution of ImageJ for the life sciences.</license.projectName>
 		<license.excludes>%regex[.*main/resources/.*|.*/macros/.*]</license.excludes>
+		<doclint>none</doclint>
 
 		<!-- Dependency versions for JitPack -->
 		<sciview.version>9c0918a</sciview.version>

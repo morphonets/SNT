@@ -61,7 +61,7 @@ import sc.fiji.snt.filter.Tubeness;
 
 /**
  * Implements SNT 'Sigma wizard'. It relies heavily on java.awt because it
- * extends IJ1's StackWindow. It was ported from {@link features.SigmaPalette}
+ * extends IJ1's StackWindow. It was ported from {@code features.SigmaPalette}
  * now deprecated.
  */
 public class SigmaPalette extends Thread {

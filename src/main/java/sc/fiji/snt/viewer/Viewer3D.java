@@ -1095,10 +1095,11 @@ public class Viewer3D {
 	/**
 	 * Adds an highlighting point annotation to this viewer.
 	 *
-	 * @param point the point to be highlighted
+	 * @param node the node to be highlighted
 	 * @param label the (optional) annotation identifier. If null or empty, a unique
 	 *              label will be generated.
-	 * @param point the annotation color
+	 * @param color the annotation color
+	 * @param size the annotation size
 	 * @return the {@link Annotation3D}
 	 */
 	public Annotation3D annotatePoint(final SNTPoint node, final String label, final String color, final float size) {
