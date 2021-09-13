@@ -294,7 +294,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         return false;
     }
 
-    private double sum( final Cursor< ? extends RealType< ? > > cursor )
+    private double sum( final Cursor< T > cursor )
     {
         final long[] pos = new long[ cursor.numDimensions() ];
         double sum = 0;
@@ -309,7 +309,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         return sum;
     }
 
-    private double min( final Cursor< ? extends RealType< ? > > cursor )
+    private double min( final Cursor< T > cursor )
     {
         final long[] pos = new long[ cursor.numDimensions() ];
         double min = Double.MAX_VALUE;
@@ -324,7 +324,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         return min;
     }
 
-    private double max( final Cursor< ? extends RealType< ? > > cursor )
+    private double max( final Cursor< T > cursor )
     {
         final long[] pos = new long[ cursor.numDimensions() ];
         double max = -Double.MAX_VALUE;
@@ -339,7 +339,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         return max;
     }
 
-    private double mean( final Cursor< ? extends RealType< ? > > cursor )
+    private double mean( final Cursor< T > cursor )
     {
         final long[] pos = new long[ cursor.numDimensions() ];
         double sum = 0;
@@ -356,7 +356,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         return sum / (double) count;
     }
 
-    private double median( final Cursor< ? extends RealType< ? > > cursor )
+    private double median( final Cursor< T > cursor )
     {
         // FIXME
         final long[] pos = new long[ cursor.numDimensions() ];
@@ -373,7 +373,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         return Util.median( vals.stream().mapToDouble( Double::doubleValue ).toArray() );
     }
 
-    private double variance( final Cursor< ? extends RealType< ? > > cursor )
+    private double variance( final Cursor< T > cursor )
     {
         // FIXME
         final long[] pos = new long[ cursor.numDimensions() ];
