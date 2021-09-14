@@ -61,8 +61,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
     private final long[] intervalMax;
     private Metric metric = Metric.SUM;
     private Shape shape = Shape.HYPERSPHERE;
-    private boolean useNodeRadii = true;
-    private int radius = 1;
+    private int radius = 0;
     private double[] values;
 
     public enum Metric {SUM, MIN, MAX, MEAN, MEDIAN, VARIANCE}
@@ -107,19 +106,10 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         this.shape = shape;
     }
 
-    /**
-     * Set whether or not to use the {@link PointInImage} radius (scaled in pixels) as the {@link Shape} radius.
-     *
-     * @param useNodeRadii
-     */
-    public void setUseNodeRadii( final boolean useNodeRadii )
-    {
-        this.useNodeRadii = useNodeRadii;
-    }
 
     /**
-     * Specify a fixed radius for each {@link Shape} region around each {@link PointInImage}. This setting
-     * is only used if setUseNodeRadii is false.
+     * Specify a fixed radius for each {@link Shape} region around each {@link PointInImage}. Set to <= 0 to use the
+     * actual {@link PointInImage} radii.
      *
      * @param radius
      */
@@ -162,7 +152,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         }
         for ( int i = 0; i < path.size(); ++i )
         {
-            long r = useNodeRadii ? Math.round( path.getNodeRadius( i ) / avgSep ) : radius;
+            long r = (radius <= 0) ? Math.round( path.getNodeRadius( i ) / avgSep ) : radius;
             if ( r < 1 )
                 r = 1;
 
@@ -394,13 +384,12 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         ImageJ ij = new ImageJ();
         ij.ui().showUI();
         SNTService snt = new SNTService();
-        Tree t = snt.demoTree( "fractal" );
-        ImagePlus imp = snt.demoImage( "fractal" );
+        Tree t = snt.demoTree( "OP_1" );
+        ImagePlus imp = snt.demoImage( "OP_1" );
         t.assignImage( imp );
         Img< UnsignedByteType > img = ImageJFunctions.wrapReal( imp );
         ProfileProcessor< UnsignedByteType > profiler = new ProfileProcessor<>( img, t.get( 0 ) );
         profiler.setShape( Shape.CIRCLE );
-        profiler.setUseNodeRadii( false );
         profiler.setRadius( 5 );
         profiler.setMetric( Metric.VARIANCE );
         long t0 = System.currentTimeMillis();
