@@ -231,7 +231,7 @@ public class SNTCommandFinder {
 	}
 
 	private void helpMsg() {
-		new GuiUtils(frame).tempMsg("Shortcuts:" //
+		new GuiUtils(frame.getContentPane()).tempMsg("Shortcuts:" //
 				+ "<table>" //
 				+ " <tr>" //
 				+ "  <td>&uarr; &darr;</td>" //

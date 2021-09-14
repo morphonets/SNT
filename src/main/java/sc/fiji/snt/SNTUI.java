@@ -395,9 +395,10 @@ public class SNTUI extends JDialog {
 		add(tabbedPane, dialogGbc);
 		dialogGbc.gridy++;
 		add(statusBar(), dialogGbc);
-		pack();
 		addFileDrop(this, guiUtils);
 		registerMainButtonsInCommandFinder();
+		//registerCommandFinder(menuBar); // spurious addition if added here!?
+		pack();
 		toFront();
 
 		if (pmUI == null) {
@@ -422,8 +423,6 @@ public class SNTUI extends JDialog {
 			this.pmUI = pmUI;
 		}
 		addFileDrop(this.pmUI, this.pmUI.guiUtils);
-		registerCommandFinder(menuBar);
-
 		if (fmUI == null) {
 			this.fmUI = new FillManagerUI(plugin);
 			this.fmUI.setLocation(getX() + getWidth(), getY() + this.pmUI.getHeight());
