@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import net.imagej.Dataset;
 import net.imagej.ImageJ;
 import net.imagej.plot.LineStyle;
 import net.imagej.plot.MarkerStyle;
@@ -36,22 +37,24 @@ import net.imagej.plot.PlotService;
 import net.imagej.plot.XYPlot;
 import net.imagej.plot.XYSeries;
 
-import org.scijava.app.StatusService;
-import org.scijava.command.ContextCommand;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
+import org.scijava.command.Command;
+import org.scijava.convert.ConvertService;
 import org.scijava.plugin.Parameter;
-import org.scijava.ui.UIService;
+import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
-import ij.CompositeImage;
 import ij.IJ;
 import ij.ImagePlus;
-import ij.ImageStack;
 import ij.gui.Plot;
 import ij.measure.Calibration;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 
@@ -60,8 +63,10 @@ import sc.fiji.snt.util.SNTColor;
  * Path) from reconstructions.
  *
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
-public class PathProfiler extends ContextCommand {
+@Plugin(type = Command.class, visible = false, label = "Path Profiler", initializer = "init")
+public class PathProfiler extends CommonDynamicCmd {
 
 	/** Flag for retrieving distances from {@link #getValues(Path)} */
 	public final static String X_VALUES = "x-values";
@@ -72,19 +77,32 @@ public class PathProfiler extends ContextCommand {
 	@Parameter
 	private PlotService plotService;
 
-	@Parameter
-	private UIService uiService;
+	@Parameter(label = "radius")
+	private int radius;
 
-	@Parameter
-	private StatusService statusService;
+	@Parameter(label = "shape", choices = {"HyperSphere", "Circle", "Disk", "Path"})
+	private String shapeStr;
 
-	private final Tree tree;
-	private final ImageStack stack;
-	private final ImagePlus imp;
-	private final BoundingBox impBox;
+	@Parameter(label = "metric", choices = {"Sum", "Min", "Max", "Mean", "Median", "Variance"})
+	private String metricStr;
+
+	@Parameter(label = "tree")
+	private Tree tree;
+
+	@Parameter(label = "dataset")
+	private Dataset dataset;
+
+	@Parameter(label = "imp", required = false)
+	private ImagePlus imp;
+
+	private ProfileProcessor.Shape shape = ProfileProcessor.Shape.HYPERSPHERE;
+	private ProfileProcessor.Metric metric = ProfileProcessor.Metric.SUM;
+
+	private BoundingBox impBox;
 	private boolean valuesAssignedToTree;
 	private int lastprofiledChannel = -1;
 	private boolean nodeIndices = false;
+	private int frame = 1;
 
 	/**
 	 * Instantiates a new Profiler
@@ -104,8 +122,81 @@ public class PathProfiler extends ContextCommand {
 		}
 		this.tree = tree;
 		this.imp = imp;
-		this.stack = imp.getImageStack();
+		this.frame = imp.getFrame();
 		impBox = getImpBoundingBox(imp);
+		init();
+	}
+
+	public PathProfiler(final Tree tree, final Dataset dataset) {
+		if (dataset == null){
+			throw new IllegalArgumentException("Dataset cannot be null");
+		}
+		if (tree == null){
+			throw new IllegalArgumentException("Tree cannot be null");
+		}
+		this.tree = tree;
+		this.dataset = dataset;
+		init();
+	}
+
+	public PathProfiler() {
+		super();
+	}
+
+	protected void init() {
+		super.init(false);
+		// FIXME
+		if (dataset == null) {
+			if (imp == null) {
+				throw new IllegalArgumentException("Both dataset and imp are null");
+			}
+			ConvertService convertService = getContext().service(ConvertService.class);
+			this.dataset = convertService.convert(imp, Dataset.class);
+			if (dataset == null) {
+				throw new UnsupportedOperationException("BUG: Could not convert ImagePlus to Dataset");
+			}
+		}
+	}
+
+	private void evalParameters() {
+		switch (metricStr) {
+			case "Sum":
+				metric = ProfileProcessor.Metric.SUM;
+				break;
+			case "Min":
+				metric = ProfileProcessor.Metric.MIN;
+				break;
+			case "Max":
+				metric = ProfileProcessor.Metric.MAX;
+				break;
+			case "Mean":
+				metric = ProfileProcessor.Metric.MEAN;
+				break;
+			case "Median":
+				metric = ProfileProcessor.Metric.MEDIAN;
+				break;
+			case "Variance":
+				metric = ProfileProcessor.Metric.VARIANCE;
+				break;
+			default:
+				throw new IllegalArgumentException("Unknown metric: " + metricStr);
+		}
+		switch (shapeStr) {
+			case "HyperSphere":
+				shape = ProfileProcessor.Shape.HYPERSPHERE;
+				break;
+			case "Circle":
+				shape = ProfileProcessor.Shape.CIRCLE;
+				break;
+			case "Disk":
+				shape = ProfileProcessor.Shape.DISK;
+				break;
+			case "Path":
+				shape = ProfileProcessor.Shape.PATH;
+				break;
+			default:
+				throw new IllegalArgumentException("Unknown shape: " + shapeStr);
+		}
 	}
 
 	/**
@@ -121,6 +212,26 @@ public class PathProfiler extends ContextCommand {
 		this(new Tree(Collections.singleton(path)), imp);
 	}
 
+	public PathProfiler(final Path path, final Dataset dataset) {
+		this(new Tree(Collections.singleton(path)), dataset);
+	}
+
+	public void setShape(ProfileProcessor.Shape shape) {
+		this.shape = shape;
+	}
+
+	public void setMetric(ProfileProcessor.Metric metric) {
+		this.metric = metric;
+	}
+
+	public void setRadius(int radius) {
+		this.radius = radius;
+	}
+
+	public void setFrame(final int frame) {
+		this.frame = frame;
+	}
+
 	/* (non-Javadoc)
 	 * @see java.lang.Runnable#run()
 	 */
@@ -130,9 +241,13 @@ public class PathProfiler extends ContextCommand {
 			cancel("No path(s) to profile");
 			return;
 		}
-		statusService.showStatus("Measuring Paths...");
-		uiService.show(getPlotTitle(), getPlot());
-		statusService.clearStatus();
+		evalParameters();
+		getPlot().show();
+		// FIXME these just hang forever
+//		uiService.show(getPlotTitle(), getPlot());
+//		statusService.showStatus("Measuring Paths...");
+//		uiService.show(getPlotTitle(), getPlot());
+//		statusService.clearStatus();
 	}
 
 	private String getPlotTitle() {
@@ -165,9 +280,9 @@ public class PathProfiler extends ContextCommand {
 	}
 
 	private void validateChannelRange(final int channel) {
-		if (channel < 1 || channel > imp.getNChannels())
+		if (channel < 1 || channel > dataset.getChannels())
 			throw new IllegalArgumentException(
-					"Specified channel " + channel + " out of range: Only 1-" + imp.getNChannels() + " allowed");
+					"Specified channel " + channel + " out of range: Only 1-" + dataset.getChannels() + " allowed");
 	}
 
 	/**
@@ -204,32 +319,16 @@ public class PathProfiler extends ContextCommand {
 		assignValues(p, p.getChannel());
 	}
 
-	public void assignValues(final Path p, final int channel) throws IllegalArgumentException {
+	public <T extends RealType<T>> void assignValues(final Path p, final int channel) {
 		validateChannelRange(channel);
-		final double[] values = new double[p.size()];
-		if (imp.getNSlices() == 1 && imp.getNFrames() == 1) {
-			final int currentCh = imp.getChannel();
-			imp.setPositionWithoutUpdate(channel, imp.getZ(), imp.getFrame());
-			for (int i = 0; i < p.size(); i++) {
-				try {
-					values[i] = imp.getPixel(p.getXUnscaled(i), p.getYUnscaled(i))[0];
-				} catch (final IndexOutOfBoundsException exc) {
-					values[i] = Float.NaN;
-				}
-			}
-			imp.setPositionWithoutUpdate(currentCh, imp.getZ(), imp.getFrame());
-		} else {
-			final int f = p.getFrame();
-			for (int i = 0; i < p.size(); i++) {
-				try {
-					final int zPos = imp.getStackIndex(channel, p.getZUnscaled(i) + 1, f);
-					values[i] = stack.getVoxel(p.getXUnscaled(i), p.getYUnscaled(i), zPos);
-				} catch (final IndexOutOfBoundsException exc) {
-					values[i] = Float.NaN;
-				}
-			}
-		}
-		p.setNodeValues(values);
+		System.out.println(channel - 1);
+		System.out.println(frame - 1);
+		RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel - 1, frame - 1);
+		ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
+		processor.setShape(shape);
+		processor.setRadius(radius);
+		processor.setMetric(metric);
+		p.setNodeValues(processor.call());
 	}
 
 	private Map<String, double[]> getValuesAsArray(final Path p) {
@@ -363,7 +462,7 @@ public class PathProfiler extends ContextCommand {
 	}
 
 	private String getYAxisLabel() {
-		return "Intensity (" + stack.getBitDepth() + "-bit)";
+		return "Intensity (" + dataset.getValidBits() + "-bit)";
 	}
 
 	/**
@@ -399,21 +498,12 @@ public class PathProfiler extends ContextCommand {
 
 	public Plot getPlot(final Path path) {
 		final Plot plot = new Plot(getPlotTitle(), getXAxisLabel(), getYAxisLabel());
-		final Color[] colors = new Color[imp.getNChannels()];
-		if (imp instanceof CompositeImage) {
-			final int currentChannel = imp.getC();
-			for (int i = 0; i < imp.getNChannels(); i++) {
-				imp.setPositionWithoutUpdate(i+1, imp.getZ(), imp.getFrame());
-				colors[i] = ((CompositeImage)imp).getChannelColor();
-			}
-			imp.setPositionWithoutUpdate(currentChannel, imp.getZ(), imp.getFrame());
-		} else {
-			final ColorRGB[] colorsRGB = SNTColor.getDistinctColors(imp.getNChannels());
-			for (int i = 0; i < imp.getNChannels(); i++)
+		final Color[] colors = new Color[(int)dataset.getChannels()];
+			final ColorRGB[] colorsRGB = SNTColor.getDistinctColors((int)dataset.getChannels());
+			for (int i = 0; i < dataset.getChannels(); i++)
 				colors[i] = new Color(colorsRGB[i].getARGB());
-		}
 		final StringBuilder legend = new StringBuilder();
-		for (int i = 1; i <= imp.getNChannels(); i++) {
+		for (int i = 1; i <= dataset.getChannels(); i++) {
 			legend.append("Ch").append(i).append("\n");
 			final Map<String, double[]> values = getValuesAsArray(path, i);
 			plot.setColor(colors[i-1], colors[i-1]);
