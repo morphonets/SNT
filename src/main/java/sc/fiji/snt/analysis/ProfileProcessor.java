@@ -66,7 +66,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
 
     public enum Metric {SUM, MIN, MAX, MEAN, MEDIAN, VARIANCE}
 
-    public enum Shape {HYPERSPHERE, CIRCLE, DISK, PATH}
+    public enum Shape {CENTERLINE, CIRCLE, DISK, HYPERSPHERE}
 
     public ProfileProcessor( final RandomAccessibleInterval< T > rai, final Path path )
     {
@@ -87,7 +87,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
 
     /**
      * Sets the metric to be computed for each local neighborhood. This setting is ignored if using
-     * {@link Shape#PATH}.
+     * {@link Shape#CENTERLINE}.
      *
      * @param metric
      */
@@ -146,7 +146,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         {
             return values;
         }
-        if ( shape == Shape.PATH )
+        if ( shape == Shape.CENTERLINE)
         {
             return profilePathNodes( rai, path, values );
         }
@@ -235,7 +235,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
             case HYPERSPHERE:
             case DISK:
                 return new HyperSphere<>( rai, centerPoint, radius ).cursor();
-            case PATH:
+            case CENTERLINE:
             default:
                 throw new IllegalArgumentException( "Unsupported shape: " + shape );
 
@@ -269,7 +269,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
                     return null;
                 return new DiskCursor3d<>( rai, centerPoint, radius, circleNormal );
             }
-            case PATH:
+            case CENTERLINE:
             default:
                 throw new IllegalArgumentException( "Unsupported shape: " + shape );
 

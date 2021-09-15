@@ -23,11 +23,7 @@
 package sc.fiji.snt.analysis;
 
 import java.awt.Color;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import net.imagej.Dataset;
 import net.imagej.ImageJ;
@@ -72,6 +68,11 @@ import sc.fiji.snt.util.SNTColor;
 @Plugin(type = Command.class, visible = false, label = "Path Profiler", initializer = "init")
 public class PathProfiler extends CommonDynamicCmd {
 
+	public static final String CIRCLE = "Circle (Hollow)";
+	public static final String DISK = "Disk (Solid)";
+	public static final String SPHERE = "Sphere";
+	public static final String CENTERLINE = "None. Path coordinates only.";
+
 	/** Flag for retrieving distances from {@link #getValues(Path)} */
 	public final static String X_VALUES = "x-values";
 
@@ -85,17 +86,26 @@ public class PathProfiler extends CommonDynamicCmd {
 			label = HEADER_HTML + "Sampling Cursor:")
 	private String HEADER1;
 
-	@Parameter(label = "Radius (in pixels)",  min="0")
+	@Parameter(
+			label = "Radius (in pixels)",
+			description = " >= 1 sets fixed radius for shape neighborhood. 0 to use Path point radii",
+			min="0")
 	private int radius;
 
-	@Parameter(label = "Shape (centered at each node)", choices = {"Circle", "Disk", "HyperSphere", "None. Path coordinates only"})
+	@Parameter(
+			label = "Shape (centered at each node)",
+			description = "Image neighborhood to measure around each Path point",
+			choices = {SPHERE, DISK, CIRCLE, CENTERLINE},
+			callback = "shapeStrChanged")
 	private String shapeStr;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 			label = HEADER_HTML + "Y axis:")
 	private String HEADER2;
 
-	@Parameter(label = "Integration metric:" , choices = {"Sum", "Min", "Max", "Mean", "Median", "Variance", "N/A"})
+	@Parameter(label = "Integration metric:" ,
+			description = "Statistic to compute for each neighborhood (ignored if only measuring centerline)",
+			choices = {"Sum", "Min", "Max", "Mean", "Median", "Variance", "N/A"})
 	private String metricStr;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
@@ -142,11 +152,11 @@ public class PathProfiler extends CommonDynamicCmd {
 		this.tree = tree;
 		this.imp = imp;
 		this.frame = imp.getFrame();
-		impBox = getImpBoundingBox(imp);
+//		impBox = getImpBoundingBox(imp);
 		init();
 		// refractored constructor: ensure backwards compatibility
 		setRadius(1);
-		setShape(ProfileProcessor.Shape.PATH);
+		setShape(ProfileProcessor.Shape.CENTERLINE);
 		setNodeIndicesAsDistances(false);
 	}
 
@@ -159,7 +169,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		}
 		this.tree = tree;
 		this.dataset = dataset;
-		impBox = getImpBoundingBox(dataset);
+//		impBox = getImpBoundingBox(dataset);
 		init();
 	}
 
@@ -181,11 +191,25 @@ public class PathProfiler extends CommonDynamicCmd {
 				throw new UnsupportedOperationException("BUG: Could not convert ImagePlus to Dataset");
 			}
 		}
+		final List<String> choices;
+		if (dataset.getDepth() > 1) {
+			choices = Arrays.asList(SPHERE, DISK, CIRCLE, CENTERLINE);
+		} else {
+			choices = Arrays.asList(DISK, CIRCLE, CENTERLINE);
+		}
+		getInfo().getMutableInput("shapeStr", String.class).setChoices(choices);
 	}
 
 	private void initContextAsNeeded() {
 		if (getContext() == null) {
 			setContext(SNTUtils.getContext());
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private void shapeStrChanged() {
+		if (Objects.equals(shapeStr, "None. Path coordinates only")) {
+			metricStr = "N/A";
 		}
 	}
 
@@ -214,18 +238,17 @@ public class PathProfiler extends CommonDynamicCmd {
 				throw new IllegalArgumentException("Unknown metric: " + metricStr);
 		}
 		switch (shapeStr) {
-			case "HyperSphere":
+			case SPHERE:
 				shape = ProfileProcessor.Shape.HYPERSPHERE;
 				break;
-			case "Circle":
+			case CIRCLE:
 				shape = ProfileProcessor.Shape.CIRCLE;
 				break;
-			case "Disk":
+			case DISK:
 				shape = ProfileProcessor.Shape.DISK;
 				break;
-			case "Path":
-			case "None. Path coordinates only":
-				shape = ProfileProcessor.Shape.PATH;
+			case CENTERLINE:
+				shape = ProfileProcessor.Shape.CENTERLINE;
 				break;
 			default:
 				throw new IllegalArgumentException("Unknown shape: " + shapeStr);
@@ -291,6 +314,7 @@ public class PathProfiler extends CommonDynamicCmd {
 			" Path Profile";
 	}
 
+	@SuppressWarnings("unused")
 	private BoundingBox getImpBoundingBox(final ImagePlus imp) {
 		final BoundingBox impBox = new BoundingBox();
 		final Calibration cal = imp.getCalibration();
@@ -301,6 +325,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		return impBox;
 	}
 
+	@SuppressWarnings("unused")
 	private BoundingBox getImpBoundingBox(final Dataset dataset) {
 		final BoundingBox impBox = new BoundingBox();
 		long[] dims = new long[dataset.numDimensions()];
@@ -325,6 +350,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * @return true, if successful, false if Tree has nodes outside the image
 	 *         boundaries.
 	 */
+	@SuppressWarnings("unused")
 	public boolean validImage() {
 		BoundingBox bbox = tree.getBoundingBox(false);
 		if (bbox == null) bbox = tree.getBoundingBox(true);
@@ -373,8 +399,6 @@ public class PathProfiler extends CommonDynamicCmd {
 
 	public <T extends RealType<T>> void assignValues(final Path p, final int channel) {
 		validateChannelRange(channel);
-//		System.out.println(channel - 1);
-//		System.out.println(frame - 1);
 		RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel - 1, frame - 1);
 		ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
 		processor.setShape(shape);
