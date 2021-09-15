@@ -2374,7 +2374,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
 		private final static String CONVERT_TO_SKEL_CMD = "Skeletonize...";
 		private final static String CONVERT_TO_SWC_CMD = "Save Subset as SWC...";
-		private final static String PLOT_PROFILE_CMD = "Plot Profile";
+		private final static String PLOT_PROFILE_CMD = "Plot Profile...";
 
 		// color mapping commands
 		private final static String COLORIZE_TREES_CMD = "Color Code Cell(s)...";

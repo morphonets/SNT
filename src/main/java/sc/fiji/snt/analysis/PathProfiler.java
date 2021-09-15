@@ -39,6 +39,8 @@ import net.imagej.plot.XYSeries;
 
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
+
+import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
 import org.scijava.convert.ConvertService;
@@ -47,7 +49,6 @@ import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.Plot;
 import ij.measure.Calibration;
@@ -80,14 +81,29 @@ public class PathProfiler extends CommonDynamicCmd {
 	@Parameter
 	private PlotService plotService;
 
-	@Parameter(label = "radius")
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
+			label = HEADER_HTML + "Sampling Cursor:")
+	private String HEADER1;
+
+	@Parameter(label = "Radius (in pixels)",  min="0")
 	private int radius;
 
-	@Parameter(label = "shape", choices = {"HyperSphere", "Circle", "Disk", "Path"})
+	@Parameter(label = "Shape (centered at each node)", choices = {"Circle", "Disk", "HyperSphere", "None. Path coordinates only"})
 	private String shapeStr;
 
-	@Parameter(label = "metric", choices = {"Sum", "Min", "Max", "Mean", "Median", "Variance"})
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
+			label = HEADER_HTML + "Y axis:")
+	private String HEADER2;
+
+	@Parameter(label = "Integration metric:" , choices = {"Sum", "Min", "Max", "Mean", "Median", "Variance", "N/A"})
 	private String metricStr;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
+			label = HEADER_HTML + "X axis:")
+	private String HEADER3;
+
+	@Parameter(required  = false, label = "Spatially calibrated distances")
+	private boolean usePhysicalUnits;
 
 	@Parameter(label = "tree")
 	private Tree tree;
@@ -185,6 +201,7 @@ public class PathProfiler extends CommonDynamicCmd {
 				metric = ProfileProcessor.Metric.MAX;
 				break;
 			case "Mean":
+			case "N/A":
 				metric = ProfileProcessor.Metric.MEAN;
 				break;
 			case "Median":
@@ -207,11 +224,13 @@ public class PathProfiler extends CommonDynamicCmd {
 				shape = ProfileProcessor.Shape.DISK;
 				break;
 			case "Path":
+			case "None. Path coordinates only":
 				shape = ProfileProcessor.Shape.PATH;
 				break;
 			default:
 				throw new IllegalArgumentException("Unknown shape: " + shapeStr);
 		}
+		setNodeIndicesAsDistances(!usePhysicalUnits);
 	}
 
 	/**
@@ -354,8 +373,8 @@ public class PathProfiler extends CommonDynamicCmd {
 
 	public <T extends RealType<T>> void assignValues(final Path p, final int channel) {
 		validateChannelRange(channel);
-		System.out.println(channel - 1);
-		System.out.println(frame - 1);
+//		System.out.println(channel - 1);
+//		System.out.println(frame - 1);
 		RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel - 1, frame - 1);
 		ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
 		processor.setShape(shape);
