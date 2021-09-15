@@ -76,7 +76,7 @@ import java.util.zip.GZIPOutputStream;
  * @author Cameron Arshadi
  */
 public class PathAndFillManager extends DefaultHandler implements
-	UniverseListener
+	UniverseListener, PathChangeListener
 {
 
 	protected static final int TRACES_FILE_TYPE_COMPRESSED_XML = 1;
@@ -233,7 +233,8 @@ public class PathAndFillManager extends DefaultHandler implements
 			p.setTreeLabel(null);
 		});
 
-		resetIDs();
+//		resetIDs();
+		maxUsedTreeID = 0;
 		for (Path p : primaryPaths) {
 			++maxUsedTreeID;
 			p.setOrder(1);
@@ -241,10 +242,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			pathStack.push(p);
 			while (!pathStack.isEmpty()) {
 				Path current = pathStack.pop();
-				current.setIDs(++maxUsedPathID, maxUsedTreeID);
-				//String tags = PathManagerUI.extractTagsFromPath(current);
-				//String newName = getDefaultName(current);
-				//current.setName((tags.isEmpty()) ? newName : newName + "{" + tags + "}");
+				current.setIDs(current.getID(), maxUsedTreeID);
 				current.rebuildConnectionsOfFittedVersion(); ////current.discardFit();
 				for (Path child : current.children) {
 					child.setOrder(current.getOrder() +1);
@@ -1091,6 +1089,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		pathIdMap.put(p.getID(), p);
 		pathNameMap.put(p.getName(), p);
 		pathNameLowercaseMap.put(p.getName().toLowerCase(Locale.ROOT), p);
+		p.addChangeListener(this);
 		resetListeners(p);
 	}
 
@@ -1164,6 +1163,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		final Path originalPathToDelete = allPaths.get(index);
 
+
 		Path unfittedPathToDelete = null;
 		Path fittedPathToDelete = null;
 
@@ -1180,11 +1180,13 @@ public class PathAndFillManager extends DefaultHandler implements
 		pathIdMap.remove(unfittedPathToDelete.getID());
 		pathNameMap.remove(unfittedPathToDelete.getName());
 		pathNameLowercaseMap.remove(unfittedPathToDelete.getName().toLowerCase(Locale.ROOT));
+		unfittedPathToDelete.removeChangeListener(this);
 		if (fittedPathToDelete != null) {
 			removed = removed || allPaths.remove(fittedPathToDelete);
 			pathIdMap.remove(fittedPathToDelete.getID());
 			pathNameMap.remove(fittedPathToDelete.getName());
 			pathNameLowercaseMap.remove(fittedPathToDelete.getName().toLowerCase(Locale.ROOT));
+			fittedPathToDelete.removeChangeListener(this);
 		}
 		if (removed && plugin != null) plugin.unsavedPaths = true;
 
@@ -1940,6 +1942,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				pathIdMap.put(current_path.getID(), current_path);
 				pathNameMap.put(current_path.getName(), current_path);
 				pathNameLowercaseMap.put(current_path.getName().toLowerCase(Locale.ROOT), current_path);
+				current_path.addChangeListener(this);
 
 				break;
 			case "fill":
@@ -3549,6 +3552,57 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	public SNT getPlugin() {
 		return plugin;
+	}
+
+	/* implements PathChangeListener */
+
+	@Override
+	public synchronized void pathChanged(final PathChangeEvent event)
+	{
+		if (!(event.getSource() instanceof Path))
+		{
+			return;
+		}
+		final Path path = (Path) event.getSource();
+		switch (event.getEventType())
+		{
+			case NAME_CHANGED:
+			{
+				final String oldName = (String) event.getArgs()[0];
+				final String newName = (String) event.getArgs()[1];
+				Path p = pathNameMap.get(oldName);
+				if (p == path)
+				{
+					pathNameMap.remove(oldName);
+					pathNameMap.put(newName, p);
+				}
+				p = pathNameLowercaseMap.get(oldName.toLowerCase(Locale.ROOT));
+				if (p == path)
+				{
+					pathNameLowercaseMap.remove(oldName.toLowerCase(Locale.ROOT));
+					pathNameLowercaseMap.put(newName, p);
+				}
+				break;
+			}
+
+			case ID_CHANGED:
+			{
+				final int oldId = (int) event.getArgs()[0];
+				final int newId = (int) event.getArgs()[1];
+				final Path p = pathIdMap.get(oldId);
+				if (p == path)
+				{
+					pathIdMap.remove(oldId);
+					pathIdMap.put(newId, p);
+				}
+				break;
+			}
+
+			default:
+				throw new IllegalArgumentException("Unknown event type:" + event.getEventType());
+
+		}
+
 	}
 
 	public class AllPointsIterator implements Iterator<PointInImage> {

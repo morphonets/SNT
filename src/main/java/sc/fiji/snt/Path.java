@@ -193,6 +193,8 @@ public class Path implements Comparable<Path> {
 	/* Internal fields */
 	private int maxPoints;
 
+	private final List<PathChangeListener> changeListeners;
+
 
 	/**
 	 * Instantiates a new path under default settings (isotropic 1um pixel spacing)
@@ -231,6 +233,7 @@ public class Path implements Comparable<Path> {
 		somehowJoins = new ArrayList<>();
 		children = new ArrayList<>();
 		ctPosition = new int[] {1, 1};
+		changeListeners = new ArrayList<>();
 	}
 
 	/* (non-Javadoc)
@@ -260,8 +263,11 @@ public class Path implements Comparable<Path> {
 	}
 
 	protected void setIDs(final int pathID, final int treeID) {
+		final int oldId = getID();
 		// pathID to fill lower bits, treeID to fill upper bits
 		id = (((long) treeID) << 32) | (pathID & 0xffffffffL);
+		changeListeners.forEach(l -> l.pathChanged(
+				new PathChangeEvent(this, PathChangeEvent.EventType.ID_CHANGED, oldId, getID())));
 	}
 
 	protected void setTreeLabel(final String treeLabel) {
@@ -315,8 +321,11 @@ public class Path implements Comparable<Path> {
 	 * @see #getName()
 	 */
 	public void setName(final String newName) {
+		final String oldName =  getName();
 		this.name = newName;
 		getName(); // assign default if newName is null
+		changeListeners.forEach(l -> l.pathChanged(
+				new PathChangeEvent(this, PathChangeEvent.EventType.NAME_CHANGED, oldName, getName())));
 	}
 
 	/**
@@ -500,11 +509,8 @@ public class Path implements Comparable<Path> {
 	}
 
 	protected void rebuildConnectionsOfFittedVersion() {
-		if (fitted == null) return;
-		if (isPrimary()) {
-			fitted.disconnectFromAll();
+		if (fitted == null)
 			return;
-		}
 		if (getStartJoins() != null) { // this is always the case if not primary
 			if (fitted.startJoins != null) fitted.unsetStartJoin();
 			if (startJoins.getUseFitted()) {
@@ -515,14 +521,6 @@ public class Path implements Comparable<Path> {
 				fitted.setStartJoin(startJoins, startJoinsPoint);
 			}
 		}
-
-		// FIXME: This shouldn't be needed!?
-		final HashSet<Path> children = new HashSet<Path>();
-		for (final Path child : getChildren()) {
-			children.add( (child.getUseFitted()) ? child.getFitted() : child);
-		}
-		fitted.setChildren(children);
-
 	}
 
 	public void unsetStartJoin() {
@@ -2869,6 +2867,14 @@ public class Path implements Comparable<Path> {
 	public boolean isConnectedTo(final Path other) {
 		return (getStartJoins() != null && getStartJoins().equals(other))
 			|| (somehowJoins != null && somehowJoins.contains(other));
+	}
+
+	protected void addChangeListener(PathChangeListener listener) {
+		changeListeners.add(listener);
+	}
+
+	protected boolean removeChangeListener(PathChangeListener listener) {
+		return changeListeners.remove(listener);
 	}
 
 // FIXME: Implementing hasCode() and equals() breaks current TreeAnalyzer tests
