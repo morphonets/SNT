@@ -40,6 +40,7 @@ import net.imagej.plot.XYSeries;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 import org.scijava.command.Command;
+import org.scijava.command.CommandService;
 import org.scijava.convert.ConvertService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
@@ -51,6 +52,8 @@ import ij.ImagePlus;
 import ij.gui.Plot;
 import ij.measure.Calibration;
 import sc.fiji.snt.Path;
+import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.BoundingBox;
@@ -125,6 +128,10 @@ public class PathProfiler extends CommonDynamicCmd {
 		this.frame = imp.getFrame();
 		impBox = getImpBoundingBox(imp);
 		init();
+		// refractored constructor: ensure backwards compatibility
+		setRadius(1);
+		setShape(ProfileProcessor.Shape.PATH);
+		setNodeIndicesAsDistances(false);
 	}
 
 	public PathProfiler(final Tree tree, final Dataset dataset) {
@@ -136,25 +143,33 @@ public class PathProfiler extends CommonDynamicCmd {
 		}
 		this.tree = tree;
 		this.dataset = dataset;
+		impBox = getImpBoundingBox(dataset);
 		init();
 	}
 
 	public PathProfiler() {
-		super();
+		super(); // required for calling run() from CommandService
 	}
 
 	protected void init() {
+		initContextAsNeeded();
 		super.init(false);
 		// FIXME
 		if (dataset == null) {
 			if (imp == null) {
 				throw new IllegalArgumentException("Both dataset and imp are null");
 			}
-			ConvertService convertService = getContext().service(ConvertService.class);
+			final ConvertService convertService = getContext().service(ConvertService.class);
 			this.dataset = convertService.convert(imp, Dataset.class);
 			if (dataset == null) {
 				throw new UnsupportedOperationException("BUG: Could not convert ImagePlus to Dataset");
 			}
+		}
+	}
+
+	private void initContextAsNeeded() {
+		if (getContext() == null) {
+			setContext(SNTUtils.getContext());
 		}
 	}
 
@@ -237,17 +252,18 @@ public class PathProfiler extends CommonDynamicCmd {
 	 */
 	@Override
 	public void run() {
+		if (getContext() == null) {
+			// since this is a scriptable class, provide feedback in case run() is called out-of-context
+			throw new IllegalArgumentException("No context has been set. Note that this method should only be called from CommandService.");
+		}
 		if (tree.size() == 0) {
-			cancel("No path(s) to profile");
+			super.error("No path(s) to profile");
 			return;
 		}
+		super.status("Retrieving profile(s)...", false);
 		evalParameters();
 		getPlot().show();
-		// FIXME these just hang forever
-//		uiService.show(getPlotTitle(), getPlot());
-//		statusService.showStatus("Measuring Paths...");
-//		uiService.show(getPlotTitle(), getPlot());
-//		statusService.clearStatus();
+		super.resetUI();
 	}
 
 	private String getPlotTitle() {
@@ -263,6 +279,23 @@ public class PathProfiler extends CommonDynamicCmd {
 		impBox.setDimensions(imp.getWidth(), imp.getHeight(), imp.getNSlices());
 		impBox.setSpacing(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal
 			.getUnit());
+		return impBox;
+	}
+
+	private BoundingBox getImpBoundingBox(final Dataset dataset) {
+		final BoundingBox impBox = new BoundingBox();
+		long[] dims = new long[dataset.numDimensions()];
+		switch(dims.length) {
+		case 1:
+			impBox.setDimensions((int) dims[0], 0, 0);
+			break;
+		case 2:
+			impBox.setDimensions((int) dims[0], (int) dims[1], 0);
+			break;
+		default:
+			impBox.setDimensions((int) dims[0], (int) dims[1], (int) dims[2]);
+			break;
+		}
 		return impBox;
 	}
 
@@ -554,13 +587,14 @@ public class PathProfiler extends CommonDynamicCmd {
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
-		final Tree tree = new Tree("/home/tferr/code/OP_1/OP_1.traces");
-		final ImagePlus imp = IJ.openImage("/home/tferr/code/OP_1/OP_1.tif");
-		final PathProfiler profiler = new PathProfiler(tree, imp);
-		profiler.setContext(ij.context());
-		System.out.println("Valid image? " + profiler.validImage());
-		profiler.setNodeIndicesAsDistances(false);
-		profiler.getPlot().show();
-		profiler.run();
+		final SNTService snt = ij.context().getService(SNTService.class);
+		final Tree tree = snt.demoTree("OP_1");
+		final ImagePlus imp = snt.demoImage("OP_1");
+		final HashMap<String, Object> inputs = new HashMap<>();
+		inputs.put("tree", tree);
+		inputs.put("imp", imp);
+		final CommandService cmdService = ij.context().getService(CommandService.class);
+		cmdService.run(PathProfiler.class, true, inputs);
+
 	}
 }
