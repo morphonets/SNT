@@ -24,9 +24,12 @@ package sc.fiji.snt.analysis;
 
 import java.awt.Color;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import net.imagej.Dataset;
 import net.imagej.ImageJ;
+import net.imagej.axis.CalibratedAxis;
 import net.imagej.plot.LineStyle;
 import net.imagej.plot.MarkerStyle;
 import net.imagej.plot.PlotService;
@@ -34,6 +37,7 @@ import net.imagej.plot.XYPlot;
 import net.imagej.plot.XYSeries;
 
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.display.ColorTable;
 import net.imglib2.type.numeric.RealType;
 
 import org.scijava.ItemVisibility;
@@ -47,13 +51,11 @@ import org.scijava.util.Colors;
 
 import ij.ImagePlus;
 import ij.gui.Plot;
-import ij.measure.Calibration;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
-import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -83,34 +85,40 @@ public class PathProfiler extends CommonDynamicCmd {
 	private PlotService plotService;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-			label = HEADER_HTML + "Sampling Cursor:")
+			label = HEADER_HTML + "Sampling Neighborhood:")
 	private String HEADER1;
 
 	@Parameter(
-			label = "Radius (in pixels)",
-			description = " >= 1 sets fixed radius for shape neighborhood. 0 to use Path point radii",
-			min="0")
-	private int radius;
-
-	@Parameter(
 			label = "Shape (centered at each node)",
-			description = "Image neighborhood to measure around each Path point",
+			description = "<HTML>The image neighborhood to be measured around each Path node.",
 			choices = {SPHERE, DISK, CIRCLE, CENTERLINE},
 			callback = "shapeStrChanged")
 	private String shapeStr;
 
+	@Parameter(
+			label = "Radius (in pixels)",
+			description = "<HTML>The size of the sampling shape.<br>"
+					+ "A value >= 1 sets a fixed radius for shape neighborhood.<br>"
+					+ "A value of 0 instructs the profiler to adopt the radius at each Path's node.<br>"
+					+ "Ignored when shape is '" + CENTERLINE + "'",
+			min="0")
+	private int radius;
+
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-			label = HEADER_HTML + "Y axis:")
+			label = HEADER_HTML + "Options:")
 	private String HEADER2;
 
 	@Parameter(label = "Integration metric:" ,
-			description = "Statistic to compute for each neighborhood (ignored if only measuring centerline)",
-			choices = {"Sum", "Min", "Max", "Mean", "Median", "Variance", "N/A"})
+			description = "<HTML>Statistic to compute for each neighborhood.<br>"
+					+ "Ignored when shape is '" + CENTERLINE + "'",
+			choices = {"Sum", "Min", "Max", "Mean", "Median", "Variance", "N/A"},
+			callback = "metricStrChanged")
 	private String metricStr;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-			label = HEADER_HTML + "X axis:")
-	private String HEADER3;
+	@Parameter(required  = false, label = "Channel(s) to be profiled",
+			description = "<HTML>List of channel(s) to  be profiled (comma-separated).<br>"
+					+ "Leave empty or type 'all' to profile all channels")
+	private String channelString;
 
 	@Parameter(required  = false, label = "Spatially calibrated distances")
 	private boolean usePhysicalUnits;
@@ -126,21 +134,25 @@ public class PathProfiler extends CommonDynamicCmd {
 
 	private ProfileProcessor.Shape shape = ProfileProcessor.Shape.HYPERSPHERE;
 	private ProfileProcessor.Metric metric = ProfileProcessor.Metric.SUM;
-
-	private BoundingBox impBox;
 	private boolean valuesAssignedToTree;
 	private int lastprofiledChannel = -1;
 	private boolean nodeIndices = false;
 	private int frame = 1;
 
+
+	public PathProfiler() {
+		super(); // required for calling run() from CommandService
+	}
+
 	/**
 	 * Instantiates a new Profiler
 	 *
 	 * @param tree the Tree to be profiled
-	 * @param imp the image from which pixel intensities will be retrieved. Note
-	 *          that no effort is made to ensure that the image is suitable for
-	 *          profiling, if Tree nodes lay outside the image dimensions, pixels
-	 *          intensities will be retrieved as {@code Float#NaN}
+	 * @param imp  the image from which pixel intensities will be retrieved. If
+	 *             paths in the Tree are assigned different frames, it is assumed by
+	 *             default that the active frame of the image defines the time-point
+	 *             to be profiled. Note that no effort is made to ensure that the
+	 *             image is suitable for profiling.
 	 */
 	public PathProfiler(final Tree tree, final ImagePlus imp) {
 		if (imp == null){
@@ -151,13 +163,13 @@ public class PathProfiler extends CommonDynamicCmd {
 		}
 		this.tree = tree;
 		this.imp = imp;
-		this.frame = imp.getFrame();
-//		impBox = getImpBoundingBox(imp);
-		init();
+		if (!allPathsShareCommonFrame())
+			this.frame = imp.getFrame();
 		// refractored constructor: ensure backwards compatibility
 		setRadius(1);
 		setShape(ProfileProcessor.Shape.CENTERLINE);
 		setNodeIndicesAsDistances(false);
+		init();
 	}
 
 	public PathProfiler(final Tree tree, final Dataset dataset) {
@@ -169,18 +181,31 @@ public class PathProfiler extends CommonDynamicCmd {
 		}
 		this.tree = tree;
 		this.dataset = dataset;
-//		impBox = getImpBoundingBox(dataset);
+		if (!allPathsShareCommonFrame())
+			//FIXME: What is the easiest to select the 'active' Dataset frame
 		init();
 	}
 
-	public PathProfiler() {
-		super(); // required for calling run() from CommandService
+	/**
+	 * Instantiates a new Profiler from a single path
+	 *
+	 * @param path the path to be profiled
+	 * @param imp  the image from which pixel intensities will be retrieved.Note
+	 *             that no effort is made to ensure that the image is suitable for
+	 *             profiling.
+	 */
+	public PathProfiler(final Path path, final ImagePlus imp) {
+		this(new Tree(Collections.singleton(path)), imp);
+		this.frame = path.getFrame();
 	}
 
-	protected void init() {
+	public PathProfiler(final Path path, final Dataset dataset) {
+		this(new Tree(Collections.singleton(path)), dataset);
+	}
+
+	private void init() {
 		initContextAsNeeded();
 		super.init(false);
-		// FIXME
 		if (dataset == null) {
 			if (imp == null) {
 				throw new IllegalArgumentException("Both dataset and imp are null");
@@ -191,13 +216,25 @@ public class PathProfiler extends CommonDynamicCmd {
 				throw new UnsupportedOperationException("BUG: Could not convert ImagePlus to Dataset");
 			}
 		}
-		final List<String> choices;
-		if (dataset.getDepth() > 1) {
-			choices = Arrays.asList(SPHERE, DISK, CIRCLE, CENTERLINE);
-		} else {
-			choices = Arrays.asList(DISK, CIRCLE, CENTERLINE);
+		try {
+			// adjust shapeStr options
+			final List<String> choices;
+			if (dataset.getDepth() > 1) {
+				choices = Arrays.asList(SPHERE, DISK, CIRCLE, CENTERLINE);
+			} else {
+				choices = Arrays.asList(DISK, CIRCLE, CENTERLINE);
+			}
+			getInfo().getMutableInput("shapeStr", String.class).setChoices(choices);
+			// adjust channel options
+			if (dataset.getChannels() < 2 || tree.size() == 1) {
+				resolveInput("channelString");
+				channelString = "";
+			}
+
+		} catch (final Exception ex) {
+			// command initialized without context!?
+			ex.printStackTrace();
 		}
-		getInfo().getMutableInput("shapeStr", String.class).setChoices(choices);
 	}
 
 	private void initContextAsNeeded() {
@@ -208,8 +245,16 @@ public class PathProfiler extends CommonDynamicCmd {
 
 	@SuppressWarnings("unused")
 	private void shapeStrChanged() {
-		if (Objects.equals(shapeStr, "None. Path coordinates only")) {
+		if (CENTERLINE.equals(shapeStr)) {
 			metricStr = "N/A";
+		} else if ("N/A".equals(metricStr)) {
+			metricStr = "Mean";
+		}
+	}
+	@SuppressWarnings("unused")
+	private void metricStrChanged() {
+		if ("N/A".equals(metricStr)) {
+			shapeStr = CENTERLINE;
 		}
 	}
 
@@ -256,32 +301,15 @@ public class PathProfiler extends CommonDynamicCmd {
 		setNodeIndicesAsDistances(!usePhysicalUnits);
 	}
 
-	/**
-	 * Instantiates a new Profiler from a single path
-	 *
-	 * @param path the path to be profiled
-	 * @param imp the image from which pixel intensities will be retrieved. Note
-	 *          that no effort is made to ensure that the image is suitable for
-	 *          profiling, if Tree nodes lay outside the image dimensions, pixels
-	 *          intensities will be retrieved as {@code Float#NaN}
-	 */
-	public PathProfiler(final Path path, final ImagePlus imp) {
-		this(new Tree(Collections.singleton(path)), imp);
-	}
-
-	public PathProfiler(final Path path, final Dataset dataset) {
-		this(new Tree(Collections.singleton(path)), dataset);
-	}
-
-	public void setShape(ProfileProcessor.Shape shape) {
+	public void setShape(final ProfileProcessor.Shape shape) {
 		this.shape = shape;
 	}
 
-	public void setMetric(ProfileProcessor.Metric metric) {
+	public void setMetric(final ProfileProcessor.Metric metric) {
 		this.metric = metric;
 	}
 
-	public void setRadius(int radius) {
+	public void setRadius(final int radius) {
 		this.radius = radius;
 	}
 
@@ -304,57 +332,68 @@ public class PathProfiler extends CommonDynamicCmd {
 		}
 		super.status("Retrieving profile(s)...", false);
 		evalParameters();
-		getPlot().show();
-		super.resetUI();
-	}
-
-	private String getPlotTitle() {
-		if (tree.size() == 1) return tree.get(0).getName() + " Profile";
-		return (tree.getLabel() == null) ? "Path Profile" : tree.getLabel() +
-			" Path Profile";
-	}
-
-	@SuppressWarnings("unused")
-	private BoundingBox getImpBoundingBox(final ImagePlus imp) {
-		final BoundingBox impBox = new BoundingBox();
-		final Calibration cal = imp.getCalibration();
-		impBox.setOrigin(new PointInImage(cal.xOrigin, cal.yOrigin, cal.zOrigin));
-		impBox.setDimensions(imp.getWidth(), imp.getHeight(), imp.getNSlices());
-		impBox.setSpacing(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal
-			.getUnit());
-		return impBox;
-	}
-
-	@SuppressWarnings("unused")
-	private BoundingBox getImpBoundingBox(final Dataset dataset) {
-		final BoundingBox impBox = new BoundingBox();
-		long[] dims = new long[dataset.numDimensions()];
-		switch(dims.length) {
-		case 1:
-			impBox.setDimensions((int) dims[0], 0, 0);
-			break;
-		case 2:
-			impBox.setDimensions((int) dims[0], (int) dims[1], 0);
-			break;
-		default:
-			impBox.setDimensions((int) dims[0], (int) dims[1], (int) dims[2]);
-			break;
+		try {
+			if (tree.size() == 1) { // all channels are retrieved
+				getPlot(tree.get(0)).show();
+			} else {
+				getChannels().forEach(ch -> {
+					getPlot(ch).show();
+				});
+			}
+		} catch (final Exception ex) {
+			if (ex instanceof ArrayIndexOutOfBoundsException)
+				error("Profile could not be retrieved. Do Path nodes lay outside image bounds?");
+			ex.printStackTrace();
+		} finally {
+			super.resetUI();
 		}
-		return impBox;
 	}
 
-	/**
-	 * Checks whether the specified image contains all the nodes of the profiled
-	 * Tree/Path.
-	 *
-	 * @return true, if successful, false if Tree has nodes outside the image
-	 *         boundaries.
-	 */
-	@SuppressWarnings("unused")
-	public boolean validImage() {
-		BoundingBox bbox = tree.getBoundingBox(false);
-		if (bbox == null) bbox = tree.getBoundingBox(true);
-		return impBox.contains(bbox);
+	private List<Integer> getChannels() {
+		if (channelString == null || channelString.trim().isEmpty() || "all".equalsIgnoreCase(channelString.trim()))
+			return getAllChannels();
+		final List<String> stringChannels = new ArrayList<>(Arrays.asList(channelString.split("\\s*(,|\\s)\\s*")));
+		final List<Integer> validChannels = new ArrayList<>();
+		for (final String chString : stringChannels) {
+			try {
+				final int ch = Integer.valueOf(chString);
+				if (ch > 0 && ch <= dataset.getChannels())
+					validChannels.add(ch);
+			} catch (final NumberFormatException ignored) {
+				SNTUtils.log("Path Profiler: Ignoring channel " + chString);
+			}
+		}
+		if (validChannels.isEmpty()) {
+			error("None of the specified channel(s) are valid.");
+		}
+		return validChannels;
+	}
+
+	private List<Integer> getAllChannels() {
+		return IntStream.rangeClosed(1, (int) dataset.getChannels()).boxed().collect(Collectors.toList());
+	}
+
+	private boolean allPathsShareCommonFrame() {
+		final int frame = tree.get(0).getFrame();
+		for (int i = 1; i < tree.size(); i++) {
+			if (tree.get(i).getFrame() != frame)
+				return false;
+		}
+		this.frame = frame;
+		return true;
+	}
+
+	private String getPlotTitle(final int channel) {
+		if (tree.size() == 1)
+			return tree.get(0).getName() + " Profile";
+		final StringBuilder sb = new StringBuilder();
+		if (tree.getLabel() == null)
+			sb.append("Path Profile");
+		else
+			sb.append(tree.getLabel()).append(" Path Profile");
+		if (channel > 0)
+			sb.append(" (Ch ").append(channel).append(")");
+		return sb.toString();
 	}
 
 	private void validateChannelRange(final int channel) {
@@ -373,7 +412,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		valuesAssignedToTree = true;
 	}
 
-	public void assignValues(final int channel) throws IllegalArgumentException {
+	public void assignValues(final int channel) throws IllegalArgumentException, ArrayIndexOutOfBoundsException {
 		if (channel == -1) {
 			assignValues();
 			return;
@@ -397,16 +436,17 @@ public class PathProfiler extends CommonDynamicCmd {
 		assignValues(p, p.getChannel());
 	}
 
-	public <T extends RealType<T>> void assignValues(final Path p, final int channel) {
+	public <T extends RealType<T>> void assignValues(final Path p, final int channel) throws ArrayIndexOutOfBoundsException {
 		validateChannelRange(channel);
-		RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel - 1, frame - 1);
-		ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
+		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel - 1, frame - 1);
+		final ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
 		processor.setShape(shape);
 		processor.setRadius(radius);
 		processor.setMetric(metric);
 		p.setNodeValues(processor.call());
 	}
 
+	@SuppressWarnings("unused")
 	private Map<String, double[]> getValuesAsArray(final Path p) {
 		if (!p.hasNodeValues()) assignValues(p);
 		return getValuesAsArray(p, p.getChannel());
@@ -489,7 +529,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	private XYSeries addSeries(final XYPlot plot, final Path p,
-		final ColorRGB color, boolean setLegend)
+		final ColorRGB color, final boolean setLegend)
 	{
 		final XYSeries series = plot.addXYSeries();
 		final Map<String, List<Double>> values = getValues(p);
@@ -546,34 +586,35 @@ public class PathProfiler extends CommonDynamicCmd {
 	 *
 	 * @return the plot
 	 */
-	public Plot getPlot() {
+	public Plot getPlot() throws IllegalArgumentException, ArrayIndexOutOfBoundsException {
 		return (tree.size()==1) ? getPlot(tree.get(0)) : getPlot(-1);
 	}
 
-	public Plot getPlot(final int channel) throws IllegalArgumentException {
+	public Plot getPlot(final int channel) throws IllegalArgumentException, ArrayIndexOutOfBoundsException {
 		if (!valuesAssignedToTree || (channel > 0 && channel != lastprofiledChannel) ) {
 			assignValues(channel);
 		}
 		String yAxisLabel = getYAxisLabel();
 		if (channel > -1) yAxisLabel += " (Ch " + channel + ")";
-		final Plot plot = new Plot(getPlotTitle(), getXAxisLabel(), yAxisLabel);
+		final Plot plot = new Plot(getPlotTitle(channel), getXAxisLabel(), yAxisLabel);
 		final Color[] colors = getSeriesColorsAWT();
 		final StringBuilder legend = new StringBuilder();
 		for (int i = 0; i < tree.size(); i++) {
 			final Path p = tree.get(i);
 			legend.append(p.getName()).append("\n");
-			final Map<String, double[]> values = getValuesAsArray(p);
+			final Map<String, double[]> values = getValuesAsArray(p, channel);
 			plot.setColor(colors[i], colors[i]);
 			plot.addPoints(values.get(X_VALUES), values.get(Y_VALUES),
 				Plot.CONNECTED_CIRCLES);
 		}
 		plot.setColor(Color.BLACK, null);
-		plot.setLegend(legend.toString(), Plot.LEGEND_TRANSPARENT);
+		final int flags = (tree.size() < 7) ? Plot.LEGEND_TRANSPARENT + Plot.AUTO_POSITION : Plot.LEGEND_TRANSPARENT;
+		plot.setLegend(legend.toString(), flags);
 		return plot;
 	}
 
 	public Plot getPlot(final Path path) {
-		final Plot plot = new Plot(getPlotTitle(), getXAxisLabel(), getYAxisLabel());
+		final Plot plot = new Plot(getPlotTitle(-1), getXAxisLabel(), getYAxisLabel());
 		final Color[] colors = new Color[(int)dataset.getChannels()];
 			final ColorRGB[] colorsRGB = SNTColor.getDistinctColors((int)dataset.getChannels());
 			for (int i = 0; i < dataset.getChannels(); i++)

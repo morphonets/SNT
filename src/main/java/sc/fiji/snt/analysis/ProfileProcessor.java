@@ -139,7 +139,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
      * @return the values.
      */
     @Override
-    public double[] call()
+    public double[] call() throws ArrayIndexOutOfBoundsException
     {
         values = new double[ path.size() ];
         if ( path.size() == 1 )
@@ -191,6 +191,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
 
     private static < T extends RealType< T > > double[] profilePathNodes( final RandomAccessible< T > rai,
                                                                           final Path path, final double[] values )
+                                                                        throws ArrayIndexOutOfBoundsException
     {
         // just return the node values
         final PathCursor< T > cursor = new PathCursor<>( rai, path );

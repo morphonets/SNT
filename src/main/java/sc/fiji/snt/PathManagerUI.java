@@ -2452,41 +2452,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			else if (PLOT_PROFILE_CMD.equals(cmd)) {
+				if (noValidImageDataError()) return;
 				final HashMap<String, Object> input = new HashMap<>();
-				final Dataset dataset = plugin.getDataset();
-				final Tree tree = new Tree(selectedPaths);
-				input.put("tree", tree);
-				input.put("dataset", dataset);
+				input.put("tree", new Tree(selectedPaths));
+				input.put("dataset", plugin.getDataset());
 				(plugin.getUI().new DynamicCmdRunner(PathProfiler.class, input)).run();
-//				SwingUtilities.invokeLater(() -> {
-//					PathProfiler profiler = new PathProfiler(tree, dataset);
-//					profiler.setNodeIndicesAsDistances(false);
-//					if (selectedPaths.size() == 1) {
-//						profiler.getPlot().show(); // all channels will be plotted
-//						return;
-//					}
-//
-//					final int maxChannel = (int) dataset.getChannels();
-//					int userChosenChannel = -1;
-//					if (maxChannel > 1) {
-//						final Double chPrompted = guiUtils.getDouble("<HTML><div WIDTH=550>"
-//								+ "Profile a specific channel? (If not, leave the choice at -1, "
-//								+ "to profile the channel in which the selected path(s) were traced.",
-//								"Profile a Specific Channel?", -1);
-//						if (chPrompted == null) return;
-//						userChosenChannel = chPrompted.intValue();
-//						if (userChosenChannel == 0) userChosenChannel = -1;
-//						if (userChosenChannel > maxChannel) {
-//							guiUtils.error("Channel out of range! Image has only " + maxChannel + " channels.");
-//							profiler = null;
-//							return;
-//						}
-//					}
-//					profiler.getPlot(userChosenChannel).show();
-//					// NB: to use Scijava plotService instead:
-//					//profiler.setContext(plugin.getContext());
-//					//profiler.run();
-//				});
 				return;
 			}
 //			else if (MEASURE_CMD_SUMMARY.equals(cmd)) {
