@@ -785,40 +785,56 @@ public class PathFitter implements Callable<Path> {
 		 */
 
 		double ax, ay, az;
+		double bx, by, bz;
 
-		if (Math.abs(nx) < epsilon && Math.abs(ny) < epsilon) {
-			// Cross with (0,1,0):
-			ax = nz;
+		if (image.getStackSize() > 1) {
+
+			if (Math.abs(nx) < epsilon && Math.abs(ny) < epsilon) {
+				// Cross with (0,1,0):
+				ax = nz;
+				ay = 0;
+				az = -nx;
+			}
+			else {
+				// Cross with (0,0,1):
+				ax = -ny;
+				ay = nx;
+				az = 0;
+			}
+
+			/*
+			 * Now to find the other vector in that plane, do the cross product of
+			 * (ax,ay,az) with (nx,ny,nz)
+			 */
+
+			bx = ay * nz - az * ny;
+			by = az * nx - ax * nz;
+			bz = ax * ny - ay * nx;
+
+			/* Normalize a and b */
+
+			final double a_size = Math.sqrt(ax * ax + ay * ay + az * az);
+			ax = ax / a_size;
+			ay = ay / a_size;
+			az = az / a_size;
+
+			final double b_size = Math.sqrt(bx * bx + by * by + bz * bz);
+			bx = bx / b_size;
+			by = by / b_size;
+			bz = bz / b_size;
+
+		} else {
+			// For 2D images, the "normal plane" to the Path tangent is not what we want, since
+			// the image does not exist in that plane. So just use xy.
+
+			ax = 1;
 			ay = 0;
-			az = -nx;
-		}
-		else {
-			// Cross with (0,0,1):
-			ax = -ny;
-			ay = nx;
 			az = 0;
+
+			bx = 0;
+			by = 1;
+			bz = 0;
 		}
-
-		/*
-		 * Now to find the other vector in that plane, do the cross product of
-		 * (ax,ay,az) with (nx,ny,nz)
-		 */
-
-		double bx = ay * nz - az * ny;
-		double by = az * nx - ax * nz;
-		double bz = ax * ny - ay * nx;
-
-		/* Normalize a and b */
-
-		final double a_size = Math.sqrt(ax * ax + ay * ay + az * az);
-		ax = ax / a_size;
-		ay = ay / a_size;
-		az = az / a_size;
-
-		final double b_size = Math.sqrt(bx * bx + by * by + bz * bz);
-		bx = bx / b_size;
-		by = by / b_size;
-		bz = bz / b_size;
 
 		/* Scale them with spacing... */
 
