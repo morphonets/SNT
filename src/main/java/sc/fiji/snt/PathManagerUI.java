@@ -75,6 +75,7 @@ import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
+import net.imagej.Dataset;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.display.DisplayService;
@@ -2373,7 +2374,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
 		private final static String CONVERT_TO_SKEL_CMD = "Skeletonize...";
 		private final static String CONVERT_TO_SWC_CMD = "Save Subset as SWC...";
-		private final static String PLOT_PROFILE_CMD = "Plot Profile";
+		private final static String PLOT_PROFILE_CMD = "Plot Profile...";
 
 		// color mapping commands
 		private final static String COLORIZE_TREES_CMD = "Color Code Cell(s)...";
@@ -2451,43 +2452,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			else if (PLOT_PROFILE_CMD.equals(cmd)) {
-				SwingUtilities.invokeLater(() -> {
-					final ImagePlus imp = plugin.getImagePlus();
-					if (noValidImageDataError()) return;
-					if (imp != null && imp.getStack().isVirtual()) {
-						guiUtils.error("Unfortunately virtual stacks cannot be profiled.");
-							return;
-					}
-
-					final Tree tree = new Tree(selectedPaths);
-					PathProfiler profiler = new PathProfiler(tree, imp);
-					profiler.setNodeIndicesAsDistances(false);
-					if (selectedPaths.size() == 1) {
-						profiler.getPlot().show(); // all channels will be plotted
-						return;
-					}
-
-					final int maxChannel = imp.getNChannels();
-					int userChosenChannel = -1;
-					if (maxChannel > 1) {
-						final Double chPrompted = guiUtils.getDouble("<HTML><div WIDTH=550>"
-								+ "Profile a specific channel? (If not, leave the choice at -1, "
-								+ "to profile the channel in which the selected path(s) were traced.", 
-								"Profile a Specific Channel?", -1);
-						if (chPrompted == null) return;
-						userChosenChannel = chPrompted.intValue();
-						if (userChosenChannel == 0) userChosenChannel = -1;
-						if (userChosenChannel > maxChannel) {
-							guiUtils.error("Channel out of range! Image has only " + maxChannel + " channels.");
-							profiler = null;
-							return;
-						}
-					}
-					profiler.getPlot(userChosenChannel).show();
-					// NB: to use Scijava plotService instead:
-					//profiler.setContext(plugin.getContext());
-					//profiler.run();
-				});
+				if (noValidImageDataError()) return;
+				final HashMap<String, Object> input = new HashMap<>();
+				input.put("tree", new Tree(selectedPaths));
+				input.put("dataset", plugin.getDataset());
+				(plugin.getUI().new DynamicCmdRunner(PathProfiler.class, input)).run();
 				return;
 			}
 //			else if (MEASURE_CMD_SUMMARY.equals(cmd)) {

@@ -23,9 +23,12 @@
 package sc.fiji.snt.util;
 
 import ij.ImagePlus;
+import net.imagej.Dataset;
+import net.imagej.axis.Axes;
 import net.imglib2.*;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.NumericType;
+import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
@@ -120,6 +123,34 @@ public class ImgUtils {
             axisCorrected = Views.permute(Views.addDimension(rai, 0, 0), 2, 3);
         }
         return ImageJFunctions.wrap(axisCorrected, title);
+    }
+
+    public static <T extends RealType<T>> RandomAccessibleInterval<T> getCtSlice3d(final Dataset dataset,
+                                                                                   final int channelIndex,
+                                                                                   final int frameIndex)
+    {
+        RandomAccessibleInterval<T> slice = getCtSlice(dataset, channelIndex, frameIndex);
+        if (slice.numDimensions() == 2) {
+            // bump to 3D
+            slice = Views.addDimension(slice, 0, 0);
+        }
+        return slice;
+    }
+
+    public static <T extends RealType<T>> RandomAccessibleInterval<T> getCtSlice(final Dataset dataset,
+                                                                                   final int channelIndex,
+                                                                                   final int frameIndex)
+    {
+        @SuppressWarnings("unchecked")
+        RandomAccessibleInterval<T> slice = (RandomAccessibleInterval<T>) dataset;
+        if (dataset.getFrames() > 1) {
+            slice = Views.hyperSlice(slice, dataset.dimensionIndex(Axes.TIME), frameIndex);
+        }
+        // Assuming time always comes after channel, we can use the same index as the Dataset
+        if (dataset.getChannels() > 1) {
+            slice = Views.hyperSlice(slice, dataset.dimensionIndex(Axes.CHANNEL), channelIndex);
+        }
+        return slice;
     }
 
 }

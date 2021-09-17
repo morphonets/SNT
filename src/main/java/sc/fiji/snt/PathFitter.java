@@ -73,16 +73,8 @@ public class PathFitter implements Callable<Path> {
 	private int sideSearch = DEFAULT_MAX_RADIUS;
 	private int fitScope = RADII_AND_MIDPOINTS;
 	private Path fitted;
+	private boolean fitInPlace; // backwards compatibility with v3 and earlier
 
-
-	/**
-	 * Checks whether the fit succeeded.
-	 *
-	 * @return true if fit was successful, false otherwise
-	 */
-	public boolean getSucceeded() {
-		return succeeded;
-	}
 
 	/**
 	 * Instantiates a new PathFitter.
@@ -166,11 +158,23 @@ public class PathFitter implements Callable<Path> {
 		// Common properties have been set using Path#creatPath(),
 		path.setFitted(fitted);
 		path.setUseFitted(true);
+		if (fitInPlace) {
+			path.replaceNodesWithFittedVersion();
+		}
 		return fitted;
 	}
 
 	public Path getPath() {
 		return path;
+	}
+
+	/**
+	 * Checks whether the fit succeeded.
+	 *
+	 * @return true if fit was successful, false otherwise
+	 */
+	public boolean getSucceeded() {
+		return succeeded;
 	}
 
 	/**
@@ -207,6 +211,20 @@ public class PathFitter implements Callable<Path> {
 				" Invalid flag. Only RADII, RADII, or RADII_AND_MIDPOINTS allowed");
 		}
 		this.fitScope = scope;
+	}
+
+	/**
+	 * Sets whether fitting should occur "in place".
+	 *
+	 * @param replaceNodes If true, the nodes of the input Path will be replaced by
+	 *                     those of the fitted result. If false, the fitted result
+	 *                     is kept as a separated Path linked to the input as per
+	 *                     {@link Path#getFitted()}. Note that in the latter case,
+	 *                     some topological operations (e.g., forking) performed on
+	 *                     the fitted result may not percolate to the unfitted Path.
+	 */
+	public void setReplaceNodes(final boolean replaceNodes) {
+		fitInPlace = replaceNodes;
 	}
 
 	private String getScopeAsString() {

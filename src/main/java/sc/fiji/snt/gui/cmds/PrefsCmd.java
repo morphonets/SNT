@@ -35,6 +35,7 @@ import net.imagej.ImageJ;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
+import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SaveMeasurementsCmd;
 import sc.fiji.snt.plugin.AnalyzerCmd;
@@ -180,6 +181,7 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(PathFitterCmd.class);
 		prefService.clear(PathMatcherCmd.class);
 		prefService.clear(PathOrderAnalysisCmd.class);
+		prefService.clear(PathProfiler.class);
 		prefService.clear(PathSpineAnalysisCmd.class);
 		prefService.clear(PathTimeAnalysisCmd.class);
 		prefService.clear(PlotterCmd.class);

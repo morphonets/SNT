@@ -23,35 +23,40 @@
 package sc.fiji.snt.analysis;
 
 import java.awt.Color;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import net.imagej.Dataset;
 import net.imagej.ImageJ;
+import net.imagej.axis.CalibratedAxis;
 import net.imagej.plot.LineStyle;
 import net.imagej.plot.MarkerStyle;
 import net.imagej.plot.PlotService;
 import net.imagej.plot.XYPlot;
 import net.imagej.plot.XYSeries;
 
-import org.scijava.app.StatusService;
-import org.scijava.command.ContextCommand;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.display.ColorTable;
+import net.imglib2.type.numeric.RealType;
+
+import org.scijava.ItemVisibility;
+import org.scijava.command.Command;
+import org.scijava.command.CommandService;
+import org.scijava.convert.ConvertService;
 import org.scijava.plugin.Parameter;
-import org.scijava.ui.UIService;
+import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
-import ij.CompositeImage;
-import ij.IJ;
 import ij.ImagePlus;
-import ij.ImageStack;
 import ij.gui.Plot;
-import ij.measure.Calibration;
 import sc.fiji.snt.Path;
+import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 
@@ -60,8 +65,15 @@ import sc.fiji.snt.util.SNTColor;
  * Path) from reconstructions.
  *
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
-public class PathProfiler extends ContextCommand {
+@Plugin(type = Command.class, visible = false, label = "Path Profiler", initializer = "init")
+public class PathProfiler extends CommonDynamicCmd {
+
+	public static final String CIRCLE = "Circle (Hollow)";
+	public static final String DISK = "Disk (Solid)";
+	public static final String SPHERE = "Sphere";
+	public static final String CENTERLINE = "None. Path coordinates only.";
 
 	/** Flag for retrieving distances from {@link #getValues(Path)} */
 	public final static String X_VALUES = "x-values";
@@ -72,28 +84,75 @@ public class PathProfiler extends ContextCommand {
 	@Parameter
 	private PlotService plotService;
 
-	@Parameter
-	private UIService uiService;
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
+			label = HEADER_HTML + "Sampling Neighborhood:")
+	private String HEADER1;
 
-	@Parameter
-	private StatusService statusService;
+	@Parameter(
+			label = "Shape (centered at each node)",
+			description = "<HTML>The image neighborhood to be measured around each Path node.",
+			choices = {SPHERE, DISK, CIRCLE, CENTERLINE},
+			callback = "shapeStrChanged")
+	private String shapeStr;
 
-	private final Tree tree;
-	private final ImageStack stack;
-	private final ImagePlus imp;
-	private final BoundingBox impBox;
+	@Parameter(
+			label = "Radius (in pixels)",
+			description = "<HTML>The size of the sampling shape.<br>"
+					+ "A value >= 1 sets a fixed radius for shape neighborhood.<br>"
+					+ "A value of 0 instructs the profiler to adopt the radius at each Path's node.<br>"
+					+ "Ignored when shape is '" + CENTERLINE + "'",
+			min="0")
+	private int radius;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
+			label = HEADER_HTML + "Options:")
+	private String HEADER2;
+
+	@Parameter(label = "Integration metric:" ,
+			description = "<HTML>Statistic to compute for each neighborhood.<br>"
+					+ "Ignored when shape is '" + CENTERLINE + "'",
+			choices = {"Sum", "Min", "Max", "Mean", "Median", "Variance", "N/A"},
+			callback = "metricStrChanged")
+	private String metricStr;
+
+	@Parameter(required  = false, label = "Channel(s) to be profiled",
+			description = "<HTML>List of channel(s) to  be profiled (comma-separated).<br>"
+					+ "Leave empty or type 'all' to profile all channels")
+	private String channelString;
+
+	@Parameter(required  = false, label = "Spatially calibrated distances")
+	private boolean usePhysicalUnits;
+
+	@Parameter(label = "tree")
+	private Tree tree;
+
+	@Parameter(label = "dataset")
+	private Dataset dataset;
+
+	@Parameter(label = "imp", required = false)
+	private ImagePlus imp;
+
+	private ProfileProcessor.Shape shape = ProfileProcessor.Shape.HYPERSPHERE;
+	private ProfileProcessor.Metric metric = ProfileProcessor.Metric.SUM;
 	private boolean valuesAssignedToTree;
 	private int lastprofiledChannel = -1;
 	private boolean nodeIndices = false;
+	private int frame = 1;
+
+
+	public PathProfiler() {
+		super(); // required for calling run() from CommandService
+	}
 
 	/**
 	 * Instantiates a new Profiler
 	 *
 	 * @param tree the Tree to be profiled
-	 * @param imp the image from which pixel intensities will be retrieved. Note
-	 *          that no effort is made to ensure that the image is suitable for
-	 *          profiling, if Tree nodes lay outside the image dimensions, pixels
-	 *          intensities will be retrieved as {@code Float#NaN}
+	 * @param imp  the image from which pixel intensities will be retrieved. If
+	 *             paths in the Tree are assigned different frames, it is assumed by
+	 *             default that the active frame of the image defines the time-point
+	 *             to be profiled. Note that no effort is made to ensure that the
+	 *             image is suitable for profiling.
 	 */
 	public PathProfiler(final Tree tree, final ImagePlus imp) {
 		if (imp == null){
@@ -104,21 +163,158 @@ public class PathProfiler extends ContextCommand {
 		}
 		this.tree = tree;
 		this.imp = imp;
-		this.stack = imp.getImageStack();
-		impBox = getImpBoundingBox(imp);
+		if (!allPathsShareCommonFrame())
+			this.frame = imp.getFrame();
+		// refractored constructor: ensure backwards compatibility
+		setRadius(1);
+		setShape(ProfileProcessor.Shape.CENTERLINE);
+		setNodeIndicesAsDistances(false);
+		init();
+	}
+
+	public PathProfiler(final Tree tree, final Dataset dataset) {
+		if (dataset == null){
+			throw new IllegalArgumentException("Dataset cannot be null");
+		}
+		if (tree == null){
+			throw new IllegalArgumentException("Tree cannot be null");
+		}
+		this.tree = tree;
+		this.dataset = dataset;
+		if (!allPathsShareCommonFrame())
+			//FIXME: What is the easiest to select the 'active' Dataset frame
+		init();
 	}
 
 	/**
 	 * Instantiates a new Profiler from a single path
 	 *
 	 * @param path the path to be profiled
-	 * @param imp the image from which pixel intensities will be retrieved. Note
-	 *          that no effort is made to ensure that the image is suitable for
-	 *          profiling, if Tree nodes lay outside the image dimensions, pixels
-	 *          intensities will be retrieved as {@code Float#NaN}
+	 * @param imp  the image from which pixel intensities will be retrieved.Note
+	 *             that no effort is made to ensure that the image is suitable for
+	 *             profiling.
 	 */
 	public PathProfiler(final Path path, final ImagePlus imp) {
 		this(new Tree(Collections.singleton(path)), imp);
+		this.frame = path.getFrame();
+	}
+
+	public PathProfiler(final Path path, final Dataset dataset) {
+		this(new Tree(Collections.singleton(path)), dataset);
+	}
+
+	private void init() {
+		initContextAsNeeded();
+		super.init(false);
+		if (dataset == null) {
+			if (imp == null) {
+				throw new IllegalArgumentException("Both dataset and imp are null");
+			}
+			final ConvertService convertService = getContext().service(ConvertService.class);
+			this.dataset = convertService.convert(imp, Dataset.class);
+			if (dataset == null) {
+				throw new UnsupportedOperationException("BUG: Could not convert ImagePlus to Dataset");
+			}
+		}
+		try {
+			// adjust shapeStr options
+			final List<String> choices;
+			if (dataset.getDepth() > 1) {
+				choices = Arrays.asList(SPHERE, DISK, CIRCLE, CENTERLINE);
+			} else {
+				choices = Arrays.asList(DISK, CIRCLE, CENTERLINE);
+			}
+			getInfo().getMutableInput("shapeStr", String.class).setChoices(choices);
+			// adjust channel options
+			if (dataset.getChannels() < 2 || tree.size() == 1) {
+				resolveInput("channelString");
+				channelString = "";
+			}
+
+		} catch (final Exception ex) {
+			// command initialized without context!?
+			ex.printStackTrace();
+		}
+	}
+
+	private void initContextAsNeeded() {
+		if (getContext() == null) {
+			setContext(SNTUtils.getContext());
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private void shapeStrChanged() {
+		if (CENTERLINE.equals(shapeStr)) {
+			metricStr = "N/A";
+		} else if ("N/A".equals(metricStr)) {
+			metricStr = "Mean";
+		}
+	}
+	@SuppressWarnings("unused")
+	private void metricStrChanged() {
+		if ("N/A".equals(metricStr)) {
+			shapeStr = CENTERLINE;
+		}
+	}
+
+	private void evalParameters() {
+		switch (metricStr) {
+			case "Sum":
+				metric = ProfileProcessor.Metric.SUM;
+				break;
+			case "Min":
+				metric = ProfileProcessor.Metric.MIN;
+				break;
+			case "Max":
+				metric = ProfileProcessor.Metric.MAX;
+				break;
+			case "Mean":
+			case "N/A":
+				metric = ProfileProcessor.Metric.MEAN;
+				break;
+			case "Median":
+				metric = ProfileProcessor.Metric.MEDIAN;
+				break;
+			case "Variance":
+				metric = ProfileProcessor.Metric.VARIANCE;
+				break;
+			default:
+				throw new IllegalArgumentException("Unknown metric: " + metricStr);
+		}
+		switch (shapeStr) {
+			case SPHERE:
+				shape = ProfileProcessor.Shape.HYPERSPHERE;
+				break;
+			case CIRCLE:
+				shape = ProfileProcessor.Shape.CIRCLE;
+				break;
+			case DISK:
+				shape = ProfileProcessor.Shape.DISK;
+				break;
+			case CENTERLINE:
+				shape = ProfileProcessor.Shape.CENTERLINE;
+				break;
+			default:
+				throw new IllegalArgumentException("Unknown shape: " + shapeStr);
+		}
+		setNodeIndicesAsDistances(!usePhysicalUnits);
+	}
+
+	public void setShape(final ProfileProcessor.Shape shape) {
+		this.shape = shape;
+	}
+
+	public void setMetric(final ProfileProcessor.Metric metric) {
+		this.metric = metric;
+	}
+
+	public void setRadius(final int radius) {
+		this.radius = radius;
+	}
+
+	public void setFrame(final int frame) {
+		this.frame = frame;
 	}
 
 	/* (non-Javadoc)
@@ -126,48 +322,84 @@ public class PathProfiler extends ContextCommand {
 	 */
 	@Override
 	public void run() {
+		if (getContext() == null) {
+			// since this is a scriptable class, provide feedback in case run() is called out-of-context
+			throw new IllegalArgumentException("No context has been set. Note that this method should only be called from CommandService.");
+		}
 		if (tree.size() == 0) {
-			cancel("No path(s) to profile");
+			super.error("No path(s) to profile");
 			return;
 		}
-		statusService.showStatus("Measuring Paths...");
-		uiService.show(getPlotTitle(), getPlot());
-		statusService.clearStatus();
+		super.status("Retrieving profile(s)...", false);
+		evalParameters();
+		try {
+			if (tree.size() == 1) { // all channels are retrieved
+				getPlot(tree.get(0)).show();
+			} else {
+				getChannels().forEach(ch -> {
+					getPlot(ch).show();
+				});
+			}
+		} catch (final Exception ex) {
+			if (ex instanceof ArrayIndexOutOfBoundsException)
+				error("Profile could not be retrieved. Do Path nodes lay outside image bounds?");
+			ex.printStackTrace();
+		} finally {
+			super.resetUI();
+		}
 	}
 
-	private String getPlotTitle() {
-		if (tree.size() == 1) return tree.get(0).getName() + " Profile";
-		return (tree.getLabel() == null) ? "Path Profile" : tree.getLabel() +
-			" Path Profile";
+	private List<Integer> getChannels() {
+		if (channelString == null || channelString.trim().isEmpty() || "all".equalsIgnoreCase(channelString.trim()))
+			return getAllChannels();
+		final List<String> stringChannels = new ArrayList<>(Arrays.asList(channelString.split("\\s*(,|\\s)\\s*")));
+		final List<Integer> validChannels = new ArrayList<>();
+		for (final String chString : stringChannels) {
+			try {
+				final int ch = Integer.valueOf(chString);
+				if (ch > 0 && ch <= dataset.getChannels())
+					validChannels.add(ch);
+			} catch (final NumberFormatException ignored) {
+				SNTUtils.log("Path Profiler: Ignoring channel " + chString);
+			}
+		}
+		if (validChannels.isEmpty()) {
+			error("None of the specified channel(s) are valid.");
+		}
+		return validChannels;
 	}
 
-	private BoundingBox getImpBoundingBox(final ImagePlus imp) {
-		final BoundingBox impBox = new BoundingBox();
-		final Calibration cal = imp.getCalibration();
-		impBox.setOrigin(new PointInImage(cal.xOrigin, cal.yOrigin, cal.zOrigin));
-		impBox.setDimensions(imp.getWidth(), imp.getHeight(), imp.getNSlices());
-		impBox.setSpacing(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal
-			.getUnit());
-		return impBox;
+	private List<Integer> getAllChannels() {
+		return IntStream.rangeClosed(1, (int) dataset.getChannels()).boxed().collect(Collectors.toList());
 	}
 
-	/**
-	 * Checks whether the specified image contains all the nodes of the profiled
-	 * Tree/Path.
-	 *
-	 * @return true, if successful, false if Tree has nodes outside the image
-	 *         boundaries.
-	 */
-	public boolean validImage() {
-		BoundingBox bbox = tree.getBoundingBox(false);
-		if (bbox == null) bbox = tree.getBoundingBox(true);
-		return impBox.contains(bbox);
+	private boolean allPathsShareCommonFrame() {
+		final int frame = tree.get(0).getFrame();
+		for (int i = 1; i < tree.size(); i++) {
+			if (tree.get(i).getFrame() != frame)
+				return false;
+		}
+		this.frame = frame;
+		return true;
+	}
+
+	private String getPlotTitle(final int channel) {
+		if (tree.size() == 1)
+			return tree.get(0).getName() + " Profile";
+		final StringBuilder sb = new StringBuilder();
+		if (tree.getLabel() == null)
+			sb.append("Path Profile");
+		else
+			sb.append(tree.getLabel()).append(" Path Profile");
+		if (channel > 0)
+			sb.append(" (Ch ").append(channel).append(")");
+		return sb.toString();
 	}
 
 	private void validateChannelRange(final int channel) {
-		if (channel < 1 || channel > imp.getNChannels())
+		if (channel < 1 || channel > dataset.getChannels())
 			throw new IllegalArgumentException(
-					"Specified channel " + channel + " out of range: Only 1-" + imp.getNChannels() + " allowed");
+					"Specified channel " + channel + " out of range: Only 1-" + dataset.getChannels() + " allowed");
 	}
 
 	/**
@@ -180,7 +412,7 @@ public class PathProfiler extends ContextCommand {
 		valuesAssignedToTree = true;
 	}
 
-	public void assignValues(final int channel) throws IllegalArgumentException {
+	public void assignValues(final int channel) throws IllegalArgumentException, ArrayIndexOutOfBoundsException {
 		if (channel == -1) {
 			assignValues();
 			return;
@@ -204,34 +436,17 @@ public class PathProfiler extends ContextCommand {
 		assignValues(p, p.getChannel());
 	}
 
-	public void assignValues(final Path p, final int channel) throws IllegalArgumentException {
+	public <T extends RealType<T>> void assignValues(final Path p, final int channel) throws ArrayIndexOutOfBoundsException {
 		validateChannelRange(channel);
-		final double[] values = new double[p.size()];
-		if (imp.getNSlices() == 1 && imp.getNFrames() == 1) {
-			final int currentCh = imp.getChannel();
-			imp.setPositionWithoutUpdate(channel, imp.getZ(), imp.getFrame());
-			for (int i = 0; i < p.size(); i++) {
-				try {
-					values[i] = imp.getPixel(p.getXUnscaled(i), p.getYUnscaled(i))[0];
-				} catch (final IndexOutOfBoundsException exc) {
-					values[i] = Float.NaN;
-				}
-			}
-			imp.setPositionWithoutUpdate(currentCh, imp.getZ(), imp.getFrame());
-		} else {
-			final int f = p.getFrame();
-			for (int i = 0; i < p.size(); i++) {
-				try {
-					final int zPos = imp.getStackIndex(channel, p.getZUnscaled(i) + 1, f);
-					values[i] = stack.getVoxel(p.getXUnscaled(i), p.getYUnscaled(i), zPos);
-				} catch (final IndexOutOfBoundsException exc) {
-					values[i] = Float.NaN;
-				}
-			}
-		}
-		p.setNodeValues(values);
+		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel - 1, frame - 1);
+		final ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
+		processor.setShape(shape);
+		processor.setRadius(radius);
+		processor.setMetric(metric);
+		p.setNodeValues(processor.call());
 	}
 
+	@SuppressWarnings("unused")
 	private Map<String, double[]> getValuesAsArray(final Path p) {
 		if (!p.hasNodeValues()) assignValues(p);
 		return getValuesAsArray(p, p.getChannel());
@@ -314,7 +529,7 @@ public class PathProfiler extends ContextCommand {
 	}
 
 	private XYSeries addSeries(final XYPlot plot, final Path p,
-		final ColorRGB color, boolean setLegend)
+		final ColorRGB color, final boolean setLegend)
 	{
 		final XYSeries series = plot.addXYSeries();
 		final Map<String, List<Double>> values = getValues(p);
@@ -363,7 +578,7 @@ public class PathProfiler extends ContextCommand {
 	}
 
 	private String getYAxisLabel() {
-		return "Intensity (" + stack.getBitDepth() + "-bit)";
+		return "Intensity (" + dataset.getValidBits() + "-bit)";
 	}
 
 	/**
@@ -371,49 +586,41 @@ public class PathProfiler extends ContextCommand {
 	 *
 	 * @return the plot
 	 */
-	public Plot getPlot() {
+	public Plot getPlot() throws IllegalArgumentException, ArrayIndexOutOfBoundsException {
 		return (tree.size()==1) ? getPlot(tree.get(0)) : getPlot(-1);
 	}
 
-	public Plot getPlot(final int channel) throws IllegalArgumentException {
+	public Plot getPlot(final int channel) throws IllegalArgumentException, ArrayIndexOutOfBoundsException {
 		if (!valuesAssignedToTree || (channel > 0 && channel != lastprofiledChannel) ) {
 			assignValues(channel);
 		}
 		String yAxisLabel = getYAxisLabel();
 		if (channel > -1) yAxisLabel += " (Ch " + channel + ")";
-		final Plot plot = new Plot(getPlotTitle(), getXAxisLabel(), yAxisLabel);
+		final Plot plot = new Plot(getPlotTitle(channel), getXAxisLabel(), yAxisLabel);
 		final Color[] colors = getSeriesColorsAWT();
 		final StringBuilder legend = new StringBuilder();
 		for (int i = 0; i < tree.size(); i++) {
 			final Path p = tree.get(i);
 			legend.append(p.getName()).append("\n");
-			final Map<String, double[]> values = getValuesAsArray(p);
+			final Map<String, double[]> values = getValuesAsArray(p, channel);
 			plot.setColor(colors[i], colors[i]);
 			plot.addPoints(values.get(X_VALUES), values.get(Y_VALUES),
 				Plot.CONNECTED_CIRCLES);
 		}
 		plot.setColor(Color.BLACK, null);
-		plot.setLegend(legend.toString(), Plot.LEGEND_TRANSPARENT);
+		final int flags = (tree.size() < 7) ? Plot.LEGEND_TRANSPARENT + Plot.AUTO_POSITION : Plot.LEGEND_TRANSPARENT;
+		plot.setLegend(legend.toString(), flags);
 		return plot;
 	}
 
 	public Plot getPlot(final Path path) {
-		final Plot plot = new Plot(getPlotTitle(), getXAxisLabel(), getYAxisLabel());
-		final Color[] colors = new Color[imp.getNChannels()];
-		if (imp instanceof CompositeImage) {
-			final int currentChannel = imp.getC();
-			for (int i = 0; i < imp.getNChannels(); i++) {
-				imp.setPositionWithoutUpdate(i+1, imp.getZ(), imp.getFrame());
-				colors[i] = ((CompositeImage)imp).getChannelColor();
-			}
-			imp.setPositionWithoutUpdate(currentChannel, imp.getZ(), imp.getFrame());
-		} else {
-			final ColorRGB[] colorsRGB = SNTColor.getDistinctColors(imp.getNChannels());
-			for (int i = 0; i < imp.getNChannels(); i++)
+		final Plot plot = new Plot(getPlotTitle(-1), getXAxisLabel(), getYAxisLabel());
+		final Color[] colors = new Color[(int)dataset.getChannels()];
+			final ColorRGB[] colorsRGB = SNTColor.getDistinctColors((int)dataset.getChannels());
+			for (int i = 0; i < dataset.getChannels(); i++)
 				colors[i] = new Color(colorsRGB[i].getARGB());
-		}
 		final StringBuilder legend = new StringBuilder();
-		for (int i = 1; i <= imp.getNChannels(); i++) {
+		for (int i = 1; i <= dataset.getChannels(); i++) {
 			legend.append("Ch").append(i).append("\n");
 			final Map<String, double[]> values = getValuesAsArray(path, i);
 			plot.setColor(colors[i-1], colors[i-1]);
@@ -464,13 +671,14 @@ public class PathProfiler extends ContextCommand {
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
-		final Tree tree = new Tree("/home/tferr/code/OP_1/OP_1.traces");
-		final ImagePlus imp = IJ.openImage("/home/tferr/code/OP_1/OP_1.tif");
-		final PathProfiler profiler = new PathProfiler(tree, imp);
-		profiler.setContext(ij.context());
-		System.out.println("Valid image? " + profiler.validImage());
-		profiler.setNodeIndicesAsDistances(false);
-		profiler.getPlot().show();
-		profiler.run();
+		final SNTService snt = ij.context().getService(SNTService.class);
+		final Tree tree = snt.demoTree("OP_1");
+		final ImagePlus imp = snt.demoImage("OP_1");
+		final HashMap<String, Object> inputs = new HashMap<>();
+		inputs.put("tree", tree);
+		inputs.put("imp", imp);
+		final CommandService cmdService = ij.context().getService(CommandService.class);
+		cmdService.run(PathProfiler.class, true, inputs);
+
 	}
 }

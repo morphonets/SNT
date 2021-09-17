@@ -39,7 +39,6 @@ import ij3d.ContentCreator;
 import ij3d.Image3DUniverse;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
-import net.imagej.axis.Axes;
 import net.imagej.legacy.LegacyService;
 import net.imagej.ops.OpService;
 import net.imglib2.IterableInterval;
@@ -235,7 +234,7 @@ public class SNT extends MultiDThreePanes implements
 	/* all tracing and filling-related functions are performed on the Imgs */
 	private Dataset dataset;
 	@SuppressWarnings("rawtypes")
-	private RandomAccessibleInterval sliceAtCT;
+	private RandomAccessibleInterval ctSlice3d;
 
 	/* statistics for main image*/
 	private final ImageStatistics stats = new ImageStatistics();
@@ -680,32 +679,12 @@ public class SNT extends MultiDThreePanes implements
 		if (!xz.isVisible()) xz.show();
 	}
 
-	private static <T extends RealType<T>> RandomAccessibleInterval<T> getCTSlice(final Dataset dataset,
-																				  final int channelIndex,
-																				  final int frameIndex)
-	{
-		@SuppressWarnings("unchecked")
-		RandomAccessibleInterval<T> slice = (RandomAccessibleInterval<T>) dataset;
-		if (dataset.getFrames() > 1) {
-			slice = Views.hyperSlice(slice, dataset.dimensionIndex(Axes.TIME), frameIndex);
-		}
-		// Assuming time always comes after channel, we can use the same index as the Dataset
-		if (dataset.getChannels() > 1) {
-			slice = Views.hyperSlice(slice, dataset.dimensionIndex(Axes.CHANNEL), channelIndex);
-		}
-		if (slice.numDimensions() == 2) {
-			// bump to 3D
-			slice = Views.addDimension(slice, 0, 0);
-		}
-		return slice;
-	}
-
 	private void loadDatasetFromImagePlus(final ImagePlus imp) {
 		statusService.showStatus("Loading data...");
 		this.dataset = convertService.convert(imp, Dataset.class);
-		this.sliceAtCT = getCTSlice(this.dataset, channel - 1, frame - 1);
-		SNTUtils.log("Added dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(dataset)));
-		SNTUtils.log("CT Slice dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(this.sliceAtCT)));
+		this.ctSlice3d = ImgUtils.getCtSlice3d(this.dataset, channel - 1, frame - 1);
+		SNTUtils.log("Dataset dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(dataset)));
+		SNTUtils.log("CT HyperSlice dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(this.ctSlice3d)));
 		statusService.showStatus("Finding stack minimum / maximum");
 		final boolean restoreROI = imp.getRoi() != null && imp.getRoi() instanceof PointRoi;
 		if (restoreROI) imp.saveRoi();
@@ -760,6 +739,10 @@ public class SNT extends MultiDThreePanes implements
 
 	protected InteractiveTracerCanvas getZYCanvas() {
 		return zy_tracer_canvas;
+	}
+
+	public Dataset getDataset() {
+		return dataset;
 	}
 
 	public ImagePlus getImagePlus() {
@@ -2404,7 +2387,7 @@ public class SNT extends MultiDThreePanes implements
 	public <T extends NumericType<T>> ImagePlus getLoadedDataAsImp() {
 		if (!inputImageLoaded()) return null;
 		@SuppressWarnings("unchecked")
-		RandomAccessibleInterval<T> data = this.sliceAtCT;
+		RandomAccessibleInterval<T> data = this.ctSlice3d;
 		data = Views.dropSingletonDimensions(data);
 		if (data.numDimensions() == 3) {
 			data = Views.permute(Views.addDimension(data, 0, 0), 2, 3);
@@ -2419,7 +2402,7 @@ public class SNT extends MultiDThreePanes implements
 
 	public <T extends RealType<T>> RandomAccessibleInterval<T> getLoadedData() {
 		@SuppressWarnings("unchecked")
-		final RandomAccessibleInterval<T> data = this.sliceAtCT;
+		final RandomAccessibleInterval<T> data = this.ctSlice3d;
 		return data;
 	}
 
@@ -3024,7 +3007,7 @@ public class SNT extends MultiDThreePanes implements
 			stopz = depth;
 		}
 		@SuppressWarnings("unchecked")
-		final RandomAccess<? extends RealType<?>> access = this.sliceAtCT.randomAccess();
+		final RandomAccess<? extends RealType<?>> access = this.ctSlice3d.randomAccess();
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
 		double currentMaximum = stats.min;
 		for (int x = startx; x < stopx; ++x) {
@@ -3072,7 +3055,7 @@ public class SNT extends MultiDThreePanes implements
 		SNTUtils.log("Looking for maxima at x=" + x_in_pane + " y=" + y_in_pane + " on pane " + plane);
 		final int[][] pointsToConsider = findAllPointsAlongLine(x_in_pane, y_in_pane, plane);
 		@SuppressWarnings("unchecked")
-		final RandomAccess<? extends RealType<?>> access = this.sliceAtCT.randomAccess();
+		final RandomAccess<? extends RealType<?>> access = this.ctSlice3d.randomAccess();
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
 		double currentMaximum = stats.min;
 		for (int[] ints : pointsToConsider) {
