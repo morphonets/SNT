@@ -24,6 +24,7 @@ package sc.fiji.snt.analysis.graph;
 
 import org.jgrapht.Graph;
 import org.jgrapht.Graphs;
+import org.jgrapht.alg.connectivity.BiconnectivityInspector;
 import org.jgrapht.graph.AsUndirectedGraph;
 import org.jgrapht.graph.DefaultGraphType;
 import org.jgrapht.traverse.BreadthFirstIterator;
@@ -620,9 +621,36 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		}
 	}
 
+	/**
+	 * Attempt to build a new Tree with the same {@link Path} hierarchy as the source Tree.
+	 * @return the tree
+	 */
 	public Tree getTreeWithSamePathStructure() {
 		updateVertexProperties();
 		return new Tree(this, "", true);
+	}
+
+	/**
+	 * Return the connected components of this graph as a list of new {@link DirectedWeightedGraph}s.
+	 * @return the list of DirectedWeightedGraph objects
+	 */
+	public List<DirectedWeightedGraph> getComponents() {
+		final List<DirectedWeightedGraph> componentList = new ArrayList<>();
+		final BiconnectivityInspector<SWCPoint, SWCWeightedEdge> inspector = new BiconnectivityInspector<>(this);
+		for (final org.jgrapht.Graph<SWCPoint, SWCWeightedEdge> component : inspector.getConnectedComponents()) {
+			final DirectedWeightedGraph dwgComponent = new DirectedWeightedGraph();
+			Graphs.addGraph(dwgComponent, component);
+			componentList.add(dwgComponent);
+		}
+		return componentList;
+	}
+
+	/**
+	 * Return the connected components of this graph as a list of {@link Tree}s
+	 * @return the list of Tree objects
+	 */
+	public List<Tree> getTrees() {
+		return getComponents().stream().map(c -> c.getTree(true)).collect(Collectors.toList());
 	}
 
 	/**
