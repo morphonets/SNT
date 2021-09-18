@@ -3564,9 +3564,8 @@ public class PathAndFillManager extends DefaultHandler implements
 	public synchronized void pathChanged(final PathChangeEvent event)
 	{
 		if (!(event.getSource() instanceof Path))
-		{
 			return;
-		}
+
 		final Path path = (Path) event.getSource();
 		switch (event.getEventType())
 		{
@@ -3574,6 +3573,8 @@ public class PathAndFillManager extends DefaultHandler implements
 			{
 				final String oldName = (String) event.getArgs()[0];
 				final String newName = (String) event.getArgs()[1];
+				if (oldName.equals(newName))
+					return;
 				Path p = pathNameMap.get(oldName);
 				if (p == path)
 				{
@@ -3593,6 +3594,8 @@ public class PathAndFillManager extends DefaultHandler implements
 			{
 				final int oldId = (int) event.getArgs()[0];
 				final int newId = (int) event.getArgs()[1];
+				if (oldId == newId)
+					return;
 				final Path p = pathIdMap.get(oldId);
 				if (p == path)
 				{
