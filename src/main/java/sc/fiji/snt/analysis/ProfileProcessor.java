@@ -255,7 +255,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
                 double[] circleNormal = getPlaneNormal( path, i );
                 if ( circleNormal == null )
                     return null;
-                return new CircleCursor3d<>( rai, centerPoint, radius, circleNormal );
+                return new CircleCursor3D<>( rai, centerPoint, radius, circleNormal );
             }
 
             case HYPERSPHERE:
@@ -268,7 +268,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
                 double[] circleNormal = getPlaneNormal( path, i );
                 if ( circleNormal == null )
                     return null;
-                return new DiskCursor3d<>( rai, centerPoint, radius, circleNormal );
+                return new DiskCursor3D<>( rai, centerPoint, radius, circleNormal );
             }
             case CENTERLINE:
             default:

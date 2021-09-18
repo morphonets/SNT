@@ -36,7 +36,7 @@ import static org.junit.Assert.assertEquals;
 /**
  * @author Cameron Arshadi
  */
-public class DiskCursor3dTest
+public class DiskCursor3DTest
 {
 
     @Test
@@ -45,7 +45,7 @@ public class DiskCursor3dTest
         Img< UnsignedByteType > rai = ArrayImgs.unsignedBytes( 128, 128, 1 );
         Point center = new Point( 64, 64, 0 );
         long radius = 40;
-        Cursor< UnsignedByteType > testCursor = new DiskCursor3d<>(
+        Cursor< UnsignedByteType > testCursor = new DiskCursor3D<>(
                 rai,
                 center,
                 radius,

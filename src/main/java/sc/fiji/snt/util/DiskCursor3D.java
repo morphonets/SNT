@@ -38,7 +38,7 @@ import java.util.List;
  *
  * @author Cameron Arshadi
  */
-public class DiskCursor3d< T > extends CircleCursor3d< T >
+public class DiskCursor3D< T > extends CircleCursor3D< T >
 {
 
     private List< Localizable > values;
@@ -57,7 +57,7 @@ public class DiskCursor3d< T > extends CircleCursor3d< T >
      * @param circleNorm the unit normal to the disk plane, must be 3-dimensional. The "new"
      *                   x and y basis vectors will be constructed from this vector.
      */
-    public DiskCursor3d( final RandomAccessible< T > rai, final Localizable center, final long radius,
+    public DiskCursor3D( final RandomAccessible< T > rai, final Localizable center, final long radius,
                          final double[] circleNorm )
     {
         super( rai, center, radius, circleNorm );
@@ -78,7 +78,7 @@ public class DiskCursor3d< T > extends CircleCursor3d< T >
      * @param yBasis the vector representing the "new" y-axis of the disk plane. Should be orthogonal to both the circle
      *               normal and the xBasis
      */
-    public DiskCursor3d( final RandomAccessible< T > rai, final Localizable center, final long radius,
+    public DiskCursor3D( final RandomAccessible< T > rai, final Localizable center, final long radius,
                          double[] xBasis, double[] yBasis )
     {
         super( rai, center, radius, xBasis, yBasis );
@@ -115,7 +115,7 @@ public class DiskCursor3d< T > extends CircleCursor3d< T >
     @Override
     public Cursor< T > copyCursor()
     {
-        return new DiskCursor3d<>( rai, centerPoint, radius, xBasis, yBasis );
+        return new DiskCursor3D<>( rai, centerPoint, radius, xBasis, yBasis );
     }
 
     @Override

@@ -35,7 +35,7 @@ import static org.junit.Assert.assertEquals;
 /**
  * @author Cameron Arshadi
  */
-public class CircleCursor3dTest
+public class CircleCursor3DTest
 {
 
     @Test
@@ -44,7 +44,7 @@ public class CircleCursor3dTest
         Img< UnsignedByteType > rai = ArrayImgs.unsignedBytes( 128, 128, 1 );
         Point center = new Point( 64, 64, 0 );
         long radius = 40;
-        Cursor< UnsignedByteType > testCursor = new CircleCursor3d<>(
+        Cursor< UnsignedByteType > testCursor = new CircleCursor3D<>(
                 rai,
                 center,
                 radius,

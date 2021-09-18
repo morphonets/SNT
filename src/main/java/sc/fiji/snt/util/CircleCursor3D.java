@@ -34,7 +34,7 @@ import net.imglib2.util.LinAlgHelpers;
  * @see net.imglib2.algorithm.region.CircleCursor
  * @see <a href="https://en.wikipedia.org/wiki/Midpoint_circle_algorithm">Midpoint circle algorithm on Wikipedia.</a>
  */
-public class CircleCursor3d< T > implements Cursor< T >
+public class CircleCursor3D< T > implements Cursor< T >
 {
 
     protected final RandomAccessible< T > rai;
@@ -76,7 +76,7 @@ public class CircleCursor3d< T > implements Cursor< T >
      * @param circleNorm the unit normal to the circle plane, must be 3-dimensional. The "new"
      *                   x and y basis vectors will be constructed from this vector.
      */
-    public CircleCursor3d( final RandomAccessible< T > rai, final Localizable center, final long radius,
+    public CircleCursor3D( final RandomAccessible< T > rai, final Localizable center, final long radius,
                            final double[] circleNorm )
     {
         this.rai = rai;
@@ -119,7 +119,7 @@ public class CircleCursor3d< T > implements Cursor< T >
      * @param yBasis the vector representing the "new" y-axis of the circle plane. Should be orthogonal to both the circle
      *               normal and the xBasis
      */
-    public CircleCursor3d( final RandomAccessible< T > rai, final Localizable center, final long radius,
+    public CircleCursor3D( final RandomAccessible< T > rai, final Localizable center, final long radius,
                            double[] xBasis, double[] yBasis )
     {
         this.rai = rai;
@@ -144,7 +144,7 @@ public class CircleCursor3d< T > implements Cursor< T >
     @Override
     public Cursor< T > copyCursor()
     {
-        return new CircleCursor3d<>( rai, centerPoint, radius, xBasis, yBasis );
+        return new CircleCursor3D<>( rai, centerPoint, radius, xBasis, yBasis );
     }
 
     @Override
@@ -218,7 +218,7 @@ public class CircleCursor3d< T > implements Cursor< T >
     {
         for ( int i = 0; i < doublePos.length; ++i )
         {
-            longPos[ i ] = (long) Math.floor( doublePos[ i ] );
+            longPos[ i ] = Math.round( doublePos[ i ] );
         }
     }
 

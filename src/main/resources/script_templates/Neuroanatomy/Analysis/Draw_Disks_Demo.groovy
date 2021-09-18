@@ -39,7 +39,7 @@ def drawDisks(path, img, min, max)
 			continue
 		LinAlgHelpers.normalize(tangent)
 		point = new Point(path.getXUnscaled(i), path.getYUnscaled(i), path.getZUnscaled(i))
-		cursor = new DiskCursor3d(img, point, 10, tangent)
+		cursor = new DiskCursor3D(img, point, 10, tangent)
 		while (cursor.hasNext()) 
 		{
 			cursor.fwd()
