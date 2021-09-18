@@ -599,7 +599,11 @@ public class PathAndFillManager extends DefaultHandler implements
 				map.get(treeID).add(pathToUse);
 			}
 		});
-		map.values().forEach( tree -> renameTreeAfterPrimaryPath(tree));
+		map.values().forEach( tree -> {
+			//tree.setBoundingBox(boundingBox);
+			tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, spacing_units);
+			renameTreeAfterPrimaryPath(tree);
+		});
 		return map.values();
 	}
 

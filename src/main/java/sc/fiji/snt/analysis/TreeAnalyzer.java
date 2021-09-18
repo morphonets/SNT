@@ -464,13 +464,13 @@ public class TreeAnalyzer extends ContextCommand {
 				if (type == Path.SWC_SOMA) continue;
 				restrictToSWCType(type);
 				final int row = getNextRow(rowHeader);
-				table.set(getCol("SWC Type"), row, Path.getSWCtypeName(type, true));
+				table.set(getCol("SWC Type(s)"), row, Path.getSWCtypeName(type, true));
 				measuringMetrics.forEach(metric -> table.set(getCol(metric), row, getMetricInternal(metric)));
 				resetRestrictions();
 			}
 		} else {
-			int row = getNextRow(rowHeader);
-			table.set(getCol("SWC Types"), row, getSWCTypesAsString());
+			final int row = getNextRow(rowHeader);
+			table.set(getCol("SWC Type(s)"), row, getSWCTypesAsString());
 			measuringMetrics.forEach(metric -> table.set(getCol(metric), row, getMetricInternal(metric)));
 		}
 		if (getContext() != null) updateAndDisplayTable();
@@ -551,10 +551,19 @@ public class TreeAnalyzer extends ContextCommand {
 		}
 	}
 
+	private String getUnitAwareHeader(final String metric) {
+		if (MultiTreeStatistics.WIDTH.equals(metric) || MultiTreeStatistics.HEIGHT.equals(metric)
+				|| MultiTreeStatistics.DEPTH.equals(metric) || MultiTreeStatistics.MEAN_RADIUS.equals(metric)
+				|| metric.toLowerCase().contains("length"))
+			return metric + " (" + tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "N/A") + ")";
+		return metric;
+	}
+
 	protected int getCol(final String header) {
-		int idx = table.getColumnIndex(header);
+		final String normHeader = getUnitAwareHeader(header);
+		int idx = table.getColumnIndex(normHeader);
 		if (idx == -1) {
-			table.appendColumn(header);
+			table.appendColumn(normHeader);
 			idx = table.getColumnCount() - 1;
 		}
 		return idx;

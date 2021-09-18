@@ -518,7 +518,9 @@ public class Tree implements TreeProperties {
 		}
 
 		//System.out.println("Returning subtree with nNodes: "+ nodes.size());
-		return new Tree(nodes, getLabel() + " (filtered)");
+		final Tree subTree = new Tree(nodes, getLabel() + " (filtered)");
+		subTree.applyProperties(this);
+		return subTree;
 	}
 
 	private boolean matchesType(final SWCPoint node, final int... swcTypes) {
@@ -530,6 +532,10 @@ public class Tree implements TreeProperties {
 
 	private boolean matchesType(final Path path, final int... swcTypes) {
 		return Arrays.stream(swcTypes).anyMatch(t -> t == path.getSWCType());
+	}
+
+	public void applyProperties(final Tree tree) {
+		getProperties().putAll(tree.getProperties());
 	}
 
 	/**
