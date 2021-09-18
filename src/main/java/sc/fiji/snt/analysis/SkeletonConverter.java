@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -28,7 +28,6 @@ import ij.measure.Calibration;
 import org.jgrapht.Graphs;
 import org.jgrapht.alg.connectivity.BiconnectivityInspector;
 import sc.fiji.analyzeSkeleton.*;
-import sc.fiji.analyzeSkeleton.Point;
 import sc.fiji.skeletonize3D.Skeletonize3D_;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
@@ -37,8 +36,8 @@ import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.Viewer3D;
 import smile.neighbor.KDTree;
 import smile.neighbor.Neighbor;
+
 import java.util.*;
-import java.util.List;
 
 /**
  * Class for generation of {@link Tree}s from a skeletonized {@link ImagePlus}.
@@ -98,6 +97,20 @@ public class SkeletonConverter {
                 throw new IllegalArgumentException("Only binary images allowed");
             skeletonize(imagePlus);
         }
+    }
+
+    /**
+     * Convenience method to skeletonize an 8-bit image using
+     * {@link Skeletonize3D_}.
+     *
+     * @param imp The 8-bit image to be skeletonized. All non-zero values are
+     *            considered to be foreground.
+     */
+    public static void skeletonize(final ImagePlus imp) {
+        final Skeletonize3D_ thin = new Skeletonize3D_();
+        thin.setup("", imp);
+        thin.run(null);
+        imp.updateImage();
     }
 
     /**
@@ -225,7 +238,7 @@ public class SkeletonConverter {
      * Whether to merge broken components in the skeleton result
      *
      * @param connectComponents
-     * @see SkeletonConverter#setMaxConnectDist(double) 
+     * @see SkeletonConverter#setMaxConnectDist(double)
      */
     public void setConnectComponents(boolean connectComponents) {
         this.connectComponents = connectComponents;
@@ -340,47 +353,33 @@ public class SkeletonConverter {
         sntGraph.setRoot(root);
     }
 
-	/**
-	 * Convenience method to skeletonize an 8-bit image using
-	 * {@link Skeletonize3D_}.
-	 * 
-	 * @param imp The 8-bit image to be skeletonized. All non-zero values are
-	 *                  considered to be foreground.
-	 */
-	public static void skeletonize(final ImagePlus imp) {
-		final Skeletonize3D_ thin = new Skeletonize3D_();
-		thin.setup("", imp);
-		thin.run(null);
-		imp.updateImage();
-	}
-
-	private List<DirectedWeightedGraph> connectComponents(final List<DirectedWeightedGraph> graphList) {
-	    final List<SWCPoint> vertices = new ArrayList<>();
-	    int component = 0;
-	    for (final DirectedWeightedGraph graph : graphList) {
-	        for (final SWCPoint vertex : graph.vertexSet()) {
-	            if (graph.degreeOf(vertex) <= 1) {
-	                // Only consider endpoints and isolated vertices
+    private List<DirectedWeightedGraph> connectComponents(final List<DirectedWeightedGraph> graphList) {
+        final List<SWCPoint> vertices = new ArrayList<>();
+        int component = 0;
+        for (final DirectedWeightedGraph graph : graphList) {
+            for (final SWCPoint vertex : graph.vertexSet()) {
+                if (graph.degreeOf(vertex) <= 1) {
+                    // Only consider endpoints and isolated vertices
                     vertex.v = component;
                     vertices.add(vertex);
                 }
             }
-	        component++;
+            component++;
         }
-	    SWCPoint[] vertexArray = new SWCPoint[vertices.size()];
-	    vertexArray = vertices.toArray(vertexArray);
+        SWCPoint[] vertexArray = new SWCPoint[vertices.size()];
+        vertexArray = vertices.toArray(vertexArray);
 
         final double[][] coordinates = new double[vertices.size()][];
-	    for (int i = 0; i < vertexArray.length; i++) {
-	        final SWCPoint vertex = vertexArray[i];
-	        coordinates[i] = new double[] {vertex.getX(), vertex.getY(), vertex.getZ()};
+        for (int i = 0; i < vertexArray.length; i++) {
+            final SWCPoint vertex = vertexArray[i];
+            coordinates[i] = new double[]{vertex.getX(), vertex.getY(), vertex.getZ()};
         }
 
         final KDTree<SWCPoint> kdtree = new KDTree<>(coordinates, vertexArray);
         final List<VertexPair> pairList = new ArrayList<>();
         for (int i = 0; i < coordinates.length; i++) {
             final SWCPoint referenceVertex = vertexArray[i];
-            final List<Neighbor<double[],SWCPoint>> neighbors = new ArrayList<>();
+            final List<Neighbor<double[], SWCPoint>> neighbors = new ArrayList<>();
             // Query the ball around the reference vertex
             kdtree.range(coordinates[i], maxConnectDist, neighbors);
             for (final Neighbor<double[], SWCPoint> neighbor : neighbors) {
@@ -402,25 +401,18 @@ public class SkeletonConverter {
         final DirectedWeightedGraph mergedGraph = new DirectedWeightedGraph();
         graphList.forEach(graph -> Graphs.addGraph(mergedGraph, graph));
         for (final VertexPair pair : pairList) {
-            if (mergedComponents.contains( (int) pair.v1.v ) && mergedComponents.contains( (int) pair.v2.v) ) {
+            if (mergedComponents.contains((int) pair.v1.v) && mergedComponents.contains((int) pair.v2.v)) {
                 continue;
             }
             mergedGraph.addEdge(pair.v1, pair.v2);
-            mergedComponents.add( (int) pair.v1.v );
-            mergedComponents.add( (int) pair.v2.v );
+            mergedComponents.add((int) pair.v1.v);
+            mergedComponents.add((int) pair.v2.v);
         }
         final List<DirectedWeightedGraph> finalComponentList = new ArrayList<>();
         final BiconnectivityInspector<SWCPoint, SWCWeightedEdge> inspector = new BiconnectivityInspector<>(mergedGraph);
-        // There is probably a better way to do this (casting the subgraphs doesn't work)
-        // but for lack of time this will do for now
         for (final org.jgrapht.Graph<SWCPoint, SWCWeightedEdge> graph : inspector.getConnectedComponents()) {
             final DirectedWeightedGraph graphComponent = new DirectedWeightedGraph();
-            for (final SWCPoint v : graph.vertexSet()) {
-                graphComponent.addVertex(v);
-            }
-            for (final SWCWeightedEdge e : graph.edgeSet()) {
-                graphComponent.addEdge(e.getSource(), e.getTarget(), e);
-            }
+            Graphs.addGraph(graphComponent, graph);
             finalComponentList.add(graphComponent);
         }
         return finalComponentList;
@@ -428,11 +420,11 @@ public class SkeletonConverter {
 
     private static class VertexPair implements Comparable<VertexPair> {
 
-	    SWCPoint v1;
-	    SWCPoint v2;
-	    double distance;
+        SWCPoint v1;
+        SWCPoint v2;
+        double distance;
 
-	    VertexPair(SWCPoint v1, SWCPoint v2, double distance) {
+        VertexPair(SWCPoint v1, SWCPoint v2, double distance) {
             this.v1 = v1;
             this.v2 = v2;
             this.distance = distance;
