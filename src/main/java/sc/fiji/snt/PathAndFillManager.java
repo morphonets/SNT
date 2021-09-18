@@ -3573,7 +3573,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			{
 				final String oldName = (String) event.getArgs()[0];
 				final String newName = (String) event.getArgs()[1];
-				if (oldName.equals(newName))
+				if (Objects.equals(oldName, newName))
 					return;
 				Path p = pathNameMap.get(oldName);
 				if (p == path)
