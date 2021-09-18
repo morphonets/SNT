@@ -46,6 +46,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 
+import static sc.fiji.snt.util.ImgUtils.outOfBounds;
+
 /**
  * Profile intensities within local neighborhoods around {@link Path} {@link sc.fiji.snt.util.PointInImage}s
  *
@@ -83,6 +85,24 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         {
             avgSep = ( cal.pixelWidth + cal.pixelHeight + cal.pixelDepth ) / 3;
         }
+    }
+
+    /**
+     * Gets the array of available {@link Metric}s
+     * @return the Metric array
+     */
+    public static Metric[] getMetrics()
+    {
+        return Metric.values();
+    }
+
+    /**
+     * Gets the array of available {@link Shape}s
+     * @return the Shape array
+     */
+    public static Shape[] getShapes()
+    {
+        return Shape.values();
     }
 
     /**
@@ -137,19 +157,20 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
      * Process and return the profile values.
      *
      * @return the values.
+     * @throws ArrayIndexOutOfBoundsException if using CENTERLINE shape and any
+     *                                        Path nodes are outside the bounds of the image
      */
     @Override
-    public double[] call() throws ArrayIndexOutOfBoundsException
+    public double[] call()
     {
         values = new double[ path.size() ];
+
         if ( path.size() == 1 )
-        {
             return values;
-        }
+
         if ( shape == Shape.CENTERLINE)
-        {
             return profilePathNodes( rai, path, values );
-        }
+
         for ( int i = 0; i < path.size(); ++i )
         {
             long r = (radius <= 0) ? Math.round( path.getNodeRadius( i ) / avgSep ) : radius;
@@ -189,28 +210,33 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         return values;
     }
 
-    private static < T extends RealType< T > > double[] profilePathNodes( final RandomAccessible< T > rai,
-                                                                          final Path path, final double[] values )
-                                                                        throws ArrayIndexOutOfBoundsException
+    /**
+     * Get the intensities for the point coordinates of a Path
+     *
+     * @param rai    the image
+     * @param path   the Path to profile
+     * @param values the array to store the values
+     * @param <T>
+     * @return the value array
+     * @throws ArrayIndexOutOfBoundsException if the Path contains any points outside the image bounds
+     */
+    public static < T extends RealType< T > > double[] profilePathNodes( final RandomAccessible< T > rai,
+                                                                         final Path path, final double[] values )
     {
-        // just return the node values
         final PathCursor< T > cursor = new PathCursor<>( rai, path );
         int i = 0;
         while ( cursor.hasNext() )
-        {
             values[ i++ ] = cursor.next().getRealDouble();
-        }
         return values;
     }
 
     private static double[] getPlaneNormal( final Path path, final int i )
     {
-        double[] tangent = new double[ 3 ];
+        final double[] tangent = new double[ 3 ];
         path.getTangent( i, 1, tangent );
         if ( Arrays.stream( tangent ).allMatch( e -> e == 0 ) )
-        {
             return null;
-        }
+
         LinAlgHelpers.normalize( tangent );
         return tangent;
     }
@@ -219,9 +245,8 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
                                                         final long radius, final Path path, final int i )
     {
         if ( rai.numDimensions() == 2 )
-        {
             return getSuitableCursor2d( rai, shape, radius, path, i );
-        }
+
         return getSuitableCursor3d( rai, shape, radius, path, i );
     }
 
@@ -259,9 +284,7 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
             }
 
             case HYPERSPHERE:
-            {
                 return new HyperSphere<>( rai, centerPoint, radius ).cursor();
-            }
 
             case DISK:
             {
@@ -275,14 +298,6 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
                 throw new IllegalArgumentException( "Unsupported shape: " + shape );
 
         }
-    }
-
-    private static boolean outOfBounds( final long[] pos, final long[] min, final long[] max )
-    {
-        for ( int d = 0; d < pos.length; d++ )
-            if ( pos[ d ] < min[ d ] || pos[ d ] > max[ d ] )
-                return true;
-        return false;
     }
 
     private double sum( final Cursor< T > cursor )
@@ -390,14 +405,18 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         t.assignImage( imp );
         Img< UnsignedByteType > img = ImageJFunctions.wrapReal( imp );
         ProfileProcessor< UnsignedByteType > profiler = new ProfileProcessor<>( img, t.get( 0 ) );
-        profiler.setShape( Shape.CIRCLE );
-        profiler.setRadius( 5 );
-        profiler.setMetric( Metric.VARIANCE );
-        long t0 = System.currentTimeMillis();
-        double[] values = profiler.call();
-        System.out.println( System.currentTimeMillis() - t0 );
-        ImgUtils.raiToImp( img, "Imp" ).show();
-        System.out.println( Arrays.toString( values ) );
+        for (Shape s : ProfileProcessor.getShapes()) {
+            System.out.println(s);
+            for (Metric m : ProfileProcessor.getMetrics()) {
+                System.out.println(m);
+                profiler.setShape( s );
+                profiler.setMetric( m );
+                profiler.setRadius( 5 );
+                final long t0 = System.currentTimeMillis();
+                double[] values = profiler.call();
+                System.out.println( System.currentTimeMillis() - t0 );
+//                System.out.println( Arrays.toString( values ) );
+            }
+        }
     }
-
 }
