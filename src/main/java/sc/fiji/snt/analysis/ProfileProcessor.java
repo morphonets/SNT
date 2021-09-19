@@ -46,6 +46,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 
+import org.apache.commons.lang3.StringUtils;
+
 /**
  * Profile intensities within local neighborhoods around {@link Path} {@link sc.fiji.snt.util.PointInImage}s
  *
@@ -64,9 +66,23 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
     private int radius = 0;
     private double[] values;
 
-    public enum Metric {SUM, MIN, MAX, MEAN, MEDIAN, VARIANCE}
+	public enum Metric {
+		SUM, MIN, MAX, MEAN, MEDIAN, VARIANCE;
 
-    public enum Shape {CENTERLINE, CIRCLE, DISK, HYPERSPHERE}
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
+
+	public enum Shape {
+		CENTERLINE, CIRCLE, DISK, HYPERSPHERE;
+
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
 
     public ProfileProcessor( final RandomAccessibleInterval< T > rai, final Path path )
     {
