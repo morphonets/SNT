@@ -29,7 +29,6 @@ import java.util.stream.IntStream;
 
 import net.imagej.Dataset;
 import net.imagej.ImageJ;
-import net.imagej.axis.CalibratedAxis;
 import net.imagej.plot.LineStyle;
 import net.imagej.plot.MarkerStyle;
 import net.imagej.plot.PlotService;
@@ -37,7 +36,6 @@ import net.imagej.plot.XYPlot;
 import net.imagej.plot.XYSeries;
 
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.display.ColorTable;
 import net.imglib2.type.numeric.RealType;
 
 import org.scijava.ItemVisibility;
@@ -55,6 +53,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.ProfileProcessor.Shape;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
@@ -577,8 +576,21 @@ public class PathProfiler extends CommonDynamicCmd {
 		return (nodeIndices) ? "Node indices" : "Distance";
 	}
 
-	private String getYAxisLabel() {
-		return "Intensity (" + dataset.getValidBits() + "-bit)";
+	private String getYAxisLabel(final int channel) {
+		final boolean detailed = shape != Shape.CENTERLINE;
+		final StringBuilder sb = new StringBuilder();
+		if (channel > 0 && dataset.getChannels() > 1) {
+			sb.append("Ch ").append(channel).append(" ");
+		}
+		sb.append(dataset.getValidBits()).append("-bit ");
+		if (detailed) {
+			sb.append("Int. (").append(metric).append("; ");
+			sb.append(shape).append(", r=").append(radius);
+			sb.append(")");
+		} else {
+			sb.append("Intensity");
+		}
+		return sb.toString();
 	}
 
 	/**
@@ -594,8 +606,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		if (!valuesAssignedToTree || (channel > 0 && channel != lastprofiledChannel) ) {
 			assignValues(channel);
 		}
-		String yAxisLabel = getYAxisLabel();
-		if (channel > -1) yAxisLabel += " (Ch " + channel + ")";
+		String yAxisLabel = getYAxisLabel(channel);
 		final Plot plot = new Plot(getPlotTitle(channel), getXAxisLabel(), yAxisLabel);
 		final Color[] colors = getSeriesColorsAWT();
 		final StringBuilder legend = new StringBuilder();
@@ -614,7 +625,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	public Plot getPlot(final Path path) {
-		final Plot plot = new Plot(getPlotTitle(-1), getXAxisLabel(), getYAxisLabel());
+		final Plot plot = new Plot(getPlotTitle(-1), getXAxisLabel(), getYAxisLabel(-1));
 		final Color[] colors = new Color[(int)dataset.getChannels()];
 			final ColorRGB[] colorsRGB = SNTColor.getDistinctColors((int)dataset.getChannels());
 			for (int i = 0; i < dataset.getChannels(); i++)
@@ -654,7 +665,7 @@ public class PathProfiler extends CommonDynamicCmd {
 			addSeries(plot, p, colors[colorIdx++], setLegend);
 		}
 		plot.xAxis().setLabel(getXAxisLabel());
-		plot.yAxis().setLabel(getYAxisLabel());
+		plot.yAxis().setLabel(getYAxisLabel(channel));
 		return plot;
 	}
 
