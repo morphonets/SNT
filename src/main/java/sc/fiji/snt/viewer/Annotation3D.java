@@ -28,12 +28,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import net.imagej.mesh.Mesh;
 import net.imagej.mesh.Triangle;
 import net.imagej.mesh.Triangles;
-import net.imagej.mesh.naive.NaiveDoubleMesh;
-import net.imagej.ops.OpMatchingService;
-import net.imagej.ops.OpService;
 
 import org.jzy3d.colors.Color;
 import org.jzy3d.maths.Coord3d;
@@ -43,14 +39,11 @@ import org.jzy3d.plot3d.primitives.Point;
 import org.jzy3d.plot3d.primitives.Polygon;
 import org.jzy3d.plot3d.primitives.Scatter;
 import org.jzy3d.plot3d.primitives.Shape;
-import org.scijava.Context;
-import org.scijava.NoSuchServiceException;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
-import org.scijava.vecmath.Vector3d;
 
 import sc.fiji.snt.Path;
-import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.ConvexHull3D;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.Viewer3D.Utils;
@@ -123,53 +116,9 @@ public class Annotation3D {
 	}
 
 	private AbstractDrawable assembleSurface(boolean computeVolume) {
-		final Mesh dmesh = new NaiveDoubleMesh();
-		for (final SNTPoint point : points) {
-			dmesh.vertices().add(point.getX(), point.getY(), point.getZ());
-		}
-		OpService ops = null;
-		try (final Context context = new Context(OpService.class, OpMatchingService.class)) {
-			ops = context.getService(OpService.class);
-		} catch (final Exception e) {
-			SNTUtils.error(e.getMessage(), e);
-		}
-		if (ops == null) {
-			throw new NoSuchServiceException("Failed to initialize OpService");
-		}
-		final Mesh hull = (Mesh) ops.geom().convexHull(dmesh).get(0);
-		final Triangles faces = hull.triangles();
-		if (computeVolume) {
-			/*
-			 * Approximate the hull volume using method described in
-			 * "Chapter IV.1: Area of planar polygons and volume of polyhedra". 
-			 * In Arvo, James (ed.). Graphic Gems Package: Graphics Gems II. Academic Press. 
-			 * pp. 170–171.
-			 */
-			volume = 0.0;
-			Iterator<Triangle> faceIter = faces.iterator();
-			while (faceIter.hasNext()) {
-				Triangle t = faceIter.next();
-				Vector3d tNormal = new Vector3d(t.nx(), t.ny(), t.nz());
-				tNormal.normalize();
-				Vector3d a = new Vector3d(t.v0x(), t.v0y(), t.v0z());
-				Vector3d b = new Vector3d(t.v1x(), t.v1y(), t.v1z());
-				Vector3d c = new Vector3d(t.v2x(), t.v2y(), t.v2z());
-				// calculate face area (technically twice the area)
-				Vector3d crossAB = new Vector3d();
-				crossAB.cross(a,  b);
-				Vector3d crossBC = new Vector3d();
-				crossBC.cross(b, c);
-				Vector3d crossCA = new Vector3d();
-				crossCA.cross(c, a);
-				Vector3d summed = new Vector3d();
-				summed.add(crossAB);
-				summed.add(crossBC);
-				summed.add(crossCA);
-				// add to total volume
-				volume += a.dot(tNormal) * tNormal.dot(summed);
-			}
-			volume = volume / (double)6.0;
-		}
+		ConvexHull3D hull = new ConvexHull3D(points, computeVolume);
+		volume = hull.size();
+		Triangles faces = hull.getMesh().triangles();
 		Iterator<Triangle> faceIter = faces.iterator();
 		ArrayList<ArrayList<Coord3d>> coord3dFaces = new ArrayList<ArrayList<Coord3d>>();
 		while (faceIter.hasNext()) {
