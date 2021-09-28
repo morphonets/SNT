@@ -2529,6 +2529,18 @@ public class SNTUI extends JDialog {
 		analysisMenu.add(measureWithPrompt);
 		analysisMenu.add(measureMenuItem);
 
+		analysisMenu.addSeparator();
+		final JMenuItem convexHullMenuItem = new JMenuItem("Convex Hull...");
+		convexHullMenuItem.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Tree tree = getPathManager().getSingleTree();
+			if (tree == null) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("tree", tree);
+			(new CmdRunner(ConvexHullCmd.class, inputs, getState())).execute();
+		});
+		analysisMenu.add(convexHullMenuItem);
+
 		// Utilities
 		utilitiesMenu.add(plotMenuItem);
 		final JMenuItem compareFiles = new JMenuItem("Compare Reconstructions/Cell Groups...");

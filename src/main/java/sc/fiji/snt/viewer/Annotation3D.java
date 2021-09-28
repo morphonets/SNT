@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+import net.imagej.mesh.Mesh;
 import net.imagej.mesh.Triangle;
 import net.imagej.mesh.Triangles;
 
@@ -118,7 +119,11 @@ public class Annotation3D {
 	private AbstractDrawable assembleSurface(boolean computeVolume) {
 		ConvexHull3D hull = new ConvexHull3D(points, computeVolume);
 		volume = hull.size();
-		Triangles faces = hull.getMesh().triangles();
+		return meshToDrawable(hull.getMesh());
+	}
+
+	public static AbstractDrawable meshToDrawable(Mesh mesh) {
+		Triangles faces = mesh.triangles();
 		Iterator<Triangle> faceIter = faces.iterator();
 		ArrayList<ArrayList<Coord3d>> coord3dFaces = new ArrayList<ArrayList<Coord3d>>();
 		while (faceIter.hasNext()) {
@@ -127,7 +132,7 @@ public class Annotation3D {
 			simplex.add(new Coord3d(t.v0x(), t.v0y(), t.v0z()));
 			simplex.add(new Coord3d(t.v1x(), t.v1y(), t.v1z()));
 			simplex.add(new Coord3d(t.v2x(), t.v2y(), t.v2z()));
-			coord3dFaces.add(simplex);	
+			coord3dFaces.add(simplex);
 		}
 		List<Polygon> polygons = new ArrayList<Polygon>();
 		for (ArrayList<Coord3d> face : coord3dFaces) {
@@ -138,11 +143,12 @@ public class Annotation3D {
 			polygons.add(polygon);
 		}
 		final Shape surface = new Shape(polygons);
-		surface.setColor(Utils.contrastColor(viewer.getDefColor()).alphaSelf(0.4f));
-		surface.setWireframeColor(viewer.getDefColor().alphaSelf(0.8f));
+		surface.setColor(Utils.contrastColor(new Color(1f, 1f, 1f, 0.05f)).alphaSelf(0.4f));
+		surface.setWireframeColor(new Color(1f, 1f, 1f, 0.05f).alphaSelf(0.8f));
 		surface.setFaceDisplayed(true);
 		surface.setWireframeDisplayed(true);
 		return surface;
+
 	}
 
 	private AbstractDrawable assembleScatter() {
