@@ -511,7 +511,9 @@ public class Strahler implements PlugIn, DialogListener {
 		gd.setInsets(25, 0, 0);
 		gd.addHyperlinkMessage("This plugin attempts at performing Strahler\n"
 				+ "analysis directly from an image. For complete\n"
-				+ "Strahler classification please use SNT.", null, 
+				+ "Strahler classification please extract paths\n"
+				+ "from image and perform the analyisis on the\n"
+				+ "reconstruction using SNT.", null, 
 				EnhancedGenericDialog.infoColor(), "https://imagej.net/SNT");
 
 		gd.addDialogListener(this);

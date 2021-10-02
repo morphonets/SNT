@@ -3,8 +3,7 @@
 # @ImagePlus(label="Skeletonizable mask", description="Must be a binary image (background = 0). Used to confine maxima detection and generate skeleton") impSkel
 # @String(label="AutoThreshold for particle detection", choices={"Default", "Huang", "Intermodes", "IsoData", "IJ_IsoData", "Li", "MaxEntropy", "Mean", "MinError", "Minimum", "Moments", "Otsu", "Percentile", "RenyiEntropy", "Shanbhag", "Triangle", "Yen"}) thres_method
 # @Double(label="Max. \"snap to\" distance", description="In calibrated units", min=1, max=100, style="scroll bar", value=3) cutoff_dist
-# @String(label="Output", choices={"ROIs only", "ROIs and Measurements (IJ1 table)", "ROIs and Measurements (IJ2 table)"}) output
-# @UIService uiService
+# @String(label="Output", choices={"ROIs only", "ROIs and Measurements"}) output
 # @ImageJ ij
 
 
@@ -18,57 +17,22 @@
     tip, etc.) if the distance between its centroid and the feature is less than
     or equal to a cuttoff ("snap to") distance.
 
-    :version: 20190111
-    :copyright: 2017-2019 TF
-    :url: https://github.com/tferr/hIPNAT
+    :version: 20210929
+    :url: https://github.com/morphonets/SNT
     :license: GPL3, see LICENSE for more details
 """
 
 from ij import IJ
 from ij.gui import Overlay, PointRoi
-from ij.measure import ResultsTable
 from ij.plugin.filter import MaximumFinder
 
-from ipnat.processing import Binary
-from sc.fiji.skeletonize3D import Skeletonize3D_
 from sc.fiji.analyzeSkeleton import AnalyzeSkeleton_
-from org.scijava.table import DefaultGenericTable, GenericColumn
+from sc.fiji.skeletonize3D import Skeletonize3D_
+from sc.fiji.snt.util import ImpUtils
+from sc.fiji.snt.analysis import SNTTable
+
 from java.awt import Color
 import math, sys
-
-
-def addToTable(table, column_header, value):
-    if isinstance(table, ResultsTable):
-        addToIJ1Table(table, column_header, value)
-    else:
-        addToIJ2Table(table, column_header, value)
-
-
-def addToIJ1Table(table, column_header, value):
-    if table.getCounter() == 0:
-        table.incrementCounter()
-    table.addValue(column_header, value)
-
-
-def addToIJ2Table(table, column_header, value):
-    """ Adds the specified value to the specifed column of an IJ table """
-    col_idx = table.getColumnIndex(column_header)
-    if col_idx == -1:
-        column = GenericColumn(column_header)
-        column.add(value)
-        table.add(column)
-    else:
-        column = table.get(col_idx)
-        column.add(value)
-        table.remove(col_idx)
-        table.add(col_idx, column)
-
-
-def showTable(table, title):
-    if isinstance(table, ResultsTable):
-        table.show(title)
-    else:
-        ij.ui().show(title, table)
 
 
 def cleanse_overlay(overlay):
@@ -89,7 +53,7 @@ def distance(x1, y1, x2, y2):
 
 def error(msg):
     """ Displays an error message """
-    uiService.showDialog(msg, "Error")
+    ij.ui().showDialog(msg, "Error")
 
 
 def get_centroids(imp, tolerance):
@@ -140,7 +104,7 @@ def skeletonize(imp):
     thin = Skeletonize3D_()
     thin.setup("", imp)
     thin.run(None)
-    Binary.removeIsolatedPixels(imp)
+    ImpUtils.removeIsolatedPixels(imp)
 
 
 def run():
@@ -240,24 +204,23 @@ def run():
     # Output some measurements
     if "table" in output:
 
-        t = ResultsTable.getResultsTable() if "IJ1" in output else DefaultGenericTable()
-        addToTable(t, "Part. image", "%s (%s)" % (impPart.getTitle(), impPart.getCalibration().getUnits()))
-        addToTable(t, "Skel. image", "%s (%s)" % (impSkel.getTitle(), impSkel.getCalibration().getUnits()))
-        addToTable(t, "Junction particles", n_bp)
-        addToTable(t, "Tip particles", n_tip)
-        addToTable(t, "J+T particles", n_both)
-        addToTable(t, "Unc. particles", n_none)
-        addToTable(t, "Junctions w/ particles", n_bp + n_both)
-        addToTable(t, "Tips w/ particles", n_tip + n_both)
-        addToTable(t, "Total skel. lenght", total_len)
-        addToTable(t, "Total end points", len(end_points))
-        addToTable(t, "Total junctions", sum(junctions))
-        addToTable(t, "Unc. particles / Total skel. lenght)", n_none/total_len)
-        addToTable(t, "Snap-to dist.", str(cutoff_dist) + impPart.getCalibration().getUnits())
-        addToTable(t, "Threshold", "%d (%s)" % (threshold_lower, thres_method))
-        showTable(t, "Results")
+        t = SNTTable()
+        t.appendToLastRow("Part. image", "%s (%s)" % (impPart.getTitle(), impPart.getCalibration().getUnits()))
+        t.appendToLastRow("Skel. image", "%s (%s)" % (impSkel.getTitle(), impSkel.getCalibration().getUnits()))
+        t.appendToLastRow("Junction particles", n_bp)
+        t.appendToLastRow("Tip particles", n_tip)
+        t.appendToLastRow("J+T particles", n_both)
+        t.appendToLastRow("Unc. particles", n_none)
+        t.appendToLastRow("Junctions w/ particles", n_bp + n_both)
+        t.appendToLastRow("Tips w/ particles", n_tip + n_both)
+        t.appendToLastRow("Total skel. lenght", total_len)
+        t.appendToLastRow("Total end points", len(end_points))
+        t.appendToLastRow("Total junctions", sum(junctions))
+        t.appendToLastRow("Unc. particles / Total skel. lenght)", n_none/total_len)
+        t.appendToLastRow("Snap-to dist.", str(cutoff_dist) + impPart.getCalibration().getUnits())
+        t.appendToLastRow("Threshold", "%d (%s)" % (threshold_lower, thres_method))
+        ij.ui().show("Results", t)
 
 
 run()
-
 
