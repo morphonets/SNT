@@ -145,11 +145,11 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		jmi.setToolTipText("Performs analysis directly from a (skeletonized) 2D/3D image");
 		jmi.addActionListener(e -> {
 			try {  // FIXME: We need to adopt SciJavaCommands for this
-				Class.forName("ipnat.skel.Strahler");
-				IJ.runPlugIn("ipnat.skel.Strahler", "");
+				IJ.runPlugIn(sc.fiji.snt.plugin.ij1.Strahler.class.getCanonicalName(), "");
 			}
-			catch (final Exception ignored) {
-				new GuiUtils(getFrame()).error("Plugin was not found. Please run Fiji's updater to retrieve missing files.");
+			catch (final Exception ex) {
+				new GuiUtils(getFrame()).error("An error occured. See Console for details.");
+				ex.printStackTrace();
 			}
 		});
 		popup.add(jmi);
