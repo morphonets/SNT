@@ -38,6 +38,7 @@ import javax.swing.AbstractButton;
 import javax.swing.JDialog;
 import javax.swing.SwingUtilities;
 
+import ij.ImagePlus;
 import net.imglib2.algorithm.neighborhood.DiamondShape;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgFactory;
@@ -72,6 +73,7 @@ import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SigmaPaletteListener;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.SigmaUtils;
 
 /**
@@ -443,8 +445,10 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		snt.loadSecondaryImage(filteredImg, !useLazy);
 		snt.setUseSubVolumeStats(useLazy);
 		if (show) {
-			displayService.createDisplay(getImageName(), filteredImg); // virtual stack!?
-//			ImageJFunctions.show(filteredImg, getImageName());
+			final ImagePlus imp = ImgUtils.raiToImp(filteredImg, getImageName());
+			imp.copyScale(sntService.getPlugin().getImagePlus());
+			imp.resetDisplayRange();
+			imp.show();
 		}
 		if (save) {
 			final File file = getSaveFile();
