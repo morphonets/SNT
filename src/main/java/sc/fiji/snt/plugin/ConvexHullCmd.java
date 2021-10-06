@@ -106,8 +106,10 @@ public class ConvexHullCmd extends ContextCommand {
         if (splitCompartments) {
             axon = tree.subTree("axon");
             dendrite = tree.subTree("dendrite");
-            if (axon.isEmpty() && dendrite.isEmpty())
+            if (axon.isEmpty() && dendrite.isEmpty()) {
+                splitCompartments = false;
                 axon = tree;
+            }
         } else {
             axon = tree;
         }
@@ -116,14 +118,14 @@ public class ConvexHullCmd extends ContextCommand {
         	table = new SNTTable();
         AbstractConvexHull axonHull = null;
         AbstractConvexHull dendriteHull = null;
-        final String baseLabel = (axon.getLabel() == null || axon.getLabel().isEmpty()) ? "Tree" : axon.getLabel();
+        final String baseLabel = (tree.getLabel() == null || tree.getLabel().isEmpty()) ? "Tree" : tree.getLabel();
 		if (axon != null && !axon.isEmpty()) {
 			axonHull = computeHull(axon);
-			measure(axonHull, table,  (splitCompartments) ? "Axon " + baseLabel : baseLabel);
+			measure(axonHull, table,  (splitCompartments) ? baseLabel + " Axon": baseLabel);
 		}
-		else if (dendrite != null && !dendrite.isEmpty()) {
+		if (dendrite != null && !dendrite.isEmpty()) {
 			dendriteHull = computeHull(dendrite);
-			measure(dendriteHull, table, "Dendrite " + baseLabel);		
+			measure(dendriteHull, table, baseLabel + " Dendrites");
 		}
 		if (showResult) {
             if (is3D) {
@@ -154,7 +156,6 @@ public class ConvexHullCmd extends ContextCommand {
                     v.addPolygon(((ConvexHull2D)axonHull).getPoly(), "Convex hull (axon)");
                     v.add(axon, "blue");  // do not change tree color
                 }
-                System.out.println("dendriteHull: " + dendriteHull);
                 if (dendriteHull != null) {
                 	v.setDefaultColor(Colors.DARKGREEN);
                     v.addPolygon(((ConvexHull2D)dendriteHull).getPoly(), "Convex hull (dend)");
