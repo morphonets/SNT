@@ -423,7 +423,8 @@ public class Viewer2D extends TreeColorMapper {
 	 * @return the converted viewer
 	 */
 	public SNTChart getChart() {
-		return new SNTChart(getTitle(), getJFreeChart());
+		return new SNTChart((getTitle() == null || getTitle().trim().isEmpty()) ? "Reconstruction Plotter" : getTitle(),
+				getJFreeChart());
 	}
 
 	/**
@@ -437,21 +438,13 @@ public class Viewer2D extends TreeColorMapper {
 		plot.yAxis().setAutoRange();
 		plot.xAxis().setAutoRange();
 		if (show) {
-			if (chart == null && uiService != null) {
-				uiService.show((title == null) ? "Reconstruction Plotter" : title, plot);
-			}
-			else {
-				if (chart == null) chart = getJFreeChart();
-				chart.setBackgroundPaint(null); // transparent
-				chart.getPlot().setBackgroundPaint(null); // transparent
-				final SNTChart frame = getChart();
-				frame.setAxesVisible(visibleAxes);
-				frame.setGridlinesVisible(visibleGridLines);
-				frame.setOutlineVisible(visibleOutline);
-				frame.getChartPanel().setBackground(null); // transparent
-				frame.setBackground(Color.WHITE);
-				frame.show(600, 450);
-			}
+			final SNTChart frame = getChart();
+			frame.setAxesVisible(visibleAxes);
+			frame.setGridlinesVisible(visibleGridLines);
+			frame.setOutlineVisible(visibleOutline);
+			frame.getChartPanel().setBackground(null); // transparent
+			frame.setBackground(Color.WHITE);
+			frame.show(600, 450);
 		}
 		return plot;
 	}
