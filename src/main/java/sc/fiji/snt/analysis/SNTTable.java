@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.stream.IntStream;
 
 import org.scijava.Context;
+import org.scijava.NoSuchServiceException;
 import org.scijava.io.IOService;
 import org.scijava.io.location.FileLocation;
 import org.scijava.table.Column;
@@ -49,7 +50,7 @@ public class SNTTable extends DefaultGenericTable {
 
 	private static final long serialVersionUID = 1L;
 	private boolean hasUnsavedData;
-	protected static DefaultTableIOPlugin tableIO;
+	private DefaultTableIOPlugin tableIO;
 
 
 	public SNTTable() {
@@ -59,13 +60,14 @@ public class SNTTable extends DefaultGenericTable {
 	public SNTTable(final String filePath) throws IOException {
 		super();
 		if (tableIO == null) {
-			final Context context = new Context(); // Failure if new Context(IOservice.class); !?
-			tableIO = context.getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
-			try {
-				context.close();
-			} catch (final Exception ignored) {
-				// do nothing
+			try (final Context context = new Context()) {  // Failure if new Context(IOservice.class); !?
+				tableIO = context.getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
+			} catch (final Exception e) {
+				SNTUtils.error(e.getMessage(), e);
 			}
+		}
+		if (tableIO == null) {
+			throw new NoSuchServiceException("Failed to initialize IOService");
 		}
 		final TableIOOptions options = new TableIOOptions().readColumnHeaders(true).readColumnHeaders(true);
 		final Table<?, ?> openedTable = tableIO.open(new FileLocation(filePath), options);
