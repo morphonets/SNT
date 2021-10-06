@@ -22,17 +22,23 @@
 
 package sc.fiji.snt.plugin;
 
-import net.imagej.ImageJ;
-import net.imagej.ops.OpService;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+import org.scijava.ItemVisibility;
+import org.scijava.command.Command;
 import org.scijava.command.CommandService;
 import org.scijava.command.ContextCommand;
 import org.scijava.display.Display;
 import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
+import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
+import net.imagej.ImageJ;
+import net.imagej.ops.OpService;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.AbstractConvexHull;
@@ -43,13 +49,10 @@ import sc.fiji.snt.viewer.Annotation3D;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 /**
  * @author Cameron Arshadi
  */
+@Plugin(type = Command.class, visible = false, label = "Convex Hull Analysis...")
 public class ConvexHullCmd extends ContextCommand {
 
     @Parameter
@@ -64,23 +67,34 @@ public class ConvexHullCmd extends ContextCommand {
     @Parameter
     private Tree tree;
 
-    @Parameter(label = "Distinguish Compartments")
-    private boolean splitCompartments;
 
-    @Parameter(label = "Display Hull")
-    private boolean showResult;
+	@Parameter(label = "<HTML><b>Options:",
+			required = false, visibility = ItemVisibility.MESSAGE)
+	private String HEADER1;
 
-    @Parameter(label = "Size")
-    private boolean doSize;
+	@Parameter(label = "Display Convex Hull", description = "Should the convex hull be displayed "
+			+ "in Reconstruction Viewer/Plotter?")
+	private boolean showResult;
+
+	@Parameter(label = "Distinguish Compartments", description = "<HTML><div WIDTH=500>Whether a convex hull should be "
+			+ "computed for each cellular compartment (e.g., \"axon\", " + "\"dendrites\", etc.), if any.")
+	private boolean splitCompartments;
+
+	@Parameter(label = "<HTML><b>Measurements:",
+			required = false, visibility = ItemVisibility.MESSAGE)
+	private String HEADER2;
 
     @Parameter(label = "Boundary Size")
     private boolean doBoundarySize;
 
+    @Parameter(label = "Main Elongation")
+    private boolean doMainElongation;
+
     @Parameter(label = "Roundness")
     private boolean doRoundness;
 
-    @Parameter(label = "Main Elongation")
-    private boolean doMainElongation;
+    @Parameter(label = "Size")
+    private boolean doSize;
 
 
     @Override
