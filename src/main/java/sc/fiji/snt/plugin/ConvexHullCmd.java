@@ -24,10 +24,15 @@ package sc.fiji.snt.plugin;
 
 import net.imagej.ImageJ;
 import net.imagej.ops.OpService;
+
 import org.scijava.command.CommandService;
 import org.scijava.command.ContextCommand;
+import org.scijava.display.Display;
+import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
-import org.scijava.ui.UIService;
+import org.scijava.util.ColorRGB;
+import org.scijava.util.Colors;
+
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.AbstractConvexHull;
@@ -39,6 +44,7 @@ import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -47,10 +53,13 @@ import java.util.Map;
 public class ConvexHullCmd extends ContextCommand {
 
     @Parameter
-    private UIService uiService;
+    private OpService opService;
+    
+    @Parameter
+    private SNTService sntService;
 
     @Parameter
-    private OpService opService;
+    private DisplayService displayService;
 
     @Parameter
     private Tree tree;
@@ -73,11 +82,13 @@ public class ConvexHullCmd extends ContextCommand {
     @Parameter(label = "Main Elongation")
     private boolean doMainElongation;
 
+
     @Override
     public void run() {
         final boolean is3D = tree.is3D();
         Tree axon;
         Tree dendrite = null;
+        splitCompartments = splitCompartments && tree.getSWCTypes().size() > 1;
         if (splitCompartments) {
             axon = tree.subTree("axon");
             dendrite = tree.subTree("dendrite");
@@ -86,66 +97,79 @@ public class ConvexHullCmd extends ContextCommand {
         } else {
             axon = tree;
         }
-        SNTTable table = new SNTTable();
+        SNTTable table = sntService.getTable();
+        if (table == null)
+        	table = new SNTTable();
         AbstractConvexHull axonHull = null;
         AbstractConvexHull dendriteHull = null;
-        if (axon != null && !axon.isEmpty()) {
-            axonHull = computeHull(axon);
-            String label = splitCompartments ? "Axon" :
-                    ((axon.getLabel() == null || axon.getLabel().isEmpty()) ? "Tree" : axon.getLabel());
-            table.insertRow(label);
-            if (doSize)
-                table.set("Convex hull: size", label, axonHull.size());
-            if (doBoundarySize)
-                table.set("Convex hull: boundary size", label, axonHull.boundarySize());
-            if (doRoundness)
-                table.set("Convex hull: roundness", label, computeRoundness(axonHull));
-            if (doMainElongation)
-                table.set("Convex hull: elongation", label, computeElongation(axonHull));
-        }
-        if (dendrite != null && !dendrite.isEmpty()) {
-            dendriteHull = computeHull(dendrite);
-            table.insertRow("Dendrite");
-            if (doSize)
-                table.set("Convex hull: size", "Dendrite", dendriteHull.size());
-            if (doBoundarySize)
-                table.set("Convex hull: boundary size", "Dendrite", dendriteHull.boundarySize());
-            if (doRoundness)
-                table.set("Convex hull: roundness", "Dendrite", computeRoundness(dendriteHull));
-            if (doMainElongation)
-                table.set("Convex hull: elongation", "Dendrite", computeElongation(dendriteHull));
-        }
-        if (showResult) {
+        final String baseLabel = (axon.getLabel() == null || axon.getLabel().isEmpty()) ? "Tree" : axon.getLabel();
+		if (axon != null && !axon.isEmpty()) {
+			axonHull = computeHull(axon);
+			measure(axonHull, table,  (splitCompartments) ? "Axon " + baseLabel : baseLabel);
+		}
+		else if (dendrite != null && !dendrite.isEmpty()) {
+			dendriteHull = computeHull(dendrite);
+			measure(dendriteHull, table, "Dendrite " + baseLabel);		
+		}
+		if (showResult) {
             if (is3D) {
-                Viewer3D v = new Viewer3D(getContext());
-                if (axonHull != null)
-                    axon.setColor("cyan");
-                    v.add(axon);
-                    v.add(Annotation3D.meshToDrawable(((ConvexHull3D)axonHull).getMesh()));
+                final Viewer3D v = sntService.getRecViewer();
+                if (axonHull != null) {
+                    if (!v.getTrees().contains(tree) || !v.getTrees().contains(axon))
+                    	v.add(axon);
+                    final String aColor = axon.getProperties().getProperty(Tree.KEY_COLOR, "cyan");
+                    if ("cyan".equals(aColor))
+                    	axon.setColor("cyan");
+                    final Annotation3D surface = new Annotation3D(((ConvexHull3D)axonHull).getMesh(), new ColorRGB(aColor), "Convex Hull " + axon.getLabel());
+                    v.add(surface);
+                }
                 if (dendriteHull != null) {
-                    dendrite.setColor("orange");
-                    v.add(dendrite);
-                    v.add(Annotation3D.meshToDrawable(((ConvexHull3D)dendriteHull).getMesh()));
+                    if (!v.getTrees().contains(tree) || !v.getTrees().contains(dendrite))
+                    	v.add(dendrite);
+                    final String dColor = dendrite.getProperties().getProperty(Tree.KEY_COLOR, "orange");
+                    if ("orange".equals(dColor))
+                    	dendrite.setColor("orange");
+                    final Annotation3D surface = new Annotation3D(((ConvexHull3D)axonHull).getMesh(), new ColorRGB(dColor), "Convex Hull " + dendrite.getLabel());
+                    v.add(surface);
                 }
                 v.show();
             } else {
-                Viewer2D v = new Viewer2D(getContext());
+                final Viewer2D v = new Viewer2D(getContext());
                 if (axonHull != null) {
-                    v.addPolygon(((ConvexHull2D)axonHull).getPoly(), "Convex hull");
-                    axon.setColor("cyan");
-                    v.add(axon);
+                	v.setDefaultColor(Colors.RED);
+                    v.addPolygon(((ConvexHull2D)axonHull).getPoly(), "Convex hull (axon)");
+                    v.add(axon, "blue");  // do not change tree color
                 }
+                System.out.println("dendriteHull: " + dendriteHull);
                 if (dendriteHull != null) {
-                    v.addPolygon(((ConvexHull2D)dendriteHull).getPoly(), "Convex hull");
-                    dendrite.setColor("orange");
-                    v.add(dendrite);
+                	v.setDefaultColor(Colors.DARKGREEN);
+                    v.addPolygon(((ConvexHull2D)dendriteHull).getPoly(), "Convex hull (dend)");
+                    v.add(dendrite, "magenta");
                 }
                 v.show();
             }
         }
-        if (!table.isEmpty())
-            uiService.show(table);
+        if (!table.isEmpty()) {
+    		final List<Display<?>> displays = displayService.getDisplays(table);
+    		if (displays != null && !displays.isEmpty()) {
+    			displays.forEach( d -> d.update());
+    		} else {
+    			displayService.createDisplay("SNT Measurements", table);
+    		}
+        }
     }
+
+	private void measure(final AbstractConvexHull hull, final SNTTable table, final String rowLabel) {
+		table.insertRow(rowLabel);
+		if (doSize)
+			table.appendToLastRow("Convex hull: Size", hull.size());
+		if (doBoundarySize)
+			table.appendToLastRow("Convex hull: Boundary size", hull.boundarySize());
+		if (doRoundness)
+			table.appendToLastRow("Convex hull: Roundness", computeRoundness(hull));
+		if (doMainElongation)
+			table.appendToLastRow("Convex hull: Elongation", computeElongation(hull));
+	}
 
     private double computeRoundness(AbstractConvexHull hull) {
         if (hull instanceof ConvexHull3D)
