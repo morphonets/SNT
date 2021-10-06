@@ -117,7 +117,7 @@ public class Annotation3D {
 		this.points = null;
 		type = SURFACE;
 		size = Viewer3D.DEF_NODE_RADIUS;
-		drawable = meshToDrawable(mesh);
+		drawable = meshToDrawable(mesh, new Color(color.getRed(), color.getGreen(), color.getBlue()));
 		this.label = label;
 	}
 
@@ -131,7 +131,11 @@ public class Annotation3D {
 		return meshToDrawable(hull.getMesh());
 	}
 
-	public static AbstractDrawable meshToDrawable(Mesh mesh) {
+	public static AbstractDrawable meshToDrawable(final Mesh mesh) {
+		return meshToDrawable(mesh, new Color(1f, 1f, 1f, 0.05f));
+	}
+
+	private static AbstractDrawable meshToDrawable(Mesh mesh, final Color color) {
 		Triangles faces = mesh.triangles();
 		Iterator<Triangle> faceIter = faces.iterator();
 		ArrayList<ArrayList<Coord3d>> coord3dFaces = new ArrayList<ArrayList<Coord3d>>();
@@ -152,8 +156,8 @@ public class Annotation3D {
 			polygons.add(polygon);
 		}
 		final Shape surface = new Shape(polygons);
-		surface.setColor(Utils.contrastColor(new Color(1f, 1f, 1f, 0.05f)).alphaSelf(0.4f));
-		surface.setWireframeColor(new Color(1f, 1f, 1f, 0.05f).alphaSelf(0.8f));
+		surface.setColor(color.alphaSelf(0.25f));
+		surface.setWireframeColor(Utils.contrastColor(color).alphaSelf(0.8f));
 		surface.setFaceDisplayed(true);
 		surface.setWireframeDisplayed(true);
 		return surface;
