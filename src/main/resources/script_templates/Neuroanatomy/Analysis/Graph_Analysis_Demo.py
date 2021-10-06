@@ -55,7 +55,7 @@ def run():
 
     # Build a DirectedWeightedGraph object from the Tree nodes, assigning
     # euclidean distance between adjacent nodes as edge weights.
-    # See https://javadoc.scijava.org/Fiji/index.html?sc/fiji/snt/analysis/graph/DirectedWeightedGraph.html
+    # See https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/graph/DirectedWeightedGraph.html
     print("Assembling graph from Tree's nodes...")
     graph = axon_tree.getGraph()
     
