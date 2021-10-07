@@ -89,6 +89,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private JRadioButton exploredThresholdChoice;
 	private JPopupMenu exportFillsMenu;
 	private JCheckBox transparentCheckbox;
+	private JCheckBox storeExtraNodesCheckbox;
 
 
 	/**
@@ -200,6 +201,16 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		final JPanel transparencyPanel = leftAlignedPanel();
 		transparencyPanel.add(transparentCheckbox);
 		add(transparencyPanel, c);
+		c.gridy++;
+
+		addSeparator(" Misc. Options:", c);
+
+		storeExtraNodesCheckbox = new JCheckBox(" Store above-threshold nodes (may impact performance)");
+		storeExtraNodesCheckbox.addActionListener(e -> plugin.setStoreExtraFillNodes(storeExtraNodesCheckbox.isSelected()));
+		storeExtraNodesCheckbox.setToolTipText("Enabling this option lets you resume progress with the same Fill");
+		final JPanel storeExtraNodesPanel = leftAlignedPanel();
+		storeExtraNodesPanel.add(storeExtraNodesCheckbox);
+		add(storeExtraNodesPanel, c);
 		c.gridy++;
 
 		GuiUtils.addSeparator((JComponent) getContentPane(), " Stored Fill(s):", true, c);
@@ -498,11 +509,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			if (plugin.fillerSet.isEmpty()) {
 				if (plugin.getUI().getPathManager().selectionExists()) {
 					plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(false)));
-					if (!manualThresholdChoice.isSelected()) {
-						plugin.setStopFillAtThreshold(false);
-					} else {
-						plugin.setStopFillAtThreshold(true);
-					}
+					applyCheckboxSelections();
 					plugin.startFilling();
 				} else  {
 					final int ans = gUtils.yesNoDialog("There are no paths selected in Path Manager. Would you like to "
@@ -510,21 +517,13 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 							+ "Manager list, and re-run. ", "Fill All Paths?", "Yes. Fill all.", "No. Let me select subsets.");
 					if (ans == JOptionPane.YES_OPTION) {
 						plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(true)));
-						if (!manualThresholdChoice.isSelected()) {
-							plugin.setStopFillAtThreshold(false);
-						} else {
-							plugin.setStopFillAtThreshold(true);
-						}
+						applyCheckboxSelections();
 						plugin.startFilling();
 					}
 				}
 			} else {
 				try {
-					if (!manualThresholdChoice.isSelected()) {
-						plugin.setStopFillAtThreshold(false);
-					} else {
-						plugin.setStopFillAtThreshold(true);
-					}
+					applyCheckboxSelections();
 					plugin.startFilling(); //TODO: Check if this is the only thing left to do.
 				} catch (final IllegalArgumentException ex) {
 					gUtils.error(ex.getMessage());
@@ -536,6 +535,12 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			SNTUtils.error("BUG: FillWindow received an event from an unknown source.");
 		}
 
+	}
+
+	private void applyCheckboxSelections() {
+		plugin.setStoreExtraFillNodes(storeExtraNodesCheckbox.isSelected());
+		plugin.setStopFillAtThreshold(manualThresholdChoice.isSelected());
+		plugin.setFillTransparent(transparentCheckbox.isSelected());
 	}
 
 	private boolean noFillsError() {
