@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.net.URL;
 
 import org.scijava.ItemVisibility;
-import org.scijava.app.AppService;
 import org.scijava.command.Command;
 import org.scijava.options.OptionsPlugin;
 import org.scijava.platform.PlatformService;
@@ -34,7 +33,6 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.ui.DialogPrompt.Result;
-import org.scijava.ui.UIService;
 import org.scijava.widget.Button;
 
 import sc.fiji.snt.SNTUtils;
@@ -53,13 +51,9 @@ import sc.fiji.snt.util.Logger;
 public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 	@Parameter
-	private AppService appService;
-	@Parameter
 	private PrefService pService;
 	@Parameter
 	private PlatformService platformService;
-	@Parameter
-	private UIService uiService;
 
 	/* DEFAULTS */
 	public final static boolean DEF_SKIP_SINGLE_VOXELS = true;
@@ -168,7 +162,8 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 	@Parameter(label = "Resource", required = false, persist = false,
 		callback = "help", choices = { PLACEHOLDER_CHOICE, "About...",
-			"Image.sc Forum", "Documentation", "Source code" })
+			"Documentation", "Image.sc Forum: Topics on Sholl",
+			"Image.sc Forum: Topics on SNT", "Source code" })
 	private String helpChoice = " ";
 
 	@Parameter(required = false, persist = false, visibility = ItemVisibility.INVISIBLE)
@@ -193,12 +188,16 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		final String choice = helpChoice.toLowerCase();
 		helpChoice = PLACEHOLDER_CHOICE;
 		if (choice.contains("about")) {
-			about();
+			GuiUtils.showAboutDialog();
 			return;
 		}
 		String url = "";
-		if (choice.contains("forum")) url = "https://forum.image.sc/search?q=sholl%20order%3Alatest";
-		else if (choice.contains("code")) url = "https://github.com/morphonets/SNT";
+		if (choice.contains("forum") && choice.contains("sholl"))
+			url = "https://forum.image.sc/search?q=sholl";
+		else if (choice.contains("snt"))
+			url = "https://forum.image.sc/search?q=snt";
+		else if (choice.contains("code"))
+			url = "https://github.com/morphonets/SNT";
 		else url = ShollUtils.URL;
 		try {
 			platformService.open(new URL(url));
@@ -208,14 +207,6 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 			helper.error("<HTML><div WIDTH=400>Web page could not be open. " +
 				"Please visit " + url + " using your web browser.", null);
 		}
-	}
-
-	private void about() {
-		final StringBuilder sb = new StringBuilder();
-		sb.append("You are running Sholl Analysis SNTv").append(SNTUtils.VERSION);
-		sb.append(" ").append(SNTUtils.buildDate()).append("\n");
-		sb.append("on ImageJ ").append(appService.getApp().getVersion());
-		helper.centeredMsg(sb.toString(), SNTUtils.getReadableVersion());
 	}
 
 	@SuppressWarnings("unused")

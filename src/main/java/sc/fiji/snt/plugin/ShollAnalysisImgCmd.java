@@ -263,7 +263,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 					"Abort current analysis", "Change image...", "Options & Preferences"})
 	private String analysisAction;
 
-	@Parameter(label = "Analyze Image", callback = "runAnalysis")
+	@Parameter(label = "<html><b>Analyze Image</html>", callback = "runAnalysis")
 	private Button analyzeButton;
 
 	@Parameter(persist = false, required = false, visibility = ItemVisibility.MESSAGE, //
@@ -680,7 +680,6 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	protected void setAnalysisScope() {
 		final MutableModuleItem<Button> aButton = getInfo().getMutableInput("analyzeButton", Button.class);
 		String label;
-		boolean disable = false;
 		if (analysisAction.contains("Analyze image")) {
 			scope = SCOPE_IMP;
 			if (imp != null) {
@@ -688,7 +687,6 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 				label = "Analyze " + title;
 			} else {
 				label = NO_IMAGE;
-				disable = true;
 			}
 		} else if (analysisAction.contains("Abort")) {
 			scope = SCOPE_ABORT;
@@ -696,7 +694,6 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 				label = "Press to abort";
 			} else {
 				label = "No analysis is currently running";
-				disable = true;
 			}
 		} else if (analysisAction.contains("parsed")) {
 			scope = SCOPE_PROFILE;
@@ -704,7 +701,6 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 				label = "Press to re-run analysis";
 			} else {
 				label = "No profile has yet been obtained";
-				disable = true;
 			}
 		} else if (analysisAction.contains("Change")) {
 			scope = SCOPE_CHANGE_DATASET;
@@ -714,8 +710,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			label = "Options Prompt...";
 		} else
 			label = analysisAction;
-		aButton.setLabel(
-				String.format("<html><font color='%s'><b>%s</font></html>", disable ? "#f00" : "#000", label));
+		aButton.setLabel(String.format("<html><b>%s</html>", label));
 	}
 
 	private void setNormalizerChoices() {

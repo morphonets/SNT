@@ -703,7 +703,7 @@ public class GuiUtils {
 		blinkingComponent.setForeground(prevColor);
 	}
 
-	static JDialog showAboutDialog() {
+	public static JDialog showAboutDialog() {
 		final JPanel main = new JPanel();
 		main.add(SplashScreen.getIconAsLabel());
 		final JPanel side = new JPanel();
