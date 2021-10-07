@@ -130,9 +130,10 @@ public class ConvexHullCmd extends ContextCommand {
 		if (showResult) {
             if (is3D) {
                 final Viewer3D v = sntService.getRecViewer();
+                final boolean inputTreeDisplayed = v.getTrees().contains(tree);
                 if (axonHull != null) {
                     final String aColor = axon.getProperties().getProperty(Tree.KEY_COLOR, "cyan");
-                    if (!v.getTrees().contains(tree) || !v.getTrees().contains(axon)) {
+                    if (!inputTreeDisplayed) {
                         if ("cyan".equals(aColor))
                             axon.setColor("cyan");
                         v.add(axon);
@@ -143,7 +144,7 @@ public class ConvexHullCmd extends ContextCommand {
                 }
                 if (dendriteHull != null) {
                     final String dColor = dendrite.getProperties().getProperty(Tree.KEY_COLOR, "orange");
-                    if (!v.getTrees().contains(tree) || !v.getTrees().contains(dendrite)) {
+                    if (!inputTreeDisplayed) {
                         if ("orange".equals(dColor))
                             dendrite.setColor("orange");
                         v.add(dendrite);
@@ -199,7 +200,8 @@ public class ConvexHullCmd extends ContextCommand {
             throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
     }
 
-    private double computeBoxivity(AbstractConvexHull hull) {
+    @SuppressWarnings("unused")
+	private double computeBoxivity(AbstractConvexHull hull) {
         // FIXME this does not work in 3D??
         if (hull instanceof ConvexHull3D)
             return opService.geom().boxivity(((ConvexHull3D) hull).getMesh()).getRealDouble();
