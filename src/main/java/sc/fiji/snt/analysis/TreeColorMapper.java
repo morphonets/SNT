@@ -404,8 +404,7 @@ public class TreeColorMapper extends ColorMapper {
 		// 2nd pass: Calculate distances for remaining paths
 		for (final Path p : paths) {
 			if (p.isPrimary()) continue;
-			final PointInImage pim = p.getNode(0);
-			double dx = p.getStartJoins().getNodeValue(p.getStartJoins().getNodeIndex(pim)); // very inefficient
+			double dx = p.getStartJoins().getNodeValue(p.getStartJoins().getNodeIndex(p.getStartJoinsPoint())); // very inefficient
 			p.setNodeValue(dx, 0);
 			for (int i = 1; i < p.size(); ++i) {
 				final double dxPrev = p.getNodeValue(i - 1);
