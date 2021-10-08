@@ -60,58 +60,66 @@
 
 
 
-
-
 SNT is [ImageJ](https://imagej.net/)'s framework for semi-automated tracing, visualization, quantitative analyses and modeling of neuronal morphology. For tracing, SNT supports modern multi-dimensional microscopy data, and highly-customizable routines. For data analysis, SNT features advanced visualization tools, access to all major morphology databases, and support for whole-brain circuitry data.
 
-Most importantly, SNT can be used as a regular application or as a scripting library. Python (through [pyimagej](https://github.com/imagej/pyimagej)) and  all of SciJava's scripting languages are supported. It is distributed with [Fiji](https://imagej.net/Fiji) and supersedes the original [Simple Neurite Tracer](#backwards-compatibility) plug-in. It also incorporates several other neuroanatomy-related plugins. **See  [SNT's publication](https://doi.org/10.1038/s41592-021-01105-7)  and [techical notes](./NOTES.md) for details**.
+SNT can be used as a regular application or as a scripting library. Python (through [pyimagej](https://github.com/imagej/pyimagej)) and  all of SciJava's scripting languages are supported. It is distributed with [Fiji](https://imagej.net/Fiji) and supersedes the original [Simple Neurite Tracer](#backwards-compatibility) plug-in. It also incorporates several other neuroanatomy-related Fiji plugins. **See  [SNT's publication](https://doi.org/10.1038/s41592-021-01105-7)  and [techical notes](./NOTES.md) for details**.
 
 ## Features
 ### Tracing
 
-* Support for up to 5D multidimensional images (including multichannel, and those with a time axis). While tracing, visibility of non-traced channels can be toggled at will
-* Precise placement of nodes is aided by a local search that automatically snaps the cursor to neurites wihin a 3D neighborhood
-* A* search can be performed on a secondary, non-displayed image. This allows for e.g., tracing on a pre-processed or locally generated filtered image while interacting with the unfiltered image (or vice-versa). Toggling between the two data sources is immediate.
+* Semi-automated Tracing:
+  * Support for up to 5D multidimensional images, including multichannel, and timelapse sequences
+  * Support for both ImageJ1 and [ImgLib2](https://imagej.net/libs/imglib2/) data structures
+  * Several bi-directional search algorithms (A\*, NBA\*, Fast marching) with adjustable cost functions allow for efficient computation of curvatures for a wide range of imagery, that are <u>up to 20x faster</u> relatively to the original _Simple Neurite Tracer_ plugin
+  * Tracing in "secondary layers". This allows for paths to be computed on "enhanced" (pre-processed) images while interacting with the unfiltered, original image (or vice-versa). Toggling between the two data sources is immediate
+  * Precise placement of nodes is aided by a local search that automatically snaps the cursor to neurites wihin a 3D neighborhood
+* Auto-tracing:
+  * Generation of traces from thresholded images
 * Tracing can be interleaved with image processing routines
 * Tracing is scriptable. Interactive scripts allow for real-time inspection of results
 * Paths can be tagged, searched, grouped and filtered by morphometric properties (length, radius, etc.)
 * Paths can be edited, i.e., a path can be linked or merged together, or split into two. Nodes can be moved, deleted, or inserted
 * Post-hoc refinement of node positioning and radii by 'fitting' traces to the fluorescent signal associated with a path
-* Auto-tracing: Generation of traces from thresholded images (binarized skeletons)
 
 ### Analysis
-* *Extensive* repertoire of metrics, namely those provided by [L-measure](http://cng.gmu.edu:8080/Lm/help/index.htm) and [NeuroM](https://github.com/BlueBrain/NeuroM). Metrics can be collected from groups of cells, single cells, or parts thereof
+* Extensive repertoire of metrics, namely those provided by [L-measure](http://cng.gmu.edu:8080/Lm/help/index.htm) and [NeuroM](https://github.com/BlueBrain/NeuroM). Metrics can be collected from groups of cells, single cells, or parts thereof
 * Analysis based on neuropil annotations for whole-brain data such as [MouseLight](https://ml-neuronbrowser.janelia.org/)
 * Direct access to public databases, including [FlyCircuit](http://www.flycircuit.tw), [Insect Brain Database](https://insectbraindb.org/app/), [MouseLight](https://ml-neuronbrowser.janelia.org/), [NeuroMorpho](http://neuromorpho.org/), and [Virtual Fly Brain](https://v2.virtualflybrain.org/)
-* Built-in commands for *immediate* retrieval of summary statistics, comparison plots and histograms
+* Built-in commands for immediate retrieval of statistical reports, including summary statistics, comparison plots and histograms
+* Convex hull analyses
 * Graph theory-based analyses
 * Persistent homology-based analyses
 * [Sholl](./NOTES.md) and Horton-Strahler analyses
-* Image processing: Reconstructions can be skeletonized, converted to masks or ROIs, and voxel intensities profiled
+* Image processing workflows: Reconstructions can be converted to masks and ROIs. Voxel intensities can be profiled around traced paths
 
 ### Visualization
+* Quantitative visualizations: Display neurons color coded by morphometric traits, or neuropil annotations. 
+* Publication-quality visualizations:  Neuronal reconstructions, diagrams, plots and histograms can be exported as vector graphics
 * [Reconstruction Viewer](https://imagej.net/SNT:_Reconstruction_Viewer): Standalone hardware-accelerated 3D visualization tool for both meshes and reconstructions.
-* Interactive and programmatic scenes (controlled rotations, panning, zoom, scaling, animation,  "dark/light mode", etc.)
-* Customizable views: Interactive management of scene elements, controls for transparency, color interpolation, lightning, path smoothing, etc.. Ability to render both local and remote files on the same scene
-* Built-in support for several template brains: Drosophila, [zebrafish](https://fishatlas.neuro.mpg.de/), and Allen CCF (Allen Mouse Brain Atlas)
-* [SciView](https://github.com/scenerygraphics/sciview) integration
-* Connectivity diagrams
-* Quantitative, publication-quality visualization: Display neurons color coded by morphometric traits, or neuropil annotations. Export plots, reconstructions, diagrams and histograms as vector graphics.
+  * Interactive and programmatic scenes (controlled rotations, panning, zoom, scaling, animation,  "dark/light mode", etc.)
+  * Customizable views: Interactive management of scene elements, controls for transparency, color interpolation, lightning, path smoothing, etc.. Ability to render both local and remote files on the same scene
+  * Built-in support for several template brains: Drosophila, [zebrafish](https://fishatlas.neuro.mpg.de/), and Allen CCF (Allen Mouse Brain Atlas)
+* [sciview](https://github.com/scenerygraphics/sciview) integration
+* Graph Viewer: A dedicated viewer for graph-theory-based diagrams
+  * Display reconstructions as dendrograms
+  * Quantitative connectivity graphs for single cells and groups of cells
 
 ### Scripting
-* *Every* aspect of the program can be scripted in any of the IJ2 supported languages, or from Python through [pyimagej](https://github.com/imagej/pyimagej)
-* Detailed [examples and tutorials](https://imagej.net/SNT:_Scripting), including Python [notebooks](https://github.com/morphonets/SNT/tree/master/notebooks)
+* Almost every aspect of the program can be scripted in any of the IJ2 supported languages, or from Python through [pyimagej](https://github.com/imagej/pyimagej)
+* Detailed [documentation](https://imagej.net/SNT:_Scripting) and examples, including Python [notebooks](https://github.com/morphonets/SNT/tree/master/notebooks), and [end-to-end examples](https://github.com/morphonets/SNTmanuscript)
 * Headless scripts supported
 
 ### Modeling
-* Modeling is performed through [Cortex3D (Cx3D)](https://github.com/morphonets/cx3d) and [sciview](https://docs.scenery.graphics/sciview/ "SciView"), in which a modified version of [Cx3D](https://github.com/morphonets/cx3d) grows neuronal processes with [sciview](https://docs.scenery.graphics/sciview/)’s data structures.
+* Biophysical modeling of neuronal growth is performed through [Cortex3D (Cx3D)](https://github.com/morphonets/cx3d) and [sciview](https://docs.scenery.graphics/sciview/ "SciView"), in which a modified version of [Cx3D](https://github.com/morphonets/cx3d) grows neuronal processes with [sciview](https://docs.scenery.graphics/sciview/)’s data structures.
 
 ### Backwards Compatibility
 * Special effort was put into backwards compatibility with  [Simple Neurite Tracer](https://github.com/fiji/SNT)  (including [TrakEM2](https://github.com/trakem2/TrakEM2) and [ITK](https://imagej.net/SNT:_Tubular_Geodesics) interaction). Inherited functionality has been improved, namely:
-  * Extended support for sub-pixel accuracy
-  * Improved synchronization of XY, ZY, and XZ views
-  * Improved calls to Dijkstra's filling and Path-fitting routines
+  * Support for sub-pixel accuracy
+  * Synchronization of XY, ZY, and XZ views
+  * Improved "filling" and "fitting" routines
   * Multi-threading improvements
+  * Modernized GUI
+* Aggregation of [legacy plugins](./NOTES.md)
 
 
 ## Installation

@@ -9,8 +9,10 @@ SNT is both a scripting library and a GUI program. More formally, it is a collec
 
 SNT has incorporated several projects that were previously scattered across the Fiji ecosystem of plugins. Notably:
 
-* Sholl Analysis: Originally hosted at  https://github.com/tferr/ASA ([Project summary](https://github.com/tferr/ASA#sholl-analysis)), _Sholl Analysis_ is now part of SNT. Its dedicated documentation page is at https://imagej.net/Sholl
 * Simple Neurite Tracer: The founding ImageJ1 plugin released in 2010. SNT stems from its rewrite. Originally hosted at https://github.com/fiji/SNT
+
+* Sholl Analysis: Originally hosted at  https://github.com/tferr/ASA ([Project summary](https://github.com/tferr/ASA#sholl-analysis)), _Sholl Analysis_ is now part of SNT. Its dedicated documentation page is at https://imagej.net/Sholl
+* hIPNAT: Originally hosted at  https://github.com/tferr/hIPNAT ([Project summary](https://github.com/tferr/hIPNAT#hipnat)), _hIPNAT_ is now part of SNT.
 
 An overview of SNT's history is also provided in the [FAQs](https://imagej.net/SNT:_FAQ).
 
@@ -28,10 +30,11 @@ The _Sholl Analysis_ plugin is described in:
 
 - Ferreira T, Blackman A, Oyrer J, Jayabal A, Chung A, Watt A, Sjöström J, van Meyel D. [Neuronal morphometry directly from bitmap images](http://www.nature.com/nmeth/journal/v11/n10/full/nmeth.3125.html), *Nature Methods* 11(10): 982–984, 2014
 
-Simple Neurite Tracer is described in:
+*Simple Neurite Tracer* is described in:
 
 - Longair MH, Baker DA, Armstrong JD. [Simple Neurite Tracer: Open Source software for reconstruction, visualization and analysis of neuronal processes](http://bioinformatics.oxfordjournals.org/content/early/2011/07/04/bioinformatics.btr390.long). *Bioinformatics*, 27(17): 2453–54, 2011
-- Longair, MH. (2009). Computational neuroanatomy of the central complex of drosophila melanogaster.
+- Longair, MH. (2009). Computational neuroanatomy of the central complex of *Drosophila melanogaster*.
+
 
 
 ## Algorithms
