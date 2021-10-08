@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 
+import net.imglib2.RealLocalizable;
+import net.imglib2.roi.geom.real.Polygon2D;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.AxisLocation;
 import org.jfree.chart.axis.NumberAxis;
@@ -116,6 +118,25 @@ public class Viewer2D extends TreeColorMapper {
 			if (plotService == null) plotService = new DefaultPlotService();
 			plot = plotService.newXYPlot();
 		}
+	}
+
+	public void addPolygon(final Polygon2D poly, final String label) {
+		initPlot();
+		final XYSeries series = plot.addXYSeries();
+		series.setLabel(label);
+		final List<Double> xc = new ArrayList<>();
+		final List<Double> yc = new ArrayList<>();
+		for (RealLocalizable l : poly.vertices()) {
+			xc.add(l.getDoublePosition(0));
+			yc.add(l.getDoublePosition(1));
+		}
+		// Close the polygon
+		xc.add(poly.vertex(0).getDoublePosition(0));
+		yc.add(poly.vertex(0).getDoublePosition(1));
+		series.setValues(xc, yc);
+		series.setLegendVisible(false);
+		final ColorRGB color = defaultColor;
+		series.setStyle(plot.newSeriesStyle(color, LineStyle.SOLID, MarkerStyle.NONE));
 	}
 
 	private void plotPaths() {
@@ -402,7 +423,8 @@ public class Viewer2D extends TreeColorMapper {
 	 * @return the converted viewer
 	 */
 	public SNTChart getChart() {
-		return new SNTChart(getTitle(), getJFreeChart());
+		return new SNTChart((getTitle() == null || getTitle().trim().isEmpty()) ? "Reconstruction Plotter" : getTitle(),
+				getJFreeChart());
 	}
 
 	/**
@@ -416,21 +438,13 @@ public class Viewer2D extends TreeColorMapper {
 		plot.yAxis().setAutoRange();
 		plot.xAxis().setAutoRange();
 		if (show) {
-			if (chart == null && uiService != null) {
-				uiService.show((title == null) ? "Reconstruction Plotter" : title, plot);
-			}
-			else {
-				if (chart == null) chart = getJFreeChart();
-				chart.setBackgroundPaint(null); // transparent
-				chart.getPlot().setBackgroundPaint(null); // transparent
-				final SNTChart frame = getChart();
-				frame.setAxesVisible(visibleAxes);
-				frame.setGridlinesVisible(visibleGridLines);
-				frame.setOutlineVisible(visibleOutline);
-				frame.getChartPanel().setBackground(null); // transparent
-				frame.setBackground(Color.WHITE);
-				frame.show(600, 450);
-			}
+			final SNTChart frame = getChart();
+			frame.setAxesVisible(visibleAxes);
+			frame.setGridlinesVisible(visibleGridLines);
+			frame.setOutlineVisible(visibleOutline);
+			frame.getChartPanel().setBackground(null); // transparent
+			frame.setBackground(Color.WHITE);
+			frame.show(600, 450);
 		}
 		return plot;
 	}

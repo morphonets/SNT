@@ -2471,6 +2471,19 @@ public class SNTUI extends JDialog {
 			cmdService.run(PlotterCmd.class, true, input);
 		});
 
+		final JMenuItem convexHullMenuItem = new JMenuItem("Convex Hull...",
+				IconFactory.getMenuIcon(IconFactory.GLYPH.GEM));
+		convexHullMenuItem.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Tree tree = getPathManager().getSingleTree();
+			if (tree == null) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("tree", tree);
+			(new CmdRunner(ConvexHullCmd.class, inputs, getState())).execute();
+		});
+		analysisMenu.add(convexHullMenuItem);
+		analysisMenu.addSeparator();
+
 		final JMenuItem pathOrderAnalysis = new JMenuItem("Path Order Analysis",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
 		pathOrderAnalysis.addActionListener(e -> {

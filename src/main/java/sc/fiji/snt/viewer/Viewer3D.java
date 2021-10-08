@@ -299,7 +299,7 @@ public class Viewer3D {
 	private final static String MESH_LABEL_L3 = "L3";
 
 	private final static String PATH_MANAGER_TREE_LABEL = "Path Manager Contents";
-	private final static float DEF_NODE_RADIUS = 3f;
+	protected final static float DEF_NODE_RADIUS = 3f;
 	private static final Color DEF_COLOR = new Color(1f, 1f, 1f, 0.05f);
 	private static final Color INVERTED_DEF_COLOR = new Color(0f, 0f, 0f, 0.05f);
 
@@ -1048,6 +1048,15 @@ public class Viewer3D {
 		return new ArrayList<>(plottedAnnotations.values());
 	}
 
+	private void addAnnotation(final Annotation3D annotation) {
+		final String label = (annotation.getLabel() == null) ? "Object" : annotation.getLabel();
+		final String uniquelabel = getUniqueLabel(plottedAnnotations, "Annot.", label);
+		annotation.setLabel(uniquelabel);
+		plottedAnnotations.put(uniquelabel, annotation);
+		addItemToManager(uniquelabel);
+		chart.add(annotation.getDrawable(), viewUpdatesEnabled);
+	}
+
 	public Annotation3D annotateSurface(final Collection<? extends SNTPoint> points, final String label)
 	{
 		return annotateSurface(points, label, false);
@@ -1072,11 +1081,7 @@ public class Viewer3D {
 		} else { 
 			annotation = new Annotation3D(this, points, Annotation3D.SURFACE);
 		}
-		final String uniquelabel = getUniqueLabel(plottedAnnotations, "Point Annot.", label);
-		annotation.setLabel(uniquelabel);
-		plottedAnnotations.put(uniquelabel, annotation);
-		addItemToManager(uniquelabel);
-		chart.add(annotation.getDrawable(), viewUpdatesEnabled);
+		addAnnotation(annotation);
 		return annotation;
 	}
 
@@ -1678,6 +1683,8 @@ public class Viewer3D {
 				final Tree tree = new Tree();
 				tree.add((Path) object);
 				addTree(tree);
+			} else if (object instanceof Annotation3D) {
+				addAnnotation((Annotation3D)object);
 			} else if (object instanceof SNTPoint) {
 				annotatePoint((SNTPoint)object, null);
 			} else if (object instanceof OBJMesh) {

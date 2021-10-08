@@ -103,6 +103,7 @@ public class IconFactory {
 			FOLDER('\uf07b', false), //
 			FONT('\uf031', true), //
 			FOOTPRINTS('\uf54b', true), //
+			GEM('\uf3a5', true), //
 			//GLOBE('\uf0ac', true), //
 			GRADUATION_CAP('\uf19d', true), //
 			HAND('\uf256', false), //

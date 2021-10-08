@@ -40,6 +40,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SaveMeasurementsCmd;
 import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.BrainAnnotationCmd;
+import sc.fiji.snt.plugin.ConvexHullCmd;
 import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
 import sc.fiji.snt.plugin.GroupAnalyzerCmd;
 import sc.fiji.snt.plugin.LocalThicknessCmd;
@@ -159,6 +160,7 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(ColorMapReconstructionCmd.class);
 		prefService.clear(CompareFilesCmd.class);
 		prefService.clear(ComputeSecondaryImg.class);
+		prefService.clear(ConvexHullCmd.class);
 		prefService.clear(CustomizeLegendCmd.class);
 		prefService.clear(CustomizeObjCmd.class);
 		prefService.clear(CustomizeTreeCmd.class);
