@@ -571,6 +571,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		jmi = new JMenuItem("As Binary Mask");
 		jmi.addActionListener(e-> exportAsImp(FillConverter.ResultType.BINARY_MASK));
 		exportFillsMenu.add(jmi);
+		jmi = new JMenuItem("As Label Image");
+		jmi.addActionListener(e -> exportAsImp(FillConverter.ResultType.LABEL));
+		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("As Distance Image");
 		jmi.addActionListener(e-> exportAsImp(FillConverter.ResultType.DISTANCE));
 		exportFillsMenu.add(jmi);
@@ -606,6 +609,10 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			}
 			case DISTANCE: {
 				imp = plugin.getFilledDistanceImp();
+				break;
+			}
+			case LABEL: {
+				imp = plugin.getFilledLabelImp();
 				break;
 			}
 			default:

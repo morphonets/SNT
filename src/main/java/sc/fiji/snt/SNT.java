@@ -30,24 +30,28 @@ import ij.ImageStack;
 import ij.Prefs;
 import ij.gui.*;
 import ij.measure.Calibration;
+import ij.plugin.LutLoader;
 import ij.process.ImageStatistics;
 import ij.process.LUT;
 import ij.process.ShortProcessor;
-import ij3d.Content;
-import ij3d.ContentConstants;
-import ij3d.ContentCreator;
-import ij3d.Image3DUniverse;
+import ij3d.*;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
 import net.imagej.legacy.LegacyService;
+import net.imagej.lut.LUTService;
 import net.imagej.ops.OpService;
 import net.imglib2.IterableInterval;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.logic.BitType;
+import net.imglib2.type.numeric.IntegerType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.integer.UnsignedByteType;
+import net.imglib2.type.numeric.integer.UnsignedIntType;
+import net.imglib2.type.numeric.integer.UnsignedLongType;
+import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.util.Pair;
@@ -90,6 +94,7 @@ import java.awt.*;
 import java.awt.event.KeyListener;
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.*;
@@ -119,6 +124,8 @@ public class SNT extends MultiDThreePanes implements
 	protected ConvertService convertService;
 	@Parameter
 	protected OpService opService;
+	@Parameter
+	protected LUTService lutService;
 
 	public enum SearchType {
 		ASTAR, NBASTAR;
@@ -306,7 +313,8 @@ public class SNT extends MultiDThreePanes implements
 	protected SNTUI ui;
 	protected volatile boolean tracingHalted = false; // Tracing functions paused?
 
-	final Set<FillerThread> fillerSet = new HashSet<>();
+	/* Insertion order is used to assign label values in a labeling image */
+	final Set<FillerThread> fillerSet = new LinkedHashSet<>();
 	ExecutorService fillerThreadPool;
 
 	ExecutorService tracerThreadPool;
@@ -2263,6 +2271,38 @@ public class SNT extends MultiDThreePanes implements
 		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
 		imp.copyScale(getImagePlus());
 		imp.resetDisplayRange();
+		return imp;
+	}
+
+	@SuppressWarnings("unchecked")
+	public <T extends IntegerType<T>> ImagePlus getFilledLabelImp() {
+		if (fillerSet.isEmpty()) return null;
+		final RandomAccessibleInterval<T> out;
+		T t;
+		if (fillerSet.size() < Math.pow(2, 8)) {
+			t = (T) new UnsignedByteType();
+		} else if (fillerSet.size() < Math.pow(2, 16)) {
+			t = (T) new UnsignedShortType();
+		} else if (fillerSet.size() < Math.pow(2, 32)) {
+			t = (T) new UnsignedIntType();
+		} else {
+			t = (T) new UnsignedLongType();
+		}
+		out = Util.getSuitableImgFactory(getLoadedData(), t).create(getLoadedData());
+ 		final FillConverter converter = new FillConverter(fillerSet);
+ 		converter.convertLabels(out);
+		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
+		imp.copyScale(getImagePlus());
+		imp.resetDisplayRange();
+		Map<String, URL> luts = lutService.findLUTs();
+		URL url = luts.get("glasbey_on_dark.lut");
+		if (url != null) {
+			LUT lut = LutLoader.openLut(url.getFile());
+			if (lut != null)
+				imp.setLut(lut);
+			else
+				SNTUtils.warn("glasbey_on_dark.lut not found");
+		}
 		return imp;
 	}
 
