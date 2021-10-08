@@ -92,9 +92,9 @@ import sc.fiji.snt.util.SNTPoint;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyListener;
+import java.awt.image.IndexColorModel;
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.*;
@@ -2270,6 +2270,7 @@ public class SNT extends MultiDThreePanes implements
 		converter.convertDistance(out);
 		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
 		imp.copyScale(getImagePlus());
+		imp.getProcessor().setColorModel(LutLoader.getLut("fire"));
 		imp.resetDisplayRange();
 		return imp;
 	}
@@ -2295,18 +2296,12 @@ public class SNT extends MultiDThreePanes implements
 		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
 		imp.copyScale(getImagePlus());
 		imp.resetDisplayRange();
-		final Map<String, URL> luts = lutService.findLUTs();
-		final URL url = luts.get("glasbey_on_dark.lut");
-		if (url == null) {
+		final IndexColorModel model = LutLoader.getLut("glasbey_on_dark");
+		if (model != null) {
+			imp.getProcessor().setColorModel(model);
+		} else {
 			logService.warn("LUT not found: glasbey_on_dark.lut");
-			return imp;
 		}
-		final LUT lut = LutLoader.openLut(url.getFile());
-		if (lut == null) {
-			logService.error("Failed to open LUT: glasbey_on_dark.lut");
-			return imp;
-		}
-		imp.setLut(lut);
 		return imp;
 	}
 
