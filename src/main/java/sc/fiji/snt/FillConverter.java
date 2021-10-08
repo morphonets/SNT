@@ -128,7 +128,7 @@ public class FillConverter {
      * the given {@link java.util.Collection} of {@link FillerThread}s.
      * For example, if there are less than 256 {@link FillerThread}s,
      * choose {@link net.imglib2.type.numeric.integer.UnsignedByteType}. If there are more than 255 but less than
-     * 65535, choose {@link net.imglib2.type.numeric.integer.UnsignedShortType}, etc. Fill components are assigned
+     * 65536, choose {@link net.imglib2.type.numeric.integer.UnsignedShortType}, etc. Fill components are assigned
      * labels based on their order in the collection. If you want to ensure labels are assigned based on insertion
      * order, make sure to use an ordered collection such as {@link List} or {@link java.util.LinkedHashSet}.
      * The first component will have label == 1, the second label == 2, and so on.

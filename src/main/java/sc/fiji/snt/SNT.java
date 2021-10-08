@@ -2276,9 +2276,10 @@ public class SNT extends MultiDThreePanes implements
 
 	@SuppressWarnings("unchecked")
 	public <T extends IntegerType<T>> ImagePlus getFilledLabelImp() {
-		if (fillerSet.isEmpty()) return null;
+		if (fillerSet.isEmpty())
+			return null;
 		final RandomAccessibleInterval<T> out;
-		T t;
+		final T t;
 		if (fillerSet.size() < Math.pow(2, 8)) {
 			t = (T) new UnsignedByteType();
 		} else if (fillerSet.size() < Math.pow(2, 16)) {
@@ -2294,15 +2295,18 @@ public class SNT extends MultiDThreePanes implements
 		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
 		imp.copyScale(getImagePlus());
 		imp.resetDisplayRange();
-		Map<String, URL> luts = lutService.findLUTs();
-		URL url = luts.get("glasbey_on_dark.lut");
-		if (url != null) {
-			LUT lut = LutLoader.openLut(url.getFile());
-			if (lut != null)
-				imp.setLut(lut);
-			else
-				SNTUtils.warn("glasbey_on_dark.lut not found");
+		final Map<String, URL> luts = lutService.findLUTs();
+		final URL url = luts.get("glasbey_on_dark.lut");
+		if (url == null) {
+			logService.warn("LUT not found: glasbey_on_dark.lut");
+			return imp;
 		}
+		final LUT lut = LutLoader.openLut(url.getFile());
+		if (lut == null) {
+			logService.error("Failed to open LUT: glasbey_on_dark.lut");
+			return imp;
+		}
+		imp.setLut(lut);
 		return imp;
 	}
 
