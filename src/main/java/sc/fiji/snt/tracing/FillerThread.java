@@ -96,7 +96,7 @@ public class FillerThread extends SearchThread {
     /**
      * Whether to terminate the fill operation once all nodes less than or equal to the
      * distance threshold have been explored. If false, the search will run until it has explored
-     * the entire image.
+     * the entire image. The default is false.
      * @param stopAtThreshold
      */
     public void setStopAtThreshold(final boolean stopAtThreshold) {
@@ -104,7 +104,7 @@ public class FillerThread extends SearchThread {
     }
 
     /**
-     * Whether to store above-threshold nodes in the {@link Fill} object
+     * Whether to store above-threshold nodes in the {@link Fill} object. The default is true.
      * @param storeExtraNodes
      * @see #getFill()
      */
