@@ -1817,6 +1817,108 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
+	 * Constructs and enables a lazy instance of a {@link Tubeness} filter. The image is filtered locally during path
+	 * searches. Filtered data is stored in a disk cache when memory runs full. This method is slated for redesign.
+	 *
+	 * @param image the image to filter, either "primary" or "secondary".
+	 * @param sigma the scale parameter for the Tubeness filter, in physical units.
+	 * @param max   the maximum pixel intensity in the Tubeness image beyond which the cost function of the A* search
+	 *              is minimized.
+	 * @param wait  this parameter does nothing.
+	 */
+	@Deprecated
+	public void startHessian(final String image, final double sigma, final double max, final boolean wait)
+	{
+		startHessian(image, "tubeness", new double[]{sigma}, 0, max, "lazy", SNTPrefs.getThreads());
+	}
+
+
+	/**
+	 * Constructs and enables an instance of a hessian eigenvalue filter. If the strategy is "preprocess",
+	 * the entire filtered image, including intensity statistics, are pre-computed and stored in memory.
+	 * If the strategy is "lazy", the image is filtered and measured locally during path searches,
+	 * and filtered data is stored in a disk cache when memory runs full. If you are tracing over a large image or if
+	 * you are in a memory-limited environment, you should choose "lazy".
+	 *
+	 * @param image    the image to filter, either "primary" or "secondary".
+	 * @param filter   the hessian filter type, either "tubeness" or "frangi"
+	 * @param scales   the scale parameters for the Hessian filter, in physical units. Computation time increases linearly
+	 *                 with the number of scales.
+	 * @param strategy either "lazy" or "preprocess"
+	 * @param nThreads number of threads to use in the computation
+	 * @param <T>
+	 */
+	public <T extends RealType<T>> void startHessian(final String image, final String filter, final double[] scales,
+													 final String strategy, final int nThreads)
+	{
+		// set an initial min max just in case
+		startHessian(image, filter, scales, 0, 255, strategy, nThreads);
+		if (strategy.equalsIgnoreCase("lazy")) {
+			setUseSubVolumeStats(true);
+		} else if (strategy.equalsIgnoreCase("preprocess")) {
+			final RandomAccessibleInterval<T> data = getSecondaryData();
+			computeImgStats(Views.iterable(data), getStatsSecondary(), getCostType());
+		} else {
+			throw new IllegalArgumentException("Unknown strategy: " + strategy);
+		}
+	}
+
+	/**
+	 * Constructs and enables an instance of a hessian eigenvalue filter. If the strategy is "preprocess",
+	 * the entire filtered image is pre-computed and stored in memory.
+	 * If the strategy is "lazy", the image is filtered locally during path searches, and filtered data is stored in
+	 * a disk cache when memory runs full. If you are tracing over a large image or if you are in a memory-limited
+	 * environment, you should choose "lazy".
+	 *
+	 * @param image    the image to filter, either "primary" or "secondary".
+	 * @param filter   the hessian filter type, either "tubeness" or "frangi"
+	 * @param scales   the scale parameters for the Hessian filter, in physical units. Computation time increases linearly
+	 *                 with the number of scales.
+	 * @param min      the minimum pixel intensity in the filtered image beyond which the cost function of the A* search is
+	 *                 maximized.
+	 * @param max      the maximum pixel intensity in the filtered image beyond which the cost function of the A* search
+	 *                 is minimized.
+	 * @param strategy either "lazy" or "preprocess"
+	 * @param nThreads number of threads to use in the computation
+	 * @param <T>
+	 */
+	public <T extends RealType<T>> void startHessian(final String image, final String filter, final double[] scales,
+													 final double min, final double max, final String strategy,
+													 final int nThreads)
+	{
+		final boolean useSecondary = "secondary".equalsIgnoreCase(image);
+		final RandomAccessibleInterval<T> data = useSecondary ? getSecondaryData() : getLoadedData();
+		final double[] spacing = new double[]{getPixelWidth(), getPixelHeight(), getPixelDepth()};
+		final ImageStatistics stats = useSecondary ? getStatsSecondary() : getStats();
+		final AbstractUnaryComputerOp<RandomAccessibleInterval<T>, RandomAccessibleInterval<FloatType>> op;
+		// I'm not using the FilterType enums here since some of them are not hessian-based filters, e.g., gauss.
+		if (filter.equalsIgnoreCase("tubeness")) {
+			op = new Tubeness<>(scales, spacing, nThreads);
+		} else if (filter.equalsIgnoreCase("frangi")) {
+			op = new Frangi<>(scales, spacing, stats.max, nThreads);
+		} else {
+			throw new IllegalArgumentException("Unknown filter: " + filter);
+		}
+		final RandomAccessibleInterval<FloatType> filtered;
+		if (strategy.equalsIgnoreCase("lazy")) {
+			filtered = Lazy.process(
+				data,
+				data,
+				new int[]{32, 32, 32},
+				new FloatType(),
+				op);
+		} else if (strategy.equalsIgnoreCase("preprocess")) {
+			filtered = opService.create().img(data, new FloatType());
+			op.compute(data, filtered);
+		} else {
+			throw new IllegalArgumentException("Unknown strategy: " + strategy);
+		}
+		loadSecondaryImage(filtered, false);
+		setSecondaryImageMinMax(min, max);
+		doSearchOnSecondaryData = true;
+	}
+
+	/**
 	 * Automatically traces a path from a point A to a point B. See
 	 * {@link #autoTrace(List, PointInImage)} for details.
 	 *
