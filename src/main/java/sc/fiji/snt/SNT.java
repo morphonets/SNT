@@ -41,6 +41,7 @@ import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
 import net.imagej.legacy.LegacyService;
 import net.imagej.ops.OpService;
+import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
 import net.imglib2.IterableInterval;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
@@ -67,23 +68,22 @@ import org.scijava.vecmath.Point3d;
 import org.scijava.vecmath.Point3f;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.event.SNTListener;
-import sc.fiji.snt.tracing.artist.FillerThreadArtist;
-import sc.fiji.snt.tracing.cost.*;
-import sc.fiji.snt.util.ImgUtils;
+import sc.fiji.snt.filter.Frangi;
+import sc.fiji.snt.filter.Lazy;
+import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.tracing.*;
+import sc.fiji.snt.tracing.artist.FillerThreadArtist;
 import sc.fiji.snt.tracing.artist.SearchArtist;
 import sc.fiji.snt.tracing.artist.SearchArtistFactory;
+import sc.fiji.snt.tracing.cost.*;
 import sc.fiji.snt.tracing.heuristic.Dijkstra;
 import sc.fiji.snt.tracing.heuristic.Euclidean;
 import sc.fiji.snt.tracing.heuristic.Heuristic;
-import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.PointInCanvas;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTPoint;
+import sc.fiji.snt.util.*;
 
 import javax.swing.*;
 import java.awt.*;
@@ -2384,15 +2384,11 @@ public class SNT extends MultiDThreePanes implements
 	 * @return the loaded data corresponding to the C,T position currently being
 	 *         traced, or null if no image data has been loaded into memory.
 	 */
-	public <T extends NumericType<T>> ImagePlus getLoadedDataAsImp() {
-		if (!inputImageLoaded()) return null;
-		@SuppressWarnings("unchecked")
-		RandomAccessibleInterval<T> data = this.ctSlice3d;
-		data = Views.dropSingletonDimensions(data);
-		if (data.numDimensions() == 3) {
-			data = Views.permute(Views.addDimension(data, 0, 0), 2, 3);
-		}
-		final ImagePlus imp = ImageJFunctions.wrap(data,"Image");
+	public <T extends RealType<T>> ImagePlus getLoadedDataAsImp() {
+		if (!inputImageLoaded())
+			return null;
+		final RandomAccessibleInterval<T> data = getLoadedData();
+		final ImagePlus imp = ImgUtils.raiToImp(data, "Image");
 		updateLut();
 		imp.setLut(lut);
 		imp.copyScale(xy);
@@ -2402,7 +2398,7 @@ public class SNT extends MultiDThreePanes implements
 
 	public <T extends RealType<T>> RandomAccessibleInterval<T> getLoadedData() {
 		@SuppressWarnings("unchecked")
-		final RandomAccessibleInterval<T> data = this.ctSlice3d;
+		final RandomAccessibleInterval<T> data = Views.dropSingletonDimensions(this.ctSlice3d);
 		return data;
 	}
 
@@ -2476,7 +2472,7 @@ public class SNT extends MultiDThreePanes implements
 		loadSecondaryImage(img, true, computeStatistics);
 	}
 
-	public void setSecondaryImageMinMax(final float min, final float max) {
+	public void setSecondaryImageMinMax(final double min, final double max) {
 		statsSecondary.min = min;
 		statsSecondary.max = max;
 	}

@@ -340,8 +340,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			error("No valid sizes have been specified.");
 			return;
 		}
-		final RandomAccessibleInterval<T> data = sntService.getPlugin().getLoadedData();
-		final RandomAccessibleInterval<T> in = Views.dropSingletonDimensions(data);
+		final RandomAccessibleInterval<T> in = sntService.getPlugin().getLoadedData();
 		final Calibration cal = sntService.getPlugin().getImagePlus().getCalibration();
 		final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
 		final U type;
