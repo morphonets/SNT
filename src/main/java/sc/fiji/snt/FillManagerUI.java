@@ -40,6 +40,7 @@ import java.util.stream.IntStream;
 import javax.swing.*;
 import javax.swing.border.BevelBorder;
 
+import ij.IJ;
 import ij.ImagePlus;
 import net.imagej.ImageJ;
 import net.imglib2.type.numeric.RealType;
@@ -561,13 +562,37 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private void assembleExportFillsMenu() {
 		exportFillsMenu = new JPopupMenu();
 		JMenuItem jmi = new JMenuItem("As Grayscale Image");
-		jmi.addActionListener(e-> exportAsImp(FillConverter.ResultType.SAME));
+		jmi.addActionListener(e-> {
+			ImagePlus imp  =exportAsImp(FillConverter.ResultType.SAME);
+			if (imp != null)
+				imp.show();
+		});
 		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("As Binary Mask");
-		jmi.addActionListener(e-> exportAsImp(FillConverter.ResultType.BINARY_MASK));
+		jmi.addActionListener(e-> {
+		ImagePlus imp =	exportAsImp(FillConverter.ResultType.BINARY_MASK);
+		  if (imp != null)
+			  imp.show();
+		});
 		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("As Distance Image");
-		jmi.addActionListener(e-> exportAsImp(FillConverter.ResultType.DISTANCE));
+		jmi.addActionListener(e-> {
+			ImagePlus imp =	exportAsImp(FillConverter.ResultType.DISTANCE);
+			if (imp != null)
+				imp.show();
+		});
+		exportFillsMenu.add(jmi);
+		// TODO: implement a dialog?
+		jmi = new JMenuItem("As Annotated Distance Map");
+		jmi.addActionListener(e-> {
+			ImagePlus imp = exportAsImp(FillConverter.ResultType.DISTANCE);
+			if (imp != null) {
+				IJ.run(imp,
+					   "Calibration Bar...",
+					   "location=[Upper Right] fill=White label=Black number=10 decimal=4 font=12 zoom=1 overlay");
+				imp.show();
+			}
+		});
 		exportFillsMenu.add(jmi);
 		exportFillsMenu.addSeparator();
 		jmi = new JMenuItem("CSV Summary");
@@ -575,19 +600,19 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		exportFillsMenu.add(jmi);
 	}
 
-	private <T extends RealType<T>> void exportAsImp(final FillConverter.ResultType resultType) {
+	private <T extends RealType<T>> ImagePlus exportAsImp(final FillConverter.ResultType resultType) {
 		if (noFillsError())
-			return;
+			return null;
 		if (plugin.fillerSet.isEmpty()) {
 			gUtils.error("All stored Fills are currently unloaded. Currently, only loaded fills "
 					+ "(those highlighted in the <i>Stored Fill(s)</i> list) can be exported into an "
 					+ "image. Please reload the Fill(s) you are attempting to export and re-try.");
-			return;
+			return null;
 		}
 		final List<FillerThread> fillers = getSelectedFills("export");
 		if (fillers.isEmpty()) {
 			gUtils.error("You must select at least one Fill for export.");
-			return;
+			return null;
 		}
 		final ImagePlus imp;
 		switch (resultType) {
@@ -606,7 +631,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			default:
 				throw new IllegalArgumentException("Unknown result type: " + resultType);
 		}
-		imp.show();
+		return imp;
 	}
 
 	private void saveFills() {
