@@ -105,8 +105,14 @@ public class SkeletonConverterCmd extends ChooseDatasetCmd {
 		if (accessToValidImageData) {
 			//unresolveInput("choice");
 			if (snt.getImagePlus().getProcessor().isBinary()) {
-				choices.add(0, "Data being traced");
-				choices.add(1, "Copy of data being traced");
+				if (snt.getImagePlus().getStackSize() > 1) {
+					// FIXME: AnalyzeSkeleton_ does not work with wrapped Imgs in 3D??
+					choices.add(0, "Copy of data being traced");
+				} else {
+					choices.add(0, "Data being traced");
+					choices.add(1, "Copy of data being traced");
+				}
+
 			} else {
 				choices.add(0, "Copy of data being traced");
 			}
