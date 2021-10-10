@@ -44,6 +44,7 @@ import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
 import net.imglib2.IterableInterval;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.cache.img.DiskCachedCellImg;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.logic.BitType;
 import net.imglib2.type.numeric.IntegerType;
@@ -785,8 +786,12 @@ public class SNT extends MultiDThreePanes implements
 		if (tracerThreadPool != null) {
 			tracerThreadPool.shutdownNow();
 			try {
-				long timeout = 1000L;
-				boolean terminated = tracerThreadPool.awaitTermination(timeout, TimeUnit.MILLISECONDS);
+				// FIXME: interrupting a search can fail if the search is waiting on a get() call for a
+				//  DiskCachedCellImg. The search thread only checks itself for interruption at the start of each iteration
+				//  of the main while-loop. Increasing the timeout is just a temporary band-aid until we find a
+				//  proper solution...
+				final long timeout = 10L;
+				final boolean terminated = tracerThreadPool.awaitTermination(timeout, TimeUnit.SECONDS);
 				if (terminated) {
 					SNTUtils.log("Search cancelled.");
 				} else {
