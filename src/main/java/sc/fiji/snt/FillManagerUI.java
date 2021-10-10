@@ -291,6 +291,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	private void reload(final String msg) {
 		int[] selectedIndices = getSelectedIndices(msg);
+		if (selectedIndices.length == 0)
+			return;
 		pathAndFillManager.reloadFills(selectedIndices);
 		fillList.setSelectedIndices(selectedIndices);
 		changeState(State.LOADED);
@@ -581,7 +583,11 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		});
 		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("As Label Image");
-		jmi.addActionListener(e -> exportAsImp(FillConverter.ResultType.LABEL));
+		jmi.addActionListener(e -> {
+			ImagePlus imp = exportAsImp(FillConverter.ResultType.LABEL);
+			if (imp != null)
+				imp.show();
+		});
 		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("As Distance Image");
 		jmi.addActionListener(e-> {
