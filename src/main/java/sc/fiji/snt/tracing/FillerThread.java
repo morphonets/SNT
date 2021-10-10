@@ -53,7 +53,8 @@ public class FillerThread extends SearchThread {
     private Set<Path> sourcePaths;
     private Set<DefaultSearchNode> aboveThresholdNodeSet;
     private double threshold;
-    private boolean isStopAtThreshold = true;
+    private boolean isStopAtThreshold = false;
+    private boolean isStoreAboveThresholdNodes = true;
     private double maxExploredDistance;
 
 
@@ -92,8 +93,23 @@ public class FillerThread extends SearchThread {
         setThreshold(initialThreshold);
     }
 
+    /**
+     * Whether to terminate the fill operation once all nodes less than or equal to the
+     * distance threshold have been explored. If false, the search will run until it has explored
+     * the entire image. The default is false.
+     * @param stopAtThreshold
+     */
     public void setStopAtThreshold(final boolean stopAtThreshold) {
         this.isStopAtThreshold = stopAtThreshold;
+    }
+
+    /**
+     * Whether to store above-threshold nodes in the {@link Fill} object. The default is true.
+     * @param storeExtraNodes
+     * @see #getFill()
+     */
+    public void setStoreExtraNodes(final boolean storeExtraNodes) {
+        this.isStoreAboveThresholdNodes = storeExtraNodes;
     }
 
     // FIXME: may be buggy, synchronization issues
@@ -175,20 +191,16 @@ public class FillerThread extends SearchThread {
 
         final ArrayList<DefaultSearchNode> a = new ArrayList<>();
 
-        // FIXME: if we include all the above-threshold nodes in the open set
-        //  it takes forever to store the Fill and wastes memory. Since most of these nodes are junk,
-        //  only include the ones within some fraction of the maximum explored distance to
-        //  add back into the open set. They will be re-expanded during the next search anyways.
-        final double epsilon = Math.sqrt(maxExploredDistance);
         int i = 0;
         for (final SearchImage<DefaultSearchNode> slice : nodes_as_image_from_start) {
-            if (slice == null) continue;
+            if (slice == null)
+                continue;
             for (final DefaultSearchNode current : slice) {
-                if (current != null && current.g < threshold + epsilon) {
-                    h.put(current, i);
-                    a.add(current);
-                    ++i;
-                }
+                if (current == null || !isStoreAboveThresholdNodes && current.g > threshold)
+                    continue;
+                h.put(current, i);
+                a.add(current);
+                ++i;
             }
         }
 
@@ -229,7 +241,7 @@ public class FillerThread extends SearchThread {
             else if (f.searchStatus == SearchThread.CLOSED_FROM_START ||
                     f.searchStatus == SearchThread.CLOSED_FROM_GOAL)
             {
-                open = f.g > threshold;
+                open = false;
             }
             else
             {
