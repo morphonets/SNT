@@ -66,7 +66,7 @@ public class ConvexHull2D extends AbstractConvexHull {
         }
     }
 
-    public Polygon2D getPoly() {
+    public Polygon2D getPolygon() {
         return hull;
     }
 

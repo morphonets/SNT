@@ -164,12 +164,12 @@ public class ConvexHullCmd extends ContextCommand {
                 final Viewer2D v = new Viewer2D(getContext());
                 if (axonHull != null) {
                 	v.setDefaultColor(Colors.RED);
-                    v.addPolygon(((ConvexHull2D)axonHull).getPoly(), "Convex hull (axon)");
+                    v.addPolygon(((ConvexHull2D)axonHull).getPolygon(), "Convex hull (axon)");
                     v.add(axon, "blue");  // do not change tree color
                 }
                 if (dendriteHull != null) {
                 	v.setDefaultColor(Colors.DARKGREEN);
-                    v.addPolygon(((ConvexHull2D)dendriteHull).getPoly(), "Convex hull (dend)");
+                    v.addPolygon(((ConvexHull2D)dendriteHull).getPolygon(), "Convex hull (dend)");
                     v.add(dendrite, "magenta");
                 }
                 v.show();
@@ -201,7 +201,7 @@ public class ConvexHullCmd extends ContextCommand {
         if (hull instanceof ConvexHull3D)
             return opService.geom().sphericity(((ConvexHull3D) hull).getMesh()).getRealDouble();
         else if (hull instanceof ConvexHull2D)
-            return opService.geom().circularity(((ConvexHull2D) hull).getPoly()).getRealDouble();
+            return opService.geom().circularity(((ConvexHull2D) hull).getPolygon()).getRealDouble();
         else
             throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
     }
@@ -212,7 +212,7 @@ public class ConvexHullCmd extends ContextCommand {
         if (hull instanceof ConvexHull3D)
             return opService.geom().boxivity(((ConvexHull3D) hull).getMesh()).getRealDouble();
         else if (hull instanceof ConvexHull2D)
-            return opService.geom().boxivity(((ConvexHull2D) hull).getPoly()).getRealDouble();
+            return opService.geom().boxivity(((ConvexHull2D) hull).getPolygon()).getRealDouble();
         else
             throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
     }
@@ -221,7 +221,7 @@ public class ConvexHullCmd extends ContextCommand {
         if (hull instanceof ConvexHull3D)
             return opService.geom().mainElongation(((ConvexHull3D) hull).getMesh()).getRealDouble();
         else if (hull instanceof ConvexHull2D)
-            return opService.geom().mainElongation(((ConvexHull2D) hull).getPoly()).getRealDouble();
+            return opService.geom().mainElongation(((ConvexHull2D) hull).getPolygon()).getRealDouble();
         else
             throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
     }

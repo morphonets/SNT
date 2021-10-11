@@ -121,6 +121,15 @@ public class Annotation3D {
 		this.label = label;
 	}
 
+	public Annotation3D(final Mesh mesh, final String label) {
+		this.viewer = null;
+		this.points = null;
+		type = SURFACE;
+		size = Viewer3D.DEF_NODE_RADIUS;
+		drawable = meshToDrawable(mesh);
+		this.label = label;
+	}
+
 	protected Annotation3D(final Viewer3D viewer, final SNTPoint point) {
 		this(viewer, Collections.singleton(point), SCATTER);
 	}
