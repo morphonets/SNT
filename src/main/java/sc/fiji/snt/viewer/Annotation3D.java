@@ -127,6 +127,7 @@ public class Annotation3D {
 
 	private AbstractDrawable assembleSurface(boolean computeVolume) {
 		ConvexHull3D hull = new ConvexHull3D(points, computeVolume);
+		hull.compute();
 		volume = hull.size();
 		return meshToDrawable(hull.getMesh());
 	}
