@@ -47,7 +47,6 @@ import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
 import net.imglib2.*;
 import net.imglib2.Point;
 import net.imglib2.RandomAccess;
-import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.cache.img.DiskCachedCellImg;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.logic.BitType;
@@ -1670,29 +1669,28 @@ public class SNT extends MultiDThreePanes implements
 																final int y_end,
 																final int z_end)
 	{
-
 		final boolean useSecondary = isTracingOnSecondaryImageActive();
-		@SuppressWarnings("unchecked") final RandomAccessibleInterval<T> img =
-				useSecondary ? (RandomAccessibleInterval<T>) getSecondaryData() : getLoadedData();
+
+		final RandomAccessibleInterval<T> img = useSecondary ? getSecondaryData() : getLoadedData();
 
 		final ImageStatistics imgStats = useSecondary ? statsSecondary : stats;
-		if (isUseSubVolumeStats) {
-			SNTUtils.log("Computing subvolume statistics...");
-			final IterableInterval<T> subVolume = Views.iterable(
-					ImgUtils.subVolume(
-							img,
-							x_start,
-							y_start,
-							z_start,
-							x_end,
-							y_end,
-							z_end,
-							10));
-			computeImgStats(subVolume, imgStats, costType);
+		if (isUseSubVolumeStats)
+		{
+			SNTUtils.log("Computing sub-region statistics...");
+			computeImgStats(
+					Views.iterable(
+							ImgUtils.subInterval(
+									img,
+									new Point(x_start, y_start, z_start),
+									new Point(x_end, y_end, z_end),
+									10)),
+					imgStats,
+					costType);
 		}
 
 		Cost costFunction;
-		switch (costType) {
+		switch (costType)
+		{
 			case RECIPROCAL:
 				costFunction = new Reciprocal(imgStats.min, imgStats.max);
 				break;
@@ -1712,7 +1710,8 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		Heuristic heuristic;
-		switch (heuristicType) {
+		switch (heuristicType)
+		{
 			case EUCLIDEAN:
 				heuristic = new Euclidean(xy.getCalibration());
 				break;
@@ -1724,7 +1723,8 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		AbstractSearch search;
-		switch (searchType) {
+		switch (searchType)
+		{
 			case ASTAR:
 				search = new TracerThread(
 						this,

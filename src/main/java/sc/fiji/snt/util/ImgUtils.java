@@ -27,6 +27,7 @@ import net.imagej.Dataset;
 import net.imagej.axis.Axes;
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
+import net.imglib2.Localizable;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.NumericType;
@@ -36,7 +37,6 @@ import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -70,7 +70,9 @@ public class ImgUtils
     }
 
     /**
-     * Get a 3D sub-volume of an image, given two corner points and specified padding.
+     * Get a 3D sub-volume of an image, given two corner points and specified padding. If the input is 2D, a
+     * singleton dimension is added. If necessary, the computed sub-volume is clamped at the min and max of each
+     * dimension of the input interval.
      *
      * @param img the source interval
      * @param x1 x-coordinate of the first corner point
@@ -83,19 +85,16 @@ public class ImgUtils
      * @param <T>
      * @return the subvolume
      */
-    public static < T > RandomAccessibleInterval< T > subVolume( final RandomAccessibleInterval< T > img,
+    public static < T > RandomAccessibleInterval< T > subVolume( RandomAccessibleInterval< T > img,
                                                                  final long x1, final long y1, final long z1,
                                                                  final long x2, final long y2, final long z2,
-                                                                 final int padPixels )
+                                                                 final long padPixels )
     {
+        if ( img.numDimensions() == 2 )
+            img = Views.addDimension(img, 0, 0);
         // Create some padding around the start and goal nodes
         long[] imgMin = Intervals.minAsLongArray( img );
         long[] imgMax = Intervals.maxAsLongArray( img );
-        if ( img.numDimensions() == 2 )
-        {
-            imgMin = Arrays.copyOf( imgMin, 3 );
-            imgMax = Arrays.copyOf( imgMax, 3 );
-        }
         final Interval interval = Intervals.createMinMax(
                 Math.max( imgMin[ 0 ], Math.min( x1, x2 ) - padPixels ),
                 Math.max( imgMin[ 1 ], Math.min( y1, y2 ) - padPixels ),
@@ -107,8 +106,35 @@ public class ImgUtils
     }
 
     /**
+     * Get an N-D sub-interval of an N-D image, given two corner points and specified padding. If necessary, the computed
+     * sub-interval is clamped at the min and max of each dimension of the input interval.
+     *
+     * @param img       the source interval
+     * @param p1        the first corner point
+     * @param p2        the second corner point
+     * @param padPixels the amount of padding in each dimension, in pixels
+     * @param <T>
+     * @return the sub-interval
+     */
+    public static < T > RandomAccessibleInterval< T > subInterval( final RandomAccessibleInterval< T > img,
+                                                                   final Localizable p1, final Localizable p2,
+                                                                   final long padPixels )
+    {
+        final long[] imgMin = Intervals.minAsLongArray( img );
+        final long[] imgMax = Intervals.maxAsLongArray( img );
+        final int nDim = img.numDimensions();
+        final long[] minmax = new long[ 2 * nDim ];
+        for ( int d = 0; d < nDim; ++d )
+        {
+            minmax[ d ] = Math.max( imgMin[ d ], Math.min( p1.getLongPosition( d ), p2.getLongPosition( d ) ) - padPixels );
+            minmax[ d + nDim ] = Math.min( imgMax[ d ], Math.max( p1.getLongPosition( d ), p2.getLongPosition( d ) ) + padPixels );
+        }
+        return Views.interval( img, Intervals.createMinMax( minmax ) );
+    }
+
+    /**
      * Partition the source rai into a list of {@link IntervalView} with given dimensions. If the block dimensions are not
-     * multiples of the image dimensions, some blocks will have slightly different dimensions.
+     * multiples of the image dimensions, some blocks will have truncated dimensions.
      *
      * @param source the source rai
      * @param blockDimensions the target block size
