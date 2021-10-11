@@ -228,6 +228,7 @@ import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.BrainAnnotationCmd;
+import sc.fiji.snt.plugin.ConvexHullCmd;
 import sc.fiji.snt.plugin.GroupAnalyzerCmd;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.plugin.StrahlerCmd;
@@ -3976,6 +3977,18 @@ public class Viewer3D {
 				runCmd(GraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
+			final JMenuItem convexHullMenuItem = new JMenuItem("Convex Hull...",
+					IconFactory.getMenuIcon(IconFactory.GLYPH.GEM));
+			convexHullMenuItem.addActionListener(e -> {
+				final Tree tree = getSingleSelectionTree();
+				if (tree == null) return;
+				final Map<String, Object> inputs = new HashMap<>();
+				inputs.put("tree", tree);
+				initTable();
+				inputs.put("table", table);
+				runCmd(ConvexHullCmd.class, inputs, CmdWorker.DO_NOTHING, true, true);
+			});
+			measureMenu.add(convexHullMenuItem);
 			mi = new JMenuItem("Sholl Analysis...", IconFactory.getMenuIcon(GLYPH.BULLSEYE));
 			mi.addActionListener(e -> {
 				final Tree tree = getSingleSelectionTree();
@@ -5935,7 +5948,7 @@ public class Viewer3D {
 			catch (InterruptedException | ExecutionException e2) {
 				gUtils.error(
 					"Unfortunately an exception occured. See console for details.");
-				SNTUtils.error("Error", e2);
+				e2.printStackTrace();
 				return false;
 			}
 		}

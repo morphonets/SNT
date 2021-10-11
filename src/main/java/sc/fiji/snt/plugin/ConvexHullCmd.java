@@ -66,6 +66,10 @@ public class ConvexHullCmd extends ContextCommand {
 
     @Parameter
     private Tree tree;
+    @Parameter(required = false)
+    private Viewer3D recViewer;
+    @Parameter(required = false)
+    private SNTTable table;
 
 
 	@Parameter(label = "<HTML><b>Options:",
@@ -113,9 +117,9 @@ public class ConvexHullCmd extends ContextCommand {
         } else {
             axon = tree;
         }
-        SNTTable table = sntService.getTable();
-        if (table == null)
-        	table = new SNTTable();
+        if (table == null) {
+        	table = (sntService.isActive()) ?  table = sntService.getTable() : new SNTTable();
+        }
         AbstractConvexHull axonHull = null;
         AbstractConvexHull dendriteHull = null;
         final String baseLabel = (tree.getLabel() == null || tree.getLabel().isEmpty()) ? "Tree" : tree.getLabel();
@@ -129,31 +133,33 @@ public class ConvexHullCmd extends ContextCommand {
 		}
 		if (showResult) {
             if (is3D) {
-                final Viewer3D v = sntService.getRecViewer();
-                final boolean inputTreeDisplayed = v.getTrees().contains(tree);
+                if (recViewer == null) {
+                	recViewer = sntService.getRecViewer();
+                }
+                final boolean inputTreeDisplayed = recViewer.getTrees().contains(tree);
                 if (axonHull != null) {
                     final String aColor = axon.getProperties().getProperty(Tree.KEY_COLOR, "cyan");
                     if (!inputTreeDisplayed) {
                         if ("cyan".equals(aColor))
                             axon.setColor("cyan");
-                        v.add(axon);
+                        recViewer.add(axon);
                     }
                     final Annotation3D surface = new Annotation3D(((ConvexHull3D)axonHull).getMesh(),
                     		new ColorRGB(aColor), "Convex Hull " + baseLabel + " [axon]");
-                    v.add(surface);
+                    recViewer.add(surface);
                 }
                 if (dendriteHull != null) {
                     final String dColor = dendrite.getProperties().getProperty(Tree.KEY_COLOR, "orange");
                     if (!inputTreeDisplayed) {
                         if ("orange".equals(dColor))
                             dendrite.setColor("orange");
-                        v.add(dendrite);
+                        recViewer.add(dendrite);
                     }
                     final Annotation3D surface = new Annotation3D(((ConvexHull3D)dendriteHull).getMesh(),
                     		new ColorRGB(dColor), "Convex Hull " + baseLabel + " [dendrite]");
-                    v.add(surface);
+                    recViewer.add(surface);
                 }
-                v.show();
+                recViewer.show();
             } else {
                 final Viewer2D v = new Viewer2D(getContext());
                 if (axonHull != null) {

@@ -2474,6 +2474,7 @@ public class SNTUI extends JDialog {
 			if (tree == null) return;
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("tree", tree);
+			inputs.put("table", getPathManager().getTable());
 			(new CmdRunner(ConvexHullCmd.class, inputs, getState())).execute();
 		});
 		analysisMenu.add(convexHullMenuItem);
