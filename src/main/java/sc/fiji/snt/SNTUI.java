@@ -51,7 +51,6 @@ import javax.swing.border.BevelBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.ChangeListener;
 
-import net.imglib2.cache.img.DiskCachedCellImg;
 import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
@@ -150,7 +149,7 @@ public class SNTUI extends JDialog {
 	private JButton secLayerGenerate;
 
 	private JButton secLayerExternalImgOptionsButton;
-	private JCheckBox secLayerExternalImgOverlayCheckbox;
+	JCheckBox secLayerExternalImgOverlayCheckbox;
 	private JMenuItem secLayerExternalImgLoadFlushMenuItem;
 
 	private ActiveWorker activeWorker;
@@ -1974,7 +1973,7 @@ public class SNTUI extends JDialog {
 					&& !guiUtils.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
 				return;
 			}
-			flushSecondaryData();
+			plugin.flushSecondaryData();
 			if (plugin.accessToValidImageData()) {
 				(new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
 			} else {
@@ -2012,7 +2011,7 @@ public class SNTUI extends JDialog {
 			if (plugin.isSecondaryDataAvailable()) {
 				if (!guiUtils.getConfirmation("Disable access to secondary image?", "Unload Image?"))
 					return;
-				flushSecondaryData();
+				plugin.flushSecondaryData();
 			} else {
 				final File proposedFile = (plugin.getFilteredImageFile() == null) ? plugin.getPrefs().getRecentDir() : plugin.getFilteredImageFile();
 				final File file = openFile("Choose Secondary Image", proposedFile);
@@ -2148,21 +2147,17 @@ public class SNTUI extends JDialog {
 		}
 	}
 
-	private void flushSecondaryData() {
-		if (plugin.secondaryData instanceof DiskCachedCellImg) {
-			SNTUtils.log("Shutting down IOSync");
-			((DiskCachedCellImg<?, ?>) plugin.secondaryData).shutdown();
+	void disableSecondaryLayerComponents() {
+		assert SwingUtilities.isEventDispatchThread();
+
+		setSecondaryLayerTracingSelected(false);
+		if (plugin.tubularGeodesicsTracingEnabled) {
+			setFastMarchSearchEnabled(false);
 		}
-		plugin.secondaryData = null;
-		enableSecondaryLayerTracing(false);
 		if (secLayerExternalImgOverlayCheckbox.isSelected()) {
 			secLayerExternalImgOverlayCheckbox.setSelected(false);
 			plugin.showMIPOverlays(true, 0);
 		}
-		if (plugin.tubularGeodesicsTracingEnabled) {
-			setFastMarchSearchEnabled(false);
-		}
-		plugin.setSecondaryImage(null);
 		updateExternalImgWidgets();
 	}
 
@@ -2243,7 +2238,7 @@ public class SNTUI extends JDialog {
 			}
 
 			private void flushData() {
-				flushSecondaryData();
+				plugin.flushSecondaryData();
 			}
 
 			@Override
@@ -2894,7 +2889,7 @@ public class SNTUI extends JDialog {
 		return statusBar;
 	}
 
-	private boolean setFastMarchSearchEnabled(boolean enable) {
+	boolean setFastMarchSearchEnabled(boolean enable) {
 		if (enable && isFastMarchSearchAvailable()) {
 			plugin.tubularGeodesicsTracingEnabled = true;
 			searchAlgoChoice.setSelectedIndex(2);
@@ -3507,26 +3502,9 @@ public class SNTUI extends JDialog {
 		showPathsSelected.setSelected(!showPathsSelected.isSelected());
 	}
 
-	protected void enableSecondaryLayerTracing(final boolean enable) {
-		if (enable) {
-			if (!plugin.accessToValidImageData()) {
-				noValidImageDataError();
-				plugin.doSearchOnSecondaryData = false;
-				secLayerActivateCheckbox.setSelected(false);
-				return;
-			}
-			if (!plugin.isSecondaryDataAvailable()) {
-				noSecondaryDataAvailableError();
-				plugin.doSearchOnSecondaryData = false;
-				secLayerActivateCheckbox.setSelected(false);
-				return;
-			}
-			plugin.doSearchOnSecondaryData = true;
-			secLayerActivateCheckbox.setSelected(true);
-		} else {
-			plugin.doSearchOnSecondaryData = false;
-			secLayerActivateCheckbox.setSelected(false);
-		}
+	protected void setSecondaryLayerTracingSelected(final boolean enable) {
+		assert SwingUtilities.isEventDispatchThread();
+		secLayerActivateCheckbox.setSelected(enable);
 		updateSettingsString();
 	}
 
@@ -3536,14 +3514,14 @@ public class SNTUI extends JDialog {
 		secLayerExternalRadioButton.setSelected(false);
 	}
 
-	private void noSecondaryDataAvailableError() {
+	void noSecondaryDataAvailableError() {
 		guiUtils.error("No secondary image has been defined. Please create or load one first.", "Secondary Image Unavailable");
-		enableSecondaryLayerTracing(false);
+		plugin.enableSecondaryLayerTracing(false);
 	}
 
 	protected void toggleSecondaryLayerTracing() {
 		assert SwingUtilities.isEventDispatchThread();
-		if (secLayerActivateCheckbox.isEnabled()) enableSecondaryLayerTracing(!secLayerActivateCheckbox.isSelected());
+		if (secLayerActivateCheckbox.isEnabled()) plugin.enableSecondaryLayerTracing(!secLayerActivateCheckbox.isSelected());
 	}
 
 	protected void toggleSecondaryLayerBuiltin() {
@@ -3557,6 +3535,8 @@ public class SNTUI extends JDialog {
 	}
 
 	protected void enableSecondaryLayerBuiltin(final boolean enable) {
+		assert SwingUtilities.isEventDispatchThread();
+
 		if (!secLayerActivateCheckbox.isEnabled()) {
 			// Do nothing if we are not allowed to enable FilteredImgTracing
 			showStatus("Ignored: Operation not available", true);
@@ -3568,6 +3548,8 @@ public class SNTUI extends JDialog {
 	}
 
 	protected void enableSecondaryLayerExternal(final boolean enable) {
+		assert SwingUtilities.isEventDispatchThread();
+
 		if (!secLayerActivateCheckbox.isEnabled()) {
 			// Do nothing if we are not allowed to enable FilteredImgTracing
 			showStatus("Ignored: Operation not available", true);
@@ -3696,7 +3678,7 @@ public class SNTUI extends JDialog {
 
 				if (secLayerActivateCheckbox.isSelected()) {
 					if (!plugin.accessToValidImageData()) {
-						enableSecondaryLayerTracing(false);
+						plugin.enableSecondaryLayerTracing(false);
 						noValidImageDataError();
 						return;
 					}
@@ -3713,10 +3695,10 @@ public class SNTUI extends JDialog {
 						}
 						enableSecondaryLayerExternal(true);
 					}
-					enableSecondaryLayerTracing(true);
+					plugin.enableSecondaryLayerTracing(true);
 
 				} else {
-					enableSecondaryLayerTracing(false);
+					plugin.enableSecondaryLayerTracing(false);
 				}
 
 			} else if (source == secLayerExternalRadioButton) {
@@ -4198,8 +4180,7 @@ public class SNTUI extends JDialog {
 		if (choice != null) {
 			if (choice.startsWith("Flush"))
 			{
-				flushSecondaryData();
-				enableSecondaryLayerTracing(false);
+				plugin.flushSecondaryData();
 			}
 		}
 	}

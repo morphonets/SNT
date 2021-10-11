@@ -34,14 +34,18 @@ import ij.plugin.LutLoader;
 import ij.process.ImageStatistics;
 import ij.process.LUT;
 import ij.process.ShortProcessor;
-import ij3d.*;
+import ij3d.Content;
+import ij3d.ContentConstants;
+import ij3d.ContentCreator;
+import ij3d.Image3DUniverse;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
 import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imagej.ops.OpService;
 import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
-import net.imglib2.IterableInterval;
+import net.imglib2.*;
+import net.imglib2.Point;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.cache.img.DiskCachedCellImg;
@@ -2652,10 +2656,10 @@ public class SNT extends MultiDThreePanes implements
 			file = new File(imp.getFileInfo().directory, imp.getFileInfo().fileName);
 		}
 		setSecondaryImage(file);
+		enableSecondaryLayerTracing(true);
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
 			if (getUI() != null) {
-				getUI().enableSecondaryLayerTracing(true);
 				getUI().enableSecondaryLayerExternal(true);
 			}
 		}
@@ -2687,12 +2691,55 @@ public class SNT extends MultiDThreePanes implements
 			statsSecondary.mean = mean;
 			statsSecondary.stdDev = stdDev;
 		}
+		enableSecondaryLayerTracing(true);
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
 			if (getUI() != null) {
-				getUI().enableSecondaryLayerTracing(true);
 				getUI().enableSecondaryLayerBuiltin(true);
 			}
+		}
+	}
+
+	public void enableSecondaryLayerTracing(final boolean enable) {
+		if (enable) {
+			if (!accessToValidImageData()) {
+				if (getUI() != null) {
+					getUI().noValidImageDataError();
+				} else {
+					throw new UnsupportedOperationException("This option requires valid image data to be loaded.");
+				}
+				doSearchOnSecondaryData = false;
+			} else if (!isSecondaryDataAvailable()) {
+				if (getUI() != null) {
+					getUI().noSecondaryDataAvailableError();
+				} else {
+					throw new UnsupportedOperationException("No secondary image has been defined.");
+				}
+				doSearchOnSecondaryData = false;
+			} else {
+				doSearchOnSecondaryData = true;
+			}
+		} else {
+			doSearchOnSecondaryData = false;
+		}
+		if (getUI() != null) {
+			getUI().setSecondaryLayerTracingSelected(doSearchOnSecondaryData);
+		}
+	}
+
+	public void flushSecondaryData() {
+		if (secondaryData instanceof DiskCachedCellImg) {
+			// TODO: Is this all we need to do, and is it in the correct order?
+			DiskCachedCellImg<?, ?> img = (DiskCachedCellImg<?, ?>)secondaryData;
+			SNTUtils.log("Shutting down IoSync...");
+			img.shutdown();
+			SNTUtils.log("Invalidating cache...");
+			img.getCache().invalidateAll();
+		}
+		secondaryData = null;
+		setSecondaryImage(null);
+		if (getUI() != null) {
+			getUI().disableSecondaryLayerComponents();
 		}
 	}
 
