@@ -2629,8 +2629,8 @@ public class SNT extends MultiDThreePanes implements
 		statsSecondary.max = max;
 	}
 
-	public float[] getSecondaryImageMinMax() {
-		return new float[] { (float)statsSecondary.min, (float)statsSecondary.max };
+	public double[] getSecondaryImageMinMax() {
+		return new double[] { statsSecondary.min, statsSecondary.max };
 	}
 
 	protected void loadSecondaryImage(final ImagePlus imp, final boolean changeUIState) {
