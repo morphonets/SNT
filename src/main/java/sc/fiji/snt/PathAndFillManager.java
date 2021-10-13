@@ -210,7 +210,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected Calibration assignSpatialSettings(final Dataset dataset) {
 		x_spacing = dataset.averageScale(0);
 		y_spacing = dataset.averageScale(1);
-		z_spacing = dataset.numDimensions() > 2 ? dataset.averageScale(dataset.dimensionIndex(Axes.Z)): 1.0;
+		z_spacing = dataset.dimensionIndex(Axes.Z) > -1 ? dataset.averageScale(dataset.dimensionIndex(Axes.Z)) : 1.0;
 		spacing_units = SNTUtils.getSanitizedUnit(dataset.axis(0).unit());
 		final Calibration cal = new Calibration();
 		cal.pixelWidth = x_spacing;

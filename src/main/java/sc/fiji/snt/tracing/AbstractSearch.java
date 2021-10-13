@@ -25,6 +25,7 @@ package sc.fiji.snt.tracing;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import net.imagej.Dataset;
+import net.imagej.axis.Axes;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
@@ -94,7 +95,7 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
         this.zMax = intervalMax[2];
         this.xSep = image.averageScale(0);
         this.ySep = image.averageScale(1);
-        this.zSep = image.numDimensions() > 2 ? image.averageScale(2) : 1.0;
+        this.zSep = image.dimensionIndex(Axes.Z) > -1 ? image.averageScale(image.dimensionIndex(Axes.Z)) : 1.0;
         spacing_units = SNTUtils.getSanitizedUnit(image.axis(0).unit());
         if ((xSep == 0.0) || (ySep == 0.0) || (zSep == 0.0)) {
             SNTUtils.error("SearchThread: One dimension of the calibration information was zero: (" + xSep + "," + ySep + "," + zSep + ")");

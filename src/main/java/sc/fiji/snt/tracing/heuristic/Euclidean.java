@@ -24,6 +24,7 @@ package sc.fiji.snt.tracing.heuristic;
 
 import ij.measure.Calibration;
 import net.imagej.Dataset;
+import net.imagej.axis.Axes;
 
 /**
  * A* search heuristic using euclidean distance from current node to goal node
@@ -40,7 +41,7 @@ public class Euclidean implements Heuristic {
         final Calibration cal = new Calibration();
         cal.pixelWidth = dataset.averageScale(0);
         cal.pixelHeight = dataset.averageScale(1);
-        cal.pixelDepth = dataset.numDimensions() > 2 ? dataset.averageScale(2) : 1.0;
+        cal.pixelDepth = dataset.dimensionIndex(Axes.Z) > -1 ? dataset.averageScale(dataset.dimensionIndex(Axes.Z)) : 1.0;
         this.calibration = cal;
     }
 
