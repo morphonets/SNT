@@ -26,6 +26,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import net.imagej.Dataset;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.ColorRGBA;
@@ -1630,6 +1631,19 @@ public class Tree implements TreeProperties {
 		} else {
 			pafm.assignSpatialSettings(imp);
 			cal = imp.getCalibration();
+		}
+		list().forEach(path -> path.setSpacing(cal));
+		getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, cal.getUnit());
+	}
+
+	public void assignImage(final Dataset dataset) {
+		initPathAndFillManager();
+		Calibration cal;
+		if (dataset == null) {
+			pafm.resetSpatialSettings(true);
+			cal = new Calibration();
+		} else {
+			cal = pafm.assignSpatialSettings(dataset);
 		}
 		list().forEach(path -> path.setSpacing(cal));
 		getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, cal.getUnit());

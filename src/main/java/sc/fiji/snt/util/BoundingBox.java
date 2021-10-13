@@ -352,8 +352,8 @@ public class BoundingBox {
 	 * @throws IllegalArgumentException If origin has not been set or
 	 *           {@link #compute(Iterator)} has not been called
 	 */
-	public void setDimensions(final int uncalibratedWidth,
-		final int uncalibratedHeight, final int uncalibratedDepth)
+	public void setDimensions(final long uncalibratedWidth,
+		final long uncalibratedHeight, final long uncalibratedDepth)
 		throws IllegalArgumentException
 	{
 		if (!origin.isReal()) {

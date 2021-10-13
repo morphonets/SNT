@@ -24,7 +24,7 @@ package sc.fiji.snt.tracing;
 
 import ij.ImagePlus;
 import ij.measure.Calibration;
-
+import net.imagej.Dataset;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
@@ -69,6 +69,39 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
     protected AbstractSearch(final ImagePlus imagePlus, final int timeoutSeconds, final long reportEveryMilliseconds)
     {
         this(ImageJFunctions.wrapReal(imagePlus), imagePlus.getCalibration(), timeoutSeconds, reportEveryMilliseconds);
+    }
+
+    protected AbstractSearch(final Dataset image, final int timeoutSeconds, final long reportEveryMilliseconds)
+    {
+        // If the image is 2D, add a dummy dimension so that we may access the image the same way in both the
+        //  2D and 3D cases, i.e., randomAccess.setPositionAndGet(x, y, z), where z = 0 in the 2D case.
+        if (image.numDimensions() == 2) {
+            this.img = Views.addDimension(image, 0, 0);
+        } else {
+            this.img = image;
+        }
+        this.imgAccess = this.img.randomAccess();
+        this.imgWidth = (int) this.img.dimension(0);
+        this.imgHeight = (int) this.img.dimension(1);
+        this.imgDepth = (int) this.img.dimension(2);
+        final long[] intervalMin = Intervals.minAsLongArray(img);
+        this.xMin = intervalMin[0];
+        this.yMin = intervalMin[1];
+        this.zMin = intervalMin[2];
+        final long[] intervalMax = Intervals.maxAsLongArray(img);
+        this.xMax = intervalMax[0];
+        this.yMax = intervalMax[1];
+        this.zMax = intervalMax[2];
+        this.xSep = image.averageScale(0);
+        this.ySep = image.averageScale(1);
+        this.zSep = image.numDimensions() > 2 ? image.averageScale(2) : 1.0;
+        spacing_units = SNTUtils.getSanitizedUnit(image.axis(0).unit());
+        if ((xSep == 0.0) || (ySep == 0.0) || (zSep == 0.0)) {
+            SNTUtils.error("SearchThread: One dimension of the calibration information was zero: (" + xSep + "," + ySep + "," + zSep + ")");
+            return;
+        }
+        this.timeoutSeconds = timeoutSeconds;
+        this.reportEveryMilliseconds = reportEveryMilliseconds;
     }
 
     protected AbstractSearch(final RandomAccessibleInterval<? extends RealType<?>> image,

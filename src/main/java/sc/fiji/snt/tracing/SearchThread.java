@@ -23,6 +23,7 @@
 package sc.fiji.snt.tracing;
 
 import ij.measure.Calibration;
+import net.imagej.Dataset;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 import org.jheaps.AddressableHeap;
@@ -91,20 +92,44 @@ public abstract class SearchThread extends AbstractSearch {
 	protected long lastReportMilliseconds;
 
 	/* If you specify 0 for timeoutSeconds then there is no timeout. */
-	public SearchThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
-						final boolean bidirectional, final boolean definedGoal,
-						final int timeoutSeconds, final long reportEveryMilliseconds,
-						final SNT.SearchImageType searchImageType,
-						final Cost costFunction)
+	protected SearchThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
+						   final boolean bidirectional, final boolean definedGoal, final int timeoutSeconds,
+						   final long reportEveryMilliseconds, final SNT.SearchImageType searchImageType,
+						   final Cost costFunction)
 	{
 		super(image, calibration, timeoutSeconds, reportEveryMilliseconds);
 		this.bidirectional = bidirectional;
 		this.definedGoal = definedGoal;
-		this.nodes_as_image_from_start = new SearchImageStack<>(
-				SupplierUtil.createSupplier(searchImageType, DefaultSearchNode.class, imgWidth, imgHeight));
+		this.nodes_as_image_from_start = new SearchImageStack<>(SupplierUtil.createSupplier(searchImageType,
+																							DefaultSearchNode.class,
+																							imgWidth,
+																							imgHeight));
 		if (bidirectional) {
-			this.nodes_as_image_from_goal = new SearchImageStack<>(
-					SupplierUtil.createSupplier(searchImageType, DefaultSearchNode.class, imgWidth, imgHeight));
+			this.nodes_as_image_from_goal = new SearchImageStack<>(SupplierUtil.createSupplier(searchImageType,
+																							   DefaultSearchNode.class,
+																							   imgWidth,
+																							   imgHeight));
+		}
+		this.costFunction = costFunction;
+		init();
+	}
+
+	protected SearchThread(final Dataset dataset, final boolean bidirectional, final boolean definedGoal,
+						   final int timeoutSeconds, final long reportEveryMilliseconds,
+						   final SNT.SearchImageType searchImageType, final Cost costFunction)
+	{
+		super(dataset, timeoutSeconds, reportEveryMilliseconds);
+		this.bidirectional = bidirectional;
+		this.definedGoal = definedGoal;
+		this.nodes_as_image_from_start = new SearchImageStack<>(SupplierUtil.createSupplier(searchImageType,
+																							DefaultSearchNode.class,
+																							imgWidth,
+																							imgHeight));
+		if (bidirectional) {
+			this.nodes_as_image_from_goal = new SearchImageStack<>(SupplierUtil.createSupplier(searchImageType,
+																							   DefaultSearchNode.class,
+																							   imgWidth,
+																							   imgHeight));
 		}
 		this.costFunction = costFunction;
 		init();
@@ -117,10 +142,8 @@ public abstract class SearchThread extends AbstractSearch {
 		this.costFunction = costFunction;
 		this.bidirectional = true;
 		this.definedGoal = true;
-		this.nodes_as_image_from_start = new SearchImageStack<>(
-				SupplierUtil.createSupplier(snt.getSearchImageType(), DefaultSearchNode.class, imgWidth, imgHeight));
-		this.nodes_as_image_from_goal = new SearchImageStack<>(
-				SupplierUtil.createSupplier(snt.getSearchImageType(), DefaultSearchNode.class, imgWidth, imgHeight));
+		this.nodes_as_image_from_start = new SearchImageStack<>(SupplierUtil.createSupplier(snt.getSearchImageType(), DefaultSearchNode.class, imgWidth, imgHeight));
+		this.nodes_as_image_from_goal = new SearchImageStack<>(SupplierUtil.createSupplier(snt.getSearchImageType(), DefaultSearchNode.class, imgWidth, imgHeight));
 		init();
 	}
 

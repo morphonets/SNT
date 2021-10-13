@@ -26,6 +26,7 @@ import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.process.ImageStatistics;
 import it.unimi.dsi.fastutil.objects.*;
+import net.imagej.Dataset;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
@@ -57,7 +58,6 @@ public class FillerThread extends SearchThread {
     private boolean isStoreAboveThresholdNodes = true;
     private double maxExploredDistance;
 
-
     public FillerThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
                         final double initialThreshold, final Cost costFunction)
     {
@@ -77,8 +77,6 @@ public class FillerThread extends SearchThread {
     {
         this(image, calibration, initialThreshold, timeoutSeconds, reportEveryMilliseconds,
                 costFunction, SNT.SearchImageType.MAP);
-
-        setThreshold(initialThreshold);
     }
 
     /* If you specify 0 for timeoutSeconds then there is no timeout. */
@@ -92,6 +90,34 @@ public class FillerThread extends SearchThread {
 
         setThreshold(initialThreshold);
     }
+
+    public FillerThread(final Dataset dataset, final double initialThreshold, int timeoutSeconds,
+                        final long reportEveryMilliseconds, final Cost costFunction,
+                        final SNT.SearchImageType searchImageType)
+    {
+        super(dataset, false, false, timeoutSeconds, reportEveryMilliseconds, searchImageType,
+                costFunction);
+
+        setThreshold(initialThreshold);
+    }
+
+    public FillerThread(final Dataset dataset, final double initialThreshold, int timeoutSeconds,
+                        final long reportEveryMilliseconds, final Cost costFunction)
+    {
+        super(dataset, false, false, timeoutSeconds, reportEveryMilliseconds, SNT.SearchImageType.MAP,
+                costFunction);
+
+        setThreshold(initialThreshold);
+    }
+
+    public FillerThread(final Dataset dataset, final double initialThreshold, final Cost costFunction)
+    {
+        super(dataset, false, false, 0, 1000, SNT.SearchImageType.MAP,
+                costFunction);
+
+        setThreshold(initialThreshold);
+    }
+
 
     /**
      * Whether to terminate the fill operation once all nodes less than or equal to the

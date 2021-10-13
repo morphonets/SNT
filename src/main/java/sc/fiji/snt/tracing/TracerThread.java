@@ -23,6 +23,7 @@
 package sc.fiji.snt.tracing;
 
 import ij.measure.Calibration;
+import net.imagej.Dataset;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.Path;
@@ -86,6 +87,45 @@ public class TracerThread extends SearchThread {
 		super(image, calibration, true, true, timeoutSeconds, reportEveryMilliseconds,
 				searchImageType, costFunction);
 		this.heuristic = heuristic;
+		init(start_x, start_y, start_z, goal_x, goal_y, goal_z);
+	}
+
+	public TracerThread(final Dataset dataset, final int start_x, final int start_y, final int start_z,
+						final int goal_x, final int goal_y, final int goal_z, final int timeoutSeconds,
+						final long reportEveryMilliseconds, final SNT.SearchImageType searchImageType,
+						Cost costFunction, Heuristic heuristic)
+	{
+		super(dataset, true, true, timeoutSeconds, reportEveryMilliseconds, searchImageType,
+			  costFunction);
+		this.heuristic = heuristic;
+		init(start_x, start_y, start_z, goal_x, goal_y, goal_z);
+	}
+
+	public TracerThread(final Dataset dataset, final int start_x, final int start_y, final int start_z,
+						final int goal_x, final int goal_y, final int goal_z, final int timeoutSeconds,
+						final long reportEveryMilliseconds, Cost costFunction, Heuristic heuristic)
+	{
+		super(dataset, true, true, timeoutSeconds, reportEveryMilliseconds, SNT.SearchImageType.MAP,
+			  costFunction);
+		this.heuristic = heuristic;
+		init(start_x, start_y, start_z, goal_x, goal_y, goal_z);
+	}
+
+	public TracerThread(final Dataset dataset, final int start_x, final int start_y, final int start_z,
+						final int goal_x, final int goal_y, final int goal_z, Cost costFunction, Heuristic heuristic)
+	{
+		super(dataset, true, true, 0, 1000, SNT.SearchImageType.MAP,
+			  costFunction);
+		this.heuristic = heuristic;
+		init(start_x, start_y, start_z, goal_x, goal_y, goal_z);
+	}
+
+	public TracerThread(final Dataset dataset, final int start_x, final int start_y, final int start_z,
+						final int goal_x, final int goal_y, final int goal_z, Cost costFunction)
+	{
+		super(dataset, true, true, 0, 1000, SNT.SearchImageType.MAP,
+			  costFunction);
+		this.heuristic = new Euclidean(dataset);
 		init(start_x, start_y, start_z, goal_x, goal_y, goal_z);
 	}
 

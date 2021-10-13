@@ -27,6 +27,8 @@ import ij.gui.Roi;
 import ij.measure.Calibration;
 import ij3d.Content;
 import ij3d.UniverseListener;
+import net.imagej.Dataset;
+import net.imagej.axis.Axes;
 import org.jgrapht.Graphs;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.json.JSONException;
@@ -203,6 +205,30 @@ public class PathAndFillManager extends DefaultHandler implements
 				path.setCanvasOffset(zeroOffset);
 			});
 		}
+	}
+
+	protected Calibration assignSpatialSettings(final Dataset dataset) {
+		x_spacing = dataset.averageScale(0);
+		y_spacing = dataset.averageScale(1);
+		z_spacing = dataset.numDimensions() > 2 ? dataset.averageScale(dataset.dimensionIndex(Axes.Z)): 1.0;
+		spacing_units = SNTUtils.getSanitizedUnit(dataset.axis(0).unit());
+		final Calibration cal = new Calibration();
+		cal.pixelWidth = x_spacing;
+		cal.pixelHeight = y_spacing;
+		cal.pixelDepth = z_spacing;
+		cal.setUnit(spacing_units);
+		boundingBox.setOrigin(new PointInImage(0, 0, 0));
+		boundingBox.setSpacing(x_spacing, y_spacing, z_spacing,
+							   spacing_units);
+		boundingBox.setDimensions(dataset.dimension(Axes.X), dataset.dimension(Axes.Y), dataset.dimension(Axes.Z));
+		if (size() > 0) {
+			final PointInCanvas zeroOffset = new PointInCanvas(0, 0, 0);
+			getPaths().forEach(path -> {
+				path.setSpacing(cal);
+				path.setCanvasOffset(zeroOffset);
+			});
+		}
+		return cal;
 	}
 
 	protected void resetSpatialSettings(final boolean alsoResetPaths) {
