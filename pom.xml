@@ -37,6 +37,19 @@
 				<role>lead</role>
 				<role>maintainer</role>
 				<role>developer</role>
+				<role>reviewer</role>
+			</roles>
+		</developer>
+		<developer>
+			<name>Cameron Arshadi</name>
+			<url>https://imagej.net/User:Arshadi</url>
+			<properties><id>carshadi</id></properties>
+			<roles>
+				<role>maintainer</role>
+				<role>developer</role>
+				<role>debugger</role>
+				<role>support</role>
+				<role>reviewer</role>
 			</roles>
 		</developer>
 		<developer>
@@ -53,14 +66,6 @@
 			<url>https://imagej.net/User:Rueden</url>
 			<roles>
 				<role>maintainer</role>
-			</roles>
-		</developer>
-		<developer>
-			<name>Cameron Arshadi</name>
-			<url>https://imagej.net/User:Arshadi</url>
-			<properties><id>carshadi</id></properties>
-			<roles>
-				<role>developer</role>
 			</roles>
 		</developer>
 	</developers>
