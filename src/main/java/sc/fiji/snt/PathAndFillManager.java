@@ -3387,10 +3387,12 @@ public class PathAndFillManager extends DefaultHandler implements
 	public void exportToCSV(final File outputFile) throws IOException {
 		// FIXME: also add statistics on volumes of fills and
 		// reconstructions...
-		final String[] headers = { "PathID", "PathName", "SWCType", "PrimaryPath",
-			"PathLength", "PathLengthUnits", "StartsOnPath", "EndsOnPath",
-			"ConnectedPathIDs", "ChildPathIDs", "StartX", "StartY", "StartZ", "EndX",
-			"EndY", "EndZ", "ApproximateFittedVolume" };
+		final String[] headers = { 
+			"PathID", "PathName", "SWCType", "PrimaryPath", // cols 1-4
+			"PathLength", "PathLengthUnits", "StartsOnPath", "ConnectedPathIDs", // cols 5-8
+			"ChildPathIDs", "StartX", "StartY", "StartZ", // cols 9-12
+			"EndX", "EndY", "EndZ", "ApproximateFittedVolume"//cols 13-16
+			};
 
 		final Path[] primaryPaths = getPathsStructured();
 		final HashSet<Path> h = new HashSet<>();
@@ -3410,24 +3412,25 @@ public class PathAndFillManager extends DefaultHandler implements
 				pForLengthAndName = p.getFitted();
 			}
 			if (p.fittedVersionOf != null) continue;
-			SNTUtils.csvQuoteAndPrint(pw, p.getID());
+			SNTUtils.csvQuoteAndPrint(pw, p.getID()); //col1: PathID
 			pw.print(",");
-			SNTUtils.csvQuoteAndPrint(pw, pForLengthAndName.getName());
+			SNTUtils.csvQuoteAndPrint(pw, pForLengthAndName.getName()); //col2: PathName
 			pw.print(",");
-			SNTUtils.csvQuoteAndPrint(pw, Path.getSWCtypeName(p.getSWCType(), false));
+			SNTUtils.csvQuoteAndPrint(pw, Path.getSWCtypeName(p.getSWCType(), false)); //col3: SWCType
 			pw.print(",");
 			final boolean primary = h.contains(p);
-			SNTUtils.csvQuoteAndPrint(pw, primary);
+			SNTUtils.csvQuoteAndPrint(pw, primary); //col4: PrimaryPath
 			pw.print(",");
-			SNTUtils.csvQuoteAndPrint(pw, pForLengthAndName.getLength());
+			SNTUtils.csvQuoteAndPrint(pw, pForLengthAndName.getLength()); //col5: PathLength
 			pw.print(",");
-			SNTUtils.csvQuoteAndPrint(pw, p.spacing_units);
+			SNTUtils.csvQuoteAndPrint(pw, p.spacing_units); //col6: PathLengthUnits
 			pw.print(",");
-			if (p.startJoins != null) pw.print("" + p.startJoins.getID());
+			// FIXME: should we print "N/A" or " " when p.startJoins == null?
+			pw.print((p.startJoins == null) ? "" : "" + p.startJoins.getID()); // col7: StartsOnPath
 			pw.print(",");
-			SNTUtils.csvQuoteAndPrint(pw, p.somehowJoinsAsString());
+			SNTUtils.csvQuoteAndPrint(pw, p.somehowJoinsAsString()); // col8: ConnectedPathIDs
 			pw.print(",");
-			SNTUtils.csvQuoteAndPrint(pw, p.childrenAsString());
+			SNTUtils.csvQuoteAndPrint(pw, p.childrenAsString()); // col9: ChildPathIDs
 			pw.print(",");
 
 			final double[] startPoint = new double[3];
@@ -3436,21 +3439,20 @@ public class PathAndFillManager extends DefaultHandler implements
 			pForLengthAndName.getPointDouble(0, startPoint);
 			pForLengthAndName.getPointDouble(pForLengthAndName.size() - 1, endPoint);
 
-			pw.print("" + startPoint[0]);
+			pw.print("" + startPoint[0]); // col10: StartX
 			pw.print(",");
-			pw.print("" + startPoint[1]);
+			pw.print("" + startPoint[1]); // col11: StartY
 			pw.print(",");
-			pw.print("" + startPoint[2]);
+			pw.print("" + startPoint[2]); // col12: StartZ
 			pw.print(",");
-			pw.print("" + endPoint[0]);
+			pw.print("" + endPoint[0]); // col13: EndX
 			pw.print(",");
-			pw.print("" + endPoint[1]);
+			pw.print("" + endPoint[1]); // col14: EndY
 			pw.print(",");
-			pw.print("" + endPoint[2]);
+			pw.print("" + endPoint[2]); // col15: EndZ
 
 			pw.print(",");
-			final double fittedVolume = pForLengthAndName.getApproximatedVolume();
-			pw.print(fittedVolume);
+			pw.print(pForLengthAndName.getApproximatedVolume()); // col16: ApproximateFittedVolume
 			pw.print("\r\n");
 			pw.flush();
 		}
