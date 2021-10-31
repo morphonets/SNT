@@ -242,7 +242,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		});
 
 		assembleExportFillsMenu();
-		final JButton exportFills = new JButton("Export...");
+		final JButton exportFills = new JButton("Export As...");
 		exportFills.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mousePressed(final MouseEvent e) {
@@ -568,48 +568,49 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	private void assembleExportFillsMenu() {
 		exportFillsMenu = new JPopupMenu();
-		JMenuItem jmi = new JMenuItem("As Grayscale Image");
+
+		// TODO: implement a dialog?
+		JMenuItem jmi = new JMenuItem("Annotated Distance Map");
 		jmi.addActionListener(e-> {
-			ImagePlus imp  =exportAsImp(FillConverter.ResultType.SAME);
-			if (imp != null)
+			ImagePlus imp = exportAsImp(FillConverter.ResultType.DISTANCE);
+			if (imp != null) {
+				IJ.run(imp,
+					   "Calibration Bar...",
+					   "location=[Upper Right] fill=White label=Black number=10 decimal=3 zoom=1 overlay");
 				imp.show();
+			}
 		});
 		exportFillsMenu.add(jmi);
-		jmi = new JMenuItem("As Binary Mask");
+		jmi = new JMenuItem("Binary Mask");
 		jmi.addActionListener(e-> {
 		ImagePlus imp =	exportAsImp(FillConverter.ResultType.BINARY_MASK);
 		  if (imp != null)
 			  imp.show();
 		});
 		exportFillsMenu.add(jmi);
-		jmi = new JMenuItem("As Label Image");
-		jmi.addActionListener(e -> {
-			ImagePlus imp = exportAsImp(FillConverter.ResultType.LABEL);
-			if (imp != null)
-				imp.show();
-		});
-		exportFillsMenu.add(jmi);
-		jmi = new JMenuItem("As Distance Image");
+		jmi = new JMenuItem("Distance Image");
 		jmi.addActionListener(e-> {
 			ImagePlus imp =	exportAsImp(FillConverter.ResultType.DISTANCE);
 			if (imp != null)
 				imp.show();
 		});
 		exportFillsMenu.add(jmi);
-		// TODO: implement a dialog?
-		jmi = new JMenuItem("As Annotated Distance Map");
+		jmi = new JMenuItem("Grayscale Image");
 		jmi.addActionListener(e-> {
-			ImagePlus imp = exportAsImp(FillConverter.ResultType.DISTANCE);
-			if (imp != null) {
-				IJ.run(imp,
-					   "Calibration Bar...",
-					   "location=[Upper Right] fill=White label=Black number=10 decimal=4 font=12 zoom=1 overlay");
+			ImagePlus imp  =exportAsImp(FillConverter.ResultType.SAME);
+			if (imp != null)
 				imp.show();
-			}
+		});
+		exportFillsMenu.add(jmi);
+		jmi = new JMenuItem("Label Image");
+		jmi.addActionListener(e -> {
+			ImagePlus imp = exportAsImp(FillConverter.ResultType.LABEL);
+			if (imp != null)
+				imp.show();
 		});
 		exportFillsMenu.add(jmi);
 		exportFillsMenu.addSeparator();
-		jmi = new JMenuItem("CSV Summary");
+		jmi = new JMenuItem("CSV Summary...");
 		jmi.addActionListener(e-> saveFills());
 		exportFillsMenu.add(jmi);
 	}

@@ -2020,7 +2020,7 @@ public class SNTUI extends JDialog {
 				loadSecondaryImageFile(file);
 			}
 		});
-		final JMenuItem revealMenuItem = new JMenuItem("Reveal Loaded File in File Explorer");
+		final JMenuItem revealMenuItem = new JMenuItem("Show Folder of Loaded File");
 		revealMenuItem.addActionListener(e -> {
 			try {
 				if (!plugin.isSecondaryDataAvailable() || !plugin.isSecondaryImageFileLoaded()) {

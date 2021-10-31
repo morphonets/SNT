@@ -199,8 +199,15 @@ public class IconFactory {
 		return button;
 	}
 
+	private static void updateColors() {
+		DEFAULT_COLOR = UIManager.getColor("Button.foreground");
+		INACTIVE_COLOR = UIManager.getColor("Button.disabledText");
+		PRESSED_COLOR = UIManager.getColor("Button.highlight");
+	}
+
 	public static void applyIcon(final AbstractButton button, final float iconSize,
 		final GLYPH glyph) {
+		updateColors();
 		final Icon defIcon = IconFactory.getIcon(glyph, iconSize, DEFAULT_COLOR);
 		final Icon disIcon = IconFactory.getIcon(glyph, iconSize, INACTIVE_COLOR);
 		final Icon prssdIcon = IconFactory.getIcon(glyph, iconSize, PRESSED_COLOR);
