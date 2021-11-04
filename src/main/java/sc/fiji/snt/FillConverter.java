@@ -37,6 +37,8 @@ import sc.fiji.snt.tracing.image.SupplierUtil;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
+
 /**
  * Map filled nodes from a {@link Collection} of {@link FillerThread}s to and between {@link RandomAccessible}s.
  *
@@ -47,7 +49,14 @@ public class FillConverter {
     private final Collection<FillerThread> fillers;
     private SearchImageStack<DefaultSearchNode> fillerStack;
 
-    public enum ResultType {SAME, BINARY_MASK, DISTANCE, LABEL}
+	public enum ResultType {
+		SAME, BINARY_MASK, DISTANCE, LABEL;
+
+		@Override
+		public String toString() {
+			return StringUtils.capitalize(super.toString().toLowerCase());
+		}
+	}
 
     public FillConverter(final Collection<FillerThread> fillers) {
         this.fillers = fillers;

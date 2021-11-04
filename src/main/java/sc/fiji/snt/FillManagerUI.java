@@ -597,7 +597,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		exportFillsMenu.add(jmi);
 		jmi = new JMenuItem("Grayscale Image");
 		jmi.addActionListener(e-> {
-			ImagePlus imp  =exportAsImp(FillConverter.ResultType.SAME);
+			ImagePlus imp = exportAsImp(FillConverter.ResultType.SAME);
 			if (imp != null)
 				imp.show();
 		});
@@ -650,6 +650,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			default:
 				throw new IllegalArgumentException("Unknown result type: " + resultType);
 		}
+		if (imp != null) imp.setTitle("Fill_" + resultType);
 		return imp;
 	}
 
