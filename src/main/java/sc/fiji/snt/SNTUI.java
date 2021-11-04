@@ -2296,8 +2296,6 @@ public class SNTUI extends JDialog {
 		final JMenu viewMenu = new JMenu("View");
 		menuBar.add(viewMenu);
 		menuBar.add(GuiUtils.helpMenu());
-		fileMenu.add(importSubmenu);
-		fileMenu.add(exportSubmenu);
 
 		// Options to replace image data
 		final JMenu changeImpMenu = new JMenu("Choose Tracing Image");
@@ -2316,24 +2314,28 @@ public class SNTUI extends JDialog {
 			}
 			new ImportAction(ImportAction.IMAGE, null).run();
 		});
-		final JMenuItem fromDemo = new JMenuItem("From Demo...");
+		changeImpMenu.add(fromFile);
+		changeImpMenu.add(fromList);
+		fileMenu.add(changeImpMenu);
+		fileMenu.addSeparator();
+		fileMenu.add(importSubmenu);
+		fileMenu.add(exportSubmenu);
+		fileMenu.addSeparator();
+
+		final JMenuItem fromDemo = new JMenuItem("Load Demo Dataset...");
 		fromDemo.addActionListener(e -> {
 			if (plugin.isSecondaryDataAvailable()) {
 				flushSecondaryDataPrompt();
 			}
 			new ImportAction(ImportAction.DEMO, null).run();
 		});
-		changeImpMenu.add(fromDemo);
-		changeImpMenu.add(fromFile);
-		changeImpMenu.add(fromList);
-
-		fileMenu.addSeparator();
-		fileMenu.add(changeImpMenu);
-
+		fileMenu.add(fromDemo);
 		loadLabelsMenuItem = new JMenuItem("Load Labels (AmiraMesh)...");
 		loadLabelsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAG));
 		loadLabelsMenuItem.addActionListener(listener);
 		fileMenu.add(loadLabelsMenuItem);
+		fileMenu.addSeparator();
+
 		final JMenuItem saveTable = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
 		saveTable.setToolTipText("Save all tables, plots, and charts currently open.");
 		saveTable.addActionListener(e -> {
@@ -2343,7 +2345,6 @@ public class SNTUI extends JDialog {
 
 		sendToTrakEM2 = new JMenuItem("Send to TrakEM2");
 		sendToTrakEM2.addActionListener(e -> plugin.notifyListeners(new SNTEvent(SNTEvent.SEND_TO_TRAKEM2)));
-		fileMenu.addSeparator();
 		fileMenu.add(sendToTrakEM2);
 
 		final JMenuItem importGuessingType = new JMenuItem("Any File Type...");
@@ -4097,7 +4098,7 @@ public class SNTUI extends JDialog {
 				choices[3] = "Hippocampal neuron (52MB, timelapse, w/ tracings)";
 				choices[4] = "L-Systems Fractal (23K, 2D, binary, w/ tracings)";
 				final String defChoice = plugin.getPrefs().getTemp("demo", choices[4]);
-				final String choice = guiUtils.getChoice("Which dataset? (NB: Data may take a while to download)", "Load Demo Dataset", choices, defChoice);
+				final String choice = guiUtils.getChoice("Which dataset? (NB: Remote data may take a while to download)", "Load Demo Dataset", choices, defChoice);
 				if (choice == null) {
 					changeState(priorState);
 					showStatus(null, true);
