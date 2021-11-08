@@ -138,7 +138,7 @@
 		<jline.version>3.13.1</jline.version>
 		<imagej-plot-service.version>0.1.1</imagej-plot-service.version>
 		<okhttp.version>4.9.1</okhttp.version>
-		<font-awesome.version>5.15.3</font-awesome.version>
+		<font-awesome.version>5.15.4</font-awesome.version>
 		<json.version>20210307</json.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
@@ -156,7 +156,7 @@
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf</artifactId>
-			<version>1.5</version>
+			<version>1.6.1</version>
 		</dependency>
 		<dependency>
 			<groupId>com.github.haifengl</groupId>
@@ -251,7 +251,7 @@
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf-jide-oss</artifactId>
-			<version>1.5</version>
+			<version>1.6.1</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
@@ -305,7 +305,7 @@
 		<dependency>
 			<groupId>it.unimi.dsi</groupId>
 			<artifactId>fastutil-core</artifactId>
-			<version>8.5.4</version>
+			<version>8.5.6</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jheaps</groupId>
