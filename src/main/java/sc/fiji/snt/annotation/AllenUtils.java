@@ -51,7 +51,8 @@ import java.util.stream.Collectors;
 public class AllenUtils {
 
 	/** The version of the Common Coordinate Framework currently used by SNT */
-	public static final String VERSION = "2.5 (ML legacy)";
+	public static final String VERSION = "3";
+	private static final Map<String, String> brainAreasByCCFVersion = createBrainAreasResourcePathsMap();
 	protected static final int BRAIN_ROOT_ID = 997;
 	private final static PointInImage BRAIN_BARYCENTRE = new PointInImage(5687.5435f, 3849.6099f, 6595.3813f);
 
@@ -60,6 +61,13 @@ public class AllenUtils {
 	private static JSONObject areaObjectFromUUID;
 
 	private AllenUtils() {
+	}
+
+	private static Map<String, String> createBrainAreasResourcePathsMap() {
+		Map<String,String> brainAreasPaths = new HashMap<>();
+		brainAreasPaths.put("3", "ml/brainAreas_v3.json");
+		brainAreasPaths.put("2.5", "ml/brainAreas_v2.5.json");
+		return brainAreasPaths;
 	}
 
 	private static JSONObject getJSONfile(final String resourcePath) {
@@ -77,7 +85,7 @@ public class AllenUtils {
 
 	protected static JSONArray getBrainAreasList() {
 		if (areaList == null) {
-			final JSONObject json = getJSONfile("ml/brainAreas.json");
+			final JSONObject json = getJSONfile(brainAreasByCCFVersion.get(VERSION));
 			areaList = json.getJSONObject("data").getJSONArray("brainAreas");
 		}
 		return areaList;
@@ -85,7 +93,7 @@ public class AllenUtils {
 	
 	protected static JSONObject getBrainAreasByStructureId() {
 		if (areaObjectFromStructureId == null) {
-			final JSONObject json = getJSONfile("ml/brainAreas.json");
+			final JSONObject json = getJSONfile(brainAreasByCCFVersion.get(VERSION));
 			areaObjectFromStructureId = json.getJSONObject("data").getJSONObject("brainAreasByStructureId");
 		}
 		return areaObjectFromStructureId;
@@ -93,7 +101,7 @@ public class AllenUtils {
 	
 	protected static JSONObject getBrainAreasByUUID() {
 		if (areaObjectFromUUID == null) {
-			final JSONObject json = getJSONfile("ml/brainAreas.json");
+			final JSONObject json = getJSONfile(brainAreasByCCFVersion.get(VERSION));
 			areaObjectFromUUID = json.getJSONObject("data").getJSONObject("brainAreasByUUID");
 		}
 		return areaObjectFromUUID;
