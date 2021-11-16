@@ -490,14 +490,27 @@ public class AllenUtils {
 	 */
 	public static OBJMesh getRootMesh(final ColorRGB color) {
 		final String meshLabel = "Whole Brain";
-		final String meshPath = "meshes/MouseBrainAllen.obj";
+		String meshPath;
+		double volume;
+		switch (VERSION) {
+		case "3":
+			meshPath = "meshes/MouseBrainAllen3.obj";
+			volume = 513578693035.138d;  // pre-computed surface integral
+			break;
+		case "2.5":
+			meshPath = "meshes/MouseBrainAllen2.5.obj";
+			volume = 513578693035.138d; // pre-computed surface integral
+			break;
+		default:
+			throw new IllegalArgumentException("Unrecognized version for root mesh");
+		}
 		final ClassLoader loader = Thread.currentThread().getContextClassLoader();
 		final URL url = loader.getResource(meshPath);
 		if (url == null)
 			throw new IllegalArgumentException(meshLabel + " not found");
 		final OBJMesh mesh = new OBJMesh(url, "um");
 		mesh.setColor(color, 95f);
-		mesh.setVolume(513578693035.138d); // pre-computed surface integral
+		mesh.setVolume(volume);
 		mesh.setLabel(meshLabel);
 		return mesh;
 	}
