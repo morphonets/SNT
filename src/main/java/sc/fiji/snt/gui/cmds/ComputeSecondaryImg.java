@@ -66,7 +66,6 @@ import net.imglib2.img.cell.CellImgFactory;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.FloatType;
-import net.imglib2.view.Views;
 import sc.fiji.snt.*;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Lazy;
