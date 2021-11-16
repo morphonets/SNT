@@ -123,8 +123,8 @@ import org.jzy3d.chart.controllers.camera.AbstractCameraController;
 import org.jzy3d.chart.controllers.mouse.AWTMouseUtilities;
 import org.jzy3d.chart.controllers.mouse.camera.AWTCameraMouseController;
 import org.jzy3d.chart.controllers.thread.camera.CameraThreadController;
-import org.jzy3d.chart.factories.AWTChartComponentFactory;
-import org.jzy3d.chart.factories.IChartComponentFactory;
+import org.jzy3d.chart.factories.AWTChartFactory;
+import org.jzy3d.chart.factories.IChartFactory;
 import org.jzy3d.chart.factories.IFrame;
 import org.jzy3d.colors.Color;
 import org.jzy3d.colors.ColorMapper;
@@ -134,23 +134,22 @@ import org.jzy3d.maths.Coord2d;
 import org.jzy3d.maths.Coord3d;
 import org.jzy3d.maths.Rectangle;
 import org.jzy3d.plot2d.primitive.AWTColorbarImageGenerator;
-import org.jzy3d.plot3d.primitives.AbstractComposite;
-import org.jzy3d.plot3d.primitives.AbstractDrawable;
-import org.jzy3d.plot3d.primitives.AbstractWireframeable;
+import org.jzy3d.plot3d.primitives.Composite;
+import org.jzy3d.plot3d.primitives.Drawable;
+import org.jzy3d.plot3d.primitives.Wireframeable;
 import org.jzy3d.plot3d.primitives.LineStrip;
 import org.jzy3d.plot3d.primitives.Point;
 import org.jzy3d.plot3d.primitives.Shape;
 import org.jzy3d.plot3d.primitives.Sphere;
 import org.jzy3d.plot3d.primitives.Tube;
-import org.jzy3d.plot3d.primitives.axes.layout.providers.ITickProvider;
-import org.jzy3d.plot3d.primitives.axes.layout.providers.RegularTickProvider;
-import org.jzy3d.plot3d.primitives.axes.layout.providers.SmartTickProvider;
-import org.jzy3d.plot3d.primitives.axes.layout.renderers.FixedDecimalTickRenderer;
-import org.jzy3d.plot3d.primitives.axes.layout.renderers.ITickRenderer;
-import org.jzy3d.plot3d.primitives.axes.layout.renderers.ScientificNotationTickRenderer;
+import org.jzy3d.plot3d.primitives.axis.layout.providers.ITickProvider;
+import org.jzy3d.plot3d.primitives.axis.layout.providers.RegularTickProvider;
+import org.jzy3d.plot3d.primitives.axis.layout.providers.SmartTickProvider;
+import org.jzy3d.plot3d.primitives.axis.layout.renderers.FixedDecimalTickRenderer;
+import org.jzy3d.plot3d.primitives.axis.layout.renderers.ITickRenderer;
+import org.jzy3d.plot3d.primitives.axis.layout.renderers.ScientificNotationTickRenderer;
 import org.jzy3d.plot3d.primitives.vbo.drawable.DrawableVBO;
 import org.jzy3d.plot3d.rendering.canvas.ICanvas;
-import org.jzy3d.plot3d.rendering.canvas.IScreenCanvas;
 import org.jzy3d.plot3d.rendering.canvas.Quality;
 import org.jzy3d.plot3d.rendering.legends.colorbars.AWTColorbarLegend;
 import org.jzy3d.plot3d.rendering.lights.Light;
@@ -462,7 +461,7 @@ public class Viewer3D {
 	/* returns true if chart was initialized */
 	private boolean initView() {
 		if (chartExists()) return false;
-		chart = new AChart(Quality.Nicest, this); // There does not seem to be a swing implementation of
+		chart = new AChart(Quality.Nicest(), this); // There does not seem to be a swing implementation of
 												  // ICameraMouseController so we are stuck with AWT
 		chart.black();
 		view = chart.getView();
@@ -506,7 +505,7 @@ public class Viewer3D {
 		try {
 			// remember settings so that they can be restored
 			final boolean lighModeOn = !isDarkModeOn();
-			final boolean axesOn = view.isAxeBoxDisplayed();
+			final boolean axesOn = view.isAxisDisplayed();
 			final float currentZoomStep = keyController.zoomStep;
 			final double currentRotationStep = keyController.rotationStep;
 			final float currentPanStep = mouseController.panStep;
@@ -517,7 +516,7 @@ public class Viewer3D {
 			final Coord3d currentViewPoint = view.getViewPoint();
 			final BoundingBox3d currentBox = view.getBounds();
 			final boolean isAnimating = mouseController.isAnimating();
-			chart.stopAnimator();
+			chart.stopAnimation();
 			chart.dispose();
 			chart = null;
 			initView();
@@ -590,7 +589,7 @@ public class Viewer3D {
 		dup.mouseController.panStep = mouseController.panStep;
 		if (!isDarkModeOn())
 			dup.keyController.toggleDarkMode();
-		dup.chart.setAxeDisplayed(view.isAxeBoxDisplayed());
+		dup.chart.setAxeDisplayed(view.isAxisDisplayed());
 		dup.view.setSquarifier(view.getSquarifier());
 		dup.view.setSquared(view.getSquared());
 		dup.view.setCameraMode(view.getCameraMode());
@@ -704,7 +703,7 @@ public class Viewer3D {
 		sb.append("\n-------------------------------------------\n");
 		sb.append("cd \"").append(destinationDirectory).append("\"\n");
 		sb.append("ffmpeg -framerate ").append(prefs.getFPS()).append(" -i %5d.png -vf \"");
-		if (currentView == ViewMode.SIDE && !view.isAxeBoxDisplayed()) sb.append("vflip,");
+		if (currentView == ViewMode.SIDE && !view.isAxisDisplayed()) sb.append("vflip,");
 		sb.append("scale=-1:-1,format=yuv420p\" video.mp4");
 		sb.append("\n-------------------------------------------\n");
 		sb.append("\nAlternatively, IJ built-in commands can also be used, e.g.:\n");
@@ -1231,9 +1230,9 @@ public class Viewer3D {
 		if (managerList != null) managerList.update(); // force update the manager list
 	}
 
-	private AbstractDrawable getDrawableFromObject(final Object object) {
-		if (object instanceof AbstractDrawable) {
-			return (AbstractDrawable) object;
+	private Drawable getDrawableFromObject(final Object object) {
+		if (object instanceof Drawable) {
+			return (Drawable) object;
 		} else if (object instanceof Annotation3D) {
 			return ((Annotation3D) object).getDrawable();
 		} else if (object instanceof OBJMesh) {
@@ -1248,7 +1247,7 @@ public class Viewer3D {
 			final Annotation3D annot = plottedAnnotations.get((String) object);
 			if (annot != null) return annot.getDrawable();
 		} else if (object instanceof Collection) {
-			final AbstractComposite composite = new Shape();
+			final Composite composite = new Shape();
 			for(final Object o : (Collection<?>)object) {
 				composite.add(getDrawableFromObject(o));
 			}
@@ -1270,7 +1269,7 @@ public class Viewer3D {
 	public void zoomTo(final Object... objects) {
 		final BoundingBox3d bounds = new BoundingBox3d(0, 0, 0, 0, 0, 0);
 		for (final Object obj : objects) {
-			final AbstractDrawable d = getDrawableFromObject(obj);
+			final Drawable d = getDrawableFromObject(obj);
 			if (d != null && d.isDisplayed() && d.getBounds() != null && !d.getBounds().isReset()) {
 				bounds.add(d.getBounds());
 			}
@@ -1484,8 +1483,8 @@ public class Viewer3D {
 		return map;
 	}
 
-	private Map<String, AbstractDrawable> getAnnotationDrawables() {
-		final Map<String, AbstractDrawable> map = new HashMap<>();
+	private Map<String, Drawable> getAnnotationDrawables() {
+		final Map<String, Drawable> map = new HashMap<>();
 		plottedAnnotations.forEach((k, annot) -> {
 			map.put(k, annot.getDrawable());
 		});
@@ -1619,11 +1618,11 @@ public class Viewer3D {
 	}
 
 	private void removeColorLegends(final boolean justLastOne) {
-		final List<AbstractDrawable> allDrawables = chart.getScene().getGraph()
+		final List<Drawable> allDrawables = chart.getScene().getGraph()
 			.getAll();
-		final Iterator<AbstractDrawable> iterator = allDrawables.iterator();
+		final Iterator<Drawable> iterator = allDrawables.iterator();
 		while (iterator.hasNext()) {
-			final AbstractDrawable drawable = iterator.next();
+			final Drawable drawable = iterator.next();
 			if (drawable != null && drawable.hasLegend() && drawable
 				.isLegendDisplayed())
 			{
@@ -1692,8 +1691,8 @@ public class Viewer3D {
 				addMesh((OBJMesh) object);
 			} else if (object instanceof String) {
 				addLabel((String) object);
-			} else if (object instanceof AbstractDrawable) {
-				chart.add((AbstractDrawable) object, viewUpdatesEnabled);
+			} else if (object instanceof Drawable) {
+				chart.add((Drawable) object, viewUpdatesEnabled);
 			} else if (object instanceof Collection) {
 				addCollection(((Collection<?>) object));
 			} else {
@@ -1736,8 +1735,8 @@ public class Viewer3D {
 		} else if (object instanceof String) {
 			final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels((String)object);
 			removeSceneObject(labelAndManagerEntry[0], labelAndManagerEntry[1]);
-		} else if (object instanceof AbstractDrawable && chart != null) {
-			chart.getScene().getGraph().remove((AbstractDrawable) object, viewUpdatesEnabled);
+		} else if (object instanceof Drawable && chart != null) {
+			chart.getScene().getGraph().remove((Drawable) object, viewUpdatesEnabled);
 		} else if (object instanceof Collection) {
 			removeCollection(((Collection<?>) object));
 		} else {
@@ -1766,7 +1765,7 @@ public class Viewer3D {
 		return (List<String>) (List<?>) Arrays.asList(values);
 	}
 
-	private <T extends AbstractDrawable> boolean allDrawablesRendered(
+	private <T extends Drawable> boolean allDrawablesRendered(
 		final BoundingBox3d viewBounds, final Map<String, T> map,
 		final List<String> selectedKeys)
 	{
@@ -1786,7 +1785,7 @@ public class Viewer3D {
 		return true;
 	}
 
-	private synchronized <T extends AbstractDrawable> boolean removeDrawable(
+	private synchronized <T extends Drawable> boolean removeDrawable(
 		final Map<String, T> map, final String label, final String managerListEntry)
 	{
 		final T drawable = map.get(label);
@@ -1830,7 +1829,7 @@ public class Viewer3D {
 		return plottedTrees.get(PATH_MANAGER_TREE_LABEL).get().isDisplayed();
 	}
 
-	private boolean isValid(final AbstractDrawable drawable) {
+	private boolean isValid(final Drawable drawable) {
 		return drawable.getBounds() != null && drawable.getBounds().getRange()
 			.distanceSq(new Coord3d(0f, 0f, 0f)) > 0f;
 	}
@@ -1855,7 +1854,7 @@ public class Viewer3D {
 
 	/** returns true if a drawable was removed */
 	@SuppressWarnings("unused")
-	private <T extends AbstractDrawable> boolean removeInvalid(
+	private <T extends Drawable> boolean removeInvalid(
 		final Map<String, T> map)
 	{
 		final Iterator<Entry<String, T>> it = map.entrySet().iterator();
@@ -2187,7 +2186,7 @@ public class Viewer3D {
 
 	private OBJMesh loadOBJMesh(final OBJMesh objMesh) {
 		setAnimationEnabled(false);
-		chart.add(objMesh.drawable, viewUpdatesEnabled); // this used to trigger a GLException when true?
+		chart.add(objMesh.drawable, false); // this used to trigger a GLException when true?
 		final String label = getUniqueLabel(plottedObjs, "Mesh", objMesh.getLabel());
 		plottedObjs.put(label, objMesh.drawable);
 		addItemToManager(label);
@@ -2378,7 +2377,7 @@ public class Viewer3D {
 //	}
 
 	/** ChartComponentFactory adopting {@link AView} */
-	private class AChartComponentFactory extends AWTChartComponentFactory {
+	private class AChartComponentFactory extends AWTChartFactory {
 
 		@Override
 		public View newView(final Scene scene, final ICanvas canvas,
@@ -2400,8 +2399,7 @@ public class Viewer3D {
 		private final Viewer3D viewer;
 
 		public AChart(final Quality quality, final Viewer3D viewer) {
-			super(new AChartComponentFactory(), quality, DEFAULT_WINDOWING_TOOLKIT,
-				org.jzy3d.chart.Settings.getInstance().getGLCapabilities());
+			super(new AChartComponentFactory(), quality);
 			currentView = ViewMode.DEFAULT;
 			addRenderer(overlayAnnotation = new OverlayAnnotation(getView()));
 			this.viewer = viewer;
@@ -2423,7 +2421,7 @@ public class Viewer3D {
 			getView().setViewPositionMode(null);
 			if (view == ViewMode.DEFAULT) {
 				getView().setViewPositionMode(ViewPositionMode.FREE);
-				getView().setViewPoint(previousViewPointFree == null ? View.DEFAULT_VIEW
+				getView().setViewPoint(previousViewPointFree == null ? View.VIEWPOINT_DEFAULT
 					.clone() : previousViewPointFree);
 			}
 			else if (view == ViewMode.TOP) {
@@ -2466,16 +2464,16 @@ public class Viewer3D {
 			shape.setLegend(this);
 			updateColors();
 			if (colorLegend.provider instanceof SmartTickProvider)
-				provider = new SmartTickProvider(colorLegend.provider.getDefaultSteps());
+				provider = new SmartTickProvider(colorLegend.provider.getSteps());
 			else
-				provider = new RegularTickProvider(colorLegend.provider.getDefaultSteps());
+				provider = new RegularTickProvider(colorLegend.provider.getSteps());
 			if (colorLegend.renderer instanceof ScientificNotationTickRenderer)
 				renderer = new ScientificNotationTickRenderer(-1 * colorLegend.precision);
 			else
 				renderer = new FixedDecimalTickRenderer(colorLegend.precision);
 			if (imageGenerator == null)
 				init();
-			imageGenerator.setFont(font);
+			imageGenerator.setAWTFont(font);
 		}
 
 		public ColorLegend(final ColorTableMapper mapper, final Font font,
@@ -2493,7 +2491,7 @@ public class Viewer3D {
 			renderer = (precision < 0) ? new ScientificNotationTickRenderer(-1 *
 				precision) : new FixedDecimalTickRenderer(precision);
 			if (imageGenerator == null) init();
-			imageGenerator.setFont(font);
+			imageGenerator.setAWTFont(font);
 		}
 
 		public ColorLegend(final ColorTableMapper mapper) {
@@ -2504,7 +2502,7 @@ public class Viewer3D {
 			shape.getColorMapper().setMin(min);
 			shape.getColorMapper().setMax(max);
 			if (fontSize > 0)
-				imageGenerator.setFont(imageGenerator.getFont().deriveFont(fontSize));
+				imageGenerator.setAWTFont(imageGenerator.getAWTFont().deriveFont(fontSize));
 			((ColorbarImageGenerator) imageGenerator).setMin(min);
 			((ColorbarImageGenerator) imageGenerator).setMax(max);
 		}
@@ -2527,7 +2525,7 @@ public class Viewer3D {
 		}
 
 		@Override
-		public void initImageGenerator(final AbstractDrawable parent,
+		public void initImageGenerator(final Drawable parent,
 			final ITickProvider provider, final ITickRenderer renderer)
 		{
 			if (shape != null) imageGenerator = new ColorbarImageGenerator(shape
@@ -2592,7 +2590,7 @@ public class Viewer3D {
 	 */
 	private class AView extends AWTView {
 
-		public AView(final IChartComponentFactory factory, final Scene scene,
+		public AView(final IChartFactory factory, final Scene scene,
 			final ICanvas canvas, final Quality quality)
 		{
 			super(factory, scene, canvas, quality);
@@ -2751,7 +2749,7 @@ public class Viewer3D {
 		}
 
 		public void disposeFrame() {
-			chart.stopAnimator();
+			chart.stopAnimation();
 			ViewerFrame.this.remove(canvas);
 			ViewerFrame.this.chart.dispose();
 			ViewerFrame.this.chart = null;
@@ -5647,7 +5645,7 @@ public class Viewer3D {
 
 		private final Tree tree;
 		private Shape treeSubShape;
-		private AbstractWireframeable somaSubShape;
+		private Wireframeable somaSubShape;
 		private Coord3d translationReset;
 
 		public ShapeTree(final Tree tree) {
@@ -5782,7 +5780,7 @@ public class Viewer3D {
 			}
 		}
 
-		private <T extends AbstractWireframeable & ISingleColorable> void
+		private <T extends Wireframeable & ISingleColorable> void
 			setWireFrame(final T t, final float r, final Color color)
 		{
 			t.setColor(Utils.contrastColor(color).alphaSelf(0.4f));
@@ -6298,7 +6296,7 @@ public class Viewer3D {
 		}
 
 		private void toggleAxes() {
-			chart.setAxeDisplayed(!view.isAxeBoxDisplayed());
+			chart.setAxeDisplayed(!view.isAxisDisplayed());
 		}
 
 		private boolean emptySceneMsg() {
@@ -6315,7 +6313,7 @@ public class Viewer3D {
 
 		private void resetView() {
 			try {
-				chart.setViewPoint(View.DEFAULT_VIEW);
+				chart.setViewPoint(View.VIEWPOINT_DEFAULT);
 				chart.setViewMode(ViewPositionMode.FREE);
 				view.setBoundMode(ViewBoundMode.AUTO_FIT);
 				displayMsg("View reset");
@@ -6356,8 +6354,8 @@ public class Viewer3D {
 		/* This seems to work only at initialization */
 		@SuppressWarnings("unused")
 		private void changeQuality() {
-			final Quality[] levels = { Quality.Fastest, Quality.Intermediate,
-				Quality.Advanced, Quality.Nicest };
+			final Quality[] levels = { Quality.Fastest(), Quality.Intermediate(),
+				Quality.Advanced(), Quality.Nicest() };
 			final String[] grades = { "Fastest", "Intermediate", "High", "Best" };
 			final Quality currentLevel = chart.getQuality();
 			int nextLevelIdx = 0;
@@ -6386,8 +6384,8 @@ public class Viewer3D {
 				newBackground = Color.BLACK;
 			}
 			view.setBackgroundColor(newBackground);
-			view.getAxe().getLayout().setGridColor(newForeground);
-			view.getAxe().getLayout().setMainColor(newForeground);
+			view.getAxis().getLayout().setGridColor(newForeground);
+			view.getAxis().getLayout().setMainColor(newForeground);
 			((AChart)chart).overlayAnnotation.setForegroundColor(newForeground);
 			if (cBar != null) cBar.updateColors();
 
@@ -6519,7 +6517,7 @@ public class Viewer3D {
 
 	private class OverlayAnnotation extends CameraEyeOverlayAnnotation {
 
-		private final GLAnimatorControl control;
+		private GLAnimatorControl control;
 		private java.awt.Color color;
 		private String label;
 		private Font labelFont;
@@ -6529,8 +6527,8 @@ public class Viewer3D {
 
 		private OverlayAnnotation(final View view) {
 			super(view);
-			control = ((IScreenCanvas) view.getCanvas()).getAnimator();
-			control.setUpdateFPSFrames(FPSCounter.DEFAULT_FRAMES_PER_INTERVAL, null);
+			//FIXME control = ((IScreenCanvas) view.getCanvas()).getAnimator();
+			//FIXME control.setUpdateFPSFrames(FPSCounter.DEFAULT_FRAMES_PER_INTERVAL, null);
 		}
 
 		private void setForegroundColor(final Color c) {
@@ -6760,7 +6758,7 @@ public class Viewer3D {
 	private synchronized void fitToVisibleObjects(final boolean beGreedy, final boolean showMsg)
 		throws NullPointerException
 	{
-		final List<AbstractDrawable> all = chart.getView().getScene().getGraph()
+		final List<Drawable> all = chart.getView().getScene().getGraph()
 			.getAll();
 		final BoundingBox3d bounds = new BoundingBox3d(0, 0, 0, 0, 0, 0);
 		all.forEach(d -> {

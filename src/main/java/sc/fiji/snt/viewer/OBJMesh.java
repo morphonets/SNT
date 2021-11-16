@@ -22,11 +22,11 @@
 
 package sc.fiji.snt.viewer;
 
-import com.jogamp.common.nio.Buffers;
-import com.jogamp.opengl.GL;
-
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.JarURLConnection;
 import java.net.URL;
 import java.nio.FloatBuffer;
@@ -40,9 +40,13 @@ import org.jzy3d.io.IGLLoader;
 import org.jzy3d.io.obj.OBJFile;
 import org.jzy3d.maths.BoundingBox3d;
 import org.jzy3d.maths.Coord3d;
+import org.jzy3d.painters.IPainter;
+import org.jzy3d.painters.NativeDesktopPainter;
 import org.jzy3d.plot3d.primitives.vbo.drawable.DrawableVBO;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
+
+import com.jogamp.common.nio.Buffers;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.util.BoundingBox;
@@ -401,63 +405,112 @@ public class OBJMesh {
 		}
 
 		@Override
-		public void load(final GL gl, final DrawableVBO drawable) {
+		public void load(final IPainter painter, final DrawableVBO drawable) {
+			compileModel(null);
 			final int size = obj.getIndexCount();
 			final int indexSize = size * Buffers.SIZEOF_INT;
-			final int vertexSize = obj.getCompiledVertexCount() *
-				Buffers.SIZEOF_FLOAT;
+			final int vertexSize = obj.getCompiledVertexCount() * Buffers.SIZEOF_FLOAT;
 			final int byteOffset = obj.getCompiledVertexSize() * Buffers.SIZEOF_FLOAT;
-			final int normalOffset = obj.getCompiledNormalOffset() *
-				Buffers.SIZEOF_FLOAT;
+			final int normalOffset = obj.getCompiledNormalOffset() * Buffers.SIZEOF_FLOAT;
 			final int dimensions = obj.getPositionSize();
+
 			final int pointer = 0;
+
 			final FloatBuffer vertices = obj.getCompiledVertices();
 			final IntBuffer indices = obj.getCompiledIndices();
+			final BoundingBox3d bounds = obj.computeBoundingBox();
+
 			drawable.doConfigure(pointer, size, byteOffset, normalOffset, dimensions);
-			drawable.doLoadArrayFloatBuffer(gl, vertexSize, vertices);
-			drawable.doLoadElementIntBuffer(gl, indexSize, indices);
-			if (drawable.getBounds() == null || !drawable.getBounds().valid()) {
-				drawable.doSetBoundingBox(obj.computeBoundingBox());
-			}
+			drawable.doLoadArrayFloatBuffer(((NativeDesktopPainter) painter).getGL(), vertexSize, vertices);
+			drawable.doLoadElementIntBuffer(((NativeDesktopPainter) painter).getGL(), indexSize, indices);
+			drawable.doSetBoundingBox(bounds);
 		}
+
 	}
 
 	private class OBJFilePlus extends OBJFile {
 
-		/* (non-Javadoc)
-		 * @see org.jzy3d.io.obj.OBJFile#parseObjVertex(java.lang.String, float[])
-		 * This is so that we can import files listing 4-component vertices [x, y, z, w]
+		/**
+		 * Copied ipsis verbis from
+		 * {@link org.jzy3d.io.obj.OBJFile#loadModelFromURL(URL)} but accommodates files
+		 * with trailing spaces //TODO: submit PR upstream
 		 */
 		@Override
-		public void parseObjVertex(String line, final float[] val) {
-			switch (line.charAt(1)) {
-				case ' ':
-					// logger.info(line);
+		public boolean loadModelFromURL(URL fileURL) {
+			if (fileURL != null) {
+				BufferedReader input = null;
+				try {
+					input = new BufferedReader(new InputStreamReader(fileURL.openStream()));
+					float[] val = new float[4];
+					int[][] idx = new int[3][3];
+					boolean hasNormals = false;
+					String line = null;
+					while ((line = input.readLine()) != null) {
+						line = line.trim(); // HACK TF: This is required to parse certain Allen meshes
+						if (line.isEmpty()) {
+							continue;
+						}
+						switch (line.charAt(0)) {
+						case '#':
+							break;
+						case 'v':
+							parseObjVertex(line, val);
+							break;
+						case 'f':
+							hasNormals = parseObjFace(line, idx, hasNormals);
+							break;
+						default:
+							break;
+						}
+						;
+					}
+					// post-process data
+					// free anything that ended up being unused
+					if (!hasNormals) {
+						normals_.clear();
+						nIndex_.clear();
+					}
 
-					line = line.substring(line.indexOf(" ") + 1);
-					// vertex, 3 or 4 components
-					val[0] = Float.valueOf(line.substring(0, line.indexOf(" ")));
-					line = line.substring(line.indexOf(" ") + 1);
-					val[1] = Float.valueOf(line.substring(0, line.indexOf(" ")));
-					line = line.substring(line.indexOf(" ") + 1);
-					val[2] = Float.valueOf(line.split(" ")[0]);
-					positions_.add(val[0]);
-					positions_.add(val[1]);
-					positions_.add(val[2]);
-					break;
+					posSize_ = 3;
+					return true;
 
-				case 'n':
-					// normal, 3 components
-					line = line.substring(line.indexOf(" ") + 1);
-					val[0] = Float.valueOf(line.substring(0, line.indexOf(" ")));
-					line = line.substring(line.indexOf(" ") + 1);
-					val[1] = Float.valueOf(line.substring(0, line.indexOf(" ")));
-					line = line.substring(line.indexOf(" ") + 1);
-					val[2] = Float.valueOf(line);
-					normals_.add(val[0]);
-					normals_.add(val[1]);
-					normals_.add(val[2]);
-					break;
+				} catch (final FileNotFoundException kFNF) {
+					SNTUtils.log("Unable to find the shader file " + fileURL + " : FileNotFoundException : "
+							+ kFNF.getMessage());
+				} catch (final IOException kIO) {
+					SNTUtils.log("Problem reading the shader file " + fileURL + " : IOException : " + kIO.getMessage());
+				} catch (final NumberFormatException kIO) {
+					SNTUtils.log("Problem reading the shader file " + fileURL + " : NumberFormatException : "
+							+ kIO.getMessage());
+				} finally {
+					try {
+						if (input != null) {
+							input.close();
+						}
+					} catch (final IOException closee) {
+					}
+				}
+			} else {
+				SNTUtils.log("URL was null");
+			}
+
+			return false;
+		}
+
+		/**
+		 * See {@link org.jzy3d.io.obj.OBJFile#compileModel()}
+		 */
+		@Override
+		public void compileModel() {
+			try {
+				super.compileModel();
+			} catch (final NoSuchMethodError nsme) {
+				if (nsme.getMessage().contains("java.nio.FloatBuffer.rewind()")) {
+					((java.nio.Buffer) vertices_).rewind(); // HACK: Cast required for java 8/11 compiler mismatch!?
+					((java.nio.Buffer) indices_).rewind(); // HACK: Cast required for java 8/11 compiler mismatch!?
+				} else {
+					throw new NoSuchMethodError(nsme.getLocalizedMessage());
+				}
 			}
 		}
 
