@@ -360,7 +360,7 @@ public class AllenUtils {
 	public static SNTPoint brainCenter() {
 		switch(VERSION) {
 		case V3:
-			return null; //TODO: Compute this
+			return new PointInImage(6587.8352f, 3849.0851f, 5688.1643f); // precomputed
 		case V2_5:
 			return new PointInImage(5687.5435f, 3849.6099f, 6595.3813f); // precomputed
 		default:
@@ -373,10 +373,14 @@ public class AllenUtils {
 	 * 
 	 * @return the max number of ontology levels.
 	 */
-	@SuppressWarnings("SameReturnValue")
 	public static int getHighestOntologyDepth() {
-		// No need to compute, as this is unlikely to change
-		return 10; // computeHighestOntologyDepth();
+		switch(VERSION) {
+		case V3:
+		case V2_5:
+			return 10; // as per computeHighestOntologyDepth()
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version");
+		}
 	}
 
 	@SuppressWarnings("unused")
@@ -523,11 +527,11 @@ public class AllenUtils {
 		switch (VERSION) {
 		case V3:
 			meshPath = "meshes/MouseBrainAllen3.obj";
-			volume = 513578693035.138d;  // pre-computed surface integral
+			volume = 513578693035.138d;  // pre-computed in trimesh
 			break;
 		case V2_5:
 			meshPath = "meshes/MouseBrainAllen2.5.obj";
-			volume = 513578693035.138d; // pre-computed surface integral
+			volume = 513578693035.138d; // pre-computed in trimesh
 			break;
 		default:
 			throw new IllegalArgumentException("Unrecognized CCF version");
