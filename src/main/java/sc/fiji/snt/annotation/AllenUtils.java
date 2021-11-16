@@ -91,6 +91,17 @@ public class AllenUtils {
 		return areaList;
 	}
 	
+	protected static String hostedMeshesLocation() {
+		switch(VERSION) {
+		case "3":
+			return "https://ml-neuronbrowser.janelia.org/static/ccf-2017/obj/";
+		case "2.5":
+			return "https://ml-neuronbrowser.janelia.org/static/allen/obj/";
+		default:
+			throw new IllegalArgumentException("Unrecognized version for mesh location");
+		}
+	}
+
 	protected static JSONObject getBrainAreasByStructureId() {
 		if (areaObjectFromStructureId == null) {
 			final JSONObject json = getJSONfile(brainAreasByCCFVersion.get(VERSION));
