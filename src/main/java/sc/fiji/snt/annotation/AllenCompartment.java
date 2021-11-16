@@ -304,7 +304,7 @@ public class AllenCompartment implements BrainAnnotation {
 		final String file = jsonObj.getString("geometryFile");
 		if (file == null || !file.endsWith(".obj")) return null;
 		try {
-			final String urlPath = AllenUtils.hostedMeshesLocation() + id() + ".obj"; // TODO: update geometryFile fields
+			final String urlPath = AllenUtils.hostedMeshesLocation() + id() + ".obj";
 			final OkHttpClient client = new OkHttpClient();
 			final Request request = new Request.Builder().url(urlPath).build();
 			final Response response = client.newCall(request).execute();

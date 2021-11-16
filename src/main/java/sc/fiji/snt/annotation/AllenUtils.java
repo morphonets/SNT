@@ -51,10 +51,11 @@ import java.util.stream.Collectors;
 public class AllenUtils {
 
 	/** The version of the Common Coordinate Framework currently used by SNT */
-	public static final String VERSION = "3";
+	private static final String V2_5 = "2.5"; // the legacy MouseLight atlas
+	private static final String V3 = "3";
+	public static final String VERSION = V3;
 	private static final Map<String, String> brainAreasByCCFVersion = createBrainAreasResourcePathsMap();
 	protected static final int BRAIN_ROOT_ID = 997;
-	private final static PointInImage BRAIN_BARYCENTRE = new PointInImage(5687.5435f, 3849.6099f, 6595.3813f);
 
 	private static JSONArray areaList;
 	private static JSONObject areaObjectFromStructureId;
@@ -65,8 +66,8 @@ public class AllenUtils {
 
 	private static Map<String, String> createBrainAreasResourcePathsMap() {
 		Map<String,String> brainAreasPaths = new HashMap<>();
-		brainAreasPaths.put("3", "ml/brainAreas_v3.json");
-		brainAreasPaths.put("2.5", "ml/brainAreas_v2.5.json");
+		brainAreasPaths.put(V3, "ml/brainAreas_v3.json");
+		brainAreasPaths.put(V2_5, "ml/brainAreas_v2.5.json");
 		return brainAreasPaths;
 	}
 
@@ -93,12 +94,12 @@ public class AllenUtils {
 	
 	protected static String hostedMeshesLocation() {
 		switch(VERSION) {
-		case "3":
+		case V3:
 			return "https://ml-neuronbrowser.janelia.org/static/ccf-2017/obj/";
-		case "2.5":
+		case V2_5:
 			return "https://ml-neuronbrowser.janelia.org/static/allen/obj/";
 		default:
-			throw new IllegalArgumentException("Unrecognized version for mesh location");
+			throw new IllegalArgumentException("Unrecognized CCF version");
 		}
 	}
 
@@ -239,8 +240,8 @@ public class AllenUtils {
 	 * Reflect the Tree across the mid-sagittal plane passing through the brain
 	 * barycentre.
 	 */
-	private static void mirrorTree(final Tree tree) {
-		double[] p = new double[] { BRAIN_BARYCENTRE.getX(), BRAIN_BARYCENTRE.getY(), BRAIN_BARYCENTRE.getZ() };
+	private static void mirrorTree(final Tree tree) { // FIXME: Check this for CCFv3
+		double[] p = new double[] { brainCenter().getX(), brainCenter().getY(), brainCenter().getZ() };
 		double[] q = new double[] { p[0], p[1] + 100, p[2] };
 		double[] r = new double[] { p[0], p[1], p[2] + 100 };
 		double[] pq = pointsToVec(p, q);
@@ -290,13 +291,19 @@ public class AllenUtils {
 	}
 
 	/**
-	 * Gets the axis defining mid sagittal plane.
+	 * Gets the axis defining the sagittal plane.
 	 *
-	 * @return the axis defining mid sagittal plane where X=0; Y=1; Z=2;
+	 * @return the axis defining the sagittal plane where X=0; Y=1; Z=2;
 	 */
-	@SuppressWarnings("SameReturnValue")
-	public static int getAxisDefiningMidSagittalPlane() {
-		return 0;
+	public static int getAxisDefiningSagittalPlane() {
+		switch(VERSION) {
+		case V3:
+			return 2; // Z axis
+		case V2_5:
+			return 0; // X axis
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version");
+		}
 	}
 
 	public static void assignHemisphereTags(final Tree tree) {
@@ -324,11 +331,25 @@ public class AllenUtils {
 	 * @return true, if is left hemisphere, false otherwise
 	 */
 	public static boolean isLeftHemisphere(final SNTPoint point) {
-		return point.getX() <= BRAIN_BARYCENTRE.x;
+		switch(VERSION) {
+		case V3:
+			return point.getZ() <= brainCenter().getZ();
+		case V2_5:
+			return point.getX() <= brainCenter().getX();
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version");
+		}
 	}
 
 	public static boolean isLeftHemisphere(final double x, final double y, final double z) {
-		return x <= BRAIN_BARYCENTRE.x;
+		switch(VERSION) {
+		case V3:
+			return z <= brainCenter().getZ();
+		case V2_5:
+			return x <= brainCenter().getX();
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version");
+		}
 	}
 
 	/**
@@ -337,7 +358,14 @@ public class AllenUtils {
 	 * @return the SNT point defining the (X,Y,Z) center of the ARA
 	 */
 	public static SNTPoint brainCenter() {
-		return BRAIN_BARYCENTRE;
+		switch(VERSION) {
+		case V3:
+			return null; //TODO: Compute this
+		case V2_5:
+			return new PointInImage(5687.5435f, 3849.6099f, 6595.3813f); // precomputed
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version");
+		}
 	}
 
 	/**
@@ -493,16 +521,16 @@ public class AllenUtils {
 		String meshPath;
 		double volume;
 		switch (VERSION) {
-		case "3":
+		case V3:
 			meshPath = "meshes/MouseBrainAllen3.obj";
 			volume = 513578693035.138d;  // pre-computed surface integral
 			break;
-		case "2.5":
+		case V2_5:
 			meshPath = "meshes/MouseBrainAllen2.5.obj";
 			volume = 513578693035.138d; // pre-computed surface integral
 			break;
 		default:
-			throw new IllegalArgumentException("Unrecognized version for root mesh");
+			throw new IllegalArgumentException("Unrecognized CCF version");
 		}
 		final ClassLoader loader = Thread.currentThread().getContextClassLoader();
 		final URL url = loader.getResource(meshPath);
