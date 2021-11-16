@@ -29,7 +29,9 @@ import java.util.EventObject;
  */
 class PathChangeEvent extends EventObject {
 
-    enum EventType {NAME_CHANGED, ID_CHANGED}
+	private static final long serialVersionUID = 4237091433859122738L;
+
+	enum EventType {NAME_CHANGED, ID_CHANGED}
 
     private final EventType eventType;
     private final Object[] args;
