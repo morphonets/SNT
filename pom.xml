@@ -143,6 +143,9 @@
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
+
+		<!-- Temporarily disable enforcer -->
+		<enforcer.skip>true</enforcer.skip>
 	</properties>
 
 	<repositories>
@@ -161,18 +164,6 @@
 		<dependency>
 			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-core</artifactId>
-			<version>${jzy3d.version}</version>
-			<exclusions>
-				<exclusion>
-					<!-- NB: Exclude problematic uber-JAR that bundles miglayout -->
-					<groupId>com.miglayout</groupId>
-					<artifactId>miglayout</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>org.jzy3d</groupId>
-			<artifactId>jzy3d-native-jogl-awt</artifactId>
 			<version>${jzy3d.version}</version>
 			<exclusions>
 				<exclusion>
