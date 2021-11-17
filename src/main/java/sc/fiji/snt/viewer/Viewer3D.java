@@ -707,12 +707,14 @@ public class Viewer3D {
 
 	private void logVideoInstructions(final File destinationDirectory) {
 		final StringBuilder sb = new StringBuilder("The image sequence can be converted into a video using ffmpeg (www.ffmpeg.org):");
-		sb.append("\n-------------------------------------------\n");
+		sb.append("\n===========================================\n");
 		sb.append("cd \"").append(destinationDirectory).append("\"\n");
 		sb.append("ffmpeg -framerate ").append(prefs.getFPS()).append(" -i %5d.png -vf \"");
-		if (currentView == ViewMode.SIDE && !view.isAxisDisplayed()) sb.append("vflip,");
 		sb.append("scale=-1:-1,format=yuv420p\" video.mp4");
 		sb.append("\n-------------------------------------------\n");
+		sb.append("NB: hflip/vflip can be included in the comma-separated list of filter options to\n");
+		sb.append("flip sequence horizontally/vertically, e.g.: hflip,vflip,scale=-1:-1,format=yuv420p");
+		sb.append("\n===========================================\n");
 		sb.append("\nAlternatively, IJ built-in commands can also be used, e.g.:\n");
 		sb.append("\"File>Import>Image Sequence...\", followed by \"File>Save As>AVI...\"");
 		try {
