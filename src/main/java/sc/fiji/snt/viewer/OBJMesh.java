@@ -433,23 +433,25 @@ public class OBJMesh {
 
 	private class OBJFilePlus extends OBJFile {
 
-		/* (non-Javadoc)
-		 * @see org.jzy3d.io.obj.OBJFile#parseObjVertex(java.lang.String, float[])
-		 * This is so that we can import files listing 4-component vertices [x, y, z, w]
-		 * TODO: Submit PR upstream
+		/**
+		 * Copied ipsis verbis from
+		 * {@link org.jzy3d.io.obj.OBJFile#loadModelFromURL(URL)} but accommodates files
+		 * with trailing spaces //TODO: submit PR upstream
 		 */
 		@Override
-		public boolean loadModelFromURL(URL fileURL) {
+		public boolean loadModelFromURL(final URL fileURL) {
 			if (fileURL != null) {
 				BufferedReader input = null;
 				try {
+
 					input = new BufferedReader(new InputStreamReader(fileURL.openStream()));
-					float[] val = new float[4];
-					int[][] idx = new int[3][3];
-					boolean hasNormals = false;
 					String line = null;
+					final float[] val = new float[4];
+					final int[][] idx = new int[3][3];
+					boolean hasNormals = false;
+
 					while ((line = input.readLine()) != null) {
-						line = line.trim(); // HACK TF: This is required to parse certain Allen meshes
+						line = line.trim();
 						if (line.isEmpty()) {
 							continue;
 						}
@@ -476,18 +478,6 @@ public class OBJMesh {
 
 					posSize_ = 3;
 					return true;
-					line = line.substring(line.indexOf(" ") + 1);
-					// vertex, 3 or 4 components
-					val[0] = Float.valueOf(line.substring(0, line.indexOf(" ")));
-					line = line.substring(line.indexOf(" ") + 1);
-					val[1] = Float.valueOf(line.substring(0, line.indexOf(" ")));
-					line = line.substring(line.indexOf(" ") + 1);
-					//TODO: submit PR against https://github.com/jzy3d/jzy3d-api/blob/edfb6c521b95d50e866a61c941a0e35cb1f34441/jzy3d-api/src/api/org/jzy3d/io/obj/OBJFile.java#L180
-					val[2] = Float.valueOf(line.split(" ")[0]); // TF: Allow parsing of 4 components
-					positions_.add(val[0]);
-					positions_.add(val[1]);
-					positions_.add(val[2]);
-					break;
 
 				} catch (final FileNotFoundException kFNF) {
 					SNTUtils.log("Unable to find the shader file " + fileURL + " : FileNotFoundException : "
