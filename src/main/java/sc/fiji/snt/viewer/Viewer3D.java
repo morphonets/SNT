@@ -250,19 +250,24 @@ public class Viewer3D {
 	 * Presets of a scene's view point.
 	 */
 	public enum ViewMode {
-			/**
-			 * No enforcement of view point: let the user freely turn around the
-			 * scene.
-			 */
-			DEFAULT("Default"), //
-			/**
+		/**
+		 * No enforcement of view point: let the user freely turn around the scene.
+		 */
+		DEFAULT("Default"), //
+		/** @deprecated Use YZ instead */
+		@Deprecated
+		SIDE("YZ Constrained"),
+		/**
 		 * Enforce a lateral view point of the scene.
 		 */
-		SIDE("Side Constrained"), //
+		YZ("YZ Constrained"), //
+		/** @deprecated Use XY instead */
+		@Deprecated
+		TOP("XY Constrained"),
 		/**
-		 * Enforce a top view point of the scene with disabled rotation.
+		 * Enforce a XY view point of the scene with disabled rotation.
 		 */
-		TOP("Top Constrained"),
+		XY("XY Constrained"),
 		/**
 		 * Enforce an 'overview (two-point perspective) view point of the scene.
 		 */
@@ -273,9 +278,11 @@ public class Viewer3D {
 		private ViewMode next() {
 			switch (this) {
 			case DEFAULT:
-				return TOP;
+				return XY;
+			case XY:
 			case TOP:
-				return SIDE;
+				return YZ;
+			case YZ:
 			case SIDE:
 				return PERSPECTIVE;
 			default:
@@ -661,7 +668,7 @@ public class Viewer3D {
 	 *           rotations
 	 */
 	public void rotate(final float degrees) throws IllegalArgumentException {
-		if (currentView == ViewMode.TOP) {
+		if (currentView == ViewMode.XY) {
 			throw new IllegalArgumentException("Rotations not allowed under " +
 				ViewMode.TOP.description);
 		}
@@ -704,7 +711,7 @@ public class Viewer3D {
 		sb.append("\n-------------------------------------------\n");
 		sb.append("cd \"").append(destinationDirectory).append("\"\n");
 		sb.append("ffmpeg -framerate ").append(prefs.getFPS()).append(" -i %5d.png -vf \"");
-		if (currentView == ViewMode.SIDE && !view.isAxeBoxDisplayed()) sb.append("vflip,");
+		if (currentView == ViewMode.YZ && !view.isAxeBoxDisplayed()) sb.append("vflip,");
 		sb.append("scale=-1:-1,format=yuv420p\" video.mp4");
 		sb.append("\n-------------------------------------------\n");
 		sb.append("\nAlternatively, IJ built-in commands can also be used, e.g.:\n");
@@ -2010,18 +2017,18 @@ public class Viewer3D {
 	/**
 	 * Renders the scene from a specified camera angle (script-friendly).
 	 *
-	 * @param viewMode the view mode (case insensitive): "side" or "sagittal"; "top"
-	 *                 or "coronal"; "perspective" or "overview"; "default" or "".
+	 * @param viewMode the view mode (case insensitive): "side" or "yz"; "top"
+	 *                 or "xy"; "perspective" or "overview"; "default" or "".
 	 */
 	public void setViewMode(final String viewMode) {
 		if (viewMode == null || viewMode.trim().isEmpty()) {
 			setViewMode(ViewMode.DEFAULT);
 		}
 		final String vMode = viewMode.toLowerCase();
-		if (vMode.contains("side") || vMode.contains("sag")) {
-			setViewMode(ViewMode.SIDE);
-		} else if (vMode.contains("top") || vMode.contains("cor")) {
-			setViewMode(ViewMode.TOP);
+		if (vMode.contains("side") || vMode.contains("sag")) { // sagittal kept for backwards compatibility
+			setViewMode(ViewMode.YZ);
+		} else if (vMode.contains("top") || vMode.contains("cor")) { // coronal kept for backwards compatibility
+			setViewMode(ViewMode.XY);
 		} else if (vMode.contains("pers") || vMode.contains("ove")) {
 			setViewMode(ViewMode.PERSPECTIVE);
 		} else {
@@ -2345,8 +2352,8 @@ public class Viewer3D {
 			sb.append(frame.getWidth()).append(", ").append(frame.getHeight()).append(");");
 			sb.append("\n");
 		}
-		if (currentView == ViewMode.TOP) {
-			sb.append("viewer.setViewMode(Viewer3D.ViewMode.TOP);");
+		if (currentView == ViewMode.XY) {
+			sb.append("viewer.setViewMode(\"xy\");");
 		} else {
 			final Coord3d viewPoint = view.getViewPoint();
 			sb.append("viewer.setViewPoint(");
@@ -2393,7 +2400,7 @@ public class Viewer3D {
 
 		private final Coord3d TOP_VIEW = new Coord3d(Math.PI / 2, 0.5, 3000);
 		private final Coord3d PERSPECTIVE_VIEW = new Coord3d(Math.PI / 2, 0.5, 3000);
-		private final Coord3d SIDE_VIEW = new Coord3d(Math.PI, 0, 3000);
+		private final Coord3d SIDE_VIEW = new Coord3d(0, Math.PI, 3000);
 
 		private Coord3d previousViewPointPerspective;
 		private OverlayAnnotation overlayAnnotation;
@@ -2412,9 +2419,9 @@ public class Viewer3D {
 			// Store current view mode and view point in memory
 			if (currentView == ViewMode.DEFAULT) previousViewPointFree = getView()
 				.getViewPoint();
-			else if (currentView == ViewMode.TOP) previousViewPointTop = getView()
+			else if (currentView == ViewMode.XY) previousViewPointTop = getView()
 				.getViewPoint();
-			else if (currentView == ViewMode.SIDE) previousViewPointProfile = getView()
+			else if (currentView == ViewMode.YZ) previousViewPointProfile = getView()
 				.getViewPoint();
 			else if (currentView == ViewMode.PERSPECTIVE) previousViewPointPerspective =
 				getView().getViewPoint();
@@ -2426,12 +2433,12 @@ public class Viewer3D {
 				getView().setViewPoint(previousViewPointFree == null ? View.DEFAULT_VIEW
 					.clone() : previousViewPointFree);
 			}
-			else if (view == ViewMode.TOP) {
+			else if (view == ViewMode.TOP || view == ViewMode.XY) {
 				getView().setViewPositionMode(ViewPositionMode.TOP);
 				getView().setViewPoint(previousViewPointTop == null ? TOP_VIEW.clone()
 					: previousViewPointTop);
 			}
-			else if (view == ViewMode.SIDE) {
+			else if (view == ViewMode.SIDE || view == ViewMode.YZ) {
 				getView().setViewPositionMode(ViewPositionMode.PROFILE);
 				getView().setViewPoint(previousViewPointProfile == null
 					? SIDE_VIEW.clone() : previousViewPointProfile);
@@ -6032,7 +6039,7 @@ public class Viewer3D {
 		@Override
 		public boolean handleSlaveThread(final MouseEvent e) {
 			if (AWTMouseUtilities.isDoubleClick(e)) {
-				if (currentView == ViewMode.TOP) {
+				if (currentView == ViewMode.XY) {
 					displayMsg("Rotation disabled in constrained view");
 					return true;
 				}
@@ -6046,7 +6053,7 @@ public class Viewer3D {
 		}
 
 		private void rotateLive(final Coord2d move) {
-			if (currentView == ViewMode.TOP) {
+			if (currentView == ViewMode.XY) {
 				displayMsg("Rotation disabled in constrained view");
 				return;
 			}
