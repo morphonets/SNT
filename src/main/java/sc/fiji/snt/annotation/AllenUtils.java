@@ -21,6 +21,7 @@
  */
 package sc.fiji.snt.annotation;
 
+import net.imglib2.util.LinAlgHelpers;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -29,6 +30,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
+import sc.fiji.snt.util.LinAlgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.OBJMesh;
@@ -164,95 +166,49 @@ public class AllenUtils {
 	}
 
 	/**
-	 * Given two points P and Q, return the vector PQ
-	 */
-	private static double[] pointsToVec(double[] p, double[] q) {
-		if (p.length != q.length) {
-			throw new IllegalArgumentException("Points p and q are not of equal length");
-		}
-		double[] pq = new double[p.length];
-		for (int i = 0; i < p.length; i++) {
-			pq[i] = q[i] - p[i];
-		}
-		return pq;
-	}
-
-	private static double[] crossProduct(double[] a, double[] b) {
-		if (a.length != 3 || b.length != 3) {
-			throw new IllegalArgumentException("Vectors a and b must be 3-dimensional");
-		}
-		double[] c = new double[3];
-		c[0] = a[1] * b[2] - a[2] * b[1];
-		c[1] = a[2] * b[0] - a[0] * b[2];
-		c[2] = a[0] * b[1] - a[1] * b[0];
-		return c;
-	}
-
-	private static double dotProduct(double[] a, double[] b) {
-		if (a.length != b.length) {
-			throw new IllegalArgumentException("Vectors a and b are not of equal length");
-		}
-		double result = 0;
-		for (int i = 0; i < a.length; i++) {
-			result += a[i] * b[i];
-		}
-		return result;
-	}
-
-	private static double euclideanNorm(double[] v) {
-		return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-	}
-
-	private static double[] normalizeVec(double[] v) {
-		double norm = euclideanNorm(v);
-		double[] normalized = new double[v.length];
-		for (int i = 0; i < v.length; i++) {
-			normalized[i] = v[i] / norm;
-		}
-		return normalized;
-	}
-
-	private static double[] matrixVectorProduct(double[][] A, double[] v) {
-		double[] b = new double[v.length];
-		for (int i = 0; i < v.length; i++) {
-			b[i] = dotProduct(A[i], v);
-		}
-		return b;
-	}
-
-	/**
-	 * Return the 4x4 Householder reflection matrix
-	 */
-	private static double[][] reflectionMatrix(double[] planePoint, double[] planeNormal) {
-		double a = planeNormal[0];
-		double b = planeNormal[1];
-		double c = planeNormal[2];
-		double d = -1 * a * planePoint[0] - b * planePoint[1] - c * planePoint[2];
-		// We need to use an affine transformation instead of linear
-		// since the plane of reflection does not go through the origin.
-		return new double[][]{ {  1-2*a*a, -2*a*b,   -2*a*c,   -2*a*d },
-				{ -2*a*b,    1-2*b*b, -2*b*c,   -2*b*d },
-				{ -2*a*c,   -2*b*c,    1-2*c*c, -2*c*d },
-				{  0,        0,        0,        1 } };
-	}
-
-	/**
 	 * Reflect the Tree across the mid-sagittal plane passing through the brain
 	 * barycentre.
 	 */
-	private static void mirrorTree(final Tree tree) { // FIXME: Check this for CCFv3
-		double[] p = new double[] { brainCenter().getX(), brainCenter().getY(), brainCenter().getZ() };
-		double[] q = new double[] { p[0], p[1] + 100, p[2] };
-		double[] r = new double[] { p[0], p[1], p[2] + 100 };
-		double[] pq = pointsToVec(p, q);
-		double[] pr = pointsToVec(p, r);
-		double[] unitNormal = normalizeVec(crossProduct(pq, pr));
-		double[][] A = reflectionMatrix(p, unitNormal);
-		for (Path path : tree.list()) {
+	private static void mirrorTree(final Tree tree) {
+		final double[] p = new double[] { brainCenter().getX(), brainCenter().getY(), brainCenter().getZ() };
+		final double[] q = new double[] { p[0], p[1], p[2]};
+		final double[] r = new double[] { p[0], p[1], p[2]};
+		// Choose two vectors defining the sagittal plane.
+		switch (VERSION) {
+			case V3:
+				// Axes> X: Anterior-Posterior; Y: Inferior-Superior; Z:Left-Right
+				// XY is sagittal plane
+				q[0] += 100;
+				r[1] += 100;
+				break;
+			case V2_5:
+				// Axes> Z: Anterior-Posterior; Y: Inferior-Superior; X:Left-Right
+				// ZY is sagittal plane
+				q[1] += 100;
+				r[2] += 100;
+				break;
+			default:
+				throw new IllegalArgumentException("Unrecognized CCF version");
+		}
+		final double[] pq = new double[3];
+		LinAlgHelpers.subtract(q, p, pq);
+		final double[] pr = new double[3];
+		LinAlgHelpers.subtract(r, p, pr);
+		final double[] crossed = new double[3];
+		LinAlgHelpers.cross(pq, pr, crossed);
+		LinAlgHelpers.normalize(crossed);
+		final double[][] A = LinAlgUtils.reflectionMatrix(p, crossed);
+		final double[] oldCoords = new double[4];
+		final double[] newCoords = new double[4];
+		for (final Path path : tree.list()) {
 			for (int i = 0; i < path.size(); i++) {
-				PointInImage node = path.getNode(i);
-				double[] oldCoords = new double[] { node.getX(), node.getY(), node.getZ(), 1 };
-				double[] newCoords = matrixVectorProduct(A, oldCoords);
+				final PointInImage node = path.getNode(i);
+				oldCoords[0] = node.getX();
+				oldCoords[1] = node.getY();
+				oldCoords[2] = node.getZ();
+				// Use augmented matrix
+				oldCoords[3] = 1d;
+				LinAlgHelpers.mult(A, oldCoords, newCoords);
 				path.moveNode(i, new PointInImage(newCoords[0], newCoords[1], newCoords[2]));
 			}
 		}
