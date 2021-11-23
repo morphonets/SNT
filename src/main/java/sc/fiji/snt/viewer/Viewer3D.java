@@ -38,75 +38,21 @@ import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseWheelEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.event.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
-import javax.swing.AbstractAction;
-import javax.swing.AbstractButton;
-import javax.swing.BoxLayout;
-import javax.swing.ButtonGroup;
-import javax.swing.DefaultListCellRenderer;
-import javax.swing.DefaultListModel;
-import javax.swing.Icon;
-import javax.swing.JButton;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JProgressBar;
-import javax.swing.JScrollPane;
-import javax.swing.JSlider;
-import javax.swing.JTree;
-import javax.swing.KeyStroke;
-import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
-import javax.swing.SwingWorker;
+import javax.swing.*;
 import javax.swing.Timer;
-import javax.swing.WindowConstants;
 import javax.swing.border.Border;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
@@ -115,20 +61,24 @@ import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 
 import org.jzy3d.bridge.awt.FrameAWT;
-import org.jzy3d.chart.AWTChart;
 import org.jzy3d.chart.Chart;
 import org.jzy3d.chart.Settings;
+import org.jzy3d.chart.SwingChart;
 import org.jzy3d.chart.controllers.ControllerType;
 import org.jzy3d.chart.controllers.camera.AbstractCameraController;
 import org.jzy3d.chart.controllers.mouse.AWTMouseUtilities;
 import org.jzy3d.chart.controllers.mouse.camera.AWTCameraMouseController;
 import org.jzy3d.chart.controllers.thread.camera.CameraThreadController;
-import org.jzy3d.chart.factories.AWTChartFactory;
+import org.jzy3d.chart.factories.ChartFactory;
+import org.jzy3d.chart.factories.EmulGLChartFactory;
 import org.jzy3d.chart.factories.IChartFactory;
 import org.jzy3d.chart.factories.IFrame;
+import org.jzy3d.chart.factories.OffscreenChartFactory;
+import org.jzy3d.chart.factories.SwingChartFactory;
 import org.jzy3d.colors.Color;
 import org.jzy3d.colors.ColorMapper;
 import org.jzy3d.colors.ISingleColorable;
+import org.jzy3d.events.ViewPointChangedEvent;
 import org.jzy3d.maths.BoundingBox3d;
 import org.jzy3d.maths.Coord2d;
 import org.jzy3d.maths.Coord3d;
@@ -136,12 +86,12 @@ import org.jzy3d.maths.Rectangle;
 import org.jzy3d.plot2d.primitive.AWTColorbarImageGenerator;
 import org.jzy3d.plot3d.primitives.Composite;
 import org.jzy3d.plot3d.primitives.Drawable;
-import org.jzy3d.plot3d.primitives.Wireframeable;
 import org.jzy3d.plot3d.primitives.LineStrip;
 import org.jzy3d.plot3d.primitives.Point;
 import org.jzy3d.plot3d.primitives.Shape;
 import org.jzy3d.plot3d.primitives.Sphere;
 import org.jzy3d.plot3d.primitives.Tube;
+import org.jzy3d.plot3d.primitives.Wireframeable;
 import org.jzy3d.plot3d.primitives.axis.layout.providers.ITickProvider;
 import org.jzy3d.plot3d.primitives.axis.layout.providers.RegularTickProvider;
 import org.jzy3d.plot3d.primitives.axis.layout.providers.SmartTickProvider;
@@ -179,41 +129,36 @@ import org.scijava.prefs.PrefService;
 import org.scijava.ui.UIService;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.ui.swing.script.TextEditor;
-import org.scijava.util.ColorRGB;
-import org.scijava.util.ColorRGBA;
-import org.scijava.util.Colors;
-import org.scijava.util.FileUtils;
-import org.scijava.util.PlatformUtils;
+import org.scijava.util.*;
 
 import com.jidesoft.swing.CheckBoxList;
 import com.jidesoft.swing.CheckBoxTree;
 import com.jidesoft.swing.ListSearchable;
 import com.jidesoft.swing.SearchableBar;
 import com.jidesoft.swing.TreeSearchable;
-import com.jogamp.opengl.FPSCounter;
-import com.jogamp.opengl.GLAnimatorControl;
 import com.jogamp.opengl.GLCapabilities;
 import com.jogamp.opengl.GLException;
 import com.jogamp.opengl.GLProfile;
+import com.jogamp.opengl.util.FPSAnimator;
 
 import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
+import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.analysis.MultiTreeColorMapper;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeColorMapper;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.SNTService;
-import sc.fiji.snt.Tree;
-import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
-import sc.fiji.snt.annotation.ZBAtlasUtils;
 import sc.fiji.snt.annotation.VFBUtils;
+import sc.fiji.snt.annotation.ZBAtlasUtils;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
@@ -244,6 +189,26 @@ import sc.fiji.snt.viewer.OBJMesh.RemountableDrawableVBO;
  * @author Tiago Ferreira
  */
 public class Viewer3D {
+
+	private enum Engine {
+		JOGL(new String[] { "jogl", "gpu" }), EMUL_GL(new String[] { "cpu", "emulgl" }),
+		OFFSCREEN(new String[] { "offscreen", "headless" });
+
+		final String[] labels;
+
+		Engine(final String[] labels) {
+			this.labels = labels;
+		}
+
+		static Engine fromString(final String label) {
+			for (final Engine e : Engine.values()) {
+				if (Arrays.stream(e.labels).anyMatch(l -> l.equalsIgnoreCase(label))) {
+					return e;
+				}
+			}
+			throw new IllegalArgumentException("'" + label + "': not a recognizable engine");
+		}
+	};
 
 	/**
 	 * Presets of a scene's view point.
@@ -342,6 +307,7 @@ public class Viewer3D {
 	private ViewMode currentView;
 	private FileDropWorker fileDropWorker;
 	private boolean abortCurrentOperation;
+	private final Engine ENGINE;
 
 	@Parameter
 	private Context context;
@@ -358,17 +324,14 @@ public class Viewer3D {
 	@Parameter
 	private PrefService prefService;
 
-	/**
-	 * Instantiates Viewer3D without the 'Controls' dialog ('kiosk mode'). Such
-	 * a viewer is more suitable for large datasets and allows for {@link Tree}s to
-	 * be added concurrently.
-	 */
-	public Viewer3D() {
+	private Viewer3D(final Engine engine) {
 		SNTUtils.log("Initializing Viewer3D...");
-		workaroundIntelGraphicsBug();
-		Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
-		Settings.getInstance().setHardwareAccelerated(true);
-		logGLDetails();
+		ENGINE = engine;
+		if (Engine.JOGL == engine) {
+			workaroundIntelGraphicsBug();
+			Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
+			Settings.getInstance().setHardwareAccelerated(true);
+		}
 		plottedTrees = new TreeMap<>();
 		plottedObjs = new TreeMap<>();
 		plottedAnnotations = new TreeMap<>();
@@ -377,6 +340,15 @@ public class Viewer3D {
 		prefs.setPreferences();
 		setID();
 		SNTUtils.addViewer(this);
+	}
+
+	/**
+	 * Instantiates Viewer3D without the 'Controls' dialog ('kiosk mode'). Such
+	 * a viewer is more suitable for large datasets and allows for {@link Tree}s to
+	 * be added concurrently.
+	 */
+	public Viewer3D() {
+		this(Engine.JOGL);
 	}
 
 	/**
@@ -398,8 +370,23 @@ public class Viewer3D {
 	 *                    import, manage and customize the Viewer's scene.
 	 */
 	public Viewer3D(final boolean interactive) {
-		this();
+		this(interactive, "jogl");
+	}
+
+	/**
+	 * Script-friendly constructor.
+	 *
+	 * @param interactive if true, the viewer is displayed with GUI Controls to
+	 *                    import, manage and customize the Viewer's scene.
+	 * @param engine      the rendering engine. Either "gpu" (JOGL), "cpu" (EmulGL),
+	 *                    or "offscreen" (headless). "cpu" and "offscreen" are highly
+	 *                    experimental.
+	 */
+	public Viewer3D(final boolean interactive, final String engine) {
+		this(Engine.fromString(engine));
 		if (interactive) {
+			if (ENGINE == Engine.OFFSCREEN)
+				throw new IllegalArgumentException("Offscreen engine cannot be used interactively");
 			init(new Context(CommandService.class, DisplayService.class, PrefService.class, SNTService.class,
 					UIService.class));
 		}
@@ -468,7 +455,9 @@ public class Viewer3D {
 	/* returns true if chart was initialized */
 	private boolean initView() {
 		if (chartExists()) return false;
-		chart = new AChart(Quality.Nicest(), this); // There does not seem to be a swing implementation of
+		final Quality quality = Quality.Nicest();
+		quality.setHiDPIEnabled(true); // requires java 9+
+		chart = new AChart(quality, this); // There does not seem to be a swing implementation of
 												  // ICameraMouseController so we are stuck with AWT
 		chart.black();
 		view = chart.getView();
@@ -707,12 +696,14 @@ public class Viewer3D {
 
 	private void logVideoInstructions(final File destinationDirectory) {
 		final StringBuilder sb = new StringBuilder("The image sequence can be converted into a video using ffmpeg (www.ffmpeg.org):");
-		sb.append("\n-------------------------------------------\n");
+		sb.append("\n===========================================\n");
 		sb.append("cd \"").append(destinationDirectory).append("\"\n");
 		sb.append("ffmpeg -framerate ").append(prefs.getFPS()).append(" -i %5d.png -vf \"");
-		if (currentView == ViewMode.SIDE && !view.isAxisDisplayed()) sb.append("vflip,");
 		sb.append("scale=-1:-1,format=yuv420p\" video.mp4");
 		sb.append("\n-------------------------------------------\n");
+		sb.append("NB: hflip/vflip can be included in the comma-separated list of filter options to\n");
+		sb.append("flip sequence horizontally/vertically, e.g.: hflip,vflip,scale=-1:-1,format=yuv420p");
+		sb.append("\n===========================================\n");
 		sb.append("\nAlternatively, IJ built-in commands can also be used, e.g.:\n");
 		sb.append("\"File>Import>Image Sequence...\", followed by \"File>Save As>AVI...\"");
 		try {
@@ -2383,19 +2374,8 @@ public class Viewer3D {
 //		return (chart == null) ? null : view;
 //	}
 
-	/** ChartComponentFactory adopting {@link AView} */
-	private class AChartComponentFactory extends AWTChartFactory {
-
-		@Override
-		public View newView(final Scene scene, final ICanvas canvas,
-			final Quality quality)
-		{
-			return new AView(getFactory(), scene, canvas, quality);
-		}
-	}
-
 	/** AWTChart adopting {@link AView} */
-	private class AChart extends AWTChart {
+	private class AChart extends SwingChart {
 
 		private final Coord3d TOP_VIEW = new Coord3d(Math.PI / 2, 0.5, 3000);
 		private final Coord3d PERSPECTIVE_VIEW = new Coord3d(Math.PI / 2, 0.5, 3000);
@@ -2406,7 +2386,7 @@ public class Viewer3D {
 		private final Viewer3D viewer;
 
 		public AChart(final Quality quality, final Viewer3D viewer) {
-			super(new AChartComponentFactory(), quality);
+			super(new ViewerFactory().getUpstreamFactory(viewer.ENGINE), quality);
 			currentView = ViewMode.DEFAULT;
 			addRenderer(overlayAnnotation = new OverlayAnnotation(getView()));
 			this.viewer = viewer;
@@ -2588,33 +2568,6 @@ public class Viewer3D {
 
 		private void setMax(final double max) {
 			this.max = max;
-		}
-	}
-
-	/**
-	 * Adapted AWTView so that top/side views better match to coronal/sagittal
-	 * ones
-	 */
-	private class AView extends AWTView {
-
-		public AView(final IChartFactory factory, final Scene scene,
-			final ICanvas canvas, final Quality quality)
-		{
-			super(factory, scene, canvas, quality);
-			//super.DISPLAY_AXE_WHOLE_BOUNDS = true;
-			//super.MAINTAIN_ALL_OBJECTS_IN_VIEW = true;
-			//setBoundMode(ViewBoundMode.AUTO_FIT);
-		}
-
-		@Override
-		protected Coord3d computeCameraEyeTop(final Coord3d viewpoint,
-			final Coord3d target)
-		{
-			Coord3d eye = viewpoint;
-			eye.x = -(float) Math.PI / 2; // on x
-			eye.y = -(float) Math.PI / 2; // on bottom
-			eye = eye.cartesian().add(target);
-			return eye;
 		}
 	}
 
@@ -4333,18 +4286,28 @@ public class Viewer3D {
 				} else {
 					SNTUtils.setDebugMode(debug);
 				}
-				if (debug) logGLDetails();
+				if (debug) {
+					switch(ENGINE) {
+					case JOGL:
+						logGLDetails();
+						break;
+					default:
+						SNTUtils.log("Rendering engine: " +  ENGINE.toString());
+					}
+				}
 			});
 			prefsMenu.add(jcbmi);
-			final JMenuItem  jcbmi2= new JCheckBoxMenuItem("Enable Hardware Acceleration", Settings.getInstance().isHardwareAccelerated());
-			//jcbmi2.setEnabled(!isSNTInstance());
-			jcbmi2.setIcon(IconFactory.getMenuIcon(GLYPH.MICROCHIP));
-			jcbmi2.setMnemonic('h');
-			jcbmi2.addItemListener(e -> {
-				Settings.getInstance().setHardwareAccelerated(jcbmi2.isSelected());
-				logGLDetails();
-			});
-			prefsMenu.add(jcbmi2);
+			if (ENGINE == Engine.JOGL) {
+				final JMenuItem  jcbmi2= new JCheckBoxMenuItem("Enable Hardware Acceleration", Settings.getInstance().isHardwareAccelerated());
+				//jcbmi2.setEnabled(!isSNTInstance());
+				jcbmi2.setIcon(IconFactory.getMenuIcon(GLYPH.MICROCHIP));
+				jcbmi2.setMnemonic('h');
+				jcbmi2.addItemListener(e -> {
+					Settings.getInstance().setHardwareAccelerated(jcbmi2.isSelected());
+					logGLDetails();
+				});
+				prefsMenu.add(jcbmi2);
+			}
 			addSeparator(prefsMenu, "Other:");
 			final JMenuItem mi = new JMenuItem("Global Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
 			mi.addActionListener(e -> {
@@ -5993,7 +5956,7 @@ public class Viewer3D {
 
 		public MouseController(final Chart chart) {
 			super(chart);
-			addSlaveThreadController(new CameraThreadControllerPlus(chart)); // will removeThreadController
+			addThread(new CameraThreadControllerPlus(chart)); // will removeThreadController
 		}
 
 		private int getY(final MouseEvent e) {
@@ -6524,7 +6487,7 @@ public class Viewer3D {
 
 	private class OverlayAnnotation extends CameraEyeOverlayAnnotation {
 
-		private GLAnimatorControl control;
+		private FPSAnimator joglAnimator;
 		private java.awt.Color color;
 		private String label;
 		private Font labelFont;
@@ -6534,8 +6497,14 @@ public class Viewer3D {
 
 		private OverlayAnnotation(final View view) {
 			super(view);
-			//FIXME control = ((IScreenCanvas) view.getCanvas()).getAnimator();
-			//FIXME control.setUpdateFPSFrames(FPSCounter.DEFAULT_FRAMES_PER_INTERVAL, null);
+			if (ENGINE == Engine.JOGL) {
+				try {
+					// this requires requires jzy v2.0.1
+					// FIXME: joglAnimator = (FPSAnimator) chart.getCanvas().getAnimation().getAnimator();
+				} catch (final Exception ignored) {
+					// do nothing
+				}
+			}
 		}
 
 		private void setForegroundColor(final Color c) {
@@ -6571,8 +6540,9 @@ public class Viewer3D {
 				g2d.drawString("Camera: " + view.getCamera().getEye(), 20, lineHeight);
 				g2d.drawString("FOV: " + view.getCamera().getRenderingSphereRadius(),
 					20, lineHeight += lineHeight);
-				g2d.drawString(control.getLastFPS() + " FPS", 20, lineHeight +=
-					lineHeight);
+				if (joglAnimator != null) {
+					g2d.drawString(joglAnimator.getLastFPS() + " FPS", 20, lineHeight += lineHeight);
+				}
 			}
 			if (label == null || label.isEmpty()) return;
 			if (labelColor != null) g2d.setColor(labelColor);
@@ -7106,6 +7076,84 @@ public class Viewer3D {
 				frame.managerPanel.progressBar.setLoadPending(true);
 			} else {
 				frame.managerPanel.progressBar.addToGlobalMax(loadSize);
+			}
+		}
+	}
+
+	/** Defines the type of render, and view used by jzy3d */
+	private class ViewerFactory {
+
+		/** Returns ChartComponentFactory adopting {@link AView} */
+		private ChartFactory getUpstreamFactory(final Engine render) {
+			switch (render) {
+			case EMUL_GL:
+				return new EmulGLFactory();
+			case OFFSCREEN:
+				return new OffScreenFactory();
+			case JOGL:
+				logGLDetails();
+				return new JOGLFactory();
+			default:
+				throw new IllegalArgumentException("Not a recognized render option: " + render.toString());
+			}
+
+		}
+
+		private class OffScreenFactory extends OffscreenChartFactory {
+
+			public OffScreenFactory() {
+				super(1920, 1080);
+			}
+
+			@Override
+			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
+				return new AView(getFactory(), scene, canvas, quality);
+			}
+		}
+
+		private class EmulGLFactory extends EmulGLChartFactory {
+
+			@Override
+			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
+				return new AView(getFactory(), scene, canvas, quality);
+			}
+		}
+
+		private class JOGLFactory extends SwingChartFactory {
+
+			@Override
+			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
+				return new AView(getFactory(), scene, canvas, quality);
+			}
+		}
+
+		/**
+		 * Adapted AWTView so that top/side views better match to coronal/sagittal ones
+		 */
+		private class AView extends AWTView {
+
+			public AView(final IChartFactory factory, final Scene scene, final ICanvas canvas, final Quality quality) {
+				super(factory, scene, canvas, quality);
+				// super.DISPLAY_AXE_WHOLE_BOUNDS = true;
+				// super.MAINTAIN_ALL_OBJECTS_IN_VIEW = true;
+				// setBoundMode(ViewBoundMode.AUTO_FIT);
+			}
+
+			@Override
+			public void setViewPoint(Coord3d polar, boolean updateView) {
+				viewpoint = polar;
+				if (updateView)
+					shoot();
+				fireViewPointChangedEvent(new ViewPointChangedEvent(this, polar));
+			}
+
+			@Override
+			protected Coord3d computeCameraEyeTop(final Coord3d viewpoint, final Coord3d target) {
+				Coord3d eye = viewpoint;
+				eye.x = -(float) Math.PI / 2; // on x
+				eye.y = -(float) Math.PI / 2; // on bottom
+				eye = eye.cartesian().add(target);
+				return eye;
 			}
 		}
 	}

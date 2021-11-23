@@ -23,7 +23,6 @@
 package sc.fiji.snt.viewer;
 
 import com.jogamp.common.nio.Buffers;
-import com.jogamp.opengl.GL;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -48,8 +47,6 @@ import org.jzy3d.painters.NativeDesktopPainter;
 import org.jzy3d.plot3d.primitives.vbo.drawable.DrawableVBO;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
-
-import com.jogamp.common.nio.Buffers;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.util.BoundingBox;
