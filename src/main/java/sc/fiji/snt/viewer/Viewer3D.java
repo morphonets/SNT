@@ -514,7 +514,9 @@ public class Viewer3D {
 	/* returns true if chart was initialized */
 	private boolean initView() {
 		if (chartExists()) return false;
-		chart = new AChart(Quality.Nicest(), this); // There does not seem to be a swing implementation of
+		final Quality quality = Quality.Nicest();
+		quality.setHiDPIEnabled(true); // requires java 9+
+		chart = new AChart(quality, this); // There does not seem to be a swing implementation of
 												  // ICameraMouseController so we are stuck with AWT
 		chart.black();
 		view = chart.getView();
@@ -6013,7 +6015,7 @@ public class Viewer3D {
 
 		public MouseController(final Chart chart) {
 			super(chart);
-			addSlaveThreadController(new CameraThreadControllerPlus(chart)); // will removeThreadController
+			addThread(new CameraThreadControllerPlus(chart)); // will removeThreadController
 		}
 
 		private int getY(final MouseEvent e) {
