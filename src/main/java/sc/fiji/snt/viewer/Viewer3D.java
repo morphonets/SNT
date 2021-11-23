@@ -124,8 +124,11 @@ import org.jzy3d.chart.controllers.mouse.AWTMouseUtilities;
 import org.jzy3d.chart.controllers.mouse.camera.AWTCameraMouseController;
 import org.jzy3d.chart.controllers.thread.camera.CameraThreadController;
 import org.jzy3d.chart.factories.AWTChartFactory;
+import org.jzy3d.chart.factories.ChartFactory;
+import org.jzy3d.chart.factories.EmulGLChartFactory;
 import org.jzy3d.chart.factories.IChartFactory;
 import org.jzy3d.chart.factories.IFrame;
+import org.jzy3d.chart.factories.OffscreenChartFactory;
 import org.jzy3d.colors.Color;
 import org.jzy3d.colors.ColorMapper;
 import org.jzy3d.colors.ISingleColorable;
@@ -245,6 +248,25 @@ import sc.fiji.snt.viewer.OBJMesh.RemountableDrawableVBO;
  */
 public class Viewer3D {
 
+	private enum Engine {
+		JOGL("jogl"), EMUL_GL("cpu"), OFFSCREEN("offscreen");
+
+		public final String label;
+
+		Engine(final String label) {
+			this.label = label;
+		}
+
+		public static Engine fromString(final String label) {
+			for (final Engine e : Engine.values()) {
+				if (e.label.equalsIgnoreCase(label)) {
+					return e;
+				}
+			}
+			throw new IllegalArgumentException("No Engine associated to " + label + " found");
+		}
+	};
+
 	/**
 	 * Presets of a scene's view point.
 	 */
@@ -342,6 +364,7 @@ public class Viewer3D {
 	private ViewMode currentView;
 	private FileDropWorker fileDropWorker;
 	private boolean abortCurrentOperation;
+	private final Engine ENGINE;
 
 	@Parameter
 	private Context context;
@@ -358,17 +381,14 @@ public class Viewer3D {
 	@Parameter
 	private PrefService prefService;
 
-	/**
-	 * Instantiates Viewer3D without the 'Controls' dialog ('kiosk mode'). Such
-	 * a viewer is more suitable for large datasets and allows for {@link Tree}s to
-	 * be added concurrently.
-	 */
-	public Viewer3D() {
+	private Viewer3D(final Engine engine) {
 		SNTUtils.log("Initializing Viewer3D...");
-		workaroundIntelGraphicsBug();
-		Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
-		Settings.getInstance().setHardwareAccelerated(true);
-		logGLDetails();
+		ENGINE = engine;
+		if (engine == Engine.JOGL) {
+			workaroundIntelGraphicsBug();
+			Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
+			Settings.getInstance().setHardwareAccelerated(true);
+		}
 		plottedTrees = new TreeMap<>();
 		plottedObjs = new TreeMap<>();
 		plottedAnnotations = new TreeMap<>();
@@ -377,6 +397,15 @@ public class Viewer3D {
 		prefs.setPreferences();
 		setID();
 		SNTUtils.addViewer(this);
+	}
+
+	/**
+	 * Instantiates Viewer3D without the 'Controls' dialog ('kiosk mode'). Such
+	 * a viewer is more suitable for large datasets and allows for {@link Tree}s to
+	 * be added concurrently.
+	 */
+	public Viewer3D() {
+		this(Engine.JOGL);
 	}
 
 	/**
@@ -399,6 +428,23 @@ public class Viewer3D {
 	 */
 	public Viewer3D(final boolean interactive) {
 		this();
+		if (interactive) {
+			init(new Context(CommandService.class, DisplayService.class, PrefService.class, SNTService.class,
+					UIService.class));
+		}
+	}
+
+	/**
+	 * Script-friendly constructor.
+	 *
+	 * @param interactive if true, the viewer is displayed with GUI Controls to
+	 *                    import, manage and customize the Viewer's scene.
+	 * @param engine      the rendering engine. Either "gpu" (JOGL), "cpu" (EmulGL),
+	 *                    or "offscreen". "cpu" and "offscreen" are highly
+	 *                    experimental
+	 */
+	public Viewer3D(final boolean interactive, final String engine) {
+		this(Engine.fromString(engine));
 		if (interactive) {
 			init(new Context(CommandService.class, DisplayService.class, PrefService.class, SNTService.class,
 					UIService.class));
@@ -2385,17 +2431,6 @@ public class Viewer3D {
 //		return (chart == null) ? null : view;
 //	}
 
-	/** ChartComponentFactory adopting {@link AView} */
-	private class AChartComponentFactory extends AWTChartFactory {
-
-		@Override
-		public View newView(final Scene scene, final ICanvas canvas,
-			final Quality quality)
-		{
-			return new AView(getFactory(), scene, canvas, quality);
-		}
-	}
-
 	/** AWTChart adopting {@link AView} */
 	private class AChart extends SwingChart {
 
@@ -2408,7 +2443,7 @@ public class Viewer3D {
 		private final Viewer3D viewer;
 
 		public AChart(final Quality quality, final Viewer3D viewer) {
-			super(new AChartComponentFactory(), quality);
+			super(new ViewerFactory().getUpstreamFactory(viewer.ENGINE), quality);
 			currentView = ViewMode.DEFAULT;
 			addRenderer(overlayAnnotation = new OverlayAnnotation(getView()));
 			this.viewer = viewer;
@@ -2590,33 +2625,6 @@ public class Viewer3D {
 
 		private void setMax(final double max) {
 			this.max = max;
-		}
-	}
-
-	/**
-	 * Adapted AWTView so that top/side views better match to coronal/sagittal
-	 * ones
-	 */
-	private class AView extends AWTView {
-
-		public AView(final IChartFactory factory, final Scene scene,
-			final ICanvas canvas, final Quality quality)
-		{
-			super(factory, scene, canvas, quality);
-			//super.DISPLAY_AXE_WHOLE_BOUNDS = true;
-			//super.MAINTAIN_ALL_OBJECTS_IN_VIEW = true;
-			//setBoundMode(ViewBoundMode.AUTO_FIT);
-		}
-
-		@Override
-		protected Coord3d computeCameraEyeTop(final Coord3d viewpoint,
-			final Coord3d target)
-		{
-			Coord3d eye = viewpoint;
-			eye.x = -(float) Math.PI / 2; // on x
-			eye.y = -(float) Math.PI / 2; // on bottom
-			eye = eye.cartesian().add(target);
-			return eye;
 		}
 	}
 
@@ -4335,18 +4343,28 @@ public class Viewer3D {
 				} else {
 					SNTUtils.setDebugMode(debug);
 				}
-				if (debug) logGLDetails();
+				if (debug) {
+					switch(ENGINE) {
+					case JOGL:
+						logGLDetails();
+						break;
+					default:
+						SNTUtils.log("Rendering engine: " +  ENGINE.toString());
+					}
+				}
 			});
 			prefsMenu.add(jcbmi);
-			final JMenuItem  jcbmi2= new JCheckBoxMenuItem("Enable Hardware Acceleration", Settings.getInstance().isHardwareAccelerated());
-			//jcbmi2.setEnabled(!isSNTInstance());
-			jcbmi2.setIcon(IconFactory.getMenuIcon(GLYPH.MICROCHIP));
+			if (ENGINE == Engine.JOGL) {
+				final JMenuItem  jcbmi2= new JCheckBoxMenuItem("Enable Hardware Acceleration", Settings.getInstance().isHardwareAccelerated());
+				//jcbmi2.setEnabled(!isSNTInstance());
+				jcbmi2.setIcon(IconFactory.getMenuIcon(GLYPH.MICROCHIP));
 			jcbmi2.setMnemonic('h');
 			jcbmi2.addItemListener(e -> {
 				Settings.getInstance().setHardwareAccelerated(jcbmi2.isSelected());
-				logGLDetails();
-			});
-			prefsMenu.add(jcbmi2);
+					logGLDetails();
+				});
+				prefsMenu.add(jcbmi2);
+			}
 			addSeparator(prefsMenu, "Other:");
 			final JMenuItem mi = new JMenuItem("Global Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
 			mi.addActionListener(e -> {
@@ -7108,6 +7126,84 @@ public class Viewer3D {
 				frame.managerPanel.progressBar.setLoadPending(true);
 			} else {
 				frame.managerPanel.progressBar.addToGlobalMax(loadSize);
+			}
+		}
+	}
+
+	/** Defines the type of render, and view used by jzy3d */
+	private class ViewerFactory {
+
+		/** Returns ChartComponentFactory adopting {@link AView} */
+		private ChartFactory getUpstreamFactory(final Engine render) {
+			switch (render) {
+			case EMUL_GL:
+				return new EmulGLFactory();
+			case OFFSCREEN:
+				return new OffScreenFactory();
+			case JOGL:
+				logGLDetails();
+				return new JOGLFactory();
+			default:
+				throw new IllegalArgumentException("Not a recognized render option: " + render.toString());
+			}
+
+		}
+
+		private class OffScreenFactory extends OffscreenChartFactory {
+
+			public OffScreenFactory() {
+				super(1920, 1080);
+			}
+
+			@Override
+			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
+				return new AView(getFactory(), scene, canvas, quality);
+			}
+		}
+
+		private class EmulGLFactory extends EmulGLChartFactory {
+
+			@Override
+			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
+				return new AView(getFactory(), scene, canvas, quality);
+			}
+		}
+
+		private class JOGLFactory extends SwingChartFactory {
+
+			@Override
+			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
+				return new AView(getFactory(), scene, canvas, quality);
+			}
+		}
+
+		/**
+		 * Adapted AWTView so that top/side views better match to coronal/sagittal ones
+		 */
+		private class AView extends AWTView {
+
+			public AView(final IChartFactory factory, final Scene scene, final ICanvas canvas, final Quality quality) {
+				super(factory, scene, canvas, quality);
+				// super.DISPLAY_AXE_WHOLE_BOUNDS = true;
+				// super.MAINTAIN_ALL_OBJECTS_IN_VIEW = true;
+				// setBoundMode(ViewBoundMode.AUTO_FIT);
+			}
+
+			@Override
+			public void setViewPoint(Coord3d polar, boolean updateView) {
+				viewpoint = polar;
+				if (updateView)
+					shoot();
+				fireViewPointChangedEvent(new ViewPointChangedEvent(this, polar));
+			}
+
+			@Override
+			protected Coord3d computeCameraEyeTop(final Coord3d viewpoint, final Coord3d target) {
+				Coord3d eye = viewpoint;
+				eye.x = -(float) Math.PI / 2; // on x
+				eye.y = -(float) Math.PI / 2; // on bottom
+				eye = eye.cartesian().add(target);
+				return eye;
 			}
 		}
 	}

@@ -186,6 +186,18 @@
 			</exclusions>
 		</dependency>
 		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-emul-gl</artifactId>
+			<version>${jzy3d.version}</version>
+			<exclusions>
+				<exclusion>
+					<!-- NB: Exclude problematic uber-JAR that bundles miglayout -->
+					<groupId>com.miglayout</groupId>
+					<artifactId>miglayout</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf</artifactId>
 			<version>1.6.1</version>
