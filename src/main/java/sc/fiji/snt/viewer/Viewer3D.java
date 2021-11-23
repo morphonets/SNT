@@ -136,10 +136,10 @@ import com.jidesoft.swing.CheckBoxTree;
 import com.jidesoft.swing.ListSearchable;
 import com.jidesoft.swing.SearchableBar;
 import com.jidesoft.swing.TreeSearchable;
-import com.jogamp.opengl.GLAnimatorControl;
 import com.jogamp.opengl.GLCapabilities;
 import com.jogamp.opengl.GLException;
 import com.jogamp.opengl.GLProfile;
+import com.jogamp.opengl.util.FPSAnimator;
 
 import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
@@ -191,21 +191,22 @@ import sc.fiji.snt.viewer.OBJMesh.RemountableDrawableVBO;
 public class Viewer3D {
 
 	private enum Engine {
-		JOGL("jogl"), EMUL_GL("cpu"), OFFSCREEN("offscreen");
+		JOGL(new String[] { "jogl", "gpu" }), EMUL_GL(new String[] { "cpu", "emulgl" }),
+		OFFSCREEN(new String[] { "offscreen", "headless" });
 
-		public final String label;
+		final String[] labels;
 
-		Engine(final String label) {
-			this.label = label;
+		Engine(final String[] labels) {
+			this.labels = labels;
 		}
 
-		public static Engine fromString(final String label) {
+		static Engine fromString(final String label) {
 			for (final Engine e : Engine.values()) {
-				if (e.label.equalsIgnoreCase(label)) {
+				if (Arrays.stream(e.labels).anyMatch(l -> l.equalsIgnoreCase(label))) {
 					return e;
 				}
 			}
-			throw new IllegalArgumentException("No Engine associated to " + label + " found");
+			throw new IllegalArgumentException("'" + label + "': not a recognizable engine");
 		}
 	};
 
@@ -326,7 +327,7 @@ public class Viewer3D {
 	private Viewer3D(final Engine engine) {
 		SNTUtils.log("Initializing Viewer3D...");
 		ENGINE = engine;
-		if (engine == Engine.JOGL) {
+		if (Engine.JOGL == engine) {
 			workaroundIntelGraphicsBug();
 			Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
 			Settings.getInstance().setHardwareAccelerated(true);
@@ -369,11 +370,7 @@ public class Viewer3D {
 	 *                    import, manage and customize the Viewer's scene.
 	 */
 	public Viewer3D(final boolean interactive) {
-		this();
-		if (interactive) {
-			init(new Context(CommandService.class, DisplayService.class, PrefService.class, SNTService.class,
-					UIService.class));
-		}
+		this(interactive, "jogl");
 	}
 
 	/**
@@ -382,12 +379,14 @@ public class Viewer3D {
 	 * @param interactive if true, the viewer is displayed with GUI Controls to
 	 *                    import, manage and customize the Viewer's scene.
 	 * @param engine      the rendering engine. Either "gpu" (JOGL), "cpu" (EmulGL),
-	 *                    or "offscreen". "cpu" and "offscreen" are highly
-	 *                    experimental
+	 *                    or "offscreen" (headless). "cpu" and "offscreen" are highly
+	 *                    experimental.
 	 */
 	public Viewer3D(final boolean interactive, final String engine) {
 		this(Engine.fromString(engine));
 		if (interactive) {
+			if (ENGINE == Engine.OFFSCREEN)
+				throw new IllegalArgumentException("Offscreen engine cannot be used interactively");
 			init(new Context(CommandService.class, DisplayService.class, PrefService.class, SNTService.class,
 					UIService.class));
 		}
@@ -6488,7 +6487,7 @@ public class Viewer3D {
 
 	private class OverlayAnnotation extends CameraEyeOverlayAnnotation {
 
-		private GLAnimatorControl control;
+		private FPSAnimator joglAnimator;
 		private java.awt.Color color;
 		private String label;
 		private Font labelFont;
@@ -6498,8 +6497,14 @@ public class Viewer3D {
 
 		private OverlayAnnotation(final View view) {
 			super(view);
-			//FIXME control = ((IScreenCanvas) view.getCanvas()).getAnimator();
-			//FIXME control.setUpdateFPSFrames(FPSCounter.DEFAULT_FRAMES_PER_INTERVAL, null);
+			if (ENGINE == Engine.JOGL) {
+				try {
+					// this requires requires jzy v2.0.1
+					// FIXME: joglAnimator = (FPSAnimator) chart.getCanvas().getAnimation().getAnimator();
+				} catch (final Exception ignored) {
+					// do nothing
+				}
+			}
 		}
 
 		private void setForegroundColor(final Color c) {
@@ -6535,8 +6540,9 @@ public class Viewer3D {
 				g2d.drawString("Camera: " + view.getCamera().getEye(), 20, lineHeight);
 				g2d.drawString("FOV: " + view.getCamera().getRenderingSphereRadius(),
 					20, lineHeight += lineHeight);
-				g2d.drawString(control.getLastFPS() + " FPS", 20, lineHeight +=
-					lineHeight);
+				if (joglAnimator != null) {
+					g2d.drawString(joglAnimator.getLastFPS() + " FPS", 20, lineHeight += lineHeight);
+				}
 			}
 			if (label == null || label.isEmpty()) return;
 			if (labelColor != null) g2d.setColor(labelColor);
