@@ -2397,7 +2397,7 @@ public class Viewer3D {
 	}
 
 	/** AWTChart adopting {@link AView} */
-	private class AChart extends AWTChart {
+	private class AChart extends SwingChart {
 
 		private final Coord3d TOP_VIEW = new Coord3d(Math.PI / 2, 0.5, 3000);
 		private final Coord3d PERSPECTIVE_VIEW = new Coord3d(Math.PI / 2, 0.5, 3000);
