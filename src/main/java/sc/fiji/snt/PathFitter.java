@@ -22,14 +22,24 @@
 
 package sc.fiji.snt;
 
-import java.util.Arrays;
-import java.util.concurrent.Callable;
-
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.process.FloatProcessor;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.RealRandomAccess;
+import net.imglib2.RealRandomAccessible;
+import net.imglib2.converter.Converters;
+import net.imglib2.converter.RealFloatConverter;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
+import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.view.Views;
 import pal.math.ConjugateDirectionSearch;
 import pal.math.MultivariateFunction;
+
+import java.util.Arrays;
+import java.util.concurrent.Callable;
 
 /**
  * Class for fitting circular cross-sections around existing nodes of a
@@ -38,6 +48,7 @@ import pal.math.MultivariateFunction;
  * 
  * @author Tiago Ferreira
  * @author Mark Longair
+ * @author Cameron Arshadi
  * 
  */
 public class PathFitter implements Callable<Path> {
@@ -64,7 +75,7 @@ public class PathFitter implements Callable<Path> {
 	public static final int RADII_AND_MIDPOINTS = 4;
 
 	private final SNT plugin;
-	private ImagePlus imp;
+	private RandomAccessibleInterval<? extends RealType<?>> img;
 	private Path path;
 	private boolean showDetailedFittingResults;
 	private int fitterIndex;
@@ -84,11 +95,15 @@ public class PathFitter implements Callable<Path> {
 	 * @param path the {@link Path} to be fitted
 	 */
 	public PathFitter(final ImagePlus imp, final Path path) {
+		this(ImageJFunctions.wrapReal(imp), path);
+	}
+
+	public PathFitter(final RandomAccessibleInterval<? extends RealType<?>> img, final Path path) {
 		if (path == null) throw new IllegalArgumentException(
-			"Cannot fit a null path");
+				"Cannot fit a null path");
 		if (path.isFittedVersionOfAnotherPath()) throw new IllegalArgumentException(
-			"Trying to fit an already fitted path");
-		setImp(imp);
+				"Trying to fit an already fitted path");
+		setImage(img);
 		this.plugin = null;
 		this.path = path;
 		this.fitterIndex = -1;
@@ -111,7 +126,7 @@ public class PathFitter implements Callable<Path> {
 		if (path.isFittedVersionOfAnotherPath()) throw new IllegalArgumentException(
 			"Trying to fit an already fitted path");
 		this.plugin = plugin;
-		setImp(plugin.getLoadedDataAsImp());
+		setImage(plugin.getLoadedData());
 		this.path = path;
 		this.fitterIndex = -1;
 		this.progress = null;
@@ -240,7 +255,7 @@ public class PathFitter implements Callable<Path> {
 		}
 	}
 
-	private void fitCircles() {
+	private <T extends RealType<T>> void fitCircles() {
 
 		SNTUtils.log("Fitting " + path.getName() + ", Scope: " + getScopeAsString() +
 			", Max radius: " + sideSearch);
@@ -255,10 +270,18 @@ public class PathFitter implements Callable<Path> {
 		fitted = path.createPath();
 		SNTUtils.log("  Generating cross-section stack (" + totalPoints +
 			"slices/nodes)");
-		final int width = imp.getWidth();
-		final int height = imp.getHeight();
-		final int depth = imp.getNSlices();
+		final int width = (int) img.dimension(0);
+		final int height = (int) img.dimension(1);
+		final int depth = (int) (img.numDimensions() > 2 ? img.dimension(2) : 1);
 		final ImageStack stack = new ImageStack(sideSearch, sideSearch);
+
+		// Prepare the interpolated image for when we generate the cross-section stack
+		@SuppressWarnings("unchecked")
+		final RandomAccessibleInterval<FloatType> floatImage = Converters.convert(
+				(RandomAccessibleInterval<T>) img, new RealFloatConverter<>(), new FloatType());
+		final RealRandomAccessible<FloatType> interpolant = Views.interpolate(
+				Views.extendZero(floatImage), new NLinearInterpolatorFactory<>());
+		final RealRandomAccess<FloatType> realRandomAccess = interpolant.realRandomAccess();
 
 		// We assume that the first and the last in the stack are fine;
 		final double[] centre_x_positionsUnscaled = new double[totalPoints];
@@ -313,7 +336,7 @@ public class PathFitter implements Callable<Path> {
 				// the _spacing, etc. variables.
 				x_world, y_world, z_world, // These are scaled now
 				tangent[0], tangent[1], tangent[2], //
-				x_basis_in_plane, y_basis_in_plane, imp);
+				x_basis_in_plane, y_basis_in_plane, realRandomAccess);
 
 			// Now at this stage, try to optimize a circle in there...
 
@@ -618,7 +641,7 @@ public class PathFitter implements Callable<Path> {
 			SNTUtils.log("Generating annotated cross view stack");
 			final ImagePlus imp = new ImagePlus("Cross-section View " + fitted
 				.getName(), stack);
-			imp.setCalibration(this.imp.getCalibration());
+//			imp.setCalibration(this.imp.getCalibration());
 			if (plugin == null) {
 				imp.show();
 			}
@@ -778,42 +801,49 @@ public class PathFitter implements Callable<Path> {
 	}
 
 	private float[] squareNormalToVector(final int side, // The number of samples
-		// in x and y in the
-		// plane, separated by
-		// step
-		final double step, // step is in the same units as the _spacing,
-		// etc. variables.
-		final double ox, /* These are scaled now */
-		final double oy, final double oz, final double nx, final double ny,
-		final double nz, final double[] x_basis_vector, /*
-																										* The basis vectors are returned here
-																										*/
-		final double[] y_basis_vector, /* they *are* scaled by _spacing */
-		final ImagePlus image)
+																 // in x and y in the
+																 // plane, separated by
+																 // step
+																 final double step,
+																 // step is in the same units as the _spacing,
+																 // etc. variables.
+																 final double ox, /* These are scaled now */
+																 final double oy, final double oz, final double nx,
+																 final double ny, final double nz,
+																 final double[] x_basis_vector, /* The basis vectors are returned here */
+																 final double[] y_basis_vector, /* they *are* scaled by _spacing */
+																 final RealRandomAccess<FloatType> realRandomAccess) /* This should be from an interpolated image */
 	{
 
 		final float[] result = new float[side * side];
 
-		final double epsilon = 0.000001;
+		final double epsilon = 1e-6;
 
-		/*
-		 * To find an arbitrary vector in the normal plane, do the cross product with
-		 * (0,0,1), unless the normal is parallel to that, in which case we cross it
-		 * with (0,1,0) instead...
-		 */
+		// If the image is 2D, use the XY plane as our basis by default
+		double ax = 1;
+		double ay = 0;
+		double az = 0;
 
-		double ax, ay, az;
-		double bx, by, bz;
+		double bx = 0;
+		double by = 1;
+		double bz = 0;
 
-		if (image.getStackSize() > 1) {
+		final int nDim = realRandomAccess.numDimensions();
+
+		if (nDim > 2) {
+
+			/*
+			 * To find an arbitrary vector in the normal plane, do the cross product with
+			 * (0,0,1), unless the normal is parallel to that, in which case we cross it
+			 * with (0,1,0) instead...
+			 */
 
 			if (Math.abs(nx) < epsilon && Math.abs(ny) < epsilon) {
 				// Cross with (0,1,0):
 				ax = nz;
 				ay = 0;
 				az = -nx;
-			}
-			else {
+			} else {
 				// Cross with (0,0,1):
 				ax = -ny;
 				ay = nx;
@@ -841,17 +871,6 @@ public class PathFitter implements Callable<Path> {
 			by = by / b_size;
 			bz = bz / b_size;
 
-		} else {
-			// For 2D images, the "normal plane" to the Path tangent is not what we want, since
-			// the image does not exist in that plane. So just use xy.
-
-			ax = 1;
-			ay = 0;
-			az = 0;
-
-			bx = 0;
-			by = 1;
-			bz = 0;
 		}
 
 		/* Scale them with spacing... */
@@ -878,36 +897,7 @@ public class PathFitter implements Callable<Path> {
 //		SNT.log("a_dot_n: " + a_dot_n);
 //		SNT.log("b_dot_n: " + b_dot_n);
 
-		final int width = image.getWidth();
-		final int height = image.getHeight();
-		final int depth = image.getNSlices();
-		final float[][] v = new float[depth][];
-		final ImageStack s = image.getStack();
-		final int imageType = image.getType();
-		final int arraySize = width * height;
-		if (imageType == ImagePlus.GRAY8 || imageType == ImagePlus.COLOR_256) {
-			for (int z = 0; z < depth; ++z) {
-				final byte[] bytePixels = (byte[]) s.getPixels(z + 1);
-				final float[] fa = new float[arraySize];
-				for (int i = 0; i < arraySize; ++i)
-					fa[i] = bytePixels[i] & 0xFF;
-				v[z] = fa;
-			}
-		}
-		else if (imageType == ImagePlus.GRAY16) {
-			for (int z = 0; z < depth; ++z) {
-				final short[] shortPixels = (short[]) s.getPixels(z + 1);
-				final float[] fa = new float[arraySize];
-				for (int i = 0; i < arraySize; ++i)
-					fa[i] = shortPixels[i];
-				v[z] = fa;
-			}
-		}
-		else if (imageType == ImagePlus.GRAY32) {
-			for (int z = 0; z < depth; ++z) {
-				v[z] = (float[]) s.getPixels(z + 1);
-			}
-		}
+		final double[] position = new double[nDim];
 
 		for (int grid_i = 0; grid_i < side; ++grid_i) {
 			for (int grid_j = 0; grid_j < side; ++grid_j) {
@@ -917,91 +907,18 @@ public class PathFitter implements Callable<Path> {
 				final double gi = midside_grid - grid_i;
 				final double gj = midside_grid - grid_j;
 
-				final double vx = ox + gi * ax_s + gj * bx_s;
-				final double vy = oy + gi * ay_s + gj * by_s;
-				final double vz = oz + gi * az_s + gj * bz_s;
-
 				// So now denormalize to pixel co-ordinates:
 
-				final double image_x = vx / path.x_spacing;
-				final double image_y = vy / path.y_spacing;
-				final double image_z = vz / path.z_spacing;
+				position[0] = (ox + gi * ax_s + gj * bx_s) / path.x_spacing;
+				position[1] = (oy + gi * ay_s + gj * by_s) / path.y_spacing;
+				if (nDim > 2)
+					position[2] = (oz + gi * az_s + gj * bz_s) / path.z_spacing;
 
 				/*
-				 * And do a trilinear interpolation to find the value there:
+				 * And do n-linear interpolation to find the value there:
 				 */
 
-				final double x_d = image_x - Math.floor(image_x);
-				final double y_d = image_y - Math.floor(image_y);
-				final double z_d = image_z - Math.floor(image_z);
-
-				final int x_f = (int) Math.floor(image_x);
-				final int x_c = (int) Math.ceil(image_x);
-				final int y_f = (int) Math.floor(image_y);
-				final int y_c = (int) Math.ceil(image_y);
-				final int z_f = (int) Math.floor(image_z);
-				final int z_c = (int) Math.ceil(image_z);
-
-				/*
-				 * Check that these values aren't poking off the edge of the screen - if so then
-				 * make them zero.
-				 */
-
-				double fff;
-				double cff;
-				double fcf;
-				double ccf;
-
-				double ffc;
-				double cfc;
-				double fcc;
-				double ccc;
-
-				if ((x_f < 0) || (x_c < 0) || (y_f < 0) || (y_c < 0) || (z_f < 0) ||
-					(z_c < 0) || (x_f >= width) || (x_c >= width) || (y_f >= height) ||
-					(y_c >= height) || (z_f >= depth) || (z_c >= depth))
-				{
-
-					fff = 0;
-					cff = 0;
-					fcf = 0;
-					ccf = 0;
-					ffc = 0;
-					cfc = 0;
-					fcc = 0;
-					ccc = 0;
-
-				}
-				else {
-
-					fff = v[z_f][width * y_f + x_f];
-					cff = v[z_c][width * y_f + x_f];
-
-					fcf = v[z_f][width * y_c + x_f];
-					ccf = v[z_c][width * y_c + x_f];
-
-					ffc = v[z_f][width * y_f + x_c];
-					cfc = v[z_c][width * y_f + x_c];
-
-					fcc = v[z_f][width * y_c + x_c];
-					ccc = v[z_c][width * y_c + x_c];
-
-				}
-
-				// Now we should be OK to do the interpolation for real:
-
-				final double i1 = (1 - z_d) * (fff) + (cff) * z_d;
-				final double i2 = (1 - z_d) * (fcf) + (ccf) * z_d;
-
-				final double j1 = (1 - z_d) * (ffc) + (cfc) * z_d;
-				final double j2 = (1 - z_d) * (fcc) + (ccc) * z_d;
-
-				final double w1 = i1 * (1 - y_d) + i2 * y_d;
-				final double w2 = j1 * (1 - y_d) + j2 * y_d;
-
-				final double value_f = w1 * (1 - x_d) + w2 * x_d;
-
-				result[grid_j * side + grid_i] = (float) value_f;
+				result[grid_j * side + grid_i] = realRandomAccess.setPositionAndGet(position).getRealFloat();
 			}
 		}
 
@@ -1019,13 +936,13 @@ public class PathFitter implements Callable<Path> {
 	/**
 	 * Sets the target image
 	 *
-	 * @param imp the Image containing the signal to which the fit will be
+	 * @param img the Image containing the signal to which the fit will be
 	 *          performed
 	 */
-	public void setImp(final ImagePlus imp) {
-		if (imp == null) throw new IllegalArgumentException(
+	public void setImage(final RandomAccessibleInterval<? extends RealType<?>> img) {
+		if (img == null) throw new IllegalArgumentException(
 				"Cannot fit a null image");
-		this.imp = imp;
+		this.img = img;
 	}
 
 	private class CircleAttempt implements MultivariateFunction,
