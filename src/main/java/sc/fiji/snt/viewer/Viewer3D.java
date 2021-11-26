@@ -100,6 +100,7 @@ import org.jzy3d.plot3d.primitives.axis.layout.renderers.ITickRenderer;
 import org.jzy3d.plot3d.primitives.axis.layout.renderers.ScientificNotationTickRenderer;
 import org.jzy3d.plot3d.primitives.vbo.drawable.DrawableVBO;
 import org.jzy3d.plot3d.rendering.canvas.ICanvas;
+import org.jzy3d.plot3d.rendering.canvas.OffscreenCanvas;
 import org.jzy3d.plot3d.rendering.canvas.Quality;
 import org.jzy3d.plot3d.rendering.legends.colorbars.AWTColorbarLegend;
 import org.jzy3d.plot3d.rendering.lights.Light;
@@ -335,7 +336,7 @@ public class Viewer3D {
 	private Viewer3D(final Engine engine) {
 		SNTUtils.log("Initializing Viewer3D...");
 		ENGINE = engine;
-		if (Engine.JOGL == engine) {
+		if (Engine.JOGL == engine || Engine.OFFSCREEN == engine) {
 			workaroundIntelGraphicsBug();
 			Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
 			Settings.getInstance().setHardwareAccelerated(true);
@@ -477,8 +478,10 @@ public class Viewer3D {
 		chart.setAxeDisplayed(false);
 		squarify("none", false);
 		currentView = ViewMode.DEFAULT;
-		gUtils = new GuiUtils((Component) chart.getCanvas());
-		fileDropWorker = new FileDropWorker((Component) chart.getCanvas(), gUtils);
+		if ( !(chart.getCanvas() instanceof OffscreenCanvas)) {
+			gUtils = new GuiUtils((Component) chart.getCanvas());
+			fileDropWorker = new FileDropWorker((Component) chart.getCanvas(), gUtils);
+		}
 		return true;
 	}
 
@@ -1371,6 +1374,9 @@ public class Viewer3D {
 	 * @see #show()
 	 */
 	public Frame show(final int width, final int height) {
+		if (Engine.OFFSCREEN == ENGINE) {
+			throw new IllegalArgumentException("Offscreen canvas cannot be displayed.");
+		}
 		final JFrame dummy = new JFrame();
 		final Frame frame = show( width, height, dummy.getGraphicsConfiguration());
 		dummy.dispose();
@@ -2673,10 +2679,10 @@ public class Viewer3D {
 			lightController = new LightController(this);
 			lightController.display();
 		}
-	
+
 		private void exitRequested(final GuiUtils gUtilsDefiningPrompt) {
-			if (gUtilsDefiningPrompt.getConfirmation("Quit Reconstruction Viewer?", "Quit?", "Yes. Quit Now",
-					"No. Keep Open")) {
+			if (gUtilsDefiningPrompt != null && gUtilsDefiningPrompt.getConfirmation("Quit Reconstruction Viewer?",
+					"Quit?", "Yes. Quit Now", "No. Keep Open")) {
 				chart.viewer.dispose();
 				GuiUtils.restoreLookAndFeel();
 			}
@@ -4833,10 +4839,10 @@ public class Viewer3D {
 						return ABORTED;
 					}
 					if (collection.isEmpty()) {
-						if (promptForConfirmation) guiUtils.error("Dragged file(s) do not contain valid data.");
+						if (promptForConfirmation && guiUtils != null) guiUtils.error("Dragged file(s) do not contain valid data.");
 						return INVALID;
 					}
-					if (promptForConfirmation && collection.size() > 10) {
+					if (promptForConfirmation && collection.size() > 10 && guiUtils != null) {
 						assert SwingUtilities.isEventDispatchThread();
 						final boolean[] confirmSplit = guiUtils.getConfirmationAndOption(
 									"Are you sure you would like to import " + collection.size() + " files?<br>"
@@ -4862,7 +4868,7 @@ public class Viewer3D {
 							break;
 						case COMPLETED:
 							if (failuresAndSuccesses[1] > 0) validate();
-							if (failuresAndSuccesses[0] > 0)
+							if (failuresAndSuccesses[0] > 0 && guiUtils != null)
 								guiUtils.error("" + failuresAndSuccesses[0] + " of "
 										+ (failuresAndSuccesses[0] + failuresAndSuccesses[1])
 										+ " dropped file(s) could not be imported (Console may"
@@ -5911,8 +5917,8 @@ public class Viewer3D {
 				return true;
 			}
 			catch (InterruptedException | ExecutionException e2) {
-				gUtils.error(
-					"Unfortunately an exception occured. See console for details.");
+				if (gUtils != null)
+					gUtils.error("Unfortunately an exception occured. See console for details.");
 				e2.printStackTrace();
 				return false;
 			}
