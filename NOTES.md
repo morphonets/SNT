@@ -92,16 +92,17 @@ Any work that uses data from the supported databases and/or reference brains sho
 | [AnalyzeSkeleton](https://imagej.net/AnalyzeSkeleton), [Skeletonize3D](https://imagej.net/Skeletonize3D) | Handling of skeletonized images                       |
 | [Apache Commons](https://commons.apache.org/)                | Misc. utilities                                       |
 | [Apache XML Graphics](https://xmlgraphics.apache.org/)       | SVG/PDF export                                        |
-| [fastutil](https://fastutil.di.unimi.it/)                    | High performance, low footprint data structures
+| [fastutil](https://fastutil.di.unimi.it/)                    | High performance, low footprint data structures       |
 | [ImageJ1](https://github.com/imagej/imagej1)                 | ImagePlus and ROI handling                            |
-| [imglib2](https://github.com/imglib/imglib2)                 | Image representation and processing
+| [imglib2](https://github.com/imglib/imglib2)                 | Image representation and processing                   |
 | [imagej-plot-service](https://github.com/maarzt/scijava-plot), [jfreechart](https://xmlgraphics.apache.org/) | Histograms and plots including Reconstruction Plotter |
 | [ImageJ Ops](https://github.com/imagej/imagej-ops)           | Image processing and convex hull                      |
 | [JGraphT](https://jgrapht.org/)                              | Graph theory -based analyses                          |
 | [JGraphX](https://github.com/jgraph/jgraphx)                 | Graph Viewer                                          |
-| [JHeaps](https://www.jheaps.org/)                            | Pathfinding algorithms and data structures
-| [JIDE common layer](https://github.com/jidesoft/jide-oss), [font awesome](https://fontawesome.com/), [FlatLaf](https://github.com/JFormDesigner/FlatLaf) | GUI customizations                                    |
+| [JHeaps](https://www.jheaps.org/)                            | Pathfinding algorithms and data structures            |
+| [JIDE common layer](https://github.com/JFormDesigner/jide-oss), [font awesome](https://fontawesome.com/), [FlatLaf](https://github.com/JFormDesigner/FlatLaf) | GUI customizations                                    |
 | [JSON-Java](https://github.com/stleary/JSON-java), [okhttp](https://square.github.io/okhttp/) | Access/query of online databases                      |
-| [Jzy3D](http://www.jzy3d.org/)                               | Reconstruction Viewer                                 |
+| [Jzy3D](http://www.jzy3d.org/), [jGL](https://github.com/jzy3d/jzy3d-api/tree/master/jzy3d-jGL), [JOGL](https://jogamp.org/jogl/www/) | Reconstruction Viewer                                 |
 | [pyimagej](https://pypi.org/project/pyimagej/)               | Python bindings                                       |
-| [SMILE](https://haifengl.github.io/)                         | Math and algorithm utilities                |
+| [SMILE](https://haifengl.github.io/)                         | Math and algorithm utilities                          |
+

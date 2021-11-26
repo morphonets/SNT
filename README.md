@@ -14,15 +14,15 @@
     <img alt="GitHub license" src="https://img.shields.io/github/license/morphonets/SNT">
   </a>
   <!-- Build Status -->
-  <a href="https://github.com/morphonets/SNT/actions/workflows/build-main.yml/badge.svg)](https://github.com/morphonets/SNT/actions/workflows/build-main.yml)
-    <img alt="build" src="https://github.com/morphonets/SNT/actions/workflows/build-main.yml/badge.svg)](https://github.com/morphonets/SNT/actions/workflows/build-main.yml)
+  <a href="https://github.com/morphonets/SNT/actions/workflows/build-main.yml">
+    <img alt="Build status" src="https://github.com/morphonets/SNT/actions/workflows/build-main.yml/badge.svg">
   </a>
-    <!-- Issues -->
+  <!-- Issues -->
   <a href="https://github.com/morphonets/SNT/issues">
-    <img alt="GitHub issues" src="https://img.shields.io/github/issues/morphonets/SNT">
+    <img alt="Open issues" src="https://img.shields.io/github/issues/morphonets/SNT">
   </a>
   <a href="https://github.com/morphonets/SNT/issues">
-    <img alt="GitHub closed issues" src="https://img.shields.io/github/issues-closed/morphonets/SNT">
+    <img alt="Closed issues" src="https://img.shields.io/github/issues-closed/morphonets/SNT">
   </a>
   <a href="https://forum.image.sc/tags/snt">
     <img alt="Forum.sc topics" src="https://img.shields.io/badge/dynamic/json.svg?label=forum&url=https%3A%2F%2Fforum.image.sc%2Ftag%2Fsnt.json&query=%24.topic_list.tags.0.topic_count&suffix=%20topics">
