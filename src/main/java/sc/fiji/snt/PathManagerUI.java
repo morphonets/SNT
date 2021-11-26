@@ -75,6 +75,9 @@ import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
+
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.display.DisplayService;
@@ -1042,12 +1045,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					final ExecutorService es = Executors.newFixedThreadPool(processors);
 					final FittingProgress progress = new FittingProgress(plugin.getUI(),
 						plugin.statusService, numberOfPathsToFit);
-					final ImagePlus imp = (secondary && plugin.isSecondaryDataAvailable()) ? plugin.getSecondaryDataAsImp()
-							: plugin.getLoadedDataAsImp();
+					final RandomAccessibleInterval<? extends RealType<?>> img = (secondary && plugin.isSecondaryDataAvailable()) ? plugin.getSecondaryData()
+							: plugin.getLoadedData();
 					try {
 						for (int i = 0; i < numberOfPathsToFit; ++i) {
 							final PathFitter pf = pathsToFit.get(i);
-							pf.setImp(imp);
+							pf.setImage(img);
 							pf.setScope(fitType);
 							pf.setMaxRadius(maxRadius);
 							pf.setProgressCallback(i, progress);
