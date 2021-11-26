@@ -214,30 +214,27 @@ public class Viewer3D {
 	 * Presets of a scene's view point.
 	 */
 	public enum ViewMode {
-		/**
-		 * No enforcement of view point: let the user freely turn around the scene.
-		 */
-		DEFAULT("Default"), //
+		
+		/** Enforce a XY view point of the scene. Rotation(s) are disabled. */
+		XY("XY Constrained", DefCoords.XY),
+		/** Enforce a XZ view point of the scene. */
+		XZ("XZ Constrained", DefCoords.XZ),
+		/** Enforce a ZY view point of the scene. */
+		YZ("YZ Constrained", DefCoords.YZ),
+		/** No enforcement of view point: freely turn around the scene. */
+		DEFAULT("Default", DefCoords.DEF), //
+		/** Enforce an 'overview (two-point perspective) view point of the scene. */
+		PERSPECTIVE("Perspective", DefCoords.PERSPECTIVE),
+
 		/** @deprecated Use YZ instead */
 		@Deprecated
-		SIDE("YZ Constrained"),
-		/**
-		 * Enforce a lateral view point of the scene.
-		 */
-		YZ("YZ Constrained"), //
+		SIDE("Side Constrained", XY.coord),
 		/** @deprecated Use XY instead */
 		@Deprecated
-		TOP("XY Constrained"),
-		/**
-		 * Enforce a XY view point of the scene with disabled rotation.
-		 */
-		XY("XY Constrained"),
-		/**
-		 * Enforce an 'overview (two-point perspective) view point of the scene.
-		 */
-		PERSPECTIVE("Perspective");
+		TOP("Top Constrained", YZ.coord);
 
 		private String description;
+		private Coord3d coord;
 
 		private ViewMode next() {
 			switch (this) {
@@ -245,19 +242,30 @@ public class Viewer3D {
 				return XY;
 			case XY:
 			case TOP:
+				return XZ;
+			case XZ:
+			case SIDE:
 				return YZ;
 			case YZ:
-			case SIDE:
 				return PERSPECTIVE;
 			default:
 				return DEFAULT;
 			}
 		}
 
-		ViewMode(final String description) {
+		ViewMode(final String description, final Coord3d coord) {
 			this.description = description;
+			this.coord = coord;
 		}
 
+		static class DefCoords {
+			static final Coord3d XY = new Coord3d(-View.PI_div2, -View.PI_div2, View.DISTANCE_DEFAULT); // //new Coord3d(0, Math.PI, View.DISTANCE_DEFAULT)
+			static final Coord3d XZ = new Coord3d(-View.PI_div2, 1, View.DISTANCE_DEFAULT); // new Coord3d(-Math.PI / 2, -1, View.DISTANCE_DEFAULT)
+			static final Coord3d YZ = new Coord3d(-Math.PI, 0, View.DISTANCE_DEFAULT); // new Coord3d(-Math.PI *2, 0, View.DISTANCE_DEFAULT)
+			static final Coord3d PERSPECTIVE = new Coord3d(-Math.PI / 2.675, -0.675, View.DISTANCE_DEFAULT);
+			static final Coord3d DEF = View.VIEWPOINT_AXIS_CORNER_TOUCH_BORDER;
+
+		}
 	}
 
 	private final static String MESH_LABEL_ALLEN = "Whole Brain";
@@ -658,7 +666,7 @@ public class Viewer3D {
 	public void rotate(final float degrees) throws IllegalArgumentException {
 		if (currentView == ViewMode.XY) {
 			throw new IllegalArgumentException("Rotations not allowed under " +
-				ViewMode.TOP.description);
+				ViewMode.XY.description);
 		}
 		mouseController.rotate(new Coord2d(-Math.toRadians(degrees), 0),
 			viewUpdatesEnabled);
@@ -2007,18 +2015,20 @@ public class Viewer3D {
 	/**
 	 * Renders the scene from a specified camera angle (script-friendly).
 	 *
-	 * @param viewMode the view mode (case insensitive): "side" or "yz"; "top"
-	 *                 or "xy"; "perspective" or "overview"; "default" or "".
+	 * @param viewMode the view mode (case insensitive): "xy"; "xz"; "yz";
+	 *                 "perspective" or "overview"; "default" or "".
 	 */
 	public void setViewMode(final String viewMode) {
 		if (viewMode == null || viewMode.trim().isEmpty()) {
 			setViewMode(ViewMode.DEFAULT);
 		}
 		final String vMode = viewMode.toLowerCase();
-		if (vMode.contains("side") || vMode.contains("sag")) { // sagittal kept for backwards compatibility
-			setViewMode(ViewMode.YZ);
-		} else if (vMode.contains("top") || vMode.contains("cor")) { // coronal kept for backwards compatibility
+		if (vMode.contains("xz") || vMode.contains("side") || vMode.contains("sag")) { // sagittal kept for backwards compatibility
+			setViewMode(ViewMode.XZ);
+		} else if (vMode.contains("xy") || vMode.contains("top") || vMode.contains("cor")) { // coronal kept for backwards compatibility
 			setViewMode(ViewMode.XY);
+		} else if (vMode.contains("yz")) {
+			setViewMode(ViewMode.YZ);
 		} else if (vMode.contains("pers") || vMode.contains("ove")) {
 			setViewMode(ViewMode.PERSPECTIVE);
 		} else {
@@ -2377,11 +2387,6 @@ public class Viewer3D {
 	/** AWTChart adopting {@link AView} */
 	private class AChart extends SwingChart {
 
-		private final Coord3d TOP_VIEW = new Coord3d(Math.PI / 2, 0.5, 3000);
-		private final Coord3d PERSPECTIVE_VIEW = new Coord3d(Math.PI / 2, 0.5, 3000);
-		private final Coord3d SIDE_VIEW = new Coord3d(0, Math.PI, 3000);
-
-		private Coord3d previousViewPointPerspective;
 		private OverlayAnnotation overlayAnnotation;
 		private final Viewer3D viewer;
 
@@ -2395,37 +2400,29 @@ public class Viewer3D {
 		// see super.setViewMode(mode);
 		public void setViewMode(final ViewMode view) {
 			// Store current view mode and view point in memory
-			if (currentView == ViewMode.DEFAULT) previousViewPointFree = getView()
-				.getViewPoint();
-			else if (currentView == ViewMode.XY) previousViewPointTop = getView()
-				.getViewPoint();
-			else if (currentView == ViewMode.YZ) previousViewPointProfile = getView()
-				.getViewPoint();
-			else if (currentView == ViewMode.PERSPECTIVE) previousViewPointPerspective =
-				getView().getViewPoint();
+			currentView.coord = getView().getViewPoint();
+
+			// set jzy3d fields
+			if (currentView == ViewMode.XY) {
+				previousViewPointTop = currentView.coord;
+			}
+			else if (currentView == ViewMode.XZ || currentView == ViewMode.YZ || currentView == ViewMode.SIDE) {
+				previousViewPointProfile = currentView.coord;
+			} else if (currentView == ViewMode.DEFAULT) {
+				previousViewPointFree = currentView.coord;
+			}
 
 			// Set new view mode and former view point
-			getView().setViewPositionMode(null);
-			if (view == ViewMode.DEFAULT) {
-				getView().setViewPositionMode(ViewPositionMode.FREE);
-				getView().setViewPoint(previousViewPointFree == null ? View.VIEWPOINT_DEFAULT
-					.clone() : previousViewPointFree);
-			}
-			else if (view == ViewMode.TOP || view == ViewMode.XY) {
+			if (view == ViewMode.XY || view == ViewMode.TOP) {
 				getView().setViewPositionMode(ViewPositionMode.TOP);
-				getView().setViewPoint(previousViewPointTop == null ? TOP_VIEW.clone()
-					: previousViewPointTop);
 			}
-			else if (view == ViewMode.SIDE || view == ViewMode.YZ) {
+			else if (view == ViewMode.XZ || view == ViewMode.YZ || view == ViewMode.SIDE) {
 				getView().setViewPositionMode(ViewPositionMode.PROFILE);
-				getView().setViewPoint(previousViewPointProfile == null
-					? SIDE_VIEW.clone() : previousViewPointProfile);
 			}
-			else if (view == ViewMode.PERSPECTIVE) {
+			else {
 				getView().setViewPositionMode(ViewPositionMode.FREE);
-				getView().setViewPoint(previousViewPointPerspective == null
-					? PERSPECTIVE_VIEW.clone() : previousViewPointPerspective);
 			}
+			getView().setViewPoint(view.coord);
 			getView().shoot();
 			currentView = view;
 		}
@@ -7127,9 +7124,7 @@ public class Viewer3D {
 			}
 		}
 
-		/**
-		 * Adapted AWTView so that top/side views better match to coronal/sagittal ones
-		 */
+		/** Adapted View for improved rotations of the scene */
 		private class AView extends AWTView {
 
 			public AView(final IChartFactory factory, final Scene scene, final ICanvas canvas, final Quality quality) {
@@ -7141,6 +7136,7 @@ public class Viewer3D {
 
 			@Override
 			public void setViewPoint(Coord3d polar, boolean updateView) {
+				// see https://github.com/jzy3d/jzy3d-api/issues/214#issuecomment-975717207
 				viewpoint = polar;
 				if (updateView)
 					shoot();
@@ -7151,9 +7147,17 @@ public class Viewer3D {
 			protected Coord3d computeCameraEyeTop(final Coord3d viewpoint, final Coord3d target) {
 				Coord3d eye = viewpoint;
 				eye.x = -(float) Math.PI / 2; // on x
-				eye.y = -(float) Math.PI / 2; // on bottom
+				eye.y = -(float) Math.PI / 2; // on bottom: inverted from super.computeCameraEyeTop();
 				eye = eye.cartesian().add(target);
 				return eye;
+			}
+
+			@Override
+			protected Coord3d computeCameraUp(Coord3d viewpoint) {
+				if (getViewMode() == ViewPositionMode.FREE) {
+					return viewpoint; // Attempt to bypass axis flip: see https://github.com/jzy3d/jzy3d-api/issues/214
+				}
+				return super.computeCameraUp(viewpoint);
 			}
 		}
 	}
