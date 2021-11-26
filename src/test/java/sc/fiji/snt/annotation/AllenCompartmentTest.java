@@ -87,12 +87,12 @@ public class AllenCompartmentTest {
 
         @Test
         public void testAcronym() {
-            assertEquals("brain", rootCompartment.acronym());
+            assertEquals("wholebrain", rootCompartment.acronym());
         }
 
         @Test
         public void testAliases() {
-            assertEquals(0, rootCompartment.aliases().length);
+            assertEquals("circle", rootCompartment.aliases()[0]);
         }
 
         @Test
@@ -232,7 +232,7 @@ public class AllenCompartmentTest {
             assertTrue(compartment.isMeshAvailable());
             mesh = compartment.getMesh();
             assertNotNull(mesh);
-            assertEquals(1305537356.8650255d, mesh.getVolume(), 0.0000001);
+            assertEquals(1305537356.8650256d, mesh.getVolume(), 1e-6);
         }
 
     }

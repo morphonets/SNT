@@ -34,7 +34,7 @@ import net.imagej.mesh.Triangles;
 
 import org.jzy3d.colors.Color;
 import org.jzy3d.maths.Coord3d;
-import org.jzy3d.plot3d.primitives.AbstractDrawable;
+import org.jzy3d.plot3d.primitives.Drawable;
 import org.jzy3d.plot3d.primitives.LineStrip;
 import org.jzy3d.plot3d.primitives.Point;
 import org.jzy3d.plot3d.primitives.Polygon;
@@ -68,7 +68,7 @@ public class Annotation3D {
 
 	private final Viewer3D viewer;
 	private final Collection<? extends SNTPoint> points;
-	private final AbstractDrawable drawable;
+	private final Drawable drawable;
 	private final int type;
 	private float size;
 	private String label;
@@ -134,18 +134,18 @@ public class Annotation3D {
 		this(viewer, Collections.singleton(point), SCATTER);
 	}
 
-	private AbstractDrawable assembleSurface(boolean computeVolume) {
+	private Drawable assembleSurface(boolean computeVolume) {
 		ConvexHull3D hull = new ConvexHull3D(points, computeVolume);
 		hull.compute();
 		volume = hull.size();
 		return meshToDrawable(hull.getMesh());
 	}
 
-	public static AbstractDrawable meshToDrawable(final Mesh mesh) {
+	public static Drawable meshToDrawable(final Mesh mesh) {
 		return meshToDrawable(mesh, new Color(1f, 1f, 1f, 0.05f));
 	}
 
-	private static AbstractDrawable meshToDrawable(Mesh mesh, final Color color) {
+	private static Drawable meshToDrawable(Mesh mesh, final Color color) {
 		Triangles faces = mesh.triangles();
 		Iterator<Triangle> faceIter = faces.iterator();
 		ArrayList<ArrayList<Coord3d>> coord3dFaces = new ArrayList<ArrayList<Coord3d>>();
@@ -174,7 +174,7 @@ public class Annotation3D {
 
 	}
 
-	private AbstractDrawable assembleScatter() {
+	private Drawable assembleScatter() {
 		final Coord3d[] coords = new Coord3d[points.size()];
 		final Color[] colors = new Color[points.size()];
 		int idx = 0;
@@ -200,7 +200,7 @@ public class Annotation3D {
 		return scatter;
 	}
 
-	private AbstractDrawable assembleStrip() {
+	private Drawable assembleStrip() {
 		final ArrayList<Point> linePoints = new ArrayList<>(points.size());
 		for (final SNTPoint point : points) {
 			if (point == null)
@@ -226,7 +226,7 @@ public class Annotation3D {
 		return line;
 	}
 
-	private AbstractDrawable assembleQTip() {
+	private Drawable assembleQTip() {
 		final Shape shape = new Shape();
 		final LineStrip line = (LineStrip) assembleStrip();
 		shape.add(line);
@@ -268,7 +268,7 @@ public class Annotation3D {
 	}
 
 	private void setShapeWidth(final float size) {
-		for (final AbstractDrawable drawable : ((Shape) drawable).getDrawables()) {
+		for (final Drawable drawable : ((Shape) drawable).getDrawables()) {
 			if (drawable instanceof LineStrip) {
 				((LineStrip) drawable).setWidth(this.size / 4);
 			} else if (drawable instanceof Scatter) {
@@ -312,7 +312,7 @@ public class Annotation3D {
 			break;
 		case Q_TIP:
 		case MERGE:
-			for (final AbstractDrawable drawable : ((Shape) drawable).getDrawables()) {
+			for (final Drawable drawable : ((Shape) drawable).getDrawables()) {
 				if (drawable instanceof LineStrip) {
 					((LineStrip) drawable).setColor(c);
 				} else if (drawable instanceof Scatter) {
@@ -426,7 +426,7 @@ public class Annotation3D {
 	 *
 	 * @return the AbstractDrawable
 	 */
-	public AbstractDrawable getDrawable() {
+	public Drawable getDrawable() {
 		return drawable;
 	}
 

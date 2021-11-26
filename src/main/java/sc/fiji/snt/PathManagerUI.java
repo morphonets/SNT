@@ -77,6 +77,7 @@ import javax.swing.tree.TreeSelectionModel;
 
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
+
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.display.DisplayService;

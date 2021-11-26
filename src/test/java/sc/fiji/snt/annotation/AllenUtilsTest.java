@@ -41,13 +41,13 @@ public class AllenUtilsTest {
     @Test
     public void testGetOntologies() {
         final List<AllenCompartment> ontologies = AllenUtils.getOntologies();
-        assertEquals(1287, ontologies.size());
+        assertEquals(1327, ontologies.size());
     }
 
     @Test
     public void testGetBrainAreasList() {
         final JSONArray brainAreasList = AllenUtils.getBrainAreasList();
-        assertEquals(1287, brainAreasList.length());
+        assertEquals(1327, brainAreasList.length());
         for (int i = 0; i < brainAreasList.length(); i++) {
             final JSONObject jsonObject = brainAreasList.getJSONObject(i);
             testJSONObject(jsonObject);
@@ -57,7 +57,7 @@ public class AllenUtilsTest {
     @Test
     public void testGetBrainAreasByStructureId() {
         final JSONObject brainAreas = AllenUtils.getBrainAreasByStructureId();
-        assertEquals(1287, brainAreas.length());
+        assertEquals(1327, brainAreas.length());
         final Iterator<String> ids = brainAreas.keys();
         while (ids.hasNext()) {
             final String idString = ids.next();
@@ -70,7 +70,7 @@ public class AllenUtilsTest {
     @Test
     public void testGetBrainAreasByUUID() {
         final JSONObject brainAreas = AllenUtils.getBrainAreasByUUID();
-        assertEquals(1287, brainAreas.length());
+        assertEquals(1327, brainAreas.length());
         final Iterator<String> uuids = brainAreas.keys();
         while (uuids.hasNext()) {
             final String uuidString = uuids.next();
@@ -104,8 +104,6 @@ public class AllenUtilsTest {
 
         assertTrue(jsonObject.get("graphOrder") instanceof Integer ||
                 JSONObject.NULL.equals(jsonObject.get("graphOrder")));
-
-        assertFalse(jsonObject.getString("geometryFile").isEmpty());
 
         assertFalse(jsonObject.getString("geometryColor").isEmpty());
 

@@ -38,75 +38,21 @@ import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseWheelEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.event.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
-import javax.swing.AbstractAction;
-import javax.swing.AbstractButton;
-import javax.swing.BoxLayout;
-import javax.swing.ButtonGroup;
-import javax.swing.DefaultListCellRenderer;
-import javax.swing.DefaultListModel;
-import javax.swing.Icon;
-import javax.swing.JButton;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JProgressBar;
-import javax.swing.JScrollPane;
-import javax.swing.JSlider;
-import javax.swing.JTree;
-import javax.swing.KeyStroke;
-import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
-import javax.swing.SwingWorker;
+import javax.swing.*;
 import javax.swing.Timer;
-import javax.swing.WindowConstants;
 import javax.swing.border.Border;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
@@ -115,42 +61,46 @@ import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 
 import org.jzy3d.bridge.awt.FrameAWT;
-import org.jzy3d.chart.AWTChart;
 import org.jzy3d.chart.Chart;
 import org.jzy3d.chart.Settings;
+import org.jzy3d.chart.SwingChart;
 import org.jzy3d.chart.controllers.ControllerType;
 import org.jzy3d.chart.controllers.camera.AbstractCameraController;
 import org.jzy3d.chart.controllers.mouse.AWTMouseUtilities;
 import org.jzy3d.chart.controllers.mouse.camera.AWTCameraMouseController;
 import org.jzy3d.chart.controllers.thread.camera.CameraThreadController;
-import org.jzy3d.chart.factories.AWTChartComponentFactory;
-import org.jzy3d.chart.factories.IChartComponentFactory;
+import org.jzy3d.chart.factories.ChartFactory;
+import org.jzy3d.chart.factories.EmulGLChartFactory;
+import org.jzy3d.chart.factories.IChartFactory;
 import org.jzy3d.chart.factories.IFrame;
+import org.jzy3d.chart.factories.OffscreenChartFactory;
+import org.jzy3d.chart.factories.SwingChartFactory;
 import org.jzy3d.colors.Color;
 import org.jzy3d.colors.ColorMapper;
 import org.jzy3d.colors.ISingleColorable;
+import org.jzy3d.events.ViewPointChangedEvent;
 import org.jzy3d.maths.BoundingBox3d;
 import org.jzy3d.maths.Coord2d;
 import org.jzy3d.maths.Coord3d;
 import org.jzy3d.maths.Rectangle;
 import org.jzy3d.plot2d.primitive.AWTColorbarImageGenerator;
-import org.jzy3d.plot3d.primitives.AbstractComposite;
-import org.jzy3d.plot3d.primitives.AbstractDrawable;
-import org.jzy3d.plot3d.primitives.AbstractWireframeable;
+import org.jzy3d.plot3d.primitives.Composite;
+import org.jzy3d.plot3d.primitives.Drawable;
 import org.jzy3d.plot3d.primitives.LineStrip;
 import org.jzy3d.plot3d.primitives.Point;
 import org.jzy3d.plot3d.primitives.Shape;
 import org.jzy3d.plot3d.primitives.Sphere;
 import org.jzy3d.plot3d.primitives.Tube;
-import org.jzy3d.plot3d.primitives.axes.layout.providers.ITickProvider;
-import org.jzy3d.plot3d.primitives.axes.layout.providers.RegularTickProvider;
-import org.jzy3d.plot3d.primitives.axes.layout.providers.SmartTickProvider;
-import org.jzy3d.plot3d.primitives.axes.layout.renderers.FixedDecimalTickRenderer;
-import org.jzy3d.plot3d.primitives.axes.layout.renderers.ITickRenderer;
-import org.jzy3d.plot3d.primitives.axes.layout.renderers.ScientificNotationTickRenderer;
+import org.jzy3d.plot3d.primitives.Wireframeable;
+import org.jzy3d.plot3d.primitives.axis.layout.providers.ITickProvider;
+import org.jzy3d.plot3d.primitives.axis.layout.providers.RegularTickProvider;
+import org.jzy3d.plot3d.primitives.axis.layout.providers.SmartTickProvider;
+import org.jzy3d.plot3d.primitives.axis.layout.renderers.FixedDecimalTickRenderer;
+import org.jzy3d.plot3d.primitives.axis.layout.renderers.ITickRenderer;
+import org.jzy3d.plot3d.primitives.axis.layout.renderers.ScientificNotationTickRenderer;
 import org.jzy3d.plot3d.primitives.vbo.drawable.DrawableVBO;
 import org.jzy3d.plot3d.rendering.canvas.ICanvas;
-import org.jzy3d.plot3d.rendering.canvas.IScreenCanvas;
+import org.jzy3d.plot3d.rendering.canvas.OffscreenCanvas;
 import org.jzy3d.plot3d.rendering.canvas.Quality;
 import org.jzy3d.plot3d.rendering.legends.colorbars.AWTColorbarLegend;
 import org.jzy3d.plot3d.rendering.lights.Light;
@@ -180,41 +130,36 @@ import org.scijava.prefs.PrefService;
 import org.scijava.ui.UIService;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.ui.swing.script.TextEditor;
-import org.scijava.util.ColorRGB;
-import org.scijava.util.ColorRGBA;
-import org.scijava.util.Colors;
-import org.scijava.util.FileUtils;
-import org.scijava.util.PlatformUtils;
+import org.scijava.util.*;
 
 import com.jidesoft.swing.CheckBoxList;
 import com.jidesoft.swing.CheckBoxTree;
 import com.jidesoft.swing.ListSearchable;
 import com.jidesoft.swing.SearchableBar;
 import com.jidesoft.swing.TreeSearchable;
-import com.jogamp.opengl.FPSCounter;
-import com.jogamp.opengl.GLAnimatorControl;
 import com.jogamp.opengl.GLCapabilities;
 import com.jogamp.opengl.GLException;
 import com.jogamp.opengl.GLProfile;
+import com.jogamp.opengl.util.FPSAnimator;
 
 import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
+import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.analysis.MultiTreeColorMapper;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeColorMapper;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.SNTService;
-import sc.fiji.snt.Tree;
-import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
-import sc.fiji.snt.annotation.ZBAtlasUtils;
 import sc.fiji.snt.annotation.VFBUtils;
+import sc.fiji.snt.annotation.ZBAtlasUtils;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
@@ -246,47 +191,82 @@ import sc.fiji.snt.viewer.OBJMesh.RemountableDrawableVBO;
  */
 public class Viewer3D {
 
+	private enum Engine {
+		JOGL(new String[] { "jogl", "gpu" }), EMUL_GL(new String[] { "cpu", "emulgl" }),
+		OFFSCREEN(new String[] { "offscreen", "headless" });
+
+		final String[] labels;
+
+		Engine(final String[] labels) {
+			this.labels = labels;
+		}
+
+		static Engine fromString(final String label) {
+			for (final Engine e : Engine.values()) {
+				if (Arrays.stream(e.labels).anyMatch(l -> l.equalsIgnoreCase(label))) {
+					return e;
+				}
+			}
+			throw new IllegalArgumentException("'" + label + "': not a recognizable engine");
+		}
+	};
+
 	/**
 	 * Presets of a scene's view point.
 	 */
 	public enum ViewMode {
-			/**
-			 * No enforcement of view point: let the user freely turn around the
-			 * scene.
-			 */
-			DEFAULT("Default"), //
-			/**
-		 * Enforce a lateral view point of the scene.
-		 */
-		SIDE("Side Constrained"), //
-		/**
-		 * Enforce a top view point of the scene with disabled rotation.
-		 */
-		TOP("Top Constrained"),
-		/**
-		 * Enforce an 'overview (two-point perspective) view point of the scene.
-		 */
-		PERSPECTIVE("Perspective");
+		
+		/** Enforce a XY view point of the scene. Rotation(s) are disabled. */
+		XY("XY Constrained", DefCoords.XY),
+		/** Enforce a XZ view point of the scene. */
+		XZ("XZ Constrained", DefCoords.XZ),
+		/** Enforce a ZY view point of the scene. */
+		YZ("YZ Constrained", DefCoords.YZ),
+		/** No enforcement of view point: freely turn around the scene. */
+		DEFAULT("Default", DefCoords.DEF), //
+		/** Enforce an 'overview (two-point perspective) view point of the scene. */
+		PERSPECTIVE("Perspective", DefCoords.PERSPECTIVE),
+
+		/** @deprecated Use YZ instead */
+		@Deprecated
+		SIDE("Side Constrained", XY.coord),
+		/** @deprecated Use XY instead */
+		@Deprecated
+		TOP("Top Constrained", YZ.coord);
 
 		private String description;
+		private Coord3d coord;
 
 		private ViewMode next() {
 			switch (this) {
 			case DEFAULT:
-				return TOP;
+				return XY;
+			case XY:
 			case TOP:
-				return SIDE;
+				return XZ;
+			case XZ:
 			case SIDE:
+				return YZ;
+			case YZ:
 				return PERSPECTIVE;
 			default:
 				return DEFAULT;
 			}
 		}
 
-		ViewMode(final String description) {
+		ViewMode(final String description, final Coord3d coord) {
 			this.description = description;
+			this.coord = coord;
 		}
 
+		static class DefCoords {
+			static final Coord3d XY = new Coord3d(-View.PI_div2, -View.PI_div2, View.DISTANCE_DEFAULT); // //new Coord3d(0, Math.PI, View.DISTANCE_DEFAULT)
+			static final Coord3d XZ = new Coord3d(-View.PI_div2, 1, View.DISTANCE_DEFAULT); // new Coord3d(-Math.PI / 2, -1, View.DISTANCE_DEFAULT)
+			static final Coord3d YZ = new Coord3d(-Math.PI, 0, View.DISTANCE_DEFAULT); // new Coord3d(-Math.PI *2, 0, View.DISTANCE_DEFAULT)
+			static final Coord3d PERSPECTIVE = new Coord3d(-Math.PI / 2.675, -0.675, View.DISTANCE_DEFAULT);
+			static final Coord3d DEF = View.VIEWPOINT_AXIS_CORNER_TOUCH_BORDER;
+
+		}
 	}
 
 	private final static String MESH_LABEL_ALLEN = "Whole Brain";
@@ -336,6 +316,7 @@ public class Viewer3D {
 	private ViewMode currentView;
 	private FileDropWorker fileDropWorker;
 	private boolean abortCurrentOperation;
+	private final Engine ENGINE;
 
 	@Parameter
 	private Context context;
@@ -352,17 +333,14 @@ public class Viewer3D {
 	@Parameter
 	private PrefService prefService;
 
-	/**
-	 * Instantiates Viewer3D without the 'Controls' dialog ('kiosk mode'). Such
-	 * a viewer is more suitable for large datasets and allows for {@link Tree}s to
-	 * be added concurrently.
-	 */
-	public Viewer3D() {
+	private Viewer3D(final Engine engine) {
 		SNTUtils.log("Initializing Viewer3D...");
-		workaroundIntelGraphicsBug();
-		Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
-		Settings.getInstance().setHardwareAccelerated(true);
-		logGLDetails();
+		ENGINE = engine;
+		if (Engine.JOGL == engine || Engine.OFFSCREEN == engine) {
+			workaroundIntelGraphicsBug();
+			Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
+			Settings.getInstance().setHardwareAccelerated(true);
+		}
 		plottedTrees = new TreeMap<>();
 		plottedObjs = new TreeMap<>();
 		plottedAnnotations = new TreeMap<>();
@@ -371,6 +349,15 @@ public class Viewer3D {
 		prefs.setPreferences();
 		setID();
 		SNTUtils.addViewer(this);
+	}
+
+	/**
+	 * Instantiates Viewer3D without the 'Controls' dialog ('kiosk mode'). Such
+	 * a viewer is more suitable for large datasets and allows for {@link Tree}s to
+	 * be added concurrently.
+	 */
+	public Viewer3D() {
+		this(Engine.JOGL);
 	}
 
 	/**
@@ -392,8 +379,23 @@ public class Viewer3D {
 	 *                    import, manage and customize the Viewer's scene.
 	 */
 	public Viewer3D(final boolean interactive) {
-		this();
+		this(interactive, "jogl");
+	}
+
+	/**
+	 * Script-friendly constructor.
+	 *
+	 * @param interactive if true, the viewer is displayed with GUI Controls to
+	 *                    import, manage and customize the Viewer's scene.
+	 * @param engine      the rendering engine. Either "gpu" (JOGL), "cpu" (EmulGL),
+	 *                    or "offscreen" (headless). "cpu" and "offscreen" are highly
+	 *                    experimental.
+	 */
+	public Viewer3D(final boolean interactive, final String engine) {
+		this(Engine.fromString(engine));
 		if (interactive) {
+			if (ENGINE == Engine.OFFSCREEN)
+				throw new IllegalArgumentException("Offscreen engine cannot be used interactively");
 			init(new Context(CommandService.class, DisplayService.class, PrefService.class, SNTService.class,
 					UIService.class));
 		}
@@ -462,7 +464,9 @@ public class Viewer3D {
 	/* returns true if chart was initialized */
 	private boolean initView() {
 		if (chartExists()) return false;
-		chart = new AChart(Quality.Nicest, this); // There does not seem to be a swing implementation of
+		final Quality quality = Quality.Nicest();
+		quality.setHiDPIEnabled(true); // requires java 9+
+		chart = new AChart(quality, this); // There does not seem to be a swing implementation of
 												  // ICameraMouseController so we are stuck with AWT
 		chart.black();
 		view = chart.getView();
@@ -474,8 +478,10 @@ public class Viewer3D {
 		chart.setAxeDisplayed(false);
 		squarify("none", false);
 		currentView = ViewMode.DEFAULT;
-		gUtils = new GuiUtils((Component) chart.getCanvas());
-		fileDropWorker = new FileDropWorker((Component) chart.getCanvas(), gUtils);
+		if ( !(chart.getCanvas() instanceof OffscreenCanvas)) {
+			gUtils = new GuiUtils((Component) chart.getCanvas());
+			fileDropWorker = new FileDropWorker((Component) chart.getCanvas(), gUtils);
+		}
 		return true;
 	}
 
@@ -506,7 +512,7 @@ public class Viewer3D {
 		try {
 			// remember settings so that they can be restored
 			final boolean lighModeOn = !isDarkModeOn();
-			final boolean axesOn = view.isAxeBoxDisplayed();
+			final boolean axesOn = view.isAxisDisplayed();
 			final float currentZoomStep = keyController.zoomStep;
 			final double currentRotationStep = keyController.rotationStep;
 			final float currentPanStep = mouseController.panStep;
@@ -517,7 +523,7 @@ public class Viewer3D {
 			final Coord3d currentViewPoint = view.getViewPoint();
 			final BoundingBox3d currentBox = view.getBounds();
 			final boolean isAnimating = mouseController.isAnimating();
-			chart.stopAnimator();
+			chart.stopAnimation();
 			chart.dispose();
 			chart = null;
 			initView();
@@ -590,7 +596,7 @@ public class Viewer3D {
 		dup.mouseController.panStep = mouseController.panStep;
 		if (!isDarkModeOn())
 			dup.keyController.toggleDarkMode();
-		dup.chart.setAxeDisplayed(view.isAxeBoxDisplayed());
+		dup.chart.setAxeDisplayed(view.isAxisDisplayed());
 		dup.view.setSquarifier(view.getSquarifier());
 		dup.view.setSquared(view.getSquared());
 		dup.view.setCameraMode(view.getCameraMode());
@@ -661,9 +667,9 @@ public class Viewer3D {
 	 *           rotations
 	 */
 	public void rotate(final float degrees) throws IllegalArgumentException {
-		if (currentView == ViewMode.TOP) {
+		if (currentView == ViewMode.XY) {
 			throw new IllegalArgumentException("Rotations not allowed under " +
-				ViewMode.TOP.description);
+				ViewMode.XY.description);
 		}
 		mouseController.rotate(new Coord2d(-Math.toRadians(degrees), 0),
 			viewUpdatesEnabled);
@@ -701,12 +707,14 @@ public class Viewer3D {
 
 	private void logVideoInstructions(final File destinationDirectory) {
 		final StringBuilder sb = new StringBuilder("The image sequence can be converted into a video using ffmpeg (www.ffmpeg.org):");
-		sb.append("\n-------------------------------------------\n");
+		sb.append("\n===========================================\n");
 		sb.append("cd \"").append(destinationDirectory).append("\"\n");
 		sb.append("ffmpeg -framerate ").append(prefs.getFPS()).append(" -i %5d.png -vf \"");
-		if (currentView == ViewMode.SIDE && !view.isAxeBoxDisplayed()) sb.append("vflip,");
 		sb.append("scale=-1:-1,format=yuv420p\" video.mp4");
 		sb.append("\n-------------------------------------------\n");
+		sb.append("NB: hflip/vflip can be included in the comma-separated list of filter options to\n");
+		sb.append("flip sequence horizontally/vertically, e.g.: hflip,vflip,scale=-1:-1,format=yuv420p");
+		sb.append("\n===========================================\n");
 		sb.append("\nAlternatively, IJ built-in commands can also be used, e.g.:\n");
 		sb.append("\"File>Import>Image Sequence...\", followed by \"File>Save As>AVI...\"");
 		try {
@@ -1231,9 +1239,9 @@ public class Viewer3D {
 		if (managerList != null) managerList.update(); // force update the manager list
 	}
 
-	private AbstractDrawable getDrawableFromObject(final Object object) {
-		if (object instanceof AbstractDrawable) {
-			return (AbstractDrawable) object;
+	private Drawable getDrawableFromObject(final Object object) {
+		if (object instanceof Drawable) {
+			return (Drawable) object;
 		} else if (object instanceof Annotation3D) {
 			return ((Annotation3D) object).getDrawable();
 		} else if (object instanceof OBJMesh) {
@@ -1248,7 +1256,7 @@ public class Viewer3D {
 			final Annotation3D annot = plottedAnnotations.get((String) object);
 			if (annot != null) return annot.getDrawable();
 		} else if (object instanceof Collection) {
-			final AbstractComposite composite = new Shape();
+			final Composite composite = new Shape();
 			for(final Object o : (Collection<?>)object) {
 				composite.add(getDrawableFromObject(o));
 			}
@@ -1270,7 +1278,7 @@ public class Viewer3D {
 	public void zoomTo(final Object... objects) {
 		final BoundingBox3d bounds = new BoundingBox3d(0, 0, 0, 0, 0, 0);
 		for (final Object obj : objects) {
-			final AbstractDrawable d = getDrawableFromObject(obj);
+			final Drawable d = getDrawableFromObject(obj);
 			if (d != null && d.isDisplayed() && d.getBounds() != null && !d.getBounds().isReset()) {
 				bounds.add(d.getBounds());
 			}
@@ -1366,6 +1374,9 @@ public class Viewer3D {
 	 * @see #show()
 	 */
 	public Frame show(final int width, final int height) {
+		if (Engine.OFFSCREEN == ENGINE) {
+			throw new IllegalArgumentException("Offscreen canvas cannot be displayed.");
+		}
 		final JFrame dummy = new JFrame();
 		final Frame frame = show( width, height, dummy.getGraphicsConfiguration());
 		dummy.dispose();
@@ -1484,8 +1495,8 @@ public class Viewer3D {
 		return map;
 	}
 
-	private Map<String, AbstractDrawable> getAnnotationDrawables() {
-		final Map<String, AbstractDrawable> map = new HashMap<>();
+	private Map<String, Drawable> getAnnotationDrawables() {
+		final Map<String, Drawable> map = new HashMap<>();
 		plottedAnnotations.forEach((k, annot) -> {
 			map.put(k, annot.getDrawable());
 		});
@@ -1619,11 +1630,11 @@ public class Viewer3D {
 	}
 
 	private void removeColorLegends(final boolean justLastOne) {
-		final List<AbstractDrawable> allDrawables = chart.getScene().getGraph()
+		final List<Drawable> allDrawables = chart.getScene().getGraph()
 			.getAll();
-		final Iterator<AbstractDrawable> iterator = allDrawables.iterator();
+		final Iterator<Drawable> iterator = allDrawables.iterator();
 		while (iterator.hasNext()) {
-			final AbstractDrawable drawable = iterator.next();
+			final Drawable drawable = iterator.next();
 			if (drawable != null && drawable.hasLegend() && drawable
 				.isLegendDisplayed())
 			{
@@ -1692,8 +1703,8 @@ public class Viewer3D {
 				addMesh((OBJMesh) object);
 			} else if (object instanceof String) {
 				addLabel((String) object);
-			} else if (object instanceof AbstractDrawable) {
-				chart.add((AbstractDrawable) object, viewUpdatesEnabled);
+			} else if (object instanceof Drawable) {
+				chart.add((Drawable) object, viewUpdatesEnabled);
 			} else if (object instanceof Collection) {
 				addCollection(((Collection<?>) object));
 			} else {
@@ -1736,8 +1747,8 @@ public class Viewer3D {
 		} else if (object instanceof String) {
 			final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels((String)object);
 			removeSceneObject(labelAndManagerEntry[0], labelAndManagerEntry[1]);
-		} else if (object instanceof AbstractDrawable && chart != null) {
-			chart.getScene().getGraph().remove((AbstractDrawable) object, viewUpdatesEnabled);
+		} else if (object instanceof Drawable && chart != null) {
+			chart.getScene().getGraph().remove((Drawable) object, viewUpdatesEnabled);
 		} else if (object instanceof Collection) {
 			removeCollection(((Collection<?>) object));
 		} else {
@@ -1766,7 +1777,7 @@ public class Viewer3D {
 		return (List<String>) (List<?>) Arrays.asList(values);
 	}
 
-	private <T extends AbstractDrawable> boolean allDrawablesRendered(
+	private <T extends Drawable> boolean allDrawablesRendered(
 		final BoundingBox3d viewBounds, final Map<String, T> map,
 		final List<String> selectedKeys)
 	{
@@ -1786,7 +1797,7 @@ public class Viewer3D {
 		return true;
 	}
 
-	private synchronized <T extends AbstractDrawable> boolean removeDrawable(
+	private synchronized <T extends Drawable> boolean removeDrawable(
 		final Map<String, T> map, final String label, final String managerListEntry)
 	{
 		final T drawable = map.get(label);
@@ -1830,7 +1841,7 @@ public class Viewer3D {
 		return plottedTrees.get(PATH_MANAGER_TREE_LABEL).get().isDisplayed();
 	}
 
-	private boolean isValid(final AbstractDrawable drawable) {
+	private boolean isValid(final Drawable drawable) {
 		return drawable.getBounds() != null && drawable.getBounds().getRange()
 			.distanceSq(new Coord3d(0f, 0f, 0f)) > 0f;
 	}
@@ -1855,7 +1866,7 @@ public class Viewer3D {
 
 	/** returns true if a drawable was removed */
 	@SuppressWarnings("unused")
-	private <T extends AbstractDrawable> boolean removeInvalid(
+	private <T extends Drawable> boolean removeInvalid(
 		final Map<String, T> map)
 	{
 		final Iterator<Entry<String, T>> it = map.entrySet().iterator();
@@ -2010,18 +2021,20 @@ public class Viewer3D {
 	/**
 	 * Renders the scene from a specified camera angle (script-friendly).
 	 *
-	 * @param viewMode the view mode (case insensitive): "side" or "sagittal"; "top"
-	 *                 or "coronal"; "perspective" or "overview"; "default" or "".
+	 * @param viewMode the view mode (case insensitive): "xy"; "xz"; "yz";
+	 *                 "perspective" or "overview"; "default" or "".
 	 */
 	public void setViewMode(final String viewMode) {
 		if (viewMode == null || viewMode.trim().isEmpty()) {
 			setViewMode(ViewMode.DEFAULT);
 		}
 		final String vMode = viewMode.toLowerCase();
-		if (vMode.contains("side") || vMode.contains("sag")) {
-			setViewMode(ViewMode.SIDE);
-		} else if (vMode.contains("top") || vMode.contains("cor")) {
-			setViewMode(ViewMode.TOP);
+		if (vMode.contains("xz") || vMode.contains("side") || vMode.contains("sag")) { // sagittal kept for backwards compatibility
+			setViewMode(ViewMode.XZ);
+		} else if (vMode.contains("xy") || vMode.contains("top") || vMode.contains("cor")) { // coronal kept for backwards compatibility
+			setViewMode(ViewMode.XY);
+		} else if (vMode.contains("yz")) {
+			setViewMode(ViewMode.YZ);
 		} else if (vMode.contains("pers") || vMode.contains("ove")) {
 			setViewMode(ViewMode.PERSPECTIVE);
 		} else {
@@ -2187,7 +2200,7 @@ public class Viewer3D {
 
 	private OBJMesh loadOBJMesh(final OBJMesh objMesh) {
 		setAnimationEnabled(false);
-		chart.add(objMesh.drawable, viewUpdatesEnabled); // this used to trigger a GLException when true?
+		chart.add(objMesh.drawable, false); // this used to trigger a GLException when true?
 		final String label = getUniqueLabel(plottedObjs, "Mesh", objMesh.getLabel());
 		plottedObjs.put(label, objMesh.drawable);
 		addItemToManager(label);
@@ -2345,8 +2358,8 @@ public class Viewer3D {
 			sb.append(frame.getWidth()).append(", ").append(frame.getHeight()).append(");");
 			sb.append("\n");
 		}
-		if (currentView == ViewMode.TOP) {
-			sb.append("viewer.setViewMode(Viewer3D.ViewMode.TOP);");
+		if (currentView == ViewMode.XY) {
+			sb.append("viewer.setViewMode(\"xy\");");
 		} else {
 			final Coord3d viewPoint = view.getViewPoint();
 			sb.append("viewer.setViewPoint(");
@@ -2377,31 +2390,14 @@ public class Viewer3D {
 //		return (chart == null) ? null : view;
 //	}
 
-	/** ChartComponentFactory adopting {@link AView} */
-	private class AChartComponentFactory extends AWTChartComponentFactory {
-
-		@Override
-		public View newView(final Scene scene, final ICanvas canvas,
-			final Quality quality)
-		{
-			return new AView(getFactory(), scene, canvas, quality);
-		}
-	}
-
 	/** AWTChart adopting {@link AView} */
-	private class AChart extends AWTChart {
+	private class AChart extends SwingChart {
 
-		private final Coord3d TOP_VIEW = new Coord3d(Math.PI / 2, 0.5, 3000);
-		private final Coord3d PERSPECTIVE_VIEW = new Coord3d(Math.PI / 2, 0.5, 3000);
-		private final Coord3d SIDE_VIEW = new Coord3d(Math.PI, 0, 3000);
-
-		private Coord3d previousViewPointPerspective;
 		private OverlayAnnotation overlayAnnotation;
 		private final Viewer3D viewer;
 
 		public AChart(final Quality quality, final Viewer3D viewer) {
-			super(new AChartComponentFactory(), quality, DEFAULT_WINDOWING_TOOLKIT,
-				org.jzy3d.chart.Settings.getInstance().getGLCapabilities());
+			super(new ViewerFactory().getUpstreamFactory(viewer.ENGINE), quality);
 			currentView = ViewMode.DEFAULT;
 			addRenderer(overlayAnnotation = new OverlayAnnotation(getView()));
 			this.viewer = viewer;
@@ -2410,37 +2406,29 @@ public class Viewer3D {
 		// see super.setViewMode(mode);
 		public void setViewMode(final ViewMode view) {
 			// Store current view mode and view point in memory
-			if (currentView == ViewMode.DEFAULT) previousViewPointFree = getView()
-				.getViewPoint();
-			else if (currentView == ViewMode.TOP) previousViewPointTop = getView()
-				.getViewPoint();
-			else if (currentView == ViewMode.SIDE) previousViewPointProfile = getView()
-				.getViewPoint();
-			else if (currentView == ViewMode.PERSPECTIVE) previousViewPointPerspective =
-				getView().getViewPoint();
+			currentView.coord = getView().getViewPoint();
+
+			// set jzy3d fields
+			if (currentView == ViewMode.XY) {
+				previousViewPointTop = currentView.coord;
+			}
+			else if (currentView == ViewMode.XZ || currentView == ViewMode.YZ || currentView == ViewMode.SIDE) {
+				previousViewPointProfile = currentView.coord;
+			} else if (currentView == ViewMode.DEFAULT) {
+				previousViewPointFree = currentView.coord;
+			}
 
 			// Set new view mode and former view point
-			getView().setViewPositionMode(null);
-			if (view == ViewMode.DEFAULT) {
-				getView().setViewPositionMode(ViewPositionMode.FREE);
-				getView().setViewPoint(previousViewPointFree == null ? View.DEFAULT_VIEW
-					.clone() : previousViewPointFree);
-			}
-			else if (view == ViewMode.TOP) {
+			if (view == ViewMode.XY || view == ViewMode.TOP) {
 				getView().setViewPositionMode(ViewPositionMode.TOP);
-				getView().setViewPoint(previousViewPointTop == null ? TOP_VIEW.clone()
-					: previousViewPointTop);
 			}
-			else if (view == ViewMode.SIDE) {
+			else if (view == ViewMode.XZ || view == ViewMode.YZ || view == ViewMode.SIDE) {
 				getView().setViewPositionMode(ViewPositionMode.PROFILE);
-				getView().setViewPoint(previousViewPointProfile == null
-					? SIDE_VIEW.clone() : previousViewPointProfile);
 			}
-			else if (view == ViewMode.PERSPECTIVE) {
+			else {
 				getView().setViewPositionMode(ViewPositionMode.FREE);
-				getView().setViewPoint(previousViewPointPerspective == null
-					? PERSPECTIVE_VIEW.clone() : previousViewPointPerspective);
 			}
+			getView().setViewPoint(view.coord);
 			getView().shoot();
 			currentView = view;
 		}
@@ -2466,16 +2454,16 @@ public class Viewer3D {
 			shape.setLegend(this);
 			updateColors();
 			if (colorLegend.provider instanceof SmartTickProvider)
-				provider = new SmartTickProvider(colorLegend.provider.getDefaultSteps());
+				provider = new SmartTickProvider(colorLegend.provider.getSteps());
 			else
-				provider = new RegularTickProvider(colorLegend.provider.getDefaultSteps());
+				provider = new RegularTickProvider(colorLegend.provider.getSteps());
 			if (colorLegend.renderer instanceof ScientificNotationTickRenderer)
 				renderer = new ScientificNotationTickRenderer(-1 * colorLegend.precision);
 			else
 				renderer = new FixedDecimalTickRenderer(colorLegend.precision);
 			if (imageGenerator == null)
 				init();
-			imageGenerator.setFont(font);
+			imageGenerator.setAWTFont(font);
 		}
 
 		public ColorLegend(final ColorTableMapper mapper, final Font font,
@@ -2493,7 +2481,7 @@ public class Viewer3D {
 			renderer = (precision < 0) ? new ScientificNotationTickRenderer(-1 *
 				precision) : new FixedDecimalTickRenderer(precision);
 			if (imageGenerator == null) init();
-			imageGenerator.setFont(font);
+			imageGenerator.setAWTFont(font);
 		}
 
 		public ColorLegend(final ColorTableMapper mapper) {
@@ -2504,7 +2492,7 @@ public class Viewer3D {
 			shape.getColorMapper().setMin(min);
 			shape.getColorMapper().setMax(max);
 			if (fontSize > 0)
-				imageGenerator.setFont(imageGenerator.getFont().deriveFont(fontSize));
+				imageGenerator.setAWTFont(imageGenerator.getAWTFont().deriveFont(fontSize));
 			((ColorbarImageGenerator) imageGenerator).setMin(min);
 			((ColorbarImageGenerator) imageGenerator).setMax(max);
 		}
@@ -2527,7 +2515,7 @@ public class Viewer3D {
 		}
 
 		@Override
-		public void initImageGenerator(final AbstractDrawable parent,
+		public void initImageGenerator(final Drawable parent,
 			final ITickProvider provider, final ITickRenderer renderer)
 		{
 			if (shape != null) imageGenerator = new ColorbarImageGenerator(shape
@@ -2583,33 +2571,6 @@ public class Viewer3D {
 
 		private void setMax(final double max) {
 			this.max = max;
-		}
-	}
-
-	/**
-	 * Adapted AWTView so that top/side views better match to coronal/sagittal
-	 * ones
-	 */
-	private class AView extends AWTView {
-
-		public AView(final IChartComponentFactory factory, final Scene scene,
-			final ICanvas canvas, final Quality quality)
-		{
-			super(factory, scene, canvas, quality);
-			//super.DISPLAY_AXE_WHOLE_BOUNDS = true;
-			//super.MAINTAIN_ALL_OBJECTS_IN_VIEW = true;
-			//setBoundMode(ViewBoundMode.AUTO_FIT);
-		}
-
-		@Override
-		protected Coord3d computeCameraEyeTop(final Coord3d viewpoint,
-			final Coord3d target)
-		{
-			Coord3d eye = viewpoint;
-			eye.x = -(float) Math.PI / 2; // on x
-			eye.y = -(float) Math.PI / 2; // on bottom
-			eye = eye.cartesian().add(target);
-			return eye;
 		}
 	}
 
@@ -2718,10 +2679,10 @@ public class Viewer3D {
 			lightController = new LightController(this);
 			lightController.display();
 		}
-	
+
 		private void exitRequested(final GuiUtils gUtilsDefiningPrompt) {
-			if (gUtilsDefiningPrompt.getConfirmation("Quit Reconstruction Viewer?", "Quit?", "Yes. Quit Now",
-					"No. Keep Open")) {
+			if (gUtilsDefiningPrompt != null && gUtilsDefiningPrompt.getConfirmation("Quit Reconstruction Viewer?",
+					"Quit?", "Yes. Quit Now", "No. Keep Open")) {
 				chart.viewer.dispose();
 				GuiUtils.restoreLookAndFeel();
 			}
@@ -2751,7 +2712,7 @@ public class Viewer3D {
 		}
 
 		public void disposeFrame() {
-			chart.stopAnimator();
+			chart.stopAnimation();
 			ViewerFrame.this.remove(canvas);
 			ViewerFrame.this.chart.dispose();
 			ViewerFrame.this.chart = null;
@@ -4328,18 +4289,28 @@ public class Viewer3D {
 				} else {
 					SNTUtils.setDebugMode(debug);
 				}
-				if (debug) logGLDetails();
+				if (debug) {
+					switch(ENGINE) {
+					case JOGL:
+						logGLDetails();
+						break;
+					default:
+						SNTUtils.log("Rendering engine: " +  ENGINE.toString());
+					}
+				}
 			});
 			prefsMenu.add(jcbmi);
-			final JMenuItem  jcbmi2= new JCheckBoxMenuItem("Enable Hardware Acceleration", Settings.getInstance().isHardwareAccelerated());
-			//jcbmi2.setEnabled(!isSNTInstance());
-			jcbmi2.setIcon(IconFactory.getMenuIcon(GLYPH.MICROCHIP));
-			jcbmi2.setMnemonic('h');
-			jcbmi2.addItemListener(e -> {
-				Settings.getInstance().setHardwareAccelerated(jcbmi2.isSelected());
-				logGLDetails();
-			});
-			prefsMenu.add(jcbmi2);
+			if (ENGINE == Engine.JOGL) {
+				final JMenuItem  jcbmi2= new JCheckBoxMenuItem("Enable Hardware Acceleration", Settings.getInstance().isHardwareAccelerated());
+				//jcbmi2.setEnabled(!isSNTInstance());
+				jcbmi2.setIcon(IconFactory.getMenuIcon(GLYPH.MICROCHIP));
+				jcbmi2.setMnemonic('h');
+				jcbmi2.addItemListener(e -> {
+					Settings.getInstance().setHardwareAccelerated(jcbmi2.isSelected());
+					logGLDetails();
+				});
+				prefsMenu.add(jcbmi2);
+			}
 			addSeparator(prefsMenu, "Other:");
 			final JMenuItem mi = new JMenuItem("Global Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
 			mi.addActionListener(e -> {
@@ -4868,10 +4839,10 @@ public class Viewer3D {
 						return ABORTED;
 					}
 					if (collection.isEmpty()) {
-						if (promptForConfirmation) guiUtils.error("Dragged file(s) do not contain valid data.");
+						if (promptForConfirmation && guiUtils != null) guiUtils.error("Dragged file(s) do not contain valid data.");
 						return INVALID;
 					}
-					if (promptForConfirmation && collection.size() > 10) {
+					if (promptForConfirmation && collection.size() > 10 && guiUtils != null) {
 						assert SwingUtilities.isEventDispatchThread();
 						final boolean[] confirmSplit = guiUtils.getConfirmationAndOption(
 									"Are you sure you would like to import " + collection.size() + " files?<br>"
@@ -4897,7 +4868,7 @@ public class Viewer3D {
 							break;
 						case COMPLETED:
 							if (failuresAndSuccesses[1] > 0) validate();
-							if (failuresAndSuccesses[0] > 0)
+							if (failuresAndSuccesses[0] > 0 && guiUtils != null)
 								guiUtils.error("" + failuresAndSuccesses[0] + " of "
 										+ (failuresAndSuccesses[0] + failuresAndSuccesses[1])
 										+ " dropped file(s) could not be imported (Console may"
@@ -5647,7 +5618,7 @@ public class Viewer3D {
 
 		private final Tree tree;
 		private Shape treeSubShape;
-		private AbstractWireframeable somaSubShape;
+		private Wireframeable somaSubShape;
 		private Coord3d translationReset;
 
 		public ShapeTree(final Tree tree) {
@@ -5782,7 +5753,7 @@ public class Viewer3D {
 			}
 		}
 
-		private <T extends AbstractWireframeable & ISingleColorable> void
+		private <T extends Wireframeable & ISingleColorable> void
 			setWireFrame(final T t, final float r, final Color color)
 		{
 			t.setColor(Utils.contrastColor(color).alphaSelf(0.4f));
@@ -5946,8 +5917,8 @@ public class Viewer3D {
 				return true;
 			}
 			catch (InterruptedException | ExecutionException e2) {
-				gUtils.error(
-					"Unfortunately an exception occured. See console for details.");
+				if (gUtils != null)
+					gUtils.error("Unfortunately an exception occured. See console for details.");
 				e2.printStackTrace();
 				return false;
 			}
@@ -5988,7 +5959,7 @@ public class Viewer3D {
 
 		public MouseController(final Chart chart) {
 			super(chart);
-			addSlaveThreadController(new CameraThreadControllerPlus(chart)); // will removeThreadController
+			addThread(new CameraThreadControllerPlus(chart)); // will removeThreadController
 		}
 
 		private int getY(final MouseEvent e) {
@@ -6032,7 +6003,7 @@ public class Viewer3D {
 		@Override
 		public boolean handleSlaveThread(final MouseEvent e) {
 			if (AWTMouseUtilities.isDoubleClick(e)) {
-				if (currentView == ViewMode.TOP) {
+				if (currentView == ViewMode.XY) {
 					displayMsg("Rotation disabled in constrained view");
 					return true;
 				}
@@ -6046,7 +6017,7 @@ public class Viewer3D {
 		}
 
 		private void rotateLive(final Coord2d move) {
-			if (currentView == ViewMode.TOP) {
+			if (currentView == ViewMode.XY) {
 				displayMsg("Rotation disabled in constrained view");
 				return;
 			}
@@ -6298,7 +6269,7 @@ public class Viewer3D {
 		}
 
 		private void toggleAxes() {
-			chart.setAxeDisplayed(!view.isAxeBoxDisplayed());
+			chart.setAxeDisplayed(!view.isAxisDisplayed());
 		}
 
 		private boolean emptySceneMsg() {
@@ -6315,7 +6286,7 @@ public class Viewer3D {
 
 		private void resetView() {
 			try {
-				chart.setViewPoint(View.DEFAULT_VIEW);
+				chart.setViewPoint(View.VIEWPOINT_DEFAULT);
 				chart.setViewMode(ViewPositionMode.FREE);
 				view.setBoundMode(ViewBoundMode.AUTO_FIT);
 				displayMsg("View reset");
@@ -6356,8 +6327,8 @@ public class Viewer3D {
 		/* This seems to work only at initialization */
 		@SuppressWarnings("unused")
 		private void changeQuality() {
-			final Quality[] levels = { Quality.Fastest, Quality.Intermediate,
-				Quality.Advanced, Quality.Nicest };
+			final Quality[] levels = { Quality.Fastest(), Quality.Intermediate(),
+				Quality.Advanced(), Quality.Nicest() };
 			final String[] grades = { "Fastest", "Intermediate", "High", "Best" };
 			final Quality currentLevel = chart.getQuality();
 			int nextLevelIdx = 0;
@@ -6386,8 +6357,8 @@ public class Viewer3D {
 				newBackground = Color.BLACK;
 			}
 			view.setBackgroundColor(newBackground);
-			view.getAxe().getLayout().setGridColor(newForeground);
-			view.getAxe().getLayout().setMainColor(newForeground);
+			view.getAxis().getLayout().setGridColor(newForeground);
+			view.getAxis().getLayout().setMainColor(newForeground);
 			((AChart)chart).overlayAnnotation.setForegroundColor(newForeground);
 			if (cBar != null) cBar.updateColors();
 
@@ -6519,7 +6490,7 @@ public class Viewer3D {
 
 	private class OverlayAnnotation extends CameraEyeOverlayAnnotation {
 
-		private final GLAnimatorControl control;
+		private FPSAnimator joglAnimator;
 		private java.awt.Color color;
 		private String label;
 		private Font labelFont;
@@ -6529,8 +6500,14 @@ public class Viewer3D {
 
 		private OverlayAnnotation(final View view) {
 			super(view);
-			control = ((IScreenCanvas) view.getCanvas()).getAnimator();
-			control.setUpdateFPSFrames(FPSCounter.DEFAULT_FRAMES_PER_INTERVAL, null);
+			if (ENGINE == Engine.JOGL) {
+				try {
+					// this requires requires jzy v2.0.1
+					// FIXME: joglAnimator = (FPSAnimator) chart.getCanvas().getAnimation().getAnimator();
+				} catch (final Exception ignored) {
+					// do nothing
+				}
+			}
 		}
 
 		private void setForegroundColor(final Color c) {
@@ -6566,8 +6543,9 @@ public class Viewer3D {
 				g2d.drawString("Camera: " + view.getCamera().getEye(), 20, lineHeight);
 				g2d.drawString("FOV: " + view.getCamera().getRenderingSphereRadius(),
 					20, lineHeight += lineHeight);
-				g2d.drawString(control.getLastFPS() + " FPS", 20, lineHeight +=
-					lineHeight);
+				if (joglAnimator != null) {
+					g2d.drawString(joglAnimator.getLastFPS() + " FPS", 20, lineHeight += lineHeight);
+				}
 			}
 			if (label == null || label.isEmpty()) return;
 			if (labelColor != null) g2d.setColor(labelColor);
@@ -6760,7 +6738,7 @@ public class Viewer3D {
 	private synchronized void fitToVisibleObjects(final boolean beGreedy, final boolean showMsg)
 		throws NullPointerException
 	{
-		final List<AbstractDrawable> all = chart.getView().getScene().getGraph()
+		final List<Drawable> all = chart.getView().getScene().getGraph()
 			.getAll();
 		final BoundingBox3d bounds = new BoundingBox3d(0, 0, 0, 0, 0, 0);
 		all.forEach(d -> {
@@ -7101,6 +7079,91 @@ public class Viewer3D {
 				frame.managerPanel.progressBar.setLoadPending(true);
 			} else {
 				frame.managerPanel.progressBar.addToGlobalMax(loadSize);
+			}
+		}
+	}
+
+	/** Defines the type of render, and view used by jzy3d */
+	private class ViewerFactory {
+
+		/** Returns ChartComponentFactory adopting {@link AView} */
+		private ChartFactory getUpstreamFactory(final Engine render) {
+			switch (render) {
+			case EMUL_GL:
+				return new EmulGLFactory();
+			case OFFSCREEN:
+				return new OffScreenFactory();
+			case JOGL:
+				logGLDetails();
+				return new JOGLFactory();
+			default:
+				throw new IllegalArgumentException("Not a recognized render option: " + render.toString());
+			}
+
+		}
+
+		private class OffScreenFactory extends OffscreenChartFactory {
+
+			public OffScreenFactory() {
+				super(1920, 1080);
+			}
+
+			@Override
+			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
+				return new AView(getFactory(), scene, canvas, quality);
+			}
+		}
+
+		private class EmulGLFactory extends EmulGLChartFactory {
+
+			@Override
+			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
+				return new AView(getFactory(), scene, canvas, quality);
+			}
+		}
+
+		private class JOGLFactory extends SwingChartFactory {
+
+			@Override
+			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
+				return new AView(getFactory(), scene, canvas, quality);
+			}
+		}
+
+		/** Adapted View for improved rotations of the scene */
+		private class AView extends AWTView {
+
+			public AView(final IChartFactory factory, final Scene scene, final ICanvas canvas, final Quality quality) {
+				super(factory, scene, canvas, quality);
+				// super.DISPLAY_AXE_WHOLE_BOUNDS = true;
+				// super.MAINTAIN_ALL_OBJECTS_IN_VIEW = true;
+				// setBoundMode(ViewBoundMode.AUTO_FIT);
+			}
+
+			@Override
+			public void setViewPoint(Coord3d polar, boolean updateView) {
+				// see https://github.com/jzy3d/jzy3d-api/issues/214#issuecomment-975717207
+				viewpoint = polar;
+				if (updateView)
+					shoot();
+				fireViewPointChangedEvent(new ViewPointChangedEvent(this, polar));
+			}
+
+			@Override
+			protected Coord3d computeCameraEyeTop(final Coord3d viewpoint, final Coord3d target) {
+				Coord3d eye = viewpoint;
+				eye.x = -(float) Math.PI / 2; // on x
+				eye.y = -(float) Math.PI / 2; // on bottom: inverted from super.computeCameraEyeTop();
+				eye = eye.cartesian().add(target);
+				return eye;
+			}
+
+			@Override
+			protected Coord3d computeCameraUp(Coord3d viewpoint) {
+				if (getViewMode() == ViewPositionMode.FREE) {
+					return viewpoint; // Attempt to bypass axis flip: see https://github.com/jzy3d/jzy3d-api/issues/214
+				}
+				return super.computeCameraUp(viewpoint);
 			}
 		}
 	}

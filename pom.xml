@@ -130,11 +130,10 @@
 		<license.excludes>%regex[.*main/resources/.*|.*/macros/.*]</license.excludes>
 		<doclint>none</doclint>
 
-		<!-- Dependency versions for JitPack -->
+		<!-- Dependency versions -->
 		<sciview.version>9c0918a</sciview.version>
 		<scenery.version>4e67655</scenery.version>
-		<jzy3d.version>1.0.3</jzy3d.version>
-
+		<jzy3d.version>2.0.0</jzy3d.version>
 		<jline.version>3.13.1</jline.version>
 		<imagej-plot-service.version>0.1.1</imagej-plot-service.version>
 		<okhttp.version>4.9.1</okhttp.version>
@@ -143,6 +142,11 @@
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
+
+		<!-- Temporarily disable enforcer -->
+		<enforcer.skip>false</enforcer.skip>
+		<!-- Resolve dup. class conflict -->
+  		<allowedDuplicateClasses>org.jzy3d.plot3d.pipelines.NotImplementedException</allowedDuplicateClasses>
 	</properties>
 
 	<repositories>
@@ -150,13 +154,40 @@
 			<id>scijava.public</id>
 			<url>https://maven.scijava.org/content/groups/public</url>
 		</repository>
+		<repository>
+			<id>jzy3d-releases</id>
+			<name>Jzy3d Releases</name>
+			<url>http://maven.jzy3d.org/releases/</url>
+		</repository>
 	</repositories>
 
 	<dependencies>
 		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-core</artifactId>
+			<version>${jzy3d.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-native-jogl-swing</artifactId>
+			<version>${jzy3d.version}</version>
+			<exclusions>
+				<exclusion>
+					<!-- NB: Exclude problematic uber-JAR that bundles miglayout -->
+					<groupId>com.miglayout</groupId>
+					<artifactId>miglayout</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-emul-gl</artifactId>
+			<version>${jzy3d.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf</artifactId>
-			<version>1.6.1</version>
+			<version>1.6.4</version>
 		</dependency>
 		<dependency>
 			<groupId>com.github.haifengl</groupId>
@@ -190,23 +221,6 @@
 		<dependency>
 			<groupId>org.scijava</groupId>
 			<artifactId>vecmath</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.jzy3d</groupId>
-			<artifactId>jzy3d-api</artifactId>
-			<version>${jzy3d.version}</version>
-			<exclusions>
-				<exclusion>
-					<!-- NB: Exclude problematic uber-JAR that bundles miglayout -->
-					<groupId>com.miglayout</groupId>
-					<artifactId>miglayout</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>org.jzy3d</groupId>
-			<artifactId>jzy3d-jdt-core</artifactId>
-			<version>${jzy3d.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.iview</groupId>
@@ -251,7 +265,7 @@
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf-jide-oss</artifactId>
-			<version>1.6.1</version>
+			<version>1.6.4</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>

@@ -21,6 +21,7 @@
  */
 package sc.fiji.snt.annotation;
 
+import net.imglib2.util.LinAlgHelpers;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -29,6 +30,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
+import sc.fiji.snt.util.LinAlgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.OBJMesh;
@@ -51,15 +53,24 @@ import java.util.stream.Collectors;
 public class AllenUtils {
 
 	/** The version of the Common Coordinate Framework currently used by SNT */
-	public static final String VERSION = "2.5 (ML legacy)";
+	private static final String V2_5 = "2.5"; // the legacy MouseLight atlas
+	private static final String V3 = "3";
+	public static final String VERSION = V3;
+	private static final Map<String, String> brainAreasByCCFVersion = createBrainAreasResourcePathsMap();
 	protected static final int BRAIN_ROOT_ID = 997;
-	private final static PointInImage BRAIN_BARYCENTRE = new PointInImage(5687.5435f, 3849.6099f, 6595.3813f);
 
 	private static JSONArray areaList;
 	private static JSONObject areaObjectFromStructureId;
 	private static JSONObject areaObjectFromUUID;
 
 	private AllenUtils() {
+	}
+
+	private static Map<String, String> createBrainAreasResourcePathsMap() {
+		Map<String,String> brainAreasPaths = new HashMap<>();
+		brainAreasPaths.put(V3, "ml/brainAreas_v3.json");
+		brainAreasPaths.put(V2_5, "ml/brainAreas_v2.5.json");
+		return brainAreasPaths;
 	}
 
 	private static JSONObject getJSONfile(final String resourcePath) {
@@ -77,15 +88,26 @@ public class AllenUtils {
 
 	protected static JSONArray getBrainAreasList() {
 		if (areaList == null) {
-			final JSONObject json = getJSONfile("ml/brainAreas.json");
+			final JSONObject json = getJSONfile(brainAreasByCCFVersion.get(VERSION));
 			areaList = json.getJSONObject("data").getJSONArray("brainAreas");
 		}
 		return areaList;
 	}
 	
+	protected static String hostedMeshesLocation() {
+		switch(VERSION) {
+		case V3:
+			return "https://ml-neuronbrowser.janelia.org/static/ccf-2017/obj/";
+		case V2_5:
+			return "https://ml-neuronbrowser.janelia.org/static/allen/obj/";
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version");
+		}
+	}
+
 	protected static JSONObject getBrainAreasByStructureId() {
 		if (areaObjectFromStructureId == null) {
-			final JSONObject json = getJSONfile("ml/brainAreas.json");
+			final JSONObject json = getJSONfile(brainAreasByCCFVersion.get(VERSION));
 			areaObjectFromStructureId = json.getJSONObject("data").getJSONObject("brainAreasByStructureId");
 		}
 		return areaObjectFromStructureId;
@@ -93,7 +115,7 @@ public class AllenUtils {
 	
 	protected static JSONObject getBrainAreasByUUID() {
 		if (areaObjectFromUUID == null) {
-			final JSONObject json = getJSONfile("ml/brainAreas.json");
+			final JSONObject json = getJSONfile(brainAreasByCCFVersion.get(VERSION));
 			areaObjectFromUUID = json.getJSONObject("data").getJSONObject("brainAreasByUUID");
 		}
 		return areaObjectFromUUID;
@@ -144,95 +166,49 @@ public class AllenUtils {
 	}
 
 	/**
-	 * Given two points P and Q, return the vector PQ
-	 */
-	private static double[] pointsToVec(double[] p, double[] q) {
-		if (p.length != q.length) {
-			throw new IllegalArgumentException("Points p and q are not of equal length");
-		}
-		double[] pq = new double[p.length];
-		for (int i = 0; i < p.length; i++) {
-			pq[i] = q[i] - p[i];
-		}
-		return pq;
-	}
-
-	private static double[] crossProduct(double[] a, double[] b) {
-		if (a.length != 3 || b.length != 3) {
-			throw new IllegalArgumentException("Vectors a and b must be 3-dimensional");
-		}
-		double[] c = new double[3];
-		c[0] = a[1] * b[2] - a[2] * b[1];
-		c[1] = a[2] * b[0] - a[0] * b[2];
-		c[2] = a[0] * b[1] - a[1] * b[0];
-		return c;
-	}
-
-	private static double dotProduct(double[] a, double[] b) {
-		if (a.length != b.length) {
-			throw new IllegalArgumentException("Vectors a and b are not of equal length");
-		}
-		double result = 0;
-		for (int i = 0; i < a.length; i++) {
-			result += a[i] * b[i];
-		}
-		return result;
-	}
-
-	private static double euclideanNorm(double[] v) {
-		return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-	}
-
-	private static double[] normalizeVec(double[] v) {
-		double norm = euclideanNorm(v);
-		double[] normalized = new double[v.length];
-		for (int i = 0; i < v.length; i++) {
-			normalized[i] = v[i] / norm;
-		}
-		return normalized;
-	}
-
-	private static double[] matrixVectorProduct(double[][] A, double[] v) {
-		double[] b = new double[v.length];
-		for (int i = 0; i < v.length; i++) {
-			b[i] = dotProduct(A[i], v);
-		}
-		return b;
-	}
-
-	/**
-	 * Return the 4x4 Householder reflection matrix
-	 */
-	private static double[][] reflectionMatrix(double[] planePoint, double[] planeNormal) {
-		double a = planeNormal[0];
-		double b = planeNormal[1];
-		double c = planeNormal[2];
-		double d = -1 * a * planePoint[0] - b * planePoint[1] - c * planePoint[2];
-		// We need to use an affine transformation instead of linear
-		// since the plane of reflection does not go through the origin.
-		return new double[][]{ {  1-2*a*a, -2*a*b,   -2*a*c,   -2*a*d },
-				{ -2*a*b,    1-2*b*b, -2*b*c,   -2*b*d },
-				{ -2*a*c,   -2*b*c,    1-2*c*c, -2*c*d },
-				{  0,        0,        0,        1 } };
-	}
-
-	/**
 	 * Reflect the Tree across the mid-sagittal plane passing through the brain
 	 * barycentre.
 	 */
 	private static void mirrorTree(final Tree tree) {
-		double[] p = new double[] { BRAIN_BARYCENTRE.getX(), BRAIN_BARYCENTRE.getY(), BRAIN_BARYCENTRE.getZ() };
-		double[] q = new double[] { p[0], p[1] + 100, p[2] };
-		double[] r = new double[] { p[0], p[1], p[2] + 100 };
-		double[] pq = pointsToVec(p, q);
-		double[] pr = pointsToVec(p, r);
-		double[] unitNormal = normalizeVec(crossProduct(pq, pr));
-		double[][] A = reflectionMatrix(p, unitNormal);
-		for (Path path : tree.list()) {
+		final double[] p = new double[] { brainCenter().getX(), brainCenter().getY(), brainCenter().getZ() };
+		final double[] q = new double[] { p[0], p[1], p[2]};
+		final double[] r = new double[] { p[0], p[1], p[2]};
+		// Choose two vectors defining the sagittal plane.
+		switch (VERSION) {
+			case V3:
+				// Axes> X: Anterior-Posterior; Y: Inferior-Superior; Z:Left-Right
+				// XY is sagittal plane
+				q[0] += 100;
+				r[1] += 100;
+				break;
+			case V2_5:
+				// Axes> Z: Anterior-Posterior; Y: Inferior-Superior; X:Left-Right
+				// ZY is sagittal plane
+				q[1] += 100;
+				r[2] += 100;
+				break;
+			default:
+				throw new IllegalArgumentException("Unrecognized CCF version");
+		}
+		final double[] pq = new double[3];
+		LinAlgHelpers.subtract(q, p, pq);
+		final double[] pr = new double[3];
+		LinAlgHelpers.subtract(r, p, pr);
+		final double[] crossed = new double[3];
+		LinAlgHelpers.cross(pq, pr, crossed);
+		LinAlgHelpers.normalize(crossed);
+		final double[][] A = LinAlgUtils.reflectionMatrix(p, crossed);
+		final double[] oldCoords = new double[4];
+		final double[] newCoords = new double[4];
+		for (final Path path : tree.list()) {
 			for (int i = 0; i < path.size(); i++) {
-				PointInImage node = path.getNode(i);
-				double[] oldCoords = new double[] { node.getX(), node.getY(), node.getZ(), 1 };
-				double[] newCoords = matrixVectorProduct(A, oldCoords);
+				final PointInImage node = path.getNode(i);
+				oldCoords[0] = node.getX();
+				oldCoords[1] = node.getY();
+				oldCoords[2] = node.getZ();
+				// Use augmented matrix
+				oldCoords[3] = 1d;
+				LinAlgHelpers.mult(A, oldCoords, newCoords);
 				path.moveNode(i, new PointInImage(newCoords[0], newCoords[1], newCoords[2]));
 			}
 		}
@@ -271,13 +247,19 @@ public class AllenUtils {
 	}
 
 	/**
-	 * Gets the axis defining mid sagittal plane.
+	 * Gets the axis defining the sagittal plane.
 	 *
-	 * @return the axis defining mid sagittal plane where X=0; Y=1; Z=2;
+	 * @return the axis defining the sagittal plane where X=0; Y=1; Z=2;
 	 */
-	@SuppressWarnings("SameReturnValue")
-	public static int getAxisDefiningMidSagittalPlane() {
-		return 0;
+	public static int getAxisDefiningSagittalPlane() {
+		switch(VERSION) {
+		case V3:
+			return 2; // Z axis
+		case V2_5:
+			return 0; // X axis
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version");
+		}
 	}
 
 	public static void assignHemisphereTags(final Tree tree) {
@@ -305,11 +287,25 @@ public class AllenUtils {
 	 * @return true, if is left hemisphere, false otherwise
 	 */
 	public static boolean isLeftHemisphere(final SNTPoint point) {
-		return point.getX() <= BRAIN_BARYCENTRE.x;
+		switch(VERSION) {
+		case V3:
+			return point.getZ() <= brainCenter().getZ();
+		case V2_5:
+			return point.getX() <= brainCenter().getX();
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version");
+		}
 	}
 
 	public static boolean isLeftHemisphere(final double x, final double y, final double z) {
-		return x <= BRAIN_BARYCENTRE.x;
+		switch(VERSION) {
+		case V3:
+			return z <= brainCenter().getZ();
+		case V2_5:
+			return x <= brainCenter().getX();
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version");
+		}
 	}
 
 	/**
@@ -318,7 +314,14 @@ public class AllenUtils {
 	 * @return the SNT point defining the (X,Y,Z) center of the ARA
 	 */
 	public static SNTPoint brainCenter() {
-		return BRAIN_BARYCENTRE;
+		switch(VERSION) {
+		case V3:
+			return new PointInImage(6587.8352f, 3849.0851f, 5688.1643f); // precomputed
+		case V2_5:
+			return new PointInImage(5687.5435f, 3849.6099f, 6595.3813f); // precomputed
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version");
+		}
 	}
 
 	/**
@@ -326,10 +329,14 @@ public class AllenUtils {
 	 * 
 	 * @return the max number of ontology levels.
 	 */
-	@SuppressWarnings("SameReturnValue")
 	public static int getHighestOntologyDepth() {
-		// No need to compute, as this is unlikely to change
-		return 10; // computeHighestOntologyDepth();
+		switch(VERSION) {
+		case V3:
+		case V2_5:
+			return 10; // as per computeHighestOntologyDepth()
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version");
+		}
 	}
 
 	@SuppressWarnings("unused")
@@ -471,14 +478,27 @@ public class AllenUtils {
 	 */
 	public static OBJMesh getRootMesh(final ColorRGB color) {
 		final String meshLabel = "Whole Brain";
-		final String meshPath = "meshes/MouseBrainAllen.obj";
+		String meshPath;
+		double volume;
+		switch (VERSION) {
+		case V3:
+			meshPath = "meshes/MouseBrainAllen3.obj";
+			volume = 513578693035.138d;  // pre-computed in trimesh
+			break;
+		case V2_5:
+			meshPath = "meshes/MouseBrainAllen2.5.obj";
+			volume = 513578693035.138d; // pre-computed in trimesh
+			break;
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version");
+		}
 		final ClassLoader loader = Thread.currentThread().getContextClassLoader();
 		final URL url = loader.getResource(meshPath);
 		if (url == null)
 			throw new IllegalArgumentException(meshLabel + " not found");
 		final OBJMesh mesh = new OBJMesh(url, "um");
 		mesh.setColor(color, 95f);
-		mesh.setVolume(513578693035.138d); // pre-computed surface integral
+		mesh.setVolume(volume);
 		mesh.setLabel(meshLabel);
 		return mesh;
 	}

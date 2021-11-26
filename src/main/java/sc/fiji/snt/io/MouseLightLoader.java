@@ -79,8 +79,22 @@ public class MouseLightLoader {
 	/** The Constant SOMA. */
 	public static final String SOMA = "soma";
 
-	private static final String JSON_URL = "https://ml-neuronbrowser.janelia.org/json";
-	private static final String SWC_URL = "https://ml-neuronbrowser.janelia.org/swc";
+	private static final String TRACING_URL = "https://ml-neuronbrowser.janelia.org/export";
+	private static int CCF_VERSION;
+	static {
+		switch (AllenUtils.VERSION) {
+			case "3":
+				CCF_VERSION = 1;
+				break;
+			case "2.5":
+				CCF_VERSION = 0;
+				break;
+			default:
+				throw new IllegalArgumentException("Unknown CCF version: " + AllenUtils.VERSION);
+		}
+	}
+	private static final int SWC_FORMAT = 0;
+	private static final int JSON_FORMAT = 1;
 	private static final int MIN_CHARS_IN_VALID_RESPONSE_BODY = 150;
 	private final static MediaType MEDIA_TYPE = MediaType.parse("application/json");
 
@@ -98,11 +112,12 @@ public class MouseLightLoader {
 		this.id = id;
 	}
 
-	private Response getResponse(final String url) throws IOException {
+	private Response getResponse(final String url, final int format) throws IOException {
 		final OkHttpClient client = new OkHttpClient();
 		//TODO: Update for okhttp4: final RequestBody body = RequestBody.create("{\"ids\": [\"" + id + "\"]}", MEDIA_TYPE);
 		//see https://github.com/morphonets/SNT/issues/26
-		final RequestBody body = RequestBody.create(MEDIA_TYPE, "{\"ids\": [\"" + id + "\"]}");
+		final RequestBody body = RequestBody.create(MEDIA_TYPE, "{\"ids\": [\"" + id + "\"]," +
+				" \"ccfVersion\": " + CCF_VERSION + ", \"format\": " + format + "}");
 		final Request request = new Request.Builder() //
 				.url(url) //
 				.post(body).addHeader("Content-Type", "application/json") //
@@ -111,16 +126,15 @@ public class MouseLightLoader {
 		return client.newCall(request).execute();
 	}
 
-	private JSONObject getJSON(final String url) {
+	private JSONObject getJSON(final String url, final int format) {
 		try {
-			final Response response = getResponse(url);
+			final Response response = getResponse(url, format);
 			final String responseBody = response.body().string();
 			if (responseBody.length() < MIN_CHARS_IN_VALID_RESPONSE_BODY) {
 				return null;
 			}
 			final JSONObject json = new JSONObject(responseBody);
-			if (json != null && url.equals(JSON_URL)
-					&& json.getJSONObject("contents").getJSONArray("neurons").isEmpty())
+			if (format == JSON_FORMAT && json.getJSONObject("contents").getJSONArray("neurons").isEmpty())
 				return null;
 			response.close();
 			return json;
@@ -364,7 +378,7 @@ public class MouseLightLoader {
 	 * @return the JSON data (null if data could not be retrieved).
 	 */
 	public JSONObject getJSON() {
-		if (jsonData == null) jsonData = getJSON(JSON_URL);
+		if (jsonData == null) jsonData = getJSON(TRACING_URL, JSON_FORMAT);
 		return jsonData;
 	}
 
@@ -418,7 +432,7 @@ public class MouseLightLoader {
 	 * @return the SWC data (null if data could not be retrieved).
 	 */
 	public String getSWC() {
-		final JSONObject json = getJSON(SWC_URL);
+		final JSONObject json = getJSON(TRACING_URL, SWC_FORMAT);
 		if (json == null) return null;
 		final String jsonContents = json.get("contents").toString();
 		final byte[] decodedContents = Base64.getDecoder().decode(jsonContents);
