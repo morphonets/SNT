@@ -90,9 +90,9 @@ for (annot in miscAnnotations) {
 }
 
 // Display scene
-viewer.show()
 viewer.setAnimationEnabled(true)
-print("... Done. With Viewer active, Press 'H' or 'F1' for help")
+viewer.show()
+println("... Done. With Viewer active, Press 'H' or 'F1' for help")
 
 
 /** 
