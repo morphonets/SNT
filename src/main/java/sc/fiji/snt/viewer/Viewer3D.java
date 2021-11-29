@@ -266,7 +266,6 @@ public class Viewer3D {
 			static final Coord3d YZ = new Coord3d(-Math.PI, 0, View.DISTANCE_DEFAULT); // new Coord3d(-Math.PI *2, 0, View.DISTANCE_DEFAULT)
 			static final Coord3d PERSPECTIVE = new Coord3d(-Math.PI / 2.675, -0.675, View.DISTANCE_DEFAULT);
 			static final Coord3d DEF = View.VIEWPOINT_AXIS_CORNER_TOUCH_BORDER;
-
 		}
 	}
 
@@ -289,7 +288,6 @@ public class Viewer3D {
 	private static int currentID = 0;
 	private int id;
 	private boolean sntInstance;
-
 
 	/* Maps for plotted objects */
 	private final Map<String, ShapeTree> plottedTrees;
@@ -4332,7 +4330,7 @@ public class Viewer3D {
 			final String commentPrefix = (extension.endsWith("py")) ? "# " : "// ";
 			final StringBuilder sb = new StringBuilder(prefs.getBoilerplateScript(extension));
 			sb.append("\n").append(commentPrefix);
-			sb.append("Rec. Viewer's API: https://morphonets.github.io/SNT/index.html?sc/fiji/snt/viewer/Viewer3D.html");
+			sb.append("Rec. Viewer's API: https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/viewer/Viewer3D.html");
 			sb.append("\n").append(commentPrefix);
 			sb.append("Tip: Programmatic control of the Viewer's scene can be set using the Console info");
 			sb.append("\n").append(commentPrefix);

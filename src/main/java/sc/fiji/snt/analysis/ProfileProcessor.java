@@ -411,7 +411,8 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         return MathEx.var( vals.stream().mapToDouble( Double::doubleValue ).toArray() );
     }
 
-    public static void main( String[] args )
+    @SuppressWarnings("unused")
+	public static void main( String[] args )
     {
         ImageJ ij = new ImageJ();
         ij.ui().showUI();
