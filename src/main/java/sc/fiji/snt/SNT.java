@@ -264,7 +264,7 @@ public class SNT extends MultiDThreePanes implements
 	private HeuristicType heuristicType = HeuristicType.EUCLIDEAN;
 
 	/* Compute image statistics on the bounding box sub-volume given by the start and goal nodes */
-	protected volatile boolean isUseSubVolumeStats = false;
+	protected volatile boolean isUseSubVolumeStats = true;
 
 	/* adjustable parameters for cost functions */
 	// This should be less than 1, prevents meandering path
@@ -702,12 +702,12 @@ public class SNT extends MultiDThreePanes implements
 		if (restoreROI) imp.saveRoi();
 		imp.deleteRoi(); // if a ROI exists, compute min/ max for entire image
 		if (restoreROI) imp.restoreRoi();
-		ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
-				ImageStatistics.STD_DEV);
-		this.stats.min = imgStats.min;
-		this.stats.max = imgStats.max;
-		this.stats.mean = imgStats.mean;
-		this.stats.stdDev = imgStats.stdDev;
+//		ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
+//				ImageStatistics.STD_DEV);
+//		this.stats.min = imgStats.min;
+//		this.stats.max = imgStats.max;
+//		this.stats.mean = imgStats.mean;
+//		this.stats.stdDev = imgStats.stdDev;
 		updateLut();
 	}
 
@@ -2503,8 +2503,7 @@ public class SNT extends MultiDThreePanes implements
 
 	private void invalidStatsError(final boolean isSecondary) {
 		guiUtils.error("Statistics for the " + (isSecondary ? "Secondary Layer" : "main image") +
-				" have not been computed. First, make sure the \"Compute Real-Time\" option in the" +
-				"\"Auto-tracing\" menu is enabled. Then, trace a small Path over a relevant feature to compute them.");
+				" have not been computed. Trace a small Path over a relevant feature to compute them.");
 	}
 
 	protected void setFillTransparent(final boolean transparent) {
