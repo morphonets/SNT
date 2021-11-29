@@ -440,6 +440,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	}
 
 	private void apply() {
+		// flush any rogue Img
+		snt.flushSecondaryData();
 		snt.loadSecondaryImage(filteredImg, !useLazy);
 		snt.setUseSubVolumeStats(useLazy);
 		if (show) {

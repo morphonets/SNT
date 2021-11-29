@@ -47,6 +47,7 @@ import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
 import net.imglib2.*;
 import net.imglib2.Point;
 import net.imglib2.RandomAccess;
+import net.imglib2.cache.img.CachedCellImg;
 import net.imglib2.cache.img.DiskCachedCellImg;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.logic.BitType;
@@ -1676,7 +1677,7 @@ public class SNT extends MultiDThreePanes implements
 		final ImageStatistics imgStats = useSecondary ? statsSecondary : stats;
 		if (isUseSubVolumeStats)
 		{
-			SNTUtils.log("Computing sub-region statistics...");
+			SNTUtils.log("Computing local statistics...");
 			computeImgStats(
 					Views.iterable(
 							ImgUtils.subInterval(
@@ -1930,6 +1931,7 @@ public class SNT extends MultiDThreePanes implements
 		} else {
 			throw new IllegalArgumentException("Unknown strategy: " + strategy);
 		}
+		flushSecondaryData();
 		loadSecondaryImage(filtered, false);
 		setSecondaryImageMinMax(min, max);
 		doSearchOnSecondaryData = true;
@@ -2727,13 +2729,17 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void flushSecondaryData() {
+		// TODO: Is this all we need to do, and is it in the correct order?
 		if (secondaryData instanceof DiskCachedCellImg) {
-			// TODO: Is this all we need to do, and is it in the correct order?
 			DiskCachedCellImg<?, ?> img = (DiskCachedCellImg<?, ?>)secondaryData;
 			SNTUtils.log("Shutting down IoSync...");
 			img.shutdown();
+		}
+		if (secondaryData instanceof CachedCellImg) {
+			CachedCellImg<?, ?> img = (CachedCellImg<?, ?>)secondaryData;
 			SNTUtils.log("Invalidating cache...");
-			img.getCache().invalidateAll();
+			if (img.getCache() != null)
+				img.getCache().invalidateAll();
 		}
 		secondaryData = null;
 		setSecondaryImage(null);
