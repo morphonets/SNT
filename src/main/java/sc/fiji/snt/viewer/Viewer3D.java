@@ -107,6 +107,7 @@ import org.jzy3d.plot3d.rendering.lights.Light;
 import org.jzy3d.plot3d.rendering.lights.LightSet;
 import org.jzy3d.plot3d.rendering.scene.Scene;
 import org.jzy3d.plot3d.rendering.view.AWTView;
+import org.jzy3d.plot3d.rendering.view.HiDPI;
 import org.jzy3d.plot3d.rendering.view.View;
 import org.jzy3d.plot3d.rendering.view.ViewportMode;
 import org.jzy3d.plot3d.rendering.view.annotation.CameraEyeOverlayAnnotation;
@@ -7138,6 +7139,12 @@ public class Viewer3D {
 				// super.DISPLAY_AXE_WHOLE_BOUNDS = true;
 				// super.MAINTAIN_ALL_OBJECTS_IN_VIEW = true;
 				// setBoundMode(ViewBoundMode.AUTO_FIT);
+				setHiDPIenabled(Prefs.SCALE_FACTOR > 1);
+			}
+
+			void setHiDPIenabled(boolean enabled) {
+				super.hidpi = (enabled) ? HiDPI.ON : HiDPI.OFF;
+				axis.getLayout().applyFontSizePolicy();
 			}
 
 			@Override
