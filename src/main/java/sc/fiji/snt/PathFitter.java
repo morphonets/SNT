@@ -30,13 +30,13 @@ import net.imglib2.RealRandomAccess;
 import net.imglib2.RealRandomAccessible;
 import net.imglib2.converter.Converters;
 import net.imglib2.converter.RealFloatConverter;
-import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import pal.math.ConjugateDirectionSearch;
 import pal.math.MultivariateFunction;
+import sc.fiji.snt.util.ImgUtils;
 
 import java.util.Arrays;
 import java.util.concurrent.Callable;
@@ -95,14 +95,38 @@ public class PathFitter implements Callable<Path> {
 	 * @param path the {@link Path} to be fitted
 	 */
 	public PathFitter(final ImagePlus imp, final Path path) {
-		this(ImageJFunctions.wrapReal(imp), path);
+		if (path == null)
+			throw new IllegalArgumentException("Cannot fit a null path");
+		if (path.isFittedVersionOfAnotherPath())
+			throw new IllegalArgumentException("Trying to fit an already fitted path");
+		// TODO: maybe ConvertService would make more sense here?
+		RandomAccessibleInterval<? extends RealType<?>> img = ImgUtils.impToRealRai5d(imp);
+		// Extract the relevant part of the imp
+		img = Views.hyperSlice(img, 2, imp.getChannel() - 1);
+		img = Views.hyperSlice(img, 3, imp.getFrame() - 1);
+		// If Z is a singleton dimension, drop it
+		img = Views.dropSingletonDimensions(img);
+		setImage(img);
+		this.plugin = null;
+		this.path = path;
+		this.fitterIndex = -1;
+		this.progress = null;
+		this.showDetailedFittingResults = false;
 	}
 
+	/**
+	 * Instantiates a new PathFitter. If img has more than two dimensions, the third dimension
+	 * is treated as depth.
+	 *
+	 * @param img the Image containing the signal to which the fit will be
+	 *          performed
+	 * @param path the {@link Path} to be fitted
+	 */
 	public PathFitter(final RandomAccessibleInterval<? extends RealType<?>> img, final Path path) {
-		if (path == null) throw new IllegalArgumentException(
-				"Cannot fit a null path");
-		if (path.isFittedVersionOfAnotherPath()) throw new IllegalArgumentException(
-				"Trying to fit an already fitted path");
+		if (path == null)
+			throw new IllegalArgumentException("Cannot fit a null path");
+		if (path.isFittedVersionOfAnotherPath())
+			throw new IllegalArgumentException("Trying to fit an already fitted path");
 		setImage(img);
 		this.plugin = null;
 		this.path = path;
@@ -119,12 +143,11 @@ public class PathFitter implements Callable<Path> {
 	 *          loaded by the plugin.
 	 * @param path the {@link Path} to be fitted
 	 */
-	public PathFitter(final SNT plugin, final Path path)
-	{
-		if (path == null) throw new IllegalArgumentException(
-			"Cannot fit a null path");
-		if (path.isFittedVersionOfAnotherPath()) throw new IllegalArgumentException(
-			"Trying to fit an already fitted path");
+	public PathFitter(final SNT plugin, final Path path) {
+		if (path == null)
+			throw new IllegalArgumentException("Cannot fit a null path");
+		if (path.isFittedVersionOfAnotherPath())
+			throw new IllegalArgumentException("Trying to fit an already fitted path");
 		this.plugin = plugin;
 		setImage(plugin.getLoadedData());
 		this.path = path;

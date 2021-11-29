@@ -253,6 +253,31 @@ public class ImgUtils
     }
 
     /**
+     * Wrap an {@link ImagePlus} to a {@link RandomAccessibleInterval} such that the number of dimensions in
+     * the resulting rai is 5 and the axis order is XYCZT.
+     * Axes that are not present in the input imp have singleton dimensions in the rai.
+     *
+     * For example, given a 2D, multichannel imp, the dimensions of the result rai are
+     * [ |X|, |Y|, |C|, 1, 1 ]
+     * @param imp
+     * @param <T>
+     * @return the 5D rai
+     */
+    public static < T extends RealType< T > > RandomAccessibleInterval< T > impToRealRai5d(
+            final ImagePlus imp )
+    {
+        RandomAccessibleInterval< T > out = ImageJFunctions.wrapReal( imp );
+        final int nd = out.numDimensions();
+        if ( imp.getNChannels() <= 1 )
+            out = Views.permute( Views.addDimension( out, 0, 0 ), 2, nd );
+        if ( imp.getNSlices() <= 1 )
+            out = Views.permute( Views.addDimension( out, 0, 0 ), 3, nd );
+        if ( imp.getNFrames() <= 1 )
+            out = Views.permute( Views.addDimension( out, 0, 0 ), 4, nd );
+        return out;
+    }
+
+    /**
      * Checks if pos is outside the bounds given by min and max
      * @param pos the position to check
      * @param min the minimum of the interval
