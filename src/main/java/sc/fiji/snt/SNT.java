@@ -268,7 +268,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/* adjustable parameters for cost functions */
 	// This should be less than 1, prevents meandering path
-	protected volatile double oneMinusErfZFudge = 0.2;
+	protected volatile double oneMinusErfZFudge = 0.8;
 
 	/* tracing threads */
 	private AbstractSearch currentSearchThread = null;
