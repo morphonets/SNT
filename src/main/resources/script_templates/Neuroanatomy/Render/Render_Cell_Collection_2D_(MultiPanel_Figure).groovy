@@ -27,7 +27,7 @@ if (recDir) {
 	trees = snt.demoTrees()
 	// Rotate the reconstructions to "straighten up" the
 	// apical shaft of these pyramidal cell dendrites
-	for (tree in trees) tree.rotate(Tree.Z_AXIS, 210)
+	for (tree in trees) tree.rotate(Tree.Z_AXIS, 190)
 }
 
 // Align reconstructions, bringing their somas to a common origin

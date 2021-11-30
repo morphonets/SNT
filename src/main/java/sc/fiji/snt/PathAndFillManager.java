@@ -867,10 +867,10 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (parent != null) {
 				if (currentPath.getStartJoins() != null && currentPath
 					.getStartJoins() == parent) connectingPoint =
-						currentPath.startJoinsPoint;
+						currentPath.getStartJoinsPoint();
 				else if (parent.getStartJoins() != null && parent
 					.getStartJoins() == currentPath) connectingPoint =
-						parent.startJoinsPoint;
+						parent.getStartJoinsPoint();
 				else throw new SWCExportException(
 					"Couldn't find the link between parent \"" + parent +
 						"\"\nand child \"" + currentPath + "\" which are somehow joined");
@@ -1469,11 +1469,11 @@ public class PathAndFillManager extends DefaultHandler implements
 					int nearestIndexOnStartPath = -1;
 					if (p.startJoins.size() > 0) {
 						nearestIndexOnStartPath = p.startJoins.indexNearestTo(
-							p.startJoinsPoint.x, p.startJoinsPoint.y, p.startJoinsPoint.z);
+							p.getStartJoinsPoint().x, p.getStartJoinsPoint().y, p.getStartJoinsPoint().z);
 					}
 					startsString = " startson=\"" + startPathID + "\"" + " startx=\"" +
-						p.startJoinsPoint.x + "\"" + " starty=\"" + p.startJoinsPoint.y +
-						"\"" + " startz=\"" + p.startJoinsPoint.z + "\"";
+						p.getStartJoinsPoint().x + "\"" + " starty=\"" + p.getStartJoinsPoint().y +
+						"\"" + " startz=\"" + p.getStartJoinsPoint().z + "\"";
 					if (nearestIndexOnStartPath >= 0) startsString += " startsindex=\"" +
 						nearestIndexOnStartPath + "\"";
 				}
