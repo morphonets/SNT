@@ -99,14 +99,7 @@ public class PathFitter implements Callable<Path> {
 			throw new IllegalArgumentException("Cannot fit a null path");
 		if (path.isFittedVersionOfAnotherPath())
 			throw new IllegalArgumentException("Trying to fit an already fitted path");
-		// TODO: maybe ConvertService would make more sense here?
-		RandomAccessibleInterval<? extends RealType<?>> img = ImgUtils.impToRealRai5d(imp);
-		// Extract the relevant part of the imp
-		img = Views.hyperSlice(img, 2, imp.getChannel() - 1);
-		img = Views.hyperSlice(img, 3, imp.getFrame() - 1);
-		// If Z is a singleton dimension, drop it
-		img = Views.dropSingletonDimensions(img);
-		setImage(img);
+		setImage(ImgUtils.getCtSlice(imp));
 		this.plugin = null;
 		this.path = path;
 		this.fitterIndex = -1;

@@ -252,6 +252,16 @@ public class ImgUtils
         return slice;
     }
 
+    public static < T extends RealType< T > > RandomAccessibleInterval< T > getCtSlice( final ImagePlus imp )
+    {
+        RandomAccessibleInterval< T > img = ImgUtils.impToRealRai5d( imp );
+        // Extract the relevant part of the imp
+        img = Views.hyperSlice( img, 2, imp.getChannel() - 1 );
+        img = Views.hyperSlice( img, 3, imp.getFrame() - 1 );
+        // If Z is a singleton dimension, drop it
+        return Views.dropSingletonDimensions( img );
+    }
+
     /**
      * Wrap an {@link ImagePlus} to a {@link RandomAccessibleInterval} such that the number of dimensions in
      * the resulting rai is 5 and the axis order is XYCZT.
