@@ -442,8 +442,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	private void apply() {
 		// flush any rogue Img
 		snt.flushSecondaryData();
-		snt.loadSecondaryImage(filteredImg, !useLazy);
-		snt.setUseSubVolumeStats(useLazy);
+		snt.loadSecondaryImage(filteredImg, false);
+		snt.setUseSubVolumeStats(true);
 		if (show) {
 			final ImagePlus imp = ImgUtils.raiToImp(filteredImg, getImageName());
 			imp.copyScale(sntService.getPlugin().getImagePlus());
@@ -461,9 +461,9 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 				}
 			}
 		}
-//		if (getPrompt() != null) getPrompt().dispose();
+		if (getPrompt() != null) getPrompt().dispose();
 		if (ui != null) ui.changeState(SNTUI.READY);
-//		prompt = null;
+		prompt = null;
 		savePreferences();
 	}
 
