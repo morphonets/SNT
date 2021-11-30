@@ -2643,7 +2643,8 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
-		secondaryData = ImageJFunctions.wrapReal(imp);
+		imp.setPosition( channel, xy.getSlice(), frame );
+		secondaryData = ImgUtils.getCtSlice(imp);
 		SNTUtils.log("Secondary data dimensions: " +
 				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
 		ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
@@ -2749,8 +2750,9 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private boolean compatibleImp(final ImagePlus imp) {
-		return imp.getNChannels() <= channel && imp.getNFrames() <= frame && imp.getWidth() == xy.getWidth()
-				&& imp.getHeight() == xy.getHeight() && imp.getNSlices() == xy.getNSlices();
+		return imp.getNChannels() == xy.getNChannels() && imp.getNFrames() == xy.getNFrames() &&
+				imp.getWidth() == xy.getWidth() && imp.getHeight() == xy.getHeight() &&
+				imp.getNSlices() == xy.getNSlices();
 	}
 
 	private ImagePlus openCachedDataImage(final File file) throws IOException {
