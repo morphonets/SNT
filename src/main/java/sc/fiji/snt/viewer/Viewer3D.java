@@ -4484,6 +4484,8 @@ public class Viewer3D {
 			});
 			tracesMenu.add(mi);
 
+			if (!isSNTInstance()) tracesMenu.add(loadDemoMenuItem());
+
 			final JMenu remoteMenu = new JMenu("Load from Database");
 			remoteMenu.setMnemonic('d');
 			remoteMenu.setDisplayedMnemonicIndex(10);
@@ -4548,6 +4550,39 @@ public class Viewer3D {
 			});
 			tracesMenu.add(mi);
 			return tracesMenu;
+		}
+
+		private JMenuItem loadDemoMenuItem() {
+			final JMenuItem mi = new JMenuItem("Import Demo(s)...", IconFactory.getMenuIcon(GLYPH.GRADUATION_CAP));
+			mi.addActionListener(e -> {
+				final String[] choices = new String[3];
+				choices[0] = "Mouse Pyramidal neurons (CCF annotated)";
+				choices[1] = "Drosophila OP neuron (3D)";
+				choices[2] = "L-Systems Fractal (2D)";
+				final String choice = guiUtils.getChoice("Which dataset?", "Load Demo Dataset", choices, choices[0]);
+				if (choice == null) {
+					return;
+				}
+				try {
+					if (choice == choices[0]) {
+						addTrees(sntService.demoTrees(), "unique");
+					} else if (choice == choices[1]) {
+						final Tree tree = sntService.demoTree("op1");
+						tree.setColor("red");
+						addTreeInternal(tree);
+					} else if (choice == choices[2]) {
+						final Tree tree = sntService.demoTree("fractal");
+						tree.setColor("magenta");
+						addTreeInternal(tree);
+					} else {
+						throw new IllegalArgumentException("Unrecognized option:" + choice);
+					}
+				} catch (final Throwable ex) {
+					guiUtils.error(ex.getMessage());
+					ex.printStackTrace();
+				}
+			});
+			return mi;
 		}
 
 		private JMenu legendMenu() {
@@ -5004,7 +5039,6 @@ public class Viewer3D {
 		}
 	}
 
-	
 	private class AllenCCFNavigator {
 
 		private final SNTSearchableBar searchableBar;
