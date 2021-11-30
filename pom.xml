@@ -136,7 +136,7 @@
 		<jzy3d.version>2.0.0</jzy3d.version>
 		<jline.version>3.13.1</jline.version>
 		<imagej-plot-service.version>0.1.1</imagej-plot-service.version>
-		<okhttp.version>4.9.1</okhttp.version>
+		<okhttp.version>4.9.3</okhttp.version>
 		<font-awesome.version>5.15.4</font-awesome.version>
 		<json.version>20210307</json.version>
 

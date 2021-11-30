@@ -107,6 +107,7 @@ import org.jzy3d.plot3d.rendering.lights.Light;
 import org.jzy3d.plot3d.rendering.lights.LightSet;
 import org.jzy3d.plot3d.rendering.scene.Scene;
 import org.jzy3d.plot3d.rendering.view.AWTView;
+import org.jzy3d.plot3d.rendering.view.HiDPI;
 import org.jzy3d.plot3d.rendering.view.View;
 import org.jzy3d.plot3d.rendering.view.ViewportMode;
 import org.jzy3d.plot3d.rendering.view.annotation.CameraEyeOverlayAnnotation;
@@ -265,11 +266,10 @@ public class Viewer3D {
 			static final Coord3d YZ = new Coord3d(-Math.PI, 0, View.DISTANCE_DEFAULT); // new Coord3d(-Math.PI *2, 0, View.DISTANCE_DEFAULT)
 			static final Coord3d PERSPECTIVE = new Coord3d(-Math.PI / 2.675, -0.675, View.DISTANCE_DEFAULT);
 			static final Coord3d DEF = View.VIEWPOINT_AXIS_CORNER_TOUCH_BORDER;
-
 		}
 	}
 
-	private final static String MESH_LABEL_ALLEN = "Whole Brain";
+	private final static String MESH_LABEL_ALLEN = "Whole Brain (CCFv" + AllenUtils.VERSION + ")";
 	private final static String MESH_LABEL_ZEBRAFISH = "Outline (MP ZBA)";
 	private final static String MESH_LABEL_JFRC2018 = "JFRC 2018";
 	private final static String MESH_LABEL_JFRC2 = "JFRC2 (VFB)";
@@ -288,7 +288,6 @@ public class Viewer3D {
 	private static int currentID = 0;
 	private int id;
 	private boolean sntInstance;
-
 
 	/* Maps for plotted objects */
 	private final Map<String, ShapeTree> plottedTrees;
@@ -2116,12 +2115,26 @@ public class Viewer3D {
 		final String filename = new SimpleDateFormat("'SNT 'yyyy-MM-dd HH-mm-ss'.png'")
 				.format(new Date());
 		final File file = new File(prefs.snapshotDir, filename);
+		boolean saved = false;
 		try {
-			return saveSnapshot(file);
-		} catch (final IllegalArgumentException | IOException e) {
+			saved = saveSnapshot(file);
+		} catch (final IllegalArgumentException | IOException | GLException e) {
 			SNTUtils.error("IOException", e);
-			return false;
+			saved = false;
 		}
+		if (currentView == ViewMode.YZ) {
+			new Thread(() -> {
+				// HACK: current cartesian views may not reflect sensible 'anatomical views'.
+				// This is the case with the Allen CCF. While this is not addressed, we can
+				// just save a rotated copy of the snapshot. //TODO: Handle this more properly
+				final ij.ImagePlus imp = ij.IJ.openImage(file.getAbsolutePath());
+				if (imp != null) {
+					ij.IJ.run(imp, "Rotate 90 Degrees Left", "");
+					ij.IJ.saveAs(imp, "PNG", file.getAbsolutePath().replace(".png", "_rotated.png"));
+				}
+			}).start();
+		}
+		return saved;
 	}
 
 	/**
@@ -3893,7 +3906,7 @@ public class Viewer3D {
 			mi = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.getMenuIcon(GLYPH.SAVE));
 			mi.setToolTipText("Save all tables, plots, and charts currently open.");
 			mi.addActionListener(e -> {
-				runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING);
+				runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
 			addSeparator(measureMenu, "Distribution Analysis:");
@@ -4331,7 +4344,7 @@ public class Viewer3D {
 			final String commentPrefix = (extension.endsWith("py")) ? "# " : "// ";
 			final StringBuilder sb = new StringBuilder(prefs.getBoilerplateScript(extension));
 			sb.append("\n").append(commentPrefix);
-			sb.append("Rec. Viewer's API: https://morphonets.github.io/SNT/index.html?sc/fiji/snt/viewer/Viewer3D.html");
+			sb.append("Rec. Viewer's API: https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/viewer/Viewer3D.html");
 			sb.append("\n").append(commentPrefix);
 			sb.append("Tip: Programmatic control of the Viewer's scene can be set using the Console info");
 			sb.append("\n").append(commentPrefix);
@@ -7138,6 +7151,12 @@ public class Viewer3D {
 				// super.DISPLAY_AXE_WHOLE_BOUNDS = true;
 				// super.MAINTAIN_ALL_OBJECTS_IN_VIEW = true;
 				// setBoundMode(ViewBoundMode.AUTO_FIT);
+				setHiDPIenabled(Prefs.SCALE_FACTOR > 1);
+			}
+
+			void setHiDPIenabled(boolean enabled) {
+				super.hidpi = (enabled) ? HiDPI.ON : HiDPI.OFF;
+				axis.getLayout().applyFontSizePolicy();
 			}
 
 			@Override
