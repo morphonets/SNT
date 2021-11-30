@@ -886,6 +886,12 @@ public class SigmaPalette extends Thread {
 					break;
 				}
 				case FRANGI: {
+					final double stackMax = snt.getStats().max;
+					if (stackMax == 0) {
+						new GuiUtils().error("Statistics for the main image have not been computed. " +
+								"Trace a small path over a relevant feature to compute them.");
+						return;
+					}
 					Frangi<FloatType, FloatType> op = new Frangi<>(
 							new double[]{sigma},
 							spacing,

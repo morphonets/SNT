@@ -127,7 +127,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	private String HEADER1;
 
 	@Parameter(label = "Filter", choices = {TUBENESS, FRANGI, GAUSS, MEDIAN, NONE }, callback = "filterChanged")
-	private String filter = FRANGI;
+	private String filter = TUBENESS;
 
 	@Parameter(label = "Size of traced structures", required = false, //
 			description = "<HTML>Aprox. thickness (radius) of structures being traced (comma separated list).<br>There are two ways "
@@ -189,7 +189,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			error("Valid image data is required for computation.");
 			return;
 		}
-		loadPreferences();
+		// FIXME: This can lead to mis-match between expected and actual filter
+		//loadPreferences();
 	}
 
 	@SuppressWarnings("unused")
@@ -357,7 +358,13 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		final Img<U> out;
 		switch (filter) {
 			case FRANGI: {
-				Frangi<T, U> op = new Frangi<>(
+				final double stackMax = sntService.getPlugin().getStats().max;
+				if (stackMax == 0) {
+					new GuiUtils().error("Statistics for the main image have not been computed. " +
+												 "Trace a small path over a relevant feature to compute them.");
+					return;
+				}
+				final Frangi<T, U> op = new Frangi<>(
 						sigmas,
 						spacing,
 						sntService.getPlugin().getStats().max,
@@ -378,7 +385,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 				break;
 			}
 			case TUBENESS: {
-				Tubeness<T, U> op = new Tubeness<>(sigmas, spacing, numThreads);
+				final Tubeness<T, U> op = new Tubeness<>(sigmas, spacing, numThreads);
 				if (useLazy) {
 					out = Lazy.process(
 							in,

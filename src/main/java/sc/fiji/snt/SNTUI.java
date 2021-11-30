@@ -1974,6 +1974,12 @@ public class SNTUI extends JDialog {
 				return;
 			}
 			plugin.flushSecondaryData();
+			if (plugin.getStats().max == 0) {
+				// FIXME: Frangi relies on stackMax, if this isn't computed yet
+				//  the filter prompt won't work
+				plugin.invalidStatsError(false);
+				return;
+			}
 			if (plugin.accessToValidImageData()) {
 				(new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
 			} else {

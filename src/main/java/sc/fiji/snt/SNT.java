@@ -2503,9 +2503,9 @@ public class SNT extends MultiDThreePanes implements
 		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
-	private void invalidStatsError(final boolean isSecondary) {
+	protected void invalidStatsError(final boolean isSecondary) {
 		guiUtils.error("Statistics for the " + (isSecondary ? "Secondary Layer" : "main image") +
-				" have not been computed. Trace a small Path over a relevant feature to compute them.");
+				" have not been computed. Trace a small path over a relevant feature to compute them.");
 	}
 
 	protected void setFillTransparent(final boolean transparent) {
