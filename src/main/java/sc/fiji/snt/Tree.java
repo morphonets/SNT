@@ -753,18 +753,9 @@ public class Tree implements TreeProperties {
 	{
 		tree.forEach(p -> {
 			for (int node = 0; node < p.size(); node++) {
-				p.precise_x_positions[node] += xOffset;
-				p.precise_y_positions[node] += yOffset;
-				p.precise_z_positions[node] += zOffset;
-			}
-			if (p.startJoinsPoint != null) {
-				final PointInImage sPim = p.startJoinsPoint;
-				final Path sPath = p.startJoins;
-				sPim.x += xOffset;
-				sPim.y += yOffset;
-				sPim.z += zOffset;
-				p.unsetStartJoin();
-				p.setStartJoin(sPath, sPim);
+				final PointInImage current = p.getNodeWithoutChecks(node);
+				// Path#moveNode will take care of startJoins etc.
+				p.moveNode(node, new PointInImage(current.x + xOffset, current.y + yOffset, current.z + zOffset));
 			}
 		});
 		if (box != null) {
@@ -790,16 +781,9 @@ public class Tree implements TreeProperties {
 	{
 		tree.forEach(p -> {
 			for (int node = 0; node < p.size(); node++) {
-				p.precise_x_positions[node] *= xScale;
-				p.precise_y_positions[node] *= yScale;
-				p.precise_z_positions[node] *= zScale;
-			}
-			if (p.startJoinsPoint != null) {
-				final PointInImage sPim = p.startJoinsPoint;
-				final Path sPath = p.startJoins;
-				sPim.scale(xScale, yScale, zScale);
-				p.unsetStartJoin();
-				p.setStartJoin(sPath, sPim);
+				final PointInImage current = p.getNodeWithoutChecks(node);
+				// Path#moveNode will take care of startJoins etc.
+				p.moveNode(node, new PointInImage(current.x * xScale, current.y * yScale, current.z * zScale));
 			}
 		});
 		if (box != null) {
@@ -851,6 +835,7 @@ public class Tree implements TreeProperties {
 		tree.forEach(p -> {
 			for (int node = 0; node < p.size(); node++) {
 				final PointInImage current = p.getNodeWithoutChecks(node);
+				// Path#moveNode will take care of startJoins etc.
 				p.moveNode(node, rotate(current, cos, sin, axis));
 			}
 		});
