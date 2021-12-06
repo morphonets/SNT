@@ -2106,7 +2106,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				break;
 
 		default:
-			throw new IllegalArgumentException("Unrecognized field " + qName);
+			// parsing samplespacing, etc.
 		}
 
 	}
