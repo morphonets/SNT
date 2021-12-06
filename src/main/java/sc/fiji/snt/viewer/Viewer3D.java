@@ -5216,10 +5216,10 @@ public class Viewer3D {
 
 		private void showSelectionInfo() {
 			final List<AllenCompartment> cs = getCheckedSelection();
+			if (cs == null) return;
 			Collections.sort(cs, (c1, c2) -> {
 				return c1.name().compareToIgnoreCase(c2.name());
 			});
-			if (cs == null) return;
 			final StringBuilder sb = new StringBuilder("<header>");
 			sb.append(" <style>");
 			sb.append("  tr:nth-of-type(odd) {background-color:#ccc;}");
