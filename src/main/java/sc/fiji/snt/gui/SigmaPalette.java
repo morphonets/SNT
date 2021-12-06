@@ -228,7 +228,7 @@ public class SigmaPalette extends Thread {
 			addLutEntry(lutMenu, "Edges", "edges");
 			addLutEntry(lutMenu, "Fire", "fire");
 			addLutEntry(lutMenu, "Grayscale ", "grays");
-			addLutEntry(lutMenu, "Inferno", "mpl--inferno");
+			addLutEntry(lutMenu, "Inferno", "mpl-inferno");
 			addLutEntry(lutMenu, "Magma", "mpl-magma");
 			addLutEntry(lutMenu, "Plasma", "mpl-plasma");
 			addLutEntry(lutMenu, "Viridis", "mpl-viridis");
