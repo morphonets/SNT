@@ -24,6 +24,7 @@ package sc.fiji.snt.viewer;
 
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.DisplayMode;
 import java.awt.Font;
@@ -230,10 +231,10 @@ public class Viewer3D {
 
 		/** @deprecated Use YZ instead */
 		@Deprecated
-		SIDE("Side Constrained", XY.coord),
+		SIDE("Side Constrained",  DefCoords.YZ),
 		/** @deprecated Use XY instead */
 		@Deprecated
-		TOP("Top Constrained", YZ.coord);
+		TOP("Top Constrained", DefCoords.XY);
 
 		private String description;
 		private Coord3d coord;
@@ -305,7 +306,7 @@ public class Viewer3D {
 	/* Manager */
 	private CheckboxListEditable managerList;
 
-	private Chart chart;
+	private AChart chart;
 	private View view;
 	private ViewerFrame frame;
 	private GuiUtils gUtils;
@@ -666,9 +667,9 @@ public class Viewer3D {
 	 *           rotations
 	 */
 	public void rotate(final float degrees) throws IllegalArgumentException {
-		if (currentView == ViewMode.XY) {
+		if (!chart.isRotationEnabled()) {
 			throw new IllegalArgumentException("Rotations not allowed under " +
-				ViewMode.XY.description);
+				currentView.description);
 		}
 		mouseController.rotate(new Coord2d(-Math.toRadians(degrees), 0),
 			viewUpdatesEnabled);
@@ -2008,7 +2009,7 @@ public class Viewer3D {
 	 * Renders the scene from a specified camera angle.
 	 *
 	 * @param viewMode the view mode, e.g., {@link ViewMode#DEFAULT},
-	 *          {@link ViewMode#SIDE} , etc.
+	 *          {@link ViewMode#XY} , etc.
 	 */
 	public void setViewMode(final ViewMode viewMode) {
 		if (!chartExists()) {
@@ -2446,6 +2447,9 @@ public class Viewer3D {
 			currentView = view;
 		}
 
+		boolean isRotationEnabled() {
+			return view.getViewMode() != ViewPositionMode.TOP;
+		}
 	}
 
 
@@ -4262,10 +4266,22 @@ public class Viewer3D {
 				});
 			});
 			utilsMenu.add(mi);
+
 			final JMenuItem snapshot = new JMenuItem(new Action(Action.SNAPSHOT, KeyEvent.VK_S, false, false));
 			snapshot.setIcon(IconFactory.getMenuIcon(GLYPH.CAMERA));
 			utilsMenu.add(snapshot);
-
+			final JMenuItem reveal = new JMenuItem("Show Snapshot Directory", IconFactory.getMenuIcon(GLYPH.OPEN_FOLDER));
+			reveal.addActionListener(e -> {
+				try {
+					final File file = new File(prefs.snapshotDir);
+					file.mkdirs();
+					Desktop.getDesktop().open(file); // TODO: Move to java9: Desktop.getDesktop().browseFileDirectory(file);
+				} catch (final NullPointerException | IllegalArgumentException | IOException iae) {
+					guiUtils.error("Snapshot directory does not seem to be accessible.");
+				}
+			});
+			utilsMenu.add(reveal);
+	
 			addSeparator(utilsMenu, "Scripting:");
 			final JMenuItem script = new JMenuItem(new Action(Action.SCRIPT, KeyEvent.VK_OPEN_BRACKET, false, false));
 			script.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
@@ -6049,10 +6065,10 @@ public class Viewer3D {
 
 		@Override
 		public boolean handleSlaveThread(final MouseEvent e) {
-			if (AWTMouseUtilities.isDoubleClick(e)) {
-				if (currentView == ViewMode.XY) {
-					displayMsg("Rotation disabled in constrained view");
-					return true;
+			if (!e.isConsumed() && SwingUtilities.isLeftMouseButton(e)) {
+				if (!chart.isRotationEnabled()) {
+					displayMsg("Rotations disabled in current view");
+					return false;
 				}
 				if (threadController != null) {
 					threadController.start();
@@ -6100,7 +6116,7 @@ public class Viewer3D {
 
 		public void snapToNextView() {
 			stopThreadController();
-			((AChart)chart).setViewMode(currentView.next());
+			chart.setViewMode(currentView.next());
 			displayMsg("View Mode: " + currentView.description);
 		}
 
