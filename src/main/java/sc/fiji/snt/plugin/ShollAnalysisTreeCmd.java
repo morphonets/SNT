@@ -605,7 +605,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			Collection<Tree> trees = Tree.listFromFile(file.getAbsolutePath());
 			if (trees != null && trees.size() == 1) {
 				tree = trees.iterator().next();
-				multipleTreesExist = false;;
+				multipleTreesExist = false;
 			} else if (trees != null && trees.size() > 1) {
 				tree = null;
 				multipleTreesExist = true;

@@ -378,7 +378,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 							type,
 							op);
 				} else {
-					out = ops.create().img(in, type, new CellImgFactory<>(type));;
+					out = ops.create().img(in, type, new CellImgFactory<>(type));
 					op.compute(in, out);
 				}
 
@@ -612,6 +612,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		}
 	}
 
+	@SuppressWarnings("unused")
 	private void loadPreferences() {
 		// FIXME: Somehow values are not persisting!? Maybe because we are implementing Interactive? 
 		prefService.get(getClass(), "filter", TUBENESS);

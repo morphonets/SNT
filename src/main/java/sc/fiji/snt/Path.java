@@ -134,7 +134,7 @@ public class Path implements Comparable<Path> {
 	 * NB: A regular path should have a path ID > 0, because if present, its fitted
 	 * version will have an ID of -path ID. see {@link #setFitted(Path)}
 	 */
-	private long id = -1l;
+	private long id = -1L;
 	private String treeLabel;
 
 	// NB: The leagacy 3D viewer requires always a unique name

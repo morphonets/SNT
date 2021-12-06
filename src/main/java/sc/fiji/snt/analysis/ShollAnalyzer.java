@@ -91,7 +91,7 @@ public class ShollAnalyzer {
 	private final Tree tree;
 	private final LinkedHashMap<String, Number> metrics;
 	private final ArrayList<Double> maximaRadii;
-	private final ArrayList<double[]> secondaryMaxima;;
+	private final ArrayList<double[]> secondaryMaxima;
 
 	private NormalizedProfileStats nStats;
 	private LinearProfileStats lStats;

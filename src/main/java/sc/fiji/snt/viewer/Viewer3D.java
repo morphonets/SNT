@@ -1183,7 +1183,7 @@ public class Viewer3D {
 	 */
 	public Annotation3D mergeAnnotations(final Collection<Annotation3D> annotations, final String label) {
 		final boolean updateFlag = viewUpdatesEnabled;
-		setSceneUpdatesEnabled(false);;
+		setSceneUpdatesEnabled(false);
 		annotations.forEach(annot -> {
 			final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels(annot.getLabel());
 			removeDrawable(getAnnotationDrawables(), labelAndManagerEntry[0], labelAndManagerEntry[1]);
@@ -2321,8 +2321,9 @@ public class Viewer3D {
 			return MESH_LABEL_ALLEN;
 		case "zebrafish":
 			return MESH_LABEL_ZEBRAFISH;
+		default:
+			return null;
 		}
-		return null;
 	}
 
 	private Color getNonUserDefColor() {
@@ -3436,7 +3437,7 @@ public class Viewer3D {
 			sceneMenu.add(reload);
 			final JMenuItem rebuild = new JMenuItem(new Action(Action.REBUILD, KeyEvent.VK_R, true, true));
 			rebuild.setIcon(IconFactory.getMenuIcon(GLYPH.RECYCLE));
-			sceneMenu.add(rebuild);;
+			sceneMenu.add(rebuild);
 			JMenuItem wipe = new JMenuItem("Wipe Scene...", IconFactory.getMenuIcon(GLYPH.DANGER));
 			wipe.addActionListener(e -> wipeScene());
 			sceneMenu.add(wipe);
@@ -4045,7 +4046,7 @@ public class Viewer3D {
 				}
 				(new getMeshColors()).execute();
 			});
-			menu.add(mi);;
+			menu.add(mi);
 
 			// Mesh customizations
 			mi = new JMenuItem("Color...", IconFactory.getMenuIcon(

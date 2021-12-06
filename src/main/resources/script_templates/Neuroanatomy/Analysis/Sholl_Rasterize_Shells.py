@@ -36,10 +36,9 @@ if imp and overlay:
     IJ.run(holding_imp, "Make Montage...", "columns=1 rows={} scale=1".format(holding_imp.getNSlices()))
     measurable_imp = IJ.getImage()
     measurable_imp.setTitle("Rasterized Shells")
-    IJ.setAutoThreshold(measurable_imp, "Default dark");
-    IJ.run(measurable_imp, "Analyze Particles...", "  show=[Overlay Masks] display clear overlay");
+    IJ.setAutoThreshold(measurable_imp, "Default dark")
+    IJ.run(measurable_imp, "Analyze Particles...", "  show=[Overlay Masks] display clear overlay")
   else:
     error()
 else:
   error()
-

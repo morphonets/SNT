@@ -171,9 +171,9 @@ public class StrahlerAnalyzer {
 			final List<SWCPoint> children = Graphs.successorListOf(graph, node);
 			final int highestOrder = (int) Collections.max(children, Comparator.comparing(n -> (int) n.v)).v;
 			final long highestOrderFreq = children.stream().filter(c -> (int) c.v == highestOrder).count();
-			if (highestOrderFreq == 1l)
+			if (highestOrderFreq == 1L)
 				order = highestOrder;
-			else if (highestOrderFreq > 1l) {
+			else if (highestOrderFreq > 1L) {
 				order = highestOrder + 1;
 			}
 		}

@@ -430,7 +430,7 @@ public class OBJMesh {
 
 	private class OBJFilePlus extends OBJFile {
 
-		/**
+		/*
 		 * Copied ipsis verbis from
 		 * {@link org.jzy3d.io.obj.OBJFile#loadModelFromURL(URL)} but accommodates files
 		 * with trailing spaces //TODO: submit PR upstream
@@ -464,7 +464,6 @@ public class OBJMesh {
 						default:
 							break;
 						}
-						;
 					}
 					// post-process data
 					// free anything that ended up being unused
@@ -490,6 +489,7 @@ public class OBJMesh {
 							input.close();
 						}
 					} catch (final IOException closee) {
+						// ignore
 					}
 				}
 			} else {

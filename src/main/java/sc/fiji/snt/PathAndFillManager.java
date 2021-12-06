@@ -2104,6 +2104,9 @@ public class PathAndFillManager extends DefaultHandler implements
 				if (plugin != null) plugin.updateTracingViewers(true);
 				resetListeners(null, true);
 				break;
+
+		default:
+			throw new IllegalArgumentException("Unrecognized field " + qName);
 		}
 
 	}

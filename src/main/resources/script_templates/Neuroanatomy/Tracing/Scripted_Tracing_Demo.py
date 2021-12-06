@@ -26,7 +26,7 @@ def run():
     # Prepare plugin for auto-tracing
     plugin = snt.initialize("demo", False) # image, whether UI should be shown
     plugin.enableAstar(True)
-    plugin.getPathAndFillManager().clear();
+    plugin.getPathAndFillManager().clear()
     #plugin.startHessian("primary", 1.0, 25.0, True)
 
     ref_tree = snt.demoTree()
