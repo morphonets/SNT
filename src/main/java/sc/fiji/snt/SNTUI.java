@@ -1812,7 +1812,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel sciViewerPanel() {
-		openSciView = new JButton("Open Sciview Viewer");
+		openSciView = new JButton("Open sciview");
 		openSciView.addActionListener(e -> {
 			if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
 				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
