@@ -145,7 +145,7 @@
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 
 		<!-- Temporarily disable enforcer -->
-		<enforcer.skip>false</enforcer.skip>
+		<enforcer.skip>true</enforcer.skip>
 		<!-- Resolve dup. class conflict -->
   		<allowedDuplicateClasses>org.jzy3d.plot3d.pipelines.NotImplementedException</allowedDuplicateClasses>
 	</properties>
