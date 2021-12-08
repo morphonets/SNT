@@ -6066,7 +6066,7 @@ public class Viewer3D {
 
 		@Override
 		public boolean handleSlaveThread(final MouseEvent e) {
-			if (!e.isConsumed() && SwingUtilities.isLeftMouseButton(e)) {
+			if (!e.isConsumed() && SwingUtilities.isLeftMouseButton(e) && e.getClickCount() > 1) {
 				if (!chart.isRotationEnabled()) {
 					displayMsg("Rotations disabled in current view");
 					return false;
