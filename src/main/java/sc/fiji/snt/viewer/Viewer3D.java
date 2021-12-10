@@ -70,12 +70,12 @@ import org.jzy3d.chart.controllers.camera.AbstractCameraController;
 import org.jzy3d.chart.controllers.mouse.AWTMouseUtilities;
 import org.jzy3d.chart.controllers.mouse.camera.AWTCameraMouseController;
 import org.jzy3d.chart.controllers.thread.camera.CameraThreadController;
+import org.jzy3d.chart.factories.AWTChartFactory;
 import org.jzy3d.chart.factories.ChartFactory;
 import org.jzy3d.chart.factories.EmulGLChartFactory;
 import org.jzy3d.chart.factories.IChartFactory;
 import org.jzy3d.chart.factories.IFrame;
 import org.jzy3d.chart.factories.OffscreenChartFactory;
-import org.jzy3d.chart.factories.SwingChartFactory;
 import org.jzy3d.colors.Color;
 import org.jzy3d.colors.ColorMapper;
 import org.jzy3d.colors.ISingleColorable;
@@ -7186,7 +7186,7 @@ public class Viewer3D {
 			}
 		}
 
-		private class JOGLFactory extends SwingChartFactory {
+		private class JOGLFactory extends AWTChartFactory {
 
 			@Override
 			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
