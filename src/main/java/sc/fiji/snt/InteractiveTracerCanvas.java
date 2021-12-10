@@ -305,7 +305,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		// Set the correct edge directions in the merged graph
 		destinationGraph.setRoot(getMatchingPointInGraph(destinationRoot, destinationGraph));
 		final Tree newTree = destinationGraph.getTreeWithSamePathStructure();
-		enableEditMode(false);
+//		enableEditMode(false);
+		tracerPlugin.setEditingPath(null);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		newTree.list().forEach(p -> p.setSpacing(cal));
 		final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
@@ -1045,7 +1046,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			tracerPlugin.getPathAndFillManager().deletePath(editingPath);
 			if (rebuild) tracerPlugin.getPathAndFillManager().rebuildRelationships();
 			//tracerPlugin.detectEditingPath();
-			enableEditMode(false);
+//			enableEditMode(false);
+			tracerPlugin.setEditingPath(null);
 			tracerPlugin.updateAllViewers();
 		}
 	}
@@ -1139,7 +1141,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
 		editingGraph.setRoot(getMatchingPointInGraph(editingNode, editingGraph));
 		final Tree newTree = editingGraph.getTreeWithSamePathStructure();
-		enableEditMode(false);
+//		enableEditMode(false);
+		tracerPlugin.setEditingPath(null);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		newTree.list().forEach(p -> p.setSpacing(cal));
 		final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
@@ -1177,7 +1180,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		editingGraph.removeAllVertices(descendantVertexSet);
 		final Tree ancestorTree = editingGraph.getTreeWithSamePathStructure();
 		final Tree descendentTree = descendantGraph.getTreeWithSamePathStructure();
-		enableEditMode(false);
+//		enableEditMode(false);
+		tracerPlugin.setEditingPath(null);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
 		ancestorTree.list().forEach(p -> p.setSpacing(cal));
 		descendentTree.list().forEach(p -> p.setSpacing(cal));
