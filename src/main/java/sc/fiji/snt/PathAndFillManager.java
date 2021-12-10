@@ -2585,12 +2585,12 @@ public class PathAndFillManager extends DefaultHandler implements
 			if (point.parent == -1) {
 				primaryPoints.add(point);
 			}
-			else {
-				final SWCPoint previousPoint = idToSWCPoint.get(point.parent);
-				if (previousPoint != null) {
-					point.setPreviousPoint(previousPoint);
-					previousPoint.getNextPoints().add(point);
-				}
+		}
+		for (final SWCPoint point : points) {
+			final SWCPoint previousPoint = idToSWCPoint.get(point.parent);
+			if (previousPoint != null) {
+				point.setPreviousPoint(previousPoint);
+				previousPoint.getNextPoints().add(point);
 			}
 		}
 
@@ -2625,8 +2625,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		final PriorityQueue<SWCPoint> backtrackTo = new PriorityQueue<>(
 			primaryPoints);
 		final HashMap<Path, SWCPoint> pathStartsOnSWCPoint = new HashMap<>();
-		final HashMap<Path, PointInImage> pathStartsAtPointInImage =
-			new HashMap<>();
 		final List<Path> pathList = new ArrayList<>();
 
 		SWCPoint start;
@@ -2637,7 +2635,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			final SWCPoint beforeStart = start.getPreviousPoint();
 			if (beforeStart != null) {
 				pathStartsOnSWCPoint.put(currentPath, beforeStart);
-				pathStartsAtPointInImage.put(currentPath, beforeStart);
 			}
 
 			// Now we can start adding points to the path:
@@ -2645,32 +2642,36 @@ public class PathAndFillManager extends DefaultHandler implements
 			while (currentPoint != null) {
 				currentPath.addNode(currentPoint);
 				pointToPath.put(currentPoint, currentPath);
-
-				if (currentPoint.getNextPoints().size() > 0) {
-					final SWCPoint newCurrentPoint = currentPoint.getNextPoints().get(0);
-					currentPoint.getNextPoints().remove(0);
-					backtrackTo.addAll(currentPoint.getNextPoints());
-					currentPoint = newCurrentPoint;
-				}
-				else {
-					currentPath.setSWCType(currentPoint.type); // Assign point
-					// type to path
+				final List<SWCPoint> children = currentPoint.getNextPoints();
+				if (children.size() == 1) {
+					final SWCPoint child = children.get(0);
+					if (child.type == currentPoint.type) {
+						currentPoint = child;
+					} else {
+						backtrackTo.add(child);
+						currentPath.setSWCType(currentPoint.type);
+						currentPoint = null;
+					}
+				} else if (children.size() > 1) {
+					SWCPoint finalCurrentPoint = currentPoint;
+					SWCPoint childWithSameType = children.stream()
+							.filter(c -> c.type == finalCurrentPoint.type)
+							.findFirst()
+							.orElse(null);
+					if (childWithSameType == null) {
+						backtrackTo.addAll(children);
+						currentPath.setSWCType(currentPoint.type);
+						currentPoint = null;
+					} else {
+						children.remove(childWithSameType);
+						backtrackTo.addAll(children);
+						currentPoint = childWithSameType;
+					}
+				} else {
+					currentPath.setSWCType(currentPoint.type);
 					currentPoint = null;
 				}
 			}
-
-			// FIXME: DUP NODES: Paths contain duplicated nodes!! Remove them here:
-//			for (int i = 0; i < currentPath.size(); i++) {
-//				final PointInImage node1 = currentPath.getNode(i);
-//				for (int j = 1; j < currentPath.size(); j++) {
-//					if (i == j) continue;
-//					final PointInImage node2 = currentPath.getNode(j);
-//					if (node2.isSameLocation(node1)) {
-//						System.out.println("Removing "+ node2);
-//						currentPath.removeNode(j);
-//					}
-//				}
-//			}
 			currentPath.setGuessedTangents(2);
 			currentPath.setIDs(currentPath.getID(), maxUsedTreeID);
 			pathList.add(currentPath);
@@ -2689,7 +2690,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				continue;
 			}
 			final Path previousPath = pointToPath.get(swcPoint);
-			final PointInImage pointInImage = pathStartsAtPointInImage.get(p);
+			final PointInImage pointInImage = pathStartsOnSWCPoint.get(p);
 			p.setStartJoin(previousPath, pointInImage);
 		}
 
