@@ -462,12 +462,19 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			return;
 		}
 
-		List<PointInCanvas> nodes = new ArrayList<>();
-		for (final Path path : pathAndFillManager.getPaths()) {
+		final List<PointInCanvas> nodes = new ArrayList<>();
+		if (pathAndFillManager.size() == 1) {
+			// There is only one path, presumably from a just-finished tracing operation.
+			// NB: Selection status of such path depends on the "Finishing a path selects
+			// it" checkbox in the GUI. We'll force select it.
+			tracerPlugin.selectPath(pathAndFillManager.getPath(0), addToExistingSelection);
+			getGuiUtils().tempMsg(pathAndFillManager.getPath(0) + " selected");
+			return;
+		} else for (final Path path : pathAndFillManager.getPaths()) {
 			if (!path.isSelected()) {
 				nodes.addAll(path.getUnscaledNodesInViewPort(this));
 			}
-		}		
+		}
 		if (nodes.isEmpty()) {
 			getGuiUtils().tempMsg("Nothing to select. No paths in view");
 			return;
@@ -476,7 +483,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final double[] p = new double[3];
 		tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise,
 			last_y_in_pane_precise, plane, p);
-		PointInCanvas cursor = new PointInCanvas(p[0], p[1], 0);
+		final PointInCanvas cursor = new PointInCanvas(p[0], p[1], 0);
 
 		final NearPointInCanvas nearPoint = NearPointInCanvas.nearestPointInCanvas(nodes, cursor);
 		if (nearPoint == null) {
