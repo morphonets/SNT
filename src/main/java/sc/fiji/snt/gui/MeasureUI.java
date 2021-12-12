@@ -41,7 +41,8 @@ import javax.swing.event.PopupMenuListener;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.util.Collection;
+import java.util.*;
+import java.util.List;
 
 /**
  * @author Cameron Arshadi
@@ -115,12 +116,25 @@ public class MeasureUI extends JFrame {
                 statsTable.getColumnModel().getColumn(i).setHeaderRenderer(
                         new SelectAllHeader(statsTable, i, statsTable.getColumnName(i)));
             }
+            // FIXME: this is inherently slow, but should be fast enough with a reasonable number of metrics
             metricList.getCheckBoxListSelectionModel().addListSelectionListener(e -> {
       			if (!e.getValueIsAdjusting()) {
-      				final Object[] metrics = metricList.getCheckBoxListSelectedValues();
-      				tableModel.setRowCount(0);
-      				for (final Object metric : metrics)
-      					tableModel.addRow(new Object[]{metric.toString(), false, false, false, false, false});
+      				final List<Object> selectedMetrics = new ArrayList<>(
+      				        Arrays.asList(metricList.getCheckBoxListSelectedValues()));
+      				List<Integer> metricIndicesToRemove = new ArrayList<>();
+      				List<Object> existingMetrics = new ArrayList<>();
+      				for (int i = 0; i < tableModel.getRowCount(); ++i) {
+      				    Object existingMetric = tableModel.getValueAt(i, 0);
+      				    if (!selectedMetrics.contains(existingMetric)) {
+      				        metricIndicesToRemove.add(i);
+                        } else {
+      				        existingMetrics.add(existingMetric);
+                        }
+                    }
+      				removeRows(tableModel, metricIndicesToRemove);
+      				selectedMetrics.removeAll(existingMetrics);
+      				for (final Object metric : selectedMetrics)
+      					tableModel.addRow(new Object[]{metric, false, false, false, false, false});
       			}
       		});
             JScrollPane statsTableScrollPane = new JScrollPane(statsTable);
@@ -135,6 +149,13 @@ public class MeasureUI extends JFrame {
             runButton.addActionListener(new GenerateTableAction(trees, tableModel, displayService));
             buttonPanel.add(runButton);
             add(buttonPanel, c);
+        }
+
+        private void removeRows(DefaultTableModel model, List<Integer> indices) {
+            Collections.sort(indices);
+            for (int i = indices.size() - 1; i >= 0; i--) {
+                model.removeRow(indices.get(i));
+            }
         }
 
 		private JPopupMenu listPopupMenu() {
@@ -363,13 +384,17 @@ public class MeasureUI extends JFrame {
 		}
 
 		private void setColumnState(final boolean state) {
+		    if (columnAtClickPoint == 0)
+		        // This is the metric String column, we don't want to change this
+		        return;
 			for (int i = 0; i < table.getRowCount(); i++) {
 				table.setValueAt(state, i, columnAtClickPoint);
 			}
 		}
 
 		private void setRowState(final boolean state) {
-			for (int i = 0; i < table.getColumnCount(); i++) {
+		    // Boolean columns start at idx == 1
+			for (int i = 1; i < table.getColumnCount(); i++) {
 				table.setValueAt(state, rowAtClickPoint, i);
 			}
 		}
