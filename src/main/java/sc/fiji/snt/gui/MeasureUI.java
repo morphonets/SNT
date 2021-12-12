@@ -36,6 +36,8 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 
 import javax.swing.*;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -103,6 +105,7 @@ public class MeasureUI extends JFrame {
                     return columnClasses[column];
                 }
             });
+            statsTable.setComponentPopupMenu(new TablePopupMenu(statsTable));
             DefaultTableModel tableModel = (DefaultTableModel) statsTable.getModel();
             tableModel.addColumn("Metric");
             for (String metric : allFlags) {
@@ -309,6 +312,68 @@ public class MeasureUI extends JFrame {
 //            return allTrue && !isSelected() || allFalse && isSelected();
 //        }
     }
+
+    static class TablePopupMenu extends JPopupMenu {
+		// see https://stackoverflow.com/questions/16743427/
+
+		private static final long serialVersionUID = -6423775304360422577L;
+		private int rowAtClickPoint;
+		private int columnAtClickPoint;
+		private final JTable table;
+
+		public TablePopupMenu(final JTable table) {
+			super();
+			this.table = table;
+			addPopupMenuListener(new PopupMenuListener() {
+
+				@Override
+				public void popupMenuWillBecomeVisible(final PopupMenuEvent e) {
+					SwingUtilities.invokeLater(() -> {
+						final Point clickPoint = SwingUtilities.convertPoint(TablePopupMenu.this, new Point(0, 0),
+								table);
+						rowAtClickPoint = table.rowAtPoint(clickPoint);
+						columnAtClickPoint = table.columnAtPoint(clickPoint);
+					});
+				}
+
+				@Override
+				public void popupMenuWillBecomeInvisible(final PopupMenuEvent e) {
+					// TODO Auto-generated method stub
+				}
+
+				@Override
+				public void popupMenuCanceled(final PopupMenuEvent e) {
+					// TODO Auto-generated method stub
+				}
+
+			});
+			JMenuItem mi = new JMenuItem("Select Entire Column");
+			mi.addActionListener(e -> setColumnState(true));
+			add(mi);
+			mi = new JMenuItem("Select Entire Row");
+			mi.addActionListener(e -> setRowState(true));
+			add(mi);
+			addSeparator();
+			mi = new JMenuItem("Deselect Entire Column");
+			mi.addActionListener(e -> setColumnState(false));
+			add(mi);
+			mi = new JMenuItem("Deselect Entire Row");
+			mi.addActionListener(e -> setRowState(false));
+			add(mi);
+		}
+
+		private void setColumnState(final boolean state) {
+			for (int i = 0; i < table.getRowCount(); i++) {
+				table.setValueAt(state, i, columnAtClickPoint);
+			}
+		}
+
+		private void setRowState(final boolean state) {
+			for (int i = 0; i < table.getColumnCount(); i++) {
+				table.setValueAt(state, rowAtClickPoint, i);
+			}
+		}
+	}
 
     public static void main(String[] args) {
         ImageJ ij = new ImageJ();
