@@ -36,9 +36,9 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
+import javax.swing.table.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
+import java.awt.event.*;
 import java.util.Collection;
 
 /**
@@ -57,7 +57,7 @@ public class MeasureUI extends JFrame {
     static final String SUM = "Sum";
 
     static final String[] allFlags = new String[]{MIN, MAX, MEAN, STDDEV, SUM};
-    static final Class[] columnClasses = new Class[]{String.class, Boolean.class, Boolean.class, Boolean.class,
+    static final Class<?>[] columnClasses = new Class<?>[]{String.class, Boolean.class, Boolean.class, Boolean.class,
             Boolean.class, Boolean.class};
 
     final Collection<Tree> trees;
@@ -75,7 +75,6 @@ public class MeasureUI extends JFrame {
     static class MeasurePanel extends JPanel {
 
         private final CheckBoxList metricList;
-        private final DefaultListModel<String> listModel;
 
         MeasurePanel(Collection<Tree> trees, DisplayService displayService) {
             setLayout(new GridBagLayout());
@@ -84,7 +83,7 @@ public class MeasureUI extends JFrame {
             c.gridx = 0;
             c.gridy = 0;
             c.fill = GridBagConstraints.BOTH;
-            listModel = new DefaultListModel<>();
+            DefaultListModel<String> listModel = new DefaultListModel<>();
             TreeStatistics.getAllMetrics().forEach(listModel::addElement);
             metricList = new CheckBoxList(listModel);
             metricList.setClickInCheckBoxOnly(false);
@@ -95,19 +94,23 @@ public class MeasureUI extends JFrame {
             c.gridx = 1;
             c.gridy = 0;
             c.fill = GridBagConstraints.BOTH;
-            JTable statsTable = new JTable(new DefaultTableModel()) {
+            JTable statsTable = new JTable(new DefaultTableModel() {
 
                 private static final long serialVersionUID = 1L;
 
                 @Override
-                public Class getColumnClass(int column) {
+                public Class<?> getColumnClass(int column) {
                     return columnClasses[column];
                 }
-            };
+            });
             DefaultTableModel tableModel = (DefaultTableModel) statsTable.getModel();
             tableModel.addColumn("Metric");
             for (String metric : allFlags) {
                 tableModel.addColumn(metric);
+            }
+            for (int i = 1; i < statsTable.getColumnCount(); ++i) {
+                statsTable.getColumnModel().getColumn(i).setHeaderRenderer(
+                        new SelectAllHeader(statsTable, i, statsTable.getColumnName(i)));
             }
             metricList.getCheckBoxListSelectionModel().addListSelectionListener(e -> {
       			if (!e.getValueIsAdjusting()) {
@@ -117,7 +120,6 @@ public class MeasureUI extends JFrame {
       					tableModel.addRow(new Object[]{metric.toString(), false, false, false, false, false});
       			}
       		});
-
             JScrollPane statsTableScrollPane = new JScrollPane(statsTable);
             add(statsTableScrollPane, c);
 
@@ -126,11 +128,9 @@ public class MeasureUI extends JFrame {
             c.gridwidth = 2;
             c.anchor = GridBagConstraints.CENTER;
             JPanel buttonPanel = new JPanel();
-
             JButton runButton = new JButton("Run");
             runButton.addActionListener(new GenerateTableAction(trees, tableModel, displayService));
             buttonPanel.add(runButton);
-
             add(buttonPanel, c);
         }
 
@@ -193,7 +193,7 @@ public class MeasureUI extends JFrame {
                             default:
                                 throw new IllegalArgumentException("Unknown statistic: " + measurement);
                         }
-                        table.appendToLastRow(metric + "(" + measurement + ")", value);
+                        table.appendToLastRow(metric + " (" + measurement + ")", value);
                     }
                 }
             }
@@ -202,6 +202,112 @@ public class MeasureUI extends JFrame {
                 displayService.createDisplay("SNT Measurements", table);
             }
         }
+    }
+
+    /**
+     * A TableCellRenderer that selects all or none of a Boolean column.
+     *
+     * Adapted from https://stackoverflow.com/a/7137801
+     */
+    static class SelectAllHeader extends JToggleButton implements TableCellRenderer {
+
+        private static final String ALL_SELECTED = "✓ ";
+        private final String label;
+        private JTable table;
+        private TableModel tableModel;
+        private JTableHeader header;
+        private TableColumnModel tcm;
+        private int targetColumn;
+        private int viewColumn;
+
+        public SelectAllHeader(JTable table, int targetColumn, String label) {
+            super(label);
+            this.label = label;
+            this.table = table;
+            this.tableModel = table.getModel();
+            if (tableModel.getColumnClass(targetColumn) != Boolean.class) {
+                throw new IllegalArgumentException("Boolean column required.");
+            }
+            this.targetColumn = targetColumn;
+            this.header = table.getTableHeader();
+            this.tcm = table.getColumnModel();
+            this.applyUI();
+            this.addItemListener(new ItemHandler());
+            header.addMouseListener(new MouseHandler());
+
+            // FIXME: This does not appear to work when the table
+            //  has multiple of these listeners. Multiple columns get
+            //  selected.
+
+            // tableModel.addTableModelListener(new ModelHandler());
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table, Object value, boolean isSelected,
+                boolean hasFocus, int row, int column) {
+            return this;
+        }
+
+        private class ItemHandler implements ItemListener {
+
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                boolean state = e.getStateChange() == ItemEvent.SELECTED;
+                setText((state) ? ALL_SELECTED + label  : label);
+                for (int r = 0; r < table.getRowCount(); r++) {
+                    table.setValueAt(state, r, viewColumn);
+                }
+            }
+        }
+
+        @Override
+        public void updateUI() {
+            super.updateUI();
+            applyUI();
+        }
+
+        private void applyUI() {
+            this.setFont(UIManager.getFont("TableHeader.font"));
+            this.setBorder(UIManager.getBorder("TableHeader.cellBorder"));
+            this.setBackground(UIManager.getColor("TableHeader.background"));
+            this.setForeground(UIManager.getColor("TableHeader.foreground"));
+        }
+
+        private class MouseHandler extends MouseAdapter {
+
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                viewColumn = header.columnAtPoint(e.getPoint());
+                int modelColumn = tcm.getColumn(viewColumn).getModelIndex();
+                if (modelColumn == targetColumn) {
+                    doClick();
+                }
+            }
+        }
+
+//        private class ModelHandler implements TableModelListener {
+//
+//            @Override
+//            public void tableChanged(TableModelEvent e) {
+//                if (needsToggle()) {
+//                    doClick();
+//                    header.repaint();
+//                }
+//            }
+//        }
+//
+//        // Return true if this toggle needs to match the model.
+//        private boolean needsToggle() {
+//            boolean allTrue = true;
+//            boolean allFalse = true;
+//            for (int r = 0; r < tableModel.getRowCount(); r++) {
+//                boolean b = (Boolean) tableModel.getValueAt(r, targetColumn);
+//                allTrue &= b;
+//                allFalse &= !b;
+//            }
+//            return allTrue && !isSelected() || allFalse && isSelected();
+//        }
     }
 
     public static void main(String[] args) {
