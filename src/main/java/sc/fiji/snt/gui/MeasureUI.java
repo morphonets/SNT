@@ -26,6 +26,9 @@ import net.imagej.ImageJ;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
+
+import com.jidesoft.swing.CheckBoxList;
+
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
@@ -70,7 +73,8 @@ public class MeasureUI extends JFrame {
 
     static class MeasurePanel extends JPanel {
 
-        private final JList<String> metricList;
+        private final CheckBoxList metricList;
+        private final DefaultListModel<String> listModel;
 
         MeasurePanel(Collection<Tree> trees, DisplayService displayService) {
             setLayout(new GridBagLayout());
@@ -78,10 +82,12 @@ public class MeasureUI extends JFrame {
 
             c.gridx = 0;
             c.gridy = 0;
-            String[] treeStatisticsMetrics = TreeStatistics.getAllMetrics().toArray(new String[0]);
-            metricList = new JList<>(treeStatisticsMetrics);
-            metricList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-            metricList.setSelectedIndex(0);
+            listModel = new DefaultListModel<>();
+            TreeStatistics.getAllMetrics().forEach( m -> listModel.addElement(m));
+            metricList = new CheckBoxList(listModel);
+            //metricList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            metricList.setClickInCheckBoxOnly(false);
+            metricList.setComponentPopupMenu(listPopupMenu());
             JScrollPane metricListScrollPane = new JScrollPane(metricList);
             add(metricListScrollPane, c);
 
@@ -101,6 +107,15 @@ public class MeasureUI extends JFrame {
             for (String metric : allFlags) {
                 tableModel.addColumn(metric);
             }
+            metricList.getCheckBoxListSelectionModel().addListSelectionListener(e -> {
+      			if (!e.getValueIsAdjusting()) {
+      				final Object[] metrics = metricList.getCheckBoxListSelectedValues();
+      				tableModel.setRowCount(0);
+      				for (final Object metric : metrics)
+      					tableModel.addRow(new Object[]{metric.toString(), Boolean.FALSE, false, false, false, false});
+      			}
+      		});
+
             JScrollPane statsTableScrollPane = new JScrollPane(statsTable);
             add(statsTableScrollPane, c);
 
@@ -123,8 +138,20 @@ public class MeasureUI extends JFrame {
             add(buttonPanel, c);
         }
 
+		private JPopupMenu listPopupMenu() {
+			final JPopupMenu pMenu = new JPopupMenu();
+			JMenuItem mi = new JMenuItem("Clear Selection");
+			mi.addActionListener(e -> metricList.clearCheckBoxListSelection());
+			pMenu.add(mi);
+			mi = new JMenuItem("Select All");
+			mi.addActionListener(e -> metricList.selectAll());
+			pMenu.add(mi);
+			return pMenu;
+		}
+
     }
 
+    
     private static int rowIndexOfMetric(String metric, DefaultTableModel model) {
         for (int i = 0; i < model.getRowCount(); ++i) {
             if (model.getValueAt(i, 0).equals(metric)) {
@@ -147,7 +174,7 @@ public class MeasureUI extends JFrame {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            String metric = panel.metricList.getSelectedValue();
+            String metric = (String) panel.metricList.getSelectedValue();
             if (rowIndexOfMetric(metric, model) > -1)
                 return;
             model.addRow(new Object[]{metric, Boolean.FALSE, false, false, false, false});
@@ -167,7 +194,7 @@ public class MeasureUI extends JFrame {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            String metric = panel.metricList.getSelectedValue();
+            String metric = (String) panel.metricList.getSelectedValue();
             int idx = rowIndexOfMetric(metric, model);
             if (idx > -1)
                 model.removeRow(idx);
