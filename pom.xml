@@ -182,7 +182,7 @@
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf</artifactId>
-			<version>1.6.4</version>
+			<version>1.6.5</version>
 		</dependency>
 		<dependency>
 			<groupId>com.github.haifengl</groupId>
@@ -260,7 +260,7 @@
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf-jide-oss</artifactId>
-			<version>1.6.4</version>
+			<version>1.6.5</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
