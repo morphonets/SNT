@@ -52,7 +52,7 @@ public class CustomizeObjCmd extends ContextCommand {
 	@Parameter(label = "Transparency (%)", min = "0.5", max = "100", style = NumberWidget.SCROLL_BAR_STYLE)
 	private double mTransparency;
 
-	@Parameter(label = "Skip mesh customization")
+	@Parameter(label = "Skip mesh customization", description="If checked, only bounding-box settings are applied")
 	private boolean skipM;
 
 	@Parameter(label = "<HTML>&nbsp;", required = false, persist = false, visibility = ItemVisibility.MESSAGE)

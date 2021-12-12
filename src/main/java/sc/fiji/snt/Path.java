@@ -903,7 +903,7 @@ public class Path implements Comparable<Path> {
 
 	protected void setEditableNodeLocked(final boolean editableNodeLocked) {
 		this.editableNodeLocked = editableNodeLocked;
-		System.out.println(getName()+ " is now " + isEditableNodeLocked());
+//		System.out.println(getName()+ " is now " + isEditableNodeLocked());
 	}
 
 	public int getXUnscaled(final int i) {
