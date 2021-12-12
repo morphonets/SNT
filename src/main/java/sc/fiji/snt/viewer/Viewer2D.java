@@ -41,6 +41,7 @@ import org.scijava.Context;
 import org.scijava.plugin.Parameter;
 import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
+import org.scijava.util.Colors;
 
 import net.imagej.ImageJ;
 import net.imagej.plot.LineStyle;
@@ -78,7 +79,7 @@ public class Viewer2D extends TreeColorMapper {
 	protected XYPlot plot;
 	private String title;
 	private JFreeChart chart;
-	private ColorRGB defaultColor = new ColorRGB("black");
+	private ColorRGB defaultColor = Colors.BLACK;
 	private boolean visibleAxes;
 	private boolean visibleGridLines;
 	private boolean visibleOutline;
@@ -102,10 +103,30 @@ public class Viewer2D extends TreeColorMapper {
 	 *          required by the viewer.
 	 */
 	public Viewer2D(final Context context) {
+		this(context, null);
+	}
+
+	/**
+	 * Instantiates an empty 2D viewer.
+	 *
+	 * @param context  the SciJava application context providing the services
+	 *                 required by the viewer.
+	 * @param template a viewer instance from which properties (axes visibility,
+	 *                 title, etc.) will be applied
+	 */
+	public Viewer2D(final Context context, final Viewer2D template) {
 		super(context);
-		setAxesVisible(true);
-		setGridlinesVisible(true);
-		setOutlineVisible(true);
+		if (template == null) {
+			setAxesVisible(true);
+			setGridlinesVisible(true);
+			setOutlineVisible(true);
+		} else {
+			setAxesVisible(template.getAxesVisible());
+			setGridlinesVisible(template.getGridlinesVisible());
+			setOutlineVisible(template.getOutlineVisible());
+			setTitle(template.getTitle());
+			setDefaultColor(template.defaultColor);
+		}
 	}
 
 	private void addPaths(final ArrayList<Path> paths) {
@@ -145,11 +166,8 @@ public class Viewer2D extends TreeColorMapper {
 		}
 		initPlot();
 		for (final Path p : paths) {
-			if (p.hasNodeColors()) {
-				plotColoredNodePaths(p);
-				continue;
-			}
 			final XYSeries series = plot.addXYSeries();
+			series.setLegendVisible(false);
 			series.setLabel(p.getName());
 			final List<Double> xc = new ArrayList<>();
 			final List<Double> yc = new ArrayList<>();
@@ -163,24 +181,26 @@ public class Viewer2D extends TreeColorMapper {
 				yc.add(pim.y);
 			}
 			series.setValues(xc, yc);
-			series.setLegendVisible(false);
 			final ColorRGB color = (p.getColor() == null) ? defaultColor
 				: new ColorRGB(p.getColor().getRed(), p.getColor().getGreen(), p
 					.getColor().getBlue());
 			series.setStyle(plot.newSeriesStyle(color, LineStyle.SOLID,
 				MarkerStyle.NONE));
+			if (p.hasNodeColors()) {
+				plotColoredNodePaths(p);
+			}
 		}
 	}
 
 	private void plotColoredNodePaths(final Path p) {
 		if (p.getStartJoinsPoint() != null) {
 			final XYSeries series = plot.addXYSeries();
+			series.setLegendVisible(false);
 			final List<Double> xc = new ArrayList<>();
 			final List<Double> yc = new ArrayList<>();
 			xc.add(p.getStartJoinsPoint().x);
 			yc.add(p.getStartJoinsPoint().y);
 			series.setValues(xc, yc);
-			series.setLegendVisible(false);
 			final Color c = p.getNodeColor(0);
 			final ColorRGB cc = (c == null) ? defaultColor : new ColorRGB(c.getRed(),
 					c.getGreen(), c.getBlue());
@@ -189,17 +209,17 @@ public class Viewer2D extends TreeColorMapper {
 		}
 		for (int node = 0; node < p.size(); node++) {
 			final XYSeries series = plot.addXYSeries();
+			series.setLegendVisible(false);
 			final List<Double> xc = new ArrayList<>();
 			final List<Double> yc = new ArrayList<>();
 			final PointInImage pim = p.getNode(node);
 			xc.add(pim.x);
 			yc.add(pim.y);
 			series.setValues(xc, yc);
-			series.setLegendVisible(false);
 			final Color c = p.getNodeColor(node);
 			final ColorRGB cc = (c == null) ? defaultColor : new ColorRGB(c.getRed(),
 				c.getGreen(), c.getBlue());
-			series.setStyle(plot.newSeriesStyle(cc, LineStyle.NONE,
+			series.setStyle(plot.newSeriesStyle(cc, LineStyle.SOLID,
 				MarkerStyle.FILLEDCIRCLE));
 		}
 	}
@@ -423,8 +443,13 @@ public class Viewer2D extends TreeColorMapper {
 	 * @return the converted viewer
 	 */
 	public SNTChart getChart() {
-		return new SNTChart((getTitle() == null || getTitle().trim().isEmpty()) ? "Reconstruction Plotter" : getTitle(),
+		final SNTChart chart = new SNTChart(
+				(getTitle() == null || getTitle().trim().isEmpty()) ? "Reconstruction Plotter" : getTitle(),
 				getJFreeChart());
+		chart.setAxesVisible(getAxesVisible());
+		chart.setOutlineVisible(getOutlineVisible());
+		chart.setGridlinesVisible(getGridlinesVisible());
+		return chart;
 	}
 
 	/**
@@ -510,6 +535,18 @@ public class Viewer2D extends TreeColorMapper {
 
 	public void setOutlineVisible(final boolean visible) {
 		visibleOutline = visible;
+	}
+
+	private boolean getGridlinesVisible() {
+		return visibleGridLines;
+	}
+
+	private boolean getAxesVisible() {
+		return visibleAxes;
+	}
+
+	private boolean getOutlineVisible() {
+		return visibleOutline;
 	}
 
 	/* IDE debug method */

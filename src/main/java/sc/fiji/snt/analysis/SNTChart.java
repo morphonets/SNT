@@ -226,11 +226,11 @@ public class SNTChart extends ChartFrame {
 		}
 	}
 
-	private boolean isOutlineVisible() {
+	public boolean isOutlineVisible() {
 		return getChartPanel().getChart().getPlot().isOutlineVisible();
 	}
 
-	private boolean isGridlinesVisible() {
+	public boolean isGridlinesVisible() {
 		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
 			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
 			return plot.isDomainGridlinesVisible() || plot.isRangeGridlinesVisible();
@@ -333,6 +333,15 @@ public class SNTChart extends ChartFrame {
 			final int nSeries = ((XYPlot) plot).getDataset().getSeriesCount();
 			setDatasetColors(renderer, nSeries, getColors(nSeries, colorTable));
 		}
+	}
+
+	/**
+	 * Replaces the current chart with the specified instance
+	 *
+	 * @param other the instance replacing current contents
+	 */
+	public void replace(final SNTChart other) {
+		getChartPanel().setChart(other.getChartPanel().getChart());
 	}
 
 	private void setDatasetColors(CategoryItemRenderer renderer, int nSeries, Color[] colors) {
@@ -591,6 +600,12 @@ public class SNTChart extends ChartFrame {
 				((TextTitle) title).setPaint(newColor);
 			} else if (title instanceof LegendTitle) {
 				((LegendTitle) title).setItemPaint(newColor);
+			} else if (title instanceof PaintScaleLegend) {
+				((PaintScaleLegend) title).setStripOutlinePaint(newColor);
+				((PaintScaleLegend) title).getAxis().setAxisLinePaint(newColor);
+				((PaintScaleLegend) title).getAxis().setLabelPaint(newColor);
+				((PaintScaleLegend) title).getAxis().setTickMarkPaint(newColor);
+				((PaintScaleLegend) title).getAxis().setTickLabelPaint(newColor);
 			}
 		}
 		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {

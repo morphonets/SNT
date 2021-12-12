@@ -131,6 +131,7 @@ public class TreeColorMapper extends ColorMapper {
 	private Map<String, URL> luts;
 	private int internalCounter = 1;
 	private final List<Tree> mappedTrees;
+	private boolean nodeMapping;
 
 	/**
 	 * Instantiates the mapper.
@@ -330,6 +331,7 @@ public class TreeColorMapper extends ColorMapper {
 		for (final MappedPath mp : mappedPaths) {
 			mp.path.setColor(getColor(mp.mappedValue));
 		}
+		nodeMapping = false;
 	}
 
 	private void mapToNodeProperty(final String measurement,
@@ -367,6 +369,7 @@ public class TreeColorMapper extends ColorMapper {
 			}
 			p.setNodeColors(colors);
 		}
+		nodeMapping = true;
 	}
 
 	private void mapPathDistances(final PointInImage root) {
@@ -433,7 +436,7 @@ public class TreeColorMapper extends ColorMapper {
 		// Wipe node values so that computed distances don't
 		// get mistakenly interpreted as pixel intensities
 		paths.forEach(p -> p.setNodeValues(null));
-
+		nodeMapping = true;
 	}
 
 	/**
@@ -475,6 +478,7 @@ public class TreeColorMapper extends ColorMapper {
 			}
 		}
 		mappedTrees.add(tree);
+		nodeMapping = true;
 	}
 
 	/**
@@ -670,6 +674,10 @@ public class TreeColorMapper extends ColorMapper {
 		if (colorTable != null && !mappedTrees.isEmpty())
 			multiViewer.setColorBarLegend(colorTable, min, max);
 		return multiViewer;
+	}
+
+	public boolean isNodeMapping() {
+		return nodeMapping;
 	}
 
 	private class MappedPath {

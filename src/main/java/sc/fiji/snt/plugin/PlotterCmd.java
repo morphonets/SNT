@@ -33,7 +33,6 @@ import java.util.Map;
 
 import net.imagej.ImageJ;
 
-import org.jfree.chart.JFreeChart;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.Interactive;
@@ -119,9 +118,8 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 	private static final ColorRGB DEF_COLOR = Colors.BLACK;
 	private static final String BUSY_MSG = "Rendering. Please wait...";
 
-	private Viewer2D plot;
-	private JFreeChart chart;
-	private SNTChart frame;
+	private Viewer2D viewer;
+	private SNTChart chart;
 	private Tree plottingTree;
 	private Tree snapshotTree;
 	private int previousXangle = 0;
@@ -188,10 +186,9 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		snapshotTree = tree.clone();
 		plottingTree.setColor(color);
 		buildPlot();
-		chart = plot.getJFreeChart();
-		frame = new SNTChart(tree.getLabel(), chart);
-		frame.setSize(500, 500);
-		frame.addWindowListener(new WindowAdapter() {
+		chart = viewer.getChart();
+		chart.setSize(500, 500);
+		chart.addWindowListener(new WindowAdapter() {
 
 			@Override
 			public void windowClosing(final WindowEvent e) {
@@ -199,24 +196,25 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				super.windowClosing(e);
 			}
 		});
-		frame.show();
+		chart.show();
 		status(null, false);
 
 	}
 
 	private void buildPlot() {
-		plot = new Viewer2D(context());
-		plot.setDefaultColor(color);
-		plottingTree.setColor(color);
-		plot.add(plottingTree);
+		viewer = new Viewer2D(context(), viewer);
+		viewer.add(plottingTree);
 	}
 
 	private void updatePlot() {
 		if (preview && msg.isEmpty() && hasInitialized()) {
 			msg = BUSY_MSG;
+			plottingTree.setColor(color);
 			buildPlot();
-			frame.getChartPanel().setChart(plot.getJFreeChart());
-			frame.setVisible(true); // re-open frame if it has been closed
+			viewer.setGridlinesVisible(chart.isGridlinesVisible());
+			viewer.setOutlineVisible(chart.isOutlineVisible());
+			chart.replace(viewer.getChart());
+			chart.setVisible(true); // re-open frame if it has been closed
 			//frame.toFront();
 			msg = "";
 		}
@@ -324,10 +322,10 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 			plottingPath.setNodeColors(inputPath.getNodeColors());
 		}
 		buildPlot();
-		plot.setTitle("[X " + angleX + "deg Y " + angleY + "deg Z " + angleZ +
+		viewer.setTitle("[X " + angleX + "deg Y " + angleY + "deg Z " + angleZ +
 			"deg]");
-		final SNTChart snapshotChart = plot.getChart();
-		snapshotChart.applyStyle(frame);
+		final SNTChart snapshotChart = viewer.getChart();
+		snapshotChart.applyStyle(chart);
 		snapshotChart.show();
 		// make tree monochrome
 		for (final Path p : plottingTree.list()) {

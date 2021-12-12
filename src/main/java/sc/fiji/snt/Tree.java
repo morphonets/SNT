@@ -860,6 +860,10 @@ public class Tree implements TreeProperties {
 		return list;
 	}
 
+	public long getNodesCount() {
+		return tree.stream().mapToLong(Path::size).sum();
+	}
+
 	/**
 	 * Assesses whether this Tree has depth.
 	 *
