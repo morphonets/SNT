@@ -394,7 +394,7 @@ public class TreeAnalyzer extends ContextCommand {
 		case MultiTreeStatistics.N_FITTED_PATHS:
 			return getNFittedPaths();
 		case MultiTreeStatistics.N_NODES:
-			return tree.getNodes().size();
+			return getNNodes();
 		case MultiTreeStatistics.N_PATHS:
 			return getNPaths();
 		case MultiTreeStatistics.N_PRIMARY_BRANCHES:
@@ -991,6 +991,15 @@ public class TreeAnalyzer extends ContextCommand {
 	 */
 	public int getNBranches() throws IllegalArgumentException {
 		return getBranches().size();
+	}
+
+	/**
+	 * Gets the number of nodes in the analyzed tree.
+	 *
+	 * @return the number of nodes
+	 */
+	public long getNNodes() {
+		return tree.getNodesCount();
 	}
 
 	/**
