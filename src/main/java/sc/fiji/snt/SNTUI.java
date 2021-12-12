@@ -72,6 +72,7 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.event.SNTEvent;
+import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.gui.CheckboxSpinner;
@@ -80,11 +81,6 @@ import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
-import sc.fiji.snt.gui.SNTCommandFinder;
-import sc.fiji.snt.gui.SaveMeasurementsCmd;
-import sc.fiji.snt.gui.SigmaPaletteListener;
-import sc.fiji.snt.gui.ScriptInstaller;
-import sc.fiji.snt.gui.SigmaPalette;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.*;
@@ -2532,10 +2528,19 @@ public class SNTUI extends JDialog {
 			if (noPathsError()) return;
 			final Collection<Tree> trees = getPathManager().getMultipleTrees();
 			if (trees == null) return;
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("trees", trees);
-			inputs.put("calledFromPathManagerUI", true);
-			(new DynamicCmdRunner(AnalyzerCmd.class, inputs)).run();
+
+			MeasureUI frame = new MeasureUI(plugin, trees);
+			SwingUtilities.invokeLater(new Runnable() {
+				@Override
+				public void run() {
+					frame.setVisible(true);
+				}
+			});
+
+//			final HashMap<String, Object> inputs = new HashMap<>();
+//			inputs.put("trees", trees);
+//			inputs.put("calledFromPathManagerUI", true);
+//			(new DynamicCmdRunner(AnalyzerCmd.class, inputs)).run();
 		});
 		analysisMenu.add(measureWithPrompt);
 		analysisMenu.add(measureMenuItem);
