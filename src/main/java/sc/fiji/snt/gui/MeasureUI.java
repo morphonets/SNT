@@ -113,30 +113,28 @@ public class MeasureUI extends JFrame {
                 tableModel.addColumn(metric);
             }
             for (int i = 1; i < statsTable.getColumnCount(); ++i) {
-                statsTable.getColumnModel().getColumn(i).setHeaderRenderer(
-                        new SelectAllHeader(statsTable, i, statsTable.getColumnName(i)));
+                statsTable.getColumnModel().getColumn(i).setHeaderRenderer(new SelectAllHeader(statsTable, i, statsTable.getColumnName(i)));
             }
             // FIXME: this is inherently slow, but should be fast enough with a reasonable number of metrics
             metricList.getCheckBoxListSelectionModel().addListSelectionListener(e -> {
-      			if (!e.getValueIsAdjusting()) {
-      				final List<Object> selectedMetrics = new ArrayList<>(
-      				        Arrays.asList(metricList.getCheckBoxListSelectedValues()));
-      				List<Integer> metricIndicesToRemove = new ArrayList<>();
-      				List<Object> existingMetrics = new ArrayList<>();
-      				for (int i = 0; i < tableModel.getRowCount(); ++i) {
-      				    Object existingMetric = tableModel.getValueAt(i, 0);
-      				    if (!selectedMetrics.contains(existingMetric)) {
-      				        metricIndicesToRemove.add(i);
+                if (!e.getValueIsAdjusting()) {
+                    final List<Object> selectedMetrics = new ArrayList<>(Arrays.asList(metricList.getCheckBoxListSelectedValues()));
+                    List<Integer> metricIndicesToRemove = new ArrayList<>();
+                    List<Object> existingMetrics = new ArrayList<>();
+                    for (int i = 0; i < tableModel.getRowCount(); ++i) {
+                        Object existingMetric = tableModel.getValueAt(i, 0);
+                        if (!selectedMetrics.contains(existingMetric)) {
+                            metricIndicesToRemove.add(i);
                         } else {
-      				        existingMetrics.add(existingMetric);
+                            existingMetrics.add(existingMetric);
                         }
                     }
-      				removeRows(tableModel, metricIndicesToRemove);
-      				selectedMetrics.removeAll(existingMetrics);
-      				for (final Object metric : selectedMetrics)
-      					tableModel.addRow(new Object[]{metric, false, false, false, false, false});
-      			}
-      		});
+                    removeRows(tableModel, metricIndicesToRemove);
+                    selectedMetrics.removeAll(existingMetrics);
+                    for (final Object metric : selectedMetrics)
+                        tableModel.addRow(new Object[]{metric, false, false, false, false, false});
+                }
+            });
             JScrollPane statsTableScrollPane = new JScrollPane(statsTable);
             add(statsTableScrollPane, c);
 
@@ -158,16 +156,16 @@ public class MeasureUI extends JFrame {
             }
         }
 
-		private JPopupMenu listPopupMenu() {
-			final JPopupMenu pMenu = new JPopupMenu();
-			JMenuItem mi = new JMenuItem("Clear Selection");
-			mi.addActionListener(e -> metricList.clearCheckBoxListSelection());
-			pMenu.add(mi);
-			mi = new JMenuItem("Select All");
-			mi.addActionListener(e -> metricList.selectAll());
-			pMenu.add(mi);
-			return pMenu;
-		}
+        private JPopupMenu listPopupMenu() {
+            final JPopupMenu pMenu = new JPopupMenu();
+            JMenuItem mi = new JMenuItem("Clear Selection");
+            mi.addActionListener(e -> metricList.clearCheckBoxListSelection());
+            pMenu.add(mi);
+            mi = new JMenuItem("Select All");
+            mi.addActionListener(e -> metricList.selectAll());
+            pMenu.add(mi);
+            return pMenu;
+        }
 
     }
 
@@ -194,8 +192,7 @@ public class MeasureUI extends JFrame {
                     String metric = (String) tableModel.getValueAt(i, 0);
                     SummaryStatistics summaryStatistics = tStats.getSummaryStats(metric);
                     for (int j = 1; j < tableModel.getColumnCount(); ++j) {
-                        if (!(boolean)tableModel.getValueAt(i, j))
-                            continue;
+                        if (!(boolean) tableModel.getValueAt(i, j)) continue;
                         String measurement = tableModel.getColumnName(j);
                         final double value;
                         switch (measurement) {
@@ -230,7 +227,7 @@ public class MeasureUI extends JFrame {
 
     /**
      * A TableCellRenderer that selects all or none of a Boolean column.
-     *
+     * <p>
      * Adapted from https://stackoverflow.com/a/7137801
      */
     static class SelectAllHeader extends JToggleButton implements TableCellRenderer {
@@ -267,9 +264,9 @@ public class MeasureUI extends JFrame {
         }
 
         @Override
-        public Component getTableCellRendererComponent(
-                JTable table, Object value, boolean isSelected,
-                boolean hasFocus, int row, int column) {
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus,
+                                                       int row, int column)
+        {
             return this;
         }
 
@@ -278,7 +275,7 @@ public class MeasureUI extends JFrame {
             @Override
             public void itemStateChanged(ItemEvent e) {
                 boolean state = e.getStateChange() == ItemEvent.SELECTED;
-                setText((state) ? ALL_SELECTED + label  : label);
+                setText((state) ? ALL_SELECTED + label : label);
                 for (int r = 0; r < table.getRowCount(); r++) {
                     table.setValueAt(state, r, viewColumn);
                 }
@@ -335,70 +332,69 @@ public class MeasureUI extends JFrame {
     }
 
     static class TablePopupMenu extends JPopupMenu {
-		// see https://stackoverflow.com/questions/16743427/
+        // see https://stackoverflow.com/questions/16743427/
 
-		private static final long serialVersionUID = -6423775304360422577L;
-		private int rowAtClickPoint;
-		private int columnAtClickPoint;
-		private final JTable table;
+        private static final long serialVersionUID = -6423775304360422577L;
+        private int rowAtClickPoint;
+        private int columnAtClickPoint;
+        private final JTable table;
 
-		public TablePopupMenu(final JTable table) {
-			super();
-			this.table = table;
-			addPopupMenuListener(new PopupMenuListener() {
+        public TablePopupMenu(final JTable table) {
+            super();
+            this.table = table;
+            addPopupMenuListener(new PopupMenuListener() {
 
-				@Override
-				public void popupMenuWillBecomeVisible(final PopupMenuEvent e) {
-					SwingUtilities.invokeLater(() -> {
-						final Point clickPoint = SwingUtilities.convertPoint(TablePopupMenu.this, new Point(0, 0),
-								table);
-						rowAtClickPoint = table.rowAtPoint(clickPoint);
-						columnAtClickPoint = table.columnAtPoint(clickPoint);
-					});
-				}
+                @Override
+                public void popupMenuWillBecomeVisible(final PopupMenuEvent e) {
+                    SwingUtilities.invokeLater(() -> {
+                        final Point clickPoint = SwingUtilities.convertPoint(TablePopupMenu.this, new Point(0, 0), table);
+                        rowAtClickPoint = table.rowAtPoint(clickPoint);
+                        columnAtClickPoint = table.columnAtPoint(clickPoint);
+                    });
+                }
 
-				@Override
-				public void popupMenuWillBecomeInvisible(final PopupMenuEvent e) {
-					// TODO Auto-generated method stub
-				}
+                @Override
+                public void popupMenuWillBecomeInvisible(final PopupMenuEvent e) {
+                    // TODO Auto-generated method stub
+                }
 
-				@Override
-				public void popupMenuCanceled(final PopupMenuEvent e) {
-					// TODO Auto-generated method stub
-				}
+                @Override
+                public void popupMenuCanceled(final PopupMenuEvent e) {
+                    // TODO Auto-generated method stub
+                }
 
-			});
-			JMenuItem mi = new JMenuItem("Select Entire Column");
-			mi.addActionListener(e -> setColumnState(true));
-			add(mi);
-			mi = new JMenuItem("Select Entire Row");
-			mi.addActionListener(e -> setRowState(true));
-			add(mi);
-			addSeparator();
-			mi = new JMenuItem("Deselect Entire Column");
-			mi.addActionListener(e -> setColumnState(false));
-			add(mi);
-			mi = new JMenuItem("Deselect Entire Row");
-			mi.addActionListener(e -> setRowState(false));
-			add(mi);
-		}
+            });
+            JMenuItem mi = new JMenuItem("Select Entire Column");
+            mi.addActionListener(e -> setColumnState(true));
+            add(mi);
+            mi = new JMenuItem("Select Entire Row");
+            mi.addActionListener(e -> setRowState(true));
+            add(mi);
+            addSeparator();
+            mi = new JMenuItem("Deselect Entire Column");
+            mi.addActionListener(e -> setColumnState(false));
+            add(mi);
+            mi = new JMenuItem("Deselect Entire Row");
+            mi.addActionListener(e -> setRowState(false));
+            add(mi);
+        }
 
-		private void setColumnState(final boolean state) {
-		    if (columnAtClickPoint == 0)
-		        // This is the metric String column, we don't want to change this
-		        return;
-			for (int i = 0; i < table.getRowCount(); i++) {
-				table.setValueAt(state, i, columnAtClickPoint);
-			}
-		}
+        private void setColumnState(final boolean state) {
+            if (columnAtClickPoint == 0)
+                // This is the metric String column, we don't want to change this
+                return;
+            for (int i = 0; i < table.getRowCount(); i++) {
+                table.setValueAt(state, i, columnAtClickPoint);
+            }
+        }
 
-		private void setRowState(final boolean state) {
-		    // Boolean columns start at idx == 1
-			for (int i = 1; i < table.getColumnCount(); i++) {
-				table.setValueAt(state, rowAtClickPoint, i);
-			}
-		}
-	}
+        private void setRowState(final boolean state) {
+            // Boolean columns start at idx == 1
+            for (int i = 1; i < table.getColumnCount(); i++) {
+                table.setValueAt(state, rowAtClickPoint, i);
+            }
+        }
+    }
 
     public static void main(String[] args) {
         ImageJ ij = new ImageJ();
