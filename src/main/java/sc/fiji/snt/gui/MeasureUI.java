@@ -43,6 +43,7 @@ import java.util.Collection;
 
 /**
  * @author Cameron Arshadi
+ * @author Tiago Ferreira
  */
 public class MeasureUI extends JFrame {
 
@@ -82,10 +83,10 @@ public class MeasureUI extends JFrame {
 
             c.gridx = 0;
             c.gridy = 0;
+            c.fill = GridBagConstraints.BOTH;
             listModel = new DefaultListModel<>();
-            TreeStatistics.getAllMetrics().forEach( m -> listModel.addElement(m));
+            TreeStatistics.getAllMetrics().forEach(listModel::addElement);
             metricList = new CheckBoxList(listModel);
-            //metricList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
             metricList.setClickInCheckBoxOnly(false);
             metricList.setComponentPopupMenu(listPopupMenu());
             JScrollPane metricListScrollPane = new JScrollPane(metricList);
@@ -93,6 +94,7 @@ public class MeasureUI extends JFrame {
 
             c.gridx = 1;
             c.gridy = 0;
+            c.fill = GridBagConstraints.BOTH;
             JTable statsTable = new JTable(new DefaultTableModel()) {
 
                 private static final long serialVersionUID = 1L;
@@ -112,7 +114,7 @@ public class MeasureUI extends JFrame {
       				final Object[] metrics = metricList.getCheckBoxListSelectedValues();
       				tableModel.setRowCount(0);
       				for (final Object metric : metrics)
-      					tableModel.addRow(new Object[]{metric.toString(), Boolean.FALSE, false, false, false, false});
+      					tableModel.addRow(new Object[]{metric.toString(), false, false, false, false, false});
       			}
       		});
 
@@ -124,12 +126,6 @@ public class MeasureUI extends JFrame {
             c.gridwidth = 2;
             c.anchor = GridBagConstraints.CENTER;
             JPanel buttonPanel = new JPanel();
-
-            JButton addButton = new JButton(new AddRowAction(this, tableModel));
-            buttonPanel.add(addButton);
-
-            JButton removeButton = new JButton(new RemoveRowAction(this, tableModel));
-            buttonPanel.add(removeButton);
 
             JButton runButton = new JButton("Run");
             runButton.addActionListener(new GenerateTableAction(trees, tableModel, displayService));
@@ -149,56 +145,6 @@ public class MeasureUI extends JFrame {
 			return pMenu;
 		}
 
-    }
-
-    
-    private static int rowIndexOfMetric(String metric, DefaultTableModel model) {
-        for (int i = 0; i < model.getRowCount(); ++i) {
-            if (model.getValueAt(i, 0).equals(metric)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    static class AddRowAction extends AbstractAction {
-
-        final MeasurePanel panel;
-        final DefaultTableModel model;
-
-        AddRowAction(MeasurePanel panel, DefaultTableModel model) {
-            super("Add", null);
-            this.panel = panel;
-            this.model = model;
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            String metric = (String) panel.metricList.getSelectedValue();
-            if (rowIndexOfMetric(metric, model) > -1)
-                return;
-            model.addRow(new Object[]{metric, Boolean.FALSE, false, false, false, false});
-        }
-    }
-
-    static class RemoveRowAction extends AbstractAction {
-
-        final MeasurePanel panel;
-        final DefaultTableModel model;
-
-        RemoveRowAction(MeasurePanel panel, DefaultTableModel model) {
-            super("Remove", null);
-            this.panel = panel;
-            this.model = model;
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            String metric = (String) panel.metricList.getSelectedValue();
-            int idx = rowIndexOfMetric(metric, model);
-            if (idx > -1)
-                model.removeRow(idx);
-        }
     }
 
     static class GenerateTableAction extends AbstractAction {
