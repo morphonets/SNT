@@ -85,12 +85,14 @@ public class MeasureUI extends JFrame {
 
             c.gridx = 0;
             c.gridy = 0;
+            c.weighty = 1.0; // fill height when when resizing pane
             c.fill = GridBagConstraints.BOTH;
             DefaultListModel<String> listModel = new DefaultListModel<>();
             TreeStatistics.getAllMetrics().forEach(listModel::addElement);
             metricList = new CheckBoxList(listModel);
             metricList.setClickInCheckBoxOnly(false);
             metricList.setComponentPopupMenu(listPopupMenu());
+            c.weightx = 0.0; // do not fill width when when resizing panel
             JScrollPane metricListScrollPane = new JScrollPane(metricList);
             add(metricListScrollPane, c);
 
@@ -135,7 +137,15 @@ public class MeasureUI extends JFrame {
                         tableModel.addRow(new Object[]{metric, false, false, false, false, false});
                 }
             });
+
+            // Enlarge default width of first column. Another option would be to have all columns to auto-fit
+            // at all times, e.g., https://stackoverflow.com/a/25570812. Maybe that would be better?
+            statsTable.getColumnModel().getColumn(0).setMinWidth(SwingUtilities.
+                    computeStringWidth(statsTable.getFontMetrics(statsTable.getFont()), "Average spine/varicosity"));
+            statsTable.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
+
             JScrollPane statsTableScrollPane = new JScrollPane(statsTable);
+            c.weightx = 1.0; // fill width when when resizing panel
             add(statsTableScrollPane, c);
 
             c.gridx = 0;
@@ -146,6 +156,7 @@ public class MeasureUI extends JFrame {
             JButton runButton = new JButton("Run");
             runButton.addActionListener(new GenerateTableAction(trees, tableModel, displayService));
             buttonPanel.add(runButton);
+            c.weighty = 0.0; // do not allow panel to fill height when when resizing pane
             add(buttonPanel, c);
         }
 
@@ -338,6 +349,7 @@ public class MeasureUI extends JFrame {
         private int rowAtClickPoint;
         private int columnAtClickPoint;
         private final JTable table;
+        private final JMenuItem selectColMenuItem;
 
         public TablePopupMenu(final JTable table) {
             super();
@@ -350,32 +362,41 @@ public class MeasureUI extends JFrame {
                         final Point clickPoint = SwingUtilities.convertPoint(TablePopupMenu.this, new Point(0, 0), table);
                         rowAtClickPoint = table.rowAtPoint(clickPoint);
                         columnAtClickPoint = table.columnAtPoint(clickPoint);
+                        selectColMenuItem.setEnabled(columnAtClickPoint > 0); 
                     });
                 }
 
                 @Override
-                public void popupMenuWillBecomeInvisible(final PopupMenuEvent e) {
-                    // TODO Auto-generated method stub
-                }
+                public void popupMenuWillBecomeInvisible(final PopupMenuEvent e) {}
 
                 @Override
-                public void popupMenuCanceled(final PopupMenuEvent e) {
-                    // TODO Auto-generated method stub
-                }
+                public void popupMenuCanceled(final PopupMenuEvent e) {}
 
             });
-            JMenuItem mi = new JMenuItem("Select Entire Column");
-            mi.addActionListener(e -> setColumnState(true));
+            JMenuItem mi = new JMenuItem("Enable All");
+            mi.addActionListener(e -> setAllState(true));
             add(mi);
-            mi = new JMenuItem("Select Entire Row");
+            selectColMenuItem = new JMenuItem("Enable This Column");
+            selectColMenuItem.addActionListener(e -> setColumnState(true));
+            add(selectColMenuItem);
+            mi = new JMenuItem("Enable This Row");
             mi.addActionListener(e -> setRowState(true));
             add(mi);
+            mi = new JMenuItem("Enable Selected Row(s)");
+            mi.addActionListener(e -> setSelectedRowsState(true));
+            add(mi);
             addSeparator();
-            mi = new JMenuItem("Deselect Entire Column");
+            mi = new JMenuItem("Disable All");
+            mi.addActionListener(e -> setAllState(false));
+            add(mi);
+            mi = new JMenuItem("Disable This Column");
             mi.addActionListener(e -> setColumnState(false));
             add(mi);
-            mi = new JMenuItem("Deselect Entire Row");
+            mi = new JMenuItem("Disable This Row");
             mi.addActionListener(e -> setRowState(false));
+            add(mi);
+            mi = new JMenuItem("Disable Selected Row(s)");
+            mi.addActionListener(e -> setSelectedRowsState(false));
             add(mi);
         }
 
@@ -394,6 +415,24 @@ public class MeasureUI extends JFrame {
                 table.setValueAt(state, rowAtClickPoint, i);
             }
         }
+
+        private void setAllState(final boolean state) {
+            for (int row = 0; row < table.getRowCount(); row++) {
+                for (int col = 1; col < table.getColumnCount(); col++) { // Skip metric String column
+                    table.setValueAt(state, row, col);
+                }
+            }
+        }
+
+        private void setSelectedRowsState(final boolean state) {
+            final int[] selectedIndices = table.getSelectedRows();
+            for (int idx = 0; idx < selectedIndices.length; idx++) {
+                for (int col = 1; col < table.getColumnCount(); col++) { // Skip metric String column
+                    table.setValueAt(state, selectedIndices[idx], col);
+                }
+            }
+        }
+
     }
 
     public static void main(String[] args) {
