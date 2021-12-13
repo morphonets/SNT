@@ -127,6 +127,11 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
 	private void runNonMatchedAnalysis() {
 		final Map<Integer, List<Path>> map = getPathListMap();
+		if (map.size() < 2) {
+			error("Selected Paths seem to be all asociated with the same time-point. "
+				+ "Make sure frame tags have been successfully applied.");
+			return;
+		}
 		final ArrayList<Double> xValues = new ArrayList<>(map.size());
 		final ArrayList<Double> yValues = new ArrayList<>(map.size());
 		final boolean includeSDevSeries = measurementChoice.contains(" (mean");
