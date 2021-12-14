@@ -2642,31 +2642,18 @@ public class PathAndFillManager extends DefaultHandler implements
 			while (currentPoint != null) {
 				currentPath.addNode(currentPoint);
 				pointToPath.put(currentPoint, currentPath);
-				final List<SWCPoint> children = currentPoint.getNextPoints();
-				if (children.size() == 1) {
-					final SWCPoint child = children.get(0);
-					if (child.type == currentPoint.type) {
-						currentPoint = child;
-					} else {
-						backtrackTo.add(child);
-						currentPath.setSWCType(currentPoint.type);
-						currentPoint = null;
-					}
-				} else if (children.size() > 1) {
-					SWCPoint finalCurrentPoint = currentPoint;
-					SWCPoint childWithSameType = children.stream()
+				if (!currentPoint.getNextPoints().isEmpty()) {
+					final SWCPoint finalCurrentPoint = currentPoint;
+					final SWCPoint childWithSameType = currentPoint.getNextPoints().stream()
 							.filter(c -> c.type == finalCurrentPoint.type)
 							.findFirst()
 							.orElse(null);
-					if (childWithSameType == null) {
-						backtrackTo.addAll(children);
+					currentPoint.getNextPoints().remove(childWithSameType);
+					backtrackTo.addAll(currentPoint.getNextPoints());
+					if (childWithSameType == null)
 						currentPath.setSWCType(currentPoint.type);
-						currentPoint = null;
-					} else {
-						children.remove(childWithSameType);
-						backtrackTo.addAll(children);
-						currentPoint = childWithSameType;
-					}
+					currentPoint = childWithSameType;
+
 				} else {
 					currentPath.setSWCType(currentPoint.type);
 					currentPoint = null;
