@@ -39,7 +39,6 @@ import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.util.*;
 
 import java.awt.*;
-import java.awt.geom.Line2D;
 import java.util.List;
 import java.util.*;
 import java.util.stream.DoubleStream;
@@ -1242,14 +1241,14 @@ public class Path implements Comparable<Path> {
 		final java.awt.Color c, final int plane, final boolean highContrast,
 		final boolean drawDiameter)
 	{
-		drawPathAsPoints(canvas, g, c, plane, highContrast, drawDiameter, 0, -1);
+		drawPathAsPoints(canvas, g, c, highContrast, drawDiameter, 0, -1);
 	}
 
 	protected void drawPathAsPoints(final TracerCanvas canvas, final Graphics2D g,
 		final java.awt.Color c, final int plane, final boolean drawDiameter,
 		final int slice, final int either_side)
 	{
-		drawPathAsPoints(canvas, g, c, plane, false, drawDiameter, slice,
+		drawPathAsPoints(canvas, g, c, false, drawDiameter, slice,
 			either_side);
 	}
 
@@ -1263,194 +1262,66 @@ public class Path implements Comparable<Path> {
 		final int sliceZeroIndexed = canvas.getImage().getZ() - 1;
 		int eitherSideParameter = canvas.eitherSide;
 		if (!canvas.just_near_slices) eitherSideParameter = -1;
-		drawPathAsPoints(canvas, g2, color, canvas.getPlane(), customColor,
+		drawPathAsPoints(canvas, g2, color, customColor,
 			snt.drawDiametersXY, sliceZeroIndexed, eitherSideParameter);
 	}
 
 	public void drawPathAsPoints(final TracerCanvas canvas, final Graphics2D g2,
-		final java.awt.Color c, final int plane, final boolean highContrast,
+		final java.awt.Color c, final boolean highContrast,
 		boolean drawDiameter, final int slice, final int either_side)
 	{
 
-		g2.setColor(c);
-		g2.setStroke(new BasicStroke((float) (canvas.nodeDiameter() / 2.5), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 		int startIndexOfLastDrawnLine = -1;
-
-		if (!hasRadii()) drawDiameter = false;
 
 		for (int i = 0; i < points; ++i) {
 
-			double previous_x_on_screen = Integer.MIN_VALUE;
-			double previous_y_on_screen = Integer.MIN_VALUE;
-			double next_x_on_screen = Integer.MIN_VALUE;
-			double next_y_on_screen = Integer.MIN_VALUE;
-			final boolean notFirstPoint = i > 0;
-			final boolean notLastPoint = i < points - 1;
-			int slice_of_point = Integer.MIN_VALUE;
-
-			switch (plane) {
-				case MultiDThreePanes.XY_PLANE:
-					if (notFirstPoint) {
-						previous_x_on_screen = canvas.myScreenXDprecise(getXUnscaledDouble(
-							i - 1));
-						previous_y_on_screen = canvas.myScreenYDprecise(getYUnscaledDouble(
-							i - 1));
-					} else if (startJoinsPoint != null) {
-						previous_x_on_screen = canvas.myScreenXDprecise(
-								startJoinsPoint.getX() / x_spacing + canvasOffset.x);
-						previous_y_on_screen = canvas.myScreenYDprecise(
-								startJoinsPoint.getY() / y_spacing + canvasOffset.y);
-					}
-					if (notLastPoint) {
-						next_x_on_screen = canvas.myScreenXDprecise(getXUnscaledDouble(i +
-							1));
-						next_y_on_screen = canvas.myScreenYDprecise(getYUnscaledDouble(i +
-							1));
-					}
-					slice_of_point = getZUnscaled(i);
-					break;
-				case MultiDThreePanes.XZ_PLANE:
-					if (notFirstPoint) {
-						previous_x_on_screen = canvas.myScreenXDprecise(getXUnscaledDouble(
-							i - 1));
-						previous_y_on_screen = canvas.myScreenYDprecise(getZUnscaledDouble(
-							i - 1));
-					} else if (startJoinsPoint != null) {
-						previous_x_on_screen = canvas.myScreenXDprecise(
-								startJoinsPoint.getX() / x_spacing + canvasOffset.x);
-						previous_y_on_screen = canvas.myScreenYDprecise(
-								startJoinsPoint.getZ() / z_spacing + canvasOffset.z);
-					}
-					if (notLastPoint) {
-						next_x_on_screen = canvas.myScreenXDprecise(getXUnscaledDouble(i +
-							1));
-						next_y_on_screen = canvas.myScreenYDprecise(getZUnscaledDouble(i +
-							1));
-					}
-					slice_of_point = getYUnscaled(i);
-					break;
-				case MultiDThreePanes.ZY_PLANE:
-					if (notFirstPoint) {
-						previous_x_on_screen = canvas.myScreenXDprecise(getZUnscaledDouble(
-							i - 1));
-						previous_y_on_screen = canvas.myScreenYDprecise(getYUnscaledDouble(
-							i - 1));
-					} else if (startJoinsPoint != null) {
-						previous_x_on_screen = canvas.myScreenXDprecise(
-								startJoinsPoint.getZ() / z_spacing + canvasOffset.z);
-						previous_y_on_screen = canvas.myScreenYDprecise(
-								startJoinsPoint.getY() / y_spacing + canvasOffset.y);
-					}
-					if (notLastPoint) {
-						next_x_on_screen = canvas.myScreenXDprecise(getZUnscaledDouble(i +
-							1));
-						next_y_on_screen = canvas.myScreenYDprecise(getYUnscaledDouble(i +
-							1));
-					}
-					slice_of_point = getXUnscaled(i);
-					break;
-				default:
-					throw new IllegalArgumentException("BUG: Unknown plane! (" + plane +
-						")");
+			final PathNode currentNode = new PathNode(this, i, canvas);
+			PathNode previousNode = null;
+			PathNode nextNode = null;
+			if (i > 0) {
+				previousNode = new PathNode(this, i-1, canvas);
+			} else if (startJoinsPoint != null) {
+				previousNode = new PathNode(startJoinsPoint, i, canvas);
+			}
+			if (i < points - 1) {
+				nextNode = new PathNode(this, i+1, canvas);
 			}
 
-			final PathNode pn = new PathNode(this, i, canvas);
 			final boolean outOfDepthBounds = (either_side >= 0) && (Math.abs(
-				slice_of_point - slice) > either_side);
-			g2.setColor(SNTColor.alphaColor(c,
+					currentNode.getSlice() - slice) > either_side);
+
+			// Draw node
+			if (!outOfDepthBounds) {
+				//System.out.println("Drawing node: " + g2.getColor());
+				currentNode.setEditable(getEditableNodeIndex() == i);
+				currentNode.draw(g2, c);
+			}
+
+			// Options for drawing inter-node segments and node diameter.
+			// Color will be whatever has been set by PathNode#Draw()
+			g2.setStroke(new BasicStroke((float) (canvas.nodeDiameter() / 3), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+			g2.setColor(SNTColor.alphaColor(g2.getColor(),
 					(outOfDepthBounds) ? canvas.getOutOfBoundsTransparency() : canvas.getDefaultTransparency()));
 
-			// If there was a previous point in this path, draw a line from there to
-			// here:
-			if (notFirstPoint) {
-				// Don't redraw the line if we drew it the previous time, though:
-				if (startIndexOfLastDrawnLine != i - 1) {
-					g2.draw(new Line2D.Double(previous_x_on_screen, previous_y_on_screen,
-						pn.x, pn.y));
-					startIndexOfLastDrawnLine = i - 1;
-				}
-			} else if (startJoinsPoint != null) {
-				PathNode jointNode = new PathNode(startJoinsPoint, canvas);
-				jointNode.setType(PathNode.JOINT);
-				jointNode.draw(g2, c);
-				pn.setType(PathNode.SLAB);
-				g2.draw(new Line2D.Double(previous_x_on_screen, previous_y_on_screen,
-						pn.x, pn.y));
+			// We are within Z-bounds and have been asked to draw the diameters, just do it in XY
+			if (drawDiameter && !outOfDepthBounds) {
+				currentNode.drawDiameter(g2, slice, either_side);
 			}
 
+			// If there was a previous point in this path, draw a line from there to here:
+			if (previousNode != null) {
+				// Don't redraw the line if we drew it the previous time, though:
+				if (startIndexOfLastDrawnLine != i - 1) {
+					currentNode.drawConnection(g2, previousNode);
+					startIndexOfLastDrawnLine = i - 1;
+				}
+			}
 			// If there's a next point in this path, draw a line from here to there:
-			if (notLastPoint) {
-				g2.draw(new Line2D.Double(pn.x, pn.y, next_x_on_screen,
-					next_y_on_screen));
+			if (nextNode != null) { /// this is where it happens
+				currentNode.drawConnection(g2, nextNode);
 				startIndexOfLastDrawnLine = i;
 			}
 
-			if (outOfDepthBounds) continue; // draw nothing more for points
-																			// out-of-bounds
-
-			// If we've been asked to draw the diameters, just do it in XY
-			if (drawDiameter && plane == MultiDThreePanes.XY_PLANE) {
-
-				// Cross the tangents with a unit z vector:
-				final double n_x = 0;
-				final double n_y = 0;
-				final double n_z = 1;
-				final double t_x = tangents_x[i];
-				final double t_y = tangents_y[i];
-				final double t_z = tangents_z[i];
-				final double cross_x = n_y * t_z - n_z * t_y;
-				final double cross_y = n_z * t_x - n_x * t_z;
-				// double cross_z = n_x * t_y - n_y * t_x;
-
-				final double sizeInPlane = Math.sqrt(cross_x * cross_x + cross_y *
-					cross_y);
-				final double normalized_cross_x = cross_x / sizeInPlane;
-				final double normalized_cross_y = cross_y / sizeInPlane;
-				final double zdiff = Math.abs((slice - slice_of_point) * z_spacing);
-				final double realRadius = radii[i];
-
-				if (either_side < 0 || zdiff <= realRadius) {
-
-					double effective_radius;
-					if (either_side < 0) effective_radius = realRadius;
-					else effective_radius = Math.sqrt(realRadius * realRadius - zdiff *
-						zdiff);
-
-					final double left_x = precise_x_positions[i] + normalized_cross_x *
-						effective_radius;
-					final double left_y = precise_y_positions[i] + normalized_cross_y *
-						effective_radius;
-					final double right_x = precise_x_positions[i] - normalized_cross_x *
-						effective_radius;
-					final double right_y = precise_y_positions[i] - normalized_cross_y *
-						effective_radius;
-
-					final double left_x_on_screen = canvas.myScreenXDprecise(
-						canvasOffset.x + left_x / x_spacing);
-					final double left_y_on_screen = canvas.myScreenYDprecise(
-						canvasOffset.y + left_y / y_spacing);
-					final double right_x_on_screen = canvas.myScreenXDprecise(
-						canvasOffset.x + right_x / x_spacing);
-					final double right_y_on_screen = canvas.myScreenYDprecise(
-						canvasOffset.y + right_y / y_spacing);
-
-					final double x_on_screen = canvas.myScreenXDprecise(canvasOffset.x +
-						precise_x_positions[i] / x_spacing);
-					final double y_on_screen = canvas.myScreenYDprecise(canvasOffset.y +
-						precise_y_positions[i] / y_spacing);
-
-					g2.draw(new Line2D.Double(x_on_screen, y_on_screen, left_x_on_screen,
-						left_y_on_screen));
-					g2.draw(new Line2D.Double(x_on_screen, y_on_screen, right_x_on_screen,
-						right_y_on_screen));
-				}
-
-			}
-
-			// Draw node
-			pn.setEditable(getEditableNodeIndex() == i, isEditableNodeLocked());
-			pn.draw(g2, c);
-			// g2.setColor(c); // reset color transparencies. Not really needed
 		}
 
 	}

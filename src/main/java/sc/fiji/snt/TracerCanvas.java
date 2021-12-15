@@ -121,7 +121,7 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 				else if (customColor) color = drawPath.getColor();
 
 				if (just_near_slices) {
-					drawPath.drawPathAsPoints(this, g, color, plane, (isSelected &&
+					drawPath.drawPathAsPoints(this, g, color, (isSelected &&
 						customColor), drawDiametersXY, current_z, eitherSide);
 				}
 				else {
