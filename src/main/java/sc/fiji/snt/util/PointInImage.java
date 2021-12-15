@@ -56,6 +56,8 @@ public class PointInImage implements SNTPoint {
 	private char lr = BrainAnnotation.ANY_HEMISPHERE;
 
 
+	public PointInImage() {}
+
 	public PointInImage(final double x, final double y, final double z) {
 		this.x = x;
 		this.y = y;

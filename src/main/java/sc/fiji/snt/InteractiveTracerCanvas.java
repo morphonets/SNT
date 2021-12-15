@@ -756,7 +756,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 						tracerPlugin.last_start_point_y * tracerPlugin.y_spacing,
 						tracerPlugin.last_start_point_z * tracerPlugin.z_spacing);
 				p.onPath = currentPath;
-				final PathNode pn = new PathNode(p, this);
+				final PathNode pn = new PathNode(p, 0, this);
 				pn.setSize(spotDiameter);
 				pn.draw(g, getUnconfirmedPathColor());
 			}
