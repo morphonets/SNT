@@ -74,6 +74,7 @@ import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.gui.CheckboxSpinner;
 import sc.fiji.snt.gui.ColorChooserButton;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
@@ -105,12 +106,11 @@ public class SNTUI extends JDialog {
 	private static final int MARGIN = 2;
 	private final JMenuBar menuBar;
 	private JCheckBox showPathsSelected;
-	protected JCheckBox showPartsNearby;
+	protected CheckboxSpinner partsNearbyCSpinner;
 	protected JCheckBox useSnapWindow;
 	private JCheckBox onlyActiveCTposition;
 	protected JSpinner snapWindowXYsizeSpinner;
 	protected JSpinner snapWindowZsizeSpinner;
-	protected JSpinner nearbyFieldSpinner;
 	private JButton showOrHidePathList;
 	private JButton showOrHideFillList = new JButton(); // must be initialized
 	private JMenuItem loadTracesMenuItem;
@@ -149,7 +149,7 @@ public class SNTUI extends JDialog {
 	private JButton secLayerGenerate;
 
 	private JButton secLayerExternalImgOptionsButton;
-	JCheckBox secLayerExternalImgOverlayCheckbox;
+	private CheckboxSpinner secLayerExternalImgOverlayCSpinner;
 	private JMenuItem secLayerExternalImgLoadFlushMenuItem;
 
 	private ActiveWorker activeWorker;
@@ -756,7 +756,7 @@ public class SNTUI extends JDialog {
 				completePath.setEnabled(false);
 
 				//FIXME: Check that we really don't need this: pmUI.valueChanged(null); // Fake a selection change in the path tree
-				showPartsNearby.setEnabled(isStackAvailable());
+				partsNearbyCSpinner.setEnabled(isStackAvailable());
 				setEnableAutoTracingComponents(plugin.isAstarEnabled(), true);
 				fmUI.setEnabledWhileNotFilling();
 				loadLabelsMenuItem.setEnabled(true);
@@ -780,7 +780,7 @@ public class SNTUI extends JDialog {
 				junkSegment.setEnabled(false);
 				completePath.setEnabled(false);
 				pmUI.valueChanged(null); // Fake a selection change in the path tree:
-				showPartsNearby.setEnabled(isStackAvailable());
+				partsNearbyCSpinner.setEnabled(isStackAvailable());
 				setEnableAutoTracingComponents(false, false);
 				plugin.discardFill();
 				fmUI.setEnabledWhileNotFilling();
@@ -805,7 +805,7 @@ public class SNTUI extends JDialog {
 				keepSegment.setEnabled(false);
 				junkSegment.setEnabled(false);
 				completePath.setEnabled(true);
-				showPartsNearby.setEnabled(isStackAvailable());
+				partsNearbyCSpinner.setEnabled(isStackAvailable());
 				setEnableAutoTracingComponents(plugin.isAstarEnabled(), true);
 				quitMenuItem.setEnabled(false);
 				break;
@@ -884,7 +884,7 @@ public class SNTUI extends JDialog {
 				keepSegment.setEnabled(false);
 				junkSegment.setEnabled(false);
 				completePath.setEnabled(false);
-				showPartsNearby.setEnabled(isStackAvailable());
+				partsNearbyCSpinner.setEnabled(isStackAvailable());
 				setEnableAutoTracingComponents(false, false);
 				getFillManager().setVisible(false);
 				showOrHideFillList.setEnabled(false);
@@ -896,7 +896,7 @@ public class SNTUI extends JDialog {
 				keepSegment.setEnabled(false);
 				junkSegment.setEnabled(false);
 				completePath.setEnabled(false);
-				showPartsNearby.setEnabled(isStackAvailable());
+				partsNearbyCSpinner.setEnabled(isStackAvailable());
 				setEnableAutoTracingComponents(false, false);
 				getFillManager().setVisible(false);
 				showOrHideFillList.setEnabled(false);
@@ -996,26 +996,22 @@ public class SNTUI extends JDialog {
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
 		gdb.gridwidth = 1;
 
-		final JPanel mipPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
-		final JCheckBox mipOverlayCheckBox = new JCheckBox("Overlay MIP(s) at");
-		mipPanel.add(mipOverlayCheckBox);
-		final JSpinner mipSpinner = GuiUtils.integerSpinner(20, 10, 80, 1, true);
-		mipSpinner.addChangeListener(e -> mipOverlayCheckBox.setSelected(false));
-		mipPanel.add(mipSpinner);
-		mipPanel.add(GuiUtils.leftAlignedLabel(" % opacity", true));
-		mipOverlayCheckBox.addActionListener(e -> {
+		final CheckboxSpinner mipCS = new CheckboxSpinner(new JCheckBox("Overlay MIP(s) at"),
+				GuiUtils.integerSpinner(20, 10, 80, 1, true));
+		mipCS.getSpinner().addChangeListener(e -> mipCS.setSelected(false));
+		mipCS.appendLabel(" % opacity");
+		mipCS.getCheckBox().addActionListener(e -> {
 			if (!plugin.accessToValidImageData()) {
 				noValidImageDataError();
-				mipOverlayCheckBox.setSelected(false);
+				mipCS.setSelected(false);
 			} else if (plugin.is2D()) {
 				guiUtils.error(plugin.getImagePlus().getTitle() + " has no depth. Cannot generate projection.");
-				mipOverlayCheckBox.setSelected(false);
+				mipCS.setSelected(false);
 			} else {
-				plugin.showMIPOverlays(false,
-						(mipOverlayCheckBox.isSelected()) ? (int) mipSpinner.getValue() * 0.01 : 0);
+				plugin.showMIPOverlays(false, (mipCS.isSelected()) ? (int) mipCS.getValue() * 0.01 : 0);
 			}
 		});
-		viewsPanel.add(mipPanel, gdb);
+		viewsPanel.add(mipCS, gdb);
 		++gdb.gridy;
 
 		final JCheckBox zoomAllPanesCheckBox = new JCheckBox("Apply zoom changes to all views",
@@ -1192,13 +1188,13 @@ public class SNTUI extends JDialog {
 
 		final JCheckBox activateFinishedPathCheckbox = new JCheckBox("Finishing a path selects it",
 				plugin.activateFinishedPath);
-		guiUtils.addTooltip(activateFinishedPathCheckbox, "Whether the path being traced should automatically be selected once finished.");
+		GuiUtils.addTooltip(activateFinishedPathCheckbox, "Whether the path being traced should automatically be selected once finished.");
 		activateFinishedPathCheckbox.addItemListener(e -> plugin.enableAutoSelectionOfFinishedPath(e.getStateChange() == ItemEvent.SELECTED));
 		tPanel.add(activateFinishedPathCheckbox, gdb);
 		++gdb.gridy;
 
 		final JCheckBox requireShiftToForkCheckbox = new JCheckBox("Require 'Shift' to branch off a path", plugin.requireShiftToFork);
-		guiUtils.addTooltip(requireShiftToForkCheckbox, "When branching off a path: Use Shift+Alt+click or Alt+click at the forking node? "
+		GuiUtils.addTooltip(requireShiftToForkCheckbox, "When branching off a path: Use Shift+Alt+click or Alt+click at the forking node? "
 				+ "NB: Alt+click is a common trigger for window dragging on Linux. Use Super+Alt+click to circumvent OS conflics.");
 		requireShiftToForkCheckbox.addItemListener(e ->plugin.requireShiftToFork = e.getStateChange() == ItemEvent.SELECTED);
 		tPanel.add(requireShiftToForkCheckbox, gdb);
@@ -1256,7 +1252,7 @@ public class SNTUI extends JDialog {
 		c.fill = GridBagConstraints.NONE;
 		c.gridx = 2;
 		p.add(defaultsButton);
-		guiUtils.addTooltip(p, "The scaling factor for path nodes");
+		GuiUtils.addTooltip(p, "The scaling factor for path nodes");
 		return p;
 	}
 
@@ -1287,7 +1283,7 @@ public class SNTUI extends JDialog {
 		c.fill = GridBagConstraints.NONE;
 		c.gridx = 2;
 		p.add(defTransparencyButton);
-		guiUtils.addTooltip(p, "Rendering opacity (0-100%) for lines connecting path nodes");
+		GuiUtils.addTooltip(p, "Rendering opacity (0-100%) for lines connecting path nodes");
 		return p;
 	}
 
@@ -1319,7 +1315,7 @@ public class SNTUI extends JDialog {
 		c.fill = GridBagConstraints.NONE;
 		c.gridx = 2;
 		p.add(defaultOutOfBoundsButton);
-		guiUtils.addTooltip(p, "The opacity (0-100%) of path segments that are out-of-plane. "
+		GuiUtils.addTooltip(p, "The opacity (0-100%) of path segments that are out-of-plane. "
 				+ "Only considered when tracing 3D images and the visibility filter is "
 				+ "<i>Only nodes within # nearby Z-slices</i>");
 		return p;
@@ -1432,7 +1428,7 @@ public class SNTUI extends JDialog {
 		miscPanel.add(canvasCheckBox, gdb);
 		++gdb.gridy;
 		final JCheckBox askUserConfirmationCheckBox = new JCheckBox("Skip confirmation dialogs", !askUserConfirmation);
-		guiUtils.addTooltip(askUserConfirmationCheckBox,
+		GuiUtils.addTooltip(askUserConfirmationCheckBox,
 				"Whether \"Are you sure?\" prompts should precede major operations");
 		askUserConfirmationCheckBox
 				.addItemListener(e -> askUserConfirmation = e.getStateChange() == ItemEvent.DESELECTED);
@@ -1950,7 +1946,7 @@ public class SNTUI extends JDialog {
 	private JPanel secondaryDataPanel() {
 
 		secLayerActivateCheckbox = new JCheckBox(hotKeyLabel("Trace/Fill on Secondary Layer", "L"));
-		guiUtils.addTooltip(secLayerActivateCheckbox,
+		GuiUtils.addTooltip(secLayerActivateCheckbox,
 				"Whether auto-tracing should be computed on a filtered flavor of current image");
 		secLayerActivateCheckbox.addActionListener(listener);
 
@@ -2001,12 +1997,12 @@ public class SNTUI extends JDialog {
 		});
 
 		final JButton builtinFilterOptionsButton = optionsButton(builtinFilterOptionsMenu);
-		guiUtils.addTooltip(builtinFilterOptionsButton, "Image processing utilities");
+		GuiUtils.addTooltip(builtinFilterOptionsButton, "Image processing utilities");
 
 		// Options for builtinFilterPanel
 		final JPopupMenu externalImgOptionsMenu = new JPopupMenu();
 		secLayerExternalImgOptionsButton = optionsButton(externalImgOptionsMenu);
-		guiUtils.addTooltip(secLayerExternalImgOptionsButton, "Controls for handling external images");
+		GuiUtils.addTooltip(secLayerExternalImgOptionsButton, "Controls for handling external images");
 
 		// Assemble options menu
 		secLayerExternalImgLoadFlushMenuItem = new JMenuItem("Choose File...");
@@ -2077,23 +2073,23 @@ public class SNTUI extends JDialog {
 		c.gridy++;
 
 		// row 3
-		secLayerExternalImgOverlayCheckbox = new JCheckBox("Render in overlay at ");
-		final JSpinner mipSpinner = GuiUtils.integerSpinner(20, 10, 80, 1, true);
-		mipSpinner.addChangeListener(e -> secLayerExternalImgOverlayCheckbox.setSelected(false));
-		secLayerExternalImgOverlayCheckbox.addActionListener(e -> {
+		secLayerExternalImgOverlayCSpinner = new CheckboxSpinner(new JCheckBox("Render in overlay at "),
+				GuiUtils.integerSpinner(20, 10, 80, 1, true));
+		secLayerExternalImgOverlayCSpinner.getSpinner().addChangeListener(e -> {
+			secLayerExternalImgOverlayCSpinner.setSelected(false);
+		});
+		secLayerExternalImgOverlayCSpinner.getCheckBox().addActionListener(e -> {
 			if (!plugin.isSecondaryImageFileLoaded()) {
 				noSecondaryImgFileAvailableError();
 				return;
 			}
 			plugin.showMIPOverlays(true,
-					(secLayerExternalImgOverlayCheckbox.isSelected()) ? (int) mipSpinner.getValue() * 0.01 : 0);
+					(secLayerExternalImgOverlayCSpinner.isSelected())
+							? (int) secLayerExternalImgOverlayCSpinner.getValue() * 0.01 : 0);
 		});
-		final JPanel overlayPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-		overlayPanel.add(secLayerExternalImgOverlayCheckbox);
-		overlayPanel.add(mipSpinner);
-		overlayPanel.add(GuiUtils.leftAlignedLabel(" % opacity", true));
+		secLayerExternalImgOverlayCSpinner.appendLabel("% opacity");
 		JPanel overlayPanelHolder = new JPanel(new BorderLayout());
-		overlayPanelHolder.add(overlayPanel, BorderLayout.CENTER);
+		overlayPanelHolder.add(secLayerExternalImgOverlayCSpinner, BorderLayout.CENTER);
 		//equalizeButtons(filteredImgOptionsButton, filteredImgBrowseButton);
 	//	overlayPanelHolder.add(secondaryImgOptionsButton, BorderLayout.EAST);
 		c.insets.left = 2 * c.insets.left;
@@ -2158,8 +2154,8 @@ public class SNTUI extends JDialog {
 		if (plugin.tubularGeodesicsTracingEnabled) {
 			setFastMarchSearchEnabled(false);
 		}
-		if (secLayerExternalImgOverlayCheckbox.isSelected()) {
-			secLayerExternalImgOverlayCheckbox.setSelected(false);
+		if (secLayerExternalImgOverlayCSpinner.getCheckBox().isSelected()) {
+			secLayerExternalImgOverlayCSpinner.getCheckBox().setSelected(false);
 			plugin.showMIPOverlays(true, 0);
 		}
 		updateExternalImgWidgets();
@@ -2277,7 +2273,7 @@ public class SNTUI extends JDialog {
 				return;
 			}
 			//GuiUtils.enableComponents(secondaryImgOverlayCheckbox.getParent(), successfullyLoaded);
-			secLayerExternalImgOverlayCheckbox.setEnabled(plugin.isTracingOnSecondaryImageAvailable());
+			secLayerExternalImgOverlayCSpinner.setEnabled(plugin.isTracingOnSecondaryImageAvailable());
 			secLayerExternalImgLoadFlushMenuItem.setText((plugin.isSecondaryDataAvailable()) ? "Choose File..." : "Flush Loaded Image...");
 		});
 	}
@@ -2642,21 +2638,17 @@ public class SNTUI extends JDialog {
 		final JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
 		row1.add(showPathsSelected);
 
-		showPartsNearby = new JCheckBox(hotKeyLabel("2. Only nodes within ", "2"));
-		guiUtils.addTooltip(showPartsNearby, "See the Options pane for further display settings");
-		showPartsNearby.setEnabled(isStackAvailable());
-		showPartsNearby.addItemListener(listener);
-		final JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-		row2.add(showPartsNearby);
-		nearbyFieldSpinner = GuiUtils.integerSpinner(plugin.depth == 1 ? 1 : 2, 1, plugin.depth, 1, false);
-		nearbyFieldSpinner.setEnabled(isStackAvailable());
-		nearbyFieldSpinner.addChangeListener(e -> {
-			showPartsNearby.setSelected(true);
-			plugin.justDisplayNearSlices(true, (int) nearbyFieldSpinner.getValue());
+		partsNearbyCSpinner = new CheckboxSpinner(new JCheckBox(hotKeyLabel("2. Only nodes within ", "2")),
+				GuiUtils.integerSpinner(1, 1, 80, 1, true));
+		partsNearbyCSpinner.appendLabel("nearby Z-slices");
+		partsNearbyCSpinner.setToolTipText("See Options pane for display settings of out-of-plane nodes");
+		partsNearbyCSpinner.getCheckBox().addItemListener(e -> {
+			plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
+					(int) partsNearbyCSpinner.getValue());
 		});
-
-		row2.add(nearbyFieldSpinner);
-		row2.add(GuiUtils.leftAlignedLabel(" nearby Z-slices", isStackAvailable()));
+		partsNearbyCSpinner.getSpinner().addChangeListener(e -> {
+			plugin.justDisplayNearSlices(true, (int) partsNearbyCSpinner.getValue());
+		});
 
 		final JPanel row3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
 		onlyActiveCTposition = new JCheckBox(hotKeyLabel("3. Only paths from active channel/frame", "3"));
@@ -2666,7 +2658,7 @@ public class SNTUI extends JDialog {
 		final JPanel panel = new JPanel();
 		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 		panel.add(row1);
-		panel.add(row2);
+		panel.add(partsNearbyCSpinner);
 		panel.add(row3);
 		return panel;
 	}
@@ -2687,7 +2679,7 @@ public class SNTUI extends JDialog {
 		colorOptionsPanel.add(colorButtonPanel, cop_f);
 		++cop_f.gridy;
 		final JCheckBox jcheckbox = new JCheckBox("Enforce default colors (ignore color tags)");
-		guiUtils.addTooltip(jcheckbox,
+		GuiUtils.addTooltip(jcheckbox,
 				"Whether default colors above should be used even when color tags have been applied in the Path Manager");
 		jcheckbox.addActionListener(e -> {
 			plugin.displayCustomPathColors = !jcheckbox.isSelected();
@@ -2722,7 +2714,7 @@ public class SNTUI extends JDialog {
 		snapWindowZsizeSpinner
 				.addChangeListener(e -> plugin.cursorSnapWindowZ = (int) snapWindowZsizeSpinner.getValue() / 2);
 		tracingOptionsPanel.add(snapWindowZsizeSpinner);
-		guiUtils.addTooltip(tracingOptionsPanel, "Whether the mouse pointer should snap to the brightest voxel "
+		GuiUtils.addTooltip(tracingOptionsPanel, "Whether the mouse pointer should snap to the brightest voxel "
 				+ "searched within the specified neighborhood (in pixels). When Z=0 snapping occurs in 2D.");
 		// ensure same alignment of all other panels using defaultGbc
 		final JPanel container = new JPanel(new GridBagLayout());
@@ -2792,7 +2784,7 @@ public class SNTUI extends JDialog {
 
 		final JPopupMenu optionsMenu = new JPopupMenu();
 		final JButton optionsButton = optionsButton(optionsMenu);
-		guiUtils.addTooltip(optionsButton, "Algorithm settings");
+		GuiUtils.addTooltip(optionsButton, "Algorithm settings");
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Data Structure:", false));
 		final ButtonGroup dataStructureButtonGroup = new ButtonGroup();
 
@@ -3215,7 +3207,7 @@ public class SNTUI extends JDialog {
 
 	protected boolean nearbySlices() {
 		assert SwingUtilities.isEventDispatchThread();
-		return showPartsNearby.isSelected();
+		return partsNearbyCSpinner.isSelected();
 	}
 
 	private JMenuItem shollAnalysisHelpMenuItem() {
@@ -3326,8 +3318,8 @@ public class SNTUI extends JDialog {
 
 	protected void inputImageChanged() {
 		final ImagePlus imp = plugin.getImagePlus();
-		showPartsNearby.setEnabled(imp != null && !plugin.is2D());
-		nearbyFieldSpinner.setEnabled(imp != null && !plugin.is2D());
+		partsNearbyCSpinner.setSpinnerMinMax(1, plugin.getDepth());
+		partsNearbyCSpinner.setEnabled(imp != null && !plugin.is2D());
 		final JPanel newSourcePanel = sourcePanel(imp);
 		final GridBagLayout layout = (GridBagLayout) newSourcePanel.getLayout();
 		for (int i = 0; i < sourcePanel.getComponentCount(); i++) {
@@ -3516,7 +3508,7 @@ public class SNTUI extends JDialog {
 
 	private void noSecondaryImgFileAvailableError() {
 		guiUtils.error("No external secondary image has been loaded. Please load it first.", "External Image Unavailable");
-		secLayerExternalImgOverlayCheckbox.setSelected(false);
+		secLayerExternalImgOverlayCSpinner.getCheckBox().setSelected(false);
 		secLayerExternalRadioButton.setSelected(false);
 	}
 
@@ -3577,7 +3569,7 @@ public class SNTUI extends JDialog {
 
 	protected void togglePartsChoice() {
 		assert SwingUtilities.isEventDispatchThread();
-		showPartsNearby.setSelected(!showPartsNearby.isSelected());
+		partsNearbyCSpinner.getCheckBox().setSelected(!partsNearbyCSpinner.getCheckBox().isSelected());
 	}
 
 	protected void toggleChannelAndFrameChoice() {
@@ -3657,9 +3649,7 @@ public class SNTUI extends JDialog {
 
 			final Object source = e.getSource();
 
-			if (source == showPartsNearby) {
-				plugin.justDisplayNearSlices(showPartsNearby.isSelected(), (int) nearbyFieldSpinner.getValue());
-			} else if (source == useSnapWindow) {
+			if (source == useSnapWindow) {
 				plugin.enableSnapCursor(useSnapWindow.isSelected());
 			} else if (source == showPathsSelected) {
 				plugin.setShowOnlySelectedPaths(showPathsSelected.isSelected());
