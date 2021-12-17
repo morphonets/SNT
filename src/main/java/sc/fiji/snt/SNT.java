@@ -27,7 +27,6 @@ import amira.AmiraParameters;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.Prefs;
 import ij.gui.*;
 import ij.measure.Calibration;
 import ij.plugin.LutLoader;
@@ -220,6 +219,7 @@ public class SNT extends MultiDThreePanes implements
 	volatile protected boolean showOnlyActiveCTposPaths;
 	volatile protected boolean activateFinishedPath;
 	volatile protected boolean requireShiftToFork;
+	private boolean drawDiameters;
 
 	private boolean manualOverride = false;
 	private double fillThresholdDistance = 0.1d;
@@ -3430,16 +3430,13 @@ public class SNT extends MultiDThreePanes implements
 		return singleSlice;
 	}
 
-	protected boolean drawDiametersXY = Prefs.get(
-		"tracing.Simple_Neurite_Tracer.drawDiametersXY", "false").equals("true");
-
-	public void setDrawDiametersXY(final boolean draw) {
-		drawDiametersXY = draw;
+	public void setDrawDiameters(final boolean draw) {
+		drawDiameters = draw;
 		repaintAllPanes();
 	}
 
-	public boolean getDrawDiametersXY() {
-		return drawDiametersXY;
+	public boolean getDrawDiameters() {
+		return drawDiameters;
 	}
 
 	@Override

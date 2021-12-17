@@ -89,7 +89,7 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 		final Color selectedColor = plugin.selectedColor;
 		final Color deselectedColor = plugin.deselectedColor;
 
-		final boolean drawDiametersXY = plugin.getDrawDiametersXY();
+		final boolean drawDiametersXY = plugin.getDrawDiameters();
 
 		if (pathAndFillManager != null) {
 			final Stroke stroke = g.getStroke();

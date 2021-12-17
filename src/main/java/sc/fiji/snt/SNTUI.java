@@ -317,9 +317,9 @@ public class SNTUI extends JDialog {
 				tab2.add(tracingPanel(), c2);
 				++c2.gridy;
 			}
-			addSeparatorWithURL(tab2, "UI Interaction:", true, c2);
+			addSeparatorWithURL(tab2, "Path Rendering:", true, c2);
 			++c2.gridy;
-			tab2.add(interactionPanel(), c2);
+			tab2.add(pathOptionsPanel(), c2);
 			++c2.gridy;
 			addSeparatorWithURL(tab2, "Misc:", true, c2);
 			++c2.gridy;
@@ -1018,11 +1018,6 @@ public class SNTUI extends JDialog {
 		viewsPanel.add(mipPanel, gdb);
 		++gdb.gridy;
 
-		final JCheckBox diametersCheckBox = new JCheckBox("Draw diameters in XY view", plugin.getDrawDiametersXY());
-		diametersCheckBox.addItemListener(e -> plugin.setDrawDiametersXY(e.getStateChange() == ItemEvent.SELECTED));
-		viewsPanel.add(diametersCheckBox, gdb);
-		++gdb.gridy;
-
 		final JCheckBox zoomAllPanesCheckBox = new JCheckBox("Apply zoom changes to all views",
 				!plugin.isZoomAllPanesDisabled());
 		zoomAllPanesCheckBox
@@ -1211,24 +1206,18 @@ public class SNTUI extends JDialog {
 
 	}
 
-	private JPanel interactionPanel() {
+	private JPanel pathOptionsPanel() {
 		final JPanel intPanel = new JPanel(new GridBagLayout());
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
-		intPanel.add(extraColorsPanel(), gdb);
+		final JCheckBox diametersCheckBox = new JCheckBox("Draw diameters", plugin.getDrawDiameters());
+		diametersCheckBox.addItemListener(e -> plugin.setDrawDiameters(e.getStateChange() == ItemEvent.SELECTED));
+		intPanel.add(diametersCheckBox, gdb);
 		++gdb.gridy;
 		intPanel.add(nodePanel(), gdb);
 		++gdb.gridy;
 		intPanel.add(transparencyDefPanel(), gdb);
 		++gdb.gridy;
 		intPanel.add(transparencyOutOfBoundsPanel(), gdb);
-		++gdb.gridy;
-		final JCheckBox canvasCheckBox = new JCheckBox("Activate canvas on mouse hovering",
-				plugin.autoCanvasActivation);
-		guiUtils.addTooltip(canvasCheckBox, "Whether the image window should be brought to front as soon as the mouse "
-				+ "pointer enters it. This may be needed to ensure single key shortcuts work as expected when tracing.");
-		canvasCheckBox.addItemListener(e -> plugin.enableAutoActivation(e.getStateChange() == ItemEvent.SELECTED));
-		intPanel.add(canvasCheckBox, gdb);
-		++gdb.gridy;
 		return intPanel;
 	}
 
@@ -1261,7 +1250,7 @@ public class SNTUI extends JDialog {
 		c.gridy = 0;
 		c.gridwidth = 3;
 		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel("Path rendering scale: ", true));
+		p.add(GuiUtils.leftAlignedLabel("Rendering scale: ", true));
 		c.gridx = 1;
 		p.add(nodeSpinner, c);
 		c.fill = GridBagConstraints.NONE;
@@ -1433,6 +1422,15 @@ public class SNTUI extends JDialog {
 	private JPanel miscPanel() {
 		final JPanel miscPanel = new JPanel(new GridBagLayout());
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
+		miscPanel.add(extraColorsPanel(), gdb);
+		++gdb.gridy;
+		final JCheckBox canvasCheckBox = new JCheckBox("Activate canvas on mouse hovering",
+				plugin.autoCanvasActivation);
+		GuiUtils.addTooltip(canvasCheckBox, "Whether the image window should be brought to front as soon as the mouse "
+				+ "pointer enters it. This may be needed to ensure single key shortcuts work as expected when tracing.");
+		canvasCheckBox.addItemListener(e -> plugin.enableAutoActivation(e.getStateChange() == ItemEvent.SELECTED));
+		miscPanel.add(canvasCheckBox, gdb);
+		++gdb.gridy;
 		final JCheckBox askUserConfirmationCheckBox = new JCheckBox("Skip confirmation dialogs", !askUserConfirmation);
 		guiUtils.addTooltip(askUserConfirmationCheckBox,
 				"Whether \"Are you sure?\" prompts should precede major operations");

@@ -42,7 +42,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	public static final String NO_IMAGE_ASSOCIATED_DATA = "noImgData";
 	public static final String RESIZE_REQUIRED = "resizeNeeded";
 
-	private static final int DRAW_DIAMETERS_XY = 1;
+	private static final int DRAW_DIAMETERS = 1;
 	private static final int SNAP_CURSOR = 2;
 	private static final int REQUIRE_SHIFT_FOR_FORK = 4;
 	private static final int AUTO_CANVAS_ACTIVATION = 8;
@@ -154,7 +154,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	private int getDefaultBooleans() {
-		return DRAW_DIAMETERS_XY + SNAP_CURSOR + COMPRESSED_XML + FORCE_2D_DISPLAY_CANVAS + AUTO_CANVAS_ACTIVATION;
+		return DRAW_DIAMETERS + SNAP_CURSOR + COMPRESSED_XML + FORCE_2D_DISPLAY_CANVAS + AUTO_CANVAS_ACTIVATION;
 	}
 
 	private void getBooleans() {
@@ -169,7 +169,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		snt.activateFinishedPath = getPref(AUTO_SELECTION_FINISHED_PATH);
 		snt.requireShiftToFork = getPref(REQUIRE_SHIFT_FOR_FORK);
 		snt.snapCursor = !snt.tracingHalted && getPref(SNAP_CURSOR);
-		snt.drawDiametersXY = getPref(DRAW_DIAMETERS_XY);
+		snt.setDrawDiameters(getPref(DRAW_DIAMETERS));
 		snt.displayCustomPathColors = !getPref(ENFORCE_DEFAULT_PATH_COLORS);
 		snt.setShowOnlySelectedPaths(getPref(SHOW_ONLY_SELECTED), false);
 		if (!SNTUtils.isDebugMode()) SNTUtils.setDebugMode(getPref(DEBUG));
@@ -226,7 +226,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		if (!snt.tracingHalted) setPref(SNAP_CURSOR, snt.snapCursor);
 		Prefs.set(SNAP_XY, snt.cursorSnapWindowXY);
 		Prefs.set(SNAP_Z, snt.cursorSnapWindowZ);
-		setPref(DRAW_DIAMETERS_XY, snt.drawDiametersXY);
+		setPref(DRAW_DIAMETERS, snt.getDrawDiameters());
 		setPref(ENFORCE_DEFAULT_PATH_COLORS, !snt.displayCustomPathColors);
 		setPref(SHOW_ONLY_SELECTED, snt.showOnlySelectedPaths);
 		setPref(DEBUG, SNTUtils.isDebugMode());

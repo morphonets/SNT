@@ -1263,7 +1263,7 @@ public class Path implements Comparable<Path> {
 		int eitherSideParameter = canvas.eitherSide;
 		if (!canvas.just_near_slices) eitherSideParameter = -1;
 		drawPathAsPoints(canvas, g2, color, customColor,
-			snt.drawDiametersXY, sliceZeroIndexed, eitherSideParameter);
+			snt.getDrawDiameters(), sliceZeroIndexed, eitherSideParameter);
 	}
 
 	public void drawPathAsPoints(final TracerCanvas canvas, final Graphics2D g2,

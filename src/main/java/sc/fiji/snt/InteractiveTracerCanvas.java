@@ -723,7 +723,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	protected void drawOverlay(final Graphics2D g) {
 		if (!tracerPlugin.getPathAndFillManager().enableUIupdates) return;
 
-		final boolean drawDiametersXY = tracerPlugin.getDrawDiametersXY();
+		final boolean drawDiametersXY = tracerPlugin.getDrawDiameters();
 		final int sliceZeroIndexed = imp.getZ() - 1;
 		int eitherSideParameter = eitherSide;
 		if (!just_near_slices) eitherSideParameter = -1;
