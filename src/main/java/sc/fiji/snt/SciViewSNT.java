@@ -83,7 +83,7 @@ public class SciViewSNT {
 		if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
 			// If dependencies are missing, warn users politely
 			throw new NoClassDefFoundError(
-					"SciView is not available. Please see https://imagej.net/SNT#Installation for details");
+					"SciView is not available. Please see https://imagej.net/plugins/snt/#installation for details");
 		}
 		if (context == null) throw new NullContextException();
 		context.inject(this);

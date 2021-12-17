@@ -131,7 +131,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 {
 
 	private static final long serialVersionUID = 1L;
-	private static final String FIT_URI = "https://imagej.net/SNT:_Manual#Refine.2FFit";
+	private static final String FIT_URI = "https://imagej.net/plugins/snt/manual#refinefit";
 	private final HelpfulJTree tree;
 	private final SNT plugin;
 	private final PathAndFillManager pathAndFillManager;

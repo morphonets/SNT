@@ -297,7 +297,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 
 	@SuppressWarnings("unused")
 	private void help() {
-		final String url = "https://imagej.net/SNT:_Manual#Tracing_on_Secondary_Image";
+		final String url = "https://imagej.net/plugins/snt/manual#tracing-on-secondary-image";
 		try {
 			platformService.open(new URL(url));
 		} catch (final IOException e) {
