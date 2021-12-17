@@ -1018,6 +1018,10 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void justDisplayNearSlices(final boolean value, final int eitherSide) {
+		justDisplayNearSlices(value, eitherSide, true);
+	}
+
+	protected void justDisplayNearSlices(final boolean value, final int eitherSide, final boolean updateViewers) {
 
 		getXYCanvas().just_near_slices = value;
 		if (!single_pane) {

@@ -477,7 +477,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			}
 		}
 		if (nodes.isEmpty()) {
-			getGuiUtils().tempMsg("Nothing to select. No paths in view");
+			if (pathAndFillManager.getSelectedPaths().isEmpty())
+				getGuiUtils().tempMsg("Nothing to select. No paths in view");
+			// else the closest path to the pointer is an already pre-selected path in view
 			return;
 		}
 
