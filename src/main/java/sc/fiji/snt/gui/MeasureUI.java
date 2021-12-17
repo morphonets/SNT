@@ -349,7 +349,7 @@ public class MeasureUI extends JFrame {
         private int rowAtClickPoint;
         private int columnAtClickPoint;
         private final JTable table;
-        private final JMenuItem selectColMenuItem;
+
 
         public TablePopupMenu(final JTable table) {
             super();
@@ -362,7 +362,15 @@ public class MeasureUI extends JFrame {
                         final Point clickPoint = SwingUtilities.convertPoint(TablePopupMenu.this, new Point(0, 0), table);
                         rowAtClickPoint = table.rowAtPoint(clickPoint);
                         columnAtClickPoint = table.columnAtPoint(clickPoint);
-                        selectColMenuItem.setEnabled(columnAtClickPoint > 0); 
+                        for (final MenuElement element : getSubElements()) {
+                            if (!(element instanceof JMenuItem)) continue;
+                            if (((JMenuItem) element).getText().endsWith("Column")) {
+                                ((JMenuItem)element).setEnabled(columnAtClickPoint > 0);
+                            }
+                            if (((JMenuItem) element).getText().endsWith("Row(s)")) {
+                                ((JMenuItem)element).setEnabled(table.getSelectedRowCount() >1);
+                            }
+                        }
                     });
                 }
 
@@ -376,12 +384,12 @@ public class MeasureUI extends JFrame {
             JMenuItem mi = new JMenuItem("Enable All");
             mi.addActionListener(e -> setAllState(true));
             add(mi);
-            selectColMenuItem = new JMenuItem("Enable This Column");
-            selectColMenuItem.addActionListener(e -> setColumnState(true));
-            add(selectColMenuItem);
-            mi = new JMenuItem("Enable This Row");
-            mi.addActionListener(e -> setRowState(true));
+            mi = new JMenuItem("Enable This Column");
+            mi.addActionListener(e -> setColumnState(true));
             add(mi);
+//            mi = new JMenuItem("Enable This Row");
+//            mi.addActionListener(e -> setRowState(true));
+//            add(mi);
             mi = new JMenuItem("Enable Selected Row(s)");
             mi.addActionListener(e -> setSelectedRowsState(true));
             add(mi);
@@ -392,9 +400,9 @@ public class MeasureUI extends JFrame {
             mi = new JMenuItem("Disable This Column");
             mi.addActionListener(e -> setColumnState(false));
             add(mi);
-            mi = new JMenuItem("Disable This Row");
-            mi.addActionListener(e -> setRowState(false));
-            add(mi);
+//            mi = new JMenuItem("Disable This Row");
+//            mi.addActionListener(e -> setRowState(false));
+//            add(mi);
             mi = new JMenuItem("Disable Selected Row(s)");
             mi.addActionListener(e -> setSelectedRowsState(false));
             add(mi);
@@ -409,6 +417,7 @@ public class MeasureUI extends JFrame {
             }
         }
 
+        @SuppressWarnings("unused")
         private void setRowState(final boolean state) {
             // Boolean columns start at idx == 1
             for (int i = 1; i < table.getColumnCount(); i++) {
