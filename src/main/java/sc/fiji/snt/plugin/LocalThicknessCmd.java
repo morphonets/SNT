@@ -128,7 +128,7 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 
 	@SuppressWarnings("unused")
 	private void helpButtonPressed() {
-		IJ.runPlugIn("ij.plugin.BrowserLauncher", "https://imagej.net/Local_Thickness");
+		IJ.runPlugIn("ij.plugin.BrowserLauncher", "https://imagej.net/plugins/local-thickness");
 	}
 
 	@Override

@@ -48,7 +48,7 @@ import ij.ImagePlus;
 public class ShollUtils {
 
 	/* Plugin Information */
-	public static final String URL = "https://imagej.net/Sholl_Analysis";
+	public static final String URL = "https://imagej.net/plugins/sholl-analysis";
 
 	private ShollUtils() {
 	}

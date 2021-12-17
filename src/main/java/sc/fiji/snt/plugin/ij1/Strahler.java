@@ -67,7 +67,7 @@ import sc.fiji.snt.util.ColorMaps;
 @SuppressWarnings("deprecation")
 public class Strahler implements PlugIn, DialogListener {
 
-	protected static final String URL = "https://imagej.net/Strahler_Analysis";
+	protected static final String URL = "https://imagej.net/plugins/strahler-analysis";
 
 	/* Default value for max. number of pruning cycles */
 	int maxOrder = 30;

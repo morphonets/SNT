@@ -609,8 +609,8 @@ public class SNTUI extends JDialog {
 
 	private void addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,
 			final GridBagConstraints c) {
-		final String anchor = label.replace(" ", "_").replace(":", "");
-		final String uri = "https://imagej.net/SNT:_Manual#" + anchor;
+		final String anchor = label.toLowerCase().replace(" ", "-").replace(":", "");
+		final String uri = "https://imagej.net/plugins/snt/manual#" + anchor;
 		JLabel jLabel = GuiUtils.leftAlignedLabel(label, uri, true);
 		GuiUtils.addSeparator(component, jLabel, vgap, c);
 	}
@@ -2916,7 +2916,7 @@ public class SNTUI extends JDialog {
 			} else {
 				msg.append("the secondary image does not seem to be valid.");
 			}
-			guiUtils.error(msg.toString(), "Error", "https://imagej.net/SNT:_Tubular_Geodesics");
+			guiUtils.error(msg.toString(), "Error", "https://imagej.net/plugins/snt/tubular-geodesics");
 		}
 		return tgInstalled && tgAvailable;
 	}
@@ -3219,7 +3219,7 @@ public class SNTUI extends JDialog {
 					return;
 				final String modKey = "Alt+Shift";
 				final String url1 = ShollUtils.URL + "#Analysis_of_Traced_Cells";
-				final String url2 = "https://imagej.net/SNT:_Analysis#Sholl_Analysis";
+				final String url2 = "https://imagej.net/plugins/snt/analysis#Sholl_Analysis";
 				final StringBuilder sb = new StringBuilder();
 				sb.append("<html>");
 				sb.append("<div WIDTH=500>");

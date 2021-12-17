@@ -376,7 +376,7 @@ public class ScriptInstaller implements MenuKeyListener {
 		mItem.addActionListener(e -> {
 			guiUtils.showHTMLDialog(
 				"<HTML><div WIDTH=500>This menu lists scripting routines that " //
-				+ "<a href='https://imagej.net/SNT:_Scripting'>enhance SNT functionality</a>. " //
+				+ "<a href='https://imagej.net/plugins/snt/scripting'>enhance SNT functionality</a>. " //
 				+ "The list is automatically populated at startup.<br><br>" //
 				+ "To have your own scripts listed here, save them in the <tt>scripts</tt> " //
 				+ "directory while including <i>SNT</i> in the filename (e.g., <tt>" //

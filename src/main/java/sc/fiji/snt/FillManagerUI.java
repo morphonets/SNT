@@ -60,7 +60,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 {
 
 	private static final long serialVersionUID = 1L;
-	protected static final String FILLING_URI = "https://imagej.net/SNT:_Step-By-Step_Instructions#Filling";
+	protected static final String FILLING_URI = "https://imagej.net/plugins/snt/step-by-step-instructions#filling";
 	private static final int MARGIN = 10;
 
 	public enum State {READY, STARTED, ENDED, LOADED, STOPPED}

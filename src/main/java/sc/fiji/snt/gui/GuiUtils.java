@@ -735,7 +735,7 @@ public class GuiUtils {
 		side.add(urls);
 		JLabel url = leftAlignedLabel("Release Notes   ", "https://github.com/morphonets/SNT/releases", true);
 		urls.add(url);
-		url = leftAlignedLabel("Documentation   ", "https://imagej.net/SNT", true);
+		url = leftAlignedLabel("Documentation   ", "https://imagej.net/plugins/snt/", true);
 		urls.add(url);
 		url = leftAlignedLabel("Forum   ", "https://forum.image.sc/tags/snt", true);
 		urls.add(url);
@@ -1047,31 +1047,31 @@ public class GuiUtils {
 
 	public static JMenu helpMenu() {
 		final JMenu helpMenu = new JMenu("Help");
-		final String URL = "https://imagej.net/SNT";
+		final String URL = "https://imagej.net/plugins/snt/";
 		JMenuItem mi = menuItemTriggeringURL("Main Documentation Page", URL);
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.HOME));
 		helpMenu.add(mi);
 		helpMenu.addSeparator();
-		mi = menuItemTriggeringURL("User Manual", URL + ":_Manual");
+		mi = menuItemTriggeringURL("User Manual", URL + "manual");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BOOK_READER));
 		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Screencasts", URL + ":_Screencasts");
+		mi = menuItemTriggeringURL("Screencasts", URL + "screencasts");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.VIDEO));
 		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Step-by-step Instructions", URL + ":_Step-By-Step_Instructions");
+		mi = menuItemTriggeringURL("Step-by-step Instructions", URL + "step-by-step-instructions");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FOOTPRINTS));
 		helpMenu.add(mi);
 
 		helpMenu.addSeparator();
-		mi = menuItemTriggeringURL("Analysis", URL + ":_Analysis");
+		mi = menuItemTriggeringURL("Analysis", URL + "analysis");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHART));
 		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Reconstruction Viewer", URL + ":_Reconstruction_Viewer");
+		mi = menuItemTriggeringURL("Reconstruction Viewer", URL + "reconstruction-viewer");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CUBE));
 		helpMenu.add(mi);
 
 		helpMenu.addSeparator();
-		mi = menuItemTriggeringURL("List of Shortcuts", URL + ":_Key_Shortcuts");
+		mi = menuItemTriggeringURL("List of Shortcuts", URL + "key-shortcuts");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.KEYBOARD));
 		helpMenu.add(mi);
 		helpMenu.addSeparator();
@@ -1079,7 +1079,7 @@ public class GuiUtils {
 		mi = menuItemTriggeringURL("Ask a Question", "https://forum.image.sc/tags/snt");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COMMENTS));
 		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("FAQs", URL + ":_FAQ");
+		mi = menuItemTriggeringURL("FAQs", URL + "faq");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("Known Issues", "https://github.com/morphonets/SNT/issues");
@@ -1090,7 +1090,7 @@ public class GuiUtils {
 		helpMenu.add(mi);
 
 		helpMenu.addSeparator();
-		mi = menuItemTriggeringURL("Scripting", URL + ":_Scripting");
+		mi = menuItemTriggeringURL("Scripting", URL + "scripting");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("Jupyter Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
@@ -1098,7 +1098,7 @@ public class GuiUtils {
 		helpMenu.add(mi);
 		helpMenu.addSeparator();
 
-		mi = menuItemTriggeringURL("SNT's API", "https://morphonets.github.io/SNT/");
+		mi = menuItemTriggeringURL("SNT's API", "https://javadoc.scijava.org/SNT/");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE2));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("SNT's Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
