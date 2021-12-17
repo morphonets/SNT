@@ -25,8 +25,10 @@ package sc.fiji.snt.viewer;
 import java.awt.Color;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Map;
 
 import net.imglib2.RealLocalizable;
 import net.imglib2.roi.geom.real.Polygon2D;
@@ -186,42 +188,47 @@ public class Viewer2D extends TreeColorMapper {
 					.getColor().getBlue());
 			series.setStyle(plot.newSeriesStyle(color, LineStyle.SOLID,
 				MarkerStyle.NONE));
-			if (p.hasNodeColors()) {
-				plotColoredNodePaths(p);
-			}
 		}
+		plotColoredNodePathsFast(); // will do nothing if no color nodes exist
 	}
 
-	private void plotColoredNodePaths(final Path p) {
-		if (p.getStartJoinsPoint() != null) {
+	private Map<Color, List<PointInImage>> getNodesColorMapFast() {
+		final Map<Color, List<PointInImage>> map = new HashMap<>();
+		for (final Path p : paths) {
+			if (!p.hasNodeColors()) continue;
+			final Color[] pathColors = p.getNodeColors();
+			for (int node = 0; node < pathColors.length; node++) {
+				if (pathColors[node] == null)
+					continue;
+				final PointInImage pim = p.getNode(node);
+				if (map.get(pathColors[node]) == null) {
+					final List<PointInImage> pims = new ArrayList<>();
+					pims.add(pim);
+					map.put(pathColors[node], pims);
+				} else {
+					map.get(pathColors[node]).add(pim);
+				}
+			}
+		}
+		return map;
+	}
+
+	private void plotColoredNodePathsFast() {
+		getNodesColorMapFast().forEach( (c, pimList) -> {
 			final XYSeries series = plot.addXYSeries();
 			series.setLegendVisible(false);
+			series.setLabel(c.toString());
 			final List<Double> xc = new ArrayList<>();
 			final List<Double> yc = new ArrayList<>();
-			xc.add(p.getStartJoinsPoint().x);
-			yc.add(p.getStartJoinsPoint().y);
+			pimList.forEach( pim -> {
+				xc.add(pim.getX());
+				yc.add(pim.getY());
+			});
 			series.setValues(xc, yc);
-			final Color c = p.getNodeColor(0);
-			final ColorRGB cc = (c == null) ? defaultColor : new ColorRGB(c.getRed(),
-					c.getGreen(), c.getBlue());
+			final ColorRGB cc = new ColorRGB(c.getRed(), c.getGreen(), c.getBlue());
 			series.setStyle(plot.newSeriesStyle(cc, LineStyle.NONE,
-					MarkerStyle.FILLEDCIRCLE));
-		}
-		for (int node = 0; node < p.size(); node++) {
-			final XYSeries series = plot.addXYSeries();
-			series.setLegendVisible(false);
-			final List<Double> xc = new ArrayList<>();
-			final List<Double> yc = new ArrayList<>();
-			final PointInImage pim = p.getNode(node);
-			xc.add(pim.x);
-			yc.add(pim.y);
-			series.setValues(xc, yc);
-			final Color c = p.getNodeColor(node);
-			final ColorRGB cc = (c == null) ? defaultColor : new ColorRGB(c.getRed(),
-				c.getGreen(), c.getBlue());
-			series.setStyle(plot.newSeriesStyle(cc, LineStyle.SOLID,
 				MarkerStyle.FILLEDCIRCLE));
-		}
+		});
 	}
 
 	protected void addColorBarLegend(final String colorTable, final double min,

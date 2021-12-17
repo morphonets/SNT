@@ -131,8 +131,8 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 			recViewer.addColorBarLegend(colorTable, (float) minMax[0], (float) minMax[1]);
 		}
 		sntService.updateViewers();
-		if (showPlot && colorizer.isNodeMapping() && tree.getNodesCount() > 1000) {
-			showPlot = new GuiUtils().getConfirmation("Render more than 1000 nodes uniquely in Reconstruction Plotter "
+		if (showPlot && colorizer.isNodeMapping() && tree.getNodesCount() > 10000) {
+			showPlot = new GuiUtils().getConfirmation("Render more than 10k nodes uniquely in Reconstruction Plotter "
 					+ "could become a CPU-intensive operation. Alternatively, you may want to render mapped nodes in "
 					+ "Reconstruction Viewer (significantly faster), or downsample the structure before the mapping. "
 					+ "Proceed nevertheless?", "Confirm Slow Operation?");
