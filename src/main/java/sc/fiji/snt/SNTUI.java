@@ -1260,7 +1260,7 @@ public class SNTUI extends JDialog {
 		final JSpinner defTransparencySpinner = GuiUtils.integerSpinner(
 				(plugin.getXYCanvas() == null) ? 100 : plugin.getXYCanvas().getDefaultTransparency(), 0, 100, 1, true);
 		defTransparencySpinner.addChangeListener(e -> {
-			setDefaultTransparency(Integer.valueOf(defTransparencySpinner.getValue().toString()));
+			setDefaultTransparency((int)(defTransparencySpinner.getValue()));
 		});
 		final JButton defTransparencyButton = new JButton("Reset");
 		defTransparencyButton.addActionListener(e -> {
@@ -1283,7 +1283,7 @@ public class SNTUI extends JDialog {
 		c.fill = GridBagConstraints.NONE;
 		c.gridx = 2;
 		p.add(defTransparencyButton);
-		GuiUtils.addTooltip(p, "Rendering opacity (0-100%) for lines connecting path nodes");
+		GuiUtils.addTooltip(p, "Rendering opacity (0-100%) for diameters and segments connecting path nodes");
 		return p;
 	}
 
@@ -1292,7 +1292,7 @@ public class SNTUI extends JDialog {
 				(plugin.getXYCanvas() == null) ? 100 : plugin.getXYCanvas().getOutOfBoundsTransparency(), 0, 100, 1,
 				true);
 		transparencyOutOfBoundsSpinner.addChangeListener(e -> {
-			setOutOfBoundsTransparency(Integer.valueOf(transparencyOutOfBoundsSpinner.getValue().toString()));
+			setOutOfBoundsTransparency((int)(transparencyOutOfBoundsSpinner.getValue()));
 		});
 		final JButton defaultOutOfBoundsButton = new JButton("Reset");
 		defaultOutOfBoundsButton.addActionListener(e -> {
@@ -3320,6 +3320,8 @@ public class SNTUI extends JDialog {
 		final ImagePlus imp = plugin.getImagePlus();
 		partsNearbyCSpinner.setSpinnerMinMax(1, plugin.getDepth());
 		partsNearbyCSpinner.setEnabled(imp != null && !plugin.is2D());
+		plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
+				(int) partsNearbyCSpinner.getValue(), false);
 		final JPanel newSourcePanel = sourcePanel(imp);
 		final GridBagLayout layout = (GridBagLayout) newSourcePanel.getLayout();
 		for (int i = 0; i < sourcePanel.getComponentCount(); i++) {

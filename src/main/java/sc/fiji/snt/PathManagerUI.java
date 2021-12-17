@@ -210,7 +210,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.CONCATENATE_CMD);
-		jmi.setToolTipText("Concatenates 2 or more end-connected Paths into a single one. " +
+		jmi.setToolTipText("Concatenates 2 or more end-connected Paths into a single one.\n" +
 				"All paths must be oriented in the same direction");
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
 		jmi.addActionListener(multiPathListener);
@@ -330,11 +330,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		colorMapMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COLOR2));
 		advanced.add(colorMapMenu);
 		jmi = new JMenuItem(MultiPathActionListener.COLORIZE_PATHS_CMD);
-		jmi.setToolTipText("Color codes selected path(s) using connectivity-independent metrics");
+		jmi.setToolTipText("Color codes selected path(s) indepently of their connectivity");
 		jmi.addActionListener(multiPathListener);
 		colorMapMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.COLORIZE_TREES_CMD);
-		jmi.setToolTipText("Color codes selected path(s) assuming valid connectivity between paths");
+		jmi.setToolTipText("Color codes complete arbors using connectivity-dependent metrics");
 		jmi.addActionListener(multiPathListener);
 		colorMapMenu.add(jmi);
 
@@ -342,9 +342,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		distributionMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHART));
 		advanced.add(distributionMenu);
 		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_PATHS_CMD);
+		jmi.setToolTipText("Computes distributions of metrics for selected path(s), indepently of their connectivity");
 		jmi.addActionListener(multiPathListener);
 		distributionMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_TREES_CMD);
+		jmi.setToolTipText("Computes distributions of metrics for complete arbors");
 		jmi.addActionListener(multiPathListener);
 		distributionMenu.add(jmi);
 	
@@ -352,11 +354,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		measureMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
 		advanced.add(measureMenu);
 		jmi = new JMenuItem(MultiPathActionListener.MEASURE_PATHS_CMD);
-		jmi.setToolTipText("Measures selected path(s), indepently of their connectivity");
+		jmi.setToolTipText("Measures selected path(s) indepently of their connectivity");
 		jmi.addActionListener(multiPathListener);
 		measureMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.MEASURE_TREES_CMD);
-		jmi.setToolTipText("Measures complete structures assuming valid connectivity between paths");
+		jmi.setToolTipText("Measures complete arbors assuming valid connectivity between paths");
 		jmi.addActionListener(multiPathListener);
 		measureMenu.add(jmi);
 
@@ -2630,32 +2632,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 			}
 			else if (COLORIZE_TREES_CMD.equals(cmd)) {
-				if (assumeAll) {
-					Collection<Tree> trees = getMultipleTrees();
-					if (trees == null || trees.isEmpty()) return;
-					if (trees.size() == 1) {
-						Tree tree = trees.iterator().next();
-						Map<String, Object> input = new HashMap<>();
-						input.put("tree", tree);
-						CommandService cmdService = plugin.getContext().getService(
-								CommandService.class);
-						cmdService.run(TreeMapperCmd.class, true, input);
-					}
-					else {
-						Map<String, Object> input = new HashMap<>();
-						input.put("trees", trees);
-						CommandService cmdService = plugin.getContext().getService(
-								CommandService.class);
-						cmdService.run(MultiTreeMapperCmd.class, true, input);
-					}
-				} else {
-					final Tree tree = new Tree(selectedPaths);
-					if (tree == null || tree.isEmpty()) return;
-					final Map<String, Object> input = new HashMap<>();
+
+				final Collection<Tree> trees = getMultipleTrees();
+				if (trees == null || trees.isEmpty())
+					return;
+				if (trees.size() == 1) {
+					Tree tree = trees.iterator().next();
+					Map<String, Object> input = new HashMap<>();
 					input.put("tree", tree);
-					final CommandService cmdService = plugin.getContext().getService(
-							CommandService.class);
+					CommandService cmdService = plugin.getContext().getService(CommandService.class);
 					cmdService.run(TreeMapperCmd.class, true, input);
+				} else {
+					Map<String, Object> input = new HashMap<>();
+					input.put("trees", trees);
+					CommandService cmdService = plugin.getContext().getService(CommandService.class);
+					cmdService.run(MultiTreeMapperCmd.class, true, input);
 				}
 				refreshManager(false, true, selectedPaths);
 				return;

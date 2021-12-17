@@ -1257,11 +1257,14 @@ public class Path implements Comparable<Path> {
 	{
 		final boolean customColor = (hasCustomColor && snt.displayCustomPathColors);
 		Color color = snt.deselectedColor;
-		if (isSelected() && !customColor) color = snt.selectedColor;
-		else if (customColor) color = getColor();
+		if (isSelected() && !customColor)
+			color = snt.selectedColor;
+		else if (customColor)
+			color = getColor();
 		final int sliceZeroIndexed = canvas.getImage().getZ() - 1;
 		int eitherSideParameter = canvas.eitherSide;
-		if (!canvas.just_near_slices) eitherSideParameter = -1;
+		if (!canvas.just_near_slices)
+			eitherSideParameter = -1;
 		drawPathAsPoints(canvas, g2, color, customColor,
 			snt.getDrawDiameters(), sliceZeroIndexed, eitherSideParameter);
 	}
@@ -1297,11 +1300,13 @@ public class Path implements Comparable<Path> {
 				currentNode.draw(g2, c);
 			}
 
-			// Options for drawing inter-node segments and node diameter.
-			// Color will be whatever has been set by PathNode#Draw()
+			// Options for drawing inter-node segments and node diameter. Color
+			// will be whatever has been set by PathNode#Draw(). If 2D canvas,
+			// out-of-bounds transparency is ignored
 			g2.setStroke(new BasicStroke((float) (canvas.nodeDiameter() / 3), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 			g2.setColor(SNTColor.alphaColor(g2.getColor(),
-					(outOfDepthBounds) ? canvas.getOutOfBoundsTransparency() : canvas.getDefaultTransparency()));
+					(outOfDepthBounds && either_side > -1) ? canvas.getOutOfBoundsTransparency()
+							: canvas.getDefaultTransparency()));
 
 			// We are within Z-bounds and have been asked to draw the diameters, just do it in XY
 			if (drawDiameter && !outOfDepthBounds) {
