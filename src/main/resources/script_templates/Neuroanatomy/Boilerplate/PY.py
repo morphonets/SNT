@@ -25,5 +25,5 @@ from sc.fiji.snt.plugin import SkeletonizerCmd, StrahlerCmd
 from sc.fiji.snt.util import BoundingBox, PointInImage, SNTColor, SWCPoint
 from sc.fiji.snt.viewer import Annotation3D, OBJMesh, MultiViewer2D, Viewer2D, Viewer3D
 
-# Documentation Resources: https://imagej.net/SNT:_Scripting
+# Documentation Resources: https://imagej.net/plugins/snt/scripting
 # Latest SNT API: https://morphonets.github.io/SNT/

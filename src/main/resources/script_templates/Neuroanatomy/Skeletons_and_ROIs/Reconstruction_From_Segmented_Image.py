@@ -20,7 +20,7 @@ from sc.fiji.snt import Tree
 from sc.fiji.snt.analysis import SkeletonConverter, TreeAnalyzer
 from sc.fiji.snt.viewer import Viewer3D
 
-# Documentation Resources: https://imagej.net/SNT:_Scripting
+# Documentation Resources: https://imagej.net/plugins/snt/scripting
 # Latest SNT API: https://morphonets.github.io/SNT/
 
 
