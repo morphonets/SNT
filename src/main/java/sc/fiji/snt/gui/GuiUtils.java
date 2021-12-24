@@ -103,6 +103,7 @@ import org.scijava.util.Types;
 
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.IconFactory.GLYPH;
 
 /** Misc. utilities for SNT's GUI. */
 public class GuiUtils {
@@ -322,7 +323,7 @@ public class GuiUtils {
 	public String getChoice(final String message, final String title, final String[] choices,
 			final String defaultChoice) {
 		final String selectedValue = (String) JOptionPane.showInputDialog(parent, //
-				message, title, JOptionPane.QUESTION_MESSAGE, null, choices,
+				getWrappedText(new JLabel(), message), title, JOptionPane.QUESTION_MESSAGE, null, choices,
 				(defaultChoice == null) ? choices[0] : defaultChoice);
 		return selectedValue;
 	}
@@ -1049,68 +1050,68 @@ public class GuiUtils {
 		final JMenu helpMenu = new JMenu("Help");
 		final String URL = "https://imagej.net/plugins/snt/";
 		JMenuItem mi = menuItemTriggeringURL("Main Documentation Page", URL);
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.HOME));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.HOME));
 		helpMenu.add(mi);
 		helpMenu.addSeparator();
 		mi = menuItemTriggeringURL("User Manual", URL + "manual");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BOOK_READER));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.BOOK_READER));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("Screencasts", URL + "screencasts");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.VIDEO));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.VIDEO));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("Step-by-step Instructions", URL + "step-by-step-instructions");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FOOTPRINTS));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.FOOTPRINTS));
 		helpMenu.add(mi);
 
 		helpMenu.addSeparator();
 		mi = menuItemTriggeringURL("Analysis", URL + "analysis");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHART));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.CHART));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("Reconstruction Viewer", URL + "reconstruction-viewer");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CUBE));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.CUBE));
 		helpMenu.add(mi);
 
 		helpMenu.addSeparator();
 		mi = menuItemTriggeringURL("List of Shortcuts", URL + "key-shortcuts");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.KEYBOARD));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.KEYBOARD));
 		helpMenu.add(mi);
 		helpMenu.addSeparator();
 
 		mi = menuItemTriggeringURL("Ask a Question", "https://forum.image.sc/tags/snt");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COMMENTS));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.COMMENTS));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("FAQs", URL + "faq");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.QUESTION));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("Known Issues", "https://github.com/morphonets/SNT/issues");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BUG));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.BUG));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("Release Notes", "https://github.com/morphonets/SNT/releases");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.NEWSPAPER));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.NEWSPAPER));
 		helpMenu.add(mi);
 
 		helpMenu.addSeparator();
 		mi = menuItemTriggeringURL("Scripting", URL + "scripting");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("Jupyter Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SCROLL));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.SCROLL));
 		helpMenu.add(mi);
 		helpMenu.addSeparator();
 
 		mi = menuItemTriggeringURL("SNT's API", "https://javadoc.scijava.org/SNT/");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CODE2));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE2));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("SNT's Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COGS));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.COGS));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("SNT Manuscript", "https://doi.org/10.1101/2020.07.13.179325");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FILE));
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.FILE));
 		helpMenu.add(mi);
 		helpMenu.addSeparator();
 
 		final JMenuItem about = new JMenuItem("About...");
-		about.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.INFO));
+		about.setIcon(IconFactory.getMenuIcon(GLYPH.INFO));
 		about.addActionListener(e -> showAboutDialog());
 		helpMenu.add(about);
 
@@ -1748,6 +1749,55 @@ public class GuiUtils {
 		@Override
 		public void windowDeactivated(final WindowEvent e) {
 			// do nothing
+		}
+
+	}
+
+	public static class MenuItems {
+
+		private MenuItems() {}
+
+		public static JMenuItem convexHull() {
+			final JMenuItem jmi = new JMenuItem("Convex Hull...", IconFactory.getMenuIcon(GLYPH.DICE_20));
+			jmi.setToolTipText(
+					"2D/3D convex hull measurement(s).\nMetrics for estimation of dendritic or pre-synapic fields");
+			return jmi;
+		}
+
+		public static JMenuItem createDendrogram() {
+			final JMenuItem jmi = new JMenuItem("Create Dendrogram", IconFactory.getMenuIcon(GLYPH.DIAGRAM));
+			jmi.setToolTipText("Display reconstructions in Graph Viewer");
+			return jmi;
+		}
+
+		public static JMenuItem measureOptions() {
+			final JMenuItem jmi = new JMenuItem("Measure...", IconFactory.getMenuIcon(GLYPH.TABLE));
+			jmi.setToolTipText("Compute detailed metrics from single cells");
+			return jmi;
+		}
+
+		public static JMenuItem measureQuick() {
+			final JMenuItem jmi = new JMenuItem("Quick Measurements", IconFactory.getMenuIcon(GLYPH.ROCKET));
+			jmi.setToolTipText("Run simplified \"Measure...\" calls using commonly used metrics");
+			return jmi;
+		}
+
+		public static JMenuItem saveTablesAndPlots(final GLYPH glyph) {
+			final JMenuItem jmi = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.getMenuIcon(glyph));
+			jmi.setToolTipText("Save all tables, plots, and charts currently open");
+			return jmi;
+		}
+
+		public static JMenuItem shollAnalysis() {
+			final JMenuItem jmi = new JMenuItem("Sholl Analysis...", IconFactory.getMenuIcon(GLYPH.BULLSEYE));
+			jmi.setToolTipText("Sholl analysis using pre-defined focal points");
+			return jmi;
+		}
+
+		public static JMenuItem strahlerAnalysis() {
+			final JMenuItem jmi = new JMenuItem("Strahler Analysis", IconFactory.getMenuIcon(GLYPH.BRANCH_CODE));
+			jmi.setToolTipText("Horton–Strahler measures of branching complexity");
+			return jmi;
 		}
 
 	}

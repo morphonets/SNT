@@ -2283,9 +2283,11 @@ public class SNTUI extends JDialog {
 		final JMenuBar menuBar = new JMenuBar();
 		final JMenu fileMenu = new JMenu("File");
 		menuBar.add(fileMenu);
-		final JMenu importSubmenu = new JMenu("Import");
+		final JMenu importSubmenu = new JMenu("Load Tracings");
+		importSubmenu.setToolTipText("Import reconstruction file(s");
 		importSubmenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.IMPORT));
-		final JMenu exportSubmenu = new JMenu("Export As");
+		final JMenu exportSubmenu = new JMenu("Save Tracings");
+		exportSubmenu.setToolTipText("Save reconstruction(s)");
 		exportSubmenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EXPORT));
 		final JMenu analysisMenu = new JMenu("Analysis");
 		menuBar.add(analysisMenu);
@@ -2319,35 +2321,36 @@ public class SNTUI extends JDialog {
 		fileMenu.add(changeImpMenu);
 		fileMenu.addSeparator();
 		fileMenu.add(importSubmenu);
-		fileMenu.add(exportSubmenu);
-		fileMenu.addSeparator();
 
-		final JMenuItem fromDemo = new JMenuItem("Load Demo Dataset...");
+		final JMenuItem fromDemo = new JMenuItem("Load Demo Dataset...", IconFactory.getMenuIcon(GLYPH.WIZARD));
+		fromDemo.setToolTipText("Load sample images and/or reconstructions");
 		fromDemo.addActionListener(e -> {
 			if (plugin.isSecondaryDataAvailable()) {
 				flushSecondaryDataPrompt();
 			}
 			new ImportAction(ImportAction.DEMO, null).run();
 		});
-		fileMenu.add(fromDemo);
 		loadLabelsMenuItem = new JMenuItem("Load Labels (AmiraMesh)...");
+		loadLabelsMenuItem.setToolTipText("Load neuropil labels from an AmiraMesh file");
 		loadLabelsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAG));
 		loadLabelsMenuItem.addActionListener(listener);
 		fileMenu.add(loadLabelsMenuItem);
+		fileMenu.add(fromDemo);
 		fileMenu.addSeparator();
 
-		final JMenuItem saveTable = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
-		saveTable.setToolTipText("Save all tables, plots, and charts currently open.");
+		fileMenu.add(exportSubmenu);
+		final JMenuItem saveTable = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.TABLE);
 		saveTable.addActionListener(e -> {
 			(new DynamicCmdRunner(SaveMeasurementsCmd.class, null, getState())).run();
 		});
 		fileMenu.add(saveTable);
 
+		fileMenu.addSeparator();
 		sendToTrakEM2 = new JMenuItem("Send to TrakEM2");
 		sendToTrakEM2.addActionListener(e -> plugin.notifyListeners(new SNTEvent(SNTEvent.SEND_TO_TRAKEM2)));
 		fileMenu.add(sendToTrakEM2);
 
-		final JMenuItem importGuessingType = new JMenuItem("Any File Type...");
+		final JMenuItem importGuessingType = new JMenuItem("Guess File Type...", IconFactory.getMenuIcon(GLYPH.MAGIC));
 		importSubmenu.add(importGuessingType);
 		importGuessingType.addActionListener(e -> {
 			new ImportAction(ImportAction.ANY_RECONSTRUCTION, null).run();
@@ -2414,7 +2417,7 @@ public class SNTUI extends JDialog {
 		exportSubmenu.add(exportAllSWCMenuItem);
 
 		final JMenuItem restartMenuItem = new JMenuItem("Reset and Restart...", IconFactory.getMenuIcon(IconFactory.GLYPH.RECYCLE));
-		restartMenuItem.setToolTipText("Resets all preferences and restarts SNT");
+		restartMenuItem.setToolTipText("Reset all preferences and restart SNT");
 		restartMenuItem.addActionListener( e -> {
 			CommandService cmdService = plugin.getContext().getService(CommandService.class);
 			exitRequested();
@@ -2436,7 +2439,7 @@ public class SNTUI extends JDialog {
 		quitMenuItem.addActionListener(listener);
 		fileMenu.add(quitMenuItem);
 
-		final JMenuItem measureMenuItem = new JMenuItem("Quick Measurements", IconFactory.getMenuIcon(IconFactory.GLYPH.ROCKET));
+		final JMenuItem measureMenuItem = GuiUtils.MenuItems.measureQuick();
 		measureMenuItem.addActionListener(e -> {
 			if (noPathsError()) return;
 			final Tree tree = getPathManager().getSingleTree();
@@ -2467,8 +2470,7 @@ public class SNTUI extends JDialog {
 			cmdService.run(PlotterCmd.class, true, input);
 		});
 
-		final JMenuItem convexHullMenuItem = new JMenuItem("Convex Hull...",
-				IconFactory.getMenuIcon(IconFactory.GLYPH.GEM));
+		final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
 		convexHullMenuItem.addActionListener(e -> {
 			if (noPathsError()) return;
 			final Tree tree = getPathManager().getSingleTree();
@@ -2483,6 +2485,7 @@ public class SNTUI extends JDialog {
 
 		final JMenuItem pathOrderAnalysis = new JMenuItem("Path Order Analysis",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
+		pathOrderAnalysis.setToolTipText("Horton-Strahler-like analysis based on paths rather than branches");
 		pathOrderAnalysis.addActionListener(e -> {
 			if (noPathsError()) return;
 			final Tree tree = getPathManager().getSingleTree();
@@ -2494,12 +2497,11 @@ public class SNTUI extends JDialog {
 		});
 		analysisMenu.add(pathOrderAnalysis);
 		exportCSVMenuItem = new JMenuItem("Path Properties: Export CSV...", IconFactory.getMenuIcon(IconFactory.GLYPH.CSV));
-		exportCSVMenuItem.setToolTipText("Exports details (metrics, relationships, ...) of existing paths as tabular data");
+		exportCSVMenuItem.setToolTipText("Export details (metrics, relationships, ...) of existing paths as tabular data");
 		exportCSVMenuItem.addActionListener(listener);
 		analysisMenu.add(exportCSVMenuItem);
 		analysisMenu.addSeparator();
-		final JMenuItem shollMenuItem = new JMenuItem("Sholl Analysis...",
-				IconFactory.getMenuIcon(IconFactory.GLYPH.BULLSEYE));
+		final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
 		shollMenuItem.addActionListener(e -> {
 			if (noPathsError()) return;
 			final Tree tree = getPathManager().getMultipleTreesInASingleContainer();
@@ -2511,8 +2513,7 @@ public class SNTUI extends JDialog {
 		});
 		analysisMenu.add(shollMenuItem);
 		analysisMenu.add(shollAnalysisHelpMenuItem());
-		final JMenuItem strahlerMenuItem = new JMenuItem("Strahler Analysis",
-				IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
+		final JMenuItem strahlerMenuItem = GuiUtils.MenuItems.strahlerAnalysis();
 		strahlerMenuItem.addActionListener(e -> {
 			if (noPathsError()) return;
 			final Tree tree = getPathManager().getSingleTree();
@@ -2525,8 +2526,7 @@ public class SNTUI extends JDialog {
 		analysisMenu.addSeparator();
 
 		// Measuring options : All Paths
-		final JMenuItem measureWithPrompt = new JMenuItem("Measure...",
-				IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
+		final JMenuItem measureWithPrompt = GuiUtils.MenuItems.measureOptions();
 		measureWithPrompt.addActionListener(e -> {
 			if (noPathsError()) return;
 			final Collection<Tree> trees = getPathManager().getMultipleTrees();
@@ -2559,9 +2559,7 @@ public class SNTUI extends JDialog {
 			}
 		});
 		utilitiesMenu.addSeparator();
-		final JMenuItem graphGenerator = new JMenuItem("Create Dendrogram",
-				IconFactory.getMenuIcon(IconFactory.GLYPH.DIAGRAM));
-		graphGenerator.setToolTipText("Displays traced structure(s) in Graph Viewer");
+		final JMenuItem graphGenerator = GuiUtils.MenuItems.createDendrogram();
 		utilitiesMenu.add(graphGenerator);
 		graphGenerator.addActionListener(e -> {
 			if (noPathsError()) return;
@@ -3212,6 +3210,7 @@ public class SNTUI extends JDialog {
 
 	private JMenuItem shollAnalysisHelpMenuItem() {
 		final JMenuItem mi = new JMenuItem("Sholl Analysis (by Focal Point)...");
+		mi.setToolTipText("Instructions on how to perform Sholl from a specific node");
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DOTCIRCLE));
 		mi.addActionListener(e -> {
 			final Thread newThread = new Thread(() -> {
@@ -4051,6 +4050,7 @@ public class SNTUI extends JDialog {
 
 	private void registerCommandFinder(final JMenuBar menubar) {
 		final JMenuItem cFinder = GuiUtils.menubarButton(IconFactory.GLYPH.SEARCH, menubar);
+		cFinder.setToolTipText("Search for commands");
 		cFinder.addActionListener(e -> {
 			commandFinder.setLocationRelativeTo(cFinder);
 			commandFinder.toggleVisibility();
@@ -4092,9 +4092,9 @@ public class SNTUI extends JDialog {
 				choices[1] = "Drosophila OP neuron (15MB, 3D, grayscale, w/ tracings)";
 				choices[2] = "Hippocampal neuron (2.5MB, 2D, multichannel)";
 				choices[3] = "Hippocampal neuron (52MB, timelapse, w/ tracings)";
-				choices[4] = "L-Systems Fractal (23K, 2D, binary, w/ tracings)";
+				choices[4] = "L-systems fractal (23K, 2D, binary, w/ tracings & markers)";
 				final String defChoice = plugin.getPrefs().getTemp("demo", choices[4]);
-				final String choice = guiUtils.getChoice("Which dataset? (NB: Remote data may take a while to download)", "Load Demo Dataset", choices, defChoice);
+				final String choice = guiUtils.getChoice("Which dataset?<br>(NB: Remote data may take a while to download)", "Load Demo Dataset", choices, defChoice);
 				if (choice == null) {
 					changeState(priorState);
 					showStatus(null, true);

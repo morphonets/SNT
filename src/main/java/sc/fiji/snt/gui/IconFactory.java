@@ -69,6 +69,7 @@ public class IconFactory {
 			CHECK_DOUBLE('\uf560', true), //
 			CIRCLE('\uf192', false), //
 			CLOUD('\uf381', true), //
+			CLONE('\uf24d', false), //
 			CODE('\uf120', true), //
 			CODE2('\uf121', true), //
 			COG('\uf013', true), //
@@ -76,6 +77,7 @@ public class IconFactory {
 			COLOR('\uf53f', true), //
 			COLOR2('\uf5c3', true), //
 			COMMENTS('\uf086', false), //
+			COMPRESS('\uf422', true), //
 			COPY('\uf0c5', false), //
 			CROSSHAIR('\uf05b', true), //
 			CSV('\uf6dd', true), //
@@ -85,6 +87,7 @@ public class IconFactory {
 			DATABASE('\uf1c0', true), //
 			DELETE('\uf55a', true), //
 			DIAGRAM('\uf542', true), //
+			DICE_20('\uf6cf', true), //
 			DOTCIRCLE('\uf192', true), //
 			//DOWNLOAD('\uf019', true), //
 			DRAFT('\uf568', true), //
@@ -100,6 +103,7 @@ public class IconFactory {
 			FILE_IMAGE('\uf1c5', false), //
 			FILL('\uf575', true), //
 			FILTER('\uf0b0', true), //
+			FIRST_AID('\uf469', true), //
 			FOLDER('\uf07b', false), //
 			FONT('\uf031', true), //
 			FOOTPRINTS('\uf54b', true), //
@@ -148,6 +152,7 @@ public class IconFactory {
 			SEARCH_PLUS('\uf00e', true), //
 			SIGNS('\uf277', true), //
 			SLIDERS('\uf1de', true), //
+			SPINNER('\uf110', true), //
 			SORT('\uf15d', true), //
 			STETHOSCOPE('\uf0f1', true), //
 			STREAM('\uf550', true), //
@@ -166,7 +171,8 @@ public class IconFactory {
 			UNLINK('\uf127', true), //
 			VIDEO('\uf03d', true), //
 			WIDTH('\uf337', true), //
-			WINDOWS('\uf2d2', false);
+			WINDOWS('\uf2d2', false), //
+			WIZARD('\uf6e8', true);
 
 		private final char id;
 		private final boolean solid;

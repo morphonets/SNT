@@ -3686,10 +3686,12 @@ public class Viewer3D {
 			pMenu.add(wipeTags);
 			pMenu.add(renderIcons);
 			pMenu.addSeparator();
-			final JMenuItem find = new JMenuItem(new Action(Action.FIND, KeyEvent.VK_F, true, false));
-			find.setIcon(IconFactory.getMenuIcon(GLYPH.BINOCULARS));
-			pMenu.add(find);
-			pMenu.add(new JMenuItem(new Action(Action.PROGRESS)));
+			JMenuItem jmi = new JMenuItem(new Action(Action.FIND, KeyEvent.VK_F, true, false));
+			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.BINOCULARS));
+			pMenu.add(jmi);
+			jmi = new JMenuItem(new Action(Action.PROGRESS));
+			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.SPINNER));
+			pMenu.add(jmi);
 			pMenu.addSeparator();
 			pMenu.add(sort);
 			pMenu.addSeparator();
@@ -3881,8 +3883,7 @@ public class Viewer3D {
 		private JPopupMenu measureMenu() {
 			final JPopupMenu measureMenu = new JPopupMenu();
 			addSeparator(measureMenu, "Tabular Results:");
-			JMenuItem mi = new JMenuItem("Measure...", IconFactory.getMenuIcon(GLYPH.TABLE));
-			mi.setToolTipText("Computes detailed metrics from single cells");
+			JMenuItem mi = GuiUtils.MenuItems.measureOptions();
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
 				if (trees == null || trees.isEmpty()) return;
@@ -3894,8 +3895,7 @@ public class Viewer3D {
 				runCmd(AnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			mi = new JMenuItem("Quick Measurements", IconFactory.getMenuIcon(GLYPH.ROCKET));
-			mi.setToolTipText("Runs \"Measure...\" on a pre-set list of metrics");
+			mi = GuiUtils.MenuItems.measureQuick();
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
 				if (trees == null || trees.isEmpty()) return;
@@ -3908,8 +3908,7 @@ public class Viewer3D {
 				});
 			});
 			measureMenu.add(mi);
-			mi = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.getMenuIcon(GLYPH.SAVE));
-			mi.setToolTipText("Save all tables, plots, and charts currently open.");
+			mi = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.SAVE);
 			mi.addActionListener(e -> {
 				runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING, false, true);
 			});
@@ -3947,7 +3946,7 @@ public class Viewer3D {
 				runCmd(BrainAnnotationCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			mi = new JMenuItem("Create Dendrogram...", IconFactory.getMenuIcon(GLYPH.DIAGRAM));
+			mi = GuiUtils.MenuItems.createDendrogram();
 			mi.addActionListener(e -> {
 				final Tree tree = getSingleSelectionTreeWithPromptForType();
 				if (tree == null) return;
@@ -3956,8 +3955,7 @@ public class Viewer3D {
 				runCmd(GraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			final JMenuItem convexHullMenuItem = new JMenuItem("Convex Hull...",
-					IconFactory.getMenuIcon(IconFactory.GLYPH.GEM));
+			final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
 			convexHullMenuItem.addActionListener(e -> {
 				final Tree tree = getSingleSelectionTree();
 				if (tree == null) return;
@@ -3968,7 +3966,7 @@ public class Viewer3D {
 				runCmd(ConvexHullCmd.class, inputs, CmdWorker.DO_NOTHING, true, true);
 			});
 			measureMenu.add(convexHullMenuItem);
-			mi = new JMenuItem("Sholl Analysis...", IconFactory.getMenuIcon(GLYPH.BULLSEYE));
+			mi = GuiUtils.MenuItems.shollAnalysis();
 			mi.addActionListener(e -> {
 				final Tree tree = getSingleSelectionTree();
 				if (tree == null) return;
@@ -3978,7 +3976,7 @@ public class Viewer3D {
 				runCmd(ShollAnalysisTreeCmd.class, input, CmdWorker.DO_NOTHING, false, false);
 			});
 			measureMenu.add(mi);
-			mi = new JMenuItem("Strahler Analysis...", IconFactory.getMenuIcon(GLYPH.BRANCH_CODE));
+			mi = GuiUtils.MenuItems.strahlerAnalysis();
 			mi.addActionListener(e -> {
 				final Tree tree = getSingleSelectionTreeWithPromptForType();
 				if (tree == null) return;
@@ -4287,7 +4285,7 @@ public class Viewer3D {
 			final JMenuItem script = new JMenuItem(new Action(Action.SCRIPT, KeyEvent.VK_OPEN_BRACKET, false, false));
 			script.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
 			utilsMenu.add(script);
-			mi = new JMenuItem("Script This Viewer In...");
+			mi = new JMenuItem("Script This Viewer In...", IconFactory.getMenuIcon(GLYPH.CODE));
 			mi.addActionListener(e -> runScriptEditor(null));
 			utilsMenu.add(mi);
 
@@ -4477,7 +4475,7 @@ public class Viewer3D {
 		private JPopupMenu treesMenu() {
 			final JPopupMenu tracesMenu = new JPopupMenu();
 			addSeparator(tracesMenu, "Add:");
-			JMenuItem mi = new JMenuItem("Import File...", IconFactory.getMenuIcon(
+			JMenuItem mi = new JMenuItem("Load File...", IconFactory.getMenuIcon(
 				GLYPH.IMPORT));
 			mi.setMnemonic('f');
 			mi.addActionListener(e -> {
@@ -4486,7 +4484,7 @@ public class Viewer3D {
 				runImportCmd(LoadReconstructionCmd.class, inputs);
 			});
 			tracesMenu.add(mi);
-			mi = new JMenuItem("Import Directory...", IconFactory.getMenuIcon(
+			mi = new JMenuItem("Load Directory...", IconFactory.getMenuIcon(
 				GLYPH.FOLDER));
 			mi.addActionListener(e -> {
 				final Map<String, Object> inputs = new HashMap<>();
@@ -4495,7 +4493,7 @@ public class Viewer3D {
 			});
 			tracesMenu.add(mi);
 
-			mi = new JMenuItem("Import & Compare Groups...", IconFactory.getMenuIcon(GLYPH.MAGIC));
+			mi = new JMenuItem("Load & Compare Groups...", IconFactory.getMenuIcon(GLYPH.MAGIC));
 			mi.addActionListener(e -> {
 				runImportCmd(GroupAnalyzerCmd.class, null);
 			});
@@ -4570,12 +4568,12 @@ public class Viewer3D {
 		}
 
 		private JMenuItem loadDemoMenuItem() {
-			final JMenuItem mi = new JMenuItem("Import Demo(s)...", IconFactory.getMenuIcon(GLYPH.GRADUATION_CAP));
+			final JMenuItem mi = new JMenuItem("Load Demo(s)...", IconFactory.getMenuIcon(GLYPH.WIZARD));
 			mi.addActionListener(e -> {
 				final String[] choices = new String[3];
 				choices[0] = "Mouse Pyramidal neurons (CCF annotated)";
 				choices[1] = "Drosophila OP neuron (3D)";
-				choices[2] = "L-Systems Fractal (2D)";
+				choices[2] = "L-systems fractal (2D)";
 				final String choice = guiUtils.getChoice("Which dataset?", "Load Demo Dataset", choices, choices[0]);
 				if (choice == null) {
 					return;
@@ -4684,7 +4682,7 @@ public class Viewer3D {
 		private JPopupMenu meshMenu() {
 			final JPopupMenu meshMenu = new JPopupMenu();
 			addSeparator(meshMenu, "Add:");
-			JMenuItem mi = new JMenuItem("Import OBJ File(s)...", IconFactory
+			JMenuItem mi = new JMenuItem("Load OBJ File(s)...", IconFactory
 				.getMenuIcon(GLYPH.IMPORT));
 			mi.addActionListener(e -> runImportCmd(LoadObjCmd.class, null)); // LoadObjCmd will call validate()
 			meshMenu.add(mi);

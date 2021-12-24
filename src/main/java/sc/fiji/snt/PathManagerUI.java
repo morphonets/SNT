@@ -199,24 +199,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		editMenu.add(primaryMitem);
 		JMenuItem jmi = new JMenuItem(MultiPathActionListener.MERGE_PRIMARY_PATHS_CMD);
 		jmi.setToolTipText("Merges selected primary path(s) into a common root");
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.LINK));
+//		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.LINK)); // link icon confusing!?
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 		editMenu.addSeparator();
 
 		jmi = new JMenuItem(MultiPathActionListener.COMBINE_CMD);
-		jmi.setToolTipText("Concatenates 2 or more disconnected paths into a single one");
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
+		jmi.setToolTipText("Combines 2 or more disconnected paths into a single one");
+		//jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.CONCATENATE_CMD);
 		jmi.setToolTipText("Concatenates 2 or more end-connected Paths into a single one.\n" +
 				"All paths must be oriented in the same direction");
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
+		//jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.DISCONNECT_CMD);
-		jmi.setToolTipText("Disconnects paths from all of their connections");
+		jmi.setToolTipText("Disconnects selected path(s) from all of their connections");
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.UNLINK));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
@@ -235,6 +235,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		editMenu.addSeparator();
 
 		jmi = new JMenuItem(MultiPathActionListener.DOWNSAMPLE_CMD);
+		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COMPRESS));
 		jmi.setToolTipText("Reduces the no. of nodes in selected paths (lossy simplification)");
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
@@ -242,7 +243,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		jmi = new JMenuItem(MultiPathActionListener.REBUILD_CMD);
 		jmi.setToolTipText("Re-computes all hierarchical connections in the list");
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RECYCLE));
+		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FIRST_AID));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 
@@ -289,20 +290,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final JMenu fitMenu = new JMenu("Refine");
 		menuBar.add(fitMenu);
 		fitVolumeMenuItem = new JMenuItem("Fit Path(s)...");
-		fitVolumeMenuItem.setIcon(IconFactory.getMenuIcon(
-			IconFactory.GLYPH.CROSSHAIR));
+		fitVolumeMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CROSSHAIR));
 		fitVolumeMenuItem.addActionListener(multiPathListener);
 		fitMenu.add(fitVolumeMenuItem);
 		jmi = new JMenuItem(SinglePathActionListener.EXPLORE_FIT_CMD);
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EXPLORE));
+		jmi.setToolTipText("Displays fitting details for single paths");
 		jmi.addActionListener(singlePathListener);
 		fitMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.RESET_FITS, IconFactory.getMenuIcon(
 			IconFactory.GLYPH.BROOM));
+		jmi.setToolTipText("Resets fits for selected path(s)");
 		jmi.addActionListener(multiPathListener);
 		fitMenu.add(jmi);
 		fitMenu.addSeparator();
 		jmi = new JMenuItem("Parameters...", IconFactory.getMenuIcon(IconFactory.GLYPH.SLIDERS));
+		jmi.setToolTipText("Options for fitting operations");
 		jmi.addActionListener(e -> {
 			if (fittingHelper == null) fittingHelper = new FitHelper();
 			fittingHelper.showPrompt();
@@ -314,8 +317,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		final JMenu fillMenu = new JMenu("Fill");
 		menuBar.add(fillMenu);
-		jmi = new JMenuItem(MultiPathActionListener.FILL_OUT_CMD);
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FILL));
+		jmi = new JMenuItem(MultiPathActionListener.FILL_OUT_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.FILL));
+		jmi.setToolTipText("Initates filling procedures for selected path(s)");
 		jmi.addActionListener(multiPathListener);
 		fillMenu.add(jmi);
 		fillMenu.addSeparator();
@@ -358,23 +361,26 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.addActionListener(multiPathListener);
 		measureMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.MEASURE_TREES_CMD);
-		jmi.setToolTipText("Measures complete arbors assuming valid connectivity between paths");
+		jmi.setToolTipText("Measures complete arbors");
 		jmi.addActionListener(multiPathListener);
 		measureMenu.add(jmi);
 
 		advanced.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_ROI_CMD);
+		jmi.setToolTipText("Converts selected path(s) into ROIs (polylines and points)");
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
 
 		jmi = new JMenuItem(MultiPathActionListener.PLOT_PROFILE_CMD);
+		jmi.setToolTipText("Multi-channel plots of pixel intensities around selected path(s)");
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SKEL_CMD);
+		jmi.setToolTipText("Rasterizes selected path(s) into a skeletonized image");
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
 		jmi = new JMenuItem(SinglePathActionListener.STRAIGHTEN);
-		jmi.addActionListener(singlePathListener);
+		jmi.setToolTipText("Creates a 'linear image' from the pixels associated with single paths");
 		advanced.add(jmi);
 		advanced.addSeparator();
 
@@ -383,6 +389,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		advanced.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SWC_CMD);
+		jmi.setToolTipText("Exports selected path(s) into dedicated SWC file(s).\nConnectivity constrains apply");
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EXPORT));
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
@@ -444,14 +451,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	private JMenu getSpineUtilsMenu(final MultiPathActionListener multiPathListener) {
 		final JMenu menu = new JMenu("Spine/Varicosity Utilities");
+		final String tooltip = "Assumes spine/varicosity markers have already been assigned to selected path(s)";
 		menu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.MAP_PIN));
 		JMenuItem jmi = new JMenuItem(MultiPathActionListener.SPINE_COLOR_CODING_CMD);
+		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.SPINE_PROFILE_CMD);
+		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.SPINE_EXTRACT_CMD);
+		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
 		return menu;
@@ -459,14 +470,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	private JMenu getTimeSequenceMenu(final MultiPathActionListener multiPathListener) {
 		final JMenu menu = new JMenu("Time-lapse Utilities");
+		final String tooltip = "Assumes selected path(s) belong to a time-lapse series";
 		menu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.VIDEO));
 		JMenuItem jmi = new JMenuItem(MultiPathActionListener.TIME_COLOR_CODING_CMD);
+		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD);
+		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.TIME_PROFILE_CMD);
+		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
 		return menu;
@@ -483,6 +498,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private JMenuItem getDuplicateMenuItem(final SinglePathActionListener singlePathListener) {
 		final JMenuItem duplicateMitem = new JMenuItem(
 			SinglePathActionListener.DUPLICATE_CMD);
+		duplicateMitem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CLONE));
 		duplicateMitem.addActionListener(singlePathListener);
 		duplicateMitem.setToolTipText("Duplicates a single path");
 		return duplicateMitem;
@@ -491,6 +507,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private JMenuItem getDeleteMenuItem(final MultiPathActionListener multiPathListener) {
 		final JMenuItem deleteMitem = new JMenuItem(
 			MultiPathActionListener.DELETE_CMD);
+		deleteMitem.setToolTipText("Deletes selected path(s)");
 		deleteMitem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TRASH));
 		deleteMitem.addActionListener(multiPathListener);
 		return deleteMitem;
@@ -2731,10 +2748,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				}
 				final double rad = 2 * plugin.getMinimumSeparation();
 				final Double userRad = guiUtils.getDouble(
-					"<HTML><body><div style='width:" + Math.min(getWidth(), 500) + ";'>" +
 						"Please specify a constant radius to be applied to all the nodes " +
 						"of selected path(s). This setting only applies to unfitted " +
-						"paths and <b>overrides</b> any existing values.<br> NB: You can use " +
+						"paths and <b>overrides</b> any existing values.<br>NB: You can use " +
 						"the <i>Transform Paths</i> script to scale existing radii.",
 					"Assign Constant Radius", rad);
 				if (userRad == null) {
@@ -2753,14 +2769,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				selectedPaths.forEach(p -> {
 					if (!p.isFittedVersionOfAnotherPath()) p.setRadius(userRad);
 				});
+				removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.MEAN_RADIUS_TAG_CMD, true, false);
 				guiUtils.tempMsg("Command finished. Fitted path(s) ignored.");
 				plugin.updateAllViewers();
 				return;
 			}
 			else if (SPECIFY_COUNTS_CMD.equals(e.getActionCommand())) {
-				final Double userCounts = guiUtils.getDouble("<HTML><body><div style='width:"
-						+ Math.min(getWidth(), 500) + ";'>"
-						+ "Please specify the no. of spines (or varicosities) to be associated to selected path(s):",
+				final Double userCounts = guiUtils.getDouble(
+						"Please specify the no. of markers (e.g., spines or varicosities) to be associated to selected path(s).",
 						"Spine/Varicosity Counts", 0);
 				if (userCounts == null) {
 					return; // user pressed cancel
@@ -2772,6 +2788,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				selectedPaths.forEach(p -> {
 					p.setSpineOrVaricosityCount(userCounts.intValue());
 				});
+				removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.COUNT_TAG_CMD, true, false);
 				return;
 			}
 			// Case 2: Commands that require some sort of confirmation
@@ -2904,7 +2921,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			else if (DOWNSAMPLE_CMD.equals(cmd)) {
 				final double minSep = plugin.getMinimumSeparation();
 				final Double userMaxDeviation = guiUtils.getDouble(
-					"<HTML><body><div style='width:500;'>" +
 						"Please specify the maximum permitted distance between nodes:<ul>" +
 						"<li>This destructive operation cannot be undone!</li>" +
 						"<li>Paths can only be downsampled: Smaller inter-node distances will not be interpolated</li>" +
