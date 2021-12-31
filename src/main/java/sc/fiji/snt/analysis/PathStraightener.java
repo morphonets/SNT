@@ -88,6 +88,12 @@ public class PathStraightener {
 		}
 		this.path = path;
 		this.imp = snt.getImagePlus();
+		// there is only so much we can do to know if the image currently loaded in SNT
+		// can be parsed. We'll try some minor cross-checks nevertheless:
+		if (path.getChannel() > imp.getNChannels() || path.getFrame() > imp.getNFrames()) {
+			throw new IllegalArgumentException("Path position is not compatible with dimensions of active image.");
+		}
+
 	}
 
 	/**
@@ -97,6 +103,7 @@ public class PathStraightener {
 		final int currentC = imp.getC();
 		final int currentT = imp.getT();
 		final int currentZ = imp.getZ();
+		imp.setPositionWithoutUpdate(path.getChannel(), currentZ, path.getFrame());
 		ImagePlus result;
 		if (imp.isComposite()) {
 			int currentMode = imp.getDisplayMode();

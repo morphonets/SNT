@@ -387,6 +387,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		advanced.add(jmi);
 		jmi = new JMenuItem(SinglePathActionListener.STRAIGHTEN);
 		jmi.setToolTipText("Creates a 'linear image' from the pixels associated with single paths");
+		jmi.addActionListener(singlePathListener);
 		advanced.add(jmi);
 		advanced.addSeparator();
 
@@ -2293,12 +2294,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			guiUtils.error("Path must have at least two nodes.");
 			return;
 		}
-		final Double width = guiUtils.getDouble("Width of straightened image (in pixels):", "Width...", 20);
-		if (width == null) return;
+		final String defChoice = plugin.getPrefs().getTemp("straight-w", "40");
+		final Double width = guiUtils.getDouble("Width of straightened image (in pixels):", "Width...",
+				Integer.valueOf(defChoice));
+		if (width == null)
+			return;
 		if (Double.isNaN(width)) {
-			 guiUtils.error("Invalid value. Width must be a valid non-negative integer.");
+			guiUtils.error("Invalid value. Width must be a valid non-negative integer.");
 			return;
 		}
+		plugin.getPrefs().setTemp("straight-w", String.valueOf(width.intValue()));
 		try {
 			final PathStraightener straightener = new PathStraightener(p, plugin);
 			straightener.setWidth(width.intValue());
