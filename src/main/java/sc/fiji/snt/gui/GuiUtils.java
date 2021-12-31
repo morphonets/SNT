@@ -72,10 +72,14 @@ import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.Stack;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -371,6 +375,16 @@ public class GuiUtils {
 		final String defaultValue)
 	{
 		return (String) getObj(promptMsg, promptTitle, defaultValue);
+	}
+
+	public Set<String> getStringSet(final String promptMsg, final String promptTitle,
+			final Collection<String> defaultValues) {
+		final String userString = getString(promptMsg, promptTitle, toString(defaultValues));
+		if (userString == null)
+			return null;
+		final TreeSet<String> uniqueWords = new TreeSet<String>(Arrays.asList(userString.split(",\\s*")));
+		uniqueWords.remove("");
+		return uniqueWords;
 	}
 
 	public Color getColor(final String title, final Color defaultValue) {
@@ -754,6 +768,24 @@ public class GuiUtils {
 	}
 
 	/* Static methods */
+	public static <T> String toString(final Iterable<T> iterable) {
+		if (iterable == null) {
+			return "";
+		}
+		final Iterator<T> i = iterable.iterator();
+		if (!i.hasNext()) {
+			return "";
+		}
+		final StringBuilder sb = new StringBuilder();
+		while (true) {
+			final T t = i.next();
+			sb.append(String.valueOf(t));
+			if (!i.hasNext()) {
+				return sb.toString();
+			}
+			sb.append(", ");
+		}
+	}
 
 	public static void initSplashScreen() {
 		splashScreen = new SplashScreen();

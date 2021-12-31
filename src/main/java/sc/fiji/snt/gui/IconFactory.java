@@ -53,6 +53,7 @@ public class IconFactory {
 			ALIGN_CENTER('\uf037', true), //
 			ALIGN_RIGHT('\uf038', true), //
 			ATLAS('\uf558', true), //
+			//ARROWS_V('\uf338', true), //
 			//ATOM('\uf5d2', true), //
 			BINOCULARS('\uf1e5', true), //
 			BOLD('\uf032', true),//
@@ -145,6 +146,7 @@ public class IconFactory {
 			REDO('\uf01e', true), //
 			ROCKET('\uf135', true), //
 			RULER('\uf546', true), //
+			RULER_VERTICAL('\uf548', true), //
 			SAVE('\uf0c7', false), //
 			SCROLL('\uf70e', true), //
 			SEARCH('\uf002', true), //
