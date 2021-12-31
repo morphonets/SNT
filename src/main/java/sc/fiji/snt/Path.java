@@ -1918,7 +1918,7 @@ public class Path implements Comparable<Path> {
 		if (size() == 1)
 			sb.append(" [Single Point]");
 		if (swcType != SWC_UNDEFINED)
-			sb.append(" [").append(getSWCtypeName(swcType, false)).append(" ]");
+			sb.append(" [").append(getSWCtypeName(swcType, false)).append("]");
 		return sb.toString();
 	}
 

@@ -1835,6 +1835,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		refreshManager(false, false, paths);
 	}
 
+	void applyActiveTags(final Collection<Path> paths) {
+		final List<String> activeTags = guessTagsCurrentlyActive();
+		activeTags.forEach( tag -> {
+			removeOrReapplyDefaultTag(paths, tag, true, false);
+		});
+	}
+
+	String untaggedPathName(final Path p) {
+		return p.getName().replaceAll(MultiPathActionListener.TAG_DEFAULT_PATTERN, ""); //"/ ?\\[[^\\[]*\\]", "");
+	}
+
 	/** Should be the only method called for toggling built-in tags **/
 	private void removeOrReapplyDefaultTag(final Collection<Path> paths, final String cmd, final boolean reapply, final boolean interactiveUI) {
 		switch (cmd) {

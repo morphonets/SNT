@@ -1487,7 +1487,9 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 		pw.print(startsString);
 		pw.print(endsString);
-		pw.print(" name=\"" + XMLFunctions.escapeForXMLAttributeValue(p.getName()) + "\"");
+		final String name = (plugin != null && plugin.ui != null) ? plugin.ui.getPathManager().untaggedPathName(p)
+				: p.getName();
+		pw.print(" name=\"" + XMLFunctions.escapeForXMLAttributeValue(name) + "\"");
 		pw.print(" reallength=\"" + p.getLength() + "\"");
 		pw.println(">");
 
@@ -2359,6 +2361,9 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		} finally {
 			enableUIupdates = existingEnableUiUpdates;
+		}
+		if (plugin != null && plugin.ui != null) {
+			plugin.ui.getPathManager().applyActiveTags(getPaths());
 		}
 		resetListeners(null, true);
 		return true;
