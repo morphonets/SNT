@@ -132,11 +132,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	private static final long serialVersionUID = 1L;
 	private static final String FIT_URI = "https://imagej.net/plugins/snt/manual#refinefit";
-	private static final String SYM_MARKER = "\uD83D\uDD88";
-	private static final String SYM_RADIUS = "\u25CB";
-	private static final String SYM_LENGTH = "\uD800\uDCB3"; //"\uD83E\uDC59";
-	private static final String SYM_TREE = "\uD800\uDCB7";
-	private static final String SYM_ORDER = "\uD800\uDC92";
+	private static final String SYM_MARKER = "M:"; //"\uD83D\uDD88"; // not displayed in MacOS
+	private static final String SYM_RADIUS = "MR:"; //"\u25CB";
+	private static final String SYM_LENGTH = "L:";//"\uD800\uDCB3"; // not displayed in MacOS
+	private static final String SYM_TREE = "ID:"; //"\uD800\uDCB7"; // not displayed in MacOS
+	private static final String SYM_ORDER ="ORD:"; //"\uD800\uDC92"; // not displayed in MacOS
 
 	private final HelpfulJTree tree;
 	private final SNT plugin;
@@ -1857,10 +1857,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private void removeOrReapplyDefaultTag(final Collection<Path> paths, final String cmd, final boolean reapply, final boolean interactiveUI) {
 		switch (cmd) {
 		case MultiPathActionListener.CHANNEL_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[C:\\d+\\]", "")));
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Ch:\\d+\\]", "")));
 			if (reapply) {
 				paths.forEach( p -> {
-					p.setName(p.getName() + " [C:" + p.getChannel() + "]");
+					p.setName(p.getName() + " [Ch:" + p.getChannel() + "]");
 				});
 			}
 			break;
@@ -1929,7 +1929,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						}
 						label = label.replace("[", "(");
 						label = label.replace("]", ")");
-						p.setName(p.getName() + "{" + label + "}");
+						p.setName(p.getName() + " {" + label + "}");
 					}
 					catch (IllegalArgumentException | IndexOutOfBoundsException ignored) {
 						errorCounter++;
@@ -2318,7 +2318,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		customTag = customTag.replace("[", "(");
 		customTag = customTag.replace("]", ")");
 		for (final Path p : selectedPaths) {
-			p.setName(p.getName() + "{" + customTag + "}");
+			p.setName(p.getName() + " {" + customTag + "}");
 		}
 	}
 
@@ -2369,25 +2369,40 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			super(tag, false);
 			addActionListener(this);
 			switch (tag) {
+			case MultiPathActionListener.CHANNEL_TAG_CMD:
+				setToolTip("Ch:");
+				break;
+			case MultiPathActionListener.FRAME_TAG_CMD:
+				setToolTip("T:");
+				break;
 			case MultiPathActionListener.LENGTH_TAG_CMD:
 				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RULER_VERTICAL));
+				setToolTip(SYM_LENGTH);
 				break;
 			case MultiPathActionListener.TREE_TAG_CMD:
-				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TREE));
+				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ID_ALT));
+				setToolTip(SYM_TREE);
 				break;
 			case MultiPathActionListener.MEAN_RADIUS_TAG_CMD:
 				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CIRCLE));
+				setToolTip(SYM_RADIUS);
 				break;
 			case MultiPathActionListener.COUNT_TAG_CMD:
 				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.MAP_PIN));
+				setToolTip(SYM_MARKER);
 				break;
 			case MultiPathActionListener.ORDER_TAG_CMD:
 				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
+				setToolTip(SYM_ORDER);
 				break;
 			default:
 				// do nothing
 				break;
 			}
+		}
+
+		private void setToolTip(final String symbol) {
+			setToolTipText("List symbol: '[" + symbol + "]'");
 		}
 
 		@Override
@@ -2421,14 +2436,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String TREE_TAG_CMD = "Cell ID";
 		private final static String CHANNEL_TAG_CMD = "Traced Channel";
 		private final static String FRAME_TAG_CMD = "Traced Frame";
-		private final static String COUNT_TAG_CMD = "No. of Spines/Varicosities";
+		private final static String COUNT_TAG_CMD = "No. of Spine/Varicosity Markers";
 		private final static String SLICE_LABEL_TAG_CMD = "Slice Labels";
 
 		private final static String REMOVE_TAGS_CMD = "Remove Tags...";
 		private static final String FILL_OUT_CMD = "Fill Out...";
 		private static final String RESET_FITS = "Discard Fit(s)...";
 		private final static String SPECIFY_RADIUS_CMD = "Specify Radius...";
-		private final static String SPECIFY_COUNTS_CMD = "Specify No. Spines/Varicosities...";
+		private final static String SPECIFY_COUNTS_CMD = "Specify No. Spine/Varicosity Markers...";
 		private final static String DISCONNECT_CMD = "Disconnect...";
 
 		//private final static String MEASURE_CMD_SUMMARY = "Quick Measurements";
@@ -2456,8 +2471,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		// Custom tag definition: anything flanked by curly braces
 		private final static String TAG_CUSTOM_PATTERN = " ?\\{.*\\}";
-		// Built-in tag definition: anything flanked by square braces or |
-		private final static String TAG_DEFAULT_PATTERN = " ?(\\[|\\|).*(\\]|\\|)";
+		// Built-in tag definition: anything flanked by square braces
+		private final static String TAG_DEFAULT_PATTERN = " ?\\[.*\\]";
 
 		private void selectChildren(final List<Path> paths, final boolean recursive) {
 			final ListIterator<Path> iter = paths.listIterator();
@@ -2730,7 +2745,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				runHistogramPathsCmd(selectedPaths, null);
 				return;
 			}
-			if (CUSTOM_TAG_CMD.equals(cmd)) {
+			else if (CUSTOM_TAG_CMD.equals(cmd)) {
 
 				final Set<String> existingTags = extractTagsFromPaths(selectedPaths);
 				final Set<String> tags = guiUtils.getStringSet(
@@ -2753,7 +2768,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				refreshManager(false, false, selectedPaths);
 				return;
 			}
-			if (SLICE_LABEL_TAG_CMD.equals(cmd)) {
+			else if (SLICE_LABEL_TAG_CMD.equals(cmd)) {
 				removeOrReapplyDefaultTag(selectedPaths, SLICE_LABEL_TAG_CMD, true, true);
 				return;
 			}

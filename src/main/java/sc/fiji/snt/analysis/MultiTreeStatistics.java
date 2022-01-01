@@ -102,7 +102,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 	public static final String N_BRANCH_POINTS = "No. of branch points";
 
 	/** Flag for {@value #N_SPINES} statistics */
-	public static final String N_SPINES = "No of spines/varicosities";
+	public static final String N_SPINES = "No. of spines/varicosities";
 
 	/** Flag for {@value #AVG_CONTRACTION} statistics */
 	public static final String AVG_CONTRACTION = "Average contraction";

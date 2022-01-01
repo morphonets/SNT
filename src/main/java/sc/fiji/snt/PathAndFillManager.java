@@ -1050,7 +1050,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		final String tags = PathManagerUI.extractTagsFromPath(p);
 		addPath(p, true, true);
 		if (retainTags) {
-			p.setName((tags.isEmpty()) ? p.getName() : p.getName() + "{" + tags + "}");
+			p.setName((tags.isEmpty()) ? p.getName() : p.getName() + " {" + tags + "}");
 		}
 	}
 
@@ -2196,7 +2196,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				addPath(currentPath);
 				final String tags = point.getTags();
 				if (tags != null && !tags.isEmpty()) {
-					currentPath.setName(currentPath.getName() + "{" + tags + "}");
+					currentPath.setName(currentPath.getName() + " {" + tags + "}");
 				}
 				currentPath.setSWCType(point.type);
 				currentPath.setGuessedTangents(2);

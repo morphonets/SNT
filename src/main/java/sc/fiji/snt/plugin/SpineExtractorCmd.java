@@ -168,7 +168,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 		pathsToPoints.forEach((path, listOfPoints) -> path.setSpineOrVaricosityCount(listOfPoints.size()));
 		try {
 			// Assign tags
-			if (matchedPoints > 0) ui.getPathManager().applyDefaultTags("No. of Spines/Varicosities");
+			if (matchedPoints > 0) ui.getPathManager().applyDefaultTags("No. of Spine/Varicosity Markers");
 		} catch (final IllegalArgumentException ignore) {
 			// do nothing
 		}

@@ -114,6 +114,7 @@ public class IconFactory {
 			HAND('\uf256', false), //
 			HOME('\uf015', true), //
 			ID('\uf2c1', false), //
+			ID_ALT('\uf47f', true), //
 			INFO('\uf129', true), //
 			IMAGE('\uf03e', false), //
 			IMPORT('\uf56f', true), //
