@@ -268,7 +268,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		imageTagsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.IMAGE));
 		imageTagsMenu.add(new TagMenuItem(MultiPathActionListener.CHANNEL_TAG_CMD));
 		imageTagsMenu.add(new TagMenuItem(MultiPathActionListener.FRAME_TAG_CMD));
+		imageTagsMenu.add(new TagMenuItem(MultiPathActionListener.SLICE_TAG_CMD));
+		imageTagsMenu.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.SLICE_LABEL_TAG_CMD);
+		jmi.setToolTipText("Applies 'Slice labels' (AKA 'image subtitles') as custom tag(s).\n"
+				+ "NB: Unless explicitly set, most images do not have meaninful slice labels");
 		jmi.addActionListener(multiPathListener);
 		imageTagsMenu.add(jmi);
 		tagsMenu.add(imageTagsMenu);
@@ -1872,6 +1876,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				});
 			}
 			break;
+		case MultiPathActionListener.SLICE_TAG_CMD:
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Z:\\d+\\]", "")));
+			if (reapply) {
+				paths.forEach( p -> {
+					p.setName(p.getName() + " [Z:" + (p.getZUnscaled(0) + 1) + "]"); // 1-based index
+				});
+			}
+			break;
 		case MultiPathActionListener.TREE_TAG_CMD:
 			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_TREE +".*\\]", "")));
 			if (reapply) {
@@ -1917,11 +1929,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			break;
 		case MultiPathActionListener.SLICE_LABEL_TAG_CMD:
 			if (reapply) { // Special case: not toggleable: Nothing to remove
+				if (noValidImageDataError()) return;
 				int errorCounter = 0;
 				for (final Path p : paths) {
 					try {
 						String label = plugin.getImagePlus().getStack().getShortSliceLabel(
-							plugin.getImagePlus().getStackIndex(p.getChannel(), 1, p
+							plugin.getImagePlus().getStackIndex(p.getChannel(), p.getZUnscaled(0), p
 								.getFrame()));
 						if (label == null || label.isEmpty()) {
 							errorCounter++;
@@ -1929,9 +1942,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						}
 						label = label.replace("[", "(");
 						label = label.replace("]", ")");
-						p.setName(p.getName() + " {" + label + "}");
+						final String existingTags = extractTagsFromPath(p);
+						if (!existingTags.contains(label))
+							p.setName(p.getName() + " {" + label + ((existingTags.isEmpty()) ? ""
+									: ", ") + existingTags + "}");
 					}
-					catch (IllegalArgumentException | IndexOutOfBoundsException ignored) {
+					catch (final IllegalArgumentException | IndexOutOfBoundsException ignored) {
 						errorCounter++;
 					}
 				}
@@ -2369,6 +2385,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			super(tag, false);
 			addActionListener(this);
 			switch (tag) {
+			case MultiPathActionListener.SLICE_TAG_CMD:
+				setToolTip("Z:");
+				break;
 			case MultiPathActionListener.CHANNEL_TAG_CMD:
 				setToolTip("Ch:");
 				break;
@@ -2436,6 +2455,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String TREE_TAG_CMD = "Cell ID";
 		private final static String CHANNEL_TAG_CMD = "Traced Channel";
 		private final static String FRAME_TAG_CMD = "Traced Frame";
+		private final static String SLICE_TAG_CMD = "Z-Slice of First Node";
 		private final static String COUNT_TAG_CMD = "No. of Spine/Varicosity Markers";
 		private final static String SLICE_LABEL_TAG_CMD = "Slice Labels";
 
