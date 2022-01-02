@@ -28,6 +28,7 @@ import ij.gui.Roi;
 import ij.gui.Toolbar;
 import ij.measure.Calibration;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jgrapht.Graphs;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.scijava.util.PlatformUtils;
@@ -201,13 +202,13 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	private void showPopupMenu(final int x, final int y) {
 		final Path activePath = tracerPlugin.getSingleSelectedPath();
 		final boolean be = uiReadyForModeChange(SNTUI.EDITING);
-		extendPathMenuItem.setText((activePath != null) ? "Continue Extending " + activePath
-				.getName() : AListener.EXTEND_SELECTED);
+		extendPathMenuItem.setText(
+				(activePath != null) ? "Continue Extending " + getShortName(activePath) : AListener.EXTEND_SELECTED);
 		extendPathMenuItem.setEnabled(!(editMode || tracerPlugin.tracingHalted));
 		toggleEditModeMenuItem.setEnabled(be);
 		toggleEditModeMenuItem.setState(be && editMode);
-		toggleEditModeMenuItem.setText(
-				String.format(AListener.EDIT_TOGGLE_FORMATTER, (activePath == null) ? " Mode" : activePath.getName()));
+		toggleEditModeMenuItem.setText(String.format(AListener.EDIT_TOGGLE_FORMATTER,
+				(activePath == null) ? " Mode" : getShortName(activePath)));
 		final boolean bp = uiReadyForModeChange(SNTUI.SNT_PAUSED);
 		togglePauseSNTMenuItem.setEnabled(bp);
 		togglePauseSNTMenuItem.setSelected(bp && tracerPlugin
@@ -279,7 +280,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			return;
 		}
 		connectToSecondaryEditingPath.setEnabled(true);
-		final String label = tracerPlugin.getPreviousEditingPath().getName() + " (node " + tracerPlugin.getPreviousEditingPath().getEditableNodeIndex() +")";
+		final String label = getShortName(tracerPlugin.getPreviousEditingPath()) + " (node "
+				+ tracerPlugin.getPreviousEditingPath().getEditableNodeIndex() + ")";
 		connectToSecondaryEditingPath.setText(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + label);
 	}
 
@@ -316,6 +318,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
 		SNTUtils.log("Finished merge in " + (System.currentTimeMillis() - start) + "ms");
 		pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
+	}
+
+	private static String getShortName(final Path p) {
+		return StringUtils.abbreviate(p.getName(), 30);
 	}
 
 	private JMenuItem helpOnConnectingMenuItem() {
@@ -451,7 +457,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		}
 		else {
 			tracerPlugin.selectPath(nearPoint.getPath(), addToExistingSelection);
-			getGuiUtils().tempMsg(nearPoint.getPath().getName() + " selected");
+			getGuiUtils().tempMsg(getShortName(nearPoint.getPath())+ " selected");
 		}
 	}
 
@@ -494,7 +500,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		}
 		else {
 			tracerPlugin.selectPath(nearPoint.getPath(), addToExistingSelection);
-			getGuiUtils().tempMsg(nearPoint.getPath().getName() + " selected");
+			getGuiUtils().tempMsg(getShortName(nearPoint.getPath()) + " selected");
 		}
 	}
 
