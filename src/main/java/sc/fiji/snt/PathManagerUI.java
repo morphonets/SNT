@@ -264,7 +264,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		colorMenu.addActionListener(multiPathListener);
 		tagsMenu.add(colorMenu);
 
-		final JMenu imageTagsMenu = new JMenu("Image Metadata");
+		final JMenu imageTagsMenu = new JMenu("Image Properties");
 		imageTagsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.IMAGE));
 		imageTagsMenu.add(new TagMenuItem(MultiPathActionListener.CHANNEL_TAG_CMD));
 		imageTagsMenu.add(new TagMenuItem(MultiPathActionListener.FRAME_TAG_CMD));
@@ -416,8 +416,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		pjmi.addActionListener(noPathListener);
 		pjmi = popup.add(NoPathActionListener.EXPAND_ALL_CMD);
 		pjmi.addActionListener(noPathListener);
+		popup.addSeparator();
 		pjmi = popup.add(NoPathActionListener.SELECT_NONE_CMD);
 		pjmi.addActionListener(noPathListener);
+		popup.addSeparator();
+		pjmi = popup.add(MultiPathActionListener.APPEND_ALL_CHILDREN_CMD);
+		pjmi.addActionListener(multiPathListener);
 		pjmi = popup.add(MultiPathActionListener.APPEND_DIRECT_CHILDREN_CMD);
 		pjmi.addActionListener(multiPathListener);
 		tree.setComponentPopupMenu(popup);

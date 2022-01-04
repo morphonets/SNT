@@ -84,6 +84,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		setVisibleButtons(SHOW_STATUS | SHOW_SEARCH_OPTIONS | SHOW_HIGHLIGHTS);
 		setStatusLabelPlaceholder(String.format("%d Path(s) listed", pmui
 			.getPathAndFillManager().size()));
+		_highlightsButton.setToolTipText("Highlight all: Auto-select paths matching filtered text");
 	}
 
 	private JMenuItem createFindAndReplaceMenuItem() {
@@ -255,8 +256,8 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		return morphoFilteringMenu;
 	}
 
-	public ColorMenu getColorFilterMenu() {
-		final ColorMenu colorFilterMenu = new ColorMenu("Color Filters");
+	private ColorMenu getColorFilterMenu() {
+		final ColorMenu colorFilterMenu = new ColorMenu("Filter by color tags");
 		colorFilterMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COLOR));
 		colorFilterMenu.addActionListener(e -> {
 			final Collection<Path> filteredPaths = getPaths();
@@ -431,15 +432,16 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		// refreshManager(true, true);
 	}
 
-	protected JButton createMorphoFilteringButton() {
+	private JButton createMorphoFilteringButton() {
 		final JButton button = new JButton();
 		formatButton(button, IconFactory.GLYPH.RULER);
-		button.setToolTipText("Filter by morphometric trait or image property");
+		button.setToolTipText("Filter by morphometric traits or image properties");
 		final JPopupMenu popup = new JPopupMenu();
+		GuiUtils.addSeparator(popup, "Morphometric Traits:");
 		for (final Component component : getMorphoFilterMenu().getMenuComponents()) {
 			popup.add(component);
 		}
-		popup.addSeparator();
+		GuiUtils.addSeparator(popup, "Image Properties:");
 		for (final Component component : getImageFilterMenu().getMenuComponents()) {
 			popup.add(component);
 		}
@@ -451,30 +453,8 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	private JButton createColorFilteringButton() {
 		final JButton button = new JButton();
 		formatButton(button, IconFactory.GLYPH.COLOR);
-		button.setToolTipText("Filter by color tags");
-		final ColorMenu colorFilterMenu = new ColorMenu("Filter by Color Tags");
-		colorFilterMenu.addActionListener(e -> {
-			final Collection<Path> filteredPaths = getPaths();
-			if (filteredPaths.isEmpty()) {
-				guiUtils.error("There are no traced paths.");
-				return;
-			}
-			final Color filteredColor = colorFilterMenu.getSelectedSWCColor().color();
-			for (final Iterator<Path> iterator = filteredPaths.iterator(); iterator.hasNext();) {
-				final Color color = iterator.next().getColor();
-				if ((filteredColor != null && color != null && !filteredColor.equals(color))
-						|| (filteredColor == null && color != null) || (filteredColor != null && color == null)) {
-					iterator.remove();
-				}
-			}
-			if (filteredPaths.isEmpty()) {
-				guiUtils.error("No Path matches the specified color tag.");
-				return;
-			}
-			pmui.setSelectedPaths(filteredPaths, this);
-			guiUtils.tempMsg(filteredPaths.size() + " Path(s) selected");
-			// refreshManager(true, true);
-		});
+		final ColorMenu colorFilterMenu = getColorFilterMenu();
+		button.setToolTipText(colorFilterMenu.getText());
 		final JPopupMenu popupMenu = colorFilterMenu.getPopupMenu();
 		popupMenu.setInvoker(colorFilterMenu);
 		button.addActionListener(e -> {
@@ -486,7 +466,8 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	private JToggleButton createSubFilteringButton() {
 		final JToggleButton button = new JToggleButton();
 		formatButton(button, IconFactory.GLYPH.FILTER);
-		button.setToolTipText("Restrict filtering to selected Paths");
+		button.setToolTipText("Restrict filtering to selected Paths. This allows\n"
+				+ "combining multiple criteria to further restrict matches");
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
 		button.addActionListener(e -> {

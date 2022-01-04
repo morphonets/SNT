@@ -238,7 +238,7 @@ public class SNTSearchableBar extends SearchableBar {
 	private JButton createSearchOptionsButton() {
 		final JPopupMenu popup = new JPopupMenu();
 		final JButton button = new JButton();
-		button.setToolTipText("Text-based filtering options");
+		button.setToolTipText("Options for text-based filtering");
 		button.addActionListener( e -> {
 			popup.show(button, button.getWidth() / 2, button.getHeight() / 2);
 		});

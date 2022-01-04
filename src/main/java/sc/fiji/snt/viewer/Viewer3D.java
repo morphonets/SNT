@@ -3882,7 +3882,7 @@ public class Viewer3D {
 
 		private JPopupMenu measureMenu() {
 			final JPopupMenu measureMenu = new JPopupMenu();
-			addSeparator(measureMenu, "Tabular Results:");
+			GuiUtils.addSeparator(measureMenu, "Tabular Results:");
 			JMenuItem mi = GuiUtils.MenuItems.measureOptions();
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
@@ -3913,7 +3913,7 @@ public class Viewer3D {
 				runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			addSeparator(measureMenu, "Distribution Analysis:");
+			GuiUtils.addSeparator(measureMenu, "Distribution Analysis:");
 			mi = new JMenuItem("Branch Properties...", IconFactory.getMenuIcon(GLYPH.CHART));
 			mi.setToolTipText("Computes metrics from all the branches of selected trees");
 			mi.addActionListener(e -> {
@@ -3936,7 +3936,7 @@ public class Viewer3D {
 				runCmd(DistributionCPCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			addSeparator(measureMenu, "Single-Cell Analysis:");
+			GuiUtils.addSeparator(measureMenu, "Single-Cell Analysis:");
 			mi = new JMenuItem("Brain Area Analysis...", IconFactory.getMenuIcon(GLYPH.BRAIN));
 			mi.addActionListener(e -> {
 				final Tree tree = getSingleSelectionTree();
@@ -3985,7 +3985,7 @@ public class Viewer3D {
 				SwingUtilities.invokeLater(() -> sa.run());
 			});
 			measureMenu.add(mi);
-			addSeparator(measureMenu, "Annotation Graphs:");
+			GuiUtils.addSeparator(measureMenu, "Annotation Graphs:");
 			mi = new JMenuItem("Create Annotation Graph...", IconFactory.getMenuIcon(GLYPH.BRAIN));
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
@@ -4003,7 +4003,7 @@ public class Viewer3D {
 		}
 
 		private void addCustomizeMeshCommands(final JPopupMenu menu) {
-			addSeparator(menu, "Customize:");
+			GuiUtils.addSeparator(menu, "Customize:");
 			JMenuItem mi = new JMenuItem("All Parameters...", IconFactory.getMenuIcon(GLYPH.SLIDERS));
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedMeshes(true);
@@ -4237,7 +4237,7 @@ public class Viewer3D {
 
 		private JPopupMenu utilsMenu() {
 			final JPopupMenu utilsMenu = new JPopupMenu();
-			addSeparator(utilsMenu, "Utilities:");
+			GuiUtils.addSeparator(utilsMenu, "Utilities:");
 			JMenuItem mi = new JMenuItem("Annotation Label...", IconFactory.getMenuIcon(GLYPH.PEN));
 			mi.addActionListener(e -> {
 				runCmd(AddTextAnnotationCmd.class, null, CmdWorker.DO_NOTHING);
@@ -4253,7 +4253,7 @@ public class Viewer3D {
 			});
 			utilsMenu.add(light);
 
-			addSeparator(utilsMenu, "Actions:");
+			GuiUtils.addSeparator(utilsMenu, "Actions:");
 			final JMenuItem log = new JMenuItem(new Action(Action.LOG, KeyEvent.VK_L, false, false));
 			log.setIcon(IconFactory.getMenuIcon(GLYPH.STREAM));
 			utilsMenu.add(log);
@@ -4281,7 +4281,7 @@ public class Viewer3D {
 			});
 			utilsMenu.add(reveal);
 	
-			addSeparator(utilsMenu, "Scripting:");
+			GuiUtils.addSeparator(utilsMenu, "Scripting:");
 			final JMenuItem script = new JMenuItem(new Action(Action.SCRIPT, KeyEvent.VK_OPEN_BRACKET, false, false));
 			script.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
 			utilsMenu.add(script);
@@ -4289,7 +4289,7 @@ public class Viewer3D {
 			mi.addActionListener(e -> runScriptEditor(null));
 			utilsMenu.add(mi);
 
-			addSeparator(utilsMenu, "Resources:");
+			GuiUtils.addSeparator(utilsMenu, "Resources:");
 			final JMenu helpMenu = GuiUtils.helpMenu();
 			helpMenu.setIcon( IconFactory.getMenuIcon(GLYPH.QUESTION));
 			utilsMenu.add(helpMenu.getItem(0));
@@ -4300,12 +4300,12 @@ public class Viewer3D {
 
 		private JPopupMenu prefsMenu() {
 			final JPopupMenu prefsMenu = new JPopupMenu();
-			addSeparator(prefsMenu, "Keyboard & Mouse Sensitivity:");
+			GuiUtils.addSeparator(prefsMenu, "Keyboard & Mouse Sensitivity:");
 			prefsMenu.add(panMenu());
 			prefsMenu.add(zoomMenu());
 			prefsMenu.add(rotationMenu());
 
-			addSeparator(prefsMenu, "Advanced Settings:");
+			GuiUtils.addSeparator(prefsMenu, "Advanced Settings:");
 			final JMenuItem jcbmi = new JCheckBoxMenuItem("Debug Mode", SNTUtils.isDebugMode());
 			jcbmi.setEnabled(!isSNTInstance());
 			jcbmi.setIcon(IconFactory.getMenuIcon(GLYPH.STETHOSCOPE));
@@ -4339,7 +4339,7 @@ public class Viewer3D {
 				});
 				prefsMenu.add(jcbmi2);
 			}
-			addSeparator(prefsMenu, "Other:");
+			GuiUtils.addSeparator(prefsMenu, "Other:");
 			final JMenuItem mi = new JMenuItem("Global Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
 			mi.addActionListener(e -> {
 				runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, true, false);
@@ -4474,7 +4474,7 @@ public class Viewer3D {
 
 		private JPopupMenu treesMenu() {
 			final JPopupMenu tracesMenu = new JPopupMenu();
-			addSeparator(tracesMenu, "Add:");
+			GuiUtils.addSeparator(tracesMenu, "Add:");
 			JMenuItem mi = new JMenuItem("Load File...", IconFactory.getMenuIcon(
 				GLYPH.IMPORT));
 			mi.setMnemonic('f');
@@ -4531,10 +4531,10 @@ public class Viewer3D {
 			});
 			remoteMenu.add(mi);
 
-			addSeparator(tracesMenu, "Customize & Adjust:");
+			GuiUtils.addSeparator(tracesMenu, "Customize & Adjust:");
 			addCustomizeTreeCommands(tracesMenu);
 
-			addSeparator(tracesMenu, "Remove:");
+			GuiUtils.addSeparator(tracesMenu, "Remove:");
 			mi = new JMenuItem("Remove Selected...", IconFactory.getMenuIcon(
 				GLYPH.DELETE));
 			mi.addActionListener(e -> {
@@ -4673,22 +4673,16 @@ public class Viewer3D {
 			return legendMenu;
 		}
 
-		private void addSeparator(final JPopupMenu menu, final String header) {
-			final JLabel label = GuiUtils.leftAlignedLabel(header, false);
-			if (menu.getComponentCount() > 1) menu.addSeparator();
-			menu.add(label);
-		}
-
 		private JPopupMenu meshMenu() {
 			final JPopupMenu meshMenu = new JPopupMenu();
-			addSeparator(meshMenu, "Add:");
+			GuiUtils.addSeparator(meshMenu, "Add:");
 			JMenuItem mi = new JMenuItem("Load OBJ File(s)...", IconFactory
 				.getMenuIcon(GLYPH.IMPORT));
 			mi.addActionListener(e -> runImportCmd(LoadObjCmd.class, null)); // LoadObjCmd will call validate()
 			meshMenu.add(mi);
 			addCustomizeMeshCommands(meshMenu);
 
-			addSeparator(meshMenu, "Remove:");
+			GuiUtils.addSeparator(meshMenu, "Remove:");
 			mi = new JMenuItem("Remove Selected...", IconFactory.getMenuIcon(
 				GLYPH.DELETE));
 			mi.addActionListener(e -> {
@@ -4724,7 +4718,7 @@ public class Viewer3D {
 
 		private JPopupMenu refBrainsMenu() {
 			final JPopupMenu refMenu = new JPopupMenu("Reference Brains");
-			addSeparator(refMenu, "Mouse:");
+			GuiUtils.addSeparator(refMenu, "Mouse:");
 			JMenuItem mi = new JMenuItem("Allen CCF Navigator", IconFactory
 					.getMenuIcon(GLYPH.NAVIGATE));
 			mi.addActionListener(e -> {
@@ -4759,12 +4753,12 @@ public class Viewer3D {
 			});
 			refMenu.add(mi);
 			
-			addSeparator(refMenu, "Zebrafish:");
+			GuiUtils.addSeparator(refMenu, "Zebrafish:");
 			mi = new JMenuItem("Max Planck ZBA", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_ZEBRAFISH));
 			refMenu.add(mi);
 
-			addSeparator(refMenu, "Drosophila:");
+			GuiUtils.addSeparator(refMenu, "Drosophila:");
 			mi = new JMenuItem("Adult Brain: FlyCircuit", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_FCWB));
 			refMenu.add(mi);

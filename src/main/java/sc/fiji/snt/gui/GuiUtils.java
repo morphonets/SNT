@@ -829,6 +829,12 @@ public class GuiUtils {
 		if (vgap) c.insets.top = previousTopGap;
 	}
 
+	public static void addSeparator(final JPopupMenu menu, final String header) {
+		final JLabel label = leftAlignedLabel(header, false);
+		if (menu.getComponentCount() > 1) menu.addSeparator();
+		menu.add(label);
+	}
+
 	public static JMenuItem menubarButton(final IconFactory.GLYPH glyphIcon, final JMenuBar menuBar) {
 		final JMenuItem mi = new JMenuItem(IconFactory.getMenuIcon(glyphIcon)) {
 			private static final long serialVersionUID = 406126659895081426L;
