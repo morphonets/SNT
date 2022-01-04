@@ -23,6 +23,7 @@
 package sc.fiji.snt.gui;
 
 import java.awt.Color;
+import java.awt.Component;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 import javax.swing.JButton;
 import javax.swing.JMenu;
@@ -131,8 +133,24 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		return mi;
 	}
 
-	public JMenu getMorphoFilterMenu() {
-		final JMenu morphoFilteringMenu = new JMenu("Morphology Filters");
+	private JMenu getImageFilterMenu() {
+		final JMenu imgFilteringMenu = new JMenu("Select by Image Property");
+		imgFilteringMenu.setIcon(IconFactory.getMenuIcon(
+			IconFactory.GLYPH.IMAGE));
+		JMenuItem mi1 = new JMenuItem("Traced channel...");
+		mi1.addActionListener(e -> doImageFiltering("Traced channel"));
+		imgFilteringMenu.add(mi1);
+		mi1 = new JMenuItem("Traced frame...");
+		mi1.addActionListener(e -> doImageFiltering("Traced frame"));
+		imgFilteringMenu.add(mi1);
+		mi1 = new JMenuItem("Z-slice of first node...");
+		mi1.addActionListener(e -> doImageFiltering("Z-slice of first node"));
+		imgFilteringMenu.add(mi1);
+		return imgFilteringMenu;
+	}
+
+	private JMenu getMorphoFilterMenu() {
+		final JMenu morphoFilteringMenu = new JMenu("Select by Morphological Trait");
 		morphoFilteringMenu.setIcon(IconFactory.getMenuIcon(
 			IconFactory.GLYPH.RULER));
 		JMenuItem mi1 = new JMenuItem("Cell ID...");
@@ -167,6 +185,9 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			guiUtils.tempMsg(paths.size() + " Path(s) selected");
 		});
 		morphoFilteringMenu.add(mi1);
+		mi1 = new JMenuItem(TreeStatistics.CONTRACTION + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.CONTRACTION, ""));
+		morphoFilteringMenu.add(mi1);
 		mi1 = new JMenuItem("Length...");
 		mi1.addActionListener(e -> {
 			final String unit = pmui.getPathAndFillManager().getBoundingBox(false)
@@ -174,19 +195,19 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			doMorphoFiltering(TreeStatistics.PATH_LENGTH, unit);
 		});
 		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.MEAN_RADIUS + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.MEAN_RADIUS, ""));
-		morphoFilteringMenu.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.N_NODES + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_NODES, ""));
 		morphoFilteringMenu.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.N_SPINES + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_SPINES, ""));
 		morphoFilteringMenu.add(mi1);
+		mi1 = new JMenuItem(TreeStatistics.MEAN_RADIUS + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.MEAN_RADIUS, ""));
+		morphoFilteringMenu.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.PATH_ORDER + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER, ""));
 		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem("SWC Type...");
+		mi1 = new JMenuItem("SWC type...");
 		mi1.addActionListener(e -> {
 			final Collection<Path> paths = getPaths();
 			if (paths.size() == 0) {
@@ -266,6 +287,67 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		return colorFilterMenu;
 	}
 
+	private void doImageFiltering(final String property) {
+//		final boolean invalidImage = !pmui.getSNT().accessToValidImageData();
+//		if (invalidImage) {
+//			guiUtils.error("There is currently no valid image data to process.");
+//			return;
+//		}
+		final Collection<Path> filteredPaths = getPaths();
+		if (filteredPaths.isEmpty()) {
+			guiUtils.error("There are no traced paths.");
+			return;
+		}
+		final String msg = "Please specify a list or range for '" + property + "' (e.g. 2, 3-5, 6, 7-9):";
+		final String s = guiUtils.getString(msg, property + " Filtering", "");
+		if (s == null)
+			return; // user pressed cancel
+		final Set<Integer> set = new HashSet<>();
+		try {
+			for (final String value : s.split(",\\s*")) {
+				if (value.indexOf("-") != -1) {
+					final String[] limits = value.split("-\\s*");
+					if (limits.length != 2) {
+						guiUtils.error("Input contained an invalid range.");
+						return;
+					}
+					IntStream.rangeClosed(Integer.valueOf(limits[0].trim()), Integer.valueOf(limits[1].trim())).forEach(v -> {
+						set.add(v);
+					});
+				} else {
+					set.add(Integer.valueOf(value.trim()));
+				}
+			}
+		} catch (final NumberFormatException ignored) {
+			guiUtils.error("Invalid list or range. Example of a valid input list: 2, 3-5, 6, 7-9");
+			return;
+		}
+		for (final Iterator<Path> iterator = filteredPaths.iterator(); iterator.hasNext();) {
+			final Path p = iterator.next();
+			int value;
+			switch (property.toLowerCase()) {
+			case "z-slice of first node":
+				value = p.getZUnscaled(0) + 1;
+			case "traced channel":
+				value = p.getChannel();
+				break;
+			case "traced frame":
+				value = p.getFrame();
+				break;
+			default:
+				throw new IllegalArgumentException("Unrecognized parameter");
+			}
+			if (!set.contains(value))
+				iterator.remove();
+		}
+		if (filteredPaths.isEmpty()) {
+			guiUtils.error("No Path matches the specified list or range.");
+			return;
+		}
+		pmui.setSelectedPaths(filteredPaths, this);
+		guiUtils.tempMsg(filteredPaths.size() + " Path(s) selected");
+	}
+
 	private void doMorphoFiltering(final String property, final String unit) {
 		final Collection<Path> filteredPaths = getPaths();
 		if (filteredPaths.isEmpty()) {
@@ -283,8 +365,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		double min = Double.MIN_VALUE;
 		double max = Double.MAX_VALUE;
 		if (s.contains("min") || s.contains("max")) {
-			final TreeStatistics treeStats = new TreeStatistics(new Tree(
-				filteredPaths));
+			final TreeStatistics treeStats = new TreeStatistics(new Tree(filteredPaths));
 			final SummaryStatistics summary = treeStats.getSummaryStats(property);
 			min = summary.getMin();
 			max = summary.getMax();
@@ -297,14 +378,17 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				else if (stringValues[i].contains("max")) values[i] = max;
 				else values[i] = Double.parseDouble(stringValues[i]);
 			}
+			if (values[1] < values[0]) {
+				guiUtils.error("Invalid range: Upper limit smaller than lower limit.");
+				return;
+			}
 		}
 		catch (final Exception ignored) {
 			guiUtils.error(
-				"Invalid range. Example of valid inputs: 10-100, min-10, 100-max, max-max");
+				"Invalid range. Example of valid inputs: 10-100, min-10, 100-max, max-max.");
 			return;
 		}
 		doMorphoFiltering(filteredPaths, property, values[0], values[1]);
-
 	}
 
 	public void doMorphoFiltering(final  Collection<Path> paths, final String property, final Number min, final Number max) {
@@ -330,6 +414,9 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				case TreeStatistics.N_SPINES:
 					value = p.getSpineOrVaricosityCount();
 					break;
+				case TreeStatistics.CONTRACTION:
+					value = p.getContraction();
+					break;
 				default:
 					throw new IllegalArgumentException("Unrecognized parameter");
 			}
@@ -347,104 +434,15 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	protected JButton createMorphoFilteringButton() {
 		final JButton button = new JButton();
 		formatButton(button, IconFactory.GLYPH.RULER);
-		button.setToolTipText("Filter by morphometric trait");
+		button.setToolTipText("Filter by morphometric trait or image property");
 		final JPopupMenu popup = new JPopupMenu();
-		JMenuItem mi1 = new JMenuItem("Cell ID...");
-		mi1.addActionListener(e -> {
-			final Collection<Path> paths = getPaths();
-			if (paths.isEmpty()) {
-				guiUtils.error("There are no traced paths.");
-				return;
-			}
-			final HashSet<String> ids = new HashSet<>();
-			paths.forEach(p->{
-				final String treeID = p.getTreeLabel();
-				ids.add(treeID);
-			});
-			if (ids.isEmpty()) {
-				guiUtils.error("No Cell IDs have been specified.");
-				return;
-			}
-			final String[] choices = ids.toArray(new String[ids.size()]);
-			final String defChoice = pmui.getSNT().getPrefs().getTemp("cellidfilter", choices[0]);
-			final String chosenID = guiUtils.getChoice("Select Paths from which cell?", "Cell ID Filtering", choices,
-					defChoice);
-			if (chosenID == null)
-				return;
-			pmui.getSNT().getPrefs().setTemp("cellidfilter", chosenID);
-			paths.removeIf(path -> !chosenID.equals(path.getTreeLabel()));
-			if (paths.isEmpty()) {
-				guiUtils.error("No Path matches the specified ID.");
-				return;
-			}
-			pmui.setSelectedPaths(paths, this);
-			guiUtils.tempMsg(paths.size() + " Path(s) selected");
-		});
-		popup.add(mi1);
-		mi1 = new JMenuItem("Length...");
-		mi1.addActionListener(e -> {
-			final String unit = pmui.getPathAndFillManager().getBoundingBox(false)
-				.getUnit();
-			doMorphoFiltering(TreeStatistics.PATH_LENGTH, unit);
-		});
-		popup.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.MEAN_RADIUS + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.MEAN_RADIUS, ""));
-		popup.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.N_NODES + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_NODES, ""));
-		popup.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.N_SPINES + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_SPINES, ""));
-		popup.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.PATH_ORDER + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER, ""));
-		popup.add(mi1);
-		mi1 = new JMenuItem("SWC Type...");
-		mi1.addActionListener(e -> {
-			final Collection<Path> paths = getPaths();
-			if (paths.size() == 0) {
-				guiUtils.error("There are no traced paths.");
-				return;
-			}
-			class GetFilteredTypes extends SwingWorker<Object, Object> {
-
-				CommandModule cmdModule;
-
-				@Override
-				public Object doInBackground() {
-					final CommandService cmdService = pmui.getSNT()
-						.getContext().getService(CommandService.class);
-					try {
-						cmdModule = cmdService.run(SWCTypeFilterCmd.class, true).get();
-					}
-					catch (InterruptedException | ExecutionException ignored) {
-						return null;
-					}
-					return null;
-				}
-
-				@Override
-				protected void done() {
-					final Set<Integer> types = SWCTypeFilterCmd.getChosenTypes(pmui
-						.getSNT().getContext());
-					if ((cmdModule != null && cmdModule.isCanceled()) || types == null ||
-						types.isEmpty())
-					{
-						return; // user pressed cancel or chose nothing
-					}
-					paths.removeIf(path -> !types.contains(path.getSWCType()));
-					if (paths.isEmpty()) {
-						guiUtils.error("No Path matches the specified type(s).");
-						return;
-					}
-					pmui.setSelectedPaths(paths, this);
-					guiUtils.tempMsg(paths.size() + " Path(s) selected");
-				}
-			}
-			(new GetFilteredTypes()).execute();
-		});
-		popup.add(mi1);
+		for (final Component component : getMorphoFilterMenu().getMenuComponents()) {
+			popup.add(component);
+		}
+		popup.addSeparator();
+		for (final Component component : getImageFilterMenu().getMenuComponents()) {
+			popup.add(component);
+		}
 		button.addActionListener(e -> popup.show(button, button.getWidth() / 2,
 		button.getHeight() / 2));
 		return button;

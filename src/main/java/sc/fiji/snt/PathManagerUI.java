@@ -420,15 +420,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		pjmi.addActionListener(noPathListener);
 		pjmi = popup.add(MultiPathActionListener.APPEND_DIRECT_CHILDREN_CMD);
 		pjmi.addActionListener(multiPathListener);
-		pjmi = popup.add(MultiPathActionListener.APPEND_ALL_CHILDREN_CMD);
-		pjmi.addActionListener(multiPathListener);
-		popup.addSeparator();
-		final JMenu selectByColorMenu = searchableBar.getColorFilterMenu();
-		selectByColorMenu.setText("Select by Color Tag");
-		popup.add(selectByColorMenu);
-		final JMenu selectByMorphoMenu = searchableBar.getMorphoFilterMenu();
-		selectByMorphoMenu.setText("Select by Morphometric Trait");
-		popup.add(selectByMorphoMenu);
 		tree.setComponentPopupMenu(popup);
 		tree.addMouseListener(new MouseAdapter() {
 
@@ -2455,7 +2446,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String TREE_TAG_CMD = "Cell ID";
 		private final static String CHANNEL_TAG_CMD = "Traced Channel";
 		private final static String FRAME_TAG_CMD = "Traced Frame";
-		private final static String SLICE_TAG_CMD = "Z-Slice of First Node";
+		private final static String SLICE_TAG_CMD = "Z-slice of First Node";
 		private final static String COUNT_TAG_CMD = "No. of Spine/Varicosity Markers";
 		private final static String SLICE_LABEL_TAG_CMD = "Slice Labels";
 
