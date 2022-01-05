@@ -180,6 +180,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		} else {
 			resolveInput("skipSomaticSegments");
 		}
+		debugMode = SNTUtils.isDebugMode();
 	}
 
 	@SuppressWarnings("unused")
