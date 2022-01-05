@@ -135,9 +135,9 @@ public class SNTSearchableBar extends SearchableBar {
 	private void updatPlaceholderText() {
 		final TextFieldWithPlaceholder editorField = ((GuiUtils.TextFieldWithPlaceholder)_comboBox.getEditor().getEditorComponent());
 		if (getSearchable().isWildcardEnabled() && getSearchable().isCaseSensitive())
-			editorField.changePlaceholder("Active filters: [Aa]  [.?*]", false);
+			editorField.changePlaceholder("Active filters: [Aa]  [?*]", false);
 		else if (getSearchable().isWildcardEnabled())
-			editorField.changePlaceholder("Active filter: [.?*]", false);
+			editorField.changePlaceholder("Active filter: [?*]", false);
 		else if (getSearchable().isCaseSensitive())
 			editorField.changePlaceholder("Active filter: [Aa]", false);
 		else
@@ -246,8 +246,10 @@ public class SNTSearchableBar extends SearchableBar {
 
 		final JMenuItem jcbmi1 = new JCheckBoxMenuItem("Case Sensitive Matching", getSearchable().isCaseSensitive());
 		jcbmi1.addItemListener(e -> {
+			_comboBox.getEditor().getEditorComponent().requestFocus();
 			getSearchable().setCaseSensitive(jcbmi1.isSelected());
 			updatPlaceholderText();
+			_comboBox.getEditor().getEditorComponent().transferFocusBackward();
 			updateSearch();
 		});
 		popup.add(jcbmi1);
@@ -261,8 +263,10 @@ public class SNTSearchableBar extends SearchableBar {
 		final JMenuItem jcbmi2 = new JCheckBoxMenuItem("Enable Wildcards (?*)", getSearchable().isWildcardEnabled());
 		jcbmi2.setToolTipText("<HTML><b>?</b> (any character) and <b>*</b> (any string) supported");
 		jcbmi2.addItemListener(e -> {
+			_comboBox.getEditor().getEditorComponent().requestFocus();
 			getSearchable().setWildcardEnabled(jcbmi2.isSelected());
 			updatPlaceholderText();
+			_comboBox.getEditor().getEditorComponent().transferFocusBackward();
 			updateSearch();
 		});
 		popup.add(jcbmi2);
