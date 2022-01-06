@@ -181,7 +181,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		add(scrollPane, BorderLayout.CENTER);
 
 		// Create all the menu items:
-		final NoPathActionListener noPathListener = new NoPathActionListener();
 		final SinglePathActionListener singlePathListener =
 			new SinglePathActionListener();
 		final MultiPathActionListener multiPathListener =
@@ -412,15 +411,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		popup.add(getDuplicateMenuItem(singlePathListener));
 		popup.add(getRenameMenuItem(singlePathListener));
 		popup.addSeparator();
-		JMenuItem pjmi = popup.add(NoPathActionListener.COLLAPSE_ALL_CMD);
-		pjmi.addActionListener(noPathListener);
-		pjmi = popup.add(NoPathActionListener.EXPAND_ALL_CMD);
-		pjmi.addActionListener(noPathListener);
+		popup.add(new JTreeMenuItem(JTreeMenuItem.COLLAPSE_ALL_CMD));
+		popup.add(new JTreeMenuItem(JTreeMenuItem.EXPAND_ALL_CMD));
 		popup.addSeparator();
-		pjmi = popup.add(NoPathActionListener.SELECT_NONE_CMD);
-		pjmi.addActionListener(noPathListener);
+		popup.add(new JTreeMenuItem(JTreeMenuItem.SELECT_NONE_CMD));
 		popup.addSeparator();
-		pjmi = popup.add(MultiPathActionListener.APPEND_ALL_CHILDREN_CMD);
+		JMenuItem pjmi = popup.add(MultiPathActionListener.APPEND_ALL_CHILDREN_CMD);
 		pjmi.addActionListener(multiPathListener);
 		pjmi = popup.add(MultiPathActionListener.APPEND_DIRECT_CHILDREN_CMD);
 		pjmi.addActionListener(multiPathListener);
@@ -2198,29 +2194,36 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		plugin.getUI().showStatus(null, false);
 	}
 
-	/** ActionListener for commands that do not deal with paths */
-	private class NoPathActionListener implements ActionListener {
+	private class JTreeMenuItem extends JMenuItem implements ActionListener {
 
+		private static final long serialVersionUID = 1L;
 		private final static String EXPAND_ALL_CMD = "Expand All";
 		private final static String COLLAPSE_ALL_CMD = "Collapse All";
-		private final static String SELECT_NONE_CMD = "Deselect (Same as Select All)";
+		private final static String SELECT_NONE_CMD = "Deselect / Select All";
+
+		private JTreeMenuItem(final String tag) {
+			super(tag);
+			addActionListener(this);
+			if (SELECT_NONE_CMD.equals(tag))
+				setToolTipText("Commands processing multiple paths will\n"
+						+ "process the entire list when no selection exists");
+		}
 
 		@Override
 		public void actionPerformed(final ActionEvent e) {
-
 			switch (e.getActionCommand()) {
-				case SELECT_NONE_CMD:
-					tree.clearSelection();
-					return;
-				case EXPAND_ALL_CMD:
-					GuiUtils.expandAllTreeNodes(tree);
-					return;
-				case COLLAPSE_ALL_CMD:
-					GuiUtils.collapseAllTreeNodes(tree);
-					return;
-				default:
-					SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
-					break;
+			case SELECT_NONE_CMD:
+				tree.clearSelection();
+				return;
+			case EXPAND_ALL_CMD:
+				GuiUtils.expandAllTreeNodes(tree);
+				return;
+			case COLLAPSE_ALL_CMD:
+				GuiUtils.collapseAllTreeNodes(tree);
+				return;
+			default:
+				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
+				break;
 			}
 		}
 	}
