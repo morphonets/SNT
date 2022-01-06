@@ -23,9 +23,12 @@
 package sc.fiji.snt;
 
 import graphics.scenery.*;
+import graphics.scenery.attribute.material.DefaultMaterial;
+import graphics.scenery.attribute.material.Material;
 import ij.IJ;
 import net.imagej.ImageJ;
 
+import org.jetbrains.annotations.NotNull;
 import org.joml.Vector3f;
 import org.scijava.Context;
 import org.scijava.NullContextException;
@@ -39,10 +42,6 @@ import sc.fiji.snt.util.SNTPoint;
 import sc.iview.SciView;
 import sc.iview.SciViewService;
 import sc.iview.node.Line3D;
-import sc.iview.vector.DoubleVector3;
-import sc.iview.vector.FloatVector3;
-import sc.iview.vector.JOMLVector3;
-import sc.iview.vector.Vector3;
 
 import java.awt.*;
 import java.awt.event.WindowAdapter;
@@ -313,19 +312,19 @@ public class SciViewSNT {
 		}
 	}
 
-	private class ShapeTree extends Node {
+	private class ShapeTree extends Mesh {
 
 		private static final long serialVersionUID = 1L;
 		private static final float DEF_NODE_RADIUS = 3f;
 
 		private final Tree tree;
 		private Node somaSubShape;
-		private Vector3 translationReset;
+		private Vector3f translationReset;
 
 		public ShapeTree(final Tree tree) {
 			super();
 			this.tree = tree;
-			translationReset = new FloatVector3(0f,0f,0f);
+			translationReset = new Vector3f(0f,0f,0f);
 		}
 
 		public Node get() {
@@ -333,14 +332,14 @@ public class SciViewSNT {
 			return this;
 		}
 
-		private void translateTo(final Vector3 destination) {
-			translationReset.setPosition(destination);
+		private void translateTo(final Vector3f destination) {
+			translationReset.set(destination);
 		}
 
 		@SuppressWarnings("unused")
 		private void resetTranslation() {
 			translateTo(translationReset);
-			translationReset = new FloatVector3(0f, 0f, 0f);
+			translationReset = new Vector3f(0f, 0f, 0f);
 		}
 
 		private void assembleShape() {
@@ -368,19 +367,19 @@ public class SciViewSNT {
 				}
 
 				// Assemble arbor(s)
-				final List<Vector3> points = new ArrayList<>();
+				final List<Vector3f> points = new ArrayList<>();
 				final List<ColorRGB> colors = new ArrayList<>();
 				final float scaleFactor = 1f;
 				for (int i = 0; i < p.size(); ++i) {
 					final PointInImage pim = p.getNodeWithoutChecks(i);
-					final JOMLVector3 coord = new JOMLVector3((float)pim.x, (float)pim.y, (float)pim.z);
-					final Material mat = new Material();
+					final Vector3f coord = new Vector3f((float)pim.x, (float)pim.y, (float)pim.z);
+					final Material mat = new DefaultMaterial();
 					final Color c = p.hasNodeColors() ? p.getNodeColor(i) : p.getColor();
 					final ColorRGB color = c == null ? Colors.ANTIQUEWHITE : fromAWTColor(c);
 					mat.setDiffuse(new Vector3f(color.getRed(),color.getGreen(),color.getBlue()));
 					//final float width = Math.max((float) p.getNodeRadius(i), DEF_NODE_RADIUS);
 					//System.out.println( "(point " + i + " " + coord.source() + ")" );
-					points.add( new FloatVector3(coord.source().x()*scaleFactor,coord.source().y()*scaleFactor,coord.source().z()*scaleFactor) );
+					points.add( new Vector3f(coord.x()*scaleFactor,coord.y()*scaleFactor,coord.z()*scaleFactor) );
 					colors.add( color );
 				}
 
@@ -401,7 +400,7 @@ public class SciViewSNT {
 			assembleSoma(somaPoints, somaColors);
 			if (somaSubShape != null) addChild(somaSubShape);
 
-			this.setPosition(this.getMaximumBoundingBox().getBoundingSphere().getOrigin());
+//			this.setPosition(this.getMaximumBoundingBox().getBoundingSphere().getOrigin());
 			//sciView.setActiveNode(this);
 			//sciView.surroundLighting();
 		}
@@ -423,13 +422,13 @@ public class SciViewSNT {
 				return;
 			case 3:
 				// 3 point soma representation: http://neuromorpho.org/SomaFormat.html
-				final Vector3 p1 = convertPIIToVector3(somaPoints.get(0));
-				final Vector3 p2 = convertPIIToVector3(somaPoints.get(1));
-				final Vector3 p3 = convertPIIToVector3(somaPoints.get(2));
-				final double lenthT1 = p2.minus(p1).getLength();
-				final double lenthT2 = p1.minus(p3).getLength();
-				final Node t1 = sciView.addCylinder(p2,DEF_NODE_RADIUS,(float)lenthT1,20);
-				final Node t2 = sciView.addCylinder(p1,DEF_NODE_RADIUS,(float)lenthT2,20);
+				final Vector3f p1 = convertPIIToVector3(somaPoints.get(0));
+				final Vector3f p2 = convertPIIToVector3(somaPoints.get(1));
+				final Vector3f p3 = convertPIIToVector3(somaPoints.get(2));
+				final double lengthT1 = p2.sub(p1).length();
+				final double lengthT2 = p1.sub(p3).length();
+				final Node t1 = sciView.addCylinder(p2,DEF_NODE_RADIUS,(float)lengthT1,20, p -> { return null; });
+				final Node t2 = sciView.addCylinder(p1,DEF_NODE_RADIUS,(float)lengthT2,20, p -> { return null; });
 				addChild(t1);
 				addChild(t2);
 				return;
@@ -441,9 +440,8 @@ public class SciViewSNT {
 			}
 		}
 
-		private Vector3 convertPIIToVector3(final PointInImage sCenter) {
-			final Vector3 v = new DoubleVector3(sCenter.x,sCenter.y,sCenter.z);
-			return v;
+		private Vector3f convertPIIToVector3(final PointInImage sCenter) {
+			return new Vector3f((float)sCenter.x, (float)sCenter.y, (float)sCenter.z);
 		}
 
 		private ColorRGB fromAWTColor(final Color average) {
@@ -464,6 +462,12 @@ public class SciViewSNT {
 					bb = bb.expand(bb, cBB);
 			}
 			return bb;
+		}
+
+		@NotNull
+		@Override
+		public String getName() {
+			return "ShapeTree";
 		}
 	}
 
@@ -489,7 +493,7 @@ public class SciViewSNT {
 //		tree2.setColor(Colors.YELLOW);
 //		sciViewSNT.addTree(tree2);
 		//sciViewSNT.getSciView().centerOnScene();
-		sciViewSNT.addTree(tree);
+		sciViewSNT.add(tree, "lol");
 		//sciViewSNT.getSciView().addVolume(sntService.demoTreeDataset());
 //		sciViewSNT.getSciView().centerOnNode(sciViewSNT.getTreeAsSceneryNode(tree2));
 	}

@@ -131,20 +131,21 @@
 		<doclint>none</doclint>
 
 		<!-- Dependency versions -->
-		<sciview.version>9c0918a</sciview.version>
-		<scenery.version>4e67655</scenery.version>
+		<sciview.version>e3510f4</sciview.version>
+		<scenery.version>4d07a30</scenery.version>
 		<jzy3d.version>2.0.0</jzy3d.version>
 		<jline.version>3.13.1</jline.version>
 		<imagej-plot-service.version>0.1.1</imagej-plot-service.version>
 		<okhttp.version>4.9.3</okhttp.version>
 		<font-awesome.version>5.15.4</font-awesome.version>
 		<json.version>20211205</json.version>
+		<kotlin.version>1.5.20</kotlin.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 
 		<!-- Temporarily disable enforcer -->
-		<enforcer.skip>false</enforcer.skip>
+		<enforcer.skip>true</enforcer.skip>
 		<!-- Resolve dup. class conflict -->
   		<allowedDuplicateClasses>org.jzy3d.plot3d.pipelines.NotImplementedException</allowedDuplicateClasses>
 	</properties>
@@ -153,6 +154,16 @@
 		<repository>
 			<id>scijava.public</id>
 			<url>https://maven.scijava.org/content/groups/public</url>
+		</repository>
+		<repository>
+			<id>jitpack.io</id>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+			<url>https://jitpack.io</url>
 		</repository>
 		<repository>
 			<id>jzy3d-releases</id>
@@ -233,6 +244,20 @@
 			<groupId>graphics.scenery</groupId>
 			<artifactId>scenery</artifactId>
 			<version>${scenery.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-slf4j-impl</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-api</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-core</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<dependency>
@@ -312,6 +337,10 @@
 			<artifactId>imagej-updater</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>it.unimi.dsi</groupId>
 			<artifactId>fastutil-core</artifactId>
 			<version>8.5.6</version>
@@ -323,32 +352,4 @@
 		</dependency>
 	</dependencies>
 
-	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-enforcer-plugin</artifactId>
-				<version>1.3.1</version>
-				<executions>
-					<execution>
-						<id>enforce-version</id>
-						<goals>
-							<goal>enforce</goal>
-						</goals>
-						<configuration>
-							<rules>
-								<bannedDependencies>
-									<excludes>
-										<!-- exclude all versions lower than 1.2.17-->
-										<exclude>org.jetbrains:kotlin-stdlib:[0.0,1.3.42)</exclude>
-										<exclude>org.joml:joml:[0.0,1.9.22)</exclude>
-									</excludes>
-								</bannedDependencies>
-							</rules>
-						</configuration>
-					</execution>
-				</executions>
-			</plugin>
-		</plugins>
-	</build>
 </project>
