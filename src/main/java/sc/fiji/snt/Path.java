@@ -1314,15 +1314,22 @@ public class Path implements Comparable<Path> {
 			}
 
 			// If there was a previous point in this path, draw a line from there to here:
-			if (previousNode != null) {
+			if (i > 0) {
 				// Don't redraw the line if we drew it the previous time, though:
 				if (startIndexOfLastDrawnLine != i - 1) {
 					currentNode.drawConnection(g2, previousNode);
 					startIndexOfLastDrawnLine = i - 1;
 				}
+			} 
+			else if (getStartJoinsPoint() != null) {
+				final PathNode jointNode = new PathNode(getStartJoinsPoint(), i, canvas);
+				jointNode.setType(PathNode.JOINT);
+				jointNode.draw(g2, c);
+				currentNode.setType(PathNode.SLAB);
+				currentNode.drawConnection(g2, previousNode);
 			}
 			// If there's a next point in this path, draw a line from here to there:
-			if (nextNode != null) { /// this is where it happens
+			if (nextNode != null) {
 				currentNode.drawConnection(g2, nextNode);
 				startIndexOfLastDrawnLine = i;
 			}
