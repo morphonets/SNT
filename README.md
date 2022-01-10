@@ -1,9 +1,16 @@
 <p align="center"><img src="https://imagej.net/media/logos/snt.png" alt="SNT" width="150"></p>
 <h2 align="center">The ImageJ framework for quantification of neuronal anatomy</h2>
 <div align="center">
+  <!-- Zenodo -->
+  <a href="https://zenodo.org/badge/latestdoi/221831995">
+    <img alt="Zenodo DOI" src="https://zenodo.org/badge/221831995.svg">
+  </a>
   <!-- BioRiv -->
   <a href="https://doi.org/10.1101/2020.07.13.179325">
     <img alt="Publication" src="https://img.shields.io/badge/Publication-BioRiv-red.svg">
+  </a>
+  <a href="https://forum.image.sc/tags/snt">
+    <img alt="Forum.sc topics" src="https://img.shields.io/badge/dynamic/json.svg?label=forum&url=https%3A%2F%2Fforum.image.sc%2Ftag%2Fsnt.json&query=%24.topic_list.tags.0.topic_count&suffix=%20topics">
   </a>
   <!-- Gitpod -->
   <a href="https://gitpod.io/#https://github.com/fiji/SNT">
@@ -13,6 +20,7 @@
   <a href="https://github.com/morphonets/SNT/blob/master/LICENSE.txt">
     <img alt="GitHub license" src="https://img.shields.io/github/license/morphonets/SNT">
   </a>
+  <br>
   <!-- Build Status -->
   <a href="https://github.com/morphonets/SNT/actions/workflows/build-main.yml">
     <img alt="Build status" src="https://github.com/morphonets/SNT/actions/workflows/build-main.yml/badge.svg">
@@ -23,9 +31,6 @@
   </a>
   <a href="https://github.com/morphonets/SNT/issues">
     <img alt="Closed issues" src="https://img.shields.io/github/issues-closed/morphonets/SNT">
-  </a>
-  <a href="https://forum.image.sc/tags/snt">
-    <img alt="Forum.sc topics" src="https://img.shields.io/badge/dynamic/json.svg?label=forum&url=https%3A%2F%2Fforum.image.sc%2Ftag%2Fsnt.json&query=%24.topic_list.tags.0.topic_count&suffix=%20topics">
   </a>
 </div>
 <div align="center">
