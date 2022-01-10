@@ -131,7 +131,7 @@
 		<doclint>none</doclint>
 
 		<!-- Dependency versions -->
-		<sciview.version>e3510f4</sciview.version>
+		<sciview.version>0.1.6</sciview.version>
 		<scenery.version>4d07a30</scenery.version>
 		<jzy3d.version>2.0.0</jzy3d.version>
 		<jline.version>3.13.1</jline.version>
