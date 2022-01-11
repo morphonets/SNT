@@ -134,12 +134,10 @@
 		<sciview.version>e3510f4</sciview.version>
 		<scenery.version>4d07a30</scenery.version>
 		<jzy3d.version>2.0.0</jzy3d.version>
-		<jline.version>3.13.1</jline.version>
 		<imagej-plot-service.version>0.1.1</imagej-plot-service.version>
 		<okhttp.version>4.9.3</okhttp.version>
 		<font-awesome.version>5.15.4</font-awesome.version>
 		<json.version>20211205</json.version>
-		<kotlin.version>1.5.20</kotlin.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
@@ -232,13 +230,6 @@
 			<groupId>sc.iview</groupId>
 			<artifactId>sciview</artifactId>
 			<version>${sciview.version}</version>
-			<exclusions>
-				<exclusion>
-					<!-- NB: Exclude older jline that comes in via sciview -->
-					<groupId>jline</groupId>
-					<artifactId>jline</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>graphics.scenery</groupId>
@@ -322,11 +313,6 @@
 		<dependency>
 			<groupId>org.jgrapht</groupId>
 			<artifactId>jgrapht-ext</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.jline</groupId>
-			<artifactId>jline</artifactId>
-			<version>${jline.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.scijava</groupId>
