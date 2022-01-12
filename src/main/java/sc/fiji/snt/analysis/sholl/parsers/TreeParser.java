@@ -81,9 +81,15 @@ public class TreeParser implements Parser {
 
 	/**
 	 * Flag for defining the profile center as the average position of root nodes
-	 * of Paths tagged as Soma
+	 * of primary Paths tagged as Soma
 	 */
 	public static final int ROOT_NODES_SOMA = 5;
+
+	/**
+	 * Flag for defining the profile center as the average position of root nodes
+	 * of _ANY_ Paths tagged as Soma, independently of connectivity
+	 */
+	public static final int ROOT_NODES_SOMA_ANY= 7;
 
 	/**
 	 * Flag for defining the profile center as the average position of root nodes
@@ -121,27 +127,30 @@ public class TreeParser implements Parser {
 	public void setCenter(final int choice) throws IllegalArgumentException {
 		switch (choice) {
 			case ROOT_NODES_ANY:
-				center = getCenter(-1);
+				center = getCenter(-1, true);
 				if (center == null && !tree.isEmpty())
 					center = tree.list().get(0).getNode(0);
 				break;
 			case ROOT_NODES_UNDEFINED:
-				center = getCenter(Path.SWC_UNDEFINED);
+				center = getCenter(Path.SWC_UNDEFINED, true);
 				break;
 			case ROOT_NODES_SOMA:
-				center = getCenter(Path.SWC_SOMA);
+				center = getCenter(Path.SWC_SOMA, true);
+				break;
+			case ROOT_NODES_SOMA_ANY:
+				center = getCenter(Path.SWC_SOMA, false);
 				break;
 			case ROOT_NODES_AXON:
-				center = getCenter(Path.SWC_AXON);
+				center = getCenter(Path.SWC_AXON, true);
 				break;
 			case ROOT_NODES_DENDRITE:
-				center = getCenter(Path.SWC_DENDRITE);
+				center = getCenter(Path.SWC_DENDRITE, true);
 				break;
 			case ROOT_NODES_APICAL_DENDRITE:
-				center = getCenter(Path.SWC_APICAL_DENDRITE);
+				center = getCenter(Path.SWC_APICAL_DENDRITE, true);
 				break;
 			case ROOT_NODES_CUSTOM:
-				center = getCenter(Path.SWC_CUSTOM);
+				center = getCenter(Path.SWC_CUSTOM, true);
 				break;
 			default:
 				throw new IllegalArgumentException("Center choice was not understood");
@@ -159,10 +168,10 @@ public class TreeParser implements Parser {
 		return (center == null) ? null : new ShollPoint(center.x, center.y, center.z);
 	}
 
-	private PointInImage getCenter(final int swcType) {
+	private PointInImage getCenter(final int swcType, final boolean primaryPathsOnly) {
 		final List<PointInImage> points = new ArrayList<>();
 		for (final Path p : tree.list()) {
-			if (!p.isPrimary()) continue;
+			if (primaryPathsOnly && !p.isPrimary()) continue;
 			if (swcType < 0 || p.getSWCType() == swcType) {
 				points.add(p.getNode(0));
 			}

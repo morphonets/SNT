@@ -126,7 +126,15 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		"Paths tagged as 'Custom'", "Paths tagged as 'Undefined'" })
 	private String filterChoice;
 
-	@Parameter(label = "Center", required = false, choices = { "Soma",
+	@Parameter(label = "Center", required = false, //
+		description = "Root nodes correspond to the starting nodes of primary (root) paths of the specified type.\n" //
+			+ "If multiple primary paths exits, center becomes the centroid (mid-point) of the identified\n"
+			+ "starting node(s).\n \n" //
+			+ "If 'Soma node(s): Ignore connectivity' is chosen, the centroid of soma-tagged nodes is \n"
+			+ "used, even if such paths are not at the root.", //
+		choices = { 
+		"Soma node(s): Ignore connectivity",
+		"Soma node(s): Primary paths only",
 		"Root node(s)",
 		"Root node(s): Primary axon(s)",
 		"Root node(s): Primary (basal) dendrites(s)",
@@ -958,7 +966,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	protected static int getCenterFromChoice(final String centerChoice) {
 		final String choice = centerChoice.toLowerCase();
 		if (choice.contains("soma")) {
-			return TreeParser.ROOT_NODES_SOMA;
+			return  (choice.contains("ignore")) ? TreeParser.ROOT_NODES_SOMA_ANY : TreeParser.ROOT_NODES_SOMA;
 		} else if (choice.contains("axon")) {
 			return TreeParser.ROOT_NODES_AXON;
 		} else if (choice.contains("apical")) {

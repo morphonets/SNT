@@ -95,7 +95,15 @@ public class ShollAnalysisBulkTreeCmd extends ContextCommand
 		"Paths tagged as 'Custom'", "Paths tagged as 'Undefined'" })
 	private String filterChoice;
 
-	@Parameter(label = "Center", choices = { "Soma",
+	@Parameter(label = "Center", //
+		description = "Root nodes correspond to the starting nodes of primary (root) paths of the specified type.\n" //
+			+ "If multiple primary paths exits, center becomes the centroid (mid-point) of the identified\n"
+			+ "starting node(s).\n \n" //
+			+ "If 'Soma node(s): Ignore connectivity' is chosen, the centroid of soma-tagged nodes is \n"
+			+ "used, even if such paths are not at the root.", //
+		choices = { 
+		"Soma node(s): Ignore connectivity",
+		"Soma node(s): Primary paths only",
 		"Root node(s)",
 		"Root node(s): Primary axon(s)",
 		"Root node(s): Primary (basal) dendrites(s)",
