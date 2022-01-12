@@ -1,6 +1,14 @@
 //@Context context
 //@UIService ui
 
+/**
+ * file: Sholl_Extensive_Stats_Demo.groovy
+ * author: Tiago Ferreira
+ * version: 20201101
+ * info: A demo that illustrates how to use to the SNT's API to fine-tune
+ *       Sholl-based statistics from multiple sources
+ */
+
 import ij.ImagePlus
 import ij.io.Opener
 import sc.fiji.snt.Tree
@@ -9,7 +17,7 @@ import sc.fiji.snt.analysis.sholl.gui.*
 import sc.fiji.snt.analysis.sholl.math.*
 import sc.fiji.snt.analysis.sholl.parsers.*
 
-
+ 
 // The starting point of a programmatic Sholl analysis is a parser.
 // There are parsers for 2D images, 3D images, reconstruction
 // files and pre-retrieved Sholl (tabular) data.
