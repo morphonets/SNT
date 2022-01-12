@@ -49,6 +49,7 @@ import org.apache.commons.math3.stat.descriptive.moment.Skewness;
 import org.scijava.prefs.PrefService;
 
 import sc.fiji.snt.analysis.sholl.Profile;
+import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.plugin.ShollAnalysisPrefsCmd;
 import sc.fiji.snt.util.ShollPoint;
 
@@ -953,6 +954,10 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 		if (fittedData)
 			validateFit();
 		return StatUtils.variance(fittedData ? fCounts : inputCounts);
+	}
+
+	public ShollPlot plot() {
+		return new ShollPlot(this);
 	}
 
 	/** @return {@link #getVariance(boolean) getVariance(false)} */

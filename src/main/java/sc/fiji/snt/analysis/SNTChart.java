@@ -785,6 +785,19 @@ public class SNTChart extends ChartFrame {
 		getXYPlot().addAnnotation(annot);
 	}
 
+	/**
+	 * Highlights a point in a histogram/XY plot by drawing a labeled arrow at the
+	 * specified location.
+	 *
+	 * @param coordinates the array holding the focal point coordinates of the
+	 *                    profile
+	 * @param label       the annotation label
+	 * @param color       the annotation color
+	 */
+	public void annotatePoint(final double[] coordinates, final String label, final String color) {
+		annotatePoint(coordinates[0], coordinates[1], label, color);
+	}
+
 	public void setDefaultDirectoryForSaveAs(final File directory) throws IllegalArgumentException {
 		getChartPanel().setDefaultDirectoryForSaveAs(directory);
 	}

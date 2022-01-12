@@ -191,6 +191,20 @@ public class TreeParser implements Parser {
 	}
 
 	/**
+	 * Sets the center of the profile.
+	 *
+	 * @param coordinates the array holding the focal point coordinates of the profile
+	 */
+	public void setCenter(final double[] coordinates) {
+		if (successful()) throw new UnsupportedOperationException(
+			"setCenter() must be called before parsing data");
+		if (coordinates.length < 3)
+			center = new PointInImage(coordinates[0], coordinates[1], 0);
+		else
+			center = new PointInImage(coordinates[0], coordinates[1], coordinates[2]);
+	}
+
+	/**
 	 * Sets the radius step size.
 	 *
 	 * @param stepSize the radius step size

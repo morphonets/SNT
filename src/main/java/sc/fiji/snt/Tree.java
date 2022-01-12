@@ -152,10 +152,14 @@ public class Tree implements TreeProperties {
 	 * @throws IllegalArgumentException if file path is not valid
 	 */
 	public Tree(final String filename, final String compartment) throws IllegalArgumentException {
-		final File f = new File(filename);
+		File f;
+		if (filename.startsWith("~"))
+			f = new File(filename.replaceFirst("^~", System.getProperty("user.home")));
+		else
+			f = new File(filename);
 		if (!f.exists())
 			throw new IllegalArgumentException("File does not exist: " + filename);
-		initPathAndFillManagerFromFile(filename, compartment);
+		initPathAndFillManagerFromFile(f.getAbsolutePath(), compartment);
 		tree = pafm.getPaths();
 		setLabel(SNTUtils.stripExtension(f.getName()));
 	}
