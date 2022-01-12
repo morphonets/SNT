@@ -211,10 +211,10 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 			msg = BUSY_MSG;
 			plottingTree.setColor(color);
 			buildPlot();
-			viewer.setGridlinesVisible(chart.isGridlinesVisible());
-			viewer.setOutlineVisible(chart.isOutlineVisible());
 			chart.replace(viewer.getChart());
 			chart.setVisible(true); // re-open frame if it has been closed
+			viewer.setGridlinesVisible(chart.isGridlinesVisible());
+			viewer.setOutlineVisible(chart.isOutlineVisible());
 			//frame.toFront();
 			msg = "";
 		}
