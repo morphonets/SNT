@@ -3827,7 +3827,11 @@ public class Viewer3D {
 	
 		private List<Tree> getSelectedTrees(final boolean promptForAllIfNone) {
 			final List<String> keys = getSelectedKeys(plottedTrees, "reconstructions", promptForAllIfNone);
-			if (keys == null) return null;
+			if (keys == null) return null; // user pressed cancel on prompt
+			if (keys.isEmpty()) { // a selection existed but it did not contain plottedTrees
+				guiUtils.error("There are no selected reconstructions.");
+				return null;
+			}
 			final List<Tree> trees = new ArrayList<>();
 			keys.forEach( k -> {
 				final ShapeTree sTree = plottedTrees.get(k);
@@ -3858,8 +3862,8 @@ public class Viewer3D {
 				selectedKeys.add(TagUtils.removeAllTags(sv.toString()));
 			});
 			final List<String> allKeys = new ArrayList<>(map.keySet());
-			if ((promptForAllIfNone && map.size() == 1) || (selectedKeys
-				.size() == 1 && selectedKeys.get(0) == CheckBoxList.ALL_ENTRY))
+			if ((promptForAllIfNone && map.size() == 1)
+					|| (selectedKeys.size() == 1 && CheckBoxList.ALL_ENTRY.toString().equals(selectedKeys.get(0))))
 				return allKeys;
 			if (promptForAllIfNone && selectedKeys.isEmpty()) {
 				checkRetrieveAllOptions(mapDescriptor);
