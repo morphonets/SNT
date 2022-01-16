@@ -28,7 +28,12 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.Paint;
+import java.awt.Toolkit;
+import java.awt.Window;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -40,6 +45,7 @@ import java.util.List;
 
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFileChooser;
+import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
@@ -139,6 +145,7 @@ public class SNTChart extends ChartFrame {
 		cp.setBackground(BACKGROUND_COLOR);
 		setBackground(BACKGROUND_COLOR); // provided contrast to otherwise transparent background
 		setPreferredSize(preferredSize);
+		costumizePopupMenu();
 		pack();
 	}
 
@@ -824,7 +831,15 @@ public class SNTChart extends ChartFrame {
 	@Override
 	@SuppressWarnings("deprecation")
 	public void show() {
-		if (!isVisible() && getChartPanel() != null && getChartPanel().getPopupMenu() != null) {
+		if (!isVisible()) {
+			//setLocationByPlatform(true);
+			AWTWindows.centerWindow(this);
+		}
+		SwingUtilities.invokeLater(() -> super.show());
+	}
+
+	private void costumizePopupMenu() {
+		if (getChartPanel() != null && getChartPanel().getPopupMenu() != null) {
 			final JMenuItem mi = new JMenuItem("Data (as CSV)...");
 			mi.addActionListener(e -> {
 				final JFileChooser fileChooser = GuiUtils.getDnDFileChooser();
@@ -853,9 +868,7 @@ public class SNTChart extends ChartFrame {
 			else
 				getChartPanel().getPopupMenu().add(mi);
 			addCustomizationPanel(getChartPanel().getPopupMenu());
-			AWTWindows.centerWindow(this);
 		}
-		SwingUtilities.invokeLater(() -> super.show());
 	}
 
 	private void addCustomizationPanel(final JPopupMenu popup) {
@@ -969,6 +982,120 @@ public class SNTChart extends ChartFrame {
 		} catch (final IOException e) {
 			throw new IllegalStateException("Could not write dataset", e);
 		}
+	}
+
+	public static List<SNTChart> getOpenCharts() {
+		final List<SNTChart> sntCharts = new ArrayList<>();
+		for (final Window win : Window.getWindows()) {
+			if (win != null && win instanceof SNTChart && ((SNTChart)win).containsValidData()) {
+				sntCharts.add((SNTChart) win);
+			}
+		}
+		return sntCharts;
+	}
+
+	public static JFrame combinedFrame(final Collection<SNTChart> charts) {
+		return combinedFrame(charts, -1, -1);
+	}
+
+	public static JFrame combinedFrame(final Collection<SNTChart> charts, final int rows, final int cols) {
+		return new MultiSNTChart(charts, rows, cols).getJFrame();
+	}
+
+	private static class MultiSNTChart {
+
+		final Collection<SNTChart> charts;
+		int[] grid;
+		String label;
+
+		MultiSNTChart(final Collection<SNTChart> charts, final int rows, final int cols) {
+			if (charts == null)
+				throw new IllegalArgumentException("Cannot instantiate a grid from a null list of viewers");
+			this.charts = charts;
+			if (rows == -1 || cols == -1)
+				grid = splitIntoParts(charts.size(), 2);
+			else
+				grid = new int[] { rows, cols };
+		}
+
+		@SuppressWarnings("unused")
+		void setLabel(final String label) {
+			this.label = label;
+		}
+
+		String getLabel() {
+			return (label == null) ? "Combined Chart" : label;
+		}
+
+		JFrame getJFrame() {
+			// make all plots the same size. Not sure if this is needed!?
+			int w = Integer.MIN_VALUE;
+			int h = Integer.MIN_VALUE;
+			for (final SNTChart chart : charts) {
+				if (chart.getChartPanel().getPreferredSize().width > w)
+					w = chart.getChartPanel().getPreferredSize().width;
+				if (chart.getChartPanel().getPreferredSize().height > h)
+					h = chart.getChartPanel().getPreferredSize().height;
+			}
+			for (final SNTChart chart : charts)
+				chart.getChartPanel().setSize(w, h);
+			final JFrame frame = new JFrame(getLabel());
+			final JPanel panel = new JPanel(new GridLayout(grid[0], grid[1]));
+			frame.add(panel);
+			panel.setToolTipText("Use the \"Save Tables & Analysis Plots...\" command to save panel(s)");
+			final boolean allVisible = charts.stream().allMatch(c -> c.isVisible());
+			charts.forEach(chart -> panel.add(chart.getChartPanel()));
+			// panel.setBackground(charts.get(charts.size()-1).getBackground());
+			frame.pack();
+			final Dimension sSize = Toolkit.getDefaultToolkit().getScreenSize();
+			frame.setPreferredSize(scale(frame.getSize(), sSize.width * .85, sSize.height * .85));
+			frame.addWindowListener(new WindowAdapter() {
+				@Override
+				public void windowClosing(final WindowEvent e) {
+					charts.forEach(chart -> chart.dispose());
+				}
+			});
+			frame.pack();
+			AWTWindows.centerWindow(frame);
+			if (allVisible) {
+				SwingUtilities.invokeLater(() -> {
+					charts.forEach(chart -> chart.setVisible(false));
+					frame.setVisible(true);
+				});
+			}
+			return frame;
+		}
+
+		int[] splitIntoParts(final int whole, final int parts) {
+			// https://stackoverflow.com/a/32543184
+			final int[] arr = new int[parts];
+			int remain = whole;
+			int partsLeft = parts;
+			for (int i = 0; partsLeft > 0; i++) {
+				final int size = (remain + partsLeft - 1) / partsLeft;
+				arr[i] = size;
+				remain -= size;
+				partsLeft--;
+			}
+			return arr;
+		}
+
+		Dimension scale(Dimension dim1, final double maxW, final double maxH) {
+			int width1 = dim1.width;
+			int height1 = dim1.height;
+			int newWidth = width1;
+			int newHeight = height1;
+			if (width1 > maxW) {
+				newWidth = (int) maxW;
+				newHeight = (newWidth * height1) / width1;
+			}
+			if (newHeight > maxH) {
+				newHeight = (int) maxH;
+				newWidth = (newHeight * width1) / height1;
+			}
+			return new Dimension(newWidth, newHeight);
+		}
+
 	}
 
 	/* IDE debug method */
