@@ -31,7 +31,6 @@ import org.scijava.ItemIO;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
-import org.scijava.command.ContextCommand;
 import org.scijava.display.Display;
 import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
@@ -52,6 +51,7 @@ import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.Logger;
 
 /**
@@ -60,7 +60,7 @@ import sc.fiji.snt.util.Logger;
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, visible = false, label = "Bulk Sholl Analysis (Tracings)", initializer = "init")
-public class ShollAnalysisBulkTreeCmd extends ContextCommand
+public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 {
 
 	@Parameter
@@ -77,11 +77,11 @@ public class ShollAnalysisBulkTreeCmd extends ContextCommand
 			label = ShollAnalysisImgCmd.HEADER_HTML + "Input:")
 	private String HEADER0;
 
-	@Parameter(label = "Directory", type = ItemIO.INPUT, style = FileWidget.DIRECTORY_STYLE, //
+	@Parameter(required = false, label = "Directory", type = ItemIO.INPUT, style = FileWidget.DIRECTORY_STYLE, //
 			description = ShollAnalysisImgCmd.HEADER_TOOLTIP + "Input folder containing reconstruction files.")
 	private File directory;
 
-	@Parameter(label = "Filename filter", required=false, 
+	@Parameter(required = false, label = "Filename filter",
 			description="Only filenames matching this string (case sensitive) will be considered. "
 			+ "Regex patterns accepted. Leave empty to disable fitering.")
 	private String filenamePattern;
@@ -167,6 +167,9 @@ public class ShollAnalysisBulkTreeCmd extends ContextCommand
 	@Parameter(label = " Options, Preferences and Resources... ", callback = "runOptions")
 	private Button optionsButton;
 
+	@Parameter(required = false)
+	private List<Tree> treeList;
+
 
 	/* Instance variables */
 	private GuiUtils helper;
@@ -181,7 +184,10 @@ public class ShollAnalysisBulkTreeCmd extends ContextCommand
 	@Override
 	public void run() {
 
-		final List<Tree> treeList = Tree.listFromDir(directory.getAbsolutePath(), filenamePattern, getSWCTypes());
+		if (treeList == null || treeList.isEmpty()) {
+			treeList = Tree.listFromDir(directory.getAbsolutePath(), filenamePattern, getSWCTypes());
+			logger.info("Found " + treeList.size() + " reconstructions in " + directory.getAbsolutePath());
+		}
 		if (treeList == null || treeList.isEmpty()) {
 			final String msg = (filenamePattern == null || filenamePattern.isEmpty())
 					? "No reconstruction files found in input folder."
@@ -194,9 +200,9 @@ public class ShollAnalysisBulkTreeCmd extends ContextCommand
 			return;
 		}
 		logger = new Logger(context(), "Sholl");
-		logger.info("Found " + treeList.size() + " reconstructions in " + directory.getAbsolutePath());
 		logger.info("Running multithreaded analysis...");
 		readPreferences();
+		commonSummaryTable = new ShollTable();
 		treeList.parallelStream().forEach(tree -> {
 			new AnalysisRunner(tree).run();
 		});
@@ -208,7 +214,6 @@ public class ShollAnalysisBulkTreeCmd extends ContextCommand
 		}
 
 	}
-
 
 	private String[] getSWCTypes() {
 		final String normChoice = filterChoice.toLowerCase();
@@ -260,6 +265,13 @@ public class ShollAnalysisBulkTreeCmd extends ContextCommand
 	@SuppressWarnings("unused")
 	private void init() {
 		helper = new GuiUtils();
+		if (treeList != null) {
+			resolveInput("HEADER0");
+			resolveInput("directory");
+			resolveInput("filenamePattern");
+		} else {
+			resolveInput("treeList");
+		}
 	}
 
 	@SuppressWarnings("unused")
@@ -436,12 +448,11 @@ public class ShollAnalysisBulkTreeCmd extends ContextCommand
 			}
 
 			final ShollTable sTable = new ShollTable(lStats, nStats);
-			if (commonSummaryTable == null) commonSummaryTable = new ShollTable();
 			String header = TREE_LABEL;
 			if (!filterChoice.contains("None")) header += "(" + filterChoice + ")";
 			if (!sTable.hasContext()) sTable.setContext(getContext());
 			sTable.summarize(commonSummaryTable, header);
-			updateDisplayAndSaveCommonSummaryTable();
+			threadService.queue(() -> updateDisplayAndSaveCommonSummaryTable());
 		}
 
 	}

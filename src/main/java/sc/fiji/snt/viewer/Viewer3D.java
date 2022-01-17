@@ -177,6 +177,7 @@ import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.BrainAnnotationCmd;
 import sc.fiji.snt.plugin.ConvexHullCmd;
 import sc.fiji.snt.plugin.GroupAnalyzerCmd;
+import sc.fiji.snt.plugin.ShollAnalysisBulkTreeCmd;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.plugin.StrahlerCmd;
 import sc.fiji.snt.util.PointInImage;
@@ -3972,12 +3973,17 @@ public class Viewer3D {
 			measureMenu.add(convexHullMenuItem);
 			mi = GuiUtils.MenuItems.shollAnalysis();
 			mi.addActionListener(e -> {
-				final Tree tree = getSingleSelectionTree();
-				if (tree == null) return;
+				final List<Tree> trees = getSelectedTrees();
+				if (trees == null || trees.isEmpty()) return;
 				final Map<String, Object> input = new HashMap<>();
-				input.put("snt", null);
-				input.put("tree", tree);
-				runCmd(ShollAnalysisTreeCmd.class, input, CmdWorker.DO_NOTHING, false, false);
+				if (trees.size() == 1) {
+					input.put("snt", null);
+					input.put("tree", trees.get(0));
+					runCmd(ShollAnalysisTreeCmd.class, input, CmdWorker.DO_NOTHING, false, false);
+				} else {
+					input.put("treeList", trees);
+					runCmd(ShollAnalysisBulkTreeCmd.class, input, CmdWorker.DO_NOTHING, false, false);
+				}
 			});
 			measureMenu.add(mi);
 			mi = GuiUtils.MenuItems.strahlerAnalysis();
