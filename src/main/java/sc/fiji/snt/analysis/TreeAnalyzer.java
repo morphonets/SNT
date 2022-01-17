@@ -460,8 +460,7 @@ public class TreeAnalyzer extends ContextCommand {
 		if (table == null) table = new SNTTable();
 		final Collection<String> measuringMetrics = (metrics == null || metrics.isEmpty()) ? getMetrics() : metrics;
 		if (groupByType) {
-			for (final int type : tree.getSWCTypes()) {
-				if (type == Path.SWC_SOMA) continue;
+			for (final int type : tree.getSWCTypes(false)) {
 				restrictToSWCType(type);
 				final int row = getNextRow(rowHeader);
 				table.set(getCol("SWC Type(s)"), row, Path.getSWCtypeName(type, true));
@@ -478,7 +477,7 @@ public class TreeAnalyzer extends ContextCommand {
 
 	protected String getSWCTypesAsString() {
 		final StringBuilder sb = new StringBuilder();
-		final Set<Integer> types = tree.getSWCTypes();
+		final Set<Integer> types = tree.getSWCTypes(true);
 		for (int type: types) {
 			sb.append(Path.getSWCtypeName(type, true)).append(" ");
 		}

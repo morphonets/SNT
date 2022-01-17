@@ -3802,7 +3802,7 @@ public class Viewer3D {
 		private Tree getSingleSelectionTreeWithPromptForType() {
 			Tree tree = getSingleSelectionTree();
 			if (tree == null) return null;
-			final Set<Integer> types = tree.getSWCTypes();
+			final Set<Integer> types = tree.getSWCTypes(false);
 			if (types.size() == 1)
 				return tree;
 			final String compartment = guiUtils.getChoice("Compartment:", "Which Neuronal Processes?",

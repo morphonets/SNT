@@ -613,11 +613,16 @@ public class Tree implements TreeProperties {
 	 *         {@link Path#SWC_DENDRITE}, etc.) present in the tree
 	 */
 	public Set<Integer> getSWCTypes() {
+		return getSWCTypes(true); // backwardsCompatibility
+	}
+
+	public Set<Integer> getSWCTypes(final boolean includeSoma) {
 		final HashSet<Integer> types = new HashSet<>();
 		final Iterator<Path> it = tree.iterator();
 		while (it.hasNext()) {
 			types.add(it.next().getSWCType());
 		}
+		if (!includeSoma) types.remove(Path.SWC_SOMA);
 		return types;
 	}
 
