@@ -126,6 +126,7 @@ import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
+import org.scijava.command.ContextCommand;
 import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
@@ -179,6 +180,7 @@ import sc.fiji.snt.plugin.ConvexHullCmd;
 import sc.fiji.snt.plugin.GroupAnalyzerCmd;
 import sc.fiji.snt.plugin.ShollAnalysisBulkTreeCmd;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
+import sc.fiji.snt.plugin.StrahlerBulkCmd;
 import sc.fiji.snt.plugin.StrahlerCmd;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -3988,11 +3990,13 @@ public class Viewer3D {
 			measureMenu.add(mi);
 			mi = GuiUtils.MenuItems.strahlerAnalysis();
 			mi.addActionListener(e -> {
-				final Tree tree = getSingleSelectionTreeWithPromptForType();
-				if (tree == null) return;
-				final StrahlerCmd sa = new StrahlerCmd(tree);
-				sa.setContext(context);
-				SwingUtilities.invokeLater(() -> sa.run());
+				final List<Tree> trees = getSelectedTrees();
+				if (trees == null || trees.isEmpty()) return;
+				final ContextCommand cmd = (trees.size() == 1)
+						? new StrahlerCmd(trees.get(0))
+						: new StrahlerBulkCmd(trees);
+				cmd.setContext(context);
+				SwingUtilities.invokeLater(() -> cmd.run());
 			});
 			measureMenu.add(mi);
 			GuiUtils.addSeparator(measureMenu, "Annotation Graphs:");
