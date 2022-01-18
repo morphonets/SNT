@@ -3915,14 +3915,9 @@ public class Viewer3D {
 				});
 			});
 			measureMenu.add(mi);
-			mi = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.SAVE);
-			mi.addActionListener(e -> {
-				runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING, false, true);
-			});
-			measureMenu.add(mi);
 			GuiUtils.addSeparator(measureMenu, "Distribution Analysis:");
 			mi = new JMenuItem("Branch Properties...", IconFactory.getMenuIcon(GLYPH.CHART));
-			mi.setToolTipText("Computes metrics from all the branches of selected trees");
+			mi.setToolTipText("Computes distributions of metrics from all the branches of selected trees");
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
 				if (trees == null || trees.isEmpty()) return;
@@ -3933,7 +3928,7 @@ public class Viewer3D {
 			});
 			measureMenu.add(mi);
 			mi = new JMenuItem("Cell Properties...", IconFactory.getMenuIcon(GLYPH.CHART));
-			mi.setToolTipText("Computes metrics from individual cells");
+			mi.setToolTipText("Computes distributions of metrics from individual cells");
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
 				if (trees == null || trees.isEmpty()) return;
@@ -3943,7 +3938,7 @@ public class Viewer3D {
 				runCmd(DistributionCPCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			GuiUtils.addSeparator(measureMenu, "Single-Cell Analysis:");
+			GuiUtils.addSeparator(measureMenu, "Specialized Analysis:");
 			mi = new JMenuItem("Brain Area Analysis...", IconFactory.getMenuIcon(GLYPH.BRAIN));
 			mi.addActionListener(e -> {
 				final Tree tree = getSingleSelectionTree();
@@ -3953,21 +3948,13 @@ public class Viewer3D {
 				runCmd(BrainAnnotationCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			mi = GuiUtils.MenuItems.createDendrogram();
-			mi.addActionListener(e -> {
-				final Tree tree = getSingleSelectionTreeWithPromptForType();
-				if (tree == null) return;
-				final Map<String, Object> inputs = new HashMap<>();
-				inputs.put("tree", tree);
-				runCmd(GraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
-			});
-			measureMenu.add(mi);
 			final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
 			convexHullMenuItem.addActionListener(e -> {
-				final Tree tree = getSingleSelectionTree();
-				if (tree == null) return;
+				final List<Tree> trees = getSelectedTrees();
+				if (trees == null || trees.isEmpty()) return;
 				final Map<String, Object> inputs = new HashMap<>();
-				inputs.put("tree", tree);
+				inputs.put("trees", trees);
+				inputs.put("calledFromRecViewerInstance", true);
 				initTable();
 				inputs.put("table", table);
 				runCmd(ConvexHullCmd.class, inputs, CmdWorker.DO_NOTHING, true, true);
@@ -3999,7 +3986,16 @@ public class Viewer3D {
 				SwingUtilities.invokeLater(() -> cmd.run());
 			});
 			measureMenu.add(mi);
-			GuiUtils.addSeparator(measureMenu, "Annotation Graphs:");
+			GuiUtils.addSeparator(measureMenu, "Graph-based Analysis:");
+			mi = GuiUtils.MenuItems.createDendrogram();
+			mi.addActionListener(e -> {
+				final Tree tree = getSingleSelectionTreeWithPromptForType();
+				if (tree == null) return;
+				final Map<String, Object> inputs = new HashMap<>();
+				inputs.put("tree", tree);
+				runCmd(GraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+			});
+			measureMenu.add(mi);
 			mi = new JMenuItem("Create Annotation Graph...", IconFactory.getMenuIcon(GLYPH.BRAIN));
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
@@ -4009,6 +4005,13 @@ public class Viewer3D {
 				runCmd(AnnotationGraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
+			GuiUtils.addSeparator(measureMenu, "Data Export & Utilities:");
+			mi = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.SAVE);
+			mi.addActionListener(e -> {
+				runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING, false, true);
+			});
+			measureMenu.add(mi);
+			measureMenu.add(guiUtils.combineChartsMenuItem());
 			return measureMenu;
 		}
 
