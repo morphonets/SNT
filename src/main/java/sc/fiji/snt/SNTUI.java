@@ -2473,11 +2473,12 @@ public class SNTUI extends JDialog {
 		final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
 		convexHullMenuItem.addActionListener(e -> {
 			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
-			if (tree == null) return;
+			final Collection<Tree> trees = getPathManager().getMultipleTrees();
+			if (trees == null || trees.isEmpty()) return;
 			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("tree", tree);
+			inputs.put("trees", trees);
 			inputs.put("table", getPathManager().getTable());
+			inputs.put("calledFromRecViewerInstance", false);
 			(new CmdRunner(ConvexHullCmd.class, inputs, getState())).execute();
 		});
 		analysisMenu.add(convexHullMenuItem);

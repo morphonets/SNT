@@ -22,6 +22,8 @@
 
 package sc.fiji.snt.plugin;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,9 +67,13 @@ public class ConvexHullCmd extends ContextCommand {
     private DisplayService displayService;
 
     @Parameter
-    private Tree tree;
+    private Collection<Tree> trees;
     @Parameter(required = false)
     private Viewer3D recViewer;
+    @Parameter(required = false, persist=false)
+    private boolean calledFromRecViewerInstance;;
+    @Parameter(required = false)
+    private Viewer2D recPlotter;
     @Parameter(required = false)
     private SNTTable table;
 
@@ -103,76 +109,81 @@ public class ConvexHullCmd extends ContextCommand {
 
     @Override
     public void run() {
-        final boolean is3D = tree.is3D();
+    	if (trees == null || trees.isEmpty()) {
+    		cancel("At least a reconstruction is required but none was found.");
+    		return;
+    	}
+        if (table == null) {
+        	table = (sntService.isActive()) ?  table = sntService.getTable() : new SNTTable();
+        }
+    	trees.forEach(tree -> run(tree));
+    	if (showResult) {
+        	if (recPlotter != null) recPlotter.show();
+        	if (recViewer != null) recViewer.show();
+    	}
+    }
+
+	private void run(final Tree tree) {
+		final boolean is3D = tree.is3D();
         Tree axon;
         Tree dendrite = null;
-        splitCompartments = splitCompartments && tree.getSWCTypes().size() > 1;
-        if (splitCompartments) {
+        boolean splitByType = splitCompartments && tree.getSWCTypes(false).size() > 1;
+        if (splitByType) {
             axon = tree.subTree("axon");
             dendrite = tree.subTree("dendrite");
             if (axon.isEmpty() && dendrite.isEmpty()) {
-                splitCompartments = false;
+            	splitByType = false;
                 axon = tree;
             }
         } else {
             axon = tree;
         }
-        if (table == null) {
-        	table = (sntService.isActive()) ?  table = sntService.getTable() : new SNTTable();
-        }
+
         AbstractConvexHull axonHull = null;
         AbstractConvexHull dendriteHull = null;
         final String baseLabel = (tree.getLabel() == null || tree.getLabel().isEmpty()) ? "Tree" : tree.getLabel();
 		if (axon != null && !axon.isEmpty()) {
 			axonHull = computeHull(axon);
-			measure(axonHull, table,  (splitCompartments) ? baseLabel + " Axon" : baseLabel);
+			measure(axonHull, table, (splitByType) ? baseLabel + " Axon" : baseLabel);
 		}
 		if (dendrite != null && !dendrite.isEmpty()) {
 			dendriteHull = computeHull(dendrite);
 			measure(dendriteHull, table, baseLabel + " Dendrites");
 		}
 		if (showResult) {
-            if (is3D) {
-                if (recViewer == null) {
+            if (is3D || calledFromRecViewerInstance) {
+                if (recViewer == null) { // should never happen if calledFromRecViewerInstance
                 	recViewer = sntService.getRecViewer();
                 }
                 final boolean inputTreeDisplayed = recViewer.getTrees().contains(tree);
                 if (axonHull != null) {
                     final String aColor = axon.getProperties().getProperty(Tree.KEY_COLOR, "cyan");
                     if (!inputTreeDisplayed) {
-                        if ("cyan".equals(aColor))
-                            axon.setColor("cyan");
                         recViewer.add(axon);
                     }
-                    final Annotation3D surface = new Annotation3D(((ConvexHull3D)axonHull).getMesh(),
-                    		new ColorRGB(aColor), "Convex Hull " + baseLabel + " [axon]");
-                    recViewer.add(surface);
+	                addHullToRecViewer(axonHull, (splitByType) ? baseLabel + " Axon" : baseLabel, aColor);
                 }
                 if (dendriteHull != null) {
                     final String dColor = dendrite.getProperties().getProperty(Tree.KEY_COLOR, "orange");
                     if (!inputTreeDisplayed) {
-                        if ("orange".equals(dColor))
-                            dendrite.setColor("orange");
-                        recViewer.add(dendrite);
+                        recViewer.addTree(dendrite);
                     }
-                    final Annotation3D surface = new Annotation3D(((ConvexHull3D)dendriteHull).getMesh(),
-                    		new ColorRGB(dColor), "Convex Hull " + baseLabel + " [dendrite]");
-                    recViewer.add(surface);
+                    addHullToRecViewer(dendriteHull, baseLabel + " Dendrites", dColor);
                 }
-                recViewer.show();
             } else {
-                final Viewer2D v = new Viewer2D(getContext());
+                if (recPlotter == null) {
+                	recPlotter = new Viewer2D(getContext());
+                }
                 if (axonHull != null) {
-                	v.setDefaultColor(Colors.RED);
-                    v.addPolygon(((ConvexHull2D)axonHull).getPolygon(), "Convex hull (axon)");
-                    v.add(axon, "blue");  // do not change tree color
+                	recPlotter.setDefaultColor(Colors.RED);
+                	recPlotter.addPolygon(((ConvexHull2D)axonHull).getPolygon(), "Convex hull (axon)");
+                	recPlotter.add(axon, "blue");
                 }
                 if (dendriteHull != null) {
-                	v.setDefaultColor(Colors.DARKGREEN);
-                    v.addPolygon(((ConvexHull2D)dendriteHull).getPolygon(), "Convex hull (dend)");
-                    v.add(dendrite, "magenta");
+                	recPlotter.setDefaultColor(Colors.DARKGREEN);
+                	recPlotter.addPolygon(((ConvexHull2D)dendriteHull).getPolygon(), "Convex hull (dend)");
+                	recPlotter.add(dendrite, "magenta");
                 }
-                v.show();
             }
         }
         if (!table.isEmpty()) {
@@ -183,7 +194,21 @@ public class ConvexHullCmd extends ContextCommand {
     			displayService.createDisplay("SNT Measurements", table);
     		}
         }
-    }
+	}
+
+	private void addHullToRecViewer(final AbstractConvexHull hull, final String identifier, final String color) {
+		Annotation3D surface;
+		if (hull instanceof ConvexHull3D) {
+			surface = new Annotation3D(((ConvexHull3D) hull).getMesh(), new ColorRGB(color),
+					"Convex Hull " + identifier);
+		} else if (hull instanceof ConvexHull2D) {
+			surface = new Annotation3D(((ConvexHull2D) hull).getPolygon(), new ColorRGB(color),
+					"Convex Hull " + identifier);
+		} else {
+			throw new IllegalArgumentException("Unsupported ConvexHull");
+		}
+		recViewer.add(surface);
+	}
 
 	private void measure(final AbstractConvexHull hull, final SNTTable table, final String rowLabel) {
 		table.insertRow(rowLabel);
@@ -243,7 +268,7 @@ public class ConvexHullCmd extends ContextCommand {
         SNTService snt = ij.get(SNTService.class);
         Tree t = snt.demoTree("fractal");
         Map<String, Object> inputs = new HashMap<>();
-        inputs.put("tree", t);
+        inputs.put("trees", Collections.singleton(t));
         CommandService cmd = ij.get(CommandService.class);
         cmd.run(ConvexHullCmd.class, true, inputs);
     }
