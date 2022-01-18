@@ -82,6 +82,7 @@ import java.util.Stack;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.swing.*;
 import javax.swing.JSpinner.DefaultEditor;
@@ -107,6 +108,7 @@ import org.scijava.util.Types;
 
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 
 /** Misc. utilities for SNT's GUI. */
@@ -1571,6 +1573,33 @@ public class GuiUtils {
 		final JDialog dialog = new HTMLDialog(msg, title, modal);
 		dialog.setVisible(true);
 		return dialog;
+	}
+
+	public JMenuItem combineChartsMenuItem() {
+		final JMenuItem jmi = new JMenuItem("Combine Plots Into Montage...", IconFactory.getMenuIcon(GLYPH.GRID));
+		jmi.setToolTipText("Combines isolated charts (plots, histograms, etc.) into a grid layout");
+		jmi.addActionListener(e -> combineOpenCharts());
+		return jmi;
+	}
+
+	private void combineOpenCharts() {
+		final List<SNTChart> charts = SNTChart.getOpenCharts().stream().filter(c -> !c.isCombined())
+				.collect(Collectors.toList());
+		if (charts.size() < 2) {
+			error("No charts available: Either no charts are currently open,"
+					+ " or displayed ones cannot be merged. Make sure that at  least"
+					+ " two single charts (histogram, plot, etc.) are open and retry.");
+		} else {
+
+			final Double rUser = getDouble("" + charts.size() + " charts are currently open."
+					+ " Enter the number of rows to be used in the montage (leave empty for default"
+					+ " settings):", "Combine Charts", -1);
+			if (rUser == null)
+				return; // user pressed cancel
+			final int r = (rUser.isNaN()) ? -1 : rUser.intValue();
+			final int c = (r == -1) ? -1 : charts.size() - charts.size() / r + 1;
+			SNTChart.combinedFrame(charts, r, c).setVisible(true);
+		}
 	}
 
 	/** Tweaked version of ij.gui.HTMLDialog that is aware of parent */

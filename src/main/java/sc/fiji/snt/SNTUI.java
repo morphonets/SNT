@@ -2624,6 +2624,8 @@ public class SNTUI extends JDialog {
 		});
 		hideViewsMenu.add(threeDViewerMenuItem);
 		viewMenu.add(hideViewsMenu);
+		viewMenu.addSeparator();
+		viewMenu.add(guiUtils.combineChartsMenuItem());
 		return menuBar;
 	}
 

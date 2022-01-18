@@ -114,6 +114,7 @@ public class SNTChart extends ChartFrame {
 
 	private static final long serialVersionUID = 5245298401153759551L;
 	private static final Color BACKGROUND_COLOR = Color.WHITE;
+	private boolean isCombined;
 
 	public SNTChart(final String title, final JFreeChart chart) {
 		this(title, chart, new Dimension(400, 400));
@@ -984,6 +985,15 @@ public class SNTChart extends ChartFrame {
 		}
 	}
 
+	/**
+	 * Checks if this chart is part of a multi-panel montage
+	 *
+	 * @return true, if is combined
+	 */
+	public boolean isCombined() {
+		return isCombined;
+	}
+
 	public static List<SNTChart> getOpenCharts() {
 		final List<SNTChart> sntCharts = new ArrayList<>();
 		for (final Window win : Window.getWindows()) {
@@ -1009,8 +1019,8 @@ public class SNTChart extends ChartFrame {
 		String label;
 
 		MultiSNTChart(final Collection<SNTChart> charts, final int rows, final int cols) {
-			if (charts == null)
-				throw new IllegalArgumentException("Cannot instantiate a grid from a null list of viewers");
+			if (charts == null || charts.isEmpty())
+				throw new IllegalArgumentException("Invalid chart list");
 			this.charts = charts;
 			if (rows == -1 || cols == -1)
 				grid = splitIntoParts(charts.size(), 2);
@@ -1024,7 +1034,7 @@ public class SNTChart extends ChartFrame {
 		}
 
 		String getLabel() {
-			return (label == null) ? "Combined Chart" : label;
+			return (label == null) ? "Combined Charts" : label;
 		}
 
 		JFrame getJFrame() {
@@ -1044,7 +1054,10 @@ public class SNTChart extends ChartFrame {
 			frame.add(panel);
 			panel.setToolTipText("Use the \"Save Tables & Analysis Plots...\" command to save panel(s)");
 			final boolean allVisible = charts.stream().allMatch(c -> c.isVisible());
-			charts.forEach(chart -> panel.add(chart.getChartPanel()));
+			charts.forEach(chart -> {
+				panel.add(chart.getChartPanel());
+				chart.isCombined = true;
+			});
 			// panel.setBackground(charts.get(charts.size()-1).getBackground());
 			frame.pack();
 			final Dimension sSize = Toolkit.getDefaultToolkit().getScreenSize();

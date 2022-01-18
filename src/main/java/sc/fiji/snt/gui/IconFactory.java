@@ -110,6 +110,7 @@ public class IconFactory {
 			FOOTPRINTS('\uf54b', true), //
 			GEM('\uf3a5', true), //
 			//GLOBE('\uf0ac', true), //
+			GRID('\uf00a', true), //
 			GRADUATION_CAP('\uf19d', true), //
 			HAND('\uf256', false), //
 			HOME('\uf015', true), //
