@@ -31,6 +31,7 @@ import java.util.List;
 import net.imagej.mesh.Mesh;
 import net.imagej.mesh.Triangle;
 import net.imagej.mesh.Triangles;
+import net.imglib2.roi.geom.real.Polygon2D;
 
 import org.jzy3d.colors.Color;
 import org.jzy3d.maths.Coord3d;
@@ -121,6 +122,15 @@ public class Annotation3D {
 		this.label = label;
 	}
 
+	public Annotation3D(final Polygon2D polygon, final ColorRGB color, final String label) {
+		this.viewer = null;
+		this.points = null;
+		type = SURFACE;
+		size = Viewer3D.DEF_NODE_RADIUS;
+		drawable = polygonToDrawable(polygon, new Color(color.getRed(), color.getGreen(), color.getBlue()));
+		this.label = label;
+	}
+
 	public Annotation3D(final Mesh mesh, final String label) {
 		this.viewer = null;
 		this.points = null;
@@ -143,6 +153,20 @@ public class Annotation3D {
 
 	public static Drawable meshToDrawable(final Mesh mesh) {
 		return meshToDrawable(mesh, new Color(1f, 1f, 1f, 0.05f));
+	}
+
+	private static Drawable polygonToDrawable(final Polygon2D polygon, final Color color) {
+		final Polygon polyg = new Polygon();
+		polygon.vertices().forEach(vx -> {
+			final double[] pos = vx.positionAsDoubleArray();
+			polyg.add(new Coord3d(pos[0], pos[1], 0));
+		});
+		final Shape surface = new Shape(Collections.singletonList(polyg));
+		surface.setColor(color.alphaSelf(0.25f));
+		surface.setWireframeColor(Utils.contrastColor(color).alphaSelf(0.8f));
+		surface.setFaceDisplayed(true);
+		surface.setWireframeDisplayed(true);
+		return surface;
 	}
 
 	private static Drawable meshToDrawable(Mesh mesh, final Color color) {
