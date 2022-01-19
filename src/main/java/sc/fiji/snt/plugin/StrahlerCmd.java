@@ -78,7 +78,7 @@ public class StrahlerCmd extends ContextCommand {
 	private static SNTTable table;
 
 	/**
-	 * Instantiates a new StrahlerCmd. Tree(s) to be analyzed expected as input
+	 * Instantiates a new StrahlerCmd. Trees to be analyzed expected as input
 	 * {@code @parameter}
 	 */
 	public StrahlerCmd() {
@@ -240,6 +240,43 @@ public class StrahlerCmd extends ContextCommand {
 		return table;
 	}
 
+	/**
+	 * Assesses if all trees being analyzed can be parsed (A tree won't be parsed,
+	 * if topologically invalid, e.g., by containing a loop, or disconnected Paths).
+	 *
+	 * @return true, if successful
+	 */
+	public boolean validInput() {
+		initMap();
+		return dataMap.values().stream().allMatch(analyzer -> analyzer.parseable());
+	}
+
+	/**
+	 * Returns the Tree(s) successfully parsed (i.e., topologically valid)
+	 *
+	 * @return the list of parsable trees
+	 */
+	public List<Tree> getValidTrees() {
+		initMap();
+		return dataMap.values().stream()
+				.filter( analyzer -> analyzer.parseable())
+				.map( analyzer -> analyzer.tree)
+				.collect(Collectors.toCollection(ArrayList::new));
+	}
+
+	/**
+	 * Returns the Tree(s) that could not be parsed (i.e., topologically valid)
+	 *
+	 * @return the list of non-parsable trees
+	 */
+	public List<Tree> getInvalidTrees() {
+		initMap();
+		return dataMap.values().stream()
+				.filter( analyzer -> !analyzer.parseable())
+				.map( analyzer -> analyzer.tree)
+				.collect(Collectors.toCollection(ArrayList::new));
+	}
+
 	private void populateTable(final SNTTable table) {
 		initMap();
 		final DecimalFormat iDF = new DecimalFormat("#");
@@ -282,11 +319,17 @@ public class StrahlerCmd extends ContextCommand {
 			throw new IllegalArgumentException("Unrecognized metric");
 	}
 
+	private String toString(final Map<Integer, Double> map, final DecimalFormat df) {
+		return map.keySet().stream().map(key -> key + ":" + df.format(map.get(key))).collect(Collectors.joining("; "));
+	}
+
 	private class StrahlerData {
 		final StrahlerAnalyzer analyzer;
+		final Tree tree;
 
 		StrahlerData(final Tree tree) {
 			this.analyzer = new StrahlerAnalyzer(tree);
+			this.tree = tree;
 		}
 
 		boolean parseable() {
@@ -296,10 +339,6 @@ public class StrahlerCmd extends ContextCommand {
 				return false;
 			}
 		}
-	}
-
-	private String toString(final Map<Integer, Double> map, final DecimalFormat df) {
-		return map.keySet().stream().map(key -> key + ":" + df.format(map.get(key))).collect(Collectors.joining("; "));
 	}
 
 	public static void main(final String[] args) {

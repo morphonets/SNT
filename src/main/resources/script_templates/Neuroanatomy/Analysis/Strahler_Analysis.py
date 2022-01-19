@@ -6,14 +6,13 @@
 """
 file:       Strahler_Analysis.py
 author:     Tiago Ferreira
-version:    20201101
+version:    20220110
 info:       Performs Strahler Analysis on a single reconstruction file.
             See Batch>Strahler_Bulk_Analysis for a batch processing alternative.
 """
 
 from sc.fiji.snt import Tree
 from sc.fiji.snt.plugin import StrahlerCmd
-
 
 
 def main():
@@ -34,13 +33,10 @@ def main():
                     continue
             sa = StrahlerCmd(tree)
             sa.setContext(ij.context())
-            if not sa.validStructure():
+            if not sa.validInput():
                 msg.append("%s is not a valid structure!?" % tree.getLabel())
                 continue
-            table_title = "%s_StrahlerTable" % tree.getLabel()
-            chart_title = "%s_StrahlerPlot" % tree.getLabel()
-            ij.ui().show(table_title, sa.getTable())
-            ij.ui().show(chart_title, sa.getCategoryChart())
+            sa.run()
     if msg:
         ij.ui().showDialog("<HTML>The following errors occured:<br>%s" % '<br>'.join(msg), "Analysis Completed")
 
