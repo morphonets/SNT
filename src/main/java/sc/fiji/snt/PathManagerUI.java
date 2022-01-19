@@ -197,11 +197,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		editMenu.add(getRenameMenuItem(singlePathListener));
 		editMenu.addSeparator();
 
-		final JMenuItem primaryMitem = new JMenuItem(
-			SinglePathActionListener.MAKE_PRIMARY_CMD);
-		primaryMitem.setToolTipText("Makes a single selected path primary");
-		primaryMitem.addActionListener(singlePathListener);
-		editMenu.add(primaryMitem);
 		JMenuItem jmi = new JMenuItem(MultiPathActionListener.MERGE_PRIMARY_PATHS_CMD);
 		jmi.setToolTipText("Merges selected primary path(s) into a common root");
 //		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.LINK)); // link icon confusing!?
@@ -2232,7 +2227,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private class SinglePathActionListener implements ActionListener {
 
 		private final static String RENAME_CMD = "Rename...";
-		private final static String MAKE_PRIMARY_CMD = "Make Primary";
 		private final static String DUPLICATE_CMD = "Duplicate...";
 		private final static String EXPLORE_FIT_CMD = "Explore/Preview Fit";
 		private final static String STRAIGHTEN = "Straighten...";
@@ -2264,13 +2258,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						}
 						refreshManager(false, false, Collections.singleton(p));
 					}
-					return;
-				case MAKE_PRIMARY_CMD:
-					final HashSet<Path> pathsExplored = new HashSet<>();
-					p.setIsPrimary(true);
-					pathsExplored.add(p);
-					p.unsetPrimaryForConnected(pathsExplored);
-					removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.ORDER_TAG_CMD, false, true);
 					return;
 
 				case DUPLICATE_CMD:

@@ -1182,15 +1182,6 @@ public class Path implements Comparable<Path> {
 		}
 	}
 
-	protected void unsetPrimaryForConnected(final HashSet<Path> pathsExplored) {
-		for (final Path p : somehowJoins) {
-			if (pathsExplored.contains(p)) continue;
-			p.setIsPrimary(false);
-			pathsExplored.add(p);
-			p.unsetPrimaryForConnected(pathsExplored);
-		}
-	}
-
 	public Path reversed() {
 		final Path c = createPath();
 		c.points = points;
