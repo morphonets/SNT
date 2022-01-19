@@ -2517,10 +2517,10 @@ public class SNTUI extends JDialog {
 		final JMenuItem strahlerMenuItem = GuiUtils.MenuItems.strahlerAnalysis();
 		strahlerMenuItem.addActionListener(e -> {
 			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
-			if (tree == null) return;
+			final Collection<Tree> trees = getPathManager().getMultipleTrees();
+			if (trees == null || trees.isEmpty()) return;
 			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("tree", tree);
+			inputs.put("trees", trees);
 			(new CmdRunner(StrahlerCmd.class, inputs, getState())).execute();
 		});
 		analysisMenu.add(strahlerMenuItem);

@@ -22,14 +22,24 @@
 
 package sc.fiji.snt.plugin;
 
+import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
-import java.util.stream.IntStream;
+import java.util.Map.Entry;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
-import org.scijava.app.StatusService;
+import javax.swing.JFrame;
+
 import org.scijava.command.ContextCommand;
+import org.scijava.display.Display;
+import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
-import org.scijava.ui.UIService;
+import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
 import net.imagej.ImageJ;
@@ -43,166 +53,263 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.StrahlerAnalyzer;
+import sc.fiji.snt.util.SNTColor;
 
 /**
- * Command to perform Horton-Strahler analysis on a {@link Tree}.
+ * Command to perform Horton-Strahler analysis on a collection of {@link Tree}s
  *
  * @author Tiago Ferreira
  */
 public class StrahlerCmd extends ContextCommand {
 
 	@Parameter
+	private DisplayService displayService;
+
+	@Parameter
 	private PlotService plotService;
 
 	@Parameter
-	private UIService uiService;
-
-	@Parameter
-	private StatusService statusService;
+	private SNTService sntService;
 
 	@Parameter(required = false)
-	private Tree tree;
+	private Collection<Tree> trees;
 
-	private StrahlerAnalyzer sAnalyzer;
-	private Map<Integer, Double> tLengthMap;
-	private Map<Integer, Double> bPointsMap;
-	private Map<Integer, Double> nBranchesMap;
-	private Map<Integer, Double> bRatioMap;
-	private int maxOrder;
-
+	private Map<String, StrahlerData> dataMap;
+	private static SNTTable table;
 
 	/**
-	 * Instantiates a new StrahlerCmd. A {@code tree} is is expected to have been
-	 * specified as input {@code @parameter}
+	 * Instantiates a new StrahlerCmd. Tree(s) to be analyzed expected as input
+	 * {@code @parameter}
 	 */
 	public StrahlerCmd() {
-		// tree is expected as @parameter
+		// tree or trees expected as @parameter
 	}
 
 	/**
 	 * Instantiates a new StrahlerCmd.
 	 *
-	 * @param tree the Tree to be analyzed
+	 * @param trees the collection of Trees to be analyzed
 	 */
-	public StrahlerCmd(final Tree tree) {
-		this.tree = tree;
+	public StrahlerCmd(final Collection<Tree> trees) {
+		this.trees = trees;
 	}
 
-	private void compute() throws IllegalArgumentException {
-		if (sAnalyzer != null) return;
-		statusService.showStatus("Classifying branches...");
-		sAnalyzer = new StrahlerAnalyzer(tree);
-		maxOrder = sAnalyzer.getRootNumber();
-		tLengthMap = sAnalyzer.getLengths();
-		nBranchesMap = sAnalyzer.getBranchCounts();
-		bPointsMap = sAnalyzer.getBranchPointCounts();
-		bRatioMap = sAnalyzer.getBifurcationRatios();
+	/**
+	 * Instantiates a new StrahlerCmd for a single Tree
+	 *
+	 * @param tree the single Tree to be analyzed
+	 */
+	public StrahlerCmd(final Tree tree) {
+		this.trees = Collections.singleton(tree);
 	}
 
 	@Override
 	public void run() {
-		if (tree == null || tree.isEmpty()) {
-			cancel("No Paths to Measure");
+		if (trees == null || trees.isEmpty()) {
+			cancel("No valid reconstruction(s) to parse.");
 			return;
 		}
-		try {
-			uiService.show("SNT: Strahler Table", getTable());
+		final Display<?> display = displayService.getDisplay("SNT Strahler Table");
+		final boolean newTableRequired = table == null || display == null || !display.isDisplaying(table);
+		if (newTableRequired) {
+			table = new SNTTable();
+		}
+		populateTable(table);
+		if (newTableRequired) {
+			displayService.createDisplay("SNT Strahler Table", table);
+		} else {
+			display.update();
+		}
+		if (trees.size() == 1) {
 			getChart().show();
-			//uiService.show("SNT: Strahler Plot", getCategoryChart());
-		} catch (final IllegalArgumentException ex) {
-			cancel("Analysis could not be performed: " + ex.getLocalizedMessage() + "\n"
-			+ "Please ensure you select a single set of connected paths (one root exclusively)");
-		} finally {
-			statusService.clearStatus();
+		} else {
+			final List<SNTChart> charts = new ArrayList<>();
+			charts.add(getChart("length"));
+			charts.add(getChart("branches"));
+			charts.add(getChart("bifurcation"));
+			charts.add(getChart("fragmentation"));
+			charts.add(getChart("contraction"));
+			final JFrame combinedFrame = SNTChart.combinedFrame(charts);
+			combinedFrame.setTitle("Combined Strahler Plots");
+			combinedFrame.setVisible(true);
 		}
 	}
 
-	/**
-	 * Assesses if tree contains multiple roots or loops
-	 *
-	 * @return true, if successful
-	 */
-	public boolean validStructure() {
-		try {
-			compute();
-		} catch (final IllegalArgumentException ex) {
-			return false;
+	private void initMap() {
+		if (dataMap == null) {
+			dataMap = new TreeMap<>();
+			int i = 1;
+			for (final Tree tree : trees) {
+				dataMap.put((tree.getLabel() == null) ? "Tree " + i++ : tree.getLabel(), new StrahlerData(tree));
+			}
 		}
-		return true;
 	}
 
-	/**
-	 * Returns the Strahler chart.
-	 *
-	 * @return the Strahler chart
-	 * @see #getChart()
-	 * @throws IllegalArgumentException if tree contains multiple roots or loops
-	 */
-	public CategoryChart<Integer> getCategoryChart() throws IllegalArgumentException {
-
-		compute();
+	private CategoryChart<Integer> getSingleTreeChart(final StrahlerData sd) throws IllegalArgumentException {
+		if (!sd.parseable()) {
+			throw new IllegalArgumentException("");
+		}
 		final CategoryChart<Integer> chart = plotService.newCategoryChart(Integer.class);
 		chart.categoryAxis().setLabel("Horton-Strahler order");
 		chart.categoryAxis().setOrder(Comparator.reverseOrder());
-
-		final LineSeries<Integer> series1 = chart.addLineSeries();
-		series1.setLabel("No. of branches");
-		series1.setValues(nBranchesMap);
-		series1.setStyle(chart.newSeriesStyle(Colors.BLUE, LineStyle.SOLID, MarkerStyle.CIRCLE));
-
-		final LineSeries<Integer> series2 = chart.addLineSeries();
-		series2.setLabel("Length");
-		series2.setValues(tLengthMap);
-		series2.setStyle(chart.newSeriesStyle(Colors.RED, LineStyle.SOLID, MarkerStyle.CIRCLE));
-		
-		final LineSeries<Integer> series3 = chart.addLineSeries();
-		series3.setLabel("Bifurcation ratio");
-		series3.setValues(bRatioMap);
-		series3.setStyle(chart.newSeriesStyle(Colors.BLACK, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		LineSeries<Integer> series = chart.addLineSeries();
+		series.setLabel("Length (sum)");
+		series.setValues(sd.analyzer.getLengths());
+		series.setStyle(chart.newSeriesStyle(Colors.BLUE, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series = chart.addLineSeries();
+		series.setLabel("No. of branches");
+		series.setValues(sd.analyzer.getBranchCounts());
+		series.setStyle(chart.newSeriesStyle(Colors.RED, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series = chart.addLineSeries();
+		series.setLabel("Bif. ratio");
+		series.setValues(sd.analyzer.getBifurcationRatios());
+		series.setStyle(chart.newSeriesStyle(Colors.DARKORANGE, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series = chart.addLineSeries();
+		series.setLabel("Avg. contraction");
+		series.setValues(sd.analyzer.getAvgContractions());
+		series.setStyle(chart.newSeriesStyle(Colors.DARKMAGENTA, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series = chart.addLineSeries();
+		series.setLabel("Avg. fragmentation");
+		series.setValues(sd.analyzer.getAvgFragmentations());
+		series.setStyle(chart.newSeriesStyle(Colors.DARKGREEN, LineStyle.SOLID, MarkerStyle.CIRCLE));
 		return chart;
 	}
 
 	/**
-	 * A variant of {@link #getCategoryChart()} that returns the Strahler chart as a
-	 * {@link SNTChart} object.
+	 * Returns the 'complete Strahler chart' (e.g., all metrics in a single panel),
+	 * when analyzing a single tree. If multiple trees are being analyzed, returns
+	 * the chart for the 'length' metric.
 	 *
-	 * @return the Strahler chart as a {@link SNTChart} object
-	 * @throws IllegalArgumentException if tree contains multiple roots or loops
+	 * @return the Strahler chart
 	 */
-	public SNTChart getChart() throws IllegalArgumentException {
-		final String title = (tree.getLabel()== null) ? "Strahler Plot" : tree.getLabel() + "Strahler Plot";
-		return new SNTChart(title, getCategoryChart());
+	public SNTChart getChart() {
+		if (trees.size() == 1) {
+			final Entry<String, StrahlerData> entry = dataMap.entrySet().iterator().next();
+			return new SNTChart("Strahler Plot " + entry.getKey(), getSingleTreeChart(entry.getValue()));
+		} else {
+			return getChart("length");
+		}
 	}
 
-	
 	/**
-	 * Gets the Strahler table.
+	 * Returns a 'Strahler chart' for the specified metric.
+	 *
+	 * @param metric either "avg contraction", "avg fragmentation", "bifurcation
+	 *               ratio", "branch count", or "length" (default)
+	 * @return the Strahler chart
+	 */
+	public SNTChart getChart(final String metric) {
+		final String normMetric = normalizedMetric(metric);
+		initMap();
+		final CategoryChart<Integer> chart = plotService.newCategoryChart(Integer.class);
+		chart.categoryAxis().setLabel("Horton-Strahler order");
+		chart.categoryAxis().setOrder(Comparator.reverseOrder());
+		chart.numberAxis().setLabel(normMetric);
+		final ColorRGB[] colors = SNTColor.getDistinctColors(trees.size());
+		final int[] idx = { 0 };
+		dataMap.forEach((label, data) -> {
+			final LineSeries<Integer> series = chart.addLineSeries();
+			series.setLabel(label);
+			series.setStyle(chart.newSeriesStyle(colors[idx[0]++], LineStyle.SOLID, MarkerStyle.CIRCLE));
+			if (data.parseable()) {
+				if (normMetric.toLowerCase().contains("length"))
+					series.setValues(data.analyzer.getLengths());
+				else if (normMetric.contains("branch"))
+					series.setValues(data.analyzer.getBranchCounts());
+				else if (normMetric.contains("ratio"))
+					series.setValues(data.analyzer.getBifurcationRatios());
+				else if (normMetric.contains("contract"))
+					series.setValues(data.analyzer.getAvgContractions());
+				else if (normMetric.contains("frag"))
+					series.setValues(data.analyzer.getAvgFragmentations());
+				else
+					throw new IllegalArgumentException("Unrecognized metric: " + normMetric);
+			}
+		});
+		return new SNTChart("Strahler Plot (" + normMetric + ")", chart);
+	}
+
+	/**
+	 * Gets the Strahler table containing the tabular results of the analysis.
 	 *
 	 * @return the Strahler table
-	 * @throws IllegalArgumentException if tree contains multiple roots or loops
 	 */
-	public SNTTable getTable() throws IllegalArgumentException {
-		compute();
+	public SNTTable getTable() {
 		final SNTTable table = new SNTTable();
-		IntStream.rangeClosed(1, maxOrder).forEach(order -> {
-			table.appendRow();
-			final int row = Math.max(0, table.getRowCount() - 1);
-			table.set("Horton-Strahler #", row, order);
-			table.set("Rev. Horton-Strahler #", row, maxOrder - order + 1);
-			table.set("Length (Sum)", row, tLengthMap.get(order));
-			table.set("# Branches", row, nBranchesMap.get(order));
-			table.set("Bifurcation ratio", row, bRatioMap.get(order));
-			table.set("# Branch Points", row, bPointsMap.get(order));
-		});
+		populateTable(table);
 		return table;
+	}
+
+	private void populateTable(final SNTTable table) {
+		initMap();
+		final DecimalFormat iDF = new DecimalFormat("#");
+		final DecimalFormat dDF = new DecimalFormat("#.###");
+		dataMap.forEach((label, data) -> {
+			int row = table.getRowIndex(label);
+			if (row < 0)
+				row = table.insertRow(label);
+			if (data.parseable()) {
+				table.set("Root no.", row, iDF.format(data.analyzer.getRootNumber()));
+				table.set("Avg. bif. ratio", row, dDF.format(data.analyzer.getAvgBifurcationRatio()));
+				table.set("Order:Measurement Pairs: Length (sum)", row, toString(data.analyzer.getLengths(), dDF));
+				table.set("Order:Measurement Pairs: No. of branches", row,
+						toString(data.analyzer.getBranchCounts(), iDF));
+				table.set("Order:Measurement Pairs: Bifurcation ratio", row,
+						toString(data.analyzer.getBifurcationRatios(), iDF));
+				table.set("Order:Measurement Pairs: Avg. contraction", row,
+						toString(data.analyzer.getAvgContractions(), iDF));
+				table.set("Order:Measurement Pairs: Avg. fragmentation", row,
+						toString(data.analyzer.getAvgFragmentations(), iDF));
+			} else {
+				table.set("Root no.", row, "Not parseable");
+			}
+		});
+	}
+
+	private String normalizedMetric(String metric) {
+		metric = metric.toLowerCase();
+		if (metric.contains("bif"))
+			return "Bifurcation ratio";
+		else if (metric.contains("branch"))
+			return "No. of branches";
+		else if (metric.contains("length"))
+			return "Length (sum)";
+		else if (metric.contains("frag"))
+			return "Avg. fragmentation";
+		else if (metric.contains("contract"))
+			return "Avg. contraction";
+		else
+			throw new IllegalArgumentException("Unrecognized metric");
+	}
+
+	private class StrahlerData {
+		final StrahlerAnalyzer analyzer;
+
+		StrahlerData(final Tree tree) {
+			this.analyzer = new StrahlerAnalyzer(tree);
+		}
+
+		boolean parseable() {
+			try {
+				return analyzer.getRootNumber() > 0;
+			} catch (final IllegalArgumentException ignored) {
+				return false;
+			}
+		}
+	}
+
+	private String toString(final Map<Integer, Double> map, final DecimalFormat df) {
+		return map.keySet().stream().map(key -> key + ":" + df.format(map.get(key))).collect(Collectors.joining("; "));
 	}
 
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
-		final Tree tree = sntService.demoTree("fractal");
-		final StrahlerCmd cmd = new StrahlerCmd(tree);
+		StrahlerCmd cmd = new StrahlerCmd(sntService.demoTrees());
+		cmd.setContext(ij.context());
+		cmd.run();
+		cmd = new StrahlerCmd(sntService.demoTree("op"));
 		cmd.setContext(ij.context());
 		cmd.run();
 	}

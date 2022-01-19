@@ -180,7 +180,6 @@ import sc.fiji.snt.plugin.ConvexHullCmd;
 import sc.fiji.snt.plugin.GroupAnalyzerCmd;
 import sc.fiji.snt.plugin.ShollAnalysisBulkTreeCmd;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
-import sc.fiji.snt.plugin.StrahlerBulkCmd;
 import sc.fiji.snt.plugin.StrahlerCmd;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -3979,9 +3978,7 @@ public class Viewer3D {
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
 				if (trees == null || trees.isEmpty()) return;
-				final ContextCommand cmd = (trees.size() == 1)
-						? new StrahlerCmd(trees.get(0))
-						: new StrahlerBulkCmd(trees);
+				final ContextCommand cmd = new StrahlerCmd(trees);
 				cmd.setContext(context);
 				SwingUtilities.invokeLater(() -> cmd.run());
 			});
