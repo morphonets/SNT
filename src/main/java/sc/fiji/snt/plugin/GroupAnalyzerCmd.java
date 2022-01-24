@@ -187,13 +187,14 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	private void displayInMultiViewerChanged() {
 		noMetrics = metric != null && metric.startsWith("None");
 		if (noMetrics || !isMetricMappable(metric)) {
-			GuiUtils.errorPrompt("This option is only available when mappable metric is specified");
+			GuiUtils.errorPrompt("This option is only available when a mappable metric is specified (e.g., '"
+					+ MultiTreeStatistics.LENGTH + "').");
 			displayInMultiViewer = false;
 		}
 	}
 
 	private void metricChanged() {
-		noMetrics = metric != null && metric.startsWith("None");
+		noMetrics = metric == null || metric.startsWith("None");
 		if (noMetrics) {
 			displayInMultiViewer = false;
 			displayPlots = false;
@@ -210,10 +211,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			return;
 		}
 
-		if (noMetrics = metric.startsWith("None")) {
-			displayInMultiViewer = false;
-			displayPlots = false;
-		}
+		metricChanged();
 
 		if (recViewer != null && recViewer.getManagerPanel() != null) {
 			recViewer.getManagerPanel().showProgress(-1, 0);
