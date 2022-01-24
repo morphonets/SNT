@@ -25,6 +25,8 @@ package sc.fiji.snt;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import net.imagej.Dataset;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
@@ -667,6 +669,18 @@ public class Tree implements TreeProperties {
 			}
 		}
 		return (points.isEmpty()) ? null : points;
+	}
+
+	/**
+	 * Checks whether this Tree has a valid soma annotation, i.e., only a single
+	 * primary path tagged with {@link Path#SWC_SOMA}.
+	 *
+	 * @return Returns true, if soma annotation is valid.
+	 */
+	public boolean validSoma() {
+		final List<Path> somas = tree.stream().filter(path -> Path.SWC_SOMA == path.getSWCType())
+				.collect(Collectors.toList());
+		return somas.size() > 0 && somas.size() < 2 && somas.stream().allMatch(path -> path.isPrimary());
 	}
 
 	/**

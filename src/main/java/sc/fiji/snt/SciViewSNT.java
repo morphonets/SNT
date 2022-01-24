@@ -347,11 +347,12 @@ public class SciViewSNT {
 			final List<Node> lines = new ArrayList<>();
 			final List<PointInImage> somaPoints = new ArrayList<>();
 			final List<Color> somaColors = new ArrayList<>();
+			final boolean validSoma = tree.validSoma();
 
 			for (final Path p : tree.list()) {
 
 				// Stash soma coordinates
-				if (Path.SWC_SOMA == p.getSWCType()) {
+				if (validSoma && Path.SWC_SOMA == p.getSWCType()) {
 					for (int i = 0; i < p.size(); i++) {
 						final PointInImage pim = p.getNodeWithoutChecks(i);
 						pim.v = p.getNodeRadius(i);

@@ -5738,11 +5738,12 @@ public class Viewer3D {
 			final List<LineStripPlus> lines = new ArrayList<>();
 			final List<SWCPoint> somaPoints = new ArrayList<>();
 			final List<java.awt.Color> somaColors = new ArrayList<>();
+			final boolean validSoma = tree.validSoma();
 
 			for (final Path p : tree.list()) {
 
 				// Stash soma coordinates
-				if (Path.SWC_SOMA == p.getSWCType()) {
+				if (validSoma && Path.SWC_SOMA == p.getSWCType()) {
 					for (int i = 0; i < p.size(); i++) {
 						final PointInImage pim = p.getNode(i);
 						final SWCPoint swcPoint = new SWCPoint(-1, Path.SWC_SOMA, pim.x, pim.y, pim.z,
