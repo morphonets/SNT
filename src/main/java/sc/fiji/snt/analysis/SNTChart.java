@@ -71,6 +71,7 @@ import org.jfree.chart.axis.Axis;
 import org.jfree.chart.axis.CategoryAnchor;
 import org.jfree.chart.plot.CategoryMarker;
 import org.jfree.chart.plot.CategoryPlot;
+import org.jfree.chart.plot.CombinedRangeXYPlot;
 import org.jfree.chart.plot.Marker;
 import org.jfree.chart.plot.Plot;
 import org.jfree.chart.plot.ValueMarker;
@@ -250,7 +251,15 @@ public class SNTChart extends ChartFrame {
 	}
 
 	public void setGridlinesVisible(final boolean visible) {
-		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+		if (getChartPanel().getChart().getPlot() instanceof CombinedRangeXYPlot) {
+			@SuppressWarnings("unchecked")
+			final List<XYPlot> plots = (List<XYPlot>) ((CombinedRangeXYPlot)(getChartPanel().getChart().getXYPlot())).getSubplots();
+			for (final XYPlot plot : plots) {
+				// CombinedRangeXYPlot do not have domain axis!?
+				plot.setRangeGridlinesVisible(visible);
+				plot.setRangeMinorGridlinesVisible(visible);
+			}
+		} else if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
 			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
 			plot.setDomainGridlinesVisible(visible);
 			plot.setRangeGridlinesVisible(visible);
@@ -420,10 +429,14 @@ public class SNTChart extends ChartFrame {
 		case "axes":
 		case "ticks":
 			if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
-				Font font = getXYPlot().getDomainAxis().getTickLabelFont().deriveFont(size);
-				getXYPlot().getDomainAxis().setTickLabelFont(font);
-				font = getXYPlot().getRangeAxis().getTickLabelFont().deriveFont(size);
-				getXYPlot().getRangeAxis().setTickLabelFont(font);
+				if (getXYPlot().getDomainAxis() != null) {
+					final Font font = getXYPlot().getDomainAxis().getTickLabelFont().deriveFont(size);
+					getXYPlot().getDomainAxis().setTickLabelFont(font);
+				}
+				if (getXYPlot().getRangeAxis() != null) {
+					final Font font = getXYPlot().getRangeAxis().getTickLabelFont().deriveFont(size);
+					getXYPlot().getRangeAxis().setTickLabelFont(font);
+				}
 			}
 			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
 				Font font = getCategoryPlot().getDomainAxis().getTickLabelFont().deriveFont(size);
@@ -457,10 +470,6 @@ public class SNTChart extends ChartFrame {
 			break;
 		default: // labels  annotations
 			if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
-				Font font = getXYPlot().getDomainAxis().getLabelFont().deriveFont(size);
-				getXYPlot().getDomainAxis().setLabelFont(font);
-				font = getXYPlot().getRangeAxis().getLabelFont().deriveFont(size);
-				getXYPlot().getRangeAxis().setLabelFont(font);
 				final List<?> annotations = getXYPlot().getAnnotations();
 				if (annotations != null) {
 					for (int i = 0; i < getXYPlot().getAnnotations().size(); i++) {
@@ -477,10 +486,6 @@ public class SNTChart extends ChartFrame {
 				adjustMarkersFont(getXYPlot().getRangeMarkers(Layer.BACKGROUND), size);
 			}
 			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
-				Font font = getCategoryPlot().getDomainAxis().getLabelFont().deriveFont(size);
-				getCategoryPlot().getDomainAxis().setLabelFont(font);
-				font = getCategoryPlot().getRangeAxis().getLabelFont().deriveFont(size);
-				getCategoryPlot().getRangeAxis().setLabelFont(font);
 				final List<?> annotations = getCategoryPlot().getAnnotations();
 				if (annotations != null) {
 					for (int i = 0; i < annotations.size(); i++) {
@@ -578,7 +583,14 @@ public class SNTChart extends ChartFrame {
 					lt.setBackgroundPaint(newColor);
 			}
 		}
-		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+		if (getChartPanel().getChart().getPlot() instanceof CombinedRangeXYPlot) {
+			@SuppressWarnings("unchecked")
+			final List<XYPlot> plots = (List<XYPlot>) ((CombinedRangeXYPlot)(getChartPanel().getChart().getXYPlot())).getSubplots();
+			for (final XYPlot plot : plots) {
+				if (plot.getBackgroundPaint() == oldColor)
+					plot.setBackgroundPaint(newColor);
+			}
+		} else if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
 			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
 			if (plot.getBackgroundPaint() == oldColor)
 				plot.setBackgroundPaint(newColor);
@@ -632,6 +644,7 @@ public class SNTChart extends ChartFrame {
 	}
 
 	private void replaceForegroundColor(final LegendItemSource render, final Color oldColor, final Color newColor) {
+		if (render == null) return;
 		for (int i = 0; i < render.getLegendItems().getItemCount(); i++) {
 			final LegendItem item = render.getLegendItems().get(i);
 			item.setLabelPaint(newColor);
@@ -679,22 +692,26 @@ public class SNTChart extends ChartFrame {
 	}
 
 	private void replaceSeriesColor(final XYItemRenderer renderer, final Color oldColor, final Color newColor) {
-		final int nSeries = renderer.getPlot().getDataset().getSeriesCount();
-		for (int series = 0; series < nSeries; series++) {
-			if (renderer.getSeriesFillPaint(series) == oldColor)
-				renderer.setSeriesFillPaint(series, newColor);
-			if (renderer.getSeriesOutlinePaint(series) == oldColor)
-				renderer.setSeriesOutlinePaint(series, newColor);
-			if (renderer.getSeriesItemLabelPaint(series) == oldColor)
-				renderer.setSeriesItemLabelPaint(series, newColor);
+		if (renderer != null) {
+			final int nSeries = renderer.getPlot().getDataset().getSeriesCount();
+			for (int series = 0; series < nSeries; series++) {
+				if (renderer.getSeriesFillPaint(series) == oldColor)
+					renderer.setSeriesFillPaint(series, newColor);
+				if (renderer.getSeriesOutlinePaint(series) == oldColor)
+					renderer.setSeriesOutlinePaint(series, newColor);
+				if (renderer.getSeriesItemLabelPaint(series) == oldColor)
+					renderer.setSeriesItemLabelPaint(series, newColor);
+			}
 		}
 	}
 
 	private void setForegroundColor(final Axis axis, final Color newColor) {
-		axis.setAxisLinePaint(newColor);
-		axis.setLabelPaint(newColor);
-		axis.setTickLabelPaint(newColor);
-		axis.setTickMarkPaint(newColor);
+		if (axis != null) {
+			axis.setAxisLinePaint(newColor);
+			axis.setLabelPaint(newColor);
+			axis.setTickLabelPaint(newColor);
+			axis.setTickMarkPaint(newColor);
+		}
 	}
 
 	private Color getColorFromString(final String string) {
@@ -895,10 +912,10 @@ public class SNTChart extends ChartFrame {
 
 		final JMenu grids = new JMenu("Frame & Grid Lines");
 		popup.add(grids);
-		JMenuItem jmi = new JMenuItem("Toogle Grid Lines");
+		JMenuItem jmi = new JMenuItem("Toggle Grid Lines");
 		jmi.addActionListener( e -> setGridlinesVisible(!isGridlinesVisible()));
 		grids.add(jmi);
-		jmi = new JMenuItem("Toogle Outline");
+		jmi = new JMenuItem("Toggle Outline");
 		jmi.addActionListener( e -> setOutlineVisible(!isOutlineVisible()));
 		grids.add(jmi);
 		popup.add(grids);
@@ -934,7 +951,7 @@ public class SNTChart extends ChartFrame {
 
 	private float defFontSize() {
 		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
-			return getXYPlot().getDomainAxis().getLabelFont().getSize2D();
+			return getXYPlot().getRangeAxis().getLabelFont().getSize2D();
 		}
 		else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
 			return getCategoryPlot().getDomainAxis().getLabelFont().getSize2D();

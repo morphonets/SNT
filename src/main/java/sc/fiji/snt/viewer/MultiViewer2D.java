@@ -50,6 +50,7 @@ import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.MultiTreeColorMapper;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
@@ -191,8 +192,8 @@ public class MultiViewer2D {
 		final GridLayout gridLayout = new GridLayout(rows.size(), 1);
 		frame.setLayout(gridLayout);
 		for (final List<Viewer2D> row : rows) {
-			final JFreeChart rowChart = getMergedChart(row, "col");
-			final ChartPanel cPanel = getChartPanel(rowChart);
+			final SNTChart rowChart = getMergedChart(row, "col");
+			final ChartPanel cPanel = rowChart.getChartPanel();
 			frame.add(cPanel);
 			rowPanels.add(cPanel);
 		}
@@ -200,7 +201,7 @@ public class MultiViewer2D {
 		return frame;
 	}
 
-	private JFreeChart getMergedChart(final List<Viewer2D> viewers, final String style) {
+	private SNTChart getMergedChart(final List<Viewer2D> viewers, final String style) {
 		JFreeChart result;
 		if (style != null && style.toLowerCase().startsWith("c")) { // column
 			final CombinedRangeXYPlot mergedPlot = new CombinedRangeXYPlot();
@@ -217,7 +218,7 @@ public class MultiViewer2D {
 		} else {
 			final CombinedDomainXYPlot mergedPlot = new CombinedDomainXYPlot();
 			for (final Viewer2D viewer : viewers) {
-				mergedPlot.add(viewer.getJFreeChart().getXYPlot(), 1);
+				mergedPlot.add(viewer.getChart().getChartPanel().getChart().getXYPlot(), 1);
 			}
 			result = new JFreeChart(null, mergedPlot);
 		}
@@ -231,15 +232,7 @@ public class MultiViewer2D {
 			}
 			result.addSubtitle(legend);
 		}
-		return result;
-	}
-
-	private ChartPanel getChartPanel(final JFreeChart chart) {
-		final ChartFrame cFrame = new ChartFrame("", chart);
-		chart.setBackgroundPaint(null); // transparent
-		chart.getPlot().setBackgroundPaint(null); // transparent
-		cFrame.getChartPanel().setBackground(null); // transparent
-		return cFrame.getChartPanel();
+		return new SNTChart("", result);
 	}
 
 	/* IDE debug method */
