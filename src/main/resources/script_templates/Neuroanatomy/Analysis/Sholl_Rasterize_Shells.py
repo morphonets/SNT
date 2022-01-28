@@ -10,7 +10,8 @@ straightforward way. For details, see https://forum.image.sc/t/51087/
 
 The script assumes that the frontmost image is a 2D image analyzed by the Sholl
 Analysis plugin (typically a "Sholl Mask image") containing "ROI shells" as 
-annotations in the image overlay.
+annotations in the image overlay. Further details:
+https://forum.image.sc/t/measuring-distribution-of-object-diameters-in-different-stripes-using-sholl-plugin/51087
 """
 
 def error():
