@@ -3825,7 +3825,7 @@ public class SNTUI extends JDialog {
 		}
 	
 		private boolean initialize() {
-			if (preRunState == SNTUI.EDITING) {
+			if (preRunState == SNTUI.EDITING && plugin.getEditingPath() != null) {
 				guiUtils.error(
 						"Please finish editing " + plugin.getEditingPath().getName() + " before running this command.");
 				return false;
@@ -3875,7 +3875,7 @@ public class SNTUI extends JDialog {
 		}
 
 		private boolean initialize() {
-			if (preRunState == SNTUI.EDITING) {
+			if (preRunState == SNTUI.EDITING && plugin.getEditingPath() != null) {
 				guiUtils.error(
 						"Please finish editing " + plugin.getEditingPath().getName() + " before running this command.");
 				return false;
