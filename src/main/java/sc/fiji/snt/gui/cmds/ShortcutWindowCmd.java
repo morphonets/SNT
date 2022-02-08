@@ -158,6 +158,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		jmi.setToolTipText("Performs analysis directly from reconstruction");
 		popup.add(jmi);
 		addScriptsSeparator(popup);
+		popup.add(getScriptMenuItem("Analysis", "Strahler_Analysis.py"));
 		popup.add(getScriptMenuItem("Batch", "Strahler_Bulk_Analysis_(From_Reconstructions).py"));
 		buttons.add(button);
 	}
@@ -187,6 +188,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		}
 		addScriptsSeparator(popup);
 		popup.add(getScriptMenuItem("Batch", "Sholl_Bulk_Analysis_(From_Reconstructions).groovy"));
+		popup.add(getScriptMenuItem("Analysis", "Sholl_Convex_Hull_As_Center.groovy"));
 		popup.add(getScriptMenuItem("Analysis", "Sholl_Extensive_Stats_Demo.groovy"));
 		popup.add(getScriptMenuItem("Analysis", "Sholl_Extract_Profile_From_Image_Demo.py"));
 		popup.add(getScriptMenuItem("Analysis", "Sholl_Merge_Grouped_Profiles.py"));
