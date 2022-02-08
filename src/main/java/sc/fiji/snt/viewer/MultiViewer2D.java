@@ -32,7 +32,6 @@ import java.util.List;
 
 import javax.swing.JFrame;
 
-import org.jfree.chart.ChartFrame;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;

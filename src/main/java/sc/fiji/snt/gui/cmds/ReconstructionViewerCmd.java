@@ -52,10 +52,15 @@ public class ReconstructionViewerCmd extends ContextCommand {
 	 */
 	@Override
 	public void run() {
-		SNTUtils.setIsLoading(true);
-		GuiUtils.setLookAndFeel();
-		final Viewer3D viewer = new Viewer3D(getContext());
-		viewer.show();
+		try {
+			SNTUtils.setIsLoading(true);
+			GuiUtils.setLookAndFeel();
+			new Viewer3D(getContext()).show();
+		} catch (final NoClassDefFoundError e) {
+			e.printStackTrace();
+		} finally {
+			SNTUtils.setIsLoading(false);
+		}
 	}
 
 	/* IDE debug method **/
