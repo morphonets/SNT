@@ -142,10 +142,8 @@
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 
-		<!-- Temporarily disable enforcer -->
-		<enforcer.skip>true</enforcer.skip>
 		<!-- Resolve dup. class conflict -->
-  		<allowedDuplicateClasses>org.jzy3d.plot3d.pipelines.NotImplementedException</allowedDuplicateClasses>
+		<allowedDuplicateClasses>${scijava.allowedDuplicateClasses},org.jzy3d.plot3d.pipelines.NotImplementedException</allowedDuplicateClasses>
 
 		<!-- TEMP: Until pom-scijava 32.0.0 -->
 		<jitk-tps.version>3.0.2</jitk-tps.version>
