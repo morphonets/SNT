@@ -146,6 +146,11 @@
 		<enforcer.skip>true</enforcer.skip>
 		<!-- Resolve dup. class conflict -->
   		<allowedDuplicateClasses>org.jzy3d.plot3d.pipelines.NotImplementedException</allowedDuplicateClasses>
+
+		<!-- TEMP: Until pom-scijava 32.0.0 -->
+		<jitk-tps.version>3.0.2</jitk-tps.version>
+		<reload4j.version>1.2.18.3</reload4j.version>
+		<ch.qos.reload4j.reload4j.version>${reload4j.version}</ch.qos.reload4j.reload4j.version>
 	</properties>
 
 	<repositories>
@@ -166,12 +171,22 @@
 					<groupId>com.miglayout</groupId>
 					<artifactId>miglayout</artifactId>
 				</exclusion>
+				<exclusion>
+					<groupId>log4j</groupId>
+					<artifactId>log4j</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-emul-gl</artifactId>
 			<version>${jzy3d.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>log4j</groupId>
+					<artifactId>log4j</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>com.formdev</groupId>
@@ -321,6 +336,11 @@
 			<artifactId>jheaps</artifactId>
 			<version>0.14</version>
 		</dependency>
+		<dependency>
+			<groupId>ch.qos.reload4j</groupId>
+			<artifactId>reload4j</artifactId>
+			<version>${reload4j.version}</version>
+			<scope>runtime</scope>
+		</dependency>
 	</dependencies>
-
 </project>
