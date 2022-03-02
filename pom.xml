@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
@@ -11,7 +11,7 @@
 
 	<groupId>org.morphonets</groupId>
 	<artifactId>SNT</artifactId>
-	<version>4.0.10-SNAPSHOT</version>
+	<version>4.0.11-SNAPSHOT</version>
 
 	<name>SNT</name>
 	<description>The ImageJ framework for quantitative neuroanatomy</description>
@@ -142,31 +142,19 @@
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 
-		<!-- Temporarily disable enforcer -->
-		<enforcer.skip>true</enforcer.skip>
 		<!-- Resolve dup. class conflict -->
-  		<allowedDuplicateClasses>org.jzy3d.plot3d.pipelines.NotImplementedException</allowedDuplicateClasses>
+		<allowedDuplicateClasses>${scijava.allowedDuplicateClasses},org.jzy3d.plot3d.pipelines.NotImplementedException</allowedDuplicateClasses>
+
+		<!-- TEMP: Until pom-scijava 32.0.0 -->
+		<jitk-tps.version>3.0.2</jitk-tps.version>
+		<reload4j.version>1.2.18.3</reload4j.version>
+		<ch.qos.reload4j.reload4j.version>${reload4j.version}</ch.qos.reload4j.reload4j.version>
 	</properties>
 
 	<repositories>
 		<repository>
 			<id>scijava.public</id>
 			<url>https://maven.scijava.org/content/groups/public</url>
-		</repository>
-		<repository>
-			<id>jitpack.io</id>
-			<releases>
-				<enabled>true</enabled>
-			</releases>
-			<snapshots>
-				<enabled>false</enabled>
-			</snapshots>
-			<url>https://jitpack.io</url>
-		</repository>
-		<repository>
-			<id>jzy3d-releases</id>
-			<name>Jzy3d Releases</name>
-			<url>http://maven.jzy3d.org/releases/</url>
 		</repository>
 	</repositories>
 
@@ -181,12 +169,22 @@
 					<groupId>com.miglayout</groupId>
 					<artifactId>miglayout</artifactId>
 				</exclusion>
+				<exclusion>
+					<groupId>log4j</groupId>
+					<artifactId>log4j</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-emul-gl</artifactId>
 			<version>${jzy3d.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>log4j</groupId>
+					<artifactId>log4j</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>com.formdev</groupId>
@@ -336,6 +334,11 @@
 			<artifactId>jheaps</artifactId>
 			<version>0.14</version>
 		</dependency>
+		<dependency>
+			<groupId>ch.qos.reload4j</groupId>
+			<artifactId>reload4j</artifactId>
+			<version>${reload4j.version}</version>
+			<scope>runtime</scope>
+		</dependency>
 	</dependencies>
-
 </project>
