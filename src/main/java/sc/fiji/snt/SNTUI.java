@@ -4028,7 +4028,7 @@ public class SNTUI extends JDialog {
 				return false;
 		}
 		SNTUtils.log("Exporting paths... " + prefix);
-		final boolean success = pathAndFillManager.exportAllPathsAsSWC(primaryPaths, prefix);
+		final boolean success = pathAndFillManager.exportAllPathsAsSWC(primaryPaths, filePath);
 		plugin.unsavedPaths = !success;
 		return success;
 	}
