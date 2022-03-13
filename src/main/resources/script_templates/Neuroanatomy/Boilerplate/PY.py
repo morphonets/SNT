@@ -26,4 +26,4 @@ from sc.fiji.snt.util import BoundingBox, PointInImage, SNTColor, SWCPoint
 from sc.fiji.snt.viewer import Annotation3D, OBJMesh, MultiViewer2D, Viewer2D, Viewer3D
 
 # Documentation Resources: https://imagej.net/plugins/snt/scripting
-# Latest SNT API: https://morphonets.github.io/SNT/
+# Latest SNT API: https://javadoc.scijava.org/SNT/

@@ -7,7 +7,7 @@
 #@ ResultsTable resultsTable
 
 # Documentation Resources: https://imagej.net/plugins/snt/scripting
-# Latest SNT API: https://morphonets.github.io/SNT/
+# Latest SNT API: https://javadoc.scijava.org/SNT/
 
 import math
 from ij import IJ

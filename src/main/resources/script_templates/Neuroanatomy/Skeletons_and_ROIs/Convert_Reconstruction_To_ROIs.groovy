@@ -9,8 +9,8 @@
 /** 
  *  Exemplifies how to convert a reconstruction into a series of ROIs.
  *  For further details:
- *  https://morphonets.github.io/SNT/index.html?sc/fiji/snt/Tree.html and
- *  https://morphonets.github.io/SNT/index.html?sc/fiji/snt/analysis/RoiConverter.html
+ *  https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/Tree.html and
+ *  https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/RoiConverter.html
  *  TF 20200705
  */
 

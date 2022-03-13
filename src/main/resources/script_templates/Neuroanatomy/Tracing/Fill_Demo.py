@@ -25,7 +25,7 @@ from sc.fiji.snt.tracing.cost import Reciprocal
 from sc.fiji.snt.util import ImgUtils
 
 # Documentation Resources: https://imagej.net/plugins/snt/scripting
-# Latest SNT API: https://morphonets.github.io/SNT/
+# Latest SNT API: https://javadoc.scijava.org/SNT/
 
 
 def copyAxes(dataset, out_dataset):

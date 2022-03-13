@@ -52,7 +52,7 @@ def run():
         d_stats = TreeStatistics(tree)
 
         # NB: SummaryStatistics should be more performant than DescriptiveStatistics
-        # https://morphonets.github.io/SNT/index.html?sc/fiji/snt/analysis/TreeStatistics.html
+        # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/TreeStatistics.html
         metric = "inter-node distance"  # same as TreeStatistics.INTER_NODE_DISTANCE 
         summary_stats = d_stats.getSummaryStats(metric)
         print("The average inter-node distance is %d" % summary_stats.getMean())
@@ -63,18 +63,18 @@ def run():
         # We can get the volume of a compartment by approximating the volume of
         # each path, and summing to total. For info on the assumptions made in
         # this volume calculation, have a look at Tree's documentation:
-        # https://morphonets.github.io/SNT/index.html?sc/fiji/snt/Tree.html
+        # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/Tree.html
         compartment_volume = tree.getApproximatedVolume()
         print("Approximate volume of tracing is %d cubic microns" % compartment_volume)
 
         # Let's find the minimum bounding box containing all existing nodes:
-        # https://morphonets.github.io/SNT/index.html?sc/fiji/snt/util/BoundingBox.html
+        # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/util/BoundingBox.html
         bb = tree.getBoundingBox()
         bb_dim = bb.getDimensions()
         print("Dimensions of bounding box containing all nodes (in micrometers): {}x{}x{}".format(*bb_dim))
 
     # To load a neuron from NeuroMorpho.org we use NeuroMorphoLoader:
-    # https://morphonets.github.io/SNT/index.html?sc/fiji/snt/io/NeuroMorphoLoader.html
+    # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/io/NeuroMorphoLoader.html
     # We choose a reconstruction with traced node radii:
     # http://neuromorpho.org/neuron_info.jsp?neuron_name=Adol-20100419cell1
     nm_loader = NeuroMorphoLoader()

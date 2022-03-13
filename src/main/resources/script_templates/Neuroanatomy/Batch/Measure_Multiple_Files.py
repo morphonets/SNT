@@ -69,7 +69,7 @@ def run():
 
         # Analyze the data grouping measurements by compartment (e.g., axon,
         # dendrite). See the analysis API for more sophisticated operations:
-        # https://morphonets.github.io/SNT/
+        # https://javadoc.scijava.org/SNT/
         analyzer.measure(metrics, True)  # Split results by compartment?
 
     msg = 'Done. %s file(s) analyzed...' % (counter + 1)

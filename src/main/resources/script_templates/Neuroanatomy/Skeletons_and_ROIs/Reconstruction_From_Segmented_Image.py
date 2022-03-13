@@ -21,7 +21,7 @@ from sc.fiji.snt.analysis import SkeletonConverter, TreeAnalyzer
 from sc.fiji.snt.viewer import Viewer3D
 
 # Documentation Resources: https://imagej.net/plugins/snt/scripting
-# Latest SNT API: https://morphonets.github.io/SNT/
+# Latest SNT API: https://javadoc.scijava.org/SNT/
 
 
 def get_sample_image():
