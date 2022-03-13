@@ -147,7 +147,7 @@
 
 		<!-- TEMP: Until pom-scijava 32.0.0 -->
 		<jitk-tps.version>3.0.2</jitk-tps.version>
-		<reload4j.version>1.2.18.3</reload4j.version>
+		<reload4j.version>1.2.19</reload4j.version>
 		<ch.qos.reload4j.reload4j.version>${reload4j.version}</ch.qos.reload4j.reload4j.version>
 	</properties>
 
@@ -189,7 +189,7 @@
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf</artifactId>
-			<version>2.0.1</version>
+			<version>2.0.2</version>
 		</dependency>
 		<dependency>
 			<groupId>com.github.haifengl</groupId>
@@ -274,7 +274,7 @@
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf-jide-oss</artifactId>
-			<version>2.0.1</version>
+			<version>2.0.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
