@@ -3752,9 +3752,9 @@ public class Viewer3D {
 				managerList.setValueIsAdjusting(true);
 				for (int i = 0; i < indices.length; i++) {
 					if (display)
-						managerList.addCheckBoxListSelectedIndex(i);
+						managerList.addCheckBoxListSelectedIndex(indices[i]);
 					else
-						managerList.removeCheckBoxListSelectedIndex(i);
+						managerList.removeCheckBoxListSelectedIndex(indices[i]);
 				}
 				managerList.setValueIsAdjusting(false);
 			});
@@ -7247,11 +7247,10 @@ public class Viewer3D {
 
 	/* IDE debug method */
 	public static void main(final String[] args) throws InterruptedException {
-		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
-	final Tree tree = new SNTService().demoTrees().get(0);
-	final TreeColorMapper colorizer = new TreeColorMapper(ij.getContext());
-	colorizer.map(tree, TreeColorMapper.PATH_ORDER, ColorTables.ICE);
+		final Tree tree = new SNTService().demoTrees().get(0);
+		final TreeColorMapper colorizer = new TreeColorMapper(ij.getContext());
+		colorizer.map(tree, TreeColorMapper.PATH_ORDER, ColorTables.ICE);
 	final double[] bounds = colorizer.getMinMax();
 		SNTUtils.setDebugMode(true);
 		final Viewer3D jzy3D = new Viewer3D(ij.context());
