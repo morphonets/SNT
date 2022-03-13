@@ -103,10 +103,29 @@ public class ImageParser extends ContextCommand implements Parser {
 		return voxelSize;
 	}
 
-	public void setCenterFromROI() {
+	/**
+	 * Computes the center of analysis from the centroid of the active ROI.
+	 *
+	 * @throws IllegalArgumentException if image has no current selection or active
+	 *                                  ROI
+	 */
+	public void setCenterFromROI() throws IllegalArgumentException {
 		final Roi roi = imp.getRoi();
 		if (roi == null)
-			return; // FIXME: Throw exception rather than doing nothing?
+			throw new IllegalArgumentException("Cannot retrieve center: Image does not have an active ROI!");
+		setCenterFromROI(roi);
+	}
+
+	/**
+	 * Computes the center of analysis from the centroid of the specified ROI.
+	 *
+	 * @param roi the selection from which the centroid will be computed
+	 * @throws IllegalArgumentException if roi is null
+	 */
+	public void setCenterFromROI(final Roi roi) throws IllegalArgumentException {
+		if (roi == null) {
+			throw new IllegalArgumentException("Cannot retrieve center: ROI is null!");
+		}
 		if (roi.getType() == Roi.LINE) {
 			final Line line = (Line) roi;
 			setCenterPx(line.x1, line.y1, imp.getZ());
@@ -119,7 +138,16 @@ public class ImageParser extends ContextCommand implements Parser {
 		}
 	}
 
-	public void setCenterPx(final int x, final int y, final int z) {
+	/**
+	 * Sets the center of analysis using image (pixel) coordinates.
+	 *
+	 * @param x the x coordinate (in pixels)
+	 * @param y the y coordinate (in pixels)
+	 * @param z the z coordinate (in pixels), i.e., slice number (1-based index)
+	 * @throws IndexOutOfBoundsException if specified coordinates extends beyond
+	 *                                   image dimensions
+	 */
+	public void setCenterPx(final int x, final int y, final int z) throws IndexOutOfBoundsException {
 		if (x > imp.getWidth() - 1 || y > imp.getHeight() || z > imp.getNSlices())
 			throw new IndexOutOfBoundsException("specified coordinates cannot be aplied to image");
 		center = new ShollPoint(x, y, z, cal);
@@ -129,6 +157,13 @@ public class ImageParser extends ContextCommand implements Parser {
 		zc = z;
 	}
 
+	/**
+	 * Sets the center of analysis using real world (calibrated) coordinates.
+	 *
+	 * @param x the x coordinate (in calibrated units)
+	 * @param y the y coordinate (in calibrated units)
+	 * @param z the z coordinate (in calibrated units)
+	 */
 	public void setCenter(final double x, final double y, final double z) {
 		center = new ShollPoint(x, y, z);
 		profile.setCenter(center);

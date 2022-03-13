@@ -26,7 +26,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import net.imagej.Dataset;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
