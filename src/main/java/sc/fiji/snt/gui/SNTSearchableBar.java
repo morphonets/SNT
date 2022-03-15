@@ -253,13 +253,15 @@ public class SNTSearchableBar extends SearchableBar {
 			updateSearch();
 		});
 		popup.add(jcbmi1);
-		final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Display No. of Matches", getSearchable().isCountMatch());
-		jcbmi4.setToolTipText("May adversely affect performance if selected");
-		jcbmi4.addItemListener(e -> {
-			setShowMatchCount(jcbmi4.isSelected());
-			updateSearch();
-		});
-		popup.add(jcbmi4);
+		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
+			final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Display No. of Matches", getSearchable().isCountMatch());
+			jcbmi4.setToolTipText("May adversely affect performance if selected");
+			jcbmi4.addItemListener(e -> {
+				setShowMatchCount(jcbmi4.isSelected());
+				updateSearch();
+			});
+			popup.add(jcbmi4);
+		}
 		final JMenuItem jcbmi2 = new JCheckBoxMenuItem("Enable Wildcards (?*)", getSearchable().isWildcardEnabled());
 		jcbmi2.setToolTipText("<HTML><b>?</b> (any character) and <b>*</b> (any string) supported");
 		jcbmi2.addItemListener(e -> {
@@ -284,15 +286,18 @@ public class SNTSearchableBar extends SearchableBar {
 		mi2.addActionListener(e -> {
 			if (objectDescription == null) objectDescription = "items";
 			final String key = GuiUtils.ctrlKey();
-			final String msg = "<HTML><body><div style='width:500;'><ol>"
+			String msg = "<HTML><body><div style='width:500;'><ol>"
 					+ "<li>Press the up/down keys to find the next/previous occurrence of the filtering string</li>"
 					+ "<li>Hold " + key + " while pressing the up/down keys to select multiple filtered "
-					+ objectDescription + "</li>" + "<li>Press the <i>Highlight All</i> button to select all the "
-					+ objectDescription + " filtered by the search string</li>"
-					//+ "<li>Search is case-insensitive by default. Wildcards "
-					//+ "<b>?</b> (any character), and <b>*</b> (any string) can also be used</li>"
-					+ "<li>Uncheck <i>Display No. of Matches</i> to improve search performance</li>"
-					+ "</ol></div></html>";
+					+ objectDescription + "</li>";
+			if ((getVisibleButtons() & SHOW_HIGHLIGHTS) != 0) {
+					msg += "<li>Press the <i>Highlight All</i> button to select all the "
+					+ objectDescription + " filtered by the search string</li>";
+			}
+			if (isShowMatchCount()) {
+					msg += "<li>Uncheck <i>Display No. of Matches</i> to improve search performance</li>";
+			}
+					msg += "</ol></div></html>";
 			getGuiUtils().centeredMsg(msg, "Text-based Filtering");
 		});
 		popup.add(mi2);
