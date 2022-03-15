@@ -228,22 +228,30 @@ public class MeasureUI extends JFrame {
 		private JButton optionsButton(final Collection<Tree> trees) {
 			final JButton optionsButton = IconFactory.getButton(IconFactory.GLYPH.OPTIONS);
 			final JPopupMenu optionsMenu = new JPopupMenu();
-			final JCheckBoxMenuItem jcmi1 = new JCheckBoxMenuItem("Distinguish Compartmentments",
+			GuiUtils.addSeparator(optionsMenu, "Options:");
+			final JCheckBoxMenuItem jcmi1 = new JCheckBoxMenuItem("Distinguish Compartments",
 					distinguishCompartments);
 			jcmi1.addActionListener(e -> distinguishCompartments = jcmi1.isSelected());
+			jcmi1.setToolTipText("Whether measurements should be grouped by cellular\n"
+					+ "compartment (e.g., \"axon\", \"dendrites\", etc.)");
 			optionsMenu.add(jcmi1);
-			optionsMenu.addSeparator();
 			final JCheckBoxMenuItem jcmi2 = new JCheckBoxMenuItem("Save Measurements Table", saveTable);
 			jcmi2.addActionListener(e -> saveTable = jcmi2.isSelected());
+			jcmi1.setToolTipText("Whether the measurements table should be saved. Note that tables\n"
+					+ "can always be saved using the 'Save Tables and Analysis Plot' command");
 			optionsMenu.add(jcmi2);
 			final JCheckBoxMenuItem jcmi3 = new JCheckBoxMenuItem("Reset Measurements Table Before Run", resetTable);
 			jcmi3.addActionListener(e -> resetTable = jcmi3.isSelected());
 			optionsMenu.add(jcmi3);
-			optionsMenu.addSeparator();
+			GuiUtils.addSeparator(optionsMenu, "Utilities:");
+			final JCheckBoxMenuItem jcmi4  = new JCheckBoxMenuItem("Debug mode", SNTUtils.isDebugMode());
+			jcmi4.addActionListener(e -> SNTUtils.setDebugMode(jcmi4.isSelected()));
+			optionsMenu.add(jcmi4);
 			JMenuItem jmi = new JMenuItem("List Cell(s) Being Measured...");
 			jmi.addActionListener(e -> showDetails(trees));
 			optionsMenu.add(jmi);
-			jmi = new JMenuItem("Help...");
+			GuiUtils.addSeparator(optionsMenu, "Help:");
+			jmi = new JMenuItem("Quick Guide...");
 			jmi.addActionListener(e -> showHelp());
 			optionsMenu.add(jmi);
 			optionsButton.addMouseListener(new MouseAdapter() {
@@ -280,10 +288,41 @@ public class MeasureUI extends JFrame {
 		}
 
 		private void showHelp() {
-//			GuiUtils.showHTMLDialog("<html>Reconstructions being analyzed: "//
-//			+ "<p>TBD"//
-//			//trees.iterator().next().getProperties().get(Tree.)
-//			+ "</html>", "Measurements");
+			GuiUtils.showHTMLDialog("<p><b>How to measure reconstructions:</b></p>"//
+					+ "<ol>"//
+					+ "<li>Select metrics on the left panel. Use the search box to highlight items and "//
+					+ "options in the contextual menu to apply selections</li>"//
+					+ "<li>Select statistics on the right panel (NB: clicking on a column header selects "//
+					+ "all of its rows)</li>"//
+					+ "<li>Adjust options in the gear menu</li>"//
+					+ "<li>Press 'Measure'</li>"//
+					+ "</ol>"//
+					+ "<p><b>Notes on Metrics:</b></p>"//
+					+ "<ul>"//
+					+ "<li>Some metrics assume the reconstruction being parsed is a valid mathematical Tree. " //
+					+ "If that is not verified, values may be reported as <em>NaN</em> and related errors "//
+					+ "reported to the Console (when running in <em>Debug</em> mode)</li></ul>"//
+					+ "<p><b>Notes on Statistics:</b></p>"//
+					+ "<ul>"//
+					+ "<li>Some combinations of metrics/statistics may not be meaningful: e.g., if "//
+					+ "you are only measuring a single cell, pairing <em>Cable length&nbsp;</em> to <em>SD</em> "//
+					+ "will not be useful, since only one value has been computed. In this case, the Measurement "//
+					+ "table will append '(Single metric value)' to such data</li>"//
+					+ "<li><em>N</em> may refer to different components (no. of cells, no. of branches, no. of " //
+					+ "nodes, etc.) depending on the metric being retrieved</li>"//
+					+ "<li>Some combinations of metrics/statistics can become obnoxiously redundant. E.g., for a "//
+					+ "given cell, retrieving 'N' for 'Branch length' is the same as retrieving the cell's 'No. of "//
+					+ "Branches' metric.</ul>"//
+					+ "<p><b>Note on Fitted Paths:</b></p>"//
+					+ "<p>Some branch-based metrics may not be available when mixing fitted and "//
+					+ "un-fitted paths because paths are fitted independently from one another and "//
+					+ "may not be aware of the original connectivity. "//
+					+ "When this happens, metrics may be reported as <em>NaN</em> and related errors "//
+					+ "reported to the Console (when running in <em>Debug</em> mode).</p>"//
+					+ "<p>If this becomes an issue, consider fitting paths in situ using the <em>Replace existing "//
+					+ "nodes</em> option instead. Also, remember that you can also use the Path Manager&#39;s "//
+					+ "Edit&gt;Rebuild... command to re-compute "//
+					+ "relationships between paths.</p>", "Measure: Offline Guide");
 		}
 
 		private void loadPreferences() {
@@ -321,7 +360,7 @@ public class MeasureUI extends JFrame {
 			removeRows(statsTableModel, metricIndicesToRemove);
 			metrics.removeAll(existingMetrics);
 			for (final Object metric : metrics)
-				statsTableModel.addRow(new Object[] { metric, false, false, false, false, false });
+				statsTableModel.addRow(new Object[] { metric, false, false, false, false, false, false });
 		}
 
 		private void removeRows(final DefaultTableModel model, final List<Integer> indices) {
@@ -333,6 +372,7 @@ public class MeasureUI extends JFrame {
 
 		private JPopupMenu listPopupMenu() {
 			final JPopupMenu pMenu = new JPopupMenu();
+			GuiUtils.addSeparator(pMenu, "Selection of Metrics:");
 			JMenuItem mi = new JMenuItem("Select Highlighted");
 			mi.addActionListener(e -> setHighlightedSelected(true));
 			pMenu.add(mi);
@@ -340,6 +380,9 @@ public class MeasureUI extends JFrame {
 			mi.addActionListener(e -> setHighlightedSelected(false));
 			pMenu.add(mi);
 			pMenu.addSeparator();
+			mi = new JMenuItem("Invert Selection");
+			mi.addActionListener(e -> invertSelection());
+			pMenu.add(mi);
 			mi = new JMenuItem("Select All");
 			mi.addActionListener(e -> metricList.selectAll());
 			pMenu.add(mi);
@@ -349,8 +392,23 @@ public class MeasureUI extends JFrame {
 			return pMenu;
 		}
 
+		void invertSelection() {
+			final ListSelectionModel mdl = metricList.getCheckBoxListSelectionModel();
+			final int[] selected = metricList.getCheckBoxListSelectedIndices();
+			mdl.setValueIsAdjusting(true);
+			mdl.setSelectionInterval(0, metricList.getModel().getSize() - 1);
+			for (final int i : selected) {
+				mdl.removeSelectionInterval(i, i);
+			}
+			mdl.setValueIsAdjusting(false);
+		}
+
 		private void setHighlightedSelected(final boolean select) {
 			final int[] indices = metricList.getSelectedIndices();
+			if (indices.length == 0) {
+				UIManager.getLookAndFeel().provideErrorFeedback(this);
+				return;
+			}
 			metricList.setValueIsAdjusting(true);
 			for (int i = 0; i < indices.length; i++) {
 				if (select)
@@ -523,6 +581,7 @@ public class MeasureUI extends JFrame {
 			this.applyUI();
 			this.addItemListener(new ItemHandler());
 			header.addMouseListener(new MouseHandler());
+			setToolTipText("Click to toggle all rows");
 
 			// FIXME: This does not appear to work when the table
 			// has multiple of these listeners. Multiple columns get
@@ -616,6 +675,7 @@ public class MeasureUI extends JFrame {
 				}
 
 			});
+			GuiUtils.addSeparator(this, "Selection of Statistics:");
 			JMenuItem mi = new JMenuItem("Select All");
 			mi.addActionListener(e -> setAllState(true));
 			add(mi);

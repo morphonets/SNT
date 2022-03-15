@@ -1655,20 +1655,25 @@ public class GuiUtils {
 			button.addKeyListener(this);
 			editorPane.addKeyListener(this);
 			editorPane.addHyperlinkListener(this);
+			editorPane.setCaretPosition(0); // scroll to top;
 			final JPanel panel = new JPanel();
 			panel.add(button);
 			getContentPane().add(panel, "South");
 			setForeground(Color.black);
 			pack();
 			final Dimension screenD = Toolkit.getDefaultToolkit().getScreenSize();
-			final Dimension dialogD = getSize();
+			final Dimension dialogD = getPreferredSize();
 			final int maxWidth = (int) (Math.min(0.70 * screenD.width, 800)); // max 70% of screen width, but not more
 																				// than 800 pxl
 			if (maxWidth > 400 && dialogD.width > maxWidth)
 				dialogD.width = maxWidth;
 			if (dialogD.height > 0.80 * screenD.height && screenD.height > 400) // max 80% of screen height
 				dialogD.height = (int) (0.80 * screenD.height);
-			setSize(dialogD);
+			int minHeight = editorPane.getFontMetrics(editorPane.getFont()).getHeight() * 10 + panel.getPreferredSize().height;
+			if (dialogD.height < minHeight)
+				dialogD.height = minHeight;
+			setPreferredSize(dialogD);;
+			pack(); // Important! or preferred dimensions won't apply
 		}
 
 		public void actionPerformed(final ActionEvent e) {

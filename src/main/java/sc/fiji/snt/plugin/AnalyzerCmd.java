@@ -51,10 +51,12 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 
 /**
  * Command for measuring Tree(s).
+ * @deprecated replaced by {@link sc.fiji.snt.gui.MeasureUI }
  *
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, visible = false, label="Measure...", initializer = "init")
+@Deprecated
 public class AnalyzerCmd extends CommonDynamicCmd {
 
 	private static final String TABLE_TITLE = "SNT Measurements";
