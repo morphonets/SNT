@@ -35,6 +35,7 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -211,14 +212,18 @@ public class MouseLightLoader {
 		final Map<String, TreeSet<SWCPoint>> nodesMap = extractNodes(jsonFile, compartment);
 		final PathAndFillManager pafm = new PathAndFillManager();
 		pafm.setHeadless(true);
-		return pafm.importNeurons(nodesMap, null, null);
+		final Map<String, Tree> result = pafm.importNeurons(nodesMap, null, null);
+		applyMetadata(result.values(), compartment);
+		return result;
 	}
 
 	public static Map<String, Tree> extractTrees(final InputStream stream, final String compartment) {
 		final Map<String, TreeSet<SWCPoint>> nodesMap = extractNodes(stream, compartment);
 		final PathAndFillManager pafm = new PathAndFillManager();
 		pafm.setHeadless(true);
-		return pafm.importNeurons(nodesMap, null, null);
+		Map<String, Tree> result = pafm.importNeurons(nodesMap, null, null);
+		applyMetadata(result.values(), compartment);
+		return result;
 	}
 
 	/**
@@ -265,6 +270,14 @@ public class MouseLightLoader {
 			map.put(identifier, extractNodesFromJSONObject(normCompartment, neuron));
 		}
 		return map;
+	}
+
+	private static void applyMetadata(final Collection<Tree>trees, final String compartment) {
+		trees.forEach( tree -> {
+			tree.getProperties().put(Tree.KEY_SPATIAL_UNIT, "um");
+			tree.getProperties().put(Tree.KEY_SOURCE, "MouseLight");
+			tree.getProperties().put(Tree.KEY_COMPARTMENT, TreeProperties.getStandardizedCompartment(compartment));
+		});
 	}
 
 	private static Map<String, TreeSet<SWCPoint>> extractNodes(final JSONObject neuron, final String compartment) {
