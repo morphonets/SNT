@@ -272,6 +272,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 		} else {
 			resolveInput("treeList");
 		}
+		logger = new Logger(getContext(), "Sholl B.A.");
 	}
 
 	@SuppressWarnings("unused")
