@@ -111,7 +111,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			MultiTreeStatistics.AVG_REMOTE_ANGLE,
 			MultiTreeStatistics.AVG_PARTITION_ASYMMETRY,
 			MultiTreeStatistics.AVG_FRACTAL_DIMENSION,
-			MultiTreeStatistics.AVG_SPINE_DENSITY,
+			MultiTreeStatistics.PATH_MEAN_SPINE_DENSITY,
 			MultiTreeStatistics.N_BRANCH_POINTS,
 			MultiTreeStatistics.N_TIPS,
 			MultiTreeStatistics.N_BRANCHES,

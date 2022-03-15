@@ -202,8 +202,8 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		mi1 = new JMenuItem(TreeStatistics.N_SPINES + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_SPINES, ""));
 		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.MEAN_RADIUS + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.MEAN_RADIUS, ""));
+		mi1 = new JMenuItem(TreeStatistics.PATH_MEAN_RADIUS + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_MEAN_RADIUS, ""));
 		morphoFilteringMenu.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.PATH_ORDER + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER, ""));
@@ -406,7 +406,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				case TreeStatistics.N_NODES:
 					value = p.size();
 					break;
-				case TreeStatistics.MEAN_RADIUS:
+				case TreeStatistics.PATH_MEAN_RADIUS:
 					value = p.getMeanRadius();
 					break;
 				case TreeStatistics.PATH_ORDER:

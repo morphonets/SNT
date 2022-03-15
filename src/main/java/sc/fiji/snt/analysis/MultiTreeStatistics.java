@@ -105,7 +105,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 			AVG_REMOTE_ANGLE, //
 			AVG_PARTITION_ASYMMETRY, //
 			AVG_FRACTAL_DIMENSION, //
-			AVG_SPINE_DENSITY, //
+			PATH_MEAN_SPINE_DENSITY, //
 			DEPTH, //
 			HEIGHT, //
 			HIGHEST_PATH_ORDER, //
@@ -292,7 +292,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 		}
 		if (normGuess.indexOf("spines") != -1 || normGuess.indexOf("varicosities") > -1) {
 			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1 || normGuess.indexOf("dens") != -1) {
-				return AVG_SPINE_DENSITY;
+				return PATH_MEAN_SPINE_DENSITY;
 			}
 			else {
 				return N_SPINES;

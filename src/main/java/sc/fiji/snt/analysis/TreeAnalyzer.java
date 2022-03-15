@@ -384,9 +384,9 @@ public class TreeAnalyzer extends ContextCommand {
 			return getHighestPathOrder();
 		case TreeStatistics.LENGTH:
 			return getCableLength();
-		case TreeStatistics.MEAN_RADIUS:
+		case TreeStatistics.PATH_MEAN_RADIUS:
 			final TreeStatistics treeStats = new TreeStatistics(tree);
-			return treeStats.getSummaryStats(TreeStatistics.MEAN_RADIUS).getMean();
+			return treeStats.getSummaryStats(TreeStatistics.PATH_MEAN_RADIUS).getMean();
 		case TreeStatistics.N_BRANCH_POINTS:
 			return getBranchPoints().size();
 		case TreeStatistics.N_BRANCHES:
