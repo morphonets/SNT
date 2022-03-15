@@ -80,16 +80,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			.getMutableInput("measurementChoice", String.class);
 		List<String> choices;
 		if (onlyConnectivitySafeMetrics) {
-			choices = TreeStatistics.getAllMetrics();
-			choices.remove(TreeStatistics.BRANCH_LENGTH);
-			choices.remove(TreeStatistics.CONTRACTION);
-			choices.remove(TreeStatistics.REMOTE_BIF_ANGLES);
-			choices.remove(TreeStatistics.PARTITION_ASYMMETRY);
-			choices.remove(TreeStatistics.PRIMARY_LENGTH);
-			choices.remove(TreeStatistics.INNER_LENGTH);
-			choices.remove(TreeStatistics.TERMINAL_LENGTH);
-			choices.remove(TreeStatistics.REMOTE_BIF_ANGLES);
-			choices.remove(TreeStatistics.FRACTAL_DIMENSION);
+			choices = TreeStatistics.getMetrics("safe");
 			getInfo().setLabel("Distribution Analysis (Path Properties)");
 		} else {
 			choices = TreeStatistics.getMetrics(); // does not contain "Path metrics"

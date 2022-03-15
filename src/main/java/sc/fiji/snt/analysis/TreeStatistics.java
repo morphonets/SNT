@@ -57,11 +57,17 @@ import sc.fiji.snt.util.SWCPoint;
  */
 public class TreeStatistics extends TreeAnalyzer {
 
+	/** Flag for {@value #LENGTH} analysis. */
+	public static final String LENGTH = "Cable length";
+
 	/** Flag for {@value #PATH_LENGTH} analysis. */
 	public static final String PATH_LENGTH = "Path length";
 
 	/** Flag for {@value #BRANCH_LENGTH} analysis. */
 	public static final String BRANCH_LENGTH = "Branch length";
+
+	/** Flag for {@value #BRANCH_MEAN_RADIUS} analysis. */
+	public static final String BRANCH_MEAN_RADIUS = "Branch mean radius";
 
 	/** Flag for {@value #TERMINAL_LENGTH} analysis. */
 	public static final String TERMINAL_LENGTH = "Length of terminal branches";
@@ -85,14 +91,19 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String INTER_NODE_DISTANCE = "Inter-node distance";
 
 	/** Flag for {@value #INTER_NODE_DISTANCE_SQUARED} statistics. */
-	public static final String INTER_NODE_DISTANCE_SQUARED =
-		"Inter-node distance (squared)";
+	public static final String INTER_NODE_DISTANCE_SQUARED = "Inter-node distance (squared)";
 
 	/** Flag for {@value #N_BRANCH_POINTS} statistics. */
 	public static final String N_BRANCH_POINTS = "No. of branch points";
 
-	/** Flag for {@value #N_BRANCH_POINTS} statistics. */
-	public static final String N_NODES = "No. of nodes";
+	/** Flag for {@value #N_NODES} statistics. */
+	public static final String N_NODES = "No. of total nodes";
+
+	/** Flag for {@value #N_PATH_NODES} statistics. */
+	public static final String N_PATH_NODES = "No. of path nodes";
+
+	/** Flag for {@value #N_PATHS} statistics */
+	public static final String N_PATHS = "No. of paths";
 
 	/** Flag for {@value #N_SPINES} statistics. */
 	public static final String N_SPINES = "No. of spines/varicosities";
@@ -100,11 +111,32 @@ public class TreeStatistics extends TreeAnalyzer {
 	/** Flag for {@value #NODE_RADIUS} statistics. */
 	public static final String NODE_RADIUS = "Node radius";
 
-	/** Flag for {@value #MEAN_RADIUS} statistics. */
-	public static final String MEAN_RADIUS = "Path mean radius";
+	/** Flag specifying {@value #N_BRANCHES} statistics */
+	public static final String N_BRANCHES = "No. of branches";
 
-	/** Flag for {@value #AVG_SPINE_DENSITY} statistics. */
-	public static final String AVG_SPINE_DENSITY = "Average spine/varicosity density";
+	/** Flag specifying {@value #N_PRIMARY_BRANCHES} statistics */
+	public static final String N_PRIMARY_BRANCHES = "No. of primary branches";
+
+	/** Flag specifying {@value #N_INNER_BRANCHES} statistics */
+	public static final String N_INNER_BRANCHES = "No. of inner branches";
+
+	/** Flag specifying {@value #N_TERMINAL_BRANCHES} statistics */
+	public static final String N_TERMINAL_BRANCHES = "No. of terminal branches";
+
+	/** Flag specifying {@value #N_TIPS} statistics */
+	public static final String N_TIPS = "No. of tips";
+
+	/** Flag for {@value #PATH_MEAN_RADIUS} statistics. */
+	public static final String PATH_MEAN_RADIUS = "Path mean radius";
+
+	/** Flag for {@value #N_FITTED_PATHS} statistics */
+	public static final String N_FITTED_PATHS = "No. of fitted paths";
+
+	/** Flag for {@value #PATH_MEAN_SPINE_DENSITY} statistics */
+	public static final String PATH_MEAN_SPINE_DENSITY = "Path mean spine/varicosity density";
+
+	/** Flag for {@value #PATH_N_SPINES} statistics */
+	public static final String PATH_N_SPINES = "No. of spines/varicosities per path";
 
 	/** Flag for {@value #X_COORDINATES} statistics. */
 	public static final String X_COORDINATES = "X coordinates";
@@ -115,21 +147,69 @@ public class TreeStatistics extends TreeAnalyzer {
 	/** Flag for {@value #Z_COORDINATES} statistics. */
 	public static final String Z_COORDINATES = "Z coordinates";
 
+	/** Flag for {@value #WIDTH} statistics */
+	public static final String WIDTH = "Width";
+
+	/** Flag for {@value #HEIGHT} statistics */
+	public static final String HEIGHT = "Height";
+
+	/** Flag for {@value #DEPTH} statistics */
+	public static final String DEPTH = "Depth";
+
 	/** Flag for {@value #CONTRACTION} statistics. */
 	public static final String CONTRACTION = "Contraction";
 
 	/** Flag for {@value #REMOTE_BIF_ANGLES} statistics. */
 	public static final String REMOTE_BIF_ANGLES = "Remote bif. angles";
-	
+
 	/** Flag for {@value #PARTITION_ASYMMETRY} statistics. */
 	public static final String PARTITION_ASYMMETRY = "Partition asymmetry";
-	
+
 	/** Flag for {@value #FRACTAL_DIMENSION} statistics. */
 	public static final String FRACTAL_DIMENSION = "Fractal dimension";
 
+	/** Flag specifying {@link StrahlerAnalyzer#getRootNumber() Horton-Strahler number} statistics */
+	public static final String STRAHLER_NUMBER = "Horton-Strahler number";
+
+	/** Flag specifying {@link StrahlerAnalyzer#getAvgBifurcationRatio() Horton-Strahler bifurcation ratio} statistics */
+	public static final String STRAHLER_RATIO = "Horton-Strahler bifurcation ratio";
+
+	/** Flag specifying {@link sc.fiji.snt.analysis.sholl.math.LinearProfileStats#getMean() Sholl mean} statistics */
+	public static final String SHOLL_MEAN_VALUE = "Sholl: " + ShollAnalyzer.MEAN;
+
+	/** Flag specifying {@link sc.fiji.snt.analysis.sholl.math.LinearProfileStats#getSum() Sholl sum} statistics */
+	public static final String SHOLL_SUM_VALUE = "Sholl: " + ShollAnalyzer.SUM;
+
+	/** Flag specifying {@link sc.fiji.snt.analysis.sholl.math.LinearProfileStats#getMax() Sholl max} statistics */
+	public static final String SHOLL_MAX_VALUE = "Sholl: " + ShollAnalyzer.MAX;
+
+	/** Flag specifying {@value #SHOLL_N_MAX} statistics */
+	public static final String SHOLL_N_MAX = "Sholl: " + ShollAnalyzer.N_MAX;
+
+	/** Flag specifying {@value #SHOLL_N_SECONDARY_MAX} statistics */
+	public static final String SHOLL_N_SECONDARY_MAX = "Sholl: " + ShollAnalyzer.N_SECONDARY_MAX;
+
+	/** Flag specifying {@value #SHOLL_DECAY} statistics */
+	public static final String SHOLL_DECAY = "Sholl: " + ShollAnalyzer.DECAY;
+
+	/** Flag specifying {@value #MAX_FITTED} statistics */
+	public static final String SHOLL_MAX_FITTED = "Sholl: " + ShollAnalyzer.MAX_FITTED;
+
+	/** Flag specifying {@value #SHOLL_MAX_FITTED_RADIUS} statistics */
+	public static final String SHOLL_MAX_FITTED_RADIUS = "Sholl: " + ShollAnalyzer.MAX_FITTED_RADIUS;
+
+	/** Flag specifying {@value #SHOLL_POLY_FIT_DEGREE} statistics */
+	public static final String SHOLL_POLY_FIT_DEGREE = "Sholl: " + ShollAnalyzer.POLY_FIT_DEGREE;
+
+	/** Flag specifying {@value #SHOLL_KURTOSIS} statistics */
+	public static final String SHOLL_KURTOSIS = "Sholl: " + ShollAnalyzer.KURTOSIS;
+
+	/** Flag specifying {@value #SHOLL_SKEWENESS} statistics */
+	public static final String SHOLL_SKEWENESS = "Sholl: " + ShollAnalyzer.SKEWENESS;
+
 	/**
-	 * Flag for analysis of {@value #VALUES}, an optional numeric property that
-	 * can be assigned to Path nodes (e.g., voxel intensities, assigned via
+	 * Flag for analysis of {@value #VALUES}, an optional numeric property that can
+	 * be assigned to Path nodes (e.g., voxel intensities, assigned via
 	 * {@link PathProfiler}. Note that an {@link IllegalArgumentException} is
 	 * triggered if no values have been assigned to the tree being analyzed.
 	 * 
@@ -138,36 +218,24 @@ public class TreeStatistics extends TreeAnalyzer {
 	 */
 	public static final String VALUES = "Node intensity values";
 
-	private static final String[] ALL_FLAGS = { //
-			BRANCH_LENGTH, //
-			CONTRACTION, //
-			REMOTE_BIF_ANGLES, //
-			PARTITION_ASYMMETRY, //
-			FRACTAL_DIMENSION, //
-			INTER_NODE_DISTANCE, //
-			INTER_NODE_DISTANCE_SQUARED, //
-			MEAN_RADIUS, //
-			AVG_SPINE_DENSITY, //
-			N_BRANCH_POINTS, //
-			N_NODES, //
-			N_SPINES, //
-			NODE_RADIUS, //
-			PATH_CHANNEL,//
-			PATH_FRAME,//
-			PATH_LENGTH, //
-			PATH_ORDER, //
-			PRIMARY_LENGTH, //
-			INNER_LENGTH, //
-			TERMINAL_LENGTH, //
-			VALUES, //
-			X_COORDINATES, //
-			Y_COORDINATES, //
-			Z_COORDINATES, //
-	};
+	@Deprecated
+	public static final String MEAN_RADIUS = PATH_MEAN_RADIUS;
+
+	@Deprecated
+	public static final String AVG_SPINE_DENSITY = "Average spine/varicosity density";
+
+	private static final String[] ALL_FLAGS = { BRANCH_LENGTH, BRANCH_MEAN_RADIUS, CONTRACTION, DEPTH,
+			FRACTAL_DIMENSION, HEIGHT, INNER_LENGTH, INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, LENGTH,
+			N_BRANCH_POINTS, N_BRANCHES, N_FITTED_PATHS, N_INNER_BRANCHES, N_NODES, N_PATH_NODES, N_PATHS,
+			N_PRIMARY_BRANCHES, N_SPINES, N_TERMINAL_BRANCHES, N_TIPS, NODE_RADIUS, PARTITION_ASYMMETRY, PATH_CHANNEL,
+			PATH_FRAME, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_MEAN_SPINE_DENSITY, PATH_ORDER, PRIMARY_LENGTH,
+			REMOTE_BIF_ANGLES, SHOLL_DECAY, SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE,
+			SHOLL_MEAN_VALUE, SHOLL_N_MAX, SHOLL_N_SECONDARY_MAX, SHOLL_POLY_FIT_DEGREE, SHOLL_SKEWENESS,
+			SHOLL_SUM_VALUE, STRAHLER_NUMBER, STRAHLER_RATIO, TERMINAL_LENGTH, VALUES, WIDTH, X_COORDINATES,
+			Y_COORDINATES, Z_COORDINATES };
 
 	protected LastDstats lastDstats;
 	private static boolean exactMetricMatch;
-
 
 	/**
 	 * Instantiates a new instance from a collection of Paths
@@ -198,13 +266,30 @@ public class TreeStatistics extends TreeAnalyzer {
 		return Arrays.stream(ALL_FLAGS).collect(Collectors.toList());
 	}
 
+	public static List<String> getMetrics(final String type) {
+		switch (type) {
+		case "legacy":
+			// Historical metrics up to SNTv4.0.10
+			return Arrays.asList(BRANCH_LENGTH, CONTRACTION, REMOTE_BIF_ANGLES, PARTITION_ASYMMETRY, FRACTAL_DIMENSION,
+					INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, MEAN_RADIUS, AVG_SPINE_DENSITY, N_BRANCH_POINTS,
+					N_NODES, N_SPINES, NODE_RADIUS, PATH_CHANNEL, PATH_FRAME, PATH_LENGTH, PATH_ORDER, PRIMARY_LENGTH,
+					INNER_LENGTH, TERMINAL_LENGTH, VALUES, X_COORDINATES, Y_COORDINATES, Z_COORDINATES);
+		case "safe":
+			return Arrays.asList(INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, MEAN_RADIUS, AVG_SPINE_DENSITY,
+					N_BRANCH_POINTS, N_NODES, N_SPINES, NODE_RADIUS, PATH_CHANNEL, PATH_FRAME, PATH_LENGTH, PATH_ORDER,
+					VALUES, X_COORDINATES, Y_COORDINATES, Z_COORDINATES);
+		default:
+			throw new IllegalArgumentException("Unrecognized type");
+		}
+	}
+
 	/**
 	 * Gets the list of most commonly used metrics.
 	 *
 	 * @return the list of commonly used metrics
 	 */
 	public static List<String> getMetrics() {
-		return getAllMetrics().stream().filter(metric -> {
+		return getMetrics("legacy").stream().filter(metric -> {
 			return !metric.toLowerCase().contains("path");
 		}).collect(Collectors.toList());
 	}
@@ -212,8 +297,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	/**
 	 * Computes the {@link SummaryStatistics} for the specified measurement.
 	 *
-	 * @param metric the measurement ({@link #N_NODES}, {@link #NODE_RADIUS},
-	 *          etc.)
+	 * @param metric the measurement ({@link #N_NODES}, {@link #NODE_RADIUS}, etc.)
 	 * @return the SummaryStatistics object.
 	 */
 	public SummaryStatistics getSummaryStats(final String metric) {
@@ -225,8 +309,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	/**
 	 * Computes the {@link DescriptiveStatistics} for the specified measurement.
 	 *
-	 * @param metric the measurement ({@link #N_NODES}, {@link #NODE_RADIUS},
-	 *          etc.)
+	 * @param metric the measurement ({@link #N_NODES}, {@link #NODE_RADIUS}, etc.)
 	 * @return the DescriptiveStatistics object.
 	 */
 	public DescriptiveStatistics getDescriptiveStats(final String metric) {
@@ -270,16 +353,17 @@ public class TreeStatistics extends TreeAnalyzer {
 		return getAnnotatedLength(tree.getGraph(), level, BrainAnnotation.getHemisphereFlag(hemisphere));
 	}
 
-	protected static Map<BrainAnnotation, Double> getAnnotatedLength(final DirectedWeightedGraph graph, final int level, final char lr) {
+	protected static Map<BrainAnnotation, Double> getAnnotatedLength(final DirectedWeightedGraph graph, final int level,
+			final char lr) {
 		final NodeStatistics<SWCPoint> nodeStats = new NodeStatistics<SWCPoint>(graph.vertexSet(lr));
 		final Map<BrainAnnotation, Set<SWCPoint>> annotatedNodesMap = nodeStats.getAnnotatedNodes(level);
 		final HashMap<BrainAnnotation, Double> lengthMap = new HashMap<>();
 		for (final Map.Entry<BrainAnnotation, Set<SWCPoint>> entry : annotatedNodesMap.entrySet()) {
-		    final BrainAnnotation annotation = entry.getKey();
-		    final Set<SWCPoint> nodeSubset = entry.getValue();
-		    final DirectedWeightedSubgraph subgraph = graph.getSubgraph(nodeSubset);
-		    final double subgraphWeight = subgraph.sumEdgeWeights(true);
-		    lengthMap.put(annotation, subgraphWeight);
+			final BrainAnnotation annotation = entry.getKey();
+			final Set<SWCPoint> nodeSubset = entry.getValue();
+			final DirectedWeightedSubgraph subgraph = graph.getSubgraph(nodeSubset);
+			final double subgraphWeight = subgraph.sumEdgeWeights(true);
+			lengthMap.put(annotation, subgraphWeight);
 		}
 		return lengthMap;
 	}
@@ -288,7 +372,8 @@ public class TreeStatistics extends TreeAnalyzer {
 		return getAnnotatedLengthsByHemisphere(tree.getGraph(), level);
 	}
 
-	protected static Map<BrainAnnotation, double[]> getAnnotatedLengthsByHemisphere(final DirectedWeightedGraph graph, final int level) {
+	protected static Map<BrainAnnotation, double[]> getAnnotatedLengthsByHemisphere(final DirectedWeightedGraph graph,
+			final int level) {
 		final char ipsiFlag = graph.getRoot().getHemisphere();
 		if (ipsiFlag == BrainAnnotation.ANY_HEMISPHERE)
 			throw new IllegalArgumentException("Tree's root has its hemisphere flag unset");
@@ -297,16 +382,16 @@ public class TreeStatistics extends TreeAnalyzer {
 		final Map<BrainAnnotation, Double> ipsiMap = getAnnotatedLength(graph, level, ipsiFlag);
 		final Map<BrainAnnotation, Double> contraMap = getAnnotatedLength(graph, level, contraFlag);
 		final Map<BrainAnnotation, double[]> finalMap = new HashMap<>();
-		ipsiMap.forEach( (k, ipsiLength) -> {
+		ipsiMap.forEach((k, ipsiLength) -> {
 			double[] values = new double[2];
 			final Double contraLength = contraMap.get(k);
 			values[0] = ipsiLength;
 			values[1] = (contraLength == null) ? 0d : contraLength;
 			finalMap.put(k, values);
 		});
-		contraMap.keySet().removeIf( k -> ipsiMap.get(k) != null);
-		contraMap.forEach( (k, contraLength) -> {
-			finalMap.put(k, new double[] {0d, contraLength});
+		contraMap.keySet().removeIf(k -> ipsiMap.get(k) != null);
+		contraMap.forEach((k, contraLength) -> {
+			finalMap.put(k, new double[] { 0d, contraLength });
 		});
 		return finalMap;
 	}
@@ -367,21 +452,21 @@ public class TreeStatistics extends TreeAnalyzer {
 		final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
 		Map<BrainAnnotation, double[]> seriesMap = getAnnotatedLengthsByHemisphere(depth);
 		seriesMap.entrySet().stream().sorted((e1, e2) -> -Double.compare(e1.getValue()[0], e2.getValue()[0]))
-		.forEach(entry -> {
-			if (entry.getKey() != null) {
-					dataset.addValue(entry.getValue()[0], "Ipsilateral", entry.getKey().acronym());
-					dataset.addValue(entry.getValue()[1], "Contralateral", entry.getKey().acronym());
-			}
-		});
+				.forEach(entry -> {
+					if (entry.getKey() != null) {
+						dataset.addValue(entry.getValue()[0], "Ipsilateral", entry.getKey().acronym());
+						dataset.addValue(entry.getValue()[1], "Contralateral", entry.getKey().acronym());
+					}
+				});
 		int nAreas = seriesMap.size();
 		if (seriesMap.get(null) != null) {
-			dataset.addValue(seriesMap.get(null)[0], "Ipsilateral", "Other" );
-			dataset.addValue(seriesMap.get(null)[1], "Contralateral", "Other" );
+			dataset.addValue(seriesMap.get(null)[0], "Ipsilateral", "Other");
+			dataset.addValue(seriesMap.get(null)[1], "Contralateral", "Other");
 			nAreas--;
 		}
 		final String axisTitle = (depth == Integer.MAX_VALUE) ? "no filtering" : "depth \u2264" + depth;
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
-				"Brain areas (N=" + nAreas + ", "+ axisTitle +")", // domain axis title
+				"Brain areas (N=" + nAreas + ", " + axisTitle + ")", // domain axis title
 				"Cable length", // range axis title
 				dataset, 2);
 		final String tLabel = (tree.getLabel() == null) ? "" : tree.getLabel();
@@ -389,25 +474,27 @@ public class TreeStatistics extends TreeAnalyzer {
 		return frame;
 	}
 
-	protected SNTChart getAnnotatedLengthHistogram(final Map<BrainAnnotation, Double> map, final int depth, final String secondaryLabel) {
+	protected SNTChart getAnnotatedLengthHistogram(final Map<BrainAnnotation, Double> map, final int depth,
+			final String secondaryLabel) {
 		final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
 		final String seriesLabel = (depth == Integer.MAX_VALUE) ? "no filtering" : "depth \u2264" + depth;
 		map.entrySet().stream().sorted((e1, e2) -> -e1.getValue().compareTo(e2.getValue())).forEach(entry -> {
 			if (entry.getKey() != null)
-					dataset.addValue(entry.getValue(), seriesLabel, entry.getKey().acronym());
+				dataset.addValue(entry.getValue(), seriesLabel, entry.getKey().acronym());
 		});
 		int nAreas = map.size();
 		if (map.get(null) != null) {
-			dataset.addValue(map.get(null), seriesLabel,"Other" );
+			dataset.addValue(map.get(null), seriesLabel, "Other");
 			nAreas--;
 		}
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
-				"Brain areas (N=" + nAreas + ", "+ seriesLabel +")", // domain axis title
+				"Brain areas (N=" + nAreas + ", " + seriesLabel + ")", // domain axis title
 				"Cable length", // range axis title
 				dataset);
 		final String tLabel = (tree.getLabel() == null) ? "" : tree.getLabel();
 		final SNTChart frame = new SNTChart(tLabel + " Annotated Length", chart, new Dimension(400, 600));
-		if (secondaryLabel != null) frame.annotate(secondaryLabel);
+		if (secondaryLabel != null)
+			frame.annotate(secondaryLabel);
 		return frame;
 	}
 
@@ -428,7 +515,8 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static TreeStatistics fromCollection(final Collection<Tree> trees, final String metric) {
 		final Iterator<Tree> iterator = trees.iterator();
 		final TreeStatistics holder = new TreeStatistics(iterator.next());
-		if (trees.size() == 1) return holder;
+		if (trees.size() == 1)
+			return holder;
 		holder.tree.setLabel(getLabelFromTreeCollection(trees));
 		final String normMeasurement = getNormalizedMeasurement(metric);
 		final DescriptiveStatistics holderStats = holder.getDescriptiveStats(normMeasurement);
@@ -445,8 +533,9 @@ public class TreeStatistics extends TreeAnalyzer {
 
 	private static String getLabelFromTreeCollection(final Collection<Tree> trees) {
 		final StringBuilder sb = new StringBuilder();
-		for (final Tree tree: trees) {
-			if (tree.getLabel() != null) sb.append(tree.getLabel()).append(" ");
+		for (final Tree tree : trees) {
+			if (tree.getLabel() != null)
+				sb.append(tree.getLabel()).append(" ");
 		}
 		return (sb.length() == 0) ? "Grouped Cells" : sb.toString().trim();
 	}
@@ -474,24 +563,21 @@ public class TreeStatistics extends TreeAnalyzer {
 		if (normGuess.indexOf("length") != -1 || normGuess.indexOf("cable") != -1) {
 			if (normGuess.indexOf("term") != -1) {
 				return TERMINAL_LENGTH;
-			}
-			else if (normGuess.indexOf("prim") != -1) {
+			} else if (normGuess.indexOf("prim") != -1) {
 				return PRIMARY_LENGTH;
-			}
-			else if (normGuess.indexOf("inner") != -1) {
+			} else if (normGuess.indexOf("inner") != -1) {
 				return INNER_LENGTH;
-			}
-			else if (normGuess.indexOf("path") != -1) {
+			} else if (normGuess.indexOf("path") != -1) {
 				return PATH_LENGTH;
-			}
-			else {
+			} else {
 				return BRANCH_LENGTH;
 			}
 		}
 		if (normGuess.indexOf("path") != -1 && normGuess.indexOf("order") != -1) {
 			return PATH_ORDER;
 		}
-		if (normGuess.indexOf("bp") != -1 || normGuess.indexOf("branch points") != -1 || normGuess.indexOf("junctions") != -1) {
+		if (normGuess.indexOf("bp") != -1 || normGuess.indexOf("branch points") != -1
+				|| normGuess.indexOf("junctions") != -1) {
 			return N_BRANCH_POINTS;
 		}
 		if (normGuess.indexOf("nodes") != -1) {
@@ -500,24 +586,23 @@ public class TreeStatistics extends TreeAnalyzer {
 		if (normGuess.indexOf("node") != -1 && (normGuess.indexOf("dis") != -1 || normGuess.indexOf("dx") != -1)) {
 			if (normGuess.indexOf("sq") != -1) {
 				return INTER_NODE_DISTANCE_SQUARED;
-			}
-			else {
+			} else {
 				return INTER_NODE_DISTANCE;
 			}
 		}
-		if (normGuess.indexOf("radi") != -1 ) {
-			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1) {
+		if (normGuess.indexOf("radi") != -1) {
+			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1
+					|| normGuess.indexOf("average") != -1) {
 				return MEAN_RADIUS;
-			}
-			else {
+			} else {
 				return NODE_RADIUS;
 			}
 		}
 		if (normGuess.indexOf("spines") != -1 || normGuess.indexOf("varicosities") > -1) {
-			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1 || normGuess.indexOf("dens") != -1) {
+			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1
+					|| normGuess.indexOf("dens") != -1) {
 				return AVG_SPINE_DENSITY;
-			}
-			else {
+			} else {
 				return N_SPINES;
 			}
 		}
@@ -542,7 +627,7 @@ public class TreeStatistics extends TreeAnalyzer {
 		if (Arrays.stream(ALL_FLAGS).anyMatch(measurement::equalsIgnoreCase)) {
 			// This is just so that we can use capitalized strings in the GUI
 			// and lower case strings in scripts
-			return WordUtils.capitalize(measurement, new char[]{});
+			return WordUtils.capitalize(measurement, new char[] {});
 		}
 		final String normMeasurement = tryReallyHardToGuessMetric(measurement);
 		if (!measurement.equals(normMeasurement)) {
@@ -555,14 +640,22 @@ public class TreeStatistics extends TreeAnalyzer {
 		return normMeasurement;
 	}
 
-	protected void assembleStats(final StatisticsInstance stat,
-		final String measurement)
-	{
-		switch (getNormalizedMeasurement(measurement)) {
+	protected void assembleStats(final StatisticsInstance stat, final String measurement) {
+		final String m = getNormalizedMeasurement(measurement);
+		switch (m) {
 		case BRANCH_LENGTH:
 			try {
 				for (final Path p : getBranches())
 					stat.addValue(p.getLength());
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				stat.addValue(Double.NaN);
+			}
+			break;
+		case BRANCH_MEAN_RADIUS:
+			try {
+				for (final Path p : getBranches())
+					stat.addValue(p.getMeanRadius());
 			} catch (final IllegalArgumentException ignored) {
 				SNTUtils.log("Error: " + ignored.getMessage());
 				stat.addValue(Double.NaN);
@@ -577,23 +670,8 @@ public class TreeStatistics extends TreeAnalyzer {
 				stat.addValue(Double.NaN);
 			}
 			break;
-		case REMOTE_BIF_ANGLES:
-			try {
-				for (final double angle : getRemoteBifAngles())
-					stat.addValue(angle);
-			} catch (final IllegalArgumentException ignored) {
-				SNTUtils.log("Error: " + ignored.getMessage());
-				stat.addValue(Double.NaN);
-			}
-			break;
-		case PARTITION_ASYMMETRY:
-			try {
-				for (final double asymmetry : getPartitionAsymmetry())
-					stat.addValue(asymmetry);
-			} catch (final IllegalArgumentException ignored) {
-				SNTUtils.log("Error: " + ignored.getMessage());
-				stat.addValue(Double.NaN);
-			}
+		case DEPTH:
+			stat.addValue(getDepth());
 			break;
 		case FRACTAL_DIMENSION:
 			try {
@@ -603,6 +681,13 @@ public class TreeStatistics extends TreeAnalyzer {
 				SNTUtils.log("Error: " + ignored.getMessage());
 				stat.addValue(Double.NaN);
 			}
+			break;
+		case HEIGHT:
+			stat.addValue(getHeight());
+			break;
+		case INNER_LENGTH:
+			for (final Path p : getInnerBranches())
+				stat.addValue(p.getLength());
 			break;
 		case INTER_NODE_DISTANCE:
 			for (final Path p : tree.list()) {
@@ -622,19 +707,44 @@ public class TreeStatistics extends TreeAnalyzer {
 				}
 			}
 			break;
-		case MEAN_RADIUS:
-			for (final Path p : tree.list()) {
-				stat.addValue(p.getMeanRadius());
-			}
+		case LENGTH:
+			stat.addValue(getCableLength());
 			break;
 		case N_BRANCH_POINTS:
 			for (final Path p : tree.list()) {
 				stat.addValue(p.getJunctionNodes().size());
 			}
 			break;
+		case N_BRANCHES:
+			stat.addValue(getNBranches());
+			break;
+		case N_FITTED_PATHS:
+			stat.addValue(getNFittedPaths());
+			break;
+		case N_INNER_BRANCHES:
+			stat.addValue(getInnerBranches().size());
+			break;
 		case N_NODES:
+			stat.addValue(getNNodes());
+			break;
+		case N_PATH_NODES:
 			for (final Path p : tree.list())
 				stat.addValue(p.size());
+			break;
+		case N_PATHS:
+			stat.addValue(getNPaths());
+			break;
+		case N_PRIMARY_BRANCHES:
+			stat.addValue(getPrimaryBranches().size());
+			break;
+		case N_SPINES:
+			stat.addValue(getNoSpinesOrVaricosities());
+			break;
+		case N_TERMINAL_BRANCHES:
+			stat.addValue(getTerminalBranches().size());
+			break;
+		case N_TIPS:
+			stat.addValue(getTips().size());
 			break;
 		case NODE_RADIUS:
 			for (final Path p : tree.list()) {
@@ -643,18 +753,13 @@ public class TreeStatistics extends TreeAnalyzer {
 				}
 			}
 			break;
-		case PATH_LENGTH:
-			for (final Path p : tree.list())
-				stat.addValue(p.getLength());
-			break;
-		case PATH_ORDER:
-			for (final Path p : tree.list()) {
-				stat.addValue(p.getOrder());
-			}
-			break;
-		case PATH_FRAME:
-			for (final Path p : tree.list()) {
-				stat.addValue(p.getFrame());
+		case PARTITION_ASYMMETRY:
+			try {
+				for (final double asymmetry : getPartitionAsymmetry())
+					stat.addValue(asymmetry);
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				stat.addValue(Double.NaN);
 			}
 			break;
 		case PATH_CHANNEL:
@@ -662,26 +767,70 @@ public class TreeStatistics extends TreeAnalyzer {
 				stat.addValue(p.getChannel());
 			}
 			break;
-		case N_SPINES:
+		case PATH_FRAME:
+			for (final Path p : tree.list()) {
+				stat.addValue(p.getFrame());
+			}
+			break;
+		case PATH_LENGTH:
+			for (final Path p : tree.list())
+				stat.addValue(p.getLength());
+			break;
+		case PATH_MEAN_RADIUS:
+			for (final Path p : tree.list()) {
+				stat.addValue(p.getMeanRadius());
+			}
+			break;
+		case PATH_MEAN_SPINE_DENSITY:
+		case AVG_SPINE_DENSITY:
+			for (final Path p : tree.list()) {
+				stat.addValue(p.getSpineOrVaricosityCount() / p.getLength());
+			}
+			break;
+		case PATH_N_SPINES:
 			for (final Path p : tree.list()) {
 				stat.addValue(p.getSpineOrVaricosityCount());
 			}
 			break;
-		case AVG_SPINE_DENSITY:
+		case PATH_ORDER:
 			for (final Path p : tree.list()) {
-				stat.addValue(p.getSpineOrVaricosityCount()/p.getLength());
+				stat.addValue(p.getOrder());
 			}
 			break;
 		case PRIMARY_LENGTH:
 			for (final Path p : getPrimaryBranches())
 				stat.addValue(p.getLength());
 			break;
+		case REMOTE_BIF_ANGLES:
+			try {
+				for (final double angle : getRemoteBifAngles())
+					stat.addValue(angle);
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				stat.addValue(Double.NaN);
+			}
+			break;
+		case SHOLL_DECAY:
+		case SHOLL_KURTOSIS:
+		case SHOLL_MAX_FITTED:
+		case SHOLL_MAX_FITTED_RADIUS:
+		case SHOLL_MAX_VALUE:
+		case SHOLL_MEAN_VALUE:
+		case SHOLL_N_MAX:
+		case SHOLL_N_SECONDARY_MAX:
+		case SHOLL_POLY_FIT_DEGREE:
+		case SHOLL_SKEWENESS:
+		case SHOLL_SUM_VALUE:
+			stat.addValue(getShollMetric(m).doubleValue());
+			break;
+		case STRAHLER_NUMBER:
+			stat.addValue(getStrahlerNumber());
+			break;
+		case STRAHLER_RATIO:
+			stat.addValue(getStrahlerBifurcationRatio());
+			break;
 		case TERMINAL_LENGTH:
 			for (final Path p : getTerminalBranches())
-				stat.addValue(p.getLength());
-			break;
-		case INNER_LENGTH:
-			for (final Path p : getInnerBranches())
 				stat.addValue(p.getLength());
 			break;
 		case VALUES:
@@ -694,6 +843,9 @@ public class TreeStatistics extends TreeAnalyzer {
 			}
 			if (stat.getN() == 0)
 				throw new IllegalArgumentException("Tree has no values assigned");
+			break;
+		case WIDTH:
+			stat.addValue(getWidth());
 			break;
 		case X_COORDINATES:
 			for (final Path p : tree.list()) {
@@ -722,8 +874,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	}
 
 	protected boolean lastDstatsCanBeRecycled(final String normMeasurement) {
-		return (lastDstats != null && tree.size() == lastDstats.size &&
-			normMeasurement.equals(lastDstats.measurement));
+		return (lastDstats != null && tree.size() == lastDstats.size && normMeasurement.equals(lastDstats.measurement));
 	}
 
 	class LastDstats {
@@ -732,9 +883,7 @@ public class TreeStatistics extends TreeAnalyzer {
 		final DescriptiveStatistics dStats;
 		private final int size;
 
-		LastDstats(final String measurement,
-			final DescriptiveStatistics dStats)
-		{
+		LastDstats(final String measurement, final DescriptiveStatistics dStats) {
 			this.measurement = measurement;
 			this.dStats = dStats;
 			size = tree.size();
@@ -755,8 +904,10 @@ public class TreeStatistics extends TreeAnalyzer {
 		}
 
 		void addValue(final double value) {
-			if (sStatistics != null) sStatistics.addValue(value);
-			else dStatistics.addValue(value);
+			if (sStatistics != null)
+				sStatistics.addValue(value);
+			else
+				dStatistics.addValue(value);
 		}
 
 		long getN() {
@@ -797,17 +948,17 @@ public class TreeStatistics extends TreeAnalyzer {
 		final MouseLightLoader loader = new MouseLightLoader("AA0015");
 		final Tree axon = loader.getTree("axon");
 		final TreeStatistics tStats = new TreeStatistics(axon);
-		final int depth = 6;//Integer.MAX_VALUE;
+		final int depth = 6;// Integer.MAX_VALUE;
 
 		// retrieve some metrics:
 		tStats.getHistogram("fractal dimension").show();
-		NodeStatistics<?> nStats =new NodeStatistics<>(tStats.getTips());
+		NodeStatistics<?> nStats = new NodeStatistics<>(tStats.getTips());
 		SNTChart hist = nStats.getAnnotatedHistogram(depth);
 		hist.annotate("No. of tips: " + tStats.getTips().size());
 		hist.show();
 
 		// retrieve annotated lengths
-		//AllenUtils.assignHemisphereTags(axon.getGraph());
+		// AllenUtils.assignHemisphereTags(axon.getGraph());
 		hist = tStats.getAnnotatedLengthHistogram(depth);
 		AllenCompartment somaCompartment = loader.getSomaCompartment();
 		if (somaCompartment.getOntologyDepth() > depth)

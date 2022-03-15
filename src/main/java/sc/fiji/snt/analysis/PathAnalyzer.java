@@ -80,7 +80,7 @@ public class PathAnalyzer extends TreeStatistics {
 
 	public void measureIndividualPaths(final Collection<String> metrics) {
 		if (table == null) table = new SNTTable();
-		final Collection<String> measuringMetrics = (metrics == null || metrics.isEmpty()) ? getMetrics() : metrics;
+		final Collection<String> measuringMetrics = (metrics == null || metrics.isEmpty()) ? getMetrics("legacy") : metrics;
 		tree.list().forEach( path -> {
 			final int row = getNextRow(path.getName());
 			table.set(getCol("SWC Type"), row, Path.getSWCtypeName(path.getSWCType(), true));
