@@ -251,6 +251,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 
 	protected static String getNormalizedMeasurement(final String measurement, final boolean defaultToTreeStatistics)
 			throws UnknownMetricException {
+		if (isExactMetricMatch()) return measurement;
 		if (Arrays.stream(ALL_FLAGS).anyMatch(measurement::equalsIgnoreCase)) {
 			// This is just so that we can use capitalized strings in the GUI
 			// and lower case strings in scripts

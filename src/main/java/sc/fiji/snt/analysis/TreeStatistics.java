@@ -166,6 +166,8 @@ public class TreeStatistics extends TreeAnalyzer {
 	};
 
 	protected LastDstats lastDstats;
+	private static boolean exactMetricMatch;
+
 
 	/**
 	 * Instantiates a new instance from a collection of Paths
@@ -535,6 +537,8 @@ public class TreeStatistics extends TreeAnalyzer {
 	}
 
 	protected static String getNormalizedMeasurement(final String measurement) {
+		if (isExactMetricMatch())
+			return measurement;
 		if (Arrays.stream(ALL_FLAGS).anyMatch(measurement::equalsIgnoreCase)) {
 			// This is just so that we can use capitalized strings in the GUI
 			// and lower case strings in scripts
@@ -820,5 +824,13 @@ public class TreeStatistics extends TreeAnalyzer {
 		hist.annotateCategory(somaCompartment.acronym(), "soma");
 		hist.setFontSize(25);
 		hist.show();
+	}
+
+	protected static boolean isExactMetricMatch() {
+		return exactMetricMatch;
+	}
+
+	public static void setExactMetricMatch(final boolean exactMetricMatch) {
+		TreeStatistics.exactMetricMatch = exactMetricMatch;
 	}
 }
