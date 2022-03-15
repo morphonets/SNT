@@ -502,7 +502,7 @@ public class GuiUtils {
 		final List<String> allowedExtensions)
 	{
 		File chosenFile = null;
-		final JFileChooser chooser = fileChooser(title, file, JFileChooser.FILES_ONLY, allowedExtensions);
+		final JFileChooser chooser = fileChooser(title, file, JFileChooser.SAVE_DIALOG, JFileChooser.FILES_ONLY, allowedExtensions);
 		if (chooser.showSaveDialog(parent) == JFileChooser.APPROVE_OPTION) {
 			chosenFile = chooser.getSelectedFile();
 			if (chosenFile != null && allowedExtensions != null && allowedExtensions.size() == 1) {
@@ -526,15 +526,15 @@ public class GuiUtils {
 		final List<String> allowedExtensions)
 	{
 		final JFileChooser chooser = fileChooser(title, file,
-			JFileChooser.FILES_ONLY, allowedExtensions);
+			JFileChooser.OPEN_DIALOG, JFileChooser.FILES_ONLY, allowedExtensions);
 		if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION)
 			return chooser.getSelectedFile();
 		return null;
 	}
 
 	@SuppressWarnings("unused")
-	private File chooseDirectory(final String title, final File file) {
-		final JFileChooser chooser = fileChooser(title, file,
+	private File openDirectory(final String title, final File file) {
+		final JFileChooser chooser = fileChooser(title, file, JFileChooser.OPEN_DIALOG,
 			JFileChooser.DIRECTORIES_ONLY, null);
 		if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION)
 			return chooser.getSelectedFile();
@@ -542,19 +542,20 @@ public class GuiUtils {
 	}
 
 	private JFileChooser fileChooser(final String title, final File file,
-		final int type, final List<String> allowedExtensions)
+		final int type, final int selectionMode, final List<String> allowedExtensions)
 	{
 		final JFileChooser chooser = getDnDFileChooser();
-		if (file != null && file.exists()) {
+		if (file != null) {
 			if (file.isDirectory()) {
 				chooser.setCurrentDirectory(file);
 			} else {
 				chooser.setCurrentDirectory(file.getParentFile());
-				chooser.setSelectedFile(file);
 			}
+			chooser.setSelectedFile(file);
 		}
 		chooser.setDialogTitle(title);
-		chooser.setFileSelectionMode(type);
+		chooser.setFileSelectionMode(selectionMode);
+		chooser.setDialogType(type);
 		if (allowedExtensions != null && !allowedExtensions.isEmpty()) {
 			chooser.setFileFilter(new FileFilter() {
 
