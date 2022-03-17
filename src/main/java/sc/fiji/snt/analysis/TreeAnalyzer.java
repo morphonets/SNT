@@ -427,7 +427,7 @@ public class TreeAnalyzer extends ContextCommand {
 					+ "Maybe you meant one of the following?: \"" + String.join(", ", getMetrics() + "\""));
 		}
 	}
-	
+
 	protected Number getShollMetric(final String metric) {
 		final String fMetric = metric.substring(metric.indexOf("Sholl: ") + 6).trim();
 		return getShollAnalyzer().getSingleValueMetrics().getOrDefault(fMetric, Double.NaN);

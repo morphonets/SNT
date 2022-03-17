@@ -59,153 +59,114 @@ public class TreeStatistics extends TreeAnalyzer {
 
 	/** Flag for {@value #LENGTH} analysis. */
 	public static final String LENGTH = "Cable length";
-
 	/** Flag for {@value #PATH_LENGTH} analysis. */
 	public static final String PATH_LENGTH = "Path length";
-
 	/** Flag for {@value #BRANCH_LENGTH} analysis. */
 	public static final String BRANCH_LENGTH = "Branch length";
-
 	/** Flag for {@value #BRANCH_MEAN_RADIUS} analysis. */
 	public static final String BRANCH_MEAN_RADIUS = "Branch mean radius";
-
 	/** Flag for {@value #TERMINAL_LENGTH} analysis. */
 	public static final String TERMINAL_LENGTH = "Length of terminal branches";
-
 	/** Flag for {@value #PRIMARY_LENGTH} analysis. */
 	public static final String PRIMARY_LENGTH = "Length of primary branches";
-
 	/** Flag for {@value #INNER_LENGTH} analysis. */
 	public static final String INNER_LENGTH = "Length of inner branches";
-
 	/** Flag for {@value #PATH_ORDER} statistics. */
 	public static final String PATH_ORDER = "Path order";
-
 	/** Flag for {@value #PATH_CHANNEL} statistics. */
 	public static final String PATH_CHANNEL = "Path channel";
-
 	/** Flag for {@value #PATH_FRAME} statistics. */
 	public static final String PATH_FRAME = "Path frame";
-
 	/** Flag for {@value #INTER_NODE_DISTANCE} statistics. */
 	public static final String INTER_NODE_DISTANCE = "Inter-node distance";
-
 	/** Flag for {@value #INTER_NODE_DISTANCE_SQUARED} statistics. */
 	public static final String INTER_NODE_DISTANCE_SQUARED = "Inter-node distance (squared)";
-
 	/** Flag for {@value #N_BRANCH_POINTS} statistics. */
 	public static final String N_BRANCH_POINTS = "No. of branch points";
-
 	/** Flag for {@value #N_NODES} statistics. */
 	public static final String N_NODES = "No. of total nodes";
-
 	/** Flag for {@value #N_PATH_NODES} statistics. */
 	public static final String N_PATH_NODES = "No. of path nodes";
-
 	/** Flag for {@value #N_PATHS} statistics */
 	public static final String N_PATHS = "No. of paths";
-
 	/** Flag for {@value #N_SPINES} statistics. */
 	public static final String N_SPINES = "No. of spines/varicosities";
-
 	/** Flag for {@value #NODE_RADIUS} statistics. */
 	public static final String NODE_RADIUS = "Node radius";
-
 	/** Flag specifying {@value #N_BRANCHES} statistics */
 	public static final String N_BRANCHES = "No. of branches";
-
 	/** Flag specifying {@value #N_PRIMARY_BRANCHES} statistics */
 	public static final String N_PRIMARY_BRANCHES = "No. of primary branches";
-
 	/** Flag specifying {@value #N_INNER_BRANCHES} statistics */
 	public static final String N_INNER_BRANCHES = "No. of inner branches";
-
 	/** Flag specifying {@value #N_TERMINAL_BRANCHES} statistics */
 	public static final String N_TERMINAL_BRANCHES = "No. of terminal branches";
-
 	/** Flag specifying {@value #N_TIPS} statistics */
 	public static final String N_TIPS = "No. of tips";
-
 	/** Flag for {@value #PATH_MEAN_RADIUS} statistics. */
 	public static final String PATH_MEAN_RADIUS = "Path mean radius";
-
 	/** Flag for {@value #N_FITTED_PATHS} statistics */
 	public static final String N_FITTED_PATHS = "No. of fitted paths";
-
 	/** Flag for {@value #PATH_MEAN_SPINE_DENSITY} statistics */
 	public static final String PATH_MEAN_SPINE_DENSITY = "Path mean spine/varicosity density";
-
 	/** Flag for {@value #PATH_N_SPINES} statistics */
 	public static final String PATH_N_SPINES = "No. of spines/varicosities per path";
-
 	/** Flag for {@value #X_COORDINATES} statistics. */
 	public static final String X_COORDINATES = "X coordinates";
-
 	/** Flag for {@value #Y_COORDINATES} statistics. */
 	public static final String Y_COORDINATES = "Y coordinates";
-
 	/** Flag for {@value #Z_COORDINATES} statistics. */
 	public static final String Z_COORDINATES = "Z coordinates";
-
 	/** Flag for {@value #WIDTH} statistics */
 	public static final String WIDTH = "Width";
-
 	/** Flag for {@value #HEIGHT} statistics */
 	public static final String HEIGHT = "Height";
-
 	/** Flag for {@value #DEPTH} statistics */
 	public static final String DEPTH = "Depth";
-
 	/** Flag for {@value #CONTRACTION} statistics. */
 	public static final String CONTRACTION = "Contraction";
-
 	/** Flag for {@value #REMOTE_BIF_ANGLES} statistics. */
 	public static final String REMOTE_BIF_ANGLES = "Remote bif. angles";
-
 	/** Flag for {@value #PARTITION_ASYMMETRY} statistics. */
 	public static final String PARTITION_ASYMMETRY = "Partition asymmetry";
-
 	/** Flag for {@value #FRACTAL_DIMENSION} statistics. */
 	public static final String FRACTAL_DIMENSION = "Fractal dimension";
-
 	/** Flag specifying {@link StrahlerAnalyzer#getRootNumber() Horton-Strahler number} statistics */
 	public static final String STRAHLER_NUMBER = "Horton-Strahler number";
-
 	/** Flag specifying {@link StrahlerAnalyzer#getAvgBifurcationRatio() Horton-Strahler bifurcation ratio} statistics */
 	public static final String STRAHLER_RATIO = "Horton-Strahler bifurcation ratio";
-
 	/** Flag specifying {@link sc.fiji.snt.analysis.sholl.math.LinearProfileStats#getMean() Sholl mean} statistics */
 	public static final String SHOLL_MEAN_VALUE = "Sholl: " + ShollAnalyzer.MEAN;
-
 	/** Flag specifying {@link sc.fiji.snt.analysis.sholl.math.LinearProfileStats#getSum() Sholl sum} statistics */
 	public static final String SHOLL_SUM_VALUE = "Sholl: " + ShollAnalyzer.SUM;
-
 	/** Flag specifying {@link sc.fiji.snt.analysis.sholl.math.LinearProfileStats#getMax() Sholl max} statistics */
 	public static final String SHOLL_MAX_VALUE = "Sholl: " + ShollAnalyzer.MAX;
-
 	/** Flag specifying {@value #SHOLL_N_MAX} statistics */
 	public static final String SHOLL_N_MAX = "Sholl: " + ShollAnalyzer.N_MAX;
-
 	/** Flag specifying {@value #SHOLL_N_SECONDARY_MAX} statistics */
 	public static final String SHOLL_N_SECONDARY_MAX = "Sholl: " + ShollAnalyzer.N_SECONDARY_MAX;
-
 	/** Flag specifying {@value #SHOLL_DECAY} statistics */
 	public static final String SHOLL_DECAY = "Sholl: " + ShollAnalyzer.DECAY;
-
 	/** Flag specifying {@value #MAX_FITTED} statistics */
 	public static final String SHOLL_MAX_FITTED = "Sholl: " + ShollAnalyzer.MAX_FITTED;
-
 	/** Flag specifying {@value #SHOLL_MAX_FITTED_RADIUS} statistics */
 	public static final String SHOLL_MAX_FITTED_RADIUS = "Sholl: " + ShollAnalyzer.MAX_FITTED_RADIUS;
-
 	/** Flag specifying {@value #SHOLL_POLY_FIT_DEGREE} statistics */
 	public static final String SHOLL_POLY_FIT_DEGREE = "Sholl: " + ShollAnalyzer.POLY_FIT_DEGREE;
-
 	/** Flag specifying {@value #SHOLL_KURTOSIS} statistics */
 	public static final String SHOLL_KURTOSIS = "Sholl: " + ShollAnalyzer.KURTOSIS;
-
 	/** Flag specifying {@value #SHOLL_SKEWENESS} statistics */
 	public static final String SHOLL_SKEWENESS = "Sholl: " + ShollAnalyzer.SKEWENESS;
+	/** Flag specifying {@value #CONVEX_HULL_SIZE} statistics */
+	public static final String CONVEX_HULL_BOUNDARY_SIZE = "Convex hull: " + ConvexHullAnalyzer.BOUNDARY_SIZE;
+	/** Flag specifying {@value #CONVEX_HULL_SIZE} statistics */
+	public static final String CONVEX_HULL_SIZE = "Convex hull: " + ConvexHullAnalyzer.SIZE;
+	/** Flag specifying {@value #CONVEX_HULL_BOXIVITY} statistics */
+	public static final String CONVEX_HULL_BOXIVITY= "Convex hull: " + ConvexHullAnalyzer.BOXIVITY;
+	/** Flag specifying {@value #ELONGATION} statistics */
+	public static final String CONVEX_HULL_ELONGATION= "Convex hull: " + ConvexHullAnalyzer.ELONGATION;
+	/** Flag specifying {@value #ELONGATION} statistics */
+	public static final String CONVEX_HULL_ROUNDNESS= "Convex hull: " + ConvexHullAnalyzer.ROUNDNESS;
 
 	/**
 	 * Flag for analysis of {@value #VALUES}, an optional numeric property that can
@@ -220,21 +181,22 @@ public class TreeStatistics extends TreeAnalyzer {
 
 	@Deprecated
 	public static final String MEAN_RADIUS = PATH_MEAN_RADIUS;
-
 	@Deprecated
 	public static final String AVG_SPINE_DENSITY = "Average spine/varicosity density";
 
-	private static final String[] ALL_FLAGS = { BRANCH_LENGTH, BRANCH_MEAN_RADIUS, CONTRACTION, DEPTH,
-			FRACTAL_DIMENSION, HEIGHT, INNER_LENGTH, INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, LENGTH,
-			N_BRANCH_POINTS, N_BRANCHES, N_FITTED_PATHS, N_INNER_BRANCHES, N_NODES, N_PATH_NODES, N_PATHS,
-			N_PRIMARY_BRANCHES, N_SPINES, N_TERMINAL_BRANCHES, N_TIPS, NODE_RADIUS, PARTITION_ASYMMETRY, PATH_CHANNEL,
-			PATH_FRAME, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_MEAN_SPINE_DENSITY, PATH_ORDER, PRIMARY_LENGTH,
-			REMOTE_BIF_ANGLES, SHOLL_DECAY, SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE,
-			SHOLL_MEAN_VALUE, SHOLL_N_MAX, SHOLL_N_SECONDARY_MAX, SHOLL_POLY_FIT_DEGREE, SHOLL_SKEWENESS,
-			SHOLL_SUM_VALUE, STRAHLER_NUMBER, STRAHLER_RATIO, TERMINAL_LENGTH, VALUES, WIDTH, X_COORDINATES,
-			Y_COORDINATES, Z_COORDINATES };
+	private static final String[] ALL_FLAGS = { BRANCH_LENGTH, BRANCH_MEAN_RADIUS, CONTRACTION,
+			CONVEX_HULL_BOUNDARY_SIZE, CONVEX_HULL_BOXIVITY, CONVEX_HULL_ELONGATION, CONVEX_HULL_ROUNDNESS,
+			CONVEX_HULL_SIZE, DEPTH, FRACTAL_DIMENSION, HEIGHT, INNER_LENGTH, INTER_NODE_DISTANCE,
+			INTER_NODE_DISTANCE_SQUARED, LENGTH, N_BRANCH_POINTS, N_BRANCHES, N_FITTED_PATHS, N_INNER_BRANCHES, N_NODES,
+			N_PATH_NODES, N_PATHS, N_PRIMARY_BRANCHES, N_SPINES, N_TERMINAL_BRANCHES, N_TIPS, NODE_RADIUS,
+			PARTITION_ASYMMETRY, PATH_CHANNEL, PATH_FRAME, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_MEAN_SPINE_DENSITY,
+			PATH_ORDER, PRIMARY_LENGTH, REMOTE_BIF_ANGLES, SHOLL_DECAY, SHOLL_KURTOSIS, SHOLL_MAX_FITTED,
+			SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE, SHOLL_MEAN_VALUE, SHOLL_N_MAX, SHOLL_N_SECONDARY_MAX,
+			SHOLL_POLY_FIT_DEGREE, SHOLL_SKEWENESS, SHOLL_SUM_VALUE, STRAHLER_NUMBER, STRAHLER_RATIO, TERMINAL_LENGTH,
+			VALUES, WIDTH, X_COORDINATES, Y_COORDINATES, Z_COORDINATES };
 
 	protected LastDstats lastDstats;
+	private ConvexHullAnalyzer convexAnalyzer;
 	private static boolean exactMetricMatch;
 
 	/**
@@ -670,6 +632,13 @@ public class TreeStatistics extends TreeAnalyzer {
 				stat.addValue(Double.NaN);
 			}
 			break;
+		case CONVEX_HULL_BOUNDARY_SIZE:
+		case CONVEX_HULL_BOXIVITY:
+		case CONVEX_HULL_ELONGATION:
+		case CONVEX_HULL_ROUNDNESS:
+		case CONVEX_HULL_SIZE:
+			stat.addValue(getConvexHullMetric(m));
+			break;
 		case DEPTH:
 			stat.addValue(getDepth());
 			break;
@@ -943,6 +912,38 @@ public class TreeStatistics extends TreeAnalyzer {
 		return tree.getGraph().getNodeStatistics(type);
 	}
 
+	public double getConvexHullMetric(final String metric) {
+		final String fMetric = metric.substring(metric.indexOf("Convex Hull: ") + 13).trim();
+		return getConvexAnalyzer().get(fMetric);
+	}
+
+	/**
+	 * Gets the {@link ConvexHullAnalyzer} instance associated with this analyzer.
+	 * 
+	 * @return the ConvexHullAnalyzer instance
+	 */
+	public ConvexHullAnalyzer getConvexAnalyzer() {
+		if (convexAnalyzer == null) {
+			convexAnalyzer = new ConvexHullAnalyzer(tree);
+		}
+		return convexAnalyzer;
+	}
+
+	@Override
+	public void resetRestrictions() {
+		convexAnalyzer = null;
+		super.resetRestrictions();
+	
+	}
+	protected static boolean isExactMetricMatch() {
+		return exactMetricMatch;
+	}
+
+	public static void setExactMetricMatch(final boolean exactMetricMatch) {
+		TreeStatistics.exactMetricMatch = exactMetricMatch;
+	}
+	
+
 	/* IDE debug method */
 	public static void main(final String[] args) {
 		final MouseLightLoader loader = new MouseLightLoader("AA0015");
@@ -975,13 +976,5 @@ public class TreeStatistics extends TreeAnalyzer {
 		hist.annotateCategory(somaCompartment.acronym(), "soma");
 		hist.setFontSize(25);
 		hist.show();
-	}
-
-	protected static boolean isExactMetricMatch() {
-		return exactMetricMatch;
-	}
-
-	public static void setExactMetricMatch(final boolean exactMetricMatch) {
-		TreeStatistics.exactMetricMatch = exactMetricMatch;
 	}
 }
