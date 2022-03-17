@@ -1844,7 +1844,8 @@ public class GuiUtils {
 
 		public static JMenuItem measureOptions() {
 			final JMenuItem jmi = new JMenuItem("Measure...", IconFactory.getMenuIcon(GLYPH.TABLE));
-			jmi.setToolTipText("Compute detailed metrics from single cells");
+			jmi.setToolTipText("<HTML>Compute detailed metrics from single cells.<br>"
+					+ "Hold either Shift or Alt to use legacy prompt");
 			return jmi;
 		}
 

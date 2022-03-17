@@ -67,6 +67,7 @@ public class MeasureUI extends JFrame {
 	private static final String[] allFlags = new String[] { MIN, MAX, MEAN, STDDEV, SUM, N };
 	private static final Class<?>[] columnClasses = new Class<?>[] { String.class, Boolean.class, Boolean.class,
 			Boolean.class, Boolean.class, Boolean.class, Boolean.class };
+	public static final List<MeasureUI> instances = new ArrayList<>();
 
 	@Parameter
 	private DisplayService displayService;
@@ -77,35 +78,68 @@ public class MeasureUI extends JFrame {
 
 	private SNTTable table;
 	private boolean distinguishCompartments;
-	private boolean saveTable;
 	private String lastDirPath;
 	private boolean resetTable;
+	private GuiUtils guiUtils;
 
 	public MeasureUI(final Collection<Tree> trees) {
 		this(SNTUtils.getContext(), trees);
 		lastDirPath = System.getProperty("user.home");
+		setLocationRelativeTo(null);
 	}
 
 	public MeasureUI(final SNT plugin, final Collection<Tree> trees) {
 		this(plugin.getContext(), trees);
 		lastDirPath = plugin.getPrefs().getRecentDir().getAbsolutePath();
-		if (plugin.getUI() != null)
-			table = sntService.getTable();
+		if (plugin.getUI() != null) {
+			setTable(sntService.getTable());
+			setLocationRelativeTo(plugin.getUI());
+		}
 	}
 
 	private MeasureUI(final Context context, final Collection<Tree> trees) {
 		super("SNT Measurements");
 		context.inject(this);
+		guiUtils = new GuiUtils(this);
 		final MeasurePanel panel = new MeasurePanel(trees);
 		add(panel);
 		pack();
-		setLocationRelativeTo(null);
+		instances.add(this);
 		addWindowListener(new WindowAdapter() {
 			@Override
 			public void windowClosing(final WindowEvent e) {
 				panel.savePreferences();
+				instances.remove(MeasureUI.this);
 			}
 		});
+	}
+
+	@Override
+	public void setVisible(final boolean b) {
+		SwingUtilities.invokeLater(() -> super.setVisible(b));
+	}
+
+	public void setTable(final SNTTable table) {
+		this.table = table;
+	}
+
+	private void saveTable() {
+		if (table == null || table.isEmpty()) {
+			guiUtils.error("Measurements table is empty.");
+			return;
+		}
+		final File dir = (lastDirPath == null) ? new File(System.getProperty("user.home")) : new File(lastDirPath);
+		final File out = guiUtils.saveFile("Save Table", new File(dir, "SNT_Measurements.csv"),
+				Arrays.asList(".csv"));
+		if (out == null)
+			return;
+		try {
+			table.save(out);
+		} catch (final IOException e1) {
+			guiUtils.error(e1.getMessage());
+			e1.printStackTrace();
+		}
+		lastDirPath = out.getParent();
 	}
 
 	class MeasurePanel extends JPanel {
@@ -159,6 +193,13 @@ public class MeasureUI extends JFrame {
 				statsTable.getColumnModel().getColumn(i).setMinWidth(width);
 			}
 			statsTable.setPreferredScrollableViewportSize(statsTable.getPreferredSize());
+			statsTable.addComponentListener(new ComponentAdapter() {
+				@Override
+				public void componentResized(final ComponentEvent e) {
+					// https://stackoverflow.com/a/5741867
+					statsTable.scrollRectToVisible(statsTable.getCellRect(statsTable.getRowCount() - 1, 0, true));
+				}
+			});
 
 			// List of choices
 			final DefaultListModel<String> listModel = new DefaultListModel<>();
@@ -169,8 +210,8 @@ public class MeasureUI extends JFrame {
 			metricList.setClickInCheckBoxOnly(false);
 			metricList.setComponentPopupMenu(listPopupMenu());
 			metricList.setPrototypeCellValue(prototypeMetric);
-			// FIXME: this is slow, but fast enough for a reasonable no. of metrics!?
 			metricList.getCheckBoxListSelectionModel().addListSelectionListener(e -> {
+				// FIXME: this is slow, but fast enough for a reasonable no. of metrics!?
 				if (!e.getValueIsAdjusting()) {
 					final List<Object> selectedMetrics = new ArrayList<>(
 							Arrays.asList(metricList.getCheckBoxListSelectedValues()));
@@ -184,7 +225,7 @@ public class MeasureUI extends JFrame {
 			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_SEARCH_OPTIONS);
 			searchableBar.setVisible(true);
 			searchableBar.setHighlightAll(true);
-			searchableBar.setGuiUtils(new GuiUtils(MeasureUI.this));
+			searchableBar.setGuiUtils(guiUtils);
 
 			// remember previous state
 			loadPreferences();
@@ -235,21 +276,26 @@ public class MeasureUI extends JFrame {
 			jcmi1.setToolTipText("Whether measurements should be grouped by cellular\n"
 					+ "compartment (e.g., \"axon\", \"dendrites\", etc.)");
 			optionsMenu.add(jcmi1);
-			final JCheckBoxMenuItem jcmi2 = new JCheckBoxMenuItem("Save Measurements Table", saveTable);
-			jcmi2.addActionListener(e -> saveTable = jcmi2.isSelected());
-			jcmi1.setToolTipText("Whether the measurements table should be saved. Note that tables\n"
-					+ "can always be saved using the 'Save Tables and Analysis Plot' command");
-			optionsMenu.add(jcmi2);
 			final JCheckBoxMenuItem jcmi3 = new JCheckBoxMenuItem("Reset Measurements Table Before Run", resetTable);
 			jcmi3.addActionListener(e -> resetTable = jcmi3.isSelected());
 			optionsMenu.add(jcmi3);
-			GuiUtils.addSeparator(optionsMenu, "Utilities:");
 			final JCheckBoxMenuItem jcmi4  = new JCheckBoxMenuItem("Debug mode", SNTUtils.isDebugMode());
-			jcmi4.addActionListener(e -> SNTUtils.setDebugMode(jcmi4.isSelected()));
+			jcmi4.addActionListener(e -> {
+				SNTUtils.setDebugMode(jcmi4.isSelected());
+				if (sntService.isActive() && sntService.getUI() != null) {
+					sntService.getUI().setEnableDebugMode(jcmi4.isSelected());
+				}
+			});
 			optionsMenu.add(jcmi4);
+			GuiUtils.addSeparator(optionsMenu, "Actions:");
 			JMenuItem jmi = new JMenuItem("List Cell(s) Being Measured...");
 			jmi.addActionListener(e -> showDetails(trees));
 			optionsMenu.add(jmi);
+			final JMenuItem jmi2 = new JMenuItem("Save Measurements Table...");
+			jmi2.addActionListener(e -> saveTable());
+			jmi2.setToolTipText("Save measurements table. Note that tables can always\n"
+					+ "be saved using the 'Save Tables and Analysis Plot' command");
+			optionsMenu.add(jmi2);
 			GuiUtils.addSeparator(optionsMenu, "Help:");
 			jmi = new JMenuItem("Quick Guide...");
 			jmi.addActionListener(e -> showHelp());
@@ -279,8 +325,10 @@ public class MeasureUI extends JFrame {
 				sb.append("<tr style='border-bottom:1px solid'>");
 				sb.append("<td style='text-align: center;'>").append(counter[0]++).append("</td>");
 				sb.append("<td style='text-align: center;'>").append(tree.getLabel()).append("</td>");
-				sb.append("<td style='text-align: center;'>").append(props.getOrDefault(Tree.KEY_SPATIAL_UNIT, "N/A")).append("</td>");
-				sb.append("<td style='text-align: center;'>").append(props.getOrDefault(Tree.KEY_SOURCE, "N/A")).append("</td>");
+				sb.append("<td style='text-align: center;'>").append(props.getOrDefault(Tree.KEY_SPATIAL_UNIT, "N/A"))
+						.append("</td>");
+				sb.append("<td style='text-align: center;'>").append(props.getOrDefault(Tree.KEY_SOURCE, "N/A"))
+						.append("</td>");
 				sb.append("</tr>");
 			});
 			sb.append("</tbody></table>");
@@ -328,22 +376,33 @@ public class MeasureUI extends JFrame {
 		private void loadPreferences() {
 			distinguishCompartments = prefService.getBoolean(getClass(), "distinguish", false);
 			resetTable = prefService.getBoolean(getClass(), "resettable", true);
-			saveTable = prefService.getBoolean(getClass(), "savetable", false);
 			lastDirPath = prefService.get(getClass(), "lastdir", lastDirPath);
-			final List<String> metrics = prefService.getList(getClass(), "choices");
+			final List<String> metrics = prefService.getList(getClass(), "metrics");
+			final List<String> stats = prefService.getList(getClass(), "stats");
 			metricList.addCheckBoxListSelectedValues(metrics.toArray(new String[0]));
-			addMetricsToStatsTableModel(metrics);
+			for (int row = 0; row < statsTableModel.getRowCount(); ++row) {
+				for (int column = 1; column < statsTableModel.getColumnCount(); ++column) {
+					statsTableModel.setValueAt(getBoolean(stats, allFlags.length * row + column - 1), row, column);
+				}
+			}
 		}
 
 		private void savePreferences() {
-			final List<String> metrics = new ArrayList<>();
-			for (final Object choice : metricList.getCheckBoxListSelectedValues())
-				metrics.add((String) choice);
-			prefService.put(getClass(), "choices", metrics);
 			prefService.put(getClass(), "distinguish", distinguishCompartments);
-			prefService.put(getClass(), "savetable", saveTable);
 			prefService.put(getClass(), "resettable", resetTable);
 			prefService.put(getClass(), "lastdir", lastDirPath);
+			final List<String> metrics = new ArrayList<>();
+			final List<String> stats = new ArrayList<>();
+			for (int row = 0; row < statsTableModel.getRowCount(); ++row) {
+				for (int column = 0; column < statsTableModel.getColumnCount(); ++column) {
+					if (column == 0)
+						metrics.add((statsTableModel.getValueAt(row, 0)).toString());
+					else
+						stats.add((statsTableModel.getValueAt(row, column)).toString());
+				}
+			}
+			prefService.put(getClass(), "metrics", metrics);
+			prefService.put(getClass(), "stats", stats);
 		}
 
 		private void addMetricsToStatsTableModel(final List<?> metrics) {
@@ -359,8 +418,33 @@ public class MeasureUI extends JFrame {
 			}
 			removeRows(statsTableModel, metricIndicesToRemove);
 			metrics.removeAll(existingMetrics);
+			final boolean[] defChoices = getLastChosenStats();
 			for (final Object metric : metrics)
-				statsTableModel.addRow(new Object[] { metric, false, false, false, false, false, false });
+				statsTableModel.addRow(new Object[] { metric, defChoices[0], defChoices[1], defChoices[2],
+						defChoices[3], defChoices[4], defChoices[5] });
+		}
+
+
+		private boolean[] getLastChosenStats() {
+			final boolean[] bools = new boolean[allFlags.length];
+			if (statsTableModel.getRowCount() > 0) {
+				try {
+					for (int column = 1; column < statsTableModel.getColumnCount(); ++column) {
+						bools[column-1] = (boolean) statsTableModel.getValueAt(statsTableModel.getRowCount()-1, column);
+					}
+				} catch (final Exception ignored) {
+					return bools;
+				}
+			}
+			return bools;
+		}
+
+		private boolean getBoolean(final List<String> stats, final int index) {
+			try {
+				return Boolean.parseBoolean(stats.get(index));
+			} catch (final Exception ignored) {
+				return false;
+			}
 		}
 
 		private void removeRows(final DefaultTableModel model, final List<Integer> indices) {
@@ -379,7 +463,6 @@ public class MeasureUI extends JFrame {
 			mi = new JMenuItem("Deselect Highlighted");
 			mi.addActionListener(e -> setHighlightedSelected(false));
 			pMenu.add(mi);
-			pMenu.addSeparator();
 			mi = new JMenuItem("Invert Selection");
 			mi.addActionListener(e -> invertSelection());
 			pMenu.add(mi);
@@ -426,13 +509,11 @@ public class MeasureUI extends JFrame {
 		private static final long serialVersionUID = 1L;
 		final Collection<Tree> trees;
 		final DefaultTableModel tableModel;
-		final GuiUtils guiUtils;
 
 		GenerateTableAction(final Collection<Tree> trees, final DefaultTableModel tableModel) {
 			super("Run", null);
 			this.trees = trees;
 			this.tableModel = tableModel;
-			guiUtils = new GuiUtils(MeasureUI.this);
 		}
 
 		@Override
@@ -445,8 +526,10 @@ public class MeasureUI extends JFrame {
 				guiUtils.error("You must select at least one statistic.");
 				return;
 			}
-			final SNTTable table = (MeasureUI.this.table == null) ? new SNTTable() : MeasureUI.this.table;
-			if (resetTable) table.clear();
+			if (table == null)
+				table = new SNTTable();
+			else if (resetTable)
+				table.clear();
 			for (final Tree tree : trees) {
 				final Set<Integer> compartments = tree.getSWCTypes(false);
 				if (distinguishCompartments && compartments.size() > 1) {
@@ -464,22 +547,6 @@ public class MeasureUI extends JFrame {
 			final Display<?> display = displayService.getDisplay("SNT Measurements");
 			if (display != null && resetTable) display.close();
 			displayService.createDisplay("SNT Measurements", table);
-
-			if (saveTable) {
-				final File dir = (lastDirPath == null) ? new File(System.getProperty("user.home"))
-						: new File(lastDirPath);
-				final File out = guiUtils.saveFile("Save Table", new File(dir, "SNT_Measurements.csv"),
-						Arrays.asList(".csv"));
-				if (out == null)
-					return;
-				try {
-					table.save(out);
-				} catch (final IOException e1) {
-					guiUtils.error(e1.getMessage());
-					e1.printStackTrace();
-				}
-				lastDirPath = out.getParent();
-			}
 		}
 
 		private boolean atLeastOneStatChosen() {
@@ -685,7 +752,6 @@ public class MeasureUI extends JFrame {
 			mi = new JMenuItem("Select Highlighted Row(s)");
 			mi.addActionListener(e -> setSelectedRowsState(true));
 			add(mi);
-			addSeparator();
 			mi = new JMenuItem("Select None");
 			mi.addActionListener(e -> setAllState(false));
 			add(mi);

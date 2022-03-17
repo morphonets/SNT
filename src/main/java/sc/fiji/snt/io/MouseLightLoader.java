@@ -522,7 +522,7 @@ public class MouseLightLoader {
 				TreeProperties.getStandardizedCompartment(compartment));
 		tree.getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, "um");
 		tree.getProperties().setProperty(TreeProperties.KEY_ID, getID());
-		tree.getProperties().setProperty(TreeProperties.KEY_SOURCE, getDOI());
+		tree.getProperties().setProperty(TreeProperties.KEY_SOURCE, "MouseLight " + getDOI());
 		return tree;
 	}
 

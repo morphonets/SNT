@@ -166,6 +166,7 @@ import sc.fiji.snt.annotation.ZBAtlasUtils;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.MeasureUI;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.SNTSearchableBar;
@@ -3891,14 +3892,23 @@ public class Viewer3D {
 			GuiUtils.addSeparator(measureMenu, "Tabular Results:");
 			JMenuItem mi = GuiUtils.MenuItems.measureOptions();
 			mi.addActionListener(e -> {
-				final List<Tree> trees = getSelectedTrees();
+				List<Tree> trees = getSelectedTrees();
 				if (trees == null || trees.isEmpty()) return;
-				final Map<String, Object> inputs = new HashMap<>();
-				inputs.put("trees", trees);
 				initTable();
-				inputs.put("table", table);
-				inputs.put("calledFromPathManagerUI", false);
-				runCmd(AnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+				if ((e.getModifiers() & ActionEvent.SHIFT_MASK) != 0 || (e.getModifiers() & ActionEvent.ALT_MASK) != 0) {
+					final Map<String, Object> inputs = new HashMap<>();
+					inputs.put("trees", trees);
+					inputs.put("table", table);
+					inputs.put("calledFromPathManagerUI", false);
+					runCmd(AnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+				} else if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
+					guiUtils.error("A Measurements prompt seems to be already open.");
+					trees = null;
+				} else {
+					final MeasureUI measureUI = new MeasureUI(trees);
+					measureUI.setTable(table);
+					measureUI.setVisible(true);
+				}
 			});
 			measureMenu.add(mi);
 			mi = GuiUtils.MenuItems.measureQuick();
