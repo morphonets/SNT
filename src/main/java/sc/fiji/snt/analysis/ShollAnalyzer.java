@@ -171,7 +171,6 @@ public class ShollAnalyzer {
 				}
 			}
 			metrics.put(MEAN, lStats.getMean());
-			metrics.put(MEAN, lStats.getMean());
 			metrics.put(SUM, lStats.getSum());
 			metrics.put(MAX, lStats.getMax());
 			metrics.put(N_MAX, getMaximaRadii().size());

@@ -59,8 +59,6 @@ public class MultiTreeStatistics extends TreeStatistics {
 	 * NB: These should all be Capitalized expressions in lower case without hyphens
 	 * unless for "Horton-Strahler"
 	 */
-	/** Flag for {@value #LENGTH} analysis. */
-	public static final String LENGTH = "Cable length";
 
 	/** Flag for {@value #TERMINAL_LENGTH} analysis. */
 	public static final String TERMINAL_LENGTH = "Length of terminal branches (sum)";
@@ -77,32 +75,8 @@ public class MultiTreeStatistics extends TreeStatistics {
 	/** Flag specifying {@link Tree#assignValue(double) Tree value} statistics */
 	public static final String ASSIGNED_VALUE = "Assigned value";
 
-	/** Flag specifying {@link StrahlerAnalyzer#getRootNumber() Horton-Strahler number} statistics */
-	public static final String STRAHLER_NUMBER = "Horton-Strahler number";
-
-	/** Flag specifying {@link StrahlerAnalyzer#getAvgBifurcationRatio() Horton-Strahler bifurcation ratio} statistics */
-	public static final String STRAHLER_RATIO = "Horton-Strahler bifurcation ratio";
-
 	/** Flag specifying {@value #HIGHEST_PATH_ORDER} statistics */
 	public static final String HIGHEST_PATH_ORDER = "Highest path order";
-
-	/** Flag specifying {@value #N_BRANCHES} statistics */
-	public static final String N_BRANCHES = "No. of branches";
-
-	/** Flag specifying {@value #N_PRIMARY_BRANCHES} statistics */
-	public static final String N_PRIMARY_BRANCHES = "No. of primary branches";
-
-	/** Flag specifying {@value #N_INNER_BRANCHES} statistics */
-	public static final String N_INNER_BRANCHES = "No. of inner branches";
-
-	/** Flag specifying {@value #N_TERMINAL_BRANCHES} statistics */
-	public static final String N_TERMINAL_BRANCHES = "No. of terminal branches";
-
-	/** Flag for {@value #N_BRANCH_POINTS} statistics */
-	public static final String N_BRANCH_POINTS = "No. of branch points";
-
-	/** Flag for {@value #N_SPINES} statistics */
-	public static final String N_SPINES = "No. of spines/varicosities";
 
 	/** Flag for {@value #AVG_CONTRACTION} statistics */
 	public static final String AVG_CONTRACTION = "Average contraction";
@@ -119,32 +93,9 @@ public class MultiTreeStatistics extends TreeStatistics {
 	/** Flag specifying {@value #AVG_FRACTAL_DIMENSION} statistics */
 	public static final String AVG_FRACTAL_DIMENSION = "Average fractal dimension";
 
-	/** Flag for {@value #AVG_SPINE_DENSITY} statistics. */
-	public static final String AVG_SPINE_DENSITY = "Average spine/varicosity density";
-
-	/** Flag for {@value #N_PATHS} statistics */
-	public static final String N_PATHS = "No. of paths";
-
 	/** Flag for {@value #MEAN_RADIUS} statistics */
 	public static final String MEAN_RADIUS = "Mean radius";
 
-	/** Flag for {@value #N_NODES} statistics */
-	public static final String N_NODES = "No. of nodes";
-
-	/** Flag specifying {@value #N_TIPS} statistics */
-	public static final String N_TIPS = "No. of tips";
-
-	/** Flag for {@value #WIDTH} statistics */
-	public static final String WIDTH = "Width";
-
-	/** Flag for {@value #HEIGHT} statistics */
-	public static final String HEIGHT = "Height";
-
-	/** Flag for {@value #DEPTH} statistics */
-	public static final String DEPTH = "Depth";
-
-	/** Flag for {@value #N_FITTED_PATHS} statistics */
-	public static final String N_FITTED_PATHS = "No. of fitted paths";
 
 	protected static String[] ALL_FLAGS = { //
 			ASSIGNED_VALUE, //
@@ -154,7 +105,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 			AVG_REMOTE_ANGLE, //
 			AVG_PARTITION_ASYMMETRY, //
 			AVG_FRACTAL_DIMENSION, //
-			AVG_SPINE_DENSITY, //
+			PATH_MEAN_SPINE_DENSITY, //
 			DEPTH, //
 			HEIGHT, //
 			HIGHEST_PATH_ORDER, //
@@ -251,6 +202,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 
 	protected static String getNormalizedMeasurement(final String measurement, final boolean defaultToTreeStatistics)
 			throws UnknownMetricException {
+		if (isExactMetricMatch()) return measurement;
 		if (Arrays.stream(ALL_FLAGS).anyMatch(measurement::equalsIgnoreCase)) {
 			// This is just so that we can use capitalized strings in the GUI
 			// and lower case strings in scripts
@@ -340,7 +292,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 		}
 		if (normGuess.indexOf("spines") != -1 || normGuess.indexOf("varicosities") > -1) {
 			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1 || normGuess.indexOf("dens") != -1) {
-				return AVG_SPINE_DENSITY;
+				return PATH_MEAN_SPINE_DENSITY;
 			}
 			else {
 				return N_SPINES;

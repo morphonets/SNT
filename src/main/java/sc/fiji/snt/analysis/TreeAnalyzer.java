@@ -374,59 +374,63 @@ public class TreeAnalyzer extends ContextCommand {
 			return getAvgPartitionAsymmetry();
 		case MultiTreeStatistics.AVG_FRACTAL_DIMENSION:
 			return getAvgFractalDimension();
-		case MultiTreeStatistics.AVG_SPINE_DENSITY:
+		case TreeStatistics.AVG_SPINE_DENSITY:
 			return getSpineOrVaricosityDensity();
-		case MultiTreeStatistics.DEPTH:
+		case TreeStatistics.DEPTH:
 			return getDepth();
-		case MultiTreeStatistics.HEIGHT:
+		case TreeStatistics.HEIGHT:
 			return getHeight();
 		case MultiTreeStatistics.HIGHEST_PATH_ORDER:
 			return getHighestPathOrder();
-		case MultiTreeStatistics.LENGTH:
+		case TreeStatistics.LENGTH:
 			return getCableLength();
-		case MultiTreeStatistics.MEAN_RADIUS:
+		case TreeStatistics.PATH_MEAN_RADIUS:
 			final TreeStatistics treeStats = new TreeStatistics(tree);
-			return treeStats.getSummaryStats(TreeStatistics.MEAN_RADIUS).getMean();
-		case MultiTreeStatistics.N_BRANCH_POINTS:
+			return treeStats.getSummaryStats(TreeStatistics.PATH_MEAN_RADIUS).getMean();
+		case TreeStatistics.N_BRANCH_POINTS:
 			return getBranchPoints().size();
-		case MultiTreeStatistics.N_BRANCHES:
+		case TreeStatistics.N_BRANCHES:
 			return getNBranches();
-		case MultiTreeStatistics.N_FITTED_PATHS:
+		case TreeStatistics.N_FITTED_PATHS:
 			return getNFittedPaths();
-		case MultiTreeStatistics.N_NODES:
+		case TreeStatistics.N_NODES:
 			return getNNodes();
-		case MultiTreeStatistics.N_PATHS:
+		case TreeStatistics.N_PATHS:
 			return getNPaths();
-		case MultiTreeStatistics.N_PRIMARY_BRANCHES:
+		case TreeStatistics.N_PRIMARY_BRANCHES:
 			return getPrimaryBranches().size();
-		case MultiTreeStatistics.N_INNER_BRANCHES:
+		case TreeStatistics.N_INNER_BRANCHES:
 			return getInnerBranches().size();
-		case MultiTreeStatistics.N_TERMINAL_BRANCHES:
+		case TreeStatistics.N_TERMINAL_BRANCHES:
 			return getTerminalBranches().size();
-		case MultiTreeStatistics.N_TIPS:
+		case TreeStatistics.N_TIPS:
 			return getTips().size();
-		case MultiTreeStatistics.N_SPINES:
+		case TreeStatistics.N_SPINES:
 			return getNoSpinesOrVaricosities();
-		case MultiTreeStatistics.PRIMARY_LENGTH:
+		case TreeStatistics.PRIMARY_LENGTH:
 			return getPrimaryLength();
-		case MultiTreeStatistics.INNER_LENGTH:
+		case TreeStatistics.INNER_LENGTH:
 			return getInnerLength();
-		case MultiTreeStatistics.STRAHLER_NUMBER:
+		case TreeStatistics.STRAHLER_NUMBER:
 			return getStrahlerNumber();
-		case MultiTreeStatistics.STRAHLER_RATIO:
+		case TreeStatistics.STRAHLER_RATIO:
 			return getStrahlerBifurcationRatio();
-		case MultiTreeStatistics.TERMINAL_LENGTH:
+		case TreeStatistics.TERMINAL_LENGTH:
 			return getTerminalLength();
-		case MultiTreeStatistics.WIDTH:
+		case TreeStatistics.WIDTH:
 			return getWidth();
 		default:
 			if (metric.startsWith("Sholl: ")) {
-				final String fMetric = metric.substring(metric.indexOf("Sholl: ") + 6).trim();
-				return getShollAnalyzer().getSingleValueMetrics().getOrDefault(fMetric, Double.NaN);
+				return getShollMetric(metric);
 			}
 			throw new UnknownMetricException("Unrecognizable measurement \"" + metric + "\". "
 					+ "Maybe you meant one of the following?: \"" + String.join(", ", getMetrics() + "\""));
 		}
+	}
+
+	protected Number getShollMetric(final String metric) {
+		final String fMetric = metric.substring(metric.indexOf("Sholl: ") + 6).trim();
+		return getShollAnalyzer().getSingleValueMetrics().getOrDefault(fMetric, Double.NaN);
 	}
 
 	/**

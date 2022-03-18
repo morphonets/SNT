@@ -51,10 +51,12 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 
 /**
  * Command for measuring Tree(s).
+ * @deprecated replaced by {@link sc.fiji.snt.gui.MeasureUI }
  *
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, visible = false, label="Measure...", initializer = "init")
+@Deprecated
 public class AnalyzerCmd extends CommonDynamicCmd {
 
 	private static final String TABLE_TITLE = "SNT Measurements";
@@ -108,7 +110,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 	@Parameter(label = MultiTreeStatistics.AVG_FRACTAL_DIMENSION)
 	private boolean avgFractalDimension;
 
-	@Parameter(label = MultiTreeStatistics.AVG_SPINE_DENSITY)
+	@Parameter(label = MultiTreeStatistics.PATH_MEAN_SPINE_DENSITY)
 	private boolean avgSpineDensity;
 
 	@Parameter(label = MultiTreeStatistics.N_BRANCH_POINTS)
@@ -350,7 +352,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		if(avgRemoteAngle) metrics.add(MultiTreeStatistics.AVG_REMOTE_ANGLE);
 		if(avgPartitionAsymmetry) metrics.add(MultiTreeStatistics.AVG_PARTITION_ASYMMETRY);
 		if(avgFractalDimension) metrics.add(MultiTreeStatistics.AVG_FRACTAL_DIMENSION);
-		if(avgSpineDensity) metrics.add(MultiTreeStatistics.AVG_SPINE_DENSITY);
+		if(avgSpineDensity) metrics.add(MultiTreeStatistics.PATH_MEAN_SPINE_DENSITY);
 		if(cableLength) metrics.add(MultiTreeStatistics.LENGTH);
 		if(terminalLength) metrics.add(MultiTreeStatistics.TERMINAL_LENGTH);
 		if(primaryLength) metrics.add(MultiTreeStatistics.PRIMARY_LENGTH);

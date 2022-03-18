@@ -502,7 +502,7 @@ public class GuiUtils {
 		final List<String> allowedExtensions)
 	{
 		File chosenFile = null;
-		final JFileChooser chooser = fileChooser(title, file, JFileChooser.FILES_ONLY, allowedExtensions);
+		final JFileChooser chooser = fileChooser(title, file, JFileChooser.SAVE_DIALOG, JFileChooser.FILES_ONLY, allowedExtensions);
 		if (chooser.showSaveDialog(parent) == JFileChooser.APPROVE_OPTION) {
 			chosenFile = chooser.getSelectedFile();
 			if (chosenFile != null && allowedExtensions != null && allowedExtensions.size() == 1) {
@@ -526,15 +526,15 @@ public class GuiUtils {
 		final List<String> allowedExtensions)
 	{
 		final JFileChooser chooser = fileChooser(title, file,
-			JFileChooser.FILES_ONLY, allowedExtensions);
+			JFileChooser.OPEN_DIALOG, JFileChooser.FILES_ONLY, allowedExtensions);
 		if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION)
 			return chooser.getSelectedFile();
 		return null;
 	}
 
 	@SuppressWarnings("unused")
-	private File chooseDirectory(final String title, final File file) {
-		final JFileChooser chooser = fileChooser(title, file,
+	private File openDirectory(final String title, final File file) {
+		final JFileChooser chooser = fileChooser(title, file, JFileChooser.OPEN_DIALOG,
 			JFileChooser.DIRECTORIES_ONLY, null);
 		if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION)
 			return chooser.getSelectedFile();
@@ -542,19 +542,20 @@ public class GuiUtils {
 	}
 
 	private JFileChooser fileChooser(final String title, final File file,
-		final int type, final List<String> allowedExtensions)
+		final int type, final int selectionMode, final List<String> allowedExtensions)
 	{
 		final JFileChooser chooser = getDnDFileChooser();
-		if (file != null && file.exists()) {
+		if (file != null) {
 			if (file.isDirectory()) {
 				chooser.setCurrentDirectory(file);
 			} else {
 				chooser.setCurrentDirectory(file.getParentFile());
-				chooser.setSelectedFile(file);
 			}
+			chooser.setSelectedFile(file);
 		}
 		chooser.setDialogTitle(title);
-		chooser.setFileSelectionMode(type);
+		chooser.setFileSelectionMode(selectionMode);
+		chooser.setDialogType(type);
 		if (allowedExtensions != null && !allowedExtensions.isEmpty()) {
 			chooser.setFileFilter(new FileFilter() {
 
@@ -1654,20 +1655,25 @@ public class GuiUtils {
 			button.addKeyListener(this);
 			editorPane.addKeyListener(this);
 			editorPane.addHyperlinkListener(this);
+			editorPane.setCaretPosition(0); // scroll to top;
 			final JPanel panel = new JPanel();
 			panel.add(button);
 			getContentPane().add(panel, "South");
 			setForeground(Color.black);
 			pack();
 			final Dimension screenD = Toolkit.getDefaultToolkit().getScreenSize();
-			final Dimension dialogD = getSize();
+			final Dimension dialogD = getPreferredSize();
 			final int maxWidth = (int) (Math.min(0.70 * screenD.width, 800)); // max 70% of screen width, but not more
 																				// than 800 pxl
 			if (maxWidth > 400 && dialogD.width > maxWidth)
 				dialogD.width = maxWidth;
 			if (dialogD.height > 0.80 * screenD.height && screenD.height > 400) // max 80% of screen height
 				dialogD.height = (int) (0.80 * screenD.height);
-			setSize(dialogD);
+			int minHeight = editorPane.getFontMetrics(editorPane.getFont()).getHeight() * 10 + panel.getPreferredSize().height;
+			if (dialogD.height < minHeight)
+				dialogD.height = minHeight;
+			setPreferredSize(dialogD);;
+			pack(); // Important! or preferred dimensions won't apply
 		}
 
 		public void actionPerformed(final ActionEvent e) {
@@ -1838,7 +1844,8 @@ public class GuiUtils {
 
 		public static JMenuItem measureOptions() {
 			final JMenuItem jmi = new JMenuItem("Measure...", IconFactory.getMenuIcon(GLYPH.TABLE));
-			jmi.setToolTipText("Compute detailed metrics from single cells");
+			jmi.setToolTipText("<HTML>Compute detailed metrics from single cells.<br>"
+					+ "Hold either Shift or Alt to use legacy prompt");
 			return jmi;
 		}
 

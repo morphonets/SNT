@@ -1,13 +1,14 @@
-# @ImageJ ij
+# @String(value="This script measures all SWC/TRACES files in a directory.<br>Measurements are specified in a subsequent prompt",visibility="MESSAGE") msg
+# @File(label="Input directory", style="directory") inputDir
+# @String(label="Consider only filenames containing",description="Clear field for no filtering",value="") nameFilter
+# @UIService uiservice
 
+import sc.fiji.snt.Tree
+import sc.fiji.snt.gui.MeasureUI
 
-"""
-file:       Measure_Multiple_Files_(With_Options).py
-author:     Tiago Ferreira
-version:    20191217
-info:       Applies SNT's measure command to a directory
-"""
-
-import sc.fiji.snt.plugin.AnalyzerCmd
-
-ij.command().run(AnalyzerCmd.class, true)
+trees = Tree.listFromDir(inputDir.getAbsolutePath(), nameFilter)
+if (trees)
+	new MeasureUI(trees).setVisible(true)
+else
+	uiservice.showDialog('No files matched the specified criteria','Error')
+println("Exiting script")

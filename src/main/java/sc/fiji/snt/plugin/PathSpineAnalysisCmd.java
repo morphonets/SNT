@@ -65,26 +65,26 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 	private PlotService plotService;
 
 	@Parameter(label = "X-Axis Metric", choices = { //
-			TreeStatistics.AVG_SPINE_DENSITY, //
+			TreeStatistics.PATH_MEAN_SPINE_DENSITY, //
 			TreeStatistics.N_SPINES //
 	})
 	private String xAxisMetric;
 
 	@Parameter(label = "Y-axis Metric 1", choices = { //
 			TreeStatistics.PATH_LENGTH, TreeStatistics.N_BRANCH_POINTS, //
-			TreeStatistics.PATH_ORDER, TreeStatistics.MEAN_RADIUS, //
+			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_MEAN_RADIUS, //
 	})
 	private String yAxisMetric1;
 
 	@Parameter(label = "Y-axis Metric 2", choices = { " - None -", //
 			TreeStatistics.PATH_LENGTH, TreeStatistics.N_BRANCH_POINTS, //
-			TreeStatistics.PATH_ORDER, TreeStatistics.MEAN_RADIUS, //
+			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_MEAN_RADIUS, //
 	})
 	private String yAxisMetric2;
 
 	@Parameter(label = "Y-axis Metric 3", choices = { " - None -", //
 			TreeStatistics.PATH_LENGTH, TreeStatistics.N_BRANCH_POINTS, //
-			TreeStatistics.PATH_ORDER, TreeStatistics.MEAN_RADIUS, //
+			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_MEAN_RADIUS, //
 	})
 	private String yAxisMetric3;
 
