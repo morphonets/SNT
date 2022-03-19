@@ -2971,7 +2971,6 @@ public class SNTUI extends JDialog {
 		final ArrayList<Component> components = new ArrayList<>();
 		components.add(SNTUI.this);
 		components.add(getPathManager());
-		components.add(getPathManager());
 		components.add(getFillManager());
 		if (plugin.getXYCanvas() != null)
 			plugin.getXYCanvas().setLookAndFeel(lookAndFeelName);

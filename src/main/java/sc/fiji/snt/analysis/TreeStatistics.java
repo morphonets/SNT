@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.text.WordUtils;
@@ -46,6 +47,7 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.io.MouseLightLoader;
+import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SWCPoint;
 
 /**
@@ -129,8 +131,24 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String REMOTE_BIF_ANGLES = "Remote bif. angles";
 	/** Flag for {@value #PARTITION_ASYMMETRY} statistics. */
 	public static final String PARTITION_ASYMMETRY = "Partition asymmetry";
-	/** Flag for {@value #FRACTAL_DIMENSION} statistics. */
-	public static final String FRACTAL_DIMENSION = "Fractal dimension";
+	/** Flag for {@value #BRANCH_FRACTAL_DIMENSION} statistics. */
+	public static final String BRANCH_FRACTAL_DIMENSION = "Branch fractal dimension";
+	/** Flag for {@value #GRAPH_DIAMETER} statistics. */
+	public static final String GRAPH_DIAMETER = "Length of longest shortest path";
+	/** Flag for {@value #VOLUME} statistics. */
+	public static final String VOLUME = "Volume";
+	/** Flag for {@value #BRANCH_VOLUME} statistics. */
+	public static final String BRANCH_VOLUME = "Branch volume";
+	/** Flag for {@value #PATH_VOLUME} statistics. */
+	public static final String PATH_VOLUME = "Path volume";
+	/** Flag for {@value #SURFACE_AREA} statistics. */
+	public static final String SURFACE_AREA = "Surface area";
+	/** Flag for {@value #BRANCH_SURFACE_AREA} statistics. */
+	public static final String BRANCH_SURFACE_AREA = "Branch surface area";
+	/** Flag for {@value #PATH_SURFACE_AREA} statistics. */
+	public static final String PATH_SURFACE_AREA = "Path surface area";
+	/** Flag for {@value #COMPLEXITY_INDEX} statistics. */
+	public static final String COMPLEXITY_INDEX = "Complexity index";
 	/** Flag specifying {@link StrahlerAnalyzer#getRootNumber() Horton-Strahler number} statistics */
 	public static final String STRAHLER_NUMBER = "Horton-Strahler number";
 	/** Flag specifying {@link StrahlerAnalyzer#getAvgBifurcationRatio() Horton-Strahler bifurcation ratio} statistics */
@@ -157,17 +175,20 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String SHOLL_KURTOSIS = "Sholl: " + ShollAnalyzer.KURTOSIS;
 	/** Flag specifying {@value #SHOLL_SKEWENESS} statistics */
 	public static final String SHOLL_SKEWENESS = "Sholl: " + ShollAnalyzer.SKEWENESS;
-	/** Flag specifying {@value #CONVEX_HULL_SIZE} statistics */
+	/** Flag specifying {@value #SHOLL_RAMIFICATION_INDEX} statistics */
+	public static final String SHOLL_RAMIFICATION_INDEX = "Sholl: " + ShollAnalyzer.RAMIFICATION_INDEX;
+	/** Flag specifying {@value #CONVEX_HULL_BOUNDARY_SIZE} statistics */
 	public static final String CONVEX_HULL_BOUNDARY_SIZE = "Convex hull: " + ConvexHullAnalyzer.BOUNDARY_SIZE;
 	/** Flag specifying {@value #CONVEX_HULL_SIZE} statistics */
 	public static final String CONVEX_HULL_SIZE = "Convex hull: " + ConvexHullAnalyzer.SIZE;
 	/** Flag specifying {@value #CONVEX_HULL_BOXIVITY} statistics */
 	public static final String CONVEX_HULL_BOXIVITY= "Convex hull: " + ConvexHullAnalyzer.BOXIVITY;
-	/** Flag specifying {@value #ELONGATION} statistics */
+	/** Flag specifying {@value #CONVEX_HULL_ELONGATION} statistics */
 	public static final String CONVEX_HULL_ELONGATION= "Convex hull: " + ConvexHullAnalyzer.ELONGATION;
-	/** Flag specifying {@value #ELONGATION} statistics */
+	/** Flag specifying {@value #CONVEX_HULL_ROUNDNESS} statistics */
 	public static final String CONVEX_HULL_ROUNDNESS= "Convex hull: " + ConvexHullAnalyzer.ROUNDNESS;
-
+	/** Flag specifying {@value #CONVEX_HULL_CENTROID_ROOT_DISTANCE} statistics */
+	public static final String CONVEX_HULL_CENTROID_ROOT_DISTANCE = "Convex hull: Centroid-root distance";
 	/**
 	 * Flag for analysis of {@value #VALUES}, an optional numeric property that can
 	 * be assigned to Path nodes (e.g., voxel intensities, assigned via
@@ -183,17 +204,21 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String MEAN_RADIUS = PATH_MEAN_RADIUS;
 	@Deprecated
 	public static final String AVG_SPINE_DENSITY = "Average spine/varicosity density";
+	@Deprecated
+	public static final String FRACTAL_DIMENSION = "Fractal dimension";
 
-	private static final String[] ALL_FLAGS = { BRANCH_LENGTH, BRANCH_MEAN_RADIUS, CONTRACTION,
-			CONVEX_HULL_BOUNDARY_SIZE, CONVEX_HULL_BOXIVITY, CONVEX_HULL_ELONGATION, CONVEX_HULL_ROUNDNESS,
-			CONVEX_HULL_SIZE, DEPTH, FRACTAL_DIMENSION, HEIGHT, INNER_LENGTH, INTER_NODE_DISTANCE,
+	private static final String[] ALL_FLAGS = { BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH, BRANCH_MEAN_RADIUS,
+			BRANCH_SURFACE_AREA, BRANCH_VOLUME, COMPLEXITY_INDEX, CONTRACTION, CONVEX_HULL_BOUNDARY_SIZE,
+			CONVEX_HULL_BOXIVITY, CONVEX_HULL_CENTROID_ROOT_DISTANCE, CONVEX_HULL_ELONGATION, CONVEX_HULL_ROUNDNESS,
+			CONVEX_HULL_SIZE, DEPTH, GRAPH_DIAMETER, HEIGHT, INNER_LENGTH, INTER_NODE_DISTANCE,
 			INTER_NODE_DISTANCE_SQUARED, LENGTH, N_BRANCH_POINTS, N_BRANCHES, N_FITTED_PATHS, N_INNER_BRANCHES, N_NODES,
 			N_PATH_NODES, N_PATHS, N_PRIMARY_BRANCHES, N_SPINES, N_TERMINAL_BRANCHES, N_TIPS, NODE_RADIUS,
 			PARTITION_ASYMMETRY, PATH_CHANNEL, PATH_FRAME, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_MEAN_SPINE_DENSITY,
-			PATH_ORDER, PRIMARY_LENGTH, REMOTE_BIF_ANGLES, SHOLL_DECAY, SHOLL_KURTOSIS, SHOLL_MAX_FITTED,
-			SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE, SHOLL_MEAN_VALUE, SHOLL_N_MAX, SHOLL_N_SECONDARY_MAX,
-			SHOLL_POLY_FIT_DEGREE, SHOLL_SKEWENESS, SHOLL_SUM_VALUE, STRAHLER_NUMBER, STRAHLER_RATIO, TERMINAL_LENGTH,
-			VALUES, WIDTH, X_COORDINATES, Y_COORDINATES, Z_COORDINATES };
+			PATH_N_SPINES, PATH_ORDER, PATH_SURFACE_AREA, PATH_VOLUME, PRIMARY_LENGTH, REMOTE_BIF_ANGLES, SHOLL_DECAY,
+			SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE, SHOLL_MEAN_VALUE, SHOLL_N_MAX,
+			SHOLL_N_SECONDARY_MAX, SHOLL_POLY_FIT_DEGREE, SHOLL_RAMIFICATION_INDEX, SHOLL_SKEWENESS, SHOLL_SUM_VALUE,
+			STRAHLER_NUMBER, STRAHLER_RATIO, SURFACE_AREA, TERMINAL_LENGTH, VALUES, VOLUME, WIDTH, X_COORDINATES,
+			Y_COORDINATES, Z_COORDINATES };
 
 	protected LastDstats lastDstats;
 	private ConvexHullAnalyzer convexAnalyzer;
@@ -623,6 +648,46 @@ public class TreeStatistics extends TreeAnalyzer {
 				stat.addValue(Double.NaN);
 			}
 			break;
+		case BRANCH_SURFACE_AREA:
+			try {
+				for (final Path p : getBranches())
+					stat.addValue(p.getApproximatedSurface());
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				stat.addValue(Double.NaN);
+			}
+			break;
+		case BRANCH_VOLUME:
+			try {
+				for (final Path p : getBranches())
+					stat.addValue(p.getApproximatedVolume());
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				stat.addValue(Double.NaN);
+			}
+			break;
+		case COMPLEXITY_INDEX:
+			try {
+				// Implementation by chronological order:
+				// www.jneurosci.org/content/19/22/9928#F6
+				// https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3373517/
+				// https://journals.physiology.org/doi/full/10.1152/jn.00829.2011
+				final DirectedWeightedGraph graph = tree.getGraph();
+				final List<SWCPoint> graphTips = graph.getTips();
+				final SWCPoint root = graph.getRoot();
+				double sumBranchTipOrders = 0;
+				for (final SWCPoint tip : graphTips) {
+					for (final SWCPoint vx : graph.getShortestPathVertices(root, tip)) {
+						if (graph.outDegreeOf(vx) > 1)
+							sumBranchTipOrders++;
+					}
+				}
+				stat.addValue((sumBranchTipOrders + graphTips.size()) * getCableLength() / getPrimaryBranches().size());
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				stat.addValue(Double.NaN);
+			}
+			break;
 		case CONTRACTION:
 			try {
 				for (final Path p : getBranches())
@@ -639,9 +704,17 @@ public class TreeStatistics extends TreeAnalyzer {
 		case CONVEX_HULL_SIZE:
 			stat.addValue(getConvexHullMetric(m));
 			break;
+		case CONVEX_HULL_CENTROID_ROOT_DISTANCE:
+			final PointInImage root = tree.getRoot();
+			if (root == null)
+				stat.addValue(Double.NaN);
+			else
+				stat.addValue(getConvexAnalyzer().getCentroid().distanceTo(root));
+			break;
 		case DEPTH:
 			stat.addValue(getDepth());
 			break;
+		case BRANCH_FRACTAL_DIMENSION:
 		case FRACTAL_DIMENSION:
 			try {
 				for (final double fDim : getFractalDimension())
@@ -678,6 +751,13 @@ public class TreeStatistics extends TreeAnalyzer {
 			break;
 		case LENGTH:
 			stat.addValue(getCableLength());
+			break;
+		case GRAPH_DIAMETER:
+			try {
+				stat.addValue(tree.getGraph().getLongestPath(true).getLength());
+			} catch (final IllegalArgumentException ignored) {
+				stat.addValue(Double.NaN);
+			}
 			break;
 		case N_BRANCH_POINTS:
 			for (final Path p : tree.list()) {
@@ -756,6 +836,14 @@ public class TreeStatistics extends TreeAnalyzer {
 				stat.addValue(p.getSpineOrVaricosityCount() / p.getLength());
 			}
 			break;
+		case PATH_SURFACE_AREA:
+			for (final Path p : tree.list())
+				stat.addValue(p.getApproximatedSurface());
+			break;
+		case PATH_VOLUME:
+			for (final Path p : tree.list())
+				stat.addValue(p.getApproximatedVolume());
+			break;
 		case PATH_N_SPINES:
 			for (final Path p : tree.list()) {
 				stat.addValue(p.getSpineOrVaricosityCount());
@@ -788,6 +876,7 @@ public class TreeStatistics extends TreeAnalyzer {
 		case SHOLL_N_MAX:
 		case SHOLL_N_SECONDARY_MAX:
 		case SHOLL_POLY_FIT_DEGREE:
+		case SHOLL_RAMIFICATION_INDEX:
 		case SHOLL_SKEWENESS:
 		case SHOLL_SUM_VALUE:
 			stat.addValue(getShollMetric(m).doubleValue());
@@ -797,6 +886,9 @@ public class TreeStatistics extends TreeAnalyzer {
 			break;
 		case STRAHLER_RATIO:
 			stat.addValue(getStrahlerBifurcationRatio());
+			break;
+		case SURFACE_AREA:
+			stat.addValue(tree.getApproximatedSurface());
 			break;
 		case TERMINAL_LENGTH:
 			for (final Path p : getTerminalBranches())
@@ -812,6 +904,9 @@ public class TreeStatistics extends TreeAnalyzer {
 			}
 			if (stat.getN() == 0)
 				throw new IllegalArgumentException("Tree has no values assigned");
+			break;
+		case VOLUME:
+			stat.addValue(tree.getApproximatedVolume());
 			break;
 		case WIDTH:
 			stat.addValue(getWidth());

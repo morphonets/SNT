@@ -970,7 +970,7 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @return the ShollAnalyzer instance associated with this analyzer
 	 */
 	public ShollAnalyzer getShollAnalyzer() {
-		if (shllAnalyzer == null) shllAnalyzer = new ShollAnalyzer(tree);
+		if (shllAnalyzer == null) shllAnalyzer = new ShollAnalyzer(tree, this);
 		return shllAnalyzer;
 	}
 

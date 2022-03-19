@@ -2433,13 +2433,13 @@ public class Path implements Comparable<Path> {
 	 * the filling interface.
 	 * </p>
 	 *
-	 * @return the approximate fitted volume (in physical units), or 0 if this
+	 * @return the approximate fitted volume (in physical units), or NaN if this
 	 *         Path has no radii
 	 * @see #hasRadii()
 	 */
 	public double getApproximatedVolume() {
 		if (!hasRadii()) {
-			return 0;
+			return Double.NaN;
 		}
 
 		double totalVolume = 0;
@@ -2459,6 +2459,35 @@ public class Path implements Comparable<Path> {
 		return totalVolume;
 	}
 
+	/**
+	 * Returns an estimated surface area of this path, treating each inter-node
+	 * segment as a frustum.
+	 *
+	 * @return the approximate surface area (in physical units), or 0 if this Path
+	 *         has no radii
+	 * @see #hasRadii()
+	 * @see #getApproximatedVolume()
+	 */
+	public double getApproximatedSurface() {
+		if (!hasRadii()) {
+			return Double.NaN;
+		}
+
+		double totalSurface = 0;
+		for (int i = 0; i < points - 1; ++i) {
+			final double xdiff = precise_x_positions[i + 1] - precise_x_positions[i];
+			final double ydiff = precise_y_positions[i + 1] - precise_y_positions[i];
+			final double zdiff = precise_z_positions[i + 1] - precise_z_positions[i];
+			final double h = Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff * zdiff);
+			final double r1 = radii[i];
+			final double r2 = radii[i + 1];
+			// Lateral surface area of conical frustum https://en.wikipedia.org/wiki/Frustum
+			final double partSurface = Math.PI * (r1 + r2) * Math.sqrt((r1 - r2) * (r1 - r2) + (h * h));
+			totalSurface += partSurface;
+		}
+
+		return totalSurface;
+	}
 	/*
 	 * This doesn't deal with the startJoins, endJoins or fitted fields, since they
 	 * involve other paths which were probably also transformed by the caller.

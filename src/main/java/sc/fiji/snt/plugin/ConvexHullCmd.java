@@ -219,7 +219,7 @@ public class ConvexHullCmd extends ContextCommand {
 	}
 
 	private ConvexHullAnalyzer getAnalyzer(Tree tree) {
-		ConvexHullAnalyzer analyzer = new ConvexHullAnalyzer(tree);
+		final ConvexHullAnalyzer analyzer = new ConvexHullAnalyzer(tree);
 		analyzer.setContext(getContext());
 		return analyzer;
 	}

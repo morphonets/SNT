@@ -33,9 +33,11 @@ import org.scijava.plugin.Parameter;
 
 import net.imagej.ImageJ;
 import net.imagej.ops.OpService;
+import net.imglib2.RealLocalizable;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.util.PointInImage;
 
 /**
  * Class for Convex Hull measurements of a {@link Tree}.
@@ -122,6 +124,13 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		return getAnalysis().get(metric);
 	}
 
+	public PointInImage getCentroid() {
+		initHull();
+		final RealLocalizable cntd = computeCentroid(hull);
+		return new PointInImage(cntd.getDoublePosition(0), cntd.getDoublePosition(1),
+				(tree.is3D()) ? cntd.getDoublePosition(2) : 0);
+	}
+
 	public double getBoxivity() {
 		initHull();
 		return computeBoxivity(hull);
@@ -171,6 +180,15 @@ public class ConvexHullAnalyzer extends ContextCommand {
 			return opService.geom().boxivity(((ConvexHull3D) hull).getMesh()).getRealDouble();
 		else if (hull instanceof ConvexHull2D)
 			return opService.geom().boxivity(((ConvexHull2D) hull).getPolygon()).getRealDouble();
+		else
+			throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
+	}
+
+	protected RealLocalizable computeCentroid(final AbstractConvexHull hull) {
+		if (hull instanceof ConvexHull3D)
+			return opService.geom().centroid(((ConvexHull3D) hull).getMesh());
+		else if (hull instanceof ConvexHull2D)
+			return opService.geom().centroid(((ConvexHull2D) hull).getPolygon());
 		else
 			throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
 	}

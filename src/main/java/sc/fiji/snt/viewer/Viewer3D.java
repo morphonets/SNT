@@ -1454,7 +1454,6 @@ public class Viewer3D {
 			components.add(frame.manager);
 		if (frame.allenNavigator != null) {
 			components.add(frame.allenNavigator.dialog);
-			components.add(frame.allenNavigator.tree.getComponentPopupMenu());
 		}
 		if (managerList != null)
 			components.add(managerList.getComponentPopupMenu());
@@ -2677,6 +2676,8 @@ public class Viewer3D {
 			dialog.setContentPane(managerPanel);
 			attachAbortAction();
 			dialog.pack();
+			if (!sntInstance)
+				JDialog.setDefaultLookAndFeelDecorated(true);
 			return dialog;
 		}
 

@@ -48,24 +48,28 @@ import sc.fiji.snt.util.ShollPoint;
 public class ShollAnalyzer {
 
 	public static final String MEAN = "Mean";
-	static final String MEDIAN = "Median";
 	public static final String MAX = "Max";
 	public static final String MAX_FITTED = "Max (fitted)";
 	public static final String MAX_FITTED_RADIUS = "Max (fitted) radius";
 	public static final String POLY_FIT_DEGREE = "Degree of Polynomial fit";
 	public static final String N_MAX = "No. maxima";
+	public static final String SUM = "Sum";
+	public static final String N_SECONDARY_MAX = "No. secondary maxima";
+	public static final String DECAY = "Decay";
+	public static final String RAMIFICATION_INDEX = "Ramification index";
+
+	// These could be made public, but are likely not that informative for
+	// reconstructed cells
 	static final String CENTROID = "Centroid";
 	static final String CENTROID_RADIUS = "Centroid radius";
-	public static final String SUM = "Sum";
+	static final String MEDIAN = "Median";
 	static final String VARIANCE = "Variance";
 	static final String SKEWENESS = "Skeweness";
 	static final String KURTOSIS = "Kurtosis";
-	public static final String N_SECONDARY_MAX = "No. secondary maxima";
 	static final String MAX_RADIUS_PREFIX = "Max radius";
 	static final String SECONDARY_MAX_PREFIX = "Secondary max";
 	static final String SECONDARY_MAX_RADIUS_PREFIX = "Secondary max radius";
 	static final String ENCLOSING_RADIUS = "Enclosing radius";
-	public static final String DECAY = "Decay";
 	static final String INTERCEPT = "Intercept";
 
 	static final String[] ALL_FLAGS = { //
@@ -83,6 +87,7 @@ public class ShollAnalyzer {
 			N_MAX, //
 			N_SECONDARY_MAX, //
 			POLY_FIT_DEGREE, //
+			RAMIFICATION_INDEX, //
 			SKEWENESS, //
 			SUM, //
 			VARIANCE, //
@@ -98,6 +103,7 @@ public class ShollAnalyzer {
 	private final TreeParser parser;
 	private final int[] polynomialDegreeRange;
 	private boolean includeFitting;
+	private int nPrimaryBranches;
 
 	/**
 	 * Instantiates a new Sholl analyzer using default settings, i.e., focused on
@@ -118,6 +124,12 @@ public class ShollAnalyzer {
 		secondaryMaxima = new ArrayList<>();
 		includeFitting = true;// default in Sholl plugin
 		polynomialDegreeRange = new int[] { 2, 20 }; // defaults in Sholl plugin
+		nPrimaryBranches = -1; //infer from intersections at starting radius
+	}
+
+	public ShollAnalyzer(final Tree tree, final TreeAnalyzer analyzer) {
+		this(tree);
+		nPrimaryBranches = analyzer.getPrimaryPaths().size();
 	}
 
 	/**
@@ -183,6 +195,8 @@ public class ShollAnalyzer {
 			metrics.put(SKEWENESS, lStats.getSkewness());
 			metrics.put(VARIANCE, lStats.getVariance());
 			metrics.put(ENCLOSING_RADIUS, lStats.getEnclosingRadius(1));
+			lStats.setPrimaryBranches(nPrimaryBranches);
+			metrics.put(RAMIFICATION_INDEX, lStats.getRamificationIndex(true));
 		}
 		if (includeFitting) {
 			getNormStats();

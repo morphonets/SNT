@@ -1467,11 +1467,14 @@ public class GuiUtils {
 			if (!success) existingLaf = null;
 			break;
 		}
-		if (success && componentsToUpdate != null) {
+		if (!success) return false;
+		if (componentsToUpdate == null) {
+			FlatLaf.updateUI();
+		} else
 			for (final Component component : componentsToUpdate) {
 				if (component == null)
 					continue;
-				final Window window = (component instanceof Window) ? (Window)component
+				final Window window = (component instanceof Window) ? (Window) component
 						: SwingUtilities.windowForComponent(component);
 				try {
 					if (window == null)
@@ -1482,8 +1485,7 @@ public class GuiUtils {
 					SNTUtils.error("", ex);
 				}
 			}
-		}
-		if (success && persistentChoice) {
+		if (persistentChoice) {
 			SNTPrefs.setLookAndFeel(lookAndFeelName);
 		}
 		return success;

@@ -1517,20 +1517,29 @@ public class Tree implements TreeProperties {
 
 	/**
 	 * Retrieves an approximate estimate of Tree's volume by approximating the
-	 * volume of each path, and summing to total. THe volume of each path is
+	 * volume of each path, and summing to total. The volume of each path is
 	 * computed assuming the volume of each of inter-node segment to be that of a
 	 * truncated cone (Frustum).
 	 * 
-	 * @return the approximate volume or 9 if this Tree's paths have no radius
-	 *         information
+	 * @return the approximate volume or NaN if this Tree's paths have no radius
 	 * @see Path#getApproximatedVolume()
 	 */
 	public double getApproximatedVolume() {
-		double volume = 0;
-		for (final Path path : tree) {
-			volume += path.getApproximatedVolume();
-		}
-		return volume;
+		return tree.stream().mapToDouble(path -> path.getApproximatedVolume()).sum();
+	}
+
+	/**
+	 * Retrieves an approximate estimate of Tree's surface are by approximating the
+	 * surface area of each path, and summing to total. The surface of each path is
+	 * computed assuming the lateral surface area of a conical frustum between
+	 * nodes.
+	 * 
+	 * @return the approximate surface area or NaN if this Tree's paths have no
+	 *         radius
+	 * @see Path#getApproximatedSurface()
+	 */
+	public double getApproximatedSurface() {
+		return tree.stream().mapToDouble(path -> path.getApproximatedSurface()).sum();
 	}
 
 	/**

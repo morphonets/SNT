@@ -127,6 +127,14 @@ public class SNTTable extends DefaultGenericTable {
 		return idx;
 	}
 
+	@Override
+	public void clear() {
+		// Bypass super.clear not wiping row labels
+		super.setRowCount(0);
+		super.setColumnCount(0);
+		super.clear();
+	}
+
 	public void addColumn(final String colHeader, final Collection<Double> array) {
 		final DoubleColumn col = new DoubleColumn(colHeader);
 		col.addAll(array);

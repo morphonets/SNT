@@ -48,6 +48,7 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 
@@ -79,19 +80,27 @@ public class MeasureUI extends JFrame {
 	private SNTTable table;
 	private boolean distinguishCompartments;
 	private String lastDirPath;
-	private boolean resetTable;
-	private GuiUtils guiUtils;
+	private final GuiUtils guiUtils;
+	private SNT plugin;
+	private JProgressBar bar;
+	private GenerateTableAction.BackgroundTask backgroundTask;
+
 
 	public MeasureUI(final Collection<Tree> trees) {
 		this(SNTUtils.getContext(), trees);
 		lastDirPath = System.getProperty("user.home");
 		setLocationRelativeTo(null);
+		setDefaultLookAndFeelDecorated(true);
 	}
 
 	public MeasureUI(final SNT plugin, final Collection<Tree> trees) {
 		this(plugin.getContext(), trees);
+		this.plugin = plugin;
 		lastDirPath = plugin.getPrefs().getRecentDir().getAbsolutePath();
 		if (plugin.getUI() != null) {
+			//FIXME API limitation: it should be possible to access 
+			// SNTUI#getTable() without the need of sntService. This
+			// may cause problems if multiple instances are running
 			setTable(sntService.getTable());
 			setLocationRelativeTo(plugin.getUI());
 		}
@@ -105,22 +114,53 @@ public class MeasureUI extends JFrame {
 		add(panel);
 		pack();
 		instances.add(this);
+		setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowAdapter() {
 			@Override
 			public void windowClosing(final WindowEvent e) {
-				panel.savePreferences();
-				instances.remove(MeasureUI.this);
+				final boolean exit = backgroundTask == null || backgroundTask.isDone() || guiUtils.getConfirmation(
+						"Measurements are still being retrieved. Interrupt nevertheless?", "Interrupt?");
+				if (exit) {
+					panel.savePreferences();
+					instances.remove(MeasureUI.this);
+					if (backgroundTask != null && !backgroundTask.isDone()) {
+						backgroundTask.cancel(true);
+						backgroundTask.done();
+					}
+					dispose();
+				}
 			}
 		});
 	}
 
 	@Override
 	public void setVisible(final boolean b) {
+		// Script friendly version
 		SwingUtilities.invokeLater(() -> super.setVisible(b));
 	}
 
 	public void setTable(final SNTTable table) {
 		this.table = table;
+	}
+
+	private void wipeTable() {
+		if (table != null) table.clear();
+		updateTable(false);
+	}
+
+	private void updateTable(final boolean createAsNeeded) {
+		if (table == null) {
+			UIManager.getLookAndFeel().provideErrorFeedback(this);
+			return;
+		}
+		final List<Display<?>> displays = displayService.getDisplays(table);
+		if (displays == null || displays.isEmpty()) {
+			if (createAsNeeded) displayService.createDisplay("SNT Measurements", table);
+			return;
+		}
+		for (final Display<?> d : displayService.getDisplays(table)) {
+			if (d!= null) d.update();
+		}
 	}
 
 	private void saveTable() {
@@ -173,7 +213,6 @@ public class MeasureUI extends JFrame {
 
 			// tweak table
 			statsTable.setAutoCreateRowSorter(true);
-			statsTable.setComponentPopupMenu(new TablePopupMenu(statsTable));
 			statsTable.setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
 			for (final String metric : allFlags) {
 				statsTableModel.addColumn(metric);
@@ -185,11 +224,10 @@ public class MeasureUI extends JFrame {
 			// Enlarge default width of first column. Another option would be to have all
 			// columns to auto-fit at all times, e.g., https://stackoverflow.com/a/25570812.
 			// Maybe that would be better?
-			final String prototypeMetric = "Path mean spine/varicosity density";
-			final String prototypeStat = "Mean ";
+			final String prototypeMetric = TreeStatistics.CONVEX_HULL_CENTROID_ROOT_DISTANCE;
 			for (int i = 0; i < statsTable.getColumnCount(); ++i) {
 				final int width = SwingUtilities.computeStringWidth(statsTable.getFontMetrics(statsTable.getFont()),
-						(i == 0) ? prototypeMetric : prototypeStat);
+						(i == 0) ? prototypeMetric : MEAN);
 				statsTable.getColumnModel().getColumn(i).setMinWidth(width);
 			}
 			statsTable.setPreferredScrollableViewportSize(statsTable.getPreferredSize());
@@ -227,6 +265,11 @@ public class MeasureUI extends JFrame {
 			searchableBar.setHighlightAll(true);
 			searchableBar.setGuiUtils(guiUtils);
 
+			// progress bar
+			bar = new JProgressBar();
+			bar.setVisible(false);
+			bar.setFocusable(false);
+
 			// remember previous state
 			loadPreferences();
 
@@ -250,12 +293,18 @@ public class MeasureUI extends JFrame {
 			c.weightx = 1.0; // fill width when when resizing panel
 			c.weighty = 1.0; // fill height when when resizing pane
 			c.gridwidth = 1;
-			add(new JScrollPane(statsTable), c);
+
+			final JScrollPane statsTableScrollPane = new JScrollPane(statsTable);
+			TablePopupMenu.install(statsTable, statsTableScrollPane);
+			add(statsTableScrollPane, c);
 
 			final JButton runButton = new JButton("Measure " + trees.size() + " Reconstruction(s)");
 			runButton.addActionListener(new GenerateTableAction(trees, statsTableModel));
 			final JPanel buttonPanel = new JPanel();
 			buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.LINE_AXIS));
+			//bar.getPreferredSize().height = runButton.getPreferredSize().height;
+			buttonPanel.add(Box.createHorizontalGlue());
+			buttonPanel.add(bar);
 			buttonPanel.add(Box.createHorizontalGlue());
 			buttonPanel.add(optionsButton(trees));
 			buttonPanel.add(runButton);
@@ -276,14 +325,11 @@ public class MeasureUI extends JFrame {
 			jcmi1.setToolTipText("Whether measurements should be grouped by cellular\n"
 					+ "compartment (e.g., \"axon\", \"dendrites\", etc.)");
 			optionsMenu.add(jcmi1);
-			final JCheckBoxMenuItem jcmi3 = new JCheckBoxMenuItem("Reset Measurements Table Before Run", resetTable);
-			jcmi3.addActionListener(e -> resetTable = jcmi3.isSelected());
-			optionsMenu.add(jcmi3);
 			final JCheckBoxMenuItem jcmi4  = new JCheckBoxMenuItem("Debug mode", SNTUtils.isDebugMode());
 			jcmi4.addActionListener(e -> {
 				SNTUtils.setDebugMode(jcmi4.isSelected());
-				if (sntService.isActive() && sntService.getUI() != null) {
-					sntService.getUI().setEnableDebugMode(jcmi4.isSelected());
+				if (plugin != null && plugin.getUI() != null) {
+					plugin.getUI().setEnableDebugMode(jcmi4.isSelected());
 				}
 			});
 			optionsMenu.add(jcmi4);
@@ -291,11 +337,14 @@ public class MeasureUI extends JFrame {
 			JMenuItem jmi = new JMenuItem("List Cell(s) Being Measured...");
 			jmi.addActionListener(e -> showDetails(trees));
 			optionsMenu.add(jmi);
-			final JMenuItem jmi2 = new JMenuItem("Save Measurements Table...");
-			jmi2.addActionListener(e -> saveTable());
-			jmi2.setToolTipText("Save measurements table. Note that tables can always\n"
+			jmi = new JMenuItem("Clear Measurements Table");
+			jmi.addActionListener(e -> wipeTable());
+			optionsMenu.add(jmi);
+			jmi = new JMenuItem("Save Measurements Table...");
+			jmi.addActionListener(e -> saveTable());
+			jmi.setToolTipText("Save measurements table. Note that tables can always\n"
 					+ "be saved using the 'Save Tables and Analysis Plot' command");
-			optionsMenu.add(jmi2);
+			optionsMenu.add(jmi);
 			GuiUtils.addSeparator(optionsMenu, "Help:");
 			jmi = new JMenuItem("Quick Guide...");
 			jmi.addActionListener(e -> showHelp());
@@ -317,6 +366,7 @@ public class MeasureUI extends JFrame {
 			sb.append("<td style='text-align: center;'><b>&nbsp;#&nbsp;</b></td>");
 			sb.append("<td style='text-align: center;'><b>Label</b></td>");
 			sb.append("<td style='text-align: center;'><b>Spatial Unit</b></td>");
+			sb.append("<td style='text-align: center;'><b>No. Compartments</b></td>");
 			sb.append("<td style='text-align: center;'><b>Source</b></td>");
 			sb.append("</tr>");
 			final int[] counter = { 1 };
@@ -327,6 +377,8 @@ public class MeasureUI extends JFrame {
 				sb.append("<td style='text-align: center;'>").append(tree.getLabel()).append("</td>");
 				sb.append("<td style='text-align: center;'>").append(props.getOrDefault(Tree.KEY_SPATIAL_UNIT, "N/A"))
 						.append("</td>");
+				sb.append("<td style='text-align: center;'>").append( tree.getSWCTypes(false).size())
+				.append("</td>");
 				sb.append("<td style='text-align: center;'>").append(props.getOrDefault(Tree.KEY_SOURCE, "N/A"))
 						.append("</td>");
 				sb.append("</tr>");
@@ -375,7 +427,6 @@ public class MeasureUI extends JFrame {
 
 		private void loadPreferences() {
 			distinguishCompartments = prefService.getBoolean(getClass(), "distinguish", false);
-			resetTable = prefService.getBoolean(getClass(), "resettable", true);
 			lastDirPath = prefService.get(getClass(), "lastdir", lastDirPath);
 			final List<String> metrics = prefService.getList(getClass(), "metrics");
 			final List<String> stats = prefService.getList(getClass(), "stats");
@@ -389,7 +440,6 @@ public class MeasureUI extends JFrame {
 
 		private void savePreferences() {
 			prefService.put(getClass(), "distinguish", distinguishCompartments);
-			prefService.put(getClass(), "resettable", resetTable);
 			prefService.put(getClass(), "lastdir", lastDirPath);
 			final List<String> metrics = new ArrayList<>();
 			final List<String> stats = new ArrayList<>();
@@ -504,7 +554,7 @@ public class MeasureUI extends JFrame {
 
 	}
 
-	class GenerateTableAction extends AbstractAction {
+	private class GenerateTableAction extends AbstractAction {
 
 		private static final long serialVersionUID = 1L;
 		final Collection<Tree> trees;
@@ -528,25 +578,8 @@ public class MeasureUI extends JFrame {
 			}
 			if (table == null)
 				table = new SNTTable();
-			else if (resetTable)
-				table.clear();
-			for (final Tree tree : trees) {
-				final Set<Integer> compartments = tree.getSWCTypes(false);
-				if (distinguishCompartments && compartments.size() > 1) {
-					for (final int type : compartments)
-						measureTree(tree.subTree(type), table);
-				} else {
-					measureTree(tree, table);
-					table.appendToLastRow("No. of compartments", compartments.size());
-				}
-			}
-			if (table.isEmpty() || (!distinguishCompartments && table.getColumnCount() < 2)) {
-				guiUtils.error("Measurements table is empty. Please make sure your choices are valid.");
-				return;
-			}
-			final Display<?> display = displayService.getDisplay("SNT Measurements");
-			if (display != null && resetTable) display.close();
-			displayService.createDisplay("SNT Measurements", table);
+			backgroundTask =  new BackgroundTask((JButton) e.getSource());
+			backgroundTask.execute();
 		}
 
 		private boolean atLeastOneStatChosen() {
@@ -569,24 +602,42 @@ public class MeasureUI extends JFrame {
 			return false;
 		}
 
-		private void measureTree(final Tree tree, final SNTTable table) {
-			table.insertRow(tree.getLabel());
+		private void measureTree(final Tree tree) {
+
 			final TreeStatistics tStats = new TreeStatistics(tree);
 			TreeStatistics.setExactMetricMatch(true);
-			for (int i = 0; i < tableModel.getRowCount(); ++i) {
-				final String metric = (String) tableModel.getValueAt(i, 0);
-				if (!atLeastOneStatChosen(i))
+
+			for (int row = 0; row < tableModel.getRowCount(); ++row) {
+
+				if (!atLeastOneStatChosen(row))
 					continue;
-				final SummaryStatistics summaryStatistics = tStats.getSummaryStats(metric);
+
+				final String metric = (String) tableModel.getValueAt(row, 0);
+
+				if (TreeStatistics.VALUES.equals(metric) && plugin != null && plugin.accessToValidImageData()
+						&& !tree.get(0).hasNodeValues()) {
+					SNTUtils.log("Retrieving intensities using the default centerline setting...");
+					new PathProfiler(tree, plugin.getLoadedDataAsImp()).assignValues();
+				}
+
+				SummaryStatistics summaryStatistics;
+				try {
+					summaryStatistics  = tStats.getSummaryStats(metric);
+				} catch (final IllegalArgumentException | IndexOutOfBoundsException | NullPointerException e) {
+					// e.g. Node values cannot be assigned or a convex hull of a single-path tree
+					summaryStatistics = new SummaryStatistics();
+					summaryStatistics.addValue(Double.NaN);
+					SNTUtils.log(e.getMessage());
+				}
 				if (summaryStatistics.getN() == 1) {
-					table.appendToLastRow(metric + " (Single value metric)", summaryStatistics.getSum());
+					table.set(metric + " (Single value metric)", tree.getLabel(), summaryStatistics.getSum());
 					continue;
 				}
-				for (int j = 1; j < tableModel.getColumnCount(); ++j) {
-					final Object cell = tableModel.getValueAt(i, j);
+				for (int column = 1; column < tableModel.getColumnCount(); ++column) {
+					final Object cell = tableModel.getValueAt(row, column);
 					if (cell == null || !(boolean) cell)
 						continue;
-					final String measurement = tableModel.getColumnName(j);
+					final String measurement = tableModel.getColumnName(column);
 					final double value;
 					switch (measurement) {
 					case MIN:
@@ -610,11 +661,61 @@ public class MeasureUI extends JFrame {
 					default:
 						throw new IllegalArgumentException("[BUG] Unknown statistic: " + measurement);
 					}
-					table.appendToLastRow(metric + " (" + measurement + ")", value);
+					table.set(metric + " (" + measurement + ")", tree.getLabel(), value);
 				}
 			}
 		}
 
+
+		class BackgroundTask extends SwingWorker<Object, Integer> {
+
+			private final AbstractButton button;
+
+			BackgroundTask(final AbstractButton button) {
+				this.button = button;
+				button.setEnabled(false);
+				bar.setMinimum(0);
+				bar.setMaximum(trees.size());
+				bar.setVisible(true);
+			}
+
+			@Override
+			protected Void doInBackground() throws Exception {
+				int counter = 0;
+				for (final Tree tree : trees) {
+					publish(counter++);
+					SNTUtils.log("Processing #" + counter +" "+ tree.getLabel());
+					final Set<Integer> compartments = tree.getSWCTypes(false);
+					if (distinguishCompartments && compartments.size() > 1) {
+						for (final int type : compartments)
+							measureTree(tree.subTree(type));
+					} else {
+						measureTree(tree);
+					}
+					table.appendToLastRow("No. of compartments", compartments.size());
+				}
+				return null;
+			}
+
+			@Override
+			protected void process(final List<Integer> chunks) {
+				final int i = chunks.get(chunks.size() - 1);
+				bar.setValue(i); // The last value is all we care about
+			}
+
+			@Override
+			protected void done() {
+				button.setEnabled(true);
+				bar.setVisible(false);
+				if (table.isEmpty() || (!distinguishCompartments && table.getColumnCount() < 2)) {
+					guiUtils.error("Measurements table is empty. Please make sure your choices are valid.");
+					return;
+				}
+				updateTable(true);
+			}
+
+		}
+	 
 	}
 
 	/**
@@ -648,7 +749,7 @@ public class MeasureUI extends JFrame {
 			this.applyUI();
 			this.addItemListener(new ItemHandler());
 			header.addMouseListener(new MouseHandler());
-			setToolTipText("Click to toggle all rows");
+			setToolTipText("Click to toggle entire column");
 
 			// FIXME: This does not appear to work when the table
 			// has multiple of these listeners. Multiple columns get
@@ -761,6 +862,12 @@ public class MeasureUI extends JFrame {
 			mi = new JMenuItem("Deselect Highlighted Row(s)");
 			mi.addActionListener(e -> setSelectedRowsState(false));
 			add(mi);
+		}
+
+		static void install(final JTable table, final JScrollPane sp) {
+			final TablePopupMenu popup = new TablePopupMenu(table);
+			table.setComponentPopupMenu(popup);
+			sp.setComponentPopupMenu(popup);
 		}
 
 		private void setColumnState(final boolean state) {

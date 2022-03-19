@@ -158,7 +158,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		jmi.setToolTipText("Performs analysis directly from reconstruction");
 		popup.add(jmi);
 		addScriptsSeparator(popup);
-		popup.add(getScriptMenuItem("Analysis", "Strahler_Analysis.py"));
+		//popup.add(getScriptMenuItem("Analysis", "Strahler_Analysis.py")); // repeated entry
 		popup.add(getScriptMenuItem("Batch", "Strahler_Bulk_Analysis_(From_Reconstructions).py"));
 		buttons.add(button);
 	}
