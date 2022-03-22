@@ -30,8 +30,11 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Paint;
+import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.Window;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.BufferedWriter;
@@ -74,9 +77,11 @@ import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.CombinedRangeXYPlot;
 import org.jfree.chart.plot.Marker;
 import org.jfree.chart.plot.Plot;
+import org.jfree.chart.plot.PolarPlot;
 import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.AbstractRenderer;
+import org.jfree.chart.renderer.DefaultPolarItemRenderer;
 import org.jfree.chart.renderer.category.AbstractCategoryItemRenderer;
 import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
 import org.jfree.chart.renderer.category.CategoryItemRenderer;
@@ -116,6 +121,7 @@ public class SNTChart extends ChartFrame {
 	private static final long serialVersionUID = 5245298401153759551L;
 	private static final Color BACKGROUND_COLOR = Color.WHITE;
 	private boolean isCombined;
+	private boolean isAspectRatioLocked;
 
 	public SNTChart(final String title, final JFreeChart chart) {
 		this(title, chart, new Dimension(400, 400));
@@ -444,6 +450,14 @@ public class SNTChart extends ChartFrame {
 				font = getCategoryPlot().getRangeAxis().getTickLabelFont().deriveFont(size);
 				getCategoryPlot().getRangeAxis().setTickLabelFont(font);
 			}
+			else if (getChartPanel().getChart().getPlot() instanceof PolarPlot) {
+				final PolarPlot plot = (PolarPlot)getChartPanel().getChart().getPlot();
+				for (int i = 0; i < plot.getAxisCount(); i++) {
+					final Font font = plot.getAxis(i).getTickLabelFont().deriveFont(size);
+					plot.getAxis(i).setTickLabelFont(font);
+				}
+				plot.setAngleLabelFont(plot.getAngleLabelFont().deriveFont(size));
+			}
 			break;
 		case "legend":
 		case "legends":
@@ -514,6 +528,8 @@ public class SNTChart extends ChartFrame {
 				return getXYPlot().getDomainAxis().getTickLabelFont().getSize();
 			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot)
 				return getCategoryPlot().getDomainAxis().getTickLabelFont().getSize();
+			else if (getChartPanel().getChart().getPlot() instanceof PolarPlot)
+				return ((PolarPlot)getChartPanel().getChart().getPlot()).getAxis().getTickLabelFont().getSize();
 			break;
 		case "legend":
 		case "legends":
@@ -598,6 +614,10 @@ public class SNTChart extends ChartFrame {
 			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
 			if (plot.getBackgroundPaint() == oldColor)
 				plot.setBackgroundPaint(newColor);
+		} else if (getChartPanel().getChart().getPlot() instanceof PolarPlot) {
+			final PolarPlot plot = (PolarPlot)(getChartPanel().getChart().getPlot());
+			if (plot.getBackgroundPaint() == oldColor)
+				plot.setBackgroundPaint(newColor);
 		}
 	}
 
@@ -640,7 +660,21 @@ public class SNTChart extends ChartFrame {
 			setForegroundColor(plot.getRangeAxis(), newColor);
 			replaceForegroundColor(plot.getRenderer(), oldColor, newColor);
 			replaceSeriesColor(plot.getRenderer(), oldColor, newColor);
+		} else if (getChartPanel().getChart().getPlot() instanceof PolarPlot) {
+			final PolarPlot plot = (PolarPlot)(getChartPanel().getChart().getPlot());
+			for (int i = 0; i < plot.getAxisCount(); i++)
+				setForegroundColor(plot.getAxis(i), newColor);
+			plot.setAngleGridlinePaint(newColor);
+			plot.setAngleLabelPaint(newColor);
+			final DefaultPolarItemRenderer render = (DefaultPolarItemRenderer) plot.getRenderer();
+			for (int series = 0; series < plot.getDatasetCount(); series++) {
+				if (render.getSeriesOutlinePaint(series) == oldColor)
+					render.setSeriesOutlinePaint(series, newColor);
+				if (render.getSeriesPaint(series) == oldColor)
+					render.setSeriesPaint(series, newColor);
+			}
 		}
+
 	}
 
 	private void replaceForegroundColor(final LegendItemSource render, final Color oldColor, final Color newColor) {
@@ -918,6 +952,9 @@ public class SNTChart extends ChartFrame {
 		jmi = new JMenuItem("Toggle Outline");
 		jmi.addActionListener( e -> setOutlineVisible(!isOutlineVisible()));
 		grids.add(jmi);
+		final JCheckBoxMenuItem lock = new JCheckBoxMenuItem("Lock Aspect Ratio", isAspectRatioLocked());
+		lock.addItemListener( e -> setAspectRatioLocked(lock.isSelected()));
+		grids.add(lock);
 		popup.add(grids);
 		popup.add(dark);
 
@@ -1000,6 +1037,44 @@ public class SNTChart extends ChartFrame {
 		} catch (final IOException e) {
 			throw new IllegalStateException("Could not write dataset", e);
 		}
+	}
+
+	private void setAspectRatioLocked(final boolean lock) {
+		final ComponentAdapter adapter = new ComponentAdapter() {
+			double RATIO = ((float) SNTChart.this.getWidth()) / SNTChart.this.getHeight();
+
+			@Override
+			public void componentShown(final ComponentEvent ce) {
+				if (isCombined) {
+					final Rectangle b = ce.getComponent().getBounds();
+					RATIO = ((float) b.width) / b.height;
+				}
+			}
+
+			@Override
+			public void componentResized(final ComponentEvent ce) {
+				final Rectangle b = ce.getComponent().getBounds();
+				int width = b.width;
+				int height = b.height;
+				final float currentAspectRatio = (float) width / height;
+				if (currentAspectRatio > RATIO) {
+					width = (int) (height * RATIO);
+				} else {
+					height = (int) (width / RATIO);
+				}
+				b.setBounds(b.x, b.y, width, height);
+			}
+		};
+		if (lock) {
+			addComponentListener(adapter);
+		} else {
+			removeComponentListener(adapter);
+		}
+		isAspectRatioLocked = lock;
+	}
+
+	public boolean isAspectRatioLocked() {
+		return isAspectRatioLocked;
 	}
 
 	/**

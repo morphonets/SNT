@@ -499,6 +499,14 @@ public class TreeStatistics extends TreeAnalyzer {
 		return getHistogram(normMeasurement, datasetPlus);
 	}
 
+	public SNTChart getPolarHistogram(final String metric) {
+		final String normMeasurement = getNormalizedMeasurement(metric);
+		final HistogramDatasetPlus datasetPlus = new HDPlus(normMeasurement, true);
+		final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, lastDstats.dStats, datasetPlus);
+		final SNTChart frame = new SNTChart("Polar Hist. " + tree.getLabel(), chart);
+		return frame;
+	}
+
 	public static TreeStatistics fromCollection(final Collection<Tree> trees, final String metric) {
 		final Iterator<Tree> iterator = trees.iterator();
 		final TreeStatistics holder = new TreeStatistics(iterator.next());

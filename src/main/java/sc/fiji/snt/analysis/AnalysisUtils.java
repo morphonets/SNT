@@ -24,6 +24,8 @@ package sc.fiji.snt.analysis;
 
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.Rectangle;
+import java.awt.Shape;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -32,11 +34,17 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
+import org.jfree.chart.LegendItem;
+import org.jfree.chart.LegendItemCollection;
+import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.axis.SubCategoryAxis;
 import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.Plot;
 import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.chart.plot.PolarAxisLocation;
+import org.jfree.chart.plot.PolarPlot;
 import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.DefaultPolarItemRenderer;
 import org.jfree.chart.renderer.category.BarRenderer;
 import org.jfree.chart.renderer.category.StandardBarPainter;
 import org.jfree.chart.renderer.xy.StandardXYBarPainter;
@@ -47,6 +55,7 @@ import org.jfree.chart.ui.RectangleInsets;
 import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.statistics.HistogramDataset;
 import org.jfree.data.statistics.HistogramType;
+import org.jfree.data.xy.DefaultXYDataset;
 import org.scijava.util.ColorRGB;
 
 import sc.fiji.snt.Path;
@@ -104,6 +113,80 @@ class AnalysisUtils {
 			mean, nDecimals)).append("\u00B1").append(SNTUtils.formatDouble(
 				stats.getStandardDeviation(), nDecimals));
 		return sb.toString();
+	}
+
+	static JFreeChart createPolarHistogram(final String xAxisTitle, final DescriptiveStatistics stats,
+			final HistogramDatasetPlus datasetPlus) {
+
+		final PolarPlot polarPlot = new PolarPlot();
+		polarPlot.setDataset(histoDatasetToSingleXYDataset(datasetPlus.getDataset(xAxisTitle), 1, datasetPlus.nBins));
+
+		// Customize series
+		final DefaultPolarItemRenderer render = new DefaultPolarItemRenderer();
+		polarPlot.setRenderer(render);
+		render.setShapesVisible(false);
+		render.setConnectFirstAndLastPoint(true);
+		for (int bin = 0; bin < datasetPlus.nBins; bin++) {
+			render.setSeriesFilled(bin, true);
+			render.setSeriesOutlinePaint(bin, Color.DARK_GRAY);
+			//render.setSeriesPaint(bin, Color.LIGHT_GRAY);
+			render.setSeriesPaint(bin, new Color(102, 170, 215));
+		}
+		final JFreeChart chart = assemblePolarPlotChart(xAxisTitle, polarPlot, false);
+		chart.removeLegend();
+		final String desc = getSummaryDescription(stats, datasetPlus);
+		final TextTitle label = new TextTitle(desc);
+		label.setFont(polarPlot.getAngleLabelFont().deriveFont(Font.PLAIN));
+		label.setPosition(RectangleEdge.BOTTOM);
+		chart.addSubtitle(label);
+
+		return chart;
+	}
+
+	private static DefaultXYDataset histoDatasetToSingleXYDataset(final HistogramDataset histDataset, final int nSeries,
+			final int nBins) {
+		final DefaultXYDataset xyDataset = new DefaultXYDataset();
+		for (int series = 0; series < nSeries; series++) {
+			// for each bar in the histogram, we'll draw the triangle defined by the origin
+			// (0,0), (bin-start, freq), (bin-end, freq)
+			for (int bin = 0; bin < nBins; bin++) {
+				final double xStart = (double) histDataset.getStartX(series, bin);
+				final double yStart = (double) histDataset.getStartY(series, bin);
+				final double xEnd = (double) histDataset.getEndX(series, bin);
+				final double yEnd = (double) histDataset.getEndY(series, bin);
+				final double[][] seriesData = new double[][] { new double[] { 0, xStart, xEnd },
+						new double[] { 0, yStart, yEnd } };
+				xyDataset.addSeries(histDataset.getSeriesKey(series) + "[bin " + (bin + 1) + "]", seriesData);
+			}
+		}
+		return xyDataset;
+	}
+
+	private static JFreeChart assemblePolarPlotChart(final String xAxisTitle, final PolarPlot polarPlot, final boolean createLegend) {
+		// Customize axes
+		final NumberAxis rangeAxis = new NumberAxis();
+		polarPlot.setAxis(rangeAxis);
+		rangeAxis.setAxisLineVisible(true);
+		rangeAxis.setTickMarksVisible(true);
+		rangeAxis.setAutoTickUnitSelection(true);
+		rangeAxis.setTickLabelsVisible(true);
+
+		// Customize plot
+		polarPlot.addCornerTextItem(xAxisTitle);
+		polarPlot.setCounterClockwise(false);
+		polarPlot.setRadiusMinorGridlinesVisible(false);
+		polarPlot.setAxisLocation(PolarAxisLocation.NORTH_LEFT);
+		polarPlot.setBackgroundAlpha(0f);
+		polarPlot.setAngleGridlinePaint(Color.DARK_GRAY);
+		polarPlot.setBackgroundPaint(Color.WHITE);
+		polarPlot.setRadiusGridlinePaint(Color.LIGHT_GRAY);
+		polarPlot.setAngleGridlinesVisible(true);
+		polarPlot.setOutlineVisible(false);
+
+		// Customize chart
+		final JFreeChart chart = new JFreeChart(null,rangeAxis.getLabelFont(), polarPlot, createLegend);
+		chart.setBorderVisible(false);
+		return chart;
 	}
 
 	static JFreeChart createHistogram(final String xAxisTitle, final DescriptiveStatistics stats, final HistogramDatasetPlus datasetPlus) {
@@ -173,6 +256,35 @@ class AnalysisUtils {
 		}
 		bar_renderer.setShadowVisible(false);
 		return new SNTChart("Grouped Hist.", chart);
+	}
+
+	static SNTChart createPolarHistogram(final String normMeasurement, final HistogramDataset dataset, final int nSeries,
+			final int nBins) {
+		final PolarPlot polarPlot = new PolarPlot();
+		polarPlot.setDataset(histoDatasetToSingleXYDataset(dataset, nSeries, nBins));
+		final DefaultPolarItemRenderer render = new DefaultPolarItemRenderer();
+		polarPlot.setRenderer(render);
+		render.setShapesVisible(false);
+		render.setConnectFirstAndLastPoint(true);
+		render.setDefaultFillPaint(Color.red);
+		final LegendItemCollection chartLegend = new LegendItemCollection();
+		final Shape shape = new Rectangle(polarPlot.getAngleLabelFont().getSize() * 2,
+				polarPlot.getAngleLabelFont().getSize());
+		final ColorRGB[] colors = SNTColor.getDistinctColors(nSeries);
+		for (int s = 0; s < nSeries; s++) {
+			final Color awtColor = new Color(colors[s].getRed(), colors[s].getGreen(), colors[s].getBlue());
+			chartLegend.add(new LegendItem(dataset.getSeriesKey(s).toString(), null, null, null, shape, awtColor));
+			for (int bin = 0; bin < nBins; bin++) {
+				final int index = s * nBins + bin;
+				render.setSeriesFilled(index, true);
+				render.setSeriesOutlinePaint(index, Color.DARK_GRAY);
+				render.setSeriesPaint(index, awtColor);
+				render.setSeriesFillPaint(index, awtColor);
+				render.setSeriesItemLabelPaint(index, awtColor);
+			}
+		}
+		polarPlot.setFixedLegendItems(chartLegend);
+		return new SNTChart("Grouped Polar Hist.", assemblePolarPlotChart(normMeasurement, polarPlot, nSeries > 1));
 	}
 
 	static JFreeChart createCategoryPlot(final String domainTitle,

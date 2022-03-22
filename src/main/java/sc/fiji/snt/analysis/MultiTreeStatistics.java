@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.text.WordUtils;
+import org.jfree.chart.JFreeChart;
 
 import net.imagej.ImageJ;
 import sc.fiji.snt.Path;
@@ -455,6 +456,19 @@ public class MultiTreeStatistics extends TreeStatistics {
 		final HistogramDatasetPlusMulti datasetPlus = new HistogramDatasetPlusMulti(normMeasurement);
 		try {
 			return getHistogram(normMeasurement, datasetPlus);
+		} catch (IllegalArgumentException ex) {
+			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics", ex); 
+		}
+	}
+
+	@Override
+	public SNTChart getPolarHistogram(final String metric) {
+		final String normMeasurement = getNormalizedMeasurement(metric, true);
+		final HistogramDatasetPlusMulti datasetPlus = new HistogramDatasetPlusMulti(normMeasurement);
+		try {
+			final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, lastDstats.dStats, datasetPlus);
+			final SNTChart frame = new SNTChart("Polar Hist. " + tree.getLabel(), chart);
+			return frame;
 		} catch (IllegalArgumentException ex) {
 			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics", ex); 
 		}

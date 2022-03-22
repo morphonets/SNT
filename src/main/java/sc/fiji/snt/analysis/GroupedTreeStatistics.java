@@ -163,13 +163,32 @@ public class GroupedTreeStatistics {
 	 * @see #setMinNBins(int)
 	 */
 	public SNTChart getHistogram(final String measurement) {
+		return getHistogram(measurement, false);
+	}
+
+	/**
+	 * Gets the relative frequencies histogram for a univariate measurement as a
+	 * polar (rose) plot assuming a data range between [0-360]. The number of bins
+	 * is determined using the Freedman-Diaconis rule.
+	 *
+	 * @param measurement the measurement (e.g.,
+	 *                    {@link MultiTreeStatistics#AVG_REMOTE_ANGLE)
+	 * @return the frame holding the histogram
+	 * @see #getHistogram(String)
+	 * @see #setMinNBins(int)
+	 */
+	public SNTChart getPolarHistogram(final String measurement) {
+		return getHistogram(measurement, true);
+	}
+
+	private SNTChart getHistogram(final String measurement, final boolean polar) {
 		final String normMeasurement = MultiTreeStatistics.getNormalizedMeasurement(measurement, true);
 		// Retrieve all HistogramDatasetPlus instances
 		final double[] limits = new double[] {Double.MAX_VALUE, Double.MIN_VALUE};
 		for (final String groupLabel : getGroups()) {
 			final double groupMax = getGroupStats(groupLabel).getDescriptiveStats(normMeasurement).getMax();
 			final double groupMin = getGroupStats(groupLabel).getDescriptiveStats(normMeasurement).getMin();
-			if (groupMax < limits[0]) limits[0] = groupMin;
+			if (groupMin < limits[0]) limits[0] = groupMin;
 			if (groupMax > limits[1]) limits[1] = groupMax;
 		}
 		final LinkedHashMap<String, HDPlus> hdpMap = new LinkedHashMap<>();
@@ -188,7 +207,9 @@ public class GroupedTreeStatistics {
 		hdpMap.forEach((label, hdp) -> {
 			dataset.addSeries(label, hdp.valuesAsArray(), finalBinCount, limits[0], limits[1]);
 		});
-		return AnalysisUtils.createHistogram(normMeasurement, hdpMap.size(), dataset);
+		return (polar) ?
+				AnalysisUtils.createPolarHistogram(normMeasurement, dataset, hdpMap.size(), finalBinCount)
+				: AnalysisUtils.createHistogram(normMeasurement, hdpMap.size(), dataset);
 	}
 
 	/**
