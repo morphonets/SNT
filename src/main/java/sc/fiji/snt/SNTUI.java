@@ -63,6 +63,7 @@ import ij.ImagePlus;
 import ij.Prefs;
 import ij.gui.ImageCanvas;
 import ij.gui.ImageWindow;
+import ij.plugin.frame.Recorder;
 import ij3d.Content;
 import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
@@ -3005,7 +3006,17 @@ public class SNTUI extends JDialog {
 			setVisible(true);
 			SNTUtils.setIsLoading(false);
 			if (plugin.getImagePlus()!=null) plugin.getImagePlus().getWindow().toFront();
+			ijmLogMessage();
 		});
+	}
+
+	private static final void ijmLogMessage() {
+		if (Recorder.record) {
+			final String recordString = "// SNT operations will not be recorded. However, SNT remains fully\n"
+					+ "// scriptable. Have a look at the scripting examples in the Script\n"
+					+ "// Editor, and the documentation resources in SNT's Help> menu\n";
+			Recorder.recordString(recordString);
+		}
 	}
 
 	@SuppressWarnings("unused")

@@ -518,11 +518,11 @@ public class MouseLightLoader {
 			tree.setLabel(""+ id + " ("+ compartment + ")");
 		else
 			tree.setLabel(""+ id);
-		tree.getProperties().setProperty(TreeProperties.KEY_COMPARTMENT,
+		tree.getProperties().setProperty(Tree.KEY_COMPARTMENT,
 				TreeProperties.getStandardizedCompartment(compartment));
-		tree.getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, "um");
-		tree.getProperties().setProperty(TreeProperties.KEY_ID, getID());
-		tree.getProperties().setProperty(TreeProperties.KEY_SOURCE, "MouseLight " + getDOI());
+		tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, "um");
+		tree.getProperties().setProperty(Tree.KEY_ID, getID());
+		tree.getProperties().setProperty(Tree.KEY_SOURCE, "MouseLight " + getDOI());
 		return tree;
 	}
 

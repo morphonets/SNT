@@ -542,7 +542,7 @@ public class SNTService extends AbstractService implements ImageJService {
 				}
 				tree.setLabel(treeLabel);
 				tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, "um");
-				tree.getProperties().setProperty(TreeProperties.KEY_SOURCE, "SNT Demo");
+				tree.getProperties().setProperty(Tree.KEY_SOURCE, "SNT Demo");
 			} else {
 				return null;
 			}
@@ -772,6 +772,7 @@ public class SNTService extends AbstractService implements ImageJService {
 			plugin.closeAndResetAllPanes();
 			if (plugin.getImagePlus() != null) plugin.getImagePlus().close();
 			SNTUtils.setPlugin(null);
+			SNTUtils.setContext(null);
 			plugin = null;
 			} catch (final NullPointerException ignored) {
 				// do nothing

@@ -1653,7 +1653,7 @@ public class Tree implements TreeProperties {
 			cal = imp.getCalibration();
 		}
 		list().forEach(path -> path.setSpacing(cal));
-		getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, cal.getUnit());
+		getProperties().setProperty(KEY_SPATIAL_UNIT, cal.getUnit());
 	}
 
 	public void assignImage(final Dataset dataset) {
@@ -1666,7 +1666,7 @@ public class Tree implements TreeProperties {
 			cal = pafm.assignSpatialSettings(dataset);
 		}
 		list().forEach(path -> path.setSpacing(cal));
-		getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, cal.getUnit());
+		getProperties().setProperty(KEY_SPATIAL_UNIT, cal.getUnit());
 	}
 
 	/**

@@ -2464,8 +2464,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private final static String MEASURE_TREES_CMD = "Measure Cell(s)...";
 		private final static String MEASURE_PATHS_CMD = "Measure Path(s)...";
 		// distribution commands
-		private final static String HISTOGRAM_PATHS_CMD = "Distribution of Path Properties...";
-		private final static String HISTOGRAM_TREES_CMD = "Distribution of Cell Properties...";
+		private final static String HISTOGRAM_PATHS_CMD = "Path-based Distributions...";
+		private final static String HISTOGRAM_TREES_CMD = "Branch-based Distributions...";
 		// timelapse analysis
 		private final static String MATCH_PATHS_ACROSS_TIME_CMD = "Match Paths Across Time...";
 		private final static String TIME_PROFILE_CMD = "Time Profile...";
