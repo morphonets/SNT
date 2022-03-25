@@ -22,11 +22,15 @@
 
 package sc.fiji.snt.gui.cmds;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
 
 import net.imagej.ImageJ;
 
@@ -38,6 +42,7 @@ import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 
 import sc.fiji.snt.analysis.PathProfiler;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.TreeStatistics;
@@ -56,8 +61,27 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 	@Parameter
 	private PrefService prefService;
 
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Main Histogram (Required):")
+	private String HEADER1;
+
 	@Parameter(required = true, label = "Measurement")
-	private String measurementChoice;
+	private String measurementChoice1;
+
+	@Parameter(required = false, label = "Polar",
+			description = "Creates a polar histogram. Assumes a data range between 0 and 360")
+	private boolean polar1;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML
+			+ "Secondary Histogram (Optional):")
+	private String HEADER2;
+
+	@Parameter(required = true, label = "Measurement")
+	private String measurementChoice2;
+
+	@Parameter(required = false, label = "Polar",
+			description = "Creates a polar histogram. Assumes a data range between 0 and 360")
+	private boolean polar2;
+
 
 	// Allowed inputs are a single Tree, or a Collection of Trees
 	@Parameter(required = false)
@@ -74,16 +98,15 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 
 	private boolean imgDataAvailable;
 
+
 	protected void init() {
 		super.init(false);
-		final MutableModuleItem<String> measurementChoiceInput = getInfo()
-			.getMutableInput("measurementChoice", String.class);
 		List<String> choices;
 		if (onlyConnectivitySafeMetrics) {
 			choices = TreeStatistics.getMetrics("safe");
 			getInfo().setLabel("Distribution Analysis (Path Properties)");
 		} else {
-			choices = TreeStatistics.getMetrics(); // does not contain "Path metrics"
+			choices = TreeStatistics.getMetrics("common"); // does not contain "Path metrics"
 			resolveInput("onlyConnectivitySafeMetrics");
 			getInfo().setLabel("Distribution Analysis (Branch Properties)");
 		}
@@ -91,7 +114,14 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 		if (!imgDataAvailable) choices.remove(TreeStatistics.VALUES);
 
 		Collections.sort(choices);
-		measurementChoiceInput.setChoices(choices);
+		final MutableModuleItem<String> measurementChoiceInput1 = getInfo()
+				.getMutableInput("measurementChoice1", String.class);
+		measurementChoiceInput1.setChoices(choices);
+		final MutableModuleItem<String> measurementChoiceInput2 = getInfo()
+				.getMutableInput("measurementChoice2", String.class);
+		choices.add(0, "-- None --");
+		measurementChoiceInput2.setChoices(choices);
+
 		// Do not set value, otherwise we'll overwrite any input passed to CommandService
 //		measurementChoiceInput.setValue(this,
 //				prefService.get(getClass(), "measurementChoice", TreeStatistics.INTER_NODE_DISTANCE));
@@ -105,20 +135,38 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 
 	@Override
 	public void run() {
-		if (imgDataAvailable && TreeStatistics.VALUES.equals(
-			measurementChoice))
-		{
+		if (imgDataAvailable && (TreeStatistics.VALUES.equals(measurementChoice1)
+				|| TreeStatistics.VALUES.equals(measurementChoice2))) {
 			SNTUtils.log("Assigning values...");
 			trees.forEach( tree -> {
 				final PathProfiler profiler = new PathProfiler(tree, sntService
 						.getPlugin().getImagePlus());
 					profiler.assignValues();
 			});
-
 		}
+		final List<SNTChart> charts = new ArrayList<>();
+		final String[] measurementChoices = new String[] { measurementChoice1, measurementChoice2 };
+		final boolean[] polarChoices = new boolean[] { polar1, polar2 };
+
 		try {
-			final TreeStatistics treeStats = TreeStatistics.fromCollection(trees, measurementChoice);
-			treeStats.getHistogram(measurementChoice).show();
+			for (int i = 0; i < polarChoices.length; i++) {
+				if ("-- None --".equals(measurementChoices[i]))
+					continue;
+				final TreeStatistics treeStats = TreeStatistics.fromCollection(trees, measurementChoices[i]);
+				SNTChart chart;
+				if (polarChoices[i]) {
+					chart = treeStats.getPolarHistogram(measurementChoices[i]);
+				} else {
+					chart = treeStats.getHistogram(measurementChoices[i]);
+				}
+				charts.add(chart);
+			}
+			if (charts.size() > 1) {
+				final JFrame combined = SNTChart.combinedFrame(charts);
+				SwingUtilities.invokeLater(() -> combined.setVisible(true));
+			} else {
+				charts.get(0).show();
+			}
 			resetUI();
 		} catch (final IllegalArgumentException | NullPointerException ex) {
 			String error = "It was not possible to retrieve valid histogram data.";
@@ -134,8 +182,8 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
+		GuiUtils.setLookAndFeel();
 		ij.ui().showUI();
 		final Tree tree = new Tree(SNTUtils.randomPaths());
 		tree.setLabel("Bogus test");

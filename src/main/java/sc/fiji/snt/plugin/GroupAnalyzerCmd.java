@@ -48,7 +48,7 @@ import sc.fiji.snt.analysis.GroupedTreeStatistics;
 import sc.fiji.snt.analysis.MultiTreeColorMapper;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.SNTChart;
-import sc.fiji.snt.analysis.ShollAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.SNTColor;
@@ -100,41 +100,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	@Parameter(label = "<HTML>&nbsp;<br><b>Measurements:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
 	private String SPACER2;
 
-	@Parameter(label = "Metric", callback ="metricChanged", choices = {//
-			MultiTreeStatistics.LENGTH,
-			MultiTreeStatistics.TERMINAL_LENGTH,
-			MultiTreeStatistics.PRIMARY_LENGTH,
-			MultiTreeStatistics.INNER_LENGTH,
-			MultiTreeStatistics.AVG_BRANCH_LENGTH,
-			MultiTreeStatistics.AVG_CONTRACTION,
-			MultiTreeStatistics.AVG_FRAGMENTATION,
-			MultiTreeStatistics.AVG_REMOTE_ANGLE,
-			MultiTreeStatistics.AVG_PARTITION_ASYMMETRY,
-			MultiTreeStatistics.AVG_FRACTAL_DIMENSION,
-			MultiTreeStatistics.PATH_MEAN_SPINE_DENSITY,
-			MultiTreeStatistics.N_BRANCH_POINTS,
-			MultiTreeStatistics.N_TIPS,
-			MultiTreeStatistics.N_BRANCHES,
-			MultiTreeStatistics.N_PRIMARY_BRANCHES,
-			MultiTreeStatistics.N_INNER_BRANCHES,
-			MultiTreeStatistics.N_SPINES,
-			MultiTreeStatistics.N_TERMINAL_BRANCHES,
-			MultiTreeStatistics.STRAHLER_NUMBER,
-			MultiTreeStatistics.STRAHLER_RATIO,
-			MultiTreeStatistics.WIDTH,
-			MultiTreeStatistics.HEIGHT,
-			MultiTreeStatistics.DEPTH,
-			MultiTreeStatistics.MEAN_RADIUS,
-			"Sholl: "+ ShollAnalyzer.MEAN,
-			"Sholl: "+ ShollAnalyzer.SUM,
-			"Sholl: "+ ShollAnalyzer.MAX,
-			"Sholl: "+ ShollAnalyzer.N_MAX,
-			"Sholl: "+ ShollAnalyzer.N_SECONDARY_MAX,
-			"Sholl: "+ ShollAnalyzer.MAX_FITTED,
-			"Sholl: "+ ShollAnalyzer.MAX_FITTED_RADIUS,
-			"Sholl: "+ ShollAnalyzer.POLY_FIT_DEGREE,
-			"Sholl: "+ ShollAnalyzer.DECAY
-	})
+	@Parameter(label = "Metric", callback ="metricChanged")
 	private String metric;
 
 	@Parameter(required = false, callback = "displayPlotsChanged", label = "Comparison plots",
@@ -161,16 +127,16 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 
 	@SuppressWarnings("unused")
 	private void init() {
+		final List<String> mChoices = TreeStatistics.getMetrics("common");
+		mChoices.add(0, "None. Skip measurements");
+		final MutableModuleItem<String> mInput = getInfo().getMutableInput("metric", String.class);
+		mInput.setChoices(mChoices);
+		metricChanged();
 		if (recViewer != null) {
 			// then this is Reconstruction Viewer's Load & Compare Command
 			displayInRecViewer = true;
 			resolveInput("displayInRecViewer");
 			getInfo().setLabel("Load & Compare Groups of Cells");
-			List<String> mChoices = MultiTreeStatistics.getMetrics();
-			mChoices.add(0, "None. Skip measurements");
-			final MutableModuleItem<String> mInput = getInfo().getMutableInput("metric", String.class);
-			mInput.setChoices(mChoices);
-			metricChanged();
 		}
 	}
 
@@ -236,7 +202,9 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 		} else {
 
 			stats.setMinNBins(3);
-			final SNTChart histFrame = stats.getHistogram(metric);
+			final SNTChart histFrame = (TreeStatistics.REMOTE_BIF_ANGLES.equals(metric))
+					? stats.getPolarHistogram(metric)
+					: stats.getHistogram(metric);
 			final SNTChart boxFrame = stats.getBoxPlot(metric);
 
 			long[] largestN = {Integer.MIN_VALUE};
@@ -369,8 +337,8 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
+		GuiUtils.setLookAndFeel();
 		ij.ui().showUI();
 		ij.command().run(GroupAnalyzerCmd.class, true);
 	}

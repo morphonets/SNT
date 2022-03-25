@@ -34,7 +34,6 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-import org.apache.commons.text.WordUtils;
 import org.jfree.chart.JFreeChart;
 import org.jfree.data.category.DefaultCategoryDataset;
 
@@ -52,10 +51,11 @@ import sc.fiji.snt.util.SWCPoint;
 
 /**
  * Computes summary and descriptive statistics from univariate properties of
- * Paths and Nodes in a {@link Tree}. For analysis of groups of Trees use
- * {@link MultiTreeStatistics}.
+ * Paths and Nodes in a {@link Tree}. For analysis of groups of Trees have a
+ * look at {@link MultiTreeStatistics} and {@link GroupedTreeStatistics}.
  *
  * @author Tiago Ferreira
+ * @author Cameron Arshadi
  */
 public class TreeStatistics extends TreeAnalyzer {
 
@@ -88,7 +88,9 @@ public class TreeStatistics extends TreeAnalyzer {
 	/** Flag for {@value #N_NODES} statistics. */
 	public static final String N_NODES = "No. of total nodes";
 	/** Flag for {@value #N_PATH_NODES} statistics. */
-	public static final String N_PATH_NODES = "No. of path nodes";
+	public static final String N_PATH_NODES = "No. of path nodes (path fragmentation)";
+	/** Flag for {@value #N_BRANCH_NODES} statistics. */
+	public static final String N_BRANCH_NODES = "No. of branch nodes (branch fragmentation)";
 	/** Flag for {@value #N_PATHS} statistics */
 	public static final String N_PATHS = "No. of paths";
 	/** Flag for {@value #N_SPINES} statistics. */
@@ -109,8 +111,8 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String PATH_MEAN_RADIUS = "Path mean radius";
 	/** Flag for {@value #N_FITTED_PATHS} statistics */
 	public static final String N_FITTED_PATHS = "No. of fitted paths";
-	/** Flag for {@value #PATH_MEAN_SPINE_DENSITY} statistics */
-	public static final String PATH_MEAN_SPINE_DENSITY = "Path mean spine/varicosity density";
+	/** Flag for {@value #PATH_SPINE_DENSITY} statistics */
+	public static final String PATH_SPINE_DENSITY = "Path spine/varicosity density";
 	/** Flag for {@value #PATH_N_SPINES} statistics */
 	public static final String PATH_N_SPINES = "No. of spines/varicosities per path";
 	/** Flag for {@value #X_COORDINATES} statistics. */
@@ -125,8 +127,10 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String HEIGHT = "Height";
 	/** Flag for {@value #DEPTH} statistics */
 	public static final String DEPTH = "Depth";
-	/** Flag for {@value #CONTRACTION} statistics. */
-	public static final String CONTRACTION = "Contraction";
+	/** Flag for {@value #BRANCH_CONTRACTION} statistics. */
+	public static final String BRANCH_CONTRACTION = "Branch contraction";
+	/** Flag for {@value #PATH_CONTRACTION} statistics. */
+	public static final String PATH_CONTRACTION = "Path contraction";
 	/** Flag for {@value #REMOTE_BIF_ANGLES} statistics. */
 	public static final String REMOTE_BIF_ANGLES = "Remote bif. angles";
 	/** Flag for {@value #PARTITION_ASYMMETRY} statistics. */
@@ -200,25 +204,34 @@ public class TreeStatistics extends TreeAnalyzer {
 	 */
 	public static final String VALUES = "Node intensity values";
 
+	/** @deprecated  Use {@link #BRANCH_CONTRACTION} or {@link #PATH_CONTRACTION} instead */
+	@Deprecated
+	public static final String CONTRACTION = "Contraction";
+
+	/** @deprecated  Use {@link #BRANCH_MEAN_RADIUS} or {@link #PATH_MEAN_RADIUS} instead */
 	@Deprecated
 	public static final String MEAN_RADIUS = PATH_MEAN_RADIUS;
+
+	/** @deprecated  Use {@link #PATH_MEAN_SPINE_DENSITY} instead */
 	@Deprecated
 	public static final String AVG_SPINE_DENSITY = "Average spine/varicosity density";
+
 	@Deprecated
+	/** @deprecated  Use {@link #BRANCH_FRACTAL_DIMENSION} or {@link #PATH_FRACTAL_DIMENSION} instead */
 	public static final String FRACTAL_DIMENSION = "Fractal dimension";
 
-	private static final String[] ALL_FLAGS = { BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH, BRANCH_MEAN_RADIUS,
-			BRANCH_SURFACE_AREA, BRANCH_VOLUME, COMPLEXITY_INDEX, CONTRACTION, CONVEX_HULL_BOUNDARY_SIZE,
+	private static final String[] ALL_FLAGS = { BRANCH_CONTRACTION, BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH,
+			BRANCH_MEAN_RADIUS, BRANCH_SURFACE_AREA, BRANCH_VOLUME, COMPLEXITY_INDEX, CONVEX_HULL_BOUNDARY_SIZE,
 			CONVEX_HULL_BOXIVITY, CONVEX_HULL_CENTROID_ROOT_DISTANCE, CONVEX_HULL_ELONGATION, CONVEX_HULL_ROUNDNESS,
 			CONVEX_HULL_SIZE, DEPTH, GRAPH_DIAMETER, HEIGHT, INNER_LENGTH, INTER_NODE_DISTANCE,
-			INTER_NODE_DISTANCE_SQUARED, LENGTH, N_BRANCH_POINTS, N_BRANCHES, N_FITTED_PATHS, N_INNER_BRANCHES, N_NODES,
-			N_PATH_NODES, N_PATHS, N_PRIMARY_BRANCHES, N_SPINES, N_TERMINAL_BRANCHES, N_TIPS, NODE_RADIUS,
-			PARTITION_ASYMMETRY, PATH_CHANNEL, PATH_FRAME, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_MEAN_SPINE_DENSITY,
-			PATH_N_SPINES, PATH_ORDER, PATH_SURFACE_AREA, PATH_VOLUME, PRIMARY_LENGTH, REMOTE_BIF_ANGLES, SHOLL_DECAY,
-			SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE, SHOLL_MEAN_VALUE, SHOLL_N_MAX,
-			SHOLL_N_SECONDARY_MAX, SHOLL_POLY_FIT_DEGREE, SHOLL_RAMIFICATION_INDEX, SHOLL_SKEWENESS, SHOLL_SUM_VALUE,
-			STRAHLER_NUMBER, STRAHLER_RATIO, SURFACE_AREA, TERMINAL_LENGTH, VALUES, VOLUME, WIDTH, X_COORDINATES,
-			Y_COORDINATES, Z_COORDINATES };
+			INTER_NODE_DISTANCE_SQUARED, LENGTH, N_BRANCH_NODES, N_BRANCH_POINTS, N_BRANCHES, N_FITTED_PATHS,
+			N_INNER_BRANCHES, N_NODES, N_PATH_NODES, N_PATHS, N_PRIMARY_BRANCHES, N_SPINES, N_TERMINAL_BRANCHES, N_TIPS,
+			NODE_RADIUS, PARTITION_ASYMMETRY, PATH_CHANNEL, PATH_CONTRACTION, PATH_FRAME, PATH_LENGTH, PATH_MEAN_RADIUS,
+			PATH_SPINE_DENSITY, PATH_N_SPINES, PATH_ORDER, PATH_SURFACE_AREA, PATH_VOLUME, PRIMARY_LENGTH,
+			REMOTE_BIF_ANGLES, SHOLL_DECAY, SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE,
+			SHOLL_MEAN_VALUE, SHOLL_N_MAX, SHOLL_N_SECONDARY_MAX, SHOLL_POLY_FIT_DEGREE, SHOLL_RAMIFICATION_INDEX,
+			SHOLL_SKEWENESS, SHOLL_SUM_VALUE, STRAHLER_NUMBER, STRAHLER_RATIO, SURFACE_AREA, TERMINAL_LENGTH, VALUES,
+			VOLUME, WIDTH, X_COORDINATES, Y_COORDINATES, Z_COORDINATES };
 
 	protected LastDstats lastDstats;
 	private ConvexHullAnalyzer convexAnalyzer;
@@ -234,18 +247,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	}
 
 	/**
-	 * Gets the list of all {@link TreeAnalyzer} supported metrics.
-	 *
-	 * @return the list of all TreeAnalyzer's metrics
-	 * 
-	 * @see TreeAnalyzer#getAllMetrics()
-	 */
-	public static List<String> getAnalyzerMetrics() {
-		return TreeAnalyzer.getAllMetrics();
-	}
-
-	/**
-	 * Gets the list of <i>all</i> supported metrics.
+	 * Gets the list of supported metrics.
 	 *
 	 * @return the list of available metrics
 	 */
@@ -253,32 +255,60 @@ public class TreeStatistics extends TreeAnalyzer {
 		return Arrays.stream(ALL_FLAGS).collect(Collectors.toList());
 	}
 
+	/**
+	 * Gets a subset of supported metrics.
+	 *
+	 * @param type the type. Either 'legacy' (metrics supported up to SNTv4.0.5),
+	 *             "safe" (metrics that can be computed from invalid graphs) or
+	 *             'common' (commonly used metrics"
+	 * @return the list metrics
+	 */
 	public static List<String> getMetrics(final String type) {
+		// We could use Arrays.asList() here but that would make list immutable
+		String[] metrics;
 		switch (type) {
 		case "legacy":
 			// Historical metrics up to SNTv4.0.10
-			return Arrays.asList(BRANCH_LENGTH, CONTRACTION, REMOTE_BIF_ANGLES, PARTITION_ASYMMETRY, FRACTAL_DIMENSION,
-					INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, MEAN_RADIUS, AVG_SPINE_DENSITY, N_BRANCH_POINTS,
-					N_NODES, N_SPINES, NODE_RADIUS, PATH_CHANNEL, PATH_FRAME, PATH_LENGTH, PATH_ORDER, PRIMARY_LENGTH,
-					INNER_LENGTH, TERMINAL_LENGTH, VALUES, X_COORDINATES, Y_COORDINATES, Z_COORDINATES);
-		case "safe":
-			return Arrays.asList(INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, MEAN_RADIUS, AVG_SPINE_DENSITY,
+			metrics = new String[] { BRANCH_LENGTH, CONTRACTION, REMOTE_BIF_ANGLES, PARTITION_ASYMMETRY,
+					FRACTAL_DIMENSION, INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, MEAN_RADIUS, AVG_SPINE_DENSITY,
 					N_BRANCH_POINTS, N_NODES, N_SPINES, NODE_RADIUS, PATH_CHANNEL, PATH_FRAME, PATH_LENGTH, PATH_ORDER,
-					VALUES, X_COORDINATES, Y_COORDINATES, Z_COORDINATES);
+					PRIMARY_LENGTH, INNER_LENGTH, TERMINAL_LENGTH, VALUES, X_COORDINATES, Y_COORDINATES,
+					Z_COORDINATES };
+			break;
+		case "deprecated":
+			metrics = new String[] { AVG_SPINE_DENSITY, CONTRACTION, FRACTAL_DIMENSION, MEAN_RADIUS,
+					AVG_SPINE_DENSITY };
+			break;
+		case "safe":
+			metrics = new String[] { INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, N_BRANCH_POINTS, N_FITTED_PATHS,
+					N_NODES, N_PATH_NODES, N_PATHS, N_SPINES, N_TIPS, NODE_RADIUS, PATH_CHANNEL, PATH_CONTRACTION,
+					PATH_FRAME, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_SPINE_DENSITY, PATH_N_SPINES, PATH_ORDER,
+					PATH_SURFACE_AREA, PATH_VOLUME, VALUES, X_COORDINATES, Y_COORDINATES, Z_COORDINATES };
+			break;
+		case "common":
+			metrics = new String[] { BRANCH_CONTRACTION, BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH, BRANCH_MEAN_RADIUS,
+					BRANCH_SURFACE_AREA, BRANCH_VOLUME, COMPLEXITY_INDEX, CONVEX_HULL_SIZE, DEPTH, INNER_LENGTH,
+					INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, LENGTH, N_BRANCH_POINTS, N_BRANCHES,
+					N_INNER_BRANCHES, N_NODES, N_PRIMARY_BRANCHES, N_SPINES, N_TERMINAL_BRANCHES, N_TIPS, NODE_RADIUS,
+					PARTITION_ASYMMETRY, PRIMARY_LENGTH, REMOTE_BIF_ANGLES, SHOLL_DECAY, SHOLL_MAX_VALUE,
+					SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MEAN_VALUE, SURFACE_AREA, STRAHLER_NUMBER,
+					TERMINAL_LENGTH, VALUES, VOLUME, X_COORDINATES, Y_COORDINATES, Z_COORDINATES };
+			break;
 		default:
 			throw new IllegalArgumentException("Unrecognized type");
 		}
+		return Arrays.stream(metrics).collect(Collectors.toList());
 	}
 
 	/**
 	 * Gets the list of most commonly used metrics.
 	 *
 	 * @return the list of commonly used metrics
+	 * @see #getMetric(String)
 	 */
+	@Deprecated
 	public static List<String> getMetrics() {
-		return getMetrics("legacy").stream().filter(metric -> {
-			return !metric.toLowerCase().contains("path");
-		}).collect(Collectors.toList());
+		return getMetrics("common");
 	}
 
 	/**
@@ -619,10 +649,17 @@ public class TreeStatistics extends TreeAnalyzer {
 	protected static String getNormalizedMeasurement(final String measurement) {
 		if (isExactMetricMatch())
 			return measurement;
-		if (Arrays.stream(ALL_FLAGS).anyMatch(measurement::equalsIgnoreCase)) {
-			// This is just so that we can use capitalized strings in the GUI
-			// and lower case strings in scripts
-			return WordUtils.capitalize(measurement, new char[] {});
+		for (final String flag: ALL_FLAGS) {
+			if (flag.equalsIgnoreCase(measurement))
+				return flag;
+		}
+		for (final String flag : MultiTreeStatistics.getMetrics()) {
+			if (flag.equalsIgnoreCase(measurement))
+				return flag;
+		}
+		for (final String flag : getMetrics("deprecated")) {
+			if (flag.equalsIgnoreCase(measurement))
+				return flag;
 		}
 		final String normMeasurement = tryReallyHardToGuessMetric(measurement);
 		if (!measurement.equals(normMeasurement)) {
@@ -638,6 +675,16 @@ public class TreeStatistics extends TreeAnalyzer {
 	protected void assembleStats(final StatisticsInstance stat, final String measurement) {
 		final String m = getNormalizedMeasurement(measurement);
 		switch (m) {
+		case BRANCH_CONTRACTION:
+		case CONTRACTION:
+			try {
+				for (final Path p : getBranches())
+					stat.addValue(p.getContraction());
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				stat.addValue(Double.NaN);
+			}
+			break;
 		case BRANCH_LENGTH:
 			try {
 				for (final Path p : getBranches())
@@ -696,15 +743,6 @@ public class TreeStatistics extends TreeAnalyzer {
 				stat.addValue(Double.NaN);
 			}
 			break;
-		case CONTRACTION:
-			try {
-				for (final Path p : getBranches())
-					stat.addValue(p.getContraction());
-			} catch (final IllegalArgumentException ignored) {
-				SNTUtils.log("Error: " + ignored.getMessage());
-				stat.addValue(Double.NaN);
-			}
-			break;
 		case CONVEX_HULL_BOUNDARY_SIZE:
 		case CONVEX_HULL_BOXIVITY:
 		case CONVEX_HULL_ELONGATION:
@@ -732,12 +770,22 @@ public class TreeStatistics extends TreeAnalyzer {
 				stat.addValue(Double.NaN);
 			}
 			break;
+		case GRAPH_DIAMETER:
+			try {
+				stat.addValue(tree.getGraph().getLongestPath(true).getLength());
+			} catch (final IllegalArgumentException ignored) {
+				stat.addValue(Double.NaN);
+			}
+			break;
 		case HEIGHT:
 			stat.addValue(getHeight());
 			break;
 		case INNER_LENGTH:
-			for (final Path p : getInnerBranches())
-				stat.addValue(p.getLength());
+			try {
+				getInnerBranches().forEach( b -> stat.addValue(b.getLength()));
+			} catch (final IllegalArgumentException ignored ) {
+				stat.addValue(Double.NaN);
+			}
 			break;
 		case INTER_NODE_DISTANCE:
 			for (final Path p : tree.list()) {
@@ -760,9 +808,9 @@ public class TreeStatistics extends TreeAnalyzer {
 		case LENGTH:
 			stat.addValue(getCableLength());
 			break;
-		case GRAPH_DIAMETER:
+		case N_BRANCH_NODES:
 			try {
-				stat.addValue(tree.getGraph().getLongestPath(true).getLength());
+				getBranches().forEach(b -> stat.addValue(b.size()));
 			} catch (final IllegalArgumentException ignored) {
 				stat.addValue(Double.NaN);
 			}
@@ -785,8 +833,7 @@ public class TreeStatistics extends TreeAnalyzer {
 			stat.addValue(getNNodes());
 			break;
 		case N_PATH_NODES:
-			for (final Path p : tree.list())
-				stat.addValue(p.size());
+			tree.list().forEach(path -> stat.addValue(path.size()));
 			break;
 		case N_PATHS:
 			stat.addValue(getNPaths());
@@ -824,6 +871,15 @@ public class TreeStatistics extends TreeAnalyzer {
 				stat.addValue(p.getChannel());
 			}
 			break;
+		case PATH_CONTRACTION:
+			try {
+				for (final Path p : tree.list())
+					stat.addValue(p.getContraction());
+			} catch (final IllegalArgumentException ignored) {
+				SNTUtils.log("Error: " + ignored.getMessage());
+				stat.addValue(Double.NaN);
+			}
+			break;
 		case PATH_FRAME:
 			for (final Path p : tree.list()) {
 				stat.addValue(p.getFrame());
@@ -838,7 +894,7 @@ public class TreeStatistics extends TreeAnalyzer {
 				stat.addValue(p.getMeanRadius());
 			}
 			break;
-		case PATH_MEAN_SPINE_DENSITY:
+		case PATH_SPINE_DENSITY:
 		case AVG_SPINE_DENSITY:
 			for (final Path p : tree.list()) {
 				stat.addValue(p.getSpineOrVaricosityCount() / p.getLength());
@@ -1038,14 +1094,15 @@ public class TreeStatistics extends TreeAnalyzer {
 		super.resetRestrictions();
 	
 	}
-	protected static boolean isExactMetricMatch() {
+
+	public static boolean isExactMetricMatch() {
 		return exactMetricMatch;
 	}
 
 	public static void setExactMetricMatch(final boolean exactMetricMatch) {
 		TreeStatistics.exactMetricMatch = exactMetricMatch;
 	}
-	
+
 
 	/* IDE debug method */
 	public static void main(final String[] args) {

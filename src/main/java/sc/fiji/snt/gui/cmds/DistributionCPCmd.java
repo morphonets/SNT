@@ -38,7 +38,7 @@ import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 
 import sc.fiji.snt.analysis.MultiTreeStatistics;
-import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
@@ -50,7 +50,7 @@ import sc.fiji.snt.Tree;
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, visible = false,
-	label = "Distribution Analysis (Cell Groups)", initializer = "init")
+	label = "Distribution Analysis (Multiple Cells)", initializer = "init")
 public class DistributionCPCmd extends CommonDynamicCmd {
 
 	@Parameter
@@ -61,6 +61,9 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 
 	@Parameter(required = true, label = "Compartment", choices= {"All", "Axon", "Dendrites"})
 	private String compartment;
+
+	@Parameter(required = false, label = "Polar histogram", description = "Creates a polar histogram. Assumes a data range between 0 and 360")
+	private boolean polar;
 
 	@Parameter(required = true)
 	private Collection<Tree> trees;
@@ -75,7 +78,7 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 		}
 		final MutableModuleItem<String> measurementChoiceInput = getInfo()
 			.getMutableInput("measurementChoice", String.class);
-		final List<String> choices = TreeAnalyzer.getMetrics(); // sMultiTreeStatistics.getMetrics() + common Sholl metrics
+		final List<String> choices = TreeStatistics.getMetrics("common"); // sMultiTreeStatistics.getMetrics() + common Sholl metrics
 		if (!calledFromPathManagerUI) choices.remove(MultiTreeStatistics.VALUES);
 		Collections.sort(choices);
 		measurementChoiceInput.setChoices(choices);
@@ -88,11 +91,13 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 	public void run() {
 		String failures = "";
 		String explanation = "";
+		final boolean exactMatchState = MultiTreeStatistics.isExactMetricMatch();
+		MultiTreeStatistics.setExactMetricMatch(true);
+		MultiTreeStatistics mStats = null;
 		if  ("All".equals(compartment)) {
 			try {
-			final MultiTreeStatistics dStats = new MultiTreeStatistics(trees);
-			dStats.setLabel("Dendrites");
-			dStats.getHistogram(measurementChoice).setVisible(true);
+				mStats = new MultiTreeStatistics(trees);
+				mStats.setLabel("All Processes");
 			} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
 				failures = "all";
 			}
@@ -101,24 +106,28 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 					+ "you can re-run the analysis using 'All' as compartment choice.";
 			try {
 				if (compartment.contains("De")) {
-					final MultiTreeStatistics dStats = new MultiTreeStatistics(trees, "dendrites");
-					dStats.setLabel("Dendrites");
-					dStats.getHistogram(measurementChoice).setVisible(true);
+					mStats = new MultiTreeStatistics(trees, "dendrites");
+					mStats.setLabel("Dendrites");
 				}
 			} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
 				failures += "dendritic";
 			}
 			try {
 				if (compartment.contains("Ax")) {
-					final MultiTreeStatistics aStats = new MultiTreeStatistics(trees, "axon");
-					aStats.setLabel("Axons");
-					aStats.getHistogram(measurementChoice).setVisible(true);
+					mStats = new MultiTreeStatistics(trees, "axon");
+					mStats.setLabel("Axons");
 				}
 			} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
 				failures += (failures.isEmpty()) ? "axonal" : " or axonal";
 			}
 		}
 
+		if (mStats != null) {
+			if (polar)
+				mStats.getPolarHistogram(measurementChoice).show();
+			else
+				mStats.getHistogram(measurementChoice).show();
+		}
 		if (!failures.isEmpty()) {
 			String error = "It was not possible to access data for " + failures + " compartment(s).";
 			error += explanation;
@@ -129,13 +138,14 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 			}
 			error(error);
 		}
+		MultiTreeStatistics.setExactMetricMatch(exactMatchState);
 		resetUI();
 	}
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
+		GuiUtils.setLookAndFeel();
 		ij.ui().showUI();
 		final Map<String, Object> input = new HashMap<>();
 		input.put("trees", new SNTService().demoTrees());

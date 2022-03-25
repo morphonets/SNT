@@ -186,10 +186,10 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			guiUtils.tempMsg(paths.size() + " Path(s) selected");
 		});
 		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.CONTRACTION + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.CONTRACTION, ""));
+		mi1 = new JMenuItem(TreeStatistics.PATH_CONTRACTION + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_CONTRACTION, ""));
 		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem("Length...");
+		mi1 = new JMenuItem(TreeStatistics.PATH_LENGTH);
 		mi1.addActionListener(e -> {
 			final String unit = pmui.getPathAndFillManager().getBoundingBox(false)
 				.getUnit();
@@ -415,7 +415,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				case TreeStatistics.N_SPINES:
 					value = p.getSpineOrVaricosityCount();
 					break;
-				case TreeStatistics.CONTRACTION:
+				case TreeStatistics.PATH_CONTRACTION:
 					value = p.getContraction();
 					break;
 				default:

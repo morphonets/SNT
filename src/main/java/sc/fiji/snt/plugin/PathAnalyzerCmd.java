@@ -38,7 +38,6 @@ import net.imagej.ImageJ;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.PathAnalyzer;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
@@ -54,70 +53,62 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 
 	private static final String TABLE_TITLE = "SNT Measurements";
 
-	@Parameter(label = MultiTreeStatistics.LENGTH)
-	private boolean cableLength;
+	@Parameter(label = "CT position")
+	private boolean ct;
 
-	@Parameter(label = "Average path length")
-	private boolean avgLength;
+	@Parameter(label = "Convex hull")
+	private boolean convexHull;
 
-	@Parameter(label = MultiTreeStatistics.N_BRANCH_POINTS)
+	@Parameter(label = "Contraction")
+	private boolean pathContraction;
+
+	@Parameter(label = "Fractal dimension")
+	private boolean fractalDimension;
+
+	@Parameter(label = "Length")
+	private boolean pathLength;
+
+	@Parameter(label = "Mean radius")
+	private boolean pathMeanRadius;
+
+	@Parameter(label = "No. of branch points")
 	private boolean nBranchPoints;
 
-	@Parameter(label = MultiTreeStatistics.N_NODES)
-	private boolean nNodes;
+	@Parameter(label = "No. of nodes (fragmentation)")
+	private boolean pathFragmentation;
 
-	@Parameter(label = MultiTreeStatistics.N_TIPS)
-	private boolean nTips;
+	@Parameter(label = "No. of spines/varicosities")
+	private boolean pathNSpines;
 
-	@Parameter(label = MultiTreeStatistics.AVG_CONTRACTION)
-	private boolean avgContraction;
+	@Parameter(label = "Path order")
+	private boolean pathOrder;
 
-	@Parameter(label = MultiTreeStatistics.AVG_FRAGMENTATION)
-	private boolean avgFragmentation;
+	@Parameter(label = "Spine/varicosity density")
+	private boolean pathSpineDensity;
 
-	@Parameter(label = MultiTreeStatistics.AVG_FRACTAL_DIMENSION)
-	private boolean avgFractalDimension;
+	@Parameter(label = "Surface area")
+	private boolean pathSurfaceArea;
 
-	@Parameter(label = MultiTreeStatistics.HIGHEST_PATH_ORDER)
-	private boolean highestPathOrder;
+	@Parameter(label = "Volume")
+	private boolean pathVolume;
 
-	@Parameter(label = MultiTreeStatistics.MEAN_RADIUS)
-	private boolean meanRadius;
+	@Parameter(label = "Width, Height, and Depth")
+	private boolean widthHeightDepth;
 
-	@Parameter(label = MultiTreeStatistics.N_PATHS)
-	private boolean nPaths;
-
-	@Parameter(label = MultiTreeStatistics.WIDTH)
-	private boolean width;
-
-	@Parameter(label = MultiTreeStatistics.HEIGHT)
-	private boolean height;
-
-	@Parameter(label = MultiTreeStatistics.DEPTH)
-	private boolean depth;
-
-	@Parameter(label = "Select", choices = {"Choose", "Select All", "Select None"}, callback="actionChoiceSelected")
+	@Parameter(label = "Select", choices = {"Choose", "Select All", "Select None", "Reverse Selection"}, callback="actionChoiceSelected")
 	private String actionChoice;
 
 	// Options
 	@Parameter(label = "<HTML>&nbsp", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
 	private String SPACER;
 
-	@Parameter(label = "Measure individual paths", callback="singlePathsChanged", 
-			description = "<HTML>Measure paths as a group or individually?")
-	private boolean singlePaths;
-
-	@Parameter(label = "Description", persist = false, 
-			description = "<HTML>An optional identifier describing the group path(s) being measured.<br>"
-					+ "Ignored when <i>Measure single paths</i> is selected.")
-	private String label;
+	@Parameter(label = "Summarize", description = "<HTML>Retrieve Mean±SD, etc. for selected measurements")
+	private boolean summarize;
 
 	@Parameter(required = true)
 	private Collection<Path> paths;
 	@Parameter(required = false)
 	private DefaultGenericTable table;
-	@Parameter(required = false)
-	private String proposedLabel;
 
 
 	@SuppressWarnings("unused")
@@ -128,46 +119,52 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 			if (table == null) table = new SNTTable();
 		}
 		resolveInput("table");
-		label = (proposedLabel == null) ? "" : proposedLabel;
-		resolveInput("proposedLabel");
-		singlePathsChanged();
 	}
 
-	private void singlePathsChanged() {
-		if (singlePaths) {
-			proposedLabel = label;
-			label = "";
-			avgLength = false;
-			nPaths = false;
-			nTips = false;
-		} else if (label.isEmpty() && proposedLabel != null){
-			label = proposedLabel;
-		}
-	}
 	@SuppressWarnings("unused")
 	private void actionChoiceSelected() {
 		if (actionChoice.contains("All")) {
 			setAllCheckboxesEnabled(true);
 		} else if (actionChoice.contains("None")) {
 			setAllCheckboxesEnabled(false);
+		} else if (actionChoice.contains("Reverse")) {
+			toggleCheckboxes();
 		}
 	}
 
 	private void setAllCheckboxesEnabled(final boolean enable) {
-		avgContraction = enable;
-		avgFractalDimension = enable;
-		avgFragmentation = enable;
-		avgLength = enable;
-		cableLength = enable;
-		highestPathOrder = enable;
-		meanRadius = enable;
+		ct = enable;
+		convexHull = enable;
+		fractalDimension = enable;
 		nBranchPoints = enable;
-		nTips = enable;
-		nNodes = enable;
-		nPaths = enable;
-		width = enable;
-		height = enable;
-		depth = enable;
+		pathContraction = enable;
+		pathFragmentation = enable;
+		pathLength = enable;
+		pathMeanRadius = enable;
+		pathNSpines = enable;
+		pathOrder = enable;
+		pathSpineDensity = enable;
+		pathSurfaceArea = enable;
+		pathVolume = enable;
+		widthHeightDepth = enable;
+		actionChoice = "Choose";
+	}
+
+	private void toggleCheckboxes() {
+		ct = !ct;
+		convexHull = !convexHull;
+		fractalDimension = !fractalDimension;
+		nBranchPoints = !nBranchPoints;
+		pathContraction = !pathContraction;
+		pathFragmentation = !pathFragmentation;
+		pathLength = !pathLength;
+		pathMeanRadius = !pathMeanRadius;
+		pathNSpines = !pathNSpines;
+		pathOrder = !pathOrder;
+		pathSpineDensity = !pathSpineDensity;
+		pathSurfaceArea = !pathSurfaceArea;
+		pathVolume = !pathVolume;
+		widthHeightDepth = !widthHeightDepth;
 		actionChoice = "Choose";
 	}
 
@@ -175,43 +172,55 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 	public void run() {
 
 		final List<String> metrics = new ArrayList<>();
-		if (cableLength) metrics.add(MultiTreeStatistics.LENGTH);
-		if (avgLength && !singlePaths) metrics.add(MultiTreeStatistics.AVG_BRANCH_LENGTH);
-		if (meanRadius) metrics.add(MultiTreeStatistics.MEAN_RADIUS);
-		if (nPaths && !singlePaths) metrics.add(MultiTreeStatistics.N_PATHS);
-		if (nBranchPoints) metrics.add(MultiTreeStatistics.N_BRANCH_POINTS);
-		if (nTips && !singlePaths) metrics.add(MultiTreeStatistics.N_TIPS);
-		if (nNodes) metrics.add(MultiTreeStatistics.N_NODES);
-		if (highestPathOrder) metrics.add(MultiTreeStatistics.HIGHEST_PATH_ORDER);
-		if (avgContraction) metrics.add(MultiTreeStatistics.AVG_CONTRACTION);
-		if (avgFractalDimension) metrics.add(MultiTreeStatistics.AVG_FRACTAL_DIMENSION);
-		if (avgFragmentation) metrics.add(MultiTreeStatistics.AVG_FRAGMENTATION);
-		if (width) metrics.add(MultiTreeStatistics.WIDTH);
-		if (height) metrics.add(MultiTreeStatistics.HEIGHT);
-		if (depth) metrics.add(MultiTreeStatistics.DEPTH);
+		if (ct) {
+			metrics.add(PathAnalyzer.PATH_CHANNEL);
+			metrics.add(PathAnalyzer.PATH_FRAME);
+		}
+		if (convexHull) {
+			metrics.add(PathAnalyzer.CONVEX_HULL_SIZE);
+			metrics.add(PathAnalyzer.CONVEX_HULL_ELONGATION);
+			metrics.add(PathAnalyzer.CONVEX_HULL_ROUNDNESS);
+		}
+		if (fractalDimension) metrics.add(PathAnalyzer.BRANCH_FRACTAL_DIMENSION); // will be computed for paths
+		if (nBranchPoints) metrics.add(PathAnalyzer.N_BRANCH_POINTS);
+		if (pathContraction) metrics.add(PathAnalyzer.PATH_CONTRACTION);
+		if (pathFragmentation) metrics.add(PathAnalyzer.N_PATH_NODES);
+		if (pathLength) metrics.add(PathAnalyzer.PATH_LENGTH);
+		if (pathMeanRadius) metrics.add(PathAnalyzer.PATH_MEAN_RADIUS);
+		if (pathOrder) metrics.add(PathAnalyzer.PATH_ORDER);
+		if (pathNSpines) metrics.add(PathAnalyzer.PATH_N_SPINES);
+		if (pathSpineDensity) metrics.add(PathAnalyzer.PATH_SPINE_DENSITY);
+		if (pathSurfaceArea) metrics.add(PathAnalyzer.SURFACE_AREA);
+		if (pathVolume) metrics.add(PathAnalyzer.VOLUME);
+		if (widthHeightDepth) {
+			metrics.add(PathAnalyzer.WIDTH);
+			metrics.add(PathAnalyzer.DEPTH);
+			metrics.add(PathAnalyzer.HEIGHT);
+		}
 		if (metrics.isEmpty()) {
-			error((singlePaths) ? "No valid metrics chosen." : "No metrics chosen.");
+			error("No metrics chosen.");
 			return;
 		}
-		final PathAnalyzer analyzer = new PathAnalyzer(paths, (label == null) ? "" : label);
+		final PathAnalyzer analyzer = new PathAnalyzer(paths, "");
 		analyzer.setContext(getContext());
 		analyzer.setTable(table, TABLE_TITLE);
-		if (singlePaths)
-			analyzer.measureIndividualPaths(metrics); // will display table
-		else
-			analyzer.measure(label, metrics, false); // will display table
+		analyzer.measureIndividualPaths(metrics, summarize); // will display table
 		resetUI();
 	}
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
+		GuiUtils.setLookAndFeel();
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
 		final Tree tree = sntService.demoTrees().get(0);
+		final ArrayList<Path> collection = new ArrayList<>();
+		collection.add(tree.get(0));
+		collection.add(tree.get(5));
+		collection.add(tree.get(20));
 		final Map<String, Object> input = new HashMap<>();
-		input.put("tree", tree);
-		ij.command().run(PathAnalyzerCmd.class, true, (Map<String, Object>)null);
+		input.put("paths", collection);
+		ij.command().run(PathAnalyzerCmd.class, true, input);
 	}
 }

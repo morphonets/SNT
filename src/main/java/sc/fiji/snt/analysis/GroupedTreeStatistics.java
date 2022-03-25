@@ -182,7 +182,7 @@ public class GroupedTreeStatistics {
 	}
 
 	private SNTChart getHistogram(final String measurement, final boolean polar) {
-		final String normMeasurement = MultiTreeStatistics.getNormalizedMeasurement(measurement, true);
+		final String normMeasurement = TreeStatistics.getNormalizedMeasurement(measurement);
 		// Retrieve all HistogramDatasetPlus instances
 		final double[] limits = new double[] {Double.MAX_VALUE, Double.MIN_VALUE};
 		for (final String groupLabel : getGroups()) {
@@ -224,7 +224,7 @@ public class GroupedTreeStatistics {
 	 */
 	public SNTChart getBoxPlot(final String measurement) {
 
-		final String normMeasurement = MultiTreeStatistics.getNormalizedMeasurement(measurement, true);
+		final String normMeasurement = TreeStatistics.getNormalizedMeasurement(measurement);
 		final DefaultBoxAndWhiskerCategoryDataset dataset = new DefaultBoxAndWhiskerCategoryDataset();
 		groups.forEach((label, mstats) -> {
 			final HDPlus hdp = mstats.new HDPlus(normMeasurement);
@@ -568,6 +568,16 @@ public class GroupedTreeStatistics {
 
 	}
 
+	/**
+	 * Sets the minimum number of bins when assembling histograms.
+	 *
+	 * @param minNoOfBins the minimum number of bins.
+	 */
+	public void setMinNBins(int minNoOfBins) {
+		this.minNoOfBins = minNoOfBins;
+	}
+
+
 	/* IDE debug method */
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
@@ -577,15 +587,5 @@ public class GroupedTreeStatistics {
 		groupedStats.addGroup(sntService.demoTrees().subList(2, 4), "Group 2");
 		groupedStats.getHistogram(TreeStatistics.INTER_NODE_DISTANCE).show();
 		groupedStats.getBoxPlot("node dx sq").setVisible(true);
-
-	}
-
-	/**
-	 * Sets the minimum number of bins when assembling histograms.
-	 *
-	 * @param minNoOfBins the minimum number of bins.
-	 */
-	public void setMinNBins(int minNoOfBins) {
-		this.minNoOfBins = minNoOfBins;
 	}
 }

@@ -259,8 +259,8 @@ public class MeasureUI extends JFrame {
 
 			// searchable
 			final SNTSearchableBar searchableBar = new SNTSearchableBar(new ListSearchable(metricList),
-					"Find... (" + allMetrics.size() + " metrics available)");
-			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_SEARCH_OPTIONS);
+					"Find... (" + allMetrics.size() + " metrics)");
+			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_NAVIGATION);
 			searchableBar.setVisible(true);
 			searchableBar.setHighlightAll(true);
 			searchableBar.setGuiUtils(guiUtils);
@@ -345,6 +345,18 @@ public class MeasureUI extends JFrame {
 			jmi.setToolTipText("Save measurements table. Note that tables can always\n"
 					+ "be saved using the 'Save Tables and Analysis Plot' command");
 			optionsMenu.add(jmi);
+			jmi = new JMenuItem("Summarize Existing Results");
+			jmi.addActionListener(e -> {
+				if (table == null || table.isEmpty()) {
+					guiUtils.error("Measurements table is empty.");
+					return;
+				}
+				table.removeSummary();
+				table.summarize();
+				updateTable(false);
+			});
+			jmi.setToolTipText("Computes Mean, SD, Sum, etc. for existing measurements");
+			optionsMenu.add(jmi);
 			GuiUtils.addSeparator(optionsMenu, "Help:");
 			jmi = new JMenuItem("Quick Guide...");
 			jmi.addActionListener(e -> showHelp());
@@ -388,7 +400,7 @@ public class MeasureUI extends JFrame {
 		}
 
 		private void showHelp() {
-			GuiUtils.showHTMLDialog("<p><b>How to measure reconstructions:</b></p>"//
+			GuiUtils.showHTMLDialog("<p><b>How to Measure Reconstructions:</b></p>"//
 					+ "<ol>"//
 					+ "<li>Select metrics on the left panel. Use the search box to highlight items and "//
 					+ "options in the contextual menu to apply selections</li>"//
@@ -401,18 +413,25 @@ public class MeasureUI extends JFrame {
 					+ "<ul>"//
 					+ "<li>Some metrics assume the reconstruction being parsed is a valid mathematical Tree. " //
 					+ "If that is not verified, values may be reported as <em>NaN</em> and related errors "//
-					+ "reported to the Console (when running in <em>Debug</em> mode)</li></ul>"//
+					+ "reported to the Console (when running in <em>Debug</em> mode)</li>"//
+					+ "<li>Computation of convex hulls and Sholl metrics based on automated curve fitting can be "//
+					+ "computationally-intensive. When parsing large groups of cells, it is highly recommended to "//
+					+ "retrieve metrics of such analyses using their dedicated commands</li>"//
+					+ "<li>Other analysis commands (Strahler, Sholl, Graph Analysis, etc.) will retrieve further "//
+					+ "measurements that are not listed in this prompt</li>"//
+					+ "</ul>"//
 					+ "<p><b>Notes on Statistics:</b></p>"//
 					+ "<ul>"//
 					+ "<li>Some combinations of metrics/statistics may not be meaningful: e.g., if "//
 					+ "you are only measuring a single cell, pairing <em>Cable length&nbsp;</em> to <em>SD</em> "//
 					+ "will not be useful, since only one value has been computed. In this case, the Measurement "//
-					+ "table will append '(Single metric value)' to such data</li>"//
-					+ "<li><em>N</em> may refer to different components (no. of cells, no. of branches, no. of " //
-					+ "nodes, etc.) depending on the metric being retrieved</li>"//
+					+ "table will append '[Single metric]' to such data</li>"//
 					+ "<li>Some combinations of metrics/statistics can become obnoxiously redundant. E.g., for a "//
 					+ "given cell, retrieving 'N' for 'Branch length' is the same as retrieving the cell's 'No. of "//
-					+ "Branches' metric.</ul>"//
+					+ "Branches' metric.</li"//
+					+ "<li><em>N</em> may refer to different components (no. of cells, no. of branches, no. of " //
+					+ "nodes, etc.) depending on the metric being retrieved</li>"//	
+					+ "</ul>"//
 					+ "<p><b>Note on Fitted Paths:</b></p>"//
 					+ "<p>Some branch-based metrics may not be available when mixing fitted and "//
 					+ "un-fitted paths because paths are fitted independently from one another and "//
@@ -629,8 +648,10 @@ public class MeasureUI extends JFrame {
 					summaryStatistics.addValue(Double.NaN);
 					SNTUtils.log(e.getMessage());
 				}
-				if (summaryStatistics.getN() == 1) {
-					table.set(metric + " (Single value metric)", tree.getLabel(), summaryStatistics.getSum());
+				final String unit = tStats.getUnit(metric);
+				final String metricHeader = (unit.length() > 1) ? metric + " (" + unit + ")" : metric;
+				if (summaryStatistics.getN() == 1 ) {
+					table.set(metricHeader + " [Single value]", tree.getLabel(), summaryStatistics.getSum());
 					continue;
 				}
 				for (int column = 1; column < tableModel.getColumnCount(); ++column) {
@@ -661,7 +682,7 @@ public class MeasureUI extends JFrame {
 					default:
 						throw new IllegalArgumentException("[BUG] Unknown statistic: " + measurement);
 					}
-					table.set(metric + " (" + measurement + ")", tree.getLabel(), value);
+					table.set(metricHeader + " [" + measurement + "]", tree.getLabel(), value);
 				}
 			}
 		}
@@ -691,8 +712,8 @@ public class MeasureUI extends JFrame {
 							measureTree(tree.subTree(type));
 					} else {
 						measureTree(tree);
+						table.set("No. of compartments", tree.getLabel(), compartments.size());
 					}
-					table.appendToLastRow("No. of compartments", compartments.size());
 				}
 				return null;
 			}

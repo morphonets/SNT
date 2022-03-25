@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-import org.apache.commons.text.WordUtils;
 import org.jfree.chart.JFreeChart;
 
 import net.imagej.ImageJ;
@@ -50,7 +49,8 @@ import sc.fiji.snt.util.PointInImage;
 
 /**
  * Computes summary and descriptive statistics from univariate properties of
- * {@link Tree} groups. For analysis of individual Trees use {@link TreeStatistics}.
+ * {@link Tree} groups. For analysis of individual Trees use
+ * {@link TreeStatistics}.
  *
  * @author Tiago Ferreira
  */
@@ -87,52 +87,23 @@ public class MultiTreeStatistics extends TreeStatistics {
 
 	/** Flag specifying {@value #AVG_REMOTE_ANGLE} statistics */
 	public static final String AVG_REMOTE_ANGLE = "Average remote bif. angle";
-	
+
 	/** Flag specifying {@value #AVG_PARTITION_ASYMMETRY} statistics */
 	public static final String AVG_PARTITION_ASYMMETRY = "Average partition asymmetry";
-	
+
 	/** Flag specifying {@value #AVG_FRACTAL_DIMENSION} statistics */
 	public static final String AVG_FRACTAL_DIMENSION = "Average fractal dimension";
 
-	/** Flag for {@value #MEAN_RADIUS} statistics */
+	/**
+	 * Flag for {@value #MEAN_RADIUS} statistics
+	 * 
+	 * @deprecated use #PATH_MEAN_RADIUS instead
+	 */
+	@Deprecated
 	public static final String MEAN_RADIUS = "Mean radius";
 
-
-	protected static String[] ALL_FLAGS = { //
-			ASSIGNED_VALUE, //
-			AVG_BRANCH_LENGTH, //
-			AVG_CONTRACTION, //
-			AVG_FRAGMENTATION, //
-			AVG_REMOTE_ANGLE, //
-			AVG_PARTITION_ASYMMETRY, //
-			AVG_FRACTAL_DIMENSION, //
-			PATH_MEAN_SPINE_DENSITY, //
-			DEPTH, //
-			HEIGHT, //
-			HIGHEST_PATH_ORDER, //
-			LENGTH, //
-			MEAN_RADIUS, //
-			N_BRANCH_POINTS, //
-			N_BRANCHES, //
-			N_FITTED_PATHS, //
-			N_NODES, //
-			N_PATHS, //
-			N_PRIMARY_BRANCHES, //
-			N_INNER_BRANCHES, //
-			N_SPINES, //
-			N_TERMINAL_BRANCHES, //
-			N_TIPS, //
-			PRIMARY_LENGTH, //
-			INNER_LENGTH, //
-			TERMINAL_LENGTH, //
-			STRAHLER_NUMBER, //
-			STRAHLER_RATIO, //
-			WIDTH, //
-	};
-
-	private Collection<Tree> groupOfTrees;
+	private final Collection<Tree> groupOfTrees;
 	private Collection<DirectedWeightedGraph> groupOfGraphs;
-	
 
 	/**
 	 * Instantiates a new instance from a collection of Trees.
@@ -151,36 +122,19 @@ public class MultiTreeStatistics extends TreeStatistics {
 	 * @param swcTypes SWC type(s) a string with at least 2 characters describing
 	 *                 the SWC type allowed in the subtree (e.g., 'axn', or
 	 *                 'dendrite')
-	 * @throws NoSuchElementException {@code swcTypes} are not applicable to {@code group}
+	 * @throws NoSuchElementException {@code swcTypes} are not applicable to
+	 *                                {@code group}
 	 */
 	public MultiTreeStatistics(final Collection<Tree> group, final String... swcTypes) throws NoSuchElementException {
 		super(new Tree());
 		this.groupOfTrees = new ArrayList<>();
-		group.forEach( inputTree -> {
+		group.forEach(inputTree -> {
 			final Tree filteredTree = inputTree.subTree(swcTypes);
-			if (filteredTree != null && filteredTree.size() > 0) groupOfTrees.add(filteredTree);
+			if (filteredTree != null && filteredTree.size() > 0)
+				groupOfTrees.add(filteredTree);
 		});
-		if (groupOfTrees.isEmpty()) throw new NoSuchElementException("No match for the specified type(s) in group");
-	}
-
-	/**
-	 * Gets the list of <i>all</i> supported metrics.
-	 *
-	 * @return the list of available metrics
-	 */
-	public static List<String> getAllMetrics() {
-		return Arrays.stream(ALL_FLAGS).collect(Collectors.toList());
-	}
-
-	/**
-	 * Gets the list of most commonly used metrics.
-	 *
-	 * @return the list of commonly used metrics
-	 */
-	public static List<String> getMetrics() {
-		return getAllMetrics().stream().filter(metric -> {
-			return !(ASSIGNED_VALUE.equals(metric) || metric.toLowerCase().contains("path"));
-		}).collect(Collectors.toList());
+		if (groupOfTrees.isEmpty())
+			throw new NoSuchElementException("No match for the specified type(s) in group");
 	}
 
 	/**
@@ -201,147 +155,17 @@ public class MultiTreeStatistics extends TreeStatistics {
 		tree.setLabel(groupLabel);
 	}
 
-	protected static String getNormalizedMeasurement(final String measurement, final boolean defaultToTreeStatistics)
-			throws UnknownMetricException {
-		if (isExactMetricMatch()) return measurement;
-		if (Arrays.stream(ALL_FLAGS).anyMatch(measurement::equalsIgnoreCase)) {
-			// This is just so that we can use capitalized strings in the GUI
-			// and lower case strings in scripts
-			return WordUtils.capitalize(measurement, new char[] { '-' }); // Horton-Strahler
-		}
-		if (measurement.startsWith("Sholl: ")) return measurement;
-		String normMeasurement = tryReallyHardToGuessMetric(measurement);
-		final boolean unknown = "unknown".equals(normMeasurement);
-		if (!unknown && !measurement.equals(normMeasurement)) {
-			SNTUtils.log("\"" + normMeasurement + "\" assumed");
-		}
-		if (unknown) {
-			if (defaultToTreeStatistics) {
-				SNTUtils.log("Unrecognized MultiTreeStatistics parameter... Defaulting to TreeStatistics analysis");
-				normMeasurement = TreeStatistics.getNormalizedMeasurement(measurement);
-			} else {
-				throw new UnknownMetricException("Unrecognizable measurement! "
-						+ "Maybe you meant one of the following?: \"" + String.join(", ", getMetrics()) + "\"");
-			}
-		}
-		return normMeasurement;
-	}
-
-	protected static String tryReallyHardToGuessMetric(final String guess) {
-		if (Arrays.stream(ALL_FLAGS).anyMatch(guess::equalsIgnoreCase)) {
-			return WordUtils.capitalize(guess, '-');
-		}
-		SNTUtils.log("\""+ guess + "\" was not immediately recognized as parameter");
-		String normGuess = guess.toLowerCase();
-		if (normGuess.indexOf("length") != -1 || normGuess.indexOf("cable") != -1) {
-			if (normGuess.indexOf("term") != -1) {
-				return TERMINAL_LENGTH;
-			}
-			else if (normGuess.indexOf("prim") != -1) {
-				return PRIMARY_LENGTH;
-			}
-			else if (normGuess.indexOf("inner") != -1) {
-				return INNER_LENGTH;
-			}
-			else if (normGuess.indexOf("branch") != -1 && containsAvgReference(normGuess)) {
-				return AVG_BRANCH_LENGTH;
-			}
-			else {
-				return LENGTH;
-			}
-		}
-		if (normGuess.indexOf("strahler") != -1 || normGuess.indexOf("horton") != -1 || normGuess.indexOf("h-s") != -1) {
-			if (normGuess.indexOf("ratio") != -1) {
-				return STRAHLER_RATIO;
-			}
-			else {
-				return STRAHLER_NUMBER;
-			}
-		}
-		if (normGuess.indexOf("path") != -1 && normGuess.indexOf("order") != -1) {
-			return HIGHEST_PATH_ORDER;
-		}
-		if (normGuess.indexOf("assign") != -1 || normGuess.indexOf("value") != -1) {
-			return ASSIGNED_VALUE;
-		}
-		if (normGuess.indexOf("branches") != -1) {
-			if (normGuess.indexOf("prim") != -1) {
-				return N_PRIMARY_BRANCHES;
-			}
-			else if (normGuess.indexOf("inner") != -1) {
-				return N_INNER_BRANCHES;
-			}
-			else if (normGuess.indexOf("term") != -1) {
-				return N_TERMINAL_BRANCHES;
-			}
-			else {
-				return N_BRANCHES;
-			}
-		}
-		if (normGuess.indexOf("bp") != -1 || normGuess.indexOf("branch") != -1 || normGuess.indexOf("junctions") != -1) {
-			return N_BRANCH_POINTS;
-		}
-		if (normGuess.indexOf("radi") != -1 && containsAvgReference(normGuess)) {
-			return MEAN_RADIUS;
-		}
-		if (normGuess.indexOf("nodes") != -1 ) {
-			return N_NODES;
-		}
-		if (normGuess.indexOf("tips") != -1 || normGuess.indexOf("termin") != -1 || normGuess.indexOf("end") != -1 ) {
-			// n tips/termini/terminals/end points/endings
-			return N_TIPS;
-		}
-		if (normGuess.indexOf("spines") != -1 || normGuess.indexOf("varicosities") > -1) {
-			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1 || normGuess.indexOf("dens") != -1) {
-				return PATH_MEAN_SPINE_DENSITY;
-			}
-			else {
-				return N_SPINES;
-			}
-		}
-		if (normGuess.indexOf("paths") != -1) {
-			if (normGuess.indexOf("fit") != -1) {
-				return N_FITTED_PATHS;
-			}
-			else {
-				return N_PATHS;
-			}
-		}
-		if (containsAvgReference(normGuess)) {
-			if (normGuess.indexOf("contraction") != -1) {
-				return AVG_CONTRACTION;
-			}
-			if (normGuess.indexOf("fragmentation") != -1) {
-				return AVG_FRAGMENTATION;
-			}
-			if (normGuess.indexOf("remote") != -1 || normGuess.indexOf("bif") != -1) {
-				return AVG_REMOTE_ANGLE;
-			}
-			if (normGuess.indexOf("partition") != -1 || normGuess.indexOf("asymmetry") != -1) {
-				return AVG_PARTITION_ASYMMETRY;
-			}
-			if (normGuess.indexOf("fractal") != -1) {
-				return AVG_FRACTAL_DIMENSION;
-			}
-		}
-		return "unknown";
-	}
-
-	private static boolean containsAvgReference(final String string) {
-		return (string.indexOf("mean") != -1 || string.indexOf("avg") != -1 || string.indexOf("average") != -1);
-	}
-
 	@Override
 	public SummaryStatistics getSummaryStats(final String metric) {
 		final SummaryStatistics sStats = new SummaryStatistics();
-		assembleStats(new StatisticsInstance(sStats), getNormalizedMeasurement(metric, true));
+		assembleStats(new StatisticsInstance(sStats), getNormalizedMeasurement(metric));
 		return sStats;
 	}
 
 	@Override
 	public DescriptiveStatistics getDescriptiveStats(final String metric) {
 		final DescriptiveStatistics dStats = new DescriptiveStatistics();
-		final String normMeasurement = getNormalizedMeasurement(metric, true);
+		final String normMeasurement = getNormalizedMeasurement(metric);
 		if (!lastDstatsCanBeRecycled(normMeasurement)) {
 			assembleStats(new StatisticsInstance(dStats), normMeasurement);
 			lastDstats = new LastDstats(normMeasurement, dStats);
@@ -350,20 +174,11 @@ public class MultiTreeStatistics extends TreeStatistics {
 	}
 
 	@Override
-	protected void assembleStats(final StatisticsInstance stat,
-		final String measurement) throws UnknownMetricException
-	{
-		try {
-			String normMeasurement = getNormalizedMeasurement(measurement, false);
-			for (final Tree t : groupOfTrees) {
-				final TreeAnalyzer ta = new TreeAnalyzer(t);
-				stat.addValue(ta.getMetricInternal(normMeasurement).doubleValue());
-			}
-		} catch (final UnknownMetricException ignored) {
-			SNTUtils.log("Unrecognized MultiTreeStatistics parameter... Defaulting to TreeStatistics analysis");
-			final String normMeasurement = TreeStatistics.getNormalizedMeasurement(measurement); // Will throw yet another UnknownMetricException
-			assignGroupToSuperTree();
-			super.assembleStats(stat, normMeasurement);
+	protected void assembleStats(final StatisticsInstance stat, final String measurement)
+			throws UnknownMetricException {
+		final String normMeasurement = getNormalizedMeasurement(measurement);
+		for (final Tree t : groupOfTrees) {
+			new TreeStatistics(t).assembleStats(stat, normMeasurement);
 		}
 	}
 
@@ -373,11 +188,11 @@ public class MultiTreeStatistics extends TreeStatistics {
 				super.tree.list().addAll(tree.list());
 		}
 	}
-	
+
 	private void populateGroupOfGraphs() {
 		if (groupOfGraphs == null) {
 			groupOfGraphs = new ArrayList<>();
-			groupOfTrees.forEach( t -> groupOfGraphs.add(t.getGraph()));
+			groupOfTrees.forEach(t -> groupOfGraphs.add(t.getGraph()));
 		}
 	}
 
@@ -452,25 +267,28 @@ public class MultiTreeStatistics extends TreeStatistics {
 
 	@Override
 	public SNTChart getHistogram(final String metric) {
-		final String normMeasurement = getNormalizedMeasurement(metric, true);
+		final String normMeasurement = getNormalizedMeasurement(metric);
 		final HistogramDatasetPlusMulti datasetPlus = new HistogramDatasetPlusMulti(normMeasurement);
 		try {
 			return getHistogram(normMeasurement, datasetPlus);
-		} catch (IllegalArgumentException ex) {
-			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics", ex); 
+		} catch (final IllegalArgumentException ex) {
+			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics",
+					ex);
 		}
 	}
 
 	@Override
 	public SNTChart getPolarHistogram(final String metric) {
-		final String normMeasurement = getNormalizedMeasurement(metric, true);
+		final String normMeasurement = getNormalizedMeasurement(metric);
 		final HistogramDatasetPlusMulti datasetPlus = new HistogramDatasetPlusMulti(normMeasurement);
 		try {
-			final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, lastDstats.dStats, datasetPlus);
+			final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, lastDstats.dStats,
+					datasetPlus);
 			final SNTChart frame = new SNTChart("Polar Hist. " + tree.getLabel(), chart);
 			return frame;
-		} catch (IllegalArgumentException ex) {
-			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics", ex); 
+		} catch (final IllegalArgumentException ex) {
+			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics",
+					ex);
 		}
 	}
 
@@ -533,7 +351,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 	}
 
 	class HistogramDatasetPlusMulti extends HDPlus {
-		HistogramDatasetPlusMulti(String measurement) {
+		HistogramDatasetPlusMulti(final String measurement) {
 			super(measurement, false);
 			getDescriptiveStats(measurement);
 			for (final double v : lastDstats.dStats.getValues()) {
@@ -542,6 +360,14 @@ public class MultiTreeStatistics extends TreeStatistics {
 		}
 	}
 
+	public static List<String> getMetrics() {
+		final String[] ALL_FLAGS = { ASSIGNED_VALUE, AVG_BRANCH_LENGTH, AVG_CONTRACTION, AVG_FRACTAL_DIMENSION,
+				AVG_FRAGMENTATION, AVG_PARTITION_ASYMMETRY, AVG_REMOTE_ANGLE, HIGHEST_PATH_ORDER, INNER_LENGTH,
+				MEAN_RADIUS, PRIMARY_LENGTH, TERMINAL_LENGTH };
+		return Arrays.stream(ALL_FLAGS).collect(Collectors.toList());
+	}
+
+
 	/* IDE debug method */
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
@@ -549,6 +375,8 @@ public class MultiTreeStatistics extends TreeStatistics {
 		SNTUtils.setDebugMode(true);
 		final MultiTreeStatistics treeStats = new MultiTreeStatistics(sntService.demoTrees());
 		treeStats.setLabel("Demo Dendrites");
-		treeStats.getHistogram("junctions").show();
+		treeStats.getHistogram("x coordinates").show();
+		treeStats.getPolarHistogram("x coordinates").show();
+
 	}
 }

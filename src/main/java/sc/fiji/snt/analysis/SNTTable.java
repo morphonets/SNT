@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.stream.IntStream;
 
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.Context;
 import org.scijava.NoSuchServiceException;
 import org.scijava.io.IOService;
@@ -191,6 +192,48 @@ public class SNTTable extends DefaultGenericTable {
 		context.inject(this);
 		if (tableIO == null)
 			tableIO = context.getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
+	}
+
+	public void removeSummary() {
+		int meanRowIdx = getRowIndex("Mean");
+		if (meanRowIdx > 1 && meanRowIdx <= getRowCount() - 6 && getRowIndex("SD") == meanRowIdx+1) {
+			removeRows(meanRowIdx-1, 7);
+		}
+	}
+
+	public void summarize() {
+		if (getRowCount() < 2 || getColumnCount() < 1)
+			return;
+		final int firstRowToBeSummarized = getRowIndex("Sum") + 2; // spacer row below "Sum"
+		if (firstRowToBeSummarized == getRowCount())
+			return;
+		final SummaryStatistics[] sStas = new SummaryStatistics[getColumnCount()];
+		for (int col = 0; col < getColumnCount(); col++) {
+			sStas[col] = new SummaryStatistics();
+			for (int row = firstRowToBeSummarized; row < getRowCount(); row++) {
+				try {
+					sStas[col].addValue(((Number) get(col, row)).doubleValue());
+				} catch (final NullPointerException ignored) {
+					// do nothing. Empty cell!?
+				} catch (final ClassCastException ignored) {
+					// cell with text!?
+					sStas[col].addValue(Double.NaN);
+				}
+			}
+		}
+		final int lastRowIndex = getRowCount();
+		insertRows(getRowCount(), new String[] { " ", "Mean", "SD", "Min", "Max", "Sum", " " });
+		for (int col = 0; col < getColumnCount(); col++) {
+			final double min = sStas[col].getMin();
+			final double max = sStas[col].getMax();
+			final boolean nonNumericColumn = Double.isNaN(min) && Double.isNaN(max);
+			set(col, lastRowIndex + 1, (nonNumericColumn) ? "" : sStas[col].getMean());
+			set(col, lastRowIndex + 2, (nonNumericColumn) ? "" : sStas[col].getStandardDeviation());
+			set(col, lastRowIndex + 3, (nonNumericColumn) ? "" : min);
+			set(col, lastRowIndex + 4, (nonNumericColumn) ? "" : max);
+			set(col, lastRowIndex + 5, (nonNumericColumn) ? "" : sStas[col].getSum());
+		}
+		hasUnsavedData = true;
 	}
 
 	public void save(final File outputFile) throws IOException {
