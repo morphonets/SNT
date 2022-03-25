@@ -136,7 +136,7 @@
 		<jzy3d.version>2.0.0</jzy3d.version>
 		<imagej-plot-service.version>0.1.1</imagej-plot-service.version>
 		<okhttp.version>4.9.3</okhttp.version>
-		<font-awesome.version>6.0.0</font-awesome.version>
+		<font-awesome.version>6.1.0</font-awesome.version>
 		<json.version>20211205</json.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
