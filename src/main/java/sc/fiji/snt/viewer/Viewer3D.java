@@ -3888,6 +3888,7 @@ public class Viewer3D {
 			prefs.nagUserOnRetrieveAll = !options[1];
 		}
 
+		@SuppressWarnings("deprecation")
 		private JPopupMenu measureMenu() {
 			final JPopupMenu measureMenu = new JPopupMenu();
 			GuiUtils.addSeparator(measureMenu, "Tabular Results:");

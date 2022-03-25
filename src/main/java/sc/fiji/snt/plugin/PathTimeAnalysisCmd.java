@@ -77,7 +77,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 			TreeStatistics.PATH_LENGTH + " (mean ± SD)", //
 			MultiTreeStatistics.N_BRANCH_POINTS, //
 			MultiTreeStatistics.HIGHEST_PATH_ORDER, //
-			MultiTreeStatistics.MEAN_RADIUS + " (mean ± SD)", //
+			MultiTreeStatistics.PATH_MEAN_RADIUS + " (mean ± SD)", //
 			MultiTreeStatistics.N_PATHS, //
 	})
 	private String measurementChoice;
@@ -330,8 +330,8 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
+		GuiUtils.setLookAndFeel();
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
 		final Tree tree = sntService.demoTrees().get(0);

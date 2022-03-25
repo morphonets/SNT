@@ -98,6 +98,7 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.gui.ColorMenu;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.MeasureUI;
 import sc.fiji.snt.gui.PathManagerUISearchableBar;
 import sc.fiji.snt.gui.SwingSafeResult;
 import sc.fiji.snt.gui.cmds.DistributionBPCmd;
@@ -2189,6 +2190,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		plugin.getUI().showStatus(null, false);
 	}
 
+	@SuppressWarnings("deprecation")
+	protected void measureCells(final boolean legacyPrompt) {
+		final Collection<Tree> trees = getMultipleTrees();
+		if (trees == null) return;
+		if (legacyPrompt) {
+			// allow users to use the 'well proven' legacy prompt
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("trees", trees);
+			inputs.put("table", getTable());
+			inputs.put("calledFromPathManagerUI", true);
+			(plugin.getUI().new DynamicCmdRunner(AnalyzerCmd.class, inputs)).run();
+		} else if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
+			guiUtils.error("A Measurements prompt seems to be already open.");
+		} else {
+			new MeasureUI(plugin, trees).setVisible(true);
+		}
+	}
+
 	private class JTreeMenuItem extends JMenuItem implements ActionListener {
 
 		private static final long serialVersionUID = 1L;
@@ -2560,19 +2579,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 //				return;
 //			}
 			else if (MEASURE_TREES_CMD.equals(cmd)) {
-				final Collection<Tree> trees = getMultipleTrees();
-				if (trees == null) return;
-				final HashMap<String, Object> inputs = new HashMap<>();
-				inputs.put("trees", trees);
-				inputs.put("table", getTable());
-				inputs.put("calledFromPathManagerUI", true);
-				(plugin.getUI().new DynamicCmdRunner(AnalyzerCmd.class, inputs)).run();
+				measureCells((e.getModifiers() & ActionEvent.SHIFT_MASK) != 0
+						|| (e.getModifiers() & ActionEvent.ALT_MASK) != 0);
 				return;
 			}
 			else if (MEASURE_PATHS_CMD.equals(cmd)) {
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("paths", selectedPaths);
-				inputs.put("proposedLabel", getDescription(selectedPaths));
 				inputs.put("table", getTable());
 				(plugin.getUI().new DynamicCmdRunner(PathAnalyzerCmd.class, inputs)).run();
 				return;
@@ -3141,6 +3154,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return true;
 		}
 
+		@SuppressWarnings("unused")
 		private String getDescription(final Collection<Path> selectedPaths) {
 			String description;
 			final int n = selectedPaths.size();

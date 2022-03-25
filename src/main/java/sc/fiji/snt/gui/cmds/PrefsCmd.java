@@ -150,6 +150,7 @@ public class PrefsCmd extends ContextCommand {
 	}
 
 	/** Clears all of SNT preferences. */
+	@SuppressWarnings("deprecation")
 	public void clearAll() {
 
 		prefService.clear(AddTextAnnotationCmd.class);

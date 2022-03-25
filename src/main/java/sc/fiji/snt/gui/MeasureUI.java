@@ -35,8 +35,6 @@ import javax.swing.table.*;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.Context;
-import org.scijava.display.Display;
-import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 
@@ -70,8 +68,6 @@ public class MeasureUI extends JFrame {
 			Boolean.class, Boolean.class, Boolean.class, Boolean.class };
 	public static final List<MeasureUI> instances = new ArrayList<>();
 
-	@Parameter
-	private DisplayService displayService;
 	@Parameter
 	private PrefService prefService;
 	@Parameter
@@ -153,14 +149,10 @@ public class MeasureUI extends JFrame {
 			UIManager.getLookAndFeel().provideErrorFeedback(this);
 			return;
 		}
-		final List<Display<?>> displays = displayService.getDisplays(table);
-		if (displays == null || displays.isEmpty()) {
-			if (createAsNeeded) displayService.createDisplay("SNT Measurements", table);
-			return;
-		}
-		for (final Display<?> d : displayService.getDisplays(table)) {
-			if (d!= null) d.update();
-		}
+		if (createAsNeeded)
+			table.createOrUpdateDisplay();
+		else
+			table.updateDisplay();
 	}
 
 	private void saveTable() {

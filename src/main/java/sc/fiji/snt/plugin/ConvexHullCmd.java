@@ -207,15 +207,24 @@ public class ConvexHullCmd extends ContextCommand {
 	}
 
 	private void measure(final ConvexHullAnalyzer analyzer, final SNTTable table, final String rowLabel) {
-		table.insertRow(rowLabel);
-		if (doSize)
-			table.appendToLastRow("Convex hull: Size", analyzer.getSize());
-		if (doBoundarySize)
-			table.appendToLastRow("Convex hull: Boundary size", analyzer.getBoundarySize());
-		if (doRoundness)
-			table.appendToLastRow("Convex hull: Roundness", analyzer.getRoundness());
-		if (doMainElongation)
-			table.appendToLastRow("Convex hull: Elongation", analyzer.getElongation());
+		try {
+			table.insertRow(rowLabel);
+			final String unit = (String) analyzer.getTree().getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT,
+					"? units");
+			final boolean is3D = analyzer.getHull() instanceof ConvexHull3D;
+			if (doSize)
+				table.appendToLastRow("Convex hull: Size (" + unit + ((is3D) ? "^3" : "^2") + ")", analyzer.getSize());
+			if (doBoundarySize)
+				table.appendToLastRow("Convex hull: Boundary size (" + unit + ((is3D) ? "^2" : "") + ")",
+						analyzer.getBoundarySize());
+			if (doRoundness)
+				table.appendToLastRow("Convex hull: Roundness", analyzer.getRoundness());
+			if (doMainElongation)
+				table.appendToLastRow("Convex hull: Boundary size (" + unit + ")",
+						analyzer.getElongation());
+		} catch (final IndexOutOfBoundsException | IllegalArgumentException ex) {
+			ex.printStackTrace();
+		}
 	}
 
 	private ConvexHullAnalyzer getAnalyzer(Tree tree) {

@@ -25,13 +25,17 @@ package sc.fiji.snt.analysis;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.stream.IntStream;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.Context;
 import org.scijava.NoSuchServiceException;
+import org.scijava.display.Display;
+import org.scijava.display.DisplayService;
 import org.scijava.io.IOService;
 import org.scijava.io.location.FileLocation;
+import org.scijava.plugin.Parameter;
 import org.scijava.table.Column;
 import org.scijava.table.DefaultGenericTable;
 import org.scijava.table.DefaultTableIOPlugin;
@@ -51,8 +55,12 @@ public class SNTTable extends DefaultGenericTable {
 
 	private static final long serialVersionUID = 1L;
 	private boolean hasUnsavedData;
+
+	@Parameter
 	private DefaultTableIOPlugin tableIO;
 
+	@Parameter
+	private DisplayService displayService;
 
 	public SNTTable() {
 		super();
@@ -61,8 +69,8 @@ public class SNTTable extends DefaultGenericTable {
 	public SNTTable(final String filePath) throws IOException {
 		super();
 		if (tableIO == null) {
-			try (final Context context = new Context()) {  // Failure if new Context(IOservice.class); !?
-				tableIO = context.getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
+			try { // Failure if new Context(IOservice.class); !?
+				tableIO = SNTUtils.getContext().getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
 			} catch (final Exception e) {
 				SNTUtils.error(e.getMessage(), e);
 			}
@@ -197,7 +205,7 @@ public class SNTTable extends DefaultGenericTable {
 	public void removeSummary() {
 		int meanRowIdx = getRowIndex("Mean");
 		if (meanRowIdx > 1 && meanRowIdx <= getRowCount() - 6 && getRowIndex("SD") == meanRowIdx+1) {
-			removeRows(meanRowIdx-1, 7);
+			removeRows(meanRowIdx-1, 8);
 		}
 	}
 
@@ -212,26 +220,28 @@ public class SNTTable extends DefaultGenericTable {
 			sStas[col] = new SummaryStatistics();
 			for (int row = firstRowToBeSummarized; row < getRowCount(); row++) {
 				try {
-					sStas[col].addValue(((Number) get(col, row)).doubleValue());
+					final double value = ((Number) get(col, row)).doubleValue();
+					if (!Double.isNaN(value)) sStas[col].addValue(value);
 				} catch (final NullPointerException ignored) {
 					// do nothing. Empty cell!?
 				} catch (final ClassCastException ignored) {
-					// cell with text!?
-					sStas[col].addValue(Double.NaN);
+					// Cell with text!? We could add Double.NAN, or skip it altogether'
+					// skipping for now, in case cells above and below are valid
 				}
 			}
 		}
 		final int lastRowIndex = getRowCount();
-		insertRows(getRowCount(), new String[] { " ", "Mean", "SD", "Min", "Max", "Sum", " " });
+		insertRows(getRowCount(), new String[] { " ", "Mean", "SD", "N", "Min", "Max", "Sum", " " });
 		for (int col = 0; col < getColumnCount(); col++) {
 			final double min = sStas[col].getMin();
 			final double max = sStas[col].getMax();
 			final boolean nonNumericColumn = Double.isNaN(min) && Double.isNaN(max);
 			set(col, lastRowIndex + 1, (nonNumericColumn) ? "" : sStas[col].getMean());
 			set(col, lastRowIndex + 2, (nonNumericColumn) ? "" : sStas[col].getStandardDeviation());
-			set(col, lastRowIndex + 3, (nonNumericColumn) ? "" : min);
-			set(col, lastRowIndex + 4, (nonNumericColumn) ? "" : max);
-			set(col, lastRowIndex + 5, (nonNumericColumn) ? "" : sStas[col].getSum());
+			set(col, lastRowIndex + 3, (nonNumericColumn) ? "" : sStas[col].getN());
+			set(col, lastRowIndex + 4, (nonNumericColumn) ? "" : min);
+			set(col, lastRowIndex + 5, (nonNumericColumn) ? "" : max);
+			set(col, lastRowIndex + 6, (nonNumericColumn) ? "" : sStas[col].getSum());
 		}
 		hasUnsavedData = true;
 	}
@@ -245,6 +255,40 @@ public class SNTTable extends DefaultGenericTable {
 		hasUnsavedData = false;
 	}
 
+	public void createDisplay(String windowTitle) {
+		initDisplayService();
+		displayService.createDisplay(windowTitle, this);
+	}
+
+	public void updateDisplay() {
+		updateDisplay(false);
+	}
+
+	public void createOrUpdateDisplay() {
+		updateDisplay(true);
+	}
+
+	private void updateDisplay(final boolean createDisplayAsNeeded) {
+		initDisplayService();
+		final List<Display<?>> displays = displayService.getDisplays(this);
+		if (displays == null || displays.isEmpty()) {
+			if (createDisplayAsNeeded) createDisplay("SNT Measurements");
+			return;
+		}
+		displays.forEach(d -> {
+			if (d != null) d.update();
+		});
+	}
+
+	private void initDisplayService() {
+		if (displayService == null) {
+			try {
+				displayService = SNTUtils.getContext().getService(DisplayService.class);
+			} catch (final Exception e) {
+				SNTUtils.error(e.getMessage(), e);
+			}
+		}
+	}
 
 	public static String toString(final GenericTable table, final int firstRow, final int lastRow) {
 		final int fRow = Math.max(0, firstRow);

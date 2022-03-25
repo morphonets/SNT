@@ -34,9 +34,11 @@ import org.scijava.plugin.Parameter;
 import net.imagej.ImageJ;
 import net.imagej.ops.OpService;
 import net.imglib2.RealLocalizable;
+import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInImage;
 
 /**
@@ -97,13 +99,21 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		if (metrics != null) {
 			return metrics;
 		}
-		initHull();
 		metrics = new LinkedHashMap<>();
-		metrics.put(BOUNDARY_SIZE, hull.boundarySize());
-		metrics.put(BOXIVITY, (tree.is3D()) ? Double.NaN : computeBoxivity(hull));
-		metrics.put(ELONGATION, computeElongation(hull));
-		metrics.put(ROUNDNESS, computeRoundness(hull));
-		metrics.put(SIZE, hull.size());
+		if (isComputable()) {
+			initHull();
+			metrics.put(BOUNDARY_SIZE, hull.boundarySize());
+			metrics.put(BOXIVITY, (tree.is3D()) ? Double.NaN : computeBoxivity(hull));
+			metrics.put(ELONGATION, computeElongation(hull));
+			metrics.put(ROUNDNESS, computeRoundness(hull));
+			metrics.put(SIZE, hull.size());
+		} else {
+			metrics.put(BOUNDARY_SIZE, Double.NaN);
+			metrics.put(BOXIVITY, Double.NaN);
+			metrics.put(ELONGATION, Double.NaN);
+			metrics.put(ROUNDNESS, Double.NaN);
+			metrics.put(SIZE, Double.NaN);
+		}
 		return metrics;
 	}
 
@@ -213,12 +223,32 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		return hull;
 	}
 
+	private boolean isComputable() {
+		// There are edge cases where the entire computation stalls when parsing
+		// single-path Trees that are 1D or extremely small. There is no exception
+		// error, just opService seems to stall!? without any feedback. For now,
+		// we'll try to avoid any edge situation altogether.
+		int nNodes = 0;
+		for (final Path p : tree.list()) {
+			nNodes += p.size();
+			final BoundingBox bbox = new BoundingBox();
+			bbox.compute(p.getNodes().iterator());
+			if (nNodes > 3 && bbox.width() * bbox.height() > 0)
+				return true;
+		}
+		return false;
+	}
+
 	public static void main(final String[] args) throws InterruptedException {
 		final ImageJ ij = new ImageJ();
 		final SNTService sntService = ij.context().getService(SNTService.class);
 		final Tree tree = sntService.demoTrees().get(0);
 		final ConvexHullAnalyzer analyzer = new ConvexHullAnalyzer(tree);
 		analyzer.run();
+	}
+
+	public Tree getTree() {
+		return tree;
 	}
 
 }

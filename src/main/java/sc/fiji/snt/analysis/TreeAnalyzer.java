@@ -578,7 +578,7 @@ public class TreeAnalyzer extends ContextCommand {
 		final String m = metric.toLowerCase();
 		if (TreeStatistics.WIDTH.equals(metric) || TreeStatistics.HEIGHT.equals(metric)
 				|| TreeStatistics.DEPTH.equals(metric) || m.contains("length") || m.contains("radius")
-				|| m.contains("distance")) {
+				|| m.contains("distance") || TreeStatistics.CONVEX_HULL_ELONGATION.equals(metric)) {
 			return (String) tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units");
 		} else if (m.contains("volume")) {
 			return tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units") + "^3";
@@ -586,6 +586,8 @@ public class TreeAnalyzer extends ContextCommand {
 			return tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units") + "^2";
 		} else if (TreeStatistics.CONVEX_HULL_SIZE.equals(metric)) {
 			return tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units") + ((tree.is3D()) ? "^3" : "^2");
+		} else if (TreeStatistics.CONVEX_HULL_BOUNDARY_SIZE.equals(metric)) {
+			return tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units") + ((tree.is3D()) ? "^2" : "");
 		}
 		return "";
 	}

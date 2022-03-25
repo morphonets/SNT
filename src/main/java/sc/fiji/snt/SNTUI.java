@@ -2527,21 +2527,8 @@ public class SNTUI extends JDialog {
 		final JMenuItem measureWithPrompt = GuiUtils.MenuItems.measureOptions();
 		measureWithPrompt.addActionListener(e -> {
 			if (noPathsError()) return;
-			Collection<Tree> trees = getPathManager().getMultipleTrees();
-			if (trees == null)
-				return;
-			if ((e.getModifiers() & ActionEvent.SHIFT_MASK) != 0 || (e.getModifiers() & ActionEvent.ALT_MASK) != 0) {
-				// allow users to use the 'well proven' legacy prompt
-				final HashMap<String, Object> inputs = new HashMap<>();
-				inputs.put("trees", trees);
-				inputs.put("calledFromPathManagerUI", true);
-				(new DynamicCmdRunner(AnalyzerCmd.class, inputs)).run();
-			} else if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
-				guiUtils.error("A Measurements prompt seems to be already open.");
-				trees = null;
-			} else {
-				new MeasureUI(plugin, trees).setVisible(true);
-			}
+			getPathManager().measureCells(
+					(e.getModifiers() & ActionEvent.SHIFT_MASK) != 0 || (e.getModifiers() & ActionEvent.ALT_MASK) != 0);
 		});
 		analysisMenu.add(measureWithPrompt);
 		analysisMenu.add(measureMenuItem);

@@ -748,11 +748,7 @@ public class TreeStatistics extends TreeAnalyzer {
 		case CONVEX_HULL_ELONGATION:
 		case CONVEX_HULL_ROUNDNESS:
 		case CONVEX_HULL_SIZE:
-			// Convex hull cannot be computed for 1D objects:
-			if (getWidth() * getHeight() == 0)
-				stat.addValue(Double.NaN);
-			else
-				stat.addValue(getConvexHullMetric(m));
+			stat.addValue(getConvexHullMetric(m));
 			break;
 		case CONVEX_HULL_CENTROID_ROOT_DISTANCE:
 			final PointInImage root = tree.getRoot();
