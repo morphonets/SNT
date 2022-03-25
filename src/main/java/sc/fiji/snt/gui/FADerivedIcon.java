@@ -53,9 +53,9 @@ import sc.fiji.snt.SNTUtils;
 public class FADerivedIcon implements Icon {
 
 	private static final String AWESOME_REGULAR =
-		"META-INF/resources/webjars/font-awesome/6.0.0/webfonts/fa-regular-400.ttf";
+		"META-INF/resources/webjars/font-awesome/6.1.0/webfonts/fa-regular-400.ttf";
 	private static final String AWESOME_SOLID =
-		"META-INF/resources/webjars/font-awesome/6.0.0/webfonts/fa-solid-900.ttf";
+		"META-INF/resources/webjars/font-awesome/6.1.0/webfonts/fa-solid-900.ttf";
 	private final Font font;
 	private final float size;
 	private final Paint color;
