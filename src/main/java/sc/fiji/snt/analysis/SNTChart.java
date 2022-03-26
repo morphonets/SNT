@@ -438,10 +438,12 @@ public class SNTChart extends ChartFrame {
 				if (getXYPlot().getDomainAxis() != null) {
 					final Font font = getXYPlot().getDomainAxis().getTickLabelFont().deriveFont(size);
 					getXYPlot().getDomainAxis().setTickLabelFont(font);
+					getXYPlot().getDomainAxis().setLabelFont(font);
 				}
 				if (getXYPlot().getRangeAxis() != null) {
 					final Font font = getXYPlot().getRangeAxis().getTickLabelFont().deriveFont(size);
 					getXYPlot().getRangeAxis().setTickLabelFont(font);
+					getXYPlot().getRangeAxis().setLabelFont(font);
 				}
 			}
 			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
@@ -449,6 +451,8 @@ public class SNTChart extends ChartFrame {
 				getCategoryPlot().getDomainAxis().setTickLabelFont(font);
 				font = getCategoryPlot().getRangeAxis().getTickLabelFont().deriveFont(size);
 				getCategoryPlot().getRangeAxis().setTickLabelFont(font);
+				getCategoryPlot().getDomainAxis().setLabelFont(font);
+				getCategoryPlot().getRangeAxis().setLabelFont(font);
 			}
 			else if (getChartPanel().getChart().getPlot() instanceof PolarPlot) {
 				final PolarPlot plot = (PolarPlot)getChartPanel().getChart().getPlot();
