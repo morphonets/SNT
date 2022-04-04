@@ -102,6 +102,8 @@ import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
+import ij.ImagePlus;
+import ij.plugin.ImagesToStack;
 import net.imagej.plot.CategoryChart;
 import net.imagej.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
 import net.imagej.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
@@ -560,6 +562,20 @@ public class SNTChart extends ChartFrame {
 			}
 		}
 		return getChartPanel().getFont().getSize();
+	}
+
+	public ImagePlus getImage() {
+		return getImage(1f);
+	}
+
+	public ImagePlus getImage(final float scalingFactor) {
+		final ImagePlus imp = ij.IJ.createImage((getTitle() == null) ? "SNTChart" : getTitle(), "RGB",
+				(int) scalingFactor * getChartPanel().getWidth(), (int) scalingFactor * getChartPanel().getHeight(), 1);
+		final java.awt.image.BufferedImage image = imp.getBufferedImage();
+		getChartPanel().getChart().draw(image.createGraphics(),
+				new java.awt.geom.Rectangle2D.Float(0, 0, imp.getWidth(), imp.getHeight()));
+		imp.setImage(image);
+		return imp;
 	}
 
 	public void saveAsPNG(final File file) throws IOException {
@@ -1098,6 +1114,15 @@ public class SNTChart extends ChartFrame {
 			}
 		}
 		return sntCharts;
+	}
+
+	public static ImagePlus combinedStack(final Collection<SNTChart> charts) {
+		final ImagePlus[] arrayOfImages = new ImagePlus[charts.size()];
+		int i = 0;
+		for (final SNTChart chart : charts) {
+			arrayOfImages[i++] = chart.getImage();
+		}
+		return ImagesToStack.run(arrayOfImages);
 	}
 
 	public static JFrame combinedFrame(final Collection<SNTChart> charts) {
