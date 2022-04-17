@@ -6,10 +6,11 @@
 #@ SNTService snt
 
 """
-file: Fill_Demo.py
+file:    Fill_Demo.py
 version: 20211012
-author: Cameron Arshadi
-info: Demonstrates how to fill programatically
+author:  Cameron Arshadi
+info:    Demonstrates how to fill programatically. More details at
+         https://forum.image.sc/t/batch-filling-in-snt/58733/7
 """
 
 from ij import IJ, ImagePlus

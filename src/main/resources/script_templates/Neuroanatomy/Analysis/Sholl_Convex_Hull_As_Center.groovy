@@ -75,14 +75,19 @@ viewer.add(tree)
 viewer.addColorBarLegend(mapper)
 
 // Highlight center
-viewer.getChart().setFontSize(25)
 viewer.getChart().annotatePoint(centroid2D.positionAsDoubleArray(), "Center", "black")
 viewer.show()
 
-// We could proceed with all sort of analysis. Let's just display the profile
-// and exit. Again, see Sholl_Extensive_Stats_Demo for more details
+// We could proceed with all sorts of analysis. Here, we'll try to guess the degree
+// of the 'best' polynomial fit, considering 1 as the lowest possible degree, 30 as
+// the highest; and 0.75 as the the lowest value for adjusted RSquared. NB: The last
+// argument (-1) intructs the program to skip Kolmogorov-Smirnov testing, see
+// https://javadoc.scijava.org/SNT/sc/fiji/snt/analysis/sholl/math/LinearProfileStats.html#findBestFit
 bestDegree = stats.findBestFit(1, 30, 0.75, -1)
 if (bestDegree > -1)
     stats.fitPolynomial(bestDegree)
+
+// Let's just display the profile and exit. Again, see Sholl_Extensive_Stats_Demo
+// for more details. 
 stats.plot().show()
 print("All done!")

@@ -21,4 +21,3 @@ if (MouseLightQuerier.isDatabaseAvailable()) {
         new MouseLightLoader(id).save(outDir)
     }
 }
-

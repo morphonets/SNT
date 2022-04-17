@@ -113,4 +113,3 @@ if image:
     main(image)
 else:
     print("Image could not be obtained")
-

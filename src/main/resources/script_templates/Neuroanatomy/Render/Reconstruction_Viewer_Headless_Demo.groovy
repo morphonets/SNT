@@ -38,4 +38,3 @@ viewer.saveSnapshot(filePath)
 
 // Display snapshot in ImageJ
 ij.IJ.open(filePath)
-

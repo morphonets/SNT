@@ -42,4 +42,3 @@ ids.eachWithIndex { id, index ->
 }
 
 println("Finished.")
-

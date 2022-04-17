@@ -57,5 +57,3 @@ hist = tStats.getAnnotatedLengthHistogram(max_ontology_depth, 'ratio')
 hist.show()
 hist = nStats.getAnnotatedFrequencyHistogram(max_ontology_depth, 'ratio', axon)
 hist.show()
-
-
