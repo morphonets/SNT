@@ -98,19 +98,19 @@ import org.jfree.data.Range;
 import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.general.Dataset;
 import org.jfree.data.xy.XYDataset;
+import org.scijava.plot.CategoryChart;
 import org.scijava.ui.awt.AWTWindows;
+import org.scijava.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
+import org.scijava.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
 import ij.ImagePlus;
 import ij.plugin.ImagesToStack;
-import org.scijava.plot.CategoryChart;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.analysis.plotservice.CategoryChartConverter;
-import sc.fiji.snt.analysis.plotservice.XYPlotConverter;
 
 
 /**
