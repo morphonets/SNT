@@ -147,29 +147,28 @@ public class PathOrderAnalysisCmd extends TreeAnalyzer {
 	 * @see #getChart()
 	 * @throws IllegalArgumentException if tree contains multiple roots or loops
 	 */
-	public CategoryChart<Integer> getCategoryChart() throws IllegalArgumentException {	
-		final CategoryChart<Integer> chart = plotService.newCategoryChart(
-			Integer.class);
+	public CategoryChart getCategoryChart() throws IllegalArgumentException {	
+		final CategoryChart chart = plotService.newCategoryChart();
 		final List<Integer> categories = IntStream.rangeClosed(1, maxPathOrder)
 				.boxed().collect(Collectors.toList());
 		chart.categoryAxis().setManualCategories(categories);
 
-		final LineSeries<Integer> series1 = chart.addLineSeries();
+		final LineSeries series1 = chart.addLineSeries();
 		series1.setLabel("N. Paths");
 		series1.setValues(nPathsMap);
-		series1.setStyle(chart.newSeriesStyle(new ColorRGB("#1b9e77"), LineStyle.SOLID,
+		series1.setStyle(plotService.newSeriesStyle(new ColorRGB("#1b9e77"), LineStyle.SOLID,
 				MarkerStyle.CIRCLE));
 
-		final LineSeries<Integer> series2 = chart.addLineSeries();
+		final LineSeries series2 = chart.addLineSeries();
 		series2.setLabel("N. Branch points");
 		series2.setValues(bPointsMap);
-		series2.setStyle(chart.newSeriesStyle(new ColorRGB("#d95f02"), LineStyle.SOLID,
+		series2.setStyle(plotService.newSeriesStyle(new ColorRGB("#d95f02"), LineStyle.SOLID,
 				MarkerStyle.CIRCLE));
 
-		final LineSeries<Integer> series3 = chart.addLineSeries();
+		final LineSeries series3 = chart.addLineSeries();
 		series3.setLabel("Length");
 		series3.setValues(tLengthMap);
-		series3.setStyle(chart.newSeriesStyle(new ColorRGB("#7570b3"), LineStyle.SOLID,
+		series3.setStyle(plotService.newSeriesStyle(new ColorRGB("#7570b3"), LineStyle.SOLID,
 				MarkerStyle.CIRCLE));
 
 		chart.categoryAxis().setLabel("Path order");
@@ -193,20 +192,20 @@ public class PathOrderAnalysisCmd extends TreeAnalyzer {
 
 		final XYPlot plot = plotService.newXYPlot();
 		final XYSeries series1 = plot.addXYSeries();
-		series1.setStyle(plot.newSeriesStyle(new ColorRGB("#1b9e77"), LineStyle.SOLID,
+		series1.setStyle(plotService.newSeriesStyle(new ColorRGB("#1b9e77"), LineStyle.SOLID,
 				MarkerStyle.CIRCLE));
 		series1.setLabel("N. Paths");
 		series1.setValues(converIntSetToDoubleList(nPathsMap.keySet()), nPathsMap.values().stream().collect(Collectors.toList()));
 
 		final XYSeries series2 = plot.addXYSeries();
-		series2.setStyle(plot.newSeriesStyle(new ColorRGB("#d95f02"), LineStyle.SOLID,
+		series2.setStyle(plotService.newSeriesStyle(new ColorRGB("#d95f02"), LineStyle.SOLID,
 				MarkerStyle.CIRCLE));
 		series2.setLabel("N. Branch points");
 		series1.setValues(converIntSetToDoubleList(bPointsMap.keySet()), bPointsMap.values().stream().collect(Collectors.toList()));
 
 
 		final XYSeries series3 = plot.addXYSeries();
-		series3.setStyle(plot.newSeriesStyle(new ColorRGB("#7570b3"), LineStyle.SOLID,
+		series3.setStyle(plotService.newSeriesStyle(new ColorRGB("#7570b3"), LineStyle.SOLID,
 				MarkerStyle.CIRCLE));
 		series3.setLabel("Length");
 		series1.setValues(converIntSetToDoubleList(tLengthMap.keySet()), tLengthMap.values().stream().collect(Collectors.toList()));

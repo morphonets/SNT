@@ -156,7 +156,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 		if (outputChoice.toLowerCase().contains("plot")) {
 			final XYPlot plot = getPlot();
 			final XYSeries series = plot.addXYSeries();
-			series.setStyle(plot.newSeriesStyle(Colors.BLACK, LineStyle.SOLID, MarkerStyle.FILLEDCIRCLE));
+			series.setStyle(plotService.newSeriesStyle(Colors.BLACK, LineStyle.SOLID, MarkerStyle.FILLEDCIRCLE));
 			series.setValues(xValues, yValues);
 			if (includeSDevSeries) {
 				series.setLabel("Mean ± SD");
@@ -164,12 +164,12 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 				final XYSeries upper = plot.addXYSeries();
 				upper.setLabel("Mean+SD");
 				upper.setLegendVisible(false);
-				upper.setStyle(plot.newSeriesStyle(Colors.DARKGRAY, LineStyle.DASH, MarkerStyle.NONE));
+				upper.setStyle(plotService.newSeriesStyle(Colors.DARKGRAY, LineStyle.DASH, MarkerStyle.NONE));
 				upper.setValues(xValues, upperStdDevValues);
 				final XYSeries lower = plot.addXYSeries();
 				lower.setLabel("Mean-SD");
 				lower.setLegendVisible(false);
-				lower.setStyle(plot.newSeriesStyle(Colors.DARKGRAY, LineStyle.DASH, MarkerStyle.NONE));
+				lower.setStyle(plotService.newSeriesStyle(Colors.DARKGRAY, LineStyle.DASH, MarkerStyle.NONE));
 				lower.setValues(xValues, lowerStdDevValues);
 			} else {
 				series.setLabel("Un-matched paths");
@@ -244,7 +244,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 				series.setLabel(groupID.substring(1, groupID.length()-1)); // group ID without curly braces
 				series.setLegendVisible(true);
 				series.setStyle(
-						plot.newSeriesStyle(uniqueColors[colorCounter[0]++], LineStyle.SOLID, MarkerStyle.CIRCLE));
+						plotService.newSeriesStyle(uniqueColors[colorCounter[0]++], LineStyle.SOLID, MarkerStyle.CIRCLE));
 				final ArrayList<Double> xValues = new ArrayList<>(groupMap.size());
 				final ArrayList<Double> yValues = new ArrayList<>(groupMap.size());
 				groupMap.forEach((frame, path) -> {

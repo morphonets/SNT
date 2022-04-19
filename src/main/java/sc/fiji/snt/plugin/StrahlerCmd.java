@@ -145,33 +145,33 @@ public class StrahlerCmd extends ContextCommand {
 		}
 	}
 
-	private CategoryChart<Integer> getSingleTreeChart(final StrahlerData sd) throws IllegalArgumentException {
+	private CategoryChart getSingleTreeChart(final StrahlerData sd) throws IllegalArgumentException {
 		if (!sd.parseable()) {
 			throw new IllegalArgumentException("");
 		}
-		final CategoryChart<Integer> chart = plotService.newCategoryChart(Integer.class);
+		final CategoryChart chart = plotService.newCategoryChart();
 		chart.categoryAxis().setLabel("Horton-Strahler order");
-		chart.categoryAxis().setOrder(Comparator.reverseOrder());
-		LineSeries<Integer> series = chart.addLineSeries();
+		chart.categoryAxis().setOrder((Comparator<?>) Comparator.reverseOrder());
+		LineSeries series = chart.addLineSeries();
 		series.setLabel("Length (sum)");
 		series.setValues(sd.analyzer.getLengths());
-		series.setStyle(chart.newSeriesStyle(Colors.BLUE, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series.setStyle(plotService.newSeriesStyle(Colors.BLUE, LineStyle.SOLID, MarkerStyle.CIRCLE));
 		series = chart.addLineSeries();
 		series.setLabel("No. of branches");
 		series.setValues(sd.analyzer.getBranchCounts());
-		series.setStyle(chart.newSeriesStyle(Colors.RED, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series.setStyle(plotService.newSeriesStyle(Colors.RED, LineStyle.SOLID, MarkerStyle.CIRCLE));
 		series = chart.addLineSeries();
 		series.setLabel("Bif. ratio");
 		series.setValues(sd.analyzer.getBifurcationRatios());
-		series.setStyle(chart.newSeriesStyle(Colors.DARKORANGE, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series.setStyle(plotService.newSeriesStyle(Colors.DARKORANGE, LineStyle.SOLID, MarkerStyle.CIRCLE));
 		series = chart.addLineSeries();
 		series.setLabel("Avg. contraction");
 		series.setValues(sd.analyzer.getAvgContractions());
-		series.setStyle(chart.newSeriesStyle(Colors.DARKMAGENTA, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series.setStyle(plotService.newSeriesStyle(Colors.DARKMAGENTA, LineStyle.SOLID, MarkerStyle.CIRCLE));
 		series = chart.addLineSeries();
 		series.setLabel("Avg. fragmentation");
 		series.setValues(sd.analyzer.getAvgFragmentations());
-		series.setStyle(chart.newSeriesStyle(Colors.DARKGREEN, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series.setStyle(plotService.newSeriesStyle(Colors.DARKGREEN, LineStyle.SOLID, MarkerStyle.CIRCLE));
 		return chart;
 	}
 
@@ -201,16 +201,16 @@ public class StrahlerCmd extends ContextCommand {
 	public SNTChart getChart(final String metric) {
 		final String normMetric = normalizedMetric(metric);
 		initMap();
-		final CategoryChart<Integer> chart = plotService.newCategoryChart(Integer.class);
+		final CategoryChart chart = plotService.newCategoryChart();
 		chart.categoryAxis().setLabel("Horton-Strahler order");
-		chart.categoryAxis().setOrder(Comparator.reverseOrder());
+		chart.categoryAxis().setOrder((Comparator<?>) Comparator.reverseOrder());
 		chart.numberAxis().setLabel(normMetric);
 		final ColorRGB[] colors = SNTColor.getDistinctColors(trees.size());
 		final int[] idx = { 0 };
 		dataMap.forEach((label, data) -> {
-			final LineSeries<Integer> series = chart.addLineSeries();
+			final LineSeries series = chart.addLineSeries();
 			series.setLabel(label);
-			series.setStyle(chart.newSeriesStyle(colors[idx[0]++], LineStyle.SOLID, MarkerStyle.CIRCLE));
+			series.setStyle(plotService.newSeriesStyle(colors[idx[0]++], LineStyle.SOLID, MarkerStyle.CIRCLE));
 			if (data.parseable()) {
 				if (normMetric.toLowerCase().contains("length"))
 					series.setValues(data.analyzer.getLengths());

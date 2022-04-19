@@ -159,7 +159,7 @@ public class Viewer2D extends TreeColorMapper {
 		series.setValues(xc, yc);
 		series.setLegendVisible(false);
 		final ColorRGB color = defaultColor;
-		series.setStyle(plot.newSeriesStyle(color, LineStyle.SOLID, MarkerStyle.NONE));
+		series.setStyle(plotService.newSeriesStyle(color, LineStyle.SOLID, MarkerStyle.NONE));
 	}
 
 	private void plotPaths() {
@@ -186,7 +186,7 @@ public class Viewer2D extends TreeColorMapper {
 			final ColorRGB color = (p.getColor() == null) ? defaultColor
 				: new ColorRGB(p.getColor().getRed(), p.getColor().getGreen(), p
 					.getColor().getBlue());
-			series.setStyle(plot.newSeriesStyle(color, LineStyle.SOLID,
+			series.setStyle(plotService.newSeriesStyle(color, LineStyle.SOLID,
 				MarkerStyle.NONE));
 		}
 		plotColoredNodePathsFast(); // will do nothing if no color nodes exist
@@ -226,7 +226,7 @@ public class Viewer2D extends TreeColorMapper {
 			});
 			series.setValues(xc, yc);
 			final ColorRGB cc = new ColorRGB(c.getRed(), c.getGreen(), c.getBlue());
-			series.setStyle(plot.newSeriesStyle(cc, LineStyle.NONE,
+			series.setStyle(plotService.newSeriesStyle(cc, LineStyle.NONE,
 				MarkerStyle.FILLEDCIRCLE));
 		});
 	}

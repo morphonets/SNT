@@ -533,7 +533,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		final XYSeries series = plot.addXYSeries();
 		final Map<String, List<Double>> values = getValues(p);
 		series.setLabel(p.getName());
-		series.setStyle(plot.newSeriesStyle(color, LineStyle.SOLID,
+		series.setStyle(plotService.newSeriesStyle(color, LineStyle.SOLID,
 			MarkerStyle.CIRCLE));
 		series.setValues(values.get(X_VALUES), values.get(Y_VALUES));
 		series.setLegendVisible(setLegend);

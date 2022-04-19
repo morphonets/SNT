@@ -105,12 +105,12 @@ import org.scijava.util.Colors;
 import ij.ImagePlus;
 import ij.plugin.ImagesToStack;
 import org.scijava.plot.CategoryChart;
-import net.imagej.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
-import net.imagej.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.analysis.plotservice.CategoryChartConverter;
+import sc.fiji.snt.analysis.plotservice.XYPlotConverter;
 
 
 /**
@@ -131,11 +131,11 @@ public class SNTChart extends ChartFrame {
 		this(title, chart, new Dimension((int)(400 * scalingFactor), (int)(400 * scalingFactor)));
 	}
 
-	public SNTChart(final String title, final net.imagej.plot.XYPlot xyplot) {
+	public SNTChart(final String title, final org.scijava.plot.XYPlot xyplot) {
 		this(title, new XYPlotConverter().convert(xyplot, JFreeChart.class));
 	}
 
-	public SNTChart(final String title, final CategoryChart<?> categoryChart) {
+	public SNTChart(final String title, final CategoryChart categoryChart) {
 		this(title, new CategoryChartConverter().convert(categoryChart, JFreeChart.class));
 	}
 
