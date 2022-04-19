@@ -134,7 +134,6 @@
 		<sciview.version>e3510f4</sciview.version>
 		<scenery.version>4d07a30</scenery.version>
 		<jzy3d.version>2.0.0</jzy3d.version>
-		<imagej-plot-service.version>0.1.1</imagej-plot-service.version>
 		<okhttp.version>4.9.3</okhttp.version>
 		<font-awesome.version>6.1.0</font-awesome.version>
 		<json.version>20220320</json.version>
@@ -146,6 +145,7 @@
 		<allowedDuplicateClasses>${scijava.allowedDuplicateClasses},org.jzy3d.plot3d.pipelines.NotImplementedException</allowedDuplicateClasses>
 
 		<!-- TEMP: Until pom-scijava 32.0.0 -->
+		<scijava-plot.version>0.2.0</scijava-plot.version>
 		<jitk-tps.version>3.0.2</jitk-tps.version>
 		<reload4j.version>1.2.19</reload4j.version>
 		<ch.qos.reload4j.reload4j.version>${reload4j.version}</ch.qos.reload4j.reload4j.version>
@@ -281,9 +281,9 @@
 			<artifactId>commons-text</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>net.imagej</groupId>
-			<artifactId>imagej-plot-service</artifactId>
-			<version>${imagej-plot-service.version}</version>
+			<groupId>org.scijava</groupId>
+			<artifactId>scijava-plot</artifactId>
+			<version>${scijava-plot.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.squareup.okhttp3</groupId>
