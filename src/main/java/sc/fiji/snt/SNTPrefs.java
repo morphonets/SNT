@@ -30,6 +30,7 @@ import ij.Prefs;
 import ij.io.FileInfo;
 import ij3d.Content;
 import ij3d.ContentConstants;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.gui.GuiUtils;
 
 /**
@@ -85,6 +86,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		storeIJ1Prefs();
 		imposeIJ1Prefs();
 		wipeSessionPrefs();
+		SNTChart.setDefaultFontScale(Prefs.getGuiScale());
 	}
 
 	protected int get3DViewerResamplingFactor() {

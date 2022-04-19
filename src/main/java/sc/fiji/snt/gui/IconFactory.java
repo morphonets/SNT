@@ -142,7 +142,7 @@ public class IconFactory {
 			POINTER('\uf245', true), //
 			PLUS('\uf0fe', false), //
 			PREVIOUS('\uf358', false), //
-			QUESTION('\uf128', true), //
+			QUESTION('\uf059', false), //
 			QUIT('\uf011', true), //
 			RECYCLE('\uf1b8', true), //
 			REDO('\uf01e', true), //

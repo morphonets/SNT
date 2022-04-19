@@ -125,8 +125,10 @@ public class SNTChart extends ChartFrame {
 	private boolean isCombined;
 	private boolean isAspectRatioLocked;
 
+	private static double scalingFactor = 1;
+
 	public SNTChart(final String title, final JFreeChart chart) {
-		this(title, chart, new Dimension(400, 400));
+		this(title, chart, new Dimension((int)(400 * scalingFactor), (int)(400 * scalingFactor)));
 	}
 
 	public SNTChart(final String title, final net.imagej.plot.XYPlot xyplot) {
@@ -156,6 +158,7 @@ public class SNTChart extends ChartFrame {
 		setBackground(BACKGROUND_COLOR); // provided contrast to otherwise transparent background
 		setPreferredSize(preferredSize);
 		costumizePopupMenu();
+		setFontSize((float) (defFontSize() * scalingFactor));
 		pack();
 	}
 
@@ -979,7 +982,7 @@ public class SNTChart extends ChartFrame {
 		popup.add(dark);
 
 		final float DEF_FONT_SIZE = defFontSize();
-		final JSpinner spinner = GuiUtils.doubleSpinner(1, 0.5, 4, 0.5, 1);
+		final JSpinner spinner = GuiUtils.doubleSpinner(scalingFactor, 0.5, 4, 0.5, 1);
 		spinner.addChangeListener(e -> {
 			setFontSize( ((Double)spinner.getValue()).floatValue() * DEF_FONT_SIZE );
 		});
@@ -1232,17 +1235,22 @@ public class SNTChart extends ChartFrame {
 
 	}
 
+	public static void setDefaultFontScale(final double scalingFactor) {
+		SNTChart.scalingFactor = scalingFactor;
+	}
+
 	/* IDE debug method */
 	public static void main(final String[] args) {
 		GuiUtils.setLookAndFeel();
 		final Tree tree = new SNTService().demoTrees().get(0);
 		final TreeStatistics treeStats = new TreeStatistics(tree);
+		SNTChart.setDefaultFontScale(2d);
 		final SNTChart chart = treeStats.getHistogram("contraction");
 		chart.annotatePoint(0.75, 0.15, "No data here", "green");
 		chart.annotateXline(0.80, "Start of slope", "blue");
 		chart.annotateYline(0.05, "5% mark", "red");
 		chart.annotate("Annotation");
-		chart.setFontSize(18);
+		//chart.setFontSize(18);
 		chart.show();
 	}
 
