@@ -52,7 +52,6 @@ import org.scijava.plot.PlotService;
 import org.scijava.plot.XYPlot;
 import org.scijava.plot.XYSeries;
 import org.scijava.plot.defaultplot.DefaultPlotService;
-import net.imagej.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
@@ -61,6 +60,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
+import sc.fiji.snt.analysis.plotservice.XYPlotConverter;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 

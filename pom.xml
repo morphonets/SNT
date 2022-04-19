@@ -340,5 +340,9 @@
 			<version>${reload4j.version}</version>
 			<scope>runtime</scope>
 		</dependency>
+		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>fiji-lib</artifactId>
+		</dependency>
 	</dependencies>
 </project>
