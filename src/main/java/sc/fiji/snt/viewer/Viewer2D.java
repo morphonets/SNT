@@ -46,12 +46,12 @@ import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
 import net.imagej.ImageJ;
-import net.imagej.plot.LineStyle;
-import net.imagej.plot.MarkerStyle;
-import net.imagej.plot.PlotService;
-import net.imagej.plot.XYPlot;
-import net.imagej.plot.XYSeries;
-import net.imagej.plot.defaultplot.DefaultPlotService;
+import org.scijava.plot.LineStyle;
+import org.scijava.plot.MarkerStyle;
+import org.scijava.plot.PlotService;
+import org.scijava.plot.XYPlot;
+import org.scijava.plot.XYSeries;
+import org.scijava.plot.defaultplot.DefaultPlotService;
 import net.imagej.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.Path;

@@ -30,13 +30,13 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import net.imagej.plot.CategoryChart;
-import net.imagej.plot.LineSeries;
-import net.imagej.plot.LineStyle;
-import net.imagej.plot.MarkerStyle;
-import net.imagej.plot.PlotService;
-import net.imagej.plot.XYPlot;
-import net.imagej.plot.XYSeries;
+import org.scijava.plot.CategoryChart;
+import org.scijava.plot.LineSeries;
+import org.scijava.plot.LineStyle;
+import org.scijava.plot.MarkerStyle;
+import org.scijava.plot.PlotService;
+import org.scijava.plot.XYPlot;
+import org.scijava.plot.XYSeries;
 
 import org.scijava.plugin.Parameter;
 import org.scijava.ui.UIService;

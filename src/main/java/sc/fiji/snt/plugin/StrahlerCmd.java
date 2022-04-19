@@ -43,11 +43,11 @@ import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
 import net.imagej.ImageJ;
-import net.imagej.plot.CategoryChart;
-import net.imagej.plot.LineSeries;
-import net.imagej.plot.LineStyle;
-import net.imagej.plot.MarkerStyle;
-import net.imagej.plot.PlotService;
+import org.scijava.plot.CategoryChart;
+import org.scijava.plot.LineSeries;
+import org.scijava.plot.LineStyle;
+import org.scijava.plot.MarkerStyle;
+import org.scijava.plot.PlotService;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.SNTChart;

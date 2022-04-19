@@ -104,7 +104,7 @@ import org.scijava.util.Colors;
 
 import ij.ImagePlus;
 import ij.plugin.ImagesToStack;
-import net.imagej.plot.CategoryChart;
+import org.scijava.plot.CategoryChart;
 import net.imagej.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
 import net.imagej.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import net.imglib2.display.ColorTable;
