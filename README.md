@@ -35,15 +35,15 @@
 </div>
 <div align="center">
   <h3>
-    <a href="#Features">
+    <a href="https://github.com/morphonets/SNT/edit/master/README.md#features">
       Features
     </a>
     <span style="margin:.5em">|</span>
-    <a href="#Installation">
+    <a href="https://github.com/morphonets/SNT/edit/master/README.md#installation">
       Installation
     </a>
     <span style="margin:.5em">|</span>
-    <a href="#Contributing">
+    <a href="https://github.com/morphonets/SNT/edit/master/README.md#contributing">
       Contributing
     </a>
     <span style="margin:.5em">|</span>
@@ -68,6 +68,11 @@
 SNT is [ImageJ](https://imagej.net/)'s framework for semi-automated tracing, visualization, quantitative analyses and modeling of neuronal morphology. For tracing, SNT supports modern multi-dimensional microscopy data, and highly-customizable routines. For data analysis, SNT features advanced visualization tools, access to all major morphology databases, and support for whole-brain circuitry data.
 
 SNT can be used as a regular application or as a scripting library. Python (through [pyimagej](https://github.com/imagej/pyimagej)) and  all of SciJava's scripting languages are supported. It is distributed with [Fiji](https://imagej.net/Fiji) and supersedes the original [Simple Neurite Tracer](#backwards-compatibility) plug-in. It also incorporates several other neuroanatomy-related Fiji plugins. **See  [SNT's publication](https://doi.org/10.1038/s41592-021-01105-7)  and [techical notes](./NOTES.md) for details**.
+
+
+## Overview
+
+[![Overview](https://user-images.githubusercontent.com/2439948/167173119-2e4bea60-38e6-437f-82a9-205700f83ae8.png)](https://www.nature.com/articles/s41592-021-01105-7)
 
 ## Features
 ### Tracing
