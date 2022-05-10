@@ -38,6 +38,7 @@ import org.scijava.plot.XYSeries;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
@@ -49,6 +50,7 @@ import org.scijava.util.Colors;
 
 import ij.ImagePlus;
 import ij.gui.Plot;
+import ij.plugin.filter.MaximumFinder;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
@@ -467,6 +469,40 @@ public class PathProfiler extends CommonDynamicCmd {
 		map.put(X_VALUES, xList);
 		map.put(Y_VALUES, yList);
 		return map;
+	}
+
+	/**
+	 * Finds the maxima in the profile of the specified path.
+	 * <p>
+	 * A maxima (peak) will only be considered if protruding more than the profile's
+	 * standard deviation from the ridge to a higher maximum
+	 * </p>
+	 * 
+	 * @param channel the channel
+	 * @return the indices of the maxima
+	 */
+	public int[] findMaxima(final Path path, final int channel) {
+		final double[] profile = getValues(path, channel).get(PathProfiler.Y_VALUES).stream().mapToDouble(d -> d).toArray();
+		final SummaryStatistics stats = new SummaryStatistics();
+		Arrays.stream(profile).forEach(v -> stats.addValue(v));
+		return MaximumFinder.findMaxima(profile, stats.getStandardDeviation(), false);
+	}
+
+	/**
+	 * Finds the minima in the profile of the specified path.
+	 * <p>
+	 * A maxima (peak) will only be considered if protruding less than the profile's
+	 * standard deviation from the ridge to a lower minimum
+	 * </p>
+	 * 
+	 * @param channel the channel
+	 * @return the indices of the minima
+	 */
+	public int[] findMinima(final Path path, final int channel) {
+		final double[] profile = getValues(path, channel).get(PathProfiler.Y_VALUES).stream().mapToDouble(d -> d).toArray();
+		final SummaryStatistics stats = new SummaryStatistics();
+		Arrays.stream(profile).forEach(v -> stats.addValue(v));
+		return MaximumFinder.findMinima(profile, stats.getStandardDeviation(), false);
 	}
 
 	/**
