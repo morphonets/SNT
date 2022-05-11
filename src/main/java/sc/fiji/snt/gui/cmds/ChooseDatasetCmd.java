@@ -68,10 +68,13 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 	public void run() {
 		if (impMap == null || choice == null || impMap.isEmpty()) {
 			error("No other open images seem to be available.");
-		}
-		else {
-			final ImagePlus chosenImp = impMap.get(choice);
-			if (compatibleCalibration(chosenImp)) snt.initialize(chosenImp);
+		} else {
+			ImagePlus chosenImp = impMap.get(choice);
+			if (!compatibleCalibration(chosenImp))
+				return;
+			chosenImp = comvertInPlaceToCompositeAsNeeded(chosenImp);
+			if (chosenImp.getType() != ImagePlus.COLOR_RGB)
+				snt.initialize(chosenImp);
 		}
 		resetUI();
 	}
