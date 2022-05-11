@@ -133,11 +133,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	private static final long serialVersionUID = 1L;
 	private static final String FIT_URI = "https://imagej.net/plugins/snt/manual#refinefit";
-	private static final String SYM_MARKER = "M:"; //"\uD83D\uDD88"; // not displayed in MacOS
+	private static final String SYM_MARKER = "M:"; //"\uD83D\uDD88"; // not displayed in macOS
 	private static final String SYM_RADIUS = "MR:"; //"\u25CB";
-	private static final String SYM_LENGTH = "L:";//"\uD800\uDCB3"; // not displayed in MacOS
-	private static final String SYM_TREE = "ID:"; //"\uD800\uDCB7"; // not displayed in MacOS
-	private static final String SYM_ORDER ="ORD:"; //"\uD800\uDC92"; // not displayed in MacOS
+	private static final String SYM_LENGTH = "L:";//"\uD800\uDCB3"; // not displayed in macOS
+	private static final String SYM_TREE = "ID:"; //"\uD800\uDCB7"; // not displayed in macOS
+	private static final String SYM_ORDER ="ORD:"; //"\uD800\uDC92"; // not displayed in macOS
 
 	private final HelpfulJTree tree;
 	private final SNT plugin;
@@ -160,7 +160,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	/**
 	 * Instantiates a new Path Manager Dialog.
 	 *
-	 * @param plugin the the {@link SNT} instance to be associated
+	 * @param plugin the {@link SNT} instance to be associated
 	 *               with this Path Manager. It is assumed that its {@link SNTUI} is
 	 *               available.
 	 */
@@ -267,7 +267,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		imageTagsMenu.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.SLICE_LABEL_TAG_CMD);
 		jmi.setToolTipText("Applies 'Slice labels' (AKA 'image subtitles') as custom tag(s).\n"
-				+ "NB: Unless explicitly set, most images do not have meaninful slice labels");
+				+ "NB: Unless explicitly set, most images do not have meaningful slice labels");
 		jmi.addActionListener(multiPathListener);
 		imageTagsMenu.add(jmi);
 		tagsMenu.add(imageTagsMenu);
@@ -323,7 +323,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final JMenu fillMenu = new JMenu("Fill");
 		menuBar.add(fillMenu);
 		jmi = new JMenuItem(MultiPathActionListener.FILL_OUT_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.FILL));
-		jmi.setToolTipText("Initates filling procedures for selected path(s)");
+		jmi.setToolTipText("Initiates filling procedures for selected path(s)");
 		jmi.addActionListener(multiPathListener);
 		fillMenu.add(jmi);
 		fillMenu.addSeparator();
@@ -338,7 +338,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		colorMapMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COLOR2));
 		advanced.add(colorMapMenu);
 		jmi = new JMenuItem(MultiPathActionListener.COLORIZE_PATHS_CMD);
-		jmi.setToolTipText("Color codes selected path(s) indepently of their connectivity");
+		jmi.setToolTipText("Color codes selected path(s) independently of their connectivity");
 		jmi.addActionListener(multiPathListener);
 		colorMapMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.COLORIZE_TREES_CMD);
@@ -350,7 +350,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		distributionMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHART));
 		advanced.add(distributionMenu);
 		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_PATHS_CMD);
-		jmi.setToolTipText("Computes distributions of metrics for selected path(s), indepently of their connectivity");
+		jmi.setToolTipText("Computes distributions of metrics for selected path(s), independently of their connectivity");
 		jmi.addActionListener(multiPathListener);
 		distributionMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_TREES_CMD);
@@ -362,7 +362,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		measureMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
 		advanced.add(measureMenu);
 		jmi = new JMenuItem(MultiPathActionListener.MEASURE_PATHS_CMD);
-		jmi.setToolTipText("Measures selected path(s) indepently of their connectivity");
+		jmi.setToolTipText("Measures selected path(s) independently of their connectivity");
 		jmi.addActionListener(multiPathListener);
 		measureMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.MEASURE_TREES_CMD);
@@ -736,7 +736,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				: "Fit Path...");
 			fitVolumeMenuItem.setToolTipText((fitExists)
 				? "<html>Path has never been fitted:<br>Fit will be computed for the first time"
-				: "<html>Path has already been fitted:\nCached properties will be aplied");
+				: "<html>Path has already been fitted:\nCached properties will be applied");
 		}
 		colorMenu.selectSWCColor(new SNTColor(p.getColor(), p.getSWCType()));
 		selectSWCTypeMenuEntry(p.getSWCType());
@@ -987,7 +987,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	protected void quickMeasurementsCmdError(final GuiUtils guiUtils) {
-		guiUtils.error("Selected paths do not fullfill requirements for retrieval of choiceless measurements. "
+		guiUtils.error("Selected paths do not fulfill requirements for retrieval of choiceless measurements. "
 				+ "This can happen if e.g., paths are disconnected, or have been tagged with different type "
 				+ "flags combined in an unexpected way. Please use the options in the \"Measure\" prompt to "
 				+ "retrieve measurements.");
@@ -1077,7 +1077,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					catch (final InterruptedException | RuntimeException e) {
 						msg.dispose();
 						guiUtils.error(
-							"Unfortunately an Exception occured. See Console for details");
+							"Unfortunately an Exception occurred. See Console for details");
 						e.printStackTrace();
 					}
 					finally {
@@ -1676,7 +1676,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					{
 						msg.dispose();
 						guiUtils.error(
-							"Unfortunately an exception occured. See Console for details");
+							"Unfortunately an exception occurred. See Console for details");
 						e.printStackTrace();
 					}
 					return null;
@@ -2028,7 +2028,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 *
 	 * @param cmd  The command to be run, exactly as listed in the PathManagerUI's
 	 *             menu bar or Right-click contextual menu
-	 * @param args the option(s) that would fill the commands's prompt. e.g.,
+	 * @param args the option(s) that would fill the command's prompt. e.g.,
 	 *             'runCommand("Color Code Cell(s)...", X coordinates", "Cyan Hot.lut")'
 	 * @throws IllegalArgumentException if {@code cmd} was not found, or if it is
 	 *                                  not supported.
@@ -2183,7 +2183,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 		catch (final IOException e) {
 			plugin.error(
-				"Unfortunately an Exception occured. See Console for details");
+				"Unfortunately an Exception occurred. See Console for details");
 			plugin.getUI().showStatus("Exporting Failed..", true);
 			e.printStackTrace();
 		}
@@ -2902,7 +2902,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				}
 				if (pathsToMerge.size() < n - 1 && !guiUtils.getConfirmation(
 					"Some of the selected paths are connected and cannot be combined. " +
-						"Proceed by combinining the " + pathsToMerge.size() +
+						"Proceed by combining the " + pathsToMerge.size() +
 						" disconnected path(s) in the selection?",
 					"Only Disconnected Paths Can Be Combined"))
 				{
@@ -2993,7 +2993,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final double maxDeviation = userMaxDeviation;
 				if (Double.isNaN(maxDeviation) || maxDeviation <= 0) {
 					guiUtils.error(
-						"The maximum permitted distance must be a postive number",
+						"The maximum permitted distance must be a positive number",
 						"Invalid Input");
 					return;
 				}
@@ -3099,7 +3099,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			final String defChoice = plugin.getPrefs().getTemp("remove-tags", choices[2]);
 			final String choice = guiUtils.getChoice(
 					"Remove which type of tags?<br>NB: SWC-type tags are always preserved. "
-					+ "Programatic colors, metadata, and morphometry tags can be re-applied after deletion.",
+					+ "Programmatic colors, metadata, and morphometry tags can be re-applied after deletion.",
 					"Remove Tags", choices, defChoice);
 			if (choice == null) {
 				return;
