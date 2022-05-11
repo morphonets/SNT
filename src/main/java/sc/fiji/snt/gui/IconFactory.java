@@ -92,6 +92,7 @@ public class IconFactory {
 			DOTCIRCLE('\uf192', true), //
 			//DOWNLOAD('\uf019', true), //
 			DRAFT('\uf568', true), //
+			ELLIPSIS_VERTICAL('\uf142', true), //
 			EQUALS('\uf52c', true), //
 			EXPAND('\uf065', true), //
 			EXPAND_ARROWS1('\uf337', true), //

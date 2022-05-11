@@ -46,6 +46,7 @@ import java.util.Hashtable;
 import javax.swing.AbstractButton;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
@@ -84,6 +85,7 @@ public class SNTCommandFinder {
 	private JTable table;
 	private TableModel tableModel;
 	private ComponentWithFocusTimer relativeToComponent;
+	private boolean recordCmd;
 
 	public SNTCommandFinder(final SNTUI sntui) {
 		super();
@@ -230,9 +232,38 @@ public class SNTCommandFinder {
 			resizeRowHeight();
 	}
 
-	private void helpMsg() {
-		new GuiUtils(frame.getContentPane()).tempMsg("Shortcuts:" //
-				+ "<table>" //
+
+	private void recordCommand(final CommandAction cmdAction) {
+		if (!recordCmd) return;
+		if (cmdAction.cmdName.startsWith("<HTML>") || cmdAction.buttonLocationDescription.contains("Scripts")) {
+			System.out.println("SNT Command is not recordable...\n");
+			return;
+		}
+		final StringBuilder sb = new StringBuilder();
+		sb.append("#@SNTService snt\n");
+		if (cmdAction.buttonHostDescription.startsWith("PM")) {
+			sb.append("snt.getUI().getPathManager().");
+			if (cmdAction.buttonLocationDescription.contains("Tag") && !cmdAction.cmdName.contains("..."))
+				sb.append("applyDefaultTags(");
+			else
+				sb.append("runCommand(");
+			sb.append("\"").append(cmdAction.cmdName).append("\"").append(");");
+		} else {
+			sb.append("snt.getUI().");
+			if (!cmdAction.cmdName.contains("...")) {
+				sb.append("runCommand(").append("\"").append(cmdAction.cmdName).append("\"").append(");");
+			} else {
+				sb.append("runCommand(").append("\"").append(cmdAction.cmdName).append("\"")
+						.append(", \"[optional prompt options...]\");");
+			}
+		}
+		sb.append("\n");
+		System.out.println(sb.toString());
+	}
+
+	private void shortcutsMsg() {
+		new GuiUtils(frame.getContentPane()).tempMsg( //
+				"<HTML><table>" //
 				+ " <tr>" //
 				+ "  <td>&uarr; &darr;</td>" //
 				+ "  <td>Select Commands</td>" //
@@ -258,10 +289,13 @@ public class SNTCommandFinder {
 
 	private void runCommand(final String command) {
 		hideWindow(); // hide before running, in case command opens a dialog
-		if (defaultCmdsHash.get(command) != null)
+		if (defaultCmdsHash.get(command) != null) {
 			defaultCmdsHash.get(command).button.doClick();
-		else
+			recordCommand(defaultCmdsHash.get(command));
+		} else {
+			recordCommand(otherCmdsHash.get(command));
 			otherCmdsHash.get(command).button.doClick();
+		}
 	}
 
 	private static Window findWindow(final Component c) {
@@ -442,10 +476,26 @@ public class SNTCommandFinder {
 		});
 
 		final JPanel northPanel = new JPanel(new BorderLayout());
-		final JButton searchLabel = new JButton(IconFactory.getButtonIcon(GLYPH.KEYBOARD));
-		searchLabel.addActionListener(e -> helpMsg());
-		searchLabel.setToolTipText("Click for shortcut list");
-		northPanel.add(searchLabel, BorderLayout.WEST);
+		final JButton options = new JButton(IconFactory.getButtonIcon(GLYPH.ELLIPSIS_VERTICAL));
+		final JPopupMenu optionsMenu = new JPopupMenu();
+		options.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mousePressed(final MouseEvent e) {
+				optionsMenu.show(options, options.getWidth() / 2, options.getHeight() / 2);
+			}
+		});
+		final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Record Commands", recordCmd);
+		jcmi.setEnabled(sntui != null);
+		optionsMenu.add(jcmi);
+		jcmi.addActionListener(e -> {
+			recordCmd = jcmi.isSelected();
+			System.out.println("Recording of selected commands enabled: " + recordCmd);
+		});
+		final JMenuItem jmi = new JMenuItem("List Shortcuts...");
+		optionsMenu.add(jmi);
+		jmi.addActionListener(e -> shortcutsMsg());
+
+		northPanel.add(options, BorderLayout.WEST);
 		searchField = GuiUtils.textField("Search");
 		searchField.getDocument().addDocumentListener(new PromptDocumentListener());
 		final InternalKeyListener keyListener = new InternalKeyListener();
