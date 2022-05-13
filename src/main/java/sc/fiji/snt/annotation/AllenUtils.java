@@ -55,7 +55,7 @@ public class AllenUtils {
 	/** The version of the Common Coordinate Framework currently used by SNT */
 	private static final String V2_5 = "2.5"; // the legacy MouseLight atlas
 	private static final String V3 = "3";
-	public static String VERSION = V3;
+	public static final String VERSION = V3;
 	private static final Map<String, String> brainAreasByCCFVersion = createBrainAreasResourcePathsMap();
 	protected static final int BRAIN_ROOT_ID = 997;
 
