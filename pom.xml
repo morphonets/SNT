@@ -147,7 +147,7 @@
 		<!-- TEMP: Until pom-scijava 32.0.0 -->
 		<scijava-plot.version>0.2.0</scijava-plot.version>
 		<jitk-tps.version>3.0.2</jitk-tps.version>
-		<reload4j.version>1.2.19</reload4j.version>
+		<reload4j.version>1.2.21</reload4j.version>
 		<ch.qos.reload4j.reload4j.version>${reload4j.version}</ch.qos.reload4j.reload4j.version>
 	</properties>
 
