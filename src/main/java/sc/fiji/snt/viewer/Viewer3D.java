@@ -126,7 +126,6 @@ import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
-import org.scijava.command.ContextCommand;
 import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
@@ -3987,16 +3986,44 @@ public class Viewer3D {
 					runCmd(ShollAnalysisBulkTreeCmd.class, input, CmdWorker.DO_NOTHING, false, false);
 				}
 			});
+			class RunStrahlerCmd extends SwingWorker<Object, Object> {
+
+				CommandModule cmdModule;
+				final HashMap<String, Object> inputs;
+				RunStrahlerCmd(final HashMap<String, Object> inputs) {
+					this.inputs = inputs;
+				}
+
+				@Override
+				public Object doInBackground() {
+					try {
+						cmdModule = cmdService.run(StrahlerCmd.class, true, inputs).get();
+					}
+					catch (final InterruptedException | ExecutionException ignored) {
+						return null;
+					}
+					return null;
+				}
+
+				@Override
+				protected void done() {
+					if (cmdModule != null && cmdModule.isCanceled()) {
+						return; // user pressed cancel or chose nothing
+					}
+				}
+			}
 			measureMenu.add(mi);
 			mi = GuiUtils.MenuItems.strahlerAnalysis();
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
 				if (trees == null || trees.isEmpty()) return;
-				final ContextCommand cmd = new StrahlerCmd(trees);
-				cmd.setContext(context);
-				SwingUtilities.invokeLater(() -> cmd.run());
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("trees", trees);
+				(new RunStrahlerCmd(inputs)).execute();
 			});
+			
 			measureMenu.add(mi);
+			
 			GuiUtils.addSeparator(measureMenu, "Graph-based Analysis:");
 			mi = GuiUtils.MenuItems.createDendrogram();
 			mi.addActionListener(e -> {
@@ -7265,7 +7292,7 @@ public class Viewer3D {
 		final Tree tree = new SNTService().demoTrees().get(0);
 		final TreeColorMapper colorizer = new TreeColorMapper(ij.getContext());
 		colorizer.map(tree, TreeColorMapper.PATH_ORDER, ColorTables.ICE);
-	final double[] bounds = colorizer.getMinMax();
+		final double[] bounds = colorizer.getMinMax();
 		SNTUtils.setDebugMode(true);
 		final Viewer3D jzy3D = new Viewer3D(ij.context());
 		jzy3D.addColorBarLegend(ColorTables.ICE, (float) bounds[0],

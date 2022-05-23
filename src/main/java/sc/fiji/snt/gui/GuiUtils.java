@@ -1938,7 +1938,7 @@ public class GuiUtils {
 		}
 
 		public static JMenuItem strahlerAnalysis() {
-			final JMenuItem jmi = new JMenuItem("Strahler Analysis", IconFactory.getMenuIcon(GLYPH.BRANCH_CODE));
+			final JMenuItem jmi = new JMenuItem("Strahler Analysis...", IconFactory.getMenuIcon(GLYPH.BRANCH_CODE));
 			jmi.setToolTipText("Horton–Strahler measures of branching complexity");
 			return jmi;
 		}
