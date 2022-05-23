@@ -173,7 +173,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		nIJ1Tables = Math.min(MAX_N, ij1Tables.size());
 
 		// get SNTCharts and IJ1Plots
-		sntCharts = SNTChart.getOpenCharts();
+		sntCharts = SNTChart.openCharts();
 		nSNTCharts = Math.min(MAX_N, sntCharts.size());
 		ij1Plots = getIJ1Plots();
 		nIJ1Plots = Math.min(MAX_N, ij1Plots.size());

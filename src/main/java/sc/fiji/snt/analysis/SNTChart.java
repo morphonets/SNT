@@ -24,6 +24,7 @@ package sc.fiji.snt.analysis;
 
 import java.awt.BasicStroke;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
@@ -32,7 +33,6 @@ import java.awt.GridLayout;
 import java.awt.Paint;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
-import java.awt.Window;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.WindowAdapter;
@@ -44,11 +44,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFileChooser;
-import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
@@ -109,6 +109,7 @@ import ij.ImagePlus;
 import ij.plugin.ImagesToStack;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 
@@ -122,6 +123,7 @@ public class SNTChart extends ChartFrame {
 
 	private static final long serialVersionUID = 5245298401153759551L;
 	private static final Color BACKGROUND_COLOR = Color.WHITE;
+	private static final List<SNTChart> openInstances = new ArrayList<>();
 	private boolean isCombined;
 	private boolean isAspectRatioLocked;
 
@@ -141,11 +143,14 @@ public class SNTChart extends ChartFrame {
 
 	protected SNTChart(final String title, final JFreeChart chart, final Dimension preferredSize) {
 		super(title, chart);
-		chart.setBackgroundPaint(BACKGROUND_COLOR);
-		chart.setAntiAlias(true);
-		chart.setTextAntiAlias(true);
-		if (chart.getLegend() != null) {
-			chart.getLegend().setBackgroundPaint(chart.getBackgroundPaint());
+		if (chart != null) {
+			chart.setBackgroundPaint(BACKGROUND_COLOR);
+			chart.setAntiAlias(true);
+			chart.setTextAntiAlias(true);
+			if (chart.getLegend() != null) {
+				chart.getLegend().setBackgroundPaint(chart.getBackgroundPaint());
+			}
+			setFontSize((float) (defFontSize() * scalingFactor));
 		}
 		final ChartPanel cp = new ChartPanel(chart);
 		// Tweak: Ensure chart is always drawn and not scaled to avoid rendering
@@ -156,10 +161,18 @@ public class SNTChart extends ChartFrame {
 		cp.setMaximumDrawHeight(Integer.MAX_VALUE);
 		cp.setBackground(BACKGROUND_COLOR);
 		setBackground(BACKGROUND_COLOR); // provided contrast to otherwise transparent background
-		setPreferredSize(preferredSize);
-		costumizePopupMenu();
-		setFontSize((float) (defFontSize() * scalingFactor));
+		if (chart != null) {
+			costumizePopupMenu();
+			setPreferredSize(preferredSize);
+		}
 		pack();
+		setLocationByPlatform(true);
+		addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowOpened(final WindowEvent e) {
+				openInstances.add(SNTChart.this);
+			}
+		});
 	}
 
 	private XYPlot getXYPlot() {
@@ -360,6 +373,14 @@ public class SNTChart extends ChartFrame {
 			final XYItemRenderer renderer = ((XYPlot) plot).getRenderer();
 			final int nSeries = ((XYPlot) plot).getDataset().getSeriesCount();
 			setDatasetColors(renderer, nSeries, getColors(nSeries, colorTable));
+		}
+	}
+
+	public void setChartTitle(final String title) {
+		try {
+			super.getChartPanel().getChart().setTitle(title);
+		} catch (final NullPointerException ignored) {
+			//ignored
 		}
 	}
 
@@ -582,7 +603,18 @@ public class SNTChart extends ChartFrame {
 	}
 
 	public void saveAsPNG(final File file) throws IOException {
-		ChartUtils.saveChartAsPNG(file, getChartPanel().getChart(), getChartPanel().getWidth(),  getChartPanel().getHeight());
+		final int SCALE = 1;
+		if (isCombined()) {
+			for (Component c : getContentPane().getComponents()) {
+				if (c instanceof ChartPanel) {
+					ChartUtils.saveChartAsPNG(SNTUtils.getUniquelySuffixedFile(file), ((ChartPanel) c).getChart(),
+							getChartPanel().getWidth() * SCALE, getChartPanel().getHeight() * SCALE);
+				}
+			}
+		} else {
+			ChartUtils.saveChartAsPNG(file, getChartPanel().getChart(), getChartPanel().getWidth() * SCALE,
+					getChartPanel().getHeight() * SCALE);
+		}
 	}
 
 	public void saveAsPNG(final String filePath) throws IOException {
@@ -892,6 +924,11 @@ public class SNTChart extends ChartFrame {
 
 	@Override
 	public void dispose() {
+		disposeInternal();
+		openInstances.remove(this);
+	}
+
+	private void disposeInternal() {
 		super.dispose();
 		if (getChartPanel() != null) {
 			getChartPanel().removeAll();
@@ -907,8 +944,10 @@ public class SNTChart extends ChartFrame {
 	@SuppressWarnings("deprecation")
 	public void show() {
 		if (!isVisible()) {
-			//setLocationByPlatform(true);
-			AWTWindows.centerWindow(this);
+			if (openInstances.isEmpty())
+				AWTWindows.centerWindow(this);
+			else
+				setLocationRelativeTo(openInstances.get(openInstances.size()-1));
 		}
 		SwingUtilities.invokeLater(() -> super.show());
 	}
@@ -981,6 +1020,28 @@ public class SNTChart extends ChartFrame {
 		popup.add(grids);
 		popup.add(dark);
 
+		popup.addSeparator();
+		final JMenu utils = new JMenu("Utilities");
+		popup.add(utils);
+		jmi = new JMenuItem("Close All Plots...");
+		utils.add(jmi);
+		jmi.addActionListener( e -> {
+			if (new GuiUtils(this).getConfirmation("Close all open plots? (Undoable operation)", "Close All Plots?"))
+				SNTChart.closeAll();
+		});
+		jmi = new JMenuItem("Merge All Plots Into IJ Stack");
+		utils.add(jmi);
+		jmi.addActionListener( e -> {
+			if (new GuiUtils(this).getConfirmation("Merge all plots? (Undoable operation)", "Merge Into Stack?")) {
+				SNTChart.combineAsImagePlus(openInstances).show();
+				SNTChart.closeAll();
+			}
+		});
+		jmi = new JMenuItem("Tile All Plots");
+		utils.add(jmi);
+		jmi.addActionListener( e -> SNTChart.tileAll());
+		popup.addSeparator();
+
 		final float DEF_FONT_SIZE = defFontSize();
 		final JSpinner spinner = GuiUtils.doubleSpinner(scalingFactor, 0.5, 4, 0.5, 1);
 		spinner.addChangeListener(e -> {
@@ -996,7 +1057,6 @@ public class SNTChart extends ChartFrame {
 		p.add(GuiUtils.leftAlignedLabel(" Scale: ", true));
 		c.gridx = 1;
 		p.add(spinner, c);
-		popup.addSeparator();
 		popup.add(p);
 	}
 
@@ -1109,17 +1169,29 @@ public class SNTChart extends ChartFrame {
 		return isCombined;
 	}
 
-	public static List<SNTChart> getOpenCharts() {
-		final List<SNTChart> sntCharts = new ArrayList<>();
-		for (final Window win : Window.getWindows()) {
-			if (win != null && win instanceof SNTChart && ((SNTChart)win).containsValidData()) {
-				sntCharts.add((SNTChart) win);
-			}
-		}
-		return sntCharts;
+	public static List<SNTChart> openCharts() {
+		return openInstances;
 	}
 
-	public static ImagePlus combinedStack(final Collection<SNTChart> charts) {
+	public static void closeAll() {
+		final Iterator<SNTChart> iterator = openInstances.iterator();
+		while (iterator.hasNext()) {
+			iterator.next().disposeInternal();
+		}
+		openInstances.clear();
+	}
+
+	public static void tileAll() {
+		GuiUtils.tile(openInstances);
+	}
+
+	/**
+	 * Combines a collection of charts into a ImageJ1 stack.
+	 *
+	 * @param charts input charts
+	 * @return the stack as an ImagePlus (RGB)
+	 */
+	public static ImagePlus combineAsImagePlus(final Collection<SNTChart> charts) {
 		final ImagePlus[] arrayOfImages = new ImagePlus[charts.size()];
 		int i = 0;
 		for (final SNTChart chart : charts) {
@@ -1128,12 +1200,41 @@ public class SNTChart extends ChartFrame {
 		return ImagesToStack.run(arrayOfImages);
 	}
 
-	public static JFrame combinedFrame(final Collection<SNTChart> charts) {
-		return combinedFrame(charts, -1, -1);
+	/**
+	 * Combines a collection of charts into a multipanel montage. Number of rows and
+	 * columns is automatically determined.
+	 *
+	 * @param charts input charts
+	 * @return the frame containing the montage.
+	 */
+	public static SNTChart combine(final Collection<SNTChart> charts) {
+		return combine(charts, -1, -1, false);
 	}
 
-	public static JFrame combinedFrame(final Collection<SNTChart> charts, final int rows, final int cols) {
-		return new MultiSNTChart(charts, rows, cols).getJFrame();
+	/**
+	 * Combines a collection of charts into a multipanel montage. Number of rows and
+	 * columns is automatically determined.
+	 *
+	 * @param charts      input charts
+	 * @param labelPanels whether each panel in the montage should be labeled
+	 * @return the frame containing the montage.
+	 */
+	public static SNTChart combine(final Collection<SNTChart> charts, final boolean labelPanels) {
+		return combine(charts, -1, -1, labelPanels);
+	}
+
+	/**
+	 * Combines a collection of charts into a multipanel montage.
+	 *
+	 * @param charts      input charts
+	 * @param rows        the number of rows in the montage
+	 * @param cols        the number of columns in the montage
+	 * @param labelPanels whether each panel in the montage should be labeled
+	 * @return the frame containing the montage
+	 */
+	public static SNTChart combine(final Collection<SNTChart> charts, final int rows, final int cols,
+			final boolean labelPanels) {
+		return new MultiSNTChart(charts, rows, cols, labelPanels).getChart();
 	}
 
 	private static class MultiSNTChart {
@@ -1141,8 +1242,9 @@ public class SNTChart extends ChartFrame {
 		final Collection<SNTChart> charts;
 		int[] grid;
 		String label;
+		boolean labelPanels;
 
-		MultiSNTChart(final Collection<SNTChart> charts, final int rows, final int cols) {
+		MultiSNTChart(final Collection<SNTChart> charts, final int rows, final int cols, final boolean labelPanels) {
 			if (charts == null || charts.isEmpty())
 				throw new IllegalArgumentException("Invalid chart list");
 			this.charts = charts;
@@ -1150,6 +1252,7 @@ public class SNTChart extends ChartFrame {
 				grid = splitIntoParts(charts.size(), 2);
 			else
 				grid = new int[] { rows, cols };
+			this.labelPanels = labelPanels;
 		}
 
 		@SuppressWarnings("unused")
@@ -1161,7 +1264,7 @@ public class SNTChart extends ChartFrame {
 			return (label == null) ? "Combined Charts" : label;
 		}
 
-		JFrame getJFrame() {
+		SNTChart getChart() {
 			// make all plots the same size. Not sure if this is needed!?
 			int w = Integer.MIN_VALUE;
 			int h = Integer.MIN_VALUE;
@@ -1173,34 +1276,36 @@ public class SNTChart extends ChartFrame {
 			}
 			for (final SNTChart chart : charts)
 				chart.getChartPanel().setSize(w, h);
-			final JFrame frame = new JFrame(getLabel());
-			final JPanel panel = new JPanel(new GridLayout(grid[0], grid[1]));
-			frame.add(panel);
-			panel.setToolTipText("Use the \"Save Tables & Analysis Plots...\" command to save panel(s)");
+			final SNTChart holdingFrame = new SNTChart(getLabel(), (JFreeChart)null);
+			holdingFrame.isCombined = true;
+			final JPanel contentPanel = new JPanel(new GridLayout(grid[0], grid[1]));
+			holdingFrame.setContentPane(contentPanel);
+			contentPanel.setToolTipText("Use the \"Save Tables & Analysis Plots...\" command to save panel(s)");
 			final boolean allVisible = charts.stream().allMatch(c -> c.isVisible());
 			charts.forEach(chart -> {
-				panel.add(chart.getChartPanel());
-				chart.isCombined = true;
+				if (labelPanels && chart.getChartPanel().getChart().getTitle() == null)
+					chart.setChartTitle(chart.getTitle());
+				contentPanel.add(chart.getChartPanel());
 			});
 			// panel.setBackground(charts.get(charts.size()-1).getBackground());
-			frame.pack();
+			holdingFrame.pack();
 			final Dimension sSize = Toolkit.getDefaultToolkit().getScreenSize();
-			frame.setPreferredSize(scale(frame.getSize(), sSize.width * .85, sSize.height * .85));
-			frame.addWindowListener(new WindowAdapter() {
+			holdingFrame.setPreferredSize(scale(holdingFrame.getSize(), sSize.width * .85, sSize.height * .85));
+			holdingFrame.addWindowListener(new WindowAdapter() {
 				@Override
 				public void windowClosing(final WindowEvent e) {
 					charts.forEach(chart -> chart.dispose());
 				}
 			});
-			frame.pack();
-			AWTWindows.centerWindow(frame);
+			holdingFrame.pack();
+			AWTWindows.centerWindow(holdingFrame);
 			if (allVisible) {
 				SwingUtilities.invokeLater(() -> {
 					charts.forEach(chart -> chart.setVisible(false));
-					frame.setVisible(true);
+					holdingFrame.setVisible(true);
 				});
 			}
-			return frame;
+			return holdingFrame;
 		}
 
 		int[] splitIntoParts(final int whole, final int parts) {

@@ -48,6 +48,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.Window;
@@ -1572,6 +1573,73 @@ public class GuiUtils {
 		timer.start();
 	}
 
+	public static void tile(final List<? extends Window> windowList) {
+		if (windowList == null || windowList.isEmpty()) return;
+		// FIXME: This is all taken from ij1.
+		final Rectangle screen = ij.gui.GUI.getMaxWindowBounds(ij.IJ.getApplet());
+		final int XSTART = 4, YSTART = 94, GAP = 2;
+		final int titlebarHeight = 40;
+		int minWidth = Integer.MAX_VALUE;
+		int minHeight = Integer.MAX_VALUE;
+		double totalWidth = 0;
+		double totalHeight = 0;
+		for (int i = 0; i < windowList.size(); i++) {
+			final Dimension d = windowList.get(i).getSize();
+			final int w = d.width;
+			final int h = d.height + titlebarHeight;
+			if (w < minWidth)
+				minWidth = w;
+			if (h < minHeight)
+				minHeight = h;
+			totalWidth += w;
+			totalHeight += h;
+		}
+		final int nPics = windowList.size();
+		final double averageWidth = totalWidth / nPics;
+		final double averageHeight = totalHeight / nPics;
+		int tileWidth = (int) averageWidth;
+		int tileHeight = (int) averageHeight;
+		final int hspace = screen.width - 2 * GAP;
+		if (tileWidth > hspace)
+			tileWidth = hspace;
+		final int vspace = screen.height - YSTART;
+		if (tileHeight > vspace)
+			tileHeight = vspace;
+		int hloc, vloc;
+		boolean theyFit;
+		do {
+			hloc = XSTART;
+			vloc = YSTART;
+			theyFit = true;
+			int i = 0;
+			do {
+				i++;
+				if (hloc + tileWidth > screen.width) {
+					hloc = XSTART;
+					vloc = vloc + tileHeight;
+					if (vloc + tileHeight > screen.height)
+						theyFit = false;
+				}
+				hloc = hloc + tileWidth + GAP;
+			} while (theyFit && (i < nPics));
+			if (!theyFit) {
+				tileWidth = (int) (tileWidth * 0.98 + 0.5);
+				tileHeight = (int) (tileHeight * 0.98 + 0.5);
+			}
+		} while (!theyFit);
+		hloc = XSTART;
+		vloc = YSTART;
+		for (int i = 0; i < nPics; i++) {
+			if (hloc + tileWidth > screen.width) {
+				hloc = XSTART;
+				vloc = vloc + tileHeight;
+			}
+			windowList.get(i).setLocation(hloc + screen.x, vloc + screen.y);
+			windowList.get(i).toFront();
+			hloc += tileWidth + GAP;
+		}
+	}
+
 	public JDialog showHTMLDialog(final String msg, final String title, final boolean modal) {
 		final JDialog dialog = new HTMLDialog(msg, title, modal);
 		dialog.setVisible(true);
@@ -1586,7 +1654,7 @@ public class GuiUtils {
 	}
 
 	private void combineOpenCharts() {
-		final List<SNTChart> charts = SNTChart.getOpenCharts().stream().filter(c -> !c.isCombined())
+		final List<SNTChart> charts = SNTChart.openCharts().stream().filter(c -> !c.isCombined())
 				.collect(Collectors.toList());
 		if (charts.size() < 2) {
 			error("No charts available: Either no charts are currently open,"
@@ -1601,7 +1669,7 @@ public class GuiUtils {
 				return; // user pressed cancel
 			final int r = (rUser.isNaN()) ? -1 : rUser.intValue();
 			final int c = (r == -1) ? -1 : charts.size() - charts.size() / r + 1;
-			SNTChart.combinedFrame(charts, r, c).setVisible(true);
+			SNTChart.combine(charts, r, c, true).setVisible(true);
 		}
 	}
 

@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 
 import net.imagej.ImageJ;
@@ -162,7 +161,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 				charts.add(chart);
 			}
 			if (charts.size() > 1) {
-				final JFrame combined = SNTChart.combinedFrame(charts);
+				final SNTChart combined = SNTChart.combine(charts);
 				SwingUtilities.invokeLater(() -> combined.setVisible(true));
 			} else {
 				charts.get(0).show();

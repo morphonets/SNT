@@ -255,7 +255,15 @@ public class SNTTable extends DefaultGenericTable {
 		hasUnsavedData = false;
 	}
 
-	public void createDisplay(String windowTitle) {
+	public void show() {
+		createOrUpdateDisplay();
+	}
+
+	public void show(final String windowTitle) {
+		createDisplay(windowTitle);
+	}
+
+	private void createDisplay(final String windowTitle) {
 		initDisplayService();
 		displayService.createDisplay(windowTitle, this);
 	}

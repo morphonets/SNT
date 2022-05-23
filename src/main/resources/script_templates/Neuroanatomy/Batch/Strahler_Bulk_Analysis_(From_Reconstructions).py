@@ -53,7 +53,7 @@ def main():
 
         if ('Save and display' in output_choice):
             ij.display().createDisplay(table_title, table)
-            SNTChart.combinedFrame(charts).show()
+            SNTChart.combine(charts).show()
 
         failures = sa.getInvalidTrees()
         if (failures):
