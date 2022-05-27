@@ -147,6 +147,7 @@ public class IconFactory {
 			QUIT('\uf011', true), //
 			RECYCLE('\uf1b8', true), //
 			REDO('\uf01e', true), //
+			ROBOT('\uf544', true), //
 			ROCKET('\uf135', true), //
 			RULER('\uf546', true), //
 			RULER_VERTICAL('\uf548', true), //

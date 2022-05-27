@@ -127,7 +127,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 		resolveInput("validateCalibration");
 	}
 
-	protected Collection<ImagePlus> getImpInstances() {
+	public static Collection<ImagePlus> getImpInstances() {
 		// In theory we should be able to use legacyService to retrieve
 		// all the images but somehow this can never retrieve the full
 		// list of current available instances:

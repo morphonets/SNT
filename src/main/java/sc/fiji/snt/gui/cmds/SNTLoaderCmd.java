@@ -89,7 +89,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 		"Optional. Ignored when a display canvas is used";
 
 	@Parameter(required = true, label = "Image", //
-			description = "The image to be traced (optional)", //
+			description = "The image to be traced (optional). If binary, it will be eligible for automated reconstruction.", //
 			callback = "imageChoiceChanged")
 	private String imageChoice;
 

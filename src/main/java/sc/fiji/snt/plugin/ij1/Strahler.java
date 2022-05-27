@@ -57,10 +57,8 @@ import sc.fiji.snt.util.ColorMaps;
 
 /**
  * This class implements the ImageJ {@code Strahler Analysis} plugin. For more
- * information, visit the hIPNAT repository
- * {@literal https://github.com/tferr/hIPNAT} and the the plugin's documentation
- * page: {@literal http://imagej.net/Strahler_Analysis}
- *
+ * information, visit the plugin's documentation page:
+ * {@literal http://imagej.net/Strahler_Analysis}
  *
  * @author Tiago Ferreira
  */

@@ -300,7 +300,7 @@ public class SNTUtils {
 		pw.close();
 	}
 
-	protected static boolean fileAvailable(final File file) {
+	public static boolean fileAvailable(final File file) {
 		try {
 			return file != null && file.exists();
 		}

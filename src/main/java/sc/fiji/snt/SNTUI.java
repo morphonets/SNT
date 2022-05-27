@@ -2317,6 +2317,8 @@ public class SNTUI extends JDialog {
 		changeImpMenu.add(fromList);
 		fileMenu.add(changeImpMenu);
 		fileMenu.addSeparator();
+		fileMenu.add(getAutotracingMenuItem("Autotrace Segmented Image...", true));
+		fileMenu.addSeparator();
 		fileMenu.add(importSubmenu);
 
 		final JMenuItem fromDemo = new JMenuItem("Load Demo Dataset...", IconFactory.getMenuIcon(GLYPH.WIZARD));
@@ -2564,13 +2566,7 @@ public class SNTUI extends JDialog {
 			(new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
 		});
 		utilitiesMenu.addSeparator();
-		final JMenuItem skeletonConverter = new JMenuItem("Extract Paths from Segmented Image...",
-				IconFactory.getMenuIcon(IconFactory.GLYPH.TREE));
-		skeletonConverter.setToolTipText("Runs automated tracing on a thresholded/binary image");
-		utilitiesMenu.add(skeletonConverter);
-		skeletonConverter.addActionListener(e -> {
-			(new DynamicCmdRunner(SkeletonConverterCmd.class, null)).run();
-		});
+		utilitiesMenu.add(getAutotracingMenuItem("Extract Paths from Segmented Image...", false));
 		utilitiesMenu.addSeparator();
 		final JMenu scriptUtilsMenu = installer.getBatchScriptsMenu();
 		scriptUtilsMenu.setText("Batch Scripts");
@@ -2994,7 +2990,39 @@ public class SNTUI extends JDialog {
 			SNTUtils.setIsLoading(false);
 			if (plugin.getImagePlus()!=null) plugin.getImagePlus().getWindow().toFront();
 			ijmLogMessage();
+			promptForAutoTracingAsAppropriate();
 		});
+	}
+
+	private void promptForAutoTracingAsAppropriate() {
+		final boolean nag = plugin.getPrefs().getTemp("autotracing-nag", true);
+		boolean run = plugin.getPrefs().getTemp("autotracing-run", true);
+		if (plugin.accessToValidImageData() && plugin.getImagePlus().getProcessor().isBinary()) {
+			if (nag) {
+				final boolean[] options = guiUtils.getPersistentConfirmation(
+						"Image is eligible for fully automated reconstruction. Would you like to attempt it now?",
+						"Run Auto-tracing?");
+				plugin.getPrefs().setTemp("autotracing-run", run = options[0]);
+				plugin.getPrefs().setTemp("autotracing-nag", !options[1]);
+			}
+			if (run)
+				runAutotracing(false);
+		}
+	}
+
+	private JMenuItem getAutotracingMenuItem(final String label, final boolean usingFileChoosers) {
+		final JMenuItem jmi = new JMenuItem(label, IconFactory.getMenuIcon(IconFactory.GLYPH.ROBOT));
+		jmi.setToolTipText(
+				(usingFileChoosers) ? "Runs automated tracing by specifying the path to a thresholded/binary image"
+						: "Runs automated tracing on a thresholded/binary image already open");
+		jmi.addActionListener(e -> runAutotracing(usingFileChoosers));
+		return jmi;
+	}
+
+	private void runAutotracing(final boolean usingFileChoosers) {
+		final HashMap<String, Object> inputs = new HashMap<>();
+		inputs.put("useFileChoosers", usingFileChoosers);
+		(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs)).run();
 	}
 
 	private static final void ijmLogMessage() {
@@ -3340,6 +3368,7 @@ public class SNTUI extends JDialog {
 		plugin.enableSnapCursor(validImage);
 		resetState();
 		arrangeCanvases(false);
+		promptForAutoTracingAsAppropriate();
 	}
 
 	protected void abortCurrentOperation() {// FIXME: MOVE TO SNT?
