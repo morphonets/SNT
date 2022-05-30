@@ -241,7 +241,8 @@ public class SNTCommandFinder {
 		}
 		final StringBuilder sb = new StringBuilder();
 		sb.append("#@SNTService snt\n");
-		if (cmdAction.buttonHostDescription.startsWith("PM")) {
+		final boolean pmCmd = cmdAction.buttonHostDescription.startsWith("PM");
+		if (pmCmd) {
 			sb.append("snt.getUI().getPathManager().");
 			if (cmdAction.buttonLocationDescription.contains("Tag") && !cmdAction.cmdName.contains("..."))
 				sb.append("applyDefaultTags(");
@@ -250,11 +251,11 @@ public class SNTCommandFinder {
 			sb.append("\"").append(cmdAction.cmdName).append("\"").append(");");
 		} else {
 			sb.append("snt.getUI().");
-			if (!cmdAction.cmdName.contains("...")) {
-				sb.append("runCommand(").append("\"").append(cmdAction.cmdName).append("\"").append(");");
-			} else {
+			if (pmCmd && cmdAction.cmdName.contains("...")) {
 				sb.append("runCommand(").append("\"").append(cmdAction.cmdName).append("\"")
 						.append(", \"[optional prompt options...]\");");
+			} else {
+				sb.append("runCommand(").append("\"").append(cmdAction.cmdName).append("\"").append(");");
 			}
 		}
 		sb.append("\n");
