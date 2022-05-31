@@ -1038,6 +1038,25 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	/**
+	 * Adds a {@link Tree}.
+	 *
+	 * @param tree      the collection of paths to be added
+	 * @param commomTag a custom name tag to be applied to all Paths
+	 */
+	public void addTree(final Tree tree, final String commomTag) {
+		tree.list().forEach(p -> {
+			prepPathForAdding(p, true, true, true);
+			String tags = PathManagerUI.extractTagsFromPath(p);
+			if (tags.isEmpty())
+				tags = commomTag;
+			else
+				tags += ", " + commomTag;
+			p.setName(p.getName() + " {" + tags + "}");
+			addPathInternal(p);
+		});
+	}
+
+	/**
 	 * Adds a new path.
 	 *
 	 * @param p the Path to be added
@@ -1048,10 +1067,11 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	public void addPath(final Path p, final boolean retainTags) {
 		final String tags = PathManagerUI.extractTagsFromPath(p);
-		addPath(p, true, true);
+		prepPathForAdding(p, true, true, true);
 		if (retainTags) {
 			p.setName((tags.isEmpty()) ? p.getName() : p.getName() + " {" + tags + "}");
 		}
+		addPathInternal(p);
 	}
 
 	public synchronized void addPath(final Path p,
@@ -1063,6 +1083,12 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected synchronized void addPath(final Path p,
 		final boolean forceNewName, final boolean forceNewId, final boolean assumeMaxUsedTreeID)
 	{
+		prepPathForAdding(p, forceNewName, forceNewId, assumeMaxUsedTreeID);
+		addPathInternal(p);
+	}
+
+	private synchronized void prepPathForAdding(final Path p,
+			final boolean forceNewName, final boolean forceNewId, final boolean assumeMaxUsedTreeID) {
 		final boolean isPrimary = p.isPrimary();
 		if (isPrimary) ++maxUsedTreeID;
 		if (!forceNewId && getPathFromID(p.getID()) != null) throw new IllegalArgumentException(
@@ -1083,7 +1109,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			final String suggestedName = getDefaultName(p);
 			p.setName(suggestedName);
 		}
-		addPathInternal(p);
 	}
 
 	public synchronized void addPath(final Path p, final int id, final int treeID) {

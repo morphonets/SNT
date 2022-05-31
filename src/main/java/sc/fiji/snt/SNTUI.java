@@ -64,6 +64,7 @@ import ij.Prefs;
 import ij.gui.ImageCanvas;
 import ij.gui.ImageWindow;
 import ij.plugin.frame.Recorder;
+import ij.process.ImageStatistics;
 import ij3d.Content;
 import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
@@ -591,6 +592,69 @@ public class SNTUI extends JDialog {
 		}
 	}
 
+	/**
+	 * Runs the 'secondary layer' wizard prompt for built-in filters
+	 */
+	public void runSecondaryLayerWizard() {
+		SwingUtilities.invokeLater(() -> {
+			if (plugin.isSecondaryDataAvailable()
+					&& !guiUtils.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
+				return;
+			}
+			plugin.flushSecondaryData();
+			if (plugin.getStats().max == 0) {
+				// FIXME: Frangi relies on stackMax, if this isn't computed yet
+				// the filter prompt won't work
+				plugin.invalidStatsError(false);
+				return;
+			}
+			if (plugin.accessToValidImageData()) {
+				(new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
+			} else {
+				noValidImageDataError();
+			}
+		});
+	}
+
+	/**
+	 * Runs the 'secondary layer wizard' in the background, without displaying
+	 * prompt.
+	 *
+	 * @param filter either "Frangi Vesselness", "Tubeness", or "Gaussian Blur"
+	 * @param scales a list of aprox. thicknesses (radius) of the structures being
+	 *               traced
+	 * @throws IllegalArgumentException if no valid image data is currently loaded
+	 */
+	public void runSecondaryLayerWizard(final String filter, final double[] scales) throws IllegalArgumentException {
+		if (!plugin.accessToValidImageData()) {
+			throw new IllegalArgumentException("No valid image data loaded");
+		}
+		if (!(filter.equals("Frangi Vesselness") || filter.equals("Tubeness") || filter.equals("Gaussian Blur"))) {
+			throw new IllegalArgumentException("Invalid filter option");
+		}
+		plugin.flushSecondaryData();
+		if (plugin.getStats().max == 0) {
+			final ImageStatistics stats = plugin.getLoadedDataAsImp().getStatistics(ImagePlus.MIN_MAX);
+			plugin.getStats().min = stats.min;
+			plugin.getStats().max = stats.max;
+		}
+		final HashMap<String, Object> inputs = new HashMap<>();
+		inputs.put("filter", filter);
+		inputs.put("sizeOfStructuresString", Arrays.toString(scales).replace("[", "").replace("]", ""));
+		inputs.put("calledFromScript", true);
+		final Object syncObject = new Object();
+		inputs.put("syncObject", syncObject);
+		(new DynamicCmdRunner(ComputeSecondaryImg.class, inputs, RUNNING_CMD)).run();
+		synchronized (syncObject) {
+			try {
+				// block this thread until ComputeSecondaryImg calls syncObject.notify()
+				syncObject.wait();
+			} catch (final InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
 	protected static void runCommand(final JMenuBar menuBar, final String cmd) throws IllegalArgumentException {
 		if (cmd == null || cmd.trim().isEmpty()) {
 			throw new IllegalArgumentException("Not a recognizable command: " + cmd);
@@ -715,8 +779,8 @@ public class SNTUI extends JDialog {
 		disableImageDependentComponents();
 		loadTracesMenuItem.setEnabled(false);
 		loadSWCMenuItem.setEnabled(false);
-		exportCSVMenuItem.setEnabled(false);
-		exportAllSWCMenuItem.setEnabled(false);
+		//exportCSVMenuItem.setEnabled(false);
+		//exportAllSWCMenuItem.setEnabled(false);
 		sendToTrakEM2.setEnabled(false);
 		saveMenuItem.setEnabled(false);
 		quitMenuItem.setEnabled(false);
@@ -1959,24 +2023,7 @@ public class SNTUI extends JDialog {
 
 		// Built-in filters:
 		secLayerGenerate =  GuiUtils.smallButton("Choose...");
-		secLayerGenerate.addActionListener(event -> {
-			if (plugin.isSecondaryDataAvailable()
-					&& !guiUtils.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
-				return;
-			}
-			plugin.flushSecondaryData();
-			if (plugin.getStats().max == 0) {
-				// FIXME: Frangi relies on stackMax, if this isn't computed yet
-				//  the filter prompt won't work
-				plugin.invalidStatsError(false);
-				return;
-			}
-			if (plugin.accessToValidImageData()) {
-				(new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
-			} else {
-				noValidImageDataError();
-			}
-		});
+		secLayerGenerate.addActionListener(event -> runSecondaryLayerWizard());
 		final JPanel builtinFilterPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
 		builtinFilterPanel.add(secLayerBuiltinRadioButton);
 		builtinFilterPanel.add(secLayerGenerate);
@@ -2317,7 +2364,14 @@ public class SNTUI extends JDialog {
 		changeImpMenu.add(fromList);
 		fileMenu.add(changeImpMenu);
 		fileMenu.addSeparator();
-		fileMenu.add(getAutotracingMenuItem("Autotrace Segmented Image...", true));
+		final JMenuItem autoTrace = getAutotracingMenuItem("Autotrace Segmented Image...", true);
+		autoTrace.addActionListener(e -> {
+			if (plugin.isSecondaryDataAvailable()) {
+				flushSecondaryDataPrompt();
+			}
+			new ImportAction(ImportAction.AUTO_TRACE_IMAGE, null).run();
+		});
+		fileMenu.add(autoTrace);
 		fileMenu.addSeparator();
 		fileMenu.add(importSubmenu);
 
@@ -2566,7 +2620,12 @@ public class SNTUI extends JDialog {
 			(new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
 		});
 		utilitiesMenu.addSeparator();
-		utilitiesMenu.add(getAutotracingMenuItem("Extract Paths from Segmented Image...", false));
+		// similar to File>Autotrace image... but assuming current image as source, which does
+		// not require file validations etc..
+		final JMenuItem autotraceJMI = getAutotracingMenuItem("Extract Paths from Segmented Image...", false);
+		utilitiesMenu.add(autotraceJMI);
+		autotraceJMI.addActionListener(e -> runAutotracingOnImage());
+
 		utilitiesMenu.addSeparator();
 		final JMenu scriptUtilsMenu = installer.getBatchScriptsMenu();
 		scriptUtilsMenu.setText("Batch Scripts");
@@ -2994,20 +3053,23 @@ public class SNTUI extends JDialog {
 		});
 	}
 
-	private void promptForAutoTracingAsAppropriate() {
-		final boolean nag = plugin.getPrefs().getTemp("autotracing-nag", true);
-		boolean run = plugin.getPrefs().getTemp("autotracing-run", true);
-		if (plugin.accessToValidImageData() && plugin.getImagePlus().getProcessor().isBinary()) {
-			if (nag) {
-				final boolean[] options = guiUtils.getPersistentConfirmation(
-						"Image is eligible for fully automated reconstruction. Would you like to attempt it now?",
-						"Run Auto-tracing?");
-				plugin.getPrefs().setTemp("autotracing-run", run = options[0]);
-				plugin.getPrefs().setTemp("autotracing-nag", !options[1]);
+	protected void promptForAutoTracingAsAppropriate() {
+		if (plugin.getPrefs().getTemp("autotracing-prompt-armed", true)) {
+			final boolean nag = plugin.getPrefs().getTemp("autotracing-nag", true);
+			boolean run = plugin.getPrefs().getTemp("autotracing-run", true);
+			if (plugin.accessToValidImageData() && plugin.getImagePlus().getProcessor().isBinary()) {
+				if (nag) {
+					final boolean[] options = guiUtils.getPersistentConfirmation(
+							"Image is eligible for fully automated reconstruction. Would you like to attempt it now?",
+							"Run Auto-tracing?");
+					plugin.getPrefs().setTemp("autotracing-run", run = options[0]);
+					plugin.getPrefs().setTemp("autotracing-nag", !options[1]);
+				}
+				if (run)
+					runAutotracingOnImage();
 			}
-			if (run)
-				runAutotracing(false);
 		}
+		plugin.getPrefs().setTemp("autotracing-prompt-armed", true);
 	}
 
 	private JMenuItem getAutotracingMenuItem(final String label, final boolean usingFileChoosers) {
@@ -3015,13 +3077,12 @@ public class SNTUI extends JDialog {
 		jmi.setToolTipText(
 				(usingFileChoosers) ? "Runs automated tracing by specifying the path to a thresholded/binary image"
 						: "Runs automated tracing on a thresholded/binary image already open");
-		jmi.addActionListener(e -> runAutotracing(usingFileChoosers));
 		return jmi;
 	}
 
-	private void runAutotracing(final boolean usingFileChoosers) {
+	private void runAutotracingOnImage() {
 		final HashMap<String, Object> inputs = new HashMap<>();
-		inputs.put("useFileChoosers", usingFileChoosers);
+		inputs.put("useFileChoosers", false);
 		(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs)).run();
 	}
 
@@ -4100,6 +4161,8 @@ public class SNTUI extends JDialog {
 		private static final int IMAGE = 4;
 		private static final int ANY_RECONSTRUCTION = 5;
 		public static final int DEMO = 6;
+		private static final int AUTO_TRACE_IMAGE = 7;
+
 
 		private final int type;
 		private File file;
@@ -4118,16 +4181,21 @@ public class SNTUI extends JDialog {
 			final HashMap<String, Object> inputs = new HashMap<>();
 			final int priorState = currentState;
 			switch (type) {
+			case AUTO_TRACE_IMAGE:
+				inputs.put("useFileChoosers", true);
+				(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs, RUNNING_CMD)).run();
+				break;
 			case DEMO:
 				changeState(LOADING);
 				showStatus("Retrieving demo data. Please wait...", false);
-				final String[] choices = new String[5];
-				choices[0] = "Drosophila ddaC neuron (581K, 2D, binary)";
-				choices[1] = "Drosophila OP neuron (15MB, 3D, grayscale, w/ tracings)";
-				choices[2] = "Hippocampal neuron (2.5MB, 2D, multichannel)";
-				choices[3] = "Hippocampal neuron (52MB, timelapse, w/ tracings)";
-				choices[4] = "L-systems fractal (23K, 2D, binary, w/ tracings & markers)";
-				final String defChoice = plugin.getPrefs().getTemp("demo", choices[4]);
+				final String[] choices = new String[6];
+				choices[0] = "Drosophila ddaC neuron (581K, 2D, binary, auto-trace demo)";
+				choices[1] = "Drosophila ddaC neuron (581K, 2D, binary, image only)";
+				choices[2] = "Drosophila OP neuron (15MB, 3D, grayscale, w/ tracings)";
+				choices[3] = "Hippocampal neuron (2.5MB, 2D, multichannel)";
+				choices[4] = "Hippocampal neuron (52MB, timelapse, w/ tracings)";
+				choices[5] = "L-systems fractal (23K, 2D, binary, w/ tracings & markers)";
+				final String defChoice = plugin.getPrefs().getTemp("demo", choices[5]);
 				final String choice = guiUtils.getChoice("Which dataset?<br>(NB: Remote data may take a while to download)", "Load Demo Dataset", choices, defChoice);
 				if (choice == null) {
 					changeState(priorState);
@@ -4135,7 +4203,14 @@ public class SNTUI extends JDialog {
 					return;
 				}
 				try {
+
+					// Remember choice for subsequent runs
 					plugin.getPrefs().setTemp("demo", choice);
+
+					// Suppress the 'auto-tracing' prompt for this image. This
+					// will be reset once SNT initializes with the new data
+					plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
+
 					final SNTService sntService = plugin.getContext().getService(SNTService.class);
 					final ImagePlus imp = sntService.demoImage(choice);
 					if (imp == null) {
@@ -4148,17 +4223,22 @@ public class SNTUI extends JDialog {
 							&& guiUtils.getConfirmation("Clear Existing Path(s)?", "Delete All Paths")) {
 						pathAndFillManager.clear();
 					}
-					if (choices[4].equals(choice)) {
+					if (choices[0].equals(choice)) {
+						imp.setRoi(320, 380, 20, 20); // mark soma in ddaC image
+						inputs.put("simplifyPrompt", true);
+						(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs, RUNNING_CMD)).run();
+					} else if (choices[5].equals(choice)) {
 						plugin.getPathAndFillManager().addTree(sntService.demoTree("fractal"));
 						plugin.getPathAndFillManager().assignSpatialSettings(imp);
-					} else if (choices[3].equals(choice)) {
+					} else if (choices[4].equals(choice)) {
 						sntService.loadTracings(
 							"https://raw.githubusercontent.com/morphonets/SNTmanuscript/9b4b933a742244505f0544c29211e596c85a5da7/Fig01/traces/701.traces");
-					} else if (choices[1].equals(choice)) {
+					} else if (choices[2].equals(choice)) {
 						sntService.loadTracings(
 								"https://raw.githubusercontent.com/morphonets/SNT/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1-gs.swc");
 					}
 					plugin.updateAllViewers();
+
 				} catch (final Throwable ex) {
 					error("Loading of image failed (" + ex.getMessage() + " error). See Console for details.");
 					ex.printStackTrace();

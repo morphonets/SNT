@@ -173,6 +173,13 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			description="Generates the filtered image")
 	private Button run;
 
+	// Used by the scripting API
+	@Parameter(required=false, persist=false)
+	private boolean calledFromScript;
+	@Parameter(required=false, persist=false)
+	private Object syncObject;
+
+
 	private Img<U> filteredImg;
 	private boolean useLazy;
 	private List<Double> sigmas;
@@ -189,6 +196,29 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			error("Valid image data is required for computation.");
 			return;
 		}
+		if (calledFromScript) {
+			numThreads = SNTPrefs.getThreads();
+			resolveInput("numThreads");
+			useLazyChoice = LAZY_LOADING_FALSE;
+			resolveInput("useLazyChoice");
+			outputType = FLOAT;
+			resolveInput("outputType");
+			show = false;
+			resolveInput("show");
+			save = false;
+			resolveInput("save");
+			resolveInput("HEADER1");
+			resolveInput("HEADER2");
+			resolveInput("HEADER3");
+			resolveInput("triggerSigmaPalette");
+			resolveInput("defaults");
+			resolveInput("refresh");
+			resolveInput("run");
+			snt.setCanvasLabelAllPanes("Running " + filter + "....");
+		}
+		resolveInput("calledFromScript");
+		resolveInput("syncObject");
+
 		// FIXME: This can lead to mis-match between expected and actual filter
 		//loadPreferences();
 	}
@@ -305,19 +335,30 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		}
 	}
 
+	private void exit() {
+		if (syncObject != null) {
+			synchronized (syncObject) {
+				syncObject.notify();
+			}
+		}
+	}
+
 	/*
 	 * (non-Javadoc)
 	 *
 	 * @see java.lang.Runnable#run()
 	 */
 	@Override
-	public void run() {} // Do nothing
+	public void run() {
+		if (calledFromScript) runCommand();
+	}
 
-	@SuppressWarnings({ "unchecked", "unused" })
+	@SuppressWarnings({ "unchecked" })
 	private void runCommand() {
-		if (isCanceled() || !snt.accessToValidImageData())
+		if (isCanceled() || !snt.accessToValidImageData()) {
+			exit();
 			return;
-
+		}
 		if (numThreads > SNTPrefs.getThreads())
 			numThreads = SNTPrefs.getThreads();
 
@@ -469,9 +510,13 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			}
 		}
 		if (getPrompt() != null) getPrompt().dispose();
+		if (calledFromScript)
+			snt.setCanvasLabelAllPanes(null);
+		else
+			savePreferences();
 		if (ui != null) ui.changeState(SNTUI.READY);
 		prompt = null;
-		savePreferences();
+		exit();
 	}
 
 	private String getImageName() {
@@ -610,6 +655,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		} else {
 			new GuiUtils(getPrompt()).error(msg);
 		}
+		exit();
 	}
 
 	@SuppressWarnings("unused")

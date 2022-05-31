@@ -31,6 +31,7 @@ import org.jgrapht.Graphs;
 import org.jgrapht.alg.connectivity.BiconnectivityInspector;
 import sc.fiji.analyzeSkeleton.*;
 import sc.fiji.skeletonize3D.Skeletonize3D_;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
@@ -106,25 +107,65 @@ public class SkeletonConverter {
         }
     }
 
-    /**
-     * Convenience method to skeletonize an 8-bit image using
-     * {@link Skeletonize3D_}.
-     *
-     * @param imp                 The 8-bit image to be skeletonized. All non-zero
-     *                            values are considered to be foreground.
-     * @param erodeIsolatedPixels If true, any isolated pixels (single point
-     *                            skeletons) that may be formed after
-     *                            skeletonization are eliminated by erosion. Ignored
-     *                            if image is not 2D.
-     */
-    public static void skeletonize(final ImagePlus imp, final boolean erodeIsolatedPixels) {
-        final Skeletonize3D_ thin = new Skeletonize3D_();
-        thin.setup("", imp);
-        thin.run(null);
-        if (imp.getNSlices() > 1 && erodeIsolatedPixels)
-            ImpUtils.removeIsolatedPixels(imp);
-        imp.updateImage();
-    }
+	/**
+	 * Convenience method to skeletonize an 8-bit image using
+	 * {@link Skeletonize3D_}.
+	 *
+	 * @param imp                 The 8-bit image to be skeletonized. All non-zero
+	 *                            values are considered to be foreground.
+	 * @param lowerThreshold      intensities below this value will be set to zero,
+	 *                            and will not contribute to the skeleton. Ignored
+	 *                            if < 0
+	 * @param uperThreshold       intensities above this value will be set to zero,
+	 *                            and will not contribute to the skeleton. Ignored
+	 *                            if < 0
+	 * @param erodeIsolatedPixels If true, any isolated pixels (single point
+	 *                            skeletons) that may be formed after
+	 *                            skeletonization are eliminated by erosion.
+	 */
+	public static void skeletonize(final ImagePlus imp, final double lowerThreshold, final double upperThreshold,
+			final boolean erodeIsolatedPixels) {
+		if (lowerThreshold != ij.process.ImageProcessor.NO_THRESHOLD && lowerThreshold > 0 && upperThreshold > 0) {
+			// TODO: Adopt IJ ops!?
+			ij.IJ.setRawThreshold(imp, lowerThreshold, Double.MAX_VALUE, "no update");
+			final int nImagesBefore = ij.WindowManager.getImageCount();
+			IJ.run(imp, "Convert to Mask", " black");
+			// HACK: By some strange reason (sometimes!?) a new mask is created even though we are skipping the
+			// flag to create a new stack in the options string. So for now, we'll just try to intercept it
+			final int nImagesAfter = ij.WindowManager.getImageCount();
+			if (nImagesAfter == nImagesBefore + 1) {
+				final ImagePlus maskImg = ij.WindowManager.getCurrentImage();
+				if (maskImg.getTitle().startsWith("MASK_") ) {
+					imp.setImage(maskImg);
+					maskImg.close();
+				}
+			}
+		} else {
+			SNTUtils.convertTo8bit(imp); // does nothing if imp already 8-bit
+		}
+		final Skeletonize3D_ thin = new Skeletonize3D_();
+		thin.setup("", imp);
+		thin.run(null);
+		if (erodeIsolatedPixels)
+			ImpUtils.removeIsolatedPixels(imp);
+		imp.updateImage();
+	}
+
+	/**
+	 * Convenience method to skeletonize an 8-bit image using
+	 * {@link Skeletonize3D_}.
+	 *
+	 * @param imp                 The 8-bit image to be skeletonized. If the image
+	 *                            is thresholded, only thresholded values are
+	 *                            considered, otherwise all non-zero values are
+	 *                            considered to be foreground.
+	 * @param erodeIsolatedPixels If true, any isolated pixels (single point
+	 *                            skeletons) that may be formed after
+	 *                            skeletonization are eliminated by erosion.
+	 */
+	public static void skeletonize(final ImagePlus imp, final boolean erodeIsolatedPixels) {
+		skeletonize(imp, imp.getProcessor().getMinThreshold(), imp.getProcessor().getMaxThreshold(), erodeIsolatedPixels);
+	}
 
     /**
      * Generates a list of {@link Tree}s from the skeleton image.

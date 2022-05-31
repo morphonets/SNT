@@ -855,6 +855,11 @@ public class GuiUtils {
 		return mi;
 	}
 
+	public static int renderedWidth(final String text) {
+		final JLabel l = new JLabel();
+		return l.getFontMetrics(l.getFont()).stringWidth(text);
+	}
+
 	public static JLabel leftAlignedLabel(final String text, final boolean enabled) {
 		return leftAlignedLabel(text, null, enabled);
 	}

@@ -1654,6 +1654,7 @@ public class Tree implements TreeProperties {
 		}
 		list().forEach(path -> path.setSpacing(cal));
 		getProperties().setProperty(KEY_SPATIAL_UNIT, cal.getUnit());
+		getProperties().setProperty(Tree.KEY_IMG, imp.getTitle());
 	}
 
 	public void assignImage(final Dataset dataset) {

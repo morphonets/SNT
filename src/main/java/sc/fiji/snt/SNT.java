@@ -433,6 +433,14 @@ public class SNT extends MultiDThreePanes implements
 				if (dir != null && name != null)
 					prefs.setRecentDir(new File(dir));
 			}
+			// Adjust and reset min/max
+			if (sourceImage.getProcessor().isBinary()) {
+				stats.min = 0;
+				stats.max = 255;
+			} else {
+				stats.min = 0;
+				stats.max = 0;
+			}
 		} else {
 			pathAndFillManager.syncSpatialSettingsWithPlugin();
 		}
@@ -594,13 +602,15 @@ public class SNT extends MultiDThreePanes implements
 
 	@Override
 	public void initialize(final ImagePlus imp) {
+		final  Roi sourceImageROI = imp.getRoi();
 		nullifyCanvases();
 		setFieldsFromImage(imp);
 		changeUIState(SNTUI.LOADING);
 		initialize(getSinglePane(), channel = imp.getC(), frame = imp.getT());
 		tracingHalted = !inputImageLoaded();
 		updateUIFromInitializedImp(imp.isVisible());
-	}
+		xy.setRoi(sourceImageROI);
+	 }
 
 	/**
 	 * Initializes the plugin by assembling all the required tracing views
