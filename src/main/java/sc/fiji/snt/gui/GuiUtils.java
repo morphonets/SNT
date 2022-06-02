@@ -968,7 +968,7 @@ public class GuiUtils {
 		final List<JMenuItem> list = new ArrayList<>();
 		for (int i = 0; i < menuBar.getMenuCount(); i++) {
 			final JMenu menu = menuBar.getMenu(i);
-			getMenuItems(menu, list);
+			if (menu != null) getMenuItems(menu, list);
 		}
 		return list;
 	}

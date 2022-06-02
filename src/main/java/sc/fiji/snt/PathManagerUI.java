@@ -2010,17 +2010,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @throws IllegalArgumentException if {@code cmd} was not found.
 	 */
 	public void runCommand(final String cmd) throws IllegalArgumentException {
-		try {
-			SNTUI.runCommand(menuBar, cmd);
-		} catch (final IllegalArgumentException ie) {
-			for (final JMenuItem jmi : GuiUtils.getMenuItems(popup)) {
-				if (cmd.equals(jmi.getText()) || cmd.equals(jmi.getActionCommand())) {
-					jmi.doClick();
-					return;
-				}
-			}
-			throw new IllegalArgumentException("Not a recognizable command: " + cmd);
+		if (MultiPathActionListener.DELETE_CMD.equals(cmd)) {
+			deletePaths(getSelectedPaths(true));
+			return;
+		} else if (MultiPathActionListener.REBUILD_CMD.equals(cmd)) {
+			rebuildRelationShips();
+			return;
 		}
+		else try {
+				SNTUI.runCommand(menuBar, cmd);
+			} catch (final IllegalArgumentException ie) {
+				for (final JMenuItem jmi : GuiUtils.getMenuItems(popup)) {
+					if (cmd.equals(jmi.getText()) || cmd.equals(jmi.getActionCommand())) {
+						jmi.doClick();
+						return;
+					}
+				}
+				throw new IllegalArgumentException("Not a recognizable command: " + cmd);
+			}
 	}
 
 	/**
@@ -3134,16 +3141,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		}
 
-		private void rebuildRelationShips() {
-			final List<String> activeTags = guessTagsCurrentlyActive();
-			tree.clearSelection(); // existing selections could change after the rebuild
-			pathAndFillManager.rebuildRelationships();
-			activeTags.forEach( tag -> {
-				removeOrReapplyDefaultTag(pathAndFillManager.getPaths(), tag, true, false);
-			});
-			refreshManager(true, true, null);
-		}
-
 		private boolean allPathNamesContain(final Collection<Path> selectedPaths,
 			final String string)
 		{
@@ -3176,6 +3173,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return description;
 		}
 
+	}
+
+	private void rebuildRelationShips() {
+		final List<String> activeTags = guessTagsCurrentlyActive();
+		tree.clearSelection(); // existing selections could change after the rebuild
+		pathAndFillManager.rebuildRelationships();
+		activeTags.forEach( tag -> {
+			removeOrReapplyDefaultTag(pathAndFillManager.getPaths(), tag, true, false);
+		});
+		refreshManager(true, true, null);
 	}
 
 	private boolean noValidImageDataError() {
