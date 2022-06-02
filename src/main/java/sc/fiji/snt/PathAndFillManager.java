@@ -3018,7 +3018,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			break;
 		case TRACES_FILE_TYPE_SWC:
 			final BufferedReader br = new BufferedReader(new InputStreamReader(bis, StandardCharsets.UTF_8));
-			result = plugin.getPathAndFillManager().importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, true);
+			result = importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, true);
 			break;
 		default:
 			SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);

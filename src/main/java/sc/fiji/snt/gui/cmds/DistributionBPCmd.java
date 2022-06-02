@@ -172,7 +172,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			if (calledFromPathManagerUI) {
 				error += " Note that some distributions can only be computed on "
 						+ "structures with a single root without disconnected paths. "
-						+ "Please re-run the command with a valid selection.";
+						+ "Please rerun the command with a valid selection.";
 			}
 			error(error);
 			ex.printStackTrace();

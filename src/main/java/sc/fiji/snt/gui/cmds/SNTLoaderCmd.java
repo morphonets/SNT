@@ -336,7 +336,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 		} else if (nImagesAfter > nImagesBefore + 1) {
 			exit("Import of " + imageFile.getName() + " resulted in several images open.\n"
 					+ "Since it is not clear which one should be chosen, please make\n"
-					+ "the relevant image frontmost and re-run SNT.");
+					+ "the relevant image frontmost and rerun SNT.");
 			return null;
 		}
 

@@ -4231,11 +4231,9 @@ public class SNTUI extends JDialog {
 						plugin.getPathAndFillManager().addTree(sntService.demoTree("fractal"));
 						plugin.getPathAndFillManager().assignSpatialSettings(imp);
 					} else if (choices[4].equals(choice)) {
-						sntService.loadTracings(
-							"https://raw.githubusercontent.com/morphonets/SNTmanuscript/9b4b933a742244505f0544c29211e596c85a5da7/Fig01/traces/701.traces");
+						sntService.loadTracings("timelapse demo");
 					} else if (choices[2].equals(choice)) {
-						sntService.loadTracings(
-								"https://raw.githubusercontent.com/morphonets/SNT/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1-gs.swc");
+						sntService.loadTracings("OP1 demo");
 					}
 					plugin.updateAllViewers();
 

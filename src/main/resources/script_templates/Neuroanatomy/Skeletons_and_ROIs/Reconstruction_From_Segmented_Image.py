@@ -28,13 +28,6 @@ from sc.fiji.snt.viewer import Viewer3D
 # Latest SNT API: https://javadoc.scijava.org/SNT/
 
 
-def get_sample_image():
-    IJ.run("ddaC Neuron (84k)", "")
-    imp = IJ.getImage()
-    IJ.run(imp, "Set Scale...", "distance=0 known=0 unit=pixel")
-    return imp
-
-
 def main():
 	global skeletonizeImp
 	if choice == "Current image":
@@ -42,7 +35,7 @@ def main():
 	elif choice == "Image from path specified below":
 		imp = IJ.openImage(impFile.getAbsolutePath())
 	elif choice == "None. Use demo image":
-		imp = get_sample_image()
+		imp = snt.demoImage("ddaC")
 		skeletonizeImp = True
 	# Use the image to create the reconstructions, first skeletonizing 
 	# if it is not already a skeleton.
@@ -51,18 +44,18 @@ def main():
 	converter.setLengthThreshold(lengthThreshold)
 	converter.setConnectComponents(connectComponents)
 	converter.setMaxConnectDist(maxConnectDist)
-    if rootFromROI and imp.getRoi():
-        # root will be set by juntion/end point contained in ROI
-        trees = converter.getTrees(imp.getRoi(), False) # roi containing root location, do not restrict ROI to 2D
-    else:
-        # root will be the starting node of the skeleton
-	    trees = converter.getTrees()
-    if showInViewer:
-	    # Display generated reconstructions
-	    viewer = Viewer3D(context)
-	    Tree.assignUniqueColors(trees)
-	    viewer.add(trees)
-	    viewer.show()
+	if rootFromROI and imp.getRoi() and imp.getRoi().isArea():
+		# root will be set by juntion/end point contained in ROI
+		trees = converter.getTrees(imp.getRoi(), False) # roi containing root location, do not restrict ROI to 2D
+	else:
+		# root will be the starting node of the skeleton
+		trees = converter.getTrees()
+	if showInViewer:
+		# Display generated reconstructions
+		viewer = Viewer3D(context)
+		Tree.assignUniqueColors(trees)
+		viewer.add(trees)
+		viewer.show()
 	if saveResult:
 		# Save each generated tree as an SWC file
 		impTitle = imp.getShortTitle() + "-skeleton"
