@@ -87,6 +87,7 @@ import java.util.stream.Collectors;
 
 import javax.swing.*;
 import javax.swing.JSpinner.DefaultEditor;
+import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 import javax.swing.colorchooser.AbstractColorChooserPanel;
 import javax.swing.event.DocumentEvent;
@@ -839,8 +840,8 @@ public class GuiUtils {
 		menu.add(label);
 	}
 
-	public static JMenuItem menubarButton(final IconFactory.GLYPH glyphIcon, final JMenuBar menuBar) {
-		final JMenuItem mi = new JMenuItem(IconFactory.getMenuIcon(glyphIcon)) {
+	public static JButton menubarButton(final IconFactory.GLYPH glyphIcon, final Action action) {
+		final JButton mi = new JButton(action) {
 			private static final long serialVersionUID = 406126659895081426L;
 
 			@Override
@@ -850,8 +851,23 @@ public class GuiUtils {
 				d1.width = d2.width;
 				return d1;
 			}
+			@Override
+			public Icon getIcon() {
+				return IconFactory.getMenuIcon(glyphIcon);
+			}
+			@Override
+			public String getText() {
+				return null;
+			}
+			@Override
+			public Border getBorder() {
+				return null;
+			}
+			@Override
+			public boolean isBorderPainted() {
+				return false;
+			}
 		};
-		menuBar.add(mi);
 		return mi;
 	}
 

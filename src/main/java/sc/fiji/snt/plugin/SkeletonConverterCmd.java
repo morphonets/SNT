@@ -124,8 +124,8 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 	@Parameter(label = "Max. connection distance", min = "0.0", description = "<HTML>The maximum allowable distance between disconnected "
 			+ "components to be merged.<br>"
 			+ "Increase this value if the algorith produces too many gaps.<br>Decrease it to minimize spurious connections.<br><br>"
-			+ "This value is only used if \"Connect adjacent components\" is enabled.<br>"
-			+ "Elgibile components are only connected if the operation does not introduce loops")
+			+ "This value is only used if \"Connect adjacent components\" is enabled. Merges<br>"
+			+ "occur only between end-points and only when the operation does not introduce loops")
 	private double maxConnectDist;
 
 	@Parameter(label = "<HTML>&nbsp;<br><b> IV. Options:", required = false, visibility = ItemVisibility.MESSAGE)

@@ -2956,6 +2956,10 @@ public class SNT extends MultiDThreePanes implements
 		new GuiUtils(getActiveWindow()).centeredMsg(msg, title);
 	}
 
+	protected InteractiveTracerCanvas getTracingCanvas() {
+		return xy_tracer_canvas;
+	}
+
 	private Component getActiveCanvas() {
 		if (!isUIready()) return null;
 		final List<Component> components = new ArrayList<>();

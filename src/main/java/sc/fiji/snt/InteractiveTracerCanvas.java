@@ -810,6 +810,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		return fillColor;
 	}
 
+	public JPopupMenu getComponentPopupMenu() {
+		return pMenu;
+	}
+
 	protected void toggleEditMode() {
 		toggleEditModeMenuItem.doClick();
 	}

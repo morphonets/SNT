@@ -415,7 +415,9 @@ public class SNTUI extends JDialog {
 					}
 				});
 			}
-			registerCommandFinder(this.pmUI.getJMenuBar());
+			
+			this.pmUI.getJMenuBar().add(commandFinder.getMenuItem(this.pmUI.getJMenuBar(), true));
+			commandFinder.attach(this.pmUI);
 		} else {
 			this.pmUI = pmUI;
 		}
@@ -437,6 +439,7 @@ public class SNTUI extends JDialog {
 					}
 				});
 			}
+			commandFinder.attach(this.fmUI);
 		} else {
 			this.fmUI = fmUI;
 		}
@@ -2590,6 +2593,8 @@ public class SNTUI extends JDialog {
 		analysisMenu.add(measureMenuItem);
 
 		// Utilities
+		utilitiesMenu.add(commandFinder.getMenuItem(menuBar, false));
+		utilitiesMenu.addSeparator();
 		utilitiesMenu.add(plotMenuItem);
 		final JMenuItem compareFiles = new JMenuItem("Compare Reconstructions/Cell Groups...");
 		compareFiles.setToolTipText("Statistical comparisons between cell groups or individual files");
@@ -3389,6 +3394,10 @@ public class SNTUI extends JDialog {
 		return (sciViewSNT == null) ? null : sciViewSNT;
 	}
 
+	public JPopupMenu getTracingCanvasPopupMenu() {
+		return plugin.getTracingCanvas().getComponentPopupMenu();
+	}
+
 	protected void setReconstructionViewer(final Viewer3D recViewer) {
 		this.recViewer = recViewer;
 		openRecViewer.setEnabled(recViewer == null);
@@ -4141,15 +4150,6 @@ public class SNTUI extends JDialog {
 			plugin.getPrefs().setTemp("dataloss-nag", !prompt.booleanValue());
 		}
 		return false;
-	}
-
-	private void registerCommandFinder(final JMenuBar menubar) {
-		final JMenuItem cFinder = GuiUtils.menubarButton(IconFactory.GLYPH.SEARCH, menubar);
-		cFinder.setToolTipText("Search for commands");
-		cFinder.addActionListener(e -> {
-			commandFinder.setLocationRelativeTo(cFinder);
-			commandFinder.toggleVisibility();
-		});
 	}
 
 	private class ImportAction {

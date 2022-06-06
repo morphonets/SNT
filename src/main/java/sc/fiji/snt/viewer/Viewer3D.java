@@ -320,6 +320,8 @@ public class Viewer3D {
 	private FileDropWorker fileDropWorker;
 	private boolean abortCurrentOperation;
 	private final Engine ENGINE;
+	private SNTCommandFinder cmdFinder;
+
 
 	@Parameter
 	private Context context;
@@ -414,6 +416,7 @@ public class Viewer3D {
 		initManagerList();
 		context.inject(this);
 		prefs.setPreferences();
+		cmdFinder = new SNTCommandFinder(this);
 	}
 
 	protected static void workaroundIntelGraphicsBug() { // FIXME: This should go away with jogl 2.40?
@@ -1365,6 +1368,10 @@ public class Viewer3D {
 	 */
 	public Frame show() {
 		return show(0, 0);
+	}
+
+	public Frame getFrame() {
+		return frame;
 	}
 
 	/**
@@ -2639,6 +2646,7 @@ public class Viewer3D {
 			if (includeManager) {
 				manager = getManager();
 				chart.viewer.managerList.selectAll();
+				manager.addKeyListener(keyController);
 				snapPanelToSide();
 			}
 			toFront();
@@ -2674,29 +2682,30 @@ public class Viewer3D {
 			// dialog.setLocationRelativeTo(this);
 			dialog.setMinimumSize(new Dimension(dialog.getMinimumSize().width, getHeight()/2));
 			dialog.setContentPane(managerPanel);
-			attachAbortAction();
+			managerList.addKeyListener(getCmdFinderKeyAdapter());
+			chart.getCanvas().addKeyController(getCmdFinderKeyAdapter());
 			dialog.pack();
 			if (!sntInstance)
 				JDialog.setDefaultLookAndFeelDecorated(true);
 			return dialog;
 		}
 
-		private void attachAbortAction() {
+		private KeyAdapter getCmdFinderKeyAdapter() {
 			final KeyAdapter adapter = new KeyAdapter() {
 				@Override
 				public void keyPressed(final KeyEvent ke) {
 					if (KeyEvent.VK_ESCAPE == ke.getKeyCode()) {
-						if (managerPanel.cmdFinder != null)
-							managerPanel.cmdFinder.setVisible(false);
+						if (cmdFinder != null)
+							cmdFinder.setVisible(false);
 						chart.viewer.abortCurrentOperation = true;
+					} else if (cmdFinder != null && KeyEvent.VK_P == ke.getKeyCode() && ke.isShiftDown()
+							&& (ke.isControlDown() || ke.isMetaDown())) {
+						cmdFinder.toggleVisibility();
 					}
 				}
 			};
-			addKeyListener(adapter);
-			managerPanel.addKeyListener(adapter);
-			chart.viewer.managerList.addKeyListener(adapter);
+			return adapter;
 		}
-
 		private void displayLightController() {
 			lightController = new LightController(this);
 			lightController.display();
@@ -3080,12 +3089,10 @@ public class Viewer3D {
 		private JCheckBoxMenuItem debugCheckBox;
 		private final SNTSearchableBar searchableBar;
 		private final ProgressBar progressBar;
-		private SNTCommandFinder cmdFinder;
 
 		private ManagerPanel(final GuiUtils guiUtils) {
 			super();
 			this.guiUtils = guiUtils;
-			cmdFinder = new SNTCommandFinder();
 			setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 			searchableBar = new SNTSearchableBar(new ListSearchable(managerList));
 			searchableBar.setGuiUtils(guiUtils);
@@ -3381,14 +3388,7 @@ public class Viewer3D {
 			buttonPanel.add(menuButton(GLYPH.CALCULATOR, measureMenu(), "Analyze & Measure"));
 			buttonPanel.add(menuButton(GLYPH.TOOL, utilsMenu(), "Utilities"));
 			buttonPanel.add(menuButton(GLYPH.COG, prefsMenu(), "Settings"));
-			final JButton cFinder = new JButton(IconFactory.getButtonIcon(IconFactory.GLYPH.SEARCH));
-			cFinder.setToolTipText("Search for commands");
-			cFinder.addActionListener(e -> {
-				cmdFinder.setLocationRelativeTo(cFinder);
-				cmdFinder.toggleVisibility();
-			});
-			buttonPanel.add(cFinder);
-
+			buttonPanel.add(cmdFinder.getButton());
 			return buttonPanel;
 		}
 

@@ -26,13 +26,8 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
-import java.awt.Point;
-import java.awt.Rectangle;
-import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
@@ -43,10 +38,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Hashtable;
 
+import javax.swing.AbstractAction;
 import javax.swing.AbstractButton;
+import javax.swing.Action;
+import javax.swing.ActionMap;
 import javax.swing.BorderFactory;
+import javax.swing.InputMap;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
@@ -57,6 +57,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -66,17 +67,24 @@ import javax.swing.table.TableColumnModel;
 
 import org.scijava.ui.awt.AWTWindows;
 
-import ij.gui.GUI;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
+import sc.fiji.snt.viewer.Viewer3D;
 
 public class SNTCommandFinder {
 
-	private static final int TABLE_WIDTH = 520;
-	private static final int TABLE_ROWS = 18;
-
+	private static final String NAME = "Command Palette...";
+	private static final KeyStroke ACCELERATOR= KeyStroke.getKeyStroke(KeyEvent.VK_P,
+			java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_MASK);
+	private static final int TABLE_ROWS = 6;
+	private static int TABLE_WIDTH;
+	static {
+		TABLE_WIDTH = 2 * GuiUtils.renderedWidth("Append Direct Children To Selection  "); // example of a large cmd string
+	}
 	private static JFrame frame;
 	private final SNTUI sntui;
+	private final Viewer3D recViewer;
+
 
 	private Hashtable<String, CommandAction> defaultCmdsHash;
 	private Hashtable<String, CommandAction> otherCmdsHash;
@@ -84,37 +92,16 @@ public class SNTCommandFinder {
 	private String[] commands;
 	private JTable table;
 	private TableModel tableModel;
-	private ComponentWithFocusTimer relativeToComponent;
 	private boolean recordCmd;
 
 	public SNTCommandFinder(final SNTUI sntui) {
-		super();
 		this.sntui = sntui;
+		this.recViewer = null;
 	}
 
-	public SNTCommandFinder() {
-		this(null);
-	}
-
-	public void setLocationRelativeTo(final Component c) {
-		if (c != null) {
-			this.relativeToComponent = new ComponentWithFocusTimer(c);
-			final Window win = findWindow(relativeToComponent.component);
-			if (win != null) {
-				win.addComponentListener(new ComponentAdapter() {
-					@Override
-					public void componentMoved(final ComponentEvent ce) {
-						if (frame != null && frame.isVisible())
-							setFrameLocation();
-					}
-					@Override
-					public void componentResized(final ComponentEvent ce) {
-						if (frame != null && frame.isVisible())
-							setFrameLocation();
-					}
-				});
-			}
-		}
+	public SNTCommandFinder(final Viewer3D recViewer) {
+		this.sntui = null;
+		this.recViewer = recViewer;
 	}
 
 	public void dispose() {
@@ -135,15 +122,16 @@ public class SNTCommandFinder {
 	}
 
 	private void findAllMenuItemsInSNTUI() {
-		parseMenuBar("Main", sntui.getJMenuBar());
-		parsePopupMenu("PM", sntui.getPathManager().getJTree().getComponentPopupMenu()); // before PM's menu bar
-		parseMenuBar("PM", sntui.getPathManager().getJMenuBar());
+		parsePopupMenu(" Image", sntui.getTracingCanvasPopupMenu());
+		parseMenuBar("", sntui.getJMenuBar());
+		parsePopupMenu(" PM", sntui.getPathManager().getJTree().getComponentPopupMenu()); // before PM's menu bar
+		parseMenuBar("", sntui.getPathManager().getJMenuBar());
 	}
 
 	private void parsePopupMenu(final String hostingComponent, final JPopupMenu popup) {
 		if (popup != null) {
 			GuiUtils.getMenuItems(popup).forEach(mi -> {
-				registerMenuItem(mi, hostingComponent, "Contextual Menu");
+				registerMenuItem(mi, hostingComponent, "context menu");
 			});
 		}
 	}
@@ -171,9 +159,9 @@ public class SNTCommandFinder {
 				label = m.getText();
 			if (m instanceof JMenu) {
 				final JMenu subMenu = (JMenu) m;
-				parseMenu(hostingComponent, path + ">" + label, subMenu);
+				parseMenu(hostingComponent, path + "> " + label, subMenu);
 			} else {
-				register(defaultCmdsHash, m, hostingComponent, path + ">");
+				register(defaultCmdsHash, m, hostingComponent, path );
 			}
 		}
 	}
@@ -181,6 +169,7 @@ public class SNTCommandFinder {
 	private void register(final Hashtable<String, CommandAction> storageHTable, final AbstractButton button,
 			final String descriptionOfComponentHostingButton, final String descriptionOfPath) {
 		String label = button.getActionCommand();
+		if (NAME.equals(label)) return; // do not register command palette
 		if (label == null)
 			label = button.getText();
 		final String trimmedLabel = label.trim();
@@ -203,7 +192,7 @@ public class SNTCommandFinder {
 			if (ca.buttonHostDescription == null)
 				result[1] = ca.buttonLocationDescription;
 			else
-				result[1] = ca.buttonHostDescription + ": " + ca.buttonLocationDescription;
+				result[1] = ca.buttonHostDescription + " " + ca.buttonLocationDescription;
 		}
 		return result;
 	}
@@ -263,15 +252,17 @@ public class SNTCommandFinder {
 	}
 
 	private void shortcutsMsg() {
-		new GuiUtils(frame.getContentPane()).tempMsg( //
+		final GuiUtils gUtils = new GuiUtils(frame.getContentPane());
+		gUtils.setTmpMsgTimeOut(4000);
+		gUtils.tempMsg( //
 				"<HTML><table>" //
 				+ " <tr>" //
 				+ "  <td>&uarr; &darr;</td>" //
-				+ "  <td>Select Commands</td>" //
+				+ "  <td>Select commands</td>" //
 				+ " </tr>" //
 				+ " <tr>" //
 				+ "  <td>&crarr;</td>" //
-				+ "  <td>Run Command</td>" //
+				+ "  <td>Run selected command&nbsp&nbsp</td>" //
 				+ " </tr>" //
 				+ " <tr>" //
 				+ "  <td>A-Z</td>" //
@@ -280,6 +271,11 @@ public class SNTCommandFinder {
 				+ " <tr>" //
 				+ "  <td><&#9003;</td>" //
 				+ "  <td>Activate search field</td>" //
+				+ " </tr>" //
+				+ " <tr><td><&nbsp;</td><td>&nbsp;</td></tr>" // spacer
+				+ " <tr>" //
+				+ "  <td>" + GuiUtils.ctrlKey() + "+Shift+P&nbsp;&nbsp;</td>" //
+				+ "  <td>Toggle palette visibility&nbsp;</td>" //
 				+ " </tr>" //
 				+ " <tr>" //
 				+ "  <td>Esc</td>" //
@@ -296,16 +292,6 @@ public class SNTCommandFinder {
 		} else {
 			recordCommand(otherCmdsHash.get(command));
 			otherCmdsHash.get(command).button.doClick();
-		}
-	}
-
-	private static Window findWindow(final Component c) {
-		if (c == null) {
-			return null;
-		} else if (c instanceof Window) {
-			return (Window) c;
-		} else {
-			return findWindow(c.getParent());
 		}
 	}
 
@@ -338,7 +324,7 @@ public class SNTCommandFinder {
 			final int items = tableModel.getRowCount();
 			final Object source = ke.getSource();
 			final boolean meta = ((flags & KeyEvent.META_MASK) != 0) || ((flags & KeyEvent.CTRL_MASK) != 0);
-			if (key == KeyEvent.VK_ESCAPE || (key == KeyEvent.VK_W && meta)) {
+			if (key == KeyEvent.VK_ESCAPE || (key == KeyEvent.VK_W && meta) || (key == KeyEvent.VK_P && meta)) {
 				hideWindow();
 			} else if (source == searchField) {
 				/*
@@ -440,7 +426,7 @@ public class SNTCommandFinder {
 		if (frame != null)
 			return;
 		init();
-		frame = new JFrame("SNT Command Finder") {
+		frame = new JFrame("Command Palette") {
 			private static final long serialVersionUID = 6568953182481036426L;
 
 			public void dispose() {
@@ -459,18 +445,17 @@ public class SNTCommandFinder {
 			}
 
 			@Override
-			public void windowIconified(WindowEvent e) {
+			public void windowIconified(final WindowEvent e) {
 				hideWindow();
 			}
 
 			@Override
-			public void windowDeactivated(WindowEvent e) {
-				if (relativeToComponent == null || (relativeToComponent != null && !relativeToComponent.focusTimer.isRunning()))
-					hideWindow();
+			public void windowDeactivated(final WindowEvent e) {
+				hideWindow();
 			}
 
 			@Override
-			public void windowActivated(WindowEvent e) {
+			public void windowActivated(final WindowEvent e) {
 				// HACK: fix flickering of top menu bar on MacOS
 				if (ij.IJ.isMacOSX()) frame.setMenuBar(ij.Menus.getMenuBar());
 			}
@@ -485,14 +470,14 @@ public class SNTCommandFinder {
 				optionsMenu.show(options, options.getWidth() / 2, options.getHeight() / 2);
 			}
 		});
-		final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Record Commands", recordCmd);
+		final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Enable Command Recording", recordCmd);
 		jcmi.setEnabled(sntui != null);
 		optionsMenu.add(jcmi);
 		jcmi.addActionListener(e -> {
 			recordCmd = jcmi.isSelected();
 			System.out.println("Recording of selected commands enabled: " + recordCmd);
 		});
-		final JMenuItem jmi = new JMenuItem("List Shortcuts...");
+		final JMenuItem jmi = new JMenuItem("Command Palette Shortcuts...");
 		optionsMenu.add(jmi);
 		jmi.addActionListener(e -> shortcutsMsg());
 
@@ -518,6 +503,7 @@ public class SNTCommandFinder {
 		resizeColumnWidthAndRowHeight();
 		table.setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
 		final Dimension dim = new Dimension(TABLE_WIDTH, table.getRowHeight() * TABLE_ROWS);
+		//table.setPreferredSize(dim);
 		table.setPreferredScrollableViewportSize(dim);
 		table.addKeyListener(keyListener);
 		table.addMouseListener(new MouseAdapter() {
@@ -564,11 +550,34 @@ public class SNTCommandFinder {
 
 	}
 
-	public void toggleVisibility() {
-		if (frame != null && frame.isVisible())
-			hideWindow();
-		else
+	private Component getActiveWindow() {
+		if (sntui != null) {
+			if (sntui.isActive()) return sntui;
+			if (sntui.getPathManager().isActive()) return sntui.getPathManager();
+			if (sntui.getFillManager().isActive()) return sntui.getFillManager();
+		} else if (recViewer != null) {
+			return recViewer.getFrame();
+		}
+		return null;
+	}
+
+	private void toggleVisibility(final Component parent) {
+		if (frame == null) {
+			assembleFrame();
+		}
+		if (frame.isVisible()) {
+			setVisible(false);
+		} else {
+			if (parent == null) 
+				AWTWindows.centerWindow(frame);
+			else
+				AWTWindows.centerWindow(parent.getBounds(), frame);
 			setVisible(true);
+		}
+	}
+
+	public void toggleVisibility() {
+		toggleVisibility(getActiveWindow());
 	}
 
 	public void setVisible(final boolean b) {
@@ -579,10 +588,59 @@ public class SNTCommandFinder {
 		if (frame == null) {
 			assembleFrame();
 		}
-		setFrameLocation();
 		frame.setVisible(true);
 		if (searchField != null) searchField.requestFocus();
-		if (relativeToComponent != null) relativeToComponent.focusTimer.restart();
+	}
+
+	public Action getAction() {
+		final Action action = new AbstractAction(NAME) {
+
+			private static final long serialVersionUID = -7030359886427866104L;
+
+			@Override
+			public void actionPerformed(final ActionEvent e) {
+				toggleVisibility();
+			}
+
+		};
+		action.putValue(Action.ACCELERATOR_KEY, ACCELERATOR);
+		return action;
+	}
+
+	public void attach(final JDialog dialog) {
+		final int condition = JPanel.WHEN_IN_FOCUSED_WINDOW;
+		final InputMap inputMap = ((JPanel) dialog.getContentPane()).getInputMap(condition);
+		final ActionMap actionMap = ((JPanel) dialog.getContentPane()).getActionMap();
+		inputMap.put(ACCELERATOR, NAME);
+		actionMap.put(NAME, new AbstractAction() {
+
+			private static final long serialVersionUID = 1L;
+
+			@Override
+			public void actionPerformed(final ActionEvent e) {
+				toggleVisibility(dialog);
+			}
+		});
+	}
+
+	public AbstractButton getMenuItem(final JMenuBar menubar, final boolean asButton) {
+		final AbstractButton jmi = (asButton) ? GuiUtils.menubarButton(IconFactory.GLYPH.SEARCH, getAction())
+				: new JMenuItem(getAction());
+		if (asButton) {
+			jmi.setToolTipText(NAME + "  " + GuiUtils.ctrlKey() + "+Shift+P");
+		} else {
+			jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH));
+		}
+		return jmi;
+	}
+
+	public JButton getButton() {
+		final JButton button = new JButton(getAction());
+		button.setText(null);
+		button.setIcon(IconFactory.getButtonIcon(IconFactory.GLYPH.SEARCH));
+		button.getInputMap().put(ACCELERATOR, NAME);
+		button.setToolTipText(NAME + "  " + GuiUtils.ctrlKey() + "+Shift+P");
+		return button;
 	}
 
 	private void resizeColumnWidthAndRowHeight() {
@@ -611,31 +669,6 @@ public class SNTCommandFinder {
 			for (int row = 0; row < table.getRowCount(); row++) {
 				table.setRowHeight(row, ROW_HEIGHT);
 			}
-		}
-	}
-
-	private void setFrameLocation() {
-		if (relativeToComponent == null) {
-			AWTWindows.centerWindow(frame);
-		} else {
-
-			final int dialogWidth = frame.getWidth();
-			final int dialogHeight = frame.getHeight();
-			final Point pos = relativeToComponent.component.getLocationOnScreen();
-			final Dimension size = relativeToComponent.component.getSize();
-
-			/*
-			 * Generally try to position the dialog slightly offset from the main ImageJ
-			 * window, but if that would push the dialog off to the screen to any side,
-			 * adjust it so that it's on the screen.
-			 */
-			int initialX = pos.x + 5;
-			int initialY = pos.y + 5 + size.height;
-			final Rectangle screen = GUI.getMaxWindowBounds(frame);
-
-			initialX = Math.max(screen.x, Math.min(initialX, screen.x + screen.width - dialogWidth));
-			initialY = Math.max(screen.y, Math.min(initialY, screen.y + screen.height - dialogHeight));
-			frame.setLocation(initialX, initialY);
 		}
 	}
 
