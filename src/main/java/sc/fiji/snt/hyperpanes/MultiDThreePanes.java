@@ -234,9 +234,16 @@ public class MultiDThreePanes implements PaneOwner {
 	}
 
 	public void setCanvasLabelAllPanes(final String label) {
-		if (xy_canvas != null) xy_canvas.setCanvasLabel(label);
-		if (xz_canvas != null) xz_canvas.setCanvasLabel(label);
-		if (zy_canvas != null) zy_canvas.setCanvasLabel(label);
+		if (xy_canvas != null) {
+			xy_canvas.setCanvasLabel(label);
+			xy_canvas.repaint();
+		}
+		if (!single_pane) {
+			xz_canvas.setCanvasLabel(label);
+			xz_canvas.repaint();
+			zy_canvas.setCanvasLabel(label);
+			zy_canvas.repaint();
+		}
 	}
 
 	public void setAnnotationsColorAllPanes(final Color newColor) {

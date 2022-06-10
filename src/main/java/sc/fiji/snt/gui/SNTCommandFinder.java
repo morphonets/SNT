@@ -443,6 +443,7 @@ public class SNTCommandFinder {
 		contentPane.setLayout(new BorderLayout());
 		frame.setUndecorated(true);
 		frame.setAlwaysOnTop(true);
+		//frame.setOpacity(.95f);
 		frame.addWindowListener(new WindowAdapter() {
 			@Override
 			public void windowClosing(final WindowEvent e) {
@@ -458,16 +459,11 @@ public class SNTCommandFinder {
 			public void windowDeactivated(final WindowEvent e) {
 				hideWindow();
 			}
-
-			@Override
-			public void windowActivated(final WindowEvent e) {
-				// HACK: fix flickering of top menu bar on MacOS
-				if (ij.IJ.isMacOSX()) frame.setMenuBar(ij.Menus.getMenuBar());
-			}
 		});
 
 		final JPanel northPanel = new JPanel(new BorderLayout());
 		final JButton options = new JButton(IconFactory.getButtonIcon(GLYPH.ELLIPSIS_VERTICAL));
+		//options.setOpaque(false);
 		final JPopupMenu optionsMenu = new JPopupMenu();
 		options.addMouseListener(new MouseAdapter() {
 			@Override

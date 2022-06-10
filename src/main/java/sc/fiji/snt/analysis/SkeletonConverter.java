@@ -127,7 +127,8 @@ public class SkeletonConverter {
 			final boolean erodeIsolatedPixels) {
 		if (lowerThreshold != ij.process.ImageProcessor.NO_THRESHOLD && lowerThreshold > 0 && upperThreshold > 0) {
 			// TODO: Adopt IJ ops!?
-			ij.IJ.setRawThreshold(imp, lowerThreshold, Double.MAX_VALUE, "no update");
+			ij.IJ.setRawThreshold(imp, lowerThreshold, upperThreshold, "no update");
+			SNTUtils.log("Lower threshold = " + lowerThreshold + ", Upper threshold = " + upperThreshold);
 			final int nImagesBefore = ij.WindowManager.getImageCount();
 			IJ.run(imp, "Convert to Mask", " black");
 			// HACK: By some strange reason (sometimes!?) a new mask is created even though we are skipping the
@@ -143,6 +144,7 @@ public class SkeletonConverter {
 		} else {
 			SNTUtils.convertTo8bit(imp); // does nothing if imp already 8-bit
 		}
+		SNTUtils.log("Skeletonizing...");
 		final Skeletonize3D_ thin = new Skeletonize3D_();
 		thin.setup("", imp);
 		thin.run(null);
@@ -195,8 +197,6 @@ public class SkeletonConverter {
      *                           ({@link Roi#getZPosition()}), or the active Z-slice
      *                           if ROI is not associated with a particular slice
      * @return the skeleton tree list
-     * @throws IllegalArgumentException The number of end-/-junction points detected
-     *                                  in the ROI is unexpected
      */
     public List<Tree> getTrees(final Roi roi, final boolean restrictToROIplane) {
         final List<Tree> treeList = new ArrayList<>();
@@ -247,11 +247,8 @@ public class SkeletonConverter {
      *                           ({@link Roi#getZPosition()}), or the active Z-slice
      *                           if ROI is not associated with a particular slice
      * @return the skeleton graph list
-     * @throws IllegalArgumentException The number of end-/-junction points detected
-     *                                  in the ROI is unexpected
      */
-    public List<DirectedWeightedGraph> getGraphs(final Roi roi, final boolean restrictToROIplane)
-            throws IllegalArgumentException {
+    public List<DirectedWeightedGraph> getGraphs(final Roi roi, final boolean restrictToROIplane) {
 
         int roiSlice = -1;
         if (restrictToROIplane && imp.getNSlices() > 1) {
@@ -284,10 +281,10 @@ public class SkeletonConverter {
         final List<DirectedWeightedGraph> graphList = getGraphs();
         if (putativeRoots.isEmpty()) {
             return graphList;
-        } else if (putativeRoots.size() > graphList.size()) {
-            throw new IllegalArgumentException(
-                    "The number of end-points and/or junction points enclosed by the ROI surpasses the no. of structures in the image");
         }
+		if (putativeRoots.size() > graphList.size()) {
+			SNTUtils.log("# of end-points and/or junction points enclosed by the ROI >  # of structures in image");
+		}
         for (final DirectedWeightedGraph graph : graphList) {
             // We now have a list of putative roots and a series of graphs.
             // Let's try to assign them

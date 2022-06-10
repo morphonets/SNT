@@ -415,7 +415,7 @@ public class SNTUI extends JDialog {
 					}
 				});
 			}
-			
+			this.pmUI.getJMenuBar().add(Box.createHorizontalGlue());
 			this.pmUI.getJMenuBar().add(commandFinder.getMenuItem(this.pmUI.getJMenuBar(), true));
 			commandFinder.attach(this.pmUI);
 		} else {
@@ -4258,6 +4258,8 @@ public class SNTUI extends JDialog {
 					} else if (choices[4].equals(choice)) {
 						sntService.loadTracings("timelapse demo");
 					} else if (choices[2].equals(choice)) {
+						plugin.getStats().min = 0;
+						plugin.getStats().max = 255;
 						sntService.loadTracings("OP1 demo");
 					}
 					plugin.updateAllViewers();

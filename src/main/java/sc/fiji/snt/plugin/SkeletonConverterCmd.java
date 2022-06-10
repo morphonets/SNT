@@ -58,6 +58,7 @@ import java.util.*;
 @Plugin(type = Command.class, visible = false, label = "Automated Tracing: Tree(s) from Segmented Image...", initializer = "init")
 public class SkeletonConverterCmd extends CommonDynamicCmd {
 
+	private static final String IMG_NONE= "None";
 	private static final String IMG_UNAVAILABLE_CHOICE = "No other image open";
 	private static final String IMG_TRACED_CHOICE = "Image being traced";
 	private static final String IMG_TRACED_DUP_CHOICE = "Image being traced (duplicate)";
@@ -164,7 +165,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			resolveInput("originalImgChoice");
 			resolveInput("useFileChoosers");
 			useFileChoosers = false;
-			maskImgChoice = "Image being traced (duplicate)";
+			maskImgChoice = IMG_TRACED_DUP_CHOICE;
 			connectComponents = true;
 			maxConnectDist = 5d; // hopefully 5 microns
 			pruneByLength = false;
@@ -220,8 +221,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			}
 			if (maskChoices.isEmpty())
 				maskChoices.add(IMG_UNAVAILABLE_CHOICE);
-			if (originalChoices.isEmpty())
-				originalChoices.add(IMG_UNAVAILABLE_CHOICE);
+			originalChoices.add(0, IMG_NONE);
 			maskImgChoiceItem.setChoices(maskChoices);
 			originalImgChoiceItem.setChoices(originalChoices);
 		}
@@ -303,7 +303,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				}
 				if (IMG_TRACED_CHOICE.equals(originalImgChoice)) {
 					chosenOrigImp = snt.getLoadedDataAsImp();
-				} else {
+				} else if (impMap != null) { // e.g. when 
 					chosenOrigImp = impMap.get(originalImgChoice);
 				}
 			}
@@ -411,8 +411,6 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 					+ (isBinary(chosenMaskImp) || chosenMaskImp.isThreshold()));
 			SNTUtils.log("Original image: " + ((chosenOrigImp == null) ? null : chosenOrigImp.getTitle()));
 
-			SNTUtils.log("Skeletonizing...");
-
 			// We'll skeletonize all images again, just to ensure we are indeed dealing with
 			// skeletons
 			snt.setCanvasLabelAllPanes("Skeletonizing..");
@@ -422,18 +420,26 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			snt.setCanvasLabelAllPanes("Autotracer running...");
 			status("Creating Trees from Skeleton...", false);
 			final SkeletonConverter converter = new SkeletonConverter(chosenMaskImp, false);
+			SNTUtils.log("Converting....");
 			converter.setPruneByLength(pruneByLength);
+			SNTUtils.log("Prune by length: " + pruneByLength);
 			converter.setLengthThreshold(lengthThreshold);
+			SNTUtils.log("Length threshold: " + lengthThreshold);
 			converter.setConnectComponents(connectComponents);
+			SNTUtils.log("Connect components: " + connectComponents);
 			converter.setMaxConnectDist(maxConnectDist);
+			SNTUtils.log("MaxC onnecting Dist.: " + maxConnectDist);
 			if (chosenOrigImp == null) {
 				converter.setPruneMode(SkeletonConverter.SHORTEST_BRANCH);
+				SNTUtils.log("Pruning mode: Shortest branch");
 			} else {
 				converter.setOrigIP(chosenOrigImp);
 				converter.setPruneMode(SkeletonConverter.LOWEST_INTENSITY_VOXEL);
+				SNTUtils.log("Pruning mode: Dimmest voxel");
 			}
 
 			final List<Tree> trees = (isValidRoi) ? converter.getTrees(roi, roiPlane) : converter.getTrees();
+			SNTUtils.log("... Done. " + trees.size() + " tree(s) retrieved.");
 			if (trees.isEmpty()) {
 				error("No paths could be extracted. Chosen parameters were not suitable!?");
 				return;
@@ -446,11 +452,8 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			trees.forEach(tree -> pafm.addTree(tree, "Autotraced"));
 
 			// Extra user-friendliness: If no display canvas exist, no image is being
-			// traced,
-			// or we are importing from a file path, adopt the chosen image as tracing
-			// canvas
-			if (ensureMaskImgVisibleOnAbort)
-				chosenMaskImp.show();
+			// traced, or we are importing from a file path, adopt the chosen image as
+			// tracing canvas
 			if (snt.getImagePlus() == null || useFileChoosers) {
 				// Suppress the 'auto-tracing' prompt for this image. This
 				// will be reset once SNT initializes with the new data
