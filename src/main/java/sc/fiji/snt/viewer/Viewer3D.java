@@ -2685,8 +2685,6 @@ public class Viewer3D {
 			managerList.addKeyListener(getCmdFinderKeyAdapter());
 			chart.getCanvas().addKeyController(getCmdFinderKeyAdapter());
 			dialog.pack();
-			if (!sntInstance)
-				JDialog.setDefaultLookAndFeelDecorated(true);
 			return dialog;
 		}
 

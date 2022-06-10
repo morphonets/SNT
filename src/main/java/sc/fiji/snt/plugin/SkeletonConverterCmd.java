@@ -458,7 +458,14 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				snt.initialize(chosenMaskImp);
 			}
 
-			resetUI(false, (editMode && pafm.size() > 0) ? SNTUI.EDITING : SNTUI.READY);
+			if (editMode && ui != null && pafm.size() > 0) {
+				if (!trees.get(0).isEmpty())
+					ui.getPathManager().setSelectedPaths(Collections.singleton(trees.get(0).get(0)), this);
+				ui.setVisibilityFilter("all", false);
+				resetUI(false, SNTUI.EDITING);
+			} else {
+				resetUI(false,  SNTUI.READY);
+			}
 			status("Successfully created " + trees.size() + " Tree(s)...", true);
 
 		} catch (final Exception | Error ex) {

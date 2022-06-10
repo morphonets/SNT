@@ -2518,8 +2518,9 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void invalidStatsError(final boolean isSecondary) {
-		guiUtils.error("Statistics for the " + (isSecondary ? "Secondary Layer" : "main image") +
-				" have not been computed. Trace a small path over a relevant feature to compute them.");
+		guiUtils.error("Statistics for the " + (isSecondary ? "Secondary Layer" : "main image")
+				+ " have not been computed yet. Please trace a small path over a relevant feature to compute them."
+				+ " This will allow SNT to better understand the dynamic range of the image.");
 	}
 
 	protected void setFillTransparent(final boolean transparent) {

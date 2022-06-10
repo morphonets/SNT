@@ -867,6 +867,23 @@ public class GuiUtils {
 			public boolean isBorderPainted() {
 				return false;
 			}
+			@Override
+			public boolean isBackgroundSet() {
+				return false;
+			}
+			@Override
+			public Color getBackground() {
+				return null;
+			}
+			@Override
+			public boolean isOpaque() {
+				return false;
+			}
+			@Override
+			public boolean isContentAreaFilled() {
+				return false;
+			}
+
 		};
 		return mi;
 	}
@@ -1384,6 +1401,11 @@ public class GuiUtils {
 	public static void setLookAndFeel() {
 		storeExistingLookAndFeel();
 		final String lafName = SNTPrefs.getLookAndFeel(); // never null
+		if (!PlatformUtils.isLinux()) {
+			// FIXME: With current flatlaf version this assign Windows 10 laf to the GTK l!?
+			JDialog.setDefaultLookAndFeelDecorated(true);
+			JFrame.setDefaultLookAndFeelDecorated(true);
+		}
 		if (existingLaf == null || !lafName.equals(existingLaf.getName()))
 			setLookAndFeel(SNTPrefs.getLookAndFeel(), false);
 	}

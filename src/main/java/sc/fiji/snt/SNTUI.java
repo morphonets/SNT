@@ -697,9 +697,34 @@ public class SNTUI extends JDialog {
 		});
 	}
 
+	/**
+	 * Updates the dialog, including status bar and 'computation settings' widget.
+	 */
 	public void refresh() {
 		updateSettingsString();
 		refreshStatus();
+	}
+
+	/**
+	 * Sets filters for visibility of paths, as per respective widget in dialog.
+	 *
+	 * @param filter a reference to the visibility filter checkbox. Either the
+	 *               checkbox complete label or relevant keyword, e.g., "selected",
+	 *               "Z-slices", "channel", etc. "all" can also be use to toggle all
+	 *               checkboxes in the widget
+	 * @param state  whether the filter should be active or not.
+	 */
+	public void setVisibilityFilter(final String filter, final boolean state) {
+		assert SwingUtilities.isEventDispatchThread();
+		final String normFilter = filter.toLowerCase();
+		final boolean all = normFilter.contains("all");
+		if (all || normFilter.contains("selected")) {
+			showPathsSelected.setSelected(state);
+		} else if (all || normFilter.contains("z") || normFilter.contains("slices")) {
+			partsNearbyCSpinner.getCheckBox().setSelected(state);
+		} else if (all || normFilter.contains("channel") || normFilter.contains("frame")) {
+			onlyActiveCTposition.setSelected(state);
+		}
 	}
 
 	protected void updateSettingsString() {

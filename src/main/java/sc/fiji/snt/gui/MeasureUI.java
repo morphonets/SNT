@@ -86,7 +86,6 @@ public class MeasureUI extends JFrame {
 		this(SNTUtils.getContext(), trees);
 		lastDirPath = System.getProperty("user.home");
 		setLocationRelativeTo(null);
-		setDefaultLookAndFeelDecorated(true);
 	}
 
 	public MeasureUI(final SNT plugin, final Collection<Tree> trees) {

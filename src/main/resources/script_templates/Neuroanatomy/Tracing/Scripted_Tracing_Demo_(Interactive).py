@@ -6,7 +6,7 @@
 """
 file:       Scripted_Tracing_Demo.py
 author:     Tiago Ferreira
-version:    20200524
+version:    20220610
 info:       Exemplifies how to programmatically interact with a running
             instance of SNT to perform auto-tracing tasks.
 """
@@ -47,6 +47,10 @@ def run():
     plugin.changeUIState(SNTUI.READY)
     astar_enabled = plugin.isAstarEnabled()
 
+    # We'll also toggle checkboxes in the "Filters for Visibility of Paths"
+    # widget to ensure paths created by this script remain visible
+    plugin.getUI().setVisibilityFilter("Only selected", false)
+
     # We need an image: if none exists, we'll create a placeholder display
     # canvas. If that is not possible, we'll defaut to SNT's "demo" image
     if imp is None and pafm.size() > 0:
@@ -61,7 +65,6 @@ def run():
     if snt.getUI():
         plugin.getUI().showStatus(msg, True)
     plugin.setCanvasLabelAllPanes(msg)
-    snt.updateViewers()
 
     # In a real-world scenario we would have a routine in place to detect seed
     # points for auto-tracing. For this demo, let's just use the center pixel

@@ -401,8 +401,9 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			case FRANGI: {
 				final double stackMax = sntService.getPlugin().getStats().max;
 				if (stackMax == 0) {
-					new GuiUtils().error("Statistics for the main image have not been computed. " +
-												 "Trace a small path over a relevant feature to compute them.");
+					new GuiUtils().error("Statistics for the main image have not been computed yet. "
+							+ "Please trace a small path over a relevant feature to compute them. "
+							+ "This will allow SNT to better understand the dynamic range of the image.");
 					return;
 				}
 				final Frangi<T, U> op = new Frangi<>(

@@ -54,6 +54,7 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
+import javax.swing.JRootPane;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
@@ -66,6 +67,7 @@ import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableColumnModel;
 
 import org.scijava.ui.awt.AWTWindows;
+import org.scijava.util.PlatformUtils;
 
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
@@ -217,8 +219,8 @@ public class SNTCommandFinder {
 		tableModel.setData(list);
 		if (searchField != null)
 			searchField.requestFocus();
-		if (frame != null && frame.isVisible() && table != null)
-			resizeRowHeight();
+//		if (frame != null && frame.isVisible() && table != null)
+//			resizeRowHeight();
 	}
 
 
@@ -434,6 +436,9 @@ public class SNTCommandFinder {
 				super.dispose();
 			}
 		};
+		frame.setUndecorated(true);
+		frame.setAlwaysOnTop(true);
+		frame.getRootPane().setWindowDecorationStyle(JRootPane.NONE);
 		final Container contentPane = frame.getContentPane();
 		contentPane.setLayout(new BorderLayout());
 		frame.setUndecorated(true);
@@ -644,7 +649,7 @@ public class SNTCommandFinder {
 	}
 
 	private void resizeColumnWidthAndRowHeight() {
-		resizeRowHeight();
+		//resizeRowHeight();
 		final int MIN_ROW_WIDTH = 20;
 		final int MAX_ROW_WIDTH = TABLE_WIDTH * 3/4;
 		final TableColumnModel columnModel = table.getColumnModel();
@@ -661,10 +666,11 @@ public class SNTCommandFinder {
 		}
 	}
 
+	@SuppressWarnings("unused")
 	private void resizeRowHeight() {
 		// this just seems to be needed on Linux, in which cells appear truncated
-		// vertically?
-		if (ij.IJ.isLinux()) {
+		// vertically? /// -----> no longer needed with FlatLaf look and feel
+		if (PlatformUtils.isLinux()) {
 			final int ROW_HEIGHT = new JLabel().getFont().getSize();
 			for (int row = 0; row < table.getRowCount(); row++) {
 				table.setRowHeight(row, ROW_HEIGHT);
