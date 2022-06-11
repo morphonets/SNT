@@ -188,7 +188,7 @@ public class OBJMesh {
 	public void setTransparency(final double transparencyPercent) {
 		final Color existing = drawable.getColor();
 		final Color adjusted = new Color(existing.r, existing.g, existing.b,
-				(int) Math.round((100 - transparencyPercent) * 255 / 100));
+				(float) (1 - (transparencyPercent / 100.0)));
 		drawable.setColor(adjusted);
 	}
 
