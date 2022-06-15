@@ -38,6 +38,7 @@ import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.Window;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
@@ -55,6 +56,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
+import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Types;
 
@@ -2449,7 +2451,7 @@ public class SNTUI extends JDialog {
 		loadTracesMenuItem.addActionListener(listener);
 		importSubmenu.add(loadTracesMenuItem);
 
-		final JMenuItem importDirectory = new JMenuItem("Directory of SWCs...", 
+		final JMenuItem importDirectory = new JMenuItem("Directory of SWCs...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.FOLDER));
 		importSubmenu.add(importDirectory);
 		importDirectory.addActionListener(e -> {
@@ -2667,21 +2669,6 @@ public class SNTUI extends JDialog {
 		arrangeWindowsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.WINDOWS));
 		arrangeWindowsMenuItem.addActionListener(e -> arrangeCanvases(true));
 		viewMenu.add(arrangeWindowsMenuItem);
-		final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image");
-		showImpMenuItem.addActionListener(e -> {
-			if (!plugin.isSecondaryDataAvailable()) {
-				noSecondaryDataAvailableError();
-				return;
-			}
-			final ImagePlus imp = plugin.getSecondaryDataAsImp();
-			if (imp == null) {
-				guiUtils.error("Somehow image could not be created.", "Secondary Image Unavailable?");
-			} else {
-				imp.show();
-			}
-		});
-		viewMenu.add(showImpMenuItem);
-		viewMenu.addSeparator();
 		final JMenu hideViewsMenu = new JMenu("Hide Tracing Canvas");
 		hideViewsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EYE_SLASH));
 		final JCheckBoxMenuItem xyCanvasMenuItem = new JCheckBoxMenuItem("Hide XY View");
@@ -2704,6 +2691,42 @@ public class SNTUI extends JDialog {
 		hideViewsMenu.add(threeDViewerMenuItem);
 		viewMenu.add(hideViewsMenu);
 		viewMenu.addSeparator();
+
+		final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image");
+		showImpMenuItem.addActionListener(e -> {
+			if (!plugin.isSecondaryDataAvailable()) {
+				noSecondaryDataAvailableError();
+				return;
+			}
+			final ImagePlus imp = plugin.getSecondaryDataAsImp();
+			if (imp == null) {
+				guiUtils.error("Somehow image could not be created.", "Secondary Image Unavailable?");
+			} else {
+				imp.show();
+			}
+		});
+		viewMenu.add(showImpMenuItem);
+		final JMenuItem consoleJMI = new JMenuItem("Toggle Console");
+		consoleJMI.addActionListener(e -> {
+			try {
+				for (final Window w : JFrame.getWindows()) {
+					if (w instanceof JFrame) {
+						if ("Console".equals(((JFrame) w).getTitle())) {
+							w.setVisible(!w.isVisible());
+							return;
+						}
+					}
+				}
+				plugin.getContext().getService(UIService.class).getDefaultUI().getConsolePane().show();
+			} catch (final Exception ex) {
+				guiUtils.error(
+						"Could not toggle Fiji's built-in Console. Please use Fiji's Window>Console command directly.");
+				ex.printStackTrace();
+			}
+		});
+		viewMenu.add(consoleJMI);
+		viewMenu.addSeparator();
+
 		viewMenu.add(guiUtils.combineChartsMenuItem());
 		return menuBar;
 	}

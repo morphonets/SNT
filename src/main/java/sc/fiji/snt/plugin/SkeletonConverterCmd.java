@@ -164,6 +164,9 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			resolveInput("maskImgChoice");
 			resolveInput("originalImgChoice");
 			resolveInput("useFileChoosers");
+			resolveInput("roiPlane");
+			resolveInput("pruneByLength");
+			resolveInput("lengthThreshold");
 			useFileChoosers = false;
 			maskImgChoice = IMG_TRACED_DUP_CHOICE;
 			connectComponents = true;

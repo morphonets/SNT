@@ -593,7 +593,7 @@ public class SNTCommandFinder {
 		if (searchField != null) searchField.requestFocus();
 	}
 
-	public Action getAction() {
+	private Action getAction() {
 		final Action action = new AbstractAction(NAME) {
 
 			private static final long serialVersionUID = -7030359886427866104L;
@@ -613,15 +613,7 @@ public class SNTCommandFinder {
 		final InputMap inputMap = ((JPanel) dialog.getContentPane()).getInputMap(condition);
 		final ActionMap actionMap = ((JPanel) dialog.getContentPane()).getActionMap();
 		inputMap.put(ACCELERATOR, NAME);
-		actionMap.put(NAME, new AbstractAction() {
-
-			private static final long serialVersionUID = 1L;
-
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				toggleVisibility(dialog);
-			}
-		});
+		actionMap.put(NAME, getAction());
 	}
 
 	public AbstractButton getMenuItem(final JMenuBar menubar, final boolean asButton) {
