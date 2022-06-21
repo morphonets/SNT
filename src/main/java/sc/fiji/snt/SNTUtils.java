@@ -514,7 +514,7 @@ public class SNTUtils {
 	 *
 	 * @param dir     the directory containing the reconstruction files (.(e)swc,
 	 *                .traces, .json extension)
-	 * @param pattern the filename substring (case sensitive) to be matched. Only
+	 * @param pattern the filename substring (case-sensitive) to be matched. Only
 	 *                filenames containing {@code pattern} will be imported from the
 	 *                directory. {@code null} allowed.
 	 * @return the list of files. An empty list is retrieved if {@code dir} is not a
@@ -544,7 +544,7 @@ public class SNTUtils {
 
 	/**
 	 * Convenience method to access the context of the running Fiji instance (mainly
-	 * for IJ1 plugins.
+	 * for IJ1 plugins).
 	 * 
 	 * @return the context of the running Fiji instance
 	 */

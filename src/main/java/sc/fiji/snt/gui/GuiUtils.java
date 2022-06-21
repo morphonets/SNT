@@ -317,7 +317,7 @@ public class GuiUtils {
 
 	public boolean getConfirmation(final String msg, final String title, final String yesLabel, final String noLabel) {
 		final Boolean result = getConfirmation2(msg, title, yesLabel, noLabel);
-		return result != null && result.booleanValue();
+		return result != null && result;
 	}
 
 	public Boolean getConfirmation2(final String msg, final String title, final String yesLabel, final String noLabel) {
@@ -507,7 +507,9 @@ public class GuiUtils {
 		final JFileChooser chooser = fileChooser(title, file, JFileChooser.SAVE_DIALOG, JFileChooser.FILES_ONLY, allowedExtensions);
 		if (chooser.showSaveDialog(parent) == JFileChooser.APPROVE_OPTION) {
 			chosenFile = chooser.getSelectedFile();
-			if (chosenFile != null && allowedExtensions != null && allowedExtensions.size() == 1) {
+			if (chosenFile == null)
+				return null;
+			if (allowedExtensions != null && allowedExtensions.size() == 1) {
 				final String path = chosenFile.getAbsolutePath();
 				final String extension = allowedExtensions.get(0);
 				if (!path.endsWith(extension))
@@ -783,7 +785,7 @@ public class GuiUtils {
 		final StringBuilder sb = new StringBuilder();
 		while (true) {
 			final T t = i.next();
-			sb.append(String.valueOf(t));
+			sb.append(t);
 			if (!i.hasNext()) {
 				return sb.toString();
 			}
@@ -1626,8 +1628,8 @@ public class GuiUtils {
 		int minHeight = Integer.MAX_VALUE;
 		double totalWidth = 0;
 		double totalHeight = 0;
-		for (int i = 0; i < windowList.size(); i++) {
-			final Dimension d = windowList.get(i).getSize();
+		for (final Window window : windowList) {
+			final Dimension d = window.getSize();
 			final int w = d.width;
 			final int h = d.height + titlebarHeight;
 			if (w < minWidth)
@@ -1672,13 +1674,13 @@ public class GuiUtils {
 		} while (!theyFit);
 		hloc = XSTART;
 		vloc = YSTART;
-		for (int i = 0; i < nPics; i++) {
+		for (final Window window : windowList) {
 			if (hloc + tileWidth > screen.width) {
 				hloc = XSTART;
 				vloc = vloc + tileHeight;
 			}
-			windowList.get(i).setLocation(hloc + screen.x, vloc + screen.y);
-			windowList.get(i).toFront();
+			window.setLocation(hloc + screen.x, vloc + screen.y);
+			window.toFront();
 			hloc += tileWidth + GAP;
 		}
 	}
@@ -1777,7 +1779,7 @@ public class GuiUtils {
 			final Dimension screenD = Toolkit.getDefaultToolkit().getScreenSize();
 			final Dimension dialogD = getPreferredSize();
 			final int maxWidth = (int) (Math.min(0.70 * screenD.width, 800)); // max 70% of screen width, but not more
-																				// than 800 pxl
+																				// then 800 pxl
 			if (maxWidth > 400 && dialogD.width > maxWidth)
 				dialogD.width = maxWidth;
 			if (dialogD.height > 0.80 * screenD.height && screenD.height > 400) // max 80% of screen height
@@ -1785,7 +1787,7 @@ public class GuiUtils {
 			int minHeight = editorPane.getFontMetrics(editorPane.getFont()).getHeight() * 10 + panel.getPreferredSize().height;
 			if (dialogD.height < minHeight)
 				dialogD.height = minHeight;
-			setPreferredSize(dialogD);;
+			setPreferredSize(dialogD);
 			pack(); // Important! or preferred dimensions won't apply
 		}
 
@@ -1945,7 +1947,7 @@ public class GuiUtils {
 		public static JMenuItem convexHull() {
 			final JMenuItem jmi = new JMenuItem("Convex Hull...", IconFactory.getMenuIcon(GLYPH.DICE_20));
 			jmi.setToolTipText(
-					"2D/3D convex hull measurement(s).\nMetrics for estimation of dendritic or pre-synapic fields");
+					"2D/3D convex hull measurement(s).\nMetrics for estimation of dendritic or pre-synaptic fields");
 			return jmi;
 		}
 

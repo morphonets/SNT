@@ -96,7 +96,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	/**
 	 * Instantiates a new Fill Manager Dialog
 	 *
-	 * @param plugin the the {@link SNT} instance to be associated
+	 * @param plugin the {@link SNT} instance to be associated
 	 *               with this FillManager. It is assumed that its {@link SNTUI} is
 	 *               available.
 	 */
@@ -145,7 +145,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 		final JPanel distancePanel = new JPanel(new GridBagLayout());
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
-		cursorThresholdChoice = new JRadioButton("Set by clicking on traced strucure (preferred)"); // dummy. the default
+		cursorThresholdChoice = new JRadioButton("Set by clicking on traced structure (preferred)"); // dummy. the default
 
 		final JPanel t1Panel = leftAlignedPanel();
 		t1Panel.add(cursorThresholdChoice);

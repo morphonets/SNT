@@ -582,7 +582,7 @@ public class SNTUI extends JDialog {
 	 * Runs a menu command (as listed in the menu bar hierarchy).
 	 *
 	 * @param cmd The command to be run, exactly as listed in its menu (either in
-	 *            the this dialog, or {@link PathManagerUI})
+	 *            this dialog, or {@link PathManagerUI})
 	 * @throws IllegalArgumentException if {@code cmd} was not found.
 	 */
 	public void runCommand(final String cmd) throws IllegalArgumentException {
@@ -2109,7 +2109,7 @@ public class SNTUI extends JDialog {
 					guiUtils.error("<HTML>Could not access<br>" + plugin.getFilteredImageFile().getAbsolutePath());
 				}
 			} catch (final NullPointerException | IllegalArgumentException | IOException iae) {
-				guiUtils.error("An error occured: Image directory not available?");
+				guiUtils.error("An error occurred: Image directory not available?");
 			}
 		});
 		externalImgOptionsMenu.add(secLayerExternalImgLoadFlushMenuItem);
@@ -2242,7 +2242,7 @@ public class SNTUI extends JDialog {
 	}
 
 	protected File openFile(final String promptMsg, final File suggestedFile) {
-		final boolean focused = hasFocus(); //HACK: On MacOS this seems to help to ensure prompt is displayed as frontmost
+		final boolean focused = hasFocus(); //HACK: On macOS this seems to help to ensure prompt is displayed as frontmost
 		if (focused) toBack();
 		final File openedFile = plugin.legacyService.getIJ1Helper().openDialog(promptMsg, suggestedFile);
 		if (openedFile != null)
@@ -3012,7 +3012,7 @@ public class SNTUI extends JDialog {
 					"Fast marching requires the <i>TubularGeodesics</i> plugin to be installed ")
 							.append("and an <i>oof.tif</i> secondary image to be loaded. Currently, ");
 			if (!tgInstalled && !tgAvailable) {
-				msg.append("neither conditions are fullfilled.");
+				msg.append("neither conditions are fulfilled.");
 			} else if (!tgInstalled) {
 				msg.append("the plugin is not installed.");
 			} else {
@@ -3379,7 +3379,7 @@ public class SNTUI extends JDialog {
 				sb.append("<li>Press \"").append(modKey).append("\" to select a node along the path</li>");
 				sb.append("<li>Press \"").append(modKey).append("+A\" to start analysis</li>");
 				sb.append("</ol>");
-				sb.append("A walkthrough of this procedure is <a href='").append(url2)
+				sb.append("A walk-through of this procedure is <a href='").append(url2)
 						.append("'>available online</a>. ");
 				sb.append("For batch processing, run <a href='").append(url1)
 						.append("'>Analyze>Sholl>Sholl Analysis (From Tracings)...</a>. ");
@@ -4046,7 +4046,7 @@ public class SNTUI extends JDialog {
 			} catch (final NullPointerException | IllegalArgumentException | CancellationException | InterruptedException | ExecutionException e2) {
 				// NB: A NPE seems to happen if command is DynamicCommand
 				e2.printStackTrace();
-				return "Unfortunately an error occured. See console for details.";
+				return "Unfortunately an error occurred. See console for details.";
 			}
 		}
 

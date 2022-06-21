@@ -214,7 +214,7 @@ public class Viewer3D {
 			}
 			throw new IllegalArgumentException("'" + label + "': not a recognizable engine");
 		}
-	};
+	}
 
 	/**
 	 * Presets of a scene's view point.
@@ -433,7 +433,7 @@ public class Viewer3D {
 	/**
 	 * Returns this Viewer's id.
 	 *
-	 * @return this this Viewer's unique numeric ID.
+	 * @return this Viewer's unique numeric ID.
 	 */
 	public int getID() {
 		return id;
@@ -882,7 +882,7 @@ public class Viewer3D {
 	 *                   ignore this option altogether. Set it to {@code unique} to
 	 *                   assign unique colors to each tree in the collection.
 	 * @param commonTags common tag(s) to be assigned to the group (to be displayed
-	 *                   in 'RV Controls' list.
+	 *                   in 'RV Controls' list).
 	 */
 	public void addTrees(final Collection<Tree> trees, final String color, final String... commonTags) {
 		if (commonTags != null) {
@@ -1084,7 +1084,7 @@ public class Viewer3D {
 	 * @param points the collection of points defining the convex set.
 	 * @param label  the (optional) annotation identifier. If null or empty, a
 	 *               unique label will be generated.
-	 * @param computeVolume whether or not to compute the volume of the convex hull.
+	 * @param computeVolume whether to compute the volume of the convex hull.
 	 * 				 If true, the volume is stored in the "volume" field of the 
 	 * 				 returned {@link Annotation3D} object.
 	 * @return the {@link Annotation3D}
@@ -1729,13 +1729,13 @@ public class Viewer3D {
 		final boolean displayProgress = frame != null && frame.managerPanel != null;
 		setSceneUpdatesEnabled(false);
 		if (displayProgress) {
-			addProgressLoad(((Collection<?>) collection).size());
+			addProgressLoad(collection.size());
 		}
 		for(final Object o : collection) {
 			incrementProgress(); // will be inaccurate if collection contains other collections
 			add(o);
 		}
-		removeProgressLoad( ((Collection<?>) collection).size());
+		removeProgressLoad(collection.size());
 		setSceneUpdatesEnabled(updateStatus);
 		validate();
 	}
@@ -2414,10 +2414,10 @@ public class Viewer3D {
 //		return (chart == null) ? null : view;
 //	}
 
-	/** AWTChart adopting {@link AView} */
+	/** AWTChart adopting {@link ViewerFactory.AView} */
 	private class AChart extends SwingChart {
 
-		private OverlayAnnotation overlayAnnotation;
+		private final OverlayAnnotation overlayAnnotation;
 		private final Viewer3D viewer;
 
 		public AChart(final Quality quality, final Viewer3D viewer) {
@@ -3794,9 +3794,9 @@ public class Viewer3D {
 				.next().tree;
 			final List<Tree> trees = getSelectedTrees(false);
 			if (trees == null) return null;
-			if (trees.isEmpty() || trees.size() > 1) {
+			if (trees.size() != 1) {
 				guiUtils.error(
-					"This command requires a single recontruction to be selected.");
+					"This command requires a single reconstruction to be selected.");
 				return null;
 			}
 			return trees.get(0);
@@ -4632,13 +4632,13 @@ public class Viewer3D {
 					return;
 				}
 				try {
-					if (choice == choices[0]) {
+					if (choice.equals(choices[0])) {
 						addTrees(sntService.demoTrees(), "unique");
-					} else if (choice == choices[1]) {
+					} else if (choice.equals(choices[1])) {
 						final Tree tree = sntService.demoTree("op1");
 						tree.setColor("red");
 						addTreeInternal(tree);
-					} else if (choice == choices[2]) {
+					} else if (choice.equals(choices[2])) {
 						final Tree tree = sntService.demoTree("fractal");
 						tree.setColor("magenta");
 						addTreeInternal(tree);
@@ -4869,7 +4869,7 @@ public class Viewer3D {
 					try {
 						return loadRefBrainInternal(label) != null;
 					} catch (final NullPointerException | IllegalArgumentException ex) {
-						guiUtils.error("An error occured and mesh could not be retrieved. See Console for details.");
+						guiUtils.error("An error occurred and mesh could not be retrieved. See Console for details.");
 						ex.printStackTrace();
 						return false;
 					} catch (final RuntimeException e2) {
@@ -5245,7 +5245,7 @@ public class Viewer3D {
 									.append("<br>&nbsp;<br>").append(String.join("; ", failedCompartments))
 									.append("<br>&nbsp;<br>")
 									.append("Either such meshes are not available or file(s) could not be reached. Check Console logs for details.");
-							guiUtils.centeredMsg(sb.toString(), "Exceptions Occured");
+							guiUtils.centeredMsg(sb.toString(), "Exceptions Occurred");
 						}
 					} catch (final InterruptedException | ExecutionException e) {
 						SNTUtils.error(e.getMessage(), e);
@@ -5594,7 +5594,7 @@ public class Viewer3D {
 		static String applyTag(final String entry, final String tag) {
 			final String cleansedTag = getCleansedTag(tag);
 			if (cleansedTag.trim().isEmpty()) return entry;
-			if (entry.indexOf("}") == -1) {
+			if (!entry.contains("}")) {
 				final StringBuilder sb = new StringBuilder(entry);
 				sb.append("{").append(cleansedTag).append("}");
 				return sb.toString();
@@ -6484,7 +6484,7 @@ public class Viewer3D {
 				if (shape == null) return;
 				for (int i = 0; i < shape.size(); i++) {
 					final List<Point> points = ((LineStripPlus) shape.get(i)).getPoints();
-					points.stream().forEach(p -> {
+					points.forEach(p -> {
 						final Color pColor = p.getColor();
 						if (isSameRGB(pColor, newBackground)) {
 							changeRGB(pColor, newForeground);
@@ -6724,7 +6724,7 @@ public class Viewer3D {
 			pack();
 			setVisible(true);
 			if (viewerFrame.manager != null) {
-				viewerFrame.manager .toBack(); // byPasses MacOS bug?
+				viewerFrame.manager .toBack(); // byPasses macOS bug?
 				toFront();
 			}
 		}
@@ -7159,10 +7159,7 @@ public class Viewer3D {
 			return false;
 		if (getClass() != obj.getClass())
 			return false;
-		Viewer3D other = (Viewer3D) obj;
-		if (id != other.id)
-			return false;
-		return true;
+		return id ==  ((Viewer3D) obj).id;
 	}
 
 	private void incrementProgress() {
@@ -7181,7 +7178,7 @@ public class Viewer3D {
 		}
 	}
 
-	/** will show a undetermined bar if progress max is negative */
+	/** will show an undetermined bar if progress max is negative */
 	private void addProgressLoad(final int loadSize) {
 		if (getManagerPanel()!= null) {
 			if (loadSize == -1) {
@@ -7324,7 +7321,7 @@ public class Viewer3D {
 		Annotation3D annotation2 = jzy3D.annotatePoints(analyzer.getTips(), "tips");
 		annotation2.setColor("green");
 		annotation2.setSize(20);
-		ArrayList<Annotation3D> list = new ArrayList<Annotation3D>();
+		ArrayList<Annotation3D> list = new ArrayList<>();
 		list.add(annotation1);
 		list.add(annotation2);
 		Annotation3D a = jzy3D.mergeAnnotations(list, "");
