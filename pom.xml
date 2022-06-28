@@ -213,27 +213,23 @@
 			<artifactId>jfreechart</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.scijava</groupId>
-			<artifactId>j3dcore</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.scijava</groupId>
-			<artifactId>j3dutils</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.scijava</groupId>
-			<artifactId>vecmath</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>sc.iview</groupId>
 			<artifactId>sciview</artifactId>
 			<version>${sciview.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>graphics.scenery</groupId>
-			<artifactId>scenery</artifactId>
-			<version>${scenery.version}</version>
+			<optional>true</optional>
 			<exclusions>
+				<exclusion>
+					<groupId>org.biojava</groupId>
+					<artifactId>biojava-core</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.biojava</groupId>
+					<artifactId>biojava-structure</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.biojava</groupId>
+					<artifactId>biojava-modfinder</artifactId>
+				</exclusion>
 				<exclusion>
 					<groupId>org.apache.logging.log4j</groupId>
 					<artifactId>log4j-slf4j-impl</artifactId>
@@ -248,7 +244,38 @@
 				</exclusion>
 			</exclusions>
 		</dependency>
-
+		<dependency>
+			<groupId>graphics.scenery</groupId>
+			<artifactId>scenery</artifactId>
+			<version>${scenery.version}</version>
+			<optional>true</optional>
+			<exclusions>
+				<exclusion>
+					<groupId>org.biojava</groupId>
+					<artifactId>biojava-core</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.biojava</groupId>
+					<artifactId>biojava-structure</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.biojava</groupId>
+					<artifactId>biojava-modfinder</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-slf4j-impl</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-api</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-core</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-math3</artifactId>
@@ -339,6 +366,7 @@
 			<artifactId>reload4j</artifactId>
 			<version>${reload4j.version}</version>
 			<scope>runtime</scope>
+			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
