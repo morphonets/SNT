@@ -242,6 +242,10 @@
 					<groupId>org.apache.logging.log4j</groupId>
 					<artifactId>log4j-core</artifactId>
 				</exclusion>
+				<exclusion>
+					<groupId>org.jetbrains.kotlin</groupId>
+					<artifactId>kotlin-stdlib</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 		<dependency>
@@ -273,6 +277,10 @@
 				<exclusion>
 					<groupId>org.apache.logging.log4j</groupId>
 					<artifactId>log4j-core</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.jetbrains.kotlin</groupId>
+					<artifactId>kotlin-stdlib</artifactId>
 				</exclusion>
 			</exclusions>
 		</dependency>
