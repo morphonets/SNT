@@ -154,8 +154,7 @@ public class AllenCompartment implements BrainAnnotation {
 		final AllenCompartment pCompartment = (AllenCompartment) parentAnno;
 		if (id() == pCompartment.id())
 			return false;
-		String[] parts = getStructureIdPath().trim().split("/");
-		return Arrays.stream(parts)
+		return Arrays.stream(getStructureIdPath().trim().split("/"))
 				.filter(s -> !s.isEmpty())
 				.map(Integer::parseInt)
 				.anyMatch(id -> id == pCompartment.id());
