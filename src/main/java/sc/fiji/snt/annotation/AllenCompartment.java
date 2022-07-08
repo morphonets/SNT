@@ -23,11 +23,8 @@ package sc.fiji.snt.annotation;
 
 import java.io.IOException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.json.JSONArray;
@@ -145,17 +142,22 @@ public class AllenCompartment implements BrainAnnotation {
 	/**
 	 * Assesses if this annotation is a child of a specified compartment.
 	 *
-	 * @param childCompartment the compartment to be tested
+	 * @param parentAnno the compartment to be tested
 	 * @return true, if successful, i.e., {@code parentCompartment} is not this
 	 *         compartment and {@link #getTreePath()} contains
 	 *         {@code parentCompartment}
 	 */
 	@Override
-	public boolean isChildOf(final BrainAnnotation childCompartment) {
-		if (!(childCompartment instanceof AllenCompartment))
+	public boolean isChildOf(final BrainAnnotation parentAnno) {
+		if (!(parentAnno instanceof AllenCompartment))
 			return false;
-		final AllenCompartment cCompartment = (AllenCompartment) childCompartment;
-		return id() != cCompartment.id() && getStructureIdPath().contains(String.valueOf(cCompartment.id()));
+		final AllenCompartment pCompartment = (AllenCompartment) parentAnno;
+		if (id() == pCompartment.id())
+			return false;
+		return Arrays.stream(getStructureIdPath().trim().split("/"))
+				.filter(s -> !s.isEmpty())
+				.map(Integer::parseInt)
+				.anyMatch(id -> id == pCompartment.id());
 	}
 
 	/**
