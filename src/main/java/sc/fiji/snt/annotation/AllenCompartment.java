@@ -155,11 +155,10 @@ public class AllenCompartment implements BrainAnnotation {
 		if (id() == pCompartment.id())
 			return false;
 		String[] parts = getStructureIdPath().trim().split("/");
-		List<Integer> structureIdPathInts = Arrays.stream(parts)
+		return Arrays.stream(parts)
 				.filter(s -> !s.isEmpty())
 				.map(Integer::parseInt)
-				.collect(Collectors.toList());
-		return structureIdPathInts.contains(pCompartment.id());
+				.anyMatch(id -> id == pCompartment.id());
 	}
 
 	/**
