@@ -27,12 +27,12 @@ import java.util.Set;
 import org.apache.commons.math3.stat.StatUtils;
 import org.scijava.Context;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.TypeConverter;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.util.ShollPoint;
 
@@ -57,7 +57,7 @@ public class ImageParser2D extends ImageParser {
 	public final int MAX_N_SPANS = 10;
 
 	public ImageParser2D(final ImagePlus imp) {
-		this(imp, (Context) IJ.runPlugIn("org.scijava.Context", ""));
+		this(imp, SNTUtils.getContext());
 	}
 
 	public ImageParser2D(final ImagePlus imp, final Context context) {

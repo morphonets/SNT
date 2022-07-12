@@ -108,12 +108,10 @@ public class ShollPoint extends PointInImage {
 
 	@Override
 	public boolean equals(final Object object) {
-		if (this == object)
-			return true;
-		if (!(object instanceof ShollPoint))
-			return false;
-		final ShollPoint point = (ShollPoint) object;
-		return (this.x == point.x && this.y == point.y && this.z == point.z);
+		if (object == this) return true;
+		if (object == null) return false;
+		if (getClass() != object.getClass()) return false;
+		return isSameLocation((ShollPoint) object);
 	}
 
 	@Override

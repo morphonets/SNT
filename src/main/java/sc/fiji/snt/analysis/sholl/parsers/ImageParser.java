@@ -76,7 +76,7 @@ public class ImageParser extends ContextCommand implements Parser {
 
 	@Deprecated
 	protected ImageParser(final ImagePlus imp) {
-		this(imp, (Context) IJ.runPlugIn("org.scijava.Context", ""));
+		this(imp, SNTUtils.getContext());
 	}
 
 	protected ImageParser(final ImagePlus imp, final Context context) {
