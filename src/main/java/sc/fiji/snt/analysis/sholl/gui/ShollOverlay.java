@@ -78,6 +78,7 @@ public class ShollOverlay implements ProfileProperties {
 	private int pointsAlpha = 255;
 	private boolean shellsAdded;
 	private boolean pointsAdded;
+	private int pointRoiSize;
 
 	private static final String CENTER = "center";
 	private static final String TYPE = "sholl-type";
@@ -223,6 +224,7 @@ public class ShollOverlay implements ProfileProperties {
 					multipointRoi.setProperty(RADIUS, String.valueOf(entry.radius));
 					multipointRoi.setPointType(2);
 					multipointRoi.setStrokeColor(baseColor);
+					multipointRoi.setSize(pointRoiSize);
 					multipointRoi.setName(
 							"ShollPoints r=" + formatter.format(entry.radius) + " z=" + formatter.format(point.z));
 					setROIposition(multipointRoi, channel, rawZ, frame, hyperStack);
@@ -447,6 +449,35 @@ public class ShollOverlay implements ProfileProperties {
 		for (final Iterator<Roi> it = shells.iterator(); it.hasNext(); i++) {
 			final Roi shell = it.next();
 			shell.setStrokeColor((i % 2 == 0) ? color1 : color2);
+		}
+	}
+
+	public void setPointsSize(final String size) {
+		switch(size.toLowerCase().trim()) {
+			case "tiny":
+				this.pointRoiSize = 0;
+				break;
+			case "small":
+				this.pointRoiSize = 1;
+				break;
+			case "medium":
+				this.pointRoiSize = 2;
+				break;
+			case "large":
+				this.pointRoiSize = 3;
+				break;
+			case "extra large":
+				this.pointRoiSize = 4;
+				break;
+			case "xxl":
+				this.pointRoiSize = 5;
+				break;
+			case "xxxl":
+				this.pointRoiSize = 6;
+				break;
+			default:
+				this.pointRoiSize = PointRoi.getDefaultSize();
+				break;
 		}
 	}
 

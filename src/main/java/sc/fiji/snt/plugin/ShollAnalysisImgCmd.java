@@ -1173,6 +1173,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 				if (annotationsDescription.contains("ROIs")) {
 					final ShollOverlay sOverlay = new ShollOverlay(profile, imp, true);
 					sOverlay.addCenter();
+					sOverlay.setPointsSize(prefService.get(ShollAnalysisPrefsCmd.class, "roiSize", ShollAnalysisPrefsCmd.DEF_ROI_SIZE));
 					if (annotationsDescription.contains("shells"))
 						sOverlay.setShellsLUT(lutTable, ShollOverlay.COUNT);
 					sOverlay.setPointsLUT(lutTable, ShollOverlay.COUNT);
