@@ -134,10 +134,10 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 	private int enclosingRadiusCutoff = DEF_ENCLOSING_RADIUS_CUTOFF;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-			label = HEADER_HTML + "<br>Output:")
+			label = HEADER_HTML + "<br>Outputs:")
 	private String HEADER_ROI;
 
-	@Parameter(label = "ROI size", choices = { "Tiny","Small", "Medium", "Large", "Extra Large", "XXL", "XXXL"},
+	@Parameter(label = "Point ROIs", choices = { "Tiny","Small", "Medium", "Large", "Extra Large", "XXL", "XXXL"},
 			description = DESCRIPTION_HTML + "The size of the point ROIs highlighting intersection counts")
 	private String roiSize = DEF_ROI_SIZE;
 
