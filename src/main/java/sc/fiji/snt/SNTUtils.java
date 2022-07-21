@@ -274,12 +274,12 @@ public class SNTUtils {
 		final boolean saveRows = saveRowHeaders && table.getRowHeader(0) != null;
 		// Print a column header to hold row headers
 		if (saveRows) {
-			SNTUtils.csvQuoteAndPrint(pw, "-");
+			csvQuoteAndPrint(pw, "-");
 			pw.print(columnSep);
 		}
 		if (saveColHeaders) {
 			for (int col = 0; col < columns; ++col) {
-				SNTUtils.csvQuoteAndPrint(pw, table.getColumnHeader(col));
+				csvQuoteAndPrint(pw, table.getColumnHeader(col));
 				if (col < (columns - 1))
 					pw.print(columnSep);
 			}
@@ -287,11 +287,11 @@ public class SNTUtils {
 		}
 		for (int row = 0; row < rows; row++) {
 			if (saveRows) {
-				SNTUtils.csvQuoteAndPrint(pw, table.getRowHeader(row));
+				csvQuoteAndPrint(pw, table.getRowHeader(row));
 				pw.print(columnSep);
 			}
 			for (int col = 0; col < columns; col++) {
-				SNTUtils.csvQuoteAndPrint(pw, table.get(col, row));
+				csvQuoteAndPrint(pw, table.get(col, row));
 				if (col < (columns - 1))
 					pw.print(columnSep);
 			}

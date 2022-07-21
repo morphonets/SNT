@@ -165,7 +165,7 @@ Use this button to open the project on the cloud using [Gitpod](https://gitpod.i
 
 > :information_source: By default, ImageJ1 cannot run in headless environments. To bypass this, Fiji uses a bytecode injection mechanism to patch ImageJ1 at runtime.
 > However, this mechanism is sensitive to the JVM in use. If you are unable to run SNTLoaderCmd from your IDE due to misterious `net.imagej.legacy.LegacyService` exceptions,
-> try changing the JDK used by the project. A sure-to-work option is to use the same JDK being distributed with Fiji, e.g., by pointing your project to the JDK of a local Fiji install (inside `Fiji.app/java`).
+> try changing the JDK used by the project. A sure-to-work option is to use the same JDK being distributed with Fiji, e.g., by pointing your project to the JDK of a local Fiji install (i.e., a local `Fiji.app/java/` directory).
 
 Useful resources to start hacking SNT:
   -  _main_ methods found on most classes: These test/showcase some of the class's functionality

@@ -24,7 +24,6 @@ package sc.fiji.snt.annotation;
 import java.io.IOException;
 import java.net.URL;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.json.JSONArray;

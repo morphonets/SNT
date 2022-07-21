@@ -30,6 +30,7 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.TreeProperties;
 
 /*
  * A flavor of TreeStatistics that does not do graph conversions, ensuring paths
@@ -40,11 +41,13 @@ public class PathAnalyzer extends TreeStatistics {
 	public PathAnalyzer(Collection<Path> paths, String label) {
 		super(new Tree(paths));
 		tree.setLabel(label);
+		final String unit = paths.iterator().next().getCalibration().getUnit();
+		if (paths.stream().allMatch(p -> p.getCalibration().getUnit().equals(unit)))
+			tree.getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, unit);;
 	}
 
 	private PathAnalyzer(final Path path) {
-		super(new Tree(Collections.singleton(path)));
-		tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, path.getCalibration().getUnit());
+		this(Collections.singleton(path), path.getName());
 	}
 
 	@Override
