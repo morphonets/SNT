@@ -212,7 +212,11 @@ public class SNTTable extends DefaultGenericTable {
 	public void summarize() {
 		if (getRowCount() < 2 || getColumnCount() < 1)
 			return;
-		final int firstRowToBeSummarized = getRowIndex("Sum") + 2; // spacer row below "Sum"
+		final int indexOfLastSummaryRow = getRowIndex("Sum");
+		final boolean summaryExists = indexOfLastSummaryRow > -1;
+		// if no summary exists, summarize from first row onwards, otherwise
+		// from two rows below the last "Sum" row (ie, below its spacer row)
+		final int firstRowToBeSummarized = (summaryExists) ? indexOfLastSummaryRow + 2 : 0;
 		if (firstRowToBeSummarized == getRowCount())
 			return;
 		final SummaryStatistics[] sStas = new SummaryStatistics[getColumnCount()];
