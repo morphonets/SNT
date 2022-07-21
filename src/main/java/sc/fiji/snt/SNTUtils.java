@@ -267,6 +267,7 @@ public class SNTUtils {
 
 	public static void saveTable(final Table<?, ?> table, final char columnSep, final boolean saveColHeaders,
 			final boolean saveRowHeaders, final File outputFile) throws IOException {
+		outputFile.mkdirs();
 		final PrintWriter pw = new PrintWriter(
 				new OutputStreamWriter(new FileOutputStream(outputFile.getAbsolutePath()), StandardCharsets.UTF_8));
 		final int columns = table.getColumnCount();
