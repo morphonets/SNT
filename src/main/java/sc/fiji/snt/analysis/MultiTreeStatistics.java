@@ -234,12 +234,18 @@ public class MultiTreeStatistics extends TreeStatistics {
 		return getCableLength(compartment, true);
 	}
 
+
 	@Override
 	public Map<BrainAnnotation, Double> getAnnotatedLength(final int level, final String hemisphere) {
+		return getAnnotatedLength(level, hemisphere, false);
+	}
+
+	@Override
+	public Map<BrainAnnotation, Double> getAnnotatedLength(final int level, final String hemisphere, final boolean norm) {
 		final char lrflag = BrainAnnotation.getHemisphereFlag(hemisphere);
 		populateGroupOfGraphs();
 		final List<Map<BrainAnnotation, Double>> mapList = new ArrayList<>();
-		groupOfGraphs.forEach(g -> mapList.add(getAnnotatedLength(g, level, lrflag)));
+		groupOfGraphs.forEach(g -> mapList.add(getAnnotatedLength(g, level, lrflag, norm)));
 		mapList.forEach(e -> e.keySet().remove(null)); // remove all null keys (untagged nodes)
 		final Map<BrainAnnotation, Double> map = mapList.stream().flatMap(m -> m.entrySet().stream())
 				.collect(groupingBy(Map.Entry::getKey, summingDouble(Map.Entry::getValue)));
@@ -257,7 +263,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 		populateGroupOfGraphs();
 		final List<Map<BrainAnnotation, double[]>> mapList = new ArrayList<>();
 		groupOfGraphs.forEach(g -> {
-			mapList.add(getAnnotatedLengthsByHemisphere(g, level));
+			mapList.add(getAnnotatedLengthsByHemisphere(g, level, false));
 		});
 		final Map<BrainAnnotation, double[]> result = mapList.stream().flatMap(m -> m.entrySet().stream())
 				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
