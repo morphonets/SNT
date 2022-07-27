@@ -349,7 +349,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	 * @see AllenCompartment#getOntologyDepth()
 	 */
 	public Map<BrainAnnotation, Double> getAnnotatedLength(final int level) {
-		return getAnnotatedLength(tree.getGraph(), level, BrainAnnotation.ANY_HEMISPHERE);
+		return getAnnotatedLength(tree.getGraph(), level, BrainAnnotation.ANY_HEMISPHERE, false);
 	}
 
 	/**
@@ -367,11 +367,32 @@ public class TreeStatistics extends TreeAnalyzer {
 	 * @see AllenCompartment#getOntologyDepth()
 	 */
 	public Map<BrainAnnotation, Double> getAnnotatedLength(final int level, final String hemisphere) {
-		return getAnnotatedLength(tree.getGraph(), level, BrainAnnotation.getHemisphereFlag(hemisphere));
+		return getAnnotatedLength(tree.getGraph(), level, BrainAnnotation.getHemisphereFlag(hemisphere), false);
+	}
+
+	/**
+	 * Retrieves the amount of cable length present on each brain compartment
+	 * innervated by the analyzed neuron.
+	 *
+	 * @param level      the ontological depth of the compartments to be considered
+	 * @param hemisphere typically 'left' or 'right'. The hemisphere flag (
+	 *                   {@link BrainAnnotation#LEFT_HEMISPHERE} or
+	 *                   {@link BrainAnnotation#RIGHT_HEMISPHERE}) is extracted from
+	 *                   the first character of the string (case insensitive).
+	 *                   Ignored if not a recognized option
+	 * @param norm       whether length should be normalized to the cells' cable
+	 *                   length
+	 * @return the map containing the brain compartments as keys, and cable lengths
+	 *         as values.
+	 * @see AllenCompartment#getOntologyDepth()
+	 */
+	public Map<BrainAnnotation, Double> getAnnotatedLength(final int level, final String hemisphere,
+			final boolean norm) {
+		return getAnnotatedLength(tree.getGraph(), level, BrainAnnotation.getHemisphereFlag(hemisphere), norm);
 	}
 
 	protected static Map<BrainAnnotation, Double> getAnnotatedLength(final DirectedWeightedGraph graph, final int level,
-			final char lr) {
+			final char lr, final boolean norm) {
 		final NodeStatistics<SWCPoint> nodeStats = new NodeStatistics<SWCPoint>(graph.vertexSet(lr));
 		final Map<BrainAnnotation, Set<SWCPoint>> annotatedNodesMap = nodeStats.getAnnotatedNodes(level);
 		final HashMap<BrainAnnotation, Double> lengthMap = new HashMap<>();
@@ -382,22 +403,26 @@ public class TreeStatistics extends TreeAnalyzer {
 			final double subgraphWeight = subgraph.sumEdgeWeights(true);
 			lengthMap.put(annotation, subgraphWeight);
 		}
+		if (norm) {
+			final double sumLength = graph.sumEdgeWeights();
+			lengthMap.values().forEach( l -> l /= sumLength);
+		}
 		return lengthMap;
 	}
 
 	public Map<BrainAnnotation, double[]> getAnnotatedLengthsByHemisphere(final int level) {
-		return getAnnotatedLengthsByHemisphere(tree.getGraph(), level);
+		return getAnnotatedLengthsByHemisphere(tree.getGraph(), level, false);
 	}
 
 	protected static Map<BrainAnnotation, double[]> getAnnotatedLengthsByHemisphere(final DirectedWeightedGraph graph,
-			final int level) {
+			final int level, final boolean norm) {
 		final char ipsiFlag = graph.getRoot().getHemisphere();
 		if (ipsiFlag == BrainAnnotation.ANY_HEMISPHERE)
 			throw new IllegalArgumentException("Tree's root has its hemisphere flag unset");
 		final char contraFlag = (ipsiFlag == BrainAnnotation.LEFT_HEMISPHERE) ? BrainAnnotation.RIGHT_HEMISPHERE
 				: BrainAnnotation.LEFT_HEMISPHERE;
-		final Map<BrainAnnotation, Double> ipsiMap = getAnnotatedLength(graph, level, ipsiFlag);
-		final Map<BrainAnnotation, Double> contraMap = getAnnotatedLength(graph, level, contraFlag);
+		final Map<BrainAnnotation, Double> ipsiMap = getAnnotatedLength(graph, level, ipsiFlag, norm);
+		final Map<BrainAnnotation, Double> contraMap = getAnnotatedLength(graph, level, contraFlag, norm);
 		final Map<BrainAnnotation, double[]> finalMap = new HashMap<>();
 		ipsiMap.forEach((k, ipsiLength) -> {
 			double[] values = new double[2];
