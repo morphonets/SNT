@@ -196,7 +196,7 @@ public class ShollAnalyzer {
 			metrics.put(VARIANCE, lStats.getVariance());
 			metrics.put(ENCLOSING_RADIUS, lStats.getEnclosingRadius(1));
 			lStats.setPrimaryBranches(nPrimaryBranches);
-			metrics.put(RAMIFICATION_INDEX, lStats.getRamificationIndex(true));
+			metrics.put(RAMIFICATION_INDEX, lStats.getRamificationIndex(includeFitting && lStats.validFit()));
 		}
 		if (includeFitting) {
 			getNormStats();

@@ -1107,6 +1107,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	public ConvexHullAnalyzer getConvexAnalyzer() {
 		if (convexAnalyzer == null) {
 			convexAnalyzer = new ConvexHullAnalyzer(tree);
+			convexAnalyzer.setContext((getContext() == null) ? SNTUtils.getContext() : getContext());
 		}
 		return convexAnalyzer;
 	}
