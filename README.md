@@ -1,4 +1,4 @@
-<p align="center"><img src="https://imagej.net/media/logos/snt.png" alt="SNT" width="150"></p>
+<p align="center"><img src="https://imagej.net/media/icons/snt.png" alt="SNT" width="150"></p>
 <h2 align="center">The ImageJ framework for quantification of neuronal anatomy</h2>
 <div align="center">
   <!-- Zenodo -->
