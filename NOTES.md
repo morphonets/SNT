@@ -1,4 +1,4 @@
-<p align="center"><img src="https://imagej.net/media/logos/snt.png" alt="SNT" width="150"></p>
+<p align="center"><img src="https://imagej.net/media/icons/snt.png" alt="SNT" width="150"></p>
 <h1 align="center">Notes</h1>
 
 SNT is both a scripting library and a GUI program. More formally, it is a collection of [SciJava](https://scijava.org/) commands (plugins), organized around a common API. The GUI is written in Swing.
@@ -24,7 +24,7 @@ SNT is associated with several publications. Please cite the appropriate manuscr
 
 The *SNT* framework is described in:
 
-- Arshadi C, Günther U, Eddison M, Kyle I. S. Harrington KIS, Ferreira T. [SNT: A Unifying Toolbox for Quantification of Neuronal Anatomy](https://doi.org/10.1101/2020.07.13.179325). *Nature Method*s, in press.  https://doi.org/10.1038/s41592-021-01105-7
+- Arshadi C, Günther U, Eddison M, Harrington KIS, Ferreira TA. [SNT: A Unifying Toolbox for Quantification of Neuronal Anatomy](https://doi.org/10.1038/s41592-021-01105-7). *Nature Methods*, 18, 374–377 (2021).  https://doi.org/10.1038/s41592-021-01105-7 ([PDF](https://rdcu.be/cUyNP)
 
 The _Sholl Analysis_ plugin is described in:
 
