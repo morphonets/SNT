@@ -27,12 +27,12 @@ import java.util.Set;
 import org.apache.commons.math3.stat.StatUtils;
 import org.scijava.Context;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.TypeConverter;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.util.ShollPoint;
 
@@ -57,7 +57,7 @@ public class ImageParser2D extends ImageParser {
 	public final int MAX_N_SPANS = 10;
 
 	public ImageParser2D(final ImagePlus imp) {
-		this(imp, (Context) IJ.runPlugIn("org.scijava.Context", ""));
+		this(imp, SNTUtils.getContext());
 	}
 
 	public ImageParser2D(final ImagePlus imp, final Context context) {
@@ -259,10 +259,15 @@ public class ImageParser2D extends ImageParser {
 
 	protected Set<ShollPoint> groupPositions(final int[][] points) {
 
-		int target, source, len;
+		final int len = points.length;
+		final Set<ShollPoint> sPoints = new HashSet<>();
+
+		if (len == 0) return sPoints;
+
+		int target, source;
 
 		// Create an array to hold the point grouping data
-		final int[] grouping = new int[len = points.length];
+		final int[] grouping = new int[len];
 
 		// Initialize each point to be in a unique group
 		final HashSet<Integer> positions = new HashSet<>();
@@ -302,13 +307,24 @@ public class ImageParser2D extends ImageParser {
 			}
 		}
 
+		// We've compared all but the first and last positions in the circumference.
+		// We must remove first position if connected to last
+		final int frstIds = 0;
+		final int lastIdx = len - 1;
+		final ShollPoint p1 = new ShollPoint(points[frstIds][0], points[frstIds][1]);
+		final ShollPoint p2 = new ShollPoint(points[lastIdx][0], points[lastIdx][1]);
+		if ((p1.chebyshevXYdxTo(p2) <= 1))
+			positions.remove(frstIds);
+
+		// Do spike suppression
 		if (doSpikeSupression) {
 			removeSinglePixels(points, len, grouping, positions);
 		}
 
-		final Set<ShollPoint> sPoints = new HashSet<>();
-		for (final Integer pos : positions)
+		// Return Sholl points
+		positions.forEach(pos -> {
 			sPoints.add(new ShollPoint(points[pos][0], points[pos][1], cal));
+		});
 
 		return sPoints;
 	}

@@ -29,12 +29,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.scijava.Context;
 import org.scijava.thread.ThreadService;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
 import ij.plugin.ChannelSplitter;
 import ij.util.ThreadUtil;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.util.ShollPoint;
 
@@ -56,7 +56,7 @@ public class ImageParser3D extends ImageParser {
 
 	@Deprecated
 	public ImageParser3D(final ImagePlus imp) {
-		this(imp, (Context) IJ.runPlugIn("org.scijava.Context", ""));
+		this(imp, SNTUtils.getContext());
 	}
 
 	public ImageParser3D(final ImagePlus imp, final Context context) {

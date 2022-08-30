@@ -66,6 +66,8 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 	public final static boolean DEF_KS_TESTING = false;
 	public final static boolean DEF_DEBUG_MODE = false;
 	public final static boolean DEF_DETAILED_METRICS = false;
+	public final static String DEF_ROI_SIZE= "Medium";
+
 
 	//public final static boolean DEF_AUTO_CLOSE = false;
 
@@ -132,6 +134,14 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 	private int enclosingRadiusCutoff = DEF_ENCLOSING_RADIUS_CUTOFF;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
+			label = HEADER_HTML + "<br>Outputs:")
+	private String HEADER_ROI;
+
+	@Parameter(label = "Point ROIs", choices = { "Tiny","Small", "Medium", "Large", "Extra Large", "XXL", "XXXL"},
+			description = DESCRIPTION_HTML + "The size of the point ROIs highlighting intersection counts")
+	private String roiSize = DEF_ROI_SIZE;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 			label = HEADER_HTML + "<br>Misc:")
 	private String HEADER4;
 
@@ -177,6 +187,8 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		if (ignoreBitmapOptions) {
 			resolveInput("HEADER_SAMPLING");
 			resolveInput("skipSingleVoxels");
+			resolveInput("HEADER_ROI");
+			resolveInput("roiSize");
 		} else {
 			resolveInput("skipSomaticSegments");
 		}
@@ -250,6 +262,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		ksTesting = DEF_KS_TESTING;
 		debugMode = DEF_DEBUG_MODE;
 		detailedMetrics = DEF_DETAILED_METRICS;
+		roiSize = DEF_ROI_SIZE;
 //		autoClose = DEF_AUTO_CLOSE;
 
 		helper.centeredMsg("Preferences were successfully reset.", SNTUtils.getReadableVersion());

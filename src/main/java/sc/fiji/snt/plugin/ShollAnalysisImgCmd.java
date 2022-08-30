@@ -523,7 +523,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		statusService.showStatus("Analysis started");
 		logger.debug("Analysis started...");
 		analysisThread = threadService.newThread(analysisRunner);
-		analysisThread.start();
+		threadService.queue(analysisThread);
 		savePreferences();
 //		if (autoClose && !isCanceled()) {
 //			try {  //FIXME: this kludge will only work if prompt has focus
@@ -1173,8 +1173,11 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 				if (annotationsDescription.contains("ROIs")) {
 					final ShollOverlay sOverlay = new ShollOverlay(profile, imp, true);
 					sOverlay.addCenter();
-					if (annotationsDescription.contains("shells"))
+					sOverlay.setPointsSize(prefService.get(ShollAnalysisPrefsCmd.class, "roiSize", ShollAnalysisPrefsCmd.DEF_ROI_SIZE));
+					if (annotationsDescription.contains("shells")) {
+						sOverlay.setShellsThickness((int)nSpans);
 						sOverlay.setShellsLUT(lutTable, ShollOverlay.COUNT);
+					}
 					sOverlay.setPointsLUT(lutTable, ShollOverlay.COUNT);
 					sOverlay.updateDisplay();
 					overlaySnapshot = imp.getOverlay();
