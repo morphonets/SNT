@@ -83,7 +83,7 @@ public class SNTUtils {
 
 	private SNTUtils() {}
 
-	private synchronized static void initialize() {
+	private static synchronized void initialize() {
 		if (initialized) return;
 		if (context == null) getContext();
 		if (logService == null) logService = context.getService(LogService.class);
@@ -435,7 +435,7 @@ public class SNTUtils {
 		final double pixelHeightDifference = Math.abs(ay - by);
 		if (pixelHeightDifference > epsilon) return false;
 		final double pixelDepthDifference = Math.abs(az - bz);
-		return !(pixelDepthDifference > epsilon);
+		return pixelDepthDifference <= epsilon;
 	}
 
 	public static String getSanitizedUnit(final String unit) {
