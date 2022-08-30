@@ -24,6 +24,7 @@ package sc.fiji.snt;
 
 import java.awt.Color;
 import java.awt.GraphicsEnvironment;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileOutputStream;
@@ -267,9 +268,10 @@ public class SNTUtils {
 
 	public static void saveTable(final Table<?, ?> table, final char columnSep, final boolean saveColHeaders,
 			final boolean saveRowHeaders, final File outputFile) throws IOException {
-		outputFile.mkdirs();
-		final PrintWriter pw = new PrintWriter(
-				new OutputStreamWriter(new FileOutputStream(outputFile.getAbsolutePath()), StandardCharsets.UTF_8));
+		if(!outputFile.exists()) outputFile.getParentFile().mkdirs();
+		final FileOutputStream fos = new FileOutputStream(outputFile, false);
+		final OutputStreamWriter osw = new OutputStreamWriter(fos, StandardCharsets.UTF_8);
+		final PrintWriter pw = new PrintWriter(new BufferedWriter(osw), true);
 		final int columns = table.getColumnCount();
 		final int rows = table.getRowCount();
 		final boolean saveRows = saveRowHeaders && table.getRowHeader(0) != null;

@@ -312,11 +312,16 @@ public class SNTTable extends DefaultGenericTable {
 		final int lRow = Math.min(table.getRowCount() - 1, lastRow);
 		final String sep = "\t";
 		final StringBuilder sb = new StringBuilder();
+		final boolean hasRows = table.getRowHeader(0) != null;
+		if (hasRows)
+			sb.append("-").append(sep); // column header for row labels
 		IntStream.range(0, table.getColumnCount()).forEach( col -> {
 			sb.append(table.getColumnHeader(col)).append(sep);
 		});
 		sb.append("\n\r");
 		IntStream.rangeClosed(fRow, lRow).forEach( row -> {
+			if (hasRows)
+				sb.append(table.getRowHeader(row)).append(sep);
 			IntStream.range(0, table.getColumnCount()).forEach( col -> {
 				sb.append(table.get(col, row)).append(sep);
 			});
