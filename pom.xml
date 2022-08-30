@@ -143,12 +143,6 @@
 
 		<!-- Resolve dup. class conflict -->
 		<allowedDuplicateClasses>${scijava.allowedDuplicateClasses},org.jzy3d.plot3d.pipelines.NotImplementedException</allowedDuplicateClasses>
-
-		<!-- TEMP: Until pom-scijava 32.0.0 -->
-		<scijava-plot.version>0.2.0</scijava-plot.version>
-		<jitk-tps.version>3.0.2</jitk-tps.version>
-		<reload4j.version>1.2.19</reload4j.version>
-		<ch.qos.reload4j.reload4j.version>${reload4j.version}</ch.qos.reload4j.reload4j.version>
 	</properties>
 
 	<repositories>
@@ -372,7 +366,6 @@
 		<dependency>
 			<groupId>ch.qos.reload4j</groupId>
 			<artifactId>reload4j</artifactId>
-			<version>${reload4j.version}</version>
 			<scope>runtime</scope>
 			<optional>true</optional>
 		</dependency>
