@@ -154,6 +154,11 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 		return imps;
 	}
 
+	public static ImagePlus getCurrentImage() {
+//		return legacyService.getImageMap().lookupImagePlus(imageDisplayService.getActiveImageDisplay());;
+		return WindowManager.getCurrentImage();
+	}
+
 	public static void main(final String... args) {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();

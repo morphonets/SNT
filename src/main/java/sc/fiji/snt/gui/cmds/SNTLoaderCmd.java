@@ -26,11 +26,12 @@ import io.scif.services.DatasetIOService;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 import net.imagej.ImageJ;
 import net.imagej.display.ImageDisplayService;
-import net.imagej.legacy.LegacyService;
 
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
@@ -75,14 +76,12 @@ public class SNTLoaderCmd extends DynamicCommand {
 	@Parameter
 	private ImageDisplayService imageDisplayService;
 	@Parameter
-	private LegacyService legacyService;
-	@Parameter
 	private ConvertService convertService;
 	@Parameter
 	private UIService uiService;
 
 	private static final String IMAGE_NONE = "None. Use a display canvas";
-	private static final String IMAGE_FILE = "Image from path specified below";
+	private static final String IMAGE_FILE = "Image file from path specified below";
 	private static final String UI_SIMPLE = "Memory saving: Only XY view";
 	private static final String UI_DEFAULT = "Default: XY, ZY and XZ views";
 	private static final String DEF_DESCRIPTION =
@@ -120,6 +119,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 		max = ""+ ij.CompositeImage.MAX_CHANNELS +"", callback = "channelChanged")
 	private int channel;
 
+	private Collection<ImagePlus> openImps;
 	private ImagePlus sourceImp;
 	private File currentImageFile;
 
@@ -130,18 +130,18 @@ public class SNTLoaderCmd extends DynamicCommand {
 			return;
 		}
 		// TODO: load defaults from prefService?
-		sourceImp = legacyService.getImageMap().lookupImagePlus(imageDisplayService
-			.getActiveImageDisplay());
-		final MutableModuleItem<String> imageChoiceInput = getInfo()
-			.getMutableInput("imageChoice", String.class);
-		if (sourceImp == null) {
-			imageChoiceInput.setChoices(Arrays.asList(IMAGE_NONE,
-					IMAGE_FILE));
-		}
-		else {
-			imageChoiceInput.setChoices(Arrays.asList(sourceImp
-				.getTitle(), IMAGE_NONE, IMAGE_FILE));
+		openImps = ChooseDatasetCmd.getImpInstances();
+		sourceImp = ChooseDatasetCmd.getCurrentImage();
+		final MutableModuleItem<String> imageChoiceInput = getInfo().getMutableInput("imageChoice", String.class);
+		final List<String> choices = new ArrayList<>();
+		choices.add(IMAGE_NONE);
+		choices.add(IMAGE_FILE);
+		openImps.forEach( imp -> choices.add(imp.getTitle()));
+		imageChoiceInput.setChoices(choices);
+		if (sourceImp != null) {
+			// Backwards compatibility: We used to have frontmost image selected in the choice list
 			imageChoiceInput.setValue(this, sourceImp.getTitle());
+			imageChoice = sourceImp.getTitle();
 			adjustChannelInput();
 		}
 	}
@@ -152,7 +152,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 		}
 	}
 
-	private void loadActiveImage() {
+	private void loadSourceImp() {
 		if (sourceImp == null) {
 			uiService.showDialog("There are no images open.");
 			return;
@@ -163,6 +163,17 @@ public class SNTLoaderCmd extends DynamicCommand {
 			imageFile = (dir == null || file == null) ? null : new File(dir, file);
 		}
 		adjustFileFields(false);
+	}
+
+	private ImagePlus getImpFromTitle(final String title) {
+		try {
+			for (final ImagePlus imp : openImps) {
+				if (imp.getTitle().equals(title)) return imp;
+			}
+		} catch (final NullPointerException npe) {
+			npe.printStackTrace();
+		}
+		return null;
 	}
 
 	@SuppressWarnings("unused")
@@ -177,8 +188,9 @@ public class SNTLoaderCmd extends DynamicCommand {
 				if (null == imageFile) imageFile = currentImageFile;
 				adjustFileFields(false);
 				return;
-			default: // imageChoice is now the title of frontmost image
-				loadActiveImage();
+			default: // imageChoice is an image tile of an open image
+				sourceImp = getImpFromTitle(imageChoice);
+				loadSourceImp();
 				if (sourceImp != null) {
 					currentImageFile = imageFile;
 					imageFile = null;
