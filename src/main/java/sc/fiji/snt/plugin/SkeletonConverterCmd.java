@@ -86,14 +86,16 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 //			+ "Unnecessary if segmented image is already a topological sekeleton")
 //	private boolean skeletonizeMaskImage;
 
-	@Parameter(label = "Original Image", required = false, description = "<HTML>Optional. Original (un-processed) image used to resolve<br>"//
-			+ "loops in segmented image using brightness criteria. If<br>"
-			+ "unavailable, length-based criteria are used instead", style = ChoiceWidget.LIST_BOX_STYLE)
+	@Parameter(label = "Original Image", required = false, description = "<HTML>Optional. Original (un-processed) image used to resolve loops<br>"//
+			+ "in the segmented image using brightness criteria.<br>"
+			+ "If available: loops will be nicked at the dimmest voxel in the loop<br>"
+			+ "If unavailable: Loops will be nicked at the shortest branch in the loop", style = ChoiceWidget.LIST_BOX_STYLE)
 	private String originalImgChoice;
 
 	@Parameter(label = "Path to original image", required = false, description = "<HTML>Optional. Path to original (un-processed) image used to resolve<br>"//
-			+ "loops in segmented image using brightness criteria. If<br>"
-			+ "unavailable, length-based criteria are used instead", style = FileWidget.OPEN_STYLE)
+			+ "loops in the segmented image using brightness criteria.<br>"
+			+ "If available: loops will be nicked at the dimmest voxel in the loop<br>"
+			+ "If unavailable: Loops will be nicked at the shortest branch in the loop", style = FileWidget.OPEN_STYLE)
 	private File originalImgFileChoice;
 
 	@Parameter(label = "<HTML>&nbsp;<br><b> II. Root (Reconstruction Origin):", required = false, persist = false, visibility = ItemVisibility.MESSAGE)
@@ -203,8 +205,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			if (impCollection != null && !impCollection.isEmpty()) {
 				final ImagePlus existingImp = snt.getImagePlus();
 				for (final ImagePlus imp : impCollection) {
-					if (imp.equals(snt.getImagePlus()) || !isHyperstack(imp))
-						continue;
+					if (imp.equals(existingImp) || isHyperstack(imp)) continue;
 					impMap.put(imp.getTitle(), imp);
 					maskChoices.add(imp.getTitle());
 					originalChoices.add(imp.getTitle());
@@ -217,7 +218,10 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				maskChoices.add(0, IMG_TRACED_DUP_CHOICE);
 				maskChoices.add(0, IMG_TRACED_SEC_LAYER_CHOICE);
 				originalChoices.add(0, "Image being traced");
-				if (!isBinary(snt.getImagePlus())) {
+				if (isBinary(snt.getImagePlus())) {
+					// the active image is binary: assume it is the segmented (non-skeletonized)
+					maskImgChoice = IMG_TRACED_DUP_CHOICE;
+				} else {
 					// the active image is grayscale: assume it is the original
 					originalImgChoice = IMG_TRACED_CHOICE;
 				}
@@ -386,15 +390,13 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 							"<li>Warning: Max. connection distance must be > 0. Connection of components will be disabled</li>");
 				}
 				sb.append("</ul>");
-				sb.append("<p>Would you like to proceed? If you abort ");
+				sb.append("<p>Would you like to proceed? If you abort, ");
 				if (ensureMaskImgVisibleOnAbort) {
 					sb.append(" segmented image will be displayed so that you can edit it accordingly. You can then");
 				} else {
 					sb.append(" you can");
 				}
-				if (ensureMaskImgVisibleOnAbort) {
-					sb.append(" rerun using <i>Utilities > Extract Paths From Segmented Image...</i>");
-				}
+				sb.append(" rerun using <i>Utilities > Extract Paths From Segmented Image...</i>");
 				sb.append("</p>");
 				if (!new GuiUtils().getConfirmation(sb.toString(), "Proceed Despite Warnings?",
 						"Proceed. I'm Feeling Lucky", "Abort")) {
