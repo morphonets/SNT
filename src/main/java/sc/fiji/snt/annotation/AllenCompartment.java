@@ -141,22 +141,60 @@ public class AllenCompartment implements BrainAnnotation {
 	/**
 	 * Assesses if this annotation is a child of a specified compartment.
 	 *
-	 * @param parentAnno the compartment to be tested
+	 * @param parentCompartment the compartment to be tested
 	 * @return true, if successful, i.e., {@code parentCompartment} is not this
 	 *         compartment and {@link #getTreePath()} contains
 	 *         {@code parentCompartment}
 	 */
 	@Override
-	public boolean isChildOf(final BrainAnnotation parentAnno) {
-		if (!(parentAnno instanceof AllenCompartment))
+	public boolean isChildOf(final BrainAnnotation parentCompartment) {
+		if (!(parentCompartment instanceof AllenCompartment))
 			return false;
-		final AllenCompartment pCompartment = (AllenCompartment) parentAnno;
-		if (id() == pCompartment.id())
+		if (id() == parentCompartment.id())
 			return false;
-		return Arrays.stream(getStructureIdPath().trim().split("/"))
+		return isChildOfWithoutChecks((AllenCompartment) parentCompartment);
+	}
+
+	/**
+	 * Assesses if this annotation is the parent of the specified compartment.
+	 *
+	 * @param childCompartment the compartment to be tested
+	 * @return true, if successful, i.e., {@code childCompartment} is not this
+	 *         compartment and is present in {@link #getChildren()}
+	 */
+	@Override
+	public boolean isParentOf(final BrainAnnotation childCompartment) {
+		if (!(childCompartment instanceof AllenCompartment))
+			return false;
+		if (id() == childCompartment.id())
+			return false;
+		return isParentOfWithoutChecks((AllenCompartment) childCompartment);
+	}
+
+	private boolean isChildOfWithoutChecks(final AllenCompartment parent) {
+		final String childStructureIdPath = getStructureIdPath(); // never contains spaces
+		final String parentIdString = String.valueOf(parent.id());
+		final int parentIdxInPath = childStructureIdPath.lastIndexOf("/" + parentIdString + "/");
+		if (parentIdxInPath == -1)
+			return false;
+		return Arrays.stream(childStructureIdPath.substring(parentIdxInPath + parentIdString.length()).split("/"))
 				.filter(s -> !s.isEmpty())
 				.map(Integer::parseInt)
-				.anyMatch(id -> id == pCompartment.id());
+				.anyMatch(id -> id == id());
+	}
+
+	private boolean isParentOfWithoutChecks(final AllenCompartment child) {
+		final String childStructureIdPath = child.getStructureIdPath(); // never contains spaces
+		final String parentIdString = String.valueOf(id());
+		final int parentIdxInPath = childStructureIdPath.lastIndexOf("/" + parentIdString + "/");
+		return parentIdxInPath > -1;
+	}
+
+	public boolean includes(final BrainAnnotation other) {
+		if (!(other instanceof AllenCompartment))
+			return false;
+		final AllenCompartment compartment = (AllenCompartment) other;
+		return (id() == compartment.id()) || this.isChildOfWithoutChecks(compartment) || compartment.isParentOf(this);
 	}
 
 	/**
@@ -326,21 +364,6 @@ public class AllenCompartment implements BrainAnnotation {
 			SNTUtils.error("Could not retrieve mesh ", e);
 		}
 		return mesh;
-	}
-
-	/**
-	 * Assesses if this annotation is the parent of the specified compartment.
-	 *
-	 * @param childCompartment the compartment to be tested
-	 * @return true, if successful, i.e., {@code childCompartment} is not this
-	 *         compartment and is present in {@link #getChildren()}
-	 */
-	@Override
-	public boolean isParentOf(final BrainAnnotation childCompartment) {
-		if (!(childCompartment instanceof AllenCompartment))
-			return false;
-		final AllenCompartment cCompartment = (AllenCompartment) childCompartment;
-		return id() != cCompartment.id() && cCompartment.getStructureIdPath().contains(String.valueOf(id()));
 	}
 
 	public UUID getUUID() {
