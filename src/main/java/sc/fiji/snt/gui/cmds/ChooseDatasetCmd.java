@@ -30,6 +30,7 @@ import java.util.List;
 
 import net.imagej.ImageJ;
 import net.imagej.legacy.LegacyService;
+import sc.fiji.snt.SNTPrefs;
 
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
@@ -56,13 +57,17 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 
 	@Parameter(label = "New tracing image:", persist = false, required = false,
 		style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
-	protected String choice;
+	private String choice;
 
 	@Parameter(label = "Validate spatial calibration", required = false,
 		description = "Checks whether voxel dimensions of chosen image differ from those of loaded image (if any)")
-	protected boolean validateCalibration;
+	private boolean validateCalibration;
 
-	protected HashMap<String, ImagePlus> impMap;
+	@Parameter(label = "Keep loaded image open", required = false,
+		description = "If the image currently loaded should remain open or instead disposed")
+	private boolean restoreImg;
+
+	private HashMap<String, ImagePlus> impMap;
 
 	@Override
 	public void run() {
@@ -72,6 +77,8 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 			ImagePlus chosenImp = impMap.get(choice);
 			if (!compatibleCalibration(chosenImp))
 				return;
+			
+			snt.getPrefs().setTemp(SNTPrefs.RESTORE_LOADED_IMGS, restoreImg);
 			chosenImp = comvertInPlaceToCompositeAsNeeded(chosenImp);
 			if (chosenImp.getType() != ImagePlus.COLOR_RGB)
 				snt.initialize(chosenImp);
@@ -115,6 +122,10 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 			resolveInputs();
 			return;
 		}
+		if (!snt.accessToValidImageData()) {
+			restoreImg = false;
+			resolveInput("restoreImg");
+		}
 		final List<String> choices = new ArrayList<>(impMap.keySet());
 		Collections.sort(choices);
 		mItem.setChoices(choices);
@@ -125,6 +136,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 		choice = null;
 		resolveInput("choice");
 		resolveInput("validateCalibration");
+		resolveInput("restoreImg");
 	}
 
 	public static Collection<ImagePlus> getImpInstances() {
@@ -136,7 +148,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 		final Collection<ImagePlus> imps = new ArrayList<>();
 		for (final String title : titles) {
 			// ignore side panes
-			if (title.startsWith("ZY [") || title.startsWith("XZ [")) continue;
+			//if (title.startsWith("ZY [") || title.startsWith("XZ [")) continue;
 			imps.add(WindowManager.getImage(title));
 		}
 		return imps;

@@ -603,6 +603,10 @@ public class SNT extends MultiDThreePanes implements
 	@Override
 	public void initialize(final ImagePlus imp) {
 		final  Roi sourceImageROI = imp.getRoi();
+		if (accessToValidImageData() && getPrefs().getTemp(SNTPrefs.RESTORE_LOADED_IMGS, false)) {
+			rebuildWindow(xy);
+			xy = null;
+		}
 		nullifyCanvases();
 		setFieldsFromImage(imp);
 		changeUIState(SNTUI.LOADING);

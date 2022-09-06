@@ -42,6 +42,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	public static final String NO_IMAGE_ASSOCIATED_DATA = "noImgData";
 	public static final String RESIZE_REQUIRED = "resizeNeeded";
+	public static final String RESTORE_LOADED_IMGS = "restoreLoadedImgs";
 
 	private static final int DRAW_DIAMETERS = 1;
 	private static final int SNAP_CURSOR = 2;
