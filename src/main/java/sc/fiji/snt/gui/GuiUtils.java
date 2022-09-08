@@ -120,7 +120,7 @@ public class GuiUtils {
 	public static final String LAF_LIGHT_INTJ = FlatIntelliJLaf.NAME;
 	public static final String LAF_DARK = FlatDarkLaf.NAME;
 	public static final String LAF_DARCULA = FlatDarculaLaf.NAME;
-	public static final String LAF_DEFAULT  = "System default";
+	public static final String LAF_DEFAULT  = "Default";
 
 	/** The default sorting weight for the Plugins>Neuroanatomy> submenu */
 	// define it here in case we need to change sorting priority again later on
@@ -1403,11 +1403,10 @@ public class GuiUtils {
 	public static void setLookAndFeel() {
 		storeExistingLookAndFeel();
 		final String lafName = SNTPrefs.getLookAndFeel(); // never null
-		if (!PlatformUtils.isLinux()) {
-			// FIXME: With current flatlaf version this assign Windows 10 laf to the GTK l!?
-			JDialog.setDefaultLookAndFeelDecorated(true);
-			JFrame.setDefaultLookAndFeelDecorated(true);
-		}
+		// If SNT is not using FlatLaf but Fiji is, prefer Fiji choice
+		if (existingLaf instanceof FlatLaf && !lafName.contains("FlatLaf"))
+			return;
+		// Otherwise apply SNT's L&F preference as long as it is valid
 		if (existingLaf == null || !lafName.equals(existingLaf.getName()))
 			setLookAndFeel(SNTPrefs.getLookAndFeel(), false);
 	}
@@ -1464,8 +1463,6 @@ public class GuiUtils {
 
 	private static void storeExistingLookAndFeel() {
 		existingLaf = UIManager.getLookAndFeel();
-		if (existingLaf instanceof FlatLaf) 
-			existingLaf = null;
 	}
 
 	public static void restoreLookAndFeel() {
@@ -1516,10 +1513,11 @@ public class GuiUtils {
 		if (!success) return false;
 		if (componentsToUpdate == null) {
 			FlatLaf.updateUI();
-		} else
-			for (final Component component : componentsToUpdate) {
-				if (component == null)
-					continue;
+		} else {
+			SwingUtilities.invokeLater(() -> {
+				for (final Component component : componentsToUpdate) {
+					if (component == null)
+						continue;
 				final Window window = (component instanceof Window) ? (Window) component
 						: SwingUtilities.windowForComponent(component);
 				try {
@@ -1528,9 +1526,11 @@ public class GuiUtils {
 					else
 						SwingUtilities.updateComponentTreeUI(window);
 				} catch (final Exception ex) {
-					SNTUtils.error("", ex);
+						SNTUtils.error("", ex);
+					}
 				}
-			}
+			});
+		}
 		if (persistentChoice) {
 			SNTPrefs.setLookAndFeel(lookAndFeelName);
 		}

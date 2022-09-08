@@ -113,7 +113,7 @@ public class RecViewerPrefsCmd extends ContextCommand {
 	private String msg3;
 
 	@Parameter(label = "<HTML><b>IV: Look and Feel:",
-			required = false, visibility = ItemVisibility.MESSAGE)
+			required = false, persist=false, visibility = ItemVisibility.MESSAGE)
 	private String HEADER4;
 
 	@Parameter(label = "<HTML>&nbsp;", required = false, description = "How should SNT tools look? (Restart may be required)", choices = {

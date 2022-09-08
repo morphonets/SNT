@@ -462,13 +462,13 @@ public class SNTCommandFinder {
 		});
 
 		final JPanel northPanel = new JPanel(new BorderLayout());
-		final JButton options = new JButton(IconFactory.getButtonIcon(GLYPH.ELLIPSIS_VERTICAL));
+		final JButton options = new JButton("\u22EE");
 		//options.setOpaque(false);
 		final JPopupMenu optionsMenu = new JPopupMenu();
 		options.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mousePressed(final MouseEvent e) {
-				optionsMenu.show(options, options.getWidth() / 2, options.getHeight() / 2);
+				optionsMenu.show(options, 0, options.getHeight());
 			}
 		});
 		final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Enable Command Recording", recordCmd);

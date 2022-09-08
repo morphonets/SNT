@@ -22,7 +22,9 @@
 
 package sc.fiji.snt.gui.cmds;
 
+
 import javax.swing.JOptionPane;
+import javax.swing.UIManager;
 
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
@@ -78,10 +80,13 @@ public class PrefsCmd extends ContextCommand {
 	@Parameter
 	protected SNTService sntService;
 
-	@Parameter(label = "Look and feel", required = false, description = "How should SNT tools look? (Restart may be required)", choices = {
-			GuiUtils.LAF_DEFAULT, GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK,
-			GuiUtils.LAF_DARCULA })
+	@Parameter(label = "Look and feel (L&F)", required = false, persist = false,
+			description = "How should SNT look? NB: This may also affect other Swing-based dialogs in Fiji.", choices = {
+			GuiUtils.LAF_DEFAULT, GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK, GuiUtils.LAF_DARCULA })
 	private String laf;
+
+	@Parameter(label="Managing Dark Themes...", callback="lafHelp")
+	private Button lafHelpButton;
 
 	@Parameter(label="Remember window locations", description="Whether position of dialogs should be preserved across restarts")
 	private boolean persistentWinLoc;
@@ -98,7 +103,7 @@ public class PrefsCmd extends ContextCommand {
 	private int nThreads;
 
 	@Parameter(label="Reset All Preferences...", callback="reset")
-	private Button reset;
+	private Button resetButton;
 
 	private SNT snt;
 
@@ -115,9 +120,8 @@ public class PrefsCmd extends ContextCommand {
 		final String existingLaf = SNTPrefs.getLookAndFeel();
 		SNTPrefs.setLookAndFeel(laf);
 		if (!existingLaf.equals(laf) && snt.getUI() != null) {
-			// This causes all sort of inconsistencies. Give some heads-up
-			final int ans = new GuiUtils(snt.getUI()).yesNoDialog("It is <i>highly</i> recommended that you restart SNT for changes to take effect. "
-							+ "Alternatively, you can attempt to apply the new Look and Feel now, but SNT widgets may display erratically. "
+			final int ans = new GuiUtils(snt.getUI()).yesNoDialog("It is recommended that you restart SNT for changes to take effect. "
+							+ "Alternatively, you can attempt to apply the new Look and Feel now, but some widgets/icons may not display properly. "
 							+ "Do you want to try nevertheless?", "Restart Suggested", "Yes. Apply now.", "No. I will restart.");
 			if (ans == JOptionPane.YES_OPTION)
 				snt.getUI().setLookAndFeel(laf);
@@ -131,7 +135,7 @@ public class PrefsCmd extends ContextCommand {
 			force2DDisplayCanvas = snt.getPrefs().is2DDisplayCanvas();
 			compressTraces = snt.getPrefs().isSaveCompressedTraces();
 			nThreads = SNTPrefs.getThreads();
-			laf = SNTPrefs.getLookAndFeel();
+			laf = GuiUtils.LAF_DEFAULT;
 		} catch (final NullPointerException npe) {
 			cancel("SNT is not running.");
 		}
@@ -147,6 +151,22 @@ public class PrefsCmd extends ContextCommand {
 			new GuiUtils().centeredMsg("Preferences reset. You should now restart"
 					+ " SNT for changes to take effect.", "Restart Required");
 		}
+	}
+
+	@SuppressWarnings("unused")
+	private void lafHelp() {
+		final String lafName = (GuiUtils.LAF_DEFAULT.equals(laf)) ? UIManager.getSystemLookAndFeelClassName() : laf;
+		new GuiUtils().showHTMLDialog("<HTML>"
+				+ "Setting a <i>Look and Feel</i> (L&F) does not affect AWT widgets. Thus, while a dark theme can "
+				+ "be applied to SNT (and other Fiji components like the Script Editor), it is currently not possible "
+				+ "to apply a dark theme to ImageJ1 built-in dialogs, macro prompts, and dialogs of certain legacy plugins."
+				+ "<br><br>"
+				+ "SNT's L&F preference is only applied when SNT starts-up. If you would like Fiji to adopt the same L&F "
+				+ "you can do so by appending the following single line of code to the text area in Fiji's "
+				+ "<i>Edit -> Startup...</i> prompt:<br>" + "<pre><code>"//
+				+ "eval(\"js\",\"importClass(Packages.org.scijava.ui.swing.options.OptionsLookAndFeel);OptionsLookAndFeel.setupLookAndFeel('"
+				+ lafName + "')\");"//
+				+ "</code></pre>", "Managing Themes", true);
 	}
 
 	/** Clears all of SNT preferences. */

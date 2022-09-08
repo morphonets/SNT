@@ -26,6 +26,11 @@ import java.awt.Point;
 import java.io.File;
 import java.util.HashSet;
 
+import javax.swing.LookAndFeel;
+import javax.swing.UIManager;
+
+import com.formdev.flatlaf.FlatLaf;
+
 import ij.Prefs;
 import ij.io.FileInfo;
 import ij3d.Content;
@@ -318,15 +323,16 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(FILLWIN_LOC, null);
 		Prefs.set(PATHWIN_LOC, null);
 		Prefs.set(FILTERED_IMG_PATH, null);
-		setLookAndFeel(getDefaultLookAndFeel());
+		setLookAndFeel(null);
 		setThreads(0);
 		wipeSessionPrefs();
 		Prefs.savePreferences();
 	}
 
 	public static String getDefaultLookAndFeel() {
-		//return PlatformUtils.isLinux() ? GuiUtils.LAF_LIGHT  : GuiUtils.LAF_DEFAULT;
-		return GuiUtils.LAF_DEFAULT;
+		// If Fiji is using FlatLaf used that as default, otherwise use System L&F
+		final LookAndFeel currentLaf = UIManager.getLookAndFeel();
+		return (currentLaf instanceof FlatLaf) ? currentLaf.getName() : GuiUtils.LAF_DEFAULT;
 	}
 
 	private static void clearLegacyPrefs() {
