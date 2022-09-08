@@ -54,6 +54,8 @@ import java.util.*;
  */
 public class SkeletonConverter {
 
+	/* scripting convenience: Keep references to AnalyzeSkeleton_ common fields */
+    public static final int LOWEST_INTENSITY_BRANCH = AnalyzeSkeleton_.LOWEST_INTENSITY_BRANCH;
     public static final int LOWEST_INTENSITY_VOXEL = AnalyzeSkeleton_.LOWEST_INTENSITY_VOXEL;
     public static final int SHORTEST_BRANCH = AnalyzeSkeleton_.SHORTEST_BRANCH;
 
@@ -310,7 +312,7 @@ public class SkeletonConverter {
 
     /**
      * Sets the original {@link ImagePlus} to be used during voxel-based loop pruning.
-     * See <a href="https://imagej.net/AnalyzeSkeleton.html#Loop_detection_and_pruning">AnalyzeSkeleton documentation</a>
+     * See <a href="https://imagej.net/plugins/analyze-skeleton/?amp=1#loop-detection-and-pruning">AnalyzeSkeleton documentation</a>
      *
      * @param origIP the original ImagePlus
      * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
@@ -320,8 +322,17 @@ public class SkeletonConverter {
     }
 
     /**
+     * Gets the loop pruning strategy.
+     *
+     * @see #setPruneMode(int)
+     */
+    public int getPruneMode() {
+        return pruneMode;
+    }
+
+    /**
      * Sets the loop pruning strategy.
-     * See <a href="https://imagej.net/AnalyzeSkeleton.html#Loop_detection_and_pruning">AnalyzeSkeleton documentation</a>
+     * See <a href="https://imagej.net/plugins/analyze-skeleton/?amp=1#loop-detection-and-pruning">AnalyzeSkeleton documentation</a>
      *
      * @param pruneMode the loop prune strategy, e.g., {@link AnalyzeSkeleton_#SHORTEST_BRANCH},
      *                  {@link AnalyzeSkeleton_#LOWEST_INTENSITY_BRANCH} or {@link AnalyzeSkeleton_#LOWEST_INTENSITY_VOXEL}

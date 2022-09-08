@@ -73,7 +73,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 	private String HEADER1;
 
 	@Parameter(label = "Segmented Image", required = false, description = "<HTML>Image from which paths will be extracted. Will be skeletonized by the algorithm.<br>"
-			+ "If thresholded, only highlighted pixels are considered, otherwise all non-zero<br<intensities will be taken into account", style = ChoiceWidget.LIST_BOX_STYLE)
+			+ "If thresholded, only highlighted pixels are considered, otherwise all non-zero<br>intensities will be taken into account", style = ChoiceWidget.LIST_BOX_STYLE)
 	private String maskImgChoice;
 
 	@Parameter(label = "Path to segmented image", required = false, description = "<HTML>Path to filtered image from which paths will be extracted.<br>"//
@@ -88,21 +88,22 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 
 	@Parameter(label = "Original Image", required = false, description = "<HTML>Optional. Original (un-processed) image used to resolve loops<br>"//
 			+ "in the segmented image using brightness criteria.<br>"
-			+ "If available: loops will be nicked at the dimmest voxel in the loop<br>"
+			+ "If available: loops will be nicked at the dimmest voxel of the dimmest branch in the loop<br>"
 			+ "If unavailable: Loops will be nicked at the shortest branch in the loop", style = ChoiceWidget.LIST_BOX_STYLE)
 	private String originalImgChoice;
 
 	@Parameter(label = "Path to original image", required = false, description = "<HTML>Optional. Path to original (un-processed) image used to resolve<br>"//
 			+ "loops in the segmented image using brightness criteria.<br>"
-			+ "If available: loops will be nicked at the dimmest voxel in the loop<br>"
+			+ "If available: loops will be nicked at the dimmest voxel of the dimmest branch in the loop<br>"
 			+ "If unavailable: Loops will be nicked at the shortest branch in the loop", style = FileWidget.OPEN_STYLE)
 	private File originalImgFileChoice;
 
 	@Parameter(label = "<HTML>&nbsp;<br><b> II. Root (Reconstruction Origin):", required = false, persist = false, visibility = ItemVisibility.MESSAGE)
 	private String HEADER2;
 
-	@Parameter(label = "Set root from ROI", description = "<HTML>Assumes that an active area ROI exists highlighting the root of the structure.<br>"
-			+ "If no ROI exists, an arbitrary root node will be used")
+	@Parameter(label = "Set root from ROI", description ="<HTML>Assumes that an active area ROI marks the root of the structure.<br>"
+			+ "If an ROI exists, the 'closest' end-point (or junction point) contained by the<br>"
+			+ "ROI becomes the root node. If no ROI exists, an arbitrary root node is used")
 	private boolean inferRootFromRoi;
 
 	@Parameter(label = "Restrict to active plane (3D only)", description = "<HTML>Assumes that the root highlighted by the ROI occurs at the<br>"
@@ -351,6 +352,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				roi = chosenOrigImp.getRoi();
 
 			// Extra user-friendliness: Aggregate unexpected settings in a single list
+			final boolean isSame = (useFileChoosers) ? (maskImgFileChoice == originalImgFileChoice) : (maskImgChoice == originalImgChoice);
 			final boolean isBinary = chosenMaskImp.getProcessor().isBinary();
 			final boolean isCompatible = chosenOrigImp == null
 					|| chosenMaskImp.getCalibration().equals(chosenOrigImp.getCalibration());
@@ -359,12 +361,15 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 					&& chosenMaskImp.getNSlices() == chosenOrigImp.getNSlices());
 			final boolean isValidRoi = roi != null && roi.isArea();
 			final boolean isValidConnectDist = maxConnectDist > 0d;
-			if (!isValidOrigImg || !isBinary || !isSameDim || !isCompatible || (!isValidRoi && inferRootFromRoi)
+			if (isSame || !isValidOrigImg || !isBinary || !isSameDim || !isCompatible || (!isValidRoi && inferRootFromRoi)
 					|| (!isValidConnectDist && connectComponents)) {
 				final int width = GuiUtils
 						.renderedWidth("      Warning: Images do not share the same spatial calibration<");
 				final StringBuilder sb = new StringBuilder("<HTML><div WIDTH=").append(Math.max(550, width))
 						.append("><p>The following issue(s) were detected:</p><ul>");
+				if (isSame) {
+					sb.append("<li>Warning: Choices for segmented and original image point to the same image</li>");
+				}
 				if (!isValidOrigImg) {
 					sb.append("<li>Warning: Original image is not valid and will be ignored</li>");
 				}
@@ -392,11 +397,11 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				sb.append("</ul>");
 				sb.append("<p>Would you like to proceed? If you abort, ");
 				if (ensureMaskImgVisibleOnAbort) {
-					sb.append(" segmented image will be displayed so that you can edit it accordingly. You can then");
+					sb.append(" segmented image will be displayed so that you can edit it accordingly. You can then rerun");
 				} else {
-					sb.append(" you can");
+					sb.append(" you can rerun later on");
 				}
-				sb.append(" rerun using <i>Utilities > Extract Paths From Segmented Image...</i>");
+				sb.append(" using <i>Utilities > Extract Paths From Segmented Image...</i>");
 				sb.append("</p>");
 				if (!new GuiUtils().getConfirmation(sb.toString(), "Proceed Despite Warnings?",
 						"Proceed. I'm Feeling Lucky", "Abort")) {
@@ -434,16 +439,23 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			SNTUtils.log("Connect components: " + connectComponents);
 			converter.setMaxConnectDist(maxConnectDist);
 			SNTUtils.log("MaxC onnecting Dist.: " + maxConnectDist);
-			if (chosenOrigImp == null) {
+			if (chosenOrigImp == null) { // intensityPrunning off
 				converter.setPruneMode(SkeletonConverter.SHORTEST_BRANCH);
-				SNTUtils.log("Pruning mode: Shortest branch");
-			} else {
+				SNTUtils.log("Pruning mode: Shortest branch (loop branches to be cut at middle point)");
+			} else { // intensityPrunning on
 				converter.setOrigIP(chosenOrigImp);
-				converter.setPruneMode(SkeletonConverter.LOWEST_INTENSITY_VOXEL);
-				SNTUtils.log("Pruning mode: Dimmest voxel");
+				converter.setPruneMode(SkeletonConverter.LOWEST_INTENSITY_BRANCH);
+				SNTUtils.log("Pruning mode: Dimmest branch (dimmest branch among loop branches to be cut at its darkest voxel)");
 			}
-
-			final List<Tree> trees = (isValidRoi) ? converter.getTrees(roi, roiPlane) : converter.getTrees();
+			List<Tree> trees;
+			try {
+				trees = (inferRootFromRoi && isValidRoi) ? converter.getTrees(roi, roiPlane) : converter.getTrees();
+			} catch (final ClassCastException ignored) {
+				if (chosenOrigImp != null)
+					SNTUtils.log("Intensity-based pruning failed (unsupported image type!?): Defaulting to length-based prunning");
+				converter.setPruneMode(SkeletonConverter.SHORTEST_BRANCH);
+				trees = (inferRootFromRoi && isValidRoi) ? converter.getTrees(roi, roiPlane) : converter.getTrees();
+			} 
 			SNTUtils.log("... Done. " + trees.size() + " tree(s) retrieved.");
 			if (trees.isEmpty()) {
 				error("No paths could be extracted. Chosen parameters were not suitable!?");
@@ -475,7 +487,11 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				resetUI(false,  SNTUI.READY);
 			}
 			status("Successfully created " + trees.size() + " Tree(s)...", true);
-
+			if (chosenOrigImp != null && converter.getPruneMode() == SkeletonConverter.SHORTEST_BRANCH) {
+				error("Intensity-based resolution of loops could not be used. 'Shortest branch' prunning was used instead.<br>"
+						+ chosenOrigImp.getTitle() + " (" + chosenOrigImp.getBitDepth()
+						+ " -bit) may be of an unsupported type. ");
+			}
 		} catch (final Exception | Error ex) {
 			ex.printStackTrace();
 			error("An exception occured. See Console for details.");
