@@ -25,7 +25,7 @@ The core requirement are [pyimagej] and [Fiji](https://imagej.net/Fiji).
 
 ### To install pyimagej:
 
-1. Install [conda](https://www.anaconda.com/distribution/). See e.g., [here][pyimagej]
+1. Install [conda](https://www.anaconda.com/distribution/). See [documentation][pyimagejdocs]
    for details.
 
 2. Activate the [conda-forge](https://conda-forge.org/) channel and set it default:
@@ -35,7 +35,7 @@ The core requirement are [pyimagej] and [Fiji](https://imagej.net/Fiji).
   conda config --set channel_priority strict
   ```
 
-3. Install [pyimagej] into a new conda environment named `pyimagej`:
+3. Install [pyimagej][pyimagejdocs] into a new conda environment named `pyimagej`:
 
   ```bash
   conda create -n pyimagej pyimagej openjdk
@@ -201,20 +201,13 @@ For more details have a look at the [SNT](./1_overview.ipynb) and
 [pyimagej][pyimagej_intro] introductory notebooks.
 
 
-### Known Issues
-
-Collecting frames from [Viewer3D](https://morphonets.github.io/SNT/index.html?sc/fiji/snt/viewer/Viewer3D.html)
-may not work on multiple displays when initializing Viewer3D from a secondary
-display (at least on Ubuntu 19.10). The current workaround is to run the notebook
-on the primary display.
-
 
 ## Resources
 
 
 | SNT                                               | pyimagej                                               |
 |---------------------------------------------------|--------------------------------------------------------|
-| [Documentation][snt]                              | [Documentation][pyimagej]                              |
+| [Documentation][snt]                              | [Documentation][pyimagejdocs]                              |
 | [API]                                             | [Getting Started][pyimagej_intro]                      |
 | [Source code](https://github.com/morphonets/SNT)  | [Source code](https://github.com/imagej/pyimagej)      |
 | [Image.sc Forum](https://forum.image.sc/tag/snt/) | [Image.sc Forum](https://forum.image.sc/tag/pyimagej/) |
@@ -223,4 +216,5 @@ on the primary display.
 [snt]: https://imagej.net/SNT
 [api]: https://morphonets.github.io/SNT
 [pyimagej]: https://github.com/imagej/pyimagej
+[pyimagejdocs]: https://pyimagej.readthedocs.io/en/latest/
 [pyimagej_intro]: https://nbviewer.jupyter.org/github/imagej/tutorials/blob/master/notebooks/1-Using-ImageJ/6-ImageJ-with-Python-Kernel.ipynb
