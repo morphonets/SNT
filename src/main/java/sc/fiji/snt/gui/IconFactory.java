@@ -156,6 +156,7 @@ public class IconFactory {
 			SEARCH('\uf002', true), //
 			SEARCH_MINUS('\uf010', true), //
 			SEARCH_PLUS('\uf00e', true), //
+			SHUFFLE('\uf074', true), //
 			SIGNS('\uf277', true), //
 			SLIDERS('\uf1de', true), //
 			SPINNER('\uf110', true), //

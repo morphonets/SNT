@@ -32,9 +32,11 @@ import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.util.ColorRGB;
 import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
 
+import sc.fiji.snt.Path;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
@@ -44,6 +46,7 @@ import sc.fiji.snt.analysis.SkeletonConverter;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+import sc.fiji.snt.util.SNTColor;
 
 import java.io.File;
 import java.util.*;
@@ -138,6 +141,9 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 	@Parameter(label = "Replace existing paths", description = "<HTML>Whether any existing paths should be discarded "
 			+ "before conversion")
 	private boolean clearExisting;
+	
+	@Parameter(label = "Apply distinct colors to paths", description = "<HTML>Whether paths should be assigned unique colors")
+	private boolean assignDistinctColors;
 
 	@Parameter(label = "Activate 'Edit Mode'", description = "<HTML>Whether SNT's 'Edit Mode' should be activated after command finishes")
 	private boolean editMode;
@@ -175,6 +181,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			connectComponents = true;
 			maxConnectDist = 5d; // hopefully 5 microns
 			pruneByLength = false;
+			assignDistinctColors = true;
 			editMode = true;
 
 		} else if (useFileChoosers) { // disable choice widgets. Use file choosers
@@ -465,6 +472,14 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			final PathAndFillManager pafm = sntService.getPathAndFillManager();
 			if (clearExisting) {
 				pafm.clear();
+			}
+			if (assignDistinctColors) {
+				trees.forEach( tree -> {
+					final ColorRGB[] colors = SNTColor.getDistinctColors(tree.size());
+					int idx = 0;
+					for (final Path p : tree.list())
+						p.setColor(colors[idx++]);
+				});
 			}
 			trees.forEach(tree -> pafm.addTree(tree, "Autotraced"));
 

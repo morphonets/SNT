@@ -257,6 +257,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		colorMenu = new ColorMenu(MultiPathActionListener.COLORS_MENU);
 		colorMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COLOR));
 		colorMenu.addActionListener(multiPathListener);
+		jmi = new JMenuItem(MultiPathActionListener.ASSIGN_DISTINCT_COLORS);
+		jmi.setToolTipText("Tags selected paths with distinct colors");
+		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SHUFFLE));
+		jmi.addActionListener(multiPathListener);
+		colorMenu.addSeparator();
+		colorMenu.add(jmi);
 		tagsMenu.add(colorMenu);
 
 		final JMenu imageTagsMenu = new JMenu("Image Properties");
@@ -2453,6 +2459,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		private static final String APPEND_ALL_CHILDREN_CMD = "Append All Children To Selection";
 		private static final String APPEND_DIRECT_CHILDREN_CMD = "Append Direct Children To Selection";
+		private final static String ASSIGN_DISTINCT_COLORS = "Assign Distinct Colors";
 		private final static String COLORS_MENU = "Color";
 		private final static String DELETE_CMD = "Delete...";
 		private final static String COMBINE_CMD = "Combine...";
@@ -2550,6 +2557,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					guiUtils.error("No Path(s) are currently selected.");
 				else 
 					selectChildren(selectedPaths, APPEND_ALL_CHILDREN_CMD.equals(cmd));
+				return;
+			}
+			else if (ASSIGN_DISTINCT_COLORS.equals(cmd)) {
+				final ColorRGB[] colors = SNTColor.getDistinctColors(n);
+				int idx = 0;
+				for (final Path p : selectedPaths)
+					p.setColor(colors[idx++]);
+				refreshManager(true, true, selectedPaths);
 				return;
 			}
 			else if (COLORS_MENU.equals(cmd)) {
