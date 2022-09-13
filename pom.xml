@@ -133,7 +133,7 @@
 		<!-- Dependency versions -->
 		<sciview.version>e3510f4</sciview.version>
 		<scenery.version>4d07a30</scenery.version>
-		<jzy3d.version>2.0.0</jzy3d.version>
+		<jzy3d.version>2.1.0</jzy3d.version>
 		<okhttp.version>4.9.3</okhttp.version>
 		<font-awesome.version>6.1.2</font-awesome.version>
 		<json.version>20220320</json.version>
@@ -142,7 +142,7 @@
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 
 		<!-- Resolve dup. class conflict -->
-		<allowedDuplicateClasses>${scijava.allowedDuplicateClasses},org.jzy3d.plot3d.pipelines.NotImplementedException</allowedDuplicateClasses>
+		<allowedDuplicateClasses>${scijava.allowedDuplicateClasses},jogamp.nativetag.common.*,jogamp.nativetag.opengl.*</allowedDuplicateClasses>
 	</properties>
 
 	<repositories>
@@ -172,7 +172,7 @@
 		<dependency>
 			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-emul-gl</artifactId>
-			<version>${jzy3d.version}</version>
+			<version>2.0.0</version>
 			<exclusions>
 				<exclusion>
 					<groupId>log4j</groupId>
