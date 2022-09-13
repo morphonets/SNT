@@ -1932,9 +1932,7 @@ public class Path implements Comparable<Path> {
 	protected void setSWCType(final int newSWCType,
 		final boolean alsoSetInFittedVersion)
 	{
-		if (newSWCType < 0) throw new IllegalArgumentException(
-			"BUG: Unknown SWC type " + newSWCType);
-		swcType = newSWCType;
+		swcType = (newSWCType < 0 ) ? SWC_UNDEFINED : newSWCType;
 		if (alsoSetInFittedVersion) {
 			/*
 			 * If we've been asked to also set the fitted version, this should only be
