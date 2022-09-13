@@ -247,8 +247,8 @@ public class SNTColor {
 		return colors;
 	}
 
-	private static ColorRGB[] KELLY_COLORS = { // See
-																							// https://stackoverflow.com/a/4382138
+	private static ColorRGB[] KELLY_COLORS = {
+		// See https://stackoverflow.com/a/4382138
 		ColorRGB.fromHTMLColor("#FFB300"), // Vivid Yellow
 		ColorRGB.fromHTMLColor("#803E75"), // Strong Purple
 		ColorRGB.fromHTMLColor("#FF6800"), // Vivid Orange

@@ -176,11 +176,13 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			resolveInput("roiPlane");
 			resolveInput("pruneByLength");
 			resolveInput("lengthThreshold");
+			resolveInput("clearExisting");
 			useFileChoosers = false;
 			maskImgChoice = IMG_TRACED_DUP_CHOICE;
 			connectComponents = true;
 			maxConnectDist = 5d; // hopefully 5 microns
 			pruneByLength = false;
+			clearExisting = false;
 			assignDistinctColors = true;
 			editMode = true;
 
@@ -551,9 +553,11 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 		resolveInput("lengthThreshold");
 		resolveInput("HEADER4");
 		resolveInput("clearExisting");
+		resolveInput("assignDistinctColors");
 		resolveInput("editMode");
 		resolveInput("useFileChoosers");
 		resolveInput("simplifyPrompt");
+		
 	}
 
 	/* IDE debug method **/
