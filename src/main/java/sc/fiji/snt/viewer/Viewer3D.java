@@ -76,6 +76,7 @@ import org.jzy3d.chart.factories.EmulGLChartFactory;
 import org.jzy3d.chart.factories.IChartFactory;
 import org.jzy3d.chart.factories.IFrame;
 import org.jzy3d.chart.factories.OffscreenChartFactory;
+import org.jzy3d.chart.factories.SwingChartFactory;
 import org.jzy3d.colors.Color;
 import org.jzy3d.colors.ColorMapper;
 import org.jzy3d.colors.ISingleColorable;
@@ -488,6 +489,7 @@ public class Viewer3D {
 			gUtils = new GuiUtils((Component) chart.getCanvas());
 			fileDropWorker = new FileDropWorker((Component) chart.getCanvas(), gUtils);
 		}
+		unfreeze();
 		return true;
 	}
 
@@ -525,7 +527,7 @@ public class Viewer3D {
 			final ISquarifier squarifier = view.getSquarifier();
 			final boolean squared = view.getSquared();
 			final CameraMode currentCameraMode = view.getCameraMode();
-			final ViewportMode viewPortMode = view.getCamera().getMode();
+			final ViewportMode viewPortMode = view.getCamera().getViewportMode();
 			final Coord3d currentViewPoint = view.getViewPoint();
 			final BoundingBox3d currentBox = view.getBounds();
 			final boolean isAnimating = mouseController.isAnimating();
@@ -606,7 +608,7 @@ public class Viewer3D {
 		dup.view.setSquarifier(view.getSquarifier());
 		dup.view.setSquared(view.getSquared());
 		dup.view.setCameraMode(view.getCameraMode());
-		dup.view.getCamera().setViewportMode(view.getCamera().getMode());
+		dup.view.getCamera().setViewportMode(view.getCamera().getViewportMode());
 		dup.view.setViewPoint(view.getViewPoint().clone());
 		dup.setSceneUpdatesEnabled(viewUpdatesEnabled);
 		dup.updateView();
@@ -7229,7 +7231,7 @@ public class Viewer3D {
 			}
 		}
 
-		private class JOGLFactory extends AWTChartFactory {
+		private class JOGLFactory extends SwingChartFactory {
 
 			@Override
 			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
@@ -7242,15 +7244,15 @@ public class Viewer3D {
 
 			public AView(final IChartFactory factory, final Scene scene, final ICanvas canvas, final Quality quality) {
 				super(factory, scene, canvas, quality);
-				// super.DISPLAY_AXE_WHOLE_BOUNDS = true;
-				// super.MAINTAIN_ALL_OBJECTS_IN_VIEW = true;
-				// setBoundMode(ViewBoundMode.AUTO_FIT);
+				//super.DISPLAY_AXE_WHOLE_BOUNDS = true;
+				//super.MAINTAIN_ALL_OBJECTS_IN_VIEW = true;
+				setBoundMode(ViewBoundMode.AUTO_FIT);
 				setHiDPIenabled(Prefs.SCALE_FACTOR > 1);
 			}
 
 			void setHiDPIenabled(boolean enabled) {
 				super.hidpi = (enabled) ? HiDPI.ON : HiDPI.OFF;
-				//axis.getLayout().applyFontSizePolicy(); no longer available on jzy3d 2.1?
+				axis.getLayout().applyFontSizePolicy(); //no longer available on jzy3d 2.1?
 			}
 
 			@Override
