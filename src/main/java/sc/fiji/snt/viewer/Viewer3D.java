@@ -7250,7 +7250,7 @@ public class Viewer3D {
 
 			void setHiDPIenabled(boolean enabled) {
 				super.hidpi = (enabled) ? HiDPI.ON : HiDPI.OFF;
-				axis.getLayout().applyFontSizePolicy();
+				//axis.getLayout().applyFontSizePolicy(); no longer available on jzy3d 2.1?
 			}
 
 			@Override
