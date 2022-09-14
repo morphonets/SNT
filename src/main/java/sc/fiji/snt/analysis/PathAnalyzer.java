@@ -118,7 +118,6 @@ public class PathAnalyzer extends TreeStatistics {
 		if (summarize && table instanceof SNTTable) {
 			((SNTTable) table).summarize();
 		}
-		if (getContext() != null)
-			updateAndDisplayTable();
+		updateAndDisplayTable();
 	}
 }
