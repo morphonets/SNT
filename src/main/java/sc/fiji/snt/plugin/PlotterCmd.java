@@ -50,6 +50,7 @@ import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.ConvexHull2D;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
@@ -89,12 +90,12 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		callback = "currentZangleChanged")
 	private double angleZ = 0;
 
-	@Parameter(required = false, label = "Color", callback = "updatePlot")
+	@Parameter(required = false, label = "Color", callback = "colorChanged")
 	private ColorRGB color;
 
 	@Parameter(required = false, persist = false, label = "Actions", choices = {
-		ACTION_NONE, ACTION_FLIP_H, ACTION_FLIP_V, ACTION_RESET_ROT, ACTION_RESET_COLOR, ACTION_SNAPSHOT },
-		callback = "runAction")
+			ACTION_NONE, ACTION_ADD_CONVEXHULL, ACTION_FLIP_H, ACTION_FLIP_V, ACTION_RESET_ROT,
+			ACTION_RESET_COLOR, ACTION_SNAPSHOT}, callback = "runAction")
 	private String actionChoice = ACTION_NONE;
 
 	@Parameter(required = false, persist = false, label = "Preview",
@@ -115,6 +116,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 	private static final String ACTION_FLIP_H = "Flip horizontally";
 	private static final String ACTION_FLIP_V = "Flip vertically";
 	private static final String ACTION_SNAPSHOT = "Snapshot [w/ color-mapping (if any)]";
+	private static final String ACTION_ADD_CONVEXHULL = "Add convex hull";
 	private static final ColorRGB DEF_COLOR = Colors.BLACK;
 	private static final String BUSY_MSG = "Rendering. Please wait...";
 
@@ -122,6 +124,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 	private SNTChart chart;
 	private Tree plottingTree;
 	private Tree snapshotTree;
+	private ConvexHull2D hull2D;
 	private int previousXangle = 0;
 	private int previousYangle = 0;
 	private int previousZangle = 0;
@@ -204,12 +207,19 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 	private void buildPlot() {
 		viewer = new Viewer2D(context(), viewer);
 		viewer.add(plottingTree);
+		if (hull2D != null) {
+			hull2D.compute();
+			viewer.setDefaultColor(color);
+			viewer.addPolygon(hull2D.getPolygon(), plottingTree.getLabel());
+		}
 	}
 
-	private void updatePlot() {
+	private void updatePlot(final boolean resetConvexHull) {
 		if (preview && msg.isEmpty() && hasInitialized()) {
 			msg = BUSY_MSG;
 			plottingTree.setColor(color);
+			if (resetConvexHull)
+				hull2D = null;
 			buildPlot();
 			chart.replace(viewer.getChart());
 			chart.setVisible(true); // re-open frame if it has been closed
@@ -224,7 +234,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		plottingTree.rotate(Tree.X_AXIS, -angleX);
 		plottingTree.rotate(Tree.Y_AXIS, -angleY);
 		plottingTree.rotate(Tree.Z_AXIS, -angleZ);
-		updatePlot();
+		updatePlot(true);
 		angleX = 0;
 		angleY = 0;
 		angleZ = 0;
@@ -238,7 +248,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		if (hasInitialized()) {
 			plottingTree.rotate(Tree.X_AXIS, angleX - previousXangle);
 			previousXangle = (int)angleX;
-			updatePlot();
+			updatePlot(true);
 		}
 	}
 
@@ -247,7 +257,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		if (hasInitialized()) {
 			plottingTree.rotate(Tree.Y_AXIS, angleY - previousYangle);
 			previousYangle = (int)angleY;
-			updatePlot();
+			updatePlot(true);
 		}
 	}
 
@@ -256,8 +266,13 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		if (hasInitialized()) {
 			plottingTree.rotate(Tree.Z_AXIS, angleZ - previousZangle);
 			previousZangle = (int)angleZ;
-			updatePlot();
+			updatePlot(true);
 		}
+	}
+
+	@SuppressWarnings("unused")
+	private void colorChanged() {
+		updatePlot(false);
 	}
 
 	private boolean hasInitialized() {
@@ -287,7 +302,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				return;
 			case ACTION_RESET_COLOR:
 				color = DEF_COLOR;
-				updatePlot();
+				updatePlot(false);
 				actionChoice = ACTION_NONE;
 				return;
 			case ACTION_SNAPSHOT:
@@ -298,13 +313,17 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				angleX = getBoundedAngle(180 + (int)angleX);
 				plottingTree.rotate(Tree.X_AXIS, angleX);
 				previousXangle = (int)angleX;
-				updatePlot();
+				updatePlot(true);
 				break;
 			case ACTION_FLIP_H:
 				angleY = getBoundedAngle(180 + (int)angleY);
 				plottingTree.rotate(Tree.Y_AXIS, angleY);
 				previousYangle = (int)angleY;
-				updatePlot();
+				updatePlot(true);
+				break;
+			case ACTION_ADD_CONVEXHULL:
+				hull2D = new ConvexHull2D(plottingTree.getNodes(), true);
+				updatePlot(false);
 				break;
 			default:
 				throw new IllegalArgumentException("Invalid action");
