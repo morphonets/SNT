@@ -302,9 +302,13 @@ public class SNTTable extends DefaultGenericTable {
 		}
 	}
 
-	@Override
-	public String toString() {
-		return toString(this, 0, getRowCount() - 1);
+//	@Override
+//	public String toString() {
+//		return toString(this, 0, getRowCount() - 1);
+//	}
+
+	public static String toString(final GenericTable table) {
+		return toString(table, 0, table.getRowCount() - 1);
 	}
 
 	public static String toString(final GenericTable table, final int firstRow, final int lastRow) {
