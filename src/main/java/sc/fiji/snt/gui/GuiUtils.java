@@ -1172,11 +1172,17 @@ public class GuiUtils {
 		helpMenu.add(mi);
 
 		helpMenu.addSeparator();
-		helpMenu.add(MenuItems.devResourceMain());
-		helpMenu.add(MenuItems.devResourceNotebooks());
-		helpMenu.add(MenuItems.devResourceAPI());
+		mi = menuItemTriggeringURL("Scripting", URL + "scripting");
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
+		helpMenu.add(mi);
+		mi = menuItemTriggeringURL("Jupyter Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.SCROLL));
+		helpMenu.add(mi);
 		helpMenu.addSeparator();
 
+		mi = menuItemTriggeringURL("SNT's API", "https://javadoc.scijava.org/SNT/");
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE2));
+		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("SNT's Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
 		mi.setIcon(IconFactory.getMenuIcon(GLYPH.COGS));
 		helpMenu.add(mi);
@@ -1937,24 +1943,6 @@ public class GuiUtils {
 	public static class MenuItems {
 
 		private MenuItems() {}
-
-		public static JMenuItem devResourceMain() {
-			final JMenuItem jmi = menuItemTriggeringURL("Scripting Documentation", "https://imagej.net/plugins/snt/scripting");
-			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
-			return jmi;
-		}
-
-		public static JMenuItem devResourceAPI() {
-			final JMenuItem jmi = menuItemTriggeringURL("API", "https://javadoc.scijava.org/SNT/");
-			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
-			return jmi;
-		}
-
-		public static JMenuItem devResourceNotebooks() {
-			final JMenuItem jmi = menuItemTriggeringURL("Jupyter Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
-			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE2));
-			return jmi;
-		}
 
 		public static JMenuItem convexHull() {
 			final JMenuItem jmi = new JMenuItem("Convex Hull...", IconFactory.getMenuIcon(GLYPH.DICE_20));

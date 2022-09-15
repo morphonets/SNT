@@ -2690,6 +2690,8 @@ public class SNTUI extends JDialog {
 		});
 		hideViewsMenu.add(threeDViewerMenuItem);
 		viewMenu.add(hideViewsMenu);
+		viewMenu.addSeparator();
+
 		final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image");
 		showImpMenuItem.addActionListener(e -> {
 			if (!plugin.isSecondaryDataAvailable()) {
@@ -2704,8 +2706,6 @@ public class SNTUI extends JDialog {
 			}
 		});
 		viewMenu.add(showImpMenuItem);
-		viewMenu.addSeparator();
-
 		final JMenuItem consoleJMI = new JMenuItem("Toggle Console");
 		consoleJMI.addActionListener(e -> {
 			try {
