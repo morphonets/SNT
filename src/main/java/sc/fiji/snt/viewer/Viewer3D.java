@@ -3241,6 +3241,7 @@ public class Viewer3D {
 			static final String SNAPSHOT = "Take Snapshot";
 			static final String SYNC = "Sync Path Manager Changes";
 			static final String TAG = "Add Tag(s)...";
+			static final String TOGGLE_DARK_MODE = "Toggle Dark Mode";
 			static final long serialVersionUID = 1L;
 			final String name;
 
@@ -3362,6 +3363,9 @@ public class Viewer3D {
 						return; // user pressed cancel
 					managerList.applyTagToSelectedItems(tags);
 					return;
+				case TOGGLE_DARK_MODE:
+					setEnableDarkMode(!isDarkModeOn());
+					return;
 				default:
 					throw new IllegalArgumentException("Unrecognized action");
 				}
@@ -3385,6 +3389,7 @@ public class Viewer3D {
 			buttonPanel.add(menuButton(GLYPH.ATLAS, refBrainsMenu(), "Reference Brains"));
 			buttonPanel.add(menuButton(GLYPH.CALCULATOR, measureMenu(), "Analyze & Measure"));
 			buttonPanel.add(menuButton(GLYPH.TOOL, utilsMenu(), "Utilities"));
+			buttonPanel.add(menuButton(GLYPH.CODE, scriptingMenu(), "Scripting"));
 			buttonPanel.add(menuButton(GLYPH.COG, prefsMenu(), "Settings"));
 			buttonPanel.add(cmdFinder.getButton());
 			return buttonPanel;
@@ -4305,11 +4310,10 @@ public class Viewer3D {
 				frame.displayLightController();
 			});
 			utilsMenu.add(light);
-
+			final JMenuItem dark = new JMenuItem(new Action(Action.TOGGLE_DARK_MODE, KeyEvent.VK_D, false, false));
+			dark.setIcon(IconFactory.getMenuIcon(GLYPH.SUN));
+			utilsMenu.add(dark);
 			GuiUtils.addSeparator(utilsMenu, "Actions:");
-			final JMenuItem log = new JMenuItem(new Action(Action.LOG, KeyEvent.VK_L, false, false));
-			log.setIcon(IconFactory.getMenuIcon(GLYPH.STREAM));
-			utilsMenu.add(log);
 			mi = new JMenuItem("Record Rotation", IconFactory.getMenuIcon(GLYPH.VIDEO));
 			mi.addActionListener(e -> {
 				SwingUtilities.invokeLater(() -> {
@@ -4345,10 +4349,28 @@ public class Viewer3D {
 			GuiUtils.addSeparator(utilsMenu, "Resources:");
 			final JMenu helpMenu = GuiUtils.helpMenu();
 			helpMenu.setIcon( IconFactory.getMenuIcon(GLYPH.QUESTION));
-			utilsMenu.add(helpMenu.getItem(0));
-			utilsMenu.add(helpMenu.getItem(helpMenu.getItemCount()-1));
 			utilsMenu.add(helpMenu);
 			return utilsMenu;
+		}
+
+		private JPopupMenu scriptingMenu() {
+			final JPopupMenu scriptMenu = new JPopupMenu();
+			GuiUtils.addSeparator(scriptMenu, "New Script:");
+			JMenuItem mi = new JMenuItem(new Action(Action.SCRIPT, KeyEvent.VK_OPEN_BRACKET, false, false));
+			mi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
+			scriptMenu.add(mi);
+			mi = new JMenuItem("Script This Viewer In...", IconFactory.getMenuIcon(GLYPH.CODE));
+			mi.addActionListener(e -> runScriptEditor(null));
+			scriptMenu.add(mi);
+			GuiUtils.addSeparator(scriptMenu, "Record:");
+			final JMenuItem log = new JMenuItem(new Action(Action.LOG, KeyEvent.VK_L, false, false));
+			log.setIcon(IconFactory.getMenuIcon(GLYPH.STREAM));
+			scriptMenu.add(log);
+			GuiUtils.addSeparator(scriptMenu, "Resources:");
+			scriptMenu.add(GuiUtils.MenuItems.devResourceMain());
+			scriptMenu.add(GuiUtils.MenuItems.devResourceNotebooks());
+			scriptMenu.add(GuiUtils.MenuItems.devResourceAPI());
+			return scriptMenu;
 		}
 
 		private JPopupMenu prefsMenu() {
@@ -4655,7 +4677,7 @@ public class Viewer3D {
 
 		private JMenu legendMenu() {
 			// Legend Menu
-			final JMenu legendMenu = new JMenu("Color Legends");
+			final JMenu legendMenu = new JMenu("Color Coding Legends");
 			legendMenu.setIcon(IconFactory.getMenuIcon(GLYPH.COLOR2));
 			JMenuItem mi = new JMenuItem("Add...", IconFactory.getMenuIcon(GLYPH.PLUS));
 			mi.addActionListener(e -> {
