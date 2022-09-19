@@ -5,13 +5,13 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>33.0.0</version>
+		<version>33.2.0</version>
 		<relativePath />
 	</parent>
 
 	<groupId>org.morphonets</groupId>
 	<artifactId>SNT</artifactId>
-	<version>4.1.4-SNAPSHOT</version>
+	<version>4.1.5-SNAPSHOT</version>
 
 	<name>SNT</name>
 	<description>The ImageJ framework for quantitative neuroanatomy</description>

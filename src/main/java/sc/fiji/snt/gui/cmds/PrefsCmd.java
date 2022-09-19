@@ -24,7 +24,6 @@ package sc.fiji.snt.gui.cmds;
 
 
 import javax.swing.JOptionPane;
-import javax.swing.UIManager;
 
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
@@ -85,7 +84,7 @@ public class PrefsCmd extends ContextCommand {
 			GuiUtils.LAF_DEFAULT, GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK, GuiUtils.LAF_DARCULA })
 	private String laf;
 
-	@Parameter(label="Managing Dark Themes...", callback="lafHelp")
+	@Parameter(label="Managing Themes...", callback="lafHelp")
 	private Button lafHelpButton;
 
 	@Parameter(label="Remember window locations", description="Whether position of dialogs should be preserved across restarts")
@@ -155,18 +154,14 @@ public class PrefsCmd extends ContextCommand {
 
 	@SuppressWarnings("unused")
 	private void lafHelp() {
-		final String lafName = (GuiUtils.LAF_DEFAULT.equals(laf)) ? UIManager.getSystemLookAndFeelClassName() : laf;
+		laf = GuiUtils.LAF_DEFAULT;
 		new GuiUtils().showHTMLDialog("<HTML>"
-				+ "Setting a <i>Look and Feel</i> (L&F) does not affect AWT widgets. Thus, while a dark theme can "
-				+ "be applied to SNT (and other Fiji components like the Script Editor), it is currently not possible "
-				+ "to apply a dark theme to ImageJ1 built-in dialogs, macro prompts, and dialogs of certain legacy plugins."
-				+ "<br><br>"
-				+ "SNT's L&F preference is only applied when SNT starts-up. If you would like Fiji to adopt the same L&F "
-				+ "you can do so by appending the following single line of code to the text area in Fiji's "
-				+ "<i>Edit -> Startup...</i> prompt:<br>" + "<pre><code>"//
-				+ "eval(\"js\",\"importClass(Packages.org.scijava.ui.swing.options.OptionsLookAndFeel);OptionsLookAndFeel.setupLookAndFeel('"
-				+ lafName + "')\");"//
-				+ "</code></pre>", "Managing Themes", true);
+				+ "This option is now outdated. SNT's <i>Look and Feel</i> (L&F) preference has been integrated into Fiji. "
+				+ "Please set SNT's L&F to 'Default' and use Fiji's <i>Edit>Look and Feel...</i> prompt instead.<br><br>"
+				+ "Note that setting a L&F does not affect AWT widgets. Thus, while a dark theme can be applied "
+				+ "to SNT (and other Fiji components like the Script Editor), it is currently not possible to "
+				+ "apply a dark theme to ImageJ's built-in dialogs, macro prompts, and dialogs of certain legacy plugins.",
+				"Managing Themes", true);
 	}
 
 	/** Clears all of SNT preferences. */

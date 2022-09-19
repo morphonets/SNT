@@ -133,10 +133,12 @@ public class StrahlerCmd extends ContextCommand {
 		} else {
 			tableDisplay.update();
 		}
+		final List<SNTChart> charts = new ArrayList<>();
+		charts.add(getChart());
 		if (detailedAnalysis) {
 			for (final String m : new String[]{"Branch length", "Branch contraction"}) {
-				getHistogram(m).show();
-				getBoxPlot(m).show();
+				charts.add(getHistogram(m));
+				charts.add(getBoxPlot(m));
 			}
 			tableDisplay = displayService.getDisplay("SNT Detailed Strahler Table");
 			newTableRequired = detailedTable == null || tableDisplay == null || !tableDisplay.isDisplaying(detailedTable);
@@ -149,9 +151,12 @@ public class StrahlerCmd extends ContextCommand {
 			} else {
 				tableDisplay.update();
 			}
+			final SNTChart cChart = SNTChart.combine(charts);
+			cChart.setTitle("Strahler Charts");
+			cChart.show();
+		} else {
+			charts.iterator().next().show();
 		}
-		getChart().show();
-		//SNTChart.tileAll();
 	}
 
 	private void initMap() {

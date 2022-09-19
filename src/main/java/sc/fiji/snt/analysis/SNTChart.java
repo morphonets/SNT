@@ -589,14 +589,36 @@ public class SNTChart extends ChartFrame {
 	}
 
 	public ImagePlus getImage() {
-		return getImage(1f);
+		return getImages(1f).iterator().next();
 	}
 
-	public ImagePlus getImage(final float scalingFactor) {
-		final ImagePlus imp = ij.IJ.createImage((getTitle() == null) ? "SNTChart" : getTitle(), "RGB",
-				(int) scalingFactor * getChartPanel().getWidth(), (int) scalingFactor * getChartPanel().getHeight(), 1);
+	public List<ImagePlus> getImages(final float scalingFactor) {
+		final List<ImagePlus> imps = new ArrayList<>();
+		if (isCombined()) {
+			int counter = 1;
+			for (final Component component : getContentPane().getComponents()) {
+				if (component instanceof ChartPanel) {
+					final ImagePlus imp = getImagePlus((ChartPanel) component, scalingFactor);
+					if ("SNTChart".equals(imp.getTitle()))
+						imp.setTitle("Sub-chart " + counter++);
+					imps.add(imp);
+				}
+			}
+		} else {
+			final ImagePlus imp = getImagePlus(getChartPanel(), scalingFactor);
+			if ("SNTChart".equals(imp.getTitle()))
+				imp.setTitle(getTitle());
+			imps.add(imp);
+		}
+		return imps;
+	}
+
+	private static ImagePlus getImagePlus(final ChartPanel cp, final float scalingFactor) {
+		final ImagePlus imp = ij.IJ.createImage(
+				(cp.getChart().getTitle() == null) ? "SNTChart" : cp.getChart().getTitle().getText(), "RGB",
+				(int) scalingFactor * cp.getWidth(), (int) scalingFactor * cp.getHeight(), 1);
 		final java.awt.image.BufferedImage image = imp.getBufferedImage();
-		getChartPanel().getChart().draw(image.createGraphics(),
+		cp.getChart().draw(image.createGraphics(),
 				new java.awt.geom.Rectangle2D.Float(0, 0, imp.getWidth(), imp.getHeight()));
 		imp.setImage(image);
 		return imp;
@@ -608,7 +630,7 @@ public class SNTChart extends ChartFrame {
 			for (Component c : getContentPane().getComponents()) {
 				if (c instanceof ChartPanel) {
 					ChartUtils.saveChartAsPNG(SNTUtils.getUniquelySuffixedFile(file), ((ChartPanel) c).getChart(),
-							getChartPanel().getWidth() * SCALE, getChartPanel().getHeight() * SCALE);
+							((ChartPanel) c).getWidth() * SCALE, ((ChartPanel) c).getHeight() * SCALE);
 				}
 			}
 		} else {
@@ -1192,12 +1214,11 @@ public class SNTChart extends ChartFrame {
 	 * @return the stack as an ImagePlus (RGB)
 	 */
 	public static ImagePlus combineAsImagePlus(final Collection<SNTChart> charts) {
-		final ImagePlus[] arrayOfImages = new ImagePlus[charts.size()];
-		int i = 0;
-		for (final SNTChart chart : charts) {
-			arrayOfImages[i++] = chart.getImage();
-		}
-		return ImagesToStack.run(arrayOfImages);
+		final List<ImagePlus> images = new ArrayList<>();
+		charts.forEach( chart -> images.addAll(chart.getImages(1f)));
+		final ImagePlus imp = ImagesToStack.run(images.toArray(new ImagePlus[0]));
+		imp.setTitle("Combined SNTChart");
+		return imp;
 	}
 
 	/**
