@@ -24,7 +24,6 @@ package sc.fiji.snt.gui.cmds;
 
 
 import javax.swing.JOptionPane;
-import javax.swing.UIManager;
 
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;

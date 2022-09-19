@@ -136,8 +136,10 @@ public class GuiUtils {
 	private Color foreground = Color.BLACK;
 
 	public GuiUtils(final Component parent) {
-		this.parent = parent;
-		if (parent != null) {
+		if (parent == null) {
+			this.parent = null;
+		} else {
+			this.parent = (parent instanceof Container) ? parent : parent.getParent();
 			background = parent.getBackground();
 			foreground = parent.getForeground();
 		}
