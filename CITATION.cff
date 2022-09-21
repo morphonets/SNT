@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use SNT in your research, please cite it using these metadata."
+abstract: SNT is an end-to-end framework for neuronal morphometry and whole-brain connectomics that supports tracing, proof-editing, visualization, quantification and modeling of neuroanatomy. With an open architecture, a large user base, community-based documentation, support for complex imagery and several model organisms, SNT is a flexible resource for the broad neuroscience community. SNT is both a desktop application and multi-language scripting library, and it is available through the Fiji distribution of ImageJ.
+authors:
+  - family-names: Arshadi
+    given-names: Cameron
+  - family-names: Ferreira
+    given-names: Tiago A.
+title: "SNT: The ImageJ framework for neuroanatomy"
+preferred-citation:
+  type: article
+  authors:
+    - family-names: Arshadi
+      given-names: Cameron
+    - family-names: Günther
+      given-names: Ulrik
+    - family-names: Eddison
+      given-names: Mark
+    - family-names: Harrington
+      given-names: Kyle I. S.
+    - family-names: Ferreira
+      given-names: Tiago A.
+      orcid: https://orcid.org/0000-0001-6866-1540
+  doi: 10.1038/s41592-021-01105-7
+  journal: "Nature Methods"
+  month: 4
+  start: 374
+  end: 377
+  title: "SNT: a unifying toolbox for quantification of neuronal anatomy"
+  issue: 4
+  volume: 18
+  year: 2021
+
