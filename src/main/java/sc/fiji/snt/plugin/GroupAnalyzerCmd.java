@@ -231,9 +231,12 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 			});
 			report = reportBuilder.toString();
 			if (displayPlots) {
-				histFrame.show();
-				boxFrame.setLocationRelativeTo(histFrame);
-				boxFrame.setVisible(true);
+				final List<SNTChart> charts = new ArrayList<>();
+				charts.add(histFrame);
+				charts.add(boxFrame);
+				final SNTChart cChart = SNTChart.combine(charts);
+				cChart.setTitle("Comparison Charts");
+				cChart.show();
 			}
 			final boolean mappableMetric = isMetricMappable(metric);
 			if (displayInMultiViewer && mappableMetric) {

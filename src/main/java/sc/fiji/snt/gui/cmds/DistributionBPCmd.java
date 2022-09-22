@@ -29,8 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.swing.SwingUtilities;
-
 import net.imagej.ImageJ;
 
 import org.scijava.ItemVisibility;
@@ -63,7 +61,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Main Histogram (Required):")
 	private String HEADER1;
 
-	@Parameter(required = true, label = "Measurement")
+	@Parameter(required = true, label = "Measurement", callback="measurementChoice1Changed")
 	private String measurementChoice1;
 
 	@Parameter(required = false, label = "Polar",
@@ -74,7 +72,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			+ "Secondary Histogram (Optional):")
 	private String HEADER2;
 
-	@Parameter(required = true, label = "Measurement")
+	@Parameter(required = true, label = "Measurement", callback="measurementChoice2Changed")
 	private String measurementChoice2;
 
 	@Parameter(required = false, label = "Polar",
@@ -132,6 +130,18 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 		}
 	}
 
+	@SuppressWarnings("unused")
+	private void measurementChoice1Changed() {
+		if (TreeStatistics.REMOTE_BIF_ANGLES.equals(measurementChoice1))
+			polar1 = true;
+	}
+
+	@SuppressWarnings("unused")
+	private void measurementChoice2Changed() {
+		if (TreeStatistics.REMOTE_BIF_ANGLES.equals(measurementChoice2))
+			polar2 = true;
+	}
+
 	@Override
 	public void run() {
 		if (imgDataAvailable && (TreeStatistics.VALUES.equals(measurementChoice1)
@@ -161,8 +171,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 				charts.add(chart);
 			}
 			if (charts.size() > 1) {
-				final SNTChart combined = SNTChart.combine(charts);
-				SwingUtilities.invokeLater(() -> combined.setVisible(true));
+				SNTChart.combine(charts).show();
 			} else {
 				charts.get(0).show();
 			}
