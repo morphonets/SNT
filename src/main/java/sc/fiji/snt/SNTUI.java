@@ -3257,7 +3257,7 @@ public class SNTUI extends JDialog {
 		final ImageWindow xy_window = (plugin.getImagePlus()==null) ? null : plugin.getImagePlus().getWindow();
 		if (xy_window == null) {
 			if (displayErrorOnFailure)
-				guiUtils.error("XY view is not available");
+				guiUtils.error("XY view is not available.");
 			return;
 		}
 

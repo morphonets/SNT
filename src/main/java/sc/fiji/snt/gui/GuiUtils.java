@@ -764,7 +764,7 @@ public class GuiUtils {
 		urls.add(url);
 		url = leftAlignedLabel("GitHub   ", "https://github.com/morphonets/SNT/", true);
 		urls.add(url);
-		url = leftAlignedLabel("Manuscript", "https://doi.org/10.1038/s41592-021-01105-7", true);
+		url = leftAlignedLabel("Manuscript", "http://dx.doi.org/10.1038/s41592-021-01105-7", true);
 		urls.add(url);
 		final JOptionPane optionPane = new JOptionPane(main, JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
 		final JDialog d = optionPane.createDialog("About SNT...");
@@ -1182,7 +1182,7 @@ public class GuiUtils {
 		mi = menuItemTriggeringURL("SNT's Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
 		mi.setIcon(IconFactory.getMenuIcon(GLYPH.COGS));
 		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("SNT Manuscript", "https://doi.org/10.1101/2020.07.13.179325");
+		mi = menuItemTriggeringURL("SNT Manuscript", "http://dx.doi.org/10.1038/s41592-021-01105-7");
 		mi.setIcon(IconFactory.getMenuIcon(GLYPH.FILE));
 		helpMenu.add(mi);
 		helpMenu.addSeparator();
@@ -1948,13 +1948,13 @@ public class GuiUtils {
 
 		public static JMenuItem devResourceAPI() {
 			final JMenuItem jmi = menuItemTriggeringURL("API", "https://javadoc.scijava.org/SNT/");
-			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
+			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE2));
 			return jmi;
 		}
 
 		public static JMenuItem devResourceNotebooks() {
 			final JMenuItem jmi = menuItemTriggeringURL("Jupyter Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
-			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE2));
+			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.SCROLL));
 			return jmi;
 		}
 

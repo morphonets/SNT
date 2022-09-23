@@ -49,10 +49,10 @@ def run():
 
     # We'll also toggle checkboxes in the "Filters for Visibility of Paths"
     # widget to ensure paths created by this script remain visible
-    plugin.getUI().setVisibilityFilter("Only selected", false)
+    plugin.getUI().setVisibilityFilter("Only selected", False)
 
     # We need an image: if none exists, we'll create a placeholder display
-    # canvas. If that is not possible, we'll defaut to SNT's "demo" image
+    # canvas. If that is not possible, we'll default to SNT's "demo" image
     if imp is None and pafm.size() > 0:
         plugin.rebuildDisplayCanvases()
         imp = plugin.getImagePlus()

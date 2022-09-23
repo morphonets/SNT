@@ -1247,7 +1247,8 @@ public class Tree implements TreeProperties {
 	 */
 	public void setLabel(final String label) {
 		this.label = label;
-		getProperties().setProperty(TreeProperties.KEY_LABEL, label);
+		if (label != null)
+			getProperties().setProperty(TreeProperties.KEY_LABEL, label);
 	}
 
 	/**
