@@ -35,15 +35,15 @@
 </div>
 <div align="center">
   <h3>
-    <a href="https://github.com/morphonets/SNT/master/README.md#features">
+    <a href="https://github.com/morphonets/SNT#features">
       Features
     </a>
     <span style="margin:.5em">|</span>
-    <a href="https://github.com/morphonets/SNT/master/README.md#installation">
+    <a href="https://github.com/morphonets/SNT#installation">
       Installation
     </a>
     <span style="margin:.5em">|</span>
-    <a href="https://github.com/morphonets/SNT/master/README.md#contributing">
+    <a href="https://github.com/morphonets/SNT#contributing">
       Contributing
     </a>
     <span style="margin:.5em">|</span>
