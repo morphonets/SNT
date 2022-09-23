@@ -35,15 +35,15 @@
 </div>
 <div align="center">
   <h3>
-    <a href="https://github.com/morphonets/SNT/edit/master/README.md#features">
+    <a href="https://github.com/morphonets/SNT/master/README.md#features">
       Features
     </a>
     <span style="margin:.5em">|</span>
-    <a href="https://github.com/morphonets/SNT/edit/master/README.md#installation">
+    <a href="https://github.com/morphonets/SNT/master/README.md#installation">
       Installation
     </a>
     <span style="margin:.5em">|</span>
-    <a href="https://github.com/morphonets/SNT/edit/master/README.md#contributing">
+    <a href="https://github.com/morphonets/SNT/master/README.md#contributing">
       Contributing
     </a>
     <span style="margin:.5em">|</span>
@@ -70,7 +70,7 @@ SNT can be used as a regular application or as a scripting library. Python (thro
 [![Overview](https://user-images.githubusercontent.com/2439948/167173119-2e4bea60-38e6-437f-82a9-205700f83ae8.png)](https://www.nature.com/articles/s41592-021-01105-7)
 
 ## Features
-For an overview of SNT capabilities have a look at the [showcase gallery in the documentation](https://imagej.net/plugins/snt/#overview). For more details, click below:
+For an overview of SNT capabilities have a look at the [showcase gallery in the documentation](https://imagej.net/plugins/snt/#overview).
 <details>
   <summary><b>Detailed List of Features</b></summary>
 
