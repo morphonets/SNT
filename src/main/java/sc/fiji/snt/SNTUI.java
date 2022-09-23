@@ -1571,9 +1571,7 @@ public class SNTUI extends JDialog {
 
 		final LinkedHashMap<String, Image3DUniverse> hm = new LinkedHashMap<>();
 		hm.put(VIEWER_NONE, null);
-		if (!plugin.tracingHalted && !plugin.is2D()) {
-			hm.put(VIEWER_WITH_IMAGE, null);
-		}
+		hm.put(VIEWER_WITH_IMAGE, null);
 		hm.put(VIEWER_EMPTY, null);
 		try {
 			for (final Image3DUniverse univ : Image3DUniverse.universes) {
@@ -1597,7 +1595,11 @@ public class SNTUI extends JDialog {
 		applyUnivChoice.addActionListener(new ActionListener() {
 
 			private void resetChoice() {
-				univChoice.setSelectedItem(VIEWER_NONE);
+				try {
+					univChoice.setSelectedItem(plugin.get3DUniverse().getWindow().getTitle());
+				} catch (final Exception ignored) {
+					univChoice.setSelectedItem(VIEWER_NONE);
+				}
 				applyUnivChoice.setEnabled(false);
 				final boolean validViewer = plugin.use3DViewer && plugin.get3DUniverse() != null;
 				displayChoice.setEnabled(validViewer);
@@ -1609,6 +1611,7 @@ public class SNTUI extends JDialog {
 			@Override
 			public void actionPerformed(final ActionEvent e) {
 
+				assert SwingUtilities.isEventDispatchThread();
 				applyUnivChoice.setEnabled(false);
 
 				final String selectedKey = String.valueOf(univChoice.getSelectedItem());
@@ -1632,11 +1635,21 @@ public class SNTUI extends JDialog {
 					}
 					univ = new Image3DUniverse(512, 512);
 				}
-
+				// If other viewers have been set(!), remember their 'identifying' suffix, hopefully unique
+				int idSuffix;
+				try {
+					idSuffix = Integer.valueOf(plugin.get3DUniverse().getWindow().getTitle().split("Viewer #")[1].trim());
+				} catch (final Exception ignored) {
+					idSuffix = 0;
+				}
 				plugin.set3DUniverse(univ);
 
 				if (VIEWER_WITH_IMAGE.equals(selectedKey)) {
-
+					if (null== plugin.getImagePlus()) {
+						guiUtils.error("There is no valid image data to initialize the viewer with.");
+						resetChoice();
+						return;
+					}
 					final int defResFactor = Content.getDefaultResamplingFactor(plugin.getImagePlus(),
 							ContentConstants.VOLUME);
 					final Double userResFactor = guiUtils.getDouble(
@@ -1659,7 +1672,7 @@ public class SNTUI extends JDialog {
 				new QueueJumpingKeyListener(plugin, univ);
 				ImageWindow3D window = univ.getWindow();
 				if (univ.getWindow() == null) {
-					window = new ImageWindow3D("SNT Legacy 3D Viewer", univ);
+					window = new ImageWindow3D(("SNT Leg. 3D Viewer #" + (idSuffix+1)), univ);
 					window.setSize(512, 512);
 					univ.init(window);
 				} else {
@@ -1669,11 +1682,13 @@ public class SNTUI extends JDialog {
 
 					@Override
 					public void windowClosed(final WindowEvent e) {
+						univChoice.removeItem(((ImageWindow3D) e.getWindow()).getTitle());
 						resetChoice();
 					}
 				});
-				window.setVisible(true);
+				refreshList.doClick();
 				resetChoice();
+				window.setVisible(true);
 				showStatus("3D Viewer enabled: " + selectedKey, true);
 			}
 		});
@@ -1700,10 +1715,11 @@ public class SNTUI extends JDialog {
 		// Build refresh button
 		refreshList.addActionListener(e -> {
 			for (final Image3DUniverse univ : Image3DUniverse.universes) {
-				if (hm.containsKey(univ.allContentsString()))
+				final ImageWindow3D iw3d = univ.getWindow();
+				if (iw3d == null || hm.containsKey(iw3d.getTitle()))
 					continue;
-				hm.put(univ.allContentsString(), univ);
-				univChoice.addItem(univ.allContentsString());
+				hm.put(iw3d.getTitle(), univ);
+				univChoice.addItem(iw3d.getTitle());
 			}
 			showStatus("Viewers list updated...", true);
 		});
@@ -1745,13 +1761,13 @@ public class SNTUI extends JDialog {
 
 			@Override
 			public void actionPerformed(final ActionEvent e) {
-
+				
+				if (noPathsError()) return;
 				switch (String.valueOf(actionChoice.getSelectedItem())) {
 				case ApplyLabelsAction.LABEL:
 					new ApplyLabelsAction().actionPerformed(ev);
 					break;
 				case COMPARE_AGAINST:
-					if (noPathsError()) return;
 					(new CmdRunner(ShowCorrespondencesCmd.class)).execute();
 					break;
 				default:
@@ -2630,7 +2646,8 @@ public class SNTUI extends JDialog {
 		compareFiles.addActionListener(e -> {
 			final String[] choices = { "Compare two files", "Compare groups of cells (two or more)" };
 			final String defChoice = plugin.getPrefs().getTemp("compare", choices[1]);
-			final String choice = guiUtils.getChoice("Which kind of comparison would you like to perform?",
+			final String choice = guiUtils.getChoice("Which kind of comparison would you like to perform?"
+					+ "<br><br>NB: It is also possible to compare two files in the legacy 3D Viewer (cf. 3D tab).",
 					"Single or Group Comparison?", choices, defChoice);
 			if (choice == null) return;
 			plugin.getPrefs().setTemp("compare", choice);
