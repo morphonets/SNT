@@ -134,6 +134,7 @@
 		<sciview.version>e3510f4</sciview.version>
 		<scenery.version>4d07a30</scenery.version>
 		<jzy3d.version>2.0.0</jzy3d.version>
+		<jgl.version>2.0.0</jgl.version>
 		<okhttp.version>4.9.3</okhttp.version>
 		<font-awesome.version>6.1.2</font-awesome.version>
 		<json.version>20220320</json.version>
@@ -155,11 +156,20 @@
 	<dependencies>
 		<dependency>
 			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-native-jogl-core</artifactId>
+			<version>${jzy3d.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-core</artifactId>
+			<version>${jzy3d.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-native-jogl-swing</artifactId>
 			<version>${jzy3d.version}</version>
 			<exclusions>
 				<exclusion>
-					<!-- NB: Exclude problematic uber-JAR that bundles miglayout -->
 					<groupId>com.miglayout</groupId>
 					<artifactId>miglayout</artifactId>
 				</exclusion>
@@ -171,14 +181,28 @@
 		</dependency>
 		<dependency>
 			<groupId>org.jzy3d</groupId>
-			<artifactId>jzy3d-emul-gl</artifactId>
+			<artifactId>jzy3d-native-jogl-awt</artifactId>
 			<version>${jzy3d.version}</version>
 			<exclusions>
 				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
+					<groupId>org.jzy3d</groupId>
+					<artifactId>jzy3d-tester-native</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.jzy3d</groupId>
+					<artifactId>jzy3d-tester</artifactId>
 				</exclusion>
 			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-emul-gl</artifactId>
+			<version>${jgl.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jGL</artifactId>
+			<version>${jgl.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.formdev</groupId>
@@ -303,6 +327,8 @@
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf-jide-oss</artifactId>
 			<version>${flatlaf.version}</version>
+			<scope>runtime</scope>
+			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>
