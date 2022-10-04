@@ -136,7 +136,7 @@
 		<jzy3d.version>2.0.0</jzy3d.version>
 		<jgl.version>2.0.0</jgl.version>
 		<okhttp.version>4.9.3</okhttp.version>
-		<font-awesome.version>6.1.2</font-awesome.version>
+		<font-awesome.version>6.2.0</font-awesome.version>
 		<json.version>20220924</json.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
