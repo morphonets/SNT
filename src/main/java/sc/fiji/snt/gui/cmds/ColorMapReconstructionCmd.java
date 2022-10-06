@@ -174,6 +174,7 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 			if (recViewer == null) {
 				recViewer = sntService.getRecViewer();
 			}
+			final boolean setProgress = recViewer.getManagerPanel() != null;
 
 			// FIXME: This is not suitable for measurements with negative values
 			final boolean validMin = !Double.isNaN(min) && min <= max;
@@ -195,7 +196,9 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 				// Color code single trees
 				limits[0] = Double.MAX_VALUE;
 				limits[1] = Double.MIN_VALUE;
+				int idx = 0;
 				for (final String l : treeMappingLabels) {
+					if (setProgress) recViewer.getManagerPanel().showProgress(idx++, treeMappingLabels.size());
 					final double[] minMax = recViewer.colorCode(l, measurementChoice,
 						colorTable);
 					if (minMax[0] < limits[0]) limits[0] = minMax[0];
@@ -204,6 +207,7 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 			}
 			else if (multiTreeMappingLabels != null) {
 				// Color group of trees
+				if (setProgress) recViewer.getManagerPanel().showProgress(-1, -1);
 				limits = recViewer.colorCode(multiTreeMappingLabels, measurementChoice,
 					colorTable);
 			}
@@ -211,6 +215,7 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 			if (!validMin) min = (float) limits[0];
 			if (!validMax) max = (float) limits[1];
 			recViewer.addColorBarLegend(colorTable, min, max);
+			if (setProgress) recViewer.getManagerPanel().showProgress(0, 0);
 
 		}
 		catch (final UnsupportedOperationException | NullPointerException exc) {

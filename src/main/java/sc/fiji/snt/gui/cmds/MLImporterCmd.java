@@ -167,7 +167,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			recViewer.setSplitDendritesFromAxons(splitState);
 		}
 
-		notifyLoadingEnd(recViewer);
+		resetProgress(recViewer);
 		resetUI(recViewer == null);
 		if (filteredResult.size() < result.size()) {
 			status("Partially successful import...", true);

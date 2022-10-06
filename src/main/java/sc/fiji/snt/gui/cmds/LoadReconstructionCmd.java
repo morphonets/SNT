@@ -196,7 +196,7 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 	}
 
 	private void exit() {
-		notifyLoadingEnd(recViewer);
+		resetProgress(recViewer);
 		recViewer.setSplitDendritesFromAxons(splitState);
 	}
 
