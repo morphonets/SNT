@@ -64,6 +64,7 @@ def run():
     trees = converter.getTrees(filtered_img.getRoi(), False) # Root roi, 2D ROI?
     for tree in trees:
         snt.loadTree(tree)
+    snt.getUI().runCommand("Assign Distinct Colors")
     snt.updateViewers()
 
 

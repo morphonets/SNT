@@ -6,7 +6,7 @@
 """
 file:       Scripted_Tracing_Demo.py
 author:     Tiago Ferreira
-version:    20220610
+version:    20220924
 info:       Exemplifies how to programmatically interact with a running
             instance of SNT to perform auto-tracing tasks.
 """
@@ -23,7 +23,8 @@ def run():
     # running this script headless, the GUI won't be displayed, so
     # throughout the script we'll check frequently if the UI is present
     if not snt.getUI():
-        snt.initialize("demo", True)  # Image file path/identifier, display GUI?
+        imp = snt.demoImage("OP1")
+        snt.initialize(imp, True)  # args: image (file path allowed), display GUI?
     elif not snt.getUI().isReady():
         ui.showDialog("Demo cannot run in current state: UI not ready", "Error")
         return
@@ -57,7 +58,8 @@ def run():
         plugin.rebuildDisplayCanvases()
         imp = plugin.getImagePlus()
     if imp is None:
-        plugin.initialize(snt.demoImage('fractal'))
+        imp = snt.demoImage("OP1")
+        snt.initialize(imp, True)
         imp = plugin.getImagePlus()
 
     # Let's first announce (discretely) our scripting intentions
