@@ -4068,7 +4068,7 @@ public class Viewer3D {
 				final List<String> keys = getSelectedMeshes(true);
 				if (keys == null) return;
 				final java.awt.Color c = guiUtils.getColor("Mesh(es) Color",
-					java.awt.Color.WHITE, "HSB");
+					java.awt.Color.WHITE, (String[])null);
 				if (c == null) {
 					return; // user pressed cancel
 				}

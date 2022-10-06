@@ -298,7 +298,7 @@ public class ColorMenu extends JMenu {
 					: "New color for SWC Type: " + Path.getSWCtypeName(swcColor.type(),
 						true);
 				MenuSelectionManager.defaultManager().clearSelectedPath();
-				final Color c = gUtils.getColor(promptTitle, swcColor.color(), "HSB");
+				final Color c = gUtils.getColor(promptTitle, swcColor.color(), (String[])null);
 				if (c != null && !c.equals(swcColor.color())) {
 					// New color choice: refresh panel
 					swcColor.setAWTColor(c);

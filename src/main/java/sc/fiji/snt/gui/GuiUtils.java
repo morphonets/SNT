@@ -396,6 +396,11 @@ public class GuiUtils {
 		return SwingColorWidget.showColorDialog(parent, title, defaultValue);
 	}
 
+	/**
+	 * Simplified color chooser for ColorRGB.
+	 *
+	 * @see #getColor(String, Color, String...)
+	 */
 	public ColorRGB getColorRGB(final String title, final Color defaultValue,
 		final String... panes)
 	{
@@ -412,7 +417,8 @@ public class GuiUtils {
 	 * @param panes the panes a list of strings specifying which tabs should be
 	 *          displayed. In most platforms this includes: "Swatches", "HSB" and
 	 *          "RGB". Note that e.g., the GTK L&amp;F may only include the
-	 *          default GtkColorChooser pane
+	 *          default GtkColorChooser pane. Set to null to include all available
+	 *          panes.
 	 * @return the color
 	 */
 	public Color getColor(final String title, final Color defaultValue,

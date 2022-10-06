@@ -77,7 +77,7 @@ public class ColorChooserButton extends JButton {
 			final String title = (thisButton.getName() == null) ? "Choose new color"
 				: "New " + thisButton.getName();
 			final Color newColor = new GuiUtils(SwingUtilities.getRoot(thisButton))
-				.getColor(title, getSelectedColor(), "HSB");
+				.getColor(title, getSelectedColor(), (String[])null);
 			setSelectedColor(newColor);
 
 		});
