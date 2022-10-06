@@ -4294,14 +4294,6 @@ public class Viewer3D {
 				}
 			});
 			utilsMenu.add(reveal);
-	
-			GuiUtils.addSeparator(utilsMenu, "Scripting:");
-			final JMenuItem script = new JMenuItem(new Action(Action.SCRIPT, KeyEvent.VK_OPEN_BRACKET, false, false));
-			script.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
-			utilsMenu.add(script);
-			mi = new JMenuItem("Script This Viewer In...", IconFactory.getMenuIcon(GLYPH.CODE));
-			mi.addActionListener(e -> runScriptEditor(null));
-			utilsMenu.add(mi);
 
 			GuiUtils.addSeparator(utilsMenu, "Resources:");
 			final JMenu helpMenu = GuiUtils.helpMenu();
