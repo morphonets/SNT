@@ -133,9 +133,8 @@ public class StrahlerCmd extends ContextCommand {
 		} else {
 			tableDisplay.update();
 		}
-		final List<SNTChart> charts = new ArrayList<>();
-		charts.add(getChart());
 		if (detailedAnalysis) {
+			final List<SNTChart> charts = new ArrayList<>();
 			for (final String m : new String[]{"Branch length", "Branch contraction"}) {
 				charts.add(getHistogram(m));
 				charts.add(getBoxPlot(m));
@@ -151,12 +150,16 @@ public class StrahlerCmd extends ContextCommand {
 			} else {
 				tableDisplay.update();
 			}
-			final SNTChart cChart = SNTChart.combine(charts);
-			cChart.setTitle("Strahler Charts");
-			cChart.show();
-		} else {
-			charts.iterator().next().show();
+			if (trees.size() == 1) {
+				final SNTChart cChart = SNTChart.combine(charts);
+				cChart.setTitle("Strahler Charts");
+				cChart.show();
+			} else {
+				charts.forEach(c -> c.show());
+			}
 		}
+		getChart().show();
+
 	}
 
 	private void initMap() {
@@ -307,7 +310,7 @@ public class StrahlerCmd extends ContextCommand {
 			final SNTChart chart = (boxplotElseHistogram) ? groupedStats.getBoxPlot(normMetric)
 					: groupedStats.getHistogram(normMetric);
 			if (singleChart) {
-				chart.setTitle("Strahler " + ((boxplotElseHistogram) ? "BoxPlot " : "Histogram ") + label);
+				chart.setTitle("Strahler " + normMetric + ((boxplotElseHistogram) ? " BoxPlot " : " Histogram ") + label);
 			} else {
 				chart.setChartTitle(label);
 			}
@@ -317,7 +320,7 @@ public class StrahlerCmd extends ContextCommand {
 			return charts.get(0);
 		}
 		final SNTChart result = SNTChart.combine(charts);
-		result.setTitle("Combined Strahler " + ((boxplotElseHistogram)? "BoxPlots" : "Histograms"));
+		result.setTitle("Strahler Combined " + normMetric + ((boxplotElseHistogram)? " BoxPlots" : " Histograms"));
 		return result;
 	}
 
