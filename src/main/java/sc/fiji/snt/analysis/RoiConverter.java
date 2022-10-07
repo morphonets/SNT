@@ -75,6 +75,7 @@ public class RoiConverter extends TreeAnalyzer {
 		super(tree);
 		imp = null;
 		hyperstack = false;
+		twoD = !tree.is3D();
 	}
 
 	/**
@@ -313,7 +314,10 @@ public class RoiConverter extends TreeAnalyzer {
 			// polyline.fitSplineForStraightening();
 			polyline.setStrokeColor(color);
 			polyline.setStrokeWidth(strokeWidth);
-			polyline.setName(String.format("%s-%s-%04d", basename, sPlane, roi_id));
+			if (twoD)
+				polyline.setName(String.format("%s-%04d", basename, roi_id));
+			else
+				polyline.setName(String.format("%s-%s-%04d", basename, sPlane, roi_id));
 			setPosition(polyline, impPosition);
 			return polyline;
 		}

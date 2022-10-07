@@ -34,7 +34,6 @@ import net.imagej.ImageJ;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.NDFImporter;
 
 /**
@@ -125,7 +124,6 @@ public class NDFImporterCmd extends CommonDynamicCmd {
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		ij.command().run(NDFImporterCmd.class, true);
