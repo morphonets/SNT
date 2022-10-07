@@ -43,6 +43,7 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
+import sc.fiji.snt.io.NDFImporter;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.tracing.FillerThread;
 import sc.fiji.snt.util.*;
@@ -85,6 +86,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected static final int TRACES_FILE_TYPE_UNCOMPRESSED_XML = 2;
 	protected static final int TRACES_FILE_TYPE_SWC = 3;
 	protected static final int TRACES_FILE_TYPE_ML_JSON = 4;
+	protected static final int TRACES_FILE_TYPE_NDF = 5;
 
 	private static final DecimalFormat fileIndexFormatter = new DecimalFormat(
 		"000");
@@ -1029,7 +1031,8 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	/**
-	 * Adds a {@link Tree}.
+	 * Adds a {@link Tree}. If an image is currently being traced, it is assumed it
+	 * is large enough to contain the tree.
 	 *
 	 * @param tree the collection of paths to be added
 	 */
@@ -1038,22 +1041,40 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	/**
-	 * Adds a {@link Tree}.
+	 * Adds a {@link Tree}. If an image is currently being traced, it is assumed it
+	 * is large enough to contain the tree.
 	 *
 	 * @param tree      the collection of paths to be added
-	 * @param commomTag a custom name tag to be applied to all Paths
+	 * @param commonTag a custom name tag to be applied to all Paths
 	 */
-	public void addTree(final Tree tree, final String commomTag) {
+	public void addTree(final Tree tree, final String commonTag) {
 		tree.list().forEach(p -> {
 			prepPathForAdding(p, true, true, true);
 			String tags = PathManagerUI.extractTagsFromPath(p);
 			if (tags.isEmpty())
-				tags = commomTag;
+				tags = commonTag;
 			else
-				tags += ", " + commomTag;
+				tags += ", " + commonTag;
 			p.setName(p.getName() + " {" + tags + "}");
 			addPathInternal(p);
 		});
+	}
+
+	/**
+	 * Adds a collection of {@link Tree}s.
+	 *
+	 * @param trees             the collection of trees to be added
+	 */
+	public void addTrees(final Collection<Tree> trees) {
+		if (boundingBox == null)
+			boundingBox = new BoundingBox();
+		trees.forEach(tree -> {
+			if (tree != null && !tree.isEmpty()) {
+				addTree(tree, tree.getLabel());
+				boundingBox.append(tree.getNodes().iterator());
+			}
+		});
+		checkForAppropriateImageDimensions();
 	}
 
 	/**
@@ -2906,6 +2927,8 @@ public class PathAndFillManager extends DefaultHandler implements
 			return TRACES_FILE_TYPE_UNCOMPRESSED_XML;
 		} else if (((char) (buf[0] & 0xFF) == '{')) {
 			return TRACES_FILE_TYPE_ML_JSON;
+		} else if (((char) (buf[0] & 0xFF) == '/')) {
+			return TRACES_FILE_TYPE_NDF;
 		}
 		return TRACES_FILE_TYPE_SWC;
 	}
@@ -2954,6 +2977,20 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 	}
 
+	private boolean loadNDF(final String filename) {
+		try {
+			final NDFImporter importer = new NDFImporter(filename);
+			final Collection<Tree> trees = importer.getTrees();
+			trees.forEach( tree -> addTree(tree, tree.getLabel()));
+			final boolean sucess = trees.stream().anyMatch(tree -> tree != null && !tree.isEmpty());
+			if (sucess) updateBoundingBox();
+			return sucess;
+		} catch (final IOException | IllegalArgumentException e) {
+			error("Failed to read file: '" + filename + "' (" + e.getMessage() +")");
+			return false;
+		}
+	}
+
 	/**
 	 * Imports a reconstruction file (any supported extension).
 	 *
@@ -2978,6 +3015,9 @@ public class PathAndFillManager extends DefaultHandler implements
 				break;
 			case TRACES_FILE_TYPE_ML_JSON:
 				result = loadJSON(filePath, swcTypes);
+				break;
+			case TRACES_FILE_TYPE_NDF:
+				result = loadNDF(filePath);
 				break;
 			case TRACES_FILE_TYPE_SWC:
 				result = importSWC(filePath, false, 0, 0, 0, 1, 1, 1, true, swcTypes);

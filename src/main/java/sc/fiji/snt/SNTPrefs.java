@@ -162,7 +162,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	private int getDefaultBooleans() {
-		return DRAW_DIAMETERS + SNAP_CURSOR + COMPRESSED_XML + FORCE_2D_DISPLAY_CANVAS + AUTO_CANVAS_ACTIVATION;
+		return DRAW_DIAMETERS + SNAP_CURSOR + COMPRESSED_XML + FORCE_2D_DISPLAY_CANVAS;
 	}
 
 	private void getBooleans() {

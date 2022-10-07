@@ -2460,6 +2460,12 @@ public class SNTUI extends JDialog {
 		importJSON.addActionListener(e -> {
 			new ImportAction(ImportAction.JSON, null).run();
 		});
+		final JMenuItem importNDF = new JMenuItem("NDF...");
+		importNDF.setToolTipText("Imports a  NeuronJ data file");
+		importSubmenu.add(importNDF);
+		importNDF.addActionListener(e -> {
+			new ImportAction(ImportAction.NDF, null).run();
+		});
 		loadSWCMenuItem = new JMenuItem("(e)SWC...");
 		loadSWCMenuItem.addActionListener(listener);
 		importSubmenu.add(loadSWCMenuItem);
@@ -4227,7 +4233,7 @@ public class SNTUI extends JDialog {
 		private static final int ANY_RECONSTRUCTION = 5;
 		public static final int DEMO = 6;
 		private static final int AUTO_TRACE_IMAGE = 7;
-
+		private static final int NDF = 8;
 
 		private final int type;
 		private File file;
@@ -4319,6 +4325,10 @@ public class SNTUI extends JDialog {
 			case JSON:
 				if (file != null) inputs.put("file", file);
 				(new DynamicCmdRunner(JSONImporterCmd.class, inputs, LOADING)).run();
+				return;
+			case NDF:
+				if (file != null) inputs.put("file", file);
+				(new DynamicCmdRunner(NDFImporterCmd.class, inputs, LOADING)).run();
 				return;
 			case SWC_DIR:
 				if (file != null) inputs.put("dir", file);

@@ -196,6 +196,7 @@ public class PrefsCmd extends ContextCommand {
 		prefService.clear(MLImporterCmd.class);
 		prefService.clear(MultiSWCImporterCmd.class);
 		prefService.clear(MultiTreeMapperCmd.class);
+		prefService.clear(NDFImporterCmd.class);
 		prefService.clear(OpenDatasetCmd.class);
 		prefService.clear(PathAnalyzerCmd.class);
 		prefService.clear(PathFitterCmd.class);
