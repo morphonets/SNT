@@ -781,6 +781,22 @@ public class GuiUtils {
 		return d;
 	}
 
+	public void showDirectory(final File file) {
+		final File dir = (file.isDirectory()) ? file : file.getParentFile();
+		try {
+			Desktop.getDesktop().open(dir); // TODO: Move to java9: Desktop.getDesktop().browseFileDirectory(file);
+		} catch (final UnsupportedOperationException ue) {
+			if (PlatformUtils.isLinux())
+				try {
+					Runtime.getRuntime().exec(new String[] { "xdg-open", dir.getAbsolutePath() });
+				} catch (final Exception ignored) {
+					error("Directory does not seem to be accessible.");
+				}
+		} catch (final NullPointerException | IllegalArgumentException | IOException iae) {
+			error("Directory does not seem to be accessible.");
+		}
+	}
+
 	/* Static methods */
 	public static <T> String toString(final Iterable<T> iterable) {
 		if (iterable == null) {

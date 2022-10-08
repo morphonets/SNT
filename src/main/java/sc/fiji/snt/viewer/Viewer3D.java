@@ -24,7 +24,6 @@ package sc.fiji.snt.viewer;
 
 import java.awt.Component;
 import java.awt.Container;
-import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.DisplayMode;
 import java.awt.Font;
@@ -4288,8 +4287,8 @@ public class Viewer3D {
 				try {
 					final File file = new File(prefs.snapshotDir);
 					file.mkdirs();
-					Desktop.getDesktop().open(file); // TODO: Move to java9: Desktop.getDesktop().browseFileDirectory(file);
-				} catch (final NullPointerException | IllegalArgumentException | IOException iae) {
+					guiUtils.showDirectory(file);
+				} catch (final Exception ignored) {
 					guiUtils.error("Snapshot directory does not seem to be accessible.");
 				}
 			});

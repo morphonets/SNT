@@ -25,7 +25,6 @@ package sc.fiji.snt;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -2118,13 +2117,11 @@ public class SNTUI extends JDialog {
 					return;
 				}
 				if (SNTUtils.fileAvailable(plugin.getFilteredImageFile())) {
-					Desktop.getDesktop().open(plugin.getFilteredImageFile().getParentFile());
-					// TODO: Move to java9
-					// Desktop.getDesktop().browseFileDirectory(file);
+					guiUtils.showDirectory(plugin.getFilteredImageFile());
 				} else {
 					guiUtils.error("<HTML>Could not access<br>" + plugin.getFilteredImageFile().getAbsolutePath());
 				}
-			} catch (final NullPointerException | IllegalArgumentException | IOException iae) {
+			} catch (final Exception ignored) {
 				guiUtils.error("An error occurred: Image directory not available?");
 			}
 		});
