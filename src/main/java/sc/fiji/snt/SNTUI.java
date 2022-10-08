@@ -1641,10 +1641,9 @@ public class SNTUI extends JDialog {
 				} catch (final Exception ignored) {
 					idSuffix = 0;
 				}
-				plugin.set3DUniverse(univ);
 
 				if (VIEWER_WITH_IMAGE.equals(selectedKey)) {
-					if (null== plugin.getImagePlus()) {
+					if (null == plugin.getImagePlus()) {
 						guiUtils.error("There is no valid image data to initialize the viewer with.");
 						resetChoice();
 						return;
@@ -1660,20 +1659,22 @@ public class SNTUI extends JDialog {
 						resetChoice();
 						return;
 					}
-
 					final int resFactor = (Double.isNaN(userResFactor) || userResFactor < 1) ? defResFactor
 							: userResFactor.intValue();
 					plugin.getPrefs().set3DViewerResamplingFactor(resFactor);
-					plugin.updateImageContent(resFactor);
-				}
 
-				// Add PointListener/Keylistener
-				new QueueJumpingKeyListener(plugin, univ);
+				}
 				ImageWindow3D window = univ.getWindow();
 				if (univ.getWindow() == null) {
-					window = new ImageWindow3D(("SNT Leg. 3D Viewer #" + (idSuffix+1)), univ);
+					window = new ImageWindow3D(("SNT Leg. 3D Viewer #" + (idSuffix + 1)), univ);
 					window.setSize(512, 512);
-					univ.init(window);
+					try {
+						univ.init(window);
+					} catch (final Exception ignored) {
+						// see https://github.com/morphonets/SNT/issues/136
+						guiUtils.error(
+								"An exception occured. Viewer may not be functional. Please consider using previous viewers.");
+					}
 				} else {
 					univ.resetView();
 				}
@@ -1685,9 +1686,17 @@ public class SNTUI extends JDialog {
 						resetChoice();
 					}
 				});
+
+				new QueueJumpingKeyListener(plugin, univ);
+
+				// these calls must occur after proper ImageWindow3D initialization
+				window.setVisible(true);
+				plugin.set3DUniverse(univ);
+				if (VIEWER_WITH_IMAGE.equals(selectedKey))
+					plugin.updateImageContent(plugin.getPrefs().get3DViewerResamplingFactor());
+
 				refreshList.doClick();
 				resetChoice();
-				window.setVisible(true);
 				showStatus("3D Viewer enabled: " + selectedKey, true);
 			}
 		});
