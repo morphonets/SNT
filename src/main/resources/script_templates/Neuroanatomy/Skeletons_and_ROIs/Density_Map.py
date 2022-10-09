@@ -12,7 +12,6 @@
 import math
 from ij import IJ
 from ij.gui import NewImage
-from ij.plugin import LutLoader
 from sc.fiji.snt import Tree
 
 
@@ -24,7 +23,7 @@ if recFile is not None:
 	imp = Tree(recFile.getAbsolutePath()).getSkeleton2D()
 else :
 	# Use dendrites of a mouse SSp-m5 neuron
-	# AA0004 in the MouseLight database 
+	# AA0004 in the MouseLight database
 	# https://ml-neuronbrowser.janelia.org/
 	imp = snt.demoTrees().get(0).getSkeleton2D()
 
@@ -67,7 +66,7 @@ for x, y in zip(xs, ys):
 		continue
 	IJ.makeRectangle(x, y, boxW, boxH)
 	roiManager.runCommand("Add")
-	
+
 # Measure integrated density for each ROI
 IJ.run("Set Measurements...", "integrated")
 resultsTable.reset()  # clear any existing data
@@ -79,20 +78,18 @@ maxProb = max(resultsTable.getColumn(colIdx)) / totalIntDen
 
 # Create image with same dimensions as source image
 newImp = NewImage.createImage(
-	"{} Density Map".format(imp.getTitle()), 
-	imp.getWidth(), 							
-	imp.getHeight(), 								
-	0, 												
-	8, 												
+	"{} Density Map".format(imp.getTitle()),
+	imp.getWidth(),
+	imp.getHeight(),
+	0,
+	8,
 	NewImage.FILL_BLACK
 	)
 # Use viridis color palette to paint the density map
-lutPath = IJ.getDirectory("luts") + lutName
-lut = LutLoader.openLut(lutPath)
-ip = newImp.getProcessor()
-ip.setLut(lut)
+IJ.run(newImp, "mpl-viridis", "")
 
 # Fill in ROIs on the new image using bin probabilities
+ip = newImp.getProcessor()
 row = 0
 for roi in roiManager:
 	localProb = resultsTable.getValue("RawIntDen", row) / totalIntDen
@@ -101,6 +98,6 @@ for roi in roiManager:
 	ip.setColor(pixelValue)
 	ip.fill(roi)
 	row += 1
-	
+
 newImp.setOverlay(overlay)  # show grid on new image
 newImp.show()

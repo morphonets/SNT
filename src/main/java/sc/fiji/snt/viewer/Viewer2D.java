@@ -25,7 +25,9 @@ package sc.fiji.snt.viewer;
 import java.awt.Color;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -62,6 +64,7 @@ import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import org.scijava.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
 
 /**
@@ -338,6 +341,23 @@ public class Viewer2D extends TreeColorMapper {
 	 */
 	public void add(final Tree tree) {
 		addPaths(tree.list());
+	}
+
+
+	/**
+	 * Adds a collection of trees. Each tree will be rendered using a unique color.
+	 *
+	 * @param trees the list of trees to be plotted
+	 */
+	public void add(final Collection<Tree> trees) {
+		final ColorRGB[] colors = SNTColor.getDistinctColors(trees.size());
+		final ColorRGB prevDefaultColor = defaultColor;
+		int i = 0;
+		for (final Iterator<Tree> it = trees.iterator(); it.hasNext();) {
+			setDefaultColor(colors[i++]);
+			add(it.next());
+		}
+		setDefaultColor(prevDefaultColor);
 	}
 
 	/**
