@@ -2343,7 +2343,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			straightener.setWidth(width.intValue());
 			straightener.straighten().show();
 		} catch (final Exception ex) {
-			guiUtils.error(ex.getMessage());
+			guiUtils.error("An exception occured during straightening. This typically happens when "
+					+ "decomposed polyline(s) of small paths become too short. See Console for details.");
 			ex.printStackTrace();
 		}
 	}

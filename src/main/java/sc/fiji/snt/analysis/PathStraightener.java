@@ -110,7 +110,8 @@ public class PathStraightener {
 			imp.setDisplayMode(CompositeImage.GRAYSCALE); //HACK: straightener creates unsupported "RGB stacks" otherwise!?
 			final List<ImageProcessor> ips = new ArrayList<>(imp.getNChannels());
 			for (int ch = 1; ch <= imp.getNChannels(); ch++) {
-				ips.add(straighten(ch));
+				final ImageProcessor ip = straighten(ch);
+				if (ip != null) ips.add(ip);
 			}
 			final ImageStack stack = new ImageStack(ips.get(0).getWidth(), ips.get(0).getHeight());
 			ips.forEach(ip -> stack.addSlice(ip));
@@ -143,19 +144,26 @@ public class PathStraightener {
 		}
 		final List<ImageProcessor> ips = new ArrayList<>();
 		final Roi existingRoi = imp.getRoi();
+		final boolean redirecting = IJ.redirectingErrorMessages();
 		try {
-			// HACK: Currently there is no API to trim the polygon!?. We'll call
-			// ij.plugin.Selection#run() so that we avoid having to re-implement the code
-			// here
+			IJ.redirectErrorMessages(true);
 			polyLines.forEach(roi -> {
+				if (roi == null) return; //i.e., continue;
 				imp.setPositionWithoutUpdate(channel, roi.getZPosition(), roi.getTPosition());
 				imp.setRoi(roi);
-				IJ.run(imp, "Fit Spline", "");
+				// HACK: With one of the polyline of Path 33 of OP_1, roi != null but imp.getRoi()
+				// returns null. Probably an out-of-bounds, small polyline, so we'll check for
+				// that condition here. Also, not clear spline fitting is all that important, but
+				// IJ's Straighten command does it, so we do it also here. Also, it does not seem
+				// possible to proceed using regular API call, so we'll call
+				// ij.plugin.Selection#run("spline") to avoid having to re-implement the code
+				if (imp.getRoi() != null) IJ.run(imp, "Fit Spline", "");
 				final ImageProcessor ip = new Straightener().straighten(imp, roi, getWidth());
 				if (ip != null && ip.getPixels() != null)
 					ips.add(ip);
 			});
 		} finally {
+			IJ.redirectErrorMessages(redirecting);
 			imp.setRoi(existingRoi);
 		}
 		return (ips.isEmpty()) ? null : combineHorizontally(ips);
