@@ -55,7 +55,9 @@ public class MouseLightQuerier {
 	private final static MediaType MEDIA_TYPE = MediaType.parse("application/json");
 	private final static String TRACINGS_URL = "https://ml-neuronbrowser.janelia.org/tracings";
 	private final static String GRAPHQL_URL = "https://ml-neuronbrowser.janelia.org/graphql";
-
+	private final static String CCF_25 = "brainAreaIdCcfV25";
+	private final static String CCF_30 = "brainAreaIdCcfV30";
+	private static String querySpace = CCF_30;
 
 	private MouseLightQuerier() {
 		// Do not instantiate private class
@@ -174,9 +176,31 @@ public class MouseLightQuerier {
 		return jsons;
 	}
 
+	/**
+	 * Sets the version of the Common Coordinate Framework to be use by the Querier.
+	 *
+	 * @param version Either "3" (the default), or "2.5" (MouseLight legacy)
+	 */
+	public static void setCCFVersion(final String version) {
+		switch (version) {
+		case CCF_30:
+		case "3":
+			querySpace = CCF_30;
+			break;
+		case CCF_25:
+		case "2.5":
+			querySpace = CCF_25;
+			break;
+		default:
+			throw new IllegalArgumentException("Unrecognized CCF version " + version);
+		}
+	}
+
 	private static class BodyBuilder {
 		final static String GRAPHQL_BODY = "{\n" + //
-				"    \"query\": \"query QueryData($filters: [FilterInput!]) {\\n  queryData(filters: $filters) {\\n    totalCount\\n    queryTime\\n    nonce\\n    error {\\n      name\\n      message\\n      __typename\\n    }\\n    neurons {\\n      id\\n      idString\\n      brainArea {\\n        id\\n        acronym\\n        __typename\\n      }\\n      tracings {\\n        id\\n        tracingStructure {\\n          id\\n          name\\n          value\\n          __typename\\n        }\\n        soma {\\n          id\\n          x\\n          y\\n          z\\n          radius\\n          parentNumber\\n          sampleNumber\\n          brainAreaId\\n          structureIdentifierId\\n          __typename\\n        }\\n        __typename\\n      }\\n      __typename\\n    }\\n    __typename\\n  }\\n}\\n\",\n"
+				"    \"query\": \"query QueryData($filters: [FilterInput!]) {\\n  queryData(filters: $filters) {\\n    totalCount\\n    queryTime\\n    nonce\\n    error {\\n      name\\n      message\\n      __typename\\n    }\\n    neurons {\\n      id\\n      idString\\n      brainArea {\\n        id\\n        acronym\\n        __typename\\n      }\\n      tracings {\\n        id\\n        tracingStructure {\\n          id\\n          name\\n          value\\n          __typename\\n        }\\n        soma {\\n          id\\n          x\\n          y\\n          z\\n          radius\\n          parentNumber\\n          sampleNumber\\n          "//
+				+ querySpace //
+				+ "\\n          structureIdentifierId\\n          __typename\\n        }\\n        __typename\\n      }\\n      __typename\\n    }\\n    __typename\\n  }\\n}\\n\",\n" //
 				+ "    \"variables\": {\n" + //
 				"        \"filters\": [\n" + //
 				"            {\n" + //
