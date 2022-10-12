@@ -83,7 +83,7 @@ public class Viewer2D extends TreeColorMapper {
 
 	protected XYPlot plot;
 	private String title;
-	private JFreeChart chart;
+	private SNTChart chart;
 	private ColorRGB defaultColor = Colors.BLACK;
 	private boolean visibleAxes;
 	private boolean visibleGridLines;
@@ -283,8 +283,8 @@ public class Viewer2D extends TreeColorMapper {
 		if (min >= max || colorTable == null) {
 			return;
 		}
-		chart = getJFreeChart();
-		chart.addSubtitle(getPaintScaleLegend(colorTable, min, max));
+		chart = getChart();
+		chart.getChartPanel().getChart().addSubtitle(getPaintScaleLegend(colorTable, min, max));
 	}
 
 	protected PaintScaleLegend getPaintScaleLegend(final String colorTable, double min, double max) {
@@ -455,13 +455,9 @@ public class Viewer2D extends TreeColorMapper {
 	 *
 	 * @return the converted viewer
 	 */
+	@Deprecated
 	public JFreeChart getJFreeChart() {
-		if (chart == null) {
-			initPlot();
-			final XYPlotConverter converter = new XYPlotConverter();
-			chart = converter.convert(plot, JFreeChart.class);
-		}
-		return chart;
+		return getChart().getChartPanel().getChart();
 	}
 
 	/**
@@ -470,9 +466,13 @@ public class Viewer2D extends TreeColorMapper {
 	 * @return the converted viewer
 	 */
 	public SNTChart getChart() {
-		final SNTChart chart = new SNTChart(
-				(getTitle() == null || getTitle().trim().isEmpty()) ? "Reconstruction Plotter" : getTitle(),
-				getJFreeChart());
+		if (chart == null) {
+			initPlot();
+			final XYPlotConverter converter = new XYPlotConverter();
+			chart = new SNTChart(
+					(getTitle() == null || getTitle().trim().isEmpty()) ? "Reconstruction Plotter" : getTitle(),
+					converter.convert(plot, JFreeChart.class));
+		}
 		chart.setAxesVisible(getAxesVisible());
 		chart.setOutlineVisible(getOutlineVisible());
 		chart.setGridlinesVisible(getGridlinesVisible());
@@ -485,19 +485,10 @@ public class Viewer2D extends TreeColorMapper {
 	 * @param show if true, plot is displayed
 	 * @return the current plot
 	 */
-	public XYPlot getPlot(final boolean show) {
+	public XYPlot getPlot() {
 		initPlot();
 		plot.yAxis().setAutoRange();
 		plot.xAxis().setAutoRange();
-		if (show) {
-			final SNTChart frame = getChart();
-			frame.setAxesVisible(visibleAxes);
-			frame.setGridlinesVisible(visibleGridLines);
-			frame.setOutlineVisible(visibleOutline);
-			frame.getChartPanel().setBackground(null); // transparent
-			frame.setBackground(Color.WHITE);
-			frame.show(600, 450);
-		}
 		return plot;
 	}
 
@@ -549,7 +540,17 @@ public class Viewer2D extends TreeColorMapper {
 
 	/** Displays the current plot on a dedicated frame */
 	public void show() {
-		getPlot(true);
+		getChart().show();
+	}
+
+	/**
+	 * Displays the current plot on a dedicated frame *
+	 * 
+	 * @param width  the preferred frame width
+	 * @param height the preferred frame height
+	 */
+	public void show(final int width, final int height) {
+		getChart().show(width, height);
 	}
 
 	public void setGridlinesVisible(final boolean visible) {

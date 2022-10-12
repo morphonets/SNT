@@ -938,6 +938,12 @@ public class SNTChart extends ChartFrame {
 		getChartPanel().setDefaultDirectoryForSaveAs(directory);
 	}
 
+	/**
+	 * Shows this chart on a dedicated frame
+	 *
+	 * @param width the preferred frame width
+	 * @param height the preferred frame height
+	 */
 	public void show(final int width, final int height) {
 		setPreferredSize(new Dimension(width, height));
 		pack();
