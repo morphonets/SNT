@@ -22,12 +22,14 @@
 
 package sc.fiji.snt.gui.cmds;
 
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Frame;
 import java.awt.Point;
 import java.awt.event.InputEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -56,12 +58,16 @@ import org.scijava.ui.awt.AWTWindows;
 import ij.IJ;
 import ij.plugin.PlugIn;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
+import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.plugin.PlotterCmd;
 import sc.fiji.snt.plugin.ShollAnalysisImgCmd;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.plugin.ij1.CallIJ1LegacyCmd;
+import sc.fiji.snt.viewer.Viewer2D;
+import sc.fiji.snt.viewer.Viewer3D;
 
 /**
  * A command that displays a shortcut window of most popular commands, inspired
@@ -174,7 +180,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 				"Performs Sholl Analysis on reconstruction file(s) (traces/json/swc)"));
 		getMenuItems(shortcuts).forEach(mi -> popup.add(mi));
 		addSeparator("Legacy Commands:", popup);
-		for (String cmd : new String[]{"Legacy: Sholl Analysis (From Image)...", "Legacy: Sholl Metrics & Options..."}) {
+		for (final String cmd : new String[]{"Legacy: Sholl Analysis (From Image)...", "Legacy: Sholl Metrics & Options..."}) {
 			final JMenuItem jmi = new JMenuItem(cmd);
 			jmi.setToolTipText("IJ1 command now deprecated but fully macro recordable");
 			jmi.addActionListener(e -> {
@@ -293,6 +299,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		frame = getFrame();
 		frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 		frame.setContentPane(getPanel());
+		addFileDrop(frame.getContentPane(), new GuiUtils(frame));
 		frame.pack();
 		//TODO: use ij1 for now because it detects if the location is valid. 
 		final Point loc = ij.Prefs.getLocation(WIN_LOC);
@@ -346,6 +353,56 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 			this.description = description;
 		}
 
+	}
+
+
+	private void addFileDrop(final Component component, final GuiUtils guiUtils) {
+		new FileDrop(component, new FileDrop.Listener() {
+
+			@Override
+			public void filesDropped(final File[] files) {
+				if (files.length == 0) { // Is this even possible?
+					guiUtils.error("Dropped file(s) not recognized.");
+					return;
+				}
+				if (files.length > 1) {
+					guiUtils.error("Ony a single file can be imported using drag-and-drop.");
+					return;
+				}
+				if (!supported(files[0])) {
+					guiUtils.error(files[0].getName() + " does not seem to be a reconstruction file.");
+					return;
+				}
+				threadService.newThread(() -> importFile(files[0])).start();
+
+			}
+
+			private boolean supported(final File file) {
+				final String filename = file.getName().toLowerCase();
+				return (filename.endsWith(".traces")) || (filename.endsWith("swc")) || (filename.endsWith(".json"));
+			}
+			
+			final void importFile(final File file) {
+				final Collection<Tree> trees = Tree.listFromFile(file.getAbsolutePath());
+				if (trees == null || trees.isEmpty()) {
+					guiUtils.error(file.getName() + " does not seem to contain valid reconstruction(s).");
+					return;
+				}
+				threadService.newThread(() -> {
+					if (trees.stream().anyMatch(tree -> tree.is3D())) {
+						final Viewer3D v3d = new Viewer3D(true);
+						Tree.assignUniqueColors(trees);
+						v3d.add(trees);
+						v3d.show();
+					} else {
+						final Viewer2D v2d = new Viewer2D();
+						v2d.setGridlinesVisible(false);
+						v2d.add(trees);
+						v2d.show();
+					}
+				});
+			}
+		});
 	}
 
 	@Override

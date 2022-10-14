@@ -288,6 +288,7 @@ public class GuiUtils {
 	}
 
 	private void makeVisible(final JDialog dialog, final boolean forceBringToFront) {
+		dialog.toFront(); // On MacOS it seems to be needed to call this twice to avoid being behind dialogs!?
 		dialog.setVisible(true);
 		dialog.toFront();
 		// work around a bug in openjdk and MacOS in which prompts
@@ -932,6 +933,7 @@ public class GuiUtils {
 		final Color fg = (enabled) ? label.getForeground() : getDisabledComponentColor(); // required
 		label.setForeground(fg);														// for MACOS!?
 		if (uri != null && Desktop.isDesktopSupported()) {
+			//label.setIcon(IconFactory.getIcon(GLYPH.EXTERNAL_LINK, label.getFont().getSize2D() *.75f, label.getForeground()));
 			label.addMouseListener(new MouseAdapter() {
 				final int w = label.getFontMetrics(label.getFont()).stringWidth(label.getText());
 

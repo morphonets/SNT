@@ -350,7 +350,7 @@ public class SNTUI extends JDialog {
 			addSeparatorWithURL(tab3, "sciview:", true, c3);
 			++c3.gridy;
 			final String msg3 =
-				"IJ2's modern 3D visualization framework supporting large image volumes, " +
+				"Modern 3D visualization framework supporting large image volumes, " +
 				"reconstructions, meshes, and virtual reality. Discrete graphics card recommended. " +
 				"For performance reasons, some Path Manager changes may need to be synchronized " +
 				"manually using \"Sync Changes\".";

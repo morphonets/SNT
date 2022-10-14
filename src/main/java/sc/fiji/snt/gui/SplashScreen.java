@@ -24,6 +24,7 @@ package sc.fiji.snt.gui;
 
 import java.awt.BorderLayout;
 import java.awt.Container;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Image;
 import java.awt.event.ActionListener;
@@ -44,6 +45,7 @@ import javax.swing.border.EmptyBorder;
 class SplashScreen extends JWindow {
 
 	private static final long serialVersionUID = 1L;
+	private static final int fontSizeRef = GuiUtils.getMenuItemHeight();
 	private static JProgressBar progressBar = new JProgressBar();
 	private static int count = 1, TIMER_PAUSE = 25, PROGBAR_MAX = 100;
 	private static Timer progressBarTimer;
@@ -70,11 +72,11 @@ class SplashScreen extends JWindow {
 			if (logoURL != null) {
 				ImageIcon imageIcon = new ImageIcon(logoURL);
 				final Image image = imageIcon.getImage();
-				final Image newimg = image.getScaledInstance(256, 264, Image.SCALE_AREA_AVERAGING);
+				final Dimension dim = getScaledIconDimensions(512, 528);
+				final Image newimg = image.getScaledInstance(dim.width, dim.height, Image.SCALE_AREA_AVERAGING);
 				imageIcon = new ImageIcon(newimg);
 				final JLabel logoImage = new JLabel(imageIcon);
 				logoImage.setAlignmentX(JLabel.CENTER_ALIGNMENT);
-				logoImage.setBorder(new EmptyBorder(12, 12, 6, 12));
 				return logoImage;
 			}
 		} catch (final Exception ignored) {
@@ -83,8 +85,19 @@ class SplashScreen extends JWindow {
 		return null;
 	}
 
+	static Dimension getScaledIconDimensions(final int originalIconWidth, final int originalIconHeight) {
+		final double ref = fontSizeRef * 8; // as tall as 8 lines of text
+		final Dimension dim = new Dimension();
+		if (originalIconHeight / ref < 1) {
+			dim.setSize(originalIconWidth, originalIconHeight);
+		} else {
+			dim.setSize(originalIconWidth * ref / originalIconHeight, ref);
+		}
+		return dim;
+	}
+
 	static void assignStyle(final JLabel label, final int scalingFactor) {
-		label.setFont(new Font(Font.DIALOG, Font.BOLD, GuiUtils.getMenuItemHeight() * scalingFactor));
+		label.setFont(new Font(Font.DIALOG, Font.BOLD, fontSizeRef * scalingFactor));
 		label.setAlignmentX(JLabel.CENTER_ALIGNMENT);
 	}
 
@@ -95,7 +108,10 @@ class SplashScreen extends JWindow {
 		panel.setOpaque(false);
 		container.add(panel, BorderLayout.CENTER);
 		final JLabel logo = getIconAsLabel();
-		if (logo != null) panel.add(logo);
+		if (logo != null) {
+			logo.setBorder(new EmptyBorder(fontSizeRef, fontSizeRef, fontSizeRef / 2, fontSizeRef));
+			panel.add(logo);
+		}
 		final JLabel label = new JLabel((logo == null) ? "Initializing SNT..." : "Initializing...");
 		// set font size reasonably for hiDPI displays
 		//FIXME: With jdk11 this should no longer be needed

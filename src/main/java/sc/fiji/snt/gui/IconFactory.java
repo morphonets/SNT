@@ -99,6 +99,7 @@ public class IconFactory {
 			EXPAND_ARROWS2('\uf31e', true), //
 			EXPLORE('\uf610', true), //
 			EXPORT('\uf56e', true), //
+			EXTERNAL_LINK('\uf35d', true), //
 			EYE('\uf06e', false), //
 			EYE_SLASH('\uf070', false), //
 			FILE('\uf15b', false), //

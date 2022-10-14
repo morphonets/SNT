@@ -95,7 +95,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 
 	@Parameter(required = false, persist = false, label = "Actions", choices = {
 			ACTION_NONE, ACTION_ADD_CONVEXHULL, ACTION_FLIP_H, ACTION_FLIP_V, ACTION_RESET_ROT,
-			ACTION_RESET_COLOR, ACTION_SNAPSHOT}, callback = "runAction")
+			ACTION_RESET_COLOR, ACTION_SNAPSHOT, ACTION_SHOW_DENDROGRAM}, callback = "runAction")
 	private String actionChoice = ACTION_NONE;
 
 	@Parameter(required = false, persist = false, label = "Preview",
@@ -117,6 +117,8 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 	private static final String ACTION_FLIP_V = "Flip vertically";
 	private static final String ACTION_SNAPSHOT = "Snapshot [w/ color-mapping (if any)]";
 	private static final String ACTION_ADD_CONVEXHULL = "Add convex hull";
+	private static final String ACTION_SHOW_DENDROGRAM = "Show dendrogram...";
+
 	private static final ColorRGB DEF_COLOR = Colors.BLACK;
 	private static final String BUSY_MSG = "Rendering. Please wait...";
 
@@ -324,6 +326,9 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 			case ACTION_ADD_CONVEXHULL:
 				hull2D = new ConvexHull2D(plottingTree.getNodes(), true);
 				updatePlot(false);
+				break;
+			case ACTION_SHOW_DENDROGRAM:
+				tree.getGraph(true).show();
 				break;
 			default:
 				throw new IllegalArgumentException("Invalid action");

@@ -362,7 +362,12 @@ public class SNTSearchableBar extends SearchableBar {
 
 	@Override
 	protected AbstractButton createCloseButton(final AbstractAction closeAction) {
-		final AbstractButton button = super.createCloseButton(closeAction);
+	    final AbstractButton button = new JButton();
+	    button.addActionListener(closeAction);
+	    //button.setBorder(BorderFactory.createEmptyBorder());
+	    //button.setOpaque(false);
+	    button.setRequestFocusEnabled(false);
+	    button.setFocusable(false);
 		formatButton(button, IconFactory.GLYPH.TIMES);
 		return button;
 	}

@@ -61,6 +61,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	private static final long serialVersionUID = 1L;
 	protected static final String FILLING_URI = "https://imagej.net/plugins/snt/step-by-step-instructions#filling";
+	private static final int STATUS_MARGIN = 2;
 	private static final int MARGIN = 10;
 
 	public enum State {READY, STARTED, ENDED, LOADED, STOPPED}
@@ -195,20 +196,18 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		manualThresholdApplyButton.setEnabled(manualThresholdChoice.isSelected());
 		exploredThresholdApplyButton.setEnabled(exploredThresholdChoice.isSelected());
 
-		addSeparator(" Rendering Options:", c);
+		addSeparator(" Performance Impacting Options:", c);
 
-		transparentCheckbox = new JCheckBox(" Transparent overlay (may slow down filling)");
+		transparentCheckbox = new JCheckBox("Transparent overlay");
+		transparentCheckbox.setToolTipText("Enabling this option allows you better inspect fills,\nbut may slow down filling");
 		transparentCheckbox.addActionListener(e -> plugin.setFillTransparent(transparentCheckbox.isSelected()));
 		final JPanel transparencyPanel = leftAlignedPanel();
 		transparencyPanel.add(transparentCheckbox);
 		add(transparencyPanel, c);
 		c.gridy++;
-
-		addSeparator(" Misc. Options:", c);
-
-		storeExtraNodesCheckbox = new JCheckBox(" Store above-threshold nodes (may impact performance)");
+		storeExtraNodesCheckbox = new JCheckBox(" Store above-threshold nodes");
 		storeExtraNodesCheckbox.addActionListener(e -> plugin.setStoreExtraFillNodes(storeExtraNodesCheckbox.isSelected()));
-		storeExtraNodesCheckbox.setToolTipText("Enabling this option lets you resume progress with the same Fill");
+		storeExtraNodesCheckbox.setToolTipText("Enabling this option lets you resume progress with the same fill,\nbut may impact performance");
 		final JPanel storeExtraNodesPanel = leftAlignedPanel();
 		storeExtraNodesPanel.add(storeExtraNodesCheckbox);
 		add(storeExtraNodesPanel, c);
@@ -301,10 +300,10 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private JPanel statusPanel() {
 		final JPanel statusPanel = new JPanel();
 		statusPanel.setLayout(new BorderLayout());
-		statusPanel.setBorder(BorderFactory.createEmptyBorder(MARGIN, MARGIN, MARGIN, MARGIN));
+		statusPanel.setBorder(BorderFactory.createEmptyBorder(STATUS_MARGIN, STATUS_MARGIN, STATUS_MARGIN, STATUS_MARGIN));
 		statusText = new JLabel("Loading Fill Manager...");
 		statusText.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED),
-				BorderFactory.createEmptyBorder(MARGIN, MARGIN, MARGIN, MARGIN)));
+				BorderFactory.createEmptyBorder(STATUS_MARGIN, STATUS_MARGIN, STATUS_MARGIN, STATUS_MARGIN)));
 		statusPanel.add(statusText, BorderLayout.CENTER);
 		startFill = GuiUtils.smallButton("Start");
 		startFill.addActionListener(this);
@@ -807,7 +806,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	/* IDE debug method */
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		final ImagePlus imp = new ImagePlus();
