@@ -28,3 +28,6 @@ pom.xml.releaseBackup
 \.ipynb_checkpoints/
 __pycache__/
 *.py[cod]
+
+# MacOS
+*.DS_Store

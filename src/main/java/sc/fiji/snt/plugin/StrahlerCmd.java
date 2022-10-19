@@ -119,7 +119,13 @@ public class StrahlerCmd extends ContextCommand {
 			return;
 		}
 		if (!validInput()) {
-			cancel("None of the reconstructions can be parsed. Invalid topologies?");
+			if (sntService.isActive() && mixedPaths()) {
+				cancel("None of the reconstruction(s) could be parsed. This is likely caused by\n"
+						+ "mixing fitted and un-fitted paths which may mask original connectivity.\n"
+						+ "You may need to apply (or discard) fits more coherently.");
+			} else {
+				cancel("None of the reconstruction(s) could be parsed. Invalid topologies?");
+			}
 			return;
 		}
 		Display<?> tableDisplay = displayService.getDisplay("SNT Strahler Table");
@@ -170,6 +176,17 @@ public class StrahlerCmd extends ContextCommand {
 				dataMap.put((tree.getLabel() == null) ? "Tree " + i++ : tree.getLabel(), new StrahlerData(tree));
 			}
 		}
+	}
+
+	private boolean mixedPaths() {
+		final boolean ref = trees.iterator().next().get(0).isFittedVersionOfAnotherPath();
+		for (final Tree tree : trees) {
+			for (final Path path : tree.list()) {
+				if (path.isFittedVersionOfAnotherPath() != ref)
+					return true;
+			}
+		}
+		return false;
 	}
 
 	private CategoryChart getSingleTreeChart(final StrahlerData sd) throws IllegalArgumentException {

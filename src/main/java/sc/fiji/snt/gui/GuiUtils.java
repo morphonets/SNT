@@ -266,12 +266,12 @@ public class GuiUtils {
 			JOptionPane.QUESTION_MESSAGE, JOptionPane.YES_NO_OPTION, null,
 			buttonLabels);
 		final JDialog d = optionPane.createDialog(parent, title);
-		// Work around prompt being displayed behind splashScreen on MacOS
-		final boolean splashScreenDisplaying = splashScreen != null && splashScreen.isVisible();
-		if (splashScreenDisplaying) splashScreen.setVisible(false);
+//		// Work around prompt being displayed behind splashScreen on MacOS
+//		final boolean splashScreenDisplaying = splashScreen != null && splashScreen.isVisible();
+//		if (splashScreenDisplaying) splashScreen.setVisible(false);
 		makeVisible(d, true);
 		d.dispose();
-		if (splashScreenDisplaying) splashScreen.setVisible(true);
+//		if (splashScreenDisplaying) splashScreen.setVisible(true);
 		final Object result = optionPane.getValue();
 		if (result instanceof Integer) {
 			return (Integer) result;
@@ -288,20 +288,11 @@ public class GuiUtils {
 	}
 
 	private void makeVisible(final JDialog dialog, final boolean forceBringToFront) {
-		dialog.toFront(); // On MacOS it seems to be needed to call this twice to avoid being behind dialogs!?
-		dialog.setVisible(true);
-		dialog.toFront();
 		// work around a bug in openjdk and MacOS in which prompts
 		// are not frontmost if the component hierarchy is > 3
-		if (forceBringToFront && PlatformUtils.isMac() && parent != null && parent instanceof Window) {
-			try {
-				((Window) parent).toBack();
-				Thread.sleep(75);
-				dialog.toFront();
-			} catch (final InterruptedException e) {
-				// ignored
-			}
-		}
+		dialog.setAlwaysOnTop(forceBringToFront && PlatformUtils.isMac());
+		dialog.setVisible(true);
+		dialog.toFront();
 	}
 
 	public boolean getConfirmation(final String msg, final String title) {
