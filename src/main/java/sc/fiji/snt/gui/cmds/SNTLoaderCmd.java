@@ -119,6 +119,10 @@ public class SNTLoaderCmd extends DynamicCommand {
 		max = ""+ ij.CompositeImage.MAX_CHANNELS +"", callback = "channelChanged")
 	private int channel;
 
+	@Parameter(label = "Compute stats now (may be slow for large images)",
+			description = DEF_DESCRIPTION)
+	private boolean computeStats;
+
 	private Collection<ImagePlus> openImps;
 	private ImagePlus sourceImp;
 	private File currentImageFile;
@@ -365,7 +369,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 			GuiUtils.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu
 			final boolean singlePane = IMAGE_NONE.equals(imageChoice) || uiChoice.equals(UI_SIMPLE);
 			final int frame = (sourceImp == null) ? 1 : sourceImp.getFrame();
-			snt.initialize(singlePane, channel, frame);
+			snt.initialize(singlePane, channel, frame, computeStats);
 			snt.startUI();
 		}
 		catch (final OutOfMemoryError error) {

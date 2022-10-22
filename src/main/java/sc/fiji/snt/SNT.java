@@ -668,6 +668,12 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
+	public void initialize(final boolean singlePane, final int channel,
+						   final int frame, final boolean computeStackStats) {
+		setUseSubVolumeStats(!computeStackStats); // This MUST be called before initialize()
+		initialize(singlePane, channel, frame);
+	}
+
 	private void addListener(final InteractiveTracerCanvas canvas) {
 		final QueueJumpingKeyListener listener = new QueueJumpingKeyListener(this,
 			canvas);
@@ -706,17 +712,22 @@ public class SNT extends MultiDThreePanes implements
 		if (!xz.isVisible()) xz.show();
 	}
 
+	@SuppressWarnings("unchecked")
 	private void loadDatasetFromImagePlus(final ImagePlus imp) {
 		statusService.showStatus("Loading data...");
 		this.dataset = convertService.convert(imp, Dataset.class);
 		this.ctSlice3d = ImgUtils.getCtSlice3d(this.dataset, channel - 1, frame - 1);
 		SNTUtils.log("Dataset dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(dataset)));
 		SNTUtils.log("CT HyperSlice dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(this.ctSlice3d)));
-		statusService.showStatus("Finding stack minimum / maximum");
-		final boolean restoreROI = imp.getRoi() != null && imp.getRoi() instanceof PointRoi;
-		if (restoreROI) imp.saveRoi();
-		imp.deleteRoi(); // if a ROI exists, compute min/ max for entire image
-		if (restoreROI) imp.restoreRoi();
+		if (!getUseSubVolumeStats()) {
+			SNTUtils.log("Computing stack statistics");
+			computeImgStats(Views.iterable(this.ctSlice3d), getStats());
+		}
+//		statusService.showStatus("Finding stack minimum / maximum");
+//		final boolean restoreROI = imp.getRoi() != null && imp.getRoi() instanceof PointRoi;
+//		if (restoreROI) imp.saveRoi();
+//		imp.deleteRoi(); // if a ROI exists, compute min/ max for entire image
+//		if (restoreROI) imp.restoreRoi();
 //		ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
 //				ImageStatistics.STD_DEV);
 //		this.stats.min = imgStats.min;
@@ -1615,6 +1626,20 @@ public class SNT extends MultiDThreePanes implements
 		addThreadToDraw(currentSearchThread);
 		currentSearchThread.addProgressListener(this);
 		return tracerThreadPool.submit(currentSearchThread);
+	}
+
+	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
+																	final ImageStatistics imgStats) {
+		final Pair<T, T> minMax = opService.stats().minMax(in);
+		imgStats.min = minMax.getA().getRealDouble();
+		imgStats.max = minMax.getB().getRealDouble();
+		imgStats.mean = opService.stats().mean(in).getRealDouble();
+		imgStats.stdDev = opService.stats().stdDev(in).getRealDouble();
+		SNTUtils.log("Subvolume statistics: min=" + imgStats.min +
+				", max=" + imgStats.max +
+				", mean=" + imgStats.mean +
+				", stdDev=" + imgStats.stdDev);
+		return imgStats;
 	}
 
 	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
