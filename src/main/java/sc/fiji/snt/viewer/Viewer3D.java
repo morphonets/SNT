@@ -1781,6 +1781,8 @@ public class Viewer3D {
 
 	@SuppressWarnings("unchecked")
 	private List<String> getLabelsCheckedInManager() {
+		if (managerList.getCheckBoxListSelectionModel().isSelectionEmpty())
+			return Arrays.asList(new String[] {""}); // workaround Exception in getCheckBoxListSelectedValues
 		final Object[] values = managerList.getCheckBoxListSelectedValues();
 		return (List<String>) (List<?>) Arrays.asList(values);
 	}

@@ -71,24 +71,17 @@ public class PathFitterCmd extends ContextCommand {
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg1 = HEADER +
 		"<b>Type of refinement:</b> SNT can use the fluorescent signal around traced paths " //
-		+
-		"to optimize curvatures and estimate the thickness of traced structures. The optimization " //
-		+
-		"algorithm uses pixel intensities to fit circular cross-sections around each node. " //
-		+
-		"Once computed, fitted cross-sections can be use to: 1) Infer the radius of nodes, " //
-		+
-		"and/or 2) refine node positioning, by snapping their coordinates to the cross-section " //
-		+ "centroid.<br><br>" //
-		+
-		"Please specify the type of optimization to be performed when refining paths:";
-
+		+ "to optimize curvatures and estimate the thickness of traced structures. The optimization " //
+		+ "algorithm uses pixel intensities to fit circular cross-sections around each node. " //
+		+ "Once computed, fitted cross-sections can be use to: 1) Infer the radius of nodes, " //
+		+ "and/or 2) refine node positioning, by snapping their coordinates to the cross-section " //
+		+ "centroid. Please specify the type of optimization to be performed when refining paths:";
 	@Parameter(required = true, label = EMPTY_LABEL, choices = { CHOICE_RADII,
 		CHOICE_MIDPOINT, CHOICE_BOTH })
 	private String fitChoice;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
-	private final String spacer = EMPTY_LABEL;
+//	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+//	private final String spacer = EMPTY_LABEL;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg2 = HEADER +
@@ -102,8 +95,8 @@ public class PathFitterCmd extends ContextCommand {
 		+ "and repeat fitting in smaller increments")
 	private int maxRadius = PathFitter.DEFAULT_MAX_RADIUS;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
-	private final String spacer2 = EMPTY_LABEL;
+//	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+//	private final String spacer2 = EMPTY_LABEL;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg3 = HEADER +
@@ -111,8 +104,8 @@ public class PathFitterCmd extends ContextCommand {
 	@Parameter(required = false, label = EMPTY_LABEL, choices= {"Main image", "Secondary (if available)"})
 	private String impChoice;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
-	private final String spacer3 = EMPTY_LABEL;
+//	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+//	private final String spacer3 = EMPTY_LABEL;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg4 = HEADER +
@@ -123,13 +116,13 @@ public class PathFitterCmd extends ContextCommand {
 			"Keep original path(s)", "Replace existing nodes (undoable operation)" })
 	private String fitInPlaceChoice;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
-	private final String spacer4 = EMPTY_LABEL;
+//	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+//	private final String spacer4 = EMPTY_LABEL;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 			description="Press 'Reset' or set it to 0 to use the available processors on your computer")
 	private final String msg5 = HEADER +
-		"<b>Multithreading:</b> Number of parallel threads:";
+		"<b>Multithreading:</b> Number of parallel threads to compute fits:";
 
 	@Parameter(required = false, label = EMPTY_LABEL, persist = false, min = "0", stepSize = "1")
 	private int nThreads = SNTPrefs.getThreads();

@@ -381,7 +381,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 				final String filename = file.getName().toLowerCase();
 				return (filename.endsWith(".traces")) || (filename.endsWith("swc")) || (filename.endsWith(".json"));
 			}
-			
+
 			final void importFile(final File file) {
 				final Collection<Tree> trees = Tree.listFromFile(file.getAbsolutePath());
 				if (trees == null || trees.isEmpty()) {

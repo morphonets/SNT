@@ -740,13 +740,16 @@ public class GuiUtils {
 		final JLabel ijDetails = leftAlignedLabel(
 				"ImageJ " + ImageJ.VERSION + ImageJ.BUILD + "  |  Java " + System.getProperty("java.version"), "", true);
 		ijDetails.setAlignmentX(JLabel.CENTER_ALIGNMENT);
+		ijDetails.setToolTipText("Displays detailed System Information");
 		ijDetails.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(final MouseEvent e) {
 				if (IJ.getInstance() == null)
 					new ij.plugin.JavaProperties().run("");
-				else
-					IJ.doCommand("ImageJ Properties");
+				else {
+					//IJ.doCommand("ImageJ Properties");
+					IJ.doCommand("System Information");
+				}
 			}
 
 		});
