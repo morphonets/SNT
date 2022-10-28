@@ -228,6 +228,7 @@ public class StrahlerCmd extends ContextCommand {
 	 */
 	public SNTChart getChart() {
 		if (trees.size() == 1) {
+			initMap();
 			final Entry<String, StrahlerData> entry = dataMap.entrySet().iterator().next();
 			return new SNTChart("Strahler Plot " + entry.getKey(), getSingleTreeChart(entry.getValue()));
 		}
