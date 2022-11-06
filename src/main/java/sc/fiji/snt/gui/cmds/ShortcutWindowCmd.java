@@ -42,6 +42,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import javax.swing.WindowConstants;
 import javax.swing.border.EmptyBorder;
 
@@ -373,7 +374,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 					guiUtils.error(files[0].getName() + " does not seem to be a reconstruction file.");
 					return;
 				}
-				threadService.newThread(() -> importFile(files[0])).start();
+				importFile(files[0]);
 
 			}
 
@@ -388,19 +389,40 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 					guiUtils.error(file.getName() + " does not seem to contain valid reconstruction(s).");
 					return;
 				}
-				threadService.newThread(() -> {
-					if (trees.stream().anyMatch(tree -> tree.is3D())) {
-						final Viewer3D v3d = new Viewer3D(true);
-						Tree.assignUniqueColors(trees);
-						v3d.add(trees);
-						v3d.show();
-					} else {
-						final Viewer2D v2d = new Viewer2D();
-						v2d.setGridlinesVisible(false);
-						v2d.add(trees);
-						v2d.show();
+				class Opener extends SwingWorker<Object, Object> {
+
+					@Override
+					public Object doInBackground() {
+						if (trees.stream().anyMatch(tree -> tree.is3D())) {
+							final Viewer3D v3d = new Viewer3D(true);
+							Tree.assignUniqueColors(trees);
+							v3d.add(trees);
+							return v3d;
+						} else {
+							final Viewer2D v2d = new Viewer2D();
+							v2d.setGridlinesVisible(false);
+							v2d.add(trees);
+							v2d.show();
+							return v2d;
+						}
 					}
-				});
+
+					@Override
+					protected void done() {
+						try {
+							final Object viewer = get();
+							if (viewer != null && viewer instanceof Viewer2D)
+								((Viewer2D)viewer).show();
+							else if (viewer != null && viewer instanceof Viewer3D)
+								((Viewer3D)viewer).show();
+						} catch (final Exception e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+					}
+				}
+
+				(new Opener()).execute();
 			}
 		});
 	}

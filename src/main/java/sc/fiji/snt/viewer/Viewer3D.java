@@ -2126,6 +2126,7 @@ public class Viewer3D {
 		final String filename = new SimpleDateFormat("'SNT 'yyyy-MM-dd HH-mm-ss'.png'")
 				.format(new Date());
 		final File file = new File(prefs.snapshotDir, filename);
+		if (!file.exists() || !file.isDirectory()) file.mkdirs();
 		boolean saved = false;
 		try {
 			saved = saveSnapshot(file);
@@ -2989,8 +2990,8 @@ public class Viewer3D {
 			snapshotDir = (tp.prefService == null) ? RecViewerPrefsCmd.DEF_SNAPSHOT_DIR
 			: tp.prefService.get(RecViewerPrefsCmd.class, "snapshotDir",
 				RecViewerPrefsCmd.DEF_SNAPSHOT_DIR);
-			final File dir = new File(snapshotDir);
-			if (!dir.exists() || !dir.isDirectory()) dir.mkdirs();
+//			final File dir = new File(snapshotDir);
+//			if (!dir.exists() || !dir.isDirectory()) dir.mkdirs();
 		}
 
 		private float getSnapshotRotationAngle() {
@@ -4288,7 +4289,7 @@ public class Viewer3D {
 			reveal.addActionListener(e -> {
 				try {
 					final File file = new File(prefs.snapshotDir);
-					file.mkdirs();
+					if (!file.exists() || !file.isDirectory()) file.mkdirs();
 					guiUtils.showDirectory(file);
 				} catch (final Exception ignored) {
 					guiUtils.error("Snapshot directory does not seem to be accessible.");
