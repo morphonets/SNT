@@ -143,7 +143,7 @@
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 
 		<!-- Resolve dup. class conflict -->
-		<allowedDuplicateClasses>${scijava.allowedDuplicateClasses},org.jzy3d.plot3d.pipelines.NotImplementedException,jogamp.nativetag.common.linux.amd64.TAG, jogamp.nativetag.common.linux.armv6hf.TAG,jogamp.nativetag.common.linux.i586.TAG,jogamp.nativetag.common.macosx.universal.TAG,jogamp.nativetag.common.windows.amd64.TAG,jogamp.nativetag.common.windows.i586.TAG,jogamp.nativetag.opengl.linux.amd64.TAG,jogamp.nativetag.opengl.linux.armv6hf.TAG,jogamp.nativetag.opengl.linux.i586.TAG,jogamp.nativetag.opengl.macosx.universal.TAG,jogamp.nativetag.opengl.windows.amd64.TAG,jogamp.nativetag.opengl.windows.i586.TAG</allowedDuplicateClasses>
+		<allowedDuplicateClasses>${scijava.allowedDuplicateClasses},org.jzy3d.plot3d.pipelines.NotImplementedException,jogamp.nativetag.common.linux.amd64.TAG,jogamp.nativetag.common.linux.armv6hf.TAG,jogamp.nativetag.common.linux.i586.TAG,jogamp.nativetag.common.macosx.universal.TAG,jogamp.nativetag.common.windows.amd64.TAG,jogamp.nativetag.common.windows.i586.TAG,jogamp.nativetag.opengl.linux.amd64.TAG,jogamp.nativetag.opengl.linux.armv6hf.TAG,jogamp.nativetag.opengl.linux.i586.TAG,jogamp.nativetag.opengl.macosx.universal.TAG,jogamp.nativetag.opengl.windows.amd64.TAG,jogamp.nativetag.opengl.windows.i586.TAG</allowedDuplicateClasses>
 	</properties>
 
 	<repositories>
