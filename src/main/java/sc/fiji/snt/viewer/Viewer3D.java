@@ -6504,7 +6504,6 @@ public class Viewer3D {
 			view.setBackgroundColor(newBackground);
 			view.getAxis().getLayout().setGridColor(newForeground);
 			view.getAxis().getLayout().setMainColor(newForeground);
-			((AChart)chart).overlayAnnotation.setForegroundColor(newForeground);
 			if (cBar != null) cBar.updateColors();
 
 			// Apply foreground color to trees with background color
@@ -6640,7 +6639,6 @@ public class Viewer3D {
 	private class OverlayAnnotation extends CameraEyeOverlayAnnotation {
 
 		private FPSAnimator joglAnimator;
-		private java.awt.Color color;
 		private String label;
 		private Font labelFont;
 		private java.awt.Color labelColor;
@@ -6657,10 +6655,6 @@ public class Viewer3D {
 					// do nothing
 				}
 			}
-		}
-
-		private void setForegroundColor(final Color c) {
-			color = new java.awt.Color(c.r, c.g, c.b);
 		}
 
 		private void setFont(final Font font, final float angle) {
