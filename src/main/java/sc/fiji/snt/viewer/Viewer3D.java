@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.viewer;
 
+import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
@@ -61,9 +62,9 @@ import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 
 import org.jzy3d.bridge.awt.FrameAWT;
+import org.jzy3d.chart.AWTNativeChart;
 import org.jzy3d.chart.Chart;
 import org.jzy3d.chart.Settings;
-import org.jzy3d.chart.SwingChart;
 import org.jzy3d.chart.controllers.ControllerType;
 import org.jzy3d.chart.controllers.camera.AbstractCameraController;
 import org.jzy3d.chart.controllers.mouse.AWTMouseUtilities;
@@ -92,6 +93,7 @@ import org.jzy3d.plot3d.primitives.Shape;
 import org.jzy3d.plot3d.primitives.Sphere;
 import org.jzy3d.plot3d.primitives.Tube;
 import org.jzy3d.plot3d.primitives.Wireframeable;
+import org.jzy3d.plot3d.primitives.axis.layout.fonts.HiDPITwoFontSizesPolicy;
 import org.jzy3d.plot3d.primitives.axis.layout.providers.ITickProvider;
 import org.jzy3d.plot3d.primitives.axis.layout.providers.RegularTickProvider;
 import org.jzy3d.plot3d.primitives.axis.layout.providers.SmartTickProvider;
@@ -471,8 +473,7 @@ public class Viewer3D {
 		if (chartExists()) return false;
 		final Quality quality = Quality.Nicest();
 		quality.setHiDPIEnabled(true); // requires java 9+
-		chart = new AChart(quality, this); // There does not seem to be a swing implementation of
-												  // ICameraMouseController so we are stuck with AWT
+		chart = new AChart(quality, this);
 		chart.black();
 		view = chart.getView();
 		view.setBoundMode(ViewBoundMode.AUTO_FIT);
@@ -481,6 +482,7 @@ public class Viewer3D {
 		chart.getCanvas().addKeyController(keyController);
 		chart.getCanvas().addMouseController(mouseController);
 		chart.setAxeDisplayed(false);
+		chart.setAnimated(true);
 		squarify("none", false);
 		currentView = ViewMode.DEFAULT;
 		if ( !(chart.getCanvas() instanceof OffscreenCanvas)) {
@@ -524,11 +526,12 @@ public class Viewer3D {
 			final ISquarifier squarifier = view.getSquarifier();
 			final boolean squared = view.getSquared();
 			final CameraMode currentCameraMode = view.getCameraMode();
-			final ViewportMode viewPortMode = view.getCamera().getMode();
+			final ViewportMode viewPortMode = view.getCamera().getViewportMode();
 			final Coord3d currentViewPoint = view.getViewPoint();
 			final BoundingBox3d currentBox = view.getBounds();
 			final boolean isAnimating = mouseController.isAnimating();
-			chart.stopAnimation();
+			setAnimationEnabled(false);
+			chart.stopAllThreads();
 			chart.dispose();
 			chart = null;
 			initView();
@@ -545,7 +548,7 @@ public class Viewer3D {
 			view.setBoundManual(currentBox);
 			addAllObjects();
 			updateView();
-			if (isAnimating) setAnimationEnabled(true);
+			setAnimationEnabled(isAnimating);
 			//if (managerList != null) managerList.selectAll();
 		}
 		catch (final GLException | NullPointerException exc) {
@@ -605,7 +608,7 @@ public class Viewer3D {
 		dup.view.setSquarifier(view.getSquarifier());
 		dup.view.setSquared(view.getSquared());
 		dup.view.setCameraMode(view.getCameraMode());
-		dup.view.getCamera().setViewportMode(view.getCamera().getMode());
+		dup.view.getCamera().setViewportMode(view.getCamera().getViewportMode());
 		dup.view.setViewPoint(view.getViewPoint().clone());
 		dup.setSceneUpdatesEnabled(viewUpdatesEnabled);
 		dup.updateView();
@@ -807,6 +810,10 @@ public class Viewer3D {
 	protected Color fromAWTColor(final java.awt.Color color) {
 		return (color == null) ? getDefColor() : new Color(color.getRed(), color
 			.getGreen(), color.getBlue(), color.getAlpha());
+	}
+
+	private java.awt.Color toAWTColor(final Color color) {
+		return new java.awt.Color(color.r, color.g, color.b, color.a);
 	}
 
 	private Color fromColorRGB(final ColorRGB color) {
@@ -1290,7 +1297,7 @@ public class Viewer3D {
 		}
 		if (bounds.isPoint())
 			return;
-		// chart.view().lookToBox(bounds); seems to 'loose'
+		// chart.view().lookToBox(bounds); seems too 'loose'
 		BoundingBox3d zoomedBox = bounds.scale(new Coord3d(.85f, .85f, .85f));
 		zoomedBox = zoomedBox.shift((bounds.getCenter().sub(zoomedBox.getCenter())));
 		chart.view().lookToBox(zoomedBox);
@@ -1420,8 +1427,9 @@ public class Viewer3D {
 			final int h = (height < 0) ? dm.getHeight() : height;
 			frame = new ViewerFrame((AChart)chart, w, h, managerList != null, gConfiguration);
 		}
+		updateView();
+		frame.canvas.requestFocusInWindow();
 		frame.setVisible(true);
-		displayMsg("Press 'H' or 'F1' for help", 3000);
 		return frame;
 	}
 
@@ -1466,25 +1474,28 @@ public class Viewer3D {
 		GuiUtils.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
 	}
 
-	private void displayMsg(final String msg) {
-		displayMsg(msg, 2500);
+	private void displayBanner(final String msg) {
+		GuiUtils.displayBanner(msg, (isDarkModeOn()) ? java.awt.Color.BLACK : java.awt.Color.WHITE,
+				(Component) chart.getCanvas());
 	}
 
-	private void delayedMsg(final int delay, final String msg, final int duration) {
-		final Timer timer = new Timer(delay, e -> displayMsg(msg, duration));
-		timer.setRepeats(false);
-		timer.start();
+	private void displayMsg(final String msg) {
+		displayMsg(msg, 3000);
 	}
 
 	private void displayMsg(final String msg, final int msecs) {
-		if (gUtils != null && chartExists()) {
-			gUtils.setTmpMsgTimeOut(msecs);
-			if (frame.isFullScreen)
-				gUtils.tempMsg(msg, SwingConstants.SOUTH_WEST);
-			else
-				gUtils.tempMsg(msg);
-		}
-		else {
+		if (frame != null) {
+			SwingUtilities.invokeLater(() -> {
+				if (msg == null || msg.isEmpty()) {
+					frame.status.setText(ViewerFrame.STATUS_PLACEHOLDER);
+					return;
+				}
+				final Timer timer = new Timer(msecs, e -> frame.status.setText(ViewerFrame.STATUS_PLACEHOLDER));
+				timer.setRepeats(false);
+				timer.start();
+				frame.status.setText(msg);
+			});
+		} else {
 			System.out.println(msg);
 		}
 	}
@@ -2403,6 +2414,7 @@ public class Viewer3D {
 		sb.append(bounds.getZmax()).append(");");
 		sb.append("\n");
 		System.out.println(sb.toString());
+		displayMsg("Scene details output to Console");
 	}
 
 //	/**
@@ -2417,7 +2429,7 @@ public class Viewer3D {
 //	}
 
 	/** AWTChart adopting {@link ViewerFactory.AView} */
-	private class AChart extends SwingChart {
+	private class AChart extends AWTNativeChart {
 
 		private final OverlayAnnotation overlayAnnotation;
 		private final Viewer3D viewer;
@@ -2572,7 +2584,7 @@ public class Viewer3D {
 				BufferedImage.TYPE_INT_ARGB);
 			Graphics2D graphic = image.createGraphics();
 			configureText(graphic);
-			final int maxWidth = graphic.getFontMetrics().stringWidth(renderer.format(
+			final int maxWidth = graphic.getFontMetrics().stringWidth(getTickRenderer().format(
 				max)) + barWidth + 1;
 			// do we have enough space to display labels?
 			if (maxWidth > width) {
@@ -2609,6 +2621,7 @@ public class Viewer3D {
 		private static final long serialVersionUID = 1L;
 		private static final int DEF_WIDTH = 800;
 		private static final int DEF_HEIGHT = 600;
+		private static final String STATUS_PLACEHOLDER = "Press H (or F1) for Help. Press Ctrl+Shift+P for Command Palette...";
 
 		private AChart chart;
 		private Component canvas;
@@ -2616,6 +2629,7 @@ public class Viewer3D {
 		private LightController lightController;
 		private AllenCCFNavigator allenNavigator;
 		private ManagerPanel managerPanel;
+		private JLabel status;
 
 		// displays and full screen
 		private java.awt.Point loc;
@@ -2640,16 +2654,21 @@ public class Viewer3D {
 			super();
 			GuiUtils.removeIcon(this);
 			final String title = (chart.viewer.isSNTInstance()) ? " (SNT)" : " ("+ chart.viewer.getID() + ")";
-			initialize(chart, new Rectangle(width, height), "Reconstruction Viewer" +
-				title);
+			initialize(chart, new Rectangle(width, height), "Reconstruction Viewer" + title);
 			if (PlatformUtils.isLinux()) new MultiDisplayUtil(this);
-			AWTWindows.centerWindow(gConfiguration.getBounds(), this);
+			if (gConfiguration == null)
+				AWTWindows.centerWindow(this);
+			else
+				AWTWindows.centerWindow(gConfiguration.getBounds(), this);
 			//setLocationRelativeTo(null); // ensures frame will not appear in between displays on a multidisplay setup
 			if (includeManager) {
 				manager = getManager();
 				chart.viewer.managerList.selectAll();
 				manager.addKeyListener(keyController);
 				snapPanelToSide();
+			}
+			if (gUtils != null) {
+				gUtils.setParent(this);
 			}
 			toFront();
 		}
@@ -2663,10 +2682,7 @@ public class Viewer3D {
 			this.chart = chart;
 			canvas = (Component) chart.getCanvas();
 			removeAll();
-			add(canvas);
-			// doLayout();
-			revalidate();
-			// update(getGraphics());
+			initialize(chart, new Rectangle(getWidth(), getHeight()), getTitle());
 		}
 
 		public JDialog getManager() {
@@ -2691,7 +2707,7 @@ public class Viewer3D {
 		}
 
 		private KeyAdapter getCmdFinderKeyAdapter() {
-			final KeyAdapter adapter = new KeyAdapter() {
+			return new KeyAdapter() {
 				@Override
 				public void keyPressed(final KeyEvent ke) {
 					if (KeyEvent.VK_ESCAPE == ke.getKeyCode()) {
@@ -2704,7 +2720,6 @@ public class Viewer3D {
 					}
 				}
 			};
-			return adapter;
 		}
 		private void displayLightController() {
 			lightController = new LightController(this);
@@ -2727,19 +2742,28 @@ public class Viewer3D {
 		 */
 		@Override
 		public void initialize(final Chart chart, final Rectangle bounds, final String title) {
+			final boolean firstInitialization = this.chart == null;
 			this.chart = (AChart)chart;
 			canvas = (Component) chart.getCanvas();
 			setTitle(title);
-			add(canvas);
+			BorderLayout layout = new BorderLayout();
+			setLayout(layout);
+			add(canvas, BorderLayout.CENTER);
+			add(status = new JLabel(STATUS_PLACEHOLDER), BorderLayout.SOUTH);
+			status.setFocusable(false);
+			status.setBackground(toAWTColor(chart.view().getBackgroundColor()));
+			status.setForeground(toAWTColor(chart.view().getBackgroundColor().negative()));
+			setBackground(status.getBackground());
 			pack();
 			setSize(new Dimension(bounds.width, bounds.height));
-			AWTWindows.centerWindow(this);
-			addWindowListener(new WindowAdapter() {
-				@Override
-				public void windowClosing(final WindowEvent e) {
-					exitRequested(gUtils);
-				}
-			});
+			if (firstInitialization) {
+				addWindowListener(new WindowAdapter() {
+					@Override
+					public void windowClosing(final WindowEvent e) {
+						exitRequested(gUtils);
+					}
+				});
+			}
 		}
 
 		public void disposeFrame() {
@@ -2780,9 +2804,10 @@ public class Viewer3D {
 				if (manager != null) manager.setVisible(false);
 				if (lightController != null) lightController.setVisible(false);
 				if (allenNavigator != null) allenNavigator.dialog.setVisible(false);
+				frame.status.setVisible(false);
 				setExtendedState(JFrame.MAXIMIZED_BOTH );
 				isFullScreen = true;
-				delayedMsg(300, "Press \"Esc\" to exit Full Screen", 3000); // without delay popup is not shown?
+				displayBanner("Entered Full Screen. Press Shift+F (or \"Esc\") to exit...");
 			}
 		}
 
@@ -3228,7 +3253,7 @@ public class Viewer3D {
 			static final String NONE = "None";
 			static final String REBUILD = "Rebuild Scene...";
 			static final String RELOAD = "Reload Scene";
-			static final String RESET = "Reset Scene";
+			static final String RESET_VIEW = "Reset View";
 			static final String SCENE_SHORTCUTS_LIST = "Scene Shortcuts...";
 			static final String SCENE_SHORTCUTS_NOTIFICATION = "Scene Shortcuts (Notification)...";
 			static final String SCRIPT = "Script This Viewer";
@@ -3236,6 +3261,7 @@ public class Viewer3D {
 			static final String SYNC = "Sync Path Manager Changes";
 			static final String TAG = "Add Tag(s)...";
 			static final String TOGGLE_DARK_MODE = "Toggle Dark Mode";
+			static final String TOGGLE_CONTROL_PANEL= "Toggle Control Panel";
 			static final long serialVersionUID = 1L;
 			final String name;
 
@@ -3306,7 +3332,7 @@ public class Viewer3D {
 						displayMsg("Scene reloaded");
 					}
 					return;
-				case RESET:
+				case RESET_VIEW:
 					keyController.resetView();
 					return;
 				case SCENE_SHORTCUTS_LIST:
@@ -3352,6 +3378,9 @@ public class Viewer3D {
 					return;
 				case TOGGLE_DARK_MODE:
 					setEnableDarkMode(!isDarkModeOn());
+					return;
+				case TOGGLE_CONTROL_PANEL:
+					Viewer3D.this.toggleControlPanel();
 					return;
 				default:
 					throw new IllegalArgumentException("Unrecognized action");
@@ -3424,7 +3453,7 @@ public class Viewer3D {
 			sceneMenu.add(fullScreen);
 			sceneMenu.addSeparator();
 
-			final JMenuItem reset = new JMenuItem(new Action(Action.RESET, KeyEvent.VK_R, false, false));
+			final JMenuItem reset = new JMenuItem(new Action(Action.RESET_VIEW, KeyEvent.VK_R, false, false));
 			reset.setIcon(IconFactory.getMenuIcon(GLYPH.BROOM));
 			sceneMenu.add(reset);
 			final JMenuItem reload = new JMenuItem(new Action(Action.RELOAD, KeyEvent.VK_R, false, true));
@@ -4273,6 +4302,9 @@ public class Viewer3D {
 			dark.setIcon(IconFactory.getMenuIcon(GLYPH.SUN));
 			utilsMenu.add(dark);
 			GuiUtils.addSeparator(utilsMenu, "Actions:");
+			final JMenuItem hide = new JMenuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true));
+			hide.setIcon(IconFactory.getMenuIcon(GLYPH.EYE_SLASH));
+			utilsMenu.add(hide);
 			mi = new JMenuItem("Record Rotation", IconFactory.getMenuIcon(GLYPH.VIDEO));
 			mi.addActionListener(e -> {
 				SwingUtilities.invokeLater(() -> {
@@ -5684,6 +5716,21 @@ public class Viewer3D {
 		}
 	}
 
+	private void toggleControlPanel() {
+		if (Viewer3D.this.frame.manager!= null) {
+			frame.manager.setVisible(!frame.manager.isVisible());
+			if (frame.manager.isVisible()) {
+				frame.manager.toFront();
+				frame.manager.requestFocus();
+			} else {
+				frame.toFront();
+				frame.requestFocus();
+				frame.canvas.requestFocusInWindow();
+			}
+		} else
+			displayMsg("Controls are not available for this viewer");
+	}
+
 	private class ShapeTree extends Shape {
 
 		private static final float SOMA_SCALING_FACTOR = 2.5f;
@@ -6225,11 +6272,22 @@ public class Viewer3D {
 
 		private float zoomStep;
 		private double rotationStep;
+		private static final int DOUBLE_PRESS_INTERVAL = 300; // ms
+		private long timeKeyDown = 0; // last time key was pressed
+		private int lastKeyPressedCode;
 
 		public KeyController(final Chart chart) {
 			register(chart);
 		}
 
+		private boolean isDoublePress(final KeyEvent ke) {
+			if (lastKeyPressedCode == ke.getKeyCode() && ((ke.getWhen() -
+				timeKeyDown) < DOUBLE_PRESS_INTERVAL)) return true;
+			timeKeyDown = ke.getWhen();
+			lastKeyPressedCode = ke.getKeyCode();
+			return false;
+		}
+	
 		/*
 		 * (non-Javadoc)
 		 *
@@ -6237,6 +6295,7 @@ public class Viewer3D {
 		 */
 		@Override
 		public void keyPressed(final KeyEvent e) {
+			final boolean doublePress = isDoublePress(e);
 			switch (e.getKeyChar()) {
 				case 'a':
 				case 'A':
@@ -6245,13 +6304,7 @@ public class Viewer3D {
 				case 'c':
 				case 'C':
 					if (e.isShiftDown()) {
-						if (Viewer3D.this.frame.manager!= null) {
-							frame.manager.setVisible(!frame.manager.isVisible());
-							frame.toFront();
-							frame.requestFocus();
-							frame.canvas.requestFocusInWindow();
-						} else
-							displayMsg("Controls are not available for this viewer");
+						toggleControlPanel();
 					} else if (!emptySceneMsg())
 						changeCameraMode();
 					break;
@@ -6269,7 +6322,7 @@ public class Viewer3D {
 					break;
 				case 'r':
 				case 'R':
-					if (e.isShiftDown()) {
+					if (doublePress || e.isShiftDown()) {
 						validate();
 						displayMsg("Scene reloaded");
 					} else {
@@ -6278,12 +6331,19 @@ public class Viewer3D {
 					break;
 				case 's':
 				case 'S':
-					saveScreenshot();
+					if (e.isShiftDown() && frame != null) {
+						frame.status.setVisible(!frame.status.isVisible());
+					} else {
+						saveScreenshot();
+					}
 					break;
 				case 'f':
 				case 'F':
 					if (e.isShiftDown()) {
-						frame.enterFullScreen();
+						if (frame.isFullScreen)
+							frame.exitFullScreen();
+						else
+							frame.enterFullScreen();
 					} else {
 						if (!emptySceneMsg()) fitToVisibleObjects(true, true);
 					}
@@ -6335,6 +6395,7 @@ public class Viewer3D {
 							break;
 					}
 			}
+
 		}
 
 		private void pan(final Coord2d direction) {
@@ -6435,6 +6496,11 @@ public class Viewer3D {
 				newForeground = Color.WHITE;
 				newBackground = Color.BLACK;
 			}
+			if (frame != null) {
+				frame.status.getParent().setBackground(toAWTColor(newBackground));
+				frame.status.setBackground(toAWTColor(newBackground));
+				frame.status.setForeground(toAWTColor(newForeground));
+			}
 			view.setBackgroundColor(newBackground);
 			view.getAxis().getLayout().setGridColor(newForeground);
 			view.getAxis().getLayout().setMainColor(newForeground);
@@ -6530,8 +6596,8 @@ public class Viewer3D {
 			sb.append("    <td>Press 'R'</td>");
 			sb.append("  </tr>");
 			sb.append("  </tr>");
-			sb.append("    <td><u>R</u>eload View</td>");
-			sb.append("    <td>Press Shift+'R'</td>");
+			sb.append("    <td><u>R</u>eload Scene</td>");
+			sb.append("    <td>Press 'R' twice</td>");
 			sb.append("  </tr>");
 			sb.append("  <tr>");
 			sb.append("    <td><u>S</u>napshot</td>");
@@ -6539,12 +6605,16 @@ public class Viewer3D {
 			sb.append("  </tr>");
 			if (showInDialog) sb.append("  <tr>");
 			sb.append("  <tr>");
-			sb.append("    <td>Full Screen</td>");
-			sb.append("    <td>Shift+F (Esc to exit)</td>");
+			sb.append("    <td>Toggle <u>C</u>ontrol Panel</td>");
+			sb.append("    <td>Shift+C</td>");
 			sb.append("  </tr>");
 			sb.append("  <tr>");
-			sb.append("    <td>Toggle Control Panel</td>");
-			sb.append("    <td>Shift+C</td>");
+			sb.append("    <td>Toggle <u>F</u>ull Screen</td>");
+			sb.append("    <td>Shift+F</td>");
+			sb.append("  </tr>");
+			sb.append("  <tr>");
+			sb.append("    <td>Toggle <u>S</u>tatus Bar</td>");
+			sb.append("    <td>Shift+S</td>");
 			sb.append("  </tr>");
 			if (showInDialog) {
 				sb.append("  <tr>");
@@ -6561,7 +6631,7 @@ public class Viewer3D {
 					gUtils.showHTMLDialog(sb.toString(), "Viewer Shortcuts", false);
 			}
 			else {
-				displayMsg(sb.toString(), 10000);
+				displayBanner(sb.toString());
 			}
 
 		}
@@ -6616,8 +6686,9 @@ public class Viewer3D {
 				RenderingHints.VALUE_ANTIALIAS_ON);
 			g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
 				RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-			g2d.setColor(color);
 			if (SNTUtils.isDebugMode()) {
+				g2d.setColor(toAWTColor(view.getAxisLayout().getMainColor()));
+				g2d.setFont(g2d.getFont().deriveFont((float)view.getAxisLayout().getFont().getHeight()));
 				int lineHeight = g.getFontMetrics().getHeight();
 				g2d.drawString("Camera: " + view.getCamera().getEye(), 20, lineHeight);
 				g2d.drawString("FOV: " + view.getCamera().getRenderingSphereRadius(),
@@ -7206,17 +7277,20 @@ public class Viewer3D {
 
 			public AView(final IChartFactory factory, final Scene scene, final ICanvas canvas, final Quality quality) {
 				super(factory, scene, canvas, quality);
-				// super.DISPLAY_AXE_WHOLE_BOUNDS = true;
-				// super.MAINTAIN_ALL_OBJECTS_IN_VIEW = true;
-				// setBoundMode(ViewBoundMode.AUTO_FIT);
+				//super.displayAxisWholeBounds = true;
+				setCameraRenderingSphereRadiusFactor(.85f);
 				setHiDPIenabled(Prefs.SCALE_FACTOR > 1);
+				setMaximized(false);
+				super.get2DLayout().setVerticalAxisFlip(true); // for backwards compatibility
 			}
 
 			void setHiDPIenabled(boolean enabled) {
 				super.hidpi = (enabled) ? HiDPI.ON : HiDPI.OFF;
+				if (enabled)
+					axis.getLayout().setFontSizePolicy(new HiDPITwoFontSizesPolicy(this));
 				axis.getLayout().applyFontSizePolicy();
 			}
-
+			
 			@Override
 			public void setViewPoint(Coord3d polar, boolean updateView) {
 				// see https://github.com/jzy3d/jzy3d-api/issues/214#issuecomment-975717207
@@ -7224,23 +7298,6 @@ public class Viewer3D {
 				if (updateView)
 					shoot();
 				fireViewPointChangedEvent(new ViewPointChangedEvent(this, polar));
-			}
-
-			@Override
-			protected Coord3d computeCameraEyeTop(final Coord3d viewpoint, final Coord3d target) {
-				Coord3d eye = viewpoint;
-				eye.x = -(float) Math.PI / 2; // on x
-				eye.y = -(float) Math.PI / 2; // on bottom: inverted from super.computeCameraEyeTop();
-				eye = eye.cartesian().add(target);
-				return eye;
-			}
-
-			@Override
-			protected Coord3d computeCameraUp(Coord3d viewpoint) {
-				if (getViewMode() == ViewPositionMode.FREE) {
-					return viewpoint; // Attempt to bypass axis flip: see https://github.com/jzy3d/jzy3d-api/issues/214
-				}
-				return super.computeCameraUp(viewpoint);
 			}
 		}
 	}
