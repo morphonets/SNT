@@ -3261,7 +3261,7 @@ public class Viewer3D {
 			static final String SYNC = "Sync Path Manager Changes";
 			static final String TAG = "Add Tag(s)...";
 			static final String TOGGLE_DARK_MODE = "Toggle Dark Mode";
-			static final String TOGGLE_CONTROL_PANEL= "Toggle Control Panel";
+			static final String TOGGLE_CONTROL_PANEL= "Toggle RV Controls";
 			static final long serialVersionUID = 1L;
 			final String name;
 
@@ -6604,7 +6604,7 @@ public class Viewer3D {
 			sb.append("  </tr>");
 			if (showInDialog) sb.append("  <tr>");
 			sb.append("  <tr>");
-			sb.append("    <td>Toggle <u>C</u>ontrol Panel</td>");
+			sb.append("    <td>Toggle RV <u>C</u>ontrols</td>");
 			sb.append("    <td>Shift+C</td>");
 			sb.append("  </tr>");
 			sb.append("  <tr>");

@@ -226,7 +226,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 		} else if (tree != null) {
 			// caller specified a single tree
 			resolveInput("trees");
-		} else if (trees != null) {
+		} else {
 			// caller specified a collection of trees
 			resolveInput("tree");
 		}
@@ -413,7 +413,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 	}
 
 	private boolean validFile(final File file) {
-		return (pattern == null || pattern.isEmpty()) ? true : file.getName().contains(pattern);
+		return (pattern == null || pattern.isEmpty()) || file.getName().contains(pattern);
 	}
 
 	private void measure(final Collection<Tree> trees, final List<String> metrics) {

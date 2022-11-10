@@ -170,20 +170,20 @@ public class Annotation3D {
 	}
 
 	private static Drawable meshToDrawable(Mesh mesh, final Color color) {
-		Triangles faces = mesh.triangles();
-		Iterator<Triangle> faceIter = faces.iterator();
-		ArrayList<ArrayList<Coord3d>> coord3dFaces = new ArrayList<ArrayList<Coord3d>>();
+		final Triangles faces = mesh.triangles();
+		final Iterator<Triangle> faceIter = faces.iterator();
+		final ArrayList<ArrayList<Coord3d>> coord3dFaces = new ArrayList<>();
 		while (faceIter.hasNext()) {
-			ArrayList<Coord3d> simplex = new ArrayList<Coord3d>();
-			Triangle t = faceIter.next();
+			final ArrayList<Coord3d> simplex = new ArrayList<>();
+			final Triangle t = faceIter.next();
 			simplex.add(new Coord3d(t.v0x(), t.v0y(), t.v0z()));
 			simplex.add(new Coord3d(t.v1x(), t.v1y(), t.v1z()));
 			simplex.add(new Coord3d(t.v2x(), t.v2y(), t.v2z()));
 			coord3dFaces.add(simplex);
 		}
-		List<Polygon> polygons = new ArrayList<Polygon>();
-		for (ArrayList<Coord3d> face : coord3dFaces) {
-			Polygon polygon = new Polygon();
+		final List<Polygon> polygons = new ArrayList<>();
+		for (final ArrayList<Coord3d> face : coord3dFaces) {
+			final Polygon polygon = new Polygon();
 			polygon.add(new Point(face.get(0)));
 			polygon.add(new Point(face.get(1)));
 			polygon.add(new Point(face.get(2)));
@@ -324,9 +324,6 @@ public class Annotation3D {
 			((Scatter) drawable).setColor(c);
 			break;
 		case SURFACE:
-			((Shape) drawable).setColor(c);
-			((Shape) drawable).setWireframeColor(Viewer3D.Utils.contrastColor(c));
-			break;
 		case SURFACE_AND_VOLUME:
 			((Shape) drawable).setColor(c);
 			((Shape) drawable).setWireframeColor(Viewer3D.Utils.contrastColor(c));

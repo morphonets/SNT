@@ -45,16 +45,16 @@ import sc.fiji.snt.viewer.OBJMesh;
  */
 public class VFBUtils {
 
-	private static final String HOME_DIR = "http://www.virtualflybrain.org/site/vfb_site/home.htm";
+	private static final String HOME_DIR = "http://www.virtualflybrain.org/site/vfb_site/overview.htm";
 	private static final String DATA_DIR = "http://www.virtualflybrain.org/data/VFB/i/";
-	private final static String JFRC2018_MESH_LABEL = "JFRC 2018 Template";
-	private final static String JFRC2_MESH_LABEL = "JFRC2 (VFB) Template";
-	private final static String JFRC3_MESH_LABEL = "JFRC3 Template";
-	private final static String FCWB_MESH_LABEL = "FCWB Template";
-	private final static PointInImage JFRC2018_BRAIN_BARYCENTRE = new PointInImage(312.1580f, 150.0717f, 89.4155f);
-	private final static PointInImage JFRC2_BRAIN_BARYCENTRE = new PointInImage(321.3978f, 154.8180f, 69.0848f);
-	private final static PointInImage JFRC3_BRAIN_BARYCENTRE = new PointInImage(276.5773f, 133.8614f, 82.6505f);
-	private final static PointInImage FCWB_BRAIN_BARYCENTRE = new PointInImage(281.7975f, 154.2765f, 53.6835f);
+	private static final String JFRC2018_MESH_LABEL = "JFRC 2018 Template";
+	private static final String JFRC2_MESH_LABEL = "JFRC2 (VFB) Template";
+	private static final String JFRC3_MESH_LABEL = "JFRC3 Template";
+	private static final String FCWB_MESH_LABEL = "FCWB Template";
+	private static final PointInImage JFRC2018_BRAIN_BARYCENTRE = new PointInImage(312.1580f, 150.0717f, 89.4155f);
+	private static final PointInImage JFRC2_BRAIN_BARYCENTRE = new PointInImage(321.3978f, 154.8180f, 69.0848f);
+	private static final PointInImage JFRC3_BRAIN_BARYCENTRE = new PointInImage(276.5773f, 133.8614f, 82.6505f);
+	private static final PointInImage FCWB_BRAIN_BARYCENTRE = new PointInImage(281.7975f, 154.2765f, 53.6835f);
 
 
 	private VFBUtils() {
@@ -108,7 +108,7 @@ public class VFBUtils {
 	}
 
 	private static String getNormalizedTemplateLabel(final String templateBrain) {
-		final String inputType = (templateBrain == null) ? null : templateBrain.toLowerCase();
+		final String inputType = (templateBrain == null) ? "" : templateBrain.toLowerCase();
 		switch (inputType) {
 		case "jfrc2018":
 		case "jfrc 2018":
