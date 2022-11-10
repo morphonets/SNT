@@ -112,6 +112,7 @@ import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
+import sc.fiji.snt.util.SNTColor;
 
 /** Misc. utilities for SNT's GUI. */
 public class GuiUtils {
@@ -128,7 +129,7 @@ public class GuiUtils {
 
 	private static SplashScreen splashScreen;
 	private static LookAndFeel existingLaf;
-	final private Component parent;
+	private Component parent;
 	private JidePopup popup;
 	private boolean popupExceptionTriggered;
 	private int timeOut = 2500;
@@ -136,6 +137,14 @@ public class GuiUtils {
 	private Color foreground = Color.BLACK;
 
 	public GuiUtils(final Component parent) {
+		setParent(parent);
+	}
+
+	public GuiUtils() {
+		this(null);
+	}
+
+	public void setParent(final Component parent) {
 		if (parent == null) {
 			this.parent = null;
 		} else {
@@ -143,10 +152,6 @@ public class GuiUtils {
 			background = parent.getBackground();
 			foreground = parent.getForeground();
 		}
-	}
-
-	public GuiUtils() {
-		this(null);
 	}
 
 	public void error(final String msg) {
@@ -174,12 +179,7 @@ public class GuiUtils {
 				if (popup != null && popup.isVisible())
 					popup.hidePopupImmediately();
 				popup = getPopup(msg);
-				if (location < 0) {
-					popup.showPopup();
-				} else {
-					popup.showPopup(location);
-				}
-				popup.showPopup();
+				popup.showPopup((location < 0) ? SwingConstants.SOUTH_WEST : location, parent);
 			} catch (final Error ignored) {
 				if (!popupExceptionTriggered) {
 					errorPrompt("<HTML><body><div style='width:500;'>Notification mechanism "
@@ -214,23 +214,23 @@ public class GuiUtils {
 		final JLabel label = getLabel(msg);
 		label.setHorizontalAlignment(SwingConstants.CENTER);
 		final JidePopup popup = new JidePopup();
-		popup.getContentPane().add(label);
+		popup.add(label);
 		label.setBackground(background);
 		label.setForeground(foreground);
+		popup.setBackground(background);
 		popup.getContentPane().setBackground(background);
-		popup.setBackground(foreground);
 		if (parent != null) {
 			popup.setOwner(parent);
 			popup.setMaximumSize(parent.getSize());
 		}
 		popup.setFocusable(false);
+		popup.setReturnFocusToOwner(true);
 		popup.setTransient(timeOut > 0);
 		popup.setMovable(false);
 		popup.setDefaultMoveOperation(JidePopup.HIDE_ON_MOVED);
 		popup.setEnsureInOneScreen(true);
 		popup.setTimeout(timeOut);
 		return popup;
-
 	}
 
 	public void setTmpMsgTimeOut(final int mseconds) { // 0: no timeout, always visible
@@ -657,6 +657,58 @@ public class GuiUtils {
 		if ((!(result instanceof Integer)))
 			return SwingDialog.UNKNOWN_OPTION;
 		return (Integer) result;
+	}
+
+	public static void displayBanner(final String msg, final Color background, final Component parent) {
+		final JLabel label = new JLabel(msg);
+		label.setHorizontalAlignment(SwingConstants.CENTER);
+		if (!msg.startsWith("<HTML>"))
+			label.setFont(label.getFont().deriveFont(label.getFont().getSize2D() * 2.5f));
+		final int margin = label.getFontMetrics(label.getFont()).stringWidth("XX");
+		label.setBorder(BorderFactory.createEmptyBorder(margin, margin, margin, margin));
+		final JidePopup popup = new JidePopup();
+		popup.add(label);
+		final MouseAdapter adapter = new MouseAdapter() {
+			@Override
+			public void mouseMoved(final MouseEvent e) {
+				dismiss();
+			}
+			@Override
+			public void mouseClicked(final MouseEvent e) {
+				dismiss();
+			}
+			@Override
+			public void mouseDragged(MouseEvent e) {
+				dismiss();
+			}
+			@Override
+			public void mousePressed(MouseEvent e) {
+				dismiss();
+			}
+			void dismiss() {
+				popup.removeMouseListener(this);
+				parent.removeMouseListener(this);
+				popup.hidePopup(true);
+				parent.requestFocusInWindow();
+			}
+		};
+		popup.addMouseListener(adapter);
+		if (parent != null) {
+			popup.setOwner(parent);
+			parent.addMouseListener(adapter);
+		}
+		label.setForeground(SNTColor.contrastColor(background));
+		label.setBackground(background);
+		popup.setBackground(background);
+		popup.getContentPane().setBackground(background);
+		popup.setReturnFocusToOwner(true);
+		popup.setTransient(true);
+		popup.setMovable(false);
+		popup.setDefaultMoveOperation(JidePopup.HIDE_ON_MOVED);
+		popup.setTimeout(4000);
+		SwingUtilities.invokeLater(() -> {
+			popup.showPopup(SwingConstants.CENTER, parent);
+		});
 	}
 
 	public static void addTooltip(final JComponent c, final String text) {
