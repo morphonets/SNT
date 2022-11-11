@@ -2136,8 +2136,7 @@ public class Viewer3D {
 	public boolean saveSnapshot() {
 		final String filename = new SimpleDateFormat("'SNT 'yyyy-MM-dd HH-mm-ss'.png'")
 				.format(new Date());
-		final File file = new File(prefs.snapshotDir, filename);
-		if (!file.exists() || !file.isDirectory()) file.mkdirs();
+		final File file = new File(prefs.getSnapshotDir(), filename);
 		boolean saved = false;
 		try {
 			saved = saveSnapshot(file);
@@ -3000,6 +2999,15 @@ public class Viewer3D {
 					RecViewerPrefsCmd.DEF_SCRIPT_EXTENSION);
 		}
 
+		private File getSnapshotDir() {
+			if (snapshotDir == null)
+				snapshotDir = RecViewerPrefsCmd.DEF_SNAPSHOT_DIR;
+			final File file = new File(snapshotDir);
+			if (!file.exists() || !file.isDirectory())
+				file.mkdirs();
+			return file;
+		}
+	
 		private String getBoilerplateScript(final String ext) {
 			final HashMap<String, String> map = new HashMap<>();
 			map.put(".bsh", "BSH.bsh");
@@ -4343,9 +4351,7 @@ public class Viewer3D {
 			final JMenuItem reveal = new JMenuItem("Show Snapshot Directory", IconFactory.getMenuIcon(GLYPH.OPEN_FOLDER));
 			reveal.addActionListener(e -> {
 				try {
-					final File file = new File(prefs.snapshotDir);
-					if (!file.exists() || !file.isDirectory()) file.mkdirs();
-					guiUtils.showDirectory(file);
+					guiUtils.showDirectory(prefs.getSnapshotDir());
 				} catch (final Exception ignored) {
 					guiUtils.error("Snapshot directory does not seem to be accessible.");
 				}
@@ -4508,8 +4514,7 @@ public class Viewer3D {
 
 			@Override
 			protected String doInBackground() {
-				final File rootDir = new File(prefs.snapshotDir +
-					File.separator + "SNTrecordings");
+				final File rootDir = new File(prefs.getSnapshotDir(), "SNTrecordings" + File.separator);
 				if (!rootDir.exists()) rootDir.mkdirs();
 				final int dirId = rootDir.list((current, name) -> new File(current,
 					name).isDirectory() && name.startsWith("recording")).length + 1;
