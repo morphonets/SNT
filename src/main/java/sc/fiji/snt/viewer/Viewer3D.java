@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.border.Border;
+import javax.swing.event.ListSelectionEvent;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
@@ -136,6 +137,7 @@ import org.scijava.ui.swing.script.TextEditor;
 import org.scijava.util.*;
 
 import com.jidesoft.swing.CheckBoxList;
+import com.jidesoft.swing.CheckBoxListSelectionModel;
 import com.jidesoft.swing.CheckBoxTree;
 import com.jidesoft.swing.ListSearchable;
 import com.jidesoft.swing.SearchableBar;
@@ -457,7 +459,7 @@ public class Viewer3D {
 		if (enabled) view.shoot(); // same as char.render();
 		if (managerList != null) {
 			managerList.model.setListenersEnabled(viewUpdatesEnabled);
-			managerList.model.update();
+			//setListenersEnabled already calls managerList.model.update();
 		}
 		if (viewUpdatesEnabled) {
 			chart.getView().updateBounds();
@@ -791,16 +793,16 @@ public class Viewer3D {
 	private void initManagerList() {
 		managerList = new CheckboxListEditable(new DefaultUpdatableListModel<>());
 		managerList.getCheckBoxListSelectionModel().addListSelectionListener(e -> {
-			if (!e.getValueIsAdjusting()) {
-				final List<String> selectedKeys = getLabelsCheckedInManager();
-				plottedTrees.forEach((k1, shapeTree) -> {
-					shapeTree.setDisplayed(selectedKeys.contains(k1));
+			if (!e.getValueIsAdjusting() && managerList.isVisible()) {
+				final List<String> selectedKeys = managerList.getCheckBoxListSelectedValues(e);
+				plottedTrees.forEach((k, shapeTree) -> {
+					shapeTree.setDisplayed(selectedKeys.contains(k));
 				});
-				plottedObjs.forEach((k2, drawableVBO) -> {
-					drawableVBO.setDisplayed(selectedKeys.contains(k2));
+				plottedObjs.forEach((k, drawableVBO) -> {
+					drawableVBO.setDisplayed(selectedKeys.contains(k));
 				});
-				plottedAnnotations.forEach((k2, annot) -> {
-					annot.getDrawable().setDisplayed(selectedKeys.contains(k2));
+				plottedAnnotations.forEach((k, annot) -> {
+					annot.getDrawable().setDisplayed(selectedKeys.contains(k));
 				});
 				// view.shoot();
 			}
@@ -1792,8 +1794,6 @@ public class Viewer3D {
 
 	@SuppressWarnings("unchecked")
 	private List<String> getLabelsCheckedInManager() {
-		if (managerList.getCheckBoxListSelectionModel().isSelectionEmpty())
-			return Arrays.asList(new String[] {""}); // workaround Exception in getCheckBoxListSelectedValues
 		final Object[] values = managerList.getCheckBoxListSelectedValues();
 		return (List<String>) (List<?>) Arrays.asList(values);
 	}
@@ -3551,6 +3551,11 @@ public class Viewer3D {
 		}
 
 		private JPopupMenu popupMenu() {
+			final JMenuItem renderIcons = new JCheckBoxMenuItem("Label Categories",
+					IconFactory.getMenuIcon(GLYPH.MARKER));
+			renderIcons.addItemListener(e -> {
+				managerList.setIconsVisible((renderIcons.isSelected()));
+			});
 			final JMenuItem sort = new JMenuItem("Sort List", IconFactory.getMenuIcon(GLYPH.SORT));
 			sort.addActionListener(e -> {
 				if (noLoadedItemsGuiError()) {
@@ -3560,24 +3565,32 @@ public class Viewer3D {
 						"Sort List?")) {
 					return;
 				}
-				final List<String> checkedLabels = getLabelsCheckedInManager();
-				try {
-					managerList.setValueIsAdjusting(true);
-					managerList.model.removeAllElements();
-					plottedTrees.keySet().forEach(k -> {
-						managerList.model.addElement(k);
-					});
-					plottedObjs.keySet().forEach(k -> {
-						managerList.model.addElement(k);
-					});
-					plottedAnnotations.keySet().forEach(k -> {
-						managerList.model.addElement(k);
-					});
-					managerList.model.addElement(CheckBoxList.ALL_ENTRY);
-				} finally {
-					managerList.setValueIsAdjusting(false);
-				}
-				managerList.addCheckBoxListSelectedValues(checkedLabels.toArray());
+				// final List<String> checkedLabels = getLabelsCheckedInManager();
+				List<Integer> displayedIndices = new ArrayList<>();
+				managerList.model.setListenersEnabled(false);
+				managerList.setValueIsAdjusting(true);
+				managerList.model.removeAllElements();
+				plottedTrees.forEach((k, v) -> {
+					if (v.isDisplayed())
+						displayedIndices.add(managerList.model.getSize());
+					managerList.model.addElement(k);
+				});
+				plottedObjs.forEach((k, v) -> {
+					if (v.isDisplayed())
+						displayedIndices.add(managerList.model.getSize());
+					managerList.model.addElement(k);
+				});
+				plottedAnnotations.forEach((k, v) -> {
+					if (v.getDrawable().isDisplayed())
+						displayedIndices.add(managerList.model.getSize());
+					managerList.model.addElement(k);
+				});
+				managerList.model.addElement(CheckBoxList.ALL_ENTRY);
+				managerList.setCheckBoxListSelectedIndices(displayedIndices.stream().mapToInt(Integer::intValue).toArray());
+				managerList.setValueIsAdjusting(false);
+				managerList.setIconsVisible(true);
+				renderIcons.setSelected(true);
+				managerList.model.setListenersEnabled(true);
 			});
 
 			final JMenuItem addTag = new JMenuItem(new Action(Action.TAG, KeyEvent.VK_T, true, true));
@@ -3595,12 +3608,7 @@ public class Viewer3D {
 					managerList.removeTagsFromSelectedItems();
 				}
 			});
-			final JMenuItem renderIcons = new JCheckBoxMenuItem("Label Categories",
-					IconFactory.getMenuIcon(GLYPH.MARKER));
-			renderIcons.addItemListener(e -> {
-				managerList.setIconsVisible((renderIcons.isSelected()));
-			});
-	
+
 			// Select menu
 			final JMenu selectMenu = new JMenu("Select");
 			selectMenu.setIcon(IconFactory.getMenuIcon(GLYPH.POINTER));
@@ -5440,6 +5448,29 @@ public class Viewer3D {
 			});
 		}
 
+		public List<String> getCheckBoxListSelectedValues(final ListSelectionEvent e) {
+			final CheckBoxListSelectionModel listSelectionModel = getCheckBoxListSelectionModel();
+			final int iMin = e.getFirstIndex();
+			final int iMax = e.getLastIndex();
+			final List<String> result = new ArrayList<>();
+			if ((iMin < listSelectionModel.getMinSelectionIndex())
+					|| (iMax < listSelectionModel.getMaxSelectionIndex())) {
+				return result;
+			}
+			for (int i = iMin; i <= iMax; i++) {
+				if (i == listSelectionModel.getAllEntryIndex() && listSelectionModel.isAllEntryConsidered()) {
+					continue;
+				}
+				if (i > listSelectionModel.getModel().getSize() - 1) {
+					break; // somehow this happens when getAllEntryIndex() detection fails!?
+				}
+				if (listSelectionModel.isSelectedIndex(i)) {
+					result.add(getModel().getElementAt(i).toString());
+				}
+			}
+			return result;
+		}
+
 		@Override
 		protected Handler createHandler() {
 			return new HandlerPlus(this);
@@ -5667,7 +5698,7 @@ public class Viewer3D {
 			super.fireContentsChanged(source, index0, index1);
 			if (frame != null && frame.managerPanel != null) {
 				frame.managerPanel.searchableBar.setStatusLabelPlaceholder(String.format(
-						"%d item(s) listed", managerList.model.size() - 1));
+						"%d item(s) listed", size() - 1));
 			}
 		}
 
