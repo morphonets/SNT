@@ -546,21 +546,27 @@ public class SNTUtils {
 	}
 
 	/**
-	 * Convenience method to access the context of the running Fiji instance (mainly
-	 * for IJ1 plugins).
+	 * Convenience method to access the context of the running Fiji instance
 	 * 
-	 * @return the context of the running Fiji instance
+	 * @return the context of the active ImageJ instance. Never null
 	 */
 	public static Context getContext() {
 		if (context == null) {
 			try {
-				context =  (Context) IJ.runPlugIn( "org.scijava.Context", "" );
+				if (ij.IJ.getInstance() != null)
+					context = (Context) IJ.runPlugIn("org.scijava.Context", "");
 			} catch (final Exception | Error ignored) {
 				error("Failed to retrieve context from IJ1", ignored);
-				context = new Context();
+			} finally {
+				if (context == null)
+					context = new Context();
 			}
 		}
 		return context;
+	}
+
+	public static boolean isContextSet() {
+		return null != SNTUtils.context;
 	}
 
 	public static void setContext(final Context context) {

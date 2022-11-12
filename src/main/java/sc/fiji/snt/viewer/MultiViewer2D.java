@@ -47,6 +47,7 @@ import net.imagej.display.ColorTables;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.MultiTreeColorMapper;
 import sc.fiji.snt.analysis.SNTChart;
@@ -111,7 +112,7 @@ public class MultiViewer2D {
 	}
 
 	public void setColorBarLegend(final String lut, final double min, final double max) {
-		final TreeColorMapper lutRetriever = new TreeColorMapper(new Context(LUTService.class));
+		final TreeColorMapper lutRetriever = new TreeColorMapper(SNTUtils.getContext());
 		final ColorTable colorTable = lutRetriever.getColorTable(lut);
 		setColorBarLegend(colorTable, min, max);
 	}

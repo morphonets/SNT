@@ -378,6 +378,7 @@ public class Viewer3D {
 	public Viewer3D(final Context context) {
 		this();
 		init(context);
+		if (!SNTUtils.isContextSet()) SNTUtils.setContext(context);
 	}
 
 	/**
@@ -404,8 +405,7 @@ public class Viewer3D {
 		if (interactive) {
 			if (ENGINE == Engine.OFFSCREEN)
 				throw new IllegalArgumentException("Offscreen engine cannot be used interactively");
-			init(new Context(CommandService.class, DisplayService.class, PrefService.class, SNTService.class,
-					UIService.class));
+			init(SNTUtils.getContext());
 		}
 	}
 
