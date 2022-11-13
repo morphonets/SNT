@@ -26,8 +26,12 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Insets;
+import java.awt.Rectangle;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
@@ -36,16 +40,17 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import javax.swing.AbstractAction;
 import javax.swing.AbstractButton;
 import javax.swing.Action;
 import javax.swing.ActionMap;
-import javax.swing.BorderFactory;
 import javax.swing.InputMap;
 import javax.swing.JButton;
-import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -59,51 +64,108 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
-import javax.swing.Timer;
+import javax.swing.ListSelectionModel;
+import javax.swing.MenuElement;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.AbstractTableModel;
-import javax.swing.table.TableCellRenderer;
-import javax.swing.table.TableColumnModel;
+import javax.swing.table.DefaultTableCellRenderer;
 
-import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.PlatformUtils;
 
 import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.gui.IconFactory.GLYPH;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.viewer.Viewer3D;
 
+/**
+ * Implements SNT's Command Palette. This is the same code that is used by the
+ * Script Editor. In the future, this code will likely move to a common library
+ * to avoid this kind of duplication
+ */
 public class SNTCommandFinder {
 
 	private static final String NAME = "Command Palette...";
-	private static final KeyStroke ACCELERATOR= KeyStroke.getKeyStroke(KeyEvent.VK_P,
-			java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_MASK);
-	private static final int TABLE_ROWS = 6;
-	private static int TABLE_WIDTH;
-	static {
-		TABLE_WIDTH = 2 * GuiUtils.renderedWidth("Append Direct Children To Selection  "); // example of a large cmd string
-	}
-	private static JFrame frame;
-	private final SNTUI sntui;
-	private final Viewer3D recViewer;
 
+	/** Settings. Ought to become adjustable some day */
+	private static final KeyStroke ACCELERATOR = KeyStroke.getKeyStroke(KeyEvent.VK_P,
+			java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_DOWN_MASK);
+	private static final int TABLE_ROWS = 6; // no. of commands to be displayed
+	private static final float OPACITY = 1f; // 0-1 range
+	private static final boolean IGNORE_WHITESPACE = true; // Ignore white spaces while matching?
+	private static final boolean INCLUDE_REBUILD_ACTION = false; // Add entry to re-scrape commands?
+	private static Palette frame;
 
-	private Hashtable<String, CommandAction> defaultCmdsHash;
-	private Hashtable<String, CommandAction> otherCmdsHash;
-	private JTextField searchField;
-	private String[] commands;
-	private JTable table;
-	private TableModel tableModel;
-	private boolean recordCmd;
+	private SearchField searchField;
+	private CmdTable table;
+	private final CmdAction noHitsCmd;
+	private final CmdScrapper cmdScrapper;
+	private final List<String> keyWordsToIgnoreInMenuPaths; // menus to be ignored
+	private final int maxPath; // No. of submenus to be included in path description
+	private final String widestCmd; // String defining the width of first column of the palette list
 
 	public SNTCommandFinder(final SNTUI sntui) {
-		this.sntui = sntui;
-		this.recViewer = null;
+		noHitsCmd = new SearchWebCmd();
+		cmdScrapper = new CmdScrapper(sntui);
+		maxPath = 2;
+		keyWordsToIgnoreInMenuPaths = Arrays.asList("Full List", "Batch Scripts"); // alias menus listing cmds elsewhere
+		widestCmd = "Get Branch Points in Brain Compartment ";
 	}
 
 	public SNTCommandFinder(final Viewer3D recViewer) {
-		this.sntui = null;
-		this.recViewer = recViewer;
+		noHitsCmd = new SearchWebCmd();
+		cmdScrapper = new CmdScrapper(); // recViewer commands are all registered in cmdScrapper.otherMap
+		maxPath = 1;
+		keyWordsToIgnoreInMenuPaths = Arrays.asList("Select"); // "None, All, Trees, etc. ": hard to interpreter without
+																// context
+		widestCmd = "Bounding Boxes of Visible Meshes ";
+	}
+
+	void install(final JMenu toolsMenu) {
+		final Action action = new AbstractAction(NAME) {
+
+			private static final long serialVersionUID = -7030359886427866104L;
+
+			@Override
+			public void actionPerformed(final ActionEvent e) {
+				toggleVisibility();
+			}
+
+		};
+		action.putValue(Action.ACCELERATOR_KEY, ACCELERATOR);
+		toolsMenu.add(new JMenuItem(action));
+	}
+
+	Map<String, String> getShortcuts() {
+		if (!cmdScrapper.scrapeSuccessful())
+			cmdScrapper.scrape();
+		final TreeMap<String, String> result = new TreeMap<>();
+		cmdScrapper.getCmdMap().forEach((id, cmdAction) -> {
+			if (cmdAction.hotkey != null && !cmdAction.hotkey.isEmpty())
+				result.put(id, cmdAction.hotkey);
+
+		});
+		return result;
+	}
+
+	GuiUtils getGuiUtils() {
+		return new GuiUtils(getParent());
+	}
+
+	private Action getAction() {
+		final Action action = new AbstractAction(NAME) {
+
+			private static final long serialVersionUID = -7030359886427866104L;
+
+			@Override
+			public void actionPerformed(final ActionEvent e) {
+				toggleVisibility();
+			}
+
+		};
+		action.putValue(Action.ACCELERATOR_KEY, ACCELERATOR);
+		return action;
 	}
 
 	public void dispose() {
@@ -112,220 +174,240 @@ public class SNTCommandFinder {
 		frame = null;
 	}
 
-	public void register(final AbstractButton button, final String descriptionOfPathToButton) {
-		register(button, null, descriptionOfPathToButton);
+	private void hideWindow() {
+		if (frame != null)
+			frame.setVisible(false);
 	}
 
-	public void register(final AbstractButton button, final String descriptionOfComponentHostingButton,
-			final String descriptionOfPathToButton) {
-		if (otherCmdsHash == null)
-			otherCmdsHash = new Hashtable<String, CommandAction>();
-		register(otherCmdsHash, button, descriptionOfComponentHostingButton, descriptionOfPathToButton);
-	}
-
-	private void findAllMenuItemsInSNTUI() {
-		parsePopupMenu(" Image", sntui.getTracingCanvasPopupMenu());
-		parseMenuBar("", sntui.getJMenuBar());
-		parsePopupMenu(" PM", sntui.getPathManager().getJTree().getComponentPopupMenu()); // before PM's menu bar
-		parseMenuBar("", sntui.getPathManager().getJMenuBar());
-	}
-
-	private void parsePopupMenu(final String hostingComponent, final JPopupMenu popup) {
-		if (popup != null) {
-			GuiUtils.getMenuItems(popup).forEach(mi -> {
-				registerMenuItem(mi, hostingComponent, "context menu");
-			});
-		}
-	}
-
-	private void parseMenuBar(final String componentHostingMenu, final JMenuBar menuBar) {
-		final int topLevelMenus = menuBar.getMenuCount();
-		for (int i = 0; i < topLevelMenus; ++i) {
-			final JMenu topLevelMenu = menuBar.getMenu(i);
-			if (topLevelMenu != null && topLevelMenu.getText() != null)
-				parseMenu(componentHostingMenu, topLevelMenu.getText(), topLevelMenu);
-		}
-	}
-
-	private void parseMenu(final String componentHostingMenu, final String path, final JMenu menu) {
-		final int n = menu.getItemCount();
-		for (int i = 0; i < n; ++i) {
-			registerMenuItem(menu.getItem(i), componentHostingMenu, path);
-		}
-	}
-
-	private void registerMenuItem(final JMenuItem m, final String hostingComponent, final String path) {
-		if (m != null) {
-			String label = m.getActionCommand();
-			if (label == null)
-				label = m.getText();
-			if (m instanceof JMenu) {
-				final JMenu subMenu = (JMenu) m;
-				parseMenu(hostingComponent, path + "> " + label, subMenu);
-			} else {
-				register(defaultCmdsHash, m, hostingComponent, path );
+	private void assemblePalette() {
+		frame = new Palette();
+		frame.setLayout(new BorderLayout());
+		searchField = new SearchField();
+		frame.add(searchField, BorderLayout.NORTH);
+		searchField.getDocument().addDocumentListener(new PromptDocumentListener());
+		final InternalKeyListener keyListener = new InternalKeyListener();
+		searchField.addKeyListener(keyListener);
+		table = new CmdTable();
+		table.addKeyListener(keyListener);
+		table.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(final MouseEvent e) {
+				if (e.getClickCount() == 2 && table.getSelectedRow() > -1) {
+					runCmd(table.getInternalModel().getCommand(table.getSelectedRow()));
+				}
 			}
-		}
+		});
+		populateList("");
+		frame.add(table.getScrollPane());
+		frame.pack();
 	}
 
-	private void register(final Hashtable<String, CommandAction> storageHTable, final AbstractButton button,
-			final String descriptionOfComponentHostingButton, final String descriptionOfPath) {
-		String label = button.getActionCommand();
-		if (NAME.equals(label)) return; // do not register command palette
-		if (label == null)
-			label = button.getText();
-		final String trimmedLabel = label.trim();
-		if (trimmedLabel.length() == 0 || trimmedLabel.equals("-"))
-			return;
-		final CommandAction ca = (CommandAction) storageHTable.get(label);
-		if (ca == null)
-			storageHTable.put(label,
-					new CommandAction(label, descriptionOfComponentHostingButton, button, descriptionOfPath));
-		else {
-			ca.button = button;
-			ca.buttonLocationDescription = descriptionOfPath;
-		}
-	}
-
-	private String[] makeRow(final String command, final CommandAction ca) {
-		final String[] result = new String[tableModel.getColumnCount()];
-		result[0] = command;
-		if (ca.buttonLocationDescription != null) {
-			if (ca.buttonHostDescription == null)
-				result[1] = ca.buttonLocationDescription;
-			else
-				result[1] = ca.buttonHostDescription + " " + ca.buttonLocationDescription;
-		}
-		return result;
+	private String[] makeRow(final CmdAction ca) {
+		return new String[] { ca.id, ca.description() };
 	}
 
 	private void populateList(final String matchingSubstring) {
-		final String substring = (matchingSubstring == null) ? "" : matchingSubstring.toLowerCase();
 		final ArrayList<String[]> list = new ArrayList<>();
-		if (commands == null)
-			reloadCommands();
-		for (final String commandName : commands) {
-			final String command = commandName.toLowerCase();
-			final CommandAction ca = (CommandAction) defaultCmdsHash.get(commandName);
-			String menuPath = ca.buttonLocationDescription;
-			if (menuPath == null)
-				menuPath = "";
-			menuPath = menuPath.toLowerCase();
-			if (command.indexOf(substring) > -1 || menuPath.indexOf(substring) > -1) {
-				final String[] row = makeRow(commandName, ca);
-				list.add(row);
+		if (!cmdScrapper.scrapeSuccessful())
+			cmdScrapper.scrape();
+		cmdScrapper.getCmdMap().forEach((id, cmd) -> {
+			if (cmd.matches(matchingSubstring)) {
+				list.add(makeRow(cmd));
 			}
+		});
+		if (list.isEmpty()) {
+			list.add(makeRow(noHitsCmd));
 		}
-		tableModel.setData(list);
+		table.getInternalModel().setData(list);
 		if (searchField != null)
 			searchField.requestFocus();
-//		if (frame != null && frame.isVisible() && table != null)
-//			resizeRowHeight();
 	}
 
+	private void runCmd(final String command) {
+		SwingUtilities.invokeLater(() -> {
+			if (CmdScrapper.REBUILD_ID.equals(command)) {
+				cmdScrapper.scrape();
+				table.clearSelection();
+				searchField.setText("");
+				searchField.requestFocus();
+				frame.setVisible(true);
+				return;
+			}
+			CmdAction cmd;
+			if (noHitsCmd != null && command.equals(noHitsCmd.id)) {
+				cmd = noHitsCmd;
+			} else {
+				cmd = cmdScrapper.getCmdMap().get(command);
+			}
+			if (cmd != null) {
+				final boolean hasButton = cmd.button != null;
+				if (hasButton && !cmd.button.isEnabled()) {
+					getGuiUtils().error("Command is currently disabled. Either execution requirements "
+							+ "are unmet or it is not supported by current mode.");
+					frame.setVisible(true);
+					return;
+				}
+				hideWindow(); // hide before running, in case command opens a dialog
+				if (hasButton) {
+					cmd.button.doClick();
+				} else if (cmd.action != null) {
+					cmd.action.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
+				}
+				if (cmdScrapper.sntui != null && SNTUtils.isDebugMode())
+					recordCommand(cmd);
+			}
+		});
+	}
 
-	private void recordCommand(final CommandAction cmdAction) {
-		if (!recordCmd) return;
-		if (cmdAction.cmdName.startsWith("<HTML>") || cmdAction.buttonLocationDescription.contains("Scripts")) {
+	private void recordCommand(final CmdAction cmdAction) {
+		if (cmdAction.id.startsWith("<HTML>") || cmdAction.description().startsWith("Scripts")) {
 			System.out.println("SNT Command is not recordable...\n");
 			return;
 		}
 		final StringBuilder sb = new StringBuilder();
 		sb.append("#@SNTService snt\n");
-		final boolean pmCmd = cmdAction.buttonHostDescription.startsWith("PM");
+		boolean tagCmd = cmdAction.pathDescription().contains("Tag");
+		boolean pmCmd = tagCmd || cmdAction.pathDescription().startsWith("PM")
+				|| cmdAction.pathDescription().startsWith("Edit") || cmdAction.pathDescription().startsWith("Refine")
+				|| cmdAction.pathDescription().startsWith("Fill") || cmdAction.pathDescription().startsWith("Analyze");
+		boolean promptCmd = cmdAction.id.endsWith("...");
 		if (pmCmd) {
 			sb.append("snt.getUI().getPathManager().");
-			if (cmdAction.buttonLocationDescription.contains("Tag") && !cmdAction.cmdName.contains("..."))
+			if (tagCmd && !promptCmd)
 				sb.append("applyDefaultTags(");
 			else
 				sb.append("runCommand(");
-			sb.append("\"").append(cmdAction.cmdName).append("\"").append(");");
+			sb.append("\"").append(cmdAction.id).append("\"").append(");");
 		} else {
 			sb.append("snt.getUI().");
-			if (pmCmd && cmdAction.cmdName.contains("...")) {
-				sb.append("runCommand(").append("\"").append(cmdAction.cmdName).append("\"")
+			if (pmCmd && promptCmd) {
+				sb.append("runCommand(").append("\"").append(cmdAction.id).append("\"")
 						.append(", \"[optional prompt options...]\");");
 			} else {
-				sb.append("runCommand(").append("\"").append(cmdAction.cmdName).append("\"").append(");");
+				sb.append("runCommand(").append("\"").append(cmdAction.id).append("\"").append(");");
 			}
 		}
-		sb.append("\n");
+		sb.append("\n\n");
 		System.out.println(sb.toString());
 	}
 
-	private void shortcutsMsg() {
-		final GuiUtils gUtils = new GuiUtils(frame.getContentPane());
-		gUtils.setTmpMsgTimeOut(4000);
-		gUtils.tempMsg( //
-				"<HTML><table>" //
-				+ " <tr>" //
-				+ "  <td>&uarr; &darr;</td>" //
-				+ "  <td>Select commands</td>" //
-				+ " </tr>" //
-				+ " <tr>" //
-				+ "  <td>&crarr;</td>" //
-				+ "  <td>Run selected command&nbsp&nbsp</td>" //
-				+ " </tr>" //
-				+ " <tr>" //
-				+ "  <td>A-Z</td>" //
-				+ "  <td>Alphabetic scroll</td>" //
-				+ " </tr>" //
-				+ " <tr>" //
-				+ "  <td><&#9003;</td>" //
-				+ "  <td>Activate search field</td>" //
-				+ " </tr>" //
-				+ " <tr><td><&nbsp;</td><td>&nbsp;</td></tr>" // spacer
-				+ " <tr>" //
-				+ "  <td>" + GuiUtils.ctrlKey() + "+Shift+P&nbsp;&nbsp;</td>" //
-				+ "  <td>Toggle palette visibility&nbsp;</td>" //
-				+ " </tr>" //
-				+ " <tr>" //
-				+ "  <td>Esc</td>" //
-				+ "  <td>Dismiss</td>" //
-				+ " </tr>" //
-				+ "</table>");
+	private Window getParent() {
+		return javax.swing.FocusManager.getCurrentManager().getActiveWindow();
 	}
 
-	private void runCommand(final String command) {
-		hideWindow(); // hide before running, in case command opens a dialog
-		if (defaultCmdsHash.get(command) != null) {
-			defaultCmdsHash.get(command).button.doClick();
-			recordCommand(defaultCmdsHash.get(command));
+	public void toggleVisibility() {
+		if (frame == null || table == null) {
+			assemblePalette();
+		}
+		if (frame.isVisible()) {
+			hideWindow();
 		} else {
-			recordCommand(otherCmdsHash.get(command));
-			otherCmdsHash.get(command).button.doClick();
+			frame.center(getParent());
+			table.clearSelection();
+			frame.setVisible(true);
+			searchField.requestFocus();
 		}
 	}
 
-	class CommandAction {
-		CommandAction(final String cmdName, final String descriptionOfHostingGUIElement, final AbstractButton button,
-				final String descriptionOfLocation) {
-			this.cmdName = cmdName;
-			this.buttonHostDescription = descriptionOfHostingGUIElement;
-			this.button = button;
-			this.buttonLocationDescription = descriptionOfLocation;
+	public void attach(final JDialog dialog) {
+		final int condition = JPanel.WHEN_IN_FOCUSED_WINDOW;
+		final InputMap inputMap = ((JPanel) dialog.getContentPane()).getInputMap(condition);
+		final ActionMap actionMap = ((JPanel) dialog.getContentPane()).getActionMap();
+		inputMap.put(ACCELERATOR, NAME);
+		actionMap.put(NAME, getAction());
+	}
+
+	public JButton getButton() {
+		final JButton button = new JButton(getAction());
+		button.setText(null);
+		button.setIcon(IconFactory.getButtonIcon(IconFactory.GLYPH.SEARCH));
+		button.getInputMap().put(ACCELERATOR, NAME);
+		button.setToolTipText(NAME + "  " + GuiUtils.ctrlKey() + "+Shift+P");
+		return button;
+	}
+
+	public AbstractButton getMenuItem(final JMenuBar menubar, final boolean asButton) {
+		final AbstractButton jmi = (asButton) ? GuiUtils.menubarButton(IconFactory.GLYPH.SEARCH, getAction())
+				: new JMenuItem(getAction());
+		if (asButton) {
+			jmi.setToolTipText(NAME + "  " + GuiUtils.ctrlKey() + "+Shift+P");
+		} else {
+			jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH));
+		}
+		return jmi;
+	}
+
+	public void register(final AbstractButton button, final String... description) {
+		cmdScrapper.registerOther(button, new ArrayList<>(Arrays.asList(description)));
+	}
+
+	public void register(final AbstractButton button, final List<String> pathDescription) {
+		cmdScrapper.registerOther(button, pathDescription);
+	}
+
+	public void setVisible(final boolean b) {
+		if (!b) {
+			hideWindow();
+			return;
+		}
+		toggleVisibility();
+	}
+
+	private static class SearchField extends GuiUtils.TextFieldWithPlaceholder {
+		private static final long serialVersionUID = 1L;
+		private static final int PADDING = 4;
+		static final Font REF_FONT = refFont();
+
+		SearchField() {
+			super(" Search for commands and actions (e.g., Sholl)");
+			setMargin(new Insets(PADDING, PADDING, PADDING, PADDING));
+			setFont(REF_FONT.deriveFont(REF_FONT.getSize() * 1.5f));
 		}
 
-		final String cmdName;
-		AbstractButton button;
-		String buttonHostDescription;
-		String buttonLocationDescription;
+		Font getPlaceholderFont() {
+			return getFont().deriveFont(Font.ITALIC);
+		}
 
-		@Override
-		public String toString() {
-			return "cmdName: " + cmdName + ", button: " + button + ", host: " + buttonLocationDescription;
+		static Font refFont() {
+			try {
+				return UIManager.getFont("TextField.font");
+			} catch (final Exception ignored) {
+				return new JTextField().getFont();
+			}
 		}
 	}
 
-	class InternalKeyListener extends KeyAdapter {
+	private class PromptDocumentListener implements DocumentListener {
+		public void insertUpdate(final DocumentEvent e) {
+			populateList(getQueryFromSearchField());
+		}
+
+		public void removeUpdate(final DocumentEvent e) {
+			populateList(getQueryFromSearchField());
+		}
+
+		public void changedUpdate(final DocumentEvent e) {
+			populateList(getQueryFromSearchField());
+		}
+
+		String getQueryFromSearchField() {
+			final String text = searchField.getText();
+			if (text == null)
+				return "";
+			final String query = text.toLowerCase();
+			return (IGNORE_WHITESPACE) ? query.replaceAll("\\s+", "") : query;
+		}
+	}
+
+	private class InternalKeyListener extends KeyAdapter {
 
 		@Override
 		public void keyPressed(final KeyEvent ke) {
 			final int key = ke.getKeyCode();
-			final int flags = ke.getModifiers();
-			final int items = tableModel.getRowCount();
+			final int flags = ke.getModifiersEx();
+			final int items = table.getInternalModel().getRowCount();
 			final Object source = ke.getSource();
-			final boolean meta = ((flags & KeyEvent.META_MASK) != 0) || ((flags & KeyEvent.CTRL_MASK) != 0);
+			final boolean meta = ((flags & KeyEvent.META_DOWN_MASK) != 0) || ((flags & KeyEvent.CTRL_DOWN_MASK) != 0);
 			if (key == KeyEvent.VK_ESCAPE || (key == KeyEvent.VK_W && meta) || (key == KeyEvent.VK_P && meta)) {
 				hideWindow();
 			} else if (source == searchField) {
@@ -335,7 +417,7 @@ public class SNTCommandFinder {
 				 */
 				if (key == KeyEvent.VK_ENTER) {
 					if (1 == items)
-						runCommand(tableModel.getCommand(0));
+						runCmd(table.getInternalModel().getCommand(0));
 				}
 				/*
 				 * If you hit the up or down arrows in the text field, move the focus to the
@@ -368,336 +450,159 @@ public class SNTCommandFinder {
 					ke.consume();
 					final int row = table.getSelectedRow();
 					if (row >= 0)
-						runCommand(tableModel.getCommand(row));
+						runCmd(table.getInternalModel().getCommand(row));
 					/* Loop through the list using the arrow keys */
 				} else if (key == KeyEvent.VK_UP) {
 					if (table.getSelectedRow() == 0)
-						table.setRowSelectionInterval(tableModel.getRowCount() - 1, tableModel.getRowCount() - 1);
+						table.setRowSelectionInterval(table.getRowCount() - 1, table.getRowCount() - 1);
 				} else if (key == KeyEvent.VK_DOWN) {
-					if (table.getSelectedRow() == tableModel.getRowCount() - 1)
+					if (table.getSelectedRow() == table.getRowCount() - 1)
 						table.setRowSelectionInterval(0, 0);
 				}
 			}
 		}
 	}
 
-	class PromptDocumentListener implements DocumentListener {
-		public void insertUpdate(final DocumentEvent e) {
-			populateList(searchField.getText());
-		}
-
-		public void removeUpdate(final DocumentEvent e) {
-			populateList(searchField.getText());
-		}
-
-		public void changedUpdate(final DocumentEvent e) {
-			populateList(searchField.getText());
-		}
-	}
-
-	public void reloadCommands() {
-		defaultCmdsHash = new Hashtable<String, CommandAction>();
-		if (otherCmdsHash != null)
-			defaultCmdsHash.putAll(otherCmdsHash);
-
-		if (frame != null)
-			frame.setVisible(false); // Is this really needed?
-		if (sntui != null)
-			findAllMenuItemsInSNTUI();
-
-		/*
-		 * Sort the commands, generate list labels for each and put them into a hash:
-		 */
-		commands = (String[]) defaultCmdsHash.keySet().toArray(new String[0]);
-		Arrays.sort(commands);
-
-	}
-
-	private void init() {
-		if (defaultCmdsHash != null)
-			return; // no need to proceed
-		reloadCommands();
-	}
-
-	private void hideWindow() {
-		if (frame != null)
-			frame.setVisible(false);
-	}
-
-	private void assembleFrame() {
-		if (frame != null)
-			return;
-		init();
-		frame = new JFrame("Command Palette") {
-			private static final long serialVersionUID = 6568953182481036426L;
-
-			public void dispose() {
-				frame = null;
-				super.dispose();
-			}
-		};
-		frame.setUndecorated(true);
-		frame.setAlwaysOnTop(true);
-		frame.getRootPane().setWindowDecorationStyle(JRootPane.NONE);
-		final Container contentPane = frame.getContentPane();
-		contentPane.setLayout(new BorderLayout());
-		frame.setUndecorated(true);
-		frame.setAlwaysOnTop(true);
-		//frame.setOpacity(.95f);
-		frame.addWindowListener(new WindowAdapter() {
-			@Override
-			public void windowClosing(final WindowEvent e) {
-				hideWindow();
-			}
-
-			@Override
-			public void windowIconified(final WindowEvent e) {
-				hideWindow();
-			}
-
-			@Override
-			public void windowDeactivated(final WindowEvent e) {
-				hideWindow();
-			}
-		});
-
-		final JPanel northPanel = new JPanel(new BorderLayout());
-		final JButton options = new JButton("\u22EE");
-		//options.setOpaque(false);
-		final JPopupMenu optionsMenu = new JPopupMenu();
-		options.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mousePressed(final MouseEvent e) {
-				optionsMenu.show(options, 0, options.getHeight());
-			}
-		});
-		final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Enable Command Recording", recordCmd);
-		jcmi.setEnabled(sntui != null);
-		optionsMenu.add(jcmi);
-		jcmi.addActionListener(e -> {
-			recordCmd = jcmi.isSelected();
-			System.out.println("Recording of selected commands enabled: " + recordCmd);
-		});
-		final JMenuItem jmi = new JMenuItem("Command Palette Shortcuts...");
-		optionsMenu.add(jmi);
-		jmi.addActionListener(e -> shortcutsMsg());
-
-		northPanel.add(options, BorderLayout.WEST);
-		searchField = GuiUtils.textField("Search");
-		searchField.getDocument().addDocumentListener(new PromptDocumentListener());
-		final InternalKeyListener keyListener = new InternalKeyListener();
-		searchField.addKeyListener(keyListener);
-		northPanel.add(searchField);
-		contentPane.add(northPanel, BorderLayout.NORTH);
-
-		tableModel = new TableModel();
-		table = new JTable(tableModel);
-		populateList("");
-		table.setAutoCreateRowSorter(true);
-		table.setShowVerticalLines(false);
-		// table.setShowHorizontalLines(false);
-		table.setRowSelectionAllowed(true);
-		table.setColumnSelectionAllowed(false);
-		//table.getTableHeader().setDefaultRenderer(new TableHeaderRenderer(table.getTableHeader().getDefaultRenderer()));
-
-		// Adjustments to row height and column width
-		resizeColumnWidthAndRowHeight();
-		table.setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
-		final Dimension dim = new Dimension(TABLE_WIDTH, table.getRowHeight() * TABLE_ROWS);
-		//table.setPreferredSize(dim);
-		table.setPreferredScrollableViewportSize(dim);
-		table.addKeyListener(keyListener);
-		table.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(final MouseEvent e) {
-				if (e.getClickCount() == 2 && table.getSelectedRow() > -1) {
-					runCommand(tableModel.getCommand(table.getSelectedRow()));
-				}
-			}
-		});
-
-		// Auto-scroll table using keystrokes
-		table.addKeyListener(new KeyAdapter() {
-			public void keyTyped(final KeyEvent evt) {
-				if (evt.isControlDown() || evt.isMetaDown())
-					return;
-				final int nRows = tableModel.getRowCount();
-				final char ch = Character.toLowerCase(evt.getKeyChar());
-				if (!Character.isLetterOrDigit(ch)) {
-					return; // Ignore searches for non alpha-numeric characters
-				}
-				final int sRow = table.getSelectedRow();
-				for (int row = (sRow + 1) % nRows; row != sRow; row = (row + 1) % nRows) {
-					final String rowData = tableModel.getValueAt(row, 0).toString();
-					final char rowCh = Character.toLowerCase(rowData.charAt(0));
-					if (ch == rowCh) {
-						table.setRowSelectionInterval(row, row);
-						table.scrollRectToVisible(table.getCellRect(row, 0, true));
-						break;
-					}
-				}
-			}
-		});
-
-		final JScrollPane scrollPane = new JScrollPane(table, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-				JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-		contentPane.add(scrollPane, BorderLayout.CENTER);
-
-		// Make frame resizable
-		final int BORDER = (ij.IJ.isMacOSX()) ? 1 : 2;
-		frame.getRootPane().setBorder(BorderFactory.createEmptyBorder(0, 0, BORDER, BORDER));
-		new ComponentResizer(frame); 
-		frame.pack();
-
-	}
-
-	private Component getActiveWindow() {
-		if (sntui != null) {
-			if (sntui.isActive()) return sntui;
-			if (sntui.getPathManager().isActive()) return sntui.getPathManager();
-			if (sntui.getFillManager().isActive()) return sntui.getFillManager();
-		} else if (recViewer != null) {
-			return recViewer.getFrame();
-		}
-		return null;
-	}
-
-	private void toggleVisibility(final Component parent) {
-		if (frame == null) {
-			assembleFrame();
-		}
-		if (frame.isVisible()) {
-			setVisible(false);
-		} else {
-			if (parent == null) 
-				AWTWindows.centerWindow(frame);
-			else
-				AWTWindows.centerWindow(parent.getBounds(), frame);
-			setVisible(true);
-		}
-	}
-
-	public void toggleVisibility() {
-		toggleVisibility(getActiveWindow());
-	}
-
-	public void setVisible(final boolean b) {
-		if (!b) {
-			hideWindow();
-			return;
-		}
-		if (frame == null) {
-			assembleFrame();
-		}
-		frame.setVisible(true);
-		if (searchField != null) searchField.requestFocus();
-	}
-
-	private Action getAction() {
-		final Action action = new AbstractAction(NAME) {
-
-			private static final long serialVersionUID = -7030359886427866104L;
-
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				toggleVisibility();
-			}
-
-		};
-		action.putValue(Action.ACCELERATOR_KEY, ACCELERATOR);
-		return action;
-	}
-
-	public void attach(final JDialog dialog) {
-		final int condition = JPanel.WHEN_IN_FOCUSED_WINDOW;
-		final InputMap inputMap = ((JPanel) dialog.getContentPane()).getInputMap(condition);
-		final ActionMap actionMap = ((JPanel) dialog.getContentPane()).getActionMap();
-		inputMap.put(ACCELERATOR, NAME);
-		actionMap.put(NAME, getAction());
-	}
-
-	public AbstractButton getMenuItem(final JMenuBar menubar, final boolean asButton) {
-		final AbstractButton jmi = (asButton) ? GuiUtils.menubarButton(IconFactory.GLYPH.SEARCH, getAction())
-				: new JMenuItem(getAction());
-		if (asButton) {
-			jmi.setToolTipText(NAME + "  " + GuiUtils.ctrlKey() + "+Shift+P");
-		} else {
-			jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH));
-		}
-		return jmi;
-	}
-
-	public JButton getButton() {
-		final JButton button = new JButton(getAction());
-		button.setText(null);
-		button.setIcon(IconFactory.getButtonIcon(IconFactory.GLYPH.SEARCH));
-		button.getInputMap().put(ACCELERATOR, NAME);
-		button.setToolTipText(NAME + "  " + GuiUtils.ctrlKey() + "+Shift+P");
-		return button;
-	}
-
-	private void resizeColumnWidthAndRowHeight() {
-		//resizeRowHeight();
-		final int MIN_ROW_WIDTH = 20;
-		final int MAX_ROW_WIDTH = TABLE_WIDTH * 3/4;
-		final TableColumnModel columnModel = table.getColumnModel();
-		for (int column = 0; column < table.getColumnCount(); column++) {
-			int width = MIN_ROW_WIDTH;
-			for (int row = 0; row < table.getRowCount(); row++) {
-				final TableCellRenderer renderer = table.getCellRenderer(row, column);
-				final Component comp = table.prepareRenderer(renderer, row, column);
-				width = Math.max(comp.getPreferredSize().width + 1, width);
-			}
-			if (width > MAX_ROW_WIDTH)
-				width = MAX_ROW_WIDTH;
-			columnModel.getColumn(column).setPreferredWidth(width);
-		}
-	}
-
-	@SuppressWarnings("unused")
-	private void resizeRowHeight() {
-		// this just seems to be needed on Linux, in which cells appear truncated
-		// vertically? /// -----> no longer needed with FlatLaf look and feel
-		if (PlatformUtils.isLinux()) {
-			final int ROW_HEIGHT = new JLabel().getFont().getSize();
-			for (int row = 0; row < table.getRowCount(); row++) {
-				table.setRowHeight(row, ROW_HEIGHT);
-			}
-		}
-	}
-
-	private class TableModel extends AbstractTableModel {
+	private class Palette extends JFrame {
 		private static final long serialVersionUID = 1L;
-		protected ArrayList<String[]> list;
-		public final static int COLUMNS = 2;
 
-		public TableModel() {
-			list = new ArrayList<>();
+		Palette() {
+			super("Command Palette");
+			setUndecorated(true);
+			setAlwaysOnTop(true);
+			setOpacity(OPACITY);
+			getRootPane().setWindowDecorationStyle(JRootPane.NONE);
+			// it should NOT be possible to minimize this frame, but just to
+			// be safe, we'll ensure the frame is never in an awkward state
+			addWindowListener(new WindowAdapter() {
+				@Override
+				public void windowClosing(final WindowEvent e) {
+					hideWindow();
+				}
+
+				@Override
+				public void windowIconified(final WindowEvent e) {
+					hideWindow();
+				}
+
+				@Override
+				public void windowDeactivated(final WindowEvent e) {
+					hideWindow();
+				}
+			});
 		}
 
-		public void setData(final ArrayList<String[]> list) {
+		void center(final Container component) {
+			final Rectangle bounds = component.getBounds();
+			final Dimension w = getSize();
+			int x = bounds.x + (bounds.width - w.width) / 2;
+			int y = bounds.y + (bounds.height - w.height) / 2;
+			if (x < 0)
+				x = 0;
+			if (y < 0)
+				y = 0;
+			setLocation(x, y);
+		}
+	}
+
+	private class CmdTable extends JTable {
+		private static final long serialVersionUID = 1L;
+
+		CmdTable() {
+			super(new CmdTableModel());
+			setAutoCreateRowSorter(false);
+			setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+			setShowGrid(false);
+			setRowSelectionAllowed(true);
+			setColumnSelectionAllowed(false);
+			setTableHeader(null);
+			setAutoResizeMode(AUTO_RESIZE_LAST_COLUMN);
+			final CmdTableRenderer renderer = new CmdTableRenderer();
+			final int col0Width = renderer.maxWidh(0);
+			final int col1Width = renderer.maxWidh(1);
+			setDefaultRenderer(Object.class, renderer);
+			getColumnModel().getColumn(0).setMaxWidth(col0Width);
+			getColumnModel().getColumn(1).setMaxWidth(col1Width);
+			setRowHeight(renderer.rowHeight());
+			int height = TABLE_ROWS * getRowHeight();
+			if (getRowMargin() > 0)
+				height *= getRowMargin();
+			setPreferredScrollableViewportSize(new Dimension(col0Width + col1Width, height));
+			setFillsViewportHeight(true);
+		}
+
+		private JScrollPane getScrollPane() {
+			final JScrollPane scrollPane = new JScrollPane(this, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+					JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+			scrollPane.setWheelScrollingEnabled(true);
+			return scrollPane;
+		}
+
+		CmdTableModel getInternalModel() {
+			return (CmdTableModel) getModel();
+		}
+
+	}
+
+	private class CmdTableRenderer extends DefaultTableCellRenderer {
+
+		private static final long serialVersionUID = 1L;
+		final Font col0Font = SearchField.REF_FONT.deriveFont(SearchField.REF_FONT.getSize() * 1.2f);
+		final Font col1Font = SearchField.REF_FONT.deriveFont(SearchField.REF_FONT.getSize() * 1f);
+
+		public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected,
+				final boolean hasFocus, final int row, final int column) {
+			final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+			if (column == 1) {
+				setHorizontalAlignment(JLabel.RIGHT);
+				setEnabled(false);
+				setFont(col1Font);
+			} else {
+				setHorizontalAlignment(JLabel.LEFT);
+				setEnabled(true);
+				setFont(col0Font);
+			}
+			return c;
+		}
+
+		int rowHeight() {
+			return (int) (col0Font.getSize() * 1.5f);
+		}
+
+		int maxWidh(final int columnIndex) {
+			if (columnIndex == 1)
+				return SwingUtilities.computeStringWidth(getFontMetrics(col1Font),
+						"A really long menu>And long submenu>");
+			return SwingUtilities.computeStringWidth(getFontMetrics(col0Font), widestCmd);
+		}
+
+	}
+
+	private class CmdTableModel extends AbstractTableModel {
+		private static final long serialVersionUID = 1L;
+		private final static int COLUMNS = 2;
+		List<String[]> list;
+
+		void setData(final ArrayList<String[]> list) {
 			this.list = list;
 			fireTableDataChanged();
 		}
 
+		String getCommand(final int row) {
+			if (list.size() == 1)
+				return (String) getValueAt(row, 0);
+			else if (row < 0 || row >= list.size())
+				return "";
+			else
+				return (String) getValueAt(row, 0);
+		}
+
+		@Override
 		public int getColumnCount() {
 			return COLUMNS;
 		}
 
-		public String getColumnName(final int column) {
-			switch (column) {
-			case 0:
-				return "Command";
-			case 1:
-				return "Where?";
-			}
-			return null;
-		}
-
-		public int getRowCount() {
-			return list.size();
-		}
-
+		@Override
 		public Object getValueAt(final int row, final int column) {
 			if (row >= list.size() || column >= COLUMNS)
 				return null;
@@ -705,66 +610,440 @@ public class SNTCommandFinder {
 			return strings[column];
 		}
 
-		public String getCommand(final int row) {
-			if (row < 0 || row >= list.size())
-				return "";
-			else
-				return (String) getValueAt(row, 0);
+		@Override
+		public int getRowCount() {
+			return list.size();
 		}
 
 	}
 
-	@SuppressWarnings("unused")
-	private class TableHeaderRenderer implements TableCellRenderer {
-		// https://stackoverflow.com/a/7794786
+	private class CmdAction {
 
-		private final TableCellRenderer delegate;
+		final String id;
+		List<String> path;
+		String pathDescription;
+		String hotkey;
+		AbstractButton button;
+		Action action;
 
-		public TableHeaderRenderer(final TableCellRenderer delegate) {
-			this.delegate = delegate;
+		CmdAction(final String cmdName) {
+			this.id = capitalize(cmdName);
+			this.path = new ArrayList<>();
+			this.hotkey = "";
 		}
 
-		@Override
-		public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected,
-				final boolean hasFocus, final int row, final int column) {
+		CmdAction(final String cmdName, final AbstractButton button) {
+			this(cmdName);
+			if (button.getAction() != null && button.getAction() instanceof AbstractAction)
+				action = (AbstractAction) button.getAction();
+			else
+				this.button = button;
+		}
 
-			final Component c = delegate.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-			if (c instanceof JLabel) {
-				final JLabel label = (JLabel) c;
-				switch (label.getText()) {
-				case "Dialog":
-					final JLabel replacementLabel = new JLabel(IconFactory.getMenuIcon(GLYPH.WINDOWS));
-					replacementLabel.setBorder(label.getBorder());
-					replacementLabel.setBackground(label.getBackground());
-					replacementLabel.setForeground(label.getForeground());
-					replacementLabel.setToolTipText("Dialog associated with command");
-					return replacementLabel;
-				default:
-					break; // do nothing. Customizations for other columns could go here
+		String pathDescription() {
+			if (pathDescription == null) {
+				final List<String> tail = path.subList(Math.max(path.size() - maxPath, 0), path.size());
+				final StringBuilder sb = new StringBuilder();
+				final Iterator<String> it = tail.iterator();
+				if (it.hasNext()) {
+					sb.append(it.next());
+					while (it.hasNext()) {
+						sb.append('〉').append(it.next());
+					}
+				}
+				pathDescription = sb.toString();
+			}
+			return pathDescription;
+		}
+
+		String description() {
+			if (!hotkey.isEmpty())
+				return hotkey;
+			if (!path.isEmpty())
+				return pathDescription();
+			return "";
+		}
+
+		boolean matches(final String lowercaseQuery) {
+			if (IGNORE_WHITESPACE) {
+				return id.toLowerCase().replaceAll("\\s+", "").contains(lowercaseQuery)
+						|| pathDescription().toLowerCase().contains(lowercaseQuery);
+			}
+			return id.toLowerCase().contains(lowercaseQuery)
+					|| pathDescription().toLowerCase().contains(lowercaseQuery);
+		}
+
+		void setkeyString(final KeyStroke key) {
+			if (hotkey.isEmpty()) {
+				hotkey = prettifiedKey(key);
+			} else {
+				final String oldHotkey = hotkey;
+				final String newHotKey = prettifiedKey(key);
+				if (!oldHotkey.contains(newHotKey)) {
+					hotkey = oldHotkey + " or " + newHotKey;
 				}
 			}
-			return c;
+		}
+
+		private String capitalize(final String string) {
+			return string.substring(0, 1).toUpperCase() + string.substring(1);
+		}
+
+		private String prettifiedKey(final KeyStroke key) {
+			if (key == null)
+				return "";
+			final StringBuilder s = new StringBuilder();
+			final int m = key.getModifiers();
+			if ((m & InputEvent.CTRL_DOWN_MASK) != 0) {
+				s.append((PlatformUtils.isMac()) ? "⌃ " : "Ctrl ");
+			}
+			if ((m & InputEvent.META_DOWN_MASK) != 0) {
+				s.append((PlatformUtils.isMac()) ? "⌘ " : "Ctrl ");
+			}
+			if ((m & InputEvent.ALT_DOWN_MASK) != 0) {
+				s.append((PlatformUtils.isMac()) ? "⎇ " : "Alt ");
+			}
+			if ((m & InputEvent.SHIFT_DOWN_MASK) != 0) {
+				s.append("⇧ ");
+			}
+			if ((m & InputEvent.BUTTON1_DOWN_MASK) != 0) {
+				s.append("L-click ");
+			}
+			if ((m & InputEvent.BUTTON2_DOWN_MASK) != 0) {
+				s.append("R-click ");
+			}
+			if ((m & InputEvent.BUTTON3_DOWN_MASK) != 0) {
+				s.append("M-click ");
+			}
+			switch (key.getKeyEventType()) {
+			case KeyEvent.KEY_TYPED:
+				s.append(key.getKeyChar() + " ");
+				break;
+			case KeyEvent.KEY_PRESSED:
+			case KeyEvent.KEY_RELEASED:
+				s.append(getKeyText(key.getKeyCode()) + " ");
+				break;
+			default:
+				break;
+			}
+			return s.toString();
+		}
+
+		String getKeyText(final int keyCode) {
+			if (keyCode >= KeyEvent.VK_0 && keyCode <= KeyEvent.VK_9
+					|| keyCode >= KeyEvent.VK_A && keyCode <= KeyEvent.VK_Z) {
+				return String.valueOf((char) keyCode);
+			}
+			switch (keyCode) {
+			case KeyEvent.VK_COMMA:
+				return ",";
+			case KeyEvent.VK_PERIOD:
+				return ".";
+			case KeyEvent.VK_SLASH:
+				return "/";
+			case KeyEvent.VK_SEMICOLON:
+				return ";";
+			case KeyEvent.VK_EQUALS:
+				return "=";
+			case KeyEvent.VK_OPEN_BRACKET:
+				return "[";
+			case KeyEvent.VK_BACK_SLASH:
+				return "\\";
+			case KeyEvent.VK_CLOSE_BRACKET:
+				return "]";
+			case KeyEvent.VK_ENTER:
+				return "↵";
+			case KeyEvent.VK_BACK_SPACE:
+				return "⌫";
+			case KeyEvent.VK_TAB:
+				return "↹";
+			case KeyEvent.VK_CANCEL:
+				return "Cancel";
+			case KeyEvent.VK_CLEAR:
+				return "Clear";
+			case KeyEvent.VK_PAUSE:
+				return "Pause";
+			case KeyEvent.VK_CAPS_LOCK:
+				return "Caps Lock";
+			case KeyEvent.VK_ESCAPE:
+				return "Esc";
+			case KeyEvent.VK_SPACE:
+				return "Space";
+			case KeyEvent.VK_PAGE_UP:
+				return "⇞";
+			case KeyEvent.VK_PAGE_DOWN:
+				return "⇟";
+			case KeyEvent.VK_END:
+				return "END";
+			case KeyEvent.VK_HOME:
+				return "Home"; // "⌂";
+			case KeyEvent.VK_LEFT:
+				return "←";
+			case KeyEvent.VK_UP:
+				return "↑";
+			case KeyEvent.VK_RIGHT:
+				return "→";
+			case KeyEvent.VK_DOWN:
+				return "↓";
+			case KeyEvent.VK_MULTIPLY:
+				return "[Num ×]";
+			case KeyEvent.VK_ADD:
+				return "[Num +]";
+			case KeyEvent.VK_SUBTRACT:
+				return "[Num −]";
+			case KeyEvent.VK_DIVIDE:
+				return "[Num /]";
+			case KeyEvent.VK_DELETE:
+				return "⌦";
+			case KeyEvent.VK_INSERT:
+				return "Ins";
+			case KeyEvent.VK_BACK_QUOTE:
+				return "`";
+			case KeyEvent.VK_QUOTE:
+				return "'";
+			case KeyEvent.VK_AMPERSAND:
+				return "&";
+			case KeyEvent.VK_ASTERISK:
+				return "*";
+			case KeyEvent.VK_QUOTEDBL:
+				return "\"";
+			case KeyEvent.VK_LESS:
+				return "<";
+			case KeyEvent.VK_GREATER:
+				return ">";
+			case KeyEvent.VK_BRACELEFT:
+				return "{";
+			case KeyEvent.VK_BRACERIGHT:
+				return "}";
+			case KeyEvent.VK_COLON:
+				return ",";
+			case KeyEvent.VK_CIRCUMFLEX:
+				return "^";
+			case KeyEvent.VK_DEAD_TILDE:
+				return "~";
+			case KeyEvent.VK_DOLLAR:
+				return "$";
+			case KeyEvent.VK_EXCLAMATION_MARK:
+				return "!";
+			case KeyEvent.VK_LEFT_PARENTHESIS:
+				return "(";
+			case KeyEvent.VK_MINUS:
+				return "-";
+			case KeyEvent.VK_PLUS:
+				return "+";
+			case KeyEvent.VK_RIGHT_PARENTHESIS:
+				return ")";
+			case KeyEvent.VK_UNDERSCORE:
+				return "_";
+			default:
+				return KeyEvent.getKeyText(keyCode);
+			}
 		}
 	}
 
-	class ComponentWithFocusTimer {
-		final Component component;
-		final Timer focusTimer;
+	private class CmdScrapper {
+		static final String REBUILD_ID = "Rebuild Actions Index";
+		private final TreeMap<String, CmdAction> cmdMap;
+		private TreeMap<String, CmdAction> otherMap;
+		private final SNTUI sntui;
 
-		ComponentWithFocusTimer(final Component c) {
-			this.component = c;
-			focusTimer = new Timer(20, new ActionListener() {
-				// HACK: ensure frame does not flicker upon repeated clicks on relativeToComponent
-				private int count = 0;
-				private final int maxCount = 100;
+		CmdScrapper() {
+			cmdMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+			this.sntui = null;
+		}
+
+		public CmdScrapper(final SNTUI sntui) {
+			cmdMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+			this.sntui = sntui;
+		}
+
+		List<AnnotatedComponent> getComponents() {
+			final List<AnnotatedComponent> components = new ArrayList<>();
+			if (sntui != null) {
+				components.add(new AnnotatedComponent(sntui.getTracingCanvasPopupMenu(), "Image Contextual Menu"));
+				components.add(new AnnotatedComponent(sntui.getJMenuBar()));
+				components.add(new AnnotatedComponent(sntui.getPathManager().getJTree().getComponentPopupMenu(),
+						"PM Contextual Menu")); // before PM's menu bar
+				components.add(new AnnotatedComponent(sntui.getPathManager().getJMenuBar()));
+			}
+			return components; // recViewer commands are all registered in otherMap
+		}
+
+		TreeMap<String, CmdAction> getCmdMap() {
+			if (otherMap != null)
+				cmdMap.putAll(otherMap);
+			return cmdMap;
+		}
+
+		boolean scrapeSuccessful() {
+			return !cmdMap.isEmpty();
+		}
+
+		void scrape() {
+			cmdMap.clear();
+			if (INCLUDE_REBUILD_ACTION)
+				cmdMap.put(REBUILD_ID, new CmdAction(REBUILD_ID));
+			for (final AnnotatedComponent ac : getComponents()) {
+				if (ac == null)
+					continue;
+				if (ac.component instanceof JMenuBar) {
+					final JMenuBar menuBar = (JMenuBar) ac.component;
+					final int topLevelMenus = menuBar.getMenuCount();
+					for (int i = 0; i < topLevelMenus; ++i) {
+						final JMenu topLevelMenu = menuBar.getMenu(i);
+						if (topLevelMenu != null && topLevelMenu.getText() != null) {
+							parseMenu(topLevelMenu, new ArrayList<>(Arrays.asList(topLevelMenu.getText())));
+						}
+					}
+				}
+				if (ac.component instanceof JPopupMenu) {
+					final JPopupMenu popup = (JPopupMenu) ac.component;
+					if (popup != null) {
+						getMenuItems(popup).forEach(mi -> {
+							registerMenuItem(mi, new ArrayList<>(Arrays.asList(ac.annotation)));
+						});
+					}
+				}
+			}
+		}
+
+		private void parseMenu(final JMenu menu, final List<String> path) {
+			if (keyWordsToIgnoreInMenuPaths != null) {
+				for (final String ignored : keyWordsToIgnoreInMenuPaths) {
+					if (path.contains(ignored)) {
+						return;
+					}
+				}
+			}
+			final int n = menu.getItemCount();
+			for (int i = 0; i < n; ++i) {
+				registerMenuItem(menu.getItem(i), path);
+			}
+		}
+
+		private void registerMenuItem(final JMenuItem m, final List<String> path) {
+			if (m != null) {
+				String label = m.getActionCommand();
+				if (label == null)
+					label = m.getText();
+				if (m instanceof JMenu) {
+					final JMenu subMenu = (JMenu) m;
+					final String hostDesc = subMenu.getText();
+					final List<String> newPath = new ArrayList<>(path);
+					if (hostDesc != null)
+						newPath.add(hostDesc);
+					parseMenu(subMenu, newPath);
+				} else {
+					registerMain(m, path);
+				}
+			}
+		}
+
+		private List<JMenuItem> getMenuItems(final JPopupMenu popupMenu) {
+			final List<JMenuItem> list = new ArrayList<>();
+			for (final MenuElement me : popupMenu.getSubElements()) {
+				if (me == null) {
+					continue;
+				} else if (me instanceof JMenuItem) {
+					list.add((JMenuItem) me);
+				} else if (me instanceof JMenu) {
+					getMenuItems((JMenu) me, list);
+				}
+			}
+			return list;
+		}
+
+		private void getMenuItems(final JMenu menu, final List<JMenuItem> holdingList) {
+			for (int j = 0; j < menu.getItemCount(); j++) {
+				final JMenuItem jmi = menu.getItem(j);
+				if (jmi == null)
+					continue;
+				if (jmi instanceof JMenu) {
+					getMenuItems((JMenu) jmi, holdingList);
+				} else {
+					holdingList.add(jmi);
+				}
+			}
+		}
+
+		private boolean irrelevantCommand(final String label) {
+			// commands that don't sort well and would only add clutter to the palette
+			return label == null || label.startsWith("<HTML>Help");
+		}
+
+		void registerMain(final AbstractButton button, final List<String> path) {
+			register(cmdMap, button, path);
+		}
+
+		void registerOther(final AbstractButton button, final List<String> path) {
+			if (otherMap == null)
+				otherMap = new TreeMap<>();
+			register(otherMap, button, path);
+		}
+
+		private void register(final TreeMap<String, CmdAction> map, final AbstractButton button,
+				final List<String> path) {
+			String label = button.getActionCommand();
+			if (NAME.equals(label))
+				return; // do not register command palette
+			if (label == null)
+				label = button.getText();
+			if (irrelevantCommand(label))
+				return;
+			// handle special cases and trim whitespace as some contextual menu items are indented
+			if (label.equals("Edit %s") || label.startsWith("Edit Path "))
+				label = "Edit Selected Path";
+			else 
+				label = label.trim();
+			// If a command has already been registered, we'll include its accelerator
+			final boolean isMenuItem = button instanceof JMenuItem;
+			final CmdAction registeredAction = (CmdAction) map.get(label);
+			final KeyStroke accelerator = (isMenuItem) ? ((JMenuItem) button).getAccelerator() : null;
+			if (registeredAction != null && accelerator != null) {
+				registeredAction.setkeyString(accelerator);
+			} else {
+				final CmdAction ca = new CmdAction(label, button);
+				ca.path = path;
+				if (accelerator != null)
+					ca.setkeyString(accelerator);
+				map.put(ca.id, ca);
+			}
+		}
+
+	}
+
+	private class AnnotatedComponent {
+		final Component component;
+		final String annotation;
+
+		AnnotatedComponent(final Component component, final String annotation) {
+			this.component = component;
+			this.annotation = annotation;
+		}
+
+		AnnotatedComponent(final Component component) {
+			this.component = component;
+			this.annotation = "";
+		}
+	}
+
+	private class SearchWebCmd extends CmdAction {
+		SearchWebCmd() {
+			super("Search forum.image.sc");
+			button = new JMenuItem(new AbstractAction(id) {
+				private static final long serialVersionUID = 1L;
 
 				@Override
 				public void actionPerformed(final ActionEvent e) {
-					if (count++ >= maxCount) {
-						((Timer) e.getSource()).stop();
-					}
+					getGuiUtils().searchForum(searchField.getText());
 				}
 			});
 		}
+
+		@Override
+		String description() {
+			return "|Unmatched action|";
+		}
 	}
+
 }

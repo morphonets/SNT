@@ -589,6 +589,10 @@ public class SNTUI extends JDialog {
 			validateImgDimensions();
 			return;
 		}
+		else if ("cmdPalette".equals(cmd)) {
+			commandFinder.toggleVisibility();
+			return;
+		}
 		try {
 			runCommand(menuBar, cmd);
 		} catch (final IllegalArgumentException ie) {
@@ -1534,7 +1538,7 @@ public class SNTUI extends JDialog {
 		});
 		gdb.fill = GridBagConstraints.NONE;
 		miscPanel.add(prefsButton, gdb);
-		commandFinder.register(prefsButton, "Main", "Options tab");
+		commandFinder.register(prefsButton, "Options tab");
 		return miscPanel;
 	}
 
@@ -1989,10 +1993,10 @@ public class SNTUI extends JDialog {
 	}
 
 	private void registerMainButtonsInCommandFinder() {
-		commandFinder.register(openRecViewer, "Main", "3D tab");
-		commandFinder.register(openSciView, "Main", "3D tab");
-		commandFinder.register(rebuildCanvasButton, "Main", "Options tab");
-		commandFinder.register(debugCheckBox, "Main", "Options tab");
+		commandFinder.register(openRecViewer, "3D tab");
+		commandFinder.register(openSciView, "3D tab");
+		commandFinder.register(rebuildCanvasButton,  "Options tab");
+		commandFinder.register(debugCheckBox, "Options tab");
 	}
 
 	protected static JPanel buttonPanel(final JButton... buttons) {

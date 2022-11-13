@@ -166,12 +166,12 @@ import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.VFBUtils;
 import sc.fiji.snt.annotation.ZBAtlasUtils;
+import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.MeasureUI;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
-import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.gui.SNTSearchableBar;
 import sc.fiji.snt.gui.SaveMeasurementsCmd;
 import sc.fiji.snt.gui.cmds.*;
@@ -3288,9 +3288,11 @@ public class Viewer3D {
 			public void actionPerformed(final ActionEvent e) {
 				switch (name) {
 				case ALL:
+					showPanelAsNeeded();
 					managerList.selectAll();
 					return;
 				case FIND:
+					showPanelAsNeeded();
 					if (searchableBar.isShowing()) {
 						searchableBar.getInstaller().closeSearchBar(searchableBar);
 					} else {
@@ -3299,7 +3301,8 @@ public class Viewer3D {
 					}
 					return;
 				case PROGRESS:
-						progressBar.setVisible(!progressBar.isShowing());
+					showPanelAsNeeded();
+					progressBar.setVisible(!progressBar.isShowing());
 					return;
 				case ENTER_FULL_SCREEN:
 					frame.enterFullScreen();
@@ -3316,6 +3319,7 @@ public class Viewer3D {
 					}
 					break;
 				case NONE:
+					showPanelAsNeeded();
 					managerList.clearSelection();
 					return;
 				case REBUILD:
@@ -3380,7 +3384,7 @@ public class Viewer3D {
 					setEnableDarkMode(!isDarkModeOn());
 					return;
 				case TOGGLE_CONTROL_PANEL:
-					Viewer3D.this.toggleControlPanel();
+					toggleControlPanel();
 					return;
 				default:
 					throw new IllegalArgumentException("Unrecognized action");
@@ -3391,6 +3395,11 @@ public class Viewer3D {
 				actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, null) {
 					private static final long serialVersionUID = 1L;
 				});
+			}
+
+			private void showPanelAsNeeded() {
+				if (frame.manager != null && !frame.manager.isVisible())
+					toggleControlPanel(); // e.g, if action called via cmdFinder
 			}
 		}
 
@@ -3419,7 +3428,7 @@ public class Viewer3D {
 		private JButton menuButton(final GLYPH glyph, final JPopupMenu menu, final String tooltipMsg) {
 			final JButton button = new JButton(IconFactory.getButtonIcon(glyph));
 			button.setToolTipText(tooltipMsg);
-			registerMenuInCmdFinder(menu, tooltipMsg);
+			registerMenuInCmdFinder(menu, new ArrayList<>(Arrays.asList(tooltipMsg)));
 			button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 			return button;
 		}
@@ -3509,22 +3518,29 @@ public class Viewer3D {
 			return sceneMenu;
 		}
 
-		private void registerMenuInCmdFinder(final JPopupMenu menu, final String description) {
+		private void registerMenuInCmdFinder(final JPopupMenu menu, final List<String> path) {
 			for (final Component component : menu.getComponents()) {
-				if (component instanceof JMenu)
-					registerMenuInCmdFinder((JMenu)component, description + ">" + ((JMenu)component).getText());
+				if (component instanceof JMenu) {
+					final List<String> newPath = new ArrayList<>(path);
+					final String menuText = ((JMenu)component).getText();
+					if (menuText != null) newPath.add(menuText);
+					registerMenuInCmdFinder((JMenu)component, newPath);
+				}
 				else if (component instanceof AbstractButton)
-					cmdFinder.register((AbstractButton)component, description);
+					cmdFinder.register((AbstractButton)component, path);
 			}
 		}
 	
-		private void registerMenuInCmdFinder(final JMenu menu, final String description) {
+		private void registerMenuInCmdFinder(final JMenu menu, final List<String> path) {
 			for (final Component component : menu.getMenuComponents()) {
 				if (component instanceof JMenu) {
-					registerMenuInCmdFinder((JMenu)component, description + ">" + ((JMenu)component).getText());
+					final List<String> newPath = new ArrayList<>(path);
+					final String menuText = ((JMenu)component).getText();
+					if (menuText != null) newPath.add(menuText);
+					registerMenuInCmdFinder((JMenu)component, newPath);
 				}
 				else if (component instanceof JMenuItem) {
-					cmdFinder.register((JMenuItem)component, description);
+					cmdFinder.register((JMenuItem)component, path);
 				}
 
 			}
@@ -3565,8 +3581,7 @@ public class Viewer3D {
 						"Sort List?")) {
 					return;
 				}
-				// final List<String> checkedLabels = getLabelsCheckedInManager();
-				List<Integer> displayedIndices = new ArrayList<>();
+				final List<Integer> displayedIndices = new ArrayList<>();
 				managerList.model.setListenersEnabled(false);
 				managerList.setValueIsAdjusting(true);
 				managerList.model.removeAllElements();
@@ -3728,7 +3743,7 @@ public class Viewer3D {
 			pMenu.add(sort);
 			pMenu.addSeparator();
 			pMenu.add(remove);
-			registerMenuInCmdFinder(pMenu, "Contextual Menu");
+			registerMenuInCmdFinder(pMenu, new ArrayList<>(Arrays.asList("Control Panel Contextual Menu")));
 			return pMenu;
 		}
 
@@ -5316,6 +5331,7 @@ public class Viewer3D {
 			GuiUtils.collapseAllTreeNodes(tree); // compute sizes based on collapsed tree
 			dialog.pack();
 			GuiUtils.expandAllTreeNodes(tree);
+			cmdFinder.attach(dialog);
 			dialog.setVisible(true);
 			return dialog;
 		}

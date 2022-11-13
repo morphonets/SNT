@@ -43,6 +43,7 @@ import java.awt.Cursor;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridLayout;
@@ -62,12 +63,15 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.text.ParseException;
@@ -1006,12 +1010,29 @@ public class GuiUtils {
 		return label;
 	}
 
-	private static void openURL(final String uri) {
+	public void searchForum(final String query) {
+			String url;
+			try {
+				url = "https://forum.image.sc/search?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8.toString());
+			} catch (final Exception ignored) {
+				url = query.trim().replace(" ", "%20");
+			}
+			openURL(url);
+	}
+
+	public static void openURL(final String uri) {
 		try {
 			Desktop.getDesktop().browse(new URI(uri));
 		} catch (IOException | URISyntaxException ex) {
-			if (uri != null && !uri.isEmpty())
-				SNTUtils.log("Could not open " + uri);
+			if (uri != null && !uri.isEmpty()) {
+				final JTextPane f = new JTextPane(); // Error message with selectable text
+				f.setContentType("text/html");
+				f.setText("<HTML>Web page could not be open. Please visit<br>" + uri + "<br>using your web browser.");
+				f.setEditable(false);
+				f.setBackground(null);
+				f.setBorder(null);
+				JOptionPane.showMessageDialog(null, f, "Error", JOptionPane.ERROR_MESSAGE);
+			}
 		}
 	}
 
@@ -1279,7 +1300,14 @@ public class GuiUtils {
 
 		TextFieldWithPlaceholder(final String placeholder) {
 			changePlaceholder(placeholder, true);
-			setBorder(null);
+		}
+
+		Font getPlaceholderFont() {
+			return getFont().deriveFont(Font.ITALIC);
+		}
+
+		String getPlaceholder() {
+			return placeholder;
 		}
 
 		void changePlaceholder(final String placeholder, final boolean overrideInitialPlaceholder) {
@@ -1295,17 +1323,18 @@ public class GuiUtils {
 		@Override
 		protected void paintComponent(final java.awt.Graphics g) {
 			super.paintComponent(g);
-			if (super.getText().isEmpty() && !(FocusManager.getCurrentKeyboardFocusManager().getFocusOwner() == this)) {
+			if (getText().isEmpty()) {
 				final Graphics2D g2 = (Graphics2D) g.create();
-				g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-						RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-				g2.setColor(Color.GRAY);
-				g2.setFont(getFont().deriveFont(Font.ITALIC));
-				g2.drawString(placeholder, 4, g2.getFontMetrics().getHeight());
+				g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+				g2.setColor(getDisabledTextColor());
+				g2.setFont(getPlaceholderFont());
+				final FontMetrics fm = g2.getFontMetrics();
+				final Rectangle2D r = fm.getStringBounds(getPlaceholder(), g2);
+				final int y = (getHeight() - (int) r.getHeight()) / 2 + fm.getAscent();
+				g2.drawString(getPlaceholder(), getInsets().left, y);
 				g2.dispose();
 			}
 		}
-
 	}
 
 	public static Color getDisabledComponentColor() {

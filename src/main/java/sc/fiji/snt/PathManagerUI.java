@@ -248,7 +248,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 
-		tagsMenu = new JMenu("Tag ");
+		tagsMenu = new JMenu("Tag");
 		menuBar.add(tagsMenu);
 		swcTypeMenu = new JMenu("Type");
 		swcTypeMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ID));
