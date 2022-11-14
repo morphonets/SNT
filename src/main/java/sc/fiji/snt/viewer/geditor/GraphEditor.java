@@ -33,7 +33,6 @@ import com.mxgraph.util.mxEventSource.mxIEventListener;
 import com.mxgraph.util.mxUndoableEdit.mxUndoableChange;
 import com.mxgraph.view.mxGraph;
 import com.mxgraph.view.mxStylesheet;
-import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;

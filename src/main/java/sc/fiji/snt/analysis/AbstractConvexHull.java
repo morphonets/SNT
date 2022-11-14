@@ -22,7 +22,6 @@
 
 package sc.fiji.snt.analysis;
 
-import net.imagej.ops.OpMatchingService;
 import net.imagej.ops.OpService;
 import org.scijava.Context;
 import org.scijava.NoSuchServiceException;
