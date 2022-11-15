@@ -80,6 +80,7 @@ import org.jzy3d.chart.factories.OffscreenChartFactory;
 import org.jzy3d.colors.Color;
 import org.jzy3d.colors.ColorMapper;
 import org.jzy3d.colors.ISingleColorable;
+import org.jzy3d.debugGL.tracers.DebugGLChart3d;
 import org.jzy3d.events.ViewPointChangedEvent;
 import org.jzy3d.maths.BoundingBox3d;
 import org.jzy3d.maths.Coord2d;
@@ -551,6 +552,9 @@ public class Viewer3D {
 			addAllObjects();
 			updateView();
 			setAnimationEnabled(isAnimating);
+			if (frame != null && frame.managerPanel != null && frame.managerPanel.debugger != null) {
+				frame.managerPanel.debugger.setWatchedChart(chart);
+			}
 			//if (managerList != null) managerList.selectAll();
 		}
 		catch (final GLException | NullPointerException exc) {
@@ -641,7 +645,7 @@ public class Viewer3D {
 	 */
 	public void setEnableDebugMode(final boolean enable) {
 		if (frame != null && frame.managerPanel != null) {
-			frame.managerPanel.debugCheckBox.setSelected(enable);
+			frame.managerPanel.setDebuggerEnabled(enable);
 		}
 		SNTUtils.setDebugMode(enable);
 	}
@@ -2427,6 +2431,61 @@ public class Viewer3D {
 //		return (chart == null) ? null : view;
 //	}
 
+	private class Debugger extends DebugGLChart3d {
+
+		private Frame frame;
+
+		public Debugger() {
+			super(Viewer3D.this.chart, new ViewerFactory().getUpstreamFactory(Viewer3D.this.ENGINE));
+			watchViewBounds();
+		}
+
+		public void show() {
+			final java.awt.Rectangle awtRect = Viewer3D.this.frame.getBounds();
+			open(new org.jzy3d.maths.Rectangle((int) awtRect.getWidth() / 2, (int) awtRect.getHeight() / 2));
+			for (final java.awt.Frame f : java.awt.Frame.getFrames()) {
+				if (f instanceof org.jzy3d.bridge.awt.FrameAWT && f.getTitle().equals("GL Debug")) {
+					this.frame = f;
+					f.addWindowListener(new WindowAdapter() {
+						@Override
+						public void windowClosing(final WindowEvent e) {
+							setWatchedChart(null);
+							setEnableDebugMode(false);
+						}
+					});
+				}
+			}
+		}
+
+		@SuppressWarnings("unused")
+		private Chart getDebugChart() {
+			try {
+				final java.lang.reflect.Field field = DebugGLChart3d.class.getDeclaredField("debugChart");
+				field.setAccessible(true);
+				return (Chart) field.get(this);
+			} catch (final Exception e) {
+				SNTUtils.error(e.getMessage(), e);
+			}
+			return null;
+		}
+
+		private void dispose() {
+			setWatchedChart(null);
+			if (frame != null)
+				frame.dispose();
+		}
+
+		private void setWatchedChart(final Chart chart) {
+			try {
+				final java.lang.reflect.Field field = DebugGLChart3d.class.getDeclaredField("watchedChart");
+				field.setAccessible(true);
+				field.set(this, chart);
+			} catch (final Exception e) {
+				SNTUtils.error(e.getMessage(), e);
+			}
+		}
+	}
+
 	/** AWTChart adopting {@link ViewerFactory.AView} */
 	private class AChart extends AWTNativeChart {
 
@@ -2694,6 +2753,11 @@ public class Viewer3D {
 				@Override
 				public void windowClosing(final WindowEvent e) {
 					exitRequested(managerPanel.guiUtils);
+				}
+				@Override
+				public void windowClosed(final WindowEvent e) {
+					if (managerPanel != null)
+						managerPanel.setDebuggerEnabled(false);
 				}
 			});
 			// dialog.setLocationRelativeTo(this);
@@ -3122,6 +3186,7 @@ public class Viewer3D {
 		private JCheckBoxMenuItem debugCheckBox;
 		private final SNTSearchableBar searchableBar;
 		private final ProgressBar progressBar;
+		private Debugger debugger;
 
 		private ManagerPanel(final GuiUtils guiUtils) {
 			super();
@@ -3164,6 +3229,48 @@ public class Viewer3D {
 			add(searchableBar);
 			add(buttonPanel());
 			fileDropWorker = new FileDropWorker(managerList, guiUtils);
+		}
+
+		private JCheckBoxMenuItem getDebugCheckBox() {
+			debugCheckBox = new JCheckBoxMenuItem("Debug Mode", SNTUtils.isDebugMode() && debugger != null);
+			debugCheckBox.setEnabled(!isSNTInstance());
+			debugCheckBox.setIcon(IconFactory.getMenuIcon(GLYPH.STETHOSCOPE));
+			debugCheckBox.setMnemonic('d');
+			debugCheckBox.addItemListener(e -> {
+				final boolean debug = debugCheckBox.isSelected();
+				if (isSNTInstance()) {
+					sntService.getPlugin().getUI().setEnableDebugMode(debug);
+				} else {
+					SNTUtils.setDebugMode(debug);
+				}
+				if (debug) {
+					switch(ENGINE) {
+					case JOGL:
+						logGLDetails();
+						setDebuggerEnabled(debug);
+						break;
+					default:
+						SNTUtils.log("Rendering engine: " +  ENGINE.toString());
+					}
+				}
+			});
+			return debugCheckBox;
+		}
+
+		private void setDebuggerEnabled(final boolean enable ) {
+			if (enable && Engine.JOGL.equals(ENGINE)) {
+				if (debugger == null) {
+					debugger = new Debugger();
+					debugger.show();
+				} else {
+					debugger.setWatchedChart(chart);
+				}
+			} else if (debugger != null) {
+				debugger.dispose();
+				debugger = null;
+			}
+			debugCheckBox.setSelected(enable);
+			SNTUtils.setDebugMode(enable);
 		}
 
 	 	/** Updates the progress bar. */
@@ -4393,28 +4500,8 @@ public class Viewer3D {
 			prefsMenu.add(rotationMenu());
 
 			GuiUtils.addSeparator(prefsMenu, "Advanced Settings:");
-			final JMenuItem jcbmi = new JCheckBoxMenuItem("Debug Mode", SNTUtils.isDebugMode());
-			jcbmi.setEnabled(!isSNTInstance());
-			jcbmi.setIcon(IconFactory.getMenuIcon(GLYPH.STETHOSCOPE));
-			jcbmi.setMnemonic('d');
-			jcbmi.addItemListener(e -> {
-				final boolean debug = jcbmi.isSelected();
-				if (isSNTInstance()) {
-					sntService.getPlugin().getUI().setEnableDebugMode(debug);
-				} else {
-					SNTUtils.setDebugMode(debug);
-				}
-				if (debug) {
-					switch(ENGINE) {
-					case JOGL:
-						logGLDetails();
-						break;
-					default:
-						SNTUtils.log("Rendering engine: " +  ENGINE.toString());
-					}
-				}
-			});
-			prefsMenu.add(jcbmi);
+
+			prefsMenu.add(getDebugCheckBox());
 			if (ENGINE == Engine.JOGL) {
 				final JMenuItem  jcbmi2= new JCheckBoxMenuItem("Enable Hardware Acceleration", Settings.getInstance().isHardwareAccelerated());
 				//jcbmi2.setEnabled(!isSNTInstance());
@@ -6696,6 +6783,7 @@ public class Viewer3D {
 		private java.awt.Color labelColor;
 		private float labelX = 2;
 		private float labelY = 0;
+//		private CubeComposite axisBox;
 
 		private OverlayAnnotation(final View view) {
 			super(view);
@@ -6707,6 +6795,8 @@ public class Viewer3D {
 					// do nothing
 				}
 			}
+//			axisBox = new CubeComposite(view.getSpaceTransformer().compute(view.getBounds()),
+//					view.getAxis().getLayout().getGridColor(), view.getAxis().getLayout().getMainColor());
 		}
 
 		private void setFont(final Font font, final float angle) {
@@ -6736,12 +6826,18 @@ public class Viewer3D {
 				g2d.setColor(toAWTColor(view.getAxisLayout().getMainColor()));
 				g2d.setFont(g2d.getFont().deriveFont((float)view.getAxisLayout().getFont().getHeight()));
 				int lineHeight = g.getFontMetrics().getHeight();
-				g2d.drawString("Camera: " + view.getCamera().getEye(), 20, lineHeight);
-				g2d.drawString("FOV: " + view.getCamera().getRenderingSphereRadius(),
-					20, lineHeight += lineHeight);
+				int lineNo = 1;
+				g2d.drawString("Camera: " + view.getCamera().getEye(), 20, lineHeight * lineNo++);
+				g2d.drawString("FOV: " + view.getCamera().getRenderingSphereRadius(), 20, lineHeight * lineNo++);
+				g2d.drawString("Near: " + view.getCamera().getNear(), 20, lineHeight * lineNo++);
+				g2d.drawString("Far: " + view.getCamera().getFar(), 20, lineHeight * lineNo++);
+//				g2d.drawString("Up Z: " + view.getCamera().getUp().z, 20, lineHeight * lineNo++);
+//				g2d.drawString("Axe:" + view.getAxis().getBounds().toString(), 20, lineHeight * lineNo++);
+//				g2d.drawString("Transformed axe: " + axisBox.getBounds().toString(), 20, lineHeight * lineNo++);
 				if (joglAnimator != null) {
-					g2d.drawString(joglAnimator.getLastFPS() + " FPS", 20, lineHeight += lineHeight);
+					g2d.drawString(joglAnimator.getLastFPS() + " FPS", 20, lineHeight * lineNo);
 				}
+
 			}
 			if (label == null || label.isEmpty()) return;
 			if (labelColor != null) g2d.setColor(labelColor);

@@ -235,6 +235,17 @@
 			</exclusions>
 		</dependency>
 		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-tester</artifactId>
+			<version>${jzy3d.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>log4j</groupId>
+					<artifactId>log4j</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf</artifactId>
 			<version>${flatlaf.version}</version>
