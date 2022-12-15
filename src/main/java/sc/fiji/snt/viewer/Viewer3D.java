@@ -2818,7 +2818,10 @@ public class Viewer3D {
 			status.setForeground(toAWTColor(chart.view().getBackgroundColor().negative()));
 			setBackground(status.getBackground());
 			pack();
-			setSize(new Dimension(bounds.width, bounds.height));
+			canvas.setPreferredSize(new Dimension(bounds.width, bounds.height));
+			setPreferredSize(new Dimension(bounds.width, bounds.height + status.getHeight()));
+			canvas.setSize(new Dimension(bounds.width, bounds.height));
+			setSize(new Dimension(bounds.width, bounds.height + status.getHeight()));
 			if (firstInitialization) {
 				addWindowListener(new WindowAdapter() {
 					@Override
