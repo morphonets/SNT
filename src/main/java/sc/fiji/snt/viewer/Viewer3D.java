@@ -1101,7 +1101,7 @@ public class Viewer3D {
 	 * 				 returned {@link Annotation3D} object.
 	 * @return the {@link Annotation3D}
 	 */
-	public Annotation3D annotateSurface(final Collection<? extends SNTPoint> points, final String label, boolean computeVolume) {
+	public Annotation3D annotateSurface(final Collection<? extends SNTPoint> points, final String label, final boolean computeVolume) {
 		Annotation3D annotation;
 		if (computeVolume) {
 			annotation = new Annotation3D(this, points, Annotation3D.SURFACE_AND_VOLUME);
@@ -1628,7 +1628,7 @@ public class Viewer3D {
 		final Iterator<Tree> it = getTrees().iterator();
 		setSceneUpdatesEnabled(false);
 		while (it.hasNext()) {
-			Tree tree = it.next();
+			final Tree tree = it.next();
 			removeTree(tree);
 			it.remove();
 		}
@@ -2543,7 +2543,7 @@ public class Viewer3D {
 		private final ColorTableMapper mapper;
 		private final int precision;
 
-		private ColorLegend(ColorLegend colorLegend, final Chart chart) {
+		private ColorLegend(final ColorLegend colorLegend, final Chart chart) {
 			super(new Shape(), chart);
 			shape = (Shape) drawable;
 			this.font = colorLegend.font;
@@ -2809,7 +2809,7 @@ public class Viewer3D {
 			this.chart = (AChart)chart;
 			canvas = (Component) chart.getCanvas();
 			setTitle(title);
-			BorderLayout layout = new BorderLayout();
+			final BorderLayout layout = new BorderLayout();
 			setLayout(layout);
 			add(canvas, BorderLayout.CENTER);
 			add(status = new JLabel(STATUS_PLACEHOLDER), BorderLayout.SOUTH);
@@ -3165,7 +3165,7 @@ public class Viewer3D {
 			return splitDendritesFromAxons;
 		}
 
-		public void setSplitDendritesFromAxons(boolean splitDendritesFromAxons) {
+		public void setSplitDendritesFromAxons(final boolean splitDendritesFromAxons) {
 			this.splitDendritesFromAxons = splitDendritesFromAxons;
 		}
 
@@ -3277,7 +3277,7 @@ public class Viewer3D {
 		}
 
 	 	/** Updates the progress bar. */
-		public void showProgress(int value, int maximum) {
+		public void showProgress(final int value, final int maximum) {
 			if (value == -1 && maximum == -1) {
 				progressBar.setIndeterminate(true);
 			} else {
@@ -3589,7 +3589,7 @@ public class Viewer3D {
 			final JMenuItem rebuild = new JMenuItem(new Action(Action.REBUILD, KeyEvent.VK_R, true, true));
 			rebuild.setIcon(IconFactory.getMenuIcon(GLYPH.RECYCLE));
 			sceneMenu.add(rebuild);
-			JMenuItem wipe = new JMenuItem("Wipe Scene...", IconFactory.getMenuIcon(GLYPH.DANGER));
+			final JMenuItem wipe = new JMenuItem("Wipe Scene...", IconFactory.getMenuIcon(GLYPH.DANGER));
 			wipe.addActionListener(e -> wipeScene());
 			sceneMenu.add(wipe);
 			sceneMenu.addSeparator();
@@ -5206,7 +5206,7 @@ public class Viewer3D {
 			return new int[] { failures, (idx-failures) };
 		}
 
-		private ColorRGB[] getmportColors(ColorRGB baseColor, final int n) {
+		private ColorRGB[] getmportColors(final ColorRGB baseColor, final int n) {
 			if (baseColor == null) {
 				return SNTColor.getDistinctColors(n);
 			} else {
@@ -6828,7 +6828,7 @@ public class Viewer3D {
 			if (SNTUtils.isDebugMode()) {
 				g2d.setColor(toAWTColor(view.getAxisLayout().getMainColor()));
 				g2d.setFont(g2d.getFont().deriveFont((float)view.getAxisLayout().getFont().getHeight()));
-				int lineHeight = g.getFontMetrics().getHeight();
+				final int lineHeight = g.getFontMetrics().getHeight();
 				int lineNo = 1;
 				g2d.drawString("Camera: " + view.getCamera().getEye(), 20, lineHeight * lineNo++);
 				g2d.drawString("FOV: " + view.getCamera().getRenderingSphereRadius(), 20, lineHeight * lineNo++);
@@ -7337,7 +7337,7 @@ public class Viewer3D {
 	}
 
 	@Override
-	public boolean equals(Object obj) {
+	public boolean equals(final Object obj) {
 		if (this == obj)
 			return true;
 		if (obj == null)
@@ -7429,7 +7429,7 @@ public class Viewer3D {
 				super.get2DLayout().setVerticalAxisFlip(true); // for backwards compatibility
 			}
 
-			void setHiDPIenabled(boolean enabled) {
+			void setHiDPIenabled(final boolean enabled) {
 				super.hidpi = (enabled) ? HiDPI.ON : HiDPI.OFF;
 				if (enabled)
 					axis.getLayout().setFontSizePolicy(new HiDPITwoFontSizesPolicy(this));
@@ -7437,7 +7437,7 @@ public class Viewer3D {
 			}
 			
 			@Override
-			public void setViewPoint(Coord3d polar, boolean updateView) {
+			public void setViewPoint(final Coord3d polar, final boolean updateView) {
 				// see https://github.com/jzy3d/jzy3d-api/issues/214#issuecomment-975717207
 				viewpoint = polar;
 				if (updateView)
@@ -7460,7 +7460,7 @@ public class Viewer3D {
 			(float) bounds[1], new Font("Arial", Font.PLAIN, 24), 3, 4);
 		jzy3D.add(tree);
 		final OBJMesh brainMesh = jzy3D.loadRefBrain("Allen CCF");
-		OBJMesh mesh = AllenUtils.getCompartment("Thalamus").getMesh();
+		final OBJMesh mesh = AllenUtils.getCompartment("Thalamus").getMesh();
 		if (mesh != null) { // server is online and reachable
 			jzy3D.addMesh(mesh);
 			SNTPoint centroid = mesh.getCentroid("l");
@@ -7484,13 +7484,13 @@ public class Viewer3D {
 		final Annotation3D annotation1 = jzy3D.annotateLine(selectedTips, "dummy");
 		annotation1.setColor("orange");
 		annotation1.setSize(10);
-		Annotation3D annotation2 = jzy3D.annotatePoints(analyzer.getTips(), "tips");
+		final Annotation3D annotation2 = jzy3D.annotatePoints(analyzer.getTips(), "tips");
 		annotation2.setColor("green");
 		annotation2.setSize(20);
-		ArrayList<Annotation3D> list = new ArrayList<>();
+		final ArrayList<Annotation3D> list = new ArrayList<>();
 		list.add(annotation1);
 		list.add(annotation2);
-		Annotation3D a = jzy3D.mergeAnnotations(list, "");
+		final Annotation3D a = jzy3D.mergeAnnotations(list, "");
 		a.setSize(4);
 		a.setColor("pink");
 		brainMesh.translate(new PointInImage(800, 0, 0));
@@ -7498,9 +7498,9 @@ public class Viewer3D {
 			jzy3D.view.shoot();
 			jzy3D.fitToVisibleObjects(true, false);
 		}
-		MouseLightLoader loader = new MouseLightLoader("AA1044");
-		Tree aa1044 = loader.getTree("axon");
-		Annotation3D hull = jzy3D.annotateSurface(new TreeAnalyzer(aa1044).getTips(), "Convex Hull", true);
+		final MouseLightLoader loader = new MouseLightLoader("AA1044");
+		final Tree aa1044 = loader.getTree("axon");
+		final Annotation3D hull = jzy3D.annotateSurface(new TreeAnalyzer(aa1044).getTips(), "Convex Hull", true);
 		System.out.println("AA1044: Convex hull volume = " + hull.getVolume());
 		jzy3D.addTree(aa1044);
 		jzy3D.show();
