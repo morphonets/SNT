@@ -7087,7 +7087,8 @@ public class Viewer3D {
 	/**
 	 * Applies a constant thickness (line width) to a subset of rendered trees.
 	 *
-	 * @param labels      the Collection of keys specifying the subset of trees
+	 * @param labels      the Collection of keys specifying the subset of trees. If
+	 *                    null, thickness is applied to all the trees in the viewer.
 	 * @param thickness   the thickness (line width)
 	 * @param compartment a string with at least 2 characters describing the Tree
 	 *                    compartment (e.g., 'axon', 'axn', 'dendrite', 'dend',
@@ -7099,7 +7100,7 @@ public class Viewer3D {
 	{
 		final int comp = getSubTreeCompartment(compartment);
 		plottedTrees.forEach((k, shapeTree) -> {
-			if (labels.contains(k)) shapeTree.setThickness(thickness, comp);
+			if (labels == null || labels.contains(k)) shapeTree.setThickness(thickness, comp);
 		});
 	}
 
@@ -7129,6 +7130,16 @@ public class Viewer3D {
 		final int comp = getSubTreeCompartment(compartment);
 		plottedTrees.values().forEach(shapeTree -> shapeTree.setThickness(
 				thickness, comp));
+	}
+
+
+	/**
+	 * Applies a constant radius to all rendered somas being rendered as spheres.
+	 *
+	 * @param radius the radius (physical units)
+	 */
+	public void setSomaRadius(final float radius) {
+		plottedTrees.values().forEach(shapeTree -> shapeTree.setSomaRadius(radius));
 	}
 
 	/**
@@ -7282,10 +7293,12 @@ public class Viewer3D {
 	}
 
 	private boolean treesContainColoredNodes(final List<String> labels) {
+		if (plottedTrees == null || plottedTrees.isEmpty()) return false;
 		Color refColor = null;
 		for (final Map.Entry<String, ShapeTree> entry : plottedTrees.entrySet()) {
 			if (labels.contains(entry.getKey())) {
 				final Shape shape = entry.getValue().treeSubShape;
+				if (shape == null) continue; // e.g., soma-only tree
 				for (int i = 0; i < shape.size(); i++) {
 					// treeSubShape is only composed of LineStripPluses so this is a safe
 					// casting
