@@ -550,7 +550,7 @@ public class SkeletonConverter {
             final SWCPoint referenceVertex = vertexArray[i];
             final List<Neighbor<double[], SWCPoint>> neighbors = new ArrayList<>();
             // Query the ball around the reference vertex
-            kdtree.range(coordinates[i], maxConnectDist, neighbors);
+            kdtree.search(coordinates[i], maxConnectDist, neighbors);
             for (final Neighbor<double[], SWCPoint> neighbor : neighbors) {
                 final SWCPoint neighborVertex = neighbor.value;
                 if (neighborVertex.v == referenceVertex.v) {
