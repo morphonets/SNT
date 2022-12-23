@@ -1493,10 +1493,10 @@ public class Viewer3D {
 		if (frame != null) {
 			SwingUtilities.invokeLater(() -> {
 				if (msg == null || msg.isEmpty()) {
-					frame.status.setText(ViewerFrame.STATUS_PLACEHOLDER);
+					frame.status.setText(frame.STATUS_PLACEHOLDER);
 					return;
 				}
-				final Timer timer = new Timer(msecs, e -> frame.status.setText(ViewerFrame.STATUS_PLACEHOLDER));
+				final Timer timer = new Timer(msecs, e -> frame.status.setText(frame.STATUS_PLACEHOLDER));
 				timer.setRepeats(false);
 				timer.start();
 				frame.status.setText(msg);
@@ -1678,6 +1678,7 @@ public class Viewer3D {
 	}
 
 	private void wipeScene() {
+		final Dimension dim = frame.getSize();
 		removeAllTrees();
 		removeAllMeshes();
 		removeAllAnnotations();
@@ -1688,6 +1689,8 @@ public class Viewer3D {
 			frame.lightController.dispose();
 			frame.lightController = null;
 		}
+		// Workaround the possibility of a canvas collapse when empty(MacOS only!?)
+		if (frame.getSize().height< dim.getSize().height) frame.setSize(dim);
 	}
 
 	private boolean isEmptyScene() {
@@ -2679,7 +2682,7 @@ public class Viewer3D {
 		private static final long serialVersionUID = 1L;
 		private static final int DEF_WIDTH = 800;
 		private static final int DEF_HEIGHT = 600;
-		private static final String STATUS_PLACEHOLDER = "Press H (or F1) for Help. Press Ctrl+Shift+P for Command Palette...";
+		private final String STATUS_PLACEHOLDER = "Press H (or F1) for Help. Press " + GuiUtils.ctrlKey() + "+Shift+P for Command Palette...";
 
 		private AChart chart;
 		private Component canvas;
@@ -4408,6 +4411,28 @@ public class Viewer3D {
 					return;
 				}
 				setTreeThickness(keys, thickness.floatValue(), null);
+			});
+			menu.add(mi);
+			mi = new JMenuItem("Soma radius...", IconFactory.getMenuIcon(GLYPH.CIRCLE));
+			mi.addActionListener(e -> {
+				final List<String> keys = getSelectedTreeLabels();
+				if (keys == null) return;
+				String msg = "<HTML><body><div style='width:500;'>" +
+					"Please specify a constant radius (in physical units  to be applied to somas of selected " + keys.size() + " reconstruction(s).";
+				if (isSNTInstance()) {
+					msg += " This value will only affect how Paths are displayed " +
+						"in the Reconstruction Viewer.";
+				}
+				final Double radius = guiUtils.getDouble(msg, "Soma radius", 10);
+				if (radius == null) {
+					return; // user pressed cancel
+				}
+				if (Double.isNaN(radius) || radius <= 0) {
+					guiUtils.error("Invalid radius.");
+					return;
+				}
+				setSomasDisplayed(keys, true);
+				setSomaRadius(keys, radius.floatValue());
 			});
 			menu.add(mi);
 
@@ -6757,6 +6782,10 @@ public class Viewer3D {
 			sb.append("    <td>Toggle <u>S</u>tatus Bar</td>");
 			sb.append("    <td>Shift+S</td>");
 			sb.append("  </tr>");
+			sb.append("  <tr>");
+			sb.append("    <td>Command <u>P</u>alette </td>");
+			sb.append("    <td>" + GuiUtils.ctrlKey() + "+Shift+P</td>");
+			sb.append("  </tr>");
 			if (showInDialog) {
 				sb.append("  <tr>");
 				sb.append("  <tr>");
@@ -7132,7 +7161,6 @@ public class Viewer3D {
 				thickness, comp));
 	}
 
-
 	/**
 	 * Applies a constant radius to all rendered somas being rendered as spheres.
 	 *
@@ -7140,6 +7168,19 @@ public class Viewer3D {
 	 */
 	public void setSomaRadius(final float radius) {
 		plottedTrees.values().forEach(shapeTree -> shapeTree.setSomaRadius(radius));
+	}
+
+	/**
+	 * Applies a constant radius to the somas of a subset of rendered trees.
+	 *
+	 * @param labels the Collection of keys specifying the subset of trees.
+	 * @param radius the radius (physical units)
+	 * @see #setSomaRadius(float)
+	 */
+	public void setSomaRadius(final Collection<String> labels, final float radius) {
+		plottedTrees.forEach((k, shapeTree) -> {
+			if (labels.contains(k)) shapeTree.setSomaRadius(radius);
+		});
 	}
 
 	/**

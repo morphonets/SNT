@@ -361,7 +361,7 @@ public class SNTCommandFinder {
 		SearchField() {
 			super(" Search for commands and actions (e.g., Sholl)");
 			setMargin(new Insets(PADDING, PADDING, PADDING, PADDING));
-			setFont(REF_FONT.deriveFont(REF_FONT.getSize() * 1.5f));
+			setFont(REF_FONT.deriveFont(REF_FONT.getSize() * 1.3f));
 		}
 
 		Font getPlaceholderFont() {
