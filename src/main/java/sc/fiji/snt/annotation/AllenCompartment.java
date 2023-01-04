@@ -177,7 +177,7 @@ public class AllenCompartment implements BrainAnnotation {
 		final int parentIdxInPath = childStructureIdPath.lastIndexOf("/" + parentIdString + "/");
 		if (parentIdxInPath == -1)
 			return false;
-		return Arrays.stream(childStructureIdPath.substring(parentIdxInPath + parentIdString.length()).split("/"))
+		return Arrays.stream(childStructureIdPath.substring(parentIdxInPath + parentIdString.length() + 1).split("/"))
 				.filter(s -> !s.isEmpty())
 				.map(Integer::parseInt)
 				.anyMatch(id -> id == id());
