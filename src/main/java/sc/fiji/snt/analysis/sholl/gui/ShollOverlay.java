@@ -252,9 +252,8 @@ public class ShollOverlay implements ProfileProperties {
 		final boolean east = arcs && sProperty.contains(HEMI_EAST);
 
 		for (final ProfileEntry entry : profile.entries()) {
-			final double radiusX = cal.getRawX(entry.radius);
-			final double radiusY = cal.getRawY(entry.radius);
-
+			final double radiusX = entry.radius / cal.pixelWidth;
+			final double radiusY = entry.radius / cal.pixelHeight;
 			Roi shell;
 			if (arcs) {
 				final Arc2D.Double arc = new Arc2D.Double();
