@@ -51,7 +51,6 @@ public class ImageParser3D extends ImageParser {
 	private ImageStack stack;
 	private final int nCPUs;
 	private final ThreadService threadService;
-	private final AtomicInteger ai;
 	private int nSamples;
 
 	@Deprecated
@@ -64,7 +63,6 @@ public class ImageParser3D extends ImageParser {
 		skipSingleVoxels = true;
 		setPosition(imp.getC(), imp.getT());
 		threadService = context.getService(ThreadService.class);
-		ai = new AtomicInteger(0);
 		nCPUs = SNTPrefs.getThreads();
 	}
 
@@ -110,7 +108,7 @@ public class ImageParser3D extends ImageParser {
 
 		@Override
 		public void run() {
-
+			final AtomicInteger ai = new AtomicInteger(0);
 			for (int k = ai.getAndIncrement(); k < nCPUs; k = ai.getAndIncrement()) {
 				for (int s = start; s < end; s++) {
 
