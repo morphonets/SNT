@@ -356,8 +356,17 @@ public class SNTPrefs { // TODO: Adopt PrefService
 					// ignored;
 				}
 		}
-		if (recentDir == null)
+		return lastknownDir();
+	}
+
+	public static File lastknownDir() {
+		if (recentDir == null) {
+			recentDir = new File(ij.io.OpenDialog.getDefaultDirectory());
+		}
+		if (recentDir == null) {
 			recentDir = new File(System.getProperty("user.home"));
+		}
 		return recentDir;
 	}
+
 }

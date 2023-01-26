@@ -75,6 +75,7 @@ import net.imagej.event.DataDeletedEvent;
 import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
@@ -522,6 +523,11 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		analysisRunner.setSkipParsing(skipImageParsing || plotOutputDescription.toLowerCase().contains("integrated") != parser.isRetrieveIntDensitiesSet());
 		statusService.showStatus("Analysis started");
 		logger.debug("Analysis started...");
+		if (twoD) {
+			logger.debug("Parsing 2D image: Single thread operation");
+		} else {
+			logger.debug(String.format("Parsing 3D image using %d threads ", SNTPrefs.getThreads()));
+		}
 		analysisThread = threadService.newThread(analysisRunner);
 		threadService.queue(analysisThread);
 		savePreferences();
@@ -1001,7 +1007,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	@SuppressWarnings("unused")
 	private void saveChoiceChanged() {
 		if (save && saveDir == null)
-			saveDir = new File(IJ.getDirectory("current"));
+			saveDir = SNTPrefs.lastknownDir();
 	}
 
 	private void saveOptionsChanged() {

@@ -35,6 +35,7 @@ import org.scijava.prefs.PrefService;
 import org.scijava.ui.DialogPrompt.Result;
 import org.scijava.widget.Button;
 
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
@@ -79,16 +80,22 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 	/* Prompt */
 	protected static final String HEADER_HTML = "<html><body><div style='font-weight:bold;'>";
-	protected static final String DESCRIPTION_HTML = "<html><body><div style='width:400px'>";
+	protected static final String DESCRIPTION_HTML = "<html><body><div style='width:500px'>";
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-		label = HEADER_HTML + "Sampling:")
+		label = HEADER_HTML + "Sampling of 3D Images:")
 	private String HEADER_SAMPLING;
 
 	@Parameter(label = "Ignore isolated voxels",
 			description = DESCRIPTION_HTML + "Mitigates over-estimation "
 					+ "of intersections. Only applicabale to 3D image stacks")
 	private boolean skipSingleVoxels;
+
+	@Parameter(label="No. parallel threads",
+			description = DESCRIPTION_HTML + "The max. no. of parallel threads to be used when parsing 3D stacks. "
+					+ "This options also sets the no. of threads used by ImageJ and SNT for other multi-threaded "
+					+ "tasks. Set it to 0 to use all of the available processors on your computer.")
+	private int nThreads;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 		label = HEADER_HTML + "<br>'Best Fit' Polynomial:")
@@ -137,7 +144,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 			label = HEADER_HTML + "<br>Outputs:")
 	private String HEADER_ROI;
 
-	@Parameter(label = "Point ROIs", choices = { "Tiny","Small", "Medium", "Large", "Extra Large", "XXL", "XXXL"},
+	@Parameter(label = "Point ROIs size", choices = { "Tiny","Small", "Medium", "Large", "Extra Large", "XXL", "XXXL"},
 			description = DESCRIPTION_HTML + "The size of the point ROIs highlighting intersection counts")
 	private String roiSize = DEF_ROI_SIZE;
 
@@ -193,6 +200,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 			resolveInput("skipSomaticSegments");
 		}
 		debugMode = SNTUtils.isDebugMode();
+		nThreads = SNTPrefs.getThreads();
 	}
 
 	@SuppressWarnings("unused")
@@ -232,6 +240,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 	@Override
 	public void run() {
 		super.run();
+		SNTPrefs.setThreads(Math.max(0, nThreads));
 		if (restartRequired)
 			helper.centeredMsg("You may need to restart the Sholl Analysis plugin for changes to take effect.",
 					"New Preferences Set");
@@ -263,6 +272,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		debugMode = DEF_DEBUG_MODE;
 		detailedMetrics = DEF_DETAILED_METRICS;
 		roiSize = DEF_ROI_SIZE;
+		SNTPrefs.setThreads(0);
 //		autoClose = DEF_AUTO_CLOSE;
 
 		helper.centeredMsg("Preferences were successfully reset.", SNTUtils.getReadableVersion());

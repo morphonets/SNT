@@ -31,9 +31,9 @@ import org.scijava.thread.ThreadService;
 
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.Prefs;
 import ij.plugin.ChannelSplitter;
 import ij.util.ThreadUtil;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.util.ShollPoint;
@@ -65,7 +65,7 @@ public class ImageParser3D extends ImageParser {
 		setPosition(imp.getC(), imp.getT());
 		threadService = context.getService(ThreadService.class);
 		ai = new AtomicInteger(0);
-		nCPUs = Prefs.getThreads();
+		nCPUs = SNTPrefs.getThreads();
 	}
 
 	@Override
