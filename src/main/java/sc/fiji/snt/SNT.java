@@ -146,7 +146,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 	public enum CostType {
-		RECIPROCAL, DIFFERENCE, DIFFERENCE_SQUARED, PROBABILITY;
+		RECIPROCAL, DIFFERENCE, DIFFERENCE_SQUARED, PROBABILITY, RELATIVE_DIFFERENCE;
 
 		public String getDescription() {
 			switch (this) {
@@ -156,6 +156,8 @@ public class SNT extends MultiDThreePanes implements
 					return "Faster on images with right-shifted intensity distributions (i.e., mean >> 0)";
 				case DIFFERENCE_SQUARED:
 					return "Similar to Difference, usually faster";
+				case RELATIVE_DIFFERENCE:
+					return "More robust against hijacking by brighter crossing neurites";
 				case PROBABILITY:
 					return "Fast, especially on noisy or distribution-offset images. Use with real-time statistics";
 				default:
@@ -1693,20 +1695,28 @@ public class SNT extends MultiDThreePanes implements
 		final RandomAccessibleInterval<T> img = useSecondary ? getSecondaryData() : getLoadedData();
 
 		final ImageStatistics imgStats = useSecondary ? statsSecondary : stats;
+		Double referenceVal = null;
 		if (isUseSubVolumeStats)
 		{
 			SNTUtils.log("Computing local statistics...");
-			computeImgStats(
-					Views.iterable(
-							ImgUtils.subInterval(
-									img,
-									new Point(x_start, y_start, z_start),
-									new Point(x_end, y_end, z_end),
-									10)),
-					imgStats,
-					costType);
+			if (costType == CostType.RELATIVE_DIFFERENCE) {
+				RandomAccess<T> ra = img.randomAccess();
+				final double valStart = ra.setPositionAndGet(x_start, y_start, z_start).getRealDouble();
+				final double valEnd = ra.setPositionAndGet(x_end, y_end, z_end).getRealDouble();
+				referenceVal = (valStart + valEnd) / 2.0;
+				System.out.println(referenceVal);
+			} else {
+				computeImgStats(
+						Views.iterable(
+								ImgUtils.subInterval(
+										img,
+										new Point(x_start, y_start, z_start),
+										new Point(x_end, y_end, z_end),
+										10)),
+						imgStats,
+						costType);
+			}
 		}
-
 		Cost costFunction;
 		switch (costType)
 		{
@@ -1723,6 +1733,12 @@ public class SNT extends MultiDThreePanes implements
 				break;
 			case DIFFERENCE_SQUARED:
 				costFunction = new DifferenceSq(imgStats.min, imgStats.max);
+				break;
+			case RELATIVE_DIFFERENCE:
+				if (referenceVal == null) {
+					throw new IllegalArgumentException("Reference value is null");
+				}
+				costFunction = new RelativeDifference(referenceVal);
 				break;
 			default:
 				throw new IllegalArgumentException("BUG: Unknown cost function " + costType);
@@ -2502,6 +2518,14 @@ public class SNT extends MultiDThreePanes implements
 					return;
 				}
 				costFunction = new DifferenceSq(imgStats.min, imgStats.max);
+				break;
+			case RELATIVE_DIFFERENCE:
+				// FIXME: how to handle this cost with filling?
+				if (imgStats.max == 0) {
+					invalidStatsError(useSecondary);
+					return;
+				}
+				costFunction = new RelativeDifference(imgStats.max);
 				break;
 			default:
 				throw new IllegalArgumentException("BUG: Unrecognized cost function " + costType);
