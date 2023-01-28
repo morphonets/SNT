@@ -3243,6 +3243,7 @@ public class SNTUI extends JDialog {
 		costMap.put("Reciprocal of Intensity (Default)", SNT.CostType.RECIPROCAL);
 		costMap.put("Difference of Intensity", SNT.CostType.DIFFERENCE);
 		costMap.put("Difference of Intensity Squared", SNT.CostType.DIFFERENCE_SQUARED);
+		costMap.put("Relative Intensity Difference", SNT.CostType.RELATIVE_DIFFERENCE);
 		costMap.put("Probability of Intensity", SNT.CostType.PROBABILITY);
 		costMap.forEach((lbl, type) -> {
 			final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
