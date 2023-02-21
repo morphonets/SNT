@@ -402,7 +402,7 @@ public class Path implements Comparable<Path> {
 	}
 
 	protected String getRealLengthString() {
-		return String.format("%.3f", getLength());
+		return String.format(Locale.US, "%.3f", getLength()); // see https://github.com/morphonets/SNT/issues/147
 	}
 
 	public void createCircles() {

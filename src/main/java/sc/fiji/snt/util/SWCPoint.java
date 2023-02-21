@@ -30,6 +30,7 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
@@ -163,12 +164,12 @@ public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 		final StringBuilder sb = new StringBuilder();
 		for (final SWCPoint p : points) {
 			sb.append(p.id).append("\t") //
-				.append(p.type).append("\t") //
-				.append(String.format("%.6f", p.x)).append(" ") //
-				.append(String.format("%.6f", p.y)).append(" ") //
-				.append(String.format("%.6f", p.z)).append(" ") //
-				.append(String.format("%.6f", p.radius)).append("\t") //
-				.append(p.parent).append(System.lineSeparator());
+				.append(p.type).append("\t") // see https://github.com/morphonets/SNT/issues/147
+				.append(String.format(Locale.US, "%.6f", p.x)).append(" ") //
+				.append(String.format(Locale.US, "%.6f", p.y)).append(" ") //
+				.append(String.format(Locale.US, "%.6f", p.z)).append(" ") //
+				.append(String.format(Locale.US, "%.6f", p.radius)).append("\t") //
+				.append(p.parent).append(System.lineSeparator()); 
 		}
 		return new StringReader(sb.toString());
 	}
