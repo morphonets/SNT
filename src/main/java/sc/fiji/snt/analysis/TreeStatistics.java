@@ -260,7 +260,8 @@ public class TreeStatistics extends TreeAnalyzer {
 	 *
 	 * @param type the type. Either 'legacy' (metrics supported up to SNTv4.0.5),
 	 *             "safe" (metrics that can be computed from invalid graphs) or
-	 *             'common' (commonly used metrics"
+	 *             'common' (commonly used metrics) or 'quick' (used by the 'quick
+	 *             measure' GUI commands).
 	 * @return the list metrics
 	 */
 	public static List<String> getMetrics(final String type) {
@@ -293,6 +294,27 @@ public class TreeStatistics extends TreeAnalyzer {
 					PARTITION_ASYMMETRY, PRIMARY_LENGTH, REMOTE_BIF_ANGLES, SHOLL_DECAY, SHOLL_MAX_VALUE,
 					SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MEAN_VALUE, SURFACE_AREA, STRAHLER_NUMBER,
 					TERMINAL_LENGTH, VALUES, VOLUME, X_COORDINATES, Y_COORDINATES, Z_COORDINATES };
+			break;
+		case "quick":
+			/* NB: This list can only include metrics supported by #getMetricWithoutChecks() */
+			metrics = new String[] { //
+					LENGTH, MultiTreeStatistics.AVG_BRANCH_LENGTH, N_BRANCH_POINTS, N_TIPS, N_BRANCHES, //
+					N_PRIMARY_BRANCHES, N_TERMINAL_BRANCHES, //
+					PATH_MEAN_RADIUS, //
+					AVG_SPINE_DENSITY, //
+					STRAHLER_NUMBER, MultiTreeStatistics.HIGHEST_PATH_ORDER,
+					/* Disabled metrics (likely too specific or uncommon for most users) */
+					// MultiTreeStatistics.ASSIGNED_VALUE, MultiTreeStatistics.AVG_CONTRACTION,
+					// MultiTreeStatistics.AVG_FRACTAL_DIMENSION,
+					// MultiTreeStatistics.AVG_FRAGMENTATION,
+					// MultiTreeStatistics.AVG_REMOTE_ANGLE,
+					// MultiTreeStatistics.AVG_PARTITION_ASYMMETRY,
+					// PRIMARY_LENGTH, INNER_LENGTH, TERMINAL_LENGTH,
+					// N_INNER_BRANCHES,
+					// N_FITTED_PATHS, N_PATHS, N_NODES,
+					// WIDTH, HEIGHT, DEPTH,
+					// SHOLL_DECAY, SHOLL_MAX_VALUE,
+			};
 			break;
 		default:
 			throw new IllegalArgumentException("Unrecognized type");

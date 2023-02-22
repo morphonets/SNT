@@ -285,7 +285,7 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @see #setTable(DefaultGenericTable)
 	 */
 	public void summarize(final String rowHeader, final boolean groupByType) {
-		measure(rowHeader, TreeStatistics.getMetrics("common"), true);
+		measure(rowHeader, TreeStatistics.getMetrics("quick"), true);
 	}
 
 	protected int getNextRow(final String rowHeader) {
