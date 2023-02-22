@@ -47,7 +47,7 @@ import sc.fiji.snt.Tree;
  */
 public class NeuroMorphoLoader implements RemoteSWCLoader {
 
-	private static final String BASE_URL = "http://neuromorpho.org/api/";
+	private static final String BASE_URL = "https://neuromorpho.org/api/";
 	private final static String NEURON_BASE_URL = BASE_URL + "neuron/name/";
 	private String lastKnownStatus;
 	private boolean sourceVersion;
@@ -101,7 +101,7 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 		final JSONObject json = getJSon(NEURON_BASE_URL, cellId);
 		if (json == null) return null;
 		final StringBuilder sb = new StringBuilder();
-		sb.append("http://neuromorpho.org/dableFiles/");
+		sb.append("https://neuromorpho.org/dableFiles/");
 		final String archive = (String) json.get("archive");
 		sb.append(archive.toLowerCase().replaceAll(" ", "%20"));
 		final String filename = cellId.replaceAll(" ", "%20");
