@@ -288,7 +288,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 		final String normMeasurement = getNormalizedMeasurement(metric);
 		final HistogramDatasetPlusMulti datasetPlus = new HistogramDatasetPlusMulti(normMeasurement);
 		try {
-			final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, lastDstats.dStats,
+			final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, "", lastDstats.dStats,
 					datasetPlus);
 			final SNTChart frame = new SNTChart("Polar Hist. " + tree.getLabel(), chart);
 			return frame;

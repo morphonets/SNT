@@ -193,7 +193,7 @@ public class NodeStatistics <T extends PointInImage> {
 	public SNTChart getHistogram(final String metric) {
 		getDescriptiveStatistics(metric);
 		final HistogramDatasetPlus datasetPlus = new HistogramDatasetPlus(currentStats, true);
-		final JFreeChart chart = AnalysisUtils.createHistogram(currentMetric, currentStats, datasetPlus);
+		final JFreeChart chart = AnalysisUtils.createHistogram(currentMetric, "", currentStats, datasetPlus);
 		final SNTChart frame = new SNTChart("Hist. " + currentMetric, chart);
 		return frame;
 	}
@@ -404,6 +404,7 @@ public class NodeStatistics <T extends PointInImage> {
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
 				"Brain areas (N=" + nAreas + ", "+ seriesLabel +")", // domain axis title
 				"Frequency", // range axis title
+				"", //unit
 				dataset);
 		final SNTChart frame = new SNTChart(getLabel() + " Annotated Node Distribution", chart, new Dimension(400, 600));
 		return frame;
@@ -461,6 +462,7 @@ public class NodeStatistics <T extends PointInImage> {
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
 				"Brain areas (N=" + nAreas + ", "+ axisTitle +")", // domain axis title
 				"Frequency", // range axis title
+				"", // axis unit (not applicable here)
 				dataset, 2);
 		final SNTChart frame = new SNTChart(getLabel() + " Annotated Frequencies", chart, new Dimension(400, 600));
 		return frame;
@@ -481,6 +483,7 @@ public class NodeStatistics <T extends PointInImage> {
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
 				"Brain areas (N=" + nAreas + ", "+ seriesLabel +")", // domain axis title
 				"Frequency", // range axis title
+				"", // unit
 				dataset);
 		final SNTChart frame = new SNTChart(getLabel() + " Annotated Frequencies", chart, new Dimension(400, 600));
 		if (secondaryLabel != null) frame.annotate(secondaryLabel);

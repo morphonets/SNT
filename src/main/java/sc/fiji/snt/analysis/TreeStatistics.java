@@ -531,7 +531,8 @@ public class TreeStatistics extends TreeAnalyzer {
 		final String axisTitle = (depth == Integer.MAX_VALUE) ? "no filtering" : "depth \u2264" + depth;
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
 				"Brain areas (N=" + nAreas + ", " + axisTitle + ")", // domain axis title
-				"Cable length", // range axis title
+				String.format("Cable length (%s)", getUnit()), // range axis title
+				"", // axis unit (already applied)
 				dataset, 2);
 		final String tLabel = (tree.getLabel() == null) ? "" : tree.getLabel();
 		final SNTChart frame = new SNTChart(tLabel + " Annotated Length", chart, new Dimension(400, 600));
@@ -553,7 +554,8 @@ public class TreeStatistics extends TreeAnalyzer {
 		}
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
 				"Brain areas (N=" + nAreas + ", " + seriesLabel + ")", // domain axis title
-				"Cable length", // range axis title
+				String.format("Cable length (%s)", getUnit()), // range axis title
+				"", // unit: already specified
 				dataset);
 		final String tLabel = (tree.getLabel() == null) ? "" : tree.getLabel();
 		final SNTChart frame = new SNTChart(tLabel + " Annotated Length", chart, new Dimension(400, 600));
@@ -579,7 +581,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	public SNTChart getPolarHistogram(final String metric) {
 		final String normMeasurement = getNormalizedMeasurement(metric);
 		final HistogramDatasetPlus datasetPlus = new HDPlus(normMeasurement, true);
-		final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, lastDstats.dStats, datasetPlus);
+		final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, getUnit(), lastDstats.dStats, datasetPlus);
 		final SNTChart frame = new SNTChart("Polar Hist. " + tree.getLabel(), chart);
 		return frame;
 	}
@@ -613,7 +615,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	}
 
 	protected SNTChart getHistogram(final String normMeasurement, final HistogramDatasetPlus datasetPlus) {
-		final JFreeChart chart = AnalysisUtils.createHistogram(normMeasurement, lastDstats.dStats, datasetPlus);
+		final JFreeChart chart = AnalysisUtils.createHistogram(normMeasurement, getUnit(), lastDstats.dStats, datasetPlus);
 		final SNTChart frame = new SNTChart("Hist. " + tree.getLabel(), chart);
 		return frame;
 	}

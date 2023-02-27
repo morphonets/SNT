@@ -592,9 +592,12 @@ public class TreeAnalyzer extends ContextCommand {
 		return "";
 	}
 
+	protected String getUnit() {
+		return (String) tree.getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "");
+	}
+
 	protected int getCol(final String header) {
-		final String unit = getUnit(header);
-		final String normHeader = (unit.length() > 1) ? header + " (" + unit + ")" : header;
+		final String normHeader = AnalysisUtils.getMetricLabel(header, tree);
 		int idx = table.getColumnIndex(normHeader);
 		if (idx == -1) {
 			table.appendColumn(normHeader);

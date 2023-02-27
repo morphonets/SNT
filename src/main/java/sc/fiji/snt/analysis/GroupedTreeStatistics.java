@@ -208,8 +208,8 @@ public class GroupedTreeStatistics {
 			dataset.addSeries(label, hdp.valuesAsArray(), finalBinCount, limits[0], limits[1]);
 		});
 		return (polar) ?
-				AnalysisUtils.createPolarHistogram(normMeasurement, dataset, hdpMap.size(), finalBinCount)
-				: AnalysisUtils.createHistogram(normMeasurement, hdpMap.size(), dataset);
+				AnalysisUtils.createPolarHistogram(normMeasurement, "", dataset, hdpMap.size(), finalBinCount)
+				: AnalysisUtils.createHistogram(normMeasurement, "", hdpMap.size(), dataset);
 	}
 
 	/**
