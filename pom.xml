@@ -139,7 +139,7 @@
 		<font-awesome.version>6.3.0</font-awesome.version>
 		<json.version>20220924</json.version>
 		<flatlaf.version>3.0</flatlaf.version>
-		<log4j.version>2.19.0</log4j.version>
+		<log4j.version>2.20.0</log4j.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
