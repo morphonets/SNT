@@ -496,7 +496,7 @@ public class TreeAnalyzer extends ContextCommand {
 			table.set(getCol("SWC Type(s)"), row, getSWCTypesAsString());
 			measuringMetrics.forEach(metric -> table.set(getCol(metric), row, getMetricInternal(metric)));
 		}
-		if (getContext() != null) updateAndDisplayTable();
+		updateAndDisplayTable();
 	}
 
 	protected String getSWCTypesAsString() {
@@ -550,9 +550,11 @@ public class TreeAnalyzer extends ContextCommand {
 			cancel("No Paths to Measure");
 			return;
 		}
-		statusService.showStatus("Measuring Paths...");
+		if (statusService !=null)
+			statusService.showStatus("Measuring Paths...");
 		summarize(true);
-		statusService.clearStatus();
+		if (statusService !=null)
+			statusService.clearStatus();
 	}
 
 	/**
