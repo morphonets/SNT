@@ -47,9 +47,14 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
+import sc.fiji.snt.annotation.AllenCompartment;
+import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SWCPoint;
 
@@ -860,25 +865,10 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @return the filtered cable length
 	 */
 	public double getCableLength(final BrainAnnotation compartment, final boolean includeChildren) {
-		double sumLength = 0d;
-		for (final Path path : tree.list()) {
-			for (int i = 1; i < path.size(); i++) {
-				final BrainAnnotation prevNodeAnnotation = path.getNodeAnnotation(i - 1);
-				final BrainAnnotation currentNodeAnnotation = path.getNodeAnnotation(i);
-				if (includeChildren) {
-					if (isSameOrParentAnnotation(compartment, currentNodeAnnotation)
-							&& isSameOrParentAnnotation(compartment, prevNodeAnnotation)) {
-						sumLength += path.getNode(i).distanceTo(path.getNode(i - 1));
-					}
-				} else {
-					if (compartment.equals(currentNodeAnnotation) &&
-							compartment.equals(prevNodeAnnotation)) {
-						sumLength += path.getNode(i).distanceTo(path.getNode(i - 1));
-					}
-				}
-			}
-		}
-		return sumLength;
+		final DirectedWeightedGraph graph = tree.getGraph();
+		final NodeStatistics<SWCPoint> nodeStats = new NodeStatistics<SWCPoint>(graph.vertexSet());
+		final DirectedWeightedSubgraph subgraph = graph.getSubgraph(new HashSet<>(nodeStats.get(compartment, includeChildren)));
+		return subgraph.sumEdgeWeights(true);
 	}
 
 	protected boolean isSameOrParentAnnotation(final BrainAnnotation annot, final BrainAnnotation annotToBeTested) {
