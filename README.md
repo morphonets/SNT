@@ -1,29 +1,36 @@
 <p align="center"><img src="https://imagej.net/media/icons/snt.png" alt="SNT" width="150"></p>
 <h2 align="center">The ImageJ framework for quantification of neuronal anatomy</h2>
 <div align="center">
-  <!-- Zenodo -->
-  <a href="https://zenodo.org/badge/latestdoi/221831995">
-    <img alt="Zenodo DOI" src="https://zenodo.org/badge/221831995.svg">
+
+ <!-- rdcu.be -->
+  <a href="https://rdcu.be/c59MD">
+    <img alt="Publication (Publisher)" src="https://img.shields.io/badge/Publication-Pub.-teal.svg">
   </a>
-  <!-- BioRiv -->
+ <!-- BioRiv -->
   <a href="https://doi.org/10.1101/2020.07.13.179325">
     <img alt="Publication" src="https://img.shields.io/badge/Publication-BioRiv-red.svg">
   </a>
-  <a href="https://forum.image.sc/tags/snt">
-    <img alt="Forum.sc topics" src="https://img.shields.io/badge/dynamic/json.svg?label=forum&url=https%3A%2F%2Fforum.image.sc%2Ftag%2Fsnt.json&query=%24.topic_list.tags.0.topic_count&suffix=%20topics">
-  </a>
-  <!-- Gitpod -->
-  <a href="https://gitpod.io/#https://github.com/fiji/SNT">
-    <img alt="Gitpod ready-to-code" src="https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod">
+  <!-- Zenodo -->
+  <a href="https://zenodo.org/badge/latestdoi/221831995">
+    <img alt="Zenodo DOI" src="https://zenodo.org/badge/221831995.svg">
   </a>
   <!-- License -->
   <a href="https://github.com/morphonets/SNT/blob/master/LICENSE.txt">
     <img alt="GitHub license" src="https://img.shields.io/github/license/morphonets/SNT">
   </a>
-  <br>
+<br>
   <!-- Build Status -->
   <a href="https://github.com/morphonets/SNT/actions/workflows/build-main.yml">
     <img alt="Build status" src="https://github.com/morphonets/SNT/actions/workflows/build-main.yml/badge.svg">
+  </a>
+  <!-- Gitpod -->
+  <a href="https://gitpod.io/#https://github.com/fiji/SNT">
+    <img alt="Gitpod ready-to-code" src="https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod">
+  </a>
+<br>
+  <!-- Forum -->
+  <a href="https://forum.image.sc/tags/snt">
+    <img alt="Forum.sc topics" src="https://img.shields.io/badge/dynamic/json.svg?label=forum&url=https%3A%2F%2Fforum.image.sc%2Ftag%2Fsnt.json&query=%24.topic_list.tags.0.topic_count&suffix=%20topics">
   </a>
   <!-- Issues -->
   <a href="https://github.com/morphonets/SNT/issues">
@@ -70,9 +77,10 @@ SNT can be used as a regular application or as a scripting library. Python (thro
 [![Overview](https://user-images.githubusercontent.com/2439948/167173119-2e4bea60-38e6-437f-82a9-205700f83ae8.png)](https://www.nature.com/articles/s41592-021-01105-7)
 
 ## Features
-For an overview of SNT capabilities have a look at the [showcase gallery in the documentation](https://imagej.net/plugins/snt/#overview).
+For an overview of SNT capabilities have a look at the [showcase gallery](https://imagej.net/plugins/snt/#overview).
+
 <details>
-  <summary><b>Detailed List of Features</b></summary>
+  <summary><b>Detailed List</b></summary>
 
 ### Tracing
 
@@ -98,7 +106,7 @@ For an overview of SNT capabilities have a look at the [showcase gallery in the 
 
 * Post-hoc refinement of node positioning and radii by 'fitting' traces to the fluorescent signal associated with a path
   
-  ### Analysis
+### Analysis
 
 * Extensive repertoire of metrics, namely those provided by [L-measure](http://cng.gmu.edu:8080/Lm/help/index.htm) and [NeuroM](https://github.com/BlueBrain/NeuroM). Metrics can be collected from groups of cells, single cells, or parts thereof
 
@@ -118,7 +126,7 @@ For an overview of SNT capabilities have a look at the [showcase gallery in the 
 
 * Image processing workflows: Reconstructions can be converted to masks and ROIs. Voxel intensities can be profiled around traced paths
   
-  ### Visualization
+### Visualization
 
 * Quantitative visualizations: Display neurons color coded by morphometric traits, or neuropil annotations. 
 
@@ -137,7 +145,7 @@ For an overview of SNT capabilities have a look at the [showcase gallery in the 
   * Display reconstructions as dendrograms
   * Quantitative connectivity graphs for single cells and groups of cells
   
-  ### Scripting
+### Scripting
 
 * Almost every aspect of the program can be scripted in any of the IJ2 supported languages, or from Python through [pyimagej](https://github.com/imagej/pyimagej)
 
@@ -145,13 +153,15 @@ For an overview of SNT capabilities have a look at the [showcase gallery in the 
 
 * Headless scripts supported
   
-  ### Modeling
+### Modeling
 
 * Biophysical modeling of neuronal growth is performed through [Cortex3D (Cx3D)](https://github.com/morphonets/cx3d) and [sciview](https://docs.scenery.graphics/sciview/ "SciView"), in which a modified version of [Cx3D](https://github.com/morphonets/cx3d) grows neuronal processes with [sciview](https://docs.scenery.graphics/sciview/)’s data structures.
   
-  ### Backwards Compatibility
+### Compatibility
 
-* Special effort was put into backwards compatibility with  [Simple Neurite Tracer](https://github.com/fiji/SNT)  (including [TrakEM2](https://github.com/trakem2/TrakEM2) and [ITK](https://imagej.net/SNT:_Tubular_Geodesics) interaction). Inherited functionality has been improved, namely:
+* Support for multiple file formats including SWC, TRACES, JSON (MouseLight specification), and NDF (NeuronJ data file)
+
+* Backwards compatibility: Special effort was put into backwards compatibility with  [Simple Neurite Tracer](https://github.com/fiji/SNT)  (including [TrakEM2](https://github.com/trakem2/TrakEM2) and [ITK](https://imagej.net/SNT:_Tubular_Geodesics) interaction). Inherited functionality has been improved, namely:
   
   * Support for sub-pixel accuracy
   * Synchronization of XY, ZY, and XZ views
@@ -161,18 +171,18 @@ For an overview of SNT capabilities have a look at the [showcase gallery in the 
 
 * Aggregation of [legacy plugins](./NOTES.md)
   
-  </details>
+</details>
 
 ## Installation
 
 SNT is a [Fiji](https://imagej.net/Fiji) plugin, currently distributed through the *Neuroanatomy* [update site](https://imagej.net/Update_Sites).
 
-The first time you start SNT from Fiji's menu structure (*Plugins>Neuroanatomy>SNT...* you should be prompted for automatic subscription and download of required dependencies. If not:
+The first time you start SNT from Fiji's menu structure *(Plugins>Neuroanatomy>SNT...*) you should be prompted for automatic subscription and download of required dependencies. If not:
 
 1. Run the Fiji Updater (*Help › Update...*, the penultimate entry in the  *Help ›*  menu)
 2. Click *Manage update sites*
 3. Select the *Neuroanatomy* checkbox
-4. Optionally, select the *Sciview* checkbox. This is only required for extra [sciview](https://docs.scenery.graphics/sciview/) functionality
+4. Optionally, select the *sciview* checkbox. This is only required for extra [sciview](https://docs.scenery.graphics/sciview/) functionality
 5. Click *Apply changes* and Restart Fiji. SNT commands are registered under _Plugins>Neuroanatomy>_ in the main menu and SNT scripts under _Templates>Neuroanatomy>_ in Fiji's Script Editor.
 
 Problems? Have a look at the full [documentation](https://imagej.net/SNT).
@@ -181,7 +191,7 @@ Problems? Have a look at the full [documentation](https://imagej.net/SNT).
 
 ### On the cloud
 
-Use this button to open the project on the cloud using [Gitpod](https://gitpod.io). No local installation necessary.
+Use this button to open the project on the cloud using [Gitpod](https://gitpod.io). No local installation necessary (although project may take a while to load).
 
 [![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/morphonets/SNT) 
 
@@ -200,9 +210,23 @@ Use this button to open the project on the cloud using [Gitpod](https://gitpod.i
 
 Useful resources to start hacking SNT:
 
+From a Java IDE:
 - _main_ methods found on most classes: These test/showcase some of the class's functionality
-- [JUnit tests](./src/test/java/sc/fiji/snt/),  [Script templates](./src/main/resources/script_templates/Neuroanatomy/) and [notebooks](./notebooks)
+- [JUnit tests](./src/test/java/sc/fiji/snt/)
+
+From Fiji's Script Editor:
+- Scripts in the _Templates>Neuroanatomy>_ menu). These are part of the source code and can also be accessed from [Script templates](./src/main/resources/script_templates/Neuroanatomy/) 
+
+From python:
+- [Jupyter notebooks](./notebooks)
+
+Snippets and code templates:
+- [Jupyter notebooks](./notebooks)
+- [Script templates](./src/main/resources/script_templates/Neuroanatomy/)
+- [Examples from the SNT manuscript](https://github.com/morphonets/SNTmanuscript)
+- [Examples from I2K tutorials](https://github.com/morphonets/i2k2020)
+- [Snippets across the forum](https://forum.image.sc/tag/snt)
 
 ## Contributing
 
-Want to contribute? Please, please do! We welcome [issues](https://github.com/morphonets/SNT/issues) and [pull requests](https://github.com/morphonets/SNT/pulls) any time.
+Want to contribute? Please, please do! We welcome [issues](https://github.com/morphonets/SNT/issues) and [pull requests](https://github.com/morphonets/SNT/pulls) any time. You can also report bugs and propose improvements using the [forum](https://forum.image.sc/tag/snt). Please tag your post using `snt` so that it does not go unnoticed. 
