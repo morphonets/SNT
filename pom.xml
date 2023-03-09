@@ -15,7 +15,7 @@
 
 	<name>SNT</name>
 	<description>The ImageJ framework for quantitative neuroanatomy</description>
-	<url>https://imagej.net/SNT</url>
+	<url>https://imagej.net/plugins/snt</url>
 	<inceptionYear>2010</inceptionYear>
 	<organization>
 		<name>Fiji</name>
@@ -32,7 +32,7 @@
 		<developer>
 			<id>tferr</id>
 			<name>Tiago Ferreira</name>
-			<url>https://imagej.net/User:Tiago</url>
+			<url>https://imagej.net/people/tferr</url>
 			<roles>
 				<role>lead</role>
 				<role>maintainer</role>
@@ -42,7 +42,7 @@
 		</developer>
 		<developer>
 			<name>Cameron Arshadi</name>
-			<url>https://imagej.net/User:Arshadi</url>
+			<url>https://imagej.net/people/carshadi</url>
 			<properties><id>carshadi</id></properties>
 			<roles>
 				<role>maintainer</role>
@@ -55,7 +55,7 @@
 		<developer>
 			<id>kephale</id>
 			<name>Kyle IS Harrington</name>
-			<url>https://imagej.net/User:Kharrington</url>
+			<url>https://imagej.net/people/kephale</url>
 			<roles>
 				<role>developer</role>
 			</roles>
@@ -63,7 +63,7 @@
 		<developer>
 			<id>ctrueden</id>
 			<name>Curtis Rueden</name>
-			<url>https://imagej.net/User:Rueden</url>
+			<url>https://imagej.net/people/ctrueden</url>
 			<roles>
 				<role>maintainer</role>
 			</roles>
@@ -72,28 +72,28 @@
 	<contributors>
 		<contributor>
 			<name>Mark Longair</name>
-			<url>https://imagej.net/User:Mark</url>
+			<url>https://imagej.net/people/mhl</url>
 			<roles><role>founder</role></roles>
 			<properties><id>mhl</id></properties>
 		</contributor>
 		<contributor>
 			<name>Johannes Schindelin</name>
-			<url>https://imagej.net/User:Schindelin</url>
+			<url>https://imagej.net/people/dscho</url>
 			<properties><id>dscho</id></properties>
 		</contributor>
 		<contributor>
 			<name>Ignacio Arganda-Carreras</name>
-			<url>https://imagej.net/User:Iarganda</url>
+			<url>https://imagej.net/people/iarganda</url>
 			<properties><id>iarganda</id></properties>
 		</contributor>
 		<contributor>
 			<name>Jan Eglinger</name>
-			<url>https://imagej.net/User:Eglinger</url>
+			<url>https://imagej.net/people/imagejan</url>
 			<properties><id>imagejan</id></properties>
 		</contributor>
 		<contributor>
 			<name>Mark Hiner</name>
-			<url>https://imagej.net/User:Hinerm</url>
+			<url>https://imagej.net/people/hinerm</url>
 			<properties><id>hinerm</id></properties>
 		</contributor>
 		<contributor>
