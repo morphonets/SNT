@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>33.2.0</version>
+		<version>34.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -124,29 +124,30 @@
 	</ciManagement>
 
 	<properties>
+		<package-name>org.fiji.snt</package-name>
+		<automatic-module-name>org.morphonets.snt</automatic-module-name>
 		<license.licenseName>gpl_v3</license.licenseName>
 		<license.copyrightOwners>Fiji developers.</license.copyrightOwners>
 		<license.projectName>Fiji distribution of ImageJ for the life sciences.</license.projectName>
 		<license.excludes>%regex[.*main/resources/.*|.*/macros/.*]</license.excludes>
+
+		<scijava.jvm.version>11</scijava.jvm.version>
 		<doclint>none</doclint>
 
 		<!-- Dependency versions -->
-		<sciview.version>e3510f4</sciview.version>
-		<scenery.version>4d07a30</scenery.version>
-		<jzy3d.version>2.2.1</jzy3d.version>
-		<jgl.version>2.0.0</jgl.version>
-		<okhttp.version>4.11.0</okhttp.version>
-		<okio-jvm.version>3.3.0</okio-jvm.version>
+		<sciview.version>906892d</sciview.version>
+		<scenery.version>db26f01</scenery.version>
 		<font-awesome.version>6.4.0</font-awesome.version>
-		<json.version>20230618</json.version>
 		<flatlaf.version>3.1.1</flatlaf.version>
+		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
 		<log4j.version>2.20.0</log4j.version>
+		<smile-core.version>3.0.2</smile-core.version>
+		<jide-oss.version>3.7.12</jide-oss.version>
+		<fastutil-core.version>8.5.12</fastutil-core.version>
+		<jheaps.version>0.14</jheaps.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
-
-		<!-- Resolve dup. class conflict -->
-		<allowedDuplicateClasses>${scijava.allowedDuplicateClasses},org.jzy3d.plot3d.pipelines.NotImplementedException,jogamp.nativetag.common.linux.amd64.TAG,jogamp.nativetag.common.linux.armv6hf.TAG,jogamp.nativetag.common.linux.i586.TAG,jogamp.nativetag.common.macosx.universal.TAG,jogamp.nativetag.common.windows.amd64.TAG,jogamp.nativetag.common.windows.i586.TAG,jogamp.nativetag.opengl.linux.amd64.TAG,jogamp.nativetag.opengl.linux.armv6hf.TAG,jogamp.nativetag.opengl.linux.i586.TAG,jogamp.nativetag.opengl.macosx.universal.TAG,jogamp.nativetag.opengl.windows.amd64.TAG,jogamp.nativetag.opengl.windows.i586.TAG</allowedDuplicateClasses>
 	</properties>
 
 	<repositories>
@@ -160,101 +161,38 @@
 		<dependency>
 			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-native-jogl-core</artifactId>
-			<version>${jzy3d.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-core</artifactId>
-			<version>${jzy3d.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-native-jogl-swing</artifactId>
-			<version>${jzy3d.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>com.miglayout</groupId>
-					<artifactId>miglayout</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-native-jogl-awt</artifactId>
-			<version>${jzy3d.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>org.jzy3d</groupId>
-					<artifactId>jzy3d-tester-native</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.jzy3d</groupId>
-					<artifactId>jzy3d-tester</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.jzy3d</groupId>
-			<artifactId>jzy3d-emul-gl</artifactId>
-			<version>${jgl.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
+			<artifactId>jzy3d-emul-gl-awt</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.jzy3d</groupId>
-			<artifactId>jGL</artifactId>
-			<version>${jgl.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
+			<artifactId>jzy3d-jGL-awt</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-tester</artifactId>
-			<version>${jzy3d.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf</artifactId>
-			<version>${flatlaf.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.github.haifengl</groupId>
 			<artifactId>smile-core</artifactId>
-			<version>3.0.2</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
@@ -271,7 +209,6 @@
 		<dependency>
 			<groupId>org.jfree</groupId>
 			<artifactId>jfreechart</artifactId>
-			<version>1.5.4</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.iview</groupId>
@@ -290,18 +227,6 @@
 				<exclusion>
 					<groupId>org.biojava</groupId>
 					<artifactId>biojava-modfinder</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-slf4j-impl</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-api</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-core</artifactId>
 				</exclusion>
 				<exclusion>
 					<groupId>org.jetbrains.kotlin</groupId>
@@ -326,18 +251,6 @@
 				<exclusion>
 					<groupId>org.biojava</groupId>
 					<artifactId>biojava-modfinder</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-slf4j-impl</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-api</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-core</artifactId>
 				</exclusion>
 				<exclusion>
 					<groupId>org.jetbrains.kotlin</groupId>
@@ -365,12 +278,12 @@
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>jide-oss</artifactId>
-			<version>3.7.12</version>
+			<version>${jide-oss.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf-jide-oss</artifactId>
-			<version>${flatlaf.version}</version>
+			<version>${flatlaf-jide-oss.version}</version>
 			<scope>runtime</scope>
 			<optional>true</optional>
 		</dependency>
@@ -415,10 +328,6 @@
 			<artifactId>jgrapht-ext</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.scijava</groupId>
-			<artifactId>scijava-plugins-io-table</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>net.imagej</groupId>
 			<artifactId>imagej-updater</artifactId>
 		</dependency>
@@ -429,12 +338,12 @@
 		<dependency>
 			<groupId>it.unimi.dsi</groupId>
 			<artifactId>fastutil-core</artifactId>
-			<version>8.5.12</version>
+			<version>${fastutil-core.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jheaps</groupId>
 			<artifactId>jheaps</artifactId>
-			<version>0.14</version>
+			<version>${jheaps.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
