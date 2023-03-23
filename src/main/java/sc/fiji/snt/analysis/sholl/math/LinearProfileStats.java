@@ -815,6 +815,31 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 		return getMaxCount(fittedData) / getPrimaryBranches(fittedData);
 	}
 
+	/**
+	 * Calculates the branching index (BI) as defined in
+	 * <a href="https://pubmed.ncbi.nlm.nih.gov/24503022/">PMID 24503022</a>(doi:
+	 * 10.1016/j.jneumeth.2014.01.016). Note that this index is very sensitive to
+	 * radius step size.
+	 *
+	 * @param fittedData If {@code true}, calculation is performed on polynomial
+	 *                   fitted values, otherwise from sampled data
+	 *
+	 * @return the branching index
+	 * @see #getRamificationIndex(boolean)
+	 */
+	public double getBranchingIndex(final boolean fittedData) {
+		if (fittedData)
+			validateFit();
+		final double[] counts = (fittedData) ? fCounts : inputCounts;
+		double bi = 0;
+		for (int i = 1; i < counts.length; i++) {
+			final double v = (counts[i] - counts[i - 1]) * i;
+			if (v > 0)
+				bi += v;
+		}
+		return bi;
+	}
+
 	private double getMaxCount(final boolean fittedData) {
 		if (fittedData)
 			return StatUtils.max(fCounts);

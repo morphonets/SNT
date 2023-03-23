@@ -261,13 +261,13 @@ public class ShollTable extends SNTTable {
 			set(getCol(getHeader("Median " + key, fData)), row, lStats.getMedian(fData));
 			set(getCol(getHeader("Skeweness", fData)), row, lStats.getSkewness(fData));
 			set(getCol(getHeader("Kurtosis", fData)), row, lStats.getKurtosis(fData));
+			final ShollPoint centroid = lStats.getCentroid(fData);
+			set(getCol(getHeader("Centroid value", fData)), row, centroid.y);
+			set(getCol(getHeader("Centroid radius", fData)), row, centroid.x);
 		}
 
 		set(getCol(getHeader("Ramification index", fData)), row, lStats.getRamificationIndex(fData));
-
-		final ShollPoint centroid = lStats.getCentroid(fData);
-		set(getCol(getHeader("Centroid value", fData)), row, centroid.y);
-		set(getCol(getHeader("Centroid radius", fData)), row, centroid.x);
+		set(getCol(getHeader("Branching index", fData)), row, lStats.getBranchingIndex(fData));
 
 		try {
 			if (prefService != null) {
