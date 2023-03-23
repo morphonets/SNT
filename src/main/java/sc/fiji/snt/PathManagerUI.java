@@ -29,12 +29,7 @@ import java.awt.Graphics;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.event.*;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -48,23 +43,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
-import javax.swing.ButtonGroup;
-import javax.swing.Icon;
-import javax.swing.ImageIcon;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JMenu;
-import javax.swing.JMenuBar;
-import javax.swing.JMenuItem;
-import javax.swing.JPopupMenu;
-import javax.swing.JRadioButtonMenuItem;
-import javax.swing.JScrollPane;
-import javax.swing.JTree;
-import javax.swing.SwingUtilities;
-import javax.swing.SwingWorker;
-import javax.swing.TransferHandler;
-import javax.swing.UIManager;
+import javax.swing.*;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -138,6 +117,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private static final String SYM_LENGTH = "L:";//"\uD800\uDCB3"; // not displayed in macOS
 	private static final String SYM_TREE = "ID:"; //"\uD800\uDCB7"; // not displayed in macOS
 	private static final String SYM_ORDER ="ORD:"; //"\uD800\uDC92"; // not displayed in macOS
+	private static final String SAVE_TRACES_ACTION = "save traces";
 
 	private final HelpfulJTree tree;
 	private final SNT plugin;
@@ -179,6 +159,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		tree.addTreeSelectionListener(this);
 		scrollPane = new JScrollPane();
 		scrollPane.getViewport().add(tree);
+		scrollPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
+				KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_MASK),
+				SAVE_TRACES_ACTION);
+		scrollPane.getActionMap().put(SAVE_TRACES_ACTION, new AbstractAction() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				if (!plugin.getUI().noPathsError()) {
+					final File saveFile = plugin.getUI().saveFile(
+							"Save Traces As...", null, ".traces");
+					if (saveFile != null) plugin.getUI().saveToXML(saveFile);
+				}
+			}
+		});
 		add(scrollPane, BorderLayout.CENTER);
 
 		// Create all the menu items:

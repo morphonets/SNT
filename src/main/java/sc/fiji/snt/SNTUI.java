@@ -3329,7 +3329,7 @@ public class SNTUI extends JDialog {
 		imp.getWindow().setVisible(!mItem.isSelected());
 	}
 
-	private boolean noPathsError() {
+	protected boolean noPathsError() {
 		final boolean noPaths = pathAndFillManager.size() == 0;
 		if (noPaths)
 			guiUtils.error("There are no traced paths.");
