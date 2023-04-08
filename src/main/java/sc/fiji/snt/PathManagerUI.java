@@ -117,7 +117,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private static final String SYM_LENGTH = "L:";//"\uD800\uDCB3"; // not displayed in macOS
 	private static final String SYM_TREE = "ID:"; //"\uD800\uDCB7"; // not displayed in macOS
 	private static final String SYM_ORDER ="ORD:"; //"\uD800\uDC92"; // not displayed in macOS
-	private static final String SAVE_TRACES_ACTION = "save traces";
 
 	private final HelpfulJTree tree;
 	private final SNT plugin;
@@ -159,19 +158,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		tree.addTreeSelectionListener(this);
 		scrollPane = new JScrollPane();
 		scrollPane.getViewport().add(tree);
-		scrollPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
-				KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_MASK),
-				SAVE_TRACES_ACTION);
-		scrollPane.getActionMap().put(SAVE_TRACES_ACTION, new AbstractAction() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				if (!plugin.getUI().noPathsError()) {
-					final File saveFile = plugin.getUI().saveFile(
-							"Save Traces As...", null, ".traces");
-					if (saveFile != null) plugin.getUI().saveToXML(saveFile);
-				}
-			}
-		});
 		add(scrollPane, BorderLayout.CENTER);
 
 		// Create all the menu items:
