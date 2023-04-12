@@ -36,8 +36,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -45,6 +47,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
+import java.util.regex.Pattern;
 
 import org.scijava.Context;
 import org.scijava.log.LogService;
@@ -73,6 +76,8 @@ import sc.fiji.snt.viewer.Viewer3D;
 /** Static utilities for SNT **/
 public class SNTUtils {
 
+	private static final String TIMESTAMP_PATTERN = "yyyy-MM-dd_HH:mm:ss";
+	private static final String TIMESTAMP_REGEX = "\\d{4}-\\d{2}-\\d{2}_\\d{2}:\\d{2}:\\d{2}";
 	private static Context context;
 	private static LogService logService;
 
@@ -536,6 +541,41 @@ public class SNTUtils {
 			return file.canRead() && (lName.endsWith("swc") || lName.endsWith(".traces") || lName.endsWith(".json"));
 		};
 		return dir.listFiles(filter);
+	}
+
+	/**
+	 * Retrieves a list of time-stamped backup files associated with a TRACES file
+	 *
+	 * @param tracesFile the TRACES file
+	 * @return the list of backup files. An empty list is retrieved if none could be
+	 *         found.
+	 */
+	public static List<File> getBackupCopies(final File tracesFile) {
+		final List<File> copies = new ArrayList<>();
+		if (tracesFile == null)
+			return copies;
+		final File dir = tracesFile.getParentFile();
+		if (dir == null || !dir.isDirectory() || !dir.exists() || !dir.canRead()) {
+			return copies;
+		}
+		final File[] candidates = getReconstructionFiles(dir, stripExtension(tracesFile.getName()));
+		if (candidates == null)
+			return copies;
+		Pattern p = Pattern.compile(SNTUtils.TIMESTAMP_REGEX);
+		for (final File candidate : candidates) {
+			try {
+				if (p.matcher(candidate.getName()).find())
+					copies.add(candidate);
+			} catch (final Exception ignored) {
+				// do nothing
+				ignored.printStackTrace();
+			}
+		}
+		return copies;
+	}
+
+	public static String getTimeStamp() {
+		return new SimpleDateFormat(TIMESTAMP_PATTERN).format(new Date());
 	}
 
 	public static void setIsLoading(boolean isLoading) {

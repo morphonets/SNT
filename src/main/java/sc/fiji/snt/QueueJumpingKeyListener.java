@@ -27,7 +27,6 @@ import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -135,21 +134,7 @@ class QueueJumpingKeyListener implements KeyListener {
 			return;
 		}
 		else if (ctrl_down && keyCode == KeyEvent.VK_S && tracerPlugin.getUI() != null) {
-			final int currentState = tracerPlugin.getUIState();
-			if (currentState == SNTUI.READY || currentState == SNTUI.TRACING_PAUSED || currentState == SNTUI.SNT_PAUSED)
-			{
-				if (!tracerPlugin.getUI().noPathsError())
-				{
-					final File saveFile = tracerPlugin.getUI().saveFile(
-							"Save Traces As...", null, ".traces");
-					if (saveFile != null)
-						tracerPlugin.getUI().saveToXML(saveFile);
-				}
-			}
-			else
-			{
-				tracerPlugin.discreteMsg("Please finish current task before saving...");
-			}
+			tracerPlugin.getUI().saveToXML(shift_down);
 			e.consume();
 			return;
 		}

@@ -2278,8 +2278,16 @@ public class SNTUI extends JDialog {
 	}
 
 	protected File saveFile(final String promptMsg, final String suggestedFileName, final String fallbackExtension) {
-		final File fFile = new File(plugin.getPrefs().getRecentDir(),
-				(suggestedFileName == null) ? "SNT_Data" : suggestedFileName);
+		final String filename;
+		if (suggestedFileName == null) {
+			if (plugin.accessToValidImageData())
+				filename = SNTUtils.stripExtension(plugin.getImagePlus().getShortTitle());
+			else
+				filename = "SNT_Data";
+		} else {
+			filename = suggestedFileName;
+		}
+		File fFile = new File(plugin.getPrefs().getRecentDir(), filename);
 		final boolean focused = hasFocus();
 		if (focused)
 			toBack();
@@ -2524,11 +2532,30 @@ public class SNTUI extends JDialog {
 		});
 		importSubmenu.add(remoteSubmenu);
 
-		saveMenuItem = new JMenuItem("TRACES...");
-		saveMenuItem.addActionListener(listener);
+		saveMenuItem = new JMenuItem("Save");
+		saveMenuItem.setToolTipText("Saves tracings to a TRACES (XML) file.\n"
+				+ "This file may be gzip compressed as per options in the Preferences dialog.");
+		saveMenuItem.setAccelerator(
+				KeyStroke.getKeyStroke(KeyEvent.VK_S, java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+		saveMenuItem.addActionListener(e -> saveToXML(false));
 		exportSubmenu.add(saveMenuItem);
-		exportAllSWCMenuItem = new JMenuItem("SWC...");
+		final JMenuItem saveCopyMenuItem = new JMenuItem("Save Snapshot Backup");
+		saveCopyMenuItem.setToolTipText("Saves data to a timecoded backup TRACES file on main file's directory");
+		saveCopyMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S,
+				java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_DOWN_MASK));
+		exportSubmenu.add(saveCopyMenuItem);
+		saveCopyMenuItem.addActionListener(e -> saveToXML(true));
+		final JMenuItem saveAsMenuItem = new JMenuItem("Save As...");
+		exportSubmenu.add(saveAsMenuItem);
+		saveAsMenuItem.addActionListener(e -> {
+			if (!noPathsError()) {
+				final File saveFile = saveFile("Save Traces As...", null, ".traces");
+				if (saveFile != null) saveToXML(saveFile);
+			}
+		});
+		exportAllSWCMenuItem = new JMenuItem("Export As SWC...");
 		exportAllSWCMenuItem.addActionListener(listener);
+		exportSubmenu.addSeparator();
 		exportSubmenu.add(exportAllSWCMenuItem);
 
 		final JMenuItem restartMenuItem = new JMenuItem("Reset and Restart...", IconFactory.getMenuIcon(IconFactory.GLYPH.RECYCLE));
@@ -2546,7 +2573,12 @@ public class SNTUI extends JDialog {
 			}
 		});
 
+		final JMenuItem restoreMenuItem = new JMenuItem("Restore Snapshot Backup...");
+		restoreMenuItem.setToolTipText("Restores data from existing timecoded backups stored on disk");
+		restoreMenuItem.setIcon(IconFactory.getMenuIcon(GLYPH.CLOCK_ROTATE_LEFT));
+		restoreMenuItem.addActionListener(e -> revertFromBackup());
 		fileMenu.addSeparator();
+		fileMenu.add(restoreMenuItem);
 		fileMenu.add(restartMenuItem);
 		fileMenu.addSeparator();
 
@@ -3890,11 +3922,6 @@ public class SNTUI extends JDialog {
 					enableSecondaryLayerBuiltin(true); //FIXME: IS this needed?
 				}
 
-			} else if (source == saveMenuItem && !noPathsError()) {
-
-				final File saveFile = saveFile("Save Traces As...", null, ".traces");
-				if (saveFile != null) saveToXML(saveFile);
-
 			} else if (source == loadTracesMenuItem) {
 
 				new ImportAction(ImportAction.TRACES, null).run();
@@ -4169,6 +4196,79 @@ public class SNTUI extends JDialog {
 				return -1;
 			}
 		});
+	}
+
+	private File getAutosaveFile() {
+		if (!isReady()) {
+			plugin.discreteMsg("Please finish current task before saving...");
+			return null;
+		}
+		final String autosavePath = plugin.getPrefs().getTemp(SNTPrefs.AUTOSAVE_KEY, null);
+		return (autosavePath == null) ? null : new File(autosavePath);
+	}
+
+	private void setAutosaveFile(final File file) {
+		if (SNTUtils.fileAvailable(file))
+			plugin.getPrefs().setTemp(SNTPrefs.AUTOSAVE_KEY, file.getAbsolutePath());
+	}
+
+	private void revertFromBackup() {
+		final File autosaveFile = getAutosaveFile();
+		if (autosaveFile == null) {
+			error("Current tracings have not been loaded from disk or the location of the data in the file system is not known."
+					+ " Please load tracings manually");
+			return;
+		}
+		final List<File> copies = SNTUtils.getBackupCopies(autosaveFile); // list never null
+		if (copies == null || copies.isEmpty()) {
+			error("No time-stamped backups seem to exist for current data. Please create one first.");
+			return;
+		}
+		final HashMap<String, File> map = new HashMap<>(copies.size());
+		copies.forEach(cp -> map.put(SNTUtils.stripExtension(cp.getName()), cp));
+		final String[] choices = map.keySet().toArray(new String[0]);
+		final String choice = guiUtils.getChoice("Select timepoint for restore (current unsaved changes will be lost):",
+				"Revert to Saved State...", choices, choices[0]);
+		if (choice == null)
+			return; // user pressed cancel
+		plugin.loadTracesFile(map.get(choice));
+		if (guiUtils.getConfirmation(
+				"Data restored from snapshot backup. Shall this state now be saved to the main file, overriding its contents? "
+						+ "Alternatively, you can dismiss this prompt and save data manually later on.",
+				"Data Restored. Override Main File?", "Yes. Override main file.", "No. Do nothing.")) {
+			saveToXML(autosaveFile);
+		}
+	}
+
+	protected void saveToXML(boolean timeStampedCopy) {
+		boolean successfull = false;
+		File targetFile = getAutosaveFile();
+		if (timeStampedCopy) {
+			if (targetFile == null) {
+				error("Traces must be saved at least once before a time-stamped copy is made.");
+				return;
+			}
+			final String suffix = SNTUtils.getTimeStamp();
+			final String fName = SNTUtils.stripExtension(targetFile.getName());
+			targetFile = new File(targetFile.getParentFile(), fName + "_" + suffix + ".traces");
+		}
+		try {
+			if (!timeStampedCopy && (targetFile == null || !targetFile.exists() || !targetFile.canWrite())) {
+				targetFile = saveFile("Save Traces As...", null, ".traces");
+			}
+			if (targetFile != null)
+				successfull = saveToXML(targetFile);
+		} catch (final SecurityException ignored) {
+			// do nothing
+		}
+		if (successfull) {
+			SNTUtils.log(String.format("Saved to %s...", targetFile.getName()));
+			plugin.discreteMsg(String.format("Saved to %s...", targetFile.getName()));
+			if (!timeStampedCopy)
+				plugin.getPrefs().setTemp(SNTPrefs.AUTOSAVE_KEY, targetFile.getAbsolutePath());
+		} else {
+			plugin.discreteMsg("File could not be saved! Please use File> menu instead.");
+		}
 	}
 
 	protected boolean saveToXML(final File file) {
