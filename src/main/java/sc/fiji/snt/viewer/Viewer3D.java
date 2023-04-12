@@ -46,7 +46,6 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
@@ -2141,8 +2140,7 @@ public class Viewer3D {
 	 * @return true, if successful
 	 */
 	public boolean saveSnapshot() {
-		final String filename = new SimpleDateFormat("'SNT 'yyyy-MM-dd HH-mm-ss'.png'")
-				.format(new Date());
+		final String filename = String.format("SNT_%s.png", SNTUtils.getTimeStamp());
 		final File file = new File(prefs.getSnapshotDir(), filename);
 		boolean saved = false;
 		try {

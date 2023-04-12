@@ -2969,6 +2969,7 @@ public class SNT extends MultiDThreePanes implements
 		components.add(xz_canvas);
 		components.add(zy_canvas);
 		if (univ != null) components.add(univ.getCanvas());
+		if (getUI() != null) components.add(getUI());
 		for (final Component c : components) {
 			if (c != null && c.isFocusOwner()) return c;
 		}

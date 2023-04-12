@@ -4241,11 +4241,16 @@ public class SNTUI extends JDialog {
 	}
 
 	protected void saveToXML(boolean timeStampedCopy) {
+		if (noPathsError()) return; // do not create empty files
 		boolean successfull = false;
 		File targetFile = getAutosaveFile();
 		if (timeStampedCopy) {
 			if (targetFile == null) {
-				error("Traces must be saved at least once before a time-stamped copy is made.");
+				if (guiUtils.getConfirmation(
+						"Traces must be saved at least once before a time-stamped backup is made. Save traces to main file now?",
+						"No Main File Exists")) {
+					saveToXML(false);
+				}
 				return;
 			}
 			final String suffix = SNTUtils.getTimeStamp();
@@ -4272,6 +4277,7 @@ public class SNTUI extends JDialog {
 	}
 
 	protected boolean saveToXML(final File file) {
+		if (noPathsError()) return false; // do not create empty files
 		showStatus("Saving traces to " + file.getAbsolutePath(), false);
 
 		final int preSavingState = currentState;
@@ -4316,7 +4322,7 @@ public class SNTUI extends JDialog {
 		boolean nag = plugin.getPrefs().getTemp("dataloss-nag", true);
 		if (nag) {
 			final Boolean prompt = guiUtils.getPersistentWarning(//
-					"The following data can only be saved in a <i>TRACES</i> file and will not be stored in SWC files:"
+					"The following data can only be saved in a <i>TRACES</i> file and will not be stored under the SWC format:"
 					+ "<ul>" //
 					+ "  <li>Image details</li>"//
 					+ "  <li>Fits and Fills</li>"//
@@ -4449,6 +4455,7 @@ public class SNTUI extends JDialog {
 					plugin.loadSWCFile(file);
 				} else if (type == TRACES){
 					plugin.loadTracesFile(file);
+					setAutosaveFile(file);
 				} else if (type == ANY_RECONSTRUCTION){
 					if (file == null) file = openFile("Open Reconstruction File (Guessing Type)...", "swc");
 					if (file != null) plugin.loadTracings(file);
