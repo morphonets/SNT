@@ -593,6 +593,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		for (final Path p : paths) {
 			p.setColor((Color)null);
 		}
+		plugin.setUnsavedChanges(true);
 		refreshManager(true, true, paths);
 	}
 
@@ -609,7 +610,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 		if (resetIDs) {
 			pathAndFillManager.resetIDs();
-			plugin.unsavedPaths = false;
 		} else if (rebuild) {
 			pathAndFillManager.rebuildRelationships();
 		}
@@ -2267,6 +2267,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 							return;
 						} else {// Otherwise this is OK, change the name:
 							p.setName(s);
+							plugin.setUnsavedChanges(true);
 						}
 						refreshManager(false, false, Collections.singleton(p));
 					}
@@ -2545,6 +2546,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				for (final Path p : selectedPaths)
 					p.setColor(colors[idx++]);
 				refreshManager(true, true, selectedPaths);
+				plugin.setUnsavedChanges(true);
 				return;
 			}
 			else if (COLORS_MENU.equals(cmd)) {
@@ -2552,6 +2554,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				for (final Path p : selectedPaths)
 					p.setColor(swcColor.color());
 				refreshManager(true, true, selectedPaths);
+				plugin.setUnsavedChanges(true);
 				return;
 			}
 			else if (PLOT_PROFILE_CMD.equals(cmd)) {
@@ -2787,6 +2790,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				});
 				applyCustomTags(selectedPaths, GuiUtils.toString(tags));
 				refreshManager(false, false, selectedPaths);
+				plugin.setUnsavedChanges(true);
 				return;
 			}
 			else if (SLICE_LABEL_TAG_CMD.equals(cmd)) {
@@ -2848,6 +2852,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.MEAN_RADIUS_TAG_CMD, true, false);
 				guiUtils.tempMsg("Command finished. Fitted path(s) ignored.");
 				plugin.updateAllViewers();
+				plugin.setUnsavedChanges(true);
 				return;
 			}
 			else if (SPECIFY_COUNTS_CMD.equals(e.getActionCommand())) {
@@ -2864,6 +2869,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				selectedPaths.forEach(p -> {
 					p.setSpineOrVaricosityCount(userCounts.intValue());
 				});
+				plugin.setUnsavedChanges(true);
 				removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.COUNT_TAG_CMD, true, false);
 				return;
 			}
@@ -3009,6 +3015,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				}
 				// Make sure that the 3D viewer and the stacks are redrawn:
 				plugin.updateAllViewers();
+				plugin.setUnsavedChanges(true);
 				return;
 
 			}
@@ -3080,6 +3087,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						guiUtils.centeredMsg("Since no image data is available, " + finalSkippedFits + "/"
 								+ selectedPaths.size() + " fits could not be computed", "Valid Image Data Unavailable");
 					}
+					plugin.setUnsavedChanges(true);
 				}
 				else {
 					refreshManager(true, false, selectedPaths);
@@ -3133,6 +3141,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				paths.forEach(p -> {
 					p.setName(p.getName().replaceAll(TAG_CUSTOM_PATTERN, ""));
 				});
+				plugin.setUnsavedChanges(true);
 				refreshManager(false, false, paths);
 			}
 		}
@@ -3179,6 +3188,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			removeOrReapplyDefaultTag(pathAndFillManager.getPaths(), tag, true, false);
 		});
 		refreshManager(true, true, null);
+		plugin.setUnsavedChanges(true);
 	}
 
 	private boolean noValidImageDataError() {

@@ -766,7 +766,7 @@ public class SNTUI extends JDialog {
 	protected void exitRequested() {
 		assert SwingUtilities.isEventDispatchThread();
 		String msg = "Exit SNT?";
-		if (plugin.isChangesUnsaved())
+		if (plugin.isUnsavedChanges())
 			msg = "There are unsaved paths. Do you really want to quit?";
 		if (pmUI.measurementsUnsaved())
 			msg = "There are unsaved measurements. Do you really want to quit?";
@@ -4288,8 +4288,6 @@ public class SNTUI extends JDialog {
 		}
 		changeState(preSavingState);
 		showStatus("Saving completed.", true);
-
-		plugin.unsavedPaths = false;
 		return true;
 	}
 
@@ -4311,7 +4309,6 @@ public class SNTUI extends JDialog {
 		}
 		SNTUtils.log("Exporting paths... " + prefix);
 		final boolean success = pathAndFillManager.exportAllPathsAsSWC(primaryPaths, filePath);
-		plugin.unsavedPaths = !success;
 		return success;
 	}
 
@@ -4465,7 +4462,7 @@ public class SNTUI extends JDialog {
 		}
 
 		private boolean proceed() {
-			return !plugin.isChangesUnsaved() || (plugin.isChangesUnsaved() && guiUtils.getConfirmation(
+			return !plugin.isUnsavedChanges() || (plugin.isUnsavedChanges() && guiUtils.getConfirmation(
 					"There are unsaved paths. Do you really want to load new data?", "Proceed with Import?"));
 		}
 	}
