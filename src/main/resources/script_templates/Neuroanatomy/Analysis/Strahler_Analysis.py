@@ -29,7 +29,7 @@ def main():
             if not subtree_choice.startswith("All"):
                 tree = tree.subTree(subtree_choice)
                 if tree.isEmpty():
-                    msg.append("%s does not contain %s."  % (tree.getLabel(), subtree_choice))
+                    msg.append("%s does not contain %s." % (tree.getLabel(), subtree_choice))
                     continue
             sa = StrahlerCmd(tree)
             sa.setContext(ij.context())

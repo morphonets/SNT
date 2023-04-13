@@ -3,7 +3,7 @@
 /**
  * file: Draw_Disks_Demo.groovy
  * author: Cameron Arshadi
- * version: 20210913	
+ * version: 20210913
  * info: A demo which illustrates iteration over SNT's custom cursors by drawing oriented
  *       disks in 3D along an axon.
  */
@@ -27,7 +27,7 @@ import org.scijava.vecmath.Color3f;
 // Documentation Resources: https://imagej.net/plugins/snt/scripting
 // Latest SNT API: https://javadoc.scijava.org/SNT/
 
-def drawDisks(path, img, min, max) 
+def drawDisks(path, img, min, max)
 {
 	pos = new long[img.numDimensions()]
 	tangent = new double[3]
@@ -40,7 +40,7 @@ def drawDisks(path, img, min, max)
 		LinAlgHelpers.normalize(tangent)
 		point = new Point(path.getXUnscaled(i), path.getYUnscaled(i), path.getZUnscaled(i))
 		cursor = new DiskCursor3D(img, point, 10, tangent)
-		while (cursor.hasNext()) 
+		while (cursor.hasNext())
 		{
 			cursor.fwd()
 			cursor.localize(pos)
@@ -52,7 +52,7 @@ def drawDisks(path, img, min, max)
 	}
 }
 
-def outOfBounds(pos, min, max) 
+def outOfBounds(pos, min, max)
 {
 	for (d=0; d<pos.length; d++)
 		if (pos[d] < min[d] || pos[d] > max[d])
@@ -60,7 +60,7 @@ def outOfBounds(pos, min, max)
 	return false;
 }
 
-def main() 
+def main()
 {
 	imp = snt.demoImage("OP")
 	img = ImageJFunctions.wrapReal(imp)

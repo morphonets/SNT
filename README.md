@@ -27,6 +27,9 @@
   <a href="https://gitpod.io/#https://github.com/fiji/SNT">
     <img alt="Gitpod ready-to-code" src="https://img.shields.io/badge/Gitpod-ready--to--code-blue?logo=gitpod">
   </a>
+  <!-- codefactor -->
+  <a href="https://www.codefactor.io/repository/github/morphonets/snt"><img src="https://www.codefactor.io/repository/github/morphonets/snt/badge" alt="CodeFactor" /
+></a>
 <br>
   <!-- Forum -->
   <a href="https://forum.image.sc/tags/snt">
