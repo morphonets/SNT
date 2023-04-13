@@ -137,7 +137,7 @@
 		<jgl.version>2.0.0</jgl.version>
 		<okhttp.version>4.9.3</okhttp.version>
 		<font-awesome.version>6.3.0</font-awesome.version>
-		<json.version>20220924</json.version>
+		<json.version>20230227</json.version>
 		<flatlaf.version>3.1</flatlaf.version>
 		<log4j.version>2.20.0</log4j.version>
 
