@@ -47,6 +47,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.scijava.Context;
@@ -76,8 +77,12 @@ import sc.fiji.snt.viewer.Viewer3D;
 /** Static utilities for SNT **/
 public class SNTUtils {
 
-	private static final String TIMESTAMP_PATTERN = "yyyy-MM-dd_HH:mm:ss";
-	private static final String TIMESTAMP_REGEX = "\\d{4}-\\d{2}-\\d{2}_\\d{2}:\\d{2}:\\d{2}";
+	/*
+	 * NB: This pattern needs to be OS agnostic: I.e., Microsoft Windows does not
+	 * support colons in filenames
+	 */
+	private static final String TIMESTAMP_PATTERN = "'D'yyyy-MM-dd'T'HH-mm-ss";
+	private static final String TIMESTAMP_REGEX = "(.+?)D(\\d{4}-\\d{2}-\\d{2})T(\\d{2}-\\d{2}-\\d{2})";;
 	private static Context context;
 	private static LogService logService;
 
@@ -576,6 +581,16 @@ public class SNTUtils {
 
 	public static String getTimeStamp() {
 		return new SimpleDateFormat(TIMESTAMP_PATTERN).format(new Date());
+	}
+
+	public static String extractReadableTimeStamp(final File file) {
+		final Pattern p = Pattern.compile(SNTUtils.TIMESTAMP_REGEX);
+		final Matcher m = p.matcher(file.getName());
+		if (m.find()) {
+			// NB: m.group(0) returns the full match
+			return m.group(1) + " " + m.group(2) + " " + m.group(3).replace("-", ":");
+		}
+		return file.getName();
 	}
 
 	public static void setIsLoading(boolean isLoading) {

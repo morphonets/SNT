@@ -4274,7 +4274,7 @@ public class SNTUI extends JDialog {
 			return;
 		}
 		final HashMap<String, File> map = new HashMap<>(copies.size());
-		copies.forEach(cp -> map.put(SNTUtils.stripExtension(cp.getName()), cp));
+		copies.forEach(cp -> map.put(SNTUtils.extractReadableTimeStamp(cp), cp));
 		final String[] choices = map.keySet().toArray(new String[0]);
 		final String choice = guiUtils.getChoice("Select timepoint for restore (current unsaved changes will be lost):",
 				"Revert to Saved State...", choices, choices[0]);
