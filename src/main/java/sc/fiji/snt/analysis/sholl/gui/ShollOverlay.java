@@ -400,8 +400,7 @@ public class ShollOverlay implements ProfileProperties {
 			throw new IllegalArgumentException(
 					"Specified LUT could not be found: " + lutName + ". Use getLUTs() for available options");
 		}
-		final ColorTable ct = ls.loadLUT(map.get(lutName));
-		return ct;
+		return ls.loadLUT(map.get(lutName));
 	}
 
 	public void setShellsThickness(final int strokeWidth) {

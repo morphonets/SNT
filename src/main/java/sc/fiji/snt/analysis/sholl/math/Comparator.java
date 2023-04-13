@@ -70,8 +70,7 @@ public class Comparator extends ContextCommand {
 
 	public double getKStest() {
 		final KolmogorovSmirnovTest test = new KolmogorovSmirnovTest();
-		final double pValue = test.kolmogorovSmirnovTest(p1Counts, p2Counts);
-		return pValue;
+		return test.kolmogorovSmirnovTest(p1Counts, p2Counts);
 	}
 
 	private void validateProfile(final Profile... profiles) {

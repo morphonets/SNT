@@ -183,9 +183,8 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	private Font getScaledFont() {
 		final double size = SCALE_FACTOR * Math.max(9, Math.min(13 *
 			magnification, 30));
-		final Font font = new Font("SansSerif", Font.PLAIN, 13).deriveFont(
+		return new Font("SansSerif", Font.PLAIN, 13).deriveFont(
 			(float) size);
-		return font;
 	}
 
 	private void drawString(final Graphics2D g, final String str,

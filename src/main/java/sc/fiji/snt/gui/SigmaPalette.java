@@ -789,7 +789,7 @@ public class SigmaPalette extends Thread {
 		if (autoAdvance) {
 			paletteWindow.advanceToNextScale();
 		} else
-		SNTUtils.log(String.format("Scale %d set: sigma=%.1f", selectedScale, sigma));
+			SNTUtils.log(String.format("Scale %d set: sigma=%.1f", selectedScale, sigma));
 	}
 
 	private void apply() {

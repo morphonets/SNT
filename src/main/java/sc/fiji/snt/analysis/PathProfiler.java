@@ -182,9 +182,10 @@ public class PathProfiler extends CommonDynamicCmd {
 		}
 		this.tree = tree;
 		this.dataset = dataset;
-		if (!allPathsShareCommonFrame())
-			//FIXME: What is the easiest to select the 'active' Dataset frame
-		init();
+		if (!allPathsShareCommonFrame()) {
+			// FIXME: What is the easiest to select the 'active' Dataset frame
+			init();
+		}
 	}
 
 	/**

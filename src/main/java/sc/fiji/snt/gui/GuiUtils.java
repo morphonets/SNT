@@ -327,10 +327,9 @@ public class GuiUtils {
 
 	public String getChoice(final String message, final String title, final String[] choices,
 			final String defaultChoice) {
-		final String selectedValue = (String) JOptionPane.showInputDialog(parent, //
+		return (String) JOptionPane.showInputDialog(parent, //
 				getWrappedText(new JLabel(), message), title, JOptionPane.QUESTION_MESSAGE, null, choices,
 				(defaultChoice == null) ? choices[0] : defaultChoice);
-		return selectedValue;
 	}
 
 	public List<String> getMultipleChoices(final String message, final String title, final String[] choices) {

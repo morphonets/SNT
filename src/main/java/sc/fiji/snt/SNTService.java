@@ -528,8 +528,8 @@ public class SNTService extends AbstractService implements ImageJService {
 			return getResourceSWCTree("TreeV", "tests/TreeV.swc");
 		else if (nTree.contains("op") || nTree.contains("olfactory projection") || nTree.contains("diadem"))
 			return getResourceSWCTree("OP_1", "tests/OP_1-gs.swc");
-		else 
-		return getResourceSWCTree("AA0001", "ml/demo-trees/AA0001.swc");
+		else
+			return getResourceSWCTree("AA0001", "ml/demo-trees/AA0001.swc");
 	}
 
 	private Tree getResourceSWCTree(final String treeLabel, final String resourcePath) {

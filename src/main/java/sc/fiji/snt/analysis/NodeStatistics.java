@@ -194,8 +194,7 @@ public class NodeStatistics <T extends PointInImage> {
 		getDescriptiveStatistics(metric);
 		final HistogramDatasetPlus datasetPlus = new HistogramDatasetPlus(currentStats, true);
 		final JFreeChart chart = AnalysisUtils.createHistogram(currentMetric, "", currentStats, datasetPlus);
-		final SNTChart frame = new SNTChart("Hist. " + currentMetric, chart);
-		return frame;
+		return new SNTChart("Hist. " + currentMetric, chart);
 	}
 
 	/**
@@ -406,8 +405,7 @@ public class NodeStatistics <T extends PointInImage> {
 				"Frequency", // range axis title
 				"", //unit
 				dataset);
-		final SNTChart frame = new SNTChart(getLabel() + " Annotated Node Distribution", chart, new Dimension(400, 600));
-		return frame;
+		return new SNTChart(getLabel() + " Annotated Node Distribution", chart, new Dimension(400, 600));
 	}
 
 	/**
@@ -464,8 +462,7 @@ public class NodeStatistics <T extends PointInImage> {
 				"Frequency", // range axis title
 				"", // axis unit (not applicable here)
 				dataset, 2);
-		final SNTChart frame = new SNTChart(getLabel() + " Annotated Frequencies", chart, new Dimension(400, 600));
-		return frame;
+		return new SNTChart(getLabel() + " Annotated Frequencies", chart, new Dimension(400, 600));
 	}
 
 	private SNTChart getAnnotatedFrequencyHistogram(final Map<BrainAnnotation, Integer> map, final int depth, final String secondaryLabel) {

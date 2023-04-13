@@ -589,7 +589,7 @@ public class PathFitter implements Callable<Path> {
 				final boolean goneTooFar = i -
 					lastValidIndex >= Path.noMoreThanOneEvery;
 				boolean nextValid = false;
-				if (i < (totalPoints - 1)) if (valid[i + 1]) nextValid = true;
+				if (i < (totalPoints - 1) &&  (valid[i + 1])) nextValid = true;
 
 				if ((goneTooFar && !nextValid) || firstOrLast) {
 					valid[i] = true;

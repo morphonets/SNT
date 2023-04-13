@@ -535,8 +535,7 @@ public class TreeStatistics extends TreeAnalyzer {
 				"", // axis unit (already applied)
 				dataset, 2);
 		final String tLabel = (tree.getLabel() == null) ? "" : tree.getLabel();
-		final SNTChart frame = new SNTChart(tLabel + " Annotated Length", chart, new Dimension(400, 600));
-		return frame;
+		return new SNTChart(tLabel + " Annotated Length", chart, new Dimension(400, 600));
 	}
 
 	protected SNTChart getAnnotatedLengthHistogram(final Map<BrainAnnotation, Double> map, final int depth,
@@ -616,8 +615,7 @@ public class TreeStatistics extends TreeAnalyzer {
 
 	protected SNTChart getHistogram(final String normMeasurement, final HistogramDatasetPlus datasetPlus) {
 		final JFreeChart chart = AnalysisUtils.createHistogram(normMeasurement, getUnit(), lastDstats.dStats, datasetPlus);
-		final SNTChart frame = new SNTChart("Hist. " + tree.getLabel(), chart);
-		return frame;
+		return new SNTChart("Hist. " + tree.getLabel(), chart);
 	}
 
 	protected static String tryReallyHardToGuessMetric(final String guess) {

@@ -247,9 +247,8 @@ public class MultiTreeStatistics extends TreeStatistics {
 		final List<Map<BrainAnnotation, Double>> mapList = new ArrayList<>();
 		groupOfGraphs.forEach(g -> mapList.add(getAnnotatedLength(g, level, lrflag, norm)));
 		mapList.forEach(e -> e.keySet().remove(null)); // remove all null keys (untagged nodes)
-		final Map<BrainAnnotation, Double> map = mapList.stream().flatMap(m -> m.entrySet().stream())
+		return mapList.stream().flatMap(m -> m.entrySet().stream())
 				.collect(groupingBy(Map.Entry::getKey, summingDouble(Map.Entry::getValue)));
-		return map;
 	}
 
 	@Override
@@ -265,10 +264,9 @@ public class MultiTreeStatistics extends TreeStatistics {
 		groupOfGraphs.forEach(g -> {
 			mapList.add(getAnnotatedLengthsByHemisphere(g, level, false));
 		});
-		final Map<BrainAnnotation, double[]> result = mapList.stream().flatMap(m -> m.entrySet().stream())
+		return mapList.stream().flatMap(m -> m.entrySet().stream())
 				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
 						(v1, v2) -> new double[] { v1[0] + v1[0], v1[1] + v1[1] }));
-		return result;
 	}
 
 	@Override
@@ -290,8 +288,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 		try {
 			final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, "", lastDstats.dStats,
 					datasetPlus);
-			final SNTChart frame = new SNTChart("Polar Hist. " + tree.getLabel(), chart);
-			return frame;
+			return new SNTChart("Polar Hist. " + tree.getLabel(), chart);
 		} catch (final IllegalArgumentException ex) {
 			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics",
 					ex);

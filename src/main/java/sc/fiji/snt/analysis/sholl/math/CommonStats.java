@@ -94,8 +94,7 @@ class CommonStats extends ContextCommand implements ShollStats {
 	public double getKStestOfFit() {
 		validateFit();
 		final KolmogorovSmirnovTest test = new KolmogorovSmirnovTest();
-		final double pValue = test.kolmogorovSmirnovTest(inputCounts, fCounts);
-		return pValue;
+		return test.kolmogorovSmirnovTest(inputCounts, fCounts);
 	}
 
 	public double getRSquaredOfFit() {
