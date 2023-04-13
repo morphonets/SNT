@@ -139,7 +139,7 @@ public class ScriptInstaller implements MenuKeyListener {
 		return (dir==null) ? null : dir.getAbsolutePath();
 	}
 
-	private File getScriptsDir() {
+	public File getScriptsDir() {
 		final List<File> dirs = scriptService.getScriptDirectories();
 		for (final File dir : dirs) {
 			if (!dir.getAbsolutePath().contains("plugins")) return dir;

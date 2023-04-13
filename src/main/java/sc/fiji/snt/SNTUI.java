@@ -776,6 +776,7 @@ public class SNTUI extends JDialog {
 		abortCurrentOperation();
 		plugin.cancelSearch(true);
 		plugin.notifyListeners(new SNTEvent(SNTEvent.QUIT));
+		setAutosaveFile(null); // forget last saved file
 		plugin.getPrefs().savePluginPrefs(true);
 		pmUI.dispose();
 		pmUI.closeTable();
@@ -2124,19 +2125,11 @@ public class SNTUI extends JDialog {
 		});
 		final JMenuItem revealMenuItem = new JMenuItem("Show Folder of Loaded File");
 		revealMenuItem.addActionListener(e -> {
-			try {
-				if (!plugin.isSecondaryDataAvailable() || !plugin.isSecondaryImageFileLoaded()) {
-					noSecondaryImgFileAvailableError();
-					return;
-				}
-				if (SNTUtils.fileAvailable(plugin.getFilteredImageFile())) {
-					guiUtils.showDirectory(plugin.getFilteredImageFile());
-				} else {
-					guiUtils.error("<HTML>Could not access<br>" + plugin.getFilteredImageFile().getAbsolutePath());
-				}
-			} catch (final Exception ignored) {
-				guiUtils.error("An error occurred: Image directory not available?");
+			if (!plugin.isSecondaryDataAvailable() || !plugin.isSecondaryImageFileLoaded()) {
+				noSecondaryImgFileAvailableError();
+				return;
 			}
+			guiUtils.showDirectory(plugin.getFilteredImageFile());
 		});
 		externalImgOptionsMenu.add(secLayerExternalImgLoadFlushMenuItem);
 		externalImgOptionsMenu.addSeparator();
@@ -2461,11 +2454,17 @@ public class SNTUI extends JDialog {
 			(new DynamicCmdRunner(SaveMeasurementsCmd.class, null, getState())).run();
 		});
 		fileMenu.add(saveTable);
+		final JMenuItem restoreMenuItem = new JMenuItem("Restore Snapshot Backup...");
+		restoreMenuItem.setToolTipText("Restores data from existing timecoded backups stored on disk");
+		restoreMenuItem.setIcon(IconFactory.getMenuIcon(GLYPH.CLOCK_ROTATE_LEFT));
+		restoreMenuItem.addActionListener(e -> revertFromBackup());
+		fileMenu.add(restoreMenuItem);
 
 		fileMenu.addSeparator();
 		sendToTrakEM2 = new JMenuItem("Send to TrakEM2");
 		sendToTrakEM2.addActionListener(e -> plugin.notifyListeners(new SNTEvent(SNTEvent.SEND_TO_TRAKEM2)));
 		fileMenu.add(sendToTrakEM2);
+		fileMenu.add(showFolderMenu(installer));
 
 		final JMenuItem importGuessingType = new JMenuItem("Guess File Type...", IconFactory.getMenuIcon(GLYPH.MAGIC));
 		importSubmenu.add(importGuessingType);
@@ -2573,15 +2572,10 @@ public class SNTUI extends JDialog {
 			}
 		});
 
-		final JMenuItem restoreMenuItem = new JMenuItem("Restore Snapshot Backup...");
-		restoreMenuItem.setToolTipText("Restores data from existing timecoded backups stored on disk");
-		restoreMenuItem.setIcon(IconFactory.getMenuIcon(GLYPH.CLOCK_ROTATE_LEFT));
-		restoreMenuItem.addActionListener(e -> revertFromBackup());
+
 		fileMenu.addSeparator();
-		fileMenu.add(restoreMenuItem);
 		fileMenu.add(restartMenuItem);
 		fileMenu.addSeparator();
-
 		quitMenuItem = new JMenuItem("Quit", IconFactory.getMenuIcon(IconFactory.GLYPH.QUIT));
 		quitMenuItem.addActionListener(listener);
 		fileMenu.add(quitMenuItem);
@@ -2794,6 +2788,58 @@ public class SNTUI extends JDialog {
 
 		viewMenu.add(guiUtils.combineChartsMenuItem());
 		return menuBar;
+	}
+
+	private JMenu showFolderMenu(final ScriptInstaller installer) {
+		final JMenu menu = new JMenu("Reveal Directory");
+		menu.setIcon(IconFactory.getMenuIcon(GLYPH.OPEN_FOLDER));
+		final String[] labels = { "Fiji Scripts", "Image", "Last Accessed", "Snapshot Backup(s)", "TRACES" };
+		Arrays.stream(labels).forEach(label -> {
+			final JMenuItem jmi = new JMenuItem(label + " Folder");
+			menu.add(jmi);
+			jmi.addActionListener(e -> {
+				File f = null;
+				boolean proceed = true;
+				switch (label) {
+				case "Fiji Scripts":
+					f = installer.getScriptsDir();
+					break;
+				case "Image":
+					if (!plugin.accessToValidImageData()) {
+						noValidImageDataError();
+						proceed = false;
+					}
+					try {
+						f = new File(plugin.getImagePlus().getOriginalFileInfo().getFilePath());
+					} catch (final Exception ignored) {
+						// do nothing
+					}
+					break;
+				case "Last Accessed":
+					f = plugin.getPrefs().getRecentDir();
+					break;
+				case "Snapshot Backup(s)":
+					f = getAutosaveFile();
+					if (SNTUtils.getBackupCopies(f).isEmpty()) {
+						guiUtils.error("No Snapshot Backup(s) seem to exist for current tracings.");
+						proceed = false;
+					}
+					break;
+				case "TRACES":
+					f = getAutosaveFile();
+					if (f == null) {
+						guiUtils.error("Current tracings do not seem to be associated with a TRACES file.");
+						proceed = false;
+					}
+					break;
+				default:
+					break;
+				}
+				if (proceed)
+					guiUtils.showDirectory(f);
+			});
+		});
+		return menu;
 	}
 
 	private JPanel renderingPanel() {
@@ -3366,6 +3412,13 @@ public class SNTUI extends JDialog {
 		if (noPaths)
 			guiUtils.error("There are no traced paths.");
 		return noPaths;
+	}
+
+	private boolean notReadyToSaveError() {
+		final boolean notReady = !isReady();
+		if (notReady)
+			plugin.discreteMsg("Please finish current task before saving...");
+		return notReady;
 	}
 
 	private void setPathListVisible(final boolean makeVisible, final boolean toFront) {
@@ -4199,24 +4252,20 @@ public class SNTUI extends JDialog {
 	}
 
 	private File getAutosaveFile() {
-		if (!isReady()) {
-			plugin.discreteMsg("Please finish current task before saving...");
-			return null;
-		}
 		final String autosavePath = plugin.getPrefs().getTemp(SNTPrefs.AUTOSAVE_KEY, null);
 		return (autosavePath == null) ? null : new File(autosavePath);
 	}
 
 	private void setAutosaveFile(final File file) {
-		if (SNTUtils.fileAvailable(file))
-			plugin.getPrefs().setTemp(SNTPrefs.AUTOSAVE_KEY, file.getAbsolutePath());
+		plugin.getPrefs().setTemp(SNTPrefs.AUTOSAVE_KEY,
+				(file != null && SNTUtils.fileAvailable(file)) ? file.getAbsolutePath() : null);
 	}
 
 	private void revertFromBackup() {
 		final File autosaveFile = getAutosaveFile();
 		if (autosaveFile == null) {
 			error("Current tracings have not been loaded from disk or the location of the data in the file system is not known."
-					+ " Please load tracings manually");
+					+ " Please load tracings manually.");
 			return;
 		}
 		final List<File> copies = SNTUtils.getBackupCopies(autosaveFile); // list never null
@@ -4241,7 +4290,7 @@ public class SNTUI extends JDialog {
 	}
 
 	protected void saveToXML(boolean timeStampedCopy) {
-		if (noPathsError()) return; // do not create empty files
+		if (noPathsError() || notReadyToSaveError()) return; // do not create empty files
 		boolean successfull = false;
 		File targetFile = getAutosaveFile();
 		if (timeStampedCopy) {
