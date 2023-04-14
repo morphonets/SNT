@@ -512,6 +512,8 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 		} catch (final Exception | Error ex) {
 			ex.printStackTrace();
 			error("An exception occured. See Console for details.");
+		} finally {
+			snt.setCanvasLabelAllPanes(null);
 		}
 	}
 

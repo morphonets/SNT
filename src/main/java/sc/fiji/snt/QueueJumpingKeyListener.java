@@ -133,6 +133,11 @@ class QueueJumpingKeyListener implements KeyListener {
 			e.consume();
 			return;
 		}
+		else if (ctrl_down && keyCode == KeyEvent.VK_S && tracerPlugin.getUI() != null) {
+			tracerPlugin.getUI().saveToXML(shift_down);
+			e.consume();
+			return;
+		}
 		// Exceptions above aside, do not intercept white-listed keystrokes,
 		// combinations that include the OS shortcut key, action keys, or
 		// numpad keys (so that users can still access IJ built-in shortcuts

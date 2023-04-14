@@ -133,6 +133,8 @@ public class PathAndFillManager extends DefaultHandler implements
 	private int last_fill_id;
 	private HashSet<Integer> foundIDs;
 	protected boolean enableUIupdates = true;
+	volatile protected boolean unsavedPaths = false;
+
 
 	/**
 	 * Instantiates a new PathAndFillManager using default values. Voxel
@@ -283,7 +285,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		// Delete any rogue stand-alone paths that may still exist
 		while (allPaths.remove(null));
 		enableUIupdates = true;
-		resetListeners(null);
+		resetListenersAfterDataChangingOperation(null);
 	}
 
 	/**
@@ -461,8 +463,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			final File swcFile = getSWCFileForIndex(prefix, i);
 			if (exportConnectedStructureAsSWC(primaryPath, swcFile)) ++i;
 		}
-		return i > 0;
+		return unsavedPaths = i > 0;
 	}
+
 	protected synchronized boolean exportConnectedStructureAsSWC(final Path primaryPath, final File swcFile) {
 		{
 			final HashSet<Path> connectedPaths = new HashSet<>();
@@ -1015,6 +1018,11 @@ public class PathAndFillManager extends DefaultHandler implements
 		return result;
 	}
 
+	private synchronized void resetListenersAfterDataChangingOperation(final Path justAdded) {
+		resetListeners(justAdded, false);
+		unsavedPaths = true;
+	}
+
 	public synchronized void resetListeners(final Path justAdded) {
 		resetListeners(justAdded, false);
 	}
@@ -1166,7 +1174,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		pathNameMap.put(p.getName(), p);
 		pathNameLowercaseMap.put(p.getName().toLowerCase(Locale.ROOT), p);
 		p.addChangeListener(this);
-		resetListeners(p);
+		resetListenersAfterDataChangingOperation(p);
 	}
 
 	/*
@@ -1264,7 +1272,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			pathNameLowercaseMap.remove(fittedPathToDelete.getName().toLowerCase(Locale.ROOT));
 			fittedPathToDelete.removeChangeListener(this);
 		}
-		if (removed && plugin != null) plugin.unsavedPaths = true;
+		if (removed) unsavedPaths = true;
 
 		// We don't just delete; have to fix up the references
 		// in other paths (for start and end joins):
@@ -1285,7 +1293,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				.removeFrom3DViewer(plugin.univ);
 		}
 
-		if (updateInterface) resetListeners(null);
+		if (updateInterface) resetListenersAfterDataChangingOperation(null);
 		return removed;
 	}
 
@@ -1301,7 +1309,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			deletePath(indices[i], false);
 		}
 		enableUIupdates = true;
-		resetListeners(null);
+		resetListenersAfterDataChangingOperation(null);
 	}
 
 	protected void addFill(final Fill fill) {
@@ -1491,6 +1499,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				++fillIndex;
 			}
 			pw.println("</tracings>");
+			unsavedPaths = false;
 		}
 		finally {
 			if (pw != null) pw.close();
@@ -2412,6 +2421,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			plugin.ui.getPathManager().applyActiveTags(getPaths());
 		}
 		resetListeners(null, true);
+		unsavedPaths = false;
 		return true;
 
 	}
@@ -2432,7 +2442,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		allFills.clear();
 		if (plugin == null || (plugin != null && !plugin.accessToValidImageData()))
 			resetSpatialSettings(false);
-		resetListeners(null);
+		resetListenersAfterDataChangingOperation(null);
 	}
 
 	protected void resetIDs() {
@@ -2616,6 +2626,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			SNTUtils.error("IO ERROR", exc);
 			return false;
 		}
+		if (replaceAllPaths) unsavedPaths = false;
 		return importNodes(descriptor, nodes, null, assumeCoordinatesInVoxels);
 	}
 
