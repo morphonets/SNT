@@ -67,7 +67,6 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
@@ -81,7 +80,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
 import java.util.TreeSet;
@@ -99,7 +97,6 @@ import javax.swing.event.DocumentListener;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.HyperlinkListener;
 import javax.swing.filechooser.FileFilter;
-import javax.swing.plaf.FontUIResource;
 import javax.swing.text.NumberFormatter;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
@@ -205,9 +202,7 @@ public class GuiUtils {
 
 	public static void showHTMLDialog(final String msg, final String title) {
 		final HTMLDialog dialog = new GuiUtils().new HTMLDialog(msg, title, false);
-		SwingUtilities.invokeLater(() -> {
-			dialog.setVisible(true);
-		});
+		SwingUtilities.invokeLater(() -> dialog.setVisible(true));
 	}
 
 	public static boolean isLegacy3DViewerAvailable() {
@@ -332,7 +327,7 @@ public class GuiUtils {
 				(defaultChoice == null) ? choices[0] : defaultChoice);
 	}
 
-	public List<String> getMultipleChoices(final String message, final String title, final String[] choices) {
+	public List<String> getMultipleChoices(final String title, final String[] choices) {
 		final JList<String> list = new JList<>(choices);
 		JOptionPane.showMessageDialog(
 				parent, new JScrollPane(list), title, JOptionPane.QUESTION_MESSAGE);
@@ -382,7 +377,7 @@ public class GuiUtils {
 		final String userString = getString(promptMsg, promptTitle, toString(defaultValues));
 		if (userString == null)
 			return null;
-		final TreeSet<String> uniqueWords = new TreeSet<String>(Arrays.asList(userString.split(",\\s*")));
+		final TreeSet<String> uniqueWords = new TreeSet<>(Arrays.asList(userString.split(",\\s*")));
 		uniqueWords.remove("");
 		return uniqueWords;
 	}
@@ -429,7 +424,7 @@ public class GuiUtils {
 		chooser.setPreviewPanel(new JPanel());
 
 		// remove spurious panes
-		List<String> allowedPanels = new ArrayList<>();
+		List<String> allowedPanels;
 		if (panes != null) {
 			allowedPanels = Arrays.asList(panes);
 			for (final AbstractColorChooserPanel accp : chooser.getChooserPanels()) {
@@ -709,9 +704,7 @@ public class GuiUtils {
 		popup.setMovable(false);
 		popup.setDefaultMoveOperation(JidePopup.HIDE_ON_MOVED);
 		popup.setTimeout(4000);
-		SwingUtilities.invokeLater(() -> {
-			popup.showPopup(SwingConstants.CENTER, parent);
-		});
+		SwingUtilities.invokeLater(() -> popup.showPopup(SwingConstants.CENTER, parent));
 	}
 
 	public static void addTooltip(final JComponent c, final String text) {
@@ -753,12 +746,12 @@ public class GuiUtils {
 		final Timer blinkTimer = new Timer(400, new ActionListener() {
 
 			private int count = 0;
-			private final int maxCount = 100;
+			private static final int MAX_COUNT = 100;
 			private boolean on = false;
 
 			@Override
 			public void actionPerformed(final ActionEvent e) {
-				if (count >= maxCount) {
+				if (count >= MAX_COUNT) {
 					blinkingComponent.setForeground(prevColor);
 					((Timer) e.getSource()).stop();
 				}
@@ -916,7 +909,7 @@ public class GuiUtils {
 		final int previousTopGap = c.insets.top;
 		final Font font = label.getFont();
 		label.setFont(font.deriveFont((float) (font.getSize() * .85)));
-		if (vgap) c.insets.top = (int) (component.getFontMetrics(font).getHeight());
+		if (vgap) c.insets.top = component.getFontMetrics(font).getHeight();
 		component.add(label, c);
 		if (vgap) c.insets.top = previousTopGap;
 	}
@@ -1640,58 +1633,6 @@ public class GuiUtils {
 			SNTPrefs.setLookAndFeel(lookAndFeelName);
 		}
 		return success;
-	}
-
-	/** HACK Font too big on ubuntu: https://stackoverflow.com/a/31345102 */
-	@SuppressWarnings("unused")
-	private static void checkGTKLookAndFeel() throws Exception {
-		final LookAndFeel look = UIManager.getLookAndFeel();
-		if (!look.getID().equals("GTK")) return;
-		final int dpi = Toolkit.getDefaultToolkit().getScreenResolution();
-		if (dpi <= 72) return;
-		final float scaleFont = dpi / 72;
-		new JFrame();
-		new JButton();
-		new JComboBox<>();
-		new JRadioButton();
-		new JCheckBox();
-		new JTextArea();
-		new JTextField();
-		new JTable();
-		new JToggleButton();
-		new JSpinner();
-		new JSlider();
-		new JTabbedPane();
-		new JMenu();
-		new JMenuBar();
-		new JMenuItem();
-
-		Object styleFactory;
-		final Field styleFactoryField = look.getClass().getDeclaredField(
-			"styleFactory");
-		styleFactoryField.setAccessible(true);
-		styleFactory = styleFactoryField.get(look);
-
-		final Field defaultFontField = styleFactory.getClass().getDeclaredField(
-			"defaultFont");
-		defaultFontField.setAccessible(true);
-		final Font defaultFont = (Font) defaultFontField.get(styleFactory);
-		FontUIResource newFontUI;
-		newFontUI = new FontUIResource(defaultFont.deriveFont(defaultFont
-			.getSize() - scaleFont));
-		defaultFontField.set(styleFactory, newFontUI);
-
-		final Field stylesCacheField = styleFactory.getClass().getDeclaredField(
-			"stylesCache");
-		stylesCacheField.setAccessible(true);
-		final Object stylesCache = stylesCacheField.get(styleFactory);
-		final Map<?, ?> stylesMap = (Map<?, ?>) stylesCache;
-		for (final Object mo : stylesMap.values()) {
-			final Field f = mo.getClass().getDeclaredField("font");
-			f.setAccessible(true);
-			final Font fo = (Font) f.get(mo);
-			f.set(mo, fo.deriveFont(fo.getSize() - scaleFont));
-		}
 	}
 
 	public static void setAutoDismiss(final JDialog dialog) {
