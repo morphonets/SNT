@@ -145,7 +145,7 @@ public class GraphEditor extends JPanel
 		graphOutline = new mxGraphOutline(graphComponent);
 
 		// Creates the library pane that contains the tabs with the palettes
-		libraryPane = new JTabbedPane();
+		libraryPane = GuiUtils.getTabbedPane();
 		editorConsole = new EditorConsole();
 		insertConsole(getConsole());
 		insertGraphCriteriaPanel();

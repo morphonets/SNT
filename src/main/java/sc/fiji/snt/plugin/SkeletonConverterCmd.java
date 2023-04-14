@@ -227,7 +227,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			if (snt.accessToValidImageData()) {
 				maskChoices.add(0, IMG_TRACED_DUP_CHOICE);
 				maskChoices.add(0, IMG_TRACED_SEC_LAYER_CHOICE);
-				originalChoices.add(0, "Image being traced");
+				originalChoices.add(0, IMG_TRACED_CHOICE);
 				if (isBinary(snt.getImagePlus())) {
 					// the active image is binary: assume it is the segmented (non-skeletonized)
 					maskImgChoice = IMG_TRACED_DUP_CHOICE;

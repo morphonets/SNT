@@ -443,19 +443,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private JTabbedPane getTabbedPane() {
-
-		/*
-		 * TF: This is an effort at improving the tabbed interface. JIDE provides such
-		 * functionality by default, but causes some weird looking L&F overrides (at
-		 * least on macOS). Since I have no idea on how to stop JIDE from injecting
-		 * such weirdness, we'll implement the customization ourselves.
-		 */
-		// final JideTabbedPane tabbedPane = new JideTabbedPane(JTabbedPane.TOP);
-		// tabbedPane.setBoldActiveTab(true);
-		// tabbedPane.setScrollSelectedTabOnWheel(true);
-		// tabbedPane.setTabResizeMode(JideTabbedPane.RESIZE_MODE_NONE);
-
-		final JTabbedPane tabbedPane = new JTabbedPane(JTabbedPane.TOP);
+		final JTabbedPane tabbedPane = GuiUtils.getTabbedPane();
 		tabbedPane.addChangeListener(e -> {
 			final JTabbedPane source = (JTabbedPane) e.getSource();
 			final int selectedTab = source.getSelectedIndex();
@@ -469,51 +457,14 @@ public class SNTUI extends JDialog {
 			}
 
 			// Highlight active tab. This assumes tab's title contains "HTML"
-			for (int i = 0; i < source.getTabCount(); i++) {
-				final String existingTile = source.getTitleAt(i);
-				final String newTitle = (i == selectedTab) ? existingTile.replace("<HTML>", "<HTML><b>")
-						: existingTile.replace("<HTML><b>", "<HTML>");
-				source.setTitleAt(i, newTitle);
-			}
+			//TF: With FlatLaf, this is no longer useful!?
+//			for (int i = 0; i < source.getTabCount(); i++) {
+//				final String existingTile = source.getTitleAt(i);
+//				final String newTitle = (i == selectedTab) ? existingTile.replace("<HTML>", "<HTML><b>")
+//						: existingTile.replace("<HTML><b>", "<HTML>");
+//				source.setTitleAt(i, newTitle);
+//			}
 		});
-		tabbedPane.addMouseWheelListener(e -> {
-			//https://stackoverflow.com/a/38463104
-			final JTabbedPane pane = (JTabbedPane) e.getSource();
-			final int units = e.getWheelRotation();
-			final int oldIndex = pane.getSelectedIndex();
-			final int newIndex = oldIndex + units;
-			if (newIndex < 0)
-				pane.setSelectedIndex(0);
-			else if (newIndex >= pane.getTabCount())
-				pane.setSelectedIndex(pane.getTabCount() - 1);
-			else
-				pane.setSelectedIndex(newIndex);
-		});
-
-		final JPopupMenu popup = new JPopupMenu();
-		tabbedPane.setComponentPopupMenu(popup);
-		final ButtonGroup group = new ButtonGroup();
-		for (final String pos : new String[] { "Top", "Bottom", "Left", "Right" }) {
-			final JMenuItem jcbmi = new JCheckBoxMenuItem("Place on " + pos, "Top".equals(pos));
-			jcbmi.addItemListener(e -> {
-				switch (pos) {
-				case "Top":
-					tabbedPane.setTabPlacement(JTabbedPane.TOP);
-					break;
-				case "Bottom":
-					tabbedPane.setTabPlacement(JTabbedPane.BOTTOM);
-					break;
-				case "Left":
-					tabbedPane.setTabPlacement(JTabbedPane.LEFT);
-					break;
-				case "Right":
-					tabbedPane.setTabPlacement(JTabbedPane.RIGHT);
-					break;
-				}
-			});
-			group.add(jcbmi);
-			popup.add(jcbmi);
-		}
 		return tabbedPane;
 	}
 
@@ -2760,15 +2711,13 @@ public class SNTUI extends JDialog {
 		viewMenu.add(showImpMenuItem);
 		viewMenu.addSeparator();
 
-		final JMenuItem consoleJMI = new JMenuItem("Toggle Console");
+		final JMenuItem consoleJMI = new JMenuItem("Toggle Fiji Console");
 		consoleJMI.addActionListener(e -> {
 			try {
 				for (final Window w : JFrame.getWindows()) {
-					if (w instanceof JFrame) {
-						if ("Console".equals(((JFrame) w).getTitle())) {
-							w.setVisible(!w.isVisible());
-							return;
-						}
+					if (w instanceof JFrame && ("Console".equals(((JFrame) w).getTitle()))) {
+						w.setVisible(!w.isVisible());
+						return;
 					}
 				}
 				plugin.getContext().getService(UIService.class).getDefaultUI().getConsolePane().show();
@@ -4278,7 +4227,7 @@ public class SNTUI extends JDialog {
 		final File autosaveFile = getAutosaveFile();
 		if (autosaveFile == null) {
 			error("Current tracings have not been loaded from disk or the location of the data in the file system is not known."
-					+ " Please load tracings manually.");
+					+ " Please load backup tracings manually.");
 			return;
 		}
 		final List<File> copies = SNTUtils.getBackupCopies(autosaveFile); // list never null

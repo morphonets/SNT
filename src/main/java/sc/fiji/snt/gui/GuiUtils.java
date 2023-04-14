@@ -619,7 +619,7 @@ public class GuiUtils {
 	}
 
 	public boolean[] getOptions(final String msg, final String[] options,
-		final boolean[] defaults, String title)
+		final boolean[] defaults, final String title)
 	{
 		final JPanel panel = new JPanel(new GridLayout(options.length, 1));
 		final JCheckBox[] checkboxes = new JCheckBox[options.length];
@@ -676,11 +676,11 @@ public class GuiUtils {
 				dismiss();
 			}
 			@Override
-			public void mouseDragged(MouseEvent e) {
+			public void mouseDragged(final MouseEvent e) {
 				dismiss();
 			}
 			@Override
-			public void mousePressed(MouseEvent e) {
+			public void mousePressed(final MouseEvent e) {
 				dismiss();
 			}
 			void dismiss() {
@@ -1391,7 +1391,7 @@ public class GuiUtils {
 		textfield.setColumns(maxDigits);
 		final NumberFormatter formatter = (NumberFormatter) textfield
 			.getFormatter();
-		StringBuilder decString = new StringBuilder();
+		final StringBuilder decString = new StringBuilder();
 		while (decString.length() <= nDecimals)
 			decString.append("0");
 		final DecimalFormat decimalFormat = new DecimalFormat("0." + decString);
@@ -1764,6 +1764,59 @@ public class GuiUtils {
 		}
 	}
 
+	public static JTabbedPane getTabbedPane() {
+		/*
+		 * TF: This is an effort at improving the tabbed interface. JIDE provides such
+		 * functionality by default, but causes some weird looking L&F overrides (at
+		 * least on macOS). Since I have no idea on how to stop JIDE from injecting such
+		 * weirdness, we'll implement the customization ourselves.
+		 */
+		// final JideTabbedPane tabbedPane = new JideTabbedPane(JTabbedPane.TOP);
+		// tabbedPane.setBoldActiveTab(true);
+		// tabbedPane.setScrollSelectedTabOnWheel(true);
+		// tabbedPane.setTabResizeMode(JideTabbedPane.RESIZE_MODE_NONE);
+
+		final JTabbedPane tabbedPane = new JTabbedPane(JTabbedPane.TOP);
+		tabbedPane.addMouseWheelListener(e -> {
+			// https://stackoverflow.com/a/38463104
+			final JTabbedPane pane = (JTabbedPane) e.getSource();
+			final int units = e.getWheelRotation();
+			final int oldIndex = pane.getSelectedIndex();
+			final int newIndex = oldIndex + units;
+			if (newIndex < 0)
+				pane.setSelectedIndex(0);
+			else if (newIndex >= pane.getTabCount())
+				pane.setSelectedIndex(pane.getTabCount() - 1);
+			else
+				pane.setSelectedIndex(newIndex);
+		});
+		final JPopupMenu popup = new JPopupMenu();
+		tabbedPane.setComponentPopupMenu(popup);
+		final ButtonGroup group = new ButtonGroup();
+		for (final String pos : new String[] { "Top", "Bottom", "Left", "Right" }) {
+			final JMenuItem jcbmi = new JCheckBoxMenuItem("Place on " + pos, "Top".equals(pos));
+			jcbmi.addItemListener(e -> {
+				switch (pos) {
+				case "Bottom":
+					tabbedPane.setTabPlacement(JTabbedPane.BOTTOM);
+					break;
+				case "Left":
+					tabbedPane.setTabPlacement(JTabbedPane.LEFT);
+					break;
+				case "Right":
+					tabbedPane.setTabPlacement(JTabbedPane.RIGHT);
+					break;
+				default:
+					tabbedPane.setTabPlacement(JTabbedPane.TOP);
+					break;
+				}
+			});
+			group.add(jcbmi);
+			popup.add(jcbmi);
+		}
+		return tabbedPane;
+	}
+
 	/** Tweaked version of ij.gui.HTMLDialog that is aware of parent */
 	private class HTMLDialog extends JDialog implements ActionListener, KeyListener, HyperlinkListener {
 
@@ -1830,7 +1883,7 @@ public class GuiUtils {
 				dialogD.width = maxWidth;
 			if (dialogD.height > 0.80 * screenD.height && screenD.height > 400) // max 80% of screen height
 				dialogD.height = (int) (0.80 * screenD.height);
-			int minHeight = editorPane.getFontMetrics(editorPane.getFont()).getHeight() * 10 + panel.getPreferredSize().height;
+			final int minHeight = editorPane.getFontMetrics(editorPane.getFont()).getHeight() * 10 + panel.getPreferredSize().height;
 			if (dialogD.height < minHeight)
 				dialogD.height = minHeight;
 			setPreferredSize(dialogD);

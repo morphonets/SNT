@@ -292,7 +292,7 @@ public class ShollOverlay implements ProfileProperties {
 		cRoi.setStrokeColor(baseColor);
 		cRoi.setProperty(TYPE, CENTER);
 		setROIposition(cRoi, channel, centerRawZ, frame, hyperStack);
-		overlay.add(cRoi, "center");
+		overlay.add(cRoi, CENTER);
 	}
 
 	private void setROIposition(final Roi roi, final int c, final double z, final int t, final boolean hyperStack) {
