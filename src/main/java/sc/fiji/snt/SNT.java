@@ -214,7 +214,6 @@ public class SNT extends MultiDThreePanes implements
 	volatile protected boolean autoCanvasActivation;
 	volatile protected boolean panMode;
 	volatile protected boolean snapCursor;
-	volatile protected boolean unsavedPaths = false;
 	volatile protected boolean showOnlySelectedPaths;
 	volatile protected boolean showOnlyActiveCTposPaths;
 	volatile protected boolean activateFinishedPath;
@@ -748,8 +747,12 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
-	protected boolean isChangesUnsaved() {
-		return unsavedPaths && pathAndFillManager.size() > 0;
+	protected boolean isUnsavedChanges() {
+		return pathAndFillManager.unsavedPaths && pathAndFillManager.size() > 0;
+	}
+
+	protected boolean setUnsavedChanges(final boolean b) {
+		return pathAndFillManager.unsavedPaths = b;
 	}
 
 	public PathAndFillManager getPathAndFillManager() {
@@ -1271,20 +1274,16 @@ public class SNT extends MultiDThreePanes implements
 			guiUtils.error(file.getAbsolutePath() + " is no longer available");
 			return;
 		}
-		final int guessedType = pathAndFillManager.guessTracesFileType(file
-			.getAbsolutePath());
+		final int guessedType = pathAndFillManager.guessTracesFileType(file.getAbsolutePath());
 		switch (guessedType) {
 			case PathAndFillManager.TRACES_FILE_TYPE_COMPRESSED_XML:
-				if (pathAndFillManager.loadCompressedXML(file.getAbsolutePath()))
-					unsavedPaths = false;
+				pathAndFillManager.loadCompressedXML(file.getAbsolutePath());
 				break;
 			case PathAndFillManager.TRACES_FILE_TYPE_UNCOMPRESSED_XML:
-				if (pathAndFillManager.loadUncompressedXML(file
-					.getAbsolutePath())) unsavedPaths = false;
+				pathAndFillManager.loadUncompressedXML(file.getAbsolutePath());
 				break;
 			default:
-				guiUtils.error(file.getAbsolutePath() +
-					" is not a valid traces file.");
+				guiUtils.error(file.getAbsolutePath() + " is not a valid traces file.");
 				break;
 		}
 	}
@@ -1304,12 +1303,11 @@ public class SNT extends MultiDThreePanes implements
 				final SWCImportOptionsDialog swcImportDialog =
 					new SWCImportOptionsDialog(getUI(), "SWC import options for " + file
 						.getName());
-				if (swcImportDialog.succeeded() && pathAndFillManager.importSWC(
-					file.getAbsolutePath(), swcImportDialog.getIgnoreCalibration(),
-					swcImportDialog.getXOffset(), swcImportDialog.getYOffset(),
-					swcImportDialog.getZOffset(), swcImportDialog.getXScale(),
-					swcImportDialog.getYScale(), swcImportDialog.getZScale(),
-					swcImportDialog.getReplaceExistingPaths())) unsavedPaths = false;
+				if (swcImportDialog.succeeded())
+					pathAndFillManager.importSWC(file.getAbsolutePath(), swcImportDialog.getIgnoreCalibration(),
+							swcImportDialog.getXOffset(), swcImportDialog.getYOffset(), swcImportDialog.getZOffset(),
+							swcImportDialog.getXScale(), swcImportDialog.getYScale(), swcImportDialog.getZScale(),
+							swcImportDialog.getReplaceExistingPaths());
 				break;
 			}
 			default:
@@ -1454,6 +1452,7 @@ public class SNT extends MultiDThreePanes implements
 	protected void setPathUnfinished(final boolean unfinished) {
 
 		this.pathUnfinished = unfinished;
+		pathAndFillManager.unsavedPaths = true;
 		getXYCanvas().setPathUnfinished(unfinished);
 		if (!single_pane) {
 			getZYCanvas().setPathUnfinished(unfinished);
@@ -2119,7 +2118,6 @@ public class SNT extends MultiDThreePanes implements
 //			discreteMsg("Please finish current operation before extending "+ path.getName());
 //			return;
 //		}
-		unsavedPaths = true;
 		lastStartPointSet = true;
 		selectPath(path, false);
 		setPathUnfinished(true);
@@ -2165,7 +2163,6 @@ public class SNT extends MultiDThreePanes implements
 		removeSphere(targetBallName);
 		if (pathAndFillManager.getPathFromID(currentPath.getID()) == null)
 			pathAndFillManager.addPath(currentPath, true, false, false);
-		unsavedPaths = true;
 		lastStartPointSet = false;
 		if (activateFinishedPath) selectPath(currentPath, false);
 		setPathUnfinished(false);
@@ -2972,6 +2969,7 @@ public class SNT extends MultiDThreePanes implements
 		components.add(xz_canvas);
 		components.add(zy_canvas);
 		if (univ != null) components.add(univ.getCanvas());
+		if (getUI() != null) components.add(getUI());
 		for (final Component c : components) {
 			if (c != null && c.isFocusOwner()) return c;
 		}

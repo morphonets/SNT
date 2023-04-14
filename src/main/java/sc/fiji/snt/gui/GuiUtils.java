@@ -832,6 +832,10 @@ public class GuiUtils {
 	}
 
 	public void showDirectory(final File file) {
+		if (file == null) {
+			dirNotAccessibleError(file);
+			return;
+		}
 		final File dir = (file.isDirectory()) ? file : file.getParentFile();
 		try {
 			Desktop.getDesktop().open(dir); // TODO: Move to java9: Desktop.getDesktop().browseFileDirectory(file);
@@ -840,11 +844,18 @@ public class GuiUtils {
 				try {
 					Runtime.getRuntime().exec(new String[] { "xdg-open", dir.getAbsolutePath() });
 				} catch (final Exception ignored) {
-					error("Directory does not seem to be accessible.");
+					dirNotAccessibleError(dir);
 				}
 		} catch (final NullPointerException | IllegalArgumentException | IOException iae) {
-			error("Directory does not seem to be accessible.");
+			dirNotAccessibleError(dir);
 		}
+	}
+
+	private void dirNotAccessibleError(final File dir) {
+		if (dir == null)
+			error("Directory does not seem to be accessible.");
+		else
+			error("<HTML>Could not access<br>" + dir.getAbsolutePath());
 	}
 
 	/* Static methods */
