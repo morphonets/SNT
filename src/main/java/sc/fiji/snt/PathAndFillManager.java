@@ -61,6 +61,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -133,7 +134,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	private int last_fill_id;
 	private HashSet<Integer> foundIDs;
 	protected boolean enableUIupdates = true;
-	volatile protected boolean unsavedPaths = false;
+	protected volatile boolean unsavedPaths = false;
 
 
 	/**
@@ -579,7 +580,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	public BoundingBox getBoundingBox(final boolean compute) {
 		if (boundingBox == null) boundingBox = new BoundingBox();
-		if (!compute || getPaths().size() == 0) return boundingBox;
+		if (!compute || getPaths().isEmpty()) return boundingBox;
 		SNTUtils.log("Computing bounding box...");
 		final Iterator<PointInImage> allPointsIt = allPointsIterator();
 		boundingBox.compute(allPointsIt);
@@ -676,9 +677,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			pathChildrenMap.putIfAbsent(p.getStartJoins(), new ArrayList<>());
 			pathChildrenMap.get(p.getStartJoins()).add(p);
 		}
-		for (final Path p : pathChildrenMap.keySet()) {
-			p.children.clear();
-			p.children.addAll(pathChildrenMap.get(p));
+		for (final Entry<Path, List<Path>> entry : pathChildrenMap.entrySet()) {
+			entry.getKey().children.clear();
+			entry.getKey().children.addAll(entry.getValue());
 		}
 		return primaryPaths.toArray(new Path[] {});
 	}
@@ -810,7 +811,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		 */
 		structuredPathSet.retainAll(new HashSet<>(paths));
 
-		if (structuredPathSet.size() == 0) throw new SWCExportException(
+		if (structuredPathSet.isEmpty()) throw new SWCExportException(
 			"The paths you select for SWC export must include a primary path (i.e., one at the top level in the Path Manager tree)");
 		if (structuredPathSet.size() > 1) throw new SWCExportException(
 			"You can only select one connected set of paths for SWC export");
@@ -1127,9 +1128,8 @@ public class PathAndFillManager extends DefaultHandler implements
 		// assumption when adding paths in bulk, but in an interactive session, we need to
 		// ensure the path is being assigned the correct tree ID.
 		int treeID = maxUsedTreeID;
-		if (!assumeMaxUsedTreeID && !isPrimary) {
-			if (p.getStartJoins() != null)
-				treeID = p.getStartJoins().getTreeID();
+		if (!assumeMaxUsedTreeID && !isPrimary && (p.getStartJoins() != null)) {
+			treeID = p.getStartJoins().getTreeID();
 		}
 		p.setIDs((forceNewId || p.getID() < 0) ? ++maxUsedPathID : p.getID(), treeID);
 		if (maxUsedPathID < p.getID()) maxUsedPathID = p.getID();
@@ -1353,7 +1353,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	// FIXME: should probably use XMLStreamWriter instead of this ad-hoc
 	// approach:
-	synchronized protected void writeXML(final String fileName,
+	protected synchronized void writeXML(final String fileName,
 		final boolean compress) throws IOException
 	{
 
@@ -1677,8 +1677,10 @@ public class PathAndFillManager extends DefaultHandler implements
 
 				if (startsxString == null && startsyString == null &&
 						startszString == null) {
+					// Do nothing
 				} else if (startsxString != null && startsyString != null &&
 						startszString != null) {
+					// Do nothing
 				} else {
 					throw new TracesFileFormatException(
 							"If one of starts[xyz] is specified, all of them must be.");
@@ -2196,7 +2198,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		final PathAndFillManager pafm = new PathAndFillManager();
 		pafm.setHeadless(true);
 		final TreeSet<SWCPoint> set = (nodes instanceof TreeSet) ? (TreeSet<SWCPoint>) nodes
-				: new TreeSet<SWCPoint>(nodes);
+				: new TreeSet<>(nodes);
 		if (pafm.importNodes(null, set, null, false))
 			return pafm;
 		else
@@ -2377,8 +2379,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			factory.setValidating(true);
 			final SAXParser parser = factory.newSAXParser();
 
-			if (is != null) parser.parse(is, this);
-			else if (null != null) {
+			if (is != null) {
+				parser.parse(is, this);
+			} else {
 				final InputSource inputSource = new InputSource((Reader) null);
 				parser.parse(inputSource, this);
 			}
@@ -2440,7 +2443,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		pathNameMap.clear();
 		pathNameLowercaseMap.clear();
 		allFills.clear();
-		if (plugin == null || (plugin != null && !plugin.accessToValidImageData()))
+		if (plugin == null || !plugin.accessToValidImageData())
 			resetSpatialSettings(false);
 		resetListenersAfterDataChangingOperation(null);
 	}
@@ -2889,7 +2892,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			result = importSWC(br, SNTUtils.stripExtension(f.getName()), assumeCoordinatesInVoxels, xOffset, yOffset,
 				zOffset, xScale, yScale, zScale, replaceAllPaths, swcTypes);
 
-			if (is != null) is.close();
+			is.close();
 
 		}
 		catch (final IOException ioe) {
@@ -3213,7 +3216,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 *         those that are null or fitted version of o paths.
 	 */
 	public List<Path> getPathsFiltered() { // FIXME: this is no longer needed
-		return (List<Path>) getPaths().stream().filter(p -> p != null && !p.isFittedVersionOfAnotherPath())
+		return getPaths().stream().filter(p -> p != null && !p.isFittedVersionOfAnotherPath())
 				.collect(Collectors.toList());
 	}
 

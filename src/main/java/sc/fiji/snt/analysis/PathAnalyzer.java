@@ -43,7 +43,7 @@ public class PathAnalyzer extends TreeStatistics {
 		tree.setLabel(label);
 		final String unit = paths.iterator().next().getCalibration().getUnit();
 		if (paths.stream().allMatch(p -> p.getCalibration().getUnit().equals(unit)))
-			tree.getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, unit);;
+			tree.getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, unit);
 	}
 
 	private PathAnalyzer(final Path path) {

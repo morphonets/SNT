@@ -209,15 +209,15 @@ public class SNT extends MultiDThreePanes implements
 	private int paths3DDisplay = 1;
 
 	/* UI and tracing preferences */
-	volatile protected int cursorSnapWindowXY;
-	volatile protected int cursorSnapWindowZ;
-	volatile protected boolean autoCanvasActivation;
-	volatile protected boolean panMode;
-	volatile protected boolean snapCursor;
-	volatile protected boolean showOnlySelectedPaths;
-	volatile protected boolean showOnlyActiveCTposPaths;
-	volatile protected boolean activateFinishedPath;
-	volatile protected boolean requireShiftToFork;
+	protected volatile int cursorSnapWindowXY;
+	protected volatile int cursorSnapWindowZ;
+	protected volatile boolean autoCanvasActivation;
+	protected volatile boolean panMode;
+	protected volatile boolean snapCursor;
+	protected volatile boolean showOnlySelectedPaths;
+	protected volatile boolean showOnlyActiveCTposPaths;
+	protected volatile boolean activateFinishedPath;
+	protected volatile boolean requireShiftToFork;
 	private boolean drawDiameters;
 
 	private boolean manualOverride = false;
@@ -295,7 +295,7 @@ public class SNT extends MultiDThreePanes implements
 	 * finished it (in the sense of moving on to a new path with a differen starting
 	 * point.) //FIXME: this may be redundant - check that.
 	 */
-	volatile private boolean pathUnfinished = false;
+	private volatile boolean pathUnfinished = false;
 	private Path editingPath; // Path being edited when in 'Edit Mode'
 	private Path previousEditingPath; // reference to the 'last selected' path when in 'Edit Mode'
 
@@ -712,7 +712,7 @@ public class SNT extends MultiDThreePanes implements
 		SNTUtils.log("Dataset dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(dataset)));
 		SNTUtils.log("CT HyperSlice dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(this.ctSlice3d)));
 		statusService.showStatus("Finding stack minimum / maximum");
-		final boolean restoreROI = imp.getRoi() != null && imp.getRoi() instanceof PointRoi;
+		final boolean restoreROI = imp.getRoi() instanceof PointRoi;
 		if (restoreROI) imp.saveRoi();
 		imp.deleteRoi(); // if a ROI exists, compute min/ max for entire image
 		if (restoreROI) imp.restoreRoi();
@@ -854,7 +854,7 @@ public class SNT extends MultiDThreePanes implements
 		return (ui == null) ? -1 : ui.getState();
 	}
 
-	synchronized protected void saveFill() {
+	protected synchronized void saveFill() {
 		if (fillerSet.isEmpty()) {
 			throw new IllegalArgumentException("No fills available.");
 		}
@@ -871,7 +871,7 @@ public class SNT extends MultiDThreePanes implements
 			getUI().getFillManager().changeState(FillManagerUI.State.READY);
 	}
 
-	synchronized protected void discardFill() {
+	protected synchronized void discardFill() {
 		if (fillerSet.isEmpty()) {
 			SNTUtils.log("No Fill(s) to discard...");
 		}
@@ -886,7 +886,7 @@ public class SNT extends MultiDThreePanes implements
 			getUI().getFillManager().changeState(FillManagerUI.State.READY);
 	}
 
-	synchronized protected void stopFilling() {
+	protected synchronized void stopFilling() {
 
 		if (fillerThreadPool == null) {
 			SNTUtils.log("No filler threads are currently running.");
@@ -914,7 +914,7 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
-	synchronized protected void startFilling() {
+	protected synchronized void startFilling() {
 		if (fillerSet.isEmpty()) {
 			throw new IllegalArgumentException("No Filters loaded");
 		}
@@ -1231,7 +1231,7 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
-	synchronized public void loadLabelsFile(final String path) {
+	public synchronized void loadLabelsFile(final String path) {
 
 		final AmiraMeshDecoder d = new AmiraMeshDecoder();
 
@@ -1267,7 +1267,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/** Assumes UI is available */
-	synchronized protected void loadTracesFile(File file) {
+	protected synchronized void loadTracesFile(File file) {
 		if (file == null) file = ui.openFile("Open .traces File...", "traces");
 		if (file == null) return; // user pressed cancel;
 		if (!file.exists()) {
@@ -1289,7 +1289,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/** Assumes UI is available */
-	synchronized protected void loadSWCFile(File file) {
+	protected synchronized void loadSWCFile(File file) {
 		if (file == null) file = ui.openFile("Open (e)SWC File...", "swc");
 		if (file == null) return; // user pressed cancel;
 		if (!file.exists()) {
@@ -1399,7 +1399,7 @@ public class SNT extends MultiDThreePanes implements
 	// When we set temporaryPath, we also want to update the display:
 
 	@SuppressWarnings("deprecation")
-	synchronized public void setTemporaryPath(final Path path) {
+	public synchronized void setTemporaryPath(final Path path) {
 
 		final Path oldTemporaryPath = this.temporaryPath;
 
@@ -1423,7 +1423,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	@SuppressWarnings("deprecation")
-	synchronized public void setCurrentPath(final Path path) {
+	public synchronized void setCurrentPath(final Path path) {
 		final Path oldCurrentPath = this.currentPath;
 		currentPath = path;
 		if (currentPath != null) {
@@ -1445,7 +1445,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
-	synchronized public Path getCurrentPath() {
+	public synchronized Path getCurrentPath() {
 		return currentPath;
 	}
 
@@ -1486,7 +1486,7 @@ public class SNT extends MultiDThreePanes implements
 	 * Create a new 8-bit ImagePlus of the same dimensions as this image, but with
 	 * values set to either 255 (if there's a point on a path there) or 0
 	 */
-	synchronized public ImagePlus makePathVolume(final Collection<Path> paths) {
+	public synchronized ImagePlus makePathVolume(final Collection<Path> paths) {
 
 		final short[][] snapshot_data = new short[depth][];
 
@@ -1510,7 +1510,7 @@ public class SNT extends MultiDThreePanes implements
 		return newImp;
 	}
 
-	synchronized public ImagePlus makePathVolume() {
+	public synchronized ImagePlus makePathVolume() {
 		return makePathVolume(pathAndFillManager.getPaths());
 	}
 
@@ -1520,7 +1520,7 @@ public class SNT extends MultiDThreePanes implements
 		return testPathTo(world_x, world_y, world_z, joinPoint, -1); // GUI execution
 	}
 
-	synchronized private Future<?> testPathTo(final double world_x,
+	private synchronized Future<?> testPathTo(final double world_x,
 											  final double world_y,
 											  final double world_z,
 											  final PointInImage joinPoint,
@@ -1776,7 +1776,7 @@ public class SNT extends MultiDThreePanes implements
 		return search;
 	}
 
-	synchronized public void confirmTemporary(final boolean updateTracingViewers) {
+	public synchronized void confirmTemporary(final boolean updateTracingViewers) {
 
 		if (temporaryPath == null)
 			// Just ignore the request to confirm a path (there isn't one):
@@ -1803,7 +1803,7 @@ public class SNT extends MultiDThreePanes implements
 		setCurrentPath(currentPath);
 	}
 
-	synchronized public void cancelTemporary() {
+	public synchronized void cancelTemporary() {
 
 		if (!lastStartPointSet) {
 			discreteMsg(
@@ -1826,7 +1826,7 @@ public class SNT extends MultiDThreePanes implements
 	/**
 	 * Cancels the temporary path.
 	 */
-	synchronized public void cancelPath() {
+	public synchronized void cancelPath() {
 
 		// Is there an unconfirmed path? If so, warn people about it...
 		if (temporaryPath != null) {
@@ -2012,7 +2012,7 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public Path autoTrace(final List<SNTPoint> pointList, final PointInImage forkPoint)
 	{
-		if (pointList == null || pointList.size() == 0)
+		if (pointList == null || pointList.isEmpty())
 			throw new IllegalArgumentException("pointList cannot be null or empty");
 
 		final boolean existingEnableUIupdates = pathAndFillManager.enableUIupdates;
@@ -2067,7 +2067,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private Path autoTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint) {
-		if (pointList == null || pointList.size() == 0)
+		if (pointList == null || pointList.isEmpty())
 			throw new IllegalArgumentException("pointList cannot be null or empty");
 
 		if (tracerThreadPool == null || tracerThreadPool.isShutdown()) {
@@ -2109,7 +2109,7 @@ public class SNT extends MultiDThreePanes implements
 		return fullPath;
 	}
 
-	synchronized protected void replaceCurrentPath(final Path path) {
+	protected synchronized void replaceCurrentPath(final Path path) {
 		if (currentPath != null) {
 			discreteMsg("An active temporary path already exists...");
 			return;
@@ -2130,7 +2130,7 @@ public class SNT extends MultiDThreePanes implements
 		updateAllViewers();
 	}
 
-	synchronized protected void finishedPath() {
+	protected synchronized void finishedPath() {
 
 		if (currentPath == null) {
 			// this can happen through repeated hotkey presses
@@ -2173,7 +2173,7 @@ public class SNT extends MultiDThreePanes implements
 		updateTracingViewers(true);
 	}
 
-	synchronized protected void clickForTrace(final Point3d p, final boolean join) {
+	protected synchronized void clickForTrace(final Point3d p, final boolean join) {
 		final double x_unscaled = p.x / x_spacing;
 		final double y_unscaled = p.y / y_spacing;
 		final double z_unscaled = p.z / z_spacing;
@@ -2181,7 +2181,7 @@ public class SNT extends MultiDThreePanes implements
 		clickForTrace(p.x, p.y, p.z, join);
 	}
 
-	synchronized protected void clickForTrace(final double world_x,
+	protected synchronized void clickForTrace(final double world_x,
 		final double world_y, final double world_z, final boolean join)
 	{
 
@@ -2226,7 +2226,7 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
-	synchronized protected void clickForTrace(final double x_in_pane_precise,
+	protected synchronized void clickForTrace(final double x_in_pane_precise,
 		final double y_in_pane_precise, final int plane, final boolean join)
 	{
 
@@ -2464,7 +2464,7 @@ public class SNT extends MultiDThreePanes implements
 		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
-	synchronized public void initPathsToFill(final Set<Path> fromPaths) {
+	public synchronized void initPathsToFill(final Set<Path> fromPaths) {
 		fillerSet.clear();
 		pathAndFillManager.getLoadedFills().clear();
 		final boolean useSecondary = isTracingOnSecondaryImageActive();
@@ -3156,7 +3156,7 @@ public class SNT extends MultiDThreePanes implements
 	@Override
 	public void setFillList(final List<Fill> fillList) {}  // ignored
 
-	// Note that rather unexpectedly the p.setSelcted calls make sure that
+	// Note that rather unexpectedly the p.setSelected calls make sure that
 	// the colour of the path in the 3D viewer is right... (FIXME)
 	@Override
 	public void setSelectedPaths(final Collection<Path> selectedPathsSet,
@@ -3165,12 +3165,7 @@ public class SNT extends MultiDThreePanes implements
 		if (source == this) return;
 		for (int i = 0; i < pathAndFillManager.size(); ++i) {
 			final Path p = pathAndFillManager.getPath(i);
-			if (selectedPathsSet.contains(p)) {
-				p.setSelected(true);
-			}
-			else {
-				p.setSelected(false);
-			}
+				p.setSelected(selectedPathsSet.contains(p));
 		}
 	}
 
@@ -3500,7 +3495,7 @@ public class SNT extends MultiDThreePanes implements
 		imp.hide();
 		imp.setRoi(roi);
 		imp.show();
-		imp.changes = existingChanges || (roi != null && roi instanceof PointRoi);
+		imp.changes = existingChanges || roi instanceof PointRoi;
 	}
 
 	

@@ -31,10 +31,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.scijava.table.DefaultGenericTable;
-
-import net.imagej.ImageJ;
-
 import org.jgrapht.Graphs;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.scijava.app.StatusService;
@@ -42,7 +38,9 @@ import org.scijava.command.ContextCommand;
 import org.scijava.display.Display;
 import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
+import org.scijava.table.DefaultGenericTable;
 
+import net.imagej.ImageJ;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
@@ -51,10 +49,7 @@ import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
-import sc.fiji.snt.annotation.AllenCompartment;
-import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
-import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SWCPoint;
 

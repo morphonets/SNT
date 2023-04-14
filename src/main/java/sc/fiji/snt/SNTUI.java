@@ -78,11 +78,6 @@ import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.gui.CheckboxSpinner;
-import sc.fiji.snt.gui.ColorChooserButton;
-import sc.fiji.snt.gui.FileDrop;
-import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
@@ -3436,13 +3431,6 @@ public class SNTUI extends JDialog {
 		}
 	}
 
-	private void togglePathListVisibility() {
-		assert SwingUtilities.isEventDispatchThread();
-		synchronized (pmUI) {
-			setPathListVisible(!pmUI.isVisible(), true);
-		}
-	}
-
 	protected void setFillListVisible(final boolean makeVisible) {
 		assert SwingUtilities.isEventDispatchThread();
 		if (makeVisible) {
@@ -3454,17 +3442,6 @@ public class SNTUI extends JDialog {
 			if (showOrHideFillList != null)
 				showOrHideFillList.setText("Show Fill Manager");
 			fmUI.setVisible(false);
-		}
-	}
-
-	private void toggleFillListVisibility() {
-		assert SwingUtilities.isEventDispatchThread();
-		if (!plugin.accessToValidImageData()) {
-			guiUtils.error("Paths can only be filled when valid image data is available.");
-		} else {
-			synchronized (fmUI) {
-				setFillListVisible(!fmUI.isVisible());
-			}
 		}
 	}
 
@@ -4061,6 +4038,42 @@ public class SNTUI extends JDialog {
 
 		}
 
+		private void toggleFillListVisibility() {
+			assert SwingUtilities.isEventDispatchThread();
+			if (!plugin.accessToValidImageData()) {
+				guiUtils.error("Paths can only be filled when valid image data is available.");
+			} else {
+				synchronized (fmUI) {
+					setFillListVisible(!fmUI.isVisible());
+				}
+			}
+		}
+
+		private void togglePathListVisibility() {
+			assert SwingUtilities.isEventDispatchThread();
+			synchronized (pmUI) {
+				setPathListVisible(!pmUI.isVisible(), true);
+			}
+		}
+
+		private boolean abortOnPutativeDataLoss() {
+			boolean nag = plugin.getPrefs().getTemp("dataloss-nag", true);
+			if (nag) {
+				final Boolean prompt = guiUtils.getPersistentWarning(//
+						"The following data can only be saved in a <i>TRACES</i> file and will not be stored under the SWC format:"
+						+ "<ul>" //
+						+ "  <li>Image details</li>"//
+						+ "  <li>Fits and Fills</li>"//
+						+ "  <li>Path metadata (tags, colors, traced channel and frame)</li>"//
+						+ "  <li>Spine/varicosity counts</li>"//
+						+ "</ul>", "Warning: Possible Data Loss");
+				if (prompt == null)
+					return true; // user dimissed prompt
+				plugin.getPrefs().setTemp("dataloss-nag", !prompt.booleanValue());
+			}
+			return false;
+		}
+
 	}
 
 	/** Dynamic commands don't work well with CmdRunner. Use this class instead to run them */
@@ -4365,24 +4378,6 @@ public class SNTUI extends JDialog {
 		SNTUtils.log("Exporting paths... " + prefix);
 		final boolean success = pathAndFillManager.exportAllPathsAsSWC(primaryPaths, filePath);
 		return success;
-	}
-
-	private boolean abortOnPutativeDataLoss() {
-		boolean nag = plugin.getPrefs().getTemp("dataloss-nag", true);
-		if (nag) {
-			final Boolean prompt = guiUtils.getPersistentWarning(//
-					"The following data can only be saved in a <i>TRACES</i> file and will not be stored under the SWC format:"
-					+ "<ul>" //
-					+ "  <li>Image details</li>"//
-					+ "  <li>Fits and Fills</li>"//
-					+ "  <li>Path metadata (tags, colors, traced channel and frame)</li>"//
-					+ "  <li>Spine/varicosity counts</li>"//
-					+ "</ul>", "Warning: Possible Data Loss");
-			if (prompt == null)
-				return true; // user dimissed prompt
-			plugin.getPrefs().setTemp("dataloss-nag", !prompt.booleanValue());
-		}
-		return false;
 	}
 
 	private class ImportAction {
