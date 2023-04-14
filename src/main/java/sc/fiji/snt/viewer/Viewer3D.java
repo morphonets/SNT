@@ -2140,7 +2140,7 @@ public class Viewer3D {
 	 * @return true, if successful
 	 */
 	public boolean saveSnapshot() {
-		final String filename = String.format("SNT_%s.png", SNTUtils.getTimeStamp());
+		final String filename = String.format("RecViewer%s.png", SNTUtils.getTimeStamp());
 		final File file = new File(prefs.getSnapshotDir(), filename);
 		boolean saved = false;
 		try {

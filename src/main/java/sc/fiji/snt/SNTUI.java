@@ -4304,7 +4304,7 @@ public class SNTUI extends JDialog {
 			}
 			final String suffix = SNTUtils.getTimeStamp();
 			final String fName = SNTUtils.stripExtension(targetFile.getName());
-			targetFile = new File(targetFile.getParentFile(), fName + "_" + suffix + ".traces");
+			targetFile = new File(targetFile.getParentFile(), fName + suffix + ".traces");
 		}
 		try {
 			if (!timeStampedCopy && (targetFile == null || !targetFile.exists() || !targetFile.canWrite())) {
