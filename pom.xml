@@ -138,7 +138,7 @@
 		<okhttp.version>4.9.3</okhttp.version>
 		<font-awesome.version>6.4.0</font-awesome.version>
 		<json.version>20230227</json.version>
-		<flatlaf.version>3.1</flatlaf.version>
+		<flatlaf.version>3.1.1</flatlaf.version>
 		<log4j.version>2.20.0</log4j.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
