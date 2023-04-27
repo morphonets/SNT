@@ -31,10 +31,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Paint;
-import java.awt.Rectangle;
 import java.awt.Toolkit;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.BufferedWriter;
@@ -59,6 +56,8 @@ import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 import org.jfree.chart.ChartFrame;
+import org.jfree.chart.ChartMouseEvent;
+import org.jfree.chart.ChartMouseListener;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;
@@ -72,6 +71,12 @@ import org.jfree.chart.annotations.XYPointerAnnotation;
 import org.jfree.chart.annotations.XYTextAnnotation;
 import org.jfree.chart.axis.Axis;
 import org.jfree.chart.axis.CategoryAnchor;
+import org.jfree.chart.entity.ChartEntity;
+import org.jfree.chart.entity.JFreeChartEntity;
+import org.jfree.chart.entity.PlotEntity;
+import org.jfree.chart.entity.TitleEntity;
+import org.jfree.chart.entity.XYAnnotationEntity;
+import org.jfree.chart.entity.XYItemEntity;
 import org.jfree.chart.plot.CategoryMarker;
 import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.CombinedRangeXYPlot;
@@ -80,6 +85,7 @@ import org.jfree.chart.plot.Plot;
 import org.jfree.chart.plot.PolarPlot;
 import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.plot.flow.FlowPlot;
 import org.jfree.chart.renderer.AbstractRenderer;
 import org.jfree.chart.renderer.DefaultPolarItemRenderer;
 import org.jfree.chart.renderer.category.AbstractCategoryItemRenderer;
@@ -90,6 +96,7 @@ import org.jfree.chart.title.LegendTitle;
 import org.jfree.chart.title.PaintScaleLegend;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.title.Title;
+import org.jfree.chart.ui.HorizontalAlignment;
 import org.jfree.chart.ui.Layer;
 import org.jfree.chart.ui.RectangleAnchor;
 import org.jfree.chart.ui.RectangleEdge;
@@ -112,6 +119,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.SNTColor;
 
 
 /**
@@ -125,7 +133,6 @@ public class SNTChart extends ChartFrame {
 	private static final Color BACKGROUND_COLOR = Color.WHITE;
 	private static final List<SNTChart> openInstances = new ArrayList<>();
 	private boolean isCombined;
-	private boolean isAspectRatioLocked;
 
 	private static double scalingFactor = 1;
 
@@ -152,7 +159,7 @@ public class SNTChart extends ChartFrame {
 			}
 			setFontSize((float) (defFontSize() * scalingFactor));
 		}
-		final ChartPanel cp = new ChartPanel(chart);
+		final ChartPanel cp = getChartPanel();
 		// Tweak: Ensure chart is always drawn and not scaled to avoid rendering
 		// artifacts
 		cp.setMinimumDrawWidth(0);
@@ -173,6 +180,7 @@ public class SNTChart extends ChartFrame {
 				openInstances.add(SNTChart.this);
 			}
 		});
+		cp.addChartMouseListener(new ChartListener());
 	}
 
 	private XYPlot getXYPlot() {
@@ -276,8 +284,7 @@ public class SNTChart extends ChartFrame {
 
 	public void setGridlinesVisible(final boolean visible) {
 		if (getChartPanel().getChart().getPlot() instanceof CombinedRangeXYPlot) {
-			@SuppressWarnings("unchecked")
-			final List<XYPlot> plots = (List<XYPlot>) ((CombinedRangeXYPlot)(getChartPanel().getChart().getXYPlot())).getSubplots();
+			final List<XYPlot> plots = ((CombinedRangeXYPlot)(getChartPanel().getChart().getXYPlot())).getSubplots();
 			for (final XYPlot plot : plots) {
 				// CombinedRangeXYPlot do not have domain axis!?
 				plot.setRangeGridlinesVisible(visible);
@@ -326,17 +333,15 @@ public class SNTChart extends ChartFrame {
 				BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1.0f, new float[] { 6.0f, 6.0f }, 0.0f));
 		marker.setDrawAsLine(true);
 		catPlot.addDomainMarker(marker, Layer.BACKGROUND);
-		if (catPlot.getCategories().contains(category)) {
-			if (label != null && !label.isEmpty()) {
-				final Range range = catPlot.getRangeAxis().getRange();
-				final double labelYloc = range.getUpperBound() * 0.50 + range.getLowerBound();
-				final CategoryTextAnnotation annot = new CategoryTextAnnotation(label, category, labelYloc);
-				annot.setPaint(c);
-				annot.setFont(catPlot.getRangeAxis().getTickLabelFont());
-				annot.setCategoryAnchor(CategoryAnchor.END);
-				annot.setTextAnchor(TextAnchor.BOTTOM_CENTER);
-				catPlot.addAnnotation(annot);
-			}
+		if (catPlot.getCategories().contains(category) && (label != null && !label.isEmpty())) {
+			final Range range = catPlot.getRangeAxis().getRange();
+			final double labelYloc = range.getUpperBound() * 0.50 + range.getLowerBound();
+			final CategoryTextAnnotation annot = new CategoryTextAnnotation(label, category, labelYloc);
+			annot.setPaint(c);
+			annot.setFont(catPlot.getRangeAxis().getTickLabelFont());
+			annot.setCategoryAnchor(CategoryAnchor.END);
+			annot.setTextAnchor(TextAnchor.BOTTOM_CENTER);
+			catPlot.addAnnotation(annot);
 		}
 	}
 
@@ -517,7 +522,7 @@ public class SNTChart extends ChartFrame {
 				final List<?> annotations = getXYPlot().getAnnotations();
 				if (annotations != null) {
 					for (int i = 0; i < getXYPlot().getAnnotations().size(); i++) {
-						final XYAnnotation annotation = (XYAnnotation) getXYPlot().getAnnotations().get(i);
+						final XYAnnotation annotation = getXYPlot().getAnnotations().get(i);
 						if (annotation instanceof XYTextAnnotation) {
 							((XYTextAnnotation) annotation)
 									.setFont(((XYTextAnnotation) annotation).getFont().deriveFont(size));
@@ -544,6 +549,10 @@ public class SNTChart extends ChartFrame {
 				adjustMarkersFont(getCategoryPlot().getDomainMarkers(Layer.BACKGROUND), size);
 				adjustMarkersFont(getCategoryPlot().getRangeMarkers(Layer.FOREGROUND), size);
 				adjustMarkersFont(getCategoryPlot().getRangeMarkers(Layer.BACKGROUND), size);
+			}
+			else if (isFlowPlot()) {
+				final FlowPlot plot = (FlowPlot)(getChartPanel().getChart().getPlot());
+				plot.setDefaultNodeLabelFont(plot.getDefaultNodeLabelFont().deriveFont(Font.PLAIN, size));
 			}
 			break;
 		}
@@ -677,8 +686,7 @@ public class SNTChart extends ChartFrame {
 			}
 		}
 		if (getChartPanel().getChart().getPlot() instanceof CombinedRangeXYPlot) {
-			@SuppressWarnings("unchecked")
-			final List<XYPlot> plots = (List<XYPlot>) ((CombinedRangeXYPlot)(getChartPanel().getChart().getXYPlot())).getSubplots();
+			final List<XYPlot> plots = ((CombinedRangeXYPlot)(getChartPanel().getChart().getXYPlot())).getSubplots();
 			for (final XYPlot plot : plots) {
 				if (plot.getBackgroundPaint() == oldColor)
 					plot.setBackgroundPaint(newColor);
@@ -688,11 +696,15 @@ public class SNTChart extends ChartFrame {
 			if (plot.getBackgroundPaint() == oldColor)
 				plot.setBackgroundPaint(newColor);
 		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+			final CategoryPlot plot = (getChartPanel().getChart().getCategoryPlot());
 			if (plot.getBackgroundPaint() == oldColor)
 				plot.setBackgroundPaint(newColor);
 		} else if (getChartPanel().getChart().getPlot() instanceof PolarPlot) {
 			final PolarPlot plot = (PolarPlot)(getChartPanel().getChart().getPlot());
+			if (plot.getBackgroundPaint() == oldColor)
+				plot.setBackgroundPaint(newColor);
+		} else if (isFlowPlot()) {
+			final FlowPlot plot = (FlowPlot)(getChartPanel().getChart().getPlot());
 			if (plot.getBackgroundPaint() == oldColor)
 				plot.setBackgroundPaint(newColor);
 		}
@@ -732,7 +744,7 @@ public class SNTChart extends ChartFrame {
 			replaceForegroundColor(plot.getRenderer(), oldColor, newColor);
 			replaceSeriesColor(plot.getRenderer(), oldColor, newColor);
 		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+			final CategoryPlot plot = (getChartPanel().getChart().getCategoryPlot());
 			setForegroundColor(plot.getDomainAxis(), newColor);
 			setForegroundColor(plot.getRangeAxis(), newColor);
 			replaceForegroundColor(plot.getRenderer(), oldColor, newColor);
@@ -750,6 +762,10 @@ public class SNTChart extends ChartFrame {
 				if (render.getSeriesPaint(series) == oldColor)
 					render.setSeriesPaint(series, newColor);
 			}
+		} else if (isFlowPlot()) {
+			final FlowPlot plot = (FlowPlot)(getChartPanel().getChart().getPlot());
+			plot.setOutlinePaint(newColor);
+			plot.setDefaultNodeLabelPaint(newColor);
 		}
 
 	}
@@ -862,7 +878,7 @@ public class SNTChart extends ChartFrame {
 			if (tPlot.getRangeAxis().getAxisLinePaint() instanceof Color)
 				setForegroundColor(plot.getRangeAxis(), (Color)tPlot.getRangeAxis().getAxisLinePaint());
 		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+			final CategoryPlot plot = getChartPanel().getChart().getCategoryPlot();
 			final CategoryPlot tPlot = (CategoryPlot)(template.getChartPanel().getChart().getPlot());
 			if (tPlot.getDomainAxis().getAxisLinePaint() instanceof Color)
 				setForegroundColor(plot.getDomainAxis(), (Color)tPlot.getDomainAxis().getAxisLinePaint());
@@ -883,9 +899,34 @@ public class SNTChart extends ChartFrame {
 	 * @param label the subtitle text
 	 */
 	public void annotate(final String label) {
+		annotate(label, null, "center");
+	}
+
+	/**
+	 * Adds a subtitle to the chart.
+	 *
+	 * @param label    the subtitle text
+	 * @param tooltip the tooltip text. {@code null} permitted)
+	 * @param aligment either 'left', 'center', or 'right'
+	 */
+	public void annotate(final String label, final String tooltip, final String aligment) {
 		final TextTitle tLabel = new TextTitle(label);
-		tLabel.setFont(tLabel.getFont().deriveFont(Font.PLAIN));
+		tLabel.setFont(tLabel.getFont().deriveFont(Font.PLAIN, getFontSize("legend")));
 		tLabel.setPosition(RectangleEdge.BOTTOM);
+		tLabel.setToolTipText(tooltip);
+		switch (aligment.toLowerCase()) {
+		case "left":
+			tLabel.setHorizontalAlignment(HorizontalAlignment.LEFT);
+			tLabel.setTextAlignment(HorizontalAlignment.LEFT);
+			break;
+		case "right":
+			tLabel.setHorizontalAlignment(HorizontalAlignment.RIGHT);
+			tLabel.setTextAlignment(HorizontalAlignment.RIGHT);
+			break;
+		default:
+			tLabel.setHorizontalAlignment(HorizontalAlignment.CENTER);
+			tLabel.setTextAlignment(HorizontalAlignment.CENTER);
+		}
 		getChartPanel().getChart().addSubtitle(tLabel);
 	}
 
@@ -1037,14 +1078,15 @@ public class SNTChart extends ChartFrame {
 		final JMenu grids = new JMenu("Frame & Grid Lines");
 		popup.add(grids);
 		JMenuItem jmi = new JMenuItem("Toggle Grid Lines");
+		jmi.setEnabled(!isFlowPlot());
 		jmi.addActionListener( e -> setGridlinesVisible(!isGridlinesVisible()));
 		grids.add(jmi);
 		jmi = new JMenuItem("Toggle Outline");
 		jmi.addActionListener( e -> setOutlineVisible(!isOutlineVisible()));
 		grids.add(jmi);
-		final JCheckBoxMenuItem lock = new JCheckBoxMenuItem("Lock Aspect Ratio", isAspectRatioLocked());
-		lock.addItemListener( e -> setAspectRatioLocked(lock.isSelected()));
-		grids.add(lock);
+		jmi = new JMenuItem("Adjust Frame Size...");
+		jmi.addActionListener(e -> new GuiUtils(SNTChart.this).adjustComponentThroughPrompt(SNTChart.this));
+		grids.add(jmi);
 		popup.add(grids);
 		popup.add(dark);
 
@@ -1103,6 +1145,9 @@ public class SNTChart extends ChartFrame {
 		}
 		else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
 			return getCategoryPlot().getDomainAxis().getLabelFont().getSize2D();
+		} else if (isFlowPlot()) {
+			final FlowPlot plot = (FlowPlot)(getChartPanel().getChart().getPlot());
+			return plot.getDefaultNodeLabelFont().getSize2D();
 		}
 		return getChartPanel().getChart().getPlot().getNoDataMessageFont().getSize2D();
 	}
@@ -1138,7 +1183,7 @@ public class SNTChart extends ChartFrame {
 				}
 			}
 		} else {
-			throw new IllegalStateException("This type of dataset is not supported.");
+			throw new IllegalStateException("Export of this type of dataset is not supported.");
 		}
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(file));) {
 			for (final String line : csv) {
@@ -1150,42 +1195,8 @@ public class SNTChart extends ChartFrame {
 		}
 	}
 
-	private void setAspectRatioLocked(final boolean lock) {
-		final ComponentAdapter adapter = new ComponentAdapter() {
-			double RATIO = ((float) SNTChart.this.getWidth()) / SNTChart.this.getHeight();
-
-			@Override
-			public void componentShown(final ComponentEvent ce) {
-				if (isCombined) {
-					final Rectangle b = ce.getComponent().getBounds();
-					RATIO = ((float) b.width) / b.height;
-				}
-			}
-
-			@Override
-			public void componentResized(final ComponentEvent ce) {
-				final Rectangle b = ce.getComponent().getBounds();
-				int width = b.width;
-				int height = b.height;
-				final float currentAspectRatio = (float) width / height;
-				if (currentAspectRatio > RATIO) {
-					width = (int) (height * RATIO);
-				} else {
-					height = (int) (width / RATIO);
-				}
-				b.setBounds(b.x, b.y, width, height);
-			}
-		};
-		if (lock) {
-			addComponentListener(adapter);
-		} else {
-			removeComponentListener(adapter);
-		}
-		isAspectRatioLocked = lock;
-	}
-
-	public boolean isAspectRatioLocked() {
-		return isAspectRatioLocked;
+	private boolean isFlowPlot() {
+		return getChartPanel().getChart().getPlot() instanceof FlowPlot;
 	}
 
 	/**
@@ -1195,6 +1206,58 @@ public class SNTChart extends ChartFrame {
 	 */
 	public boolean isCombined() {
 		return isCombined;
+	}
+
+	private class ChartListener implements ChartMouseListener {
+
+		@Override
+		public void chartMouseClicked(final ChartMouseEvent event) {
+
+			if (event.getTrigger().getClickCount() != 2)
+				return;
+			final ChartEntity ce = event.getEntity();
+			if (ce instanceof TitleEntity) {
+				final Title title = ((TitleEntity) ce).getTitle();
+				if (title instanceof TextTitle) {
+					final String newLabel = getCustomString(((TextTitle) title).getText());
+					if (newLabel != null)
+						((TextTitle) title).setText(newLabel);
+				}
+			} else if (ce instanceof XYAnnotationEntity) {
+				final int idx = ((XYAnnotationEntity) ce).getRendererIndex();
+				final XYAnnotation annot = getXYPlot().getAnnotations().get(idx);
+				if (annot instanceof XYTextAnnotation) {
+					final String newLabel = getCustomString(((XYTextAnnotation) annot).getText());
+					if (newLabel != null)
+						((XYTextAnnotation) annot).setText(newLabel);
+				}
+			} else if (ce instanceof XYItemEntity) {
+				final int idx = ((XYItemEntity) ce).getSeriesIndex();
+				final Color newColor = getCustomColor();
+				if (newColor != null)
+					getXYPlot().getRenderer().setSeriesPaint(idx, SNTColor.alphaColor(newColor, 60));
+			} else if (!(ce instanceof JFreeChartEntity) && !(ce instanceof PlotEntity)) {
+				new GuiUtils(SNTChart.this).error(
+						"This component cannot be edited by double-click. "//
+						+ "Please use options in right-click menu.");
+			} else {
+				SNTUtils.log(ce.toString());
+			}
+		}
+
+		String getCustomString(final String old) {
+			return new GuiUtils(SNTChart.this).getString("", "Edit Label", old);
+		}
+
+		Color getCustomColor() {
+			return new GuiUtils(SNTChart.this).getColor("New Color", Color.DARK_GRAY);
+		}
+
+		@Override
+		public void chartMouseMoved(final ChartMouseEvent event) {
+			// do nothing
+		}
+
 	}
 
 	public static List<SNTChart> openCharts() {

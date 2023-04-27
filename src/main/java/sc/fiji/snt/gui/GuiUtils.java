@@ -498,6 +498,113 @@ public class GuiUtils {
 		return values;
 	}
 
+	public void adjustComponentThroughPrompt(final Container container) {
+
+		class DimensionFields implements DocumentListener {
+
+			final JTextField wField;
+			final JTextField hField;
+			final JCheckBox lockBox;
+			final int[] newDims;
+			int origWidth, origHeight;
+			boolean lockRatio = true;
+			boolean pauseSyncFields;
+
+			DimensionFields() {
+				newDims = new int[2];
+				wField = intField();
+				hField = intField();
+				lockBox = new JCheckBox("Constrain Aspect Ratio", lockRatio);
+				lockBox.addItemListener(e -> lockRatio = lockBox.isSelected());
+			}
+
+			JTextField intField() {
+				final NumberFormat format = NumberFormat.getIntegerInstance();
+				format.setGroupingUsed(false);
+				final NumberFormatter formatter = new NumberFormatter(format);
+				formatter.setMinimum(0);
+				formatter.setMaximum(Integer.MAX_VALUE);
+				formatter.setAllowsInvalid(false);
+				final JFormattedTextField field = new JFormattedTextField(formatter);
+				field.setColumns(5);
+				field.getDocument().addDocumentListener(this);
+				return field;
+			}
+
+			JPanel panel() {
+				final JPanel panel = new JPanel();
+				panel.add(new JLabel("Width:"));
+				panel.add(wField);
+				panel.add(new JLabel("Height:"));
+				panel.add(hField);
+				panel.add(lockBox);
+				return panel;
+			}
+
+			int parseInt(final JTextField field) {
+				try {
+					return Integer.parseInt(field.getText());
+				} catch (final NumberFormatException e) {
+					return 500;// NumberFormatter ensures this never happens
+				}
+			}
+
+			void forceAspectRatio(final DocumentEvent e) {
+				pauseSyncFields = true;
+				if (e.getDocument() == hField.getDocument()) { // height is being set: Adjust width
+					newDims[1] = parseInt(hField);
+					newDims[0] = Math.round((newDims[1] * origWidth / origHeight));
+					wField.setText("" + newDims[0]);
+				} else { // width is being set: Adjust height
+					newDims[0] = parseInt(wField);
+					newDims[1] = Math.round((newDims[0] * origHeight / origWidth));
+					hField.setText("" + newDims[1]);
+				}
+				pauseSyncFields = false;
+
+			}
+
+			void prompt() {
+				origWidth = container.getWidth();
+				origHeight = container.getHeight();
+				wField.setText("" + origWidth);
+				hField.setText("" + origHeight);
+				final int result = JOptionPane.showConfirmDialog(parent, panel(), "New Dimensions",
+						JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+				if (result == JOptionPane.OK_OPTION) {
+					final double w = GuiUtils.extractDouble(hField);
+					final double h = GuiUtils.extractDouble(hField);
+					if (Double.isNaN(w) || w <= 0 || Double.isNaN(h) || h <= 0) {
+						GuiUtils.errorPrompt("Width and Height must > 0.");
+						return;
+					}
+					container.setSize((int) w, (int) h);
+				}
+			}
+
+			@Override
+			public void insertUpdate(final DocumentEvent e) {
+				if (!pauseSyncFields && lockRatio)
+					forceAspectRatio(e);
+
+			}
+
+			@Override
+			public void removeUpdate(final DocumentEvent e) {
+				if (!pauseSyncFields && lockRatio)
+					forceAspectRatio(e);
+			}
+
+			@Override
+			public void changedUpdate(final DocumentEvent e) {
+				if (!pauseSyncFields && lockRatio)
+					forceAspectRatio(e);
+			}
+		}
+
+		new DimensionFields().prompt();
+	}
+
 	public File saveFile(final String title, final File file,
 		final List<String> allowedExtensions)
 	{

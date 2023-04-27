@@ -247,6 +247,15 @@ public class SNTColor {
 		return colors;
 	}
 
+	public static Color[] getDistinctColorsAWT(final int nColors) {
+		final Color[] colors = new Color[nColors];
+		final ColorRGB[] colorsRGB = getDistinctColors(nColors);
+		for (int i = 0; i < nColors; i++) {
+			colors[i] = new Color(colorsRGB[i].getARGB());
+		}
+		return colors;
+	}
+
 	private static ColorRGB[] KELLY_COLORS = {
 		// See https://stackoverflow.com/a/4382138
 		ColorRGB.fromHTMLColor("#FFB300"), // Vivid Yellow

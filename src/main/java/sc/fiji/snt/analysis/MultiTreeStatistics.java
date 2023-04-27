@@ -380,6 +380,6 @@ public class MultiTreeStatistics extends TreeStatistics {
 		treeStats.setLabel("Demo Dendrites");
 		treeStats.getHistogram("x coordinates").show();
 		treeStats.getPolarHistogram("x coordinates").show();
-
+		treeStats.getFlowPlot("Cable length", treeStats.getAnnotatedLength(9).keySet()).show();
 	}
 }

@@ -25,6 +25,7 @@ package sc.fiji.snt.analysis;
 import java.awt.Dimension;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -581,8 +582,46 @@ public class TreeStatistics extends TreeAnalyzer {
 		final String normMeasurement = getNormalizedMeasurement(metric);
 		final HistogramDatasetPlus datasetPlus = new HDPlus(normMeasurement, true);
 		final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, getUnit(), lastDstats.dStats, datasetPlus);
-		final SNTChart frame = new SNTChart("Polar Hist. " + tree.getLabel(), chart);
-		return frame;
+		return new SNTChart("Polar Hist. " + tree.getLabel(), chart);
+	}
+
+	/**
+	 * Assembles a Flow plot (aka Sankey diagram) for the specified feature using
+	 * "mean" as integration statistic, and no cutoff value.
+	 * 
+	 * @see #getFlowPlot(String, Collection, String, double, boolean)
+	 */
+	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations) {
+		return getFlowPlot(feature, annotations, "mean", Double.MIN_VALUE, false);
+	}
+
+	/**
+	 * Assembles a Flow plot (aka Sankey diagram) for the specified feature.
+	 *
+	 * @param feature     the feature ({@value MultiTreeStatistics#LENGTH},
+	 *                    {@value MultiTreeStatistics#N_BRANCH_POINTS},
+	 *                    {@value MultiTreeStatistics#N_TIPS}, etc.). Note that the
+	 *                    majority of {@link MultiTreeStatistics#getAllMetrics()}
+	 *                    metrics are currently not supported.
+	 * @param annotations the BrainAnnotations to be queried. Null not allowed.
+	 * @param statistic   the integration statistic (lower case). Either "mean",
+	 *                    "sum", "min" or "max". Null not allowed.
+	 * @param cutoff      a filtering option. If the computed {@code feature} for an
+	 *                    annotation is below this value, that annotation is
+	 *                    excluded from the plot
+	 * @param normalize   If true, values are retrieved as ratios. E.g., If
+	 *                    {@code feature} is {@value MultiTreeStatistics#LENGTH},
+	 *                    and {@code cutoff} 0.1, BrainAnnotations in
+	 *                    {@code annotations} associated with less than 10% of cable
+	 *                    length are ignored.
+	 * 
+	 * @return the SNTChart holding the flow plot
+	 */
+	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations,
+			final String statistic, final double cutoff, final boolean normalize) {
+		final GroupedTreeStatistics gts = new GroupedTreeStatistics();
+		gts.addGroup(Collections.singleton(getParsedTree()), (null == tree.getLabel()) ? "" : tree.getLabel());
+		return gts.getFlowPlot(feature, annotations, statistic, cutoff, normalize);
 	}
 
 	public static TreeStatistics fromCollection(final Collection<Tree> trees, final String metric) {
@@ -1181,6 +1220,8 @@ public class TreeStatistics extends TreeAnalyzer {
 		hist = tStats.getAnnotatedLengthHistogram(depth, "ratio");
 		hist.annotateCategory(somaCompartment.acronym(), "soma");
 		hist.setFontSize(25);
+		hist.show();
+		hist = tStats.getFlowPlot("Cable length", tStats.getAnnotatedLength(depth).keySet());
 		hist.show();
 	}
 }

@@ -22,6 +22,8 @@
 
 package sc.fiji.snt.annotation;
 
+import org.scijava.util.ColorRGB;
+
 import sc.fiji.snt.viewer.OBJMesh;
 
 /**
@@ -72,6 +74,9 @@ public interface BrainAnnotation {
 
 	/** @return the parent of this compartment */
 	public BrainAnnotation getParent();
+
+	/** @return the display color of this compartment (if known) */
+	public ColorRGB color();
 
 	public static char getHemisphereFlag(final String hemisphere) {
 		final char flag = hemisphere.trim().toLowerCase().charAt(0);

@@ -419,4 +419,11 @@ public class AllenCompartment implements BrainAnnotation {
 			System.out.println("\tancestor " + level + ": " + child.getAncestor(level));
 		});
 	}
+
+	@Override
+	public ColorRGB color() {
+		initializeAsNeeded();
+		final String s = jsonObj.optString("geometryColor", null);
+		return (null == s) ? null : ColorRGB.fromHTMLColor("#" + s);
+	}
 }

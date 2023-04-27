@@ -35,10 +35,17 @@ import java.awt.geom.Rectangle2D;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
 
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
@@ -46,12 +53,18 @@ import org.jfree.chart.axis.CategoryAxis;
 import org.jfree.chart.axis.ValueAxis;
 import org.jfree.chart.entity.EntityCollection;
 import org.jfree.chart.labels.BoxAndWhiskerToolTipGenerator;
+import org.jfree.chart.labels.StandardFlowLabelGenerator;
 import org.jfree.chart.plot.CategoryPlot;
+import org.jfree.chart.plot.flow.FlowPlot;
 import org.jfree.chart.renderer.Outlier;
 import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
 import org.jfree.chart.renderer.category.CategoryItemRendererState;
 import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.data.category.CategoryDataset;
+import org.jfree.data.flow.DefaultFlowDataset;
+import org.jfree.data.flow.FlowDataset;
+import org.jfree.data.flow.FlowKey;
+import org.jfree.data.flow.NodeKey;
 import org.jfree.data.statistics.BoxAndWhiskerCategoryDataset;
 import org.jfree.data.statistics.DefaultBoxAndWhiskerCategoryDataset;
 import org.jfree.data.statistics.HistogramDataset;
@@ -60,6 +73,7 @@ import org.scijava.util.ColorRGB;
 
 import net.imagej.ImageJ;
 import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.TreeStatistics.HDPlus;
 import sc.fiji.snt.annotation.BrainAnnotation;
@@ -146,8 +160,8 @@ public class GroupedTreeStatistics {
 	 *
 	 * @return the group identifiers
 	 */
-	public Collection<String> getGroups() {
-		return groups.keySet();
+	public List<String> getGroups() {
+		return new ArrayList<String>(groups.keySet());
 	}
 
 	/**
@@ -283,7 +297,7 @@ public class GroupedTreeStatistics {
 	 *                    {@value MultiTreeStatistics#N_TIPS}, etc.). Note that the
 	 *                    majority of {@link MultiTreeStatistics#getAllMetrics()}
 	 *                    metrics are currently not supported.
-	 * @param annotations the BrainAnnotation to be queried. Null not allowed.
+	 * @param annotations the BrainAnnotations to be queried. Null not allowed.
 	 * @return the frame holding the box plot
 	 */
 	public SNTChart getBoxPlot(final String feature, final Collection<BrainAnnotation> annotations) {
@@ -298,7 +312,7 @@ public class GroupedTreeStatistics {
 	 *                    {@value MultiTreeStatistics#N_TIPS}, etc.). Note that the
 	 *                    majority of {@link MultiTreeStatistics#getAllMetrics()}
 	 *                    metrics are currently not supported.
-	 * @param annotations the BrainAnnotation to be queried. Null not allowed.
+	 * @param annotations the BrainAnnotations to be queried. Null not allowed.
 	 * @param cutoff      a filtering option. If the computed {@code feature} for an
 	 *                    annotation is below this value, that annotation is
 	 *                    excluded from the plot
@@ -311,51 +325,20 @@ public class GroupedTreeStatistics {
 	 * @return the frame holding the box plot
 	 */
 	public SNTChart getBoxPlot(final String feature, final Collection<BrainAnnotation> annotations, final double cutoff, final boolean normalize) {
-		final String normFeature = getBoxPlotFeature(feature);
+		final String normFeature = getBoxOrFlowPlotFeature(feature);
 		if (normFeature.equalsIgnoreCase("unknown")) {
 			throw new IllegalArgumentException("Unrecognizable measurement \"" + feature);
 		}
-
-		class AnnotatedValues {
-
-			final HashMap<String, ArrayList<Double>> map  = new HashMap<>();
-
-			AnnotatedValues(final Collection<BrainAnnotation> annotations, final Collection<Tree> trees) {
-				for (final BrainAnnotation annotation : annotations) {
-					if (annotation == null) continue;
-					final ArrayList<Double> values = new ArrayList<>();
-					for (final Tree tree: trees) {
-						if (tree == null) continue;
-						final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
-						double value;
-						switch (normFeature) {
-						case LENGTH:
-							value = (normalize) ? analyzer.getCableLengthNorm(annotation) : analyzer.getCableLength(annotation);
-							break;
-						case N_BRANCH_POINTS:
-							value = (normalize) ? analyzer.getNbranchPointsNorm(annotation) : analyzer.getNbranchPoints(annotation);
-							break;
-						case N_TIPS:
-							value = (normalize) ? analyzer.getNtipsNorm(annotation) : analyzer.getNtips(annotation);
-							break;
-						default:
-							throw new IllegalArgumentException("Unrecognized feature");
-						}
-						if (value > cutoff) values.add(value);
-					}
-					if (!values.isEmpty()) map.put(annotation.acronym(), values);
-				}
-			}
-		}
-
 		final HashMap<String, AnnotatedValues> mappedValues = new HashMap<>();
 		final DefaultBoxAndWhiskerCategoryDataset dataset = new DefaultBoxAndWhiskerCategoryDataset();
 		groups.forEach((groupLabel, groupStats) -> {
-			mappedValues.put(groupLabel, new AnnotatedValues(annotations, groupStats.getGroup()));
+			final AnnotatedValues av = new AnnotatedValues(normFeature, cutoff, normalize);
+			av.compute(annotations, groupStats.getGroup());
+			mappedValues.put(groupLabel, av);
 		});
-		mappedValues.forEach( (groupLabel, annotatedLenghts) -> {
-			annotatedLenghts.map.forEach( (annotationLabel, values) -> {
-				dataset.add(values, groupLabel, annotationLabel);
+		mappedValues.forEach( (groupLabel, annotatedMeasurements) -> {
+			annotatedMeasurements.map.forEach( (brainannotation, values) -> {
+				dataset.add(values, groupLabel, annotAsString(brainannotation));
 			});
 		});
 
@@ -366,7 +349,181 @@ public class GroupedTreeStatistics {
 		return new SNTChart("Box-plot", chart,  new Dimension((int) width, height));
 	}
 
-	private String getBoxPlotFeature(final String guess) {
+	/**
+	 * Assembles a Flow plot (aka Sankey diagram) for the specified feature using
+	 * "mean" as integration statistic, and no cutoff value.
+	 * 
+	 * @see #getFlowPlot(String, Collection, String, double, boolean)
+	 */
+	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations,
+			final boolean normalize) {
+		return getFlowPlot(feature, annotations, "mean", Double.MIN_VALUE, normalize);
+	}
+
+	/**
+	 * Assembles a Flow plot (aka Sankey diagram) for the specified feature using
+	 * "mean" as integration statistic, no cutoff value, and all of the brain
+	 * regions of the specified ontology depth.
+	 *
+	 * @param feature the feature ({@value MultiTreeStatistics#LENGTH},
+	 *                {@value MultiTreeStatistics#N_BRANCH_POINTS},
+	 *                {@value MultiTreeStatistics#N_TIPS}, etc.).
+	 * @param depth   the ontological depth of the compartments to be considered
+	 * @return the flow plot
+	 * @see #getFlowPlot(String, Collection, String, double, boolean)
+	 */
+	public SNTChart getFlowPlot(final String feature, final int depth) {
+		return getFlowPlot(feature, depth, Double.MIN_VALUE, true);
+	}
+
+	/**
+	 * Assembles a Flow plot (aka Sankey diagram) for the specified feature using
+	 * "mean" as integration statistic, no cutoff value, and all of the brain
+	 * regions of the specified ontology depth. *
+	 * 
+	 * @param feature the feature ({@value MultiTreeStatistics#LENGTH},
+	 *                {@value MultiTreeStatistics#N_BRANCH_POINTS},
+	 *                {@value MultiTreeStatistics#N_TIPS}, etc.)
+	 * @param depth   the ontological depth of the compartments to be considered
+	 * @param cutoff  a filtering option. If the computed {@code feature} for an
+	 *                annotation is below this value, that annotation is excluded
+	 *                from the plot * @param normalize If true, values are retrieved
+	 *                as ratios. E.g., If {@code feature} is
+	 *                {@value MultiTreeStatistics#LENGTH}, and {@code cutoff} 0.1,
+	 *                BrainAnnotations in {@code annotations} associated with less
+	 *                than 10% of cable length are ignored.
+	 * @return the flow plot
+	 */
+	public SNTChart getFlowPlot(final String feature, final int depth, final double cutoff, final boolean normalize) {
+		final Set<BrainAnnotation> union = new HashSet<>();
+		getGroups().forEach(group -> {
+			union.addAll(getGroupStats(group).getAnnotations(depth));
+		});
+		return getFlowPlot(feature, union, "mean", cutoff, normalize);
+	}
+
+	/**
+	 * Assembles a Flow plot (aka Sankey diagram) for the specified feature.
+	 *
+	 * @param feature     the feature ({@value MultiTreeStatistics#LENGTH},
+	 *                    {@value MultiTreeStatistics#N_BRANCH_POINTS},
+	 *                    {@value MultiTreeStatistics#N_TIPS}, etc.). Note that the
+	 *                    majority of {@link MultiTreeStatistics#getAllMetrics()}
+	 *                    metrics are currently not supported.
+	 * @param annotations the BrainAnnotations to be queried. Null not allowed.
+	 * @param statistic   the integration statistic (lower case). Either "mean",
+	 *                    "sum", "min" or "max". Null not allowed.
+	 * @param cutoff      a filtering option. If the computed {@code feature} for an
+	 *                    annotation is below this value, that annotation is
+	 *                    excluded from the plot
+	 * @param normalize   If true, values are retrieved as ratios. E.g., If
+	 *                    {@code feature} is {@value MultiTreeStatistics#LENGTH},
+	 *                    and {@code cutoff} 0.1, BrainAnnotations in
+	 *                    {@code annotations} associated with less than 10% of cable
+	 *                    length are ignored.
+	 * 
+	 * @return the SNTChart holding the flow plot
+	 */
+	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations,
+			final String statistic, final double cutoff, final boolean normalize) {
+		final String normFeature = getBoxOrFlowPlotFeature(feature);
+		if (normFeature.equalsIgnoreCase("unknown")) {
+			throw new IllegalArgumentException("Unrecognizable measurement \"" + feature);
+		}
+	
+		final TreeMap<String, AnnotatedValues> mappedValues = new TreeMap<>(); // keep groups sorted alphabetically
+		groups.forEach((groupLabel, groupStats) -> {
+			final AnnotatedValues av = new AnnotatedValues(normFeature, cutoff, normalize);
+			av.compute(annotations, groupStats.getGroup());
+			mappedValues.put(groupLabel, av);
+		});
+		final boolean singleCell = isSingleCell();
+		final DefaultFlowDataset<FlowNode> dataset = new DefaultFlowDataset<>();
+		final FlowPlot plot = new FlowPlot(dataset);
+		final Color[] groupColors = SNTColor.getDistinctColorsAWT(groups.size());
+		final List<Color> swatchColors = new ArrayList<>();
+		final int stage = 0; // constant
+		int groupIdx = 0;
+		for (Map.Entry<String, AnnotatedValues> entry : mappedValues.entrySet()) {
+			final String groupLabel = entry.getKey();
+			final AnnotatedValues annotValues = entry.getValue();
+			final FlowNode source = new FlowNode(groupLabel);
+			if (!singleCell)
+				source.setExtraDetails(", N= " + getGroupStats(groupLabel).getGroup().size());
+			plot.setNodeFillColor(new NodeKey<FlowNode>(stage, source), groupColors[groupIdx++]);
+			annotValues.map.forEach((brainAnnot, annotatedMeasurements) -> {
+				final FlowNode destination = new FlowNode(brainAnnot, normalize);
+				destination.numericLabels = singleCell;
+				destination.flow = getSingleValueFromList(annotatedMeasurements, statistic);
+				if (normalize)
+					destination.flow *= 100; // percent
+				dataset.setFlow(stage, source, destination, destination.flow);
+				final ColorRGB color = brainAnnot.color();
+				swatchColors.add((null == color) ? Color.GRAY : new Color(color.getARGB()));
+			});
+		}
+
+		plot.setNodeColorSwatch(swatchColors);
+		plot.setToolTipGenerator(new FlowToolTipGenerator(normFeature, normalize));
+		final SNTChart chart = new SNTChart("Flow Plot", new JFreeChart(plot));
+		applyFlowPlotLegend(chart, normFeature, statistic, cutoff, normalize, singleCell);
+		return chart;
+	}
+
+	private void applyFlowPlotLegend(final SNTChart chart, final String metric, final String statistic, final double cutoff,
+			final boolean normalize, final boolean singleCell) {
+		final StringBuilder title = new StringBuilder();
+		if (normalize)
+			title.append("Normalized ");
+		title.append(metric);
+		if (!normalize)
+			title.append(" (").append( getGroupStats(getGroups().get(0)).getUnit(metric)).append(")");
+		title.append(" "); // padding margin
+		final StringBuilder tooltip = new StringBuilder("<HTML><div WIDTH=600><b>NB</b>: ");
+		if (!singleCell)
+			tooltip.append("For each neuron, ");
+		tooltip.append("<i>").append(metric).append("</i> was retrieved at each brain region");
+		if (normalize)
+			tooltip.append(" and then divided by the neuron's total ").append(metric);
+		if (!singleCell)
+			tooltip.append(". Flows represent the ").append(statistic)
+					.append(" of the measurements for all the cells in the group.");
+		if (!Double.isNaN(cutoff) && cutoff > Double.MIN_VALUE) {
+			final String v = (normalize) ? String.format("%.2f%%", cutoff * 100) : String.format("%.3f", cutoff);
+			if (singleCell)
+				tooltip.append(".<br>Brain");
+			else
+				tooltip.append(".<br>For each neuron, brain");
+			tooltip.append(" regions associated with less than ").append(v).append(" of the neuron's <i>")
+					.append(metric).append("</i> have been ignored.");
+		}
+		chart.annotate(title.toString(), tooltip.toString(), "right");
+	}
+
+	private boolean isSingleCell() {
+		return groups.size() == 1 && getN(getGroups().get(0)) == 1;
+	}
+
+	private double getSingleValueFromList(final List<Double> values, final String combineMethod) {
+		switch (combineMethod.toLowerCase()) {
+		case "sum":
+			return values.stream().mapToDouble(Double::doubleValue).sum();
+		case "min":
+			return values.stream().mapToDouble(Double::doubleValue).min().getAsDouble();
+		case "max":
+			return values.stream().mapToDouble(Double::doubleValue).max().getAsDouble();
+		case "mean":
+		case "average":
+		case "avg":
+			return values.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
+		case "median":
+			return org.jfree.data.statistics.Statistics.calculateMedian(values);
+		default:
+			throw new IllegalArgumentException("Unknown method: " + combineMethod);
+		}
+	}
+
+	private String getBoxOrFlowPlotFeature(final String guess) {
 		if (guess == null || guess.isEmpty()) return LENGTH;
 		final String normGuess = guess.toLowerCase();
 		if (normGuess.indexOf("len") != -1 || normGuess.indexOf("cable") != -1) {
@@ -578,6 +735,211 @@ public class GroupedTreeStatistics {
 	}
 
 
+	private class AnnotatedValues {
+
+		final String normFeature;
+		final boolean normalize;
+		final double cutoff;
+		TreeMap<BrainAnnotation, ArrayList<Double>> map;
+
+		AnnotatedValues(final String normFeature, final double cutoff, final boolean normalize) {
+			this.normalize = normalize;
+			this.cutoff = cutoff;
+			this.normFeature = normFeature;
+		}
+	
+		void compute(final Collection<BrainAnnotation> annotations, final Collection<Tree> trees) {
+			map = new TreeMap<>(new Comparator<BrainAnnotation>() {
+				public int compare(final BrainAnnotation b1, final BrainAnnotation b2) {
+					// FIXME: We'll entries sorted by alphabetic order of acronym, but this is
+					// probably flawed, optimally we would want to sort by ontology
+					return b1.acronym().compareTo(b2.acronym());
+				}
+			});
+			for (final BrainAnnotation annotation : annotations) {
+				if (annotation == null)
+					continue;
+				final ArrayList<Double> values = new ArrayList<>();
+				for (final Tree tree : trees) {
+					if (tree == null)
+						continue;
+					final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
+					double value;
+					switch (normFeature) {
+					case LENGTH:
+						value = (normalize) ? analyzer.getCableLengthNorm(annotation)
+								: analyzer.getCableLength(annotation);
+						break;
+					case N_BRANCH_POINTS:
+						value = (normalize) ? analyzer.getNbranchPointsNorm(annotation)
+								: analyzer.getNbranchPoints(annotation);
+						break;
+					case N_TIPS:
+						value = (normalize) ? analyzer.getNtipsNorm(annotation) : analyzer.getNtips(annotation);
+						break;
+					default:
+						throw new IllegalArgumentException("Unrecognized feature");
+					}
+					if (value > cutoff)
+						values.add(value);
+				}
+				if (!values.isEmpty())
+					map.put(annotation, values);
+			}
+		}
+	}
+
+	private static String annotAsString(final BrainAnnotation annot) {
+		String s = annot.acronym();
+		if ("wholebrain".equals(s) || annot.getOntologyDepth() == 0)
+			s = "other"; // presumably more useful!?
+		return s;
+	}
+
+	class FlowToolTipGenerator extends StandardFlowLabelGenerator {
+
+		private static final long serialVersionUID = -4171623865505054454L;
+		private final String metricString;
+
+		FlowToolTipGenerator(final String metric, final boolean normalized) {
+			metricString = (normalized) ? metric + " (normalized)" : metric;
+		}
+
+		@SuppressWarnings("rawtypes")
+		@Override
+		public String generateLabel(final FlowDataset dataset, final FlowKey key) {
+			try {
+				return generateLabelInternal(dataset, key);
+			} catch (final Exception ignored) {
+				// fallback to defaults to ensure the plot can be displayed
+				return super.generateLabel(dataset, key);
+			}
+		}
+
+		@SuppressWarnings({ "rawtypes", "unchecked" })
+		public String generateLabelInternal(final FlowDataset dataset, final FlowKey key) {
+			final FlowNode source = (FlowNode) key.getSource();
+			final FlowNode destination = (FlowNode) key.getDestination();
+			Number value = dataset.getFlow(key.getStage(), source, destination);
+			final StringBuilder sb = new StringBuilder("<HTML>");
+			sb.append("<dl>");
+			sb.append("<dt>").append("Source:").append("</dt>");
+			sb.append("<dd>").append(source.toString()).append(" ");
+			source.appendDescription(sb);
+			sb.append("</dd>");
+			sb.append("<dt>").append("Destination:").append("</dt>");
+			sb.append("<dd>");
+			destination.appendDescription(sb);
+			sb.append("</dd>");
+			sb.append("<dt>Flow:</dt>");
+			sb.append("<dd>");
+			sb.append(String.format("%.3f [%s]", value, metricString));
+			sb.append("</dd>");
+			sb.append("</dl>");
+			return sb.toString();
+		}
+	}
+
+	private class FlowNode implements Comparable<FlowNode> {
+
+		final BrainAnnotation annot;
+		final String label;
+		final boolean percentage;
+		StringBuilder extraDetails;
+		boolean numericLabels;
+		double flow = Double.NaN;
+
+		FlowNode(final BrainAnnotation annot, final boolean percentage) {
+			this.annot = annot;
+			this.label = annotAsString(annot);
+			this.percentage = percentage;
+		}
+
+		FlowNode(final String label) {
+			this.annot = null;
+			this.label = label;
+			this.percentage = false;
+		}
+	
+		void setExtraDetails(final Object obj) {
+			extraDetails = new StringBuilder(obj.toString());
+		}
+
+		void appendDescription(final StringBuilder sb) {
+			if (annot != null) {
+				sb.append(annot.acronym());
+				sb.append(", ").append(annot.name());
+				sb.append("<br>");
+				sb.append("Ontology level: ").append(annot.getOntologyDepth());
+				sb.append("<br>");
+				final BrainAnnotation parent = annot.getParent();
+				if (parent != null)
+					sb.append("Parent: ").append(parent.name());
+				else
+					sb.append("N/A");
+			}
+			if (extraDetails != null) {
+				sb.append(extraDetails);
+			}
+		}
+
+		@Override
+		public String toString() {
+			// defines node labels in 
+			if (!numericLabels)
+				return label;
+			if (percentage)
+				return String.format("%s (%.1f%%)", label, flow);
+			return label + " (" + SNTUtils.formatDouble(flow, 2) + ")";
+		}
+
+		@Override
+		public int compareTo(final FlowNode o) {
+			if (annot == null) {
+				return label.compareTo(o.label);
+			}
+			return annot.acronym().compareTo(o.annot.acronym());
+		}
+
+		@Override
+		public int hashCode() {
+			final int prime = 31;
+			int result = 1;
+			result = prime * result + getEnclosingInstance().hashCode();
+			// NB: flow cannot influence hasCode()!
+			result = prime * result + Objects.hash(annot, label);
+			return result;
+		}
+
+		@Override
+		public boolean equals(final Object obj) {
+			if (this == obj) {
+				return true;
+			}
+			if (!(obj instanceof FlowNode)) {
+				return false;
+			}
+			final FlowNode other = (FlowNode) obj;
+			if (!getEnclosingInstance().equals(other.getEnclosingInstance())) {
+				return false;
+			}
+			// NB: flow cannot influence equals()!
+			return Objects.equals(annot, other.annot) && Objects.equals(label, other.label);
+		}
+
+		private GroupedTreeStatistics getEnclosingInstance() {
+			return GroupedTreeStatistics.this;
+		}
+
+	}
+
+	private static void display(SNTChart plot, String title) {
+		plot.setTitle(title);
+		plot.setFontSize(30);
+		plot.setSize(800, 850);
+		plot.setVisible(true);
+	}
+
 	/* IDE debug method */
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
@@ -587,5 +949,6 @@ public class GroupedTreeStatistics {
 		groupedStats.addGroup(sntService.demoTrees().subList(2, 4), "Group 2");
 		groupedStats.getHistogram(TreeStatistics.INTER_NODE_DISTANCE).show();
 		groupedStats.getBoxPlot("node dx sq").setVisible(true);
+		groupedStats.getFlowPlot("cable length", 8, .2, true).setVisible(true);
 	}
 }

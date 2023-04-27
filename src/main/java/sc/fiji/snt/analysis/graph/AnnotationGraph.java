@@ -25,6 +25,7 @@ import net.imagej.ImageJ;
 import org.jgrapht.graph.DefaultGraphType;
 import org.jgrapht.util.SupplierUtil;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.annotation.AllenUtils;
@@ -33,7 +34,6 @@ import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.viewer.GraphViewer;
 
-import java.util.List;
 import java.util.*;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -42,9 +42,9 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
 
 	private static final long serialVersionUID = 6826816297520498404L;
 
-	public static final String TIPS = "tips";
-    public static final String LENGTH = "length";
-    public static final String BRANCH_POINTS = "branch points";
+	public static final String TIPS = MultiTreeStatistics.N_TIPS;
+    public static final String LENGTH = MultiTreeStatistics.LENGTH;
+    public static final String BRANCH_POINTS = MultiTreeStatistics.N_BRANCH_POINTS;
     public static final String EDGES = "edges";
     private static final String[] ALL_FLAGS = {
             TIPS,

@@ -34,6 +34,8 @@ import java.net.URL;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.scijava.util.ColorRGB;
+
 /**
  * @author Cameron Arshadi
  * @author Tiago Ferreira
@@ -210,4 +212,9 @@ public class InsectBrainCompartment implements BrainAnnotation {
     public int hashCode() {
         return Objects.hash(uuid);
     }
+
+	@Override
+	public ColorRGB color() {
+		return (null==objColor) ? null : new ColorRGB(objColor);
+	}
 }

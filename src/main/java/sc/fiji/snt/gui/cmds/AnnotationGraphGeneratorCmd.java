@@ -22,79 +22,112 @@
 package sc.fiji.snt.gui.cmds;
 
 import net.imagej.ImageJ;
-import org.scijava.app.StatusService;
+
+import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
-import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.viewer.GraphViewer;
 
 import java.util.*;
 
-@Plugin(type = Command.class, visible = false, label = "Create Annotation Graph")
-public class AnnotationGraphGeneratorCmd extends NewGraphOptionsCmd {
+@Plugin(type = Command.class, visible = false, label = "Create Annotation Diagram(s)")
+public class AnnotationGraphGeneratorCmd extends CommonDynamicCmd {
 
-    @Parameter
-    protected StatusService statusService;
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+	private final String msg1 = "<HTML>" + "This command assembles connectiviy diagrams from one or more cells<br>"
+			+ "previously tagged with neuropil labels (e.g., as with MouseLight neurons)<br>"
+			+ "These diagrams depict a semi-quantitative summary of the brain areas<br>"
+			+ "targeted by neuronal arbors.";
 
-    @Parameter(label = "Trees")
-    private Collection<Tree> trees;
+	@Parameter(label = "Metric", choices = { AnnotationGraph.TIPS, AnnotationGraph.BRANCH_POINTS,
+			AnnotationGraph.LENGTH }, description = "<HTML><div WIDTH=600>The morphometric trait defining connectivy")
+	protected String metric;
 
-    @Parameter(label = "Compartment", choices = {"All", "Axon", "Dendrites"})
-    private String compartment;
+	@Parameter(label = "Cutoff value:", description = "<HTML><div WIDTH=600>Brain areas associated with less "
+			+ "than this quantity are ignored. E.g., if metric is '" + AnnotationGraph.TIPS + "' and this value "
+			+ " is 10, only brain areas targetted by at least 11 tips are reported")
+	protected double threshold;
 
-    @Override
-    public void run() {
-        if (trees == null || trees.isEmpty()) {
-            cancel("Invalid Tree Collection");
-            return;
-        }
-        final List<Tree> annotatedTrees = new ArrayList<>();
-        for (Tree tree : trees) {
-            if (!tree.isAnnotated()) {
-                SNTUtils.log(tree.getLabel() + " does not have neuropil labels. Skipping...");
-                continue;
-            }
-            if (!compartment.equals("All")) {
-                final String oldLabel = tree.getLabel();
-                tree = tree.subTree(compartment);
-                if (tree.isEmpty()) {
-                    SNTUtils.log(oldLabel
-                            + " does not contain processes tagged as \"" + compartment + "\". Skipping...");
-                    continue;
-                }
-            }
-            annotatedTrees.add(tree);
-        }
-        if (annotatedTrees.isEmpty()) {
-            cancel("<HTML><div WIDTH=600>None of the selected Trees meet the necessary criteria.<br>" +
-                    "Please ensure the selected Trees" +
-                    " contain processes tagged as \"" + compartment + "\" and are annotated with neuropil labels.");
-            return;
-        }
-        //SNTUtils.setIsLoading(true);
-        statusService.showStatus("Generating graph...");
-        final AnnotationGraph annotationGraph = new AnnotationGraph(annotatedTrees, metric, threshold, depth);
-        final GraphViewer graphViewer = new GraphViewer(annotationGraph);
-        graphViewer.setContext(getContext());
-        graphViewer.show();
-        SNTUtils.log("Finished. Graph created from " + annotatedTrees.size() + " Trees.");
-        statusService.clearStatus();
-    }
+	@Parameter(required = false, label = "Deepest ontology:", description = "<HTML><div WIDTH=600>The deepest ontology level to be considered for neuropil labels. As a reference, the deepest level for "
+			+ "several mouse brain atlases is around 10. Set it to 0 to consider all depths", min = "0")
+	protected int depth;
 
-    /* IDE debug method **/
-    public static void main(final String[] args) {
-        GuiUtils.setLookAndFeel();
-        final ImageJ ij = new ImageJ();
-        ij.ui().showUI();
-        final Collection<Tree> trees = new SNTService().demoTrees();
-        final Map<String, Object> inputs = new HashMap<>();
-        inputs.put("trees", trees);
-        ij.command().run(AnnotationGraphGeneratorCmd.class, true, inputs);
-    }
+	@Parameter(label = "Compartment(s):", choices = { "All", "Axon", "Dendrites" })
+	private String compartment;
+
+	@Parameter(label = "Output diagram(s):", choices = { "Flow (Sankey)", "Ferris wheel", "Both" })
+	private String diagram;
+
+	@Parameter(label = "Trees")
+	private Collection<Tree> trees;
+
+	private int ajustedDepth() {
+		return depth <= 0 ? Integer.MAX_VALUE : depth;
+	}
+
+	@Override
+	public void run() {
+		if (trees == null || trees.isEmpty()) {
+			cancel("Invalid Tree Collection");
+			return;
+		}
+		final List<Tree> annotatedTrees = new ArrayList<>();
+		for (Tree tree : trees) {
+			if (!tree.isAnnotated()) {
+				SNTUtils.log(tree.getLabel() + " does not have neuropil labels. Skipping...");
+				continue;
+			}
+			if (!compartment.equals("All")) {
+				final String oldLabel = tree.getLabel();
+				tree = tree.subTree(compartment);
+				if (tree.isEmpty()) {
+					SNTUtils.log(
+							oldLabel + " does not contain processes tagged as \"" + compartment + "\". Skipping...");
+					continue;
+				}
+			}
+			annotatedTrees.add(tree);
+		}
+		if (annotatedTrees.isEmpty()) {
+			error("None of the selected Trees meet the necessary criteria.<br>"
+					+ "Please ensure that Tree(s) and selected compartment(s) and "
+					+ "are annotated with neuropil labels.");
+			return;
+		}
+		// SNTUtils.setIsLoading(true);
+		statusService.showStatus("Generating diagram(s)...");
+		if (diagram.startsWith("Ferris") || diagram.startsWith("Both")) {
+			SNTUtils.log("Creating Ferris wheel diagram");
+			final AnnotationGraph annotationGraph = new AnnotationGraph(annotatedTrees, metric, threshold,
+					ajustedDepth());
+			final GraphViewer graphViewer = new GraphViewer(annotationGraph);
+			graphViewer.setContext(getContext());
+			graphViewer.show();
+			SNTUtils.log("Finished. Diagram created from " + annotatedTrees.size() + " tree(s).");
+		}
+		if (diagram.startsWith("Flow") || diagram.startsWith("Both")) {
+			SNTUtils.log("Creating Flow plot (Sankey diagram)");
+			final MultiTreeStatistics stats = new MultiTreeStatistics(annotatedTrees);
+			stats.getFlowPlot(metric, stats.getAnnotations(ajustedDepth()), "sum", threshold, false).show();
+			SNTUtils.log("Finished. Diagram created from " + annotatedTrees.size() + " tree(s).");
+		}
+		statusService.clearStatus();
+	}
+
+	/* IDE debug method **/
+	public static void main(final String[] args) {
+		final ImageJ ij = new ImageJ();
+		ij.ui().showUI();
+		final Collection<Tree> trees = new SNTService().demoTrees();
+		final Map<String, Object> inputs = new HashMap<>();
+		inputs.put("trees", trees);
+		ij.command().run(AnnotationGraphGeneratorCmd.class, true, inputs);
+	}
 
 }
