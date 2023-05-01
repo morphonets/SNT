@@ -35,6 +35,7 @@ import org.scijava.vecmath.Color3f;
 import org.scijava.vecmath.Point3f;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.util.*;
 
@@ -199,7 +200,7 @@ public class Path implements Comparable<Path> {
 	 * Instantiates a new path under default settings (isotropic 1um pixel spacing)
 	 */
 	public Path() {
-		this(1, 1, 1, "um");
+		this(1, 1, 1, GuiUtils.micrometer());
 	}
 
 	/**

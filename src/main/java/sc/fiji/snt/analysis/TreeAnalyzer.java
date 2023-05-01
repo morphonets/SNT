@@ -581,21 +581,21 @@ public class TreeAnalyzer extends ContextCommand {
 		if (TreeStatistics.WIDTH.equals(metric) || TreeStatistics.HEIGHT.equals(metric)
 				|| TreeStatistics.DEPTH.equals(metric) || m.contains("length") || m.contains("radius")
 				|| m.contains("distance") || TreeStatistics.CONVEX_HULL_ELONGATION.equals(metric)) {
-			return (String) tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units");
+			return getUnit();
 		} else if (m.contains("volume")) {
-			return tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units") + "^3";
+			return getUnit() + "³";
 		} else if (m.contains("surface area")) {
-			return tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units") + "^2";
+			return getUnit() + "²";
 		} else if (TreeStatistics.CONVEX_HULL_SIZE.equals(metric)) {
-			return tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units") + ((tree.is3D()) ? "^3" : "^2");
+			return getUnit() + ((tree.is3D()) ? "³" : "²");
 		} else if (TreeStatistics.CONVEX_HULL_BOUNDARY_SIZE.equals(metric)) {
-			return tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units") + ((tree.is3D()) ? "^2" : "");
+			return getUnit() + ((tree.is3D()) ? "²" : "");
 		}
 		return "";
 	}
 
 	protected String getUnit() {
-		return (String) tree.getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "");
+		return (String) tree.getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "? units");
 	}
 
 	protected int getCol(final String header) {

@@ -43,6 +43,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.PointInImage;
@@ -102,7 +103,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 	@Deprecated
 	public static final String MEAN_RADIUS = "Mean radius";
 
-	private final Collection<Tree> groupOfTrees;
+	private final List<Tree> groupOfTrees;
 	private Collection<DirectedWeightedGraph> groupOfGraphs;
 
 	/**
@@ -112,7 +113,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 	 */
 	public MultiTreeStatistics(final Collection<Tree> group) {
 		super(new Tree());
-		this.groupOfTrees = group;
+		this.groupOfTrees = new ArrayList<>(group);
 	}
 
 	/**
@@ -194,6 +195,17 @@ public class MultiTreeStatistics extends TreeStatistics {
 			groupOfGraphs = new ArrayList<>();
 			groupOfTrees.forEach(t -> groupOfGraphs.add(t.getGraph()));
 		}
+	}
+
+	@Override
+	protected String getUnit() {
+		final String u1 = (String) groupOfTrees.get(0).getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "");
+		for (int i = 1; i < groupOfTrees.size(); i++) {
+			final String u2 = (String) groupOfTrees.get(i).getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "");
+			if (!u2.equals(u1))
+				return "";
+		}
+		return u1;
 	}
 
 	@Override

@@ -2784,7 +2784,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		if (result.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty())) {
 			if (boundingBox == null) // should never happen
 				boundingBox = new BoundingBox();
-			boundingBox.setUnit((spatialUnit == null) ? "um" : spatialUnit);
+			boundingBox.setUnit((spatialUnit == null) ? GuiUtils.micrometer() : spatialUnit);
 			updateBoundingBox();
 		}
 		return result;
@@ -2983,7 +2983,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 		try {
 			final Map<String, TreeSet<SWCPoint>> nMap = MouseLightLoader.extractNodes(new File(filename), compartment);
-			final Map<String, Tree> outMap = importNeurons(nMap, null, "um");
+			final Map<String, Tree> outMap = importNeurons(nMap, null, GuiUtils.micrometer());
 			return outMap.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty());
 		} catch (final FileNotFoundException | IllegalArgumentException | JSONException e) {
 			error("Failed to read file: '" + filename + "' (" + e.getMessage() +")");
@@ -3067,7 +3067,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			break;
 		case TRACES_FILE_TYPE_ML_JSON:
 			final Map<String, TreeSet<SWCPoint>> nMap = MouseLightLoader.extractNodes(bis, "all");
-			final Map<String, Tree> outMap = importNeurons(nMap, null, "um");
+			final Map<String, Tree> outMap = importNeurons(nMap, null, GuiUtils.micrometer());
 			result = outMap.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty());
 			break;
 		case TRACES_FILE_TYPE_SWC:

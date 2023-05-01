@@ -62,6 +62,7 @@ import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.event.SNTEvent;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.SWCPoint;
@@ -548,7 +549,7 @@ public class SNTService extends AbstractService implements ImageJService {
 					tree.add(p);
 				}
 				tree.setLabel(treeLabel);
-				tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, "um");
+				tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, GuiUtils.micrometer());
 				tree.getProperties().setProperty(Tree.KEY_SOURCE, "SNT Demo");
 			} else {
 				return null;

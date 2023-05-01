@@ -139,7 +139,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			final MouseLightLoader loader = new MouseLightLoader(id);
 			inMap.put(id, (loader.idExists()) ? loader.getNodes(compartment) : null);
 		}
-		final Map<String, Tree> result = pafm.importNeurons(inMap, getColor(), "um");
+		final Map<String, Tree> result = pafm.importNeurons(inMap, getColor(), GuiUtils.micrometer());
 		final List<Tree> filteredResult = result.values().stream().filter(tree -> (tree != null && !tree.isEmpty()))
 				.collect(Collectors.toList());
 		if (filteredResult.isEmpty()) {

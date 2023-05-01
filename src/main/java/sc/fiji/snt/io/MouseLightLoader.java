@@ -61,6 +61,7 @@ import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Methods for retrieving reconstructions from MouseLight's online database at
@@ -274,7 +275,7 @@ public class MouseLightLoader {
 
 	private static void applyMetadata(final Collection<Tree>trees, final String compartment) {
 		trees.forEach( tree -> {
-			tree.getProperties().put(Tree.KEY_SPATIAL_UNIT, "um");
+			tree.getProperties().put(Tree.KEY_SPATIAL_UNIT, GuiUtils.micrometer());
 			tree.getProperties().put(Tree.KEY_SOURCE, "MouseLight");
 			tree.getProperties().put(Tree.KEY_COMPARTMENT, TreeProperties.getStandardizedCompartment(compartment));
 		});
@@ -509,7 +510,7 @@ public class MouseLightLoader {
 		pafm.setHeadless(true);
 		final Map<String, TreeSet<SWCPoint>> inMap = new HashMap<>();
 		inMap.put(id, getNodes(compartment));
-		final Map<String, Tree> outMap = pafm.importNeurons(inMap, color, "um");
+		final Map<String, Tree> outMap = pafm.importNeurons(inMap, color, GuiUtils.micrometer());
 		final Tree tree = outMap.get(id);
 		if (tree == null) {
 			throw new IllegalArgumentException("Data could not be retrieved. Is the database online?");
@@ -520,7 +521,7 @@ public class MouseLightLoader {
 			tree.setLabel(""+ id);
 		tree.getProperties().setProperty(Tree.KEY_COMPARTMENT,
 				TreeProperties.getStandardizedCompartment(compartment));
-		tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, "um");
+		tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, GuiUtils.micrometer());
 		tree.getProperties().setProperty(Tree.KEY_ID, getID());
 		tree.getProperties().setProperty(Tree.KEY_SOURCE, "MouseLight " + getDOI());
 		return tree;

@@ -27,6 +27,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.viewer.OBJMesh;
 
 import java.io.IOException;
@@ -115,7 +116,7 @@ public class InsectBrainCompartment implements BrainAnnotation {
                 return null;
             }
             final URL url = new URL(urlPath);
-            mesh = new OBJMesh(url, "um");
+            mesh = new OBJMesh(url, GuiUtils.micrometer());
             mesh.setColor(objColor, 95f);
             mesh.setLabel(name);
         } catch (final IllegalArgumentException | IOException e) {

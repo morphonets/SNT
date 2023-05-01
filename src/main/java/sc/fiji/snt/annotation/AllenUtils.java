@@ -30,6 +30,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.LinAlgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
@@ -496,7 +497,7 @@ public class AllenUtils {
 		final URL url = loader.getResource(meshPath);
 		if (url == null)
 			throw new IllegalArgumentException(meshLabel + " not found");
-		final OBJMesh mesh = new OBJMesh(url, "um");
+		final OBJMesh mesh = new OBJMesh(url, GuiUtils.micrometer());
 		mesh.setColor(color, 95f);
 		mesh.setVolume(volume);
 		mesh.setLabel(meshLabel);

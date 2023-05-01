@@ -36,6 +36,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.viewer.OBJMesh;
 
 /**
@@ -354,7 +355,7 @@ public class AllenCompartment implements BrainAnnotation {
 				return null;
 			}
 			final URL url = new URL(urlPath);
-			mesh = new OBJMesh(url, "um");
+			mesh = new OBJMesh(url, GuiUtils.micrometer());
 			mesh.setColor(geometryColor, 87.5f);
 			mesh.setLabel(name);
 			if (!jsonObj.isNull("geometryVolume")) {

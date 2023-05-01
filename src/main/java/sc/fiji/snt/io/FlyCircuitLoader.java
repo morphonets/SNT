@@ -31,6 +31,7 @@ import java.net.URL;
 
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Absurdly simple importer for retrieving SWC data from
@@ -120,7 +121,7 @@ public class FlyCircuitLoader implements RemoteSWCLoader {
 		if (pafm.importSWC(cellId, getReconstructionURL(cellId))) {
 			final Tree tree = new Tree(pafm.getPaths());
 			tree.setLabel(cellId);
-			tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, "um");
+			tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, GuiUtils.micrometer());
 			tree.getProperties().setProperty(Tree.KEY_SOURCE, "FlyCircuit"+VERSION);
 			return tree;
 		}
