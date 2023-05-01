@@ -430,7 +430,7 @@ public class Strahler implements PlugIn, DialogListener {
 	 * @param imp
 	 *            the image to be analyzed
 	 * @return {@code true}, if assessment was successful. If {@code false} a
-	 *         macro friendly {@link Utils#error} is displayed.
+	 *         macro friendly error is displayed.
 	 */
 	boolean validRequirements(final ImagePlus imp) {
 		boolean validImp = imp != null && imp.getBitDepth() == 8;
@@ -591,7 +591,7 @@ public class Strahler implements PlugIn, DialogListener {
 	 */
 	double sum(final double[] array) {
 		double sum = 0; // TODO Use org.apache.commons.math3.stat.StatUtils?
-		if (array != null && array.length > 0)
+		if (array != null)
 			for (final double i : array)
 				sum += i;
 		return sum;
@@ -723,9 +723,6 @@ public class Strahler implements PlugIn, DialogListener {
 	 * useful for batch processing of images: Even if the analysis of a
 	 * particular image fails, remaining images can still be analyzed by the
 	 * same macro
-	 *
-	 * @param errorMsg
-	 *            the error message
 	 */
 	static void error(final String title, final String msg, final ImagePlus imp) {
 		final String impMsg = "Error while processing " + imp.getTitle();

@@ -549,7 +549,7 @@ public class GroupedTreeStatistics {
 	 * because we're not overriding drawHorizontalItem()
 	 * </p>
 	 */
-	private class CustomBoxAndWhiskerRenderer extends BoxAndWhiskerRenderer {
+	private static class CustomBoxAndWhiskerRenderer extends BoxAndWhiskerRenderer {
 
 		private static final long serialVersionUID = 1L;
 		private double pointSize = 5d;
@@ -735,7 +735,7 @@ public class GroupedTreeStatistics {
 	}
 
 
-	private class AnnotatedValues {
+	private static class AnnotatedValues {
 
 		final String normFeature;
 		final boolean normalize;
@@ -833,7 +833,7 @@ public class GroupedTreeStatistics {
 			sb.append("</dd>");
 			sb.append("<dt>Flow:</dt>");
 			sb.append("<dd>");
-			sb.append(String.format("%.3f [%s]", value, metricString));
+			sb.append(String.format("%.3f [%s]", value.floatValue(), metricString));
 			sb.append("</dd>");
 			sb.append("</dl>");
 			return sb.toString();

@@ -942,7 +942,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		if (!polynomialChoice.contains("specified")) {
 			polynomialDegree = 0;
 		} else if (polynomialDegree == 0) {
-			polynomialDegree = (minDegree + maxDegree ) / 2;
+			polynomialDegree = Math.round((float) (minDegree + maxDegree) / 2);
 		}
 	}
 

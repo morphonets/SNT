@@ -553,11 +553,11 @@ public class GuiUtils {
 				pauseSyncFields = true;
 				if (e.getDocument() == hField.getDocument()) { // height is being set: Adjust width
 					newDims[1] = parseInt(hField);
-					newDims[0] = Math.round((newDims[1] * origWidth / origHeight));
+					newDims[0] = Math.round(((float) (newDims[1] * origWidth) / origHeight));
 					wField.setText("" + newDims[0]);
 				} else { // width is being set: Adjust height
 					newDims[0] = parseInt(wField);
-					newDims[1] = Math.round((newDims[0] * origHeight / origWidth));
+					newDims[1] = Math.round(((float) (newDims[0] * origHeight) / origWidth));
 					hField.setText("" + newDims[1]);
 				}
 				pauseSyncFields = false;
@@ -1238,7 +1238,7 @@ public class GuiUtils {
 		}
 	}
 
-	public class JTextFieldFile extends TextFieldWithPlaceholder {
+	public static class JTextFieldFile extends TextFieldWithPlaceholder {
 
 		private static final long serialVersionUID = 6943445407475634685L;
 		private File file;
@@ -1625,9 +1625,7 @@ public class GuiUtils {
 				return (AbstractButton) current;
 			}
 			else if (current instanceof Container) {
-				for (final Component child : ((Container) current).getComponents()) {
-					stack.add(child);
-				}
+				stack.addAll(Arrays.asList(((Container) current).getComponents()));
 			}
 		}
 		return null;

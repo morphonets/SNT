@@ -274,8 +274,6 @@ public class Annotation3D {
 			((Scatter) drawable).setWidth(this.size);
 			break;
 		case SURFACE:
-			((Shape) drawable).setWireframeWidth(this.size);
-			break;
 		case SURFACE_AND_VOLUME:
 			((Shape) drawable).setWireframeWidth(this.size);
 			break;
@@ -443,7 +441,7 @@ public class Annotation3D {
 	}
 
 	/**
-	 * Returns the {@link AbstractDrawable} associated with this annotation.
+	 * Returns the AbstractDrawable associated with this annotation.
 	 *
 	 * @return the AbstractDrawable
 	 */

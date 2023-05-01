@@ -4168,7 +4168,7 @@ public class SNTUI extends JDialog {
 		}
 	}
 
-	private class ActiveWorker extends SwingWorker<Object, Object> {
+	private static class ActiveWorker extends SwingWorker<Object, Object> {
 
 		@Override
 		protected Object doInBackground() throws Exception {

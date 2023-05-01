@@ -123,7 +123,7 @@ public class SNTSearchableBar extends SearchableBar {
 		return comboBox;
 	}
 
-	private class BoxEditorWithPrompt extends BasicComboBoxEditor {
+	private static class BoxEditorWithPrompt extends BasicComboBoxEditor {
 		BoxEditorWithPrompt(String prompt) {
 			super();
 			final int cols = editor.getColumns();

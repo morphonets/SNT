@@ -74,7 +74,7 @@ import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.viewer.Viewer3D;
 
 /**
- * @deprecated see {@link #SNTCommandFinder}
+ * @deprecated see {@link SNTCommandFinder}
  *
  */
 @Deprecated 

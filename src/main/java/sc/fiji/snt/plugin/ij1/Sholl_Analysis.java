@@ -881,7 +881,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 		final StringBuffer plotLabel = new StringBuffer();
 
 		// Register quality of fit
-		plotLabel.append("R\u00B2= " + IJ.d2s(cf.getRSquared(), 3));
+		plotLabel.append("R\u00B2= ").append(IJ.d2s(cf.getRSquared(), 3));
 
 		// Plot fitted curve
 		if (plot != null) {
@@ -948,10 +948,10 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 				rif = cv / primaryBranches;
 
 			// Register parameters
-			plotLabel.append("\nNm= " + IJ.d2s(cv, 2));
-			plotLabel.append("\nrc= " + IJ.d2s(cr, 2));
-			plotLabel.append("\nNav= " + IJ.d2s(mv, 2));
-			plotLabel.append("\n" + Sholl_Utils.ordinal(degree)).append(" degree");
+			plotLabel.append("\nNm= ").append(IJ.d2s(cv, 2));
+			plotLabel.append("\nrc= ").append(IJ.d2s(cr, 2));
+			plotLabel.append("\nNav= ").append(IJ.d2s(mv, 2));
+			plotLabel.append("\n").append(Sholl_Utils.ordinal(degree)).append(" degree");
 
 			rt.addValue("Critical value", cv);
 			rt.addValue("Critical radius", cr);
@@ -2277,9 +2277,9 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 			plot.markPoint(new ShollPoint(0, kIntercept), color);
 			if (plotLabels) {
 				final StringBuffer label = new StringBuffer();
-				label.append("R\u00B2= " + IJ.d2s(kRSquared, 3));
-				label.append("\nk= " + IJ.d2s(k, -2));
-				label.append("\nIntercept= " + IJ.d2s(kIntercept, 2));
+				label.append("R\u00B2= ").append(IJ.d2s(kRSquared, 3));
+				label.append("\nk= ").append(IJ.d2s(k, -2));
+				label.append("\nIntercept= ").append(IJ.d2s(kIntercept, 2));
 				plot.drawLabel(label.toString(), color);
 			}
 

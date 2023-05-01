@@ -39,7 +39,6 @@ import sc.fiji.snt.analysis.ColorMapper;
 import java.io.IOException;
 import java.net.URL;
 import java.util.*;
-import java.util.List;
 import java.util.stream.Collectors;
 
 public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMapper {

@@ -478,7 +478,7 @@ public class StrahlerCmd extends ContextCommand {
 		return map.keySet().stream().map(key -> key + ":" + df.format(map.get(key))).collect(Collectors.joining("; "));
 	}
 
-	private class StrahlerData {
+	private static class StrahlerData {
 		final StrahlerAnalyzer analyzer;
 		final Tree tree;
 

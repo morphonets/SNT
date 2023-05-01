@@ -54,7 +54,7 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 	private String histogramType;
 
 	@Parameter(required = false, label = "Deepest ontology:",
-			description = "<HTML><div WIDTH=400>The Deepest ontology depth to be considered. As a reference, the deepest level for "
+			description = "<HTML><div WIDTH=400>The Deepest ontology level to be considered. As a reference, the deepest level for "
 					+ "several mouse brain atlases is around 10. Set it to 0 to consider all depths", min ="0")
 	private int ontologyDepth;
 

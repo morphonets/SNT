@@ -312,7 +312,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	}
 
 	final boolean isMetricMappable(final String metric) {
-		return Arrays.stream(MultiTreeColorMapper.PROPERTIES).anyMatch(metric::equals);
+		return Arrays.asList(MultiTreeColorMapper.PROPERTIES).contains(metric);
 	}
 
 	private boolean atLeastOneValidGroup() {

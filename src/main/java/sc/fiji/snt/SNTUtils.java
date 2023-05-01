@@ -530,7 +530,7 @@ public class SNTUtils {
 	 * @param pattern the filename substring (case-sensitive) to be matched. Only
 	 *                filenames containing {@code pattern} will be imported from the
 	 *                directory. {@code null} allowed.
-	 * @return the list of files. An empty list is retrieved if {@code dir} is not a
+	 * @return the array of files. An empty list is retrieved if {@code dir} is not a
 	 *         valid, readable directory.
 	 */
 	public static File[] getReconstructionFiles(final File dir, final String pattern) {

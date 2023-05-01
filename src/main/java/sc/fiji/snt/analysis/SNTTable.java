@@ -229,7 +229,7 @@ public class SNTTable extends DefaultGenericTable {
 				} catch (final NullPointerException ignored) {
 					// do nothing. Empty cell!?
 				} catch (final ClassCastException ignored) {
-					// Cell with text!? We could add Double.NAN, or skip it altogether'
+					// Cell with text!? We could add Double.NAN, or skip it altogether
 					// skipping for now, in case cells above and below are valid
 				}
 			}

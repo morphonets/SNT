@@ -180,9 +180,9 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 		// Operate only on paths matching inputRange
 		final Stack<MatchingPath> mPaths = new Stack<>();
 		if (timePoints == null) {
-			paths.stream().forEach(p -> mPaths.push(new MatchingPath(p)));
+			paths.forEach(p -> mPaths.push(new MatchingPath(p)));
 		} else {
-			paths.stream().forEach(p-> {
+			paths.forEach(p-> {
 				if (timePoints.contains(p.getFrame())) mPaths.push(new MatchingPath(p));
 			});
 		}

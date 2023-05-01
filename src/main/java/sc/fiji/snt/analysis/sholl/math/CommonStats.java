@@ -126,7 +126,7 @@ class CommonStats extends ContextCommand implements ShollStats {
 	protected double getAdjustedRSquaredOfFit(final int p) {
 		try {
 			double rSquared = getRSquaredOfFit();
-			rSquared = rSquared - (1 - rSquared) * (p / (nPoints - p - 1));
+			rSquared = rSquared - (1 - rSquared) * ((double) p / (nPoints - p - 1));
 			return rSquared;
 		} catch (final ArithmeticException ex) {
 			return Double.NaN;

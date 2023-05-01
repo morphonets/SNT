@@ -336,7 +336,7 @@ public class TreeParser implements Parser {
 		return crossingsPastEach[minIndex];
 	}
 
-	private class ComparableShollPoint implements Comparable<ComparableShollPoint> {
+	private static class ComparableShollPoint implements Comparable<ComparableShollPoint> {
 
 		private final boolean nearer;
 		private final double distanceSquared;

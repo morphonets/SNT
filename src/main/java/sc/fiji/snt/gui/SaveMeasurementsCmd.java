@@ -458,7 +458,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 			snt.getPrefs().setRecentDir(outputFile);
 	}
 
-	private class IJ1Table {
+	private static class IJ1Table {
 		private ij.measure.ResultsTable rt;
 		private String title;
 

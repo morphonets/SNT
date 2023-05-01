@@ -656,7 +656,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return pathAndFillManager.getPathsFiltered();
 			final List<Path> result = new ArrayList<>();
 			final TreePath[] selectedPaths = tree.getSelectionPaths();
-			if (selectedPaths == null || selectedPaths.length == 0) {
+			if (selectedPaths == null) {
 				return result;
 			}
 			for (final TreePath tp : selectedPaths) {
@@ -1274,7 +1274,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	}
 
-	private class NodeRender extends DefaultTreeCellRenderer {
+	private static class NodeRender extends DefaultTreeCellRenderer {
 
 		private static final long serialVersionUID = 1L;
 

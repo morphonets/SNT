@@ -41,7 +41,7 @@ public class Fill {
 	 * 
 	 * @author Mark Longair
 	 */
-	public class Node {
+	public static class Node {
 
 		public int x;
 		public int y;

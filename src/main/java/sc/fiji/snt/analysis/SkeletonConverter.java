@@ -118,7 +118,7 @@ public class SkeletonConverter {
 	 * @param lowerThreshold      intensities below this value will be set to zero,
 	 *                            and will not contribute to the skeleton. Ignored
 	 *                            if < 0
-	 * @param uperThreshold       intensities above this value will be set to zero,
+	 * @param upperThreshold       intensities above this value will be set to zero,
 	 *                            and will not contribute to the skeleton. Ignored
 	 *                            if < 0
 	 * @param erodeIsolatedPixels If true, any isolated pixels (single point

@@ -170,7 +170,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String SHOLL_N_SECONDARY_MAX = "Sholl: " + ShollAnalyzer.N_SECONDARY_MAX;
 	/** Flag specifying {@value #SHOLL_DECAY} statistics */
 	public static final String SHOLL_DECAY = "Sholl: " + ShollAnalyzer.DECAY;
-	/** Flag specifying {@value #MAX_FITTED} statistics */
+	/** Flag specifying {@value #SHOLL_MAX_FITTED} statistics */
 	public static final String SHOLL_MAX_FITTED = "Sholl: " + ShollAnalyzer.MAX_FITTED;
 	/** Flag specifying {@value #SHOLL_MAX_FITTED_RADIUS} statistics */
 	public static final String SHOLL_MAX_FITTED_RADIUS = "Sholl: " + ShollAnalyzer.MAX_FITTED_RADIUS;
@@ -213,7 +213,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	@Deprecated
 	public static final String MEAN_RADIUS = PATH_MEAN_RADIUS;
 
-	/** @deprecated  Use {@link #PATH_MEAN_SPINE_DENSITY} instead */
+	/** @deprecated  Use {@link #PATH_SPINE_DENSITY} instead */
 	@Deprecated
 	public static final String AVG_SPINE_DENSITY = "Average spine/varicosity density";
 
@@ -1102,7 +1102,7 @@ public class TreeStatistics extends TreeAnalyzer {
 		}
 	}
 
-	class StatisticsInstance {
+	static class StatisticsInstance {
 
 		private SummaryStatistics sStatistics;
 		private DescriptiveStatistics dStatistics;

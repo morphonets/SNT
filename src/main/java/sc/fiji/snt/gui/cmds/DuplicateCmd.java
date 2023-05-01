@@ -136,7 +136,7 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	private void updateMsg() {
 		switch((int)percentage) {
 		case 100:
-			msg = String.format("Duplicating full length");
+			msg = "Duplicating full length";
 			break;
 		case 0:
 			if (junctionIndices == null || junctionIndices.isEmpty())

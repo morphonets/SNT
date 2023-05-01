@@ -161,7 +161,7 @@ public class MeasureUI extends JFrame {
 		}
 		final File dir = (lastDirPath == null) ? new File(System.getProperty("user.home")) : new File(lastDirPath);
 		final File out = guiUtils.saveFile("Save Table", new File(dir, "SNT_Measurements.csv"),
-				Arrays.asList(".csv"));
+				Collections.singletonList(".csv"));
 		if (out == null)
 			return;
 		try {

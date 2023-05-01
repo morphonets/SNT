@@ -342,7 +342,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		}
 	}
 
-	private class Shortcut {
+	private static class Shortcut {
 
 		final String label;
 		final Class<? extends Command> cmd;

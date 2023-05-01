@@ -242,7 +242,7 @@ public class Viewer3D {
 		@Deprecated
 		TOP("Top Constrained", DefCoords.XY);
 
-		private String description;
+		private final String description;
 		private Coord3d coord;
 
 		private ViewMode next() {
@@ -1702,7 +1702,7 @@ public class Viewer3D {
 
 	/**
 	 * Script friendly method to add a supported object ({@link Tree},
-	 * {@link OBJMesh}, {@link AbstractDrawable}, etc.) to this viewer. Note that
+	 * {@link OBJMesh}, AbstractDrawable, etc.) to this viewer. Note that
 	 * collections of supported objects are also supported, which is an effective
 	 * way of adding multiple items since the scene is only rebuilt once all items
 	 * have been added.
@@ -1760,7 +1760,7 @@ public class Viewer3D {
 
 	/**
 	 * Script friendly method to remove an object ({@link Tree}, {@link OBJMesh},
-	 * {@link AbstractDrawable}, {@link String} (object label), etc.) from this viewer's scene.
+	 * AbstractDrawable, {@link String} (object label), etc.) from this viewer's scene.
 	 *
 	 * @param object the object to be removed, or the unique String identifying it.
 	 *               Collections supported.
@@ -2619,12 +2619,12 @@ public class Viewer3D {
 			final ITickProvider provider, final ITickRenderer renderer)
 		{
 			if (shape != null) imageGenerator = new ColorbarImageGenerator(shape
-				.getColorMapper(), provider, renderer, font.getSize());
+					.getColorMapper(), provider, renderer, font.getSize());
 		}
 
 	}
 
-	private class ColorbarImageGenerator extends AWTColorbarImageGenerator {
+	private static class ColorbarImageGenerator extends AWTColorbarImageGenerator {
 
 		public ColorbarImageGenerator(final ColorMapper mapper,
 			final ITickProvider provider, final ITickRenderer renderer,
@@ -3547,7 +3547,7 @@ public class Viewer3D {
 		private JButton menuButton(final GLYPH glyph, final JPopupMenu menu, final String tooltipMsg) {
 			final JButton button = new JButton(IconFactory.getButtonIcon(glyph));
 			button.setToolTipText(tooltipMsg);
-			registerMenuInCmdFinder(menu, new ArrayList<>(Arrays.asList(tooltipMsg)));
+			registerMenuInCmdFinder(menu, new ArrayList<>(Collections.singletonList(tooltipMsg)));
 			button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 			return button;
 		}
@@ -3862,7 +3862,7 @@ public class Viewer3D {
 			pMenu.add(sort);
 			pMenu.addSeparator();
 			pMenu.add(remove);
-			registerMenuInCmdFinder(pMenu, new ArrayList<>(Arrays.asList("Control Panel Contextual Menu")));
+			registerMenuInCmdFinder(pMenu, new ArrayList<>(Collections.singletonList("Control Panel Contextual Menu")));
 			return pMenu;
 		}
 
@@ -5732,13 +5732,11 @@ public class Viewer3D {
 					label.setIcon(null);
 				}
 				final String[] tags = TagUtils.getTagsFromEntry(labelText);
-				if (tags.length > 0) {
-					for (final String tag : tags) {
-						final ColorRGB c = ColorRGB.fromHTMLColor(tag);
-						if (c != null) {
-							label.setForeground(new java.awt.Color(c.getRed(), c.getGreen(), c.getBlue()));
-							break;
-						}
+				for (final String tag : tags) {
+					final ColorRGB c = ColorRGB.fromHTMLColor(tag);
+					if (c != null) {
+						label.setForeground(new java.awt.Color(c.getRed(), c.getGreen(), c.getBlue()));
+						break;
 					}
 				}
 				return label;
@@ -6142,7 +6140,7 @@ public class Viewer3D {
 
 	}
 
-	private class LineStripPlus extends LineStrip {
+	private static class LineStripPlus extends LineStrip {
 		final int type;
 
 		LineStripPlus(final int size, final int type) {
@@ -6418,7 +6416,7 @@ public class Viewer3D {
 		}
 	}
 
-	private class CameraThreadControllerPlus extends CameraThreadController {
+	private static class CameraThreadControllerPlus extends CameraThreadController {
 
 		//TODO: here we should be bale to override #move and #doRun to improve
 		// rotations, namely along anatomical axes rather than azymuths
@@ -6782,7 +6780,7 @@ public class Viewer3D {
 			sb.append("  </tr>");
 			sb.append("  <tr>");
 			sb.append("    <td>Command <u>P</u>alette </td>");
-			sb.append("    <td>" + GuiUtils.ctrlKey() + "+Shift+P</td>");
+			sb.append("    <td>").append(GuiUtils.ctrlKey()).append("+Shift+P</td>");
 			sb.append("  </tr>");
 			if (showInDialog) {
 				sb.append("  <tr>");

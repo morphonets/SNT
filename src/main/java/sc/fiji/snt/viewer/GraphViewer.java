@@ -94,6 +94,8 @@ public class GraphViewer {
      * @return the assembled window
      */
     public Window show() {
+    	if (context == null)
+            setContext(SNTUtils.getContext());
     	if (editor == null) initEditor();
         final JFrame frame = editor.createFrame(getContext());
         GuiUtils.removeIcon(frame);

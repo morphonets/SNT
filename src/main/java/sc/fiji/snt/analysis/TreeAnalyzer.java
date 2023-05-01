@@ -296,7 +296,7 @@ public class TreeAnalyzer extends ContextCommand {
 	/**
 	 * Gets a list of supported metrics. Note that this list will only include
 	 * commonly used metrics. For a complete list of supported metrics see
-	 * {@link #getAllMetrics()}
+	 * {@link TreeStatistics#getAllMetrics()} )}
 	 * 
 	 * @return the list of available metrics
 	 * @see TreeStatistics#getMetrics(String)
@@ -1160,7 +1160,7 @@ public class TreeAnalyzer extends ContextCommand {
 			}
 			double asymmetry;
 			// Make sure we avoid getting NaN
-			if (tipCounts.get(0) == tipCounts.get(1)) {
+			if (tipCounts.get(0).equals(tipCounts.get(1))) {
 				asymmetry = 0.0;
 			}
 			else {

@@ -21,14 +21,7 @@
  */
 package sc.fiji.snt.analysis.sholl;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Properties;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
 import ij.ImagePlus;
 import ij.gui.Overlay;
@@ -274,10 +267,7 @@ public class Profile implements ProfileProperties {
 	}
 
 	private static ArrayList<Number> arrayToList(final Number[] array) {
-		final ArrayList<Number> list = new ArrayList<>();
-		for (final Number i : array)
-			list.add(i);
-		return list;
+		return new ArrayList<>(Arrays.asList(array));
 	}
 
 	public int size() {

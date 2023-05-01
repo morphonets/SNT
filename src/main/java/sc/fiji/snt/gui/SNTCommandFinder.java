@@ -38,12 +38,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 import javax.swing.AbstractAction;
 import javax.swing.AbstractButton;
@@ -117,7 +112,7 @@ public class SNTCommandFinder {
 		noHitsCmd = new SearchWebCmd();
 		cmdScrapper = new CmdScrapper(); // recViewer commands are all registered in cmdScrapper.otherMap
 		maxPath = 1;
-		keyWordsToIgnoreInMenuPaths = Arrays.asList("Select"); // "None, All, Trees, etc. ": hard to interpreter without
+		keyWordsToIgnoreInMenuPaths = Collections.singletonList("Select"); // "None, All, Trees, etc. ": hard to interpreter without
 																// context
 		widestCmd = "Bounding Boxes of Visible Meshes ";
 	}
@@ -578,7 +573,7 @@ public class SNTCommandFinder {
 
 	}
 
-	private class CmdTableModel extends AbstractTableModel {
+	private static class CmdTableModel extends AbstractTableModel {
 		private static final long serialVersionUID = 1L;
 		private final static int COLUMNS = 2;
 		List<String[]> list;
@@ -717,11 +712,11 @@ public class SNTCommandFinder {
 			}
 			switch (key.getKeyEventType()) {
 			case KeyEvent.KEY_TYPED:
-				s.append(key.getKeyChar() + " ");
+				s.append(key.getKeyChar()).append(" ");
 				break;
 			case KeyEvent.KEY_PRESSED:
 			case KeyEvent.KEY_RELEASED:
-				s.append(getKeyText(key.getKeyCode()) + " ");
+				s.append(getKeyText(key.getKeyCode())).append(" ");
 				break;
 			default:
 				break;
@@ -736,6 +731,7 @@ public class SNTCommandFinder {
 			}
 			switch (keyCode) {
 			case KeyEvent.VK_COMMA:
+			case KeyEvent.VK_COLON:
 				return ",";
 			case KeyEvent.VK_PERIOD:
 				return ".";
@@ -815,8 +811,6 @@ public class SNTCommandFinder {
 				return "{";
 			case KeyEvent.VK_BRACERIGHT:
 				return "}";
-			case KeyEvent.VK_COLON:
-				return ",";
 			case KeyEvent.VK_CIRCUMFLEX:
 				return "^";
 			case KeyEvent.VK_DEAD_TILDE:
@@ -892,7 +886,7 @@ public class SNTCommandFinder {
 					for (int i = 0; i < topLevelMenus; ++i) {
 						final JMenu topLevelMenu = menuBar.getMenu(i);
 						if (topLevelMenu != null && topLevelMenu.getText() != null) {
-							parseMenu(topLevelMenu, new ArrayList<>(Arrays.asList(topLevelMenu.getText())));
+							parseMenu(topLevelMenu, new ArrayList<>(Collections.singletonList(topLevelMenu.getText())));
 						}
 					}
 				}
@@ -900,7 +894,7 @@ public class SNTCommandFinder {
 					final JPopupMenu popup = (JPopupMenu) ac.component;
 					if (popup != null) {
 						getMenuItems(popup).forEach(mi -> {
-							registerMenuItem(mi, new ArrayList<>(Arrays.asList(ac.annotation)));
+							registerMenuItem(mi, new ArrayList<>(Collections.singletonList(ac.annotation)));
 						});
 					}
 				}
@@ -1012,7 +1006,7 @@ public class SNTCommandFinder {
 
 	}
 
-	private class AnnotatedComponent {
+	private static class AnnotatedComponent {
 		final Component component;
 		final String annotation;
 

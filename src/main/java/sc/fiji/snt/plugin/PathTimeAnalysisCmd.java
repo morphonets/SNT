@@ -271,7 +271,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 	}
 
 	//https://stackoverflow.com/a/58249974
-	private class NumberAwareComparator implements Comparator<String>
+	private static class NumberAwareComparator implements Comparator<String>
 	{
 		@Override
 		public int compare(final String s1, final String s2) {

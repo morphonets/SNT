@@ -171,7 +171,7 @@ public class SWCTypeOptionsCmd extends ContextCommand {
 		undefinedColor = map.get(Path.SWC_UNDEFINED);
 	}
 
-	private class SWCTypeComparator implements Comparator<Integer> {
+	private static class SWCTypeComparator implements Comparator<Integer> {
 
 		@Override
 		public int compare(final Integer i1, final Integer i2) {
@@ -184,7 +184,7 @@ public class SWCTypeOptionsCmd extends ContextCommand {
 	public TreeMap<Integer, Color> getColorMap() {
 		final Map<Integer, ColorRGB> maprgb = getSavedMap();
 		final TreeMap<Integer, Color> map = new TreeMap<>(
-			new SWCTypeComparator()); // new SWCTypeComparator());
+				new SWCTypeComparator()); // new SWCTypeComparator());
 		for (final Map.Entry<Integer, ColorRGB> entry : maprgb.entrySet()) {
 			final int key = entry.getKey();
 			final ColorRGB color = entry.getValue();

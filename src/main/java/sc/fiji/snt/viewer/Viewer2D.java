@@ -482,7 +482,6 @@ public class Viewer2D extends TreeColorMapper {
 	/**
 	 * Gets the current plot as a {@link XYPlot} object
 	 *
-	 * @param show if true, plot is displayed
 	 * @return the current plot
 	 */
 	public XYPlot getPlot() {

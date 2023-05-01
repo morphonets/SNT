@@ -288,7 +288,7 @@ public class MultiTreeColorMapper extends ColorMapper {
 		return multiViewer;
 	}
 
-	private class MappedTree {
+	private static class MappedTree {
 
 		public final Tree tree;
 		public double value;

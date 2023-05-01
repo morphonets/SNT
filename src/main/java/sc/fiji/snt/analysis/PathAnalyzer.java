@@ -34,7 +34,7 @@ import sc.fiji.snt.TreeProperties;
 
 /*
  * A flavor of TreeStatistics that does not do graph conversions, ensuring paths
- * can me measured independently of their connectivity.
+ * can be measured independently of their connectivity.
  */
 public class PathAnalyzer extends TreeStatistics {
 

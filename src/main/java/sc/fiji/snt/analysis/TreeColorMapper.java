@@ -693,7 +693,7 @@ public class TreeColorMapper extends ColorMapper {
 		}
 	}
 
-	private class MappedTaggedPath {
+	private static class MappedTaggedPath {
 
 		private final Pattern pattern = Pattern.compile("\\{(\\w+)\\b");
 		private final Path path;

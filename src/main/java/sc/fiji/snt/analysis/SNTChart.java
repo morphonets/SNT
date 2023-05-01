@@ -433,7 +433,7 @@ public class SNTChart extends ChartFrame {
 	private Color[] getColors(final int n, final ColorTable colortable) {
 		final Color[] colors = new Color[n];
 		for (int i = 0; i < n; i++) {
-			final int idx = (int) Math.round((colortable.getLength() - 1) * i / n);
+			final int idx = (int) Math.round((float) ((colortable.getLength() - 1) * i) / n);
 			colors[i] = new Color(colortable.get(ColorTable.RED, idx), colortable.get(ColorTable.GREEN, idx),
 					colortable.get(ColorTable.BLUE, idx));
 		}

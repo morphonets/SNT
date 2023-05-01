@@ -130,7 +130,7 @@ public class ImageParser2D extends ImageParser {
 
 			// Retrieve the radius in pixel coordinates and set the largest
 			// radius of this bin span
-			int intRadius = (int) Math.round(radius / voxelSize + nSpans / 2);
+			int intRadius = (int) Math.round(radius / voxelSize + (double) nSpans / 2);
 			final Set<ShollPoint> pointsList = new HashSet<>();
 
 			// Inner loop to gather samples for each sample

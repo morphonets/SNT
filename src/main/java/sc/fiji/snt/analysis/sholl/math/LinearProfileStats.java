@@ -577,7 +577,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 *            the upper bound of the interval
 	 * @param initialGuess
 	 *            initial guess for a solution (solver's starting point)
-	 * @return the list of Points defined by the {x,y} coordinates of maxima
+	 * @return the set of Points defined by the {x,y} coordinates of maxima
 	 *         (sorted by descendant order)
 	 * @throws TooManyEvaluationsException
 	 *             if the maximum number of evaluations is exceeded when solving

@@ -39,7 +39,6 @@ import sc.fiji.snt.tracing.image.SearchImage;
 import sc.fiji.snt.tracing.image.SearchImageStack;
 import sc.fiji.snt.tracing.image.SupplierUtil;
 
-import java.util.List;
 import java.util.*;
 
 /**

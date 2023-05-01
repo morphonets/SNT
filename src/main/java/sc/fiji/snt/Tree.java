@@ -679,7 +679,7 @@ public class Tree implements TreeProperties {
 	public boolean validSoma() {
 		final List<Path> somas = tree.stream().filter(path -> Path.SWC_SOMA == path.getSWCType())
 				.collect(Collectors.toList());
-		return !somas.isEmpty() && somas.size() < 2 && somas.stream().allMatch(Path::isPrimary);
+		return somas.size() == 1 && somas.stream().allMatch(Path::isPrimary);
 	}
 
 	/**
@@ -1413,7 +1413,7 @@ public class Tree implements TreeProperties {
 		if (dir == null) return trees;
 		final File dirFile = new File(dir);
 		final File[] treeFiles = SNTUtils.getReconstructionFiles(dirFile, pattern);
-		if (treeFiles == null || treeFiles.length == 0) {
+		if (treeFiles == null) {
 			return trees;
 		}
 		for (final File treeFile : treeFiles) {
@@ -1596,7 +1596,7 @@ public class Tree implements TreeProperties {
 		return clone;
 	}
 
-	private class TreeBoundingBox extends BoundingBox {
+	private static class TreeBoundingBox extends BoundingBox {
 
 		private boolean dimensionsNeedToBeComputed;
 

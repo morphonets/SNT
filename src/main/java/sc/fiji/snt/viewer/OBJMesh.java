@@ -341,7 +341,7 @@ public class OBJMesh {
 	 * This is just to make {@link DrawableVBO#hasMountedOnce()} accessible,
 	 * allowing to force the re-loading of meshes during an interactive session
 	 */
-	class RemountableDrawableVBO extends DrawableVBO {
+	static class RemountableDrawableVBO extends DrawableVBO {
 
 		protected OBJMesh objMesh;
 
@@ -453,14 +453,13 @@ public class OBJMesh {
 							continue;
 						}
 						switch (line.charAt(0)) {
-						case '#':
-							break;
-						case 'v':
+							case 'v':
 							parseObjVertex(line, val);
 							break;
 						case 'f':
 							hasNormals = parseObjFace(line, idx, hasNormals);
 							break;
+						case '#':
 						default:
 							break;
 						}

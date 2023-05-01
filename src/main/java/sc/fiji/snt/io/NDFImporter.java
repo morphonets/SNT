@@ -88,7 +88,7 @@ public class NDFImporter {
 	}
 
 	/**
-	 * @param path the path to the ndf file to be imported
+	 * @param filePath the path to the ndf file to be imported
 	 */
 	public NDFImporter(final String filePath) {
 		this(new File(filePath));

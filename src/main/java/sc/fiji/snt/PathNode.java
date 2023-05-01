@@ -110,8 +110,6 @@ class PathNode {
 	private double getScreenCoordinateX(final PointInImage pim) {
 		switch (canvas.getPlane()) {
 			case MultiDThreePanes.XY_PLANE:
-				return canvas.myScreenXDprecise(path.canvasOffset.x + pim.x /
-					path.x_spacing);
 			case MultiDThreePanes.XZ_PLANE:
 				return canvas.myScreenXDprecise(path.canvasOffset.x + pim.x /
 					path.x_spacing);

@@ -162,7 +162,7 @@ public class MouseLightLoader {
 	 * Extracts the nodes (single-point soma, axonal and dendritic arbor) of the
 	 * loaded neuron.
 	 *
-	 * @return the list of nodes of the neuron as {@link SWCPoint}s.
+	 * @return the set of nodes of the neuron as {@link SWCPoint}s.
 	 */
 	public TreeSet<SWCPoint> getNodes() {
 		return getNodes("all");

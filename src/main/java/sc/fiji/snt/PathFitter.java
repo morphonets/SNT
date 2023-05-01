@@ -961,7 +961,7 @@ public class PathFitter implements Callable<Path> {
 		this.img = img;
 	}
 
-	private class CircleAttempt implements MultivariateFunction,
+	private static class CircleAttempt implements MultivariateFunction,
 		Comparable<CircleAttempt>
 	{
 

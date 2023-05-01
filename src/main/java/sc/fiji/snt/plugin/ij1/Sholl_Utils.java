@@ -168,7 +168,7 @@ public class Sholl_Utils implements PlugIn {
 		sb.append("<html>");
 		sb.append("<div WIDTH=480>");
 		sb.append("<div align='center'>");
-		sb.append("<b>" + header1 + "</b><br>");
+		sb.append("<b>").append(header1).append("</b><br>");
 		sb.append("<b>" + header2 + "</b><br>");
 		sb.append("<a href='" + authorURL + "'>" + author + "</a> and ");
 		sb.append("<a href='" + contributorsURL + "'>contributors</a>");
