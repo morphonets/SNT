@@ -35,7 +35,6 @@ import java.awt.geom.Rectangle2D;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -338,7 +337,7 @@ public class GroupedTreeStatistics {
 		});
 		mappedValues.forEach( (groupLabel, annotatedMeasurements) -> {
 			annotatedMeasurements.map.forEach( (brainannotation, values) -> {
-				dataset.add(values, groupLabel, annotAsString(brainannotation));
+				dataset.add(values, groupLabel, BrainAnnotation.simplifiedString(brainannotation));
 			});
 		});
 
@@ -749,13 +748,7 @@ public class GroupedTreeStatistics {
 		}
 	
 		void compute(final Collection<BrainAnnotation> annotations, final Collection<Tree> trees) {
-			map = new TreeMap<>(new Comparator<BrainAnnotation>() {
-				public int compare(final BrainAnnotation b1, final BrainAnnotation b2) {
-					// FIXME: We'll entries sorted by alphabetic order of acronym, but this is
-					// probably flawed, optimally we would want to sort by ontology
-					return b1.acronym().compareTo(b2.acronym());
-				}
-			});
+			map = new TreeMap<>(BrainAnnotation.comparator()); // could also be sorted by flow
 			for (final BrainAnnotation annotation : annotations) {
 				if (annotation == null)
 					continue;
@@ -764,18 +757,20 @@ public class GroupedTreeStatistics {
 					if (tree == null)
 						continue;
 					final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
+					final boolean includeChildren = annotation.getOntologyDepth() > 0;
 					double value;
 					switch (normFeature) {
 					case LENGTH:
-						value = (normalize) ? analyzer.getCableLengthNorm(annotation)
-								: analyzer.getCableLength(annotation);
+						value = (normalize) ? analyzer.getCableLengthNorm(annotation, includeChildren)
+								: analyzer.getCableLength(annotation, includeChildren);
 						break;
 					case N_BRANCH_POINTS:
-						value = (normalize) ? analyzer.getNbranchPointsNorm(annotation)
-								: analyzer.getNbranchPoints(annotation);
+						value = (normalize) ? analyzer.getNbranchPointsNorm(annotation, includeChildren)
+								: analyzer.getNbranchPoints(annotation, includeChildren);
 						break;
 					case N_TIPS:
-						value = (normalize) ? analyzer.getNtipsNorm(annotation) : analyzer.getNtips(annotation);
+						value = (normalize) ? analyzer.getNtipsNorm(annotation, includeChildren)
+								: analyzer.getNtips(annotation, includeChildren);
 						break;
 					default:
 						throw new IllegalArgumentException("Unrecognized feature");
@@ -787,13 +782,6 @@ public class GroupedTreeStatistics {
 					map.put(annotation, values);
 			}
 		}
-	}
-
-	private static String annotAsString(final BrainAnnotation annot) {
-		String s = annot.acronym();
-		if ("wholebrain".equals(s) || annot.getOntologyDepth() == 0)
-			s = "other"; // presumably more useful!?
-		return s;
 	}
 
 	class FlowToolTipGenerator extends StandardFlowLabelGenerator {
@@ -851,7 +839,7 @@ public class GroupedTreeStatistics {
 
 		FlowNode(final BrainAnnotation annot, final boolean percentage) {
 			this.annot = annot;
-			this.label = annotAsString(annot);
+			this.label = BrainAnnotation.simplifiedString(annot);
 			this.percentage = percentage;
 		}
 
@@ -931,13 +919,6 @@ public class GroupedTreeStatistics {
 			return GroupedTreeStatistics.this;
 		}
 
-	}
-
-	private static void display(SNTChart plot, String title) {
-		plot.setTitle(title);
-		plot.setFontSize(30);
-		plot.setSize(800, 850);
-		plot.setVisible(true);
 	}
 
 	/* IDE debug method */

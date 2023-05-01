@@ -22,6 +22,9 @@
 
 package sc.fiji.snt.annotation;
 
+import java.util.Collection;
+import java.util.Comparator;
+
 import org.scijava.util.ColorRGB;
 
 import sc.fiji.snt.viewer.OBJMesh;
@@ -87,6 +90,21 @@ public interface BrainAnnotation {
 		default:
 			return ANY_HEMISPHERE;
 		}
+	}
+
+	public static Comparator<BrainAnnotation> comparator() {
+		return Comparator.nullsLast(
+				Comparator.comparing(BrainAnnotation::getOntologyDepth, Comparator.nullsLast(Comparator.reverseOrder()))
+						.thenComparing(BrainAnnotation::acronym, Comparator.nullsLast(String::compareTo)));
+//						.thenComparing(BrainAnnotation::acronym, Comparator.nullsLast(String::compareToIgnoreCase)));
+	}
+
+	public static String simplifiedString(final BrainAnnotation annotation) {
+		if (annotation == null)
+			return "Other (n/a)";
+		if (annotation.getOntologyDepth() == 0)
+			return "Other (root)";
+		return annotation.acronym();
 	}
 
 }

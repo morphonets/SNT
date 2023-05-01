@@ -389,19 +389,23 @@ public class NodeStatistics <T extends PointInImage> {
 	 */
 	public SNTChart getAnnotatedHistogram(final int depth) {
 		final Map<BrainAnnotation, Integer> map = getAnnotatedFrequencies(depth);
+		Map<BrainAnnotation, Integer> undefinedNodeMap = new HashMap<>();
 		final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
 		final String seriesLabel = (depth == Integer.MAX_VALUE) ? "no filtering" : "depth \u2264" + depth;
 		map.entrySet().stream().sorted((e1, e2) -> -e1.getValue().compareTo(e2.getValue())).forEach(entry -> {
-			if (entry.getKey() != null)
-					dataset.addValue(entry.getValue(), seriesLabel, entry.getKey().acronym());
+			if (entry.getKey() == null || entry.getKey().getOntologyDepth() == 0) {
+				// a null brain annotation or the root brain itself
+				undefinedNodeMap.put(entry.getKey(), entry.getValue());
+			} else
+				dataset.addValue(entry.getValue(), seriesLabel, entry.getKey().acronym());
 		});
-		int nAreas = map.size();
-		if (map.get(null) != null) {
-			dataset.addValue(map.get(null), seriesLabel,"Other" );
-			nAreas--;
+		if (!undefinedNodeMap.isEmpty()) {
+			undefinedNodeMap.forEach((k, v) -> {
+				dataset.addValue(v, seriesLabel, BrainAnnotation.simplifiedString(k));
+			});
 		}
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
-				"Brain areas (N=" + nAreas + ", "+ seriesLabel +")", // domain axis title
+				"Brain areas (N=" + (map.size() - undefinedNodeMap.size()) + ", "+ seriesLabel +")", // domain axis title
 				"Frequency", // range axis title
 				"", //unit
 				dataset);

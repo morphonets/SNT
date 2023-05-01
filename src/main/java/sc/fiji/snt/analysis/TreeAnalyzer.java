@@ -725,16 +725,31 @@ public class TreeAnalyzer extends ContextCommand {
 	 * Gets the position of all the tips in the analyzed tree associated with the
 	 * specified annotation.
 	 *
-	 * @param annot the BrainAnnotation to be queried. Null not allowed.
+	 * @param annot the BrainAnnotation to be queried (all of its children will be
+	 *              considered). Null not allowed.
 	 * @return the branch points positions, or an empty set if no tips were
 	 *         retrieved.
 	 */
 	public Set<PointInImage> getTips(final BrainAnnotation annot) {
-		if (tips == null) getTips();
+		return getTips(annot, true);
+	}
+
+	/**
+	 * Gets the position of all the tips in the analyzed tree associated with the
+	 * specified annotation.
+	 *
+	 * @param annot           the BrainAnnotation to be queried. Null not allowed.
+	 * @param includeChildren whether children of {@code annot} should be included.
+	 * @return the branch points positions, or an empty set if no tips were
+	 *         retrieved.
+	 */
+	public Set<PointInImage> getTips(final BrainAnnotation annot, final boolean includeChildren) {
+		if (tips == null)
+			getTips();
 		final HashSet<PointInImage> fTips = new HashSet<>();
 		for (final PointInImage tip : tips) {
 			final BrainAnnotation annotation = tip.getAnnotation();
-			if (annotation != null && isSameOrParentAnnotation(annot, annotation))
+			if (annotation != null && contains(annot, annotation, includeChildren))
 				fTips.add(tip);
 		}
 		return fTips;
@@ -744,11 +759,36 @@ public class TreeAnalyzer extends ContextCommand {
 	 * Gets the number of end points in the analyzed tree associated with the
 	 * specified annotation.
 	 *
-	 * @param annot the BrainAnnotation to be queried.
+	 * @param annot the BrainAnnotation to be queried. All of its children will be
+	 *              considered
 	 * @return the number of end points
 	 */
 	public int getNtips(final BrainAnnotation annot) {
-		return getTips(annot).size();
+		return getNtips(annot, true);
+	}
+
+	/**
+	 * Gets the number of end points in the analyzed tree associated with the
+	 * specified annotation.
+	 *
+	 * @param annot           the BrainAnnotation to be queried.
+	 * @param includeChildren whether children of {@code annot} should be included.
+	 * @return the number of end points
+	 */
+	public int getNtips(final BrainAnnotation annot, final boolean includeChildren) {
+		return getTips(annot, true).size();
+	}
+
+	/**
+	 * Gets the number of end points in the analyzed tree associated with the
+	 * specified annotation.
+	 *
+	 * @param annot the BrainAnnotation to be queried. All of its children will be
+	 *              considered
+	 * @return the number of end points
+	 */
+	public double getNtipsNorm(final BrainAnnotation annot) {
+		return getNtipsNorm(annot, true);
 	}
 
 	/**
@@ -756,11 +796,12 @@ public class TreeAnalyzer extends ContextCommand {
 	 * specified annotation
 	 *
 	 * @param annot the BrainAnnotation to be queried.
+	 * @param includeChildren whether children of {@code annot} should be included
 	 * @return the ratio between the no. of branch points associated with
 	 *         {@code annot} and the total number of end points in the tree.
 	 */
-	public double getNtipsNorm(final BrainAnnotation annot) {
-		return (double) (getNtips(annot)) / (double)(tips.size());
+	public double getNtipsNorm(final BrainAnnotation annot, final boolean includeChildren) {
+		return (double) (getNtips(annot, includeChildren)) / (double)(tips.size());
 	}
 
 	/**
@@ -780,16 +821,30 @@ public class TreeAnalyzer extends ContextCommand {
 	 * Gets the position of all the branch points in the analyzed tree associated
 	 * with the specified annotation.
 	 *
-	 * @param annot the BrainAnnotation to be queried.
-	 * @return the branch points positions, or an empty set if no branch points
-	 *         were retrieved.
+	 * @param annot the BrainAnnotation to be queried. All of its children are
+	 *              considered.
+	 * @return the branch points positions, or an empty set if no branch points were
+	 *         retrieved.
 	 */
 	public Set<PointInImage> getBranchPoints(final BrainAnnotation annot) {
+		return getBranchPoints(annot, true);
+	}
+
+	/**
+	 * Gets the position of all the branch points in the analyzed tree associated
+	 * with the specified annotation.
+	 *
+	 * @param annot           the BrainAnnotation to be queried.
+	 * @param includeChildren whether children of {@code annot} should be included
+	 * @return the branch points positions, or an empty set if no branch points were
+	 *         retrieved.
+	 */
+	public Set<PointInImage> getBranchPoints(final BrainAnnotation annot, final boolean includeChildren) {
 		if (joints == null) getBranchPoints();
-		final HashSet<PointInImage>fJoints = new HashSet<>();
-		for (final PointInImage joint: joints) {
+		final HashSet<PointInImage> fJoints = new HashSet<>();
+		for (final PointInImage joint : joints) {
 			final BrainAnnotation annotation = joint.getAnnotation();
-			if (annotation != null && isSameOrParentAnnotation(annot, annotation))
+			if (annotation != null && contains(annot, annotation, includeChildren))
 				fJoints.add(joint);
 		}
 		return fJoints;
@@ -799,23 +854,50 @@ public class TreeAnalyzer extends ContextCommand {
 	 * Gets the number of branch points in the analyzed tree associated with the
 	 * specified annotation.
 	 *
-	 * @param annot the BrainAnnotation to be queried.
+	 * @param annot the BrainAnnotation to be queried. All of its children are
+	 *              considered.
 	 * @return the number of branch points
 	 */
 	public int getNbranchPoints(final BrainAnnotation annot) {
-		return getBranchPoints(annot).size();
+		return getNbranchPoints(annot, true);
+	}
+
+	/**
+	 * Gets the number of branch points in the analyzed tree associated with the
+	 * specified annotation.
+	 *
+	 * @param annot           the BrainAnnotation to be queried.
+	 * @param includeChildren whether children of {@code annot} should be included
+	 * @return the number of branch points
+	 */
+	public int getNbranchPoints(final BrainAnnotation annot, final boolean includeChildren) {
+		return getBranchPoints(annot, includeChildren).size();
 	}
 
 	/**
 	 * Gets the percentage of branch points in the analyzed tree associated with the
 	 * specified annotation
 	 *
-	 * @param annot the BrainAnnotation to be queried.
+	 * @param annot the BrainAnnotation to be queried. All of its children are
+	 *              considered.
 	 * @return the ratio between the no. of branch points associated with
 	 *         {@code annot} and the total number of branch points in the tree.
 	 */
 	public double getNbranchPointsNorm(final BrainAnnotation annot) {
-		return (double) (getNbranchPoints(annot)) / (double)(joints.size());
+		return getNbranchPointsNorm(annot, true);
+	}
+
+	/**
+	 * Gets the percentage of branch points in the analyzed tree associated with the
+	 * specified annotation
+	 *
+	 * @param annot           the BrainAnnotation to be queried.
+	 * @param includeChildren whether children of {@code annot} should be included
+	 * @return the ratio between the no. of branch points associated with
+	 *         {@code annot} and the total number of branch points in the tree.
+	 */
+	public double getNbranchPointsNorm(final BrainAnnotation annot, final boolean includeChildren) {
+		return (double) (getNbranchPoints(annot, includeChildren)) / (double) (joints.size());
 	}
 
 	/**
@@ -853,6 +935,19 @@ public class TreeAnalyzer extends ContextCommand {
 
 	/**
 	 * Gets the cable length associated with the specified compartment (neuropil
+	 * label) as a ratio of total length.
+	 *
+	 * @param compartment     the query compartment (null not allowed)
+	 * @param includeChildren whether children of {@code compartment} should be
+	 *                        included
+	 * @return the filtered cable length normalized to total cable length
+	 */
+	public double getCableLengthNorm(final BrainAnnotation compartment, final boolean includeChildren) {
+		return getCableLength(compartment, includeChildren) / getCableLength();
+	}
+
+	/**
+	 * Gets the cable length associated with the specified compartment (neuropil
 	 * label).
 	 *
 	 * @param compartment the query compartment (null not allowed)
@@ -866,8 +961,16 @@ public class TreeAnalyzer extends ContextCommand {
 		return subgraph.sumEdgeWeights(true);
 	}
 
+	@SuppressWarnings("unused")
 	protected boolean isSameOrParentAnnotation(final BrainAnnotation annot, final BrainAnnotation annotToBeTested) {
-		return annot.equals(annotToBeTested) || annot.isParentOf(annotToBeTested);
+		return contains(annot, annotToBeTested, true);
+	}
+
+	protected boolean contains(final BrainAnnotation annot, final BrainAnnotation annotToBeTested,
+			final boolean includeChildren) {
+		if (includeChildren)
+			return annot.equals(annotToBeTested) || annot.isParentOf(annotToBeTested);
+		return annot.equals(annotToBeTested);
 	}
 
 	public Set<BrainAnnotation> getAnnotations() {

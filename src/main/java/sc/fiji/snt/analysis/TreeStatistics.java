@@ -516,22 +516,27 @@ public class TreeStatistics extends TreeAnalyzer {
 	protected SNTChart getAnnotatedLengthsByHemisphereHistogram(int depth) {
 		final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
 		Map<BrainAnnotation, double[]> seriesMap = getAnnotatedLengthsByHemisphere(depth);
+		Map<BrainAnnotation, double[]> undefinedLengthMap = new HashMap<>();
 		seriesMap.entrySet().stream().sorted((e1, e2) -> -Double.compare(e1.getValue()[0], e2.getValue()[0]))
 				.forEach(entry -> {
-					if (entry.getKey() != null) {
+					if (entry.getKey() == null || entry.getKey().getOntologyDepth() == 0) {
+						// a null brain annotation or the root brain itself
+						undefinedLengthMap.put(entry.getKey(), entry.getValue());
+					} else {
 						dataset.addValue(entry.getValue()[0], "Ipsilateral", entry.getKey().acronym());
 						dataset.addValue(entry.getValue()[1], "Contralateral", entry.getKey().acronym());
 					}
 				});
-		int nAreas = seriesMap.size();
-		if (seriesMap.get(null) != null) {
-			dataset.addValue(seriesMap.get(null)[0], "Ipsilateral", "Other");
-			dataset.addValue(seriesMap.get(null)[1], "Contralateral", "Other");
-			nAreas--;
+
+		if (!undefinedLengthMap.isEmpty()) {
+			undefinedLengthMap.forEach( (k, v) -> {
+				dataset.addValue(v[0], "Ipsilateral", BrainAnnotation.simplifiedString(k));
+				dataset.addValue(v[1], "Contralateral", BrainAnnotation.simplifiedString(k));
+			});
 		}
 		final String axisTitle = (depth == Integer.MAX_VALUE) ? "no filtering" : "depth \u2264" + depth;
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
-				"Brain areas (N=" + nAreas + ", " + axisTitle + ")", // domain axis title
+				"Brain areas (N=" + (seriesMap.size() - undefinedLengthMap.size()) + ", " + axisTitle + ")", // domain axis title
 				String.format("Cable length (%s)", getUnit()), // range axis title
 				"", // axis unit (already applied)
 				dataset, 2);
@@ -542,18 +547,22 @@ public class TreeStatistics extends TreeAnalyzer {
 	protected SNTChart getAnnotatedLengthHistogram(final Map<BrainAnnotation, Double> map, final int depth,
 			final String secondaryLabel) {
 		final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+		Map<BrainAnnotation, Double> undefinedLengthMap = new HashMap<>();
 		final String seriesLabel = (depth == Integer.MAX_VALUE) ? "no filtering" : "depth \u2264" + depth;
 		map.entrySet().stream().sorted((e1, e2) -> -e1.getValue().compareTo(e2.getValue())).forEach(entry -> {
-			if (entry.getKey() != null)
+			if (entry.getKey() == null || entry.getKey().getOntologyDepth() == 0) {
+				// a null brain annotation or the root brain itself
+				undefinedLengthMap.put(entry.getKey(), entry.getValue());
+			} else
 				dataset.addValue(entry.getValue(), seriesLabel, entry.getKey().acronym());
 		});
-		int nAreas = map.size();
-		if (map.get(null) != null) {
-			dataset.addValue(map.get(null), seriesLabel, "Other");
-			nAreas--;
+		if (!undefinedLengthMap.isEmpty()) {
+			undefinedLengthMap.forEach( (k, v) -> {
+				dataset.addValue(v, seriesLabel, BrainAnnotation.simplifiedString(k));
+			});
 		}
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
-				"Brain areas (N=" + nAreas + ", " + seriesLabel + ")", // domain axis title
+				"Brain areas (N=" + (map.size()-undefinedLengthMap.size()) + ", " + seriesLabel + ")", // domain axis title
 				String.format("Cable length (%s)", getUnit()), // range axis title
 				"", // unit: already specified
 				dataset);
@@ -591,8 +600,58 @@ public class TreeStatistics extends TreeAnalyzer {
 	 * 
 	 * @see #getFlowPlot(String, Collection, String, double, boolean)
 	 */
+	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations,
+			final boolean normalize) {
+		return getFlowPlot(feature, annotations, "sum", Double.MIN_VALUE, normalize);
+	}
+
+	/**
+	 * Assembles a Flow plot (aka Sankey diagram) for the specified feature using
+	 * "mean" as integration statistic, no cutoff value, and all of the brain
+	 * regions of the specified ontology depth.
+	 *
+	 * @param feature the feature ({@value MultiTreeStatistics#LENGTH},
+	 *                {@value MultiTreeStatistics#N_BRANCH_POINTS},
+	 *                {@value MultiTreeStatistics#N_TIPS}, etc.).
+	 * @param depth   the ontological depth of the compartments to be considered
+	 * @return the flow plot
+	 * @see #getFlowPlot(String, Collection, String, double, boolean)
+	 */
+	public SNTChart getFlowPlot(final String feature, final int depth) {
+		return getFlowPlot(feature, depth, Double.MIN_VALUE, true);
+	}
+
+
+	/**
+	 * Assembles a Flow plot (aka Sankey diagram) for the specified feature using
+	 * "mean" as integration statistic, no cutoff value, and all of the brain
+	 * regions of the specified ontology depth. *
+	 * 
+	 * @param feature the feature ({@value MultiTreeStatistics#LENGTH},
+	 *                {@value MultiTreeStatistics#N_BRANCH_POINTS},
+	 *                {@value MultiTreeStatistics#N_TIPS}, etc.)
+	 * @param depth   the ontological depth of the compartments to be considered
+	 * @param cutoff  a filtering option. If the computed {@code feature} for an
+	 *                annotation is below this value, that annotation is excluded
+	 *                from the plot * @param normalize If true, values are retrieved
+	 *                as ratios. E.g., If {@code feature} is
+	 *                {@value MultiTreeStatistics#LENGTH}, and {@code cutoff} 0.1,
+	 *                BrainAnnotations in {@code annotations} associated with less
+	 *                than 10% of cable length are ignored.
+	 * @return the flow plot
+	 */
+	public SNTChart getFlowPlot(final String feature, final int depth, final double cutoff, final boolean normalize) {
+		return getFlowPlot(feature, getAnnotations(depth), "sum", cutoff, normalize);
+	}
+
+	/**
+	 * Assembles a Flow plot (aka Sankey diagram) for the specified feature using
+	 * "mean" as integration statistic, and no cutoff value.
+	 * 
+	 * @see #getFlowPlot(String, Collection, String, double, boolean)
+	 */
 	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations) {
-		return getFlowPlot(feature, annotations, "mean", Double.MIN_VALUE, false);
+		return getFlowPlot(feature, annotations, "sum", Double.MIN_VALUE, false);
 	}
 
 	/**
