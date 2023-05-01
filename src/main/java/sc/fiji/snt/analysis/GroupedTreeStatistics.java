@@ -448,7 +448,7 @@ public class GroupedTreeStatistics {
 			final AnnotatedValues annotValues = entry.getValue();
 			final FlowNode source = new FlowNode(groupLabel);
 			if (!singleCell)
-				source.setExtraDetails(", N= " + getGroupStats(groupLabel).getGroup().size());
+				source.setExtraDetails(" [Multiple Cells, N= " + getGroupStats(groupLabel).getGroup().size() +"]");
 			plot.setNodeFillColor(new NodeKey<FlowNode>(stage, source), groupColors[groupIdx++]);
 			annotValues.map.forEach((brainAnnot, annotatedMeasurements) -> {
 				final FlowNode destination = new FlowNode(brainAnnot, normalize);

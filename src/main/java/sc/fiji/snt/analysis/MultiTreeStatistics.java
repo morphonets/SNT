@@ -28,6 +28,7 @@ import static java.util.stream.Collectors.summingDouble;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -363,6 +364,35 @@ public class MultiTreeStatistics extends TreeStatistics {
 			});
 		}
 		return terminalBranches;
+	}
+
+	@Override
+	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations,
+			final boolean normalize) {
+		return getFlowPlot(feature, annotations, "mean", Double.MIN_VALUE, normalize);
+	}
+
+	@Override
+	public SNTChart getFlowPlot(final String feature, final int depth) {
+		return getFlowPlot(feature, depth, Double.MIN_VALUE, true);
+	}
+
+	@Override
+	public SNTChart getFlowPlot(final String feature, final int depth, final double cutoff, final boolean normalize) {
+		return getFlowPlot(feature, getAnnotations(depth), "mean", cutoff, normalize);
+	}
+
+	@Override
+	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations) {
+		return getFlowPlot(feature, annotations, "mean", Double.MIN_VALUE, false);
+	}
+
+	@Override
+	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations,
+			final String statistic, final double cutoff, final boolean normalize) {
+		final GroupedTreeStatistics gts = new GroupedTreeStatistics();
+		gts.addGroup(groupOfTrees, (null == tree.getLabel()) ? "" : tree.getLabel());
+		return gts.getFlowPlot(feature, annotations, statistic, cutoff, normalize);
 	}
 
 	class HistogramDatasetPlusMulti extends HDPlus {

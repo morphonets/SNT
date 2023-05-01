@@ -114,6 +114,8 @@ public class AnnotationGraphGeneratorCmd extends CommonDynamicCmd {
 		if (diagram.startsWith("Flow") || diagram.startsWith("Both")) {
 			SNTUtils.log("Creating Flow plot (Sankey diagram)");
 			final MultiTreeStatistics stats = new MultiTreeStatistics(annotatedTrees);
+			if (annotatedTrees.size()==1)
+				stats.setLabel(annotatedTrees.iterator().next().getLabel());
 			stats.getFlowPlot(metric, stats.getAnnotations(ajustedDepth()), "sum", threshold, false).show();
 			SNTUtils.log("Finished. Diagram created from " + annotatedTrees.size() + " tree(s).");
 		}
