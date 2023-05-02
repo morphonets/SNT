@@ -80,9 +80,9 @@ class SplashScreen extends JWindow {
 				return logoImage;
 			}
 		} catch (final Exception ignored) {
-			return null;
+			// do nothing
 		}
-		return null;
+		return new JLabel(new com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon()); // non-null fallback
 	}
 
 	static Dimension getScaledIconDimensions(final int originalIconWidth, final int originalIconHeight) {

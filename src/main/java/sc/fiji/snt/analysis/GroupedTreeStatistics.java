@@ -297,7 +297,7 @@ public class GroupedTreeStatistics {
 	 *                    majority of {@link MultiTreeStatistics#getAllMetrics()}
 	 *                    metrics are currently not supported.
 	 * @param annotations the BrainAnnotations to be queried. Null not allowed.
-	 * @return the frame holding the box plot
+	 * @return the box plot
 	 */
 	public SNTChart getBoxPlot(final String feature, final Collection<BrainAnnotation> annotations) {
 		return getBoxPlot(feature, annotations, Double.MIN_VALUE, false);
@@ -321,12 +321,12 @@ public class GroupedTreeStatistics {
 	 *                    {@code annotations} associated with less than 10% of cable
 	 *                    length are ignored.
 	 * 
-	 * @return the frame holding the box plot
+	 * @return the box plot
 	 */
 	public SNTChart getBoxPlot(final String feature, final Collection<BrainAnnotation> annotations, final double cutoff, final boolean normalize) {
 		final String normFeature = getBoxOrFlowPlotFeature(feature);
 		if (normFeature.equalsIgnoreCase("unknown")) {
-			throw new IllegalArgumentException("Unrecognizable measurement \"" + feature);
+			throw new IllegalArgumentException("Unrecognizable measurement: " + feature);
 		}
 		final HashMap<String, AnnotatedValues> mappedValues = new HashMap<>();
 		final DefaultBoxAndWhiskerCategoryDataset dataset = new DefaultBoxAndWhiskerCategoryDataset();
@@ -345,7 +345,33 @@ public class GroupedTreeStatistics {
 		assignRenderer((CategoryPlot) chart.getPlot(), false);
 		final int height = 400;
 		final double width = (groups.size() < 4) ? height / 1.5 : height * 1.5;
-		return new SNTChart("Box-plot", chart,  new Dimension((int) width, height));
+		return new SNTChart("Box-plot [Group Comparison]", chart,  new Dimension((int) width, height));
+	}
+
+	/**
+	 * Assembles a Box and Whisker Plot for the specified feature.
+	 *
+	 * @param feature the feature ({@value MultiTreeStatistics#LENGTH},
+	 *                {@value MultiTreeStatistics#N_BRANCH_POINTS},
+	 *                {@value MultiTreeStatistics#N_TIPS}, etc.). Note that the
+	 *                majority of {@link MultiTreeStatistics#getAllMetrics()}
+	 *                metrics are currently not supported.
+	 * @param depth   the ontological depth of the compartments to be considered
+	 * @param cutoff  a filtering option. If the computed {@code feature} for an
+	 *                annotation is below this value, that annotation is excluded
+	 *                from the plot * @param normalize If true, values are retrieved
+	 *                as ratios. E.g., If {@code feature} is
+	 *                {@value MultiTreeStatistics#LENGTH}, and {@code cutoff} 0.1,
+	 *                BrainAnnotations in {@code annotations} associated with less
+	 *                than 10% of cable length are ignored.
+	 * @return the box plot
+	 */
+	public SNTChart getBoxPlot(final String feature, final int depth, final double cutoff, final boolean normalize) {
+		final Set<BrainAnnotation> union = new HashSet<>();
+		getGroups().forEach(group -> {
+			union.addAll(getGroupStats(group).getAnnotations(depth));
+		});
+		return getBoxPlot(feature, union, cutoff, normalize);
 	}
 
 	/**
@@ -464,7 +490,7 @@ public class GroupedTreeStatistics {
 
 		plot.setNodeColorSwatch(swatchColors);
 		plot.setToolTipGenerator(new FlowToolTipGenerator(normFeature, normalize));
-		final SNTChart chart = new SNTChart("Flow Plot", new JFreeChart(plot));
+		final SNTChart chart = new SNTChart("Flow Plot [Group Comparison]", new JFreeChart(plot));
 		applyFlowPlotLegend(chart, normFeature, statistic, cutoff, normalize, singleCell);
 		return chart;
 	}

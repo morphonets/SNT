@@ -34,7 +34,10 @@ import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
 import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
+
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.ColorMapper;
+import sc.fiji.snt.viewer.geditor.GraphEditor;
 
 import java.io.IOException;
 import java.net.URL;
@@ -107,6 +110,7 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
     private Map<String, URL> luts;
     protected SNTGraph<V, E> graph;
     protected AsSubgraph<V, E> subgraph;
+	private String mappedMeasurement;
 
 
     public GraphColorMapper(final Context context) {
@@ -129,7 +133,11 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
     }
 
     private void initLuts() {
-        if (luts == null) luts = lutService.findLUTs();
+        if (luts == null) {
+        	if (lutService == null)
+        		SNTUtils.getContext().inject(this);
+        	luts = lutService.findLUTs();
+        }
     }
 
     /**
@@ -220,6 +228,7 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
             default:
                 throw new IllegalArgumentException("Unknown metric");
         }
+        this.mappedMeasurement = measurement;
     }
 
     protected void mapToConnectivity(final ColorTable colorTable) {
@@ -431,5 +440,14 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
     public void resetMinMax() {
         setMinMax(Double.NaN, Double.NaN);
         minMaxSet = false;
+    }
+    
+    public void setLegend(final GraphEditor editor) {
+    	editor.setLegend(colorTable, mappedMeasurement, min, max);
+    	try {
+    		editor.getLibraryPane().setSelectedIndex(2);
+    	} catch (final IndexOutOfBoundsException ignored) {
+    		// do nothing
+    	}
     }
 }

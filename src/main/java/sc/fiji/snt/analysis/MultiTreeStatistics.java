@@ -392,7 +392,9 @@ public class MultiTreeStatistics extends TreeStatistics {
 			final String statistic, final double cutoff, final boolean normalize) {
 		final GroupedTreeStatistics gts = new GroupedTreeStatistics();
 		gts.addGroup(groupOfTrees, (null == tree.getLabel()) ? "" : tree.getLabel());
-		return gts.getFlowPlot(feature, annotations, statistic, cutoff, normalize);
+		final SNTChart chart = gts.getFlowPlot(feature, annotations, statistic, cutoff, normalize);
+		chart.setTitle("Flow Plot [Group of Cells]");
+		return chart;
 	}
 
 	class HistogramDatasetPlusMulti extends HDPlus {

@@ -77,6 +77,7 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -1770,7 +1771,9 @@ public class GuiUtils {
 	}
 
 	public static void tile(final List<? extends Window> windowList) {
-		if (windowList == null || windowList.isEmpty()) return;
+		// make list immutable in case windowList is being modified programmatically (e.g., in a script)
+		final List<? extends Window> wList = Collections.unmodifiableList(windowList);
+		if (wList == null || wList.isEmpty()) return;
 		// FIXME: This is all taken from ij1.
 		final Rectangle screen = ij.gui.GUI.getMaxWindowBounds(ij.IJ.getApplet());
 		final int XSTART = 4, YSTART = 94, GAP = 2;
@@ -1779,7 +1782,7 @@ public class GuiUtils {
 		int minHeight = Integer.MAX_VALUE;
 		double totalWidth = 0;
 		double totalHeight = 0;
-		for (final Window window : windowList) {
+		for (final Window window : wList) {
 			final Dimension d = window.getSize();
 			final int w = d.width;
 			final int h = d.height + titlebarHeight;
@@ -1790,7 +1793,7 @@ public class GuiUtils {
 			totalWidth += w;
 			totalHeight += h;
 		}
-		final int nPics = windowList.size();
+		final int nPics = wList.size();
 		final double averageWidth = totalWidth / nPics;
 		final double averageHeight = totalHeight / nPics;
 		int tileWidth = (int) averageWidth;
@@ -1825,7 +1828,7 @@ public class GuiUtils {
 		} while (!theyFit);
 		hloc = XSTART;
 		vloc = YSTART;
-		for (final Window window : windowList) {
+		for (final Window window : wList) {
 			if (hloc + tileWidth > screen.width) {
 				hloc = XSTART;
 				vloc = vloc + tileHeight;

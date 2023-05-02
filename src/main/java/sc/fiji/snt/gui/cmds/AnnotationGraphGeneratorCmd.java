@@ -54,14 +54,14 @@ public class AnnotationGraphGeneratorCmd extends CommonDynamicCmd {
 			+ " is 10, only brain areas targetted by at least 11 tips are reported")
 	protected double threshold;
 
-	@Parameter(required = false, label = "Deepest ontology:", description = "<HTML><div WIDTH=600>The deepest ontology level to be considered for neuropil labels. As a reference, the deepest level for "
+	@Parameter(required = false, label = "Deepest ontology:", description = "<HTML><div WIDTH=600>The highest ontology level to be considered for neuropil labels. As a reference, the deepest level for "
 			+ "several mouse brain atlases is around 10. Set it to 0 to consider all depths", min = "0")
 	protected int depth;
 
 	@Parameter(label = "Compartment(s):", choices = { "All", "Axon", "Dendrites" })
 	private String compartment;
 
-	@Parameter(label = "Output diagram(s):", choices = { "Flow (Sankey)", "Ferris wheel", "Both" })
+	@Parameter(label = "Output diagram(s):", choices = { "Ferris wheel", "Flow (Sankey)", "Both" })
 	private String diagram;
 
 	@Parameter(label = "Trees")
