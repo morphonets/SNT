@@ -2757,7 +2757,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		// Infer fields for when an image has not been specified. We'll assume
 		// the image dimensions to be those of the coordinates bounding box.
 		// This allows us to open a SWC file without a source image
-		{
+		if (enableUIupdates){
 			if (boundingBox == null)
 				boundingBox = new BoundingBox();
 			boundingBox.append(((TreeSet<? extends SNTPoint>) points).iterator());
@@ -2780,18 +2780,19 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	public Map<String, Tree> importNeurons(final Map<String, TreeSet<SWCPoint>> map, final ColorRGB color, final String spatialUnit)
 	{
-		final Map<String, Tree> result = importMap(map, color);
+		final String unit = (spatialUnit == null) ? GuiUtils.micrometer() : spatialUnit;
+		final Map<String, Tree> result = importMap(map, color, unit);
 		if (result.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty())) {
 			if (boundingBox == null) // should never happen
 				boundingBox = new BoundingBox();
-			boundingBox.setUnit((spatialUnit == null) ? GuiUtils.micrometer() : spatialUnit);
+			boundingBox.setUnit(unit);
 			updateBoundingBox();
 		}
 		return result;
 	}
 
 	private Map<String, Tree> importMap(final Map<String, TreeSet<SWCPoint>> map,
-		final ColorRGB color)
+		final ColorRGB color, final String spatialUnit)
 	{
 		final Map<String, Tree> result = new HashMap<>();
 		final ColorRGB[] colors;
@@ -2817,6 +2818,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				final Tree tree = new Tree();
 				tree.setLabel(k);
 				tree.setColor(colors[colorIdx[0]]);
+				tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, spatialUnit);
 				for (int i = firstImportedPathIdx; i < size(); i++)
 					tree.add(getPath(i));
 				result.put(k, tree);

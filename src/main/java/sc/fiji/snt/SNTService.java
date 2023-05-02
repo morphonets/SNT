@@ -217,7 +217,7 @@ public class SNTService extends AbstractService implements ImageJService {
 		}
 		if (filePathOrURL.startsWith("http") || filePathOrURL.indexOf("://") > 0) {
 			final String fileName = filePathOrURL.substring(filePathOrURL.lastIndexOf('/') + 1);
-			final String fileNameWithoutExtn = fileName.substring(0, fileName.lastIndexOf('.'));
+			final String fileNameWithoutExtn = SNTUtils.stripExtension(fileName);
 			plugin.getPathAndFillManager().loadGuessingType(fileNameWithoutExtn, new URL(filePathOrURL).openStream());
 		} else
 			plugin.loadTracings(new File(filePathOrURL));

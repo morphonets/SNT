@@ -275,9 +275,9 @@ public class MouseLightLoader {
 
 	private static void applyMetadata(final Collection<Tree>trees, final String compartment) {
 		trees.forEach( tree -> {
-			tree.getProperties().put(Tree.KEY_SPATIAL_UNIT, GuiUtils.micrometer());
-			tree.getProperties().put(Tree.KEY_SOURCE, "MouseLight");
-			tree.getProperties().put(Tree.KEY_COMPARTMENT, TreeProperties.getStandardizedCompartment(compartment));
+			tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, GuiUtils.micrometer());
+			tree.getProperties().setProperty(Tree.KEY_SOURCE, "MouseLight");
+			tree.getProperties().setProperty(Tree.KEY_COMPARTMENT, TreeProperties.getStandardizedCompartment(compartment));
 		});
 	}
 

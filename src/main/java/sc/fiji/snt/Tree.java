@@ -23,6 +23,8 @@
 package sc.fiji.snt;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -189,6 +191,8 @@ public class Tree implements TreeProperties {
 		}
 		if (pafm == null)
 			throw new IllegalArgumentException("No paths extracted from " + filename + " Invalid file/compartment?");
+		if (getProperties().get(Tree.KEY_SPATIAL_UNIT) == null)
+			getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, pafm.getBoundingBox(false).getUnit());
 	}
 
 	/**
@@ -1348,18 +1352,27 @@ public class Tree implements TreeProperties {
 		if (f.isDirectory()) {
 			return listFromDir(tracesOrJsonFile);
 		}
-		final Tree dummyTree = new Tree();
+		Collection<Tree> trees;
+		final String baseName;
 		try {
-			dummyTree.initPathAndFillManagerFromFile(tracesOrJsonFile, "all");
-		} catch (final IllegalArgumentException ignored) {
+			if (f.getName().toLowerCase().endsWith(".json")) {
+				return MouseLightLoader.extractTrees(f, "all").values();
+			} else {
+				final PathAndFillManager pafm = new PathAndFillManager();
+				pafm.setHeadless(true);
+				baseName = SNTUtils.stripExtension(f.getName());
+				pafm.loadGuessingType(baseName, new FileInputStream(f));
+				trees = pafm.getTrees();
+			}
+		} catch (final IOException e) {
+			SNTUtils.error("File not parsed", e);
 			return new ArrayList<>();
 		}
-		final Collection<Tree> trees = dummyTree.pafm.getTrees();
-		final String baseName = SNTUtils.stripExtension(f.getName());
-		if (trees.size() == 1)
-			trees.iterator().next().setLabel(baseName);
-		else {
-			trees.forEach( t-> t.setLabel(baseName + " " + t.getLabel()));
+		if (baseName != null) {
+			if (trees.size() == 1)
+				trees.iterator().next().setLabel(baseName);
+			else
+				trees.forEach(t -> t.setLabel(baseName + " " + t.getLabel()));
 		}
 		return trees;
 	}
