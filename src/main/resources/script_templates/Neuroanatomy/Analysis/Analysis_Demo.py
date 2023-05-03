@@ -8,7 +8,7 @@ version:    20190610
 info:       A Jython demo of how SNT can analyze neuronal reconstructions fetched
             from online databases such as MouseLight, NeuroMorpho or FlyCircuit.
             This demo requires internet connection and assumes you've already ran
-            Analysis_Demo_(Interactive).py 
+            Analysis_Demo_(Interactive).py
 """
 
 from collections import defaultdict
@@ -53,7 +53,7 @@ def run():
 
         # NB: SummaryStatistics should be more performant than DescriptiveStatistics
         # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/TreeStatistics.html
-        metric = "inter-node distance"  # same as TreeStatistics.INTER_NODE_DISTANCE 
+        metric = "inter-node distance"  # same as TreeStatistics.INTER_NODE_DISTANCE
         summary_stats = d_stats.getSummaryStats(metric)
         print("The average inter-node distance is %d" % summary_stats.getMean())
 
@@ -84,7 +84,7 @@ def run():
         # Like before, we can plot data using the convenience of TreeStatistics
         if nm_tree is not None:
             nm_stats = TreeStatistics(nm_tree)
-            nm_metric = "mean radius"  # same as TreeStatistics.MEAN_RADIUS
+            nm_metric = "Path mean radius"  # same as TreeStatistics.PATH_MEAN_RADIUS
             nm_stats.getHistogram(nm_metric).show()
 
             # To build custom plots, we can use SciJava's PlotService. E.g., we
