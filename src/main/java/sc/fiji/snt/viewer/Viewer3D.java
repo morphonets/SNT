@@ -1851,19 +1851,19 @@ public class Viewer3D {
 	public boolean syncPathManagerList() throws UnsupportedOperationException {
 		if (SNTUtils.getPluginInstance() == null) throw new IllegalArgumentException(
 			"SNT is not running.");
-		final Tree tree = new Tree(SNTUtils.getPluginInstance().getPathAndFillManager()
-			.getPathsFiltered());
+		final Collection<Tree> trees = SNTUtils.getPluginInstance().getPathAndFillManager().getTrees();
+		final ShapeTree newShapeTree = new MultiTreeShapeTree(trees);
 		if (plottedTrees.containsKey(PATH_MANAGER_TREE_LABEL)) {
 			chart.getScene().getGraph().remove(plottedTrees.get(
 				PATH_MANAGER_TREE_LABEL).get());
-			final ShapeTree newShapeTree = new ShapeTree(tree);
 			plottedTrees.replace(PATH_MANAGER_TREE_LABEL, newShapeTree);
-			chart.add(newShapeTree.get(), viewUpdatesEnabled);
 		}
 		else {
-			tree.setLabel(PATH_MANAGER_TREE_LABEL);
-			addTree(tree);
+			plottedTrees.put(PATH_MANAGER_TREE_LABEL, newShapeTree);
+			addItemToManager(PATH_MANAGER_TREE_LABEL);
+			newShapeTree.setDisplayed(true);
 		}
+		chart.add(newShapeTree.get(), viewUpdatesEnabled);
 		updateView();
 		return plottedTrees.get(PATH_MANAGER_TREE_LABEL).get().isDisplayed();
 	}
@@ -3953,8 +3953,11 @@ public class Viewer3D {
 		}
 
 		private Tree getSingleSelectionTree() {
-			if (plottedTrees.size() == 1) return plottedTrees.values().iterator()
-				.next().tree;
+			if (plottedTrees.size() == 1) {
+				final ShapeTree st = plottedTrees.values().iterator().next();
+				if (!(st instanceof MultiTreeShapeTree))
+					return st.tree;
+			}
 			final List<Tree> trees = getSelectedTrees(false);
 			if (trees == null) return null;
 			if (trees.size() != 1) {
@@ -4001,7 +4004,12 @@ public class Viewer3D {
 			final List<Tree> trees = new ArrayList<>();
 			keys.forEach( k -> {
 				final ShapeTree sTree = plottedTrees.get(k);
-				if (sTree != null) trees.add(sTree.tree);
+				if (sTree != null) {
+					if (sTree instanceof MultiTreeShapeTree)
+						trees.addAll(((MultiTreeShapeTree)sTree).trees);
+					else
+						trees.add(sTree.tree);
+				}
 			});
 			return trees;
 		}
@@ -5894,6 +5902,21 @@ public class Viewer3D {
 			displayMsg("Controls are not available for this viewer");
 	}
 
+	private class MultiTreeShapeTree extends ShapeTree {
+
+		Collection<Tree> trees;
+
+		public MultiTreeShapeTree(final Tree unused) {
+			super(unused);
+		}
+
+		public MultiTreeShapeTree(final Collection<Tree> trees) {
+			super(new Tree());
+			this.trees = trees;
+			trees.forEach(t -> tree.list().addAll(t.list()));
+		}
+	}
+
 	private class ShapeTree extends Shape {
 
 		private static final float SOMA_SCALING_FACTOR = 2.5f;
@@ -5902,7 +5925,7 @@ public class Viewer3D {
 		private static final int AXON = Path.SWC_AXON;
 		private static final int ANY = -1;
 
-		private final Tree tree;
+		protected final Tree tree;
 		private Shape treeSubShape;
 		private Wireframeable somaSubShape;
 		private Coord3d translationReset;
