@@ -72,7 +72,6 @@ import org.scijava.util.PlatformUtils;
 
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.viewer.Viewer3D;
 
 /**
  * Implements SNT's Command Palette. This is the same code that is used by the
@@ -108,7 +107,7 @@ public class SNTCommandFinder {
 		widestCmd = "Get Branch Points in Brain Compartment ";
 	}
 
-	public SNTCommandFinder(final Viewer3D recViewer) {
+	public SNTCommandFinder() {
 		noHitsCmd = new SearchWebCmd();
 		cmdScrapper = new CmdScrapper(); // recViewer commands are all registered in cmdScrapper.otherMap
 		maxPath = 1;
@@ -575,7 +574,7 @@ public class SNTCommandFinder {
 
 	private static class CmdTableModel extends AbstractTableModel {
 		private static final long serialVersionUID = 1L;
-		private final static int COLUMNS = 2;
+		private static final int COLUMNS = 2;
 		List<String[]> list;
 
 		void setData(final ArrayList<String[]> list) {

@@ -276,18 +276,18 @@ public class Viewer3D {
 		}
 	}
 
-	private final static String MESH_LABEL_ALLEN = "Whole Brain (CCFv" + AllenUtils.VERSION + ")";
-	private final static String MESH_LABEL_ZEBRAFISH = "Outline (MP ZBA)";
-	private final static String MESH_LABEL_JFRC2018 = "JFRC 2018";
-	private final static String MESH_LABEL_JFRC2 = "JFRC2 (VFB)";
-	private final static String MESH_LABEL_JFRC3 = "JFRC3";
-	private final static String MESH_LABEL_FCWB = "FCWB";
-	private final static String MESH_LABEL_VNS = "VNS";
-	private final static String MESH_LABEL_L1 = "L1";
-	private final static String MESH_LABEL_L3 = "L3";
+	private static final String MESH_LABEL_ALLEN = "Whole Brain (CCFv" + AllenUtils.VERSION + ")";
+	private static final String MESH_LABEL_ZEBRAFISH = "Outline (MP ZBA)";
+	private static final String MESH_LABEL_JFRC2018 = "JFRC 2018";
+	private static final String MESH_LABEL_JFRC2 = "JFRC2 (VFB)";
+	private static final String MESH_LABEL_JFRC3 = "JFRC3";
+	private static final String MESH_LABEL_FCWB = "FCWB";
+	private static final String MESH_LABEL_VNS = "VNS";
+	private static final String MESH_LABEL_L1 = "L1";
+	private static final String MESH_LABEL_L3 = "L3";
 
-	private final static String PATH_MANAGER_TREE_LABEL = "Path Manager Contents";
-	protected final static float DEF_NODE_RADIUS = 3f;
+	private static final String PATH_MANAGER_TREE_LABEL = "Path Manager Contents";
+	protected static final float DEF_NODE_RADIUS = 3f;
 	private static final Color DEF_COLOR = new Color(1f, 1f, 1f, 0.05f);
 	private static final Color INVERTED_DEF_COLOR = new Color(0f, 0f, 0f, 0.05f);
 
@@ -419,7 +419,7 @@ public class Viewer3D {
 		initManagerList();
 		context.inject(this);
 		prefs.setPreferences();
-		cmdFinder = new SNTCommandFinder(this);
+		cmdFinder = new SNTCommandFinder();
 	}
 
 	protected static void workaroundIntelGraphicsBug() { // FIXME: This should go away with jogl 2.40?
@@ -1670,9 +1670,8 @@ public class Viewer3D {
 	}
 
 	private void removeSceneObject(final String label, final String managerEntry) {
-		if (!removeTree(label, managerEntry)) {
-			if (!removeMesh(label, managerEntry))
-				removeDrawable(getAnnotationDrawables(), label, managerEntry);
+		if (!removeTree(label, managerEntry) && (!removeMesh(label, managerEntry))) {
+			removeDrawable(getAnnotationDrawables(), label, managerEntry);
 		}
 	}
 
@@ -2235,7 +2234,7 @@ public class Viewer3D {
 	 * @throws IllegalArgumentException if mesh could not be compiled
 	 */
 	public boolean addMesh(final OBJMesh objMesh) throws IllegalArgumentException {
-		return (objMesh == null) ? false : loadOBJMesh(objMesh) != null;
+		return (objMesh != null) && loadOBJMesh(objMesh) != null;
 	}
 
 	private OBJMesh loadOBJMesh(final OBJMesh objMesh) {
@@ -3947,7 +3946,7 @@ public class Viewer3D {
 		}
 
 		private void hide(final Map<String, ?> map) {
-			final List<String> selectedKeys = new ArrayList<String>(getLabelsCheckedInManager());
+			final List<String> selectedKeys = new ArrayList<>(getLabelsCheckedInManager());
 			selectedKeys.removeAll(map.keySet());
 			managerList.setSelectedObjects(selectedKeys.toArray());
 		}
@@ -5386,7 +5385,7 @@ public class Viewer3D {
 						get();
 						if (loadedCompartments > 0)
 							Viewer3D.this.validate();
-						if (failedCompartments.size() > 0) {
+						if (!failedCompartments.isEmpty()) {
 							final StringBuilder sb = new StringBuilder(String.valueOf(loadedCompartments)).append("/")
 									.append(loadedCompartments + failedCompartments.size())
 									.append(" meshes retrieved. The following compartments failed to load:")
@@ -6080,6 +6079,7 @@ public class Viewer3D {
 				2, (bottom.z + top.z) / 2));
 			final float height = (float) bottom.distanceTo(top);
 			tube.setVolume((float) bottom.radius, (float) top.radius, height);
+			tube.setColor(color);
 			return tube;
 		}
 

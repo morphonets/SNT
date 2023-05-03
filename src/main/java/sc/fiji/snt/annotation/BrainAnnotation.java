@@ -22,7 +22,6 @@
 
 package sc.fiji.snt.annotation;
 
-import java.util.Collection;
 import java.util.Comparator;
 
 import org.scijava.util.ColorRGB;

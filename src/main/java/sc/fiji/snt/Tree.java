@@ -24,7 +24,6 @@ package sc.fiji.snt;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -604,7 +603,7 @@ public class Tree implements TreeProperties {
 			default:
 				break; // keep input
 		}
-		final int labelIdx = Path.getSWCtypeNames().indexOf(type);
+		final int labelIdx = Path.getSWCtypeNames().indexOf(inputType);
 		if (labelIdx == -1) throw new IllegalArgumentException(
 			"Unrecognized SWC-type label:" + type);
 		final int intType = Path.getSWCtypes().get(labelIdx);

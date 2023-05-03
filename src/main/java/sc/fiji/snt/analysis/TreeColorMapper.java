@@ -190,7 +190,7 @@ public class TreeColorMapper extends ColorMapper {
 			case STRAHLER_NUMBER:
 				assignStrahlerOrderToNodeValues();
 				integerScale = true;
-				mapToNodeProperty(VALUES, colorTable);
+				mapToNodeProperty(VALUES);
 				break;
 			case SHOLL_COUNTS:
 				final Tree tree = new Tree(paths);
@@ -226,14 +226,14 @@ public class TreeColorMapper extends ColorMapper {
 			case INTERNAL_COUNTER:
 			case TAG_FILENAME:
 			case PATH_FRAME:
-				mapToPathProperty(cMeasurement, colorTable);
+				mapToPathProperty(cMeasurement);
 				break;
 			case X_COORDINATES:
 			case Y_COORDINATES:
 			case Z_COORDINATES:
 			case NODE_RADIUS:
 			case VALUES:
-				mapToNodeProperty(cMeasurement, colorTable);
+				mapToNodeProperty(cMeasurement);
 				break;
 			default:
 				throw new IllegalArgumentException("Unknown parameter");
@@ -259,8 +259,7 @@ public class TreeColorMapper extends ColorMapper {
 		});
 	}
 
-	private void mapToPathProperty(final String measurement,
-		final ColorTable colorTable)
+	private void mapToPathProperty(final String measurement)
 	{
 		final List<MappedPath> mappedPaths = new ArrayList<>();
 		switch (measurement) {
@@ -334,8 +333,7 @@ public class TreeColorMapper extends ColorMapper {
 		nodeMapping = false;
 	}
 
-	private void mapToNodeProperty(final String measurement,
-		final ColorTable colorTable)
+	private void mapToNodeProperty(final String measurement)
 	{
 		if (Double.isNaN(min) || Double.isNaN(max) || min > max) {
 			final TreeStatistics tStats = new TreeStatistics(new Tree(paths));
