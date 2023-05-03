@@ -111,10 +111,12 @@ import org.scijava.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
 import org.scijava.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
+import org.scijava.util.PlatformUtils;
 
 import ij.ImagePlus;
 import ij.plugin.ImagesToStack;
 import net.imglib2.display.ColorTable;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
@@ -133,6 +135,7 @@ public class SNTChart extends ChartFrame {
 	private static final Color BACKGROUND_COLOR = Color.WHITE;
 	private static final List<SNTChart> openInstances = new ArrayList<>();
 	private boolean isCombined;
+	private LegendTitle stashedLegend;
 
 	private static double scalingFactor = 1;
 
@@ -150,6 +153,8 @@ public class SNTChart extends ChartFrame {
 
 	protected SNTChart(final String title, final JFreeChart chart, final Dimension preferredSize) {
 		super(title, chart);
+		if (PlatformUtils.isLinux())
+			GuiUtils.setLookAndFeel();
 		if (chart != null) {
 			chart.setBackgroundPaint(BACKGROUND_COLOR);
 			chart.setAntiAlias(true);
@@ -172,6 +177,7 @@ public class SNTChart extends ChartFrame {
 			costumizePopupMenu();
 			setPreferredSize(preferredSize);
 		}
+		setDefaultDirectoryForSaveAs(SNTPrefs.lastknownDir());
 		pack();
 		setLocationByPlatform(true);
 		addWindowListener(new WindowAdapter() {
@@ -267,6 +273,14 @@ public class SNTChart extends ChartFrame {
 		}
 	}
 
+	public boolean isLegendVisible() {
+		try {
+			return getChartPanel().getChart().getLegend().isVisible();
+		} catch (NullPointerException ignored) {
+			return false;
+		}
+	}
+
 	public boolean isOutlineVisible() {
 		return getChartPanel().getChart().getPlot().isOutlineVisible();
 	}
@@ -305,6 +319,15 @@ public class SNTChart extends ChartFrame {
 
 	public void setOutlineVisible(final boolean visible) {
 		getChartPanel().getChart().getPlot().setOutlineVisible(visible);
+	}
+
+	public void setLegendVisible(final boolean visible) {
+		if (visible && stashedLegend != null) {
+			getChartPanel().getChart().addLegend(stashedLegend);
+		} else if (!visible) {
+			stashedLegend = getChartPanel().getChart().getLegend();
+			getChartPanel().getChart().removeLegend();
+		}
 	}
 
 	/**
@@ -1075,31 +1098,31 @@ public class SNTChart extends ChartFrame {
 		});
 		popup.addSeparator();
 
-		final JMenu grids = new JMenu("Frame & Grid Lines");
+		final JMenu grids = new JMenu("Toggle Components");
 		popup.add(grids);
 		JMenuItem jmi = new JMenuItem("Toggle Grid Lines");
 		jmi.setEnabled(!isFlowPlot());
 		jmi.addActionListener( e -> setGridlinesVisible(!isGridlinesVisible()));
 		grids.add(jmi);
+		jmi = new JMenuItem("Toggle Legend");
+		jmi.addActionListener( e -> setLegendVisible(!isLegendVisible()));
+		grids.add(jmi);
 		jmi = new JMenuItem("Toggle Outline");
 		jmi.addActionListener( e -> setOutlineVisible(!isOutlineVisible()));
 		grids.add(jmi);
-		jmi = new JMenuItem("Adjust Frame Size...");
-		jmi.addActionListener(e -> new GuiUtils(SNTChart.this).adjustComponentThroughPrompt(SNTChart.this));
-		grids.add(jmi);
 		popup.add(grids);
-		popup.add(dark);
-
-		popup.addSeparator();
+	
 		final JMenu utils = new JMenu("Utilities");
-		popup.add(utils);
-		jmi = new JMenuItem("Close All Plots...");
+		utils.add(new GuiUtils(SNTChart.this).combineChartsMenuItem());
+		utils.addSeparator();
+		GuiUtils.addSeparator(utils, "Operations on All Open Charts:");
+		jmi = new JMenuItem("Close...");
 		utils.add(jmi);
 		jmi.addActionListener( e -> {
 			if (new GuiUtils(this).getConfirmation("Close all open plots? (Undoable operation)", "Close All Plots?"))
 				SNTChart.closeAll();
 		});
-		jmi = new JMenuItem("Merge All Plots Into IJ Stack");
+		jmi = new JMenuItem("Merge Into ImageJ Stack...");
 		utils.add(jmi);
 		jmi.addActionListener( e -> {
 			if (new GuiUtils(this).getConfirmation("Merge all plots? (Undoable operation)", "Merge Into Stack?")) {
@@ -1107,27 +1130,47 @@ public class SNTChart extends ChartFrame {
 				SNTChart.closeAll();
 			}
 		});
-		jmi = new JMenuItem("Tile All Plots");
+		jmi = new JMenuItem("Tile");
 		utils.add(jmi);
-		jmi.addActionListener( e -> SNTChart.tileAll());
-		popup.addSeparator();
+		jmi.addActionListener(e -> SNTChart.tileAll());
+		utils.add(jmi);
 
 		final float DEF_FONT_SIZE = defFontSize();
 		final JSpinner spinner = GuiUtils.doubleSpinner(scalingFactor, 0.5, 4, 0.5, 1);
 		spinner.addChangeListener(e -> {
-			setFontSize( ((Double)spinner.getValue()).floatValue() * DEF_FONT_SIZE );
+			setFontSize(((Double) spinner.getValue()).floatValue() * DEF_FONT_SIZE);
 		});
 		final JPanel p = new JPanel();
 		p.setBackground(popup.getBackground());
 		p.setLayout(new GridBagLayout());
 		final GridBagConstraints c = GuiUtils.defaultGbc();
-		c.fill = GridBagConstraints.HORIZONTAL;
 		c.gridwidth = 2;
-		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel(" Scale: ", true));
+		c.fill = GridBagConstraints.NONE;
+		javax.swing.JLabel l = GuiUtils.leftAlignedLabel("Font Scaling:", true);
+		try {
+			l.setBorder(new javax.swing.border.EmptyBorder(jmi.getMargin().top, jmi.getInsets().left
+					+ javax.swing.UIManager.getIcon("CheckBoxMenuItem.checkIcon").getIconWidth() + jmi.getIconTextGap() * 2,
+					jmi.getMargin().bottom, jmi.getMargin().right));
+		} catch (final Exception ignored) {
+			// do nothing
+		}
+		p.add(l, c);
+		c.fill = GridBagConstraints.HORIZONTAL;
 		c.gridx = 1;
+		c.ipadx = 0;
+		c.gridx++;
 		p.add(spinner, c);
+
+		popup.addSeparator();
+		jmi = new JMenuItem("Frame Size...");
+		jmi.addActionListener(e -> new GuiUtils(SNTChart.this).adjustComponentThroughPrompt(SNTChart.this));
+		popup.add(jmi);
 		popup.add(p);
+		popup.addSeparator();
+		popup.add(dark);
+		popup.addSeparator();
+		popup.add(utils);
+
 	}
 
 	private JMenu getMenu(final JPopupMenu popup, final String menuName) {
@@ -1376,6 +1419,7 @@ public class SNTChart extends ChartFrame {
 				if (labelPanels && chart.getChartPanel().getChart().getTitle() == null)
 					chart.setChartTitle(chart.getTitle());
 				contentPanel.add(chart.getChartPanel());
+				chart.isCombined = true;
 			});
 			// panel.setBackground(charts.get(charts.size()-1).getBackground());
 			holdingFrame.pack();

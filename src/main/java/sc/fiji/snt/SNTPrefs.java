@@ -361,7 +361,11 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	public static File lastknownDir() {
 		if (recentDir == null) {
-			recentDir = new File(ij.io.OpenDialog.getDefaultDirectory());
+			try {
+				recentDir = new File(ij.io.OpenDialog.getDefaultDirectory());
+			} catch (final Exception ignored) {
+				// do nothing
+			}
 		}
 		if (recentDir == null) {
 			recentDir = new File(System.getProperty("user.home"));

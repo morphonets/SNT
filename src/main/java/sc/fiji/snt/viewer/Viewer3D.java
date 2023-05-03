@@ -4190,7 +4190,7 @@ public class Viewer3D {
 				runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			measureMenu.add(guiUtils.combineChartsMenuItem());
+			//measureMenu.add(guiUtils.combineChartsMenuItem());
 			return measureMenu;
 		}
 

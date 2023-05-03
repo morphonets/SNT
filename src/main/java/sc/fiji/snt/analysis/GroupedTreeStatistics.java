@@ -49,6 +49,7 @@ import java.util.TreeMap;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.CategoryAxis;
+import org.jfree.chart.axis.CategoryLabelPositions;
 import org.jfree.chart.axis.ValueAxis;
 import org.jfree.chart.entity.EntityCollection;
 import org.jfree.chart.labels.BoxAndWhiskerToolTipGenerator;
@@ -256,6 +257,9 @@ public class GroupedTreeStatistics {
 		plot.setDomainGridlinesVisible(false);
 		plot.setRangeGridlinesVisible(false);
 		plot.setOutlineVisible(false);
+		if (plot.getDataset().getColumnCount() * plot.getDataset().getRowCount() > 4) {
+			plot.getDomainAxis().setCategoryLabelPositions(CategoryLabelPositions.UP_45);
+		}
 		final CustomBoxAndWhiskerRenderer renderer = new CustomBoxAndWhiskerRenderer();
 		plot.setRenderer(renderer);
 		renderer.setPointSize((double) plot.getRangeAxis().getTickLabelFont().getSize2D() / 2);

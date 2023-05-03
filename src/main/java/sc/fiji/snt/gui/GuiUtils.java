@@ -46,6 +46,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.Point;
@@ -81,8 +82,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -1028,6 +1031,12 @@ public class GuiUtils {
 		menu.add(label);
 	}
 
+	public static void addSeparator(final JMenu menu, final String header) {
+		final JLabel label = leftAlignedLabel(header, false);
+		if (menu.getComponentCount() > 1) menu.addSeparator();
+		menu.add(label);
+	}
+
 	public static JButton menubarButton(final IconFactory.GLYPH glyphIcon, final Action action) {
 		final JButton mi = new JButton(action) {
 			private static final long serialVersionUID = 406126659895081426L;
@@ -1846,13 +1855,152 @@ public class GuiUtils {
 	}
 
 	public JMenuItem combineChartsMenuItem() {
-		final JMenuItem jmi = new JMenuItem("Combine Plots Into Montage...", IconFactory.getMenuIcon(GLYPH.GRID));
-		jmi.setToolTipText("Combines isolated charts (plots, histograms, etc.) into a grid layout");
-		jmi.addActionListener(e -> combineOpenCharts());
+		final JMenuItem jmi = new JMenuItem("Combine Charts Into Montage...", IconFactory.getMenuIcon(GLYPH.GRID));
+		jmi.setToolTipText("Combines isolated SNT charts (plots, histograms, etc.) into a grid layout");
+		jmi.addActionListener(e -> combineSNTChartPrompt());
 		return jmi;
 	}
 
-	private void combineOpenCharts() {
+	private void combineSNTChartPrompt() {
+
+		class CombineGUI implements DocumentListener {
+
+			final JTextField colField;
+			final JTextField rowField;
+			final JList<String> titles;
+			final JCheckBox checkbox;
+			final Map<String, SNTChart> charts;
+
+			boolean pauseSyncFields;
+			private int nRows;
+			private int nCols;
+
+			CombineGUI(final Collection<SNTChart> inputCharts) {
+				charts = new TreeMap<>((a, b) -> {
+					try {
+						return Integer.valueOf(a.split(". ")[0]).compareTo(Integer.valueOf(b.split(". ")[0]));
+					} catch (final Exception ignored) {
+						return a.compareTo(b);
+					}
+				});
+				int idx = 1;
+				for (final SNTChart c : inputCharts) {
+					if (!c.isCombined()) {
+						// index ensures charts with repeated titles are not excluded
+						charts.put(String.format("%d. %s", idx++, c.getTitle()), c);
+					}
+				}
+				colField = intField();
+				rowField = intField();
+				titles = new JList<>(charts.keySet().toArray(new String[0]));
+				checkbox = new JCheckBox("Label panels", false);
+			}
+
+			JTextField intField() {
+				final NumberFormat format = NumberFormat.getIntegerInstance();
+				format.setGroupingUsed(false);
+				final NumberFormatter formatter = new NumberFormatter(format);
+				formatter.setMinimum(1);
+				formatter.setMaximum(charts.size());
+				//formatter.setAllowsInvalid(false);
+				final JFormattedTextField field = new JFormattedTextField(formatter);
+				field.setColumns(5);
+				field.getDocument().addDocumentListener(this);
+				return field;
+			}
+
+			JPanel panel() {
+				final JPanel contentPane = new JPanel(new GridBagLayout());
+				final GridBagConstraints c = defaultGbc();
+				c.fill = GridBagConstraints.HORIZONTAL;
+				c.gridwidth = 1;
+				contentPane.add(leftAlignedLabel("Charts to be combined:", true), c);
+				++c.gridy;
+				contentPane.add(new JScrollPane(titles), c);
+				++c.gridy;
+				contentPane.add(leftAlignedLabel("Montage Layout:", true), c);
+				++c.gridy;
+				final JPanel panel1 = new JPanel();
+				panel1.add(new JLabel("No. columns:"));
+				panel1.add(colField);
+				panel1.add(new JLabel("No rows:"));
+				panel1.add(rowField);
+				contentPane.add(panel1, c);
+				++c.gridy;
+				contentPane.add(checkbox, c);
+				return contentPane;
+			}
+
+			int parseInt(final JTextField field) {
+				try {
+					return Math.max(1, Integer.parseInt(field.getText()));
+				} catch (final NumberFormatException e) {
+					return 1;// NumberFormatter ensures this never happens
+				}
+			}
+
+			void updateFields(final DocumentEvent e) {
+				pauseSyncFields = true;
+				int n = titles.getSelectedIndices().length;
+				if (n == 0)
+					n = charts.size();
+				if (e.getDocument() == rowField.getDocument()) { // rows is being set: Adjust cols
+					nRows = parseInt(rowField);
+					nCols = Math.max(1, (int) Math.ceil(n / nRows));
+					colField.setText("" + nCols);
+				} else { // cols is being set: Adjust rows
+					nCols = parseInt(colField);
+					nRows = Math.max(1, (int) Math.ceil(n / nCols));
+					rowField.setText("" + nRows);
+				}
+				pauseSyncFields = false;
+			}
+
+			void prompt() {
+				nCols = Math.max(1, (int) Math.floor(Math.sqrt(charts.size())));
+				nRows = Math.max(1, (int) Math.ceil(charts.size() / nCols));
+				colField.setText("" + nCols);
+				rowField.setText("" + nRows);
+				final int result = JOptionPane.showConfirmDialog(parent, panel(), "Make SNTChart Montage",
+						JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+				if (result == JOptionPane.OK_OPTION) {
+					final double rows = GuiUtils.extractDouble(rowField);
+					final double cols = GuiUtils.extractDouble(rowField);
+					if (Double.isNaN(rows) || rows <= 0 || Double.isNaN(cols) || cols <= 0) {
+						GuiUtils.errorPrompt("No. of columns and no. of rows must > 0.");
+						return;
+					}
+					final Collection<SNTChart> selection = (titles.getSelectedIndices().length == 0) ? charts.values()
+							: charts.entrySet().stream()
+									.filter(entry -> titles.getSelectedValuesList().contains(entry.getKey()))
+									.map(Map.Entry::getValue).collect(Collectors.toList());
+					if (selection == null || selection.isEmpty()) {
+						GuiUtils.errorPrompt("No charts selected from list.");
+						return;
+					}
+					SNTChart.combine(selection, (int) rows, (int) cols, checkbox.isSelected());
+				}
+			}
+
+			@Override
+			public void insertUpdate(final DocumentEvent e) {
+				if (!pauseSyncFields)
+					updateFields(e);
+			}
+
+			@Override
+			public void removeUpdate(final DocumentEvent e) {
+				if (!pauseSyncFields)
+					updateFields(e);
+			}
+
+			@Override
+			public void changedUpdate(final DocumentEvent e) {
+				if (!pauseSyncFields)
+					updateFields(e);
+			}
+		}
+
 		final List<SNTChart> charts = SNTChart.openCharts().stream().filter(c -> !c.isCombined())
 				.collect(Collectors.toList());
 		if (charts.size() < 2) {
@@ -1860,15 +2008,7 @@ public class GuiUtils {
 					+ " or displayed ones cannot be merged. Make sure that at  least"
 					+ " two single charts (histogram, plot, etc.) are open and retry.");
 		} else {
-
-			final Double rUser = getDouble("" + charts.size() + " charts are currently open."
-					+ " Enter the number of rows to be used in the montage (leave empty for default"
-					+ " settings):", "Combine Charts", -1);
-			if (rUser == null)
-				return; // user pressed cancel
-			final int r = (rUser.isNaN()) ? -1 : rUser.intValue();
-			final int c = (r == -1) ? -1 : charts.size() - charts.size() / r + 1;
-			SNTChart.combine(charts, r, c, true).setVisible(true);
+			new CombineGUI(charts).prompt();
 		}
 	}
 
