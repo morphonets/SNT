@@ -2322,6 +2322,12 @@ public class GuiUtils {
 			return jmi;
 		}
 
+		public static JMenuItem createAnnotionGraph() {
+			final JMenuItem jmi = new JMenuItem("Create Annotation Graph...", IconFactory.getMenuIcon(GLYPH.BRAIN));
+			jmi.setToolTipText("Flow Plots and Ferris-Wheel diagrams from annoated trees");
+			return jmi;
+		}
+
 		public static JMenuItem measureOptions() {
 			final JMenuItem jmi = new JMenuItem("Measure...", IconFactory.getMenuIcon(GLYPH.TABLE));
 			jmi.setToolTipText("<HTML>Compute detailed metrics from single cells.<br>"

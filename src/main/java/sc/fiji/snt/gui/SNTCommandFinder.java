@@ -356,7 +356,7 @@ public class SNTCommandFinder {
 		SearchField() {
 			super(" Search for commands and actions (e.g., Sholl)");
 			setMargin(new Insets(PADDING, PADDING, PADDING, PADDING));
-			setFont(REF_FONT.deriveFont(REF_FONT.getSize() * 1.3f));
+			setFont(REF_FONT.deriveFont(REF_FONT.getSize() * 1.2f));
 		}
 
 		Font getPlaceholderFont() {
@@ -542,7 +542,7 @@ public class SNTCommandFinder {
 	private class CmdTableRenderer extends DefaultTableCellRenderer {
 
 		private static final long serialVersionUID = 1L;
-		final Font col0Font = SearchField.REF_FONT.deriveFont(SearchField.REF_FONT.getSize() * 1.2f);
+		final Font col0Font = SearchField.REF_FONT.deriveFont(SearchField.REF_FONT.getSize() * 1.1f);
 		final Font col1Font = SearchField.REF_FONT.deriveFont(SearchField.REF_FONT.getSize() * 1f);
 
 		public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected,

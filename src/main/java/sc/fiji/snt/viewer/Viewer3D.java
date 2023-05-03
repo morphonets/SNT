@@ -4175,7 +4175,7 @@ public class Viewer3D {
 				runCmd(GraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			mi = new JMenuItem("Create Annotation Graph...", IconFactory.getMenuIcon(GLYPH.BRAIN));
+			mi = GuiUtils.MenuItems.createAnnotionGraph();
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
 				if (trees == null || trees.isEmpty()) return;

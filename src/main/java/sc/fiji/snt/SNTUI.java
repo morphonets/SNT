@@ -2656,7 +2656,18 @@ public class SNTUI extends JDialog {
 			inputs.put("tree", tree);
 			(new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
 		});
+		final JMenuItem annotGenerator = GuiUtils.MenuItems.createAnnotionGraph();
+		utilitiesMenu.add(annotGenerator);
+		annotGenerator.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Collection<Tree> trees = getPathManager().getMultipleTrees();
+			if (trees == null) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("trees", trees);
+			(new DynamicCmdRunner(AnnotationGraphGeneratorCmd.class, inputs)).run();
+		});
 		utilitiesMenu.addSeparator();
+
 		// similar to File>Autotrace image... but assuming current image as source, which does
 		// not require file validations etc..
 		final JMenuItem autotraceJMI = getAutotracingMenuItem("Extract Paths from Segmented Image...", false);
