@@ -4457,7 +4457,7 @@ public class Viewer3D {
 			GuiUtils.addSeparator(utilsMenu, "Utilities:");
 			JMenuItem mi = new JMenuItem("Annotation Label...", IconFactory.getMenuIcon(GLYPH.PEN));
 			mi.addActionListener(e -> {
-				runCmd(AddTextAnnotationCmd.class, null, CmdWorker.DO_NOTHING, false, false);
+				runCmd(AddTextAnnotationCmd.class, null, CmdWorker.DO_NOTHING, true, false);
 			});
 			utilsMenu.add(mi);
 			utilsMenu.add(legendMenu());
