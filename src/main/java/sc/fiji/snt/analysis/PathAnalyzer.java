@@ -91,6 +91,39 @@ public class PathAnalyzer extends TreeStatistics {
 		return super.getCol(header.replace("Branch", "Path"));
 	}
 
+	@Override
+	protected Number getMetricWithoutChecks(final String metric) throws UnknownMetricException {
+		if ( tree.size() == 1) {
+			switch(metric) {
+			case TreeStatistics.PATH_ORDER:
+				return tree.get(0).getOrder();
+			case TreeStatistics.PATH_LENGTH:
+				return tree.get(0).getLength();
+			case TreeStatistics.PATH_CHANNEL:
+				return tree.get(0).getChannel();
+			case TreeStatistics.PATH_FRAME:
+				return tree.get(0).getFrame();
+			case TreeStatistics.PATH_CONTRACTION:
+				return tree.get(0).getContraction();
+			case TreeStatistics.PATH_MEAN_RADIUS:
+				return tree.get(0).getMeanRadius();
+			case TreeStatistics.PATH_SURFACE_AREA:
+				return tree.get(0).getApproximatedSurface();
+			case TreeStatistics.PATH_VOLUME:
+				return tree.get(0).getApproximatedVolume();
+			case TreeStatistics.N_BRANCH_POINTS:
+				return tree.get(0).getJunctionNodes().size();
+			case TreeStatistics.PATH_N_SPINES:
+				return tree.get(0).getSpineOrVaricosityCount();
+			case TreeStatistics.PATH_SPINE_DENSITY:
+				return tree.get(0).getSpineOrVaricosityCount() / tree.get(0).getLength();
+			default:
+				super.getMetricWithoutChecks(metric);
+			}
+		}
+		return super.getMetricWithoutChecks(metric);
+	}
+
 	public void measureIndividualPaths(final Collection<String> metrics, final boolean summarize) {
 		if (table == null) table = new SNTTable();
 		final Collection<String> measuringMetrics = (metrics == null || metrics.isEmpty()) ? getMetrics("safe") : metrics;

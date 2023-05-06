@@ -361,6 +361,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
 
+		jmi = new JMenuItem(MultiPathActionListener.MULTI_METRIC_PLOT_CMD);
+		jmi.setToolTipText("Plots a Path metric against several others");
+		jmi.addActionListener(multiPathListener);
+		advanced.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.PLOT_PROFILE_CMD);
 		jmi.setToolTipText("Multi-channel plots of pixel intensities around selected path(s)");
 		jmi.addActionListener(multiPathListener);
@@ -2490,6 +2494,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String TIME_PROFILE_CMD = "Time Profile...";
 		private static final String TIME_COLOR_CODING_CMD = "Color Code Paths Across Time...";
 		private static final String SPINE_PROFILE_CMD = "Density Profiles...";
+		private static final String MULTI_METRIC_PLOT_CMD = "Multimetric Plot...";
 		private static final String SPINE_EXTRACT_CMD = "Extract Counts from Multi-point ROIs...";
 		private static final String SPINE_COLOR_CODING_CMD = "Color Code Paths Using Densities...";
 
@@ -2678,9 +2683,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				(plugin.getUI().new DynamicCmdRunner(PathTimeAnalysisCmd.class, inputs)).run();
 				return;
 			}
-			else if (SPINE_PROFILE_CMD.equals(cmd)) {
+			else if (SPINE_PROFILE_CMD.equals(cmd) || MULTI_METRIC_PLOT_CMD.equals(cmd)) {
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("paths", selectedPaths);
+				inputs.put("anyMetric", MULTI_METRIC_PLOT_CMD.equals(cmd));
 				(plugin.getUI().new DynamicCmdRunner(PathSpineAnalysisCmd.class, inputs)).run();
 				return;
 			}

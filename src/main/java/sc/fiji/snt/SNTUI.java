@@ -2739,7 +2739,7 @@ public class SNTUI extends JDialog {
 			}
 		});
 		viewMenu.add(consoleJMI);
-		viewMenu.addSeparator();
+		//viewMenu.addSeparator();
 
 		//viewMenu.add(guiUtils.combineChartsMenuItem());
 		return menuBar;

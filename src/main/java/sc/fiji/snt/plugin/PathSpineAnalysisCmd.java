@@ -23,6 +23,7 @@
 package sc.fiji.snt.plugin;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.scijava.command.Command;
+import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.table.DefaultColumn;
@@ -70,27 +72,35 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 	})
 	private String xAxisMetric;
 
-	@Parameter(label = "Y-axis Metric 1", choices = { //
-			TreeStatistics.PATH_LENGTH, TreeStatistics.N_BRANCH_POINTS, //
-			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_MEAN_RADIUS, //
+	@Parameter(label = "Y-axis Metric 1", choices = { " - None -", //
+			TreeStatistics.N_BRANCH_POINTS, TreeStatistics.PATH_CONTRACTION, //
+			TreeStatistics.PATH_LENGTH, TreeStatistics.PATH_MEAN_RADIUS, //
+			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_SURFACE_AREA, //
+			TreeStatistics.PATH_VOLUME
 	})
 	private String yAxisMetric1;
 
 	@Parameter(label = "Y-axis Metric 2", choices = { " - None -", //
-			TreeStatistics.PATH_LENGTH, TreeStatistics.N_BRANCH_POINTS, //
-			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_MEAN_RADIUS, //
+			TreeStatistics.N_BRANCH_POINTS, TreeStatistics.PATH_CONTRACTION, //
+			TreeStatistics.PATH_LENGTH, TreeStatistics.PATH_MEAN_RADIUS, //
+			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_SURFACE_AREA, //
+			TreeStatistics.PATH_VOLUME
 	})
 	private String yAxisMetric2;
 
 	@Parameter(label = "Y-axis Metric 3", choices = { " - None -", //
-			TreeStatistics.PATH_LENGTH, TreeStatistics.N_BRANCH_POINTS, //
-			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_MEAN_RADIUS, //
+			TreeStatistics.N_BRANCH_POINTS, TreeStatistics.PATH_CONTRACTION, //
+			TreeStatistics.PATH_LENGTH, TreeStatistics.PATH_MEAN_RADIUS, //
+			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_SURFACE_AREA, //
+			TreeStatistics.PATH_VOLUME
 	})
 	private String yAxisMetric3;
 
 	@Parameter(label = "Y-axis Metric 4", choices = { " - None -", //
-			TreeStatistics.PATH_LENGTH, TreeStatistics.N_BRANCH_POINTS, //
-			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_MEAN_RADIUS, //
+			TreeStatistics.N_BRANCH_POINTS, TreeStatistics.PATH_CONTRACTION, //
+			TreeStatistics.PATH_LENGTH, TreeStatistics.PATH_MEAN_RADIUS, //
+			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_SURFACE_AREA, //
+			TreeStatistics.PATH_VOLUME
 	})
 	private String yAxisMetric4;
 
@@ -100,23 +110,45 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 	@Parameter(required = true)
 	private Collection<Path> paths;
 
+	@Parameter(required = false)
+	private boolean anyMetric;
+
 	@SuppressWarnings("unused")
 	private void init() {
 		super.init(false);
+		getInfo().setLabel("Multimetric Plot...");
+		if (anyMetric) {
+			final List<String> metrics = Arrays.asList(" - None -", //
+					TreeStatistics.PATH_N_SPINES, TreeStatistics.PATH_SPINE_DENSITY, //
+					TreeStatistics.PATH_CHANNEL, TreeStatistics.PATH_FRAME, //
+					TreeStatistics.N_BRANCH_POINTS, TreeStatistics.PATH_CONTRACTION, //
+					TreeStatistics.PATH_LENGTH, TreeStatistics.PATH_MEAN_RADIUS, //
+					TreeStatistics.PATH_ORDER, TreeStatistics.PATH_SURFACE_AREA, //
+					TreeStatistics.PATH_VOLUME);
+			Collections.sort(metrics);
+			Arrays.asList("xAxisMetric", "yAxisMetric1", "yAxisMetric2", "yAxisMetric3", "yAxisMetric4").forEach(m -> {
+				getInfo().getMutableInput(m, String.class).setChoices(metrics);
+			});
+		}
 	}
 
 	@Override
 	public void run() {
 
-		final List<Double> xValues = new ArrayList<>(paths.size());
-		final List<Double> y1Values = new ArrayList<>(paths.size());
+		final List<Double> xValues = (xAxisMetric.contains("None")) ? null : new ArrayList<>(paths.size());
+		final List<Double> y1Values = (yAxisMetric1.contains("None")) ? null : new ArrayList<>(paths.size());
 		final List<Double> y2Values = (yAxisMetric2.contains("None")) ? null : new ArrayList<>(paths.size());
 		final List<Double> y3Values = (yAxisMetric3.contains("None")) ? null : new ArrayList<>(paths.size());
 		final List<Double> y4Values = (yAxisMetric4.contains("None")) ? null : new ArrayList<>(paths.size());
+		if (xValues == null || (y1Values == null && y2Values == null && y3Values == null && y4Values == null)) {
+			error("At least one metric per axis must be chosen.");
+			return;
+		}
 		paths.forEach(p-> {
 			final PathAnalyzer pa = new PathAnalyzer(Collections.singletonList(p), p.getName());
 			xValues.add(pa.getMetric(xAxisMetric).doubleValue());
-			y1Values.add(pa.getMetric(yAxisMetric1).doubleValue());
+			if (y1Values != null)
+				y1Values.add(pa.getMetric(yAxisMetric1).doubleValue());
 			if (y2Values != null)
 				y2Values.add(pa.getMetric(yAxisMetric2).doubleValue());
 			if (y3Values != null)
@@ -128,14 +160,14 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 		if (outputChoice.toLowerCase().contains("plot")) {
 			final XYPlot plot = plotService.newXYPlot();
 			plot.xAxis().setLabel(xAxisMetric);
-			plot.xAxis().setLabel("");
-			addSeries(plot, yAxisMetric1, xValues, y1Values, Colors.BLACK);
-			final ColorRGB[] uniqueColors = SNTColor.getDistinctColors(3);
+			plot.yAxis().setLabel("");
+			final ColorRGB[] uniqueColors = SNTColor.getDistinctColors(4);
 			int colorCounter = 0;
+			addSeries(plot, yAxisMetric1, xValues, y1Values, uniqueColors[colorCounter++]);
 			addSeries(plot, yAxisMetric2, xValues, y2Values, uniqueColors[colorCounter++]);
 			addSeries(plot, yAxisMetric3, xValues, y3Values, uniqueColors[colorCounter++]);
-			addSeries(plot, yAxisMetric4, xValues, y4Values, uniqueColors[colorCounter++]);
-			new SNTChart("SNT: Density Profile", plot).show();
+			addSeries(plot, yAxisMetric4, xValues, y4Values, uniqueColors[colorCounter]);
+			new SNTChart((anyMetric) ? "SNT: MultiMetric Plot" : "SNT: Density Profile", plot).show();
 		}
 
 		if (outputChoice.toLowerCase().contains("table")) {
@@ -145,7 +177,7 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 			addColumn(table, yAxisMetric2, y2Values);
 			addColumn(table, yAxisMetric3, y3Values);
 			addColumn(table, yAxisMetric4, y4Values);
-			uiService.show("SNT_DensityProfile.csv", table);
+			uiService.show((anyMetric) ? "SNT_MultiMetrics.csv" : "SNT_DensityProfile.csv", table);
 		}
 
 	}
@@ -170,13 +202,14 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
+		//GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);
 		final Tree tree = sntService.demoTrees().get(0);
 		final Map<String, Object> input = new HashMap<>();
 		input.put("paths", tree.list());
+		input.put("anyMetric",false);
 		ij.command().run(PathSpineAnalysisCmd.class, true, input);
 	}
 }
