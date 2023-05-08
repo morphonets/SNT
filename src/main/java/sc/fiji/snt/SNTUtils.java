@@ -50,9 +50,21 @@ import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import io.scif.services.DatasetIOService;
+import net.imagej.lut.LUTService;
+import net.imagej.ops.OpService;
 import org.scijava.Context;
+import org.scijava.app.StatusService;
+import org.scijava.command.CommandService;
+import org.scijava.convert.ConvertService;
+import org.scijava.display.DisplayService;
+import org.scijava.io.IOService;
 import org.scijava.log.LogService;
+import org.scijava.plot.PlotService;
+import org.scijava.prefs.PrefService;
+import org.scijava.script.ScriptService;
 import org.scijava.table.Table;
+import org.scijava.thread.ThreadService;
 import org.scijava.ui.UIService;
 import org.scijava.ui.console.ConsolePane;
 import org.scijava.util.FileUtils;
@@ -114,7 +126,11 @@ public class SNTUtils {
 	 *
 	 */
 	private static String getVersion() {
-		return VersionUtils.getVersion(SNT.class);
+		try {
+			return VersionUtils.getVersion(SNT.class);
+		} catch (final Exception | Error ignored) {
+			return "N/A";
+		}
 	}
 
 	public static synchronized void addViewer(final Viewer3D viewer) {
@@ -613,8 +629,36 @@ public class SNTUtils {
 			} catch (final Exception | Error ignored) {
 				error("Failed to retrieve context from IJ1", ignored);
 			} finally {
-				if (context == null)
-					context = new Context();
+				if (context == null) {
+					try {
+						context = new Context();
+					} catch (final Exception e) {
+						System.out.println("SciJava context could not be initialized properly [" + e.getMessage()
+								+ "] Some services may not be available!");
+						// FIXME: When running SNT outside IJ, LegacyService fails to initialize!?
+						// We'll try to initialize a context with the most common services needed by SNT
+						// skipping the problematic ones
+						context = new Context(//
+								// ImageJService.class, // Invalid service: net.imagej.legacy.LegacyService
+								// LegacyService.class, // Invalid service: net.imagej.legacy.LegacyService
+								CommandService.class, //
+								ConvertService.class, //
+								DatasetIOService.class, //
+								DisplayService.class, //
+								IOService.class, //
+								LogService.class, //
+								LUTService.class, //
+								OpService.class, //
+								PlotService.class, //
+								PrefService.class, //
+								ScriptService.class, //
+								SNTService.class, //
+								StatusService.class, //
+								ThreadService.class, //
+								UIService.class //
+						);
+					}
+				}
 			}
 		}
 		return context;

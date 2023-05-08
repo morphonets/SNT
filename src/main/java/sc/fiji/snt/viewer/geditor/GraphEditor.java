@@ -863,27 +863,42 @@ public class GraphEditor extends JPanel
 			else if (ident.equals("organicLayout"))
 			{
 				mxOrganicLayout organicLayout = new mxOrganicLayout(graph);
-				organicLayout.setRadiusScaleFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"radiusScaleFactor", 0.75));
-				organicLayout.setFineTuningRadius(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"fineTuningRadius", 40.0));
-				organicLayout.setMaxIterations(prefService.getInt(mxOrganicLayoutPrefsCmd.class,
-						"maxIterations", 1000));
-				organicLayout.setEdgeDistanceCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"edgeDistanceCostFactor", 3000));
-				organicLayout.setEdgeCrossingCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"edgeCrossingCostFactor", 6000));
-				organicLayout.setNodeDistributionCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"nodeDistributionCostFactor", 30000));
-				organicLayout.setBorderLineCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"borderLineCostFactor", 5));
-				organicLayout.setEdgeLengthCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"edgeLengthCostFactor", 0.02));
-				organicLayout.setDisableEdgeStyle(prefService.getBoolean(mxOrganicLayoutPrefsCmd.class,
-						"disableEdgeStyle", true));
-				organicLayout.setResetEdges(prefService.getBoolean(mxOrganicLayoutPrefsCmd.class,
-						"resetEdges", false));
-				layout = organicLayout;
+				try {
+					organicLayout.setRadiusScaleFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"radiusScaleFactor", 0.75));
+					organicLayout.setFineTuningRadius(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"fineTuningRadius", 40.0));
+					organicLayout.setMaxIterations(prefService.getInt(mxOrganicLayoutPrefsCmd.class,
+							"maxIterations", 1000));
+					organicLayout.setEdgeDistanceCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"edgeDistanceCostFactor", 3000));
+					organicLayout.setEdgeCrossingCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"edgeCrossingCostFactor", 6000));
+					organicLayout.setNodeDistributionCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"nodeDistributionCostFactor", 30000));
+					organicLayout.setBorderLineCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"borderLineCostFactor", 5));
+					organicLayout.setEdgeLengthCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"edgeLengthCostFactor", 0.02));
+					organicLayout.setDisableEdgeStyle(prefService.getBoolean(mxOrganicLayoutPrefsCmd.class,
+							"disableEdgeStyle", true));
+					organicLayout.setResetEdges(prefService.getBoolean(mxOrganicLayoutPrefsCmd.class,
+							"resetEdges", false));
+				} catch (final Exception | Error e) {
+					//FIXME: When running outside IJ, PrefService is not functional!?
+					organicLayout.setRadiusScaleFactor(0.75);
+					organicLayout.setFineTuningRadius(40.0);
+					organicLayout.setMaxIterations( 1000);
+					organicLayout.setEdgeDistanceCostFactor(3000);
+					organicLayout.setEdgeCrossingCostFactor(6000);
+					organicLayout.setNodeDistributionCostFactor(3000);
+					organicLayout.setBorderLineCostFactor(5);
+					organicLayout.setEdgeLengthCostFactor( 0.02);
+					organicLayout.setDisableEdgeStyle(true);
+					organicLayout.setResetEdges(false);
+				} finally {
+					layout = organicLayout;
+				}
 			}
 			else if (ident.equals("verticalPartition"))
 			{
