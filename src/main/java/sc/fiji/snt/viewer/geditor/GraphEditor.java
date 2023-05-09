@@ -612,15 +612,14 @@ public class GraphEditor extends JPanel
 	 * 
 	 * @param name
 	 * @param action
-	 * @return a new Action bound to the specified string name and icon
+	 * @return a new Action bound to the specified string name
 	 */
 	@SuppressWarnings("serial")
-	public Action bind(String name, final Action action, String iconUrl)
+	public Action bind(String name, final Action action, String ignored)
 	{
-		AbstractAction newAction = new AbstractAction(name, (iconUrl != null) ? new ImageIcon(
-				GraphEditor.class.getResource(iconUrl)) : null)
+		AbstractAction newAction = new AbstractAction(name) // (iconUrl != null) ? new ImageIcon(GraphEditor.class.getResource(iconUrl)) : null
 		{
-			public void actionPerformed(ActionEvent e)
+			public void actionPerformed(final ActionEvent e)
 			{
 				action.actionPerformed(new ActionEvent(getGraphComponent(), e
 						.getID(), e.getActionCommand()));
