@@ -22,6 +22,7 @@
 package sc.fiji.snt.gui.cmds;
 
 import net.imagej.ImageJ;
+import net.imagej.display.ColorTables;
 
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
@@ -32,7 +33,13 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
+import sc.fiji.snt.analysis.graph.AnnotationWeightedEdge;
+import sc.fiji.snt.analysis.graph.GraphColorMapper;
+import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.viewer.GraphViewer;
+import sc.fiji.snt.viewer.geditor.AnnotationGraphAdapter;
+import sc.fiji.snt.viewer.geditor.GraphEditor;
+import sc.fiji.snt.viewer.geditor.mxCircleLayoutGrouped;
 
 import java.util.*;
 
@@ -102,13 +109,26 @@ public class AnnotationGraphGeneratorCmd extends CommonDynamicCmd {
 		}
 		// SNTUtils.setIsLoading(true);
 		statusService.showStatus("Generating diagram(s)...");
+		final int depth = ajustedDepth();
 		if (diagram.startsWith("Ferris") || diagram.startsWith("Both")) {
 			SNTUtils.log("Creating Ferris wheel diagram");
-			final AnnotationGraph annotationGraph = new AnnotationGraph(annotatedTrees, metric, threshold,
-					ajustedDepth());
+			final AnnotationGraph annotationGraph = new AnnotationGraph(annotatedTrees, metric, threshold, depth);
+			final boolean large = annotationGraph.vertexSet().size() > 10;
 			final GraphViewer graphViewer = new GraphViewer(annotationGraph);
 			graphViewer.setContext(getContext());
-			graphViewer.show();
+			final GraphEditor editor = graphViewer.getEditor();
+			final GraphColorMapper<BrainAnnotation, AnnotationWeightedEdge> mapper = new GraphColorMapper<>();
+			mapper.map(annotationGraph, GraphColorMapper.EDGE_WEIGHT, ColorTables.ICE);
+			final AnnotationGraphAdapter graphAdapter = (AnnotationGraphAdapter) (editor.getGraphComponent()
+					.getGraph());
+			graphAdapter.scaleEdgeWidths(1, (large) ? 15 : 10, "linear");
+			final mxCircleLayoutGrouped groupedLayout = new mxCircleLayoutGrouped(graphAdapter, depth, depth / 2);
+			groupedLayout.setRadius((large) ? 400 : 200);
+			groupedLayout.setCenterSource(true);
+			groupedLayout.setSortMidLevel(true);
+			editor.applyLayout(groupedLayout);
+			mapper.setLegend(editor);
+			graphViewer.show("Ferris-Wheel Diagram");
 			SNTUtils.log("Finished. Diagram created from " + annotatedTrees.size() + " tree(s).");
 		}
 		if (diagram.startsWith("Flow") || diagram.startsWith("Both")) {
@@ -116,7 +136,7 @@ public class AnnotationGraphGeneratorCmd extends CommonDynamicCmd {
 			final MultiTreeStatistics stats = new MultiTreeStatistics(annotatedTrees);
 			if (annotatedTrees.size()==1)
 				stats.setLabel(annotatedTrees.iterator().next().getLabel());
-			stats.getFlowPlot(metric, stats.getAnnotations(ajustedDepth()), "sum", threshold, false).show();
+			stats.getFlowPlot(metric, stats.getAnnotations(depth), "sum", threshold, false).show();
 			SNTUtils.log("Finished. Diagram created from " + annotatedTrees.size() + " tree(s).");
 		}
 		statusService.clearStatus();
