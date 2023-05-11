@@ -959,7 +959,7 @@ public class GroupedTreeStatistics {
 		groupedStats.addGroup(sntService.demoTrees().subList(0, 4), "Group 1");
 		groupedStats.addGroup(sntService.demoTrees().subList(2, 4), "Group 2");
 		groupedStats.getHistogram(TreeStatistics.INTER_NODE_DISTANCE).show();
-		groupedStats.getBoxPlot("node dx sq").setVisible(true);
-		groupedStats.getFlowPlot("cable length", 8, .2, true).setVisible(true);
+		groupedStats.getBoxPlot("node dx sq").show();
+		groupedStats.getFlowPlot("cable length", 8, .2, true).show();
 	}
 }

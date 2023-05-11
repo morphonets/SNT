@@ -193,7 +193,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		buildPlot();
 		chart = viewer.getChart();
 		chart.setSize(500, 500);
-		chart.addWindowListener(new WindowAdapter() {
+		chart.getFrame().addWindowListener(new WindowAdapter() {
 
 			@Override
 			public void windowClosing(final WindowEvent e) {

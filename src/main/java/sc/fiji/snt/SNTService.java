@@ -79,6 +79,11 @@ import sc.fiji.snt.viewer.Viewer3D;
 @Plugin(type = Service.class, priority = Priority.NORMAL)
 public class SNTService extends AbstractService implements ImageJService {
 
+	static { /* works fine! ! */
+	      System.setProperty("java.awt.headless", "true");
+	      System.out.println(java.awt.GraphicsEnvironment.isHeadless());
+	      /* ---> prints true */
+	    }
 	@Parameter
 	private ScriptService scriptService;
 

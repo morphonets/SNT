@@ -205,10 +205,10 @@ class AnalysisUtils {
 			//render.setSeriesPaint(bin, Color.LIGHT_GRAY);
 			render.setSeriesPaint(bin, new Color(102, 170, 215));
 		}
-		final JFreeChart chart = assemblePolarPlotChart(getMetricLabel(xAxisTitle, unit), polarPlot, false);
+		final JFreeChart chart = assemblePolarPlotChart(polarPlot, false);
 		chart.removeLegend();
 		final String desc = getSummaryDescription(stats, datasetPlus);
-		final TextTitle label = new TextTitle(desc);
+		final TextTitle label = new TextTitle(getMetricLabel(xAxisTitle, unit) + "\n" + desc);
 		label.setFont(polarPlot.getAngleLabelFont().deriveFont(Font.PLAIN));
 		label.setPosition(RectangleEdge.BOTTOM);
 		chart.addSubtitle(label);
@@ -235,7 +235,7 @@ class AnalysisUtils {
 		return xyDataset;
 	}
 
-	private static JFreeChart assemblePolarPlotChart(final String xAxisTitle, final PolarPlot polarPlot, final boolean createLegend) {
+	private static JFreeChart assemblePolarPlotChart(final PolarPlot polarPlot, final boolean createLegend) {
 		// Customize axes
 		final NumberAxis rangeAxis = new NumberAxis();
 		polarPlot.setAxis(rangeAxis);
@@ -243,9 +243,10 @@ class AnalysisUtils {
 		rangeAxis.setTickMarksVisible(true);
 		rangeAxis.setAutoTickUnitSelection(true);
 		rangeAxis.setTickLabelsVisible(true);
+		rangeAxis.setLabelFont(rangeAxis.getLabelFont().deriveFont((float) SNTChart.scalingFactor));
 
 		// Customize plot
-		polarPlot.addCornerTextItem(xAxisTitle);
+		//polarPlot.addCornerTextItem(xAxisTitle);
 		polarPlot.setCounterClockwise(false);
 		polarPlot.setRadiusMinorGridlinesVisible(false);
 		polarPlot.setAxisLocation(PolarAxisLocation.NORTH_LEFT);
@@ -257,7 +258,7 @@ class AnalysisUtils {
 		polarPlot.setOutlineVisible(false);
 
 		// Customize chart
-		final JFreeChart chart = new JFreeChart(null,rangeAxis.getLabelFont(), polarPlot, createLegend);
+		final JFreeChart chart = new JFreeChart(null, rangeAxis.getLabelFont(), polarPlot, createLegend);
 		chart.setBorderVisible(false);
 		return chart;
 	}
@@ -358,7 +359,9 @@ class AnalysisUtils {
 			}
 		}
 		polarPlot.setFixedLegendItems(chartLegend);
-		return new SNTChart("Grouped Polar Hist.", assemblePolarPlotChart(getMetricLabel(normMeasurement, unit), polarPlot, nSeries > 1));
+		final SNTChart chart = new SNTChart("Grouped Polar Hist.", assemblePolarPlotChart(polarPlot, nSeries > 1));
+		chart.setTitle(getMetricLabel(normMeasurement, unit));
+		return chart;
 	}
 
 	static JFreeChart createCategoryPlot(final String domainTitle,

@@ -284,7 +284,7 @@ public class Viewer2D extends TreeColorMapper {
 			return;
 		}
 		chart = getChart();
-		chart.getChartPanel().getChart().addSubtitle(getPaintScaleLegend(colorTable, min, max));
+		chart.getChart().addSubtitle(getPaintScaleLegend(colorTable, min, max));
 	}
 
 	protected PaintScaleLegend getPaintScaleLegend(final String colorTable, double min, double max) {
@@ -457,7 +457,7 @@ public class Viewer2D extends TreeColorMapper {
 	 */
 	@Deprecated
 	public JFreeChart getJFreeChart() {
-		return getChart().getChartPanel().getChart();
+		return getChart().getChart();
 	}
 
 	/**
