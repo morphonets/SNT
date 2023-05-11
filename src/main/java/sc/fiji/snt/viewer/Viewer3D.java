@@ -50,11 +50,11 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.border.Border;
-import javax.swing.event.ListSelectionEvent;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
@@ -137,7 +137,6 @@ import org.scijava.ui.swing.script.TextEditor;
 import org.scijava.util.*;
 
 import com.jidesoft.swing.CheckBoxList;
-import com.jidesoft.swing.CheckBoxListSelectionModel;
 import com.jidesoft.swing.CheckBoxTree;
 import com.jidesoft.swing.ListSearchable;
 import com.jidesoft.swing.SearchableBar;
@@ -547,7 +546,7 @@ public class Viewer3D {
 			view.setCameraMode(currentCameraMode);
 			view.getCamera().setViewportMode(viewPortMode);
 			view.setViewPoint(currentViewPoint);
-			view.setBoundManual(currentBox);
+			view.setBoundsManual(currentBox);
 			addAllObjects();
 			updateView();
 			setAnimationEnabled(isAnimating);
@@ -796,8 +795,8 @@ public class Viewer3D {
 	private void initManagerList() {
 		managerList = new CheckboxListEditable(new DefaultUpdatableListModel<>());
 		managerList.getCheckBoxListSelectionModel().addListSelectionListener(e -> {
-			if (!e.getValueIsAdjusting() && managerList.isVisible()) {
-				final List<String> selectedKeys = managerList.getCheckBoxListSelectedValues(e);
+			if (!e.getValueIsAdjusting() && getManagerPanel() != null) {
+				final Set<String> selectedKeys = getLabelsCheckedInManagerAsSet();
 				plottedTrees.forEach((k, shapeTree) -> {
 					shapeTree.setDisplayed(selectedKeys.contains(k));
 				});
@@ -1278,7 +1277,7 @@ public class Viewer3D {
 				composite.add(getDrawableFromObject(o));
 			}
 			return composite;
-		} else {
+		} else if (!CheckBoxList.ALL_ENTRY.equals(object)) {
 			throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
 		}
 		return null;
@@ -1798,14 +1797,21 @@ public class Viewer3D {
 	}
 
 	@SuppressWarnings("unchecked")
-	private List<String> getLabelsCheckedInManager() {
+	private List<String> getLabelsCheckedInManagerAsList() {
 		final Object[] values = managerList.getCheckBoxListSelectedValues();
 		return (List<String>) (List<?>) Arrays.asList(values);
 	}
 
+	@SuppressWarnings("unchecked")
+	private Set<String> getLabelsCheckedInManagerAsSet() {
+		// contains() is O(1) in Set compared to O(n) in list
+		final Object[] values = managerList.getCheckBoxListSelectedValues();
+		return (Set<String>) (Set<?>) Arrays.stream(values).collect(Collectors.toSet());
+	}
+
 	private <T extends Drawable> boolean allDrawablesRendered(
 		final BoundingBox3d viewBounds, final Map<String, T> map,
-		final List<String> selectedKeys)
+		final Set<String> selectedKeys)
 	{
 		final Iterator<Entry<String, T>> it = map.entrySet().iterator();
 		while (it.hasNext()) {
@@ -1877,7 +1883,7 @@ public class Viewer3D {
 			updateView();
 			if (managerList == null) return true;
 			// now check that everything is visible
-			final List<String> selectedKeys = getLabelsCheckedInManager();
+			final Set<String> selectedKeys = getLabelsCheckedInManagerAsSet();
 			final BoundingBox3d viewBounds = chart.view().getBounds();
 			return allDrawablesRendered(viewBounds, plottedObjs, selectedKeys) &&
 				allDrawablesRendered(viewBounds, getTreeDrawables(), selectedKeys) &&
@@ -1990,7 +1996,7 @@ public class Viewer3D {
 	{
 		final BoundingBox3d bBox = new BoundingBox3d(xMin, xMax, yMin, yMax, zMin,
 			zMax);
-		chart.view().setBoundManual(bBox);
+		chart.view().setBoundsManual(bBox);
 		if (viewUpdatesEnabled) chart.view().shoot();
 	}
 
@@ -3298,6 +3304,13 @@ public class Viewer3D {
 				setStringPainted(true);
 				setFocusable(false);
 				reset();
+				addMouseListener(new MouseAdapter() {
+					@Override
+					public void mousePressed(final MouseEvent e) {
+						if (e.getClickCount() == 2 && isIndeterminate())
+							showProgress(0, 0);
+					}
+				});
 			}
 
 			private void addToGlobalValue(final int increment) {
@@ -3331,7 +3344,7 @@ public class Viewer3D {
 
 			@Override
 			public boolean isIndeterminate() {
-			    return super.isIndeterminate() || globalMax < 0;
+				return super.isIndeterminate() || globalMax < 0;
 			}
 	
 			@Override
@@ -3558,11 +3571,17 @@ public class Viewer3D {
 			sceneMenu.add(fit);
 			final JMenuItem fitToSelection = new JMenuItem("Fit To Selection", IconFactory.getMenuIcon(GLYPH.CROSSHAIR));
 			fitToSelection.addActionListener(e -> {
-				final List<?> selection = managerList.getSelectedValuesList();
-				if (selection.isEmpty())
-					guiUtils.error("No Items are currently selected.");
-				else
-					zoomTo(selection);
+				List<?> selection = managerList.getSelectedValuesList();
+				if (selection.isEmpty()) {
+					guiUtils.error("No items are currently selected.");
+					return;
+				}
+				if (selection.size() == 1 && CheckBoxList.ALL_ENTRY.equals(selection.get(0))) {
+					selection.clear();
+					selection = IntStream.range(0, managerList.getModel().getSize())
+							.mapToObj(managerList.getModel()::getElementAt).collect(Collectors.toList());
+				}
+				zoomTo(selection);
 			});
 			sceneMenu.add(fitToSelection);
 			// Aspect-ratio controls
@@ -3613,7 +3632,7 @@ public class Viewer3D {
 						try {
 							final Viewer3D dup = get();
 							dup.show();
-							dup.view.setBoundManual(view.getBounds().clone());
+							dup.view.setBoundsManual(view.getBounds().clone());
 						} catch (final OutOfMemoryError e1) {
 							e1.printStackTrace();
 							guiUtils.error("There is not enough memory to complete command. See Console for details.");
@@ -3767,7 +3786,7 @@ public class Viewer3D {
 			hideMeshes.addActionListener(e -> hide(plottedTrees));
 			final JMenuItem hideTrees = new JMenuItem("Trees");
 			hideTrees.addActionListener(e -> {
-				setArborsDisplayed(getLabelsCheckedInManager(), false);
+				setArborsDisplayed(getLabelsCheckedInManagerAsSet(), false);
 			});
 			final JMenuItem hideAnnotations = new JMenuItem("Annotations");
 			hideAnnotations.addActionListener(e -> hide(plottedAnnotations));
@@ -3874,7 +3893,7 @@ public class Viewer3D {
 		}
 
 		private void displaySomas(final boolean displayed) {
-			final List<String> labels = getLabelsCheckedInManager();
+			final Set<String> labels = getLabelsCheckedInManagerAsSet();
 			if (labels.isEmpty()) {
 				displayMsg("There are no visible reconstructions");
 				return;
@@ -3883,7 +3902,7 @@ public class Viewer3D {
 		}
 
 		private void displayMeshBoundingBoxes(final boolean display) {
-			final List<String> labels = getLabelsCheckedInManager();
+			final Set<String> labels = getLabelsCheckedInManagerAsSet();
 			if (labels.isEmpty()) {
 				displayMsg("There are no items selected");
 				return;
@@ -3946,7 +3965,7 @@ public class Viewer3D {
 		}
 
 		private void hide(final Map<String, ?> map) {
-			final List<String> selectedKeys = new ArrayList<>(getLabelsCheckedInManager());
+			final List<String> selectedKeys = new ArrayList<>(getLabelsCheckedInManagerAsList());
 			selectedKeys.removeAll(map.keySet());
 			managerList.setSelectedObjects(selectedKeys.toArray());
 		}
@@ -4225,7 +4244,7 @@ public class Viewer3D {
 
 					@Override
 					protected void done() {
-						if (cmdModule != null && cmdModule.isCanceled()) {
+						if (cmdModule == null || cmdModule.isCanceled()) {
 							return; // user pressed cancel or chose nothing
 						}
 						final ColorRGBA[] colors = (ColorRGBA[]) cmdModule.getInput("colors");
@@ -4846,7 +4865,7 @@ public class Viewer3D {
 
 					@Override
 					protected void done() {
-						if (cmdModule != null && cmdModule.isCanceled()) {
+						if (cmdModule == null || cmdModule.isCanceled()) {
 							return; // user pressed cancel or chose nothing
 						}
 						@SuppressWarnings("unchecked")
@@ -5589,29 +5608,6 @@ public class Viewer3D {
 			});
 		}
 
-		public List<String> getCheckBoxListSelectedValues(final ListSelectionEvent e) {
-			final CheckBoxListSelectionModel listSelectionModel = getCheckBoxListSelectionModel();
-			final int iMin = e.getFirstIndex();
-			final int iMax = e.getLastIndex();
-			final List<String> result = new ArrayList<>();
-			if ((iMin < listSelectionModel.getMinSelectionIndex())
-					|| (iMax < listSelectionModel.getMaxSelectionIndex())) {
-				return result;
-			}
-			for (int i = iMin; i <= iMax; i++) {
-				if (i == listSelectionModel.getAllEntryIndex() && listSelectionModel.isAllEntryConsidered()) {
-					continue;
-				}
-				if (i > listSelectionModel.getModel().getSize() - 1) {
-					break; // somehow this happens when getAllEntryIndex() detection fails!?
-				}
-				if (listSelectionModel.isSelectedIndex(i)) {
-					result.add(getModel().getElementAt(i).toString());
-				}
-			}
-			return result;
-		}
-
 		@Override
 		protected Handler createHandler() {
 			return new HandlerPlus(this);
@@ -6347,7 +6343,7 @@ public class Viewer3D {
 			final BoundingBox3d viewBounds = view.getBounds();
 			final Coord3d offset = to.sub(from).div(-panStep);
 			final BoundingBox3d newBounds = viewBounds.shift(offset);
-			view.setBoundManual(newBounds);
+			view.setBoundsManual(newBounds);
 			view.shoot();
 			fireControllerEvent(ControllerType.PAN, offset);
 		}
@@ -6358,7 +6354,7 @@ public class Viewer3D {
 				factor));
 			newBounds = newBounds.shift((viewBounds.getCenter().sub(newBounds
 				.getCenter())));
-			view.setBoundManual(newBounds);
+			view.setBoundsManual(newBounds);
 			view.shoot();
 			fireControllerEvent(ControllerType.ZOOM, factor);
 		}
@@ -6590,7 +6586,7 @@ public class Viewer3D {
 			final Coord3d offset = new Coord3d(
 					bounds.getXRange().getRange() * direction.x * normPan, 
 					bounds.getYRange().getRange() * direction.y * normPan, 0);
-			view.setBoundManual(bounds.shift(offset));
+			view.setBoundsManual(bounds.shift(offset));
 			view.shoot();
 		}
 
