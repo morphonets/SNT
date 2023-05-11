@@ -518,7 +518,7 @@ public class GuiUtils {
 				newDims = new int[2];
 				wField = intField();
 				hField = intField();
-				lockBox = new JCheckBox("Constrain Aspect Ratio", lockRatio);
+				lockBox = new JCheckBox("Constrain aspect ratio", lockRatio);
 				lockBox.addItemListener(e -> lockRatio = lockBox.isSelected());
 			}
 
@@ -1509,7 +1509,7 @@ public class GuiUtils {
 		final NumberFormatter formatter = (NumberFormatter) textfield
 			.getFormatter();
 		final StringBuilder decString = new StringBuilder();
-		while (decString.length() <= nDecimals)
+		while (decString.length() < nDecimals)
 			decString.append("0");
 		final DecimalFormat decimalFormat = new DecimalFormat("0." + decString);
 		formatter.setFormat(decimalFormat);
@@ -2004,7 +2004,7 @@ public class GuiUtils {
 		final List<SNTChart> charts = SNTChart.openCharts().stream().filter(c -> !c.isCombined())
 				.collect(Collectors.toList());
 		if (charts.size() < 2) {
-			error("No charts available: Either no charts are currently open,"
+			error("No charts available: Either no other charts are currently open,"
 					+ " or displayed ones cannot be merged. Make sure that at  least"
 					+ " two single charts (histogram, plot, etc.) are open and retry.");
 		} else {
@@ -2290,6 +2290,12 @@ public class GuiUtils {
 	public static class MenuItems {
 
 		private MenuItems() {}
+
+		public static JMenuItem brainAreaAnalysis() {
+			final JMenuItem jmi = new JMenuItem("Brain Area Analysis...", IconFactory.getMenuIcon(GLYPH.BRAIN));
+			jmi.setToolTipText("Distribution analyisis of projection patterns across brain areas.");
+			return jmi;
+		}
 
 		public static JMenuItem devResourceMain() {
 			final JMenuItem jmi = menuItemTriggeringURL("Scripting Documentation", "https://imagej.net/plugins/snt/scripting");

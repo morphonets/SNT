@@ -2597,7 +2597,7 @@ public class SNTUI extends JDialog {
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("tree", tree);
 			inputs.put("snt", plugin);
-			(new DynamicCmdRunner(ShollAnalysisTreeCmd.class, inputs, getState())).run();
+			new DynamicCmdRunner(ShollAnalysisTreeCmd.class, inputs).run();
 		});
 		analysisMenu.add(shollMenuItem);
 		analysisMenu.add(shollAnalysisHelpMenuItem());
@@ -2646,6 +2646,16 @@ public class SNTUI extends JDialog {
 			}
 		});
 		utilitiesMenu.addSeparator();
+		final JMenuItem brainMenuItem = GuiUtils.MenuItems.brainAreaAnalysis();
+		brainMenuItem.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Tree tree = getPathManager().getSingleTree();
+			if (tree == null) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("tree", tree);
+			new DynamicCmdRunner(BrainAnnotationCmd.class, inputs).run();
+		});
+		utilitiesMenu.add(brainMenuItem);
 		final JMenuItem graphGenerator = GuiUtils.MenuItems.createDendrogram();
 		utilitiesMenu.add(graphGenerator);
 		graphGenerator.addActionListener(e -> {

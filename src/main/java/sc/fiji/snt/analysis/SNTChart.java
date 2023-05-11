@@ -121,6 +121,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.SNTColor;
 
 
@@ -1098,7 +1099,9 @@ public class SNTChart extends ChartFrame {
 		});
 		popup.addSeparator();
 
-		final JMenu grids = new JMenu("Toggle Components");
+		// this is the widest label in the menu. Make it even wider so
+		// that the menu accommodates the font scaling panel on macOS
+		final JMenu grids = new JMenu("Toggle Components    ");
 		popup.add(grids);
 		JMenuItem jmi = new JMenuItem("Toggle Grid Lines");
 		jmi.setEnabled(!isFlowPlot());
@@ -1146,14 +1149,8 @@ public class SNTChart extends ChartFrame {
 		final GridBagConstraints c = GuiUtils.defaultGbc();
 		c.gridwidth = 2;
 		c.fill = GridBagConstraints.NONE;
-		javax.swing.JLabel l = GuiUtils.leftAlignedLabel("Font Scaling:", true);
-		try {
-			l.setBorder(new javax.swing.border.EmptyBorder(jmi.getMargin().top, jmi.getInsets().left
-					+ javax.swing.UIManager.getIcon("CheckBoxMenuItem.checkIcon").getIconWidth() + jmi.getIconTextGap() * 2,
-					jmi.getMargin().bottom, jmi.getMargin().right));
-		} catch (final Exception ignored) {
-			// do nothing
-		}
+		javax.swing.JLabel l = new javax.swing.JLabel("Font Scaling:");
+		l.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EMPTY));
 		p.add(l, c);
 		c.fill = GridBagConstraints.HORIZONTAL;
 		c.gridx = 1;

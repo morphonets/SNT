@@ -2725,6 +2725,8 @@ public class Viewer3D {
 			else
 				AWTWindows.centerWindow(gConfiguration.getBounds(), this);
 			//setLocationRelativeTo(null); // ensures frame will not appear in between displays on a multidisplay setup
+			setMinimumSize(new Dimension((int) (DEF_WIDTH * .5), (int) (DEF_HEIGHT * .5))); // fix MacOS issue in which
+																							// frame is collapsed
 			if (includeManager) {
 				manager = getManager();
 				chart.viewer.managerList.selectAll();
@@ -3376,6 +3378,7 @@ public class Viewer3D {
 
 		class Action extends AbstractAction {
 			static final String ALL = "All";
+			static final String RESIZE = "Viewer Size...";
 			static final String ENTER_FULL_SCREEN = "Full Screen";
 			static final String FIND = "Toggle Selection Toolbar";
 			static final String PROGRESS = "Toggle Progress Bar";
@@ -3437,6 +3440,9 @@ public class Viewer3D {
 					return;
 				case ENTER_FULL_SCREEN:
 					frame.enterFullScreen();
+					return;
+				case RESIZE:
+					guiUtils.adjustComponentThroughPrompt(frame);
 					return;
 				case FIT:
 					fitToVisibleObjects(true, true);
@@ -3585,6 +3591,7 @@ public class Viewer3D {
 			});
 			sceneMenu.add(fitToSelection);
 			// Aspect-ratio controls
+			sceneMenu.add(squarifyMenu());
 			final JMenuItem jcbmiFill = new JCheckBoxMenuItem("Stretch-to-Fill");
 			jcbmiFill.setIcon(IconFactory.getMenuIcon(GLYPH.EXPAND_ARROWS1));
 			jcbmiFill.addItemListener(e -> {
@@ -3593,7 +3600,9 @@ public class Viewer3D {
 				view.getCamera().setViewportMode(mode);
 			});
 			sceneMenu.add(jcbmiFill);
-			sceneMenu.add(squarifyMenu());
+			final JMenuItem resize = new JMenuItem(new Action(Action.RESIZE));
+			resize.setIcon(IconFactory.getMenuIcon(GLYPH.RESIZE));
+			sceneMenu.add(resize);
 			final JMenuItem fullScreen = new JMenuItem(new Action(Action.ENTER_FULL_SCREEN, KeyEvent.VK_F, false, true));
 			fullScreen.setIcon(IconFactory.getMenuIcon(GLYPH.EXPAND_ARROWS2));
 			sceneMenu.add(fullScreen);
@@ -4138,15 +4147,6 @@ public class Viewer3D {
 			});
 			measureMenu.add(mi);
 			GuiUtils.addSeparator(measureMenu, "Specialized Analysis:");
-			mi = new JMenuItem("Brain Area Analysis...", IconFactory.getMenuIcon(GLYPH.BRAIN));
-			mi.addActionListener(e -> {
-				final Tree tree = getSingleSelectionTree();
-				if (tree == null) return;
-				final Map<String, Object> inputs = new HashMap<>();
-				inputs.put("tree", tree);
-				runCmd(BrainAnnotationCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
-			});
-			measureMenu.add(mi);
 			final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
 			convexHullMenuItem.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
@@ -4184,6 +4184,15 @@ public class Viewer3D {
 			});
 			measureMenu.add(mi);
 			GuiUtils.addSeparator(measureMenu, "Graph-based Analysis:");
+			mi = GuiUtils.MenuItems.brainAreaAnalysis();
+			mi.addActionListener(e -> {
+				final Tree tree = getSingleSelectionTree();
+				if (tree == null) return;
+				final Map<String, Object> inputs = new HashMap<>();
+				inputs.put("tree", tree);
+				runCmd(BrainAnnotationCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+			});
+			measureMenu.add(mi);
 			mi = GuiUtils.MenuItems.createDendrogram();
 			mi.addActionListener(e -> {
 				final Tree tree = getSingleSelectionTreeWithPromptForType();
@@ -7577,7 +7586,7 @@ public class Viewer3D {
 		jzy3D.setViewPoint(-1.5707964f, -1.5707964f);
 		jzy3D.updateColorBarLegend(-8, 88);
 		jzy3D.setEnableDarkMode(false);
-		brainMesh.translate(new PointInImage(800, 0, 0));
+		//brainMesh.translate(new PointInImage(800, 0, 0));
 	}
 
 }

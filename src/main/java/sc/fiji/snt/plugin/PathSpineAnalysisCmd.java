@@ -31,12 +31,10 @@ import java.util.List;
 import java.util.Map;
 
 import org.scijava.command.Command;
-import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.table.DefaultColumn;
 import org.scijava.util.ColorRGB;
-import org.scijava.util.Colors;
 
 import net.imagej.ImageJ;
 import org.scijava.plot.LineStyle;
@@ -51,7 +49,6 @@ import sc.fiji.snt.analysis.PathAnalyzer;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
-import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.SNTColor;
 

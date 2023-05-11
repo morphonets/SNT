@@ -144,6 +144,8 @@ public class MLImporterCmd extends CommonDynamicCmd {
 				.collect(Collectors.toList());
 		if (filteredResult.isEmpty()) {
 			resetUI(false);
+			if (recViewer != null)
+				resetProgress(recViewer);
 			status("Error... No reconstructions imported", true);
 			error("No reconstructions could be retrieved: Invalid Query?");
 			return;

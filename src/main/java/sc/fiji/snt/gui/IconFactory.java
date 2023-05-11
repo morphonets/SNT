@@ -23,6 +23,8 @@
 package sc.fiji.snt.gui;
 
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Graphics;
 
 import javax.swing.AbstractButton;
 import javax.swing.Icon;
@@ -80,6 +82,7 @@ public class IconFactory {
 			COLOR2('\uf5c3', true), //
 			COMMENTS('\uf086', false), //
 			COMPRESS('\uf422', true), //
+			RESIZE('\uf424', true), //
 			COPY('\uf0c5', false), //
 			CROSSHAIR('\uf05b', true), //
 			CSV('\uf6dd', true), //
@@ -94,6 +97,7 @@ public class IconFactory {
 			//DOWNLOAD('\uf019', true), //
 			DRAFT('\uf568', true), //
 			ELLIPSIS_VERTICAL('\uf142', true), //
+			EMPTY('\u00a0', false), //
 			EQUALS('\uf52c', true), //
 			EXPAND('\uf065', true), //
 			EXPAND_ARROWS1('\uf337', true), //
@@ -233,6 +237,9 @@ public class IconFactory {
 	}
 
 	public static Icon getButtonIcon(final GLYPH entry, final float scalingFactor) {
+		if (GLYPH.EMPTY.equals(entry)) {
+			return new EmptyIcon( UIManager.getFont("Button.font").getSize() * scalingFactor);
+		}
 		return new FADerivedIcon(entry.id, UIManager.getFont("Button.font")
 			.getSize() * scalingFactor, UIManager.getColor("Button.foreground"), entry.solid);
 	}
@@ -242,11 +249,17 @@ public class IconFactory {
 	}
 
 	public static Icon getTabbedPaneIcon(final GLYPH entry) {
-		return new FADerivedIcon(entry.id, UIManager.getFont("TabbedPane.font")
-			.getSize(), UIManager.getColor("TabbedPane.foreground"), entry.solid);
+		if (GLYPH.EMPTY.equals(entry)) {
+			return new EmptyIcon(UIManager.getFont("TabbedPane.font").getSize());
+		}
+		return new FADerivedIcon(entry.id, UIManager.getFont("TabbedPane.font").getSize(),
+				UIManager.getColor("TabbedPane.foreground"), entry.solid);
 	}
 
 	public static Icon getMenuIcon(final GLYPH entry) {
+		if (GLYPH.EMPTY.equals(entry)) {
+			return new EmptyIcon(UIManager.getFont("MenuItem.font").getSize() * 0.9f);
+		}
 		return new FADerivedIcon(entry.id, UIManager.getFont("MenuItem.font")
 			.getSize() * 0.9f, UIManager.getColor("MenuItem.foreground"),
 			entry.solid);
@@ -258,4 +271,28 @@ public class IconFactory {
 			entry.solid);
 	}
 
+	static class EmptyIcon implements Icon {
+
+		private float size;
+
+		protected EmptyIcon(final float size) {
+			this.size = size;
+		}
+
+		@Override
+		public void paintIcon(Component c, Graphics g, int x, int y) {
+			// do nothing
+		}
+
+		@Override
+		public int getIconWidth() {
+			return (int) size;
+		}
+
+		@Override
+		public int getIconHeight() {
+			return (int) size;
+		}
+
+	}
 }
