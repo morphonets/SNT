@@ -2051,7 +2051,7 @@ public class GuiUtils {
 						GuiUtils.errorPrompt("No charts selected from list.");
 						return;
 					}
-					SNTChart.combine(selection, (int) rows, (int) cols, checkbox.isSelected());
+					SNTChart.combine(selection, (int) rows, (int) cols, checkbox.isSelected()).show();
 				}
 			}
 

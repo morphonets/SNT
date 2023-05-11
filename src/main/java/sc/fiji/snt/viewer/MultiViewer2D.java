@@ -191,7 +191,7 @@ public class MultiViewer2D {
 		frame.setLayout(gridLayout);
 		for (final List<Viewer2D> row : rows) {
 			final SNTChart rowChart = getMergedChart(row, "col");
-			final ChartPanel cPanel = rowChart.getChartPanel();
+			final ChartPanel cPanel = rowChart;
 			frame.add(cPanel);
 			rowPanels.add(cPanel);
 		}
@@ -216,7 +216,7 @@ public class MultiViewer2D {
 		} else {
 			final CombinedDomainXYPlot mergedPlot = new CombinedDomainXYPlot();
 			for (final Viewer2D viewer : viewers) {
-				mergedPlot.add(viewer.getChart().getChartPanel().getChart().getXYPlot(), 1);
+				mergedPlot.add(viewer.getChart().getChart().getXYPlot(), 1);
 			}
 			result = new JFreeChart(null, mergedPlot);
 		}
