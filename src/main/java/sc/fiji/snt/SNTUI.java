@@ -2340,7 +2340,7 @@ public class SNTUI extends JDialog {
 		menuBar.add(analysisMenu);
 		final JMenu utilitiesMenu = new JMenu("Utilities");
 		menuBar.add(utilitiesMenu);
-		final ScriptInstaller installer = new ScriptInstaller(plugin.getContext(), this);
+		final ScriptInstaller installer = new ScriptInstaller(plugin.getContext(), (SNTUI)this);
 		menuBar.add(installer.getScriptsMenu());
 		final JMenu viewMenu = new JMenu("View");
 		menuBar.add(viewMenu);

@@ -6,7 +6,7 @@ import sc.fiji.snt.viewer.*
 import sc.fiji.snt.viewer.geditor.*
 
 /**
- * file:	Flow_and_Ferris-Wheel_Diagrams.groovy
+ * file:	Flow_and_Ferris-Wheel_Diagrams_Demo.groovy
  * author:	Tiago Ferreira
  * version:	20230425
  * info:	Exemplifies how to use Flow Plots (Sankey diagrams, implemented in

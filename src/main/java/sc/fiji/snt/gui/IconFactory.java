@@ -72,6 +72,7 @@ public class IconFactory {
 			CHECK_DOUBLE('\uf560', true), //
 			CIRCLE('\uf192', false), //
 			CLOCK_ROTATE_LEFT('\uf1da', true), //
+			CLIPBOARD('\uf328', false), //
 			CLOUD('\uf381', true), //
 			CLONE('\uf24d', false), //
 			CODE('\uf120', true), //
