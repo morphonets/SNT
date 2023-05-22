@@ -111,7 +111,7 @@
 	<scm>
 		<connection>scm:git:https://github.com/morphonets/SNT</connection>
 		<developerConnection>scm:git:git@github.com:morphonets/SNT</developerConnection>
-		<tag>HEAD</tag>
+		<tag>SNT-4.1.17</tag>
 		<url>https://github.com/morphonets/SNT</url>
 	</scm>
 	<issueManagement>
