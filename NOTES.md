@@ -83,6 +83,20 @@ Any work that uses data from the supported databases and/or reference brains sho
 
 
 
+## Demo Datasets
+
+Demo datasets (images and/or reconstructions) are either bundled in SNT (and thus part of the source code), or downloaded from the internet:
+
+| Dataset                                                                    | Source                                                                           |
+| :------------------------------------------------------------------------- | :------------------------------------------------------------------------------- |
+| Drosophila ddaC neuron (2D binary image)                                   | Bundled. Sample image for _Sholl Analysis_/Auto tracing                          |
+| Drosophila OP neuron (3D grayscale image and 'gold standard' reconstruction) | Bundled/Downloaded. [DIADEM dataset](https://diadem.janelia.org/)                |
+| Hippocampal neuron (2D multichannel image)                                 | Downloaded. Part of ImageJ's _samples_ archive                                   |
+| Hippocampal neuron (2D timelapse image with partial reconstruction)        | Bownloaded. [Cell Image Library dataset](http://cellimagelibrary.org/images/701) |
+| L-systems fractal (2D binary image with reconstruction)                    | Bundled. Generated programmatically                                              |
+| Mouse pyramidal neurons (reconstructions)                                  | Bundled. [MouseLight dataset](http://ml-neuronbrowser.janelia.org/)              |
+
+
 ## Dependencies
 
 [SNT](https://imagej.net/SNT) relies heavily on several [SciJava](https://scijava.org/), [sciview](https://imagej.net/SciView) (and [scenery](https://github.com/scenerygraphics/scenery)), and [Fiji](https://imagej.net/Fiji) libraries. It also relies on other packages developed under the [morphonets](https://github.com/morphonets) umbrella and other external open-source packages. Below is a non-exhaustive list of external libraries on top of which SNT is built:
