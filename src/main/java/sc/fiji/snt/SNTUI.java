@@ -76,6 +76,7 @@ import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.gui.*;
+import sc.fiji.snt.gui.DemoRunner.Demo;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
@@ -544,6 +545,22 @@ public class SNTUI extends JDialog {
 		} catch (final IllegalArgumentException ie) {
 			getPathManager().runCommand(cmd);
 		}
+	}
+
+	/**
+	 * Runs the autotracing prompt on the active image, assumed to be binary (script
+	 * friendly method).
+	 *
+	 * @param simplified whether wizard should omit advanced options
+	 */
+	public void runAutotracingWizard(final boolean simplified) {
+		SwingUtilities.invokeLater(() -> {
+			if (plugin.accessToValidImageData() && plugin.getImagePlus().getProcessor().isBinary()) {
+				runAutotracingOnImage(simplified);
+			} else {
+				noValidImageDataError();
+			}
+		});
 	}
 
 	/**
@@ -2682,7 +2699,7 @@ public class SNTUI extends JDialog {
 		// not require file validations etc..
 		final JMenuItem autotraceJMI = getAutotracingMenuItem("Extract Paths from Segmented Image...", false);
 		utilitiesMenu.add(autotraceJMI);
-		autotraceJMI.addActionListener(e -> runAutotracingOnImage());
+		autotraceJMI.addActionListener(e -> runAutotracingOnImage(false));
 
 		utilitiesMenu.addSeparator();
 		final JMenu scriptUtilsMenu = installer.getBatchScriptsMenu();
@@ -3195,7 +3212,7 @@ public class SNTUI extends JDialog {
 					plugin.getPrefs().setTemp("autotracing-nag", !options[1]);
 				}
 				if (run)
-					runAutotracingOnImage();
+					runAutotracingOnImage(false);
 			}
 		}
 		plugin.getPrefs().setTemp("autotracing-prompt-armed", true);
@@ -3209,9 +3226,10 @@ public class SNTUI extends JDialog {
 		return jmi;
 	}
 
-	private void runAutotracingOnImage() {
+	private void runAutotracingOnImage(final boolean simplifyPrompt) {
 		final HashMap<String, Object> inputs = new HashMap<>();
 		inputs.put("useFileChoosers", false);
+		inputs.put("simplifyPrompt", simplifyPrompt);
 		(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs)).run();
 	}
 
@@ -4384,66 +4402,16 @@ public class SNTUI extends JDialog {
 				(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs, RUNNING_CMD)).run();
 				break;
 			case DEMO:
-				changeState(LOADING);
-				showStatus("Retrieving demo data. Please wait...", false);
-				final String[] choices = new String[6];
-				choices[0] = "Drosophila ddaC neuron (581K, 2D, binary, auto-trace demo)";
-				choices[1] = "Drosophila ddaC neuron (581K, 2D, binary, image only)";
-				choices[2] = "Drosophila OP neuron (15MB, 3D, grayscale, w/ tracings)";
-				choices[3] = "Hippocampal neuron (2.5MB, 2D, multichannel)";
-				choices[4] = "Hippocampal neuron (52MB, timelapse, w/ tracings)";
-				choices[5] = "L-systems fractal (23K, 2D, binary, w/ tracings & markers)";
-				final String defChoice = plugin.getPrefs().getTemp("demo", choices[5]);
-				final String choice = guiUtils.getChoice("Which dataset?<br>(NB: Remote data may take a while to download)", "Load Demo Dataset", choices, defChoice);
+				final Demo choice = new DemoRunner(SNTUI.this, plugin).getChoice();
 				if (choice == null) {
 					changeState(priorState);
 					showStatus(null, true);
 					return;
 				}
-				try {
-
-					// Remember choice for subsequent runs
-					plugin.getPrefs().setTemp("demo", choice);
-
-					// Suppress the 'auto-tracing' prompt for this image. This
-					// will be reset once SNT initializes with the new data
-					plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
-
-					final SNTService sntService = plugin.getContext().getService(SNTService.class);
-					final ImagePlus imp = sntService.demoImage(choice);
-					if (imp == null) {
-						error("Image could not be retrieved. Perhaps and internet connection is required but you are offline?");
-						changeState(priorState);
-						return;
-					}
-					plugin.initialize(imp);
-					if (pathAndFillManager.size() > 0
-							&& guiUtils.getConfirmation("Clear Existing Path(s)?", "Delete All Paths")) {
-						pathAndFillManager.clear();
-					}
-					if (choices[0].equals(choice)) {
-						imp.setRoi(320, 380, 20, 20); // mark soma in ddaC image
-						inputs.put("simplifyPrompt", true);
-						(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs, RUNNING_CMD)).run();
-					} else if (choices[5].equals(choice)) {
-						plugin.getPathAndFillManager().addTree(sntService.demoTree("fractal"));
-						plugin.getPathAndFillManager().assignSpatialSettings(imp);
-					} else if (choices[4].equals(choice)) {
-						sntService.loadTracings("timelapse demo");
-					} else if (choices[2].equals(choice)) {
-						plugin.getStats().min = 0;
-						plugin.getStats().max = 255;
-						sntService.loadTracings("OP1 demo");
-					}
-					plugin.updateAllViewers();
-
-				} catch (final Throwable ex) {
-					error("Loading of image failed (" + ex.getMessage() + " error). See Console for details.");
-					ex.printStackTrace();
-				} finally {
-					changeState(priorState);
-					showStatus(null, true);
-				}
+				// Suppress the 'auto-tracing' prompt for this image. This
+				// will be reset once SNT initializes with the new data
+				plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
+				choice.load(); // will reset UI
 				return;
 			case IMAGE:
 				if (file != null) inputs.put("file", file);

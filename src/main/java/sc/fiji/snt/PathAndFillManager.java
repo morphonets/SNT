@@ -193,7 +193,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		boundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
 	}
 
-	protected void assignSpatialSettings(final ImagePlus imp) {
+	public void assignSpatialSettings(final ImagePlus imp) {
 		final Calibration cal = imp.getCalibration();
 		x_spacing = cal.pixelWidth;
 		y_spacing = cal.pixelHeight;
@@ -1083,7 +1083,24 @@ public class PathAndFillManager extends DefaultHandler implements
 				boundingBox.append(tree.getNodes().iterator());
 			}
 		});
+		final String unit = getCommonUnit(trees);
+		if (unit != null && size() == 0 && (plugin == null || !plugin.accessToValidImageData())) {
+			boundingBox.setUnit(unit);
+			spacing_units = unit;
+			if (plugin != null) plugin.spacing_units = unit;
+		}
 		checkForAppropriateImageDimensions();
+	}
+
+	private String getCommonUnit(final Collection<Tree> trees) {
+		final Iterator<Tree> it = trees.iterator();
+		final String ref = it.next().getProperties().getProperty(TreeProperties.KEY_SPATIAL_UNIT,
+				SNTUtils.getSanitizedUnit(null));
+		while (it.hasNext()) {
+			if (!ref.equals(it.next().getProperties().getProperty(TreeProperties.KEY_SPATIAL_UNIT)))
+				return null;
+		}
+		return ref;
 	}
 
 	/**
@@ -3050,6 +3067,15 @@ public class PathAndFillManager extends DefaultHandler implements
 			resetListeners(null, true);
 		}
 		return result;
+	}
+
+	public boolean loadGuessingType(final String filePathOrURL) throws IOException {
+		if (filePathOrURL.startsWith("http") || filePathOrURL.indexOf("://") > 0) {
+			final String fileName = filePathOrURL.substring(filePathOrURL.lastIndexOf('/') + 1);
+			final String fileNameWithoutExtn = SNTUtils.stripExtension(fileName);
+			return loadGuessingType(fileNameWithoutExtn, new URL(filePathOrURL).openStream());
+		}
+		return load(new File(filePathOrURL).getAbsolutePath());
 	}
 
 	public boolean loadGuessingType(final String optionalDescription, final InputStream is) throws IOException {

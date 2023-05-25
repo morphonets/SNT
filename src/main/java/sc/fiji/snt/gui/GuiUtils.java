@@ -331,11 +331,50 @@ public class GuiUtils {
 				(defaultChoice == null) ? choices[0] : defaultChoice);
 	}
 
+	public String getChoice(final String message, final String title, final String[] choices,
+			final String[] descriptions, final String defaultChoice) {
+		final JTextArea ta = new JTextArea();
+		final JScrollPane sp = getScrollPane(ta);
+		ta.setRows(5); // TODO:
+		ta.setWrapStyleWord(true);
+		ta.setLineWrap(true);
+		ta.setEditable(false);
+		ta.setFocusable(true);
+		int defIdx = Arrays.asList(choices).indexOf(defaultChoice);
+		if (defIdx < 0)
+			defIdx = 0;
+		final JList<String> list = new JList<>(choices);
+		if (choices.length < 11)
+			list.setVisibleRowCount(choices.length);
+		list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+		list.addListSelectionListener(e -> {
+			ta.setText(descriptions[list.getSelectedIndex()]);
+			ta.setCaretPosition(0);
+		});
+		list.setSelectedIndex(defIdx);
+		ta.setText(descriptions[defIdx]);
+		ta.setCaretPosition(0);
+		final JPanel panel = new JPanel(new BorderLayout());
+		panel.add(getLabel(message), BorderLayout.NORTH);
+		panel.add(getScrollPane(list), BorderLayout.CENTER);
+		panel.add(sp, BorderLayout.SOUTH);
+		if (JOptionPane.showConfirmDialog(parent, panel, title, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION)
+			return list.getSelectedValue();
+		return null;
+	}
+
+	private JScrollPane getScrollPane(final Component c) {
+		final JScrollPane sp = new JScrollPane(c);
+		sp.setWheelScrollingEnabled(true);
+		return sp;
+	}
+
 	public List<String> getMultipleChoices(final String title, final String[] choices) {
 		final JList<String> list = new JList<>(choices);
-		JOptionPane.showMessageDialog(
-				parent, new JScrollPane(list), title, JOptionPane.QUESTION_MESSAGE);
-		return list.getSelectedValuesList();
+		if (JOptionPane.showConfirmDialog(parent, getScrollPane(list), title,
+				JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) == JOptionPane.OK_OPTION)
+			return list.getSelectedValuesList();
+		return null;
 	}
 
 	public boolean[] getPersistentConfirmation(final String msg, final String title) {
@@ -1916,7 +1955,7 @@ public class GuiUtils {
 				c.gridwidth = 1;
 				contentPane.add(leftAlignedLabel("Charts to be combined:", true), c);
 				++c.gridy;
-				contentPane.add(new JScrollPane(titles), c);
+				contentPane.add(getScrollPane(titles), c);
 				++c.gridy;
 				contentPane.add(leftAlignedLabel("Montage Layout:", true), c);
 				++c.gridy;
@@ -2110,7 +2149,7 @@ public class GuiUtils {
 				public void actionPerformed(final ActionEvent e) {
 				}
 			}); // suppress beep on <ENTER> key
-			final JScrollPane scrollPane = new JScrollPane(editorPane);
+			final JScrollPane scrollPane = getScrollPane(editorPane);
 			getContentPane().add(scrollPane);
 			final JButton button = new JButton("OK");
 			button.addActionListener(this);
