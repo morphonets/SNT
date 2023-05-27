@@ -101,12 +101,24 @@ public class Tree implements TreeProperties {
 			// If fitted flavor of path exists use it instead
 			if (p.getUseFitted() && p.getFitted() != null) {
 				pathToAdd = p.getFitted();
-			}
-			else {
+			} else {
 				pathToAdd = p;
 			}
 			tree.add(pathToAdd);
 		}
+		final String unit = getCommonUnit(paths);
+		if (unit != null)
+			getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, unit);
+	}
+
+	private String getCommonUnit(final Collection<Path> paths) {
+		final Iterator<Path> it = paths.iterator();
+		final String ref = it.next().spacing_units;
+		while (it.hasNext()) {
+			if (!ref.equals(it.next().spacing_units))
+				return null;
+		}
+		return ref;
 	}
 
 	/**
