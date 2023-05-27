@@ -2606,6 +2606,16 @@ public class SNTUI extends JDialog {
 		exportCSVMenuItem.addActionListener(listener);
 		analysisMenu.add(exportCSVMenuItem);
 		analysisMenu.addSeparator();
+		final JMenuItem brainMenuItem = GuiUtils.MenuItems.brainAreaAnalysis();
+		brainMenuItem.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Tree tree = getPathManager().getSingleTree();
+			if (tree == null) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("tree", tree);
+			new DynamicCmdRunner(BrainAnnotationCmd.class, inputs).run();
+		});
+		analysisMenu.add(brainMenuItem);
 		final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
 		shollMenuItem.addActionListener(e -> {
 			if (noPathsError()) return;
@@ -2663,16 +2673,6 @@ public class SNTUI extends JDialog {
 			}
 		});
 		utilitiesMenu.addSeparator();
-		final JMenuItem brainMenuItem = GuiUtils.MenuItems.brainAreaAnalysis();
-		brainMenuItem.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
-			if (tree == null) return;
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("tree", tree);
-			new DynamicCmdRunner(BrainAnnotationCmd.class, inputs).run();
-		});
-		utilitiesMenu.add(brainMenuItem);
 		final JMenuItem graphGenerator = GuiUtils.MenuItems.createDendrogram();
 		utilitiesMenu.add(graphGenerator);
 		graphGenerator.addActionListener(e -> {
@@ -4390,7 +4390,7 @@ public class SNTUI extends JDialog {
 
 		private void run() {
 			if (getState() != READY && getState() != TRACING_PAUSED) {
-				guiUtils.blinkingError(statusText, "Please exit current state before importing file(s).");
+				guiUtils.blinkingError(statusText, "Please exit current state before importing data.");
 				return;
 			}
 			if (!proceed()) return;

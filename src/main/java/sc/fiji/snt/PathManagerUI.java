@@ -962,19 +962,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			treeLabels.add(0, "   -- All --  ");
 		final List<String> choices = guiUtils.getMultipleChoices("Which Structure?",
 				treeLabels.toArray(new String[trees.size()]));
+		if (choices == null)
+			return null;
 		if (includeAll && choices.contains("   -- All --  "))
 			return trees;
-		List<Tree> toReturn = new ArrayList<>();
+		final List<Tree> toReturn = new ArrayList<>();
 		for (final Tree t : trees) {
 			if (choices.contains(t.getLabel())) {
 				toReturn.add(t);
 			}
 		}
-		if (!toReturn.isEmpty()) {
-			return toReturn;
-		}
-		
-		return null; // user pressed canceled prompt
+		return (toReturn.isEmpty()) ? null : toReturn;
 	}
 
 	protected void quickMeasurementsCmdError(final GuiUtils guiUtils) {

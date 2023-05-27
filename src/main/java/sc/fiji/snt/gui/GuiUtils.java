@@ -58,6 +58,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentListener;
+import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
@@ -335,7 +336,7 @@ public class GuiUtils {
 			final String[] descriptions, final String defaultChoice) {
 		final JTextArea ta = new JTextArea();
 		final JScrollPane sp = getScrollPane(ta);
-		ta.setRows(5); // TODO:
+		ta.setRows(5);
 		ta.setWrapStyleWord(true);
 		ta.setLineWrap(true);
 		ta.setEditable(false);
@@ -343,7 +344,7 @@ public class GuiUtils {
 		int defIdx = Arrays.asList(choices).indexOf(defaultChoice);
 		if (defIdx < 0)
 			defIdx = 0;
-		final JList<String> list = new JList<>(choices);
+		final JList<String> list = getJList(choices);
 		if (choices.length < 11)
 			list.setVisibleRowCount(choices.length);
 		list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -358,9 +359,42 @@ public class GuiUtils {
 		panel.add(getLabel(message), BorderLayout.NORTH);
 		panel.add(getScrollPane(list), BorderLayout.CENTER);
 		panel.add(sp, BorderLayout.SOUTH);
-		if (JOptionPane.showConfirmDialog(parent, panel, title, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) == JOptionPane.OK_OPTION)
+		final int promptResult = JOptionPane.showOptionDialog(parent, panel, title, JOptionPane.OK_CANCEL_OPTION,
+				JOptionPane.PLAIN_MESSAGE, null, new String[] { "Load", "Cancel" }, list);
+		if (promptResult == JOptionPane.OK_OPTION || promptResult == 0)
 			return list.getSelectedValue();
 		return null;
+	}
+
+	private JList<String> getJList(final String[] choices) {
+		final JList<String> list = new JList<>(choices);
+		list.addKeyListener(new KeyAdapter() {
+			private static final int DELAY = 300; // 300ms delay between searches
+			private String typedString;
+			private long lastKeyTyped;
+
+			@Override
+			public void keyTyped(final KeyEvent e) {
+				final char ch = e.getKeyChar();
+				if (!Character.isLetterOrDigit(ch)) {
+					return;
+				}
+				if (lastKeyTyped + DELAY < System.currentTimeMillis()) {
+					typedString = "";
+				}
+				lastKeyTyped = System.currentTimeMillis();
+				typedString += Character.toLowerCase(ch);
+				for (int i = 0; i < list.getModel().getSize(); i++) {
+					final String str = list.getModel().getElementAt(i).toLowerCase();
+					if (str.startsWith(typedString)) {
+						list.setSelectedIndex(i);
+						list.ensureIndexIsVisible(i);
+						break;
+					}
+				}
+			}
+		});
+		return list;
 	}
 
 	private JScrollPane getScrollPane(final Component c) {
@@ -370,7 +404,7 @@ public class GuiUtils {
 	}
 
 	public List<String> getMultipleChoices(final String title, final String[] choices) {
-		final JList<String> list = new JList<>(choices);
+		final JList<String> list = getJList(choices);
 		if (JOptionPane.showConfirmDialog(parent, getScrollPane(list), title,
 				JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) == JOptionPane.OK_OPTION)
 			return list.getSelectedValuesList();
@@ -1931,7 +1965,7 @@ public class GuiUtils {
 				}
 				colField = intField();
 				rowField = intField();
-				titles = new JList<>(charts.keySet().toArray(new String[0]));
+				titles = getJList(charts.keySet().toArray(new String[0]));
 				checkbox = new JCheckBox("Label panels", false);
 			}
 
