@@ -103,6 +103,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 */
 	public FillManagerUI(final SNT plugin) {
 		super(plugin.getUI(), "Fill Manager");
+		getRootPane().putClientProperty("JRootPane.menuBarEmbedded", false);
 
 		this.plugin = plugin;
 		pathAndFillManager = plugin.getPathAndFillManager();

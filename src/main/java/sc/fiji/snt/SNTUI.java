@@ -230,6 +230,8 @@ public class SNTUI extends JDialog {
 	private SNTUI(final SNT plugin, final PathManagerUI pmUI, final FillManagerUI fmUI) {
 
 		super(plugin.legacyService.getIJ1Helper().getIJ(), "SNT v" + SNTUtils.VERSION, false);
+		// if embedded, menu bar becomes truncated on M. Windows 10/11
+		getRootPane().putClientProperty("JRootPane.menuBarEmbedded", false);
 		guiUtils = new GuiUtils(this);
 		this.plugin = plugin;
 		new ClarifyingKeyListener(plugin).addKeyAndContainerListenerRecursively(this);

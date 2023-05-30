@@ -1776,8 +1776,6 @@ public class GuiUtils {
 	public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice, final Component... componentsToUpdate) {
 		boolean success;
 		storeExistingLookAndFeel();
-		// embedded menu bar make dialogs exaggeratedly wide in main UI
-		UIManager.put("TitlePane.menuBarEmbedded", false);
 		switch (lookAndFeelName) {
 		case (LAF_LIGHT):
 			success = FlatLightLaf.setup();
