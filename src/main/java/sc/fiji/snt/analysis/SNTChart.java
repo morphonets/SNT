@@ -178,7 +178,13 @@ public class SNTChart extends ChartFrame {
 			costumizePopupMenu();
 			setPreferredSize(preferredSize);
 		}
-		setDefaultDirectoryForSaveAs(SNTPrefs.lastknownDir());
+		try {
+			setDefaultDirectoryForSaveAs(SNTPrefs.lastknownDir());
+		} catch (final Exception ignored) {
+			// Workaround reports of System.getProperty("user.home") not being a valid directory
+			// (presumably due to modified PATH variables [reported from S Windows 10/11])
+			SNTUtils.log("SNTChart: Could not set default directory: " + SNTPrefs.lastknownDir());
+		}
 		pack();
 		setLocationByPlatform(true);
 		addWindowListener(new WindowAdapter() {
