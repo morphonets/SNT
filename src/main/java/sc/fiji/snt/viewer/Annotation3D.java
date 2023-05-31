@@ -408,10 +408,9 @@ public class Annotation3D {
 		case SCATTER:
 			return "cloud";
 		case SURFACE:
-			return "surface";
 		case SURFACE_AND_VOLUME:
 			return "surface";
-		case STRIP:
+			case STRIP:
 		case Q_TIP:
 			return "line";
 		case MERGE:

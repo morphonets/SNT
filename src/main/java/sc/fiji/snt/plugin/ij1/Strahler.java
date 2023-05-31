@@ -498,7 +498,7 @@ public class Strahler implements PlugIn, DialogListener {
 				validTitles.add(imp.getTitle());
 			}
 		}
-		gd.addChoice("8-bit grayscale image:", validTitles.toArray(new String[validTitles.size()]), title);
+		gd.addChoice("8-bit grayscale image:", validTitles.toArray(new String[0]), title);
 
 		// Part 3: Output
 		gd.setInsets(25, 0, 0);

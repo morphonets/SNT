@@ -24,9 +24,10 @@ package sc.fiji.snt.viewer;
 
 import java.awt.GridLayout;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -146,7 +147,7 @@ public class MultiViewer2D {
 		int i = 1;
 		for (final ChartPanel cPanel : rowPanels) {
 			try {
-				final OutputStream out = new FileOutputStream(filePath + "-" + i + ".png");
+				final OutputStream out = Files.newOutputStream(Paths.get(filePath + "-" + i + ".png"));
 				ChartUtils.writeChartAsPNG(out, cPanel.getChart(), cPanel.getWidth(), cPanel.getHeight());
 				i++;
 			} catch (final IOException ex) {

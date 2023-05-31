@@ -460,11 +460,10 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		if (list == null || list.size() < 2) {
 			if (twoD) {
 				attemptToLoadDemoImage("Initial image is no longer available");
-				return;
 			} else {
 				helper.error("No other images are open.", "No Other Images");
-				return;
 			}
+			return;
 		}
 		try {
 			final Map<String, Object> input= new HashMap<>();

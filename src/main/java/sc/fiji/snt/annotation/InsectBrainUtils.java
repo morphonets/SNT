@@ -104,8 +104,7 @@ public final class InsectBrainUtils {
 			}
 			final String speciesName = speciesIDNameMap.get(info.getSpeciesID());
 			if (speciesName != null) {
-				if (speciesIDsMap.get(speciesName) == null)
-					speciesIDsMap.put(speciesName, new ArrayList<>());
+                speciesIDsMap.computeIfAbsent(speciesName, k -> new ArrayList<>());
 				speciesIDsMap.get(speciesName).add(id);
 			}
 		}

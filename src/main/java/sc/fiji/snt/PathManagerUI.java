@@ -31,11 +31,11 @@ import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.*;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -705,7 +705,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		try {
 			final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
-				new FileOutputStream(saveFile), StandardCharsets.UTF_8));
+					Files.newOutputStream(saveFile.toPath()), StandardCharsets.UTF_8));
 			pathAndFillManager.flushSWCPoints(swcPoints, pw);
 			pw.close();
 		}

@@ -71,16 +71,15 @@ import java.awt.print.PageFormat;
 import java.awt.print.Paper;
 import java.awt.print.PrinterException;
 import java.awt.print.PrinterJob;
-import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.*;
@@ -1047,19 +1046,14 @@ class EditorActions
 				}
 			});
 
-			PropertyChangeListener propertyChangeListener = new PropertyChangeListener()
-			{
-
-				/*
-				 * (non-Javadoc)
-				 * @see java.beans.PropertyChangeListener#propertyChange(java.beans.PropertyChangeEvent)
-				 */
-				public void propertyChange(PropertyChangeEvent evt)
+			/*
+			 * (non-Javadoc)
+			 * @see java.beans.PropertyChangeListener#propertyChange(java.beans.PropertyChangeEvent)
+			 */
+			PropertyChangeListener propertyChangeListener = evt -> {
+				if (evt.getPropertyName().equalsIgnoreCase(fieldname))
 				{
-					if (evt.getPropertyName().equalsIgnoreCase(fieldname))
-					{
-						update(target, fieldname);
-					}
+					update(target, fieldname);
 				}
 			};
 
@@ -1381,7 +1375,7 @@ class EditorActions
 				throws IOException
 		{
 			Map<String, String> text = mxPngTextDecoder
-					.decodeCompressedText(new FileInputStream(file));
+					.decodeCompressedText(Files.newInputStream(file.toPath()));
 
 			if (text != null)
 			{
