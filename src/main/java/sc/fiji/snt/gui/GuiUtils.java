@@ -340,7 +340,7 @@ public class GuiUtils {
 		ta.setWrapStyleWord(true);
 		ta.setLineWrap(true);
 		ta.setEditable(false);
-		ta.setFocusable(true);
+		ta.setFocusable(true); // allow text to be copied
 		int defIdx = Arrays.asList(choices).indexOf(defaultChoice);
 		if (defIdx < 0)
 			defIdx = 0;
@@ -353,8 +353,24 @@ public class GuiUtils {
 			ta.setCaretPosition(0);
 		});
 		list.setSelectedIndex(defIdx);
+		list.setCellRenderer(new DefaultListCellRenderer() {
+
+			private static final long serialVersionUID = -810009340376431810L;
+
+			@Override
+			public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
+					boolean cellHasFocus) {
+				final Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+				if (isSelected)
+					c.setFont(c.getFont().deriveFont(Font.BOLD));
+				return c;
+
+			}
+		} );
+
 		ta.setText(descriptions[defIdx]);
 		ta.setCaretPosition(0);
+		ta.setBackground(list.getBackground());
 		final JPanel panel = new JPanel(new BorderLayout());
 		panel.add(getLabel(message), BorderLayout.NORTH);
 		panel.add(getScrollPane(list), BorderLayout.CENTER);
@@ -2038,7 +2054,7 @@ public class GuiUtils {
 					final double rows = GuiUtils.extractDouble(rowField);
 					final double cols = GuiUtils.extractDouble(rowField);
 					if (Double.isNaN(rows) || rows <= 0 || Double.isNaN(cols) || cols <= 0) {
-						GuiUtils.errorPrompt("No. of columns and no. of rows must > 0.");
+						error("No. of columns and no. of rows must > 0.");
 						return;
 					}
 					final Collection<SNTChart> selection = (titles.getSelectedIndices().length == 0) ? charts.values()
@@ -2046,7 +2062,7 @@ public class GuiUtils {
 									.filter(entry -> titles.getSelectedValuesList().contains(entry.getKey()))
 									.map(Map.Entry::getValue).collect(Collectors.toList());
 					if (selection == null || selection.isEmpty()) {
-						GuiUtils.errorPrompt("No charts selected from list.");
+						error("No charts selected from list.");
 						return;
 					}
 					SNTChart.combine(selection, (int) rows, (int) cols, checkbox.isSelected()).show();

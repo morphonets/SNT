@@ -27,8 +27,6 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Paint;
 import java.awt.Toolkit;
@@ -44,14 +42,14 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import javax.swing.ButtonGroup;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
-import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
-import javax.swing.JSpinner;
+import javax.swing.JRadioButtonMenuItem;
 import javax.swing.MenuElement;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
@@ -122,7 +120,6 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.SNTColor;
 
 
@@ -1077,7 +1074,7 @@ public class SNTChart extends ChartPanel {
 		getFrame().setVisible(b);
 	}
 
-	public void setVisibleAsComponent(final boolean b) { // for backwards compatibility
+	public void setVisibleAsComponent(final boolean b) {
 		super.setVisible(b);
 	}
 
@@ -1188,36 +1185,45 @@ public class SNTChart extends ChartPanel {
 		jmi.addActionListener(e -> SNTChart.tileAll());
 		utils.add(jmi);
 
-		final float DEF_FONT_SIZE = defFontSize();
-		final JSpinner spinner = GuiUtils.doubleSpinner(scalingFactor, 0.5, 4, 0.5, 1);
-		spinner.addChangeListener(e -> {
-			setFontSize(((Double) spinner.getValue()).floatValue() * DEF_FONT_SIZE);
-		});
-		final JPanel p = new JPanel();
-		p.setBackground(popup.getBackground());
-		p.setLayout(new GridBagLayout());
-		final GridBagConstraints c = GuiUtils.defaultGbc();
-		c.gridwidth = 2;
-		c.fill = GridBagConstraints.HORIZONTAL;
-		javax.swing.JLabel l = new javax.swing.JLabel("Font Scaling: ");
-		l.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EMPTY));
-		p.add(l, c);
-		c.fill = GridBagConstraints.BOTH;
-		c.gridx = 1;
-		c.ipadx = 0;
-		c.gridx++;
-		p.add(spinner, c);
-
 		popup.addSeparator();
 		jmi = new JMenuItem("Frame Size...");
 		jmi.addActionListener(e -> new GuiUtils(SNTChart.this).adjustComponentThroughPrompt(SNTChart.this));
 		popup.add(jmi);
-		popup.add(p);
+		popup.add(fontScalingMenu());
 		popup.addSeparator();
 		popup.add(dark);
 		popup.addSeparator();
 		popup.add(utils);
 
+	}
+
+	private JMenu fontScalingMenu() {
+		final JMenu fontScaleMenu = new JMenu("Font Scaling");
+		final float DEF_FONT_SIZE = defFontSize();
+		final ButtonGroup buttonGroup = new ButtonGroup();
+		for (final float size : new float[] { .5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f }) {
+			final JRadioButtonMenuItem item = new JRadioButtonMenuItem("" + size + "×");
+			item.addActionListener(event -> setFontSize(size * DEF_FONT_SIZE));
+			buttonGroup.add(item);
+			fontScaleMenu.add(item);
+		}
+		fontScaleMenu.addSeparator();
+		final JRadioButtonMenuItem chooseScale = new JRadioButtonMenuItem("Other...", false);
+		chooseScale.addActionListener(e -> {
+			final GuiUtils gUtils = new GuiUtils(this);
+			final Double newScale = gUtils.getDouble("Scaling factor:", "Scaling Factor", 2);
+			if (newScale == null)
+				return;
+			if (newScale.isNaN() || newScale <= 0) {
+				gUtils.error("Invalid scaling factor.");
+				return;
+			}
+			setFontSize((float) (newScale * DEF_FONT_SIZE));
+			chooseScale.setText("Other... (" + SNTUtils.formatDouble(newScale, 1) + "×)");
+		});
+		buttonGroup.add(chooseScale);
+		fontScaleMenu.add(chooseScale);
+		return fontScaleMenu;
 	}
 
 	private JMenu getMenu(final JPopupMenu popup, final String menuName) {
@@ -1363,7 +1369,9 @@ public class SNTChart extends ChartPanel {
 	}
 
 	public static void tileAll() {
-		//GuiUtils.tile(openInstances);
+		final List<JFrame> frames = new ArrayList<>();
+		openInstances.forEach( oi -> frames.add(oi.getFrame()));
+		GuiUtils.tile(frames);
 	}
 
 	/**
