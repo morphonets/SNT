@@ -383,7 +383,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 				return (filename.endsWith(".traces")) || (filename.endsWith("swc")) || (filename.endsWith(".json"));
 			}
 
-			final void importFile(final File file) {
+			void importFile(final File file) {
 				final Collection<Tree> trees = Tree.listFromFile(file.getAbsolutePath());
 				if (trees == null || trees.isEmpty()) {
 					guiUtils.error(file.getName() + " does not seem to contain valid reconstruction(s).");

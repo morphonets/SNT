@@ -46,7 +46,6 @@ import javax.swing.JComponent;
 
 import com.mxgraph.swing.mxGraphComponent;
 import com.mxgraph.util.mxEvent;
-import com.mxgraph.util.mxEventObject;
 import com.mxgraph.util.mxPoint;
 import com.mxgraph.util.mxEventSource.mxIEventListener;
 import com.mxgraph.view.mxGraph;
@@ -163,13 +162,7 @@ class EditorRuler extends JComponent implements MouseMotionListener,
 	/**
 	 * 
 	 */
-	protected transient mxIEventListener repaintHandler = new mxIEventListener()
-	{
-		public void invoke(Object source, mxEventObject evt)
-		{
-			repaint();
-		}
-	};
+	protected transient mxIEventListener repaintHandler = (source, evt) -> repaint();
 
 	/**
 	 * Constructs a new ruler for the specified graph and orientation.

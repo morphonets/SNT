@@ -3038,7 +3038,7 @@ public class SNTUI extends JDialog {
 		manRbmi.addActionListener(e -> {
 			final boolean prevStatsState = plugin.getUseSubVolumeStats();
 			final boolean successfullySet = setMinMaxFromUser();
-			final boolean newStatsState = (successfullySet) ? false : prevStatsState;
+			final boolean newStatsState = !successfullySet && prevStatsState;
 			plugin.setUseSubVolumeStats(newStatsState);
 			manRbmi.setSelected(!newStatsState);
 			autoRbmi.setSelected(newStatsState);

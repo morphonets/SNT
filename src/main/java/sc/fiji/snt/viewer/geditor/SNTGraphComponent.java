@@ -116,7 +116,7 @@ public class SNTGraphComponent extends mxGraphComponent {
 
     @Override
     public boolean isPanningEvent(MouseEvent event) {
-    	return (event != null) ? spaceDown : false;
+    	return event != null && spaceDown;
     }
 
     @SuppressWarnings("unused")

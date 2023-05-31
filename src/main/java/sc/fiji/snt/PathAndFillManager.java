@@ -56,6 +56,8 @@ import java.awt.*;
 import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -495,7 +497,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 			try {
 				final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
-					new FileOutputStream(swcFile), StandardCharsets.UTF_8));
+						Files.newOutputStream(swcFile.toPath()), StandardCharsets.UTF_8));
 				flushSWCPoints(swcPoints, pw);
 			}
 			catch (final IOException ioe) {
@@ -1378,9 +1380,8 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		try {
 			if (compress) pw = new PrintWriter(new OutputStreamWriter(
-				new GZIPOutputStream(new FileOutputStream(fileName)), StandardCharsets.UTF_8));
-			else pw = new PrintWriter(new OutputStreamWriter(new FileOutputStream(
-				fileName), StandardCharsets.UTF_8));
+				new GZIPOutputStream(Files.newOutputStream(Paths.get(fileName))), StandardCharsets.UTF_8));
+			else pw = new PrintWriter(new OutputStreamWriter(Files.newOutputStream(Paths.get(fileName)), StandardCharsets.UTF_8));
 
 			pw.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
 			pw.println("<!DOCTYPE tracings [");
@@ -2904,7 +2905,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		try {
 
-			is = new BufferedInputStream(new FileInputStream(filePath));
+			is = new BufferedInputStream(Files.newInputStream(Paths.get(filePath)));
 			final BufferedReader br = new BufferedReader(new InputStreamReader(is,
 					StandardCharsets.UTF_8));
 
@@ -2925,7 +2926,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	protected int guessTracesFileType(final String filename) {
 		try {
-			return guessTracesFileType(new FileInputStream(filename), true);
+			return guessTracesFileType(Files.newInputStream(Paths.get(filename)), true);
 		} catch (IOException e) {
 			errorStatic("The file '" + filename + "' could not be parsed.");
 			return -1;
@@ -2970,7 +2971,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		try {
 			SNTUtils.log("Loading gzipped file...");
 			return load(new GZIPInputStream(new BufferedInputStream(
-				new FileInputStream(filename))));
+					Files.newInputStream(Paths.get(filename)))));
 		}
 		catch (final IOException ioe) {
 			error("Could not read file '" + filename +
@@ -2982,7 +2983,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected boolean loadUncompressedXML(final String filename, final int...swcTypes) {
 		try {
 			SNTUtils.log("Loading uncompressed file...");
-			return load(new BufferedInputStream(new FileInputStream(filename)));
+			return load(new BufferedInputStream(Files.newInputStream(Paths.get(filename))));
 		}
 		catch (final IOException ioe) {
 			error("Could not read '" + filename + "' (it was expected to be XML)");
@@ -3455,7 +3456,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			"Threshold", "Metric", "Volume", "LengthUnits" };
 
 		final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
-			new FileOutputStream(outputFile.getAbsolutePath()), StandardCharsets.UTF_8));
+				Files.newOutputStream(Paths.get(outputFile.getAbsolutePath())), StandardCharsets.UTF_8));
 		final int columns = headers.length;
 		for (int c = 0; c < columns; ++c) {
 			SNTUtils.csvQuoteAndPrint(pw, headers[c]);
@@ -3502,7 +3503,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		Collections.addAll(h, primaryPaths);
 
 		final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
-			new FileOutputStream(outputFile.getAbsolutePath()), StandardCharsets.UTF_8));
+				Files.newOutputStream(Paths.get(outputFile.getAbsolutePath())), StandardCharsets.UTF_8));
 		final int columns = headers.length;
 		for (int c = 0; c < columns; ++c) {
 			SNTUtils.csvQuoteAndPrint(pw, headers[c]);

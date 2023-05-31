@@ -25,8 +25,6 @@ package sc.fiji.snt.analysis;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -246,12 +244,7 @@ public class MultiTreeColorMapper extends ColorMapper {
 	}
 
 	public List<Tree> sortedMappedTrees() {
-		Collections.sort(mappedTrees, new Comparator<MappedTree>() {
-			@Override
-			public int compare(final MappedTree t1, final MappedTree t2) {
-				return Double.compare(t1.value, t2.value);
-			}
-		});
+		mappedTrees.sort((t1, t2) -> Double.compare(t1.value, t2.value));
 		final List<Tree> sortedTrees = new ArrayList<>(mappedTrees.size());
 		mappedTrees.forEach(mp -> sortedTrees.add(mp.tree));
 		return sortedTrees;

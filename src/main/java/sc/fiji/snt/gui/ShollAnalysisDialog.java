@@ -32,13 +32,14 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.IndexColorModel;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -576,7 +577,7 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 			chart.draw(svgGenerator, bounds);
 
 			// Write svg file
-			final OutputStream outputStream = new FileOutputStream(svgFile);
+			final OutputStream outputStream = Files.newOutputStream(svgFile.toPath());
 			final Writer out = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8);
 			svgGenerator.stream(out, true /* use css */);
 			outputStream.flush();
@@ -990,7 +991,7 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 				"Regression gradient", "Regression intercept" };
 
 			final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
-				new FileOutputStream(outputFile.getAbsolutePath()), StandardCharsets.UTF_8));
+					Files.newOutputStream(Paths.get(outputFile.getAbsolutePath())), StandardCharsets.UTF_8));
 			final int columns = headers.length;
 			for (int c = 0; c < columns; ++c) {
 				SNTUtils.csvQuoteAndPrint(pw, headers[c]);
@@ -1029,7 +1030,7 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 				? "Inters./Area" : "Inters./Volume" };
 
 			final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
-				new FileOutputStream(outputFile.getAbsolutePath()), StandardCharsets.UTF_8));
+					Files.newOutputStream(Paths.get(outputFile.getAbsolutePath())), StandardCharsets.UTF_8));
 			final int columns = headers.length;
 			for (int c = 0; c < columns; ++c) {
 				SNTUtils.csvQuoteAndPrint(pw, headers[c]);

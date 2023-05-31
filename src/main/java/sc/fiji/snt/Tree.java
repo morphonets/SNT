@@ -23,8 +23,8 @@
 package sc.fiji.snt;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -477,20 +477,8 @@ public class Tree implements TreeProperties {
 
 		// Now remove all linkages and references to non-filtered paths
 		for (final Path p : subtree.list()) {
-			final Iterator<Path> joinsIt = p.somehowJoins.iterator();
-			while (joinsIt.hasNext()) {
-				final Path joins = joinsIt.next();
-				if (!matchesType(joins, swcTypes)) {
-					joinsIt.remove();
-				}
-			}
-			final Iterator<Path> childrenIt = p.children.iterator();
-			while (childrenIt.hasNext()) {
-				final Path child = childrenIt.next();
-				if (!matchesType(child, swcTypes)) {
-					childrenIt.remove();
-				}
-			}
+			p.somehowJoins.removeIf(joins -> !matchesType(joins, swcTypes));
+			p.children.removeIf(child -> !matchesType(child, swcTypes));
 			if (p.startJoins == null)
 				p.setIsPrimary(true);
 			else if (p.startJoins != null && !matchesType(p.startJoins, swcTypes)) {
@@ -1372,7 +1360,7 @@ public class Tree implements TreeProperties {
 				final PathAndFillManager pafm = new PathAndFillManager();
 				pafm.setHeadless(true);
 				baseName = SNTUtils.stripExtension(f.getName());
-				pafm.loadGuessingType(baseName, new FileInputStream(f));
+				pafm.loadGuessingType(baseName, Files.newInputStream(f.toPath()));
 				trees = pafm.getTrees();
 			}
 		} catch (final IOException e) {

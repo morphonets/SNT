@@ -58,7 +58,7 @@ public class DefaultSearchNode implements SearchNode, Comparable<DefaultSearchNo
 
 	public byte searchStatus;
 
-	public DefaultSearchNode() {};
+	public DefaultSearchNode() {}
 
 	public DefaultSearchNode(final int x, final int y, final int z, final double g,
 							 final double h, final DefaultSearchNode predecessor, final byte searchStatus)
