@@ -3005,7 +3005,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			final Map<String, TreeSet<SWCPoint>> nMap = MouseLightLoader.extractNodes(new File(filename), compartment);
 			final Map<String, Tree> outMap = importNeurons(nMap, null, GuiUtils.micrometer());
 			return outMap.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty());
-		} catch (final FileNotFoundException | IllegalArgumentException | JSONException e) {
+		} catch (final IOException | IllegalArgumentException | JSONException e) {
 			error("Failed to read file: '" + filename + "' (" + e.getMessage() +")");
 			return false;
 		}
