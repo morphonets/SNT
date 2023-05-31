@@ -25,7 +25,6 @@ package sc.fiji.snt.io;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -206,10 +205,11 @@ public class MouseLightLoader {
 	 *                    nodes are retrieved if {@code compartment} is not
 	 *                    recognized
 	 * @return the map containing the reconstruction nodes as {@link Tree}s
-	 * @throws FileNotFoundException if file could not be retrieved
+	 * @throws IOException if file could not be loaded
+	 * @throws JSONException if file is malformed
 	 * @see #extractNodesFromJSONObject(String, JSONObject)
 	 */
-	public static Map<String, Tree> extractTrees(final File jsonFile, final String compartment) throws FileNotFoundException {
+	public static Map<String, Tree> extractTrees(final File jsonFile, final String compartment) throws JSONException, IOException {
 		final Map<String, TreeSet<SWCPoint>> nodesMap = extractNodes(jsonFile, compartment);
 		final PathAndFillManager pafm = new PathAndFillManager();
 		pafm.setHeadless(true);
@@ -236,10 +236,10 @@ public class MouseLightLoader {
 	 *                    recognized
 	 * @return the map containing the reconstruction nodes as {@link SWCPoint}s 
 	 * @throws JSONException if file is malformed
-	 * @throws FileNotFoundException if file could not be retrieved
+	 * @throws IOException if file could not be loaded
 	 * @see #extractTrees(File, String)
 	 */
-	public static Map<String, TreeSet<SWCPoint>> extractNodes(final File jsonFile, final String compartment) throws JSONException, FileNotFoundException {
+	public static Map<String, TreeSet<SWCPoint>> extractNodes(final File jsonFile, final String compartment) throws JSONException, IOException {
 		final JSONTokener tokener = new JSONTokener(new BufferedInputStream(Files.newInputStream(jsonFile.toPath())));
 		return extractNodes(tokener, compartment);
 	}
@@ -623,7 +623,7 @@ public class MouseLightLoader {
 				e.printStackTrace();
 			}
 			out.println("# End of Tree ");
-		} catch (final FileNotFoundException | IllegalArgumentException e) {
+		} catch (final IOException | IllegalArgumentException e) {
 			e.printStackTrace();
 		}
 		System.out.println("# All done");
