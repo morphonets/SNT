@@ -23,7 +23,6 @@ package sc.fiji.snt.analysis.sholl.parsers;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.scijava.Context;
@@ -190,12 +189,7 @@ public class ImageParser3D extends ImageParser {
 			}
 		}
 
-		final Iterator<ShollPoint> it = points.iterator();
-		while (it.hasNext()) {
-			if (it.next().flag == ShollPoint.DELETE) {
-				it.remove();
-			}
-		}
+		points.removeIf(shollPoint -> shollPoint.flag == ShollPoint.DELETE);
 
 		return new HashSet<>(points);
 

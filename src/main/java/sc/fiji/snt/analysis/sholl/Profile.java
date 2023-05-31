@@ -169,20 +169,11 @@ public class Profile implements ProfileProperties {
 	}
 
 	public void trimZeroCounts() {
-		final Iterator<ProfileEntry> iter = profile.iterator();
-		while (iter.hasNext()) {
-			final ProfileEntry entry = iter.next();
-			if (entry.radius == 0 || entry.count == 0)
-				iter.remove();
-		}
+		profile.removeIf(entry -> entry.radius == 0 || entry.count == 0);
 	}
 
 	public void trimNaNCounts() {
-		final Iterator<ProfileEntry> iter = profile.iterator();
-		while (iter.hasNext()) {
-			if (Double.isNaN(iter.next().count))
-				iter.remove();
-		}
+		profile.removeIf(profileEntry -> Double.isNaN(profileEntry.count));
 	}
 
 	public void scale(final double xScale, final double yScale, final double zScale) {
@@ -339,9 +330,9 @@ public class Profile implements ProfileProperties {
 
 		// Calibration
 		final String[] calLines = properties.getProperty(KEY_CALIBRATION, UNSET).split(",");
-		final Double vx = Double.parseDouble(getCalibrationValue(calLines, "w="));
-		final Double vy = Double.parseDouble(getCalibrationValue(calLines, "h="));
-		final Double vz = Double.parseDouble(getCalibrationValue(calLines, "d="));
+		final double vx = Double.parseDouble(getCalibrationValue(calLines, "w="));
+		final double vy = Double.parseDouble(getCalibrationValue(calLines, "h="));
+		final double vz = Double.parseDouble(getCalibrationValue(calLines, "d="));
 		final String unit = getCalibrationValue(calLines, "unit=");
 		cal = new Calibration();
 		cal.setUnit(unit);

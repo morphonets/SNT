@@ -23,7 +23,6 @@ package sc.fiji.snt.analysis.sholl.math;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -598,12 +597,9 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 		final Complex[] roots = solver.solveAllComplex(derivative.getCoefficients(), initialGuess, getMaxEvaluations());
 		if (roots == null)
 			return null;
-		final Set<ShollPoint> maxima = new TreeSet<>(new Comparator<ShollPoint>() {
-			@Override
-			public int compare(final ShollPoint p1, final ShollPoint p2) {
-				return Double.compare(p2.y, p1.y); // descendant order of
-													// ordinates
-			}
+		final Set<ShollPoint> maxima = new TreeSet<>((p1, p2) -> {
+			return Double.compare(p2.y, p1.y); // descendant order of
+												// ordinates
 		});
 		final double tolerance = profile.stepSize();
 		for (final Complex root : roots) {

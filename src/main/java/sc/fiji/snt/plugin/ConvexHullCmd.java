@@ -68,7 +68,7 @@ public class ConvexHullCmd extends ContextCommand {
 	@Parameter(required = false)
 	private Viewer3D recViewer;
 	@Parameter(required = false, persist = false)
-	private boolean calledFromRecViewerInstance;;
+	private boolean calledFromRecViewerInstance;
 	@Parameter(required = false)
 	private Viewer2D recPlotter;
 	@Parameter(required = false)

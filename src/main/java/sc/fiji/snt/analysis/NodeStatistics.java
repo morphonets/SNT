@@ -265,11 +265,7 @@ public class NodeStatistics <T extends PointInImage> {
 					mappingAnnotation = pAnnotation;
 				}
 			}
-			Set<T> currentList = map.get(mappingAnnotation);
-			if (currentList == null) {
-				currentList = new HashSet<T>();
-				map.put(mappingAnnotation, currentList);
-			}
+			Set<T> currentList = map.computeIfAbsent(mappingAnnotation, k -> new HashSet<T>());
 			currentList.add(p);
 		}
 	

@@ -361,7 +361,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				roi = chosenOrigImp.getRoi();
 
 			// Extra user-friendliness: Aggregate unexpected settings in a single list
-			final boolean isSame = (useFileChoosers) ? (maskImgFileChoice == originalImgFileChoice) : (maskImgChoice == originalImgChoice);
+			final boolean isSame = (useFileChoosers) ? (maskImgFileChoice == originalImgFileChoice) : (maskImgChoice.equals(originalImgChoice));
 			final boolean isBinary = chosenMaskImp.getProcessor().isBinary();
 			final boolean isCompatible = chosenOrigImp == null
 					|| chosenMaskImp.getCalibration().equals(chosenOrigImp.getCalibration());

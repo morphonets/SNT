@@ -1019,18 +1019,18 @@ public class Viewer3D {
 	 * @return the Tree list
 	 */
 	public List<Tree> getTrees(final boolean visibleOnly) {
+		final ArrayList<Tree> trees;
 		if (visibleOnly) {
-			final ArrayList<Tree> trees = new ArrayList<>();
+			trees = new ArrayList<>();
 			plottedTrees.forEach((k, shapeTree) -> {
 				if (shapeTree.isDisplayed())
 					trees.add(shapeTree.tree);
 			});
-			return trees;
 		} else {
-			final ArrayList<Tree> trees = new ArrayList<>(plottedTrees.values().size());
+			trees = new ArrayList<>(plottedTrees.values().size());
 			plottedTrees.values().forEach(shapeTree -> trees.add(shapeTree.tree));
-			return trees;
 		}
+		return trees;
 	}
 
 	/**
@@ -1050,18 +1050,18 @@ public class Viewer3D {
 	 * @return the mesh list
 	 */
 	public List<OBJMesh> getMeshes(final boolean visibleOnly) {
+		final ArrayList<OBJMesh> meshes;
 		if (visibleOnly) {
-			final ArrayList<OBJMesh> meshes = new ArrayList<>();
+			meshes = new ArrayList<>();
 			plottedObjs.values().forEach( vbo -> {
 				if (vbo.isDisplayed())
 					meshes.add(vbo.objMesh);
 			});
-			return meshes;
 		} else {
-			final ArrayList<OBJMesh> meshes = new ArrayList<>(plottedObjs.values().size());
+			meshes = new ArrayList<>(plottedObjs.values().size());
 			plottedObjs.values().forEach( vbo -> meshes.add(vbo.objMesh));
-			return meshes;
 		}
+		return meshes;
 	}
 
 	/**
@@ -2277,7 +2277,7 @@ public class Viewer3D {
 	}
 
 	private OBJMesh loadRefBrainInternal(final String label) throws NullPointerException, IllegalArgumentException {
-		if (getOBJs().keySet().contains(label)) {
+		if (getOBJs().containsKey(label)) {
 			setVisible(label, true);
 			if (managerList != null)
 				managerList.addCheckBoxListSelectedValue(label, true);
@@ -5038,7 +5038,7 @@ public class Viewer3D {
 				guiUtils.error("Remote server not reached. It is either down or you have no internet access.");
 				return;
 			}
-			if (warnIfLoaded && getOBJs().keySet().contains(label)) {
+			if (warnIfLoaded && getOBJs().containsKey(label)) {
 				guiUtils.error(label + " is already loaded.");
 				return;
 			}
@@ -5385,7 +5385,7 @@ public class Viewer3D {
 					viewUpdatesEnabled = compartments.size() == 1;
 					for (final AllenCompartment compartment : compartments) {
 						Viewer3D.this.incrementProgress();
-						if (getOBJs().keySet().contains(compartment.name())) {
+						if (getOBJs().containsKey(compartment.name())) {
 							managerList.addCheckBoxListSelectedValue(compartment.name(), true);
 						} else {
 							try {
@@ -5437,7 +5437,7 @@ public class Viewer3D {
 		private void showSelectionInfo() {
 			final List<AllenCompartment> cs = getCheckedSelection();
 			if (cs == null) return;
-			Collections.sort(cs, (c1, c2) -> {
+			cs.sort((c1, c2) -> {
 				return c1.name().compareToIgnoreCase(c2.name());
 			});
 			final StringBuilder sb = new StringBuilder("<header>");

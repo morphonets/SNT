@@ -1805,9 +1805,6 @@ public class Path implements Comparable<Path> {
 	{
 		String typeName;
 		switch (type) {
-			case SWC_UNDEFINED:
-				typeName = SWC_UNDEFINED_LABEL;
-				break;
 			case SWC_SOMA:
 				typeName = SWC_SOMA_LABEL;
 				break;
@@ -1829,6 +1826,7 @@ public class Path implements Comparable<Path> {
 			case SWC_CUSTOM:
 				typeName = SWC_CUSTOM_LABEL;
 				break;
+			case SWC_UNDEFINED:
 			default:
 				typeName = SWC_UNDEFINED_LABEL;
 				break;

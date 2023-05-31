@@ -46,8 +46,8 @@ class ComponentResizer extends MouseAdapter {
 	private final static Dimension MINIMUM_SIZE = new Dimension(10, 10);
 	private final static Dimension MAXIMUM_SIZE = new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE);
 
-	private static Map<Integer, Integer> cursors = new HashMap<Integer, Integer>();
-	{
+	private static final Map<Integer, Integer> cursors = new HashMap<Integer, Integer>();
+	static {
 		cursors.put(1, Cursor.N_RESIZE_CURSOR);
 		cursors.put(2, Cursor.W_RESIZE_CURSOR);
 		cursors.put(4, Cursor.S_RESIZE_CURSOR);
@@ -344,7 +344,7 @@ class ComponentResizer extends MouseAdapter {
 	 */
 	@Override
 	public void mouseDragged(final MouseEvent e) {
-		if (resizing == false)
+		if (!resizing)
 			return;
 
 		final Component source = e.getComponent();

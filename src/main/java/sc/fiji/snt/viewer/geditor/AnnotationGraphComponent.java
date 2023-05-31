@@ -47,7 +47,7 @@ import javax.swing.*;
 public class AnnotationGraphComponent extends SNTGraphComponent {
 
     private static final long serialVersionUID = 1L;
-    private mxGraphLayout layout;
+    private final mxGraphLayout layout;
     // Layout parameters, these are all the default value unless specified
     // Fast organic layout parameters
     private double forceConstant = 50;
