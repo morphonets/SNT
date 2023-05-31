@@ -25,7 +25,6 @@ package sc.fiji.snt.io;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -33,6 +32,7 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -240,7 +240,7 @@ public class MouseLightLoader {
 	 * @see #extractTrees(File, String)
 	 */
 	public static Map<String, TreeSet<SWCPoint>> extractNodes(final File jsonFile, final String compartment) throws JSONException, FileNotFoundException {
-		final JSONTokener tokener = new JSONTokener(new BufferedInputStream(new FileInputStream(jsonFile)));
+		final JSONTokener tokener = new JSONTokener(new BufferedInputStream(Files.newInputStream(jsonFile.toPath())));
 		return extractNodes(tokener, compartment);
 	}
 

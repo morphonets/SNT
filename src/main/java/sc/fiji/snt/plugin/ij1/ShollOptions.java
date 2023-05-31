@@ -23,8 +23,6 @@ package sc.fiji.snt.plugin.ij1;
 
 
 import java.awt.Font;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.HashMap;
 import java.util.Map.Entry;
 
@@ -511,20 +509,10 @@ public class ShollOptions implements PlugIn {
 		final JPopupMenu popup = new JPopupMenu();
 		JMenuItem mi;
 		mi = new JMenuItem("Plot Options...");
-		mi.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				IJ.doCommand("Plots...");
-			}
-		});
+		mi.addActionListener(e -> IJ.doCommand("Plots..."));
 		popup.add(mi);
 		mi = new JMenuItem("Input/Output Options...");
-		mi.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				IJ.doCommand("Input/Output...");
-			}
-		});
+		mi.addActionListener(e -> IJ.doCommand("Input/Output..."));
 		popup.add(mi);
 		popup.addSeparator();
 		mi = EnhancedGenericDialog.menuItemTrigerringURL("Help on Sholl Metrics", ShollUtils.URL + "#Metrics");

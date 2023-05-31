@@ -26,7 +26,7 @@ import sc.fiji.snt.SNT;
 
 public class SigmaUtils {
 
-	private SigmaUtils() {};
+	private SigmaUtils() {}
 
 	public static double[] getDefaultSigma(SNT snt) {
 		final double avgSep = snt.getAverageSeparation();

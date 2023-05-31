@@ -310,7 +310,7 @@ public class ScriptInstaller implements MenuKeyListener {
 			map.put("Groovy", "GVY.groovy");
 			map.put("Python", "PY.py");
 			final String choice = guiUtils.getChoice("Language:", "New SNT Script",
-					map.keySet().toArray(new String[map.keySet().size()]), "");
+					map.keySet().toArray(new String[0]), "");
 			if (choice == null) return; // user pressed cancel
 
 			final ClassLoader classloader = Thread.currentThread().getContextClassLoader();

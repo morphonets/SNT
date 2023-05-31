@@ -117,8 +117,7 @@ public class ShollAnalysisPlugin implements PlugIn, DialogListener {
 			pafm = new PathAndFillManager(cal.pixelWidth, cal.pixelHeight,
 				cal.pixelDepth, cal.getUnit());
 		}
-		if (tracesPath.endsWith(".traces")) pafm = new PathAndFillManager();
-		else pafm = new PathAndFillManager();
+		pafm = new PathAndFillManager();
 		if (!pafm.load(tracesPath)) {
 			GuiUtils.errorPrompt("File could not be loaded:\n" + tracesPath);
 			return;

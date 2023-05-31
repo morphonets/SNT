@@ -1231,7 +1231,7 @@ public class SNTChart extends ChartFrame {
 		} else {
 			throw new IllegalStateException("Export of this type of dataset is not supported.");
 		}
-		try (BufferedWriter writer = new BufferedWriter(new FileWriter(file));) {
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
 			for (final String line : csv) {
 				writer.append(line);
 				writer.newLine();

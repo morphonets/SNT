@@ -31,8 +31,6 @@ import java.awt.Label;
 import java.awt.Panel;
 import java.awt.Rectangle;
 import java.awt.TextField;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.IndexColorModel;
@@ -1260,12 +1258,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 
 		// apply new LUT in new thread to provide a more responsive user
 		// interface
-		final Thread newThread = new Thread(new Runnable() {
-			@Override
-			public void run() {
-				applySegmentationLUT();
-			}
-		});
+		final Thread newThread = new Thread(() -> applySegmentationLUT());
 		newThread.start();
 
 		// present dialog
@@ -1946,63 +1939,43 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 
 		if (analyzingImage) {
 			mi = new JMenuItem("Cf. Segmentation");
-			mi.addActionListener(new ActionListener() {
-				@Override
-				public void actionPerformed(final ActionEvent e) {
-					offlineHelp(gd);
-				}
-			});
+			mi.addActionListener(e -> offlineHelp(gd));
 			popup.add(mi);
 			popup.addSeparator();
 		}
 		mi = new JMenuItem("Options...");
-		mi.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				final Thread newThread = new Thread(new Runnable() {
-					@Override
-					public void run() {
-						if (Recorder.record)
-							Recorder.setCommand(ShollOptions.COMMAND_LABEL);
-						// IJ.runPlugIn(Options.class.getName(), analyzingImage
-						// ? "" : Options.SKIP_BITMAP_OPTIONS_LABEL);
-						options.run(analyzingImage ? "" : ShollOptions.SKIP_BITMAP_OPTIONS_LABEL);
-						if (Recorder.record)
-							Recorder.saveCommand();
-					}
-				});
-				newThread.start();
-			}
+		mi.addActionListener(e -> {
+			final Thread newThread = new Thread(() -> {
+				if (Recorder.record)
+					Recorder.setCommand(ShollOptions.COMMAND_LABEL);
+				// IJ.runPlugIn(Options.class.getName(), analyzingImage
+				// ? "" : Options.SKIP_BITMAP_OPTIONS_LABEL);
+				options.run(analyzingImage ? "" : ShollOptions.SKIP_BITMAP_OPTIONS_LABEL);
+				if (Recorder.record)
+					Recorder.saveCommand();
+			});
+			newThread.start();
 		});
 		popup.add(mi);
 		popup.addSeparator();
 		mi = new JMenuItem("Analyze image...");
-		mi.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				gd.disposeWithouRecording();
-				runInBitmapMode();
-			}
+		mi.addActionListener(e -> {
+			gd.disposeWithouRecording();
+			runInBitmapMode();
 		});
 		mi.setEnabled(analyzingTable);
 		popup.add(mi);
 		mi = new JMenuItem(analyzingTable ? "Replace input data" : "Analyze sampled profile...");
-		mi.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				gd.disposeWithouRecording();
-				runInTabularMode(true);
-			}
+		mi.addActionListener(e -> {
+			gd.disposeWithouRecording();
+			runInTabularMode(true);
 		});
 		mi.setEnabled(!analyzingTraces);
 		popup.add(mi);
 		mi = new JMenuItem("Analyze traced cells...");
-		mi.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				gd.disposeWithouRecording();
-				IJ.runPlugIn(ShollAnalysisPlugin.class.getName(), "");
-			}
+		mi.addActionListener(e -> {
+			gd.disposeWithouRecording();
+			IJ.runPlugIn(ShollAnalysisPlugin.class.getName(), "");
 		});
 		mi.setEnabled(!analyzingTraces);
 		popup.add(mi);
@@ -2512,7 +2485,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 		final int cols = (tableTitles.size() < 18) ? 1 : 2;
 		final int rows = (tableTitles.size() % cols > 0) ? tableTitles.size() / cols + 1 : tableTitles.size() / cols;
 		gd.addRadioButtonGroup("Use tabular data of sampled profiles from:",
-				tableTitles.toArray(new String[tableTitles.size()]), rows, cols, tableTitles.get(0));
+				tableTitles.toArray(new String[0]), rows, cols, tableTitles.get(0));
 		// gd.hideCancelButton();
 		gd.showDialog();
 
@@ -2528,7 +2501,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 
 				try {
 					rt = ResultsTable.open("");
-					if (rt != null && validTable(rt)) {
+					if (validTable(rt)) {
 						setExportPath(OpenDialog.getLastDirectory());
 						setDescription(OpenDialog.getLastName(), true);
 						if (!IJ.macroRunning()) // no need to display table

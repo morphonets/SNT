@@ -163,7 +163,7 @@ public class BoundingBox {
 	 */
 	public boolean isScaled() {
 		return xSpacing != 1d || ySpacing != 1d || zSpacing != 1d ||
-			spacingUnit != DEF_SPACING_UNIT;
+				!spacingUnit.equals(DEF_SPACING_UNIT);
 	}
 
 	/**
