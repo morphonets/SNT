@@ -23,7 +23,7 @@
 package sc.fiji.snt.gui.cmds;
 
 import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.stream.IntStream;
@@ -97,7 +97,7 @@ public class JSONImporterCmd extends CommonDynamicCmd {
 			if (snt != null) notifyExternalDataLoaded();
 			status("Successfully imported " + result.size() + " reconstruction(s)...", true);
 	
-		} catch (final FileNotFoundException | IllegalArgumentException | JSONException e) {
+		} catch (final IOException | IllegalArgumentException | JSONException e) {
 			error(e.getMessage());
 		} finally {
 			resetUI(pafm.size() > lastExistingPathIdx);
