@@ -558,10 +558,14 @@ public class SNTUtils {
 			final String name = file.getName();
 			if (!name.contains(validatedPattern))
 				return false;
-			final String lName = name.toLowerCase();
-			return file.canRead() && (lName.endsWith("swc") || lName.endsWith(".traces") || lName.endsWith(".json"));
+			return file.canRead() && isReconstructionFile(file);
 		};
 		return dir.listFiles(filter);
+	}
+
+	public static boolean isReconstructionFile(final File file) {
+		final String lName = file.getName().toLowerCase();
+		return (lName.endsWith("swc") || lName.endsWith(".traces") || lName.endsWith(".json") || lName.endsWith(".ndf"));
 	}
 
 	/**

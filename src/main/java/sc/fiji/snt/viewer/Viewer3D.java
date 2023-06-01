@@ -5220,7 +5220,7 @@ public class Viewer3D {
 				try {
 					incrementProgress();
 					final ColorRGB color = colors[idx];
-					if (fName.endsWith("swc") || fName.endsWith(".traces") || fName.endsWith(".json")) { // reconstruction:
+					if(SNTUtils.isReconstructionFile(file)) {
 						try {
 							final Collection<Tree> treesInFile = Tree.listFromFile(file.getAbsolutePath());
 							if (treesInFile.isEmpty()) {

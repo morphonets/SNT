@@ -3011,16 +3011,21 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 	}
 
-	private boolean loadNDF(final String filename) {
+	private boolean loadNDF(final Object filenameOrInputStream) {
 		try {
-			final NDFImporter importer = new NDFImporter(filename);
+			NDFImporter importer;
+			if (filenameOrInputStream instanceof InputStream) {
+				importer = new NDFImporter((InputStream)filenameOrInputStream);
+			} else {
+				importer = new NDFImporter((String)filenameOrInputStream);
+			}
 			final Collection<Tree> trees = importer.getTrees();
 			trees.forEach( tree -> addTree(tree, tree.getLabel()));
 			final boolean sucess = trees.stream().anyMatch(tree -> tree != null && !tree.isEmpty());
 			if (sucess) updateBoundingBox();
 			return sucess;
 		} catch (final IOException | IllegalArgumentException e) {
-			error("Failed to read file: '" + filename + "' (" + e.getMessage() +")");
+			error("Failed to read NDF data: '" + filenameOrInputStream.toString() + "' (" + e.getMessage() +")");
 			return false;
 		}
 	}
@@ -3102,6 +3107,9 @@ public class PathAndFillManager extends DefaultHandler implements
 		case TRACES_FILE_TYPE_SWC:
 			final BufferedReader br = new BufferedReader(new InputStreamReader(bis, StandardCharsets.UTF_8));
 			result = importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, true);
+			break;
+		case TRACES_FILE_TYPE_NDF:
+			result = loadNDF(bis);
 			break;
 		default:
 			SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);

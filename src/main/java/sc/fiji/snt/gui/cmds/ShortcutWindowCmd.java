@@ -380,7 +380,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 			private boolean supported(final File file) {
 				final String filename = file.getName().toLowerCase();
-				return (filename.endsWith(".traces")) || (filename.endsWith("swc")) || (filename.endsWith(".json"));
+				return (filename.endsWith(".traces")) || (filename.endsWith("swc")) || (filename.endsWith(".json") || (filename.endsWith(".ndf")));
 			}
 
 			void importFile(final File file) {

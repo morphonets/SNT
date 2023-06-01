@@ -349,7 +349,7 @@ public class SNTUI extends JDialog {
 			++c3.gridy;
 			final String msg3 =
 				"Modern 3D visualization framework supporting large image volumes, " +
-				"reconstructions, meshes, and virtual reality. Discrete graphics card recommended. " +
+				"reconstructions, meshes, virtual reality, and Cx3D simulations. Discrete graphics card recommended. " +
 				"For performance reasons, some Path Manager changes may need to be synchronized " +
 				"manually using \"Sync Changes\".";
 			tab3.add(largeMsg(msg3), c3);
@@ -4248,6 +4248,7 @@ public class SNTUI extends JDialog {
 				if (filename.endsWith(".traces")) return ImportAction.TRACES;
 				if (filename.endsWith("swc")) return ImportAction.SWC;
 				if (filename.endsWith(".json")) return ImportAction.JSON;
+				if (filename.endsWith(".ndf")) return ImportAction.NDF;
 				if (filename.endsWith(".tif") || filename.endsWith(".tiff")) return ImportAction.IMAGE;
 				return -1;
 			}

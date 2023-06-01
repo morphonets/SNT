@@ -25,8 +25,12 @@ package sc.fiji.snt.io;
 import java.awt.Color;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -77,14 +81,16 @@ public class NDFImporter {
 	private int subSampleFactor; // Subsampling
 	private String version;
 
-	private final File file;
+	private File file;
+	private InputStream is;
 	private Collection<Tree> parsedTrees;
 
 	/**
-	 * @param file the ndf file to be imported
+	 * @param is the InputStream of ndf data
 	 */
-	public NDFImporter(final File file) {
-		this.file = file;
+	public NDFImporter(final InputStream is) {
+		this.is = is;
+		this.file = null;
 	}
 
 	/**
@@ -92,6 +98,14 @@ public class NDFImporter {
 	 */
 	public NDFImporter(final String filePath) {
 		this(new File(filePath));
+	}
+
+	/**
+	 * @param file the ndf file to be imported
+	 */
+	public NDFImporter(final File file) {
+		this.file = file;
+		this.is = null;
 	}
 
 	/**
@@ -146,11 +160,20 @@ public class NDFImporter {
 		return map;
 	}
 
+	private BufferedReader getBufferedReader() throws FileNotFoundException {
+		if (is == null)
+			return  new BufferedReader(new FileReader(file));
+		return new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+	}
+
 	private Collection<Tree> getTreesInternal() throws IOException {
-		SNTUtils.log("Loading tracings from " + file.getAbsolutePath());
+		if (file == null)
+			SNTUtils.log("Loading NeuronJ tracings");
+		else
+			SNTUtils.log("Loading tracings from " + file.getAbsolutePath());
 		final HashMap<Integer, Tree> map = new HashMap<>();
 		try {
-			final BufferedReader br = new BufferedReader(new FileReader(file));
+			final BufferedReader br = getBufferedReader();
 			if (!br.readLine().startsWith("// " + NJ_NAME + " Data File")) {
 				br.close();
 				throw new IOException("Not a recognizable NDF file.");
