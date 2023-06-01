@@ -1079,6 +1079,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	public void addTrees(final Collection<Tree> trees) {
 		if (boundingBox == null)
 			boundingBox = new BoundingBox();
+		final boolean noExistingPaths = allPaths.isEmpty();
 		trees.forEach(tree -> {
 			if (tree != null && !tree.isEmpty()) {
 				addTree(tree, tree.getLabel());
@@ -1086,7 +1087,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			}
 		});
 		final String unit = getCommonUnit(trees);
-		if (unit != null && size() == 0 && (plugin == null || !plugin.accessToValidImageData())) {
+		if (unit != null && noExistingPaths && (plugin == null || !plugin.accessToValidImageData())) {
 			boundingBox.setUnit(unit);
 			spacing_units = unit;
 			if (plugin != null) plugin.spacing_units = unit;

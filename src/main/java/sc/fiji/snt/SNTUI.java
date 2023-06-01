@@ -2662,10 +2662,18 @@ public class SNTUI extends JDialog {
 		utilitiesMenu.add(compareFiles);
 		compareFiles.addActionListener(e -> {
 			final String[] choices = { "Compare two files", "Compare groups of cells (two or more)" };
+			final String[] desc = { //
+					"Opens the contents of two reconstruction files in Reconstruction Viewer. "//
+							+ "A statistical summary of each file is displayed on a dedicated table. "//
+							+ "Note that is also possible to compare two files in the legacy 3D Viewer "//
+							+ "('Legacy viewer' widget in the '3D' tab).", //
+					"Compares up to 6 groups of cells. Detailed measurements and comparison plots "//
+							+ "are retrieved for selected metric(s). Color-coded montages of group-metrics "
+							+ "can also be generated."//
+			};
 			final String defChoice = plugin.getPrefs().getTemp("compare", choices[1]);
-			final String choice = guiUtils.getChoice("Which kind of comparison would you like to perform?"
-					+ "<br><br>NB: It is also possible to compare two files in the legacy 3D Viewer (cf. 3D tab).",
-					"Single or Group Comparison?", choices, defChoice);
+			final String choice = guiUtils.getChoice("Which kind of comparison would you like to perform?",
+					"Single or Group Comparison?", choices, desc, defChoice);
 			if (choice == null) return;
 			plugin.getPrefs().setTemp("compare", choice);
 			if (choices[0].equals(choice))

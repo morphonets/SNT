@@ -228,7 +228,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			final MutableModuleItem<Boolean> clearExistingInput = getInfo()
 				.getMutableInput("clearExisting", Boolean.class);
 			clearExistingInput.setLabel("Clear existing reconstructions");
-			pafm = new PathAndFillManager();
+			pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 			pafm.setHeadless(true);
 		} else if (sntService.isActive()) {
 			snt = sntService.getPlugin();

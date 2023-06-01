@@ -106,7 +106,7 @@ public class InsectBrainLoader {
         if (url == null) {
             return null;
         }
-        final PathAndFillManager pafm = new PathAndFillManager();
+		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
         pafm.setHeadless(true);
         neuronInfo = getNeuronInfo();
         if (pafm.importSWC(String.valueOf(this.id), url)) {

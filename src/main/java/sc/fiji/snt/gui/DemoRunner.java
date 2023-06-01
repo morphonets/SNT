@@ -201,7 +201,13 @@ public class DemoRunner {
 					return;
 				try {
 					if (snt.getImagePlus() != null)
-						snt.closeAndResetAllPanes(); // closed early on so that spatial calibration reset
+						snt.getImagePlus().close();
+					if (snt.getImagePlus() != null) { // Presumably user did not resolve 'Save Changes?' prompt
+						new GuiUtils(ui).error("Loading of demo aborted. Please resolve any unsaved changes and retry.");
+						return;
+					}
+					snt.flushSecondaryData();
+					snt.closeAndResetAllPanes(); // closed early on so that spatial calibration reset
 					snt.getPathAndFillManager().clear(); // will reset spatial calibration
 					snt.getPathAndFillManager().addTrees(sntService.demoTrees());
 					snt.setSinglePane(true);
@@ -313,6 +319,7 @@ public class DemoRunner {
 					return;
 				}
 				resetPaths();
+				snt.flushSecondaryData();
 				snt.initialize(imp);
 				if (tracingsURL != null) {
 					snt.getPathAndFillManager().loadGuessingType(tracingsURL);

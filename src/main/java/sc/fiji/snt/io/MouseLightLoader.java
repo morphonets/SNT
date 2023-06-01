@@ -211,7 +211,7 @@ public class MouseLightLoader {
 	 */
 	public static Map<String, Tree> extractTrees(final File jsonFile, final String compartment) throws JSONException, IOException {
 		final Map<String, TreeSet<SWCPoint>> nodesMap = extractNodes(jsonFile, compartment);
-		final PathAndFillManager pafm = new PathAndFillManager();
+		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 		pafm.setHeadless(true);
 		final Map<String, Tree> result = pafm.importNeurons(nodesMap, null, null);
 		applyMetadata(result.values(), compartment);
@@ -220,7 +220,7 @@ public class MouseLightLoader {
 
 	public static Map<String, Tree> extractTrees(final InputStream stream, final String compartment) {
 		final Map<String, TreeSet<SWCPoint>> nodesMap = extractNodes(stream, compartment);
-		final PathAndFillManager pafm = new PathAndFillManager();
+		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 		pafm.setHeadless(true);
 		Map<String, Tree> result = pafm.importNeurons(nodesMap, null, null);
 		applyMetadata(result.values(), compartment);
@@ -506,7 +506,7 @@ public class MouseLightLoader {
 	{
 		if (compartment == null || compartment.trim().isEmpty())
 			throw new IllegalArgumentException("Invalid compartment" + compartment);
-		final PathAndFillManager pafm = new PathAndFillManager();
+		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 		pafm.setHeadless(true);
 		final Map<String, TreeSet<SWCPoint>> inMap = new HashMap<>();
 		inMap.put(id, getNodes(compartment));

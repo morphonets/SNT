@@ -116,7 +116,7 @@ public class FlyCircuitLoader implements RemoteSWCLoader {
 	 */
 	@Override
 	public Tree getTree(final String cellId) {
-		final PathAndFillManager pafm = new PathAndFillManager();
+		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 		pafm.setHeadless(true);
 		if (pafm.importSWC(cellId, getReconstructionURL(cellId))) {
 			final Tree tree = new Tree(pafm.getPaths());

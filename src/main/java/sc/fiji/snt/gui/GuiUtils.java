@@ -376,7 +376,8 @@ public class GuiUtils {
 		panel.add(getScrollPane(list), BorderLayout.CENTER);
 		panel.add(sp, BorderLayout.SOUTH);
 		final int promptResult = JOptionPane.showOptionDialog(parent, panel, title, JOptionPane.OK_CANCEL_OPTION,
-				JOptionPane.PLAIN_MESSAGE, null, new String[] { "Load", "Cancel" }, list);
+				(choices.length < 6) ? JOptionPane.QUESTION_MESSAGE : JOptionPane.PLAIN_MESSAGE, null,
+				new String[] { "OK", "Cancel" }, list);
 		if (promptResult == JOptionPane.OK_OPTION || promptResult == 0)
 			return list.getSelectedValue();
 		return null;
