@@ -72,6 +72,14 @@ public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
     @Parameter
     private int numThreads;
 
+    /**
+     * Empty constructor required for proper loading by OpService. Should not be
+     * called directly.
+     */
+    public Tubeness() {
+        // empty constructor: fix for https://github.com/morphonets/SNT/issues/173
+    }
+
     public Tubeness(final double[] scales, final double[] spacing) {
         this(scales, spacing, Runtime.getRuntime().availableProcessors());
     }
