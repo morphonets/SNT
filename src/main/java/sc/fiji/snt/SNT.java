@@ -1487,13 +1487,17 @@ public class SNT extends MultiDThreePanes implements
 	 * values set to either 255 (if there's a point on a path there) or 0
 	 */
 	public synchronized ImagePlus makePathVolume(final Collection<Path> paths) {
+		return makePathVolume(paths, false);
+	}
+
+	public synchronized ImagePlus makePathVolume(final Collection<Path> paths, final boolean labelsImage) {
 
 		final short[][] snapshot_data = new short[depth][];
 
 		for (int i = 0; i < depth; ++i)
 			snapshot_data[i] = new short[width * height];
 
-		pathAndFillManager.setPathPointsInVolume(paths, snapshot_data, (short) 255, width,
+		pathAndFillManager.setPathPointsInVolume(paths, snapshot_data, (labelsImage) ? (short)-1 : (short) 255, width,
 			height, depth);
 
 		final ImageStack newStack = new ImageStack(width, height);
@@ -1511,7 +1515,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public synchronized ImagePlus makePathVolume() {
-		return makePathVolume(pathAndFillManager.getPaths());
+		return makePathVolume(pathAndFillManager.getPaths(), false);
 	}
 
 	/* Start a search thread looking for the goal in the arguments: */

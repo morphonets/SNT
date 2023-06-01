@@ -3144,7 +3144,11 @@ public class PathAndFillManager extends DefaultHandler implements
 	synchronized void setPathPointsInVolume(final Collection<Path> paths,
 		final short[][] slices, final int pixelIntensity, final int width, final int height, final int depth)
 	{
+		short actualPixelIntensity = (short)pixelIntensity;
+		int label = 1;
 		for (final Path topologyPath : paths) {
+			if (pixelIntensity == -1)
+				actualPixelIntensity = (short) ++label;
 			Path p = topologyPath;
 			if (topologyPath.getUseFitted()) {
 				p = topologyPath.getFitted();
@@ -3179,7 +3183,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				 */
 				if (current.diagonallyAdjacentOrEqual(previous)) {
 					try {
-						slices [current.z][current.y * width + current.x] = (short) pixelIntensity;
+						slices [current.z][current.y * width + current.x] = actualPixelIntensity;
 					} catch (final ArrayIndexOutOfBoundsException ignored) {
 						SNTUtils.warn(String.format("Bresenham3D: Out-of-bounds point at [%d,%d,%d]", current.x,
 								current.y * width, current.z));
@@ -3193,7 +3197,7 @@ public class PathAndFillManager extends DefaultHandler implements
 						.bresenham3D(previous, current);
 					for (final Bresenham3D.IntegerPoint ip : pointsToDraw) {
 						try {
-							slices[ip.z][ip.y * width + ip.x] = (short) pixelIntensity;
+							slices[ip.z][ip.y * width + ip.x] = actualPixelIntensity;
 						}
 						catch (final ArrayIndexOutOfBoundsException ignored) {
 							SNTUtils.warn(String.format("Bresenham3D: Out-of-bounds point at [%d,%d,%d]", ip.x,

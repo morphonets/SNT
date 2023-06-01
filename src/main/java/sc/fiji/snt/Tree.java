@@ -1011,6 +1011,20 @@ public class Tree implements TreeProperties {
 	 * @see #skeletonize(ImagePlus, int)
 	 */
 	public ImagePlus getSkeleton() {
+		final ImagePlus imp =  getSkeleton(65535);
+		SNTUtils.convertTo8bit(imp);
+		return imp;
+	}
+
+	/**
+	 * Retrieves the rasterized skeleton of this tree at 1:1 scaling.
+	 *
+	 * @param pixelValue the voxel intensities of the skeleton. If {@code -1}, each
+	 *                   path in the tree is rendered uniquely (labels image)
+	 * @return the skeletonized 16-bit binary image
+	 * @see #skeletonize(ImagePlus, int)
+	 */
+	public ImagePlus getSkeleton(final int pixelValue) {
 
 		// Find what is the offset of the tree relative to (0,0,0).
 		// We'll set padding margins similarly to getImpContainer()
@@ -1049,8 +1063,7 @@ public class Tree implements TreeProperties {
 		final ImagePlus imp = IJ.createImage("Skel " + getLabel(), w, h, d, 16);
 
 		// Skeletonize
-		skeletonize(imp, 65535);
-		SNTUtils.convertTo8bit(imp);
+		skeletonize(imp, pixelValue);
 		if (getBoundingBox().isScaled())
 			imp.setCalibration(getBoundingBox().getCalibration());
 
