@@ -228,7 +228,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 			}
 		}
 		if (imageFile != null) {
-			final File candidate = SNTUtils.findClosestPair(imageFile, new String[] { "traces", "swc" , "json"});
+			final File candidate = SNTUtils.findClosestPair(imageFile, new String[] { "traces", "swc" , "json", "ndf"});
 			if (candidate != null && candidate.exists()) {
 				tracesFile = candidate;
 			}

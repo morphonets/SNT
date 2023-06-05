@@ -27,6 +27,7 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.Rectangle;
 import java.awt.Window;
@@ -38,7 +39,15 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.util.*;
+import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import javax.swing.AbstractAction;
 import javax.swing.AbstractButton;
@@ -58,6 +67,7 @@ import javax.swing.JRootPane;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
 import javax.swing.MenuElement;
@@ -70,8 +80,11 @@ import javax.swing.table.DefaultTableCellRenderer;
 
 import org.scijava.util.PlatformUtils;
 
+import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.icons.FlatSearchIcon;
+import com.formdev.flatlaf.ui.FlatButtonUI;
+
 import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.SNTUtils;
 
 /**
  * Implements SNT's Command Palette. This is the same code that is used by the
@@ -98,6 +111,7 @@ public class SNTCommandFinder {
 	private final List<String> keyWordsToIgnoreInMenuPaths; // menus to be ignored
 	private final int maxPath; // No. of submenus to be included in path description
 	private final String widestCmd; // String defining the width of first column of the palette list
+	private static boolean recordCmd;
 
 	public SNTCommandFinder(final SNTUI sntui) {
 		noHitsCmd = new SearchWebCmd();
@@ -176,7 +190,7 @@ public class SNTCommandFinder {
 	private void assemblePalette() {
 		frame = new Palette();
 		frame.setLayout(new BorderLayout());
-		searchField = new SearchField();
+		searchField = new SearchField(cmdScrapper.sntui != null); //TODO: Extend recorder to Reconstruction Viewer
 		frame.add(searchField, BorderLayout.NORTH);
 		searchField.getDocument().addDocumentListener(new PromptDocumentListener());
 		final InternalKeyListener keyListener = new InternalKeyListener();
@@ -235,9 +249,10 @@ public class SNTCommandFinder {
 			}
 			if (cmd != null) {
 				final boolean hasButton = cmd.button != null;
-				if (hasButton && !cmd.button.isEnabled()) {
+				if (hasButton && (!cmd.button.isEnabled()
+						|| (cmd.button instanceof JMenuItem && !cmd.button.getParent().isEnabled()))) {
 					getGuiUtils().error("Command is currently disabled. Either execution requirements "
-							+ "are unmet or it is not supported by current mode.");
+							+ "are unmet or it is not supported in current state.");
 					frame.setVisible(true);
 					return;
 				}
@@ -247,7 +262,7 @@ public class SNTCommandFinder {
 				} else if (cmd.action != null) {
 					cmd.action.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
 				}
-				if (cmdScrapper.sntui != null && SNTUtils.isDebugMode())
+				if (recordCmd && cmdScrapper.sntui != null)
 					recordCommand(cmd);
 			}
 		});
@@ -347,17 +362,47 @@ public class SNTCommandFinder {
 		toggleVisibility();
 	}
 
+	private static class RecordIcon extends FlatSearchIcon {
+		private Area area;
+
+		@Override
+		protected void paintIcon(final Component c, final Graphics2D g) {
+			g.setColor(FlatButtonUI.buttonStateColor(c, searchIconColor, searchIconColor, null, searchIconHoverColor,
+					searchIconPressedColor));
+			if (area == null) {
+				area = new Area(new Ellipse2D.Float(2.5f, 2.5f, 12, 12));
+				//area.subtract(new Area(new Ellipse2D.Float(7f, 7f, 3, 3)));
+			}
+			g.fill(area);
+		}
+	}
+
 	private static class SearchField extends GuiUtils.TextFieldWithPlaceholder {
 		private static final long serialVersionUID = 1L;
 		private static final int PADDING = 4;
-		static final Font REF_FONT = refFont();
+		final static Font REF_FONT = refFont();
 
-		SearchField() {
-			super(" Search for commands and actions (e.g., Sholl)");
+		SearchField(final boolean enableRecordButton) {
+			super("    Search for commands and actions (e.g., Sholl)");
 			setMargin(new Insets(PADDING, PADDING, PADDING, PADDING));
 			setFont(REF_FONT.deriveFont(REF_FONT.getSize() * 1.2f));
+			putClientProperty( FlatClientProperties.TEXT_FIELD_LEADING_COMPONENT, new JLabel( new FlatSearchIcon( false ) ) );
+			if (enableRecordButton)
+				putClientProperty( FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, recordButton() );
 		}
 
+		static JToggleButton recordButton( ) {
+			final JToggleButton recButton = new JToggleButton("REC ", new RecordIcon());
+			recButton.setFont(recButton.getFont().deriveFont((float) (recButton.getFont().getSize() * .65)));
+			recButton.setIconTextGap((int) (recButton.getIconTextGap() * .5));
+			recButton.setToolTipText("Record actions by logging execution calls to Console.\n"
+					+ "Similarly to IJ's built-in Macro Recorder, recorded calls are\n"
+					+ "functional instructions that can be incorporated into SNT scripts.");
+			recButton.addItemListener( e-> recordCmd = recButton.isSelected());
+			return recButton;
+		}
+
+		@Override
 		Font getPlaceholderFont() {
 			return getFont().deriveFont(Font.ITALIC);
 		}
@@ -628,8 +673,8 @@ public class SNTCommandFinder {
 
 		CmdAction(final String cmdName, final AbstractButton button) {
 			this(cmdName);
-			if (button.getAction() != null && button.getAction() instanceof AbstractAction)
-				action = (AbstractAction) button.getAction();
+			if (button.getAction() instanceof AbstractAction)
+				action = button.getAction();
 			else
 				this.button = button;
 		}

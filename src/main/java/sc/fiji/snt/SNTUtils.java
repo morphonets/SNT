@@ -51,6 +51,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import io.scif.services.DatasetIOService;
+import net.imagej.display.ImageDisplayService;
 import net.imagej.lut.LUTService;
 import net.imagej.ops.OpService;
 import org.scijava.Context;
@@ -64,6 +65,7 @@ import org.scijava.plot.PlotService;
 import org.scijava.prefs.PrefService;
 import org.scijava.script.ScriptService;
 import org.scijava.table.Table;
+import org.scijava.table.io.TableIOService;
 import org.scijava.thread.ThreadService;
 import org.scijava.ui.UIService;
 import org.scijava.ui.console.ConsolePane;
@@ -649,6 +651,7 @@ public class SNTUtils {
 								ConvertService.class, //
 								DatasetIOService.class, //
 								DisplayService.class, //
+								ImageDisplayService.class, //
 								IOService.class, //
 								LogService.class, //
 								LUTService.class, //
@@ -658,6 +661,7 @@ public class SNTUtils {
 								ScriptService.class, //
 								SNTService.class, //
 								StatusService.class, //
+								TableIOService.class, //
 								ThreadService.class, //
 								UIService.class //
 						);

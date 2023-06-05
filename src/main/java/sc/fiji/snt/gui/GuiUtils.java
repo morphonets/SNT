@@ -374,7 +374,10 @@ public class GuiUtils {
 		final JPanel panel = new JPanel(new BorderLayout());
 		panel.add(getLabel(message), BorderLayout.NORTH);
 		panel.add(getScrollPane(list), BorderLayout.CENTER);
-		panel.add(sp, BorderLayout.SOUTH);
+		final JPanel bottomPanel =  new JPanel(new BorderLayout());
+		bottomPanel.add(new JLabel(" "), BorderLayout.NORTH); // spacer
+		bottomPanel.add(sp, BorderLayout.CENTER);
+		panel.add(bottomPanel, BorderLayout.SOUTH);
 		final int promptResult = JOptionPane.showOptionDialog(parent, panel, title, JOptionPane.OK_CANCEL_OPTION,
 				(choices.length < 6) ? JOptionPane.QUESTION_MESSAGE : JOptionPane.PLAIN_MESSAGE, null,
 				new String[] { "OK", "Cancel" }, list);

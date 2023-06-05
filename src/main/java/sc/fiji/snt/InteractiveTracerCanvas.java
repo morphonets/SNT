@@ -1002,8 +1002,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	private GuiUtils getGuiUtils() {
+		if (imp == null || !imp.isVisible())
+			return new GuiUtils(tracerPlugin.getUI());
 		if (guiUtils == null)
-			guiUtils = new GuiUtils(getParent());
+			guiUtils = new GuiUtils(this);
 		return guiUtils;
 	}
 
