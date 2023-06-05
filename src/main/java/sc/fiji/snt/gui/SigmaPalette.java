@@ -137,10 +137,6 @@ public class SigmaPalette extends Thread {
 			final double defaultMax)
 		{
 			super(imp, ic);
-			if (parent == null)
-				setLocationRelativeTo(snt.getImagePlus().getWindow());
-			else
-				AWTWindows.centerWindow(parent, this);
 			this.defaultMax = defaultMax;
 			guiUtils = new GuiUtils(this);
 			ic.disablePopupMenu(true);
@@ -189,7 +185,11 @@ public class SigmaPalette extends Thread {
 			updateLabels();
 			add(panel);
 			pack();
-			repaint();
+			if (parent == null)
+				setLocationRelativeTo(snt.getImagePlus().getWindow()); // called after pack()
+			else
+				AWTWindows.centerWindow(parent, this);
+			repaint(); // is this really needed?
 			guiUtils.tempMsg("Press 'H' or 'F1' for help", 3000);
 		}
 
@@ -282,7 +282,7 @@ public class SigmaPalette extends Thread {
 					+ "<li>With 3D images, use the main slider to navigate Z-planes</li>" //
 					+ "<li>Setting multiple scales:</li>"
 					+ "<ul>"//
-					+ "<li>To select a &sigma; value, click on its tile while holding <kbd>Shift</kbd></li>" //
+					+ "<li>To select a &sigma; value, click on its tile while holding <kbd>Shift</kbd> (or double-click on it)</li>" //
 					+ "<li>To un-select a &sigma; value, click on its tile while holding <kbd>Alt</kbd></li>" //
 					+ "<li>You can also use the <i>Scale</i> slider and its <i>Set</i> button to "//
 					+ "set/replace a value" //
@@ -551,7 +551,7 @@ public class SigmaPalette extends Thread {
 						} else { // select it
 							paletteWindow.advanceToScale(indexInScaleSettings + 1); // 1-based index
 						}
-					} else if (e.isShiftDown() || getMaxScales() == 1) { // commit selection immediately
+					} else if (e.isShiftDown() || getMaxScales() == 1 || e.getClickCount() == 2) { // commit selection immediately
 						setSettingsForSelectedScale();
 						mouseMovedAcceptedSigmaIndex = mouseMovedSigmaIndex;
 						return;

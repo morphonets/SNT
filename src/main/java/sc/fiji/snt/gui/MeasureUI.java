@@ -85,7 +85,6 @@ public class MeasureUI extends JFrame {
 	public MeasureUI(final Collection<Tree> trees) {
 		this(SNTUtils.getContext(), trees);
 		lastDirPath = System.getProperty("user.home");
-		setLocationRelativeTo(null);
 	}
 
 	public MeasureUI(final SNT plugin, final Collection<Tree> trees) {
@@ -97,7 +96,6 @@ public class MeasureUI extends JFrame {
 			// SNTUI#getTable() without the need of sntService. This
 			// may cause problems if multiple instances are running
 			setTable(sntService.getTable());
-			setLocationRelativeTo(plugin.getUI());
 		}
 	}
 
@@ -131,6 +129,7 @@ public class MeasureUI extends JFrame {
 	@Override
 	public void setVisible(final boolean b) {
 		// Script friendly version
+		setLocationRelativeTo((plugin == null) ? null : plugin.getUI());
 		SwingUtilities.invokeLater(() -> super.setVisible(b));
 	}
 

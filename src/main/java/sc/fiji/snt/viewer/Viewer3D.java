@@ -5470,7 +5470,6 @@ public class Viewer3D {
 			frame.allenNavigator = this;
 			guiUtils = new GuiUtils(dialog);
 			searchableBar.setGuiUtils(guiUtils);
-			dialog.setLocationRelativeTo(frame);
 			dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 			dialog.addWindowListener(new WindowAdapter() {
 
@@ -5485,6 +5484,7 @@ public class Viewer3D {
 			dialog.pack();
 			GuiUtils.expandAllTreeNodes(tree);
 			cmdFinder.attach(dialog);
+			dialog.setLocationRelativeTo(frame);
 			dialog.setVisible(true);
 			return dialog;
 		}
