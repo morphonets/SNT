@@ -70,6 +70,7 @@ import org.jfree.chart.annotations.XYPointerAnnotation;
 import org.jfree.chart.annotations.XYTextAnnotation;
 import org.jfree.chart.axis.Axis;
 import org.jfree.chart.axis.CategoryAnchor;
+import org.jfree.chart.entity.AxisEntity;
 import org.jfree.chart.entity.ChartEntity;
 import org.jfree.chart.entity.JFreeChartEntity;
 import org.jfree.chart.entity.PlotEntity;
@@ -1113,22 +1114,23 @@ public class SNTChart extends ChartPanel {
 					try {
 						exportAsCSV(file);
 					} catch (final IllegalStateException ise) {
-						new GuiUtils(this).error("Could not save data. See Console for details");
+						new GuiUtils(frame).error("Could not save data. See Console for details.");
 						ise.printStackTrace();
 					}
 				}
 			});
 			final JMenu saveAs = getMenu(getPopupMenu(), "Save as");
-			if (saveAs != null)
+			if (saveAs != null) {
+				saveAs.addSeparator();
 				saveAs.add(mi);
-			else
+			} else
 				getPopupMenu().add(mi);
 			addCustomizationPanel(getPopupMenu());
 		}
 	}
 
 	private void addCustomizationPanel(final JPopupMenu popup) {
-		final JCheckBoxMenuItem dark = new JCheckBoxMenuItem("Dark Mode", false);
+		final JCheckBoxMenuItem dark = new JCheckBoxMenuItem("Dark Theme", false);
 		final Paint DEF_ZOP = getZoomOutlinePaint();
 		final Paint DEF_ZFP = getZoomFillPaint();
 		dark.addItemListener( e -> {
@@ -1163,19 +1165,19 @@ public class SNTChart extends ChartPanel {
 		popup.add(grids);
 	
 		final JMenu utils = new JMenu("Utilities");
-		utils.add(new GuiUtils(SNTChart.this).combineChartsMenuItem());
+		utils.add(new GuiUtils(frame).combineChartsMenuItem());
 		utils.addSeparator();
 		GuiUtils.addSeparator(utils, "Operations on All Open Charts:");
 		jmi = new JMenuItem("Close...");
 		utils.add(jmi);
 		jmi.addActionListener( e -> {
-			if (new GuiUtils(this).getConfirmation("Close all open plots? (Undoable operation)", "Close All Plots?"))
+			if (new GuiUtils(frame).getConfirmation("Close all open plots? (Undoable operation)", "Close All Plots?"))
 				SNTChart.closeAll();
 		});
 		jmi = new JMenuItem("Merge Into ImageJ Stack...");
 		utils.add(jmi);
 		jmi.addActionListener( e -> {
-			if (new GuiUtils(this).getConfirmation("Merge all plots? (Undoable operation)", "Merge Into Stack?")) {
+			if (new GuiUtils(frame).getConfirmation("Merge all plots? (Undoable operation)", "Merge Into Stack?")) {
 				SNTChart.combineAsImagePlus(openInstances).show();
 				SNTChart.closeAll();
 			}
@@ -1187,7 +1189,8 @@ public class SNTChart extends ChartPanel {
 
 		popup.addSeparator();
 		jmi = new JMenuItem("Frame Size...");
-		jmi.addActionListener(e -> new GuiUtils(SNTChart.this).adjustComponentThroughPrompt(SNTChart.this));
+		jmi.addActionListener(
+				e -> new GuiUtils(frame).adjustComponentThroughPrompt((frame == null) ? SNTChart.this : frame));
 		popup.add(jmi);
 		popup.add(fontScalingMenu());
 		popup.addSeparator();
@@ -1201,8 +1204,13 @@ public class SNTChart extends ChartPanel {
 		final JMenu fontScaleMenu = new JMenu("Font Scaling");
 		final float DEF_FONT_SIZE = defFontSize();
 		final ButtonGroup buttonGroup = new ButtonGroup();
+		boolean matched = false;
 		for (final float size : new float[] { .5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f }) {
 			final JRadioButtonMenuItem item = new JRadioButtonMenuItem("" + size + "×");
+			if (!matched) {
+				matched = Math.abs(size - scalingFactor) < 0.05;
+				item.setSelected(matched);
+			}
 			item.addActionListener(event -> setFontSize(size * DEF_FONT_SIZE));
 			buttonGroup.add(item);
 			fontScaleMenu.add(item);
@@ -1210,8 +1218,8 @@ public class SNTChart extends ChartPanel {
 		fontScaleMenu.addSeparator();
 		final JRadioButtonMenuItem chooseScale = new JRadioButtonMenuItem("Other...", false);
 		chooseScale.addActionListener(e -> {
-			final GuiUtils gUtils = new GuiUtils(this);
-			final Double newScale = gUtils.getDouble("Scaling factor:", "Scaling Factor", 2);
+			final GuiUtils gUtils = new GuiUtils(frame);
+			final Double newScale = gUtils.getDouble("Scaling factor:", "Scaling Factor", scalingFactor);
 			if (newScale == null)
 				return;
 			if (newScale.isNaN() || newScale <= 0) {
@@ -1219,8 +1227,13 @@ public class SNTChart extends ChartPanel {
 				return;
 			}
 			setFontSize((float) (newScale * DEF_FONT_SIZE));
+			setDefaultFontScale(newScale);
 			chooseScale.setText("Other... (" + SNTUtils.formatDouble(newScale, 1) + "×)");
 		});
+		if (!matched) {
+			chooseScale.setText("Other... (" + SNTUtils.formatDouble(scalingFactor, 1) + "×)");
+			chooseScale.setSelected(true);
+		}
 		buttonGroup.add(chooseScale);
 		fontScaleMenu.add(chooseScale);
 		return fontScaleMenu;
@@ -1332,8 +1345,10 @@ public class SNTChart extends ChartPanel {
 				final Color newColor = getCustomColor();
 				if (newColor != null)
 					getXYPlot().getRenderer().setSeriesPaint(idx, SNTColor.alphaColor(newColor, 60));
+			} else if (ce instanceof AxisEntity) {
+				doEditChartProperties();
 			} else if (!(ce instanceof JFreeChartEntity) && !(ce instanceof PlotEntity)) {
-				new GuiUtils(SNTChart.this).error(
+				new GuiUtils(frame).error(
 						"This component cannot be edited by double-click. "//
 						+ "Please use options in right-click menu.");
 			} else {
@@ -1342,11 +1357,11 @@ public class SNTChart extends ChartPanel {
 		}
 
 		String getCustomString(final String old) {
-			return new GuiUtils(SNTChart.this).getString("", "Edit Label", old);
+			return new GuiUtils(frame).getString("", "Edit Label", old);
 		}
 
 		Color getCustomColor() {
-			return new GuiUtils(SNTChart.this).getColor("New Color", Color.DARK_GRAY);
+			return new GuiUtils(frame).getColor("New Color", Color.DARK_GRAY);
 		}
 
 		@Override
