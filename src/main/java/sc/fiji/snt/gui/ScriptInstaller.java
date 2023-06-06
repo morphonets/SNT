@@ -28,6 +28,8 @@ import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -37,11 +39,13 @@ import java.util.Scanner;
 import java.util.TreeSet;
 import java.util.concurrent.Future;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.MenuElement;
 import javax.swing.MenuSelectionManager;
+import javax.swing.SwingUtilities;
 import javax.swing.event.MenuKeyEvent;
 import javax.swing.event.MenuKeyListener;
 
@@ -77,21 +81,17 @@ public class ScriptInstaller implements MenuKeyListener {
 	private final SNTUI ui;
 	private final GuiUtils guiUtils;
 	private TreeSet<ScriptInfo> scripts;
-	private TextEditor editor;
+	private static TextEditor editor;
 
 	private boolean openInsteadOfRun;
 
 	public ScriptInstaller(final Context context, final Component parent){
 		context.inject(this);
-		ui = null;
+		if (parent instanceof SNTUI)
+			ui = (SNTUI)parent;
+		else
+			ui = null;
 		guiUtils = new GuiUtils(parent);
-		init();
-	}
-
-	protected ScriptInstaller(final Context context, final SNTUI ui) {
-		context.inject(this);
-		this.ui = ui;
-		guiUtils = new GuiUtils(ui);
 		init();
 	}
 
@@ -175,7 +175,7 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	private TextEditor getTextEditor() {
 		if (editor == null)
-			editor = new TextEditor(context);
+			editor = new TextEditor((context == null) ? SNTUtils.getContext() : context);
 		return editor;
 	}
 
@@ -336,6 +336,18 @@ public class ScriptInstaller implements MenuKeyListener {
 		nMenu.setIcon(IconFactory.getMenuIcon(GLYPH.PLUS));
 		nMenu.add(mi1);
 		nMenu.add(mi2);
+		if (ui != null) {
+			final JMenuItem mi3 = new JMenuItem("Record... (Experimental)", IconFactory.getMenuIcon(GLYPH.CIRCLE));
+			mi3.addActionListener(e -> {
+				if (ui.getRecorder(false) == null) {
+					ui.getRecorder(true).setVisible(true);
+				} else {
+					ui.error("Script Recorder is already open.");
+				}
+			});
+			nMenu.addSeparator();
+			nMenu.add(mi3);
+		}
 		sMenu.add(nMenu);
 		sMenu.addSeparator();
 		sMenu.add(about());
@@ -486,4 +498,26 @@ public class ScriptInstaller implements MenuKeyListener {
 		setOpenInsteadOfRun(e.isShiftDown() || e.isAltDown());
 	}
 
+	public static void newScript(final String contents, final String scriptNameWithExtension) {
+		if (editor == null)
+			editor = new TextEditor(SNTUtils.getContext());
+		editor.createNewDocument(scriptNameWithExtension, contents);
+		SwingUtilities.invokeLater(() -> editor.setVisible(true));
+	}
+
+	public static String getBoilerplateScript(final String extension) {
+		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+		final InputStream is = classloader.getResourceAsStream("script_templates/Neuroanatomy/Boilerplate/"
+				+ getBoilerPlateFile(extension));
+		return  new BufferedReader(new InputStreamReader(is)).lines().collect(Collectors.joining("\n"));
+	}
+
+	private static String getBoilerPlateFile(final String extension) {
+		final String ext = extension.toLowerCase();
+		if (ext.contains("bsh"))
+			return "BSH.bsh";
+		if (ext.contains("py"))
+			return "PY.py";
+		return "GVY.groovy";
+	}
 }

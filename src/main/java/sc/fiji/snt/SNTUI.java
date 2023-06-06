@@ -215,6 +215,7 @@ public class SNTUI extends JDialog {
 	protected boolean askUserConfirmation = true;
 	private boolean openingSciView;
 	private SigmaPaletteListener sigmaPaletteListener;
+	private ScriptRecorder recorder;
 
 	/**
 	 * Instantiates SNT's main UI and associated {@link PathManagerUI} and
@@ -534,19 +535,23 @@ public class SNTUI extends JDialog {
 	 * @throws IllegalArgumentException if {@code cmd} was not found.
 	 */
 	public void runCommand(final String cmd) throws IllegalArgumentException {
+		if (!runCustomCommand(cmd) && !getPathManager().runCustomCommand(cmd))
+			runSNTCommandFinderCommand(cmd);
+	}
+
+	protected void runSNTCommandFinderCommand(final String cmd) {
+		commandFinder.runCommand(cmd);
+	}
+
+	protected boolean runCustomCommand(final String cmd) {
 		if ("validateImgDimensions".equals(cmd)) {
 			validateImgDimensions();
-			return;
-		}
-		else if ("cmdPalette".equals(cmd)) {
+			return true;
+		} else if ("cmdPalette".equals(cmd)) {
 			commandFinder.toggleVisibility();
-			return;
+			return false;
 		}
-		try {
-			runCommand(menuBar, cmd);
-		} catch (final IllegalArgumentException ie) {
-			getPathManager().runCommand(cmd);
-		}
+		return false;
 	}
 
 	/**
@@ -748,6 +753,8 @@ public class SNTUI extends JDialog {
 		fmUI.dispose();
 		if (recViewer != null)
 			recViewer.dispose();
+		if (recorder != null)
+			recorder.dispose();
 		dispose();
 		// NB: If visible Reconstruction Plotter will remain open
 		plugin.closeAndResetAllPanes();
@@ -2359,7 +2366,7 @@ public class SNTUI extends JDialog {
 		menuBar.add(analysisMenu);
 		final JMenu utilitiesMenu = new JMenu("Utilities");
 		menuBar.add(utilitiesMenu);
-		final ScriptInstaller installer = new ScriptInstaller(plugin.getContext(), (SNTUI)this);
+		final ScriptInstaller installer = new ScriptInstaller(plugin.getContext(), SNTUI.this);
 		menuBar.add(installer.getScriptsMenu());
 		final JMenu viewMenu = new JMenu("View");
 		menuBar.add(viewMenu);
@@ -3245,9 +3252,8 @@ public class SNTUI extends JDialog {
 
 	private static final void ijmLogMessage() {
 		if (Recorder.record) {
-			final String recordString = "// SNT operations will not be recorded. However, SNT remains fully\n"
-					+ "// scriptable. Have a look at the scripting examples in the Script\n"
-					+ "// Editor, and the documentation resources in SNT's Help> menu\n";
+			final String recordString = "// NB: SNT commands are not recorded by ImageJ, but by SNT's\n"
+					+ "// Script Recorder (Scripts -> New -> Record...)\n";
 			Recorder.recordString(recordString);
 		}
 	}
@@ -4477,6 +4483,21 @@ public class SNTUI extends JDialog {
 				plugin.flushSecondaryData();
 			}
 		}
+	}
+
+	public ScriptRecorder getRecorder(final boolean createIfNeeded) {
+		if (recorder == null && createIfNeeded) {
+			recorder = new ScriptRecorder();
+			commandFinder.setRecorder(recorder);
+			recorder.addWindowListener(new WindowAdapter() {
+				@Override
+				public void windowClosed(final WindowEvent e) {
+					recorder = null;
+					commandFinder.setRecorder(null);
+				}
+			});
+		}
+		return recorder;
 	}
 
 }

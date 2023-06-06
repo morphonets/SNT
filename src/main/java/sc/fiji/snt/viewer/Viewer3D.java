@@ -131,9 +131,7 @@ import org.scijava.command.CommandService;
 import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
-import org.scijava.ui.UIService;
 import org.scijava.ui.awt.AWTWindows;
-import org.scijava.ui.swing.script.TextEditor;
 import org.scijava.util.*;
 
 import com.jidesoft.swing.CheckBoxList;
@@ -173,6 +171,7 @@ import sc.fiji.snt.gui.MeasureUI;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.SNTSearchableBar;
 import sc.fiji.snt.gui.SaveMeasurementsCmd;
+import sc.fiji.snt.gui.ScriptRecorder;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.MouseLightLoader;
@@ -339,6 +338,7 @@ public class Viewer3D {
 
 	@Parameter
 	private PrefService prefService;
+	private ScriptRecorder recorder;
 
 	private Viewer3D(final Engine engine) {
 		SNTUtils.log("Initializing Viewer3D...");
@@ -418,7 +418,7 @@ public class Viewer3D {
 		initManagerList();
 		context.inject(this);
 		prefs.setPreferences();
-		cmdFinder = new SNTCommandFinder();
+		cmdFinder = new SNTCommandFinder(this);
 	}
 
 	protected static void workaroundIntelGraphicsBug() { // FIXME: This should go away with jogl 2.40?
@@ -775,6 +775,16 @@ public class Viewer3D {
 	public void unfreeze() {
 		chart.getQuality().setAnimated(true);
 	}
+
+	/**
+	 * 
+	 *
+	 * @param cmd the recorded command
+	 */
+	public void runCommand(final String cmd) {
+		cmdFinder.runCommand(cmd);
+	}
+
 
 	private void addAllObjects() {
 		if (cBar != null) {
@@ -2193,7 +2203,7 @@ public class Viewer3D {
 		}
 		SNTUtils.log("Saving snapshot to " + file);
 		if (SNTUtils.isDebugMode() && frame != null) {
-			logSceneControls();
+			logSceneControls(false);
 		}
 		chart.screenshot(file);
 		return true;
@@ -2371,12 +2381,24 @@ public class Viewer3D {
 	}
 
 	/**
-	 * Logs API calls controlling the scene (view point, bounds, etc.) to Console.
-	 * Useful for programmatic control of animations.
+	 * Logs API calls controlling the scene (view point, bounds, etc.) to Script
+	 * Recorder (or Console if Script Recorder is not running). Useful for
+	 * programmatic control of animations.
 	 */
 	public void logSceneControls() {
-		SNTUtils.log("Logging scene controls:");
-		final StringBuilder sb = new StringBuilder("\n");
+		logSceneControls(false);
+	}
+
+	private void logSceneControls(final boolean abortIfRecorderNull) {
+		if (abortIfRecorderNull && recorder == null) {
+			gUtils.error("Script recorder is not running.");
+			return;
+		}
+		final StringBuilder sb = new StringBuilder();
+		if (recorder == null) {
+			SNTUtils.log("Logging scene controls:");
+			sb.append("\n");
+		}
 		final HashSet<String> visibleActors = new HashSet<>();
 		final HashSet<String> hiddenActors = new HashSet<>();
 		plottedTrees.forEach((k, shapeTree) -> {
@@ -2391,26 +2413,18 @@ public class Viewer3D {
 			if (annot.getDrawable().isDisplayed()) visibleActors.add("\"" + k +"\"");
 			else hiddenActors.add("\"" + k +"\"");
 		});
-		if (!visibleActors.isEmpty()) {
-			sb.append("Visible objects: ").append(visibleActors.toString());
-			sb.append("\n");
-		}
-		if (!hiddenActors.isEmpty()) {
-			sb.append("Hidden  objects: ").append(hiddenActors.toString());
-			sb.append("\n");
-		}
 		if (frame != null) {
 			sb.append("viewer.setFrameSize(");
-			sb.append(frame.getWidth()).append(", ").append(frame.getHeight()).append(");");
+			sb.append(frame.getWidth()).append(", ").append(frame.getHeight()).append(")");
 			sb.append("\n");
 		}
 		if (currentView == ViewMode.XY) {
-			sb.append("viewer.setViewMode(\"xy\");");
+			sb.append("viewer.setViewMode(\"xy\")");
 		} else {
 			final Coord3d viewPoint = view.getViewPoint();
 			sb.append("viewer.setViewPoint(");
 			sb.append(viewPoint.x).append(", ");
-			sb.append(viewPoint.y).append(");");
+			sb.append(viewPoint.y).append(")");
 		}
 		sb.append("\n");
 		final BoundingBox3d bounds = view.getBounds();
@@ -2420,10 +2434,26 @@ public class Viewer3D {
 		sb.append(bounds.getYmin()).append(", ");
 		sb.append(bounds.getYmax()).append(", ");
 		sb.append(bounds.getZmin()).append(", ");
-		sb.append(bounds.getZmax()).append(");");
+		sb.append(bounds.getZmax()).append(")");
 		sb.append("\n");
-		System.out.println(sb.toString());
-		displayMsg("Scene details output to Console");
+		if (recorder == null) {
+			if (!visibleActors.isEmpty()) {
+				sb.append("Visible objects: ").append(visibleActors.toString());
+				sb.append("\n");
+			}
+			if (!hiddenActors.isEmpty()) {
+				sb.append("Hidden  objects: ").append(hiddenActors.toString());
+				sb.append("\n");
+			}
+			System.out.println(sb.toString());
+			displayMsg("Scene details output to Console");
+		} else {
+			if (!visibleActors.isEmpty())
+				recorder.recordComment("Visible objects: " + visibleActors.toString());
+			if (!hiddenActors.isEmpty())
+				recorder.recordComment("Hidden objects: " + hiddenActors.toString());
+			recorder.recordCmd(sb.toString());
+		}
 	}
 
 //	/**
@@ -2846,6 +2876,8 @@ public class Viewer3D {
 			ViewerFrame.this.chart.dispose();
 			ViewerFrame.this.chart = null;
 			if (ViewerFrame.this.manager != null) ViewerFrame.this.manager.dispose();
+			if (recorder != null)
+				recorder.dispose();
 			ViewerFrame.this.dispose();
 		}
 
@@ -3082,17 +3114,6 @@ public class Viewer3D {
 				file.mkdirs();
 			return file;
 		}
-	
-		private String getBoilerplateScript(final String ext) {
-			final HashMap<String, String> map = new HashMap<>();
-			map.put(".bsh", "BSH.bsh");
-			map.put(".groovy", "GVY.groovy");
-			map.put(".py", "PY.py");
-			final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-			final InputStream is = classloader.getResourceAsStream("script_templates/Neuroanatomy/Boilerplate/"
-					+ map.get(ext));
-			return  new BufferedReader(new InputStreamReader(is)).lines().collect(Collectors.joining("\n"));
-		}
 
 		private void setSnapshotDirectory() {
 			snapshotDir = (tp.prefService == null) ? RecViewerPrefsCmd.DEF_SNAPSHOT_DIR
@@ -3187,6 +3208,22 @@ public class Viewer3D {
 	 */
 	public ManagerPanel getManagerPanel() {
 		return (frame == null) ? null : frame.managerPanel;
+	}
+
+	public ScriptRecorder getRecorder(final boolean createIfNeeded) {
+		if (recorder == null && createIfNeeded) {
+			recorder = new ScriptRecorder();
+			recorder.setTitle("Reconstruction Viewer Script Recorder");
+			cmdFinder.setRecorder(recorder);
+			recorder.addWindowListener(new WindowAdapter() {
+				@Override
+				public void windowClosed(final WindowEvent e) {
+					recorder = null;
+					cmdFinder.setRecorder(null);
+				}
+			});
+		}
+		return recorder;
 	}
 
 	public class ManagerPanel extends JPanel {
@@ -3383,14 +3420,14 @@ public class Viewer3D {
 			static final String FIND = "Toggle Selection Toolbar";
 			static final String PROGRESS = "Toggle Progress Bar";
 			static final String FIT = "Fit to Visible Objects";
-			static final String LOG = "Log Scene Details";
+			static final String LOG_TO_RECORDER = "Log Scene Details to Recorder";
 			static final String NONE = "None";
 			static final String REBUILD = "Rebuild Scene...";
 			static final String RELOAD = "Reload Scene";
 			static final String RESET_VIEW = "Reset View";
 			static final String SCENE_SHORTCUTS_LIST = "Scene Shortcuts...";
 			static final String SCENE_SHORTCUTS_NOTIFICATION = "Scene Shortcuts (Notification)...";
-			static final String SCRIPT = "Script This Viewer";
+			static final String RECORDER = "Record Script... (Experimental)";
 			static final String SNAPSHOT = "Take Snapshot";
 			static final String SYNC = "Sync Path Manager Changes";
 			static final String TAG = "Add Tag(s)...";
@@ -3447,13 +3484,8 @@ public class Viewer3D {
 				case FIT:
 					fitToVisibleObjects(true, true);
 					return;
-				case LOG:
-					logSceneControls();
-					try {
-						context.getService(UIService.class).getDefaultUI().getConsolePane().show();
-					} catch (final NullPointerException ignored) {
-						// do nothing
-					}
+				case LOG_TO_RECORDER:
+					logSceneControls(true);
 					break;
 				case NONE:
 					showPanelAsNeeded();
@@ -3482,8 +3514,8 @@ public class Viewer3D {
 				case SCENE_SHORTCUTS_NOTIFICATION:
 					 keyController.showHelp(false);
 					 return;
-				case SCRIPT:
-					runScriptEditor(prefs.getScriptExtension());
+				case RECORDER:
+					openRecorder();
 					return;
 				case SNAPSHOT:
 					keyController.saveScreenshot();
@@ -3538,6 +3570,27 @@ public class Viewer3D {
 				if (frame.manager != null && !frame.manager.isVisible())
 					toggleControlPanel(); // e.g, if action called via cmdFinder
 			}
+
+			private void openRecorder() {
+				if (getRecorder(false) != null) {
+					guiUtils.error("Script Recorder is already open.");
+					return;
+				}
+				final StringBuilder sb = new StringBuilder();
+				sb.append("Rec. Viewer's API: https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/viewer/Viewer3D.html\n");
+				sb.append("Tip: Scene details can be printed to Console using `viewer.logSceneControls()` or recorded to\n");
+				sb.append("by pressing 'L' when viewer is frontmost\n\n");
+				getRecorder(true).recordComment(sb.toString());
+				sb.setLength(0);
+				sb.append("viewer = snt.getRecViewer(");
+				if (!isSNTInstance())
+					sb.append(getID());
+				sb.append(")");
+				recorder.recordCmd(sb.toString());
+				SwingUtilities.invokeLater(() -> recorder.setVisible(true));
+				return;
+			}
+
 		}
 
 		private JPanel buttonPanel() {
@@ -3685,8 +3738,8 @@ public class Viewer3D {
 					if (menuText != null) newPath.add(menuText);
 					registerMenuInCmdFinder((JMenu)component, newPath);
 				}
-				else if (component instanceof JMenuItem) {
-					cmdFinder.register((JMenuItem)component, path);
+				else if (component instanceof AbstractButton) {
+					cmdFinder.register((AbstractButton)component, path);
 				}
 
 			}
@@ -4536,14 +4589,10 @@ public class Viewer3D {
 		private JPopupMenu scriptingMenu() {
 			final JPopupMenu scriptMenu = new JPopupMenu();
 			GuiUtils.addSeparator(scriptMenu, "New Script:");
-			JMenuItem mi = new JMenuItem(new Action(Action.SCRIPT, KeyEvent.VK_OPEN_BRACKET, false, false));
+			JMenuItem mi = new JMenuItem(new Action(Action.RECORDER, KeyEvent.VK_OPEN_BRACKET, false, false));
 			mi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
 			scriptMenu.add(mi);
-			mi = new JMenuItem("Script This Viewer In...", IconFactory.getMenuIcon(GLYPH.CODE));
-			mi.addActionListener(e -> runScriptEditor(null));
-			scriptMenu.add(mi);
-			GuiUtils.addSeparator(scriptMenu, "Record:");
-			final JMenuItem log = new JMenuItem(new Action(Action.LOG, KeyEvent.VK_L, false, false));
+			final JMenuItem log = new JMenuItem(new Action(Action.LOG_TO_RECORDER, KeyEvent.VK_L, false, false));
 			log.setIcon(IconFactory.getMenuIcon(GLYPH.STREAM));
 			scriptMenu.add(log);
 			GuiUtils.addSeparator(scriptMenu, "Resources:");
@@ -4581,35 +4630,6 @@ public class Viewer3D {
 			});
 			prefsMenu.add(mi);
 			return prefsMenu;
-		}
-
-		private void runScriptEditor(String extension) {
-			if (extension == null) {
-				extension = guiUtils.getChoice("Which scripting language?", "Language?",
-						new String[] { ".bsh", ".groovy", ".py" }, prefs.getScriptExtension());
-				if (extension == null) return;
-			}
-			final TextEditor editor = new TextEditor(context);
-			final boolean needsSemiColon = extension.endsWith("bsh");
-			final String commentPrefix = (extension.endsWith("py")) ? "# " : "// ";
-			final StringBuilder sb = new StringBuilder(prefs.getBoilerplateScript(extension));
-			sb.append("\n").append(commentPrefix);
-			sb.append("Rec. Viewer's API: https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/viewer/Viewer3D.html");
-			sb.append("\n").append(commentPrefix);
-			sb.append("Tip: Programmatic control of the Viewer's scene can be set using the Console info");
-			sb.append("\n").append(commentPrefix);
-			sb.append("produced when calling viewer.logSceneControls() or pressing 'L' when viewer is frontmost");
-			sb.append("\n");
-			sb.append("\n").append("viewer = snt.getRecViewer(");
-			if (!isSNTInstance()) sb.append(getID());
-			sb.append(")");
-			if (needsSemiColon) sb.append(";");
-			sb.append("\n");
-			editor.createNewDocument("RecViewerScript" + extension, sb.toString());
-			//HACK: Reset the filename because createNewDocument() currently appends multiple extensions
-			editor.setEditorPaneFileName("RecViewerScript" + extension);
-			//editor.newTab(sb.toString(), extension);
-			editor.setVisible(true);
 		}
 
 		private JMenu panMenu() {
@@ -5091,6 +5111,7 @@ public class Viewer3D {
 					.execute();
 			});
 		}
+
 	}
 
 	private class FileDropWorker {
@@ -6509,7 +6530,7 @@ public class Viewer3D {
 					break;
 				case 'l':
 				case 'L':
-					logSceneControls();
+					logSceneControls(true);
 					break;
 				case 'r':
 				case 'R':

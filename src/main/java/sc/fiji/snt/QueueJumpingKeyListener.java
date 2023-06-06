@@ -129,7 +129,7 @@ class QueueJumpingKeyListener implements KeyListener {
 			return;
 		}
 		else if (ctrl_down && shift_down && keyCode == KeyEvent.VK_P && tracerPlugin.getUI() != null) {
-			tracerPlugin.getUI().runCommand("cmdPalette");
+			tracerPlugin.getUI().runCustomCommand("cmdPalette");
 			e.consume();
 			return;
 		}

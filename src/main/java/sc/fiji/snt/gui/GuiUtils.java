@@ -1075,6 +1075,11 @@ public class GuiUtils {
 		}
 	}
 
+	public static float uiFontSize() {
+		// under FlatFlaf UI elements scale on HiDPI screens
+		return new JLabel(" ").getFont().getSize2D();
+	}
+
 	public static void initSplashScreen() {
 		splashScreen = new SplashScreen();
 		splashScreen.addMouseListener(new MouseAdapter() {

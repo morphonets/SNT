@@ -50,25 +50,25 @@ import java.util.jar.Manifest;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import io.scif.services.DatasetIOService;
-import net.imagej.display.ImageDisplayService;
-import net.imagej.lut.LUTService;
-import net.imagej.ops.OpService;
 import org.scijava.Context;
 import org.scijava.app.StatusService;
+import org.scijava.batch.BatchService;
 import org.scijava.command.CommandService;
 import org.scijava.convert.ConvertService;
 import org.scijava.display.DisplayService;
 import org.scijava.io.IOService;
 import org.scijava.log.LogService;
+import org.scijava.platform.PlatformService;
 import org.scijava.plot.PlotService;
 import org.scijava.prefs.PrefService;
+import org.scijava.script.ScriptHeaderService;
 import org.scijava.script.ScriptService;
 import org.scijava.table.Table;
 import org.scijava.table.io.TableIOService;
 import org.scijava.thread.ThreadService;
 import org.scijava.ui.UIService;
 import org.scijava.ui.console.ConsolePane;
+import org.scijava.ui.swing.script.LanguageSupportService;
 import org.scijava.util.FileUtils;
 import org.scijava.util.VersionUtils;
 
@@ -82,6 +82,10 @@ import ij.plugin.ZProjector;
 import ij.process.ImageConverter;
 import ij.process.LUT;
 import ij.process.StackConverter;
+import io.scif.services.DatasetIOService;
+import net.imagej.display.ImageDisplayService;
+import net.imagej.lut.LUTService;
+import net.imagej.ops.OpService;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
@@ -647,17 +651,21 @@ public class SNTUtils {
 						context = new Context(//
 								// ImageJService.class, // Invalid service: net.imagej.legacy.LegacyService
 								// LegacyService.class, // Invalid service: net.imagej.legacy.LegacyService
+								BatchService.class, //
 								CommandService.class, //
 								ConvertService.class, //
 								DatasetIOService.class, //
 								DisplayService.class, //
 								ImageDisplayService.class, //
 								IOService.class, //
+								LanguageSupportService.class, //
 								LogService.class, //
 								LUTService.class, //
 								OpService.class, //
+								PlatformService.class, //
 								PlotService.class, //
 								PrefService.class, //
+								ScriptHeaderService.class, //
 								ScriptService.class, //
 								SNTService.class, //
 								StatusService.class, //
