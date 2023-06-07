@@ -230,7 +230,7 @@ public class SNTUI extends JDialog {
 
 	private SNTUI(final SNT plugin, final PathManagerUI pmUI, final FillManagerUI fmUI) {
 
-		super(plugin.legacyService.getIJ1Helper().getIJ(), "SNT v" + SNTUtils.VERSION, false);
+		super(ij.IJ.getInstance(), "SNT v" + SNTUtils.VERSION, false);
 		// if embedded, menu bar becomes truncated on M. Windows 10/11
 		getRootPane().putClientProperty("JRootPane.menuBarEmbedded", false);
 		guiUtils = new GuiUtils(this);
@@ -1716,7 +1716,7 @@ public class SNTUI extends JDialog {
 
 			@Override
 			public void actionPerformed(final ActionEvent e) {
-				final File imageFile = openFile("Choose Labels Image...", (File) null);
+				final File imageFile = openReconstructionFile("labels");
 				if (imageFile == null)
 					return; // user pressed cancel
 				try {
@@ -2089,7 +2089,7 @@ public class SNTUI extends JDialog {
 				plugin.flushSecondaryData();
 			} else {
 				final File proposedFile = (plugin.getFilteredImageFile() == null) ? plugin.getPrefs().getRecentDir() : plugin.getFilteredImageFile();
-				final File file = openFile("Choose Secondary Image", proposedFile);
+				final File file = guiUtils.getOpenFile("Choose Secondary Image", proposedFile, null);
 				if (file == null)
 					return;
 				loadSecondaryImageFile(file);
@@ -2226,42 +2226,25 @@ public class SNTUI extends JDialog {
 		updateExternalImgWidgets();
 	}
 
-	protected File openFile(final String promptMsg, final String extension) {
-		final String suggestFilename = (plugin.accessToValidImageData()) ? plugin.getImagePlus().getShortTitle() : "SNT_Data";
+	protected File openReconstructionFile(final String extension) {
+		final String suggestFilename = (plugin.accessToValidImageData()) ? plugin.getImagePlus().getTitle() : "SNT_Data";
 		final File suggestedFile = SNTUtils.findClosestPair(new File(plugin.getPrefs().getRecentDir(), suggestFilename), extension);
-		return openFile(promptMsg, suggestedFile);
+		return guiUtils.getReconstructionFile(suggestedFile, extension);
 	}
 
-	protected File openFile(final String promptMsg, final File suggestedFile) {
-		final boolean focused = hasFocus(); //HACK: On macOS this seems to help to ensure prompt is displayed as frontmost
-		if (focused) toBack();
-		final File openedFile = plugin.legacyService.getIJ1Helper().openDialog(promptMsg, suggestedFile);
-		if (openedFile != null)
-			plugin.getPrefs().setRecentDir(openedFile);
-		if (focused) toFront();
-		return openedFile;
-	}
-
-	protected File saveFile(final String promptMsg, final String suggestedFileName, final String fallbackExtension) {
-		final String filename;
-		if (suggestedFileName == null) {
+	protected File saveFile(final String promptMsg, final String suggestedFile, final String extensionWithoutDot) {
+		String filename;
+		if (suggestedFile == null) {
 			if (plugin.accessToValidImageData())
 				filename = SNTUtils.stripExtension(plugin.getImagePlus().getShortTitle());
 			else
 				filename = "SNT_Data";
+			filename += "." + extensionWithoutDot;
 		} else {
-			filename = suggestedFileName;
+			filename = suggestedFile;
 		}
-		File fFile = new File(plugin.getPrefs().getRecentDir(), filename);
-		final boolean focused = hasFocus();
-		if (focused)
-			toBack();
-		final File savedFile = plugin.legacyService.getIJ1Helper().saveDialog(promptMsg, fFile, fallbackExtension);
-		if (savedFile != null)
-			plugin.getPrefs().setRecentDir(savedFile);
-		if (focused)
-			toFront();
-		return savedFile;
+		final File fFile = new File(plugin.getPrefs().getRecentDir(), filename);
+		return guiUtils.getSaveFile(promptMsg, fFile, extensionWithoutDot);
 	}
 
 	private void loadCachedDataImage(final boolean warnUserOnMemory,
@@ -2520,7 +2503,7 @@ public class SNTUI extends JDialog {
 		exportSubmenu.add(saveAsMenuItem);
 		saveAsMenuItem.addActionListener(e -> {
 			if (!noPathsError()) {
-				final File saveFile = saveFile("Save Traces As...", null, ".traces");
+				final File saveFile = saveFile("Save Traces As...", null, "traces");
 				if (saveFile != null) saveToXML(saveFile);
 			}
 		});
@@ -3974,13 +3957,13 @@ public class SNTUI extends JDialog {
 						"Warning"))
 					return;
 
-				final File saveFile = saveFile("Export All Paths as SWC...", null, ".swc");
+				final File saveFile = saveFile("Export All Paths as SWC...", null, "swc");
 				if (saveFile == null)
 					return; // user pressed cancel
 				saveAllPathsToSwc(saveFile.getAbsolutePath());
 			} else if (source == exportCSVMenuItem && !noPathsError()) {
 
-				final File saveFile = saveFile("Export All Paths as CSV...", "CSV_Properties.csv", ".csv");
+				final File saveFile = saveFile("Export All Paths as CSV...", "CSV_Properties.csv", "csv");
 				if (saveFile == null)
 					return; // user pressed cancel
 				if (saveFile.exists()) {
@@ -4008,7 +3991,7 @@ public class SNTUI extends JDialog {
 
 			} else if (source == loadLabelsMenuItem) {
 
-				final File openFile = openFile("Select Labels File...", "labels");
+				final File openFile = openReconstructionFile("labels");
 				if (openFile != null) { // null if user pressed cancel;
 					plugin.loadLabelsFile(openFile.getAbsolutePath());
 					return;
@@ -4326,7 +4309,7 @@ public class SNTUI extends JDialog {
 		}
 		try {
 			if (!timeStampedCopy && (targetFile == null || !targetFile.exists() || !targetFile.canWrite())) {
-				targetFile = saveFile("Save Traces As...", null, ".traces");
+				targetFile = saveFile("Save Traces As...", null, "traces");
 			}
 			if (targetFile != null)
 				successfull = saveToXML(targetFile);
@@ -4456,7 +4439,7 @@ public class SNTUI extends JDialog {
 					plugin.loadTracesFile(file);
 					setAutosaveFile(file);
 				} else if (type == ANY_RECONSTRUCTION){
-					if (file == null) file = openFile("Open Reconstruction File (Guessing Type)...", "swc");
+					if (file == null) file = openReconstructionFile(null);
 					if (file != null) plugin.loadTracings(file);
 				}
 				validateImgDimensions();

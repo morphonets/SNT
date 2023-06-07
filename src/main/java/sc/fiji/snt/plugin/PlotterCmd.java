@@ -25,10 +25,7 @@ package sc.fiji.snt.plugin;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
-import java.io.FileFilter;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import net.imagej.ImageJ;
@@ -43,13 +40,11 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
-import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
 
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
-import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ConvexHull2D;
 import sc.fiji.snt.analysis.SNTChart;
@@ -137,18 +132,13 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 			resolveInput("tree");
 			statusService.showStatus(
 				"Please select one or more reconstruction files");
-			final FileFilter filter = (file) -> {
-				return SNTUtils.isReconstructionFile(file);
-			};
-			final List<File> files = uiService.chooseFiles(new File(System
-				.getProperty("user.home")), new ArrayList<File>(), filter,
-				FileWidget.OPEN_STYLE);
-			if (files == null || files.isEmpty()) {
+			final File[] files = new GuiUtils().getReconstructionFiles();
+			if (files == null) {
 				cancel("");
 				return;
 			}
 			tree = new Tree();
-			final ColorRGB[] colors = SNTColor.getDistinctColors(files.size());
+			final ColorRGB[] colors = SNTColor.getDistinctColors(files.length);
 			int counter = 0;
 			for (final File f : files) {
 				try {

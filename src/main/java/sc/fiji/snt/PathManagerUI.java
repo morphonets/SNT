@@ -695,7 +695,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return;
 		}
 
-		final File saveFile = plugin.getUI().saveFile("Save Paths as SWC...", null, ".swc");
+		final File saveFile = plugin.getUI().saveFile("Save Paths as SWC...", null, "swc");
 		if (saveFile == null) {
 			return; // user pressed cancel
 		}
@@ -2090,7 +2090,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			plugin.error("There are no measurements to save.");
 			return;
 		}
-		final File saveFile = plugin.getUI().saveFile("Save SNT Measurements...", "SNT_Measurements.csv", ".csv");
+		final File saveFile = plugin.getUI().saveFile("Save SNT Measurements...", "SNT_Measurements.csv", "csv");
 		if (saveFile == null) return; // user pressed cancel
 
 		plugin.getUI().showStatus("Exporting Measurements..", false);

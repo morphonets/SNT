@@ -662,7 +662,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			return;
 		}
 
-		final File saveFile = plugin.getUI().saveFile("Export CSV Summary...", "Fills.csv", ".csv");
+		final File saveFile = plugin.getUI().saveFile("Export CSV Summary...", "Fills.csv", "csv");
 		if (saveFile == null) return; // user pressed cancel;
 		plugin.getUI().showStatus("Exporting CSV data to " + saveFile
 			.getAbsolutePath(), false);

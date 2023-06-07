@@ -43,7 +43,6 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
 
 public class SNTGraphComponent extends mxGraphComponent {
 
@@ -159,7 +158,7 @@ public class SNTGraphComponent extends mxGraphComponent {
     protected void export(final String extension) {
         final GuiUtils guiUtils = new GuiUtils(this.getParent());
         final File file = new File(getSaveDir(), "exported-graph" + extension);
-        final File saveFile = guiUtils.saveFile("Export Graph...", file, Collections.singletonList(extension));
+        final File saveFile = guiUtils.getSaveFile("Export Graph...", file, extension);
         if (saveFile == null)
             return; // user pressed cancel;
         saveDir = saveFile.getParentFile();

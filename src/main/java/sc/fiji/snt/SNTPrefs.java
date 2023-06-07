@@ -373,4 +373,9 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		return recentDir;
 	}
 
+	public static void setLastknownDir(final File file) {
+		if (file != null) {
+			recentDir = (file.isDirectory()) ? file : file.getParentFile();
+		}
+	}
 }

@@ -39,7 +39,6 @@ import ij3d.ContentCreator;
 import ij3d.Image3DUniverse;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
-import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imagej.ops.OpService;
 import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
@@ -118,8 +117,6 @@ public class SNT extends MultiDThreePanes implements
 	private Context context;
 	@Parameter
 	protected StatusService statusService;
-	@Parameter
-	protected LegacyService legacyService;
 	@Parameter
 	private LogService logService;
 	@Parameter
@@ -1268,7 +1265,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/** Assumes UI is available */
 	protected synchronized void loadTracesFile(File file) {
-		if (file == null) file = ui.openFile("Open .traces File...", "traces");
+		if (file == null) file = ui.openReconstructionFile("traces");
 		if (file == null) return; // user pressed cancel;
 		if (!file.exists()) {
 			guiUtils.error(file.getAbsolutePath() + " is no longer available");
@@ -1290,7 +1287,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/** Assumes UI is available */
 	protected synchronized void loadSWCFile(File file) {
-		if (file == null) file = ui.openFile("Open (e)SWC File...", "swc");
+		if (file == null) file = ui.openReconstructionFile("swc");
 		if (file == null) return; // user pressed cancel;
 		if (!file.exists()) {
 			guiUtils.error(file.getAbsolutePath() + " is no longer available");
@@ -2781,7 +2778,7 @@ public class SNT extends MultiDThreePanes implements
 		if (!SNTUtils.fileAvailable(file)) {
 			throw new IllegalArgumentException("File path of input data unknown");
 		}
-		ImagePlus imp = (ImagePlus) legacyService.getIJ1Helper().openImage(file.getAbsolutePath());
+		ImagePlus imp = ij.IJ.openImage(file.getAbsolutePath());
 		if (imp == null) {
 			final Dataset ds = datasetIOService.open(file.getAbsolutePath());
 			if (ds == null)

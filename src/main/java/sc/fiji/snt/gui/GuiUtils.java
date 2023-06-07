@@ -101,7 +101,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.HyperlinkListener;
-import javax.swing.filechooser.FileFilter;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.NumberFormatter;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
@@ -702,88 +702,119 @@ public class GuiUtils {
 		new DimensionFields().prompt();
 	}
 
-	public File saveFile(final String title, final File file,
-		final List<String> allowedExtensions)
-	{
+	public File getOpenFile(final String title, final File file, final String... allowedExtensions) {
+		final JFileChooser chooser = fileChooser(title, file, JFileChooser.OPEN_DIALOG, JFileChooser.FILES_ONLY);
+		if (allowedExtensions != null) {
+			chooser.addChoosableFileFilter(new FileNameExtensionFilter(
+					"Reconstruction files (" + String.join(",", allowedExtensions) + ")", allowedExtensions));
+		}
+		return (File) getOpenFileChooserResult(chooser);
+	}
+
+	public File getSaveFile(final String title, final File file, final String... allowedExtensions) {
 		File chosenFile = null;
-		final JFileChooser chooser = fileChooser(title, file, JFileChooser.SAVE_DIALOG, JFileChooser.FILES_ONLY, allowedExtensions);
+		final JFileChooser chooser = fileChooser(title, file, JFileChooser.SAVE_DIALOG, JFileChooser.FILES_ONLY);
+		if (allowedExtensions != null) {
+			chooser.addChoosableFileFilter(new FileNameExtensionFilter(
+					"Files of type " + String.join(",", allowedExtensions).toUpperCase(), allowedExtensions));
+		}
+		chooser.setFileFilter(chooser.getAcceptAllFileFilter());
+		// HACK: On macOS this seems to help to ensure prompt is displayed as frontmost
+		final boolean focused = parent instanceof Window && parent.hasFocus();
+		if (focused)
+			((Window) parent).toBack();
 		if (chooser.showSaveDialog(parent) == JFileChooser.APPROVE_OPTION) {
 			chosenFile = chooser.getSelectedFile();
-			if (chosenFile == null)
-				return null;
-			if (allowedExtensions != null && allowedExtensions.size() == 1) {
-				final String path = chosenFile.getAbsolutePath();
-				final String extension = allowedExtensions.get(0);
-				if (!path.endsWith(extension))
-					chosenFile = new File(path + extension);
-			}
-			if (chosenFile.exists()
-					&& !getConfirmation(chosenFile.getAbsolutePath() + " already exists. Do you want to replace it?",
-							"Override File?")) {
-				return null;
-			}
 		}
+		if (chosenFile != null && allowedExtensions != null && allowedExtensions.length == 1) {
+			final String path = chosenFile.getAbsolutePath();
+			final String extension = allowedExtensions[0];
+			if (!path.endsWith(extension))
+				chosenFile = new File(path + extension);
+		}
+		SNTPrefs.setLastknownDir(chosenFile); // null allowed
+		if (focused)
+			((Window) parent).toFront();
 		return chosenFile;
 	}
 
-	
-	@SuppressWarnings("unused")
-	private File openFile(final String title, final File file,
-		final List<String> allowedExtensions)
-	{
-		final JFileChooser chooser = fileChooser(title, file,
-			JFileChooser.OPEN_DIALOG, JFileChooser.FILES_ONLY, allowedExtensions);
-		if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION)
-			return chooser.getSelectedFile();
-		return null;
+	public File[] getReconstructionFiles() {
+		final JFileChooser fileChooser = getReconstructionFileChooser(null);
+		return (File[])getOpenFileChooserResult(fileChooser);
 	}
 
-	@SuppressWarnings("unused")
-	private File openDirectory(final String title, final File file) {
-		final JFileChooser chooser = fileChooser(title, file, JFileChooser.OPEN_DIALOG,
-			JFileChooser.DIRECTORIES_ONLY, null);
-		if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION)
-			return chooser.getSelectedFile();
-		return null;
+	public File getReconstructionFile(final File file, final String extension) {
+		FileNameExtensionFilter filter;
+		if ("swc".equals(extension))
+			filter = new FileNameExtensionFilter("SWC (.swc)", "swc");
+		else if ("traces".equals(extension))
+			filter = new FileNameExtensionFilter("TRACES (.traces)", "traces");
+		else if ("json".equals(extension))
+			filter = new FileNameExtensionFilter("JSON (.json)", "json");
+		else if ("ndf".equals(extension))
+			filter = new FileNameExtensionFilter("NDF (.ndf)", "ndf");
+		else if ("labels".equals(extension))
+			filter = new FileNameExtensionFilter("LABELS (.labels)", "labels");
+		else
+			filter = null;
+		final JFileChooser fileChooser = getReconstructionFileChooser(filter);
+		fileChooser.setSelectedFile(file);
+		if (extension == null)
+			fileChooser.setDialogTitle("Choose Reconstruction File");
+		else
+			fileChooser.setDialogTitle("Choose Reconstrution (" + extension.toUpperCase() + ") File");
+		fileChooser.setMultiSelectionEnabled(false);
+		return (File)getOpenFileChooserResult(fileChooser);
 	}
 
-	private JFileChooser fileChooser(final String title, final File file,
-		final int type, final int selectionMode, final List<String> allowedExtensions)
-	{
-		final JFileChooser chooser = getDnDFileChooser();
-		if (file != null) {
-			if (file.isDirectory()) {
-				chooser.setCurrentDirectory(file);
-			} else {
-				chooser.setCurrentDirectory(file.getParentFile());
-			}
-			chooser.setSelectedFile(file);
+	private JFileChooser getReconstructionFileChooser(final FileNameExtensionFilter filter) {
+		final JFileChooser fileChooser = GuiUtils.getDnDFileChooser();
+		fileChooser.setDialogTitle("Choose Reconstruction File(s)");
+		fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+		fileChooser.setDialogType(JFileChooser.OPEN_DIALOG);
+		if (filter == null) {
+			fileChooser.addChoosableFileFilter(new FileNameExtensionFilter(
+					"Reconstruction files (.traces, .swc, .json, .ndf)", "traces", "swc", "json", "ndf"));
+		} else {
+			fileChooser.addChoosableFileFilter(filter);
 		}
+		fileChooser.setMultiSelectionEnabled(true);
+		return fileChooser;
+	}
+
+	private Object getOpenFileChooserResult(final JFileChooser fileChooser) {
+		// HACK: On macOS this seems to help to ensure prompt is displayed as frontmost
+		final boolean focused = parent instanceof Window && parent.hasFocus();
+		if (focused) ((Window) parent).toBack();
+		if (fileChooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION) {
+			if (fileChooser.isMultiSelectionEnabled()) {
+				final File[] result = fileChooser.getSelectedFiles();
+				SNTPrefs.setLastknownDir(result[0]);
+				return result;
+			} else {
+				final File result = fileChooser.getSelectedFile();
+				SNTPrefs.setLastknownDir(result);
+				return result;
+			}
+		}
+		if (focused) ((Window) parent).toFront();
+		return null;
+	}
+
+	private JFileChooser fileChooser(final String title, final File file, final int type, final int selectionMode) {
+		final JFileChooser chooser = getDnDFileChooser();
 		chooser.setDialogTitle(title);
 		chooser.setFileSelectionMode(selectionMode);
 		chooser.setDialogType(type);
-		if (allowedExtensions != null && !allowedExtensions.isEmpty()) {
-			chooser.setFileFilter(new FileFilter() {
-
-				@Override
-				public String getDescription() {
-					return String.join(",", allowedExtensions);
+		if (file != null) {
+			if (selectionMode == JFileChooser.FILES_ONLY) {
+				if (file.isDirectory()) {
+					chooser.setCurrentDirectory(file);
+				} else {
+					chooser.setCurrentDirectory(file.getParentFile());
 				}
-
-				@Override
-				public boolean accept(final File f) {
-					if (f.isDirectory()) {
-						return true;
-					}
-					else {
-						final String filename = f.getName().toLowerCase();
-						for (final String ext : allowedExtensions) {
-							if (filename.endsWith(ext)) return true;
-						}
-						return false;
-					}
-				}
-			});
+			}
+			chooser.setSelectedFile(file);
 		}
 		return chooser;
 	}
@@ -1740,7 +1771,39 @@ public class GuiUtils {
 	}
 
 	public static JFileChooser getDnDFileChooser() {
-		final JFileChooser fileChooser = new JFileChooser();
+		final JFileChooser fileChooser = new JFileChooser() {
+			private static final long serialVersionUID = 9398079702362074L;
+
+			@Override
+			public File getCurrentDirectory() {
+				// Workaround Linux bug where setting current directory sets it to root
+				if (super.getCurrentDirectory() == null || super.getCurrentDirectory().toPath().getNameCount() == 0) {
+					return SNTPrefs.lastknownDir();
+				}
+				return super.getCurrentDirectory();
+			}
+
+			@Override
+			public void approveSelection() {
+				final File f = getSelectedFile();
+				if (f.exists() && getDialogType() == SAVE_DIALOG) {
+					final int result = JOptionPane.showConfirmDialog(this,
+							String.format("%s already exists.%nOverwrite?", f.getName()), "Override File?",
+							JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+					switch (result) {
+					case JOptionPane.YES_OPTION:
+						super.approveSelection();
+						return;
+					case JOptionPane.CANCEL_OPTION:
+						cancelSelection();
+						return;
+					default:
+						return;
+					}
+				}
+				super.approveSelection();
+			}
+		};
 		fileChooser.setDragEnabled(true);
 		new FileDrop(fileChooser, new FileDrop.Listener() {
 
@@ -1755,7 +1818,7 @@ public class GuiUtils {
 				// see ij.io.DragAndDropHandler
 				final File firstFile = files[0];
 				if (fileChooser.isMultiSelectionEnabled()) {
-					final File dir = firstFile.getParentFile();
+					final File dir = (firstFile.isDirectory()) ? firstFile : firstFile.getParentFile();
 					fileChooser.setCurrentDirectory(dir);
 					fileChooser.setSelectedFiles(files);
 				} else {
@@ -1769,6 +1832,32 @@ public class GuiUtils {
 				fileChooser.rescanCurrentDirectory();
 			}
 		});
+
+		fileChooser.setAcceptAllFileFilterUsed(true);
+		fileChooser.setCurrentDirectory(SNTPrefs.lastknownDir());
+
+		@SuppressWarnings("serial")
+		final AbstractAction hAction = new AbstractAction() {
+
+			@Override
+			public void actionPerformed(final ActionEvent e) {
+				final JFileChooser jf = (JFileChooser) e.getSource();
+				jf.setFileHidingEnabled(!jf.isFileHidingEnabled());
+			}
+		};
+		@SuppressWarnings("serial")
+		final AbstractAction rAction = new AbstractAction() {
+			@Override
+			public void actionPerformed(final ActionEvent e) {
+				((JFileChooser) e.getSource()).rescanCurrentDirectory();
+			}
+		};
+		fileChooser.getActionMap().put("toggleHiddenFiles", hAction);
+		fileChooser.getActionMap().put("rescanFiles", rAction);
+		final InputMap inputMap = fileChooser.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+		inputMap.put(KeyStroke.getKeyStroke('h'), "toggleHiddenFiles");
+		inputMap.put(KeyStroke.getKeyStroke('r'), "rescanFiles");
+
 		return fileChooser;
 	}
 

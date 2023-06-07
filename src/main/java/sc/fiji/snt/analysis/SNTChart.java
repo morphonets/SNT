@@ -44,7 +44,6 @@ import java.util.List;
 
 import javax.swing.ButtonGroup;
 import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
@@ -53,7 +52,6 @@ import javax.swing.JRadioButtonMenuItem;
 import javax.swing.MenuElement;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
-import javax.swing.filechooser.FileNameExtensionFilter;
 
 import org.jfree.chart.ChartMouseEvent;
 import org.jfree.chart.ChartMouseListener;
@@ -1038,8 +1036,11 @@ public class SNTChart extends ChartPanel {
 		annotatePoint(coordinates[0], coordinates[1], label, color);
 	}
 
-	public void setDefaultDirectoryForSaveAs(final File directory) throws IllegalArgumentException {
-		super.setDefaultDirectoryForSaveAs(directory);
+	@Override
+	/** {@inheritDoc} */
+	public File getDefaultDirectoryForSaveAs() {
+		return (super.getDefaultDirectoryForSaveAs() == null) ? SNTPrefs.lastknownDir()
+				: super.getDefaultDirectoryForSaveAs();
 	}
 
 	/**
@@ -1099,24 +1100,16 @@ public class SNTChart extends ChartPanel {
 		if (getPopupMenu() != null) {
 			final JMenuItem mi = new JMenuItem("Data (as CSV)...");
 			mi.addActionListener(e -> {
-				final JFileChooser fileChooser = GuiUtils.getDnDFileChooser();
-				fileChooser.setDialogTitle("Export to CSV (Experimental)");
-				final FileNameExtensionFilter csvFilter = new FileNameExtensionFilter("CSV files (*.csv)", "csv");
-				fileChooser.addChoosableFileFilter(csvFilter);
-				fileChooser.setFileFilter(csvFilter);
-				if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-					File file = fileChooser.getSelectedFile();
-					if (file == null)
-						return;
-					if (!file.getName().toLowerCase().endsWith("csv")) {
-						file = new File(file.toString() + ".csv");
-					}
-					try {
-						exportAsCSV(file);
-					} catch (final IllegalStateException ise) {
-						new GuiUtils(frame).error("Could not save data. See Console for details.");
-						ise.printStackTrace();
-					}
+				final String filename = (getTitle() == null) ? "SNTChartData" : getTitle();
+				final File file = new GuiUtils(frame).getSaveFile("Export to CSV (Experimental)",
+						new File(getDefaultDirectoryForSaveAs(), filename + ".csv"), "csv");
+				if (file == null)
+					return;
+				try {
+					exportAsCSV(file);
+				} catch (final IllegalStateException ise) {
+					new GuiUtils(frame).error("Could not save data. See Console for details.");
+					ise.printStackTrace();
 				}
 			});
 			final JMenu saveAs = getMenu(getPopupMenu(), "Save as");
