@@ -29,6 +29,8 @@ import java.util.HashSet;
 import javax.swing.LookAndFeel;
 import javax.swing.UIManager;
 
+import org.scijava.util.VersionUtils;
+
 import com.formdev.flatlaf.FlatLaf;
 
 import ij.Prefs;
@@ -72,6 +74,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final String PATHWIN_LOC = "tracing.snt.pwloc";
 	private static final String FILLWIN_LOC = "tracing.snt.fwloc";
 	private static final String FILTERED_IMG_PATH = "tracing.snt.fipath";
+	private static final String VERSION_CHECK = "tracing.snt.version";
 
 	@Deprecated
 	private static final String LOAD_DIRECTORY_KEY = "tracing.snt.lastdir";
@@ -79,7 +82,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static File recentDir;
 
 	private final SNT snt;
-	private final int UNSET_PREFS = -1;
+	private static final int UNSET_PREFS = -1;
 	private int currentBooleans;
 	private boolean ij1ReverseSliderOrder;
 	private boolean ij1PointerCursor;
@@ -280,6 +283,12 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		setPref(STORE_WIN_LOCATIONS, value);
 	}
 
+	public static boolean firstRunAfterUpdate() {
+		final String lastVersion = Prefs.get(VERSION_CHECK, null);
+		Prefs.set(VERSION_CHECK, SNTUtils.VERSION);
+		return lastVersion == null || VersionUtils.compare(SNTUtils.VERSION, lastVersion) > 0;
+	}
+
 	public static void setThreads(int n) {
 		Prefs.setThreads((n < 1) ? Runtime.getRuntime().availableProcessors() : n);
 	}
@@ -326,6 +335,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		setLookAndFeel(null);
 		setThreads(0);
 		wipeSessionPrefs();
+		Prefs.set(VERSION_CHECK, SNTUtils.VERSION);
 		Prefs.savePreferences();
 	}
 

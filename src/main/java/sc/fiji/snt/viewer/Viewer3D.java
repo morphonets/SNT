@@ -1444,6 +1444,7 @@ public class Viewer3D {
 		updateView();
 		frame.canvas.requestFocusInWindow();
 		frame.setVisible(true);
+		gUtils.notifyIfNewVersion(0);
 		return frame;
 	}
 
@@ -3099,11 +3100,6 @@ public class Viewer3D {
 				mc.panStep = getPanStep();
 				storedSensitivity = null;
 			}
-		}
-
-		private String getScriptExtension() {
-			return tp.prefService.get(RecViewerPrefsCmd.class, "scriptExtension",
-					RecViewerPrefsCmd.DEF_SCRIPT_EXTENSION);
 		}
 
 		private File getSnapshotDir() {

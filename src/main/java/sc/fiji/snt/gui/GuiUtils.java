@@ -22,11 +22,13 @@
 
 package sc.fiji.snt.gui;
 
+import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.FlatDarculaLaf;
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatIntelliJLaf;
 import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.icons.FlatWindowCloseIcon;
 import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
 import com.jidesoft.utils.ProductNames;
@@ -139,8 +141,6 @@ public class GuiUtils {
 	private JidePopup popup;
 	private boolean popupExceptionTriggered;
 	private int timeOut = 2500;
-	private Color background = Color.WHITE;
-	private Color foreground = Color.BLACK;
 
 	public GuiUtils(final Component parent) {
 		setParent(parent);
@@ -155,8 +155,6 @@ public class GuiUtils {
 			this.parent = null;
 		} else {
 			this.parent = (parent instanceof Container) ? parent : parent.getParent();
-			background = parent.getBackground();
-			foreground = parent.getForeground();
 		}
 	}
 
@@ -166,6 +164,71 @@ public class GuiUtils {
 
 	public void error(final String msg, final String title) {
 		centeredDialog(msg, title, JOptionPane.ERROR_MESSAGE);
+	}
+
+	public void notifyIfNewVersion(final int delay) {
+		final Timer timer = new Timer(delay, e -> {
+			if (SNTPrefs.firstRunAfterUpdate()) {
+				final JLabel msg = leftAlignedLabel("<HTML>&nbsp;<b>SNT was updated!</b> Click here to browse release notes.",
+						releaseNotesURL(), true);
+				showNotification(msg, true);
+			}
+		});
+		timer.setRepeats(false);
+		timer.start();
+	}
+
+	public void showNotification(final JLabel msg, final int delay) {
+		final Timer timer = new Timer(delay, e -> showNotification(msg, false));
+		timer.setRepeats(false);
+		timer.start();
+	}
+
+	private void showNotification(final JLabel msg, final boolean disposeOnClick) {
+
+		final JidePopup popup = new JidePopup();
+		popup.setOwner(parent);
+		popup.setAttachable(false);
+		popup.setMovable(true);
+		popup.setReturnFocusToOwner(true);
+		popup.setTransient(false);
+		popup.setResizable(false);
+		popup.setDefaultMoveOperation(JidePopup.DO_NOTHING_ON_MOVED);
+		popup.setTimeout(180000); // 3 minutes
+		popup.setFocusable(false);
+		popup.setEnsureInOneScreen(true);
+
+		final JButton button = new JButton(new FlatWindowCloseIcon());
+		button.setMargin(new Insets(0, 0, 0, 0));
+		button.setBorder(null);
+		button.setBorderPainted(false);
+		button.setContentAreaFilled(false);
+		button.addActionListener(ae -> popup.hidePopup());
+		popup.addExcludedComponent(button);
+
+		final JPanel panel = new JPanel();
+		applyRoundCorners(panel);
+		panel.add(button);
+		panel.add(msg);
+		popup.add(panel);
+
+		if (disposeOnClick) {
+			msg.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseClicked(MouseEvent e) {
+					popup.hidePopupImmediately();
+				}
+			});
+		}
+		SwingUtilities.invokeLater(() -> popup.showPopup(SwingConstants.SOUTH_EAST, parent));
+	}
+
+	private static void applyRoundCorners(final JComponent component) {
+		component.putClientProperty(FlatClientProperties.STYLE, //
+				"[light]background: tint(@background,50%);" //
+						+ "[dark]background: shade(@background,15%);" //
+						+ "[light]border: 16,16,16,16,shade(@background,10%),,8;" //
+						+ "[dark]border: 16,16,16,16,tint(@background,10%),,8");
 	}
 
 	public JDialog floatingMsg(final String msg, final boolean autodismiss) {
@@ -219,10 +282,6 @@ public class GuiUtils {
 		label.setHorizontalAlignment(SwingConstants.CENTER);
 		final JidePopup popup = new JidePopup();
 		popup.add(label);
-		label.setBackground(background);
-		label.setForeground(foreground);
-		popup.setBackground(background);
-		popup.getContentPane().setBackground(background);
 		if (parent != null) {
 			popup.setOwner(parent);
 			popup.setMaximumSize(parent.getSize());
@@ -1040,7 +1099,7 @@ public class GuiUtils {
 		side.add(new JLabel(" ")); // spacer
 		final JPanel urls = new JPanel();
 		side.add(urls);
-		JLabel url = leftAlignedLabel("Release Notes   ", "https://github.com/morphonets/SNT/releases", true);
+		JLabel url = leftAlignedLabel("Release Notes   ", releaseNotesURL(), true);
 		urls.add(url);
 		url = leftAlignedLabel("Documentation   ", "https://imagej.net/plugins/snt/", true);
 		urls.add(url);
@@ -1167,7 +1226,7 @@ public class GuiUtils {
 	}
 
 	public static JButton menubarButton(final IconFactory.GLYPH glyphIcon, final Action action) {
-		final JButton mi = new JButton(action) {
+		return new JButton(action) {
 			private static final long serialVersionUID = 406126659895081426L;
 
 			@Override
@@ -1211,7 +1270,6 @@ public class GuiUtils {
 			}
 
 		};
-		return mi;
 	}
 
 	public static int renderedWidth(final String text) {
@@ -1239,7 +1297,7 @@ public class GuiUtils {
 				@Override
 				public void mouseEntered(final MouseEvent e) {
 					if (e.getX() <= w) {
-						label.setForeground(Color.BLUE);
+						label.setForeground(new Color(0, 128, 255));
 						label.setCursor(new Cursor(Cursor.HAND_CURSOR));
 					}
 				}
@@ -1509,7 +1567,7 @@ public class GuiUtils {
 		mi = menuItemTriggeringURL("Known Issues", "https://github.com/morphonets/SNT/issues");
 		mi.setIcon(IconFactory.getMenuIcon(GLYPH.BUG));
 		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Release Notes", "https://github.com/morphonets/SNT/releases");
+		mi = menuItemTriggeringURL("Release Notes", releaseNotesURL());
 		mi.setIcon(IconFactory.getMenuIcon(GLYPH.NEWSPAPER));
 		helpMenu.add(mi);
 
@@ -1936,7 +1994,7 @@ public class GuiUtils {
 	}
 
 	public static void setAutoDismiss(final JDialog dialog) {
-		final int DELAY = 2500;
+		final int DELAY = 3000;
 		final Timer timer = new Timer(DELAY, e -> dialog.dispose());
 		timer.setRepeats(false);
 		dialog.addMouseListener(new MouseAdapter() {
@@ -2250,6 +2308,10 @@ public class GuiUtils {
 		return tabbedPane;
 	}
 
+	private static String releaseNotesURL() {
+		return "https://github.com/morphonets/SNT/releases";
+	}
+
 	/** Tweaked version of ij.gui.HTMLDialog that is aware of parent */
 	private class HTMLDialog extends JDialog implements ActionListener, KeyListener, HyperlinkListener {
 
@@ -2378,13 +2440,10 @@ public class GuiUtils {
 			setResizable(false);
 			setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 			setAlwaysOnTop(true);
-			getContentPane().setBackground(background);
-			setBackground(background);
 			final JLabel label = getLabel(msg);
 			label.setHorizontalAlignment(SwingConstants.CENTER);
-			label.setBorder(new EmptyBorder(10, 10, 10, 10));
-			label.setBackground(background);
-			label.setForeground(foreground);
+			getRootPane().setBorder(new EmptyBorder(5, 5, 5, 5));
+			applyRoundCorners(label);
 			add(label);
 			pack();
 			centerOnParent();

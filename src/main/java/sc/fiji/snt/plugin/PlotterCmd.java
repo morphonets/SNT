@@ -317,7 +317,11 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				updatePlot(false);
 				break;
 			case ACTION_SHOW_DENDROGRAM:
-				tree.getGraph(true).show();
+				try {
+					tree.getGraph(true).show();
+				} catch (final IllegalArgumentException ex) {
+					GuiUtils.errorPrompt("Could not create dendrogram:\n" + ex.getMessage());
+				}
 				break;
 			default:
 				throw new IllegalArgumentException("Invalid action");

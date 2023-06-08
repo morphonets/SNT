@@ -99,7 +99,6 @@ public class SNTUI extends JDialog {
 
 	/* UI */
 	private static final int MARGIN = 2;
-	private final JMenuBar menuBar;
 	private JCheckBox showPathsSelected;
 	protected CheckboxSpinner partsNearbyCSpinner;
 	protected JCheckBox useSnapWindow;
@@ -381,7 +380,7 @@ public class SNTUI extends JDialog {
 			}
 		}
 
-		setJMenuBar(menuBar = createMenuBar());
+		setJMenuBar(createMenuBar());
 		setLayout(new GridBagLayout());
 		final GridBagConstraints dialogGbc = GuiUtils.defaultGbc();
 		add(statusPanel(), dialogGbc);
@@ -2089,7 +2088,7 @@ public class SNTUI extends JDialog {
 				plugin.flushSecondaryData();
 			} else {
 				final File proposedFile = (plugin.getFilteredImageFile() == null) ? plugin.getPrefs().getRecentDir() : plugin.getFilteredImageFile();
-				final File file = guiUtils.getOpenFile("Choose Secondary Image", proposedFile, null);
+				final File file = guiUtils.getOpenFile("Choose Secondary Image", proposedFile);
 				if (file == null)
 					return;
 				loadSecondaryImageFile(file);
@@ -3196,6 +3195,7 @@ public class SNTUI extends JDialog {
 			if (plugin.getImagePlus()!=null) plugin.getImagePlus().getWindow().toFront();
 			ijmLogMessage();
 			promptForAutoTracingAsAppropriate();
+			guiUtils.notifyIfNewVersion(0);
 		});
 	}
 

@@ -2963,20 +2963,6 @@ public class SNT extends MultiDThreePanes implements
 		return xy_tracer_canvas;
 	}
 
-	private Component getActiveCanvas() {
-		if (!isUIready()) return null;
-		final List<Component> components = new ArrayList<>();
-		components.add(xy_canvas);
-		components.add(xz_canvas);
-		components.add(zy_canvas);
-		if (univ != null) components.add(univ.getCanvas());
-		if (getUI() != null) components.add(getUI());
-		for (final Component c : components) {
-			if (c != null && c.isFocusOwner()) return c;
-		}
-		return null;
-	}
-
 	protected Component getActiveWindow() {
 		if (!isUIready()) return null;
 		if (ui.isActive()) return ui;
@@ -3378,7 +3364,7 @@ public class SNT extends MultiDThreePanes implements
 
 	protected void discreteMsg(final String msg) { /* HTML format */
 		if (pathAndFillManager.enableUIupdates)
-			new GuiUtils(getActiveCanvas()).tempMsg(msg);
+			new GuiUtils(getActiveWindow()).tempMsg(msg);
 	}
 
 	protected boolean getConfirmation(final String msg, final String title) {
