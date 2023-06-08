@@ -303,20 +303,20 @@ public class SNTCommandFinder {
 			sb.append("snt.getUI().getPathManager().");
 			if (tagCmd)
 				sb.append("applyDefaultTags(\"").append(cmdAction.id).append("\")");
-			else if (promptCmd)
-				sb.append("runCommand(\"").append(cmdAction.id).append("\", \"[(optional) prompt options here...]\")");
 			else
 				sb.append("runCommand(\"").append(cmdAction.id).append("\")");
 		} else {
 			sb.append("snt.getUI().runCommand(\"").append(cmdAction.id).append("\")");
 		}
-		if (promptCmd && !pmCmd)
+		if (promptCmd) {
 			noOptionsRecorderComment();
+			sb.append(", \"[optional prompt options here...]\")");
+		}
 		recorder.recordCmd(sb.toString());
 	}
 
 	private void noOptionsRecorderComment() {
-		recorder.recordComment("NB: Next line may rely on non-recorded prompt options");
+		recorder.recordComment("NB: Next line may rely on non-recorded prompt options. See documentation for examples");
 	}
 
 	private void recordSNTViewerCmd(final CmdAction cmdAction) {
@@ -449,8 +449,8 @@ public class SNTCommandFinder {
 
 		SearchField(final boolean enableRecordButton) {
 			super("    Search for commands and actions (e.g., Sholl)");
-			setMargin(new Insets(PADDING, PADDING, PADDING, PADDING));
-			setFont(REF_FONT.deriveFont(REF_FONT.getSize() * 1.2f));
+			setMargin(new Insets((int) (PADDING *1.5), PADDING, (int) (PADDING *1.5), PADDING));
+			setFont(REF_FONT.deriveFont(REF_FONT.getSize() * 1.1f));
 			putClientProperty( FlatClientProperties.TEXT_FIELD_LEADING_COMPONENT, new JLabel( new FlatSearchIcon( false ) ) );
 			if (enableRecordButton)
 				putClientProperty( FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, recordButton() );
@@ -606,9 +606,9 @@ public class SNTCommandFinder {
 			int x = bounds.x + (bounds.width - w.width) / 2;
 			int y = bounds.y + (bounds.height - w.height) / 2;
 			if (x < 0)
-				x = 0;
+				x = 0; //component.getX();
 			if (y < 0)
-				y = 0;
+				y = 0;// component.getY();
 			setLocation(x, y);
 		}
 	}
@@ -655,8 +655,8 @@ public class SNTCommandFinder {
 	private class CmdTableRenderer extends DefaultTableCellRenderer {
 
 		private static final long serialVersionUID = 1L;
-		final Font col0Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1.1f);
-		final Font col1Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1f);
+		final Font col0Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1f);
+		final Font col1Font = REF_FONT.deriveFont(REF_FONT.getSize() * .9f);
 
 		@Override
 		public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected,

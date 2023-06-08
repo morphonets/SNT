@@ -22,20 +22,6 @@
 
 package sc.fiji.snt.gui;
 
-import com.formdev.flatlaf.FlatClientProperties;
-import com.formdev.flatlaf.FlatDarculaLaf;
-import com.formdev.flatlaf.FlatDarkLaf;
-import com.formdev.flatlaf.FlatIntelliJLaf;
-import com.formdev.flatlaf.FlatLaf;
-import com.formdev.flatlaf.FlatLightLaf;
-import com.formdev.flatlaf.icons.FlatWindowCloseIcon;
-import com.jidesoft.plaf.LookAndFeelFactory;
-import com.jidesoft.popup.JidePopup;
-import com.jidesoft.utils.ProductNames;
-
-import ij.IJ;
-import ij.ImageJ;
-
 import java.awt.BorderLayout;
 import java.awt.Canvas;
 import java.awt.Color;
@@ -94,8 +80,51 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import javax.swing.*;
+import javax.swing.AbstractAction;
+import javax.swing.AbstractButton;
+import javax.swing.Action;
+import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
+import javax.swing.ButtonGroup;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JCheckBoxMenuItem;
+import javax.swing.JColorChooser;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
+import javax.swing.JEditorPane;
+import javax.swing.JFileChooser;
+import javax.swing.JFormattedTextField;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
 import javax.swing.JSpinner.DefaultEditor;
+import javax.swing.JTabbedPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.JTextPane;
+import javax.swing.JTree;
+import javax.swing.KeyStroke;
+import javax.swing.ListSelectionModel;
+import javax.swing.LookAndFeel;
+import javax.swing.MenuElement;
+import javax.swing.SpinnerModel;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import javax.swing.UIManager;
+import javax.swing.WindowConstants;
 import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 import javax.swing.colorchooser.AbstractColorChooserPanel;
@@ -116,6 +145,19 @@ import org.scijava.util.ColorRGB;
 import org.scijava.util.PlatformUtils;
 import org.scijava.util.Types;
 
+import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.FlatDarculaLaf;
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatIntelliJLaf;
+import com.formdev.flatlaf.FlatLaf;
+import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.icons.FlatClearIcon;
+import com.jidesoft.plaf.LookAndFeelFactory;
+import com.jidesoft.popup.JidePopup;
+import com.jidesoft.utils.ProductNames;
+
+import ij.IJ;
+import ij.ImageJ;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.SNTChart;
@@ -212,7 +254,7 @@ public class GuiUtils {
 		popup.setFocusable(false);
 		popup.setEnsureInOneScreen(true);
 
-		final JButton button = new JButton(new FlatWindowCloseIcon());
+		final JButton button = new JButton(new FlatClearIcon());//new FlatTabbedPaneCloseIcon());
 		button.setMargin(new Insets(0, 0, 0, 0));
 		button.setBorder(null);
 		button.setBorderPainted(false);
@@ -221,7 +263,7 @@ public class GuiUtils {
 		popup.addExcludedComponent(button);
 
 		final JPanel panel = new JPanel();
-		applyRoundCorners(panel);
+		applyRoundCorners(msg);
 		panel.add(button);
 		panel.add(msg);
 		popup.add(panel);
@@ -820,21 +862,23 @@ public class GuiUtils {
 	public File getReconstructionFile(final File file, final String extension) {
 		FileNameExtensionFilter filter;
 		if ("swc".equals(extension))
-			filter = new FileNameExtensionFilter("SWC (.swc)", "swc");
+			filter = new FileNameExtensionFilter("SWC files (.swc)", "swc");
 		else if ("traces".equals(extension))
-			filter = new FileNameExtensionFilter("TRACES (.traces)", "traces");
+			filter = new FileNameExtensionFilter("SNT TRACES files (.traces)", "traces");
 		else if ("json".equals(extension))
-			filter = new FileNameExtensionFilter("JSON (.json)", "json");
+			filter = new FileNameExtensionFilter("JSON files (.json)", "json");
 		else if ("ndf".equals(extension))
-			filter = new FileNameExtensionFilter("NDF (.ndf)", "ndf");
+			filter = new FileNameExtensionFilter("NeuronJ NDF files (.ndf)", "ndf");
 		else if ("labels".equals(extension))
-			filter = new FileNameExtensionFilter("LABELS (.labels)", "labels");
+			filter = new FileNameExtensionFilter("AmiraMesh labels (.labels)", "labels");
 		else
 			filter = null;
 		final JFileChooser fileChooser = getReconstructionFileChooser(filter);
 		fileChooser.setSelectedFile(file);
 		if (extension == null)
 			fileChooser.setDialogTitle("Choose Reconstruction File");
+		else if ("labels".equals(extension))
+			fileChooser.setDialogTitle("Choose LABELS File");
 		else
 			fileChooser.setDialogTitle("Choose Reconstrution (" + extension.toUpperCase() + ") File");
 		fileChooser.setMultiSelectionEnabled(false);
@@ -1134,30 +1178,7 @@ public class GuiUtils {
 	}
 
 	public void showDirectory(final File file) {
-		if (file == null) {
-			dirNotAccessibleError(file);
-			return;
-		}
-		final File dir = (file.isDirectory()) ? file : file.getParentFile();
-		try {
-			Desktop.getDesktop().open(dir); // TODO: Move to java9: Desktop.getDesktop().browseFileDirectory(file);
-		} catch (final UnsupportedOperationException ue) {
-			if (PlatformUtils.isLinux())
-				try {
-					Runtime.getRuntime().exec(new String[] { "xdg-open", dir.getAbsolutePath() });
-				} catch (final Exception ignored) {
-					dirNotAccessibleError(dir);
-				}
-		} catch (final NullPointerException | IllegalArgumentException | IOException iae) {
-			dirNotAccessibleError(dir);
-		}
-	}
-
-	private void dirNotAccessibleError(final File dir) {
-		if (dir == null)
-			error("Directory does not seem to be accessible.");
-		else
-			error("<HTML>Could not access<br>" + dir.getAbsolutePath());
+		new FileChooser().reveal(file);
 	}
 
 	/* Static methods */
@@ -1844,93 +1865,39 @@ public class GuiUtils {
 	}
 
 	public static JFileChooser getDnDFileChooser() {
-		final JFileChooser fileChooser = new JFileChooser() {
-			private static final long serialVersionUID = 9398079702362074L;
-
+		@SuppressWarnings("serial")
+		final JFileChooser fileChooser = new FileChooser() {
 			@Override
 			public File getCurrentDirectory() {
-				// Workaround Linux bug where setting current directory sets it to root
+				// Workaround Linux bug where somehow directory always becomes root
 				if (super.getCurrentDirectory() == null || super.getCurrentDirectory().toPath().getNameCount() == 0) {
 					return SNTPrefs.lastknownDir();
 				}
 				return super.getCurrentDirectory();
 			}
-
-			@Override
-			public void approveSelection() {
-				final File f = getSelectedFile();
-				if (f.exists() && getDialogType() == SAVE_DIALOG) {
-					final int result = JOptionPane.showConfirmDialog(this,
-							String.format("%s already exists.%nOverwrite?", f.getName()), "Override File?",
-							JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-					switch (result) {
-					case JOptionPane.YES_OPTION:
-						super.approveSelection();
-						return;
-					case JOptionPane.CANCEL_OPTION:
-						cancelSelection();
-						return;
-					default:
-						return;
-					}
-				}
-				super.approveSelection();
-			}
 		};
-		fileChooser.setDragEnabled(true);
-		new FileDrop(fileChooser, new FileDrop.Listener() {
-
-			final GuiUtils guiUtils = new GuiUtils(fileChooser);
-
-			@Override
-			public void filesDropped(final File[] files) {
-				if (files.length == 0) { // Is this even possible?
-					guiUtils.error("Dropped file(s) not recognized.");
-					return;
-				}
-				// see ij.io.DragAndDropHandler
-				final File firstFile = files[0];
-				if (fileChooser.isMultiSelectionEnabled()) {
-					final File dir = (firstFile.isDirectory()) ? firstFile : firstFile.getParentFile();
-					fileChooser.setCurrentDirectory(dir);
-					fileChooser.setSelectedFiles(files);
-				} else {
-					if (fileChooser.getFileSelectionMode() == JFileChooser.DIRECTORIES_ONLY && !firstFile.isDirectory())
-						fileChooser.setCurrentDirectory(firstFile.getParentFile());
-					if (fileChooser.getDialogType() == JFileChooser.SAVE_DIALOG && firstFile.isDirectory())
-						fileChooser.setCurrentDirectory(firstFile);
-					else
-						fileChooser.setSelectedFile(firstFile);
-				}
-				fileChooser.rescanCurrentDirectory();
-			}
-		});
-
-		fileChooser.setAcceptAllFileFilterUsed(true);
 		fileChooser.setCurrentDirectory(SNTPrefs.lastknownDir());
-
-		@SuppressWarnings("serial")
-		final AbstractAction hAction = new AbstractAction() {
-
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				final JFileChooser jf = (JFileChooser) e.getSource();
-				jf.setFileHidingEnabled(!jf.isFileHidingEnabled());
+		new FileDrop(fileChooser, files -> {
+			if (files.length == 0) { // Is this even possible?
+				new GuiUtils(fileChooser).error("Dropped file(s) not recognized.");
+				return;
 			}
-		};
-		@SuppressWarnings("serial")
-		final AbstractAction rAction = new AbstractAction() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				((JFileChooser) e.getSource()).rescanCurrentDirectory();
+			// see ij.io.DragAndDropHandler
+			final File firstFile = files[0];
+			if (fileChooser.isMultiSelectionEnabled()) {
+				final File dir = (firstFile.isDirectory()) ? firstFile : firstFile.getParentFile();
+				fileChooser.setCurrentDirectory(dir);
+				fileChooser.setSelectedFiles(files);
+			} else {
+				if (fileChooser.getFileSelectionMode() == JFileChooser.DIRECTORIES_ONLY && !firstFile.isDirectory())
+					fileChooser.setCurrentDirectory(firstFile.getParentFile());
+				if (fileChooser.getDialogType() == JFileChooser.SAVE_DIALOG && firstFile.isDirectory())
+					fileChooser.setCurrentDirectory(firstFile);
+				else
+					fileChooser.setSelectedFile(firstFile);
 			}
-		};
-		fileChooser.getActionMap().put("toggleHiddenFiles", hAction);
-		fileChooser.getActionMap().put("rescanFiles", rAction);
-		final InputMap inputMap = fileChooser.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
-		inputMap.put(KeyStroke.getKeyStroke('h'), "toggleHiddenFiles");
-		inputMap.put(KeyStroke.getKeyStroke('r'), "rescanFiles");
-
+			fileChooser.rescanCurrentDirectory();
+		});
 		return fileChooser;
 	}
 

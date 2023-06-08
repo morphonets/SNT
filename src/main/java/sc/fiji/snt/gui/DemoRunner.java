@@ -240,8 +240,8 @@ public class DemoRunner {
 			public void load() {
 				super.load();
 				// apply tags
-				ui.getPathManager().runCommand("Traced Channel");
-				ui.getPathManager().runCommand("Traced Frame");
+				ui.getPathManager().applyDefaultTags("Traced Channel");
+				ui.getPathManager().applyDefaultTags("Traced Frame");
 			}
 		};
 		entry.summary = "Downloads a Drosophila S2 cell undergoing mitosis in which K-fibers were traced during anaphase.";
