@@ -263,8 +263,8 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	/** Returns a UI list with all the bundled non-demo SNT scripts **/
 	public JMenu getScriptsMenu() {
-		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Render", "Skeletons_and_ROIs", "Tracing");
-		menus.insert(getDemosMenu(), 5);
+		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Misc", "Render", "Skeletons_and_ROIs", "Tracing");
+		menus.insert(getDemosMenu(), 6);
 		return menus;
 	}
 

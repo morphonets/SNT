@@ -178,8 +178,22 @@ public class GuiUtils {
 		timer.start();
 	}
 
-	public void showNotification(final JLabel msg, final int delay) {
-		final Timer timer = new Timer(delay, e -> showNotification(msg, false));
+	public void showNotification(final String msg, final Number msDelay) {
+		String parsedMsg;
+		if (!msg.startsWith("<HTML>")) {
+			final String[] lines = msg.split("\n");
+			parsedMsg = "<HTML><b>"+ lines[0] + "</b>";
+			for (int i = 1; i < lines.length; i++) {
+				parsedMsg += "<br>" + lines[i];
+			}
+		}
+		else
+			parsedMsg = msg;
+		showNotification(new JLabel(parsedMsg), msDelay.intValue());
+	}
+
+	public void showNotification(final JLabel msg, final int msDelay) {
+		final Timer timer = new Timer(msDelay, e -> showNotification(msg, false));
 		timer.setRepeats(false);
 		timer.start();
 	}
@@ -220,7 +234,8 @@ public class GuiUtils {
 				}
 			});
 		}
-		SwingUtilities.invokeLater(() -> popup.showPopup(SwingConstants.SOUTH_EAST, parent));
+		SwingUtilities.invokeLater(() -> popup
+				.showPopup((parent == null) ? SwingConstants.NORTH_EAST : SwingConstants.SOUTH_EAST, parent));
 	}
 
 	private static void applyRoundCorners(final JComponent component) {
