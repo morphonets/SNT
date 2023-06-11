@@ -61,7 +61,7 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
  *
  * @author Tiago Ferreira
  */
-@Plugin(initializer = "init", type = Command.class, visible = false, label = "Save Tables & Analysis Plots...")
+@Plugin(initializer = "init", type = Command.class, label = "Save Tables & Analysis Plots...")
 public class SaveMeasurementsCmd extends CommonDynamicCmd {
 
 	private static final int MAX_N = 5;

@@ -60,7 +60,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Bulk Sholl Analysis (Tracings)", initializer = "init")
+@Plugin(type = Command.class, label = "Bulk Sholl Analysis (Tracings)", initializer = "init")
 public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 {
 

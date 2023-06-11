@@ -68,7 +68,7 @@ import sc.fiji.snt.util.SNTColor;
  * @author Tiago Ferreira
  * @author Cameron Arshadi
  */
-@Plugin(type = Command.class, visible = false, label = "Path Profiler", initializer = "init")
+@Plugin(type = Command.class, label = "Path Profiler", initializer = "init")
 public class PathProfiler extends CommonDynamicCmd {
 
 	public static final String CIRCLE = "Circle (Hollow)";

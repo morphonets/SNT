@@ -54,7 +54,7 @@ import sc.fiji.snt.util.SNTColor;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label="Match Path(s) Across Time...", initializer = "init")
+@Plugin(type = Command.class, label="Match Path(s) Across Time...", initializer = "init")
 public class PathMatcherCmd extends CommonDynamicCmd {
 
 	private static final String TAG_FORMAT = "{Group %d}";

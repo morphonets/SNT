@@ -57,7 +57,7 @@ import sc.fiji.snt.util.SNTColor;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Spine/Varicosity Density Profile...", initializer = "init")
+@Plugin(type = Command.class, label = "Spine/Varicosity Density Profile...", initializer = "init")
 public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 
 	@Parameter

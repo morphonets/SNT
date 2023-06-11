@@ -48,7 +48,7 @@ import ij.WindowManager;
  *
  * @author Tiago Ferreira
  */
-@Plugin(initializer = "init", type = Command.class, visible = false,
+@Plugin(initializer = "init", type = Command.class,
 	label = "Change Tracing Image")
 public class ChooseDatasetCmd extends CommonDynamicCmd {
 

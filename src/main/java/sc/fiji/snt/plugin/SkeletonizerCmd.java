@@ -53,8 +53,7 @@ import sc.fiji.snt.Tree;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false,
-	label = "Convert Paths to Topographic Skeletons")
+@Plugin(type = Command.class, label = "Convert Paths to Topographic Skeletons")
 public class SkeletonizerCmd implements Command {
 
 	@Parameter

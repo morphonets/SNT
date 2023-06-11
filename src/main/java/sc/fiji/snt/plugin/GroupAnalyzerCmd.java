@@ -61,7 +61,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label="Compare Groups...", initializer = "init")
+@Plugin(type = Command.class, label="Compare Groups...", initializer = "init")
 public class GroupAnalyzerCmd extends CommonDynamicCmd {
 
 	private static final String COMMON_DESC_PRE = "<HTML><div WIDTH=500>Path to directory containing Group ";

@@ -38,7 +38,7 @@ import sc.fiji.snt.gui.GuiUtils;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Create Dendrogram", initializer = "init")
+@Plugin(type = Command.class, label = "Create Dendrogram", initializer = "init")
 public class GraphGeneratorCmd extends CommonDynamicCmd {
 
 	@Parameter(required = false)

@@ -64,7 +64,7 @@ import sc.fiji.snt.util.SNTColor;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Time Profile Analysis...", initializer = "init")
+@Plugin(type = Command.class, label = "Time Profile Analysis...", initializer = "init")
 public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
 	private static final String TAG_REGEX_PATTERN = "("+ PathMatcherCmd.TAG_REGEX_PATTERN + ")";

@@ -64,7 +64,7 @@ import sc.fiji.snt.util.SNTColor;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label="Strahler Analysis...")
+@Plugin(type = Command.class, label="Strahler Analysis...")
 public class StrahlerCmd extends ContextCommand {
 
 	@Parameter

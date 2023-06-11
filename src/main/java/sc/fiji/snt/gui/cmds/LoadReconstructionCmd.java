@@ -48,7 +48,7 @@ import sc.fiji.snt.Tree;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, initializer = "init",
+@Plugin(type = Command.class, initializer = "init",
 	label = "Load Reconstruction(s)...")
 public class LoadReconstructionCmd extends CommonDynamicCmd {
 

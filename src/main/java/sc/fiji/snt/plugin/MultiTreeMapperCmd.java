@@ -56,7 +56,7 @@ import sc.fiji.snt.Tree;
  * @author Tiago Ferreira
  * @author Cameron Arshadi
  */
-@Plugin(type = Command.class, visible = false, label = "Multi Tree Color Mapper",
+@Plugin(type = Command.class, label = "Multi Tree Color Mapper",
         initializer = "init")
 public class MultiTreeMapperCmd extends CommonDynamicCmd {
 

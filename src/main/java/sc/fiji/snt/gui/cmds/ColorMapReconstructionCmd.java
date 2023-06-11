@@ -51,7 +51,7 @@ import sc.fiji.snt.gui.GuiUtils;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Tree Color Coder",
+@Plugin(type = Command.class, label = "Tree Color Coder",
 	initializer = "init")
 public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 

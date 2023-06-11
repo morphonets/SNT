@@ -56,7 +56,7 @@ import sc.fiji.snt.io.MouseLightLoader;
  * @see MouseLightLoader
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false,
+@Plugin(type = Command.class,
 	label = "Import MouseLight Reconstructions", initializer = "init")
 public class MLImporterCmd extends CommonDynamicCmd {
 

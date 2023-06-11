@@ -47,7 +47,7 @@ import sc.fiji.snt.io.MouseLightLoader;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false,
+@Plugin(type = Command.class,
 	label = "Import ML JSON Data")
 public class JSONImporterCmd extends CommonDynamicCmd {
 

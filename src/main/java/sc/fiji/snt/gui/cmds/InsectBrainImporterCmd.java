@@ -49,7 +49,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false,
+@Plugin(type = Command.class,
 	label = "Import InsectBrain Data", initializer = "init")
 public class InsectBrainImporterCmd extends CommonDynamicCmd {
 

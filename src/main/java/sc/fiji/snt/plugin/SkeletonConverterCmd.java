@@ -58,7 +58,7 @@ import java.util.*;
  * @author Cameron Arshadi
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Automated Tracing: Tree(s) from Segmented Image...", initializer = "init")
+@Plugin(type = Command.class, label = "Automated Tracing: Tree(s) from Segmented Image...", initializer = "init")
 public class SkeletonConverterCmd extends CommonDynamicCmd {
 
 	private static final String IMG_NONE= "None";

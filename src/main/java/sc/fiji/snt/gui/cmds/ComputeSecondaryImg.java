@@ -81,7 +81,7 @@ import sc.fiji.snt.util.SigmaUtils;
  * @author Tiago Ferreira
  * @author Cameron Arshadi
  */
-@Plugin(type = Command.class, visible = false, initializer = "init")
+@Plugin(type = Command.class, initializer = "init")
 public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extends RealType<U> & NativeType<U>>
 		extends CommonDynamicCmd implements Interactive, SigmaPaletteListener
 {

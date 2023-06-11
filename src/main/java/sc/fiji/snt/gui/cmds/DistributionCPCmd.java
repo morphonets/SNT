@@ -49,7 +49,7 @@ import sc.fiji.snt.Tree;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false,
+@Plugin(type = Command.class,
 	label = "Distribution Analysis (Multiple Cells)", initializer = "init")
 public class DistributionCPCmd extends CommonDynamicCmd {
 

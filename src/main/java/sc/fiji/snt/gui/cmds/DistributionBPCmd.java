@@ -51,7 +51,7 @@ import sc.fiji.snt.gui.GuiUtils;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false,
+@Plugin(type = Command.class,
 	label = "Distribution Analysis (Branch Properties)", initializer = "init")
 public class DistributionBPCmd extends CommonDynamicCmd {
 

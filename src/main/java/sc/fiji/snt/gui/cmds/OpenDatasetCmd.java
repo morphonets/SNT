@@ -41,7 +41,7 @@ import ij.ImagePlus;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, initializer = "init", visible = false,
+@Plugin(type = Command.class, initializer = "init",
 	label = "Change Tracing Image")
 public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 

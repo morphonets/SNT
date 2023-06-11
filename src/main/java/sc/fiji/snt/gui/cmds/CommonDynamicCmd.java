@@ -43,7 +43,7 @@ import sc.fiji.snt.SNTPrefs;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false)
+@Plugin(type = Command.class)
 public class CommonDynamicCmd extends DynamicCommand {
 
 	protected static final String HEADER_HTML = "<html><body><div style='font-weight:bold;'>";

@@ -41,7 +41,7 @@ import sc.fiji.snt.SNTService;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Duplicate Path...", initializer = "init")
+@Plugin(type = Command.class, label = "Duplicate Path...", initializer = "init")
 public class DuplicateCmd extends CommonDynamicCmd {
 
 	private final String CHOICE_LENGTH = "Use % specified below";

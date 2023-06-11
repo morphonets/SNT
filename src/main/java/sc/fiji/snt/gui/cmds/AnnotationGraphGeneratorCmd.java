@@ -43,7 +43,7 @@ import sc.fiji.snt.viewer.geditor.mxCircleLayoutGrouped;
 
 import java.util.*;
 
-@Plugin(type = Command.class, visible = false, label = "Create Annotation Diagram(s)")
+@Plugin(type = Command.class, label = "Create Annotation Diagram(s)")
 public class AnnotationGraphGeneratorCmd extends CommonDynamicCmd {
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)

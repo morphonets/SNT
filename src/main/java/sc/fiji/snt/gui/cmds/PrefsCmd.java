@@ -70,7 +70,7 @@ import sc.fiji.snt.plugin.ij1.CallIJ1LegacyCmd;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, initializer="init", label="SNT Preferences")
+@Plugin(type = Command.class, initializer="init", label="SNT Preferences")
 public class PrefsCmd extends ContextCommand {
 
 	@Parameter

@@ -46,7 +46,7 @@ import sc.fiji.snt.util.PointInImage;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Distribution Analysis of Brain Areas", initializer = "init")
+@Plugin(type = Command.class, label = "Distribution Analysis of Brain Areas", initializer = "init")
 public class BrainAnnotationCmd extends CommonDynamicCmd {
 
 	@Parameter(label = "Type of distribution:", choices = { "Cable Length", "No. of Tips",

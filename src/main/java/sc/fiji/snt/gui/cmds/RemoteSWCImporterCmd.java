@@ -57,7 +57,7 @@ import sc.fiji.snt.io.RemoteSWCLoader;
  * @see FlyCircuitLoader
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, initializer = "init")
+@Plugin(type = Command.class, initializer = "init")
 public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 
 	@Parameter(required = true, persist = true,
