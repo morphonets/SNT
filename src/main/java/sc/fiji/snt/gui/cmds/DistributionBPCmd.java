@@ -72,7 +72,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			+ "Secondary Histogram (Optional):")
 	private String HEADER2;
 
-	@Parameter(required = true, label = "Measurement", callback="measurementChoice2Changed")
+	@Parameter(required = false, label = "Measurement", callback="measurementChoice2Changed")
 	private String measurementChoice2;
 
 	@Parameter(required = false, label = "Polar",

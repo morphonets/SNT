@@ -538,6 +538,50 @@ public class SNTUI extends JDialog {
 			runSNTCommandFinderCommand(cmd);
 	}
 
+	/**
+	 * Runs a menu command with options.
+	 *
+	 * @param cmd  The command to be run, exactly as listed in SNTUI's menu bar
+	 * @param args the option(s) that would fill the command's prompt. e.g.,
+	 *             'runCommand("Load Demo Dataset...", "4. Hippocampal neuron (DIC
+	 *             timelapse)")'
+	 * @throws IllegalArgumentException if {@code cmd} is not found or supported.
+	 */
+	public void runCommand(final String cmd, String... args) throws IllegalArgumentException {
+		if (args == null || args.length == 1 && args[0].trim().isEmpty()) {
+			runCommand(cmd);
+			return;
+		}
+		switch (cmd) {
+		case "Directory of SWCs...":
+			new ImportAction(ImportAction.SWC_DIR, new File(args[0])).run();
+			break;
+		case "e(SWC)...":
+			new ImportAction(ImportAction.SWC, new File(args[0])).run();
+			break;
+		case "From File...":
+			new ImportAction(ImportAction.IMAGE, new File(args[0])).run();
+			break;
+		case "Guess File Type...":
+			new ImportAction(ImportAction.ANY_RECONSTRUCTION, new File(args[0])).run();
+			break;
+		case "JSON...":
+			new ImportAction(ImportAction.JSON, new File(args[0])).run();
+			break;
+		case "Load Demo Dataset...":
+			new ImportAction(ImportAction.DEMO, new File(args[0])).run();
+			break;
+		case "NDF...":
+			new ImportAction(ImportAction.NDF, new File(args[0])).run();
+			break;
+		case "TRACES...":
+			new ImportAction(ImportAction.TRACES, new File(args[0])).run();
+			break;
+		default:
+			throw new IllegalArgumentException("Unsupported options for '" + cmd + "'");
+		}
+	}
+
 	protected void runSNTCommandFinderCommand(final String cmd) {
 		commandFinder.runCommand(cmd);
 	}
@@ -1711,7 +1755,7 @@ public class SNTUI extends JDialog {
 		// Build actions
 		class ApplyLabelsAction extends AbstractAction {
 
-			final static String LABEL = "Apply Color Labels...";
+			static final String LABEL = "Apply Color Labels...";
 
 			@Override
 			public void actionPerformed(final ActionEvent e) {
@@ -2938,7 +2982,7 @@ public class SNTUI extends JDialog {
 			plugin.enableAstar(enable);
 		});
 
-		searchAlgoChoice = new JComboBox<String>();
+		searchAlgoChoice = new JComboBox<>();
 		searchAlgoChoice.addItem("A* search");
 		searchAlgoChoice.addItem("NBA* search");
 		searchAlgoChoice.addItem("Fast marching");
@@ -2961,10 +3005,8 @@ public class SNTUI extends JDialog {
 					} else if (idx == 1) {
 						enableNBAStar();
 						setFastMarchSearchEnabled(false);
-					} else if (idx == 2) {
-						if (!setFastMarchSearchEnabled(true)) {
-							searchAlgoChoice.setSelectedItem(previousSelection);
-						}
+					} else if (idx == 2 && !setFastMarchSearchEnabled(true)) {
+						searchAlgoChoice.setSelectedItem(previousSelection);
 					}
 					updateSettingsString();
 				}
@@ -3966,10 +4008,10 @@ public class SNTUI extends JDialog {
 				final File saveFile = saveFile("Export All Paths as CSV...", "CSV_Properties.csv", "csv");
 				if (saveFile == null)
 					return; // user pressed cancel
-				if (saveFile.exists()) {
-					if (!guiUtils.getConfirmation("The file " + saveFile.getAbsolutePath() + " already exists. "
-							+ "Do you want to replace it?", "Override CSV file?"))
-						return;
+				if (saveFile.exists() && !guiUtils.getConfirmation(
+						"The file " + saveFile.getAbsolutePath() + " already exists. " + "Do you want to replace it?",
+						"Override CSV file?")) {
+					return;
 				}
 				final String savePath = saveFile.getAbsolutePath();
 				showStatus("Exporting as CSV to " + savePath, false);
@@ -4364,8 +4406,7 @@ public class SNTUI extends JDialog {
 				return false;
 		}
 		SNTUtils.log("Exporting paths... " + prefix);
-		final boolean success = pathAndFillManager.exportAllPathsAsSWC(primaryPaths, filePath);
-		return success;
+		return pathAndFillManager.exportAllPathsAsSWC(primaryPaths, filePath);
 	}
 
 	private class ImportAction {
@@ -4402,7 +4443,16 @@ public class SNTUI extends JDialog {
 				(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs, RUNNING_CMD)).run();
 				break;
 			case DEMO:
-				final Demo choice = new DemoRunner(SNTUI.this, plugin).getChoice();
+				final DemoRunner demoRunner = new DemoRunner(SNTUI.this, plugin);
+				if (file != null) { // recorded command
+					try (final Scanner scanner = new Scanner(file.getName())) {
+						demoRunner.load(scanner.useDelimiter("\\D+").nextInt());
+						return;
+					} catch (final NoSuchElementException | IllegalStateException | IllegalArgumentException ex) {
+						throw new IllegalArgumentException ("Invalid recorded option " + ex.getMessage());
+					}
+				}
+				final Demo choice = demoRunner.getChoice();
 				if (choice == null) {
 					changeState(priorState);
 					showStatus(null, true);
@@ -4412,23 +4462,23 @@ public class SNTUI extends JDialog {
 				// will be reset once SNT initializes with the new data
 				plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
 				choice.load(); // will reset UI
-				return;
+				break;
 			case IMAGE:
 				if (file != null) inputs.put("file", file);
 				(new DynamicCmdRunner(OpenDatasetCmd.class, inputs, LOADING)).run();
-				return;
+				break;
 			case JSON:
 				if (file != null) inputs.put("file", file);
 				(new DynamicCmdRunner(JSONImporterCmd.class, inputs, LOADING)).run();
-				return;
+				break;
 			case NDF:
 				if (file != null) inputs.put("file", file);
 				(new DynamicCmdRunner(NDFImporterCmd.class, inputs, LOADING)).run();
-				return;
+				break;
 			case SWC_DIR:
 				if (file != null) inputs.put("dir", file);
 				(new DynamicCmdRunner(MultiSWCImporterCmd.class, inputs, LOADING)).run();
-				return;
+				break;
 			case TRACES:
 			case SWC:
 			case ANY_RECONSTRUCTION:
@@ -4444,10 +4494,13 @@ public class SNTUI extends JDialog {
 				}
 				validateImgDimensions();
 				changeState(priorState);
-				return;
+				break;
 			default:
 				throw new IllegalArgumentException("Unknown action");
 			}
+			if (file != null && recorder != null)
+				recorder.recordComment("Detected option: \"" + file.getAbsolutePath() + "\"");
+
 		}
 
 		private boolean proceed() {

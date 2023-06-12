@@ -1945,27 +1945,29 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @param cmd  The command to be run, exactly as listed in the PathManagerUI's
 	 *             menu bar or Right-click contextual menu
 	 * @param args the option(s) that would fill the command's prompt. e.g.,
-	 *             'runCommand("Color Code Cell(s)...", X coordinates", "Cyan Hot.lut")'
+	 *             'runCommand("Color Code Cell(s)...", "X coordinates", "Cyan Hot.lut")'
 	 * @throws IllegalArgumentException if {@code cmd} was not found, or if it is
 	 *                                  not supported.
 	 */
 	public void runCommand(final String cmd, String... args) throws IllegalArgumentException, IOException {
+		final boolean noArgs = args == null || args.length == 0 || args[0].trim().isEmpty();
+		if (noArgs) {
+			runCommand(cmd);
+			return;
+		}
 		if (MultiPathActionListener.HISTOGRAM_TREES_CMD.equals(cmd)) {
 			if (args.length == 1) {
-				runDistributionAnalysisCmd("All", args[0]);
+				runDistributionAnalysisCmd("All", args[0], (args.length > 1) && Boolean.valueOf(args[1]));
 			} else if (args.length > 1) {
-				runDistributionAnalysisCmd(args[0], args[1]);
+				runDistributionAnalysisCmd(args[0], args[1], (args.length > 2) && Boolean.valueOf(args[2]));
 			} else {
 				throw new IllegalArgumentException("Not enough arguments...");
 			}
-			return;
 		} else if (MultiPathActionListener.HISTOGRAM_PATHS_CMD.equals(cmd)) {
-			if (args.length > 0) {
-				runHistogramPathsCmd(getSelectedPaths(true), args[0]);
-			} else {
-				throw new IllegalArgumentException("Not enough arguments...");
-			}
-			return;
+			runHistogramPathsCmd(getSelectedPaths(true), args[0], //
+					(args.length > 1) && Boolean.valueOf(args[1]), //
+					(args.length > 2) ? args[2] : null, //
+					(args.length > 3) && Boolean.valueOf(args[3]));
 		} else if (MultiPathActionListener.COLORIZE_TREES_CMD.equals(cmd)) {
 			if (args.length == 2) {
 				runColorCodingCmd("All", args[0], args[1]);
@@ -1974,7 +1976,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			} else {
 				throw new IllegalArgumentException("Not enough arguments...");
 			}
-			return;
 		} else if (MultiPathActionListener.COLORIZE_PATHS_CMD.equals(cmd)) {
 			if (args.length > 1) {
 				runColorCodingCmd(geSelectedPathsAsTree(), true, args[0], args[1]);
@@ -1983,19 +1984,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			return;
 		} else if (MultiPathActionListener.CONVERT_TO_ROI_CMD.equals(cmd)) {
-			if (args.length == 0) {
-				runRoiConverterCmd("All", null);
-			} else if (args.length == 1) {
+			if (args.length == 1) {
 				runRoiConverterCmd(args[0], null);
 			} else if (args.length > 1) {
 				runRoiConverterCmd(args[0], args[1]);
 			}
-			return;
-		} else if (args == null || args.length == 0) {
-			runCommand(cmd);
-			return;
+		} else {
+			throw new IllegalArgumentException("Unsupported options for '" + cmd + "'");
 		}
-		throw new IllegalArgumentException("Unsupported command: " + cmd);
 	}
 
 	private void runRoiConverterCmd(final String type, final String view) throws IllegalArgumentException {
@@ -2035,45 +2031,40 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		return;
 	}
 
-	private void runHistogramPathsCmd(final Collection<Path> paths, final String metric) {
+	private void runHistogramPathsCmd(final Collection<Path> paths, final String metric1, final Boolean polar1,
+			final String metric2, final Boolean polar2) {
 		final Map<String, Object> input = new HashMap<>();
 		final Tree tree = new Tree(paths);
 		tree.setLabel("Selected Paths");
 		input.put("tree", tree);
 		input.put("calledFromPathManagerUI", true);
 		input.put("onlyConnectivitySafeMetrics", true);
-		if (metric != null) input.put("measurementChoice", metric);
+		if (metric1 != null) input.put("measurementChoice1", metric1);
+		if (polar1 != null) input.put("polar1", polar1);
+		if (metric2 != null) input.put("measurementChoice2", metric2);
+		if (polar2 != null) input.put("polar2", polar2);
 		final CommandService cmdService = plugin.getContext().getService(
 			CommandService.class);
 		cmdService.run(DistributionBPCmd.class, true, input);
 	}
 
-	private void runDistributionAnalysisCmd(final String treeCollectionDescriptor, final String metric) throws IllegalArgumentException {
+	private void runDistributionAnalysisCmd(final String treeCollectionDescriptor, final String metric, final boolean polar) throws IllegalArgumentException {
 		final Collection<Tree> trees = getTreesMimickingPrompt(treeCollectionDescriptor);
 		if (trees == null) throw new IllegalArgumentException("Not a recognized choice "+ treeCollectionDescriptor);
-		runDistributionAnalysisCmd(trees, metric);
+		runDistributionAnalysisCmd(trees, metric, polar);
 	}
 
-	private void runDistributionAnalysisCmd(final Collection<Tree> trees, final String metric) {
+	private void runDistributionAnalysisCmd(final Collection<Tree> trees, final String metric, final Boolean polar) {
+		final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+		final Map<String, Object> input = new HashMap<>();
+		input.put("trees", trees);
+		input.put("calledFromPathManagerUI", true);
+		if (metric != null) input.put("measurementChoice", metric);
+		if (polar != null) input.put("polar", polar);
 		if (trees.size() == 1) {
-			final Map<String, Object> input = new HashMap<>();
-			input.put("trees", trees);
-			if (metric != null) input.put("measurementChoice", metric);
-			input.put("calledFromPathManagerUI", true);
-			input.put("onlyConnectivitySafeMetrics", false);
-			final CommandService cmdService = plugin.getContext().getService(
-				CommandService.class);
-			cmdService.run(DistributionBPCmd.class, true, input);
-		} else {
-			final Map<String, Object> input = new HashMap<>();
-			input.put("trees", trees);
-			input.put("calledFromPathManagerUI", true);
-			if (metric != null) input.put("measurementChoice", metric);
-			final CommandService cmdService = plugin.getContext().getService(
-				CommandService.class);
-			cmdService.run(DistributionCPCmd.class, true, input);
+	 		input.put("onlyConnectivitySafeMetrics", false);
 		}
-		return;
+		cmdService.run(DistributionCPCmd.class, true, input);
 	}
 
 	protected boolean measurementsUnsaved() {
@@ -2766,11 +2757,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 				final Collection<Tree> trees = getMultipleTrees();
 				if (trees == null) return;
-				runDistributionAnalysisCmd(trees, null);
+				runDistributionAnalysisCmd(trees, null, null);
 				return;
 			}
 			else if (HISTOGRAM_PATHS_CMD.equals(cmd)) {
-				runHistogramPathsCmd(selectedPaths, null);
+				runHistogramPathsCmd(selectedPaths, null, null, null, null);
 				return;
 			}
 			else if (CUSTOM_TAG_CMD.equals(cmd)) {

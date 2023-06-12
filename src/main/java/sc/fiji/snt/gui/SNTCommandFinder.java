@@ -110,7 +110,6 @@ public class SNTCommandFinder {
 	private SearchField searchField;
 	private CmdTable table;
 	private boolean scriptCall;
-	private boolean recordFromPalette;
 	private final CmdAction noHitsCmd;
 	private final CmdScrapper cmdScrapper;
 	private final List<String> keyWordsToIgnoreInMenuPaths; // menus to be ignored
@@ -302,15 +301,32 @@ public class SNTCommandFinder {
 		if (pmCmd) {
 			sb.append("snt.getUI().getPathManager().");
 			if (tagCmd)
-				sb.append("applyDefaultTags(\"").append(cmdAction.id).append("\")");
+				sb.append("applyDefaultTags(\"").append(cmdAction.id);
 			else
-				sb.append("runCommand(\"").append(cmdAction.id).append("\")");
+				sb.append("runCommand(\"").append(cmdAction.id);
 		} else {
-			sb.append("snt.getUI().runCommand(\"").append(cmdAction.id).append("\")");
+			sb.append("snt.getUI().runCommand(\"").append(cmdAction.id);
 		}
 		if (promptCmd) {
-			noOptionsRecorderComment();
-			sb.append(", \"[optional prompt options here...]\")");
+			switch (cmdAction.id) {
+			case "Path-based Distributions...":
+			case "Branch-based Distributions...":
+				sb.append("\", \"metric chosen in prompt\")");
+				break;
+			case "Convert to ROIs...":
+				sb.append("\", \"ROI type chosen in prompt\", \"[optional view (default is 'XY')]\")");
+				break;
+			case "Color Code Path(s)...":
+			case "Color Code Cell(s)...":
+				sb.append("\", \"metric chosen in prompt\", \"LUT chosen in prompt\")");
+				break;
+			default:
+				noOptionsRecorderComment();
+				sb.append("\", \"[optional prompt options here...]\")");
+				break;
+			}
+		} else {
+			sb.append("\")");
 		}
 		recorder.recordCmd(sb.toString());
 	}
@@ -462,8 +478,7 @@ public class SNTCommandFinder {
 			recButton.setIconTextGap((int) (recButton.getIconTextGap() * .5));
 			recButton.setToolTipText("Record executed actions to Script Recorder?");
 			recButton.addItemListener(e -> {
-				recordFromPalette = recButton.isSelected();
-				if (recordFromPalette) {
+				if (recButton.isSelected()) {
 					initRecorder();
 					recorder.setVisible(true);
 					frame.setVisible(true);
@@ -1188,7 +1203,7 @@ public class SNTCommandFinder {
 
 		@Override
 		public void actionPerformed(final ActionEvent e) {
-			if (recorder != null && !scriptCall && recordFromPalette)
+			if (recorder != null && !scriptCall)
 				recordCommand(cmdAction);
 		}
 	}

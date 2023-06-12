@@ -45,6 +45,7 @@ public class DemoRunner {
 
 	@Parameter
 	private SNTService sntService;
+	private boolean directLoading;
 
 	public DemoRunner(final SNTUI ui, final SNT snt) {
 		this.ui = ui;
@@ -195,7 +196,7 @@ public class DemoRunner {
 			@Override
 			public void load() {
 				if ((snt.getPathAndFillManager().size() > 0 || snt.getImagePlus() != null)
-						&& !new GuiUtils(ui).getConfirmation(
+						&& !directLoading && !new GuiUtils(ui).getConfirmation(
 								"Any loaded image will be disposed and any existing paths will be deleted. Proceed?",
 								"Dispose Existing Data?"))
 					return;
@@ -281,10 +282,12 @@ public class DemoRunner {
 		return entries.get(Arrays.asList(choices).indexOf(choice));
 	}
 
-	public void load(final int demoID) {
-		if (demoID < 0 || demoID > entries.size() - 1)
-			throw new IllegalArgumentException("Invalid demo id. Must be between 0-" + (entries.size() - 1));
-		entries.get(demoID).load();
+	public void load(final int demoID) { // 1-based index to match GUI choice
+		if (demoID < 1 || demoID > entries.size())
+			throw new IllegalArgumentException("Invalid demo id. Must be between 1-" + entries.size());
+		directLoading = true;
+		entries.get(demoID-1).load();
+		directLoading = false;
 	}
 
 	public class Demo {
@@ -303,8 +306,8 @@ public class DemoRunner {
 		}
 
 		private void resetPaths() {
-			if (snt.getPathAndFillManager().size() > 0
-					&& new GuiUtils(ui).getConfirmation("Clear Existing Path(s)?", "Delete Existing Path(s)?")) {
+			if (directLoading || (snt.getPathAndFillManager().size() > 0
+					&& new GuiUtils(ui).getConfirmation("Clear Existing Path(s)?", "Delete Existing Path(s)?"))) {
 				snt.getPathAndFillManager().clear();
 			}
 		}
