@@ -3088,7 +3088,6 @@ public class Viewer3D {
 			retrieveAllIfNoneSelected = DEF_RETRIEVE_ALL_IF_NONE_SELECTED;
 			treeCompartmentChoice = DEF_TREE_COMPARTMENT_CHOICE;
 			setSnapshotDirectory();
-			SNTChart.setDefaultFontScale(SCALE_FACTOR);
 			if (tp.prefService == null) {
 				kc.zoomStep = DEF_ZOOM_STEP;
 				kc.rotationStep = DEF_ROTATION_STEP;

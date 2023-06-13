@@ -311,7 +311,7 @@ public class SNTCommandFinder {
 			switch (cmdAction.id) {
 			case "Path-based Distributions...":
 			case "Branch-based Distributions...":
-				sb.append("\", \"metric chosen in prompt\")");
+				sb.append("\", \"metric 1 chosen in prompt\", \"[true or false (default) for polar histogram]\", \"[metric 2]\", \"[...]\")");
 				break;
 			case "Convert to ROIs...":
 				sb.append("\", \"ROI type chosen in prompt\", \"[optional view (default is 'XY')]\")");

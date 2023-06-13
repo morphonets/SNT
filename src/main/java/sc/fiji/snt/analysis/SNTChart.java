@@ -121,9 +121,9 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.SNTColor;
 
-
 /**
- * Extension of {@link ChartPanel} with several improvements convenience methods for plot annotations.
+ * Extension of {@link ChartPanel} modified for scientific publications and
+ * convenience methods for plot annotations.
  *
  * @author Tiago Ferreira
  */
@@ -163,7 +163,7 @@ public class SNTChart extends ChartPanel {
 			if (chart.getLegend() != null) {
 				chart.getLegend().setBackgroundPaint(chart.getBackgroundPaint());
 			}
-			setFontSize((float) (defFontSize() * scalingFactor));
+			setFontSize(GuiUtils.uiFontSize());
 		}
 		// Tweak: Ensure chart is always drawn and not scaled to avoid rendering
 		// artifacts
@@ -320,8 +320,11 @@ public class SNTChart extends ChartPanel {
 			final XYPlot plot = (XYPlot)(getChart().getPlot());
 			return plot.isDomainGridlinesVisible() || plot.isRangeGridlinesVisible();
 		} else if (getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (CategoryPlot)(getChart().getCategoryPlot());
+			final CategoryPlot plot = (getChart().getCategoryPlot());
 			return plot.isDomainGridlinesVisible() || plot.isRangeGridlinesVisible();
+		} else if (getChart().getPlot() instanceof PolarPlot) {
+			final PolarPlot plot = (PolarPlot)getChart().getPlot();
+			return plot.isRadiusGridlinesVisible();
 		}
 		return false;
 	}
@@ -340,10 +343,15 @@ public class SNTChart extends ChartPanel {
 			plot.setRangeGridlinesVisible(visible);
 			plot.setRangeMinorGridlinesVisible(visible);
 		} else if (getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (CategoryPlot)(getChart().getCategoryPlot());
+			final CategoryPlot plot = (getChart().getCategoryPlot());
 			plot.setDomainGridlinesVisible(visible);
 			plot.setRangeGridlinesVisible(visible);
 			plot.setRangeMinorGridlinesVisible(visible);
+		} else if (getChart().getPlot() instanceof PolarPlot) {
+			final PolarPlot plot = (PolarPlot)getChart().getPlot();
+			plot.setRadiusGridlinesVisible(visible);
+			plot.setRadiusMinorGridlinesVisible(visible);
+			plot.setAngleGridlinesVisible(visible);
 		}
 	}
 
@@ -1530,7 +1538,6 @@ public class SNTChart extends ChartPanel {
 		GuiUtils.setLookAndFeel();
 		final Tree tree = new SNTService().demoTrees().get(0);
 		final TreeStatistics treeStats = new TreeStatistics(tree);
-		SNTChart.setDefaultFontScale(2d);
 		final SNTChart chart = treeStats.getHistogram("contraction");
 		chart.annotatePoint(0.75, 0.15, "No data here", "green");
 		chart.annotateXline(0.80, "Start of slope", "blue");

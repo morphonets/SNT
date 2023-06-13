@@ -95,7 +95,6 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		storeIJ1Prefs();
 		imposeIJ1Prefs();
 		wipeSessionPrefs();
-		SNTChart.setDefaultFontScale(Prefs.getGuiScale());
 	}
 
 	protected int get3DViewerResamplingFactor() {

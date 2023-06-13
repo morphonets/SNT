@@ -99,13 +99,13 @@ public class ScriptRecorder extends JDialog {
 		editor.requestFocusInWindow();
 		editor.setMarkOccurrences(true);
 		editor.setClearWhitespaceLinesEnabled(false);
-		editor.setEditable(false);
+		//editor.setEditable(false);
 		editor.setAntiAliasingEnabled(true);
 		editor.setLineWrap(false);
 		editor.setMarginLineEnabled(false);
 		editor.setCodeFoldingEnabled(true);
 		editor.setFont(editor.getFont().deriveFont(GuiUtils.uiFontSize()));
-		((DefaultCaret) editor.getCaret()).setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE);
+		((DefaultCaret) editor.getCaret()).setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE); // somehow this does not work!?
 		try {
 			editor.applyTheme((FlatLaf.isLafDark()) ? "dark" : "default");
 		} catch (IllegalArgumentException ignored) {
@@ -229,6 +229,7 @@ public class ScriptRecorder extends JDialog {
 	public void recordComment(final String str) {
 		for (final String line : str.split("\n"))
 			recordCmd(currentLang.commentSeq + " " + line);
+		editor.setCaretPosition(editor.getText().length()); // caret ALWAYS_UPDATE not working!?
 	}
 
 	public void reset() {

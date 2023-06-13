@@ -62,6 +62,8 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
+import sc.fiji.snt.gui.GuiUtils;
+
 import org.scijava.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -313,7 +315,10 @@ public class Viewer2D extends TreeColorMapper {
 		}
 		numberAxis.setAutoRangeIncludesZero(min <=0 && max >= 0);
 		numberAxis.setRange(min, max);
+		numberAxis.setAutoTickUnitSelection(true);
 		numberAxis.centerRange((max+min)/2);
+		numberAxis.setLabelFont(numberAxis.getLabelFont().deriveFont(GuiUtils.uiFontSize()));
+		numberAxis.setTickLabelFont(numberAxis.getTickLabelFont().deriveFont(GuiUtils.uiFontSize()));
 		final PaintScaleLegend psl = new PaintScaleLegend(paintScale, numberAxis);
 		psl.setBackgroundPaint(null); // transparent
 		psl.setPosition(RectangleEdge.RIGHT);

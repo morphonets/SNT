@@ -243,8 +243,6 @@ class AnalysisUtils {
 		rangeAxis.setTickMarksVisible(true);
 		rangeAxis.setAutoTickUnitSelection(true);
 		rangeAxis.setTickLabelsVisible(true);
-		rangeAxis.setLabelFont(rangeAxis.getLabelFont().deriveFont((float) SNTChart.scalingFactor));
-
 		// Customize plot
 		//polarPlot.addCornerTextItem(xAxisTitle);
 		polarPlot.setCounterClockwise(false);
