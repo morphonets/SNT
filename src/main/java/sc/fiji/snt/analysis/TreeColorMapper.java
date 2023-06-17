@@ -54,6 +54,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.util.ShollPoint;
 import sc.fiji.snt.viewer.MultiViewer2D;
@@ -484,6 +485,11 @@ public class TreeColorMapper extends ColorMapper {
 					}
 				}
 			}
+		}
+		// second pass: Resolve remaining non-mapped nodes
+		// https://github.com/morphonets/SNT/issues/176
+		for (final Path p : tree.list()) {
+			SNTColor.interpolateNullEntries(p.getNodeColors());
 		}
 		mappedTrees.add(tree);
 		nodeMapping = true;

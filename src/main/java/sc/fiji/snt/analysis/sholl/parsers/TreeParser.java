@@ -235,7 +235,7 @@ public class TreeParser implements Parser {
 			.getBoundingBox(false).getCalibration());
 		profile.getProperties().setProperty(KEY_SOURCE, SRC_TRACES);
 		assembleSortedShollPointList();
-		assembleProfile();
+		assembleProfileAfterAssemblingSortedShollPointList();
 	}
 
 	/* (non-Javadoc)
@@ -270,14 +270,12 @@ public class TreeParser implements Parser {
 		tree.list().forEach(p -> {
 			if (!running || p.size() == 0 || (skipFirstNode && p.equals(soma.onPath)))
 				return;
-			for (int i = 0; i < p.size() - 1; ++i) {
+			for (int i = (skipFirstNode) ? 1 : 0; i < p.size() - 1; ++i) {
 				final PointInImage pim1 = p.getNode(i);
 				final PointInImage pim2 = p.getNode(i + 1);
 				final double distanceSquaredFirst = pim1.distanceSquaredTo(center);
 				final double distanceSquaredSecond = pim2.distanceSquaredTo(center);
 				final boolean nearer = distanceSquaredFirst < distanceSquaredSecond;
-				if (i == 0 && skipFirstNode)
-					continue;
 				shollPointsList.add(new ComparableShollPoint(distanceSquaredFirst, nearer));
 				shollPointsList.add(new ComparableShollPoint(distanceSquaredSecond, !nearer));
 			}
@@ -288,12 +286,11 @@ public class TreeParser implements Parser {
 		Collections.sort(shollPointsList);
 	}
 
-	private void assembleProfile() {
+	private void assembleProfileAfterAssemblingSortedShollPointList() {
 		final int n = shollPointsList.size();
 		squaredRangeStarts = new double[n];
 		crossingsPastEach = new int[n];
 		int currentCrossings = 0;
-		Collections.sort(shollPointsList);
 		for (int i = 0; i < n; ++i) {
 			final ComparableShollPoint p = shollPointsList.get(i);
 			if (p.nearer) ++currentCrossings;
