@@ -69,6 +69,8 @@ public class TreeColorMapper extends ColorMapper {
 
 	/* For convenience keep references to TreeAnalyzer fields */
 
+	/** Flag for {@value #INTER_NODE_DISTANCE} statistics. */
+	public static final String INTER_NODE_DISTANCE = MultiTreeStatistics.INTER_NODE_DISTANCE;
 	/** Flag for {@value #SHOLL_COUNTS} mapping. */
 	public static final String SHOLL_COUNTS = "Sholl inters. (root centered)"; //FIXME: getNormalizedMeasurement() will not allow '-'
 	/** Flag for {@value #STRAHLER_NUMBER} mapping. */
@@ -117,6 +119,7 @@ public class TreeColorMapper extends ColorMapper {
 			NODE_RADIUS, //
 			PATH_DISTANCE, //
 			SHOLL_COUNTS, //
+			INTER_NODE_DISTANCE, //
 			X_COORDINATES, //
 			Y_COORDINATES, //
 			Z_COORDINATES, //
@@ -233,6 +236,7 @@ public class TreeColorMapper extends ColorMapper {
 			case Z_COORDINATES:
 			case NODE_RADIUS:
 			case VALUES:
+			case INTER_NODE_DISTANCE:
 				mapToNodeProperty(cMeasurement);
 				break;
 			default:
@@ -359,6 +363,12 @@ public class TreeColorMapper extends ColorMapper {
 						break;
 					case VALUES:
 						value = p.getNodeValue(node);
+						break;
+					case INTER_NODE_DISTANCE:
+						if (node == 0)
+							value = Double.NaN;
+						else
+							value = p.getNode(node).distanceTo(p.getNode(node-1));
 						break;
 					default:
 						throw new IllegalArgumentException("Unknow parameter");
@@ -542,6 +552,9 @@ public class TreeColorMapper extends ColorMapper {
 
 	protected String tryReallyHardToGuessMetric(final String guess) {
 		final String normGuess = guess.toLowerCase();
+		if (normGuess.indexOf("inter") != -1 && normGuess.indexOf("node") != -1) {
+			return INTER_NODE_DISTANCE;
+		}
 		if (normGuess.indexOf("soma") != -1 || normGuess.indexOf("path d") != -1) {
 			return PATH_DISTANCE;
 		}

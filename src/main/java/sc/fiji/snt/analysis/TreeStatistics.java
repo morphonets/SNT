@@ -81,9 +81,9 @@ public class TreeStatistics extends TreeAnalyzer {
 	/** Flag for {@value #PATH_FRAME} statistics. */
 	public static final String PATH_FRAME = "Path frame";
 	/** Flag for {@value #INTER_NODE_DISTANCE} statistics. */
-	public static final String INTER_NODE_DISTANCE = "Inter-node distance";
+	public static final String INTER_NODE_DISTANCE = "Internode distance";
 	/** Flag for {@value #INTER_NODE_DISTANCE_SQUARED} statistics. */
-	public static final String INTER_NODE_DISTANCE_SQUARED = "Inter-node distance (squared)";
+	public static final String INTER_NODE_DISTANCE_SQUARED = "Internode distance (squared)";
 	/** Flag for {@value #N_BRANCH_POINTS} statistics. */
 	public static final String N_BRANCH_POINTS = "No. of branch points";
 	/** Flag for {@value #N_NODES} statistics. */
