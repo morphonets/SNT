@@ -3277,8 +3277,8 @@ public class SNTUI extends JDialog {
 
 	private static final void ijmLogMessage() {
 		if (Recorder.record) {
-			final String recordString = "// NB: SNT commands are not recorded by ImageJ, but by SNT's\n"
-					+ "// Script Recorder (Scripts -> New -> Record...)\n";
+			final String recordString = "// NB: This recorder may not capture SNT's internal commands. Those are\n"
+					+ "// better captured using SNT's own Script Recorder (Scripts -> New -> Record...)\n";
 			Recorder.recordString(recordString);
 		}
 	}

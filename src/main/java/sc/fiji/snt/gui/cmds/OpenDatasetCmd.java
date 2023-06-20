@@ -22,15 +22,12 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import io.scif.services.DatasetIOService;
-
 import java.io.File;
 
 import net.imagej.ImageJ;
+import sc.fiji.snt.gui.GuiUtils;
 
 import org.scijava.command.Command;
-import org.scijava.convert.ConvertService;
-import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
 import ij.IJ;
@@ -45,13 +42,13 @@ import ij.ImagePlus;
 	label = "Change Tracing Image")
 public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 
-	@Parameter
-	private DatasetIOService ioService;
+//	@Parameter
+//	private DatasetIOService ioService;
+//
+//	@Parameter
+//	private ConvertService convertService;
 
-	@Parameter
-	private ConvertService convertService;
-
-	@Parameter(label = "New tracing image:")
+	// Not a @Parameter so that we can use SNT's file chooser (remembering last accessed directory, etc.)
 	private File file;
 
 	@Override
@@ -63,15 +60,21 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 //			final Dataset ds = ioService.open(file.getAbsolutePath());
 //			final ImagePlus imp = convertService.convert(ds, ImagePlus.class);
 //			snt.initialize(imp);
-			ImagePlus imp = IJ.openImage(file.getAbsolutePath());
-			imp = comvertInPlaceToCompositeAsNeeded(imp);
-			if (imp.getType() != ImagePlus.COLOR_RGB) {
-				snt.initialize(imp);
+			file = new GuiUtils(ui).getImageFile(file);
+			if (file != null) {
+				ImagePlus imp = IJ.openImage(file.getAbsolutePath());
+				imp = comvertInPlaceToCompositeAsNeeded(imp);
+				if (imp.getType() != ImagePlus.COLOR_RGB) {
+					snt.initialize(imp);
+				}
 			}
 		}
-		catch (final Throwable ex) {
-			error("Loading of image failed (" + ex.getMessage() +
-				" error). See Console for details.");
+		catch (final NullPointerException ex) {
+			error("Loading of image failed (see Console for details)... "
+					+ "File may not be valid or may encode a proprietary format "
+					+ "not immediately recognized. Please open the image using "
+					+ "IJ/Bioformats (if not yet open). Then, load it in SNT using "
+					+ "'Choose Tracing Image -> From Open Image...'.");
 			ex.printStackTrace();
 		} finally {
 			resetUI();

@@ -37,7 +37,6 @@ import ij.Prefs;
 import ij.io.FileInfo;
 import ij3d.Content;
 import ij3d.ContentConstants;
-import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.gui.GuiUtils;
 
 /**

@@ -859,6 +859,21 @@ public class GuiUtils {
 		return (File[])getOpenFileChooserResult(fileChooser);
 	}
 
+	public File getImageFile(final File file) {
+		final JFileChooser fileChooser = GuiUtils.getDnDFileChooser();
+		fileChooser.setDialogTitle("Choose Image File");
+		fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+		fileChooser.setDialogType(JFileChooser.OPEN_DIALOG);
+		fileChooser.addChoosableFileFilter(
+				new FileNameExtensionFilter("IJ 'native' formats (.tif, .png, .raw, .zip, etc.)", "tif", "tiff", "dcm",
+						"avi", "fits", "pgm", "jpg", "gif", "bmp", "zip", "png", "raw"));
+		fileChooser.setMultiSelectionEnabled(false);
+		if (file != null)
+			fileChooser.setSelectedFile(file);
+		fileChooser.setMultiSelectionEnabled(false);
+		return (File) getOpenFileChooserResult(fileChooser);
+	}
+
 	public File getReconstructionFile(final File file, final String extension) {
 		FileNameExtensionFilter filter;
 		if ("swc".equals(extension))

@@ -2835,7 +2835,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					guiUtils.error("Invalid value.");
 					return;
 				}
-				if (userRad == 0d && !guiUtils.getConfirmation(
+				final boolean noRadius = userRad == 0d;
+				if (noRadius && !guiUtils.getConfirmation(
 					"Discard thickness information from selected paths?",
 					"Confirm?"))
 				{
@@ -2844,7 +2845,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				selectedPaths.forEach(p -> {
 					if (!p.isFittedVersionOfAnotherPath()) p.setRadius(userRad);
 				});
-				removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.MEAN_RADIUS_TAG_CMD, true, false);
+				removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.MEAN_RADIUS_TAG_CMD, !noRadius, false);
 				guiUtils.tempMsg("Command finished. Fitted path(s) ignored.");
 				plugin.updateAllViewers();
 				plugin.setUnsavedChanges(true);

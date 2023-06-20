@@ -247,21 +247,9 @@ public class SNTLoaderCmd extends DynamicCommand {
 		}
 	}
 
-	@SuppressWarnings("unused")
-	private void resetPrefs() {
-		// There have been lots of reports of bugs caused simplify by persisting
-		// experimental preferences. We'll wipe everything until this version is
-		// properly released
-		final PrefsCmd resetPrefs = new PrefsCmd();
-		resetPrefs.setContext(context());
-		resetPrefs.clearAll();
-		SNTUtils.log("Prefs reset");
-	}
-
 	@Override
 	public void run() {
 
-	//	resetPrefs();
 		SNTUtils.setIsLoading(true);
 		final boolean noImg = IMAGE_NONE.equals(imageChoice) || (IMAGE_FILE.equals(
 			imageChoice) && imageFile == null);
