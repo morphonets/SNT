@@ -155,6 +155,8 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 * Detailed [documentation](https://imagej.net/SNT:_Scripting) and examples, including Python [notebooks](https://github.com/morphonets/SNT/tree/master/notebooks), and [end-to-end examples](https://github.com/morphonets/SNTmanuscript)
 
 * Headless scripts supported
+
+* (Experimental) Script Recorder
   
 ### Modeling
 
