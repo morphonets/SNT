@@ -107,9 +107,6 @@ public class SNTUI extends JDialog {
 	protected JSpinner snapWindowZsizeSpinner;
 	private JButton showOrHidePathList;
 	private JButton showOrHideFillList = new JButton(); // must be initialized
-	private JMenuItem loadTracesMenuItem;
-	private JMenuItem loadSWCMenuItem;
-	private JMenuItem loadLabelsMenuItem;
 	private JMenuItem saveMenuItem;
 	private JMenuItem exportCSVMenuItem;
 	private JMenuItem exportAllSWCMenuItem;
@@ -256,14 +253,14 @@ public class SNTUI extends JDialog {
 		{ // Main tab
 			final GridBagConstraints c1 = GuiUtils.defaultGbc();
 			{
-				final JPanel tab1 = getTab();
+				final JPanel tab1 = InternalUtils.getTab();
 				// c.insets.left = MARGIN * 2;
 				c1.anchor = GridBagConstraints.NORTHEAST;
-				addSeparatorWithURL(tab1, "Cursor Auto-snapping:", false, c1);
+				InternalUtils.addSeparatorWithURL(tab1, "Cursor Auto-snapping:", false, c1);
 				++c1.gridy;
 				tab1.add(snappingPanel(), c1);
 				++c1.gridy;
-				addSeparatorWithURL(tab1, "Auto-tracing:", true, c1);
+				InternalUtils.addSeparatorWithURL(tab1, "Auto-tracing:", true, c1);
 				++c1.gridy;
 				tab1.add(aStarPanel(), c1);
 				++c1.gridy;
@@ -273,11 +270,11 @@ public class SNTUI extends JDialog {
 				++c1.gridy;
 				tab1.add(settingsPanel(), c1);
 				++c1.gridy;
-				addSeparatorWithURL(tab1, "Filters for Visibility of Paths:", true, c1);
+				InternalUtils.addSeparatorWithURL(tab1, "Filters for Visibility of Paths:", true, c1);
 				++c1.gridy;
 				tab1.add(renderingPanel(), c1);
 				++c1.gridy;
-				addSeparatorWithURL(tab1, "Default Path Colors:", true, c1);
+				InternalUtils.addSeparatorWithURL(tab1, "Default Path Colors:", true, c1);
 				++c1.gridy;
 				tab1.add(colorOptionsPanel(), c1);
 				++c1.gridy;
@@ -291,34 +288,34 @@ public class SNTUI extends JDialog {
 		}
 
 		{ // Options Tab
-			final JPanel tab2 = getTab();
+			final JPanel tab2 = InternalUtils.getTab();
 			tab2.setLayout(new GridBagLayout());
 			final GridBagConstraints c2 = GuiUtils.defaultGbc();
 			// c2.insets.left = MARGIN * 2;
 			c2.anchor = GridBagConstraints.NORTHEAST;
 			c2.gridwidth = GridBagConstraints.REMAINDER;
 			{
-				addSeparatorWithURL(tab2, "Data Source:", false, c2);
+				InternalUtils.addSeparatorWithURL(tab2, "Data Source:", false, c2);
 				++c2.gridy;
 				tab2.add(sourcePanel = sourcePanel(plugin.getImagePlus()), c2);
 				++c2.gridy;
 			}
 
-			addSeparatorWithURL(tab2, "Views:", true, c2);
+			InternalUtils.addSeparatorWithURL(tab2, "Views:", true, c2);
 			++c2.gridy;
 			tab2.add(viewsPanel(), c2);
 			++c2.gridy;
 			{
-				addSeparatorWithURL(tab2, "Temporary Paths:", true, c2);
+				InternalUtils.addSeparatorWithURL(tab2, "Temporary Paths:", true, c2);
 				++c2.gridy;
 				tab2.add(tracingPanel(), c2);
 				++c2.gridy;
 			}
-			addSeparatorWithURL(tab2, "Path Rendering:", true, c2);
+			InternalUtils.addSeparatorWithURL(tab2, "Path Rendering:", true, c2);
 			++c2.gridy;
 			tab2.add(pathOptionsPanel(), c2);
 			++c2.gridy;
-			addSeparatorWithURL(tab2, "Misc:", true, c2);
+			InternalUtils.addSeparatorWithURL(tab2, "Misc:", true, c2);
 			++c2.gridy;
 			c2.weighty = 1;
 			tab2.add(miscPanel(), c2);
@@ -326,7 +323,7 @@ public class SNTUI extends JDialog {
 		}
 
 		{ // 3D tab
-			final JPanel tab3 = getTab();
+			final JPanel tab3 = InternalUtils.getTab();
 			tab3.setLayout(new GridBagLayout());
 			final GridBagConstraints c3 = GuiUtils.defaultGbc();
 			// c3.insets.left = MARGIN * 2;
@@ -334,7 +331,7 @@ public class SNTUI extends JDialog {
 			c3.gridwidth = GridBagConstraints.REMAINDER;
 
 			tabbedPane.addTab("<HTML> 3D ", tab3);
-			addSeparatorWithURL(tab3, "Reconstruction Viewer:", true, c3);
+			InternalUtils.addSeparatorWithURL(tab3, "Reconstruction Viewer:", true, c3);
 			c3.gridy++;
 			final String msg = "A dedicated OpenGL visualization tool specialized in Neuroanatomy, " +
 				"supporting morphometric annotations, reconstructions and meshes. For " +
@@ -345,7 +342,7 @@ public class SNTUI extends JDialog {
 			tab3.add(reconstructionViewerPanel(), c3);
 			c3.gridy++;
 			addSpacer(tab3, c3);
-			addSeparatorWithURL(tab3, "sciview:", true, c3);
+			InternalUtils.addSeparatorWithURL(tab3, "sciview:", true, c3);
 			++c3.gridy;
 			final String msg3 =
 				"Modern 3D visualization framework supporting large image volumes, " +
@@ -357,7 +354,7 @@ public class SNTUI extends JDialog {
 			tab3.add(sciViewerPanel(), c3);
 			c3.gridy++;
 			addSpacer(tab3, c3);
-			addSeparatorWithURL(tab3, "Legacy 3D Viewer:", true, c3);
+			InternalUtils.addSeparatorWithURL(tab3, "Legacy 3D Viewer:", true, c3);
 			++c3.gridy;
 			final String msg2 =
 				"The Legacy 3D Viewer is a functional tracing canvas " +
@@ -547,37 +544,16 @@ public class SNTUI extends JDialog {
 	 *             timelapse)")'
 	 * @throws IllegalArgumentException if {@code cmd} is not found or supported.
 	 */
-	public void runCommand(final String cmd, String... args) throws IllegalArgumentException {
+	public void runCommand(final String cmd, final String... args) throws IllegalArgumentException {
 		if (args == null || args.length == 1 && args[0].trim().isEmpty()) {
 			runCommand(cmd);
 			return;
 		}
-		switch (cmd) {
-		case "Directory of SWCs...":
-			new ImportAction(ImportAction.SWC_DIR, new File(args[0])).run();
-			break;
-		case "e(SWC)...":
-			new ImportAction(ImportAction.SWC, new File(args[0])).run();
-			break;
-		case "From File...":
-			new ImportAction(ImportAction.IMAGE, new File(args[0])).run();
-			break;
-		case "Guess File Type...":
-			new ImportAction(ImportAction.ANY_RECONSTRUCTION, new File(args[0])).run();
-			break;
-		case "JSON...":
-			new ImportAction(ImportAction.JSON, new File(args[0])).run();
-			break;
-		case "Load Demo Dataset...":
-			new ImportAction(ImportAction.DEMO, new File(args[0])).run();
-			break;
-		case "NDF...":
-			new ImportAction(ImportAction.NDF, new File(args[0])).run();
-			break;
-		case "TRACES...":
-			new ImportAction(ImportAction.TRACES, new File(args[0])).run();
-			break;
-		default:
+		final int type = InternalUtils.getImportActionType(cmd);
+		if (type > -1) {
+			// then this is an import action
+			new ImportAction(type, new File(args[0])).run();
+		} else {
 			throw new IllegalArgumentException("Unsupported options for '" + cmd + "'");
 		}
 	}
@@ -674,27 +650,6 @@ public class SNTUI extends JDialog {
 				e.printStackTrace();
 			}
 		}
-	}
-
-	protected static void runCommand(final JMenuBar menuBar, final String cmd) throws IllegalArgumentException {
-		if (cmd == null || cmd.trim().isEmpty()) {
-			throw new IllegalArgumentException("Not a recognizable command: " + cmd);
-		}
-		for (final JMenuItem jmi : GuiUtils.getMenuItems(menuBar)) {
-			if (cmd.equals(jmi.getText()) || cmd.equals(jmi.getActionCommand())) {
-				jmi.doClick();
-				return;
-			}
-		}
-		throw new IllegalArgumentException("Not a recognizable command: " + cmd);
-	}
-
-	private void addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,
-			final GridBagConstraints c) {
-		final String anchor = label.toLowerCase().replace(" ", "-").replace(":", "");
-		final String uri = "https://imagej.net/plugins/snt/manual#" + anchor;
-		JLabel jLabel = GuiUtils.leftAlignedLabel(label, uri, true);
-		GuiUtils.addSeparator(component, jLabel, vgap, c);
 	}
 
 	private void updateStatusText(final String newStatus, final boolean includeStatusBar) {
@@ -818,7 +773,6 @@ public class SNTUI extends JDialog {
 
 	protected void disableImageDependentComponents() {
 		assert SwingUtilities.isEventDispatchThread();
-		loadLabelsMenuItem.setEnabled(false);
 		fmUI.setEnabledNone();
 		setEnableAutoTracingComponents(false, false);
 	}
@@ -826,10 +780,6 @@ public class SNTUI extends JDialog {
 	private void disableEverything() {
 		assert SwingUtilities.isEventDispatchThread();
 		disableImageDependentComponents();
-		loadTracesMenuItem.setEnabled(false);
-		loadSWCMenuItem.setEnabled(false);
-		//exportCSVMenuItem.setEnabled(false);
-		//exportAllSWCMenuItem.setEnabled(false);
 		sendToTrakEM2.setEnabled(false);
 		saveMenuItem.setEnabled(false);
 		quitMenuItem.setEnabled(false);
@@ -857,22 +807,14 @@ public class SNTUI extends JDialog {
 			switch (newState) {
 
 			case WAITING_TO_START_PATH:
-//					if (plugin.analysisMode || !plugin.accessToValidImageData()) {
-//						changeState(ANALYSIS_MODE);
-//						return;
-//					}
 				keepSegment.setEnabled(false);
 				junkSegment.setEnabled(false);
 				completePath.setEnabled(false);
 
-				//FIXME: Check that we really don't need this: pmUI.valueChanged(null); // Fake a selection change in the path tree
 				partsNearbyCSpinner.setEnabled(isStackAvailable());
 				setEnableAutoTracingComponents(plugin.isAstarEnabled(), true);
 				fmUI.setEnabledWhileNotFilling();
-				loadLabelsMenuItem.setEnabled(true);
 				saveMenuItem.setEnabled(true);
-				loadTracesMenuItem.setEnabled(true);
-				loadSWCMenuItem.setEnabled(true);
 
 				exportCSVMenuItem.setEnabled(true);
 				exportAllSWCMenuItem.setEnabled(true);
@@ -895,10 +837,7 @@ public class SNTUI extends JDialog {
 				plugin.discardFill();
 				fmUI.setEnabledWhileNotFilling();
 				// setFillListVisible(false);
-				loadLabelsMenuItem.setEnabled(true);
 				saveMenuItem.setEnabled(true);
-				loadTracesMenuItem.setEnabled(true);
-				loadSWCMenuItem.setEnabled(true);
 
 				exportCSVMenuItem.setEnabled(true);
 				exportAllSWCMenuItem.setEnabled(true);
@@ -1214,7 +1153,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private boolean resetPathSpacings(final String promptReason) {
-		boolean nag = plugin.getPrefs().getTemp("pathscaling-nag", true);
+		final boolean nag = plugin.getPrefs().getTemp("pathscaling-nag", true);
 		boolean reset = plugin.getPrefs().getTemp("pathscaling", true);
 		if (nag) {
 			final boolean[] options = guiUtils.getPersistentConfirmation(promptReason //
@@ -1242,7 +1181,7 @@ public class SNTUI extends JDialog {
 
 	private void validateImgDimensions() {
 		if (plugin.getPrefs().getTemp(SNTPrefs.RESIZE_REQUIRED, false)) {
-			boolean nag = plugin.getPrefs().getTemp("canvasResize-nag", true);
+			final boolean nag = plugin.getPrefs().getTemp("canvasResize-nag", true);
 			if (nag) {
 				final StringBuilder sb = new StringBuilder("Some nodes are being displayed outside the image canvas. To visualize them you can:<ul>");
 				String type = "canvas";
@@ -1995,13 +1934,13 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel statusButtonPanel() {
-		keepSegment = GuiUtils.smallButton(hotKeyLabel("Yes", "Y"));
+		keepSegment = GuiUtils.smallButton(InternalUtils.hotKeyLabel("Yes", "Y"));
 		keepSegment.addActionListener(listener);
-		junkSegment = GuiUtils.smallButton(hotKeyLabel("No", "N"));
+		junkSegment = GuiUtils.smallButton(InternalUtils.hotKeyLabel("No", "N"));
 		junkSegment.addActionListener(listener);
-		completePath = GuiUtils.smallButton(hotKeyLabel("Finish", "F"));
+		completePath = GuiUtils.smallButton(InternalUtils.hotKeyLabel("Finish", "F"));
 		completePath.addActionListener(listener);
-		final JButton abortButton = GuiUtils.smallButton(hotKeyLabel(hotKeyLabel("Cancel/Esc", "C"), "Esc"));
+		final JButton abortButton = GuiUtils.smallButton(InternalUtils.hotKeyLabel(InternalUtils.hotKeyLabel("Cancel/Esc", "C"), "Esc"));
 		abortButton.addActionListener(e -> abortCurrentOperation());
 
 		// Build panel
@@ -2080,7 +2019,7 @@ public class SNTUI extends JDialog {
 
 	private JPanel secondaryDataPanel() {
 
-		secLayerActivateCheckbox = new JCheckBox(hotKeyLabel("Trace/Fill on Secondary Layer", "L"));
+		secLayerActivateCheckbox = new JCheckBox(InternalUtils.hotKeyLabel("Trace/Fill on Secondary Layer", "L"));
 		GuiUtils.addTooltip(secLayerActivateCheckbox,
 				"Whether auto-tracing should be computed on a filtered flavor of current image");
 		secLayerActivateCheckbox.addActionListener(listener);
@@ -2152,7 +2091,7 @@ public class SNTUI extends JDialog {
 
 		secLayerPanel = new JPanel();
 		secLayerPanel.setLayout(new GridBagLayout());
-		GridBagConstraints c = GuiUtils.defaultGbc();
+		final GridBagConstraints c = GuiUtils.defaultGbc();
 		c.ipadx = 0;
 
 		// header row
@@ -2167,14 +2106,14 @@ public class SNTUI extends JDialog {
 		c.insets.left = (int) new JCheckBox("").getPreferredSize().getWidth();
 
 		// row 1
-		JPanel filePanel = new JPanel(new BorderLayout(0,0));
+		final JPanel filePanel = new JPanel(new BorderLayout(0,0));
 		filePanel.add(builtinFilterPanel, BorderLayout.CENTER);
 		filePanel.add(builtinFilterOptionsButton, BorderLayout.EAST);
 		secLayerPanel.add(filePanel, c);
 		c.gridy++;
 
 		// row 2
-		JPanel row2Panel = new JPanel(new BorderLayout(0,0));
+		final JPanel row2Panel = new JPanel(new BorderLayout(0,0));
 		row2Panel.add(secLayerExternalRadioButton, BorderLayout.CENTER);
 		row2Panel.add(secLayerExternalImgOptionsButton, BorderLayout.EAST);
 		secLayerPanel.add(row2Panel, c);
@@ -2196,7 +2135,7 @@ public class SNTUI extends JDialog {
 							? (int) secLayerExternalImgOverlayCSpinner.getValue() * 0.01 : 0);
 		});
 		secLayerExternalImgOverlayCSpinner.appendLabel("% opacity");
-		JPanel overlayPanelHolder = new JPanel(new BorderLayout());
+		final JPanel overlayPanelHolder = new JPanel(new BorderLayout());
 		overlayPanelHolder.add(secLayerExternalImgOverlayCSpinner, BorderLayout.CENTER);
 		//equalizeButtons(filteredImgOptionsButton, filteredImgBrowseButton);
 	//	overlayPanelHolder.add(secondaryImgOptionsButton, BorderLayout.EAST);
@@ -2408,40 +2347,31 @@ public class SNTUI extends JDialog {
 			}
 			(new DynamicCmdRunner(ChooseDatasetCmd.class, null, LOADING)).run();
 		});
-		final JMenuItem fromFile = new JMenuItem("From File...");
-		fromFile.addActionListener(e -> {
-			if (plugin.isSecondaryDataAvailable()) {
-				flushSecondaryDataPrompt();
-			}
-			new ImportAction(ImportAction.IMAGE, null).run();
-		});
-		changeImpMenu.add(fromFile);
+		changeImpMenu.add(getImportActionMenuItem(ImportAction.IMAGE));
 		changeImpMenu.add(fromList);
 		fileMenu.add(changeImpMenu);
 		fileMenu.addSeparator();
-		final JMenuItem autoTrace = getAutotracingMenuItem("Autotrace Segmented Image...", true);
-		autoTrace.addActionListener(e -> {
-			if (plugin.isSecondaryDataAvailable()) {
-				flushSecondaryDataPrompt();
-			}
-			new ImportAction(ImportAction.AUTO_TRACE_IMAGE, null).run();
-		});
+		final JMenuItem autoTrace = getImportActionMenuItem(ImportAction.AUTO_TRACE_IMAGE);
+		autoTrace.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ROBOT));
+		autoTrace.setToolTipText("Runs automated tracing by specifying the path to a thresholded/binary image");
 		fileMenu.add(autoTrace);
 		fileMenu.addSeparator();
 		fileMenu.add(importSubmenu);
 
-		final JMenuItem fromDemo = new JMenuItem("Load Demo Dataset...", IconFactory.getMenuIcon(GLYPH.WIZARD));
+		final JMenuItem fromDemo = getImportActionMenuItem(ImportAction.DEMO);
+		fromDemo.setIcon(IconFactory.getMenuIcon(GLYPH.WIZARD));
 		fromDemo.setToolTipText("Load sample images and/or reconstructions");
-		fromDemo.addActionListener(e -> {
-			if (plugin.isSecondaryDataAvailable()) {
-				flushSecondaryDataPrompt();
-			}
-			new ImportAction(ImportAction.DEMO, null).run();
-		});
-		loadLabelsMenuItem = new JMenuItem("Load Labels (AmiraMesh)...");
+
+		final JMenuItem loadLabelsMenuItem = new JMenuItem("Load Labels (AmiraMesh)...");
 		loadLabelsMenuItem.setToolTipText("Load neuropil labels from an AmiraMesh file");
 		loadLabelsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAG));
-		loadLabelsMenuItem.addActionListener(listener);
+		loadLabelsMenuItem.addActionListener( e -> {
+			final File openFile = openReconstructionFile("labels");
+			if (openFile != null) { // null if user pressed cancel;
+				plugin.loadLabelsFile(openFile.getAbsolutePath());
+				return;
+			}
+		});
 		fileMenu.add(loadLabelsMenuItem);
 		fileMenu.add(fromDemo);
 		fileMenu.addSeparator();
@@ -2464,36 +2394,20 @@ public class SNTUI extends JDialog {
 		fileMenu.add(sendToTrakEM2);
 		fileMenu.add(showFolderMenu(installer));
 
-		final JMenuItem importGuessingType = new JMenuItem("Guess File Type...", IconFactory.getMenuIcon(GLYPH.MAGIC));
+		final JMenuItem importGuessingType = getImportActionMenuItem(ImportAction.ANY_RECONSTRUCTION);
+		importGuessingType.setIcon(IconFactory.getMenuIcon(GLYPH.MAGIC));
 		importSubmenu.add(importGuessingType);
-		importGuessingType.addActionListener(e -> {
-			new ImportAction(ImportAction.ANY_RECONSTRUCTION, null).run();
-		});
 
-		final JMenuItem importJSON = new JMenuItem("JSON...");
-		importSubmenu.add(importJSON);
-		importJSON.addActionListener(e -> {
-			new ImportAction(ImportAction.JSON, null).run();
-		});
-		final JMenuItem importNDF = new JMenuItem("NDF...");
+		importSubmenu.add(getImportActionMenuItem(ImportAction.JSON));
+		final JMenuItem importNDF = getImportActionMenuItem(ImportAction.NDF);
 		importNDF.setToolTipText("Imports a  NeuronJ data file");
 		importSubmenu.add(importNDF);
-		importNDF.addActionListener(e -> {
-			new ImportAction(ImportAction.NDF, null).run();
-		});
-		loadSWCMenuItem = new JMenuItem("(e)SWC...");
-		loadSWCMenuItem.addActionListener(listener);
-		importSubmenu.add(loadSWCMenuItem);
-		loadTracesMenuItem = new JMenuItem("TRACES...");
-		loadTracesMenuItem.addActionListener(listener);
-		importSubmenu.add(loadTracesMenuItem);
+		importSubmenu.add(getImportActionMenuItem(ImportAction.SWC));
+		importSubmenu.add(getImportActionMenuItem(ImportAction.TRACES));
 
-		final JMenuItem importDirectory = new JMenuItem("Directory of SWCs...",
-				IconFactory.getMenuIcon(IconFactory.GLYPH.FOLDER));
+		final JMenuItem importDirectory = getImportActionMenuItem(ImportAction.SWC_DIR);
+		importDirectory.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FOLDER));
 		importSubmenu.add(importDirectory);
-		importDirectory.addActionListener(e -> {
-			new ImportAction(ImportAction.SWC_DIR, null).run();
-		});
 		importSubmenu.addSeparator();
 		final JMenu remoteSubmenu = new JMenu("Remote Databases");
 		remoteSubmenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DATABASE));
@@ -2740,7 +2654,9 @@ public class SNTUI extends JDialog {
 
 		// similar to File>Autotrace image... but assuming current image as source, which does
 		// not require file validations etc..
-		final JMenuItem autotraceJMI = getAutotracingMenuItem("Extract Paths from Segmented Image...", false);
+		final JMenuItem autotraceJMI = new JMenuItem("Extract Paths from Segmented Image...",
+				IconFactory.getMenuIcon(IconFactory.GLYPH.ROBOT));
+		autotraceJMI.setToolTipText("Runs automated tracing on a thresholded/binary image already open");
 		utilitiesMenu.add(autotraceJMI);
 		autotraceJMI.addActionListener(e -> runAutotracingOnImage(false));
 
@@ -2869,14 +2785,14 @@ public class SNTUI extends JDialog {
 
 	private JPanel renderingPanel() {
 
-		showPathsSelected = new JCheckBox(hotKeyLabel("1. Only selected paths (hide deselected)", "1"),
+		showPathsSelected = new JCheckBox(InternalUtils.hotKeyLabel("1. Only selected paths (hide deselected)", "1"),
 				plugin.showOnlySelectedPaths);
 		showPathsSelected.addItemListener(listener);
 
 		final JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
 		row1.add(showPathsSelected);
 
-		partsNearbyCSpinner = new CheckboxSpinner(new JCheckBox(hotKeyLabel("2. Only nodes within ", "2")),
+		partsNearbyCSpinner = new CheckboxSpinner(new JCheckBox(InternalUtils.hotKeyLabel("2. Only nodes within ", "2")),
 				GuiUtils.integerSpinner(1, 1, 80, 1, true));
 		partsNearbyCSpinner.appendLabel("nearby Z-slices");
 		partsNearbyCSpinner.setToolTipText("See Options pane for display settings of out-of-plane nodes");
@@ -2889,7 +2805,7 @@ public class SNTUI extends JDialog {
 		});
 
 		final JPanel row3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-		onlyActiveCTposition = new JCheckBox(hotKeyLabel("3. Only paths from active channel/frame", "3"));
+		onlyActiveCTposition = new JCheckBox(InternalUtils.hotKeyLabel("3. Only paths from active channel/frame", "3"));
 		row3.add(onlyActiveCTposition);
 		onlyActiveCTposition.addItemListener(listener);
 
@@ -2933,7 +2849,7 @@ public class SNTUI extends JDialog {
 	private JPanel snappingPanel() {
 
 		final JPanel tracingOptionsPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
-		useSnapWindow = new JCheckBox(hotKeyLabel("Enable Snapping within XY", "S"), plugin.snapCursor);
+		useSnapWindow = new JCheckBox(InternalUtils.hotKeyLabel("Enable Snapping within XY", "S"), plugin.snapCursor);
 		useSnapWindow.addItemListener(listener);
 		tracingOptionsPanel.add(useSnapWindow);
 
@@ -2992,7 +2908,7 @@ public class SNTUI extends JDialog {
 			Object previousSelection = null;
 
 			@Override
-			public void itemStateChanged(ItemEvent e) {
+			public void itemStateChanged(final ItemEvent e) {
 				// This is called twice during a selection change, so handle each state accordingly
 				if( e.getStateChange() == ItemEvent.DESELECTED ) {
 					previousSelection = e.getItem();
@@ -3069,7 +2985,7 @@ public class SNTUI extends JDialog {
 
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Image Statistics:", false));
 		final ButtonGroup minMaxButtonGroup = new ButtonGroup();
-		JRadioButtonMenuItem autoRbmi = new JRadioButtonMenuItem("Compute Real-Time", plugin.getUseSubVolumeStats());
+		final JRadioButtonMenuItem autoRbmi = new JRadioButtonMenuItem("Compute Real-Time", plugin.getUseSubVolumeStats());
 		minMaxButtonGroup.add(autoRbmi);
 		optionsMenu.add(autoRbmi);
 		autoRbmi.addActionListener(e -> plugin.setUseSubVolumeStats(autoRbmi.isSelected()));
@@ -3123,7 +3039,7 @@ public class SNTUI extends JDialog {
 		return statusBar;
 	}
 
-	boolean setFastMarchSearchEnabled(boolean enable) {
+	boolean setFastMarchSearchEnabled(final boolean enable) {
 		if (enable && isFastMarchSearchAvailable()) {
 			plugin.tubularGeodesicsTracingEnabled = true;
 			searchAlgoChoice.setSelectedIndex(2);
@@ -3214,13 +3130,6 @@ public class SNTUI extends JDialog {
 		GuiUtils.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
 	}
 
-	private JPanel getTab() {
-		final JPanel tab = new JPanel();
-		tab.setBorder(BorderFactory.createEmptyBorder(MARGIN, MARGIN / 2, MARGIN / 2, MARGIN));
-		tab.setLayout(new GridBagLayout());
-		return tab;
-	}
-
 	protected void displayOnStarting() {
 		SwingUtilities.invokeLater(() -> {
 			if (plugin.getPrefs().isSaveWinLocations())
@@ -3235,7 +3144,7 @@ public class SNTUI extends JDialog {
 			setVisible(true);
 			SNTUtils.setIsLoading(false);
 			if (plugin.getImagePlus()!=null) plugin.getImagePlus().getWindow().toFront();
-			ijmLogMessage();
+			InternalUtils.ijmLogMessage();
 			promptForAutoTracingAsAppropriate();
 			guiUtils.notifyIfNewVersion(0);
 		});
@@ -3260,14 +3169,6 @@ public class SNTUI extends JDialog {
 		plugin.getPrefs().setTemp("autotracing-prompt-armed", true);
 	}
 
-	private JMenuItem getAutotracingMenuItem(final String label, final boolean usingFileChoosers) {
-		final JMenuItem jmi = new JMenuItem(label, IconFactory.getMenuIcon(IconFactory.GLYPH.ROBOT));
-		jmi.setToolTipText(
-				(usingFileChoosers) ? "Runs automated tracing by specifying the path to a thresholded/binary image"
-						: "Runs automated tracing on a thresholded/binary image already open");
-		return jmi;
-	}
-
 	private void runAutotracingOnImage(final boolean simplifyPrompt) {
 		final HashMap<String, Object> inputs = new HashMap<>();
 		inputs.put("useFileChoosers", false);
@@ -3275,18 +3176,10 @@ public class SNTUI extends JDialog {
 		(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs)).run();
 	}
 
-	private static final void ijmLogMessage() {
-		if (Recorder.record) {
-			final String recordString = "// NB: This recorder may not capture SNT's internal commands. Those are\n"
-					+ "// better captured using SNT's own Script Recorder (Scripts -> New -> Record...)\n";
-			Recorder.recordString(recordString);
-		}
-	}
-
 	@SuppressWarnings("unused")
 	private Double getZFudgeFromUser() {
 		final double defaultValue = new OneMinusErf(0,0,0).getZFudge();
-		String promptMsg = "Enter multiplier for intensity z-score. "//
+		final String promptMsg = "Enter multiplier for intensity z-score. "//
 				+ "Values < 1 make it easier to numerically distinguish bright voxels. "//
 				+ "The current default is "//
 				+ SNTUtils.formatDouble(defaultValue, 2) + ".";
@@ -3854,11 +3747,6 @@ public class SNTUI extends JDialog {
 		onlyActiveCTposition.setSelected(!onlyActiveCTposition.isSelected());
 	}
 
-	private String hotKeyLabel(final String text, final String key) {
-		final String label = text.replaceFirst(key, "<u><b>" + key + "</b></u>");
-		return (text.startsWith("<HTML>")) ? label : "<HTML>" + label;
-	}
-
 	protected void noValidImageDataError() {
 		guiUtils.error("This option requires valid image data to be loaded.");
 	}
@@ -3981,14 +3869,6 @@ public class SNTUI extends JDialog {
 					enableSecondaryLayerBuiltin(true); //FIXME: IS this needed?
 				}
 
-			} else if (source == loadTracesMenuItem) {
-
-				new ImportAction(ImportAction.TRACES, null).run();
-
-			} else if (source == loadSWCMenuItem) {
-
-				new ImportAction(ImportAction.SWC, null).run();
-
 			} else if (source == exportAllSWCMenuItem && !noPathsError()) {
 
 				if (abortOnPutativeDataLoss()) return;
@@ -4030,14 +3910,6 @@ public class SNTUI extends JDialog {
 				}
 				showStatus("Export complete.", true);
 				changeState(preExportingState);
-
-			} else if (source == loadLabelsMenuItem) {
-
-				final File openFile = openReconstructionFile("labels");
-				if (openFile != null) { // null if user pressed cancel;
-					plugin.loadLabelsFile(openFile.getAbsolutePath());
-					return;
-				}
 
 			} else if (source == keepSegment) {
 
@@ -4086,7 +3958,7 @@ public class SNTUI extends JDialog {
 		}
 
 		private boolean abortOnPutativeDataLoss() {
-			boolean nag = plugin.getPrefs().getTemp("dataloss-nag", true);
+			final boolean nag = plugin.getPrefs().getTemp("dataloss-nag", true);
 			if (nag) {
 				final Boolean prompt = guiUtils.getPersistentWarning(//
 						"The following data can only be saved in a <i>TRACES</i> file and will not be stored under the SWC format:"
@@ -4111,7 +3983,7 @@ public class SNTUI extends JDialog {
 		private final Class<? extends Command> cmd;
 		private final int preRunState;
 		private final boolean run;
-		private HashMap<String, Object> inputs;
+		private final HashMap<String, Object> inputs;
 
 		public DynamicCmdRunner(final Class<? extends Command> cmd, final HashMap<String, Object> inputs) {
 			this(cmd, inputs, getState());
@@ -4159,7 +4031,7 @@ public class SNTUI extends JDialog {
 		private final Class<? extends Command> cmd;
 		private final int preRunState;
 		private final boolean run;
-		private HashMap<String, Object> inputs;
+		private final HashMap<String, Object> inputs;
 
 		// Cmd that does not require rebuilding canvas(es) nor changing UI state
 		public CmdRunner(final Class<? extends Command> cmd) {
@@ -4225,6 +4097,104 @@ public class SNTUI extends JDialog {
 		}
 	}
 
+	private static class InternalUtils {
+
+		static String getImportActionName(final int type) {
+			switch (type) {
+			case ImportAction.AUTO_TRACE_IMAGE:
+				return "Autotrace Segmented Image...";
+			case ImportAction.SWC_DIR:
+				return "Directory of SWCs...";
+			case ImportAction.SWC:
+				return "e(SWC)...";
+			case ImportAction.IMAGE:
+				return "From File...";
+			case ImportAction.ANY_RECONSTRUCTION:
+				return "Guess File Type...";
+			case ImportAction.JSON:
+				return "JSON...";
+			case ImportAction.DEMO:
+				return "Load Demo Dataset...";
+			case ImportAction.NDF:
+				return "NDF...";
+			case ImportAction.TRACES:
+				return "TRACES...";
+			default:
+				throw new IllegalArgumentException("Unknown type '" + type + "'");
+			}
+		}
+
+		static int getImportActionType(final String name) {
+			switch (name) {
+			case "Autotrace Segmented Image...":
+				return ImportAction.AUTO_TRACE_IMAGE;
+			case "Directory of SWCs...":
+				return ImportAction.SWC_DIR;
+			case "e(SWC)...":
+				return ImportAction.SWC;
+			case "From File...":
+				return ImportAction.IMAGE;
+			case "Guess File Type...":
+				return ImportAction.ANY_RECONSTRUCTION;
+			case "JSON...":
+				return ImportAction.JSON;
+			case "Load Demo Dataset...":
+				return ImportAction.DEMO;
+			case "NDF...":
+				return ImportAction.NDF;
+			case "TRACES...":
+				return ImportAction.TRACES;
+			default:
+				return -1;
+			}
+		}
+
+		static int getImportActionType(final File file) {
+			if (file.isDirectory())
+				return ImportAction.SWC_DIR;
+			final String filename = file.getName().toLowerCase();
+			if (filename.endsWith(".traces"))
+				return ImportAction.TRACES;
+			if (filename.endsWith("swc"))
+				return ImportAction.SWC;
+			if (filename.endsWith(".json"))
+				return ImportAction.JSON;
+			if (filename.endsWith(".ndf"))
+				return ImportAction.NDF;
+			if (filename.endsWith(".tif") || filename.endsWith(".tiff"))
+				return ImportAction.IMAGE;
+			return -1;
+		}
+
+		static void addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,
+				final GridBagConstraints c) {
+			final String anchor = label.toLowerCase().replace(" ", "-").replace(":", "");
+			final String uri = "https://imagej.net/plugins/snt/manual#" + anchor;
+			final JLabel jLabel = GuiUtils.leftAlignedLabel(label, uri, true);
+			GuiUtils.addSeparator(component, jLabel, vgap, c);
+		}
+
+		static String hotKeyLabel(final String text, final String key) {
+			final String label = text.replaceFirst(key, "<u><b>" + key + "</b></u>");
+			return (text.startsWith("<HTML>")) ? label : "<HTML>" + label;
+		}
+
+		static JPanel getTab() {
+			final JPanel tab = new JPanel();
+			tab.setBorder(BorderFactory.createEmptyBorder(MARGIN, MARGIN / 2, MARGIN / 2, MARGIN));
+			tab.setLayout(new GridBagLayout());
+			return tab;
+		}
+
+		static void ijmLogMessage() {
+			if (Recorder.record) {
+				final String recordString = "// NB: This recorder may not capture SNT's internal commands. Those are\n"
+						+ "// better captured using SNT's own Script Recorder (Scripts -> New -> Record...)\n";
+				Recorder.recordString(recordString);
+			}
+		}
+	}
+
 	private class SNTViewer3D extends Viewer3D {
 		SNTViewer3D() {
 			super(SNTUI.this.plugin);
@@ -4261,36 +4231,21 @@ public class SNTUI extends JDialog {
 	}
 
 	private void addFileDrop(final Component component, final GuiUtils guiUtils) {
-		new FileDrop(component, new FileDrop.Listener() {
-
-			@Override
-			public void filesDropped(final File[] files) {
-				if (files.length == 0) { // Is this even possible?
-					guiUtils.error("Dropped file(s) not recognized.");
-					return;
-				}
-				if (files.length > 1) {
-					guiUtils.error("Ony a single file (or directory) can be imported using drag-and-drop.");
-					return;
-				}
-				final int type = getType(files[0]);
-				if (type == -1) {
-					guiUtils.error(files[0].getName() + " cannot be imported using drag-and-drop.");
-					return;
-				}
-				new ImportAction(type, files[0]).run();
+		new FileDrop(component, files -> {
+			if (files.length == 0) { // Is this even possible?
+				guiUtils.error("Dropped file(s) not recognized.");
+				return;
 			}
-
-			private int getType(final File file) {
-				if (file.isDirectory()) return ImportAction.SWC_DIR;
-				final String filename = file.getName().toLowerCase();
-				if (filename.endsWith(".traces")) return ImportAction.TRACES;
-				if (filename.endsWith("swc")) return ImportAction.SWC;
-				if (filename.endsWith(".json")) return ImportAction.JSON;
-				if (filename.endsWith(".ndf")) return ImportAction.NDF;
-				if (filename.endsWith(".tif") || filename.endsWith(".tiff")) return ImportAction.IMAGE;
-				return -1;
+			if (files.length > 1) {
+				guiUtils.error("Ony a single file (or directory) can be imported using drag-and-drop.");
+				return;
 			}
+			final int type = InternalUtils.getImportActionType(files[0]);
+			if (type == -1) {
+				guiUtils.error(files[0].getName() + " cannot be imported using drag-and-drop.");
+				return;
+			}
+			new ImportAction(type, files[0]).run();
 		});
 	}
 
@@ -4332,7 +4287,7 @@ public class SNTUI extends JDialog {
 		}
 	}
 
-	protected void saveToXML(boolean timeStampedCopy) {
+	protected void saveToXML(final boolean timeStampedCopy) {
 		if (noPathsError() || notReadyToSaveError()) return; // do not create empty files
 		boolean successfull = false;
 		File targetFile = getAutosaveFile();
@@ -4417,7 +4372,7 @@ public class SNTUI extends JDialog {
 		private static final int JSON = 3;
 		private static final int IMAGE = 4;
 		private static final int ANY_RECONSTRUCTION = 5;
-		public static final int DEMO = 6;
+		private static final int DEMO = 6;
 		private static final int AUTO_TRACE_IMAGE = 7;
 		private static final int NDF = 8;
 
@@ -4439,10 +4394,16 @@ public class SNTUI extends JDialog {
 			final int priorState = currentState;
 			switch (type) {
 			case AUTO_TRACE_IMAGE:
+				if (plugin.isSecondaryDataAvailable()) {
+					flushSecondaryDataPrompt();
+				}
 				inputs.put("useFileChoosers", true);
 				(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs, RUNNING_CMD)).run();
 				break;
 			case DEMO:
+				if (plugin.isSecondaryDataAvailable()) {
+					flushSecondaryDataPrompt();
+				}
 				final DemoRunner demoRunner = new DemoRunner(SNTUI.this, plugin);
 				if (file != null) { // recorded command
 					try (final Scanner scanner = new Scanner(file.getName())) {
@@ -4464,6 +4425,9 @@ public class SNTUI extends JDialog {
 				choice.load(); // will reset UI
 				break;
 			case IMAGE:
+				if (plugin.isSecondaryDataAvailable()) {
+					flushSecondaryDataPrompt();
+				}
 				if (file != null) inputs.put("file", file);
 				(new DynamicCmdRunner(OpenDatasetCmd.class, inputs, LOADING)).run();
 				break;
@@ -4507,6 +4471,7 @@ public class SNTUI extends JDialog {
 			return !plugin.isUnsavedChanges() || (plugin.isUnsavedChanges() && guiUtils.getConfirmation(
 					"There are unsaved paths. Do you really want to load new data?", "Proceed with Import?"));
 		}
+
 	}
 
 	private void flushSecondaryDataPrompt() {
@@ -4519,6 +4484,14 @@ public class SNTUI extends JDialog {
 				plugin.flushSecondaryData();
 			}
 		}
+	}
+
+	private JMenuItem getImportActionMenuItem(final int type) {
+		final JMenuItem jmi = new JMenuItem(InternalUtils.getImportActionName(type));
+		jmi.addActionListener(e -> {
+			new ImportAction(type, null).run();
+		});
+		return jmi;
 	}
 
 	public ScriptRecorder getRecorder(final boolean createIfNeeded) {

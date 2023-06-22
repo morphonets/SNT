@@ -1058,10 +1058,6 @@ public class SNT extends MultiDThreePanes implements
 			getUIState() == SNTUI.TRACING_PAUSED);
 	}
 
-	// if (uiReadyForModeChange(SNTUI.ANALYSIS_MODE)) {
-	// getGuiUtils().tempMsg("Tracing image not available");
-	// return;
-	// }
 	protected Path getEditingPath() {
 		return editingPath;
 	}

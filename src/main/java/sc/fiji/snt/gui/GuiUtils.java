@@ -316,7 +316,7 @@ public class GuiUtils {
 				if (msg.startsWith("<")) { //HTML formatted
 					// https://stackoverflow.com/a/3608319
 					String cleanedMsg = msg.replaceAll("(?s)<[^>]*>(\\s*<[^>]*>)*", " ");
-					cleanedMsg = cleanedMsg.replaceAll("&amp;", "&");
+					cleanedMsg = cleanedMsg.replace("&amp;", "&");
 					System.out.println("[INFO] [SNT] " + cleanedMsg.trim());
 				} else {
 					System.out.println("[INFO] [SNT] " + msg);
