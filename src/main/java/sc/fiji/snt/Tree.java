@@ -1429,7 +1429,7 @@ public class Tree implements TreeProperties {
 	 *                directory. {@code null} allowed.
 	 * @param swcTypes SWC type(s) a string with at least 2 characters describing
 	 *                 the SWC type allowed in the subtree (e.g., 'soma', 'axn', or
-	 *                 'dendrite'). Ignored when {@code null}
+	 *                 'dendrite'). Ignored when {@code null}, or 'all'.
 	 * @return the list of imported {@link Tree}s. An empty list is retrieved if
 	 *         {@code dir} is not a valid, readable directory.
 	 */
@@ -1444,9 +1444,9 @@ public class Tree implements TreeProperties {
 		for (final File treeFile : treeFiles) {
 			final Collection<Tree> treesInFile = Tree.listFromFile(treeFile.getAbsolutePath());
 			if (treesInFile != null) {
-				if (swcTypes == null)
+				if (swcTypes == null || (swcTypes.length == 1 && "all".equalsIgnoreCase(swcTypes[0]))) {
 					trees.addAll(treesInFile);
-				else {
+				} else {
 					treesInFile.forEach(t -> {
 						trees.add(t.subTree(swcTypes));
 					});

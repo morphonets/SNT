@@ -46,6 +46,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
+import org.apache.commons.math3.exception.MathIllegalArgumentException;
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.apache.commons.math3.stat.inference.OneWayAnova;
+import org.apache.commons.math3.stat.inference.TTest;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.CategoryAxis;
@@ -144,6 +148,46 @@ public class GroupedTreeStatistics {
 	}
 
 	/**
+	 * Computes a two-sample, two-tailed t-test P-value for two of groups being
+	 * analyzed. It is assumed that data fulfills basic assumptions on normality,
+	 * variance homogeneity, etc.
+	 *
+	 * @param measurement the measurement ({@link MultiTreeStatistics#N_NODES
+	 *                    N_NODES}, {@link MultiTreeStatistics#NODE_RADIUS
+	 *                    NODE_RADIUS}, etc.)
+	 * @param group1Label the unique label identifying group 1
+	 * @param group2Label the unique label identifying group 2
+	 * @return the p-value
+	 * @throws MathIllegalArgumentException If the computation fails
+	 */
+	public double tTest(final String measurement, final String group1Label, final String group2Label)
+			throws MathIllegalArgumentException {
+		return new TTest().tTest(getGroupStats(group1Label).getSummaryStats(measurement),
+				getGroupStats(group2Label).getSummaryStats(measurement));
+	}
+
+	/**
+	 * Computes the one-way ANOVA P-value for all the groups being analyzed. It is
+	 * assumed that data fulfills basic assumptions on normality, variance
+	 * homogeneity, sample size, etc.
+	 *
+	 * @param measurement the measurement ({@link MultiTreeStatistics#N_NODES
+	 *                    N_NODES}, {@link MultiTreeStatistics#NODE_RADIUS
+	 *                    NODE_RADIUS}, etc.)
+	 * @return the p-value
+	 * @throws MathIllegalArgumentException If the computation fails, E.g., because
+	 *                                      less than 2 groups exist, one of the
+	 *                                      groups contains less than two trees, or
+	 *                                      a convergence error occurs
+	 *
+	 */
+	public double anovaPValue(final String measurement) throws MathIllegalArgumentException {
+		final List<SummaryStatistics> allSummaryStats = new ArrayList<>();
+		groups.values().forEach(stats -> allSummaryStats.add(stats.getSummaryStats(measurement)));
+		return new OneWayAnova().anovaPValue(allSummaryStats, true);
+	}
+
+	/**
 	 * Gets the number of Trees in a specified group.
 	 *
 	 * @param groupLabel the unique label identifying the group
@@ -161,7 +205,7 @@ public class GroupedTreeStatistics {
 	 * @return the group identifiers
 	 */
 	public List<String> getGroups() {
-		return new ArrayList<String>(groups.keySet());
+		return new ArrayList<>(groups.keySet());
 	}
 
 	/**

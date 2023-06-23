@@ -117,7 +117,7 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 
 * Direct access to public databases, including [FlyCircuit](http://www.flycircuit.tw), [Insect Brain Database](https://insectbraindb.org/app/), [MouseLight](https://ml-neuronbrowser.janelia.org/), [NeuroMorpho](http://neuromorpho.org/), and [Virtual Fly Brain](https://v2.virtualflybrain.org/)
 
-* Built-in commands for immediate retrieval of statistical reports, including summary statistics, comparison plots and histograms
+* Built-in commands for immediate retrieval of statistical reports, including summary statistics, tests (two-sample _t_-test/one-way ANOVA), comparison plots and histograms
 
 * Convex hull analyses
 

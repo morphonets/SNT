@@ -2615,8 +2615,9 @@ public class SNTUI extends JDialog {
 							+ "Note that is also possible to compare two files in the legacy 3D Viewer "//
 							+ "('Legacy viewer' widget in the '3D' tab).", //
 					"Compares up to 6 groups of cells. Detailed measurements and comparison plots "//
-							+ "are retrieved for selected metric(s). Color-coded montages of group-metrics "
-							+ "can also be generated."//
+							+ "are retrieved for selected metric(s) along statistical reports (two-sample "//
+							+ "t-test/one-way ANOVA). Color-coded montages of analyzed groups can also be "//
+							+ "generated."//
 			};
 			final String defChoice = plugin.getPrefs().getTemp("compare", choices[1]);
 			final String choice = guiUtils.getChoice("Which kind of comparison would you like to perform?",
