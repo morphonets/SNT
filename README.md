@@ -96,8 +96,9 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
   * Precise placement of nodes is aided by a local search that automatically snaps the cursor to neurites wihin a 3D neighborhood
 
 * Auto-tracing:
-  
-  * Generation of traces from thresholded images
+
+  * Generation of traces from thresholded/filtered images
+  * Machine learning: Built-in routines for training random forest classifiers on previously traced paths ([Trainable Weka segmentation](https://github.com/fiji/Trainable_Segmentation) bridge)
 
 * Tracing can be interleaved with image processing routines
 

@@ -79,6 +79,7 @@ import sc.fiji.snt.gui.ColorMenu;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.MeasureUI;
 import sc.fiji.snt.gui.PathManagerUISearchableBar;
+import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.SwingSafeResult;
 import sc.fiji.snt.gui.cmds.DistributionBPCmd;
 import sc.fiji.snt.gui.cmds.DistributionCPCmd;
@@ -377,6 +378,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi = new JMenuItem(SinglePathActionListener.STRAIGHTEN);
 		jmi.setToolTipText("Creates a 'linear image' from the pixels associated with single paths");
 		jmi.addActionListener(singlePathListener);
+		advanced.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.TRAIN_WEKA_CLASSIFIER);
+		jmi.setToolTipText("Semantic segmentation (random forest classifier) from selected path(s)");
+		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
 		advanced.addSeparator();
 
@@ -2461,6 +2466,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		//private final static String MEASURE_CMD_SUMMARY = "Quick Measurements";
 		private static final String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
+		private static final String TRAIN_WEKA_CLASSIFIER = "Train Weka Classifier...";
 		private static final String CONVERT_TO_SKEL_CMD = "Skeletonize...";
 		private static final String CONVERT_TO_SWC_CMD = "Save Subset as SWC...";
 		private static final String PLOT_PROFILE_CMD = "Plot Profile...";
@@ -2721,6 +2727,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				cmdService.run(ROIExporterCmd.class, true, input);
 				return;
 
+			} else if (TRAIN_WEKA_CLASSIFIER.equals(cmd)) {
+				ScriptInstaller.runScript("Commands", "Train_Weka_Classifier.groovy", null);
+				return;
 			}
 			else if (COLORIZE_TREES_CMD.equals(cmd)) {
 

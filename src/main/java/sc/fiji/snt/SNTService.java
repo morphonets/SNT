@@ -189,11 +189,19 @@ public class SNTService extends AbstractService implements ImageJService {
 	}
 
 	/**
-	 * Returns a reference to the active {@link SNT} plugin.
+	 * @deprecated use {@link #getInstance()} instead
+	 */
+	@Deprecated
+	public SNT getPlugin() {
+		return getInstance();
+	}
+
+	/**
+	 * Returns a reference to the active {@link SNT} instance.
 	 *
 	 * @return the {@link SNT} instance
 	 */
-	public SNT getPlugin() {
+	public SNT getInstance() {
 		accessActiveInstance(true);
 		return plugin;
 	}

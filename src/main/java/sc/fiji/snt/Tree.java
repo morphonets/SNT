@@ -112,6 +112,8 @@ public class Tree implements TreeProperties {
 	}
 
 	private String getCommonUnit(final Collection<Path> paths) {
+		if (paths.isEmpty()) 
+			return null;
 		final Iterator<Path> it = paths.iterator();
 		final String ref = it.next().spacing_units;
 		while (it.hasNext()) {

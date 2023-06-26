@@ -118,6 +118,6 @@ Demo datasets (images and/or reconstructions) are either bundled in SNT (and thu
 | [JIDE common layer](https://github.com/JFormDesigner/jide-oss), [font awesome](https://fontawesome.com/), [FlatLaf](https://github.com/JFormDesigner/FlatLaf) | GUI customizations                                    |
 | [JSON-Java](https://github.com/stleary/JSON-java), [okhttp](https://square.github.io/okhttp/) | Access/query of online databases                      |
 | [Jzy3D](http://www.jzy3d.org/), [jGL](https://github.com/jzy3d/jzy3d-api/tree/master/jzy3d-jGL), [JOGL](https://jogamp.org/jogl/www/) | Reconstruction Viewer                                 |
-| [pyimagej](https://pypi.org/project/pyimagej/)               | Python bindings                                       |
-| [SMILE](https://haifengl.github.io/)                         | Math and algorithm utilities                          |
-
+| [pyimagej](https://pypi.org/project/pyimagej/)                | Python bindings                                      |
+| [SMILE](https://haifengl.github.io/)                          | Math and algorithm utilities                         |
+| [Trainable Weka Segmentation](https://imagej.net/plugins/tws/)| Semantic segmentation from previously traced paths   |

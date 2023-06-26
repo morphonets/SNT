@@ -24,8 +24,10 @@ package sc.fiji.snt.analysis;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -34,6 +36,8 @@ import ij.gui.Overlay;
 import ij.gui.PointRoi;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
+import ij.gui.ShapeRoi;
+import ij.plugin.RoiEnlarger;
 import ij.process.FloatPolygon;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.plugin.ROIExporterCmd;
@@ -92,6 +96,17 @@ public class RoiConverter extends TreeAnalyzer {
 	/**
 	 * Instantiates a new Converter.
 	 *
+	 * @param paths the collection of Paths to be converted
+	 * @param imp   the image associated with the collection, used to properly
+	 *              assign C,T positions of converted nodes
+	 */
+	public RoiConverter(final Collection<Path> paths, final ImagePlus imp) {
+		this(new Tree(paths), imp);
+	}
+
+	/**
+	 * Instantiates a new Converter.
+	 *
 	 * @param tree the Tree to be converted
 	 * @param imp the image associated with the Tree, used to properly assign C,T
 	 *          positions of converted nodes
@@ -104,11 +119,12 @@ public class RoiConverter extends TreeAnalyzer {
 	}
 
 	/**
-	 * Converts paths into 2D polyline ROIs (segment paths)
+	 * Converts paths into 2D polyline ROIs (segment paths).
 	 *
 	 * @param overlay the target overlay to hold converted paths
+	 * @return a reference to the overlay holding paths
 	 */
-	public void convertPaths(Overlay overlay) {
+	public Overlay convertPaths(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
 		for (final Path p : tree.list()) {
 			if (p.size() > 1) {
@@ -120,6 +136,7 @@ public class RoiConverter extends TreeAnalyzer {
 				convertPoints(pim, overlay, getColor(p), "SPP");
 			}
 		}
+		return overlay;
 	}
 
 	public List<PolygonRoi> getROIs(final Path path) {
@@ -221,7 +238,7 @@ public class RoiConverter extends TreeAnalyzer {
 	}
 
 	/**
-	 * Converts all the branch poisnts associated with the parsed paths into
+	 * Converts all the branch points associated with the parsed paths into
 	 * {@link ij.gui.PointRoi}s, adding them to the overlay of the image specified
 	 * in the constructor.
 	 * 
@@ -231,6 +248,18 @@ public class RoiConverter extends TreeAnalyzer {
 	 */
 	public void convertBranchPoints() throws IllegalArgumentException {
 		convertBranchPoints(getImpOverlay());
+	}
+
+	/**
+	 * Extracts all of the ROIs converted so far associated with the specified
+	 * Z-plane. It is assumed that ROIs are stored in the overlay of the image
+	 * specified in the constructor.
+	 * 
+	 * @throws IllegalArgumentException if this RoiConverter instance is not aware
+	 *                                  of any image
+	 */
+	public List<Roi> getZplaneROIs(final int zSlice) {
+		return getZplaneROIs(getImpOverlay(), zSlice);
 	}
 
 	private Overlay getImpOverlay() throws IllegalArgumentException {
@@ -395,4 +424,75 @@ public class RoiConverter extends TreeAnalyzer {
 			super.addPoint(imp, ox, oy);
 		}
 	}
+
+	public static List<Roi> getZplaneROIs(final Overlay overlay, final int zSlice) {
+		final List<Roi> rois = new ArrayList<>();
+		final Iterator<Roi> it = overlay.iterator();
+		while (it.hasNext()) {
+			final Roi roi = it.next();
+			// see #setPosition
+			if ((roi.hasHyperStackPosition() && roi.getZPosition() == zSlice) || roi.getPosition() == zSlice
+					|| roi.getPosition() == 0) {
+				rois.add(roi);
+			}
+		}
+		return rois;
+	}
+
+	public static Roi enlarge(Roi roi, final int pixels) {
+		if (roi == null || roi instanceof PointRoi)
+			return roi;
+		if (roi.isLine())
+			roi = Roi.convertLineToArea(roi);
+		return (Math.abs(pixels) < 256) ? RoiEnlarger.enlarge255(roi, pixels) : RoiEnlarger.enlarge(roi, pixels);
+	}
+
+	public static Roi combine(final List<Roi> rois) {
+		// from RoiManager#combine
+		if (rois.size() == 1) {
+			return rois.get(0);
+		}
+		final long nPoints = rois.stream().filter(roi -> roi.getType() == Roi.POINT).count();
+		if (nPoints == rois.size()) {
+			return combinePoints(rois);
+		}
+		return combineNonPoints(rois);
+	}
+
+	private static Roi combineNonPoints(final List<Roi> rois) {
+		ShapeRoi s1 = null;
+		ShapeRoi s2 = null;
+		for (Roi roi : rois) {
+			try {
+				if (!roi.isArea() && roi.getType() != Roi.POINT)
+					roi = Roi.convertLineToArea(roi);
+				if (s1 == null) {
+					if (roi instanceof ShapeRoi)
+						s1 = (ShapeRoi) roi.clone();
+					else
+						s1 = new ShapeRoi(roi);
+				} else {
+					if (roi instanceof ShapeRoi)
+						s2 = (ShapeRoi) roi;
+					else
+						s2 = new ShapeRoi(roi);
+					s1.or(s2);
+				}
+			} catch (final NullPointerException ex) {
+				SNTUtils.log("Skipping " + roi + " an exception occured " + ex.getMessage());
+			}
+		}
+		return (s1 == null) ? null : s1.trySimplify();
+	}
+
+	private static Roi combinePoints(final List<Roi> rois) {
+		final FloatPolygon fp = new FloatPolygon();
+		for (final Roi roi : rois) {
+			final FloatPolygon fpi = roi.getFloatPolygon();
+			for (int i = 0; i < fpi.npoints; i++)
+				fp.addPoint(fpi.xpoints[i], fpi.ypoints[i]);
+		}
+		return new PointRoi(fp);
+	}
+
 }

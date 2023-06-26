@@ -512,6 +512,13 @@ public class ScriptInstaller implements MenuKeyListener {
 		return  new BufferedReader(new InputStreamReader(is)).lines().collect(Collectors.joining("\n"));
 	}
 
+	public static void runScript(final String dir, final String file, final Map<String, Object> inputMap) {
+		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+		final InputStream is = classloader.getResourceAsStream("script_templates/Neuroanatomy/" + dir + "/" + file);
+		final ScriptService sService = SNTUtils.getContext().getService(ScriptService.class);
+		sService.run(file, new InputStreamReader(is), true, inputMap);
+	}
+
 	private static String getBoilerPlateFile(final String extension) {
 		final String ext = extension.toLowerCase();
 		if (ext.contains("bsh"))

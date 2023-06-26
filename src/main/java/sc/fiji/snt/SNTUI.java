@@ -568,14 +568,17 @@ public class SNTUI extends JDialog {
 			return true;
 		} else if ("cmdPalette".equals(cmd)) {
 			commandFinder.toggleVisibility();
-			return false;
+			return true;
+		} else if ("Pause SNT".equals(cmd)) {
+			plugin.pause(true, true);
+			return true;
 		}
 		return false;
 	}
 
 	/**
-	 * Runs the autotracing prompt on the active image, assumed to be binary (script
-	 * friendly method).
+	 * Runs the autotracing prompt on the active image, assumed to be
+	 * pre-processed/binary (script friendly method).
 	 *
 	 * @param simplified whether wizard should omit advanced options
 	 */
@@ -587,6 +590,26 @@ public class SNTUI extends JDialog {
 				noValidImageDataError();
 			}
 		});
+	}
+
+	/**
+	 * Runs the autotracing prompt on the specified image, assumed to be
+	 * pre-processed/binary (script friendly method).
+	 *
+	 * @param imp        the processed image from which paths are to be extracted
+	 * @param simplified whether wizard should omit advanced options
+	 */
+	public void runAutotracingWizard(final ImagePlus imp, final boolean simplified) {
+		final HashMap<String, Object> inputs = new HashMap<>();
+		inputs.put("useFileChoosers", false);
+		inputs.put("maskImgChoice", imp.getTitle());
+		inputs.put("originalImgChoice", (plugin.accessToValidImageData()) ? plugin.getImagePlus().getTitle() : "None");
+		inputs.put("simplifyPrompt", simplified);
+		if (imp.getRoi() == null) {
+			inputs.put("inferRootFromRoi", false);
+			inputs.put("roiPlane", false);
+		}
+		(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs)).run();
 	}
 
 	/**
