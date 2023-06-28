@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 
 import net.imagej.ImageJ;
-import net.imagej.legacy.LegacyService;
 import sc.fiji.snt.SNTPrefs;
 
 import org.scijava.command.Command;
@@ -51,9 +50,6 @@ import ij.WindowManager;
 @Plugin(initializer = "init", type = Command.class,
 	label = "Change Tracing Image")
 public class ChooseDatasetCmd extends CommonDynamicCmd {
-
-	@Parameter
-	private LegacyService legacyService;
 
 	@Parameter(label = "New tracing image:", persist = false, required = false,
 		style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
