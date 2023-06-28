@@ -427,6 +427,33 @@ public class SNTCommandFinder {
 		cmdScrapper.registerOther(button, pathDescription);
 	}
 
+	public void register(final JPopupMenu menu, final List<String> path) {
+		for (final Component component : menu.getComponents()) {
+			if (component instanceof JMenu) {
+				final List<String> newPath = new ArrayList<>(path);
+				final String menuText = ((JMenu)component).getText();
+				if (menuText != null) newPath.add(menuText);
+				registerMenu((JMenu)component, newPath);
+			}
+			else if (component instanceof AbstractButton)
+				register((AbstractButton)component, path);
+		}
+	}
+
+	private void registerMenu(final JMenu menu, final List<String> path) {
+		for (final Component component : menu.getMenuComponents()) {
+			if (component instanceof JMenu) {
+				final List<String> newPath = new ArrayList<>(path);
+				final String menuText = ((JMenu)component).getText();
+				if (menuText != null) newPath.add(menuText);
+				registerMenu((JMenu)component, newPath);
+			}
+			else if (component instanceof AbstractButton) {
+				register((AbstractButton)component, path);
+			}
+		}
+	}
+
 	public void setVisible(final boolean b) {
 		if (!b) {
 			hideWindow();

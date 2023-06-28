@@ -235,7 +235,7 @@ public class SNTUI extends JDialog {
 		listener = new GuiListener();
 		pathAndFillManager = plugin.getPathAndFillManager();
 		commandFinder = new SNTCommandFinder(this);
-
+		commandFinder.register(getTracingCanvasPopupMenu(), new ArrayList<>(Collections.singletonList("Image Contextual Menu")));
 		setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowAdapter() {
 
@@ -568,9 +568,6 @@ public class SNTUI extends JDialog {
 			return true;
 		} else if ("cmdPalette".equals(cmd)) {
 			commandFinder.toggleVisibility();
-			return true;
-		} else if ("Pause SNT".equals(cmd)) {
-			plugin.pause(true, true);
 			return true;
 		}
 		return false;

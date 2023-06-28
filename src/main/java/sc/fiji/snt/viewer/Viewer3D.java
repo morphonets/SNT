@@ -3612,7 +3612,7 @@ public class Viewer3D {
 		private JButton menuButton(final GLYPH glyph, final JPopupMenu menu, final String tooltipMsg) {
 			final JButton button = new JButton(IconFactory.getButtonIcon(glyph));
 			button.setToolTipText(tooltipMsg);
-			registerMenuInCmdFinder(menu, new ArrayList<>(Collections.singletonList(tooltipMsg)));
+			cmdFinder.register(menu, new ArrayList<>(Collections.singletonList(tooltipMsg)));
 			button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 			return button;
 		}
@@ -3711,34 +3711,7 @@ public class Viewer3D {
 			return sceneMenu;
 		}
 
-		private void registerMenuInCmdFinder(final JPopupMenu menu, final List<String> path) {
-			for (final Component component : menu.getComponents()) {
-				if (component instanceof JMenu) {
-					final List<String> newPath = new ArrayList<>(path);
-					final String menuText = ((JMenu)component).getText();
-					if (menuText != null) newPath.add(menuText);
-					registerMenuInCmdFinder((JMenu)component, newPath);
-				}
-				else if (component instanceof AbstractButton)
-					cmdFinder.register((AbstractButton)component, path);
-			}
-		}
-	
-		private void registerMenuInCmdFinder(final JMenu menu, final List<String> path) {
-			for (final Component component : menu.getMenuComponents()) {
-				if (component instanceof JMenu) {
-					final List<String> newPath = new ArrayList<>(path);
-					final String menuText = ((JMenu)component).getText();
-					if (menuText != null) newPath.add(menuText);
-					registerMenuInCmdFinder((JMenu)component, newPath);
-				}
-				else if (component instanceof AbstractButton) {
-					cmdFinder.register((AbstractButton)component, path);
-				}
-
-			}
-		}
-
+		
 		private void wipeScene() {
 			if (guiUtils.getConfirmation("Remove all items from scene? This action cannot be undone.", "Wipe Scene?")) {
 				Viewer3D.this.wipeScene();
@@ -3936,7 +3909,7 @@ public class Viewer3D {
 			pMenu.add(sort);
 			pMenu.addSeparator();
 			pMenu.add(remove);
-			registerMenuInCmdFinder(pMenu, new ArrayList<>(Collections.singletonList("Control Panel Contextual Menu")));
+			cmdFinder.register(pMenu, new ArrayList<>(Collections.singletonList("Control Panel Contextual Menu")));
 			return pMenu;
 		}
 

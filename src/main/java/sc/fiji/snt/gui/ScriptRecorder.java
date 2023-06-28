@@ -108,7 +108,7 @@ public class ScriptRecorder extends JDialog {
 		((DefaultCaret) editor.getCaret()).setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE); // somehow this does not work!?
 		try {
 			editor.applyTheme((FlatLaf.isLafDark()) ? "dark" : "default");
-		} catch (IllegalArgumentException ignored) {
+		} catch (final IllegalArgumentException ignored) {
 			// do nothing
 		}
 		return editor;
