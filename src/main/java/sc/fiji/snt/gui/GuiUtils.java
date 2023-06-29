@@ -820,7 +820,7 @@ public class GuiUtils {
 
 	public File getOpenFile(final String title, final File file, final String... allowedExtensions) {
 		final JFileChooser chooser = fileChooser(title, file, JFileChooser.OPEN_DIALOG, JFileChooser.FILES_ONLY);
-		if (allowedExtensions != null) {
+		if (allowedExtensions != null && allowedExtensions.length > 0) {
 			chooser.addChoosableFileFilter(new FileNameExtensionFilter(
 					"Reconstruction files (" + String.join(",", allowedExtensions) + ")", allowedExtensions));
 		}
@@ -830,7 +830,7 @@ public class GuiUtils {
 	public File getSaveFile(final String title, final File file, final String... allowedExtensions) {
 		File chosenFile = null;
 		final JFileChooser chooser = fileChooser(title, file, JFileChooser.SAVE_DIALOG, JFileChooser.FILES_ONLY);
-		if (allowedExtensions != null) {
+		if (allowedExtensions != null && allowedExtensions.length > 0) {
 			chooser.addChoosableFileFilter(new FileNameExtensionFilter(
 					"Files of type " + String.join(",", allowedExtensions).toUpperCase(), allowedExtensions));
 		}
@@ -1321,6 +1321,21 @@ public class GuiUtils {
 			}
 
 		};
+	}
+
+	public static void equalize(final AbstractButton b1, final AbstractButton b2) {
+		if (b1.getWidth() > b2.getWidth() || b1.getHeight() > b2.getHeight()) {
+			b2.setSize(b1.getSize());
+			b2.setMinimumSize(b1.getMinimumSize());
+			b2.setPreferredSize(b1.getPreferredSize());
+			b2.setMaximumSize(b1.getMaximumSize());
+		}
+		else if (b1.getWidth() < b2.getWidth() || b1.getHeight() < b2.getHeight()) {
+			b1.setSize(b2.getSize());
+			b1.setMinimumSize(b2.getMinimumSize());
+			b1.setPreferredSize(b2.getPreferredSize());
+			b1.setMaximumSize(b2.getMaximumSize());
+		}
 	}
 
 	public static int renderedWidth(final String text) {
@@ -2604,6 +2619,14 @@ public class GuiUtils {
 			final JMenuItem jmi = new JMenuItem("Strahler Analysis...", IconFactory.getMenuIcon(GLYPH.BRANCH_CODE));
 			jmi.setToolTipText("Horton–Strahler measures of branching complexity");
 			return jmi;
+		}
+
+		public static JMenuItem fromOpenImage() {
+			return new JMenuItem("From Open Image...", IconFactory.getMenuIcon(GLYPH.IMAGE));
+		}
+
+		public static JMenuItem fromFileImage() {
+			return new JMenuItem("From File...", IconFactory.getMenuIcon(GLYPH.FILE_IMAGE));
 		}
 
 	}

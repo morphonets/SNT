@@ -45,8 +45,8 @@ import sc.fiji.analyzeSkeleton.AnalyzeSkeleton_;
 import sc.fiji.skeletonize3D.Skeletonize3D_;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTService;
-import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.util.ImpUtils;
 
 /**
  * Convenience command for converting Paths into skeleton images
@@ -122,7 +122,7 @@ public class SkeletonizerCmd implements Command {
 					imp.getProcessor().setColorModel(model);
 				imagePlus.setDisplayRange(0, tree.size());
 			} else {
-				SNTUtils.convertTo8bit(imagePlus);
+				ImpUtils.convertTo8bit(imagePlus);
 			}
 			if (restrictByRoi && roi.isArea()) {
 				final ImageStack stack = imagePlus.getStack();

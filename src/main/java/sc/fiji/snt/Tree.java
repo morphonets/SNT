@@ -42,6 +42,7 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -1014,7 +1015,7 @@ public class Tree implements TreeProperties {
 	 */
 	public ImagePlus getSkeleton() {
 		final ImagePlus imp =  getSkeleton(65535);
-		SNTUtils.convertTo8bit(imp);
+		ImpUtils.convertTo8bit(imp);
 		return imp;
 	}
 
@@ -1133,7 +1134,7 @@ public class Tree implements TreeProperties {
 
 		// Skeletonize
 		skeletonize(imp, 65535);
-		SNTUtils.convertTo8bit(imp);
+		ImpUtils.convertTo8bit(imp);
 		if (getBoundingBox().isScaled())
 			imp.setCalibration(getBoundingBox().getCalibration());
 
@@ -1163,7 +1164,7 @@ public class Tree implements TreeProperties {
 	 */
 	public ImagePlus getSkeleton2D() {
 		final ImagePlus imp = getSkeleton();
-		return (imp.getNDimensions() > 2) ? SNTUtils.getMIP(imp) : imp;
+		return (imp.getNDimensions() > 2) ? ImpUtils.getMIP(imp) : imp;
 	}
 
 	/**

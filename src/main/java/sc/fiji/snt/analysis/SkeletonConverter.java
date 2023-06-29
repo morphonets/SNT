@@ -144,7 +144,7 @@ public class SkeletonConverter {
 				}
 			}
 		} else {
-			SNTUtils.convertTo8bit(imp); // does nothing if imp already 8-bit
+			ImpUtils.convertTo8bit(imp); // does nothing if imp already 8-bit
 		}
 		SNTUtils.log("Skeletonizing...");
 		final Skeletonize3D_ thin = new Skeletonize3D_();

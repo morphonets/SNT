@@ -74,14 +74,8 @@ import org.scijava.util.VersionUtils;
 
 import fiji.util.Levenshtein;
 import ij.IJ;
-import ij.ImagePlus;
-import ij.measure.Calibration;
 import ij.plugin.Colors;
-import ij.plugin.ContrastEnhancer;
-import ij.plugin.ZProjector;
-import ij.process.ImageConverter;
 import ij.process.LUT;
-import ij.process.StackConverter;
 import io.scif.services.DatasetIOService;
 import net.imagej.display.ImageDisplayService;
 import net.imagej.lut.LUTService;
@@ -202,32 +196,6 @@ public class SNTUtils {
 		if (!SNTUtils.isDebugMode()) return;
 		if (!initialized) initialize();
 		logService.warn("[SNT] " + string);
-	}
-
-	protected static void convertTo32bit(final ImagePlus imp) throws IllegalArgumentException {
-		if (imp.getBitDepth() == 32)
-			return;
-		if (imp.getNSlices() == 1)
-			new ImageConverter(imp).convertToGray32();
-		else
-			new StackConverter(imp).convertToGray32();
-	}
-
-	public static void convertTo8bit(final ImagePlus imp) {
-		if (imp.getType() != ImagePlus.GRAY8) {
-			final boolean doScaling = ImageConverter.getDoScaling();
-			ImageConverter.setDoScaling(true);
-			new ImageConverter(imp).convertToGray8();
-			ImageConverter.setDoScaling(doScaling);
-		}
-	}
-
-	public static ImagePlus getMIP(final ImagePlus imp) {
-		final ImagePlus mip = ZProjector.run(imp, "max");
-		mip.setLut(imp.getLuts()[0]);
-		mip.copyScale(imp);
-		new ContrastEnhancer().stretchHistogram(mip, 0.35);
-		return mip;
 	}
 
 	public static void csvQuoteAndPrint(final PrintWriter pw, final Object o) {
@@ -442,34 +410,6 @@ public class SNTUtils {
 		catch (final SecurityException | NullPointerException ignored) {
 			return null;
 		}
-	}
-
-	public static boolean similarCalibrations(final Calibration a,
-		final Calibration b)
-	{
-		double ax = 1, ay = 1, az = 1;
-		double bx = 1, by = 1, bz = 1;
-		String aunit = "", bunit = "";
-		if (a != null) {
-			ax = a.pixelWidth;
-			ay = a.pixelHeight;
-			az = a.pixelDepth;
-			aunit = a.getUnit();
-		}
-		if (b != null) {
-			bx = b.pixelWidth;
-			by = b.pixelHeight;
-			bz = b.pixelDepth;
-			bunit = a.getUnit();
-		}
-		if (!aunit.equals(bunit)) return false;
-		final double epsilon = 0.000001;
-		final double pixelWidthDifference = Math.abs(ax - bx);
-		if (pixelWidthDifference > epsilon) return false;
-		final double pixelHeightDifference = Math.abs(ay - by);
-		if (pixelHeightDifference > epsilon) return false;
-		final double pixelDepthDifference = Math.abs(az - bz);
-		return pixelDepthDifference <= epsilon;
 	}
 
 	public static String getSanitizedUnit(final String unit) {

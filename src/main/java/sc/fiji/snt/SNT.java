@@ -2209,7 +2209,6 @@ public class SNT extends MultiDThreePanes implements
 			} catch (final Exception ex) {
 				if (getUI() != null) {
 					getUI().error(ex.getMessage());
-					getUI().enableSecondaryLayerBuiltin(false);
 					getUI().reset();
 				}
 				SNTUtils.error(ex.getMessage(), ex);
@@ -2470,29 +2469,25 @@ public class SNT extends MultiDThreePanes implements
 		Cost costFunction;
 		switch (costType) {
 			case RECIPROCAL:
-				if (imgStats.max == 0) {
-					invalidStatsError(useSecondary);
+				if (invalidStatsError(useSecondary)) {
 					return;
 				}
 				costFunction = new Reciprocal(imgStats.min, imgStats.max);
 				break;
 			case PROBABILITY:
-				if (imgStats.max == 0 || imgStats.mean == 0 || imgStats.stdDev == 0) {
-					invalidStatsError(useSecondary);
+				if (invalidStatsError(useSecondary) && imgStats.stdDev == 0) {
 					return;
 				}
 				costFunction = new OneMinusErf(imgStats.max, imgStats.mean, imgStats.stdDev);
 				break;
 			case DIFFERENCE:
-				if (imgStats.max == 0) {
-					invalidStatsError(useSecondary);
+				if (invalidStatsError(useSecondary)) {
 					return;
 				}
 				costFunction = new Difference(imgStats.min, imgStats.max);
 				break;
 			case DIFFERENCE_SQUARED:
-				if (imgStats.max == 0) {
-					invalidStatsError(useSecondary);
+				if (invalidStatsError(useSecondary)) {
 					return;
 				}
 				costFunction = new DifferenceSq(imgStats.min, imgStats.max);
@@ -2508,17 +2503,29 @@ public class SNT extends MultiDThreePanes implements
 				costFunction);
 		addThreadToDraw(filler);
 		filler.addProgressListener(this);
-		filler.addProgressListener(ui.getFillManager());
+		if (getUI() != null) filler.addProgressListener(ui.getFillManager());
 		filler.setSourcePaths(fromPaths);
 		fillerSet.add(filler);
-		if (ui != null) ui.setFillListVisible(true);
+		if (getUI() != null) ui.setFillListVisible(true);
 		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
-	protected void invalidStatsError(final boolean isSecondary) {
-		guiUtils.error("Statistics for the " + (isSecondary ? "Secondary Layer" : "main image")
-				+ " have not been computed yet. Please trace a small path over a relevant feature to compute them."
-				+ " This will allow SNT to better understand the dynamic range of the image.");
+	protected <T extends RealType<T>> boolean invalidStatsError(final boolean isSecondary) {
+		final boolean invalidStats = (isSecondary) ? getStatsSecondary().max == 0 : getStats().max == 0;
+		final boolean compute = invalidStats && getUI() != null && getUI().guiUtils.getConfirmation(
+				"Statistics for the " + (isSecondary ? "Secondary Layer" : "main image") //
+						+ " have not been computed yet, but are required to better understand the image being traced. "
+						+ "You can either compute them now for the whole image, or you can dismiss this prompt and "
+						+ "trace a (small) path over a relevant feature, which will compute statistics locally.", //
+				"Unknown Image Statistics", "Compute Now", "Dismiss");
+		if (compute) {
+			final RandomAccessibleInterval<T> data = (isSecondary) ? getSecondaryData() : getLoadedData();
+			computeImgStats(Views.iterable(data), (isSecondary) ? getStatsSecondary() : getStats(), CostType.RECIPROCAL);
+		} else if (getUI() == null) {
+			error("Statistics for the " + (isSecondary ? "Secondary Layer" : "main image")
+					+ " have not been computed yet. Please trace small path over a relevant feature to compute them.");
+		}
+		return (isSecondary) ? getStatsSecondary().max == 0 : getStats().max == 0;
 	}
 
 	protected void setFillTransparent(final boolean transparent) {
@@ -2588,7 +2595,7 @@ public class SNT extends MultiDThreePanes implements
 		return getSecondaryData() != null;
 	}
 
-	public boolean isSecondaryImageFileLoaded() {
+	protected boolean isSecondaryImageFileLoaded() {
 		return secondaryImageFile != null;
 	}
 
@@ -2607,7 +2614,7 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public void setSecondaryImage(final File file) {
 		secondaryImageFile = file;
-		if (ui != null) ui.updateExternalImgWidgets();
+		if (ui != null) ui.updateSecLayerWidgets();
 	}
 
 	/**
@@ -2656,7 +2663,7 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
-		imp.setPosition( channel, xy.getSlice(), frame );
+		imp.setPosition( channel, xy.getSlice(), frame ); // important! sets the channel/frame to be imported. Does nothing if image is not an hyperstack
 		secondaryData = ImgUtils.getCtSlice(imp);
 		SNTUtils.log("Secondary data dimensions: " +
 				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
@@ -2674,9 +2681,6 @@ public class SNT extends MultiDThreePanes implements
 		enableSecondaryLayerTracing(true);
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
-			if (getUI() != null) {
-				getUI().enableSecondaryLayerExternal(true);
-			}
 		}
 	}
 
@@ -2709,9 +2713,6 @@ public class SNT extends MultiDThreePanes implements
 		enableSecondaryLayerTracing(true);
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
-			if (getUI() != null) {
-				getUI().enableSecondaryLayerBuiltin(true);
-			}
 		}
 	}
 
@@ -2762,12 +2763,6 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
-	private boolean compatibleImp(final ImagePlus imp) {
-		return imp.getNChannels() == xy.getNChannels() && imp.getNFrames() == xy.getNFrames() &&
-				imp.getWidth() == xy.getWidth() && imp.getHeight() == xy.getHeight() &&
-				imp.getNSlices() == xy.getNSlices();
-	}
-
 	private ImagePlus openCachedDataImage(final File file) throws IOException {
 		if (xy == null) throw new IllegalArgumentException(
 			"Data can only be loaded after main tracing image is known");
@@ -2781,9 +2776,11 @@ public class SNT extends MultiDThreePanes implements
 				throw new IllegalArgumentException("Image could not be loaded by IJ.");
 			imp = convertService.convert(ds, ImagePlus.class);
 		}
-		if (!compatibleImp(imp)) {
+		if (!ImpUtils.sameXYZDimensions(imp, xy)) {
+			// We are imposing only XYZ dimensions to e.g., allow for loading of single-channel
+			// p-maps. Hopefully, being lax about CT dimensions won't cause issues downstream
 			throw new IllegalArgumentException("Dimensions do not match those of  " + xy.getTitle()
-			+ ". If this unexpected, check under 'Image>Properties...' that CZT axes are not swapped.");
+			+ ". If this is unexpected, check under 'Image>Properties...' that CZT axes are not swapped.");
 		}
 		return imp;
 	}
@@ -3297,7 +3294,7 @@ public class SNT extends MultiDThreePanes implements
 				xy8 = getSecondaryDataAsImp();
 		} else 
 			xy8 = getLoadedDataAsImp();
-		SNTUtils.convertTo8bit(xy8);
+		ImpUtils.convertTo8bit(xy8);
 		final ImagePlus[] views = (single_pane) ? new ImagePlus[] { null, null } : MultiDThreePanes.getZYXZ(xy8, 1);
 		return new ImagePlus[] { xy8, views[0], views[1] };
 	}
@@ -3321,7 +3318,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void showMIPOverlays(final boolean filteredData, final double opacity) {
-		if (is2D() || !accessToValidImageData()) return;
+		if ((is2D() && !filteredData) || !accessToValidImageData()) return;
 		final String identifer = (filteredData) ? MIP_OVERLAY_IDENTIFIER_PREFIX + "2"
 				: MIP_OVERLAY_IDENTIFIER_PREFIX + "1";
 		if (opacity == 0d) {
@@ -3331,24 +3328,22 @@ public class SNT extends MultiDThreePanes implements
 		}
 		final ImagePlus[] paneImps = new ImagePlus[] { xy, zy, xz };
 		final ImagePlus[] paneMips = getXYZYXZDataGray8(filteredData);
-		if (paneMips != null) showMIPOverlays(paneImps, paneMips, identifer,opacity);
+		if (paneMips != null) showMIPOverlays(filteredData, paneImps, paneMips, identifer,opacity);
 	}
 
-	private void showMIPOverlays(ImagePlus[] paneImps, ImagePlus[] paneMips, final String overlayIdentifier,
-			final double opacity) {
-
+	private void showMIPOverlays(final boolean filteredData, ImagePlus[] paneImps, ImagePlus[] paneMips,
+			final String overlayIdentifier, final double opacity) {
 		// Create a MIP Z-projection of the active channel
 		for (int i = 0; i < paneImps.length; i++) {
 			final ImagePlus paneImp = paneImps[i];
 			final ImagePlus mipImp = paneMips[i];
-			if (paneImp == null || mipImp == null || paneImp.getNSlices() == 1)
+			if (paneImp == null || mipImp == null || (paneImp.getNSlices() == 1 && !filteredData))
 				continue;
-
 			Overlay existingOverlay = paneImp.getOverlay();
 			if (existingOverlay == null) existingOverlay = new Overlay();
-			final ImagePlus overlay = SNTUtils.getMIP(mipImp);
+			final ImagePlus overlay = ImpUtils.getMIP(mipImp);
 
-			// (This logic is taken from OverlayCommands.)
+			// (This logic is taken from OverlayCommands)
 			final ImageRoi roi = new ImageRoi(0, 0, overlay.getProcessor());
 			roi.setName(overlayIdentifier);
 			roi.setOpacity(opacity);

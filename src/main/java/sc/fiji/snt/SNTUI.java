@@ -121,7 +121,6 @@ public class SNTUI extends JDialog {
 	private JCheckBox debugCheckBox;
 
 	// UI controls for auto-tracing
-	//TODO: reduce the need for all these fields
 	private JComboBox<String> searchAlgoChoice;
 	private JPanel aStarPanel;
 	private JCheckBox aStarCheckBox;
@@ -133,15 +132,8 @@ public class SNTUI extends JDialog {
 	private JPanel sourcePanel;
 
 	// UI controls for loading  on 'secondary layer'
-	private JPanel secLayerPanel;
 	private JCheckBox secLayerActivateCheckbox;
-	private JRadioButton secLayerBuiltinRadioButton;
-	private JRadioButton secLayerExternalRadioButton;
-	private JButton secLayerGenerate;
-
-	private JButton secLayerExternalImgOptionsButton;
-	private CheckboxSpinner secLayerExternalImgOverlayCSpinner;
-	private JMenuItem secLayerExternalImgLoadFlushMenuItem;
+	private CheckboxSpinner secLayerImgOverlayCSpinner;
 
 	private ActiveWorker activeWorker;
 	private volatile int currentState = -1;
@@ -254,9 +246,14 @@ public class SNTUI extends JDialog {
 			final GridBagConstraints c1 = GuiUtils.defaultGbc();
 			{
 				final JPanel tab1 = InternalUtils.getTab();
-				// c.insets.left = MARGIN * 2;
+				c1.insets.top = MARGIN * 2;
 				c1.anchor = GridBagConstraints.NORTHEAST;
-				InternalUtils.addSeparatorWithURL(tab1, "Cursor Auto-snapping:", false, c1);
+				InternalUtils.addSeparatorWithURL(tab1, "Data Source:", false, c1);
+				c1.insets.top = 0;
+				++c1.gridy;
+				tab1.add(sourcePanel = sourcePanel(plugin.getImagePlus()), c1);
+				++c1.gridy;
+				InternalUtils.addSeparatorWithURL(tab1, "Cursor Auto-snapping:", true, c1);
 				++c1.gridy;
 				tab1.add(snappingPanel(), c1);
 				++c1.gridy;
@@ -264,8 +261,6 @@ public class SNTUI extends JDialog {
 				++c1.gridy;
 				tab1.add(aStarPanel(), c1);
 				++c1.gridy;
-				//tab1.add(hessianPanel(), c1);
-				//++c1.gridy;
 				tab1.add(secondaryDataPanel(), c1);
 				++c1.gridy;
 				tab1.add(settingsPanel(), c1);
@@ -282,6 +277,7 @@ public class SNTUI extends JDialog {
 				++c1.gridy;
 				c1.fill = GridBagConstraints.HORIZONTAL;
 				c1.insets = new Insets(0, 0, 0, 0);
+				c1.insets.bottom = MARGIN * 2;
 				tab1.add(hideWindowsPanel(), c1);
 				tabbedPane.addTab("<HTML>Main ", tab1);
 			}
@@ -294,13 +290,6 @@ public class SNTUI extends JDialog {
 			// c2.insets.left = MARGIN * 2;
 			c2.anchor = GridBagConstraints.NORTHEAST;
 			c2.gridwidth = GridBagConstraints.REMAINDER;
-			{
-				InternalUtils.addSeparatorWithURL(tab2, "Data Source:", false, c2);
-				++c2.gridy;
-				tab2.add(sourcePanel = sourcePanel(plugin.getImagePlus()), c2);
-				++c2.gridy;
-			}
-
 			InternalUtils.addSeparatorWithURL(tab2, "Views:", true, c2);
 			++c2.gridy;
 			tab2.add(viewsPanel(), c2);
@@ -613,24 +602,14 @@ public class SNTUI extends JDialog {
 	 * Runs the 'secondary layer' wizard prompt for built-in filters
 	 */
 	public void runSecondaryLayerWizard() {
-		SwingUtilities.invokeLater(() -> {
-			if (plugin.isSecondaryDataAvailable()
-					&& !guiUtils.getConfirmation("An image is already loaded. Unload it?", "Discard Existing Image?")) {
-				return;
-			}
+		if (!okToReplaceSecLayer())
+			return;
+		if (!plugin.accessToValidImageData()) {
+			noValidImageDataError();
+		} else if (!plugin.invalidStatsError(false)) {
 			plugin.flushSecondaryData();
-			if (plugin.getStats().max == 0) {
-				// FIXME: Frangi relies on stackMax, if this isn't computed yet
-				// the filter prompt won't work
-				plugin.invalidStatsError(false);
-				return;
-			}
-			if (plugin.accessToValidImageData()) {
-				(new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
-			} else {
-				noValidImageDataError();
-			}
-		});
+			(new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
+		}
 	}
 
 	/**
@@ -646,7 +625,8 @@ public class SNTUI extends JDialog {
 		if (!plugin.accessToValidImageData()) {
 			throw new IllegalArgumentException("No valid image data loaded");
 		}
-		if (!(filter.equals("Frangi Vesselness") || filter.equals("Tubeness") || filter.equals("Gaussian Blur"))) {
+		if (!(filter.startsWith("Frangi Vesselness") || filter.startsWith("Tubeness") || filter.startsWith("Gaussian Blur")
+				|| filter.startsWith("Median"))) {
 			throw new IllegalArgumentException("Invalid filter option");
 		}
 		plugin.flushSecondaryData();
@@ -684,7 +664,6 @@ public class SNTUI extends JDialog {
 
 	protected void gaussianCalculated(final boolean succeeded) {
 		SwingUtilities.invokeLater(() -> {
-			secLayerBuiltinRadioButton.setSelected(succeeded);
 			changeState(READY);
 			showStatus("Gaussian " + ((succeeded) ? " completed" : "failed"), true);
 		});
@@ -782,13 +761,9 @@ public class SNTUI extends JDialog {
 	}
 
 	private void setEnableAutoTracingComponents(final boolean enable, final boolean enableAstar) {
-		if (secLayerPanel != null) {
-			GuiUtils.enableComponents(secLayerPanel, enable);
-			GuiUtils.enableComponents(aStarPanel, enableAstar);
-			secLayerActivateCheckbox.setEnabled(enable);
-		}
+		GuiUtils.enableComponents(aStarPanel, enableAstar);
 		updateSettingsString();
-		updateExternalImgWidgets();
+		updateSecLayerWidgets();
 	}
 
 	protected void disableImageDependentComponents() {
@@ -2043,126 +2018,98 @@ public class SNTUI extends JDialog {
 		GuiUtils.addTooltip(secLayerActivateCheckbox,
 				"Whether auto-tracing should be computed on a filtered flavor of current image");
 		secLayerActivateCheckbox.addActionListener(listener);
-
-		// Major options: built-in filters vs external image
-		secLayerBuiltinRadioButton = new JRadioButton("Built-in Filter  ", true); // default
-		secLayerExternalRadioButton = new JRadioButton("External Image");
-		secLayerBuiltinRadioButton.addActionListener(listener);
-		secLayerExternalRadioButton.addActionListener(listener);
-		final ButtonGroup group = new ButtonGroup();
-		group.add(secLayerBuiltinRadioButton);
-		group.add(secLayerExternalRadioButton);
-
-
-		// Built-in filters:
-		secLayerGenerate =  GuiUtils.smallButton("Choose...");
-		secLayerGenerate.addActionListener(event -> runSecondaryLayerWizard());
-		final JPanel builtinFilterPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
-		builtinFilterPanel.add(secLayerBuiltinRadioButton);
-		builtinFilterPanel.add(secLayerGenerate);
-
-
-		// Options for builtinFilterPanel
-		final JPopupMenu builtinFilterOptionsMenu = new JPopupMenu();
-		builtinFilterOptionsMenu.add(GuiUtils.leftAlignedLabel("Utilities:", false));
-		final JMenuItem thicknessCmdItem = new JMenuItem("Estimate Radii (Local Thickness)...");
-		thicknessCmdItem.setToolTipText("Computes the distribution of the radii of all the structures across the image");
-		//thicknessCmdItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DOTCIRCLE));
-		builtinFilterOptionsMenu.add(thicknessCmdItem);
-		thicknessCmdItem.addActionListener(e -> {
-			(new DynamicCmdRunner(LocalThicknessCmd.class, null, RUNNING_CMD)).run();
-		});
-
-		final JButton builtinFilterOptionsButton = optionsButton(builtinFilterOptionsMenu);
-		GuiUtils.addTooltip(builtinFilterOptionsButton, "Image processing utilities");
-
-		// Options for builtinFilterPanel
-		final JPopupMenu externalImgOptionsMenu = new JPopupMenu();
-		secLayerExternalImgOptionsButton = optionsButton(externalImgOptionsMenu);
-		GuiUtils.addTooltip(secLayerExternalImgOptionsButton, "Controls for handling external images");
-
-		// Assemble options menu
-		secLayerExternalImgLoadFlushMenuItem = new JMenuItem("Choose File...");
-		secLayerExternalImgLoadFlushMenuItem.addActionListener(e -> {
-			// toggle menuitem: label is updated before menu is shown as per #optionsButton
-			if (plugin.isSecondaryDataAvailable()) {
-				if (!guiUtils.getConfirmation("Disable access to secondary image?", "Unload Image?"))
-					return;
+		// Options for externalImagePanel
+		final JPopupMenu secLayerMenu = new JPopupMenu();
+		final JButton secLayerActionButton = optionsButton(secLayerMenu);
+		GuiUtils.addTooltip(secLayerActionButton, "Actions for handling secondary layer imagery");
+		final JMenuItem mi1 = new JMenuItem("Secondary Layer Creation Wizard...",
+				IconFactory.getMenuIcon(IconFactory.GLYPH.WIZARD));
+		mi1.setToolTipText("Create a secondary layer using built-in image processing routines");
+		mi1.addActionListener(e -> runSecondaryLayerWizard());
+		final JMenuItem mi2 = GuiUtils.MenuItems.fromOpenImage();
+		mi2.addActionListener(e -> loadSecondaryImage(true));
+		final JMenuItem mi3 = GuiUtils.MenuItems.fromFileImage();
+		mi3.addActionListener(e -> loadSecondaryImage(false));
+		final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.getMenuIcon(IconFactory.GLYPH.BROOM));
+		mi4.addActionListener(e -> {
+			if (!noSecondaryDataAvailableError()
+					&& guiUtils.getConfirmation("Flush secondary layer? (RAM will be released but "
+							+ "tracing on secondary layer will be disabled)", "Discard Existing Layer?")) {
 				plugin.flushSecondaryData();
-			} else {
-				final File proposedFile = (plugin.getFilteredImageFile() == null) ? plugin.getPrefs().getRecentDir() : plugin.getFilteredImageFile();
-				final File file = guiUtils.getOpenFile("Choose Secondary Image", proposedFile);
-				if (file == null)
-					return;
-				loadSecondaryImageFile(file);
 			}
 		});
-		final JMenuItem revealMenuItem = new JMenuItem("Show Folder of Loaded File");
-		revealMenuItem.addActionListener(e -> {
-			if (!plugin.isSecondaryDataAvailable() || !plugin.isSecondaryImageFileLoaded()) {
-				noSecondaryImgFileAvailableError();
-				return;
-			}
-			guiUtils.showDirectory(plugin.getFilteredImageFile());
-		});
-		externalImgOptionsMenu.add(secLayerExternalImgLoadFlushMenuItem);
-		externalImgOptionsMenu.addSeparator();
-		externalImgOptionsMenu.add(revealMenuItem);
+		final JMenuItem mi5 = new JMenuItem("From Weka Model...", IconFactory.getMenuIcon(IconFactory.GLYPH.COGS));
+		mi5.addActionListener(e -> guiUtils.error("This option is not yet implemented. In the interim, please "
+				+ "run <i>Scripts> Tracing> Apply Weka Model To Tracing Image</i> and load resulting image."));
+		GuiUtils.addSeparator(secLayerMenu, "Create:");
+		secLayerMenu.add(mi1);
+		GuiUtils.addSeparator(secLayerMenu, "Load Precomputed:");
+		secLayerMenu.add(mi3);
+		secLayerMenu.add(mi2);
+		GuiUtils.addSeparator(secLayerMenu, "Load from Model:");
+		secLayerMenu.add(mi5);
+		GuiUtils.addSeparator(secLayerMenu, "Dispose/Disable:");
+		secLayerMenu.add(mi4);
+		secLayerMenu.addSeparator();
+		final JMenuItem mi6 = GuiUtils.menuItemTriggeringURL("Help on Secondary Layers",
+				"https://imagej.net/plugins/snt/manual#tracing-on-secondary-image");
+		mi6.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
+		secLayerMenu.add(mi6);
 
-		secLayerPanel = new JPanel();
+		// Assemble panel
+		JPanel secLayerPanel = new JPanel();
 		secLayerPanel.setLayout(new GridBagLayout());
 		final GridBagConstraints c = GuiUtils.defaultGbc();
+		c.insets.top = MARGIN * 2; // separator
 		c.ipadx = 0;
 
-		// header row
-		//addSeparatorWithURL(secondaryImgPanel, "Tracing on Secondary Image:", true, c);
-		//c.gridy++;
-
-		// row 0
-		c.insets.top = MARGIN * 2; // separator
-		secLayerPanel.add(secLayerActivateCheckbox, c);
-		c.insets.top = 0;
-		c.gridy++;
-		c.insets.left = (int) new JCheckBox("").getPreferredSize().getWidth();
-
 		// row 1
-		final JPanel filePanel = new JPanel(new BorderLayout(0,0));
-		filePanel.add(builtinFilterPanel, BorderLayout.CENTER);
-		filePanel.add(builtinFilterOptionsButton, BorderLayout.EAST);
-		secLayerPanel.add(filePanel, c);
+		c.insets.left = (int) new JCheckBox("").getPreferredSize().getWidth();
+		final JPanel row1 = new JPanel(new BorderLayout(0,0));
+		row1.add(secLayerActivateCheckbox, BorderLayout.CENTER);
+		row1.add(secLayerActionButton, BorderLayout.EAST);
+		secLayerPanel.add(row1, c);
 		c.gridy++;
 
 		// row 2
-		final JPanel row2Panel = new JPanel(new BorderLayout(0,0));
-		row2Panel.add(secLayerExternalRadioButton, BorderLayout.CENTER);
-		row2Panel.add(secLayerExternalImgOptionsButton, BorderLayout.EAST);
-		secLayerPanel.add(row2Panel, c);
-		c.gridy++;
-
-		// row 3
-		secLayerExternalImgOverlayCSpinner = new CheckboxSpinner(new JCheckBox("Render in overlay at "),
+		c.insets.left *= 2;
+		secLayerImgOverlayCSpinner = new CheckboxSpinner(new JCheckBox("Render in overlay at "),
 				GuiUtils.integerSpinner(20, 10, 80, 1, true));
-		secLayerExternalImgOverlayCSpinner.getSpinner().addChangeListener(e -> {
-			secLayerExternalImgOverlayCSpinner.setSelected(false);
+		secLayerImgOverlayCSpinner.getSpinner().addChangeListener(e -> {
+			secLayerImgOverlayCSpinner.setSelected(false);
 		});
-		secLayerExternalImgOverlayCSpinner.getCheckBox().addActionListener(e -> {
-			if (!plugin.isSecondaryImageFileLoaded()) {
-				noSecondaryImgFileAvailableError();
-				return;
+		secLayerImgOverlayCSpinner.getCheckBox().addActionListener(e -> {
+			if (!noSecondaryDataAvailableError()) {
+				plugin.showMIPOverlays(true,
+						(secLayerImgOverlayCSpinner.isSelected())
+								? (int) secLayerImgOverlayCSpinner.getValue() * 0.01
+								: 0);
 			}
-			plugin.showMIPOverlays(true,
-					(secLayerExternalImgOverlayCSpinner.isSelected())
-							? (int) secLayerExternalImgOverlayCSpinner.getValue() * 0.01 : 0);
 		});
-		secLayerExternalImgOverlayCSpinner.appendLabel("% opacity");
-		final JPanel overlayPanelHolder = new JPanel(new BorderLayout());
-		overlayPanelHolder.add(secLayerExternalImgOverlayCSpinner, BorderLayout.CENTER);
-		//equalizeButtons(filteredImgOptionsButton, filteredImgBrowseButton);
-	//	overlayPanelHolder.add(secondaryImgOptionsButton, BorderLayout.EAST);
-		c.insets.left = 2 * c.insets.left;
-		secLayerPanel.add(overlayPanelHolder, c);
+		secLayerImgOverlayCSpinner.appendLabel("% opacity");
+		secLayerPanel.add(secLayerImgOverlayCSpinner, c);
 		c.gridy++;
 		return secLayerPanel;
+	}
+
+	private void loadSecondaryImage(final boolean fromAlreadyOpenImageOtherwiseFile) {
+		if (!plugin.accessToValidImageData()) {
+			noValidImageDataError();
+			return;
+		}
+		if (!okToReplaceSecLayer()) 
+			return;
+		if (fromAlreadyOpenImageOtherwiseFile) {
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("secondaryLayer", true);
+			(new DynamicCmdRunner(ChooseDatasetCmd.class, inputs, LOADING)).run();
+		} else {
+			final File proposedFile = (plugin.getFilteredImageFile() == null) ? plugin.getPrefs().getRecentDir()
+					: plugin.getFilteredImageFile();
+			final File file = guiUtils.getOpenFile("Choose Secondary Image", proposedFile);
+			if (file != null)
+				loadSecondaryImageFile(file);
+		}
 	}
 
 	private void loadSecondaryImageFile(final File imgFile) {
@@ -2177,41 +2124,10 @@ public class SNTUI extends JDialog {
 
 	private JButton optionsButton(final JPopupMenu optionsMenu) {
 		final JButton optionsButton =  IconFactory.getButton(IconFactory.GLYPH.OPTIONS);
-		//final JButton templateButton =  IconFactory.getButton(GLYPH.OPEN_FOLDER);
-		//equalizeButtons(optionsButton, templateButton);
-		optionsButton.addMouseListener(new MouseAdapter() {
-
-			@Override
-			public void mousePressed(final MouseEvent e) {
-				// Update menuitem labels in case we ended-up in some weird UI state
-				if (plugin.isSecondaryDataAvailable()) {
-					secLayerExternalImgLoadFlushMenuItem.setText("Flush Loaded Image...");
-					secLayerExternalImgLoadFlushMenuItem.setIcon(IconFactory.getMenuIcon(GLYPH.TRASH));
-				} else {
-					secLayerExternalImgLoadFlushMenuItem.setText("Choose File...");
-					secLayerExternalImgLoadFlushMenuItem.setIcon(IconFactory.getMenuIcon(GLYPH.OPEN_FOLDER));
-				}
-				if (optionsButton.isEnabled())
-					optionsMenu.show(optionsButton, optionsButton.getWidth() / 2, optionsButton.getHeight() / 2);
-			}
+		optionsButton.addActionListener(e -> {
+			optionsMenu.show(optionsButton, optionsButton.getWidth() / 2, optionsButton.getHeight() / 2);
 		});
 		return optionsButton;
-	}
-
-	@SuppressWarnings("unused")
-	private void equalizeButtons(final JButton b1, final JButton b2) {
-		if (b1.getWidth() > b2.getWidth() || b1.getHeight() > b2.getHeight()) {
-			b2.setSize(b1.getSize());
-			b2.setMinimumSize(b1.getMinimumSize());
-			b2.setPreferredSize(b1.getPreferredSize());
-			b2.setMaximumSize(b1.getMaximumSize());
-		}
-		else if (b1.getWidth() < b2.getWidth() || b1.getHeight() < b2.getHeight()) {
-			b1.setSize(b2.getSize());
-			b1.setMinimumSize(b2.getMinimumSize());
-			b1.setPreferredSize(b2.getPreferredSize());
-			b1.setMaximumSize(b2.getMaximumSize());
-		}
 	}
 
 	void disableSecondaryLayerComponents() {
@@ -2221,11 +2137,11 @@ public class SNTUI extends JDialog {
 		if (plugin.tubularGeodesicsTracingEnabled) {
 			setFastMarchSearchEnabled(false);
 		}
-		if (secLayerExternalImgOverlayCSpinner.getCheckBox().isSelected()) {
-			secLayerExternalImgOverlayCSpinner.getCheckBox().setSelected(false);
+		if (secLayerImgOverlayCSpinner.getCheckBox().isSelected()) {
+			secLayerImgOverlayCSpinner.getCheckBox().setSelected(false);
 			plugin.showMIPOverlays(true, 0);
 		}
-		updateExternalImgWidgets();
+		updateSecLayerWidgets();
 	}
 
 	protected File openReconstructionFile(final String extension) {
@@ -2282,7 +2198,7 @@ public class SNTUI extends JDialog {
 
 				try {
 					plugin.loadSecondaryImage(file);
-				} catch (final IllegalArgumentException e1) {
+				} catch (final IllegalArgumentException | NullPointerException e1) {
 					return ("Could not load " + file.getAbsolutePath() + ":<br>"
 							+ e1.getMessage());
 				} catch (final IOException e2) {
@@ -2291,6 +2207,9 @@ public class SNTUI extends JDialog {
 				} catch (final OutOfMemoryError e3) {
 					e3.printStackTrace();
 					return ("It seems there is not enough memory to proceed. See Console for details.");
+				} catch (final Exception e4) {
+					e4.printStackTrace();
+					return ("Un unknown error occurred. See Console for details.");
 				}
 				return null;
 			}
@@ -2316,7 +2235,7 @@ public class SNTUI extends JDialog {
 				} catch (InterruptedException | ExecutionException e) {
 					SNTUtils.error("ActiveWorker failure", e);
 				}
-				updateExternalImgWidgets();
+				updateSecLayerWidgets();
 				resetState();
 				showStatus(null, false);
 			}
@@ -2324,15 +2243,10 @@ public class SNTUI extends JDialog {
 		activeWorker.run();
 	}
 
-	protected void updateExternalImgWidgets() {
+	protected void updateSecLayerWidgets() {
 		SwingUtilities.invokeLater(() -> {
-			if (!plugin.isAstarEnabled() || plugin.tracingHalted || getState() == SNTUI.SNT_PAUSED) {
-				//GuiUtils.enableComponents(secondaryImgPanel, false);
-				return;
-			}
-			//GuiUtils.enableComponents(secondaryImgOverlayCheckbox.getParent(), successfullyLoaded);
-			secLayerExternalImgOverlayCSpinner.setEnabled(plugin.isTracingOnSecondaryImageAvailable());
-			secLayerExternalImgLoadFlushMenuItem.setText((plugin.isSecondaryDataAvailable()) ? "Choose File..." : "Flush Loaded Image...");
+			secLayerActivateCheckbox.setEnabled(plugin.isAstarEnabled() && plugin.isSecondaryDataAvailable());
+			secLayerImgOverlayCSpinner.setEnabled(plugin.isAstarEnabled() && plugin.isTracingOnSecondaryImageAvailable());
 		});
 	}
 
@@ -2359,8 +2273,8 @@ public class SNTUI extends JDialog {
 
 		// Options to replace image data
 		final JMenu changeImpMenu = new JMenu("Choose Tracing Image");
-		changeImpMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FILE_IMAGE));
-		final JMenuItem fromList = new JMenuItem("From Open Image...");
+		changeImpMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.IMAGE));
+		final JMenuItem fromList = GuiUtils.MenuItems.fromOpenImage();
 		fromList.addActionListener(e -> {
 			if (plugin.isSecondaryDataAvailable()) {
 				flushSecondaryDataPrompt();
@@ -2379,7 +2293,7 @@ public class SNTUI extends JDialog {
 		fileMenu.add(importSubmenu);
 
 		final JMenuItem fromDemo = getImportActionMenuItem(ImportAction.DEMO);
-		fromDemo.setIcon(IconFactory.getMenuIcon(GLYPH.WIZARD));
+		fromDemo.setIcon(IconFactory.getMenuIcon(GLYPH.GRADUATION_CAP));
 		fromDemo.setToolTipText("Load sample images and/or reconstructions");
 
 		final JMenuItem loadLabelsMenuItem = new JMenuItem("Load Labels (AmiraMesh)...");
@@ -2715,10 +2629,8 @@ public class SNTUI extends JDialog {
 		viewMenu.add(hideViewsMenu);
 		final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image");
 		showImpMenuItem.addActionListener(e -> {
-			if (!plugin.isSecondaryDataAvailable()) {
-				noSecondaryDataAvailableError();
+			if (noSecondaryDataAvailableError())
 				return;
-			}
 			final ImagePlus imp = plugin.getSecondaryDataAsImp();
 			if (imp == null) {
 				guiUtils.error("Somehow image could not be created.", "Secondary Image Unavailable?");
@@ -2755,9 +2667,10 @@ public class SNTUI extends JDialog {
 	private JMenu showFolderMenu(final ScriptInstaller installer) {
 		final JMenu menu = new JMenu("Reveal Directory");
 		menu.setIcon(IconFactory.getMenuIcon(GLYPH.OPEN_FOLDER));
-		final String[] labels = { "Fiji Scripts", "Image", "Last Accessed", "Snapshot Backup(s)", "TRACES" };
+		final String[] labels = { "Current TRACES file", "Image Being Traced", "Fiji Scripts", "Last Accessed Folder",
+				"Secondary Layer Image", "Snapshot Backup(s)" };
 		Arrays.stream(labels).forEach(label -> {
-			final JMenuItem jmi = new JMenuItem(label + " Folder");
+			final JMenuItem jmi = new JMenuItem(label);
 			menu.add(jmi);
 			jmi.addActionListener(e -> {
 				File f = null;
@@ -2766,7 +2679,7 @@ public class SNTUI extends JDialog {
 				case "Fiji Scripts":
 					f = installer.getScriptsDir();
 					break;
-				case "Image":
+				case "Image Being Traced":
 					if (!plugin.accessToValidImageData()) {
 						noValidImageDataError();
 						proceed = false;
@@ -2777,7 +2690,7 @@ public class SNTUI extends JDialog {
 						// do nothing
 					}
 					break;
-				case "Last Accessed":
+				case "Last Accessed Folder":
 					f = plugin.getPrefs().getRecentDir();
 					break;
 				case "Snapshot Backup(s)":
@@ -2787,7 +2700,11 @@ public class SNTUI extends JDialog {
 						proceed = false;
 					}
 					break;
-				case "TRACES":
+				case "Secondary Layer Image":
+					f = plugin.getFilteredImageFile();
+					proceed = !noSecondaryDataAvailableError();
+					break;
+				case "Current TRACES file":
 					f = getAutosaveFile();
 					if (f == null) {
 						guiUtils.error("Current tracings do not seem to be associated with a TRACES file.");
@@ -3429,6 +3346,9 @@ public class SNTUI extends JDialog {
 	}
 
 	public void setSigmaPaletteListener(final SigmaPaletteListener listener) {
+		if (sigmaPalette != null && listener == null) {
+			sigmaPalette.removeListener(sigmaPaletteListener);
+		}
 		sigmaPaletteListener = listener;
 	}
 
@@ -3695,58 +3615,21 @@ public class SNTUI extends JDialog {
 		assert SwingUtilities.isEventDispatchThread();
 		secLayerActivateCheckbox.setSelected(enable);
 		updateSettingsString();
+		showStatus("Tracing on scondary layer enabled", true);
 	}
 
-	private void noSecondaryImgFileAvailableError() {
-		guiUtils.error("No external secondary image has been loaded. Please load it first.", "External Image Unavailable");
-		secLayerExternalImgOverlayCSpinner.getCheckBox().setSelected(false);
-		secLayerExternalRadioButton.setSelected(false);
-	}
-
-	void noSecondaryDataAvailableError() {
-		guiUtils.error("No secondary image has been defined. Please create or load one first.", "Secondary Image Unavailable");
-		plugin.enableSecondaryLayerTracing(false);
+	boolean noSecondaryDataAvailableError() {
+		if (!plugin.isSecondaryDataAvailable()) {
+			guiUtils.error("No secondary image has been defined. Please create or load one first.", "Secondary Image Unavailable");
+			setSecondaryLayerTracingSelected(false);
+			return true;
+		}
+		return false;
 	}
 
 	protected void toggleSecondaryLayerTracing() {
 		assert SwingUtilities.isEventDispatchThread();
 		if (secLayerActivateCheckbox.isEnabled()) plugin.enableSecondaryLayerTracing(!secLayerActivateCheckbox.isSelected());
-	}
-
-	protected void toggleSecondaryLayerBuiltin() {
-		assert SwingUtilities.isEventDispatchThread();
-		if (secLayerBuiltinRadioButton.isEnabled()) enableSecondaryLayerBuiltin(!secLayerBuiltinRadioButton.isSelected());
-	}
-
-	protected void toggleSecondaryLayerExternal() {
-		assert SwingUtilities.isEventDispatchThread();
-		if (secLayerExternalRadioButton.isEnabled()) enableSecondaryLayerExternal(!secLayerExternalRadioButton.isSelected());
-	}
-
-	protected void enableSecondaryLayerBuiltin(final boolean enable) {
-		assert SwingUtilities.isEventDispatchThread();
-
-		if (!secLayerActivateCheckbox.isEnabled()) {
-			// Do nothing if we are not allowed to enable FilteredImgTracing
-			showStatus("Ignored: Operation not available", true);
-			return;
-		}
-		secLayerBuiltinRadioButton.setSelected(enable); // will not trigger ActionEvent
-		updateSettingsString();
-		showStatus("Hessian " + ((enable) ? "enabled" : "disabled"), true);
-	}
-
-	protected void enableSecondaryLayerExternal(final boolean enable) {
-		assert SwingUtilities.isEventDispatchThread();
-
-		if (!secLayerActivateCheckbox.isEnabled()) {
-			// Do nothing if we are not allowed to enable FilteredImgTracing
-			showStatus("Ignored: Operation not available", true);
-			return;
-		}
-		secLayerExternalRadioButton.setSelected(enable); // will not trigger ActionEvent
-		updateSettingsString();
-		showStatus("External Image " + ((enable) ? "enabled" : "disabled"), true);
 	}
 
 	/** Should only be called by {@link SNT#enableAstar(boolean)} */
@@ -3770,6 +3653,11 @@ public class SNTUI extends JDialog {
 
 	protected void noValidImageDataError() {
 		guiUtils.error("This option requires valid image data to be loaded.");
+	}
+
+	private boolean okToReplaceSecLayer() {
+		return !plugin.isSecondaryDataAvailable() || guiUtils
+				.getConfirmation("A secondary layer image is already loaded. Unload it?", "Discard Existing Layer?");
 	}
 
 	@SuppressWarnings("unused")
@@ -3864,30 +3752,10 @@ public class SNTUI extends JDialog {
 						noValidImageDataError();
 						return;
 					}
-					if (secLayerBuiltinRadioButton.isSelected()) {
-						if (!plugin.isSecondaryDataAvailable()) {
-							noSecondaryDataAvailableError();
-							return;
-						}
-						enableSecondaryLayerBuiltin(true);
-					} else if (secLayerExternalRadioButton.isSelected()) {
-						if (!plugin.isSecondaryImageFileLoaded()) {
-							noSecondaryImgFileAvailableError();
-							return;
-						}
-						enableSecondaryLayerExternal(true);
-					}
 					plugin.enableSecondaryLayerTracing(true);
 
 				} else {
 					plugin.enableSecondaryLayerTracing(false);
-				}
-
-			} else if (source == secLayerExternalRadioButton) {
-				if (!plugin.isSecondaryImageFileLoaded() ) {
-					noSecondaryImgFileAvailableError();
-					enableSecondaryLayerExternal(false);
-					enableSecondaryLayerBuiltin(true); //FIXME: IS this needed?
 				}
 
 			} else if (source == exportAllSWCMenuItem && !noPathsError()) {
@@ -4499,16 +4367,13 @@ public class SNTUI extends JDialog {
 		final String[] choices = new String[] { "Flush. I'll load new data manually", "Do nothing. Leave as is" };
 		final String choice = guiUtils.getChoice("What should be done with the secondary image currently cached?",
 				"Flush Filtered Data?", choices, choices[0]);
-		if (choice != null) {
-			if (choice.startsWith("Flush"))
-			{
-				plugin.flushSecondaryData();
-			}
-		}
+		if (choice != null && choice.startsWith("Flush"))
+			plugin.flushSecondaryData();
 	}
 
 	private JMenuItem getImportActionMenuItem(final int type) {
-		final JMenuItem jmi = new JMenuItem(InternalUtils.getImportActionName(type));
+		final JMenuItem jmi = (type == ImportAction.IMAGE) ? GuiUtils.MenuItems.fromFileImage()
+				: new JMenuItem(InternalUtils.getImportActionName(type));
 		jmi.addActionListener(e -> {
 			new ImportAction(type, null).run();
 		});
