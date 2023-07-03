@@ -29,6 +29,7 @@ import java.awt.Rectangle;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
+import javax.swing.AbstractButton;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
@@ -47,7 +48,10 @@ import com.formdev.flatlaf.FlatLaf;
 
 public class ScriptRecorder extends JDialog {
 
+	public static final String IGNORED_CMD = "rec-off";
+
 	private static final long serialVersionUID = -5275540638446494067L;
+	private static final String REC_PROPERTY_KEY = "rec-key";
 	private static final LANG DEF_LANG = LANG.PYTHON;
 	private EditorPane editor;
 	private JComboBox<LANG> combo;
@@ -185,6 +189,19 @@ public class ScriptRecorder extends JDialog {
 			}
 		} catch (final BadLocationException e) {
 			// ignored
+		} finally {
+			replaceBooleans(oldLang, newLang);
+		}
+	}
+
+	private void replaceBooleans(final LANG oldLang, final LANG newLang) {
+		if (oldLang != LANG.PYTHON && newLang != LANG.PYTHON || oldLang == newLang) {
+			return;
+		}
+		if (newLang == LANG.PYTHON) {
+			editor.setText(editor.getText().replaceAll("\\btrue", "True").replaceAll("\\bfalse", "False"));
+		} else {
+			editor.setText(editor.getText().replaceAll("\\bTrue", "true").replaceAll("\\bFalse", "false"));
 		}
 	}
 
@@ -220,9 +237,31 @@ public class ScriptRecorder extends JDialog {
 		});
 	}
 
+	@SuppressWarnings("unused")
+	private void deleteLine(final int lineNumber) {
+		try {
+			final int start = editor.getLineStartOffset(lineNumber);
+			final int end = editor.getLineEndOffset(lineNumber);
+			editor.replaceRange("", start, end);
+		} catch (final BadLocationException e) {
+			// ignored
+		}
+	}
+
 	public void recordCmd(final String str) {
+		recordCmd(str, false);
+	}
+
+	public void recordCmd(final String str, final boolean supressNextLine) {
+		final String sfx = ((currentLang.semiColon) ? ";\n" : "\n");
 		SwingUtilities.invokeLater(() -> {
-			editor.append(str + ((currentLang.semiColon) ? ";" : "") + "\n");
+			if (currentLang == LANG.PYTHON) {
+				editor.append(str.replaceAll("\\btrue", "True").replaceAll("\\bfalse", "False") + sfx);
+			} else {
+				editor.append(str + sfx);
+			}
+			if (supressNextLine)
+				editor.append(currentLang.commentSeq );
 		});
 	}
 
@@ -261,6 +300,18 @@ public class ScriptRecorder extends JDialog {
 		editor = null;
 		combo = null;
 		currentLang = null;
+	}
+
+	public static void setRecordingCall(final AbstractButton button, final String recordingString) {
+		if (recordingString == null)
+			button.putClientProperty(REC_PROPERTY_KEY, IGNORED_CMD);
+		else
+			button.putClientProperty(REC_PROPERTY_KEY, recordingString);
+	}
+
+	public static String getRecordingCall(final AbstractButton button) {
+		final Object rec = button.getClientProperty(REC_PROPERTY_KEY);
+		return (rec == null) ? null : rec.toString();
 	}
 
 	public static void main(final String[] args) {

@@ -689,12 +689,11 @@ public class SNTUI extends JDialog {
 	public void setVisibilityFilter(final String filter, final boolean state) {
 		assert SwingUtilities.isEventDispatchThread();
 		final String normFilter = filter.toLowerCase();
-		final boolean all = normFilter.contains("all");
-		if (all || normFilter.contains("selected")) {
+		if (normFilter.contains("selected")) {
 			showPathsSelected.setSelected(state);
-		} else if (all || normFilter.contains("z") || normFilter.contains("slices")) {
+		} else if (normFilter.contains("z") || normFilter.contains("slices")) {
 			partsNearbyCSpinner.getCheckBox().setSelected(state);
-		} else if (all || normFilter.contains("channel") || normFilter.contains("frame")) {
+		} else if (normFilter.contains("channel") || normFilter.contains("frame")) {
 			onlyActiveCTposition.setSelected(state);
 		}
 	}
@@ -1479,7 +1478,12 @@ public class SNTUI extends JDialog {
 		miscPanel.add(askUserConfirmationCheckBox, gdb);
 		++gdb.gridy;
 		debugCheckBox = new JCheckBox("Debug mode", SNTUtils.isDebugMode());
-		debugCheckBox.addItemListener(e -> SNTUtils.setDebugMode(e.getStateChange() == ItemEvent.SELECTED));
+		debugCheckBox.addItemListener(e -> {
+			final boolean d = e.getStateChange() == ItemEvent.SELECTED;
+			SNTUtils.setDebugMode(d);
+			if (recorder != null)
+				recorder.recordCmd("snt.getUI().setEnableDebugMode(" + d + ")", true);
+		});
 		miscPanel.add(debugCheckBox, gdb);
 		++gdb.gridy;
 		final JButton prefsButton = new JButton("Preferences...");
@@ -2024,6 +2028,8 @@ public class SNTUI extends JDialog {
 		GuiUtils.addTooltip(secLayerActionButton, "Actions for handling secondary layer imagery");
 		final JMenuItem mi1 = new JMenuItem("Secondary Layer Creation Wizard...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.WIZARD));
+		ScriptRecorder.setRecordingCall(mi1, "snt.getUI().runSecondaryLayerWizard()");
+		commandFinder.register(mi1, "Main tab", "Auto-tracing");
 		mi1.setToolTipText("Create a secondary layer using built-in image processing routines");
 		mi1.addActionListener(e -> runSecondaryLayerWizard());
 		final JMenuItem mi2 = GuiUtils.MenuItems.fromOpenImage();
@@ -2593,8 +2599,8 @@ public class SNTUI extends JDialog {
 				IconFactory.getMenuIcon(IconFactory.GLYPH.ROBOT));
 		autotraceJMI.setToolTipText("Runs automated tracing on a thresholded/binary image already open");
 		utilitiesMenu.add(autotraceJMI);
+		ScriptRecorder.setRecordingCall(autotraceJMI, "snt.getUI().runAutotracingWizard(false)");
 		autotraceJMI.addActionListener(e -> runAutotracingOnImage(false));
-
 		utilitiesMenu.addSeparator();
 		final JMenu scriptUtilsMenu = installer.getBatchScriptsMenu();
 		scriptUtilsMenu.setText("Batch Scripts");
@@ -2737,6 +2743,9 @@ public class SNTUI extends JDialog {
 		partsNearbyCSpinner.getCheckBox().addItemListener(e -> {
 			plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
 					(int) partsNearbyCSpinner.getValue());
+			if (recorder != null)
+				recorder.recordCmd("snt.getUI().setVisibilityFilter(\"Z-slices\", "
+						+ partsNearbyCSpinner.isSelected() + ")");
 		});
 		partsNearbyCSpinner.getSpinner().addChangeListener(e -> {
 			plugin.justDisplayNearSlices(true, (int) partsNearbyCSpinner.getValue());
@@ -2974,6 +2983,16 @@ public class SNTUI extends JDialog {
 		statusBarText.setBorder(BorderFactory.createEmptyBorder(0, MARGIN, MARGIN / 2, 0));
 		statusBar.add(statusBarText);
 		refreshStatus();
+		statusBar.addMouseListener( new MouseAdapter() {
+			@Override
+			public void mousePressed(final MouseEvent e) {
+				if (e.getClickCount() == 2) {
+					refreshStatus();
+					if (recorder != null)
+						recorder.recordCmd("snt.getUI().showStatus(\"\", true)");
+				}
+			}
+		});
 		return statusBar;
 	}
 
@@ -3727,8 +3746,14 @@ public class SNTUI extends JDialog {
 				plugin.enableSnapCursor(useSnapWindow.isSelected());
 			} else if (source == showPathsSelected) {
 				plugin.setShowOnlySelectedPaths(showPathsSelected.isSelected());
+				if (recorder != null)
+					recorder.recordCmd("snt.getUI().setVisibilityFilter(\"selected\", "
+						+ showPathsSelected.isSelected() + ")");
 			} else if (source == onlyActiveCTposition) {
 				plugin.setShowOnlyActiveCTposPaths(onlyActiveCTposition.isSelected(), true);
+				if (recorder != null)
+					recorder.recordCmd("snt.getUI().setVisibilityFilter(\"channel/frame\", "
+							+ onlyActiveCTposition.isSelected() + ")");
 			}
 		}
 

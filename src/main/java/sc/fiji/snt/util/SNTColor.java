@@ -148,6 +148,11 @@ public class SNTColor {
 		return swcType == other.swcType;
 	}
 
+	@Override
+	public String toString() {
+		return colorToString(color);
+	}
+
 	/**
 	 * Returns the color encoded as hex string with the format #rrggbbaa.
 	 *

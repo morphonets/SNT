@@ -44,6 +44,7 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -63,7 +64,6 @@ import org.scijava.display.DisplayService;
 import org.scijava.prefs.PrefService;
 import org.scijava.table.TableDisplay;
 import org.scijava.util.ColorRGB;
-import org.scijava.util.Colors;
 
 import com.jidesoft.swing.Searchable;
 import com.jidesoft.swing.TreeSearchable;
@@ -80,6 +80,7 @@ import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.MeasureUI;
 import sc.fiji.snt.gui.PathManagerUISearchableBar;
 import sc.fiji.snt.gui.ScriptInstaller;
+import sc.fiji.snt.gui.ScriptRecorder;
 import sc.fiji.snt.gui.SwingSafeResult;
 import sc.fiji.snt.gui.cmds.DistributionBPCmd;
 import sc.fiji.snt.gui.cmds.DistributionCPCmd;
@@ -1191,6 +1192,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			setScrollsOnExpand(true);
 			setRowHeight(getPreferredRowSize());
 			searchable = new TreeSearchable(this);
+			final Timer timer = new Timer(400, ev -> {
+				getSNT().getUI().getRecorder(false)
+						.recordCmd(String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\")",
+								searchable.getSearchingText()));
+			});
+			timer.setRepeats(false);
+			searchable.addSearchableListener(e -> {
+				if (!timer.isRunning() && getSNT().getUI().getRecorder(false) != null && searchable.getSearchingText() != null
+						&& !searchable.getSearchingText().isEmpty()) {
+					timer.start();
+				}
+			});
 		}
 
 		private DefaultMutableTreeNode getRoot() {
@@ -1276,8 +1289,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		public void reload() {
 			((DefaultTreeModel) getModel()).reload();
 			if (searchableBar != null) {
-				searchableBar.setStatusLabelPlaceholder(String.format("%d Path(s) listed", getPathAndFillManager().size()));
+				searchableBar
+						.setStatusLabelPlaceholder(String.format("%d Path(s) listed", getPathAndFillManager().size()));
 			}
+
 		}
 
 	}
@@ -1724,8 +1739,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @param customTagOrColor The tag (or color) to be applied to selected Paths.
 	 */
 	public void applyTag(final String customTagOrColor) throws IllegalArgumentException {
-		final ColorRGB color = Colors.getColor(customTagOrColor);
-		if (color == null) {
+		final ColorRGB color = new ColorRGB(customTagOrColor);
+		if (color.getRed() == 0 && color.getGreen() == 0 && color.getBlue() == 0) {
+			// then parsing failed
 			applyCustomTags(getSelectedPaths(true), customTagOrColor);
 			update();
 		} else {
@@ -2130,9 +2146,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private JTreeMenuItem(final String tag) {
 			super(tag);
 			addActionListener(this);
-			if (SELECT_NONE_CMD.equals(tag))
+			if (SELECT_NONE_CMD.equals(tag)) {
 				setToolTipText("Commands processing multiple paths will\n"
 						+ "process the entire list when no selection exists");
+				ScriptRecorder.setRecordingCall(this, "snt.getUI().getPathManager().clearSelection()");
+			}
 		}
 
 		@Override
@@ -2415,6 +2433,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				// do nothing
 				break;
 			}
+			ScriptRecorder.setRecordingCall(this, "snt.getUI().getPathManager().applyDefaultTags(\"" + tag + "\")");
 		}
 
 		private void setToolTip(final String symbol) {
@@ -2555,6 +2574,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					p.setColor(swcColor.color());
 				refreshManager(true, true, selectedPaths);
 				plugin.setUnsavedChanges(true);
+				if (plugin.getUI().getRecorder(false) != null)
+					plugin.getUI().getRecorder(false)
+							.recordCmd(String.format("snt.getUI().getPathManager().applyTag(\"%s\")", swcColor));
 				return;
 			}
 			else if (PLOT_PROFILE_CMD.equals(cmd)) {

@@ -388,6 +388,11 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			return;
 		}
 		doMorphoFiltering(filteredPaths, property, values[0], values[1]);
+		if (pmui.getSNT().getUI() != null && pmui.getSNT().getUI().getRecorder(false) != null) {
+			pmui.getSNT().getUI().getRecorder(false)
+					.recordCmd(String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\", %.2f, %.2f)",
+							property, values[0], values[1]));
+		}
 	}
 
 	public void doMorphoFiltering(final  Collection<Path> paths, final String property, final Number min, final Number max) {

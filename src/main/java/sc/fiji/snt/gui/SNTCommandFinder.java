@@ -285,10 +285,24 @@ public class SNTCommandFinder {
 			recordComment("Command is not recordable... [id: "+ cmdAction.id +"]");
 			return;
 		}
+		if (recordPresetAPICall(cmdAction))
+			return;
 		if (cmdScrapper.sntui != null)
 			recordCmdSNTUI(cmdAction);
 		else
 			recordSNTViewerCmd(cmdAction);
+	}
+
+	private boolean recordPresetAPICall(final CmdAction cmdAction) {
+		if (cmdAction.button != null) {
+			final String cmd = ScriptRecorder.getRecordingCall(cmdAction.button);
+			if (cmd != null) {
+				if (!ScriptRecorder.IGNORED_CMD.equals(cmd))
+					recorder.recordCmd(cmd);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private void recordCmdSNTUI(final CmdAction cmdAction) {
@@ -297,18 +311,14 @@ public class SNTCommandFinder {
 				|| cmdAction.pathDescription().startsWith("Edit") || cmdAction.pathDescription().startsWith("Refine")
 				|| cmdAction.pathDescription().startsWith("Fill") || cmdAction.pathDescription().startsWith("Analyze");
 		final boolean promptCmd = cmdAction.id.endsWith("...");
-		final boolean tagCmd = pmCmd && !promptCmd && cmdAction.pathDescription().contains("Tag") && !cmdAction.pathDescription().contains("Type");
 		if (pmCmd) {
-			sb.append("snt.getUI().getPathManager().");
-			if (tagCmd)
-				sb.append("applyDefaultTags(\"").append(cmdAction.id);
-			else
-				sb.append("runCommand(\"").append(cmdAction.id);
+			sb.append("snt.getUI().getPathManager().runCommand(\"").append(cmdAction.id);
 		} else {
 			sb.append("snt.getUI().runCommand(\"").append(cmdAction.id);
 		}
 		if (promptCmd) {
 			switch (cmdAction.id) {
+			// FIXME: This should be move to the executing command
 			case "Path-based Distributions...":
 			case "Branch-based Distributions...":
 				sb.append("\", \"metric 1 chosen in prompt\", \"[true or false (default) for polar histogram]\", \"[metric 2]\", \"[...]\")");
