@@ -136,7 +136,7 @@
 		<jzy3d.version>2.2.1</jzy3d.version>
 		<jgl.version>2.0.0</jgl.version>
 		<okhttp.version>4.11.0</okhttp.version>
-		<okio-jvm.version>3.3.0</okio-jvm.version>
+		<okio-jvm.version>3.4.0</okio-jvm.version>
 		<font-awesome.version>6.4.0</font-awesome.version>
 		<json.version>20230618</json.version>
 		<flatlaf.version>3.1.1</flatlaf.version>
