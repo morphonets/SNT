@@ -259,6 +259,10 @@
 		<!-- SciJava dependencies -->
 		<dependency>
 			<groupId>org.scijava</groupId>
+			<artifactId>batch-processor</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.scijava</groupId>
 			<artifactId>j3dcore</artifactId>
 		</dependency>
 		<dependency>
@@ -291,6 +295,10 @@
 		</dependency>
 
 		<!-- Managed third-party dependencies -->
+		<dependency>
+			<groupId>com.fifesoft</groupId>
+			<artifactId>rsyntaxtextarea</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf</artifactId>
@@ -382,10 +390,6 @@
 		<dependency>
 			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-tester</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.slf4j</groupId>
-			<artifactId>slf4j-api</artifactId>
 		</dependency>
 
 		<!-- Unmanaged third-party dependencies -->
@@ -516,5 +520,10 @@
 			<artifactId>junit</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!--
+		NB: mvn dependency:analyze lists slf4j-api under section "Non-test
+		scoped test only dependencies found", but it's already a transitive
+		dependency at compile scope, and we don't want to narrow the scope.
+		-->
 	</dependencies>
 </project>
