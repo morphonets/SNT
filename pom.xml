@@ -133,6 +133,9 @@
 		<scijava.jvm.version>11</scijava.jvm.version>
 		<doclint>none</doclint>
 
+		<!-- TEMP: Avoid javadoc build errors due to JPMS complexity. -->
+		<maven.javadoc.skip>true</maven.javadoc.skip>
+
 		<!-- TEMP: Avoid NPE from maven-enforcer-plugin 3.3.0 execution -->
 		<enforcer.skip>true</enforcer.skip>
 
