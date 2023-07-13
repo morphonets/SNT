@@ -53,7 +53,7 @@ public class PathCursor< T > implements Cursor< T >
     }
 
     @Override
-    public Cursor< T > copyCursor()
+    public Cursor< T > copy()
     {
         return new PathCursor<>( rai, path );
     }
@@ -159,12 +159,6 @@ public class PathCursor< T > implements Cursor< T >
     public T get()
     {
         return ra.get();
-    }
-
-    @Override
-    public Sampler< T > copy()
-    {
-        return ra.copy();
     }
 
 }

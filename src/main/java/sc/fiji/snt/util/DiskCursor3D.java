@@ -113,7 +113,7 @@ public class DiskCursor3D< T > extends CircleCursor3D< T >
     }
 
     @Override
-    public Cursor< T > copyCursor()
+    public Cursor< T > copy()
     {
         return new DiskCursor3D<>( rai, centerPoint, radius, xBasis, yBasis );
     }

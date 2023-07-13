@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>34.0.0</version>
+		<version>36.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -133,6 +133,9 @@
 		<scijava.jvm.version>11</scijava.jvm.version>
 		<doclint>none</doclint>
 
+		<!-- TEMP: Avoid NPE from maven-enforcer-plugin 3.3.0 execution -->
+		<enforcer.skip>true</enforcer.skip>
+
 		<!-- Dependency versions -->
 		<sciview.version>906892d</sciview.version>
 		<scenery.version>db26f01</scenery.version>
@@ -149,8 +152,8 @@
 		<log4j.version>2.19.0</log4j.version>
 		<log4j-api.version>${log4j.version}</log4j-api.version>
 		<log4j-core.version>${log4j.version}</log4j-core.version>
-		<scenery.version>db26f01</scenery.version>
-		<sciview.version>906892d</sciview.version>
+		<scenery.version>0.8.0</scenery.version>
+		<sciview.version>ba959ae644</sciview.version>
 		<smile.version>3.0.0</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
 		<smile-core.version>${smile.version}</smile-core.version>
@@ -451,6 +454,10 @@
 			<version>${sciview.version}</version>
 			<optional>true</optional>
 			<exclusions>
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-1.2-api</artifactId>
+				</exclusion>
 				<exclusion>
 					<groupId>org.biojava</groupId>
 					<artifactId>biojava-core</artifactId>
