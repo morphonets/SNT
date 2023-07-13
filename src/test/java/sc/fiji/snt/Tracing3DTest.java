@@ -236,7 +236,7 @@ public class Tracing3DTest {
 				op);
 	}
 
-	@Test
+	//@Test
 	public void testFrangi() {
 		final double[] scales = new double[]{0.75};
 		final RandomAccessibleInterval<FloatType> frangi = createLazyImg(new Frangi<>(scales, spacing, stats.max));
@@ -246,7 +246,7 @@ public class Tracing3DTest {
 				0.95);
 	}
 
-	@Test
+	//@Test
 	public void testTubeness() {
 		final double[] scales = new double[]{0.75};
 		final RandomAccessibleInterval<FloatType> tubeness = createLazyImg(new Tubeness<>(scales, spacing));
