@@ -2057,9 +2057,8 @@ public class SNTUI extends JDialog {
 		GuiUtils.addSeparator(secLayerMenu, "Dispose/Disable:");
 		secLayerMenu.add(mi4);
 		secLayerMenu.addSeparator();
-		final JMenuItem mi6 = GuiUtils.menuItemTriggeringURL("Help on Secondary Layers",
+		final JMenuItem mi6 = GuiUtils.menuItemTriggeringHelpURL("Help on Secondary Layers",
 				"https://imagej.net/plugins/snt/manual#tracing-on-secondary-image");
-		mi6.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
 		secLayerMenu.add(mi6);
 
 		// Assemble panel
@@ -2947,6 +2946,9 @@ public class SNTUI extends JDialog {
 			manRbmi.setSelected(!newStatsState);
 			autoRbmi.setSelected(newStatsState);
 		});
+		optionsMenu.addSeparator();
+		optionsMenu.add(GuiUtils.menuItemTriggeringHelpURL("Help on Algorithm Settings",
+				"https://imagej.net/plugins/snt/manual#auto-tracing"));
 		aStarPanel = new JPanel(new BorderLayout());
 		aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
 		aStarPanel.add(optionsButton, BorderLayout.EAST);

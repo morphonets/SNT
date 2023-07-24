@@ -211,9 +211,13 @@ public class GuiUtils {
 	public void notifyIfNewVersion(final int delay) {
 		final Timer timer = new Timer(delay, e -> {
 			if (SNTPrefs.firstRunAfterUpdate()) {
-				final JLabel msg = leftAlignedLabel("<HTML>&nbsp;<b>SNT was updated!</b> Click here to browse release notes.",
-						releaseNotesURL(), true);
-				showNotification(msg, true);
+				final StringBuilder sb = new StringBuilder("<HTML>");
+				sb.append("&nbsp;<b>SNT was updated!</b> Click here to browse release notes.");
+				if (SNTUtils.VERSION.startsWith("4.2.")) {
+					sb.append("<br>&nbsp;<b>This is the last version supporting java 8!</b>");
+					sb.append("<br>&nbsp;To run newer SNT versions you will need a Fiji release supporting at least Java 11.");
+				}
+				showNotification(leftAlignedLabel(sb.toString(), releaseNotesURL(), true), true);
 			}
 		});
 		timer.setRepeats(false);
@@ -1662,6 +1666,12 @@ public class GuiUtils {
 	public static JMenuItem menuItemTriggeringURL(final String label, final String URL) {
 		final JMenuItem mi = new JMenuItem(label);
 		mi.addActionListener(e -> IJ.runPlugIn("ij.plugin.BrowserLauncher", URL));
+		return mi;
+	}
+
+	public static JMenuItem menuItemTriggeringHelpURL(final String label, final String URL) {
+		final JMenuItem mi = menuItemTriggeringURL(label, URL);
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
 		return mi;
 	}
 

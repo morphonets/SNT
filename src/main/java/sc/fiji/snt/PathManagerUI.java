@@ -304,8 +304,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			fittingHelper.showPrompt();
 		});
 		fitMenu.add(jmi);
-		jmi = GuiUtils.menuItemTriggeringURL("<HTML>Help on <i>Fitting", FIT_URI);
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
+		jmi = GuiUtils.menuItemTriggeringHelpURL("<HTML>Help on <i>Fitting", FIT_URI);
 		fitMenu.add(jmi);
 
 		final JMenu fillMenu = new JMenu("Fill");
@@ -459,6 +458,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
+		menu.addSeparator();
+		jmi = GuiUtils.menuItemTriggeringHelpURL("Spine/Varicosity Utilities Help",
+				"https://imagej.net/plugins/snt/step-by-step-instructions#spinevaricosity-analysis");
+		menu.add(jmi);
 		return menu;
 	}
 
@@ -477,6 +480,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi = new JMenuItem(MultiPathActionListener.TIME_PROFILE_CMD);
 		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
+		menu.add(jmi);
+		menu.addSeparator();
+		jmi = GuiUtils.menuItemTriggeringHelpURL("Time-lapse Utilities Help",
+				"https://imagej.net/plugins/snt/step-by-step-instructions#time-lapse-analysis");
 		menu.add(jmi);
 		return menu;
 	}
