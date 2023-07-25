@@ -558,53 +558,53 @@ public class TreeColorMapper extends ColorMapper {
 
 	protected String tryReallyHardToGuessMetric(final String guess) {
 		final String normGuess = guess.toLowerCase();
-		if (normGuess.indexOf("inter") != -1 && normGuess.indexOf("node") != -1) {
+		if (normGuess.contains("inter") && normGuess.contains("node")) {
 			return INTER_NODE_DISTANCE;
 		}
-		if (normGuess.indexOf("soma") != -1 || normGuess.indexOf("path d") != -1) {
+		if (normGuess.contains("soma") || normGuess.contains("path d")) {
 			return PATH_DISTANCE;
 		}
-		if (normGuess.indexOf("length") != -1 || normGuess.indexOf("cable") != -1) {
+		if (normGuess.contains("length") || normGuess.contains("cable")) {
 			return LENGTH;
 		}
-		if (normGuess.indexOf("strahler") != -1 || normGuess.indexOf("horton") != -1 || normGuess.indexOf("h-s") != -1) {
+		if (normGuess.contains("strahler") || normGuess.contains("horton") || normGuess.contains("h-s")) {
 			return STRAHLER_NUMBER;
 		}
-		if (normGuess.indexOf("sholl") != -1 || normGuess.indexOf("inters") != -1) {
+		if (normGuess.contains("sholl") || normGuess.contains("inters")) {
 			return SHOLL_COUNTS;
 		}
-		if (normGuess.indexOf("path") != -1 && normGuess.indexOf("order") != -1) {
+		if (normGuess.contains("path") && normGuess.contains("order")) {
 			return PATH_ORDER;
 		}
-		if (normGuess.indexOf("bp") != -1 || normGuess.indexOf("branch points") != -1 || normGuess.indexOf("junctions") != -1) {
+		if (normGuess.contains("bp") || normGuess.contains("branch points") || normGuess.contains("junctions")) {
 			return N_BRANCH_POINTS;
 		}
-		if (normGuess.indexOf("nodes") != -1) {
+		if (normGuess.contains("nodes")) {
 			return N_NODES;
 		}
-		if (normGuess.indexOf("radi") != -1 ) {
-			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1) {
+		if (normGuess.contains("radi")) {
+			if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average")) {
 				return MEAN_RADIUS;
 			}
 			else {
 				return NODE_RADIUS;
 			}
 		}
-		if (normGuess.indexOf("spines") != -1 || normGuess.indexOf("varicosities") > -1) {
-			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1 || normGuess.indexOf("dens") != -1) {
+		if (normGuess.contains("spines") || normGuess.contains("varicosities")) {
+			if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average") || normGuess.contains("dens")) {
 				return AVG_SPINE_DENSITY;
 			}
 			else {
 				return N_SPINES;
 			}
 		}
-		if (normGuess.indexOf("values") != -1 || normGuess.indexOf("intensit") > -1) {
+		if (normGuess.contains("values") || normGuess.contains("intensit")) {
 			return VALUES;
 		}
-		if (normGuess.indexOf("tag") != -1 || normGuess.indexOf("name") > -1 || normGuess.indexOf("label") > -1) {
+		if (normGuess.contains("tag") || normGuess.contains("name") || normGuess.contains("label")) {
 			return TAG_FILENAME;
 		}
-		if (normGuess.indexOf("frame") != -1) {
+		if (normGuess.contains("frame")) {
 			return PATH_FRAME;
 		}
 		if (normGuess.matches(".*\\bx\\b.*")) {

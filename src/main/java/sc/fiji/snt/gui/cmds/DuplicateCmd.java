@@ -104,7 +104,7 @@ public class DuplicateCmd extends CommonDynamicCmd {
 			resolveInput("msg");
 			getInfo().getMutableInput("percentage", Double.class).setLabel("");
 			getInfo().getMutableInput("msg", String.class).setLabel("");
-		} else if (name.indexOf("[L:") == -1) {
+		} else if (!name.contains("[L:")) {
 			name += String.format(" [L:%.2f]", length);
 		}
 		msg = "Duplicating " + name;

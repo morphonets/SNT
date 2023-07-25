@@ -416,7 +416,7 @@ public class TreeStatistics extends TreeAnalyzer {
 
 	protected static Map<BrainAnnotation, Double> getAnnotatedLength(final DirectedWeightedGraph graph, final int level,
 			final char lr, final boolean norm) {
-		final NodeStatistics<SWCPoint> nodeStats = new NodeStatistics<SWCPoint>(graph.vertexSet(lr));
+		final NodeStatistics<SWCPoint> nodeStats = new NodeStatistics<>(graph.vertexSet(lr));
 		final Map<BrainAnnotation, Set<SWCPoint>> annotatedNodesMap = nodeStats.getAnnotatedNodes(level);
 		final HashMap<BrainAnnotation, Double> lengthMap = new HashMap<>();
 		for (final Map.Entry<BrainAnnotation, Set<SWCPoint>> entry : annotatedNodesMap.entrySet()) {
@@ -720,65 +720,65 @@ public class TreeStatistics extends TreeAnalyzer {
 
 	protected static String tryReallyHardToGuessMetric(final String guess) {
 		final String normGuess = guess.toLowerCase();
-		if (normGuess.indexOf("contrac") != -1) {
+		if (normGuess.contains("contrac")) {
 			return CONTRACTION;
 		}
-		if (normGuess.indexOf("remote") != -1 && normGuess.indexOf("angle") != -1) {
+		if (normGuess.contains("remote") && normGuess.contains("angle")) {
 			return REMOTE_BIF_ANGLES;
 		}
-		if (normGuess.indexOf("partition") != -1 && normGuess.indexOf("asymmetry") != -1) {
+		if (normGuess.contains("partition") && normGuess.contains("asymmetry")) {
 			return PARTITION_ASYMMETRY;
 		}
-		if (normGuess.indexOf("fractal") != -1) {
+		if (normGuess.contains("fractal")) {
 			return FRACTAL_DIMENSION;
 		}
-		if (normGuess.indexOf("length") != -1 || normGuess.indexOf("cable") != -1) {
-			if (normGuess.indexOf("term") != -1) {
+		if (normGuess.contains("length") || normGuess.contains("cable")) {
+			if (normGuess.contains("term")) {
 				return TERMINAL_LENGTH;
-			} else if (normGuess.indexOf("prim") != -1) {
+			} else if (normGuess.contains("prim")) {
 				return PRIMARY_LENGTH;
-			} else if (normGuess.indexOf("inner") != -1) {
+			} else if (normGuess.contains("inner")) {
 				return INNER_LENGTH;
-			} else if (normGuess.indexOf("path") != -1) {
+			} else if (normGuess.contains("path")) {
 				return PATH_LENGTH;
 			} else {
 				return BRANCH_LENGTH;
 			}
 		}
-		if (normGuess.indexOf("path") != -1 && normGuess.indexOf("order") != -1) {
+		if (normGuess.contains("path") && normGuess.contains("order")) {
 			return PATH_ORDER;
 		}
-		if (normGuess.indexOf("bp") != -1 || normGuess.indexOf("branch points") != -1
-				|| normGuess.indexOf("junctions") != -1) {
+		if (normGuess.contains("bp") || normGuess.contains("branch points")
+				|| normGuess.contains("junctions")) {
 			return N_BRANCH_POINTS;
 		}
-		if (normGuess.indexOf("nodes") != -1) {
+		if (normGuess.contains("nodes")) {
 			return N_NODES;
 		}
-		if (normGuess.indexOf("node") != -1 && (normGuess.indexOf("dis") != -1 || normGuess.indexOf("dx") != -1)) {
-			if (normGuess.indexOf("sq") != -1) {
+		if (normGuess.contains("node") && (normGuess.contains("dis") || normGuess.contains("dx"))) {
+			if (normGuess.contains("sq")) {
 				return INTER_NODE_DISTANCE_SQUARED;
 			} else {
 				return INTER_NODE_DISTANCE;
 			}
 		}
-		if (normGuess.indexOf("radi") != -1) {
-			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1
-					|| normGuess.indexOf("average") != -1) {
+		if (normGuess.contains("radi")) {
+			if (normGuess.contains("mean") || normGuess.contains("avg")
+					|| normGuess.contains("average")) {
 				return MEAN_RADIUS;
 			} else {
 				return NODE_RADIUS;
 			}
 		}
-		if (normGuess.indexOf("spines") != -1 || normGuess.indexOf("varicosities") > -1) {
-			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1
-					|| normGuess.indexOf("dens") != -1) {
+		if (normGuess.contains("spines") || normGuess.contains("varicosities")) {
+			if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average")
+					|| normGuess.contains("dens")) {
 				return AVG_SPINE_DENSITY;
 			} else {
 				return N_SPINES;
 			}
 		}
-		if (normGuess.indexOf("values") != -1 || normGuess.indexOf("intensit") > -1) {
+		if (normGuess.contains("values") || normGuess.contains("intensit")) {
 			return VALUES;
 		}
 		if (normGuess.matches(".*\\bx\\b.*")) {

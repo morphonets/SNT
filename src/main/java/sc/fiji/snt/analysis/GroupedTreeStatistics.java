@@ -523,7 +523,7 @@ public class GroupedTreeStatistics {
 			final FlowNode source = new FlowNode(groupLabel);
 			if (!singleCell)
 				source.setExtraDetails(" [Multiple Cells, N= " + getGroupStats(groupLabel).getGroup().size() +"]");
-			plot.setNodeFillColor(new NodeKey<FlowNode>(stage, source), groupColors[groupIdx++]);
+			plot.setNodeFillColor(new NodeKey<>(stage, source), groupColors[groupIdx++]);
 			annotValues.map.forEach((brainAnnot, annotatedMeasurements) -> {
 				final FlowNode destination = new FlowNode(brainAnnot, normalize);
 				destination.numericLabels = singleCell;
@@ -599,13 +599,13 @@ public class GroupedTreeStatistics {
 	private String getBoxOrFlowPlotFeature(final String guess) {
 		if (guess == null || guess.isEmpty()) return LENGTH;
 		final String normGuess = guess.toLowerCase();
-		if (normGuess.indexOf("len") != -1 || normGuess.indexOf("cable") != -1) {
+		if (normGuess.contains("len") || normGuess.contains("cable")) {
 			return LENGTH;
 		}
-		if (normGuess.indexOf("bp") != -1 || normGuess.indexOf("branch") != -1 || normGuess.indexOf("junction") != -1) {
+		if (normGuess.contains("bp") || normGuess.contains("branch") || normGuess.contains("junction")) {
 			return N_BRANCH_POINTS;
 		}
-		if (normGuess.indexOf("tip") != -1 || normGuess.indexOf("end") != -1) {
+		if (normGuess.contains("tip") || normGuess.contains("end")) {
 			return N_TIPS;
 		}
 		return "unknown";

@@ -274,7 +274,7 @@ class GraphConfigDialog extends JDialog
 				if (graphType2 == GraphType.NULL)
 				{
 					mxGraphGenerator generator = new mxGraphGenerator(null, new mxDoubleValCostFunction());
-					Map<String, Object> props = new HashMap<String, Object>();
+					Map<String, Object> props = new HashMap<>();
 					mxGraphProperties.setDirected(props, false);
 					configAnalysisGraph(graph, generator, props);
 
@@ -290,7 +290,7 @@ class GraphConfigDialog extends JDialog
 
 					mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, false, 0, 10),
 							new mxDoubleValCostFunction());
-					Map<String, Object> props = new HashMap<String, Object>();
+					Map<String, Object> props = new HashMap<>();
 					mxGraphProperties.setDirected(props, false);
 					configAnalysisGraph(graph, generator, props);
 
@@ -355,7 +355,7 @@ class GraphConfigDialog extends JDialog
 				graph.removeCells();
 				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
 						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
-				Map<String, Object> props = new HashMap<String, Object>();
+				Map<String, Object> props = new HashMap<>();
 				mxGraphProperties.setDirected(props, arrows);
 				configAnalysisGraph(graph, generator, props);
 
@@ -414,7 +414,7 @@ class GraphConfigDialog extends JDialog
 				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
 				int numBranchesParam = Integer.parseInt(numBranchesField.getText());
 				int numVertexesInBranchParam = Integer.parseInt(numVertexesInBranchField.getText());
-				Map<String, Object> props = new HashMap<String, Object>();
+				Map<String, Object> props = new HashMap<>();
 				mxGraphProperties.setDirected(props, arrows);
 				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
 						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
@@ -475,7 +475,7 @@ class GraphConfigDialog extends JDialog
 				int numNodesParam = Integer.parseInt(numNodesField.getText());
 				int minWeightParam = Integer.parseInt(minWeightField.getText());
 				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
-				Map<String, Object> props = new HashMap<String, Object>();
+				Map<String, Object> props = new HashMap<>();
 				mxGraphProperties.setDirected(props, arrows);
 				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
 						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
@@ -544,7 +544,7 @@ class GraphConfigDialog extends JDialog
 				applyValues();
 				int minWeightParam = Integer.parseInt(minWeightField.getText());
 				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
-				Map<String, Object> props = new HashMap<String, Object>();
+				Map<String, Object> props = new HashMap<>();
 				mxGraphProperties.setDirected(props, arrows);
 				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
 						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
@@ -615,7 +615,7 @@ class GraphConfigDialog extends JDialog
 
 				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
 						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
-				Map<String, Object> props = new HashMap<String, Object>();
+				Map<String, Object> props = new HashMap<>();
 				mxGraphProperties.setDirected(props, arrows);
 				configAnalysisGraph(graph, generator, props);
 
@@ -669,7 +669,7 @@ class GraphConfigDialog extends JDialog
 				float spacing = Float.parseFloat(gridSpacingField.getText());
 
 				mxGraphGenerator generator = new mxGraphGenerator(null, new mxDoubleValCostFunction());
-				Map<String, Object> props = new HashMap<String, Object>();
+				Map<String, Object> props = new HashMap<>();
 				mxGraphProperties.setDirected(props, arrows);
 				configAnalysisGraph(graph, generator, props);
 				graph.getModel().beginUpdate();
@@ -734,7 +734,7 @@ class GraphConfigDialog extends JDialog
 				int value = Integer.parseInt(startVertexValueField.getText());
 				float spacing = Float.parseFloat(gridSpacingField.getText());
 				mxGraphGenerator generator = new mxGraphGenerator(null, new mxDoubleValCostFunction());
-				Map<String, Object> props = new HashMap<String, Object>();
+				Map<String, Object> props = new HashMap<>();
 				mxGraphProperties.setDirected(props, true);
 				configAnalysisGraph(graph, generator, props);
 				graph.getModel().beginUpdate();
@@ -805,7 +805,7 @@ class GraphConfigDialog extends JDialog
 				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
 				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
 						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
-				Map<String, Object> props = new HashMap<String, Object>();
+				Map<String, Object> props = new HashMap<>();
 				mxGraphProperties.setDirected(props, arrows);
 				configAnalysisGraph(graph, generator, props);
 				graph.getModel().beginUpdate();
@@ -874,7 +874,7 @@ class GraphConfigDialog extends JDialog
 				int edgeCount = Integer.parseInt(numEdgesField.getText());
 				int minWeightParam = Integer.parseInt(minWeightField.getText());
 				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
-				Map<String, Object> props = new HashMap<String, Object>();
+				Map<String, Object> props = new HashMap<>();
 				mxGraphProperties.setDirected(props, arrows);
 				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
 						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
@@ -1279,7 +1279,7 @@ class GraphConfigDialog extends JDialog
 		
 		if(props == null)
 		{
-			Map<String, Object> properties = new HashMap<String, Object>();
+			Map<String, Object> properties = new HashMap<>();
 			mxGraphProperties.setDirected(properties, false);
 			this.aGraph.setProperties(properties);
 		}

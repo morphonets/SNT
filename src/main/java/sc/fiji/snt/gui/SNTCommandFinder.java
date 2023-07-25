@@ -98,7 +98,7 @@ public class SNTCommandFinder {
 
 	/** Settings. Ought to become adjustable some day */
 	private static final KeyStroke ACCELERATOR = KeyStroke.getKeyStroke(KeyEvent.VK_P,
-			java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_DOWN_MASK);
+			java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx() | KeyEvent.SHIFT_DOWN_MASK);
 	private static final int TABLE_ROWS = 6; // no. of commands to be displayed
 	private static final float OPACITY = 1f; // 0-1 range
 	private static final boolean IGNORE_WHITESPACE = true; // Ignore white spaces while matching?

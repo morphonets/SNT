@@ -191,7 +191,7 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 
 	private void addColumn(final SNTTable table,  final String header, final List<Double> data) {
 		if (data != null) {
-			final DefaultColumn<Double> col = new DefaultColumn<Double>(Double.class, header);
+			final DefaultColumn<Double> col = new DefaultColumn<>(Double.class, header);
 			col.addAll(data);
 			table.add(col);
 		}

@@ -176,22 +176,22 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
 		if (outputChoice.toLowerCase().contains("table")) {
 			final SNTTable table = new SNTTable();
-			final DefaultColumn<Double> xcol = new DefaultColumn<Double>(Double.class, "Frame");
+			final DefaultColumn<Double> xcol = new DefaultColumn<>(Double.class, "Frame");
 			xcol.addAll(xValues);
 			table.add(xcol);
 			if (includeSDevSeries) {
 				final String label = getMasurementChoiceMetric();
-				final DefaultColumn<Double> mean = new DefaultColumn<Double>(Double.class, label + " Mean");
+				final DefaultColumn<Double> mean = new DefaultColumn<>(Double.class, label + " Mean");
 				mean.addAll(upperStdDevValues);
 				table.add(mean);
-				final DefaultColumn<Double> upperErr = new DefaultColumn<Double>(Double.class, label + " Mean+SD");
+				final DefaultColumn<Double> upperErr = new DefaultColumn<>(Double.class, label + " Mean+SD");
 				upperErr.addAll(upperStdDevValues);
 				table.add(upperErr);
-				final DefaultColumn<Double> lowerErr = new DefaultColumn<Double>(Double.class, label + " Mean-SD");
+				final DefaultColumn<Double> lowerErr = new DefaultColumn<>(Double.class, label + " Mean-SD");
 				lowerErr.addAll(lowerStdDevValues);
 				table.add(lowerErr);
 			} else {
-				final DefaultColumn<Double> ycol = new DefaultColumn<Double>(Double.class, measurementChoice);
+				final DefaultColumn<Double> ycol = new DefaultColumn<>(Double.class, measurementChoice);
 				ycol.addAll(yValues);
 				table.add(ycol);
 			}

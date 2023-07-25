@@ -1595,7 +1595,7 @@ public class SNTUI extends JDialog {
 				// If other viewers have been set(!), remember their 'identifying' suffix, hopefully unique
 				int idSuffix;
 				try {
-					idSuffix = Integer.valueOf(plugin.get3DUniverse().getWindow().getTitle().split("Viewer #")[1].trim());
+					idSuffix = Integer.parseInt(plugin.get3DUniverse().getWindow().getTitle().split("Viewer #")[1].trim());
 				} catch (final Exception ignored) {
 					idSuffix = 0;
 				}

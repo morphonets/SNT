@@ -650,7 +650,7 @@ public class ShollOptions implements PlugIn {
 	protected int getIntFromHashMap(final String key, final int defaultValue) {
 		final String value = stringPrefs.get(key);
 		try {
-			return Integer.valueOf(value);
+			return Integer.parseInt(value);
 		} catch (final NumberFormatException ignored) {
 			return defaultValue;
 		}
@@ -659,7 +659,7 @@ public class ShollOptions implements PlugIn {
 	protected double getDoubleFromHashMap(final String key, final double defaultValue) {
 		final String value = getValueFromHashMapString(key, Double.toString(defaultValue));
 		try {
-			return Double.valueOf(value);
+			return Double.parseDouble(value);
 		} catch (final NumberFormatException ignored) {
 			return defaultValue;
 		}

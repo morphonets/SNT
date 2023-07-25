@@ -956,12 +956,11 @@ public class TreeAnalyzer extends ContextCommand {
 	 */
 	public double getCableLength(final BrainAnnotation compartment, final boolean includeChildren) {
 		final DirectedWeightedGraph graph = tree.getGraph();
-		final NodeStatistics<SWCPoint> nodeStats = new NodeStatistics<SWCPoint>(graph.vertexSet());
+		final NodeStatistics<SWCPoint> nodeStats = new NodeStatistics<>(graph.vertexSet());
 		final DirectedWeightedSubgraph subgraph = graph.getSubgraph(new HashSet<>(nodeStats.get(compartment, includeChildren)));
 		return subgraph.sumEdgeWeights(true);
 	}
 
-	@SuppressWarnings("unused")
 	protected boolean isSameOrParentAnnotation(final BrainAnnotation annot, final BrainAnnotation annotToBeTested) {
 		return contains(annot, annotToBeTested, true);
 	}
@@ -1191,7 +1190,7 @@ public class TreeAnalyzer extends ContextCommand {
 	public List<Double> getRemoteBifAngles() throws IllegalArgumentException {
 		final DirectedWeightedGraph sGraph = tree.getGraph(true);
 		final List<SWCPoint> branchPoints = sGraph.getBPs();
-		final List<Double> angles = new ArrayList<Double>();
+		final List<Double> angles = new ArrayList<>();
 		for (final SWCPoint bp : branchPoints) {
 			final List<SWCPoint> children = Graphs.successorListOf(sGraph, bp);
 			// Only consider bifurcations
@@ -1242,14 +1241,14 @@ public class TreeAnalyzer extends ContextCommand {
 	public List<Double> getPartitionAsymmetry() throws IllegalArgumentException {
 		final DirectedWeightedGraph sGraph = tree.getGraph(true);
 		final List<SWCPoint> branchPoints = sGraph.getBPs();
-		final List<Double> resultList = new ArrayList<Double>();
+		final List<Double> resultList = new ArrayList<>();
 		for (final SWCPoint bp : branchPoints) {
 			final List<SWCPoint> children = Graphs.successorListOf(sGraph, bp);
 			// Only consider bifurcations
 			if (children.size() > 2) {
 				continue;
 			}
-			final List<Integer> tipCounts = new ArrayList<Integer>();
+			final List<Integer> tipCounts = new ArrayList<>();
 			for (final SWCPoint child : children) {
 				int count = 0;
 				final DepthFirstIterator<SWCPoint, SWCWeightedEdge> dfi = sGraph.getDepthFirstIterator(child);
@@ -1300,14 +1299,14 @@ public class TreeAnalyzer extends ContextCommand {
 	 */
 	public List<Double> getFractalDimension() throws IllegalArgumentException {
 		final List<Path> branches = getBranches();
-		final List<Double> fractalDims = new ArrayList<Double>();
+		final List<Double> fractalDims = new ArrayList<>();
 		for (final Path b : branches) {
 			// Must have at least 4 points after the start-node in a branch
 			if (b.size() < 5) {
 				continue;
 			}
-			final List<Double> pathDists = new ArrayList<Double>();
-			final List<Double> eucDists  = new ArrayList<Double>();
+			final List<Double> pathDists = new ArrayList<>();
+			final List<Double> eucDists  = new ArrayList<>();
 			// Start at the second node in the branch
 			for (int i = 1; i < b.size(); i++) {
 				double pDist = b.getNode(i).distanceTo(b.getNode(i-1));

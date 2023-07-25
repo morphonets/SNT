@@ -418,7 +418,7 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
         if (root == null) {
             return;
         }
-        HeavyPathDecomposition<V, E> decomp = new HeavyPathDecomposition<V, E>(subgraph, root);
+        HeavyPathDecomposition<V, E> decomp = new HeavyPathDecomposition<>(subgraph, root);
         Set<E> heavyEdges = decomp.getHeavyEdges();
         Set<E> lightEdges = decomp.getLightEdges();
         for (E edge : heavyEdges) {

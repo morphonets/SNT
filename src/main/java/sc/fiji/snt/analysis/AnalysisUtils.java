@@ -421,7 +421,7 @@ class AnalysisUtils {
 		private boolean computedAsPercentage;
 
 		HistogramDatasetPlus() {
-			values = new ArrayList<Double>();
+			values = new ArrayList<>();
 		}
 
 		HistogramDatasetPlus(final DescriptiveStatistics stats, final boolean retrieveValues) {

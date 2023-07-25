@@ -565,7 +565,7 @@ class EditorActions
 					Object[] imageFormats = ImageIO.getReaderFormatNames();
 
 					// Finds all distinct extensions
-					HashSet<String> formats = new HashSet<String>();
+					HashSet<String> formats = new HashSet<>();
 
 					for (int i = 0; i < imageFormats.length; i++)
 					{

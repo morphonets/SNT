@@ -358,7 +358,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		final List<Integer> validChannels = new ArrayList<>();
 		for (final String chString : stringChannels) {
 			try {
-				final int ch = Integer.valueOf(chString);
+				final int ch = Integer.parseInt(chString);
 				if (ch > 0 && ch <= dataset.getChannels())
 					validChannels.add(ch);
 			} catch (final NumberFormatException ignored) {

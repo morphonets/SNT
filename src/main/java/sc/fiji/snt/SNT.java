@@ -926,7 +926,7 @@ public class SNT extends MultiDThreePanes implements
 			final Future<?> result = fillerThreadPool.submit(fillerThread);
 			futures.add(result);
 		}
-		SwingWorker<Object, Object> worker = new SwingWorker<Object, Object>() {
+		SwingWorker<Object, Object> worker = new SwingWorker<>() {
 			@Override
 			protected Object doInBackground() throws Exception {
 				for (final Future<?> future : futures) {
@@ -934,6 +934,7 @@ public class SNT extends MultiDThreePanes implements
 				}
 				return null;
 			}
+
 			@Override
 			protected void done() {
 				// FIXME: this is a bad solution to make sure we get the correct state when cancelling
@@ -957,7 +958,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/* Listeners */
 	protected List<SNTListener> listeners = Collections.synchronizedList(
-		new ArrayList<SNTListener>());
+			new ArrayList<>());
 
 	public void addListener(final SNTListener listener) {
 		listeners.add(listener);

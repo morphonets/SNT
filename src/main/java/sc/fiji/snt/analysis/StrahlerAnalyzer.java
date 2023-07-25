@@ -123,7 +123,7 @@ public class StrahlerAnalyzer {
 					.collect(Collectors.toCollection(HashSet::new)); // collect output in new list
 
 			// now measure the group
-			final AsSubgraph<SWCPoint, SWCWeightedEdge> subGraph = new AsSubgraph<SWCPoint, SWCWeightedEdge>(
+			final AsSubgraph<SWCPoint, SWCWeightedEdge> subGraph = new AsSubgraph<>(
 					graph, nodes);
 
 			// Total length
@@ -194,7 +194,7 @@ public class StrahlerAnalyzer {
 		path.setOrder((int) startVertex.v);
 		SWCPoint currentVertex = startVertex;
 
-		List<SWCPoint> reversed = new ArrayList<SWCPoint>();
+		List<SWCPoint> reversed = new ArrayList<>();
 		reversed.add(0, currentVertex);
 		
 		while (Graphs.vertexHasPredecessors(graph, currentVertex)) {

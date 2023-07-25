@@ -26,6 +26,7 @@ import net.imglib2.img.list.ListImg;
 import net.imglib2.img.list.ListRandomAccess;
 import org.jetbrains.annotations.NotNull;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.Iterator;
 
 /**
@@ -37,9 +38,9 @@ public class ListSearchImage<V> implements SearchImage<V> {
     private final ListRandomAccess<V> access;
 
     public ListSearchImage(final Class<V> clazz, final int width, final int height)
-            throws IllegalAccessException, InstantiationException {
+            throws IllegalAccessException, InstantiationException, IllegalArgumentException, InvocationTargetException, NoSuchMethodException, SecurityException {
 
-        this.img = new ListImg<>(new long[]{width, height}, clazz.newInstance()); // FIXME: Is this correct??
+        this.img = new ListImg<>(new long[]{width, height}, clazz.getDeclaredConstructor().newInstance()); // FIXME: Is this correct??
         this.access = img.randomAccess();
     }
 

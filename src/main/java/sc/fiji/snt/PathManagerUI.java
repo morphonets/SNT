@@ -1059,14 +1059,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			setEnabledCommands(false);
 			final JDialog msg = guiUtils.floatingMsg(statusMsg, false);
 
-			fitWorker = new SwingWorker<Object, Object>() {
+			fitWorker = new SwingWorker<>() {
 
 				@Override
 				protected Object doInBackground() {
 
 					final ExecutorService es = Executors.newFixedThreadPool(processors);
 					final FittingProgress progress = new FittingProgress(plugin.getUI(),
-						plugin.statusService, numberOfPathsToFit);
+							plugin.statusService, numberOfPathsToFit);
 					final RandomAccessibleInterval<? extends RealType<?>> img = (secondary && plugin.isSecondaryDataAvailable()) ? plugin.getSecondaryData()
 							: plugin.getLoadedData();
 					try {
@@ -1078,14 +1078,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 							pf.setProgressCallback(i, progress);
 						}
 						es.invokeAll(pathsToFit);
-					}
-					catch (final InterruptedException | RuntimeException e) {
+					} catch (final InterruptedException | RuntimeException e) {
 						msg.dispose();
 						guiUtils.error(
-							"Unfortunately an Exception occurred. See Console for details");
+								"Unfortunately an Exception occurred. See Console for details");
 						e.printStackTrace();
-					}
-					finally {
+					} finally {
 						progress.done();
 						try {
 							es.shutdown();
@@ -1101,7 +1099,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					if (pathsToFit != null) {
 						// since paths were fitted asynchronously, we need to rebuild connections
 						if (fitInPlace) {
-							pathsToFit.forEach(p-> p.getPath().replaceNodesWithFittedVersion());
+							pathsToFit.forEach(p -> p.getPath().replaceNodesWithFittedVersion());
 						}
 						pathAndFillManager.rebuildRelationships();
 					}
@@ -1985,17 +1983,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 		if (MultiPathActionListener.HISTOGRAM_TREES_CMD.equals(cmd)) {
 			if (args.length == 1) {
-				runDistributionAnalysisCmd("All", args[0], (args.length > 1) && Boolean.valueOf(args[1]));
+				runDistributionAnalysisCmd("All", args[0], (args.length > 1) && Boolean.parseBoolean(args[1]));
 			} else if (args.length > 1) {
-				runDistributionAnalysisCmd(args[0], args[1], (args.length > 2) && Boolean.valueOf(args[2]));
+				runDistributionAnalysisCmd(args[0], args[1], (args.length > 2) && Boolean.parseBoolean(args[2]));
 			} else {
 				throw new IllegalArgumentException("Not enough arguments...");
 			}
 		} else if (MultiPathActionListener.HISTOGRAM_PATHS_CMD.equals(cmd)) {
 			runHistogramPathsCmd(getSelectedPaths(true), args[0], //
-					(args.length > 1) && Boolean.valueOf(args[1]), //
+					(args.length > 1) && Boolean.parseBoolean(args[1]), //
 					(args.length > 2) ? args[2] : null, //
-					(args.length > 3) && Boolean.valueOf(args[3]));
+					(args.length > 3) && Boolean.parseBoolean(args[3]));
 		} else if (MultiPathActionListener.COLORIZE_TREES_CMD.equals(cmd)) {
 			if (args.length == 2) {
 				runColorCodingCmd("All", args[0], args[1]);
@@ -2267,7 +2265,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			final Path existingFit = p.getFitted();
 
 			// No image is displayed if run on EDT
-			final SwingWorker<?, ?> worker = new SwingWorker<Object, Object>() {
+			final SwingWorker<?, ?> worker = new SwingWorker<>() {
 
 				@Override
 				protected Object doInBackground() throws Exception {
@@ -2283,24 +2281,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						final PathFitter fitter = new PathFitter(plugin, p);
 						fitter.setShowAnnotatedView(true);
 						final PrefService prefService = plugin.getContext().getService(
-							PrefService.class);
+								PrefService.class);
 						final String rString = prefService.get(PathFitterCmd.class,
-							PathFitterCmd.MAXRADIUS_KEY, String.valueOf(
-								PathFitter.DEFAULT_MAX_RADIUS));
-						fitter.setMaxRadius(Integer.valueOf(rString));
+								PathFitterCmd.MAXRADIUS_KEY, String.valueOf(
+										PathFitter.DEFAULT_MAX_RADIUS));
+						fitter.setMaxRadius(Integer.parseInt(rString));
 						fitter.setScope(PathFitter.RADII_AND_MIDPOINTS);
 						final ExecutorService executor = Executors
-							.newSingleThreadExecutor();
+								.newSingleThreadExecutor();
 						final Future<Path> future = executor.submit(fitter);
 						future.get();
 
-					}
-					catch (InterruptedException | ExecutionException
-							| RuntimeException e)
-					{
+					} catch (InterruptedException | ExecutionException
+							 | RuntimeException e) {
 						msg.dispose();
 						guiUtils.error(
-							"Unfortunately an exception occurred. See Console for details");
+								"Unfortunately an exception occurred. See Console for details");
 						e.printStackTrace();
 					}
 					return null;

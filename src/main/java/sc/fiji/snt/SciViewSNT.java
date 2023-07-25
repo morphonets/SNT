@@ -86,7 +86,7 @@ public class SciViewSNT {
 		}
 		if (context == null) throw new NullContextException();
 		context.inject(this);
-		plottedTrees = new TreeMap<String,ShapeTree>();
+		plottedTrees = new TreeMap<>();
         try {
             sciView = sciViewService.getOrCreateActiveSciView();
         } catch (Exception e) {
@@ -106,7 +106,7 @@ public class SciViewSNT {
 		if (sciView == null) throw new NullPointerException();
 		this.sciView = sciView;
 		sciView.getScijavaContext().inject(this);
-		plottedTrees = new TreeMap<String,ShapeTree>();
+		plottedTrees = new TreeMap<>();
 		snt = null;
 	}
 

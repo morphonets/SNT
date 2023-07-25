@@ -204,12 +204,12 @@ public class ShollTable extends SNTTable {
 			set(getCol("Threshold range"), row, thresh);
 
 			if (detailedSummary) {
-				final int c = Integer.valueOf(props.getProperty(Profile.KEY_CHANNEL_POS));
-				final int z = Integer.valueOf(props.getProperty(Profile.KEY_SLICE_POS));
-				final int t = Integer.valueOf(props.getProperty(Profile.KEY_FRAME_POS));
+				final int c = Integer.parseInt(props.getProperty(Profile.KEY_CHANNEL_POS));
+				final int z = Integer.parseInt(props.getProperty(Profile.KEY_SLICE_POS));
+				final int t = Integer.parseInt(props.getProperty(Profile.KEY_FRAME_POS));
 				set(getCol("CZT Position "), row, "" + c + ":" + z + ":" + t);
 			}
-			final int nSamples = Integer.valueOf(props.getProperty(Profile.KEY_NSAMPLES, "1"));
+			final int nSamples = Integer.parseInt(props.getProperty(Profile.KEY_NSAMPLES, "1"));
 			set(getCol("Samples/radius"), row, nSamples);
 			set(getCol("Samples/radius integration"), row, (nSamples == 1) ? "NA" : nSamples);
 

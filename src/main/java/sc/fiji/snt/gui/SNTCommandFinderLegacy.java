@@ -124,7 +124,7 @@ public class SNTCommandFinderLegacy {
 	public void register(final AbstractButton button, final String descriptionOfComponentHostingButton,
 			final String descriptionOfPathToButton) {
 		if (otherCmdsHash == null)
-			otherCmdsHash = new Hashtable<String, CommandAction>();
+			otherCmdsHash = new Hashtable<>();
 		register(otherCmdsHash, button, descriptionOfComponentHostingButton, descriptionOfPathToButton);
 	}
 
@@ -216,7 +216,7 @@ public class SNTCommandFinderLegacy {
 			if (menuPath == null)
 				menuPath = "";
 			menuPath = menuPath.toLowerCase();
-			if (command.indexOf(substring) > -1 || menuPath.indexOf(substring) > -1) {
+			if (command.contains(substring) || menuPath.contains(substring)) {
 				final String[] row = makeRow(commandName, ca);
 				list.add(row);
 			}
@@ -401,7 +401,7 @@ public class SNTCommandFinderLegacy {
 	}
 
 	public void reloadCommands() {
-		defaultCmdsHash = new Hashtable<String, CommandAction>();
+		defaultCmdsHash = new Hashtable<>();
 		if (otherCmdsHash != null)
 			defaultCmdsHash.putAll(otherCmdsHash);
 

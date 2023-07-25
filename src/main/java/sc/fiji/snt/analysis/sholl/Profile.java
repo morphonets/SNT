@@ -103,7 +103,7 @@ public class Profile implements ProfileProperties {
 	}
 
 	private void initialize() {
-		profile = Collections.synchronizedSortedSet(new TreeSet<ProfileEntry>());
+		profile = Collections.synchronizedSortedSet(new TreeSet<>());
 		properties = new Properties();
 	}
 
@@ -203,7 +203,7 @@ public class Profile implements ProfileProperties {
 
 	public int nDimensions() {
 		try {
-			return Integer.valueOf(properties.getProperty(KEY_2D3D, "-1"));
+			return Integer.parseInt(properties.getProperty(KEY_2D3D, "-1"));
 		} catch (final NumberFormatException exc) {
 			return -1;
 		}

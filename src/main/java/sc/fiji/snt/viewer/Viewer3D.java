@@ -3439,9 +3439,9 @@ public class Viewer3D {
 				this(name);
 				int mod = 0;
 				if (requireCtrl)
-					mod = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+					mod = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
 				if (requireShift)
-					mod |= KeyEvent.SHIFT_MASK;
+					mod |= KeyEvent.SHIFT_DOWN_MASK;
 				final KeyStroke ks = KeyStroke.getKeyStroke(key, mod);
 				putValue(AbstractAction.ACCELERATOR_KEY, ks);
 				if (mod == 0) putValue(AbstractAction.MNEMONIC_KEY, key);
@@ -4950,7 +4950,7 @@ public class Viewer3D {
 				}
 				//final JDialog tempSplash = frame.managerPanel.guiUtils.floatingMsg("Loading ontologies...", false);
 				addProgressLoad(-1);
-				final SwingWorker<AllenCCFNavigator, ?> worker = new SwingWorker<AllenCCFNavigator, Object>() {
+				final SwingWorker<AllenCCFNavigator, ?> worker = new SwingWorker<>() {
 
 					@Override
 					protected AllenCCFNavigator doInBackground() {
@@ -5346,7 +5346,6 @@ public class Viewer3D {
 		}
 
 		private DefaultMutableTreeNode getNode(final String nodeLabel) {
-			@SuppressWarnings("unchecked")
 			final Enumeration<TreeNode> e = ((DefaultMutableTreeNode) tree.getModel().getRoot())
 					.depthFirstEnumeration();
 			while (e.hasMoreElements()) {

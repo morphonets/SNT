@@ -80,7 +80,7 @@ public class ShollPoint extends PointInImage {
 			return null;
 		final String[] ccs = string.trim().split(",");
 		if (ccs.length == 3) {
-			return new ShollPoint(Double.valueOf(ccs[0]), Double.valueOf(ccs[1]), Double.valueOf(ccs[2]));
+			return new ShollPoint(Double.parseDouble(ccs[0]), Double.parseDouble(ccs[1]), Double.parseDouble(ccs[2]));
 		}
 		return null;
 	}

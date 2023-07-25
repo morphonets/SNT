@@ -370,14 +370,14 @@ public class GraphEditor extends JPanel
 		panel.add(annotationMetricJCombo, c);
 		annotationThresholdField = new JFormattedTextField(NumberFormat.getNumberInstance());
 		annotationThresholdField.setToolTipText(mintTresTip);
-		annotationThresholdField.setValue(new Double(5));
+		annotationThresholdField.setValue(5.0);
 		annotationThresholdField.setColumns(8);
 
 		c.gridx++;
 		panel.add(annotationThresholdField, c);
 		annotationDepthField = new JFormattedTextField(NumberFormat.getNumberInstance());
 		annotationDepthField.setToolTipText(maxDepthTip);
-		annotationDepthField.setValue(new Integer(5));
+		annotationDepthField.setValue(5);
 		annotationDepthField.setColumns(8);
 		c.gridx++;
 		panel.add(annotationDepthField, c);

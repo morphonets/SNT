@@ -103,7 +103,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 		final AListener listener = new AListener();
 		pMenu.add(menuItem(AListener.SELECT_NEAREST, listener, KeyEvent.VK_G));
-		pMenu.add(menuItem(AListener.APPEND_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_MASK)));
+		pMenu.add(menuItem(AListener.APPEND_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_DOWN_MASK)));
 		final JMenuItem selectByRoi = new JMenuItem("Select Paths by 2D ROI");
 		selectByRoi.addActionListener( e -> {
 			if (pathAndFillManager.size() == 0) {
@@ -156,7 +156,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		pMenu.addSeparator();
 
 		pMenu.add(menuItem(AListener.START_SHOLL, listener, 
-				KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_MASK + KeyEvent.ALT_MASK)));
+				KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK + KeyEvent.ALT_DOWN_MASK)));
 		final JMenuItem countSpines = new JMenuItem("Count Spine/Varicosities...");
 		final boolean[] firstTimeCallingCountSpines = {true};
 		countSpines.addActionListener(e -> {
@@ -598,7 +598,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	/* See ImageCanvas#handlePopupMenu(me); */
 	private boolean isPopupTrigger(final MouseEvent me) {
 		return (me.isPopupTrigger() || (!PlatformUtils.isMac() && (me
-			.getModifiers() & Event.META_MASK) != 0));
+			.getModifiersEx() & MouseEvent.META_DOWN_MASK) != 0));
 	}
 
 	@Override

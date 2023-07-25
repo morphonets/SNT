@@ -255,9 +255,7 @@ public class NDFImporter {
 			SNTUtils.log("   Effectuated read data");
 			SNTUtils.log("Done");
 
-		} catch (final NumberFormatException e) {
-			SNTUtils.error("Error reading from file", e);
-		} catch (final IllegalStateException e) {
+		} catch (final NumberFormatException | IllegalStateException e) {
 			SNTUtils.error("Error reading from file", e);
 		} catch (final Throwable e) {
 			SNTUtils.error("Unable to read from file", e);

@@ -112,8 +112,8 @@ class TextAreaOutputStream extends OutputStream {
 		Appender(final JTextArea txtara, final int maxlin) {
 			textArea = txtara;
 			maxLines = maxlin;
-			lengths = new LinkedList<Integer>();
-			values = new ArrayList<String>();
+			lengths = new LinkedList<>();
+			values = new ArrayList<>();
 
 			curLength = 0;
 			clear = false;

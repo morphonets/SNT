@@ -205,7 +205,7 @@ public class ShollPlot extends Plot {
 		final ShollPlot newPlot = new ShollPlot(defaultTitle(stats), defaultXtitle(stats), defaultYtitle(stats), stats,
 				annotate, preferCumulativeFrequencies);
 		String title = pw.getTitle();
-		if (title != null && title.indexOf(" (") != -1) {
+		if (title != null && title.contains(" (")) {
 			String statsLabel = "";
 			if (stats instanceof LinearProfileStats) {
 				statsLabel = "(Linear)";
@@ -223,7 +223,7 @@ public class ShollPlot extends Plot {
 		for (final String d : getDataObjectDesignations()) {
 			if (d == null || d.trim().isEmpty())
 				continue;
-			if (!d.endsWith(" data points)") && d.indexOf(": ") > -1) {
+			if (!d.endsWith(" data points)") && d.contains(": ")) {
 				sb.append(d.substring(d.indexOf(": ") + 2)).append("\n");
 			} else {
 				sb.append(d).append("\n");

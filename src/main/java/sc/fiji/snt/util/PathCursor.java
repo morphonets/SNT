@@ -25,7 +25,6 @@ package sc.fiji.snt.util;
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessible;
-import net.imglib2.Sampler;
 import sc.fiji.snt.Path;
 
 /**

@@ -103,8 +103,8 @@ public class ShollOverlay implements ProfileProperties {
 		this.imp = imp;
 		ls = new DefaultLUTService();
 		properties = profile.getProperties();
-		channel = Integer.valueOf(properties.getProperty(KEY_CHANNEL_POS, "1"));
-		frame = Integer.valueOf(properties.getProperty(KEY_FRAME_POS, "1"));
+		channel = Integer.parseInt(properties.getProperty(KEY_CHANNEL_POS, "1"));
+		frame = Integer.parseInt(properties.getProperty(KEY_FRAME_POS, "1"));
 		hyperStack = (channel != 1 && frame != 1);
 		cal = profile.spatialCalibration();
 		centerRawX = center.rawX(cal);
@@ -241,7 +241,7 @@ public class ShollOverlay implements ProfileProperties {
 			throw new IllegalArgumentException("Shell ROIs cannot be generated with undefined center");
 		shells = new ArrayList<>();
 		final Color baseColor = alphaColor(this.baseColor, shellsAlpha);
-		final int shellThickness = Integer.valueOf(properties.getProperty(KEY_NSAMPLES, "1"));
+		final int shellThickness = Integer.parseInt(properties.getProperty(KEY_NSAMPLES, "1"));
 
 		// 2D analysis: circular shells
 		final String sProperty = properties.getProperty(KEY_HEMISHELLS, HEMI_NONE);

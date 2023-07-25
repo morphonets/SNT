@@ -35,7 +35,6 @@ import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
 import java.io.File;
-import java.io.IOException;
 
 import javax.swing.AbstractButton;
 import javax.swing.BoxLayout;
@@ -174,7 +173,7 @@ public class FileChooser extends JFileChooser {
 		}
 		final File dir = (file.isDirectory()) ? file : file.getParentFile();
 		try {
-			Desktop.getDesktop().open(dir); // TODO: Move to java9: Desktop.getDesktop().browseFileDirectory(file);
+			Desktop.getDesktop().browseFileDirectory(file);
 		} catch (final UnsupportedOperationException ue) {
 			if (SystemInfo.isLinux)
 				try {
@@ -182,7 +181,7 @@ public class FileChooser extends JFileChooser {
 				} catch (final Exception ignored) {
 					fileNotAccessibleError(dir);
 				}
-		} catch (final NullPointerException | IllegalArgumentException | IOException iae) {
+		} catch (final NullPointerException | IllegalArgumentException iae) {
 			fileNotAccessibleError(dir);
 		}
 	}

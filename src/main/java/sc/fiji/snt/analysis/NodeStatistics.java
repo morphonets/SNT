@@ -218,7 +218,7 @@ public class NodeStatistics <T extends PointInImage> {
 	 * @return the list of filtered nodes
 	 */
 	public List<T> get(final BrainAnnotation compartment, final boolean includeChildren) {
-		final List<T> list = new ArrayList<T>();
+		final List<T> list = new ArrayList<>();
 		for (final T node : points) {
 			final BrainAnnotation annotation = node.getAnnotation();
 			if (annotation != null) {
@@ -265,7 +265,7 @@ public class NodeStatistics <T extends PointInImage> {
 					mappingAnnotation = pAnnotation;
 				}
 			}
-			Set<T> currentList = map.computeIfAbsent(mappingAnnotation, k -> new HashSet<T>());
+			Set<T> currentList = map.computeIfAbsent(mappingAnnotation, k -> new HashSet<>());
 			currentList.add(p);
 		}
 	
@@ -501,17 +501,17 @@ public class NodeStatistics <T extends PointInImage> {
 		if (normGuess.matches(".*\\bz\\b.*")) {
 			return Z_COORDINATES;
 		}
-		if (normGuess.indexOf("rad") != -1 ) {
+		if (normGuess.contains("rad")) {
 			return RADIUS;
 		}
-		if (normGuess.indexOf("val") != -1 || normGuess.indexOf("int") > -1) {
+		if (normGuess.contains("val") || normGuess.contains("int")) {
 			return VALUES;
 		}
-		if (normGuess.indexOf("len") != -1) {
+		if (normGuess.contains("len")) {
 			return BRANCH_LENGTH;
 		}
-		if (normGuess.indexOf("ord") != -1 || normGuess.indexOf("strahler") != -1 || normGuess.indexOf("horton") != -1
-				|| normGuess.indexOf("h-s") != -1) {
+		if (normGuess.contains("ord") || normGuess.contains("strahler") || normGuess.contains("horton")
+				|| normGuess.contains("h-s")) {
 			return BRANCH_ORDER;
 		}
 		return "unknown";

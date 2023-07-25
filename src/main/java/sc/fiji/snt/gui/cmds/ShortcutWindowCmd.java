@@ -210,7 +210,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		jmi.setToolTipText("Click holding Shift to open script");
 		jmi.addActionListener(e -> {
 			try {
-				if ((e.getModifiers() & InputEvent.SHIFT_MASK) != 0)
+				if ((e.getModifiers() & InputEvent.SHIFT_DOWN_MASK) != 0)
 					si.openScript(scriptDirectory, scriptName);
 				else
 					si.runScript(scriptDirectory, scriptName);

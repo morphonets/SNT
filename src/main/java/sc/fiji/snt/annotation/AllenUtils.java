@@ -457,7 +457,6 @@ public class AllenUtils {
 		}
 
 		private DefaultMutableTreeNode getParentNode(final AllenCompartment parentStructure) {
-			@SuppressWarnings("unchecked")
 			final Enumeration<TreeNode> en = root.depthFirstEnumeration();
 			while (en.hasMoreElements()) {
 				DefaultMutableTreeNode node = (DefaultMutableTreeNode) en.nextElement();

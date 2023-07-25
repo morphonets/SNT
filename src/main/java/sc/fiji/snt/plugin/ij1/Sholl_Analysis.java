@@ -2403,7 +2403,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 	 */
 	public void setPlotLabels(final String booleanString) {
 		if (validateBooleanString(booleanString))
-			this.plotLabels = Boolean.valueOf(booleanString);
+			this.plotLabels = Boolean.parseBoolean(booleanString);
 	}
 
 	/**

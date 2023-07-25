@@ -304,13 +304,13 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		final Set<Integer> set = new HashSet<>();
 		try {
 			for (final String value : s.split(",\\s*")) {
-				if (value.indexOf("-") != -1) {
+				if (value.contains("-")) {
 					final String[] limits = value.split("-\\s*");
 					if (limits.length != 2) {
 						guiUtils.error("Input contained an invalid range.");
 						return;
 					}
-					IntStream.rangeClosed(Integer.valueOf(limits[0].trim()), Integer.valueOf(limits[1].trim())).forEach(v -> {
+					IntStream.rangeClosed(Integer.parseInt(limits[0].trim()), Integer.parseInt(limits[1].trim())).forEach(v -> {
 						set.add(v);
 					});
 				} else {
@@ -359,7 +359,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		String s = guiUtils.getString(msg, property + " Filtering", "10-100");
 		if (s == null) return; // user pressed cancel
 		s = s.toLowerCase();
-		if (s.indexOf("-") == -1) s = s + "-"+ s;
+		if (!s.contains("-")) s = s + "-"+ s;
 
 		double min = Double.MIN_VALUE;
 		double max = Double.MAX_VALUE;

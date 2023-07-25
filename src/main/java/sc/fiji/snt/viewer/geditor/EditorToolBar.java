@@ -198,12 +198,12 @@ class EditorToolBar extends JToolBar
 		// and adds some frequently used fonts at the beginning of the list
 		final GraphicsEnvironment env = GraphicsEnvironment
 				.getLocalGraphicsEnvironment();
-		final List<String> fonts = new ArrayList<String>();
+		final List<String> fonts = new ArrayList<>();
 		fonts.addAll(Arrays.asList("Arial", "Helvetica", "Verdana",
 				"Garamond", "Courier New"));
 		fonts.addAll(Arrays.asList(env.getAvailableFontFamilyNames()));
 
-		final JComboBox<String> fontCombo = new JComboBox<String>(fonts.toArray(new String[0]));
+		final JComboBox<String> fontCombo = new JComboBox<>(fonts.toArray(new String[0]));
 		fontCombo.setPrototypeDisplayValue("DejaVu Sans Condens");
 		fontCombo.setEditable(false);
 		fontCombo.setToolTipText("Labels Typeface & Size");

@@ -44,7 +44,7 @@ import sc.fiji.snt.gui.GuiUtils;
 
 class QueueJumpingKeyListener implements KeyListener {
 
-	private static final int CTRL_CMD_MASK = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+	private static final int CTRL_CMD_MASK = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
 	private final SNT tracerPlugin;
 	private final InteractiveTracerCanvas canvas;
 	private final Image3DUniverse univ;
@@ -103,7 +103,7 @@ class QueueJumpingKeyListener implements KeyListener {
 		// the keystroke is white-listed, 2) the user pressed a modifier key,
 		// 3) it is a numeric keypad or 'action' (eg, fn) key
 		final boolean doublePress = isDoublePress(e);
-		final boolean ctrl_down = (e.getModifiers() & CTRL_CMD_MASK) != 0;
+		final boolean ctrl_down = (e.getModifiersEx() & CTRL_CMD_MASK) != 0;
 		final boolean shift_down = e.isShiftDown();
 
 		if (keyCode == KeyEvent.VK_ESCAPE && canvas != null) {

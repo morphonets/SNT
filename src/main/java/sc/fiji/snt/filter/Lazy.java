@@ -104,7 +104,7 @@ public class Lazy {
                 sourceInterval,
                 blockSize,
                 type,
-                new UnaryComputerOpCellLoader<I, O, RandomAccessibleInterval<I>>(
+                new UnaryComputerOpCellLoader<>(
                         source,
                         op));
     }
@@ -135,7 +135,7 @@ public class Lazy {
                 sourceInterval,
                 blockSize,
                 type,
-                new UnaryComputerOpCellLoader<I, O, RandomAccessibleInterval<I>>(
+                new UnaryComputerOpCellLoader<>(
                         source,
                         opService,
                         opClass,
