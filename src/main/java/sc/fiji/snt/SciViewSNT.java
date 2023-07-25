@@ -428,8 +428,8 @@ public class SciViewSNT {
 				final Vector3f p3 = convertPIIToVector3(somaPoints.get(2));
 				final double lengthT1 = p2.sub(p1).length();
 				final double lengthT2 = p1.sub(p3).length();
-				final Node t1 = sciView.addCylinder(p2,DEF_NODE_RADIUS,(float)lengthT1,20, p -> { return null; });
-				final Node t2 = sciView.addCylinder(p1,DEF_NODE_RADIUS,(float)lengthT2,20, p -> { return null; });
+				final Node t1 = sciView.addCylinder(p2, DEF_NODE_RADIUS, (float)lengthT1, Colors.GRAY, 20, p -> null);
+				final Node t2 = sciView.addCylinder(p1, DEF_NODE_RADIUS, (float)lengthT2, Colors.GRAY, 20, p -> null);
 				addChild(t1);
 				addChild(t2);
 				return;

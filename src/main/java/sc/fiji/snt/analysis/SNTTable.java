@@ -38,10 +38,10 @@ import org.scijava.io.location.FileLocation;
 import org.scijava.plugin.Parameter;
 import org.scijava.table.Column;
 import org.scijava.table.DefaultGenericTable;
-import org.scijava.table.DefaultTableIOPlugin;
 import org.scijava.table.DoubleColumn;
 import org.scijava.table.GenericTable;
 import org.scijava.table.Table;
+import org.scijava.table.io.DefaultTableIOPlugin;
 import org.scijava.table.io.TableIOOptions;
 
 import sc.fiji.snt.SNTUtils;

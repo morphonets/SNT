@@ -20,8 +20,8 @@
   </a>
 <br>
   <!-- Build Status -->
-  <a href="https://github.com/morphonets/SNT/actions/workflows/build-main.yml">
-    <img alt="Build status" src="https://github.com/morphonets/SNT/actions/workflows/build-main.yml/badge.svg">
+  <a href="https://github.com/morphonets/SNT/actions/workflows/build.yml">
+    <img alt="Build status" src="https://github.com/morphonets/SNT/actions/workflows/build.yml/badge.svg">
   </a>
   <!-- Gitpod -->
   <a href="https://gitpod.io/#https://github.com/fiji/SNT">
