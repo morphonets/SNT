@@ -350,6 +350,7 @@ public class MeasureUI extends JFrame {
 			jmi = new JMenuItem("Quick Guide...");
 			jmi.addActionListener(e -> showHelp());
 			optionsMenu.add(jmi);
+			optionsMenu.add(GuiUtils.menuItemTriggeringURL("Definition of Metrics", "https://imagej.net/plugins/snt/metrics"));
 			optionsButton.addMouseListener(new MouseAdapter() {
 
 				@Override

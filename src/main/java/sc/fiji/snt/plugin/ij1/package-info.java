@@ -21,8 +21,9 @@
  */
 
 /**
- * SNT add-ons as IJ1 plugins. Most are now deprecated, kept here for backwards
- * compatibility.
+ * SNT add-ons as (legacy) IJ1 plugins.
+ * 
+ * Most classes are now deprecated, kept here for backwards compatibility.
  *
  * @author Tiago Ferreira
  */

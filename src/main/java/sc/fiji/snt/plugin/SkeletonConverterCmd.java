@@ -120,7 +120,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 	private boolean pruneByLength;
 
 	@Parameter(label = "Length threshold", description = "<HTML>Disconnected structures below this cable length will be discarded.<br>"
-			+ "Increase this value if the algorith produces too many isolated branches.<br>Decrease it to enrich for larger, contiguos structures.<br><br>"
+			+ "Increase this value if the algorithm produces too many isolated branches.<br>Decrease it to enrich for larger, contiguous structures.<br><br>"
 			+ "This value is only used if \"Discard small components\" is enabled.")
 	private double lengthThreshold;
 
@@ -130,7 +130,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 
 	@Parameter(label = "Max. connection distance", min = "0.0", description = "<HTML>The maximum allowable distance between disconnected "
 			+ "components to be merged.<br>"
-			+ "Increase this value if the algorith produces too many gaps.<br>Decrease it to minimize spurious connections.<br><br>"
+			+ "Increase this value if the algorithm produces too many gaps.<br>Decrease it to minimize spurious connections.<br><br>"
 			+ "This value is only used if \"Connect adjacent components\" is enabled. Merges<br>"
 			+ "occur only between end-points and only when the operation does not introduce loops")
 	private double maxConnectDist;

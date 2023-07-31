@@ -1337,6 +1337,22 @@ public class Viewer3D {
 	public void addColorBarLegend(final ColorTable colorTable, final double min,
 		final double max)
 	{
+		addColorBarLegend(colorTable, min, max, false);
+	}
+
+	/**
+	 * Adds a color bar legend (LUT ramp) using default settings.
+	 *
+	 * @param colorTable      the color table
+	 * @param min             the minimum value in the color table
+	 * @param max             the maximum value in the color table
+	 * @param replaceExisting whether this legend should replace the last legend
+	 *                        added to the scene, if any
+	 */
+	public void addColorBarLegend(final ColorTable colorTable, final double min,
+		final double max, final boolean replaceExisting)
+	{
+		if (replaceExisting) removeColorLegends(true);
 		cBar = new ColorLegend(new ColorTableMapper(colorTable, min, max));
 		chart.add(cBar.get(), viewUpdatesEnabled);
 	}
@@ -2620,7 +2636,7 @@ public class Viewer3D {
 		}
 
 		public ColorLegend(final ColorTableMapper mapper) {
-			this(mapper, new Font(Font.SANS_SERIF, Font.PLAIN, (int) (12 * Prefs.SCALE_FACTOR)), 5, 2);
+			this(mapper, new Font(Font.SANS_SERIF, Font.PLAIN, (int)GuiUtils.uiFontSize()), 5, 2);
 		}
 
 		public void update(final double min, final double max, final float fontSize) {
