@@ -99,7 +99,7 @@ public class Viewer2D extends TreeColorMapper {
 	public Viewer2D() {
 		super();
 		setAxesVisible(true);
-		setGridlinesVisible(true);
+		setGridlinesVisible(false);
 		setOutlineVisible(true);
 	}
 
@@ -125,7 +125,7 @@ public class Viewer2D extends TreeColorMapper {
 		super(context);
 		if (template == null) {
 			setAxesVisible(true);
-			setGridlinesVisible(true);
+			setGridlinesVisible(false);
 			setOutlineVisible(true);
 		} else {
 			setAxesVisible(template.getAxesVisible());
@@ -460,7 +460,6 @@ public class Viewer2D extends TreeColorMapper {
 	 *
 	 * @return the converted viewer
 	 */
-	@Deprecated
 	public JFreeChart getJFreeChart() {
 		return getChart().getChart();
 	}

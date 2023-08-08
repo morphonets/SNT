@@ -1517,10 +1517,10 @@ public class Viewer3D {
 		if (frame != null) {
 			SwingUtilities.invokeLater(() -> {
 				if (msg == null || msg.isEmpty()) {
-					frame.status.setText(frame.STATUS_PLACEHOLDER);
+					frame.status.setText(frame.statusPlaceHolder);
 					return;
 				}
-				final Timer timer = new Timer(msecs, e -> frame.status.setText(frame.STATUS_PLACEHOLDER));
+				final Timer timer = new Timer(msecs, e -> frame.status.setText(frame.statusPlaceHolder));
 				timer.setRepeats(false);
 				timer.start();
 				frame.status.setText(msg);
@@ -2731,7 +2731,7 @@ public class Viewer3D {
 		private static final long serialVersionUID = 1L;
 		private static final int DEF_WIDTH = 800;
 		private static final int DEF_HEIGHT = 600;
-		private final String STATUS_PLACEHOLDER = "Press H (or F1) for Help. Press " + GuiUtils.ctrlKey() + "+Shift+P for Command Palette...";
+		private final String statusPlaceHolder;
 
 		private AChart chart;
 		private Component canvas;
@@ -2764,6 +2764,9 @@ public class Viewer3D {
 			super();
 			GuiUtils.removeIcon(this);
 			final String title = (chart.viewer.isSNTInstance()) ? " (SNT)" : " ("+ chart.viewer.getID() + ")";
+			statusPlaceHolder = (includeManager)
+					? "Press H (or F1) for Help. Press " + GuiUtils.ctrlKey() + "+Shift+P for Command Palette..."
+					: "Press H (or F1) for Help...";
 			initialize(chart, new Rectangle(width, height), "Reconstruction Viewer" + title);
 			if (PlatformUtils.isLinux()) new MultiDisplayUtil(this);
 			if (gConfiguration == null)
@@ -2866,7 +2869,7 @@ public class Viewer3D {
 			final BorderLayout layout = new BorderLayout();
 			setLayout(layout);
 			add(canvas, BorderLayout.CENTER);
-			add(status = new JLabel(STATUS_PLACEHOLDER), BorderLayout.SOUTH);
+			add(status = new JLabel(statusPlaceHolder), BorderLayout.SOUTH);
 			status.setFocusable(false);
 			status.setBackground(toAWTColor(chart.view().getBackgroundColor()));
 			status.setForeground(toAWTColor(chart.view().getBackgroundColor().negative()));
