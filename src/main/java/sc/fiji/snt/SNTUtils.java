@@ -39,6 +39,7 @@ import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -74,6 +75,7 @@ import org.scijava.util.VersionUtils;
 
 import fiji.util.Levenshtein;
 import ij.IJ;
+import ij.ImagePlus;
 import ij.plugin.Colors;
 import ij.process.LUT;
 import io.scif.services.DatasetIOService;
@@ -84,6 +86,10 @@ import net.imglib2.display.ColorTable;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.viewer.MultiViewer2D;
+import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 
 /** Static utilities for SNT **/
@@ -627,5 +633,50 @@ public class SNTUtils {
 	public static void setContext(final Context context) {
 		SNTUtils.context = context;
 	}
+
+	/**
+	 * Convenience method to quickly display a collection of {@link Tree}s
+	 * 
+	 * @param trees         the collection of trees to be rendered
+	 * @param renderOptions Either '2D' ({@link Viewer2D}), '3D' ({@link Viewer3D}),
+	 *                      'montage' {@link MultiViewer2D} or 'image'
+	 *                      ({@link ImagePlus}). Optionally, 'centered' can be
+	 *                      specified, forcing all trees to be 'centered', by
+	 *                      translating their root to a common coordinate (0,0,0).
+	 */
+	public static void render(final Collection<Tree> trees, final String renderOptions) {
+		if (renderOptions.contains("center")) {
+			trees.forEach(tree -> {
+				final PointInImage root = tree.getRoot();
+				tree.translate(-root.getX(), -root.getY(), -root.getZ());
+			});
+		}
+		if (renderOptions.contains("im")) {
+			try {
+				final Viewer3D vh = new Viewer3D(false, "offscreen");
+				vh.add(trees);
+				vh.resetView();
+				final File f = File.createTempFile(renderOptions, ".png");
+				f.deleteOnExit();
+				vh.saveSnapshot(f.getAbsolutePath());
+				ImpUtils.open(f, renderOptions, true).show();
+			} catch (final IOException e) {
+				e.printStackTrace();
+			}
+		} else if (renderOptions.contains("montage")) {
+			new MultiViewer2D(trees).show();
+		} else if (renderOptions.contains("3D")) {
+			final Viewer3D v3 = new Viewer3D();
+			v3.add(trees);
+			v3.show();
+		} else if (renderOptions.contains("2D")) {
+			final Viewer2D v2 = new Viewer2D();
+			v2.add(trees);
+			v2.show();
+		} else {
+			throw new IllegalArgumentException("Unrecognized option: '" + renderOptions + "'");
+		}
+	}
+
 }
 

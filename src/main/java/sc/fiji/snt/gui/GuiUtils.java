@@ -1342,6 +1342,13 @@ public class GuiUtils {
 		}
 	}
 
+	public static void equalizeHeight(final AbstractButton b1, final AbstractButton b2) {
+		b1.setSize(new Dimension(b1.getSize().width, b2.getSize().height));
+		b1.setMinimumSize(new Dimension(b1.getMinimumSize().width, b2.getMinimumSize().height));
+		b1.setPreferredSize(new Dimension(b1.getPreferredSize().width, b2.getPreferredSize().height));
+		b1.setMaximumSize(new Dimension(b1.getMaximumSize().width, b2.getMaximumSize().height));
+	}
+
 	public static int renderedWidth(final String text) {
 		final JLabel l = new JLabel();
 		return l.getFontMetrics(l.getFont()).stringWidth(text);

@@ -50,6 +50,7 @@ import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 
+
 /**
  * @author Cameron Arshadi
  * @author Tiago Ferreira
@@ -213,7 +214,7 @@ public class MeasureUI extends JFrame {
 			// Enlarge default width of first column. Another option would be to have all
 			// columns to auto-fit at all times, e.g., https://stackoverflow.com/a/25570812.
 			// Maybe that would be better?
-			final String prototypeMetric = TreeStatistics.CONVEX_HULL_CENTROID_ROOT_DISTANCE;
+			final String prototypeMetric = TreeStatistics.N_BRANCH_NODES;
 			for (int i = 0; i < statsTable.getColumnCount(); ++i) {
 				final int width = SwingUtilities.computeStringWidth(statsTable.getFontMetrics(statsTable.getFont()),
 						(i == 0) ? prototypeMetric : MEAN);
@@ -248,8 +249,9 @@ public class MeasureUI extends JFrame {
 
 			// searchable
 			final SNTSearchableBar searchableBar = new SNTSearchableBar(new ListSearchable(metricList),
-					"Find... (" + allMetrics.size() + " metrics)");
-			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_NAVIGATION);
+					" Find... (" + allMetrics.size() + " metrics)");
+			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_HIGHLIGHTS
+					| SNTSearchableBar.SHOW_NAVIGATION);
 			searchableBar.setVisible(true);
 			searchableBar.setHighlightAll(true);
 			searchableBar.setGuiUtils(guiUtils);
@@ -289,13 +291,15 @@ public class MeasureUI extends JFrame {
 
 			final JButton runButton = new JButton("Measure " + trees.size() + " Reconstruction(s)");
 			runButton.addActionListener(new GenerateTableAction(trees, statsTableModel));
+			final JButton optionsButton = optionsButton(trees);
+			GuiUtils.equalizeHeight(runButton, optionsButton);
 			final JPanel buttonPanel = new JPanel();
 			buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.LINE_AXIS));
 			//bar.getPreferredSize().height = runButton.getPreferredSize().height;
 			buttonPanel.add(Box.createHorizontalGlue());
 			buttonPanel.add(bar);
 			buttonPanel.add(Box.createHorizontalGlue());
-			buttonPanel.add(optionsButton(trees));
+			buttonPanel.add(optionsButton);
 			buttonPanel.add(runButton);
 			c.gridx = 1;
 			c.gridy = 1;
@@ -306,6 +310,7 @@ public class MeasureUI extends JFrame {
 
 		private JButton optionsButton(final Collection<Tree> trees) {
 			final JButton optionsButton = IconFactory.getButton(IconFactory.GLYPH.OPTIONS);
+			optionsButton.setToolTipText("Options & Utilities");
 			final JPopupMenu optionsMenu = new JPopupMenu();
 			GuiUtils.addSeparator(optionsMenu, "Options:");
 			final JCheckBoxMenuItem jcmi1 = new JCheckBoxMenuItem("Distinguish Compartments",
@@ -322,14 +327,11 @@ public class MeasureUI extends JFrame {
 				}
 			});
 			optionsMenu.add(jcmi4);
-			GuiUtils.addSeparator(optionsMenu, "Actions:");
-			JMenuItem jmi = new JMenuItem("List Cell(s) Being Measured...");
-			jmi.addActionListener(e -> showDetails(trees));
-			optionsMenu.add(jmi);
-			jmi = new JMenuItem("Clear Measurements Table");
+			GuiUtils.addSeparator(optionsMenu, "Measurements Table:");
+			JMenuItem jmi = new JMenuItem("Clear Measurements");
 			jmi.addActionListener(e -> wipeTable());
 			optionsMenu.add(jmi);
-			jmi = new JMenuItem("Save Measurements Table...");
+			jmi = new JMenuItem("Save Measurements...");
 			jmi.addActionListener(e -> saveTable());
 			jmi.setToolTipText("Save measurements table. Note that tables can always\n"
 					+ "be saved using the 'Save Tables and Analysis Plot' command");
@@ -346,11 +348,41 @@ public class MeasureUI extends JFrame {
 			});
 			jmi.setToolTipText("Computes Mean, SD, Sum, etc. for existing measurements");
 			optionsMenu.add(jmi);
+			GuiUtils.addSeparator(optionsMenu, "Utilities:");
+			jmi = new JMenuItem("List Cell(s) Being Measured...");
+			jmi.addActionListener(e -> showDetails(trees));
+			optionsMenu.add(jmi);
+			jmi = new JMenuItem("Render Cell(s) Being Measured...");
+			jmi.addActionListener(e -> {
+				final String[] choices = { //
+						"2D montage", //
+						"2D scene", //
+						"2D scene (centered positions)", //
+						"3D scene", //
+						"3D scene (centered positions)" };
+				final String[] desc = { //
+						"2D multipanel montage (1 cell per panel)", //
+						"2D scene displaying cells at their absolute coordinates", //
+						"2D scene in which all reconstructions are displayed from a common coordinate", //
+						"3D scene displaying cells at their absolute coordinates", //
+						"3D scene in which all reconstructions are displayed from a common coordinate" };
+				final String defChoice = (plugin == null) ? choices[2]
+						: plugin.getPrefs().getTemp("measure-render", choices[2]);
+				final String choice = guiUtils.getChoice("How would you like to render the cell(s) being measured?",
+						"Render Options", choices, desc, defChoice);
+				if (choice == null)
+					return;
+				if (plugin != null)
+					plugin.getPrefs().setTemp("measure-render", choice);
+				SNTUtils.render(trees, choice);
+			});
+			optionsMenu.add(jmi);
 			GuiUtils.addSeparator(optionsMenu, "Help:");
 			jmi = new JMenuItem("Quick Guide...");
 			jmi.addActionListener(e -> showHelp());
 			optionsMenu.add(jmi);
-			optionsMenu.add(GuiUtils.menuItemTriggeringURL("Definition of Metrics", "https://imagej.net/plugins/snt/metrics"));
+			optionsMenu.add(
+					GuiUtils.menuItemTriggeringURL("Definition of Metrics", "https://imagej.net/plugins/snt/metrics"));
 			optionsButton.addMouseListener(new MouseAdapter() {
 
 				@Override
@@ -516,20 +548,26 @@ public class MeasureUI extends JFrame {
 		private JPopupMenu listPopupMenu() {
 			final JPopupMenu pMenu = new JPopupMenu();
 			GuiUtils.addSeparator(pMenu, "Selection of Metrics:");
-			JMenuItem mi = new JMenuItem("Select Highlighted");
+			JMenuItem mi = new JMenuItem("Select All");
+			mi.addActionListener(e -> metricList.selectAll());
+			pMenu.add(mi);
+			mi = new JMenuItem("Select None");
+			mi.addActionListener(e -> metricList.clearCheckBoxListSelection());
+			pMenu.add(mi);
+			pMenu.addSeparator();
+			mi = new JMenuItem("Select Highlighted");
 			mi.addActionListener(e -> setHighlightedSelected(true));
 			pMenu.add(mi);
 			mi = new JMenuItem("Deselect Highlighted");
 			mi.addActionListener(e -> setHighlightedSelected(false));
 			pMenu.add(mi);
+			pMenu.addSeparator();
 			mi = new JMenuItem("Invert Selection");
 			mi.addActionListener(e -> invertSelection());
 			pMenu.add(mi);
-			mi = new JMenuItem("Select All");
-			mi.addActionListener(e -> metricList.selectAll());
-			pMenu.add(mi);
-			mi = new JMenuItem("Select None");
-			mi.addActionListener(e -> metricList.clearCheckBoxListSelection());
+			pMenu.addSeparator();
+			mi = new JMenuItem("Define Highlighted Metric...", IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
+			mi.addActionListener(e -> getHelpOnHighlightedMetric());
 			pMenu.add(mi);
 			return pMenu;
 		}
@@ -559,6 +597,29 @@ public class MeasureUI extends JFrame {
 					metricList.removeCheckBoxListSelectedIndex(indices[i]);
 			}
 			metricList.setValueIsAdjusting(false);
+		}
+
+		private void getHelpOnHighlightedMetric() {
+			final int idx = metricList.getSelectedIndex();
+			if (idx < 0) {
+				UIManager.getLookAndFeel().provideErrorFeedback(this);
+				return;
+			}
+			String metric = metricList.getModel().getElementAt(idx).toString();
+			switch (metric) {
+			case TreeStatistics.X_COORDINATES:
+			case TreeStatistics.Y_COORDINATES:
+			case TreeStatistics.Z_COORDINATES:
+				metric = "xyz-coordinates";
+				break;
+			default:
+				metric = metric.replace(".", "").replace(":", "")//
+						.replace("(", "").replace(")", "") //
+						.replace("[", "").replace("]", "") //
+						.replace("/", "").replace("\\", "") //
+						.replace(" ", "-");
+			}
+			GuiUtils.openURL("https://imagej.net/plugins/snt/metrics#" + metric.toLowerCase());
 		}
 
 	}
@@ -858,17 +919,19 @@ public class MeasureUI extends JFrame {
 			JMenuItem mi = new JMenuItem("Select All");
 			mi.addActionListener(e -> setAllState(true));
 			add(mi);
-			mi = new JMenuItem("Select This Column");
-			mi.addActionListener(e -> setColumnState(true));
-			add(mi);
-			mi = new JMenuItem("Select Highlighted Row(s)");
-			mi.addActionListener(e -> setSelectedRowsState(true));
-			add(mi);
 			mi = new JMenuItem("Select None");
 			mi.addActionListener(e -> setAllState(false));
 			add(mi);
+			addSeparator();
+			mi = new JMenuItem("Select This Column");
+			mi.addActionListener(e -> setColumnState(true));
+			add(mi);
 			mi = new JMenuItem("Deselect This Column");
 			mi.addActionListener(e -> setColumnState(false));
+			add(mi);
+			addSeparator();
+			mi = new JMenuItem("Select Highlighted Row(s)");
+			mi.addActionListener(e -> setSelectedRowsState(true));
 			add(mi);
 			mi = new JMenuItem("Deselect Highlighted Row(s)");
 			mi.addActionListener(e -> setSelectedRowsState(false));

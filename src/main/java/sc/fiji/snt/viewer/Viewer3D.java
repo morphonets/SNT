@@ -1724,6 +1724,10 @@ public class Viewer3D {
 		}
 	}
 
+	public void resetView() {
+		keyController.resetView();
+	}
+
 	/**
 	 * Script friendly method to add a supported object ({@link Tree},
 	 * {@link OBJMesh}, AbstractDrawable, etc.) to this viewer. Note that

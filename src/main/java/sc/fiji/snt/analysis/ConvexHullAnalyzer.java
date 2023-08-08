@@ -229,14 +229,18 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		// error, just opService seems to stall!? without any feedback. For now,
 		// we'll try to avoid any edge situation altogether.
 		int nNodes = 0;
+		final BoundingBox bbox = new BoundingBox();
 		for (final Path p : tree.list()) {
 			nNodes += p.size();
-			final BoundingBox bbox = new BoundingBox();
 			bbox.compute(p.getNodes().iterator());
 			if (nNodes > 3 && bbox.width() * bbox.height() > 0)
 				return true;
 		}
 		return false;
+	}
+
+	public Tree getTree() {
+		return tree;
 	}
 
 	public static void main(final String[] args) throws InterruptedException {
@@ -245,10 +249,6 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		final Tree tree = sntService.demoTrees().get(0);
 		final ConvexHullAnalyzer analyzer = new ConvexHullAnalyzer(tree);
 		analyzer.run();
-	}
-
-	public Tree getTree() {
-		return tree;
 	}
 
 }

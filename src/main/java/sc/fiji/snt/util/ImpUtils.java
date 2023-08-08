@@ -22,6 +22,9 @@
 
 package sc.fiji.snt.util;
 
+import java.io.File;
+
+import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.plugin.ContrastEnhancer;
@@ -70,6 +73,17 @@ public class ImpUtils {
 			new ImageConverter(imp).convertToGray8();
 			ImageConverter.setDoScaling(doScaling);
 		}
+	}
+
+	public static ImagePlus open(final File file) {
+		return open(file, null);
+	}
+
+	public static ImagePlus open(final File file, final String title) {
+		final ImagePlus imp = IJ.openImage(file.getAbsolutePath());
+		if (title != null)
+			imp.setTitle(title);
+		return imp;
 	}
 
 	public static boolean sameXYZDimensions(final ImagePlus imp1, final ImagePlus imp2) {

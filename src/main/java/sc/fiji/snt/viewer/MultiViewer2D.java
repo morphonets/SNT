@@ -29,7 +29,9 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.swing.JFrame;
 
@@ -82,7 +84,26 @@ public class MultiViewer2D {
 		this.viewers = viewers;
 		guessLayout();
 		setAxesVisible(true);
-		setGridlinesVisible(true);
+		setGridlinesVisible(false);
+		setOutlineVisible(true);
+	}
+
+	public MultiViewer2D(final Collection<Tree> trees) {
+		viewers = new ArrayList<>();
+		trees.forEach(tree -> {
+			final Viewer2D v = new Viewer2D();
+			v.add(tree);
+			if (tree.getLabel() != null) {
+				v.setTitle(tree.getLabel());
+				v.getChart().annotate(tree.getLabel());
+			
+			}
+			viewers.add(v);
+		});
+	
+		guessLayout();
+		setAxesVisible(true);
+		setGridlinesVisible(false);
 		setOutlineVisible(true);
 	}
 
@@ -200,6 +221,13 @@ public class MultiViewer2D {
 		return frame;
 	}
 
+	private String getTitlesAsString(final List<Viewer2D> viewers) {
+		if (viewers.stream().allMatch(v -> v.getTitle() != null)) {
+			return viewers.stream().map(Viewer2D::getTitle).collect(Collectors.toList()).toString();
+		}
+		return null;
+	}
+
 	private SNTChart getMergedChart(final List<Viewer2D> viewers, final String style) {
 		JFreeChart result;
 		if (style != null && style.toLowerCase().startsWith("c")) { // column
@@ -231,7 +259,11 @@ public class MultiViewer2D {
 			}
 			result.addSubtitle(legend);
 		}
-		return new SNTChart("", result);
+		final SNTChart chart = new SNTChart("", result);
+		final String legend = getTitlesAsString(viewers);
+		if (legend != null)
+			chart.annotate(legend);
+		return chart;
 	}
 
 	/* IDE debug method */
