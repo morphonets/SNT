@@ -941,8 +941,11 @@ public class Tree implements TreeProperties {
 		final boolean compute = box == null || computeIfUnset || box.isComputationNeeded();
 		if (box == null) 
 			box = new TreeBoundingBox();
-		if (compute)
+		if (compute) {
 			box.compute(getNodes().iterator());
+			if (getProperties().get(KEY_SPATIAL_UNIT) != null)
+				box.setUnit(getProperties().getProperty(KEY_SPATIAL_UNIT));
+		}
 		return box;
 	}
 
@@ -1004,7 +1007,7 @@ public class Tree implements TreeProperties {
 			slices_data[z] = (short[]) s.getPixels(destinationImp.getStackIndex(channel, z + 1, frame));
 		}
 		initPathAndFillManager();
-		pafm.setPathPointsInVolume(list(), slices_data, value, width, height, depth);
+		pafm.setPathPointsInVolume(list(), slices_data, value, width, height);
 	}
 
 	/**
@@ -1028,7 +1031,10 @@ public class Tree implements TreeProperties {
 	 * @see #skeletonize(ImagePlus, int)
 	 */
 	public ImagePlus getSkeleton(final int pixelValue) {
+		return getSkeletonInternal(pixelValue, false);
+	}
 
+	private ImagePlus getSkeletonInternal(final int pixelValue, final boolean ignoreDepth) {
 		// Find what is the offset of the tree relative to (0,0,0).
 		// We'll set padding margins similarly to getImpContainer()
 		SNTUtils.log("Skeletonizing "+ getLabel());
@@ -1036,7 +1042,7 @@ public class Tree implements TreeProperties {
 		final double width = box.width();
 		final double height = box.height();
 		final double depth = box.depth();
-		final boolean threeD = depth > 0;
+		final boolean threeD = depth > 0 && !ignoreDepth;
 		final int xyMargin = 3;
 		final int zMargin = (threeD) ? 1 : 0;
 		final double xOffset = box.origin().getX() - xyMargin;
@@ -1063,12 +1069,11 @@ public class Tree implements TreeProperties {
 		if (d < 1) d = 1;
 		if (d > 1) d += (2 * zMargin);
 		SNTUtils.log("  Allocating " + w + "x" + h + "x" + d + " pixels (16-bit)");
-		final ImagePlus imp = IJ.createImage("Skel " + getLabel(), w, h, d, 16);
+		final ImagePlus imp = IJ.createImage("Skel " + getLabel(), w, h, (threeD)?d:1, 16);
 
 		// Skeletonize
 		skeletonize(imp, pixelValue);
-		if (getBoundingBox().isScaled())
-			imp.setCalibration(getBoundingBox().getCalibration());
+		imp.getLocalCalibration().setUnit(getBoundingBox().getUnit());
 
 		// Restore initial state
 		SNTUtils.log("  Skeletonization complete");
@@ -1163,8 +1168,22 @@ public class Tree implements TreeProperties {
 	 * @see #getSkeleton()
 	 */
 	public ImagePlus getSkeleton2D() {
-		final ImagePlus imp = getSkeleton();
-		return (imp.getNDimensions() > 2) ? ImpUtils.getMIP(imp) : imp;
+		final ImagePlus imp =  getSkeleton2D(65535);
+		ImpUtils.convertTo8bit(imp);
+		return imp;
+	}
+
+	/**
+	 * Retrieves a 2D projection of the rasterized skeleton of this tree at 1:1
+	 * scaling.
+	 * 
+	 * @param pixelValue the pixel intensities of the skeleton. If {@code -1}, each
+	 *                   path in the tree is rendered uniquely (labels image)
+	 * @return the skeletonized 16-bit binary image
+	 * @see #getSkeleton(int)
+	 */
+	public ImagePlus getSkeleton2D(final int pixelValue) {
+		return getSkeletonInternal(pixelValue, true);
 	}
 
 	/**

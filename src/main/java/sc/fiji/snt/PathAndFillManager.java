@@ -3143,8 +3143,9 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * stack of this kind.
 	 */
 	synchronized void setPathPointsInVolume(final Collection<Path> paths,
-		final short[][] slices, final int pixelIntensity, final int width, final int height, final int depth)
+		final short[][] slices, final int pixelIntensity, final int width, final int height)
 	{
+		final boolean ignoreDepth = slices.length == 1;
 		short actualPixelIntensity = (short)pixelIntensity;
 		int label = 1;
 		for (final Path topologyPath : paths) {
@@ -3164,12 +3165,12 @@ public class PathAndFillManager extends DefaultHandler implements
 				final Path sp = p.startJoins;
 				final int spi = sp.indexNearestTo(s.x, s.y, s.z);
 				pointsToJoin.add(new Bresenham3D.IntegerPoint(sp.getXUnscaled(spi), sp
-					.getYUnscaled(spi), sp.getZUnscaled(spi)));
+					.getYUnscaled(spi), (ignoreDepth) ? 0 : sp.getZUnscaled(spi)));
 			}
 
 			for (int i = 0; i < n; ++i) {
 				pointsToJoin.add(new Bresenham3D.IntegerPoint(p.getXUnscaled(i), p
-					.getYUnscaled(i), p.getZUnscaled(i)));
+					.getYUnscaled(i), (ignoreDepth) ? 0 : p.getZUnscaled(i)));
 			}
 
 			Bresenham3D.IntegerPoint previous = null;

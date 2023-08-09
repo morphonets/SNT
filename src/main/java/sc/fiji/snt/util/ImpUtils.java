@@ -23,11 +23,13 @@
 package sc.fiji.snt.util;
 
 import java.io.File;
+import java.util.Collection;
 
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.plugin.ContrastEnhancer;
+import ij.plugin.ImagesToStack;
 import ij.plugin.ZProjector;
 import ij.process.ByteProcessor;
 import ij.process.ImageConverter;
@@ -51,10 +53,15 @@ public class ImpUtils {
 
 	public static ImagePlus getMIP(final ImagePlus imp) {
 		final ImagePlus mip = ZProjector.run(imp, "max");
-		mip.setLut(imp.getLuts()[0]); // assume single-channel image
+		if (mip.getNChannels() == 1)
+			mip.setLut(imp.getLuts()[0]); // assume single-channel image
 		mip.copyScale(imp);
 		new ContrastEnhancer().stretchHistogram(mip, 0.35);
 		return mip;
+	}
+
+	public static ImagePlus getMIP(final Collection<ImagePlus> imps) {
+		return getMIP(ImagesToStack.run(imps.toArray(new ImagePlus[0])));
 	}
 
 	public static void convertTo32bit(final ImagePlus imp) throws IllegalArgumentException {

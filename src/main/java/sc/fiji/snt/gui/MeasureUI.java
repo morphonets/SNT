@@ -358,14 +358,16 @@ public class MeasureUI extends JFrame {
 						"2D montage", //
 						"2D scene", //
 						"2D scene (centered positions)", //
+						"2D skeletons (centered positions)", //
 						"3D scene", //
 						"3D scene (centered positions)" };
 				final String[] desc = { //
-						"2D multipanel montage (1 cell per panel)", //
-						"2D scene displaying cells at their absolute coordinates", //
-						"2D scene in which all reconstructions are displayed from a common coordinate", //
-						"3D scene displaying cells at their absolute coordinates", //
-						"3D scene in which all reconstructions are displayed from a common coordinate" };
+						"Multipanel montage (1 cell per panel) displayed in Reconstruction Plotter", //
+						"Reconstruction Plotter scene displaying cells at their absolute coordinates", //
+						"Reconstruction Plotter scene in which all reconstructions are displayed from a common coordinate", //
+						"Raster image in which all reconstructions are displayed from a common coordinate", //
+						"Reconstruction Viewer scene displaying cells at their absolute coordinates", //
+						"Reconstruction Viewer scene in which all reconstructions are displayed from a common coordinate" };
 				final String defChoice = (plugin == null) ? choices[2]
 						: plugin.getPrefs().getTemp("measure-render", choices[2]);
 				final String choice = guiUtils.getChoice("How would you like to render the cell(s) being measured?",

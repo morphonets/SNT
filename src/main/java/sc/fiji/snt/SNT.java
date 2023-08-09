@@ -1492,7 +1492,7 @@ public class SNT extends MultiDThreePanes implements
 			snapshot_data[i] = new short[width * height];
 
 		pathAndFillManager.setPathPointsInVolume(paths, snapshot_data, (labelsImage) ? (short)-1 : (short) 255, width,
-			height, depth);
+			height);
 
 		final ImageStack newStack = new ImageStack(width, height);
 

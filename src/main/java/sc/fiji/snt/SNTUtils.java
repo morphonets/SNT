@@ -86,6 +86,7 @@ import net.imglib2.display.ColorTable;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.viewer.MultiViewer2D;
@@ -639,7 +640,7 @@ public class SNTUtils {
 	 * 
 	 * @param trees         the collection of trees to be rendered
 	 * @param renderOptions Either '2D' ({@link Viewer2D}), '3D' ({@link Viewer3D}),
-	 *                      'montage' {@link MultiViewer2D} or 'image'
+	 *                      'montage' {@link MultiViewer2D} or 'skeleton'
 	 *                      ({@link ImagePlus}). Optionally, 'centered' can be
 	 *                      specified, forcing all trees to be 'centered', by
 	 *                      translating their root to a common coordinate (0,0,0).
@@ -651,18 +652,14 @@ public class SNTUtils {
 				tree.translate(-root.getX(), -root.getY(), -root.getZ());
 			});
 		}
-		if (renderOptions.contains("im")) {
-			try {
-				final Viewer3D vh = new Viewer3D(false, "offscreen");
-				vh.add(trees);
-				vh.resetView();
-				final File f = File.createTempFile(renderOptions, ".png");
-				f.deleteOnExit();
-				vh.saveSnapshot(f.getAbsolutePath());
-				ImpUtils.open(f, renderOptions, true).show();
-			} catch (final IOException e) {
-				e.printStackTrace();
-			}
+		if (renderOptions.contains("skel")) {
+			final List<ImagePlus> imps = new ArrayList<>(trees.size());
+			final int[]  v = {1};
+			trees.forEach( tree -> imps.add(tree.getSkeleton2D(v[0]++)));
+			final ImagePlus imp = ImpUtils.getMIP(imps);
+			imp.setTitle("Skeletonized Trees");
+			ColorMaps.applyMagmaColorMap(imp, 128, false);
+			imp.show();
 		} else if (renderOptions.contains("montage")) {
 			new MultiViewer2D(trees).show();
 		} else if (renderOptions.contains("3D")) {
