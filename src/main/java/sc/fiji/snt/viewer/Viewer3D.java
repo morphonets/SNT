@@ -103,14 +103,17 @@ import org.jzy3d.plot3d.primitives.axis.layout.renderers.ITickRenderer;
 import org.jzy3d.plot3d.primitives.axis.layout.renderers.ScientificNotationTickRenderer;
 import org.jzy3d.plot3d.primitives.vbo.drawable.DrawableVBO;
 import org.jzy3d.plot3d.rendering.canvas.ICanvas;
+import org.jzy3d.plot3d.rendering.canvas.INativeCanvas;
 import org.jzy3d.plot3d.rendering.canvas.OffscreenCanvas;
 import org.jzy3d.plot3d.rendering.canvas.Quality;
 import org.jzy3d.plot3d.rendering.legends.colorbars.AWTColorbarLegend;
 import org.jzy3d.plot3d.rendering.lights.Light;
 import org.jzy3d.plot3d.rendering.lights.LightSet;
 import org.jzy3d.plot3d.rendering.scene.Scene;
+import org.jzy3d.plot3d.rendering.view.AWTRenderer3d;
 import org.jzy3d.plot3d.rendering.view.AWTView;
 import org.jzy3d.plot3d.rendering.view.HiDPI;
+import org.jzy3d.plot3d.rendering.view.Renderer3d;
 import org.jzy3d.plot3d.rendering.view.View;
 import org.jzy3d.plot3d.rendering.view.ViewportMode;
 import org.jzy3d.plot3d.rendering.view.annotation.CameraEyeOverlayAnnotation;
@@ -143,7 +146,9 @@ import com.jogamp.opengl.GLCapabilities;
 import com.jogamp.opengl.GLException;
 import com.jogamp.opengl.GLProfile;
 import com.jogamp.opengl.util.FPSAnimator;
+import com.jogamp.opengl.util.texture.TextureData;
 
+import ij.ImagePlus;
 import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
@@ -182,6 +187,7 @@ import sc.fiji.snt.plugin.GroupAnalyzerCmd;
 import sc.fiji.snt.plugin.ShollAnalysisBulkTreeCmd;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.plugin.StrahlerCmd;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
@@ -2217,6 +2223,15 @@ public class Viewer3D {
 		}
 	}
 
+	/**
+	 * Retrieves the current scene as an image
+	 *
+	 * @return the bitmap image of the current scene
+	 */
+	public ImagePlus snapshot() {
+		return chart.screenshotImp();
+	}
+
 	protected boolean saveSnapshot(final File file) throws IllegalArgumentException, IOException {
 		if (!chartExists()) {
 			throw new IllegalArgumentException("Viewer is not visible");
@@ -2588,8 +2603,30 @@ public class Viewer3D {
 		boolean isRotationEnabled() {
 			return view.getViewMode() != ViewPositionMode.TOP;
 		}
-	}
 
+		ImagePlus screenshotImp() {
+			final Object screen = screenshot();
+			if (screen instanceof BufferedImage) {
+				return new ImagePlus("RecViewerSnapshot", new ij.process.ColorProcessor((BufferedImage) screen));
+			}
+			if (chart.getCanvas() instanceof INativeCanvas) {
+				final Renderer3d renderer = ((INativeCanvas) chart.getCanvas()).getRenderer();
+				if (renderer instanceof AWTRenderer3d) {
+					return new ImagePlus("RecViewerSnapshot",
+							new ij.process.ColorProcessor(((AWTRenderer3d) renderer).getLastScreenshotImage()));
+				}
+			}
+			// not sure how otherwise convert TextureData to bufferedImage in a simple way
+			try {
+				final File f = File.createTempFile("rv-screenshot", ".png");
+				f.deleteOnExit();
+				saveSnapshot(f.getAbsolutePath());
+				return ImpUtils.open(f, "RecViewerSnapshot");
+			} catch (final IOException ex) {
+				throw new IllegalArgumentException("Data could not be temp. written to disk " + ex.getMessage());
+			}
+		}
+	}
 
 	/** AWTColorbarLegend with customizable font/ticks/decimals, etc. */
 	private class ColorLegend extends AWTColorbarLegend {
@@ -3445,7 +3482,8 @@ public class Viewer3D {
 			static final String SCENE_SHORTCUTS_LIST = "Scene Shortcuts...";
 			static final String SCENE_SHORTCUTS_NOTIFICATION = "Scene Shortcuts (Notification)...";
 			static final String RECORDER = "Record Script... (Experimental)";
-			static final String SNAPSHOT = "Take Snapshot";
+			static final String SNAPSHOT_DISK = "Take Snapshot & Save to Disk";
+			static final String SNAPSHOT_SHOW = "Take Snapshot & Display";
 			static final String SYNC = "Sync Path Manager Changes";
 			static final String TAG = "Add Tag(s)...";
 			static final String TOGGLE_DARK_MODE = "Toggle Dark Mode";
@@ -3460,16 +3498,19 @@ public class Viewer3D {
 
 			Action(final String name, final int key, final boolean requireCtrl, final boolean requireShift) {
 				this(name);
-				int mod = 0;
-				if (requireCtrl)
-					mod = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
-				if (requireShift)
-					mod |= KeyEvent.SHIFT_DOWN_MASK;
-				final KeyStroke ks = KeyStroke.getKeyStroke(key, mod);
-				putValue(AbstractAction.ACCELERATOR_KEY, ks);
-				if (mod == 0) putValue(AbstractAction.MNEMONIC_KEY, key);
-				// register action in panel
-				registerKeyboardAction(this, ks, JComponent.WHEN_IN_FOCUSED_WINDOW);
+				if (key != KeyEvent.VK_UNDEFINED) {
+					int mod = 0;
+					if (requireCtrl)
+						mod = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+					if (requireShift)
+						mod |= KeyEvent.SHIFT_DOWN_MASK;
+					final KeyStroke ks = KeyStroke.getKeyStroke(key, mod);
+					putValue(AbstractAction.ACCELERATOR_KEY, ks);
+					if (mod == 0)
+						putValue(AbstractAction.MNEMONIC_KEY, key);
+					// register action in panel
+					registerKeyboardAction(this, ks, JComponent.WHEN_IN_FOCUSED_WINDOW);
+				}
 			}
 
 			@Override
@@ -3534,8 +3575,11 @@ public class Viewer3D {
 				case RECORDER:
 					openRecorder();
 					return;
-				case SNAPSHOT:
+				case SNAPSHOT_DISK:
 					keyController.saveScreenshot();
+					return;
+				case SNAPSHOT_SHOW:
+					snapshot().show();
 					return;
 				case SYNC:
 					try {
@@ -4555,8 +4599,11 @@ public class Viewer3D {
 				});
 			});
 			utilsMenu.add(mi);
-
-			final JMenuItem snapshot = new JMenuItem(new Action(Action.SNAPSHOT, KeyEvent.VK_S, false, false));
+			GuiUtils.addSeparator(utilsMenu, "Screenshots:");
+			final JMenuItem snapshot2 = new JMenuItem(new Action(Action.SNAPSHOT_SHOW, KeyEvent.VK_UNDEFINED, false, false));
+			snapshot2.setIcon(IconFactory.getMenuIcon(GLYPH.CAMERA));
+			utilsMenu.add(snapshot2);
+			final JMenuItem snapshot = new JMenuItem(new Action(Action.SNAPSHOT_DISK, KeyEvent.VK_S, false, false));
 			snapshot.setIcon(IconFactory.getMenuIcon(GLYPH.CAMERA));
 			utilsMenu.add(snapshot);
 			final JMenuItem reveal = new JMenuItem("Show Snapshot Directory", IconFactory.getMenuIcon(GLYPH.OPEN_FOLDER));
