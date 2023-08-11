@@ -88,6 +88,7 @@ import sc.fiji.snt.gui.cmds.DuplicateCmd;
 import sc.fiji.snt.gui.cmds.PathFitterCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeOptionsCmd;
 import sc.fiji.snt.plugin.AnalyzerCmd;
+import sc.fiji.snt.plugin.InterpolateRadiiCmd;
 import sc.fiji.snt.plugin.MultiTreeMapperCmd;
 import sc.fiji.snt.plugin.PathAnalyzerCmd;
 import sc.fiji.snt.plugin.PathMatcherCmd;
@@ -296,7 +297,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setToolTipText("Resets fits for selected path(s)");
 		jmi.addActionListener(multiPathListener);
 		fitMenu.add(jmi);
-		fitMenu.addSeparator();
 		jmi = new JMenuItem("Parameters...", IconFactory.getMenuIcon(IconFactory.GLYPH.SLIDERS));
 		jmi.setToolTipText("Options for fitting operations");
 		jmi.addActionListener(e -> {
@@ -304,7 +304,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			fittingHelper.showPrompt();
 		});
 		fitMenu.add(jmi);
-		jmi = GuiUtils.menuItemTriggeringHelpURL("<HTML>Help on <i>Fitting", FIT_URI);
+		fitMenu.addSeparator();
+
+		jmi = new JMenuItem(MultiPathActionListener.INTERPOLATE_MISSING_RADII,
+				IconFactory.getMenuIcon(IconFactory.GLYPH.DOTCIRCLE));
+		jmi.setToolTipText("Corrects fitted nodes with invalid radius");
+		jmi.addActionListener(multiPathListener);
+		fitMenu.add(jmi);
+		fitMenu.addSeparator();
+		
+		jmi = GuiUtils.menuItemTriggeringHelpURL("<HTML>Help on <i>Refining/Fitting", FIT_URI);
 		fitMenu.add(jmi);
 
 		final JMenu fillMenu = new JMenu("Fill");
@@ -2482,9 +2491,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String REMOVE_TAGS_CMD = "Remove Tags...";
 		private static final String FILL_OUT_CMD = "Fill Out...";
 		private static final String RESET_FITS = "Discard Fit(s)...";
-		private static final String SPECIFY_RADIUS_CMD = "Specify Radius...";
+		private static final String SPECIFY_RADIUS_CMD = "Specify Constant Radius...";
 		private static final String SPECIFY_COUNTS_CMD = "Specify No. Spine/Varicosity Markers...";
 		private static final String DISCONNECT_CMD = "Disconnect...";
+		private static final String INTERPOLATE_MISSING_RADII = "Interpolate Missing Radii...";
 
 		//private final static String MEASURE_CMD_SUMMARY = "Quick Measurements";
 		private static final String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
@@ -2752,6 +2762,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 			} else if (TRAIN_WEKA_CLASSIFIER.equals(cmd)) {
 				ScriptInstaller.runScript("Commands", "Train_Weka_Classifier.groovy", null);
+				return;
+			} else if (INTERPOLATE_MISSING_RADII.equals(cmd)) {
+				final Map<String, Object> input = new HashMap<>();
+				input.put("paths", selectedPaths);
+				plugin.getContext().getService(CommandService.class).run(InterpolateRadiiCmd.class, true, input);
 				return;
 			}
 			else if (COLORIZE_TREES_CMD.equals(cmd)) {

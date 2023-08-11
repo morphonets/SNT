@@ -28,6 +28,9 @@ import ij3d.Content;
 import ij3d.Image3DUniverse;
 import ij3d.Pipe;
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.math3.analysis.interpolation.LinearInterpolator;
+import org.apache.commons.math3.analysis.polynomials.PolynomialFunction;
+import org.apache.commons.math3.analysis.polynomials.PolynomialSplineFunction;
 import org.apache.commons.math3.stat.StatUtils;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.ColorRGBA;
@@ -1883,6 +1886,70 @@ public class Path implements Comparable<Path> {
 	 */
 	public boolean hasRadii() {
 		return radii != null;
+	}
+
+	/**
+	 * Uses linear interpolation to correct nodes with invalid radius.
+	 * 
+	 * Collects nodes with invalid radii (zero, NaN, or negative values) and assigns
+	 * them new values using linear interpolation based on remaining nodes with
+	 * valid radii.
+	 * 
+	 * @param apply If {@code true} interpolated values are immediately to this
+	 *              path. If false, nodes remain unchanged.
+	 * @return the map containing the (node index, interpolated radius) pairs or
+	 *         null if current path has not been assigned radii or has less than 2
+	 *         nodes. Note that the map keys hold only the indices for which
+	 *         interpolation succeed, which may be a subset of all the nodes
+	 *         with invalid radii.
+	 */
+	public Map<Integer, Double> interpolateMissingRadii(final boolean apply) {
+		if (!hasRadii() || size() < 2)
+			return null;
+		final List<Integer> validIndices = new ArrayList<>();
+		final List<Double> validRadii = new ArrayList<>();
+		final List<Integer> replacementIndices = new ArrayList<>();
+		for (int nodeIdx = 0; nodeIdx < size(); nodeIdx++) {
+			if (radii[nodeIdx] <= 0d || Double.isNaN(radii[nodeIdx])) {
+				replacementIndices.add(nodeIdx);
+			} else {
+				validIndices.add(nodeIdx);
+				validRadii.add(radii[nodeIdx]);
+			}
+		}
+		final double[] knownIndices = validIndices.stream().mapToDouble(d -> d).toArray();
+		final double[] knownRadii = validRadii.stream().mapToDouble(d -> d).toArray();
+		final double[] unknownIndices = replacementIndices.stream().mapToDouble(d -> d).toArray();
+		final double[] guessedRadii = interpolate(knownIndices, knownRadii, unknownIndices);
+		final Map<Integer, Double> result = new TreeMap<>();
+		for (int idx = 0; idx < unknownIndices.length; idx++) {
+			final double r = guessedRadii[idx];
+			if (r < 0)
+				continue;
+			result.put((int) unknownIndices[idx], r);
+			if (apply)
+				setRadius(r, (int) unknownIndices[idx]);
+		}
+		return result;
+	}
+
+	private double[] interpolate(final double[] x1, final double[] y1, final double[] x2) {
+		// see https://stackoverflow.com/a/73716167
+		final PolynomialSplineFunction function = new LinearInterpolator().interpolate(x1, y1);
+		final PolynomialFunction[] splines = function.getPolynomials();
+		final PolynomialFunction firstFunction = splines[0];
+		final PolynomialFunction lastFunction = splines[splines.length - 1];
+		final double[] knots = function.getKnots();
+		final double firstKnot = knots[0];
+		final double lastKnot = knots[knots.length - 1];
+		final double[] resultList = Arrays.stream(x2).map(d -> {
+			if (d > lastKnot) {
+				return lastFunction.value(d - knots[knots.length - 2]);
+			} else if (d < firstKnot)
+				return firstFunction.value(d - knots[0]);
+			return function.value(d);
+		}).toArray();
+		return resultList;
 	}
 
 	protected void setFittedCircles(final int nPoints, final double[] tangents_x,

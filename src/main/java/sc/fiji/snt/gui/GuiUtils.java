@@ -93,6 +93,7 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JColorChooser;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JEditorPane;
@@ -450,6 +451,36 @@ public class GuiUtils {
 		return (String) JOptionPane.showInputDialog(parent, //
 				getWrappedText(new JLabel(), message), title, JOptionPane.QUESTION_MESSAGE, null, choices,
 				(defaultChoice == null) ? choices[0] : defaultChoice);
+	}
+
+	public String[] getChoiceWithInput(final String message, final String title, final String[] choices,
+			final String defaultChoice, final String defaultInput) {
+		final JComboBox<String> combo = new JComboBox<>(choices);
+		combo.setSelectedItem(defaultChoice);
+		final JTextField input = new JTextField(defaultInput);
+		final JComponent[] inputs = new JComponent[] { new JLabel(message), combo, input };
+		final int result = JOptionPane.showConfirmDialog(null, inputs, title, JOptionPane.OK_CANCEL_OPTION,
+				JOptionPane.QUESTION_MESSAGE);
+		if (result == JOptionPane.OK_OPTION) {
+			return new String[] { (String) combo.getSelectedItem(), input.getText() };
+		}
+		return null;
+	}
+
+	public Object[] getChoiceAndDouble(final String message, final String title, final String[] choices,
+			final String defaultChoice, final Double defaultValue) {
+		final String[] result = getChoiceWithInput(message, title, choices, defaultChoice,
+				String.valueOf(defaultValue));
+		if (result != null) {
+			try {
+				final NumberFormat nf = NumberFormat.getInstance(Locale.US);
+				final Number number = nf.parse(result[1]);
+				return new Object[] { result[0], number.doubleValue() };
+			} catch (final ParseException ignored) {
+				return new Object[] { result[0], Double.NaN };
+			}
+		}
+		return result;
 	}
 
 	public String getChoice(final String message, final String title, final String[] choices,

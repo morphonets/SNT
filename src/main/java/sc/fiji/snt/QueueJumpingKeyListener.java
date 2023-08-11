@@ -221,6 +221,10 @@ class QueueJumpingKeyListener implements KeyListener {
 			{
 				canvas.appendLastCanvasPositionToEditingNode(false);
 			}
+			else if (keyChar == 'r' || keyChar == 'R')
+			{
+				canvas.assignRadiusToEditingNode(false);
+			}
 			else if (keyChar == 'l' || keyChar == 'L') {
 				canvas.toggleEditingNode(true);
 			}

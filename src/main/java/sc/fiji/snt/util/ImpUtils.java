@@ -61,7 +61,11 @@ public class ImpUtils {
 	}
 
 	public static ImagePlus getMIP(final Collection<ImagePlus> imps) {
-		return getMIP(ImagesToStack.run(imps.toArray(new ImagePlus[0])));
+		return getMIP(toStack(imps));
+	}
+
+	public static ImagePlus toStack(final Collection<ImagePlus> imps) {
+		return ImagesToStack.run(imps.toArray(new ImagePlus[0]));
 	}
 
 	public static void convertTo32bit(final ImagePlus imp) throws IllegalArgumentException {
