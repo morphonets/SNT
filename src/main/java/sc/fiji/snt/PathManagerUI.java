@@ -2747,9 +2747,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final Map<String, Object> input = new HashMap<>();
 				input.put("tree", new Tree(selectedPaths));
 				input.put("imp", plugin.getImagePlus());
-				final CommandService cmdService = plugin.getContext().getService(
-					CommandService.class);
-				cmdService.run(ROIExporterCmd.class, true, input);
+				plugin.getContext().getService(CommandService.class).run(ROIExporterCmd.class, true, input);
 				return;
 
 			} else if (TRAIN_WEKA_CLASSIFIER.equals(cmd)) {
@@ -2765,13 +2763,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					Tree tree = trees.iterator().next();
 					Map<String, Object> input = new HashMap<>();
 					input.put("tree", tree);
-					CommandService cmdService = plugin.getContext().getService(CommandService.class);
-					cmdService.run(TreeMapperCmd.class, true, input);
+					plugin.getContext().getService(CommandService.class).run(TreeMapperCmd.class, true, input);
 				} else {
 					Map<String, Object> input = new HashMap<>();
 					input.put("trees", trees);
-					CommandService cmdService = plugin.getContext().getService(CommandService.class);
-					cmdService.run(MultiTreeMapperCmd.class, true, input);
+					plugin.getContext().getService(CommandService.class).run(MultiTreeMapperCmd.class, true, input);
 				}
 				refreshManager(false, true, selectedPaths);
 				return;

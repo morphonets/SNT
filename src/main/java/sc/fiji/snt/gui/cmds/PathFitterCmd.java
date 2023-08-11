@@ -34,6 +34,7 @@ import org.scijava.widget.Button;
 
 import sc.fiji.snt.PathFitter;
 import sc.fiji.snt.SNTPrefs;
+import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * GUI command for {@link PathFitter}
@@ -61,51 +62,37 @@ public class PathFitterCmd extends ContextCommand {
 	private static String HEADER;
 
 	static {
-		//GuiUtils.setLookAndFeel();
-		final javax.swing.JLabel label = new javax.swing.JLabel();
-		final int width = label.getFontMetrics(label.getFont()).stringWidth(
-			"Type of Fit" + CHOICE_BOTH);
-		HEADER = "<HTML><body><div style='width:" + width + ";'>";
+		HEADER = "<HTML><body><div style='width:" + GuiUtils.renderedWidth("Type of Fit" + CHOICE_BOTH) + ";'>";
 	}
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg1 = HEADER +
 		"<b>Type of refinement:</b> SNT can use the fluorescent signal around traced paths " //
-		+ "to optimize curvatures and estimate the thickness of traced structures. The optimization " //
+		+ "to optimize their curvatures and estimate their thickness. The optimization " //
 		+ "algorithm uses pixel intensities to fit circular cross-sections around each node. " //
 		+ "Once computed, fitted cross-sections can be use to: 1) Infer the radius of nodes, " //
 		+ "and/or 2) refine node positioning, by snapping their coordinates to the cross-section " //
-		+ "centroid. Please specify the type of optimization to be performed when refining paths:";
+		+ "centroid. Which optimization shuld be performed when refining paths?";
 	@Parameter(required = true, label = EMPTY_LABEL, choices = { CHOICE_RADII,
 		CHOICE_MIDPOINT, CHOICE_BOTH })
 	private String fitChoice;
-
-//	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
-//	private final String spacer = EMPTY_LABEL;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg2 = HEADER +
 		"<b>Max. radius:</b> This setting defines (in pixels) the largest radius " //
 		+ "allowed in the fit. It constrains the optimization to minimize fitting " //
-		+ "artifacts caused from neighboring structures (Tip: You can estimate the " //
-		+ "thickness of neurites by running <i>Estimate Radii</i> from one of the " //
-		+ "gear menus of the Auto-tracing widget):";
-	@Parameter(required = false, label = EMPTY_LABEL, description="<HTML>NB: An exaggerated " //
+		+ "artifacts caused from neighboring structures (Tip: The <i>Secondary " //
+		+ "Layer Creation Wizard</i> can estimate neurite thickness)";
+	@Parameter(required = false, label = EMPTY_LABEL, description="<HTML>An exaggerated " //
 		+ "radius may originate jagged paths.<br>When in doubt, start with a smaller radius " //
 		+ "and repeat fitting in smaller increments")
 	private int maxRadius = PathFitter.DEFAULT_MAX_RADIUS;
-
-//	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
-//	private final String spacer2 = EMPTY_LABEL;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg3 = HEADER +
 		"<b>Target image:</b> Which image should be used for fitting?";
 	@Parameter(required = false, label = EMPTY_LABEL, choices= {"Main image", "Secondary (if available)"})
 	private String impChoice;
-
-//	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
-//	private final String spacer3 = EMPTY_LABEL;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg4 = HEADER +
