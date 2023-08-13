@@ -1672,7 +1672,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * etc.
 	 */
 	public void update() {
-		tree.repaintAllNodes();
+		update(false);
+	}
+
+	/**
+	 * Refreshes (Repaints) the Path Manager JTree.
+	 * 
+	 * @param selectedPathsOnly Whether only selected nodes in the JTree should be
+	 *                          updated (repainted). If {@code false} all nodes are
+	 *                          updated.
+	 */
+	public void update(final boolean selectedPathsOnly) {
+		if (selectedPathsOnly)
+			tree.repaintSelectedNodes();
+		else
+			tree.repaintAllNodes();
 	}
 
 	/** Reloads the contents of {@link PathAndFillManager} */

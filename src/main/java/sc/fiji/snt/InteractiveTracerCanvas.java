@@ -48,6 +48,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -143,6 +144,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M));
 		pMenu.add(menuItem(AListener.NODE_RADIUS, listener, KeyEvent.VK_R));
 		pMenu.add(menuItem(AListener.NODE_SPLIT, listener, KeyEvent.VK_X));
+		final JMenuItem jmi = menuItem(AListener.NODE_COLOR, listener, null);
+		jmi.setToolTipText("<HTML>Assigns a unique color to active node.<br>"
+				+ "NB: Overall rendering of path may change once tag is applied");
+		pMenu.add(jmi);
 		pMenu.addSeparator();
 
 		connectToSecondaryEditingPath = menuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER, listener);
@@ -241,7 +246,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				else if (cmd.equals(AListener.NODE_RESET) || cmd.equals(AListener.NODE_DELETE)
 						|| cmd.equals(AListener.NODE_INSERT) || cmd.equals(AListener.NODE_LOCK)
 						|| cmd.equals(AListener.NODE_MOVE) || cmd.equals(AListener.NODE_SET_ROOT)
-						|| cmd.equals(AListener.NODE_SPLIT) || cmd.equals(AListener.NODE_RADIUS)) {
+						|| cmd.equals(AListener.NODE_SPLIT) || cmd.equals(AListener.NODE_RADIUS)
+						|| cmd.equals(AListener.NODE_COLOR)) {
 					mItem.setEnabled(be && editMode);
 				} else {
 					mItem.setEnabled(true);
@@ -368,7 +374,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 	private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke) {
 		final JMenuItem mi = menuItem(cmdName, lstnr);
-		mi.setAccelerator(keystroke);
+		if (keystroke != null)
+			mi.setAccelerator(keystroke);
 		return mi;
 	}
 
@@ -873,6 +880,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		private final static String NODE_MOVE = "  Move Active Node to Cursor Position";
 		private final static String NODE_MOVE_Z = "  Bring Active Node to Current Z-plane";
 		private final static String NODE_RADIUS = "  Set Active Node Radius...";
+		private final static String NODE_COLOR = "  Tag Active Node...";
 		private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root";
 		private final static String NODE_SPLIT = "  Split Tree at Active Node";
 		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = "  Connect to ";
@@ -990,6 +998,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				case NODE_RADIUS:
 					assignRadiusToEditingNode(true);
 					break;
+				case NODE_COLOR:
+					assignColorToEditingNode();
+					break;
 				case NODE_MOVE_Z:
 					assignLastCanvasZPositionToEditNode(true);
 					break;
@@ -1090,6 +1101,39 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		}
 		catch (final IllegalArgumentException exc) {
 			tempMsg("Node insertion failed!");
+		}
+	}
+
+	protected void assignColorToEditingNode() {
+		if (impossibleEdit(true))
+			return;
+		final Path edPath = tracerPlugin.getEditingPath();
+		final int edNode = edPath.getEditableNodeIndex();
+		final String proposedChoice = Integer.toString(Color.RED.getRGB());
+		final String prevChoice = tracerPlugin.getPrefs().getTemp("editNodeColor", proposedChoice);
+		final Color chosen = guiUtils.getColor("New Color for Node #" + edNode + "?",
+				new Color(Integer.parseInt(prevChoice)), "RGB");
+		if (chosen != null) {
+			Color[] nodeColors = edPath.getNodeColors();
+			if (nodeColors == null) {
+				nodeColors = new Color[edPath.size()];
+				if (edPath.getColor() == null)
+					edPath.setColor(tracerPlugin.selectedColor.darker());
+				Arrays.fill(nodeColors, edPath.getColor());
+			}
+			nodeColors[edNode] = chosen;
+			edPath.setNodeColors(nodeColors);
+			String tags = PathManagerUI.extractTagsFromPath(edPath);
+			if (tags.isEmpty()) {
+				edPath.setName(edPath.getName() + " {Tagged node(s)}");
+			} else if (!tags.contains("Tagged node(s)")) {
+				tags += ", " + "Tagged node(s)";
+				edPath.setName(edPath.getName() + "{" + tags + "}");
+			}
+			redrawEditingPath(String.format("Node #%d tagged", edNode));
+			if (tracerPlugin.ui != null)
+				tracerPlugin.ui.getPathManager().update(true);
+			tracerPlugin.getPrefs().setTemp("editNodeColor", Integer.toString(chosen.getRGB()));
 		}
 	}
 
@@ -1198,8 +1242,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			editingPath.moveNode(editingNode, new PointInImage(
 				editingPath.precise_x_positions[editingNode],
 				editingPath.precise_y_positions[editingNode], newZ));
-			redrawEditingPath("Node " + editingNode + "moved to Z=" + SNTUtils
-				.formatDouble(newZ, 3));
+			redrawEditingPath(String.format("Node %d moved to Z=%3f", editingNode, newZ));
 		}
 		catch (final IllegalArgumentException exc) {
 			tempMsg("Adjustment of Z-position failed!");

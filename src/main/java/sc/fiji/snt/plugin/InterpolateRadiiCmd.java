@@ -144,16 +144,15 @@ public class InterpolateRadiiCmd extends CommonDynamicCmd {
 		}
 
 		ShollPlot.show(allPlots, "Radii Interpolations");
+		sntService.updateViewers();
+		SNTUtils.log("Finished...");
 		if (replaced == 0) {
 			error("No radii have been interpolated. "
 					+ "Either: i) none of the selected path(s) have radii assigned, ii) None of their nodes has "
 					+ "an invalid radius, or iii) interpolation is not possible.");
 		} else {
-			msg(replaced + " nodes interpolated across " + (paths.size()) + " path(s).", "Interpolation Completed");
+			msg(replaced + " node(s) interpolated across " + (paths.size()) + " path(s).", "Interpolation Completed");
 		}
-
-		sntService.updateViewers();
-		SNTUtils.log("Finished...");
 		resetUI();
 
 	}

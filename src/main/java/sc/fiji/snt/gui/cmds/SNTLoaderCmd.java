@@ -409,10 +409,14 @@ public class SNTLoaderCmd extends DynamicCommand {
 	public static void main(final String[] args) throws IOException {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
-		final SNTService sntService = ij.context().getService(SNTService.class);
-		ij.ui().show("Demo image", sntService.demoImage("fractal"));
-		SNTUtils.setDebugMode(false);
-		ij.command().run(SNTLoaderCmd.class, true);
+		try {
+			Thread.sleep(1000);
+			final SNTService sntService = ij.context().getService(SNTService.class);
+			ij.ui().show("Demo image", sntService.demoImage("fractal"));
+			SNTUtils.setDebugMode(false);
+			ij.command().run(SNTLoaderCmd.class, true);
+		} catch (InterruptedException e) {
+		}
 	}
 
 }
