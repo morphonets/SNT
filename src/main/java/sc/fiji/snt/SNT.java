@@ -162,7 +162,12 @@ public class SNT extends MultiDThreePanes implements
 
 		@Override
 		public String toString() {
-			return StringUtils.capitalize(super.toString().toLowerCase());
+			switch (this) {
+			case DIFFERENCE_SQUARED:
+				return "Difference Sq."; // OtherWise too wide for FillManagerUI type label!?
+			default:
+				return StringUtils.capitalize(super.toString().toLowerCase());
+			}
 		}
 	}
 	public enum HeuristicType {

@@ -160,6 +160,19 @@ public class Fill {
 		return subThresholdNodes * x_spacing * y_spacing * z_spacing;
 	}
 
+
+	/**
+	 * Returns the estimated mean radius of the fill, assuming a cylindric shape
+	 *
+	 * @return the estimated mean radius
+	 */
+	public double getEstimatedMeanRadius() {
+		// https://forum.image.sc/t/calculating-vessel-diameter-radius/84473/2
+		final double[] param = new double[] { getVolume(), 0 }; // volume, length
+		getSourcePaths().forEach(p -> param[1] += p.getLength());
+		return Math.sqrt(param[0] / (Math.PI * param[1]));
+	}
+
 	// FIXME: the next two should just be one method, really:
 
 	public String getSourcePathsStringMachine() {

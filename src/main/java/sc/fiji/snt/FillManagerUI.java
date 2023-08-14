@@ -43,6 +43,7 @@ import javax.swing.border.BevelBorder;
 import ij.IJ;
 import ij.ImagePlus;
 import net.imagej.ImageJ;
+import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.tracing.FillerThread;
@@ -281,8 +282,11 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private List<FillerThread> getSelectedFills(final String msg) {
 		int[] selectedIndices = getSelectedIndices(msg);
 		final List<FillerThread> fills = new ArrayList<>();
+		final boolean useSecondary = plugin.isTracingOnSecondaryImageActive();
+		final RandomAccessibleInterval<? extends RealType<?>> scope = useSecondary ? plugin.getSecondaryData()
+				: plugin.getLoadedData();
 		for (int i : selectedIndices) {
-			FillerThread filler = FillerThread.fromFill(plugin.getLoadedData(), plugin.getImagePlus().getCalibration(),
+			FillerThread filler = FillerThread.fromFill(scope, plugin.getImagePlus().getCalibration(),
 					plugin.getStats(), pathAndFillManager.getAllFills().get(i));
 			fills.add(filler);
 		}

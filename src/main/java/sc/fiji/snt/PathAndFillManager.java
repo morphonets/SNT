@@ -29,6 +29,9 @@ import ij3d.Content;
 import ij3d.UniverseListener;
 import net.imagej.Dataset;
 import net.imagej.axis.Axes;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
+
 import org.jgrapht.Graphs;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.json.JSONException;
@@ -1359,13 +1362,14 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	protected void reloadFills(int[] selectedIndices) {
+		final boolean useSecondary = plugin.isTracingOnSecondaryImageActive();
+		final RandomAccessibleInterval<? extends RealType<?>> scope = useSecondary ? plugin.getSecondaryData()
+				: plugin.getLoadedData();
 		for (int ind : selectedIndices) {
 			Fill fill = allFills.get(ind);
 			FillerThread filler = FillerThread.fromFill(
-					plugin.getLoadedData(),
-					plugin.getImagePlus().getCalibration(),
-					plugin.getStats(),
-					fill);
+					scope, plugin.getImagePlus().getCalibration(),
+					plugin.getStats(), fill);
 			loadedFills.put(fill, filler);
 			plugin.addFillerThread(filler);
 		}
@@ -3466,8 +3470,8 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	public void exportFillsAsCSV(final File outputFile) throws IOException {
 
-		final String[] headers = new String[] { "FillID", "SourcePaths",
-			"Threshold", "Metric", "Volume", "LengthUnits" };
+		final String[] headers = new String[] { "FillID", "SourcePaths", "Threshold", "Metric", "Volume", "LengthUnits",
+				"EstMeanRadius", "Source" };
 
 		final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
 				Files.newOutputStream(Paths.get(outputFile.getAbsolutePath())), StandardCharsets.UTF_8));
@@ -3490,6 +3494,15 @@ public class PathAndFillManager extends DefaultHandler implements
 			SNTUtils.csvQuoteAndPrint(pw, f.getVolume());
 			pw.print(",");
 			SNTUtils.csvQuoteAndPrint(pw, f.spacing_units);
+			pw.print(",");
+			SNTUtils.csvQuoteAndPrint(pw, f.getEstimatedMeanRadius());
+			pw.print(",");
+			if (getPlugin() == null) {
+				SNTUtils.csvQuoteAndPrint(pw, "n/a");
+			} else {
+				SNTUtils.csvQuoteAndPrint(pw,
+						(getPlugin().isTracingOnSecondaryImageActive()) ? "sec-layer" : "main-image");
+			}
 			pw.print("\r\n");
 		}
 		pw.close();
