@@ -125,8 +125,8 @@ public class SNTUI extends JDialog {
 	private JPanel aStarPanel;
 	private JCheckBox aStarCheckBox;
 	private SigmaPalette sigmaPalette;
-	private final SNTCommandFinder commandFinder;
 	private JTextArea settingsArea;
+	private JRadioButtonMenuItem autoRbmi;
 
 	// UI controls for CT data source
 	private JPanel sourcePanel;
@@ -135,6 +135,7 @@ public class SNTUI extends JDialog {
 	private JCheckBox secLayerActivateCheckbox;
 	private CheckboxSpinner secLayerImgOverlayCSpinner;
 
+	private final SNTCommandFinder commandFinder;
 	private ActiveWorker activeWorker;
 	private volatile int currentState = -1;
 
@@ -2928,23 +2929,47 @@ public class SNTUI extends JDialog {
 		});
 
 		optionsMenu.addSeparator();
-
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Image Statistics:", false));
-		final ButtonGroup minMaxButtonGroup = new ButtonGroup();
-		final JRadioButtonMenuItem autoRbmi = new JRadioButtonMenuItem("Compute Real-Time", plugin.getUseSubVolumeStats());
-		minMaxButtonGroup.add(autoRbmi);
-		optionsMenu.add(autoRbmi);
-		autoRbmi.addActionListener(e -> plugin.setUseSubVolumeStats(autoRbmi.isSelected()));
+		autoRbmi = new JRadioButtonMenuItem("Compute Real-Time", plugin.getUseSubVolumeStats());
+		final JRadioButtonMenuItem onceRbmi = new JRadioButtonMenuItem("Compute Now For Whole Image ", false);
 		final JRadioButtonMenuItem manRbmi = new JRadioButtonMenuItem("Specify Manually...", !plugin.getUseSubVolumeStats());
+		final ButtonGroup minMaxButtonGroup = new ButtonGroup();
+		minMaxButtonGroup.add(autoRbmi);
+		minMaxButtonGroup.add(onceRbmi);
 		minMaxButtonGroup.add(manRbmi);
+		optionsMenu.add(autoRbmi);
+		optionsMenu.add(onceRbmi);
 		optionsMenu.add(manRbmi);
+		autoRbmi.addActionListener(e -> {
+			plugin.setUseSubVolumeStats(autoRbmi.isSelected());
+			onceRbmi.setEnabled(true);
+			onceRbmi.setText("Compute Now for Whole Image");
+
+		});
+		onceRbmi.addActionListener(e -> {
+			if (!plugin.accessToValidImageData()) {
+				noValidImageDataError();
+			} else {
+				SNTUtils.log("Computing statistics for whole image...");
+				showStatus("Computing statistics...", false);
+				plugin.computeImgStats(plugin.getLoadedIterable(), plugin.getStats());
+				showStatus(null, false);
+				plugin.setUseSubVolumeStats(false);
+				onceRbmi.setText("Compute for Whole Image");
+				onceRbmi.setEnabled(false);
+			}
+		});
 		manRbmi.addActionListener(e -> {
-			final boolean prevStatsState = plugin.getUseSubVolumeStats();
 			final boolean successfullySet = setMinMaxFromUser();
-			final boolean newStatsState = !successfullySet && prevStatsState;
-			plugin.setUseSubVolumeStats(newStatsState);
-			manRbmi.setSelected(!newStatsState);
-			autoRbmi.setSelected(newStatsState);
+			if (successfullySet) {
+				plugin.setUseSubVolumeStats(false);
+				onceRbmi.setText("Compute Now for Whole Image");
+				onceRbmi.setEnabled(true);
+			} else if (plugin.getUseSubVolumeStats()) {
+				autoRbmi.setSelected(true);
+			} else if (plugin.getStats().mean > 0 && plugin.getStats().stdDev > 0) {
+				onceRbmi.setSelected(true);
+			}
 		});
 		optionsMenu.addSeparator();
 		optionsMenu.add(GuiUtils.menuItemTriggeringHelpURL("Help on Algorithm Settings",
@@ -3460,6 +3485,8 @@ public class SNTUI extends JDialog {
 		}
 		revalidate();
 		repaint();
+		if (autoRbmi != null)
+			autoRbmi.setSelected(plugin.getUseSubVolumeStats());
 		final boolean validImage = plugin.accessToValidImageData();
 		plugin.enableAstar(validImage);
 		plugin.enableSnapCursor(validImage);

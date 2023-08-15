@@ -669,6 +669,12 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
+	public void initialize(final boolean singlePane, final int channel,
+						   final int frame, final boolean computeStackStats) {
+		setUseSubVolumeStats(!computeStackStats); // This MUST be called before initialize()
+		initialize(singlePane, channel, frame);
+	}
+
 	private void addListener(final InteractiveTracerCanvas canvas) {
 		final QueueJumpingKeyListener listener = new QueueJumpingKeyListener(this,
 			canvas);
@@ -707,6 +713,7 @@ public class SNT extends MultiDThreePanes implements
 		if (!xz.isVisible()) xz.show();
 	}
 
+	@SuppressWarnings("unchecked")
 	private void loadDatasetFromImagePlus(final ImagePlus imp) {
 		statusService.showStatus("Loading data...");
 		this.dataset = convertService.convert(imp, Dataset.class);
@@ -718,12 +725,10 @@ public class SNT extends MultiDThreePanes implements
 		if (restoreROI) imp.saveRoi();
 		imp.deleteRoi(); // if a ROI exists, compute min/ max for entire image
 		if (restoreROI) imp.restoreRoi();
-//		ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
-//				ImageStatistics.STD_DEV);
-//		this.stats.min = imgStats.min;
-//		this.stats.max = imgStats.max;
-//		this.stats.mean = imgStats.mean;
-//		this.stats.stdDev = imgStats.stdDev;
+		if (!getUseSubVolumeStats()) {
+			SNTUtils.log("Computing stack statistics");
+			computeImgStats(Views.iterable(this.ctSlice3d), getStats());
+		}
 		updateLut();
 	}
 
@@ -1617,6 +1622,20 @@ public class SNT extends MultiDThreePanes implements
 		addThreadToDraw(currentSearchThread);
 		currentSearchThread.addProgressListener(this);
 		return tracerThreadPool.submit(currentSearchThread);
+	}
+
+	protected <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
+																	final ImageStatistics imgStats) {
+		final Pair<T, T> minMax = opService.stats().minMax(in);
+		imgStats.min = minMax.getA().getRealDouble();
+		imgStats.max = minMax.getB().getRealDouble();
+		imgStats.mean = opService.stats().mean(in).getRealDouble();
+		imgStats.stdDev = opService.stats().stdDev(in).getRealDouble();
+		SNTUtils.log("Subvolume statistics: min=" + imgStats.min +
+				", max=" + imgStats.max +
+				", mean=" + imgStats.mean +
+				", stdDev=" + imgStats.stdDev);
+		return imgStats;
 	}
 
 	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
@@ -2579,6 +2598,10 @@ public class SNT extends MultiDThreePanes implements
 		@SuppressWarnings("unchecked")
 		final RandomAccessibleInterval<T> data = Views.dropSingletonDimensions(this.ctSlice3d);
 		return data;
+	}
+
+	public <T> IterableInterval<T> getLoadedIterable() {
+		return Views.iterable(ctSlice3d);
 	}
 
 	/**
