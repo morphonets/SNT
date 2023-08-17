@@ -2508,7 +2508,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String SPECIFY_RADIUS_CMD = "Specify Constant Radius...";
 		private static final String SPECIFY_COUNTS_CMD = "Specify No. Spine/Varicosity Markers...";
 		private static final String DISCONNECT_CMD = "Disconnect...";
-		private static final String INTERPOLATE_MISSING_RADII = "Interpolate Missing Radii...";
+		private static final String INTERPOLATE_MISSING_RADII = "Correct Radii...";
 
 		//private final static String MEASURE_CMD_SUMMARY = "Quick Measurements";
 		private static final String CONVERT_TO_ROI_CMD = "Convert to ROIs...";

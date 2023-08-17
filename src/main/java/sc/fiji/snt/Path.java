@@ -44,6 +44,7 @@ import sc.fiji.snt.util.*;
 
 import java.awt.*;
 import java.util.List;
+import java.util.function.DoublePredicate;
 import java.util.*;
 import java.util.stream.DoubleStream;
 
@@ -1900,17 +1901,40 @@ public class Path implements Comparable<Path> {
 	 * @return the map containing the (node index, interpolated radius) pairs or
 	 *         null if current path has not been assigned radii or has less than 2
 	 *         nodes. Note that the map keys hold only the indices for which
-	 *         interpolation succeed, which may be a subset of all the nodes
-	 *         with invalid radii.
+	 *         interpolation succeed, which may be a subset of all the nodes with
+	 *         invalid radii.
 	 */
 	public Map<Integer, Double> interpolateMissingRadii(final boolean apply) {
+		return interpolateMissingRadii((x) -> {
+			return x <= 0 || Double.isNaN(x);
+		}, apply);
+	}
+
+	/**
+	 * Uses linear interpolation to correct nodes with invalid radius.
+	 * 
+	 * Collects nodes with invalid radii (zero, NaN, or negative values) and assigns
+	 * them new values using linear interpolation based on remaining nodes with
+	 * valid radii.
+	 * 
+	 * @param predicate the function defining invalid radiii, e.g. {@code (x) -> {
+	 *                  return x <= 0 || Double.isNaN(x);} }
+	 * @param apply     If {@code true} interpolated values are immediately to this
+	 *                  path. If false, nodes remain unchanged.
+	 * @return the map containing the (node index, interpolated radius) pairs or
+	 *         null if current path has not been assigned radii or has less than 2
+	 *         nodes. Note that the map keys hold only the indices for which
+	 *         interpolation succeed, which may be a subset of all the nodes with
+	 *         invalid radii.
+	 */
+	public Map<Integer, Double> interpolateMissingRadii(final DoublePredicate predicate, final boolean apply) {
 		if (!hasRadii() || size() < 2)
 			return null;
 		final List<Integer> validIndices = new ArrayList<>();
 		final List<Double> validRadii = new ArrayList<>();
 		final List<Integer> replacementIndices = new ArrayList<>();
 		for (int nodeIdx = 0; nodeIdx < size(); nodeIdx++) {
-			if (radii[nodeIdx] <= 0d || Double.isNaN(radii[nodeIdx])) {
+			if (predicate.test(radii[nodeIdx])) {
 				replacementIndices.add(nodeIdx);
 			} else {
 				validIndices.add(nodeIdx);

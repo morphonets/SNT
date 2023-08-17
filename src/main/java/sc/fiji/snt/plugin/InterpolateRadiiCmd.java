@@ -25,6 +25,7 @@ package sc.fiji.snt.plugin;
 import java.awt.Color;
 import java.io.IOException;
 import java.util.*;
+import java.util.function.DoublePredicate;
 import java.util.stream.IntStream;
 
 import org.scijava.ItemVisibility;
@@ -61,21 +62,35 @@ public class InterpolateRadiiCmd extends CommonDynamicCmd {
 
 	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
 	private String MSG_1 = HEADER //
-			+ "Some nodes may not have valid radius (e.g., if refining failed at their " //
-			+ "location because their cross-section fit deviated too much from a circular " //
+			+ "<b>Scope</b>: Some nodes may not have valid radius (e.g., if refining failed at " //
+			+ "their location because their cross-section fit deviated too much from a circular " //
 			+ "pattern). This command collects such nodes from selected paths, and assigns " //
 			+ "them new radii using linear interpolation based on remaining nodes with valid " //
 			+ "radii. It can apply the interpolation immediately, or simply preview it."; //
-	@Parameter(required = true, label = "Interpolation ", //
+	@Parameter(required = true, label = "Interpolation", //
 			choices = { "Preview only", "Apply", "Preview and Apply" })
 	private String applyChoice;
 
+	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
+	private String MSG_2 = HEADER //
+			+ "<b>Definition of invalid radii</b>: The default definition of an invalid radius " //
+			+ "includes only <i>NaN</i> values. Here you can add a second criteria based "
+			+ "on a numeric threshold (in spatially-calibrated units):";
+	@Parameter(required = false, label = "Criterion", choices = {" ", "<", "≤", "=", "≠", ">", "≥"}, callback="updateLabel")
+	private String thresholdCriterion;
+
+	@Parameter(required = false, label = "Threshold", callback="updateLabel")
+	private double thresholdValue;
+
+	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
+	private String thresholdLabel;
+	
 	@Parameter(required = false, persist = false, label = "    Debug mode", callback = "debugChoiceChanged", //
 			description = "Interpolation details are displayed in Console when Debug Mode is on")
 	private boolean debugChoice;
 
 	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-	private String MSG_2 = HEADER //
+	private String MSG_3 = HEADER //
 			+ "NB: Only paths with previously assigned radii and at least 2 nodes can be parsed. For " //
 			+ "smaller paths or ad hoc node editing use <i>Edit Path</i> commands instead.";
 
@@ -89,6 +104,7 @@ public class InterpolateRadiiCmd extends CommonDynamicCmd {
 	@SuppressWarnings("unused")
 	private void init() {
 		super.init(true);
+		updateLabel();
 		debugChoice = SNTUtils.isDebugMode();
 	}
 
@@ -97,6 +113,17 @@ public class InterpolateRadiiCmd extends CommonDynamicCmd {
 		ui.setEnableDebugMode(debugChoice);
 	}
 
+	private void updateLabel() {
+		if (thresholdCriterion == null || thresholdCriterion.isBlank()) {
+			thresholdLabel = "";
+		} else if ("<".equals(thresholdCriterion)) {
+			// somehow formatter does not handle %s when replacement is "<"!?
+			thresholdLabel = String.format("Radii less than %.3f queued for interpolation", thresholdValue);
+		} else {
+			thresholdLabel = String.format("Radii %s %.3f queued for interpolation", thresholdCriterion,
+					thresholdValue);
+		}
+	}
 
 	@Override
 	public void run() {
@@ -127,7 +154,12 @@ public class InterpolateRadiiCmd extends CommonDynamicCmd {
 				plotOriginals(path, plot);
 			}
 			try {
-				replacements = path.interpolateMissingRadii(apply);
+				DoublePredicate predicate = thresholdPredicate();
+				if (predicate == null)
+					predicate = nonZeroPredicate();
+				else
+					predicate = predicate.or(nonZeroPredicate());
+					replacements = path.interpolateMissingRadii(predicate, apply);
 				if (replacements == null || replacements.isEmpty()) {
 					SNTUtils.log("Skipping " + path.getName() + ": No replacements needed or no valid replacement found");
 				} else {
@@ -155,6 +187,29 @@ public class InterpolateRadiiCmd extends CommonDynamicCmd {
 		}
 		resetUI();
 
+	}
+
+	private DoublePredicate thresholdPredicate() {
+		switch(thresholdCriterion) {
+		case "<":
+			return (x) -> { return x < thresholdValue; };
+		case "≤":
+			return (x) -> { return x <= thresholdValue; };
+		case ">":
+			return (x) -> { return x > thresholdValue; };
+		case "≥":
+			return (x) -> { return x >= thresholdValue; };
+		case "=":
+			return (x) -> { return x == thresholdValue; };
+		case "≠":
+			return (x) -> { return x != thresholdValue; };
+		default:
+			return null;
+		}
+	}
+
+	private DoublePredicate nonZeroPredicate() {
+		return (x) -> { return x < 0 || Double.isNaN(x); };
 	}
 
 	private void plotOriginals(final Path p, final ShollPlot plot) {
