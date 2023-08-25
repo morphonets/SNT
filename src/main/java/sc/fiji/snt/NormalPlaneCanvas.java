@@ -29,22 +29,21 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Line2D;
-import java.awt.geom.Rectangle2D;
 import java.util.HashMap;
 
-import org.scijava.display.DisplayService;
-
 import ij.ImagePlus;
+import ij.ImageStack;
 import ij.gui.StackWindow;
+import ij.process.ImageProcessor;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 
 @SuppressWarnings("serial")
 class NormalPlaneCanvas extends TracerCanvas {
 
-	private static final char DEG = '\u00b0';
 	private static final Color COLOR_VALID_FIT = Color.GREEN;
 	private static final Color COLOR_INVALID_FIT = Color.RED;
 	private static final Color COLOR_MODE = Color.ORANGE;
+	private static int pixelOffset;
 
 	private double maxScore = Double.MIN_VALUE;
 	private double minScore = Double.MAX_VALUE;
@@ -62,6 +61,7 @@ class NormalPlaneCanvas extends TracerCanvas {
 	private final Path fittedPath;
 	private final SNT tracerPlugin;
 	private final HashMap<Integer, Integer> indexToValidIndex = new HashMap<>();
+	private String invalidFitLabel;
 
 	protected NormalPlaneCanvas(final ImagePlus imp,
 	                            final SNT plugin, final double[] centre_x_positions,
@@ -69,7 +69,7 @@ class NormalPlaneCanvas extends TracerCanvas {
 	                            final double[] scores, final double[] modeRadii, final double[] angles,
 	                            final boolean[] valid, final Path fittedPath)
 	{
-		super(imp, plugin, MultiDThreePanes.XY_PLANE, plugin
+		super(resizeAsNeeded(imp), plugin, MultiDThreePanes.XY_PLANE, plugin
 			.getPathAndFillManager());
 
 		tracerPlugin = plugin;
@@ -92,12 +92,10 @@ class NormalPlaneCanvas extends TracerCanvas {
 				++a;
 			}
 		}
-
+		invalidFitLabel = "";
 		// Make ImageCanvas fully independent from SNT
 		disableEvents(true);
 		setDrawCrosshairs(false);
-		// setAnnotationsColor(Color.BLUE);
-
 	}
 
 	@Override
@@ -107,35 +105,36 @@ class NormalPlaneCanvas extends TracerCanvas {
 		final Color fitColor = (valid[z]) ? COLOR_VALID_FIT : COLOR_INVALID_FIT;
 
 		// build label
-		final double proportion = (scores[z] - minScore) / (maxScore - minScore);
-		super.setAnnotationsColor(fitColor);
-		setCanvasLabel(String.format("r=%s score=%s", SNTUtils.formatDouble(radii[z],
-			2), SNTUtils.formatDouble(proportion, 2)));
+		final double normScore = 1 - ((scores[z] - minScore) / (maxScore - minScore)); // 0-1 normalization
+		setAnnotationsColor(fitColor);
+		setCanvasLabel(String.format("r=%.2f ∠%.1f° QS: %.2f", radii[z], Math.toDegrees(angles[z]), normScore));
 
 		// mark center
-		g.setStroke(new BasicStroke(2));
 		g.setColor(fitColor);
-		g.fill(new Rectangle2D.Double(myScreenXDprecise(centre_x_positions[z]) - 2,
-			myScreenYDprecise(centre_y_positions[z]) - 2, 5, 5));
+		g.fill(new Ellipse2D.Double(myScreenXDprecise(centre_x_positions[z], true) - 3,
+			myScreenYDprecise(centre_y_positions[z], true) - 3, 6, 6));
 
 		// show diameter
+		g.setStroke(new BasicStroke(2));
 		final double x_top_left = myScreenXDprecise(centre_x_positions[z] -
-			radii[z]);
+			radii[z], true);
 		final double y_top_left = myScreenYDprecise(centre_y_positions[z] -
-			radii[z]);
+			radii[z], true);
 		final double diameter = myScreenXDprecise(centre_x_positions[z] +
-			radii[z]) - myScreenXDprecise(centre_x_positions[z] - radii[z]);
+			radii[z], true) - myScreenXDprecise(centre_x_positions[z] - radii[z], true);
 		g.draw(new Ellipse2D.Double(x_top_left, y_top_left, diameter, diameter));
 
-		// report angle
-		final StringBuilder sb = new StringBuilder();
-		sb.append(SNTUtils.formatDouble(Math.toDegrees(angles[z]), 1)).append(DEG);
-		if (!valid[z]) sb.append("  Fit discarded");
-		g.drawString(sb.toString(), (float) myScreenXDprecise(0),
-			(float) myScreenYDprecise(imp.getHeight() - 1));
+		if (!valid[z]) {
+			g.drawString(invalidFitLabel,
+					(float) myScreenXDprecise(0), (float) myScreenYDprecise(imp.getHeight() - 1));
+			g.draw(new Line2D.Double(myScreenXDprecise(centre_x_positions[z], true),
+					myScreenYDprecise(centre_y_positions[z], true), myScreenXDprecise(imp.getWidth() / 2.0),
+					myScreenXDprecise(imp.getWidth() / 2.0)));
+		}
 
-		// show mode
+		// show mode. Draw on the image center (pixelOffset ignored)
 		g.setColor(COLOR_MODE);
+		g.setStroke(new BasicStroke(3, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[] { 9 }, 0));
 		final double modeOvalX = myScreenXDprecise(imp.getWidth() / 2.0 -
 			modeRadii[z]);
 		final double modeOvalY = myScreenYDprecise(imp.getHeight() / 2.0 -
@@ -155,7 +154,7 @@ class NormalPlaneCanvas extends TracerCanvas {
 		final double rightY = centreY - h * Math.cos(halfAngle);
 		final double leftX = centreX + h * Math.sin(-halfAngle);
 		final double leftY = centreX - h * Math.cos(halfAngle);
-		g.setStroke(new BasicStroke(1));
+		//g.setStroke(new BasicStroke(1));
 		g.draw(new Line2D.Double(myScreenXDprecise(centreX), myScreenYDprecise(
 			centreY), myScreenXDprecise(rightX), myScreenYDprecise(rightY)));
 		g.draw(new Line2D.Double(myScreenXDprecise(centreX), myScreenYDprecise(
@@ -186,10 +185,8 @@ class NormalPlaneCanvas extends TracerCanvas {
 	}
 
 	protected void showImage() {
-		final DisplayService displayService = tracerPlugin.getContext().getService(
-			DisplayService.class);
 		final StackWindow win = new StackWindow(imp, this);
-		while (magnification < 8)
+		while (magnification < Math.min(pixelOffset * 2 + 10, 32))
 			zoomIn(0, 0);
 		win.addWindowListener(new WindowAdapter() {
 
@@ -200,7 +197,40 @@ class NormalPlaneCanvas extends TracerCanvas {
 				}
 			}
 		});
-		displayService.createDisplay(win);
+		win.setVisible(true);
+	}
+
+	public double myScreenXDprecise(final double ox, final boolean includePixelOffset) {
+		return super.myScreenXDprecise(ox + ((includePixelOffset) ? pixelOffset : 0));
+	}
+
+	public double myScreenYDprecise(final double oy, final boolean includePixelOffset) {
+		return super.myScreenYDprecise(oy + ((includePixelOffset) ? pixelOffset : 0));
+	}
+
+	private static ImagePlus resizeAsNeeded(final ImagePlus imp) {
+		if (imp.getWidth() > 19) {
+			pixelOffset = 0;
+			return imp;
+		}
+		final ImageStack stackOld = imp.getStack();
+		final ImageProcessor ipOld = imp.getStack().getProcessor(1);
+		final ImageStack stackNew = new ImageStack(20, 20, stackOld.getColorModel());
+		pixelOffset = (20 - imp.getWidth()) / 2;
+		ImageProcessor ipNew;
+		for (int i = 1; i <= stackOld.size(); i++) {
+			ipNew = ipOld.createProcessor(20, 20);
+			ipNew.setValue(0.0);
+			ipNew.fill();
+			ipNew.insert(stackOld.getProcessor(i), pixelOffset, pixelOffset);
+			stackNew.addSlice(imp.getStack().getSliceLabel(i), ipNew);
+		}
+		imp.setStack(null, stackNew);
+		return imp;
+	}
+
+	public void setInvalidFitLabel(final String label) {
+		this.invalidFitLabel = label;
 	}
 
 }

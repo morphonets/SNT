@@ -34,6 +34,7 @@ import org.scijava.widget.Button;
 
 import sc.fiji.snt.PathFitter;
 import sc.fiji.snt.SNTPrefs;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 
 /**
@@ -41,14 +42,16 @@ import sc.fiji.snt.gui.GuiUtils;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Refinement of Paths")
+@Plugin(type = Command.class, initializer = "init", visible = false, label = "Refinement of Paths")
 public class PathFitterCmd extends ContextCommand {
 
 	@Parameter
 	private PrefService prefService;
 
 	public static final String FITCHOICE_KEY = "choice";
+	public static final String FALLBACKCHOICE_KEY = "fallback";
 	public static final String MAXRADIUS_KEY = "maxrad";
+	public static final String MINANGLE_KEY = "minang";
 	public static final String FITINPLACE_KEY = "inplace";
 	public static final String SECLAYER_KEY = "secondary";
 
@@ -59,11 +62,16 @@ public class PathFitterCmd extends ContextCommand {
 		"2) Snap node coordinates to cross-section centroids";
 	private static final String CHOICE_BOTH =
 		"1) & 2): Assign fitted radii and snap node coordinates";
-	private static String HEADER;
+	private static final String CHOICE_FALLBACK_MODE = "Best guess (mode of possible fits)";
+	private static final String CHOICE_FALLBACK_MINSEP ="Smallest voxel separation";
+	private static final String CHOICE_FALLBACK_NAN = "NaN (Not a number)";
 
-	static {
-		HEADER = "<HTML><body><div style='width:" + GuiUtils.renderedWidth("Type of Fit" + CHOICE_BOTH) + ";'>";
-	}
+	private static String HEADER = "<HTML><body><div style='width:"
+			+ GuiUtils.renderedWidth("Type of refinement: SNT can use the fluorescent signal around traced paths to opt")
+			+ ";'>";
+
+	private String unit;
+	private double smallestSep;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg1 = HEADER +
@@ -79,23 +87,47 @@ public class PathFitterCmd extends ContextCommand {
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg2 = HEADER +
-		"<b>Max. radius:</b> This setting defines (in pixels) the largest radius " //
-		+ "allowed in the fit. It constrains the optimization to minimize fitting " //
-		+ "artifacts caused from neighboring structures (Tip: The <i>Secondary " //
-		+ "Layer Creation Wizard</i> can estimate neurite thickness)";
-	@Parameter(required = false, label = EMPTY_LABEL, description="<HTML>An exaggerated " //
+		"<b>Max. radius:</b> This setting defines (in physical units) the largest " //
+		+ "radius allowed in the fit. It constrains the optimization to minimize " //
+		+ "fitting artifacts caused from neighboring structures. (Tip: The " //
+		+ "<i>Secondary Layer Creation Wizard</i> can estimate neurite thickness)";
+	@Parameter(required = false, initializer = "init", label = EMPTY_LABEL, callback= "updateMaxRadiusLegend",
+			min = "0", style="format:#.000", description="<HTML>An exaggerated " //
 		+ "radius may originate jagged paths.<br>When in doubt, start with a smaller radius " //
 		+ "and repeat fitting in smaller increments")
-	private int maxRadius = PathFitter.DEFAULT_MAX_RADIUS;
+	private double maxRadius;
+
+	@Parameter(required = false, persist=false, visibility = ItemVisibility.MESSAGE, initializer="updateMaxRadiusLegend")
+	private String maxRadiusLegend;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
-	private final String msg3 = HEADER +
+	private final String msg3 = HEADER + //
+			"<b>Radius fallback:</b> If fitting fails at certain node location(s), which radius " //
+			+ "should be adopted as a fallback? (Tip: Fallback values can be optimized using "
+			+ "the <i>Correct Radii...</i> command)";
+	@Parameter(required = true, label = EMPTY_LABEL, choices = { CHOICE_FALLBACK_MODE, CHOICE_FALLBACK_MINSEP,
+			CHOICE_FALLBACK_NAN })
+	private String fallbackChoice;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+	private final String msg4 = HEADER +
+		"<b>Min. angle:</b> This is an advanced, micro-optimization setting defining (in degrees) " //
+		+ "the smallest angle between the fitted node and parent tangent vectors. It minimizes " //
+		+ "abrupt jaggering between neighboring nodes.";
+	@Parameter(required = false, label = EMPTY_LABEL, style="format:#.00",
+			description="<HTML>A small value " //
+		+ "may cause jagged paths. Large values allow for more<br>"
+		+ "tolerant fits. When in doubt, use a value between 60 and 90&deg;.")
+	private double minAngle;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+	private final String msg5 = HEADER +
 		"<b>Target image:</b> Which image should be used for fitting?";
 	@Parameter(required = false, label = EMPTY_LABEL, choices= {"Main image", "Secondary (if available)"})
 	private String impChoice;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
-	private final String msg4 = HEADER +
+	private final String msg6 = HEADER +
 		"<b>Replace nodes:</b> Defines whether fitted coordinates/radii should "
 		+ "replace (override) those of input path(s):";
 
@@ -103,19 +135,58 @@ public class PathFitterCmd extends ContextCommand {
 			"Keep original path(s)", "Replace existing nodes (undoable operation)" })
 	private String fitInPlaceChoice;
 
-//	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
-//	private final String spacer4 = EMPTY_LABEL;
-
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 			description="Press 'Reset' or set it to 0 to use the available processors on your computer")
-	private final String msg5 = HEADER +
+	private final String msg7 = HEADER +
 		"<b>Multithreading:</b> Number of parallel threads to compute fits:";
 
 	@Parameter(required = false, label = EMPTY_LABEL, persist = false, min = "0", stepSize = "1")
-	private int nThreads = SNTPrefs.getThreads();
+	private int nThreads;
 
 	@Parameter(required = false, label = "Reset Defaults", callback = "reset")
 	private Button reset;
+
+	@SuppressWarnings("unused")
+	private void init() {
+		if (SNTUtils.getPluginInstance().accessToValidImageData()) {
+			unit = SNTUtils.getPluginInstance().getSpacingUnits();
+			smallestSep = SNTUtils.getPluginInstance().getMinimumSeparation();
+		} else {
+			unit = SNTUtils.getSanitizedUnit(null);
+			smallestSep = 1;
+		}
+		if (maxRadius <= 0d || Double.isNaN(minAngle))
+			maxRadius = PathFitter.DEFAULT_MAX_RADIUS * smallestSep;
+		if (minAngle < 0d || Double.isNaN(minAngle))
+			minAngle = Math.toDegrees(PathFitter.DEFAULT_MIN_ANGLE);
+		nThreads = getAdjustedThreadNumber(SNTPrefs.getThreads());
+		updateMaxRadiusLegend();
+	}
+
+	private void updateMaxRadiusLegend() {
+		maxRadiusLegend = String.format("For current image: %.3f%s ≈ %dpixel(s)", maxRadius, unit,
+				Math.round(maxRadius / smallestSep));
+	}
+
+	@SuppressWarnings("unused")
+	private void reset() {
+		fitChoice = PathFitterCmd.CHOICE_RADII;
+		maxRadius = PathFitter.DEFAULT_MAX_RADIUS * smallestSep;
+		minAngle = Math.toDegrees(PathFitter.DEFAULT_MIN_ANGLE);
+		fallbackChoice = PathFitterCmd.CHOICE_FALLBACK_MODE;
+		impChoice = "Main image";
+		fitInPlaceChoice = null;
+		nThreads = getAdjustedThreadNumber(0);
+		updateMaxRadiusLegend();
+		prefService.clear(PathFitterCmd.class); // useful if user dismisses dialog after pressing "Reset"
+	}
+
+	private int getAdjustedThreadNumber(final int threads) {
+		int processors = Runtime.getRuntime().availableProcessors();
+		if (threads < 1 || threads > processors)
+			return processors;
+		return threads;
+	}
 
 	/*
 	 * (non-Javadoc)
@@ -126,39 +197,32 @@ public class PathFitterCmd extends ContextCommand {
 	public void run() {
 		switch (fitChoice) {
 			case CHOICE_MIDPOINT:
-				prefService.put(PathFitterCmd.class, FITCHOICE_KEY,
-					PathFitter.MIDPOINTS);
+				prefService.put(PathFitterCmd.class, FITCHOICE_KEY, PathFitter.MIDPOINTS);
 				break;
 			case CHOICE_RADII:
 				prefService.put(PathFitterCmd.class, FITCHOICE_KEY, PathFitter.RADII);
 				break;
 			default:
-				prefService.put(PathFitterCmd.class, FITCHOICE_KEY,
-					PathFitter.RADII_AND_MIDPOINTS);
+				prefService.put(PathFitterCmd.class, FITCHOICE_KEY, PathFitter.RADII_AND_MIDPOINTS);
 				break;
 		}
+		prefService.put(PathFitterCmd.class, MAXRADIUS_KEY, Math.round(maxRadius / smallestSep));
+		prefService.put(PathFitterCmd.class, MINANGLE_KEY, Math.toRadians(minAngle));
+		switch (fallbackChoice) {
+		case CHOICE_FALLBACK_NAN:
+			prefService.put(PathFitterCmd.class, FALLBACKCHOICE_KEY, PathFitter.FALLBACK_NAN);
+			break;
+		case CHOICE_FALLBACK_MINSEP:
+			prefService.put(PathFitterCmd.class, FALLBACKCHOICE_KEY, PathFitter.FALLBACK_MIN_SEP);
+			break;
+		default:
+			prefService.put(PathFitterCmd.class, FALLBACKCHOICE_KEY, PathFitter.FALLBACK_MODE);
+			break;
+		}
 		prefService.put(PathFitterCmd.class, SECLAYER_KEY, impChoice.toLowerCase().contains("secondary"));
-		prefService.put(PathFitterCmd.class, MAXRADIUS_KEY, maxRadius);
 		prefService.put(PathFitterCmd.class, FITINPLACE_KEY, fitInPlaceChoice.toLowerCase().contains("replace"));
 		nThreads = getAdjustedThreadNumber(nThreads);
 		SNTPrefs.setThreads(nThreads);
-	}
-
-	private int getAdjustedThreadNumber(final int threads) {
-		int processors = Runtime.getRuntime().availableProcessors();
-		if (threads < 1 || threads > processors)
-			return processors;
-		return threads;
-	}
-
-	@SuppressWarnings("unused")
-	private void reset() {
-		fitChoice = PathFitterCmd.CHOICE_RADII;
-		maxRadius = PathFitter.DEFAULT_MAX_RADIUS;
-		impChoice = "Main image";
-		fitInPlaceChoice = null;
-		nThreads = getAdjustedThreadNumber(0);
-		prefService.clear(PathFitterCmd.class); // useful if user dismisses dialog after pressing "Reset"
 	}
 
 	/* IDE debug method **/

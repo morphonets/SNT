@@ -36,10 +36,13 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import pal.math.ConjugateDirectionSearch;
 import pal.math.MultivariateFunction;
+import sc.fiji.snt.gui.cmds.PathFitterCmd;
 import sc.fiji.snt.util.ImgUtils;
 
 import java.util.Arrays;
 import java.util.concurrent.Callable;
+
+import org.scijava.prefs.PrefService;
 
 /**
  * Class for fitting circular cross-sections around existing nodes of a
@@ -55,6 +58,9 @@ public class PathFitter implements Callable<Path> {
 
 	/** The default max radius constraining the fit. */
 	public static int DEFAULT_MAX_RADIUS = 10;
+
+	/** The default value for the smallest angle (in radians) constraining the fit. */
+	public static double DEFAULT_MIN_ANGLE = Math.PI / 2;
 
 	/**
 	 * Flag specifying that the computed path should only inherit fitted radii
@@ -74,6 +80,24 @@ public class PathFitter implements Callable<Path> {
 	 */
 	public static final int RADII_AND_MIDPOINTS = 4;
 
+	/**
+	 * Flag specifying that radii at invalid fit locations should fallback to
+	 * {@code Double.NaN}
+	 */
+	public static final int FALLBACK_NAN = 8;
+
+	/**
+	 * Flag specifying that radii at invalid fit locations should fallback to the
+	 * minimum voxel separation (voxel size)
+	 */
+	public static final int FALLBACK_MIN_SEP = 16;
+
+	/**
+	 * Flag specifying that radii at invalid fit locations should fallback to the
+	 * mode of all possible fits
+	 */
+	public static final int FALLBACK_MODE = 32;
+
 	private final SNT plugin;
 	private RandomAccessibleInterval<? extends RealType<?>> img;
 	private Path path;
@@ -82,7 +106,9 @@ public class PathFitter implements Callable<Path> {
 	private MultiTaskProgress progress;
 	private boolean succeeded;
 	private int sideSearch = DEFAULT_MAX_RADIUS;
+	private double minAngle = DEFAULT_MIN_ANGLE;
 	private int fitScope = RADII_AND_MIDPOINTS;
+	private int radiusFallback = FALLBACK_MODE;
 	private Path fitted;
 	private boolean fitInPlace; // backwards compatibility with v3 and earlier
 
@@ -159,11 +185,37 @@ public class PathFitter implements Callable<Path> {
 		showDetailedFittingResults = showAnnotatedView;
 	}
 
-	public void setProgressCallback(final int fitterIndex,
-		final MultiTaskProgress progress)
-	{
+	public void setProgressCallback(final int fitterIndex, final MultiTaskProgress progress) {
 		this.fitterIndex = fitterIndex;
 		this.progress = progress;
+	}
+
+	public void readPreferences() {
+		final PrefService prefService = SNTUtils.getContext().getService(PrefService.class);
+		final String fitTypeString = prefService.get(PathFitterCmd.class, PathFitterCmd.FITCHOICE_KEY);
+		fitScope = (fitTypeString== null) ? RADII_AND_MIDPOINTS : Integer.parseInt(fitTypeString);
+		final String fallbackTypeString = prefService.get(PathFitterCmd.class, PathFitterCmd.FALLBACKCHOICE_KEY);
+		radiusFallback = (fallbackTypeString == null) ? FALLBACK_MODE : Integer.parseInt(fallbackTypeString);
+		final String maxRadiuString = prefService.get(PathFitterCmd.class, PathFitterCmd.MAXRADIUS_KEY);
+		sideSearch = (maxRadiuString == null) ? DEFAULT_MAX_RADIUS : Integer.parseInt(maxRadiuString);
+		final String minAngleString = prefService.get(PathFitterCmd.class, PathFitterCmd.MINANGLE_KEY);
+		minAngle = (minAngleString == null) ? DEFAULT_MIN_ANGLE : Double.parseDouble(minAngleString);
+		fitInPlace = prefService.getBoolean(PathFitterCmd.class, PathFitterCmd.FITINPLACE_KEY, false);
+		if (plugin != null) {
+			final boolean secondary = prefService.getBoolean(PathFitterCmd.class, PathFitterCmd.SECLAYER_KEY, false);
+			final RandomAccessibleInterval<? extends RealType<?>> img = (secondary && plugin.isSecondaryDataAvailable()) ? plugin.getSecondaryData()
+					: plugin.getLoadedData();
+			setImage(img);
+		}
+	}
+
+	public void applySettings(final PathFitter pf) {
+		fitScope = pf.fitScope;
+		radiusFallback = pf.radiusFallback;
+		sideSearch = pf.sideSearch;
+		minAngle = pf.minAngle;
+		fitInPlace = pf.fitInPlace;
+		img = pf.img;
 	}
 
 	/**
@@ -195,6 +247,9 @@ public class PathFitter implements Callable<Path> {
 		return fitted;
 	}
 
+	/**
+	 * @return the path being fitted
+	 */
 	public Path getPath() {
 		return path;
 	}
@@ -209,7 +264,7 @@ public class PathFitter implements Callable<Path> {
 	}
 
 	/**
-	 * Gets the current max radius
+	 * Gets the current max radius (in pixels)
 	 *
 	 * @return the maximum radius currently being considered, or
 	 *         {@link #DEFAULT_MAX_RADIUS} if {@link #setMaxRadius(int)} has not
@@ -243,6 +298,23 @@ public class PathFitter implements Callable<Path> {
 		}
 		this.fitScope = scope;
 	}
+
+	/**
+	 * Sets the fallback strategy for radii at locations in which fitting failed
+	 *
+	 * @param scope Either {@link #FALLBACK_MIN_SEP}, {@link #FALLBACK_MODE}, or
+	 *              {@link #FALLBACK_NAN}
+	 */
+	public void setRadiusFallback(final int fallback) {
+		if (fallback != PathFitter.FALLBACK_MODE && fallback != PathFitter.FALLBACK_MIN_SEP &&
+				fallback != PathFitter.FALLBACK_NAN)
+			{
+				throw new IllegalArgumentException(
+					" Invalid flag. Only RADII, RADII, or RADII_AND_MIDPOINTS allowed");
+			}
+		radiusFallback = fallback;
+	}
+
 
 	/**
 	 * Sets whether fitting should occur "in place".
@@ -316,10 +388,6 @@ public class PathFitter implements Callable<Path> {
 		final double[] scores = new double[totalPoints];
 		final double[] moved = new double[totalPoints];
 		final boolean[] valid = new boolean[totalPoints];
-
-		final int[] xs_in_image = new int[totalPoints];
-		final int[] ys_in_image = new int[totalPoints];
-		final int[] zs_in_image = new int[totalPoints];
 
 		final double scaleInNormalPlane = path.getMinimumSeparation();
 		final double[] tangent = new double[3];
@@ -447,15 +515,7 @@ public class PathFitter implements Callable<Path> {
 			if (z_in_image < 0) z_in_image = 0;
 			if (z_in_image >= depth) z_in_image = depth - 1;
 
-			// SNT.log("addingPoint: " + x_in_image + "," + y_in_image + "," +
-			// z_in_image);
-
-			xs_in_image[i] = x_in_image;
-			ys_in_image[i] = y_in_image;
-			zs_in_image[i] = z_in_image;
-
 			// SNT.log("Adding a real slice.");
-
 			final FloatProcessor bp = new FloatProcessor(sideSearch, sideSearch);
 			bp.setPixels(normalPlane);
 			stack.addSlice("Node " + (i + 1), bp);
@@ -518,7 +578,7 @@ public class PathFitter implements Callable<Path> {
 			final double bsize = Math.sqrt(bdiffx * bdiffx + bdiffy * bdiffy +
 				bdiffz * bdiffz);
 			angles[i] = Math.acos(adotb / (asize * bsize));
-			if (angles[i] < (Math.PI / 2)) valid[i] = false;
+			if (angles[i] < minAngle) valid[i] = false;
 		}
 
 		/*
@@ -593,9 +653,6 @@ public class PathFitter implements Callable<Path> {
 
 				if ((goneTooFar && !nextValid) || firstOrLast) {
 					valid[i] = true;
-					xs_in_image[i] = path.getXUnscaled(i);
-					ys_in_image[i] = path.getYUnscaled(i);
-					zs_in_image[i] = path.getZUnscaled(i);
 					optimized_x[i] = path.precise_x_positions[i];
 					optimized_y[i] = path.precise_y_positions[i];
 					optimized_z[i] = path.precise_z_positions[i];
@@ -648,6 +705,29 @@ public class PathFitter implements Callable<Path> {
 			++added;
 		}
 
+		if (outputRadii) {
+			switch (radiusFallback) {
+			case FALLBACK_MODE:
+				for (int i = 0; i < fitted_rs.length; i++) {
+					if (!valid[i])
+						fitted_rs[i] = modeRadiiUnscaled[i] * scaleInNormalPlane;
+				}
+				break;
+			case FALLBACK_NAN:
+				for (int i = 0; i < fitted_rs.length; i++) {
+					if (!valid[i])
+						fitted_rs[i] = Double.NaN;
+				}
+				break;
+			default:
+				for (int i = 0; i < fitted_rs.length; i++) {
+					if (!valid[i])
+						fitted_rs[i] = scaleInNormalPlane;
+				}
+				break;
+			}
+		}
+
 		fitted.setFittedCircles(fittedPoints, fitted_ts_x, fitted_ts_y, fitted_ts_z, fitted_rs, //
 				fitted_optimized_x, fitted_optimized_y, fitted_optimized_z);
 
@@ -655,16 +735,30 @@ public class PathFitter implements Callable<Path> {
 			" accepted fits");
 		if (showDetailedFittingResults) {
 			SNTUtils.log("Generating annotated cross view stack");
-			final ImagePlus imp = new ImagePlus("Cross-section View " + fitted
-				.getName(), stack);
-//			imp.setCalibration(this.imp.getCalibration());
+			final ImagePlus imp = new ImagePlus("Cross-section View " + fitted.getName(), stack);
+			imp.setCalibration(path.getCalibration());
+			imp.getCalibration().pixelWidth = path.getMinimumSeparation();
+			imp.getCalibration().pixelHeight = path.getMinimumSeparation();
+			imp.getCalibration().pixelDepth = path.getMinimumSeparation();
 			if (plugin == null) {
 				imp.show();
-			}
-			else {
+			} else {
 				final NormalPlaneCanvas normalCanvas = new NormalPlaneCanvas(imp,
 					plugin, centre_x_positionsUnscaled, centre_y_positionsUnscaled,
 					rsUnscaled, scores, modeRadiiUnscaled, angles, valid, fitted);
+				switch (radiusFallback) {
+				case FALLBACK_MODE:
+					normalCanvas.setInvalidFitLabel("Invalid fit, r reset: mode");
+					break;
+				case FALLBACK_NAN:
+					normalCanvas.setInvalidFitLabel("Invalid fit, r reset: NaN");
+					break;
+				case FALLBACK_MIN_SEP:
+					normalCanvas.setInvalidFitLabel("Invalid fit, r reset: min sep.");
+					break;
+				default:
+					break;
+				}
 				normalCanvas.showImage();
 			}
 		}

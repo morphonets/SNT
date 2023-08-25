@@ -55,13 +55,9 @@ import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
-import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.type.numeric.RealType;
-
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.display.DisplayService;
-import org.scijava.prefs.PrefService;
 import org.scijava.table.TableDisplay;
 import org.scijava.util.ColorRGB;
 
@@ -300,6 +296,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi = new JMenuItem("Parameters...", IconFactory.getMenuIcon(IconFactory.GLYPH.SLIDERS));
 		jmi.setToolTipText("Options for fitting operations");
 		jmi.addActionListener(e -> {
+			if (noValidImageDataError()) return;
 			if (fittingHelper == null) fittingHelper = new FitHelper();
 			fittingHelper.showPrompt();
 		});
@@ -1017,10 +1014,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private class FitHelper {
 
 		private boolean promptHasBeenDisplayed = false;
-		private int fitType = PathFitter.RADII;
-		private int maxRadius = PathFitter.DEFAULT_MAX_RADIUS;
-		private boolean fitInPlace = false;
-		private boolean secondary = false;
 		private SwingWorker<Object, Object> fitWorker;
 		private List<PathFitter> pathsToFit;
 
@@ -1028,11 +1021,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			new FittingOptionsWorker(this, false).execute();
 		}
 
-		private boolean displayPromptRequired() {
-			return !promptHasBeenDisplayed && plugin.getUI() != null && plugin.getUI().askUserConfirmation
-					&& guiUtils.getConfirmation("You have not yet adjusted the fitting parameters. "
-							+ "It is recommended that you do so at least once. Adjust them now?",
-							"Adjust Parameters?", "Yes. Adjust Parameters...", "No. Use Defaults.");
+		private Boolean displayPromptRequired() {
+			final boolean prompt = !promptHasBeenDisplayed && plugin.getUI() != null
+					&& plugin.getUI().askUserConfirmation;
+			if (prompt) {
+				return guiUtils.getConfirmation2(
+						"You have not yet adjusted the fitting parameters. "
+								+ "It is recommended that you do so at least once. Adjust them now?",
+						"Adjust Parameters?", "Yes. Adjust Parameters...", "No. Use Defaults.");
+			}
+			return false;
 		}
 
 		protected synchronized void cancelFit(final boolean updateUIState) {
@@ -1046,8 +1044,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 
 		public void fitUsingPrompAsNeeded() {
-			if (pathsToFit == null || pathsToFit.isEmpty()) return; // nothing to fit
-			if (displayPromptRequired()) {
+			if (pathsToFit == null || pathsToFit.isEmpty())
+				return; // nothing to fit
+			final Boolean prompt = displayPromptRequired();
+			if (prompt == null) {
+				return; // user pressed cancel
+			} else if (prompt) {
 				new FittingOptionsWorker(this, true).execute();
 			} else {
 				fit();
@@ -1076,14 +1078,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					final ExecutorService es = Executors.newFixedThreadPool(processors);
 					final FittingProgress progress = new FittingProgress(plugin.getUI(),
 							plugin.statusService, numberOfPathsToFit);
-					final RandomAccessibleInterval<? extends RealType<?>> img = (secondary && plugin.isSecondaryDataAvailable()) ? plugin.getSecondaryData()
-							: plugin.getLoadedData();
 					try {
+						final PathFitter refFitter = pathsToFit.get(0);
+						refFitter.readPreferences();
 						for (int i = 0; i < numberOfPathsToFit; ++i) {
 							final PathFitter pf = pathsToFit.get(i);
-							pf.setImage(img);
-							pf.setScope(fitType);
-							pf.setMaxRadius(maxRadius);
+							pf.applySettings(refFitter);
 							pf.setProgressCallback(i, progress);
 						}
 						es.invokeAll(pathsToFit);
@@ -1107,9 +1107,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				protected void done() {
 					if (pathsToFit != null) {
 						// since paths were fitted asynchronously, we need to rebuild connections
-						if (fitInPlace) {
-							pathsToFit.forEach(p -> p.getPath().replaceNodesWithFittedVersion());
-						}
 						pathAndFillManager.rebuildRelationships();
 					}
 					refreshManager(true, false, getSelectedPaths(true));
@@ -1137,24 +1134,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	
 		@Override
 		public String doInBackground() {
-			final PrefService prefService = plugin.getContext().getService(PrefService.class);
 			final CommandService cmdService = plugin.getContext().getService(CommandService.class);
 			try {
 				final CommandModule cm = cmdService.run(PathFitterCmd.class, true).get();
-				if (cm.isCanceled())
-					return null;
-				final String fitTypeString = prefService.get(PathFitterCmd.class, PathFitterCmd.FITCHOICE_KEY);
-				fitHelper.fitType = Integer.parseInt(fitTypeString);
-				final String maxRadiustring = prefService.get(PathFitterCmd.class, PathFitterCmd.MAXRADIUS_KEY);
-				fitHelper.maxRadius = Integer.parseInt(maxRadiustring);
-				fitHelper.fitInPlace = prefService.getBoolean(PathFitterCmd.class, PathFitterCmd.FITINPLACE_KEY, false);
-				fitHelper.secondary = prefService.getBoolean(PathFitterCmd.class, PathFitterCmd.SECLAYER_KEY, false);
+				if (!cm.isCanceled()) {
+					return "";
+				}
 			} catch (final InterruptedException | ExecutionException ignored) {
-				return null;
-			} catch (final NumberFormatException ex) {
-				SNTUtils.error("Could not parse settings. Adopting Defaults...", ex);
+				// do nothing
 			}
-			return "";
+			return null;
 		}
 
 		@Override
@@ -1165,8 +1154,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				SNTUtils.error(ex.getMessage(), ex);
 				fitHelper.promptHasBeenDisplayed = false;
 			}
-			if (fit) fitHelper.fit();
+			if (fit) {
+				fitHelper.fit();
+			}
 		}
+
 	}
 
 	/** This class defines the model for the JTree hosting traced paths */
@@ -2245,18 +2237,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					return;
 
 				case EXPLORE_FIT_CMD:
-					if (noValidImageDataError()) return;
-					if (plugin.getImagePlus() == null) {
-						displayTmpMsg(
-								"Tracing image is not available. Fit cannot be computed.");
+					if (noValidImageDataError())
+						return;
+					if (!plugin.uiReadyForModeChange() && plugin.getEditingPath() != null
+							&& !p.equals(plugin.getEditingPath())) {
+						guiUtils.error("Please finish current operation before exploring fit.");
 						return;
 					}
-					if (!plugin.uiReadyForModeChange()) {
-						displayTmpMsg(
-								"Please finish current operation before exploring fit.");
-						return;
-					}
-					exploreFit(p);
+					if (fittingHelper == null)
+						fittingHelper = new FitHelper();
+					exploreFit(p, fittingHelper);
 					return;
 				case STRAIGHTEN:
 					straightenPath(p);
@@ -2268,7 +2258,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 
-	private void exploreFit(final Path p) {
+	private void exploreFit(final Path p, final FitHelper fittingHelper) {
 		assert SwingUtilities.isEventDispatchThread();
 
 		// Announce computation
@@ -2295,23 +2285,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 					try {
 
+						final Boolean prompt = fittingHelper.displayPromptRequired();
+						if (prompt == null) {
+							return null; // user pressed cancel
+						} else if (prompt) {
+							final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+							final CommandModule cm = cmdService.run(PathFitterCmd.class, true).get();
+							if (cm.isCanceled())
+								return null;
+						}
 						// discard existing fit, in case a previous fit exists
 						p.setUseFitted(false);
 						p.setFitted(null);
 
-						// Compute verbose fit using settings from previous PathFitterCmd
-						// runs
+						// Compute verbose fit using settings from last PathFitterCmd run
 						final PathFitter fitter = new PathFitter(plugin, p);
 						fitter.setShowAnnotatedView(true);
-						final PrefService prefService = plugin.getContext().getService(
-								PrefService.class);
-						final String rString = prefService.get(PathFitterCmd.class,
-								PathFitterCmd.MAXRADIUS_KEY, String.valueOf(
-										PathFitter.DEFAULT_MAX_RADIUS));
-						fitter.setMaxRadius(Integer.parseInt(rString));
-						fitter.setScope(PathFitter.RADII_AND_MIDPOINTS);
-						final ExecutorService executor = Executors
-								.newSingleThreadExecutor();
+						fitter.readPreferences();
+						final ExecutorService executor = Executors.newSingleThreadExecutor();
 						final Future<Path> future = executor.submit(fitter);
 						future.get();
 
@@ -2322,22 +2313,34 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 								"Unfortunately an exception occurred. See Console for details");
 						e.printStackTrace();
 					}
-					return null;
+					return "";
 				}
 
 				@Override
 				protected void done() {
-					// this is just a preview cmd. Reinstate previous fit, if any
-					p.setFitted(null);
-					p.setFitted(existingFit);
-					// It may take longer to read the text than to compute
-					// Normal Views: we will not call msg.dispose();
-					GuiUtils.setAutoDismiss(msg);
-					setEnabledCommands(true);
-					// Show both original and fitted paths
-					if (plugin.showOnlySelectedPaths) ui.togglePathsChoice();
-					plugin.enableEditMode(true);
-					plugin.setEditingPath(p);
+					try {
+						if (get() == null) {
+							// user pressed cancel in one of the prompts
+							msg.dispose();
+						} else {
+							// this is just a preview cmd. Reinstate previous fit, if any
+							p.setFitted(null);
+							p.setFitted(existingFit);
+							// Show both original and fitted paths
+							if (plugin.showOnlySelectedPaths)
+								ui.togglePathsChoice();
+							plugin.enableEditMode(true);
+							plugin.setEditingPath(p);
+						}
+					} catch (InterruptedException | ExecutionException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					} finally {
+						// It may take longer to read the text than to compute
+						// Normal Views: we will not call msg.dispose();
+						GuiUtils.setAutoDismiss(msg);
+						setEnabledCommands(true);
+					}
 				}
 			};
 			worker.execute();

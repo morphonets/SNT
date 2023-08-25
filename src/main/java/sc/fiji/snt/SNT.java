@@ -2600,7 +2600,8 @@ public class SNT extends MultiDThreePanes implements
 		return data;
 	}
 
-	public <T> IterableInterval<T> getLoadedIterable() {
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	public <T> IterableInterval getLoadedIterable() {
 		return Views.iterable(ctSlice3d);
 	}
 
