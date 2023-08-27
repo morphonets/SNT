@@ -123,6 +123,8 @@ class AnalysisUtils {
 		case TreeStatistics.INTER_NODE_DISTANCE:
 		case TreeStatistics.LENGTH:
 		case TreeStatistics.NODE_RADIUS:
+		case TreeStatistics.BRANCH_MEAN_RADIUS:
+		case TreeStatistics.PATH_MEAN_RADIUS:
 		case TreeStatistics.PATH_LENGTH:
 		case TreeStatistics.PRIMARY_LENGTH:
 		case TreeStatistics.TERMINAL_LENGTH:
@@ -134,6 +136,7 @@ class AnalysisUtils {
 		case ShollAnalyzer.CENTROID_RADIUS:
 		case ShollAnalyzer.ENCLOSING_RADIUS:
 		case ShollAnalyzer.MAX_FITTED_RADIUS:
+		case TreeStatistics.SHOLL_MAX_FITTED_RADIUS:
 			return String.format("%s (%s)", standardMetric, unit);
 		case TreeStatistics.INTER_NODE_DISTANCE_SQUARED:
 		case TreeStatistics.SURFACE_AREA:

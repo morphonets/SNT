@@ -3251,8 +3251,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	private boolean noValidImageDataError() {
 		final boolean invalidImage = !plugin.accessToValidImageData();
-		if (invalidImage) guiUtils.error(
-			"There is currently no valid image data to process.");
+		if (invalidImage)
+			guiUtils.error("This option requires valid image data to be loaded.");
 		return invalidImage;
 	}
 
