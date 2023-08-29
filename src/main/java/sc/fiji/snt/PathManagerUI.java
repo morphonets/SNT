@@ -58,6 +58,7 @@ import javax.swing.tree.TreeSelectionModel;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.display.DisplayService;
+import org.scijava.prefs.PrefService;
 import org.scijava.table.TableDisplay;
 import org.scijava.util.ColorRGB;
 
@@ -924,11 +925,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	protected Tree getSingleTree() {
-		return getSingleTreePrompt((this.hasFocus()) ? guiUtils : new GuiUtils(plugin.getActiveWindow()));
+		return getSingleTreePrompt((hasFocus()) ? guiUtils : new GuiUtils(plugin.getActiveWindow()));
 	}
 
 	protected Collection<Tree> getMultipleTrees() {
-		return getMultipleTreesPrompt((this.hasFocus()) ? guiUtils : new GuiUtils(plugin.getActiveWindow()), true);
+		return getMultipleTreesPrompt((hasFocus()) ? guiUtils : new GuiUtils(plugin.getActiveWindow()), true);
 	}
 
 	protected Tree getMultipleTreesInASingleContainer() {
@@ -960,6 +961,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		if (trees.size() == 1) return trees.iterator().next();
 		final ArrayList<String> treeLabels = new ArrayList<>(trees.size());
 		trees.forEach(t -> treeLabels.add(t.getLabel()));
+		Collections.sort(treeLabels);
 		final String defChoice = plugin.getPrefs().getTemp("singletree", treeLabels.get(0));
 		final String choice = guiUtils.getChoice("Multiple rooted structures exist. Which one should be considered?",
 				"Which Structure?", treeLabels.toArray(new String[trees.size()]), defChoice);
@@ -981,7 +983,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		if (includeAll)
 			treeLabels.add(0, "   -- All --  ");
 		final List<String> choices = guiUtils.getMultipleChoices("Which Structure?",
-				treeLabels.toArray(new String[trees.size()]));
+				treeLabels.toArray(new String[trees.size()]), null);
 		if (choices == null)
 			return null;
 		if (includeAll && choices.contains("   -- All --  "))
@@ -1024,11 +1026,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private Boolean displayPromptRequired() {
 			final boolean prompt = !promptHasBeenDisplayed && plugin.getUI() != null
 					&& plugin.getUI().askUserConfirmation;
+			final String[] options = new String[] { "Yes. Adjust parameters...", "No. Use defaults.",
+					"No. Use last used settings." };
 			if (prompt) {
-				return guiUtils.getConfirmation2(
-						"You have not yet adjusted the fitting parameters. "
-								+ "It is recommended that you do so at least once. Adjust them now?",
-						"Adjust Parameters?", "Yes. Adjust Parameters...", "No. Use Defaults.");
+				String choice = guiUtils.getChoice(
+						"You have not yet adjusted fitting parameters. It is recommended that you do so at least once. Adjust them now?",
+						"Adjust Parameters?", options, options[0]);
+				if (choice == null) {
+					return null;
+				} else if (choice == options[0]) {
+					return true;
+				} else if (choice == options[1]) {
+					plugin.getContext().getService(PrefService.class).clear(PathFitterCmd.class);
+					return false;
+				}
 			}
 			return false;
 		}
@@ -2266,13 +2277,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final String statusMsg = "Fitting " + p.toString();
 		ui.showStatus(statusMsg, false);
 		setEnabledCommands(false);
-
-		final String text = "Once opened, you can peruse the fit by " +
-			"navigating the 'Cross Section View' stack. Edit mode " +
-			"will be activated and cross section planes automatically " +
-			"synchronized with tracing canvas(es).";
-		final JDialog msg = guiUtils.floatingMsg(text, false);
-
 		new Thread(() -> {
 
 			final Path existingFit = p.getFitted();
@@ -2308,7 +2312,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 					} catch (InterruptedException | ExecutionException
 							 | RuntimeException e) {
-						msg.dispose();
 						guiUtils.error(
 								"Unfortunately an exception occurred. See Console for details");
 						e.printStackTrace();
@@ -2319,11 +2322,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				@Override
 				protected void done() {
 					try {
-						if (get() == null) {
-							// user pressed cancel in one of the prompts
-							msg.dispose();
-						} else {
-							// this is just a preview cmd. Reinstate previous fit, if any
+						if (get() != null) { // otherwise user pressed cancel in a prompt
+							// this is just a preview cmd: Reinstate previous fit, if any
 							p.setFitted(null);
 							p.setFitted(existingFit);
 							// Show both original and fitted paths
@@ -2332,19 +2332,31 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 							plugin.enableEditMode(true);
 							plugin.setEditingPath(p);
 						}
-					} catch (InterruptedException | ExecutionException e) {
-						// TODO Auto-generated catch block
+					} catch (final InterruptedException | ExecutionException e) {
 						e.printStackTrace();
 					} finally {
-						// It may take longer to read the text than to compute
-						// Normal Views: we will not call msg.dispose();
-						GuiUtils.setAutoDismiss(msg);
 						setEnabledCommands(true);
+						promptForExploreFitManual();
 					}
 				}
 			};
 			worker.execute();
 		}).start();
+	}
+
+	private void promptForExploreFitManual() {
+		if (!plugin.getUI().askUserConfirmation || !plugin.getPrefs().getBoolean("efprompt", true))
+			return;
+		final boolean[] options = guiUtils.getConfirmationAndOption(
+				"You can peruse the fit by navigating the <i>Cross-section View</i> stack. " //
+				+ "Edit mode is now activated and cross section planes will automatically " //
+				+ "synchronize with tracing canvas(es).<br>Would you like to open the online " //
+				+ "manual for further details?", //
+				"Fly-through Animation Usage", "Do not remind me again about this",
+				true, new String[] {"Yes. Open Manual", "Dismiss"});
+		if (options != null && options[0])
+			GuiUtils.openURL("https://imagej.net/plugins/snt/manual#explorepreview-fit");
+		plugin.getPrefs().set("efprompt", options !=null && !options[1]);
 	}
 
 	private void straightenPath(final Path p) {

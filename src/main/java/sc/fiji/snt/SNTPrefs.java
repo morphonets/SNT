@@ -29,6 +29,7 @@ import java.util.HashSet;
 import javax.swing.LookAndFeel;
 import javax.swing.UIManager;
 
+import org.scijava.prefs.PrefService;
 import org.scijava.util.VersionUtils;
 
 import com.formdev.flatlaf.FlatLaf;
@@ -88,8 +89,11 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private int resFactor3Dcontent = -1;
 	private volatile static HashSet<String> tempKeys;
 
+	private final PrefService prefService;
+
 	public SNTPrefs(final SNT snt) {
 		this.snt = snt;
+		prefService = snt.getContext().getService(PrefService.class);
 		getBooleans();
 		storeIJ1Prefs();
 		imposeIJ1Prefs();
@@ -117,6 +121,22 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private void storeIJ1Prefs() {
 		ij1ReverseSliderOrder = Prefs.reverseNextPreviousOrder;
 		ij1PointerCursor = Prefs.usePointerCursor;
+	}
+
+	public boolean getBoolean(final String key, final boolean defaultValue) {
+		return prefService.getBoolean(getClass(), key, defaultValue);
+	}
+
+	public String get(final String key, final String defaultValue) {
+		return prefService.get(getClass(), key, defaultValue);
+	}
+
+	public void set(final String key, final String defaultValue) {
+		prefService.put(SNTPrefs.class, key, defaultValue);
+	}
+
+	public void set(final String key, final boolean defaultValue) {
+		prefService.put(SNTPrefs.class, key, defaultValue);
 	}
 
 	public boolean getTemp(final String key, final boolean defaultValue) {
@@ -335,6 +355,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		wipeSessionPrefs();
 		Prefs.set(VERSION_CHECK, SNTUtils.VERSION);
 		Prefs.savePreferences();
+		SNTUtils.getContext().getService(PrefService.class).clear(SNTPrefs.class);
 	}
 
 	public static String getDefaultLookAndFeel() {

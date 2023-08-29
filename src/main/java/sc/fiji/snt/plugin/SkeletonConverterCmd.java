@@ -531,7 +531,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 		error("To run this command you must first open a pre-processed image from which paths can be extracted (i.e., "
 				+ "in which background pixels have been removed). E.g.:"
 				+ "<ul><li>A segmented (thresholded) image (8-bit)</li>"
-				+ "<li>A filtered image, as created by <i>Built-in Filters</i> in the <i>Auto-tracing</i> widget</li>"
+				+ "<li>A filtered image, as created by the <i>Secondary Layer Creation Wizard</i> in the <i>Auto-tracing</i> widget</li>"
 				+ "</ul>" + "<p>" + "<p>Related Scripts:</p>" + "<ul>" + "<li>Batch &rarr Filter Multiple Images</li>"
 				+ "<li>Skeletons and ROIs &rarr Reconstruction From Segmented Image</li>" + "</ul>" + "<p>To Rerun:</p>"
 				+ "<ul>" + "<li>Utilities &rarr Extract Paths from Seg. Image... (opened images)</li>"

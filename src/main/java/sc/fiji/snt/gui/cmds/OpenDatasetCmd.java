@@ -28,6 +28,7 @@ import net.imagej.ImageJ;
 import sc.fiji.snt.gui.GuiUtils;
 
 import org.scijava.command.Command;
+import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
 import ij.IJ;
@@ -48,7 +49,7 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 //	@Parameter
 //	private ConvertService convertService;
 
-	// Not a @Parameter so that we can use SNT's file chooser (remembering last accessed directory, etc.)
+	@Parameter(required=false, persist = false)
 	private File file;
 
 	@Override
@@ -60,7 +61,8 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 //			final Dataset ds = ioService.open(file.getAbsolutePath());
 //			final ImagePlus imp = convertService.convert(ds, ImagePlus.class);
 //			snt.initialize(imp);
-			file = new GuiUtils(ui).getImageFile(file);
+			if (file == null || !file.exists())
+				file = new GuiUtils(ui).getImageFile(file);
 			if (file != null) {
 				ImagePlus imp = IJ.openImage(file.getAbsolutePath());
 				imp = comvertInPlaceToCompositeAsNeeded(imp);

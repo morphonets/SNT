@@ -1473,7 +1473,7 @@ public class SNTUI extends JDialog {
 		++gdb.gridy;
 		final JCheckBox askUserConfirmationCheckBox = new JCheckBox("Skip confirmation dialogs", !askUserConfirmation);
 		GuiUtils.addTooltip(askUserConfirmationCheckBox,
-				"Whether \"Are you sure?\" prompts should precede major operations");
+				"Whether \"Are you sure?\" type of prompts should precede major operations");
 		askUserConfirmationCheckBox
 				.addItemListener(e -> askUserConfirmation = e.getStateChange() == ItemEvent.DESELECTED);
 		miscPanel.add(askUserConfirmationCheckBox, gdb);

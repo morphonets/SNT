@@ -384,30 +384,18 @@ public class GuiUtils {
 		}
 	}
 
-	private int yesNoDialog(final Object[] components, final String title,
-		final String[] buttonLabels)
-	{
-		final JOptionPane optionPane = new JOptionPane(components,
-			JOptionPane.QUESTION_MESSAGE, JOptionPane.YES_NO_OPTION, null,
-			buttonLabels);
+	private int yesNoDialog(final Object[] components, final String title, final String[] buttonLabels) {
+		final JOptionPane optionPane = new JOptionPane(components, JOptionPane.QUESTION_MESSAGE,
+				JOptionPane.YES_NO_OPTION, null, buttonLabels);
 		final JDialog d = optionPane.createDialog(parent, title);
-//		// Work around prompt being displayed behind splashScreen on MacOS
-//		final boolean splashScreenDisplaying = splashScreen != null && splashScreen.isVisible();
-//		if (splashScreenDisplaying) splashScreen.setVisible(false);
 		makeVisible(d, true);
 		d.dispose();
-//		if (splashScreenDisplaying) splashScreen.setVisible(true);
 		final Object result = optionPane.getValue();
 		if (result instanceof Integer) {
 			return (Integer) result;
-		}
-		else if (buttonLabels != null &&
-				result instanceof String)
-		{
-			return result.equals(buttonLabels[0]) ? JOptionPane.YES_OPTION
-				: JOptionPane.NO_OPTION;
-		}
-		else {
+		} else if (buttonLabels != null && result instanceof String) {
+			return result.equals(buttonLabels[0]) ? JOptionPane.YES_OPTION : JOptionPane.NO_OPTION;
+		} else {
 			return SwingDialog.UNKNOWN_OPTION;
 		}
 	}
@@ -495,7 +483,7 @@ public class GuiUtils {
 		int defIdx = Arrays.asList(choices).indexOf(defaultChoice);
 		if (defIdx < 0)
 			defIdx = 0;
-		final JList<String> list = getJList(choices);
+		final JList<String> list = getJList(choices, defaultChoice);
 		if (choices.length < 11)
 			list.setVisibleRowCount(choices.length);
 		list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -537,8 +525,9 @@ public class GuiUtils {
 		return null;
 	}
 
-	private JList<String> getJList(final String[] choices) {
+	private JList<String> getJList(final String[] choices, final String defaultChoice) {
 		final JList<String> list = new JList<>(choices);
+		list.setSelectedValue(defaultChoice, true);
 		list.addKeyListener(new KeyAdapter() {
 			private static final int DELAY = 300; // 300ms delay between searches
 			private String typedString;
@@ -574,8 +563,8 @@ public class GuiUtils {
 		return sp;
 	}
 
-	public List<String> getMultipleChoices(final String title, final String[] choices) {
-		final JList<String> list = getJList(choices);
+	public List<String> getMultipleChoices(final String title, final String[] choices, final String defaultChoice) {
+		final JList<String> list = getJList(choices, defaultChoice);
 		if (JOptionPane.showConfirmDialog(parent, getScrollPane(list), title,
 				JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) == JOptionPane.OK_OPTION)
 			return list.getSelectedValuesList();
@@ -586,13 +575,21 @@ public class GuiUtils {
 		return getConfirmationAndOption(msg, title, "Remember my choice and do not prompt me again", false);
 	}
 
-	public boolean[] getConfirmationAndOption(final String msg, final String title, final String checkboxLabel, final boolean checkboxDefault) {
+	public boolean[] getConfirmationAndOption(final String msg, final String title, final String checkboxLabel,
+			final boolean checkboxDefault, final String[] yesNoButtonLabels) {
 		final JCheckBox checkbox = new JCheckBox();
 		checkbox.setText(getWrappedText(checkbox, checkboxLabel));
 		checkbox.setSelected(checkboxDefault);
 		final Object[] params = { getLabel(msg), checkbox };
-		final boolean result = yesNoDialog(params, title, null) == JOptionPane.YES_OPTION;
+		final int dialog = yesNoDialog(params, title, yesNoButtonLabels);
+		final boolean result = dialog == JOptionPane.YES_OPTION;
 		return new boolean[] { result, checkbox.isSelected() };
+	}
+
+	public boolean[] getConfirmationAndOption(final String msg, final String title, final String checkboxLabel,
+			final boolean checkboxDefault) {
+		return getConfirmationAndOption(msg, title, checkboxLabel, checkboxDefault, null);
+
 	}
 
 	/* returns true if user does not want to be warned again */
@@ -2195,7 +2192,7 @@ public class GuiUtils {
 				}
 				colField = intField();
 				rowField = intField();
-				titles = getJList(charts.keySet().toArray(new String[0]));
+				titles = getJList(charts.keySet().toArray(new String[0]), null);
 				checkbox = new JCheckBox("Label panels", false);
 			}
 
