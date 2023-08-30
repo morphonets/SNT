@@ -141,7 +141,7 @@
 
 		<!-- Dependency versions -->
 		<sciview.version>906892d</sciview.version>
-		<scenery.version>db26f01</scenery.version>
+		<scenery.version>0.9.0</scenery.version>
 		<font-awesome.version>6.4.2</font-awesome.version>
 		<flatlaf.version>3.2</flatlaf.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
