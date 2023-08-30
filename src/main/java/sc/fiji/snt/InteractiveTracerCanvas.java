@@ -1253,24 +1253,44 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			final boolean warnOnFailure)
 	{
 		if (impossibleEdit(warnOnFailure)) return;
-		long start = System.currentTimeMillis();
 		final Path editingPath = tracerPlugin.getEditingPath();
-		final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
 		final int treeID = editingPath.getTreeID();
-		final Tree editingTree = getTreeFromID(treeID);
-		final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
-		editingGraph.setRoot(getMatchingPointInGraph(editingNode, editingGraph));
-		final Tree newTree = editingGraph.getTreeWithSamePathStructure();
-//		enableEditMode(false);
-		tracerPlugin.setEditingPath(null);
-		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
-		newTree.list().forEach(p -> p.setSpacing(cal));
+		Tree editingTree;
+		if (pathAndFillManager.multipleTreesExist()) {
+			editingTree = tracerPlugin.getUI().getPathManager().getSingleTree();
+			if (editingTree == null)
+				return; // user pressed cancel
+		} else {
+			editingTree = getTreeFromID(treeID);
+		}
+		long start = System.currentTimeMillis();
 		final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
 		pathAndFillManager.enableUIupdates = false;
+		final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
+		final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
+		SWCPoint newRoot = getMatchingPointInGraph(editingNode, editingGraph);
+		if (newRoot == null) {
+			SWCPoint nearest = getNearestPointInGraph(editingNode, editingGraph);
+			final int uniqueId = editingGraph.vertexSet().stream().mapToInt(v -> v.id).max().orElse(-2) + 1;
+			newRoot = new SWCPoint(uniqueId, nearest.type, editingNode.x, editingNode.y, editingNode.z,
+					editingPath.getNodeRadius(editingPath.getEditableNodeIndex()), nearest.id);
+			newRoot.setPath(editingPath);
+			editingGraph.addVertex(newRoot);
+			editingGraph.addEdge(nearest, newRoot);
+			if (editingPath.size() == 1)
+				pathAndFillManager.deletePath(editingPath);
+			else
+				editingPath.removeNode(editingPath.getEditableNodeIndex());
+		}
+		editingGraph.setRoot(newRoot);
+		final Tree newTree = editingGraph.getTreeWithSamePathStructure();
+		tracerPlugin.setEditingPath(null);
+		final Calibration cal = tracerPlugin.getImagePlus().getCalibration();
+		newTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(editingTree.list());
 		newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
-		SNTUtils.log("Finished re-root in " + (System.currentTimeMillis() - start) + "ms");
 		pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
+		SNTUtils.log("Finished re-root in " + (System.currentTimeMillis() - start) + "ms");
 	}
 
 	protected void splitTreeAtEditingNode(final boolean warnOnFailure) {
@@ -1322,6 +1342,19 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			}
 		}
 		return tree;
+	}
+
+	private SWCPoint getNearestPointInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
+		double distanceSquaredToNearestParentPoint = Double.MAX_VALUE;
+		SWCPoint nearest = null;
+		for (final SWCPoint p : graph.vertexSet()) {
+			final double distanceSquared = point.distanceSquaredTo(p.x, p.y, p.z);
+			if (distanceSquared < distanceSquaredToNearestParentPoint) {
+				nearest = p;
+				distanceSquaredToNearestParentPoint = distanceSquared;
+			}
+		}
+		return nearest;
 	}
 
 	private SWCPoint getMatchingPointInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
