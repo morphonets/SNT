@@ -593,8 +593,11 @@ public class SNTUI extends JDialog {
 		inputs.put("originalImgChoice", (plugin.accessToValidImageData()) ? plugin.getImagePlus().getTitle() : "None");
 		inputs.put("simplifyPrompt", simplified);
 		if (imp.getRoi() == null) {
-			inputs.put("inferRootFromRoi", false);
+			inputs.put("rootChoice", SkeletonConverterCmd.ROI_NONE);
 			inputs.put("roiPlane", false);
+		} else {
+			inputs.put("rootChoice", SkeletonConverterCmd.ROI_ROOTS_ON_EDGE);
+			inputs.put("roiPlane", true);
 		}
 		(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs)).run();
 	}

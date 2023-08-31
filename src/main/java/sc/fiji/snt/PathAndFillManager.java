@@ -674,7 +674,9 @@ public class PathAndFillManager extends DefaultHandler implements
 		 */
 
 		final Map<Path, List<Path>> pathChildrenMap = new HashMap<>();
-		for (final Path p : paths) {
+		final Iterator<Path> it = paths.iterator();
+		while (it.hasNext()) {
+			final Path p = it.next();
 			if (p.isPrimary()) {
 				primaryPaths.add(p);
 				continue;
@@ -1062,6 +1064,8 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @param commonTag a custom name tag to be applied to all Paths
 	 */
 	public void addTree(final Tree tree, final String commonTag) {
+		final boolean enableUIstatus = enableUIupdates;
+		enableUIupdates = false;
 		tree.list().forEach(p -> {
 			prepPathForAdding(p, true, true, true);
 			String tags = PathManagerUI.extractTagsFromPath(p);
@@ -1072,6 +1076,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			p.setName(p.getName() + " {" + tags + "}");
 			addPathInternal(p);
 		});
+		enableUIupdates = enableUIstatus;
+		if (enableUIupdates)
+			resetListenersAfterDataChangingOperation(tree.list().get(0));
 	}
 
 	/**

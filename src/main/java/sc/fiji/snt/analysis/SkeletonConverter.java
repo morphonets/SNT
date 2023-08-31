@@ -43,6 +43,7 @@ import smile.neighbor.KDTree;
 import smile.neighbor.Neighbor;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Class for generation of {@link Tree}s from a skeletonized {@link ImagePlus}.
@@ -171,12 +172,13 @@ public class SkeletonConverter {
 		skeletonize(imp, imp.getProcessor().getMinThreshold(), imp.getProcessor().getMaxThreshold(), erodeIsolatedPixels);
 	}
 
-    /**
-     * Generates a list of {@link Tree}s from the skeleton image.
-     * Each Tree corresponds to one connected component of the graph returned by {@link SkeletonResult#getGraph()}.
-     *
-     * @return the skeleton tree list
-     */
+	/**
+	 * Generates a list of {@link Tree}s from the skeleton image. Each Tree
+	 * corresponds to one connected component of the graph returned by
+	 * {@link SkeletonResult#getGraph()}.
+	 *
+	 * @return the skeleton tree list
+	 */
     public List<Tree> getTrees() {
         final List<Tree> treeList = new ArrayList<>();
         for (final DirectedWeightedGraph graph : getGraphs()) {
@@ -298,6 +300,71 @@ public class SkeletonConverter {
         }
         return graphList;
     }
+
+	/**
+	 * Roots a graph into the centroid of a ROI. Does nothing if none of graph
+	 * nodes' (X,Y) coordinates are contained by the ROI
+	 * 
+	 * @param graph The graph to be rooted
+	 * @param roi   the ROI defining the root centroid
+	 */
+	public void setCentroidAsRoot(final DirectedWeightedGraph graph, final Roi roi) {
+		final SWCPoint nearest = getNearestTipJunctionOrSlabInRoi(graph, roi);
+		if (nearest == null)
+			return;
+		final int uniqueId = graph.vertexSet().stream().mapToInt(v -> v.id).max().orElse(-2) + 1;
+		final double[] cc = roi.getContourCentroid();
+		final PointInImage centroid = new PointInImage(cc[0], cc[1], roi.getZPosition());
+		final SWCPoint newRoot = new SWCPoint(uniqueId, nearest.type, centroid.x * pixelWidth, centroid.y * pixelHeight,
+				centroid.z * pixelDepth, nearest.radius, nearest.id);
+		newRoot.setPath(nearest.getPath());
+		graph.addVertex(newRoot);
+		graph.addEdge(nearest, newRoot);
+		graph.setRoot(newRoot);
+	}
+
+	private boolean nodeInRoi(final SWCPoint node, final Roi roi) {
+		return (node != null && roi.containsPoint(imp.getCalibration().getRawX(node.x), imp.getCalibration().getRawY(node.y)));
+	}
+
+	private SWCPoint getNearestTipJunctionOrSlabInRoi(final DirectedWeightedGraph graph, final Roi roi) {
+		final Set<SWCPoint> vertices = graph.vertexSet();
+		final List<PointInImage> contourPoints = getContourPoints(roi);
+		final SWCPoint nearestTip = getNearestPointInGraph(vertices.stream().filter(v -> graph.outDegreeOf(v) == 0).collect(Collectors.toList()), contourPoints);
+		if (nodeInRoi(nearestTip, roi))
+			return nearestTip;
+		final SWCPoint nearestJunction = getNearestPointInGraph(vertices.stream().filter(v -> graph.outDegreeOf(v) > 1).collect(Collectors.toList()), contourPoints);
+		if (nodeInRoi(nearestJunction, roi))
+			return nearestTip;
+		final SWCPoint nearestSlab = getNearestPointInGraph(vertices.stream().filter(v -> graph.outDegreeOf(v) == 1).collect(Collectors.toList()), contourPoints);
+		if (nodeInRoi(nearestSlab, roi))
+			return nearestTip;
+		return null;
+	}
+
+	private List<PointInImage> getContourPoints(final Roi roi) {
+		List<PointInImage> points = new ArrayList<>();
+		final Calibration cal = imp.getCalibration();
+		for (java.awt.Point p : roi.getContainedPoints()) {
+			points.add(new PointInImage(cal.getX(p.x), cal.getY(p.y), cal.getZ(roi.getZPosition())));
+		}
+		return points;
+	}
+
+	private SWCPoint getNearestPointInGraph(final Collection<SWCPoint> vertices, List<PointInImage> points) {
+		double distanceSquaredToNearestParentPoint = Double.MAX_VALUE;
+		SWCPoint nearest = null;
+		for (final SWCPoint p : vertices) {
+			for (final PointInImage pim : points) {
+				final double distanceSquared = pim.distanceSquaredTo(p.x, p.y, p.z);
+				if (distanceSquared < distanceSquaredToNearestParentPoint) {
+					nearest = p;
+					distanceSquaredToNearestParentPoint = distanceSquared;
+				}
+			}
+		}
+		return nearest;
+	}
 
     private SWCPoint getMatchingLocationInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
         if (point != null) {
@@ -607,10 +674,8 @@ public class SkeletonConverter {
 
     /* IDE debug method */
     public static void main(String[] args) {
-        IJ.open("C:\\Users\\cam\\Desktop\\Drosophila_ddaC_Neuron.tif\\");
-        ImagePlus imp = IJ.getImage();
-        //ImagePlus imp = new SNTService().demoTrees().get(0).getSkeleton();
-        SkeletonConverter converter = new SkeletonConverter(imp, false);
+    	ImagePlus imp = new sc.fiji.snt.SNTService().demoImage("ddaC");
+        SkeletonConverter converter = new SkeletonConverter(imp, true);
         converter.setPruneEnds(false);
         converter.setPruneMode(AnalyzeSkeleton_.SHORTEST_BRANCH);
         converter.setShortestPath(false);

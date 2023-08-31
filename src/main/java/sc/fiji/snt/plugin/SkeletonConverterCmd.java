@@ -25,6 +25,8 @@ package sc.fiji.snt.plugin;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.Roi;
+import ij.plugin.RoiEnlarger;
+import ij.process.ImageProcessor;
 import net.imagej.ImageJ;
 
 import org.scijava.ItemVisibility;
@@ -43,6 +45,7 @@ import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.SkeletonConverter;
+import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
@@ -66,14 +69,18 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 	private static final String IMG_TRACED_CHOICE = "Image being traced";
 	private static final String IMG_TRACED_DUP_CHOICE = "Image being traced (duplicate)";
 	private static final String IMG_TRACED_SEC_LAYER_CHOICE = "Secondary image layer";
+	public static final String ROI_NONE = "None. Ignore any ROIs";
+	public static final String ROI_SINGLE_ROOT = "ROI marks a single root";
+	public static final String ROI_ROOTS_ON_EDGE = "Place roots along ROI's edge";
+	public static final String ROI_ROOTS_ON_CENTROID = "Place roots on ROI's centroid";
 
 	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg1 = "<HTML>This command attempts to automatically reconstruct a pre-processed<br>" //
 			+ "image in which background pixels have been zeroed. Result can be<br>"
 			+ "curated using edit commands in Path Manager and image context menu.";
 
-	@Parameter(label = "<HTML>&nbsp;<br><b> I. Input Image(s):", required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-	private String HEADER1;
+	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
+	private String HEADER1 = "<HTML>&nbsp;<br><b> I. Input Image(s)";
 
 	@Parameter(label = "Segmented Image", required = false, description = "<HTML>Image from which paths will be extracted. Will be skeletonized by the algorithm.<br>"
 			+ "If thresholded, only highlighted pixels are considered, otherwise all non-zero<br>intensities will be taken into account", style = ChoiceWidget.LIST_BOX_STYLE)
@@ -83,11 +90,6 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			+ "Will be skeletonized by the algorithm.<br>If thresholded, only highlighted pixels are considered, otherwise all non-zero<br>"
 			+ "intensities will be taken into account", style = FileWidget.OPEN_STYLE)
 	private File maskImgFileChoice;
-
-//	@Parameter(label = "Skeletonize", required = false, description = "<HTML>Whether segmented image should be skeletonized.<br>"
-//			+ "With 2D images isolated pixels are automatically filtered out from the skeleton.<br>"
-//			+ "Unnecessary if segmented image is already a topological sekeleton")
-//	private boolean skeletonizeMaskImage;
 
 	@Parameter(label = "Original Image", required = false, description = "<HTML>Optional. Original (un-processed) image used to resolve loops<br>"//
 			+ "in the segmented image using brightness criteria.<br>"
@@ -101,20 +103,28 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			+ "If unavailable: Loops will be nicked at the shortest branch in the loop", style = FileWidget.OPEN_STYLE)
 	private File originalImgFileChoice;
 
-	@Parameter(label = "<HTML>&nbsp;<br><b> II. Root (Reconstruction Origin):", required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-	private String HEADER2;
+	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
+	private String HEADER2 = "<HTML>&nbsp;<br><b> II. Soma/Root Detection from ROI";
 
-	@Parameter(label = "Set root from ROI", description ="<HTML>Assumes that an active area ROI marks the root of the structure.<br>"
-			+ "If an ROI exists, the 'closest' end-point (or junction point) contained by the<br>"
-			+ "ROI becomes the root node. If no ROI exists, an arbitrary root node is used")
-	private boolean inferRootFromRoi;
+	@Parameter(label = "ROI strategy", choices = { ROI_NONE, ROI_ROOTS_ON_EDGE, ROI_ROOTS_ON_CENTROID, ROI_SINGLE_ROOT }, //
+			description = "<HTML>Assumes that an active area ROI marks the root(s) of the structure.<br><dl>" //
+					+ "<dt><i>" + ROI_NONE + "</i></dt>" //
+					+ "<dd>An arbitrary root node is used</dd>" //
+					+ "<dt><i>" + ROI_ROOTS_ON_EDGE + "</i></dt>" //
+					+ "<dd>Paths branch out around the ROI's contour</dd>" //
+					+ "<dt><i>" + ROI_ROOTS_ON_CENTROID + "</i></dt>" //
+					+ "<dd>Paths branch out from the centroid of the ROI's contour</dd>" //
+					+ "<dt><i>" + ROI_SINGLE_ROOT + "</i></dt>" //
+					+ "<dd>ROI marks the location of a single root</dd>" //
+					+ "</dl>")
+	private String rootChoice;
 
-	@Parameter(label = "Restrict to active plane (3D only)", description = "<HTML>Assumes that the root highlighted by the ROI occurs at the<br>"
+	@Parameter(label = "Restrict to active plane", description = "<HTML>Assumes that the root highlighted by the ROI occurs at the<br>"
 			+ "ROI's Z-plane. Ensures other possible roots above or below<br>the ROI are not considered. Ignored if image is 2D")
 	private boolean roiPlane;
 
-	@Parameter(label = "<HTML>&nbsp;<br><b> III. Gaps &amp; Disconnected Components:", required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-	private String HEADER3;
+	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
+	private String HEADER3 = "<HTML>&nbsp;<br><b> III. Gaps &amp; Disconnected Components";
 
 	@Parameter(label = "Discard small components", description = "<HTML>Whether to ignore disconnected components below sub-threshold length")
 	private boolean pruneByLength;
@@ -135,8 +145,8 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			+ "occur only between end-points and only when the operation does not introduce loops")
 	private double maxConnectDist;
 
-	@Parameter(label = "<HTML>&nbsp;<br><b> IV. Options:", required = false, visibility = ItemVisibility.MESSAGE)
-	private String HEADER4;
+	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
+	private String HEADER4 = "<HTML>&nbsp;<br><b> IV. Options";
 
 	@Parameter(label = "Replace existing paths", description = "<HTML>Whether any existing paths should be discarded "
 			+ "before conversion")
@@ -148,7 +158,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 	@Parameter(label = "Activate 'Edit Mode'", description = "<HTML>Whether SNT's 'Edit Mode' should be activated after command finishes")
 	private boolean editMode;
 
-	@Parameter(label = "Debug mode", persist = false, callback = "debuModeCallback", description = "<HTML>Enable SNT's debug mode for verbose Console logs?")
+	@Parameter(label = "Debug mode", persist = false, callback = "debugModeCallback", description = "<HTML>Enable SNT's debug mode for verbose Console logs?")
 	private boolean debugMode;
 
 	@Parameter(required = false, persist = false)
@@ -247,7 +257,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 	}
 
 	@SuppressWarnings("unused")
-	private void debuModeCallback() {
+	private void debugModeCallback() {
 		SNTUtils.setDebugMode(debugMode);
 	}
 
@@ -261,7 +271,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 
 	@Override
 	public void cancel() {
-		this.cancel("");
+		cancel("");
 	}
 
 	@Override
@@ -354,12 +364,9 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				return;
 			}
 
-			// Extra user-friendliness: Retrieve ROI. If not found, look for it on second
-			// image
-			Roi roi = chosenMaskImp.getRoi();
-			if (roi == null && chosenOrigImp != null)
-				roi = chosenOrigImp.getRoi();
-
+			// Extra user-friendliness: Retrieve ROI. If not found,
+			// look for it in the image overlay or on second  image
+			final Roi roi = getRoi(chosenMaskImp, chosenOrigImp, snt.getImagePlus());
 			// Extra user-friendliness: Aggregate unexpected settings in a single list
 			final boolean isSame = (useFileChoosers) ? (maskImgFileChoice == originalImgFileChoice) : (maskImgChoice.equals(originalImgChoice));
 			final boolean isBinary = chosenMaskImp.getProcessor().isBinary();
@@ -368,8 +375,10 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			final boolean isSameDim = chosenOrigImp == null || (chosenMaskImp.getWidth() == chosenOrigImp.getWidth()
 					&& chosenMaskImp.getHeight() == chosenOrigImp.getHeight()
 					&& chosenMaskImp.getNSlices() == chosenOrigImp.getNSlices());
-			final boolean isValidRoi = roi != null && roi.isArea();
 			final boolean isValidConnectDist = maxConnectDist > 0d;
+			final boolean isValidRoi = roi != null && roi.isArea();
+			final boolean clearROI = isValidRoi && (ROI_ROOTS_ON_EDGE.equals(rootChoice) || ROI_ROOTS_ON_CENTROID.equals(rootChoice));
+			boolean inferRootFromRoi = !ROI_NONE.equals(rootChoice);
 			if (isSame || !isValidOrigImg || !isBinary || !isSameDim || !isCompatible || (!isValidRoi && inferRootFromRoi)
 					|| (!isValidConnectDist && connectComponents)) {
 				final int width = GuiUtils
@@ -429,10 +438,14 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			SNTUtils.log("Segmented image thresholded/binarized: "
 					+ (isBinary(chosenMaskImp) || chosenMaskImp.isThreshold()));
 			SNTUtils.log("Original image: " + ((chosenOrigImp == null) ? null : chosenOrigImp.getTitle()));
+			SNTUtils.log("Root-defining ROI: " + roi);
 
-			// We'll skeletonize all images again, just to ensure we are indeed dealing with
-			// skeletons
+			// We'll skeletonize all images again, just to ensure we are indeed dealing
+			// with skeletons. If we are imposing the ROI centroid as the root of all the
+			// trees that intersect it, we'll need to exclude it from the skeletonization
 			snt.setCanvasLabelAllPanes("Skeletonizing..");
+			if (clearROI)
+				clearROI(chosenMaskImp, roi);
 			SkeletonConverter.skeletonize(chosenMaskImp, chosenMaskImp.getNSlices() == 1);
 
 			// Now we can finally run the conversion!
@@ -456,21 +469,34 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				converter.setPruneMode(SkeletonConverter.LOWEST_INTENSITY_BRANCH);
 				SNTUtils.log("Pruning mode: Dimmest branch (dimmest branch among loop branches to be cut at its darkest voxel)");
 			}
-			List<Tree> trees;
+			List<DirectedWeightedGraph> graphs;
 			try {
-				trees = (inferRootFromRoi && isValidRoi) ? converter.getTrees(roi, roiPlane) : converter.getTrees();
+				graphs = (inferRootFromRoi && isValidRoi) ? converter.getGraphs(roi, roiPlane) : converter.getGraphs();
 			} catch (final ClassCastException ignored) {
 				if (chosenOrigImp != null)
 					SNTUtils.log("Intensity-based pruning failed (unsupported image type!?): Defaulting to length-based prunning");
 				converter.setPruneMode(SkeletonConverter.SHORTEST_BRANCH);
-				trees = (inferRootFromRoi && isValidRoi) ? converter.getTrees(roi, roiPlane) : converter.getTrees();
+				graphs = (inferRootFromRoi && isValidRoi) ? converter.getGraphs(roi, roiPlane) : converter.getGraphs();
 			} 
-			SNTUtils.log("... Done. " + trees.size() + " tree(s) retrieved.");
-			if (trees.isEmpty()) {
+
+			SNTUtils.log("... Done. " + graphs.size() + " component(s) retrieved.");
+			if (graphs.isEmpty()) {
 				error("No paths could be extracted. Chosen parameters were not suitable!?");
 				return;
 			}
-			Tree.assignUniqueColors(trees);
+			final List<Tree> trees = new ArrayList<>(graphs.size());
+			graphs.forEach(g -> {
+				if (isValidRoi && ROI_ROOTS_ON_CENTROID.equals(rootChoice)) {
+					// Then we force all of the roots inside the ROI to connect
+					// at it's centroid. Since no skeletonization occured inside
+					// the ROI, we need to enlarge its perimeter by a bit to
+					// capture nodes that the original perimeter would miss
+					converter.setCentroidAsRoot(g, (clearROI) ? enlargeROI(roi, 8) : roi);
+				}
+				final Tree tree = g.getTree();
+				tree.assignImage(chosenMaskImp);
+				trees.add(tree);
+			});
 			final PathAndFillManager pafm = sntService.getPathAndFillManager();
 			if (clearExisting) {
 				pafm.clear();
@@ -482,8 +508,12 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 					for (final Path p : tree.list())
 						p.setColor(colors[idx++]);
 				});
+			} else {
+				Tree.assignUniqueColors(trees);
 			}
 			trees.forEach(tree -> pafm.addTree(tree, "Autotraced"));
+			if (trees.size() > 1)
+				ui.getPathManager().applyDefaultTags("Cell ID");
 
 			// Extra user-friendliness: If no display canvas exist, no image is being
 			// traced, or we are importing from a file path, adopt the chosen image as
@@ -515,6 +545,36 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 		} finally {
 			snt.setCanvasLabelAllPanes(null);
 		}
+	}
+
+	private void clearROI(final ImagePlus imp, final Roi roi) {
+		final Roi impRoi = imp.getRoi();
+		imp.setRoi(roi);
+		for (int i = 1; i <= imp.getNSlices(); i++) {
+			ImageProcessor ip = imp.getImageStack().getProcessor(i);
+			ip.setColor(0);
+			ip.fill(roi);
+		}
+		imp.setRoi(impRoi);
+	}
+
+	private Roi getRoi(final ImagePlus... imps) {
+		for (final ImagePlus imp : imps) {
+			if (imp == null)
+				continue;
+			Roi roi = imp.getRoi();
+			if (roi == null && imp.getOverlay() != null) {
+				roi = imp.getOverlay().get(0);
+				imp.setRoi(roi);
+			}
+			if (roi != null)
+				return roi;
+		}
+		return null;
+	}
+
+	private Roi enlargeROI(final Roi roi, final int nPixels) {
+		return RoiEnlarger.enlarge(roi, nPixels);
 	}
 
 	@Override

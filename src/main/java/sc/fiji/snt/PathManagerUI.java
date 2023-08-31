@@ -827,10 +827,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	private boolean allUsingFittedVersion(final Collection<Path> paths) {
-		for (final Path p : paths)
-			if (!p.getUseFitted()) {
+		final Iterator<Path> it = paths.iterator();
+		while (it.hasNext()) {
+			final Path p = it.next();
+			if (!p.getUseFitted())
 				return false;
-			}
+		}
 		return true;
 	}
 
