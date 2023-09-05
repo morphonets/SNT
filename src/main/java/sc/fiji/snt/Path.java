@@ -991,6 +991,8 @@ public class Path implements Comparable<Path> {
 		other.setColor(getColor());
 		other.setSpineOrVaricosityCount(getSpineOrVaricosityCount());
 		other.id = id;
+		other.editableNodeIndex = editableNodeIndex;
+		other.editableNodeLocked = editableNodeLocked;
 	}
 
 	/**
@@ -1002,6 +1004,8 @@ public class Path implements Comparable<Path> {
 		final Calibration cal = getCalibration();
 		final Path dup = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit(), points);
 		applyCommonProperties(dup);
+		if (hasRadii())
+			dup.createCircles();
 		return dup;
 	}
 
@@ -1187,17 +1191,44 @@ public class Path implements Comparable<Path> {
 		}
 	}
 
+	/**
+	 * Reverses this path so that its starting node becomes the last and vice versa.
+	 */
+	public void reverse() {
+		reverse(this, false);
+	}
+
+	/**
+	 * 
+	 * @return a reversed version of this path in which node coordinates are
+	 *         reversed. Note that for legacy reasons only the node coordinates are
+	 *         reversed. Other properties (node colors, etc.) are not included in
+	 *         the returned path
+	 */
 	public Path reversed() {
 		final Path c = createPath();
-		c.points = points;
-		for (int i = 0; i < points; ++i) {
-			c.precise_x_positions[i] = precise_x_positions[(points - 1) - i];
-			c.precise_y_positions[i] = precise_y_positions[(points - 1) - i];
-			c.precise_z_positions[i] = precise_z_positions[(points - 1) - i];
-		}
-		if (c.fitted != null)
-			c.fitted = c.fitted.reversed();
+		reverse(c, true);
 		return c;
+	}
+
+	private static void reverse(final Path c, final boolean legacy) {
+		ArrayUtils.reverse(c.precise_x_positions, 0, c.points);
+		ArrayUtils.reverse(c.precise_y_positions, 0, c.points);
+		ArrayUtils.reverse(c.precise_z_positions, 0, c.points);
+		if (c.fitted != null)
+			reverse(c.fitted, legacy);
+		if (!legacy) {
+			// reverse remaining properties
+			ArrayUtils.reverse(c.radii, 0, c.points);
+			ArrayUtils.reverse(c.tangents_x, 0, c.points);
+			ArrayUtils.reverse(c.tangents_y, 0, c.points);
+			ArrayUtils.reverse(c.nodeValues, 0, c.points);
+			ArrayUtils.reverse(c.nodeAnnotations, 0, c.points);
+			ArrayUtils.reverse(c.nodeHemisphereFlags, 0, c.points);
+			ArrayUtils.reverse(c.nodeColors, 0, c.points);
+			if (c.editableNodeIndex > -1)
+				c.editableNodeIndex = c.points - 1 - c.editableNodeIndex;
+		}
 	}
 
 	/**
@@ -1270,6 +1301,10 @@ public class Path implements Comparable<Path> {
 		boolean drawDiameter, final int slice, final int either_side)
 	{
 
+		if (points == 0) {
+			new PathNode(this, 0, PathNode.HERMIT, canvas).draw(g2, c);
+			return;
+		}
 		int startIndexOfLastDrawnLine = -1;
 
 		for (int i = 0; i < points; ++i) {

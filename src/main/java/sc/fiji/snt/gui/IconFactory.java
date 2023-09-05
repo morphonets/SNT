@@ -55,6 +55,11 @@ public class IconFactory {
 			ALIGN_CENTER('\uf037', true), //
 			ALIGN_RIGHT('\uf038', true), //
 			ATLAS('\uf558', true), //
+			ARROWS_LR('\uf0ec', true), //
+			ARROWS_LR_TO_LINE('\ue4ba', true), //
+			ARROWS_TO_CIRCLE('\ue4bd', true), //
+			ARROWS_DLUR('\uf422', true), //
+			ARROWS_SPLIT('\ue4bc', true), //
 			//ARROWS_V('\uf338', true), //
 			//ATOM('\uf5d2', true), //
 			BINOCULARS('\uf1e5', true), //
@@ -82,7 +87,8 @@ public class IconFactory {
 			COLOR('\uf53f', true), //
 			COLOR2('\uf5c3', true), //
 			COMMENTS('\uf086', false), //
-			COMPRESS('\uf422', true), //
+			//COMPASS('\uf14e', false), //
+			//COMPRESS('\uf422', true), //
 			RESIZE('\uf424', true), //
 			COPY('\uf0c5', false), //
 			CROSSHAIR('\uf05b', true), //
@@ -138,6 +144,7 @@ public class IconFactory {
 			MARKER('\uf3c5', true), //
 			MASKS('\uf630', true), //
 			MICROCHIP('\uf2db', true), //
+			//MINIMIZE('\uf78c', true), //
 			MINUS('\uf146', false), //
 			NAVIGATE('\uf14e', false), //
 			MOVE('\uf0b2', true), //

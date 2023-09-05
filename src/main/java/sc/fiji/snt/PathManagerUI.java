@@ -178,29 +178,29 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		editMenu.add(getRenameMenuItem(singlePathListener));
 		editMenu.addSeparator();
 
-		JMenuItem jmi = new JMenuItem(MultiPathActionListener.MERGE_PRIMARY_PATHS_CMD);
-		jmi.setToolTipText("Merges selected primary path(s) into a common root");
-//		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.LINK)); // link icon confusing!?
-		jmi.addActionListener(multiPathListener);
-		editMenu.add(jmi);
-		editMenu.addSeparator();
-
-		jmi = new JMenuItem(MultiPathActionListener.COMBINE_CMD);
+		JMenuItem jmi = new JMenuItem(MultiPathActionListener.COMBINE_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.ARROWS_SPLIT));
 		jmi.setToolTipText("Combines 2 or more disconnected paths into a single one");
 		//jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.CONCATENATE_CMD);
+		jmi = new JMenuItem(MultiPathActionListener.CONCATENATE_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.ARROWS_DLUR));
 		jmi.setToolTipText("Concatenates 2 or more end-connected Paths into a single one.\n" +
-				"All paths must be oriented in the same direction");
+				"All paths must be oriented in the same direction and form a single, un-branched segment.");
 		//jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.DISCONNECT_CMD);
+		jmi = new JMenuItem(MultiPathActionListener.DISCONNECT_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.UNLINK));
+		editMenu.add(jmi);
 		jmi.setToolTipText("Disconnects selected path(s) from all of their connections");
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.UNLINK));
+		jmi.addActionListener(multiPathListener);
+		jmi = new JMenuItem(MultiPathActionListener.MERGE_PRIMARY_PATHS_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
+		jmi.setToolTipText("Merges selected primary path(s) into a common root");
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.REVERSE_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.ARROWS_LR));
+		editMenu.add(jmi);
+		jmi.setToolTipText("Reverses the orientation of primary path(s)");
+		jmi.addActionListener(multiPathListener);
 		editMenu.addSeparator();
 
 		jmi = new JMenuItem(MultiPathActionListener.SPECIFY_RADIUS_CMD);
@@ -215,9 +215,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		editMenu.add(jmi);
 		editMenu.addSeparator();
 
-		jmi = new JMenuItem(MultiPathActionListener.DOWNSAMPLE_CMD);
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COMPRESS));
-		jmi.setToolTipText("Reduces the no. of nodes in selected paths (lossy simplification)");
+		jmi = new JMenuItem(MultiPathActionListener.DOWNSAMPLE_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.ARROWS_LR_TO_LINE));
+		jmi.setToolTipText("Reduces the no. of nodes in selected paths by increasing\ninter-node distance (lossy simplification)");
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 		editMenu.addSeparator();
@@ -2505,6 +2504,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String DELETE_CMD = "Delete...";
 		private static final String COMBINE_CMD = "Combine...";
 		private static final String CONCATENATE_CMD = "Concatenate...";
+		private static final String REVERSE_CMD = "Reverse...";
 		private static final String MERGE_PRIMARY_PATHS_CMD = "Merge Primary Paths(s) Into Shared Root...";
 		private static final String REBUILD_CMD = "Rebuild...";
 		private static final String DOWNSAMPLE_CMD = "Ramer-Douglas-Peucker Downsampling...";
@@ -2662,77 +2662,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				(plugin.getUI().new DynamicCmdRunner(PathAnalyzerCmd.class, inputs)).run();
 				return;
 			}
+			else if (REVERSE_CMD.equals(cmd) && guiUtils.getConfirmation("Reverse selected path(s)?" //
+					+ " This will reverse their orientation so that the starting node becomes the " //
+					+ "end-node and vice versa. NB: Only primary paths can be reversed.",
+					"Reverse Path(s)")) {
+				reverse(selectedPaths);
+				return;
+			}
 			else if (CONCATENATE_CMD.equals(cmd)) {
 				if (selectedPaths.size() < 2) {
 					guiUtils.error("You must have at least 2 Paths selected.");
 					return;
 				}
-				final Map<Path, List<Path>> map = new HashMap<>();
-				for (final Path p : selectedPaths) {
-					if (p.getStartJoins() == null ||
-							!selectedPaths.contains(p.getStartJoins()) ||
-							!p.getStartJoinsPoint().isSameLocation(
-									p.getStartJoins().getNode(p.getStartJoins().size() - 1)))
-					{
-						continue;
-					}
-					map.putIfAbsent(p.getStartJoins(), new ArrayList<>());
-					map.get(p.getStartJoins()).add(p);
-				}
-				if (map.keySet().size() != selectedPaths.size() - 1 ||
-						map.values().stream().anyMatch(l -> l.size() != 1))
-				{
-					guiUtils.error("Selected Paths must form a single, un-branched segment!");
-					return;
-				}
-				final List<Path> sortedPaths = map.keySet().stream()
-						.sorted(Comparator.comparingInt(Path::getOrder))
-						.collect(Collectors.toList());
-				final Path mergedPath = sortedPaths.get(0).createPath();
-				mergedPath.setName(sortedPaths.get(0).getName());
-				mergedPath.createCircles();
-				mergedPath.setIsPrimary(sortedPaths.get(0).isPrimary());
-				final Path firstStartJoin = sortedPaths.get(0).getStartJoins();
-				final PointInImage firstStartJoinPoint = sortedPaths.get(0).getStartJoinsPoint();
-				for (final Path p : sortedPaths) {
-					mergedPath.add(p);
-					// avoid CME
-					for (final Path join : new ArrayList<>(p.somehowJoins)) {
-						for (int i = 0; i < mergedPath.size(); ++i) {
-							final PointInImage pim = mergedPath.getNode(i);
-							if (join.getStartJoinsPoint() != null && join.getStartJoinsPoint().isSameLocation(pim)) {
-								join.unsetStartJoin();
-								join.setStartJoin(mergedPath, pim);
-								break;
-							}
-						}
-					}
-					p.disconnectFromAll();
-					pathAndFillManager.deletePath(p);
-				}
-				final Path lastChild = map.get(sortedPaths.get(sortedPaths.size()-1)).get(0);
-				mergedPath.add(lastChild);
-				// avoid CME
-				for (final Path join : new ArrayList<>(lastChild.somehowJoins)) {
-					for (int i = 0; i < mergedPath.size(); ++i) {
-						final PointInImage pim = mergedPath.getNode(i);
-						if (join.getStartJoins() != null && join.getStartJoinsPoint().isSameLocation(pim)) {
-							join.unsetStartJoin();
-							join.setStartJoin(mergedPath, pim);
-							break;
-						}
-					}
-				}
-				lastChild.disconnectFromAll();
-				pathAndFillManager.deletePath(lastChild);
-				if (firstStartJoin != null) {
-					mergedPath.setStartJoin(
-							firstStartJoin,
-							firstStartJoinPoint);
-				}
-				pathAndFillManager.addPath(mergedPath, false, false);
-				// treeID is always overridden when adding a Path, so re-set it after adding
-				mergedPath.setIDs(sortedPaths.get(0).getID(), sortedPaths.get(0).getTreeID());
+				concatenate(selectedPaths);
 			}
 			else if (TIME_PROFILE_CMD.equals(cmd)) {
 				final HashMap<String, Object> inputs = new HashMap<>();
@@ -3172,6 +3114,86 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
 				return;
 			}
+		}
+
+		private void concatenate(final List<Path> selectedPaths) {
+			final Map<Path, List<Path>> map = new HashMap<>();
+			for (final Path p : selectedPaths) {
+				if (p.getStartJoins() == null || !selectedPaths.contains(p.getStartJoins()) || !p.getStartJoinsPoint()
+						.isSameLocation(p.getStartJoins().getNode(p.getStartJoins().size() - 1))) {
+					continue;
+				}
+				map.putIfAbsent(p.getStartJoins(), new ArrayList<>());
+				map.get(p.getStartJoins()).add(p);
+			}
+			if (map.keySet().size() != selectedPaths.size() - 1 || map.values().stream().anyMatch(l -> l.size() != 1)) {
+				guiUtils.error("Selected Paths must form a single, un-branched segment!");
+				return;
+			}
+			final List<Path> sortedPaths = map.keySet().stream().sorted(Comparator.comparingInt(Path::getOrder))
+					.collect(Collectors.toList());
+			final Path mergedPath = sortedPaths.get(0).createPath();
+			mergedPath.setName(sortedPaths.get(0).getName());
+			final Path firstStartJoin = sortedPaths.get(0).getStartJoins();
+			final PointInImage firstStartJoinPoint = sortedPaths.get(0).getStartJoinsPoint();
+			for (final Path p : sortedPaths) {
+				mergedPath.add(p);
+				// avoid CME
+				for (final Path join : new ArrayList<>(p.somehowJoins)) {
+					for (int i = 0; i < mergedPath.size(); ++i) {
+						final PointInImage pim = mergedPath.getNode(i);
+						if (join.getStartJoinsPoint() != null && join.getStartJoinsPoint().isSameLocation(pim)) {
+							join.unsetStartJoin();
+							join.setStartJoin(mergedPath, pim);
+							break;
+						}
+					}
+				}
+				p.disconnectFromAll();
+				pathAndFillManager.deletePath(p);
+			}
+			final Path lastChild = map.get(sortedPaths.get(sortedPaths.size() - 1)).get(0);
+			mergedPath.add(lastChild);
+			// avoid CME
+			for (final Path join : new ArrayList<>(lastChild.somehowJoins)) {
+				for (int i = 0; i < mergedPath.size(); ++i) {
+					final PointInImage pim = mergedPath.getNode(i);
+					if (join.getStartJoins() != null && join.getStartJoinsPoint().isSameLocation(pim)) {
+						join.unsetStartJoin();
+						join.setStartJoin(mergedPath, pim);
+						break;
+					}
+				}
+			}
+			lastChild.disconnectFromAll();
+			pathAndFillManager.deletePath(lastChild);
+			if (firstStartJoin != null) {
+				mergedPath.setStartJoin(firstStartJoin, firstStartJoinPoint);
+			}
+			pathAndFillManager.addPath(mergedPath, false, false);
+			// treeID is always overridden when adding a Path, so re-set it after adding
+			mergedPath.setIDs(sortedPaths.get(0).getID(), sortedPaths.get(0).getTreeID());
+		}
+
+		private void reverse(final List<Path> selectedPaths) {
+			final HashSet<Path> pathsToReverse = new HashSet<>();
+			selectedPaths.forEach(p -> {
+				if (p.getOrder() < 2)
+					pathsToReverse.add(p);
+			});
+			if (pathsToReverse.isEmpty()) {
+				guiUtils.error("Only primary paths can be reversed.");
+				return;
+			}
+			if (pathsToReverse.size() < selectedPaths.size() && !guiUtils.getConfirmation(
+					"Some of the selected paths are not primary and cannot be reversed. "
+							+ "Proceed by reversing the " + pathsToReverse.size()
+							+ " disconnected path(s) in the selection?",
+					"Only Primary Paths Can Be Reversed")) {
+				return;
+			}
+			pathsToReverse.forEach(Path::reverse);
+			plugin.updateAllViewers();
 		}
 
 		private void removeTagsThroughPrompt(final List<Path> selectedPaths) {

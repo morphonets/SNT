@@ -2316,8 +2316,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 		Path currentPath = root.getPath().createPath();
 		currentPath.setName(root.getPath().getName());
-		currentPath.createCircles();
-		currentPath.setIsPrimary(true);
 		final Deque<SWCPoint> stack = new ArrayDeque<>();
 		stack.push(root);
 		boolean addStartJoin = false;

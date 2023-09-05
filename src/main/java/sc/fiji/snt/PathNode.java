@@ -78,6 +78,11 @@ class PathNode {
 		y = getScreenCoordinateY(pim);
 	}
 
+	public PathNode(final Path path, final int index, final int type, final TracerCanvas canvas) {
+		this(path.getNodeWithoutChecks(index), index, canvas);
+		this.type = type;
+	}
+
 	/**
 	 * Creates a node from a Path position.
 	 *
@@ -92,15 +97,11 @@ class PathNode {
 		if (path.size() == 1) {
 			type = HERMIT;
 		}
-		else if (index == 0 && path.startJoins == null) {
-			type = START;
+		else if (index == 0) {
+			type = (path.startJoins == null) ? START : JOINT;
 		}
 		else if (index == path.size() - 1) {
 			type = END;
-		}
-		else if ((index == 0 && path.startJoins != null) || (index == path.size() - 1))
-		{
-			type = JOINT;
 		}
 		else {
 			type = SLAB;
