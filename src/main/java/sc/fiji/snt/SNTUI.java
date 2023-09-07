@@ -1534,6 +1534,10 @@ public class SNTUI extends JDialog {
 		hm.put(VIEWER_NONE, null);
 		hm.put(VIEWER_WITH_IMAGE, null);
 		hm.put(VIEWER_EMPTY, null);
+
+		/*
+		// TF: We'll this chunk as it triggers a GLException when using X11 forwarding.
+		// The same functionality can be obtained by pressing the refresh button
 		try {
 			for (final Image3DUniverse univ : Image3DUniverse.universes) {
 				hm.put(univ.allContentsString(), univ);
@@ -1542,6 +1546,7 @@ public class SNTUI extends JDialog {
 			SNTUtils.error("Legacy Image3DUniverse unavailable?", ex);
 			hm.put("Initialization Error...", null);
 		}
+		 */
 
 		// Build choices widget for viewers
 		univChoice.setPrototypeDisplayValue(VIEWER_WITH_IMAGE);
@@ -1558,10 +1563,9 @@ public class SNTUI extends JDialog {
 			private void resetChoice() {
 				try {
 					univChoice.setSelectedItem(plugin.get3DUniverse().getWindow().getTitle());
-				} catch (final Exception ignored) {
+				} catch (final Throwable ignored) {
 					univChoice.setSelectedItem(VIEWER_NONE);
 				}
-				applyUnivChoice.setEnabled(false);
 				final boolean validViewer = plugin.use3DViewer && plugin.get3DUniverse() != null;
 				displayChoice.setEnabled(validViewer);
 				applyDisplayChoice.setEnabled(validViewer);
@@ -1573,93 +1577,105 @@ public class SNTUI extends JDialog {
 			public void actionPerformed(final ActionEvent e) {
 
 				assert SwingUtilities.isEventDispatchThread();
-				applyUnivChoice.setEnabled(false);
-
-				final String selectedKey = String.valueOf(univChoice.getSelectedItem());
-				if (VIEWER_NONE.equals(selectedKey)) {
-					plugin.set3DUniverse(null);
-					resetChoice();
-					return;
-				}
-
-				Image3DUniverse univ;
-				univ = hm.get(selectedKey);
-				if (univ == null) {
-
-					// Presumably a new viewer was chosen. Let's double-check
-					final boolean newViewer = selectedKey.equals(VIEWER_WITH_IMAGE) || selectedKey.equals(VIEWER_EMPTY);
-					if (!newViewer && !guiUtils.getConfirmation(
-							"The chosen viewer does not seem to be available. Create a new one?",
-							"Viewer Unavailable")) {
-						resetChoice();
-						return;
-					}
-					univ = new Image3DUniverse(512, 512);
-				}
-				// If other viewers have been set(!), remember their 'identifying' suffix, hopefully unique
-				int idSuffix;
 				try {
-					idSuffix = Integer.parseInt(plugin.get3DUniverse().getWindow().getTitle().split("Viewer #")[1].trim());
-				} catch (final Exception ignored) {
-					idSuffix = 0;
-				}
 
-				if (VIEWER_WITH_IMAGE.equals(selectedKey)) {
-					if (null == plugin.getImagePlus()) {
-						guiUtils.error("There is no valid image data to initialize the viewer with.");
-						resetChoice();
-						return;
-					}
-					final int defResFactor = Content.getDefaultResamplingFactor(plugin.getImagePlus(),
-							ContentConstants.VOLUME);
-					final Double userResFactor = guiUtils.getDouble(
-							"Please specify the image resampling factor. The default factor for current image is "
-							+ defResFactor + ".", "Image Resampling Factor", defResFactor);
-
-					if (userResFactor == null) { // user pressed cancel
+					applyUnivChoice.setEnabled(false);
+					final String selectedKey = String.valueOf(univChoice.getSelectedItem());
+					if (VIEWER_NONE.equals(selectedKey)) {
 						plugin.set3DUniverse(null);
 						resetChoice();
 						return;
 					}
-					final int resFactor = (Double.isNaN(userResFactor) || userResFactor < 1) ? defResFactor
-							: userResFactor.intValue();
-					plugin.getPrefs().set3DViewerResamplingFactor(resFactor);
 
-				}
-				ImageWindow3D window = univ.getWindow();
-				if (univ.getWindow() == null) {
-					window = new ImageWindow3D(("SNT Leg. 3D Viewer #" + (idSuffix + 1)), univ);
-					window.setSize(512, 512);
+					Image3DUniverse univ;
+					univ = hm.get(selectedKey);
+					if (univ == null) {
+
+						// Presumably a new viewer was chosen. Let's double-check
+						final boolean newViewer = selectedKey.equals(VIEWER_WITH_IMAGE)
+								|| selectedKey.equals(VIEWER_EMPTY);
+						if (!newViewer && !guiUtils.getConfirmation(
+								"The chosen viewer does not seem to be available. Create a new one?",
+								"Viewer Unavailable")) {
+							resetChoice();
+							return;
+						}
+						univ = new Image3DUniverse(512, 512);
+					}
+					// If other viewers have been set(!), remember their 'identifying' suffix,
+					// hopefully unique
+					int idSuffix;
 					try {
-						univ.init(window);
+						idSuffix = Integer
+								.parseInt(plugin.get3DUniverse().getWindow().getTitle().split("Viewer #")[1].trim());
 					} catch (final Exception ignored) {
-						// see https://github.com/morphonets/SNT/issues/136
-						guiUtils.error(
-								"An exception occured. Viewer may not be functional. Please consider using previous viewers.");
+						idSuffix = 0;
 					}
-				} else {
-					univ.resetView();
+
+					if (VIEWER_WITH_IMAGE.equals(selectedKey)) {
+						if (null == plugin.getImagePlus()) {
+							guiUtils.error("There is no valid image data to initialize the viewer with.");
+							resetChoice();
+							return;
+						}
+						final int defResFactor = Content.getDefaultResamplingFactor(plugin.getImagePlus(),
+								ContentConstants.VOLUME);
+						final Double userResFactor = guiUtils.getDouble(
+								"Please specify the image resampling factor. The default factor for current image is "
+										+ defResFactor + ".",
+								"Image Resampling Factor", defResFactor);
+
+						if (userResFactor == null) { // user pressed cancel
+							plugin.set3DUniverse(null);
+							resetChoice();
+							return;
+						}
+						final int resFactor = (Double.isNaN(userResFactor) || userResFactor < 1) ? defResFactor
+								: userResFactor.intValue();
+						plugin.getPrefs().set3DViewerResamplingFactor(resFactor);
+
+					}
+					ImageWindow3D window = univ.getWindow();
+					if (univ.getWindow() == null) {
+						window = new ImageWindow3D(("SNT Leg. 3D Viewer #" + (idSuffix + 1)), univ);
+						window.setSize(512, 512);
+						try {
+							univ.init(window);
+						} catch (final Throwable ignored) {
+							// see https://github.com/morphonets/SNT/issues/136
+							guiUtils.error(
+									"An exception occured. Viewer may not be functional. Please consider using previous viewers.");
+						}
+					} else {
+						univ.resetView();
+					}
+
+					window.addWindowListener(new WindowAdapter() {
+
+						@Override
+						public void windowClosed(final WindowEvent e) {
+							univChoice.removeItem(((ImageWindow3D) e.getWindow()).getTitle());
+							resetChoice();
+						}
+					});
+
+					new QueueJumpingKeyListener(plugin, univ);
+
+					// these calls must occur after proper ImageWindow3D initialization
+					window.setVisible(true);
+					plugin.set3DUniverse(univ);
+					if (VIEWER_WITH_IMAGE.equals(selectedKey))
+						plugin.updateImageContent(plugin.getPrefs().get3DViewerResamplingFactor());
+
+					refreshList.doClick();
+					showStatus("3D Viewer enabled: " + selectedKey, true);
+
+				} catch (final Throwable ex) {
+					guiUtils.error("An error occured. Legacy 3D viewer may not be available. See Console for details.");
+					ex.printStackTrace();
+				} finally {
+					resetChoice();
 				}
-				window.addWindowListener(new WindowAdapter() {
-
-					@Override
-					public void windowClosed(final WindowEvent e) {
-						univChoice.removeItem(((ImageWindow3D) e.getWindow()).getTitle());
-						resetChoice();
-					}
-				});
-
-				new QueueJumpingKeyListener(plugin, univ);
-
-				// these calls must occur after proper ImageWindow3D initialization
-				window.setVisible(true);
-				plugin.set3DUniverse(univ);
-				if (VIEWER_WITH_IMAGE.equals(selectedKey))
-					plugin.updateImageContent(plugin.getPrefs().get3DViewerResamplingFactor());
-
-				refreshList.doClick();
-				resetChoice();
-				showStatus("3D Viewer enabled: " + selectedKey, true);
 			}
 		});
 
@@ -1684,12 +1700,17 @@ public class SNTUI extends JDialog {
 
 		// Build refresh button
 		refreshList.addActionListener(e -> {
-			for (final Image3DUniverse univ : Image3DUniverse.universes) {
-				final ImageWindow3D iw3d = univ.getWindow();
-				if (iw3d == null || hm.containsKey(iw3d.getTitle()))
-					continue;
-				hm.put(iw3d.getTitle(), univ);
-				univChoice.addItem(iw3d.getTitle());
+			try {
+				for (final Image3DUniverse univ : Image3DUniverse.universes) {
+					final ImageWindow3D iw3d = univ.getWindow();
+					if (iw3d == null || hm.containsKey(iw3d.getTitle()))
+						continue;
+					hm.put(iw3d.getTitle(), univ);
+					univChoice.addItem(iw3d.getTitle());
+				}
+			} catch (final Throwable ex) {
+				guiUtils.error("An error occured. Legacy 3D viewer may not be available. See Console for details.");
+				ex.printStackTrace();
 			}
 			showStatus("Viewers list updated...", true);
 		});

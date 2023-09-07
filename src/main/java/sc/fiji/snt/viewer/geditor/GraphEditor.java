@@ -883,7 +883,7 @@ public class GraphEditor extends JPanel
 							"disableEdgeStyle", true));
 					organicLayout.setResetEdges(prefService.getBoolean(mxOrganicLayoutPrefsCmd.class,
 							"resetEdges", false));
-				} catch (final Exception | Error e) {
+				} catch (final Throwable e) {
 					//FIXME: When running outside IJ, PrefService is not functional!?
 					organicLayout.setRadiusScaleFactor(0.75);
 					organicLayout.setFineTuningRadius(40.0);

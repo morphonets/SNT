@@ -64,6 +64,7 @@ import org.scijava.plot.PlotService;
 import org.scijava.prefs.PrefService;
 import org.scijava.script.ScriptHeaderService;
 import org.scijava.script.ScriptService;
+import org.scijava.service.ServiceHelper;
 import org.scijava.table.Table;
 import org.scijava.table.io.TableIOService;
 import org.scijava.thread.ThreadService;
@@ -72,6 +73,7 @@ import org.scijava.ui.console.ConsolePane;
 import org.scijava.ui.swing.script.LanguageSupportService;
 import org.scijava.util.FileUtils;
 import org.scijava.util.VersionUtils;
+import org.scijava.service.Service;
 
 import fiji.util.Levenshtein;
 import ij.IJ;
@@ -79,7 +81,10 @@ import ij.ImagePlus;
 import ij.plugin.Colors;
 import ij.process.LUT;
 import io.scif.services.DatasetIOService;
+import net.imagej.ImageJ;
+import net.imagej.ImageJService;
 import net.imagej.display.ImageDisplayService;
+import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imagej.ops.OpService;
 import net.imglib2.display.ColorTable;
@@ -135,7 +140,7 @@ public class SNTUtils {
 	private static String getVersion() {
 		try {
 			return VersionUtils.getVersion(SNT.class);
-		} catch (final Exception | Error ignored) {
+		} catch (final Throwable ignored) {
 			return "N/A";
 		}
 	}
@@ -583,45 +588,32 @@ public class SNTUtils {
 			try {
 				if (ij.IJ.getInstance() != null)
 					context = (Context) IJ.runPlugIn("org.scijava.Context", "");
-			} catch (final Exception | Error ignored) {
-				error("Failed to retrieve context from IJ1", ignored);
+			} catch (final Throwable ex) {
+				error("Failed to retrieve context from IJ1", ex);
 			} finally {
 				if (context == null) {
 					try {
 						context = new Context();
-					} catch (final Exception e) {
+					} catch (final Throwable e) {
 						System.out.println("SciJava context could not be initialized properly [" + e.getMessage()
 								+ "] Some services may not be available!");
-						// FIXME: When running SNT outside IJ, LegacyService fails to initialize!?
-						// We'll try to initialize a context with the most common services needed by SNT
-						// skipping the problematic ones
-						context = new Context(//
-								// ImageJService.class, // Invalid service: net.imagej.legacy.LegacyService
-								// LegacyService.class, // Invalid service: net.imagej.legacy.LegacyService
-								BatchService.class, //
-								CommandService.class, //
-								ConvertService.class, //
-								DatasetIOService.class, //
-								DisplayService.class, //
-								ImageDisplayService.class, //
-								IOService.class, //
-								LanguageSupportService.class, //
-								LogService.class, //
-								LUTService.class, //
-								OpService.class, //
-								PlatformService.class, //
-								PlotService.class, //
-								PrefService.class, //
-								ScriptHeaderService.class, //
-								ScriptService.class, //
-								SNTService.class, //
-								StatusService.class, //
-								TableIOService.class, //
-								ThreadService.class, //
-								UIService.class //
-						);
+						// FIXME: When running SNT outside IJ, LegacyService fails to initialize!? with
+						// several net.imagej.patcher.LegacyInjector errors. We'll try to initialize a
+						// context with the most common services needed skipping the problematic ones
+						context = new Context(requiredServices(false));
 					}
 				}
+				final ServiceHelper sh = new ServiceHelper(context);
+				// we'll try once more to load anything that may have failed
+				requiredServices(true).forEach(s -> {
+					if (context.getService(s) == null) {
+						try {
+							sh.loadService(s);
+						} catch (final IllegalArgumentException ex) {
+							ex.printStackTrace();
+						}
+					}
+				});
 			}
 		}
 		return context;
@@ -633,6 +625,36 @@ public class SNTUtils {
 
 	public static void setContext(final Context context) {
 		SNTUtils.context = context;
+	}
+
+	private static List<Class<? extends Service>> requiredServices(final boolean includeLegacy) {
+		final List<Class<? extends Service>> services = new ArrayList<>();
+		services.add(BatchService.class);
+		services.add(CommandService.class);
+		services.add(ConvertService.class);
+		services.add(DatasetIOService.class);
+		services.add(DisplayService.class);
+		services.add(ImageDisplayService.class);
+		services.add(IOService.class);
+		services.add(LanguageSupportService.class);
+		services.add(LogService.class);
+		services.add(LUTService.class);
+		services.add(OpService.class);
+		services.add(PlatformService.class);
+		services.add(PlotService.class);
+		services.add(PrefService.class);
+		services.add(ScriptHeaderService.class);
+		services.add(ScriptService.class);
+		services.add(StatusService.class);
+		services.add(TableIOService.class);
+		services.add(ThreadService.class);
+		services.add(UIService.class);
+		services.add(SNTService.class);
+		if (includeLegacy) {
+			services.add(ImageJService.class);
+			services.add(LegacyService.class);
+		}
+		return services;
 	}
 
 	/**
@@ -675,5 +697,15 @@ public class SNTUtils {
 		}
 	}
 
+	/**
+	 * Convenience method to start SNT under a new ImageJ instance.
+	 */
+	public static void startApp() {
+		if (context == null) {
+			final ImageJ ij = new ImageJ();
+			ij.ui().showUI();
+		}
+		getContext().getService(CommandService.class).run(sc.fiji.snt.gui.cmds.SNTLoaderCmd.class, true);
+	}
 }
 

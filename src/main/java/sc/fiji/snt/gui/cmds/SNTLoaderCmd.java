@@ -401,22 +401,12 @@ public class SNTLoaderCmd extends DynamicCommand {
 		if (msg != null && !msg.isEmpty())
 			cancel(msg);
 	}
+
 	/*
 	 * IDE debug method
-	 *
-	 * @throws IOException
 	 */
-	public static void main(final String[] args) throws IOException {
-		final ImageJ ij = new ImageJ();
-		ij.ui().showUI();
-		try {
-			Thread.sleep(1000);
-			final SNTService sntService = ij.context().getService(SNTService.class);
-			ij.ui().show("Demo image", sntService.demoImage("fractal"));
-			SNTUtils.setDebugMode(false);
-			ij.command().run(SNTLoaderCmd.class, true);
-		} catch (InterruptedException e) {
-		}
+	public static void main(final String[] args) {
+		SNTUtils.startApp();
 	}
 
 }

@@ -539,7 +539,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 						+ chosenOrigImp.getTitle() + " (" + chosenOrigImp.getBitDepth()
 						+ " -bit) may be of an unsupported type. ");
 			}
-		} catch (final Exception | Error ex) {
+		} catch (final Throwable ex) {
 			ex.printStackTrace();
 			error("An exception occured. See Console for details.");
 		} finally {
