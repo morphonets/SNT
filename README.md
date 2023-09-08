@@ -203,12 +203,12 @@ Use this button to open the project on the cloud using [Gitpod](https://gitpod.i
 
 ### Locally
 
-1. Clone this repository (use the green _code_ button above the list of files) 
+1. Clone the main branch of this repository (use the green _code_ button above the list of files) 
 2. Import the project into an IDE such as [Eclipse](https://www.eclipse.org/downloads/packages/)/[IntelliJ](https://www.jetbrains.com/idea/download/)/[NetBeans](https://netbeans.apache.org/download/index.html):
    - In Eclipse: Run _Import> Existing Maven Projects_ and specify the path to the downloaded `SNT` folder in _Root Directory_
    - In IntelliJ: In the _Welcome Prompt_, choose _Open or Import_ and specify the path to the downloaded `SNT` folder
    - In NetBeans: Run _File> Open Project..._, select the downloaded `SNT` directory, and click on _Open Project_
-3. Wait for all the dependencies to be downloaded, and run [snt/gui/cmds/SNTLoaderCmd](./src/main/java/sc/fiji/snt/gui/cmds/SNTLoaderCmd.java). 
+3. Wait for all the dependencies to be downloaded, and run [snt/gui/cmds/SNTLoaderCmd](./src/main/java/sc/fiji/snt/gui/cmds/SNTLoaderCmd.java). Alternatively, call `sc.fiji.snt.SNTUtils.startApp()` from any class.
 4. In your IDE, set your the compliance level for the Java compiler to Java 11. SNT is currently compiled with java 11, but is expected to run fine with newer Java versions. Versions prior to SNT v4.2.2 were developed using Java8. 
 
 > :information_source: By default, ImageJ1 cannot run in headless environments. To bypass this, Fiji uses a bytecode injection mechanism to patch ImageJ1 at runtime.
