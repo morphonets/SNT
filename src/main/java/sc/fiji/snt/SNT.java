@@ -3398,18 +3398,20 @@ public class SNT extends MultiDThreePanes implements
 
 	/**
 	 * Enables SNT's XYZ snap cursor feature. Does nothing if no image data is
-	 * available
+	 * available or currently loaded image is binary
 	 *
 	 * @param enable whether cursor snapping should be enabled
 	 */
 	public synchronized void enableSnapCursor(final boolean enable) {
 		final boolean validImage = accessToValidImageData();
-		snapCursor = enable && validImage;
+		final boolean isBinary = validImage && xy.getProcessor().isBinary();
+		snapCursor = enable && validImage && !isBinary;
 		if (isUIready()) {
 			if (enable && !validImage) {
 				ui.noValidImageDataError();
 			}
 			ui.useSnapWindow.setSelected(snapCursor);
+			ui.useSnapWindow.setEnabled(!isBinary);
 			ui.snapWindowXYsizeSpinner.setEnabled(snapCursor);
 			ui.snapWindowZsizeSpinner.setEnabled(snapCursor && !is2D());
 		}
