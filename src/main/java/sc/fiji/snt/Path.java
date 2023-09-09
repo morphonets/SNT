@@ -1195,7 +1195,7 @@ public class Path implements Comparable<Path> {
 	 * Reverses this path so that its starting node becomes the last and vice versa.
 	 */
 	public void reverse() {
-		reverse(this, false);
+		reverseInSitu(this);
 	}
 
 	/**
@@ -1207,28 +1207,32 @@ public class Path implements Comparable<Path> {
 	 */
 	public Path reversed() {
 		final Path c = createPath();
-		reverse(c, true);
+		c.points = points;
+		for (int i = 0; i < points; ++i) {
+			c.precise_x_positions[i] = precise_x_positions[(points - 1) - i];
+			c.precise_y_positions[i] = precise_y_positions[(points - 1) - i];
+			c.precise_z_positions[i] = precise_z_positions[(points - 1) - i];
+		}
+		if (c.fitted != null)
+			c.fitted = c.fitted.reversed();
 		return c;
 	}
 
-	private static void reverse(final Path c, final boolean legacy) {
+	private static void reverseInSitu(final Path c) {
 		ArrayUtils.reverse(c.precise_x_positions, 0, c.points);
 		ArrayUtils.reverse(c.precise_y_positions, 0, c.points);
 		ArrayUtils.reverse(c.precise_z_positions, 0, c.points);
+		ArrayUtils.reverse(c.radii, 0, c.points);
+		ArrayUtils.reverse(c.tangents_x, 0, c.points);
+		ArrayUtils.reverse(c.tangents_y, 0, c.points);
+		ArrayUtils.reverse(c.nodeValues, 0, c.points);
+		ArrayUtils.reverse(c.nodeAnnotations, 0, c.points);
+		ArrayUtils.reverse(c.nodeHemisphereFlags, 0, c.points);
+		ArrayUtils.reverse(c.nodeColors, 0, c.points);
+		if (c.editableNodeIndex > -1)
+			c.editableNodeIndex = c.points - 1 - c.editableNodeIndex;
 		if (c.fitted != null)
-			reverse(c.fitted, legacy);
-		if (!legacy) {
-			// reverse remaining properties
-			ArrayUtils.reverse(c.radii, 0, c.points);
-			ArrayUtils.reverse(c.tangents_x, 0, c.points);
-			ArrayUtils.reverse(c.tangents_y, 0, c.points);
-			ArrayUtils.reverse(c.nodeValues, 0, c.points);
-			ArrayUtils.reverse(c.nodeAnnotations, 0, c.points);
-			ArrayUtils.reverse(c.nodeHemisphereFlags, 0, c.points);
-			ArrayUtils.reverse(c.nodeColors, 0, c.points);
-			if (c.editableNodeIndex > -1)
-				c.editableNodeIndex = c.points - 1 - c.editableNodeIndex;
-		}
+			reverseInSitu(c.fitted);
 	}
 
 	/**
