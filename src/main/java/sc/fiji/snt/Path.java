@@ -411,13 +411,17 @@ public class Path implements Comparable<Path> {
 	}
 
 	public void createCircles() {
-		if (tangents_x != null || tangents_y != null || tangents_z != null ||
-			radii != null) throw new IllegalArgumentException(
-				"Trying to create circles data arrays when at least one is already there");
-		tangents_x = new double[maxPoints];
-		tangents_y = new double[maxPoints];
-		tangents_z = new double[maxPoints];
-		radii = new double[maxPoints];
+//		if (tangents_x != null || tangents_y != null || tangents_z != null ||
+//			radii != null) throw new IllegalArgumentException(
+//				"Trying to create circles data arrays when at least one is already there");
+		if (tangents_x == null)
+			tangents_x = new double[maxPoints];
+		if (tangents_y == null)
+			tangents_y = new double[maxPoints];
+		if (tangents_z == null)
+			tangents_z = new double[maxPoints];
+		if (radii == null)
+			radii = new double[maxPoints];
 	}
 
 	protected void setIsPrimary(final boolean primary) {
@@ -1087,32 +1091,17 @@ public class Path implements Comparable<Path> {
 	}
 
 	private void expandTo(final int newMaxPoints) {
-
-		final double[] new_precise_x_positions = new double[newMaxPoints];
-		final double[] new_precise_y_positions = new double[newMaxPoints];
-		final double[] new_precise_z_positions = new double[newMaxPoints];
-		System.arraycopy(precise_x_positions, 0, new_precise_x_positions, 0,
-			points);
-		System.arraycopy(precise_y_positions, 0, new_precise_y_positions, 0,
-			points);
-		System.arraycopy(precise_z_positions, 0, new_precise_z_positions, 0,
-			points);
-		precise_x_positions = new_precise_x_positions;
-		precise_y_positions = new_precise_y_positions;
-		precise_z_positions = new_precise_z_positions;
+		precise_x_positions = expandArray(precise_x_positions, newMaxPoints);
+		precise_y_positions = expandArray(precise_y_positions, newMaxPoints);
+		precise_z_positions = expandArray(precise_z_positions, newMaxPoints);
 		if (hasRadii()) {
-			final double[] new_tangents_x = new double[newMaxPoints];
-			final double[] new_tangents_y = new double[newMaxPoints];
-			final double[] new_tangents_z = new double[newMaxPoints];
-			final double[] new_radiuses = new double[newMaxPoints];
-			System.arraycopy(tangents_x, 0, new_tangents_x, 0, points);
-			System.arraycopy(tangents_y, 0, new_tangents_y, 0, points);
-			System.arraycopy(tangents_z, 0, new_tangents_z, 0, points);
-			System.arraycopy(radii, 0, new_radiuses, 0, points);
-			tangents_x = new_tangents_x;
-			tangents_y = new_tangents_y;
-			tangents_z = new_tangents_z;
-			radii = new_radiuses;
+			tangents_x = expandArray(tangents_x, newMaxPoints);
+			tangents_y = expandArray(tangents_y, newMaxPoints);
+			tangents_z = expandArray(tangents_z, newMaxPoints);
+			radii = expandArray(radii, newMaxPoints);
+		}
+		if (nodeValues != null) {
+			nodeValues = expandArray(nodeValues, newMaxPoints);
 		}
 		if (nodeAnnotations != null) {
 			final BrainAnnotation[] newNodeAnnotations = new BrainAnnotation[newMaxPoints];
@@ -1124,12 +1113,13 @@ public class Path implements Comparable<Path> {
 			System.arraycopy(nodeHemisphereFlags, 0, newNodeHemisphereFlags, 0, points);
 			nodeHemisphereFlags = newNodeHemisphereFlags;
 		}
-		if (nodeValues != null) {
-			final double[] newNodeValues = new double[newMaxPoints];
-			System.arraycopy(nodeValues, 0, newNodeValues, 0, points);
-			nodeValues = newNodeValues;
-		}
 		maxPoints = newMaxPoints;
+	}
+
+	private static double[] expandArray(final double[] array, final int newCapacity) {
+		final double[] expanded = new double[newCapacity];
+		System.arraycopy(array, 0, expanded, 0, array.length);
+		return expanded;
 	}
 
 	public void add(final Path other) {
@@ -1767,9 +1757,11 @@ public class Path implements Comparable<Path> {
 	}
 
 	public void setGuessedTangents(final int pointsEitherSide) {
-		if (tangents_x == null || tangents_y == null || tangents_z == null)
-			throw new IllegalArgumentException(
-				"BUG: setGuessedTangents called with one of the tangent arrays null");
+		if (tangents_x == null || tangents_y == null || tangents_z == null) {
+//			throw new IllegalArgumentException(
+//			"BUG: setGuessedTangents called with one of the tangent arrays null");
+			createCircles();
+		}
 		final double[] tangent = new double[3];
 		for (int i = 0; i < points; ++i) {
 			getTangent(i, pointsEitherSide, tangent);
