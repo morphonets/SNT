@@ -65,6 +65,7 @@ import sc.fiji.snt.gui.GuiUtils.TextFieldWithPlaceholder;
 public class SNTSearchableBar extends SearchableBar {
 
 	private static final long serialVersionUID = 1L;
+	private static final float FONT_SCALING_FACTOR = 1.1f;
 	public static final int SHOW_SEARCH_OPTIONS = 0x80;
 	protected List<AbstractButton> _extraButtons;
 	protected boolean containsCheckboxes;
@@ -115,11 +116,14 @@ public class SNTSearchableBar extends SearchableBar {
 		setStatusLabelPlaceholder(SNTUtils.getReadableVersion());
 	}
 
-	@SuppressWarnings("rawtypes")
+
+
+	@SuppressWarnings({ "rawtypes" })
 	@Override
 	protected JComboBox createComboBox() {
 		final JComboBox comboBox = super.createComboBox();
 		comboBox.setEditor(new BoxEditorWithPrompt("Find:"));
+		comboBox.setFont(comboBox.getFont().deriveFont(comboBox.getFont().getSize2D() * FONT_SCALING_FACTOR));
 		return comboBox;
 	}
 
@@ -129,6 +133,7 @@ public class SNTSearchableBar extends SearchableBar {
 			final int cols = editor.getColumns();
 			editor = new GuiUtils.TextFieldWithPlaceholder(prompt);
 			editor.setColumns(cols);
+			editor.setFont(editor.getFont().deriveFont(editor.getFont().getSize2D() * FONT_SCALING_FACTOR));
 		}
 	}
 
@@ -362,12 +367,12 @@ public class SNTSearchableBar extends SearchableBar {
 
 	@Override
 	protected AbstractButton createCloseButton(final AbstractAction closeAction) {
-	    final AbstractButton button = new JButton();
-	    button.addActionListener(closeAction);
-	    //button.setBorder(BorderFactory.createEmptyBorder());
-	    //button.setOpaque(false);
-	    button.setRequestFocusEnabled(false);
-	    button.setFocusable(false);
+		final AbstractButton button = new JButton();
+		button.addActionListener(closeAction);
+		// button.setBorder(BorderFactory.createEmptyBorder());
+		// button.setOpaque(false);
+		button.setRequestFocusEnabled(false);
+		button.setFocusable(false);
 		formatButton(button, IconFactory.GLYPH.TIMES);
 		return button;
 	}
@@ -381,9 +386,10 @@ public class SNTSearchableBar extends SearchableBar {
 
 	protected void formatButton(final AbstractButton button, final IconFactory.GLYPH glyph) {
 		if (buttonHeight == 0)
-			buttonHeight = (getMaxHistoryLength() == 0) ? new JTextField().getHeight() : new JComboBox<String>().getHeight();
+			buttonHeight = (int) ((getMaxHistoryLength() == 0) ? FONT_SCALING_FACTOR * new JTextField().getHeight()
+					: FONT_SCALING_FACTOR * new JComboBox<String>().getHeight());
 		if (iconHeight == 0)
-			iconHeight = UIManager.getFont("Label.font").getSize();
+			iconHeight = FONT_SCALING_FACTOR * UIManager.getFont("Label.font").getSize();
 		button.setSize(new Dimension(buttonHeight, buttonHeight));
 		IconFactory.applyIcon(button, iconHeight, glyph);
 		button.setRequestFocusEnabled(false);

@@ -1154,14 +1154,24 @@ public class SNTCommandFinder {
 				}
 			});
 		}
-		private void appendRecordActions(TreeMap<String, CmdAction> map) {
+
+		private void appendRecordActions(final TreeMap<String, CmdAction> map) {
 			if (map == null)
 				return;
 			map.values().forEach(cmdAction -> {
-				if (cmdAction.button != null)
+				if (cmdAction.button != null && !hasRecordActionAppended(cmdAction.button))
 					cmdAction.button.addActionListener(new RecordAction(cmdAction));
 			});
 		}
+
+		private boolean hasRecordActionAppended(final AbstractButton button) {
+			for (final ActionListener l : button.getActionListeners()) {
+				if (l instanceof RecordAction)
+					return true;
+			}
+			return false;
+		}
+
 		void removeRecordActions() {
 			removeRecordActions(cmdMap);
 			removeRecordActions(otherMap);

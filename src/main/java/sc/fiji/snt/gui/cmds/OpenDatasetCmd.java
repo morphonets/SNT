@@ -52,18 +52,26 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 	@Parameter(required=false, persist = false)
 	private File file;
 
+	@SuppressWarnings("unused")
+	private void init() {
+		init(true);
+		if (file == null || !file.exists()) {
+			file = new GuiUtils(ui).getImageFile(file);
+			resolveInput("file");
+		}
+	}
+
 	@Override
 	public void run() {
-		init(true);
+		final boolean redirect = IJ.redirectingErrorMessages();
 		try {
 			// In theory we should be able to use ioService but the
 			// following seems to always generate a virtual stack
 //			final Dataset ds = ioService.open(file.getAbsolutePath());
 //			final ImagePlus imp = convertService.convert(ds, ImagePlus.class);
 //			snt.initialize(imp);
-			if (file == null || !file.exists())
-				file = new GuiUtils(ui).getImageFile(file);
 			if (file != null) {
+				IJ.redirectErrorMessages(true);
 				ImagePlus imp = IJ.openImage(file.getAbsolutePath());
 				imp = comvertInPlaceToCompositeAsNeeded(imp);
 				if (imp.getType() != ImagePlus.COLOR_RGB) {
@@ -79,6 +87,7 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 					+ "'Choose Tracing Image -> From Open Image...'.");
 			ex.printStackTrace();
 		} finally {
+			IJ.redirectErrorMessages(redirect);
 			resetUI();
 		}
 	}

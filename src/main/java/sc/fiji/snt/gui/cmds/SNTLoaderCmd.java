@@ -25,12 +25,10 @@ package sc.fiji.snt.gui.cmds;
 import io.scif.services.DatasetIOService;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import net.imagej.ImageJ;
 import net.imagej.display.ImageDisplayService;
 
 import org.scijava.ItemVisibility;

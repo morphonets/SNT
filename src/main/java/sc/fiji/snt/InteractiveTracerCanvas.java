@@ -138,31 +138,26 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		pMenu.add(toggleEditModeMenuItem);
 
 		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B));
+		connectToSecondaryEditingPath = menuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER, listener);
+		connectToSecondaryEditingPath.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0));
+		connectToSecondaryEditingPath.setMnemonic(KeyEvent.VK_C);
+		pMenu.add(connectToSecondaryEditingPath);
+		pMenu.add(helpOnConnectingMenuItem());
 		pMenu.add(menuItem(AListener.NODE_DELETE, listener, KeyEvent.VK_D));
 		pMenu.add(menuItem(AListener.NODE_INSERT, listener, KeyEvent.VK_I));
 		pMenu.add(menuItem(AListener.NODE_LOCK, listener, KeyEvent.VK_L));
 		pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M));
 		pMenu.add(menuItem(AListener.NODE_RADIUS, listener, KeyEvent.VK_R));
 		pMenu.add(menuItem(AListener.NODE_SPLIT, listener, KeyEvent.VK_X));
+		pMenu.addSeparator();
+		pMenu.add(menuItem(AListener.NODE_RESET, listener));
+		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
 		final JMenuItem jmi = menuItem(AListener.NODE_COLOR, listener, null);
 		jmi.setToolTipText("<HTML>Assigns a unique color to active node.<br>"
 				+ "NB: Overall rendering of path may change once tag is applied");
 		pMenu.add(jmi);
 		pMenu.addSeparator();
 
-		connectToSecondaryEditingPath = menuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER, listener);
-		connectToSecondaryEditingPath.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0));
-		connectToSecondaryEditingPath.setMnemonic(KeyEvent.VK_C);
-		pMenu.add(connectToSecondaryEditingPath);
-		pMenu.add(helpOnConnectingMenuItem());
-		pMenu.addSeparator();
-
-		pMenu.add(menuItem(AListener.NODE_RESET, listener));
-		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
-		pMenu.addSeparator();
-
-		pMenu.add(menuItem(AListener.START_SHOLL, listener, 
-				KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK + KeyEvent.ALT_DOWN_MASK)));
 		final JMenuItem countSpines = new JMenuItem("Count Spine/Varicosities...");
 		final boolean[] firstTimeCallingCountSpines = {true};
 		countSpines.addActionListener(e -> {
@@ -179,6 +174,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			}
 		});
 		pMenu.add(countSpines);
+		pMenu.add(menuItem(AListener.START_SHOLL, listener, 
+				KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK + KeyEvent.ALT_DOWN_MASK)));
 		pMenu.addSeparator();
 
 		// Add a silly pan entry, just to remind users that the functionality exists.
@@ -247,7 +244,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 						|| cmd.equals(AListener.NODE_INSERT) || cmd.equals(AListener.NODE_LOCK)
 						|| cmd.equals(AListener.NODE_MOVE) || cmd.equals(AListener.NODE_SET_ROOT)
 						|| cmd.equals(AListener.NODE_SPLIT) || cmd.equals(AListener.NODE_RADIUS)
-						|| cmd.equals(AListener.NODE_COLOR)) {
+						|| cmd.equals(AListener.NODE_COLOR) || cmd.equals(AListener.NODE_CONNECT_HELP)) {
 					mItem.setEnabled(be && editMode);
 				} else {
 					mItem.setEnabled(true);
@@ -344,12 +341,12 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			"  <li>Loop-forming connections are not allowed</li>" +
 			"  <li>To concatenate or combine paths, use the respective commands in Path Manager's Edit menu</li>" +
 			"</ol>";
-		final JMenuItem helpItem = new JMenuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help...");
+		final JMenuItem helpItem = new JMenuItem(AListener.NODE_CONNECT_HELP);
 		helpItem.addActionListener(e -> {
 			final boolean canvasActivationState = tracerPlugin.autoCanvasActivation;
 			tracerPlugin.enableAutoActivation(false); // this will not update the checkbox state in SNTUI, but 
 													  // ensures the help dialog will maintain its frontmost state
-			getGuiUtils().showHTMLDialog(msg, AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help", false)
+			getGuiUtils().showHTMLDialog(msg, AListener.NODE_CONNECT_HELP, false)
 					.addWindowListener(new WindowAdapter() {
 						@Override
 						public void windowClosing(final WindowEvent e) {
@@ -826,7 +823,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		toggleEditModeMenuItem.doClick();
 	}
 
-	protected  void togglePauseTracing() {
+	protected void togglePauseTracing() {
 		togglePauseTracingMenuItem.doClick();
 	}
 
@@ -835,7 +832,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				+ "<b>Counting Spines/Varicosities:</b>" //
 				+ "<ul>" //
 				+ "<li> Click over the features to be counted. Point placement may not need to be accurate, " //
-				+ "but w/ 3D images it should reflect the features Z-plane</li>" //
+				+ "but w/ 3D images it should reflect the features' Z-plane</li>" //
 				+ "<li> Once you have performed the count, select the Path(s) associated with the features " //
 				+ "(or select none, if all Paths are to be considered) and run Path Manager's " //
 				+ "<i>Analyze&rarr; Spine/Varicosity Utilities&rarr; Extract Counts from Multi-point ROIs...</i></li>" //
@@ -883,6 +880,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		private final static String NODE_COLOR = "  Tag Active Node...";
 		private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root";
 		private final static String NODE_SPLIT = "  Split Tree at Active Node";
+		private final static String NODE_CONNECT_HELP = "  Connect to Help...";
 		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = "  Connect to ";
 		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER = NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX
 				+ "Unselected Crosshair Node";

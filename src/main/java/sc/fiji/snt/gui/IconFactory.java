@@ -136,6 +136,7 @@ public class IconFactory {
 			ITALIC('\uf033', true), //
 			//JET('\uf0fb', true), //
 			KEYBOARD('\uf11c', false), //
+			LAYERS('\uf5fd', true), //
 			LINK('\uf0c1', true), //
 			LIST('\uf03a', true), //
 			LIST_ALT('\uf022', true), //
@@ -143,6 +144,7 @@ public class IconFactory {
 			MAP_PIN('\uf276', true), //
 			MARKER('\uf3c5', true), //
 			MASKS('\uf630', true), //
+			MATH('\uf698', true), //
 			MICROCHIP('\uf2db', true), //
 			//MINIMIZE('\uf78c', true), //
 			MINUS('\uf146', false), //
@@ -226,6 +228,21 @@ public class IconFactory {
 		return button;
 	}
 
+	public static JButton getButton(final GLYPH glyph1, final GLYPH glyph2) {
+		final JButton button = new JButton();
+		final int size = UIManager.getFont("Button.font").getSize();
+		Icon icon1 = IconFactory.getIcon(glyph1, size, DEFAULT_COLOR);
+		Icon icon2 = IconFactory.getIcon(glyph2, size, DEFAULT_COLOR);
+		button.setIcon(new SideBySideDoubleIcon(icon1, icon2));
+		icon1 = IconFactory.getIcon(glyph1, size, INACTIVE_COLOR);
+		icon2 = IconFactory.getIcon(glyph2, size, INACTIVE_COLOR);
+		button.setDisabledIcon(new SideBySideDoubleIcon(icon1, icon2));
+		icon1 = IconFactory.getIcon(glyph1, size, PRESSED_COLOR);
+		icon2 = IconFactory.getIcon(glyph2, size, PRESSED_COLOR);
+		button.setPressedIcon(new SideBySideDoubleIcon(icon1, icon2));
+		return button;
+	}
+
 	private static void updateColors() {
 		DEFAULT_COLOR = UIManager.getColor("Button.foreground");
 		INACTIVE_COLOR = UIManager.getColor("Button.disabledText");
@@ -302,5 +319,36 @@ public class IconFactory {
 			return (int) size;
 		}
 
+	}
+
+	static class SideBySideDoubleIcon implements Icon {
+
+		private final int iconGap = 4;
+		private final Icon icon1;
+		private final Icon icon2;
+
+		public SideBySideDoubleIcon(final Icon icon1, final Icon icon2) {
+			this.icon1 = icon1;
+			this.icon2 = icon2;
+		}
+
+		@Override
+		public void paintIcon(final Component c, final Graphics g, final int x, final int y) {
+			final int mid = getIconHeight() / 2;
+			final int y1 = y + mid - icon1.getIconHeight() / 2;
+			final int y2 = y + mid - icon2.getIconHeight() / 2;
+			icon1.paintIcon(c, g, x, y1);
+			icon2.paintIcon(c, g, x + icon1.getIconWidth() + iconGap, y2);
+		}
+
+		@Override
+		public int getIconWidth() {
+			return icon1.getIconWidth() + icon2.getIconWidth() + iconGap;
+		}
+
+		@Override
+		public int getIconHeight() {
+			return Math.max(icon1.getIconHeight(), icon2.getIconHeight());
+		}
 	}
 }

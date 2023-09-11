@@ -341,7 +341,9 @@ public class GuiUtils {
 
 	private JidePopup getPopup(final String msg) {
 		final JLabel label = getLabel(msg);
-		label.setHorizontalAlignment(SwingConstants.CENTER);
+		final int mrgn = (int) (uiFontSize()/4);
+		label.setBorder(BorderFactory.createEmptyBorder(mrgn, mrgn, mrgn, mrgn));
+		//label.setHorizontalAlignment(SwingConstants.CENTER);
 		final JidePopup popup = new JidePopup();
 		popup.add(label);
 		if (parent != null) {

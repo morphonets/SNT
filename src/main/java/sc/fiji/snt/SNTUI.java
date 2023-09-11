@@ -2049,7 +2049,7 @@ public class SNTUI extends JDialog {
 		secLayerActivateCheckbox.addActionListener(listener);
 		// Options for externalImagePanel
 		final JPopupMenu secLayerMenu = new JPopupMenu();
-		final JButton secLayerActionButton = optionsButton(secLayerMenu);
+		final JButton secLayerActionButton = optionsButton(IconFactory.GLYPH.LAYERS, secLayerMenu);
 		GuiUtils.addTooltip(secLayerActionButton, "Actions for handling secondary layer imagery");
 		final JMenuItem mi1 = new JMenuItem("Secondary Layer Creation Wizard...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.WIZARD));
@@ -2152,8 +2152,8 @@ public class SNTUI extends JDialog {
 		setFastMarchSearchEnabled(plugin.tubularGeodesicsTracingEnabled);
 	}
 
-	private JButton optionsButton(final JPopupMenu optionsMenu) {
-		final JButton optionsButton =  IconFactory.getButton(IconFactory.GLYPH.OPTIONS);
+	private JButton optionsButton(final IconFactory.GLYPH glyph, final JPopupMenu optionsMenu) {
+		final JButton optionsButton =  IconFactory.getButton(glyph);
 		optionsButton.addActionListener(e -> {
 			optionsMenu.show(optionsButton, optionsButton.getWidth() / 2, optionsButton.getHeight() / 2);
 		});
@@ -2906,7 +2906,7 @@ public class SNTUI extends JDialog {
 		checkboxPanel.add(GuiUtils.leftAlignedLabel(" algorithm", true));
 
 		final JPopupMenu optionsMenu = new JPopupMenu();
-		final JButton optionsButton = optionsButton(optionsMenu);
+		final JButton optionsButton = optionsButton(IconFactory.GLYPH.MATH, optionsMenu);
 		GuiUtils.addTooltip(optionsButton, "Algorithm settings");
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Data Structure:", false));
 		final ButtonGroup dataStructureButtonGroup = new ButtonGroup();
@@ -4413,17 +4413,21 @@ public class SNTUI extends JDialog {
 			case TRACES:
 			case SWC:
 			case ANY_RECONSTRUCTION:
+				boolean succeed = false;
 				changeState(LOADING);
 				if (type == SWC) {
-					plugin.loadSWCFile(file);
+					succeed = plugin.loadSWCFile(file);
 				} else if (type == TRACES){
-					plugin.loadTracesFile(file);
+					succeed = plugin.loadTracesFile(file);
 					setAutosaveFile(file);
 				} else if (type == ANY_RECONSTRUCTION){
-					if (file == null) file = openReconstructionFile(null);
-					if (file != null) plugin.loadTracings(file);
+					if (file == null)
+						file = openReconstructionFile(null);
+					if (file != null)
+						succeed = plugin.loadTracings(file);
 				}
-				validateImgDimensions();
+				if (succeed)
+					validateImgDimensions();
 				changeState(priorState);
 				break;
 			default:

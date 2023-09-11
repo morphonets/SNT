@@ -124,12 +124,14 @@ class NormalPlaneCanvas extends TracerCanvas {
 			radii[z], true) - myScreenXDprecise(centre_x_positions[z] - radii[z], true);
 		g.draw(new Ellipse2D.Double(x_top_left, y_top_left, diameter, diameter));
 
+		// draw displacement of centroids
+		g.draw(new Line2D.Double(myScreenXDprecise(centre_x_positions[z], true),
+				myScreenYDprecise(centre_y_positions[z], true), myScreenXDprecise(imp.getWidth() / 2.0),
+				myScreenXDprecise(imp.getWidth() / 2.0)));
+
 		if (!valid[z]) {
 			g.drawString(invalidFitLabel,
 					(float) myScreenXDprecise(0), (float) myScreenYDprecise(imp.getHeight() - 1));
-			g.draw(new Line2D.Double(myScreenXDprecise(centre_x_positions[z], true),
-					myScreenYDprecise(centre_y_positions[z], true), myScreenXDprecise(imp.getWidth() / 2.0),
-					myScreenXDprecise(imp.getWidth() / 2.0)));
 		}
 
 		// show mode. Draw on the image center (pixelOffset ignored)

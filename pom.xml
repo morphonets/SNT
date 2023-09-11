@@ -143,7 +143,7 @@
 		<sciview.version>906892d</sciview.version>
 		<scenery.version>db26f01</scenery.version>
 		<font-awesome.version>6.4.2</font-awesome.version>
-		<flatlaf.version>3.2</flatlaf.version>
+		<flatlaf.version>3.2.1</flatlaf.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
 		<log4j.version>2.20.0</log4j.version>
 		<smile-core.version>3.0.2</smile-core.version>
