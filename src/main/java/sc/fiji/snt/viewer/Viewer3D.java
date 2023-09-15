@@ -234,7 +234,7 @@ public class Viewer3D {
 		YZ("YZ Constrained", DefCoords.YZ),
 		/** No enforcement of view point: freely turn around the scene. */
 		DEFAULT("Default", DefCoords.DEF), //
-		/** Enforce an 'overview (two-point perspective) view point of the scene. */
+		/** Enforce an 'overview' (two-point perspective) view point of the scene. */
 		PERSPECTIVE("Perspective", DefCoords.PERSPECTIVE),
 
 		/** @deprecated Use YZ instead */
@@ -947,7 +947,7 @@ public class Viewer3D {
 	 * Adds a collection of trees.
 	 *
 	 * @param trees               the trees to be added.
-	 * @param color               the color to be applied, either a HTML color codes
+	 * @param color               the color to be applied, either an HTML color codes
 	 *                            starting with hash ({@code #}), a color preset
 	 *                            ("red", "blue", etc.), or integer triples of the
 	 *                            form {@code r,g,b} and range {@code [0, 255]}
@@ -1125,7 +1125,7 @@ public class Viewer3D {
 	}
 
 	/**
-	 * Adds an highlighting point annotation to this viewer.
+	 * Adds a highlighting point annotation to this viewer.
 	 *
 	 * @param point the point to be highlighted
 	 * @param label the (optional) annotation identifier. If null or empty, a unique
@@ -1137,7 +1137,7 @@ public class Viewer3D {
 	}
 
 	/**
-	 * Adds an highlighting point annotation to this viewer.
+	 * Adds a highlighting point annotation to this viewer.
 	 *
 	 * @param node the node to be highlighted
 	 * @param label the (optional) annotation identifier. If null or empty, a unique
@@ -2088,7 +2088,7 @@ public class Viewer3D {
 	/**
 	 * Renders the scene from a specified camera angle (script-friendly).
 	 *
-	 * @param viewMode the view mode (case insensitive): "xy"; "xz"; "yz";
+	 * @param viewMode the view mode (case-insensitive): "xy"; "xz"; "yz";
 	 *                 "perspective" or "overview"; "default" or "".
 	 */
 	public void setViewMode(final String viewMode) {
@@ -2111,7 +2111,7 @@ public class Viewer3D {
 
 	/**
 	 * Renders the scene from a specified camera angle using polar coordinates
-	 * relative to the the center of the scene. Only X and Y dimensions are
+	 * relative to the center of the scene. Only X and Y dimensions are
 	 * required, as the distance to center is automatically computed. Current
 	 * view point is logged to the Console by calling {@link #logSceneControls()}.
 	 * 
@@ -2173,7 +2173,7 @@ public class Viewer3D {
 	}
 
 	/**
-	 * Saves a snapshot of current scene as a PNG image. Image is saved using an
+	 * Saves a snapshot of current scene as a PNG image. Image is saved using a
 	 * unique time stamp as a file name in the directory specified in the
 	 * preferences dialog or through {@link #setSnapshotDir(String)}
 	 *
@@ -2814,7 +2814,7 @@ public class Viewer3D {
 			else
 				AWTWindows.centerWindow(gConfiguration.getBounds(), this);
 			//setLocationRelativeTo(null); // ensures frame will not appear in between displays on a multidisplay setup
-			setMinimumSize(new Dimension((int) (DEF_WIDTH * .5), (int) (DEF_HEIGHT * .5))); // fix MacOS issue in which
+			setMinimumSize(new Dimension((int) (DEF_WIDTH * .5), (int) (DEF_HEIGHT * .5))); // fix macOS issue in which
 																							// frame is collapsed
 			if (includeManager) {
 				manager = getManager();
@@ -5325,7 +5325,7 @@ public class Viewer3D {
 			if (baseColor == null) {
 				return SNTColor.getDistinctColors(n);
 			} else {
-				// this cold be more sophisticated: Hue shading, LUT, gradient, etc.
+				// this could be more sophisticated: Hue shading, LUT, gradient, etc.
 				final ColorRGB[] colors = new ColorRGB[n];
 				Arrays.fill(colors, baseColor);
 				return colors;
@@ -6502,7 +6502,7 @@ public class Viewer3D {
 
 	private static class CameraThreadControllerPlus extends CameraThreadController {
 
-		//TODO: here we should be bale to override #move and #doRun to improve
+		//TODO: here we should be able to override #move and #doRun to improve
 		// rotations, namely along anatomical axes rather than azymuths
 		public CameraThreadControllerPlus(final Chart chart) {
 			super(chart);

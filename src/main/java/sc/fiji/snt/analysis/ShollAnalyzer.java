@@ -261,7 +261,7 @@ public class ShollAnalyzer {
 	}
 
 	/**
-	 * Gets the {@link LinearProfileStats} associated with this analyzer. By default
+	 * Gets the {@link LinearProfileStats} associated with this analyzer. By default,
 	 * it is set to determine the polynomial of 'best-fit' (2-20 degree range.)
 	 *
 	 * @return the LinearProfileStats instance

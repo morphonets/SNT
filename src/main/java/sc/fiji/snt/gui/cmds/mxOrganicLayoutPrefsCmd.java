@@ -73,7 +73,7 @@ public class mxOrganicLayoutPrefsCmd extends ContextCommand {
     protected double radiusScaleFactor = 0.75;
 
     /**
-     * The radius below which fine tuning of the layout should start
+     * The radius below which fine-tuning of the layout should start
      * This involves allowing the distance between nodes and edges to be
      * taken into account in the total energy calculation. If this is set to
      * zero, the layout will automatically determine a suitable value

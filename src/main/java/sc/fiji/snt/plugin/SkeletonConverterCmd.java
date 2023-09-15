@@ -488,7 +488,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			graphs.forEach(g -> {
 				if (isValidRoi && ROI_ROOTS_ON_CENTROID.equals(rootChoice)) {
 					// Then we force all of the roots inside the ROI to connect
-					// at it's centroid. Since no skeletonization occured inside
+					// at its centroid. Since no skeletonization occured inside
 					// the ROI, we need to enlarge its perimeter by a bit to
 					// capture nodes that the original perimeter would miss
 					converter.setCentroidAsRoot(g, (clearROI) ? enlargeROI(roi, 8) : roi);

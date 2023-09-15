@@ -301,7 +301,7 @@ public class NodeStatistics <T extends PointInImage> {
 	 * @param hemisphere typically 'left' or 'right'. The hemisphere flag (
 	 *                   {@link BrainAnnotation#LEFT_HEMISPHERE} or
 	 *                   {@link BrainAnnotation#RIGHT_HEMISPHERE}) is extracted from
-	 *                   the first character of the string (case insensitive).
+	 *                   the first character of the string (case-insensitive).
 	 *                   Ignored if not a recognized option
 	 * @return the map containing the brain compartments as keys, and frequencies
 	 *         as values.
@@ -413,7 +413,7 @@ public class NodeStatistics <T extends PointInImage> {
 	 * specified ontology level across the specified hemisphere.
 	 *
 	 * @param depth      the ontological depth of the compartments to be considered
-	 * @param hemisphere 'left', 'right' or 'ratio' (case insensitive). Ignored if
+	 * @param hemisphere 'left', 'right' or 'ratio' (case-insensitive). Ignored if
 	 *                   not a recognized option
 	 * @param tree       the Tree associated with the nodes being analyzed. Only
 	 *                   used if hemisphere is 'ratio'.

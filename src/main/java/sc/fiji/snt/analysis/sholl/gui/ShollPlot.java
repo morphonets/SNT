@@ -445,7 +445,7 @@ public class ShollPlot extends Plot {
 	 *            Label contents
 	 * @param color
 	 *            Foreground color of text. Note that this will also set the
-	 *            drawing color for the next objects to be be added to the plot
+	 *            drawing color for the next objects to be added to the plot
 	 */
 	public void drawLabel(final String label, final Color color) {
 

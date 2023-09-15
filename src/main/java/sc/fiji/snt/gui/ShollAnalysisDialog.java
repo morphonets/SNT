@@ -327,7 +327,7 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 		}
 		else if (source == exportProfileButton) {
 
-			// We only only to save the detailed profile. Summary profile will
+			// We only need to save the detailed profile. Summary profile will
 			// be handled by sholl.Sholl_Analysis
 
 			final SaveDialog sd = new SaveDialog("Export data as...", getExportPath(),
@@ -553,7 +553,7 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 		}
 
 		/**
-		 * Exports a JFreeChart to a SVG file.
+		 * Exports a JFreeChart to an SVG file.
 		 *
 		 * @param chart JFreeChart to export
 		 * @param bounds the dimensions of the viewport

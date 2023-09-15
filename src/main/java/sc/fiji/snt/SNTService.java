@@ -153,7 +153,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	/**
 	 * Initializes SNT.
 	 *
-	 * @param imagePath the image to be traced. If "demo" (case insensitive), SNT is
+	 * @param imagePath the image to be traced. If "demo" (case-insensitive), SNT is
 	 *                  initialized using the {@link #demoTreeImage}. If empty or
 	 *                  null and SNT's UI is available an "Open" dialog prompt is
 	 *                  displayed. URL's supported.
@@ -210,7 +210,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * Loads the specified tracings file.
 	 *
 	 * @param filePathOrURL either a "SWC", "TRACES" or "JSON" file path. URLs
-	 *                      defining remote files also supported.. Null not allowed.
+	 *                      defining remote files also supported. Null not allowed.
 	 * @throws UnsupportedOperationException if SNT is not running
 	 * @throws IOException                   if data cannot be imported
 	 */
@@ -246,7 +246,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * Saves all the existing paths to a file.
 	 *
 	 * @param filePath the saving output file path. If {@code filePath} ends in
-	 *                 ".swc" (case insensitive), an SWC file is created, otherwise
+	 *                 ".swc" (case-insensitive), an SWC file is created, otherwise
 	 *                 a "traces" file is created. If empty and a GUI exists, a save
 	 *                 prompt is displayed.
 	 * @return true, if paths exist and file was successfully written.
@@ -499,7 +499,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	/**
 	 * Returns a toy reconstruction (fractal tree).
 	 *
-	 * @return a reference to the loaded tree, or null if data could no be retrieved
+	 * @return a reference to the loaded tree, or null if data could not be retrieved
 	 * @see #demoTreeImage()
 	 */
 	@Deprecated
@@ -561,7 +561,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	/**
 	 * Returns the image associated with the demo (fractal) tree.
 	 *
-	 * @return a reference to the image tree, or null if data could no be retrieved
+	 * @return a reference to the image tree, or null if data could not be retrieved
 	 * @see #demoTree()
 	 */
 	@Deprecated
@@ -758,7 +758,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	}
 
 	private ImagePlus captureView(final ImagePlus holdingImp, final String viewDescription, final int viewPlane) {
-		// NB: overlay will be flatten but not active ROI
+		// NB: overlay will be flattened but not active ROI
 		final TracerCanvas canvas = new TracerCanvas(holdingImp, plugin, viewPlane, plugin
 			.getPathAndFillManager());
 		if (plugin.getXYCanvas() != null)

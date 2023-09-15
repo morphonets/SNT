@@ -337,7 +337,7 @@ class PathNode {
 	}
 
 	/**
-	 * @return whether or not this node should be rendered as editable.
+	 * @return whether this node should be rendered as editable.
 	 */
 	public boolean isEditable() {
 		return editable;

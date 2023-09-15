@@ -112,7 +112,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				return;
 			}
 			if (getImage().getRoi() != null && selectPathsByRoi()) {
-				return; // a ROI existed and we successfully used it to select paths
+				return; // a ROI existed, and we successfully used it to select paths
 			} else {
 				// User still has to create ROI
 				waitingForRoiDrawing = true;

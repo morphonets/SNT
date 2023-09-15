@@ -1754,7 +1754,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * Selects paths matching a morphometric criteria.
 	 *
 	 * @param property The morphometric property ("Length", "Path order", etc.) as
-	 *                 listed in the "Morphology filter" menu (case sensitive).
+	 *                 listed in the "Morphology filter" menu (case-sensitive).
 	 * @param min      the lowest value (exclusive) in the filter
 	 * @param max      the highest value (exclusive) in the filter
 	 * @throws IllegalArgumentException if {@code property} was not recognized. Note
@@ -1940,7 +1940,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * Selects paths matching a morphometric criteria.
 	 *
 	 * @param property The morphometric property ("Length", "Path order", etc.) as
-	 *                 listed in the "Morphology filter" menu (case sensitive).
+	 *                 listed in the "Morphology filter" menu (case-sensitive).
 	 * @param criteria the filtering criteria.
 	 * @throws IllegalArgumentException if {@code property} was not recognized. Note
 	 *                                  that some filtering options listed in the

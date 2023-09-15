@@ -269,20 +269,20 @@ public class MeasureUI extends JFrame {
 			final GridBagConstraints c = new GridBagConstraints();
 			c.gridx = 0;
 			c.gridy = 0;
-			c.weighty = 1.0; // fill height when when resizing pane
+			c.weighty = 1.0; // fill height when resizing pane
 			c.fill = GridBagConstraints.BOTH;
-			c.weightx = 0.0; // do not fill width when when resizing panel
+			c.weightx = 0.0; // do not fill width when resizing panel
 			c.gridheight = 1;
 			add(new JScrollPane(metricList), c);
 
 			c.gridy = 1;
-			c.weighty = 0; // do not allow panel to fill height when when resizing pane
+			c.weighty = 0; // do not allow panel to fill height when resizing pane
 			add(searchableBar, c);
 
 			c.gridx = 1;
 			c.gridy = 0;
-			c.weightx = 1.0; // fill width when when resizing panel
-			c.weighty = 1.0; // fill height when when resizing pane
+			c.weightx = 1.0; // fill width when resizing panel
+			c.weighty = 1.0; // fill height when resizing pane
 			c.gridwidth = 1;
 
 			final JScrollPane statsTableScrollPane = new JScrollPane(statsTable);
@@ -304,12 +304,12 @@ public class MeasureUI extends JFrame {
 			c.gridx = 1;
 			c.gridy = 1;
 			c.gridwidth = 1;
-			c.weighty = 0.0; // do not allow panel to fill height when when resizing pane
+			c.weighty = 0.0; // do not allow panel to fill height when resizing pane
 			add(buttonPanel, c);
 		}
 
 		private JButton optionsButton(final Collection<Tree> trees) {
-			final JButton optionsButton = IconFactory.getButton(IconFactory.GLYPH.OPTIONS);
+			final JButton optionsButton = new JButton(IconFactory.getButtonIcon(IconFactory.GLYPH.OPTIONS, 1.1f));
 			optionsButton.setToolTipText("Options & Utilities");
 			final JPopupMenu optionsMenu = new JPopupMenu();
 			GuiUtils.addSeparator(optionsMenu, "Options:");

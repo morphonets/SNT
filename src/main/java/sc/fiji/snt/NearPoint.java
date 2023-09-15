@@ -33,7 +33,7 @@ import sc.fiji.snt.util.PointInImage;
  * (nearPoint.x,nearPoint.y,nearPoint.z) close to a particular point on a
  * particular path. The important method here is
  * {@code distanceToPathNearPoint()} which retrieves the distance to the nearest
- * point on the the line segments on either side of the path point, rather than
+ * point on the line segments on either side of the path point, rather than
  * just the point. Also, it will return null if the point appears to be "off the
  * end" of the Path.
  *
@@ -225,7 +225,7 @@ public class NearPoint implements Comparable<NearPoint> {
 
 	/*
 	 * This returns null if the perpendicular dropped to the line doesn't lie within
-	 * the segment. Otherwise it returns the shortest distance to this line segment
+	 * the segment. Otherwise, it returns the shortest distance to this line segment
 	 * and the point of intersection in an IntersectionOnLine object
 	 */
 	public static IntersectionOnLine distanceToLineSegment(final double x,
@@ -275,7 +275,7 @@ public class NearPoint implements Comparable<NearPoint> {
 	}
 
 	/*
-	 * To find where the perpendicular dropped from the the point to the line meets
+	 * To find where the perpendicular dropped from the point to the line meets
 	 * it, with:
 	 *
 	 * A = (ax, ay, az) being a point in the line V = (vx, vy, vz) being a vector

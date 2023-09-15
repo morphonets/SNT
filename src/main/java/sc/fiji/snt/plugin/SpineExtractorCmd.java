@@ -53,7 +53,7 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.PointInCanvas;
 
 /**
- * Command for obtaining spine/varicosity counts from multi-point ROIs
+ * Command for obtaining spine/varicosity counts from multipoint ROIs
  *
  * @author Tiago Ferreira
  */

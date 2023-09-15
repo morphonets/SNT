@@ -275,7 +275,7 @@ public class Sholl_Utils implements PlugIn {
 	/**
 	 * Retrieves the Sholl Analysis version
 	 *
-	 * @return the version or a non-empty place holder string if version could
+	 * @return the version or a non-empty placeholder string if version could
 	 *         not be retrieved.
 	 * @deprecated Use {@link SNTUtils#VERSION} instead
 	 *

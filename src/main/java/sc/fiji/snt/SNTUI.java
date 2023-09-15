@@ -379,7 +379,6 @@ public class SNTUI extends JDialog {
 		dialogGbc.gridy++;
 		add(statusBar(), dialogGbc);
 		addFileDrop(this, guiUtils);
-		registerMainButtonsInCommandFinder();
 		//registerCommandFinder(menuBar); // spurious addition if added here!?
 		pack();
 		toFront();
@@ -686,7 +685,7 @@ public class SNTUI extends JDialog {
 	 *
 	 * @param filter a reference to the visibility filter checkbox. Either the
 	 *               checkbox complete label or relevant keyword, e.g., "selected",
-	 *               "Z-slices", "channel", etc. "all" can also be use to toggle all
+	 *               "Z-slices", "channel", etc. "all" can also be used to toggle all
 	 *               checkboxes in the widget
 	 * @param state  whether the filter should be active or not.
 	 */
@@ -991,6 +990,7 @@ public class SNTUI extends JDialog {
 		final JSpinner frameSpinner = GuiUtils.integerSpinner(plugin.frame, 1, (hasFrames) ? imp.getNFrames() : 1, 1, true);
 		positionPanel.add(frameSpinner);
 		final JButton applyPositionButton = new JButton("Reload");
+		registerInCommandFinder(applyPositionButton, null, "Main Tab");
 		final ChangeListener spinnerListener = e -> applyPositionButton.setText(
 				((int) channelSpinner.getValue() == plugin.channel && (int) frameSpinner.getValue() == plugin.frame)
 						? "Reload"
@@ -1045,6 +1045,7 @@ public class SNTUI extends JDialog {
 
 		final CheckboxSpinner mipCS = new CheckboxSpinner(new JCheckBox("Overlay MIP(s) at"),
 				GuiUtils.integerSpinner(20, 10, 80, 1, true));
+		registerInCommandFinder(mipCS.getCheckBox(), "Overlay MIP(s)", "Options Tab");
 		mipCS.getSpinner().addChangeListener(e -> mipCS.setSelected(false));
 		mipCS.appendLabel(" % opacity");
 		mipCS.getCheckBox().addActionListener(e -> {
@@ -1070,6 +1071,7 @@ public class SNTUI extends JDialog {
 
 		final String bLabel = (plugin.getSinglePane()) ? "Display" : "Rebuild";
 		final JButton refreshPanesButton = new JButton(bLabel + " ZY/XZ Views");
+		registerInCommandFinder(refreshPanesButton, "Display/Rebuild ZY/XZ Views", "Options Tab");
 		refreshPanesButton.addActionListener(e -> {
 			final boolean noImageData = !plugin.accessToValidImageData();
 			if (noImageData && pathAndFillManager.size() == 0) {
@@ -1112,6 +1114,7 @@ public class SNTUI extends JDialog {
 		});
 
 		rebuildCanvasButton = new JButton();
+		registerInCommandFinder(rebuildCanvasButton, "Create/Rebuild Canvas", "Options Tab");
 		updateRebuildCanvasButton();
 		rebuildCanvasButton.addActionListener(e -> {
 			if (pathAndFillManager.size() == 0) {
@@ -1213,6 +1216,7 @@ public class SNTUI extends JDialog {
 
 		final JCheckBox confirmTemporarySegmentsCheckbox = new JCheckBox("Confirm temporary segments",
 				confirmTemporarySegments);
+		registerInCommandFinder(confirmTemporarySegmentsCheckbox, null, "Options Tab");
 		tPanel.add(confirmTemporarySegmentsCheckbox, gdb);
 		++gdb.gridy;
 
@@ -1235,6 +1239,7 @@ public class SNTUI extends JDialog {
 
 		final JCheckBox activateFinishedPathCheckbox = new JCheckBox("Finishing a path selects it",
 				plugin.activateFinishedPath);
+		registerInCommandFinder(activateFinishedPathCheckbox, null, "Options Tab");
 		GuiUtils.addTooltip(activateFinishedPathCheckbox, "Whether the path being traced should automatically be selected once finished.");
 		activateFinishedPathCheckbox.addItemListener(e -> plugin.enableAutoSelectionOfFinishedPath(e.getStateChange() == ItemEvent.SELECTED));
 		tPanel.add(activateFinishedPathCheckbox, gdb);
@@ -1253,6 +1258,7 @@ public class SNTUI extends JDialog {
 		final JPanel intPanel = new JPanel(new GridBagLayout());
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
 		final JCheckBox diametersCheckBox = new JCheckBox("Draw diameters", plugin.getDrawDiameters());
+		registerInCommandFinder(diametersCheckBox, null, "Options Tab");
 		diametersCheckBox.addItemListener(e -> plugin.setDrawDiameters(e.getStateChange() == ItemEvent.SELECTED));
 		intPanel.add(diametersCheckBox, gdb);
 		++gdb.gridy;
@@ -1488,6 +1494,7 @@ public class SNTUI extends JDialog {
 			if (recorder != null)
 				recorder.recordCmd("snt.getUI().setEnableDebugMode(" + d + ")", true);
 		});
+		registerInCommandFinder(debugCheckBox,"Toggle Debug Mode", "Options Tab");
 		miscPanel.add(debugCheckBox, gdb);
 		++gdb.gridy;
 		final JButton prefsButton = new JButton("Preferences...");
@@ -1536,7 +1543,7 @@ public class SNTUI extends JDialog {
 		hm.put(VIEWER_EMPTY, null);
 
 		/*
-		// TF: We'll this chunk as it triggers a GLException when using X11 forwarding.
+		// TF: We'll suppress this chunk as it triggers a GLException when using X11 forwarding.
 		// The same functionality can be obtained by pressing the refresh button
 		try {
 			for (final Image3DUniverse univ : Image3DUniverse.universes) {
@@ -1856,6 +1863,7 @@ public class SNTUI extends JDialog {
 	private JPanel reconstructionViewerPanel() {
 		InitViewer3DSystemProperties.init(); // needs to be called as early as possible to be effective
 		openRecViewer = new JButton("Open Reconstruction Viewer");
+		registerInCommandFinder(openRecViewer, null, "3D Tab");
 		openRecViewer.addActionListener(e -> {
 			// if (noPathsError()) return;
 			class RecWorker extends SwingWorker<Boolean, Object> {
@@ -1905,6 +1913,7 @@ public class SNTUI extends JDialog {
 
 	private JPanel sciViewerPanel() {
 		openSciView = new JButton("Open sciview");
+		registerInCommandFinder(openSciView, null, "3D Tab");
 		openSciView.addActionListener(e -> {
 			if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
 				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
@@ -1927,6 +1936,7 @@ public class SNTUI extends JDialog {
 		});
 
 		svSyncPathManager = new JButton("Sync Changes");
+		registerInCommandFinder(svSyncPathManager, "Sync sciview", "3D Tab");
 		svSyncPathManager.setToolTipText("Refreshes Viewer contents to reflect Path Manager changes");
 		svSyncPathManager.addActionListener(e -> {
 			if (sciViewSNT == null || sciViewSNT.getSciView() == null || sciViewSNT.getSciView().isClosed()) {
@@ -1971,11 +1981,13 @@ public class SNTUI extends JDialog {
 		return buttonPanel(keepSegment, junkSegment, completePath, abortButton);
 	}
 
-	private void registerMainButtonsInCommandFinder() {
-		commandFinder.register(openRecViewer, "3D tab");
-		commandFinder.register(openSciView, "3D tab");
-		commandFinder.register(rebuildCanvasButton,  "Options tab");
-		commandFinder.register(debugCheckBox, "Options tab");
+	private void registerInCommandFinder(final AbstractButton button, final String recordedString,
+			final String... location) {
+		if (commandFinder != null) {
+			if (recordedString != null)
+				button.setActionCommand(recordedString);
+			commandFinder.register(button, location);
+		}
 	}
 
 	protected static JPanel buttonPanel(final JButton... buttons) {
@@ -2047,6 +2059,7 @@ public class SNTUI extends JDialog {
 		GuiUtils.addTooltip(secLayerActivateCheckbox,
 				"Whether auto-tracing should be computed on a filtered flavor of current image");
 		secLayerActivateCheckbox.addActionListener(listener);
+		registerInCommandFinder(secLayerActivateCheckbox, "Toggle Secondary Layer", "Main Tab");
 		// Options for externalImagePanel
 		final JPopupMenu secLayerMenu = new JPopupMenu();
 		final JButton secLayerActionButton = optionsButton(IconFactory.GLYPH.LAYERS, secLayerMenu);
@@ -2062,6 +2075,7 @@ public class SNTUI extends JDialog {
 		final JMenuItem mi3 = GuiUtils.MenuItems.fromFileImage();
 		mi3.addActionListener(e -> loadSecondaryImage(false));
 		final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.getMenuIcon(IconFactory.GLYPH.BROOM));
+		registerInCommandFinder(mi4, "Flush Secondary Layer", "Main tab", "Auto-tracing");
 		mi4.addActionListener(e -> {
 			if (!noSecondaryDataAvailableError()
 					&& guiUtils.getConfirmation("Flush secondary layer? (RAM will be released but "
@@ -2105,6 +2119,7 @@ public class SNTUI extends JDialog {
 		c.insets.left *= 2;
 		secLayerImgOverlayCSpinner = new CheckboxSpinner(new JCheckBox("Render in overlay at "),
 				GuiUtils.integerSpinner(20, 10, 80, 1, true));
+		registerInCommandFinder(secLayerImgOverlayCSpinner.getCheckBox(), "Toggle secondary layer overlay", "Main Tab");
 		secLayerImgOverlayCSpinner.getSpinner().addChangeListener(e -> {
 			secLayerImgOverlayCSpinner.setSelected(false);
 		});
@@ -2618,7 +2633,7 @@ public class SNTUI extends JDialog {
 		utilitiesMenu.addSeparator();
 
 		// similar to File>Autotrace image... but assuming current image as source, which does
-		// not require file validations etc..
+		// not require file validations etc.
 		final JMenuItem autotraceJMI = new JMenuItem("Extract Paths from Segmented Image...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.ROBOT));
 		autotraceJMI.setToolTipText("Runs automated tracing on a thresholded/binary image already open");
@@ -2806,6 +2821,7 @@ public class SNTUI extends JDialog {
 		final JCheckBox jcheckbox = new JCheckBox("Enforce default colors (ignore color tags)");
 		GuiUtils.addTooltip(jcheckbox,
 				"Whether default colors above should be used even when color tags have been applied in the Path Manager");
+		registerInCommandFinder(jcheckbox, "Enforce Default Colors", "Main Tab");
 		jcheckbox.addActionListener(e -> {
 			plugin.displayCustomPathColors = !jcheckbox.isSelected();
 			// colorChooser1.setEnabled(!plugin.displayCustomPathColors);
@@ -2821,6 +2837,7 @@ public class SNTUI extends JDialog {
 
 		final JPanel tracingOptionsPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
 		useSnapWindow = new JCheckBox(InternalUtils.hotKeyLabel("Enable Snapping within XY", "S"), plugin.snapCursor);
+		registerInCommandFinder(useSnapWindow, "Toggle Cursor Snapping", "Main Tab");
 		useSnapWindow.addItemListener(listener);
 		tracingOptionsPanel.add(useSnapWindow);
 
@@ -2850,6 +2867,7 @@ public class SNTUI extends JDialog {
 	@SuppressWarnings("unchecked")
 	private JPanel aStarPanel() {
 		aStarCheckBox = new JCheckBox("Enable ", plugin.isAstarEnabled());
+		registerInCommandFinder(aStarCheckBox, "Toggle Auto-tracing", "Main Tab");
 		aStarCheckBox.addActionListener(e -> {
 			boolean enable = aStarCheckBox.isSelected();
 			if (!enable && askUserConfirmation
@@ -3015,8 +3033,10 @@ public class SNTUI extends JDialog {
 	private JPanel hideWindowsPanel() {
 		showOrHidePathList = new JButton("Show Path Manager");
 		showOrHidePathList.addActionListener(listener);
-		showOrHideFillList = new JButton("Show Fill Manager");
+		registerInCommandFinder(showOrHidePathList, "Show/Hide Path Manager", "Main Tab");
+		showOrHideFillList = new JButton();
 		showOrHideFillList.addActionListener(listener);
+		registerInCommandFinder(showOrHideFillList, "Show/Hide Fill Manager", "Main Tab");
 		final JPanel hideWindowsPanel = new JPanel(new GridBagLayout());
 		final GridBagConstraints gdb = new GridBagConstraints();
 		gdb.fill = GridBagConstraints.HORIZONTAL;
@@ -3076,7 +3096,7 @@ public class SNTUI extends JDialog {
 			} else {
 				msg.append("the secondary image does not seem to be valid.");
 			}
-			guiUtils.error(msg.toString(), "Error", "https://imagej.net/plugins/snt/tubular-geodesics");
+			guiUtils.error(msg.toString(), "Error", "https://imagej.net/plugins/snt/extending#tubular-geodesics");
 		}
 		return tgInstalled && tgAvailable;
 	}

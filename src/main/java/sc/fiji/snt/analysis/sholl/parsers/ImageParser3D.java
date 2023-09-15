@@ -153,7 +153,7 @@ public class ImageParser3D extends ImageParser {
 						}
 					}
 
-					// We now have the the points intercepting the
+					// We now have the points intercepting the
 					// surface of this shell: Check if they are
 					// clustered and add them in world coordinates
 					// to profile

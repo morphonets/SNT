@@ -194,6 +194,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		if (ignoreBitmapOptions) {
 			resolveInput("HEADER_SAMPLING");
 			resolveInput("skipSingleVoxels");
+			resolveInput("nThreads");
 			resolveInput("HEADER_ROI");
 			resolveInput("roiSize");
 		} else {

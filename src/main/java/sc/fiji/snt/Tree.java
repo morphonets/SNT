@@ -161,7 +161,7 @@ public class Tree implements TreeProperties {
 	 * Instantiates a new tree from a SWC, TRACES or JSON file with filtering.
 	 *
 	 * @param filename    the absolute file path of the imported file
-	 * @param compartment A case insensitive string with at least 2 characters
+	 * @param compartment A case-insensitive string with at least 2 characters
 	 *                    describing the sub-cellular compartment (axonal or
 	 *                    dendritic) to be imported (e.g., 'axon', 'dendrites',
 	 *                    'axn', 'dnd', etc.). It is ignored if {@code filename}
@@ -933,7 +933,7 @@ public class Tree implements TreeProperties {
 	 * Gets the bounding box associated with this tree.
 	 *
 	 * @param computeIfUnset if {@code true} no BoundingBox has been explicitly
-	 *          set, and, a BoundingBox will be compute from all the nodes of this
+	 *          set, and, a BoundingBox will be computed from all the nodes of this
 	 *          Tree
 	 * @return the BoundingBox
 	 */
@@ -1430,7 +1430,7 @@ public class Tree implements TreeProperties {
 	 *
 	 * @param dir     the directory containing the reconstruction files (.(e)swc,
 	 *                .traces, .json extension)
-	 * @param pattern the filename substring (case sensitive) to be matched. Only
+	 * @param pattern the filename substring (case-sensitive) to be matched. Only
 	 *                filenames containing {@code pattern} will be imported from the
 	 *                directory. {@code null} allowed.
 	 * @return the list of imported {@link Tree}s. An empty list is retrieved if
@@ -1446,7 +1446,7 @@ public class Tree implements TreeProperties {
 	 *
 	 * @param dir     the directory containing the reconstruction files (.(e)swc,
 	 *                .traces, .json extension)
-	 * @param pattern the filename substring (case sensitive) to be matched. Only
+	 * @param pattern the filename substring (case-sensitive) to be matched. Only
 	 *                filenames containing {@code pattern} will be imported from the
 	 *                directory. {@code null} allowed.
 	 * @param swcTypes SWC type(s) a string with at least 2 characters describing
@@ -1504,7 +1504,7 @@ public class Tree implements TreeProperties {
 	 *                 can also be a directory. If this Tree contains multiple
 	 *                 roots, each rooted structure will be saved on a series of
 	 *                 files with 3-digit identifiers appended to the specified file
-	 *                 path (e.g., -000.swc, -001.swc, etc).
+	 *                 path (e.g., -000.swc, -001.swc, etc.).
 	 * @return true, if file successfully saved.
 	 * @see #setLabel(String)
 	 */

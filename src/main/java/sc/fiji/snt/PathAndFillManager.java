@@ -297,7 +297,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	/**
 	 * Returns the number of Paths in the PathAndFillManager list.
 	 *
-	 * @return the the number of Paths
+	 * @return the number of Paths
 	 */
 	public int size() {
 		return allPaths.size();
@@ -1154,7 +1154,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		if (!forceNewId && getPathFromID(p.getID()) != null) throw new IllegalArgumentException(
 				"Attempted to add a path with an ID that was already added");
 
-		// By default the latest tree ID is assigned to the added Path. That is a reasonable
+		// By default, the latest tree ID is assigned to the added Path. That is a reasonable
 		// assumption when adding paths in bulk, but in an interactive session, we need to
 		// ensure the path is being assigned the correct tree ID.
 		int treeID = maxUsedTreeID;
@@ -2514,7 +2514,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @param swcs the HashMap containing the absolute file paths (or URLs) of
 	 *          files to be imported as values and a file descriptor as keys.
 	 * @param color the color to be applied to imported Paths. If null, paths from
-	 *          each file will assigned unique colors
+	 *          each file will be assigned unique colors
 	 * @return the List of imported {@link Tree}s labeled after the file
 	 *         descriptor. The returned list will not contain null elements: If a
 	 *         file was not successfully imported an empty Tree will be generated
@@ -2799,7 +2799,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 *
 	 * @param map         the input map of reconstruction nodes
 	 * @param color       the color to be applied to imported Paths. If null, paths
-	 *                    from each ID will assigned unique colors
+	 *                    from each ID will be assigned unique colors
 	 * @param spatialUnit the spatial unit (um, mm, etc) associated with imported
 	 *                    nodes. If null, "um" are assumed
 	 * @return the map mapping imported ids to imported Trees. A null Tree will be

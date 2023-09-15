@@ -122,7 +122,7 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 	 * a reader
 	 *
 	 * @param cellId the ID of the cell to be retrieved
-	 * @return the the character stream containing the data, or null if cell ID
+	 * @return the character stream containing the data, or null if cell ID
 	 *         was not found or could not be retrieved
 	 */
 	@Override

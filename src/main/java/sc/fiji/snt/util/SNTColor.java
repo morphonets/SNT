@@ -233,7 +233,7 @@ public class SNTColor {
 	}
 
 	/**
-	 * Replaces null colors in a array with the average of flanking non-null colors.
+	 * Replaces null colors in an array with the average of flanking non-null colors.
 	 *
 	 * @param colors the color array
 	 */

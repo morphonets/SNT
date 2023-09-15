@@ -171,7 +171,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 	}
 
 	public static Collection<ImagePlus> getImpInstances() {
-		// In theory we should be able to use legacyService to retrieve
+		// In theory, we should be able to use legacyService to retrieve
 		// all the images but somehow this can never retrieve the full
 		// list of current available instances:
 //		return legacyService.getImageMap().getImagePlusInstances();

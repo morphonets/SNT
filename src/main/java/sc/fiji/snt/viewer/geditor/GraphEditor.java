@@ -575,7 +575,7 @@ public class GraphEditor extends JPanel
 
 	/**
 	 * 
-	 * @return whether or not the current graph has been modified
+	 * @return whether the current graph has been modified
 	 */
 	public boolean isModified() {
 		return modified;

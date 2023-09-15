@@ -196,7 +196,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String CONVEX_HULL_CENTROID_ROOT_DISTANCE = "Convex hull: Centroid-root distance";
 	/**
 	 * Flag for analysis of {@value #VALUES}, an optional numeric property that can
-	 * be assigned to Path nodes (e.g., voxel intensities, assigned via
+	 * be assigned to Path nodes (e.g., voxel intensities), assigned via
 	 * {@link PathProfiler}. Note that an {@link IllegalArgumentException} is
 	 * triggered if no values have been assigned to the tree being analyzed.
 	 * 
@@ -383,7 +383,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	 * @param hemisphere typically 'left' or 'right'. The hemisphere flag (
 	 *                   {@link BrainAnnotation#LEFT_HEMISPHERE} or
 	 *                   {@link BrainAnnotation#RIGHT_HEMISPHERE}) is extracted from
-	 *                   the first character of the string (case insensitive).
+	 *                   the first character of the string (case-insensitive).
 	 *                   Ignored if not a recognized option
 	 * @return the map containing the brain compartments as keys, and cable lengths
 	 *         as values.
@@ -401,7 +401,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	 * @param hemisphere typically 'left' or 'right'. The hemisphere flag (
 	 *                   {@link BrainAnnotation#LEFT_HEMISPHERE} or
 	 *                   {@link BrainAnnotation#RIGHT_HEMISPHERE}) is extracted from
-	 *                   the first character of the string (case insensitive).
+	 *                   the first character of the string (case-insensitive).
 	 *                   Ignored if not a recognized option
 	 * @param norm       whether length should be normalized to the cells' cable
 	 *                   length
@@ -488,7 +488,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	 * specified ontology level across the specified hemisphere.
 	 *
 	 * @param depth      the ontological depth of the compartments to be considered
-	 * @param hemisphere 'left', 'right' or 'ratio' (case insensitive). Ignored if
+	 * @param hemisphere 'left', 'right' or 'ratio' (case-insensitive). Ignored if
 	 *                   not a recognized option
 	 * @return the annotated length histogram
 	 * @see AllenCompartment#getOntologyDepth()

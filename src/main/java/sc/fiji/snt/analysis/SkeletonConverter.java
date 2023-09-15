@@ -410,7 +410,7 @@ public class SkeletonConverter {
     }
 
     /**
-     * Sets whether or not to prune branches which end in end-points from the result.
+     * Sets whether to prune branches which end in end-points from the result.
      *
      * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
      */
@@ -419,7 +419,7 @@ public class SkeletonConverter {
     }
 
     /**
-     * Sets whether or not to calculate the longest shortest-path in the skeleton result.
+     * Sets whether to calculate the longest shortest-path in the skeleton result.
      *
      * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
      */
@@ -445,7 +445,7 @@ public class SkeletonConverter {
     }
 
     /**
-     * Sets whether or not to prune components below a threshold length from the result.
+     * Sets whether to prune components below a threshold length from the result.
      */
     public void setPruneByLength(boolean pruneByLength) {
         this.pruneByLength = pruneByLength;

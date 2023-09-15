@@ -65,6 +65,7 @@ public class DemoRunner {
 		entries.add(demo7());
 		entries.add(demo8());
 		entries.add(demo9());
+		entries.add(demo10());
 	}
 
 	private Demo demo1() {
@@ -253,6 +254,31 @@ public class DemoRunner {
 		return entry;
 	}
 
+	private Demo demo10() {
+		final Demo entry = new Demo(10, "Segmented astrocyte (2D image)") {
+			@Override
+			public ImagePlus getImage() {
+				final ImagePlus imp = ij.IJ.openImage("http://wsr.imagej.net/images/mitosis.tif");
+				imp.setPosition(2, 4, 31); // k-fibers channel, mid Z-range, traced time point
+				return imp;
+			}
+
+			@Override
+			public void load() {
+				super.load();
+				// apply tags
+				ui.getPathManager().applyDefaultTags("Traced Channel");
+				ui.getPathManager().applyDefaultTags("Traced Frame");
+			}
+		};
+		entry.summary = "Downloads a Drosophila S2 cell undergoing mitosis in which K-fibers were traced during anaphase.";
+		entry.data = "Image (5D; 2-channel, 3D timelapse, 33MB)";
+		entry.source = "ImageJ sample image, PMID 19720876";
+		entry.online = true;
+		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/SNTmanuscript/718e4b90fb4bb61f382edcf467173b53045b25e0/FigS3_5D-Tracing/traces/mitosis.traces";
+		return entry;
+	}
+
 	private void error(final Throwable ex) {
 		ui.error("Loading of data failed (" + ex.getMessage() + " error). See Console for details.");
 		ex.printStackTrace();
@@ -334,6 +360,8 @@ public class DemoRunner {
 					}
 				}
 				snt.updateAllViewers();
+				if (imp.getNChannels() > 1 && imp instanceof ij.CompositeImage)
+					ij.IJ.doCommand("Channels Tool...");
 			} catch (final Throwable ex) {
 				error(ex);
 			} finally {

@@ -371,7 +371,7 @@ public class SNTChart extends ChartPanel {
 	/**
 	 * Annotates the specified category (Category plots only)
 	 *
-	 * @param category the category to be annotated. Ignored if it does not exits in
+	 * @param category the category to be annotated. Ignored if it does not exist in
 	 *                 category axis.
 	 * @param label    the annotation label
 	 */
@@ -382,7 +382,7 @@ public class SNTChart extends ChartPanel {
 	/**
 	 * Annotates the specified category (Category plots only).
 	 *
-	 * @param category the category to be annotated. Ignored if it does not exits in
+	 * @param category the category to be annotated. Ignored if it does not exist in
 	 *                 category axis.
 	 * @param label    the annotation label
 	 * @param color    the annotation color
@@ -975,7 +975,7 @@ public class SNTChart extends ChartPanel {
 	 * Adds a subtitle to the chart.
 	 *
 	 * @param label    the subtitle text
-	 * @param tooltip the tooltip text. {@code null} permitted)
+	 * @param tooltip the tooltip text. {@code null} permitted
 	 * @param aligment either 'left', 'center', or 'right'
 	 */
 	public void annotate(final String label, final String tooltip, final String aligment) {

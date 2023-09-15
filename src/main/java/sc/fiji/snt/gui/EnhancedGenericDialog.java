@@ -375,7 +375,7 @@ public class EnhancedGenericDialog extends GenericDialogPlus {
 	}
 
 	/**
-	 * @return {@code true} if running on an headless environment
+	 * @return {@code true} if running on a headless environment
 	 */
 	public static boolean isHeadless() {
 		return GraphicsEnvironment.isHeadless();

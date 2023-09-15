@@ -530,7 +530,7 @@ public class TreeColorMapper extends ColorMapper {
 	 *
 	 * @param points      the points to be mapped
 	 * @param measurement the measurement ({@link #Z_COORDINATES}, etc.). Note that
-	 *                    if {@code points} do note encode a valid Tree. only
+	 *                    if {@code points} do not encode a valid Tree only
 	 *                    metrics applicable to coordinates are expected.
 	 * @param lut         the lookup table specifying the color mapping
 	 */

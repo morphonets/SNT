@@ -62,7 +62,7 @@ public class GraphGeneratorCmd extends CommonDynamicCmd {
 		try {
 			//SNTUtils.setIsLoading(true);
 			tree.getGraph(true).show();
-		} catch (final IllegalArgumentException exc) { // multiple roots, etc..
+		} catch (final IllegalArgumentException exc) { // multiple roots, etc.
 			//SNTUtils.setIsLoading(false);
 			error("Graph could not be created: " + exc.getLocalizedMessage()
 			+ ". Please ensure you select a single set of connected paths (one root exclusively)");

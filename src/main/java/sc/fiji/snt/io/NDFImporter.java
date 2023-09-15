@@ -286,7 +286,7 @@ public class NDFImporter {
 	}
 
 	/**
-	 * @return the last known version of NeuronJ known to work this this importer
+	 * @return the last known version of NeuronJ known to work this importer
 	 */
 	public static String supportedVersion() {
 		return NJ_VERSION;

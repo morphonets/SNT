@@ -344,10 +344,10 @@ public class TreeAnalyzer extends ContextCommand {
 	/**
 	 * Computes the specified metric.
 	 *
-	 * @param metric the metric to be computed (case insensitive). While it is
+	 * @param metric the metric to be computed (case-insensitive). While it is
 	 *               expected to be an element of {@link #getMetrics()}, it can be
 	 *               specified in a "loose" manner: If {@code metric} is not
-	 *               initially recognized, an heuristic will match it to the closest
+	 *               initially recognized, a heuristic will match it to the closest
 	 *               entry in the list of possible metrics. E.g., "# bps", "n
 	 *               junctions", will be both mapped to
 	 *               {@link MultiTreeStatistics#N_BRANCH_POINTS}. Details on the

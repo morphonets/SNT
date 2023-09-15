@@ -529,7 +529,7 @@ public class SNTCommandFinderLegacy {
 				final int nRows = tableModel.getRowCount();
 				final char ch = Character.toLowerCase(evt.getKeyChar());
 				if (!Character.isLetterOrDigit(ch)) {
-					return; // Ignore searches for non alpha-numeric characters
+					return; // Ignore searches for non alphanumeric characters
 				}
 				final int sRow = table.getSelectedRow();
 				for (int row = (sRow + 1) % nRows; row != sRow; row = (row + 1) % nRows) {

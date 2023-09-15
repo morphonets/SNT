@@ -424,7 +424,7 @@ public class Strahler implements PlugIn, DialogListener {
 
 	/**
 	 * Checks if image to be analyzed fulfills analysis requirements and warns
-	 * the user if required dependencies are present (i.e,, if all the required
+	 * the user if required dependencies are present (i.e, if all the required
 	 * update sites have been subscribed).
 	 *
 	 * @param imp

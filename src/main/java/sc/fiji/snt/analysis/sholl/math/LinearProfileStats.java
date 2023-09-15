@@ -183,7 +183,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 *            If {@code true}, calculation is performed on polynomial fitted
 	 *            values, otherwise from sampled data
 	 *
-	 * @return the count of all radii associated with at at least one
+	 * @return the count of all radii associated with at least one
 	 *         intersection
 	 */
 	public int getIntersectingRadii(final boolean fittedData) {
@@ -624,7 +624,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	}
 
 	/**
-	 * Sets the the function evaluation limit for solvers.
+	 * Sets the function evaluation limit for solvers.
 	 *
 	 * @param maxEval
 	 *            the new maximum of evaluations
@@ -660,7 +660,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 * @param integrator
 	 *            the integration method to retrieve the integral of the
 	 *            polynomial fit. Either "Simpson" (the default), or "Romberg"
-	 *            (case insensitive)
+	 *            (case-insensitive)
 	 * @param lowerBound
 	 *            the lower bound (smallest radius) for the interval
 	 * @param upperBound

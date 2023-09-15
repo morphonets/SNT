@@ -1447,7 +1447,7 @@ public class Path implements Comparable<Path> {
 	}
 
 	/**
-	 * Assigns an hemisphere to an existing node.
+	 * Assigns a hemisphere to an existing node.
 	 *
 	 * @param hemisphereFlag the node hemisphere flag.
 	 * @param pos the node position
@@ -2088,7 +2088,7 @@ public class Path implements Comparable<Path> {
 	 * Gets the "bifurcation" (branching) order of this Path. If registered in the
 	 * GUI, this would correspond to the level of this Path in
 	 * {@link PathManagerUI}'s JTree: E.g., a Path connected to a primary Path
-	 * (order 1) will be assigned order 2, etc.. N.B.: Albeit related to reverse
+	 * (order 1) will be assigned order 2, etc. N.B.: Albeit related to reverse
 	 * Horton-Strahler classification, Path ordering is formally distinct, as it
 	 * classifies <i>Paths</i> instead of <i>branches</i>.
 	 *
@@ -2173,7 +2173,7 @@ public class Path implements Comparable<Path> {
 //			SNT.log("  pathToUse.content3DMultiColored: " + pathToUse.content3DMultiColored);
 //		}
 
-		// Is the the display (lines-and-discs or surfaces) right?
+		// Is the display (lines-and-discs or surfaces) right?
 		if (pathToUse.paths3DDisplay != paths3DDisplay) {
 			pathToUse.removeFrom3DViewer(univ);
 			pathToUse.paths3DDisplay = paths3DDisplay;
@@ -2796,7 +2796,7 @@ public class Path implements Comparable<Path> {
 							lastRadiusIndex = (sp.originalIndex + spNext.originalIndex) / 2;
 						}
 						else if (i == downsampledLength - 1) {
-							// The this is the last point:
+							// Then this is the last point:
 							final SimplePoint spPrevious = downsampled.get(i - 1);
 							firstRadiusIndex = (spPrevious.originalIndex + sp.originalIndex) /
 								2;

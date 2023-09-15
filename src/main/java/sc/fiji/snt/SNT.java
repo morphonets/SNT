@@ -226,7 +226,7 @@ public class SNT extends MultiDThreePanes implements
 	private double fillThresholdDistance = 0.1d;
 
 	/*
-	 * Just for convenience, keep casted references to the superclass's
+	 * Just for convenience, keep cast references to the superclass's
 	 * InteractiveTracerCanvas objects:
 	 */
 	private InteractiveTracerCanvas xy_tracer_canvas;
@@ -281,7 +281,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/*
 	 * Fields for tracing on secondary data: a filtered image. This can work in one
-	 * of two ways: image is loaded into memory or we waive its file path to a
+	 * of two ways: image is loaded into memory, or we waive its file path to a
 	 * third-party class that will parse it
 	 */
 	protected boolean doSearchOnSecondaryData;
@@ -1987,7 +1987,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @param end the {@link PointInImage} the terminal point of the path
 	 * @param forkPoint the {@link PointInImage} fork point of the parent
 	 *          {@link Path} from which the searched path should branch off, or
-	 *          null if the the path should not have any parent.
+	 *          null if the path should not have any parent.
 	 * @return the path a reference to the computed path.
 	 * @see #autoTrace(List, PointInImage)
 	 */
@@ -2030,7 +2030,7 @@ public class SNT extends MultiDThreePanes implements
 	 *          the last its terminus. Null objects not allowed.
 	 * @param forkPoint the {@link PointInImage} fork point of the parent
 	 *          {@link Path} from which the searched path should branch off, or
-	 *          null if the the path should not have any parent.
+	 *          null if the path should not have any parent.
 	 * @return the path a reference to the computed path. It is added to the Path
 	 *         Manager list.If a path cannot be fully computed from the specified
 	 *         list of points, a single-point path is generated.
@@ -2696,7 +2696,7 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
-		imp.setPosition( channel, xy.getSlice(), frame ); // important! sets the channel/frame to be imported. Does nothing if image is not an hyperstack
+		imp.setPosition( channel, xy.getSlice(), frame ); // important! sets the channel/frame to be imported. Does nothing if image is not a hyperstack
 		secondaryData = ImgUtils.getCtSlice(imp);
 		SNTUtils.log("Secondary data dimensions: " +
 				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
@@ -3051,8 +3051,7 @@ public class SNT extends MultiDThreePanes implements
 	 * Gets the instance of the legacy 3D viewer universe. Note that the legacy 3D
 	 * viewer is now deprecated.
 	 *
-	 * @return the a reference to the 3DUniverse or null if no universe has been
-	 *         set
+	 * @return a reference to the 3DUniverse or null if no universe has been set
 	 */
 	@Deprecated
 	protected Image3DUniverse get3DUniverse() {

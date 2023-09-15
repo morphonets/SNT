@@ -65,7 +65,7 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 	public void run() {
 		final boolean redirect = IJ.redirectingErrorMessages();
 		try {
-			// In theory we should be able to use ioService but the
+			// In theory, we should be able to use ioService but the
 			// following seems to always generate a virtual stack
 //			final Dataset ds = ioService.open(file.getAbsolutePath());
 //			final ImagePlus imp = convertService.convert(ds, ImagePlus.class);

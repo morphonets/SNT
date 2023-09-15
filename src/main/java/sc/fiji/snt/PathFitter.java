@@ -81,19 +81,19 @@ public class PathFitter implements Callable<Path> {
 	public static final int RADII_AND_MIDPOINTS = 4;
 
 	/**
-	 * Flag specifying that radii at invalid fit locations should fallback to
+	 * Flag specifying that radii at invalid fit locations should fall back to
 	 * {@code Double.NaN}
 	 */
 	public static final int FALLBACK_NAN = 8;
 
 	/**
-	 * Flag specifying that radii at invalid fit locations should fallback to the
+	 * Flag specifying that radii at invalid fit locations should fall back to the
 	 * minimum voxel separation (voxel size)
 	 */
 	public static final int FALLBACK_MIN_SEP = 16;
 
 	/**
-	 * Flag specifying that radii at invalid fit locations should fallback to the
+	 * Flag specifying that radii at invalid fit locations should fall back to the
 	 * mode of all possible fits
 	 */
 	public static final int FALLBACK_MODE = 32;
@@ -222,7 +222,7 @@ public class PathFitter implements Callable<Path> {
 	 * Takes the signal from the image specified in the constructor to fit
 	 * cross-section circles around the nodes of input path. Computation of fit is
 	 * confined to the neighborhood specified by {@link #setMaxRadius(int)}.
-	 * Note that connectivity of path may need to be rebuild upon fit.
+	 * Note that connectivity of path may need to be rebuilt upon fit.
 	 *
 	 * @return the reference to the computed result. This Path is automatically
 	 *         set as the fitted version of input Path.
@@ -643,7 +643,7 @@ public class PathFitter implements Callable<Path> {
 			final boolean firstOrLast = (i == 0 || i == (totalPoints - 1));
 
 			if (!valid[i]) {
-				// The if we're gone too far without a
+				// Then if we're gone too far without a
 				// successfully optimized datapoint,
 				// add the original one:
 				final boolean goneTooFar = i -

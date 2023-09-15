@@ -25,7 +25,7 @@ import com.mxgraph.layout.mxCircleLayout;
 import com.mxgraph.view.mxGraph;
 
 /**
- * The a circle layout that is more compact than the default
+ * A circle layout that is more compact than the default
  * {@code mxCircleLayout} by applying a 'reduction factor' to the layout radius.
  * By default, such factor is computed from the number of vertices in the graph.
  *

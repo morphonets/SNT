@@ -71,7 +71,7 @@
   </h3>
 </div>
 
-SNT is [ImageJ](https://imagej.net/)'s framework for semi-automated tracing, visualization, quantitative analyses and modeling of neuronal morphology. For tracing, SNT supports modern multi-dimensional microscopy data, and highly-customizable routines. For data analysis, SNT features advanced visualization tools, access to all major morphology databases, and support for whole-brain circuitry data.
+SNT is [ImageJ](https://imagej.net/)'s framework for semi-automated tracing, visualization, quantitative analyses and modeling of neuronal morphology. For tracing, SNT supports modern multidimensional microscopy data, and highly-customizable routines. For data analysis, SNT features advanced visualization tools, access to all major morphology databases, and support for whole-brain circuitry data.
 
 SNT can be used as a regular application or as a scripting library. Python (through [pyimagej](https://github.com/imagej/pyimagej)) and  all of SciJava's scripting languages are supported. It is distributed with [Fiji](https://imagej.net/Fiji) and supersedes the original [Simple Neurite Tracer](#backwards-compatibility) plug-in. It also incorporates several other neuroanatomy-related Fiji plugins. **See  [SNT's publication](https://doi.org/10.1038/s41592-021-01105-7)  and [techical notes](./NOTES.md) for details**.
 
@@ -91,7 +91,7 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
   
   * Support for up to 5D multidimensional images, including multichannel, and timelapse sequences
   * Support for both ImageJ1 and [ImgLib2](https://imagej.net/libs/imglib2/) data structures
-  * Several bi-directional search algorithms (A\*, NBA\*, Fast marching) with adjustable cost functions allow for efficient computation of curvatures for a wide range of imagery, that are <u>up to 20x faster</u> relatively to the original _Simple Neurite Tracer_ plugin
+  * Several bidirectional search algorithms (A\*, NBA\*, Fast marching) with adjustable cost functions allow for efficient computation of curvatures for a wide range of imagery, that are <u>up to 20x faster</u> relatively to the original _Simple Neurite Tracer_ plugin
   * Tracing in "secondary layers". This allows for paths to be computed on "enhanced" (pre-processed) images while interacting with the unfiltered, original image (or vice-versa). Toggling between the two data sources is immediate
   * Precise placement of nodes is aided by a local search that automatically snaps the cursor to neurites wihin a 3D neighborhood
 
@@ -139,7 +139,7 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 * [Reconstruction Viewer](https://imagej.net/SNT:_Reconstruction_Viewer): Standalone hardware-accelerated 3D visualization tool for both meshes and reconstructions.
   
   * Interactive and programmatic scenes (controlled rotations, panning, zoom, scaling, animation,  "dark/light mode", etc.)
-  * Customizable views: Interactive management of scene elements, controls for transparency, color interpolation, lightning, path smoothing, etc.. Ability to render both local and remote files on the same scene
+  * Customizable views: Interactive management of scene elements, controls for transparency, color interpolation, lightning, path smoothing, etc. Ability to render both local and remote files on the same scene
   * Built-in support for several template brains: Drosophila, [zebrafish](https://fishatlas.neuro.mpg.de/), and Allen CCF (Allen Mouse Brain Atlas)
 
 * [sciview](https://github.com/scenerygraphics/sciview) integration
@@ -209,7 +209,7 @@ Use this button to open the project on the cloud using [Gitpod](https://gitpod.i
    - In IntelliJ: In the _Welcome Prompt_, choose _Open or Import_ and specify the path to the downloaded `SNT` folder
    - In NetBeans: Run _File> Open Project..._, select the downloaded `SNT` directory, and click on _Open Project_
 3. Wait for all the dependencies to be downloaded, and run [snt/gui/cmds/SNTLoaderCmd](./src/main/java/sc/fiji/snt/gui/cmds/SNTLoaderCmd.java). Alternatively, call `sc.fiji.snt.SNTUtils.startApp()` from any class.
-4. In your IDE, set your the compliance level for the Java compiler to Java 11. SNT is currently compiled with java 11, but is expected to run fine with newer Java versions. Versions prior to SNT v4.2.2 were developed using Java8. 
+4. In your IDE, set the compliance level for the Java compiler to Java 11. SNT is currently compiled with java 11, but is expected to run fine with newer Java versions. Versions prior to SNT v4.2.2 were developed using Java8. 
 
 > :information_source: By default, ImageJ1 cannot run in headless environments. To bypass this, Fiji uses a bytecode injection mechanism to patch ImageJ1 at runtime.
 > However, this mechanism can be sensitive to the JVM in use. If you are unable to run SNTLoaderCmd from your IDE due to misterious `net.imagej.legacy.LegacyService` exceptions,
@@ -222,7 +222,7 @@ From a Java IDE:
 - [JUnit tests](./src/test/java/sc/fiji/snt/)
 
 From Fiji's Script Editor:
-- Scripts in the _Templates>Neuroanatomy>_ menu). These are part of the source code and can also be accessed from [Script templates](./src/main/resources/script_templates/Neuroanatomy/) 
+- Scripts in the _Templates>Neuroanatomy>_ menu. These are part of the source code and can also be accessed from [Script templates](./src/main/resources/script_templates/Neuroanatomy/) 
 
 From python:
 - [Jupyter notebooks](./notebooks)

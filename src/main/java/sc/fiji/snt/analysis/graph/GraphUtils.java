@@ -60,7 +60,7 @@ public class GraphUtils {
 	 * Creates a {@link Tree} from a graph.
 	 *
 	 * @param graph the graph to be converted.
-	 * @return the Tree, assembled from from the graph vertices
+	 * @return the Tree, assembled from the graph vertices
 	 */
 	@Deprecated
 	public static Tree createTree(final Graph<SWCPoint, ?> graph) {

@@ -201,8 +201,8 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 			if (ui != null) ui.changeState(SNTUI.RUNNING_CMD);
 			runningFromMainSNT = true;
 		}
-		// If a recViewer instance has been specified, then we've be called from
-		// a standalone Reconstruction iewer even if SNT is currently running
+		// If a recViewer instance has been specified, then we've been called from
+		// a standalone Reconstruction Viewer even if SNT is currently running
 		runningFromMainSNT = runningFromMainSNT && recViewer == null;
 
 		if (!runningFromMainSNT && recViewer == null) {

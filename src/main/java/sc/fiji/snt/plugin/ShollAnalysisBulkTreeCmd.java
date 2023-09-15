@@ -130,7 +130,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 
 	@Parameter(label = "<html>&nbsp;", callback = "polynomialDegreeChanged",
 			min = "" + ShollAnalysisPrefsCmd.DEF_MIN_DEGREE, max = "" + ShollAnalysisPrefsCmd.DEF_MAX_DEGREE,
-			stepSize = "1", style = NumberWidget.SCROLL_BAR_STYLE)
+			stepSize = "1", style = NumberWidget.SLIDER_STYLE)
 	private int polynomialDegree;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
