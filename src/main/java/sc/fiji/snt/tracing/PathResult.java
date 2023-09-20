@@ -22,7 +22,7 @@
 
 package sc.fiji.snt.tracing;
 
-class PathResult {
+public class PathResult {
 
 	protected float[] pathPoints;
 	protected float[] numberOfPoints;
