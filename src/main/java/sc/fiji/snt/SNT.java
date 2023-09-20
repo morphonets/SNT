@@ -2693,7 +2693,6 @@ public class SNT extends MultiDThreePanes implements
 			showStatus(0, 0, "Optimally Oriented Flux image detected");
 			SNTUtils.log("Optimally Oriented Flux image detected. Image won't be cached...");
 			tubularGeodesicsTracingEnabled = true;
-			return;
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
 		imp.setPosition( channel, xy.getSlice(), frame ); // important! sets the channel/frame to be imported. Does nothing if image is not an hyperstack
@@ -2726,7 +2725,6 @@ public class SNT extends MultiDThreePanes implements
 			showStatus(0, 0, "Optimally Oriented Flux image detected");
 			SNTUtils.log("Optimally Oriented Flux image detected. Image won't be cached...");
 			tubularGeodesicsTracingEnabled = true;
-			return;
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
 		secondaryData =  img;
