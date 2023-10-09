@@ -1211,7 +1211,7 @@ public class GuiUtils {
 		urls.add(url);
 		url = leftAlignedLabel("Documentation   ", "https://imagej.net/plugins/snt/", true);
 		urls.add(url);
-		url = leftAlignedLabel("Forum   ", "https://forum.image.sc/tags/snt", true);
+		url = leftAlignedLabel("Forum   ", "https://forum.image.sc/tag/snt", true);
 		urls.add(url);
 		url = leftAlignedLabel("GitHub   ", "https://github.com/morphonets/SNT/", true);
 		urls.add(url);
@@ -1665,7 +1665,7 @@ public class GuiUtils {
 		helpMenu.add(mi);
 		helpMenu.addSeparator();
 
-		mi = menuItemTriggeringURL("Ask a Question", "https://forum.image.sc/tags/snt");
+		mi = menuItemTriggeringURL("Ask a Question", "https://forum.image.sc/tag/snt");
 		mi.setIcon(IconFactory.getMenuIcon(GLYPH.COMMENTS));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("FAQs", URL + "faq");

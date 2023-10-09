@@ -109,7 +109,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 	private String SPACER2;
 
 	@Parameter(required = false, label = "User interface", choices = { UI_DEFAULT,
-		UI_SIMPLE }, description = DEF_DESCRIPTION)
+		UI_SIMPLE }, description = DEF_DESCRIPTION + " or image is 2D")
 	private String uiChoice;
 
 	@Parameter(required = false, label = "Tracing channel",
