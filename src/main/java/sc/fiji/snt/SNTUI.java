@@ -2036,6 +2036,18 @@ public class SNTUI extends JDialog {
 		mi = new JMenuItem("Refresh", IconFactory.getMenuIcon(GLYPH.REDO));
 		mi.addActionListener(e -> refresh());
 		pMenu.add(mi);
+		pMenu.addSeparator();
+		mi = new JMenuItem("Log to Script Recorder", IconFactory.getMenuIcon(GLYPH.CODE));
+		mi.addActionListener(e -> {
+			updateSettingsString();
+			getRecorder(true).recordComment("Current Computation Settings:");
+			for (final String s : settingsArea.getText().split("\n")) {
+				recorder.recordComment("  " + s);
+			}
+			recorder.recordComment("");
+			SwingUtilities.invokeLater(() -> recorder.setVisible(true));
+		});
+		pMenu.add(mi);
 		settingsArea.setComponentPopupMenu(pMenu);
 
 		return settingsPanel;
