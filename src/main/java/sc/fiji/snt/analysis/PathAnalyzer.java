@@ -61,6 +61,13 @@ public class PathAnalyzer extends TreeStatistics {
 	}
 
 	@Override
+	public Number getMetric(final String metric) throws IllegalArgumentException {
+		if ("Path ID".equalsIgnoreCase(metric))
+			return (tree.size() == 1) ? tree.list().get(0).getID() : Double.NaN;
+		return getMetricInternal(TreeStatistics.getNormalizedMeasurement(metric));
+	}
+
+	@Override
 	public List<Path> getPrimaryBranches() {
 		final ArrayList<Path> paths = new ArrayList<>();
 		for (final Path path : tree.list()) {
