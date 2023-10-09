@@ -237,3 +237,11 @@ Snippets and code templates:
 ## Contributing
 
 Want to contribute? Please, please do! We welcome [issues](https://github.com/morphonets/SNT/issues) and [pull requests](https://github.com/morphonets/SNT/pulls) any time. You can also report bugs and propose improvements using the [forum](https://forum.image.sc/tag/snt). Please tag your post using `snt` so that it does not go unnoticed. 
+
+## Thanks To All Contributors
+
+Thanks a lot for spending your time helping SNT!
+
+<a href="https://github.com/morphonets/SNT/graphs/contributors">
+  <img src="https://contributors-img.web.app/image?repo=morphonets/SNT" alt="Contributors"/>
+</a>
