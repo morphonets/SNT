@@ -153,7 +153,7 @@
 		<jheaps.version>0.14</jheaps.version>
 		<jide-oss.version>3.7.12</jide-oss.version>
 		<log4j.version>2.19.0</log4j.version>
-		<log4j-api.version>${log4j.version}</log4j-api.version>
+		<log4j-api.version>2.21.0</log4j-api.version>
 		<log4j-core.version>${log4j.version}</log4j-core.version>
 		<scenery.version>0.8.0</scenery.version>
 		<sciview.version>ba959ae644</sciview.version>
