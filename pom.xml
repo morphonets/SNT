@@ -147,7 +147,7 @@
 		<flatlaf-jide-oss.version>3.2.2</flatlaf-jide-oss.version>
 		<log4j.version>2.20.0</log4j.version>
 		<smile-core.version>3.0.2</smile-core.version>
-		<jide-oss.version>3.7.12</jide-oss.version>
+		<jide-oss.version>3.7.14</jide-oss.version>
 		<annotations.version>13.0</annotations.version>
 		<fastutil-core.version>8.5.12</fastutil-core.version>
 		<jheaps.version>0.14</jheaps.version>
