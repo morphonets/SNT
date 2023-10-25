@@ -3,7 +3,7 @@
 #@ int (label="Number of columns", value=0) columns
 #@ int (label="Number of rows", value=0) rows
 #@ Float (label="Scale factor for reconstructions", value=1.0) scale
-#@ String (label="Color mapping:", choices={"Ice.lut", "mpl-viridis.lut", "glasbey_on_dark.lut"}, value="glasbey_on_dark.lut") lutName
+#@ String (label="Color mapping:", choices={"mpl-viridis.lut", "glasbey_on_dark.lut"}, value="glasbey_on_dark.lut") lutName
 #@ SNTService snt
 
 /**

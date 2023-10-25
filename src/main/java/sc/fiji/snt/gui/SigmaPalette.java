@@ -568,7 +568,8 @@ public class SigmaPalette extends Thread {
 					}
 				}
 				updateOverlayLabels();
-				paletteWindow.repaint(); // call createSubtitle()
+				if (paletteWindow != null)
+					paletteWindow.repaint(); // call createSubtitle()
 				mouseMovedAcceptedSigmaIndex = -1;
 			}
 		}

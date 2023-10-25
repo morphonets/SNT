@@ -143,22 +143,18 @@
 		<sciview.version>906892d</sciview.version>
 		<scenery.version>db26f01</scenery.version>
 		<font-awesome.version>6.4.2</font-awesome.version>
-		<flatlaf.version>3.2.1</flatlaf.version>
-		<flatlaf-jide-oss.version>3.2.2</flatlaf-jide-oss.version>
-		<log4j.version>2.20.0</log4j.version>
-		<smile-core.version>3.0.2</smile-core.version>
+		<flatlaf.version>3.2.5</flatlaf.version>
+		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
+		<log4j.version>2.21.0</log4j.version>
 		<jide-oss.version>3.7.14</jide-oss.version>
-		<annotations.version>13.0</annotations.version>
+		<annotations.version>24.0.1</annotations.version>
 		<fastutil-core.version>8.5.12</fastutil-core.version>
-		<jheaps.version>0.14</jheaps.version>
-		<jide-oss.version>3.7.12</jide-oss.version>
-		<log4j.version>2.19.0</log4j.version>
 		<log4j-api.version>${log4j.version}</log4j-api.version>
 		<log4j-core.version>${log4j.version}</log4j-core.version>
 		<scenery.version>0.8.0</scenery.version>
 		<sciview.version>ba959ae644</sciview.version>
-		<smile.version>3.0.0</smile.version>
-		<smile-base.version>3.0.2</smile-base.version>
+		<smile.version>3.0.2</smile.version>
+		<smile-base.version>${smile.version}</smile-base.version>
 		<smile-core.version>${smile.version}</smile-core.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
@@ -453,7 +449,6 @@
 		<dependency>
 			<groupId>org.jheaps</groupId>
 			<artifactId>jheaps</artifactId>
-			<version>${jheaps.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.iview</groupId>

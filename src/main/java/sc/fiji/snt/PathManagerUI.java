@@ -2114,9 +2114,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		input.put("calledFromPathManagerUI", true);
 		if (metric != null) input.put("measurementChoice", metric);
 		if (polar != null) input.put("polar", polar);
-		if (trees.size() == 1) {
-	 		input.put("onlyConnectivitySafeMetrics", false);
-		}
 		cmdService.run(DistributionCPCmd.class, true, input);
 	}
 
