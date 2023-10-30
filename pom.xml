@@ -150,7 +150,7 @@
 		<annotations.version>24.0.1</annotations.version>
 		<fastutil-core.version>8.5.12</fastutil-core.version>
 		<log4j-api.version>${log4j.version}</log4j-api.version>
-		<log4j-core.version>${log4j.version}</log4j-core.version>
+		<log4j-core.version>2.21.1</log4j-core.version>
 		<scenery.version>0.8.0</scenery.version>
 		<sciview.version>ba959ae644</sciview.version>
 		<smile.version>3.0.2</smile.version>
