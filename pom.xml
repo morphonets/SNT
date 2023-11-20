@@ -147,7 +147,7 @@
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
 		<log4j.version>2.21.0</log4j.version>
 		<jide-oss.version>3.7.14</jide-oss.version>
-		<annotations.version>24.0.1</annotations.version>
+		<annotations.version>24.1.0</annotations.version>
 		<fastutil-core.version>8.5.12</fastutil-core.version>
 		<log4j-api.version>${log4j.version}</log4j-api.version>
 		<log4j-core.version>${log4j.version}</log4j-core.version>
