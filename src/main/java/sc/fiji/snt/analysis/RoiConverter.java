@@ -205,11 +205,9 @@ public class RoiConverter extends TreeAnalyzer {
 	 * @see TreeAnalyzer#getTips()
 	 * @param overlay the target overlay to hold converted point
 	 */
-	@SuppressWarnings("deprecation")
 	public void convertTips(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
-		convertPoints(getTips(), overlay, Path.getSWCcolor(Path.SWC_END_POINT),
-			Path.SWC_END_POINT_LABEL);
+		convertPoints(getTips(), overlay, Color.PINK, "end point");
 	}
 
 	/**
@@ -279,11 +277,9 @@ public class RoiConverter extends TreeAnalyzer {
 	 * @see TreeAnalyzer#getBranchPoints()
 	 * @param overlay the target overlay to hold converted point
 	 */
-	@SuppressWarnings("deprecation")
 	public void convertBranchPoints(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
-		convertPoints(getBranchPoints(), overlay, Path.getSWCcolor(
-			Path.SWC_FORK_POINT), Path.SWC_FORK_POINT_LABEL);
+		convertPoints(getBranchPoints(), overlay, Color.ORANGE, "fork point");
 	}
 
 	/**

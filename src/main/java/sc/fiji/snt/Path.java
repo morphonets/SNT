@@ -68,32 +68,33 @@ import java.util.stream.DoubleStream;
 public class Path implements Comparable<Path> {
 
 	// http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
-	/** Flag specifying the SWC type 'undefined'. @see Path#SWC_UNDEFINED_LABEL */
+	
+	/** SWC type flag specifying {@value #SWC_UNDEFINED_LABEL} */
 	public static final int SWC_UNDEFINED = 0;
-	/** Flag specifying the SWC type 'soma'. @see Path#SWC_SOMA_LABEL */
+	/** SWC type flag specifying {@value #SWC_SOMA_LABEL} */
 	public static final int SWC_SOMA = 1;
-	/** Flag specifying the SWC type 'axon'. @see Path#SWC_AXON_LABEL */
+	/** SWC type flag specifying {@value #SWC_AXON_LABEL} */
 	public static final int SWC_AXON = 2;
-	/**
-	 * Flag specifying the SWC type '(basal) dendrite'. @see
-	 * Path#SWC_DENDRITE_LABEL
-	 */
+	/** SWC type flag specifying {@value #SWC_DENDRITE_LABEL} */
 	public static final int SWC_DENDRITE = 3;
-	/**
-	 * Flag specifying the SWC type 'apical dendrite'. @see
-	 * Path#SWC_APICAL_DENDRITE_LABEL
-	 */
+	/** SWC type flag specifying {@value #SWC_APICAL_DENDRITE_LABEL} */
 	public static final int SWC_APICAL_DENDRITE = 4;
-	/**
-	 * Flag specifying the SWC type 'fork point' @see Path#SWC_FORK_POINT_LABEL
-	 */
+	/** SWC type flag specifying {@value #SWC_CUSTOM_LABEL} */
+	public static final int SWC_CUSTOM = 5;
+	/** SWC type flag specifying {@value #SWC_UNSPECIFIED_LABEL} */
+	public static final int SWC_UNSPECIFIED = 6;
+	/** SWC type flag specifying {@value #SWC_GLIA_LABEL} */
+	public static final int SWC_GLIA_PROCESS = 7;
+	/** SWC type flag specifying {@value #SWC_CUSTOM2_LABEL} */
+	public static final int SWC_CUSTOM2 = 8;
+
+	/** Deprecated. No longer part of the SWC specification */
 	@Deprecated
-	public static final int SWC_FORK_POINT = 5; // redundant
+	public static final int SWC_FORK_POINT = -5;
+	/** Deprecated. No longer part of the SWC specification */
 	@Deprecated
-	/** Flag specifying the SWC type 'end point'. @see Path#SWC_END_POINT_LABEL */
-	public static final int SWC_END_POINT = 6; // redundant
-	/** Flag specifying the SWC type 'custom'. @see Path#SWC_CUSTOM_LABEL */
-	public static final int SWC_CUSTOM = 7;
+	public static final int SWC_END_POINT = -6;
+	
 	/** String representation of {@link Path#SWC_UNDEFINED} */
 	public static final String SWC_UNDEFINED_LABEL = "undefined";
 	/** String representation of {@link Path#SWC_SOMA} */
@@ -104,12 +105,14 @@ public class Path implements Comparable<Path> {
 	public static final String SWC_DENDRITE_LABEL = "(basal) dendrite";
 	/** String representation of {@link Path#SWC_APICAL_DENDRITE} */
 	public static final String SWC_APICAL_DENDRITE_LABEL = "apical dendrite";
-	/** String representation of {@link Path#SWC_FORK_POINT} */
-	public static final String SWC_FORK_POINT_LABEL = "fork point";
-	/** String representation of {@link Path#SWC_END_POINT} */
-	public static final String SWC_END_POINT_LABEL = "end point";
 	/** String representation of {@link Path#SWC_CUSTOM} */
 	public static final String SWC_CUSTOM_LABEL = "custom";
+	/** String representation of {@link Path#SWC_UNSPECIFIED} */
+	public static final String SWC_UNSPECIFIED_LABEL = "unspecified neurite";
+	/** String representation of {@link Path#SWC_GLIA_PROCESS} */
+	public static final String SWC_GLIA_PROCESS_LABEL = "glia process";
+	/** String representation of {@link Path#SWC_CUSTOM2} */
+	public static final String SWC_CUSTOM2_LABEL = "custom (2)";
 
 	// FIXME: this should be based on distance between points in the path, not a static number:
 	protected static final int noMoreThanOneEvery = 2;
@@ -1637,18 +1640,20 @@ public class Path implements Comparable<Path> {
 		switch (swcType) {
 			case Path.SWC_SOMA:
 				return Color.BLUE;
+			case Path.SWC_AXON:
+				return Color.RED;
 			case Path.SWC_DENDRITE:
 				return Color.GREEN;
 			case Path.SWC_APICAL_DENDRITE:
 				return Color.CYAN;
-			case Path.SWC_AXON:
-				return Color.RED;
-			case Path.SWC_FORK_POINT:
-				return Color.ORANGE;
-			case Path.SWC_END_POINT:
-				return Color.PINK;
 			case Path.SWC_CUSTOM:
 				return Color.YELLOW;
+			case Path.SWC_UNSPECIFIED:
+				return Color.ORANGE;
+			case Path.SWC_GLIA_PROCESS:
+				return Color.PINK;
+			case Path.SWC_CUSTOM2:
+				return Color.YELLOW.darker();
 			case Path.SWC_UNDEFINED:
 			default:
 				return SNT.DEFAULT_DESELECTED_COLOR;
@@ -1852,14 +1857,17 @@ public class Path implements Comparable<Path> {
 			case SWC_APICAL_DENDRITE:
 				typeName = SWC_APICAL_DENDRITE_LABEL;
 				break;
-			case SWC_FORK_POINT:
-				typeName = SWC_FORK_POINT_LABEL;
-				break;
-			case SWC_END_POINT:
-				typeName = SWC_END_POINT_LABEL;
-				break;
 			case SWC_CUSTOM:
 				typeName = SWC_CUSTOM_LABEL;
+				break;
+			case SWC_UNSPECIFIED:
+				typeName = SWC_UNSPECIFIED_LABEL;
+				break;
+			case SWC_GLIA_PROCESS:
+				typeName = SWC_GLIA_PROCESS_LABEL;
+				break;
+			case SWC_CUSTOM2:
+				typeName = SWC_CUSTOM2_LABEL;
 				break;
 			case SWC_UNDEFINED:
 			default:

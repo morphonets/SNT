@@ -53,9 +53,10 @@ import sc.fiji.snt.gui.GuiUtils;
 	initializer = "init")
 public class SWCTypeOptionsCmd extends ContextCommand {
 
-	private static final String HEADER = "<html><body><div style='width:500;'>";
 	private static final String MAP_KEY = "colors";
 	private static final String ASSIGN_KEY = "assign";
+	private static String HEADER = "<HTML><body><div style='width:"
+			+ GuiUtils.renderedWidth("When color pairing is enable, assigning a") + ";'>";
 
 	@Parameter
 	private PrefService prefService;
@@ -68,33 +69,40 @@ public class SWCTypeOptionsCmd extends ContextCommand {
 	@Parameter(required = false, label = "   Enable color pairing")
 	private boolean enableColors;
 
-	@Parameter(required = true, persist = false, label = Path.SWC_DENDRITE_LABEL)
-	private ColorRGB basalDendriteColor;
-
-	@Parameter(required = true, persist = false,
-		label = Path.SWC_APICAL_DENDRITE_LABEL)
-	private ColorRGB apicalDendriteColor;
-
-	@Parameter(required = true, persist = false, label = Path.SWC_AXON_LABEL)
-	private ColorRGB axonColor;
-
-	@Parameter(required = true, persist = false, label = Path.SWC_CUSTOM_LABEL)
-	private ColorRGB customColor;
-
-	@Parameter(required = true, label = Path.SWC_SOMA_LABEL)
+	@Parameter(persist = false, label = Path.SWC_SOMA_LABEL)
 	private ColorRGB somaColor;
 
-	@Parameter(required = true, persist = false, label = Path.SWC_UNDEFINED_LABEL)
+	@Parameter(persist = false, label = Path.SWC_AXON_LABEL)
+	private ColorRGB axonColor;
+
+	@Parameter(persist = false, label = Path.SWC_DENDRITE_LABEL)
+	private ColorRGB basalDendriteColor;
+
+	@Parameter(persist = false, label = Path.SWC_APICAL_DENDRITE_LABEL)
+	private ColorRGB apicalDendriteColor;
+
+	@Parameter(persist = false, label = Path.SWC_UNDEFINED_LABEL)
 	private ColorRGB undefinedColor;
 
-	@Parameter(required = false, persist = false, label = "Reset Defaults",
-		callback = "reset")
+	@Parameter(persist = false, label = Path.SWC_UNSPECIFIED_LABEL)
+	private ColorRGB unspecifiedColor;
+
+	@Parameter(persist = false, label = Path.SWC_GLIA_PROCESS_LABEL)
+	private ColorRGB gliaColor;
+
+	@Parameter(persist = false, label = Path.SWC_CUSTOM_LABEL)
+	private ColorRGB customColor;
+
+	@Parameter(persist = false, label = Path.SWC_CUSTOM2_LABEL)
+	private ColorRGB custom2Color;
+
+	@Parameter(required = false, persist = false, label = "Reset Defaults", callback = "reset")
 	private Button reset;
 
 	@Parameter(visibility = ItemVisibility.MESSAGE)
 	private final String msg = HEADER + "When <i>color pairing</i> is enabled, " +
 		"assigning a <i>SWC-type</i> tag automaticaly colors the path " +
-		"with the respective listed color. Note that it is also possible " +
+		"with its associated color. Note that it is also possible " +
 		"to assign ad-hoc colors using the <i>Tag>Color></i> menu.";
 
 	/*
@@ -104,54 +112,47 @@ public class SWCTypeOptionsCmd extends ContextCommand {
 	 */
 	@Override
 	public void run() {
-		final LinkedHashMap<String, String> map =
-			new LinkedHashMap<>();
-		map.put(String.valueOf(Path.SWC_DENDRITE), basalDendriteColor
-			.toHTMLColor());
-		map.put(String.valueOf(Path.SWC_APICAL_DENDRITE), apicalDendriteColor
-			.toHTMLColor());
-		map.put(String.valueOf(Path.SWC_AXON), axonColor.toHTMLColor());
-		map.put(String.valueOf(Path.SWC_CUSTOM), customColor.toHTMLColor());
+		final LinkedHashMap<String, String> map = new LinkedHashMap<>();
 		map.put(String.valueOf(Path.SWC_SOMA), somaColor.toHTMLColor());
+		map.put(String.valueOf(Path.SWC_AXON), axonColor.toHTMLColor());
+		map.put(String.valueOf(Path.SWC_DENDRITE), basalDendriteColor.toHTMLColor());
+		map.put(String.valueOf(Path.SWC_APICAL_DENDRITE), apicalDendriteColor.toHTMLColor());
 		map.put(String.valueOf(Path.SWC_UNDEFINED), undefinedColor.toHTMLColor());
+		map.put(String.valueOf(Path.SWC_UNSPECIFIED), unspecifiedColor.toHTMLColor());
+		map.put(String.valueOf(Path.SWC_GLIA_PROCESS), gliaColor.toHTMLColor());
+		map.put(String.valueOf(Path.SWC_CUSTOM), customColor.toHTMLColor());
+		map.put(String.valueOf(Path.SWC_CUSTOM2), custom2Color.toHTMLColor());
 		prefService.put(SWCTypeOptionsCmd.class, MAP_KEY, map);
 		prefService.put(SWCTypeOptionsCmd.class, ASSIGN_KEY, enableColors);
 	}
 
 	private Map<Integer, ColorRGB> getDefaultMap() {
-		final LinkedHashMap<Integer, ColorRGB> map =
-			new LinkedHashMap<>();
-		map.put(Path.SWC_DENDRITE, getDefaultSWCColorRGB(Path.SWC_DENDRITE));
-		map.put(Path.SWC_APICAL_DENDRITE, getDefaultSWCColorRGB(
-			Path.SWC_APICAL_DENDRITE));
-		map.put(Path.SWC_AXON, getDefaultSWCColorRGB(Path.SWC_AXON));
-		map.put(Path.SWC_CUSTOM, getDefaultSWCColorRGB(Path.SWC_CUSTOM));
+		final LinkedHashMap<Integer, ColorRGB> map = new LinkedHashMap<>();
 		map.put(Path.SWC_SOMA, getDefaultSWCColorRGB(Path.SWC_SOMA));
+		map.put(Path.SWC_AXON, getDefaultSWCColorRGB(Path.SWC_AXON));
+		map.put(Path.SWC_DENDRITE, getDefaultSWCColorRGB(Path.SWC_DENDRITE));
+		map.put(Path.SWC_APICAL_DENDRITE, getDefaultSWCColorRGB(Path.SWC_APICAL_DENDRITE));
 		map.put(Path.SWC_UNDEFINED, getDefaultSWCColorRGB(Path.SWC_UNDEFINED));
+		map.put(Path.SWC_UNSPECIFIED, getDefaultSWCColorRGB(Path.SWC_UNSPECIFIED));
+		map.put(Path.SWC_GLIA_PROCESS, getDefaultSWCColorRGB(Path.SWC_GLIA_PROCESS));
+		map.put(Path.SWC_CUSTOM, getDefaultSWCColorRGB(Path.SWC_CUSTOM));
+		map.put(Path.SWC_CUSTOM2, getDefaultSWCColorRGB(Path.SWC_CUSTOM2));
 		return map;
 	}
 
 	private Map<Integer, ColorRGB> getSavedMap() {
-		final Map<String, String> smap = prefService.getMap(SWCTypeOptionsCmd.class,
-			MAP_KEY);
-		if (smap == null || smap.isEmpty()) {
+		final Map<String, String> smap = prefService.getMap(SWCTypeOptionsCmd.class, MAP_KEY);
+		if (smap == null || smap.isEmpty() || smap.size() < 9) { // only 6 colors before v4.3
 			return getDefaultMap();
 		}
-		final LinkedHashMap<Integer, ColorRGB> map =
-			new LinkedHashMap<>();
-		for (final Map.Entry<String, String> entry : smap.entrySet()) {
-			final String key = entry.getKey();
-			final String value = entry.getValue();
-			map.put(Integer.valueOf(key), ColorRGB.fromHTMLColor(value));
-		}
-		// while at it, read other preferences
-		enableColors = prefService.getBoolean(SWCTypeOptionsCmd.class, ASSIGN_KEY,
-			true);
+		final LinkedHashMap<Integer, ColorRGB> map = new LinkedHashMap<>();
+		smap.forEach((k, v) -> map.put(Integer.valueOf(k), ColorRGB.fromHTMLColor(v)));
 		return map;
 	}
 
 	@SuppressWarnings("unused")
 	private void init() {
+		enableColors = isColorPairingEnabled();
 		assignColors(getSavedMap());
 	}
 
@@ -163,12 +164,15 @@ public class SWCTypeOptionsCmd extends ContextCommand {
 	}
 
 	private void assignColors(final Map<Integer, ColorRGB> map) {
-		apicalDendriteColor = map.get(Path.SWC_APICAL_DENDRITE);
+		somaColor = map.get(Path.SWC_SOMA);
 		axonColor = map.get(Path.SWC_AXON);
 		basalDendriteColor = map.get(Path.SWC_DENDRITE);
-		customColor = map.get(Path.SWC_CUSTOM);
-		somaColor = map.get(Path.SWC_SOMA);
+		apicalDendriteColor = map.get(Path.SWC_APICAL_DENDRITE);
 		undefinedColor = map.get(Path.SWC_UNDEFINED);
+		unspecifiedColor = map.get(Path.SWC_UNSPECIFIED);
+		gliaColor = map.get(Path.SWC_GLIA_PROCESS);
+		customColor = map.get(Path.SWC_CUSTOM);
+		custom2Color = map.get(Path.SWC_CUSTOM2);
 	}
 
 	private static class SWCTypeComparator implements Comparator<Integer> {
@@ -183,18 +187,13 @@ public class SWCTypeOptionsCmd extends ContextCommand {
 
 	public TreeMap<Integer, Color> getColorMap() {
 		final Map<Integer, ColorRGB> maprgb = getSavedMap();
-		final TreeMap<Integer, Color> map = new TreeMap<>(
-				new SWCTypeComparator()); // new SWCTypeComparator());
-		for (final Map.Entry<Integer, ColorRGB> entry : maprgb.entrySet()) {
-			final int key = entry.getKey();
-			final ColorRGB color = entry.getValue();
-			map.put(key, getColorFromColorRGB(color));
-		}
+		final TreeMap<Integer, Color> map = new TreeMap<>(new SWCTypeComparator());
+		maprgb.forEach((k,v) -> map.put(k, getColorFromColorRGB(v)));
 		return map;
 	}
 
 	public boolean isColorPairingEnabled() {
-		return enableColors;
+		return prefService.getBoolean(SWCTypeOptionsCmd.class, ASSIGN_KEY, true);
 	}
 
 	private Color getColorFromColorRGB(final ColorRGB c) {

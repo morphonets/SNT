@@ -1492,6 +1492,9 @@ public class Tree implements TreeProperties {
 		map.put(Path.SWC_DENDRITE, Path.SWC_DENDRITE_LABEL);
 		map.put(Path.SWC_APICAL_DENDRITE, Path.SWC_APICAL_DENDRITE_LABEL);
 		map.put(Path.SWC_CUSTOM, Path.SWC_CUSTOM_LABEL);
+		map.put(Path.SWC_UNSPECIFIED, Path.SWC_UNSPECIFIED_LABEL);
+		map.put(Path.SWC_GLIA_PROCESS, Path.SWC_GLIA_PROCESS_LABEL);
+		map.put(Path.SWC_CUSTOM2, Path.SWC_CUSTOM2_LABEL);
 		return map;
 	}
 

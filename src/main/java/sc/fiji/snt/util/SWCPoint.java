@@ -153,23 +153,22 @@ public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 	/**
 	 * Converts a collection of SWC points into a Reader.
 	 *
-	 * @param points the collection of SWC points to be converted into a space/
-	 *          tab separated String. Points should be sorted by sample number to
-	 *          ensure valid connectivity.
+	 * @param points the collection of SWC points to be converted into a space
+	 *               separated String. Points should be sorted by sample number to
+	 *               ensure valid connectivity.
 	 * @return the Reader
 	 */
-	public static StringReader collectionAsReader(
-		final Collection<SWCPoint> points)
-	{
+	public static StringReader collectionAsReader(final Collection<SWCPoint> points) {
+		final String SEP = " ";
 		final StringBuilder sb = new StringBuilder();
 		for (final SWCPoint p : points) {
-			sb.append(p.id).append("\t") //
-				.append(p.type).append("\t") // see https://github.com/morphonets/SNT/issues/147
-				.append(String.format(Locale.US, "%.6f", p.x)).append(" ") //
-				.append(String.format(Locale.US, "%.6f", p.y)).append(" ") //
-				.append(String.format(Locale.US, "%.6f", p.z)).append(" ") //
-				.append(String.format(Locale.US, "%.6f", p.radius)).append("\t") //
-				.append(p.parent).append(System.lineSeparator()); 
+			sb.append(p.id).append(SEP) //
+					.append(p.type).append(SEP) // see https://github.com/morphonets/SNT/issues/147
+					.append(String.format(Locale.US, "%.6f", p.x)).append(SEP) //
+					.append(String.format(Locale.US, "%.6f", p.y)).append(SEP) //
+					.append(String.format(Locale.US, "%.6f", p.z)).append(SEP) //
+					.append(String.format(Locale.US, "%.6f", p.radius)).append(SEP) //
+					.append(p.parent).append(System.lineSeparator());
 		}
 		return new StringReader(sb.toString());
 	}
