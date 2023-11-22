@@ -140,18 +140,14 @@
 		<enforcer.skip>true</enforcer.skip>
 
 		<!-- Dependency versions -->
-		<sciview.version>906892d</sciview.version>
-		<scenery.version>db26f01</scenery.version>
 		<font-awesome.version>6.4.2</font-awesome.version>
 		<flatlaf.version>3.2.5</flatlaf.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
-		<log4j.version>2.21.0</log4j.version>
+		<log4j.version>2.21.1</log4j.version>
 		<jide-oss.version>3.7.14</jide-oss.version>
-		<annotations.version>24.0.1</annotations.version>
+		<annotations.version>24.1.0</annotations.version>
 		<fastutil-core.version>8.5.12</fastutil-core.version>
-		<log4j-api.version>${log4j.version}</log4j-api.version>
-		<log4j-core.version>${log4j.version}</log4j-core.version>
-		<scenery.version>0.8.0</scenery.version>
+		<scenery.version>0.9.0</scenery.version>
 		<sciview.version>ba959ae644</sciview.version>
 		<smile.version>3.0.2</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
@@ -410,7 +406,6 @@
 		<dependency>
 			<groupId>com.squareup.okhttp3</groupId>
 			<artifactId>okhttp</artifactId>
-			<version>${okhttp.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>it.unimi.dsi</groupId>
@@ -490,13 +485,11 @@
 		<dependency>
 			<groupId>org.apache.logging.log4j</groupId>
 			<artifactId>log4j-api</artifactId>
-			<version>${log4j-api.version}</version>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.logging.log4j</groupId>
 			<artifactId>log4j-core</artifactId>
-			<version>${log4j-core.version}</version>
 			<scope>runtime</scope>
 			<optional>true</optional>
 		</dependency>
