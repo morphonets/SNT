@@ -3140,6 +3140,9 @@ public class SNTUI extends JDialog {
 	 */
 	public void showStatus(final String msg, final boolean temporary) {
 		SwingUtilities.invokeLater(() -> {
+			if (plugin == null)
+				return;
+
 			final boolean validMsg = !(msg == null || msg.isEmpty());
 			if (validMsg && !temporary) {
 				statusBarText.setText(msg);
