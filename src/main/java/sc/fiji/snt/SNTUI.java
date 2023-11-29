@@ -139,9 +139,9 @@ public class SNTUI extends JDialog {
 	private ActiveWorker activeWorker;
 	private volatile int currentState = -1;
 
-	private final SNT plugin;
-	private final PathAndFillManager pathAndFillManager;
-	protected final GuiUtils guiUtils;
+	private SNT plugin;
+	private PathAndFillManager pathAndFillManager;
+	protected GuiUtils guiUtils;
 	private final PathManagerUI pmUI;
 	private final FillManagerUI fmUI;
 
@@ -758,6 +758,19 @@ public class SNTUI extends JDialog {
 		// NB: If visible Reconstruction Plotter will remain open
 		plugin.closeAndResetAllPanes();
 		ImagePlus.removeImageListener(listener);
+		plugin.searchArtists.clear();
+		plugin.searchArtists = null;
+		plugin.dataset = null;
+		plugin.ctSlice3d = null;
+		plugin.xy_tracer_canvas = null;
+		plugin.xz_tracer_canvas = null;
+		plugin.zy_tracer_canvas = null;
+		plugin.fillerSet.clear();
+		plugin.fillerSet = null;
+		plugin.secondaryData = null;
+		plugin = null;
+		pathAndFillManager = null;
+		guiUtils = null;
 		SNTUtils.setPlugin(null);
 		GuiUtils.restoreLookAndFeel();
 	}
