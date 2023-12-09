@@ -469,6 +469,14 @@ public class SNTUI extends JDialog {
 		return currentState;
 	}
 
+	/**
+	 * 
+	 * @return the preferences associated with this instance
+	 */
+	public SNTPrefs getPrefs() {
+		return plugin.getPrefs();
+	}
+
 	private boolean userInteractionConstrained() {
 		switch (getState()) {
 		case PARTIAL_PATH:
@@ -2207,18 +2215,19 @@ public class SNTUI extends JDialog {
 		return guiUtils.getReconstructionFile(suggestedFile, extension);
 	}
 
-	protected File saveFile(final String promptMsg, final String suggestedFile, final String extensionWithoutDot) {
+	private File getProposedSavingFile(final String extensionWithoutDot) {
 		String filename;
-		if (suggestedFile == null) {
-			if (plugin.accessToValidImageData())
-				filename = SNTUtils.stripExtension(plugin.getImagePlus().getShortTitle());
-			else
-				filename = "SNT_Data";
-			filename += "." + extensionWithoutDot;
-		} else {
-			filename = suggestedFile;
-		}
-		final File fFile = new File(plugin.getPrefs().getRecentDir(), filename);
+		if (plugin.accessToValidImageData())
+			filename = SNTUtils.stripExtension(plugin.getImagePlus().getShortTitle());
+		else
+			filename = "SNT_Data";
+		filename += "." + extensionWithoutDot;
+		return new File(plugin.getPrefs().getRecentDir(), filename);
+	}
+
+	protected File saveFile(final String promptMsg, final String suggestedFileName, final String extensionWithoutDot) {
+		final File fFile = (suggestedFileName == null) ? getProposedSavingFile(extensionWithoutDot)
+				: new File(plugin.getPrefs().getRecentDir(), suggestedFileName);
 		return guiUtils.getSaveFile(promptMsg, fFile, extensionWithoutDot);
 	}
 
@@ -3870,7 +3879,6 @@ public class SNTUI extends JDialog {
 
 			} else if (source == exportAllSWCMenuItem && !noPathsError()) {
 
-				if (abortOnPutativeDataLoss()) return;
 				if (plugin.accessToValidImageData() && pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
 						"These tracings were obtained from a spatially uncalibrated "
 								+ "image but the SWC specification assumes all coordinates to be " + "in "
@@ -3878,10 +3886,12 @@ public class SNTUI extends JDialog {
 						"Warning"))
 					return;
 
-				final File saveFile = saveFile("Export All Paths as SWC...", null, "swc");
-				if (saveFile == null)
-					return; // user pressed cancel
-				saveAllPathsToSwc(saveFile.getAbsolutePath());
+				final SWCExportDialog dialog = new SWCExportDialog(SNTUI.this, plugin.getImagePlus(), getProposedSavingFile("swc"));
+				if (dialog.succeeded()) {
+					saveAllPathsToSwc(dialog.getFile().getAbsolutePath(), dialog.getFileHeader());
+				}				
+				return;
+			
 			} else if (source == exportCSVMenuItem && !noPathsError()) {
 
 				final File saveFile = saveFile("Export All Paths as CSV...", "CSV_Properties.csv", "csv");
@@ -3955,25 +3965,6 @@ public class SNTUI extends JDialog {
 				setPathListVisible(!pmUI.isVisible(), true);
 			}
 		}
-
-		private boolean abortOnPutativeDataLoss() {
-			final boolean nag = plugin.getPrefs().getTemp("dataloss-nag", true);
-			if (nag) {
-				final Boolean prompt = guiUtils.getPersistentWarning(//
-						"The following data can only be saved in a <i>TRACES</i> file and will not be stored under the SWC format:"
-						+ "<ul>" //
-						+ "  <li>Image details</li>"//
-						+ "  <li>Fits and Fills</li>"//
-						+ "  <li>Path metadata (tags, colors, traced channel and frame)</li>"//
-						+ "  <li>Spine/varicosity counts</li>"//
-						+ "</ul>", "Warning: Possible Data Loss");
-				if (prompt == null)
-					return true; // user dimissed prompt
-				plugin.getPrefs().setTemp("dataloss-nag", !prompt.booleanValue());
-			}
-			return false;
-		}
-
 	}
 
 	/** Dynamic commands don't work well with CmdRunner. Use this class instead to run them */
@@ -4105,7 +4096,7 @@ public class SNTUI extends JDialog {
 			case ImportAction.SWC_DIR:
 				return "Directory of SWCs...";
 			case ImportAction.SWC:
-				return "e(SWC)...";
+				return "SWC...";
 			case ImportAction.IMAGE:
 				return "From File...";
 			case ImportAction.ANY_RECONSTRUCTION:
@@ -4129,7 +4120,8 @@ public class SNTUI extends JDialog {
 				return ImportAction.AUTO_TRACE_IMAGE;
 			case "Directory of SWCs...":
 				return ImportAction.SWC_DIR;
-			case "e(SWC)...":
+			case "e(SWC)...": // backwards compatibility
+			case "SWC...":
 				return ImportAction.SWC;
 			case "From File...":
 				return ImportAction.IMAGE;
@@ -4344,6 +4336,10 @@ public class SNTUI extends JDialog {
 	}
 
 	protected boolean saveAllPathsToSwc(final String filePath) {
+		return saveAllPathsToSwc(filePath, null);
+	}
+	
+	protected boolean saveAllPathsToSwc(final String filePath, final String commonFileHeader) {
 		final Path[] primaryPaths = pathAndFillManager.getPathsStructured();
 		final int n = primaryPaths.length;
 		final String prefix = SNTUtils.stripExtension(filePath);
@@ -4360,7 +4356,7 @@ public class SNTUI extends JDialog {
 				return false;
 		}
 		SNTUtils.log("Exporting paths... " + prefix);
-		return pathAndFillManager.exportAllPathsAsSWC(primaryPaths, filePath);
+		return pathAndFillManager.exportAllPathsAsSWC(primaryPaths, filePath, commonFileHeader);
 	}
 
 	private class ImportAction {
@@ -4448,7 +4444,7 @@ public class SNTUI extends JDialog {
 				boolean succeed = false;
 				changeState(LOADING);
 				if (type == SWC) {
-					succeed = plugin.loadSWCFile(file);
+					succeed = loadSWCFile(file);
 				} else if (type == TRACES){
 					succeed = plugin.loadTracesFile(file);
 					setAutosaveFile(file);
@@ -4474,7 +4470,23 @@ public class SNTUI extends JDialog {
 			return !plugin.isUnsavedChanges() || (plugin.isUnsavedChanges() && guiUtils.getConfirmation(
 					"There are unsaved paths. Do you really want to load new data?", "Proceed with Import?"));
 		}
+	}
 
+	private boolean loadSWCFile(final File file) {
+		final SWCImportDialog importDialog = new SWCImportDialog(this, file);
+		boolean success = false;
+		if (importDialog.succeeded()) {
+			final File f = importDialog.getFile();
+			final double[] offsets = importDialog.getOffsets();
+			final double[] scales = importDialog.getScalingFactors();
+			success = pathAndFillManager.importSWC(f.getAbsolutePath(), importDialog.isAssumePixelCoordinates(),
+					offsets[0], offsets[1], offsets[2], scales[0], scales[1], scales[2], scales[3],
+					importDialog.isReplacePaths());
+			if (!success)
+				guiUtils.error(f.getAbsolutePath() + " does not seem to contain valid SWC data.");
+		}
+
+		return false;
 	}
 
 	private void flushSecondaryDataPrompt() {

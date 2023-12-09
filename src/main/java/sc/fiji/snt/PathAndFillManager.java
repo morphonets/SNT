@@ -65,6 +65,7 @@ import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.*;
@@ -450,29 +451,29 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @return true, if successful
 	 */
 	public synchronized boolean exportAllPathsAsSWC(final String baseFilename) {
-		return exportAllPathsAsSWC(getPathsStructured(), baseFilename);
+		return exportAllPathsAsSWC(getPathsStructured(), baseFilename, null);
 	}
 
 	public synchronized boolean exportTree(final int treeIndex, final File file) {
-		return exportConnectedStructureAsSWC(getPathsStructured()[treeIndex], file);
+		return exportConnectedStructureAsSWC(getPathsStructured()[treeIndex], file, null);
 	}
 
 	protected synchronized boolean savetoFileOrFileSeries(final File file) {
 		final Path[] pathsStructured = getPathsStructured();
-		return (pathsStructured.length == 1) ? exportTree(0, file) : exportAllPathsAsSWC(pathsStructured, file.getAbsolutePath());
+		return (pathsStructured.length == 1) ? exportTree(0, file) : exportAllPathsAsSWC(pathsStructured, file.getAbsolutePath(), null);
 	}
 
-	protected synchronized boolean exportAllPathsAsSWC(final Path[] primaryPaths, final String baseFilename) {
+	protected synchronized boolean exportAllPathsAsSWC(final Path[] primaryPaths, final String baseFilename, final String commonFileHeader) {
 		final String prefix = SNTUtils.stripExtension(baseFilename);
 		int i = 0;
 		for (final Path primaryPath : primaryPaths) {
 			final File swcFile = getSWCFileForIndex(prefix, i);
-			if (exportConnectedStructureAsSWC(primaryPath, swcFile)) ++i;
+			if (exportConnectedStructureAsSWC(primaryPath, swcFile, commonFileHeader)) ++i;
 		}
 		return unsavedPaths = i > 0;
 	}
 
-	protected synchronized boolean exportConnectedStructureAsSWC(final Path primaryPath, final File swcFile) {
+	protected synchronized boolean exportConnectedStructureAsSWC(final Path primaryPath, final File swcFile, final String commonFileHeader) {
 		{
 			final HashSet<Path> connectedPaths = new HashSet<>();
 			final LinkedList<Path> nextPathsToConsider = new LinkedList<>();
@@ -501,11 +502,12 @@ public class PathAndFillManager extends DefaultHandler implements
 			try {
 				final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
 						Files.newOutputStream(swcFile.toPath()), StandardCharsets.UTF_8));
-				flushSWCPoints(swcPoints, pw);
+				flushSWCPoints(swcPoints, pw, commonFileHeader);
 			}
 			catch (final IOException ioe) {
-				error("Saving to " + swcFile.getAbsolutePath() + " failed.");
-				SNTUtils.error("IOException", ioe);
+				error(ioe.getClass().getSimpleName() + ": Could not save " + swcFile.getAbsolutePath()
+						+ ". See Console for details.");
+				ioe.printStackTrace();
 				return false;
 			}
 		}
@@ -536,21 +538,27 @@ public class PathAndFillManager extends DefaultHandler implements
 		else errorStatic(msg);
 	}
 
-	protected void flushSWCPoints(final List<SWCPoint> swcPoints,
-		final PrintWriter pw)
-	{
-		pw.println("# Exported from SNT v" +
-			SNTUtils.VERSION + " on " + LocalDateTime.of(LocalDate.now(), LocalTime
-				.now()));
-		pw.println("# https://imagej.net/SNT");
-		pw.println("#");
-		if (plugin != null && plugin.accessToValidImageData()) {
-			pw.println("# All positions and radii in " + spacing_units);
-			if (usingNonPhysicalUnits())
-				pw.println("# WARNING: Usage of pixel coordinates does not respect the SWC specification");
-			else
-				pw.println("# Voxel separation (x,y,z): " + x_spacing + ", " + y_spacing + ", " + z_spacing);
+	
+	protected void flushSWCPoints(final List<SWCPoint> swcPoints, final PrintWriter pw) {
+		flushSWCPoints(swcPoints, pw, null);
+	}
+
+	protected void flushSWCPoints(final List<SWCPoint> swcPoints, final PrintWriter pw, final String commonFileHeader) {
+		if (commonFileHeader == null || commonFileHeader.isBlank()) { // legacy header
+			pw.println("# Exported from SNT v" + SNTUtils.VERSION + " on "
+					+ LocalDateTime.of(LocalDate.now(), LocalTime.now().truncatedTo(ChronoUnit.SECONDS)));
+			pw.println("# https://imagej.net/SNT");
 			pw.println("#");
+			if (plugin != null && plugin.accessToValidImageData()) {
+				pw.println("# All positions and radii in " + spacing_units);
+				if (usingNonPhysicalUnits())
+					pw.println("# WARNING: Usage of pixel coordinates does not respect the SWC specification");
+				else
+					pw.println("# Voxel separation (x,y,z): " + x_spacing + ", " + y_spacing + ", " + z_spacing);
+				pw.println("#");
+			}
+		} else {
+			pw.println(commonFileHeader);
 		}
 		SWCPoint.flush(swcPoints, pw);
 		pw.close();
@@ -2561,7 +2569,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	private boolean importSWC(final String descriptor, final BufferedReader br) throws IOException
 	{
-		return importSWC(br, descriptor, false, 0, 0, 0, 1, 1, 1, false);
+		return importSWC(br, descriptor, false, 0, 0, 0, 1, 1, 1, 1, false);
 	}
 
 	/**
@@ -2600,6 +2608,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 *          data onto downsampled images. Default is 1.
 	 * @param zScale the scaling factor for all Z coordinates. Useful to import
 	 *          data onto downsampled images. Default is 1.
+	 * @param rScale the scaling factor for all radii. Default is 1.
 	 * @param replaceAllPaths If true, all existing Paths will be deleted before
 	 *          the import. Default is false.
 	 * @return true, if import was successful
@@ -2608,7 +2617,8 @@ public class PathAndFillManager extends DefaultHandler implements
 		final String descriptor,
 		final boolean assumeCoordinatesInVoxels, final double xOffset,
 		final double yOffset, final double zOffset, final double xScale,
-		final double yScale, final double zScale, final boolean replaceAllPaths, final int... swcTypes)
+		final double yScale, final double zScale, final double rScale, 
+		final boolean replaceAllPaths, final int... swcTypes)
 	{
 
 		if (replaceAllPaths) clear();
@@ -2639,7 +2649,7 @@ public class PathAndFillManager extends DefaultHandler implements
 						final double z = zScale * Double.parseDouble(fields[4]) + zOffset;
 						double radius;
 						try {
-							radius = Double.parseDouble(fields[5]);
+							radius = Double.parseDouble(fields[5]) * rScale;
 						} catch (final NumberFormatException ignored) {
 							radius = 0; // files in which radius is set to NaN
 						}
@@ -2866,7 +2876,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected boolean importSWC(final String filePath,
 		final boolean ignoreCalibration)
 	{
-		return importSWC(filePath, ignoreCalibration, 0, 0, 0, 1, 1, 1, false);
+		return importSWC(filePath, ignoreCalibration, 0, 0, 0, 1, 1, 1, 1, false);
 	}
 
 	/**
@@ -2892,6 +2902,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 *          data onto downsampled images. Default is 1.
 	 * @param zScale the scaling factor for all Z coordinates. Useful to import
 	 *          data onto downsampled images. Default is 1.
+	 * @param rScale the scaling factor for all radii. Default is 1.
 	 * @param replaceAllPaths If true, all existing Paths will be deleted before
 	 *          the import.
 	 * @return true, if import was successful
@@ -2899,14 +2910,14 @@ public class PathAndFillManager extends DefaultHandler implements
 	public boolean importSWC(final String filePath,
 		final boolean assumeCoordinatesInVoxels, final double xOffset,
 		final double yOffset, final double zOffset, final double xScale,
-		final double yScale, final double zScale, final boolean replaceAllPaths,
-		final int... swcTypes)
+		final double yScale, final double zScale, final double rScale,
+		final boolean replaceAllPaths, final int... swcTypes)
 	{
 
 		if (filePath == null) return false;
 		final File f = new File(filePath);
 		if (!SNTUtils.fileAvailable(f)) {
-			error("The traces file '" + filePath + "' is not available.");
+			SNTUtils.error(filePath + " is not available.");
 			return false;
 		}
 
@@ -2920,7 +2931,7 @@ public class PathAndFillManager extends DefaultHandler implements
 					StandardCharsets.UTF_8));
 
 			result = importSWC(br, SNTUtils.stripExtension(f.getName()), assumeCoordinatesInVoxels, xOffset, yOffset,
-				zOffset, xScale, yScale, zScale, replaceAllPaths, swcTypes);
+				zOffset, xScale, yScale, zScale, rScale, replaceAllPaths, swcTypes);
 
 			is.close();
 
@@ -3069,7 +3080,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				result = loadNDF(filePath);
 				break;
 			case TRACES_FILE_TYPE_SWC:
-				result = importSWC(filePath, false, 0, 0, 0, 1, 1, 1, true, swcTypes);
+				result = importSWC(filePath, false, 0, 0, 0, 1, 1, 1, 1, true, swcTypes);
 				break;
 			default:
 				SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);
@@ -3116,7 +3127,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			break;
 		case TRACES_FILE_TYPE_SWC:
 			final BufferedReader br = new BufferedReader(new InputStreamReader(bis, StandardCharsets.UTF_8));
-			result = importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, true);
+			result = importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, 1, true);
 			break;
 		case TRACES_FILE_TYPE_NDF:
 			result = loadNDF(bis);

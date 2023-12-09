@@ -79,7 +79,6 @@ import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.tracing.*;
@@ -1293,33 +1292,17 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
-	/** Assumes UI is available */
 	protected synchronized boolean loadSWCFile(File file) {
-		if (file == null)
-			file = ui.openReconstructionFile("swc");
-		if (file == null)
-			return false; // user pressed cancel;
-		if (!file.exists()) {
-			guiUtils.error(file.getAbsolutePath() + " is no longer available");
-			return false;
+		if (getUI() != null) {
+			// backwards compatibility
+			getUI().runCommand("SWC...", file.getAbsolutePath());
+			return false; // no way to know if file was actually imported via GUI
 		}
 		final int guessedType = pathAndFillManager.guessTracesFileType(file.getAbsolutePath());
-		switch (guessedType) {
-		case PathAndFillManager.TRACES_FILE_TYPE_SWC: {
-			final SWCImportOptionsDialog swcImportDialog = new SWCImportOptionsDialog(getUI(),
-					"SWC import options for " + file.getName());
-			if (swcImportDialog.succeeded()) {
-				pathAndFillManager.importSWC(file.getAbsolutePath(), swcImportDialog.getIgnoreCalibration(),
-						swcImportDialog.getXOffset(), swcImportDialog.getYOffset(), swcImportDialog.getZOffset(),
-						swcImportDialog.getXScale(), swcImportDialog.getYScale(), swcImportDialog.getZScale(),
-						swcImportDialog.getReplaceExistingPaths());
-				return true;
-			}
-			break;
-		}
-		default:
-			guiUtils.error(file.getAbsolutePath() + " does not seem to contain valid SWC data.");
-			break;
+		if (guessedType == PathAndFillManager.TRACES_FILE_TYPE_SWC) {
+			return pathAndFillManager.importSWC(file.getAbsolutePath(), false, 0, 0, 0, 1, 1, 1, 1, false);
+		} else {
+			error(file.getAbsolutePath() + " does not seem to contain valid SWC data.");
 		}
 		return false;
 	}

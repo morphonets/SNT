@@ -725,11 +725,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		try {
 			final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
 					Files.newOutputStream(saveFile.toPath()), StandardCharsets.UTF_8));
-			pathAndFillManager.flushSWCPoints(swcPoints, pw);
+			pathAndFillManager.flushSWCPoints(swcPoints, pw, null);
 			pw.close();
 		}
 		catch (final IOException ioe) {
-			guiUtils.error("Saving to " + saveFile.getAbsolutePath() + " failed");
+			guiUtils.error("Saving to " + saveFile.getAbsolutePath() + " failed:\n" + ioe.getMessage());
 			return;
 		}
 	}
