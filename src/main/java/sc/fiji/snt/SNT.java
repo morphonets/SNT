@@ -228,9 +228,9 @@ public class SNT extends MultiDThreePanes implements
 	 * Just for convenience, keep cast references to the superclass's
 	 * InteractiveTracerCanvas objects:
 	 */
-	private InteractiveTracerCanvas xy_tracer_canvas;
-	private InteractiveTracerCanvas xz_tracer_canvas;
-	private InteractiveTracerCanvas zy_tracer_canvas;
+	InteractiveTracerCanvas xy_tracer_canvas;
+	InteractiveTracerCanvas xz_tracer_canvas;
+	InteractiveTracerCanvas zy_tracer_canvas;
 
 	/* Image properties */
 	protected int width, height, depth;
@@ -244,9 +244,9 @@ public class SNT extends MultiDThreePanes implements
 	private LUT lut;
 
 	/* all tracing and filling-related functions are performed on the Imgs */
-	private Dataset dataset;
+	Dataset dataset;
 	@SuppressWarnings("rawtypes")
-	private RandomAccessibleInterval ctSlice3d;
+	RandomAccessibleInterval ctSlice3d;
 
 	/* statistics for main image*/
 	private final ImageStatistics stats = new ImageStatistics();
@@ -276,7 +276,7 @@ public class SNT extends MultiDThreePanes implements
 	private ManualTracerThread manualSearchThread = null;
 
 	/* Search artists */
-	private final Map<SearchInterface, SearchArtist> searchArtists = new HashMap<>();
+	Map<SearchInterface, SearchArtist> searchArtists = new HashMap<>();
 
 	/*
 	 * Fields for tracing on secondary data: a filtered image. This can work in one
@@ -319,7 +319,7 @@ public class SNT extends MultiDThreePanes implements
 	protected volatile boolean tracingHalted = false; // Tracing functions paused?
 
 	/* Insertion order is used to assign label values in a labeling image */
-	final Set<FillerThread> fillerSet = new LinkedHashSet<>();
+	Set<FillerThread> fillerSet = new LinkedHashSet<>();
 	ExecutorService fillerThreadPool;
 
 	ExecutorService tracerThreadPool;
@@ -807,6 +807,23 @@ public class SNT extends MultiDThreePanes implements
 	{
 		return new InteractiveTracerCanvas(imagePlus, this, plane,
 			pathAndFillManager);
+	}
+
+	protected void dispose() {
+		// dispose data structures
+		cancelSearch(true);
+		flushSecondaryData();
+		ctSlice3d = null;
+		dataset = null;
+		//searchArtists.clear(); fillerSet.clear();
+		searchArtists = null;
+		fillerSet = null;
+		notifyListeners(new SNTEvent(SNTEvent.QUIT));
+		closeAndResetAllPanes();
+		xy_tracer_canvas = null;
+		xz_tracer_canvas = null;
+		zy_tracer_canvas = null;
+		SNTUtils.setPlugin(null);
 	}
 
 	public void cancelSearch(final boolean cancelFillToo) {

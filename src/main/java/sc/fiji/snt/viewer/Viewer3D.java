@@ -299,14 +299,14 @@ public class Viewer3D {
 	private boolean sntInstance;
 
 	/* Maps for plotted objects */
-	private final Map<String, ShapeTree> plottedTrees;
-	private final Map<String, RemountableDrawableVBO> plottedObjs;
-	private final Map<String, Annotation3D> plottedAnnotations;
+	private Map<String, ShapeTree> plottedTrees;
+	private Map<String, RemountableDrawableVBO> plottedObjs;
+	private Map<String, Annotation3D> plottedAnnotations;
 
 	/* Settings */
 	private Color defColor;
 	private float defThickness = DEF_NODE_RADIUS;
-	private final Prefs prefs;
+	private Prefs prefs;
 
 	/* Color Bar */
 	private ColorLegend cBar;
@@ -2889,7 +2889,7 @@ public class Viewer3D {
 		private void exitRequested(final GuiUtils gUtilsDefiningPrompt) {
 			if (gUtilsDefiningPrompt != null && gUtilsDefiningPrompt.getConfirmation("Quit Reconstruction Viewer?",
 					"Quit?", "Yes. Quit Now", "No. Keep Open")) {
-				chart.viewer.dispose();
+				Viewer3D.this.dispose();
 				GuiUtils.restoreLookAndFeel();
 			}
 		}
@@ -2930,14 +2930,34 @@ public class Viewer3D {
 		}
 
 		public void disposeFrame() {
-			chart.stopAnimation();
-			ViewerFrame.this.remove(canvas);
-			ViewerFrame.this.chart.dispose();
-			ViewerFrame.this.chart = null;
-			if (ViewerFrame.this.manager != null) ViewerFrame.this.manager.dispose();
-			if (recorder != null)
+			if (chart != null) {
+				chart.stopAnimation();
+				chart.dispose();
+				chart = null;
+			}
+			remove(canvas);
+			canvas = null;
+			if (manager != null) {
+				manager.dispose();
+				manager = null;
+			}
+			if (recorder != null) {
 				recorder.dispose();
-			ViewerFrame.this.dispose();
+				recorder = null;
+			}
+			if (lightController != null) {
+				lightController.dispose();
+				lightController = null;
+			}
+			if (allenNavigator != null) {
+				allenNavigator.dispose();
+				allenNavigator = null;
+			}
+			dispose();
+			managerPanel = null;
+			dim = null;
+			loc = null;
+			status = null;
 		}
 
 		/* (non-Javadoc)
@@ -5335,9 +5355,9 @@ public class Viewer3D {
 
 	private class AllenCCFNavigator {
 
-		private final SNTSearchableBar searchableBar;
-		private final DefaultTreeModel treeModel;
-		private final NavigatorTree tree;
+		private SNTSearchableBar searchableBar;
+		private DefaultTreeModel treeModel;
+		private NavigatorTree tree;
 		private JDialog dialog;
 		private GuiUtils guiUtils;
 
@@ -5545,6 +5565,14 @@ public class Viewer3D {
 			return dialog;
 		}
 
+		private void dispose() {
+			if (dialog != null) dialog.dispose();
+			searchableBar = null;
+			treeModel = null;
+			tree = null;
+			dialog = null;
+			guiUtils = null;
+		}
 		private JPanel getContentPane() {
 			frame.managerPanel.setFixedHeight(searchableBar);
 			final JScrollPane scrollPane = new JScrollPane(tree);
@@ -5928,7 +5956,39 @@ public class Viewer3D {
 	 * Closes and releases all the resources used by this viewer.
 	 */
 	public void dispose() {
-		frame.disposeFrame();
+		setAnimationEnabled(false);
+		if (frame != null) {
+			frame.disposeFrame();
+			frame = null;
+		}
+		if (chart != null) {
+			chart.dispose();
+			chart = null;
+		}
+		if (view != null) {
+			view.dispose();
+			view = null;
+		}
+		if (recorder != null) {
+			recorder.dispose();
+			recorder = null;
+		}
+		if (cmdFinder != null) {
+			cmdFinder.dispose();
+			cmdFinder = null;
+		}
+		keyController = null;
+		mouseController = null;
+		plottedTrees = null;
+		plottedObjs = null;
+		plottedAnnotations = null;
+		prefs = null;
+		defColor = null;
+		cBar = null;
+		managerList = null;
+		gUtils = null;
+		currentView = null;
+		fileDropWorker = null;
 		SNTUtils.removeViewer(this);
 	}
 
