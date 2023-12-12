@@ -23,9 +23,14 @@
 package sc.fiji.snt.analysis;
 
 import java.awt.Color;
+import java.net.URL;
+import java.util.Map;
 
+import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
+import sc.fiji.snt.SNTUtils;
 
+import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
 
 /**
@@ -35,6 +40,10 @@ import org.scijava.util.ColorRGB;
  */
 public class ColorMapper {
 
+    @Parameter
+	protected LUTService lutService;
+    
+    protected Map<String, URL> luts;
 	protected ColorTable colorTable;
 	protected boolean integerScale;
 	protected double min = Double.MAX_VALUE;
@@ -100,4 +109,11 @@ public class ColorMapper {
 		return colorTable;
 	}
 
+	protected void initLuts() {
+		if (luts == null) {
+			if (lutService == null)
+				SNTUtils.getContext().inject(this);
+			luts = lutService.findLUTs();
+		}
+	}
 }

@@ -21,7 +21,6 @@
  */
 package sc.fiji.snt.analysis.graph;
 
-import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 import org.jgrapht.Graph;
 import org.jgrapht.alg.connectivity.BiconnectivityInspector;
@@ -32,10 +31,8 @@ import org.jgrapht.alg.shortestpath.GraphMeasurer;
 import org.jgrapht.graph.AsSubgraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.scijava.Context;
-import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
 
-import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.viewer.geditor.GraphEditor;
 
@@ -105,9 +102,6 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
             HEAVY_PATH_DECOMPOSITION
     };
 
-    @Parameter
-    private LUTService lutService;
-    private Map<String, URL> luts;
     protected SNTGraph<V, E> graph;
     protected AsSubgraph<V, E> subgraph;
 	private String mappedMeasurement;
@@ -118,9 +112,7 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
         context.inject(this);
     }
 
-    public GraphColorMapper() {
-
-    }
+    public GraphColorMapper() {}
 
     /**
      * Gets the list of supported mapping metrics.
@@ -130,14 +122,6 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
     public static List<String> getMetrics() {
 
         return Arrays.stream(ALL_FLAGS).collect(Collectors.toList());
-    }
-
-    private void initLuts() {
-        if (luts == null) {
-        	if (lutService == null)
-        		SNTUtils.getContext().inject(this);
-        	luts = lutService.findLUTs();
-        }
     }
 
     /**

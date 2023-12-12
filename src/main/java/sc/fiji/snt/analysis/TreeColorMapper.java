@@ -38,13 +38,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import net.imagej.ImageJ;
-import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.text.WordUtils;
 import org.scijava.Context;
-import org.scijava.plugin.Parameter;
 
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
@@ -128,11 +126,7 @@ public class TreeColorMapper extends ColorMapper {
 			TAG_FILENAME,
 			PATH_FRAME};
 
-	@Parameter
-	private LUTService lutService;
-
 	protected ArrayList<Path> paths;
-	private Map<String, URL> luts;
 	private int internalCounter = 1;
 	private final List<Tree> mappedTrees;
 	private boolean nodeMapping;
@@ -164,10 +158,6 @@ public class TreeColorMapper extends ColorMapper {
 	 */
 	public static List<String> getMetrics() {
 		return Arrays.stream(ALL_FLAGS).collect(Collectors.toList());
-	}
-
-	private void initLuts() {
-		if (luts == null) luts = lutService.findLUTs();
 	}
 
 	public ColorTable getColorTable(final String lut) {
