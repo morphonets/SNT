@@ -810,6 +810,23 @@ public class SNT extends MultiDThreePanes implements
 			pathAndFillManager);
 	}
 
+	protected void dispose() {
+		// dispose data structures
+		cancelSearch(true);
+		flushSecondaryData();
+		ctSlice3d = null;
+		dataset = null;
+		//searchArtists.clear(); fillerSet.clear();
+		searchArtists = null;
+		fillerSet = null;
+		notifyListeners(new SNTEvent(SNTEvent.QUIT));
+		closeAndResetAllPanes();
+		xy_tracer_canvas = null;
+		xz_tracer_canvas = null;
+		zy_tracer_canvas = null;
+		SNTUtils.setPlugin(null);
+	}
+
 	public void cancelSearch(final boolean cancelFillToo) {
 		// TODO: make this better
 		if (tracerThreadPool != null) {

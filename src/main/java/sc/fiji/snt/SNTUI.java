@@ -743,8 +743,7 @@ public class SNTUI extends JDialog {
 			return;
 		commandFinder.dispose();
 		abortCurrentOperation();
-		plugin.cancelSearch(true);
-		plugin.notifyListeners(new SNTEvent(SNTEvent.QUIT));
+		plugin.dispose();
 		setAutosaveFile(null); // forget last saved file
 		plugin.getPrefs().savePluginPrefs(true);
 		pmUI.dispose();
@@ -756,22 +755,10 @@ public class SNTUI extends JDialog {
 			recorder.dispose();
 		dispose();
 		// NB: If visible Reconstruction Plotter will remain open
-		plugin.closeAndResetAllPanes();
 		ImagePlus.removeImageListener(listener);
-		plugin.searchArtists.clear();
-		plugin.searchArtists = null;
-		plugin.dataset = null;
-		plugin.ctSlice3d = null;
-		plugin.xy_tracer_canvas = null;
-		plugin.xz_tracer_canvas = null;
-		plugin.zy_tracer_canvas = null;
-		plugin.fillerSet.clear();
-		plugin.fillerSet = null;
-		plugin.secondaryData = null;
 		plugin = null;
 		pathAndFillManager = null;
 		guiUtils = null;
-		SNTUtils.setPlugin(null);
 		GuiUtils.restoreLookAndFeel();
 	}
 
