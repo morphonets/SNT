@@ -61,7 +61,6 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
-import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
@@ -800,14 +799,11 @@ public class SNTService extends AbstractService implements ImageJService {
 		if (plugin == null) return;
 		if (getUI() == null) {
 			try {
-			SNTUtils.log("Disposing resources..");
-			plugin.cancelSearch(true);
-			plugin.notifyListeners(new SNTEvent(SNTEvent.QUIT));
 			plugin.getPrefs().savePluginPrefs(true);
+			SNTUtils.log("Disposing resources..");
+			plugin.dispose();
 			if (getInstanceViewer() != null) getRecViewer().dispose();
-			plugin.closeAndResetAllPanes();
 			if (plugin.getImagePlus() != null) plugin.getImagePlus().close();
-			SNTUtils.setPlugin(null);
 			SNTUtils.setContext(null);
 			plugin = null;
 			} catch (final NullPointerException ignored) {

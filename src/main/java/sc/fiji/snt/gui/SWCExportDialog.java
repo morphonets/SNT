@@ -133,6 +133,7 @@ public class SWCExportDialog extends JDialog {
 		add(warningPanel(), c);
 
 		c.gridy++;
+		c.weightx = 1;
 		add(buttonsPanel, c);
 
 		pack();
