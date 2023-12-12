@@ -38,8 +38,7 @@ import sc.fiji.snt.annotation.BrainAnnotation;
 
 /**
  * Defines a node in an SWC reconstruction. The SWC file format is detailed
- * <a href=
- * "http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html">here</a>
+ * <a href= "https://swc-specification.readthedocs.io/en/latest/">here</a>.
  *
  * @author Tiago Ferreira
  */
@@ -207,7 +206,7 @@ public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 	}
 
 	@Override
-	public void setAnnotation(BrainAnnotation annotation) {
+	public void setAnnotation(final BrainAnnotation annotation) {
 		this.annotation = annotation;
 	}
 
@@ -245,11 +244,11 @@ public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 		return nextPoints;
 	}
 
-	public void setTags(String tags) {
+	public void setTags(final String tags) {
 		this.tags = tags;
 	}
 
-	public void setColor(Color color) {
+	public void setColor(final Color color) {
 		this.color = color;
 	}
 

@@ -70,10 +70,10 @@ public class CallIJ1LegacyCmd implements Command {
 
 	@Parameter(choices = { SNT_LEGACY, SHOLL_IMG_LEGACY, SHOLL_TRACES_LEGACY, SHOLL_CSV_LEGACY,
 			SHOLL_OPTIONS_LEGACY }, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE, //
-			label = "<HTML><div style='width:400px;text-align: left;'>"
+			label = "<HTML><div style='width:400'>"
 					+ "NB: These plugins are no longer maintained and <i>will</i> be removed "
 					+ "in the future. Please reach out to <a href=\"https://forum.image.sc\">forum.image.sc</a> "
-					+ "if your workflows need to be modernized.</div>")
+					+ "if your workflows need to be modernized.")
 	private String cmdChoice;
 
 	@Override

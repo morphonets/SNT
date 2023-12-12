@@ -78,9 +78,6 @@ public class NodeColorMapper extends ColorMapper {
 			Z_COORDINATES, //
 	};
 
-	@Parameter
-	private LUTService lutService;
-
 	private final NodeStatistics<?> nodeStatistics;
 	private final TreeColorMapper tColorMapper;
 	private Tree singlePointPaths;

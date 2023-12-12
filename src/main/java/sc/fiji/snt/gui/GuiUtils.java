@@ -1459,7 +1459,7 @@ public class GuiUtils {
 		final Graphics2D graphics = image.createGraphics();
 		graphics.setColor(color);
 		graphics.fillRect(0, 0, width, height);
-		graphics.setXORMode(Color.DARK_GRAY);
+		graphics.setXORMode(getEnabledComponentColor());
 		graphics.drawRect(0, 0, width - 1, height - 1);
 		image.flush();
 		return new ImageIcon(image);
@@ -1760,6 +1760,15 @@ public class GuiUtils {
 	public static Color getDisabledComponentColor() {
 		try {
 			return UIManager.getColor("MenuItem.disabledForeground");
+		}
+		catch (final Exception ignored) {
+			return Color.GRAY;
+		}
+	}
+
+	private static Color getEnabledComponentColor() {
+		try {
+			return UIManager.getColor("MenuItem.foreground");
 		}
 		catch (final Exception ignored) {
 			return Color.GRAY;
