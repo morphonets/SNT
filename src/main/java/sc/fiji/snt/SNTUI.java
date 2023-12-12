@@ -139,9 +139,9 @@ public class SNTUI extends JDialog {
 	private ActiveWorker activeWorker;
 	private volatile int currentState = -1;
 
-	private final SNT plugin;
-	private final PathAndFillManager pathAndFillManager;
-	protected final GuiUtils guiUtils;
+	private SNT plugin;
+	private PathAndFillManager pathAndFillManager;
+	protected GuiUtils guiUtils;
 	private final PathManagerUI pmUI;
 	private final FillManagerUI fmUI;
 
@@ -743,8 +743,7 @@ public class SNTUI extends JDialog {
 			return;
 		commandFinder.dispose();
 		abortCurrentOperation();
-		plugin.cancelSearch(true);
-		plugin.notifyListeners(new SNTEvent(SNTEvent.QUIT));
+		plugin.dispose();
 		setAutosaveFile(null); // forget last saved file
 		plugin.getPrefs().savePluginPrefs(true);
 		pmUI.dispose();
@@ -756,9 +755,10 @@ public class SNTUI extends JDialog {
 			recorder.dispose();
 		dispose();
 		// NB: If visible Reconstruction Plotter will remain open
-		plugin.closeAndResetAllPanes();
 		ImagePlus.removeImageListener(listener);
-		SNTUtils.setPlugin(null);
+		plugin = null;
+		pathAndFillManager = null;
+		guiUtils = null;
 		GuiUtils.restoreLookAndFeel();
 	}
 
@@ -3127,6 +3127,9 @@ public class SNTUI extends JDialog {
 	 */
 	public void showStatus(final String msg, final boolean temporary) {
 		SwingUtilities.invokeLater(() -> {
+			if (plugin == null)
+				return;
+
 			final boolean validMsg = !(msg == null || msg.isEmpty());
 			if (validMsg && !temporary) {
 				statusBarText.setText(msg);
