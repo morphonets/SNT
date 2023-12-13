@@ -537,7 +537,7 @@ public class SNTService extends AbstractService implements ImageJService {
 		try {
 			final int idx1stPath = pafm.size();
 			final BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
-			if (pafm.importSWC(br, treeLabel, false, 0, 0, 0, 1, 1, 1, false)) {
+			if (pafm.importSWC(br, treeLabel, false, 0, 0, 0, 1, 1, 1, 1, false)) {
 				tree = new Tree();
 				for (int i = idx1stPath; i < pafm.size(); i++) {
 					final Path p = pafm.getPath(i);
