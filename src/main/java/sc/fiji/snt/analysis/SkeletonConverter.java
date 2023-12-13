@@ -26,6 +26,8 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.measure.Calibration;
+import ij.plugin.Duplicator;
+import ij.plugin.ImagesToStack;
 
 import org.jgrapht.Graphs;
 import org.jgrapht.alg.connectivity.BiconnectivityInspector;
@@ -111,10 +113,10 @@ public class SkeletonConverter {
     }
 
 	/**
-	 * Convenience method to skeletonize an 8-bit image using
+	 * Convenience method to skeletonize an image using
 	 * {@link Skeletonize3D_}.
 	 *
-	 * @param imp                 The 8-bit image to be skeletonized. All non-zero
+	 * @param imp                 The image to be skeletonized. All non-zero
 	 *                            values are considered to be foreground.
 	 * @param lowerThreshold      intensities below this value will be set to zero,
 	 *                            and will not contribute to the skeleton. Ignored
@@ -157,19 +159,42 @@ public class SkeletonConverter {
 	}
 
 	/**
-	 * Convenience method to skeletonize an 8-bit image using
+	 * Convenience method to skeletonize a thresholded image using
 	 * {@link Skeletonize3D_}.
 	 *
-	 * @param imp                 The 8-bit image to be skeletonized. If the image
-	 *                            is thresholded, only thresholded values are
-	 *                            considered, otherwise all non-zero values are
-	 *                            considered to be foreground.
+	 * @param imp                 The thresholded image to be skeletonized. If
+	 *                            the image is not thresholded all non-zero
+	 *                            values are considered to be foreground.
 	 * @param erodeIsolatedPixels If true, any isolated pixels (single point
 	 *                            skeletons) that may be formed after
 	 *                            skeletonization are eliminated by erosion.
 	 */
 	public static void skeletonize(final ImagePlus imp, final boolean erodeIsolatedPixels) {
 		skeletonize(imp, imp.getProcessor().getMinThreshold(), imp.getProcessor().getMaxThreshold(), erodeIsolatedPixels);
+	}
+
+	/**
+	 * Convenience method to skeletonize a thresholded time-lapse using
+	 * {@link Skeletonize3D_}.
+	 *
+	 * @param imp                 The timelapse to be skeletonized. If the image is
+	 *                            not thresholded all non-zero values are considered
+	 *                            to be foreground.
+	 * @param erodeIsolatedPixels If true, any isolated pixels (single point
+	 *                            skeletons) that may be formed after
+	 *                            skeletonization are eliminated by erosion.
+	 */
+	public static void skeletonizeTimeLapse(final ImagePlus imp, final boolean erodeIsolatedPixels) {
+		final ImagePlus[] imps = new ImagePlus[imp.getNFrames()];
+		for (int f = 1; f < imp.getNFrames(); f++) {
+			final ImagePlus extracted = new Duplicator().run(imp, 1, imp.getNChannels(), 1, imp.getNSlices(), f, f);
+			skeletonize(extracted, imp.getProcessor().getMinThreshold(), imp.getProcessor().getMaxThreshold(),
+					erodeIsolatedPixels);
+			imps[f - 1] = extracted;
+		}
+		final ImagePlus result = ImagesToStack.run(imps);
+		result.setDimensions(imp.getNChannels(), imp.getNSlices(), imp.getNFrames());
+		imp.setImage(result);
 	}
 
 	/**

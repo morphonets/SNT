@@ -495,6 +495,9 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				}
 				final Tree tree = g.getTree();
 				tree.assignImage(chosenMaskImp);
+				tree.list().forEach(path -> {
+					path.setCTposition(snt.getChannel(), snt.getFrame());
+				});
 				trees.add(tree);
 			});
 			final PathAndFillManager pafm = sntService.getPathAndFillManager();
