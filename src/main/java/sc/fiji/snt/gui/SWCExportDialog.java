@@ -83,6 +83,10 @@ public class SWCExportDialog extends JDialog {
 	private boolean collapseWarning;
 
 	public SWCExportDialog(final SNTUI ui, final ImagePlus imp, final File suggestedFile) {
+		this(ui, imp, suggestedFile, true);
+	}
+
+	public SWCExportDialog(final SNTUI ui, final ImagePlus imp, final File suggestedFile, final boolean setVisible) {
 
 		super(ui, "Export To SWC...", true);
 		setLocationRelativeTo(ui);
@@ -137,7 +141,7 @@ public class SWCExportDialog extends JDialog {
 		add(buttonsPanel, c);
 
 		pack();
-		setVisible(true);
+		setVisible(setVisible);
 	}
 
 	private void loadPrefs(final SNTPrefs prefs) {

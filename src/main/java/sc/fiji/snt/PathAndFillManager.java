@@ -466,7 +466,10 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected synchronized boolean exportAllPathsAsSWC(final Path[] primaryPaths, final String baseFilename, final String commonFileHeader) {
 		final String prefix = SNTUtils.stripExtension(baseFilename);
 		int i = 0;
-		for (final Path primaryPath : primaryPaths) {
+		if (primaryPaths.length == 1) {
+			final File swcFile = new File(prefix + ".swc");
+			if (exportConnectedStructureAsSWC(primaryPaths[0], swcFile, commonFileHeader)) ++i;
+		} else for (final Path primaryPath : primaryPaths) {
 			final File swcFile = getSWCFileForIndex(prefix, i);
 			if (exportConnectedStructureAsSWC(primaryPath, swcFile, commonFileHeader)) ++i;
 		}

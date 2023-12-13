@@ -76,6 +76,7 @@ import sc.fiji.snt.gui.ColorMenu;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.MeasureUI;
 import sc.fiji.snt.gui.PathManagerUISearchableBar;
+import sc.fiji.snt.gui.SWCExportDialog;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.ScriptRecorder;
 import sc.fiji.snt.gui.SwingSafeResult;
@@ -714,18 +715,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return;
 		}
 
-		final File saveFile = plugin.getUI().saveFile("Save Paths as SWC...", null, "swc");
-		if (saveFile == null) {
-			return; // user pressed cancel
-		}
-
-		plugin.statusService.showStatus("Exporting SWC data to " + saveFile
-			.getAbsolutePath());
-
+		final SWCExportDialog sed = new SWCExportDialog(plugin.getUI(), plugin.getImagePlus(), null, false);
+		sed.setTitle("Export Selected Path(s) to SWC...");
+		sed.setLocationRelativeTo(this);
+		sed.setVisible(true);
+		if (!sed.succeeded())
+			return;
+		final File saveFile = sed.getFile();
+		plugin.statusService.showStatus("Exporting SWC data to " + saveFile.getAbsolutePath());
 		try {
 			final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
 					Files.newOutputStream(saveFile.toPath()), StandardCharsets.UTF_8));
-			pathAndFillManager.flushSWCPoints(swcPoints, pw, null);
+			pathAndFillManager.flushSWCPoints(swcPoints, pw, sed.getFileHeader());
 			pw.close();
 		}
 		catch (final IOException ioe) {
