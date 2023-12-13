@@ -367,6 +367,16 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static void clearLegacyPrefs() {
 		Prefs.set(LOAD_DIRECTORY_KEY, null);
 		Prefs.set("tracing.Simple_Neurite_Tracer.drawDiametersXY", null);
+		Prefs.set("tracing.SWCImportOptionsDialog.xOffset", null);
+		Prefs.set("tracing.SWCImportOptionsDialog.yOffset", null);
+		Prefs.set("tracing.SWCImportOptionsDialog.zOffset", null);
+		Prefs.set("tracing.SWCImportOptionsDialog.xScale", null);
+		Prefs.set("tracing.SWCImportOptionsDialog.yScale", null);
+		Prefs.set("tracing.SWCImportOptionsDialog.zScale", null);
+		Prefs.set("tracing.SWCImportOptionsDialog.applyOffset", null);
+		Prefs.set("tracing.SWCImportOptionsDialog.applyScale", null);
+		Prefs.set("tracing.SWCImportOptionsDialog.ignoreCalibration", null);
+		Prefs.set("tracing.SWCImportOptionsDialog.replaceExistingPaths", null);
 	}
 
 	public void setRecentDir(final File file) {
