@@ -64,6 +64,7 @@ import ij.ImagePlus;
 import ij.Prefs;
 import ij.gui.ImageCanvas;
 import ij.gui.ImageWindow;
+import ij.measure.Calibration;
 import ij.plugin.frame.Recorder;
 import ij.process.ImageStatistics;
 import ij3d.Content;
@@ -1004,6 +1005,13 @@ public class SNTUI extends JDialog {
 				guiUtils.error("There is no valid image data to be loaded.");
 				return;
 			}
+			if (imgDimensionsChanged() && guiUtils.getConfirmation(
+					"Image properties seem to have changed significantly since it was last imported. "
+							+ "You may need to re-initialize SNT to avoid conflicts with cached properties. Re-initialize now?",
+					"Modified Image", "Yes. Re-inialize", "No. Attempt Reloading")) {
+				plugin.initialize(plugin.getImagePlus());
+				return;
+			}
 			final int newC = (int) channelSpinner.getValue();
 			final int newT = (int) frameSpinner.getValue();
 			loadImagefromGUI(newC, newT);
@@ -1011,6 +1019,17 @@ public class SNTUI extends JDialog {
 		positionPanel.add(applyPositionButton);
 		sourcePanel.add(positionPanel, gdb);
 		return sourcePanel;
+	}
+
+	private boolean imgDimensionsChanged() {
+		final ImagePlus imp = plugin.getImagePlus();
+		if (imp.getWidth() != plugin.getWidth() || plugin.getHeight() != imp.getHeight()
+				|| plugin.getDepth() != imp.getNSlices() || plugin.getChannel() > imp.getNChannels()
+				|| plugin.getFrame() > imp.getNFrames())
+			return true;
+		final Calibration cal = plugin.getImagePlus().getCalibration();
+		return (plugin.getPixelWidth() != cal.pixelWidth || plugin.getPixelHeight() != cal.pixelHeight
+				|| plugin.getPixelDepth() != cal.pixelDepth);
 	}
 
 	protected void loadImagefromGUI(final int newC, final int newT) {

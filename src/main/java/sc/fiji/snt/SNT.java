@@ -499,10 +499,10 @@ public class SNT extends MultiDThreePanes implements
 		if (accessToValidImageData()) getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, false);
 	}
 
-	private void nullifyCanvases() {
+	private void nullifyCanvases(final boolean disposeXY) {
 		if (xy != null) {
 			xy.changes = false;
-			xy.close();
+			if (disposeXY) xy.close();
 			xy = null;
 		}
 		if (zy != null) {
@@ -539,7 +539,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private void assembleDisplayCanvases() {
-		nullifyCanvases();
+		nullifyCanvases(true);
 		if (pathAndFillManager.size() == 0) {
 			// not enough information to proceed. Assemble a dummy canvas instead
 			xy = NewImage.createByteImage("Display Canvas", 1, 1, 1,
@@ -603,12 +603,13 @@ public class SNT extends MultiDThreePanes implements
 
 	@Override
 	public void initialize(final ImagePlus imp) {
-		final  Roi sourceImageROI = imp.getRoi();
+		final Roi sourceImageROI = imp.getRoi();
+		final boolean sameImp = imp == xy;
 		if (accessToValidImageData() && getPrefs().getTemp(SNTPrefs.RESTORE_LOADED_IMGS, false)) {
 			rebuildWindow(xy);
 			xy = null;
 		}
-		nullifyCanvases();
+		nullifyCanvases(!sameImp);
 		setFieldsFromImage(imp);
 		changeUIState(SNTUI.LOADING);
 		initialize(getSinglePane(), channel = imp.getC(), frame = imp.getT());
