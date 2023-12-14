@@ -2494,9 +2494,7 @@ public class SNTUI extends JDialog {
 			CommandService cmdService = plugin.getContext().getService(CommandService.class);
 			exitRequested();
 			if (SNTUtils.getPluginInstance() == null) { // exit successful
-				final PrefsCmd prefs = new PrefsCmd();
-				prefs.setContext(plugin.getContext());
-				prefs.clearAll();
+				PrefsCmd.wipe();
 				cmdService.run(SNTLoaderCmd.class, true);
 			} else {
 				cmdService = null;

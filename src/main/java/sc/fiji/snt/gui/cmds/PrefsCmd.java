@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 
 import javax.swing.JOptionPane;
 
+import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
@@ -180,7 +181,7 @@ public class PrefsCmd extends ContextCommand {
 		SNTPrefs.clearAll();
 	}
 
-	public Set<Class<?>> findClasses(final String packageName) {
+	private Set<Class<?>> findClasses(final String packageName) {
 		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 		final InputStream is = classloader.getResourceAsStream(packageName.replaceAll("[.]", "/"));
 		final BufferedReader reader = new BufferedReader(new InputStreamReader(is));
@@ -198,6 +199,14 @@ public class PrefsCmd extends ContextCommand {
 			// do nothing
 		}
 		return null;
+	}
+
+	public static void wipe() {
+		final PrefsCmd prefs = new PrefsCmd();
+		final Context ctx = new Context(PrefService.class, SNTService.class);
+		prefs.setContext(ctx);
+		prefs.clearAll();
+		ctx.dispose();
 	}
 
 	/* IDE debug method **/

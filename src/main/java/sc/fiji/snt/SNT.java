@@ -813,6 +813,7 @@ public class SNT extends MultiDThreePanes implements
 	protected void dispose() {
 		// dispose data structures
 		cancelSearch(true);
+		ui = null;
 		flushSecondaryData();
 		ctSlice3d = null;
 		dataset = null;
