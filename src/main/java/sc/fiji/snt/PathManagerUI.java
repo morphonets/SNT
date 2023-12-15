@@ -1989,6 +1989,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		} else if (MultiPathActionListener.REBUILD_CMD.equals(cmd)) {
 			rebuildRelationShips();
 			return true;
+		} else if (MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD.equals(cmd)) {
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("paths", getSelectedPaths(true));
+			inputs.put("applyDefaults", true);
+			(plugin.getUI().new DynamicCmdRunner(PathMatcherCmd.class, inputs)).run();
+			return true;
 		}
 		return false;
 	}
@@ -2044,7 +2050,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				runRoiConverterCmd(args[0], args[1]);
 			}
 		} else {
-			throw new IllegalArgumentException("Unsupported options for '" + cmd + "'");
+			throw new IllegalArgumentException("Unsupported command or invalid options for '" + cmd + "'");
 		}
 	}
 
