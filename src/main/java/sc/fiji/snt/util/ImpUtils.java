@@ -29,6 +29,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.plugin.ContrastEnhancer;
+import ij.plugin.Duplicator;
 import ij.plugin.ImagesToStack;
 import ij.plugin.ZProjector;
 import ij.process.ByteProcessor;
@@ -108,6 +109,26 @@ public class ImpUtils {
 
 	public static boolean sameCalibration(final ImagePlus imp1, final ImagePlus imp2) {
 		return imp1.getCalibration().equals(imp2.getCalibration());
+	}
+
+	public static ImagePlus getFrame(final ImagePlus imp, final int frame) {
+		imp.deleteRoi(); // will call saveRoi
+		final ImagePlus extracted = new Duplicator().run(imp, 1, imp.getNChannels(), 1, imp.getNSlices(), frame, frame);
+		extracted.setCalibration(imp.getCalibration());
+		imp.restoreRoi();
+		extracted.setRoi(imp.getRoi());
+		extracted.setProp("extracted-frame", frame);
+		return extracted;
+	}
+	
+	public static ImagePlus getChannel(final ImagePlus imp, final int channel) {
+		imp.deleteRoi(); // will call saveRoi
+		final ImagePlus extracted = new Duplicator().run(imp, channel, channel, 1, imp.getNSlices(), 1, imp.getNFrames());
+		extracted.setCalibration(imp.getCalibration());
+		imp.restoreRoi();
+		extracted.setRoi(imp.getRoi());
+		extracted.setProp("extracted-channel", channel);
+		return extracted;
 	}
 
 }

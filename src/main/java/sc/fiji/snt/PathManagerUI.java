@@ -826,6 +826,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		return true;
 	}
 
+	private void assignDistinctColors(final List<Path> paths) {
+		final ColorRGB[] colors = SNTColor.getDistinctColors(paths.size());
+		int idx = 0;
+		for (final Path p : paths)
+			p.setColor(colors[idx++]);
+		refreshManager(true, true, paths);
+		plugin.setUnsavedChanges(true);
+	}
+
 	private boolean allUsingFittedVersion(final Collection<Path> paths) {
 		final Iterator<Path> it = paths.iterator();
 		while (it.hasNext()) {
@@ -1995,6 +2004,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			inputs.put("applyDefaults", true);
 			(plugin.getUI().new DynamicCmdRunner(PathMatcherCmd.class, inputs)).run();
 			return true;
+		} else if (MultiPathActionListener.ASSIGN_DISTINCT_COLORS.equals(cmd)) {
+			assignDistinctColors(getSelectedPaths(true));
+			return true;
 		}
 		return false;
 	}
@@ -2608,12 +2620,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			else if (ASSIGN_DISTINCT_COLORS.equals(cmd)) {
-				final ColorRGB[] colors = SNTColor.getDistinctColors(n);
-				int idx = 0;
-				for (final Path p : selectedPaths)
-					p.setColor(colors[idx++]);
-				refreshManager(true, true, selectedPaths);
-				plugin.setUnsavedChanges(true);
+				assignDistinctColors(selectedPaths);
 				return;
 			}
 			else if (COLORS_MENU.equals(cmd)) {

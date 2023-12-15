@@ -78,7 +78,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			+ "Whether paths neeed to start at a common XYZ location.")
 	private boolean startNodeLocationMatching;
 
-	@Parameter(label = "Outgrowth direction", description="<HTML><div WIDTH=500>"
+	@Parameter(label = "Orientation", description="<HTML><div WIDTH=500>"
 			+ "Whether paths neeed to extent under the same overall direction "
 			+ "(outgrowth angle).")
 	private boolean directionMatching;
@@ -128,11 +128,11 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			+ "node location' is deselected. Assumes spatially calibrated units.")
 	private double zNeighborhood;
 
-	@Parameter(label = "Outgrowth direction: Range (°)", required = false, stepSize = "0.5", 
+	@Parameter(label = "Orientation: Angle range (°)", required = false, stepSize = "0.5", 
 			style = "format:#.0", min = "0", max = "360", description="<HTML><div WIDTH=500>"
 			+ "Paths sharing an outgrowth angle +/- this range (in degrees) are assumed to "
-			+ "share the same overall direction of growth. Ignored if 'Outgrowth direction' "
-			+ "is deselected.")
+			+ "share the same overall direction of growth. Ignored if 'Orientation' is"
+			+ "deselected.")
 	private double directionMatchingRange;
 
 	@Parameter(label = "Custom tag", required = false, description="<HTML><div WIDTH=500>"
@@ -246,11 +246,11 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			colorCounter++;
 		}
 		if (groupCounter == paths.size()) {
-			msg("Unsuccessful maching: Each path was assigned to its own neurite.", "Matching Completed");
+			msg("Unsuccessful maching: Each path perceived as an independent neurite!?.", "Matching Completed");
 			wipeMatches();
 		} else {
 			if (groupCounter == 1) {
-				msg("All paths were assigned a common group tag.", "Matching Completed");
+				msg("All paths were assigned a common neurite.", "Matching Completed");
 			} else {
 				final String timePointsParsed = (timePoints == null) ? "all" : String.valueOf(timePoints.size());
 				msg(String.format("%d paths assigned to %d neurite(s) across %s timepoints.", paths.size(), groupCounter,

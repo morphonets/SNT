@@ -29,10 +29,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.scijava.Context;
-import org.scijava.plugin.Parameter;
 
 import net.imagej.display.ColorTables;
-import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;

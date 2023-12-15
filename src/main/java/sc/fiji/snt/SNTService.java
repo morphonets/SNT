@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 
+import org.scijava.Context;
 import org.scijava.Priority;
 import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
@@ -152,19 +153,23 @@ public class SNTService extends AbstractService implements ImageJService {
 	/**
 	 * Initializes SNT.
 	 *
-	 * @param imagePath the image to be traced. If "demo" (case-insensitive), SNT is
-	 *                  initialized using the {@link #demoTreeImage}. If empty or
+	 * @param imagePath the image to be traced. If starting with "demo:" followed by
+	 *                  the name of a demo dataset, SNT is initialized using the
+	 *                  corresponding {@link #demoImage(String)} image. If empty or
 	 *                  null and SNT's UI is available an "Open" dialog prompt is
 	 *                  displayed. URL's supported.
 	 * @param startUI   Whether SNT's UI should also be initialized;
 	 * @return the SNT instance.
 	 */
 	public SNT initialize(final String imagePath, final boolean startUI) {
-		if ("demo".equalsIgnoreCase(imagePath)) {
-			return initialize(demoTreeImage(), startUI);
+		if ("demo".equalsIgnoreCase(imagePath)) { // legacy
+			return initialize(demoImage("fractal"), startUI);
 		}
 		if (imagePath == null || imagePath.isEmpty() && (!startUI || getUI() == null)) {
 			throw new IllegalArgumentException("Invalid imagePath " + imagePath);
+		}
+		if (imagePath.startsWith("demo:")) {
+			return initialize(demoImage(imagePath.substring(5).trim()), startUI);
 		}
 		return initialize(IJ.openImage(imagePath), startUI);
 	}
@@ -177,8 +182,15 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * @return the SNT instance.
 	 */
 	public SNT initialize(final ImagePlus imp, final boolean startUI) {
-		if (plugin == null) {
+		final boolean noInstance = plugin == null;
+		if (noInstance)
 			plugin = new SNT(getContext(), imp);
+		if (!imp.isVisible()) {
+			// Then a batch script of sorts is likely running. 
+			// Temporarily suppress the 'auto-tracing' prompt
+			plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
+		}
+		if (noInstance) {
 			plugin.initialize(true, 1, 1);
 		} else {
 			plugin.initialize(imp);
@@ -576,27 +588,34 @@ public class SNTService extends AbstractService implements ImageJService {
 	 *            'fractal' for the L-system toy neuron; 'ddaC' for the C4 ddaC
 	 *            drosophila neuron (demo image initially distributed with the Sholl
 	 *            plugin); 'OP1'/'OP_1' for the DIADEM OP_1 dataset; 'cil701' and
-	 *            'cil810' for the respective Cell Image Library entries
+	 *            'cil810' for the respective Cell Image Library entries, and
+	 *            'binary timelapse' for a small 4-frame sequence of neurite growth
 	 * @return the demo image, or null if data could no be retrieved
 	 * @see #demoTree(String)
 	 */
 	public ImagePlus demoImage(final String img) {
 		if (img == null)
-			return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
+			throw new IllegalArgumentException("demoImage(): argument cannot be null");
 		final String nImg = img.toLowerCase().trim();
-		if (nImg.contains("dda") || nImg.contains("c4") || nImg.contains("sholl")) {
+		if (nImg.contains("fractal") || nImg.contains("tree")) {
+			return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
+		} else if (nImg.contains("dda") || nImg.contains("c4") || nImg.contains("sholl")) {
 			return demoImageInternal("tests/ddaC.tif", "Drosophila_ddaC_Neuron.tif");
 		} else if (nImg.contains("op")) {
 			return ij.IJ.openImage(
 					"https://github.com/morphonets/SNT/raw/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1.tif");
 		} else if (nImg.equalsIgnoreCase("rat_hippocampal_neuron") || (nImg.contains("hip") && nImg.contains("multichannel"))) {
 			return ij.IJ.openImage("http://wsr.imagej.net/images/Rat_Hippocampal_Neuron.zip");
-		} else if (nImg.contains("4d") || nImg.contains("timelapse") || nImg.contains("701")) {
+		} else if (nImg.contains("4d") || nImg.contains("701")) {
 			return cil701();
 		} else if (nImg.contains("multipolar") || nImg.contains("810")) {
 			return cil810();
+		} else if (nImg.contains("timelapse")) {
+			return (!nImg.contains("binary")) ? cil701()
+					: ij.IJ.openImage(
+							"https://github.com/morphonets/misc/raw/e75e0c3254cd658cf70e960d90cf38a3dec72a6e/timelapse-binary-demo.zip");
 		}
-		return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
+		throw new IllegalArgumentException("Not a recognized demoImage argument: " + img);
 	}
 
 	private ImagePlus cil701() {
@@ -812,6 +831,11 @@ public class SNTService extends AbstractService implements ImageJService {
 		} else {
 			getUI().exitRequested();
 		}
+	}
+
+	@Override
+	public Context getContext() {
+		return (super.getContext() == null) ? SNTUtils.getContext() : super.getContext();
 	}
 
 }

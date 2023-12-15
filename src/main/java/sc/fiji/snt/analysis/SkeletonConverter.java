@@ -80,18 +80,13 @@ public class SkeletonConverter {
     double pixelHeight;
     double pixelDepth;
 
-    /**
-     * @param imagePlus The image to be parsed. It is expected to be a topological
-     *                  skeleton (non-zero foreground) (conversion will be
-     *                  nonsensical otherwise).
-     */
-    public SkeletonConverter(final ImagePlus imagePlus) {
-        this.imp = imagePlus;
-        final Calibration cal = imp.getCalibration();
-        this.pixelWidth = cal.pixelWidth;
-        this.pixelHeight = cal.pixelHeight;
-        this.pixelDepth = cal.pixelDepth;
-    }
+	/**
+	 * @param imagePlus The image to be parsed. Will be converted to a topological
+	 *                  skeleton (assuming non-zero foreground)
+	 */
+	public SkeletonConverter(final ImagePlus imagePlus) {
+		this(imagePlus, true);
+	}
 
     /**
      * @param imagePlus   The image to be parsed. It is expected to be binary
@@ -104,13 +99,28 @@ public class SkeletonConverter {
      *                                  {@code imagePlus} is not binary.
      */
     public SkeletonConverter(final ImagePlus imagePlus, final boolean skeletonize) throws IllegalArgumentException {
-        this(imagePlus);
+    	this.imp = imagePlus;
+        final Calibration cal = imp.getCalibration();
+        this.pixelWidth = cal.pixelWidth;
+        this.pixelHeight = cal.pixelHeight;
+        this.pixelDepth = cal.pixelDepth;
         if (skeletonize) {
             if (!imagePlus.getProcessor().isBinary())
                 throw new IllegalArgumentException("Only binary images allowed");
             skeletonize(imagePlus, imagePlus.getNSlices() == 1);
         }
     }
+
+	/**
+	 * @param imagePlus The (timelapse) image to be parsed. It is expected to be
+	 *                  binary (non-zero foreground).
+	 * @param frame     The frame of the timelapse image to be parsed
+	 * @throws IllegalArgumentException If image is not binary {@code imagePlus} is
+	 *                                  not binary.
+	 */
+	public SkeletonConverter(final ImagePlus imagePlus, final int frame) {
+		this(ImpUtils.getFrame(imagePlus, frame), true);
+	}
 
 	/**
 	 * Convenience method to skeletonize an image using
@@ -208,8 +218,8 @@ public class SkeletonConverter {
         final List<Tree> treeList = new ArrayList<>();
         for (final DirectedWeightedGraph graph : getGraphs()) {
             final Tree tree = graph.getTree();
-            /* Assign image calibration to tree. Avoids unexpected offsets when initializing SNT */
-            tree.assignImage(imp);
+            /* Assign image calibration and known CT positions to tree */
+            assignToImage(tree);
             treeList.add(tree);
         }
         return treeList;
@@ -231,8 +241,8 @@ public class SkeletonConverter {
         final List<Tree> treeList = new ArrayList<>();
         for (final DirectedWeightedGraph graph : getGraphs(roi, restrictToROIplane)) {
             final Tree tree = graph.getTree();
-            /* Assign image calibration to tree. Avoids unexpected offsets when initializing SNT */
-            tree.assignImage(imp);
+            /* Assign image calibration and known CT positions to tree */
+            assignToImage(tree);
             treeList.add(tree);
         }
         return treeList;
@@ -513,6 +523,19 @@ public class SkeletonConverter {
         this.maxConnectDist = maxConnectDist;
     }
 
+	/**
+	 * Assigns image calibration, etc. to tree. Avoids unexpected offsets when
+	 * initializing SNT
+	 */
+	private void assignToImage(final Tree tree) {
+		final String fProp = imp.getProp("extracted-frame");
+		final String cProp = imp.getProp("extracted-channel");
+		final int f = (fProp == null) ? 1 : Integer.valueOf(fProp);
+		final int c = (cProp == null) ? 1 : Integer.valueOf(cProp);
+		tree.list().forEach(path -> path.setCTposition(c, f));
+		tree.assignImage(imp);
+	}
+   
     /**
      * Runs AnalyzeSkeleton on the image and gets the Graph Array returned by {@link SkeletonResult#getGraph()}
      */

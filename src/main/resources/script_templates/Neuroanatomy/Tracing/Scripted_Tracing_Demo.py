@@ -4,7 +4,7 @@
 """
 file:    Scripted_Tracing_Demo.py
 author:  Tiago Ferreira, Cameron Arshadi
-version: 20190629
+version: 20231214
 info:    Exemplifies how to programmatically perform A* tracing between two
          points without GUI interaction, which allows for automated tracing
          of relatively simple structures (e.g., neurospheres neurites,
@@ -23,8 +23,9 @@ def run():
         ui.showDialog("Please complete current operation before running this script", "Error")
         return
 
-    # Prepare plugin for auto-tracing
-    plugin = snt.initialize("demo", False) # image, whether UI should be shown
+    # Prepare plugin for auto-tracing. Typically we would initialize SNT with
+    # an image or image path, but in this case we can specify a demo dataset:
+    plugin = snt.initialize("demo: fractal", False) # image, whether UI should be shown
     plugin.enableAstar(True)
     plugin.getPathAndFillManager().clear()
     #plugin.startHessian("primary", 1.0, 25.0, True)
