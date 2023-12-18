@@ -22,30 +22,46 @@
 
 package sc.fiji.snt.analysis;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.jgrapht.Graphs;
+import org.jgrapht.alg.connectivity.BiconnectivityInspector;
+
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.measure.Calibration;
 import ij.plugin.Duplicator;
 import ij.plugin.ImagesToStack;
-
-import org.jgrapht.Graphs;
-import org.jgrapht.alg.connectivity.BiconnectivityInspector;
-import sc.fiji.analyzeSkeleton.*;
+import ij.process.ImageProcessor;
+import sc.fiji.analyzeSkeleton.AnalyzeSkeleton_;
+import sc.fiji.analyzeSkeleton.Edge;
+import sc.fiji.analyzeSkeleton.Graph;
+import sc.fiji.analyzeSkeleton.Point;
+import sc.fiji.analyzeSkeleton.SkeletonResult;
+import sc.fiji.analyzeSkeleton.Vertex;
 import sc.fiji.skeletonize3D.Skeletonize3D_;
+import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.Viewer3D;
 import smile.neighbor.KDTree;
 import smile.neighbor.Neighbor;
-
-import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Class for generation of {@link Tree}s from a skeletonized {@link ImagePlus}.
@@ -53,19 +69,52 @@ import java.util.stream.Collectors;
  * @author Cameron Arshadi
  * @author Tiago Ferreira
  * @see sc.fiji.skeletonize3D.Skeletonize3D_
- * @see AnalyzeSkeleton_
+ * @see sc.fiji.analyzeSkeleton.AnalyzeSkeleton_
  */
 public class SkeletonConverter {
 
 	/* scripting convenience: Keep references to AnalyzeSkeleton_ common fields */
-    public static final int LOWEST_INTENSITY_BRANCH = AnalyzeSkeleton_.LOWEST_INTENSITY_BRANCH;
-    public static final int LOWEST_INTENSITY_VOXEL = AnalyzeSkeleton_.LOWEST_INTENSITY_VOXEL;
-    public static final int SHORTEST_BRANCH = AnalyzeSkeleton_.SHORTEST_BRANCH;
+	/** Pruning mode: flag for lowest intensity branch pruning */
+	public static final int LOWEST_INTENSITY_BRANCH = AnalyzeSkeleton_.LOWEST_INTENSITY_BRANCH;
+	/** Pruning mode: flag for lowest pixel intensity pruning */
+	public static final int LOWEST_INTENSITY_VOXEL = AnalyzeSkeleton_.LOWEST_INTENSITY_VOXEL;
+	/** Pruning mode: flag shortest branch pruning */
+	public static final int SHORTEST_BRANCH = AnalyzeSkeleton_.SHORTEST_BRANCH;
+	/**
+	 * Rooting strategy: Tree(s) are rooted at arbitrary on end-point(s) of
+	 * skeletonized structures, and are not influenced by root-delineating ROI.
+	 */
+	public static final int ROI_UNSET = 8;
+	/**
+	 * Rooting strategy: Tree(s) are rooted on end-point(s) of skeletonized
+	 * structures adjacent to the perimeter (contour) of root-delineating ROI.
+	 * Skeletonized voxels inside ROI are excluded from analysis.
+	 */
+	public static final int ROI_EDGE = 16;
+	/**
+	 * Rooting strategy: Tree(s) are rooted on end-point(s) of skeletonized
+	 * structures contained by ROI. Skeletonized voxels inside ROI are included in
+	 * analysis.
+	 */
+	public static final int ROI_CONTAINED = 32;
+	/**
+	 * Rooting strategy: Root(s) of extracted tree(s) are rooted on the centroid of
+	 * root-delineating ROI. Skeletonized voxels inside ROI are excluded from
+	 * analysis.
+	 */
+	public static final int ROI_CENTROID = 64;
+	/**
+	 * Rooting strategy: Root(s) of extracted tree(s) are rooted on the centroid of
+	 * all the root(s) contained by root-delineating ROI. Skeletonized voxels inside
+	 * ROI are excluded from analysis.
+	 */
+	public static final int ROI_CENTROID_WEIGHTED = 128;
+
 
     // AnalyzeSkeleton parameters
     private final ImagePlus imp;
     private ImagePlus origIP = null;
-    private int pruneMode = AnalyzeSkeleton_.SHORTEST_BRANCH;
+    private int pruneMode = SHORTEST_BRANCH;
     private boolean pruneEnds = false;
     private boolean shortestPath = false;
     private boolean silent = true;
@@ -79,6 +128,10 @@ public class SkeletonConverter {
     double pixelWidth;
     double pixelHeight;
     double pixelDepth;
+    // Area ROI delineating soma
+	private Roi somaRoi;
+	private int strategy;
+	private SkeletonResult skeletonResult;
 
 	/**
 	 * @param imagePlus The image to be parsed. Will be converted to a topological
@@ -214,204 +267,295 @@ public class SkeletonConverter {
 	 *
 	 * @return the skeleton tree list
 	 */
-    public List<Tree> getTrees() {
-        final List<Tree> treeList = new ArrayList<>();
-        for (final DirectedWeightedGraph graph : getGraphs()) {
-            final Tree tree = graph.getTree();
-            /* Assign image calibration and known CT positions to tree */
-            assignToImage(tree);
-            treeList.add(tree);
-        }
-        return treeList;
-    }
+	public List<Tree> getTrees() {
+		final List<Tree> treeList = new ArrayList<>();
+		for (final DirectedWeightedGraph graph : getGraphs()) {
+			final Tree tree = graph.getTree();
+			/* Assign image calibration and known CT positions to tree */
+			assignToImage(tree);
+			treeList.add(tree);
+		}
+		return treeList;
+	}
 
-    /**
-     * Generates a list of {@link Tree}s from the skeleton image.
-     * Each Tree corresponds to one connected component of the graph returned by {@link SkeletonResult#getGraph()}.
-     *
-     * @param roi                the ROI enclosing the end-/junction-point(s) to be
-     *                           set as root(s) of the final graphs.
-     * @param restrictToROIplane if true and the image is 3D, ROI enclosure is
-     *                           restricted to the ROI plane
-     *                           ({@link Roi#getZPosition()}), or the active Z-slice
-     *                           if ROI is not associated with a particular slice
-     * @return the skeleton tree list
-     */
-    public List<Tree> getTrees(final Roi roi, final boolean restrictToROIplane) {
-        final List<Tree> treeList = new ArrayList<>();
-        for (final DirectedWeightedGraph graph : getGraphs(roi, restrictToROIplane)) {
-            final Tree tree = graph.getTree();
-            /* Assign image calibration and known CT positions to tree */
-            assignToImage(tree);
-            treeList.add(tree);
-        }
-        return treeList;
-    }
+	/**
+	 * Generates a single {@link Tree} from {@link #getSingleGraph()}. If a
+	 * ROI-based centroid has been set, Root is converted to a single node, root
+	 * path with radius set to that of a circle with the same area of root-defining
+	 * soma.
+	 * 
+	 * @return the single tree
+	 * @see #setRootRoi(Roi, int)
+	 */
+	public Tree getSingleTree() {
+		final DirectedWeightedGraph graph = getSingleGraph();
+		final Tree tree = graph.getTree();
+		assignToImage(tree);
+
+		// It seems convenient to isolate the graphs' root (soma) as a
+		// stand-alone, single node path for easier tagging, fitting, etc.
+		if (!tree.list().isEmpty()
+				&& (getRootRoiStrategy() == ROI_CENTROID || getRootRoiStrategy() == ROI_CENTROID_WEIGHTED)) {
+
+			// Retrieve primary paths. this is expected to be a singleton list
+			final List<Path> primaryPaths = tree.list().stream().filter(p -> p.isPrimary())
+					.collect(Collectors.toList());
+			// Create soma Path and add it to tree
+			final Path newRootPath = tree.list().get(0).createPath();
+			newRootPath.setOrder(1);
+			newRootPath.setName("Centroid");
+			newRootPath.setSWCType(Path.SWC_SOMA);
+			newRootPath.addNode(graph.getRoot());
+			newRootPath.setRadius(RoiConverter.getFittedRadius(imp, somaRoi));
+			tree.add(newRootPath);
+			// Set primary paths to branch out from it
+			primaryPaths.forEach(primaryPath -> {
+				primaryPath.setStartJoin(newRootPath, newRootPath.getNode(0));
+			});
+		}
+		return tree;
+	}
 
     /**
      * Generates a list of {@link DirectedWeightedGraph}s from the skeleton image.
      * Each graph corresponds to one connected component of the graph returned by {@link SkeletonResult#getGraph()}.
      * @return 
      *
-     * @return the skeleton graph list
+     * @return the list of skeletonized graphs
      */
-    public List<DirectedWeightedGraph> getGraphs() {
-        List<DirectedWeightedGraph> graphList = new ArrayList<>();
-        for (final Graph skelGraph : getSkeletonGraphs()) {
-            final DirectedWeightedGraph graph = sntGraphFromSkeletonGraph(skelGraph);
-            if (pruneByLength && graph.sumEdgeWeights() < lengthThreshold) {
-                continue;
-            }
-            graphList.add(graph);
-        }
-        if (connectComponents && graphList.size() > 1) {
-            graphList = connectComponents(graphList);
-        }
-        for (final DirectedWeightedGraph graph : graphList) {
-            convertToDirected(graph);
-            graph.updateVertexProperties();
-        }
-        return graphList;
-    }
-
-    /**
-     * Generates a list of {@link DirectedWeightedGraph}s from the skeleton image.
-     * Each graph corresponds to one connected component of the graph returned by
-     * {@link SkeletonResult#getGraph()}.
-     *
-     * @param roi                the ROI enclosing the end-/junction-point(s) to be
-     *                           set as root(s) of the final graphs.
-     * @param restrictToROIplane if true and the image is 3D, ROI enclosure is
-     *                           restricted to the ROI plane
-     *                           ({@link Roi#getZPosition()}), or the active Z-slice
-     *                           if ROI is not associated with a particular slice
-     * @return the skeleton graph list
-     */
-    public List<DirectedWeightedGraph> getGraphs(final Roi roi, final boolean restrictToROIplane) {
-
-        int roiSlice = -1;
-        if (restrictToROIplane && imp.getNSlices() > 1) {
-            roiSlice = roi.getZPosition();
-            if (roiSlice == 0) {
-                // ROI is not associated with any slice, let's assume user meant active z-pos
-                roiSlice = imp.getZ();
-            }
-            // make ROI slice a 0-based index as per SkeletonResult point coordinates
-            roiSlice--;
-        }
-        final SkeletonResult sr = getSkeletonResult();
-        final List<PointInImage> putativeRoots = new ArrayList<>();
-        for (final Point p : sr.getListOfEndPoints()) {
-            // If the ROI is enclosing an end-point, use it as root
-            if (roiSlice > -1 && p.z != roiSlice)
-                continue;
-            if (roi.containsPoint(p.x, p.y))
-                putativeRoots.add(new PointInImage(p.x * pixelWidth, p.y * pixelHeight, p.z * pixelDepth));
-        }
-        if (putativeRoots.isEmpty()) {
-            // then maybe the ROI is enclosing a junction-point
-            for (final Point p : sr.getListOfJunctionVoxels()) {
-                if (roiSlice > -1 && p.z != roiSlice)
-                    continue;
-                if (roi.containsPoint(p.x, p.y))
-                    putativeRoots.add(new PointInImage(p.x * pixelWidth, p.y * pixelHeight, p.z * pixelDepth));
-            }
-        }
-        final List<DirectedWeightedGraph> graphList = getGraphs();
-        if (putativeRoots.isEmpty()) {
-            return graphList;
-        }
-		if (putativeRoots.size() > graphList.size()) {
-			SNTUtils.log("# of end-points and/or junction points enclosed by the ROI >  # of structures in image");
+	public List<DirectedWeightedGraph> getGraphs() {
+		List<DirectedWeightedGraph> graphList = new ArrayList<>();
+		for (final Graph skelGraph : getSkeletonGraphs()) {
+			final DirectedWeightedGraph graph = sntGraphFromSkeletonGraph(skelGraph);
+			if (pruneByLength && graph.sumEdgeWeights() < lengthThreshold) {
+				continue;
+			}
+			graphList.add(graph);
 		}
-        for (final DirectedWeightedGraph graph : graphList) {
-            // We now have a list of putative roots and a series of graphs.
-            // Let's try to assign them
-            for (final PointInImage putativeRoot : putativeRoots) {
-                final SWCPoint root = getMatchingLocationInGraph(putativeRoot, graph);
-                if (root != null)
-                    graph.setRoot(root);
-            }
-        }
-        return graphList;
-    }
+		if (connectComponents && graphList.size() > 1) {
+			graphList = connectComponents(graphList);
+		}
+		
+		if (getRootRoiStrategy() == ROI_CENTROID || getRootRoiStrategy() == ROI_CENTROID_WEIGHTED) {
+			rootAllGraphsOnSomaCentroid(graphList, getRootRoiStrategy() == ROI_CENTROID_WEIGHTED);
+			skeletonResult = null;
+			return graphList;
+		}
+		for (final DirectedWeightedGraph graph : graphList) {
+			SWCPoint root = null;
+			if (getRootRoiStrategy() == ROI_EDGE)
+				root = getFeaturedVertexInSoma(graph, true, true, true);
+			else if (getRootRoiStrategy() == ROI_CONTAINED)
+				root = getFeaturedVertexInSoma(graph, true, true, false);
+			if (root != null) {
+				graph.setRoot(root); // Assign the detected root
+			} else if (!convertToDirected(graph)) {
+				// If that did not work, enforce a consistent edge direction
+				SNTUtils.log("Graph w/ multiple components and/or inconsistent edge directions!? Skipping...");
+			}
+			graph.updateVertexProperties();
+		}
+		// dispose temp resource
+		skeletonResult = null;
+		return graphList;
+	}
 
 	/**
-	 * Roots a graph into the centroid of a ROI. Does nothing if none of graph
-	 * nodes' (X,Y) coordinates are contained by the ROI
+	 * Generates a single {@link DirectedWeightedGraph}s by combining
+	 * {@link #getGraphs()}'s list into a single, combined graph. Typically, this
+	 * method assumes that the skeletonization handles a known single component
+	 * (e.g., an image of a single cell). If multiple graphs() do exist, this method
+	 * assumes that {@link #setRootRoi(Roi, int)} as been called using
+	 * {@link #ROI_CENTROID} or {@link #ROI_CENTROID_WEIGHTED}.
 	 * 
-	 * @param graph The graph to be rooted
-	 * @param roi   the ROI defining the root centroid
+	 * @return the single graph
 	 */
-	public void setCentroidAsRoot(final DirectedWeightedGraph graph, final Roi roi) {
-		final SWCPoint nearest = getNearestTipJunctionOrSlabInRoi(graph, roi);
-		if (nearest == null)
-			return;
-		final int uniqueId = graph.vertexSet().stream().mapToInt(v -> v.id).max().orElse(-2) + 1;
-		final double[] cc = roi.getContourCentroid();
-		final PointInImage centroid = new PointInImage(cc[0], cc[1], roi.getZPosition());
-		final SWCPoint newRoot = new SWCPoint(uniqueId, nearest.type, centroid.x * pixelWidth, centroid.y * pixelHeight,
-				centroid.z * pixelDepth, nearest.radius, nearest.id);
-		newRoot.setPath(nearest.getPath());
-		graph.addVertex(newRoot);
-		graph.addEdge(nearest, newRoot);
-		graph.setRoot(newRoot);
-	}
-
-	private boolean nodeInRoi(final SWCPoint node, final Roi roi) {
-		return (node != null && roi.containsPoint(imp.getCalibration().getRawX(node.x), imp.getCalibration().getRawY(node.y)));
-	}
-
-	private SWCPoint getNearestTipJunctionOrSlabInRoi(final DirectedWeightedGraph graph, final Roi roi) {
-		final Set<SWCPoint> vertices = graph.vertexSet();
-		final List<PointInImage> contourPoints = getContourPoints(roi);
-		final SWCPoint nearestTip = getNearestPointInGraph(vertices.stream().filter(v -> graph.outDegreeOf(v) == 0).collect(Collectors.toList()), contourPoints);
-		if (nodeInRoi(nearestTip, roi))
-			return nearestTip;
-		final SWCPoint nearestJunction = getNearestPointInGraph(vertices.stream().filter(v -> graph.outDegreeOf(v) > 1).collect(Collectors.toList()), contourPoints);
-		if (nodeInRoi(nearestJunction, roi))
-			return nearestTip;
-		final SWCPoint nearestSlab = getNearestPointInGraph(vertices.stream().filter(v -> graph.outDegreeOf(v) == 1).collect(Collectors.toList()), contourPoints);
-		if (nodeInRoi(nearestSlab, roi))
-			return nearestTip;
-		return null;
-	}
-
-	private List<PointInImage> getContourPoints(final Roi roi) {
-		List<PointInImage> points = new ArrayList<>();
-		final Calibration cal = imp.getCalibration();
-		for (java.awt.Point p : roi.getContainedPoints()) {
-			points.add(new PointInImage(cal.getX(p.x), cal.getY(p.y), cal.getZ(roi.getZPosition())));
+	public DirectedWeightedGraph getSingleGraph() throws IllegalArgumentException {
+		final List<DirectedWeightedGraph> graphs = getGraphs();
+		if (graphs.size() == 1)
+			return graphs.iterator().next();
+		if (getRootRoiStrategy() != ROI_CENTROID && getRootRoiStrategy() != ROI_CENTROID_WEIGHTED) {
+			throw new IllegalArgumentException(
+					"Combining multiple graphs requires ROI_CENTROID or ROI_CENTROID_WEIGHTED strategy");
 		}
-		return points;
+		final SWCPoint commonRoot = graphs.iterator().next().getRoot();
+		final DirectedWeightedGraph holder = new DirectedWeightedGraph();
+		holder.addVertex(commonRoot);
+		graphs.forEach(g -> Graphs.addGraph(holder, g));
+		holder.setRoot(commonRoot);
+		holder.updateVertexProperties();
+		return holder;
+	}
+	
+	private void rootAllGraphsOnSomaCentroid(final List<DirectedWeightedGraph> graphs, final boolean weightedCentroid) {
+		if (somaRoi == null)
+			return;
+		final List<SWCPoint> allSomaticEndPoints = new ArrayList<>();
+		final Roi roi = getEnlargedSomaAsNeeded();
+		for (final DirectedWeightedGraph graph : graphs) {
+			allSomaticEndPoints.addAll(getGraphNodesAssociatedWithRoi(getSkeletonResult().getListOfEndPoints(), roi,
+					somaRoi.getZPosition(), graph, false));
+		}
+		if (allSomaticEndPoints.isEmpty())
+			return;
+		final SWCPoint newRoot = getCentroid(allSomaticEndPoints);
+		if (newRoot == null)
+			throw new IllegalArgumentException(
+					"Centroid could not be computed. No end-points in ROI or invalid root strategy!?");
+
+		if (!weightedCentroid || allSomaticEndPoints.size() == 1) {
+			// XYZ coordinates of root become the those of the soma ROI centroid
+			// (conversion to physical coordinates needed)
+			final double[] xyCentroid = somaRoi.getContourCentroid();
+			newRoot.x = xyCentroid[0] * pixelWidth;
+			newRoot.y = xyCentroid[1] * pixelHeight;
+		}
+		final int uniqueId = -2; // will be updated when graph rebuilt
+		newRoot.id = uniqueId;
+		graphs.forEach(g -> {
+			final SWCPoint refRoot = getNearestPoint(g.vertexSet(), newRoot);
+			g.addVertex(newRoot);
+			g.addEdge(refRoot, newRoot);
+			g.setRoot(newRoot);
+			g.updateVertexProperties();
+		});
 	}
 
-	private SWCPoint getNearestPointInGraph(final Collection<SWCPoint> vertices, List<PointInImage> points) {
+	private SWCPoint getCentroid(final List<SWCPoint> points) {
+		if (points == null)
+			return null;
+		final PointInImage cntrd = SNTPoint.average(points);
+		return new SWCPoint(-1, -1, cntrd.x, cntrd.y, cntrd.z, 0, -1);
+	}
+	
+	private SWCPoint getNearestPoint(final Collection<SWCPoint> points, final SWCPoint target) {
 		double distanceSquaredToNearestParentPoint = Double.MAX_VALUE;
 		SWCPoint nearest = null;
-		for (final SWCPoint p : vertices) {
-			for (final PointInImage pim : points) {
-				final double distanceSquared = pim.distanceSquaredTo(p.x, p.y, p.z);
-				if (distanceSquared < distanceSquaredToNearestParentPoint) {
-					nearest = p;
-					distanceSquaredToNearestParentPoint = distanceSquared;
-				}
+		for (final SWCPoint s : points) {
+			if (s == null) continue;
+			final double distanceSquared = target.distanceSquaredTo(s.x, s.y, s.z);
+			if (distanceSquared < distanceSquaredToNearestParentPoint) {
+				nearest = s;
+				distanceSquaredToNearestParentPoint = distanceSquared;
 			}
 		}
 		return nearest;
 	}
 
-    private SWCPoint getMatchingLocationInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
-        if (point != null) {
-            for (final SWCPoint p : graph.vertexSet()) {
-                if (p.isSameLocation(new PointInImage(point.x, point.y, point.z))) {
-                    return p;
-                }
-            }
-        }
-        return null;
-    }
+	private Roi getEnlargedSomaAsNeeded() {
+		// If no skeletonization occurred inside the soma ROI, we need to enlarge its
+		// perimeter by a bit when checking for nodes that would be "inside" the
+		// original ROI. We do this to ensure the closest graph node is indeed
+		// associated with the XY coordinates of the soma
+		return (getRootRoiStrategy() == ROI_CONTAINED) ? somaRoi : RoiConverter.enlarge(somaRoi, 4);
+	}
 
+	private SWCPoint getFeaturedVertexInSoma(final DirectedWeightedGraph graph, final boolean tip,
+			final boolean junction, final boolean slab) {
+		if (somaRoi == null)
+			return null;
+		final Roi soma = getEnlargedSomaAsNeeded();
+		int somaSlice = somaRoi.getZPosition();
+		final List<SWCPoint> result = new ArrayList<>();
+		if (tip) {
+			final SWCPoint nearestTip = getFirstGraphNodeAssociatedWithRoi(getSkeletonResult().getListOfEndPoints(),
+					soma, somaSlice, graph);
+			if (nearestTip != null)
+				result.add(nearestTip);
+		}
+		if (junction) {
+			final SWCPoint nearestJunction = getFirstGraphNodeAssociatedWithRoi(
+					getSkeletonResult().getListOfJunctionVoxels(), soma, somaSlice, graph);
+			if (nearestJunction != null)
+				result.add(nearestJunction);
+		}
+		if (slab) {
+			final SWCPoint nearetSlab = getFirstGraphNodeAssociatedWithRoi(getSkeletonResult().getListOfSlabVoxels(),
+					soma, somaSlice, graph);
+			if (nearetSlab != null)
+				result.add(nearetSlab);
+		}
+		return result.stream().filter(Objects::nonNull).findFirst().orElse(null);
+	}
+
+	private List<SWCPoint> getGraphNodesAssociatedWithRoi(final List<Point> skelPointList, final Roi roi,
+			final int roiSlice, final DirectedWeightedGraph graph, final boolean firstNodeOnly) {
+		final List<SWCPoint> result = new ArrayList<>();
+		for (final Point p : skelPointList) {
+			if (roiSlice > 0 && p.z != roiSlice)
+				continue;
+			if (roi.containsPoint(p.x, p.y)) {
+				final SWCPoint match = getMatchingLocationInGraph(
+						new PointInImage(p.x * pixelWidth, p.y * pixelHeight, p.z * pixelDepth), graph);
+				if (match != null) {
+					result.add(match);
+					if (firstNodeOnly)
+						return result;
+				}
+
+			}
+		}
+		return result;
+	}
+
+	private SWCPoint getFirstGraphNodeAssociatedWithRoi(final List<Point> skelPointList, final Roi roi,
+			final int roiSlice, final DirectedWeightedGraph graph) {
+		final List<SWCPoint> result = getGraphNodesAssociatedWithRoi(skelPointList, roi, roiSlice, graph, true);
+		return (result.isEmpty()) ? null : result.get(0);
+	}
+
+	private SWCPoint getMatchingLocationInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
+		if (point != null) {
+			for (final SWCPoint p : graph.vertexSet()) {
+				if (p.isSameLocation(point)) {
+					return p;
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Sets the Roi enclosing the nodes to be set as root(s) in the final graphs.
+	 * Must be called before retrieval of any converted data.
+	 * 
+	 * @param roi      The area enclosing the components defining the root(s) of the
+	 *                 skeletonized structures. Typically this will correspond to an
+	 *                 area ROI delineating the soma. Note that by default ImageJ
+	 *                 ROIs do not carry depth information, so if you would like to
+	 *                 restrain the delineation to a single plane, be sure to call
+	 *                 {@link Roi#setPosition(int, int, int)} beforehand.
+	 * @param strategy the strategy for root placement: Either
+	 *                 {@link #ROI_CENTROID}, {@link #ROI_CENTROID_WEIGHTED},
+	 *                 {@link #ROI_CONTAINED}, {@link #ROI_EDGE}, or
+	 *                 {@link #ROI_UNSET}
+	 */
+	public void setRootRoi(final Roi roi, final int strategy) {
+		if (roi != null && !roi.isArea())
+			throw new IllegalArgumentException("Only area ROIs supported");
+		if (strategy != ROI_CENTROID && strategy != ROI_CENTROID_WEIGHTED && strategy != ROI_CONTAINED
+				&& strategy != ROI_EDGE && strategy != ROI_UNSET)
+			throw new IllegalArgumentException("Not a valid flag for root placement strategy");
+		if (strategy != ROI_UNSET && roi == null)
+			throw new IllegalArgumentException("Only ROI_UNSET can be used with a null ROI");
+		somaRoi = roi;
+		this.strategy = strategy;
+		if (roi != null && (strategy == ROI_EDGE || strategy == ROI_CENTROID || strategy == ROI_CENTROID_WEIGHTED)) {
+			final Roi existingROi = imp.getRoi();
+			imp.setRoi(roi);
+			final int roiSlice = roi.getZPosition();
+			// if ROI is not associated with a particular slice, clear entire stack
+			final int minZ = (roiSlice == 0) ? 1 : roiSlice;
+			final int maxZ = (roiSlice == 0) ? 1 : imp.getNSlices();
+			for (int z = minZ; z <= maxZ; z++) {
+				final ImageProcessor ip = imp.getImageStack().getProcessor(z);
+				ip.setColor(0);
+				ip.fill(roi);
+			}
+			imp.setRoi(existingROi);
+		}
+	}
+   
     /**
      * Sets the original {@link ImagePlus} to be used during voxel-based loop pruning.
      * See <a href="https://imagej.net/plugins/analyze-skeleton/?amp=1#loop-detection-and-pruning">AnalyzeSkeleton documentation</a>
@@ -428,21 +572,32 @@ public class SkeletonConverter {
      *
      * @see #setPruneMode(int)
      */
+    public int getRootRoiStrategy() {
+        return (somaRoi ==null) ? ROI_UNSET : strategy;
+    }
+   
+    /**
+     * Gets the loop pruning strategy.
+     *
+     * @see #setPruneMode(int)
+     */
     public int getPruneMode() {
         return pruneMode;
     }
 
-    /**
-     * Sets the loop pruning strategy.
-     * See <a href="https://imagej.net/plugins/analyze-skeleton/?amp=1#loop-detection-and-pruning">AnalyzeSkeleton documentation</a>
-     *
-     * @param pruneMode the loop prune strategy, e.g., {@link AnalyzeSkeleton_#SHORTEST_BRANCH},
-     *                  {@link AnalyzeSkeleton_#LOWEST_INTENSITY_BRANCH} or {@link AnalyzeSkeleton_#LOWEST_INTENSITY_VOXEL}
-     * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
-     */
-    public void setPruneMode(int pruneMode) {
-        this.pruneMode = pruneMode;
-    }
+	/**
+	 * Sets the loop pruning strategy. See <a href=
+	 * "https://imagej.net/plugins/analyze-skeleton/?amp=1#loop-detection-and-pruning">AnalyzeSkeleton
+	 * documentation</a>
+	 *
+	 * @param pruneMode the loop prune strategy, e.g., {@link #SHORTEST_BRANCH},
+	 *                  {@link #LOWEST_INTENSITY_BRANCH} or
+	 *                  {@link #LOWEST_INTENSITY_VOXEL}
+	 * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
+	 */
+	public void setPruneMode(int pruneMode) {
+		this.pruneMode = pruneMode;
+	}
 
     /**
      * Sets whether to prune branches which end in end-points from the result.
@@ -547,9 +702,12 @@ public class SkeletonConverter {
      * Runs AnalyzeSkeleton on the image and gets its {@link SkeletonResult}
      */
     private SkeletonResult getSkeletonResult() {
-        final AnalyzeSkeleton_ skeleton = new AnalyzeSkeleton_();
-        skeleton.setup("", imp);
-        return skeleton.run(pruneMode, pruneEnds, shortestPath, origIP, silent, verbose);
+    	if (skeletonResult == null) {
+    		final AnalyzeSkeleton_ skeleton = new AnalyzeSkeleton_();
+    		skeleton.setup("", imp);
+    		skeletonResult = skeleton.run(pruneMode, pruneEnds, shortestPath, origIP, silent, verbose);
+    	}
+        return skeletonResult;
     }
    
     /**
@@ -628,13 +786,14 @@ public class SkeletonConverter {
      * node (i.e, a node of degree 1). The incident edges of each visited node are changed to orient towards
      * the adjacent un-visited node.
      */
-    private void convertToDirected(final DirectedWeightedGraph sntGraph) {
+    private boolean convertToDirected(final DirectedWeightedGraph sntGraph) {
         final SWCPoint root = sntGraph.vertexSet().stream()
                 .filter(v -> sntGraph.degreeOf(v) == 1).findFirst().orElse(null);
         if (root == null) {
-            return;
+            return false;
         }
         sntGraph.setRoot(root);
+        return true;
     }
 
     private List<DirectedWeightedGraph> connectComponents(final List<DirectedWeightedGraph> graphList) {

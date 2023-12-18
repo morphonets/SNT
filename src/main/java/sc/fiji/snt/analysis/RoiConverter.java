@@ -37,8 +37,11 @@ import ij.gui.PointRoi;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
+import ij.measure.Measurements;
 import ij.plugin.RoiEnlarger;
 import ij.process.FloatPolygon;
+import ij.process.ImageProcessor;
+import ij.process.ImageStatistics;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.SNTUtils;
@@ -453,6 +456,27 @@ public class RoiConverter extends TreeAnalyzer {
 			return combinePoints(rois);
 		}
 		return combineNonPoints(rois);
+	}
+
+	/**
+	 * Retrieves the radius of a circle with the same area of the specified area ROI.
+	 * 
+	 * @param imp     The image associated with the ROI
+	 * @param areaRoi The input area ROI
+	 * @return the radius (in calibrated units) of a circle with the same area of
+	 *         {@code areaRoi}
+	 */
+	public static double getFittedRadius(final ImagePlus imp, final Roi areaRoi) {
+		if (!areaRoi.isArea())
+			throw new IllegalArgumentException("Only area ROIs supported");
+		final Roi existingRoi = imp.getRoi();
+		final ImageProcessor ip = imp.getProcessor();
+		ip.setRoi(areaRoi);
+		final ImageStatistics stats = ImageStatistics.getStatistics(ip, Measurements.AREA, null);
+		imp.setRoi(existingRoi);
+		final double scaling = (imp.getCalibration().pixelWidth + imp.getCalibration().pixelHeight) / 2;
+		final double r = Math.sqrt(stats.pixelCount / Math.PI);
+		return r * scaling;
 	}
 
 	private static Roi combineNonPoints(final List<Roi> rois) {
