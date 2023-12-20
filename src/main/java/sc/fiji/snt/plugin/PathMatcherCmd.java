@@ -202,6 +202,10 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 				|| (customTagMatching && !customTagPattern.trim().isEmpty());
 	}
 
+	private List<Path> getEligiblePaths() {
+		return paths.stream().filter(p -> p.size() > 1 || Path.SWC_SOMA != p.getSWCType()).collect(Collectors.toList());
+	}
+
 	@Override
 	public void run() {
 
@@ -216,10 +220,11 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 		// Operate only on paths matching inputRange
 		final Stack<MatchingPath> mPaths = new Stack<>();
 		if (timePoints == null) {
-			paths.forEach(p -> mPaths.push(new MatchingPath(p)));
+			getEligiblePaths().forEach(p -> mPaths.push(new MatchingPath(p)));
 		} else {
-			paths.forEach(p-> {
-				if (timePoints.contains(p.getFrame())) mPaths.push(new MatchingPath(p));
+			getEligiblePaths().forEach(p -> {
+				if (timePoints.contains(p.getFrame()))
+					mPaths.push(new MatchingPath(p));
 			});
 		}
 
