@@ -198,6 +198,7 @@ public class ScriptInstaller implements MenuKeyListener {
 				e.printStackTrace();
 			}
 		}
+		getTextEditor().getTextArea().setCaretPosition(0); // scroll to top
 		getTextEditor().setVisible(true);
 		if (ui != null) ui.showStatus("", false);
 	}

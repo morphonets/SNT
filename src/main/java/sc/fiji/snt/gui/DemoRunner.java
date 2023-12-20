@@ -22,7 +22,6 @@
 
 package sc.fiji.snt.gui;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -55,17 +54,7 @@ public class DemoRunner {
 		priorUIState = ui.getState();
 		ui.changeState(SNTUI.LOADING);
 		ui.showStatus("Retrieving Demo data. Please wait...", false);
-		entries = new ArrayList<>();
-		entries.add(demo1());
-		entries.add(demo2());
-		entries.add(demo3());
-		entries.add(demo4());
-		entries.add(demo5());
-		entries.add(demo6());
-		entries.add(demo7());
-		entries.add(demo8());
-		entries.add(demo9());
-		//entries.add(demo10());
+		entries = List.of(demo1(), demo2(), demo3(), demo4(), demo5(), demo6(), demo7(), demo8(), demo9(), demo10());
 	}
 
 	private Demo demo1() {
@@ -74,7 +63,7 @@ public class DemoRunner {
 			public ImagePlus getImage() {
 				final ImagePlus imp = sntService.demoImage("ddaC");
 				if (imp != null)
-					imp.setRoi(320, 380, 20, 20); // mark soma
+					imp.setRoi(322, 383, 21, 24); // mark soma
 				return imp;
 			}
 
@@ -84,7 +73,8 @@ public class DemoRunner {
 				ui.runAutotracingWizard(true);
 			}
 		};
-		entry.summary = "Loads a binary (thresholded) image of a Drosophila space-filling neuron (ddaC) and displays autotracing options for automated reconstuction.";
+		entry.summary = "Loads a binary (thresholded) image of a Drosophila space-filling neuron (ddaC) and "
+				+ "displays autotracing options for automated reconstuction.";
 		entry.data = "Image (2D mask, 581KB)";
 		entry.online = false;
 		entry.source = "PMID 24449841";
@@ -197,21 +187,9 @@ public class DemoRunner {
 
 			@Override
 			public void load() {
-				if ((snt.getPathAndFillManager().size() > 0 || snt.getImagePlus() != null)
-						&& !directLoading && !new GuiUtils(ui).getConfirmation(
-								"Any loaded image will be disposed and any existing paths will be deleted. Proceed?",
-								"Dispose Existing Data?"))
-					return;
+				if (!prepNonImgLoading())
+					exit();
 				try {
-					if (snt.getImagePlus() != null)
-						snt.getImagePlus().close();
-					if (snt.getImagePlus() != null) { // Presumably user did not resolve 'Save Changes?' prompt
-						new GuiUtils(ui).error("Loading of demo aborted. Please resolve any unsaved changes and retry.");
-						return;
-					}
-					snt.flushSecondaryData();
-					snt.closeAndResetAllPanes(); // closed early on so that spatial calibration reset
-					snt.getPathAndFillManager().clear(); // will reset spatial calibration
 					snt.getPathAndFillManager().addTrees(sntService.demoTrees());
 					snt.setSinglePane(true);
 					snt.rebuildDisplayCanvases();
@@ -255,30 +233,37 @@ public class DemoRunner {
 		return entry;
 	}
 
-//	private Demo demo10() {
-//		final Demo entry = new Demo(10, "Segmented astrocyte (2D image)") {
-//			@Override
-//			public ImagePlus getImage() {
-//				final ImagePlus imp = ij.IJ.openImage("http://wsr.imagej.net/images/mitosis.tif");
-//				imp.setPosition(2, 4, 31); // k-fibers channel, mid Z-range, traced time point
-//				return imp;
-//			}
-//
-//			@Override
-//			public void load() {
-//				super.load();
-//				// apply tags
-//				ui.getPathManager().applyDefaultTags("Traced Channel");
-//				ui.getPathManager().applyDefaultTags("Traced Frame");
-//			}
-//		};
-//		entry.summary = "Downloads a Drosophila S2 cell undergoing mitosis in which K-fibers were traced during anaphase.";
-//		entry.data = "Image (5D; 2-channel, 3D timelapse, 33MB)";
-//		entry.source = "ImageJ sample image, PMID 19720876";
-//		entry.online = true;
-//		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/SNTmanuscript/718e4b90fb4bb61f382edcf467173b53045b25e0/FigS3_5D-Tracing/traces/mitosis.traces";
-//		return entry;
-//	}
+	private Demo demo10() {
+		final Demo entry = new Demo(10, "Segmented video (2D timelapse)") {
+			@Override
+			public ImagePlus getImage() {
+				return null;
+			}
+
+			@Override
+			public void load() {
+				if (!prepNonImgLoading())
+					exit();
+				try {
+					final ScriptInstaller si = new ScriptInstaller(snt.getContext(), ui);
+					final String scriptFileName = "Fully_Automated_Tracing_Timelapse_Demo.groovy";
+					final String scriptName = scriptFileName.substring(0, scriptFileName.indexOf(".")).replace("_", " ");
+					si.runScript("Tracing", scriptName);
+					si.openScript("Tracing", scriptName);
+				} catch (final Throwable ex) {
+					error(ex);
+				} finally {
+					exit();
+				}
+			}
+		};
+		entry.summary = "Downloads a small video of segmented neurites extending in culture, and runs automated "
+				+ "tracing on each frame through a script.";
+		entry.data = "Image (2D timelapse, 0.9MB)";
+		entry.source = "https://forum.image.sc/t/snt-time-lapse-utilites/47974";
+		entry.online = true;
+		return entry;
+	}
 
 	private void error(final Throwable ex) {
 		ui.error("Loading of data failed (" + ex.getMessage() + " error). See Console for details.");
@@ -370,6 +355,29 @@ public class DemoRunner {
 			}
 		}
 
+		protected boolean prepNonImgLoading() {
+			if ((snt.getPathAndFillManager().size() > 0 || snt.getImagePlus() != null)
+					&& !directLoading && !new GuiUtils(ui).getConfirmation(
+							"Any loaded image will be disposed and any existing paths will be deleted. Proceed?",
+							"Dispose Existing Data?"))
+				return false;
+			try {
+				if (snt.getImagePlus() != null)
+					snt.getImagePlus().close();
+				if (snt.getImagePlus() != null) { // Presumably user did not resolve 'Save Changes?' prompt
+					new GuiUtils(ui).error("Loading of demo aborted. Please resolve any unsaved changes and retry.");
+					return false;
+				}
+				snt.flushSecondaryData();
+				snt.closeAndResetAllPanes(); // closed early on so that spatial calibration reset
+				snt.getPathAndFillManager().clear(); // will reset spatial calibration
+				return true;
+			} catch (final Throwable ex) {
+				error(ex);
+			}
+			return false;
+		}
+
 		public String description() {
 			final StringBuilder sb = new StringBuilder();
 			sb.append(summary);
@@ -394,7 +402,7 @@ public class DemoRunner {
 
 		@Override
 		public String toString() {
-			return String.format("%s. %s", id, name);
+			return String.format("%02d. %s", id, name);
 		}
 	}
 }

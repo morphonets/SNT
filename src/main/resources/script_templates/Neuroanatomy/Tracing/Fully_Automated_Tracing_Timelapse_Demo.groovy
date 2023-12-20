@@ -10,7 +10,7 @@ import ij.IJ
  *       in https://forum.image.sc/t/snt-time-lapse-utilites/47974/4
  *       Requires internet access and SNTv4.3.0 or later. Assumes SNT is closed
  *       or contains no paths
- * rev:  20231215
+ * rev:  20231219
  */
 
 // initialize the tracing interface. Typically one would use a path to a local
@@ -30,40 +30,45 @@ imp = snt.getImagePlus()
 (1..imp.getNFrames()).each { frame ->
 	println("Processing frame #" + frame)
 
-	// Assemble a converter[1] for extraction of paths from this frame
-	// [1] https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/SkeletonConverter.html
+	// Assemble a converter for extraction of paths from this frame. API:
+	// https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/SkeletonConverter.html
 	converter = new SkeletonConverter(imp, frame) // image and frame to be parsed
-	converter.setPruneByLength(false) // Do not prune away small fragments
-	converter.setConnectComponents(true) // Merge any broken components..
-	converter.setMaxConnectDist(5) //.. within 5um of each other
-	
-	// Retrieve the list of structure(s) that have been extracted as trees (i.e.,
-	// collection of Paths). For this particular image we expect to extract only
-	// a single tree. We need to specify the ROI enclosing the root of the
-	// structure, i.e., the soma of the cell. This demo image already contains 
-	// a soma-enclosing ROI
-	trees = converter.getTrees(imp.getRoi(), false)
+	converter.setPruneByLength(false) // Don't ignore small components...
+	converter.setConnectComponents(false) // Don't merge neighboring components..
+	converter.setMaxConnectDist(2) //.. within 2um of each other
 
-	// Now we only need to add the result to PathAndFillManager the SNT component
-	// responsible for keeping track of all tracings:
-	trees.each{ tree ->
-		pafm.addTree(tree, "Autotraced_frame" + frame)
-	}
+	// We need to specify the ROI enclosing the root of the structure, i.e.,
+	// the soma of the cell. This image already contains a soma-enclosing ROI,
+	// so we'll set it so that neurites branch out from its centroid. Since ROI
+	// does not reflect an accurate contour of the soma, we'll use the weighted
+	// centroid option to better reflect the mostly likely outgrowth center
+	converter.setRootRoi(imp.getRoi(), converter.ROI_CENTROID_WEIGHTED)
+
+	// Since the image contains only a single cell and we've imposed all primary
+	// neurites to branch out from from a common center, we can retrieve the
+	// conversion result as a single reconstructed Tree
+	tree = converter.getSingleTree()
+
+	// Now we only need to add the result to PathAndFillManager, the SNT
+	// class responsible for keeping track of all traced Paths
+	pafm.addTree(tree, "Autotraced_frame" + frame)
 
 }
 
 // Path extraction concluded. Let's animate the timelapse..
-IJ.doCommand("Start Animation [\\]")
+IJ.doCommand(imp, "Start Animation [\\]")
 
 // .. Ensuring only frame-relevant tracings are displayed during the animation.
+// We can also increase the display thickeness of paths for better contrast.
 // We can use direct calls from SNT's Script Recorder to toggle the visibility
 // filters in SNT's main dialog:
 snt.getUI().setVisibilityFilter("selected", false)
 snt.getUI().setVisibilityFilter("channel/frame", true)
+snt.getUI().setRenderingScale(6)
 
-// We can also tag each path with its frame, and run the Time-lapse Utilities>
-// Match Paths Across Time... under default options, which for this test video
-// are likely to work without adjustments
+// Finally, we can tag each path with its frame, run the Time-lapse Utilities>
+// Match Paths Across Time... command under default options, which for this
+// test video matches neurites across time quite well without adjustments
 snt.getUI().getPathManager().applyDefaultTags("Traced Frame")
 snt.getUI().getPathManager().runCommand("Match Paths Across Time...")
 

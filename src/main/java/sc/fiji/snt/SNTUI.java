@@ -710,6 +710,19 @@ public class SNTUI extends JDialog {
 		}
 	}
 
+	/**
+	 * Sets rendering scale of Paths as per respective widget in dialog.
+	 * @param scale the scale value (-1 for default scale)
+	 */
+	public void setRenderingScale(final double scale) {
+		plugin.getXYCanvas().setNodeDiameter(scale);
+		if (!plugin.getSinglePane()) {
+			plugin.getXZCanvas().setNodeDiameter(scale);
+			plugin.getZYCanvas().setNodeDiameter(scale);
+		}
+		plugin.updateTracingViewers(false);
+	}
+
 	protected void updateSettingsString() {
 		final StringBuilder sb = new StringBuilder();
 		sb.append("Auto-tracing: ").append((plugin.isAstarEnabled()) ? searchAlgoChoice.getSelectedItem() : "Disabled");
@@ -1299,23 +1312,29 @@ public class SNTUI extends JDialog {
 
 	private JPanel nodePanel() {
 		final JSpinner nodeSpinner = GuiUtils.doubleSpinner((plugin.getXYCanvas() == null) ? 1 : plugin.getXYCanvas().nodeDiameter(), 0.5, 100, .5, 1);
-		nodeSpinner.addChangeListener(e -> {
-			final double value = (double) (nodeSpinner.getValue());
-			plugin.getXYCanvas().setNodeDiameter(value);
-			if (!plugin.getSinglePane()) {
-				plugin.getXZCanvas().setNodeDiameter(value);
-				plugin.getZYCanvas().setNodeDiameter(value);
+		 ((JSpinner.DefaultEditor)nodeSpinner.getEditor()).getTextField().addFocusListener(new FocusAdapter() {
+			@Override
+			public void focusGained(final FocusEvent e) {
+				// sync value in case it has been changed by script via #setRenderingScale
+				nodeSpinner.setValue(plugin.getXYCanvas().nodeDiameter());
 			}
-			plugin.updateTracingViewers(false);
+			@Override
+			public void focusLost(final FocusEvent e) {
+				if (recorder != null)
+					recorder.recordCmd("snt.getUI().setRenderingScale("
+							+ SNTUtils.formatDouble((double) nodeSpinner.getValue(), 1) + ")");
+			}
+
+		});
+		nodeSpinner.addChangeListener(e -> {
+			setRenderingScale((double) nodeSpinner.getValue());
 		});
 		final JButton defaultsButton = new JButton("Reset");
 		defaultsButton.addActionListener(e -> {
-			plugin.getXYCanvas().setNodeDiameter(-1);
-			if (!plugin.getSinglePane()) {
-				plugin.getXZCanvas().setNodeDiameter(-1);
-				plugin.getZYCanvas().setNodeDiameter(-1);
-			}
+			setRenderingScale(-1);
 			nodeSpinner.setValue(plugin.getXYCanvas().nodeDiameter());
+			if (recorder != null)
+				recorder.recordCmd("snt.getUI().setRenderingScale(-1)");
 			showStatus("Node scale reset", true);
 		});
 		final JPanel p = new JPanel();
