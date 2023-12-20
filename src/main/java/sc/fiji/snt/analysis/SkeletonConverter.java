@@ -338,7 +338,7 @@ public class SkeletonConverter {
 		
 		if (getRootRoiStrategy() == ROI_CENTROID || getRootRoiStrategy() == ROI_CENTROID_WEIGHTED) {
 			rootAllGraphsOnSomaCentroid(graphList, getRootRoiStrategy() == ROI_CENTROID_WEIGHTED);
-			skeletonResult = null;
+			skeletonResult = null; // dispose temp resource
 			return graphList;
 		}
 		for (final DirectedWeightedGraph graph : graphList) {
@@ -355,8 +355,7 @@ public class SkeletonConverter {
 			}
 			graph.updateVertexProperties();
 		}
-		// dispose temp resource
-		skeletonResult = null;
+		skeletonResult = null; // dispose temp resource
 		return graphList;
 	}
 
@@ -365,7 +364,7 @@ public class SkeletonConverter {
 	 * {@link #getGraphs()}'s list into a single, combined graph. Typically, this
 	 * method assumes that the skeletonization handles a known single component
 	 * (e.g., an image of a single cell). If multiple graphs() do exist, this method
-	 * assumes that {@link #setRootRoi(Roi, int)} as been called using
+	 * requires that {@link #setRootRoi(Roi, int)} has been called using
 	 * {@link #ROI_CENTROID} or {@link #ROI_CENTROID_WEIGHTED}.
 	 * 
 	 * @return the single graph

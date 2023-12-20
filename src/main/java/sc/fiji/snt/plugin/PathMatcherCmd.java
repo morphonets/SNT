@@ -246,7 +246,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			colorCounter++;
 		}
 		if (groupCounter == paths.size()) {
-			msg("Unsuccessful maching: Each path perceived as an independent neurite!?.", "Matching Completed");
+			msg("Unsuccessful maching: Each path perceived as an independent neurite.", "Unsuccessful Maching");
 			wipeMatches();
 		} else {
 			if (groupCounter == 1) {

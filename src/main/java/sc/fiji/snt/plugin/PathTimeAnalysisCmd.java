@@ -82,7 +82,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 	})
 	private String measurementChoice;
 
-	@Parameter(label = "Grouping Strategy", choices = { "No grouping", "Matched path(s) across time", "Matched path(s) across time (≥2 time-points)"})
+	@Parameter(label = "Grouping Strategy", choices = { "No grouping", "Individual neurite(s) across time", "Individual neurite(s) across time (≥2 time-points)"})
 	private String scopeChoice;
 
 	@Parameter(label = "Output", choices = { "Plot", "Table", "Plot and Table" })
@@ -105,7 +105,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
 	@Override
 	public void run() {
-		if (scopeChoice.toLowerCase().startsWith("match")) {
+		if (scopeChoice.toLowerCase().startsWith("individual")) {
 			runMatchedAnalysis(scopeChoice.toLowerCase().contains("2"));
 		} else {
 			runNonMatchedAnalysis();
@@ -125,7 +125,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 		final Map<Integer, List<Path>> map = getPathListMap();
 		if (map.size() < 2) {
 			error("Selected Paths seem to be all asociated with the same time-point. "
-				+ "Make sure frame tags have been successfully applied.");
+				+ "Make sure to select paths associated with at least two time-points (frames).");
 			return;
 		}
 		final ArrayList<Double> xValues = new ArrayList<>(map.size());
@@ -223,7 +223,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 		}
 		if (map.isEmpty()) {
 			error("No matched paths found. Please run \"Match Paths Across Time...\" or "
-				+ "assign groups manually using \"Group #\" tags.");
+					+ "assign groups manually using " + TAG_REGEX_PATTERN.replace("\\{", "").replace("\\d+\\}", ""));
 			return;
 		}
 		if (ignoreSinglePoints) {

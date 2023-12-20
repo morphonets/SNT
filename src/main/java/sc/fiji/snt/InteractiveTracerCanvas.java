@@ -1284,9 +1284,11 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final Tree newTree = editingGraph.getTreeWithSamePathStructure();
 		tracerPlugin.setEditingPath(null);
 		final Calibration cal = tracerPlugin.getImagePlus().getCalibration();
-		newTree.list().forEach(p -> p.setSpacing(cal));
 		pathAndFillManager.deletePaths(editingTree.list());
-		newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
+		newTree.list().forEach(p -> {
+			p.setSpacing(cal);
+			pathAndFillManager.addPath(p, false, true);
+		});
 		pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
 		SNTUtils.log("Finished re-root in " + (System.currentTimeMillis() - start) + "ms");
 	}
