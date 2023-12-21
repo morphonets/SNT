@@ -231,7 +231,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 			pafm.setHeadless(true);
 		} else if (sntService.isActive()) {
-			snt = sntService.getPlugin();
+			snt = sntService.getInstance();
 			ui = sntService.getUI();
 			pafm = sntService.getPathAndFillManager();
 			if (ui != null) ui.changeState(SNTUI.RUNNING_CMD);

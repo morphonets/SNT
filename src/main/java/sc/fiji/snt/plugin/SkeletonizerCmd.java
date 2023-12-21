@@ -90,7 +90,7 @@ public class SkeletonizerCmd implements Command {
 			error("No Paths to convert.");
 			return;
 		}
-		plugin = sntService.getPlugin();
+		plugin = sntService.getInstance();
 		if (plugin == null) {
 			error("No active instance of SNT was found.");
 			return;

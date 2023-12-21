@@ -77,7 +77,6 @@ import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.MeasureUI;
 import sc.fiji.snt.gui.PathManagerUISearchableBar;
 import sc.fiji.snt.gui.SWCExportDialog;
-import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.ScriptRecorder;
 import sc.fiji.snt.gui.SwingSafeResult;
 import sc.fiji.snt.gui.cmds.DistributionBPCmd;
@@ -85,8 +84,8 @@ import sc.fiji.snt.gui.cmds.DistributionCPCmd;
 import sc.fiji.snt.gui.cmds.DuplicateCmd;
 import sc.fiji.snt.gui.cmds.PathFitterCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeOptionsCmd;
-import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.InterpolateRadiiCmd;
+import sc.fiji.snt.plugin.LabkitLoaderCmd;
 import sc.fiji.snt.plugin.MultiTreeMapperCmd;
 import sc.fiji.snt.plugin.PathAnalyzerCmd;
 import sc.fiji.snt.plugin.PathMatcherCmd;
@@ -95,6 +94,7 @@ import sc.fiji.snt.plugin.PathTimeAnalysisCmd;
 import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.plugin.SkeletonizerCmd;
 import sc.fiji.snt.plugin.SpineExtractorCmd;
+import sc.fiji.snt.plugin.TWSLoaderCmd;
 import sc.fiji.snt.plugin.TreeMapperCmd;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -325,6 +325,30 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
 		fillMenu.add(jmi);
 
+		final JMenu process = new JMenu("Process");
+		menuBar.add(process);
+		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_ROI_CMD);
+		jmi.setToolTipText("Converts selected path(s) into ROIs (polylines and points)");
+		jmi.addActionListener(multiPathListener);
+		process.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SKEL_CMD);
+		jmi.setToolTipText("Rasterizes selected path(s) into a skeletonized image");
+		jmi.addActionListener(multiPathListener);
+		process.add(jmi);
+		jmi = new JMenuItem(SinglePathActionListener.STRAIGHTEN);
+		jmi.setToolTipText("Creates a 'linear image' from the pixels associated with single paths");
+		jmi.addActionListener(singlePathListener);
+		process.add(jmi);
+		process.addSeparator();
+		jmi = new JMenuItem(MultiPathActionListener.SEND_TO_LABKIT_CMD);
+		jmi.setToolTipText("Starts a Labkit session loaded with labels from selected paths");
+		jmi.addActionListener(multiPathListener);
+		process.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.SEND_TO_TWS_CMD);
+		jmi.setToolTipText("Starts a Trainable Weka Segmentation session loaded with labels from selected paths");
+		jmi.addActionListener(multiPathListener);
+		process.add(jmi);
+
 		final JMenu advanced = new JMenu("Analyze");
 		menuBar.add(advanced);
 
@@ -365,11 +389,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		measureMenu.add(jmi);
 
 		advanced.addSeparator();
-		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_ROI_CMD);
-		jmi.setToolTipText("Converts selected path(s) into ROIs (polylines and points)");
-		jmi.addActionListener(multiPathListener);
-		advanced.add(jmi);
-
 		jmi = new JMenuItem(MultiPathActionListener.MULTI_METRIC_PLOT_CMD);
 		jmi.setToolTipText("Plots a Path metric against several others");
 		jmi.addActionListener(multiPathListener);
@@ -378,30 +397,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setToolTipText("Multi-channel plots of pixel intensities around selected path(s)");
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SKEL_CMD);
-		jmi.setToolTipText("Rasterizes selected path(s) into a skeletonized image");
-		jmi.addActionListener(multiPathListener);
-		advanced.add(jmi);
-		jmi = new JMenuItem(SinglePathActionListener.STRAIGHTEN);
-		jmi.setToolTipText("Creates a 'linear image' from the pixels associated with single paths");
-		jmi.addActionListener(singlePathListener);
-		advanced.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.TRAIN_WEKA_CLASSIFIER);
-		jmi.setToolTipText("Semantic segmentation (random forest classifier) from selected path(s)");
-		jmi.addActionListener(multiPathListener);
-		advanced.add(jmi);
 		advanced.addSeparator();
-
 		advanced.add(getSpineUtilsMenu(multiPathListener));
 		advanced.add(getTimeSequenceMenu(multiPathListener));
-
 		advanced.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SWC_CMD);
 		jmi.setToolTipText("Exports selected path(s) into dedicated SWC file(s).\nConnectivity constrains apply");
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EXPORT));
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
-
+		
 		// Search Bar TreeSearchable
 		searchableBar = new PathManagerUISearchableBar(this);
 		popup = new JPopupMenu();
@@ -2166,18 +2171,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		plugin.getUI().showStatus(null, false);
 	}
 
-	@SuppressWarnings("deprecation")
 	protected void measureCells(final boolean legacyPrompt) {
 		final Collection<Tree> trees = getMultipleTrees();
 		if (trees == null) return;
-		if (legacyPrompt) {
-			// allow users to use the 'well proven' legacy prompt
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("trees", trees);
-			inputs.put("table", getTable());
-			inputs.put("calledFromPathManagerUI", true);
-			(plugin.getUI().new DynamicCmdRunner(AnalyzerCmd.class, inputs)).run();
-		} else if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
+		if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
 			guiUtils.error("A Measurements prompt seems to be already open.");
 		} else {
 			new MeasureUI(plugin, trees).setVisible(true);
@@ -2543,9 +2540,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String DISCONNECT_CMD = "Disconnect...";
 		private static final String INTERPOLATE_MISSING_RADII = "Correct Radii...";
 
-		//private final static String MEASURE_CMD_SUMMARY = "Quick Measurements";
 		private static final String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
-		private static final String TRAIN_WEKA_CLASSIFIER = "Train Weka Classifier...";
+		private static final String SEND_TO_LABKIT_CMD = "Load Labkit With Selected Path(s)...";
+		private static final String SEND_TO_TWS_CMD = "Load TWS With Selected Path(s)...";
 		private static final String CONVERT_TO_SKEL_CMD = "Skeletonize...";
 		private static final String CONVERT_TO_SWC_CMD = "Save Subset as SWC...";
 		private static final String PLOT_PROFILE_CMD = "Plot Profile...";
@@ -2604,12 +2601,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 
-			// If no path is selected, remind user that action applies to all paths
+			// If no path is selected action applies to all paths
 			final boolean assumeAll = tree.getSelectionCount() == 0;
-			// final boolean assumeAll = noSelection &&
-			// guiUtils.getConfirmation("Currently
-			// no paths are selected. Apply command to all paths?", cmd);
-			// if (noSelection && !assumeAll) return;
 
 			// Case 1: Non-destructive commands that do not require confirmation
 			if (APPEND_ALL_CHILDREN_CMD.equals(cmd) || APPEND_DIRECT_CHILDREN_CMD.equals(cmd)) {
@@ -2642,25 +2635,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				(plugin.getUI().new DynamicCmdRunner(PathProfiler.class, input)).run();
 				return;
 			}
-//			else if (MEASURE_CMD_SUMMARY.equals(cmd)) {
-//				final Tree tree = getSingleTree();
-//				if (tree == null) return;
-//				try {
-//					final TreeAnalyzer ta = new TreeAnalyzer(tree);
-//					ta.setContext(plugin.getContext());
-//					if (ta.getParsedTree().isEmpty()) {
-//						guiUtils.error("None of the selected paths could be measured.");
-//						return;
-//					}
-//					ta.setTable(getTable(), TABLE_TITLE);
-//					ta.summarize(tree.getLabel(), true);
-//				}
-//				catch (final IllegalArgumentException ignored) {
-//					quickMeasurementsCmdError(guiUtils);
-//					return;
-//				}
-//				return;
-//			}
 			else if (MEASURE_TREES_CMD.equals(cmd)) {
 				measureCells((e.getModifiers() & ActionEvent.SHIFT_MASK) != 0
 						|| (e.getModifiers() & ActionEvent.ALT_MASK) != 0);
@@ -2743,9 +2717,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				input.put("imp", plugin.getImagePlus());
 				plugin.getContext().getService(CommandService.class).run(ROIExporterCmd.class, true, input);
 				return;
-
-			} else if (TRAIN_WEKA_CLASSIFIER.equals(cmd)) {
-				ScriptInstaller.runScript("Commands", "Train_Weka_Classifier.groovy", null);
+			} else if (SEND_TO_LABKIT_CMD.equals(cmd)) {
+				final Map<String, Object> input = new HashMap<>();
+				input.put("paths", selectedPaths);
+				plugin.getContext().getService(CommandService.class).run(LabkitLoaderCmd.class, true, input);
+				return;
+			} else if (SEND_TO_TWS_CMD.equals(cmd)) {
+				final Map<String, Object> input = new HashMap<>();
+				input.put("paths", selectedPaths);
+				input.put("imp", plugin.getImagePlus());
+				plugin.getContext().getService(CommandService.class).run(TWSLoaderCmd.class, true, input);
 				return;
 			} else if (INTERPOLATE_MISSING_RADII.equals(cmd)) {
 				final Map<String, Object> input = new HashMap<>();

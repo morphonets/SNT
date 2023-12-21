@@ -196,7 +196,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 	protected void init() {
 
 		if (sntService.isActive()) {
-			snt = sntService.getPlugin();
+			snt = sntService.getInstance();
 			ui = sntService.getUI();
 			if (ui != null) ui.changeState(SNTUI.RUNNING_CMD);
 			runningFromMainSNT = true;

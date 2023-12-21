@@ -114,7 +114,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 		{
 			SNTUtils.log("Assigning values...");
 			final PathProfiler profiler = new PathProfiler(tree, sntService
-				.getPlugin().getLoadedDataAsImp());
+				.getInstance().getLoadedDataAsImp());
 			profiler.assignValues();
 		}
 		colorizer.setMinMax(Double.NaN, Double.NaN);

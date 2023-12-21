@@ -107,7 +107,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			resolveInput("onlyConnectivitySafeMetrics");
 			getInfo().setLabel("Distribution Analysis (Branch Properties)");
 		}
-		imgDataAvailable = calledFromPathManagerUI && sntService.getPlugin().accessToValidImageData();
+		imgDataAvailable = calledFromPathManagerUI && sntService.getInstance().accessToValidImageData();
 		if (!imgDataAvailable) choices.remove(TreeStatistics.VALUES);
 
 		Collections.sort(choices);
@@ -149,7 +149,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			SNTUtils.log("Assigning values...");
 			trees.forEach( tree -> {
 				final PathProfiler profiler = new PathProfiler(tree, sntService
-						.getPlugin().getImagePlus());
+						.getInstance().getImagePlus());
 					profiler.assignValues();
 			});
 		}

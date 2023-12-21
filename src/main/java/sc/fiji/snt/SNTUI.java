@@ -83,6 +83,7 @@ import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
+import sc.fiji.snt.io.WekaModelLoader;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.tracing.cost.OneMinusErf;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -403,11 +404,11 @@ public class SNTUI extends JDialog {
 			}
 			this.pmUI.getJMenuBar().add(Box.createHorizontalGlue());
 			this.pmUI.getJMenuBar().add(commandFinder.getMenuItem(this.pmUI.getJMenuBar(), true));
+			addFileDrop(this.pmUI, this.pmUI.guiUtils);
 			commandFinder.attach(this.pmUI);
 		} else {
 			this.pmUI = pmUI;
 		}
-		addFileDrop(this.pmUI, this.pmUI.guiUtils);
 		if (fmUI == null) {
 			this.fmUI = new FillManagerUI(plugin);
 			this.fmUI.setLocation(getX() + getWidth(), getY() + this.pmUI.getHeight());
@@ -2125,13 +2126,15 @@ public class SNTUI extends JDialog {
 		final JMenuItem mi1 = new JMenuItem("Secondary Layer Creation Wizard...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.WIZARD));
 		ScriptRecorder.setRecordingCall(mi1, "snt.getUI().runSecondaryLayerWizard()");
-		commandFinder.register(mi1, "Main tab", "Auto-tracing");
+		commandFinder.register(mi1, "Main tab", "Auto-tracing (II Layer)");
 		mi1.setToolTipText("Create a secondary layer using built-in image processing routines");
 		mi1.addActionListener(e -> runSecondaryLayerWizard());
 		final JMenuItem mi2 = GuiUtils.MenuItems.fromOpenImage();
 		mi2.addActionListener(e -> loadSecondaryImage(true));
+		commandFinder.register(mi2, "Main tab", "Auto-tracing (II Layer)");
 		final JMenuItem mi3 = GuiUtils.MenuItems.fromFileImage();
 		mi3.addActionListener(e -> loadSecondaryImage(false));
+		commandFinder.register(mi3, "Main tab", "Auto-tracing (II Layer)");
 		final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.getMenuIcon(IconFactory.GLYPH.BROOM));
 		registerInCommandFinder(mi4, "Flush Secondary Layer", "Main tab", "Auto-tracing");
 		mi4.addActionListener(e -> {
@@ -2141,9 +2144,18 @@ public class SNTUI extends JDialog {
 				plugin.flushSecondaryData();
 			}
 		});
-		final JMenuItem mi5 = new JMenuItem("From Weka Model...", IconFactory.getMenuIcon(IconFactory.GLYPH.COGS));
-		mi5.addActionListener(e -> guiUtils.error("This option is not yet implemented. In the interim, please "
-				+ "run <i>Scripts> Tracing> Apply Weka Model To Tracing Image</i> and load resulting image."));
+		commandFinder.register(mi4, "Main tab", "Auto-tracing (II Layer)");
+		final JMenuItem mi5 = new JMenuItem("From Labkit/TWS Model...", IconFactory.getMenuIcon(IconFactory.GLYPH.BRAIN));
+		mi5.addActionListener(e -> {
+			if (!okToReplaceSecLayer())
+				return;
+			if (!plugin.accessToValidImageData()) {
+				noValidImageDataError();
+				return;
+			}
+			(new DynamicCmdRunner(WekaModelLoader.class, null)).run();
+		});
+		commandFinder.register(mi5, "Main tab", "Auto-tracing (II Layer)");
 		GuiUtils.addSeparator(secLayerMenu, "Create:");
 		secLayerMenu.add(mi1);
 		GuiUtils.addSeparator(secLayerMenu, "Load Precomputed:");
@@ -2156,6 +2168,7 @@ public class SNTUI extends JDialog {
 		secLayerMenu.addSeparator();
 		final JMenuItem mi6 = GuiUtils.menuItemTriggeringHelpURL("Help on Secondary Layers",
 				"https://imagej.net/plugins/snt/manual#tracing-on-secondary-image");
+		commandFinder.register(mi6, "Main tab", "Auto-tracing (II Layer)");
 		secLayerMenu.add(mi6);
 
 		// Assemble panel
@@ -3226,6 +3239,7 @@ public class SNTUI extends JDialog {
 			resetState();
 			updateSettingsString();
 			pack();
+			pmUI.setSize(getWidth(), pmUI.getHeight());
 			pathAndFillManager.resetListeners(null, true); // update Path lists
 			setPathListVisible(true, false);
 			setFillListVisible(false);

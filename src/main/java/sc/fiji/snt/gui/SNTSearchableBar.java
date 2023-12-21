@@ -330,7 +330,6 @@ public class SNTSearchableBar extends SearchableBar {
 			if (text == null || text.isEmpty()) _statusLabel.setText(
 				statusLabelPlaceholder);
 		});
-		_statusLabel.setBackground(Color.CYAN);
 		return _statusLabel;
 	}
 
