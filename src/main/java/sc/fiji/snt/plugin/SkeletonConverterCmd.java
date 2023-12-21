@@ -107,15 +107,15 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 	@Parameter(label = "ROI strategy", choices = { ROI_UNSET, ROI_EDGE, ROI_CENTROID, ROI_CENTROID_WEIGHTED, ROI_CONTAINED }, //
 			description = "<HTML>Assumes that an active area ROI marks the root(s) of the structure.<br><dl>" //
 					+ "<dt><i>" + ROI_UNSET + "</i></dt>" //
-					+ "<dd>An arbitrary root node is used</dd>" //
+					+ "<dd>An <b>arbitrary root node</b> is used</dd>" //
 					+ "<dt><i>" + ROI_EDGE + "</i></dt>" //
-					+ "<dd>Paths branch out around the ROI's contour</dd>" //
+					+ "<dd>Paths branch out around the ROI's contour. Most accurate strategy for <b>complex topologies</b></dd>" //
 					+ "<dt><i>" + ROI_CENTROID + "</i></dt>" //
-					+ "<dd>Paths branch out from the centroid of ROI's contour</dd>" //
+					+ "<dd>Paths branch out from the centroid of ROI's contour. Suitable for simpler cells w/ <b>accurate soma contours</b></dd>" //
 					+ "<dt><i>" + ROI_CENTROID_WEIGHTED + "</i></dt>" //
-					+ "<dd>Paths branch out from the centroid of root(s) contained by ROI</dd>" //
+					+ "<dd>Paths branch out from the centroid of root(s) contained by ROI. Suitable for simpler cells w/ <b>imprecise soma contours</b></dd>" //
 					+ "<dt><i>" + ROI_CONTAINED + "</i></dt>" //
-					+ "<dd>ROI marks the location of a single root</dd>" //
+					+ "<dd>ROI marks the location of a single root. Suitable for polarized cells with <b>only one neurite extending from ROI</b></dd>" //
 					+ "</dl>")
 	private String rootChoice;
 
@@ -144,6 +144,9 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			+ "This value is only used if \"Connect adjacent components\" is enabled. Merges<br>"
 			+ "occur only between end-points and only when the operation does not introduce loops")
 	private double maxConnectDist;
+
+	@Parameter(label = "Discard single-node paths", description = "<HTML>If checked, any single-point paths without any children are never created")
+	private boolean cullSingleNodePaths;
 
 	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
 	private String HEADER4 = "<HTML>&nbsp;<br><b> IV. Options";
@@ -184,17 +187,22 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			resolveInput("originalImgChoice");
 			resolveInput("useFileChoosers");
 			resolveInput("roiPlane");
-			resolveInput("pruneByLength");
-			resolveInput("lengthThreshold");
+			resolveInput("cullSingleNodePaths");
 			resolveInput("clearExisting");
+			resolveInput("assignDistinctColors");
+			resolveInput("editMode");
 			useFileChoosers = false;
 			maskImgChoice = IMG_TRACED_DUP_CHOICE;
+			final MutableModuleItem<String> rootChoiceItem = getInfo().getMutableInput("rootChoice", String.class);
+			rootChoiceItem.setValue(this, ROI_EDGE); // mostly likely to succeed (assuming a ROI exists)
 			connectComponents = true;
 			maxConnectDist = 5d; // hopefully 5 microns
-			pruneByLength = false;
+			pruneByLength = true;
+			lengthThreshold = 1d;
+			cullSingleNodePaths = true;
 			clearExisting = false;
 			assignDistinctColors = true;
-			editMode = true;
+			editMode = false;
 
 		} else if (useFileChoosers) { // disable choice widgets. Use file choosers
 
@@ -507,9 +515,12 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				return;
 			}
 			trees.forEach(tree -> {
-				tree.list().forEach(path -> {
+				for (final Iterator<Path> it = tree.list().iterator(); it.hasNext();) {
+					final Path path = it.next();
 					path.setCTposition(snt.getChannel(), snt.getFrame());
-				});
+					if (cullSingleNodePaths && path.size() == 1 && path.getChildren().isEmpty())
+						it.remove();
+				}
 			});
 			final PathAndFillManager pafm = sntService.getPathAndFillManager();
 			if (clearExisting) {
