@@ -213,7 +213,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				hull2D = null;
 			buildPlot();
 			chart.replace(viewer.getChart());
-			chart.setVisible(true); // re-open frame if it has been closed
+			chart.getFrame().setVisible(true); // re-open frame if it has been closed
 			viewer.setGridlinesVisible(chart.isGridlinesVisible());
 			viewer.setOutlineVisible(chart.isOutlineVisible());
 			//frame.toFront();

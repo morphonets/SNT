@@ -85,7 +85,6 @@ import sc.fiji.snt.gui.cmds.DistributionCPCmd;
 import sc.fiji.snt.gui.cmds.DuplicateCmd;
 import sc.fiji.snt.gui.cmds.PathFitterCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeOptionsCmd;
-import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.InterpolateRadiiCmd;
 import sc.fiji.snt.plugin.MultiTreeMapperCmd;
 import sc.fiji.snt.plugin.PathAnalyzerCmd;
@@ -2166,18 +2165,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		plugin.getUI().showStatus(null, false);
 	}
 
-	@SuppressWarnings("deprecation")
 	protected void measureCells(final boolean legacyPrompt) {
 		final Collection<Tree> trees = getMultipleTrees();
 		if (trees == null) return;
-		if (legacyPrompt) {
-			// allow users to use the 'well proven' legacy prompt
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("trees", trees);
-			inputs.put("table", getTable());
-			inputs.put("calledFromPathManagerUI", true);
-			(plugin.getUI().new DynamicCmdRunner(AnalyzerCmd.class, inputs)).run();
-		} else if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
+		if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
 			guiUtils.error("A Measurements prompt seems to be already open.");
 		} else {
 			new MeasureUI(plugin, trees).setVisible(true);

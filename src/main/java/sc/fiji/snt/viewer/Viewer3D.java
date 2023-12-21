@@ -179,7 +179,6 @@ import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
-import sc.fiji.snt.plugin.AnalyzerCmd;
 import sc.fiji.snt.plugin.BrainAnnotationCmd;
 import sc.fiji.snt.plugin.ConvexHullCmd;
 import sc.fiji.snt.plugin.GroupAnalyzerCmd;
@@ -3360,7 +3359,7 @@ public class Viewer3D {
 			debugCheckBox.addItemListener(e -> {
 				final boolean debug = debugCheckBox.isSelected();
 				if (isSNTInstance()) {
-					sntService.getPlugin().getUI().setEnableDebugMode(debug);
+					sntService.getInstance().getUI().setEnableDebugMode(debug);
 				} else {
 					SNTUtils.setDebugMode(debug);
 				}
@@ -4191,7 +4190,6 @@ public class Viewer3D {
 			prefs.nagUserOnRetrieveAll = !options[1];
 		}
 
-		@SuppressWarnings("deprecation")
 		private JPopupMenu measureMenu() {
 			final JPopupMenu measureMenu = new JPopupMenu();
 			GuiUtils.addSeparator(measureMenu, "Tabular Results:");
@@ -4200,13 +4198,7 @@ public class Viewer3D {
 				List<Tree> trees = getSelectedTrees();
 				if (trees == null || trees.isEmpty()) return;
 				initTable();
-				if ((e.getModifiers() & ActionEvent.SHIFT_MASK) != 0 || (e.getModifiers() & ActionEvent.ALT_MASK) != 0) {
-					final Map<String, Object> inputs = new HashMap<>();
-					inputs.put("trees", trees);
-					inputs.put("table", table);
-					inputs.put("calledFromPathManagerUI", false);
-					runCmd(AnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
-				} else if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
+				if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
 					guiUtils.error("A Measurements prompt seems to be already open.");
 					trees = null;
 				} else {

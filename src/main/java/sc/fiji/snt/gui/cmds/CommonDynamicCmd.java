@@ -66,7 +66,7 @@ public class CommonDynamicCmd extends DynamicCommand {
 			error("SNT is not running.");
 			return;
 		}
-		snt = sntService.getPlugin();
+		snt = sntService.getInstance();
 		ui = sntService.getUI();
 		if (ui != null) ui.changeState(SNTUI.RUNNING_CMD);
 	}

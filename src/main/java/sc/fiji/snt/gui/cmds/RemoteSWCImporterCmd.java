@@ -132,7 +132,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 			pafm = new PathAndFillManager();
 		}
 		else if (sntService.isActive()) {
-			snt = sntService.getPlugin();
+			snt = sntService.getInstance();
 			ui = sntService.getUI();
 			pafm = sntService.getPathAndFillManager();
 			recViewer = (ui == null) ? null : ui.getReconstructionViewer(false);
