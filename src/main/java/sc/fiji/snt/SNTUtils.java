@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2023 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -87,6 +87,7 @@ import net.imagej.display.ImageDisplayService;
 import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imagej.ops.OpService;
+import net.imagej.patcher.LegacyInjector;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
@@ -593,6 +594,7 @@ public class SNTUtils {
 			} finally {
 				if (context == null) {
 					try {
+						LegacyInjector.preinit();
 						context = new Context();
 					} catch (final Throwable e) {
 						System.out.println("SciJava context could not be initialized properly [" + e.getMessage()
