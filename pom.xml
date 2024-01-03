@@ -140,7 +140,7 @@
 		<enforcer.skip>true</enforcer.skip>
 
 		<!-- Dependency versions -->
-		<font-awesome.version>6.4.2</font-awesome.version>
+		<font-awesome.version>6.5.1</font-awesome.version>
 		<flatlaf.version>3.2.5</flatlaf.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
 		<log4j.version>2.21.1</log4j.version>
