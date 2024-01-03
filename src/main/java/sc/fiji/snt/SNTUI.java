@@ -31,6 +31,7 @@ import java.awt.Font;
 import java.awt.Frame;
 import java.awt.GraphicsConfiguration;
 import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
@@ -411,7 +412,7 @@ public class SNTUI extends JDialog {
 		}
 		if (fmUI == null) {
 			this.fmUI = new FillManagerUI(plugin);
-			this.fmUI.setLocation(getX() + getWidth(), getY() + this.pmUI.getHeight());
+			this.fmUI.setLocationRelativeTo(this);
 			if (showOrHidePathList != null) {
 				this.fmUI.addWindowStateListener(evt -> {
 					if (showOrHideFillList != null && (evt.getNewState() & Frame.ICONIFIED) == Frame.ICONIFIED) {
@@ -2135,7 +2136,7 @@ public class SNTUI extends JDialog {
 		final JMenuItem mi3 = GuiUtils.MenuItems.fromFileImage();
 		mi3.addActionListener(e -> loadSecondaryImage(false));
 		commandFinder.register(mi3, "Main tab", "Auto-tracing (II Layer)");
-		final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.getMenuIcon(IconFactory.GLYPH.BROOM));
+		final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.getMenuIcon(IconFactory.GLYPH.TOILET));
 		registerInCommandFinder(mi4, "Flush Secondary Layer", "Main tab", "Auto-tracing");
 		mi4.addActionListener(e -> {
 			if (!noSecondaryDataAvailableError()
@@ -2145,7 +2146,7 @@ public class SNTUI extends JDialog {
 			}
 		});
 		commandFinder.register(mi4, "Main tab", "Auto-tracing (II Layer)");
-		final JMenuItem mi5 = new JMenuItem("From Labkit/TWS Model...", IconFactory.getMenuIcon(IconFactory.GLYPH.BRAIN));
+		final JMenuItem mi5 = new JMenuItem("From Labkit/TWS Model...", IconFactory.getMenuIcon(IconFactory.GLYPH.KIWI_BIRD));
 		mi5.addActionListener(e -> {
 			if (!okToReplaceSecLayer())
 				return;
@@ -2702,21 +2703,34 @@ public class SNTUI extends JDialog {
 		});
 		utilitiesMenu.addSeparator();
 
-		// similar to File>Autotrace image... but assuming current image as source, which does
-		// not require file validations etc.
-		final JMenuItem autotraceJMI = new JMenuItem("Extract Paths from Segmented Image...",
+		// similar to File>Autotrace Segmented Image File... but assuming current image as source,
+		// which does not require file validations etc.
+		final JMenuItem autotraceJMI = new JMenuItem("Autotrace Segmented Image...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.ROBOT));
 		autotraceJMI.setToolTipText("Runs automated tracing on a thresholded/binary image already open");
 		utilitiesMenu.add(autotraceJMI);
 		ScriptRecorder.setRecordingCall(autotraceJMI, "snt.getUI().runAutotracingWizard(false)");
 		autotraceJMI.addActionListener(e -> runAutotracingOnImage(false));
-		utilitiesMenu.addSeparator();
-		final JMenu scriptUtilsMenu = installer.getBatchScriptsMenu();
-		scriptUtilsMenu.setText("Batch Scripts");
-		scriptUtilsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.PLUS));
-		utilitiesMenu.add(scriptUtilsMenu);
 
 		// View menu
+		final JMenuItem arrangeDialogsMenuItem = new JMenuItem("Arrange Dialogs",
+				IconFactory.getMenuIcon(IconFactory.GLYPH.WINDOWS2));
+		arrangeDialogsMenuItem.addActionListener(e -> {
+			final int w = Integer.valueOf(getPrefs().get("def-gui-width", "-1"));
+			final int h = Integer.valueOf(getPrefs().get("def-gui-height", "-1"));
+			if (w == -1 || h == -1) {
+				error("Preferences may be corrupt. Please reset them using File>Reset and Restart...");
+				return;
+			}
+			java.awt.Rectangle bounds = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+			setBounds(bounds.x, bounds.y, w, h);
+			pmUI.setBounds(getLocation().x + w + MARGIN, getLocation().y, w, h);
+			fmUI.setLocation(pmUI.getLocation().x + w + MARGIN, getLocation().y);
+			final Window console = GuiUtils.getConsole();
+			if (console != null)
+				console.setBounds(getLocation().x, bounds.height - h / 3, w * 2, h / 3);
+		});
+		viewMenu.add(arrangeDialogsMenuItem);
 		final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Tracing Views");
 		arrangeWindowsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.WINDOWS));
 		arrangeWindowsMenuItem.addActionListener(e -> arrangeCanvases(true));
@@ -2742,7 +2756,7 @@ public class SNTUI extends JDialog {
 		});
 		hideViewsMenu.add(threeDViewerMenuItem);
 		viewMenu.add(hideViewsMenu);
-		final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image");
+		final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image", IconFactory.getMenuIcon(GLYPH.LAYERS));
 		showImpMenuItem.addActionListener(e -> {
 			if (noSecondaryDataAvailableError())
 				return;
@@ -2756,16 +2770,14 @@ public class SNTUI extends JDialog {
 		viewMenu.add(showImpMenuItem);
 		viewMenu.addSeparator();
 
-		final JMenuItem consoleJMI = new JMenuItem("Toggle Fiji Console");
+		final JMenuItem consoleJMI = new JMenuItem("Toggle Fiji Console", IconFactory.getMenuIcon(GLYPH.CODE));
 		consoleJMI.addActionListener(e -> {
 			try {
-				for (final Window w : JFrame.getWindows()) {
-					if (w instanceof JFrame && ("Console".equals(((JFrame) w).getTitle()))) {
-						w.setVisible(!w.isVisible());
-						return;
-					}
-				}
-				plugin.getContext().getService(UIService.class).getDefaultUI().getConsolePane().show();
+				final Window console = GuiUtils.getConsole();
+				if (console == null)
+					plugin.getContext().getService(UIService.class).getDefaultUI().getConsolePane().show();
+				else
+					console.setVisible(!console.isVisible());
 			} catch (final Exception ex) {
 				guiUtils.error(
 						"Could not toggle Fiji's built-in Console. Please use Fiji's Window>Console command directly.");
@@ -3249,6 +3261,8 @@ public class SNTUI extends JDialog {
 			InternalUtils.ijmLogMessage();
 			promptForAutoTracingAsAppropriate();
 			guiUtils.notifyIfNewVersion(0);
+			getPrefs().set("def-gui-width", ""+getWidth());
+			getPrefs().set("def-gui-height", ""+getHeight());
 		});
 	}
 
@@ -4145,7 +4159,7 @@ public class SNTUI extends JDialog {
 		static String getImportActionName(final int type) {
 			switch (type) {
 			case ImportAction.AUTO_TRACE_IMAGE:
-				return "Autotrace Segmented Image...";
+				return "Autotrace Segmented Image File...";
 			case ImportAction.SWC_DIR:
 				return "Directory of SWCs...";
 			case ImportAction.SWC:
@@ -4169,7 +4183,7 @@ public class SNTUI extends JDialog {
 
 		static int getImportActionType(final String name) {
 			switch (name) {
-			case "Autotrace Segmented Image...":
+			case "Autotrace Segmented Image File...":
 				return ImportAction.AUTO_TRACE_IMAGE;
 			case "Directory of SWCs...":
 				return ImportAction.SWC_DIR;

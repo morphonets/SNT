@@ -99,6 +99,7 @@ import javax.swing.JDialog;
 import javax.swing.JEditorPane;
 import javax.swing.JFileChooser;
 import javax.swing.JFormattedTextField;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JMenu;
@@ -619,6 +620,34 @@ public class GuiUtils {
 		return (String) getObj(promptMsg, promptTitle, defaultValue);
 	}
 
+	public String[] getStrings(final String promptTitle, final String[] labels, final String[] defaultValues) {
+		final JTextField[] fields = new JTextField[labels.length];
+		final JPanel panel = new JPanel(new GridBagLayout());
+		final GridBagConstraints c = new GridBagConstraints();
+		for (int i = 0; i < labels.length; i++) {
+			c.gridy = i;
+			c.gridx = 0;
+			c.fill = 0;
+			c.anchor = GridBagConstraints.EAST;
+			panel.add(new JLabel(labels[i]), c);
+			c.gridx = 1;
+			c.fill = 1;
+			c.anchor = GridBagConstraints.WEST;
+			fields[i] = new JTextField(20);
+			fields[i].setText(defaultValues[i]);
+			panel.add(fields[i], c);
+		}
+		final int result = JOptionPane.showConfirmDialog(parent, panel, promptTitle, JOptionPane.OK_CANCEL_OPTION,
+				JOptionPane.PLAIN_MESSAGE);
+		if (result == JOptionPane.OK_OPTION) {
+			final String[] values = new String[labels.length];
+			for (int i = 0; i < labels.length; i++)
+				values[i] = fields[i].getText();
+			return values;
+		}
+		return null;
+	}
+	
 	public Set<String> getStringSet(final String promptMsg, final String promptTitle,
 			final Collection<String> defaultValues) {
 		final String userString = getString(promptMsg, promptTitle, toString(defaultValues));
@@ -1492,6 +1521,15 @@ public class GuiUtils {
 
 	public static String modKey() {
 		return (PlatformUtils.isMac()) ? "Alt" : "Ctrl";
+	}
+
+	public static Window getConsole() {
+		for (final Window w : JFrame.getWindows()) {
+			if (w instanceof JFrame && ("Console".equals(((JFrame) w).getTitle()))) {
+				return w;
+			}
+		}
+		return null;
 	}
 
 	public static GridBagConstraints defaultGbc() {

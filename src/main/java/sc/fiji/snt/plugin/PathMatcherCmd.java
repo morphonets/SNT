@@ -131,7 +131,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 	@Parameter(label = "Orientation: Angle range (°)", required = false, stepSize = "0.5", 
 			style = "format:#.0", min = "0", max = "360", description="<HTML><div WIDTH=500>"
 			+ "Paths sharing an outgrowth angle +/- this range (in degrees) are assumed to "
-			+ "share the same overall direction of growth. Ignored if 'Orientation' is"
+			+ "share the same overall direction of growth. Ignored if 'Orientation' is "
 			+ "deselected.")
 	private double directionMatchingRange;
 

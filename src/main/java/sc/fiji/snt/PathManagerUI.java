@@ -179,9 +179,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		editMenu.add(getRenameMenuItem(singlePathListener));
 		editMenu.addSeparator();
 
-		JMenuItem jmi = new JMenuItem(MultiPathActionListener.COMBINE_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.ARROWS_SPLIT));
+		JMenuItem jmi = new JMenuItem(MultiPathActionListener.AUTO_CONNECT_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.LINK));
+		jmi.setToolTipText("Connects 2 paths (parent-child) at an inferred fork point");
+		jmi.addActionListener(multiPathListener);
+		editMenu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.DISCONNECT_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.UNLINK));
+		jmi.setToolTipText("Disconnects selected path(s) from all of their connections");
+		jmi.addActionListener(multiPathListener);
+		editMenu.add(jmi);
+		editMenu.addSeparator();
+
+		jmi = new JMenuItem(MultiPathActionListener.COMBINE_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.ARROWS_SPLIT));
 		jmi.setToolTipText("Combines 2 or more disconnected paths into a single one");
-		//jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.CONCATENATE_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.ARROWS_DLUR));
@@ -190,10 +199,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		//jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAPE));
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.DISCONNECT_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.UNLINK));
-		editMenu.add(jmi);
-		jmi.setToolTipText("Disconnects selected path(s) from all of their connections");
-		jmi.addActionListener(multiPathListener);
 		jmi = new JMenuItem(MultiPathActionListener.MERGE_PRIMARY_PATHS_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
 		jmi.setToolTipText("Merges selected primary path(s) into a common root");
 		jmi.addActionListener(multiPathListener);
@@ -268,10 +273,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		tagsMenu.add(morphoTagsMenu);
 		tagsMenu.addSeparator();
 
-		jmi = new JMenuItem(MultiPathActionListener.CUSTOM_TAG_CMD);
-		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.PEN));
+		final JMenu customTagsMenu = new JMenu("Custom");
+		customTagsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.PEN));
+		tagsMenu.add(customTagsMenu);
+		jmi = new JMenuItem(MultiPathActionListener.CUSTOM_TAG_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.PLUS));
 		jmi.addActionListener(multiPathListener);
-		tagsMenu.add(jmi);
+		customTagsMenu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.REPLACE_TAG_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH_ARROW));
+		jmi.addActionListener(multiPathListener);
+		customTagsMenu.add(jmi);
+		
 		tagsMenu.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.REMOVE_TAGS_CMD);
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TRASH));
@@ -327,24 +338,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		final JMenu process = new JMenu("Process");
 		menuBar.add(process);
-		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_ROI_CMD);
+		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_ROI_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.BEZIER_CURVE));
 		jmi.setToolTipText("Converts selected path(s) into ROIs (polylines and points)");
 		jmi.addActionListener(multiPathListener);
 		process.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SKEL_CMD);
+		jmi = new JMenuItem(MultiPathActionListener.CONVERT_TO_SKEL_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.X_RAY));
 		jmi.setToolTipText("Rasterizes selected path(s) into a skeletonized image");
 		jmi.addActionListener(multiPathListener);
 		process.add(jmi);
-		jmi = new JMenuItem(SinglePathActionListener.STRAIGHTEN);
+		jmi = new JMenuItem(SinglePathActionListener.STRAIGHTEN, IconFactory.getMenuIcon(IconFactory.GLYPH.STAIRS));
 		jmi.setToolTipText("Creates a 'linear image' from the pixels associated with single paths");
 		jmi.addActionListener(singlePathListener);
 		process.add(jmi);
 		process.addSeparator();
-		jmi = new JMenuItem(MultiPathActionListener.SEND_TO_LABKIT_CMD);
+		jmi = new JMenuItem(MultiPathActionListener.SEND_TO_LABKIT_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.KIWI_BIRD));
 		jmi.setToolTipText("Starts a Labkit session loaded with labels from selected paths");
 		jmi.addActionListener(multiPathListener);
 		process.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.SEND_TO_TWS_CMD);
+		jmi = new JMenuItem(MultiPathActionListener.SEND_TO_TWS_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.KIWI_BIRD));
 		jmi.setToolTipText("Starts a Trainable Weka Segmentation session loaded with labels from selected paths");
 		jmi.addActionListener(multiPathListener);
 		process.add(jmi);
@@ -389,11 +400,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		measureMenu.add(jmi);
 
 		advanced.addSeparator();
-		jmi = new JMenuItem(MultiPathActionListener.MULTI_METRIC_PLOT_CMD);
+		jmi = new JMenuItem(MultiPathActionListener.MULTI_METRIC_PLOT_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.CHART_AREA));
 		jmi.setToolTipText("Plots a Path metric against several others");
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.PLOT_PROFILE_CMD);
+		jmi = new JMenuItem(MultiPathActionListener.PLOT_PROFILE_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.CHART_LINE));
 		jmi.setToolTipText("Multi-channel plots of pixel intensities around selected path(s)");
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
@@ -503,6 +514,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private JMenuItem getRenameMenuItem(final SinglePathActionListener singlePathListener) {
 		final JMenuItem renameMitem = new JMenuItem(
 			SinglePathActionListener.RENAME_CMD);
+		renameMitem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.PEN));
 		renameMitem.addActionListener(singlePathListener);
 		renameMitem.setToolTipText("Renames a single path");
 		return renameMitem;
@@ -561,7 +573,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			});
 			swcTypeMenu.add(rbmi);
 		});
-		final JMenuItem jmi = new JMenuItem("Options...");
+		final JMenuItem jmi = new JMenuItem("Options...", IconFactory.getMenuIcon(IconFactory.GLYPH.SLIDERS));
 		jmi.addActionListener(e -> {
 
 			class GetOptions extends SwingWorker<Boolean, Object> {
@@ -2515,13 +2527,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String ASSIGN_DISTINCT_COLORS = "Assign Distinct Colors";
 		private static final String COLORS_MENU = "Color";
 		private static final String DELETE_CMD = "Delete...";
+		private static final String AUTO_CONNECT_CMD = "Auto-connect...";
 		private static final String COMBINE_CMD = "Combine...";
 		private static final String CONCATENATE_CMD = "Concatenate...";
 		private static final String REVERSE_CMD = "Reverse...";
 		private static final String MERGE_PRIMARY_PATHS_CMD = "Merge Primary Paths(s) Into Shared Root...";
 		private static final String REBUILD_CMD = "Rebuild...";
 		private static final String DOWNSAMPLE_CMD = "Ramer-Douglas-Peucker Downsampling...";
-		private static final String CUSTOM_TAG_CMD = "Custom...";
+		private static final String CUSTOM_TAG_CMD = "Add...";
+		private static final String REPLACE_TAG_CMD = "Replace...";
 		private static final String LENGTH_TAG_CMD = "Length";
 		private static final String MEAN_RADIUS_TAG_CMD = "Mean Radius";
 		private static final String ORDER_TAG_CMD = "Path Order";
@@ -2774,6 +2788,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				runHistogramPathsCmd(selectedPaths, null, null, null, null);
 				return;
 			}
+			else if (REPLACE_TAG_CMD.equals(cmd)) {
+				replaceTags(selectedPaths);
+				return;
+			}
 			else if (CUSTOM_TAG_CMD.equals(cmd)) {
 
 				final Set<String> existingTags = extractTagsFromPaths(selectedPaths);
@@ -2893,6 +2911,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				removeTagsThroughPrompt(selectedPaths);
 				return;
 			}
+			else if (AUTO_CONNECT_CMD.equals(cmd)) {
+				if (n != 2)
+					guiUtils.error("This command requires exactly 2 paths to be selected.");
+				else
+					autoConnect(selectedPaths.get(0), selectedPaths.get(1));
+				return;
+			}
 			else if (COMBINE_CMD.equals(cmd)) {
 				if (n == 1) {
 					displayTmpMsg("You must have at least two paths selected.");
@@ -2975,11 +3000,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				newSoma.setName("Root centroid");
 				// Add a node to the newly defined path, corresponding to the centroid of
 				// all other root nodes and add this new single-point path to the manager
-				newSoma.addNode(SNTPoint.average(rootNodes));
+				final PointInImage centroid = SNTPoint.average(rootNodes);
+				newSoma.addNode(centroid);
 				pathAndFillManager.addPath(newSoma, false, true);
 				// Now connect all of root nodes to it
+				centroid.onPath = newSoma;
 				primaryPaths.forEach(primaryPath -> {
-					primaryPath.setStartJoin(newSoma, newSoma.getNode(0));
+					primaryPath.insertNode(0, centroid);
+					primaryPath.setStartJoin(newSoma, centroid);
 				});
 				rebuildRelationShips(); // will call refreshManager()
 				return;
@@ -3108,6 +3136,51 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		}
 
+		private void autoConnect(final Path p1, final Path p2) {
+			final boolean stop = p1.isConnectedTo(p2) || p2.isConnectedTo(p1) ||
+					(p1.getChildren() != null && p1.getChildren().contains(p2)) ||
+					(p2.getChildren() != null && p2.getChildren().contains(p1));
+			if (stop) { // minimum-effort loop detector
+				guiUtils.error("There is already a parent-child relationship between the two paths.");
+				return;
+			}
+			final String[] choices = new String[] { p1.getName(), p2.getName() };
+			final String defChoice = (p1.size() > p2.size()) ? choices[0] : choices[1];
+			final String chosenID = guiUtils.getChoice("<p>This command attempts to connect two " //
+					+ "paths by guessing the most likely location of the forking point. " //
+					+ "Please save your progress before proceeding because the assigned " //
+					+ "bifurcation may be inaccurate and this operation may not be " //
+					+ "undoable.<br><br>Please specify wich of the two paths is the parent:",
+					"Choose Parent-Child Relationship", choices, defChoice);
+			if (chosenID == null)
+				return;
+			final Path parent = (choices[0].equals(chosenID)) ? p1 : p2;
+			final Path child = (!choices[0].equals(chosenID)) ? p1 : p2;
+			final PointInImage first = child.getNode(0);
+			final PointInImage last = child.getNode(child.size() - 1);
+			final List<PointInImage> parentNodes = parent.getNodes();
+			final NearPointInCanvas<PointInImage> nFirst = NearPointInCanvas.nearestPointInImage(parentNodes, first);
+			final NearPointInCanvas<PointInImage> nLast = NearPointInCanvas.nearestPointInImage(parentNodes, last);
+			if (nFirst == null || nLast == null) {
+				guiUtils.error("Fork point could not be detected. Please use the editing 'Connect to...' "
+						+ "command in the image contextual menu to connect the two paths.");
+			} else {
+				if (child.getStartJoins() != null)
+					child.unsetStartJoin();
+				if (nFirst.getDistanceSquared() < nLast.getDistanceSquared()) {
+					child.insertNode(0, nFirst.getNode());
+					child.setStartJoin(parent, nFirst.getNode());
+				} else {
+					child.addNode(nLast.getNode());
+					child.setStartJoin(parent, nLast.getNode());
+				}
+				child.setIDs(child.getID(), parent.getTreeID());
+				child.getChildren().forEach(c -> c.setIDs(c.getID(), parent.getTreeID()));
+				rebuildRelationShips(); // will reset tree labels
+				setSelectedPaths(List.of(p1, p2), this);
+			}
+		}
+
 		private void concatenate(final List<Path> selectedPaths) {
 			final Map<Path, List<Path>> map = new HashMap<>();
 			for (final Path p : selectedPaths) {
@@ -3220,6 +3293,26 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		}
 
+		private void replaceTags(final List<Path> selectedPaths) {
+			final String[] labels = { "Find (case-sensitive) ", "Replace with " };
+			final String[] defaults = { GuiUtils.toString(extractTagsFromPaths(selectedPaths)), "" };
+			final String[] findReplace = guiUtils.getStrings("Replace Tag(s)...", labels, defaults);
+			if (findReplace == null || findReplace[0] == null || findReplace[0].isEmpty() || findReplace[1] == null)
+				return; // nothing to replace
+			findReplace[1].replace("[", "(").replace("]", ")").replace("{", "").replace("}", "");
+			int counter = 0;
+			for (final Path p : selectedPaths) {
+				final String existingTags = extractTagsFromPath(p);
+				if (existingTags.contains(findReplace[0])) {
+					final String replacedTags = existingTags.replace(findReplace[0], findReplace[1]);
+					p.setName(removeTags(p) + ((replacedTags.isEmpty()) ? "" : "{" + replacedTags + "}"));
+					counter++;
+				}
+			}
+			refreshManager(false, false, selectedPaths);
+			guiUtils.centeredMsg("" + counter + " occurence(s) replaced.", "Operation Completed");
+		}
+
 		private void deleteCustomTags(final List<Path> paths) {
 			if (!plugin.getUI().askUserConfirmation || guiUtils.getConfirmation("Remove custom tags from "
 					+ ((paths.size() == pathAndFillManager.size()) ? "all " : "the selected ")
@@ -3292,6 +3385,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return name.substring(openingDlm + 1, closingDlm);
 		}
 		return "";
+	}
+
+	static String removeTags(final Path p) {
+		final String name = p.getName();
+		final int delimiterIdx = name.indexOf("{");
+		if (delimiterIdx == -1) {
+			return name;
+		} else {
+			return name.substring(0, delimiterIdx);
+		}
 	}
 
 	static Set<String> extractTagsFromPaths(final List<Path> paths) {

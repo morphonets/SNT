@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2023 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -45,7 +45,7 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, initializer = "init", visible = false)
+@Plugin(type = Command.class, initializer = "init")
 public class LabkitLoaderCmd extends CommonDynamicCmd {
 
 	@Parameter

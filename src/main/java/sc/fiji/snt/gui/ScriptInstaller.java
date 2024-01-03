@@ -41,6 +41,7 @@ import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import javax.swing.Icon;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.MenuElement;
@@ -205,6 +206,7 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	private JMenu getMenu(final String folder, final Pattern excludePattern, final boolean trimExtension) {
 		final JMenu sMenu = new JMenu((folder == null) ? "Full List" : folder.replace("_", " "));
+		sMenu.setIcon(getIcon(sMenu.getText()));
 		for (final ScriptInfo si : scripts) {
 			final String[] dirAndFile = getDirAndFilename(si.getPath());
 			if (dirAndFile == null || (folder != null && !dirAndFile[0].contains(folder))) continue;
@@ -214,6 +216,28 @@ public class ScriptInstaller implements MenuKeyListener {
 		return sMenu;
 	}
 
+	private Icon getIcon(final String menuName) {
+		switch(menuName) {
+		case "Analysis":
+			return IconFactory.getMenuIcon(GLYPH.CHART);
+		case "Batch":
+			return IconFactory.getMenuIcon(GLYPH.COG);
+		case "Demos":
+			return IconFactory.getMenuIcon(GLYPH.GRADUATION_CAP);
+		case "Full List":
+			return IconFactory.getMenuIcon(GLYPH.LIST);
+		case "Misc":
+			return IconFactory.getMenuIcon(GLYPH.ELLIPSIS);
+		case "Render":
+			return IconFactory.getMenuIcon(GLYPH.CUBE);
+		case "Skeletons and ROIs":
+			return IconFactory.getMenuIcon(GLYPH.BEZIER_CURVE);
+		case "Tracing":
+			return IconFactory.getMenuIcon(GLYPH.ROUTE);
+		default:
+			return null;
+		}
+	}
 	private JMenuItem menuItem(final ScriptInfo si, final boolean trimExtension) {
 		final JMenuItem mItem = new JMenuItem(getScriptLabel(si, trimExtension));
 		mItem.setToolTipText("Click to run script. Click holding Shift to open it");
@@ -265,7 +289,7 @@ public class ScriptInstaller implements MenuKeyListener {
 	/** Returns a UI list with all the bundled non-demo SNT scripts **/
 	public JMenu getScriptsMenu() {
 		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Misc", "Render", "Skeletons_and_ROIs", "Tracing");
-		menus.insert(getDemosMenu(), 6);
+		menus.insert(getDemosMenu(), 2);
 		return menus;
 	}
 
@@ -282,11 +306,11 @@ public class ScriptInstaller implements MenuKeyListener {
 		for (final String dir : directories) {
 			final JMenu menu = getMenu(dir, excludePattern, true);
 			if (menu.getMenuComponents().length > 0)
-				sMenu.add(getMenu(dir, excludePattern, true));
+				sMenu.add(menu);
 		}
+
 		final JMenu listMenu = getFullListMenu();
 		final int listMenuPosition = sMenu.getItemCount();
-		sMenu.add(listMenu);
 		final JMenuItem reloadMI = new JMenuItem("Reload Scripts...", IconFactory.getMenuIcon(GLYPH.REDO));
 		reloadMI.addActionListener(e -> {
 			final int oldCount = scripts.size();
@@ -301,8 +325,6 @@ public class ScriptInstaller implements MenuKeyListener {
 			sMenu.revalidate();
 			guiUtils.centeredMsg(""+ (newCount-oldCount) +" new script(s) added to \"Scripts>Full List>\".", "New Script(s) Detected");
 		});
-		sMenu.add(reloadMI);
-		sMenu.addSeparator();
 		final JMenuItem mi1 = new JMenuItem("From Template...", IconFactory.getMenuIcon(GLYPH.FILE));
 		mi1.addActionListener(e -> {
 
@@ -330,9 +352,7 @@ public class ScriptInstaller implements MenuKeyListener {
 			}
 		});
 		final JMenuItem mi2 = new JMenuItem("From Clipboard...", IconFactory.getMenuIcon(GLYPH.CLIPBOARD));
-		mi2.addActionListener(e -> {
-			newScriptFromClipboard();
-		});
+		mi2.addActionListener(e -> newScriptFromClipboard());
 		final JMenu nMenu = new JMenu("New");
 		nMenu.setIcon(IconFactory.getMenuIcon(GLYPH.PLUS));
 		nMenu.add(mi1);
@@ -349,7 +369,10 @@ public class ScriptInstaller implements MenuKeyListener {
 			nMenu.addSeparator();
 			nMenu.add(mi3);
 		}
+		sMenu.add(listMenu);
+		sMenu.addSeparator();
 		sMenu.add(nMenu);
+		sMenu.add(reloadMI);
 		sMenu.addSeparator();
 		sMenu.add(about());
 		return sMenu;

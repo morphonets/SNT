@@ -604,8 +604,8 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				+ "<li>A filtered image, as created by the <i>Secondary Layer Creation Wizard</i> in the <i>Auto-tracing</i> widget</li>"
 				+ "</ul>" + "<p>" + "<p>Related Scripts:</p>" + "<ul>" + "<li>Batch &rarr Filter Multiple Images</li>"
 				+ "<li>Skeletons and ROIs &rarr Reconstruction From Segmented Image</li>" + "</ul>" + "<p>To Rerun:</p>"
-				+ "<ul>" + "<li>Utilities &rarr Extract Paths from Seg. Image... (opened images)</li>"
-				+ "<li>File &rarr AutoTrace Segmented Image... (unopened files)</li>");
+				+ "<ul>" + "<li>Utilities &rarr Autotrace Segmented Image... (opened images)</li>"
+				+ "<li>File &rarr AutoTrace Segmented Image File... (unopened files)</li>");
 	}
 
 	private void resolveAllInputs() { // ensures prompt is not displayed on error

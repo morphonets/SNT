@@ -1137,9 +1137,9 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	public void addPath(final Path p, final boolean retainTags) {
-		final String tags = PathManagerUI.extractTagsFromPath(p);
 		prepPathForAdding(p, true, true, true);
 		if (retainTags) {
+			final String tags = PathManagerUI.extractTagsFromPath(p);
 			p.setName((tags.isEmpty()) ? p.getName() : p.getName() + " {" + tags + "}");
 		}
 		addPathInternal(p);

@@ -258,15 +258,6 @@ public class SNTSearchableBar extends SearchableBar {
 			updateSearch();
 		});
 		popup.add(jcbmi1);
-		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
-			final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Display No. of Matches", getSearchable().isCountMatch());
-			jcbmi4.setToolTipText("May adversely affect performance if selected");
-			jcbmi4.addItemListener(e -> {
-				setShowMatchCount(jcbmi4.isSelected());
-				updateSearch();
-			});
-			popup.add(jcbmi4);
-		}
 		final JMenuItem jcbmi2 = new JCheckBoxMenuItem("Enable Wildcards (?*)", getSearchable().isWildcardEnabled());
 		jcbmi2.setToolTipText("<HTML><b>?</b> (any character) and <b>*</b> (any string) supported");
 		jcbmi2.addItemListener(e -> {
@@ -277,6 +268,16 @@ public class SNTSearchableBar extends SearchableBar {
 			updateSearch();
 		});
 		popup.add(jcbmi2);
+		popup.addSeparator();
+		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
+			final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Display No. of Matches", getSearchable().isCountMatch());
+			jcbmi4.setToolTipText("May adversely affect performance if selected");
+			jcbmi4.addItemListener(e -> {
+				setShowMatchCount(jcbmi4.isSelected());
+				updateSearch();
+			});
+			popup.add(jcbmi4);
+		}
 		final JMenuItem jcbmi3 = new JCheckBoxMenuItem("Loop After First/Last Hit", getSearchable().isRepeats());
 		jcbmi3.addItemListener(e -> getSearchable().setRepeats(jcbmi3.isSelected()));
 		jcbmi3.setToolTipText("Affects selection of previous/next hit using arrow keys");

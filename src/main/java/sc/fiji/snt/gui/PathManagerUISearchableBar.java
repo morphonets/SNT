@@ -86,47 +86,47 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	}
 
 	private JMenuItem createFindAndReplaceMenuItem() {
-		JMenuItem mi = new JMenuItem("Replace...");
+		final JMenuItem mi = new JMenuItem("Find and Replace...");
 		mi.addActionListener(e -> {
-			String findText = getSearchingText();
-			if (findText == null || findText.isEmpty()) {
-				guiUtils.error("No filtering string exists.", "No Filtering String");
-				return;
-			}
+			final String[] labels = { "<HTML>Find", "<HTML>Replace&nbsp;" };
+			if (getSearchable().isCaseSensitive())
+				labels[0] += " <i>[Aa]</i> ";
+			if (getSearchable().isWildcardEnabled())
+				labels[0] += " <i>[?*]</i> ";
+			labels[0] += "&nbsp;";
+			final String[] defaults = { getSearchingText(), "" };
+			final String[] findReplace = guiUtils.getStrings("Replace by Pattern...", labels, defaults);
+			if (findReplace == null || findReplace[0] == null || findReplace[0].isEmpty())
+				return; // user pressed cancel or chose no inputs
+			setSearchingText(findReplace[0]);
 			final boolean clickOnHighlightAllNeeded = !isHighlightAll();
-			if (clickOnHighlightAllNeeded) _highlightsButton.doClick();
+			if (clickOnHighlightAllNeeded)
+				_highlightsButton.doClick();
 			final Collection<Path> selectedPath = pmui.getSelectedPaths(false);
 			if (selectedPath.isEmpty()) {
-				guiUtils.error("No Paths matching '" + findText + "'.",
-					"No Paths Selected");
+				guiUtils.error("No Paths matching '" + findReplace[0] + "'.", "No Paths Selected");
 				return;
 			}
-			final String replaceText = guiUtils.getString(
-				"Please specify the text to replace all ocurrences of\n" + "\"" +
-					findText + "\" in the " + selectedPath.size() +
-					" Path(s) currently selected:", "Replace Filtering Pattern", null);
-			if (replaceText == null) {
-				if (clickOnHighlightAllNeeded) _highlightsButton.doClick(); // restore status
-				return; // user pressed cancel
-			}
+			if (findReplace[1] == null || findReplace[1].isEmpty())
+				return; // nothing to replace
 			if (getSearchable().isWildcardEnabled()) {
-				findText = findText.replaceAll("\\?", ".?");
-				findText = findText.replaceAll("\\*", ".*");
+				findReplace[0] = findReplace[0].replaceAll("\\?", ".?");
+				findReplace[0] = findReplace[0].replaceAll("\\*", ".*");
 			}
 			if (!getSearchable().isCaseSensitive()) {
-				findText = "(?i)" + findText;
+				findReplace[0] = "(?i)" + findReplace[0];
 			}
 			try {
-				final Pattern pattern = Pattern.compile(findText);
+				final Pattern pattern = Pattern.compile(findReplace[0]);
 				for (final Path p : selectedPath) {
-					p.setName(pattern.matcher(p.getName()).replaceAll(replaceText));
+					p.setName(pattern.matcher(p.getName()).replaceAll(findReplace[1]));
 				}
 				pmui.update();
-			}
-			catch (final IllegalArgumentException ex) { // PatternSyntaxException  etc.
+			} catch (final IllegalArgumentException ex) { // PatternSyntaxException etc.
 				guiUtils.error("Replacement pattern not valid: " + ex.getMessage());
 			} finally {
-				if (clickOnHighlightAllNeeded) _highlightsButton.doClick(); // restore status
+				if (clickOnHighlightAllNeeded)
+					_highlightsButton.doClick(); // restore status
 			}
 		});
 		return mi;

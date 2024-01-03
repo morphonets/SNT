@@ -499,7 +499,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			last_y_in_pane_precise, plane, p);
 		final PointInCanvas cursor = new PointInCanvas(p[0], p[1], 0);
 
-		final NearPointInCanvas nearPoint = NearPointInCanvas.nearestPointInCanvas(nodes, cursor);
+		final NearPointInCanvas<PointInCanvas> nearPoint = NearPointInCanvas.nearestPointInCanvas(nodes, cursor);
 		if (nearPoint == null) {
 			getGuiUtils().tempMsg("No selectable paths in view");
 		}

@@ -62,6 +62,7 @@ public class IconFactory {
 			ARROWS_SPLIT('\ue4bc', true), //
 			//ARROWS_V('\uf338', true), //
 			//ATOM('\uf5d2', true), //
+			BEZIER_CURVE('\uf55b', true),//
 			BINOCULARS('\uf1e5', true), //
 			BOLD('\uf032', true),//
 			BOOK_READER('\uf5da', true), //
@@ -73,7 +74,9 @@ public class IconFactory {
 			BULLSEYE('\uf140', true), //
 			CAMERA('\uf030', true), //
 			CALCULATOR('\uf1ec', true), //
-			CHART('\uf080', false), //
+			CHART('\ue0e3', true), //
+			CHART_LINE('\uf201', true), //
+			CHART_AREA('\uf1fe', true), //
 			CHECK_DOUBLE('\uf560', true), //
 			CIRCLE('\uf192', false), //
 			CLOCK_ROTATE_LEFT('\uf1da', true), //
@@ -103,6 +106,7 @@ public class IconFactory {
 			DOTCIRCLE('\uf192', true), //
 			//DOWNLOAD('\uf019', true), //
 			DRAFT('\uf568', true), //
+			ELLIPSIS('\uf141', true), //
 			ELLIPSIS_VERTICAL('\uf142', true), //
 			EMPTY('\u00a0', false), //
 			EQUALS('\uf52c', true), //
@@ -136,6 +140,7 @@ public class IconFactory {
 			ITALIC('\uf033', true), //
 			//JET('\uf0fb', true), //
 			KEYBOARD('\uf11c', false), //
+			KIWI_BIRD('\uf535', true), //
 			LAYERS('\uf5fd', true), //
 			LINK('\uf0c1', true), //
 			LIST('\uf03a', true), //
@@ -165,6 +170,7 @@ public class IconFactory {
 			REDO('\uf01e', true), //
 			ROBOT('\uf544', true), //
 			ROCKET('\uf135', true), //
+			ROUTE('\uf4d7', true), //
 			RULER('\uf546', true), //
 			RULER_VERTICAL('\uf548', true), //
 			SAVE('\uf0c7', false), //
@@ -172,11 +178,13 @@ public class IconFactory {
 			SEARCH('\uf002', true), //
 			SEARCH_MINUS('\uf010', true), //
 			SEARCH_PLUS('\uf00e', true), //
+			SEARCH_ARROW('\ue521', true), //
 			SHUFFLE('\uf074', true), //
 			SIGNS('\uf277', true), //
 			SLIDERS('\uf1de', true), //
 			SPINNER('\uf110', true), //
 			SORT('\uf15d', true), //
+			STAIRS('\ue289', true), //
 			STETHOSCOPE('\uf0f1', true), //
 			STREAM('\uf550', true), //
 			SUN('\uf185', true), //
@@ -187,6 +195,7 @@ public class IconFactory {
 			TAPE('\uf4db', true), //
 			TEXT('\uf031', true), //
 			TIMES('\uf00d', true), //
+			TOILET('\uf7d8', true), //
 			TOOL('\uf0ad', true), //
 			TRASH('\uf2ed', false), //
 			TREE('\uf1bb', true), //
@@ -195,7 +204,9 @@ public class IconFactory {
 			VIDEO('\uf03d', true), //
 			WIDTH('\uf337', true), //
 			WINDOWS('\uf2d2', false), //
-			WIZARD('\uf6e8', true);
+			WINDOWS2('\uf2d2', true), //
+			WIZARD('\uf6e8', true),//
+			X_RAY('\uf497', true);
 
 		private final char id;
 		private final boolean solid;
