@@ -4,7 +4,7 @@
 #@UIService ui
 
 /**
- *  Applies a pre-existing Weka model to image being traced. API Resources:
+ *  Applies a pre-existing Weka model to the image being traced. API Resources:
  *  https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/SNTService.html
  *  https://javadoc.scijava.org/Fiji/index.html?trainableSegmentation/WekaSegmentation.html
  */
@@ -18,7 +18,7 @@ if (!snt.isActive() || !snt.getInstance().accessToValidImageData() || file == nu
 import trainableSegmentation.WekaSegmentation
 
 // Apply model
-segmentator = new WekaSegmentation(snt.getInstance().getImagePlus())
+segmentator = new WekaSegmentation(snt.getInstance().getLoadedDataAsImp())
 segmentator.loadClassifier(file.getAbsolutePath())
 segmentator.applyClassifier(true)
 segmentator.getClassifiedImage().show()

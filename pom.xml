@@ -516,5 +516,13 @@
 		scoped test only dependencies found", but it's already a transitive
 		dependency at compile scope, and we don't want to narrow the scope.
 		-->
+		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>Trainable_Segmentation</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>labkit-ui</artifactId>
+		</dependency>
 	</dependencies>
 </project>

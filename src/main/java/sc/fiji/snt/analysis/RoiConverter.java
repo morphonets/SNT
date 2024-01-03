@@ -117,7 +117,7 @@ public class RoiConverter extends TreeAnalyzer {
 	public RoiConverter(final Tree tree, final ImagePlus imp) {
 		super(tree);
 		this.imp = imp;
-		hyperstack = imp.isHyperStack();
+		hyperstack = imp.isHyperStack() || imp.isComposite();
 		twoD = imp.getNSlices() == 1;
 	}
 

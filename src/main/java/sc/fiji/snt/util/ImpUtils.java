@@ -23,7 +23,9 @@
 package sc.fiji.snt.util;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -34,6 +36,7 @@ import ij.plugin.ImagesToStack;
 import ij.plugin.ZProjector;
 import ij.process.ByteProcessor;
 import ij.process.ImageConverter;
+import ij.process.ImageStatistics;
 import ij.process.StackConverter;
 
 /**
@@ -131,4 +134,30 @@ public class ImpUtils {
 		return extracted;
 	}
 
+	public static void removeSlices(final ImageStack stack, Collection<String> labels) {
+		int count = 0;
+		for (int i = 1; i <= stack.size(); i++) {
+			if ((i - count) > stack.getSize())
+				break;
+			if (labels.contains(stack.getSliceLabel(i))) {
+				stack.deleteSlice(i - count);
+				count++;
+			}
+		}
+	}
+
+	public static double[] getMinMax(final ImagePlus imp) {
+		final ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX);
+		return new double[] { imgStats.min, imgStats.max };
+	}
+
+	public static List<String> getSliceLabels(final ImageStack stack) {
+		final List<String> set = new ArrayList<>();
+		for (int slice = 1; slice <= stack.size(); slice++) {
+			final String label = stack.getSliceLabel(slice);
+			if (label != null)
+				set.add(label);
+		}
+		return set;
+	}
 }
