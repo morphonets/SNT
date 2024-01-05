@@ -613,7 +613,7 @@ public class SNTService extends AbstractService implements ImageJService {
 		} else if (nImg.contains("timelapse")) {
 			return (!nImg.contains("binary")) ? cil701()
 					: ij.IJ.openImage(
-							"https://github.com/morphonets/misc/raw/e75e0c3254cd658cf70e960d90cf38a3dec72a6e/timelapse-binary-demo.zip");
+							"https://github.com/morphonets/misc/raw/00369266e14f1a1ff333f99f0f72ef64077270da/dataset-demos/timelapse-binary-demo.zip");
 		}
 		throw new IllegalArgumentException("Not a recognized demoImage argument: " + img);
 	}

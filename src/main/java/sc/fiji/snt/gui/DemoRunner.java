@@ -127,7 +127,7 @@ public class DemoRunner {
 		entry.data = "Image (2D; timelapse image, 52MB) and tracings (420KB)";
 		entry.source = "Cell Image Library, doi:10.7295/W9CIL701";
 		entry.online = true;
-		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/misc/4fe57b0a0d8a274921abb7b5b61d5394d22eddd3/CIL_Dataset_%23701.traces";
+		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/misc/00369266e14f1a1ff333f99f0f72ef64077270da/dataset-demos/CIL_Dataset_%23701.traces";
 		return entry;
 	}
 

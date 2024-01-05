@@ -22,13 +22,14 @@
 
 package sc.fiji.snt.plugin;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Stack;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -42,6 +43,7 @@ import org.scijava.widget.Button;
 import net.imagej.ImageJ;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
@@ -59,6 +61,13 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 
 	private static final String TAG_FORMAT = "{neurite#%d}";
 	protected static final String TAG_REGEX_PATTERN = "\\{neurite#\\d+\\}";
+	protected static final String TAG_REGEX_PATTERN_LEGACY = "\\{Group \\d+\\}"; // used prior to v4.3.0
+
+	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
+	private final String header = "<HTML>This command automatically matches paths across time, assigning them<br>" //
+			+ "to the same neurite through tags. Single-node and soma-tagged paths are<br>"
+			+ "ignored. Note that you can manually (re)assign paths to a common neurite<br>"
+			+ "using <i>neurite#</i> tags.";
 
 	@Parameter(label = "<HTML><b>Range Criteria for Time Points:", persist = false, 
 			required = false, visibility = ItemVisibility.MESSAGE)
@@ -67,7 +76,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 	@Parameter(required = false, label = "Frame range", description="<HTML><div WIDTH=500>"
 			+ "Only paths associated with these frames will be considered for matching. "
 			+ "Range(s) (e.g. <tt>2-14</tt>), and list(s) (e.g. <tt>1,3,20,22</tt>) are accepted. "
-			+ "Leave empty or type <tt>all</tt> to consider all time-points.")
+			+ "Leave empty to consider all time-points.")
 	private String inputRange;
 
 	@Parameter(label = "<HTML>&nbsp;<br><b>Matching Criteria:", 
@@ -75,12 +84,12 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 	private String SPACER2;
 
 	@Parameter(label = "Origin", description="<HTML><div WIDTH=500>"
-			+ "Whether paths neeed to start at a common XYZ location.")
+			+ "Whether paths neeed to share a common starting location to be matched.")
 	private boolean startNodeLocationMatching;
 
 	@Parameter(label = "Orientation", description="<HTML><div WIDTH=500>"
 			+ "Whether paths neeed to extent under the same overall direction "
-			+ "(outgrowth angle).")
+			+ "(outgrowth angle) to be matched.")
 	private boolean directionMatching;
 	
 	@Parameter(label = "Channel", description="<HTML><div WIDTH=500>"
@@ -145,7 +154,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 	private String SPACER4;
 
 	@Parameter(label = "Assign unique colors to groups", description="<HTML><div WIDTH=500>"
-			+ "Whether pats from the same group should be assigned a common color tag.")
+			+ "Whether paths matched to the same neurite should be assigned a common color.")
 	private boolean assignUniqueColors;
 	
 	@Parameter(label = "Clear Existing Match(es)", callback = "wipeMatches",
@@ -171,8 +180,9 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			xNeighborhood = yNeighborhood = zNeighborhood = snt.getMinimumSeparation() * 3;
 			directionMatching = true;
 			directionMatchingRange = 30;
+			pathOrderMatching = true;
 			assignUniqueColors = true;
-			List.of("assignUniqueColors", "channelMatching", "colorTagMatching", "customTagMatching",
+			List.of("header", "assignUniqueColors", "channelMatching", "colorTagMatching", "customTagMatching",
 					"customTagPattern", "directionMatching", "directionMatchingRange", "inputRange",
 					"pathOrderMatching", "startNodeLocationMatching", "typeTagMatching", "xNeighborhood",
 					"yNeighborhood", "zNeighborhood", "wipeExistingMatches", "SPACER1", "SPACER2", "SPACER3", "SPACER4")
@@ -184,7 +194,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 
 	private void wipeMatches() {
 		for (final Path p : paths) {
-			p.setName(p.getName().replaceAll(TAG_REGEX_PATTERN, ""));
+			p.setName(p.getName().replaceAll(TAG_REGEX_PATTERN, "").replaceAll(TAG_REGEX_PATTERN_LEGACY, ""));
 		}
 		if (ui != null)
 			ui.getPathManager().update();
@@ -203,7 +213,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 	}
 
 	private List<Path> getEligiblePaths() {
-		return paths.stream().filter(p -> p.size() > 1 || Path.SWC_SOMA != p.getSWCType()).collect(Collectors.toList());
+		return paths.stream().filter(p -> p.size() > 1 && Path.SWC_SOMA != p.getSWCType()).collect(Collectors.toList());
 	}
 
 	@Override
@@ -218,37 +228,50 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 		final Set<Integer> timePoints = getTimePoints(inputRange);
 
 		// Operate only on paths matching inputRange
-		final Stack<MatchingPath> mPaths = new Stack<>();
+		final List<MatchingPath> mPaths = new ArrayList<>();
 		if (timePoints == null) {
-			getEligiblePaths().forEach(p -> mPaths.push(new MatchingPath(p)));
+			getEligiblePaths().forEach(p -> mPaths.add(new MatchingPath(p)));
 		} else {
 			getEligiblePaths().forEach(p -> {
 				if (timePoints.contains(p.getFrame()))
-					mPaths.push(new MatchingPath(p));
+					mPaths.add(new MatchingPath(p));
 			});
 		}
-
 		if (mPaths.isEmpty()) {
 			error("No paths to process: Either no paths were specified or range of time-points is not valid.");
 			return;
 		}
 
 		// Match paths
+		for (int i = 0; i < mPaths.size(); i++) {
+			for (int j = i + 1; j < mPaths.size(); j++) {
+				mPaths.get(i).match(mPaths.get(j));
+			}
+		}
+		for (int i = 0; i < mPaths.size(); i++) {
+			for (int j = i + 1; j < mPaths.size(); j++) {
+				final MatchingPath current = mPaths.get(i);
+				final MatchingPath next = mPaths.get(j);
+				if (current.matchedGroup != null && next.matchedGroup != null
+						&& !Collections.disjoint(current.matchedGroup, next.matchedGroup)) {
+					current.matchedGroup.addAll(next.matchedGroup);
+					next.matchedGroup = null;
+				}
+			}
+		}
 		final ColorRGB[] colors = SNTColor.getDistinctColors(20);
 		int groupCounter = 0;
 		int colorCounter = 0;
-		while (!mPaths.isEmpty()) {
-			final MatchingPath current = mPaths.pop();
-			final List<MatchingPath> matches = mPaths.stream().filter( p -> p.matches(current)).collect(Collectors.toList());
-			matches.add(current); // add query path to group
-			if (colorCounter > colors.length-1) colorCounter = 0;
-			for (final MatchingPath hit : matches) {
-				hit.assignID(groupCounter+1);
-				if (assignUniqueColors) hit.path.setColor(colors[colorCounter]);
+		for (final MatchingPath mp : mPaths) {
+			if (mp.matchedGroup == null)
+				continue;
+			mp.assignIdToMatchedGroup(groupCounter + 1);
+			if (assignUniqueColors) {
+				if (colorCounter > colors.length - 1)
+					colorCounter = 0;
+				mp.assignColorToMatchedGroup(colors[colorCounter++]);
 			}
-			mPaths.removeAll(matches); // remove query and matches from pool
 			groupCounter++;
-			colorCounter++;
 		}
 		if (groupCounter == paths.size()) {
 			msg("Unsuccessful maching: Each path perceived as an independent neurite.", "Unsuccessful Maching");
@@ -306,14 +329,17 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 
 		Path path;
 		BoundingBox box;
+		Set<Path> matchedGroup;
 
 		MatchingPath(final Path path) {
 			this.path = path;
+			matchedGroup = new HashSet<>();
+			matchedGroup.add(path); // start with each path in its own group
 		}
 
 		BoundingBox bBox() {
 			if (box == null) {
-				final PointInImage root = path.getNode(0);
+				final PointInImage root = startingNode();
 				box = new BoundingBox();
 				box.setOrigin(new PointInImage(root.getX() - xNeighborhood, root.getY() - yNeighborhood,
 						root.getZ() - zNeighborhood));
@@ -328,37 +354,54 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 		 * angle between the vectors BA, and BC.
 		 * 
 		 */
-		double calculateDegAngle(final Path p) {
-			final PointInImage a = p.getNode(p.size() / 2);
-			final PointInImage b = p.getNode(0);
-			final PointInImage c = p.getNode(p.size() - 1);
+		double calculatedDegAngle() {
+			final PointInImage a = path.getNode(path.size() / 2);
+			final PointInImage b = startingNode();
+			final PointInImage c = path.getNode(path.size() - 1);
 			// define vectors
 			final double[] v1 = new double[] { a.getX() - b.getX(), a.getY() - a.getY(), a.getZ() - b.getZ() }; // BA
 			final double[] v2 = new double[] { c.getX() - b.getX(), c.getY() - b.getY(), c.getZ() - b.getZ() }; // BC
 			// normalize vectors
 			final double v1Magnitude = Math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2]);
-			for (int i = 0; i < v1.length; i++)
-				v1[i] /= v1Magnitude;
+			if (v1Magnitude > 0) {
+				for (int i = 0; i < v1.length; i++)
+					v1[i] /= v1Magnitude;
+			}
 			final double v2Magnitude = Math.sqrt(v2[0] * v2[0] + v2[1] * v2[1] + v2[2] * v2[2]);
-			for (int i = 0; i < v2.length; i++)
-				v2[i] /= v2Magnitude;
+			if (v2Magnitude > 0) {
+				for (int i = 0; i < v2.length; i++)
+					v2[i] /= v2Magnitude;
+			}
 			// Dot product
 			double dot = 0.0;
-			for (int i = 0; i < v1.length; i++) {
+			for (int i = 0; i < v1.length; i++)
 				dot += v1[i] * v2[i];
-			}
 			double angle = Math.toDegrees(Math.acos(dot));
 			angle = (angle + Math.ceil(-angle / 360) * 360); // Keep angle between 0 and 360
 			return angle;
 		}
 
-		boolean matches(final MatchingPath other) {
+		PointInImage startingNode() {
+			return path.getNode(getIndexOfStartingNode());
+		}
+
+		int getIndexOfStartingNode() {
+			if (path.size() > 1 && path.getStartJoins() != null
+					&& (path.getStartJoins().size() == 1 || path.getStartJoins().getSWCType() == Path.SWC_SOMA)) {
+				// path is directly connected to a single-point root. The first node is thus the root location
+				// so use the subsequent node instead
+				return 1;
+			}
+			return 0;
+		}
+
+		boolean match(final MatchingPath other) {
 			if (path.getFrame() == other.path.getFrame())
 				return false; // paths cannot belong to the same neurite if they co-exist on the same frame
-			if (startNodeLocationMatching && !bBox().contains(other.path.getNode(0)))
+			if (startNodeLocationMatching && !bBox().contains(other.startingNode()))
 				return false; // paths cannot belong to the same neurite without sharing common origin
 			if (directionMatching && Math
-					.abs(calculateDegAngle(path) - calculateDegAngle(other.path)) > directionMatchingRange)
+					.abs(calculatedDegAngle() - other.calculatedDegAngle()) > directionMatchingRange)
 				return false; // paths cannot belong to the same neurite without sharing common direction
 			if (channelMatching && path.getChannel() != other.path.getChannel())
 				return false; // paths cannot belong to the same neurite without sharing same channel
@@ -371,11 +414,22 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			if (customTagMatching
 					&& (!path.getName().contains(customTagPattern) || !other.path.getName().contains(customTagPattern)))
 				return false; // paths cannot belong to the same neurite without sharing custom tag
+			
+			if (SNTUtils.isDebugMode()) {
+				SNTUtils.log(String.format("%s (frame %d) matched to %s (frame %d)", path.getName(), path.getFrame(), other.path.getName(), other.path.getFrame()));
+				SNTUtils.log(String.format("  origin distance: %.2f", startingNode().distanceTo(other.startingNode())));
+				SNTUtils.log(String.format("  orienta. angles: %.2f; %.2f", calculatedDegAngle(), other.calculatedDegAngle()));
+			}
+			matchedGroup.add(other.path);
 			return true;
 		}
 
-		void assignID(final int id) {
-			path.setName(path.getName() + String.format(TAG_FORMAT, id));
+		void assignIdToMatchedGroup(final int id) {
+			matchedGroup.forEach(path -> path.setName(path.getName() + String.format(TAG_FORMAT, id)));
+		}
+		
+		void assignColorToMatchedGroup(final ColorRGB color) {
+			matchedGroup.forEach(path -> path.setColor(color));
 		}
 	}
 

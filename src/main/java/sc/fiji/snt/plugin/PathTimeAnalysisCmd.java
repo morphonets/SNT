@@ -68,6 +68,7 @@ import sc.fiji.snt.util.SNTColor;
 public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
 	private static final String TAG_REGEX_PATTERN = "("+ PathMatcherCmd.TAG_REGEX_PATTERN + ")";
+	private static final String TAG_REGEX_PATTERN_LEGACY = "("+ PathMatcherCmd.TAG_REGEX_PATTERN_LEGACY + ")";
 
 	@Parameter
 	private PlotService plotService;
@@ -110,6 +111,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 		} else {
 			runNonMatchedAnalysis();
 		}
+		resetUI();
 	}
 
 	private Map<Integer, List<Path>> getPathListMap() {
@@ -207,23 +209,15 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 	}
 
 	private void runMatchedAnalysis(final boolean ignoreSinglePoints) {
-		final Pattern pattern = Pattern.compile(TAG_REGEX_PATTERN);
-		final TreeMap<String, TreeMap<Integer, Path>> map = new TreeMap<>(new NumberAwareComparator());
-		for (final Path p : paths) {
-			final Matcher matcher = pattern.matcher(p.getName());
-			if (matcher.find()) {
-				final String groupID = matcher.group(1);
-				TreeMap<Integer, Path> groupMap = map.get(groupID);
-				if (groupMap == null) {
-					groupMap = new TreeMap<>();
-				}
-				groupMap.put(p.getFrame(), p);
-				map.put(groupID, groupMap);
-			}
+		TreeMap<String, TreeMap<Integer, Path>> map = getMatches(Pattern.compile(TAG_REGEX_PATTERN));
+		if (map.isEmpty()) {
+			// maybe this is some old data from v<4.3?
+			map = getMatches(Pattern.compile(TAG_REGEX_PATTERN_LEGACY));
 		}
 		if (map.isEmpty()) {
 			error("No matched paths found. Please run \"Match Paths Across Time...\" or "
-					+ "assign groups manually using " + TAG_REGEX_PATTERN.replace("\\{", "").replace("\\d+\\}", ""));
+					+ "assign groups manually using "
+					+ TAG_REGEX_PATTERN.replace("(\\{", "").replace("\\d+\\})", "" + " tags."));
 			return;
 		}
 		if (ignoreSinglePoints) {
@@ -264,6 +258,23 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 				uiService.show("SNT_TimeProfile.csv", table);
 			}
 		}
+	}
+
+	private TreeMap<String, TreeMap<Integer, Path>> getMatches(final Pattern pattern) {
+		final TreeMap<String, TreeMap<Integer, Path>> map = new TreeMap<>(new NumberAwareComparator());
+		for (final Path p : paths) {
+			final Matcher matcher = pattern.matcher(p.getName());
+			if (matcher.find()) {
+				final String groupID = matcher.group(1);
+				TreeMap<Integer, Path> groupMap = map.get(groupID);
+				if (groupMap == null) {
+					groupMap = new TreeMap<>();
+				}
+				groupMap.put(p.getFrame(), p);
+				map.put(groupID, groupMap);
+			}
+		}
+		return map;
 	}
 
 	//https://stackoverflow.com/a/58249974
