@@ -150,12 +150,15 @@ public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 			warn("This command has only been tested with TWS v3.3.4 (you are running " + PLUGIN_VERSION
 					+ "). Unexpected issues may occur.", "tws-version");
 		}
+		if (paths.stream().allMatch(p -> p.size() == 1)) {
+			error("At least a Path with more than two points is required.");
+			return;
+		}
 
-		// TWS does not really support hyperstacks so we need to account for it
-		final boolean multidImg = imp.isComposite() || imp.isHyperStack();
+		final boolean multidImg = imp.getNChannels() > 1 || imp.getNFrames() > 1;
 		if (imp.getNFrames() > 1) {
 			warn("TWS does not have formal support for timelapse images, and parsing "
-					+ "of large time-sequences requires significant resources."
+					+ "large time-sequences requires significant resources. "
 					+ "You may need to handle frames individually.", "tws-time");
 		}
 		try {
@@ -178,29 +181,42 @@ public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 			final RoiConverter converter = new RoiConverter(paths, imp);
 			converter.convertPaths(overlay);
 			final Map<Integer, Integer> counter = new HashMap<>();
-			IntStream.rangeClosed(1, imp.getNSlices()).forEach(z -> {
-				final List<Roi> planeRois = RoiConverter.getZplaneROIs(overlay, z);
-				planeRois.forEach(roi -> {
-					int stackSlice;
-					int classNum;
-					if (multidImg) {
-						stackSlice = imp.getStackIndex(roi.getCPosition(), z, roi.getTPosition());
-						classNum = roi.getCPosition() - 1; // 0-based index
-					} else {
-						stackSlice = z;
-						classNum = 0;
-					}
-					twsImp.setPosition(stackSlice);
-					twsImp.killRoi();
-					twsImp.setRoi(roi);
-					addTrace("" + classNum, "" + stackSlice);
-					final int count = (counter.get(classNum) == null) ? 0 : counter.get(classNum);
-					counter.put(classNum, count + 1);
+			if (multidImg) {
+				// TWS does not really support hyperstacks so we need to account for it
+				IntStream.rangeClosed(1, imp.getNChannels()).forEach(ch -> {
+					IntStream.rangeClosed(1, imp.getNSlices()).forEach(z -> {
+						IntStream.rangeClosed(1, imp.getNFrames()).forEach(t -> {
+							final List<Roi> rois = RoiConverter.getROIs(overlay, ch, z, t);
+							rois.forEach(roi -> {
+								final int stackSlice = imp.getStackIndex(ch, z, t);
+								//twsImp.setPosition(stackSlice);
+								twsImp.killRoi();
+								twsImp.setRoi(roi);
+								final int classNum = ch - 1; // 0-based index
+								addTrace("" + classNum, "" + stackSlice);
+								final int count = (counter.get(classNum) == null) ? 0 : counter.get(classNum);
+								counter.put(classNum, count + 1);
+							});
+						});
+					});
 				});
-			});
+			} else {
+				// plain 2D/3D images
+				IntStream.rangeClosed(1, imp.getNSlices()).forEach(z -> {
+					final List<Roi> planeRois = RoiConverter.getZplaneROIs(overlay, z);
+					planeRois.forEach(roi -> {
+						//twsImp.setPosition(z);
+						twsImp.killRoi();
+						twsImp.setRoi(roi);
+						addTrace("" + 0, "" + z);
+						final int count = (counter.get(0) == null) ? 0 : counter.get(0);
+						counter.put(0, count + 1);
+					});
+				});
+			}
 			twsImp.killRoi();
 			updateResultOverlay();
-			displayReport(counter);
+			displayReport(counter, multidImg);
 		} catch (final Throwable t) {
 			error(t.getClass().getSimpleName() + ": An error occured. See Console/Log window for details.");
 			t.printStackTrace();
@@ -209,16 +225,28 @@ public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 		}
 	}
 
-	private void displayReport(final Map<Integer, Integer> result) {
+	private void displayReport(final Map<Integer, Integer> result, final boolean multiD) {
 		final int sum = result.values().stream().mapToInt(d -> d).sum();
-		final String mapAsString = (result
-				.size() < 2)
-						? "."
-						: result.entrySet().stream().map(entry -> "<li><i>SNTCh" + (entry.getKey() + 1) + "</i>: "
-								+ entry.getValue() + " segment(s)</li>")
-								.collect(Collectors.joining(":", "<ul>", "</ul>"));
-		new GuiUtils(twsWin).centeredMsg("" + sum + " label(s) from " + paths.size() + " path(s) were loaded across "
-				+ result.size() + " class(es)" + mapAsString + " You should now add labels for the background "
-				+ "class to ensure the classifier is properly trained.", "Examples Adedd");
+		final StringBuilder sb = new StringBuilder();
+		sb.append(sum).append(" label(s) from ").append(paths.size()).append(" path(s) were loaded across ");
+		sb.append(result.size()).append(" class(es)");
+		if (result.size() < 2) {
+			sb.append(".");
+		} else {
+			sb.append(result.entrySet().stream().map(
+					entry -> "<li><i>SNTCh" + (entry.getKey() + 1) + "</i>: " + entry.getValue() + " segment(s)</li>")
+					.collect(Collectors.joining("", ":<ul>", "</ul>")));
+		}
+		sb.append("<br><p>You can now add labels to the background class to properly train the classifier.</p>");
+		final boolean sPP = paths.stream().anyMatch(p -> p.size() == 1);
+		if (sPP || multiD) {
+			sb.append("<br><p>NB:</p><ul>");
+			if (sPP)
+				sb.append("<li>Single-node paths may have been excluded</li>");
+			if (multiD)
+				sb.append("<li>CT dimensions are displayed as a simple stack in the TWS window</li>");
+			sb.append("</ul>");
+		}
+		new GuiUtils(twsWin).centeredMsg(sb.toString(), "Examples Adedd");
 	}
 }

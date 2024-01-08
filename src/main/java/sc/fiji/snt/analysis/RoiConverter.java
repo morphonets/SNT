@@ -117,7 +117,7 @@ public class RoiConverter extends TreeAnalyzer {
 	public RoiConverter(final Tree tree, final ImagePlus imp) {
 		super(tree);
 		this.imp = imp;
-		hyperstack = imp.isHyperStack() || imp.isComposite();
+		hyperstack = imp.getNChannels() > 1 || imp.getNFrames() > 1;
 		twoD = imp.getNSlices() == 1;
 	}
 
@@ -424,14 +424,47 @@ public class RoiConverter extends TreeAnalyzer {
 		}
 	}
 
+	/**
+	 * Extracts ROIs associated with a specified Z position.
+	 * 
+	 * @param overlay the overlay holding ROIs
+	 * @param zSlice  the z-plane (1-based index)
+	 * @return the sub-list of ROIs associated with the specified Z position. Note
+	 *         that ROIs with a ZPosition of 0 are considered to be associated with
+	 *         all Z-slices of a stack
+	 */
 	public static List<Roi> getZplaneROIs(final Overlay overlay, final int zSlice) {
 		final List<Roi> rois = new ArrayList<>();
 		final Iterator<Roi> it = overlay.iterator();
 		while (it.hasNext()) {
 			final Roi roi = it.next();
-			// see #setPosition
+			// see #setPosition: In IJ1 ROIs w/ position 0 are associated with all slices of a stack
 			if ((roi.hasHyperStackPosition() && roi.getZPosition() == zSlice) || roi.getPosition() == zSlice
 					|| roi.getPosition() == 0) {
+				rois.add(roi);
+			}
+		}
+		return rois;
+	}
+
+	/**
+	 * Extracts ROIs associated with a specified CZT position. Only ROIS with known
+	 * hyperstackPosition are considered.
+	 * 
+	 * @param overlay the overlay holding ROIs
+	 * @Param channel the channel (1-based index)
+	 * @param zSlice the z-plane (1-based index)
+	 * @param tFrame the t-frame (1-based index)
+	 * @return the sub-list of ROIs associated with the specified CZT position
+	 * @see Roi#hasHyperStackPosition()
+	 */
+	public static List<Roi> getROIs(final Overlay overlay, final int channel, final int zSlice, final int tFrame) {
+		final List<Roi> rois = new ArrayList<>();
+		final Iterator<Roi> it = overlay.iterator();
+		while (it.hasNext()) {
+			final Roi roi = it.next();
+			if (roi.hasHyperStackPosition() && roi.getCPosition() == channel && roi.getZPosition() == zSlice
+					&& roi.getTPosition() == tFrame) {
 				rois.add(roi);
 			}
 		}
