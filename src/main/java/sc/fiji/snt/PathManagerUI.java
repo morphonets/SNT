@@ -155,7 +155,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		tree = new HelpfulJTree();
 		tree.setRootVisible(false);
-		tree.setVisibleRowCount(25);
+		tree.setVisibleRowCount(30);
 		tree.setDoubleBuffered(true);
 		tree.addTreeSelectionListener(this);
 		scrollPane = new JScrollPane();
@@ -424,13 +424,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		popup.add(getDeleteMenuItem(multiPathListener));
 		popup.add(getDuplicateMenuItem(singlePathListener));
 		popup.add(getRenameMenuItem(singlePathListener));
+		JMenuItem pjmi = popup.add(MultiPathActionListener.SORT_TREES);
+		pjmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SORT));
+		pjmi.addActionListener(multiPathListener);
 		popup.addSeparator();
 		popup.add(new JTreeMenuItem(JTreeMenuItem.COLLAPSE_ALL_CMD));
 		popup.add(new JTreeMenuItem(JTreeMenuItem.EXPAND_ALL_CMD));
-		popup.addSeparator();
 		popup.add(new JTreeMenuItem(JTreeMenuItem.SELECT_NONE_CMD));
 		popup.addSeparator();
-		JMenuItem pjmi = popup.add(MultiPathActionListener.APPEND_ALL_CHILDREN_CMD);
+		pjmi = popup.add(MultiPathActionListener.APPEND_ALL_CHILDREN_CMD);
 		pjmi.addActionListener(multiPathListener);
 		pjmi = popup.add(MultiPathActionListener.APPEND_DIRECT_CHILDREN_CMD);
 		pjmi.addActionListener(multiPathListener);
@@ -2553,6 +2555,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String SPECIFY_COUNTS_CMD = "Specify No. Spine/Varicosity Markers...";
 		private static final String DISCONNECT_CMD = "Disconnect...";
 		private static final String INTERPOLATE_MISSING_RADII = "Correct Radii...";
+		private static final String SORT_TREES = "Sort Root-level Paths...";
 
 		private static final String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
 		private static final String SEND_TO_LABKIT_CMD = "Load Labkit With Selected Path(s)...";
@@ -2628,6 +2631,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			else if (ASSIGN_DISTINCT_COLORS.equals(cmd)) {
 				assignDistinctColors(selectedPaths);
+				return;
+			}
+			else if (SORT_TREES.equals(cmd)) {
+				sortTrees();
 				return;
 			}
 			else if (COLORS_MENU.equals(cmd)) {
@@ -3134,6 +3141,53 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
 				return;
 			}
+		}
+
+		void sortTrees() {
+			final List<Path> primaryPaths = Arrays.asList(pathAndFillManager.getPathsStructured());
+			if (primaryPaths.size() == 1) {
+				guiUtils.error("Only a single root path exists.");
+				return;
+			}
+			final String[] choices = { "Cell ID", "Cell label", "Path name", "Path length", "Path mean radius",
+					"Traced channel", "Traced frame" };
+			final String choice = guiUtils.getChoice("Sorting criterion:", "Sort Root-level Paths", choices, choices[0]);
+			if (choice == null)
+				return;
+			switch (choice) {
+			case "Cell ID":
+				Collections.sort(primaryPaths, (p1, p2) -> Integer.compare(p1.getTreeID(), p2.getTreeID()));
+				break;
+			case "Cell label":
+				Collections.sort(primaryPaths, (p1, p2) -> p1.getTreeLabel().compareTo(p2.getTreeLabel()));
+				break;
+			case "Path name":
+				Collections.sort(primaryPaths, (p1, p2) -> p1.getName().compareTo(p2.getName()));
+				break;
+			case "Path length":
+				Collections.sort(primaryPaths, (p1, p2) -> Double.compare(p1.getLength(), p2.getLength()));
+				break;
+			case "Path mean radius":
+				Collections.sort(primaryPaths, (p1, p2) -> Double.compare(p1.getMeanRadius(), p2.getMeanRadius()));
+				break;
+			case "Traced channel":
+				Collections.sort(primaryPaths, (p1, p2) -> Integer.compare(p1.getChannel(), p2.getChannel()));
+				break;
+			case "Traced frame":
+				Collections.sort(primaryPaths, (p1, p2) -> Integer.compare(p1.getFrame(), p2.getFrame()));
+				break;
+			default:
+				guiUtils.error("Not a recognized sorting option.");
+				return;
+			}
+			final HelpfulTreeModel model = (HelpfulTreeModel) tree.getModel();
+			final DefaultMutableTreeNode jtreeRoot = ((DefaultMutableTreeNode) model.getRoot());
+			jtreeRoot.removeAllChildren();
+			for (final Path primaryPath : primaryPaths) {
+				if (!primaryPath.isFittedVersionOfAnotherPath())
+					model.addNode(jtreeRoot, primaryPath);
+			}
+			model.reload();
 		}
 
 		private void autoConnect(final Path p1, final Path p2) {
