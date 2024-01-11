@@ -277,11 +277,12 @@ public class SWCExportDialog extends JDialog {
 			return null;
 		}
 	}
-	
+
 	private String getVoxelSize() {
 		return (imp == null) ? ""
-				: imp.getCalibration().pixelWidth + "×" + imp.getCalibration().pixelHeight + "×"
-						+ imp.getCalibration().pixelDepth;
+				: SNTUtils.formatDouble(imp.getCalibration().pixelWidth, 3) + "×"
+						+ SNTUtils.formatDouble(imp.getCalibration().pixelHeight, 3) + "×"
+						+ SNTUtils.formatDouble(imp.getCalibration().pixelDepth, 3);
 	}
 
 	private String getVoxelUnit() {

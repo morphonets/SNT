@@ -112,7 +112,6 @@ public class SNTUI extends JDialog {
 	private JButton showOrHideFillList = new JButton(); // must be initialized
 	private JMenuItem saveMenuItem;
 	private JMenuItem exportCSVMenuItem;
-	private JMenuItem exportAllSWCMenuItem;
 	private JMenuItem quitMenuItem;
 	private JMenuItem sendToTrakEM2;
 	private JLabel statusText;
@@ -838,7 +837,6 @@ public class SNTUI extends JDialog {
 				saveMenuItem.setEnabled(true);
 
 				exportCSVMenuItem.setEnabled(true);
-				exportAllSWCMenuItem.setEnabled(true);
 				sendToTrakEM2.setEnabled(plugin.anyListeners());
 				quitMenuItem.setEnabled(true);
 				showPathsSelected.setEnabled(true);
@@ -861,7 +859,6 @@ public class SNTUI extends JDialog {
 				saveMenuItem.setEnabled(true);
 
 				exportCSVMenuItem.setEnabled(true);
-				exportAllSWCMenuItem.setEnabled(true);
 				sendToTrakEM2.setEnabled(plugin.anyListeners());
 				quitMenuItem.setEnabled(true);
 				showPathsSelected.setEnabled(true);
@@ -2513,11 +2510,25 @@ public class SNTUI extends JDialog {
 		saveAsMenuItem.addActionListener(e -> {
 			if (!noPathsError()) {
 				final File saveFile = saveFile("Save Traces As...", null, "traces");
-				if (saveFile != null) saveToXML(saveFile);
+				if (saveFile != null && saveToXML(saveFile))
+					warnOnPossibleAnnotationLoss();
 			}
 		});
-		exportAllSWCMenuItem = new JMenuItem("Export As SWC...");
-		exportAllSWCMenuItem.addActionListener(listener);
+		final JMenuItem exportAllSWCMenuItem = new JMenuItem("Export As SWC...");
+		exportAllSWCMenuItem.addActionListener( e -> {
+			if (plugin.accessToValidImageData() && pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
+					"These tracings were obtained from a spatially uncalibrated "
+							+ "image but the SWC specification assumes all coordinates to be " + "in "
+							+ GuiUtils.micrometer() + ". Do you really want to proceed " + "with the SWC export?",
+					"Warning"))
+				return;
+
+			final SWCExportDialog dialog = new SWCExportDialog(SNTUI.this, plugin.getImagePlus(), getProposedSavingFile("swc"));
+			if (dialog.succeeded()) {
+				saveAllPathsToSwc(dialog.getFile().getAbsolutePath(), dialog.getFileHeader());
+				warnOnPossibleAnnotationLoss();
+			}	
+		});
 		exportSubmenu.addSeparator();
 		exportSubmenu.add(exportAllSWCMenuItem);
 
@@ -3944,21 +3955,6 @@ public class SNTUI extends JDialog {
 					plugin.enableSecondaryLayerTracing(false);
 				}
 
-			} else if (source == exportAllSWCMenuItem && !noPathsError()) {
-
-				if (plugin.accessToValidImageData() && pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
-						"These tracings were obtained from a spatially uncalibrated "
-								+ "image but the SWC specification assumes all coordinates to be " + "in "
-								+ GuiUtils.micrometer() + ". Do you really want to proceed " + "with the SWC export?",
-						"Warning"))
-					return;
-
-				final SWCExportDialog dialog = new SWCExportDialog(SNTUI.this, plugin.getImagePlus(), getProposedSavingFile("swc"));
-				if (dialog.succeeded()) {
-					saveAllPathsToSwc(dialog.getFile().getAbsolutePath(), dialog.getFileHeader());
-				}				
-				return;
-			
 			} else if (source == exportCSVMenuItem && !noPathsError()) {
 
 				final File saveFile = saveFile("Export All Paths as CSV...", "CSV_Properties.csv", "csv");
@@ -4402,6 +4398,21 @@ public class SNTUI extends JDialog {
 		return true;
 	}
 
+	private void warnOnPossibleAnnotationLoss() {
+		final boolean nag = plugin.accessToValidImageData() && plugin.getPrefs().getTemp("markerLoss-nag", true);
+		if (nag && pathAndFillManager.getPaths().stream().anyMatch(p -> p.getSpineOrVaricosityCount() > 1)) {
+			final Boolean prompt = guiUtils.getPersistentWarning(
+					"Reminder: Multipoint ROIs marking spines or varicosities along neurites are not "
+							+ "saved by SNT. Those should be saved independently, either by:<ul>"
+							+ "<li>Storing the ROIs in the image overlay and saving the image as TIFF (NB: the active "
+							+ "selection is always saved in the image header when the image is saved as TIFF)</li>"
+							+ "<li>Using ROI Manager's <i>Save</i> command</li></ul>",
+					"Possible Loss of ROI Markers");
+			if (prompt != null) // do nothing if user dismissed the dialog
+				plugin.getPrefs().setTemp("markerLoss-nag", !prompt.booleanValue());
+		}
+	}
+
 	protected boolean saveAllPathsToSwc(final String filePath) {
 		return saveAllPathsToSwc(filePath, null);
 	}
@@ -4417,8 +4428,8 @@ public class SNTUI extends JDialog {
 				errorMessage.append(swcFile.getAbsolutePath()).append("<br>");
 		}
 		if (errorMessage.length() > 0) {
-			errorMessage.insert(0, "The following files would be overwritten:<br>");
-			errorMessage.append("<b>Overwrite these files?</b>");
+			errorMessage.insert(0, "The following file(s) would be overwritten:<br>");
+			errorMessage.append("<b>Overwrite?</b>");
 			if (!guiUtils.getConfirmation(errorMessage.toString(), "Overwrite SWC files?"))
 				return false;
 		}

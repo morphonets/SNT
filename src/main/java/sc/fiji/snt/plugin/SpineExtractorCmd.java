@@ -34,6 +34,7 @@ import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.util.ColorRGB;
 import org.scijava.widget.Button;
 
 import ij.ImagePlus;
@@ -51,6 +52,7 @@ import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.PointInCanvas;
+import sc.fiji.snt.util.SNTColor;
 
 /**
  * Command for obtaining spine/varicosity counts from multipoint ROIs
@@ -69,6 +71,10 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 			description = "<HTML>The maximum allowed distance between a point and its path.<br>"
 					+ "Set it to -1 to disable this option.")
 	private double maxDist;
+
+	@Parameter(required = false, label = "Path (re)coloring", choices = { "None. Retain existing path colors",
+			"Contrast hues", "Color-coded: Sum", "Color-coded: Density" })
+	private String colorChoice;
 
 	@Parameter(label = "Add extracted counts to ROI Manager", //
 			description = "<HTML>Generates new ROIs from the assigned counts and adds them to the ROI Manager.<br>"
@@ -96,7 +102,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 		final MutableModuleItem<String> mItem = getInfo().getMutableInput("roiSource", String.class);
 		final ArrayList<String> choices = new ArrayList<>(3);
 		if (imp != null && imp.getRoi() != null) choices.add("Active ROI");
-		if (imp != null && imp.getOverlay() != null) choices.add("Image Overlay");
+		if (imp != null && imp.getOverlay() != null) choices.add("Image overlay");
 		if (rm != null) choices.add("ROI Manager");
 		if (choices.isEmpty()) {
 			abort();
@@ -121,6 +127,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 		resolveInput("addToManager");
 		resolveInput("wipeCounts");
 		resolveInput("paths");
+		resolveInput("colorChoice");
 		error("No ROIs are available for extraction." + MSG);
 	}
 
@@ -173,11 +180,21 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 			// do nothing
 		}
 
-		if (addToManager && matchedPoints > 0) {
+		if (matchedPoints > 0 && colorChoice != null && colorChoice.toLowerCase().contains("contrast")) {
+			final ColorRGB[] colors = SNTColor.getDistinctColors(paths.size());
+			int idx = 0;
+			for (final Path path : paths)
+				path.setColor(colors[idx++]);
+		} else if (matchedPoints > 0 && colorChoice != null && colorChoice.toLowerCase().contains("coded")) {
+			final String mappingProperty = (colorChoice.toLowerCase().contains("density"))
+					? TreeColorMapper.AVG_SPINE_DENSITY
+					: TreeColorMapper.N_SPINES;
+			new TreeColorMapper(getContext()).map(new Tree(paths), mappingProperty, ColorTables.ICE);
+			if (ui != null)
+				ui.getPathManager().update();
+		}
 
-			final TreeColorMapper mapper = new TreeColorMapper(getContext());
-			mapper.map(new Tree(paths), TreeColorMapper.N_SPINES, ColorTables.ICE);
-			if (ui != null) ui.getPathManager().update();
+		if (addToManager && matchedPoints > 0) {
 
 			if (rm == null) rm = new RoiManager();
 			final int channel = (imp ==null) ? 1 : imp.getC();
@@ -215,19 +232,21 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 	}
 
 	private List<PointRoi> getROIs() {
-		if (roiSource.contains("Active")) {
+		if (roiSource == null) {
+			return null; // error already occurred
+		} else if (roiSource.toLowerCase().contains("active")) {
 			if (imp == null || imp.getRoi() == null || !(imp.getRoi() instanceof PointRoi)) {
 				error("No active multi-point ROI(s) exist." + MSG);
 				return null;
 			}
 			return Collections.singletonList((PointRoi) imp.getRoi());
-		} else if (roiSource.contains("Overlay")) {
+		} else if (roiSource.toLowerCase().contains("overlay")) {
 			if (imp == null || imp.getOverlay() == null) {
 				error("The image overlay is not accessible." + MSG);
 				return null;
 			}
-			return assemblePointRoiList(imp.getOverlay().iterator(), "Image Overlay ");
-		} else if (roiSource.contains("Manager")) {
+			return assemblePointRoiList(imp.getOverlay().iterator(), "Image overlay");
+		} else if (roiSource.toLowerCase().contains("manager")) {
 			if (rm == null) {
 				error("Roi Manager is not available. " + MSG);
 				return null;
@@ -245,7 +264,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 				points.add((PointRoi) roi);
 		}
 		if (points.isEmpty()) {
-			error(sourceDescription + " does not contain Multi-point ROIs." + MSG);
+			error(sourceDescription + " does not contain multi-point ROIs." + MSG);
 		}
 		return points;
 	}
