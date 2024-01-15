@@ -619,7 +619,7 @@ public class Path implements Comparable<Path> {
 		return result;
 	}
 
-	protected PointInCanvas getPointInCanvas(final int node) {
+	public PointInCanvas getPointInCanvas(final int node) {
 		final PointInCanvas result = new PointInCanvas(getXUnscaledDouble(node), getYUnscaledDouble(node),
 				getZUnscaledDouble(node));
 		result.onPath = this;

@@ -247,6 +247,6 @@ public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 				sb.append("<li>CT dimensions are displayed as a simple stack in the TWS window</li>");
 			sb.append("</ul>");
 		}
-		new GuiUtils(twsWin).centeredMsg(sb.toString(), "Examples Adedd");
+		new GuiUtils(twsWin).centeredMsg(sb.toString(), "Labels Successfully Added");
 	}
 }
