@@ -31,6 +31,7 @@ import java.util.List;
 
 import net.imagej.display.ImageDisplayService;
 
+import net.imagej.patcher.LegacyInjector;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
@@ -404,6 +405,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 	 * IDE debug method
 	 */
 	public static void main(final String[] args) {
+		LegacyInjector.preinit();
 		SNTUtils.startApp();
 	}
 

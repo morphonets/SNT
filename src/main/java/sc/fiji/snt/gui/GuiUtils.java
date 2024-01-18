@@ -2288,8 +2288,8 @@ public class GuiUtils {
 		// tabbedPane.setBoldActiveTab(true);
 		// tabbedPane.setScrollSelectedTabOnWheel(true);
 		// tabbedPane.setTabResizeMode(JideTabbedPane.RESIZE_MODE_NONE);
-
 		final JTabbedPane tabbedPane = new JTabbedPane(JTabbedPane.TOP);
+		tabbedPane.putClientProperty( "JTabbedPane.tabRotation", "auto" ); // flatlaf v3.3
 		tabbedPane.addMouseWheelListener(e -> {
 			// https://stackoverflow.com/a/38463104
 			final JTabbedPane pane = (JTabbedPane) e.getSource();
