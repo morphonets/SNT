@@ -1,9 +1,7 @@
 <p align="center"><img src="https://imagej.net/media/icons/snt.png" alt="SNT" width="150"></p>
 <h1 align="center">Notes</h1>
 
-SNT is both a scripting library and a GUI program. More formally, it is a collection of [SciJava](https://scijava.org/) commands (plugins), organized around a common API. The GUI is written in Swing.
-
-
+SNT is both a scripting library and a GUI program. More formally, it is a collection of [SciJava](https://scijava.org/) commands (add-ons), organized around a common API.
 
 ## Projects
 
