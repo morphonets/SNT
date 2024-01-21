@@ -98,7 +98,7 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 * Auto-tracing:
 
   * Generation of traces from thresholded/filtered images
-  * Machine learning: Built-in routines for training random forest classifiers on previously traced paths ([Trainable Weka segmentation](https://github.com/fiji/Trainable_Segmentation) bridge)
+  * Machine learning: Built-in routines for training random forest classifiers on previously traced paths ([LabKit](https://github.com/juglab/labkit-ui)/[Trainable Weka segmentation](https://github.com/fiji/Trainable_Segmentation) bridges)
 
 * Tracing can be interleaved with image processing routines
 
@@ -167,16 +167,11 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 
 * Support for multiple file formats including SWC, TRACES, JSON (MouseLight specification), and NDF (NeuronJ data file)
 
-* Backwards compatibility: Special effort was put into backwards compatibility with  [Simple Neurite Tracer](https://github.com/fiji/SNT)  (including [TrakEM2](https://github.com/trakem2/TrakEM2) and [ITK](https://imagej.net/SNT:_Tubular_Geodesics) interaction). Inherited functionality has been improved, namely:
+* Backwards compatibility: Special effort was put into backwards compatibility with  [Simple Neurite Tracer](https://github.com/fiji/SNT)  (including [TrakEM2](https://github.com/trakem2/TrakEM2) and [ITK](https://imagej.net/SNT:_Tubular_Geodesics) interaction)
   
-  * Support for sub-pixel accuracy
-  * Synchronization of XY, ZY, and XZ views
-  * Improved "filling" and "fitting" routines
-  * Multi-threading improvements
-  * Modernized GUI
-
 * Aggregation of [legacy plugins](./NOTES.md)
   
+
 </details>
 
 ## Installation
@@ -208,8 +203,8 @@ Use this button to open the project on the cloud using [Gitpod](https://gitpod.i
    - In Eclipse: Run _Import> Existing Maven Projects_ and specify the path to the downloaded `SNT` folder in _Root Directory_
    - In IntelliJ: In the _Welcome Prompt_, choose _Open or Import_ and specify the path to the downloaded `SNT` folder
    - In NetBeans: Run _File> Open Project..._, select the downloaded `SNT` directory, and click on _Open Project_
-3. Wait for all the dependencies to be downloaded, and run [snt/gui/cmds/SNTLoaderCmd](./src/main/java/sc/fiji/snt/gui/cmds/SNTLoaderCmd.java). Alternatively, call `sc.fiji.snt.SNTUtils.startApp()` from any class.
-4. In your IDE, set the compliance level for the Java compiler to Java 11. SNT is currently compiled with java 11, but is expected to run fine with newer Java versions. Versions prior to SNT v4.2.2 were developed using Java8. 
+3. In your IDE, set the compliance level for the Java compiler to Java 11. SNT is currently compiled with java 11, but is expected to run fine with newer Java versions. Versions prior to SNT v4.2.2 were developed using Java8. 
+4. Wait for all the dependencies to be downloaded, and run [snt/gui/cmds/SNTLoaderCmd](./src/main/java/sc/fiji/snt/gui/cmds/SNTLoaderCmd.java). Alternatively, call `sc.fiji.snt.SNTUtils.startApp()` from any class.
 
 > :information_source: By default, ImageJ1 cannot run in headless environments. To bypass this, Fiji uses a bytecode injection mechanism to patch ImageJ1 at runtime.
 > However, this mechanism can be sensitive to the JVM in use. If you are unable to run SNTLoaderCmd from your IDE due to misterious `net.imagej.legacy.LegacyService` exceptions,

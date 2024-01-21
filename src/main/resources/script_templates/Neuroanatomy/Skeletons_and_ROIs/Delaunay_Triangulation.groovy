@@ -24,22 +24,22 @@ colors = SNTColor.getDistinctColorsAWT(rois.size())
 // corresponding Delaunay (also a ROI), color it, and add it to the overlay
 (0..<rois.size()).each {
 	imp.setRoi(rois.get(it))
-	IJ.run(imp, "Delaunay Voronoi", "mode=Delaunay interactive make")
+	IJ.run(imp, "Delaunay Voronoi", "mode=Delaunay make")
 	delaunayRoi = imp.getRoi()
 	delaunayRoi.setStrokeColor(colors[it])
-	overlay.add(delaunayRoi)
+	rois.add(delaunayRoi)
 	imp.setRoi(null)
 }
 
 // Display the result
-imp.setOverlay(overlay)
+imp.setOverlay(rois)
 imp.setTitle(tree.getLabel())
 imp.show()
 
 
 /**
- * Returns a rasterized image of a tree, with a 1-to-1 correspondence between
- * its coordinates and pixel coordinates on the images
+ * Returns a rasterized image of a tree, with a 1-to-1 correspondence
+ * between its coordinates and pixel coordinates
  *
  * @param tree the imput tree
  * @return the 2D, skeletonized image of the tree as an ImagePlus
