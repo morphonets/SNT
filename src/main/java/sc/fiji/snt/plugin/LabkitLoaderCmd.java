@@ -24,8 +24,10 @@ package sc.fiji.snt.plugin;
 
 import java.awt.Color;
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
@@ -34,10 +36,11 @@ import org.scijava.command.Command;
 import org.scijava.convert.ConvertService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.util.ColorRGB;
 
 import net.imagej.Dataset;
 import net.imagej.axis.Axes;
-import net.imglib2.FinalInterval;
+import net.imglib2.Interval;
 import net.imglib2.RandomAccess;
 import net.imglib2.roi.labeling.LabelingType;
 import net.imglib2.type.numeric.ARGBType;
@@ -48,10 +51,12 @@ import sc.fiji.labkit.ui.labeling.Label;
 import sc.fiji.labkit.ui.labeling.Labeling;
 import sc.fiji.labkit.ui.models.DefaultSegmentationModel;
 import sc.fiji.labkit.ui.models.SegmentationModel;
+import sc.fiji.labkit.ui.utils.DimensionUtils;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.PointInCanvas;
+import sc.fiji.snt.util.SNTColor;
 
 /**
  * Command for sending Path-converted ROIs to a new Labkit instance.
@@ -63,8 +68,7 @@ import sc.fiji.snt.util.PointInCanvas;
 @Plugin(type = Command.class, initializer = "init")
 public class LabkitLoaderCmd extends CommonDynamicCmd {
 
-	private static final String FOREGROUND_LABEL = "SNT paths"; // should this be "Neurites"!?
-	private static final String FOREGROUND_COLOR = "#FF00FF"; // magenta
+	private static final String FOREGROUND_LABEL = "SNT paths ch"; // should this be "Neurites"!?
 	private static final String BACKGROUND_LABEL = "background";
 	private static final String BACKGROUND_COLOR = "#666666"; // dark gray
 
@@ -98,6 +102,7 @@ public class LabkitLoaderCmd extends CommonDynamicCmd {
 			final Dataset dataset = (snt.getDataset() == null)
 					? convertService.convert(snt.getImagePlus(), Dataset.class)
 					: snt.getDataset();
+			final long cLen = dataset.dimension(dataset.dimensionIndex(Axes.CHANNEL));
 			final long zLen = dataset.dimension(dataset.dimensionIndex(Axes.Z));
 			final long tLen = dataset.dimension(dataset.dimensionIndex(Axes.TIME));
 
@@ -107,40 +112,37 @@ public class LabkitLoaderCmd extends CommonDynamicCmd {
 			model.imageLabelingModel().labeling().set(InitialLabeling.initialLabeling(getContext(), inputImage));
 
 			// Initialize an empty labeling of correct size. We need to discard the channel
-			// dimension because Labkit does so internally!?
-			FinalInterval labkitImgSize;
-			if (zLen == 1 && tLen == 1) {
-				labkitImgSize = new FinalInterval(dataset.dimension(dataset.dimensionIndex(Axes.X)),
-						dataset.dimension(dataset.dimensionIndex(Axes.Y)));
-			} else if (zLen > 1 && tLen == 1) {
-				labkitImgSize = new FinalInterval(dataset.dimension(dataset.dimensionIndex(Axes.X)),
-						dataset.dimension(dataset.dimensionIndex(Axes.Y)),
-						dataset.dimension(dataset.dimensionIndex(Axes.Z)));
-			} else if (zLen == 1 && tLen > 1) {
-				labkitImgSize = new FinalInterval(dataset.dimension(dataset.dimensionIndex(Axes.X)),
-						dataset.dimension(dataset.dimensionIndex(Axes.Y)),
-						dataset.dimension(dataset.dimensionIndex(Axes.TIME)));
+			// dimension because Labkit does so internally. NB: This likely assumes image axes
+			// are ordered as XYZT. See https://github.com/juglab/labkit-ui/issues/112
+			Interval labkitImgSize;
+			if (cLen > 1) {
+				final int channelDimension = dataset.dimensionIndex(Axes.CHANNEL);
+				labkitImgSize = DimensionUtils.intervalRemoveDimension(dataset, channelDimension);
 			} else {
-				labkitImgSize = new FinalInterval(dataset.dimension(dataset.dimensionIndex(Axes.X)),
-						dataset.dimension(dataset.dimensionIndex(Axes.Y)),
-						dataset.dimension(dataset.dimensionIndex(Axes.Z)),
-						dataset.dimension(dataset.dimensionIndex(Axes.TIME)));
+				labkitImgSize = dataset;
 			}
-			final Labeling labeling = Labeling.createEmpty(List.of(FOREGROUND_LABEL, BACKGROUND_LABEL), labkitImgSize);
-			final RandomAccess<LabelingType<Label>> randomAccess = labeling.randomAccess();
-			final LabelingType<Label> lt = randomAccess.get().createVariable();
-			final Label fLabel = labeling.getLabel(FOREGROUND_LABEL);
+					
+			// Prepare the labeling set: 1 label per channel + background class
+			final String[] labels = new String[(int) cLen + 1];
+			for (int i = 0; i < cLen; i++)
+				labels[i] = FOREGROUND_LABEL + (i + 1);
+			labels[(int) cLen] = BACKGROUND_LABEL;
+			final Labeling labeling = Labeling.createEmpty(Arrays.asList(labels), labkitImgSize);
 
-			// Minor tweaks to labels (the default 'blue/red' has poor contrast for
-			// skeletonized lines)
-			fLabel.setColor(new ARGBType(Color.decode(FOREGROUND_COLOR).getRGB()));
+			// Adjust colors (the default 'blue/red' has poor contrast
+			final ColorRGB[] colors = SNTColor.getDistinctColors(labels.length);
+			for (int i = 0; i < cLen; i++)
+				labeling.getLabel(labels[i]).setColor(new ARGBType(colors[i].getARGB()));
 			labeling.getLabel(BACKGROUND_LABEL).setColor(new ARGBType(Color.decode(BACKGROUND_COLOR).getRGB()));
 
-			// Add path positions to foreground classifier. NB: Axes order in Labeling is
-			// fixed to XYZT(!?) and no channel axis exist. Every channel has the same
-			// "label". For details: https://github.com/juglab/labkit-ui/issues/112
-			lt.add(fLabel);
+			// Add path positions to foreground class(es). NB: Axes order in Labeling is
+			// fixed to XYZT(!?) without channel axis. For details:
+			// https://github.com/juglab/labkit-ui/issues/112
+			final RandomAccess<LabelingType<Label>> randomAccess = labeling.randomAccess();
+			final LabelingType<Label> lt = randomAccess.get().createVariable();
+			final Set<Integer> labeledChannels = new HashSet<>();
 			paths.forEach(path -> {
+				lt.add(labeling.getLabel(FOREGROUND_LABEL + path.getChannel()));
 				for (int i = 0; i < path.size(); i++) {
 					final PointInCanvas pic = path.getPointInCanvas(i);
 					randomAccess.setPosition((int) pic.x, 0); // set X
@@ -150,13 +152,15 @@ public class LabkitLoaderCmd extends CommonDynamicCmd {
 					if (tLen > 1)
 						randomAccess.setPosition(path.getFrame() - 1, (zLen > 1) ? 3 : 2); // set T
 					randomAccess.get().set(lt);
+					lt.clear();
 				}
+				labeledChannels.add(path.getChannel());
 			});
 
 			// Apply model and display
 			model.imageLabelingModel().labeling().set(labeling);
 			SwingUtilities.invokeLater(() -> {
-				displayReport(LabkitFrame.show(model, "SNT - " + dataset.getName()));
+				displayReport(LabkitFrame.show(model, "SNT - " + dataset.getName()), labeledChannels);
 			});
 
 		} catch (final Throwable t) {
@@ -168,11 +172,12 @@ public class LabkitLoaderCmd extends CommonDynamicCmd {
 
 	}
 
-	private void displayReport(final LabkitFrame lkf) {
+	private void displayReport(final LabkitFrame lkf, final Set<Integer> labeledChannels) {
 		final StringBuilder sb = new StringBuilder();
-		sb.append(paths.size()).append(" labels from ").append(paths.size()).append(" path(s) were added to the <i>")
-				.append(FOREGROUND_LABEL).append("</i> class. You can now add labels to the <i>")
-				.append(BACKGROUND_LABEL).append("</i> class to properly train the classifier.");
+		sb.append("Labels from ").append(paths.size()).append(" path(s) were added to labeling(s) ").append(" <i>")
+				.append(FOREGROUND_LABEL).append(labeledChannels.toString().replace("[", "").replace("]", ""))
+				.append("</i>. You can now add <i>").append(BACKGROUND_LABEL)
+				.append("</i> labels to properly train the classifier.");
 		new GuiUtils(getFrame(lkf)).centeredMsg(sb.toString(), "Labeling Successfully Adedd");
 	}
 

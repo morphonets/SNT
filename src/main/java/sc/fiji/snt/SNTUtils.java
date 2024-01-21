@@ -704,6 +704,7 @@ public class SNTUtils {
 	 */
 	public static void startApp() {
 		if (context == null) {
+			LegacyInjector.preinit();
 			final ImageJ ij = new ImageJ();
 			ij.ui().showUI();
 		}
