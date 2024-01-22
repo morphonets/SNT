@@ -527,7 +527,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			SinglePathActionListener.DUPLICATE_CMD);
 		duplicateMitem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CLONE));
 		duplicateMitem.addActionListener(singlePathListener);
-		duplicateMitem.setToolTipText("Duplicates a single path");
+		duplicateMitem.setToolTipText("Duplicates a full path and its children or a sub-section");
 		return duplicateMitem;
 	}
 

@@ -153,7 +153,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			persist = false, required = false, visibility = ItemVisibility.MESSAGE)
 	private String SPACER4;
 
-	@Parameter(label = "Assign unique colors to groups", description="<HTML><div WIDTH=500>"
+	@Parameter(label = "Assign contrast colors to groups", description="<HTML><div WIDTH=500>"
 			+ "Whether paths matched to the same neurite should be assigned a common color.")
 	private boolean assignUniqueColors;
 	

@@ -1640,8 +1640,10 @@ public class Tree implements TreeProperties {
 			if (path.getStartJoins() == null) continue;
 			final Path join = idToPathMap.get(path.getStartJoins().getID());
 			final PointInImage joinPoint = path.getStartJoinsPoint().clone();
-			path.unsetStartJoin();
-			path.setStartJoin(join, joinPoint);
+			if (join != null && joinPoint != null) {
+				path.unsetStartJoin();
+				path.setStartJoin(join, joinPoint);
+			}
 		}
 		return clone;
 	}
