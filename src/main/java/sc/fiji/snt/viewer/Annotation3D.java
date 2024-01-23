@@ -348,6 +348,34 @@ public class Annotation3D {
 		}
 	}
 
+	protected Color getColor() {
+		if (drawable == null)
+			return null;
+		switch (type) {
+		case SCATTER:
+			return ((Scatter) drawable).getColor();
+		case SURFACE:
+		case SURFACE_AND_VOLUME:
+			return ((Shape) drawable).getColor();
+		case STRIP:
+			return ((LineStrip) drawable).getColor();
+		case Q_TIP:
+		case MERGE:
+			for (final Drawable drawable : ((Shape) drawable).getDrawables()) {
+				if (drawable instanceof LineStrip) {
+					return ((LineStrip) drawable).getColor();
+				} else if (drawable instanceof Scatter) {
+					return ((Scatter) drawable).getColor();
+				} else if (drawable instanceof Shape) {
+					return ((Shape) drawable).getColor();
+				}
+			}
+			return null;
+		default:
+			throw new IllegalArgumentException("Unrecognized type " + type);
+		}
+	}
+
 	/**
 	 * Script friendly method to assign a color to the annotation.
 	 *

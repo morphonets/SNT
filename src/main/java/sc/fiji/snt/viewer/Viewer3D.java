@@ -849,6 +849,10 @@ public class Viewer3D {
 			.getGreen(), color.getBlue(), color.getAlpha());
 	}
 
+	private ColorRGB toColorRGB(final Color color) {
+		return new ColorRGB((int) (color.r * 255 + 0.5), (int) (color.g * 255 + 0.5), (int) (color.b * 255 + 0.5));
+	}
+
 	private String makeUniqueKey(final Map<String, ?> map, final String key) {
 		for (int i = 2; i <= 100; i++) {
 			final String candidate = key + " (" + i + ")";
@@ -923,7 +927,7 @@ public class Viewer3D {
 			trees.forEach(tree -> {
 				String label = tree.getLabel();
 				if (label == null) label = "";
-				tree.setLabel(label + "{" + String.join(",", commonTags)  + "}");
+				tree.setLabel(label + " {" + String.join(",", commonTags)  + "}");
 			});
 		}
 		addTrees(trees, color);
@@ -3339,6 +3343,8 @@ public class Viewer3D {
 		private final SNTSearchableBar searchableBar;
 		private final ProgressBar progressBar;
 		private Debugger debugger;
+		private boolean disableActions;
+
 
 		private ManagerPanel(final GuiUtils guiUtils) {
 			super();
@@ -3367,6 +3373,19 @@ public class Viewer3D {
 					if (ManagerPanel.this.getPreferredSize().width < searchableBar.getWidth())
 						ManagerPanel.this.setSize(ManagerPanel.this.getPreferredSize().width, ManagerPanel.this.getHeight());
 				}
+			});
+			searchableBar.getSearchField().addFocusListener(new FocusListener() {
+
+				@Override
+				public void focusGained(final FocusEvent e) {
+					disableActions = true;
+				}
+
+				@Override
+				public void focusLost(final FocusEvent e) {
+					disableActions = false;
+				}
+
 			});
 			final JScrollPane scrollPane = new JScrollPane(managerList);
 			managerList.setComponentPopupMenu(popupMenu());
@@ -3565,6 +3584,7 @@ public class Viewer3D {
 
 			@Override
 			public void actionPerformed(final ActionEvent e) {
+				if (disableActions) return;
 				switch (name) {
 				case ALL:
 					showPanelAsNeeded();
@@ -3893,7 +3913,7 @@ public class Viewer3D {
 
 			final JMenuItem addTag = new JMenuItem(new Action(Action.TAG, KeyEvent.VK_T, true, true));
 			addTag.setIcon(IconFactory.getMenuIcon(GLYPH.TAG));
-			final JMenuItem wipeTags = new JMenuItem("Remove Tags...");
+			final JMenuItem wipeTags = new JMenuItem("Remove Tags...", IconFactory.getMenuIcon(GLYPH.BROOM));
 			wipeTags.addActionListener(e -> {
 				if (noLoadedItemsGuiError())
 					return;
@@ -3906,7 +3926,18 @@ public class Viewer3D {
 					managerList.removeTagsFromSelectedItems();
 				}
 			});
-
+			final JMenuItem assignSceneColorTags = new JMenuItem("Apply Scene-based Tags...", IconFactory.getMenuIcon(GLYPH.COLOR));
+			assignSceneColorTags.addActionListener(e -> {
+				if (noLoadedItemsGuiError())
+					return;
+				if (managerList.isSelectionEmpty()) {
+					checkRetrieveAllOptions("objects");
+					if (!prefs.retrieveAllIfNoneSelected)
+						return;
+				}
+				managerList.applyRenderedColorsToSelectedItems();
+			});
+			
 			// Select menu
 			final JMenu selectMenu = new JMenu("Select");
 			selectMenu.setIcon(IconFactory.getMenuIcon(GLYPH.POINTER));
@@ -4013,7 +4044,9 @@ public class Viewer3D {
 			pMenu.add(hideMenu);
 			pMenu.addSeparator();
 			pMenu.add(addTag);
+			pMenu.add(assignSceneColorTags);
 			pMenu.add(wipeTags);
+			pMenu.addSeparator();
 			pMenu.add(renderIcons);
 			pMenu.addSeparator();
 			JMenuItem jmi = new JMenuItem(new Action(Action.FIND, KeyEvent.VK_F, true, false));
@@ -5717,6 +5750,19 @@ public class Viewer3D {
 						editPopup.setPreferredSize(new Dimension(r.width, r.height));
 						editPopup.show(CheckboxListEditable.this, r.x, r.y);
 						editTextField.requestFocusInWindow();
+						editTextField.addFocusListener(new FocusListener() {
+
+							@Override
+							public void focusGained(final FocusEvent e) {
+								getManagerPanel().disableActions = true;
+							}
+
+							@Override
+							public void focusLost(final FocusEvent e) {
+								getManagerPanel().disableActions = false;
+							}
+
+						});
 
 					} else {
 						_handler.mouseClicked(e);
@@ -5797,6 +5843,34 @@ public class Viewer3D {
 			}
 		}
 
+		@SuppressWarnings({ "unchecked" })
+		void applyRenderedColorsToSelectedItems() {
+			for (final int i : getSelectedIndices()) {
+				final String entry = (String) ((DefaultListModel<?>) getModel()).get(i);
+				Color color = null;
+				if (plottedTrees.get(entry) != null) {
+					color = plottedTrees.get(entry).getArborColor();
+					if (color == null)
+						color = plottedTrees.get(entry).getSomaColor();
+					if (color == null) {
+						final String sColor = plottedTrees.get(entry).tree.getProperties().getProperty(Tree.KEY_COLOR);
+						if (sColor != null)
+							color = fromColorRGB(new ColorRGB(sColor));
+					}
+				} else if (plottedObjs.get(entry) != null && plottedObjs.get(entry).getColor() != null) {
+					color = plottedObjs.get(entry).getColor();
+					if (color == null)
+						plottedObjs.get(entry).getBoundingBoxColor();
+				} else if (plottedAnnotations.get(entry) != null) {
+					color = plottedAnnotations.get(entry).getColor();
+				}
+				if (color != null) {
+					((DefaultListModel<String>) getModel()).set(i,
+							TagUtils.applyTag(entry, toColorRGB(color).toHTMLColor()));
+				}
+			}
+		}
+	
 		@SuppressWarnings({ "unchecked" })
 		void applyTagToSelectedItems(final String tag) {
 			final String cleansedTag = TagUtils.getCleansedTag(tag);
@@ -6282,8 +6356,17 @@ public class Viewer3D {
 			}
 		}
 
-		private Color getArborWireFrameColor() {
-			return (treeSubShape == null) ? null : treeSubShape.getWireframeColor();
+		private Color getArborColor() {
+			if (treeSubShape == null)
+				return null;
+			if (treeSubShape.getWireframeColor() != null)
+				return treeSubShape.getWireframeColor();
+			LineStripPlus ls = ((LineStripPlus) treeSubShape.get(0));
+			if (ls.getWireframeColor() != null) {
+				return ls.getWireframeColor();
+			}
+			ls = ((LineStripPlus) treeSubShape.get(treeSubShape.size() - 1));
+			return ls.getWireframeColor();
 		}
 
 		private Color getSomaColor() {
@@ -6842,7 +6925,7 @@ public class Viewer3D {
 			plottedTrees.values().forEach(shapeTree -> {
 				if (isSameRGB(shapeTree.getSomaColor(), newBackground)) shapeTree
 					.setSomaColor(newForeground);
-				if (isSameRGB(shapeTree.getArborWireFrameColor(), newBackground)) {
+				if (isSameRGB(shapeTree.getArborColor(), newBackground)) {
 					shapeTree.setArborColor(newForeground, -1);
 					return; // replaces continue in lambda expression;
 				}
