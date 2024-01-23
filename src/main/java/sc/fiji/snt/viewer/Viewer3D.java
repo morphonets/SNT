@@ -3851,7 +3851,7 @@ public class Viewer3D {
 
 		private JPopupMenu popupMenu() {
 			final JMenuItem renderIcons = new JCheckBoxMenuItem("Label Categories",
-					IconFactory.getMenuIcon(GLYPH.MARKER));
+					IconFactory.getMenuIcon(GLYPH.MARKER), managerList.renderer.iconVisible);
 			renderIcons.addItemListener(e -> {
 				managerList.setIconsVisible((renderIcons.isSelected()));
 			});
@@ -5827,6 +5827,7 @@ public class Viewer3D {
 				super();
 				// Apply properties from templateInstance
 				setBorder(templateInstance.getBorder());
+				setIconsVisible(true); // label categories by default
 			}
 
 			void setIconsVisible(final boolean iconVisible) {
