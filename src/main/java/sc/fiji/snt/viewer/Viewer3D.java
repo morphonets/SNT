@@ -819,6 +819,17 @@ public class Viewer3D {
 				plottedAnnotations.forEach((k, annot) -> {
 					annot.getDrawable().setDisplayed(selectedKeys.contains(k));
 				});
+				if (getRecorder(false) != null) {
+					// Record toggling of last checkbox interaction
+					final java.awt.Point mPos = managerList.getMousePosition();
+					if (null != mPos) {
+						final int mIndex = managerList.locationToIndex(mPos);
+						if (mIndex > -1 && mIndex != managerList.getCheckBoxListSelectionModel().getAllEntryIndex())
+							getRecorder(false).recordCmd("viewer.setVisible(\""
+									+ managerList.getModel().getElementAt(mIndex) + "\", "
+									+ managerList.getCheckBoxListSelectionModel().isSelectedIndex(mIndex) + ")");
+					}
+				}
 				// view.shoot();
 			}
 		});
@@ -1256,9 +1267,30 @@ public class Viewer3D {
 	}
 
 	/**
-	 * Updates the scene bounds to ensure all visible objects are displayed.
+	 * Rebuilds (repaints) a scene object (e.g., a Tree after being modified
+	 * elsewhere)
 	 * 
-	 * @see #rebuild()
+	 * @param obj the object to be re-rendered (or its label)
+	 */
+	public void rebuild(final Object obj) {
+		if (obj instanceof String && plottedTrees.get(obj) != null) {
+			plottedTrees.get(obj).rebuildShape();
+		} else if (obj instanceof Tree) {
+			plottedTrees.values().forEach(shapeTree -> {
+				if (((Tree) obj) == shapeTree.tree) {
+					shapeTree.rebuildShape();
+					return;
+				}
+			});
+		} else {
+			final Drawable vbo = getDrawableFromObject(obj);
+			if (vbo != null)
+				vbo.draw(chart.getPainter());
+		}
+	}
+
+	/**
+	 * Updates the scene bounds to ensure all visible objects are displayed.
 	 */
 	public void updateView() {
 		if (view != null) {
@@ -3291,7 +3323,7 @@ public class Viewer3D {
 				@Override
 				public void windowClosed(final WindowEvent e) {
 					recorder = null;
-					cmdFinder.setRecorder(null);
+					if (cmdFinder != null) cmdFinder.setRecorder(null);
 				}
 			});
 		}
