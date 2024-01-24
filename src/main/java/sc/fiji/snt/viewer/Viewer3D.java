@@ -518,6 +518,31 @@ public class Viewer3D {
 		}
 	}
 
+	private void flipAxis(final String axis, final boolean enable) {
+		final String parsedAxis = axis.toLowerCase();
+		if (parsedAxis.contains("horizontal"))
+			view.get2DLayout().setHorizontalAxisFlip(enable);
+		else if (parsedAxis.contains("vertical"))
+			view.get2DLayout().setVerticalAxisFlip(enable);
+		else if (parsedAxis.contains("all") || parsedAxis.contains("both"))
+			view.get2DLayout().setBothAxisFlip(enable);
+	}
+
+	private void setAxesLabels(final String... labels) {
+		if (labels.length > 0) {
+			view.getAxisLayout().setXAxisLabel(labels[0]);
+			view.getAxisLayout().setXAxisLabelDisplayed(labels[0] != null);
+		}
+		if (labels.length > 1) {
+			view.getAxisLayout().setYAxisLabel(labels[1]);
+			view.getAxisLayout().setYAxisLabelDisplayed(labels[1] != null);
+		}
+		if (labels.length > 2) {
+			view.getAxisLayout().setZAxisLabel(labels[2]);
+			view.getAxisLayout().setZAxisLabelDisplayed(labels[2] != null);
+		}
+	}
+
 	private void rebuild() {
 		SNTUtils.log("Rebuilding scene...");
 		try {
@@ -538,6 +563,11 @@ public class Viewer3D {
 			chart.stopAllThreads();
 			chart.dispose();
 			chart = null;
+			if (managerList != null) {
+				// update manager list to reflect that all objects are going to be visible
+				final int allIdx = managerList.getCheckBoxListSelectionModel().getAllEntryIndex();
+				managerList.getCheckBoxListSelectionModel().setSelectionInterval(allIdx, allIdx);
+			}
 			initView();
 			keyController.zoomStep = currentZoomStep;
 			keyController.rotationStep = currentRotationStep;
@@ -551,12 +581,10 @@ public class Viewer3D {
 			view.setViewPoint(currentViewPoint);
 			view.setBoundsManual(currentBox);
 			addAllObjects();
-			updateView();
 			setAnimationEnabled(isAnimating);
 			if (frame != null && frame.managerPanel != null && frame.managerPanel.debugger != null) {
 				frame.managerPanel.debugger.setWatchedChart(chart);
 			}
-			//if (managerList != null) managerList.selectAll();
 		}
 		catch (final GLException | NullPointerException exc) {
 			SNTUtils.error("Rebuild Error", exc);
@@ -593,19 +621,6 @@ public class Viewer3D {
 			dup.chart.add(dupAnnot.getDrawable(), false);
 			dup.plottedAnnotations.put(k, dupAnnot);
 		});
-
-//		if (dup.managerList != null && managerList != null) {
-//			final DefaultUpdatableListModel<Object> dupModel = new DefaultUpdatableListModel<>();
-//			for (int i = 0; i < managerList.model.getSize(); i++) {
-//				Object element = managerList.model.elementAt(i);
-//				if (CheckBoxList.ALL_ENTRY.equals(element))
-//					dupModel.addElement(CheckBoxList.ALL_ENTRY);
-//				else
-//					dupModel.addElement(managerList.model.elementAt(i).toString());
-//			}
-//			dup.managerList.setModel(dupModel);
-//		}
-
 		dup.keyController.zoomStep = keyController.zoomStep;
 		dup.keyController.rotationStep = keyController.rotationStep;
 		dup.mouseController.panStep = mouseController.panStep;
@@ -619,11 +634,11 @@ public class Viewer3D {
 		dup.view.setViewPoint(view.getViewPoint().clone());
 		dup.setSceneUpdatesEnabled(viewUpdatesEnabled);
 		dup.updateView();
-		dup.frame = new ViewerFrame((AChart) dup.chart, this.frame.getWidth(), this.frame.getHeight(),
-				dup.managerList != null, this.frame.getGraphicsConfiguration());
-		dup.frame.setLocationRelativeTo(this.frame);
-		final int spacer = this.frame.getInsets().top;
-		dup.frame.setLocation(this.frame.getX() + spacer, this.frame.getY() + spacer);
+		dup.frame = new ViewerFrame((AChart) dup.chart, frame.getWidth(), frame.getHeight(),
+				dup.managerList != null, frame.getGraphicsConfiguration());
+		dup.frame.setLocationRelativeTo(frame);
+		final int spacer = frame.getInsets().top;
+		dup.frame.setLocation(frame.getX() + spacer, frame.getY() + spacer);
 		return dup;
 	}
 
@@ -2525,17 +2540,6 @@ public class Viewer3D {
 		}
 	}
 
-//	/**
-//	 * Returns this viewer's {@link View} holding {@link Scene}, {@link LightSet},
-//	 * {@link ICanvas}, etc.
-//	 *
-//	 * @return this viewer's View, or null if it was disposed after {@link #show()}
-//	 *         has been called
-//	 */
-//	public View getView() {
-//		return (chart == null) ? null : view;
-//	}
-
 	private class Debugger extends DebugGLChart3d {
 
 		private Frame frame;
@@ -2924,7 +2928,9 @@ public class Viewer3D {
 		private void exitRequested(final GuiUtils gUtilsDefiningPrompt) {
 			if (gUtilsDefiningPrompt != null && gUtilsDefiningPrompt.getConfirmation("Quit Reconstruction Viewer?",
 					"Quit?", "Yes. Quit Now", "No. Keep Open")) {
-				Viewer3D.this.dispose();
+				super.dispose();
+				chart.viewer.dispose();
+				chart = null;
 				GuiUtils.restoreLookAndFeel();
 			}
 		}
@@ -2954,14 +2960,12 @@ public class Viewer3D {
 			setPreferredSize(new Dimension(bounds.width, bounds.height + status.getHeight()));
 			canvas.setSize(new Dimension(bounds.width, bounds.height));
 			setSize(new Dimension(bounds.width, bounds.height + status.getHeight()));
-			if (firstInitialization) {
-				addWindowListener(new WindowAdapter() {
-					@Override
-					public void windowClosing(final WindowEvent e) {
-						exitRequested(gUtils);
-					}
-				});
-			}
+			addWindowListener(new WindowAdapter() {
+				@Override
+				public void windowClosing(final WindowEvent e) {
+					exitRequested(gUtils);
+				}
+			});
 		}
 
 		public void disposeFrame() {
@@ -3115,13 +3119,13 @@ public class Viewer3D {
 			frame.dispose();
 			if (hasManager) {
 				frame.manager.dispose();
-				Viewer3D.this.initManagerList();
+				initManagerList();
 			}
-			Viewer3D.this.show((int) dim.getWidth(), (int) dim.getHeight(), gConfiguration);
+			show((int) dim.getWidth(), (int) dim.getHeight(), gConfiguration);
 			setEnableDarkMode(darkMode);
 			if (hasManager) {
-				Viewer3D.this.frame.snapPanelToSide();
-				Viewer3D.this.frame.manager.setVisible(visibleManager);
+				frame.snapPanelToSide();
+				frame.manager.setVisible(visibleManager);
 			}
 			validate();
 		}
@@ -3776,6 +3780,7 @@ public class Viewer3D {
 			sceneMenu.add(fitToSelection);
 			// Aspect-ratio controls
 			sceneMenu.add(squarifyMenu());
+			sceneMenu.add(axesMenu());
 			final JMenuItem jcbmiFill = new JCheckBoxMenuItem("Stretch-to-Fill");
 			jcbmiFill.setIcon(IconFactory.getMenuIcon(GLYPH.EXPAND_ARROWS1));
 			jcbmiFill.addItemListener(e -> {
@@ -3866,6 +3871,34 @@ public class Viewer3D {
 				jcbmi.addItemListener(e -> squarify(axis, jcbmi.isSelected()));
 				menu.add(jcbmi);
 			}
+			return menu;
+		}
+
+		private JMenu axesMenu() {
+			final JMenu menu = new JMenu("Axes");
+			menu.setIcon(IconFactory.getMenuIcon(GLYPH.CHART_LINE));
+			final Map<String, Boolean> entries = Map.of("XY View: Flip Horizontal Axis",
+					view.get2DLayout().isHorizontalAxisFlip(), "XY View: Flip Vertical Axis",
+					view.get2DLayout().isVerticalAxisFlip());
+			entries.forEach((k, v) -> {
+				final JMenuItem jcbmi = new JCheckBoxMenuItem(k, v);
+				jcbmi.addItemListener(e -> {
+					setViewMode(ViewMode.XY);
+					flipAxis(k, jcbmi.isSelected());
+				});
+				menu.add(jcbmi);
+			});
+			menu.addSeparator();
+			final JMenuItem jmi = new JMenuItem("Axes Labels...");
+			jmi.addActionListener(e -> {
+				final String[] defaults = { view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
+						view.getAxisLayout().getZAxisLabel() };
+				final String[] labels = guiUtils.getStrings("Axes Labels...",
+						new String[] { "X axis ", "Y axis ", "Z axis" }, defaults);
+				if (labels != null && labels[0] != null)
+					setAxesLabels(labels);
+			});
+			menu.add(jmi);
 			return menu;
 		}
 
@@ -4915,10 +4948,10 @@ public class Viewer3D {
 				{
 					return;
 				}
-				Viewer3D.this.setSceneUpdatesEnabled(false);
-				keys.forEach(k -> Viewer3D.this.removeTree(k));
-				Viewer3D.this.setSceneUpdatesEnabled(true);
-				Viewer3D.this.updateView();
+				setSceneUpdatesEnabled(false);
+				keys.forEach(k -> removeTree(k));
+				setSceneUpdatesEnabled(true);
+				updateView();
 			});
 			tracesMenu.add(mi);
 			mi = new JMenuItem("Remove All...", IconFactory.getMenuIcon(GLYPH.TRASH));
@@ -4928,7 +4961,7 @@ public class Viewer3D {
 				{
 					return;
 				}
-				Viewer3D.this.removeAllTrees();
+				removeAllTrees();
 			});
 			tracesMenu.add(mi);
 			return tracesMenu;
@@ -5063,10 +5096,10 @@ public class Viewer3D {
 				{
 					return;
 				}
-				Viewer3D.this.setSceneUpdatesEnabled(false);
-				keys.forEach(k -> Viewer3D.this.removeMesh(k));
-				Viewer3D.this.setSceneUpdatesEnabled(true);
-				Viewer3D.this.updateView();
+				setSceneUpdatesEnabled(false);
+				keys.forEach(k -> removeMesh(k));
+				setSceneUpdatesEnabled(true);
+				updateView();
 			});
 			meshMenu.add(mi);
 			mi = new JMenuItem("Remove All...");
@@ -5517,7 +5550,7 @@ public class Viewer3D {
 				protected Void doInBackground() {
 					viewUpdatesEnabled = compartments.size() == 1;
 					for (final AllenCompartment compartment : compartments) {
-						Viewer3D.this.incrementProgress();
+						incrementProgress();
 						if (getOBJs().containsKey(compartment.name())) {
 							managerList.addCheckBoxListSelectedValue(compartment.name(), true);
 						} else {
@@ -5733,7 +5766,7 @@ public class Viewer3D {
 						// Prepare the text field for editing
 						final String selectedLabel = getSelectedValue().toString();
 						if (ALL_ENTRY.toString().equals(selectedLabel)) {
-							if (Viewer3D.this.frame.managerPanel.noLoadedItemsGuiError())
+							if (frame.managerPanel.noLoadedItemsGuiError())
 								return;
 							editTextField.setText("");
 						} else {
@@ -5953,7 +5986,7 @@ public class Viewer3D {
 			if (cleansedTag.trim().isEmpty()) return entry;
 			if (!entry.contains("}")) {
 				final StringBuilder sb = new StringBuilder(entry);
-				sb.append("{").append(cleansedTag).append("}");
+				sb.append(" {").append(cleansedTag).append("}");
 				return sb.toString();
 			} else {
 				return entry.replace("}", ", " + cleansedTag + "}");
@@ -6107,7 +6140,7 @@ public class Viewer3D {
 	}
 
 	private void toggleControlPanel() {
-		if (Viewer3D.this.frame.manager!= null) {
+		if (frame.manager!= null) {
 			frame.manager.setVisible(!frame.manager.isVisible());
 			if (frame.manager.isVisible()) {
 				frame.manager.toFront();
@@ -6593,9 +6626,13 @@ public class Viewer3D {
 		}
 
 		public void snapToNextView() {
-			stopThreadController();
-			chart.setViewMode(currentView.next());
-			displayMsg("View Mode: " + currentView.description);
+			try {
+				stopThreadController();
+				chart.setViewMode(currentView.next());
+				displayMsg("View Mode: " + currentView.description);
+			} catch (final Throwable t) {
+				t.printStackTrace();
+			}
 		}
 
 		/*
@@ -6828,13 +6865,13 @@ public class Viewer3D {
 		}
 
 		private boolean emptySceneMsg() {
-			final boolean empty = Viewer3D.this.isEmptyScene();
+			final boolean empty = isEmptyScene();
 			if (empty) displayMsg("Scene is empty");
 			return empty;
 		}
 
 		private void saveScreenshot() {
-			Viewer3D.this.saveSnapshot();
+			saveSnapshot();
 			displayMsg("Snapshot saved to " + FileUtils.limitPath(
 				prefs.snapshotDir, 50));
 		}
@@ -7724,11 +7761,11 @@ public class Viewer3D {
 
 			public AView(final IChartFactory factory, final Scene scene, final ICanvas canvas, final Quality quality) {
 				super(factory, scene, canvas, quality);
-				//super.displayAxisWholeBounds = true;
+				//setDisplayAxisWholeBounds(true);
 				setCameraRenderingSphereRadiusFactor(.85f);
 				setHiDPIenabled(Prefs.SCALE_FACTOR > 1);
 				setMaximized(false);
-				super.get2DLayout().setVerticalAxisFlip(true); // for backwards compatibility
+				get2DLayout().setVerticalAxisFlip(true); // backwards compatibility
 			}
 
 			void setHiDPIenabled(final boolean enabled) {
