@@ -101,6 +101,7 @@ import org.jzy3d.plot3d.primitives.axis.layout.providers.SmartTickProvider;
 import org.jzy3d.plot3d.primitives.axis.layout.renderers.FixedDecimalTickRenderer;
 import org.jzy3d.plot3d.primitives.axis.layout.renderers.ITickRenderer;
 import org.jzy3d.plot3d.primitives.axis.layout.renderers.ScientificNotationTickRenderer;
+import org.jzy3d.plot3d.primitives.enlightables.AbstractEnlightable;
 import org.jzy3d.plot3d.primitives.vbo.drawable.DrawableVBO;
 import org.jzy3d.plot3d.rendering.canvas.ICanvas;
 import org.jzy3d.plot3d.rendering.canvas.INativeCanvas;
@@ -127,6 +128,7 @@ import org.jzy3d.plot3d.transform.squarifier.XYSquarifier;
 import org.jzy3d.plot3d.transform.squarifier.XZSquarifier;
 import org.jzy3d.plot3d.transform.squarifier.ZYSquarifier;
 import org.jzy3d.ui.editors.LightEditor;
+import org.jzy3d.ui.editors.MaterialEditor;
 import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
@@ -2920,8 +2922,9 @@ public class Viewer3D {
 				}
 			};
 		}
-		private void displayLightController() {
-			lightController = new LightController(this);
+
+		private void displayLightController(final AbstractEnlightable abstractEnlightable ) {
+			lightController = new LightController(this, abstractEnlightable);
 			lightController.display();
 		}
 
@@ -3889,12 +3892,19 @@ public class Viewer3D {
 				menu.add(jcbmi);
 			});
 			menu.addSeparator();
+			final JCheckBoxMenuItem jcbmi = new JCheckBoxMenuItem("Display Bounding Box ", view.isDisplayAxisWholeBounds());
+			jcbmi.addActionListener(e -> {
+				if (jcbmi.isSelected()) chart.setAxeDisplayed(true);
+				view.setDisplayAxisWholeBounds(jcbmi.isSelected());
+			});
+			menu.add(jcbmi);
+			menu.addSeparator();
 			final JMenuItem jmi = new JMenuItem("Axes Labels...");
 			jmi.addActionListener(e -> {
 				final String[] defaults = { view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
 						view.getAxisLayout().getZAxisLabel() };
 				final String[] labels = guiUtils.getStrings("Axes Labels...",
-						new String[] { "X axis ", "Y axis ", "Z axis" }, defaults);
+						new String[] { "X axis ", "Y axis ", "Z axis " }, defaults);
 				if (labels != null && labels[0] != null)
 					setAxesLabels(labels);
 			});
@@ -3944,6 +3954,25 @@ public class Viewer3D {
 				managerList.model.setListenersEnabled(true);
 			});
 
+			final JMenuItem material = new JMenuItem("Adjust Surface Rendering...", IconFactory.getMenuIcon(GLYPH.CUBE));
+			material.addActionListener(e -> {
+				if (noLoadedItemsGuiError()) {
+					return;
+				}
+				final List<?> selectedKeys = managerList.getSelectedValuesList();
+				if (selectedKeys.isEmpty() || selectedKeys.size() > 1
+						|| (selectedKeys.size() == 1 && CheckBoxList.ALL_ENTRY.equals(selectedKeys.get(0)))) {
+					guiUtils.error("This command operates on single objects.");
+					return;
+				}
+				final String item = TagUtils.removeAllTags((String) selectedKeys.get(0));
+				final Drawable d = getDrawableFromObject(item);
+				if (d != null && d instanceof AbstractEnlightable)
+					frame.displayLightController((AbstractEnlightable) d);
+				else
+					guiUtils.error("Selected item does not support surface texture adjustments. "
+							+ "Currently, only simple shapes (cilinders, spheres, etc.) are supported.");
+			});
 			final JMenuItem addTag = new JMenuItem(new Action(Action.TAG, KeyEvent.VK_T, true, true));
 			addTag.setIcon(IconFactory.getMenuIcon(GLYPH.TAG));
 			final JMenuItem wipeTags = new JMenuItem("Remove Tags...", IconFactory.getMenuIcon(GLYPH.BROOM));
@@ -4080,7 +4109,7 @@ public class Viewer3D {
 			pMenu.add(assignSceneColorTags);
 			pMenu.add(wipeTags);
 			pMenu.addSeparator();
-			pMenu.add(renderIcons);
+			pMenu.add(material);
 			pMenu.addSeparator();
 			JMenuItem jmi = new JMenuItem(new Action(Action.FIND, KeyEvent.VK_F, true, false));
 			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.BINOCULARS));
@@ -4089,6 +4118,7 @@ public class Viewer3D {
 			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.SPINNER));
 			pMenu.add(jmi);
 			pMenu.addSeparator();
+			pMenu.add(renderIcons);
 			pMenu.add(sort);
 			pMenu.addSeparator();
 			pMenu.add(remove);
@@ -4686,12 +4716,7 @@ public class Viewer3D {
 			utilsMenu.add(mi);
 			utilsMenu.add(legendMenu());
 			final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.getMenuIcon(GLYPH.BULB));
-			light.addActionListener(e -> {
-//				guiUtils.centeredMsg(
-//						"Adjustments of light and shadows remain experimental features, some of which undoable.",
-//						"Reminder", "OK. I'll be careful");
-				frame.displayLightController();
-			});
+			light.addActionListener(e -> frame.displayLightController(null));
 			utilsMenu.add(light);
 			final JMenuItem dark = new JMenuItem(new Action(Action.TOGGLE_DARK_MODE, KeyEvent.VK_D, false, false));
 			dark.setIcon(IconFactory.getMenuIcon(GLYPH.SUN));
@@ -7174,18 +7199,18 @@ public class Viewer3D {
 		private final Color existingSpecularColor;
 		private final ViewerFrame viewerFrame;
 
-		LightController(final ViewerFrame viewerFrame) {
+		LightController(final ViewerFrame viewerFrame, final AbstractEnlightable abstractEnlightable) {
 
 			super((viewerFrame.manager == null)?viewerFrame:viewerFrame.manager, "Light Effects");
 			this.viewerFrame = viewerFrame;
 			this.chart = viewerFrame.chart;
 			existingSpecularColor = chart.getView().getBackgroundColor();
 			assignDefaultLightIfNoneExists();
-			final LightEditorPlus lightEditor = new LightEditorPlus(chart, chart.getScene().getLightSet().get(0));
-			final JScrollPane scrollPane = new JScrollPane(lightEditor);
+			final JPanel panel = (abstractEnlightable == null) ? lightEditorPane() : materialEditorPane(abstractEnlightable);
+			final JScrollPane scrollPane = new JScrollPane(panel);
 			scrollPane.setWheelScrollingEnabled(true);
 			scrollPane.setBorder(null);
-			scrollPane.setViewportView(lightEditor);
+			scrollPane.setViewportView(panel);
 			add(scrollPane);
 			setLocationRelativeTo(getParent());
 			setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
@@ -7199,6 +7224,16 @@ public class Viewer3D {
 				}
 			});
 
+		}
+
+		private JPanel lightEditorPane() {
+			return new LightEditorPlus(chart, chart.getScene().getLightSet().get(0));
+		}
+
+		private JPanel materialEditorPane(final AbstractEnlightable abstractEnlightable) {
+			final MaterialEditor enlightableEditor = new MaterialEditor(chart);
+			enlightableEditor.setTarget(abstractEnlightable);
+			return enlightableEditor;
 		}
 
 		void assignDefaultLightIfNoneExists() {
