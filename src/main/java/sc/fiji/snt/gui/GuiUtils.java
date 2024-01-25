@@ -647,7 +647,40 @@ public class GuiUtils {
 		}
 		return null;
 	}
-	
+
+	public String[] getStrings(final String message, final String promptTitle, final Map<String, List<String>> choicesMap,
+			final String... defaultChoices) {
+		final List<JComboBox<String>> fields = new ArrayList<>(choicesMap.size());
+		final JPanel panel = new JPanel(new GridBagLayout());
+		final GridBagConstraints c = new GridBagConstraints();
+		final int[] index = { 0 };
+		choicesMap.forEach((k, v) -> {
+			c.gridy = index[0];
+			c.gridx = 0;
+			c.fill = 0;
+			c.anchor = GridBagConstraints.EAST;
+			panel.add(new JLabel(k), c);
+			c.gridx = 1;
+			c.fill = 1;
+			c.anchor = GridBagConstraints.WEST;
+			final JComboBox<String> field = new JComboBox<>(v.toArray(new String[0]));
+			fields.add(field);
+			if (index[0] < defaultChoices.length)
+				field.setSelectedItem(defaultChoices[index[0]]);
+			panel.add(field, c);
+			index[0]++;
+		});
+		final int result = JOptionPane.showConfirmDialog(parent, panel, promptTitle, JOptionPane.OK_CANCEL_OPTION,
+				JOptionPane.PLAIN_MESSAGE);
+		if (result == JOptionPane.OK_OPTION) {
+			final String[] values = new String[fields.size()];
+			for (int i = 0; i < fields.size(); i++)
+				values[i] = (String) fields.get(i).getSelectedItem();
+			return values;
+		}
+		return null;
+	}
+
 	public Set<String> getStringSet(final String promptMsg, final String promptTitle,
 			final Collection<String> defaultValues) {
 		final String userString = getString(promptMsg, promptTitle, toString(defaultValues));

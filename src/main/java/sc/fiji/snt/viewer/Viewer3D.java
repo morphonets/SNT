@@ -101,6 +101,7 @@ import org.jzy3d.plot3d.primitives.axis.layout.providers.SmartTickProvider;
 import org.jzy3d.plot3d.primitives.axis.layout.renderers.FixedDecimalTickRenderer;
 import org.jzy3d.plot3d.primitives.axis.layout.renderers.ITickRenderer;
 import org.jzy3d.plot3d.primitives.axis.layout.renderers.ScientificNotationTickRenderer;
+import org.jzy3d.plot3d.primitives.enlightables.AbstractEnlightable;
 import org.jzy3d.plot3d.primitives.vbo.drawable.DrawableVBO;
 import org.jzy3d.plot3d.rendering.canvas.ICanvas;
 import org.jzy3d.plot3d.rendering.canvas.INativeCanvas;
@@ -594,7 +595,7 @@ public class Viewer3D {
 	}
 
 	public Viewer3D duplicate() {
-		SNTUtils.log("Duplicating viewer...");
+		SNTUtils.log("Duplicating viewer... (visible objects only)");
 
 		final Viewer3D dup = new Viewer3D();
 		dup.initView();
@@ -604,22 +605,28 @@ public class Viewer3D {
 			dup.chart.add(cBar.duplicate(dup.chart).get(), false);
 		}
 		plottedTrees.forEach((k, shapeTree) -> {
-			final ShapeTree dupShapeTree = new ShapeTree(shapeTree.tree);
-			dupShapeTree.setDisplayed(shapeTree.isDisplayed());
-			dup.chart.add(dupShapeTree.get(), false);
-			dup.plottedTrees.put(k, dupShapeTree);
+			if (shapeTree.isDisplayed()) {
+				final ShapeTree dupShapeTree = new ShapeTree(shapeTree.tree);
+				dupShapeTree.setDisplayed(true);
+				dup.chart.add(dupShapeTree.get(), false);
+				dup.plottedTrees.put(k, dupShapeTree);
+			}
 		});
 		plottedObjs.forEach((k, remountableDrawableVBO) -> {
-			final OBJMesh dupMesh = remountableDrawableVBO.objMesh.duplicate();
-			dupMesh.drawable.setDisplayed(remountableDrawableVBO.isDisplayed());
-			dup.chart.add(dupMesh.drawable, false);
-			dup.plottedObjs.put(k, dupMesh.drawable);
+			if (remountableDrawableVBO.isDisplayed()) {
+				final OBJMesh dupMesh = remountableDrawableVBO.objMesh.duplicate();
+				dupMesh.drawable.setDisplayed(true);
+				dup.chart.add(dupMesh.drawable, false);
+				dup.plottedObjs.put(k, dupMesh.drawable);
+			}
 		});
 		plottedAnnotations.forEach((k, annot) -> {
-			final Annotation3D dupAnnot = new Annotation3D(dup, Collections.singleton(annot));
-			dupAnnot.getDrawable().setDisplayed(annot.getDrawable().isDisplayed());
-			dup.chart.add(dupAnnot.getDrawable(), false);
-			dup.plottedAnnotations.put(k, dupAnnot);
+			if (annot.getDrawable().isDisplayed()) {
+				final Annotation3D dupAnnot = new Annotation3D(dup, Collections.singleton(annot));
+				dupAnnot.getDrawable().setDisplayed(true);
+				dup.chart.add(dupAnnot.getDrawable(), false);
+				dup.plottedAnnotations.put(k, dupAnnot);
+			}
 		});
 		dup.keyController.zoomStep = keyController.zoomStep;
 		dup.keyController.rotationStep = keyController.rotationStep;
@@ -634,11 +641,17 @@ public class Viewer3D {
 		dup.view.setViewPoint(view.getViewPoint().clone());
 		dup.setSceneUpdatesEnabled(viewUpdatesEnabled);
 		dup.updateView();
-		dup.frame = new ViewerFrame((AChart) dup.chart, frame.getWidth(), frame.getHeight(),
-				dup.managerList != null, frame.getGraphicsConfiguration());
+		dup.frame = new ViewerFrame((AChart) dup.chart, frame.getWidth(), frame.getHeight(), dup.managerList != null,
+				frame.getGraphicsConfiguration());
 		dup.frame.setLocationRelativeTo(frame);
 		final int spacer = frame.getInsets().top;
 		dup.frame.setLocation(frame.getX() + spacer, frame.getY() + spacer);
+		dup.frame.addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowClosing(final WindowEvent e) {
+				dup.dispose();
+			}
+		});
 		return dup;
 	}
 
@@ -1149,6 +1162,8 @@ public class Viewer3D {
 		} else { 
 			annotation = new Annotation3D(this, points, Annotation3D.SURFACE);
 		}
+		final String uniqueLabel = getUniqueLabel(plottedAnnotations, "Surf. Annot.", label);
+		annotation.setLabel(uniqueLabel);
 		addAnnotation(annotation);
 		return annotation;
 	}
@@ -1225,6 +1240,17 @@ public class Viewer3D {
 		final int type = (points.size()==2) ? Annotation3D.Q_TIP : Annotation3D.STRIP;
 		final Annotation3D annotation = new Annotation3D(this, points, type);
 		final String uniqueLabel = getUniqueLabel(plottedAnnotations, "Line Annot.", label);
+		annotation.setLabel(uniqueLabel);
+		plottedAnnotations.put(uniqueLabel, annotation);
+		addItemToManager(uniqueLabel);
+		chart.add(annotation.getDrawable(), viewUpdatesEnabled);
+		return annotation;
+	}
+
+	public Annotation3D annotatePlane(final SNTPoint origin, final SNTPoint originOpposite, final String label) {
+		if (origin == null || originOpposite == null) return null;
+		final Annotation3D annotation = new Annotation3D(this, List.of(origin, originOpposite), Annotation3D.PLANE);
+		final String uniqueLabel = getUniqueLabel(plottedAnnotations, "Plane Annot.", label);
 		annotation.setLabel(uniqueLabel);
 		plottedAnnotations.put(uniqueLabel, annotation);
 		addItemToManager(uniqueLabel);
@@ -1654,6 +1680,25 @@ public class Viewer3D {
 			if (removed) deleteItemFromManager(managerEntry);
 		}
 		return removed;
+	}
+
+	public boolean removeAnnotation(final String annotLabel) {
+		final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels(annotLabel);
+		final Annotation3D annot3D = plottedAnnotations.get(labelAndManagerEntry[0]);
+		if (annot3D != null) {
+			deleteItemFromManager(labelAndManagerEntry[1]);
+			chart.remove(annot3D.getDrawable(), viewUpdatesEnabled);
+		}
+		return annot3D != null;
+	}
+
+	public boolean removeAnnotation(final Annotation3D annot) {
+		if (plottedAnnotations.containsValue(annot)) {
+			chart.remove(annot.getDrawable(), viewUpdatesEnabled);
+			deleteItemFromManager(annot.getLabel());
+			return true;
+		}
+		return false;
 	}
 
 	/**
@@ -2920,8 +2965,9 @@ public class Viewer3D {
 				}
 			};
 		}
-		private void displayLightController() {
-			lightController = new LightController(this);
+
+		private void displayLightController(final AbstractEnlightable abstractEnlightable ) {
+			lightController = new LightController(this, abstractEnlightable);
 			lightController.display();
 		}
 
@@ -2943,7 +2989,6 @@ public class Viewer3D {
 		 */
 		@Override
 		public void initialize(final Chart chart, final Rectangle bounds, final String title) {
-			final boolean firstInitialization = this.chart == null;
 			this.chart = (AChart)chart;
 			canvas = (Component) chart.getCanvas();
 			setTitle(title);
@@ -3736,6 +3781,7 @@ public class Viewer3D {
 			buttonPanel.add(menuButton(GLYPH.MASKS, sceneMenu(), "Scene Controls"));
 			buttonPanel.add(menuButton(GLYPH.TREE, treesMenu(), "Neuronal Arbors"));
 			buttonPanel.add(menuButton(GLYPH.CUBE, meshMenu(), "3D Meshes"));
+			buttonPanel.add(menuButton(GLYPH.MARKER, annotationsMenu(), "Geometric Annotations"));
 			buttonPanel.add(menuButton(GLYPH.ATLAS, refBrainsMenu(), "Reference Brains"));
 			buttonPanel.add(menuButton(GLYPH.CALCULATOR, measureMenu(), "Analyze & Measure"));
 			buttonPanel.add(menuButton(GLYPH.TOOL, utilsMenu(), "Utilities"));
@@ -3889,12 +3935,19 @@ public class Viewer3D {
 				menu.add(jcbmi);
 			});
 			menu.addSeparator();
+			final JCheckBoxMenuItem jcbmi = new JCheckBoxMenuItem("Display Bounding Box ", view.isDisplayAxisWholeBounds());
+			jcbmi.addActionListener(e -> {
+				if (jcbmi.isSelected()) chart.setAxeDisplayed(true);
+				view.setDisplayAxisWholeBounds(jcbmi.isSelected());
+			});
+			menu.add(jcbmi);
+			menu.addSeparator();
 			final JMenuItem jmi = new JMenuItem("Axes Labels...");
 			jmi.addActionListener(e -> {
 				final String[] defaults = { view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
 						view.getAxisLayout().getZAxisLabel() };
 				final String[] labels = guiUtils.getStrings("Axes Labels...",
-						new String[] { "X axis ", "Y axis ", "Z axis" }, defaults);
+						new String[] { "X axis ", "Y axis ", "Z axis " }, defaults);
 				if (labels != null && labels[0] != null)
 					setAxesLabels(labels);
 			});
@@ -3943,7 +3996,6 @@ public class Viewer3D {
 				renderIcons.setSelected(true);
 				managerList.model.setListenersEnabled(true);
 			});
-
 			final JMenuItem addTag = new JMenuItem(new Action(Action.TAG, KeyEvent.VK_T, true, true));
 			addTag.setIcon(IconFactory.getMenuIcon(GLYPH.TAG));
 			final JMenuItem wipeTags = new JMenuItem("Remove Tags...", IconFactory.getMenuIcon(GLYPH.BROOM));
@@ -4081,15 +4133,14 @@ public class Viewer3D {
 			pMenu.add(wipeTags);
 			pMenu.addSeparator();
 			pMenu.add(renderIcons);
+			pMenu.add(sort);
 			pMenu.addSeparator();
-			JMenuItem jmi = new JMenuItem(new Action(Action.FIND, KeyEvent.VK_F, true, false));
-			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.BINOCULARS));
-			pMenu.add(jmi);
-			jmi = new JMenuItem(new Action(Action.PROGRESS));
+			JMenuItem jmi = new JMenuItem(new Action(Action.PROGRESS));
 			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.SPINNER));
 			pMenu.add(jmi);
-			pMenu.addSeparator();
-			pMenu.add(sort);
+			jmi = new JMenuItem(new Action(Action.FIND, KeyEvent.VK_F, true, false));
+			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.BINOCULARS));
+			pMenu.add(jmi);
 			pMenu.addSeparator();
 			pMenu.add(remove);
 			cmdFinder.register(pMenu, new ArrayList<>(Collections.singletonList("Control Panel Contextual Menu")));
@@ -4244,6 +4295,25 @@ public class Viewer3D {
 			return trees;
 		}
 
+		private List<Annotation3D> getSelectedAnnotations() {
+			return getSelectedAnnotations(prefs.retrieveAllIfNoneSelected);
+		}
+	
+		private List<Annotation3D> getSelectedAnnotations(final boolean promptForAllIfNone) {
+			final List<String> keys = getSelectedKeys(plottedAnnotations, "annotations", promptForAllIfNone);
+			if (keys == null) return null; // user pressed cancel on prompt
+			if (keys.isEmpty()) { // a selection existed but it did not contain plottedTrees
+				guiUtils.error("There are no selected annotations.");
+				return null;
+			}
+			final List<Annotation3D> annots = new ArrayList<>();
+			keys.forEach( k -> {
+				final Annotation3D annot = plottedAnnotations.get(k);
+				if (annot != null)
+					annots.add(annot);
+			});
+			return annots;
+		}
 		private List<String> getSelectedTreeLabels() {
 			return getSelectedKeys(plottedTrees, "reconstructions", prefs.retrieveAllIfNoneSelected);
 		}
@@ -4646,8 +4716,7 @@ public class Viewer3D {
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedTreeLabels();
 				if (keys == null) return;
-				String msg = "<HTML><body><div style='width:500;'>" +
-					"Please specify a constant radius (in physical units  to be applied to somas of selected " + keys.size() + " reconstruction(s).";
+				String msg = "Please specify a constant radius (in physical units) to be applied to the soma(s) of selected reconstruction(s).";
 				if (isSNTInstance()) {
 					msg += " This value will only affect how Paths are displayed " +
 						"in the Reconstruction Viewer.";
@@ -4662,6 +4731,31 @@ public class Viewer3D {
 				}
 				setSomasDisplayed(keys, true);
 				setSomaRadius(keys, radius.floatValue());
+			});
+			menu.add(mi);
+
+			mi = new JMenuItem("Convex Hull(s)...", IconFactory.getMenuIcon(GLYPH.DICE_20));
+			mi.addActionListener(e -> {
+				final List<Tree> trees = getSelectedTrees(true);
+				if (trees == null)
+					return;
+				final String[] choices = { "Branch points", "Tips" };
+				final String choice = guiUtils.getChoice("Generate convex hull from which structures?",
+						"Add Convex Hull..", choices, choices[0]);
+				if (choice == null)
+					return;
+				for (final Tree tree : trees) {
+					Annotation3D annot;
+					if (choice.startsWith("Branch"))
+						annot = annotateSurface(new TreeAnalyzer(tree).getBranchPoints(),
+								tree.getLabel() + " [BPs Convex Hull]", false);
+					else
+						annot = annotateSurface(new TreeAnalyzer(tree).getTips(),
+								tree.getLabel() + " [Tips Convex Hull]", false);
+					final ColorRGB color = tree.getColor();
+					if (color != null) annot.setColor(color, 25);
+					annot.colorCode("hotcold", "X");
+				}
 			});
 			menu.add(mi);
 
@@ -4686,12 +4780,7 @@ public class Viewer3D {
 			utilsMenu.add(mi);
 			utilsMenu.add(legendMenu());
 			final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.getMenuIcon(GLYPH.BULB));
-			light.addActionListener(e -> {
-//				guiUtils.centeredMsg(
-//						"Adjustments of light and shadows remain experimental features, some of which undoable.",
-//						"Reminder", "OK. I'll be careful");
-				frame.displayLightController();
-			});
+			light.addActionListener(e -> frame.displayLightController(null));
 			utilsMenu.add(light);
 			final JMenuItem dark = new JMenuItem(new Action(Action.TOGGLE_DARK_MODE, KeyEvent.VK_D, false, false));
 			dark.setIcon(IconFactory.getMenuIcon(GLYPH.SUN));
@@ -5114,6 +5203,178 @@ public class Viewer3D {
 			});
 			meshMenu.add(mi);
 			return meshMenu;
+		}
+
+		private JPopupMenu annotationsMenu() {
+			final JPopupMenu annotMenu = new JPopupMenu();
+			GuiUtils.addSeparator(annotMenu, "Add:");
+			JMenuItem mi = new JMenuItem("Sphere...", IconFactory.getMenuIcon(GLYPH.GLOBE));
+			mi.addActionListener(e -> {
+				final String[] cc = guiUtils.getStrings("Sphere Properties...",
+						new String[] { "Center X ", "Center Y ", "Center Z ", "Size ", "Color ", "Transparency " },
+						new String[] { "", "", "", SNTUtils.formatDouble(getDefaultThickness() * 30, 2), "red", "50" });
+				if (cc == null)
+					return;
+				try {
+					final PointInImage pim = new PointInImage(Double.parseDouble(cc[0]), Double.parseDouble(cc[1]),
+							Double.parseDouble(cc[2]));
+					annotatePoint(pim, "Sphere", cc[4], Float.parseFloat(cc[3])).setColor(cc[3], Float.parseFloat(cc[5]));
+				} catch (final Exception ex) {
+					guiUtils.error("Invalid parameter(s).");
+					ex.printStackTrace();
+				}
+
+			});
+			annotMenu.add(mi);
+			mi = new JMenuItem("Vector...", IconFactory.getMenuIcon(GLYPH.ARROWS_LR));
+			mi.addActionListener(e -> {
+				final String[] cc = guiUtils.getStrings("Vector Properties...",
+						new String[] { "X1 ", "Y1 ", "Z1 ", "X2 ", "Y2 ", "Z2 ", "Size ", "Color ", "Transparency " },
+						new String[] { "", "", "", "", "", "", SNTUtils.formatDouble(getDefaultThickness() * 10, 2), "red", "50" });
+				if (cc == null)
+					return;
+				try {
+					final PointInImage pim1 = new PointInImage(Double.parseDouble(cc[0]), Double.parseDouble(cc[1]),
+							Double.parseDouble(cc[2]));
+					final PointInImage pim2 = new PointInImage(Double.parseDouble(cc[3]), Double.parseDouble(cc[4]),
+							Double.parseDouble(cc[5]));
+					final Annotation3D line = annotateLine(List.of(pim1, pim2), "Vector");
+					line.setColor(cc[7], Float.parseFloat(cc[8]));
+					line.setSize(Float.parseFloat(cc[6]));
+				} catch (final Exception ex) {
+					guiUtils.error("Invalid parameter(s).");
+				}
+
+			});
+			annotMenu.add(mi);
+			annotMenu.add(mi);
+			mi = new JMenuItem("Plane/Parallelepiped...", IconFactory.getMenuIcon(GLYPH.SQUARE));
+			mi.addActionListener(e -> {
+				final String[] cc = guiUtils
+						.getStrings("Boundaries...",
+								new String[] { "Origin X ", "Origin Y ", "Origin Z ", "Origin Opposite X ",
+										"Origin Opposite Y ", "Origin Opposite Z ", "Color ", "Transparency "},
+								new String[] { "", "", "", "", "", "", "", "" });
+				if (cc == null)
+					return;
+				try {
+					final PointInImage pim1 = new PointInImage(Double.parseDouble(cc[0]), Double.parseDouble(cc[1]),
+							Double.parseDouble(cc[2]));
+					final PointInImage pim2 = new PointInImage(Double.parseDouble(cc[3]), Double.parseDouble(cc[4]),
+							Double.parseDouble(cc[5]));
+					final Annotation3D annot = annotatePlane(pim1, pim2, "Annot. Plane");
+					annot.setColor(cc[6], Float.parseFloat(cc[7]));
+				} catch (final Exception ex) {
+					guiUtils.error("Invalid coordinate(s).");
+					ex.printStackTrace();
+				}
+
+			});
+			annotMenu.add(mi);
+			GuiUtils.addSeparator(annotMenu, "Customize:");
+			mi = new JMenuItem("Color...", IconFactory.getMenuIcon(GLYPH.COLOR));
+			mi.addActionListener(e -> {
+				final List<Annotation3D> annots = getSelectedAnnotations();
+				if (annots == null)
+					return;
+				final ColorRGB c = guiUtils.getColorRGB("Annotation(s) Color", java.awt.Color.WHITE, (String[]) null);
+				if (c == null) {
+					return; // user pressed cancel
+				}
+				annots.forEach(annot -> annot.setColor(c, -1));
+			});
+			annotMenu.add(mi);
+			mi = new JMenuItem("Color Gradient...", IconFactory.getMenuIcon(GLYPH.COLOR2));
+			mi.addActionListener(e -> {
+				final List<Annotation3D> annots = getSelectedAnnotations();
+				if (annots == null)
+					return;
+				final Map<String, List<String>> map = new LinkedHashMap<>();
+				map.put("Color gradient ", Annotation3D.COLORMAPS);
+				map.put("Gradient axis  ", List.of("X", "Y", "Z"));
+				final String[] res = guiUtils.getStrings("", "Color Gradient", map, "hotcold", "Z");
+				if (res == null)
+					return;
+				final List <String> failures = new ArrayList<>();
+				annots.forEach(annot -> {
+					if (annot.isColorCodeAllowed())
+						annot.colorCode(res[0], res[1]);
+					else
+						failures.add(annot.getLabel());
+				});
+				if (!failures.isEmpty())
+					guiUtils.error(("The following objects do not support color gradients: " + failures.toString()));
+			});
+			annotMenu.add(mi);
+			mi = new JMenuItem("Transparency...", IconFactory.getMenuIcon(GLYPH.ADJUST));
+			mi.addActionListener(e -> {
+				final List<Annotation3D> annots = getSelectedAnnotations();
+				if (annots == null)
+					return;
+				final Double t = guiUtils.getDouble("Annotation Transparency (%)", "Transparency (%)", 50);
+				if (t == null) {
+					return; // user pressed cancel
+				}
+				if (Double.isNaN(t) || t <= 0 || t >= 100) {
+					guiUtils.error("Invalid transparency value: Only ]0, 100[ accepted.");
+					return;
+				}
+				annots.forEach(annot -> annot.setColor((ColorRGB) null, t));
+			});
+			annotMenu.add(mi);
+			final JMenuItem material = new JMenuItem("Surface Rendering...", IconFactory.getMenuIcon(GLYPH.CUBES));
+			material.addActionListener(e -> {
+				if (noLoadedItemsGuiError()) {
+					return;
+				}
+				if (!chart.getScene().getGraph().getAll().stream().anyMatch( g -> g instanceof AbstractEnlightable)) {
+					guiUtils.error("Currently, only primitive shapes (spheres, disks, polygons, etc.) are supported. "
+							+ "Current scene contains no such objects.");
+					return;
+				}
+				final List<?> selectedKeys = managerList.getSelectedValuesList();
+				if (selectedKeys.isEmpty() || selectedKeys.size() > 1
+						|| (selectedKeys.size() == 1 && CheckBoxList.ALL_ENTRY.equals(selectedKeys.get(0)))) {
+					guiUtils.error("This command operates on single objects.");
+					return;
+				}
+				final String item = TagUtils.removeAllTags((String) selectedKeys.get(0));
+				final Drawable d = getDrawableFromObject(item);
+				if (d != null && d instanceof AbstractEnlightable)
+					frame.displayLightController((AbstractEnlightable) d);
+				else {
+					guiUtils.error("Selected item does not support surface texture adjustments. "
+							+ "Currently, only primitive shapes (spheres, disks, polygons, etc.) are supported.");
+				}
+			});
+			annotMenu.add(material);
+			GuiUtils.addSeparator(annotMenu, "Remove:");
+			mi = new JMenuItem("Remove Selected...", IconFactory.getMenuIcon(GLYPH.DELETE));
+			mi.addActionListener(e -> {
+				final List<Annotation3D> annots = getSelectedAnnotations();
+				if (annots == null || annots.isEmpty()) {
+					guiUtils.error("There are no selected annotations.");
+					return;
+				}
+				if (!guiUtils.getConfirmation("Delete " + annots.size() + " annotation(s)?", "Confirm Deletion")) {
+					return;
+				}
+				setSceneUpdatesEnabled(false);
+				annots.forEach(annot -> removeAnnotation(annot));
+				setSceneUpdatesEnabled(true);
+				updateView();
+			});
+			annotMenu.add(mi);
+			mi = new JMenuItem("Remove All...");
+			mi.setIcon(IconFactory.getMenuIcon(GLYPH.TRASH));
+			mi.addActionListener(e -> {
+				if (!guiUtils.getConfirmation("Remove all meshes from scene?", "Remove All Meshes?")) {
+					return;
+				}
+				removeAllAnnotations();
+			});
+			annotMenu.add(mi);
+			return annotMenu;
 		}
 
 		private JPopupMenu refBrainsMenu() {
@@ -5885,11 +6146,6 @@ public class Viewer3D {
 					color = plottedTrees.get(entry).getArborColor();
 					if (color == null)
 						color = plottedTrees.get(entry).getSomaColor();
-					if (color == null) {
-						final String sColor = plottedTrees.get(entry).tree.getProperties().getProperty(Tree.KEY_COLOR);
-						if (sColor != null)
-							color = fromColorRGB(new ColorRGB(sColor));
-					}
 				} else if (plottedObjs.get(entry) != null && plottedObjs.get(entry).getColor() != null) {
 					color = plottedObjs.get(entry).getColor();
 					if (color == null)
@@ -6399,7 +6655,9 @@ public class Viewer3D {
 				return ls.getWireframeColor();
 			}
 			ls = ((LineStripPlus) treeSubShape.get(treeSubShape.size() - 1));
-			return ls.getWireframeColor();
+			if (ls.getWireframeColor() != null)
+				return ls.getWireframeColor();
+			return fromColorRGB(tree.getColor());
 		}
 
 		private Color getSomaColor() {
@@ -7174,18 +7432,19 @@ public class Viewer3D {
 		private final Color existingSpecularColor;
 		private final ViewerFrame viewerFrame;
 
-		LightController(final ViewerFrame viewerFrame) {
+		LightController(final ViewerFrame viewerFrame, final AbstractEnlightable abstractEnlightable) {
 
-			super((viewerFrame.manager == null)?viewerFrame:viewerFrame.manager, "Light Effects");
+			super((viewerFrame.manager == null) ? viewerFrame : viewerFrame.manager,
+					(abstractEnlightable == null) ? "Light Effects" : "Material Editor");
 			this.viewerFrame = viewerFrame;
 			this.chart = viewerFrame.chart;
 			existingSpecularColor = chart.getView().getBackgroundColor();
 			assignDefaultLightIfNoneExists();
-			final LightEditorPlus lightEditor = new LightEditorPlus(chart, chart.getScene().getLightSet().get(0));
-			final JScrollPane scrollPane = new JScrollPane(lightEditor);
+			final JPanel panel = (abstractEnlightable == null) ? lightEditorPane() : materialEditorPane(abstractEnlightable);
+			final JScrollPane scrollPane = new JScrollPane(panel);
 			scrollPane.setWheelScrollingEnabled(true);
 			scrollPane.setBorder(null);
-			scrollPane.setViewportView(lightEditor);
+			scrollPane.setViewportView(panel);
 			add(scrollPane);
 			setLocationRelativeTo(getParent());
 			setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
@@ -7199,6 +7458,16 @@ public class Viewer3D {
 				}
 			});
 
+		}
+
+		private JPanel lightEditorPane() {
+			return new LightEditorPlus(chart, chart.getScene().getLightSet().get(0));
+		}
+
+		private JPanel materialEditorPane(final AbstractEnlightable abstractEnlightable) {
+			final MaterialEditor enlightableEditor = new MaterialEditor(chart);
+			enlightableEditor.setTarget(abstractEnlightable);
+			return enlightableEditor;
 		}
 
 		void assignDefaultLightIfNoneExists() {

@@ -1050,6 +1050,7 @@ public class Path implements Comparable<Path> {
 		return dup;
 	}
 
+	@Deprecated
 	public Path clone(final boolean includeImmediateChildren) {
 		final Path dup = clone();
 		if (!includeImmediateChildren) return dup;

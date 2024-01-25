@@ -1247,6 +1247,11 @@ public class Tree implements TreeProperties {
 		setColor(finalColor);
 	}
 
+	public ColorRGB getColor() {
+		final String sColor = getProperties().getProperty(Tree.KEY_COLOR);
+		return (sColor == null) ? null : new ColorRGB(sColor);
+	}
+
 	/**
 	 * Assigns a fixed radius to all the nodes in this tree.
 	 *

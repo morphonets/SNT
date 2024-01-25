@@ -90,6 +90,7 @@ public class IconFactory {
 			COLOR('\uf53f', true), //
 			COLOR2('\uf5c3', true), //
 			COMMENTS('\uf086', false), //
+			CUBES('\uf1b3', true), //
 			//COMPASS('\uf14e', false), //
 			//COMPRESS('\uf422', true), //
 			RESIZE('\uf424', true), //
@@ -127,7 +128,7 @@ public class IconFactory {
 			FONT('\uf031', true), //
 			FOOTPRINTS('\uf54b', true), //
 			GEM('\uf3a5', true), //
-			//GLOBE('\uf0ac', true), //
+			GLOBE('\uf0ac', true), //
 			GRID('\uf00a', true), //
 			GRADUATION_CAP('\uf19d', true), //
 			HAND('\uf256', false), //
@@ -184,6 +185,7 @@ public class IconFactory {
 			SLIDERS('\uf1de', true), //
 			SPINNER('\uf110', true), //
 			SORT('\uf15d', true), //
+			SQUARE('\uf0c8', false), //
 			STAIRS('\ue289', true), //
 			STETHOSCOPE('\uf0f1', true), //
 			STREAM('\uf550', true), //
