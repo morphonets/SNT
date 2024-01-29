@@ -700,10 +700,12 @@ public class GuiUtils {
 	 *
 	 * @see #getColor(String, Color, String...)
 	 */
-	public ColorRGB getColorRGB(final String title, final Color defaultValue,
+	public ColorRGB getColorRGB(final String title, final ColorRGB defaultValue,
 		final String... panes)
 	{
-		final Color color = getColor(title, defaultValue, panes);
+		final Color def = (defaultValue == null) ? null : new Color(defaultValue.getRed(), defaultValue.getGreen(),
+				defaultValue.getBlue());
+		final Color color = getColor(title, def, panes);
 		if (color == null) return null;
 		return new ColorRGB(color.getRed(), color.getGreen(), color.getBlue());
 	}

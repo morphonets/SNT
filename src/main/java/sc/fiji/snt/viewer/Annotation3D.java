@@ -43,7 +43,6 @@ import org.jzy3d.colors.colormaps.ColorMapWhiteRed;
 import org.jzy3d.maths.BoundingBox3d;
 import org.jzy3d.maths.Coord3d;
 import org.jzy3d.maths.Range;
-import org.jzy3d.plot3d.primitives.Composite;
 import org.jzy3d.plot3d.primitives.Drawable;
 import org.jzy3d.plot3d.primitives.LineStrip;
 import org.jzy3d.plot3d.primitives.ParallelepipedComposite;
@@ -591,7 +590,7 @@ public class Annotation3D {
 		
 		
 		Parallelepiped(final SNTPoint p1, final SNTPoint p2) {
-			 super(new BoundingBox3d(p1.getX(), p1.getY(), p1.getZ(), p2.getX(), p2.getY(), p2.getZ()));
+			 super(new BoundingBox3d(p1.getX(), p2.getX(), p1.getY(), p2.getY(), p1.getZ(), p2.getZ()));
 		}
 	
 		@Override

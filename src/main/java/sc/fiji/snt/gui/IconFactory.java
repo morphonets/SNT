@@ -175,6 +175,7 @@ public class IconFactory {
 			RULER('\uf546', true), //
 			RULER_VERTICAL('\uf548', true), //
 			SAVE('\uf0c7', false), //
+			SCISSORS('\uf0c4', true), //
 			SCROLL('\uf70e', true), //
 			SEARCH('\uf002', true), //
 			SEARCH_MINUS('\uf010', true), //

@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.Objects;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.jzy3d.maths.BoundingBox3d;
 
 import ij.measure.Calibration;
 import sc.fiji.snt.gui.GuiUtils;
@@ -384,6 +385,17 @@ public class BoundingBox {
 
 	public boolean hasDimensions() {
 		return origin.distanceSquaredTo(originOpposite) > 0;
+	}
+
+	public BoundingBox3d toBoundingBox3d() {
+		final BoundingBox3d bounds = new BoundingBox3d();
+		bounds.setXmin((float)origin().x);
+		bounds.setXmax((float)originOpposite().x);
+		bounds.setYmin((float)origin().y);
+		bounds.setYmax((float)originOpposite().y);
+		bounds.setZmin((float)origin().z);
+		bounds.setZmax((float)originOpposite().z);
+		return bounds;
 	}
 
 	@Override

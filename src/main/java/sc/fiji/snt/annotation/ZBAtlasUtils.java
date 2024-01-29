@@ -98,6 +98,7 @@ public class ZBAtlasUtils {
 		final OBJMesh mesh = new OBJMesh(url, GuiUtils.micrometer());
 		mesh.setColor(Colors.WHITE, 95f);
 		mesh.setLabel(meshLabel);
+		mesh.setSymmetryAxis(0);
 		return mesh;
 	}
 

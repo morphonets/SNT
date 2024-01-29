@@ -358,6 +358,7 @@ public class AllenCompartment implements BrainAnnotation {
 			mesh = new OBJMesh(url, GuiUtils.micrometer());
 			mesh.setColor(geometryColor, 87.5f);
 			mesh.setLabel(name + "[" + acronym +"]");
+			mesh.setSymmetryAxis(AllenUtils.getAxisDefiningSagittalPlane());
 			if (!jsonObj.isNull("geometryVolume")) {
 				mesh.setVolume(jsonObj.getDouble("geometryVolume"));
 			}

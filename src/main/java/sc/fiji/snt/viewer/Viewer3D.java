@@ -186,6 +186,7 @@ import sc.fiji.snt.plugin.GroupAnalyzerCmd;
 import sc.fiji.snt.plugin.ShollAnalysisBulkTreeCmd;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.plugin.StrahlerCmd;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -3227,16 +3228,16 @@ public class Viewer3D {
 		private static final boolean DEF_RETRIEVE_ALL_IF_NONE_SELECTED = true;
 		private static final boolean DEF_SPLIT_DENDRITES_FROM_AXONS = false;
 		private boolean splitDendritesFromAxons;
-		public boolean nagUserOnRetrieveAll;
-		public boolean retrieveAllIfNoneSelected;
-		public String treeCompartmentChoice;
+
+		protected boolean nagUserOnRetrieveAll;
+		protected boolean retrieveAllIfNoneSelected;
+		protected String treeCompartmentChoice;
+		protected String snapshotDir;
 
 		private final Viewer3D tp;
 		private final KeyController kc;
 		private final MouseController mc;
 		private String storedSensitivity;
-		private String snapshotDir;
-
 
 		public Prefs(final Viewer3D tp) {
 			this.tp = tp;
@@ -3347,12 +3348,172 @@ public class Viewer3D {
 			}
 		}
 
-		public boolean isSplitDendritesFromAxons() {
+		void setGuiPref(final String key, final String value) {
+				if (tp.prefService == null)
+					throw new IllegalArgumentException("setGuiPref requires a context-aware Viewer3D instance");
+				tp.prefService.put(RecViewerPrefsCmd.class, key, value);
+		}
+
+		String getGuiPref(final String key, final String defaultValue) {
+			if (tp.prefService == null)
+				throw new IllegalArgumentException("setGuiPref requires a context-aware Viewer3D instance");
+			return tp.prefService.get(RecViewerPrefsCmd.class, key, defaultValue);
+		}
+
+		boolean isSplitDendritesFromAxons() {
 			return splitDendritesFromAxons;
 		}
 
-		public void setSplitDendritesFromAxons(final boolean splitDendritesFromAxons) {
+		void setSplitDendritesFromAxons(final boolean splitDendritesFromAxons) {
 			this.splitDendritesFromAxons = splitDendritesFromAxons;
+		}
+
+	}
+
+	class AnnotPrompt {
+
+		PointInImage pim1;
+		PointInImage pim2;
+		private double size;
+		String color;
+		private float t;
+
+		boolean validPrompt(final String title, final String[] firstCcLabel, final String[] secondCcLabel, final boolean includeSize) {
+			List<String> labels = new ArrayList<>();
+			labels.addAll(Arrays.asList(firstCcLabel));
+			if (secondCcLabel != null)
+				labels.addAll(Arrays.asList(secondCcLabel));
+			if (includeSize)
+				labels.add("Size ");
+			labels.addAll(List.of("Color ", "Transparency (%) "));
+			List<String> values = new ArrayList<>();
+			values.addAll(List.of(prefs.getGuiPref("aX1", "0"), prefs.getGuiPref("aY1", "0"),
+					prefs.getGuiPref("aZ1", "0")));
+			if (secondCcLabel != null)
+				values.addAll(List.of(prefs.getGuiPref("aX2", "0"), prefs.getGuiPref("aY2", "0"),
+						prefs.getGuiPref("aZ2", "0")));
+			if (includeSize)
+				values.add(prefs.getGuiPref("aSize", SNTUtils.formatDouble(getDefaultThickness() * 30, 2))); // size
+			values.add(prefs.getGuiPref("aColor", "red")); // color
+			values.add(prefs.getGuiPref("aTransparency", "50")); // transparency
+			final String[] result = getManagerPanel().guiUtils.getStrings(title, labels.toArray(new String[0]),
+					values.toArray(new String[0]));
+			if (result == null)
+				return false;
+			try {
+				pim1 = new PointInImage(Double.parseDouble(result[0]), Double.parseDouble(result[1]),
+						Double.parseDouble(result[2]));
+				prefs.setGuiPref("aX1", result[0]);
+				prefs.setGuiPref("aY1", result[1]);
+				prefs.setGuiPref("aZ1", result[2]);
+				if (secondCcLabel != null) {
+					pim2 = new PointInImage(Double.parseDouble(result[3]), Double.parseDouble(result[4]),
+							Double.parseDouble(result[5]));
+					prefs.setGuiPref("aX2", result[3]);
+					prefs.setGuiPref("aY2", result[4]);
+					prefs.setGuiPref("aZ2", result[5]);
+				}
+				if (includeSize) {
+					size = Double.parseDouble(result[result.length - 3]);
+					prefs.setGuiPref("aSize", result[result.length - 3]);
+				}
+				color = result[result.length - 2];
+				prefs.setGuiPref("aColor", result[result.length - 2]);
+				t = Float.parseFloat(result[result.length - 1]);
+				prefs.setGuiPref("aTransparency", result[result.length - 1]);
+				return true;
+			} catch (final Exception ex) {
+				getManagerPanel().guiUtils.error("Invalid parameter(s).");
+				ex.printStackTrace();
+			}
+			return false;
+		}
+
+		Double getPromptTransparency(final String title) {
+			final double def = Double.parseDouble(prefs.getGuiPref("aTransparency", "50"));
+			final Double t = getManagerPanel().guiUtils.getDouble("Transparency (%)", title + " Transparency", def);
+			if (t == null)
+				return null;
+			if (Double.isNaN(t) || t <= 0 || t >= 100) {
+				getManagerPanel().guiUtils.error("Invalid transparency value: Only ]0, 100[ accepted.");
+				return null;
+			}
+			prefs.setGuiPref("aTransparency", "" + t);
+			return t;
+		}
+
+		ColorRGB getPromptColor(final String title) {
+			final ColorRGB def = ColorRGB.fromHTMLColor(prefs.getGuiPref("aColor", "red"));
+			final ColorRGB res = getManagerPanel().guiUtils.getColorRGB(title, def, (String[])null);
+			if (res != null)
+				prefs.setGuiPref("aColor", res.toHTMLColor());
+			return res;
+		}
+		
+		String[] getPromptGradient(final String title) {
+			final Map<String, List<String>> map = new LinkedHashMap<>();
+			map.put("Color gradient ", Annotation3D.COLORMAPS);
+			map.put("Gradient axis  ", List.of("X", "Y", "Z"));
+			final String[] res = getManagerPanel().guiUtils.getStrings("", "Color Gradient", map,
+					prefs.getGuiPref("aGradient", "hotcold"), prefs.getGuiPref("aAxis", "Z"));
+			if (res != null) {
+				prefs.setGuiPref("aGradient", res[0]);
+				prefs.setGuiPref("aAxis", res[1]);
+			}
+			return res;
+		}
+
+		List<String> getPromptPlaneAxes(final boolean includeSomaChoices) {
+			final List<String> res = getManagerPanel().guiUtils.getMultipleChoices("Cross-section Plane Axis...",
+					(includeSomaChoices)
+							? new String[] { "X (midplane)", "Y (midplane)", "Z (midplane)", "X (at root/soma)", "Y (at root/soma)", "Z (at root/soma)" }
+							: new String[] { "X (midplane)", "Y (midplane)", "Z (midplane)" },
+					prefs.getGuiPref("pAxis", "Z (midplane)"));
+			if (res == null)
+				return null;
+			prefs.setGuiPref("pAxis", res.get(0));
+			return res;
+		}
+		
+		PointInImage[] getPlane(final BoundingBox3d bounds, final String axis) {
+			PointInImage p1;
+			PointInImage p2;
+			switch ( axis.split(" ")[0].toLowerCase()) {
+			case "x":
+				p1 = new PointInImage((bounds.getXmin() + bounds.getXmax()) / 2, bounds.getYmin(), bounds.getZmin());
+				p2 = new PointInImage((bounds.getXmin() + bounds.getXmax()) / 2, bounds.getYmax(), bounds.getZmax());
+				break;
+			case "y":
+				p1 = new PointInImage(bounds.getXmin(), (bounds.getYmin() + bounds.getYmax()) / 2, bounds.getZmin());
+				p2 = new PointInImage(bounds.getXmax(), (bounds.getYmin() + bounds.getYmax()) / 2, bounds.getZmax());
+				break;
+			default: // "z"
+				p1 = new PointInImage(bounds.getXmin(), bounds.getYmin(), (bounds.getZmin() + bounds.getZmax()) / 2);
+				p2 = new PointInImage(bounds.getXmax(), bounds.getYmax(), (bounds.getZmin() + bounds.getZmax()) / 2);
+				break;
+			}
+			return new PointInImage[] { p1, p2 };
+		}
+		
+		PointInImage[] getSomaPlane(final BoundingBox3d bounds, final Tree tree, final String axis) {
+			PointInImage p1;
+			PointInImage p2;
+			final PointInImage root = tree.getRoot();
+			switch (axis.split(" ")[0].toLowerCase()) {
+			case "x":
+				p1 = new PointInImage(root.x, bounds.getYmin(), bounds.getZmin());
+				p2 = new PointInImage(root.x, bounds.getYmax(), bounds.getZmax());
+				break;
+			case "y":
+				p1 = new PointInImage(bounds.getXmin(), root.y, bounds.getZmin());
+				p2 = new PointInImage(bounds.getXmax(), root.y, bounds.getZmax());
+				break;
+			default: // "z"
+				p1 = new PointInImage(bounds.getXmin(), bounds.getYmin(), root.z);
+				p2 = new PointInImage(bounds.getXmax(), bounds.getYmax(), root.z);
+				break;
+			}
+			return new PointInImage[] { p1, p2 };
 		}
 
 	}
@@ -3961,7 +4122,7 @@ public class Viewer3D {
 			renderIcons.addItemListener(e -> {
 				managerList.setIconsVisible((renderIcons.isSelected()));
 			});
-			final JMenuItem sort = new JMenuItem("Sort List", IconFactory.getMenuIcon(GLYPH.SORT));
+			final JMenuItem sort = new JMenuItem("Sort List...", IconFactory.getMenuIcon(GLYPH.SORT));
 			sort.addActionListener(e -> {
 				if (noLoadedItemsGuiError()) {
 					return;
@@ -4299,8 +4460,8 @@ public class Viewer3D {
 			return getSelectedAnnotations(prefs.retrieveAllIfNoneSelected);
 		}
 	
-		private List<Annotation3D> getSelectedAnnotations(final boolean promptForAllIfNone) {
-			final List<String> keys = getSelectedKeys(plottedAnnotations, "annotations", promptForAllIfNone);
+		private List<Annotation3D> getSelectedAnnotations(final boolean allowAllIfNone) {
+			final List<String> keys = getSelectedKeys(plottedAnnotations, "annotations", allowAllIfNone);
 			if (keys == null) return null; // user pressed cancel on prompt
 			if (keys.isEmpty()) { // a selection existed but it did not contain plottedTrees
 				guiUtils.error("There are no selected annotations.");
@@ -4314,16 +4475,17 @@ public class Viewer3D {
 			});
 			return annots;
 		}
+
 		private List<String> getSelectedTreeLabels() {
 			return getSelectedKeys(plottedTrees, "reconstructions", prefs.retrieveAllIfNoneSelected);
 		}
 
-		private List<String> getSelectedMeshes(final boolean promptForAllIfNone) {
-			return getSelectedKeys(plottedObjs, "meshes", promptForAllIfNone);
+		private List<String> getSelectedMeshLabels(final boolean allowAllIfNone) {
+			return getSelectedKeys(plottedObjs, "meshes", allowAllIfNone);
 		}
 
 		private List<String> getSelectedKeys(final Map<String, ?> map,
-			final String mapDescriptor, final boolean promptForAllIfNone)
+			final String mapDescriptor, final boolean allowAllIfNone)
 		{
 			if (map.isEmpty()) {
 				guiUtils.error("There are no loaded " + mapDescriptor + ".");
@@ -4336,10 +4498,10 @@ public class Viewer3D {
 				selectedKeys.add(TagUtils.removeAllTags(sv.toString()));
 			});
 			final List<String> allKeys = new ArrayList<>(map.keySet());
-			if ((promptForAllIfNone && map.size() == 1)
+			if ((allowAllIfNone && map.size() == 1)
 					|| (selectedKeys.size() == 1 && CheckBoxList.ALL_ENTRY.toString().equals(selectedKeys.get(0))))
 				return allKeys;
-			if (promptForAllIfNone && selectedKeys.isEmpty()) {
+			if (allowAllIfNone && selectedKeys.isEmpty()) {
 				checkRetrieveAllOptions(mapDescriptor);
 				if (prefs.retrieveAllIfNoneSelected) return allKeys;
 				guiUtils.error("There are no selected " + mapDescriptor + ".");
@@ -4495,7 +4657,7 @@ public class Viewer3D {
 			GuiUtils.addSeparator(menu, "Customize:");
 			JMenuItem mi = new JMenuItem("All Parameters...", IconFactory.getMenuIcon(GLYPH.SLIDERS));
 			mi.addActionListener(e -> {
-				final List<String> keys = getSelectedMeshes(true);
+				final List<String> keys = getSelectedMeshLabels(true);
 				if (keys == null) return;
 				if (cmdService == null) {
 					guiUtils.error(
@@ -4536,17 +4698,15 @@ public class Viewer3D {
 			menu.add(mi);
 
 			// Mesh customizations
-			mi = new JMenuItem("Color...", IconFactory.getMenuIcon(
-				GLYPH.COLOR));
+			mi = new JMenuItem("Color...", IconFactory.getMenuIcon(GLYPH.COLOR));
 			mi.addActionListener(e -> {
-				final List<String> keys = getSelectedMeshes(true);
+				final List<String> keys = getSelectedMeshLabels(true);
 				if (keys == null) return;
-				final java.awt.Color c = guiUtils.getColor("Mesh(es) Color",
-					java.awt.Color.WHITE, (String[])null);
+				final ColorRGB c = new AnnotPrompt().getPromptColor("Mesh(es) Color");
 				if (c == null) {
 					return; // user pressed cancel
 				}
-				final Color color = fromAWTColor(c);
+				final Color color = fromColorRGB(c);
 				for (final String label : keys) {
 					final RemountableDrawableVBO obj = plottedObjs.get(label);
 					color.a = obj.getColor().a;
@@ -4557,18 +4717,13 @@ public class Viewer3D {
 			mi = new JMenuItem("Transparency...", IconFactory.getMenuIcon(
 				GLYPH.ADJUST));
 			mi.addActionListener(e -> {
-				final List<String> keys = getSelectedMeshes(true);
+				final List<String> keys = getSelectedMeshLabels(true);
 				if (keys == null) return;
-				final Double t = guiUtils.getDouble("Mesh Transparency (%)",
-					"Transparency (%)", 95);
+				final Double t = new AnnotPrompt().getPromptTransparency("Mesh(es) Transparency...");
 				if (t == null) {
 					return; // user pressed cancel
 				}
 				final float fValue = 1 - (t.floatValue() / 100);
-				if (Float.isNaN(fValue) || fValue <= 0 || fValue >= 1) {
-					guiUtils.error("Invalid transparency value: Only ]0, 100[ accepted.");
-					return;
-				}
 				for (final String label : keys) {
 					plottedObjs.get(label).getColor().a = fValue;
 				}
@@ -4644,12 +4799,9 @@ public class Viewer3D {
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedTreeLabels();
 				if (keys == null || !okToApplyColor(keys)) return;
-				final ColorRGB c = guiUtils.getColorRGB("Reconstruction(s) Color",
-					java.awt.Color.RED, "HSB");
-				if (c == null) {
-					return; // user pressed cancel
-				}
-				applyColorToPlottedTrees(keys, c);
+				final ColorRGB c = new AnnotPrompt().getPromptColor("Tree(s) Color...");
+				if (c != null)
+					applyColorToPlottedTrees(keys, c);
 			});
 			menu.add(mi);
 			final JMenu ccMenu = new JMenu("Color Coding");
@@ -4733,32 +4885,6 @@ public class Viewer3D {
 				setSomaRadius(keys, radius.floatValue());
 			});
 			menu.add(mi);
-
-			mi = new JMenuItem("Convex Hull(s)...", IconFactory.getMenuIcon(GLYPH.DICE_20));
-			mi.addActionListener(e -> {
-				final List<Tree> trees = getSelectedTrees(true);
-				if (trees == null)
-					return;
-				final String[] choices = { "Branch points", "Tips" };
-				final String choice = guiUtils.getChoice("Generate convex hull from which structures?",
-						"Add Convex Hull..", choices, choices[0]);
-				if (choice == null)
-					return;
-				for (final Tree tree : trees) {
-					Annotation3D annot;
-					if (choice.startsWith("Branch"))
-						annot = annotateSurface(new TreeAnalyzer(tree).getBranchPoints(),
-								tree.getLabel() + " [BPs Convex Hull]", false);
-					else
-						annot = annotateSurface(new TreeAnalyzer(tree).getTips(),
-								tree.getLabel() + " [Tips Convex Hull]", false);
-					final ColorRGB color = tree.getColor();
-					if (color != null) annot.setColor(color, 25);
-					annot.colorCode("hotcold", "X");
-				}
-			});
-			menu.add(mi);
-
 			mi = new JMenuItem("Translate...", IconFactory.getMenuIcon(GLYPH.MOVE));
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedTreeLabels();
@@ -4983,9 +5109,7 @@ public class Viewer3D {
 			tracesMenu.add(mi);
 
 			mi = new JMenuItem("Load & Compare Groups...", IconFactory.getMenuIcon(GLYPH.MAGIC));
-			mi.addActionListener(e -> {
-				runImportCmd(GroupAnalyzerCmd.class, null);
-			});
+			mi.addActionListener(e -> runImportCmd(GroupAnalyzerCmd.class, null));
 			tracesMenu.add(mi);
 
 			if (!isSNTInstance()) tracesMenu.add(loadDemoMenuItem());
@@ -5003,14 +5127,10 @@ public class Viewer3D {
 			});
 			remoteMenu.add(mi);
 			mi = new JMenuItem("InsectBrain...", 'I');
-			mi.addActionListener(e -> {
-				runImportCmd(InsectBrainImporterCmd.class, null);
-			});
+			mi.addActionListener(e -> runImportCmd(InsectBrainImporterCmd.class, null));
 			remoteMenu.add(mi);
 			mi = new JMenuItem("MouseLight...", 'm');
-			mi.addActionListener(e -> {
-				runImportCmd(MLImporterCmd.class, null);
-			});
+			mi.addActionListener(e -> runImportCmd(MLImporterCmd.class, null));
 			remoteMenu.add(mi);
 			mi = new JMenuItem("NeuroMorpho...", 'n');
 			mi.addActionListener(e -> {
@@ -5045,12 +5165,8 @@ public class Viewer3D {
 			tracesMenu.add(mi);
 			mi = new JMenuItem("Remove All...", IconFactory.getMenuIcon(GLYPH.TRASH));
 			mi.addActionListener(e -> {
-				if (!guiUtils.getConfirmation("Remove all reconstructions from scene?",
-					"Remove All Reconstructions?"))
-				{
-					return;
-				}
-				removeAllTrees();
+				if (guiUtils.getConfirmation("Remove all reconstructions from scene?", "Remove All Reconstructions?"))
+					removeAllTrees();
 			});
 			tracesMenu.add(mi);
 			return tracesMenu;
@@ -5151,12 +5267,8 @@ public class Viewer3D {
 			legendMenu.add(mi);
 			mi = new JMenuItem("Remove All...", IconFactory.getMenuIcon(GLYPH.TRASH));
 			mi.addActionListener(e -> {
-				if (!guiUtils.getConfirmation("Remove all color legends from scene?",
-					"Remove All Legends?"))
-				{
-					return;
-				}
-				removeColorLegends(false);
+				if (guiUtils.getConfirmation("Remove all color legends from scene?", "Remove All Legends?"))
+					removeColorLegends(false);
 			});
 			legendMenu.add(mi);
 			return legendMenu;
@@ -5175,7 +5287,7 @@ public class Viewer3D {
 			mi = new JMenuItem("Remove Selected...", IconFactory.getMenuIcon(
 				GLYPH.DELETE));
 			mi.addActionListener(e -> {
-				final List<String> keys = getSelectedMeshes(false);
+				final List<String> keys = getSelectedMeshLabels(false);
 				if (keys == null || keys.isEmpty()) {
 					guiUtils.error("There are no selected meshes.");
 					return;
@@ -5194,94 +5306,152 @@ public class Viewer3D {
 			mi = new JMenuItem("Remove All...");
 			mi.setIcon(IconFactory.getMenuIcon(GLYPH.TRASH));
 			mi.addActionListener(e -> {
-				if (!guiUtils.getConfirmation("Remove all meshes from scene?",
-					"Remove All Meshes?"))
-				{
-					return;
-				}
-				removeAllMeshes();
+				if (guiUtils.getConfirmation("Remove all meshes from scene?", "Remove All Meshes?"))
+					removeAllMeshes();
 			});
 			meshMenu.add(mi);
 			return meshMenu;
 		}
 
 		private JPopupMenu annotationsMenu() {
+
 			final JPopupMenu annotMenu = new JPopupMenu();
 			GuiUtils.addSeparator(annotMenu, "Add:");
-			JMenuItem mi = new JMenuItem("Sphere...", IconFactory.getMenuIcon(GLYPH.GLOBE));
+			JMenuItem mi = new JMenuItem("Cell-based Cross-section Plane...", IconFactory.getMenuIcon(GLYPH.SCISSORS));
+			mi.setToolTipText("Adds cross-section plane(s) to neuronal arbors");
 			mi.addActionListener(e -> {
-				final String[] cc = guiUtils.getStrings("Sphere Properties...",
-						new String[] { "Center X ", "Center Y ", "Center Z ", "Size ", "Color ", "Transparency " },
-						new String[] { "", "", "", SNTUtils.formatDouble(getDefaultThickness() * 30, 2), "red", "50" });
-				if (cc == null)
+				final List<Tree> trees = getSelectedTrees(true);
+				if (trees == null)
 					return;
-				try {
-					final PointInImage pim = new PointInImage(Double.parseDouble(cc[0]), Double.parseDouble(cc[1]),
-							Double.parseDouble(cc[2]));
-					annotatePoint(pim, "Sphere", cc[4], Float.parseFloat(cc[3])).setColor(cc[3], Float.parseFloat(cc[5]));
-				} catch (final Exception ex) {
-					guiUtils.error("Invalid parameter(s).");
-					ex.printStackTrace();
+				final AnnotPrompt prompt = new AnnotPrompt();
+				final List<String> userAxes = prompt.getPromptPlaneAxes(true);
+				if (userAxes == null)
+					return;
+				for (final Tree tree : trees) {
+					final BoundingBox3d bounds = tree.getBoundingBox().toBoundingBox3d();
+					for (final String axis : userAxes) {
+						final PointInImage[] plane = (axis.toLowerCase().contains("soma")) ? prompt.getSomaPlane(bounds, tree, axis) : prompt.getPlane(bounds, axis) ;
+						final Annotation3D annot = annotatePlane(plane[0], plane[1], tree.getLabel() + " [CS Plane " + axis + "]");
+						annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(tree.getColor()))), 25);
+					}
 				}
-
 			});
 			annotMenu.add(mi);
+			mi = new JMenuItem("Cell-based Surface...", IconFactory.getMenuIcon(GLYPH.DICE_20));
+			mi.setToolTipText("Adds convex-hull tesselations to neuronal arbors");
+			mi.addActionListener(e -> {
+				final List<Tree> trees = getSelectedTrees(true);
+				if (trees == null)
+					return;
+				final String[] choices = { "Branch points", "Tips" };
+				final String choice = guiUtils.getChoice("Generate surface from which structures?",
+						"Add Surface...", choices, choices[0]);
+				if (choice == null)
+					return;
+				final List <String> failures = new ArrayList<>();
+				for (final Tree tree : trees) {
+					if (!tree.is3D()) {
+						failures.add(tree.getLabel());
+						continue;
+					}
+					Annotation3D annot;
+					if (choice.startsWith("Branch"))
+						annot = annotateSurface(new TreeAnalyzer(tree).getBranchPoints(),
+								tree.getLabel() + " [BPs surface]", false);
+					else
+						annot = annotateSurface(new TreeAnalyzer(tree).getTips(),
+								tree.getLabel() + " [Tips surface]", false);
+					final ColorRGB color = tree.getColor();
+					if (color != null)
+						annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(color))), 25);
+				}
+				if (!failures.isEmpty()) {
+					guiUtils.error(("Surfaces cannot be assemble from these 2D reconstructions: " 
+							+ failures.toString() +". Only 3D reconstructions are supported."));
+				}
+			});
+			annotMenu.add(mi);
+			mi = new JMenuItem("Mesh-based Cross-section Plane...", IconFactory.getMenuIcon(GLYPH.SCISSORS));
+			mi.setToolTipText("Adds cross-section plane(s) to selected meshes");
+			mi.addActionListener(e -> {
+				final List<String> meshLabels = getSelectedMeshLabels(true);
+				if (meshLabels == null)
+					return;
+				final AnnotPrompt prompt = new AnnotPrompt();
+				final List<String> userAxes = prompt.getPromptPlaneAxes(false);
+				if (userAxes == null)
+					return;
+				for (final String mLabel : meshLabels) {
+					final BoundingBox3d bounds = plottedObjs.get(mLabel).getBounds();
+					for (final String axis : userAxes) {
+						final PointInImage[] plane = prompt.getPlane(bounds, axis);
+						final Annotation3D annot = annotatePlane(plane[0], plane[1], mLabel + " [CS Plane " + axis + "]");
+						annot.setColor(toColorRGB(Utils.contrastColor(plottedObjs.get(mLabel).objMesh.getDrawable().getColor())), 25);
+					}
+				}
+			});
+			annotMenu.add(mi);
+			mi = new JMenuItem("Mesh-based Surface...", IconFactory.getMenuIcon(GLYPH.DICE_20));
+			mi.setToolTipText("Adds convex-hull tesselations to selected meshes");
+			mi.addActionListener(e -> {
+				final List<String> meshLabels = getSelectedMeshLabels(true);
+				if (meshLabels == null)
+					return;
+				final String[] choices = { "Left hemisphere", "Right hemisphere", "Both hemispheres" };
+				final String choice = guiUtils.getChoice("Generate surface from which vertices?",
+						"Add Surface...", choices, choices[0]);
+				if (choice == null)
+					return;
+				for (final String mLabel : meshLabels) {
+					final Collection<? extends SNTPoint> vertices = plottedObjs.get(mLabel).objMesh.getVertices(choice.split(" ")[0].toLowerCase());
+					final Annotation3D annot = annotateSurface(vertices, mLabel + " [" + choice + " surface]", false);
+					final Color color = plottedObjs.get(mLabel).objMesh.getDrawable().getColor();
+					if (color != null)
+						annot.setColor(toColorRGB(Utils.contrastColor(color)), 25);
+				}
+			});
+			annotMenu.add(mi);
+			final JMenu primitives = new JMenu("Misc");
+			primitives.setToolTipText("Adds basic geometry objects to the scene");
+			primitives.setIcon(IconFactory.getMenuIcon(GLYPH.ELLIPSIS));
+			annotMenu.add(primitives);
+			mi = new JMenuItem("Sphere...", IconFactory.getMenuIcon(GLYPH.GLOBE));
+			mi.addActionListener(e -> {
+				final AnnotPrompt ap = new AnnotPrompt();
+				if (ap.validPrompt("Sphere Properties...", new String[] { "Center X ", "Center Y ", "Center Z "}, null, true))
+					annotatePoint(ap.pim1, "Sphere", ap.color, ap.t);
+			});
+			primitives.add(mi);
 			mi = new JMenuItem("Vector...", IconFactory.getMenuIcon(GLYPH.ARROWS_LR));
 			mi.addActionListener(e -> {
-				final String[] cc = guiUtils.getStrings("Vector Properties...",
-						new String[] { "X1 ", "Y1 ", "Z1 ", "X2 ", "Y2 ", "Z2 ", "Size ", "Color ", "Transparency " },
-						new String[] { "", "", "", "", "", "", SNTUtils.formatDouble(getDefaultThickness() * 10, 2), "red", "50" });
-				if (cc == null)
-					return;
-				try {
-					final PointInImage pim1 = new PointInImage(Double.parseDouble(cc[0]), Double.parseDouble(cc[1]),
-							Double.parseDouble(cc[2]));
-					final PointInImage pim2 = new PointInImage(Double.parseDouble(cc[3]), Double.parseDouble(cc[4]),
-							Double.parseDouble(cc[5]));
-					final Annotation3D line = annotateLine(List.of(pim1, pim2), "Vector");
-					line.setColor(cc[7], Float.parseFloat(cc[8]));
-					line.setSize(Float.parseFloat(cc[6]));
-				} catch (final Exception ex) {
-					guiUtils.error("Invalid parameter(s).");
+				final AnnotPrompt ap = new AnnotPrompt();
+				if (ap.validPrompt("Vector Properties...", new String[] { "X1 ", "Y1 ", "Z1 " },
+						new String[] { "X2 ", "Y2 ", "Z2 " }, true)) {
+					final Annotation3D line = annotateLine(List.of(ap.pim1, ap.pim2), "Vector");
+					line.setColor(ap.color, ap.t);
+					line.setSize((float) ap.size);
 				}
-
 			});
-			annotMenu.add(mi);
-			annotMenu.add(mi);
+			primitives.add(mi);
 			mi = new JMenuItem("Plane/Parallelepiped...", IconFactory.getMenuIcon(GLYPH.SQUARE));
 			mi.addActionListener(e -> {
-				final String[] cc = guiUtils
-						.getStrings("Boundaries...",
-								new String[] { "Origin X ", "Origin Y ", "Origin Z ", "Origin Opposite X ",
-										"Origin Opposite Y ", "Origin Opposite Z ", "Color ", "Transparency "},
-								new String[] { "", "", "", "", "", "", "", "" });
-				if (cc == null)
-					return;
-				try {
-					final PointInImage pim1 = new PointInImage(Double.parseDouble(cc[0]), Double.parseDouble(cc[1]),
-							Double.parseDouble(cc[2]));
-					final PointInImage pim2 = new PointInImage(Double.parseDouble(cc[3]), Double.parseDouble(cc[4]),
-							Double.parseDouble(cc[5]));
-					final Annotation3D annot = annotatePlane(pim1, pim2, "Annot. Plane");
-					annot.setColor(cc[6], Float.parseFloat(cc[7]));
-				} catch (final Exception ex) {
-					guiUtils.error("Invalid coordinate(s).");
-					ex.printStackTrace();
+				final AnnotPrompt ap = new AnnotPrompt();
+				if (ap.validPrompt("Plane/Parallelepiped Properties...", new String[] { "Origin X ", "Origin Y ", "Origin Z " },
+						new String[] { "Origin Opposite X ", "Origin Opposite Y ", "Origin Opposite Z " }, false)) {
+					final Annotation3D annot = annotatePlane(ap.pim1, ap.pim2, "Annot. Plane");
+					annot.setColor(ap.color, ap.t);
 				}
-
 			});
-			annotMenu.add(mi);
+			primitives.add(mi);
 			GuiUtils.addSeparator(annotMenu, "Customize:");
 			mi = new JMenuItem("Color...", IconFactory.getMenuIcon(GLYPH.COLOR));
 			mi.addActionListener(e -> {
 				final List<Annotation3D> annots = getSelectedAnnotations();
 				if (annots == null)
 					return;
-				final ColorRGB c = guiUtils.getColorRGB("Annotation(s) Color", java.awt.Color.WHITE, (String[]) null);
-				if (c == null) {
-					return; // user pressed cancel
-				}
-				annots.forEach(annot -> annot.setColor(c, -1));
+				final ColorRGB c = new AnnotPrompt().getPromptColor("Annotation(s) Color...");
+				if (c != null)
+					annots.forEach(annot -> annot.setColor(c, -1));
 			});
 			annotMenu.add(mi);
 			mi = new JMenuItem("Color Gradient...", IconFactory.getMenuIcon(GLYPH.COLOR2));
@@ -5289,10 +5459,7 @@ public class Viewer3D {
 				final List<Annotation3D> annots = getSelectedAnnotations();
 				if (annots == null)
 					return;
-				final Map<String, List<String>> map = new LinkedHashMap<>();
-				map.put("Color gradient ", Annotation3D.COLORMAPS);
-				map.put("Gradient axis  ", List.of("X", "Y", "Z"));
-				final String[] res = guiUtils.getStrings("", "Color Gradient", map, "hotcold", "Z");
+				final String[] res = new AnnotPrompt().getPromptGradient("Color Gradient..");
 				if (res == null)
 					return;
 				final List <String> failures = new ArrayList<>();
@@ -5303,7 +5470,7 @@ public class Viewer3D {
 						failures.add(annot.getLabel());
 				});
 				if (!failures.isEmpty())
-					guiUtils.error(("The following objects do not support color gradients: " + failures.toString()));
+					guiUtils.error(("The following annotations do not support color gradients: " + failures.toString()));
 			});
 			annotMenu.add(mi);
 			mi = new JMenuItem("Transparency...", IconFactory.getMenuIcon(GLYPH.ADJUST));
@@ -5311,15 +5478,9 @@ public class Viewer3D {
 				final List<Annotation3D> annots = getSelectedAnnotations();
 				if (annots == null)
 					return;
-				final Double t = guiUtils.getDouble("Annotation Transparency (%)", "Transparency (%)", 50);
-				if (t == null) {
-					return; // user pressed cancel
-				}
-				if (Double.isNaN(t) || t <= 0 || t >= 100) {
-					guiUtils.error("Invalid transparency value: Only ]0, 100[ accepted.");
-					return;
-				}
-				annots.forEach(annot -> annot.setColor((ColorRGB) null, t));
+				final Double t = new AnnotPrompt().getPromptTransparency("Annotation(s) Transparency...");
+				if (t != null)
+					annots.forEach(annot -> annot.setColor((ColorRGB) null, t));
 			});
 			annotMenu.add(mi);
 			final JMenuItem material = new JMenuItem("Surface Rendering...", IconFactory.getMenuIcon(GLYPH.CUBES));
@@ -5368,10 +5529,8 @@ public class Viewer3D {
 			mi = new JMenuItem("Remove All...");
 			mi.setIcon(IconFactory.getMenuIcon(GLYPH.TRASH));
 			mi.addActionListener(e -> {
-				if (!guiUtils.getConfirmation("Remove all meshes from scene?", "Remove All Meshes?")) {
-					return;
-				}
-				removeAllAnnotations();
+				if (guiUtils.getConfirmation("Remove all annotations from scene?", "Remove All Annotations?"))
+					removeAllAnnotations();
 			});
 			annotMenu.add(mi);
 			return annotMenu;
