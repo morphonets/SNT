@@ -128,6 +128,7 @@ import org.jzy3d.plot3d.transform.squarifier.XYSquarifier;
 import org.jzy3d.plot3d.transform.squarifier.XZSquarifier;
 import org.jzy3d.plot3d.transform.squarifier.ZYSquarifier;
 import org.jzy3d.ui.editors.LightEditor;
+import org.jzy3d.ui.editors.MaterialEditor;
 import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
