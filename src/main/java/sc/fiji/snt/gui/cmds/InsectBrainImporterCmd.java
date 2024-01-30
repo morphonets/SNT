@@ -158,7 +158,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 			// recViewer.validate(); // Not needed: will be called by recViewer.add(Collection)
 		}
 
-		resetProgress(recViewer);
+		notifyLoadingEnd(recViewer);
 		resetUI(recViewer == null);
 		if (failures > 0) {
 			error(String.format("%d/%d reconstructions could not be retrieved.",

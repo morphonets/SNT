@@ -150,7 +150,6 @@ import com.jogamp.opengl.GLProfile;
 import com.jogamp.opengl.util.FPSAnimator;
 
 import ij.ImagePlus;
-import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.Path;
@@ -169,6 +168,7 @@ import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.VFBUtils;
 import sc.fiji.snt.annotation.ZBAtlasUtils;
 import sc.fiji.snt.gui.SNTCommandFinder;
+import sc.fiji.snt.gui.DemoRunner;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
@@ -177,6 +177,7 @@ import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.SNTSearchableBar;
 import sc.fiji.snt.gui.SaveMeasurementsCmd;
 import sc.fiji.snt.gui.ScriptRecorder;
+import sc.fiji.snt.gui.DemoRunner.Demo;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.MouseLightLoader;
@@ -187,7 +188,6 @@ import sc.fiji.snt.plugin.GroupAnalyzerCmd;
 import sc.fiji.snt.plugin.ShollAnalysisBulkTreeCmd;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.plugin.StrahlerCmd;
-import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -870,16 +870,28 @@ public class Viewer3D {
 			.getGreen(), color.getBlue(), color.getAlpha());
 	}
 
-	private java.awt.Color toAWTColor(final Color color) {
-		return new java.awt.Color(color.r, color.g, color.b, color.a);
-	}
-
 	private Color fromColorRGB(final ColorRGB color) {
 		return (color == null) ? getDefColor() : new Color(color.getRed(), color
 			.getGreen(), color.getBlue(), color.getAlpha());
 	}
 
+	private java.awt.Color toAWTColor(final Color color) {
+		if (color.r < 0)
+			color.r = 0;
+		if (color.g < 0)
+			color.g = 0;
+		if (color.b < 0)
+			color.b = 0;
+		return new java.awt.Color(color.r, color.g, color.b, color.a);
+	}
+
 	private ColorRGB toColorRGB(final Color color) {
+		if (color.r < 0)
+			color.r = 0;
+		if (color.g < 0)
+			color.g = 0;
+		if (color.b < 0)
+			color.b = 0;
 		return new ColorRGB((int) (color.r * 255 + 0.5), (int) (color.g * 255 + 0.5), (int) (color.b * 255 + 0.5));
 	}
 
@@ -1803,6 +1815,7 @@ public class Viewer3D {
 	}
 
 	private void wipeScene() {
+		setSceneUpdatesEnabled(false);
 		final Dimension dim = frame.getSize();
 		removeAllTrees();
 		removeAllMeshes();
@@ -1816,6 +1829,7 @@ public class Viewer3D {
 		}
 		// Workaround the possibility of a canvas collapse when empty(MacOS only!?)
 		if (frame.getSize().height< dim.getSize().height) frame.setSize(dim);
+		setSceneUpdatesEnabled(true);
 	}
 
 	private boolean isEmptyScene() {
@@ -4015,7 +4029,11 @@ public class Viewer3D {
 			rebuild.setIcon(IconFactory.getMenuIcon(GLYPH.RECYCLE));
 			sceneMenu.add(rebuild);
 			final JMenuItem wipe = new JMenuItem("Wipe Scene...", IconFactory.getMenuIcon(GLYPH.DANGER));
-			wipe.addActionListener(e -> wipeScene());
+			wipe.addActionListener(e -> {
+				if (guiUtils.getConfirmation("Remove all items from scene? This action cannot be undone.",
+						"Wipe Scene?"))
+					wipeScene();
+			});
 			sceneMenu.add(wipe);
 			sceneMenu.addSeparator();
 
@@ -4059,13 +4077,6 @@ public class Viewer3D {
 			sync.setEnabled(isSNTInstance());
 			sceneMenu.add(sync);
 			return sceneMenu;
-		}
-
-		
-		private void wipeScene() {
-			if (guiUtils.getConfirmation("Remove all items from scene? This action cannot be undone.", "Wipe Scene?")) {
-				Viewer3D.this.wipeScene();
-			}
 		}
 
 		private JMenu squarifyMenu() {
@@ -5174,30 +5185,13 @@ public class Viewer3D {
 		}
 
 		private JMenuItem loadDemoMenuItem() {
-			final JMenuItem mi = new JMenuItem("Load Demo(s)...", IconFactory.getMenuIcon(GLYPH.WIZARD));
+			final JMenuItem mi = new JMenuItem("Load Demo(s)...", IconFactory.getMenuIcon(GLYPH.GRADUATION_CAP));
 			mi.addActionListener(e -> {
-				final String[] choices = new String[3];
-				choices[0] = "Mouse Pyramidal neurons (CCF annotated)";
-				choices[1] = "Drosophila OP neuron (3D)";
-				choices[2] = "L-systems fractal (2D)";
-				final String choice = guiUtils.getChoice("Which dataset?", "Load Demo Dataset", choices, choices[0]);
-				if (choice == null) {
-					return;
-				}
 				try {
-					if (choice.equals(choices[0])) {
-						addTrees(sntService.demoTrees(), "unique");
-					} else if (choice.equals(choices[1])) {
-						final Tree tree = sntService.demoTree("op1");
-						tree.setColor("red");
-						addTreeInternal(tree);
-					} else if (choice.equals(choices[2])) {
-						final Tree tree = sntService.demoTree("fractal");
-						tree.setColor("magenta");
-						addTreeInternal(tree);
-					} else {
-						throw new IllegalArgumentException("Unrecognized option:" + choice);
-					}
+					final DemoRunner demoRunner = new DemoRunner(SNTUtils.getContext());
+					final Demo choice = demoRunner.getChoice();
+					if (choice != null)
+						addTrees(choice.getTrees(), "unique");
 				} catch (final Throwable ex) {
 					guiUtils.error(ex.getMessage());
 					ex.printStackTrace();
@@ -5328,14 +5322,16 @@ public class Viewer3D {
 				final List<String> userAxes = prompt.getPromptPlaneAxes(true);
 				if (userAxes == null)
 					return;
+				setSceneUpdatesEnabled(false);
 				for (final Tree tree : trees) {
 					final BoundingBox3d bounds = tree.getBoundingBox().toBoundingBox3d();
 					for (final String axis : userAxes) {
 						final PointInImage[] plane = (axis.toLowerCase().contains("soma")) ? prompt.getSomaPlane(bounds, tree, axis) : prompt.getPlane(bounds, axis) ;
-						final Annotation3D annot = annotatePlane(plane[0], plane[1], tree.getLabel() + " [CS Plane " + axis + "]");
+						final Annotation3D annot = annotatePlane(plane[0], plane[1], tree.getLabel() + " [" + axis + "]");
 						annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(tree.getColor()))), 25);
 					}
 				}
+				setSceneUpdatesEnabled(true);
 			});
 			annotMenu.add(mi);
 			mi = new JMenuItem("Cell-based Surface...", IconFactory.getMenuIcon(GLYPH.DICE_20));
@@ -5350,6 +5346,7 @@ public class Viewer3D {
 				if (choice == null)
 					return;
 				final List <String> failures = new ArrayList<>();
+				setSceneUpdatesEnabled(false);
 				for (final Tree tree : trees) {
 					if (!tree.is3D()) {
 						failures.add(tree.getLabel());
@@ -5366,6 +5363,7 @@ public class Viewer3D {
 					if (color != null)
 						annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(color))), 25);
 				}
+				setSceneUpdatesEnabled(true);
 				if (!failures.isEmpty()) {
 					guiUtils.error(("Surfaces cannot be assemble from these 2D reconstructions: " 
 							+ failures.toString() +". Only 3D reconstructions are supported."));
@@ -5382,14 +5380,16 @@ public class Viewer3D {
 				final List<String> userAxes = prompt.getPromptPlaneAxes(false);
 				if (userAxes == null)
 					return;
+				setSceneUpdatesEnabled(false);
 				for (final String mLabel : meshLabels) {
 					final BoundingBox3d bounds = plottedObjs.get(mLabel).getBounds();
 					for (final String axis : userAxes) {
 						final PointInImage[] plane = prompt.getPlane(bounds, axis);
-						final Annotation3D annot = annotatePlane(plane[0], plane[1], mLabel + " [CS Plane " + axis + "]");
+						final Annotation3D annot = annotatePlane(plane[0], plane[1], mLabel + " [" + axis + "]");
 						annot.setColor(toColorRGB(Utils.contrastColor(plottedObjs.get(mLabel).objMesh.getDrawable().getColor())), 25);
 					}
 				}
+				setSceneUpdatesEnabled(true);
 			});
 			annotMenu.add(mi);
 			mi = new JMenuItem("Mesh-based Surface...", IconFactory.getMenuIcon(GLYPH.DICE_20));
@@ -5403,13 +5403,16 @@ public class Viewer3D {
 						"Add Surface...", choices, choices[0]);
 				if (choice == null)
 					return;
+				setSceneUpdatesEnabled(false);
 				for (final String mLabel : meshLabels) {
-					final Collection<? extends SNTPoint> vertices = plottedObjs.get(mLabel).objMesh.getVertices(choice.split(" ")[0].toLowerCase());
-					final Annotation3D annot = annotateSurface(vertices, mLabel + " [" + choice + " surface]", false);
+					final String key = choice.split(" ")[0];
+					final Collection<? extends SNTPoint> vertices = plottedObjs.get(mLabel).objMesh.getVertices(key.toLowerCase());
+					final Annotation3D annot = annotateSurface(vertices, mLabel + " [" + (("Both".equals(key)) ? "Full" : key) + " surface]", false);
 					final Color color = plottedObjs.get(mLabel).objMesh.getDrawable().getColor();
 					if (color != null)
 						annot.setColor(toColorRGB(Utils.contrastColor(color)), 25);
 				}
+				setSceneUpdatesEnabled(true);
 			});
 			annotMenu.add(mi);
 			final JMenu primitives = new JMenu("Misc");
@@ -6314,8 +6317,7 @@ public class Viewer3D {
 					color = plottedAnnotations.get(entry).getColor();
 				}
 				if (color != null) {
-					((DefaultListModel<String>) getModel()).set(i,
-							TagUtils.applyTag(entry, toColorRGB(color).toHTMLColor()));
+					((DefaultListModel<String>) getModel()).set(i, TagUtils.applyColor(entry, toColorRGB(color)));
 				}
 			}
 		}
@@ -6362,7 +6364,7 @@ public class Viewer3D {
 					final boolean isSelected, final boolean cellHasFocus) {
 				final JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected,
 						cellHasFocus);
-				final String labelText = label.getText();
+				final String labelText = TagUtils.removeAllTags(label.getText());
 				if (CheckBoxList.ALL_ENTRY.toString().equals(labelText))
 					return label;
 				if (iconVisible) {
@@ -6375,7 +6377,7 @@ public class Viewer3D {
 				} else {
 					label.setIcon(null);
 				}
-				final String[] tags = TagUtils.getTagsFromEntry(labelText);
+				final String[] tags = TagUtils.getTagsFromEntry(label.getText());
 				for (final String tag : tags) {
 					final ColorRGB c = ColorRGB.fromHTMLColor(tag);
 					if (c != null) {
@@ -6397,6 +6399,24 @@ public class Viewer3D {
 			return candidate.replace("{", "").replace("}", "");
 		}
 
+		static String applyColor(final String entry, final ColorRGB color) {
+			final String[] existingTags = getTagsFromEntry(entry);
+			for (final String existingTag : existingTags) {
+				final ColorRGB c = ColorRGB.fromHTMLColor(existingTag);
+				if (c != null) {
+					entry.replace(existingTag, color.toHTMLColor());
+					return entry;
+				}
+			}
+			if (!entry.contains("}")) {
+				final StringBuilder sb = new StringBuilder(entry);
+				sb.append(" {").append(color.toHTMLColor()).append("}");
+				return sb.toString();
+			} else {
+				return entry.replace("}", ", " + color.toHTMLColor() + "}");
+			}
+		}
+
 		static String applyTag(final String entry, final String tag) {
 			final String cleansedTag = getCleansedTag(tag);
 			if (cleansedTag.trim().isEmpty()) return entry;
@@ -6410,7 +6430,7 @@ public class Viewer3D {
 		}
 
 		static String removeAllTags(final String entry) {
-			final int delimiterIdx = entry.indexOf("{");
+			final int delimiterIdx = entry.indexOf(" {");
 			if (delimiterIdx == -1) {
 				return entry;
 			} else {
@@ -6425,16 +6445,16 @@ public class Viewer3D {
 		}
 
 		static String getTagStringFromEntry(final String entry) {
-			final int openingDlm = entry.indexOf("{");
+			final int openingDlm = entry.indexOf(" {");
 			final int closingDlm = entry.lastIndexOf("}");
 			if (closingDlm > openingDlm) {
-				return entry.substring(openingDlm + 1, closingDlm);
+				return entry.substring(openingDlm + 2, closingDlm);
 			}
 			return "";
 		}
 
 		static String getUntaggedStringFromTags(final String entry) {
-			final int openingDlm = entry.indexOf("{");
+			final int openingDlm = entry.indexOf(" {");
 			if (openingDlm == -1) {
 				return entry;
 			} else {
@@ -6443,7 +6463,7 @@ public class Viewer3D {
 		}
 
 		static String[] getUntaggedAndTaggedLabels(final String entry) {
-			final int openingDlm = entry.indexOf("{");
+			final int openingDlm = entry.indexOf(" {");
 			if (openingDlm == -1) {
 				return new String[] {entry, entry};
 			} else {
@@ -8217,13 +8237,13 @@ public class Viewer3D {
 
 	/* IDE debug method */
 	public static void main(final String[] args) throws InterruptedException {
-		final ImageJ ij = new ImageJ();
 		final Tree tree = new SNTService().demoTrees().get(0);
-		final TreeColorMapper colorizer = new TreeColorMapper(ij.getContext());
+		final TreeColorMapper colorizer = new TreeColorMapper(SNTUtils.getContext());
 		colorizer.map(tree, TreeColorMapper.PATH_ORDER, ColorTables.ICE);
 		final double[] bounds = colorizer.getMinMax();
 		SNTUtils.setDebugMode(true);
-		final Viewer3D jzy3D = new Viewer3D(ij.context());
+		GuiUtils.setLookAndFeel(GuiUtils.LAF_DARCULA, false, (Component[])null);
+		final Viewer3D jzy3D = new Viewer3D(true);
 		jzy3D.addColorBarLegend(ColorTables.ICE, (float) bounds[0],
 			(float) bounds[1], new Font("Arial", Font.PLAIN, 24), 3, 4);
 		jzy3D.add(tree);

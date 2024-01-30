@@ -586,6 +586,7 @@ public class SNTUtils {
 	 */
 	public static Context getContext() {
 		if (context == null) {
+			LegacyInjector.preinit();
 			try {
 				if (ij.IJ.getInstance() != null)
 					context = (Context) IJ.runPlugIn("org.scijava.Context", "");
@@ -594,7 +595,6 @@ public class SNTUtils {
 			} finally {
 				if (context == null) {
 					try {
-						LegacyInjector.preinit();
 						context = new Context();
 					} catch (final Throwable e) {
 						System.out.println("SciJava context could not be initialized properly [" + e.getMessage()

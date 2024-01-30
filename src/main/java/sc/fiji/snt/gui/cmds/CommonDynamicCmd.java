@@ -114,18 +114,18 @@ public class CommonDynamicCmd extends DynamicCommand {
 
 	protected void notifyLoadingStart(final Viewer3D recViewer) {
 		if (ui != null) ui.changeState(SNTUI.LOADING);
-		startLoopProgress(recViewer);
-	}
-
-	protected void startLoopProgress(final Viewer3D recViewer) {
-		if (recViewer != null && recViewer.getManagerPanel() != null) {
-			recViewer.getManagerPanel().showProgress(-1, -1);
+		if (recViewer != null) {
+			recViewer.setSceneUpdatesEnabled(false);
+			if (recViewer.getManagerPanel() != null)
+				recViewer.getManagerPanel().showProgress(-1, -1);
 		}
 	}
 
-	protected void resetProgress(final Viewer3D recViewer) {
-		if (recViewer != null && recViewer.getManagerPanel() != null) {
-			recViewer.getManagerPanel().showProgress(0, 0);
+	protected void notifyLoadingEnd(final Viewer3D recViewer) {
+		if (recViewer != null) {
+			if (recViewer.getManagerPanel() != null)
+				recViewer.getManagerPanel().showProgress(0, 0);
+			recViewer.setSceneUpdatesEnabled(true);
 		}
 	}
 
@@ -144,11 +144,6 @@ public class CommonDynamicCmd extends DynamicCommand {
 				ui.runCommand("validateImgDimensions");
 		}
 		statusService.clearStatus();
-	}
-
-	protected void resetUI(final Viewer3D recViewer) {
-		resetUI();
-		resetProgress(recViewer);
 	}
 
 	protected void notifyExternalDataLoaded() { //TODO: Implement listener

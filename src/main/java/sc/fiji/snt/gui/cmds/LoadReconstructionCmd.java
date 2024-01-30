@@ -163,7 +163,7 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 		}
 
 		if (!file.exists())
-			super.error(file.getAbsolutePath() + " is not available");
+			error(file.getAbsolutePath() + " is not available");
 
 		setLastUsedFile();
 		notifyLoadingStart(recViewer);
@@ -196,7 +196,7 @@ public class LoadReconstructionCmd extends CommonDynamicCmd {
 	}
 
 	private void exit() {
-		resetProgress(recViewer);
+		notifyLoadingEnd(recViewer);
 		recViewer.setSplitDendritesFromAxons(splitState);
 	}
 
