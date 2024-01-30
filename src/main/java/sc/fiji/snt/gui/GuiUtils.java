@@ -173,7 +173,7 @@ public class GuiUtils {
 	public static final String LAF_LIGHT_INTJ = FlatIntelliJLaf.NAME;
 	public static final String LAF_DARK = FlatDarkLaf.NAME;
 	public static final String LAF_DARCULA = FlatDarculaLaf.NAME;
-	public static final String LAF_DEFAULT  = "Default";
+	public static final String LAF_DEFAULT  = LAF_LIGHT;
 
 	/** The default sorting weight for the Plugins>Neuroanatomy> submenu */
 	// define it here in case we need to change sorting priority again later on
@@ -1910,7 +1910,7 @@ public class GuiUtils {
 	}
 
 	public static String[] availableLookAndFeels() {
-		return new String[] { LAF_DEFAULT, LAF_LIGHT, LAF_LIGHT_INTJ, LAF_DARK, LAF_DARCULA };
+		return new String[] { LAF_LIGHT, LAF_LIGHT_INTJ, LAF_DARK, LAF_DARCULA };
 	}
 
 	public static void setLookAndFeel() {
@@ -2000,6 +2000,10 @@ public class GuiUtils {
 		} catch (final Error | Exception ignored) {
 			return false;
 		}
+	}
+
+	public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice) {
+		return setLookAndFeel(lookAndFeelName, persistentChoice, (Component[])null);
 	}
 
 	public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice, final Component... componentsToUpdate) {

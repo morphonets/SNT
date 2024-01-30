@@ -89,7 +89,7 @@ public class SNTService extends AbstractService implements ImageJService {
 
 
 	private void accessActiveInstance(final boolean createInstanceIfNull) {
-		plugin = SNTUtils.getPluginInstance();
+		plugin = SNTUtils.getInstance();
 		if (createInstanceIfNull && plugin == null) {
 			plugin = new SNT(getContext(), new PathAndFillManager());
 		} else if (plugin == null) {
@@ -109,7 +109,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 *         instance of SNT
 	 */
 	public boolean isActive() {
-		return SNTUtils.getPluginInstance() != null;
+		return SNTUtils.getInstance() != null;
 	}
 
 	/**
@@ -403,7 +403,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 *         running without GUI
 	 */
 	public SNTUI getUI() {
-		plugin = SNTUtils.getPluginInstance();
+		plugin = SNTUtils.getInstance();
 		return (plugin==null) ? null : plugin.getUI();
 	}
 
@@ -483,7 +483,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	}
 
 	public SciViewSNT getOrCreateSciViewSNT() throws NoClassDefFoundError {
-		if (SNTUtils.getPluginInstance() == null) {
+		if (SNTUtils.getInstance() == null) {
 			return new SciViewSNT(getContext());
 		}
 		return getSciViewSNT();

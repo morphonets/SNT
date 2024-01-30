@@ -179,7 +179,15 @@ public class SNTUtils {
 			setContext(plugin.getContext());
 	}
 
+	/**
+	 * @deprecated use {@link #getInstance()} instead
+	 */
+	@Deprecated
 	public static SNT getPluginInstance() {
+		return plugin;
+	}
+
+	public static SNT getInstance() {
 		return plugin;
 	}
 
@@ -704,7 +712,6 @@ public class SNTUtils {
 	 */
 	public static void startApp() {
 		if (context == null) {
-			LegacyInjector.preinit();
 			final ImageJ ij = new ImageJ();
 			ij.ui().showUI();
 		}

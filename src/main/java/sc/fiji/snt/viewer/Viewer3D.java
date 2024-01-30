@@ -128,7 +128,6 @@ import org.jzy3d.plot3d.transform.squarifier.XYSquarifier;
 import org.jzy3d.plot3d.transform.squarifier.XZSquarifier;
 import org.jzy3d.plot3d.transform.squarifier.ZYSquarifier;
 import org.jzy3d.ui.editors.LightEditor;
-import org.jzy3d.ui.editors.MaterialEditor;
 import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
@@ -2000,9 +1999,9 @@ public class Viewer3D {
 	 * @throws UnsupportedOperationException if SNT is not running
 	 */
 	public boolean syncPathManagerList() throws UnsupportedOperationException {
-		if (SNTUtils.getPluginInstance() == null) throw new IllegalArgumentException(
+		if (SNTUtils.getInstance() == null) throw new IllegalArgumentException(
 			"SNT is not running.");
-		final Collection<Tree> trees = SNTUtils.getPluginInstance().getPathAndFillManager().getTrees();
+		final Collection<Tree> trees = SNTUtils.getInstance().getPathAndFillManager().getTrees();
 		final ShapeTree newShapeTree = new MultiTreeShapeTree(trees);
 		if (plottedTrees.containsKey(PATH_MANAGER_TREE_LABEL)) {
 			chart.getScene().getGraph().remove(plottedTrees.get(
@@ -4997,7 +4996,7 @@ public class Viewer3D {
 				prefsMenu.add(jcbmi2);
 			}
 			GuiUtils.addSeparator(prefsMenu, "Other:");
-			final JMenuItem mi = new JMenuItem("Global Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
+			final JMenuItem mi = new JMenuItem("Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
 			mi.addActionListener(e -> {
 				runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, true, false);
 			});
@@ -6071,10 +6070,13 @@ public class Viewer3D {
 			});
 			dialog.setContentPane(getContentPane());
 			GuiUtils.collapseAllTreeNodes(tree); // compute sizes based on collapsed tree
+			if (frame.manager != null) {
+				dialog.setPreferredSize(frame.manager.getPreferredSize());
+				dialog.setLocationRelativeTo(frame.manager);
+			}
 			dialog.pack();
 			GuiUtils.expandAllTreeNodes(tree);
 			cmdFinder.attach(dialog);
-			dialog.setLocationRelativeTo(frame);
 			dialog.setVisible(true);
 			return dialog;
 		}
@@ -6091,6 +6093,7 @@ public class Viewer3D {
 			frame.managerPanel.setFixedHeight(searchableBar);
 			final JScrollPane scrollPane = new JScrollPane(tree);
 			tree.setComponentPopupMenu(popupMenu());
+			tree.setVisibleRowCount(20);
 			scrollPane.setWheelScrollingEnabled(true);
 			final JPanel contentPane = new JPanel();
 			contentPane.setLayout(new BoxLayout(contentPane, BoxLayout.Y_AXIS));
@@ -6118,18 +6121,17 @@ public class Viewer3D {
 		private JPopupMenu popupMenu() {
 			final JPopupMenu pMenu = new JPopupMenu();
 			JMenuItem jmi = new JMenuItem("Clear Selection");
-			jmi.addActionListener(e -> {
-				tree.clearSelection();
-			});
+			jmi.addActionListener(e -> tree.clearSelection());
 			pMenu.add(jmi);
 			jmi = new JMenuItem("Collapse All");
-			jmi.addActionListener(e -> {
-				GuiUtils.collapseAllTreeNodes(tree);
-			});
+			jmi.addActionListener(e -> GuiUtils.collapseAllTreeNodes(tree));
 			pMenu.add(jmi);
 			jmi = new JMenuItem("Expand All");
 			jmi.addActionListener(e -> GuiUtils.expandAllTreeNodes(tree));
 			pMenu.add(jmi);
+			pMenu.addSeparator();
+			pMenu.add(GuiUtils.menuItemTriggeringHelpURL("Online 2D Atlas Viewer", "http://atlas.brain-map.org/atlas?atlas=602630314"));
+			pMenu.add(GuiUtils.menuItemTriggeringHelpURL("Online 3D Atlas Viewer", "http://connectivity.brain-map.org/3d-viewer"));
 			return pMenu;
 		}
 		private class NavigatorTree extends CheckBoxTree {
@@ -6180,6 +6182,7 @@ public class Viewer3D {
 			this.model.addElement(CheckBoxList.ALL_ENTRY);
 			renderer = new CustomListRenderer((DefaultListCellRenderer) getActualCellRenderer());
 			setCellRenderer(renderer);
+			setVisibleRowCount(20);
 			addMouseListener(new java.awt.event.MouseAdapter() {
 				public void mouseClicked(final MouseEvent e) {
 					if (e.getClickCount() == 2 && !((HandlerPlus) _handler).clicksInCheckBox(e)) {
@@ -6303,7 +6306,9 @@ public class Viewer3D {
 		@SuppressWarnings({ "unchecked" })
 		void applyRenderedColorsToSelectedItems() {
 			for (final int i : getSelectedIndices()) {
-				final String entry = (String) ((DefaultListModel<?>) getModel()).get(i);
+				if (CheckBoxList.ALL_ENTRY.equals(getModel().getElementAt(i)))
+					continue;
+				final String entry = (String) getModel().getElementAt(i);
 				Color color = null;
 				if (plottedTrees.get(entry) != null) {
 					color = plottedTrees.get(entry).getArborColor();
@@ -6312,7 +6317,7 @@ public class Viewer3D {
 				} else if (plottedObjs.get(entry) != null && plottedObjs.get(entry).getColor() != null) {
 					color = plottedObjs.get(entry).getColor();
 					if (color == null)
-						plottedObjs.get(entry).getBoundingBoxColor();
+						color = plottedObjs.get(entry).getBoundingBoxColor();
 				} else if (plottedAnnotations.get(entry) != null) {
 					color = plottedAnnotations.get(entry).getColor();
 				}
@@ -6380,7 +6385,7 @@ public class Viewer3D {
 				final String[] tags = TagUtils.getTagsFromEntry(label.getText());
 				for (final String tag : tags) {
 					final ColorRGB c = ColorRGB.fromHTMLColor(tag);
-					if (c != null) {
+					if (c != null && c.getARGB() != label.getBackground().getRGB()) {
 						label.setForeground(new java.awt.Color(c.getRed(), c.getGreen(), c.getBlue()));
 						break;
 					}
@@ -8242,7 +8247,7 @@ public class Viewer3D {
 		colorizer.map(tree, TreeColorMapper.PATH_ORDER, ColorTables.ICE);
 		final double[] bounds = colorizer.getMinMax();
 		SNTUtils.setDebugMode(true);
-		GuiUtils.setLookAndFeel(GuiUtils.LAF_DARCULA, false, (Component[])null);
+		GuiUtils.setLookAndFeel(GuiUtils.LAF_DARCULA, false);
 		final Viewer3D jzy3D = new Viewer3D(true);
 		jzy3D.addColorBarLegend(ColorTables.ICE, (float) bounds[0],
 			(float) bounds[1], new Font("Arial", Font.PLAIN, 24), 3, 4);

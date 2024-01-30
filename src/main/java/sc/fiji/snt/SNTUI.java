@@ -4501,7 +4501,7 @@ public class SNTUI extends JDialog {
 				if (plugin.isSecondaryDataAvailable()) {
 					flushSecondaryDataPrompt();
 				}
-				if (file != null) inputs.put("file", file);
+				inputs.put("file", file);
 				(new DynamicCmdRunner(OpenDatasetCmd.class, inputs, LOADING)).run();
 				break;
 			case JSON:

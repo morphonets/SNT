@@ -61,7 +61,7 @@ public class PrefsCmd extends ContextCommand {
 
 	@Parameter(label = "Look and feel (L&F)", required = false, persist = false,
 			description = "How should SNT look? NB: This may also affect other Swing-based dialogs in Fiji.", choices = {
-			GuiUtils.LAF_DEFAULT, GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK, GuiUtils.LAF_DARCULA })
+			GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK, GuiUtils.LAF_DARCULA })
 	private String laf;
 
 	@Parameter(label="Managing Themes...", callback="lafHelp")
@@ -174,7 +174,7 @@ public class PrefsCmd extends ContextCommand {
 				"sc.fiji.snt.viewer.geditor" //
 		};
 		for (final String pkg : packages) {
-			SNTUtils.log("Deleting prefs for " + pkg);
+			SNTUtils.log("Deleting prefs for " + pkg + ".*");
 			findClasses(pkg).forEach(c -> prefService.clear(c));
 		}
 		// Legacy (IJ1-based) preferences

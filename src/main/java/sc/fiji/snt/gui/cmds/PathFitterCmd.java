@@ -148,9 +148,9 @@ public class PathFitterCmd extends ContextCommand {
 
 	@SuppressWarnings("unused")
 	private void init() {
-		if (SNTUtils.getPluginInstance().accessToValidImageData()) {
-			unit = SNTUtils.getPluginInstance().getSpacingUnits();
-			smallestSep = SNTUtils.getPluginInstance().getMinimumSeparation();
+		if (SNTUtils.getInstance().accessToValidImageData()) {
+			unit = SNTUtils.getInstance().getSpacingUnits();
+			smallestSep = SNTUtils.getInstance().getMinimumSeparation();
 		} else {
 			unit = SNTUtils.getSanitizedUnit(null);
 			smallestSep = 1;
