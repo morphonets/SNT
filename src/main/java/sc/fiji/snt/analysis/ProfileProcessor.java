@@ -44,6 +44,8 @@ import smile.math.MathEx;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.Callable;
 
 import org.apache.commons.lang3.StringUtils;
@@ -163,6 +165,24 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
     {
         return values;
     }
+
+	public SortedMap<Integer, List<Double>> getRawValues(final int nodeStep) {
+		final SortedMap<Integer, List<Double>> rawValues = new TreeMap<>();
+		int step = (nodeStep < 1) ? 1 : nodeStep;
+		if (step > path.size())
+			step = path.size();
+		for (int i = 0; i < path.size(); ++i) {
+			if (i % step != 0)
+				continue;
+			long r = (radius <= 0) ? Math.round(path.getNodeRadius(i) / avgSep) : radius;
+			if (r < 1)
+				r = 1;
+			final Cursor<T> cursor = getSuitableCursor(rai, shape, r, path, i);
+			if (cursor != null)
+				rawValues.put(i, getAllValues(cursor));
+		}
+		return rawValues;
+	}
 
     public void process()
     {
@@ -316,6 +336,20 @@ public class ProfileProcessor< T extends RealType< T > > implements Callable< do
         }
     }
 
+    private List<Double> getAllValues( final Cursor< T > cursor )
+    {
+        final long[] pos = new long[ cursor.numDimensions() ];
+        final List<Double> values = new ArrayList<>(); 
+        while ( cursor.hasNext() )
+        {
+            cursor.fwd();
+            cursor.localize( pos );
+            if (!outOfBounds( pos, intervalMin, intervalMax ) )
+            	values.add(cursor.get().getRealDouble());
+        }
+        return values;
+    }
+   
     private double sum( final Cursor< T > cursor )
     {
         final long[] pos = new long[ cursor.numDimensions() ];
