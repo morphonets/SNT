@@ -64,10 +64,11 @@ public class OBJMesh {
 
 	protected OBJFileLoaderPlus loader;
 	protected RemountableDrawableVBO drawable;
-	private double xMirrorCoord = Double.NaN;
 	private String label;
 	protected String unit;
 	private double volume = Double.NaN;
+	private int symmetryAxis;
+	private double mirrorCoord = Double.NaN;
 
 	/**
 	 * Instantiates a new wavefront OBJ mesh from a file path/URL.
@@ -93,6 +94,20 @@ public class OBJMesh {
 
 	private OBJMesh() {}
 
+	/**
+	 * Sets the axis defining the symmetry plane of this mesh (e.g., the sagittal
+	 * plane for most bilateria models)
+	 *
+	 * @return the axis defining the symmetry plane where X=0; Y=1; Z=2;
+	 */
+	public void setSymmetryAxis(final int axis) {
+		this.symmetryAxis = axis;
+	}
+
+	public int getSymmetryAxis() {
+		return symmetryAxis;
+	}
+
 	public OBJMesh duplicate() {
 		//return new OBJMesh(loader.url, unit);
 		final OBJMesh dup = new OBJMesh();
@@ -104,7 +119,8 @@ public class OBJMesh {
 		dup.unit = unit;
 		dup.volume = volume;
 		dup.label = label;
-		dup.xMirrorCoord = xMirrorCoord;
+		dup.mirrorCoord = mirrorCoord;
+		dup.symmetryAxis = symmetryAxis;
 		return dup;
 	}
 
@@ -527,44 +543,67 @@ public class OBJMesh {
 			return points;
 		}
 
-		private boolean assessHemisphere(final float x, final boolean isLeft) {
-			return (isLeft && x <= xMirrorCoord || !isLeft && x > xMirrorCoord);
+		private boolean assessHemisphere(final float cc, final boolean isLeft) {
+			return (isLeft && cc <= mirrorCoord || !isLeft && cc > mirrorCoord);
+		}
+
+		private void setMirrorCoord() {
+			if (Double.isNaN(mirrorCoord)) {
+				switch (symmetryAxis) {
+				case 0:
+					mirrorCoord = getBarycentre().getX();
+					break;
+				case 1:
+					mirrorCoord = getBarycentre().getY();
+					break;
+				default:
+					mirrorCoord = getBarycentre().getZ();
+					break;
+				}
+			}
 		}
 
 		private Collection<PointInImage> getVertices(final String hemiHalf) {
 			if (positions_.isEmpty())
 				return null;
-			if (Double.isNaN(xMirrorCoord))
-				xMirrorCoord = getBarycentre().getX();
+			setMirrorCoord();
 			final boolean isLeft = "left".equals(hemiHalf);
 			final List<PointInImage> points = new ArrayList<>();
-			for (int i = 0; i < positions_.size(); i += 3) {
-				final float x = positions_.get(i);
-				if (assessHemisphere(x, isLeft)) {
-					final float y = positions_.get(i + 1);
-					final float z = positions_.get(i + 2);
-					points.add(new PointInImage(x, y, z));
+			for (int i = symmetryAxis; i < positions_.size(); i += 3) {
+				switch (symmetryAxis) {
+				case 0:
+					final float x = positions_.get(i);
+					if (assessHemisphere(x, isLeft)) {
+						final float y = positions_.get(i + 1);
+						final float z = positions_.get(i + 2);
+						points.add(new PointInImage(x, y, z));
+					}
+					break;
+				case 1:
+					final float yy = positions_.get(i);
+					if (assessHemisphere(yy, isLeft)) {
+						final float xx = positions_.get(i - 1);
+						final float zz = positions_.get(i + 1);
+						points.add(new PointInImage(xx, yy, zz));
+					}
+					break;
+				default:
+					final float zzz = positions_.get(i);
+					if (assessHemisphere(zzz, isLeft)) {
+						final float xxx = positions_.get(i - 2);
+						final float yyy = positions_.get(i - 1);
+						points.add(new PointInImage(xxx, yyy, zzz));
+					}
+					break;
 				}
+
 			}
 			return points;
 		}
 
 		private PointInImage getCenter(final String hemiHalf) {
-			if (Double.isNaN(xMirrorCoord))
-				xMirrorCoord = getBarycentre().getX();
-			final boolean isLeft = "left".equals(hemiHalf);
-			float sumX = 0, sumY = 0, sumZ = 0;
-			int nPoints = 0;
-			for (int i = 0; i < positions_.size(); i += 3) {
-				final float x = positions_.get(i);
-				if (assessHemisphere(x, isLeft)) {
-					sumX += x;
-					sumY += positions_.get(i + 1);
-					sumZ += positions_.get(i + 2);
-					nPoints++;
-				}
-			}
-			return new PointInImage(sumX / nPoints, sumY / nPoints, sumZ / nPoints);
+			setMirrorCoord();
+			return SNTPoint.average( getVertices(hemiHalf));
 		}
 
 		private void translate(final SNTPoint offset) {

@@ -116,7 +116,15 @@ public class SNTSearchableBar extends SearchableBar {
 		setStatusLabelPlaceholder(SNTUtils.getReadableVersion());
 	}
 
-
+	public Component getSearchField() {
+		if (_textField != null && _textField.isVisible()) {
+			return _textField;
+		}
+		if (_comboBox != null && _comboBox.isVisible()) {
+			return _comboBox.getEditor().getEditorComponent();
+		}
+		return null;
+	}
 
 	@SuppressWarnings({ "rawtypes" })
 	@Override

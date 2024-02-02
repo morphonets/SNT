@@ -297,7 +297,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 				recViewer = sntService.newRecViewer(true);
 				recViewerIsNotVisible = true;
 			}
-			recViewer.setSceneUpdatesEnabled(false);
+			notifyLoadingStart(recViewer);
 			final ColorRGB[] colors = SNTColor.getDistinctColors(stats.getGroups().size());
 			final Iterator<String> groupsIterator = stats.getGroups().iterator();
 			int index = 0;
@@ -306,11 +306,12 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 				recViewer.addTrees(stats.getGroupStats(groupLabel).getGroup(), colors[index].toHTMLColor(), groupLabel);
 				index++;
 			}
-			recViewer.setSceneUpdatesEnabled(true);
+			notifyLoadingEnd(recViewer);
 			recViewer.updateView();
 			if (recViewerIsNotVisible) recViewer.show();
 		}
-		resetUI(recViewer);
+		resetUI();
+		notifyLoadingEnd(recViewer);
 
 	}
 

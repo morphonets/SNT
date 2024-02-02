@@ -85,8 +85,8 @@ public class GraphUtils {
 	 */
 	public static Window show(final DirectedWeightedGraph graph) {
 		final GraphViewer graphViewer = new GraphViewer(graph);
-		if (SNTUtils.getPluginInstance() != null)
-			graphViewer.setContext(SNTUtils.getPluginInstance().getContext());
+		if (SNTUtils.getInstance() != null)
+			graphViewer.setContext(SNTUtils.getInstance().getContext());
 		return graphViewer.show();
 	}
 

@@ -179,7 +179,15 @@ public class SNTUtils {
 			setContext(plugin.getContext());
 	}
 
+	/**
+	 * @deprecated use {@link #getInstance()} instead
+	 */
+	@Deprecated
 	public static SNT getPluginInstance() {
+		return plugin;
+	}
+
+	public static SNT getInstance() {
 		return plugin;
 	}
 
@@ -586,6 +594,7 @@ public class SNTUtils {
 	 */
 	public static Context getContext() {
 		if (context == null) {
+			LegacyInjector.preinit();
 			try {
 				if (ij.IJ.getInstance() != null)
 					context = (Context) IJ.runPlugIn("org.scijava.Context", "");
@@ -594,7 +603,6 @@ public class SNTUtils {
 			} finally {
 				if (context == null) {
 					try {
-						LegacyInjector.preinit();
 						context = new Context();
 					} catch (final Throwable e) {
 						System.out.println("SciJava context could not be initialized properly [" + e.getMessage()
@@ -704,7 +712,6 @@ public class SNTUtils {
 	 */
 	public static void startApp() {
 		if (context == null) {
-			LegacyInjector.preinit();
 			final ImageJ ij = new ImageJ();
 			ij.ui().showUI();
 		}

@@ -25,6 +25,7 @@ package sc.fiji.snt.gui;
 import java.util.Arrays;
 import java.util.List;
 
+import org.scijava.Context;
 import org.scijava.plugin.Parameter;
 
 import ij.ImagePlus;
@@ -55,6 +56,15 @@ public class DemoRunner {
 		ui.changeState(SNTUI.LOADING);
 		ui.showStatus("Retrieving Demo data. Please wait...", false);
 		entries = List.of(demo1(), demo2(), demo3(), demo4(), demo5(), demo6(), demo7(), demo8(), demo9(), demo10());
+	}
+
+	public DemoRunner(final Context context) {
+		this.ui = null;
+		this.snt = null;
+		prefs = null;
+		context.inject(this);
+		priorUIState = -1;
+		entries = List.of(demo3(), demo7(), demo8());
 	}
 
 	private Demo demo1() {
@@ -106,6 +116,12 @@ public class DemoRunner {
 			public Tree getTree() {
 				return sntService.demoTree("OP_1");
 			}
+
+			@Override
+			public List<Tree> getTrees() {
+				return List.of(getTree());
+			}
+			
 		};
 		entry.summary = "Downloads a Drosophila olfactory projection neuron and respective ground truth 3D reconstruction (radii included).";
 		entry.data = "Image (3D; 1-channel confocal image, 15MB) and SWC reconstruction (78KB)";
@@ -170,6 +186,11 @@ public class DemoRunner {
 			public Tree getTree() {
 				return sntService.demoTree("fractal");
 			}
+
+			@Override
+			public List<Tree> getTrees() {
+				return List.of(getTree());
+			}
 		};
 		entry.summary = "An L-systems fractal image and respective reconstruction. Multi-point ROIs have been added to emulate markers for dendritic spines.";
 		entry.data = "Image (2D; mask, 23KB), tracings, and ROIs (25KB)";
@@ -200,6 +221,12 @@ public class DemoRunner {
 					exit();
 				}
 			}
+			
+			@Override
+			public List<Tree> getTrees() {
+				return sntService.demoTrees();
+			}
+
 		};
 		entry.summary = "Dendrites of 4 pyramidal neurons in the mouse primary motor and somatosensory cortex. Reconstructions contain neuropil annotations, allowing for brain area analyses.";
 		entry.data = "JSON (654KB)";
@@ -397,6 +424,10 @@ public class DemoRunner {
 		}
 
 		public Tree getTree() {
+			return null; // default as several demos don't have associated tree(s)
+		}
+
+		public List<Tree> getTrees() {
 			return null; // default as several demos don't have associated tree(s)
 		}
 

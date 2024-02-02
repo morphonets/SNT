@@ -500,6 +500,7 @@ public class AllenUtils {
 		mesh.setColor(color, 95f);
 		mesh.setVolume(volume);
 		mesh.setLabel(meshLabel);
+		mesh.setSymmetryAxis(getAxisDefiningSagittalPlane());
 		return mesh;
 	}
 

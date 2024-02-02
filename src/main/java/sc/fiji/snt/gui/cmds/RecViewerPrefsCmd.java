@@ -117,8 +117,7 @@ public class RecViewerPrefsCmd extends ContextCommand {
 	private String HEADER4;
 
 	@Parameter(label = "<HTML>&nbsp;", required = false, description = "How should SNT tools look? (Restart may be required)", choices = {
-			GuiUtils.LAF_DEFAULT, GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK,
-			GuiUtils.LAF_DARCULA })
+			GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK, GuiUtils.LAF_DARCULA })
 	private String laf;
 
 	@Parameter(label = "<HTML>&nbsp;", required = false,

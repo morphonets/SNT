@@ -145,7 +145,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 		if (filteredResult.isEmpty()) {
 			resetUI(false);
 			if (recViewer != null)
-				resetProgress(recViewer);
+				notifyLoadingEnd(recViewer);
 			status("Error... No reconstructions imported", true);
 			error("No reconstructions could be retrieved: Invalid Query?");
 			return;
@@ -169,7 +169,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			recViewer.setSplitDendritesFromAxons(splitState);
 		}
 
-		resetProgress(recViewer);
+		notifyLoadingEnd(recViewer);
 		resetUI(recViewer == null);
 		if (filteredResult.size() < result.size()) {
 			status("Partially successful import...", true);

@@ -173,7 +173,7 @@ public class GuiUtils {
 	public static final String LAF_LIGHT_INTJ = FlatIntelliJLaf.NAME;
 	public static final String LAF_DARK = FlatDarkLaf.NAME;
 	public static final String LAF_DARCULA = FlatDarculaLaf.NAME;
-	public static final String LAF_DEFAULT  = "Default";
+	public static final String LAF_DEFAULT  = LAF_LIGHT;
 
 	/** The default sorting weight for the Plugins>Neuroanatomy> submenu */
 	// define it here in case we need to change sorting priority again later on
@@ -647,7 +647,40 @@ public class GuiUtils {
 		}
 		return null;
 	}
-	
+
+	public String[] getStrings(final String message, final String promptTitle, final Map<String, List<String>> choicesMap,
+			final String... defaultChoices) {
+		final List<JComboBox<String>> fields = new ArrayList<>(choicesMap.size());
+		final JPanel panel = new JPanel(new GridBagLayout());
+		final GridBagConstraints c = new GridBagConstraints();
+		final int[] index = { 0 };
+		choicesMap.forEach((k, v) -> {
+			c.gridy = index[0];
+			c.gridx = 0;
+			c.fill = 0;
+			c.anchor = GridBagConstraints.EAST;
+			panel.add(new JLabel(k), c);
+			c.gridx = 1;
+			c.fill = 1;
+			c.anchor = GridBagConstraints.WEST;
+			final JComboBox<String> field = new JComboBox<>(v.toArray(new String[0]));
+			fields.add(field);
+			if (index[0] < defaultChoices.length)
+				field.setSelectedItem(defaultChoices[index[0]]);
+			panel.add(field, c);
+			index[0]++;
+		});
+		final int result = JOptionPane.showConfirmDialog(parent, panel, promptTitle, JOptionPane.OK_CANCEL_OPTION,
+				JOptionPane.PLAIN_MESSAGE);
+		if (result == JOptionPane.OK_OPTION) {
+			final String[] values = new String[fields.size()];
+			for (int i = 0; i < fields.size(); i++)
+				values[i] = (String) fields.get(i).getSelectedItem();
+			return values;
+		}
+		return null;
+	}
+
 	public Set<String> getStringSet(final String promptMsg, final String promptTitle,
 			final Collection<String> defaultValues) {
 		final String userString = getString(promptMsg, promptTitle, toString(defaultValues));
@@ -667,10 +700,12 @@ public class GuiUtils {
 	 *
 	 * @see #getColor(String, Color, String...)
 	 */
-	public ColorRGB getColorRGB(final String title, final Color defaultValue,
+	public ColorRGB getColorRGB(final String title, final ColorRGB defaultValue,
 		final String... panes)
 	{
-		final Color color = getColor(title, defaultValue, panes);
+		final Color def = (defaultValue == null) ? null : new Color(defaultValue.getRed(), defaultValue.getGreen(),
+				defaultValue.getBlue());
+		final Color color = getColor(title, def, panes);
 		if (color == null) return null;
 		return new ColorRGB(color.getRed(), color.getGreen(), color.getBlue());
 	}
@@ -1875,7 +1910,7 @@ public class GuiUtils {
 	}
 
 	public static String[] availableLookAndFeels() {
-		return new String[] { LAF_DEFAULT, LAF_LIGHT, LAF_LIGHT_INTJ, LAF_DARK, LAF_DARCULA };
+		return new String[] { LAF_LIGHT, LAF_LIGHT_INTJ, LAF_DARK, LAF_DARCULA };
 	}
 
 	public static void setLookAndFeel() {
@@ -1965,6 +2000,10 @@ public class GuiUtils {
 		} catch (final Error | Exception ignored) {
 			return false;
 		}
+	}
+
+	public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice) {
+		return setLookAndFeel(lookAndFeelName, persistentChoice, (Component[])null);
 	}
 
 	public static boolean setLookAndFeel(final String lookAndFeelName, final boolean persistentChoice, final Component... componentsToUpdate) {
