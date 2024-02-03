@@ -30,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import net.imagej.Dataset;
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
@@ -43,6 +44,7 @@ import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
 
 import sc.fiji.snt.analysis.PathProfiler;
+import sc.fiji.snt.analysis.ProfileProcessor;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
@@ -94,7 +96,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 	private Tree tree;
 
 	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
-	private boolean setValuesFromSNTService;
+	private Dataset dataset;
 	
 	@Parameter(required = false, persist = false, visibility = ItemVisibility.INVISIBLE)
 	private boolean onlyConnectivitySafeMetrics = false;
@@ -109,12 +111,12 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 		statusService.showStatus("Applying Color Code...");
 		SNTUtils.log("Color Coding Tree (" + measurementChoice + ") using " + lutChoice);
 		final TreeColorMapper colorizer = new TreeColorMapper(context());
-		if (setValuesFromSNTService && TreeColorMapper.VALUES.equals(
-			measurementChoice))
-		{
+		if (dataset != null && TreeColorMapper.VALUES.equals(measurementChoice)) {
 			SNTUtils.log("Assigning values...");
-			final PathProfiler profiler = new PathProfiler(tree, sntService
-				.getInstance().getLoadedDataAsImp());
+			final PathProfiler profiler = new PathProfiler(tree, dataset);
+			profiler.setRadius(0);
+			profiler.setShape(ProfileProcessor.Shape.LINE);
+			profiler.setMetric(ProfileProcessor.Metric.MEAN);
 			profiler.assignValues();
 		}
 		colorizer.setMinMax(Double.NaN, Double.NaN);
@@ -152,7 +154,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 	private void init() {
 		super.init(true);
 		final List<String> choices = TreeColorMapper.getMetrics();
-		if (!setValuesFromSNTService) choices.remove(TreeColorMapper.VALUES);
+		if (dataset == null) choices.remove(TreeColorMapper.VALUES);
 		if (onlyConnectivitySafeMetrics) {
 			choices.remove(TreeColorMapper.STRAHLER_NUMBER);
 		}
@@ -160,10 +162,6 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 		final MutableModuleItem<String> measurementChoiceInput = getInfo()
 				.getMutableInput("measurementChoice", String.class);
 		measurementChoiceInput.setChoices(choices);
-		// Do not set value, otherwise we'll overwrite any input passed to CommandService
-//		measurementChoiceInput.setValue(this, prefService.get(getClass(),
-//			"measurementChoice", TreeColorMapper.STRAHLER_NUMBER));
-		resolveInput("setValuesFromSNTService");
 		resolveInput("onlyConnectivitySafeMetrics");
 		if (lutChoice == null) lutChoice = prefService.get(getClass(), "lutChoice",
 			"mpl-viridis.lut");

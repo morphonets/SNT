@@ -23,26 +23,26 @@
 package sc.fiji.snt.analysis;
 
 import java.awt.Color;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import net.imagej.Dataset;
-import net.imagej.ImageJ;
-import org.scijava.plot.LineStyle;
-import org.scijava.plot.MarkerStyle;
-import org.scijava.plot.PlotService;
-import org.scijava.plot.XYPlot;
-import org.scijava.plot.XYSeries;
-
-import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.type.numeric.RealType;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
 import org.scijava.convert.ConvertService;
+import org.scijava.module.MutableModuleItem;
+import org.scijava.plot.LineStyle;
+import org.scijava.plot.MarkerStyle;
+import org.scijava.plot.PlotService;
+import org.scijava.plot.XYPlot;
+import org.scijava.plot.XYSeries;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
@@ -51,6 +51,10 @@ import org.scijava.util.Colors;
 import ij.ImagePlus;
 import ij.gui.Plot;
 import ij.plugin.filter.MaximumFinder;
+import net.imagej.Dataset;
+import net.imagej.ImageJ;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
@@ -62,8 +66,8 @@ import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 
 /**
- * Command to retrieve Profile plots (plots of voxel intensities values along a
- * Path) from reconstructions.
+ * Command to retrieve Path profiles (plots of voxel intensities values along a
+ * Path)
  *
  * @author Tiago Ferreira
  * @author Cameron Arshadi
@@ -71,15 +75,20 @@ import sc.fiji.snt.util.SNTColor;
 @Plugin(type = Command.class, label = "Path Profiler", initializer = "init")
 public class PathProfiler extends CommonDynamicCmd {
 
-	public static final String CIRCLE = "Circle (Hollow)";
-	public static final String DISK = "Disk (Solid)";
-	public static final String SPHERE = "Sphere";
-	public static final String CENTERLINE = "None. Path coordinates only.";
+	protected static final String CIRCLE2D = "Circle (hollow)";
+	protected static final String CIRCLE3D = "Circle (hollow, in orthogonal plane)";
+	protected static final String DISK2D = "Disk (filled)";
+	protected static final String DISK3D = "Disk (filled, in orthogonal plane)";
+	protected static final String SPHERE = "Sphere (filled)";
+	protected static final String LINE2D = "Line (orthoghonal)";
+	protected static final String LINE3D = "2D Line (orthoghonal, in node's plane)";
 
-	/** Flag for retrieving distances from {@link #getValues(Path)} */
+	protected static final String NONE = "None. Path centerline only";
+
+	/** Key for retrieving distances from {@link #getValues(Path)} */
 	public final static String X_VALUES = "x-values";
 
-	/** Flag for retrieving intensities from {@link #getValues(Path)} */
+	/** Key for retrieving intensities from {@link #getValues(Path)} */
 	public final static String Y_VALUES = "y-values";
 
 	@Parameter
@@ -92,18 +101,21 @@ public class PathProfiler extends CommonDynamicCmd {
 	@Parameter(
 			label = "Shape (centered at each node)",
 			description = "<HTML>The image neighborhood to be measured around each Path node.",
-			choices = {SPHERE, DISK, CIRCLE, CENTERLINE},
+			choices = {LINE2D, CIRCLE2D, DISK2D, SPHERE, NONE},
 			callback = "shapeStrChanged")
 	private String shapeStr;
 
 	@Parameter(
-			label = "Radius (in pixels)",
+			label = "Radius (in pixels)", callback = "updateMsg",
 			description = "<HTML>The size of the sampling shape.<br>"
 					+ "A value >= 1 sets a fixed radius for shape neighborhood.<br>"
 					+ "A value of 0 instructs the profiler to adopt the radius at each Path's node.<br>"
-					+ "Ignored when shape is '" + CENTERLINE + "'",
+					+ "Ignored when shape is '" + NONE + "'",
 			min="0")
 	private int radius;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = EMPTY_LABEL, callback = "updateMsg")
+	private String msg = "Aprox. radius: 99.99microns"; // ensure dialog is wide enough for msg
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 			label = HEADER_HTML + "Options:")
@@ -111,8 +123,8 @@ public class PathProfiler extends CommonDynamicCmd {
 
 	@Parameter(label = "Integration metric:" ,
 			description = "<HTML>Statistic to compute for each neighborhood.<br>"
-					+ "Ignored when shape is '" + CENTERLINE + "'",
-			choices = {"Sum", "Min", "Max", "Mean", "Median", "Variance", "N/A"},
+					+ "Ignored when shape is '" + NONE + "'",
+			choices = {"Sum", "Min", "Max", "Mean", "Median", "Variance", "Standard deviation", "Mean±SD", "N/A"},
 			callback = "metricStrChanged")
 	private String metricStr;
 
@@ -134,13 +146,17 @@ public class PathProfiler extends CommonDynamicCmd {
 	private ImagePlus imp;
 
 	private ProfileProcessor.Shape shape = ProfileProcessor.Shape.HYPERSPHERE;
-	private ProfileProcessor.Metric metric = ProfileProcessor.Metric.SUM;
+	private ProfileProcessor.Metric metric = ProfileProcessor.Metric.MEAN;
 	private boolean valuesAssignedToTree;
 	private int lastprofiledChannel = -1;
 	private boolean nodeIndices = false;
-	private int frame = 1;
+	private double avgSep;
+	private String unit;
 
-
+	/**
+	 * Empty constructor used by CommandService before calling {@link #run()}.
+	 * Should not be called directly.
+	 */
 	public PathProfiler() {
 		super(); // required for calling run() from CommandService
 	}
@@ -149,43 +165,41 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * Instantiates a new Profiler
 	 *
 	 * @param tree the Tree to be profiled
-	 * @param imp  the image from which pixel intensities will be retrieved. If
-	 *             paths in the Tree are assigned different frames, it is assumed by
-	 *             default that the active frame of the image defines the time-point
-	 *             to be profiled. Note that no effort is made to ensure that the
-	 *             image is suitable for profiling.
+	 * @param imp  the image from which pixel intensities will be retrieved. Note
+	 *             that no effort is made to ensure that the image is suitable for
+	 *             profiling.
 	 */
 	public PathProfiler(final Tree tree, final ImagePlus imp) {
-		if (imp == null){
-			throw new IllegalArgumentException("Image cannot be null");
-		}
-		if (tree == null){
+		if (tree == null)
 			throw new IllegalArgumentException("Tree cannot be null");
-		}
 		this.tree = tree;
-		this.imp = imp;
-		if (!allPathsShareCommonFrame())
-			this.frame = imp.getFrame();
-		// refractored constructor: ensure backwards compatibility
-		setRadius(1);
-		setShape(ProfileProcessor.Shape.CENTERLINE);
-		setNodeIndicesAsDistances(false);
-		init();
+		initContextAsNeeded();
+		dataset = getDatasetFromImp(imp);
+		setUnitAndAvgSept();
+		setRadius(0);
+		setShape(ProfileProcessor.Shape.LINE);
+		setMetric(ProfileProcessor.Metric.MEAN);
 	}
 
+	/**
+	 * Instantiates a new Profiler
+	 *
+	 * @param tree    the Tree to be profiled
+	 * @param dataset the dataset from which pixel intensities will be retrieved.
+	 *                Note that no effort is made to ensure that the image is
+	 *                suitable for profiling.
+	 */
 	public PathProfiler(final Tree tree, final Dataset dataset) {
-		if (dataset == null){
+		if (dataset == null)
 			throw new IllegalArgumentException("Dataset cannot be null");
-		}
-		if (tree == null){
+		if (tree == null)
 			throw new IllegalArgumentException("Tree cannot be null");
-		}
 		this.tree = tree;
 		this.dataset = dataset;
-		if (!allPathsShareCommonFrame()) {
-			// FIXME: What is the easiest to select the 'active' Dataset frame
-			init();
-		}
+		setUnitAndAvgSept();
+		setRadius(0);
+		setShape(ProfileProcessor.Shape.LINE);
+		setMetric(ProfileProcessor.Metric.MEAN);
 	}
 
 	/**
@@ -198,45 +212,68 @@ public class PathProfiler extends CommonDynamicCmd {
 	 */
 	public PathProfiler(final Path path, final ImagePlus imp) {
 		this(new Tree(Collections.singleton(path)), imp);
-		this.frame = path.getFrame();
 	}
 
 	public PathProfiler(final Path path, final Dataset dataset) {
 		this(new Tree(Collections.singleton(path)), dataset);
 	}
 
+	private void updateMsg() {
+		if (avgSep == 0) {
+			msg = "";
+		} else {
+			if (radius == 0)
+				msg = "Radius set by path radii";
+			else
+				msg = "Aprox.: " + SNTUtils.formatDouble(avgSep * radius, 2) + unit;
+		}
+	}
+
+	@SuppressWarnings("unused")
 	private void init() {
 		initContextAsNeeded();
 		super.init(false);
-		if (dataset == null) {
-			if (imp == null) {
-				throw new IllegalArgumentException("Both dataset and imp are null");
-			}
-			final ConvertService convertService = getContext().service(ConvertService.class);
-			this.dataset = convertService.convert(imp, Dataset.class);
-			if (dataset == null) {
-				throw new UnsupportedOperationException("BUG: Could not convert ImagePlus to Dataset");
-			}
-		}
+		if (dataset == null)
+			dataset = getDatasetFromImp(imp);
+		setUnitAndAvgSept();
 		try {
 			// adjust shapeStr options
-			final List<String> choices;
+			final MutableModuleItem<String> mi = getInfo().getMutableInput("shapeStr", String.class);
 			if (dataset.getDepth() > 1) {
-				choices = Arrays.asList(SPHERE, DISK, CIRCLE, CENTERLINE);
+				mi.setChoices(List.of(LINE3D, CIRCLE3D, DISK3D, SPHERE, NONE));
 			} else {
-				choices = Arrays.asList(DISK, CIRCLE, CENTERLINE);
+				mi.setChoices(List.of(LINE2D, CIRCLE2D, DISK2D, NONE));
 			}
-			getInfo().getMutableInput("shapeStr", String.class).setChoices(choices);
 			// adjust channel options
 			if (dataset.getChannels() < 2 || tree.size() == 1) {
 				resolveInput("channelString");
 				channelString = "";
 			}
-
+			resolveInput("imp");
+			resolveInput("dataset");
 		} catch (final Exception ex) {
 			// command initialized without context!?
 			ex.printStackTrace();
 		}
+		updateMsg();
+	}
+
+	private Dataset getDatasetFromImp(final ImagePlus imp) {
+		if (imp == null)
+			throw new IllegalArgumentException("ImagePlus is null");
+		final ConvertService convertService = getContext().service(ConvertService.class);
+		dataset = convertService.convert(imp, Dataset.class);
+		if (dataset == null)
+			throw new UnsupportedOperationException("BUG: Could not convert ImagePlus to Dataset");
+		return dataset;
+	}
+
+	private void setUnitAndAvgSept() {
+		unit = dataset.axis(0).unit();
+		avgSep = 0;
+		for (int i = 0; i < dataset.numDimensions(); i++)
+			avgSep += dataset.axis(i).calibratedValue(1);
+		avgSep /= dataset.numDimensions();
 	}
 
 	private void initContextAsNeeded() {
@@ -247,7 +284,7 @@ public class PathProfiler extends CommonDynamicCmd {
 
 	@SuppressWarnings("unused")
 	private void shapeStrChanged() {
-		if (CENTERLINE.equals(shapeStr)) {
+		if (NONE.equals(shapeStr)) {
 			metricStr = "N/A";
 		} else if ("N/A".equals(metricStr)) {
 			metricStr = "Mean";
@@ -256,7 +293,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	@SuppressWarnings("unused")
 	private void metricStrChanged() {
 		if ("N/A".equals(metricStr)) {
-			shapeStr = CENTERLINE;
+			shapeStr = NONE;
 		}
 	}
 
@@ -273,6 +310,7 @@ public class PathProfiler extends CommonDynamicCmd {
 				break;
 			case "Mean":
 			case "N/A":
+			case "Mean±SD":
 				metric = ProfileProcessor.Metric.MEAN;
 				break;
 			case "Median":
@@ -281,6 +319,9 @@ public class PathProfiler extends CommonDynamicCmd {
 			case "Variance":
 				metric = ProfileProcessor.Metric.VARIANCE;
 				break;
+			case "Standard deviation":
+				metric = ProfileProcessor.Metric.SD;
+				break;
 			default:
 				throw new IllegalArgumentException("Unknown metric: " + metricStr);
 		}
@@ -288,14 +329,20 @@ public class PathProfiler extends CommonDynamicCmd {
 			case SPHERE:
 				shape = ProfileProcessor.Shape.HYPERSPHERE;
 				break;
-			case CIRCLE:
+			case CIRCLE2D:
+			case CIRCLE3D:
 				shape = ProfileProcessor.Shape.CIRCLE;
 				break;
-			case DISK:
+			case DISK2D:
+			case DISK3D:
 				shape = ProfileProcessor.Shape.DISK;
 				break;
-			case CENTERLINE:
-				shape = ProfileProcessor.Shape.CENTERLINE;
+			case PathProfiler.LINE2D:
+			case PathProfiler.LINE3D:
+				shape = ProfileProcessor.Shape.LINE;
+				break;
+			case NONE:
+				shape = ProfileProcessor.Shape.NONE;
 				break;
 			default:
 				throw new IllegalArgumentException("Unknown shape: " + shapeStr);
@@ -303,6 +350,13 @@ public class PathProfiler extends CommonDynamicCmd {
 		setNodeIndicesAsDistances(!usePhysicalUnits);
 	}
 
+	/**
+	 * 
+	 * @param shape Either {@link ProfileProcessor.Shape.CENTERLINE},
+	 *              {@link ProfileProcessor.Shape.CIRCLE},
+	 *              {@link ProfileProcessor.Shape.DISK}, or
+	 *              {@link ProfileProcessor.Shape.HYPERSPHERE}
+	 */
 	public void setShape(final ProfileProcessor.Shape shape) {
 		this.shape = shape;
 	}
@@ -313,10 +367,6 @@ public class PathProfiler extends CommonDynamicCmd {
 
 	public void setRadius(final int radius) {
 		this.radius = radius;
-	}
-
-	public void setFrame(final int frame) {
-		this.frame = frame;
 	}
 
 	/* (non-Javadoc)
@@ -332,15 +382,19 @@ public class PathProfiler extends CommonDynamicCmd {
 			super.error("No path(s) to profile");
 			return;
 		}
-		super.status("Retrieving profile(s)...", false);
+		status("Retrieving profile(s)...", false);
 		evalParameters();
 		try {
 			if (tree.size() == 1) { // all channels are retrieved
-				getPlot(tree.get(0)).show();
+				if (metricStr.contains("±"))
+					getMeanSDPlot(tree.get(0)).show();
+				else
+					getPlot(tree.get(0)).show();
 			} else {
-				getChannels().forEach(ch -> {
-					getPlot(ch).show();
-				});
+				if (metricStr.contains("±"))
+					getChannels().forEach(ch -> getMeanSDPlot(ch).show());
+				else
+					getChannels().forEach(ch -> getPlot(ch).show());
 			}
 		} catch (final Exception ex) {
 			if (ex instanceof ArrayIndexOutOfBoundsException)
@@ -373,16 +427,6 @@ public class PathProfiler extends CommonDynamicCmd {
 
 	private List<Integer> getAllChannels() {
 		return IntStream.rangeClosed(1, (int) dataset.getChannels()).boxed().collect(Collectors.toList());
-	}
-
-	private boolean allPathsShareCommonFrame() {
-		final int frame = tree.get(0).getFrame();
-		for (int i = 1; i < tree.size(); i++) {
-			if (tree.get(i).getFrame() != frame)
-				return false;
-		}
-		this.frame = frame;
-		return true;
 	}
 
 	private String getPlotTitle(final int channel) {
@@ -440,7 +484,7 @@ public class PathProfiler extends CommonDynamicCmd {
 
 	public <T extends RealType<T>> void assignValues(final Path p, final int channel) throws ArrayIndexOutOfBoundsException {
 		validateChannelRange(channel);
-		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel - 1, frame - 1);
+		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel - 1, p.getFrame() - 1);
 		final ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
 		processor.setShape(shape);
 		processor.setRadius(radius);
@@ -615,7 +659,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	private String getYAxisLabel(final int channel) {
-		final boolean detailed = shape != Shape.CENTERLINE;
+		final boolean detailed = shape != Shape.NONE;
 		final StringBuilder sb = new StringBuilder();
 		if (channel > 0 && dataset.getChannels() > 1) {
 			sb.append("Ch ").append(channel).append(" ");
@@ -623,7 +667,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		sb.append(dataset.getValidBits()).append("-bit ");
 		if (detailed) {
 			sb.append("Int. (").append(metric).append("; ");
-			sb.append(shape).append(", r=").append(radius);
+			sb.append(shape).append(", r=").append((radius==0) ? "Node radius" : radius + "px");
 			sb.append(")");
 		} else {
 			sb.append("Intensity");
@@ -638,6 +682,28 @@ public class PathProfiler extends CommonDynamicCmd {
 	 */
 	public Plot getPlot() throws IllegalArgumentException, ArrayIndexOutOfBoundsException {
 		return (tree.size()==1) ? getPlot(tree.get(0)) : getPlot(-1);
+	}
+	
+	private Plot getMeanSDPlot(final int channel) {
+		final Plot plot = new Plot(getPlotTitle(channel), getXAxisLabel(), getYAxisLabel(channel));
+		final Color[] colors = getSeriesColorsAWT();
+		final StringBuilder legend = new StringBuilder();
+		for (int i = 0; i < tree.size(); i++) {
+			final Path p = tree.get(i);
+			legend.append(p.getName()).append("\n");			
+			metric = ProfileProcessor.Metric.MEAN;
+			valuesAssignedToTree = false;
+			final Map<String, double[]> meansMap = getValuesAsArray(p, channel);
+			metric = ProfileProcessor.Metric.SD;
+			valuesAssignedToTree = false;
+			final Map<String, double[]> sdMap = getValuesAsArray(p, channel);			
+			plot.setColor(colors[i], colors[i]);
+			plot.addPoints(meansMap.get(X_VALUES), meansMap.get(Y_VALUES), sdMap.get(Y_VALUES), Plot.CONNECTED_CIRCLES);
+		}
+		plot.setColor(Color.BLACK, null);
+		final int flags = (tree.size() < 7) ? Plot.LEGEND_TRANSPARENT + Plot.AUTO_POSITION : Plot.LEGEND_TRANSPARENT;
+		plot.setLegend(legend.toString(), flags);
+		return plot;
 	}
 
 	public Plot getPlot(final int channel) throws IllegalArgumentException, ArrayIndexOutOfBoundsException {
@@ -661,19 +727,33 @@ public class PathProfiler extends CommonDynamicCmd {
 		return plot;
 	}
 
+	private Plot getMeanSDPlot(final Path path) {
+		final Plot plot = new Plot(getPlotTitle(-1), getXAxisLabel(), getYAxisLabel(-1));
+		final Color[] colors = SNTColor.getDistinctColorsAWT((int) dataset.getChannels());
+		final StringBuilder legend = new StringBuilder();
+		for (int i = 1; i <= dataset.getChannels(); i++) {
+			legend.append("Ch").append(i).append("\n");
+			metric = ProfileProcessor.Metric.MEAN;
+			final Map<String, double[]> meansMap = getValuesAsArray(path, i);
+			metric = ProfileProcessor.Metric.SD;
+			final Map<String, double[]> sdMap = getValuesAsArray(path, i);
+			plot.setColor(colors[i - 1], colors[i - 1]);
+			plot.addPoints(meansMap.get(X_VALUES), meansMap.get(Y_VALUES), sdMap.get(Y_VALUES), Plot.CONNECTED_CIRCLES);
+		}
+		plot.setColor(Color.BLACK, null);
+		plot.setLegend(legend.toString(), Plot.LEGEND_TRANSPARENT + Plot.AUTO_POSITION);
+		return plot;
+	}
+
 	public Plot getPlot(final Path path) {
 		final Plot plot = new Plot(getPlotTitle(-1), getXAxisLabel(), getYAxisLabel(-1));
-		final Color[] colors = new Color[(int)dataset.getChannels()];
-			final ColorRGB[] colorsRGB = SNTColor.getDistinctColors((int)dataset.getChannels());
-			for (int i = 0; i < dataset.getChannels(); i++)
-				colors[i] = new Color(colorsRGB[i].getARGB());
+		final Color[] colors = SNTColor.getDistinctColorsAWT((int) dataset.getChannels());
 		final StringBuilder legend = new StringBuilder();
 		for (int i = 1; i <= dataset.getChannels(); i++) {
 			legend.append("Ch").append(i).append("\n");
 			final Map<String, double[]> values = getValuesAsArray(path, i);
-			plot.setColor(colors[i-1], colors[i-1]);
-			plot.addPoints(values.get(X_VALUES), values.get(Y_VALUES),
-				Plot.CONNECTED_CIRCLES);
+			plot.setColor(colors[i - 1], colors[i - 1]);
+			plot.addPoints(values.get(X_VALUES), values.get(Y_VALUES), Plot.CONNECTED_CIRCLES);
 		}
 		plot.setColor(Color.BLACK, null);
 		plot.setLegend(legend.toString(), Plot.LEGEND_TRANSPARENT + Plot.AUTO_POSITION);
@@ -719,14 +799,14 @@ public class PathProfiler extends CommonDynamicCmd {
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
-		final SNTService snt = ij.context().getService(SNTService.class);
+		final SNTService snt = new SNTService();
 		final Tree tree = snt.demoTree("OP_1");
 		final ImagePlus imp = snt.demoImage("OP_1");
+		tree.assignImage(imp);
 		final HashMap<String, Object> inputs = new HashMap<>();
 		inputs.put("tree", tree);
 		inputs.put("imp", imp);
-		final CommandService cmdService = ij.context().getService(CommandService.class);
+		final CommandService cmdService = SNTUtils.getContext().getService(CommandService.class);
 		cmdService.run(PathProfiler.class, true, inputs);
-
 	}
 }

@@ -84,7 +84,6 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 		measurementChoiceInput.setChoices(choices);
 		measurementChoiceInput.setValue(this, prefService.get(getClass(),
 			"measurementChoice", MultiTreeStatistics.LENGTH));
-		resolveInput("setValuesFromSNTService");
 	}
 
 	@Override

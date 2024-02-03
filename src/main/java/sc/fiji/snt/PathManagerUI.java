@@ -68,6 +68,7 @@ import com.jidesoft.swing.TreeSearchable;
 import ij.ImagePlus;
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
+import sc.fiji.snt.analysis.NodeProfiler;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.PathStraightener;
 import sc.fiji.snt.analysis.SNTTable;
@@ -404,8 +405,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setToolTipText("Plots a Path metric against several others");
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
+		jmi = new JMenuItem(SinglePathActionListener.NODE_PROFILER, IconFactory.getMenuIcon(IconFactory.GLYPH.CHART_MAGNIFIED));
+		jmi.setToolTipText("Cross-section profiles of single paths");
+		jmi.addActionListener(singlePathListener);
+		advanced.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.PLOT_PROFILE_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.CHART_LINE));
-		jmi.setToolTipText("Multi-channel plots of pixel intensities around selected path(s)");
+		jmi.setToolTipText("Multi-channel plots of pixel intensities along selected path(s)");
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
 		advanced.addSeparator();
@@ -2112,7 +2117,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		input.put("lutChoice", lutName);
 		input.put("showInRecViewer", false);
 		input.put("showPlot", false);
-		input.put("setValuesFromSNTService", !plugin.tracingHalted);
+		input.put("dataset", plugin.accessToValidImageData() ? plugin.getDataset() : null);
 		input.put("removeColorCoding", null);
 		input.put("onlyConnectivitySafeMetrics", onlyConnectivitySafeMetrics);
 		final LUTService lutService = plugin.getContext().getService(LUTService.class);
@@ -2238,6 +2243,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String DUPLICATE_CMD = "Duplicate...";
 		private static final String EXPLORE_FIT_CMD = "Explore/Preview Fit";
 		private static final String STRAIGHTEN = "Straighten...";
+		private static final String NODE_PROFILER = "Node Profiler...";
 
 		@Override
 		public void actionPerformed(final ActionEvent e) {
@@ -2289,6 +2295,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					return;
 				case STRAIGHTEN:
 					straightenPath(p);
+					return;
+				case NODE_PROFILER:
+					if (noValidImageDataError())
+						return;
+					final HashMap<String, Object> input = new HashMap<>();
+					input.put("path", p);
+					input.put("dataset", plugin.getDataset());
+					(plugin.getUI().new DynamicCmdRunner(NodeProfiler.class, input)).run();
 					return;
 				default:
 					SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
@@ -2562,7 +2576,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String SEND_TO_TWS_CMD = "Load TWS With Selected Path(s)...";
 		private static final String CONVERT_TO_SKEL_CMD = "Skeletonize...";
 		private static final String CONVERT_TO_SWC_CMD = "Save Subset as SWC...";
-		private static final String PLOT_PROFILE_CMD = "Plot Profile...";
+		private static final String PLOT_PROFILE_CMD = "Path Profiler...";
 
 		// color mapping commands
 		private static final String COLORIZE_TREES_CMD = "Color Code Cell(s)...";
@@ -2761,10 +2775,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				if (trees == null || trees.isEmpty())
 					return;
 				if (trees.size() == 1) {
-					Tree tree = trees.iterator().next();
-					Map<String, Object> input = new HashMap<>();
-					input.put("tree", tree);
-					plugin.getContext().getService(CommandService.class).run(TreeMapperCmd.class, true, input);
+					runColorMapper(trees.iterator().next(), false);
 				} else {
 					Map<String, Object> input = new HashMap<>();
 					input.put("trees", trees);
@@ -2774,14 +2785,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 
 			} else if (COLORIZE_PATHS_CMD.equals(cmd)) {
-				final Tree tree = new Tree(selectedPaths);
-				if (tree == null || tree.isEmpty()) return;
-				final Map<String, Object> input = new HashMap<>();
-				input.put("tree", tree);
-				input.put("onlyConnectivitySafeMetrics", true);
-				final CommandService cmdService = plugin.getContext().getService(
-						CommandService.class);
-				cmdService.run(TreeMapperCmd.class, true, input);  // will call #update() via SNT#updateAllViewers();
+				runColorMapper(new Tree(selectedPaths), true);
 				return;
 			}
 			else if (HISTOGRAM_TREES_CMD.equals(cmd)) {
@@ -3141,6 +3145,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
 				return;
 			}
+		}
+
+		void runColorMapper(final Tree tree, final boolean safeMetricsOnly) {
+			if (tree == null || tree.isEmpty()) return;
+			final Map<String, Object> input = new HashMap<>();
+			input.put("tree", tree);
+			input.put("onlyConnectivitySafeMetrics", safeMetricsOnly);
+			input.put("dataset", plugin.accessToValidImageData() ? plugin.getDataset() : null);
+			final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+			cmdService.run(TreeMapperCmd.class, true, input); // will call #update() via SNT#updateAllViewers();
 		}
 
 		void sortTrees() {

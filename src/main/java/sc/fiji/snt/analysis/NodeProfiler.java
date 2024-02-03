@@ -49,14 +49,15 @@ import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.SNTColor;
 
 /**
- * Command to retrieve node profiles (plots of voxel intensities sampled at Path
- * nodes).
+ * Command to retrieve node profiles (plots of voxel intensities sampled across
+ * Path nodes).
  *
  * @author Tiago Ferreira
  */
@@ -70,7 +71,8 @@ public class NodeProfiler extends CommonDynamicCmd {
 	private String HEADER1;
 
 	@Parameter(label = "Shape (centered at each node)", description = "<HTML>The image neighborhood to be measured around each Path node.", choices = {
-			PathProfiler.CIRCLE, PathProfiler.DISK, PathProfiler.SPHERE }, callback = "shapeStrChanged")
+			PathProfiler.NONE, PathProfiler.CIRCLE2D, PathProfiler.DISK2D,
+			PathProfiler.SPHERE }, callback = "shapeStrChanged")
 	private String shapeStr;
 
 	@Parameter(label = "Radius (in pixels)", description = "<HTML>The size of the sampling shape.<br>"
@@ -99,7 +101,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = EMPTY_LABEL)
 	private String HEADER4;
 
-	@Parameter(label = "Output", choices = { "Plot (averaged profile)", "Detailed table" })
+	@Parameter(label = "Output", choices = { "Plot (Mean±SD)", "Detailed table" })
 	private String outChoice;
 
 	@Parameter(label = "path")
@@ -177,12 +179,21 @@ public class NodeProfiler extends CommonDynamicCmd {
 				return;
 			}
 		}
+		initAvgStepAndUnitAsNeeded(path);
+		// adjust 2D/3D options
+		final MutableModuleItem<String> mi = getInfo().getMutableInput("shapeStr", String.class);
+		if (dataset.getDepth() > 1) {
+			mi.setChoices(
+					List.of(PathProfiler.LINE3D, PathProfiler.CIRCLE3D, PathProfiler.DISK3D, PathProfiler.SPHERE));
+		} else {
+			mi.setChoices(List.of(PathProfiler.LINE2D, PathProfiler.CIRCLE2D, PathProfiler.DISK2D));
+		}
+		// adjust node step
 		final MutableModuleItem<Integer> mis = getInfo().getMutableInput("nodeStep", Integer.class);
 		mis.setMinimumValue(1);
 		mis.setMaximumValue(path.size());
 		if (nodeStep >= path.size())
 			mis.setValue(this, 1);
-		initAvgStepAndUnitAsNeeded(path);
 		// adjust channel/frame options
 		if (dataset.getChannels() < 2) {
 			resolveInput("channel");
@@ -237,11 +248,17 @@ public class NodeProfiler extends CommonDynamicCmd {
 		case PathProfiler.SPHERE:
 			shape = ProfileProcessor.Shape.HYPERSPHERE;
 			break;
-		case PathProfiler.CIRCLE:
+		case PathProfiler.CIRCLE2D:
+		case PathProfiler.CIRCLE3D:
 			shape = ProfileProcessor.Shape.CIRCLE;
 			break;
-		case PathProfiler.DISK:
+		case PathProfiler.DISK2D:
+		case PathProfiler.DISK3D:
 			shape = ProfileProcessor.Shape.DISK;
+			break;
+		case PathProfiler.LINE2D:
+		case PathProfiler.LINE3D:
+			shape = ProfileProcessor.Shape.LINE;
 			break;
 		default:
 			throw new IllegalArgumentException("Unsupported/Unknown shape: " + shapeStr);
@@ -278,7 +295,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 		}
 		try {
 			if (outChoice.toLowerCase().contains("plot"))
-				getPlot(path, path.getChannel(), path.getFrame()).show();
+				getPlot(path, channel, frame).show();
 			else
 				getTable(path, channel, frame).show(getTitle(path, channel, frame));
 		} catch (final Exception ex) {
@@ -304,8 +321,8 @@ public class NodeProfiler extends CommonDynamicCmd {
 
 	private String getXAxisLabel(final Path path) {
 		initAvgStepAndUnitAsNeeded(path);
-		return String.format("Distance to center [%s%s] (%s)", shape.toString().toLowerCase(),
-				(radius == 0 && path != null && path.hasRadii()) ? "; path radii" : "", unit);
+		return String.format("Distance to center (%s) [%s%s]", unit, shape.toString().toLowerCase(),
+				(radius == 0 && path != null && path.hasRadii()) ? "; path radii" : "");
 	}
 
 	private String getYAxisLabel(final int channel, final int frame) {
@@ -338,7 +355,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 	/**
 	 * 
 	 * @param path the path to be profiled, using its CT positions in the image
-	 * @return The profile (mean+-SD of all the profiled data)
+	 * @return The profile (Mean±SD of all the profiled data)
 	 */
 	public Plot getPlot(final Path path) {
 		return getPlot(path, path.getChannel(), path.getFrame());
@@ -349,7 +366,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 	 * @param path    the path to be profiled
 	 * @param channel the channel to be profiled
 	 * @param frame   the frame to be profiled
-	 * @return The profile (mean+-SD of all the profiled data)
+	 * @return The profile (Mean±SD of all the profiled data)
 	 */
 	public Plot getPlot(final Path path, final int channel, final int frame) {
 		final Plot plot = new Plot(getTitle(path, channel, frame), getXAxisLabel(path), getYAxisLabel(channel, frame));
@@ -397,15 +414,17 @@ public class NodeProfiler extends CommonDynamicCmd {
 	}
 
 	/**
+	 * Sets the shape of the iterating cursor.
 	 * 
-	 * @param shape Either {@link ProfileProcessor.Shape.CIRCLE},
+	 * @param shape Either {@link ProfileProcessor.Shape.LINE},
+	 *              {@link ProfileProcessor.Shape.CIRCLE},
 	 *              {@link ProfileProcessor.Shape.DISK}, or
 	 *              {@link ProfileProcessor.Shape.HYPERSPHERE}
 	 */
 	public void setShape(final ProfileProcessor.Shape shape) {
-		if (shape == ProfileProcessor.Shape.CENTERLINE)
-			throw new IllegalArgumentException("Unsupported Shape: Only " + ProfileProcessor.Shape.CIRCLE + ", "
-					+ ProfileProcessor.Shape.DISK + ", " + ProfileProcessor.Shape.HYPERSPHERE + ", etc. supported.");
+		if (shape == ProfileProcessor.Shape.NONE)
+			throw new IllegalArgumentException("Unsupported Shape: Only " + ProfileProcessor.Shape.LINE + ", "
+					+ ProfileProcessor.Shape.CIRCLE + ", " + ProfileProcessor.Shape.DISK + ", etc. supported.");
 		this.shape = shape;
 	}
 
@@ -430,21 +449,23 @@ public class NodeProfiler extends CommonDynamicCmd {
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
-		final Path path = new SNTService().demoTree("OP_1").get(0);
-		final ImagePlus imp = new SNTService().demoImage("OP_1");
+		final SNTService snt = new SNTService();
+		final Tree tree = snt.demoTree("OP_1");
+		final ImagePlus imp = snt.demoImage("OP_1");
+		tree.assignImage(imp);
 
 		// Run GUI command w/ prompt
 		final HashMap<String, Object> inputs = new HashMap<>();
-		inputs.put("path", path);
+		inputs.put("path", tree.get(0));
 		inputs.put("imp", imp);
 		final CommandService cmdService = SNTUtils.getContext().getService(CommandService.class);
 		cmdService.run(NodeProfiler.class, true, inputs);
 
 		// Run via scripting
-		final NodeProfiler cp = new NodeProfiler(imp);
-		cp.setNodeStep(10);
-		cp.setRadius(4);
-		cp.setShape(ProfileProcessor.Shape.DISK);
-		cp.getPlot(path).show();
+		final NodeProfiler np = new NodeProfiler(imp);
+		np.setNodeStep(10);
+		np.setRadius(4);
+		np.setShape(ProfileProcessor.Shape.LINE);
+		np.getPlot(tree.get(0)).show();
 	}
 }
