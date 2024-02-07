@@ -29,11 +29,9 @@ import java.util.List;
 import java.util.SortedMap;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-import org.scijava.Context;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
-import org.scijava.convert.ConvertService;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plot.PlotService;
 import org.scijava.plugin.Parameter;
@@ -53,6 +51,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.ImgUtils;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.SNTColor;
 
 /**
@@ -86,22 +85,10 @@ public class NodeProfiler extends CommonDynamicCmd {
 	@Parameter(required = true, label = "Sample every Nth node", min = "1", stepSize = "1", callback = "updateMsg")
 	private int nodeStep;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Sampled Data:")
-	private String HEADER3;
-
-	@Parameter(required = false, label = "Channel to be profiled", min = "1", stepSize = "1")
-	private int channel;
-
-	@Parameter(required = false, label = "Frame to be profiled", min = "1", stepSize = "1")
-	private int frame;
-
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = EMPTY_LABEL, callback = "updateMsg")
 	private String msg = "Radius: 99.99microns; Freq.: 99.99microns"; // ensure dialog is wide enough for msg
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = EMPTY_LABEL)
-	private String HEADER4;
-
-	@Parameter(label = "Output", choices = { "Plot (Mean±SD)", "Detailed table" })
+	@Parameter(label = "Output", choices = { "Plot (Mean±SD)", "Detailed table(s)" })
 	private String outChoice;
 
 	@Parameter(label = "path")
@@ -109,9 +96,6 @@ public class NodeProfiler extends CommonDynamicCmd {
 
 	@Parameter(label = "dataset")
 	private Dataset dataset;
-
-	@Parameter(label = "imp", required = false)
-	private ImagePlus imp;
 
 	private ProfileProcessor.Shape shape = ProfileProcessor.Shape.HYPERSPHERE;
 	private double avgSep;
@@ -123,19 +107,6 @@ public class NodeProfiler extends CommonDynamicCmd {
 	 */
 	public NodeProfiler() {
 		super(); // required for calling run() from CommandService
-	}
-
-	/**
-	 * Instantiates a new Profiler.
-	 *
-	 * @param imp the image from which pixel intensities will be retrieved. Note
-	 *            that no effort is made to ensure that the image is suitable for
-	 *            profiling.
-	 */
-	public NodeProfiler(final ImagePlus imp) {
-		if (imp == null)
-			throw new IllegalArgumentException("Image cannot be null");
-		this.dataset = getDatasetFromImp(imp);
 	}
 
 	/**
@@ -173,11 +144,8 @@ public class NodeProfiler extends CommonDynamicCmd {
 			return;
 		}
 		if (dataset == null) {
-			dataset = getDatasetFromImp(imp);
-			if (dataset == null) {
-				error("A valid Dataset is required but none was found.");
-				return;
-			}
+			error("A valid Dataset is required but none was found.");
+			return;
 		}
 		initAvgStepAndUnitAsNeeded(path);
 		// adjust 2D/3D options
@@ -194,42 +162,10 @@ public class NodeProfiler extends CommonDynamicCmd {
 		mis.setMaximumValue(path.size());
 		if (nodeStep >= path.size())
 			mis.setValue(this, 1);
-		// adjust channel/frame options
-		if (dataset.getChannels() < 2) {
-			resolveInput("channel");
-			channel = 1;
-		} else {
-			final MutableModuleItem<Integer> mic = getInfo().getMutableInput("channel", Integer.class);
-			mic.setMinimumValue(1);
-			mic.setMaximumValue((int) dataset.getChannels());
-			if (channel > dataset.getChannels())
-				mic.setValue(this, (int) dataset.getChannels());
-		}
-		if (dataset.getFrames() < 2) {
-			resolveInput("frame");
-			frame = 1;
-		} else {
-			final MutableModuleItem<Integer> mif = getInfo().getMutableInput("frame", Integer.class);
-			mif.setMinimumValue(1);
-			mif.setMaximumValue((int) dataset.getFrames());
-			if (frame > dataset.getFrames())
-				mif.setValue(this, (int) dataset.getFrames());
-		}
-		if (dataset.getChannels() < 2 && dataset.getFrames() < 2)
-			resolveInput("HEADER3");
+		;
 		resolveInput("imp");
 		resolveInput("dataset");
 		updateMsg();
-	}
-
-	private Dataset getDatasetFromImp(final ImagePlus imp) {
-		if (imp == null)
-			return null;
-		final ConvertService convertService = getContext().service(ConvertService.class);
-		dataset = convertService.convert(imp, Dataset.class);
-		if (dataset == null)
-			throw new UnsupportedOperationException("BUG!?: Could not convert ImagePlus to Dataset!?");
-		return dataset;
 	}
 
 	private void initAvgStepAndUnitAsNeeded(final Path path) {
@@ -265,13 +201,6 @@ public class NodeProfiler extends CommonDynamicCmd {
 		}
 	}
 
-	@Override
-	public Context getContext() {
-		if (super.getContext() == null)
-			setContext(SNTUtils.getContext());
-		return super.getContext();
-	}
-
 	/*
 	 * (non-Javadoc)
 	 * 
@@ -294,10 +223,12 @@ public class NodeProfiler extends CommonDynamicCmd {
 			return;
 		}
 		try {
-			if (outChoice.toLowerCase().contains("plot"))
-				getPlot(path, channel, frame).show();
-			else
-				getTable(path, channel, frame).show(getTitle(path, channel, frame));
+			if (outChoice.toLowerCase().contains("plot")) {
+				getPlot(path).show();
+			} else {
+				for (int ch = 0; ch < dataset.getChannels(); ch++)
+					getTable(path, ch).show(getTitle(path, ch));
+			}
 		} catch (final Exception ex) {
 			if (ex instanceof ArrayIndexOutOfBoundsException)
 				error("Profile could not be retrieved. Do Path nodes lay outside image bounds?");
@@ -307,16 +238,20 @@ public class NodeProfiler extends CommonDynamicCmd {
 		}
 	}
 
-	private String getTitle(final Path path, final int channel, final int frame) {
+	private String getTitle(final Path path, final int channel) {
 		final StringBuilder sb = new StringBuilder(path.getName());
-		sb.append(" Cross Profile").append(" [C").append(channel).append("T").append(frame).append("]");
+		sb.append(" Cross Profile");
+		if (channel < 0)
+			sb.append(" [All Channels]");
+		else
+			sb.append(" [C").append(channel + 1).append("]");
 		return sb.toString();
 	}
 
 	private void validateChannelRange(final int channel) {
-		if (channel < 1 || channel > dataset.getChannels())
+		if (channel < 0 || channel > dataset.getChannels())
 			throw new IllegalArgumentException(
-					"Specified channel " + channel + " out of range: Only 1-" + dataset.getChannels() + " allowed");
+					"Specified channel " + channel + " out of range: Only [0-" + dataset.getChannels() + "[ allowed");
 	}
 
 	private String getXAxisLabel(final Path path) {
@@ -325,27 +260,43 @@ public class NodeProfiler extends CommonDynamicCmd {
 				(radius == 0 && path != null && path.hasRadii()) ? "; path radii" : "");
 	}
 
-	private String getYAxisLabel(final int channel, final int frame) {
+	private String getYAxisLabel(final Path path, final int channel) {
 		final StringBuilder sb = new StringBuilder();
 		if (channel > 0 && dataset.getChannels() > 1) {
-			sb.append("Ch ").append(channel).append(" ");
+			sb.append("Ch ").append(channel + 1).append(" ");
 		}
-		if (frame > 0 && dataset.getFrames() > 1) {
-			sb.append("Frame ").append(frame).append(" ");
+		if (dataset.getFrames() > 1) {
+			sb.append("Frame ").append(path.getFrame()).append(" ");
 		}
 		sb.append(dataset.getValidBits()).append("-bit ");
 		sb.append("Intensity");
 		return sb.toString();
 	}
 
+	/**
+	 * Gets the profile for the specified path as a map of lists of pixel
+	 * intensities (profile indices as keys)
+	 *
+	 * @param p the path to be profiled, using its CT positions in the image
+	 * @return The profile
+	 */
 	public <T extends RealType<T>> SortedMap<Integer, List<Double>> getValues(final Path p) {
-		return getValues(p, p.getChannel(), p.getFrame());
+		return getValues(p, p.getChannel() - 1, p.getFrame() - 1);
 	}
 
+	/**
+	 * Gets the profile for the specified path as a map of lists of pixel
+	 * intensities (profile indices as keys)
+	 *
+	 * @param p       the path to be profiled
+	 * @param channel the channel to be profiled (0-based index)
+	 * @param frame   the frame to be profiled (0-based index)
+	 * @return The profile
+	 */
 	public <T extends RealType<T>> SortedMap<Integer, List<Double>> getValues(final Path p, final int channel,
 			final int frame) throws ArrayIndexOutOfBoundsException {
 		validateChannelRange(channel);
-		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel - 1, frame - 1);
+		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel, frame);
 		final ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
 		processor.setShape(shape);
 		processor.setRadius(radius);
@@ -358,19 +309,47 @@ public class NodeProfiler extends CommonDynamicCmd {
 	 * @return The profile (Mean±SD of all the profiled data)
 	 */
 	public Plot getPlot(final Path path) {
-		return getPlot(path, path.getChannel(), path.getFrame());
+		final Plot plot = new Plot(getTitle(path, -1), getXAxisLabel(path), getYAxisLabel(path, -1));
+		final Color[] colors = SNTColor.getDistinctColorsAWT((int) dataset.getChannels());
+		String legend = "";
+		for (int ch = 0; ch < dataset.getChannels(); ch++) {
+			System.out.println("Processing " + ch);
+			final SNTTable table = getTable(path, ch);
+			final ArrayList<Double> ymeans = new ArrayList<>();
+			final ArrayList<Double> ystds = new ArrayList<>();
+			for (int row = 0; row < table.getRowCount(); row++) {
+				final SummaryStatistics stats = table.geRowStats(row, 0, table.getColumnCount() - 1);
+				ymeans.add(stats.getMean());
+				ystds.add(stats.getStandardDeviation());
+			}
+			final ArrayList<Double> xvalues = assembleXValuesFromProfiledValues(table);
+			plot.setColor(colors[ch], colors[ch]);
+			plot.addPoints(xvalues, ymeans, ystds, Plot.CONNECTED_CIRCLES);
+			legend += "Ch " + (ch + 1) + "\n"; // + " Mean±SD\n";
+		}
+		plot.setColor(Color.BLACK, null);
+		plot.setLegend(legend, Plot.AUTO_POSITION);
+		plot.setLimitsToFit(true);
+		return plot;
+	}
+
+	private ArrayList<Double> assembleXValuesFromProfiledValues(final SNTTable table) {
+		final ArrayList<Double> xvalues = new ArrayList<>();
+		final int centerIndex = (int) (table.getRowCount() / 2);
+		for (int row = -centerIndex; row <= centerIndex; row++)
+			xvalues.add((avgSep > 0) ? row * avgSep : row);
+		return xvalues;
 	}
 
 	/**
 	 * 
 	 * @param path    the path to be profiled
-	 * @param channel the channel to be profiled
-	 * @param frame   the frame to be profiled
+	 * @param channel the channel to be profiled (0-based index)
 	 * @return The profile (Mean±SD of all the profiled data)
 	 */
-	public Plot getPlot(final Path path, final int channel, final int frame) {
-		final Plot plot = new Plot(getTitle(path, channel, frame), getXAxisLabel(path), getYAxisLabel(channel, frame));
-		final SNTTable table = getTable(path, channel, frame);
+	public Plot getPlot(final Path path, final int channel) {
+		final Plot plot = new Plot(getTitle(path, channel), getXAxisLabel(path), getYAxisLabel(path, channel));
+		final SNTTable table = getTable(path, channel);
 		final ArrayList<Double> ymeans = new ArrayList<>();
 		final ArrayList<Double> ystds = new ArrayList<>();
 		for (int row = 0; row < table.getRowCount(); row++) {
@@ -378,10 +357,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 			ymeans.add(stats.getMean());
 			ystds.add(stats.getStandardDeviation());
 		}
-		final ArrayList<Double> xvalues = new ArrayList<>();
-		final int centerIndex = (int) (table.getRowCount() / 2);
-		for (int row = -centerIndex; row <= centerIndex; row++)
-			xvalues.add((avgSep > 0) ? row * avgSep : row);
+		final ArrayList<Double> xvalues = assembleXValuesFromProfiledValues(table);
 		plot.setColor((path.getColor() == null) ? SNTColor.getDistinctColorsAWT(1)[0] : path.getColor(), null);
 		plot.addPoints(xvalues, ymeans, ystds, Plot.CONNECTED_CIRCLES);
 		plot.setColor(Color.BLACK, null);
@@ -396,18 +372,17 @@ public class NodeProfiler extends CommonDynamicCmd {
 	 * @return the profiled raw data in tabular form (1 column-per profiled node)
 	 */
 	public SNTTable getTable(final Path path) {
-		return getTable(path, path.getChannel(), path.getFrame());
+		return getTable(path, path.getChannel() - 1);
 	}
 
 	/**
 	 * @param path    the path to be profiled, using its CT positions in the image
-	 * @param channel the channel to be profiled
-	 * @param frame   the frame to be profiled
+	 * @param channel the channel to be profiled (0-based index)
 	 * @return the profiled raw data in tabular form (1 column-per profiled node)
 	 */
-	public SNTTable getTable(final Path path, final int channel, final int frame) {
+	public SNTTable getTable(final Path path, final int channel) {
 		final SNTTable table = new SNTTable();
-		final SortedMap<Integer, List<Double>> profileMap = getValues(path, channel, frame);
+		final SortedMap<Integer, List<Double>> profileMap = getValues(path, channel, path.getFrame() - 1);
 		profileMap.forEach((position, profile) -> table.addColumn("Node#" + position, profile));
 		table.fillEmptyCells(Double.NaN);
 		return table;
@@ -457,12 +432,12 @@ public class NodeProfiler extends CommonDynamicCmd {
 		// Run GUI command w/ prompt
 		final HashMap<String, Object> inputs = new HashMap<>();
 		inputs.put("path", tree.get(0));
-		inputs.put("imp", imp);
+		inputs.put("dataset", ImpUtils.toDataset(imp));
 		final CommandService cmdService = SNTUtils.getContext().getService(CommandService.class);
 		cmdService.run(NodeProfiler.class, true, inputs);
 
 		// Run via scripting
-		final NodeProfiler np = new NodeProfiler(imp);
+		final NodeProfiler np = new NodeProfiler(ImpUtils.toDataset(imp));
 		np.setNodeStep(10);
 		np.setRadius(4);
 		np.setShape(ProfileProcessor.Shape.LINE);

@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.scijava.convert.ConvertService;
+
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -38,6 +40,8 @@ import ij.process.ByteProcessor;
 import ij.process.ImageConverter;
 import ij.process.ImageStatistics;
 import ij.process.StackConverter;
+import net.imagej.Dataset;
+import sc.fiji.snt.SNTUtils;
 
 /**
  * Static utilities for handling and manipulation of {@link ImagePlus}s
@@ -159,5 +163,10 @@ public class ImpUtils {
 				set.add(label);
 		}
 		return set;
+	}
+	
+	public static Dataset toDataset(final ImagePlus imp) {
+		final ConvertService convertService = SNTUtils.getContext().getService(ConvertService.class);
+		return convertService.convert(imp, Dataset.class);
 	}
 }

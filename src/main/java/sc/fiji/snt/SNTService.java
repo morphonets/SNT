@@ -131,7 +131,7 @@ public class SNTService extends AbstractService implements ImageJService {
 			throw new IllegalArgumentException("Valid image data is not available");
 		}
 		final PathProfiler profiler = new PathProfiler(getTree(selectedPathsOnly),
-			plugin.getLoadedDataAsImp());
+			plugin.getDataset());
 		profiler.assignValues();
 	}
 

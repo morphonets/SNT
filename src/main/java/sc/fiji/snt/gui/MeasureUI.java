@@ -689,7 +689,7 @@ public class MeasureUI extends JFrame {
 				if (TreeStatistics.VALUES.equals(metric) && plugin != null && plugin.accessToValidImageData()
 						&& !tree.get(0).hasNodeValues()) {
 					SNTUtils.log("Retrieving intensities using the default centerline setting...");
-					new PathProfiler(tree, plugin.getLoadedDataAsImp()).assignValues();
+					new PathProfiler(tree, plugin.getDataset()).assignValues();
 				}
 
 				SummaryStatistics summaryStatistics;

@@ -149,7 +149,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			SNTUtils.log("Assigning values...");
 			trees.forEach( tree -> {
 				final PathProfiler profiler = new PathProfiler(tree, sntService
-						.getInstance().getImagePlus());
+						.getInstance().getDataset());
 					profiler.assignValues();
 			});
 		}

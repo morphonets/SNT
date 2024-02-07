@@ -2974,7 +2974,7 @@ public class SNTUI extends JDialog {
 				aStarCheckBox.setSelected(false);
 				noValidImageDataError();
 				enable = false;
-			} else if (enable && !plugin.inputImageLoaded()) {
+			} else if (enable) {
 				loadImagefromGUI(plugin.channel, plugin.frame);
 			}
 			plugin.enableAstar(enable);

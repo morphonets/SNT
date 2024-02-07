@@ -162,13 +162,9 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	/**
-	 * Instantiates a new Profiler
-	 *
-	 * @param tree the Tree to be profiled
-	 * @param imp  the image from which pixel intensities will be retrieved. Note
-	 *             that no effort is made to ensure that the image is suitable for
-	 *             profiling.
+	 * @deprecated Use {@link #PathProfiler(Tree, Dataset)}
 	 */
+	@Deprecated
 	public PathProfiler(final Tree tree, final ImagePlus imp) {
 		if (tree == null)
 			throw new IllegalArgumentException("Tree cannot be null");
@@ -181,8 +177,17 @@ public class PathProfiler extends CommonDynamicCmd {
 		setMetric(ProfileProcessor.Metric.MEAN);
 	}
 
+
 	/**
-	 * Instantiates a new Profiler
+	 * @deprecated Use {@link #PathProfiler(Path, Dataset)}
+	 */
+	@Deprecated
+	public PathProfiler(final Path path, final ImagePlus imp) {
+		this(new Tree(Collections.singleton(path)), imp);
+	}
+
+	/**
+	 * Instantiates a new Profiler.
 	 *
 	 * @param tree    the Tree to be profiled
 	 * @param dataset the dataset from which pixel intensities will be retrieved.
@@ -203,17 +208,13 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	/**
-	 * Instantiates a new Profiler from a single path
+	 * Instantiates a new Profiler from a single path.
 	 *
-	 * @param path the path to be profiled
-	 * @param imp  the image from which pixel intensities will be retrieved.Note
-	 *             that no effort is made to ensure that the image is suitable for
-	 *             profiling.
+	 * @param path    the path to be profiled
+	 * @param dataset the dataset from which pixel intensities will be
+	 *                retrieved.Note that no effort is made to ensure that the image
+	 *                is suitable for profiling
 	 */
-	public PathProfiler(final Path path, final ImagePlus imp) {
-		this(new Tree(Collections.singleton(path)), imp);
-	}
-
 	public PathProfiler(final Path path, final Dataset dataset) {
 		this(new Tree(Collections.singleton(path)), dataset);
 	}
@@ -412,8 +413,8 @@ public class PathProfiler extends CommonDynamicCmd {
 		final List<Integer> validChannels = new ArrayList<>();
 		for (final String chString : stringChannels) {
 			try {
-				final int ch = Integer.parseInt(chString);
-				if (ch > 0 && ch <= dataset.getChannels())
+				final int ch = Integer.parseInt(chString) - 1;
+				if (ch >= 0 && ch < dataset.getChannels())
 					validChannels.add(ch);
 			} catch (final NumberFormatException ignored) {
 				SNTUtils.log("Path Profiler: Ignoring channel " + chString);
@@ -426,7 +427,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	private List<Integer> getAllChannels() {
-		return IntStream.rangeClosed(1, (int) dataset.getChannels()).boxed().collect(Collectors.toList());
+		return IntStream.range(0, (int) dataset.getChannels()).boxed().collect(Collectors.toList());
 	}
 
 	private String getPlotTitle(final int channel) {
@@ -437,15 +438,17 @@ public class PathProfiler extends CommonDynamicCmd {
 			sb.append("Path Profile");
 		else
 			sb.append(tree.getLabel()).append(" Path Profile");
-		if (channel > 0)
-			sb.append(" (Ch ").append(channel).append(")");
+		if (channel < 0)
+			sb.append(" [All Channels]");
+		else
+			sb.append(" [C").append(channel + 1).append("]");
 		return sb.toString();
 	}
 
 	private void validateChannelRange(final int channel) {
-		if (channel < 1 || channel > dataset.getChannels())
+		if (channel < 0 || channel > dataset.getChannels())
 			throw new IllegalArgumentException(
-					"Specified channel " + channel + " out of range: Only 1-" + dataset.getChannels() + " allowed");
+					"Specified channel " + channel + " out of range. Only [0-" + dataset.getChannels() + "[ allowed.");
 	}
 
 	/**
@@ -458,6 +461,13 @@ public class PathProfiler extends CommonDynamicCmd {
 		valuesAssignedToTree = true;
 	}
 
+	/**
+	 * Retrieves pixel intensities at each node of the Path storing them as Path
+	 * {@code values}
+	 * 
+	 * @param channel the channel to be parsed (base-0 index)
+	 * @throws IllegalArgumentException if image does not contain the path's channel
+	 */
 	public void assignValues(final int channel) throws IllegalArgumentException, ArrayIndexOutOfBoundsException {
 		if (channel == -1) {
 			assignValues();
@@ -479,17 +489,28 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * @throws IllegalArgumentException if image does not contain the path's channel
 	 */
 	public void assignValues(final Path p) throws IllegalArgumentException {
-		assignValues(p, p.getChannel());
+		assignValues(p, p.getChannel() - 1);
 	}
 
+	/**
+	 * Retrieves pixel intensities at each node of the Path storing them as Path
+	 * {@code values}
+	 * 
+	 * @param channel the channel to be parsed (base-0 index)
+	 * @param p       the Path to be profiled
+	 * @see Path#setNodeValues(double[])
+	 * 
+	 * @throws IllegalArgumentException if image does not contain the path's channel
+	 */
 	public <T extends RealType<T>> void assignValues(final Path p, final int channel) throws ArrayIndexOutOfBoundsException {
 		validateChannelRange(channel);
-		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel - 1, p.getFrame() - 1);
+		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel, p.getFrame() - 1);
 		final ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
 		processor.setShape(shape);
 		processor.setRadius(radius);
 		processor.setMetric(metric);
 		p.setNodeValues(processor.call());
+		ImgUtils.getCtSlice3d(dataset, channel, channel);
 	}
 
 	@SuppressWarnings("unused")
@@ -523,7 +544,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * standard deviation from the ridge to a higher maximum
 	 * </p>
 	 * 
-	 * @param channel the channel
+	 * @param channel the channel to be parsed (base-0 index)
 	 * @return the indices of the maxima
 	 */
 	public int[] findMaxima(final Path path, final int channel) {
@@ -540,7 +561,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * standard deviation from the ridge to a lower minimum
 	 * </p>
 	 * 
-	 * @param channel the channel
+	 * @param channel the channel to be parsed (base-0 index)
 	 * @return the indices of the minima
 	 */
 	public int[] findMinima(final Path path, final int channel) {
@@ -570,10 +591,19 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * @return the profile
 	 */
 	public Map<String, List<Double>> getValues(final Path p) {
-		return getValues(p, p.getChannel());
+		return getValues(p, p.getChannel() - 1);
 	}
 
-	public Map<String, List<Double>> getValues(final Path p, final int channel) throws IllegalArgumentException {
+	/**
+	 * Gets the profile for the specified path as a map of lists, with distances (or
+	 * indices) stored under {@link #X_VALUES} ({@value #X_VALUES}) and intensities
+	 * under {@link #Y_VALUES} ({@value #Y_VALUES}).
+	 * 
+	 * @param p       the path to be profiled
+	 * @param channel the channel to be parsed (base-0 index)
+	 * @return the profile map
+	 */
+	public Map<String, List<Double>> getValues(final Path p, final int channel) {
 		if (!p.hasNodeValues()) assignValues(p, channel);
 		final List<Double> xList = new ArrayList<>();
 		final List<Double> yList = new ArrayList<>();
@@ -662,7 +692,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		final boolean detailed = shape != Shape.NONE;
 		final StringBuilder sb = new StringBuilder();
 		if (channel > 0 && dataset.getChannels() > 1) {
-			sb.append("Ch ").append(channel).append(" ");
+			sb.append("Ch ").append(channel + 1).append(" ");
 		}
 		sb.append(dataset.getValidBits()).append("-bit ");
 		if (detailed) {
@@ -676,7 +706,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	/**
-	 * Gets the plot profile as an IJ1 {@link Plot}.
+	 * Gets the plot profile as an ImageJ {@link Plot} (all channels).
 	 *
 	 * @return the plot
 	 */
@@ -706,6 +736,13 @@ public class PathProfiler extends CommonDynamicCmd {
 		return plot;
 	}
 
+	/**
+	 * Gets the plot profile as an ImageJ plot (single-channel).
+	 * 
+	 * @param channel the channel to be parsed (base-0 index)
+	 * 
+	 * @return the plot
+	 */
 	public Plot getPlot(final int channel) throws IllegalArgumentException, ArrayIndexOutOfBoundsException {
 		if (!valuesAssignedToTree || (channel > 0 && channel != lastprofiledChannel) ) {
 			assignValues(channel);
@@ -745,11 +782,16 @@ public class PathProfiler extends CommonDynamicCmd {
 		return plot;
 	}
 
+	/**
+	 * Gets the plot profile as an ImageJ plot (all channels included).
+	 * 
+	 * @return the plot
+	 */
 	public Plot getPlot(final Path path) {
 		final Plot plot = new Plot(getPlotTitle(-1), getXAxisLabel(), getYAxisLabel(-1));
 		final Color[] colors = SNTColor.getDistinctColorsAWT((int) dataset.getChannels());
 		final StringBuilder legend = new StringBuilder();
-		for (int i = 1; i <= dataset.getChannels(); i++) {
+		for (int i = 0; i < dataset.getChannels(); i++) {
 			legend.append("Ch").append(i).append("\n");
 			final Map<String, double[]> values = getValuesAsArray(path, i);
 			plot.setColor(colors[i - 1], colors[i - 1]);
@@ -761,8 +803,8 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	/**
-	 * Gets the plot profile as an {@link PlotService} plot. Requires
-	 * {@link #setContext(org.scijava.Context)} to be called beforehand.
+	 * Gets the plot profile as an {@link PlotService} plot. It is recommended to
+	 * call {@link #setContext(org.scijava.Context)} beforehand.
 	 *
 	 * @return the plot
 	 */
@@ -770,10 +812,18 @@ public class PathProfiler extends CommonDynamicCmd {
 		return getXYPlot(-1);
 	}
 
+	/**
+	 * Gets the plot profile as an {@link PlotService} plot. It is recommended to
+	 * call {@link #setContext(org.scijava.Context)} beforehand.
+	 * 
+	 * @param channel the channel to be parsed (base-0 index)
+	 * @return the plot
+	 */
 	public XYPlot getXYPlot(final int channel) throws IllegalArgumentException {
-		if (!valuesAssignedToTree || (channel > 0 && channel != lastprofiledChannel) ) {
+		if (!valuesAssignedToTree || (channel >= 0 && channel != lastprofiledChannel) ) {
 			assignValues(channel);
 		}
+		if (plotService == null) initContextAsNeeded();
 		final XYPlot plot = plotService.newXYPlot();
 		final boolean setLegend = tree.size() > 1;
 		final ColorRGB[] colors = getSeriesColorsRGB();

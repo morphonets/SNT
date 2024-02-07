@@ -526,7 +526,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public boolean accessToValidImageData() {
-		return getImagePlus() != null && !isDisplayCanvas(xy);
+		return ctSlice3d != null; //getImagePlus() != null && !isDisplayCanvas(xy);
 	}
 
 	private void setIsDisplayCanvas(final ImagePlus imp) {
@@ -612,7 +612,7 @@ public class SNT extends MultiDThreePanes implements
 		setFieldsFromImage(imp);
 		changeUIState(SNTUI.LOADING);
 		initialize(getSinglePane(), channel = imp.getC(), frame = imp.getT());
-		tracingHalted = !inputImageLoaded();
+		tracingHalted = !accessToValidImageData();
 		updateUIFromInitializedImp(imp.isVisible());
 		xy.setRoi(sourceImageROI);
 	 }
@@ -2588,7 +2588,7 @@ public class SNT extends MultiDThreePanes implements
 	 *         traced, or null if no image data has been loaded into memory.
 	 */
 	public <T extends RealType<T>> ImagePlus getLoadedDataAsImp() {
-		if (!inputImageLoaded())
+		if (!accessToValidImageData())
 			return null;
 		final RandomAccessibleInterval<T> data = getLoadedData();
 		final ImagePlus imp = ImgUtils.raiToImp(data, "Image");
@@ -2632,10 +2632,6 @@ public class SNT extends MultiDThreePanes implements
 
 	protected boolean isSecondaryImageFileLoaded() {
 		return secondaryImageFile != null;
-	}
-
-	protected boolean inputImageLoaded() {
-		return this.dataset != null;
 	}
 
 	protected boolean isTracingOnSecondaryImageAvailable() {
