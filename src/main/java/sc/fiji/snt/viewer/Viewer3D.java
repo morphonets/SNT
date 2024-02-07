@@ -139,6 +139,7 @@ import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.*;
 
 import com.jidesoft.swing.CheckBoxList;
+import com.jidesoft.swing.CheckBoxListSelectionModel;
 import com.jidesoft.swing.CheckBoxTree;
 import com.jidesoft.swing.ListSearchable;
 import com.jidesoft.swing.SearchableBar;
@@ -835,7 +836,7 @@ public class Viewer3D {
 	}
 
 	private void initManagerList() {
-		managerList = new CheckboxListEditable(new DefaultUpdatableListModel<>());
+		managerList = new CheckboxListEditable(new UpdatableListModel<>());
 		managerList.getCheckBoxListSelectionModel().addListSelectionListener(e -> {
 			if (!e.getValueIsAdjusting() && getManagerPanel() != null) {
 				final Set<String> selectedKeys = getLabelsCheckedInManagerAsSet();
@@ -853,10 +854,11 @@ public class Viewer3D {
 					final java.awt.Point mPos = managerList.getMousePosition();
 					if (null != mPos) {
 						final int mIndex = managerList.locationToIndex(mPos);
-						if (mIndex > -1 && mIndex != managerList.getCheckBoxListSelectionModel().getAllEntryIndex())
+						if (mIndex > -1) {
 							getRecorder(false).recordCmd("viewer.setVisible(\""
 									+ managerList.getModel().getElementAt(mIndex) + "\", "
 									+ managerList.getCheckBoxListSelectionModel().isSelectedIndex(mIndex) + ")");
+						}
 					}
 				}
 				// view.shoot();
@@ -928,8 +930,8 @@ public class Viewer3D {
 		final String assignedType = tree.getProperties().getProperty(TreeProperties.KEY_COMPARTMENT, TreeProperties.UNSET);
 		if (TreeProperties.UNSET.equals(assignedType) && prefs.isSplitDendritesFromAxons()) {
 			int countFailures = 0;
-			for (final String type : new String[] { "Dnd", "Axn" }) {
-				final Tree subTree = tree.subTree(type);
+			for (final String type : new String[] { "Dnd", "Axn"}) {
+				final Tree subTree = tree.subTree(type, "soma");
 				if (subTree == null || subTree.isEmpty())
 					countFailures++;
 				else {
@@ -1695,14 +1697,21 @@ public class Viewer3D {
 		return removed;
 	}
 
+	private boolean removeAnnotation(final String annotLabel, final String managerEntry) {
+		final Annotation3D annot3D = plottedAnnotations.get(annotLabel);
+		if (annot3D == null) return false;
+		boolean removed = plottedAnnotations.remove(annotLabel) != null;
+		if (chart != null) {
+			removed = removed && chart.getScene().getGraph().remove(annot3D.getDrawable(),
+				viewUpdatesEnabled);
+			if (removed) deleteItemFromManager(managerEntry);
+		}
+		return removed;
+	}
+
 	public boolean removeAnnotation(final String annotLabel) {
 		final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels(annotLabel);
-		final Annotation3D annot3D = plottedAnnotations.get(labelAndManagerEntry[0]);
-		if (annot3D != null) {
-			deleteItemFromManager(labelAndManagerEntry[1]);
-			chart.remove(annot3D.getDrawable(), viewUpdatesEnabled);
-		}
-		return annot3D != null;
+		return removeAnnotation(labelAndManagerEntry[0], labelAndManagerEntry[1]);
 	}
 
 	public boolean removeAnnotation(final Annotation3D annot) {
@@ -1809,7 +1818,7 @@ public class Viewer3D {
 
 	private void removeSceneObject(final String label, final String managerEntry) {
 		if (!removeTree(label, managerEntry) && (!removeMesh(label, managerEntry))) {
-			removeDrawable(getAnnotationDrawables(), label, managerEntry);
+			removeAnnotation(label, managerEntry);
 		}
 	}
 
@@ -1858,30 +1867,26 @@ public class Viewer3D {
 			SNTUtils.log("Null object ignored for scene addition");
 			return;
 		}
-		try {
-			if (object instanceof Tree) {
-				addTree((Tree) object);
-			} else if (object instanceof Path) {
-				final Tree tree = new Tree();
-				tree.add((Path) object);
-				addTree(tree);
-			} else if (object instanceof Annotation3D) {
-				addAnnotation((Annotation3D)object);
-			} else if (object instanceof SNTPoint) {
-				annotatePoint((SNTPoint)object, null);
-			} else if (object instanceof OBJMesh) {
-				addMesh((OBJMesh) object);
-			} else if (object instanceof String) {
-				addLabel((String) object);
-			} else if (object instanceof Drawable) {
-				chart.add((Drawable) object, viewUpdatesEnabled);
-			} else if (object instanceof Collection) {
-				addCollection(((Collection<?>) object));
-			} else {
-				throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
-			}
-		} catch (final ClassCastException ex) {
-			throw new IllegalArgumentException(ex.getMessage());
+		if (object instanceof Tree) {
+			addTree((Tree) object);
+		} else if (object instanceof Path) {
+			final Tree tree = new Tree();
+			tree.add((Path) object);
+			addTree(tree);
+		} else if (object instanceof Annotation3D) {
+			addAnnotation((Annotation3D) object);
+		} else if (object instanceof SNTPoint) {
+			annotatePoint((SNTPoint) object, null);
+		} else if (object instanceof OBJMesh) {
+			addMesh((OBJMesh) object);
+		} else if (object instanceof String) {
+			addLabel((String) object);
+		} else if (object instanceof Drawable) {
+			chart.add((Drawable) object, viewUpdatesEnabled);
+		} else if (object instanceof Collection) {
+			addCollection(((Collection<?>) object));
+		} else {
+			throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
 		}
 	}
 
@@ -1941,17 +1946,8 @@ public class Viewer3D {
 		validate();
 	}
 
-	@SuppressWarnings("unchecked")
-	private List<String> getLabelsCheckedInManagerAsList() {
-		final Object[] values = managerList.getCheckBoxListSelectedValues();
-		return (List<String>) (List<?>) Arrays.asList(values);
-	}
-
-	@SuppressWarnings("unchecked")
 	private Set<String> getLabelsCheckedInManagerAsSet() {
-		// contains() is O(1) in Set compared to O(n) in list
-		final Object[] values = managerList.getCheckBoxListSelectedValues();
-		return (Set<String>) (Set<?>) Arrays.stream(values).collect(Collectors.toSet());
+		return managerList.getCheckBoxListSelectedValuesAsSet();
 	}
 
 	private <T extends Drawable> boolean allDrawablesRendered(
@@ -2070,14 +2066,29 @@ public class Viewer3D {
 	 * @param visible whether the Object should be displayed
 	 */
 	public void setVisible(final String label, final boolean visible) {
-		final ShapeTree treeShape = plottedTrees.get(label);
-		if (treeShape != null) treeShape.setDisplayed(visible);
-		final DrawableVBO obj = plottedObjs.get(label);
-		if (obj != null) obj.setDisplayed(visible);
-		final Annotation3D annot = plottedAnnotations.get(label);
-		if (annot != null) annot.getDrawable().setDisplayed(visible);
-		if (frame != null && frame.managerPanel != null) {
-			frame.managerPanel.setVisible(label, visible);
+		if (CheckBoxList.ALL_ENTRY.toString().equals(label)) { // recorded command
+			if (managerList != null && frame != null && frame.managerPanel != null) {
+				SwingUtilities.invokeLater(() -> {
+					if (visible)
+						managerList.selectAll();
+					else
+						managerList.selectNone();
+				});
+			} else {
+				chart.getScene().getGraph().getAll().forEach(d -> d.setDisplayed(visible));
+			}
+		} else {
+			final ShapeTree treeShape = plottedTrees.get(label);
+			if (treeShape != null)
+				treeShape.setDisplayed(visible);
+			final DrawableVBO obj = plottedObjs.get(label);
+			if (obj != null)
+				obj.setDisplayed(visible);
+			final Annotation3D annot = plottedAnnotations.get(label);
+			if (annot != null)
+				annot.getDrawable().setDisplayed(visible);
+			if (frame != null && frame.managerPanel != null)
+				frame.managerPanel.setVisible(label, visible);
 		}
 	}
 
@@ -3448,8 +3459,8 @@ public class Viewer3D {
 			final Double t = getManagerPanel().guiUtils.getDouble("Transparency (%)", title + " Transparency", def);
 			if (t == null)
 				return null;
-			if (Double.isNaN(t) || t <= 0 || t >= 100) {
-				getManagerPanel().guiUtils.error("Invalid transparency value: Only ]0, 100[ accepted.");
+			if (Double.isNaN(t) || t < 0 || t > 100) {
+				getManagerPanel().guiUtils.error("Invalid transparency value: Only [0, 100] accepted.");
 				return null;
 			}
 			prefs.setGuiPref("aTransparency", "" + t);
@@ -4133,40 +4144,12 @@ public class Viewer3D {
 			renderIcons.addItemListener(e -> {
 				managerList.setIconsVisible((renderIcons.isSelected()));
 			});
-			final JMenuItem sort = new JMenuItem("Sort List...", IconFactory.getMenuIcon(GLYPH.SORT));
+			final JMenuItem sort = new JMenuItem("Sort List", IconFactory.getMenuIcon(GLYPH.SORT));
 			sort.addActionListener(e -> {
 				if (noLoadedItemsGuiError()) {
 					return;
-				}
-				if (!guiUtils.getConfirmation("Sort List by categories? (any existing tags will be lost)",
-						"Sort List?")) {
-					return;
-				}
-				final List<Integer> displayedIndices = new ArrayList<>();
-				managerList.model.setListenersEnabled(false);
-				managerList.setValueIsAdjusting(true);
-				managerList.model.removeAllElements();
-				plottedTrees.forEach((k, v) -> {
-					if (v.isDisplayed())
-						displayedIndices.add(managerList.model.getSize());
-					managerList.model.addElement(k);
-				});
-				plottedObjs.forEach((k, v) -> {
-					if (v.isDisplayed())
-						displayedIndices.add(managerList.model.getSize());
-					managerList.model.addElement(k);
-				});
-				plottedAnnotations.forEach((k, v) -> {
-					if (v.getDrawable().isDisplayed())
-						displayedIndices.add(managerList.model.getSize());
-					managerList.model.addElement(k);
-				});
-				managerList.model.addElement(CheckBoxList.ALL_ENTRY);
-				managerList.setCheckBoxListSelectedIndices(displayedIndices.stream().mapToInt(Integer::intValue).toArray());
-				managerList.setValueIsAdjusting(false);
-				managerList.setIconsVisible(true);
-				renderIcons.setSelected(true);
-				managerList.model.setListenersEnabled(true);
+				}		
+				managerList.model.sort();
 			});
 			final JMenuItem addTag = new JMenuItem(new Action(Action.TAG, KeyEvent.VK_T, true, true));
 			addTag.setIcon(IconFactory.getMenuIcon(GLYPH.TAG));
@@ -4400,7 +4383,7 @@ public class Viewer3D {
 		}
 
 		private void hide(final Map<String, ?> map) {
-			final List<String> selectedKeys = new ArrayList<>(getLabelsCheckedInManagerAsList());
+			final List<String> selectedKeys = new ArrayList<>(getLabelsCheckedInManagerAsSet());
 			selectedKeys.removeAll(map.keySet());
 			managerList.setSelectedObjects(selectedKeys.toArray());
 		}
@@ -5971,11 +5954,11 @@ public class Viewer3D {
 
 				@Override
 				protected Void doInBackground() {
-					viewUpdatesEnabled = compartments.size() == 1;
+					setSceneUpdatesEnabled(compartments.size() == 1);
 					for (final AllenCompartment compartment : compartments) {
 						incrementProgress();
-						if (getOBJs().containsKey(compartment.name())) {
-							managerList.addCheckBoxListSelectedValue(compartment.name(), true);
+						if (plottedObjs.containsKey(compartment.toString())) {
+							managerList.addCheckBoxListSelectedValue(compartment.toString(), true);
 						} else {
 							try {
 								final OBJMesh msh = compartment.getMesh();
@@ -6002,7 +5985,10 @@ public class Viewer3D {
 						get();
 						if (loadedCompartments > 0)
 							Viewer3D.this.validate();
-						if (!failedCompartments.isEmpty()) {
+						if (loadedCompartments == 0 && failedCompartments.isEmpty()) {
+							guiUtils.centeredMsg("Selected compartment(s) seem to be already loaded.", "Compartments Loaded");
+						}
+						else if (!failedCompartments.isEmpty()) {
 							final StringBuilder sb = new StringBuilder(String.valueOf(loadedCompartments)).append("/")
 									.append(loadedCompartments + failedCompartments.size())
 									.append(" meshes retrieved. The following compartments failed to load:")
@@ -6015,7 +6001,7 @@ public class Viewer3D {
 						SNTUtils.error(e.getMessage(), e);
 					} finally {
 						removeProgressLoad(compartments.size());
-						viewUpdatesEnabled = true;
+						setSceneUpdatesEnabled(true);
 					}
 				}
 			};
@@ -6173,10 +6159,10 @@ public class Viewer3D {
 		private JPopupMenu editPopup;
 		private javax.swing.JTextField editTextField;
 		private final CustomListRenderer renderer;
-		private final DefaultUpdatableListModel<Object> model;
+		private final UpdatableListModel<Object> model;
 
 		@SuppressWarnings("unchecked")
-		public CheckboxListEditable(final DefaultUpdatableListModel<Object> model) {
+		public CheckboxListEditable(final UpdatableListModel<Object> model) {
 			super(model);
 			this.model = model;
 			this.model.addElement(CheckBoxList.ALL_ENTRY);
@@ -6229,6 +6215,74 @@ public class Viewer3D {
 					}
 				}
 			});
+		}
+
+		@Override
+		protected void paintComponent(final Graphics g) {
+			super.paintComponent(g);
+			if (isSNTInstance() && model.getSize() < 3 || model.getSize() < 2)
+				GuiUtils.drawDragAndDropPlaceHolder(this, (Graphics2D) g);
+		}
+
+		@Override
+		public int[] getCheckBoxListSelectedIndices() {
+			final CheckBoxListSelectionModel listSelectionModel = getCheckBoxListSelectionModel();
+			final int iMin = listSelectionModel.getMinSelectionIndex();
+			final int iMax = listSelectionModel.getMaxSelectionIndex();
+			if ((iMin < 0) || (iMax < 0)) {
+				return new int[0];
+			}
+			final int[] temp = new int[1 + (iMax - iMin)];
+			int n = 0;
+			for (int i = iMin; i <= iMax; i++) {
+				if (listSelectionModel.isAllEntryConsidered() && i == listSelectionModel.getAllEntryIndex()) {
+					continue;
+				}
+				if (i > model.getSize() - 1) {
+					// Workaround an OutOfBounds Exception
+					break;
+				}
+				if (listSelectionModel.isSelectedIndex(i)) {
+					temp[n] = i;
+					n++;
+				}
+			}
+			final int[] indices = new int[n];
+			System.arraycopy(temp, 0, indices, 0, n);
+			return indices;
+		}
+
+		@Override
+		public Object[] getCheckBoxListSelectedValues() {
+			final CheckBoxListSelectionModel listSelectionModel = getCheckBoxListSelectionModel();
+			final int iMin = listSelectionModel.getMinSelectionIndex();
+			final int iMax = listSelectionModel.getMaxSelectionIndex();
+			if ((iMin < 0) || (iMax < 0)) {
+				return new Object[0];
+			}
+			final Object[] temp = new Object[1 + (iMax - iMin)];
+			int n = 0;
+			for (int i = iMin; i <= iMax; i++) {
+				if (listSelectionModel.isAllEntryConsidered() && i == listSelectionModel.getAllEntryIndex()) {
+					continue;
+				}
+				if (i > model.getSize() - 1) {
+					// Workaround an OutOfBounds Exception
+					break;
+				}
+				if (listSelectionModel.isSelectedIndex(i)) {
+					temp[n] = model.getElementAt(i);
+					n++;
+				}
+			}
+			final Object[] indices = new Object[n];
+			System.arraycopy(temp, 0, indices, 0, n);
+			return indices;
+		}
+
+		@SuppressWarnings("unchecked")
+		private Set<String> getCheckBoxListSelectedValuesAsSet() {
+			return (Set<String>) (Set<?>) Arrays.stream(getCheckBoxListSelectedValues()).collect(Collectors.toSet());
 		}
 
 		@Override
@@ -6478,9 +6532,25 @@ public class Viewer3D {
 
 	}
 
-	class DefaultUpdatableListModel<T> extends DefaultListModel<T> {
+	class UpdatableListModel<T> extends DefaultListModel<T> {
 		private static final long serialVersionUID = 1L;
 		private boolean listenersEnabled = true;
+
+		@SuppressWarnings("unchecked")
+		public void sort() {
+			final List<T> list = new ArrayList<>();
+			for (int i = 0; i < getSize(); i++) {
+				final T o = get(i);
+				if (!CheckBoxList.ALL_ENTRY.equals(o))
+					list.add(o);
+			}
+			list.sort(Comparator.comparing(T::toString));
+			list.add((T) CheckBoxList.ALL_ENTRY);
+			setListenersEnabled(false);
+			removeAllElements();
+			addAll(list);
+			setListenersEnabled(true);
+		}
 
 		public void update() {
 			callFireContentsChangedOnSuper(this, 0, getSize() - 1);
@@ -6492,7 +6562,10 @@ public class Viewer3D {
 
 		public void setListenersEnabled(final boolean enabled) {
 			listenersEnabled = enabled;
-			if (frame != null && frame.managerPanel != null && listenersEnabled) update();
+			if (frame != null && frame.managerPanel != null && managerList != null) {
+				managerList.getCheckBoxListSelectionModel().setValueIsAdjusting(!listenersEnabled);
+				if (listenersEnabled) update();
+			}
 		}
 
 		private void callFireContentsChangedOnSuper(final Object source, final int index0, final int index1) {
@@ -8242,66 +8315,36 @@ public class Viewer3D {
 
 	/* IDE debug method */
 	public static void main(final String[] args) throws InterruptedException {
-		final Tree tree = new SNTService().demoTrees().get(0);
-		final TreeColorMapper colorizer = new TreeColorMapper(SNTUtils.getContext());
-		colorizer.map(tree, TreeColorMapper.PATH_ORDER, ColorTables.ICE);
-		final double[] bounds = colorizer.getMinMax();
 		SNTUtils.setDebugMode(true);
 		GuiUtils.setLookAndFeel(GuiUtils.LAF_DARCULA, false);
-		final Viewer3D jzy3D = new Viewer3D(true);
-		jzy3D.addColorBarLegend(ColorTables.ICE, (float) bounds[0],
-			(float) bounds[1], new Font("Arial", Font.PLAIN, 24), 3, 4);
-		jzy3D.add(tree);
-		final OBJMesh brainMesh = jzy3D.loadRefBrain("Allen CCF");
+		final Viewer3D viewer = new Viewer3D(true);
+		final OBJMesh brainMesh = viewer.loadRefBrain("Allen CCF");
+		brainMesh.setBoundingBoxColor(Colors.RED);
 		final OBJMesh mesh = AllenUtils.getCompartment("Thalamus").getMesh();
 		if (mesh != null) { // server is online and reachable
-			jzy3D.addMesh(mesh);
+			viewer.addMesh(mesh);
 			SNTPoint centroid = mesh.getCentroid("l");
-			Annotation3D cAnnot = jzy3D.annotatePoint(centroid, "l");
-			cAnnot.setSize(30);
-			cAnnot.setColor("green");
-			centroid = mesh.getCentroid("a");
-			cAnnot = jzy3D.annotatePoint(centroid, "a");
-			cAnnot.setSize(30);
-			cAnnot.setColor("cyan");
+			Annotation3D cAnnot = viewer.annotatePoint(centroid, "TH Left centroid");
+			cAnnot.setSize(200);
+			cAnnot.setColor("magenta");
 			centroid = mesh.getCentroid("r");
-			cAnnot = jzy3D.annotatePoint(centroid, "r");
-			cAnnot.setSize(30);
-			cAnnot.setColor("red");
-		}
-		brainMesh.setBoundingBoxColor(Colors.RED);
-		final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
-		final ArrayList<SNTPoint> selectedTips = new ArrayList<>();
-		selectedTips.add(SNTPoint.average(analyzer.getTips()));
-		selectedTips.add(AllenUtils.brainCenter());
-		final Annotation3D annotation1 = jzy3D.annotateLine(selectedTips, "dummy");
-		annotation1.setColor("orange");
-		annotation1.setSize(10);
-		final Annotation3D annotation2 = jzy3D.annotatePoints(analyzer.getTips(), "tips");
-		annotation2.setColor("green");
-		annotation2.setSize(20);
-		final ArrayList<Annotation3D> list = new ArrayList<>();
-		list.add(annotation1);
-		list.add(annotation2);
-		final Annotation3D a = jzy3D.mergeAnnotations(list, "");
-		a.setSize(4);
-		a.setColor("pink");
-		brainMesh.translate(new PointInImage(800, 0, 0));
-		if (jzy3D.viewUpdatesEnabled) {
-			jzy3D.view.shoot();
-			jzy3D.fitToVisibleObjects(true, false);
+			cAnnot = viewer.annotatePoint(centroid, "TH Right centroid");
+			cAnnot.setSize(200);
+			cAnnot.setColor("cyan");
 		}
 		final MouseLightLoader loader = new MouseLightLoader("AA1044");
 		final Tree aa1044 = loader.getTree("axon");
-		final Annotation3D hull = jzy3D.annotateSurface(new TreeAnalyzer(aa1044).getTips(), "Convex Hull", true);
-		System.out.println("AA1044: Convex hull volume = " + hull.getVolume());
-		jzy3D.addTree(aa1044);
-		jzy3D.show();
-		jzy3D.setAnimationEnabled(true);
-		jzy3D.setViewPoint(-1.5707964f, -1.5707964f);
-		jzy3D.updateColorBarLegend(-8, 88);
-		jzy3D.setEnableDarkMode(false);
-		//brainMesh.translate(new PointInImage(800, 0, 0));
+		if (aa1044 != null) {  // server is online and reachable
+			viewer.addTree(aa1044);
+			viewer.annotateSurface(new TreeAnalyzer(aa1044).getTips(), "Convex Hull Tips", true);
+			final TreeColorMapper mapper = new TreeColorMapper();
+			mapper.map(aa1044, TreeColorMapper.PATH_ORDER, ColorTables.ICE);
+			viewer.rebuild(aa1044);
+			viewer.addColorBarLegend(mapper);
+		}
+		viewer.show();
+		viewer.setAnimationEnabled(true);
+		viewer.setEnableDarkMode(false);
 	}
 
 }

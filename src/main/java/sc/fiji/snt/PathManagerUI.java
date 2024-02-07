@@ -26,6 +26,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
@@ -1256,6 +1257,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					timer.start();
 				}
 			});
+		}
+
+		@Override
+		protected void paintComponent(final Graphics g) {
+			super.paintComponent(g);
+			if (getModel().getChildCount(getRoot()) < 1)
+				GuiUtils.drawDragAndDropPlaceHolder(this, (Graphics2D) g);
 		}
 
 		private DefaultMutableTreeNode getRoot() {

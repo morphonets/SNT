@@ -408,7 +408,7 @@ public class Annotation3D {
 	public void setColor(final ColorRGB color, final double transparencyPercent) {
 		Color fallback = getColor();
 		if (fallback == null) fallback = Color.YELLOW;
-		final float a = (transparencyPercent == -1) ? fallback.a : 	(float)(transparencyPercent / 100);
+		final float a = (transparencyPercent == -1) ? fallback.a : 	(float)( (100 - transparencyPercent) / 100);
 		final Color c = (color == null) ? fallback : new Color(color.getRed(), color.getGreen(), color.getBlue());
 		c.a = a;
 		if (drawable == null)

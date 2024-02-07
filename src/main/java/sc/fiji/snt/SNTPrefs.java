@@ -359,9 +359,10 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	public static String getDefaultLookAndFeel() {
-		// If Fiji is using FlatLaf used that as default, otherwise use System L&F
+		// If Fiji is using FlatLaf (default of v430 is light) used that as default, otherwise use System L&F
 		final LookAndFeel currentLaf = UIManager.getLookAndFeel();
-		return (currentLaf instanceof FlatLaf) ? currentLaf.getName() : GuiUtils.LAF_DEFAULT;
+		return (currentLaf instanceof FlatLaf && !((FlatLaf) currentLaf).isDark()) ? currentLaf.getName()
+				: GuiUtils.LAF_DEFAULT;
 	}
 
 	private static void clearLegacyPrefs() {

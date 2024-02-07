@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.gui;
 
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Canvas;
 import java.awt.Color;
@@ -54,6 +55,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
 import java.awt.geom.Rectangle2D;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -2314,6 +2316,26 @@ public class GuiUtils {
 		} else {
 			new CombineGUI(charts).prompt();
 		}
+	}
+
+	public static void drawDragAndDropPlaceHolder(final Component component, final Graphics2D g) {
+		final int GAP = 20;
+		final int HEIGHT = 200;
+		if (component.getHeight() < HEIGHT || component.getWidth() < HEIGHT) return;
+		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		g.setColor(getDisabledComponentColor());
+		g.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[] { 10.0f },
+				0.0f));
+		final RoundRectangle2D.Double rect = new RoundRectangle2D.Double(GAP, component.getHeight() - GAP * 4 - HEIGHT,
+				component.getWidth() - GAP * 2, HEIGHT, GAP * 2, GAP * 2);
+		g.draw(rect);
+		final String text = "Drag Files Here";
+		final Font font = g.getFont().deriveFont(g.getFont().getSize2D() * 1.2f).deriveFont(Font.ITALIC);
+		final FontMetrics metrics = g.getFontMetrics(font);
+		final double x = rect.getX() + (rect.getWidth() - metrics.stringWidth(text)) / 2;
+		final double y = rect.getY() + ((rect.getHeight() - metrics.getHeight()) / 2) + metrics.getAscent();
+		g.setFont(font);
+		g.drawString(text, (int) x, (int) y);
 	}
 
 	public static JTabbedPane getTabbedPane() {
