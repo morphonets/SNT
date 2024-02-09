@@ -151,8 +151,8 @@ public class RecViewerPrefsCmd extends ContextCommand {
 		rotationFPS = 0;
 		sensitivity = null;
 		scriptExtension = null;
-		laf = SNTPrefs.getDefaultLookAndFeel();
 		init();
+		laf = SNTPrefs.getDefaultLookAndFeel();
 	}
 
 	@SuppressWarnings("unused")
