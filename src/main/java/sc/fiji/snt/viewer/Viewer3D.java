@@ -55,6 +55,8 @@ import java.util.stream.IntStream;
 import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.border.Border;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
@@ -139,6 +141,7 @@ import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.*;
 
 import com.jidesoft.swing.CheckBoxList;
+import com.jidesoft.swing.CheckBoxListCellRenderer;
 import com.jidesoft.swing.CheckBoxListSelectionModel;
 import com.jidesoft.swing.CheckBoxTree;
 import com.jidesoft.swing.ListSearchable;
@@ -150,6 +153,7 @@ import com.jogamp.opengl.GLProfile;
 import com.jogamp.opengl.util.FPSAnimator;
 
 import ij.ImagePlus;
+import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.Path;
@@ -531,19 +535,27 @@ public class Viewer3D {
 			view.get2DLayout().setBothAxisFlip(enable);
 	}
 
-	private void setAxesLabels(final String... labels) {
+	public void setAxesLabels(final String... labels) {
+		if (labels == null) {
+			view.getAxisLayout().setXAxisLabel("X");
+			view.getAxisLayout().setYAxisLabel("Y");
+			view.getAxisLayout().setZAxisLabel("Z");
+			return;
+		}
 		if (labels.length > 0) {
 			view.getAxisLayout().setXAxisLabel(labels[0]);
-			view.getAxisLayout().setXAxisLabelDisplayed(labels[0] != null);
 		}
 		if (labels.length > 1) {
 			view.getAxisLayout().setYAxisLabel(labels[1]);
-			view.getAxisLayout().setYAxisLabelDisplayed(labels[1] != null);
 		}
 		if (labels.length > 2) {
 			view.getAxisLayout().setZAxisLabel(labels[2]);
-			view.getAxisLayout().setZAxisLabelDisplayed(labels[2] != null);
 		}
+	}
+
+	private String[] getAxesLabels() {
+		return new String[] { view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
+				view.getAxisLayout().getZAxisLabel() };
 	}
 
 	private void rebuild() {
@@ -839,7 +851,7 @@ public class Viewer3D {
 		managerList = new CheckboxListEditable(new UpdatableListModel<>());
 		managerList.getCheckBoxListSelectionModel().addListSelectionListener(e -> {
 			if (!e.getValueIsAdjusting() && getManagerPanel() != null) {
-				final Set<String> selectedKeys = getLabelsCheckedInManagerAsSet();
+				final Set<String> selectedKeys = getLabelsCheckedInManager();
 				plottedTrees.forEach((k, shapeTree) -> {
 					shapeTree.setDisplayed(selectedKeys.contains(k));
 				});
@@ -1397,7 +1409,7 @@ public class Viewer3D {
 	 *                Collections of supported objects are also supported.
 	 */
 	public void zoomTo(final Object... objects) {
-		final BoundingBox3d bounds = new BoundingBox3d(0, 0, 0, 0, 0, 0);
+		final BoundingBox3d bounds = new BoundingBox3d();
 		for (final Object obj : objects) {
 			final Drawable d = getDrawableFromObject(obj);
 			if (d != null && d.isDisplayed() && d.getBounds() != null && !d.getBounds().isReset()) {
@@ -1825,6 +1837,7 @@ public class Viewer3D {
 	private void wipeScene() {
 		setSceneUpdatesEnabled(false);
 		final Dimension dim = frame.getSize();
+		setAnimationEnabled(false);
 		removeAllTrees();
 		removeAllMeshes();
 		removeAllAnnotations();
@@ -1946,8 +1959,12 @@ public class Viewer3D {
 		validate();
 	}
 
-	private Set<String> getLabelsCheckedInManagerAsSet() {
+	private Set<String> getLabelsCheckedInManager() {
 		return managerList.getCheckBoxListSelectedValuesAsSet();
+	}
+
+	private Set<String> getLabelsSelectedInManager() {
+		return managerList.getSelectedValuesAsSet();
 	}
 
 	private <T extends Drawable> boolean allDrawablesRendered(
@@ -2024,11 +2041,11 @@ public class Viewer3D {
 			updateView();
 			if (managerList == null) return true;
 			// now check that everything is visible
-			final Set<String> selectedKeys = getLabelsCheckedInManagerAsSet();
+			final Set<String> visibleKeys = getLabelsCheckedInManager();
 			final BoundingBox3d viewBounds = chart.view().getBounds();
-			return allDrawablesRendered(viewBounds, plottedObjs, selectedKeys) &&
-				allDrawablesRendered(viewBounds, getTreeDrawables(), selectedKeys) &&
-				allDrawablesRendered(viewBounds, getAnnotationDrawables(), selectedKeys);
+			return allDrawablesRendered(viewBounds, plottedObjs, visibleKeys) &&
+				allDrawablesRendered(viewBounds, getTreeDrawables(), visibleKeys) &&
+				allDrawablesRendered(viewBounds, getAnnotationDrawables(), visibleKeys);
 		}
 		catch (final GLException | ArrayIndexOutOfBoundsException ignored) {
 			SNTUtils.log("Upate view failed...");
@@ -2449,18 +2466,23 @@ public class Viewer3D {
 			return plottedObjs.get(label).objMesh;
 		}
 		OBJMesh objMesh;
+		String[] labels = null;
 		switch (label) {
 		case MESH_LABEL_JFRC2018:
 			objMesh = VFBUtils.getRefBrain("jfrc2018");
+			labels = VFBUtils.getXYZLabels();
 			break;
 		case MESH_LABEL_JFRC2:
 			objMesh = VFBUtils.getRefBrain("jfrc2");
+			labels = VFBUtils.getXYZLabels();
 			break;
 		case MESH_LABEL_JFRC3:
 			objMesh = VFBUtils.getRefBrain("jfrc3");
+			labels = VFBUtils.getXYZLabels();
 			break;
 		case MESH_LABEL_FCWB:
 			objMesh = VFBUtils.getRefBrain("fcwb");
+			labels = VFBUtils.getXYZLabels();
 			break;
 		case MESH_LABEL_L1:
 			objMesh = VFBUtils.getMesh("VFB_00050000");
@@ -2473,15 +2495,18 @@ public class Viewer3D {
 			break;
 		case MESH_LABEL_ALLEN:
 			objMesh = AllenUtils.getRootMesh(null);
+			labels = AllenUtils.getXYZLabels();
 			break;
 		case MESH_LABEL_ZEBRAFISH:
 			objMesh = ZBAtlasUtils.getRefBrain();
+			labels = ZBAtlasUtils.getXYZLabels();
 			break;
 		default:
 			throw new IllegalArgumentException("Invalid option: " + label);
 		}
 		objMesh.setLabel(label);
 		objMesh.drawable.setColor(getNonUserDefColor());
+		if (labels != null) setAxesLabels(labels);
 		if (addMesh(objMesh) && viewUpdatesEnabled) validate();
 		return objMesh;
 	}
@@ -3255,6 +3280,7 @@ public class Viewer3D {
 		private boolean splitDendritesFromAxons;
 
 		protected boolean nagUserOnRetrieveAll;
+		protected boolean nagUserOnAxesChanges;
 		protected boolean retrieveAllIfNoneSelected;
 		protected String treeCompartmentChoice;
 		protected String snapshotDir;
@@ -3273,6 +3299,7 @@ public class Viewer3D {
 		private void setPreferences() {
 			splitDendritesFromAxons = DEF_SPLIT_DENDRITES_FROM_AXONS;
 			nagUserOnRetrieveAll = DEF_NAG_USER_ON_RETRIEVE_ALL;
+			nagUserOnAxesChanges = DEF_NAG_USER_ON_RETRIEVE_ALL;
 			retrieveAllIfNoneSelected = DEF_RETRIEVE_ALL_IF_NONE_SELECTED;
 			treeCompartmentChoice = DEF_TREE_COMPARTMENT_CHOICE;
 			setSnapshotDirectory();
@@ -3309,6 +3336,11 @@ public class Viewer3D {
 		private float getSnapshotRotationAngle() {
 			return tp.prefService.getFloat(RecViewerPrefsCmd.class, "rotationAngle",
 				RecViewerPrefsCmd.DEF_ROTATION_ANGLE);
+		}
+
+		private String getScriptExtension() {
+			return tp.prefService.get(RecViewerPrefsCmd.class,
+					"scriptExtension", RecViewerPrefsCmd.DEF_SCRIPT_EXTENSION);
 		}
 
 		private int getFPS() {
@@ -3557,6 +3589,7 @@ public class Viewer3D {
 		if (recorder == null && createIfNeeded) {
 			recorder = new ScriptRecorder();
 			recorder.setTitle("Reconstruction Viewer Script Recorder");
+			recorder.setLanguage(prefs.getScriptExtension());
 			cmdFinder.setRecorder(recorder);
 			recorder.addWindowListener(new WindowAdapter() {
 				@Override
@@ -3587,7 +3620,7 @@ public class Viewer3D {
 			setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 			searchableBar = new SNTSearchableBar(new ListSearchable(managerList));
 			searchableBar.setGuiUtils(guiUtils);
-			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_CLOSE |
+			searchableBar.setVisibleButtons(//SNTSearchableBar.SHOW_CLOSE |
 				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
 				SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_STATUS);
 			setFixedHeight(searchableBar);
@@ -3625,14 +3658,13 @@ public class Viewer3D {
 			final JScrollPane scrollPane = new JScrollPane(managerList);
 			managerList.setComponentPopupMenu(popupMenu());
 			scrollPane.setWheelScrollingEnabled(true);
-			scrollPane.setBorder(null);
 			scrollPane.setViewportView(managerList);
 			add(scrollPane);
 			scrollPane.revalidate();
-			progressBar = new ProgressBar();
-			progressBar.setBackground(scrollPane.getBackground());
-			add(progressBar);
 			add(searchableBar);
+			searchableBar.setBackground(managerList.getBackground());
+			progressBar = new ProgressBar();
+			add(progressBar);
 			add(buttonPanel());
 			fileDropWorker = new FileDropWorker(managerList, guiUtils);
 		}
@@ -3773,6 +3805,7 @@ public class Viewer3D {
 
 		class Action extends AbstractAction {
 			static final String ALL = "All";
+			static final String AXES_TOGGLE = "Toggle Axes";
 			static final String RESIZE = "Viewer Size...";
 			static final String ENTER_FULL_SCREEN = "Full Screen";
 			static final String FIND = "Toggle Selection Toolbar";
@@ -3824,6 +3857,9 @@ public class Viewer3D {
 				case ALL:
 					showPanelAsNeeded();
 					managerList.selectAll();
+					return;
+				case AXES_TOGGLE:
+					if (!keyController.emptySceneMsg()) keyController.toggleAxes();
 					return;
 				case FIND:
 					showPanelAsNeeded();
@@ -3898,22 +3934,19 @@ public class Viewer3D {
 				case TAG:
 					if (noLoadedItemsGuiError())
 						return;
-					if (managerList.isSelectionEmpty()) {
-						checkRetrieveAllOptions("objects");
-						if (!prefs.retrieveAllIfNoneSelected)
-							return;
-					}
-					final String tags = guiUtils.getString("Enter one or more tags (space or comma-separated list)\n"//
-							+ "to be assigned to selected items. Tags encoding a color\n"//
-							+ "(e.g., 'red', 'lightblue') will be use to highligh entries.\n"//
-							+ "After dismissing this dialog:\n" //
-							+ "  - Double-click on an object to edit its tags\n" //
-							+ "  - Double-click on '" + CheckBoxList.ALL_ENTRY.toString()
-							+ "' to add tags to the entire list", //
+					final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
+					if (managerList.isSelectionEmpty() && !all) return;
+					final String tags = guiUtils.getString("<p>Enter one or more tags (space or " //
+							+ "comma- separated list) to be assigned to selected items. Tags encoding "//
+							+ "a color (e.g., 'red', 'lightblue') will be use to highligh entries. "//
+							+ "After dismissing this dialog:</p><ul>" //
+							+ "<li>Double-click on an object to edit its tags</li>" //
+							+ "<li>Double-click on '" + CheckBoxList.ALL_ENTRY.toString()
+							+ "' to add tags to the entire list</li></ul>", //
 							"Add Tag(s)", "");
 					if (tags == null)
 						return; // user pressed cancel
-					managerList.applyTagToSelectedItems(tags);
+					managerList.applyTagToSelectedItems(tags, all);
 					return;
 				case TOGGLE_DARK_MODE:
 					setEnableDarkMode(!isDarkModeOn());
@@ -3995,21 +4028,7 @@ public class Viewer3D {
 			final JMenuItem fit = new JMenuItem(new Action(Action.FIT, KeyEvent.VK_F, false, false));
 			fit.setIcon(IconFactory.getMenuIcon(GLYPH.EXPAND));
 			sceneMenu.add(fit);
-			final JMenuItem fitToSelection = new JMenuItem("Fit To Selection", IconFactory.getMenuIcon(GLYPH.CROSSHAIR));
-			fitToSelection.addActionListener(e -> {
-				List<?> selection = managerList.getSelectedValuesList();
-				if (selection.isEmpty()) {
-					guiUtils.error("No items are currently selected.");
-					return;
-				}
-				if (selection.size() == 1 && CheckBoxList.ALL_ENTRY.equals(selection.get(0))) {
-					selection.clear();
-					selection = IntStream.range(0, managerList.getModel().getSize())
-							.mapToObj(managerList.getModel()::getElementAt).collect(Collectors.toList());
-				}
-				zoomTo(selection);
-			});
-			sceneMenu.add(fitToSelection);
+			sceneMenu.add(zoomToSelectionMenuItem());
 			// Aspect-ratio controls
 			sceneMenu.add(squarifyMenu());
 			sceneMenu.add(axesMenu());
@@ -4039,11 +4058,7 @@ public class Viewer3D {
 			rebuild.setIcon(IconFactory.getMenuIcon(GLYPH.RECYCLE));
 			sceneMenu.add(rebuild);
 			final JMenuItem wipe = new JMenuItem("Wipe Scene...", IconFactory.getMenuIcon(GLYPH.DANGER));
-			wipe.addActionListener(e -> {
-				if (guiUtils.getConfirmation("Remove all items from scene? This action cannot be undone.",
-						"Wipe Scene?"))
-					wipeScene();
-			});
+			wipe.addActionListener(e -> wipeWithPrompt());
 			sceneMenu.add(wipe);
 			sceneMenu.addSeparator();
 
@@ -4089,6 +4104,24 @@ public class Viewer3D {
 			return sceneMenu;
 		}
 
+		private JMenuItem zoomToSelectionMenuItem() {
+			final JMenuItem fitToSelection = new JMenuItem("Fit To Selection", IconFactory.getMenuIcon(GLYPH.CROSSHAIR));
+			fitToSelection.addActionListener(e -> {
+				List<?> selection = managerList.getSelectedValuesList();
+				if (managerList.getSelectedIndex() == -1 || selection.isEmpty()) {
+					guiUtils.error("No items are currently selected.");
+					return;
+				}
+				if (selection.size() == 1 && CheckBoxList.ALL_ENTRY.equals(selection.get(0))) {
+					selection.clear();
+					selection = IntStream.range(0, managerList.getModel().getSize())
+							.mapToObj(managerList.getModel()::getElementAt).collect(Collectors.toList());
+				}
+				zoomTo(selection.toArray(new Object[0]));
+			});
+			return fitToSelection;
+		}
+
 		private JMenu squarifyMenu() {
 			final JMenu menu = new JMenu("Impose Isotropic Scale");
 			menu.setIcon(IconFactory.getMenuIcon(GLYPH.EQUALS));
@@ -4106,6 +4139,26 @@ public class Viewer3D {
 		private JMenu axesMenu() {
 			final JMenu menu = new JMenu("Axes");
 			menu.setIcon(IconFactory.getMenuIcon(GLYPH.CHART_LINE));
+			final JMenuItem jmi = new JMenuItem("Axes Labels...");
+			jmi.addActionListener(e -> {
+				final String[] defaults = { view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
+						view.getAxisLayout().getZAxisLabel() };
+				final String[] labels = guiUtils.getStrings("Axes Labels...",
+						new String[] { "X axis ", "Y axis ", "Z axis " }, defaults);
+				if (labels != null) {
+					setAxesLabels(labels);
+					chart.setAxeDisplayed(true);
+				}
+			});
+			menu.add(jmi);
+			final JCheckBoxMenuItem jcbm = new JCheckBoxMenuItem("Display Frame", view.isDisplayAxisWholeBounds());
+			jcbm.addActionListener(e -> {
+				if (jcbm.isSelected()) chart.setAxeDisplayed(true);
+				view.setDisplayAxisWholeBounds(jcbm.isSelected());
+			});
+			menu.add(jcbm);
+			menu.add(new JMenuItem(new Action(Action.AXES_TOGGLE, KeyEvent.VK_A, false, false)));
+			menu.addSeparator();
 			final Map<String, Boolean> entries = Map.of("XY View: Flip Horizontal Axis",
 					view.get2DLayout().isHorizontalAxisFlip(), "XY View: Flip Vertical Axis",
 					view.get2DLayout().isVerticalAxisFlip());
@@ -4117,24 +4170,6 @@ public class Viewer3D {
 				});
 				menu.add(jcbmi);
 			});
-			menu.addSeparator();
-			final JCheckBoxMenuItem jcbmi = new JCheckBoxMenuItem("Display Bounding Box ", view.isDisplayAxisWholeBounds());
-			jcbmi.addActionListener(e -> {
-				if (jcbmi.isSelected()) chart.setAxeDisplayed(true);
-				view.setDisplayAxisWholeBounds(jcbmi.isSelected());
-			});
-			menu.add(jcbmi);
-			menu.addSeparator();
-			final JMenuItem jmi = new JMenuItem("Axes Labels...");
-			jmi.addActionListener(e -> {
-				final String[] defaults = { view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
-						view.getAxisLayout().getZAxisLabel() };
-				final String[] labels = guiUtils.getStrings("Axes Labels...",
-						new String[] { "X axis ", "Y axis ", "Z axis " }, defaults);
-				if (labels != null && labels[0] != null)
-					setAxesLabels(labels);
-			});
-			menu.add(jmi);
 			return menu;
 		}
 
@@ -4157,25 +4192,19 @@ public class Viewer3D {
 			wipeTags.addActionListener(e -> {
 				if (noLoadedItemsGuiError())
 					return;
-				if (managerList.isSelectionEmpty()) {
-					checkRetrieveAllOptions("objects");
-					if (!prefs.retrieveAllIfNoneSelected)
-						return;
-				}
-				if (guiUtils.getConfirmation("Remove all tags from selected items?", "Dispose All Tags?")) {
-					managerList.removeTagsFromSelectedItems();
+				final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
+				if (managerList.isSelectionEmpty() && !all) return;
+				if (guiUtils.getConfirmation("Remove all tags from " + ((all) ? "all" : "selected") + " items?",
+						"Dispose All Tags?")) {
+					managerList.removeTagsFromSelectedItems(all);
 				}
 			});
-			final JMenuItem assignSceneColorTags = new JMenuItem("Apply Scene-based Tags...", IconFactory.getMenuIcon(GLYPH.COLOR));
+			final JMenuItem assignSceneColorTags = new JMenuItem("Apply Scene-based Tags", IconFactory.getMenuIcon(GLYPH.COLOR));
 			assignSceneColorTags.addActionListener(e -> {
 				if (noLoadedItemsGuiError())
 					return;
-				if (managerList.isSelectionEmpty()) {
-					checkRetrieveAllOptions("objects");
-					if (!prefs.retrieveAllIfNoneSelected)
-						return;
-				}
-				managerList.applyRenderedColorsToSelectedItems();
+				final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
+				managerList.applyRenderedColorsToSelectedItems(all);
 			});
 			
 			// Select menu
@@ -4202,18 +4231,16 @@ public class Viewer3D {
 			final JMenuItem hideMeshes = new JMenuItem("Meshes");
 			hideMeshes.addActionListener(e -> hide(plottedTrees));
 			final JMenuItem hideTrees = new JMenuItem("Trees");
-			hideTrees.addActionListener(e -> {
-				setArborsDisplayed(getLabelsCheckedInManagerAsSet(), false);
-			});
+			hideTrees.addActionListener(e -> setArborsDisplayed(getLabelsCheckedInManager(), false));
 			final JMenuItem hideAnnotations = new JMenuItem("Annotations");
 			hideAnnotations.addActionListener(e -> hide(plottedAnnotations));
-			final JMenuItem hideSomas = new JMenuItem("Soma of Visible Trees");
-			hideSomas.addActionListener(e -> displaySomas(false));
-			final JMenuItem hideBoxes = new JMenuItem("Bounding Box of Visible Meshes");
-			hideBoxes.addActionListener(e -> displayMeshBoundingBoxes(false));
+			final JMenuItem hideSomas = new JMenuItem("Soma of Selected Trees");
+			hideSomas.addActionListener(e -> setSomasDisplayedOfSelectedTrees(false));
+			final JMenuItem hideBoxes = new JMenuItem("Bounding Box of Selected Meshes");
+			hideBoxes.addActionListener(e -> setBoundingBoxDisplayedOfSelectedMeshes(false));
 //			final JMenuItem hideAll = new JMenuItem("All");
 //			hideAll.addActionListener(e -> managerList.selectNone());
-			final JMenuItem hideSelected = new JMenuItem("Selected");
+			final JMenuItem hideSelected = new JMenuItem("Selected Items");
 			hideSelected.addActionListener(e -> displaySelectedObjects(false));
 			hideMenu.add(hideTrees);
 			hideMenu.add(hideMeshes);
@@ -4234,13 +4261,13 @@ public class Viewer3D {
 			showTrees.addActionListener(e -> show(plottedTrees));
 			final JMenuItem showAnnotations = new JMenuItem("Only Annotations");
 			showAnnotations.addActionListener(e -> show(plottedAnnotations));
-			final JMenuItem showSomas = new JMenuItem("Soma of Visible Trees");
-			showSomas.addActionListener(e -> displaySomas(true));
-			final JMenuItem showBoxes = new JMenuItem("Bounding Box of Visible Meshes");
-			showBoxes.addActionListener(e -> displayMeshBoundingBoxes(true));
+			final JMenuItem showSomas = new JMenuItem("Soma of Selected Trees");
+			showSomas.addActionListener(e -> setSomasDisplayedOfSelectedTrees(true));
+			final JMenuItem showBoxes = new JMenuItem("Bounding Box of Selected Meshes");
+			showBoxes.addActionListener(e -> setBoundingBoxDisplayedOfSelectedMeshes(true));
 //			final JMenuItem showAll = new JMenuItem("All");
 //			showAll.addActionListener(e -> managerList.selectAll());
-			final JMenuItem showSelected = new JMenuItem("Selected");
+			final JMenuItem showSelected = new JMenuItem("Selected Items");
 			showSelected.addActionListener(e -> displaySelectedObjects(true));
 			showMenu.add(showTrees);
 			showMenu.add(showMeshes);
@@ -4254,16 +4281,13 @@ public class Viewer3D {
 
 			final JMenuItem remove = new JMenuItem("Remove Selected...", IconFactory.getMenuIcon(GLYPH.TRASH));
 			remove.addActionListener(e -> {
-				if (noLoadedItemsGuiError()) {
+				if (managerList.getSelectedIndex() == managerList.getCheckBoxListSelectionModel().getAllEntryIndex()) {
+					wipeWithPrompt();
 					return;
 				}
 				final List<?> selectedKeys = managerList.getSelectedValuesList();
-				if (selectedKeys.isEmpty()) {
+				if (managerList.getSelectedIndex() == -1 || selectedKeys.isEmpty()) {
 					guiUtils.error("There are no selected entries.");
-					return;
-				}
-				if (selectedKeys.size() == 1 && CheckBoxList.ALL_ENTRY.equals(selectedKeys.get(0))) {
-					wipeScene();
 					return;
 				}
 				if (guiUtils.getConfirmation("Remove selected item(s)?", "Confirm Deletion?")) {
@@ -4282,6 +4306,7 @@ public class Viewer3D {
 			pMenu.add(selectMenu);
 			pMenu.add(showMenu);
 			pMenu.add(hideMenu);
+			pMenu.add(zoomToSelectionMenuItem());
 			pMenu.addSeparator();
 			pMenu.add(addTag);
 			pMenu.add(assignSceneColorTags);
@@ -4302,6 +4327,11 @@ public class Viewer3D {
 			return pMenu;
 		}
 
+		private void wipeWithPrompt() {
+			if (guiUtils.getConfirmation("Remove all items from scene? This action cannot be undone.", "Wipe Scene?"))
+				wipeScene();
+		}
+
 		private boolean noLoadedItemsGuiError() {
 			final boolean noItems = plottedTrees.isEmpty() && plottedObjs.isEmpty() && plottedAnnotations.isEmpty();
 			if (noItems) {
@@ -4310,29 +4340,24 @@ public class Viewer3D {
 			return noItems;
 		}
 
-		private void displaySomas(final boolean displayed) {
-			final Set<String> labels = getLabelsCheckedInManagerAsSet();
-			if (labels.isEmpty()) {
-				displayMsg("There are no visible reconstructions");
-				return;
-			}
-			setSomasDisplayed(labels, displayed);
+		private void setSomasDisplayedOfSelectedTrees(final boolean display) {
+			final List<String> keys = getSelectedTreeLabels();
+			if (keys != null)
+				setSomasDisplayed(keys, display);
 		}
 
-		private void displayMeshBoundingBoxes(final boolean display) {
-			final Set<String> labels = getLabelsCheckedInManagerAsSet();
-			if (labels.isEmpty()) {
-				displayMsg("There are no items selected");
-				return;
+		private void setBoundingBoxDisplayedOfSelectedMeshes(final boolean display) {
+			final List<String> keys = getSelectedMeshLabels();
+			if (keys != null) {
+				plottedObjs.forEach((k, mesh) -> {
+					if (keys.contains(k)) {
+						if (display && mesh.getBoundingBoxColor() == null)
+							mesh.setBoundingBoxColor(mesh.getColor());
+						mesh.setBoundingBoxDisplayed(display);
+					}
+				});
 			}
-			plottedObjs.forEach((k, mesh) -> {
-				if (labels.contains(k)) {
-					if (display && mesh.getBoundingBoxColor() == null)
-						mesh.setBoundingBoxColor(mesh.getColor());
-					mesh.setBoundingBoxDisplayed(display);
-				}
-			});
-		}
+		}				
 
 		private void selectRows(final Map<String, ?> map) {
 			final int[] indices = new int[map.keySet().size()];
@@ -4383,7 +4408,7 @@ public class Viewer3D {
 		}
 
 		private void hide(final Map<String, ?> map) {
-			final List<String> selectedKeys = new ArrayList<>(getLabelsCheckedInManagerAsSet());
+			final List<String> selectedKeys = new ArrayList<>(getLabelsCheckedInManager());
 			selectedKeys.removeAll(map.keySet());
 			managerList.setSelectedObjects(selectedKeys.toArray());
 		}
@@ -4427,7 +4452,7 @@ public class Viewer3D {
 		}
 
 		private List<Tree> getSelectedTrees() {
-			return getSelectedTrees(prefs.retrieveAllIfNoneSelected);
+			return getSelectedTrees(managerList.isSelectionEmpty() && isSelectAllIfNoneSelected());
 		}
 	
 		private List<Tree> getSelectedTrees(final boolean promptForAllIfNone) {
@@ -4451,7 +4476,7 @@ public class Viewer3D {
 		}
 
 		private List<Annotation3D> getSelectedAnnotations() {
-			return getSelectedAnnotations(prefs.retrieveAllIfNoneSelected);
+			return getSelectedAnnotations(managerList.isSelectionEmpty() && isSelectAllIfNoneSelected());
 		}
 	
 		private List<Annotation3D> getSelectedAnnotations(final boolean allowAllIfNone) {
@@ -4471,11 +4496,11 @@ public class Viewer3D {
 		}
 
 		private List<String> getSelectedTreeLabels() {
-			return getSelectedKeys(plottedTrees, "reconstructions", prefs.retrieveAllIfNoneSelected);
+			return getSelectedKeys(plottedTrees, "reconstructions", managerList.isSelectionEmpty() && isSelectAllIfNoneSelected());
 		}
 
-		private List<String> getSelectedMeshLabels(final boolean allowAllIfNone) {
-			return getSelectedKeys(plottedObjs, "meshes", allowAllIfNone);
+		private List<String> getSelectedMeshLabels() {
+			return getSelectedKeys(plottedObjs, "meshes", managerList.isSelectionEmpty() && isSelectAllIfNoneSelected());
 		}
 
 		private List<String> getSelectedKeys(final Map<String, ?> map,
@@ -4496,8 +4521,7 @@ public class Viewer3D {
 					|| (selectedKeys.size() == 1 && CheckBoxList.ALL_ENTRY.toString().equals(selectedKeys.get(0))))
 				return allKeys;
 			if (allowAllIfNone && selectedKeys.isEmpty()) {
-				checkRetrieveAllOptions(mapDescriptor);
-				if (prefs.retrieveAllIfNoneSelected) return allKeys;
+				if (isSelectAllIfNoneSelected()) return allKeys;
 				guiUtils.error("There are no selected " + mapDescriptor + ".");
 				return null;
 			}
@@ -4505,13 +4529,14 @@ public class Viewer3D {
 			return allKeys;
 		}
 
-		private void checkRetrieveAllOptions(final String mapDescriptor) {
-			if (!prefs.nagUserOnRetrieveAll) return;
-			final boolean[] options = guiUtils.getPersistentConfirmation(
-				"There are no items selected. "//
-					+ "Apply changes to all " + mapDescriptor + "?", "Apply to All?");
-			prefs.retrieveAllIfNoneSelected = options[0];
-			prefs.nagUserOnRetrieveAll = !options[1];
+		private boolean isSelectAllIfNoneSelected() {
+			if (prefs.nagUserOnRetrieveAll) {
+				final boolean[] options = guiUtils.getPersistentConfirmation("There are no items selected. "//
+						+ "Run command on all eligible items?", "Extend to All If None Selected?");
+				prefs.retrieveAllIfNoneSelected = options[0];
+				prefs.nagUserOnRetrieveAll = !options[1];
+			}
+			return prefs.retrieveAllIfNoneSelected;
 		}
 
 		private JPopupMenu measureMenu() {
@@ -4651,7 +4676,7 @@ public class Viewer3D {
 			GuiUtils.addSeparator(menu, "Customize:");
 			JMenuItem mi = new JMenuItem("All Parameters...", IconFactory.getMenuIcon(GLYPH.SLIDERS));
 			mi.addActionListener(e -> {
-				final List<String> keys = getSelectedMeshLabels(true);
+				final List<String> keys = getSelectedMeshLabels();
 				if (keys == null) return;
 				if (cmdService == null) {
 					guiUtils.error(
@@ -4694,7 +4719,7 @@ public class Viewer3D {
 			// Mesh customizations
 			mi = new JMenuItem("Color...", IconFactory.getMenuIcon(GLYPH.COLOR));
 			mi.addActionListener(e -> {
-				final List<String> keys = getSelectedMeshLabels(true);
+				final List<String> keys = getSelectedMeshLabels();
 				if (keys == null) return;
 				final ColorRGB c = new AnnotPrompt().getPromptColor("Mesh(es) Color");
 				if (c == null) {
@@ -4711,7 +4736,7 @@ public class Viewer3D {
 			mi = new JMenuItem("Transparency...", IconFactory.getMenuIcon(
 				GLYPH.ADJUST));
 			mi.addActionListener(e -> {
-				final List<String> keys = getSelectedMeshLabels(true);
+				final List<String> keys = getSelectedMeshLabels();
 				if (keys == null) return;
 				final Double t = new AnnotPrompt().getPromptTransparency("Mesh(es) Transparency...");
 				if (t == null) {
@@ -4733,7 +4758,7 @@ public class Viewer3D {
 				if (keys == null) return;
 				if (cmdService == null) {
 					guiUtils.error(
-						"This command requires Reconstruction Viewer to be aware of a Scijava Context");
+						"This command requires Reconstruction Viewer to be aware of a Scijava Context.");
 					return;
 				}
 				class getTreeColors extends SwingWorker<Object, Object> {
@@ -4764,6 +4789,10 @@ public class Viewer3D {
 							guiUtils.error("Command execution failed.");
 							return;
 						}
+//						final boolean reflectLight = (boolean) cmdModule.getInput("reflectLight");
+//						final boolean faceDisplayed = (boolean) cmdModule.getInput("faceDisplayed");
+//						final boolean wireframeDisplayed = (boolean) cmdModule.getInput("wireframeDisplayed");
+					
 						final Color sColor = fromColorRGB(colorMap.get("soma"));
 						final Color dColor = fromColorRGB(colorMap.get("dendrite"));
 						final Color aColor = fromColorRGB(colorMap.get("axon"));
@@ -4782,6 +4811,9 @@ public class Viewer3D {
 								if (dSize > -1) tree.setThickness((float) dSize, Path.SWC_DENDRITE);
 								if (aSize > -1) tree.setThickness((float) aSize, Path.SWC_AXON);
 							}
+//							tree.setReflectLight(reflectLight);
+//							tree.setFaceDisplayed(faceDisplayed);
+//							tree.setWireframeDisplayed(wireframeDisplayed);
 						}
 					}
 				}
@@ -5264,7 +5296,7 @@ public class Viewer3D {
 			mi = new JMenuItem("Remove Selected...", IconFactory.getMenuIcon(
 				GLYPH.DELETE));
 			mi.addActionListener(e -> {
-				final List<String> keys = getSelectedMeshLabels(false);
+				final List<String> keys = getSelectedMeshLabels();
 				if (keys == null || keys.isEmpty()) {
 					guiUtils.error("There are no selected meshes.");
 					return;
@@ -5343,7 +5375,7 @@ public class Viewer3D {
 								tree.getLabel() + " [Tips surface]", false);
 					final ColorRGB color = tree.getColor();
 					if (color != null)
-						annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(color))), 25);
+						annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(color))), 75);
 				}
 				setSceneUpdatesEnabled(true);
 				if (!failures.isEmpty()) {
@@ -5355,7 +5387,7 @@ public class Viewer3D {
 			mi = new JMenuItem("Mesh-based Cross-section Plane...", IconFactory.getMenuIcon(GLYPH.SCISSORS));
 			mi.setToolTipText("Adds cross-section plane(s) to selected meshes");
 			mi.addActionListener(e -> {
-				final List<String> meshLabels = getSelectedMeshLabels(true);
+				final List<String> meshLabels = getSelectedMeshLabels();
 				if (meshLabels == null)
 					return;
 				final AnnotPrompt prompt = new AnnotPrompt();
@@ -5377,7 +5409,7 @@ public class Viewer3D {
 			mi = new JMenuItem("Mesh-based Surface...", IconFactory.getMenuIcon(GLYPH.DICE_20));
 			mi.setToolTipText("Adds convex-hull tesselations to selected meshes");
 			mi.addActionListener(e -> {
-				final List<String> meshLabels = getSelectedMeshLabels(true);
+				final List<String> meshLabels = getSelectedMeshLabels();
 				if (meshLabels == null)
 					return;
 				final String[] choices = { "Left hemisphere", "Right hemisphere", "Both hemispheres" };
@@ -5392,7 +5424,7 @@ public class Viewer3D {
 					final Annotation3D annot = annotateSurface(vertices, mLabel + " [" + (("Both".equals(key)) ? "Full" : key) + " surface]", false);
 					final Color color = plottedObjs.get(mLabel).objMesh.getDrawable().getColor();
 					if (color != null)
-						annot.setColor(toColorRGB(Utils.contrastColor(color)), 25);
+						annot.setColor(toColorRGB(Utils.contrastColor(color)), 75);
 				}
 				setSceneUpdatesEnabled(true);
 			});
@@ -5540,6 +5572,7 @@ public class Viewer3D {
 					@Override
 					protected AllenCCFNavigator doInBackground() {
 						loadRefBrainAction(false, MESH_LABEL_ALLEN, false);
+						setAxesLabels( AllenUtils.getXYZLabels());
 						return new AllenCCFNavigator();
 					}
 
@@ -5614,6 +5647,7 @@ public class Viewer3D {
 				guiUtils.error(label + " is already loaded.");
 				return;
 			}
+			final String[] existingAxes = getAxesLabels();
 			if (setProgressBar) addProgressLoad(-1);
 			final SwingWorker<?, ?> worker = new SwingWorker<Boolean, Object>() {
 
@@ -5639,6 +5673,14 @@ public class Viewer3D {
 						SNTUtils.error(e.getMessage(), e);
 					} finally {
 						if (setProgressBar) removeProgressLoad(-1);
+						if (prefs.nagUserOnAxesChanges && !Arrays.equals(existingAxes, new String[] { "X", "Y", "Z" })
+								&& !Arrays.equals(existingAxes, getAxesLabels())) {
+							final Boolean prompt = guiUtils.getPersistentWarning(
+									String.format("Cartesian axes relabeled to %s", Arrays.toString(getAxesLabels())),
+									"Mapping of Cartesian Axes Changed");
+							if (prompt != null) // do nothing if user dismissed the dialog
+								prefs.nagUserOnAxesChanges = !prompt.booleanValue();
+						}
 					}
 				}
 			};
@@ -6171,7 +6213,7 @@ public class Viewer3D {
 			setVisibleRowCount(20);
 			addMouseListener(new java.awt.event.MouseAdapter() {
 				public void mouseClicked(final MouseEvent e) {
-					if (e.getClickCount() == 2 && !((HandlerPlus) _handler).clicksInCheckBox(e)) {
+					if (e.getClickCount() == 2 && !((HandlerPlus) _handler).clicksInCheckBox(e) && model.getSize() > 1) {
 
 						if (editPopup == null)
 							createEditPopup();
@@ -6196,25 +6238,23 @@ public class Viewer3D {
 						editPopup.setPreferredSize(new Dimension(r.width, r.height));
 						editPopup.show(CheckboxListEditable.this, r.x, r.y);
 						editTextField.requestFocusInWindow();
-						editTextField.addFocusListener(new FocusListener() {
-
-							@Override
-							public void focusGained(final FocusEvent e) {
-								getManagerPanel().disableActions = true;
-							}
-
-							@Override
-							public void focusLost(final FocusEvent e) {
-								getManagerPanel().disableActions = false;
-							}
-
-						});
-
 					} else {
 						_handler.mouseClicked(e);
 					}
 				}
 			});
+		}
+
+		@Override
+		protected CheckBoxListCellRenderer createCellRenderer() {
+			@SuppressWarnings("serial")
+			class CheckBoxListCellRendererPlus extends CheckBoxListCellRenderer {
+				public CheckBoxListCellRendererPlus() {
+					super();
+					_checkBox.setBorder(BorderFactory.createEmptyBorder(0, 2, 0, 2 + new JLabel().getIconTextGap()));
+				}
+			}
+			return new CheckBoxListCellRendererPlus();
 		}
 
 		@Override
@@ -6285,6 +6325,12 @@ public class Viewer3D {
 			return (Set<String>) (Set<?>) Arrays.stream(getCheckBoxListSelectedValues()).collect(Collectors.toSet());
 		}
 
+
+		@SuppressWarnings("unchecked")
+		private Set<String> getSelectedValuesAsSet() {
+			return new HashSet<String>(getSelectedValuesList());
+		}
+
 		@Override
 		protected Handler createHandler() {
 			return new HandlerPlus(this);
@@ -6323,26 +6369,50 @@ public class Viewer3D {
 				final String tag = editTextField.getText();
 				final int row = getSelectedIndex();
 				final String existingEntry = ((DefaultListModel) getModel()).get(row).toString();
-				if (ALL_ENTRY.toString().equals(existingEntry)) {
-					// textfield was empty
-					applyTagToSelectedItems(tag);
+				if (ALL_ENTRY.toString().equals(existingEntry) && !tag.trim().isEmpty()) {
+					applyTagToSelectedItems(tag, true);
 				} else {
 					if (tag.trim().isEmpty()) {
-						removeTagsFromSelectedItems();
+						removeTagsFromSelectedItems(false);
 					} else {
 						// textfield contained all tags
-						final String existingEntryWithoutTags = TagUtils.getUntaggedStringFromTags(existingEntry);
+						final String existingEntryWithoutTags = TagUtils.getUntaggedEntry(existingEntry);
 						final String newEntry = TagUtils.applyTag(existingEntryWithoutTags, tag);
 						((DefaultListModel<String>) getModel()).set(row, newEntry);
 					}
 				}
 				editPopup.setVisible(false);
 			});
+			editTextField.addFocusListener(new FocusListener() {
+
+				@Override
+				public void focusGained(final FocusEvent e) {
+					getManagerPanel().disableActions = true;
+				}
+
+				@Override
+				public void focusLost(final FocusEvent e) {
+					getManagerPanel().disableActions = false;
+				}
+
+			});
 			// Add the editor to the popup
 			editPopup = new JPopupMenu();
 			editPopup.setBorder(new javax.swing.border.EmptyBorder(0, 0, 0, 0));
 			editPopup.add(editTextField);
 			editPopup.setPreferredSize(getPreferredSize());
+			editTextField.setFocusable(true);
+			editPopup.addPopupMenuListener(new PopupMenuListener() {
+				// https://stackoverflow.com/a/16276936
+				@Override
+				public void popupMenuWillBecomeVisible(final PopupMenuEvent e) {
+					SwingUtilities.invokeLater(() -> editTextField.requestFocusInWindow());
+				}
+				@Override
+				public void popupMenuWillBecomeInvisible(final PopupMenuEvent e) {}
+				@Override
+				public void popupMenuCanceled(final PopupMenuEvent e) {}
+			});
 		}
 
 		@Override
@@ -6358,11 +6428,13 @@ public class Viewer3D {
 		}
 
 		@SuppressWarnings({ "unchecked" })
-		void applyRenderedColorsToSelectedItems() {
-			for (final int i : getSelectedIndices()) {
+		void applyRenderedColorsToSelectedItems(final boolean allOtherwiseSelectedOnly) {
+			final int[] indices = (allOtherwiseSelectedOnly) ? IntStream.range(0, getModel().getSize()).toArray() : getSelectedIndices();
+			for (final int i : indices) {
 				if (CheckBoxList.ALL_ENTRY.equals(getModel().getElementAt(i)))
 					continue;
-				final String entry = (String) getModel().getElementAt(i);
+				final String taggedEntry = (String) getModel().getElementAt(i);
+				final String entry = TagUtils.getUntaggedEntry(taggedEntry);
 				Color color = null;
 				if (plottedTrees.get(entry) != null) {
 					color = plottedTrees.get(entry).getArborColor();
@@ -6376,24 +6448,30 @@ public class Viewer3D {
 					color = plottedAnnotations.get(entry).getColor();
 				}
 				if (color != null) {
-					((DefaultListModel<String>) getModel()).set(i, TagUtils.applyColor(entry, toColorRGB(color)));
+					((DefaultListModel<String>) getModel()).set(i, TagUtils.applyColor(taggedEntry, toColorRGB(color)));
 				}
 			}
 		}
 	
 		@SuppressWarnings({ "unchecked" })
-		void applyTagToSelectedItems(final String tag) {
+		void applyTagToSelectedItems(final String tag, final boolean allOtherwiseSelectedOnly) {
 			final String cleansedTag = TagUtils.getCleansedTag(tag);
 			if (cleansedTag.trim().isEmpty()) return;
-			for (final int i : getSelectedIndices()) {
+			final int[] indices = (allOtherwiseSelectedOnly) ? IntStream.range(0, getModel().getSize()).toArray() : getSelectedIndices();
+			for (final int i :indices) {
+				if (i == getCheckBoxListSelectionModel().getAllEntryIndex())
+					continue;
 				final String entry = (String) ((DefaultListModel<?>) getModel()).get(i);
 				((DefaultListModel<String>) getModel()).set(i, TagUtils.applyTag(entry, tag));
 			}
 		}
 
 		@SuppressWarnings("unchecked")
-		void removeTagsFromSelectedItems() {
-			for (final int i : getSelectedIndices()) {
+		void removeTagsFromSelectedItems(final boolean allOtherwiseSelectedOnly) {
+			final int[] indices = (allOtherwiseSelectedOnly) ? IntStream.range(0, getModel().getSize()).toArray() : getSelectedIndices();
+			for (final int i : indices) {
+				if (i == getCheckBoxListSelectionModel().getAllEntryIndex())
+					continue;
 				final String entry = (String) ((DefaultListModel<?>) getModel()).get(i);
 				((DefaultListModel<String>) getModel()).set(i, TagUtils.removeAllTags(entry));
 			}
@@ -6512,7 +6590,7 @@ public class Viewer3D {
 			return "";
 		}
 
-		static String getUntaggedStringFromTags(final String entry) {
+		static String getUntaggedEntry(final String entry) {
 			final int openingDlm = entry.indexOf(" {");
 			if (openingDlm == -1) {
 				return entry;
@@ -7876,7 +7954,7 @@ public class Viewer3D {
 	{
 		final List<Drawable> all = chart.getView().getScene().getGraph()
 			.getAll();
-		final BoundingBox3d bounds = new BoundingBox3d(0, 0, 0, 0, 0, 0);
+		final BoundingBox3d bounds = new BoundingBox3d();
 		all.forEach(d -> {
 			if (d != null && d.isDisplayed() && d.getBounds() != null && !d
 				.getBounds().isReset())
@@ -8315,8 +8393,9 @@ public class Viewer3D {
 
 	/* IDE debug method */
 	public static void main(final String[] args) throws InterruptedException {
+		final ImageJ ij = new ImageJ();
+		ij.ui().showUI();
 		SNTUtils.setDebugMode(true);
-		GuiUtils.setLookAndFeel(GuiUtils.LAF_DARCULA, false);
 		final Viewer3D viewer = new Viewer3D(true);
 		final OBJMesh brainMesh = viewer.loadRefBrain("Allen CCF");
 		brainMesh.setBoundingBoxColor(Colors.RED);

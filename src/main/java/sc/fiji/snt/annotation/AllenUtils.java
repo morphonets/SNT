@@ -504,6 +504,15 @@ public class AllenUtils {
 		return mesh;
 	}
 
+	/**
+	 * 
+	 * @return the anatomical descriptions associated with the Cartesian X,Y,Z axes
+	 */
+	public static String[] getXYZLabels() {
+		// return new String[] { "Anterior-Posterior", "Inferior-Superior", "Left-Right" };
+		return new String[] { "Anterior-Posterior", "Dorsal-Ventral", "Left-Right (ML)" };
+	}
+
 	/* IDE Debug method */
 	public static void main(final String[] args) {
 		final AllenCompartment compartmentOfInterest = AllenUtils.getCompartment("CA3");

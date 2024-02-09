@@ -102,6 +102,15 @@ public class ZBAtlasUtils {
 		return mesh;
 	}
 
+	/**
+	 * 
+	 * @return the anatomical descriptions associated with the Cartesian X,Y,Z axes
+	 */
+	public static String[] getXYZLabels() {
+		// return new String[] { "Anterior-Posterior", "Inferior-Superior", "Left-Right" };
+		return new String[] { "Anterior-Posterior", "Dorsal-Ventral", "Left-Right (ML)" };
+	}
+
 }
 
 

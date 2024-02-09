@@ -227,6 +227,14 @@ public class VFBUtils {
 
 	}
 
+	/**
+	 * 
+	 * @return the anatomical descriptions associated with the Cartesian X,Y,Z axes
+	 */
+	public static String[] getXYZLabels() {
+		return new String[] { "Left-Right (ML)", "Dorsal-Ventral", "Anterior-Posterior" };
+	}
+
 	/* IDE Debug method */
 	public static void main(final String[] args) {
 		final String input = "00049000";

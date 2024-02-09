@@ -2327,7 +2327,7 @@ public class GuiUtils {
 		g.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[] { 10.0f },
 				0.0f));
 		final RoundRectangle2D.Double rect = new RoundRectangle2D.Double(GAP, component.getHeight() - GAP * 4 - HEIGHT,
-				component.getWidth() - GAP * 2, HEIGHT, GAP * 2, GAP * 2);
+				component.getWidth() - 1 - GAP * 2, HEIGHT, GAP * 2, GAP * 2);
 		g.draw(rect);
 		final String text = "Drag Files Here";
 		final Font font = g.getFont().deriveFont(g.getFont().getSize2D() * 1.2f).deriveFont(Font.ITALIC);
