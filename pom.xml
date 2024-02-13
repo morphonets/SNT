@@ -141,7 +141,7 @@
 
 		<!-- Dependency versions -->
 		<annotations.version>24.1.0</annotations.version>
-		<fastutil-core.version>8.5.12</fastutil-core.version>
+		<fastutil-core.version>8.5.13</fastutil-core.version>
 		<flatlaf.version>3.3</flatlaf.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
 		<font-awesome.version>6.5.1</font-awesome.version>
