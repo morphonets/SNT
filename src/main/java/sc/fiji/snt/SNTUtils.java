@@ -594,8 +594,8 @@ public class SNTUtils {
 	 */
 	public static Context getContext() {
 		if (context == null) {
-			LegacyInjector.preinit();
 			try {
+				LegacyInjector.preinit();
 				if (ij.IJ.getInstance() != null)
 					context = (Context) IJ.runPlugIn("org.scijava.Context", "");
 			} catch (final Throwable ex) {

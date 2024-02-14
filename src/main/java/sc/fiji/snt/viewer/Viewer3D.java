@@ -153,7 +153,6 @@ import com.jogamp.opengl.GLProfile;
 import com.jogamp.opengl.util.FPSAnimator;
 
 import ij.ImagePlus;
-import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.Path;
@@ -363,7 +362,6 @@ public class Viewer3D {
 		plottedAnnotations = new TreeMap<>();
 		initView();
 		prefs = new Prefs(this);
-		prefs.setPreferences();
 		setID();
 		SNTUtils.addViewer(this);
 	}
@@ -1567,6 +1565,7 @@ public class Viewer3D {
 		updateView();
 		frame.canvas.requestFocusInWindow();
 		frame.setVisible(true);
+		if (SNTUtils.isDebugMode()) logGLDetails();
 		gUtils.notifyIfNewVersion(0);
 		return frame;
 	}
@@ -1961,10 +1960,6 @@ public class Viewer3D {
 
 	private Set<String> getLabelsCheckedInManager() {
 		return managerList.getCheckBoxListSelectedValuesAsSet();
-	}
-
-	private Set<String> getLabelsSelectedInManager() {
-		return managerList.getSelectedValuesAsSet();
 	}
 
 	private <T extends Drawable> boolean allDrawablesRendered(
@@ -2937,6 +2932,7 @@ public class Viewer3D {
 		public ViewerFrame(final AChart chart, final int width, final int height, final boolean includeManager,
 				final GraphicsConfiguration gConfiguration) {
 			super();
+			GuiUtils.setLookAndFeel();
 			GuiUtils.removeIcon(this);
 			final String title = (chart.viewer.isSNTInstance()) ? " (SNT)" : " ("+ chart.viewer.getID() + ")";
 			statusPlaceHolder = (includeManager)
@@ -3302,17 +3298,17 @@ public class Viewer3D {
 			nagUserOnAxesChanges = DEF_NAG_USER_ON_RETRIEVE_ALL;
 			retrieveAllIfNoneSelected = DEF_RETRIEVE_ALL_IF_NONE_SELECTED;
 			treeCompartmentChoice = DEF_TREE_COMPARTMENT_CHOICE;
-			setSnapshotDirectory();
-			if (tp.prefService == null) {
-				kc.zoomStep = DEF_ZOOM_STEP;
-				kc.rotationStep = DEF_ROTATION_STEP;
-				mc.panStep = PAN.DEF_PAN_STEP;
-			}
-			else {
+			try {
+				setSnapshotDirectory();
 				kc.zoomStep = getZoomStep();
 				kc.rotationStep = getRotationStep();
 				mc.panStep = getPanStep();
 				storedSensitivity = null;
+			} catch (final Throwable ignored) {
+				kc.zoomStep = DEF_ZOOM_STEP;
+				kc.rotationStep = DEF_ROTATION_STEP;
+				mc.panStep = PAN.DEF_PAN_STEP;
+				snapshotDir = RecViewerPrefsCmd.DEF_SNAPSHOT_DIR;
 			}
 		}
 
@@ -4138,19 +4134,17 @@ public class Viewer3D {
 
 		private JMenu axesMenu() {
 			final JMenu menu = new JMenu("Axes");
-			menu.setIcon(IconFactory.getMenuIcon(GLYPH.CHART_LINE));
 			final JMenuItem jmi = new JMenuItem("Axes Labels...");
 			jmi.addActionListener(e -> {
 				final String[] defaults = { view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
 						view.getAxisLayout().getZAxisLabel() };
 				final String[] labels = guiUtils.getStrings("Axes Labels...",
 						new String[] { "X axis ", "Y axis ", "Z axis " }, defaults);
-				if (labels != null) {
+				if (labels != null)
 					setAxesLabels(labels);
-					chart.setAxeDisplayed(true);
-				}
 			});
 			menu.add(jmi);
+			menu.setIcon(IconFactory.getMenuIcon(GLYPH.CHART_LINE));
 			final JCheckBoxMenuItem jcbm = new JCheckBoxMenuItem("Display Frame", view.isDisplayAxisWholeBounds());
 			jcbm.addActionListener(e -> {
 				if (jcbm.isSelected()) chart.setAxeDisplayed(true);
@@ -6325,12 +6319,6 @@ public class Viewer3D {
 			return (Set<String>) (Set<?>) Arrays.stream(getCheckBoxListSelectedValues()).collect(Collectors.toSet());
 		}
 
-
-		@SuppressWarnings("unchecked")
-		private Set<String> getSelectedValuesAsSet() {
-			return new HashSet<String>(getSelectedValuesList());
-		}
-
 		@Override
 		protected Handler createHandler() {
 			return new HandlerPlus(this);
@@ -6445,7 +6433,7 @@ public class Viewer3D {
 					if (color == null)
 						color = plottedObjs.get(entry).getBoundingBoxColor();
 				} else if (plottedAnnotations.get(entry) != null) {
-					color = plottedAnnotations.get(entry).getColor();
+					color = plottedAnnotations.get(entry).getDrawableColor();
 				}
 				if (color != null) {
 					((DefaultListModel<String>) getModel()).set(i, TagUtils.applyColor(taggedEntry, toColorRGB(color)));
@@ -8325,7 +8313,6 @@ public class Viewer3D {
 			case OFFSCREEN:
 				return new OffScreenFactory();
 			case JOGL:
-				logGLDetails();
 				return new JOGLFactory();
 			default:
 				throw new IllegalArgumentException("Not a recognized render option: " + render.toString());
@@ -8393,8 +8380,6 @@ public class Viewer3D {
 
 	/* IDE debug method */
 	public static void main(final String[] args) throws InterruptedException {
-		final ImageJ ij = new ImageJ();
-		ij.ui().showUI();
 		SNTUtils.setDebugMode(true);
 		final Viewer3D viewer = new Viewer3D(true);
 		final OBJMesh brainMesh = viewer.loadRefBrain("Allen CCF");

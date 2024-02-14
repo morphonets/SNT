@@ -171,7 +171,6 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 			error("No paths to plot");
 			return;
 		}
-		GuiUtils.setLookAndFeel();
 		status("Building Plot...", false);
 		// Tree rotation occurs in place so we'll copy plotting coordinates
 		// to a new Tree. To avoid rotation lags we'll keep it monochrome,

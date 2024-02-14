@@ -406,7 +406,7 @@ public class Annotation3D {
 	 * @param transparencyPercent the color transparency (in percentage)
 	 */
 	public void setColor(final ColorRGB color, final double transparencyPercent) {
-		Color fallback = getColor();
+		Color fallback = getDrawableColor();
 		if (fallback == null) fallback = Color.YELLOW;
 		final float a = (transparencyPercent == -1) ? fallback.a : 	(float)( (100 - transparencyPercent) / 100);
 		final Color c = (color == null) ? fallback : new Color(color.getRed(), color.getGreen(), color.getBlue());
@@ -451,7 +451,13 @@ public class Annotation3D {
 		}
 	}
 
-	protected Color getColor() {
+	public ColorRGB getColor() {
+		final Color c = getDrawableColor();
+		if (c == null) return null;
+		return new ColorRGB((int) (c.r * 255 + 0.5), (int) (c.g * 255 + 0.5), (int) (c.b * 255 + 0.5));
+	}
+
+	protected Color getDrawableColor() {
 		if (drawable == null)
 			return null;
 		switch (type) {
@@ -496,6 +502,15 @@ public class Annotation3D {
 	 */
 	public void setColor(final String color, final double transparencyPercent) {
 		setColor(new ColorRGB(color), transparencyPercent);
+	}
+
+	/**
+	 * Script friendly method to assign a transparency to the annotation.
+	 *
+	 * @param transparencyPercent the color transparency (in percentage)
+	 */
+	public void setTransparency(final double transparencyPercent) {
+		setColor(getColor(), transparencyPercent);
 	}
 
 	/**

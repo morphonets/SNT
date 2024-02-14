@@ -109,7 +109,6 @@ import org.scijava.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
 import org.scijava.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
-import org.scijava.util.PlatformUtils;
 
 import ij.ImagePlus;
 import ij.plugin.ImagesToStack;
@@ -154,8 +153,6 @@ public class SNTChart extends ChartPanel {
 	protected SNTChart(final String title, final JFreeChart chart, final Dimension preferredSize) {
 		super(chart);
 		setTitle(title);
-		if (PlatformUtils.isLinux())
-			GuiUtils.setLookAndFeel();
 		if (chart != null) {
 			chart.setBackgroundPaint(BACKGROUND_COLOR);
 			chart.setAntiAlias(true);
@@ -188,6 +185,7 @@ public class SNTChart extends ChartPanel {
 
 	public JFrame getFrame() {
 		if (frame == null) {
+			GuiUtils.setLookAndFeel();
 			frame = new JFrame(getTitle());
 			frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 			frame.setLocationByPlatform(true);

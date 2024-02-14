@@ -68,6 +68,7 @@ import java.util.stream.DoubleStream;
 public class Path implements Comparable<Path> {
 
 	// http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
+	// https://swc-specification.readthedocs.io/en/latest/
 	
 	/** SWC type flag specifying {@value #SWC_UNDEFINED_LABEL} */
 	public static final int SWC_UNDEFINED = 0;
