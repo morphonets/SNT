@@ -2656,8 +2656,7 @@ public class SNTUI extends JDialog {
 		final JMenuItem measureWithPrompt = GuiUtils.MenuItems.measureOptions();
 		measureWithPrompt.addActionListener(e -> {
 			if (noPathsError()) return;
-			getPathManager().measureCells(((e.getModifiers() & ActionEvent.SHIFT_MASK) != 0)
-					|| ((e.getModifiers() & ActionEvent.ALT_MASK) != 0));
+			getPathManager().measureCells();
 		});
 		analysisMenu.add(measureWithPrompt);
 		analysisMenu.add(measureMenuItem);

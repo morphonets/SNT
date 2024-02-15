@@ -600,7 +600,7 @@ public class SNTUtils {
 				if (ij.IJ.getInstance() != null)
 					context = (Context) IJ.runPlugIn("org.scijava.Context", "");
 			} catch (final Throwable ex) {
-				error("Failed to retrieve context from IJ1", ex);
+				System.out.println("[ERROR] [SNT] Failed to retrieve context from IJ1: " + ex.getMessage());
 			} finally {
 				if (context == null) {
 					try {
@@ -608,7 +608,7 @@ public class SNTUtils {
 					} catch (final Throwable e) {
 						System.out.println("[SNTUtils] Full SciJava context could not be initialized: " + e.getMessage());
 						System.out.print("[SNTUtils] Trying initialization with preset services...");
-						// FIXME: When running SNT outside IJ, LegacyService fails to initialize!?
+						// FIXME: When running SNT outside IJ, some services fail to initialize!?
 						// We'll try to initialize a context with the services known to be needed by SNT
 						context = new Context(requiredServices());
 						System.out.print(" Done.");
@@ -628,7 +628,7 @@ public class SNTUtils {
 					}
 				});
 				if (context != null)
-					System.out.println("[SNTUtils] # of services loaded: " + context.getServiceIndex().size());
+					System.out.println(String.format("[INFO] [SNT] %d scijava services loaded", context.getServiceIndex().size()));
 			}
 		}
 		return context;

@@ -2200,7 +2200,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		plugin.getUI().showStatus(null, false);
 	}
 
-	protected void measureCells(final boolean legacyPrompt) {
+	protected void measureCells() {
 		final Collection<Tree> trees = getMultipleTrees();
 		if (trees == null) return;
 		if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
@@ -2681,8 +2681,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			else if (MEASURE_TREES_CMD.equals(cmd)) {
-				measureCells((e.getModifiers() & ActionEvent.SHIFT_MASK) != 0
-						|| (e.getModifiers() & ActionEvent.ALT_MASK) != 0);
+				measureCells();
 				return;
 			}
 			else if (MEASURE_PATHS_CMD.equals(cmd)) {

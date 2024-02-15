@@ -43,7 +43,6 @@ import org.jfree.chart.ui.HorizontalAlignment;
 import org.jfree.chart.ui.RectangleEdge;
 import org.scijava.Context;
 import org.scijava.plugin.Parameter;
-import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
@@ -79,9 +78,6 @@ public class Viewer2D extends TreeColorMapper {
 
 	@Parameter
 	private PlotService plotService;
-
-	@Parameter
-	private UIService uiService;
 
 	protected XYPlot plot;
 	private String title;

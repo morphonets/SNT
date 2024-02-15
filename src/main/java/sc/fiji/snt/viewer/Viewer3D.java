@@ -134,7 +134,6 @@ import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
-import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 import org.scijava.ui.awt.AWTWindows;
@@ -157,7 +156,6 @@ import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.TreeProperties;
@@ -333,23 +331,13 @@ public class Viewer3D {
 	private boolean abortCurrentOperation;
 	private final Engine ENGINE;
 	private SNTCommandFinder cmdFinder;
-
-
-	@Parameter
-	private Context context;
+	private ScriptRecorder recorder;
 
 	@Parameter
 	private CommandService cmdService;
 
 	@Parameter
-	private DisplayService displayService;
-
-	@Parameter
-	private SNTService sntService;
-
-	@Parameter
 	private PrefService prefService;
-	private ScriptRecorder recorder;
 
 	private Viewer3D(final Engine engine) {
 		SNTUtils.log("Initializing Viewer3D...");
@@ -3675,7 +3663,7 @@ public class Viewer3D {
 			debugCheckBox.addItemListener(e -> {
 				final boolean debug = debugCheckBox.isSelected();
 				if (isSNTInstance()) {
-					sntService.getInstance().getUI().setEnableDebugMode(debug);
+					SNTUtils.getInstance().getUI().setEnableDebugMode(debug);
 				} else {
 					SNTUtils.setDebugMode(debug);
 				}
@@ -4560,7 +4548,7 @@ public class Viewer3D {
 				initTable();
 				trees.forEach(tree -> {
 					final TreeStatistics tStats = new TreeStatistics(tree);
-					tStats.setContext(context);
+					tStats.setContext(SNTUtils.getContext());
 					tStats.setTable(table);
 					tStats.summarize(tree.getLabel(), true); // will display table
 				});
@@ -4674,11 +4662,8 @@ public class Viewer3D {
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedMeshLabels();
 				if (keys == null) return;
-				if (cmdService == null) {
-					guiUtils.error(
-						"This command requires Reconstruction Viewer to be aware of a Scijava Context");
-					return;
-				}
+				if (cmdService == null)
+					SNTUtils.getContext().inject(Viewer3D.this);
 				class getMeshColors extends SwingWorker<Object, Object> {
 
 					CommandModule cmdModule;
@@ -4752,11 +4737,8 @@ public class Viewer3D {
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedTreeLabels();
 				if (keys == null) return;
-				if (cmdService == null) {
-					guiUtils.error(
-						"This command requires Reconstruction Viewer to be aware of a Scijava Context.");
-					return;
-				}
+				if (cmdService == null)
+					SNTUtils.getContext().inject(Viewer3D.this);
 				class getTreeColors extends SwingWorker<Object, Object> {
 
 					CommandModule cmdModule;
@@ -5224,15 +5206,12 @@ public class Viewer3D {
 			legendMenu.add(mi);
 			mi = new JMenuItem("Edit Last...", IconFactory.getMenuIcon(GLYPH.SLIDERS));
 			mi.addActionListener(e -> {
-				if (cmdService == null) {
-					guiUtils.error(
-						"This command requires Reconstruction Viewer to be aware of a Scijava Context.");
-					return;
-				}
 				if (cBar == null) {
 					guiUtils.error("No Legend currently exists.");
 					return;
 				}
+				if (cmdService == null)
+					SNTUtils.getContext().inject(Viewer3D.this);
 				class GetLegendSettings extends SwingWorker<Object, Object> {
 
 					CommandModule cmdModule;
@@ -5691,11 +5670,8 @@ public class Viewer3D {
 			final Map<String, Object> inputs, final int cmdType,
 			final boolean setRecViewerParamater, final boolean indeterminateProgress)
 		{
-			if (cmdService == null) {
-				guiUtils.error(
-					"This command requires Reconstruction Viewer to be aware of a Scijava Context");
-				return;
-			}
+			if (cmdService == null)
+				SNTUtils.getContext().inject(Viewer3D.this);
 			SwingUtilities.invokeLater(() -> {
 				(new CmdWorker(cmdClass, inputs, cmdType, setRecViewerParamater, indeterminateProgress))
 					.execute();
