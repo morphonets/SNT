@@ -56,6 +56,8 @@ import sc.fiji.snt.util.ImpUtils;
 @Plugin(type = Command.class, label = "Convert Paths to Topographic Skeletons")
 public class SkeletonizerCmd implements Command {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	@Parameter
 	private UIService uiService;
 

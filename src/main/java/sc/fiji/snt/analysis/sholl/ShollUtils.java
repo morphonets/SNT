@@ -47,6 +47,8 @@ import ij.ImagePlus;
  */
 public class ShollUtils {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	/* Plugin Information */
 	public static final String URL = "https://imagej.net/plugins/sholl-analysis";
 

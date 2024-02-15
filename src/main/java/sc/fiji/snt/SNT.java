@@ -112,6 +112,8 @@ public class SNT extends MultiDThreePanes implements
 	SearchProgressCallback, HessianGenerationCallback, PathAndFillListener
 {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	@Parameter
 	private Context context;
 	@Parameter

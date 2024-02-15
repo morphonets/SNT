@@ -113,6 +113,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	TreeSelectionListener
 {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private static final long serialVersionUID = 1L;
 	private static final String FIT_URI = "https://imagej.net/plugins/snt/manual#refinefit";
 	private static final String SYM_MARKER = "M:"; //"\uD83D\uDD88"; // not displayed in macOS

@@ -40,6 +40,8 @@ import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 @SuppressWarnings("serial")
 class NormalPlaneCanvas extends TracerCanvas {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private static final Color COLOR_VALID_FIT = Color.GREEN;
 	private static final Color COLOR_INVALID_FIT = Color.RED;
 	private static final Color COLOR_MODE = Color.ORANGE;

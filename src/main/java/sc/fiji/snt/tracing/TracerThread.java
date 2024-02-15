@@ -39,6 +39,8 @@ import sc.fiji.snt.tracing.heuristic.Heuristic;
  */
 public class TracerThread extends SearchThread {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private int start_x;
 	private int start_y;
 	private int start_z;

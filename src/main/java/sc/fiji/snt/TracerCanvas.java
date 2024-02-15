@@ -36,6 +36,8 @@ import sc.fiji.snt.tracing.artist.SearchArtist;
 
 public class TracerCanvas extends MultiDThreePanesCanvas {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private static final long serialVersionUID = 3620108290844138287L;
 
 	protected PathAndFillManager pathAndFillManager;

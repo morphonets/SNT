@@ -46,6 +46,8 @@ import sc.fiji.snt.SNTPrefs;
 @Plugin(type = Command.class)
 public class CommonDynamicCmd extends DynamicCommand {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	protected static final String HEADER_HTML = "<html><body><div style='font-weight:bold;'>";
 	protected static final String EMPTY_LABEL = "<html>&nbsp;";
 

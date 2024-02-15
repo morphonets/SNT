@@ -49,6 +49,8 @@ import java.util.ArrayList;
  */
 public abstract class SearchThread extends AbstractSearch {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	public static final byte OPEN_FROM_START = 1;
 	public static final byte CLOSED_FROM_START = 2;
 	public static final byte OPEN_FROM_GOAL = 3;

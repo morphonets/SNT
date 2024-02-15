@@ -56,6 +56,8 @@ import trainableSegmentation.WekaSegmentation;
 @Plugin(type = Command.class, initializer = "init", visible = false, label = "Load Secondary Layer from TWS/Labkit Model...")
 public class WekaModelLoader extends CommonDynamicCmd {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg = "<HTML>This command applies a pre-trained Weka model to the image being traced (active<br>"
 			+ "channel/frame only), and loads the classification as a secondary tracing layer.<br>"

@@ -31,6 +31,8 @@ import ij.ImagePlus;
 //TODO: Support Scijava ColorTables
 public class ColorMaps {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	/**
 	 * Applies the "viridis" colormap to the specified (non-RGB) image
 	 * @param imp

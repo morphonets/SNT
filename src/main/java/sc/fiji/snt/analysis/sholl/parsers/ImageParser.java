@@ -49,6 +49,8 @@ import sc.fiji.snt.util.ShollPoint;
  */
 public class ImageParser extends ContextCommand implements Parser {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	@Parameter
 	protected StatusService statusService;
 

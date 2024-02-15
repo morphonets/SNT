@@ -41,6 +41,8 @@ import sc.fiji.snt.gui.GuiUtils;
  */
 public class BoundingBox {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private final static String DEF_SPACING_UNIT = "? units";
 
 	/** The 'voxel width' of the bounding box */

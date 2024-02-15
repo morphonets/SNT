@@ -83,6 +83,8 @@ import sc.fiji.snt.viewer.Viewer3D;
 		headless = false)
 public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private static final String HTML_TOOLTIP = "<html>";
 
 	@Parameter

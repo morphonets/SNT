@@ -39,6 +39,8 @@ import sc.fiji.snt.hyperpanes.MultiDThreePanes;
  */
 public class PointInImage implements SNTPoint {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	/** The cartesian coordinate of this node */
 	public double x, y, z;
 

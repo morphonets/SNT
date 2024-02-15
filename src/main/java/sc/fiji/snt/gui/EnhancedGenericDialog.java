@@ -61,6 +61,9 @@ import sc.fiji.snt.plugin.ij1.Sholl_Utils;
  */
 @Deprecated
 public class EnhancedGenericDialog extends GenericDialogPlus {
+	
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private static final long serialVersionUID = 1L;
 
 	private String labelOfHelpActionButton = null;

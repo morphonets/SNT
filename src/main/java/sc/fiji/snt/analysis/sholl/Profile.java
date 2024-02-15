@@ -39,6 +39,8 @@ import sc.fiji.snt.util.ShollPoint;
  */
 public class Profile implements ProfileProperties {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private SortedSet<ProfileEntry> profile;
 	private ShollPoint center;
 	private Calibration cal = new Calibration();

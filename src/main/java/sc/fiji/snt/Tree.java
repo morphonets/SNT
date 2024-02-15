@@ -64,6 +64,8 @@ import sc.fiji.snt.viewer.Viewer3D;
  */
 public class Tree implements TreeProperties {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	public static final int X_AXIS = 1;
 	public static final int Y_AXIS = 2;
 	public static final int Z_AXIS = 4;

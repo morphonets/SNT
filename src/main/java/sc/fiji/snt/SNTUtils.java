@@ -64,7 +64,6 @@ import org.scijava.plot.PlotService;
 import org.scijava.prefs.PrefService;
 import org.scijava.script.ScriptHeaderService;
 import org.scijava.script.ScriptService;
-import org.scijava.service.ServiceHelper;
 import org.scijava.table.Table;
 import org.scijava.table.io.TableIOService;
 import org.scijava.thread.ThreadService;
@@ -74,6 +73,7 @@ import org.scijava.ui.swing.script.LanguageSupportService;
 import org.scijava.util.FileUtils;
 import org.scijava.util.VersionUtils;
 import org.scijava.service.Service;
+import org.scijava.service.ServiceHelper;
 
 import fiji.util.Levenshtein;
 import ij.IJ;
@@ -87,7 +87,6 @@ import net.imagej.display.ImageDisplayService;
 import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imagej.ops.OpService;
-import net.imagej.patcher.LegacyInjector;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
@@ -101,6 +100,8 @@ import sc.fiji.snt.viewer.Viewer3D;
 
 /** Static utilities for SNT **/
 public class SNTUtils {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	/*
 	 * NB: This pattern needs to be OS agnostic: I.e., Microsoft Windows does not
@@ -594,8 +595,8 @@ public class SNTUtils {
 	 */
 	public static Context getContext() {
 		if (context == null) {
+			System.out.println("[SNTUtils] Retrieving org.scijava.Context...");
 			try {
-				LegacyInjector.preinit();
 				if (ij.IJ.getInstance() != null)
 					context = (Context) IJ.runPlugIn("org.scijava.Context", "");
 			} catch (final Throwable ex) {
@@ -605,17 +606,19 @@ public class SNTUtils {
 					try {
 						context = new Context();
 					} catch (final Throwable e) {
-						System.out.println("SciJava context could not be initialized properly [" + e.getMessage()
-								+ "] Some services may not be available!");
-						// FIXME: When running SNT outside IJ, LegacyService fails to initialize!? with
-						// several net.imagej.patcher.LegacyInjector errors. We'll try to initialize a
-						// context with the most common services needed skipping the problematic ones
-						context = new Context(requiredServices(false));
+						System.out.println("[SNTUtils] Full SciJava context could not be initialized: " + e.getMessage());
+						System.out.print("[SNTUtils] Trying initialization with preset services...");
+						// FIXME: When running SNT outside IJ, LegacyService fails to initialize!?
+						// We'll try to initialize a context with the services known to be needed by SNT
+						context = new Context(requiredServices());
+						System.out.print(" Done.");
+					} finally {
+						System.out.println("");
 					}
 				}
+				// Make sure required services have been loaded. Somehow SNTService is not when IJ is not running!?
 				final ServiceHelper sh = new ServiceHelper(context);
-				// we'll try once more to load anything that may have failed
-				requiredServices(true).forEach(s -> {
+				requiredServices().forEach(s -> {
 					if (context.getService(s) == null) {
 						try {
 							sh.loadService(s);
@@ -624,6 +627,8 @@ public class SNTUtils {
 						}
 					}
 				});
+				if (context != null)
+					System.out.println("[SNTUtils] # of services loaded: " + context.getServiceIndex().size());
 			}
 		}
 		return context;
@@ -637,7 +642,7 @@ public class SNTUtils {
 		SNTUtils.context = context;
 	}
 
-	private static List<Class<? extends Service>> requiredServices(final boolean includeLegacy) {
+	private static List<Class<? extends Service>> requiredServices() {
 		final List<Class<? extends Service>> services = new ArrayList<>();
 		services.add(BatchService.class);
 		services.add(CommandService.class);
@@ -660,10 +665,8 @@ public class SNTUtils {
 		services.add(ThreadService.class);
 		services.add(UIService.class);
 		services.add(SNTService.class);
-		if (includeLegacy) {
-			services.add(ImageJService.class);
-			services.add(LegacyService.class);
-		}
+		services.add(ImageJService.class);
+		services.add(LegacyService.class);
 		return services;
 	}
 

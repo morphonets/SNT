@@ -41,6 +41,8 @@ import sc.fiji.snt.util.ShollPoint;
  */
 public class ImageParser2D extends ImageParser {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private ImageProcessor ip;
 	private final boolean doSpikeSupression;
 	private int nSpans;

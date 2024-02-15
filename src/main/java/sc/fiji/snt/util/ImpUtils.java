@@ -51,6 +51,8 @@ import sc.fiji.snt.SNTUtils;
  */
 public class ImpUtils {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private ImpUtils() {} // prevent class instantiation
 
 	public static void removeIsolatedPixels(final ImagePlus binaryImp) {

@@ -32,6 +32,8 @@ import sc.fiji.snt.Path;
  */
 public class PointInCanvas extends PointInImage implements SNTPoint {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	public PointInCanvas(final double x, final double y, final double z) {
 		super(x, y, z);
 	}

@@ -89,6 +89,8 @@ public class PathAndFillManager extends DefaultHandler implements
 	UniverseListener, PathChangeListener
 {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	protected static final int TRACES_FILE_TYPE_COMPRESSED_XML = 1;
 	protected static final int TRACES_FILE_TYPE_UNCOMPRESSED_XML = 2;
 	protected static final int TRACES_FILE_TYPE_SWC = 3;

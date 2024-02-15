@@ -37,6 +37,8 @@ import sc.fiji.snt.Tree;
 
 public class DemoRunner {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private final SNTUI ui;
 	private final SNT snt;
 	private final SNTPrefs prefs;

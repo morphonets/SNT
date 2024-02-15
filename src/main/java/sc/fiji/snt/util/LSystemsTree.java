@@ -33,6 +33,8 @@ import ij.process.ImageProcessor;
  // See http://fractalfoundation.org/OFC/OFC-2-4.html
 public class LSystemsTree implements PlugIn {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	/** Debug method */
 	public static void main(final String[] args) {
 		IJ.runPlugIn("ipnat.skel.LSystemsTree", "");

@@ -53,6 +53,8 @@ import trainableSegmentation.Weka_Segmentation;
 @Plugin(type = Command.class, initializer = "init")
 public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	@Parameter
 	private SNTService sntService;
 

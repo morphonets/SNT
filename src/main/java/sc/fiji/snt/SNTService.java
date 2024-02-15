@@ -79,6 +79,8 @@ import sc.fiji.snt.viewer.Viewer3D;
 @Plugin(type = Service.class, priority = Priority.NORMAL)
 public class SNTService extends AbstractService implements ImageJService {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	@Parameter
 	private ScriptService scriptService;
 

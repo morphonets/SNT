@@ -49,6 +49,8 @@ import sc.fiji.snt.util.ShollPoint;
  */
 public class TreeParser implements Parser {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	/**
 	 * Flag for defining the profile center as the average position of root nodes
 	 * of all primary Paths.

@@ -44,6 +44,8 @@ import sc.fiji.snt.gui.GuiUtils;
 
 class QueueJumpingKeyListener implements KeyListener {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private static final int CTRL_CMD_MASK = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
 	private final SNT tracerPlugin;
 	private final InteractiveTracerCanvas canvas;

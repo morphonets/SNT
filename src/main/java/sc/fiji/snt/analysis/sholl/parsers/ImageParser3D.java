@@ -44,6 +44,8 @@ import sc.fiji.snt.util.ShollPoint;
  */
 public class ImageParser3D extends ImageParser {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private double vxW, vxH, vxD;
 	private int progressCounter;
 	private boolean skipSingleVoxels;

@@ -31,6 +31,8 @@ import net.imagej.axis.Axes;
  */
 public class Euclidean implements Heuristic {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
     private final Calibration calibration;
 
     public Euclidean(final Calibration calibration) {

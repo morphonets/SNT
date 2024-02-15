@@ -60,6 +60,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	ActionListener, FillerProgressCallback
 {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private static final long serialVersionUID = 1L;
 	protected static final String FILLING_URI = "https://imagej.net/plugins/snt/step-by-step-instructions#filling";
 	private static final int STATUS_MARGIN = 2;

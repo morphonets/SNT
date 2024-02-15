@@ -56,6 +56,8 @@ import org.scijava.prefs.PrefService;
  */
 public class PathFitter implements Callable<Path> {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	/** The default max radius constraining the fit. */
 	public static int DEFAULT_MAX_RADIUS = 10;
 

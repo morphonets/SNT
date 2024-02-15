@@ -30,6 +30,9 @@ import ij.gui.WaitForUserDialog;
  */
 @Deprecated
 public class EnhancedWaitForUserDialog extends WaitForUserDialog {
+	
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private static final long serialVersionUID = 1L;
 
 	/**

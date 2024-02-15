@@ -57,6 +57,8 @@ import sc.fiji.snt.util.ShollPoint;
  */
 public class ShollPlot extends Plot {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	/** Default colors for plotting sampled data */
 	private final Color SDATA_COLOR = Color.GRAY;
 	private final Color SDATA_ANNOT_COLOR = Color.LIGHT_GRAY;

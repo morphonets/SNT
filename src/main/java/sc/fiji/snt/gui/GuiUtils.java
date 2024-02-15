@@ -171,6 +171,8 @@ import sc.fiji.snt.util.SNTColor;
 /** Misc. utilities for SNT's GUI. */
 public class GuiUtils {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	public static final String LAF_LIGHT = FlatLightLaf.NAME;
 	public static final String LAF_LIGHT_INTJ = FlatIntelliJLaf.NAME;
 	public static final String LAF_DARK = FlatDarkLaf.NAME;

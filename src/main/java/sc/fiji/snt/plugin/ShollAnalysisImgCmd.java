@@ -107,6 +107,8 @@ import sc.fiji.snt.util.ShollPoint;
 		initializer = "init", headless = false)
 public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, Cancelable {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	@Parameter
 	private CommandService cmdService;
 	@Parameter

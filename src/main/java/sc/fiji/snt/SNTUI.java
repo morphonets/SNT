@@ -100,6 +100,8 @@ import java.util.*;
 @SuppressWarnings("serial")
 public class SNTUI extends JDialog {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	/* UI */
 	private static final int MARGIN = 2;
 	private JCheckBox showPathsSelected;

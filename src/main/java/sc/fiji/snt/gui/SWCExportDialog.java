@@ -72,6 +72,8 @@ import sc.fiji.snt.SNTUtils;
 @SuppressWarnings("serial")
 public class SWCExportDialog extends JDialog {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private boolean succeeded = false;
 
 	private final FilePicker filePicker;

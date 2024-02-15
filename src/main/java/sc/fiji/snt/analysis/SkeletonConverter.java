@@ -73,6 +73,8 @@ import smile.neighbor.Neighbor;
  */
 public class SkeletonConverter {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	/* scripting convenience: Keep references to AnalyzeSkeleton_ common fields */
 	/** Pruning mode: flag for lowest intensity branch pruning */
 	public static final int LOWEST_INTENSITY_BRANCH = AnalyzeSkeleton_.LOWEST_INTENSITY_BRANCH;

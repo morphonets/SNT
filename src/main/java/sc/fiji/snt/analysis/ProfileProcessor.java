@@ -61,6 +61,8 @@ import static sc.fiji.snt.util.ImgUtils.outOfBounds;
  */
 public class ProfileProcessor<T extends RealType<T>> implements Callable<double[]> {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private final RandomAccessibleInterval<T> rai;
 	private final Path path;
 	private final double avgSep;

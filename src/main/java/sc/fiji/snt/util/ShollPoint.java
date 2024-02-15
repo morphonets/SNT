@@ -34,6 +34,8 @@ import sc.fiji.snt.analysis.sholl.ShollUtils;
  */
 public class ShollPoint extends PointInImage {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	public int flag = NONE;
 
 	public final static int NONE = -1;

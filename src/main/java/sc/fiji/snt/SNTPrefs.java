@@ -47,6 +47,8 @@ import sc.fiji.snt.gui.GuiUtils;
  */
 public class SNTPrefs { // TODO: Adopt PrefService
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	public static final String NO_IMAGE_ASSOCIATED_DATA = "noImgData";
 	public static final String RESIZE_REQUIRED = "resizeNeeded";
 	public static final String RESTORE_LOADED_IMGS = "restoreLoadedImgs";

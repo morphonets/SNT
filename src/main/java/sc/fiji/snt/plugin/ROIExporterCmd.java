@@ -52,6 +52,8 @@ import sc.fiji.snt.Tree;
 @Plugin(type = Command.class, visible = false, label = "ROI Exporter")
 public class ROIExporterCmd implements Command {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	@Parameter
 	private UIService uiService;
 

@@ -60,6 +60,9 @@ import java.util.*;
  * @author Tiago Ferreira
  */
 public class SciViewSNT {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private final static String PATH_MANAGER_TREE_LABEL = "Path Manager Contents";
 
 	@Parameter

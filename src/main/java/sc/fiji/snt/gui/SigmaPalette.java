@@ -68,6 +68,8 @@ import sc.fiji.snt.util.ImpUtils;
  */
 public class SigmaPalette extends Thread {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	@Parameter
 	OpService opService;
 

@@ -45,6 +45,8 @@ import java.util.ArrayList;
  */
 public abstract class AbstractSearch implements SearchInterface, Runnable {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
     protected final RandomAccessibleInterval<? extends RealType<?>> img;
     protected final RandomAccess<? extends RealType<?>> imgAccess;
     public final int imgWidth;

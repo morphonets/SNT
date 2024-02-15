@@ -206,6 +206,8 @@ import sc.fiji.snt.viewer.OBJMesh.RemountableDrawableVBO;
  */
 public class Viewer3D {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private enum Engine {
 		JOGL(new String[] { "jogl", "gpu" }), EMUL_GL(new String[] { "cpu", "emulgl" }),
 		OFFSCREEN(new String[] { "offscreen", "headless" });

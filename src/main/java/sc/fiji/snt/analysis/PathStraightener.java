@@ -44,6 +44,8 @@ import sc.fiji.snt.SNTService;
  */
 public class PathStraightener {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private final Path path;
 	private final ImagePlus imp;
 	private int width = 20;

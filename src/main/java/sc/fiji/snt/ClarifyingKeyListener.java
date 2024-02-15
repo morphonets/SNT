@@ -41,6 +41,8 @@ import sc.fiji.snt.gui.GuiUtils;
  */
 class ClarifyingKeyListener implements KeyListener, ContainerListener {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private final SNT plugin;
 	private static final int DOUBLE_PRESS_INTERVAL = 300; // ms
 	private long timeKeyDown = 0; // last time key was pressed

@@ -47,6 +47,8 @@ import sc.fiji.snt.util.ShollPoint;
  */
 public class ShollAnalyzer {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	public static final String MEAN = "Mean";
 	public static final String MAX = "Max";
 	public static final String MAX_FITTED = "Max (fitted)";

@@ -47,6 +47,8 @@ import java.util.List;
 public class ImgUtils
 {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
     private ImgUtils() {}
 
     /**

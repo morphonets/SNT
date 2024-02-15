@@ -58,6 +58,8 @@ import sc.fiji.snt.util.PointInImage;
  */
 public class RoiConverter extends TreeAnalyzer {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	/** SNT's XY view (the default export plane) */
 	public static final int XY_PLANE = MultiDThreePanes.XY_PLANE;
 	/** SNT's ZY view */
