@@ -2565,7 +2565,7 @@ public class Viewer3D {
 	}
 
 	private void logSceneControls(final boolean abortIfRecorderNull) {
-		if (abortIfRecorderNull && recorder == null) {
+		if (abortIfRecorderNull && recorder == null && managerList != null) {
 			gUtils.error("Script recorder is not running.");
 			return;
 		}
