@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -24,8 +24,6 @@ package sc.fiji.snt.gui;
 
 import java.awt.Color;
 import java.awt.Component;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -88,47 +86,47 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	}
 
 	private JMenuItem createFindAndReplaceMenuItem() {
-		JMenuItem mi = new JMenuItem("Replace...");
+		final JMenuItem mi = new JMenuItem("Find and Replace...");
 		mi.addActionListener(e -> {
-			String findText = getSearchingText();
-			if (findText == null || findText.isEmpty()) {
-				guiUtils.error("No filtering string exists.", "No Filtering String");
-				return;
-			}
+			final String[] labels = { "<HTML>Find", "<HTML>Replace&nbsp;" };
+			if (getSearchable().isCaseSensitive())
+				labels[0] += " <i>[Aa]</i> ";
+			if (getSearchable().isWildcardEnabled())
+				labels[0] += " <i>[?*]</i> ";
+			labels[0] += "&nbsp;";
+			final String[] defaults = { getSearchingText(), "" };
+			final String[] findReplace = guiUtils.getStrings("Replace by Pattern...", labels, defaults);
+			if (findReplace == null || findReplace[0] == null || findReplace[0].isEmpty())
+				return; // user pressed cancel or chose no inputs
+			setSearchingText(findReplace[0]);
 			final boolean clickOnHighlightAllNeeded = !isHighlightAll();
-			if (clickOnHighlightAllNeeded) _highlightsButton.doClick();
+			if (clickOnHighlightAllNeeded)
+				_highlightsButton.doClick();
 			final Collection<Path> selectedPath = pmui.getSelectedPaths(false);
 			if (selectedPath.isEmpty()) {
-				guiUtils.error("No Paths matching '" + findText + "'.",
-					"No Paths Selected");
+				guiUtils.error("No Paths matching '" + findReplace[0] + "'.", "No Paths Selected");
 				return;
 			}
-			final String replaceText = guiUtils.getString(
-				"Please specify the text to replace all ocurrences of\n" + "\"" +
-					findText + "\" in the " + selectedPath.size() +
-					" Path(s) currently selected:", "Replace Filtering Pattern", null);
-			if (replaceText == null) {
-				if (clickOnHighlightAllNeeded) _highlightsButton.doClick(); // restore status
-				return; // user pressed cancel
-			}
+			if (findReplace[1] == null || findReplace[1].isEmpty())
+				return; // nothing to replace
 			if (getSearchable().isWildcardEnabled()) {
-				findText = findText.replaceAll("\\?", ".?");
-				findText = findText.replaceAll("\\*", ".*");
+				findReplace[0] = findReplace[0].replaceAll("\\?", ".?");
+				findReplace[0] = findReplace[0].replaceAll("\\*", ".*");
 			}
 			if (!getSearchable().isCaseSensitive()) {
-				findText = "(?i)" + findText;
+				findReplace[0] = "(?i)" + findReplace[0];
 			}
 			try {
-				final Pattern pattern = Pattern.compile(findText);
+				final Pattern pattern = Pattern.compile(findReplace[0]);
 				for (final Path p : selectedPath) {
-					p.setName(pattern.matcher(p.getName()).replaceAll(replaceText));
+					p.setName(pattern.matcher(p.getName()).replaceAll(findReplace[1]));
 				}
 				pmui.update();
-			}
-			catch (final IllegalArgumentException ex) { // PatternSyntaxException  etc.
+			} catch (final IllegalArgumentException ex) { // PatternSyntaxException etc.
 				guiUtils.error("Replacement pattern not valid: " + ex.getMessage());
 			} finally {
-				if (clickOnHighlightAllNeeded) _highlightsButton.doClick(); // restore status
+				if (clickOnHighlightAllNeeded)
+					_highlightsButton.doClick(); // restore status
 			}
 		});
 		return mi;
@@ -170,7 +168,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				guiUtils.error("No Cell IDs have been specified.");
 				return;
 			}
-			final String[] choices = ids.toArray(new String[ids.size()]);
+			final String[] choices = ids.toArray(new String[0]);
 			final String defChoice = pmui.getSNT().getPrefs().getTemp("cellidfilter", choices[0]);
 			final String chosenID = guiUtils.getChoice("Select Paths from which cell?", "Cell ID Filtering", choices,
 					defChoice);
@@ -306,13 +304,13 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		final Set<Integer> set = new HashSet<>();
 		try {
 			for (final String value : s.split(",\\s*")) {
-				if (value.indexOf("-") != -1) {
+				if (value.contains("-")) {
 					final String[] limits = value.split("-\\s*");
 					if (limits.length != 2) {
 						guiUtils.error("Input contained an invalid range.");
 						return;
 					}
-					IntStream.rangeClosed(Integer.valueOf(limits[0].trim()), Integer.valueOf(limits[1].trim())).forEach(v -> {
+					IntStream.rangeClosed(Integer.parseInt(limits[0].trim()), Integer.parseInt(limits[1].trim())).forEach(v -> {
 						set.add(v);
 					});
 				} else {
@@ -361,7 +359,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		String s = guiUtils.getString(msg, property + " Filtering", "10-100");
 		if (s == null) return; // user pressed cancel
 		s = s.toLowerCase();
-		if (s.indexOf("-") == -1) s = s + "-"+ s;
+		if (!s.contains("-")) s = s + "-"+ s;
 
 		double min = Double.MIN_VALUE;
 		double max = Double.MAX_VALUE;
@@ -390,6 +388,11 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			return;
 		}
 		doMorphoFiltering(filteredPaths, property, values[0], values[1]);
+		if (pmui.getSNT().getUI() != null && pmui.getSNT().getUI().getRecorder(false) != null) {
+			pmui.getSNT().getUI().getRecorder(false)
+					.recordCmd(String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\", %.2f, %.2f)",
+							property, values[0], values[1]));
+		}
 	}
 
 	public void doMorphoFiltering(final  Collection<Path> paths, final String property, final Number min, final Number max) {
@@ -479,12 +482,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			}
 		});
 		// There is a logic for when the "Highlights All" button is enabled. Apply it here too:
-		_highlightsButton.addPropertyChangeListener("enabled", new PropertyChangeListener() {
-			@Override
-			public void propertyChange(final PropertyChangeEvent evt) {
-				button.setEnabled(_highlightsButton.isEnabled());
-			}
-		});
+		_highlightsButton.addPropertyChangeListener("enabled", evt -> button.setEnabled(_highlightsButton.isEnabled()));
 		return button;
 	}
 

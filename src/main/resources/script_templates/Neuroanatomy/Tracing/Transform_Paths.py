@@ -1,16 +1,16 @@
 # @String(value="<HTML><b>Scale: Apply Scaling Factor(s)",visibility="MESSAGE") msg1
-# @double(label="X", min=0) xscale
-# @double(label="Y", min=0) yscale
-# @double(label="Z", min=0) zscale
-# @double(label="Radii", min=0) rscale
+# @double(label="X", min=0d, stepSize=0.05, style="format:#.00000") xscale
+# @double(label="Y", min=0d, stepSize=0.05, style="format:#.00000") yscale
+# @double(label="Z", min=0d, stepSize=0.05, style="format:#.00000") zscale
+# @double(label="Radii", min=0d, stepSize=0.05, style="format:#.00000") rscale
 # @boolean(label="Skip scaling") skip_scale
 # @String(value="<HTML><b>Translate: Apply Offset(s)  ",visibility="MESSAGE") msg2
-# @double(label="X") xtrans
-# @double(label="Y") ytrans
-# @double(label="Z") ztrans
+# @double(label="X", stepSize=0.05, style="format:#.00000") xtrans
+# @double(label="Y", stepSize=0.05, style="format:#.00000") ytrans
+# @double(label="Z", stepSize=0.05, style="format:#.00000") ztrans
 # @boolean(label="Skip translation") skip_trans
 # @String(value="<HTML><b>Rotate: Apply Rotation Angle ",visibility="MESSAGE") msg3
-# @double(label="Angle") angle
+# @double(label="Angle", stepSize=0.05, style="format:#.0000") angle
 # @String(label="Rotation axis", choices={"X", "Y", "Z"}) axis_choice
 # @boolean(label="Skip rotation") skip_rot
 # @String(value="<HTML><b>Swap Axes: Exchange Coordinates",visibility="MESSAGE") msg4
@@ -25,7 +25,7 @@
 """
 file:       Transform_Paths.py
 author:     Tiago Ferreira
-version:    20210512
+version:    20230808
 info:       Applies transformations to paths in the active SNT instance
 """
 
@@ -76,3 +76,4 @@ def run():
 
 
 run()
+

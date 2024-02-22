@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -48,7 +48,7 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label="Measure Path(s)...", initializer = "init")
+@Plugin(type = Command.class, label="Measure Path(s)...", initializer = "init")
 public class PathAnalyzerCmd extends CommonDynamicCmd {
 
 	private static final String TABLE_TITLE = "SNT Measurements";

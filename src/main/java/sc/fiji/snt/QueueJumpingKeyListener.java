@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -44,7 +44,9 @@ import sc.fiji.snt.gui.GuiUtils;
 
 class QueueJumpingKeyListener implements KeyListener {
 
-	private static final int CTRL_CMD_MASK = Toolkit.getDefaultToolkit().getMenuShortcutKeyMask();
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
+	private static final int CTRL_CMD_MASK = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
 	private final SNT tracerPlugin;
 	private final InteractiveTracerCanvas canvas;
 	private final Image3DUniverse univ;
@@ -103,7 +105,7 @@ class QueueJumpingKeyListener implements KeyListener {
 		// the keystroke is white-listed, 2) the user pressed a modifier key,
 		// 3) it is a numeric keypad or 'action' (eg, fn) key
 		final boolean doublePress = isDoublePress(e);
-		final boolean ctrl_down = (e.getModifiers() & CTRL_CMD_MASK) != 0;
+		final boolean ctrl_down = (e.getModifiersEx() & CTRL_CMD_MASK) != 0;
 		final boolean shift_down = e.isShiftDown();
 
 		if (keyCode == KeyEvent.VK_ESCAPE && canvas != null) {
@@ -129,7 +131,12 @@ class QueueJumpingKeyListener implements KeyListener {
 			return;
 		}
 		else if (ctrl_down && shift_down && keyCode == KeyEvent.VK_P && tracerPlugin.getUI() != null) {
-			tracerPlugin.getUI().runCommand("cmdPalette");
+			tracerPlugin.getUI().runCustomCommand("cmdPalette");
+			e.consume();
+			return;
+		}
+		else if (ctrl_down && keyCode == KeyEvent.VK_S && tracerPlugin.getUI() != null) {
+			tracerPlugin.getUI().saveToXML(shift_down);
 			e.consume();
 			return;
 		}
@@ -215,6 +222,10 @@ class QueueJumpingKeyListener implements KeyListener {
 			else if (keyChar == 'i' || keyChar == 'I')
 			{
 				canvas.appendLastCanvasPositionToEditingNode(false);
+			}
+			else if (keyChar == 'r' || keyChar == 'R')
+			{
+				canvas.assignRadiusToEditingNode(false);
 			}
 			else if (keyChar == 'l' || keyChar == 'L') {
 				canvas.toggleEditingNode(true);

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -27,18 +27,16 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Point;
-import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.IndexColorModel;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -50,7 +48,6 @@ import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JDialog;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
@@ -60,10 +57,7 @@ import javax.swing.JSpinner;
 import javax.swing.SwingConstants;
 import javax.swing.WindowConstants;
 
-import org.apache.batik.dom.GenericDOMImplementation;
-import org.apache.batik.svggen.SVGGraphics2D;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
-import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.LogAxis;
 import org.jfree.chart.axis.NumberAxis;
@@ -76,8 +70,6 @@ import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
-import org.w3c.dom.DOMImplementation;
-import org.w3c.dom.Document;
 
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -88,17 +80,20 @@ import ij.measure.ResultsTable;
 import ij.plugin.filter.Analyzer;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathAndFillManager;
+import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.plugin.ij1.Sholl_Analysis;
+import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.PointInImage;
 import util.FindConnectedRegions;
 
 @Deprecated
 public class ShollAnalysisDialog extends JDialog implements ActionListener {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private static final long serialVersionUID = 1L;
 
@@ -130,7 +125,7 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 	private String exportPath;
 	private final int margin = 10;
 
-	private GraphFrame graphFrame;
+	private SNTChart graphFrame;
 	private int numberOfSelectedPaths;
 	private int numberOfAllPaths;
 	private double sampleSeparation;
@@ -321,12 +316,10 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 				analyzeButton.setEnabled(true);
 			});
 			newThread.start();
-			return;
-
 		}
 		else if (source == exportProfileButton) {
 
-			// We only only to save the detailed profile. Summary profile will
+			// We only need to save the detailed profile. Summary profile will
 			// be handled by sholl.Sholl_Analysis
 
 			final SaveDialog sd = new SaveDialog("Export data as...", getExportPath(),
@@ -373,7 +366,7 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 
 			makePromptInteractive(false);
 			if (graphFrame != null) {
-				chart = graphFrame.chartPanel.getChart();
+				chart = graphFrame.getChart();
 				if (chart != null) {
 					chart.setNotify(false);
 					final TextTitle currentitle = chart.getTitle();
@@ -395,9 +388,10 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 				gUtils.error("Invalid data. Please revise options");
 				return;
 			}
-			if (graphFrame == null) graphFrame = new GraphFrame(chart, results
-				.getSuggestedSuffix());
-			else graphFrame.updateWithNewChart(chart, results.getSuggestedSuffix());
+			if (graphFrame == null) 
+				graphFrame = new SNTChart("Sholl Plot", chart);
+			else
+				graphFrame.setChart(chart);
 		}
 
 	}
@@ -456,132 +450,6 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 			.getImagePlus(), useAllPaths, useAllPaths ? numberOfAllPaths
 				: numberOfSelectedPaths, x_start, y_start, z_start, description, axes,
 			normalization, sampleSeparation, plugin.is2D());
-	}
-
-	private JDialog getDialog() {
-		return this;
-	}
-
-	private class GraphFrame extends JFrame implements ActionListener {
-
-		private static final long serialVersionUID = 1L;
-		private final JButton exportButton;
-		private JFreeChart chart = null;
-		private ChartPanel chartPanel = null;
-		private final JPanel mainPanel;
-		private String suggestedSuffix;
-
-		private void updateWithNewChart(final JFreeChart chart,
-			final String suggestedSuffix)
-		{
-			updateWithNewChart(chart, suggestedSuffix, false);
-		}
-
-		synchronized private void updateWithNewChart(final JFreeChart chart,
-			final String suggestedSuffix, final boolean setSize)
-		{
-			this.suggestedSuffix = suggestedSuffix;
-			if (chartPanel != null) remove(chartPanel);
-			chartPanel = null;
-			this.chart = chart;
-			chartPanel = new ChartPanel(chart);
-			if (setSize) chartPanel.setPreferredSize(new java.awt.Dimension(800,
-				600));
-			mainPanel.add(chartPanel, BorderLayout.CENTER);
-			validate();
-		}
-
-		private GraphFrame(final JFreeChart chart, final String suggestedSuffix) {
-			super();
-
-			this.suggestedSuffix = suggestedSuffix;
-
-			mainPanel = new JPanel();
-			mainPanel.setLayout(new BorderLayout());
-
-			updateWithNewChart(chart, suggestedSuffix, true);
-
-			final JPanel buttonsPanel = new JPanel();
-			exportButton = new JButton("Export graph as SVG");
-			exportButton.addActionListener(this);
-			buttonsPanel.add(exportButton);
-			mainPanel.add(buttonsPanel, BorderLayout.SOUTH);
-
-			setContentPane(mainPanel);
-			validate();
-			setSize(new java.awt.Dimension(500, 270));
-			setLocationRelativeTo(getDialog());
-			setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-		}
-
-		@Override
-		public void actionPerformed(final ActionEvent e) {
-			final Object source = e.getSource();
-			if (source == exportButton) {
-				exportGraphAsSVG();
-			}
-		}
-
-		private void exportGraphAsSVG() {
-
-			final SaveDialog sd = new SaveDialog("Export graph as...", "sholl" +
-				suggestedSuffix, ".svg");
-
-			if (sd.getFileName() == null) {
-				return;
-			}
-
-			final File saveFile = new File(sd.getDirectory(), sd.getFileName());
-			if ((saveFile != null) && saveFile.exists()) {
-				if (!gUtils.getConfirmation("Export graph...", "The file " + saveFile
-					.getAbsolutePath() + " already exists.\n" +
-					"Do you want to replace it?")) return;
-			}
-
-			try {
-				plugin.getUI().showStatus("Exporting graph to " + saveFile
-					.getAbsolutePath(), false);
-				exportChartAsSVG(chart, chartPanel.getBounds(), saveFile);
-			}
-			catch (final IOException ioe) {
-				gUtils.error("Saving to " + saveFile.getAbsolutePath() + " failed");
-				return;
-			}
-			plugin.getUI().showStatus("", false);
-
-		}
-
-		/**
-		 * Exports a JFreeChart to a SVG file.
-		 *
-		 * @param chart JFreeChart to export
-		 * @param bounds the dimensions of the viewport
-		 * @param svgFile the output file.
-		 * @throws IOException if writing the svgFile fails. This method is taken
-		 *           from: http://dolf.trieschnigg.nl/jfreechart/
-		 */
-		private void exportChartAsSVG(final JFreeChart chart,
-			final Rectangle bounds, final File svgFile) throws IOException
-		{
-
-			// Get a DOMImplementation and create an XML document
-			final DOMImplementation domImpl = GenericDOMImplementation
-				.getDOMImplementation();
-			final Document document = domImpl.createDocument(null, "svg", null);
-
-			// Create an instance of the SVG Generator
-			final SVGGraphics2D svgGenerator = new SVGGraphics2D(document);
-
-			// draw the chart in the SVG generator
-			chart.draw(svgGenerator, bounds);
-
-			// Write svg file
-			final OutputStream outputStream = new FileOutputStream(svgFile);
-			final Writer out = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8);
-			svgGenerator.stream(out, true /* use css */);
-			outputStream.flush();
-			outputStream.close();
-		}
 	}
 
 	public static final int AXES_NORMAL = 1;
@@ -990,7 +858,7 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 				"Regression gradient", "Regression intercept" };
 
 			final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
-				new FileOutputStream(outputFile.getAbsolutePath()), StandardCharsets.UTF_8));
+					Files.newOutputStream(Paths.get(outputFile.getAbsolutePath())), StandardCharsets.UTF_8));
 			final int columns = headers.length;
 			for (int c = 0; c < columns; ++c) {
 				SNTUtils.csvQuoteAndPrint(pw, headers[c]);
@@ -1029,7 +897,7 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 				? "Inters./Area" : "Inters./Volume" };
 
 			final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
-				new FileOutputStream(outputFile.getAbsolutePath()), StandardCharsets.UTF_8));
+					Files.newOutputStream(Paths.get(outputFile.getAbsolutePath())), StandardCharsets.UTF_8));
 			final int columns = headers.length;
 			for (int c = 0; c < columns; ++c) {
 				SNTUtils.csvQuoteAndPrint(pw, headers[c]);

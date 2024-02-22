@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -94,8 +94,7 @@ class CommonStats extends ContextCommand implements ShollStats {
 	public double getKStestOfFit() {
 		validateFit();
 		final KolmogorovSmirnovTest test = new KolmogorovSmirnovTest();
-		final double pValue = test.kolmogorovSmirnovTest(inputCounts, fCounts);
-		return pValue;
+		return test.kolmogorovSmirnovTest(inputCounts, fCounts);
 	}
 
 	public double getRSquaredOfFit() {
@@ -127,7 +126,7 @@ class CommonStats extends ContextCommand implements ShollStats {
 	protected double getAdjustedRSquaredOfFit(final int p) {
 		try {
 			double rSquared = getRSquaredOfFit();
-			rSquared = rSquared - (1 - rSquared) * (p / (nPoints - p - 1));
+			rSquared = rSquared - (1 - rSquared) * ((double) p / (nPoints - p - 1));
 			return rSquared;
 		} catch (final ArithmeticException ex) {
 			return Double.NaN;

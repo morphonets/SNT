@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -24,8 +24,10 @@ package sc.fiji.snt.analysis;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -34,7 +36,12 @@ import ij.gui.Overlay;
 import ij.gui.PointRoi;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
+import ij.gui.ShapeRoi;
+import ij.measure.Measurements;
+import ij.plugin.RoiEnlarger;
 import ij.process.FloatPolygon;
+import ij.process.ImageProcessor;
+import ij.process.ImageStatistics;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.SNTUtils;
@@ -50,6 +57,8 @@ import sc.fiji.snt.util.PointInImage;
  * @author Tiago Ferreira
  */
 public class RoiConverter extends TreeAnalyzer {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	/** SNT's XY view (the default export plane) */
 	public static final int XY_PLANE = MultiDThreePanes.XY_PLANE;
@@ -92,6 +101,17 @@ public class RoiConverter extends TreeAnalyzer {
 	/**
 	 * Instantiates a new Converter.
 	 *
+	 * @param paths the collection of Paths to be converted
+	 * @param imp   the image associated with the collection, used to properly
+	 *              assign C,T positions of converted nodes
+	 */
+	public RoiConverter(final Collection<Path> paths, final ImagePlus imp) {
+		this(new Tree(paths), imp);
+	}
+
+	/**
+	 * Instantiates a new Converter.
+	 *
 	 * @param tree the Tree to be converted
 	 * @param imp the image associated with the Tree, used to properly assign C,T
 	 *          positions of converted nodes
@@ -99,16 +119,17 @@ public class RoiConverter extends TreeAnalyzer {
 	public RoiConverter(final Tree tree, final ImagePlus imp) {
 		super(tree);
 		this.imp = imp;
-		hyperstack = imp.isHyperStack();
+		hyperstack = imp.getNChannels() > 1 || imp.getNFrames() > 1;
 		twoD = imp.getNSlices() == 1;
 	}
 
 	/**
-	 * Converts paths into 2D polyline ROIs (segment paths)
+	 * Converts paths into 2D polyline ROIs (segment paths).
 	 *
 	 * @param overlay the target overlay to hold converted paths
+	 * @return a reference to the overlay holding paths
 	 */
-	public void convertPaths(Overlay overlay) {
+	public Overlay convertPaths(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
 		for (final Path p : tree.list()) {
 			if (p.size() > 1) {
@@ -120,6 +141,7 @@ public class RoiConverter extends TreeAnalyzer {
 				convertPoints(pim, overlay, getColor(p), "SPP");
 			}
 		}
+		return overlay;
 	}
 
 	public List<PolygonRoi> getROIs(final Path path) {
@@ -188,11 +210,9 @@ public class RoiConverter extends TreeAnalyzer {
 	 * @see TreeAnalyzer#getTips()
 	 * @param overlay the target overlay to hold converted point
 	 */
-	@SuppressWarnings("deprecation")
 	public void convertTips(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
-		convertPoints(getTips(), overlay, Path.getSWCcolor(Path.SWC_END_POINT),
-			Path.SWC_END_POINT_LABEL);
+		convertPoints(getTips(), overlay, Color.PINK, "end point");
 	}
 
 	/**
@@ -221,7 +241,7 @@ public class RoiConverter extends TreeAnalyzer {
 	}
 
 	/**
-	 * Converts all the branch poisnts associated with the parsed paths into
+	 * Converts all the branch points associated with the parsed paths into
 	 * {@link ij.gui.PointRoi}s, adding them to the overlay of the image specified
 	 * in the constructor.
 	 * 
@@ -231,6 +251,18 @@ public class RoiConverter extends TreeAnalyzer {
 	 */
 	public void convertBranchPoints() throws IllegalArgumentException {
 		convertBranchPoints(getImpOverlay());
+	}
+
+	/**
+	 * Extracts all of the ROIs converted so far associated with the specified
+	 * Z-plane. It is assumed that ROIs are stored in the overlay of the image
+	 * specified in the constructor.
+	 * 
+	 * @throws IllegalArgumentException if this RoiConverter instance is not aware
+	 *                                  of any image
+	 */
+	public List<Roi> getZplaneROIs(final int zSlice) {
+		return getZplaneROIs(getImpOverlay(), zSlice);
 	}
 
 	private Overlay getImpOverlay() throws IllegalArgumentException {
@@ -250,11 +282,9 @@ public class RoiConverter extends TreeAnalyzer {
 	 * @see TreeAnalyzer#getBranchPoints()
 	 * @param overlay the target overlay to hold converted point
 	 */
-	@SuppressWarnings("deprecation")
 	public void convertBranchPoints(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
-		convertPoints(getBranchPoints(), overlay, Path.getSWCcolor(
-			Path.SWC_FORK_POINT), Path.SWC_FORK_POINT_LABEL);
+		convertPoints(getBranchPoints(), overlay, Color.ORANGE, "fork point");
 	}
 
 	/**
@@ -395,4 +425,129 @@ public class RoiConverter extends TreeAnalyzer {
 			super.addPoint(imp, ox, oy);
 		}
 	}
+
+	/**
+	 * Extracts ROIs associated with a specified Z position.
+	 * 
+	 * @param overlay the overlay holding ROIs
+	 * @param zSlice  the z-plane (1-based index)
+	 * @return the sub-list of ROIs associated with the specified Z position. Note
+	 *         that ROIs with a ZPosition of 0 are considered to be associated with
+	 *         all Z-slices of a stack
+	 */
+	public static List<Roi> getZplaneROIs(final Overlay overlay, final int zSlice) {
+		final List<Roi> rois = new ArrayList<>();
+		final Iterator<Roi> it = overlay.iterator();
+		while (it.hasNext()) {
+			final Roi roi = it.next();
+			// see #setPosition: In IJ1 ROIs w/ position 0 are associated with all slices of a stack
+			if ((roi.hasHyperStackPosition() && roi.getZPosition() == zSlice) || roi.getPosition() == zSlice
+					|| roi.getPosition() == 0) {
+				rois.add(roi);
+			}
+		}
+		return rois;
+	}
+
+	/**
+	 * Extracts ROIs associated with a specified CZT position. Only ROIS with known
+	 * hyperstackPosition are considered.
+	 * 
+	 * @param overlay the overlay holding ROIs
+	 * @Param channel the channel (1-based index)
+	 * @param zSlice the z-plane (1-based index)
+	 * @param tFrame the t-frame (1-based index)
+	 * @return the sub-list of ROIs associated with the specified CZT position
+	 * @see Roi#hasHyperStackPosition()
+	 */
+	public static List<Roi> getROIs(final Overlay overlay, final int channel, final int zSlice, final int tFrame) {
+		final List<Roi> rois = new ArrayList<>();
+		final Iterator<Roi> it = overlay.iterator();
+		while (it.hasNext()) {
+			final Roi roi = it.next();
+			if (roi.hasHyperStackPosition() && roi.getCPosition() == channel && roi.getZPosition() == zSlice
+					&& roi.getTPosition() == tFrame) {
+				rois.add(roi);
+			}
+		}
+		return rois;
+	}
+
+	public static Roi enlarge(Roi roi, final int pixels) {
+		if (roi == null || roi instanceof PointRoi)
+			return roi;
+		if (roi.isLine())
+			roi = Roi.convertLineToArea(roi);
+		return (Math.abs(pixels) < 256) ? RoiEnlarger.enlarge255(roi, pixels) : RoiEnlarger.enlarge(roi, pixels);
+	}
+
+	public static Roi combine(final List<Roi> rois) {
+		// from RoiManager#combine
+		if (rois.size() == 1) {
+			return rois.get(0);
+		}
+		final long nPoints = rois.stream().filter(roi -> roi.getType() == Roi.POINT).count();
+		if (nPoints == rois.size()) {
+			return combinePoints(rois);
+		}
+		return combineNonPoints(rois);
+	}
+
+	/**
+	 * Retrieves the radius of a circle with the same area of the specified area ROI.
+	 * 
+	 * @param imp     The image associated with the ROI
+	 * @param areaRoi The input area ROI
+	 * @return the radius (in calibrated units) of a circle with the same area of
+	 *         {@code areaRoi}
+	 */
+	public static double getFittedRadius(final ImagePlus imp, final Roi areaRoi) {
+		if (!areaRoi.isArea())
+			throw new IllegalArgumentException("Only area ROIs supported");
+		final Roi existingRoi = imp.getRoi();
+		final ImageProcessor ip = imp.getProcessor();
+		ip.setRoi(areaRoi);
+		final ImageStatistics stats = ImageStatistics.getStatistics(ip, Measurements.AREA, null);
+		imp.setRoi(existingRoi);
+		final double scaling = (imp.getCalibration().pixelWidth + imp.getCalibration().pixelHeight) / 2;
+		final double r = Math.sqrt(stats.pixelCount / Math.PI);
+		return r * scaling;
+	}
+
+	private static Roi combineNonPoints(final List<Roi> rois) {
+		ShapeRoi s1 = null;
+		ShapeRoi s2 = null;
+		for (Roi roi : rois) {
+			try {
+				if (!roi.isArea() && roi.getType() != Roi.POINT)
+					roi = Roi.convertLineToArea(roi);
+				if (s1 == null) {
+					if (roi instanceof ShapeRoi)
+						s1 = (ShapeRoi) roi.clone();
+					else
+						s1 = new ShapeRoi(roi);
+				} else {
+					if (roi instanceof ShapeRoi)
+						s2 = (ShapeRoi) roi;
+					else
+						s2 = new ShapeRoi(roi);
+					s1.or(s2);
+				}
+			} catch (final NullPointerException ex) {
+				SNTUtils.log("Skipping " + roi + " an exception occured " + ex.getMessage());
+			}
+		}
+		return (s1 == null) ? null : s1.trySimplify();
+	}
+
+	private static Roi combinePoints(final List<Roi> rois) {
+		final FloatPolygon fp = new FloatPolygon();
+		for (final Roi roi : rois) {
+			final FloatPolygon fpi = roi.getFloatPolygon();
+			for (int i = 0; i < fpi.npoints; i++)
+				fp.addPoint(fpi.xpoints[i], fpi.ypoints[i]);
+		}
+		return new PointRoi(fp);
+	}
+
 }

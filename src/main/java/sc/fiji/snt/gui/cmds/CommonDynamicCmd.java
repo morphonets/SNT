@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -43,8 +43,10 @@ import sc.fiji.snt.SNTPrefs;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false)
+@Plugin(type = Command.class)
 public class CommonDynamicCmd extends DynamicCommand {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	protected static final String HEADER_HTML = "<html><body><div style='font-weight:bold;'>";
 	protected static final String EMPTY_LABEL = "<html>&nbsp;";
@@ -66,7 +68,7 @@ public class CommonDynamicCmd extends DynamicCommand {
 			error("SNT is not running.");
 			return;
 		}
-		snt = sntService.getPlugin();
+		snt = sntService.getInstance();
 		ui = sntService.getUI();
 		if (ui != null) ui.changeState(SNTUI.RUNNING_CMD);
 	}
@@ -114,18 +116,18 @@ public class CommonDynamicCmd extends DynamicCommand {
 
 	protected void notifyLoadingStart(final Viewer3D recViewer) {
 		if (ui != null) ui.changeState(SNTUI.LOADING);
-		startLoopProgress(recViewer);
-	}
-
-	protected void startLoopProgress(final Viewer3D recViewer) {
-		if (recViewer != null && recViewer.getManagerPanel() != null) {
-			recViewer.getManagerPanel().showProgress(-1, -1);
+		if (recViewer != null) {
+			recViewer.setSceneUpdatesEnabled(false);
+			if (recViewer.getManagerPanel() != null)
+				recViewer.getManagerPanel().showProgress(-1, -1);
 		}
 	}
 
-	protected void resetProgress(final Viewer3D recViewer) {
-		if (recViewer != null && recViewer.getManagerPanel() != null) {
-			recViewer.getManagerPanel().showProgress(0, 0);
+	protected void notifyLoadingEnd(final Viewer3D recViewer) {
+		if (recViewer != null) {
+			if (recViewer.getManagerPanel() != null)
+				recViewer.getManagerPanel().showProgress(0, 0);
+			recViewer.setSceneUpdatesEnabled(true);
 		}
 	}
 
@@ -144,11 +146,6 @@ public class CommonDynamicCmd extends DynamicCommand {
 				ui.runCommand("validateImgDimensions");
 		}
 		statusService.clearStatus();
-	}
-
-	protected void resetUI(final Viewer3D recViewer) {
-		resetUI();
-		resetProgress(recViewer);
 	}
 
 	protected void notifyExternalDataLoaded() { //TODO: Implement listener

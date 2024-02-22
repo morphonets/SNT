@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -24,6 +24,7 @@ package sc.fiji.snt;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -41,6 +42,7 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -61,6 +63,8 @@ import sc.fiji.snt.viewer.Viewer3D;
  * @author Cameron Arshadi
  */
 public class Tree implements TreeProperties {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	public static final int X_AXIS = 1;
 	public static final int Y_AXIS = 2;
@@ -100,12 +104,26 @@ public class Tree implements TreeProperties {
 			// If fitted flavor of path exists use it instead
 			if (p.getUseFitted() && p.getFitted() != null) {
 				pathToAdd = p.getFitted();
-			}
-			else {
+			} else {
 				pathToAdd = p;
 			}
 			tree.add(pathToAdd);
 		}
+		final String unit = getCommonUnit(paths);
+		if (unit != null)
+			getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, unit);
+	}
+
+	private String getCommonUnit(final Collection<Path> paths) {
+		if (paths.isEmpty()) 
+			return null;
+		final Iterator<Path> it = paths.iterator();
+		final String ref = it.next().spacing_units;
+		while (it.hasNext()) {
+			if (!ref.equals(it.next().spacing_units))
+				return null;
+		}
+		return ref;
 	}
 
 	/**
@@ -145,7 +163,7 @@ public class Tree implements TreeProperties {
 	 * Instantiates a new tree from a SWC, TRACES or JSON file with filtering.
 	 *
 	 * @param filename    the absolute file path of the imported file
-	 * @param compartment A case insensitive string with at least 2 characters
+	 * @param compartment A case-insensitive string with at least 2 characters
 	 *                    describing the sub-cellular compartment (axonal or
 	 *                    dendritic) to be imported (e.g., 'axon', 'dendrites',
 	 *                    'axn', 'dnd', etc.). It is ignored if {@code filename}
@@ -189,6 +207,8 @@ public class Tree implements TreeProperties {
 		}
 		if (pafm == null)
 			throw new IllegalArgumentException("No paths extracted from " + filename + " Invalid file/compartment?");
+		if (getProperties().get(Tree.KEY_SPATIAL_UNIT) == null)
+			getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, pafm.getBoundingBox(false).getUnit());
 	}
 
 	/**
@@ -462,20 +482,8 @@ public class Tree implements TreeProperties {
 
 		// Now remove all linkages and references to non-filtered paths
 		for (final Path p : subtree.list()) {
-			final Iterator<Path> joinsIt = p.somehowJoins.iterator();
-			while (joinsIt.hasNext()) {
-				final Path joins = joinsIt.next();
-				if (!matchesType(joins, swcTypes)) {
-					joinsIt.remove();
-				}
-			}
-			final Iterator<Path> childrenIt = p.children.iterator();
-			while (childrenIt.hasNext()) {
-				final Path child = childrenIt.next();
-				if (!matchesType(child, swcTypes)) {
-					childrenIt.remove();
-				}
-			}
+			p.somehowJoins.removeIf(joins -> !matchesType(joins, swcTypes));
+			p.children.removeIf(child -> !matchesType(child, swcTypes));
 			if (p.startJoins == null)
 				p.setIsPrimary(true);
 			else if (p.startJoins != null && !matchesType(p.startJoins, swcTypes)) {
@@ -600,7 +608,7 @@ public class Tree implements TreeProperties {
 			default:
 				break; // keep input
 		}
-		final int labelIdx = Path.getSWCtypeNames().indexOf(type);
+		final int labelIdx = Path.getSWCtypeNames().indexOf(inputType);
 		if (labelIdx == -1) throw new IllegalArgumentException(
 			"Unrecognized SWC-type label:" + type);
 		final int intType = Path.getSWCtypes().get(labelIdx);
@@ -679,7 +687,7 @@ public class Tree implements TreeProperties {
 	public boolean validSoma() {
 		final List<Path> somas = tree.stream().filter(path -> Path.SWC_SOMA == path.getSWCType())
 				.collect(Collectors.toList());
-		return !somas.isEmpty() && somas.size() < 2 && somas.stream().allMatch(Path::isPrimary);
+		return somas.size() == 1 && somas.stream().allMatch(Path::isPrimary);
 	}
 
 	/**
@@ -927,7 +935,7 @@ public class Tree implements TreeProperties {
 	 * Gets the bounding box associated with this tree.
 	 *
 	 * @param computeIfUnset if {@code true} no BoundingBox has been explicitly
-	 *          set, and, a BoundingBox will be compute from all the nodes of this
+	 *          set, and, a BoundingBox will be computed from all the nodes of this
 	 *          Tree
 	 * @return the BoundingBox
 	 */
@@ -935,8 +943,11 @@ public class Tree implements TreeProperties {
 		final boolean compute = box == null || computeIfUnset || box.isComputationNeeded();
 		if (box == null) 
 			box = new TreeBoundingBox();
-		if (compute)
+		if (compute) {
 			box.compute(getNodes().iterator());
+			if (getProperties().get(KEY_SPATIAL_UNIT) != null)
+				box.setUnit(getProperties().getProperty(KEY_SPATIAL_UNIT));
+		}
 		return box;
 	}
 
@@ -998,7 +1009,7 @@ public class Tree implements TreeProperties {
 			slices_data[z] = (short[]) s.getPixels(destinationImp.getStackIndex(channel, z + 1, frame));
 		}
 		initPathAndFillManager();
-		pafm.setPathPointsInVolume(list(), slices_data, value, width, height, depth);
+		pafm.setPathPointsInVolume(list(), slices_data, value, width, height);
 	}
 
 	/**
@@ -1008,7 +1019,24 @@ public class Tree implements TreeProperties {
 	 * @see #skeletonize(ImagePlus, int)
 	 */
 	public ImagePlus getSkeleton() {
+		final ImagePlus imp =  getSkeleton(65535);
+		ImpUtils.convertTo8bit(imp);
+		return imp;
+	}
 
+	/**
+	 * Retrieves the rasterized skeleton of this tree at 1:1 scaling.
+	 *
+	 * @param pixelValue the voxel intensities of the skeleton. If {@code -1}, each
+	 *                   path in the tree is rendered uniquely (labels image)
+	 * @return the skeletonized 16-bit binary image
+	 * @see #skeletonize(ImagePlus, int)
+	 */
+	public ImagePlus getSkeleton(final int pixelValue) {
+		return getSkeletonInternal(pixelValue, false);
+	}
+
+	private ImagePlus getSkeletonInternal(final int pixelValue, final boolean ignoreDepth) {
 		// Find what is the offset of the tree relative to (0,0,0).
 		// We'll set padding margins similarly to getImpContainer()
 		SNTUtils.log("Skeletonizing "+ getLabel());
@@ -1016,7 +1044,7 @@ public class Tree implements TreeProperties {
 		final double width = box.width();
 		final double height = box.height();
 		final double depth = box.depth();
-		final boolean threeD = depth > 0;
+		final boolean threeD = depth > 0 && !ignoreDepth;
 		final int xyMargin = 3;
 		final int zMargin = (threeD) ? 1 : 0;
 		final double xOffset = box.origin().getX() - xyMargin;
@@ -1043,13 +1071,11 @@ public class Tree implements TreeProperties {
 		if (d < 1) d = 1;
 		if (d > 1) d += (2 * zMargin);
 		SNTUtils.log("  Allocating " + w + "x" + h + "x" + d + " pixels (16-bit)");
-		final ImagePlus imp = IJ.createImage("Skel " + getLabel(), w, h, d, 16);
+		final ImagePlus imp = IJ.createImage("Skel " + getLabel(), w, h, (threeD)?d:1, 16);
 
 		// Skeletonize
-		skeletonize(imp, 65535);
-		SNTUtils.convertTo8bit(imp);
-		if (getBoundingBox().isScaled())
-			imp.setCalibration(getBoundingBox().getCalibration());
+		skeletonize(imp, pixelValue);
+		imp.getLocalCalibration().setUnit(getBoundingBox().getUnit());
 
 		// Restore initial state
 		SNTUtils.log("  Skeletonization complete");
@@ -1115,7 +1141,7 @@ public class Tree implements TreeProperties {
 
 		// Skeletonize
 		skeletonize(imp, 65535);
-		SNTUtils.convertTo8bit(imp);
+		ImpUtils.convertTo8bit(imp);
 		if (getBoundingBox().isScaled())
 			imp.setCalibration(getBoundingBox().getCalibration());
 
@@ -1144,8 +1170,22 @@ public class Tree implements TreeProperties {
 	 * @see #getSkeleton()
 	 */
 	public ImagePlus getSkeleton2D() {
-		final ImagePlus imp = getSkeleton();
-		return (imp.getNDimensions() > 2) ? SNTUtils.getMIP(imp) : imp;
+		final ImagePlus imp =  getSkeleton2D(65535);
+		ImpUtils.convertTo8bit(imp);
+		return imp;
+	}
+
+	/**
+	 * Retrieves a 2D projection of the rasterized skeleton of this tree at 1:1
+	 * scaling.
+	 * 
+	 * @param pixelValue the pixel intensities of the skeleton. If {@code -1}, each
+	 *                   path in the tree is rendered uniquely (labels image)
+	 * @return the skeletonized 16-bit binary image
+	 * @see #getSkeleton(int)
+	 */
+	public ImagePlus getSkeleton2D(final int pixelValue) {
+		return getSkeletonInternal(pixelValue, true);
 	}
 
 	/**
@@ -1207,6 +1247,11 @@ public class Tree implements TreeProperties {
 		final ColorRGBA finalColor = new ColorRGBA(baseColor.getRed(), baseColor.getGreen(),
 				baseColor.getBlue(), (int) Math.round((100 - transparencyPercent) * 255 / 100));
 		setColor(finalColor);
+	}
+
+	public ColorRGB getColor() {
+		final String sColor = getProperties().getProperty(Tree.KEY_COLOR);
+		return (sColor == null) ? null : new ColorRGB(sColor);
 	}
 
 	/**
@@ -1348,18 +1393,27 @@ public class Tree implements TreeProperties {
 		if (f.isDirectory()) {
 			return listFromDir(tracesOrJsonFile);
 		}
-		final Tree dummyTree = new Tree();
+		Collection<Tree> trees;
+		final String baseName;
 		try {
-			dummyTree.initPathAndFillManagerFromFile(tracesOrJsonFile, "all");
-		} catch (final IllegalArgumentException ignored) {
+			if (f.getName().toLowerCase().endsWith(".json")) {
+				return MouseLightLoader.extractTrees(f, "all").values();
+			} else {
+				final PathAndFillManager pafm = new PathAndFillManager();
+				pafm.setHeadless(true);
+				baseName = SNTUtils.stripExtension(f.getName());
+				pafm.loadGuessingType(baseName, Files.newInputStream(f.toPath()));
+				trees = pafm.getTrees();
+			}
+		} catch (final IOException e) {
+			SNTUtils.error("File not parsed", e);
 			return new ArrayList<>();
 		}
-		final Collection<Tree> trees = dummyTree.pafm.getTrees();
-		final String baseName = SNTUtils.stripExtension(f.getName());
-		if (trees.size() == 1)
-			trees.iterator().next().setLabel(baseName);
-		else {
-			trees.forEach( t-> t.setLabel(baseName + " " + t.getLabel()));
+		if (baseName != null) {
+			if (trees.size() == 1)
+				trees.iterator().next().setLabel(baseName);
+			else
+				trees.forEach(t -> t.setLabel(baseName + " " + t.getLabel()));
 		}
 		return trees;
 	}
@@ -1383,7 +1437,7 @@ public class Tree implements TreeProperties {
 	 *
 	 * @param dir     the directory containing the reconstruction files (.(e)swc,
 	 *                .traces, .json extension)
-	 * @param pattern the filename substring (case sensitive) to be matched. Only
+	 * @param pattern the filename substring (case-sensitive) to be matched. Only
 	 *                filenames containing {@code pattern} will be imported from the
 	 *                directory. {@code null} allowed.
 	 * @return the list of imported {@link Tree}s. An empty list is retrieved if
@@ -1399,12 +1453,12 @@ public class Tree implements TreeProperties {
 	 *
 	 * @param dir     the directory containing the reconstruction files (.(e)swc,
 	 *                .traces, .json extension)
-	 * @param pattern the filename substring (case sensitive) to be matched. Only
+	 * @param pattern the filename substring (case-sensitive) to be matched. Only
 	 *                filenames containing {@code pattern} will be imported from the
 	 *                directory. {@code null} allowed.
 	 * @param swcTypes SWC type(s) a string with at least 2 characters describing
 	 *                 the SWC type allowed in the subtree (e.g., 'soma', 'axn', or
-	 *                 'dendrite'). Ignored when {@code null}
+	 *                 'dendrite'). Ignored when {@code null}, or 'all'.
 	 * @return the list of imported {@link Tree}s. An empty list is retrieved if
 	 *         {@code dir} is not a valid, readable directory.
 	 */
@@ -1413,15 +1467,15 @@ public class Tree implements TreeProperties {
 		if (dir == null) return trees;
 		final File dirFile = new File(dir);
 		final File[] treeFiles = SNTUtils.getReconstructionFiles(dirFile, pattern);
-		if (treeFiles == null || treeFiles.length == 0) {
+		if (treeFiles == null) {
 			return trees;
 		}
 		for (final File treeFile : treeFiles) {
 			final Collection<Tree> treesInFile = Tree.listFromFile(treeFile.getAbsolutePath());
 			if (treesInFile != null) {
-				if (swcTypes == null)
+				if (swcTypes == null || (swcTypes.length == 1 && "all".equalsIgnoreCase(swcTypes[0]))) {
 					trees.addAll(treesInFile);
-				else {
+				} else {
 					treesInFile.forEach(t -> {
 						trees.add(t.subTree(swcTypes));
 					});
@@ -1445,6 +1499,9 @@ public class Tree implements TreeProperties {
 		map.put(Path.SWC_DENDRITE, Path.SWC_DENDRITE_LABEL);
 		map.put(Path.SWC_APICAL_DENDRITE, Path.SWC_APICAL_DENDRITE_LABEL);
 		map.put(Path.SWC_CUSTOM, Path.SWC_CUSTOM_LABEL);
+		map.put(Path.SWC_UNSPECIFIED, Path.SWC_UNSPECIFIED_LABEL);
+		map.put(Path.SWC_GLIA_PROCESS, Path.SWC_GLIA_PROCESS_LABEL);
+		map.put(Path.SWC_CUSTOM2, Path.SWC_CUSTOM2_LABEL);
 		return map;
 	}
 
@@ -1457,7 +1514,7 @@ public class Tree implements TreeProperties {
 	 *                 can also be a directory. If this Tree contains multiple
 	 *                 roots, each rooted structure will be saved on a series of
 	 *                 files with 3-digit identifiers appended to the specified file
-	 *                 path (e.g., -000.swc, -001.swc, etc).
+	 *                 path (e.g., -000.swc, -001.swc, etc.).
 	 * @return true, if file successfully saved.
 	 * @see #setLabel(String)
 	 */
@@ -1590,13 +1647,15 @@ public class Tree implements TreeProperties {
 			if (path.getStartJoins() == null) continue;
 			final Path join = idToPathMap.get(path.getStartJoins().getID());
 			final PointInImage joinPoint = path.getStartJoinsPoint().clone();
-			path.unsetStartJoin();
-			path.setStartJoin(join, joinPoint);
+			if (join != null && joinPoint != null) {
+				path.unsetStartJoin();
+				path.setStartJoin(join, joinPoint);
+			}
 		}
 		return clone;
 	}
 
-	private class TreeBoundingBox extends BoundingBox {
+	private static class TreeBoundingBox extends BoundingBox {
 
 		private boolean dimensionsNeedToBeComputed;
 

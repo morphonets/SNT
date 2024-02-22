@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -64,7 +64,7 @@ import sc.fiji.snt.util.SNTColor;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label="Strahler Analysis...")
+@Plugin(type = Command.class, label="Strahler Analysis...")
 public class StrahlerCmd extends ContextCommand {
 
 	@Parameter
@@ -478,7 +478,7 @@ public class StrahlerCmd extends ContextCommand {
 		return map.keySet().stream().map(key -> key + ":" + df.format(map.get(key))).collect(Collectors.joining("; "));
 	}
 
-	private class StrahlerData {
+	private static class StrahlerData {
 		final StrahlerAnalyzer analyzer;
 		final Tree tree;
 

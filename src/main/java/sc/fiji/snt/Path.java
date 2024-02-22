@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -28,6 +28,9 @@ import ij3d.Content;
 import ij3d.Image3DUniverse;
 import ij3d.Pipe;
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.math3.analysis.interpolation.LinearInterpolator;
+import org.apache.commons.math3.analysis.polynomials.PolynomialFunction;
+import org.apache.commons.math3.analysis.polynomials.PolynomialSplineFunction;
 import org.apache.commons.math3.stat.StatUtils;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.ColorRGBA;
@@ -35,11 +38,13 @@ import org.scijava.vecmath.Color3f;
 import org.scijava.vecmath.Point3f;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.util.*;
 
 import java.awt.*;
 import java.util.List;
+import java.util.function.DoublePredicate;
 import java.util.*;
 import java.util.stream.DoubleStream;
 
@@ -62,33 +67,36 @@ import java.util.stream.DoubleStream;
  **/
 public class Path implements Comparable<Path> {
 
-	// http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html
-	/** Flag specifying the SWC type 'undefined'. @see Path#SWC_UNDEFINED_LABEL */
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
+	// https://swc-specification.readthedocs.io/en/latest/
+	
+	/** SWC type flag specifying {@value #SWC_UNDEFINED_LABEL} */
 	public static final int SWC_UNDEFINED = 0;
-	/** Flag specifying the SWC type 'soma'. @see Path#SWC_SOMA_LABEL */
+	/** SWC type flag specifying {@value #SWC_SOMA_LABEL} */
 	public static final int SWC_SOMA = 1;
-	/** Flag specifying the SWC type 'axon'. @see Path#SWC_AXON_LABEL */
+	/** SWC type flag specifying {@value #SWC_AXON_LABEL} */
 	public static final int SWC_AXON = 2;
-	/**
-	 * Flag specifying the SWC type '(basal) dendrite'. @see
-	 * Path#SWC_DENDRITE_LABEL
-	 */
+	/** SWC type flag specifying {@value #SWC_DENDRITE_LABEL} */
 	public static final int SWC_DENDRITE = 3;
-	/**
-	 * Flag specifying the SWC type 'apical dendrite'. @see
-	 * Path#SWC_APICAL_DENDRITE_LABEL
-	 */
+	/** SWC type flag specifying {@value #SWC_APICAL_DENDRITE_LABEL} */
 	public static final int SWC_APICAL_DENDRITE = 4;
-	/**
-	 * Flag specifying the SWC type 'fork point' @see Path#SWC_FORK_POINT_LABEL
-	 */
+	/** SWC type flag specifying {@value #SWC_CUSTOM_LABEL} */
+	public static final int SWC_CUSTOM = 5;
+	/** SWC type flag specifying {@value #SWC_UNSPECIFIED_LABEL} */
+	public static final int SWC_UNSPECIFIED = 6;
+	/** SWC type flag specifying {@value #SWC_GLIA_LABEL} */
+	public static final int SWC_GLIA_PROCESS = 7;
+	/** SWC type flag specifying {@value #SWC_CUSTOM2_LABEL} */
+	public static final int SWC_CUSTOM2 = 8;
+
+	/** Deprecated. No longer part of the SWC specification */
 	@Deprecated
-	public static final int SWC_FORK_POINT = 5; // redundant
+	public static final int SWC_FORK_POINT = -5;
+	/** Deprecated. No longer part of the SWC specification */
 	@Deprecated
-	/** Flag specifying the SWC type 'end point'. @see Path#SWC_END_POINT_LABEL */
-	public static final int SWC_END_POINT = 6; // redundant
-	/** Flag specifying the SWC type 'custom'. @see Path#SWC_CUSTOM_LABEL */
-	public static final int SWC_CUSTOM = 7;
+	public static final int SWC_END_POINT = -6;
+	
 	/** String representation of {@link Path#SWC_UNDEFINED} */
 	public static final String SWC_UNDEFINED_LABEL = "undefined";
 	/** String representation of {@link Path#SWC_SOMA} */
@@ -99,12 +107,14 @@ public class Path implements Comparable<Path> {
 	public static final String SWC_DENDRITE_LABEL = "(basal) dendrite";
 	/** String representation of {@link Path#SWC_APICAL_DENDRITE} */
 	public static final String SWC_APICAL_DENDRITE_LABEL = "apical dendrite";
-	/** String representation of {@link Path#SWC_FORK_POINT} */
-	public static final String SWC_FORK_POINT_LABEL = "fork point";
-	/** String representation of {@link Path#SWC_END_POINT} */
-	public static final String SWC_END_POINT_LABEL = "end point";
 	/** String representation of {@link Path#SWC_CUSTOM} */
 	public static final String SWC_CUSTOM_LABEL = "custom";
+	/** String representation of {@link Path#SWC_UNSPECIFIED} */
+	public static final String SWC_UNSPECIFIED_LABEL = "unspecified neurite";
+	/** String representation of {@link Path#SWC_GLIA_PROCESS} */
+	public static final String SWC_GLIA_PROCESS_LABEL = "glia process";
+	/** String representation of {@link Path#SWC_CUSTOM2} */
+	public static final String SWC_CUSTOM2_LABEL = "custom (2)";
 
 	// FIXME: this should be based on distance between points in the path, not a static number:
 	protected static final int noMoreThanOneEvery = 2;
@@ -199,7 +209,7 @@ public class Path implements Comparable<Path> {
 	 * Instantiates a new path under default settings (isotropic 1um pixel spacing)
 	 */
 	public Path() {
-		this(1, 1, 1, "um");
+		this(1, 1, 1, GuiUtils.micrometer());
 	}
 
 	/**
@@ -402,17 +412,21 @@ public class Path implements Comparable<Path> {
 	}
 
 	protected String getRealLengthString() {
-		return String.format("%.3f", getLength());
+		return String.format(Locale.US, "%.3f", getLength()); // see https://github.com/morphonets/SNT/issues/147
 	}
 
 	public void createCircles() {
-		if (tangents_x != null || tangents_y != null || tangents_z != null ||
-			radii != null) throw new IllegalArgumentException(
-				"Trying to create circles data arrays when at least one is already there");
-		tangents_x = new double[maxPoints];
-		tangents_y = new double[maxPoints];
-		tangents_z = new double[maxPoints];
-		radii = new double[maxPoints];
+//		if (tangents_x != null || tangents_y != null || tangents_z != null ||
+//			radii != null) throw new IllegalArgumentException(
+//				"Trying to create circles data arrays when at least one is already there");
+		if (tangents_x == null)
+			tangents_x = new double[maxPoints];
+		if (tangents_y == null)
+			tangents_y = new double[maxPoints];
+		if (tangents_z == null)
+			tangents_z = new double[maxPoints];
+		if (radii == null)
+			radii = new double[maxPoints];
 	}
 
 	protected void setIsPrimary(final boolean primary) {
@@ -607,7 +621,7 @@ public class Path implements Comparable<Path> {
 		return result;
 	}
 
-	protected PointInCanvas getPointInCanvas(final int node) {
+	public PointInCanvas getPointInCanvas(final int node) {
 		final PointInCanvas result = new PointInCanvas(getXUnscaledDouble(node), getYUnscaledDouble(node),
 				getZUnscaledDouble(node));
 		result.onPath = this;
@@ -986,6 +1000,8 @@ public class Path implements Comparable<Path> {
 		other.setColor(getColor());
 		other.setSpineOrVaricosityCount(getSpineOrVaricosityCount());
 		other.id = id;
+		other.editableNodeIndex = editableNodeIndex;
+		other.editableNodeLocked = editableNodeLocked;
 	}
 
 	/**
@@ -997,6 +1013,8 @@ public class Path implements Comparable<Path> {
 		final Calibration cal = getCalibration();
 		final Path dup = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit(), points);
 		applyCommonProperties(dup);
+		if (hasRadii())
+			dup.createCircles();
 		return dup;
 	}
 
@@ -1034,6 +1052,7 @@ public class Path implements Comparable<Path> {
 		return dup;
 	}
 
+	@Deprecated
 	public Path clone(final boolean includeImmediateChildren) {
 		final Path dup = clone();
 		if (!includeImmediateChildren) return dup;
@@ -1078,32 +1097,17 @@ public class Path implements Comparable<Path> {
 	}
 
 	private void expandTo(final int newMaxPoints) {
-
-		final double[] new_precise_x_positions = new double[newMaxPoints];
-		final double[] new_precise_y_positions = new double[newMaxPoints];
-		final double[] new_precise_z_positions = new double[newMaxPoints];
-		System.arraycopy(precise_x_positions, 0, new_precise_x_positions, 0,
-			points);
-		System.arraycopy(precise_y_positions, 0, new_precise_y_positions, 0,
-			points);
-		System.arraycopy(precise_z_positions, 0, new_precise_z_positions, 0,
-			points);
-		precise_x_positions = new_precise_x_positions;
-		precise_y_positions = new_precise_y_positions;
-		precise_z_positions = new_precise_z_positions;
+		precise_x_positions = expandArray(precise_x_positions, newMaxPoints);
+		precise_y_positions = expandArray(precise_y_positions, newMaxPoints);
+		precise_z_positions = expandArray(precise_z_positions, newMaxPoints);
 		if (hasRadii()) {
-			final double[] new_tangents_x = new double[newMaxPoints];
-			final double[] new_tangents_y = new double[newMaxPoints];
-			final double[] new_tangents_z = new double[newMaxPoints];
-			final double[] new_radiuses = new double[newMaxPoints];
-			System.arraycopy(tangents_x, 0, new_tangents_x, 0, points);
-			System.arraycopy(tangents_y, 0, new_tangents_y, 0, points);
-			System.arraycopy(tangents_z, 0, new_tangents_z, 0, points);
-			System.arraycopy(radii, 0, new_radiuses, 0, points);
-			tangents_x = new_tangents_x;
-			tangents_y = new_tangents_y;
-			tangents_z = new_tangents_z;
-			radii = new_radiuses;
+			tangents_x = expandArray(tangents_x, newMaxPoints);
+			tangents_y = expandArray(tangents_y, newMaxPoints);
+			tangents_z = expandArray(tangents_z, newMaxPoints);
+			radii = expandArray(radii, newMaxPoints);
+		}
+		if (nodeValues != null) {
+			nodeValues = expandArray(nodeValues, newMaxPoints);
 		}
 		if (nodeAnnotations != null) {
 			final BrainAnnotation[] newNodeAnnotations = new BrainAnnotation[newMaxPoints];
@@ -1115,12 +1119,13 @@ public class Path implements Comparable<Path> {
 			System.arraycopy(nodeHemisphereFlags, 0, newNodeHemisphereFlags, 0, points);
 			nodeHemisphereFlags = newNodeHemisphereFlags;
 		}
-		if (nodeValues != null) {
-			final double[] newNodeValues = new double[newMaxPoints];
-			System.arraycopy(nodeValues, 0, newNodeValues, 0, points);
-			nodeValues = newNodeValues;
-		}
 		maxPoints = newMaxPoints;
+	}
+
+	private static double[] expandArray(final double[] array, final int newCapacity) {
+		final double[] expanded = new double[newCapacity];
+		System.arraycopy(array, 0, expanded, 0, array.length);
+		return expanded;
 	}
 
 	public void add(final Path other) {
@@ -1182,6 +1187,20 @@ public class Path implements Comparable<Path> {
 		}
 	}
 
+	/**
+	 * Reverses this path so that its starting node becomes the last and vice versa.
+	 */
+	public void reverse() {
+		reverseInSitu(this);
+	}
+
+	/**
+	 * 
+	 * @return a reversed version of this path in which node coordinates are
+	 *         reversed. Note that for legacy reasons only the node coordinates are
+	 *         reversed. Other properties (node colors, etc.) are not included in
+	 *         the returned path
+	 */
 	public Path reversed() {
 		final Path c = createPath();
 		c.points = points;
@@ -1193,6 +1212,23 @@ public class Path implements Comparable<Path> {
 		if (c.fitted != null)
 			c.fitted = c.fitted.reversed();
 		return c;
+	}
+
+	private static void reverseInSitu(final Path c) {
+		ArrayUtils.reverse(c.precise_x_positions, 0, c.points);
+		ArrayUtils.reverse(c.precise_y_positions, 0, c.points);
+		ArrayUtils.reverse(c.precise_z_positions, 0, c.points);
+		ArrayUtils.reverse(c.radii, 0, c.points);
+		ArrayUtils.reverse(c.tangents_x, 0, c.points);
+		ArrayUtils.reverse(c.tangents_y, 0, c.points);
+		ArrayUtils.reverse(c.nodeValues, 0, c.points);
+		ArrayUtils.reverse(c.nodeAnnotations, 0, c.points);
+		ArrayUtils.reverse(c.nodeHemisphereFlags, 0, c.points);
+		ArrayUtils.reverse(c.nodeColors, 0, c.points);
+		if (c.editableNodeIndex > -1)
+			c.editableNodeIndex = c.points - 1 - c.editableNodeIndex;
+		if (c.fitted != null)
+			reverseInSitu(c.fitted);
 	}
 
 	/**
@@ -1265,6 +1301,10 @@ public class Path implements Comparable<Path> {
 		boolean drawDiameter, final int slice, final int either_side)
 	{
 
+		if (points == 0) {
+			new PathNode(this, 0, PathNode.HERMIT, canvas).draw(g2, c);
+			return;
+		}
 		int startIndexOfLastDrawnLine = -1;
 
 		for (int i = 0; i < points; ++i) {
@@ -1413,7 +1453,7 @@ public class Path implements Comparable<Path> {
 	}
 
 	/**
-	 * Assigns an hemisphere to an existing node.
+	 * Assigns a hemisphere to an existing node.
 	 *
 	 * @param hemisphereFlag the node hemisphere flag.
 	 * @param pos the node position
@@ -1603,18 +1643,20 @@ public class Path implements Comparable<Path> {
 		switch (swcType) {
 			case Path.SWC_SOMA:
 				return Color.BLUE;
+			case Path.SWC_AXON:
+				return Color.RED;
 			case Path.SWC_DENDRITE:
 				return Color.GREEN;
 			case Path.SWC_APICAL_DENDRITE:
 				return Color.CYAN;
-			case Path.SWC_AXON:
-				return Color.RED;
-			case Path.SWC_FORK_POINT:
-				return Color.ORANGE;
-			case Path.SWC_END_POINT:
-				return Color.PINK;
 			case Path.SWC_CUSTOM:
 				return Color.YELLOW;
+			case Path.SWC_UNSPECIFIED:
+				return Color.ORANGE;
+			case Path.SWC_GLIA_PROCESS:
+				return Color.PINK;
+			case Path.SWC_CUSTOM2:
+				return Color.YELLOW.darker();
 			case Path.SWC_UNDEFINED:
 			default:
 				return SNT.DEFAULT_DESELECTED_COLOR;
@@ -1723,9 +1765,11 @@ public class Path implements Comparable<Path> {
 	}
 
 	public void setGuessedTangents(final int pointsEitherSide) {
-		if (tangents_x == null || tangents_y == null || tangents_z == null)
-			throw new IllegalArgumentException(
-				"BUG: setGuessedTangents called with one of the tangent arrays null");
+		if (tangents_x == null || tangents_y == null || tangents_z == null) {
+//			throw new IllegalArgumentException(
+//			"BUG: setGuessedTangents called with one of the tangent arrays null");
+			createCircles();
+		}
 		final double[] tangent = new double[3];
 		for (int i = 0; i < points; ++i) {
 			getTangent(i, pointsEitherSide, tangent);
@@ -1804,9 +1848,6 @@ public class Path implements Comparable<Path> {
 	{
 		String typeName;
 		switch (type) {
-			case SWC_UNDEFINED:
-				typeName = SWC_UNDEFINED_LABEL;
-				break;
 			case SWC_SOMA:
 				typeName = SWC_SOMA_LABEL;
 				break;
@@ -1819,15 +1860,19 @@ public class Path implements Comparable<Path> {
 			case SWC_APICAL_DENDRITE:
 				typeName = SWC_APICAL_DENDRITE_LABEL;
 				break;
-			case SWC_FORK_POINT:
-				typeName = SWC_FORK_POINT_LABEL;
-				break;
-			case SWC_END_POINT:
-				typeName = SWC_END_POINT_LABEL;
-				break;
 			case SWC_CUSTOM:
 				typeName = SWC_CUSTOM_LABEL;
 				break;
+			case SWC_UNSPECIFIED:
+				typeName = SWC_UNSPECIFIED_LABEL;
+				break;
+			case SWC_GLIA_PROCESS:
+				typeName = SWC_GLIA_PROCESS_LABEL;
+				break;
+			case SWC_CUSTOM2:
+				typeName = SWC_CUSTOM2_LABEL;
+				break;
+			case SWC_UNDEFINED:
 			default:
 				typeName = SWC_UNDEFINED_LABEL;
 				break;
@@ -1884,6 +1929,93 @@ public class Path implements Comparable<Path> {
 	 */
 	public boolean hasRadii() {
 		return radii != null;
+	}
+
+	/**
+	 * Uses linear interpolation to correct nodes with invalid radius.
+	 * 
+	 * Collects nodes with invalid radii (zero, NaN, or negative values) and assigns
+	 * them new values using linear interpolation based on remaining nodes with
+	 * valid radii.
+	 * 
+	 * @param apply If {@code true} interpolated values are immediately to this
+	 *              path. If false, nodes remain unchanged.
+	 * @return the map containing the (node index, interpolated radius) pairs or
+	 *         null if current path has not been assigned radii or has less than 2
+	 *         nodes. Note that the map keys hold only the indices for which
+	 *         interpolation succeed, which may be a subset of all the nodes with
+	 *         invalid radii.
+	 */
+	public Map<Integer, Double> interpolateMissingRadii(final boolean apply) {
+		return interpolateMissingRadii((x) -> {
+			return x <= 0 || Double.isNaN(x);
+		}, apply);
+	}
+
+	/**
+	 * Uses linear interpolation to correct nodes with invalid radius.
+	 * 
+	 * Collects nodes with invalid radii (zero, NaN, or negative values) and assigns
+	 * them new values using linear interpolation based on remaining nodes with
+	 * valid radii.
+	 * 
+	 * @param predicate the function defining invalid radiii, e.g. {@code (x) -> {
+	 *                  return x <= 0 || Double.isNaN(x);} }
+	 * @param apply     If {@code true} interpolated values are immediately to this
+	 *                  path. If false, nodes remain unchanged.
+	 * @return the map containing the (node index, interpolated radius) pairs or
+	 *         null if current path has not been assigned radii or has less than 2
+	 *         nodes. Note that the map keys hold only the indices for which
+	 *         interpolation succeed, which may be a subset of all the nodes with
+	 *         invalid radii.
+	 */
+	public Map<Integer, Double> interpolateMissingRadii(final DoublePredicate predicate, final boolean apply) {
+		if (!hasRadii() || size() < 2)
+			return null;
+		final List<Integer> validIndices = new ArrayList<>();
+		final List<Double> validRadii = new ArrayList<>();
+		final List<Integer> replacementIndices = new ArrayList<>();
+		for (int nodeIdx = 0; nodeIdx < size(); nodeIdx++) {
+			if (predicate.test(radii[nodeIdx])) {
+				replacementIndices.add(nodeIdx);
+			} else {
+				validIndices.add(nodeIdx);
+				validRadii.add(radii[nodeIdx]);
+			}
+		}
+		final double[] knownIndices = validIndices.stream().mapToDouble(d -> d).toArray();
+		final double[] knownRadii = validRadii.stream().mapToDouble(d -> d).toArray();
+		final double[] unknownIndices = replacementIndices.stream().mapToDouble(d -> d).toArray();
+		final double[] guessedRadii = interpolate(knownIndices, knownRadii, unknownIndices);
+		final Map<Integer, Double> result = new TreeMap<>();
+		for (int idx = 0; idx < unknownIndices.length; idx++) {
+			final double r = guessedRadii[idx];
+			if (r < 0)
+				continue;
+			result.put((int) unknownIndices[idx], r);
+			if (apply)
+				setRadius(r, (int) unknownIndices[idx]);
+		}
+		return result;
+	}
+
+	private double[] interpolate(final double[] x1, final double[] y1, final double[] x2) {
+		// see https://stackoverflow.com/a/73716167
+		final PolynomialSplineFunction function = new LinearInterpolator().interpolate(x1, y1);
+		final PolynomialFunction[] splines = function.getPolynomials();
+		final PolynomialFunction firstFunction = splines[0];
+		final PolynomialFunction lastFunction = splines[splines.length - 1];
+		final double[] knots = function.getKnots();
+		final double firstKnot = knots[0];
+		final double lastKnot = knots[knots.length - 1];
+		final double[] resultList = Arrays.stream(x2).map(d -> {
+			if (d > lastKnot) {
+				return lastFunction.value(d - knots[knots.length - 2]);
+			} else if (d < firstKnot)
+				return firstFunction.value(d - knots[0]);
+			return function.value(d);
+		}).toArray();
+		return resultList;
 	}
 
 	protected void setFittedCircles(final int nPoints, final double[] tangents_x,
@@ -1967,7 +2099,7 @@ public class Path implements Comparable<Path> {
 	 * Gets the "bifurcation" (branching) order of this Path. If registered in the
 	 * GUI, this would correspond to the level of this Path in
 	 * {@link PathManagerUI}'s JTree: E.g., a Path connected to a primary Path
-	 * (order 1) will be assigned order 2, etc.. N.B.: Albeit related to reverse
+	 * (order 1) will be assigned order 2, etc. N.B.: Albeit related to reverse
 	 * Horton-Strahler classification, Path ordering is formally distinct, as it
 	 * classifies <i>Paths</i> instead of <i>branches</i>.
 	 *
@@ -2052,7 +2184,7 @@ public class Path implements Comparable<Path> {
 //			SNT.log("  pathToUse.content3DMultiColored: " + pathToUse.content3DMultiColored);
 //		}
 
-		// Is the the display (lines-and-discs or surfaces) right?
+		// Is the display (lines-and-discs or surfaces) right?
 		if (pathToUse.paths3DDisplay != paths3DDisplay) {
 			pathToUse.removeFrom3DViewer(univ);
 			pathToUse.paths3DDisplay = paths3DDisplay;
@@ -2675,7 +2807,7 @@ public class Path implements Comparable<Path> {
 							lastRadiusIndex = (sp.originalIndex + spNext.originalIndex) / 2;
 						}
 						else if (i == downsampledLength - 1) {
-							// The this is the last point:
+							// Then this is the last point:
 							final SimplePoint spPrevious = downsampled.get(i - 1);
 							firstRadiusIndex = (spPrevious.originalIndex + sp.originalIndex) /
 								2;

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -60,7 +60,7 @@ public class GraphUtils {
 	 * Creates a {@link Tree} from a graph.
 	 *
 	 * @param graph the graph to be converted.
-	 * @return the Tree, assembled from from the graph vertices
+	 * @return the Tree, assembled from the graph vertices
 	 */
 	@Deprecated
 	public static Tree createTree(final Graph<SWCPoint, ?> graph) {
@@ -85,8 +85,8 @@ public class GraphUtils {
 	 */
 	public static Window show(final DirectedWeightedGraph graph) {
 		final GraphViewer graphViewer = new GraphViewer(graph);
-		if (SNTUtils.getPluginInstance() != null)
-			graphViewer.setContext(SNTUtils.getPluginInstance().getContext());
+		if (SNTUtils.getInstance() != null)
+			graphViewer.setContext(SNTUtils.getInstance().getContext());
 		return graphViewer.show();
 	}
 

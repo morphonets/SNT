@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -61,6 +61,7 @@ import org.scijava.util.ColorRGB;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 
@@ -72,6 +73,81 @@ import sc.fiji.snt.util.SNTColor;
 class AnalysisUtils {
 
 	private AnalysisUtils() {
+	}
+
+	/**
+	 * Assembles a label from a measurements metric and a spatial unit
+	 * 
+	 * @param standardMetric SNT's supported metric, e.g.,
+	 *                       {@link TreeStatistics#BRANCH_VOLUME}
+	 * @param tree           {@link Tree} from which spatial unit is extracted
+	 * @return the metric label, e.g., "Branch volume (µm³)"
+	 */
+	public static String getMetricLabel(final String standardMetric, final Tree tree) {
+		final String unit = (String) tree.getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "? units");
+		switch (standardMetric) {
+		case TreeStatistics.CONVEX_HULL_SIZE:
+			if (tree.is3D()) {
+				return String.format("%s (%s\u00B3)", standardMetric, unit);
+			} else {
+				return String.format("%s (%s\u00B2)", standardMetric, unit);
+			}
+		case TreeStatistics.CONVEX_HULL_BOUNDARY_SIZE:
+			if (tree.is3D()) {
+				return String.format("%s (%s\u00B2)", standardMetric, unit);
+			} else {
+				return String.format("%s (%s)", standardMetric, unit);
+			}
+		default:
+			return getMetricLabel(standardMetric, unit);
+		}
+	}
+
+	/**
+	 * Assembles a label from a measurements metric and a spatial unit
+	 * 
+	 * @param standardMetric SNT's supported metric, e.g.,
+	 *                       {@link TreeStatistics#BRANCH_VOLUME}
+	 * @param unit,          the associated spatial uni (e.g., "µm")
+	 * @return the metric label, e.g., "Branch volume (µm³)"
+	 */
+	public static String getMetricLabel(final String standardMetric, final String unit) {
+		if (unit == null || unit.isEmpty())
+			return standardMetric;
+		switch (standardMetric) {
+		case TreeStatistics.BRANCH_LENGTH:
+		case TreeStatistics.CONVEX_HULL_CENTROID_ROOT_DISTANCE:
+		case TreeStatistics.DEPTH:
+		case TreeStatistics.HEIGHT:
+		case TreeStatistics.INNER_LENGTH:
+		case TreeStatistics.INTER_NODE_DISTANCE:
+		case TreeStatistics.LENGTH:
+		case TreeStatistics.NODE_RADIUS:
+		case TreeStatistics.BRANCH_MEAN_RADIUS:
+		case TreeStatistics.PATH_MEAN_RADIUS:
+		case TreeStatistics.PATH_LENGTH:
+		case TreeStatistics.PRIMARY_LENGTH:
+		case TreeStatistics.TERMINAL_LENGTH:
+		case TreeStatistics.WIDTH:
+		case MultiTreeStatistics.AVG_BRANCH_LENGTH:
+		case MultiTreeStatistics.INNER_LENGTH:
+		case MultiTreeStatistics.PRIMARY_LENGTH:
+		case MultiTreeStatistics.TERMINAL_LENGTH:
+		case ShollAnalyzer.CENTROID_RADIUS:
+		case ShollAnalyzer.ENCLOSING_RADIUS:
+		case ShollAnalyzer.MAX_FITTED_RADIUS:
+		case TreeStatistics.SHOLL_MAX_FITTED_RADIUS:
+			return String.format("%s (%s)", standardMetric, unit);
+		case TreeStatistics.INTER_NODE_DISTANCE_SQUARED:
+		case TreeStatistics.SURFACE_AREA:
+			return String.format("%s (%s\u00B2)", standardMetric, unit);
+		case TreeStatistics.BRANCH_VOLUME:
+		case TreeStatistics.PATH_VOLUME:
+		case TreeStatistics.VOLUME:
+			return String.format("%s (%s\u00B3)", standardMetric, unit);
+		default:
+			return standardMetric;
+		}
 	}
 
 	/* Converts nodes to single point paths: useful to allow Tree-based classes to parse isolated nodes */
@@ -115,7 +191,7 @@ class AnalysisUtils {
 		return sb.toString();
 	}
 
-	static JFreeChart createPolarHistogram(final String xAxisTitle, final DescriptiveStatistics stats,
+	static JFreeChart createPolarHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
 			final HistogramDatasetPlus datasetPlus) {
 
 		final PolarPlot polarPlot = new PolarPlot();
@@ -132,10 +208,10 @@ class AnalysisUtils {
 			//render.setSeriesPaint(bin, Color.LIGHT_GRAY);
 			render.setSeriesPaint(bin, new Color(102, 170, 215));
 		}
-		final JFreeChart chart = assemblePolarPlotChart(xAxisTitle, polarPlot, false);
+		final JFreeChart chart = assemblePolarPlotChart(polarPlot, false);
 		chart.removeLegend();
 		final String desc = getSummaryDescription(stats, datasetPlus);
-		final TextTitle label = new TextTitle(desc);
+		final TextTitle label = new TextTitle(getMetricLabel(xAxisTitle, unit) + "\n" + desc);
 		label.setFont(polarPlot.getAngleLabelFont().deriveFont(Font.PLAIN));
 		label.setPosition(RectangleEdge.BOTTOM);
 		chart.addSubtitle(label);
@@ -162,7 +238,7 @@ class AnalysisUtils {
 		return xyDataset;
 	}
 
-	private static JFreeChart assemblePolarPlotChart(final String xAxisTitle, final PolarPlot polarPlot, final boolean createLegend) {
+	private static JFreeChart assemblePolarPlotChart(final PolarPlot polarPlot, final boolean createLegend) {
 		// Customize axes
 		final NumberAxis rangeAxis = new NumberAxis();
 		polarPlot.setAxis(rangeAxis);
@@ -170,9 +246,8 @@ class AnalysisUtils {
 		rangeAxis.setTickMarksVisible(true);
 		rangeAxis.setAutoTickUnitSelection(true);
 		rangeAxis.setTickLabelsVisible(true);
-
 		// Customize plot
-		polarPlot.addCornerTextItem(xAxisTitle);
+		//polarPlot.addCornerTextItem(xAxisTitle);
 		polarPlot.setCounterClockwise(false);
 		polarPlot.setRadiusMinorGridlinesVisible(false);
 		polarPlot.setAxisLocation(PolarAxisLocation.NORTH_LEFT);
@@ -184,14 +259,15 @@ class AnalysisUtils {
 		polarPlot.setOutlineVisible(false);
 
 		// Customize chart
-		final JFreeChart chart = new JFreeChart(null,rangeAxis.getLabelFont(), polarPlot, createLegend);
+		final JFreeChart chart = new JFreeChart(null, rangeAxis.getLabelFont(), polarPlot, createLegend);
 		chart.setBorderVisible(false);
 		return chart;
 	}
 
-	static JFreeChart createHistogram(final String xAxisTitle, final DescriptiveStatistics stats, final HistogramDatasetPlus datasetPlus) {
+	static JFreeChart createHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
+			final HistogramDatasetPlus datasetPlus) {
 
-		final JFreeChart chart = ChartFactory.createHistogram(null, xAxisTitle,
+		final JFreeChart chart = ChartFactory.createHistogram(null, getMetricLabel(xAxisTitle, unit),
 			"Rel. Frequency", datasetPlus.getDataset(xAxisTitle));
 
 		// Customize plot
@@ -238,9 +314,9 @@ class AnalysisUtils {
 		chart.setTextAntiAlias(true);
 	}
 
-	static SNTChart createHistogram(final String normMeasurement, final int nSeries,
+	static SNTChart createHistogram(final String normMeasurement, final String unit, final int nSeries,
 			final HistogramDataset dataset) {
-		final JFreeChart chart = ChartFactory.createHistogram(null, normMeasurement, "Rel. Frequency", dataset);
+		final JFreeChart chart = ChartFactory.createHistogram(null, getMetricLabel(normMeasurement, unit), "Rel. Frequency", dataset);
 
 		// Customize plot
 		final XYPlot plot = chart.getXYPlot();
@@ -258,7 +334,7 @@ class AnalysisUtils {
 		return new SNTChart("Grouped Hist.", chart);
 	}
 
-	static SNTChart createPolarHistogram(final String normMeasurement, final HistogramDataset dataset, final int nSeries,
+	static SNTChart createPolarHistogram(final String normMeasurement, final String unit, final HistogramDataset dataset, final int nSeries,
 			final int nBins) {
 		final PolarPlot polarPlot = new PolarPlot();
 		polarPlot.setDataset(histoDatasetToSingleXYDataset(dataset, nSeries, nBins));
@@ -284,12 +360,14 @@ class AnalysisUtils {
 			}
 		}
 		polarPlot.setFixedLegendItems(chartLegend);
-		return new SNTChart("Grouped Polar Hist.", assemblePolarPlotChart(normMeasurement, polarPlot, nSeries > 1));
+		final SNTChart chart = new SNTChart("Grouped Polar Hist.", assemblePolarPlotChart(polarPlot, nSeries > 1));
+		chart.setTitle(getMetricLabel(normMeasurement, unit));
+		return chart;
 	}
 
 	static JFreeChart createCategoryPlot(final String domainTitle,
-			final String rangeTitle, final DefaultCategoryDataset dataset) {
-		final JFreeChart chart = ChartFactory.createBarChart(null, domainTitle, rangeTitle, dataset,
+			final String rangeTitle, final String unit, final DefaultCategoryDataset dataset) {
+		final JFreeChart chart = ChartFactory.createBarChart(null, domainTitle, getMetricLabel(rangeTitle, unit), dataset,
 				PlotOrientation.HORIZONTAL, // orientation
 				false, // include legend
 				true, // tooltips?
@@ -308,8 +386,8 @@ class AnalysisUtils {
 	}
 	
 	static JFreeChart createCategoryPlot(final String domainTitle,
-			final String rangeTitle, final DefaultCategoryDataset dataset, final int nSeries) {
-		final JFreeChart chart = ChartFactory.createBarChart(null, domainTitle, rangeTitle, dataset,
+			final String rangeTitle, final String unit, final DefaultCategoryDataset dataset, final int nSeries) {
+		final JFreeChart chart = ChartFactory.createBarChart(null, domainTitle, getMetricLabel(rangeTitle, unit), dataset,
 				PlotOrientation.HORIZONTAL, // orientation
 				true, // include legend
 				true, // tooltips?
@@ -346,7 +424,7 @@ class AnalysisUtils {
 		private boolean computedAsPercentage;
 
 		HistogramDatasetPlus() {
-			values = new ArrayList<Double>();
+			values = new ArrayList<>();
 		}
 
 		HistogramDatasetPlus(final DescriptiveStatistics stats, final boolean retrieveValues) {

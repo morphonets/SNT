@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -58,7 +58,7 @@ public class DefaultSearchNode implements SearchNode, Comparable<DefaultSearchNo
 
 	public byte searchStatus;
 
-	public DefaultSearchNode() {};
+	public DefaultSearchNode() {}
 
 	public DefaultSearchNode(final int x, final int y, final int z, final double g,
 							 final double h, final DefaultSearchNode predecessor, final byte searchStatus)

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -29,10 +29,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.scijava.Context;
-import org.scijava.plugin.Parameter;
 
 import net.imagej.display.ColorTables;
-import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
@@ -77,9 +75,6 @@ public class NodeColorMapper extends ColorMapper {
 			Y_COORDINATES, //
 			Z_COORDINATES, //
 	};
-
-	@Parameter
-	private LUTService lutService;
 
 	private final NodeStatistics<?> nodeStatistics;
 	private final TreeColorMapper tColorMapper;

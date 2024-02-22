@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -24,11 +24,14 @@ package sc.fiji.snt.viewer;
 
 import java.awt.GridLayout;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.swing.JFrame;
 
@@ -81,7 +84,26 @@ public class MultiViewer2D {
 		this.viewers = viewers;
 		guessLayout();
 		setAxesVisible(true);
-		setGridlinesVisible(true);
+		setGridlinesVisible(false);
+		setOutlineVisible(true);
+	}
+
+	public MultiViewer2D(final Collection<Tree> trees) {
+		viewers = new ArrayList<>();
+		trees.forEach(tree -> {
+			final Viewer2D v = new Viewer2D();
+			v.add(tree);
+			if (tree.getLabel() != null) {
+				v.setTitle(tree.getLabel());
+				v.getChart().annotate(tree.getLabel());
+			
+			}
+			viewers.add(v);
+		});
+	
+		guessLayout();
+		setAxesVisible(true);
+		setGridlinesVisible(false);
 		setOutlineVisible(true);
 	}
 
@@ -146,7 +168,7 @@ public class MultiViewer2D {
 		int i = 1;
 		for (final ChartPanel cPanel : rowPanels) {
 			try {
-				final OutputStream out = new FileOutputStream(filePath + "-" + i + ".png");
+				final OutputStream out = Files.newOutputStream(Paths.get(filePath + "-" + i + ".png"));
 				ChartUtils.writeChartAsPNG(out, cPanel.getChart(), cPanel.getWidth(), cPanel.getHeight());
 				i++;
 			} catch (final IOException ex) {
@@ -191,12 +213,19 @@ public class MultiViewer2D {
 		frame.setLayout(gridLayout);
 		for (final List<Viewer2D> row : rows) {
 			final SNTChart rowChart = getMergedChart(row, "col");
-			final ChartPanel cPanel = rowChart.getChartPanel();
+			final ChartPanel cPanel = rowChart;
 			frame.add(cPanel);
 			rowPanels.add(cPanel);
 		}
 		frame.pack();
 		return frame;
+	}
+
+	private String getTitlesAsString(final List<Viewer2D> viewers) {
+		if (viewers.stream().allMatch(v -> v.getTitle() != null)) {
+			return viewers.stream().map(Viewer2D::getTitle).collect(Collectors.toList()).toString();
+		}
+		return null;
 	}
 
 	private SNTChart getMergedChart(final List<Viewer2D> viewers, final String style) {
@@ -216,7 +245,7 @@ public class MultiViewer2D {
 		} else {
 			final CombinedDomainXYPlot mergedPlot = new CombinedDomainXYPlot();
 			for (final Viewer2D viewer : viewers) {
-				mergedPlot.add(viewer.getChart().getChartPanel().getChart().getXYPlot(), 1);
+				mergedPlot.add(viewer.getChart().getChart().getXYPlot(), 1);
 			}
 			result = new JFreeChart(null, mergedPlot);
 		}
@@ -230,7 +259,11 @@ public class MultiViewer2D {
 			}
 			result.addSubtitle(legend);
 		}
-		return new SNTChart("", result);
+		final SNTChart chart = new SNTChart("", result);
+		final String legend = getTitlesAsString(viewers);
+		if (legend != null)
+			chart.annotate(legend);
+		return chart;
 	}
 
 	/* IDE debug method */

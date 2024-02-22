@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -83,6 +83,8 @@ import sc.fiji.snt.viewer.Viewer3D;
 		headless = false)
 public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private static final String HTML_TOOLTIP = "<html>";
 
 	@Parameter
@@ -105,9 +107,10 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		shortcuts.add(new Shortcut("Reconstruction Viewer", ReconstructionViewerCmd.class,
 				"Initialize SNT's neuroanatomy viewer. For analysis/visualization start here."));
 		addButtons(shortcuts);
+		final ScriptInstaller si = new ScriptInstaller(getContext(), getFrame());
 		buttons.add(null);
-		addShollButton();
-		addStrahlerButton();
+		addShollButton(si);
+		addStrahlerButton(si);
 		buttons.add(null);
 		addScriptsButton();
 		buttons.add(null);
@@ -144,7 +147,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		return panel;
 	}
 
-	private void addStrahlerButton() {
+	private void addStrahlerButton(final ScriptInstaller si) {
 		final JPopupMenu popup = new JPopupMenu();
 		final JButton button = getPopupButton(popup, "Strahler Analysis",
 				"Tools for skeletonized images and reconstructions");
@@ -160,17 +163,17 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 			}
 		});
 		popup.add(jmi);
-		jmi = getScriptMenuItem("Analysis", "Strahler_Analysis.py");
+		jmi = getScriptMenuItem(si, "Analysis", "Strahler_Analysis.py");
 		jmi.setText("Strahler Analysis (Tracings)...");
 		jmi.setToolTipText("Performs analysis directly from reconstruction");
 		popup.add(jmi);
 		addScriptsSeparator(popup);
 		//popup.add(getScriptMenuItem("Analysis", "Strahler_Analysis.py")); // repeated entry
-		popup.add(getScriptMenuItem("Batch", "Strahler_Bulk_Analysis_(From_Reconstructions).py"));
+		popup.add(getScriptMenuItem(si, "Batch", "Strahler_Bulk_Analysis_(From_Reconstructions).py"));
 		buttons.add(button);
 	}
 
-	private void addShollButton() {
+	private void addShollButton(final ScriptInstaller si) {
 		final JPopupMenu popup = new JPopupMenu();
 		final JButton button = getPopupButton(popup, "Sholl Analysis",
 				"Tools for thresholded images and reconstructions");
@@ -194,25 +197,25 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 			popup.add(jmi);
 		}
 		addScriptsSeparator(popup);
-		popup.add(getScriptMenuItem("Batch", "Sholl_Bulk_Analysis_(From_Reconstructions).groovy"));
-		popup.add(getScriptMenuItem("Analysis", "Sholl_Convex_Hull_As_Center.groovy"));
-		popup.add(getScriptMenuItem("Analysis", "Sholl_Extensive_Stats_Demo.groovy"));
-		popup.add(getScriptMenuItem("Analysis", "Sholl_Extract_Profile_From_Image_Demo.py"));
-		popup.add(getScriptMenuItem("Analysis", "Sholl_Merge_Grouped_Profiles.py"));
-		popup.add(getScriptMenuItem("Analysis", "Sholl_Rasterize_Shells.py"));
+		popup.add(getScriptMenuItem(si, "Batch", "Sholl_Bulk_Analysis_(From_Reconstructions).groovy"));
+		popup.add(getScriptMenuItem(si, "Analysis", "Sholl_Convex_Hull_As_Center.groovy"));
+		popup.add(getScriptMenuItem(si, "Analysis", "Sholl_Extensive_Stats_Demo.groovy"));
+		popup.add(getScriptMenuItem(si, "Analysis", "Sholl_Extract_Profile_From_Image_Demo.py"));
+		popup.add(getScriptMenuItem(si, "Analysis", "Sholl_Merge_Grouped_Profiles.py"));
+		popup.add(getScriptMenuItem(si, "Analysis", "Sholl_Rasterize_Shells.py"));
 		buttons.add(button);
 	}
 
-	private JMenuItem getScriptMenuItem(final String scriptDirectory, final String scriptFileName) {
+	private JMenuItem getScriptMenuItem(final ScriptInstaller si, final String scriptDirectory, final String scriptFileName) {
 		final String scriptName = scriptFileName.substring(0, scriptFileName.indexOf(".")).replace("_", " ");
 		final JMenuItem jmi = new JMenuItem(scriptName);
 		jmi.setToolTipText("Click holding Shift to open script");
 		jmi.addActionListener(e -> {
 			try {
-				if ((e.getModifiers() & InputEvent.SHIFT_MASK) != 0)
-					new ScriptInstaller(getContext(), getFrame()).openScript(scriptDirectory, scriptName);
+				if ((e.getModifiers() & InputEvent.SHIFT_DOWN_MASK) != 0)
+					si.openScript(scriptDirectory, scriptName);
 				else
-					new ScriptInstaller(getContext(), getFrame()).runScript(scriptDirectory, scriptName);
+					si.runScript(scriptDirectory, scriptName);
 			} catch (final IllegalArgumentException ex){
 				new GuiUtils(getFrame()).error(ex.getMessage());
 			}
@@ -342,7 +345,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		}
 	}
 
-	private class Shortcut {
+	private static class Shortcut {
 
 		final String label;
 		final Class<? extends Command> cmd;
@@ -380,10 +383,10 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 			private boolean supported(final File file) {
 				final String filename = file.getName().toLowerCase();
-				return (filename.endsWith(".traces")) || (filename.endsWith("swc")) || (filename.endsWith(".json"));
+				return (filename.endsWith(".traces")) || (filename.endsWith("swc")) || (filename.endsWith(".json") || (filename.endsWith(".ndf")));
 			}
 
-			final void importFile(final File file) {
+			void importFile(final File file) {
 				final Collection<Tree> trees = Tree.listFromFile(file.getAbsolutePath());
 				if (trees == null || trees.isEmpty()) {
 					guiUtils.error(file.getName() + " does not seem to contain valid reconstruction(s).");

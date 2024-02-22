@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -51,7 +51,7 @@ import sc.fiji.snt.gui.GuiUtils;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false,
+@Plugin(type = Command.class,
 	label = "Distribution Analysis (Branch Properties)", initializer = "init")
 public class DistributionBPCmd extends CommonDynamicCmd {
 
@@ -72,7 +72,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			+ "Secondary Histogram (Optional):")
 	private String HEADER2;
 
-	@Parameter(required = true, label = "Measurement", callback="measurementChoice2Changed")
+	@Parameter(required = false, label = "Measurement", callback="measurementChoice2Changed")
 	private String measurementChoice2;
 
 	@Parameter(required = false, label = "Polar",
@@ -107,7 +107,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			resolveInput("onlyConnectivitySafeMetrics");
 			getInfo().setLabel("Distribution Analysis (Branch Properties)");
 		}
-		imgDataAvailable = calledFromPathManagerUI && sntService.getPlugin().accessToValidImageData();
+		imgDataAvailable = calledFromPathManagerUI && sntService.getInstance().accessToValidImageData();
 		if (!imgDataAvailable) choices.remove(TreeStatistics.VALUES);
 
 		Collections.sort(choices);
@@ -149,7 +149,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			SNTUtils.log("Assigning values...");
 			trees.forEach( tree -> {
 				final PathProfiler profiler = new PathProfiler(tree, sntService
-						.getPlugin().getImagePlus());
+						.getInstance().getDataset());
 					profiler.assignValues();
 			});
 		}

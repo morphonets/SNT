@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -22,9 +22,15 @@
 
 package sc.fiji.snt.gui.cmds;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.swing.JOptionPane;
 
+import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
@@ -36,41 +42,15 @@ import net.imagej.ImageJ;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
-import sc.fiji.snt.analysis.PathProfiler;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.MeasureUI;
-import sc.fiji.snt.gui.SaveMeasurementsCmd;
-import sc.fiji.snt.plugin.AnalyzerCmd;
-import sc.fiji.snt.plugin.BrainAnnotationCmd;
-import sc.fiji.snt.plugin.ConvexHullCmd;
-import sc.fiji.snt.plugin.GraphAdapterMapperCmd;
-import sc.fiji.snt.plugin.GroupAnalyzerCmd;
-import sc.fiji.snt.plugin.LocalThicknessCmd;
-import sc.fiji.snt.plugin.MultiTreeMapperCmd;
-import sc.fiji.snt.plugin.PathAnalyzerCmd;
-import sc.fiji.snt.plugin.PathMatcherCmd;
-import sc.fiji.snt.plugin.PathOrderAnalysisCmd;
-import sc.fiji.snt.plugin.PathSpineAnalysisCmd;
-import sc.fiji.snt.plugin.PathTimeAnalysisCmd;
-import sc.fiji.snt.plugin.PlotterCmd;
-import sc.fiji.snt.plugin.ROIExporterCmd;
-import sc.fiji.snt.plugin.ShollAnalysisBulkTreeCmd;
-import sc.fiji.snt.plugin.ShollAnalysisImgCmd;
-import sc.fiji.snt.plugin.ShollAnalysisPrefsCmd;
-import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
-import sc.fiji.snt.plugin.SkeletonConverterCmd;
-import sc.fiji.snt.plugin.SkeletonizerCmd;
-import sc.fiji.snt.plugin.SpineExtractorCmd;
-import sc.fiji.snt.plugin.StrahlerCmd;
-import sc.fiji.snt.plugin.TreeMapperCmd;
-import sc.fiji.snt.plugin.ij1.CallIJ1LegacyCmd;
 
 /**
  * Command for (re)setting SNT Preferences.
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, initializer="init", label="SNT Preferences")
+@Plugin(type = Command.class, initializer = "init", label = "SNT Preferences")
 public class PrefsCmd extends ContextCommand {
 
 	@Parameter
@@ -81,7 +61,7 @@ public class PrefsCmd extends ContextCommand {
 
 	@Parameter(label = "Look and feel (L&F)", required = false, persist = false,
 			description = "How should SNT look? NB: This may also affect other Swing-based dialogs in Fiji.", choices = {
-			GuiUtils.LAF_DEFAULT, GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK, GuiUtils.LAF_DARCULA })
+			GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK, GuiUtils.LAF_DARCULA })
 	private String laf;
 
 	@Parameter(label="Managing Themes...", callback="lafHelp")
@@ -129,7 +109,7 @@ public class PrefsCmd extends ContextCommand {
 
 	private void init() {
 		try {
-			snt = sntService.getPlugin();
+			snt = sntService.getInstance();
 			persistentWinLoc = snt.getPrefs().isSaveWinLocations();
 			force2DDisplayCanvas = snt.getPrefs().is2DDisplayCanvas();
 			compressTraces = snt.getPrefs().isSaveCompressedTraces();
@@ -165,78 +145,75 @@ public class PrefsCmd extends ContextCommand {
 	}
 
 	/** Clears all of SNT preferences. */
-	@SuppressWarnings("deprecation")
 	public void clearAll() {
 
-		prefService.clear(AddTextAnnotationCmd.class);
-		prefService.clear(AnalyzerCmd.class);
-		prefService.clear(AnnotationGraphRecViewerCmd.class);
-		prefService.clear(BrainAnnotationCmd.class);
-		prefService.clear(CallIJ1LegacyCmd.class);
-		prefService.clear(ChooseDatasetCmd.class);
-		prefService.clear(ColorMapReconstructionCmd.class);
-		prefService.clear(CompareFilesCmd.class);
-		prefService.clear(ComputeSecondaryImg.class);
-		prefService.clear(ConvexHullCmd.class);
-		prefService.clear(CustomizeLegendCmd.class);
-		prefService.clear(CustomizeObjCmd.class);
-		prefService.clear(CustomizeTreeCmd.class);
-		prefService.clear(DistributionBPCmd.class);
-		prefService.clear(DistributionCPCmd.class);
-		prefService.clear(DuplicateCmd.class);
-		prefService.clear(GraphAdapterMapperCmd.class);
-		prefService.clear(GraphGeneratorCmd.class);
-		prefService.clear(GroupAnalyzerCmd.class);
-		prefService.clear(InsectBrainImporterCmd.class);
-		prefService.clear(JSONImporterCmd.class);
-		prefService.clear(LoadObjCmd.class);
-		prefService.clear(LoadReconstructionCmd.class);
-		prefService.clear(LocalThicknessCmd.class);
-		prefService.clear(MeasureUI.class);
-		prefService.clear(MLImporterCmd.class);
-		prefService.clear(MultiSWCImporterCmd.class);
-		prefService.clear(MultiTreeMapperCmd.class);
-		prefService.clear(NDFImporterCmd.class);
-		prefService.clear(OpenDatasetCmd.class);
-		prefService.clear(PathAnalyzerCmd.class);
-		prefService.clear(PathFitterCmd.class);
-		prefService.clear(PathMatcherCmd.class);
-		prefService.clear(PathOrderAnalysisCmd.class);
-		prefService.clear(PathProfiler.class);
-		prefService.clear(PathSpineAnalysisCmd.class);
-		prefService.clear(PathTimeAnalysisCmd.class);
-		prefService.clear(PlotterCmd.class);
-		prefService.clear(ReconstructionViewerCmd.class);
-		prefService.clear(RecViewerPrefsCmd.class);
-		prefService.clear(RemoteSWCImporterCmd.class);
-		prefService.clear(ROIExporterCmd.class);
-		prefService.clear(SaveMeasurementsCmd.class);
-		prefService.clear(ShollAnalysisBulkTreeCmd.class);
-		prefService.clear(ShollAnalysisImgCmd.class);
-		prefService.clear(ShollAnalysisPrefsCmd.class);
-		prefService.clear(ShollAnalysisTreeCmd.class);
-		prefService.clear(ShowCorrespondencesCmd.class);
-		prefService.clear(SkeletonizerCmd.class);
-		prefService.clear(SpineExtractorCmd.class);
-		prefService.clear(SkeletonConverterCmd.class);
-		prefService.clear(SNTLoaderCmd.class);
-		prefService.clear(StrahlerCmd.class);
-		prefService.clear(SWCTypeFilterCmd.class);
-		prefService.clear(SWCTypeOptionsCmd.class);
-		prefService.clear(TranslateReconstructionsCmd.class);
-		prefService.clear(TreeGraphRecViewerCmd.class);
-		prefService.clear(TreeMapperCmd.class);
-
+		final String[] packages = new String[] { //
+				"sc.fiji.snt", //
+				"sc.fiji.snt.analysis", //
+				"sc.fiji.snt.analysis.graph", //
+				"sc.fiji.snt.analysis.sholl", //
+				"sc.fiji.snt.analysis.sholl.gui", //
+				"sc.fiji.snt.analysis.sholl.math", //
+				"sc.fiji.snt.analysis.sholl.parsers", //
+				"sc.fiji.snt.annotation", //
+				"sc.fiji.snt.event", //
+				"sc.fiji.snt.filter", //
+				"sc.fiji.snt.gui", //
+				"sc.fiji.snt.gui.cmds", //
+				"sc.fiji.snt.hyperpanes", //
+				"sc.fiji.snt.io", //
+				"sc.fiji.snt.plugin", //
+				"sc.fiji.snt.plugin.ij1", //
+				"sc.fiji.snt.tracing", //
+				"sc.fiji.snt.tracing.artist", //
+				"sc.fiji.snt.tracing.cost", //
+				"sc.fiji.snt.tracing.heuristic", //
+				"sc.fiji.snt.tracing.image", //
+				"sc.fiji.snt.util", //
+				"sc.fiji.snt.viewer", //
+				"sc.fiji.snt.viewer.geditor" //
+		};
+		for (final String pkg : packages) {
+			SNTUtils.log("Deleting prefs for " + pkg + ".*");
+			findClasses(pkg).forEach(c -> prefService.clear(c));
+		}
 		// Legacy (IJ1-based) preferences
 		SNTPrefs.clearAll();
 	}
 
+	private Set<Class<?>> findClasses(final String packageName) {
+		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+		final InputStream is = classloader.getResourceAsStream(packageName.replaceAll("[.]", "/"));
+		final BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+		final Set<Class<?>> set = reader.lines().filter(line -> line.endsWith(".class") && !line.contains("$"))
+				.map(line -> getClass(line, packageName)).collect(Collectors.toSet());
+		set.remove(null);
+		return set;
+	}
+
+	private Class<?> getClass(final String className, final String packageName) {
+		try {
+			final Class<?> c = Class.forName(packageName + "." + className.substring(0, className.lastIndexOf('.')));
+			return (c.isAnnotation() || c.isInterface()) ? null : c;
+		} catch (final ClassNotFoundException ignored) {
+			// do nothing
+		}
+		return null;
+	}
+
+	public static void wipe() {
+		final PrefsCmd prefs = new PrefsCmd();
+		final Context ctx = new Context(PrefService.class, SNTService.class);
+		prefs.setContext(ctx);
+		prefs.clearAll();
+		ctx.dispose();
+	}
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
+		SNTUtils.setDebugMode(true);
 		ij.command().run(PrefsCmd.class, true);
 	}
 

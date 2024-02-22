@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -85,11 +85,11 @@ public class DirectedWeightedSubgraph extends AsSubgraph<SWCPoint, SWCWeightedEd
 	}
 
 	public DepthFirstIterator<SWCPoint, SWCWeightedEdge> getDepthFirstIterator() {
-		return new DepthFirstIterator<SWCPoint, SWCWeightedEdge>(this);
+		return new DepthFirstIterator<>(this);
 	}
 
 	public DepthFirstIterator<SWCPoint, SWCWeightedEdge> getDepthFirstIterator(final SWCPoint startVertex) {
-		return new DepthFirstIterator<SWCPoint, SWCWeightedEdge>(this, startVertex);
+		return new DepthFirstIterator<>(this, startVertex);
 	}
 
 	/**
@@ -127,19 +127,19 @@ public class DirectedWeightedSubgraph extends AsSubgraph<SWCPoint, SWCWeightedEd
 	public NodeStatistics<SWCPoint> getNodeStatistics(final String type) {
 		switch(type.toLowerCase()) {
 		case "all":
-			return new NodeStatistics<SWCPoint>(vertexSet());
+			return new NodeStatistics<>(vertexSet());
 		case "tips":
 		case "endings":
 		case "end points":
 		case "terminals":
-			return new NodeStatistics<SWCPoint>(getTips());
+			return new NodeStatistics<>(getTips());
 		case "bps":
 		case "forks":
 		case "junctions":
 		case "fork points":
 		case "junction points":
 		case "branch points":
-			return new NodeStatistics<SWCPoint>(getBPs());
+			return new NodeStatistics<>(getBPs());
 		default:
 			throw new IllegalArgumentException("type not recognized. Perhaps you meant 'all', 'junctions' or 'tips'?");
 		}

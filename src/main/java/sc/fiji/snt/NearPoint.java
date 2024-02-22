@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -33,7 +33,7 @@ import sc.fiji.snt.util.PointInImage;
  * (nearPoint.x,nearPoint.y,nearPoint.z) close to a particular point on a
  * particular path. The important method here is
  * {@code distanceToPathNearPoint()} which retrieves the distance to the nearest
- * point on the the line segments on either side of the path point, rather than
+ * point on the line segments on either side of the path point, rather than
  * just the point. Also, it will return null if the point appears to be "off the
  * end" of the Path.
  *
@@ -225,7 +225,7 @@ public class NearPoint implements Comparable<NearPoint> {
 
 	/*
 	 * This returns null if the perpendicular dropped to the line doesn't lie within
-	 * the segment. Otherwise it returns the shortest distance to this line segment
+	 * the segment. Otherwise, it returns the shortest distance to this line segment
 	 * and the point of intersection in an IntersectionOnLine object
 	 */
 	public static IntersectionOnLine distanceToLineSegment(final double x,
@@ -275,7 +275,7 @@ public class NearPoint implements Comparable<NearPoint> {
 	}
 
 	/*
-	 * To find where the perpendicular dropped from the the point to the line meets
+	 * To find where the perpendicular dropped from the point to the line meets
 	 * it, with:
 	 *
 	 * A = (ax, ay, az) being a point in the line V = (vx, vy, vz) being a vector
@@ -332,18 +332,25 @@ public class NearPoint implements Comparable<NearPoint> {
 	}
 }
 
-class NearPointInCanvas implements Comparable<NearPointInCanvas> {
+class NearPointInCanvas<T extends PointInImage> implements Comparable<NearPointInCanvas<T>> {
 
 	private final double distanceSquared;
 	private final Path path;
+	private T nearPic;
 
-	protected NearPointInCanvas(final PointInCanvas nearPic, final PointInCanvas pic) {
+	protected NearPointInCanvas(final T nearPic, final T pic) {
+		this(nearPic, pic, false);
+	}
+
+	protected NearPointInCanvas(final T nearPic, final T pic, final boolean rememberNearPic) {
 		this.path = nearPic.onPath;
 		this.distanceSquared = nearPic.distanceSquaredTo(pic);
+		if (rememberNearPic)
+			this.nearPic = nearPic;
 	}
 
 	@Override
-	public int compareTo(NearPointInCanvas other) {
+	public int compareTo(NearPointInCanvas<T> other) {
 		final double d = getDistanceSquared();
 		final double od = other.getDistanceSquared();
 		return Double.compare(d, od);
@@ -357,16 +364,28 @@ class NearPointInCanvas implements Comparable<NearPointInCanvas> {
 		return path;
 	}
 
-	public static NearPointInCanvas nearestPointInCanvas(final List<PointInCanvas> points, final PointInCanvas pic) {
+	public T getNode() {
+		return nearPic;
+	}
+
+	public static NearPointInCanvas<PointInCanvas> nearestPointInCanvas(final List<PointInCanvas> points, final PointInCanvas pic) {
+		return nearestPointInCanvas(points, pic, false);
+	}
+
+	public static NearPointInCanvas<PointInImage> nearestPointInImage(final List<PointInImage> points, final PointInImage pic) {
+		return NearPointInCanvas.nearestPointInCanvas(points, pic, true);
+	}
+
+	private static <T extends PointInImage> NearPointInCanvas<T> nearestPointInCanvas(final List<T> points, final T pic, final boolean assignDetails) {
 
 		// Order all points in all paths by their Euclidean distance to pic:
-		final PriorityQueue<NearPointInCanvas> pq = new PriorityQueue<>();
-		for (final PointInCanvas point : points) {
-			pq.add(new NearPointInCanvas(point, pic));
+		final PriorityQueue<NearPointInCanvas<T>> pq = new PriorityQueue<>();
+		for (final T point : points) {	
+			pq.add(new NearPointInCanvas<T>(point, pic, assignDetails));
 		}
 
 		while (true) {
-			final NearPointInCanvas np = pq.poll();
+			final NearPointInCanvas<T> np = pq.poll();
 			if (np == null)
 				return null;
 			if (np.getDistanceSquared() >= 0) {

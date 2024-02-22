@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -46,7 +46,7 @@ import sc.fiji.snt.util.PointInImage;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Distribution Analysis of Brain Areas", initializer = "init")
+@Plugin(type = Command.class, label = "Distribution Analysis of Brain Areas", initializer = "init")
 public class BrainAnnotationCmd extends CommonDynamicCmd {
 
 	@Parameter(label = "Type of distribution:", choices = { "Cable Length", "No. of Tips",
@@ -54,7 +54,7 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 	private String histogramType;
 
 	@Parameter(required = false, label = "Deepest ontology:",
-			description = "<HTML><div WIDTH=400>The Deepest ontology depth to be considered. As a reference, the deepest level for "
+			description = "<HTML><div WIDTH=400>The Deepest ontology level to be considered. As a reference, the deepest level for "
 					+ "several mouse brain atlases is around 10. Set it to 0 to consider all depths", min ="0")
 	private int ontologyDepth;
 

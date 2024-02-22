@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -27,12 +27,15 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.viewer.OBJMesh;
 
 import java.io.IOException;
 import java.net.URL;
 import java.util.Objects;
 import java.util.UUID;
+
+import org.scijava.util.ColorRGB;
 
 /**
  * @author Cameron Arshadi
@@ -113,7 +116,7 @@ public class InsectBrainCompartment implements BrainAnnotation {
                 return null;
             }
             final URL url = new URL(urlPath);
-            mesh = new OBJMesh(url, "um");
+            mesh = new OBJMesh(url, GuiUtils.micrometer());
             mesh.setColor(objColor, 95f);
             mesh.setLabel(name);
         } catch (final IllegalArgumentException | IOException e) {
@@ -210,4 +213,9 @@ public class InsectBrainCompartment implements BrainAnnotation {
     public int hashCode() {
         return Objects.hash(uuid);
     }
+
+	@Override
+	public ColorRGB color() {
+		return (null==objColor) ? null : new ColorRGB(objColor);
+	}
 }

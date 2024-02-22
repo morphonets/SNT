@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -31,8 +31,6 @@ import java.awt.Label;
 import java.awt.Panel;
 import java.awt.Rectangle;
 import java.awt.TextField;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.IndexColorModel;
@@ -881,7 +879,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 		final StringBuffer plotLabel = new StringBuffer();
 
 		// Register quality of fit
-		plotLabel.append("R\u00B2= " + IJ.d2s(cf.getRSquared(), 3));
+		plotLabel.append("R\u00B2= ").append(IJ.d2s(cf.getRSquared(), 3));
 
 		// Plot fitted curve
 		if (plot != null) {
@@ -948,10 +946,10 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 				rif = cv / primaryBranches;
 
 			// Register parameters
-			plotLabel.append("\nNm= " + IJ.d2s(cv, 2));
-			plotLabel.append("\nrc= " + IJ.d2s(cr, 2));
-			plotLabel.append("\nNav= " + IJ.d2s(mv, 2));
-			plotLabel.append("\n" + Sholl_Utils.ordinal(degree)).append(" degree");
+			plotLabel.append("\nNm= ").append(IJ.d2s(cv, 2));
+			plotLabel.append("\nrc= ").append(IJ.d2s(cr, 2));
+			plotLabel.append("\nNav= ").append(IJ.d2s(mv, 2));
+			plotLabel.append("\n").append(Sholl_Utils.ordinal(degree)).append(" degree");
 
 			rt.addValue("Critical value", cv);
 			rt.addValue("Critical radius", cr);
@@ -1260,12 +1258,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 
 		// apply new LUT in new thread to provide a more responsive user
 		// interface
-		final Thread newThread = new Thread(new Runnable() {
-			@Override
-			public void run() {
-				applySegmentationLUT();
-			}
-		});
+		final Thread newThread = new Thread(() -> applySegmentationLUT());
 		newThread.start();
 
 		// present dialog
@@ -1946,63 +1939,43 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 
 		if (analyzingImage) {
 			mi = new JMenuItem("Cf. Segmentation");
-			mi.addActionListener(new ActionListener() {
-				@Override
-				public void actionPerformed(final ActionEvent e) {
-					offlineHelp(gd);
-				}
-			});
+			mi.addActionListener(e -> offlineHelp(gd));
 			popup.add(mi);
 			popup.addSeparator();
 		}
 		mi = new JMenuItem("Options...");
-		mi.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				final Thread newThread = new Thread(new Runnable() {
-					@Override
-					public void run() {
-						if (Recorder.record)
-							Recorder.setCommand(ShollOptions.COMMAND_LABEL);
-						// IJ.runPlugIn(Options.class.getName(), analyzingImage
-						// ? "" : Options.SKIP_BITMAP_OPTIONS_LABEL);
-						options.run(analyzingImage ? "" : ShollOptions.SKIP_BITMAP_OPTIONS_LABEL);
-						if (Recorder.record)
-							Recorder.saveCommand();
-					}
-				});
-				newThread.start();
-			}
+		mi.addActionListener(e -> {
+			final Thread newThread = new Thread(() -> {
+				if (Recorder.record)
+					Recorder.setCommand(ShollOptions.COMMAND_LABEL);
+				// IJ.runPlugIn(Options.class.getName(), analyzingImage
+				// ? "" : Options.SKIP_BITMAP_OPTIONS_LABEL);
+				options.run(analyzingImage ? "" : ShollOptions.SKIP_BITMAP_OPTIONS_LABEL);
+				if (Recorder.record)
+					Recorder.saveCommand();
+			});
+			newThread.start();
 		});
 		popup.add(mi);
 		popup.addSeparator();
 		mi = new JMenuItem("Analyze image...");
-		mi.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				gd.disposeWithouRecording();
-				runInBitmapMode();
-			}
+		mi.addActionListener(e -> {
+			gd.disposeWithouRecording();
+			runInBitmapMode();
 		});
 		mi.setEnabled(analyzingTable);
 		popup.add(mi);
 		mi = new JMenuItem(analyzingTable ? "Replace input data" : "Analyze sampled profile...");
-		mi.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				gd.disposeWithouRecording();
-				runInTabularMode(true);
-			}
+		mi.addActionListener(e -> {
+			gd.disposeWithouRecording();
+			runInTabularMode(true);
 		});
 		mi.setEnabled(!analyzingTraces);
 		popup.add(mi);
 		mi = new JMenuItem("Analyze traced cells...");
-		mi.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				gd.disposeWithouRecording();
-				IJ.runPlugIn(ShollAnalysisPlugin.class.getName(), "");
-			}
+		mi.addActionListener(e -> {
+			gd.disposeWithouRecording();
+			IJ.runPlugIn(ShollAnalysisPlugin.class.getName(), "");
 		});
 		mi.setEnabled(!analyzingTraces);
 		popup.add(mi);
@@ -2191,8 +2164,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 	/** Returns a plot with some axes customizations */
 	private ShollPlot plotValues(final String title, final String xLabel, final String yLabel, final double[][] xy) {
 		final LinearProfileStats stats = new LinearProfileStats(new Profile(xy));
-		final ShollPlot plot = new ShollPlot(title, xLabel, yLabel, stats, true, false);
-		return plot;
+		return new ShollPlot(title, xLabel, yLabel, stats, true, false);
 	}
 
 	/** Calls plotRegression for both regressions as specified in Options */
@@ -2278,9 +2250,9 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 			plot.markPoint(new ShollPoint(0, kIntercept), color);
 			if (plotLabels) {
 				final StringBuffer label = new StringBuffer();
-				label.append("R\u00B2= " + IJ.d2s(kRSquared, 3));
-				label.append("\nk= " + IJ.d2s(k, -2));
-				label.append("\nIntercept= " + IJ.d2s(kIntercept, 2));
+				label.append("R\u00B2= ").append(IJ.d2s(kRSquared, 3));
+				label.append("\nk= ").append(IJ.d2s(k, -2));
+				label.append("\nIntercept= ").append(IJ.d2s(kIntercept, 2));
 				plot.drawLabel(label.toString(), color);
 			}
 
@@ -2431,7 +2403,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 	 */
 	public void setPlotLabels(final String booleanString) {
 		if (validateBooleanString(booleanString))
-			this.plotLabels = Boolean.valueOf(booleanString);
+			this.plotLabels = Boolean.parseBoolean(booleanString);
 	}
 
 	/**
@@ -2513,7 +2485,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 		final int cols = (tableTitles.size() < 18) ? 1 : 2;
 		final int rows = (tableTitles.size() % cols > 0) ? tableTitles.size() / cols + 1 : tableTitles.size() / cols;
 		gd.addRadioButtonGroup("Use tabular data of sampled profiles from:",
-				tableTitles.toArray(new String[tableTitles.size()]), rows, cols, tableTitles.get(0));
+				tableTitles.toArray(new String[0]), rows, cols, tableTitles.get(0));
 		// gd.hideCancelButton();
 		gd.showDialog();
 
@@ -2529,7 +2501,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 
 				try {
 					rt = ResultsTable.open("");
-					if (rt != null && validTable(rt)) {
+					if (validTable(rt)) {
 						setExportPath(OpenDialog.getLastDirectory());
 						setDescription(OpenDialog.getLastName(), true);
 						if (!IJ.macroRunning()) // no need to display table

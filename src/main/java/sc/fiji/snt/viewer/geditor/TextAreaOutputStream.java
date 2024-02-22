@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -112,8 +112,8 @@ class TextAreaOutputStream extends OutputStream {
 		Appender(final JTextArea txtara, final int maxlin) {
 			textArea = txtara;
 			maxLines = maxlin;
-			lengths = new LinkedList<Integer>();
-			values = new ArrayList<String>();
+			lengths = new LinkedList<>();
+			values = new ArrayList<>();
 
 			curLength = 0;
 			clear = false;

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -56,7 +56,7 @@ import sc.fiji.snt.io.MouseLightLoader;
  * @see MouseLightLoader
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false,
+@Plugin(type = Command.class,
 	label = "Import MouseLight Reconstructions", initializer = "init")
 public class MLImporterCmd extends CommonDynamicCmd {
 
@@ -133,17 +133,19 @@ public class MLImporterCmd extends CommonDynamicCmd {
 		status("Retrieving ids... Please wait...", false);
 		final int lastExistingPathIdx = pafm.size() - 1;
 		final Map<String, TreeSet<SWCPoint>> inMap = new HashMap<>();
-		final String compartment = (arborChoice.indexOf(" ") == -1) ? arborChoice
+		final String compartment = (!arborChoice.contains(" ")) ? arborChoice
 				: arborChoice.substring(0, arborChoice.indexOf(" "));
 		for (final String id : ids) {
 			final MouseLightLoader loader = new MouseLightLoader(id);
 			inMap.put(id, (loader.idExists()) ? loader.getNodes(compartment) : null);
 		}
-		final Map<String, Tree> result = pafm.importNeurons(inMap, getColor(), "um");
+		final Map<String, Tree> result = pafm.importNeurons(inMap, getColor(), GuiUtils.micrometer());
 		final List<Tree> filteredResult = result.values().stream().filter(tree -> (tree != null && !tree.isEmpty()))
 				.collect(Collectors.toList());
 		if (filteredResult.isEmpty()) {
 			resetUI(false);
+			if (recViewer != null)
+				notifyLoadingEnd(recViewer);
 			status("Error... No reconstructions imported", true);
 			error("No reconstructions could be retrieved: Invalid Query?");
 			return;
@@ -167,7 +169,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			recViewer.setSplitDendritesFromAxons(splitState);
 		}
 
-		resetProgress(recViewer);
+		notifyLoadingEnd(recViewer);
 		resetUI(recViewer == null);
 		if (filteredResult.size() < result.size()) {
 			status("Partially successful import...", true);
@@ -226,10 +228,10 @@ public class MLImporterCmd extends CommonDynamicCmd {
 			final MutableModuleItem<Boolean> clearExistingInput = getInfo()
 				.getMutableInput("clearExisting", Boolean.class);
 			clearExistingInput.setLabel("Clear existing reconstructions");
-			pafm = new PathAndFillManager();
+			pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 			pafm.setHeadless(true);
 		} else if (sntService.isActive()) {
-			snt = sntService.getPlugin();
+			snt = sntService.getInstance();
 			ui = sntService.getUI();
 			pafm = sntService.getPathAndFillManager();
 			if (ui != null) ui.changeState(SNTUI.RUNNING_CMD);

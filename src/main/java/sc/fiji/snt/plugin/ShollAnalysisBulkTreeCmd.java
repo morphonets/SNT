@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -60,7 +60,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Bulk Sholl Analysis (Tracings)", initializer = "init")
+@Plugin(type = Command.class, label = "Bulk Sholl Analysis (Tracings)", initializer = "init")
 public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 {
 
@@ -130,7 +130,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 
 	@Parameter(label = "<html>&nbsp;", callback = "polynomialDegreeChanged",
 			min = "" + ShollAnalysisPrefsCmd.DEF_MIN_DEGREE, max = "" + ShollAnalysisPrefsCmd.DEF_MAX_DEGREE,
-			stepSize = "1", style = NumberWidget.SCROLL_BAR_STYLE)
+			stepSize = "1", style = NumberWidget.SLIDER_STYLE)
 	private int polynomialDegree;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,

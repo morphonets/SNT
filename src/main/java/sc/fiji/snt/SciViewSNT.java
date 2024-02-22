@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -60,6 +60,9 @@ import java.util.*;
  * @author Tiago Ferreira
  */
 public class SciViewSNT {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private final static String PATH_MANAGER_TREE_LABEL = "Path Manager Contents";
 
 	@Parameter
@@ -86,7 +89,7 @@ public class SciViewSNT {
 		}
 		if (context == null) throw new NullContextException();
 		context.inject(this);
-		plottedTrees = new TreeMap<String,ShapeTree>();
+		plottedTrees = new TreeMap<>();
         try {
             sciView = sciViewService.getOrCreateActiveSciView();
         } catch (Exception e) {
@@ -106,7 +109,7 @@ public class SciViewSNT {
 		if (sciView == null) throw new NullPointerException();
 		this.sciView = sciView;
 		sciView.getScijavaContext().inject(this);
-		plottedTrees = new TreeMap<String,ShapeTree>();
+		plottedTrees = new TreeMap<>();
 		snt = null;
 	}
 
@@ -428,8 +431,8 @@ public class SciViewSNT {
 				final Vector3f p3 = convertPIIToVector3(somaPoints.get(2));
 				final double lengthT1 = p2.sub(p1).length();
 				final double lengthT2 = p1.sub(p3).length();
-				final Node t1 = sciView.addCylinder(p2,DEF_NODE_RADIUS,(float)lengthT1,20, p -> { return null; });
-				final Node t2 = sciView.addCylinder(p1,DEF_NODE_RADIUS,(float)lengthT2,20, p -> { return null; });
+				final Node t1 = sciView.addCylinder(p2, DEF_NODE_RADIUS, (float)lengthT1, Colors.GRAY, 20, p -> null);
+				final Node t2 = sciView.addCylinder(p1, DEF_NODE_RADIUS, (float)lengthT2, Colors.GRAY, 20, p -> null);
 				addChild(t1);
 				addChild(t2);
 				return;

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -23,21 +23,30 @@
 package sc.fiji.snt.gui;
 
 import java.awt.Component;
-import java.awt.event.InputEvent;
+import java.awt.HeadlessException;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.TreeSet;
 import java.util.concurrent.Future;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
+import javax.swing.Icon;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
+import javax.swing.MenuElement;
+import javax.swing.MenuSelectionManager;
+import javax.swing.SwingUtilities;
 import javax.swing.event.MenuKeyEvent;
 import javax.swing.event.MenuKeyListener;
 
@@ -73,19 +82,17 @@ public class ScriptInstaller implements MenuKeyListener {
 	private final SNTUI ui;
 	private final GuiUtils guiUtils;
 	private TreeSet<ScriptInfo> scripts;
+	private static TextEditor editor;
+
 	private boolean openInsteadOfRun;
 
 	public ScriptInstaller(final Context context, final Component parent){
 		context.inject(this);
-		ui = null;
+		if (parent instanceof SNTUI)
+			ui = (SNTUI)parent;
+		else
+			ui = null;
 		guiUtils = new GuiUtils(parent);
-		init();
-	}
-
-	protected ScriptInstaller(final Context context, final SNTUI ui) {
-		context.inject(this);
-		this.ui = ui;
-		guiUtils = new GuiUtils(ui);
 		init();
 	}
 
@@ -139,7 +146,7 @@ public class ScriptInstaller implements MenuKeyListener {
 		return (dir==null) ? null : dir.getAbsolutePath();
 	}
 
-	private File getScriptsDir() {
+	public File getScriptsDir() {
 		final List<File> dirs = scriptService.getScriptDirectories();
 		for (final File dir : dirs) {
 			if (!dir.getAbsolutePath().contains("plugins")) return dir;
@@ -167,12 +174,17 @@ public class ScriptInstaller implements MenuKeyListener {
 		}
 	}
 
+	private TextEditor getTextEditor() {
+		if (editor == null)
+			editor = new TextEditor((context == null) ? SNTUtils.getContext() : context);
+		return editor;
+	}
+
 	private void openScript(final ScriptInfo si) {
 		if (ui != null) ui.showStatus("Opening script...", false);
-		final TextEditor editor = new TextEditor(context);
 		final BufferedReader reader = si.getReader();
 		if (reader == null) { // local file
-			editor.open(new File(si.getPath()));
+			getTextEditor().open(new File(si.getPath()));
 		}
 		else { // jar file
 			try {
@@ -181,41 +193,73 @@ public class ScriptInstaller implements MenuKeyListener {
 				while ((line = reader.readLine()) != null) {
 					stringBuffer.append(line).append("\n");
 				}
-				editor.createNewDocument(getScriptLabel(si), stringBuffer.toString());
+				getTextEditor().createNewDocument(getScriptLabel(si), stringBuffer.toString());
 			}
 			catch (final IOException e) {
 				e.printStackTrace();
 			}
 		}
-		editor.setVisible(true);
+		getTextEditor().getTextArea().setCaretPosition(0); // scroll to top
+		getTextEditor().setVisible(true);
 		if (ui != null) ui.showStatus("", false);
 	}
 
 	private JMenu getMenu(final String folder, final Pattern excludePattern, final boolean trimExtension) {
 		final JMenu sMenu = new JMenu((folder == null) ? "Full List" : folder.replace("_", " "));
-		sMenu.addMenuKeyListener(this);
+		sMenu.setIcon(getIcon(sMenu.getText()));
 		for (final ScriptInfo si : scripts) {
 			final String[] dirAndFile = getDirAndFilename(si.getPath());
 			if (dirAndFile == null || (folder != null && !dirAndFile[0].contains(folder))) continue;
 			if (excludePattern != null && excludePattern.matcher(dirAndFile[1]).matches()) continue;
-			final JMenuItem mItem = new JMenuItem(getScriptLabel(si,trimExtension));
-			mItem.setToolTipText("Click to run script. Click holding Shift to open it");
-			sMenu.add(mItem);
-			mItem.addMenuKeyListener(this);
-			mItem.addActionListener(e -> {
-				final int mods = e.getModifiers();
-				if (openInsteadOfRun || (mods & InputEvent.SHIFT_MASK) != 0
-						|| (mods & InputEvent.SHIFT_DOWN_MASK) != 0)
-				{
-					openScript(si);
-				}
-				else {
-					runScript(si);
-				}
-				openInsteadOfRun = false;
-			});
+			sMenu.add(menuItem(si, trimExtension));
 		}
 		return sMenu;
+	}
+
+	private Icon getIcon(final String menuName) {
+		switch(menuName) {
+		case "Analysis":
+			return IconFactory.getMenuIcon(GLYPH.CHART);
+		case "Batch":
+			return IconFactory.getMenuIcon(GLYPH.COG);
+		case "Demos":
+			return IconFactory.getMenuIcon(GLYPH.GRADUATION_CAP);
+		case "Full List":
+			return IconFactory.getMenuIcon(GLYPH.LIST);
+		case "Misc":
+			return IconFactory.getMenuIcon(GLYPH.ELLIPSIS);
+		case "Render":
+			return IconFactory.getMenuIcon(GLYPH.CUBE);
+		case "Skeletons and ROIs":
+			return IconFactory.getMenuIcon(GLYPH.BEZIER_CURVE);
+		case "Tracing":
+			return IconFactory.getMenuIcon(GLYPH.ROUTE);
+		default:
+			return null;
+		}
+	}
+	private JMenuItem menuItem(final ScriptInfo si, final boolean trimExtension) {
+		final JMenuItem mItem = new JMenuItem(getScriptLabel(si, trimExtension));
+		mItem.setToolTipText("Click to run script. Click holding Shift to open it");
+		mItem.addMenuKeyListener(this);
+		mItem.addChangeListener(e -> updateMenuItemIcon(mItem));
+		mItem.addActionListener(e -> {
+			if (openInsteadOfRun) {
+				openScript(si);
+			} else {
+				runScript(si);
+			}
+			openInsteadOfRun = false;
+		});
+		return mItem;
+	}
+
+	private void updateMenuItemIcon(final JMenuItem item) {
+		if (openInsteadOfRun && (item.isSelected() || item.isArmed())) {
+			item.setIcon(IconFactory.getMenuIcon(GLYPH.EYE));
+		} else {
+			item.setIcon(null);
+		}
 	}
 
 	private String[] getDirAndFilename(final String resourcePath) {
@@ -244,8 +288,8 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	/** Returns a UI list with all the bundled non-demo SNT scripts **/
 	public JMenu getScriptsMenu() {
-		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Render", "Skeletons_and_ROIs", "Tracing");
-		menus.insert(getDemosMenu(), 5);
+		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Misc", "Render", "Skeletons_and_ROIs", "Tracing");
+		menus.insert(getDemosMenu(), 2);
 		return menus;
 	}
 
@@ -262,11 +306,11 @@ public class ScriptInstaller implements MenuKeyListener {
 		for (final String dir : directories) {
 			final JMenu menu = getMenu(dir, excludePattern, true);
 			if (menu.getMenuComponents().length > 0)
-				sMenu.add(getMenu(dir, excludePattern, true));
+				sMenu.add(menu);
 		}
+
 		final JMenu listMenu = getFullListMenu();
 		final int listMenuPosition = sMenu.getItemCount();
-		sMenu.add(listMenu);
 		final JMenuItem reloadMI = new JMenuItem("Reload Scripts...", IconFactory.getMenuIcon(GLYPH.REDO));
 		reloadMI.addActionListener(e -> {
 			final int oldCount = scripts.size();
@@ -281,36 +325,54 @@ public class ScriptInstaller implements MenuKeyListener {
 			sMenu.revalidate();
 			guiUtils.centeredMsg(""+ (newCount-oldCount) +" new script(s) added to \"Scripts>Full List>\".", "New Script(s) Detected");
 		});
-		sMenu.add(reloadMI);
-		sMenu.addSeparator();
-		final JMenuItem mi = new JMenuItem("New...", IconFactory.getMenuIcon(GLYPH.CODE));
-		mi.addActionListener(e -> {
+		final JMenuItem mi1 = new JMenuItem("From Template...", IconFactory.getMenuIcon(GLYPH.FILE));
+		mi1.addActionListener(e -> {
 
 			final HashMap<String, String> map = new HashMap<>();
 			map.put("BeanShell", "BSH.bsh");
 			map.put("Groovy", "GVY.groovy");
 			map.put("Python", "PY.py");
-			final String choice = guiUtils.getChoice("Language:", "New Script",
-					map.keySet().toArray(new String[map.keySet().size()]), "");
+			final String choice = guiUtils.getChoice("Language:", "New SNT Script",
+					map.keySet().toArray(new String[0]), "");
 			if (choice == null) return; // user pressed cancel
 
-			final TextEditor editor = new TextEditor(context);
 			final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 			boolean save = true;
 			try {
-				editor.loadTemplate(
+				getTextEditor().loadTemplate(
 						classloader.getResource("script_templates/Neuroanatomy/Boilerplate/" + map.get(choice)));
 			} catch (final NullPointerException ignored) {
 				ui.error("Boilerpate script could not be retrieved. Use Script Editor's Templates>Neuroanatomy> instead.");
 				save = false;
 			} finally {
-				editor.setVisible(true);
+				getTextEditor().setVisible(true);
 				if (save)
-					editor.saveAs(
+					getTextEditor().saveAs(
 							getScriptsDir() + File.separator + "_SNT_script." + FileUtils.getExtension(map.get(choice)));
 			}
 		});
-		sMenu.add(mi);
+		final JMenuItem mi2 = new JMenuItem("From Clipboard...", IconFactory.getMenuIcon(GLYPH.CLIPBOARD));
+		mi2.addActionListener(e -> newScriptFromClipboard());
+		final JMenu nMenu = new JMenu("New");
+		nMenu.setIcon(IconFactory.getMenuIcon(GLYPH.PLUS));
+		nMenu.add(mi1);
+		nMenu.add(mi2);
+		if (ui != null) {
+			final JMenuItem mi3 = new JMenuItem("Record... (Experimental)", IconFactory.getMenuIcon(GLYPH.CIRCLE));
+			mi3.addActionListener(e -> {
+				if (ui.getRecorder(false) == null) {
+					ui.getRecorder(true).setVisible(true);
+				} else {
+					ui.error("Script Recorder is already open.");
+				}
+			});
+			nMenu.addSeparator();
+			nMenu.add(mi3);
+		}
+		sMenu.add(listMenu);
+		sMenu.addSeparator();
+		sMenu.add(nMenu);
+		sMenu.add(reloadMI);
 		sMenu.addSeparator();
 		sMenu.add(about());
 		return sMenu;
@@ -322,6 +384,7 @@ public class ScriptInstaller implements MenuKeyListener {
 			if (path == null || (folder != null && !path.contains(folder))) continue;
 			if (name.equals(getScriptLabel(si, true)) || name.equals(getScriptLabel(si, false))) {
 				openScript(si); 
+				MenuSelectionManager.defaultManager().clearSelectedPath();
 				return;
 			}
 		}
@@ -391,6 +454,59 @@ public class ScriptInstaller implements MenuKeyListener {
 		return mItem;
 	}
 
+	private void newScriptFromClipboard() {
+		try {
+			final String data = (String) java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
+					.getData(java.awt.datatransfer.DataFlavor.stringFlavor);
+			final String ext = guessScriptingLanguage(data);
+			getTextEditor().newTab(data, ext);
+			getTextEditor().setVisible(true);
+			if (ext.isEmpty())
+				new GuiUtils(getTextEditor()).centeredMsg(
+						"Unable to detect scripting language. Please define it using the Language> menu.",
+						"Unknown Languagage");
+		} catch (final UnsupportedFlavorException | HeadlessException | IOException ignored) {
+			guiUtils.error("No script could be extracted from the clipboard.");
+		}
+	}
+
+	private static String guessScriptingLanguage(final String text) {
+		boolean javaKeyword = false;
+		boolean javaComment = false;
+		boolean groovyKeyword = false;
+		boolean pythonComment = false;
+		boolean pythonKeyword = false;
+		try (final Scanner scanner = new Scanner(text)) {
+			while (scanner.hasNextLine()) {
+				final String l = scanner.nextLine().trim();
+				if (l.startsWith("#@"))
+					continue; // script parameter
+				javaComment |= l.startsWith("//");
+				javaKeyword |= l.contains("new ");
+				groovyKeyword |= l.startsWith("def ");
+				pythonComment |= l.startsWith("#");
+				pythonKeyword |= l.startsWith("from ");
+				if (groovyKeyword && (javaKeyword || javaComment))
+					return ".groovy";
+				if (pythonKeyword && pythonComment)
+					return ".py";
+				if (javaKeyword && javaComment)
+					return ".bsh";
+			}
+		}
+		return "";
+	}
+
+	private void setOpenInsteadOfRun(final boolean b) {
+		openInsteadOfRun = b;
+		final MenuElement[] selectedMenuPath = MenuSelectionManager.defaultManager().getSelectedPath();
+		if (selectedMenuPath.length == 0)
+			return;
+		final MenuElement lastElem = selectedMenuPath[selectedMenuPath.length - 1];
+		if (lastElem instanceof JMenuItem)
+			updateMenuItemIcon((JMenuItem) lastElem);
+	}
+
 	@Override
 	public void menuKeyTyped(final MenuKeyEvent e) {
 		// ignored
@@ -398,12 +514,41 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	@Override
 	public void menuKeyPressed(final MenuKeyEvent e) {
-		openInsteadOfRun = e.isShiftDown();
+		setOpenInsteadOfRun(e.isShiftDown() || e.isAltDown());
 	}
 
 	@Override
 	public void menuKeyReleased(final MenuKeyEvent e) {
-		openInsteadOfRun = e.isShiftDown();
+		setOpenInsteadOfRun(e.isShiftDown() || e.isAltDown());
 	}
 
+	public static void newScript(final String contents, final String scriptNameWithExtension) {
+		if (editor == null)
+			editor = new TextEditor(SNTUtils.getContext());
+		editor.createNewDocument(scriptNameWithExtension, contents);
+		SwingUtilities.invokeLater(() -> editor.setVisible(true));
+	}
+
+	public static String getBoilerplateScript(final String extension) {
+		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+		final InputStream is = classloader.getResourceAsStream("script_templates/Neuroanatomy/Boilerplate/"
+				+ getBoilerPlateFile(extension));
+		return  new BufferedReader(new InputStreamReader(is)).lines().collect(Collectors.joining("\n"));
+	}
+
+	public static void runScript(final String dir, final String file, final Map<String, Object> inputMap) {
+		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+		final InputStream is = classloader.getResourceAsStream("script_templates/Neuroanatomy/" + dir + "/" + file);
+		final ScriptService sService = SNTUtils.getContext().getService(ScriptService.class);
+		sService.run(file, new InputStreamReader(is), true, inputMap);
+	}
+
+	private static String getBoilerPlateFile(final String extension) {
+		final String ext = extension.toLowerCase();
+		if (ext.contains("bsh"))
+			return "BSH.bsh";
+		if (ext.contains("py"))
+			return "PY.py";
+		return "GVY.groovy";
+	}
 }

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -23,6 +23,8 @@
 package sc.fiji.snt.gui;
 
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Graphics;
 
 import javax.swing.AbstractButton;
 import javax.swing.Icon;
@@ -53,8 +55,14 @@ public class IconFactory {
 			ALIGN_CENTER('\uf037', true), //
 			ALIGN_RIGHT('\uf038', true), //
 			ATLAS('\uf558', true), //
+			ARROWS_LR('\uf0ec', true), //
+			ARROWS_LR_TO_LINE('\ue4ba', true), //
+			ARROWS_TO_CIRCLE('\ue4bd', true), //
+			ARROWS_DLUR('\uf422', true), //
+			ARROWS_SPLIT('\ue4bc', true), //
 			//ARROWS_V('\uf338', true), //
 			//ATOM('\uf5d2', true), //
+			BEZIER_CURVE('\uf55b', true),//
 			BINOCULARS('\uf1e5', true), //
 			BOLD('\uf032', true),//
 			BOOK_READER('\uf5da', true), //
@@ -66,9 +74,14 @@ public class IconFactory {
 			BULLSEYE('\uf140', true), //
 			CAMERA('\uf030', true), //
 			CALCULATOR('\uf1ec', true), //
-			CHART('\uf080', false), //
+			CHART('\ue0e3', true), //
+			CHART_LINE('\uf201', true), //
+			CHART_AREA('\uf1fe', true), //
+			CHART_MAGNIFIED('\ue522', true), //
 			CHECK_DOUBLE('\uf560', true), //
 			CIRCLE('\uf192', false), //
+			CLOCK_ROTATE_LEFT('\uf1da', true), //
+			CLIPBOARD('\uf328', false), //
 			CLOUD('\uf381', true), //
 			CLONE('\uf24d', false), //
 			CODE('\uf120', true), //
@@ -78,7 +91,10 @@ public class IconFactory {
 			COLOR('\uf53f', true), //
 			COLOR2('\uf5c3', true), //
 			COMMENTS('\uf086', false), //
-			COMPRESS('\uf422', true), //
+			CUBES('\uf1b3', true), //
+			//COMPASS('\uf14e', false), //
+			//COMPRESS('\uf422', true), //
+			RESIZE('\uf424', true), //
 			COPY('\uf0c5', false), //
 			CROSSHAIR('\uf05b', true), //
 			CSV('\uf6dd', true), //
@@ -92,7 +108,9 @@ public class IconFactory {
 			DOTCIRCLE('\uf192', true), //
 			//DOWNLOAD('\uf019', true), //
 			DRAFT('\uf568', true), //
+			ELLIPSIS('\uf141', true), //
 			ELLIPSIS_VERTICAL('\uf142', true), //
+			EMPTY('\u00a0', false), //
 			EQUALS('\uf52c', true), //
 			EXPAND('\uf065', true), //
 			EXPAND_ARROWS1('\uf337', true), //
@@ -111,7 +129,7 @@ public class IconFactory {
 			FONT('\uf031', true), //
 			FOOTPRINTS('\uf54b', true), //
 			GEM('\uf3a5', true), //
-			//GLOBE('\uf0ac', true), //
+			GLOBE('\uf0ac', true), //
 			GRID('\uf00a', true), //
 			GRADUATION_CAP('\uf19d', true), //
 			HAND('\uf256', false), //
@@ -124,6 +142,8 @@ public class IconFactory {
 			ITALIC('\uf033', true), //
 			//JET('\uf0fb', true), //
 			KEYBOARD('\uf11c', false), //
+			KIWI_BIRD('\uf535', true), //
+			LAYERS('\uf5fd', true), //
 			LINK('\uf0c1', true), //
 			LIST('\uf03a', true), //
 			LIST_ALT('\uf022', true), //
@@ -131,7 +151,9 @@ public class IconFactory {
 			MAP_PIN('\uf276', true), //
 			MARKER('\uf3c5', true), //
 			MASKS('\uf630', true), //
+			MATH('\uf698', true), //
 			MICROCHIP('\uf2db', true), //
+			//MINIMIZE('\uf78c', true), //
 			MINUS('\uf146', false), //
 			NAVIGATE('\uf14e', false), //
 			MOVE('\uf0b2', true), //
@@ -150,18 +172,23 @@ public class IconFactory {
 			REDO('\uf01e', true), //
 			ROBOT('\uf544', true), //
 			ROCKET('\uf135', true), //
+			ROUTE('\uf4d7', true), //
 			RULER('\uf546', true), //
 			RULER_VERTICAL('\uf548', true), //
 			SAVE('\uf0c7', false), //
+			SCISSORS('\uf0c4', true), //
 			SCROLL('\uf70e', true), //
 			SEARCH('\uf002', true), //
 			SEARCH_MINUS('\uf010', true), //
 			SEARCH_PLUS('\uf00e', true), //
+			SEARCH_ARROW('\ue521', true), //
 			SHUFFLE('\uf074', true), //
 			SIGNS('\uf277', true), //
 			SLIDERS('\uf1de', true), //
 			SPINNER('\uf110', true), //
 			SORT('\uf15d', true), //
+			SQUARE('\uf0c8', false), //
+			STAIRS('\ue289', true), //
 			STETHOSCOPE('\uf0f1', true), //
 			STREAM('\uf550', true), //
 			SUN('\uf185', true), //
@@ -172,6 +199,7 @@ public class IconFactory {
 			TAPE('\uf4db', true), //
 			TEXT('\uf031', true), //
 			TIMES('\uf00d', true), //
+			TOILET('\uf7d8', true), //
 			TOOL('\uf0ad', true), //
 			TRASH('\uf2ed', false), //
 			TREE('\uf1bb', true), //
@@ -180,7 +208,9 @@ public class IconFactory {
 			VIDEO('\uf03d', true), //
 			WIDTH('\uf337', true), //
 			WINDOWS('\uf2d2', false), //
-			WIZARD('\uf6e8', true);
+			WINDOWS2('\uf2d2', true), //
+			WIZARD('\uf6e8', true),//
+			X_RAY('\uf497', true);
 
 		private final char id;
 		private final boolean solid;
@@ -213,6 +243,21 @@ public class IconFactory {
 		return button;
 	}
 
+	public static JButton getButton(final GLYPH glyph1, final GLYPH glyph2) {
+		final JButton button = new JButton();
+		final int size = UIManager.getFont("Button.font").getSize();
+		Icon icon1 = IconFactory.getIcon(glyph1, size, DEFAULT_COLOR);
+		Icon icon2 = IconFactory.getIcon(glyph2, size, DEFAULT_COLOR);
+		button.setIcon(new SideBySideDoubleIcon(icon1, icon2));
+		icon1 = IconFactory.getIcon(glyph1, size, INACTIVE_COLOR);
+		icon2 = IconFactory.getIcon(glyph2, size, INACTIVE_COLOR);
+		button.setDisabledIcon(new SideBySideDoubleIcon(icon1, icon2));
+		icon1 = IconFactory.getIcon(glyph1, size, PRESSED_COLOR);
+		icon2 = IconFactory.getIcon(glyph2, size, PRESSED_COLOR);
+		button.setPressedIcon(new SideBySideDoubleIcon(icon1, icon2));
+		return button;
+	}
+
 	private static void updateColors() {
 		DEFAULT_COLOR = UIManager.getColor("Button.foreground");
 		INACTIVE_COLOR = UIManager.getColor("Button.disabledText");
@@ -232,6 +277,9 @@ public class IconFactory {
 	}
 
 	public static Icon getButtonIcon(final GLYPH entry, final float scalingFactor) {
+		if (GLYPH.EMPTY.equals(entry)) {
+			return new EmptyIcon( UIManager.getFont("Button.font").getSize() * scalingFactor);
+		}
 		return new FADerivedIcon(entry.id, UIManager.getFont("Button.font")
 			.getSize() * scalingFactor, UIManager.getColor("Button.foreground"), entry.solid);
 	}
@@ -241,11 +289,17 @@ public class IconFactory {
 	}
 
 	public static Icon getTabbedPaneIcon(final GLYPH entry) {
-		return new FADerivedIcon(entry.id, UIManager.getFont("TabbedPane.font")
-			.getSize(), UIManager.getColor("TabbedPane.foreground"), entry.solid);
+		if (GLYPH.EMPTY.equals(entry)) {
+			return new EmptyIcon(UIManager.getFont("TabbedPane.font").getSize());
+		}
+		return new FADerivedIcon(entry.id, UIManager.getFont("TabbedPane.font").getSize(),
+				UIManager.getColor("TabbedPane.foreground"), entry.solid);
 	}
 
 	public static Icon getMenuIcon(final GLYPH entry) {
+		if (GLYPH.EMPTY.equals(entry)) {
+			return new EmptyIcon(UIManager.getFont("MenuItem.font").getSize() * 0.9f);
+		}
 		return new FADerivedIcon(entry.id, UIManager.getFont("MenuItem.font")
 			.getSize() * 0.9f, UIManager.getColor("MenuItem.foreground"),
 			entry.solid);
@@ -257,4 +311,59 @@ public class IconFactory {
 			entry.solid);
 	}
 
+	static class EmptyIcon implements Icon {
+
+		private float size;
+
+		protected EmptyIcon(final float size) {
+			this.size = size;
+		}
+
+		@Override
+		public void paintIcon(Component c, Graphics g, int x, int y) {
+			// do nothing
+		}
+
+		@Override
+		public int getIconWidth() {
+			return (int) size;
+		}
+
+		@Override
+		public int getIconHeight() {
+			return (int) size;
+		}
+
+	}
+
+	static class SideBySideDoubleIcon implements Icon {
+
+		private final int iconGap = 4;
+		private final Icon icon1;
+		private final Icon icon2;
+
+		public SideBySideDoubleIcon(final Icon icon1, final Icon icon2) {
+			this.icon1 = icon1;
+			this.icon2 = icon2;
+		}
+
+		@Override
+		public void paintIcon(final Component c, final Graphics g, final int x, final int y) {
+			final int mid = getIconHeight() / 2;
+			final int y1 = y + mid - icon1.getIconHeight() / 2;
+			final int y2 = y + mid - icon2.getIconHeight() / 2;
+			icon1.paintIcon(c, g, x, y1);
+			icon2.paintIcon(c, g, x + icon1.getIconWidth() + iconGap, y2);
+		}
+
+		@Override
+		public int getIconWidth() {
+			return icon1.getIconWidth() + icon2.getIconWidth() + iconGap;
+		}
+
+		@Override
+		public int getIconHeight() {
+			return Math.max(icon1.getIconHeight(), icon2.getIconHeight());
+		}
+	}
 }

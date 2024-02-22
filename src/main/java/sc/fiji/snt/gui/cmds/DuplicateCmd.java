@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -22,8 +22,10 @@
 
 package sc.fiji.snt.gui.cmds;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.TreeSet;
 
 import org.scijava.ItemVisibility;
@@ -35,26 +37,36 @@ import org.scijava.widget.NumberWidget;
 import net.imagej.ImageJ;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
+import sc.fiji.snt.Tree;
 
 /**
  * GUI command for duplicating a Path.
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Duplicate Path...", initializer = "init")
+@Plugin(type = Command.class, label = "Duplicate Path...", initializer = "init")
 public class DuplicateCmd extends CommonDynamicCmd {
 
+	private final String CHOICE_FULL_LENGTH = "Full length";
 	private final String CHOICE_LENGTH = "Use % specified below";
 	private final String CHOICE_FIRST_BP = "Duplicate until first branch point";
 	private final String CHOICE_LAST_BP = "Duplicate until last branch point";
+	private final String CHOICE_NO_CHILDREN = "Do not duplicate child paths";
+	private final String CHOICE_IMMEDIATE_CHILDREN = "Duplicate immediate children only";
+	private final String CHOICE_ALL_CHILDREN = "Duplicate all children";
 
 	@Parameter(label = "Portion to be duplicated", callback = "portionChoiceChanged",
-			choices = {CHOICE_LENGTH, CHOICE_FIRST_BP, CHOICE_LAST_BP })
+			choices = {CHOICE_FULL_LENGTH, CHOICE_LENGTH, CHOICE_FIRST_BP, CHOICE_LAST_BP })
 	private String portionChoice;
 
 	@Parameter(label = "<HTML>&nbsp;", min = "0", max = "100", 
 			style = NumberWidget.SCROLL_BAR_STYLE, callback = "percentageChanged")
 	private double percentage;
+
+	@Parameter(label = "Children", callback = "childrenChoiceChanged",
+			choices = { CHOICE_NO_CHILDREN, CHOICE_IMMEDIATE_CHILDREN, CHOICE_ALL_CHILDREN },
+			description = "NB: If choice includes children, The entire group will be duplicated at full length.")
+	private String childrenChoice;
 
 	@Parameter(persist = false, label = "Assign to channel", min="1")
 	private int channel;
@@ -62,16 +74,9 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	@Parameter(persist = false, label = "Assign to frame", min="1")
 	private int frame;
 
-	@Parameter(label = "Duplicate immediate children", callback = "dupChildrenChanged",
-			description = "If selected, direct children will also be duplicated. The entire group will be duplicated at full length.")
-	private boolean dupChildren;
-
 	@Parameter(label = "Make primary (disconnect)",
 			description="If selected, duplicate path will become primary (root path)")
 	private boolean disconnect;
-
-	@Parameter(label = "<HTML>&nbsp", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
-	private String SPACER;
 
 	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
 	private String msg = "";
@@ -80,6 +85,7 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	private Path path;
 
 	private double length;
+	private boolean dupChildren;
 	private TreeSet<Integer> junctionIndices;
 
 	@SuppressWarnings("unused")
@@ -94,8 +100,8 @@ public class DuplicateCmd extends CommonDynamicCmd {
 			getInfo().getMutableInput("disconnect", Boolean.class).setLabel("");
 		}
 		if (path.getChildren() == null || path.getChildren().isEmpty()) {
-			resolveInput("dupChildren");
-			getInfo().getMutableInput("dupChildren", Boolean.class).setLabel("");
+			resolveInput("childrenChoice");
+			getInfo().getMutableInput("childrenChoice", String.class).setLabel("");
 		}
 		if (path.size() == 1) {
 			percentage = 100;
@@ -104,7 +110,7 @@ public class DuplicateCmd extends CommonDynamicCmd {
 			resolveInput("msg");
 			getInfo().getMutableInput("percentage", Double.class).setLabel("");
 			getInfo().getMutableInput("msg", String.class).setLabel("");
-		} else if (name.indexOf("[L:") == -1) {
+		} else if (!name.contains("[L:")) {
 			name += String.format(" [L:%.2f]", length);
 		}
 		msg = "Duplicating " + name;
@@ -112,15 +118,25 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	}
 
 	private void portionChoiceChanged() {
-		percentage = (CHOICE_LENGTH.equals(portionChoice)) ? 100 : 0;
-		if (percentage != 100d) dupChildren = false;
-		updateMsg();
+		switch (portionChoice) {
+		case CHOICE_FULL_LENGTH:
+			percentage = 100d;
+			break;
+		case CHOICE_FIRST_BP:
+		case CHOICE_LAST_BP:
+			percentage = 0d;
+			break;
+		default:
+			percentage = 50d;
+		}
+		updatePrompt();
 	}
 
 	@SuppressWarnings("unused")
-	private void dupChildrenChanged() {
+	private void childrenChoiceChanged() {
+		dupChildren = !CHOICE_NO_CHILDREN.equals(childrenChoice);
 		if (dupChildren) {
-			portionChoice = CHOICE_LENGTH;
+			portionChoice = CHOICE_FULL_LENGTH;
 			percentage = 100;
 			portionChoiceChanged();
 		}
@@ -128,41 +144,37 @@ public class DuplicateCmd extends CommonDynamicCmd {
 
 	@SuppressWarnings("unused")
 	private void percentageChanged() {
-		portionChoice = (percentage==0d) ? CHOICE_FIRST_BP : CHOICE_LENGTH;
-		if (percentage != 100d) dupChildren = false;
-		updateMsg();
+		if (percentage == 0d)
+			portionChoice = CHOICE_FIRST_BP;
+		else if (percentage == 100d) 
+			portionChoice = CHOICE_FULL_LENGTH;
+		else 
+			portionChoice = CHOICE_LENGTH;
+		updatePrompt();
 	}
 
-	private void updateMsg() {
+	private void updatePrompt() {
 		switch((int)percentage) {
 		case 100:
-			msg = String.format("Duplicating full length");
+			msg = "Duplicating full length";
+			dupChildren = childrenChoice != null && !CHOICE_NO_CHILDREN.equals(childrenChoice);
 			break;
 		case 0:
 			if (junctionIndices == null || junctionIndices.isEmpty())
 				msg = "Invalid choice: Path has no branch points!";
 			else
 				msg = "...";
+			dupChildren = false;
 			break;
 		default:
 			msg = String.format("Aprox. length: %.2f", percentage / 100 * length);
+			dupChildren = false;
 			break;
 		}
+		if (!dupChildren)
+			childrenChoice = CHOICE_NO_CHILDREN;		
 	}
 
-	private int getNthJunction(final int desiredIndex) {
-		final Iterator<Integer> itr = junctionIndices.iterator();
-		int currentIndex = 0;
-		int currentElement = 0;
-		while (itr.hasNext()) {
-			currentElement = itr.next();
-			if (currentIndex == desiredIndex) {
-				return currentElement;
-			}
-			currentIndex++;
-		}
-		return 0;
-	}
 
 	/*
 	 * (non-Javadoc)
@@ -172,16 +184,15 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	@Override
 	public void run() {
 
+		updatePrompt(); // ensure options are up-to-date
 		if (dupChildren && path.getChildren() != null && !path.getChildren().isEmpty()) {
 
-			final Path dup = path.clone(true);
-			connectToAncestorAsNeeded(dup);
-			setPropertiesAndAdd(dup, path);
-			int idx = 0;
-			for (final Path child : path.getChildren()) {
-				setPropertiesAndAdd(dup.getChildren().get(idx), child);
-				idx++;
-			}
+			final boolean recursive = CHOICE_ALL_CHILDREN.equals(childrenChoice);
+			final Tree dupTree = new Tree(getPathsToDuplicate(recursive)).clone();
+			dupTree.list().forEach(dupPath -> dupPath.setCTposition(Math.max(1, channel), Math.max(1, frame)));
+			final Path dupParentPath = dupTree.list().get(0);
+			connectToAncestorAsNeeded(dupParentPath);
+			snt.getPathAndFillManager().addTree(dupTree, "DUP");
 
 		} else {
 
@@ -201,6 +212,9 @@ public class DuplicateCmd extends CommonDynamicCmd {
 					dupIndex = junctionIndices.last();
 				}
 				break;
+			case CHOICE_FULL_LENGTH:
+				dupIndex = path.size() - 1;
+				break;
 			default:
 				dupIndex = (int) Math.round(percentage / 100 * path.size());
 				break;
@@ -217,7 +231,9 @@ public class DuplicateCmd extends CommonDynamicCmd {
 			// Now make the duplication and add to manager
 			final Path dup = path.getSection(0, dupIndex);
 			connectToAncestorAsNeeded(dup);
-			setPropertiesAndAdd(dup, path);
+			dup.setName("Dup " + dup.getName());
+			dup.setCTposition(Math.max(1, channel), Math.max(1, frame));
+			snt.getPathAndFillManager().addPath(dup, false, true);
 
 		}
 
@@ -225,24 +241,47 @@ public class DuplicateCmd extends CommonDynamicCmd {
 	}
 
 	private void connectToAncestorAsNeeded(final Path dup) {
-
 		// Disconnect duplicated path by default
 		if (dup.getStartJoins() != null) dup.unsetStartJoin();
-
 		// Now connect it to the parent of the original path if requested. Do nothing if original path has no parent
 		if (!path.isPrimary() && !disconnect) {
 			if (path.getStartJoins() != null) {
 				dup.setStartJoin(path.getStartJoins(), path.getStartJoinsPoint());
 			}
 		}
-
 	}
 
-	private void setPropertiesAndAdd(final Path dup, final Path original) {
-		dup.setName("Dup " + original.getName());
-		dup.setCTposition(Math.max(1, channel), Math.max(1, frame));
-		snt.getPathAndFillManager().addPath(dup, false, true);
+	private int getNthJunction(final int desiredIndex) {
+		final Iterator<Integer> itr = junctionIndices.iterator();
+		int currentIndex = 0;
+		int currentElement = 0;
+		while (itr.hasNext()) {
+			currentElement = itr.next();
+			if (currentIndex == desiredIndex) {
+				return currentElement;
+			}
+			currentIndex++;
+		}
+		return 0;
 	}
+
+	private List<Path> getPathsToDuplicate(final boolean allChildren) {
+		final List<Path> pathsToClone = new ArrayList<>();
+		pathsToClone.add(path);
+		appendChildren(pathsToClone, path, allChildren);
+		return pathsToClone;
+	}
+
+	private void appendChildren(final List<Path> set, final Path p, final boolean recursive) {
+		if (p.getChildren() != null && !p.getChildren().isEmpty()) {
+			p.getChildren().forEach(child -> {
+				set.add(child);
+				if (recursive)
+					appendChildren(set, child, recursive);
+			});
+		}
+	}
+
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {

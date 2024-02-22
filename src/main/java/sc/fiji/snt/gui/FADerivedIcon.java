@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -53,9 +53,9 @@ import sc.fiji.snt.SNTUtils;
 public class FADerivedIcon implements Icon {
 
 	private static final String AWESOME_REGULAR =
-		"META-INF/resources/webjars/font-awesome/6.2.0/webfonts/fa-regular-400.ttf";
+		"META-INF/resources/webjars/font-awesome/6.5.1/webfonts/fa-regular-400.ttf";
 	private static final String AWESOME_SOLID =
-		"META-INF/resources/webjars/font-awesome/6.2.0/webfonts/fa-solid-900.ttf";
+		"META-INF/resources/webjars/font-awesome/6.5.1/webfonts/fa-solid-900.ttf";
 	private final Font font;
 	private final float size;
 	private final Paint color;

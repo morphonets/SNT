@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -104,8 +104,7 @@ public final class InsectBrainUtils {
 			}
 			final String speciesName = speciesIDNameMap.get(info.getSpeciesID());
 			if (speciesName != null) {
-				if (speciesIDsMap.get(speciesName) == null)
-					speciesIDsMap.put(speciesName, new ArrayList<>());
+                speciesIDsMap.computeIfAbsent(speciesName, k -> new ArrayList<>());
 				speciesIDsMap.get(speciesName).add(id);
 			}
 		}

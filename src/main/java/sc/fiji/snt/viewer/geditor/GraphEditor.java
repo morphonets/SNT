@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -145,7 +145,7 @@ public class GraphEditor extends JPanel
 		graphOutline = new mxGraphOutline(graphComponent);
 
 		// Creates the library pane that contains the tabs with the palettes
-		libraryPane = new JTabbedPane();
+		libraryPane = GuiUtils.getTabbedPane();
 		editorConsole = new EditorConsole();
 		insertConsole(getConsole());
 		insertGraphCriteriaPanel();
@@ -370,14 +370,14 @@ public class GraphEditor extends JPanel
 		panel.add(annotationMetricJCombo, c);
 		annotationThresholdField = new JFormattedTextField(NumberFormat.getNumberInstance());
 		annotationThresholdField.setToolTipText(mintTresTip);
-		annotationThresholdField.setValue(new Double(5));
+		annotationThresholdField.setValue(5.0);
 		annotationThresholdField.setColumns(8);
 
 		c.gridx++;
 		panel.add(annotationThresholdField, c);
 		annotationDepthField = new JFormattedTextField(NumberFormat.getNumberInstance());
 		annotationDepthField.setToolTipText(maxDepthTip);
-		annotationDepthField.setValue(new Integer(5));
+		annotationDepthField.setValue(5);
 		annotationDepthField.setColumns(8);
 		c.gridx++;
 		panel.add(annotationDepthField, c);
@@ -575,7 +575,7 @@ public class GraphEditor extends JPanel
 
 	/**
 	 * 
-	 * @return whether or not the current graph has been modified
+	 * @return whether the current graph has been modified
 	 */
 	public boolean isModified() {
 		return modified;
@@ -612,15 +612,14 @@ public class GraphEditor extends JPanel
 	 * 
 	 * @param name
 	 * @param action
-	 * @return a new Action bound to the specified string name and icon
+	 * @return a new Action bound to the specified string name
 	 */
 	@SuppressWarnings("serial")
-	public Action bind(String name, final Action action, String iconUrl)
+	public Action bind(String name, final Action action, String ignored)
 	{
-		AbstractAction newAction = new AbstractAction(name, (iconUrl != null) ? new ImageIcon(
-				GraphEditor.class.getResource(iconUrl)) : null)
+		AbstractAction newAction = new AbstractAction(name) // (iconUrl != null) ? new ImageIcon(GraphEditor.class.getResource(iconUrl)) : null
 		{
-			public void actionPerformed(ActionEvent e)
+			public void actionPerformed(final ActionEvent e)
 			{
 				action.actionPerformed(new ActionEvent(getGraphComponent(), e
 						.getID(), e.getActionCommand()));
@@ -863,27 +862,42 @@ public class GraphEditor extends JPanel
 			else if (ident.equals("organicLayout"))
 			{
 				mxOrganicLayout organicLayout = new mxOrganicLayout(graph);
-				organicLayout.setRadiusScaleFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"radiusScaleFactor", 0.75));
-				organicLayout.setFineTuningRadius(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"fineTuningRadius", 40.0));
-				organicLayout.setMaxIterations(prefService.getInt(mxOrganicLayoutPrefsCmd.class,
-						"maxIterations", 1000));
-				organicLayout.setEdgeDistanceCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"edgeDistanceCostFactor", 3000));
-				organicLayout.setEdgeCrossingCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"edgeCrossingCostFactor", 6000));
-				organicLayout.setNodeDistributionCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"nodeDistributionCostFactor", 30000));
-				organicLayout.setBorderLineCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"borderLineCostFactor", 5));
-				organicLayout.setEdgeLengthCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
-						"edgeLengthCostFactor", 0.02));
-				organicLayout.setDisableEdgeStyle(prefService.getBoolean(mxOrganicLayoutPrefsCmd.class,
-						"disableEdgeStyle", true));
-				organicLayout.setResetEdges(prefService.getBoolean(mxOrganicLayoutPrefsCmd.class,
-						"resetEdges", false));
-				layout = organicLayout;
+				try {
+					organicLayout.setRadiusScaleFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"radiusScaleFactor", 0.75));
+					organicLayout.setFineTuningRadius(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"fineTuningRadius", 40.0));
+					organicLayout.setMaxIterations(prefService.getInt(mxOrganicLayoutPrefsCmd.class,
+							"maxIterations", 1000));
+					organicLayout.setEdgeDistanceCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"edgeDistanceCostFactor", 3000));
+					organicLayout.setEdgeCrossingCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"edgeCrossingCostFactor", 6000));
+					organicLayout.setNodeDistributionCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"nodeDistributionCostFactor", 30000));
+					organicLayout.setBorderLineCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"borderLineCostFactor", 5));
+					organicLayout.setEdgeLengthCostFactor(prefService.getDouble(mxOrganicLayoutPrefsCmd.class,
+							"edgeLengthCostFactor", 0.02));
+					organicLayout.setDisableEdgeStyle(prefService.getBoolean(mxOrganicLayoutPrefsCmd.class,
+							"disableEdgeStyle", true));
+					organicLayout.setResetEdges(prefService.getBoolean(mxOrganicLayoutPrefsCmd.class,
+							"resetEdges", false));
+				} catch (final Throwable e) {
+					//FIXME: When running outside IJ, PrefService is not functional!?
+					organicLayout.setRadiusScaleFactor(0.75);
+					organicLayout.setFineTuningRadius(40.0);
+					organicLayout.setMaxIterations( 1000);
+					organicLayout.setEdgeDistanceCostFactor(3000);
+					organicLayout.setEdgeCrossingCostFactor(6000);
+					organicLayout.setNodeDistributionCostFactor(3000);
+					organicLayout.setBorderLineCostFactor(5);
+					organicLayout.setEdgeLengthCostFactor( 0.02);
+					organicLayout.setDisableEdgeStyle(true);
+					organicLayout.setResetEdges(false);
+				} finally {
+					layout = organicLayout;
+				}
 			}
 			else if (ident.equals("verticalPartition"))
 			{

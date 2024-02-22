@@ -17,19 +17,19 @@ import sc.fiji.snt.analysis.sholl.gui.*
 import sc.fiji.snt.analysis.sholl.math.*
 import sc.fiji.snt.analysis.sholl.parsers.*
 
- 
+
 // The starting point of a programmatic Sholl analysis is a parser.
 // There are parsers for 2D images, 3D images, reconstruction
 // files and pre-retrieved Sholl (tabular) data.
 
-// To parse a grayscale/binay image, we use ImageParser2D and 
+// To parse a grayscale/binay image, we use ImageParser2D and
 // ImageParser3D, depending on whether the image is 2D or 3D
 // (see Sholl_Extract_Profile_From_Image_Demo script for details)
 imp = Opener.openUsingBioFormats("path/to/image/file.tif")
 if (imp != null) {
     if (imp.getNDimensions() == 2)
         parser = new ImageParser2D(imp, context)
-    else 
+    else
         parser = new ImageParser3D(imp, context)
     // we would then set the required options:
     parser.setHemiShells(true)
@@ -96,7 +96,7 @@ println "  p-value (K-S test): " + pValue
 
 
 // Note that we could have done all this by simply calling findBestFit. It would
-// have been way, way faster (but we wouldn't have the animation :)). We use it as: 
+// have been way, way faster (but we wouldn't have the animation :)). We use it as:
 bestDegree2 = lStats.findBestFit(1, // lowest degree
                             30,     // highest degree
                             0.70,   // lowest value for adjusted RSquared

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -36,15 +36,15 @@ import ij.Menus;
 import ij.measure.Calibration;
 import ij.process.ImageStatistics;
 import net.imagej.ImageJ;
-import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+import sc.fiji.snt.util.ImpUtils;
 
 /**
  * Convenience command for running Fiji's "Local Thickness" plugin from SNT
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, initializer = "init", visible = false,
+@Plugin(type = Command.class, initializer = "init",
 label = "Estimate Radii (Local Thickness)")
 public class LocalThicknessCmd extends CommonDynamicCmd {
 
@@ -163,11 +163,11 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 			minZ = Math.max(1, minZ);
 			maxZ = Math.min(imp.getNSlices(), maxZ);
 			imp = imp.crop("" + minZ + "-" + maxZ);
-			imp = SNTUtils.getMIP(imp);
+			imp = ImpUtils.getMIP(imp);
 		}
 		if (imp.getType() != ImagePlus.GRAY8) {
 			final double originalMax = imp.getStatistics(ImageStatistics.MIN_MAX).max;
-			SNTUtils.convertTo8bit(imp);
+			ImpUtils.convertTo8bit(imp);
 			final double scaledMax = imp.getStatistics(ImageStatistics.MIN_MAX).max;
 			thres = thres * scaledMax / originalMax;
 		}

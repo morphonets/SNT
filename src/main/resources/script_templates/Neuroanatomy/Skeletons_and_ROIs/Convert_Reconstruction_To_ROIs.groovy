@@ -43,7 +43,7 @@ if (recFile) {
     convertPaths = convertBranchPoints = convertTips = true
 }
 
-// Option 1: Store ROIs in the image overlay  
+// Option 1: Store ROIs in the image overlay
 converter = new RoiConverter(tree, imp)
 if (convertPaths) converter.convertPaths()
 if (convertBranchPoints) converter.convertBranchPoints()

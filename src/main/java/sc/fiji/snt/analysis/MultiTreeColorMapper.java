@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -22,12 +22,7 @@
 
 package sc.fiji.snt.analysis;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import org.apache.commons.text.WordUtils;
@@ -200,29 +195,29 @@ public class MultiTreeColorMapper extends ColorMapper {
 		}
 		SNTUtils.log("\""+ guess + "\" was not immediately recognized as parameter");
 		String normGuess = guess.toLowerCase();
-		if (normGuess.indexOf("length") != -1 || normGuess.indexOf("cable") != -1) {
+		if (normGuess.contains("length") || normGuess.contains("cable")) {
 			return LENGTH;
 		}
-		if (normGuess.indexOf("strahler") != -1 || normGuess.indexOf("horton") != -1 || normGuess.indexOf("h-s") != -1) {
+		if (normGuess.contains("strahler") || normGuess.contains("horton") || normGuess.contains("h-s")) {
 			return STRAHLER_NUMBER;
 		}
-		if (normGuess.indexOf("path") != -1 && normGuess.indexOf("order") != -1) {
+		if (normGuess.contains("path") && normGuess.contains("order")) {
 			return HIGHEST_PATH_ORDER;
 		}
-		if (normGuess.indexOf("assign") != -1 || normGuess.indexOf("value") != -1) {
+		if (normGuess.contains("assign") || normGuess.contains("value")) {
 			return ASSIGNED_VALUE;
 		}
-		if (normGuess.indexOf("branches") != -1) {
+		if (normGuess.contains("branches")) {
 			return N_BRANCHES;
 		}
-		if (normGuess.indexOf("bp") != -1 || normGuess.indexOf("branch") != -1 || normGuess.indexOf("junctions") != -1) {
+		if (normGuess.contains("bp") || normGuess.contains("branch") || normGuess.contains("junctions")) {
 			return N_BRANCH_POINTS;
 		}
-		if (normGuess.indexOf("tips") != -1 || normGuess.indexOf("termin") != -1 || normGuess.indexOf("end") != -1 ) {
+		if (normGuess.contains("tips") || normGuess.contains("termin") || normGuess.contains("end")) {
 			// n tips/termini/terminals/end points/endings
 			return N_TIPS;
 		}
-		if (normGuess.indexOf("id") != -1 || normGuess.indexOf("cell") != -1) {
+		if (normGuess.contains("id") || normGuess.contains("cell")) {
 			return ID;
 		}
 		return "unknown";
@@ -246,12 +241,7 @@ public class MultiTreeColorMapper extends ColorMapper {
 	}
 
 	public List<Tree> sortedMappedTrees() {
-		Collections.sort(mappedTrees, new Comparator<MappedTree>() {
-			@Override
-			public int compare(final MappedTree t1, final MappedTree t2) {
-				return Double.compare(t1.value, t2.value);
-			}
-		});
+		mappedTrees.sort(Comparator.comparingDouble(t -> t.value));
 		final List<Tree> sortedTrees = new ArrayList<>(mappedTrees.size());
 		mappedTrees.forEach(mp -> sortedTrees.add(mp.tree));
 		return sortedTrees;
@@ -288,7 +278,7 @@ public class MultiTreeColorMapper extends ColorMapper {
 		return multiViewer;
 	}
 
-	private class MappedTree {
+	private static class MappedTree {
 
 		public final Tree tree;
 		public double value;

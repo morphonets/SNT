@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -26,6 +26,7 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.tracing.SearchNode;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.function.Supplier;
 
 
@@ -86,7 +87,7 @@ public class SupplierUtil {
         public SearchImage<V> get() {
             try {
                 return new ListSearchImage<>(c, width, height);
-            } catch (IllegalAccessException | InstantiationException e) {
+            } catch (IllegalAccessException | InstantiationException | IllegalArgumentException | InvocationTargetException | NoSuchMethodException | SecurityException e) {
                 SNTUtils.error("Failed to create ListSearchImage with node Class " + c.getName(), e);
                 return null;
             }

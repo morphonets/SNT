@@ -1,21 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
-
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>33.2.0</version>
+		<version>37.0.0</version>
 		<relativePath />
 	</parent>
 
 	<groupId>org.morphonets</groupId>
 	<artifactId>SNT</artifactId>
-	<version>4.1.14-SNAPSHOT</version>
+	<version>4.2.2-SNAPSHOT</version>
 
 	<name>SNT</name>
 	<description>The ImageJ framework for quantitative neuroanatomy</description>
-	<url>https://imagej.net/SNT</url>
+	<url>https://imagej.net/plugins/snt</url>
 	<inceptionYear>2010</inceptionYear>
 	<organization>
 		<name>Fiji</name>
@@ -32,7 +31,7 @@
 		<developer>
 			<id>tferr</id>
 			<name>Tiago Ferreira</name>
-			<url>https://imagej.net/User:Tiago</url>
+			<url>https://imagej.net/people/tferr</url>
 			<roles>
 				<role>lead</role>
 				<role>maintainer</role>
@@ -42,7 +41,7 @@
 		</developer>
 		<developer>
 			<name>Cameron Arshadi</name>
-			<url>https://imagej.net/User:Arshadi</url>
+			<url>https://imagej.net/people/carshadi</url>
 			<properties><id>carshadi</id></properties>
 			<roles>
 				<role>maintainer</role>
@@ -55,7 +54,7 @@
 		<developer>
 			<id>kephale</id>
 			<name>Kyle IS Harrington</name>
-			<url>https://imagej.net/User:Kharrington</url>
+			<url>https://imagej.net/people/kephale</url>
 			<roles>
 				<role>developer</role>
 			</roles>
@@ -63,7 +62,7 @@
 		<developer>
 			<id>ctrueden</id>
 			<name>Curtis Rueden</name>
-			<url>https://imagej.net/User:Rueden</url>
+			<url>https://imagej.net/people/ctrueden</url>
 			<roles>
 				<role>maintainer</role>
 			</roles>
@@ -72,28 +71,28 @@
 	<contributors>
 		<contributor>
 			<name>Mark Longair</name>
-			<url>https://imagej.net/User:Mark</url>
+			<url>https://imagej.net/people/mhl</url>
 			<roles><role>founder</role></roles>
 			<properties><id>mhl</id></properties>
 		</contributor>
 		<contributor>
 			<name>Johannes Schindelin</name>
-			<url>https://imagej.net/User:Schindelin</url>
+			<url>https://imagej.net/people/dscho</url>
 			<properties><id>dscho</id></properties>
 		</contributor>
 		<contributor>
 			<name>Ignacio Arganda-Carreras</name>
-			<url>https://imagej.net/User:Iarganda</url>
+			<url>https://imagej.net/people/iarganda</url>
 			<properties><id>iarganda</id></properties>
 		</contributor>
 		<contributor>
 			<name>Jan Eglinger</name>
-			<url>https://imagej.net/User:Eglinger</url>
+			<url>https://imagej.net/people/imagejan</url>
 			<properties><id>imagejan</id></properties>
 		</contributor>
 		<contributor>
 			<name>Mark Hiner</name>
-			<url>https://imagej.net/User:Hinerm</url>
+			<url>https://imagej.net/people/hinerm</url>
 			<properties><id>hinerm</id></properties>
 		</contributor>
 		<contributor>
@@ -104,14 +103,14 @@
 	<mailingLists>
 		<mailingList>
 			<name>Image.sc Forum</name>
-			<archive>https://forum.image.sc/</archive>
+			<archive>https://forum.image.sc/tag/snt</archive>
 		</mailingList>
 	</mailingLists>
 
 	<scm>
 		<connection>scm:git:https://github.com/morphonets/SNT</connection>
 		<developerConnection>scm:git:git@github.com:morphonets/SNT</developerConnection>
-		<tag>HEAD</tag>
+		<tag>SNT-4.1.17</tag>
 		<url>https://github.com/morphonets/SNT</url>
 	</scm>
 	<issueManagement>
@@ -124,28 +123,40 @@
 	</ciManagement>
 
 	<properties>
+		<package-name>org.fiji.snt</package-name>
+		<automatic-module-name>org.morphonets.snt</automatic-module-name>
 		<license.licenseName>gpl_v3</license.licenseName>
 		<license.copyrightOwners>Fiji developers.</license.copyrightOwners>
 		<license.projectName>Fiji distribution of ImageJ for the life sciences.</license.projectName>
 		<license.excludes>%regex[.*main/resources/.*|.*/macros/.*]</license.excludes>
+
+		<scijava.jvm.version>11</scijava.jvm.version>
 		<doclint>none</doclint>
 
+		<!-- TEMP: Avoid javadoc build errors due to JPMS complexity. -->
+		<maven.javadoc.skip>true</maven.javadoc.skip>
+
+		<!-- TEMP: Avoid NPE from maven-enforcer-plugin 3.3.0 execution -->
+		<enforcer.skip>true</enforcer.skip>
+
 		<!-- Dependency versions -->
-		<sciview.version>e3510f4</sciview.version>
-		<scenery.version>4d07a30</scenery.version>
-		<jzy3d.version>2.2.0</jzy3d.version>
-		<jgl.version>2.0.0</jgl.version>
-		<okhttp.version>4.9.3</okhttp.version>
-		<font-awesome.version>6.2.0</font-awesome.version>
-		<json.version>20220924</json.version>
-		<flatlaf.version>3.0</flatlaf.version>
-		<log4j.version>2.19.0</log4j.version>
+		<annotations.version>24.1.0</annotations.version>
+		<fastutil-core.version>8.5.13</fastutil-core.version>
+		<flatlaf.version>3.3</flatlaf.version>
+		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
+		<font-awesome.version>6.5.1</font-awesome.version>
+		<jgrapht-core.version>1.5.2</jgrapht-core.version>
+		<jgrapht-ext.version>${jgrapht-core.version}</jgrapht-ext.version>
+		<jide-oss.version>3.7.14</jide-oss.version>
+		<log4j.version>2.21.1</log4j.version>
+		<scenery.version>0.9.0</scenery.version>
+		<sciview.version>ba959ae644</sciview.version>
+		<smile.version>3.0.2</smile.version>
+		<smile-base.version>${smile.version}</smile-base.version>
+		<smile-core.version>${smile.version}</smile-core.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
-
-		<!-- Resolve dup. class conflict -->
-		<allowedDuplicateClasses>${scijava.allowedDuplicateClasses},org.jzy3d.plot3d.pipelines.NotImplementedException,jogamp.nativetag.common.linux.amd64.TAG,jogamp.nativetag.common.linux.armv6hf.TAG,jogamp.nativetag.common.linux.i586.TAG,jogamp.nativetag.common.macosx.universal.TAG,jogamp.nativetag.common.windows.amd64.TAG,jogamp.nativetag.common.windows.i586.TAG,jogamp.nativetag.opengl.linux.amd64.TAG,jogamp.nativetag.opengl.linux.armv6hf.TAG,jogamp.nativetag.opengl.linux.i586.TAG,jogamp.nativetag.opengl.macosx.universal.TAG,jogamp.nativetag.opengl.windows.amd64.TAG,jogamp.nativetag.opengl.windows.i586.TAG</allowedDuplicateClasses>
 	</properties>
 
 	<repositories>
@@ -156,105 +167,18 @@
 	</repositories>
 
 	<dependencies>
+		<!-- TEMP Until jogl 2.5.0 is properly deployed to mvn.scijava https://github.com/morphonets/SNT/issues/212 -->
 		<dependency>
-			<groupId>org.jzy3d</groupId>
-			<artifactId>jzy3d-native-jogl-core</artifactId>
-			<version>${jzy3d.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
+			<groupId>org.jogamp.gluegen</groupId>
+			<artifactId>gluegen-rt</artifactId>
+			<classifier>${scijava.natives.classifier.gluegen}</classifier>
 		</dependency>
 		<dependency>
-			<groupId>org.jzy3d</groupId>
-			<artifactId>jzy3d-core</artifactId>
-			<version>${jzy3d.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
+			<groupId>org.jogamp.jogl</groupId>
+			<artifactId>jogl-all</artifactId>
+			<classifier>${scijava.natives.classifier.jogl}</classifier>
 		</dependency>
-		<dependency>
-			<groupId>org.jzy3d</groupId>
-			<artifactId>jzy3d-native-jogl-swing</artifactId>
-			<version>${jzy3d.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>com.miglayout</groupId>
-					<artifactId>miglayout</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>org.jzy3d</groupId>
-			<artifactId>jzy3d-native-jogl-awt</artifactId>
-			<version>${jzy3d.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>org.jzy3d</groupId>
-					<artifactId>jzy3d-tester-native</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.jzy3d</groupId>
-					<artifactId>jzy3d-tester</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>org.jzy3d</groupId>
-			<artifactId>jzy3d-emul-gl</artifactId>
-			<version>${jgl.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>org.jzy3d</groupId>
-			<artifactId>jGL</artifactId>
-			<version>${jgl.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>org.jzy3d</groupId>
-			<artifactId>jzy3d-tester</artifactId>
-			<version>${jzy3d.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>log4j</groupId>
-					<artifactId>log4j</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
-			<groupId>com.formdev</groupId>
-			<artifactId>flatlaf</artifactId>
-			<version>${flatlaf.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.github.haifengl</groupId>
-			<artifactId>smile-core</artifactId>
-			<version>3.0.0</version>
-		</dependency>
+		<!-- Fiji dependencies -->
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>3D_Viewer</artifactId>
@@ -268,44 +192,237 @@
 			<artifactId>Skeletonize3D_</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>VIB-lib</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>fiji-lib</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>pal-optimization</artifactId>
+		</dependency>
+
+		<!-- SCIFIO dependencies -->
+		<dependency>
+			<groupId>io.scif</groupId>
+			<artifactId>scifio</artifactId>
+		</dependency>
+
+		<!-- ImageJ2 dependencies -->
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej-common</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej-legacy</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej-mesh</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej-ops</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej-updater</artifactId>
+		</dependency>
+
+		<!-- ImageJ dependencies -->
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>ij</artifactId>
+		</dependency>
+
+		<!-- ImgLib2 dependencies -->
+		<dependency>
+			<groupId>net.imglib2</groupId>
+			<artifactId>imglib2-algorithm</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imglib2</groupId>
+			<artifactId>imglib2-cache</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imglib2</groupId>
+			<artifactId>imglib2-ij</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imglib2</groupId>
+			<artifactId>imglib2-roi</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imglib2</groupId>
+			<artifactId>imglib2</artifactId>
+		</dependency>
+
+		<!-- SciJava dependencies -->
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>batch-processor</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>j3dcore</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>scijava-common</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>scijava-plot</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>scijava-table</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>scijava-ui-awt</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>script-editor</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>vecmath</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>scijava-ui-swing</artifactId>
+		</dependency>
+
+		<!-- Managed third-party dependencies -->
+		<dependency>
+			<groupId>com.fifesoft</groupId>
+			<artifactId>rsyntaxtextarea</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.formdev</groupId>
+			<artifactId>flatlaf</artifactId>
+			<version>${flatlaf.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.vlsi.mxgraph</groupId>
+			<artifactId>jgraphx</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-math3</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-text</artifactId>
+		</dependency>
+		<dependency>
+			<!-- no longer needed!? -->
+			<groupId>org.apache.xmlgraphics</groupId>
+			<artifactId>batik-svggen</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.jetbrains.kotlin</groupId>
+			<artifactId>kotlin-stdlib</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>org.jfree</groupId>
 			<artifactId>jfreechart</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>sc.iview</groupId>
-			<artifactId>sciview</artifactId>
-			<version>${sciview.version}</version>
-			<optional>true</optional>
-			<exclusions>
-				<exclusion>
-					<groupId>org.biojava</groupId>
-					<artifactId>biojava-core</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.biojava</groupId>
-					<artifactId>biojava-structure</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.biojava</groupId>
-					<artifactId>biojava-modfinder</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-slf4j-impl</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-api</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-core</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.jetbrains.kotlin</groupId>
-					<artifactId>kotlin-stdlib</artifactId>
-				</exclusion>
-			</exclusions>
+			<groupId>org.jgrapht</groupId>
+			<artifactId>jgrapht-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.jgrapht</groupId>
+			<artifactId>jgrapht-ext</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.jogamp.gluegen</groupId>
+			<artifactId>gluegen-rt</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.jogamp.jogl</groupId>
+			<artifactId>jogl-all</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.joml</groupId>
+			<artifactId>joml</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.json</groupId>
+			<artifactId>json</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-core-awt</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-emul-gl-awt</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-native-jogl-awt</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-native-jogl-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-native-jogl-swing</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-tester</artifactId>
+		</dependency>
+
+		<!-- Unmanaged third-party dependencies -->
+		<dependency>
+			<groupId>com.formdev</groupId>
+			<artifactId>jide-oss</artifactId>
+			<version>${jide-oss.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.haifengl</groupId>
+			<artifactId>smile-base</artifactId>
+			<version>${smile-base.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.haifengl</groupId>
+			<artifactId>smile-core</artifactId>
+			<version>${smile-core.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.squareup.okhttp3</groupId>
+			<artifactId>okhttp</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>it.unimi.dsi</groupId>
+			<artifactId>fastutil-core</artifactId>
+			<version>${fastutil-core.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>graphics.scenery</groupId>
@@ -326,16 +443,41 @@
 					<artifactId>biojava-modfinder</artifactId>
 				</exclusion>
 				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-slf4j-impl</artifactId>
+					<groupId>org.jetbrains.kotlin</groupId>
+					<artifactId>kotlin-stdlib</artifactId>
 				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>org.jetbrains</groupId>
+			<artifactId>annotations</artifactId>
+			<version>${annotations.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jheaps</groupId>
+			<artifactId>jheaps</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>sc.iview</groupId>
+			<artifactId>sciview</artifactId>
+			<version>${sciview.version}</version>
+			<optional>true</optional>
+			<exclusions>
 				<exclusion>
 					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-api</artifactId>
+					<artifactId>log4j-1.2-api</artifactId>
 				</exclusion>
 				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-core</artifactId>
+					<groupId>org.biojava</groupId>
+					<artifactId>biojava-core</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.biojava</groupId>
+					<artifactId>biojava-structure</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>org.biojava</groupId>
+					<artifactId>biojava-modfinder</artifactId>
 				</exclusion>
 				<exclusion>
 					<groupId>org.jetbrains.kotlin</groupId>
@@ -343,111 +485,56 @@
 				</exclusion>
 			</exclusions>
 		</dependency>
-		<dependency>
-			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-math3</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.xmlgraphics</groupId>
-			<artifactId>batik-dom</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.xmlgraphics</groupId>
-			<artifactId>batik-svggen</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>com.formdev</groupId>
-			<artifactId>jide-oss</artifactId>
-			<version>3.7.12</version>
-		</dependency>
+
+		<!-- Runtime dependencies -->
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf-jide-oss</artifactId>
-			<version>${flatlaf.version}</version>
+			<version>${flatlaf-jide-oss.version}</version>
 			<scope>runtime</scope>
 			<optional>true</optional>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-text</artifactId>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-api</artifactId>
+			<scope>runtime</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.scijava</groupId>
-			<artifactId>scijava-plot</artifactId>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-core</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
 		</dependency>
 		<dependency>
-			<groupId>com.squareup.okhttp3</groupId>
-			<artifactId>okhttp</artifactId>
-			<version>${okhttp.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>org.json</groupId>
-			<artifactId>json</artifactId>
-			<version>${json.version}</version>
+			<groupId>org.jzy3d</groupId>
+			<artifactId>jzy3d-jGL-awt</artifactId>
+			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.webjars</groupId>
 			<artifactId>font-awesome</artifactId>
 			<version>${font-awesome.version}</version>
+			<scope>runtime</scope>
 		</dependency>
+
+		<!-- Test dependencies -->
 		<dependency>
-			<groupId>org.scijava</groupId>
-			<artifactId>scijava-table</artifactId>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<scope>test</scope>
 		</dependency>
+		<!--
+		NB: mvn dependency:analyze lists slf4j-api under section "Non-test
+		scoped test only dependencies found", but it's already a transitive
+		dependency at compile scope, and we don't want to narrow the scope.
+		-->
 		<dependency>
-			<groupId>org.jgrapht</groupId>
-			<artifactId>jgrapht-core</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.jgrapht</groupId>
-			<artifactId>jgrapht-ext</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.scijava</groupId>
-			<artifactId>scijava-plugins-io-table</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>net.imagej</groupId>
-			<artifactId>imagej-updater</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>net.imagej</groupId>
-			<artifactId>imagej</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>it.unimi.dsi</groupId>
-			<artifactId>fastutil-core</artifactId>
-			<version>8.5.11</version>
-		</dependency>
-		<dependency>
-			<groupId>org.jheaps</groupId>
-			<artifactId>jheaps</artifactId>
-			<version>0.14</version>
+			<groupId>sc.fiji</groupId>
+			<artifactId>Trainable_Segmentation</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
-			<artifactId>fiji-lib</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.scijava</groupId>
-			<artifactId>scijava-ui-swing</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.logging.log4j</groupId>
-			<artifactId>log4j-api</artifactId>
-			<version>${log4j.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.logging.log4j</groupId>
-			<artifactId>log4j-core</artifactId>
-			<version>${log4j.version}</version>
-			<scope>runtime</scope>
-			<optional>true</optional>
+			<artifactId>labkit-ui</artifactId>
 		</dependency>
 	</dependencies>
 </project>

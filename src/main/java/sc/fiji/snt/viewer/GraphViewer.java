@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -94,8 +94,22 @@ public class GraphViewer {
      * @return the assembled window
      */
     public Window show() {
+    	return show(null);
+    }
+
+    /**
+     * Displays a graph in SNT's "Graph Viewer" featuring UI commands for
+     * interactive visualization and export options.
+     *
+     * @param title the Window title (optional, null allowed)
+     * @return the assembled window
+     */
+    public Window show(final String title) {
+    	if (context == null)
+            setContext(SNTUtils.getContext());
     	if (editor == null) initEditor();
         final JFrame frame = editor.createFrame(getContext());
+        if (title != null) frame.setTitle(title);
         GuiUtils.removeIcon(frame);
         //frame.pack(); //FIXME: Don't pack() otherwise stall occurs on openjdk
         SNTUtils.setIsLoading(false);

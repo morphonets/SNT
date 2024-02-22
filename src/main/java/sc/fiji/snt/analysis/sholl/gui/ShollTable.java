@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -204,12 +204,12 @@ public class ShollTable extends SNTTable {
 			set(getCol("Threshold range"), row, thresh);
 
 			if (detailedSummary) {
-				final int c = Integer.valueOf(props.getProperty(Profile.KEY_CHANNEL_POS));
-				final int z = Integer.valueOf(props.getProperty(Profile.KEY_SLICE_POS));
-				final int t = Integer.valueOf(props.getProperty(Profile.KEY_FRAME_POS));
+				final int c = Integer.parseInt(props.getProperty(Profile.KEY_CHANNEL_POS));
+				final int z = Integer.parseInt(props.getProperty(Profile.KEY_SLICE_POS));
+				final int t = Integer.parseInt(props.getProperty(Profile.KEY_FRAME_POS));
 				set(getCol("CZT Position "), row, "" + c + ":" + z + ":" + t);
 			}
-			final int nSamples = Integer.valueOf(props.getProperty(Profile.KEY_NSAMPLES, "1"));
+			final int nSamples = Integer.parseInt(props.getProperty(Profile.KEY_NSAMPLES, "1"));
 			set(getCol("Samples/radius"), row, nSamples);
 			set(getCol("Samples/radius integration"), row, (nSamples == 1) ? "NA" : nSamples);
 
@@ -261,13 +261,13 @@ public class ShollTable extends SNTTable {
 			set(getCol(getHeader("Median " + key, fData)), row, lStats.getMedian(fData));
 			set(getCol(getHeader("Skeweness", fData)), row, lStats.getSkewness(fData));
 			set(getCol(getHeader("Kurtosis", fData)), row, lStats.getKurtosis(fData));
+			final ShollPoint centroid = lStats.getCentroid(fData);
+			set(getCol(getHeader("Centroid value", fData)), row, centroid.y);
+			set(getCol(getHeader("Centroid radius", fData)), row, centroid.x);
 		}
 
 		set(getCol(getHeader("Ramification index", fData)), row, lStats.getRamificationIndex(fData));
-
-		final ShollPoint centroid = lStats.getCentroid(fData);
-		set(getCol(getHeader("Centroid value", fData)), row, centroid.y);
-		set(getCol(getHeader("Centroid radius", fData)), row, centroid.x);
+		set(getCol(getHeader("Branching index", fData)), row, lStats.getBranchingIndex(fData));
 
 		try {
 			if (prefService != null) {

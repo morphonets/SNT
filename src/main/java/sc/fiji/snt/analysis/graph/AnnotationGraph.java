@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -25,6 +25,7 @@ import net.imagej.ImageJ;
 import org.jgrapht.graph.DefaultGraphType;
 import org.jgrapht.util.SupplierUtil;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.annotation.AllenUtils;
@@ -33,7 +34,6 @@ import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.viewer.GraphViewer;
 
-import java.util.List;
 import java.util.*;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -42,9 +42,9 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
 
 	private static final long serialVersionUID = 6826816297520498404L;
 
-	public static final String TIPS = "tips";
-    public static final String LENGTH = "length";
-    public static final String BRANCH_POINTS = "branch points";
+	public static final String TIPS = MultiTreeStatistics.N_TIPS;
+    public static final String LENGTH = MultiTreeStatistics.LENGTH;
+    public static final String BRANCH_POINTS = MultiTreeStatistics.N_BRANCH_POINTS;
     public static final String EDGES = "edges";
     private static final String[] ALL_FLAGS = {
             TIPS,
@@ -98,6 +98,48 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
                 throw new IllegalArgumentException("Unknown metric");
         }
     }
+
+	public AnnotationGraph(final Collection<Tree> trees, final Collection<BrainAnnotation> annotations, String metric,
+			double threshold) {
+        this();
+        if (trees.isEmpty()) {
+            throw new IllegalArgumentException("Empty Tree collection given");
+        }
+        if (annotations.isEmpty()) {
+            throw new IllegalArgumentException("Empty BrainAnnotation collection given");
+        }
+        this.treeCollection = trees;
+        if (threshold < 0) {
+            threshold = 0;
+        }
+        this.metric = metric;
+        this.threshold = threshold;
+		maxOntologyDepth = Integer.MIN_VALUE;
+		for (final BrainAnnotation annot : annotations) {
+			if (annot != null) {
+				int depth = annot.getOntologyDepth();
+				if (depth > maxOntologyDepth)
+					maxOntologyDepth = depth;
+			}
+		}
+        switch (metric) {
+            case TIPS:
+            	initNodes(trees, annotations, (int)threshold, TIPS);
+                break;
+            case BRANCH_POINTS:
+                initNodes(trees, annotations, (int)threshold, BRANCH_POINTS);
+                break;
+            case LENGTH:
+                initNodes(trees, annotations, (int)threshold, LENGTH);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported metric: " + metric);
+        }
+    }
+
+	public AnnotationGraph(final Collection<Tree> trees, final Collection<BrainAnnotation> annotations, String metric) {
+		this(trees, annotations, metric, Double.MIN_VALUE);
+	}
 
     public static String[] getMetrics() {
         return ALL_FLAGS;
@@ -296,6 +338,64 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
         Set<BrainAnnotation> removedVertices = vertexSet().stream().filter(v -> degreeOf(v) == 0).collect(Collectors.toSet());
         removeAllVertices(removedVertices);
     }
+
+	private BrainAnnotation getMatchedAnnotation(final BrainAnnotation query, final Collection<BrainAnnotation> pool) {
+		for (final BrainAnnotation annot : pool) {
+			if (query.equals(annot) || query.isChildOf(annot))
+				return annot;
+		}
+		return query;
+	}
+
+	private double getNodeCount(final TreeAnalyzer ta, BrainAnnotation annot, final String nodeType) {
+		if (TIPS.equals(nodeType)) {
+			return ta.getTips(annot).size();
+		} else if (BRANCH_POINTS.equals(nodeType)) {
+			return ta.getBranchPoints(annot).size();
+		} else if (LENGTH.equals(nodeType)) {
+			return ta.getCableLength(annot);
+		}
+		throw new IllegalArgumentException("Unknown nodeType: " + nodeType);
+	}
+
+	private void initNodes(final Collection<Tree> trees, final Collection<BrainAnnotation> annotations, double cutoffCount,
+			final String nodeType) {
+		final Map<Integer, BrainAnnotation> annotationPool = new HashMap<>();
+		for (final BrainAnnotation annot : annotations) {
+			if (annot != null)
+				annotationPool.put(annot.id(), annot);
+		}
+		for (final Tree tree : trees) {
+			final BrainAnnotation rootAnnotation = getMatchedAnnotation(tree.getRoot().getAnnotation(), annotations);
+			if (!annotationPool.containsKey(rootAnnotation.id())) {
+				annotationPool.put(rootAnnotation.id(), rootAnnotation);
+			}
+			if (!containsVertex(rootAnnotation))
+				addVertex(rootAnnotation);
+			final TreeAnalyzer ta = new TreeAnalyzer(tree);
+			final Map<Integer, Double> countMap = new HashMap<>();
+			for (final BrainAnnotation annot : annotations) {
+				if (annot != null)
+					countMap.put(annot.id(), getNodeCount(ta, annot, nodeType));
+			}
+			final List<Integer> filteredNodes = countMap.entrySet().stream().filter(e -> e.getValue() >= cutoffCount)
+					.map(Map.Entry::getKey).collect(Collectors.toList());
+			if (!containsVertex(rootAnnotation))
+				addVertex(rootAnnotation);
+			for (final Integer areaId : filteredNodes) {
+				final BrainAnnotation fNode = annotationPool.get(areaId);
+				if (!containsVertex(fNode))
+					addVertex(fNode);
+				AnnotationWeightedEdge edge = getEdge(rootAnnotation, fNode);
+				if (edge == null) {
+					edge = new AnnotationWeightedEdge();
+					addEdge(rootAnnotation, fNode, edge);
+					setEdgeWeight(edge, 0);
+				}
+				setEdgeWeight(edge, getEdgeWeight(edge) + countMap.get(areaId));
+			}
+		}
+	}
 
     private BrainAnnotation getLevelAncestor(BrainAnnotation annotation, int maxOntologyDepth) {
         int depth = annotation.getOntologyDepth();

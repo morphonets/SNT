@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -1253,7 +1253,7 @@ class EditorMenuBar extends JMenuBar
 		}
 
 		private void doFloydRoyWarshall() {
-			ArrayList<Object[][]> FWIresult = new ArrayList<Object[][]>();
+			ArrayList<Object[][]> FWIresult = new ArrayList<>();
 			try
 			{
 				//only this line is needed to get the result from Floyd-Roy-Warshall, the rest is code for displaying the result

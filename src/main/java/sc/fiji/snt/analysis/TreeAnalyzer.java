@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -31,10 +31,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.scijava.table.DefaultGenericTable;
-
-import net.imagej.ImageJ;
-
 import org.jgrapht.Graphs;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.scijava.app.StatusService;
@@ -42,12 +38,16 @@ import org.scijava.command.ContextCommand;
 import org.scijava.display.Display;
 import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
+import org.scijava.table.DefaultGenericTable;
 
+import net.imagej.ImageJ;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.PointInImage;
@@ -285,7 +285,7 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @see #setTable(DefaultGenericTable)
 	 */
 	public void summarize(final String rowHeader, final boolean groupByType) {
-		measure(rowHeader, TreeStatistics.getMetrics("common"), true);
+		measure(rowHeader, TreeStatistics.getMetrics("quick"), true);
 	}
 
 	protected int getNextRow(final String rowHeader) {
@@ -296,7 +296,7 @@ public class TreeAnalyzer extends ContextCommand {
 	/**
 	 * Gets a list of supported metrics. Note that this list will only include
 	 * commonly used metrics. For a complete list of supported metrics see
-	 * {@link #getAllMetrics()}
+	 * {@link TreeStatistics#getAllMetrics()} )}
 	 * 
 	 * @return the list of available metrics
 	 * @see TreeStatistics#getMetrics(String)
@@ -344,10 +344,10 @@ public class TreeAnalyzer extends ContextCommand {
 	/**
 	 * Computes the specified metric.
 	 *
-	 * @param metric the metric to be computed (case insensitive). While it is
+	 * @param metric the metric to be computed (case-insensitive). While it is
 	 *               expected to be an element of {@link #getMetrics()}, it can be
 	 *               specified in a "loose" manner: If {@code metric} is not
-	 *               initially recognized, an heuristic will match it to the closest
+	 *               initially recognized, a heuristic will match it to the closest
 	 *               entry in the list of possible metrics. E.g., "# bps", "n
 	 *               junctions", will be both mapped to
 	 *               {@link MultiTreeStatistics#N_BRANCH_POINTS}. Details on the
@@ -496,7 +496,7 @@ public class TreeAnalyzer extends ContextCommand {
 			table.set(getCol("SWC Type(s)"), row, getSWCTypesAsString());
 			measuringMetrics.forEach(metric -> table.set(getCol(metric), row, getMetricInternal(metric)));
 		}
-		if (getContext() != null) updateAndDisplayTable();
+		updateAndDisplayTable();
 	}
 
 	protected String getSWCTypesAsString() {
@@ -550,9 +550,11 @@ public class TreeAnalyzer extends ContextCommand {
 			cancel("No Paths to Measure");
 			return;
 		}
-		statusService.showStatus("Measuring Paths...");
+		if (statusService !=null)
+			statusService.showStatus("Measuring Paths...");
 		summarize(true);
-		statusService.clearStatus();
+		if (statusService !=null)
+			statusService.clearStatus();
 	}
 
 	/**
@@ -579,22 +581,25 @@ public class TreeAnalyzer extends ContextCommand {
 		if (TreeStatistics.WIDTH.equals(metric) || TreeStatistics.HEIGHT.equals(metric)
 				|| TreeStatistics.DEPTH.equals(metric) || m.contains("length") || m.contains("radius")
 				|| m.contains("distance") || TreeStatistics.CONVEX_HULL_ELONGATION.equals(metric)) {
-			return (String) tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units");
+			return getUnit();
 		} else if (m.contains("volume")) {
-			return tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units") + "^3";
+			return getUnit() + "³";
 		} else if (m.contains("surface area")) {
-			return tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units") + "^2";
+			return getUnit() + "²";
 		} else if (TreeStatistics.CONVEX_HULL_SIZE.equals(metric)) {
-			return tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units") + ((tree.is3D()) ? "^3" : "^2");
+			return getUnit() + ((tree.is3D()) ? "³" : "²");
 		} else if (TreeStatistics.CONVEX_HULL_BOUNDARY_SIZE.equals(metric)) {
-			return tree.getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT, "? units") + ((tree.is3D()) ? "^2" : "");
+			return getUnit() + ((tree.is3D()) ? "²" : "");
 		}
 		return "";
 	}
 
+	protected String getUnit() {
+		return (String) tree.getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "? units");
+	}
+
 	protected int getCol(final String header) {
-		final String unit = getUnit(header);
-		final String normHeader = (unit.length() > 1) ? header + " (" + unit + ")" : header;
+		final String normHeader = AnalysisUtils.getMetricLabel(header, tree);
 		int idx = table.getColumnIndex(normHeader);
 		if (idx == -1) {
 			table.appendColumn(normHeader);
@@ -720,16 +725,31 @@ public class TreeAnalyzer extends ContextCommand {
 	 * Gets the position of all the tips in the analyzed tree associated with the
 	 * specified annotation.
 	 *
-	 * @param annot the BrainAnnotation to be queried. Null not allowed.
+	 * @param annot the BrainAnnotation to be queried (all of its children will be
+	 *              considered). Null not allowed.
 	 * @return the branch points positions, or an empty set if no tips were
 	 *         retrieved.
 	 */
 	public Set<PointInImage> getTips(final BrainAnnotation annot) {
-		if (tips == null) getTips();
+		return getTips(annot, true);
+	}
+
+	/**
+	 * Gets the position of all the tips in the analyzed tree associated with the
+	 * specified annotation.
+	 *
+	 * @param annot           the BrainAnnotation to be queried. Null not allowed.
+	 * @param includeChildren whether children of {@code annot} should be included.
+	 * @return the branch points positions, or an empty set if no tips were
+	 *         retrieved.
+	 */
+	public Set<PointInImage> getTips(final BrainAnnotation annot, final boolean includeChildren) {
+		if (tips == null)
+			getTips();
 		final HashSet<PointInImage> fTips = new HashSet<>();
 		for (final PointInImage tip : tips) {
 			final BrainAnnotation annotation = tip.getAnnotation();
-			if (annotation != null && isSameOrParentAnnotation(annot, annotation))
+			if (annotation != null && contains(annot, annotation, includeChildren))
 				fTips.add(tip);
 		}
 		return fTips;
@@ -739,11 +759,36 @@ public class TreeAnalyzer extends ContextCommand {
 	 * Gets the number of end points in the analyzed tree associated with the
 	 * specified annotation.
 	 *
-	 * @param annot the BrainAnnotation to be queried.
+	 * @param annot the BrainAnnotation to be queried. All of its children will be
+	 *              considered
 	 * @return the number of end points
 	 */
 	public int getNtips(final BrainAnnotation annot) {
-		return getTips(annot).size();
+		return getNtips(annot, true);
+	}
+
+	/**
+	 * Gets the number of end points in the analyzed tree associated with the
+	 * specified annotation.
+	 *
+	 * @param annot           the BrainAnnotation to be queried.
+	 * @param includeChildren whether children of {@code annot} should be included.
+	 * @return the number of end points
+	 */
+	public int getNtips(final BrainAnnotation annot, final boolean includeChildren) {
+		return getTips(annot, true).size();
+	}
+
+	/**
+	 * Gets the number of end points in the analyzed tree associated with the
+	 * specified annotation.
+	 *
+	 * @param annot the BrainAnnotation to be queried. All of its children will be
+	 *              considered
+	 * @return the number of end points
+	 */
+	public double getNtipsNorm(final BrainAnnotation annot) {
+		return getNtipsNorm(annot, true);
 	}
 
 	/**
@@ -751,11 +796,12 @@ public class TreeAnalyzer extends ContextCommand {
 	 * specified annotation
 	 *
 	 * @param annot the BrainAnnotation to be queried.
+	 * @param includeChildren whether children of {@code annot} should be included
 	 * @return the ratio between the no. of branch points associated with
 	 *         {@code annot} and the total number of end points in the tree.
 	 */
-	public double getNtipsNorm(final BrainAnnotation annot) {
-		return (double) (getNtips(annot)) / (double)(tips.size());
+	public double getNtipsNorm(final BrainAnnotation annot, final boolean includeChildren) {
+		return (double) (getNtips(annot, includeChildren)) / (double)(tips.size());
 	}
 
 	/**
@@ -775,16 +821,30 @@ public class TreeAnalyzer extends ContextCommand {
 	 * Gets the position of all the branch points in the analyzed tree associated
 	 * with the specified annotation.
 	 *
-	 * @param annot the BrainAnnotation to be queried.
-	 * @return the branch points positions, or an empty set if no branch points
-	 *         were retrieved.
+	 * @param annot the BrainAnnotation to be queried. All of its children are
+	 *              considered.
+	 * @return the branch points positions, or an empty set if no branch points were
+	 *         retrieved.
 	 */
 	public Set<PointInImage> getBranchPoints(final BrainAnnotation annot) {
+		return getBranchPoints(annot, true);
+	}
+
+	/**
+	 * Gets the position of all the branch points in the analyzed tree associated
+	 * with the specified annotation.
+	 *
+	 * @param annot           the BrainAnnotation to be queried.
+	 * @param includeChildren whether children of {@code annot} should be included
+	 * @return the branch points positions, or an empty set if no branch points were
+	 *         retrieved.
+	 */
+	public Set<PointInImage> getBranchPoints(final BrainAnnotation annot, final boolean includeChildren) {
 		if (joints == null) getBranchPoints();
-		final HashSet<PointInImage>fJoints = new HashSet<>();
-		for (final PointInImage joint: joints) {
+		final HashSet<PointInImage> fJoints = new HashSet<>();
+		for (final PointInImage joint : joints) {
 			final BrainAnnotation annotation = joint.getAnnotation();
-			if (annotation != null && isSameOrParentAnnotation(annot, annotation))
+			if (annotation != null && contains(annot, annotation, includeChildren))
 				fJoints.add(joint);
 		}
 		return fJoints;
@@ -794,23 +854,50 @@ public class TreeAnalyzer extends ContextCommand {
 	 * Gets the number of branch points in the analyzed tree associated with the
 	 * specified annotation.
 	 *
-	 * @param annot the BrainAnnotation to be queried.
+	 * @param annot the BrainAnnotation to be queried. All of its children are
+	 *              considered.
 	 * @return the number of branch points
 	 */
 	public int getNbranchPoints(final BrainAnnotation annot) {
-		return getBranchPoints(annot).size();
+		return getNbranchPoints(annot, true);
+	}
+
+	/**
+	 * Gets the number of branch points in the analyzed tree associated with the
+	 * specified annotation.
+	 *
+	 * @param annot           the BrainAnnotation to be queried.
+	 * @param includeChildren whether children of {@code annot} should be included
+	 * @return the number of branch points
+	 */
+	public int getNbranchPoints(final BrainAnnotation annot, final boolean includeChildren) {
+		return getBranchPoints(annot, includeChildren).size();
 	}
 
 	/**
 	 * Gets the percentage of branch points in the analyzed tree associated with the
 	 * specified annotation
 	 *
-	 * @param annot the BrainAnnotation to be queried.
+	 * @param annot the BrainAnnotation to be queried. All of its children are
+	 *              considered.
 	 * @return the ratio between the no. of branch points associated with
 	 *         {@code annot} and the total number of branch points in the tree.
 	 */
 	public double getNbranchPointsNorm(final BrainAnnotation annot) {
-		return (double) (getNbranchPoints(annot)) / (double)(joints.size());
+		return getNbranchPointsNorm(annot, true);
+	}
+
+	/**
+	 * Gets the percentage of branch points in the analyzed tree associated with the
+	 * specified annotation
+	 *
+	 * @param annot           the BrainAnnotation to be queried.
+	 * @param includeChildren whether children of {@code annot} should be included
+	 * @return the ratio between the no. of branch points associated with
+	 *         {@code annot} and the total number of branch points in the tree.
+	 */
+	public double getNbranchPointsNorm(final BrainAnnotation annot, final boolean includeChildren) {
+		return (double) (getNbranchPoints(annot, includeChildren)) / (double) (joints.size());
 	}
 
 	/**
@@ -848,6 +935,19 @@ public class TreeAnalyzer extends ContextCommand {
 
 	/**
 	 * Gets the cable length associated with the specified compartment (neuropil
+	 * label) as a ratio of total length.
+	 *
+	 * @param compartment     the query compartment (null not allowed)
+	 * @param includeChildren whether children of {@code compartment} should be
+	 *                        included
+	 * @return the filtered cable length normalized to total cable length
+	 */
+	public double getCableLengthNorm(final BrainAnnotation compartment, final boolean includeChildren) {
+		return getCableLength(compartment, includeChildren) / getCableLength();
+	}
+
+	/**
+	 * Gets the cable length associated with the specified compartment (neuropil
 	 * label).
 	 *
 	 * @param compartment the query compartment (null not allowed)
@@ -855,29 +955,21 @@ public class TreeAnalyzer extends ContextCommand {
 	 * @return the filtered cable length
 	 */
 	public double getCableLength(final BrainAnnotation compartment, final boolean includeChildren) {
-		double sumLength = 0d;
-		for (final Path path : tree.list()) {
-			for (int i = 1; i < path.size(); i++) {
-				final BrainAnnotation prevNodeAnnotation = path.getNodeAnnotation(i - 1);
-				final BrainAnnotation currentNodeAnnotation = path.getNodeAnnotation(i);
-				if (includeChildren) {
-					if (isSameOrParentAnnotation(compartment, currentNodeAnnotation)
-							&& isSameOrParentAnnotation(compartment, prevNodeAnnotation)) {
-						sumLength += path.getNode(i).distanceTo(path.getNode(i - 1));
-					}
-				} else {
-					if (compartment.equals(currentNodeAnnotation) &&
-							compartment.equals(prevNodeAnnotation)) {
-						sumLength += path.getNode(i).distanceTo(path.getNode(i - 1));
-					}
-				}
-			}
-		}
-		return sumLength;
+		final DirectedWeightedGraph graph = tree.getGraph();
+		final NodeStatistics<SWCPoint> nodeStats = new NodeStatistics<>(graph.vertexSet());
+		final DirectedWeightedSubgraph subgraph = graph.getSubgraph(new HashSet<>(nodeStats.get(compartment, includeChildren)));
+		return subgraph.sumEdgeWeights(true);
 	}
 
 	protected boolean isSameOrParentAnnotation(final BrainAnnotation annot, final BrainAnnotation annotToBeTested) {
-		return annot.equals(annotToBeTested) || annot.isParentOf(annotToBeTested);
+		return contains(annot, annotToBeTested, true);
+	}
+
+	protected boolean contains(final BrainAnnotation annot, final BrainAnnotation annotToBeTested,
+			final boolean includeChildren) {
+		if (includeChildren)
+			return annot.equals(annotToBeTested) || annot.isParentOf(annotToBeTested);
+		return annot.equals(annotToBeTested);
 	}
 
 	public Set<BrainAnnotation> getAnnotations() {
@@ -1098,7 +1190,7 @@ public class TreeAnalyzer extends ContextCommand {
 	public List<Double> getRemoteBifAngles() throws IllegalArgumentException {
 		final DirectedWeightedGraph sGraph = tree.getGraph(true);
 		final List<SWCPoint> branchPoints = sGraph.getBPs();
-		final List<Double> angles = new ArrayList<Double>();
+		final List<Double> angles = new ArrayList<>();
 		for (final SWCPoint bp : branchPoints) {
 			final List<SWCPoint> children = Graphs.successorListOf(sGraph, bp);
 			// Only consider bifurcations
@@ -1149,14 +1241,14 @@ public class TreeAnalyzer extends ContextCommand {
 	public List<Double> getPartitionAsymmetry() throws IllegalArgumentException {
 		final DirectedWeightedGraph sGraph = tree.getGraph(true);
 		final List<SWCPoint> branchPoints = sGraph.getBPs();
-		final List<Double> resultList = new ArrayList<Double>();
+		final List<Double> resultList = new ArrayList<>();
 		for (final SWCPoint bp : branchPoints) {
 			final List<SWCPoint> children = Graphs.successorListOf(sGraph, bp);
 			// Only consider bifurcations
 			if (children.size() > 2) {
 				continue;
 			}
-			final List<Integer> tipCounts = new ArrayList<Integer>();
+			final List<Integer> tipCounts = new ArrayList<>();
 			for (final SWCPoint child : children) {
 				int count = 0;
 				final DepthFirstIterator<SWCPoint, SWCWeightedEdge> dfi = sGraph.getDepthFirstIterator(child);
@@ -1170,7 +1262,7 @@ public class TreeAnalyzer extends ContextCommand {
 			}
 			double asymmetry;
 			// Make sure we avoid getting NaN
-			if (tipCounts.get(0) == tipCounts.get(1)) {
+			if (tipCounts.get(0).equals(tipCounts.get(1))) {
 				asymmetry = 0.0;
 			}
 			else {
@@ -1207,14 +1299,14 @@ public class TreeAnalyzer extends ContextCommand {
 	 */
 	public List<Double> getFractalDimension() throws IllegalArgumentException {
 		final List<Path> branches = getBranches();
-		final List<Double> fractalDims = new ArrayList<Double>();
+		final List<Double> fractalDims = new ArrayList<>();
 		for (final Path b : branches) {
 			// Must have at least 4 points after the start-node in a branch
 			if (b.size() < 5) {
 				continue;
 			}
-			final List<Double> pathDists = new ArrayList<Double>();
-			final List<Double> eucDists  = new ArrayList<Double>();
+			final List<Double> pathDists = new ArrayList<>();
+			final List<Double> eucDists  = new ArrayList<>();
 			// Start at the second node in the branch
 			for (int i = 1; i < b.size(); i++) {
 				double pDist = b.getNode(i).distanceTo(b.getNode(i-1));

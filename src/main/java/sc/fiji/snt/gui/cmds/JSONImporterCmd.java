@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -23,7 +23,7 @@
 package sc.fiji.snt.gui.cmds;
 
 import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.stream.IntStream;
@@ -47,7 +47,7 @@ import sc.fiji.snt.io.MouseLightLoader;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false,
+@Plugin(type = Command.class,
 	label = "Import ML JSON Data")
 public class JSONImporterCmd extends CommonDynamicCmd {
 
@@ -97,7 +97,7 @@ public class JSONImporterCmd extends CommonDynamicCmd {
 			if (snt != null) notifyExternalDataLoaded();
 			status("Successfully imported " + result.size() + " reconstruction(s)...", true);
 	
-		} catch (final FileNotFoundException | IllegalArgumentException | JSONException e) {
+		} catch (final IOException | IllegalArgumentException | JSONException e) {
 			error(e.getMessage());
 		} finally {
 			resetUI(pafm.size() > lastExistingPathIdx);

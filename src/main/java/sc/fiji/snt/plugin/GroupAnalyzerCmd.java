@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -30,6 +30,7 @@ import java.util.List;
 
 import javax.swing.SwingUtilities;
 
+import org.apache.commons.math3.exception.MathIllegalArgumentException;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.ItemIO;
@@ -39,6 +40,7 @@ import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
+import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
 
 import net.imagej.ImageJ;
@@ -61,7 +63,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label="Compare Groups...", initializer = "init")
+@Plugin(type = Command.class, label="Compare Groups...", initializer = "init")
 public class GroupAnalyzerCmd extends CommonDynamicCmd {
 
 	private static final String COMMON_DESC_PRE = "<HTML><div WIDTH=500>Path to directory containing Group ";
@@ -73,35 +75,40 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	@Parameter(label = "<HTML><b>Groups:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
 	private String SPACER1;
 
-	@Parameter(label = "Group 1 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 1 + COMMON_DESC_POST)
+	@Parameter(label = "Group 1 path", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 1 + COMMON_DESC_POST)
 	private File g1File;
-	@Parameter(label = "Group 2 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 2 + COMMON_DESC_POST)
+	@Parameter(label = "Group 2 path", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 2 + COMMON_DESC_POST)
 	private File g2File;
 
-	@Parameter(label = "Group 3 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 3 + COMMON_DESC_POST)
+	@Parameter(label = "Group 3 path", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 3 + COMMON_DESC_POST)
 	private File g3File;
 
-	@Parameter(label = "Group 4 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 4 + COMMON_DESC_POST)
+	@Parameter(label = "Group 4 path", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 4 + COMMON_DESC_POST)
 	private File g4File;
 
-	@Parameter(label = "Group 5 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 5 + COMMON_DESC_POST)
+	@Parameter(label = "Group 5 path", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 5 + COMMON_DESC_POST)
 	private File g5File;
 
-	@Parameter(label = "Group 6 directory", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 6 + COMMON_DESC_POST)
+	@Parameter(label = "Group 6 path", required = false, style = FileWidget.DIRECTORY_STYLE, description = COMMON_DESC_PRE + 6 + COMMON_DESC_POST)
 	private File g6File;
 
-	@Parameter(label = "<HTML>&nbsp;<br><b>Options:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
+	@Parameter(label = "<HTML>&nbsp;<br><b>Compartments:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
 	private String SPACER3;
 
-	@Parameter(label = "Compartments", choices = {"All", "Dendrites", "Axon"})
+	@Parameter(label = "<HTML>&nbsp;", choices = {"All", "Dendrites", "Axons"}, style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE)
 	private String scope;
 
-	// II. Metrics
-	@Parameter(label = "<HTML>&nbsp;<br><b>Measurements:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
-	private String SPACER2;
+	@Parameter(label = "<HTML>&nbsp;<br><b>Comparison:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
+	private String SPACER4;
 
 	@Parameter(label = "Metric", callback ="metricChanged")
 	private String metric;
+
+	@Parameter(label = "Test", callback = "statTestChanged", choices = {"None", "Two-sample t-test/One-way ANOVA"}, style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE)
+	private String statTestChoice;
+
+	@Parameter(label = "<HTML>&nbsp;<br><b>Options:", persist = false, required = false, visibility = ItemVisibility.MESSAGE)
+	private String SPACER5;
 
 	@Parameter(required = false, callback = "displayPlotsChanged", label = "Comparison plots",
 			description = "Display Histograms and Box-Plots? (Ignored if not metric is specified)")
@@ -112,7 +119,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 					+ "This option is only considered if chosen metric can be mapped to a LUT.")
 	private boolean displayInMultiViewer;
 
-	@Parameter(required = false, label = "3D Scene", description = "Display groups on a dedicated instance of Reconstruction Viewer?")
+	@Parameter(required = false, label = "3D scene", description = "Display groups on a dedicated instance of Reconstruction Viewer?")
 	private boolean displayInRecViewer;
 
 	@Parameter(type = ItemIO.OUTPUT, label = "Group Statistics")
@@ -164,8 +171,18 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 		if (noMetrics) {
 			displayInMultiViewer = false;
 			displayPlots = false;
+			statTestChoice = "None";
 		} else {
 			displayInMultiViewer = displayInMultiViewer && isMetricMappable(metric);
+		}
+	}
+
+	@SuppressWarnings("unused")
+	private void statTestChanged() {
+		noMetrics = metric != null && metric.startsWith("None");
+		if (noMetrics && !statTestChoice.startsWith("None")) {
+			GuiUtils.errorPrompt("This option is only available when a metric is specified.");
+			statTestChoice = "None";
 		}
 	}
 
@@ -190,11 +207,12 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 		addGroup(stats, g5File, "Group 5");
 		addGroup(stats, g6File, "Group 6");
 
-		if (stats.getGroups().size() == 0) {
+		if (stats.getGroups().isEmpty()) {
 			resetUI(false);
 			error("No matching reconstruction(s) could be retrieved from the specified path(s). " + warningOnCompartmentTags());
 			return;
 		}
+
 		if (noMetrics) {
 			super.resolveOutput("report");
 
@@ -205,16 +223,15 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 					? stats.getPolarHistogram(metric)
 					: stats.getHistogram(metric);
 			final SNTChart boxFrame = stats.getBoxPlot(metric);
-
 			long[] largestN = {Integer.MIN_VALUE};
-			final StringBuilder reportBuilder = new StringBuilder("    ").append(metric).append(" Statistics:\r\n");
+			final StringBuilder reportBuilder = new StringBuilder(metric).append(" Statistics\r\n\r\n");
 			final SummaryStatistics uberStats = new SummaryStatistics();
 			stats.getGroups().forEach(group -> {
 				final DescriptiveStatistics dStats = stats.getGroupStats(group).getDescriptiveStats(metric);
 				final long n = dStats.getN();
 				if (n > largestN[0]) largestN[0] = n;
 				reportBuilder.append(group).append(" Statistics:");
-				reportBuilder.append("\r\nFolder:\t").append(getDirPath(group));
+				reportBuilder.append("\r\nPath:\t").append(getDirPath(group));
 				reportBuilder.append("\r\nN:\t").append(n);
 				reportBuilder.append("\r\nMean:\t").append(dStats.getMean());
 				reportBuilder.append("\r\nStDev:\t").append(dStats.getStandardDeviation());
@@ -228,7 +245,26 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 				uberStats.addValue(dStats.getPercentile(10));
 				uberStats.addValue(dStats.getPercentile(90));
 			});
+			reportBuilder.append("\r\nParsed compartment(s): ").append(scope).append("\r\n");
+			if (!"None".equalsIgnoreCase(statTestChoice)) {
+				if (stats.getGroups().size() == 1) {
+					reportBuilder.append("No statistical test performed: Only one group parsed");
+				} else {
+					reportBuilder.append( (stats.getGroups().size() == 2) ?  "Two-sample t-test" : "One-way ANOVA (all groups)");
+					reportBuilder.append(": ");
+					try {
+						final double p = pValue(stats);
+						reportBuilder.append("p=").append(p);
+					} catch (final MathIllegalArgumentException ex) {
+						reportBuilder.append(ex.getMessage());
+					}
+					reportBuilder.append(
+							"\r\nBasic assumptions on normality, variance homogeneity, sample size, etc. assumed, not assessed");
+				}
+			}
+			reportBuilder.append("\r\n");
 			report = reportBuilder.toString();
+
 			if (displayPlots) {
 				final List<SNTChart> charts = new ArrayList<>();
 				charts.add(histFrame);
@@ -261,7 +297,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 				recViewer = sntService.newRecViewer(true);
 				recViewerIsNotVisible = true;
 			}
-			recViewer.setSceneUpdatesEnabled(false);
+			notifyLoadingStart(recViewer);
 			final ColorRGB[] colors = SNTColor.getDistinctColors(stats.getGroups().size());
 			final Iterator<String> groupsIterator = stats.getGroups().iterator();
 			int index = 0;
@@ -270,16 +306,26 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 				recViewer.addTrees(stats.getGroupStats(groupLabel).getGroup(), colors[index].toHTMLColor(), groupLabel);
 				index++;
 			}
-			recViewer.setSceneUpdatesEnabled(true);
+			notifyLoadingEnd(recViewer);
 			recViewer.updateView();
 			if (recViewerIsNotVisible) recViewer.show();
 		}
-		resetUI(recViewer);
+		resetUI();
+		notifyLoadingEnd(recViewer);
 
 	}
 
+	private double pValue(final GroupedTreeStatistics stats) throws MathIllegalArgumentException {
+		if (stats.getGroups().size() == 2) {
+			return stats.tTest(metric, stats.getGroups().get(0), stats.getGroups().get(1));
+		} else if (stats.getGroups().size() > 2) {
+			return stats.anovaPValue(metric);
+		}
+		return Double.NaN;
+	}
+
 	private String warningOnCompartmentTags() {
-		return ("All".equals(scope)) ? ""
+		return ("All".equalsIgnoreCase(scope)) ? ""
 				: " Perhaps branches have not been tagged as dendrites/axons? If this is the case, "
 						+ "you can re-run the analysis using 'All' as compartment choice.";
 	}
@@ -294,6 +340,10 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 				return (validFile(g3File)) ? g3File.getAbsolutePath() : "N/A";
 			case "4":
 				return (validFile(g4File)) ? g4File.getAbsolutePath() : "N/A";
+			case "5":
+				return (validFile(g5File)) ? g5File.getAbsolutePath() : "N/A";
+			case "6":
+				return (validFile(g6File)) ? g6File.getAbsolutePath() : "N/A";
 			default:
 				return "N/A";
 		}
@@ -308,11 +358,11 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 		final MultiViewer2D viewer = cm.getMultiViewer();
 		viewer.setGridlinesVisible(false);
 		viewer.setLabel(group);
-		SwingUtilities.invokeLater(() -> viewer.show());
+		SwingUtilities.invokeLater(viewer::show);
 	}
 
 	final boolean isMetricMappable(final String metric) {
-		return Arrays.stream(MultiTreeColorMapper.PROPERTIES).anyMatch(metric::equals);
+		return Arrays.asList(MultiTreeColorMapper.PROPERTIES).contains(metric);
 	}
 
 	private boolean atLeastOneValidGroup() {
@@ -323,14 +373,19 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	private boolean addGroup(final GroupedTreeStatistics stats, final File file, final String label) {
 		if (!validFile(file)) return false;
 		inputGroupsCounter++;
-		final List<Tree> trees = Tree.listFromDir(file.getAbsolutePath(), ("all".equalsIgnoreCase(scope)) ? null : scope);
+		final List<Tree> trees;
+		if (file.isDirectory()) {
+			trees = Tree.listFromDir(file.getAbsolutePath(), null, scope);
+		} else {
+			trees = new ArrayList<>(Tree.listFromFile(file.getAbsolutePath()));
+		}
 		if (trees == null || trees.isEmpty()) return false;
 		stats.addGroup(trees, label);
 		return true;
 	}
 
 	private boolean validFile(final File file) {
-		return file != null && file.isDirectory() && file.exists() && file.canRead();
+		return file != null && file.exists() && file.canRead();
 	}
 
 

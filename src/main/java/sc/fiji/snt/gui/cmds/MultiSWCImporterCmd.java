@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -112,9 +112,9 @@ public class MultiSWCImporterCmd extends ContextCommand {
 		}
 
 		// see CommonDynamicCmd#notifyExternalDataLoaded();
-		sntService.getPlugin().updateDisplayCanvases();
-		sntService.getPlugin().updateAllViewers();
-		sntService.getPlugin().getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, true);
+		sntService.getInstance().updateDisplayCanvases();
+		sntService.getInstance().updateAllViewers();
+		sntService.getInstance().getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, true);
 
 		if (failures > 0) {
 			ui.error(String.format("%d/%d reconstructions could not be retrieved.",

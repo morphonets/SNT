@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -43,6 +43,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.PointInImage;
@@ -102,7 +103,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 	@Deprecated
 	public static final String MEAN_RADIUS = "Mean radius";
 
-	private final Collection<Tree> groupOfTrees;
+	private final List<Tree> groupOfTrees;
 	private Collection<DirectedWeightedGraph> groupOfGraphs;
 
 	/**
@@ -112,7 +113,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 	 */
 	public MultiTreeStatistics(final Collection<Tree> group) {
 		super(new Tree());
-		this.groupOfTrees = group;
+		this.groupOfTrees = new ArrayList<>(group);
 	}
 
 	/**
@@ -197,6 +198,17 @@ public class MultiTreeStatistics extends TreeStatistics {
 	}
 
 	@Override
+	protected String getUnit() {
+		final String u1 = (String) groupOfTrees.get(0).getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "");
+		for (int i = 1; i < groupOfTrees.size(); i++) {
+			final String u2 = (String) groupOfTrees.get(i).getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "");
+			if (!u2.equals(u1))
+				return "";
+		}
+		return u1;
+	}
+
+	@Override
 	public void restrictToSWCType(final int... types) {
 		throw new IllegalArgumentException("Operation not supported. Only filtering in constructor is supported");
 	}
@@ -247,9 +259,8 @@ public class MultiTreeStatistics extends TreeStatistics {
 		final List<Map<BrainAnnotation, Double>> mapList = new ArrayList<>();
 		groupOfGraphs.forEach(g -> mapList.add(getAnnotatedLength(g, level, lrflag, norm)));
 		mapList.forEach(e -> e.keySet().remove(null)); // remove all null keys (untagged nodes)
-		final Map<BrainAnnotation, Double> map = mapList.stream().flatMap(m -> m.entrySet().stream())
+		return mapList.stream().flatMap(m -> m.entrySet().stream())
 				.collect(groupingBy(Map.Entry::getKey, summingDouble(Map.Entry::getValue)));
-		return map;
 	}
 
 	@Override
@@ -265,10 +276,9 @@ public class MultiTreeStatistics extends TreeStatistics {
 		groupOfGraphs.forEach(g -> {
 			mapList.add(getAnnotatedLengthsByHemisphere(g, level, false));
 		});
-		final Map<BrainAnnotation, double[]> result = mapList.stream().flatMap(m -> m.entrySet().stream())
+		return mapList.stream().flatMap(m -> m.entrySet().stream())
 				.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
 						(v1, v2) -> new double[] { v1[0] + v1[0], v1[1] + v1[1] }));
-		return result;
 	}
 
 	@Override
@@ -288,10 +298,9 @@ public class MultiTreeStatistics extends TreeStatistics {
 		final String normMeasurement = getNormalizedMeasurement(metric);
 		final HistogramDatasetPlusMulti datasetPlus = new HistogramDatasetPlusMulti(normMeasurement);
 		try {
-			final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, lastDstats.dStats,
+			final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, "", lastDstats.dStats,
 					datasetPlus);
-			final SNTChart frame = new SNTChart("Polar Hist. " + tree.getLabel(), chart);
-			return frame;
+			return new SNTChart("Polar Hist. " + tree.getLabel(), chart);
 		} catch (final IllegalArgumentException ex) {
 			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics",
 					ex);
@@ -356,6 +365,37 @@ public class MultiTreeStatistics extends TreeStatistics {
 		return terminalBranches;
 	}
 
+	@Override
+	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations,
+			final boolean normalize) {
+		return getFlowPlot(feature, annotations, "mean", Double.MIN_VALUE, normalize);
+	}
+
+	@Override
+	public SNTChart getFlowPlot(final String feature, final int depth) {
+		return getFlowPlot(feature, depth, Double.MIN_VALUE, true);
+	}
+
+	@Override
+	public SNTChart getFlowPlot(final String feature, final int depth, final double cutoff, final boolean normalize) {
+		return getFlowPlot(feature, getAnnotations(depth), "mean", cutoff, normalize);
+	}
+
+	@Override
+	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations) {
+		return getFlowPlot(feature, annotations, "mean", Double.MIN_VALUE, false);
+	}
+
+	@Override
+	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations,
+			final String statistic, final double cutoff, final boolean normalize) {
+		final GroupedTreeStatistics gts = new GroupedTreeStatistics();
+		gts.addGroup(groupOfTrees, (null == tree.getLabel()) ? "" : tree.getLabel());
+		final SNTChart chart = gts.getFlowPlot(feature, annotations, statistic, cutoff, normalize);
+		chart.setTitle("Flow Plot [Group of Cells]");
+		return chart;
+	}
+
 	class HistogramDatasetPlusMulti extends HDPlus {
 		HistogramDatasetPlusMulti(final String measurement) {
 			super(measurement, false);
@@ -383,6 +423,6 @@ public class MultiTreeStatistics extends TreeStatistics {
 		treeStats.setLabel("Demo Dendrites");
 		treeStats.getHistogram("x coordinates").show();
 		treeStats.getPolarHistogram("x coordinates").show();
-
+		treeStats.getFlowPlot("Cable length", treeStats.getAnnotatedLength(9).keySet()).show();
 	}
 }

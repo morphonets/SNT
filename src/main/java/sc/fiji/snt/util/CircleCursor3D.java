@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -142,7 +142,7 @@ public class CircleCursor3D< T > implements Cursor< T >
     }
 
     @Override
-    public Cursor< T > copyCursor()
+    public Cursor< T > copy()
     {
         return new CircleCursor3D<>( rai, centerPoint, radius, xBasis, yBasis );
     }
@@ -298,12 +298,6 @@ public class CircleCursor3D< T > implements Cursor< T >
     public T get()
     {
         return ra.get();
-    }
-
-    @Override
-    public Sampler< T > copy()
-    {
-        return ra.copy();
     }
 
 }

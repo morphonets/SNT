@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -25,7 +25,7 @@ import com.mxgraph.layout.mxCircleLayout;
 import com.mxgraph.view.mxGraph;
 
 /**
- * The a circle layout that is more compact than the default
+ * A circle layout that is more compact than the default
  * {@code mxCircleLayout} by applying a 'reduction factor' to the layout radius.
  * By default, such factor is computed from the number of vertices in the graph.
  *

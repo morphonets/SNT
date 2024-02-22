@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -38,10 +38,10 @@ import org.scijava.io.location.FileLocation;
 import org.scijava.plugin.Parameter;
 import org.scijava.table.Column;
 import org.scijava.table.DefaultGenericTable;
-import org.scijava.table.DefaultTableIOPlugin;
 import org.scijava.table.DoubleColumn;
 import org.scijava.table.GenericTable;
 import org.scijava.table.Table;
+import org.scijava.table.io.DefaultTableIOPlugin;
 import org.scijava.table.io.TableIOOptions;
 
 import sc.fiji.snt.SNTUtils;
@@ -202,10 +202,56 @@ public class SNTTable extends DefaultGenericTable {
 			tableIO = context.getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
 	}
 
+	public boolean isSummarized() {
+		final int meanRowIdx = getRowIndex("Mean");
+		return meanRowIdx > 1 && meanRowIdx <= getRowCount() - 6 && getRowIndex("SD") == meanRowIdx+1;
+	}
+
 	public void removeSummary() {
-		int meanRowIdx = getRowIndex("Mean");
-		if (meanRowIdx > 1 && meanRowIdx <= getRowCount() - 6 && getRowIndex("SD") == meanRowIdx+1) {
-			removeRows(meanRowIdx-1, 8);
+		if (isSummarized()) removeRows( getRowIndex("Mean")-1, 8);
+	}
+
+	public SummaryStatistics geRowStats(final String rowHeader, final int startColumnIndex, final int endColumnIndex) {
+		final int row = this.getRowIndex(rowHeader);
+		if (row == -1)
+			throw new IllegalArgumentException("Row header not found");
+		return geRowStats(row, startColumnIndex, endColumnIndex);
+	}
+
+	public SummaryStatistics geRowStats(final int rowIndex, final int startColumnIndex, final int endColumnIndex) {
+		if (rowIndex < 0 || rowIndex >= getRowCount() || startColumnIndex < 0 || endColumnIndex >= getColumnCount())
+			throw new IllegalArgumentException("Column index, start column, or end column out of range");
+		final SummaryStatistics rStats = new SummaryStatistics();
+		for (int col = startColumnIndex; col <= endColumnIndex; col++)
+			addValueToStats(col, rowIndex, rStats);
+		return rStats;
+
+	}
+	public SummaryStatistics geColumnStats(final String colHeader, final int startRowIndex, final int endRowIndex) {
+		final int col = getColumnIndex(colHeader);
+		if (col == -1)
+			throw new IllegalArgumentException("Column header not found");
+		return geColumnStats(col, startRowIndex, endRowIndex);
+	}
+
+	public SummaryStatistics geColumnStats(final int columnIndex, final int startRowIndex, final int endRowIndex) {
+		if (columnIndex < 0 || columnIndex >= getColumnCount() || startRowIndex < 0 || endRowIndex >= getRowCount())
+			throw new IllegalArgumentException("Column index, start row or end row out of range");
+		final SummaryStatistics cStats = new SummaryStatistics();
+		for (int row = startRowIndex; row <= endRowIndex; row++)
+			addValueToStats(columnIndex, row, cStats);
+		return cStats;
+	}
+
+	private void addValueToStats(final int col, final int row, final SummaryStatistics stats) {
+		try {
+			final double value = ((Number) get(col, row)).doubleValue();
+			if (!Double.isNaN(value)) stats.addValue(value);
+		} catch (final NullPointerException ignored) {
+			// do nothing. Empty cell!?
+		} catch (final ClassCastException ignored) {
+			// Cell with text!? We could add Double.NAN, or skip it altogether
+			// skipping for now, in case cells above and below are valid
 		}
 	}
 
@@ -221,18 +267,7 @@ public class SNTTable extends DefaultGenericTable {
 			return;
 		final SummaryStatistics[] sStas = new SummaryStatistics[getColumnCount()];
 		for (int col = 0; col < getColumnCount(); col++) {
-			sStas[col] = new SummaryStatistics();
-			for (int row = firstRowToBeSummarized; row < getRowCount(); row++) {
-				try {
-					final double value = ((Number) get(col, row)).doubleValue();
-					if (!Double.isNaN(value)) sStas[col].addValue(value);
-				} catch (final NullPointerException ignored) {
-					// do nothing. Empty cell!?
-				} catch (final ClassCastException ignored) {
-					// Cell with text!? We could add Double.NAN, or skip it altogether'
-					// skipping for now, in case cells above and below are valid
-				}
-			}
+			sStas[col] = geColumnStats(col, firstRowToBeSummarized, getRowCount()-1);
 		}
 		final int lastRowIndex = getRowCount();
 		insertRows(getRowCount(), new String[] { " ", "Mean", "SD", "N", "Min", "Max", "Sum", " " });

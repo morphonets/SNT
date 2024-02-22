@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -43,6 +43,7 @@ import javax.swing.border.BevelBorder;
 import ij.IJ;
 import ij.ImagePlus;
 import net.imagej.ImageJ;
+import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.tracing.FillerThread;
@@ -58,6 +59,8 @@ import sc.fiji.snt.tracing.SearchThread;
 public class FillManagerUI extends JDialog implements PathAndFillListener,
 	ActionListener, FillerProgressCallback
 {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private static final long serialVersionUID = 1L;
 	protected static final String FILLING_URI = "https://imagej.net/plugins/snt/step-by-step-instructions#filling";
@@ -103,6 +106,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	 */
 	public FillManagerUI(final SNT plugin) {
 		super(plugin.getUI(), "Fill Manager");
+		getRootPane().putClientProperty("JRootPane.menuBarEmbedded", false);
 
 		this.plugin = plugin;
 		pathAndFillManager = plugin.getPathAndFillManager();
@@ -280,8 +284,11 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private List<FillerThread> getSelectedFills(final String msg) {
 		int[] selectedIndices = getSelectedIndices(msg);
 		final List<FillerThread> fills = new ArrayList<>();
+		final boolean useSecondary = plugin.isTracingOnSecondaryImageActive();
+		final RandomAccessibleInterval<? extends RealType<?>> scope = useSecondary ? plugin.getSecondaryData()
+				: plugin.getLoadedData();
 		for (int i : selectedIndices) {
-			FillerThread filler = FillerThread.fromFill(plugin.getLoadedData(), plugin.getImagePlus().getCalibration(),
+			FillerThread filler = FillerThread.fromFill(scope, plugin.getImagePlus().getCalibration(),
 					plugin.getStats(), pathAndFillManager.getAllFills().get(i));
 			fills.add(filler);
 		}
@@ -661,7 +668,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			return;
 		}
 
-		final File saveFile = plugin.getUI().saveFile("Export CSV Summary...", "Fills.csv", ".csv");
+		final File saveFile = plugin.getUI().saveFile("Export CSV Summary...", "Fills.csv", "csv");
 		if (saveFile == null) return; // user pressed cancel;
 		plugin.getUI().showStatus("Exporting CSV data to " + saveFile
 			.getAbsolutePath(), false);

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -18,5 +18,13 @@
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
+ */
+
+/**
+ * SNT add-ons as (legacy) IJ1 plugins.
+ * 
+ * Most classes are now deprecated, kept here for backwards compatibility.
+ *
+ * @author Tiago Ferreira
  */
 package sc.fiji.snt.plugin.ij1;

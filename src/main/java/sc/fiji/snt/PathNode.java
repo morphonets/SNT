@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -78,6 +78,11 @@ class PathNode {
 		y = getScreenCoordinateY(pim);
 	}
 
+	public PathNode(final Path path, final int index, final int type, final TracerCanvas canvas) {
+		this(path.getNodeWithoutChecks(index), index, canvas);
+		this.type = type;
+	}
+
 	/**
 	 * Creates a node from a Path position.
 	 *
@@ -92,15 +97,11 @@ class PathNode {
 		if (path.size() == 1) {
 			type = HERMIT;
 		}
-		else if (index == 0 && path.startJoins == null) {
-			type = START;
+		else if (index == 0) {
+			type = (path.startJoins == null) ? START : JOINT;
 		}
 		else if (index == path.size() - 1) {
 			type = END;
-		}
-		else if ((index == 0 && path.startJoins != null) || (index == path.size() - 1))
-		{
-			type = JOINT;
 		}
 		else {
 			type = SLAB;
@@ -110,8 +111,6 @@ class PathNode {
 	private double getScreenCoordinateX(final PointInImage pim) {
 		switch (canvas.getPlane()) {
 			case MultiDThreePanes.XY_PLANE:
-				return canvas.myScreenXDprecise(path.canvasOffset.x + pim.x /
-					path.x_spacing);
 			case MultiDThreePanes.XZ_PLANE:
 				return canvas.myScreenXDprecise(path.canvasOffset.x + pim.x /
 					path.x_spacing);
@@ -338,7 +337,7 @@ class PathNode {
 	}
 
 	/**
-	 * @return whether or not this node should be rendered as editable.
+	 * @return whether this node should be rendered as editable.
 	 */
 	public boolean isEditable() {
 		return editable;

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -71,6 +71,14 @@ public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
     private double[] scales;
     @Parameter
     private int numThreads;
+
+    /**
+     * Empty constructor required for proper loading by OpService. Should not be
+     * called directly.
+     */
+    public Tubeness() {
+        // empty constructor: fix for https://github.com/morphonets/SNT/issues/173
+    }
 
     public Tubeness(final double[] scales, final double[] spacing) {
         this(scales, spacing, Runtime.getRuntime().availableProcessors());

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.plugin;
 
+import java.awt.image.IndexColorModel;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,21 +39,24 @@ import org.scijava.widget.ChoiceWidget;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.Roi;
+import ij.plugin.LutLoader;
 import ij.process.ImageProcessor;
 import sc.fiji.analyzeSkeleton.AnalyzeSkeleton_;
 import sc.fiji.skeletonize3D.Skeletonize3D_;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.util.ImpUtils;
 
 /**
  * Convenience command for converting Paths into skeleton images
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false,
-	label = "Convert Paths to Topographic Skeletons")
+@Plugin(type = Command.class, label = "Convert Paths to Topographic Skeletons")
 public class SkeletonizerCmd implements Command {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	@Parameter
 	private UIService uiService;
@@ -60,13 +64,15 @@ public class SkeletonizerCmd implements Command {
 	@Parameter
 	private SNTService sntService;
 
-	@Parameter(required = false, label = "Roi filtering",
-		style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE, choices = { "None",
-			"Convert only segments contained by ROI" })
+	@Parameter(required = false, label = "Output", style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE, choices = {
+			"Binary (all paths have the same intensity)", "Labels (each path has an unique intensity)" })
+	private String imgChoice;
+
+	@Parameter(required = false, label = "Roi filtering", style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE, choices = {
+			"None (Convert complete paths)", "Convert only path segments contained by ROI" })
 	private String roiChoice;
 
-	@Parameter(required = false,
-		label = "Run \"Analyze Skeleton\" after conversion")
+	@Parameter(required = false, label = "Run \"Analyze Skeleton\" after conversion")
 	private boolean callAnalyzeSkeleton;
 
 	@Parameter(required = true)
@@ -86,7 +92,7 @@ public class SkeletonizerCmd implements Command {
 			error("No Paths to convert.");
 			return;
 		}
-		plugin = sntService.getPlugin();
+		plugin = sntService.getInstance();
 		if (plugin == null) {
 			error("No active instance of SNT was found.");
 			return;
@@ -98,7 +104,7 @@ public class SkeletonizerCmd implements Command {
 		final boolean useNewImage = displayCanvas || twoDdisplayCanvas;
 
 		final Roi roi = (imp == null) ? null : imp.getRoi();
-		boolean restrictByRoi = !roiChoice.equals("None");
+		boolean restrictByRoi = !roiChoice.startsWith("None");
 		final boolean validAreaRoi = (roi == null || !roi.isArea());
 		if (restrictByRoi && validAreaRoi) {
 			if (!getConfirmation(
@@ -109,10 +115,18 @@ public class SkeletonizerCmd implements Command {
 		}
 
 		plugin.showStatus(0, 0, "Converting paths to skeletons...");
-
+		final boolean asLabelsImage = imgChoice.startsWith("Labels");
 		try {
-			final ImagePlus imagePlus = (useNewImage) ? tree.getSkeleton() : plugin.makePathVolume(tree.list());
-			if (restrictByRoi && roi != null && roi.isArea()) {
+			final ImagePlus imagePlus = (useNewImage) ? tree.getSkeleton((asLabelsImage) ? -1 : 255) : plugin.makePathVolume(tree.list(), asLabelsImage);
+			if (asLabelsImage) {
+				final IndexColorModel model = LutLoader.getLut("glasbey_on_dark");
+				if (model != null)
+					imp.getProcessor().setColorModel(model);
+				imagePlus.setDisplayRange(0, tree.size());
+			} else {
+				ImpUtils.convertTo8bit(imagePlus);
+			}
+			if (restrictByRoi && roi.isArea()) {
 				final ImageStack stack = imagePlus.getStack();
 				for (int i = 1; i <= stack.getSize(); i++) {
 					final ImageProcessor ip = stack.getProcessor(i);

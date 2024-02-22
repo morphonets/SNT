@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -27,14 +27,9 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Paint;
-import java.awt.Rectangle;
 import java.awt.Toolkit;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.BufferedWriter;
@@ -47,18 +42,19 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import javax.swing.ButtonGroup;
 import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JFileChooser;
+import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
-import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
-import javax.swing.JSpinner;
+import javax.swing.JRadioButtonMenuItem;
 import javax.swing.MenuElement;
 import javax.swing.SwingUtilities;
-import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.WindowConstants;
 
-import org.jfree.chart.ChartFrame;
+import org.jfree.chart.ChartMouseEvent;
+import org.jfree.chart.ChartMouseListener;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;
@@ -72,6 +68,13 @@ import org.jfree.chart.annotations.XYPointerAnnotation;
 import org.jfree.chart.annotations.XYTextAnnotation;
 import org.jfree.chart.axis.Axis;
 import org.jfree.chart.axis.CategoryAnchor;
+import org.jfree.chart.entity.AxisEntity;
+import org.jfree.chart.entity.ChartEntity;
+import org.jfree.chart.entity.JFreeChartEntity;
+import org.jfree.chart.entity.PlotEntity;
+import org.jfree.chart.entity.TitleEntity;
+import org.jfree.chart.entity.XYAnnotationEntity;
+import org.jfree.chart.entity.XYItemEntity;
 import org.jfree.chart.plot.CategoryMarker;
 import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.CombinedRangeXYPlot;
@@ -80,6 +83,7 @@ import org.jfree.chart.plot.Plot;
 import org.jfree.chart.plot.PolarPlot;
 import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.plot.flow.FlowPlot;
 import org.jfree.chart.renderer.AbstractRenderer;
 import org.jfree.chart.renderer.DefaultPolarItemRenderer;
 import org.jfree.chart.renderer.category.AbstractCategoryItemRenderer;
@@ -90,6 +94,7 @@ import org.jfree.chart.title.LegendTitle;
 import org.jfree.chart.title.PaintScaleLegend;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.title.Title;
+import org.jfree.chart.ui.HorizontalAlignment;
 import org.jfree.chart.ui.Layer;
 import org.jfree.chart.ui.RectangleAnchor;
 import org.jfree.chart.ui.RectangleEdge;
@@ -108,26 +113,32 @@ import org.scijava.util.Colors;
 import ij.ImagePlus;
 import ij.plugin.ImagesToStack;
 import net.imglib2.display.ColorTable;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
-
+import sc.fiji.snt.util.SNTColor;
 
 /**
- * Extension of {@link ChartFrame} with convenience methods for plot annotations.
+ * Extension of {@link ChartPanel} modified for scientific publications and
+ * convenience methods for plot annotations.
  *
  * @author Tiago Ferreira
  */
-public class SNTChart extends ChartFrame {
+public class SNTChart extends ChartPanel {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private static final long serialVersionUID = 5245298401153759551L;
 	private static final Color BACKGROUND_COLOR = Color.WHITE;
 	private static final List<SNTChart> openInstances = new ArrayList<>();
-	private boolean isCombined;
-	private boolean isAspectRatioLocked;
+	private List<SNTChart> otherCombinedCharts;
+	private LegendTitle stashedLegend;
+	private JFrame frame;
+	private String title;
 
-	private static double scalingFactor = 1;
+	static double scalingFactor = 1;
 
 	public SNTChart(final String title, final JFreeChart chart) {
 		this(title, chart, new Dimension((int)(400 * scalingFactor), (int)(400 * scalingFactor)));
@@ -142,7 +153,8 @@ public class SNTChart extends ChartFrame {
 	}
 
 	protected SNTChart(final String title, final JFreeChart chart, final Dimension preferredSize) {
-		super(title, chart);
+		super(chart);
+		setTitle(title);
 		if (chart != null) {
 			chart.setBackgroundPaint(BACKGROUND_COLOR);
 			chart.setAntiAlias(true);
@@ -150,37 +162,69 @@ public class SNTChart extends ChartFrame {
 			if (chart.getLegend() != null) {
 				chart.getLegend().setBackgroundPaint(chart.getBackgroundPaint());
 			}
-			setFontSize((float) (defFontSize() * scalingFactor));
+			setFontSize(GuiUtils.uiFontSize());
 		}
-		final ChartPanel cp = new ChartPanel(chart);
 		// Tweak: Ensure chart is always drawn and not scaled to avoid rendering
 		// artifacts
-		cp.setMinimumDrawWidth(0);
-		cp.setMaximumDrawWidth(Integer.MAX_VALUE);
-		cp.setMinimumDrawHeight(0);
-		cp.setMaximumDrawHeight(Integer.MAX_VALUE);
-		cp.setBackground(BACKGROUND_COLOR);
+		setMinimumDrawWidth(0);
+		setMaximumDrawWidth(Integer.MAX_VALUE);
+		setMinimumDrawHeight(0);
+		setMaximumDrawHeight(Integer.MAX_VALUE);
 		setBackground(BACKGROUND_COLOR); // provided contrast to otherwise transparent background
 		if (chart != null) {
 			costumizePopupMenu();
 			setPreferredSize(preferredSize);
 		}
-		pack();
-		setLocationByPlatform(true);
-		addWindowListener(new WindowAdapter() {
-			@Override
-			public void windowOpened(final WindowEvent e) {
-				openInstances.add(SNTChart.this);
+		try {
+			setDefaultDirectoryForSaveAs(SNTPrefs.lastknownDir());
+		} catch (final Exception ignored) {
+			// Workaround reports of System.getProperty("user.home") not being a valid directory
+			// (presumably due to modified PATH variables [reported from S Windows 10/11])
+			SNTUtils.log("SNTChart: Could not set default directory: " + SNTPrefs.lastknownDir());
+		}
+		addChartMouseListener(new ChartListener());
+	}
+
+	public JFrame getFrame() {
+		if (frame == null) {
+			GuiUtils.setLookAndFeel();
+			frame = new JFrame(getTitle());
+			frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+			frame.setLocationByPlatform(true);
+			if (isCombined()) {
+				SwingUtilities.invokeLater(() -> {
+					otherCombinedCharts.forEach(chart -> {
+						if (chart.frame != null)
+							chart.frame.setVisible(false);
+					});
+				});
 			}
-		});
+			frame.setContentPane(this);
+			frame.setBackground(SNTChart.BACKGROUND_COLOR); // provided contrast to otherwise transparent background
+			frame.setMinimumSize(new Dimension(500,500));
+			frame.pack();
+			frame.addWindowListener(new WindowAdapter() {
+				@Override
+				public void windowOpened(final WindowEvent e) {
+					openInstances.add(SNTChart.this);
+				}
+
+				@Override
+				public void windowClosing(final WindowEvent e) {
+					if (isCombined())
+						otherCombinedCharts.forEach(SNTChart::dispose);
+				}
+			});
+		}
+		return frame;
 	}
 
 	private XYPlot getXYPlot() {
-		return getChartPanel().getChart().getXYPlot();
+		return getChart().getXYPlot();
 	}
 
 	private CategoryPlot getCategoryPlot() {
-		return getChartPanel().getChart().getCategoryPlot();
+		return getChart().getCategoryPlot();
 	}
 
 	/**
@@ -248,62 +292,86 @@ public class SNTChart extends ChartFrame {
 	}
 
 	public void setAxesVisible(final boolean visible) {
-		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
-			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
+		if (getChart().getPlot() instanceof XYPlot) {
+			final XYPlot plot = (XYPlot)(getChart().getPlot());
 			plot.getDomainAxis().setVisible(visible);
 			plot.getRangeAxis().setVisible(visible);
-		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+		} else if (getChart().getPlot() instanceof CategoryPlot) {
+			final CategoryPlot plot = (CategoryPlot)(getChart().getCategoryPlot());
 			plot.getDomainAxis().setVisible(visible);
 			plot.getRangeAxis().setVisible(visible);
 		}
 	}
 
+	public boolean isLegendVisible() {
+		try {
+			return getChart().getLegend().isVisible();
+		} catch (NullPointerException ignored) {
+			return false;
+		}
+	}
+
 	public boolean isOutlineVisible() {
-		return getChartPanel().getChart().getPlot().isOutlineVisible();
+		return getChart().getPlot().isOutlineVisible();
 	}
 
 	public boolean isGridlinesVisible() {
-		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
-			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
+		if (getChart().getPlot() instanceof XYPlot) {
+			final XYPlot plot = (XYPlot)(getChart().getPlot());
 			return plot.isDomainGridlinesVisible() || plot.isRangeGridlinesVisible();
-		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+		} else if (getChart().getPlot() instanceof CategoryPlot) {
+			final CategoryPlot plot = (getChart().getCategoryPlot());
 			return plot.isDomainGridlinesVisible() || plot.isRangeGridlinesVisible();
+		} else if (getChart().getPlot() instanceof PolarPlot) {
+			final PolarPlot plot = (PolarPlot)getChart().getPlot();
+			return plot.isRadiusGridlinesVisible();
 		}
 		return false;
 	}
 
 	public void setGridlinesVisible(final boolean visible) {
-		if (getChartPanel().getChart().getPlot() instanceof CombinedRangeXYPlot) {
-			@SuppressWarnings("unchecked")
-			final List<XYPlot> plots = (List<XYPlot>) ((CombinedRangeXYPlot)(getChartPanel().getChart().getXYPlot())).getSubplots();
+		if (getChart().getPlot() instanceof CombinedRangeXYPlot) {
+			final List<XYPlot> plots = ((CombinedRangeXYPlot)(getChart().getXYPlot())).getSubplots();
 			for (final XYPlot plot : plots) {
 				// CombinedRangeXYPlot do not have domain axis!?
 				plot.setRangeGridlinesVisible(visible);
 				plot.setRangeMinorGridlinesVisible(visible);
 			}
-		} else if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
-			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
+		} else if (getChart().getPlot() instanceof XYPlot) {
+			final XYPlot plot = (XYPlot)(getChart().getPlot());
 			plot.setDomainGridlinesVisible(visible);
 			plot.setRangeGridlinesVisible(visible);
 			plot.setRangeMinorGridlinesVisible(visible);
-		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+		} else if (getChart().getPlot() instanceof CategoryPlot) {
+			final CategoryPlot plot = (getChart().getCategoryPlot());
 			plot.setDomainGridlinesVisible(visible);
 			plot.setRangeGridlinesVisible(visible);
 			plot.setRangeMinorGridlinesVisible(visible);
+		} else if (getChart().getPlot() instanceof PolarPlot) {
+			final PolarPlot plot = (PolarPlot)getChart().getPlot();
+			plot.setRadiusGridlinesVisible(visible);
+			plot.setRadiusMinorGridlinesVisible(visible);
+			plot.setAngleGridlinesVisible(visible);
 		}
 	}
 
 	public void setOutlineVisible(final boolean visible) {
-		getChartPanel().getChart().getPlot().setOutlineVisible(visible);
+		getChart().getPlot().setOutlineVisible(visible);
+	}
+
+	public void setLegendVisible(final boolean visible) {
+		if (visible && stashedLegend != null) {
+			getChart().addLegend(stashedLegend);
+		} else if (!visible) {
+			stashedLegend = getChart().getLegend();
+			getChart().removeLegend();
+		}
 	}
 
 	/**
 	 * Annotates the specified category (Category plots only)
 	 *
-	 * @param category the category to be annotated. Ignored if it does not exits in
+	 * @param category the category to be annotated. Ignored if it does not exist in
 	 *                 category axis.
 	 * @param label    the annotation label
 	 */
@@ -314,7 +382,7 @@ public class SNTChart extends ChartFrame {
 	/**
 	 * Annotates the specified category (Category plots only).
 	 *
-	 * @param category the category to be annotated. Ignored if it does not exits in
+	 * @param category the category to be annotated. Ignored if it does not exist in
 	 *                 category axis.
 	 * @param label    the annotation label
 	 * @param color    the annotation color
@@ -326,17 +394,15 @@ public class SNTChart extends ChartFrame {
 				BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1.0f, new float[] { 6.0f, 6.0f }, 0.0f));
 		marker.setDrawAsLine(true);
 		catPlot.addDomainMarker(marker, Layer.BACKGROUND);
-		if (catPlot.getCategories().contains(category)) {
-			if (label != null && !label.isEmpty()) {
-				final Range range = catPlot.getRangeAxis().getRange();
-				final double labelYloc = range.getUpperBound() * 0.50 + range.getLowerBound();
-				final CategoryTextAnnotation annot = new CategoryTextAnnotation(label, category, labelYloc);
-				annot.setPaint(c);
-				annot.setFont(catPlot.getRangeAxis().getTickLabelFont());
-				annot.setCategoryAnchor(CategoryAnchor.END);
-				annot.setTextAnchor(TextAnchor.BOTTOM_CENTER);
-				catPlot.addAnnotation(annot);
-			}
+		if (catPlot.getCategories().contains(category) && (label != null && !label.isEmpty())) {
+			final Range range = catPlot.getRangeAxis().getRange();
+			final double labelYloc = range.getUpperBound() * 0.50 + range.getLowerBound();
+			final CategoryTextAnnotation annot = new CategoryTextAnnotation(label, category, labelYloc);
+			annot.setPaint(c);
+			annot.setFont(catPlot.getRangeAxis().getTickLabelFont());
+			annot.setCategoryAnchor(CategoryAnchor.END);
+			annot.setTextAnchor(TextAnchor.BOTTOM_CENTER);
+			catPlot.addAnnotation(annot);
 		}
 	}
 
@@ -346,7 +412,7 @@ public class SNTChart extends ChartFrame {
 	 * @param colors The series colors
 	 */
 	public void setColors(final String... colors) {
-		final Plot plot = getChartPanel().getChart().getPlot();
+		final Plot plot = getChart().getPlot();
 		if (plot instanceof CategoryPlot) {
 			final CategoryItemRenderer renderer = ((CategoryPlot) plot).getRenderer();
 			final int nSeries = ((CategoryPlot) plot).getDataset().getRowCount();
@@ -364,7 +430,7 @@ public class SNTChart extends ChartFrame {
 	 * @param colorTable The colorTable used to recolor series
 	 */
 	public void setColors(final ColorTable colorTable) {
-		final Plot plot = getChartPanel().getChart().getPlot();
+		final Plot plot = getChart().getPlot();
 		if (plot instanceof CategoryPlot) {
 			final CategoryItemRenderer renderer = ((CategoryPlot) plot).getRenderer();
 			final int nSeries = ((CategoryPlot) plot).getDataset().getRowCount();
@@ -378,7 +444,7 @@ public class SNTChart extends ChartFrame {
 
 	public void setChartTitle(final String title) {
 		try {
-			super.getChartPanel().getChart().setTitle(title);
+			super.getChart().setTitle(title);
 		} catch (final NullPointerException ignored) {
 			//ignored
 		}
@@ -390,7 +456,7 @@ public class SNTChart extends ChartFrame {
 	 * @param other the instance replacing current contents
 	 */
 	public void replace(final SNTChart other) {
-		getChartPanel().setChart(other.getChartPanel().getChart());
+		setChart(other.getChart());
 	}
 
 	private void setDatasetColors(CategoryItemRenderer renderer, int nSeries, Color[] colors) {
@@ -428,7 +494,7 @@ public class SNTChart extends ChartFrame {
 	private Color[] getColors(final int n, final ColorTable colortable) {
 		final Color[] colors = new Color[n];
 		for (int i = 0; i < n; i++) {
-			final int idx = (int) Math.round((colortable.getLength() - 1) * i / n);
+			final int idx = (int) Math.round((float) ((colortable.getLength() - 1) * i) / n);
 			colors[i] = new Color(colortable.get(ColorTable.RED, idx), colortable.get(ColorTable.GREEN, idx),
 					colortable.get(ColorTable.BLUE, idx));
 		}
@@ -444,8 +510,8 @@ public class SNTChart extends ChartFrame {
 		setFontSize(size, "axis");
 		setFontSize(size, "labels");
 		setFontSize(size, "legend");
-		getChartPanel().getChart().getPlot()
-				.setNoDataMessageFont(getChartPanel().getChart().getPlot().getNoDataMessageFont().deriveFont(size));
+		getChart().getPlot()
+				.setNoDataMessageFont(getChart().getPlot().getNoDataMessageFont().deriveFont(size));
 	}
 
 	/**
@@ -460,7 +526,7 @@ public class SNTChart extends ChartFrame {
 		case "axis":
 		case "axes":
 		case "ticks":
-			if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+			if (getChart().getPlot() instanceof XYPlot) {
 				if (getXYPlot().getDomainAxis() != null) {
 					final Font font = getXYPlot().getDomainAxis().getTickLabelFont().deriveFont(size);
 					getXYPlot().getDomainAxis().setTickLabelFont(font);
@@ -472,7 +538,7 @@ public class SNTChart extends ChartFrame {
 					getXYPlot().getRangeAxis().setLabelFont(font);
 				}
 			}
-			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+			else if (getChart().getPlot() instanceof CategoryPlot) {
 				Font font = getCategoryPlot().getDomainAxis().getTickLabelFont().deriveFont(size);
 				getCategoryPlot().getDomainAxis().setTickLabelFont(font);
 				font = getCategoryPlot().getRangeAxis().getTickLabelFont().deriveFont(size);
@@ -480,8 +546,8 @@ public class SNTChart extends ChartFrame {
 				getCategoryPlot().getDomainAxis().setLabelFont(font);
 				getCategoryPlot().getRangeAxis().setLabelFont(font);
 			}
-			else if (getChartPanel().getChart().getPlot() instanceof PolarPlot) {
-				final PolarPlot plot = (PolarPlot)getChartPanel().getChart().getPlot();
+			else if (getChart().getPlot() instanceof PolarPlot) {
+				final PolarPlot plot = (PolarPlot)getChart().getPlot();
 				for (int i = 0; i < plot.getAxisCount(); i++) {
 					final Font font = plot.getAxis(i).getTickLabelFont().deriveFont(size);
 					plot.getAxis(i).setTickLabelFont(font);
@@ -493,11 +559,11 @@ public class SNTChart extends ChartFrame {
 		case "legends":
 		case "subtitle":
 		case "subtitles":
-			final LegendTitle legend = getChartPanel().getChart().getLegend();
+			final LegendTitle legend = getChart().getLegend();
 			if (legend != null)
 				legend.setItemFont(legend.getItemFont().deriveFont(size));
-			for (int i = 0; i < getChartPanel().getChart().getSubtitleCount(); i++) {
-				final Title title = getChartPanel().getChart().getSubtitle(i);
+			for (int i = 0; i < getChart().getSubtitleCount(); i++) {
+				final Title title = getChart().getSubtitle(i);
 				if (title instanceof PaintScaleLegend) {
 					final PaintScaleLegend lt = (PaintScaleLegend) title;
 					lt.getAxis().setLabelFont(lt.getAxis().getLabelFont().deriveFont(size));
@@ -513,11 +579,11 @@ public class SNTChart extends ChartFrame {
 			}
 			break;
 		default: // labels  annotations
-			if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+			if (getChart().getPlot() instanceof XYPlot) {
 				final List<?> annotations = getXYPlot().getAnnotations();
 				if (annotations != null) {
 					for (int i = 0; i < getXYPlot().getAnnotations().size(); i++) {
-						final XYAnnotation annotation = (XYAnnotation) getXYPlot().getAnnotations().get(i);
+						final XYAnnotation annotation = getXYPlot().getAnnotations().get(i);
 						if (annotation instanceof XYTextAnnotation) {
 							((XYTextAnnotation) annotation)
 									.setFont(((XYTextAnnotation) annotation).getFont().deriveFont(size));
@@ -529,7 +595,7 @@ public class SNTChart extends ChartFrame {
 				adjustMarkersFont(getXYPlot().getRangeMarkers(Layer.FOREGROUND), size);
 				adjustMarkersFont(getXYPlot().getRangeMarkers(Layer.BACKGROUND), size);
 			}
-			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+			else if (getChart().getPlot() instanceof CategoryPlot) {
 				final List<?> annotations = getCategoryPlot().getAnnotations();
 				if (annotations != null) {
 					for (int i = 0; i < annotations.size(); i++) {
@@ -545,6 +611,10 @@ public class SNTChart extends ChartFrame {
 				adjustMarkersFont(getCategoryPlot().getRangeMarkers(Layer.FOREGROUND), size);
 				adjustMarkersFont(getCategoryPlot().getRangeMarkers(Layer.BACKGROUND), size);
 			}
+			else if (isFlowPlot()) {
+				final FlowPlot plot = (FlowPlot)(getChart().getPlot());
+				plot.setDefaultNodeLabelFont(plot.getDefaultNodeLabelFont().deriveFont(Font.PLAIN, size));
+			}
 			break;
 		}
 	}
@@ -554,22 +624,22 @@ public class SNTChart extends ChartFrame {
 		case "axis":
 		case "axes":
 		case "ticks":
-			if (getChartPanel().getChart().getPlot() instanceof XYPlot)
+			if (getChart().getPlot() instanceof XYPlot)
 				return getXYPlot().getDomainAxis().getTickLabelFont().getSize();
-			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot)
+			else if (getChart().getPlot() instanceof CategoryPlot)
 				return getCategoryPlot().getDomainAxis().getTickLabelFont().getSize();
-			else if (getChartPanel().getChart().getPlot() instanceof PolarPlot)
-				return ((PolarPlot)getChartPanel().getChart().getPlot()).getAxis().getTickLabelFont().getSize();
+			else if (getChart().getPlot() instanceof PolarPlot)
+				return ((PolarPlot)getChart().getPlot()).getAxis().getTickLabelFont().getSize();
 			break;
 		case "legend":
 		case "legends":
 		case "subtitle":
 		case "subtitles":
-			final LegendTitle legend = getChartPanel().getChart().getLegend();
+			final LegendTitle legend = getChart().getLegend();
 			if (legend != null)
 				return legend.getItemFont().getSize();
-			for (int i = 0; i < getChartPanel().getChart().getSubtitleCount(); i++) {
-				final Title title = getChartPanel().getChart().getSubtitle(i);
+			for (int i = 0; i < getChart().getSubtitleCount(); i++) {
+				final Title title = getChart().getSubtitle(i);
 				if (title instanceof TextTitle) {
 					return ((TextTitle) title).getFont().getSize();
 				} else if (title instanceof LegendTitle) {
@@ -578,14 +648,14 @@ public class SNTChart extends ChartFrame {
 			}
 			break;
 		default: // labels  annotations
-			if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+			if (getChart().getPlot() instanceof XYPlot) {
 				return getXYPlot().getDomainAxis().getLabelFont().getSize();
 			}
-			else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+			else if (getChart().getPlot() instanceof CategoryPlot) {
 				return getCategoryPlot().getDomainAxis().getLabelFont().getSize();
 			}
 		}
-		return getChartPanel().getFont().getSize();
+		return getFont().getSize();
 	}
 
 	public ImagePlus getImage() {
@@ -596,7 +666,7 @@ public class SNTChart extends ChartFrame {
 		final List<ImagePlus> imps = new ArrayList<>();
 		if (isCombined()) {
 			int counter = 1;
-			for (final Component component : getContentPane().getComponents()) {
+			for (final Component component : getFrame().getContentPane().getComponents()) {
 				if (component instanceof ChartPanel) {
 					final ImagePlus imp = getImagePlus((ChartPanel) component, scalingFactor);
 					if ("SNTChart".equals(imp.getTitle()))
@@ -605,12 +675,20 @@ public class SNTChart extends ChartFrame {
 				}
 			}
 		} else {
-			final ImagePlus imp = getImagePlus(getChartPanel(), scalingFactor);
+			final ImagePlus imp = getImagePlus(this, scalingFactor);
 			if ("SNTChart".equals(imp.getTitle()))
 				imp.setTitle(getTitle());
 			imps.add(imp);
 		}
 		return imps;
+	}
+
+	public void setTitle(String title) {
+		this.title = title;
+	}
+
+	public String getTitle() {
+		return title;
 	}
 
 	private static ImagePlus getImagePlus(final ChartPanel cp, final float scalingFactor) {
@@ -627,15 +705,15 @@ public class SNTChart extends ChartFrame {
 	public void saveAsPNG(final File file) throws IOException {
 		final int SCALE = 1;
 		if (isCombined()) {
-			for (Component c : getContentPane().getComponents()) {
+			for (Component c : getFrame().getContentPane().getComponents()) {
 				if (c instanceof ChartPanel) {
 					ChartUtils.saveChartAsPNG(SNTUtils.getUniquelySuffixedFile(file), ((ChartPanel) c).getChart(),
 							((ChartPanel) c).getWidth() * SCALE, ((ChartPanel) c).getHeight() * SCALE);
 				}
 			}
 		} else {
-			ChartUtils.saveChartAsPNG(file, getChartPanel().getChart(), getChartPanel().getWidth() * SCALE,
-					getChartPanel().getHeight() * SCALE);
+			ChartUtils.saveChartAsPNG(file, getChart(), getWidth() * SCALE,
+					getHeight() * SCALE);
 		}
 	}
 
@@ -656,16 +734,16 @@ public class SNTChart extends ChartFrame {
 	private void replaceBackground(final Color oldColor, final Color newColor) {
 		if (this.getBackground() == oldColor)
 			this.setBackground(newColor);
-		if (getChartPanel().getBackground() == oldColor)
-			getChartPanel().setBackground(newColor);
-		if (getChartPanel().getChart().getBackgroundPaint() == oldColor)
-			getChartPanel().getChart().setBackgroundPaint(newColor);
-		final LegendTitle legend = getChartPanel().getChart().getLegend();
+		if (getBackground() == oldColor)
+			setBackground(newColor);
+		if (getChart().getBackgroundPaint() == oldColor)
+			getChart().setBackgroundPaint(newColor);
+		final LegendTitle legend = getChart().getLegend();
 		if (legend != null && legend.getBackgroundPaint() == oldColor) {
 			legend.setBackgroundPaint(newColor);
 		}
-		for (int i = 0; i < getChartPanel().getChart().getSubtitleCount(); i++) {
-			final Title title = getChartPanel().getChart().getSubtitle(i);
+		for (int i = 0; i < getChart().getSubtitleCount(); i++) {
+			final Title title = getChart().getSubtitle(i);
 			if (title instanceof TextTitle) {
 				final TextTitle tt = (TextTitle) title;
 				if (tt.getBackgroundPaint() == oldColor)
@@ -676,23 +754,26 @@ public class SNTChart extends ChartFrame {
 					lt.setBackgroundPaint(newColor);
 			}
 		}
-		if (getChartPanel().getChart().getPlot() instanceof CombinedRangeXYPlot) {
-			@SuppressWarnings("unchecked")
-			final List<XYPlot> plots = (List<XYPlot>) ((CombinedRangeXYPlot)(getChartPanel().getChart().getXYPlot())).getSubplots();
+		if (getChart().getPlot() instanceof CombinedRangeXYPlot) {
+			final List<XYPlot> plots = ((CombinedRangeXYPlot)(getChart().getXYPlot())).getSubplots();
 			for (final XYPlot plot : plots) {
 				if (plot.getBackgroundPaint() == oldColor)
 					plot.setBackgroundPaint(newColor);
 			}
-		} else if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
-			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
+		} else if (getChart().getPlot() instanceof XYPlot) {
+			final XYPlot plot = (XYPlot)(getChart().getPlot());
 			if (plot.getBackgroundPaint() == oldColor)
 				plot.setBackgroundPaint(newColor);
-		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+		} else if (getChart().getPlot() instanceof CategoryPlot) {
+			final CategoryPlot plot = (getChart().getCategoryPlot());
 			if (plot.getBackgroundPaint() == oldColor)
 				plot.setBackgroundPaint(newColor);
-		} else if (getChartPanel().getChart().getPlot() instanceof PolarPlot) {
-			final PolarPlot plot = (PolarPlot)(getChartPanel().getChart().getPlot());
+		} else if (getChart().getPlot() instanceof PolarPlot) {
+			final PolarPlot plot = (PolarPlot)(getChart().getPlot());
+			if (plot.getBackgroundPaint() == oldColor)
+				plot.setBackgroundPaint(newColor);
+		} else if (isFlowPlot()) {
+			final FlowPlot plot = (FlowPlot)(getChart().getPlot());
 			if (plot.getBackgroundPaint() == oldColor)
 				plot.setBackgroundPaint(newColor);
 		}
@@ -701,18 +782,18 @@ public class SNTChart extends ChartFrame {
 	private void replaceForegroundColor(final Color oldColor, final Color newColor) {
 		if (this.getForeground() == oldColor)
 			this.setForeground(newColor);
-		if (getChartPanel().getForeground() == oldColor)
-			getChartPanel().setForeground(newColor);
-		if (getChartPanel().getChart().getBorderPaint() == oldColor)
-			getChartPanel().getChart().setBorderPaint(newColor);
-		if (getChartPanel().getChart().getTitle() != null)
-			getChartPanel().getChart().getTitle().setPaint(newColor);
-		final LegendTitle legend = getChartPanel().getChart().getLegend();
+		if (getForeground() == oldColor)
+			setForeground(newColor);
+		if (getChart().getBorderPaint() == oldColor)
+			getChart().setBorderPaint(newColor);
+		if (getChart().getTitle() != null)
+			getChart().getTitle().setPaint(newColor);
+		final LegendTitle legend = getChart().getLegend();
 		if (legend != null && legend.getItemPaint() == oldColor) {
 			legend.setItemPaint(newColor);
 		}
-		for (int i = 0; i < getChartPanel().getChart().getSubtitleCount(); i++) {
-			final Title title = getChartPanel().getChart().getSubtitle(i);
+		for (int i = 0; i < getChart().getSubtitleCount(); i++) {
+			final Title title = getChart().getSubtitle(i);
 			if (title instanceof TextTitle) {
 				((TextTitle) title).setPaint(newColor);
 			} else if (title instanceof LegendTitle) {
@@ -725,20 +806,20 @@ public class SNTChart extends ChartFrame {
 				((PaintScaleLegend) title).getAxis().setTickLabelPaint(newColor);
 			}
 		}
-		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
-			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
+		if (getChart().getPlot() instanceof XYPlot) {
+			final XYPlot plot = (XYPlot)(getChart().getPlot());
 			setForegroundColor(plot.getDomainAxis(), newColor);
 			setForegroundColor(plot.getRangeAxis(), newColor);
 			replaceForegroundColor(plot.getRenderer(), oldColor, newColor);
 			replaceSeriesColor(plot.getRenderer(), oldColor, newColor);
-		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
+		} else if (getChart().getPlot() instanceof CategoryPlot) {
+			final CategoryPlot plot = (getChart().getCategoryPlot());
 			setForegroundColor(plot.getDomainAxis(), newColor);
 			setForegroundColor(plot.getRangeAxis(), newColor);
 			replaceForegroundColor(plot.getRenderer(), oldColor, newColor);
 			replaceSeriesColor(plot.getRenderer(), oldColor, newColor);
-		} else if (getChartPanel().getChart().getPlot() instanceof PolarPlot) {
-			final PolarPlot plot = (PolarPlot)(getChartPanel().getChart().getPlot());
+		} else if (getChart().getPlot() instanceof PolarPlot) {
+			final PolarPlot plot = (PolarPlot)(getChart().getPlot());
 			for (int i = 0; i < plot.getAxisCount(); i++)
 				setForegroundColor(plot.getAxis(i), newColor);
 			plot.setAngleGridlinePaint(newColor);
@@ -750,6 +831,10 @@ public class SNTChart extends ChartFrame {
 				if (render.getSeriesPaint(series) == oldColor)
 					render.setSeriesPaint(series, newColor);
 			}
+		} else if (isFlowPlot()) {
+			final FlowPlot plot = (FlowPlot)(getChart().getPlot());
+			plot.setOutlinePaint(newColor);
+			plot.setDefaultNodeLabelPaint(newColor);
 		}
 
 	}
@@ -841,29 +926,29 @@ public class SNTChart extends ChartFrame {
 		// colors (non-exhaustive)
 		setBackground(template.getBackground());
 		setForeground(template.getForeground());
-		getChartPanel().setBackground(template.getChartPanel().getBackground());
-		getChartPanel().setForeground(template.getChartPanel().getForeground());
-		getChartPanel().getChart().setBackgroundPaint(template.getChartPanel().getChart().getBackgroundPaint());
-		getChartPanel().getChart().setBorderPaint(template.getChartPanel().getChart().getBorderPaint());
-		if (getChartPanel().getChart().getLegend() != null && template.getChartPanel().getChart().getLegend() != null) {
-			getChartPanel().getChart().getLegend().setBackgroundPaint(template.getChartPanel().getChart().getLegend().getBackgroundPaint());
-			getChartPanel().getChart().getLegend().setItemPaint(template.getChartPanel().getChart().getLegend().getItemPaint());
+		setBackground(template.getBackground());
+		setForeground(template.getForeground());
+		getChart().setBackgroundPaint(template.getChart().getBackgroundPaint());
+		getChart().setBorderPaint(template.getChart().getBorderPaint());
+		if (getChart().getLegend() != null && template.getChart().getLegend() != null) {
+			getChart().getLegend().setBackgroundPaint(template.getChart().getLegend().getBackgroundPaint());
+			getChart().getLegend().setItemPaint(template.getChart().getLegend().getItemPaint());
 		}
-		getChartPanel().getChart().getPlot().setBackgroundPaint(template.getChartPanel().getChart().getPlot().getBackgroundPaint());
-		getChartPanel().getChart().getPlot().setOutlinePaint(template.getChartPanel().getChart().getPlot().getOutlinePaint());
-		getChartPanel().getChart().getPlot().setNoDataMessagePaint(template.getChartPanel().getChart().getPlot().getNoDataMessagePaint());
-		getChartPanel().setZoomOutlinePaint(template.getChartPanel().getZoomOutlinePaint());
-		getChartPanel().setZoomFillPaint(template.getChartPanel().getZoomFillPaint());
-		if (getChartPanel().getChart().getPlot() instanceof XYPlot && template.getChartPanel().getChart().getPlot() instanceof XYPlot) {
-			final XYPlot plot = (XYPlot)(getChartPanel().getChart().getPlot());
-			final XYPlot tPlot = (XYPlot)(template.getChartPanel().getChart().getPlot());
+		getChart().getPlot().setBackgroundPaint(template.getChart().getPlot().getBackgroundPaint());
+		getChart().getPlot().setOutlinePaint(template.getChart().getPlot().getOutlinePaint());
+		getChart().getPlot().setNoDataMessagePaint(template.getChart().getPlot().getNoDataMessagePaint());
+		setZoomOutlinePaint(template.getZoomOutlinePaint());
+		setZoomFillPaint(template.getZoomFillPaint());
+		if (getChart().getPlot() instanceof XYPlot && template.getChart().getPlot() instanceof XYPlot) {
+			final XYPlot plot = (XYPlot)(getChart().getPlot());
+			final XYPlot tPlot = (XYPlot)(template.getChart().getPlot());
 			if (tPlot.getDomainAxis().getAxisLinePaint() instanceof Color)
 				setForegroundColor(plot.getDomainAxis(), (Color)tPlot.getDomainAxis().getAxisLinePaint());
 			if (tPlot.getRangeAxis().getAxisLinePaint() instanceof Color)
 				setForegroundColor(plot.getRangeAxis(), (Color)tPlot.getRangeAxis().getAxisLinePaint());
-		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (CategoryPlot)(getChartPanel().getChart().getCategoryPlot());
-			final CategoryPlot tPlot = (CategoryPlot)(template.getChartPanel().getChart().getPlot());
+		} else if (getChart().getPlot() instanceof CategoryPlot) {
+			final CategoryPlot plot = getChart().getCategoryPlot();
+			final CategoryPlot tPlot = (CategoryPlot)(template.getChart().getPlot());
 			if (tPlot.getDomainAxis().getAxisLinePaint() instanceof Color)
 				setForegroundColor(plot.getDomainAxis(), (Color)tPlot.getDomainAxis().getAxisLinePaint());
 			if (tPlot.getRangeAxis().getAxisLinePaint() instanceof Color)
@@ -873,8 +958,8 @@ public class SNTChart extends ChartFrame {
 		setFontSize(template.getFontSize("axis"), "axis");
 		setFontSize(template.getFontSize("labels"), "labels");
 		setFontSize(template.getFontSize("legend"), "legend");
-		getChartPanel().getChart().getPlot()
-				.setNoDataMessageFont(template.getChartPanel().getChart().getPlot().getNoDataMessageFont());
+		getChart().getPlot()
+				.setNoDataMessageFont(template.getChart().getPlot().getNoDataMessageFont());
 	}
 
 	/**
@@ -883,10 +968,35 @@ public class SNTChart extends ChartFrame {
 	 * @param label the subtitle text
 	 */
 	public void annotate(final String label) {
+		annotate(label, null, "center");
+	}
+
+	/**
+	 * Adds a subtitle to the chart.
+	 *
+	 * @param label    the subtitle text
+	 * @param tooltip the tooltip text. {@code null} permitted
+	 * @param aligment either 'left', 'center', or 'right'
+	 */
+	public void annotate(final String label, final String tooltip, final String aligment) {
 		final TextTitle tLabel = new TextTitle(label);
-		tLabel.setFont(tLabel.getFont().deriveFont(Font.PLAIN));
+		tLabel.setFont(tLabel.getFont().deriveFont(Font.PLAIN, getFontSize("legend")));
 		tLabel.setPosition(RectangleEdge.BOTTOM);
-		getChartPanel().getChart().addSubtitle(tLabel);
+		tLabel.setToolTipText(tooltip);
+		switch (aligment.toLowerCase()) {
+		case "left":
+			tLabel.setHorizontalAlignment(HorizontalAlignment.LEFT);
+			tLabel.setTextAlignment(HorizontalAlignment.LEFT);
+			break;
+		case "right":
+			tLabel.setHorizontalAlignment(HorizontalAlignment.RIGHT);
+			tLabel.setTextAlignment(HorizontalAlignment.RIGHT);
+			break;
+		default:
+			tLabel.setHorizontalAlignment(HorizontalAlignment.CENTER);
+			tLabel.setTextAlignment(HorizontalAlignment.CENTER);
+		}
+		getChart().addSubtitle(tLabel);
 	}
 
 	/**
@@ -934,8 +1044,11 @@ public class SNTChart extends ChartFrame {
 		annotatePoint(coordinates[0], coordinates[1], label, color);
 	}
 
-	public void setDefaultDirectoryForSaveAs(final File directory) throws IllegalArgumentException {
-		getChartPanel().setDefaultDirectoryForSaveAs(directory);
+	@Override
+	/** {@inheritDoc} */
+	public File getDefaultDirectoryForSaveAs() {
+		return (super.getDefaultDirectoryForSaveAs() == null) ? SNTPrefs.lastknownDir()
+				: super.getDefaultDirectoryForSaveAs();
 	}
 
 	/**
@@ -945,147 +1058,186 @@ public class SNTChart extends ChartFrame {
 	 * @param height the preferred frame height
 	 */
 	public void show(final int width, final int height) {
-		setPreferredSize(new Dimension(width, height));
-		pack();
+		getFrame().setPreferredSize(new Dimension(width, height));
+		frame.pack();
 		show();
 	}
 
-	@Override
 	public void dispose() {
 		disposeInternal();
 		openInstances.remove(this);
 	}
 
 	private void disposeInternal() {
-		super.dispose();
-		if (getChartPanel() != null) {
-			getChartPanel().removeAll();
-			getChartPanel().setChart(null);
-		}
+		if (frame != null) frame.dispose();
+		removeAll();
+		setChart(null);
 	}
 
 	public boolean containsValidData() {
-		return getChartPanel() != null && getChartPanel().getChart() != null;
+		return getChart() != null;
+	}
+
+	@Override
+	@Deprecated
+	public void setVisible(final boolean b) { // for backwards compatibility
+		getFrame().setVisible(b);
+	}
+
+	public void setVisibleAsComponent(final boolean b) {
+		super.setVisible(b);
 	}
 
 	@Override
 	@SuppressWarnings("deprecation")
 	public void show() {
-		if (!isVisible()) {
+//		if (GraphicsEnvironment.isHeadless()) {
+//			this.saveAsPNG(getDefaultDirectoryForSaveAs());;
+//			return;
+//		}
+		if (!getFrame().isVisible()) {
 			if (openInstances.isEmpty())
-				AWTWindows.centerWindow(this);
+				AWTWindows.centerWindow(this.getFrame());
 			else
-				setLocationRelativeTo(openInstances.get(openInstances.size()-1));
+				getFrame().setLocationRelativeTo(openInstances.get(openInstances.size()-1));
 		}
-		SwingUtilities.invokeLater(() -> super.show());
+		SwingUtilities.invokeLater(() -> getFrame().show());
 	}
 
 	private void costumizePopupMenu() {
-		if (getChartPanel() != null && getChartPanel().getPopupMenu() != null) {
+		if (getPopupMenu() != null) {
 			final JMenuItem mi = new JMenuItem("Data (as CSV)...");
 			mi.addActionListener(e -> {
-				final JFileChooser fileChooser = GuiUtils.getDnDFileChooser();
-				fileChooser.setDialogTitle("Export to CSV (Experimental)");
-				final FileNameExtensionFilter csvFilter = new FileNameExtensionFilter("CSV files (*.csv)", "csv");
-				fileChooser.addChoosableFileFilter(csvFilter);
-				fileChooser.setFileFilter(csvFilter);
-				if (fileChooser.showSaveDialog(getChartPanel()) == JFileChooser.APPROVE_OPTION) {
-					File file = fileChooser.getSelectedFile();
-					if (file == null)
-						return;
-					if (!file.getName().toLowerCase().endsWith("csv")) {
-						file = new File(file.toString() + ".csv");
-					}
-					try {
-						exportAsCSV(file);
-					} catch (final IllegalStateException ise) {
-						new GuiUtils(this).error("Could not save data. See Console for details");
-						ise.printStackTrace();
-					}
+				final String filename = (getTitle() == null) ? "SNTChartData" : getTitle();
+				final File file = new GuiUtils(frame).getSaveFile("Export to CSV (Experimental)",
+						new File(getDefaultDirectoryForSaveAs(), filename + ".csv"), "csv");
+				if (file == null)
+					return;
+				try {
+					exportAsCSV(file);
+				} catch (final IllegalStateException ise) {
+					new GuiUtils(frame).error("Could not save data. See Console for details.");
+					ise.printStackTrace();
 				}
 			});
-			final JMenu saveAs = getMenu(getChartPanel().getPopupMenu(), "Save as");
-			if (saveAs != null)
+			final JMenu saveAs = getMenu(getPopupMenu(), "Save as");
+			if (saveAs != null) {
+				saveAs.addSeparator();
 				saveAs.add(mi);
-			else
-				getChartPanel().getPopupMenu().add(mi);
-			addCustomizationPanel(getChartPanel().getPopupMenu());
+			} else
+				getPopupMenu().add(mi);
+			addCustomizationPanel(getPopupMenu());
 		}
 	}
 
 	private void addCustomizationPanel(final JPopupMenu popup) {
-		final JCheckBoxMenuItem dark = new JCheckBoxMenuItem("Dark Mode", false);
-		final Paint DEF_ZOP = getChartPanel().getZoomOutlinePaint();
-		final Paint DEF_ZFP = getChartPanel().getZoomFillPaint();
+		final JCheckBoxMenuItem dark = new JCheckBoxMenuItem("Dark Theme", false);
+		final Paint DEF_ZOP = getZoomOutlinePaint();
+		final Paint DEF_ZFP = getZoomFillPaint();
 		dark.addItemListener( e -> {
 			if (dark.isSelected()) {
 				replaceBackground(Color.WHITE, Color.BLACK);
 				replaceForegroundColor(Color.BLACK, Color.WHITE);
 				if (DEF_ZOP instanceof Color)
-					getChartPanel().setZoomOutlinePaint(((Color) DEF_ZOP).brighter());
+					setZoomOutlinePaint(((Color) DEF_ZOP).brighter());
 				if (DEF_ZFP instanceof Color)
-					getChartPanel().setZoomOutlinePaint(((Color) DEF_ZFP).brighter());
+					setZoomOutlinePaint(((Color) DEF_ZFP).brighter());
 			} else {
 				replaceBackground(Color.BLACK, Color.WHITE);
 				replaceForegroundColor(Color.WHITE, Color.BLACK);
-				getChartPanel().setZoomOutlinePaint(DEF_ZOP);
-				getChartPanel().setZoomOutlinePaint(DEF_ZFP);
+				setZoomOutlinePaint(DEF_ZOP);
+				setZoomOutlinePaint(DEF_ZFP);
 			}
 		});
 		popup.addSeparator();
 
-		final JMenu grids = new JMenu("Frame & Grid Lines");
+		final JMenu grids = new JMenu("Toggle Components");
 		popup.add(grids);
 		JMenuItem jmi = new JMenuItem("Toggle Grid Lines");
+		jmi.setEnabled(!isFlowPlot());
 		jmi.addActionListener( e -> setGridlinesVisible(!isGridlinesVisible()));
+		grids.add(jmi);
+		jmi = new JMenuItem("Toggle Legend");
+		jmi.addActionListener( e -> setLegendVisible(!isLegendVisible()));
 		grids.add(jmi);
 		jmi = new JMenuItem("Toggle Outline");
 		jmi.addActionListener( e -> setOutlineVisible(!isOutlineVisible()));
 		grids.add(jmi);
-		final JCheckBoxMenuItem lock = new JCheckBoxMenuItem("Lock Aspect Ratio", isAspectRatioLocked());
-		lock.addItemListener( e -> setAspectRatioLocked(lock.isSelected()));
-		grids.add(lock);
 		popup.add(grids);
-		popup.add(dark);
-
-		popup.addSeparator();
+	
 		final JMenu utils = new JMenu("Utilities");
-		popup.add(utils);
-		jmi = new JMenuItem("Close All Plots...");
+		utils.add(new GuiUtils(frame).combineChartsMenuItem());
+		utils.addSeparator();
+		GuiUtils.addSeparator(utils, "Operations on All Open Charts:");
+		jmi = new JMenuItem("Close...");
 		utils.add(jmi);
 		jmi.addActionListener( e -> {
-			if (new GuiUtils(this).getConfirmation("Close all open plots? (Undoable operation)", "Close All Plots?"))
+			if (new GuiUtils(frame).getConfirmation("Close all open plots? (Undoable operation)", "Close All Plots?"))
 				SNTChart.closeAll();
 		});
-		jmi = new JMenuItem("Merge All Plots Into IJ Stack");
+		jmi = new JMenuItem("Merge Into ImageJ Stack...");
 		utils.add(jmi);
 		jmi.addActionListener( e -> {
-			if (new GuiUtils(this).getConfirmation("Merge all plots? (Undoable operation)", "Merge Into Stack?")) {
+			if (new GuiUtils(frame).getConfirmation("Merge all plots? (Undoable operation)", "Merge Into Stack?")) {
 				SNTChart.combineAsImagePlus(openInstances).show();
 				SNTChart.closeAll();
 			}
 		});
-		jmi = new JMenuItem("Tile All Plots");
+		jmi = new JMenuItem("Tile");
 		utils.add(jmi);
-		jmi.addActionListener( e -> SNTChart.tileAll());
-		popup.addSeparator();
+		jmi.addActionListener(e -> SNTChart.tileAll());
+		utils.add(jmi);
 
+		popup.addSeparator();
+		jmi = new JMenuItem("Frame Size...");
+		jmi.addActionListener(
+				e -> new GuiUtils(frame).adjustComponentThroughPrompt((frame == null) ? SNTChart.this : frame));
+		popup.add(jmi);
+		popup.add(fontScalingMenu());
+		popup.addSeparator();
+		popup.add(dark);
+		popup.addSeparator();
+		popup.add(utils);
+
+	}
+
+	private JMenu fontScalingMenu() {
+		final JMenu fontScaleMenu = new JMenu("Font Scaling");
 		final float DEF_FONT_SIZE = defFontSize();
-		final JSpinner spinner = GuiUtils.doubleSpinner(scalingFactor, 0.5, 4, 0.5, 1);
-		spinner.addChangeListener(e -> {
-			setFontSize( ((Double)spinner.getValue()).floatValue() * DEF_FONT_SIZE );
+		final ButtonGroup buttonGroup = new ButtonGroup();
+		boolean matched = false;
+		for (final float size : new float[] { .5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f }) {
+			final JRadioButtonMenuItem item = new JRadioButtonMenuItem("" + size + "×");
+			if (!matched) {
+				matched = Math.abs(size - scalingFactor) < 0.05;
+				item.setSelected(matched);
+			}
+			item.addActionListener(event -> setFontSize(size * DEF_FONT_SIZE));
+			buttonGroup.add(item);
+			fontScaleMenu.add(item);
+		}
+		fontScaleMenu.addSeparator();
+		final JRadioButtonMenuItem chooseScale = new JRadioButtonMenuItem("Other...", false);
+		chooseScale.addActionListener(e -> {
+			final GuiUtils gUtils = new GuiUtils(frame);
+			final Double newScale = gUtils.getDouble("Scaling factor:", "Scaling Factor", scalingFactor);
+			if (newScale == null)
+				return;
+			if (newScale.isNaN() || newScale <= 0) {
+				gUtils.error("Invalid scaling factor.");
+				return;
+			}
+			setFontSize((float) (newScale * DEF_FONT_SIZE));
+			setDefaultFontScale(newScale);
+			chooseScale.setText("Other... (" + SNTUtils.formatDouble(newScale, 1) + "×)");
 		});
-		final JPanel p = new JPanel();
-		p.setBackground(popup.getBackground());
-		p.setLayout(new GridBagLayout());
-		final GridBagConstraints c = GuiUtils.defaultGbc();
-		c.fill = GridBagConstraints.HORIZONTAL;
-		c.gridwidth = 2;
-		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel(" Scale: ", true));
-		c.gridx = 1;
-		p.add(spinner, c);
-		popup.add(p);
+		if (!matched) {
+			chooseScale.setText("Other... (" + SNTUtils.formatDouble(scalingFactor, 1) + "×)");
+			chooseScale.setSelected(true);
+		}
+		buttonGroup.add(chooseScale);
+		fontScaleMenu.add(chooseScale);
+		return fontScaleMenu;
 	}
 
 	private JMenu getMenu(final JPopupMenu popup, final String menuName) {
@@ -1098,20 +1250,23 @@ public class SNTChart extends ChartFrame {
 	}
 
 	private float defFontSize() {
-		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+		if (getChart().getPlot() instanceof XYPlot) {
 			return getXYPlot().getRangeAxis().getLabelFont().getSize2D();
 		}
-		else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+		else if (getChart().getPlot() instanceof CategoryPlot) {
 			return getCategoryPlot().getDomainAxis().getLabelFont().getSize2D();
+		} else if (isFlowPlot()) {
+			final FlowPlot plot = (FlowPlot)(getChart().getPlot());
+			return plot.getDefaultNodeLabelFont().getSize2D();
 		}
-		return getChartPanel().getChart().getPlot().getNoDataMessageFont().getSize2D();
+		return getChart().getPlot().getNoDataMessageFont().getSize2D();
 	}
 
 	/* Experimental: Not all types of data are supported */
 	protected void exportAsCSV(final File file) throws IllegalStateException {
 		// https://stackoverflow.com/a/58530238
 		final ArrayList<String> csv = new ArrayList<>();
-		if (getChartPanel().getChart().getPlot() instanceof XYPlot) {
+		if (getChart().getPlot() instanceof XYPlot) {
 			final Dataset dataset = getXYPlot().getDataset();
 			final XYDataset xyDataset = (XYDataset) dataset;
 			final int seriesCount = xyDataset.getSeriesCount();
@@ -1124,7 +1279,7 @@ public class SNTChart extends ChartFrame {
 					csv.add(String.format("%s, %s, %s", key, x, y));
 				}
 			}
-		} else if (getChartPanel().getChart().getPlot() instanceof CategoryPlot) {
+		} else if (getChart().getPlot() instanceof CategoryPlot) {
 			final Dataset dataset = getCategoryPlot().getDataset();
 			final CategoryDataset categoryDataset = (CategoryDataset) dataset;
 			final int columnCount = categoryDataset.getColumnCount();
@@ -1138,9 +1293,9 @@ public class SNTChart extends ChartFrame {
 				}
 			}
 		} else {
-			throw new IllegalStateException("This type of dataset is not supported.");
+			throw new IllegalStateException("Export of this type of dataset is not supported.");
 		}
-		try (BufferedWriter writer = new BufferedWriter(new FileWriter(file));) {
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
 			for (final String line : csv) {
 				writer.append(line);
 				writer.newLine();
@@ -1150,42 +1305,8 @@ public class SNTChart extends ChartFrame {
 		}
 	}
 
-	private void setAspectRatioLocked(final boolean lock) {
-		final ComponentAdapter adapter = new ComponentAdapter() {
-			double RATIO = ((float) SNTChart.this.getWidth()) / SNTChart.this.getHeight();
-
-			@Override
-			public void componentShown(final ComponentEvent ce) {
-				if (isCombined) {
-					final Rectangle b = ce.getComponent().getBounds();
-					RATIO = ((float) b.width) / b.height;
-				}
-			}
-
-			@Override
-			public void componentResized(final ComponentEvent ce) {
-				final Rectangle b = ce.getComponent().getBounds();
-				int width = b.width;
-				int height = b.height;
-				final float currentAspectRatio = (float) width / height;
-				if (currentAspectRatio > RATIO) {
-					width = (int) (height * RATIO);
-				} else {
-					height = (int) (width / RATIO);
-				}
-				b.setBounds(b.x, b.y, width, height);
-			}
-		};
-		if (lock) {
-			addComponentListener(adapter);
-		} else {
-			removeComponentListener(adapter);
-		}
-		isAspectRatioLocked = lock;
-	}
-
-	public boolean isAspectRatioLocked() {
-		return isAspectRatioLocked;
+	private boolean isFlowPlot() {
+		return getChart().getPlot() instanceof FlowPlot;
 	}
 
 	/**
@@ -1194,7 +1315,61 @@ public class SNTChart extends ChartFrame {
 	 * @return true, if is combined
 	 */
 	public boolean isCombined() {
-		return isCombined;
+		return otherCombinedCharts != null && !otherCombinedCharts.isEmpty();
+	}
+
+	private class ChartListener implements ChartMouseListener {
+
+		@Override
+		public void chartMouseClicked(final ChartMouseEvent event) {
+
+			if (event.getTrigger().getClickCount() != 2)
+				return;
+			final ChartEntity ce = event.getEntity();
+			if (ce instanceof TitleEntity) {
+				final Title title = ((TitleEntity) ce).getTitle();
+				if (title instanceof TextTitle) {
+					final String newLabel = getCustomString(((TextTitle) title).getText());
+					if (newLabel != null)
+						((TextTitle) title).setText(newLabel);
+				}
+			} else if (ce instanceof XYAnnotationEntity) {
+				final int idx = ((XYAnnotationEntity) ce).getRendererIndex();
+				final XYAnnotation annot = getXYPlot().getAnnotations().get(idx);
+				if (annot instanceof XYTextAnnotation) {
+					final String newLabel = getCustomString(((XYTextAnnotation) annot).getText());
+					if (newLabel != null)
+						((XYTextAnnotation) annot).setText(newLabel);
+				}
+			} else if (ce instanceof XYItemEntity) {
+				final int idx = ((XYItemEntity) ce).getSeriesIndex();
+				final Color newColor = getCustomColor();
+				if (newColor != null)
+					getXYPlot().getRenderer().setSeriesPaint(idx, SNTColor.alphaColor(newColor, 60));
+			} else if (ce instanceof AxisEntity) {
+				doEditChartProperties();
+			} else if (!(ce instanceof JFreeChartEntity) && !(ce instanceof PlotEntity)) {
+				new GuiUtils(frame).error(
+						"This component cannot be edited by double-click. "//
+						+ "Please use options in right-click menu.");
+			} else {
+				SNTUtils.log(ce.toString());
+			}
+		}
+
+		String getCustomString(final String old) {
+			return new GuiUtils(frame).getString("", "Edit Label", old);
+		}
+
+		Color getCustomColor() {
+			return new GuiUtils(frame).getColor("New Color", Color.DARK_GRAY);
+		}
+
+		@Override
+		public void chartMouseMoved(final ChartMouseEvent event) {
+			// do nothing
+		}
+
 	}
 
 	public static List<SNTChart> openCharts() {
@@ -1210,7 +1385,9 @@ public class SNTChart extends ChartFrame {
 	}
 
 	public static void tileAll() {
-		GuiUtils.tile(openInstances);
+		final List<JFrame> frames = new ArrayList<>();
+		openInstances.forEach( oi -> frames.add(oi.getFrame()));
+		GuiUtils.tile(frames);
 	}
 
 	/**
@@ -1270,6 +1447,7 @@ public class SNTChart extends ChartFrame {
 		int[] grid;
 		String label;
 		boolean labelPanels;
+		SNTChart holdingPanel;
 
 		MultiSNTChart(final Collection<SNTChart> charts, final int rows, final int cols, final boolean labelPanels) {
 			if (charts == null || charts.isEmpty())
@@ -1296,43 +1474,27 @@ public class SNTChart extends ChartFrame {
 			int w = Integer.MIN_VALUE;
 			int h = Integer.MIN_VALUE;
 			for (final SNTChart chart : charts) {
-				if (chart.getChartPanel().getPreferredSize().width > w)
-					w = chart.getChartPanel().getPreferredSize().width;
-				if (chart.getChartPanel().getPreferredSize().height > h)
-					h = chart.getChartPanel().getPreferredSize().height;
+				if (chart.getPreferredSize().width > w)
+					w = chart.getPreferredSize().width;
+				if (chart.getPreferredSize().height > h)
+					h = chart.getPreferredSize().height;
 			}
 			for (final SNTChart chart : charts)
-				chart.getChartPanel().setSize(w, h);
-			final SNTChart holdingFrame = new SNTChart(getLabel(), (JFreeChart)null);
-			holdingFrame.isCombined = true;
-			final JPanel contentPanel = new JPanel(new GridLayout(grid[0], grid[1]));
-			holdingFrame.setContentPane(contentPanel);
-			contentPanel.setToolTipText("Use the \"Save Tables & Analysis Plots...\" command to save panel(s)");
-			final boolean allVisible = charts.stream().allMatch(c -> c.isVisible());
+				chart.setPreferredSize(new Dimension(w, h));
+			holdingPanel = new SNTChart(getLabel(), (JFreeChart)null);
+			holdingPanel.setLayout(new GridLayout(grid[0], grid[1]));
+			holdingPanel.setToolTipText("Use the \"Save Tables & Analysis Plots...\" command to save panel(s)");
+			holdingPanel.otherCombinedCharts = new ArrayList<>();
 			charts.forEach(chart -> {
-				if (labelPanels && chart.getChartPanel().getChart().getTitle() == null)
+				if (labelPanels && chart.getChart().getTitle() == null)
 					chart.setChartTitle(chart.getTitle());
-				contentPanel.add(chart.getChartPanel());
+				holdingPanel.add(chart);
+				holdingPanel.otherCombinedCharts.add(chart);
 			});
 			// panel.setBackground(charts.get(charts.size()-1).getBackground());
-			holdingFrame.pack();
 			final Dimension sSize = Toolkit.getDefaultToolkit().getScreenSize();
-			holdingFrame.setPreferredSize(scale(holdingFrame.getSize(), sSize.width * .85, sSize.height * .85));
-			holdingFrame.addWindowListener(new WindowAdapter() {
-				@Override
-				public void windowClosing(final WindowEvent e) {
-					charts.forEach(chart -> chart.dispose());
-				}
-			});
-			holdingFrame.pack();
-			AWTWindows.centerWindow(holdingFrame);
-			if (allVisible) {
-				SwingUtilities.invokeLater(() -> {
-					charts.forEach(chart -> chart.setVisible(false));
-					holdingFrame.setVisible(true);
-				});
-			}
-			return holdingFrame;
+			holdingPanel.setPreferredSize(scale(holdingPanel.getPreferredSize(), sSize.width * .85, sSize.height * .85));
+			return holdingPanel;
 		}
 
 		int[] splitIntoParts(final int whole, final int parts) {
@@ -1376,7 +1538,6 @@ public class SNTChart extends ChartFrame {
 		GuiUtils.setLookAndFeel();
 		final Tree tree = new SNTService().demoTrees().get(0);
 		final TreeStatistics treeStats = new TreeStatistics(tree);
-		SNTChart.setDefaultFontScale(2d);
 		final SNTChart chart = treeStats.getHistogram("contraction");
 		chart.annotatePoint(0.75, 0.15, "No data here", "green");
 		chart.annotateXline(0.80, "Start of slope", "blue");

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -28,6 +28,7 @@ import java.awt.image.IndexColorModel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -58,6 +59,7 @@ import org.scijava.ui.awt.AWTWindows;
 import sc.fiji.snt.*;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Tubeness;
+import sc.fiji.snt.util.ImpUtils;
 
 /**
  * Implements SNT 'Sigma wizard'. It relies heavily on java.awt because it
@@ -65,6 +67,8 @@ import sc.fiji.snt.filter.Tubeness;
  * now deprecated.
  */
 public class SigmaPalette extends Thread {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	@Parameter
 	OpService opService;
@@ -137,10 +141,6 @@ public class SigmaPalette extends Thread {
 			final double defaultMax)
 		{
 			super(imp, ic);
-			if (parent == null)
-				setLocationRelativeTo(snt.getImagePlus().getWindow());
-			else
-				AWTWindows.centerWindow(parent, this);
 			this.defaultMax = defaultMax;
 			guiUtils = new GuiUtils(this);
 			ic.disablePopupMenu(true);
@@ -179,7 +179,7 @@ public class SigmaPalette extends Thread {
 			getCanvas().addKeyListener(new KeyAdapter() {
 				@Override
 				public void keyPressed(final KeyEvent e) {
-						helpMsg(e);
+					helpMsg(e);
 				}
 			});
 
@@ -189,12 +189,16 @@ public class SigmaPalette extends Thread {
 			updateLabels();
 			add(panel);
 			pack();
-			repaint();
+			if (parent == null)
+				setLocationRelativeTo(snt.getImagePlus().getWindow()); // called after pack()
+			else
+				AWTWindows.centerWindow(parent, this);
+			repaint(); // is this really needed?
 			guiUtils.tempMsg("Press 'H' or 'F1' for help", 3000);
 		}
 
 		private void assembleButtonPanel(final Panel panel, final GridBagConstraints c) {
-			commitButton = new Button("Commit S Values (### Scale(s))");
+			commitButton = new Button("Commit \u03C3 Values [16 Scale(s)]");
 			commitButton.addActionListener(e -> apply());
 			final Button cancelButton = new Button("B&C");
 			cancelButton.addActionListener(e -> IJ.doCommand("Brightness/Contrast..."));
@@ -221,7 +225,7 @@ public class SigmaPalette extends Thread {
 			mi.addActionListener(e -> helpMsg());
 			pm.add(mi);
 			pm.addSeparator();
-			final Menu lutMenu = new Menu("Lookup Tables");
+			final Menu lutMenu = new Menu("Lookup Table");
 			pm.add(lutMenu);
 			addLutEntry(lutMenu, "Default", "reset");
 			lutMenu.addSeparator();
@@ -249,9 +253,18 @@ public class SigmaPalette extends Thread {
 					scaleSettings.clear();
 					advanceToFirstScale();
 					((PaletteCanvas)getCanvas()).updateOverlayLabels();
+					updateLabels();
 				}
 			});
 			pm.add(mi);
+			mi = new MenuItem("Take Snapshot");
+			mi.addActionListener(e -> {
+				final ImagePlus imp = paletteImage.duplicate();
+				imp.setTitle("Sigmas_Snaphsot");
+				imp.show();
+			});
+			pm.add(mi);
+			pm.addSeparator();
 			mi = new MenuItem("Dismiss");
 			mi.addActionListener(e -> dismiss());
 			pm.add(mi);
@@ -282,7 +295,7 @@ public class SigmaPalette extends Thread {
 					+ "<li>With 3D images, use the main slider to navigate Z-planes</li>" //
 					+ "<li>Setting multiple scales:</li>"
 					+ "<ul>"//
-					+ "<li>To select a &sigma; value, click on its tile while holding <kbd>Shift</kbd></li>" //
+					+ "<li>To select a &sigma; value, click on its tile while holding <kbd>Shift</kbd> (or double-click on it)</li>" //
 					+ "<li>To un-select a &sigma; value, click on its tile while holding <kbd>Alt</kbd></li>" //
 					+ "<li>You can also use the <i>Scale</i> slider and its <i>Set</i> button to "//
 					+ "set/replace a value" //
@@ -391,7 +404,6 @@ public class SigmaPalette extends Thread {
 
 		@Override
 		public void windowClosing(final WindowEvent e) {
-			listeners.forEach( listener -> listener.paletteDismissed());
 			dismiss();
 			super.windowClosing(e);
 		}
@@ -551,14 +563,15 @@ public class SigmaPalette extends Thread {
 						} else { // select it
 							paletteWindow.advanceToScale(indexInScaleSettings + 1); // 1-based index
 						}
-					} else if (e.isShiftDown() || getMaxScales() == 1) { // commit selection immediately
+					} else if (e.isShiftDown() || getMaxScales() == 1 || e.getClickCount() == 2) { // commit selection immediately
 						setSettingsForSelectedScale();
 						mouseMovedAcceptedSigmaIndex = mouseMovedSigmaIndex;
 						return;
 					}
 				}
 				updateOverlayLabels();
-				paletteWindow.repaint(); // call createSubtitle()
+				if (paletteWindow != null)
+					paletteWindow.repaint(); // call createSubtitle()
 				mouseMovedAcceptedSigmaIndex = -1;
 			}
 		}
@@ -731,17 +744,11 @@ public class SigmaPalette extends Thread {
 		start();
 	}
 
-	private void flush() {
-		listeners.forEach( listener -> listener.paletteDismissed());
-		paletteWindow.close();
-		if (paletteImage != null) paletteImage.flush();
-		snt.setCanvasLabelAllPanes(null);
-	}
-
 	public void dismiss() {
-		flush();
-		if (listeners.isEmpty())
-			snt.changeUIState(SNTUI.READY);
+		new ArrayList<>(listeners).forEach(SigmaPaletteListener::paletteDismissed); // avoid ConcurrentModificationException
+		if (paletteWindow != null) paletteWindow.close();
+		if (paletteImage != null) paletteImage.flush();
+		listeners.clear();
 	}
 
 	public List<Double> getMultiScaleSettings() {
@@ -789,10 +796,14 @@ public class SigmaPalette extends Thread {
 		if (autoAdvance) {
 			paletteWindow.advanceToNextScale();
 		} else
-		SNTUtils.log(String.format("Scale %d set: sigma=%.1f", selectedScale, sigma));
+			SNTUtils.log(String.format("Scale %d set: sigma=%.1f", selectedScale, sigma));
 	}
 
 	private void apply() {
+		if (listeners == null || listeners.isEmpty() || listeners.stream().noneMatch(Objects::nonNull)) {
+			paletteWindow.guiUtils.error("Prompt has been closed. Settings cannot be applied.");
+			return;
+		}
 		if (scaleSettings == null || scaleSettings.isEmpty() || getSelectedSigma() == -1) {
 			if (getMaxScales() > 1) {
 				paletteWindow.guiUtils.error("You must specify settings for at least one scale.");
@@ -813,7 +824,7 @@ public class SigmaPalette extends Thread {
 				return;
 		}
 		listeners.forEach( listener -> listener.setSigmas(getMultiScaleSettings()));
-		flush();
+		dismiss();
 	}
 
 	private void copyIntoPalette(final ImagePlus smallImage,
@@ -919,15 +930,15 @@ public class SigmaPalette extends Thread {
 			setMax(suggestedMax);
 			copyIntoPalette(processed, paletteImage, offsetX, offsetY);
 		}
+		listeners.forEach( listener -> listener.paletteDisplayed());
 		final PaletteCanvas paletteCanvas = new PaletteCanvas(paletteImage, croppedWidth, croppedHeight,
 			sigmasAcross, sigmasDown);
 		paletteWindow = new PaletteStackWindow(paletteImage, paletteCanvas, suggestedMax);
 		paletteCanvas.requestFocusInWindow(); // required to trigger keylistener events
-		listeners.forEach( listener -> listener.paletteDisplayed());
 	}
 
 	private void createMIP() {
-		final ImagePlus mip = SNTUtils.getMIP(paletteImage); // will have same lut
+		final ImagePlus mip = ImpUtils.getMIP(paletteImage); // will have same lut
 		mip.setDisplayRange(paletteImage.getDisplayRangeMin(), paletteImage.getDisplayRangeMax());
 		mip.updateAndDraw();
 		final ImageRoi roi = new ImageRoi(0, 0, mip.getProcessor());
@@ -977,6 +988,7 @@ public class SigmaPalette extends Thread {
 
 	public void removeListener(final SigmaPaletteListener listener) {
 		listeners.remove(listener);
+		if (listeners.isEmpty()) dismiss();
 	}
 
 }

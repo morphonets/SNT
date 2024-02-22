@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -27,10 +27,11 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.Rectangle;
-import java.awt.Window;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
@@ -38,8 +39,11 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -63,6 +67,7 @@ import javax.swing.JRootPane;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
 import javax.swing.MenuElement;
@@ -75,8 +80,11 @@ import javax.swing.table.DefaultTableCellRenderer;
 
 import org.scijava.util.PlatformUtils;
 
+import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.icons.FlatSearchIcon;
+import com.formdev.flatlaf.ui.FlatButtonUI;
+
 import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.viewer.Viewer3D;
 
 /**
@@ -90,20 +98,24 @@ public class SNTCommandFinder {
 
 	/** Settings. Ought to become adjustable some day */
 	private static final KeyStroke ACCELERATOR = KeyStroke.getKeyStroke(KeyEvent.VK_P,
-			java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_DOWN_MASK);
+			java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx() | KeyEvent.SHIFT_DOWN_MASK);
 	private static final int TABLE_ROWS = 6; // no. of commands to be displayed
 	private static final float OPACITY = 1f; // 0-1 range
 	private static final boolean IGNORE_WHITESPACE = true; // Ignore white spaces while matching?
 	private static final boolean INCLUDE_REBUILD_ACTION = false; // Add entry to re-scrape commands?
-	private static Palette frame;
+	private static final Font REF_FONT = refFont();
 
+	private static Palette frame;
+	private ScriptRecorder recorder;
 	private SearchField searchField;
 	private CmdTable table;
+	private boolean scriptCall;
 	private final CmdAction noHitsCmd;
 	private final CmdScrapper cmdScrapper;
 	private final List<String> keyWordsToIgnoreInMenuPaths; // menus to be ignored
 	private final int maxPath; // No. of submenus to be included in path description
 	private final String widestCmd; // String defining the width of first column of the palette list
+	private final GuiUtils guiUtils;
 
 	public SNTCommandFinder(final SNTUI sntui) {
 		noHitsCmd = new SearchWebCmd();
@@ -111,15 +123,17 @@ public class SNTCommandFinder {
 		maxPath = 2;
 		keyWordsToIgnoreInMenuPaths = Arrays.asList("Full List", "Batch Scripts"); // alias menus listing cmds elsewhere
 		widestCmd = "Get Branch Points in Brain Compartment ";
+		guiUtils = new GuiUtils(sntui);
 	}
 
-	public SNTCommandFinder(final Viewer3D recViewer) {
+	public SNTCommandFinder(final Viewer3D viewer3D) {
 		noHitsCmd = new SearchWebCmd();
-		cmdScrapper = new CmdScrapper(); // recViewer commands are all registered in cmdScrapper.otherMap
+		cmdScrapper = new CmdScrapper(viewer3D); // recViewer commands are all registered in cmdScrapper.otherMap
 		maxPath = 1;
-		keyWordsToIgnoreInMenuPaths = Arrays.asList("Select"); // "None, All, Trees, etc. ": hard to interpreter without
+		keyWordsToIgnoreInMenuPaths = Collections.singletonList("Select"); // "None, All, Trees, etc. ": hard to interpreter without
 																// context
 		widestCmd = "Bounding Boxes of Visible Meshes ";
+		guiUtils = new GuiUtils(viewer3D.getFrame());
 	}
 
 	void install(final JMenu toolsMenu) {
@@ -149,8 +163,12 @@ public class SNTCommandFinder {
 		return result;
 	}
 
-	GuiUtils getGuiUtils() {
-		return new GuiUtils(getParent());
+	static Font refFont() {
+		try {
+			return UIManager.getFont("TextField.font");
+		} catch (final Exception ignored) {
+			return new JTextField().getFont();
+		}
 	}
 
 	private Action getAction() {
@@ -182,7 +200,7 @@ public class SNTCommandFinder {
 	private void assemblePalette() {
 		frame = new Palette();
 		frame.setLayout(new BorderLayout());
-		searchField = new SearchField();
+		searchField = new SearchField(true);
 		frame.add(searchField, BorderLayout.NORTH);
 		searchField.getDocument().addDocumentListener(new PromptDocumentListener());
 		final InternalKeyListener keyListener = new InternalKeyListener();
@@ -226,10 +244,7 @@ public class SNTCommandFinder {
 	private void runCmd(final String command) {
 		SwingUtilities.invokeLater(() -> {
 			if (CmdScrapper.REBUILD_ID.equals(command)) {
-				cmdScrapper.scrape();
-				table.clearSelection();
-				searchField.setText("");
-				searchField.requestFocus();
+				resetScrapper();
 				frame.setVisible(true);
 				return;
 			}
@@ -239,60 +254,137 @@ public class SNTCommandFinder {
 			} else {
 				cmd = cmdScrapper.getCmdMap().get(command);
 			}
-			if (cmd != null) {
-				final boolean hasButton = cmd.button != null;
-				if (hasButton && !cmd.button.isEnabled()) {
-					getGuiUtils().error("Command is currently disabled. Either execution requirements "
-							+ "are unmet or it is not supported by current mode.");
-					frame.setVisible(true);
-					return;
-				}
-				hideWindow(); // hide before running, in case command opens a dialog
-				if (hasButton) {
-					cmd.button.doClick();
-				} else if (cmd.action != null) {
-					cmd.action.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
-				}
-				if (cmdScrapper.sntui != null && SNTUtils.isDebugMode())
-					recordCommand(cmd);
-			}
+			runCmd(cmd);
 		});
 	}
 
-	private void recordCommand(final CmdAction cmdAction) {
-		if (cmdAction.id.startsWith("<HTML>") || cmdAction.description().startsWith("Scripts")) {
-			System.out.println("SNT Command is not recordable...\n");
-			return;
-		}
-		final StringBuilder sb = new StringBuilder();
-		sb.append("#@SNTService snt\n");
-		boolean tagCmd = cmdAction.pathDescription().contains("Tag");
-		boolean pmCmd = tagCmd || cmdAction.pathDescription().startsWith("PM")
-				|| cmdAction.pathDescription().startsWith("Edit") || cmdAction.pathDescription().startsWith("Refine")
-				|| cmdAction.pathDescription().startsWith("Fill") || cmdAction.pathDescription().startsWith("Analyze");
-		boolean promptCmd = cmdAction.id.endsWith("...");
-		if (pmCmd) {
-			sb.append("snt.getUI().getPathManager().");
-			if (tagCmd && !promptCmd)
-				sb.append("applyDefaultTags(");
-			else
-				sb.append("runCommand(");
-			sb.append("\"").append(cmdAction.id).append("\"").append(");");
-		} else {
-			sb.append("snt.getUI().");
-			if (pmCmd && promptCmd) {
-				sb.append("runCommand(").append("\"").append(cmdAction.id).append("\"")
-						.append(", \"[optional prompt options...]\");");
-			} else {
-				sb.append("runCommand(").append("\"").append(cmdAction.id).append("\"").append(");");
+	private void runCmd(final CmdAction cmd) {
+		if (cmd != null) {
+			final boolean hasButton = cmd.button != null;
+			if (hasButton && (!cmd.button.isEnabled()
+					|| (cmd.button instanceof JMenuItem && !cmd.button.getParent().isEnabled()))) {
+				guiUtils.error("Command is currently disabled. Either execution requirements "
+						+ "are unmet or it is not supported in current state.");
+				frame.setVisible(true);
+				return;
+			}
+			if (!scriptCall)
+				hideWindow(); // hide before running, in case command opens a dialog
+			if (hasButton) {
+				cmd.button.doClick();
+			} else if (cmd.action != null) {
+				cmd.action.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
 			}
 		}
-		sb.append("\n\n");
-		System.out.println(sb.toString());
 	}
 
-	private Window getParent() {
-		return javax.swing.FocusManager.getCurrentManager().getActiveWindow();
+	private void recordCommand(final CmdAction cmdAction) {
+		if (recorder == null)
+			return;
+		if (cmdAction.id.startsWith("<HTML>") || cmdAction.description().startsWith("Scripts")) {
+			recordComment("Command is not recordable... [id: "+ cmdAction.id +"]");
+			return;
+		}
+		if (recordPresetAPICall(cmdAction))
+			return;
+		if (cmdScrapper.sntui != null)
+			recordCmdSNTUI(cmdAction);
+		else
+			recordSNTViewerCmd(cmdAction);
+	}
+
+	private boolean recordPresetAPICall(final CmdAction cmdAction) {
+		if (cmdAction.button != null) {
+			final String cmd = ScriptRecorder.getRecordingCall(cmdAction.button);
+			if (cmd != null) {
+				if (!ScriptRecorder.IGNORED_CMD.equals(cmd))
+					recorder.recordCmd(cmd);
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void recordCmdSNTUI(final CmdAction cmdAction) {
+		final StringBuilder sb = new StringBuilder();
+		final boolean pmCmd = cmdAction.pathDescription().startsWith("PM") || cmdAction.pathDescription().startsWith("Tag")
+				|| cmdAction.pathDescription().startsWith("Edit") || cmdAction.pathDescription().startsWith("Refine")
+				|| cmdAction.pathDescription().startsWith("Fill") || cmdAction.pathDescription().startsWith("Analyze");
+		final boolean promptCmd = cmdAction.id.endsWith("...");
+		if (pmCmd) {
+			sb.append("snt.getUI().getPathManager().runCommand(\"").append(cmdAction.id);
+		} else {
+			sb.append("snt.getUI().runCommand(\"").append(cmdAction.id);
+		}
+		if (promptCmd) {
+			switch (cmdAction.id) {
+			// FIXME: This should be move to the executing command
+			case "Path-based Distributions...":
+			case "Branch-based Distributions...":
+				sb.append("\", \"metric 1 chosen in prompt\", \"[true or false (default) for polar histogram]\", \"[metric 2]\", \"[...]\")");
+				break;
+			case "Convert to ROIs...":
+				sb.append("\", \"ROI type chosen in prompt\", \"[optional view (default is 'XY')]\")");
+				break;
+			case "Color Code Path(s)...":
+			case "Color Code Cell(s)...":
+				sb.append("\", \"metric chosen in prompt\", \"LUT chosen in prompt\")");
+				break;
+			default:
+				noOptionsRecorderComment();
+				sb.append("\", \"[optional prompt options here...]\")");
+				break;
+			}
+		} else {
+			sb.append("\")");
+		}
+		recorder.recordCmd(sb.toString());
+	}
+
+	private void noOptionsRecorderComment() {
+		recorder.recordComment("NB: Next line may rely on non-recorded prompt options. See documentation for examples");
+	}
+
+	private void recordSNTViewerCmd(final CmdAction cmdAction) {
+		if (cmdAction.id.endsWith("..."))
+			noOptionsRecorderComment();
+		recorder.recordCmd("viewer.runCommand(\"" + cmdAction.id +"\")");
+	}
+
+	public void setRecorder(final ScriptRecorder recorder) {
+		this.recorder = recorder;
+		if (!cmdScrapper.scrapeSuccessful())
+			cmdScrapper.scrape();
+		if (recorder == null) {
+			cmdScrapper.removeRecordActions();
+		} else {
+			cmdScrapper.appendRecordActions();
+		}
+	}
+
+	private void resetScrapper() {
+		cmdScrapper.scrape();
+		table.clearSelection();
+		searchField.setText("");
+		searchField.requestFocus();
+	}
+
+	public void runCommand(final String actionIdentifier) {
+		scriptCall = true;
+		final CmdAction cmdAction = cmdScrapper.getCmdAction(actionIdentifier);
+		if (cmdAction == null)
+			throw new IllegalArgumentException("Unrecognized command: '" + actionIdentifier + "'");
+		SwingUtilities.invokeLater(() -> {
+			runCmd(cmdAction);
+		});
+		scriptCall = false;
+	}
+
+	private void recordComment(final String string) {
+		if (recorder == null)
+			System.out.println(">> " + string);
+		else
+			recorder.recordComment(string);
 	}
 
 	public void toggleVisibility() {
@@ -302,7 +394,7 @@ public class SNTCommandFinder {
 		if (frame.isVisible()) {
 			hideWindow();
 		} else {
-			frame.center(getParent());
+			frame.center();
 			table.clearSelection();
 			frame.setVisible(true);
 			searchField.requestFocus();
@@ -338,11 +430,38 @@ public class SNTCommandFinder {
 	}
 
 	public void register(final AbstractButton button, final String... description) {
-		cmdScrapper.registerOther(button, new ArrayList<>(Arrays.asList(description)));
+		register(button, new ArrayList<>(Arrays.asList(description)));
 	}
 
 	public void register(final AbstractButton button, final List<String> pathDescription) {
 		cmdScrapper.registerOther(button, pathDescription);
+	}
+
+	public void register(final JPopupMenu menu, final List<String> path) {
+		for (final Component component : menu.getComponents()) {
+			if (component instanceof JMenu) {
+				final List<String> newPath = new ArrayList<>(path);
+				final String menuText = ((JMenu)component).getText();
+				if (menuText != null) newPath.add(menuText);
+				registerMenu((JMenu)component, newPath);
+			}
+			else if (component instanceof AbstractButton)
+				register((AbstractButton)component, path);
+		}
+	}
+
+	private void registerMenu(final JMenu menu, final List<String> path) {
+		for (final Component component : menu.getMenuComponents()) {
+			if (component instanceof JMenu) {
+				final List<String> newPath = new ArrayList<>(path);
+				final String menuText = ((JMenu)component).getText();
+				if (menuText != null) newPath.add(menuText);
+				registerMenu((JMenu)component, newPath);
+			}
+			else if (component instanceof AbstractButton) {
+				register((AbstractButton)component, path);
+			}
+		}
 	}
 
 	public void setVisible(final boolean b) {
@@ -353,28 +472,63 @@ public class SNTCommandFinder {
 		toggleVisibility();
 	}
 
-	private static class SearchField extends GuiUtils.TextFieldWithPlaceholder {
+	private void initRecorder() {
+		if (recorder == null) {
+			if (cmdScrapper.sntui == null)
+				recorder = cmdScrapper.viewer3D.getRecorder(true);
+			else
+				recorder = cmdScrapper.sntui.getRecorder(true);
+		}
+	}
+
+	private static class RecordIcon extends FlatSearchIcon {
+		private Area area;
+
+		@Override
+		protected void paintIcon(final Component c, final Graphics2D g) {
+			g.setColor(FlatButtonUI.buttonStateColor(c, searchIconColor, searchIconColor, null, searchIconHoverColor,
+					searchIconPressedColor));
+			if (area == null) {
+				area = new Area(new Ellipse2D.Float(2.5f, 2.5f, 12, 12));
+				//area.subtract(new Area(new Ellipse2D.Float(7f, 7f, 3, 3)));
+			}
+			g.fill(area);
+		}
+	}
+
+	private class SearchField extends GuiUtils.TextFieldWithPlaceholder {
 		private static final long serialVersionUID = 1L;
 		private static final int PADDING = 4;
-		static final Font REF_FONT = refFont();
 
-		SearchField() {
-			super(" Search for commands and actions (e.g., Sholl)");
-			setMargin(new Insets(PADDING, PADDING, PADDING, PADDING));
-			setFont(REF_FONT.deriveFont(REF_FONT.getSize() * 1.3f));
+		SearchField(final boolean enableRecordButton) {
+			super("    Search for commands and actions (e.g., Sholl)");
+			setMargin(new Insets((int) (PADDING *1.5), PADDING, (int) (PADDING *1.5), PADDING));
+			setFont(REF_FONT.deriveFont(REF_FONT.getSize() * 1.1f));
+			putClientProperty( FlatClientProperties.TEXT_FIELD_LEADING_COMPONENT, new JLabel( new FlatSearchIcon( false ) ) );
+			if (enableRecordButton)
+				putClientProperty( FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, recordButton() );
 		}
 
+		JToggleButton recordButton( ) {
+			final JToggleButton recButton = new JToggleButton("REC ", new RecordIcon());
+			recButton.setFont(recButton.getFont().deriveFont((float) (recButton.getFont().getSize() * .65)));
+			recButton.setIconTextGap((int) (recButton.getIconTextGap() * .5));
+			recButton.setToolTipText("Record executed actions to Script Recorder?");
+			recButton.addItemListener(e -> {
+				if (recButton.isSelected()) {
+					initRecorder();
+					recorder.setVisible(true);
+					frame.setVisible(true);
+				}
+			});
+			return recButton;
+		}
+
+		@Override
 		Font getPlaceholderFont() {
 			return getFont().deriveFont(Font.ITALIC);
 		}
 
-		static Font refFont() {
-			try {
-				return UIManager.getFont("TextField.font");
-			} catch (final Exception ignored) {
-				return new JTextField().getFont();
-			}
-		}
 	}
 
 	private class PromptDocumentListener implements DocumentListener {
@@ -492,15 +646,21 @@ public class SNTCommandFinder {
 			});
 		}
 
+		void center() {
+			center(javax.swing.FocusManager.getCurrentManager().getActiveWindow());
+		}
+
 		void center(final Container component) {
+			if (component == null)
+				return;
 			final Rectangle bounds = component.getBounds();
 			final Dimension w = getSize();
 			int x = bounds.x + (bounds.width - w.width) / 2;
 			int y = bounds.y + (bounds.height - w.height) / 2;
 			if (x < 0)
-				x = 0;
+				x = 0; //component.getX();
 			if (y < 0)
-				y = 0;
+				y = 0;// component.getY();
 			setLocation(x, y);
 		}
 	}
@@ -547,9 +707,10 @@ public class SNTCommandFinder {
 	private class CmdTableRenderer extends DefaultTableCellRenderer {
 
 		private static final long serialVersionUID = 1L;
-		final Font col0Font = SearchField.REF_FONT.deriveFont(SearchField.REF_FONT.getSize() * 1.2f);
-		final Font col1Font = SearchField.REF_FONT.deriveFont(SearchField.REF_FONT.getSize() * 1f);
+		final Font col0Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1f);
+		final Font col1Font = REF_FONT.deriveFont(REF_FONT.getSize() * .9f);
 
+		@Override
 		public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected,
 				final boolean hasFocus, final int row, final int column) {
 			final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
@@ -578,9 +739,9 @@ public class SNTCommandFinder {
 
 	}
 
-	private class CmdTableModel extends AbstractTableModel {
+	private static class CmdTableModel extends AbstractTableModel {
 		private static final long serialVersionUID = 1L;
-		private final static int COLUMNS = 2;
+		private static final int COLUMNS = 2;
 		List<String[]> list;
 
 		void setData(final ArrayList<String[]> list) {
@@ -634,10 +795,9 @@ public class SNTCommandFinder {
 
 		CmdAction(final String cmdName, final AbstractButton button) {
 			this(cmdName);
-			if (button.getAction() != null && button.getAction() instanceof AbstractAction)
-				action = (AbstractAction) button.getAction();
-			else
-				this.button = button;
+			this.button = button;
+			if (button.getAction() instanceof AbstractAction)
+				action = button.getAction();
 		}
 
 		String pathDescription() {
@@ -717,11 +877,11 @@ public class SNTCommandFinder {
 			}
 			switch (key.getKeyEventType()) {
 			case KeyEvent.KEY_TYPED:
-				s.append(key.getKeyChar() + " ");
+				s.append(key.getKeyChar()).append(" ");
 				break;
 			case KeyEvent.KEY_PRESSED:
 			case KeyEvent.KEY_RELEASED:
-				s.append(getKeyText(key.getKeyCode()) + " ");
+				s.append(getKeyText(key.getKeyCode())).append(" ");
 				break;
 			default:
 				break;
@@ -736,6 +896,7 @@ public class SNTCommandFinder {
 			}
 			switch (keyCode) {
 			case KeyEvent.VK_COMMA:
+			case KeyEvent.VK_COLON:
 				return ",";
 			case KeyEvent.VK_PERIOD:
 				return ".";
@@ -815,8 +976,6 @@ public class SNTCommandFinder {
 				return "{";
 			case KeyEvent.VK_BRACERIGHT:
 				return "}";
-			case KeyEvent.VK_COLON:
-				return ",";
 			case KeyEvent.VK_CIRCUMFLEX:
 				return "^";
 			case KeyEvent.VK_DEAD_TILDE:
@@ -846,15 +1005,18 @@ public class SNTCommandFinder {
 		private final TreeMap<String, CmdAction> cmdMap;
 		private TreeMap<String, CmdAction> otherMap;
 		private final SNTUI sntui;
+		private final Viewer3D viewer3D;
 
-		CmdScrapper() {
+		CmdScrapper(final Viewer3D viewer3D) {
 			cmdMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 			this.sntui = null;
+			this.viewer3D = viewer3D;
 		}
 
 		public CmdScrapper(final SNTUI sntui) {
 			cmdMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 			this.sntui = sntui;
+			this.viewer3D = null;
 		}
 
 		List<AnnotatedComponent> getComponents() {
@@ -875,6 +1037,13 @@ public class SNTCommandFinder {
 			return cmdMap;
 		}
 
+		CmdAction getCmdAction(final String identifier) {
+			CmdAction cmdAction = cmdMap.get(identifier);
+			if (cmdAction == null)
+				cmdAction = otherMap.get(identifier);
+			return cmdAction;
+		}
+
 		boolean scrapeSuccessful() {
 			return !cmdMap.isEmpty();
 		}
@@ -892,7 +1061,7 @@ public class SNTCommandFinder {
 					for (int i = 0; i < topLevelMenus; ++i) {
 						final JMenu topLevelMenu = menuBar.getMenu(i);
 						if (topLevelMenu != null && topLevelMenu.getText() != null) {
-							parseMenu(topLevelMenu, new ArrayList<>(Arrays.asList(topLevelMenu.getText())));
+							parseMenu(topLevelMenu, new ArrayList<>(Collections.singletonList(topLevelMenu.getText())));
 						}
 					}
 				}
@@ -900,11 +1069,12 @@ public class SNTCommandFinder {
 					final JPopupMenu popup = (JPopupMenu) ac.component;
 					if (popup != null) {
 						getMenuItems(popup).forEach(mi -> {
-							registerMenuItem(mi, new ArrayList<>(Arrays.asList(ac.annotation)));
+							registerMenuItem(mi, new ArrayList<>(Collections.singletonList(ac.annotation)));
 						});
 					}
 				}
 			}
+
 		}
 
 		private void parseMenu(final JMenu menu, final List<String> path) {
@@ -971,6 +1141,47 @@ public class SNTCommandFinder {
 			return label == null || label.startsWith("<HTML>Help");
 		}
 
+		private void removeRecordActions(TreeMap<String, CmdAction> map) {
+			if (map == null)
+				return;
+			map.values().forEach(cmdAction -> {
+				if (cmdAction.button != null) {
+					for (ActionListener listener : cmdAction.button.getActionListeners()) {
+						if (listener instanceof RecordAction) {
+							cmdAction.button.removeActionListener(listener);
+						}
+					}
+				}
+			});
+		}
+
+		private void appendRecordActions(final TreeMap<String, CmdAction> map) {
+			if (map == null)
+				return;
+			map.values().forEach(cmdAction -> {
+				if (cmdAction.button != null && !hasRecordActionAppended(cmdAction.button))
+					cmdAction.button.addActionListener(new RecordAction(cmdAction));
+			});
+		}
+
+		private boolean hasRecordActionAppended(final AbstractButton button) {
+			for (final ActionListener l : button.getActionListeners()) {
+				if (l instanceof RecordAction)
+					return true;
+			}
+			return false;
+		}
+
+		void removeRecordActions() {
+			removeRecordActions(cmdMap);
+			removeRecordActions(otherMap);
+		}
+
+		void appendRecordActions() {
+			appendRecordActions(cmdMap);
+			appendRecordActions(otherMap);
+		}
+
 		void registerMain(final AbstractButton button, final List<String> path) {
 			register(cmdMap, button, path);
 		}
@@ -1012,7 +1223,7 @@ public class SNTCommandFinder {
 
 	}
 
-	private class AnnotatedComponent {
+	private static class AnnotatedComponent {
 		final Component component;
 		final String annotation;
 
@@ -1027,6 +1238,23 @@ public class SNTCommandFinder {
 		}
 	}
 
+	private class RecordAction extends AbstractAction {
+		private static final long serialVersionUID = 6898683194911491963L;
+		static final String ID = "SNT_REC_ACTION";
+		private final transient CmdAction cmdAction;
+
+		public RecordAction(final CmdAction cmdAction) {
+			super(ID);
+			this.cmdAction = cmdAction;
+		}
+
+		@Override
+		public void actionPerformed(final ActionEvent e) {
+			if (recorder != null && !scriptCall)
+				recordCommand(cmdAction);
+		}
+	}
+
 	private class SearchWebCmd extends CmdAction {
 		SearchWebCmd() {
 			super("Search forum.image.sc");
@@ -1035,7 +1263,7 @@ public class SNTCommandFinder {
 
 				@Override
 				public void actionPerformed(final ActionEvent e) {
-					getGuiUtils().searchForum(searchField.getText());
+					guiUtils.searchForum(searchField.getText());
 				}
 			});
 		}

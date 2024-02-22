@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -44,6 +44,8 @@ import java.util.ArrayList;
  * @author Cameron Arshadi
  */
 public abstract class AbstractSearch implements SearchInterface, Runnable {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     protected final RandomAccessibleInterval<? extends RealType<?>> img;
     protected final RandomAccess<? extends RealType<?>> imgAccess;

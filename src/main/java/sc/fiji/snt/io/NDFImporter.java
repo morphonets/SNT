@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -25,8 +25,12 @@ package sc.fiji.snt.io;
 import java.awt.Color;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -77,21 +81,31 @@ public class NDFImporter {
 	private int subSampleFactor; // Subsampling
 	private String version;
 
-	private final File file;
+	private File file;
+	private InputStream is;
 	private Collection<Tree> parsedTrees;
+
+	/**
+	 * @param is the InputStream of ndf data
+	 */
+	public NDFImporter(final InputStream is) {
+		this.is = is;
+		this.file = null;
+	}
+
+	/**
+	 * @param filePath the path to the ndf file to be imported
+	 */
+	public NDFImporter(final String filePath) {
+		this(new File(filePath));
+	}
 
 	/**
 	 * @param file the ndf file to be imported
 	 */
 	public NDFImporter(final File file) {
 		this.file = file;
-	}
-
-	/**
-	 * @param path the path to the ndf file to be imported
-	 */
-	public NDFImporter(final String filePath) {
-		this(new File(filePath));
+		this.is = null;
 	}
 
 	/**
@@ -146,11 +160,20 @@ public class NDFImporter {
 		return map;
 	}
 
+	private BufferedReader getBufferedReader() throws FileNotFoundException {
+		if (is == null)
+			return  new BufferedReader(new FileReader(file));
+		return new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+	}
+
 	private Collection<Tree> getTreesInternal() throws IOException {
-		SNTUtils.log("Loading tracings from " + file.getAbsolutePath());
+		if (file == null)
+			SNTUtils.log("Loading NeuronJ tracings");
+		else
+			SNTUtils.log("Loading tracings from " + file.getAbsolutePath());
 		final HashMap<Integer, Tree> map = new HashMap<>();
 		try {
-			final BufferedReader br = new BufferedReader(new FileReader(file));
+			final BufferedReader br = getBufferedReader();
 			if (!br.readLine().startsWith("// " + NJ_NAME + " Data File")) {
 				br.close();
 				throw new IOException("Not a recognizable NDF file.");
@@ -232,9 +255,7 @@ public class NDFImporter {
 			SNTUtils.log("   Effectuated read data");
 			SNTUtils.log("Done");
 
-		} catch (final NumberFormatException e) {
-			SNTUtils.error("Error reading from file", e);
-		} catch (final IllegalStateException e) {
+		} catch (final NumberFormatException | IllegalStateException e) {
 			SNTUtils.error("Error reading from file", e);
 		} catch (final Throwable e) {
 			SNTUtils.error("Unable to read from file", e);
@@ -265,7 +286,7 @@ public class NDFImporter {
 	}
 
 	/**
-	 * @return the last known version of NeuronJ known to work this this importer
+	 * @return the last known version of NeuronJ known to work this importer
 	 */
 	public static String supportedVersion() {
 		return NJ_VERSION;

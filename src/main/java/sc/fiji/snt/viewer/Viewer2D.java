@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -43,7 +43,6 @@ import org.jfree.chart.ui.HorizontalAlignment;
 import org.jfree.chart.ui.RectangleEdge;
 import org.scijava.Context;
 import org.scijava.plugin.Parameter;
-import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
@@ -62,6 +61,8 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
+import sc.fiji.snt.gui.GuiUtils;
+
 import org.scijava.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -77,9 +78,6 @@ public class Viewer2D extends TreeColorMapper {
 
 	@Parameter
 	private PlotService plotService;
-
-	@Parameter
-	private UIService uiService;
 
 	protected XYPlot plot;
 	private String title;
@@ -97,7 +95,7 @@ public class Viewer2D extends TreeColorMapper {
 	public Viewer2D() {
 		super();
 		setAxesVisible(true);
-		setGridlinesVisible(true);
+		setGridlinesVisible(false);
 		setOutlineVisible(true);
 	}
 
@@ -123,7 +121,7 @@ public class Viewer2D extends TreeColorMapper {
 		super(context);
 		if (template == null) {
 			setAxesVisible(true);
-			setGridlinesVisible(true);
+			setGridlinesVisible(false);
 			setOutlineVisible(true);
 		} else {
 			setAxesVisible(template.getAxesVisible());
@@ -284,7 +282,7 @@ public class Viewer2D extends TreeColorMapper {
 			return;
 		}
 		chart = getChart();
-		chart.getChartPanel().getChart().addSubtitle(getPaintScaleLegend(colorTable, min, max));
+		chart.getChart().addSubtitle(getPaintScaleLegend(colorTable, min, max));
 	}
 
 	protected PaintScaleLegend getPaintScaleLegend(final String colorTable, double min, double max) {
@@ -313,7 +311,10 @@ public class Viewer2D extends TreeColorMapper {
 		}
 		numberAxis.setAutoRangeIncludesZero(min <=0 && max >= 0);
 		numberAxis.setRange(min, max);
+		numberAxis.setAutoTickUnitSelection(true);
 		numberAxis.centerRange((max+min)/2);
+		numberAxis.setLabelFont(numberAxis.getLabelFont().deriveFont(GuiUtils.uiFontSize()));
+		numberAxis.setTickLabelFont(numberAxis.getTickLabelFont().deriveFont(GuiUtils.uiFontSize()));
 		final PaintScaleLegend psl = new PaintScaleLegend(paintScale, numberAxis);
 		psl.setBackgroundPaint(null); // transparent
 		psl.setPosition(RectangleEdge.RIGHT);
@@ -455,9 +456,8 @@ public class Viewer2D extends TreeColorMapper {
 	 *
 	 * @return the converted viewer
 	 */
-	@Deprecated
 	public JFreeChart getJFreeChart() {
-		return getChart().getChartPanel().getChart();
+		return getChart().getChart();
 	}
 
 	/**
@@ -482,7 +482,6 @@ public class Viewer2D extends TreeColorMapper {
 	/**
 	 * Gets the current plot as a {@link XYPlot} object
 	 *
-	 * @param show if true, plot is displayed
 	 * @return the current plot
 	 */
 	public XYPlot getPlot() {

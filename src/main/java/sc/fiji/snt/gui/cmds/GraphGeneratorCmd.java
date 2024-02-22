@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -38,7 +38,7 @@ import sc.fiji.snt.gui.GuiUtils;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Create Dendrogram", initializer = "init")
+@Plugin(type = Command.class, label = "Create Dendrogram", initializer = "init")
 public class GraphGeneratorCmd extends CommonDynamicCmd {
 
 	@Parameter(required = false)
@@ -62,7 +62,7 @@ public class GraphGeneratorCmd extends CommonDynamicCmd {
 		try {
 			//SNTUtils.setIsLoading(true);
 			tree.getGraph(true).show();
-		} catch (final IllegalArgumentException exc) { // multiple roots, etc..
+		} catch (final IllegalArgumentException exc) { // multiple roots, etc.
 			//SNTUtils.setIsLoading(false);
 			error("Graph could not be created: " + exc.getLocalizedMessage()
 			+ ". Please ensure you select a single set of connected paths (one root exclusively)");

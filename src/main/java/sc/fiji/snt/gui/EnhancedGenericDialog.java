@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -61,6 +61,9 @@ import sc.fiji.snt.plugin.ij1.Sholl_Utils;
  */
 @Deprecated
 public class EnhancedGenericDialog extends GenericDialogPlus {
+	
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private static final long serialVersionUID = 1L;
 
 	private String labelOfHelpActionButton = null;
@@ -186,13 +189,10 @@ public class EnhancedGenericDialog extends GenericDialogPlus {
 				}
 			};
 
-			helpActionButtonListener = new ActionListener() {
-				@Override
-				public void actionPerformed(final ActionEvent e) {
-					final MouseEvent me = new MouseEvent((Component) e.getSource(), MouseEvent.MOUSE_CLICKED,
-							e.getWhen(), MouseEvent.MOUSE_PRESSED, 0, 0, 0, true);
-					helpActionMouseListener.mousePressed(me);
-				}
+			helpActionButtonListener = e -> {
+				final MouseEvent me = new MouseEvent((Component) e.getSource(), MouseEvent.MOUSE_CLICKED,
+						e.getWhen(), MouseEvent.MOUSE_PRESSED, 0, 0, 0, true);
+				helpActionMouseListener.mousePressed(me);
 			};
 		}
 	}
@@ -366,29 +366,19 @@ public class EnhancedGenericDialog extends GenericDialogPlus {
 
 	public static JMenuItem menuItemTrigerringURL(final String label, final String URL) {
 		final JMenuItem mi = new JMenuItem(label);
-		mi.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				IJ.runPlugIn("ij.plugin.BrowserLauncher", URL);
-			}
-		});
+		mi.addActionListener(e -> IJ.runPlugIn("ij.plugin.BrowserLauncher", URL));
 		return mi;
 	}
 
 	@Deprecated
 	public static JMenuItem menuItemTriggeringResources() {
 		final JMenuItem mi = new JMenuItem("About & Resources...");
-		mi.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(final ActionEvent e) {
-				IJ.runPlugIn(Sholl_Utils.class.getName(), "about");
-			}
-		});
+		mi.addActionListener(e -> IJ.runPlugIn(Sholl_Utils.class.getName(), "about"));
 		return mi;
 	}
 
 	/**
-	 * @return {@code true} if running on an headless environment
+	 * @return {@code true} if running on a headless environment
 	 */
 	public static boolean isHeadless() {
 		return GraphicsEnvironment.isHeadless();

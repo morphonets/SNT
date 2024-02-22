@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -106,7 +106,7 @@ public class InsectBrainLoader {
         if (url == null) {
             return null;
         }
-        final PathAndFillManager pafm = new PathAndFillManager();
+		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
         pafm.setHeadless(true);
         neuronInfo = getNeuronInfo();
         if (pafm.importSWC(String.valueOf(this.id), url)) {

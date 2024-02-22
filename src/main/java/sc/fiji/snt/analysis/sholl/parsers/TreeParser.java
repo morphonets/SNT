@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -48,6 +48,8 @@ import sc.fiji.snt.util.ShollPoint;
  * @author Tiago Ferreira
  */
 public class TreeParser implements Parser {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	/**
 	 * Flag for defining the profile center as the average position of root nodes
@@ -235,7 +237,7 @@ public class TreeParser implements Parser {
 			.getBoundingBox(false).getCalibration());
 		profile.getProperties().setProperty(KEY_SOURCE, SRC_TRACES);
 		assembleSortedShollPointList();
-		assembleProfile();
+		assembleProfileAfterAssemblingSortedShollPointList();
 	}
 
 	/* (non-Javadoc)
@@ -270,14 +272,12 @@ public class TreeParser implements Parser {
 		tree.list().forEach(p -> {
 			if (!running || p.size() == 0 || (skipFirstNode && p.equals(soma.onPath)))
 				return;
-			for (int i = 0; i < p.size() - 1; ++i) {
+			for (int i = (skipFirstNode) ? 1 : 0; i < p.size() - 1; ++i) {
 				final PointInImage pim1 = p.getNode(i);
 				final PointInImage pim2 = p.getNode(i + 1);
 				final double distanceSquaredFirst = pim1.distanceSquaredTo(center);
 				final double distanceSquaredSecond = pim2.distanceSquaredTo(center);
 				final boolean nearer = distanceSquaredFirst < distanceSquaredSecond;
-				if (i == 0 && skipFirstNode)
-					continue;
 				shollPointsList.add(new ComparableShollPoint(distanceSquaredFirst, nearer));
 				shollPointsList.add(new ComparableShollPoint(distanceSquaredSecond, !nearer));
 			}
@@ -288,12 +288,11 @@ public class TreeParser implements Parser {
 		Collections.sort(shollPointsList);
 	}
 
-	private void assembleProfile() {
+	private void assembleProfileAfterAssemblingSortedShollPointList() {
 		final int n = shollPointsList.size();
 		squaredRangeStarts = new double[n];
 		crossingsPastEach = new int[n];
 		int currentCrossings = 0;
-		Collections.sort(shollPointsList);
 		for (int i = 0; i < n; ++i) {
 			final ComparableShollPoint p = shollPointsList.get(i);
 			if (p.nearer) ++currentCrossings;
@@ -336,7 +335,7 @@ public class TreeParser implements Parser {
 		return crossingsPastEach[minIndex];
 	}
 
-	private class ComparableShollPoint implements Comparable<ComparableShollPoint> {
+	private static class ComparableShollPoint implements Comparable<ComparableShollPoint> {
 
 		private final boolean nearer;
 		private final double distanceSquared;

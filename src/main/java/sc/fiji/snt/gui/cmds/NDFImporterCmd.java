@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -41,7 +41,7 @@ import sc.fiji.snt.io.NDFImporter;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, initializer = "init", label = "Import NeuronJ NDF")
+@Plugin(type = Command.class, initializer = "init", label = "Import NeuronJ NDF")
 public class NDFImporterCmd extends CommonDynamicCmd {
 
 	@Parameter(label = "File")

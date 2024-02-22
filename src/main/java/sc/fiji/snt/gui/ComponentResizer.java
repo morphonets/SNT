@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -46,8 +46,8 @@ class ComponentResizer extends MouseAdapter {
 	private final static Dimension MINIMUM_SIZE = new Dimension(10, 10);
 	private final static Dimension MAXIMUM_SIZE = new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE);
 
-	private static Map<Integer, Integer> cursors = new HashMap<Integer, Integer>();
-	{
+	private static final Map<Integer, Integer> cursors = new HashMap<>();
+	static {
 		cursors.put(1, Cursor.N_RESIZE_CURSOR);
 		cursors.put(2, Cursor.W_RESIZE_CURSOR);
 		cursors.put(4, Cursor.S_RESIZE_CURSOR);
@@ -187,7 +187,7 @@ class ComponentResizer extends MouseAdapter {
 	/**
 	 * Remove listeners from the specified component
 	 *
-	 * @param component the component the listeners are removed from
+	 * @param components the component the listeners are removed from
 	 */
 	public void deregisterComponent(final Component... components) {
 		for (final Component component : components) {
@@ -199,7 +199,7 @@ class ComponentResizer extends MouseAdapter {
 	/**
 	 * Add the required listeners to the specified component
 	 *
-	 * @param component the component the listeners are added to
+	 * @param components the component the listeners are added to
 	 */
 	public void registerComponent(final Component... components) {
 		for (final Component component : components) {
@@ -344,7 +344,7 @@ class ComponentResizer extends MouseAdapter {
 	 */
 	@Override
 	public void mouseDragged(final MouseEvent e) {
-		if (resizing == false)
+		if (!resizing)
 			return;
 
 		final Component source = e.getComponent();

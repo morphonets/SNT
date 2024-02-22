@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -39,7 +39,6 @@ import ij3d.ContentCreator;
 import ij3d.Image3DUniverse;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
-import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imagej.ops.OpService;
 import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
@@ -80,7 +79,6 @@ import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.SWCImportOptionsDialog;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.tracing.*;
@@ -114,12 +112,12 @@ public class SNT extends MultiDThreePanes implements
 	SearchProgressCallback, HessianGenerationCallback, PathAndFillListener
 {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	@Parameter
 	private Context context;
 	@Parameter
 	protected StatusService statusService;
-	@Parameter
-	protected LegacyService legacyService;
 	@Parameter
 	private LogService logService;
 	@Parameter
@@ -167,7 +165,12 @@ public class SNT extends MultiDThreePanes implements
 
 		@Override
 		public String toString() {
-			return StringUtils.capitalize(super.toString().toLowerCase());
+			switch (this) {
+			case DIFFERENCE_SQUARED:
+				return "Difference Sq."; // OtherWise too wide for FillManagerUI type label!?
+			default:
+				return StringUtils.capitalize(super.toString().toLowerCase());
+			}
 		}
 	}
 	public enum HeuristicType {
@@ -211,28 +214,27 @@ public class SNT extends MultiDThreePanes implements
 	private int paths3DDisplay = 1;
 
 	/* UI and tracing preferences */
-	volatile protected int cursorSnapWindowXY;
-	volatile protected int cursorSnapWindowZ;
-	volatile protected boolean autoCanvasActivation;
-	volatile protected boolean panMode;
-	volatile protected boolean snapCursor;
-	volatile protected boolean unsavedPaths = false;
-	volatile protected boolean showOnlySelectedPaths;
-	volatile protected boolean showOnlyActiveCTposPaths;
-	volatile protected boolean activateFinishedPath;
-	volatile protected boolean requireShiftToFork;
+	protected volatile int cursorSnapWindowXY;
+	protected volatile int cursorSnapWindowZ;
+	protected volatile boolean autoCanvasActivation;
+	protected volatile boolean panMode;
+	protected volatile boolean snapCursor;
+	protected volatile boolean showOnlySelectedPaths;
+	protected volatile boolean showOnlyActiveCTposPaths;
+	protected volatile boolean activateFinishedPath;
+	protected volatile boolean requireShiftToFork;
 	private boolean drawDiameters;
 
 	private boolean manualOverride = false;
 	private double fillThresholdDistance = 0.1d;
 
 	/*
-	 * Just for convenience, keep casted references to the superclass's
+	 * Just for convenience, keep cast references to the superclass's
 	 * InteractiveTracerCanvas objects:
 	 */
-	private InteractiveTracerCanvas xy_tracer_canvas;
-	private InteractiveTracerCanvas xz_tracer_canvas;
-	private InteractiveTracerCanvas zy_tracer_canvas;
+	InteractiveTracerCanvas xy_tracer_canvas;
+	InteractiveTracerCanvas xz_tracer_canvas;
+	InteractiveTracerCanvas zy_tracer_canvas;
 
 	/* Image properties */
 	protected int width, height, depth;
@@ -246,9 +248,9 @@ public class SNT extends MultiDThreePanes implements
 	private LUT lut;
 
 	/* all tracing and filling-related functions are performed on the Imgs */
-	private Dataset dataset;
+	Dataset dataset;
 	@SuppressWarnings("rawtypes")
-	private RandomAccessibleInterval ctSlice3d;
+	RandomAccessibleInterval ctSlice3d;
 
 	/* statistics for main image*/
 	private final ImageStatistics stats = new ImageStatistics();
@@ -278,11 +280,11 @@ public class SNT extends MultiDThreePanes implements
 	private ManualTracerThread manualSearchThread = null;
 
 	/* Search artists */
-	private final Map<SearchInterface, SearchArtist> searchArtists = new HashMap<>();
+	Map<SearchInterface, SearchArtist> searchArtists = new HashMap<>();
 
 	/*
 	 * Fields for tracing on secondary data: a filtered image. This can work in one
-	 * of two ways: image is loaded into memory or we waive its file path to a
+	 * of two ways: image is loaded into memory, or we waive its file path to a
 	 * third-party class that will parse it
 	 */
 	protected boolean doSearchOnSecondaryData;
@@ -298,7 +300,7 @@ public class SNT extends MultiDThreePanes implements
 	 * finished it (in the sense of moving on to a new path with a differen starting
 	 * point.) //FIXME: this may be redundant - check that.
 	 */
-	volatile private boolean pathUnfinished = false;
+	private volatile boolean pathUnfinished = false;
 	private Path editingPath; // Path being edited when in 'Edit Mode'
 	private Path previousEditingPath; // reference to the 'last selected' path when in 'Edit Mode'
 
@@ -321,7 +323,7 @@ public class SNT extends MultiDThreePanes implements
 	protected volatile boolean tracingHalted = false; // Tracing functions paused?
 
 	/* Insertion order is used to assign label values in a labeling image */
-	final Set<FillerThread> fillerSet = new LinkedHashSet<>();
+	Set<FillerThread> fillerSet = new LinkedHashSet<>();
 	ExecutorService fillerThreadPool;
 
 	ExecutorService tracerThreadPool;
@@ -500,10 +502,10 @@ public class SNT extends MultiDThreePanes implements
 		if (accessToValidImageData()) getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, false);
 	}
 
-	private void nullifyCanvases() {
+	private void nullifyCanvases(final boolean disposeXY) {
 		if (xy != null) {
 			xy.changes = false;
-			xy.close();
+			if (disposeXY) xy.close();
 			xy = null;
 		}
 		if (zy != null) {
@@ -528,7 +530,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public boolean accessToValidImageData() {
-		return getImagePlus() != null && !isDisplayCanvas(xy);
+		return ctSlice3d != null; //getImagePlus() != null && !isDisplayCanvas(xy);
 	}
 
 	private void setIsDisplayCanvas(final ImagePlus imp) {
@@ -540,7 +542,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private void assembleDisplayCanvases() {
-		nullifyCanvases();
+		nullifyCanvases(true);
 		if (pathAndFillManager.size() == 0) {
 			// not enough information to proceed. Assemble a dummy canvas instead
 			xy = NewImage.createByteImage("Display Canvas", 1, 1, 1,
@@ -604,16 +606,17 @@ public class SNT extends MultiDThreePanes implements
 
 	@Override
 	public void initialize(final ImagePlus imp) {
-		final  Roi sourceImageROI = imp.getRoi();
+		final Roi sourceImageROI = imp.getRoi();
+		final boolean sameImp = imp == xy;
 		if (accessToValidImageData() && getPrefs().getTemp(SNTPrefs.RESTORE_LOADED_IMGS, false)) {
 			rebuildWindow(xy);
 			xy = null;
 		}
-		nullifyCanvases();
+		nullifyCanvases(!sameImp);
 		setFieldsFromImage(imp);
 		changeUIState(SNTUI.LOADING);
 		initialize(getSinglePane(), channel = imp.getC(), frame = imp.getT());
-		tracingHalted = !inputImageLoaded();
+		tracingHalted = !accessToValidImageData();
 		updateUIFromInitializedImp(imp.isVisible());
 		xy.setRoi(sourceImageROI);
 	 }
@@ -670,6 +673,12 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
+	public void initialize(final boolean singlePane, final int channel,
+						   final int frame, final boolean computeStackStats) {
+		setUseSubVolumeStats(!computeStackStats); // This MUST be called before initialize()
+		initialize(singlePane, channel, frame);
+	}
+
 	private void addListener(final InteractiveTracerCanvas canvas) {
 		final QueueJumpingKeyListener listener = new QueueJumpingKeyListener(this,
 			canvas);
@@ -708,6 +717,7 @@ public class SNT extends MultiDThreePanes implements
 		if (!xz.isVisible()) xz.show();
 	}
 
+	@SuppressWarnings("unchecked")
 	private void loadDatasetFromImagePlus(final ImagePlus imp) {
 		statusService.showStatus("Loading data...");
 		this.dataset = convertService.convert(imp, Dataset.class);
@@ -715,16 +725,14 @@ public class SNT extends MultiDThreePanes implements
 		SNTUtils.log("Dataset dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(dataset)));
 		SNTUtils.log("CT HyperSlice dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(this.ctSlice3d)));
 		statusService.showStatus("Finding stack minimum / maximum");
-		final boolean restoreROI = imp.getRoi() != null && imp.getRoi() instanceof PointRoi;
+		final boolean restoreROI = imp.getRoi() instanceof PointRoi;
 		if (restoreROI) imp.saveRoi();
 		imp.deleteRoi(); // if a ROI exists, compute min/ max for entire image
 		if (restoreROI) imp.restoreRoi();
-//		ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX | ImageStatistics.MEAN |
-//				ImageStatistics.STD_DEV);
-//		this.stats.min = imgStats.min;
-//		this.stats.max = imgStats.max;
-//		this.stats.mean = imgStats.mean;
-//		this.stats.stdDev = imgStats.stdDev;
+		if (!getUseSubVolumeStats()) {
+			SNTUtils.log("Computing stack statistics");
+			computeImgStats(Views.iterable(this.ctSlice3d), getStats());
+		}
 		updateLut();
 	}
 
@@ -740,18 +748,23 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
-	public void loadTracings(final File file) {
+	public boolean loadTracings(final File file) {
 		if (file != null && file.exists()) {
 			if (isUIready()) ui.changeState(SNTUI.LOADING);
-			if (pathAndFillManager.load(file.getAbsolutePath())) {
-				prefs.setRecentDir(file);
-			}
+			final boolean success = pathAndFillManager.load(file.getAbsolutePath());
+			if (success) prefs.setRecentDir(file);
 			if (isUIready()) ui.resetState();
+			return success;
 		}
+		return false;
 	}
 
-	protected boolean isChangesUnsaved() {
-		return unsavedPaths && pathAndFillManager.size() > 0;
+	protected boolean isUnsavedChanges() {
+		return pathAndFillManager.unsavedPaths && pathAndFillManager.size() > 0;
+	}
+
+	protected boolean setUnsavedChanges(final boolean b) {
+		return pathAndFillManager.unsavedPaths = b;
 	}
 
 	public PathAndFillManager getPathAndFillManager() {
@@ -799,6 +812,24 @@ public class SNT extends MultiDThreePanes implements
 	{
 		return new InteractiveTracerCanvas(imagePlus, this, plane,
 			pathAndFillManager);
+	}
+
+	protected void dispose() {
+		// dispose data structures
+		cancelSearch(true);
+		ui = null;
+		flushSecondaryData();
+		ctSlice3d = null;
+		dataset = null;
+		//searchArtists.clear(); fillerSet.clear();
+		searchArtists = null;
+		fillerSet = null;
+		notifyListeners(new SNTEvent(SNTEvent.QUIT));
+		closeAndResetAllPanes();
+		xy_tracer_canvas = null;
+		xz_tracer_canvas = null;
+		zy_tracer_canvas = null;
+		SNTUtils.setPlugin(null);
 	}
 
 	public void cancelSearch(final boolean cancelFillToo) {
@@ -853,7 +884,7 @@ public class SNT extends MultiDThreePanes implements
 		return (ui == null) ? -1 : ui.getState();
 	}
 
-	synchronized protected void saveFill() {
+	protected synchronized void saveFill() {
 		if (fillerSet.isEmpty()) {
 			throw new IllegalArgumentException("No fills available.");
 		}
@@ -870,7 +901,7 @@ public class SNT extends MultiDThreePanes implements
 			getUI().getFillManager().changeState(FillManagerUI.State.READY);
 	}
 
-	synchronized protected void discardFill() {
+	protected synchronized void discardFill() {
 		if (fillerSet.isEmpty()) {
 			SNTUtils.log("No Fill(s) to discard...");
 		}
@@ -885,7 +916,7 @@ public class SNT extends MultiDThreePanes implements
 			getUI().getFillManager().changeState(FillManagerUI.State.READY);
 	}
 
-	synchronized protected void stopFilling() {
+	protected synchronized void stopFilling() {
 
 		if (fillerThreadPool == null) {
 			SNTUtils.log("No filler threads are currently running.");
@@ -913,7 +944,7 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
-	synchronized protected void startFilling() {
+	protected synchronized void startFilling() {
 		if (fillerSet.isEmpty()) {
 			throw new IllegalArgumentException("No Filters loaded");
 		}
@@ -928,7 +959,7 @@ public class SNT extends MultiDThreePanes implements
 			final Future<?> result = fillerThreadPool.submit(fillerThread);
 			futures.add(result);
 		}
-		SwingWorker<Object, Object> worker = new SwingWorker<Object, Object>() {
+		SwingWorker<Object, Object> worker = new SwingWorker<>() {
 			@Override
 			protected Object doInBackground() throws Exception {
 				for (final Future<?> future : futures) {
@@ -936,6 +967,7 @@ public class SNT extends MultiDThreePanes implements
 				}
 				return null;
 			}
+
 			@Override
 			protected void done() {
 				// FIXME: this is a bad solution to make sure we get the correct state when cancelling
@@ -959,7 +991,7 @@ public class SNT extends MultiDThreePanes implements
 
 	/* Listeners */
 	protected List<SNTListener> listeners = Collections.synchronizedList(
-		new ArrayList<SNTListener>());
+			new ArrayList<>());
 
 	public void addListener(final SNTListener listener) {
 		listeners.add(listener);
@@ -1060,10 +1092,6 @@ public class SNT extends MultiDThreePanes implements
 			getUIState() == SNTUI.TRACING_PAUSED);
 	}
 
-	// if (uiReadyForModeChange(SNTUI.ANALYSIS_MODE)) {
-	// getGuiUtils().tempMsg("Tracing image not available");
-	// return;
-	// }
 	protected Path getEditingPath() {
 		return editingPath;
 	}
@@ -1230,7 +1258,7 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
-	synchronized public void loadLabelsFile(final String path) {
+	public synchronized void loadLabelsFile(final String path) {
 
 		final AmiraMeshDecoder d = new AmiraMeshDecoder();
 
@@ -1266,59 +1294,40 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/** Assumes UI is available */
-	synchronized protected void loadTracesFile(File file) {
-		if (file == null) file = ui.openFile("Open .traces File...", "traces");
-		if (file == null) return; // user pressed cancel;
+	protected synchronized boolean loadTracesFile(File file) {
+		if (file == null)
+			file = ui.openReconstructionFile("traces");
+		if (file == null)
+			return false; // user pressed cancel;
 		if (!file.exists()) {
 			guiUtils.error(file.getAbsolutePath() + " is no longer available");
-			return;
+			return false;
 		}
-		final int guessedType = pathAndFillManager.guessTracesFileType(file
-			.getAbsolutePath());
+		final int guessedType = pathAndFillManager.guessTracesFileType(file.getAbsolutePath());
 		switch (guessedType) {
-			case PathAndFillManager.TRACES_FILE_TYPE_COMPRESSED_XML:
-				if (pathAndFillManager.loadCompressedXML(file.getAbsolutePath()))
-					unsavedPaths = false;
-				break;
-			case PathAndFillManager.TRACES_FILE_TYPE_UNCOMPRESSED_XML:
-				if (pathAndFillManager.loadUncompressedXML(file
-					.getAbsolutePath())) unsavedPaths = false;
-				break;
-			default:
-				guiUtils.error(file.getAbsolutePath() +
-					" is not a valid traces file.");
-				break;
+		case PathAndFillManager.TRACES_FILE_TYPE_COMPRESSED_XML:
+			return pathAndFillManager.loadCompressedXML(file.getAbsolutePath());
+		case PathAndFillManager.TRACES_FILE_TYPE_UNCOMPRESSED_XML:
+			return pathAndFillManager.loadUncompressedXML(file.getAbsolutePath());
+		default:
+			guiUtils.error(file.getAbsolutePath() + " is not a valid traces file.");
+			return false;
 		}
 	}
 
-	/** Assumes UI is available */
-	synchronized protected void loadSWCFile(File file) {
-		if (file == null) file = ui.openFile("Open (e)SWC File...", "swc");
-		if (file == null) return; // user pressed cancel;
-		if (!file.exists()) {
-			guiUtils.error(file.getAbsolutePath() + " is no longer available");
-			return;
+	protected synchronized boolean loadSWCFile(File file) {
+		if (getUI() != null) {
+			// backwards compatibility
+			getUI().runCommand("SWC...", file.getAbsolutePath());
+			return false; // no way to know if file was actually imported via GUI
 		}
-		final int guessedType = pathAndFillManager.guessTracesFileType(file
-			.getAbsolutePath());
-		switch (guessedType) {
-			case PathAndFillManager.TRACES_FILE_TYPE_SWC: {
-				final SWCImportOptionsDialog swcImportDialog =
-					new SWCImportOptionsDialog(getUI(), "SWC import options for " + file
-						.getName());
-				if (swcImportDialog.succeeded() && pathAndFillManager.importSWC(
-					file.getAbsolutePath(), swcImportDialog.getIgnoreCalibration(),
-					swcImportDialog.getXOffset(), swcImportDialog.getYOffset(),
-					swcImportDialog.getZOffset(), swcImportDialog.getXScale(),
-					swcImportDialog.getYScale(), swcImportDialog.getZScale(),
-					swcImportDialog.getReplaceExistingPaths())) unsavedPaths = false;
-				break;
-			}
-			default:
-				guiUtils.error(file.getAbsolutePath() +
-					" does not seem to contain valid SWC data.");
-				break;
+		final int guessedType = pathAndFillManager.guessTracesFileType(file.getAbsolutePath());
+		if (guessedType == PathAndFillManager.TRACES_FILE_TYPE_SWC) {
+			return pathAndFillManager.importSWC(file.getAbsolutePath(), false, 0, 0, 0, 1, 1, 1, 1, false);
+		} else {
+			error(file.getAbsolutePath() + " does not seem to contain valid SWC data.");
 		}
+		return false;
 	}
 
 	public void mouseMovedTo(final double x_in_pane, final double y_in_pane,
@@ -1403,7 +1412,7 @@ public class SNT extends MultiDThreePanes implements
 	// When we set temporaryPath, we also want to update the display:
 
 	@SuppressWarnings("deprecation")
-	synchronized public void setTemporaryPath(final Path path) {
+	public synchronized void setTemporaryPath(final Path path) {
 
 		final Path oldTemporaryPath = this.temporaryPath;
 
@@ -1427,7 +1436,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	@SuppressWarnings("deprecation")
-	synchronized public void setCurrentPath(final Path path) {
+	public synchronized void setCurrentPath(final Path path) {
 		final Path oldCurrentPath = this.currentPath;
 		currentPath = path;
 		if (currentPath != null) {
@@ -1449,13 +1458,14 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
-	synchronized public Path getCurrentPath() {
+	public synchronized Path getCurrentPath() {
 		return currentPath;
 	}
 
 	protected void setPathUnfinished(final boolean unfinished) {
 
 		this.pathUnfinished = unfinished;
+		pathAndFillManager.unsavedPaths = true;
 		getXYCanvas().setPathUnfinished(unfinished);
 		if (!single_pane) {
 			getZYCanvas().setPathUnfinished(unfinished);
@@ -1489,15 +1499,19 @@ public class SNT extends MultiDThreePanes implements
 	 * Create a new 8-bit ImagePlus of the same dimensions as this image, but with
 	 * values set to either 255 (if there's a point on a path there) or 0
 	 */
-	synchronized public ImagePlus makePathVolume(final Collection<Path> paths) {
+	public synchronized ImagePlus makePathVolume(final Collection<Path> paths) {
+		return makePathVolume(paths, false);
+	}
+
+	public synchronized ImagePlus makePathVolume(final Collection<Path> paths, final boolean labelsImage) {
 
 		final short[][] snapshot_data = new short[depth][];
 
 		for (int i = 0; i < depth; ++i)
 			snapshot_data[i] = new short[width * height];
 
-		pathAndFillManager.setPathPointsInVolume(paths, snapshot_data, (short) 255, width,
-			height, depth);
+		pathAndFillManager.setPathPointsInVolume(paths, snapshot_data, (labelsImage) ? (short)-1 : (short) 255, width,
+			height);
 
 		final ImageStack newStack = new ImageStack(width, height);
 
@@ -1513,8 +1527,8 @@ public class SNT extends MultiDThreePanes implements
 		return newImp;
 	}
 
-	synchronized public ImagePlus makePathVolume() {
-		return makePathVolume(pathAndFillManager.getPaths());
+	public synchronized ImagePlus makePathVolume() {
+		return makePathVolume(pathAndFillManager.getPaths(), false);
 	}
 
 	/* Start a search thread looking for the goal in the arguments: */
@@ -1523,7 +1537,7 @@ public class SNT extends MultiDThreePanes implements
 		return testPathTo(world_x, world_y, world_z, joinPoint, -1); // GUI execution
 	}
 
-	synchronized private Future<?> testPathTo(final double world_x,
+	private synchronized Future<?> testPathTo(final double world_x,
 											  final double world_y,
 											  final double world_z,
 											  final PointInImage joinPoint,
@@ -1617,6 +1631,20 @@ public class SNT extends MultiDThreePanes implements
 		addThreadToDraw(currentSearchThread);
 		currentSearchThread.addProgressListener(this);
 		return tracerThreadPool.submit(currentSearchThread);
+	}
+
+	protected <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
+																	final ImageStatistics imgStats) {
+		final Pair<T, T> minMax = opService.stats().minMax(in);
+		imgStats.min = minMax.getA().getRealDouble();
+		imgStats.max = minMax.getB().getRealDouble();
+		imgStats.mean = opService.stats().mean(in).getRealDouble();
+		imgStats.stdDev = opService.stats().stdDev(in).getRealDouble();
+		SNTUtils.log("Subvolume statistics: min=" + imgStats.min +
+				", max=" + imgStats.max +
+				", mean=" + imgStats.mean +
+				", stdDev=" + imgStats.stdDev);
+		return imgStats;
 	}
 
 	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
@@ -1793,7 +1821,7 @@ public class SNT extends MultiDThreePanes implements
 		return search;
 	}
 
-	synchronized public void confirmTemporary(final boolean updateTracingViewers) {
+	public synchronized void confirmTemporary(final boolean updateTracingViewers) {
 
 		if (temporaryPath == null)
 			// Just ignore the request to confirm a path (there isn't one):
@@ -1820,7 +1848,7 @@ public class SNT extends MultiDThreePanes implements
 		setCurrentPath(currentPath);
 	}
 
-	synchronized public void cancelTemporary() {
+	public synchronized void cancelTemporary() {
 
 		if (!lastStartPointSet) {
 			discreteMsg(
@@ -1843,7 +1871,7 @@ public class SNT extends MultiDThreePanes implements
 	/**
 	 * Cancels the temporary path.
 	 */
-	synchronized public void cancelPath() {
+	public synchronized void cancelPath() {
 
 		// Is there an unconfirmed path? If so, warn people about it...
 		if (temporaryPath != null) {
@@ -1979,7 +2007,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @param end the {@link PointInImage} the terminal point of the path
 	 * @param forkPoint the {@link PointInImage} fork point of the parent
 	 *          {@link Path} from which the searched path should branch off, or
-	 *          null if the the path should not have any parent.
+	 *          null if the path should not have any parent.
 	 * @return the path a reference to the computed path.
 	 * @see #autoTrace(List, PointInImage)
 	 */
@@ -2022,14 +2050,14 @@ public class SNT extends MultiDThreePanes implements
 	 *          the last its terminus. Null objects not allowed.
 	 * @param forkPoint the {@link PointInImage} fork point of the parent
 	 *          {@link Path} from which the searched path should branch off, or
-	 *          null if the the path should not have any parent.
+	 *          null if the path should not have any parent.
 	 * @return the path a reference to the computed path. It is added to the Path
 	 *         Manager list.If a path cannot be fully computed from the specified
 	 *         list of points, a single-point path is generated.
 	 */
 	public Path autoTrace(final List<SNTPoint> pointList, final PointInImage forkPoint)
 	{
-		if (pointList == null || pointList.size() == 0)
+		if (pointList == null || pointList.isEmpty())
 			throw new IllegalArgumentException("pointList cannot be null or empty");
 
 		final boolean existingEnableUIupdates = pathAndFillManager.enableUIupdates;
@@ -2084,7 +2112,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private Path autoTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint) {
-		if (pointList == null || pointList.size() == 0)
+		if (pointList == null || pointList.isEmpty())
 			throw new IllegalArgumentException("pointList cannot be null or empty");
 
 		if (tracerThreadPool == null || tracerThreadPool.isShutdown()) {
@@ -2126,7 +2154,7 @@ public class SNT extends MultiDThreePanes implements
 		return fullPath;
 	}
 
-	synchronized protected void replaceCurrentPath(final Path path) {
+	protected synchronized void replaceCurrentPath(final Path path) {
 		if (currentPath != null) {
 			discreteMsg("An active temporary path already exists...");
 			return;
@@ -2135,7 +2163,6 @@ public class SNT extends MultiDThreePanes implements
 //			discreteMsg("Please finish current operation before extending "+ path.getName());
 //			return;
 //		}
-		unsavedPaths = true;
 		lastStartPointSet = true;
 		selectPath(path, false);
 		setPathUnfinished(true);
@@ -2148,7 +2175,7 @@ public class SNT extends MultiDThreePanes implements
 		updateAllViewers();
 	}
 
-	synchronized protected void finishedPath() {
+	protected synchronized void finishedPath() {
 
 		if (currentPath == null) {
 			// this can happen through repeated hotkey presses
@@ -2181,7 +2208,6 @@ public class SNT extends MultiDThreePanes implements
 		removeSphere(targetBallName);
 		if (pathAndFillManager.getPathFromID(currentPath.getID()) == null)
 			pathAndFillManager.addPath(currentPath, true, false, false);
-		unsavedPaths = true;
 		lastStartPointSet = false;
 		if (activateFinishedPath) selectPath(currentPath, false);
 		setPathUnfinished(false);
@@ -2192,7 +2218,7 @@ public class SNT extends MultiDThreePanes implements
 		updateTracingViewers(true);
 	}
 
-	synchronized protected void clickForTrace(final Point3d p, final boolean join) {
+	protected synchronized void clickForTrace(final Point3d p, final boolean join) {
 		final double x_unscaled = p.x / x_spacing;
 		final double y_unscaled = p.y / y_spacing;
 		final double z_unscaled = p.z / z_spacing;
@@ -2200,7 +2226,7 @@ public class SNT extends MultiDThreePanes implements
 		clickForTrace(p.x, p.y, p.z, join);
 	}
 
-	synchronized protected void clickForTrace(final double world_x,
+	protected synchronized void clickForTrace(final double world_x,
 		final double world_y, final double world_z, final boolean join)
 	{
 
@@ -2231,7 +2257,6 @@ public class SNT extends MultiDThreePanes implements
 			} catch (final Exception ex) {
 				if (getUI() != null) {
 					getUI().error(ex.getMessage());
-					getUI().enableSecondaryLayerBuiltin(false);
 					getUI().reset();
 				}
 				SNTUtils.error(ex.getMessage(), ex);
@@ -2245,7 +2270,7 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
-	synchronized protected void clickForTrace(final double x_in_pane_precise,
+	protected synchronized void clickForTrace(final double x_in_pane_precise,
 		final double y_in_pane_precise, final int plane, final boolean join)
 	{
 
@@ -2483,7 +2508,7 @@ public class SNT extends MultiDThreePanes implements
 		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
-	synchronized public void initPathsToFill(final Set<Path> fromPaths) {
+	public synchronized void initPathsToFill(final Set<Path> fromPaths) {
 		fillerSet.clear();
 		pathAndFillManager.getLoadedFills().clear();
 		final boolean useSecondary = isTracingOnSecondaryImageActive();
@@ -2492,29 +2517,25 @@ public class SNT extends MultiDThreePanes implements
 		Cost costFunction;
 		switch (costType) {
 			case RECIPROCAL:
-				if (imgStats.max == 0) {
-					invalidStatsError(useSecondary);
+				if (invalidStatsError(useSecondary)) {
 					return;
 				}
 				costFunction = new Reciprocal(imgStats.min, imgStats.max);
 				break;
 			case PROBABILITY:
-				if (imgStats.max == 0 || imgStats.mean == 0 || imgStats.stdDev == 0) {
-					invalidStatsError(useSecondary);
+				if (invalidStatsError(useSecondary) && imgStats.stdDev == 0) {
 					return;
 				}
 				costFunction = new OneMinusErf(imgStats.max, imgStats.mean, imgStats.stdDev);
 				break;
 			case DIFFERENCE:
-				if (imgStats.max == 0) {
-					invalidStatsError(useSecondary);
+				if (invalidStatsError(useSecondary)) {
 					return;
 				}
 				costFunction = new Difference(imgStats.min, imgStats.max);
 				break;
 			case DIFFERENCE_SQUARED:
-				if (imgStats.max == 0) {
-					invalidStatsError(useSecondary);
+				if (invalidStatsError(useSecondary)) {
 					return;
 				}
 				costFunction = new DifferenceSq(imgStats.min, imgStats.max);
@@ -2538,17 +2559,29 @@ public class SNT extends MultiDThreePanes implements
 				costFunction);
 		addThreadToDraw(filler);
 		filler.addProgressListener(this);
-		filler.addProgressListener(ui.getFillManager());
+		if (getUI() != null) filler.addProgressListener(ui.getFillManager());
 		filler.setSourcePaths(fromPaths);
 		fillerSet.add(filler);
-		if (ui != null) ui.setFillListVisible(true);
+		if (getUI() != null) ui.setFillListVisible(true);
 		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
-	protected void invalidStatsError(final boolean isSecondary) {
-		guiUtils.error("Statistics for the " + (isSecondary ? "Secondary Layer" : "main image")
-				+ " have not been computed yet. Please trace a small path over a relevant feature to compute them."
-				+ " This will allow SNT to better understand the dynamic range of the image.");
+	protected <T extends RealType<T>> boolean invalidStatsError(final boolean isSecondary) {
+		final boolean invalidStats = (isSecondary) ? getStatsSecondary().max == 0 : getStats().max == 0;
+		final boolean compute = invalidStats && getUI() != null && getUI().guiUtils.getConfirmation(
+				"Statistics for the " + (isSecondary ? "Secondary Layer" : "main image") //
+						+ " have not been computed yet, but are required to better understand the image being traced. "
+						+ "You can either compute them now for the whole image, or you can dismiss this prompt and "
+						+ "trace a (small) path over a relevant feature, which will compute statistics locally.", //
+				"Unknown Image Statistics", "Compute Now", "Dismiss");
+		if (compute) {
+			final RandomAccessibleInterval<T> data = (isSecondary) ? getSecondaryData() : getLoadedData();
+			computeImgStats(Views.iterable(data), (isSecondary) ? getStatsSecondary() : getStats(), CostType.RECIPROCAL);
+		} else if (getUI() == null) {
+			error("Statistics for the " + (isSecondary ? "Secondary Layer" : "main image")
+					+ " have not been computed yet. Please trace small path over a relevant feature to compute them.");
+		}
+		return (isSecondary) ? getStatsSecondary().max == 0 : getStats().max == 0;
 	}
 
 	protected void setFillTransparent(final boolean transparent) {
@@ -2581,7 +2614,7 @@ public class SNT extends MultiDThreePanes implements
 	 *         traced, or null if no image data has been loaded into memory.
 	 */
 	public <T extends RealType<T>> ImagePlus getLoadedDataAsImp() {
-		if (!inputImageLoaded())
+		if (!accessToValidImageData())
 			return null;
 		final RandomAccessibleInterval<T> data = getLoadedData();
 		final ImagePlus imp = ImgUtils.raiToImp(data, "Image");
@@ -2596,6 +2629,11 @@ public class SNT extends MultiDThreePanes implements
 		@SuppressWarnings("unchecked")
 		final RandomAccessibleInterval<T> data = Views.dropSingletonDimensions(this.ctSlice3d);
 		return data;
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	public <T> IterableInterval getLoadedIterable() {
+		return Views.iterable(ctSlice3d);
 	}
 
 	/**
@@ -2618,12 +2656,8 @@ public class SNT extends MultiDThreePanes implements
 		return getSecondaryData() != null;
 	}
 
-	public boolean isSecondaryImageFileLoaded() {
+	protected boolean isSecondaryImageFileLoaded() {
 		return secondaryImageFile != null;
-	}
-
-	protected boolean inputImageLoaded() {
-		return this.dataset != null;
 	}
 
 	protected boolean isTracingOnSecondaryImageAvailable() {
@@ -2637,7 +2671,7 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public void setSecondaryImage(final File file) {
 		secondaryImageFile = file;
-		if (ui != null) ui.updateExternalImgWidgets();
+		if (ui != null) ui.updateSecLayerWidgets();
 	}
 
 	/**
@@ -2686,7 +2720,7 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
-		imp.setPosition( channel, xy.getSlice(), frame );
+		imp.setPosition( channel, xy.getSlice(), frame ); // important! sets the channel/frame to be imported. Does nothing if image is not a hyperstack
 		secondaryData = ImgUtils.getCtSlice(imp);
 		SNTUtils.log("Secondary data dimensions: " +
 				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
@@ -2704,9 +2738,6 @@ public class SNT extends MultiDThreePanes implements
 		enableSecondaryLayerTracing(true);
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
-			if (getUI() != null) {
-				getUI().enableSecondaryLayerExternal(true);
-			}
 		}
 	}
 
@@ -2739,9 +2770,6 @@ public class SNT extends MultiDThreePanes implements
 		enableSecondaryLayerTracing(true);
 		if (changeUIState) {
 			changeUIState(SNTUI.WAITING_TO_START_PATH);
-			if (getUI() != null) {
-				getUI().enableSecondaryLayerBuiltin(true);
-			}
 		}
 	}
 
@@ -2792,28 +2820,24 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
-	private boolean compatibleImp(final ImagePlus imp) {
-		return imp.getNChannels() == xy.getNChannels() && imp.getNFrames() == xy.getNFrames() &&
-				imp.getWidth() == xy.getWidth() && imp.getHeight() == xy.getHeight() &&
-				imp.getNSlices() == xy.getNSlices();
-	}
-
 	private ImagePlus openCachedDataImage(final File file) throws IOException {
 		if (xy == null) throw new IllegalArgumentException(
 			"Data can only be loaded after main tracing image is known");
 		if (!SNTUtils.fileAvailable(file)) {
 			throw new IllegalArgumentException("File path of input data unknown");
 		}
-		ImagePlus imp = (ImagePlus) legacyService.getIJ1Helper().openImage(file.getAbsolutePath());
+		ImagePlus imp = ij.IJ.openImage(file.getAbsolutePath());
 		if (imp == null) {
 			final Dataset ds = datasetIOService.open(file.getAbsolutePath());
 			if (ds == null)
 				throw new IllegalArgumentException("Image could not be loaded by IJ.");
 			imp = convertService.convert(ds, ImagePlus.class);
 		}
-		if (!compatibleImp(imp)) {
+		if (!ImpUtils.sameXYZDimensions(imp, xy)) {
+			// We are imposing only XYZ dimensions to e.g., allow for loading of single-channel
+			// p-maps. Hopefully, being lax about CT dimensions won't cause issues downstream
 			throw new IllegalArgumentException("Dimensions do not match those of  " + xy.getTitle()
-			+ ". If this unexpected, check under 'Image>Properties...' that CZT axes are not swapped.");
+			+ ". If this is unexpected, check under 'Image>Properties...' that CZT axes are not swapped.");
 		}
 		return imp;
 	}
@@ -2989,19 +3013,6 @@ public class SNT extends MultiDThreePanes implements
 		return xy_tracer_canvas;
 	}
 
-	private Component getActiveCanvas() {
-		if (!isUIready()) return null;
-		final List<Component> components = new ArrayList<>();
-		components.add(xy_canvas);
-		components.add(xz_canvas);
-		components.add(zy_canvas);
-		if (univ != null) components.add(univ.getCanvas());
-		for (final Component c : components) {
-			if (c != null && c.isFocusOwner()) return c;
-		}
-		return null;
-	}
-
 	protected Component getActiveWindow() {
 		if (!isUIready()) return null;
 		if (ui.isActive()) return ui;
@@ -3064,8 +3075,7 @@ public class SNT extends MultiDThreePanes implements
 	 * Gets the instance of the legacy 3D viewer universe. Note that the legacy 3D
 	 * viewer is now deprecated.
 	 *
-	 * @return the a reference to the 3DUniverse or null if no universe has been
-	 *         set
+	 * @return a reference to the 3DUniverse or null if no universe has been set
 	 */
 	@Deprecated
 	protected Image3DUniverse get3DUniverse() {
@@ -3182,7 +3192,7 @@ public class SNT extends MultiDThreePanes implements
 	@Override
 	public void setFillList(final List<Fill> fillList) {}  // ignored
 
-	// Note that rather unexpectedly the p.setSelcted calls make sure that
+	// Note that rather unexpectedly the p.setSelected calls make sure that
 	// the colour of the path in the 3D viewer is right... (FIXME)
 	@Override
 	public void setSelectedPaths(final Collection<Path> selectedPathsSet,
@@ -3191,12 +3201,7 @@ public class SNT extends MultiDThreePanes implements
 		if (source == this) return;
 		for (int i = 0; i < pathAndFillManager.size(); ++i) {
 			final Path p = pathAndFillManager.getPath(i);
-			if (selectedPathsSet.contains(p)) {
-				p.setSelected(true);
-			}
-			else {
-				p.setSelected(false);
-			}
+				p.setSelected(selectedPathsSet.contains(p));
 		}
 	}
 
@@ -3345,7 +3350,7 @@ public class SNT extends MultiDThreePanes implements
 				xy8 = getSecondaryDataAsImp();
 		} else 
 			xy8 = getLoadedDataAsImp();
-		SNTUtils.convertTo8bit(xy8);
+		ImpUtils.convertTo8bit(xy8);
 		final ImagePlus[] views = (single_pane) ? new ImagePlus[] { null, null } : MultiDThreePanes.getZYXZ(xy8, 1);
 		return new ImagePlus[] { xy8, views[0], views[1] };
 	}
@@ -3369,7 +3374,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void showMIPOverlays(final boolean filteredData, final double opacity) {
-		if (is2D() || !accessToValidImageData()) return;
+		if ((is2D() && !filteredData) || !accessToValidImageData()) return;
 		final String identifer = (filteredData) ? MIP_OVERLAY_IDENTIFIER_PREFIX + "2"
 				: MIP_OVERLAY_IDENTIFIER_PREFIX + "1";
 		if (opacity == 0d) {
@@ -3379,24 +3384,22 @@ public class SNT extends MultiDThreePanes implements
 		}
 		final ImagePlus[] paneImps = new ImagePlus[] { xy, zy, xz };
 		final ImagePlus[] paneMips = getXYZYXZDataGray8(filteredData);
-		if (paneMips != null) showMIPOverlays(paneImps, paneMips, identifer,opacity);
+		if (paneMips != null) showMIPOverlays(filteredData, paneImps, paneMips, identifer,opacity);
 	}
 
-	private void showMIPOverlays(ImagePlus[] paneImps, ImagePlus[] paneMips, final String overlayIdentifier,
-			final double opacity) {
-
+	private void showMIPOverlays(final boolean filteredData, ImagePlus[] paneImps, ImagePlus[] paneMips,
+			final String overlayIdentifier, final double opacity) {
 		// Create a MIP Z-projection of the active channel
 		for (int i = 0; i < paneImps.length; i++) {
 			final ImagePlus paneImp = paneImps[i];
 			final ImagePlus mipImp = paneMips[i];
-			if (paneImp == null || mipImp == null || paneImp.getNSlices() == 1)
+			if (paneImp == null || mipImp == null || (paneImp.getNSlices() == 1 && !filteredData))
 				continue;
-
 			Overlay existingOverlay = paneImp.getOverlay();
 			if (existingOverlay == null) existingOverlay = new Overlay();
-			final ImagePlus overlay = SNTUtils.getMIP(mipImp);
+			final ImagePlus overlay = ImpUtils.getMIP(mipImp);
 
-			// (This logic is taken from OverlayCommands.)
+			// (This logic is taken from OverlayCommands)
 			final ImageRoi roi = new ImageRoi(0, 0, overlay.getProcessor());
 			roi.setName(overlayIdentifier);
 			roi.setOpacity(opacity);
@@ -3408,7 +3411,7 @@ public class SNT extends MultiDThreePanes implements
 
 	protected void discreteMsg(final String msg) { /* HTML format */
 		if (pathAndFillManager.enableUIupdates)
-			new GuiUtils(getActiveCanvas()).tempMsg(msg);
+			new GuiUtils(getActiveWindow()).tempMsg(msg);
 	}
 
 	protected boolean getConfirmation(final String msg, final String title) {
@@ -3421,18 +3424,20 @@ public class SNT extends MultiDThreePanes implements
 
 	/**
 	 * Enables SNT's XYZ snap cursor feature. Does nothing if no image data is
-	 * available
+	 * available or currently loaded image is binary
 	 *
 	 * @param enable whether cursor snapping should be enabled
 	 */
 	public synchronized void enableSnapCursor(final boolean enable) {
 		final boolean validImage = accessToValidImageData();
-		snapCursor = enable && validImage;
+		final boolean isBinary = validImage && xy.getProcessor().isBinary();
+		snapCursor = enable && validImage && !isBinary;
 		if (isUIready()) {
 			if (enable && !validImage) {
 				ui.noValidImageDataError();
 			}
 			ui.useSnapWindow.setSelected(snapCursor);
+			ui.useSnapWindow.setEnabled(!isBinary);
 			ui.snapWindowXYsizeSpinner.setEnabled(snapCursor);
 			ui.snapWindowZsizeSpinner.setEnabled(snapCursor && !is2D());
 		}
@@ -3526,7 +3531,7 @@ public class SNT extends MultiDThreePanes implements
 		imp.hide();
 		imp.setRoi(roi);
 		imp.show();
-		imp.changes = existingChanges || (roi != null && roi instanceof PointRoi);
+		imp.changes = existingChanges || roi instanceof PointRoi;
 	}
 
 	

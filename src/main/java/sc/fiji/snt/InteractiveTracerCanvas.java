@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -48,12 +48,15 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 class InteractiveTracerCanvas extends TracerCanvas {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private static final long serialVersionUID = 1L;
 	private final SNT tracerPlugin;
@@ -103,7 +106,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 		final AListener listener = new AListener();
 		pMenu.add(menuItem(AListener.SELECT_NEAREST, listener, KeyEvent.VK_G));
-		pMenu.add(menuItem(AListener.APPEND_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_MASK)));
+		pMenu.add(menuItem(AListener.APPEND_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_DOWN_MASK)));
 		final JMenuItem selectByRoi = new JMenuItem("Select Paths by 2D ROI");
 		selectByRoi.addActionListener( e -> {
 			if (pathAndFillManager.size() == 0) {
@@ -111,7 +114,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				return;
 			}
 			if (getImage().getRoi() != null && selectPathsByRoi()) {
-				return; // a ROI existed and we successfully used it to select paths
+				return; // a ROI existed, and we successfully used it to select paths
 			} else {
 				// User still has to create ROI
 				waitingForRoiDrawing = true;
@@ -137,26 +140,26 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		pMenu.add(toggleEditModeMenuItem);
 
 		pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B));
-		pMenu.add(menuItem(AListener.NODE_DELETE, listener, KeyEvent.VK_D));
-		pMenu.add(menuItem(AListener.NODE_INSERT, listener, KeyEvent.VK_I));
-		pMenu.add(menuItem(AListener.NODE_LOCK, listener, KeyEvent.VK_L));
-		pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M));
-		pMenu.add(menuItem(AListener.NODE_SPLIT, listener, KeyEvent.VK_X));
-		pMenu.addSeparator();
-
 		connectToSecondaryEditingPath = menuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER, listener);
 		connectToSecondaryEditingPath.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0));
 		connectToSecondaryEditingPath.setMnemonic(KeyEvent.VK_C);
 		pMenu.add(connectToSecondaryEditingPath);
 		pMenu.add(helpOnConnectingMenuItem());
+		pMenu.add(menuItem(AListener.NODE_DELETE, listener, KeyEvent.VK_D));
+		pMenu.add(menuItem(AListener.NODE_INSERT, listener, KeyEvent.VK_I));
+		pMenu.add(menuItem(AListener.NODE_LOCK, listener, KeyEvent.VK_L));
+		pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M));
+		pMenu.add(menuItem(AListener.NODE_RADIUS, listener, KeyEvent.VK_R));
+		pMenu.add(menuItem(AListener.NODE_SPLIT, listener, KeyEvent.VK_X));
 		pMenu.addSeparator();
-
 		pMenu.add(menuItem(AListener.NODE_RESET, listener));
 		pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
+		final JMenuItem jmi = menuItem(AListener.NODE_COLOR, listener, null);
+		jmi.setToolTipText("<HTML>Assigns a unique color to active node.<br>"
+				+ "NB: Overall rendering of path may change once tag is applied");
+		pMenu.add(jmi);
 		pMenu.addSeparator();
 
-		pMenu.add(menuItem(AListener.START_SHOLL, listener, 
-				KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_MASK + KeyEvent.ALT_MASK)));
 		final JMenuItem countSpines = new JMenuItem("Count Spine/Varicosities...");
 		final boolean[] firstTimeCallingCountSpines = {true};
 		countSpines.addActionListener(e -> {
@@ -173,6 +176,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			}
 		});
 		pMenu.add(countSpines);
+		pMenu.add(menuItem(AListener.START_SHOLL, listener, 
+				KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK + KeyEvent.ALT_DOWN_MASK)));
 		pMenu.addSeparator();
 
 		// Add a silly pan entry, just to remind users that the functionality exists.
@@ -240,7 +245,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				else if (cmd.equals(AListener.NODE_RESET) || cmd.equals(AListener.NODE_DELETE)
 						|| cmd.equals(AListener.NODE_INSERT) || cmd.equals(AListener.NODE_LOCK)
 						|| cmd.equals(AListener.NODE_MOVE) || cmd.equals(AListener.NODE_SET_ROOT)
-						|| cmd.equals(AListener.NODE_SPLIT)) {
+						|| cmd.equals(AListener.NODE_SPLIT) || cmd.equals(AListener.NODE_RADIUS)
+						|| cmd.equals(AListener.NODE_COLOR) || cmd.equals(AListener.NODE_CONNECT_HELP)) {
 					mItem.setEnabled(be && editMode);
 				} else {
 					mItem.setEnabled(true);
@@ -337,12 +343,12 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			"  <li>Loop-forming connections are not allowed</li>" +
 			"  <li>To concatenate or combine paths, use the respective commands in Path Manager's Edit menu</li>" +
 			"</ol>";
-		final JMenuItem helpItem = new JMenuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help...");
+		final JMenuItem helpItem = new JMenuItem(AListener.NODE_CONNECT_HELP);
 		helpItem.addActionListener(e -> {
 			final boolean canvasActivationState = tracerPlugin.autoCanvasActivation;
 			tracerPlugin.enableAutoActivation(false); // this will not update the checkbox state in SNTUI, but 
 													  // ensures the help dialog will maintain its frontmost state
-			getGuiUtils().showHTMLDialog(msg, AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + "Help", false)
+			getGuiUtils().showHTMLDialog(msg, AListener.NODE_CONNECT_HELP, false)
 					.addWindowListener(new WindowAdapter() {
 						@Override
 						public void windowClosing(final WindowEvent e) {
@@ -367,7 +373,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 	private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke) {
 		final JMenuItem mi = menuItem(cmdName, lstnr);
-		mi.setAccelerator(keystroke);
+		if (keystroke != null)
+			mi.setAccelerator(keystroke);
 		return mi;
 	}
 
@@ -494,7 +501,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			last_y_in_pane_precise, plane, p);
 		final PointInCanvas cursor = new PointInCanvas(p[0], p[1], 0);
 
-		final NearPointInCanvas nearPoint = NearPointInCanvas.nearestPointInCanvas(nodes, cursor);
+		final NearPointInCanvas<PointInCanvas> nearPoint = NearPointInCanvas.nearestPointInCanvas(nodes, cursor);
 		if (nearPoint == null) {
 			getGuiUtils().tempMsg("No selectable paths in view");
 		}
@@ -598,7 +605,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	/* See ImageCanvas#handlePopupMenu(me); */
 	private boolean isPopupTrigger(final MouseEvent me) {
 		return (me.isPopupTrigger() || (!PlatformUtils.isMac() && (me
-			.getModifiers() & Event.META_MASK) != 0));
+			.getModifiersEx() & MouseEvent.META_DOWN_MASK) != 0));
 	}
 
 	@Override
@@ -818,7 +825,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		toggleEditModeMenuItem.doClick();
 	}
 
-	protected  void togglePauseTracing() {
+	protected void togglePauseTracing() {
 		togglePauseTracingMenuItem.doClick();
 	}
 
@@ -827,7 +834,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				+ "<b>Counting Spines/Varicosities:</b>" //
 				+ "<ul>" //
 				+ "<li> Click over the features to be counted. Point placement may not need to be accurate, " //
-				+ "but w/ 3D images it should reflect the features Z-plane</li>" //
+				+ "but w/ 3D images it should reflect the features' Z-plane</li>" //
 				+ "<li> Once you have performed the count, select the Path(s) associated with the features " //
 				+ "(or select none, if all Paths are to be considered) and run Path Manager's " //
 				+ "<i>Analyze&rarr; Spine/Varicosity Utilities&rarr; Extract Counts from Multi-point ROIs...</i></li>" //
@@ -871,8 +878,11 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		private final static String NODE_LOCK = "  Lock Active Node";
 		private final static String NODE_MOVE = "  Move Active Node to Cursor Position";
 		private final static String NODE_MOVE_Z = "  Bring Active Node to Current Z-plane";
-		private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root...";
+		private final static String NODE_RADIUS = "  Set Active Node Radius...";
+		private final static String NODE_COLOR = "  Tag Active Node...";
+		private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root";
 		private final static String NODE_SPLIT = "  Split Tree at Active Node";
+		private final static String NODE_CONNECT_HELP = "  Connect to Help...";
 		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = "  Connect to ";
 		private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER = NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX
 				+ "Unselected Crosshair Node";
@@ -985,6 +995,12 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				case NODE_MOVE:
 					moveEditingNodeToLastCanvasPosition(true);
 					break;
+				case NODE_RADIUS:
+					assignRadiusToEditingNode(true);
+					break;
+				case NODE_COLOR:
+					assignColorToEditingNode();
+					break;
 				case NODE_MOVE_Z:
 					assignLastCanvasZPositionToEditNode(true);
 					break;
@@ -1002,8 +1018,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	private GuiUtils getGuiUtils() {
+		if (imp == null || !imp.isVisible())
+			return new GuiUtils(tracerPlugin.getUI());
 		if (guiUtils == null)
-			guiUtils = new GuiUtils(getParent());
+			guiUtils = new GuiUtils(this);
 		return guiUtils;
 	}
 
@@ -1086,6 +1104,97 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		}
 	}
 
+	protected void assignColorToEditingNode() {
+		if (impossibleEdit(true))
+			return;
+		final Path edPath = tracerPlugin.getEditingPath();
+		final int edNode = edPath.getEditableNodeIndex();
+		final String proposedChoice = Integer.toString(Color.RED.getRGB());
+		final String prevChoice = tracerPlugin.getPrefs().getTemp("editNodeColor", proposedChoice);
+		final Color chosen = guiUtils.getColor("New Color for Node #" + edNode + "?",
+				new Color(Integer.parseInt(prevChoice)), "RGB");
+		if (chosen != null) {
+			Color[] nodeColors = edPath.getNodeColors();
+			if (nodeColors == null) {
+				nodeColors = new Color[edPath.size()];
+				if (edPath.getColor() == null)
+					edPath.setColor(tracerPlugin.selectedColor.darker());
+				Arrays.fill(nodeColors, edPath.getColor());
+			}
+			nodeColors[edNode] = chosen;
+			edPath.setNodeColors(nodeColors);
+			String tags = PathManagerUI.extractTagsFromPath(edPath);
+			if (tags.isEmpty()) {
+				edPath.setName(edPath.getName() + " {Tagged node(s)}");
+			} else if (!tags.contains("Tagged node(s)")) {
+				tags += ", " + "Tagged node(s)";
+				edPath.setName(edPath.getName() + "{" + tags + "}");
+			}
+			redrawEditingPath(String.format("Node #%d tagged", edNode));
+			if (tracerPlugin.ui != null)
+				tracerPlugin.ui.getPathManager().update(true);
+			tracerPlugin.getPrefs().setTemp("editNodeColor", Integer.toString(chosen.getRGB()));
+		}
+	}
+
+	protected void assignRadiusToEditingNode(final boolean warnOnFailure) {
+		if (impossibleEdit(warnOnFailure))
+			return;
+		final Path edPath = tracerPlugin.getEditingPath();
+		final int edNode = edPath.getEditableNodeIndex();
+		final boolean hasRadii = edPath.hasRadii();
+		final String[] defChoices = new String[(hasRadii) ? 5 : 3];
+		defChoices[0] = "<HTML>Assign <b>average of flanking nodes</b> (if any)";
+		defChoices[1] = "<HTML>Assign half of <b>minimum voxel separation";
+		defChoices[2] = "<HTML>Assign <b>value</b> specified below:";
+		if (hasRadii) {
+			defChoices[3] = "<HTML>Multiply existing radius by <b>multiplier<b> specified below:";
+			defChoices[4] = "<HTML>Assign <b>mean path radius</b>";
+		}
+		String msg = "<HTML>Which value should be set as radius for node #" + edNode + "?<br>";
+		if (hasRadii)
+			msg += String.format("(Current radius is %02f)", edPath.getNodeRadius(edNode));
+		else
+			msg += "NB: No nodes in <i>" + edPath.getName() + "</i> have assigned radii!";
+
+		final String prevChoice = tracerPlugin.getPrefs().getTemp("lastRadChoice", defChoices[0]);
+		final String prevDouble = tracerPlugin.getPrefs().getTemp("lastRadDouble", null);
+		final Object[] usrChoice = getGuiUtils().getChoiceAndDouble(msg, edPath.getName() + ": Ad hoc Radius",
+				defChoices, prevChoice,
+				(prevDouble == null) ? edPath.getNodeRadius(edNode) : Double.valueOf(prevDouble));
+		if (usrChoice == null)
+			return;
+
+		double r = Double.NaN;
+		if (defChoices[0].equals(usrChoice[0])) {
+			if (edPath.size() == 1) {
+				guiUtils.error("Path has only one node. No flanking nodes exist.");
+				return;
+			} else {
+				final int n1 = Math.max(0, edNode - 1);
+				final int n2 = Math.min(edPath.size() - 1, edNode + 1);
+				r = (edPath.getNodeRadius(n1) + edPath.getNodeRadius(n2)) / 2;
+			}
+		} else if (defChoices[1].equals(usrChoice[0])) {
+			r = tracerPlugin.getMinimumSeparation() / 2;
+		} else if (defChoices[2].equals(usrChoice[0])) {
+			r = (double) usrChoice[1];
+			tracerPlugin.getPrefs().setTemp("lastRadDouble", Double.toString((double) usrChoice[1]));
+		} else if (hasRadii && defChoices[3].equals(usrChoice[0])) {
+			r = edPath.getNodeRadius(edNode) * (double) usrChoice[1];
+			tracerPlugin.getPrefs().setTemp("lastRadDouble", Double.toString((double) usrChoice[1]));
+		} else if (hasRadii && defChoices[4].equals(usrChoice[0])) {
+			r = edPath.getMeanRadius();
+		}
+		tracerPlugin.getPrefs().setTemp("lastRadChoice", (String) usrChoice[0]);
+		if (Double.isNaN(r) || r < 0d) {
+			guiUtils.error("Invalid radius. Must be a positive, floating-point value.");
+		} else {
+			edPath.setRadius(r, edNode);
+			redrawEditingPath(String.format("Radius set to %02f", r));
+		}
+	}
+
 	protected void moveEditingNodeToLastCanvasPosition(
 		final boolean warnOnFailure)
 	{
@@ -1133,8 +1242,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			editingPath.moveNode(editingNode, new PointInImage(
 				editingPath.precise_x_positions[editingNode],
 				editingPath.precise_y_positions[editingNode], newZ));
-			redrawEditingPath("Node " + editingNode + "moved to Z=" + SNTUtils
-				.formatDouble(newZ, 3));
+			redrawEditingPath(String.format("Node %d moved to Z=%3f", editingNode, newZ));
 		}
 		catch (final IllegalArgumentException exc) {
 			tempMsg("Adjustment of Z-position failed!");
@@ -1145,24 +1253,46 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			final boolean warnOnFailure)
 	{
 		if (impossibleEdit(warnOnFailure)) return;
-		long start = System.currentTimeMillis();
 		final Path editingPath = tracerPlugin.getEditingPath();
-		final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
 		final int treeID = editingPath.getTreeID();
-		final Tree editingTree = getTreeFromID(treeID);
-		final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
-		editingGraph.setRoot(getMatchingPointInGraph(editingNode, editingGraph));
-		final Tree newTree = editingGraph.getTreeWithSamePathStructure();
-//		enableEditMode(false);
-		tracerPlugin.setEditingPath(null);
-		final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
-		newTree.list().forEach(p -> p.setSpacing(cal));
+		Tree editingTree;
+		if (pathAndFillManager.multipleTreesExist()) {
+			editingTree = tracerPlugin.getUI().getPathManager().getSingleTree();
+			if (editingTree == null)
+				return; // user pressed cancel
+		} else {
+			editingTree = getTreeFromID(treeID);
+		}
+		long start = System.currentTimeMillis();
 		final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
 		pathAndFillManager.enableUIupdates = false;
+		final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
+		final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
+		SWCPoint newRoot = getMatchingPointInGraph(editingNode, editingGraph);
+		if (newRoot == null) {
+			SWCPoint nearest = getNearestPointInGraph(editingNode, editingGraph);
+			final int uniqueId = editingGraph.vertexSet().stream().mapToInt(v -> v.id).max().orElse(-2) + 1;
+			newRoot = new SWCPoint(uniqueId, nearest.type, editingNode.x, editingNode.y, editingNode.z,
+					editingPath.getNodeRadius(editingPath.getEditableNodeIndex()), nearest.id);
+			newRoot.setPath(editingPath);
+			editingGraph.addVertex(newRoot);
+			editingGraph.addEdge(nearest, newRoot);
+			if (editingPath.size() == 1)
+				pathAndFillManager.deletePath(editingPath);
+			else
+				editingPath.removeNode(editingPath.getEditableNodeIndex());
+		}
+		editingGraph.setRoot(newRoot);
+		final Tree newTree = editingGraph.getTreeWithSamePathStructure();
+		tracerPlugin.setEditingPath(null);
+		final Calibration cal = tracerPlugin.getImagePlus().getCalibration();
 		pathAndFillManager.deletePaths(editingTree.list());
-		newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
-		SNTUtils.log("Finished re-root in " + (System.currentTimeMillis() - start) + "ms");
+		newTree.list().forEach(p -> {
+			p.setSpacing(cal);
+			pathAndFillManager.addPath(p, false, true);
+		});
 		pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
+		SNTUtils.log("Finished re-root in " + (System.currentTimeMillis() - start) + "ms");
 	}
 
 	protected void splitTreeAtEditingNode(final boolean warnOnFailure) {
@@ -1214,6 +1344,19 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			}
 		}
 		return tree;
+	}
+
+	private SWCPoint getNearestPointInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
+		double distanceSquaredToNearestParentPoint = Double.MAX_VALUE;
+		SWCPoint nearest = null;
+		for (final SWCPoint p : graph.vertexSet()) {
+			final double distanceSquared = point.distanceSquaredTo(p.x, p.y, p.z);
+			if (distanceSquared < distanceSquaredToNearestParentPoint) {
+				nearest = p;
+				distanceSquaredToNearestParentPoint = distanceSquared;
+			}
+		}
+		return nearest;
 	}
 
 	private SWCPoint getMatchingPointInGraph(final PointInImage point, final DirectedWeightedGraph graph) {

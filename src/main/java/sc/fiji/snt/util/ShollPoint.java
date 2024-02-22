@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -33,6 +33,8 @@ import sc.fiji.snt.analysis.sholl.ShollUtils;
  * @author Tiago Ferreira
  */
 public class ShollPoint extends PointInImage {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	public int flag = NONE;
 
@@ -80,7 +82,7 @@ public class ShollPoint extends PointInImage {
 			return null;
 		final String[] ccs = string.trim().split(",");
 		if (ccs.length == 3) {
-			return new ShollPoint(Double.valueOf(ccs[0]), Double.valueOf(ccs[1]), Double.valueOf(ccs[2]));
+			return new ShollPoint(Double.parseDouble(ccs[0]), Double.parseDouble(ccs[1]), Double.parseDouble(ccs[2]));
 		}
 		return null;
 	}

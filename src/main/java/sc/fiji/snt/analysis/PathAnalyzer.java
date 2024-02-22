@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -34,7 +34,7 @@ import sc.fiji.snt.TreeProperties;
 
 /*
  * A flavor of TreeStatistics that does not do graph conversions, ensuring paths
- * can me measured independently of their connectivity.
+ * can be measured independently of their connectivity.
  */
 public class PathAnalyzer extends TreeStatistics {
 
@@ -43,7 +43,7 @@ public class PathAnalyzer extends TreeStatistics {
 		tree.setLabel(label);
 		final String unit = paths.iterator().next().getCalibration().getUnit();
 		if (paths.stream().allMatch(p -> p.getCalibration().getUnit().equals(unit)))
-			tree.getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, unit);;
+			tree.getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, unit);
 	}
 
 	private PathAnalyzer(final Path path) {
@@ -58,6 +58,13 @@ public class PathAnalyzer extends TreeStatistics {
 	@Override
 	public int getNBranches() {
 		return tree.size();
+	}
+
+	@Override
+	public Number getMetric(final String metric) throws IllegalArgumentException {
+		if ("Path ID".equalsIgnoreCase(metric))
+			return (tree.size() == 1) ? tree.list().get(0).getID() : Double.NaN;
+		return getMetricInternal(TreeStatistics.getNormalizedMeasurement(metric));
 	}
 
 	@Override
@@ -89,6 +96,39 @@ public class PathAnalyzer extends TreeStatistics {
 		// This flavor of TreeStatistics handles only Paths,
 		// so we'll avoid logging any references to branch
 		return super.getCol(header.replace("Branch", "Path"));
+	}
+
+	@Override
+	protected Number getMetricWithoutChecks(final String metric) throws UnknownMetricException {
+		if ( tree.size() == 1) {
+			switch(metric) {
+			case TreeStatistics.PATH_ORDER:
+				return tree.get(0).getOrder();
+			case TreeStatistics.PATH_LENGTH:
+				return tree.get(0).getLength();
+			case TreeStatistics.PATH_CHANNEL:
+				return tree.get(0).getChannel();
+			case TreeStatistics.PATH_FRAME:
+				return tree.get(0).getFrame();
+			case TreeStatistics.PATH_CONTRACTION:
+				return tree.get(0).getContraction();
+			case TreeStatistics.PATH_MEAN_RADIUS:
+				return tree.get(0).getMeanRadius();
+			case TreeStatistics.PATH_SURFACE_AREA:
+				return tree.get(0).getApproximatedSurface();
+			case TreeStatistics.PATH_VOLUME:
+				return tree.get(0).getApproximatedVolume();
+			case TreeStatistics.N_BRANCH_POINTS:
+				return tree.get(0).getJunctionNodes().size();
+			case TreeStatistics.PATH_N_SPINES:
+				return tree.get(0).getSpineOrVaricosityCount();
+			case TreeStatistics.PATH_SPINE_DENSITY:
+				return tree.get(0).getSpineOrVaricosityCount() / tree.get(0).getLength();
+			default:
+				super.getMetricWithoutChecks(metric);
+			}
+		}
+		return super.getMetricWithoutChecks(metric);
 	}
 
 	public void measureIndividualPaths(final Collection<String> metrics, final boolean summarize) {

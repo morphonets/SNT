@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -26,12 +26,15 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Rectangle;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 
 import ij.IJ;
+import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.Plot;
 import ij.gui.PlotWindow;
@@ -45,6 +48,7 @@ import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.ShollPoint;
 
 /**
@@ -52,6 +56,8 @@ import sc.fiji.snt.util.ShollPoint;
  *
  */
 public class ShollPlot extends Plot {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	/** Default colors for plotting sampled data */
 	private final Color SDATA_COLOR = Color.GRAY;
@@ -205,7 +211,7 @@ public class ShollPlot extends Plot {
 		final ShollPlot newPlot = new ShollPlot(defaultTitle(stats), defaultXtitle(stats), defaultYtitle(stats), stats,
 				annotate, preferCumulativeFrequencies);
 		String title = pw.getTitle();
-		if (title != null && title.indexOf(" (") != -1) {
+		if (title != null && title.contains(" (")) {
 			String statsLabel = "";
 			if (stats instanceof LinearProfileStats) {
 				statsLabel = "(Linear)";
@@ -223,7 +229,7 @@ public class ShollPlot extends Plot {
 		for (final String d : getDataObjectDesignations()) {
 			if (d == null || d.trim().isEmpty())
 				continue;
-			if (!d.endsWith(" data points)") && d.indexOf(": ") > -1) {
+			if (!d.endsWith(" data points)") && d.contains(": ")) {
 				sb.append(d.substring(d.indexOf(": ") + 2)).append("\n");
 			} else {
 				sb.append(d).append("\n");
@@ -441,7 +447,7 @@ public class ShollPlot extends Plot {
 	 *            Label contents
 	 * @param color
 	 *            Foreground color of text. Note that this will also set the
-	 *            drawing color for the next objects to be be added to the plot
+	 *            drawing color for the next objects to be added to the plot
 	 */
 	public void drawLabel(final String label, final Color color) {
 
@@ -555,8 +561,22 @@ public class ShollPlot extends Plot {
 		addPoints(x, y, null, label);
 	}
 
+	public void addPoints(List<double[]> points, final String label) {
+		final float[] x = new float[points.size()];
+		final float[] y = new float[points.size()];
+		int idx = 0;
+		for (double[] point : points) {
+			x[idx] = (float)point[0];
+			y[idx++] = (float)point[1];
+		}
+		setLineWidth(8);
+		addPoints(x, y, null, CIRCLE, label);
+		setLineWidth(1);
+	}
+
 	public void addPoints(final List<Number> xValues, final List<Number> yValues, final String label) {
 		addPoints(xValues, yValues, null, label);
+		this.addPoints(DUMMY_VALUES, DUMMY_VALUES, DUMMY_VALUES, label);
 	}
 
 	public void addPoints(final List<Number> xValues, final List<Number> yValues, final List<Number> yErrorBars,
@@ -589,5 +609,20 @@ public class ShollPlot extends Plot {
 				j = 0;
 		}
 		return colors;
+	}
+
+	public static void show(final List<ShollPlot> plots, final String title) {
+		if (plots == null || plots.isEmpty())
+			return;
+		if (plots.size() == 1) {
+			plots.get(0).show();
+		} else {
+			Collections.sort(plots, (p1, p2) -> (p1.getTitle().compareTo(p2.getTitle())));
+			final List<ImagePlus> imps = new ArrayList<>();
+			plots.forEach(p -> imps.add(p.getImagePlus()));
+			final ImagePlus res = ImpUtils.toStack(imps);
+			res.setTitle(title);
+			res.show();
+		}
 	}
 }

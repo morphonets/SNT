@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -60,6 +60,9 @@ public class TreeStatisticsTest {
 		final int maxOntologyDepth = AllenUtils.getHighestOntologyDepth();
 		for (int level = 0; level < maxOntologyDepth; level++) {
 			final Map<BrainAnnotation, Double> lengthMap = tStats.getAnnotatedLength(level);
+			lengthMap.forEach((k, v) -> {
+				assertEquals("Length in lengthMap entry", tStats.getCableLength(k, true), v, precision);
+			});
 			final double mapLength = lengthMap.values().stream().mapToDouble(d -> d).sum();
 			assertEquals("Sum of annotated lengths", cableLength, mapLength, precision);
 			final double unaccountedLength = (lengthMap.get(null) == null) ? 0 : lengthMap.get(null);

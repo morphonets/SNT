@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -57,7 +57,6 @@ import com.mxgraph.layout.mxCompactTreeLayout;
 import com.mxgraph.layout.mxOrganicLayout;
 import com.mxgraph.model.mxCell;
 import com.mxgraph.view.mxGraph;
-import com.mxgraph.view.mxGraph.mxICellVisitor;
 import com.mxgraph.view.mxGraphView;
 import com.mxgraph.costfunction.mxCostFunction;
 import com.mxgraph.costfunction.mxDoubleValCostFunction;
@@ -265,60 +264,52 @@ class GraphConfigDialog extends JDialog
 			buttonPanel.add(applyButton);
 			getRootPane().setDefaultButton(applyButton);
 
-			applyButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
+			applyButton.addActionListener(e -> {
+				applyValues();
+				int nodeCount = Integer.parseInt(numNodesField.getText());
+				graph.getModel().beginUpdate();
+				graph.selectAll();
+				graph.removeCells();
+
+				if (graphType2 == GraphType.NULL)
 				{
-					applyValues();
-					int nodeCount = Integer.parseInt(numNodesField.getText());
+					mxGraphGenerator generator = new mxGraphGenerator(null, new mxDoubleValCostFunction());
+					Map<String, Object> props = new HashMap<>();
+					mxGraphProperties.setDirected(props, false);
+					configAnalysisGraph(graph, generator, props);
+
+					generator.getNullGraph(aGraph, nodeCount);
+
+					mxGraphStructure.setDefaultGraphStyle(aGraph, false);
+					mxCircleLayout layout = new mxCircleLayout(graph);
+					layout.execute(graph.getDefaultParent());
+				}
+				else if (graphType2 == GraphType.SIMPLE_RANDOM_TREE)
+				{
 					graph.getModel().beginUpdate();
-					graph.selectAll();
-					graph.removeCells();
 
-					if (graphType2 == GraphType.NULL)
-					{
-						mxGraphGenerator generator = new mxGraphGenerator(null, new mxDoubleValCostFunction());
-						Map<String, Object> props = new HashMap<String, Object>();
-						mxGraphProperties.setDirected(props, false);
-						configAnalysisGraph(graph, generator, props);
+					mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, false, 0, 10),
+							new mxDoubleValCostFunction());
+					Map<String, Object> props = new HashMap<>();
+					mxGraphProperties.setDirected(props, false);
+					configAnalysisGraph(graph, generator, props);
 
-						generator.getNullGraph(aGraph, nodeCount);
+					generator.getSimpleRandomTree(aGraph, nodeCount);
 
-						mxGraphStructure.setDefaultGraphStyle(aGraph, false);
-						mxCircleLayout layout = new mxCircleLayout(graph);
-						layout.execute(graph.getDefaultParent());
-					}
-					else if (graphType2 == GraphType.SIMPLE_RANDOM_TREE)
-					{
-						graph.getModel().beginUpdate();
-
-						mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, false, 0, 10),
-								new mxDoubleValCostFunction());
-						Map<String, Object> props = new HashMap<String, Object>();
-						mxGraphProperties.setDirected(props, false);
-						configAnalysisGraph(graph, generator, props);
-
-						generator.getSimpleRandomTree(aGraph, nodeCount);
-
-						mxGraphProperties.setDirected(props, true);
-						mxGraphStructure.setDefaultGraphStyle(aGraph, false);
-						setVisible(false);
-						mxCompactTreeLayout layout = new mxCompactTreeLayout(graph, false);
-						layout.execute(graph.getDefaultParent());
-						graph.getModel().endUpdate();
-					}
-
+					mxGraphProperties.setDirected(props, true);
+					mxGraphStructure.setDefaultGraphStyle(aGraph, false);
+					setVisible(false);
+					mxCompactTreeLayout layout = new mxCompactTreeLayout(graph, false);
+					layout.execute(graph.getDefaultParent());
 					graph.getModel().endUpdate();
-					setVisible(false);
 				}
+
+				graph.getModel().endUpdate();
+				setVisible(false);
 			});
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -353,40 +344,32 @@ class GraphConfigDialog extends JDialog
 			buttonPanel.add(applyButton);
 			getRootPane().setDefaultButton(applyButton);
 
-			applyButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					applyValues();
-					int vertexNumParam = Integer.parseInt(numNodesField.getText());
-					int minWeightParam = Integer.parseInt(minWeightField.getText());
-					int maxWeightParam = Integer.parseInt(maxWeightField.getText());
-					graph.getModel().beginUpdate();
+			applyButton.addActionListener(e -> {
+				applyValues();
+				int vertexNumParam = Integer.parseInt(numNodesField.getText());
+				int minWeightParam = Integer.parseInt(minWeightField.getText());
+				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
+				graph.getModel().beginUpdate();
 
-					graph.selectAll();
-					graph.removeCells();
-					mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
-							minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
-					Map<String, Object> props = new HashMap<String, Object>();
-					mxGraphProperties.setDirected(props, arrows);
-					configAnalysisGraph(graph, generator, props);
+				graph.selectAll();
+				graph.removeCells();
+				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
+						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
+				Map<String, Object> props = new HashMap<>();
+				mxGraphProperties.setDirected(props, arrows);
+				configAnalysisGraph(graph, generator, props);
 
-					generator.getCompleteGraph(aGraph, vertexNumParam);
+				generator.getCompleteGraph(aGraph, vertexNumParam);
 
-					mxGraphStructure.setDefaultGraphStyle(aGraph, false);
-					setVisible(false);
-					mxCircleLayout layout = new mxCircleLayout(graph);
-					layout.execute(graph.getDefaultParent());
-					graph.getModel().endUpdate();
-				}
+				mxGraphStructure.setDefaultGraphStyle(aGraph, false);
+				setVisible(false);
+				mxCircleLayout layout = new mxCircleLayout(graph);
+				layout.execute(graph.getDefaultParent());
+				graph.getModel().endUpdate();
 			});
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -423,44 +406,36 @@ class GraphConfigDialog extends JDialog
 			buttonPanel.add(applyButton);
 			getRootPane().setDefaultButton(applyButton);
 
-			applyButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
+			applyButton.addActionListener(e -> {
+				applyValues();
+				graph.selectAll();
+				graph.removeCells();
+				int minWeightParam = Integer.parseInt(minWeightField.getText());
+				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
+				int numBranchesParam = Integer.parseInt(numBranchesField.getText());
+				int numVertexesInBranchParam = Integer.parseInt(numVertexesInBranchField.getText());
+				Map<String, Object> props = new HashMap<>();
+				mxGraphProperties.setDirected(props, arrows);
+				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
+						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
+				configAnalysisGraph(graph, generator, props);
+
+				if (graphType2 == GraphType.FRIENDSHIP_WINDMILL)
 				{
-					applyValues();
-					graph.selectAll();
-					graph.removeCells();
-					int minWeightParam = Integer.parseInt(minWeightField.getText());
-					int maxWeightParam = Integer.parseInt(maxWeightField.getText());
-					int numBranchesParam = Integer.parseInt(numBranchesField.getText());
-					int numVertexesInBranchParam = Integer.parseInt(numVertexesInBranchField.getText());
-					Map<String, Object> props = new HashMap<String, Object>();
-					mxGraphProperties.setDirected(props, arrows);
-					mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
-							minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
-					configAnalysisGraph(graph, generator, props);
-
-					if (graphType2 == GraphType.FRIENDSHIP_WINDMILL)
-					{
-						generator.getFriendshipWindmillGraph(aGraph, numBranchesParam, numVertexesInBranchParam);
-					}
-					else if (graphType2 == GraphType.FULL_WINDMILL)
-					{
-						generator.getWindmillGraph(aGraph, numBranchesParam, numVertexesInBranchParam);
-					}
-
-					generator.setWindmillGraphLayout(aGraph, numBranchesParam, numVertexesInBranchParam, 1000);
-					mxGraphStructure.setDefaultGraphStyle(aGraph, false);
-					setVisible(false);
+					generator.getFriendshipWindmillGraph(aGraph, numBranchesParam, numVertexesInBranchParam);
 				}
+				else if (graphType2 == GraphType.FULL_WINDMILL)
+				{
+					generator.getWindmillGraph(aGraph, numBranchesParam, numVertexesInBranchParam);
+				}
+
+				generator.setWindmillGraphLayout(aGraph, numBranchesParam, numVertexesInBranchParam, 1000);
+				mxGraphStructure.setDefaultGraphStyle(aGraph, false);
+				setVisible(false);
 			});
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -495,52 +470,44 @@ class GraphConfigDialog extends JDialog
 			buttonPanel.add(applyButton);
 			getRootPane().setDefaultButton(applyButton);
 
-			applyButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
+			applyButton.addActionListener(e -> {
+				applyValues();
+				int numNodesParam = Integer.parseInt(numNodesField.getText());
+				int minWeightParam = Integer.parseInt(minWeightField.getText());
+				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
+				Map<String, Object> props = new HashMap<>();
+				mxGraphProperties.setDirected(props, arrows);
+				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
+						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
+				configAnalysisGraph(graph, generator, props);
+				graph.getModel().beginUpdate();
+				graph.selectAll();
+				graph.removeCells();
+
+				if (graphType2 == GraphType.WHEEL)
 				{
-					applyValues();
-					int numNodesParam = Integer.parseInt(numNodesField.getText());
-					int minWeightParam = Integer.parseInt(minWeightField.getText());
-					int maxWeightParam = Integer.parseInt(maxWeightField.getText());
-					Map<String, Object> props = new HashMap<String, Object>();
-					mxGraphProperties.setDirected(props, arrows);
-					mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
-							minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
-					configAnalysisGraph(graph, generator, props);
-					graph.getModel().beginUpdate();
-					graph.selectAll();
-					graph.removeCells();
-
-					if (graphType2 == GraphType.WHEEL)
-					{
-						generator.getWheelGraph(aGraph, numNodesParam);
-						generator.setStarGraphLayout(aGraph, 400);
-					}
-					else if (graphType2 == GraphType.STAR)
-					{
-						generator.getStarGraph(aGraph, numNodesParam);
-						generator.setStarGraphLayout(aGraph, 400);
-					}
-					else if (graphType2 == GraphType.PATH)
-					{
-						generator.getPathGraph(aGraph, numNodesParam);
-						generator.setPathGraphSpacing(aGraph, 80);
-					}
-
-					mxGraphStructure.setDefaultGraphStyle(aGraph, false);
-					setVisible(false);
-					graph.getModel().endUpdate();
+					generator.getWheelGraph(aGraph, numNodesParam);
+					generator.setStarGraphLayout(aGraph, 400);
 				}
+				else if (graphType2 == GraphType.STAR)
+				{
+					generator.getStarGraph(aGraph, numNodesParam);
+					generator.setStarGraphLayout(aGraph, 400);
+				}
+				else if (graphType2 == GraphType.PATH)
+				{
+					generator.getPathGraph(aGraph, numNodesParam);
+					generator.setPathGraphSpacing(aGraph, 80);
+				}
+
+				mxGraphStructure.setDefaultGraphStyle(aGraph, false);
+				setVisible(false);
+				graph.getModel().endUpdate();
 			});
 
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -573,38 +540,30 @@ class GraphConfigDialog extends JDialog
 			buttonPanel.add(applyButton);
 			getRootPane().setDefaultButton(applyButton);
 
-			applyButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					applyValues();
-					int minWeightParam = Integer.parseInt(minWeightField.getText());
-					int maxWeightParam = Integer.parseInt(maxWeightField.getText());
-					Map<String, Object> props = new HashMap<String, Object>();
-					mxGraphProperties.setDirected(props, arrows);
-					mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
-							minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
-					configAnalysisGraph(graph, generator, props);
-					graph.getModel().beginUpdate();
-					graph.selectAll();
-					graph.removeCells();
+			applyButton.addActionListener(e -> {
+				applyValues();
+				int minWeightParam = Integer.parseInt(minWeightField.getText());
+				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
+				Map<String, Object> props = new HashMap<>();
+				mxGraphProperties.setDirected(props, arrows);
+				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
+						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
+				configAnalysisGraph(graph, generator, props);
+				graph.getModel().beginUpdate();
+				graph.selectAll();
+				graph.removeCells();
 
-					generator.getPetersenGraph(aGraph);
-					mxGraphStructure.setDefaultGraphStyle(aGraph, false);
-					setVisible(false);
-					mxCircleLayout layout = new mxCircleLayout(graph);
-					layout.execute(graph.getDefaultParent());
+				generator.getPetersenGraph(aGraph);
+				mxGraphStructure.setDefaultGraphStyle(aGraph, false);
+				setVisible(false);
+				mxCircleLayout layout = new mxCircleLayout(graph);
+				layout.execute(graph.getDefaultParent());
 
-					graph.getModel().endUpdate();
-				}
+				graph.getModel().endUpdate();
 			});
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -643,42 +602,34 @@ class GraphConfigDialog extends JDialog
 			buttonPanel.add(applyButton);
 			getRootPane().setDefaultButton(applyButton);
 
-			applyButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					applyValues();
-					int yDim = Integer.parseInt(numRowsField.getText());
-					int xDim = Integer.parseInt(numColumnsField.getText());
-					int minWeightParam = Integer.parseInt(minWeightField.getText());
-					int maxWeightParam = Integer.parseInt(maxWeightField.getText());
-					float spacing = Float.parseFloat(gridSpacingField.getText());
-					graph.getModel().beginUpdate();
-					graph.selectAll();
-					graph.removeCells();
+			applyButton.addActionListener(e -> {
+				applyValues();
+				int yDim = Integer.parseInt(numRowsField.getText());
+				int xDim = Integer.parseInt(numColumnsField.getText());
+				int minWeightParam = Integer.parseInt(minWeightField.getText());
+				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
+				float spacing = Float.parseFloat(gridSpacingField.getText());
+				graph.getModel().beginUpdate();
+				graph.selectAll();
+				graph.removeCells();
 
-					mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
-							minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
-					Map<String, Object> props = new HashMap<String, Object>();
-					mxGraphProperties.setDirected(props, arrows);
-					configAnalysisGraph(graph, generator, props);
+				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
+						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
+				Map<String, Object> props = new HashMap<>();
+				mxGraphProperties.setDirected(props, arrows);
+				configAnalysisGraph(graph, generator, props);
 
-					generator.getGridGraph(aGraph, xDim, yDim);
-					generator.setGridGraphSpacing(aGraph, spacing, spacing, xDim, yDim);
+				generator.getGridGraph(aGraph, xDim, yDim);
+				generator.setGridGraphSpacing(aGraph, spacing, spacing, xDim, yDim);
 
-					mxGraphStructure.setDefaultGraphStyle(aGraph, false);
-					setVisible(false);
-					graph.getModel().endUpdate();
-				}
+				mxGraphStructure.setDefaultGraphStyle(aGraph, false);
+				setVisible(false);
+				graph.getModel().endUpdate();
 			});
 
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -711,45 +662,37 @@ class GraphConfigDialog extends JDialog
 			buttonPanel.add(applyButton);
 			getRootPane().setDefaultButton(applyButton);
 
-			applyButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
+			applyButton.addActionListener(e -> {
+				applyValues();
+				int yDim = Integer.parseInt(numRowsField.getText());
+				int xDim = Integer.parseInt(numColumnsField.getText());
+				float spacing = Float.parseFloat(gridSpacingField.getText());
+
+				mxGraphGenerator generator = new mxGraphGenerator(null, new mxDoubleValCostFunction());
+				Map<String, Object> props = new HashMap<>();
+				mxGraphProperties.setDirected(props, arrows);
+				configAnalysisGraph(graph, generator, props);
+				graph.getModel().beginUpdate();
+				graph.selectAll();
+				graph.removeCells();
+
+				if (graphType2 == GraphType.KNIGHT)
 				{
-					applyValues();
-					int yDim = Integer.parseInt(numRowsField.getText());
-					int xDim = Integer.parseInt(numColumnsField.getText());
-					float spacing = Float.parseFloat(gridSpacingField.getText());
-
-					mxGraphGenerator generator = new mxGraphGenerator(null, new mxDoubleValCostFunction());
-					Map<String, Object> props = new HashMap<String, Object>();
-					mxGraphProperties.setDirected(props, arrows);
-					configAnalysisGraph(graph, generator, props);
-					graph.getModel().beginUpdate();
-					graph.selectAll();
-					graph.removeCells();
-
-					if (graphType2 == GraphType.KNIGHT)
-					{
-						generator.getKnightGraph(aGraph, xDim, yDim);
-					}
-					else if (graphType2 == GraphType.KING)
-					{
-						generator.getKingGraph(aGraph, xDim, yDim);
-					}
-
-					generator.setGridGraphSpacing(aGraph, spacing, spacing, xDim, yDim);
-					mxGraphStructure.setDefaultGraphStyle(aGraph, false);
-					setVisible(false);
-					graph.getModel().endUpdate();
+					generator.getKnightGraph(aGraph, xDim, yDim);
 				}
+				else if (graphType2 == GraphType.KING)
+				{
+					generator.getKingGraph(aGraph, xDim, yDim);
+				}
+
+				generator.setGridGraphSpacing(aGraph, spacing, spacing, xDim, yDim);
+				mxGraphStructure.setDefaultGraphStyle(aGraph, false);
+				setVisible(false);
+				graph.getModel().endUpdate();
 			});
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -784,45 +727,37 @@ class GraphConfigDialog extends JDialog
 			buttonPanel.add(applyButton);
 			getRootPane().setDefaultButton(applyButton);
 
-			applyButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
+			applyButton.addActionListener(e -> {
+				applyValues();
+				int yDim = Integer.parseInt(numRowsField.getText());
+				int xDim = Integer.parseInt(numColumnsField.getText());
+				int value = Integer.parseInt(startVertexValueField.getText());
+				float spacing = Float.parseFloat(gridSpacingField.getText());
+				mxGraphGenerator generator = new mxGraphGenerator(null, new mxDoubleValCostFunction());
+				Map<String, Object> props = new HashMap<>();
+				mxGraphProperties.setDirected(props, true);
+				configAnalysisGraph(graph, generator, props);
+				graph.getModel().beginUpdate();
+				graph.selectAll();
+				graph.removeCells();
+
+				try
 				{
-					applyValues();
-					int yDim = Integer.parseInt(numRowsField.getText());
-					int xDim = Integer.parseInt(numColumnsField.getText());
-					int value = Integer.parseInt(startVertexValueField.getText());
-					float spacing = Float.parseFloat(gridSpacingField.getText());
-					mxGraphGenerator generator = new mxGraphGenerator(null, new mxDoubleValCostFunction());
-					Map<String, Object> props = new HashMap<String, Object>();
-					mxGraphProperties.setDirected(props, true);
-					configAnalysisGraph(graph, generator, props);
-					graph.getModel().beginUpdate();
-					graph.selectAll();
-					graph.removeCells();
-
-					try
-					{
-						generator.getKnightTour(aGraph, xDim, yDim, value);
-					}
-					catch (StructuralException e1)
-					{
-						System.out.println(e1);
-					}
-
-					generator.setGridGraphSpacing(aGraph, spacing, spacing, xDim, yDim);
-					mxGraphStructure.setDefaultGraphStyle(aGraph, false);
-					setVisible(false);
-					graph.getModel().endUpdate();
+					generator.getKnightTour(aGraph, xDim, yDim, value);
 				}
+				catch (StructuralException e1)
+				{
+					System.out.println(e1);
+				}
+
+				generator.setGridGraphSpacing(aGraph, spacing, spacing, xDim, yDim);
+				mxGraphStructure.setDefaultGraphStyle(aGraph, false);
+				setVisible(false);
+				graph.getModel().endUpdate();
 			});
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -861,48 +796,40 @@ class GraphConfigDialog extends JDialog
 			buttonPanel.add(applyButton);
 			getRootPane().setDefaultButton(applyButton);
 
-			applyButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
+			applyButton.addActionListener(e -> {
+				applyValues();
+				int leftNodeCount = Integer.parseInt(numVertexesLeftField.getText());
+				int rightNodeCount = Integer.parseInt(numVertexesRightField.getText());
+				float spacing = Float.parseFloat(groupSpacingField.getText());
+				int minWeightParam = Integer.parseInt(minWeightField.getText());
+				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
+				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
+						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
+				Map<String, Object> props = new HashMap<>();
+				mxGraphProperties.setDirected(props, arrows);
+				configAnalysisGraph(graph, generator, props);
+				graph.getModel().beginUpdate();
+				graph.selectAll();
+				graph.removeCells();
+
+				if (graphType2 == GraphType.BIPARTITE)
 				{
-					applyValues();
-					int leftNodeCount = Integer.parseInt(numVertexesLeftField.getText());
-					int rightNodeCount = Integer.parseInt(numVertexesRightField.getText());
-					float spacing = Float.parseFloat(groupSpacingField.getText());
-					int minWeightParam = Integer.parseInt(minWeightField.getText());
-					int maxWeightParam = Integer.parseInt(maxWeightField.getText());
-					mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
-							minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
-					Map<String, Object> props = new HashMap<String, Object>();
-					mxGraphProperties.setDirected(props, arrows);
-					configAnalysisGraph(graph, generator, props);
-					graph.getModel().beginUpdate();
-					graph.selectAll();
-					graph.removeCells();
-
-					if (graphType2 == GraphType.BIPARTITE)
-					{
-						generator.getBipartiteGraph(aGraph, leftNodeCount, rightNodeCount);
-					}
-					else if (graphType2 == GraphType.COMPLETE_BIPARTITE)
-					{
-						generator.getCompleteBipartiteGraph(aGraph, leftNodeCount, rightNodeCount);
-					}
-
-					generator.setBipartiteGraphSpacing(aGraph, leftNodeCount, rightNodeCount, spacing, spacing * 2);
-					mxGraphStructure.setDefaultGraphStyle(aGraph, false);
-					setVisible(false);
-					graph.getModel().endUpdate();
+					generator.getBipartiteGraph(aGraph, leftNodeCount, rightNodeCount);
 				}
+				else if (graphType2 == GraphType.COMPLETE_BIPARTITE)
+				{
+					generator.getCompleteBipartiteGraph(aGraph, leftNodeCount, rightNodeCount);
+				}
+
+				generator.setBipartiteGraphSpacing(aGraph, leftNodeCount, rightNodeCount, spacing, spacing * 2);
+				mxGraphStructure.setDefaultGraphStyle(aGraph, false);
+				setVisible(false);
+				graph.getModel().endUpdate();
 			});
 
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -941,40 +868,32 @@ class GraphConfigDialog extends JDialog
 			buttonPanel.add(applyButton);
 			getRootPane().setDefaultButton(applyButton);
 
-			applyButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					applyValues();
-					int nodeCount = Integer.parseInt(numNodesField.getText());
-					int edgeCount = Integer.parseInt(numEdgesField.getText());
-					int minWeightParam = Integer.parseInt(minWeightField.getText());
-					int maxWeightParam = Integer.parseInt(maxWeightField.getText());
-					Map<String, Object> props = new HashMap<String, Object>();
-					mxGraphProperties.setDirected(props, arrows);
-					mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
-							minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
-					configAnalysisGraph(graph, generator, props);
-					graph.getModel().beginUpdate();
-					graph.selectAll();
-					graph.removeCells();
+			applyButton.addActionListener(e -> {
+				applyValues();
+				int nodeCount = Integer.parseInt(numNodesField.getText());
+				int edgeCount = Integer.parseInt(numEdgesField.getText());
+				int minWeightParam = Integer.parseInt(minWeightField.getText());
+				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
+				Map<String, Object> props = new HashMap<>();
+				mxGraphProperties.setDirected(props, arrows);
+				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
+						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
+				configAnalysisGraph(graph, generator, props);
+				graph.getModel().beginUpdate();
+				graph.selectAll();
+				graph.removeCells();
 
-					generator.getSimpleRandomGraph(aGraph, nodeCount, edgeCount, allowSelfLoops, allowMultipleEdges, forceConnected);
+				generator.getSimpleRandomGraph(aGraph, nodeCount, edgeCount, allowSelfLoops, allowMultipleEdges, forceConnected);
 
-					mxGraphStructure.setDefaultGraphStyle(aGraph, false);
-					mxOrganicLayout layout = new mxOrganicLayout(graph);
-					layout.execute(graph.getDefaultParent());
-					graph.getModel().endUpdate();
-					setVisible(false);
-				}
+				mxGraphStructure.setDefaultGraphStyle(aGraph, false);
+				mxOrganicLayout layout = new mxOrganicLayout(graph);
+				layout.execute(graph.getDefaultParent());
+				graph.getModel().endUpdate();
+				setVisible(false);
 			});
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -1005,33 +924,25 @@ class GraphConfigDialog extends JDialog
 			buttonPanel.add(applyButton);
 			getRootPane().setDefaultButton(applyButton);
 
-			applyButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					applyValues();
-					int minWeightParam = Integer.parseInt(minWeightField.getText());
-					int maxWeightParam = Integer.parseInt(maxWeightField.getText());
-					Map<String, Object> props = aGraph.getProperties();
-					mxGraphProperties.setDirected(props, arrows);
-					mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
-							minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
-					configAnalysisGraph(graph, generator, props);
-					graph.getModel().beginUpdate();
+			applyButton.addActionListener(e -> {
+				applyValues();
+				int minWeightParam = Integer.parseInt(minWeightField.getText());
+				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
+				Map<String, Object> props = aGraph.getProperties();
+				mxGraphProperties.setDirected(props, arrows);
+				mxGraphGenerator generator = new mxGraphGenerator(mxGraphGenerator.getGeneratorFunction(graph, weighted,
+						minWeightParam, maxWeightParam), new mxDoubleValCostFunction());
+				configAnalysisGraph(graph, generator, props);
+				graph.getModel().beginUpdate();
 
-					mxGraphStructure.setDefaultGraphStyle(aGraph, true);
+				mxGraphStructure.setDefaultGraphStyle(aGraph, true);
 
-					graph.getModel().endUpdate();
-					setVisible(false);
-				}
+				graph.getModel().endUpdate();
+				setVisible(false);
 			});
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -1061,189 +972,149 @@ class GraphConfigDialog extends JDialog
 			buttonPanel.add(applyButton);
 			getRootPane().setDefaultButton(applyButton);
 
-			applyButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
+			applyButton.addActionListener(e -> {
+				applyValues();
+				int value = Integer.parseInt(startVertexValueField.getText());
+				Object startVertex = mxGraphStructure.getVertexWithValue(aGraph, value);
+
+				if(startVertex == null)
 				{
-					applyValues();
-					int value = Integer.parseInt(startVertexValueField.getText());
-					Object startVertex = mxGraphStructure.getVertexWithValue(aGraph, value);
-
-					if(startVertex == null)
-					{
-						System.out.println("The specified vertex is not in the graph.");
-					}
-					else if (graphType2 == GraphType.BFS_DIR)
-					{
-						boolean oldDir = mxGraphProperties.isDirected(aGraph.getProperties(), mxGraphProperties.DEFAULT_DIRECTED);
-						mxGraphProperties.setDirected(aGraph.getProperties(), true);
-						System.out.println("BFS test");
-
-						mxTraversal.bfs(aGraph, startVertex, new mxICellVisitor()
-						{
-							@Override
-							// simple visitor that prints current vertex
-							public boolean visit(Object vertex, Object edge)
-							{
-								mxCell v = (mxCell) vertex;
-								mxCell e = (mxCell) edge;
-
-								if (e != null)
-								{
-									System.out.println("Vertex: " + v.getValue() + " edge: " + e.getValue());
-								}
-								else
-								{
-									System.out.println("Vertex: " + v.getValue() + " edge: N/A");
-								}
-
-								return false;
-							}
-						});
-						
-						mxGraphProperties.setDirected(aGraph.getProperties(), oldDir);
-					}
-					else if (graphType2 == GraphType.DFS_DIR)
-					{
-						boolean oldDir = mxGraphProperties.isDirected(aGraph.getProperties(), mxGraphProperties.DEFAULT_DIRECTED);
-						mxGraphProperties.setDirected(aGraph.getProperties(), true);
-						System.out.println("DFS test");
-
-						mxTraversal.dfs(aGraph, startVertex, new mxICellVisitor()
-						{
-							@Override
-							// simple visitor that prints current vertex
-							public boolean visit(Object vertex, Object edge)
-							{
-								mxCell v = (mxCell) vertex;
-								mxCell e = (mxCell) edge;
-
-								if (e != null)
-								{
-									System.out.println("Vertex: " + v.getValue() + " edge: " + e.getValue());
-								}
-								else
-								{
-									System.out.println("Vertex: " + v.getValue() + " edge: N/A");
-								}
-
-								return false;
-							}
-						});
-
-						mxGraphProperties.setDirected(aGraph.getProperties(), oldDir);
-					}
-					else if (graphType2 == GraphType.BFS_UNDIR)
-					{
-						boolean oldDir = mxGraphProperties.isDirected(aGraph.getProperties(), mxGraphProperties.DEFAULT_DIRECTED);
-						mxGraphProperties.setDirected(aGraph.getProperties(), false);
-						System.out.println("BFS test");
-
-						mxTraversal.bfs(aGraph, startVertex, new mxICellVisitor()
-						{
-							@Override
-							// simple visitor that prints current vertex
-							public boolean visit(Object vertex, Object edge)
-							{
-								mxCell v = (mxCell) vertex;
-								mxCell e = (mxCell) edge;
-
-								if (e != null)
-								{
-									System.out.println("Vertex: " + v.getValue() + " edge: " + e.getValue());
-								}
-								else
-								{
-									System.out.println("Vertex: " + v.getValue() + " edge: N/A");
-								}
-
-								return false;
-							}
-						});
-						
-						mxGraphProperties.setDirected(aGraph.getProperties(), oldDir);
-					}
-					else if (graphType2 == GraphType.DFS_UNDIR)
-					{
-						boolean oldDir = mxGraphProperties.isDirected(aGraph.getProperties(), mxGraphProperties.DEFAULT_DIRECTED);
-						mxGraphProperties.setDirected(aGraph.getProperties(), false);
-						System.out.println("DFS test");
-
-						mxTraversal.dfs(aGraph, startVertex, new mxICellVisitor()
-						{
-							@Override
-							// simple visitor that prints current vertex
-							public boolean visit(Object vertex, Object edge)
-							{
-								mxCell v = (mxCell) vertex;
-								mxCell e = (mxCell) edge;
-
-								if (e != null)
-								{
-									System.out.println("Vertex: " + v.getValue() + " edge: " + e.getValue());
-								}
-								else
-								{
-									System.out.println("Vertex: " + v.getValue() + " edge: N/A");
-								}
-
-								return false;
-							}
-						});
-
-						mxGraphProperties.setDirected(aGraph.getProperties(), oldDir);
-					}
-					else if (graphType2 == GraphType.MAKE_TREE_DIRECTED)
-					{
-						try
-						{
-							graph.getModel().beginUpdate();
-							mxGraphStructure.makeTreeDirected(aGraph, startVertex);
-							graph.getModel().endUpdate();
-							graph.getModel().beginUpdate();
-							mxCompactTreeLayout layout = new mxCompactTreeLayout(graph);
-							layout.setHorizontal(false);
-							layout.execute(graph.getDefaultParent());
-							graph.getModel().endUpdate();
-						}
-						catch (StructuralException e1)
-						{
-							System.out.println(e1);
-						}
-					}
-					else if (graphType2 == GraphType.INDEGREE)
-					{
-						int indegree = mxGraphStructure.indegree(aGraph, startVertex);
-						System.out.println("Indegree of " + aGraph.getGraph().getModel().getValue(startVertex) + " is " + indegree);
-					}
-					else if (graphType2 == GraphType.OUTDEGREE)
-					{
-						int outdegree = mxGraphStructure.outdegree(aGraph, startVertex);
-						System.out.println("Outdegree of " + aGraph.getGraph().getModel().getValue(startVertex) + " is " + outdegree);
-					}
-					else if (graphType2 == GraphType.IS_CUT_VERTEX)
-					{
-						boolean isCutVertex = mxGraphStructure.isCutVertex(aGraph, startVertex);
-
-						if (isCutVertex)
-						{
-							System.out.println("Vertex " + aGraph.getGraph().getModel().getValue(startVertex) + " is a cut vertex.");
-						}
-						else
-						{
-							System.out.println("Vertex " + aGraph.getGraph().getModel().getValue(startVertex) + " is not a cut vertex.");
-						}
-					}
-					setVisible(false);
+					System.out.println("The specified vertex is not in the graph.");
 				}
+				else if (graphType2 == GraphType.BFS_DIR)
+				{
+					boolean oldDir = mxGraphProperties.isDirected(aGraph.getProperties(), mxGraphProperties.DEFAULT_DIRECTED);
+					mxGraphProperties.setDirected(aGraph.getProperties(), true);
+					System.out.println("BFS test");
+
+					// simple visitor that prints current vertex
+					mxTraversal.bfs(aGraph, startVertex, (vertex, edge) -> {
+						mxCell v = (mxCell) vertex;
+						mxCell e16 = (mxCell) edge;
+
+						if (e16 != null) {
+							System.out.println("Vertex: " + v.getValue() + " edge: " + e16.getValue());
+						} else {
+							System.out.println("Vertex: " + v.getValue() + " edge: N/A");
+						}
+
+						return false;
+					});
+
+					mxGraphProperties.setDirected(aGraph.getProperties(), oldDir);
+				}
+				else if (graphType2 == GraphType.DFS_DIR)
+				{
+					boolean oldDir = mxGraphProperties.isDirected(aGraph.getProperties(), mxGraphProperties.DEFAULT_DIRECTED);
+					mxGraphProperties.setDirected(aGraph.getProperties(), true);
+					System.out.println("DFS test");
+
+					// simple visitor that prints current vertex
+					mxTraversal.dfs(aGraph, startVertex, (vertex, edge) -> {
+						mxCell v = (mxCell) vertex;
+						mxCell e15 = (mxCell) edge;
+
+						if (e15 != null) {
+							System.out.println("Vertex: " + v.getValue() + " edge: " + e15.getValue());
+						} else {
+							System.out.println("Vertex: " + v.getValue() + " edge: N/A");
+						}
+
+						return false;
+					});
+
+					mxGraphProperties.setDirected(aGraph.getProperties(), oldDir);
+				}
+				else if (graphType2 == GraphType.BFS_UNDIR)
+				{
+					boolean oldDir = mxGraphProperties.isDirected(aGraph.getProperties(), mxGraphProperties.DEFAULT_DIRECTED);
+					mxGraphProperties.setDirected(aGraph.getProperties(), false);
+					System.out.println("BFS test");
+
+					// simple visitor that prints current vertex
+					mxTraversal.bfs(aGraph, startVertex, (vertex, edge) -> {
+						mxCell v = (mxCell) vertex;
+						mxCell e14 = (mxCell) edge;
+
+						if (e14 != null) {
+							System.out.println("Vertex: " + v.getValue() + " edge: " + e14.getValue());
+						} else {
+							System.out.println("Vertex: " + v.getValue() + " edge: N/A");
+						}
+
+						return false;
+					});
+
+					mxGraphProperties.setDirected(aGraph.getProperties(), oldDir);
+				}
+				else if (graphType2 == GraphType.DFS_UNDIR)
+				{
+					boolean oldDir = mxGraphProperties.isDirected(aGraph.getProperties(), mxGraphProperties.DEFAULT_DIRECTED);
+					mxGraphProperties.setDirected(aGraph.getProperties(), false);
+					System.out.println("DFS test");
+
+					// simple visitor that prints current vertex
+					mxTraversal.dfs(aGraph, startVertex, (vertex, edge) -> {
+						mxCell v = (mxCell) vertex;
+						mxCell e13 = (mxCell) edge;
+
+						if (e13 != null) {
+							System.out.println("Vertex: " + v.getValue() + " edge: " + e13.getValue());
+						} else {
+							System.out.println("Vertex: " + v.getValue() + " edge: N/A");
+						}
+
+						return false;
+					});
+
+					mxGraphProperties.setDirected(aGraph.getProperties(), oldDir);
+				}
+				else if (graphType2 == GraphType.MAKE_TREE_DIRECTED)
+				{
+					try
+					{
+						graph.getModel().beginUpdate();
+						mxGraphStructure.makeTreeDirected(aGraph, startVertex);
+						graph.getModel().endUpdate();
+						graph.getModel().beginUpdate();
+						mxCompactTreeLayout layout = new mxCompactTreeLayout(graph);
+						layout.setHorizontal(false);
+						layout.execute(graph.getDefaultParent());
+						graph.getModel().endUpdate();
+					}
+					catch (StructuralException e1)
+					{
+						System.out.println(e1);
+					}
+				}
+				else if (graphType2 == GraphType.INDEGREE)
+				{
+					int indegree = mxGraphStructure.indegree(aGraph, startVertex);
+					System.out.println("Indegree of " + aGraph.getGraph().getModel().getValue(startVertex) + " is " + indegree);
+				}
+				else if (graphType2 == GraphType.OUTDEGREE)
+				{
+					int outdegree = mxGraphStructure.outdegree(aGraph, startVertex);
+					System.out.println("Outdegree of " + aGraph.getGraph().getModel().getValue(startVertex) + " is " + outdegree);
+				}
+				else if (graphType2 == GraphType.IS_CUT_VERTEX)
+				{
+					boolean isCutVertex = mxGraphStructure.isCutVertex(aGraph, startVertex);
+
+					if (isCutVertex)
+					{
+						System.out.println("Vertex " + aGraph.getGraph().getModel().getValue(startVertex) + " is a cut vertex.");
+					}
+					else
+					{
+						System.out.println("Vertex " + aGraph.getGraph().getModel().getValue(startVertex) + " is not a cut vertex.");
+					}
+				}
+				setVisible(false);
 			});
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -1291,37 +1162,32 @@ class GraphConfigDialog extends JDialog
 
 						try
 						{
-							mxTraversal.dijkstra(aGraph, startVertex, endVertex, new mxICellVisitor()
-							{
-								@Override
-								// simple visitor that prints current vertex
-								public boolean visit(Object vertex, Object edge)
+							// simple visitor that prints current vertex
+							mxTraversal.dijkstra(aGraph, startVertex, endVertex, (vertex, edge) -> {
+								mxCell v = (mxCell) vertex;
+								mxCell e12 = (mxCell) edge;
+								String eVal = "N/A";
+
+								if (e12 != null)
 								{
-									mxCell v = (mxCell) vertex;
-									mxCell e = (mxCell) edge;
-									String eVal = "N/A";
-
-									if (e != null)
+									if (e12.getValue() == null)
 									{
-										if (e.getValue() == null)
-										{
-											eVal = "1.0";
-										}
-										else
-										{
-											eVal = e.getValue().toString();
-										}
+										eVal = "1.0";
 									}
-
-									if (!eVal.equals("N/A"))
+									else
 									{
-										distance = distance + Double.parseDouble(eVal);
+										eVal = e12.getValue().toString();
 									}
-
-									System.out.print("(v: " + v.getValue() + " e: " + eVal + ")");
-
-									return false;
 								}
+
+								if (!eVal.equals("N/A"))
+								{
+									distance = distance + Double.parseDouble(eVal);
+								}
+
+								System.out.print("(v: " + v.getValue() + " e: " + eVal + ")");
+
+								return false;
 							});
 
 							System.out.println(".");
@@ -1385,13 +1251,9 @@ class GraphConfigDialog extends JDialog
 					setVisible(false);
 				}
 			});
-			closeButton.addActionListener(new ActionListener()
-			{
-				public void actionPerformed(ActionEvent e)
-				{
-					insertGraph = false;
-					setVisible(false);
-				}
+			closeButton.addActionListener(e -> {
+				insertGraph = false;
+				setVisible(false);
 			});
 
 			getContentPane().add(panelBorder, BorderLayout.CENTER);
@@ -1417,7 +1279,7 @@ class GraphConfigDialog extends JDialog
 		
 		if(props == null)
 		{
-			Map<String, Object> properties = new HashMap<String, Object>();
+			Map<String, Object> properties = new HashMap<>();
 			mxGraphProperties.setDirected(properties, false);
 			this.aGraph.setProperties(properties);
 		}

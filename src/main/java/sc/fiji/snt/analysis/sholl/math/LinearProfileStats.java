@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -23,7 +23,6 @@ package sc.fiji.snt.analysis.sholl.math;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -184,7 +183,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 *            If {@code true}, calculation is performed on polynomial fitted
 	 *            values, otherwise from sampled data
 	 *
-	 * @return the count of all radii associated with at at least one
+	 * @return the count of all radii associated with at least one
 	 *         intersection
 	 */
 	public int getIntersectingRadii(final boolean fittedData) {
@@ -577,7 +576,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 *            the upper bound of the interval
 	 * @param initialGuess
 	 *            initial guess for a solution (solver's starting point)
-	 * @return the list of Points defined by the {x,y} coordinates of maxima
+	 * @return the set of Points defined by the {x,y} coordinates of maxima
 	 *         (sorted by descendant order)
 	 * @throws TooManyEvaluationsException
 	 *             if the maximum number of evaluations is exceeded when solving
@@ -598,12 +597,9 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 		final Complex[] roots = solver.solveAllComplex(derivative.getCoefficients(), initialGuess, getMaxEvaluations());
 		if (roots == null)
 			return null;
-		final Set<ShollPoint> maxima = new TreeSet<>(new Comparator<ShollPoint>() {
-			@Override
-			public int compare(final ShollPoint p1, final ShollPoint p2) {
-				return Double.compare(p2.y, p1.y); // descendant order of
-													// ordinates
-			}
+		final Set<ShollPoint> maxima = new TreeSet<>((p1, p2) -> {
+			return Double.compare(p2.y, p1.y); // descendant order of
+												// ordinates
 		});
 		final double tolerance = profile.stepSize();
 		for (final Complex root : roots) {
@@ -628,7 +624,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	}
 
 	/**
-	 * Sets the the function evaluation limit for solvers.
+	 * Sets the function evaluation limit for solvers.
 	 *
 	 * @param maxEval
 	 *            the new maximum of evaluations
@@ -664,7 +660,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 * @param integrator
 	 *            the integration method to retrieve the integral of the
 	 *            polynomial fit. Either "Simpson" (the default), or "Romberg"
-	 *            (case insensitive)
+	 *            (case-insensitive)
 	 * @param lowerBound
 	 *            the lower bound (smallest radius) for the interval
 	 * @param upperBound
@@ -813,6 +809,31 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 		if (fittedData)
 			validateFit();
 		return getMaxCount(fittedData) / getPrimaryBranches(fittedData);
+	}
+
+	/**
+	 * Calculates the branching index (BI) as defined in
+	 * <a href="https://pubmed.ncbi.nlm.nih.gov/24503022/">PMID 24503022</a>(doi:
+	 * 10.1016/j.jneumeth.2014.01.016). Note that this index is very sensitive to
+	 * radius step size.
+	 *
+	 * @param fittedData If {@code true}, calculation is performed on polynomial
+	 *                   fitted values, otherwise from sampled data
+	 *
+	 * @return the branching index
+	 * @see #getRamificationIndex(boolean)
+	 */
+	public double getBranchingIndex(final boolean fittedData) {
+		if (fittedData)
+			validateFit();
+		final double[] counts = (fittedData) ? fCounts : inputCounts;
+		double bi = 0;
+		for (int i = 1; i < counts.length; i++) {
+			final double v = (counts[i] - counts[i - 1]) * i;
+			if (v > 0)
+				bi += v;
+		}
+		return bi;
 	}
 
 	private double getMaxCount(final boolean fittedData) {

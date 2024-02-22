@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -61,7 +61,7 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
  *
  * @author Tiago Ferreira
  */
-@Plugin(initializer = "init", type = Command.class, visible = false, label = "Save Tables & Analysis Plots...")
+@Plugin(initializer = "init", type = Command.class, label = "Save Tables & Analysis Plots...")
 public class SaveMeasurementsCmd extends CommonDynamicCmd {
 
 	private static final int MAX_N = 5;
@@ -458,7 +458,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 			snt.getPrefs().setRecentDir(outputFile);
 	}
 
-	private class IJ1Table {
+	private static class IJ1Table {
 		private ij.measure.ResultsTable rt;
 		private String title;
 

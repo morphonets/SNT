@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -168,7 +168,7 @@ public class Sholl_Utils implements PlugIn {
 		sb.append("<html>");
 		sb.append("<div WIDTH=480>");
 		sb.append("<div align='center'>");
-		sb.append("<b>" + header1 + "</b><br>");
+		sb.append("<b>").append(header1).append("</b><br>");
 		sb.append("<b>" + header2 + "</b><br>");
 		sb.append("<a href='" + authorURL + "'>" + author + "</a> and ");
 		sb.append("<a href='" + contributorsURL + "'>contributors</a>");
@@ -275,7 +275,7 @@ public class Sholl_Utils implements PlugIn {
 	/**
 	 * Retrieves the Sholl Analysis version
 	 *
-	 * @return the version or a non-empty place holder string if version could
+	 * @return the version or a non-empty placeholder string if version could
 	 *         not be retrieved.
 	 * @deprecated Use {@link SNTUtils#VERSION} instead
 	 *

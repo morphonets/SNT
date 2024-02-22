@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -62,35 +62,24 @@ public interface SNTPoint {
 
 	public char getHemisphere();
 
-	@SuppressWarnings("unchecked")
-	public static <T extends SNTPoint> T average(final Collection<T> points) {
+	public static PointInImage average(final Collection<? extends SNTPoint> points) {
 		double x = 0;
 		double y = 0;
 		double z = 0;
-		double v = 0;
+		int n = 0;
 		if (points == null || points.isEmpty())
 			return null;
 		final Iterator<? extends SNTPoint> it = points.iterator();
-		boolean pim = false;
 		while (it.hasNext()) {
 			final SNTPoint p = it.next();
-			if (p == null) continue;
-			x += p.getX();
-			y += p.getY();
-			z += p.getZ();
-			if (pim || p instanceof PointInImage) {
-				v += ((PointInImage) p).v;
-				pim = true;
-			} else if (p instanceof SWCPoint)
-				v += ((SWCPoint) p).radius;
+			if (p != null) {
+				x += p.getX();
+				y += p.getY();
+				z += p.getZ();
+				n++;
+			}
 		}
-		final int n = points.size();
-		if (pim) {
-			final PointInImage result = new PointInImage(x / n, y / n, z / n);
-			result.v = v / n;
-			return (T) result;
-		}
-		return (T) new SWCPoint(-1, -1, x / n, y / n, z / n, v / n, -1);
+		return new PointInImage(x / n, y / n, z / n);
 	}
 
 }

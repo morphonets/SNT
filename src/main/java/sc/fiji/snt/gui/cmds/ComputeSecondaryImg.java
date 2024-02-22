@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -22,20 +22,23 @@
 
 package sc.fiji.snt.gui.cmds;
 
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.Window;
+import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.File;
-import java.io.IOException;
-import java.net.URL;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 
 import javax.swing.AbstractButton;
+import javax.swing.JComponent;
 import javax.swing.JDialog;
+import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
 import ij.ImagePlus;
@@ -46,11 +49,10 @@ import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.util.Util;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
+import org.scijava.command.CommandService;
 import org.scijava.command.Interactive;
 import org.scijava.display.DisplayService;
-import org.scijava.io.IOService;
 import org.scijava.module.MutableModuleItem;
-import org.scijava.platform.PlatformService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
@@ -58,7 +60,6 @@ import org.scijava.widget.Button;
 
 import ij.measure.Calibration;
 import net.imagej.ImageJ;
-import net.imagej.legacy.LegacyService;
 import net.imagej.ops.OpService;
 import net.imagej.util.Images;
 import net.imglib2.RandomAccessibleInterval;
@@ -72,6 +73,7 @@ import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SigmaPaletteListener;
+import sc.fiji.snt.plugin.LocalThicknessCmd;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.SigmaUtils;
 
@@ -81,13 +83,12 @@ import sc.fiji.snt.util.SigmaUtils;
  * @author Tiago Ferreira
  * @author Cameron Arshadi
  */
-@Plugin(type = Command.class, visible = false, initializer = "init")
+@Plugin(type = Command.class, initializer = "init")
 public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extends RealType<U> & NativeType<U>>
 		extends CommonDynamicCmd implements Interactive, SigmaPaletteListener
 {
 
 	private static final String PROMPT_TITLE = "Compute Secondary Layer...    "; // THIS MUST BE UNIQUE for getPrompt() to work
-	private static final String REFRESH_BUTTON_TITLE = "Refresh";
 
 	private static final String LAZY_LOADING_FALSE = "Preprocess (Compute full image and store in RAM)";
 	private static final String LAZY_LOADING_TRUE = "Compute while tracing (Filter locally and cache in RAM)";
@@ -97,11 +98,14 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	private static final int PALETTE_IS_RUNNING = 2;
 
 	private static final String NONE = "None. Duplicate primary image";
-	private static final String FRANGI = "Frangi Vesselness";
-	private static final String TUBENESS = "Tubeness";
-	private static final String GAUSS = "Gaussian Blur";
-	private static final String MEDIAN = "Median (Must be computed once)";
-
+	private static final String FRANGI = "Frangi Vesselness (Multi-scale filter)";
+	private static final String FRANGI_ALT = "Frangi Vesselness";
+	private static final String TUBENESS = "Tubeness (Multi-scale filter)";
+	private static final String TUBENESS_ALT = "Tubeness";
+	private static final String GAUSS = "Gaussian Blur (Single-scale filter)";
+	private static final String GAUSS_ALT = "Gaussian Blur";
+	private static final String MEDIAN = "Median (Single-scale filter, must be computed for full image)";
+	private static final String MEDIAN_ALT = "Median";
 	private static final String FLOAT = "32-bit";
 	private static final String DOUBLE = "64-bit";
 
@@ -109,16 +113,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	private DisplayService displayService;
 
 	@Parameter
-	private LegacyService legacyService;
-
-	@Parameter
-	private PlatformService platformService;
-
-	@Parameter
 	private OpService ops;
-
-	@Parameter
-	private IOService io;
 
 	@Parameter
 	private PrefService prefService;
@@ -129,48 +124,42 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	@Parameter(label = "Filter", choices = {TUBENESS, FRANGI, GAUSS, MEDIAN, NONE }, callback = "filterChanged")
 	private String filter = TUBENESS;
 
-	@Parameter(label = "Size of traced structures", required = false, //
+	@Parameter(label = "Scale(s)", required = false, //
 			description = "<HTML>Aprox. thickness (radius) of structures being traced (comma separated list).<br>There are two ways "
 					+ "of setting this field: Using <i>Select visually...</i> for an<br>interactive prompt, or manually, if you "
-					+ "know a priori such thicknesses.<br>Note that the 'gear menu' also hosts commands for estimation of radii.")
+					+ "know a priori such thicknesses.<br>Use <i>Estimate Programmatically</i> for a prediction/estimation of radii.")
 	private String sizeOfStructuresString;
 
 	@Parameter(label = "Select visually...", callback="triggerSigmaPalette")
 	private Button triggerSigmaPalette;
+	
+	@Parameter(label = "Estimate Programmatically...", description="<HTML>Predict radii of neurites using <i>Local Thickness</i> analysis", callback="triggerThicknessCmd")
+	private Button triggerThicknessCmd;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Performance:")
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Computation:")
 	private String HEADER2;
 
 	@Parameter(label = "Strategy", choices = { LAZY_LOADING_FALSE, LAZY_LOADING_TRUE }, //
 			description = "<HTML><b>Preprocess</b>: Cache entire image in RAM for fast searches<br>"
-					+ "<b>Compute while tracing</b>: Allows for tracing of large images when available RAM is limited.",
+					+ "<b>Compute while tracing</b>: Allows for tracing of large images when available RAM is limited",
 			callback = "useLazyChoiceChanged")
 	private String useLazyChoice;
 
-	@Parameter(label = "Output precision", choices = { FLOAT, DOUBLE })
+	@Parameter(label = "Precision", choices = { FLOAT, DOUBLE })
 	private String outputType = FLOAT;
 
 	@Parameter(label = "No. of threads", min = "1", stepSize = "1")
 	private int numThreads;
 
+	@Parameter(label = "Display image", callback = "showChoiceChanged",
+			description="<HTML>Requires strategy to be <i>Preprocess</i>")
+	private boolean show;
+
 	@Parameter(label = "Defaults", callback = "defaults")
 	private Button defaults;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Options:")
-	private String HEADER3;
-
-	@Parameter(label = "Display image", callback = "showChoiceChanged")
-	private boolean show;
-
-	@Parameter(label = "Save to file", callback = "saveChoiceChanged")
-	private boolean save;
-
-	@Parameter(label = REFRESH_BUTTON_TITLE, callback = "updatePrompt", //
-			description="Updates this prompt, ensuring fields are up-to-date.")
-	private Button refresh;
-
 	@Parameter(label = "   Run   ", callback = "runCommand", //
-			description="Generates the filtered image")
+			description="<HTML>Dismiss this prompt and generate/load filtered image")
 	private Button run;
 
 	// Used by the scripting API
@@ -187,7 +176,9 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 
 	//HACKS:
 	private JDialog prompt;
-	private AbstractButton refreshButtonAsSwingComponent;
+	private AbstractButton triggerSigmaPaletteAsSwingButton;
+	private JTextField sizeOfStructuresStringAsSwingField;
+
 
 	protected void init() {
 		getInfo().setLabel(PROMPT_TITLE); // needs to be set before any getPrompt() calls
@@ -205,27 +196,24 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			resolveInput("outputType");
 			show = false;
 			resolveInput("show");
-			save = false;
-			resolveInput("save");
 			resolveInput("HEADER1");
 			resolveInput("HEADER2");
 			resolveInput("HEADER3");
 			resolveInput("triggerSigmaPalette");
+			resolveInput("triggerThicknessCmd");
 			resolveInput("defaults");
-			resolveInput("refresh");
 			resolveInput("run");
 			snt.setCanvasLabelAllPanes("Running " + filter + "....");
 		}
 		resolveInput("calledFromScript");
 		resolveInput("syncObject");
-
-		// FIXME: This can lead to mis-match between expected and actual filter
-		//loadPreferences();
+		loadPreferences();
 	}
 
 	@SuppressWarnings("unused")
 	private void showChoiceChanged() {
 		if (show && LAZY_LOADING_TRUE.equals(useLazyChoice)) {
+			msg("This option is only available when strategy is '" + LAZY_LOADING_FALSE +"'.", "Invalid Option");
 			show = false;
 		}
 	}
@@ -234,40 +222,40 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	private void useLazyChoiceChanged() {
 		if (LAZY_LOADING_TRUE.equals(useLazyChoice)) {
 			show = false;
-			save = false;
-		}
-	}
-
-	@SuppressWarnings("unused")
-	private void saveChoiceChanged() {
-		if (save && LAZY_LOADING_TRUE.equals(useLazyChoice)) {
-			save = false;
 		}
 	}
 
 	@SuppressWarnings("unused")
 	private void filterChanged() {
-		if (MEDIAN.equals(filter))
-			useLazyChoice = LAZY_LOADING_FALSE;
-
+		if (!NONE.equals(filter) && paletteStatus == PALETTE_IS_RUNNING) {
+			msg("'Pick Sigmas' won't capture new choice unless closed and reopened.", "New Choice Not Previewed");
+		}
 		switch (filter) {
 			case TUBENESS:
+			case TUBENESS_ALT:
 				snt.setFilterType(SNT.FilterType.TUBENESS);
 				break;
 			case FRANGI:
+			case FRANGI_ALT:
 				snt.setFilterType(SNT.FilterType.FRANGI);
 				break;
 			case GAUSS:
+			case GAUSS_ALT:
 				snt.setFilterType(SNT.FilterType.GAUSS);
 				break;
 			case MEDIAN:
+			case MEDIAN_ALT:
 				snt.setFilterType(SNT.FilterType.MEDIAN);
+				useLazyChoice = LAZY_LOADING_FALSE;
 				break;
+			default:
+				// do nothing
 		}
 	}
 
 	@SuppressWarnings("unused")
 	private void triggerSigmaPalette() {
+		getPrompt(); // attach WindowAdapter listeners if not attached by now
 		if (NONE.equals(filter)) {
 			msg("Current filter does not require size parameters.", "Unnecessary Operation");
 			return;
@@ -279,11 +267,11 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			paletteStatus = PALETTE_WAITING;
 			break;
 		case PALETTE_WAITING:
-			msg("Click on a representative structure (e.g., branch point or neurite) on the image being traced. "
-					+ "Once you have done so, this prompt will be replaced by a preview grid, that will allow you "
-					+ "to better select the right kernel size(s) for the filtering operation. The selected values "
-					+ "will then be transfered to this dialog.<br><br>If you have never used the preview grid before, "
-					+ "you can press 'H' (<u>H</u>elp) once it opens to access its built-in documentation.",//
+			msg("Click on a representative structure (e.g., branch point or neurite) on the image being "
+					+ "traced. Once you have done so, a preview grid with several kernel sizes will be "
+					+ "displayed, allowing you to better select the size(s) for the filtering operation.<br><br>"
+					+ "If you have never used the preview grid before, you can press 'H' (<u>H</u>elp) "
+					+ "once it opens to access its built-in documentation.",//
 					"Click on a Representative Structure: How-To");
 			return;
 		default:
@@ -292,53 +280,82 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		updatePrompt();
 	}
 
+	@SuppressWarnings("unused")
+	private void triggerThicknessCmd() {
+		try {
+			final CommandService cmdService = getContext().getService(CommandService.class);
+			cmdService.run(LocalThicknessCmd.class, true, (Map<String, Object>)null);
+		} catch (final Exception e) {
+			e.printStackTrace();
+			new GuiUtils(getPrompt()).error(e.getMessage()+". See Console for details.");
+		}
+	}
+
 	private void updatePrompt() {
 		final MutableModuleItem<Button> mmi = getInfo().getMutableInput("triggerSigmaPalette", Button.class);
 		switch (paletteStatus) {
 		case PALETTE_IS_RUNNING:
-			mmi.setLabel("Adjusting settings visually. Press refresh when done.");
+			mmi.setLabel("Adjusting scale(s) visually...");
+			//mmi.setDescription("Scale(s) are being chosen in palette");
 			break;
 		case PALETTE_WAITING:
 			mmi.setLabel("Now click on a representative structure...");
+			//mmi.setDescription("Once you click on the image, a preview of clicked neighborhood will open");
 			break;
 		default:
 			mmi.setLabel("Select visually...");
+			//mmi.setDescription("Initialize preview palette");
 			break;
 		}
-		updateSigmasField();
-		// getInfo().update(eventService); // DOES NOTHING!?
+		sizeOfStructuresString = getSigmasAsString();
+
+		// The label of the mmi button only changes when the user _actually_ interacts
+		// with the prompt. We need it to update it consistently to avoid ill-states.
+		// 'typing' into the textfield seems to work:
+		if (triggerSigmaPaletteAsSwingButton != null
+				&& !mmi.getLabel().equals(triggerSigmaPaletteAsSwingButton.getText())) {
+			triggerSigmaPaletteAsSwingButton.setText(mmi.getLabel());
+		}
+		if (sizeOfStructuresStringAsSwingField != null
+				&& !sizeOfStructuresStringAsSwingField.getText().equals(sizeOfStructuresString)) {
+			SwingUtilities.invokeLater(() -> {
+				sizeOfStructuresStringAsSwingField.requestFocusInWindow();
+				sizeOfStructuresStringAsSwingField.setText(sizeOfStructuresString);
+				sizeOfStructuresStringAsSwingField
+						.setCaretPosition(sizeOfStructuresStringAsSwingField.getText().length());
+				final KeyEvent ke = new KeyEvent(sizeOfStructuresStringAsSwingField, KeyEvent.KEY_TYPED,
+						System.currentTimeMillis(), 0, KeyEvent.VK_UNDEFINED, ' ');
+				sizeOfStructuresStringAsSwingField.dispatchEvent(ke);
+			});
+		}
+
 	}
 
 	@SuppressWarnings("unused")
 	private void defaults() {
 		numThreads = SNTPrefs.getThreads();
+		outputType = FLOAT;
 		useLazyChoice = LAZY_LOADING_FALSE;
-		sigmas = new ArrayList<>();
-		final double step = snt.getAverageSeparation() * 0.5;
-		sigmas.add(step);
-		if (TUBENESS.equals(filter) || FRANGI.equals(filter)) {
-			sigmas.add(2 * step);
-			sigmas.add(4 * step);
-		}
-		updateSigmasField();
+		setDefaultSigmas();
+		sizeOfStructuresString = getSigmasAsString();
 		show = false;
-		save = false;
 	}
 
-	@SuppressWarnings("unused")
-	private void help() {
-		final String url = "https://imagej.net/plugins/snt/manual#tracing-on-secondary-image";
-		try {
-			platformService.open(new URL(url));
-		} catch (final IOException e) {
-			error("Web page could not be open. " + "Please visit " + url + " using your web browser.");
-		}
+	private void setDefaultSigmas() {
+		sigmas = DoubleStream.of(SigmaUtils.getDefaultSigma(snt)).boxed().collect(Collectors.toList());
 	}
 
-	private void exit() {
+	private void exit(final boolean savePrefs) {
+		if (getPrompt() != null) getPrompt().dispose();
+		if (calledFromScript)
+			snt.setCanvasLabelAllPanes(null);
+		if (savePrefs)
+			savePreferences();
+		if (ui != null) ui.changeState(SNTUI.READY);
+		prompt = null;
 		if (syncObject != null) {
 			synchronized (syncObject) {
-				syncObject.notify();
+				syncObject.notifyAll();
 			}
 		}
 	}
@@ -356,15 +373,20 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	@SuppressWarnings({ "unchecked" })
 	private void runCommand() {
 		if (isCanceled() || !snt.accessToValidImageData()) {
-			exit();
+			exit(false);
+			return;
+		}
+		getPrompt(); // otherwise it may be only called when user interacts with _some_ input widgets
+		final double[] sigmas = getSigmasAsArray();
+		if (!NONE.equals(filter) && (sigmas == null || sigmas.length == 0)) {
+			error("No scales have been specified.");
 			return;
 		}
 		if (numThreads > SNTPrefs.getThreads())
 			numThreads = SNTPrefs.getThreads();
-
 		useLazy = LAZY_LOADING_TRUE.equals(useLazyChoice);
 		if (NONE.equals(filter)) {
-			final RandomAccessibleInterval<T> loadedData = sntService.getPlugin().getLoadedData();
+			final RandomAccessibleInterval<T> loadedData = getInputData();
 			final Img<T> copy = ops.create().img(loadedData);
 			Images.copy(loadedData, copy);
 			filteredImg = (Img<U>) copy;
@@ -376,13 +398,12 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			error("Current filter is not compatible with the current performance strategy.");
 			return;
 		}
-		final double[] sigmas = getSigmas();
-		if (!NONE.equals(filter) && (sigmas == null || sigmas.length == 0)) {
-			error("No valid sizes have been specified.");
-			return;
+		if (sigmas.length > 1 && (MEDIAN.equals(filter) || GAUSS.equals(filter))) {
+			msg("Only the first scale ('" + SNTUtils.formatDouble(sigmas[0], 2) + "') will be considered.",
+					"Single-scale Filter Chosen");
 		}
-		final RandomAccessibleInterval<T> in = sntService.getPlugin().getLoadedData();
-		final Calibration cal = sntService.getPlugin().getImagePlus().getCalibration();
+		final RandomAccessibleInterval<T> in = getInputData();
+		final Calibration cal = sntService.getInstance().getImagePlus().getCalibration();
 		final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
 		final U type;
 		switch (outputType) {
@@ -398,8 +419,9 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		final int cellDim = 32; // side length for cell
 		final Img<U> out;
 		switch (filter) {
-			case FRANGI: {
-				final double stackMax = sntService.getPlugin().getStats().max;
+			case FRANGI:
+			case FRANGI_ALT: {
+				final double stackMax = sntService.getInstance().getStats().max;
 				if (stackMax == 0) {
 					new GuiUtils().error("Statistics for the main image have not been computed yet. "
 							+ "Please trace a small path over a relevant feature to compute them. "
@@ -409,7 +431,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 				final Frangi<T, U> op = new Frangi<>(
 						sigmas,
 						spacing,
-						sntService.getPlugin().getStats().max,
+						sntService.getInstance().getStats().max,
 						numThreads);
 
 				if (useLazy) {
@@ -426,7 +448,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 
 				break;
 			}
-			case TUBENESS: {
+			case TUBENESS:
+			case TUBENESS_ALT: {
 				final Tubeness<T, U> op = new Tubeness<>(sigmas, spacing, numThreads);
 				if (useLazy) {
 					out = Lazy.process(
@@ -442,7 +465,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 
 				break;
 			}
-			case GAUSS: {
+			case GAUSS:
+			case GAUSS_ALT: {
 				final double sig = sigmas[0]; // just pick the first sigma I guess...
 				if (useLazy) {
 					out = Lazy.process(
@@ -463,9 +487,9 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 
 				break;
 			}
-			case MEDIAN: {
-				// FIXME: TO BE IMPLEMENTED
-				final double sig = sigmas[0]; // just pick the first sigma I guess...
+			case MEDIAN:
+			case MEDIAN_ALT: {
+				final double sig = sigmas[0]; // just pick the first sigma
 				int radius;
 				if (in.numDimensions() == 2) {
 					radius = (int) Math.round((sig/spacing[0] + sig/spacing[1]) / 2.0);
@@ -485,6 +509,10 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		}
 
 		filteredImg = out;
+		if (ui != null && ui.getRecorder(false) != null) {
+			ui.getRecorder(false).recordCmd(
+					"snt.getUI().runSecondaryLayerWizard(\"" + filter + "\", \"" + Arrays.toString(sigmas) + "\")");
+		}
 		apply();
 	}
 
@@ -495,50 +523,31 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		snt.setUseSubVolumeStats(true);
 		if (show) {
 			final ImagePlus imp = ImgUtils.raiToImp(filteredImg, getImageName());
-			imp.copyScale(sntService.getPlugin().getImagePlus());
+			imp.copyScale(sntService.getInstance().getImagePlus());
 			imp.resetDisplayRange();
 			imp.show();
 		}
-		if (save) {
-			final File file = getSaveFile();
-			if (file != null) { // user did not abort file prompt
-				try {
-					io.save(filteredImg, getSaveFile().getAbsolutePath());
-				} catch (final IOException e) {
-					error("An error occurred when trying to save image. See console for details");
-					e.printStackTrace();
-				}
-			}
-		}
-		if (getPrompt() != null) getPrompt().dispose();
-		if (calledFromScript)
-			snt.setCanvasLabelAllPanes(null);
-		else
-			savePreferences();
-		if (ui != null) ui.changeState(SNTUI.READY);
-		prompt = null;
-		exit();
+		exit(true);
+	}
+
+	private RandomAccessibleInterval<T> getInputData() {
+		// could be modified to accept the original image with all channels, frames
+		return sntService.getInstance().getLoadedData();
 	}
 
 	private String getImageName() {
-		final String basename = SNTUtils.stripExtension(sntService.getPlugin().getImagePlus().getTitle());
-		final String sfx = (NONE.equals(filter)) ? "DUP" : filter;
-		return basename + " Sec Img [" + sfx + "].tif";
+		final String basename = SNTUtils.stripExtension(sntService.getInstance().getImagePlus().getTitle());
+		final String sfx = (NONE.equals(filter)) ? "DUP" : filter.substring(0, filter.indexOf(" ("));
+		return basename + " [" + sfx + "].tif";
 	}
 
-	private File getSaveFile() {
-		File file = new File(sntService.getPlugin().getPrefs().getRecentDir(), getImageName());
-		file = SNTUtils.getUniquelySuffixedTifFile(file);
-		return legacyService.getIJ1Helper().saveDialog("Save \"Filtered Image\"", file, ".tif");
-	}
-
-	private double[] getSigmas() {
+	private double[] getSigmasAsArray() {
 		if (sizeOfStructuresString != null && !sizeOfStructuresString.trim().isEmpty()) {
-			// interactive prompt: values may have been set by the user, the sigma palette or both.
+			// interactive prompt: values may have been set by the user, the sigma palette, or both.
 			// The easiest is to simply read the values in the field, even if we may be loosing
-			// precision from the ping-pongie  double>String>double conversion
+			// precision from the ping-pong between  double>String>double conversion
 			try {
-				final Matcher matcher = Pattern.compile("(\\d+(?:\\.\\d+)?)").matcher(sizeOfStructuresString);
+				final Matcher matcher = Pattern.compile("(\\d+(?:\\.\\d+)?)").matcher(sizeOfStructuresString.trim());
 				sigmas = new ArrayList<>();
 				while (matcher.find()) {
 					sigmas.add(Double.valueOf(matcher.group()));
@@ -551,19 +560,17 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			return sigmas.stream().mapToDouble(Double::doubleValue).toArray();
 		}
 		// else no values exist.
-		return SigmaUtils.getDefaultSigma(snt);
+		return null;
 	}
 
-	private void updateSigmasField() {
-		if (sigmas == null) {
-			sizeOfStructuresString = "";
-		} else {
-			final DecimalFormat df = new DecimalFormat("0.000");
-			final StringBuilder sb = new StringBuilder();
-			sigmas.forEach(s -> sb.append(df.format(s)).append(", "));
-			sb.setLength(sb.length() - 2);
-			sizeOfStructuresString = sb.toString();
-		}
+	private String getSigmasAsString() {
+		if (sigmas == null)
+			setDefaultSigmas();
+		final DecimalFormat df = new DecimalFormat("0.000");
+		final StringBuilder sb = new StringBuilder();
+		sigmas.forEach(s -> sb.append(df.format(s)).append(", "));
+		sb.setLength(sb.length() - 2);
+		return sb.toString();
 	}
 
 	@Override
@@ -577,55 +584,73 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	}
 
 	private JDialog getPrompt() {
-		// HACK: There is no guarantee that any of this will work. In the future prompt may not be a Swing
-		// dialog and Button may become something else but an AbstractButton. The only reason we are doing
-		// this is because there seems to be no way to refresh the prompt without the user interacting with
-		// it. getInfo().update(eventService) does not work and we have no way to access the prompt itself!
+		// HACK: There is no guarantee that this will work. In the future prompt may not
+		// even be a Swing dialog but there is no other way to access the prompt itself!?
 		if (prompt == null) {
 			for (final Window w : JDialog.getWindows()) {
-				if (w instanceof JDialog) {
-					if (PROMPT_TITLE.equals(((JDialog) w).getTitle())) {
-						prompt = ((JDialog) w);
-						refreshButtonAsSwingComponent = GuiUtils.getButton(prompt, REFRESH_BUTTON_TITLE);
-						prompt.addWindowListener(new WindowAdapter() {
-							@Override
-							public void windowClosing(final WindowEvent ignored) {
-								if (ui != null) ui.changeState(SNTUI.READY);
+				if (w instanceof JDialog && PROMPT_TITLE.equals(((JDialog) w).getTitle())) {
+					prompt = ((JDialog) w);
+					triggerSigmaPaletteAsSwingButton = getFirstComponent(prompt, AbstractButton.class);
+					sizeOfStructuresStringAsSwingField = getFirstComponent(prompt, JTextField.class);
+					prompt.addWindowListener(new WindowAdapter() {
+						@Override
+						public void windowClosing(final WindowEvent ignored) {
+							if (ui != null) {
+								ui.setSigmaPaletteListener(null);
+								ui.changeState(SNTUI.READY);
 							}
-						});
-						break;
-					}
+						}
+
+						@Override
+						public void windowLostFocus(final WindowEvent e) {
+							updatePrompt();
+						}
+
+						@Override
+						public void windowGainedFocus(final WindowEvent e) {
+							updatePrompt();
+						}
+
+						@Override
+						public void windowDeactivated(final WindowEvent e) {
+							updatePrompt();
+						}
+					});
+					break;
 				}
 			}
 		}
 		return prompt;
 	}
 
-	@SuppressWarnings("unused")
-	private void setPromptVisible(final boolean visible) {
-		if (getPrompt() == null) return;
-		SwingUtilities.invokeLater(() ->  {
-			if (getPrompt().isVisible() != visible) getPrompt().setVisible(visible); // toggling logic required to avoid duplication of prompt!?
-			if (visible) ui.changeState(SNTUI.RUNNING_CMD); // ensure state for as long this prompt is being displayed
-		});
+	
+	@SuppressWarnings("unchecked")
+	private static <J extends JComponent> J getFirstComponent(final Container parent, final Class<J> c) {
+		final Deque<Component> stack = new ArrayDeque<>();
+		stack.push(parent);
+		while (!stack.isEmpty()) {
+			final Component current = stack.pop();
+			if (c.isInstance(current)) {
+				return (J) current;
+			}
+			else if (current instanceof Container) {
+				stack.addAll(Arrays.asList(((Container) current).getComponents()));
+			}
+		}
+		return null;
 	}
 
 	@Override
 	public void paletteDisplayed() {
 		paletteStatus = PALETTE_IS_RUNNING;
 		updatePrompt();
-		//setPromptVisible(false);
+		ui.changeState(SNTUI.RUNNING_CMD); // exit SNTUI.WAITING_FOR_SIGMA_POINT_I
 	}
 
 	@Override
 	public void paletteDismissed() {
-		//setPromptVisible(true);
 		paletteStatus = PALETTE_CLOSED;
-		if (refreshButtonAsSwingComponent != null) {
-			refreshButtonAsSwingComponent.doClick();
-		} else {
-			updatePrompt();
-		}
+		updatePrompt();
 		ui.setSigmaPaletteListener(null);
 	}
 
@@ -637,7 +662,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	@Override
 	public void setSigmas(final List<Double> list) {
 		this.sigmas = list;
-		updateSigmasField();
+		sigmas.sort(Comparator.naturalOrder());
+		updatePrompt();
 	}
 
 	@Override
@@ -656,44 +682,34 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		} else {
 			new GuiUtils(getPrompt()).error(msg);
 		}
-		exit();
+		exit(false);
 	}
 
-	@SuppressWarnings("unused")
 	private void loadPreferences() {
-		// FIXME: Somehow values are not persisting!? Maybe because we are implementing Interactive? 
-		prefService.get(getClass(), "filter", TUBENESS);
-		prefService.get(getClass(), "sizeOfStructuresString", ""); // leave empty by default?
-		prefService.get(getClass(), "useLazyChoice", LAZY_LOADING_FALSE);
-		prefService.getInt(getClass(), "numThreads", SNTPrefs.getThreads());
-		prefService.getBoolean(getClass(), "show", false);
-		prefService.getBoolean(getClass(), "save", false);
+		filter = prefService.get(getClass(), "filter", TUBENESS);
+		sizeOfStructuresString = prefService.get(getClass(), "sizeOfStructuresString", getSigmasAsString());
+		useLazyChoice = prefService.get(getClass(), "useLazyChoice", LAZY_LOADING_FALSE);
+		numThreads = prefService.getInt(getClass(), "numThreads", SNTPrefs.getThreads());
+		show = prefService.getBoolean(getClass(), "show", false);
 	}
 
 	private void savePreferences() {
-		// FIXME: Somehow values are not persisting!? Maybe because we are implementing Interactive? 
 		prefService.put(getClass(), "filter", filter);
 		prefService.put(getClass(), "sizeOfStructuresString", sizeOfStructuresString);
 		prefService.put(getClass(), "useLazyChoice", useLazyChoice);
 		prefService.put(getClass(), "numThreads", numThreads);
 		prefService.put(getClass(), "show", show);
-		prefService.put(getClass(), "save", save);
 	}
 
 
 	/* IDE debug method **/
 	public static void main(final String[] args) {
-		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
 		ij.command().run(ComputeSecondaryImg.class, true);
 	}
 
-	//FIXME:
-		// - SigmaPalette assumes always 'Tubeness' independently of filter choice
-				// - the SigmaPaletterListener could be used to set the proper filter
-		// the built-in filter 'gear menu should be cleansed of redundant options now implemented here?
-		// - The Median filter was just introduced for testing callbacks. If we are not going to use it, it should be removed
-		// - the getPrompt() hack only works _AFTER_ interacting with certain widgets in the prompt. If the prompt is closed before such interactions, UI may remain in some unexpected state
+	//FIXME: SigmaPalette does not update when filter choice changes.
+	//SigmaPaletterListener could be used to set the updated filter
 
 }

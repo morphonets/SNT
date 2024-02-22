@@ -5,7 +5,7 @@
 """
 file:       Fully_Automated_Tracing_Demo_(Interactive).py
 author:     Tiago Ferreira
-version:    20220531
+version:    20231214
 info:       Exemplifies how to programmatically interact with a running
             instance of SNT to perform automated (unsupervised) tracing
 """
@@ -22,9 +22,10 @@ def run():
     # We could also delete any existing paths, but there is really no need for that
     #snt.getUI().runCommand("Delete...")
 
-    # We'll now open a the OP_1 demo image (SNT will startup if closed)
-    img = snt.demoImage("OP1 demo")
-    snt.initialize(img, True)  # args: immage, boolean for GUI display
+    # We'll now open startup SNT with the OP_1 demo image. Typically we would
+    # initialize SNT with an image or image path, but in this case we can specify
+    # a demo dataset:
+    snt.initialize("demo: OP1", True)  # args: image path, boolean for GUI display
 
     # In order to extract paths from the image we need to enhance it (or threshold
     # it). A quick way to do so is to run the 'Secondary layer' wizard in the GUI
@@ -64,7 +65,7 @@ def run():
     trees = converter.getTrees(filtered_img.getRoi(), False) # Root roi, 2D ROI?
     for tree in trees:
         snt.loadTree(tree)
-    snt.getUI().runCommand("Assign Distinct Colors")
+    snt.getUI().getPathManager().runCommand("Assign Distinct Colors")
     snt.updateViewers()
 
 

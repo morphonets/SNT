@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -38,13 +38,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import net.imagej.ImageJ;
-import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.text.WordUtils;
 import org.scijava.Context;
-import org.scijava.plugin.Parameter;
 
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
@@ -54,6 +52,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.util.ShollPoint;
 import sc.fiji.snt.viewer.MultiViewer2D;
@@ -69,6 +68,8 @@ public class TreeColorMapper extends ColorMapper {
 
 	/* For convenience keep references to TreeAnalyzer fields */
 
+	/** Flag for {@value #INTER_NODE_DISTANCE} statistics. */
+	public static final String INTER_NODE_DISTANCE = MultiTreeStatistics.INTER_NODE_DISTANCE;
 	/** Flag for {@value #SHOLL_COUNTS} mapping. */
 	public static final String SHOLL_COUNTS = "Sholl inters. (root centered)"; //FIXME: getNormalizedMeasurement() will not allow '-'
 	/** Flag for {@value #STRAHLER_NUMBER} mapping. */
@@ -117,6 +118,7 @@ public class TreeColorMapper extends ColorMapper {
 			NODE_RADIUS, //
 			PATH_DISTANCE, //
 			SHOLL_COUNTS, //
+			INTER_NODE_DISTANCE, //
 			X_COORDINATES, //
 			Y_COORDINATES, //
 			Z_COORDINATES, //
@@ -124,11 +126,7 @@ public class TreeColorMapper extends ColorMapper {
 			TAG_FILENAME,
 			PATH_FRAME};
 
-	@Parameter
-	private LUTService lutService;
-
 	protected ArrayList<Path> paths;
-	private Map<String, URL> luts;
 	private int internalCounter = 1;
 	private final List<Tree> mappedTrees;
 	private boolean nodeMapping;
@@ -162,10 +160,6 @@ public class TreeColorMapper extends ColorMapper {
 		return Arrays.stream(ALL_FLAGS).collect(Collectors.toList());
 	}
 
-	private void initLuts() {
-		if (luts == null) luts = lutService.findLUTs();
-	}
-
 	public ColorTable getColorTable(final String lut) {
 		initLuts();
 		for (final Map.Entry<String, URL> entry : luts.entrySet()) {
@@ -190,7 +184,7 @@ public class TreeColorMapper extends ColorMapper {
 			case STRAHLER_NUMBER:
 				assignStrahlerOrderToNodeValues();
 				integerScale = true;
-				mapToNodeProperty(VALUES, colorTable);
+				mapToNodeProperty(VALUES);
 				break;
 			case SHOLL_COUNTS:
 				final Tree tree = new Tree(paths);
@@ -226,14 +220,15 @@ public class TreeColorMapper extends ColorMapper {
 			case INTERNAL_COUNTER:
 			case TAG_FILENAME:
 			case PATH_FRAME:
-				mapToPathProperty(cMeasurement, colorTable);
+				mapToPathProperty(cMeasurement);
 				break;
 			case X_COORDINATES:
 			case Y_COORDINATES:
 			case Z_COORDINATES:
 			case NODE_RADIUS:
 			case VALUES:
-				mapToNodeProperty(cMeasurement, colorTable);
+			case INTER_NODE_DISTANCE:
+				mapToNodeProperty(cMeasurement);
 				break;
 			default:
 				throw new IllegalArgumentException("Unknown parameter");
@@ -259,8 +254,7 @@ public class TreeColorMapper extends ColorMapper {
 		});
 	}
 
-	private void mapToPathProperty(final String measurement,
-		final ColorTable colorTable)
+	private void mapToPathProperty(final String measurement)
 	{
 		final List<MappedPath> mappedPaths = new ArrayList<>();
 		switch (measurement) {
@@ -334,8 +328,7 @@ public class TreeColorMapper extends ColorMapper {
 		nodeMapping = false;
 	}
 
-	private void mapToNodeProperty(final String measurement,
-		final ColorTable colorTable)
+	private void mapToNodeProperty(final String measurement)
 	{
 		if (Double.isNaN(min) || Double.isNaN(max) || min > max) {
 			final TreeStatistics tStats = new TreeStatistics(new Tree(paths));
@@ -361,6 +354,12 @@ public class TreeColorMapper extends ColorMapper {
 						break;
 					case VALUES:
 						value = p.getNodeValue(node);
+						break;
+					case INTER_NODE_DISTANCE:
+						if (node == 0)
+							value = Double.NaN;
+						else
+							value = p.getNode(node).distanceTo(p.getNode(node-1));
 						break;
 					default:
 						throw new IllegalArgumentException("Unknow parameter");
@@ -477,6 +476,11 @@ public class TreeColorMapper extends ColorMapper {
 				}
 			}
 		}
+		// second pass: Resolve remaining non-mapped nodes
+		// https://github.com/morphonets/SNT/issues/176
+		for (final Path p : tree.list()) {
+			SNTColor.interpolateNullEntries(p.getNodeColors());
+		}
 		mappedTrees.add(tree);
 		nodeMapping = true;
 	}
@@ -516,7 +520,7 @@ public class TreeColorMapper extends ColorMapper {
 	 *
 	 * @param points      the points to be mapped
 	 * @param measurement the measurement ({@link #Z_COORDINATES}, etc.). Note that
-	 *                    if {@code points} do note encode a valid Tree. only
+	 *                    if {@code points} do not encode a valid Tree only
 	 *                    metrics applicable to coordinates are expected.
 	 * @param lut         the lookup table specifying the color mapping
 	 */
@@ -544,50 +548,53 @@ public class TreeColorMapper extends ColorMapper {
 
 	protected String tryReallyHardToGuessMetric(final String guess) {
 		final String normGuess = guess.toLowerCase();
-		if (normGuess.indexOf("soma") != -1 || normGuess.indexOf("path d") != -1) {
+		if (normGuess.contains("inter") && normGuess.contains("node")) {
+			return INTER_NODE_DISTANCE;
+		}
+		if (normGuess.contains("soma") || normGuess.contains("path d")) {
 			return PATH_DISTANCE;
 		}
-		if (normGuess.indexOf("length") != -1 || normGuess.indexOf("cable") != -1) {
+		if (normGuess.contains("length") || normGuess.contains("cable")) {
 			return LENGTH;
 		}
-		if (normGuess.indexOf("strahler") != -1 || normGuess.indexOf("horton") != -1 || normGuess.indexOf("h-s") != -1) {
+		if (normGuess.contains("strahler") || normGuess.contains("horton") || normGuess.contains("h-s")) {
 			return STRAHLER_NUMBER;
 		}
-		if (normGuess.indexOf("sholl") != -1 || normGuess.indexOf("inters") != -1) {
+		if (normGuess.contains("sholl") || normGuess.contains("inters")) {
 			return SHOLL_COUNTS;
 		}
-		if (normGuess.indexOf("path") != -1 && normGuess.indexOf("order") != -1) {
+		if (normGuess.contains("path") && normGuess.contains("order")) {
 			return PATH_ORDER;
 		}
-		if (normGuess.indexOf("bp") != -1 || normGuess.indexOf("branch points") != -1 || normGuess.indexOf("junctions") != -1) {
+		if (normGuess.contains("bp") || normGuess.contains("branch points") || normGuess.contains("junctions")) {
 			return N_BRANCH_POINTS;
 		}
-		if (normGuess.indexOf("nodes") != -1) {
+		if (normGuess.contains("nodes")) {
 			return N_NODES;
 		}
-		if (normGuess.indexOf("radi") != -1 ) {
-			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1) {
+		if (normGuess.contains("radi")) {
+			if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average")) {
 				return MEAN_RADIUS;
 			}
 			else {
 				return NODE_RADIUS;
 			}
 		}
-		if (normGuess.indexOf("spines") != -1 || normGuess.indexOf("varicosities") > -1) {
-			if (normGuess.indexOf("mean") != -1 || normGuess.indexOf("avg") != -1 || normGuess.indexOf("average") != -1 || normGuess.indexOf("dens") != -1) {
+		if (normGuess.contains("spines") || normGuess.contains("varicosities")) {
+			if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average") || normGuess.contains("dens")) {
 				return AVG_SPINE_DENSITY;
 			}
 			else {
 				return N_SPINES;
 			}
 		}
-		if (normGuess.indexOf("values") != -1 || normGuess.indexOf("intensit") > -1) {
+		if (normGuess.contains("values") || normGuess.contains("intensit")) {
 			return VALUES;
 		}
-		if (normGuess.indexOf("tag") != -1 || normGuess.indexOf("name") > -1 || normGuess.indexOf("label") > -1) {
+		if (normGuess.contains("tag") || normGuess.contains("name") || normGuess.contains("label")) {
 			return TAG_FILENAME;
 		}
-		if (normGuess.indexOf("frame") != -1) {
+		if (normGuess.contains("frame")) {
 			return PATH_FRAME;
 		}
 		if (normGuess.matches(".*\\bx\\b.*")) {
@@ -693,7 +700,7 @@ public class TreeColorMapper extends ColorMapper {
 		}
 	}
 
-	private class MappedTaggedPath {
+	private static class MappedTaggedPath {
 
 		private final Pattern pattern = Pattern.compile("\\{(\\w+)\\b");
 		private final Path path;

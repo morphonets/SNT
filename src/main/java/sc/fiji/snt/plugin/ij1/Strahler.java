@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -424,13 +424,13 @@ public class Strahler implements PlugIn, DialogListener {
 
 	/**
 	 * Checks if image to be analyzed fulfills analysis requirements and warns
-	 * the user if required dependencies are present (i.e,, if all the required
+	 * the user if required dependencies are present (i.e, if all the required
 	 * update sites have been subscribed).
 	 *
 	 * @param imp
 	 *            the image to be analyzed
 	 * @return {@code true}, if assessment was successful. If {@code false} a
-	 *         macro friendly {@link Utils#error} is displayed.
+	 *         macro friendly error is displayed.
 	 */
 	boolean validRequirements(final ImagePlus imp) {
 		boolean validImp = imp != null && imp.getBitDepth() == 8;
@@ -498,7 +498,7 @@ public class Strahler implements PlugIn, DialogListener {
 				validTitles.add(imp.getTitle());
 			}
 		}
-		gd.addChoice("8-bit grayscale image:", validTitles.toArray(new String[validTitles.size()]), title);
+		gd.addChoice("8-bit grayscale image:", validTitles.toArray(new String[0]), title);
 
 		// Part 3: Output
 		gd.setInsets(25, 0, 0);
@@ -591,7 +591,7 @@ public class Strahler implements PlugIn, DialogListener {
 	 */
 	double sum(final double[] array) {
 		double sum = 0; // TODO Use org.apache.commons.math3.stat.StatUtils?
-		if (array != null && array.length > 0)
+		if (array != null)
 			for (final double i : array)
 				sum += i;
 		return sum;
@@ -723,9 +723,6 @@ public class Strahler implements PlugIn, DialogListener {
 	 * useful for batch processing of images: Even if the analysis of a
 	 * particular image fails, remaining images can still be analyzed by the
 	 * same macro
-	 *
-	 * @param errorMsg
-	 *            the error message
 	 */
 	static void error(final String title, final String msg, final ImagePlus imp) {
 		final String impMsg = "Error while processing " + imp.getTitle();

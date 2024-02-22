@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -64,10 +64,11 @@ import sc.fiji.snt.util.SNTColor;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Time Profile Analysis...", initializer = "init")
+@Plugin(type = Command.class, label = "Time Profile Analysis...", initializer = "init")
 public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
 	private static final String TAG_REGEX_PATTERN = "("+ PathMatcherCmd.TAG_REGEX_PATTERN + ")";
+	private static final String TAG_REGEX_PATTERN_LEGACY = "("+ PathMatcherCmd.TAG_REGEX_PATTERN_LEGACY + ")";
 
 	@Parameter
 	private PlotService plotService;
@@ -82,7 +83,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 	})
 	private String measurementChoice;
 
-	@Parameter(label = "Grouping Strategy", choices = { "No grouping", "Matched path(s) across time", "Matched path(s) across time (≥2 time-points)"})
+	@Parameter(label = "Grouping Strategy", choices = { "No grouping", "Individual neurite(s) across time", "Individual neurite(s) across time (≥2 time-points)"})
 	private String scopeChoice;
 
 	@Parameter(label = "Output", choices = { "Plot", "Table", "Plot and Table" })
@@ -105,21 +106,18 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
 	@Override
 	public void run() {
-		if (scopeChoice.toLowerCase().startsWith("match")) {
+		if (scopeChoice.toLowerCase().startsWith("individual")) {
 			runMatchedAnalysis(scopeChoice.toLowerCase().contains("2"));
 		} else {
 			runNonMatchedAnalysis();
 		}
+		resetUI();
 	}
 
 	private Map<Integer, List<Path>> getPathListMap() {
 		final TreeMap<Integer, List<Path>> map = new TreeMap<>();
 		for (final Path p : paths) {
-			List<Path> list = map.get(p.getFrame());
-			if (list == null) {
-				list = new ArrayList<>();
-				map.put(p.getFrame(), list);
-			}
+			List<Path> list = map.computeIfAbsent(p.getFrame(), k -> new ArrayList<>());
 			list.add(p);
 		}
 		return map;
@@ -129,7 +127,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 		final Map<Integer, List<Path>> map = getPathListMap();
 		if (map.size() < 2) {
 			error("Selected Paths seem to be all asociated with the same time-point. "
-				+ "Make sure frame tags have been successfully applied.");
+				+ "Make sure to select paths associated with at least two time-points (frames).");
 			return;
 		}
 		final ArrayList<Double> xValues = new ArrayList<>(map.size());
@@ -180,22 +178,22 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
 		if (outputChoice.toLowerCase().contains("table")) {
 			final SNTTable table = new SNTTable();
-			final DefaultColumn<Double> xcol = new DefaultColumn<Double>(Double.class, "Frame");
+			final DefaultColumn<Double> xcol = new DefaultColumn<>(Double.class, "Frame");
 			xcol.addAll(xValues);
 			table.add(xcol);
 			if (includeSDevSeries) {
 				final String label = getMasurementChoiceMetric();
-				final DefaultColumn<Double> mean = new DefaultColumn<Double>(Double.class, label + " Mean");
+				final DefaultColumn<Double> mean = new DefaultColumn<>(Double.class, label + " Mean");
 				mean.addAll(upperStdDevValues);
 				table.add(mean);
-				final DefaultColumn<Double> upperErr = new DefaultColumn<Double>(Double.class, label + " Mean+SD");
+				final DefaultColumn<Double> upperErr = new DefaultColumn<>(Double.class, label + " Mean+SD");
 				upperErr.addAll(upperStdDevValues);
 				table.add(upperErr);
-				final DefaultColumn<Double> lowerErr = new DefaultColumn<Double>(Double.class, label + " Mean-SD");
+				final DefaultColumn<Double> lowerErr = new DefaultColumn<>(Double.class, label + " Mean-SD");
 				lowerErr.addAll(lowerStdDevValues);
 				table.add(lowerErr);
 			} else {
-				final DefaultColumn<Double> ycol = new DefaultColumn<Double>(Double.class, measurementChoice);
+				final DefaultColumn<Double> ycol = new DefaultColumn<>(Double.class, measurementChoice);
 				ycol.addAll(yValues);
 				table.add(ycol);
 			}
@@ -211,23 +209,15 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 	}
 
 	private void runMatchedAnalysis(final boolean ignoreSinglePoints) {
-		final Pattern pattern = Pattern.compile(TAG_REGEX_PATTERN);
-		final TreeMap<String, TreeMap<Integer, Path>> map = new TreeMap<>(new NumberAwareComparator());
-		for (final Path p : paths) {
-			final Matcher matcher = pattern.matcher(p.getName());
-			if (matcher.find()) {
-				final String groupID = matcher.group(1);
-				TreeMap<Integer, Path> groupMap = map.get(groupID);
-				if (groupMap == null) {
-					groupMap = new TreeMap<>();
-				}
-				groupMap.put(p.getFrame(), p);
-				map.put(groupID, groupMap);
-			}
+		TreeMap<String, TreeMap<Integer, Path>> map = getMatches(Pattern.compile(TAG_REGEX_PATTERN));
+		if (map.isEmpty()) {
+			// maybe this is some old data from v<4.3?
+			map = getMatches(Pattern.compile(TAG_REGEX_PATTERN_LEGACY));
 		}
 		if (map.isEmpty()) {
 			error("No matched paths found. Please run \"Match Paths Across Time...\" or "
-				+ "assign groups manually using \"Group #\" tags.");
+					+ "assign groups manually using "
+					+ TAG_REGEX_PATTERN.replace("(\\{", "").replace("\\d+\\})", "" + " tags."));
 			return;
 		}
 		if (ignoreSinglePoints) {
@@ -270,8 +260,25 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 		}
 	}
 
+	private TreeMap<String, TreeMap<Integer, Path>> getMatches(final Pattern pattern) {
+		final TreeMap<String, TreeMap<Integer, Path>> map = new TreeMap<>(new NumberAwareComparator());
+		for (final Path p : paths) {
+			final Matcher matcher = pattern.matcher(p.getName());
+			if (matcher.find()) {
+				final String groupID = matcher.group(1);
+				TreeMap<Integer, Path> groupMap = map.get(groupID);
+				if (groupMap == null) {
+					groupMap = new TreeMap<>();
+				}
+				groupMap.put(p.getFrame(), p);
+				map.put(groupID, groupMap);
+			}
+		}
+		return map;
+	}
+
 	//https://stackoverflow.com/a/58249974
-	private class NumberAwareComparator implements Comparator<String>
+	private static class NumberAwareComparator implements Comparator<String>
 	{
 		@Override
 		public int compare(final String s1, final String s2) {

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -26,6 +26,7 @@ import java.awt.Color;
 import java.util.Arrays;
 import java.util.Collection;
 
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.util.ColorRGB;
 
 /**
@@ -147,6 +148,11 @@ public class SNTColor {
 		return swcType == other.swcType;
 	}
 
+	@Override
+	public String toString() {
+		return colorToString(color);
+	}
+
 	/**
 	 * Returns the color encoded as hex string with the format #rrggbbaa.
 	 *
@@ -183,23 +189,66 @@ public class SNTColor {
 	 *
 	 * @param colors the colors to be averaged
 	 * @return the averaged color. Note that an average will never be accurate
-	 *         because the RGB space is not linear
+	 *         because the RGB space is not linear. Color.BLACK is returned if all
+	 *         colors in input collection are null;
 	 */
 	public static Color average(final Collection<Color> colors) {
-		if (colors == null || colors.isEmpty()) return null;
-		int tR = 0;
-		int tG = 0;
-		int tB = 0;
-		int tA = 0;
+		if (colors == null)
+			return null;
+		final SummaryStatistics rs = new SummaryStatistics();
+		final SummaryStatistics gs = new SummaryStatistics();
+		final SummaryStatistics bs = new SummaryStatistics();
+		final SummaryStatistics as = new SummaryStatistics();
 		for (final Color c : colors) {
-			if (c == null) continue;
-			tR += c.getRed();
-			tG += c.getGreen();
-			tB += c.getBlue();
-			tA += c.getAlpha();
+			if (c != null) {
+				rs.addValue(c.getRed());
+				gs.addValue(c.getGreen());
+				bs.addValue(c.getBlue());
+				as.addValue(c.getAlpha());
+			}
 		}
-		final int n = colors.size();
-		return new Color(tR / n, tG / n, tB / n, tA / n);
+		// this will return 0 if all colors were null, i.e., means are Double.NaN;
+		return new Color((int) rs.getMean(), (int) gs.getMean(), (int) bs.getMean(), (int) as.getMean());
+	}
+
+
+	private static Color average(final Color... colors) {
+		return average(Arrays.asList(colors));
+	}
+
+	private static Color previousNonNull(Color[] array, int index) {
+		for (int i = index - 1; i > 0; i--) {
+			if (array[i] != null)
+				return array[i];
+		}
+		return null;
+	}
+
+	private static Color nextNonNull(Color[] array, int index) {
+		for (int i = index + 1; i < array.length; i++) {
+			if (array[i] != null)
+				return array[i];
+		}
+		return null;
+	}
+
+	/**
+	 * Replaces null colors in an array with the average of flanking non-null colors.
+	 *
+	 * @param colors the color array
+	 */
+	public static void interpolateNullEntries(final Color[] colors) {
+		if (colors != null) {
+			for (int i = 0; i < colors.length; i++) {
+				if (colors[i] == null) {
+					// black if both flanking colors are null
+					// left flanking color if right flanking color is null
+					// right flanking color if left flanking color is null
+					// average of left and right flanking colors if both non-null
+					colors[i] = average(previousNonNull(colors, i), nextNonNull(colors, i));
+				}
+			}
+		}
 	}
 
 	/**
@@ -243,6 +292,15 @@ public class SNTColor {
 		{
 			System.arraycopy(colors, 0, colors, last, Math.min(last << 1, nColors) -
 				last);
+		}
+		return colors;
+	}
+
+	public static Color[] getDistinctColorsAWT(final int nColors) {
+		final Color[] colors = new Color[nColors];
+		final ColorRGB[] colorsRGB = getDistinctColors(nColors);
+		for (int i = 0; i < nColors; i++) {
+			colors[i] = new Color(colorsRGB[i].getARGB());
 		}
 		return colors;
 	}

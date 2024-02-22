@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -116,22 +116,8 @@ public class ColorMenu extends JMenu {
 			defaultPanel.add(colorPane);
 			_colorPanes.put(new SNTColor(color), colorPane);
 		}
+		addSeparator("Default:", false);
 		add(defaultPanel);
-
-		/* No longer in use: see {@link SWCTypeOptionsCmd}
-		
-				// Build the panel for SWC colors
-				addSeparator("SWC Type Colors (Right-click to change):");
-				final JPanel swcPanel = getGridPanel(1, 7);
-				for (final int type : Path.getSWCtypes()) {
-					final SNTColor swcColor = new SNTColor(Path.getSWCcolor(type), type);
-					final ColorPane swcColorPane = new ColorPane(swcColor, true);
-					swcPanel.add(swcColorPane);
-					_colorPanes.put(swcColor, swcColorPane);
-				}
-				add(swcPanel);
-		*/
-		addSeparator();
 
 		// Build the custom color row
 		final JPanel customPanel = getGridPanel(1, 7);
@@ -143,18 +129,30 @@ public class ColorMenu extends JMenu {
 			customPanel.add(customColorPane);
 			_colorPanes.put(new SNTColor(uniquePlaceHolderColor), customColorPane);
 		}
-		addSeparator("Custom... (Right-click to change):");
+		addSeparator("Custom (Right-click to Change):  ", true);
 		add(customPanel);
 
+		// Add Kelly distinct colors
+		addSeparator();
+		addSeparator("Contrast Hues:", true);
+		final JPanel kellyPanel = getGridPanel(3, 7);
+		final Color[] kellyColors = SNTColor.getDistinctColorsAWT(20);
+		for (final Color color : kellyColors) {
+			final ColorPane colorPane = new ColorPane(new SNTColor(color), false);
+			kellyPanel.add(colorPane);
+			_colorPanes.put(new SNTColor(color), colorPane);
+		}
+		add(kellyPanel);
 	}
 
-	private void addSeparator(final String title) {
+	private void addSeparator(final String title, final boolean gap) {
 		final JPanel panelLabel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
 		panelLabel.setBackground(getBackground());
 		final JLabel label = new JLabel(title);
 		label.setForeground(getForeground());
-		final double h = getFont().getSize() * .80;
-		label.setBorder(BorderFactory.createEmptyBorder((int) h, 4, 0, 4));
+		final double h = getFont().getSize() * .80; 
+		final int vgap = (gap) ? (int)h : 0;
+		label.setBorder(BorderFactory.createEmptyBorder(vgap, 4, 0, 4));
 		label.setFont(getFont().deriveFont((float) h));
 		panelLabel.add(label);
 		add(panelLabel);

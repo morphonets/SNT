@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -36,6 +36,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.viewer.OBJMesh;
 
 /**
@@ -354,9 +355,10 @@ public class AllenCompartment implements BrainAnnotation {
 				return null;
 			}
 			final URL url = new URL(urlPath);
-			mesh = new OBJMesh(url, "um");
+			mesh = new OBJMesh(url, GuiUtils.micrometer());
 			mesh.setColor(geometryColor, 87.5f);
-			mesh.setLabel(name);
+			mesh.setLabel(toString());
+			mesh.setSymmetryAxis(AllenUtils.getAxisDefiningSagittalPlane());
 			if (!jsonObj.isNull("geometryVolume")) {
 				mesh.setVolume(jsonObj.getDouble("geometryVolume"));
 			}
@@ -372,7 +374,7 @@ public class AllenCompartment implements BrainAnnotation {
 
 	@Override
 	public String toString() {
-		return name() + " [" + acronym + "]";
+		return (name().equalsIgnoreCase(acronym())) ? name() : name() + " [" + acronym() + "]";
 	}
 
 	@Override
@@ -418,5 +420,12 @@ public class AllenCompartment implements BrainAnnotation {
 		IntStream.rangeClosed(0, child.getOntologyDepth()).forEach(level -> {
 			System.out.println("\tancestor " + level + ": " + child.getAncestor(level));
 		});
+	}
+
+	@Override
+	public ColorRGB color() {
+		initializeAsNeeded();
+		final String s = jsonObj.optString("geometryColor", null);
+		return (null == s) ? null : ColorRGB.fromHTMLColor("#" + s);
 	}
 }

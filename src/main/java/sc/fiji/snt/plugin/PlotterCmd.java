@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -25,10 +25,7 @@ package sc.fiji.snt.plugin;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
-import java.io.FileFilter;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import net.imagej.ImageJ;
@@ -43,7 +40,6 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
-import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
 
 import sc.fiji.snt.viewer.Viewer2D;
@@ -136,20 +132,13 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 			resolveInput("tree");
 			statusService.showStatus(
 				"Please select one or more reconstruction files");
-			final FileFilter filter = (file) -> {
-				final String lName = file.getName().toLowerCase();
-				return lName.endsWith("swc") || lName.endsWith(".traces") || lName
-					.endsWith(".json");
-			};
-			final List<File> files = uiService.chooseFiles(new File(System
-				.getProperty("user.home")), new ArrayList<File>(), filter,
-				FileWidget.OPEN_STYLE);
-			if (files == null || files.isEmpty()) {
+			final File[] files = new GuiUtils().getReconstructionFiles();
+			if (files == null) {
 				cancel("");
 				return;
 			}
 			tree = new Tree();
-			final ColorRGB[] colors = SNTColor.getDistinctColors(files.size());
+			final ColorRGB[] colors = SNTColor.getDistinctColors(files.length);
 			int counter = 0;
 			for (final File f : files) {
 				try {
@@ -182,7 +171,6 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 			error("No paths to plot");
 			return;
 		}
-		GuiUtils.setLookAndFeel();
 		status("Building Plot...", false);
 		// Tree rotation occurs in place so we'll copy plotting coordinates
 		// to a new Tree. To avoid rotation lags we'll keep it monochrome,
@@ -193,7 +181,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		buildPlot();
 		chart = viewer.getChart();
 		chart.setSize(500, 500);
-		chart.addWindowListener(new WindowAdapter() {
+		chart.getFrame().addWindowListener(new WindowAdapter() {
 
 			@Override
 			public void windowClosing(final WindowEvent e) {
@@ -224,7 +212,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				hull2D = null;
 			buildPlot();
 			chart.replace(viewer.getChart());
-			chart.setVisible(true); // re-open frame if it has been closed
+			chart.getFrame().setVisible(true); // re-open frame if it has been closed
 			viewer.setGridlinesVisible(chart.isGridlinesVisible());
 			viewer.setOutlineVisible(chart.isOutlineVisible());
 			//frame.toFront();
@@ -328,7 +316,11 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				updatePlot(false);
 				break;
 			case ACTION_SHOW_DENDROGRAM:
-				tree.getGraph(true).show();
+				try {
+					tree.getGraph(true).show();
+				} catch (final IllegalArgumentException ex) {
+					GuiUtils.errorPrompt("Could not create dendrogram:\n" + ex.getMessage());
+				}
 				break;
 			default:
 				throw new IllegalArgumentException("Invalid action");

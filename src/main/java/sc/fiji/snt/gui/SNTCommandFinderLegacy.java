@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -74,7 +74,7 @@ import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.viewer.Viewer3D;
 
 /**
- * @deprecated see {@link #SNTCommandFinder}
+ * @deprecated see {@link SNTCommandFinder}
  *
  */
 @Deprecated 
@@ -124,7 +124,7 @@ public class SNTCommandFinderLegacy {
 	public void register(final AbstractButton button, final String descriptionOfComponentHostingButton,
 			final String descriptionOfPathToButton) {
 		if (otherCmdsHash == null)
-			otherCmdsHash = new Hashtable<String, CommandAction>();
+			otherCmdsHash = new Hashtable<>();
 		register(otherCmdsHash, button, descriptionOfComponentHostingButton, descriptionOfPathToButton);
 	}
 
@@ -216,7 +216,7 @@ public class SNTCommandFinderLegacy {
 			if (menuPath == null)
 				menuPath = "";
 			menuPath = menuPath.toLowerCase();
-			if (command.indexOf(substring) > -1 || menuPath.indexOf(substring) > -1) {
+			if (command.contains(substring) || menuPath.contains(substring)) {
 				final String[] row = makeRow(commandName, ca);
 				list.add(row);
 			}
@@ -302,7 +302,7 @@ public class SNTCommandFinderLegacy {
 		}
 	}
 
-	class CommandAction {
+	static class CommandAction {
 		CommandAction(final String cmdName, final String descriptionOfHostingGUIElement, final AbstractButton button,
 				final String descriptionOfLocation) {
 			this.cmdName = cmdName;
@@ -401,7 +401,7 @@ public class SNTCommandFinderLegacy {
 	}
 
 	public void reloadCommands() {
-		defaultCmdsHash = new Hashtable<String, CommandAction>();
+		defaultCmdsHash = new Hashtable<>();
 		if (otherCmdsHash != null)
 			defaultCmdsHash.putAll(otherCmdsHash);
 
@@ -529,7 +529,7 @@ public class SNTCommandFinderLegacy {
 				final int nRows = tableModel.getRowCount();
 				final char ch = Character.toLowerCase(evt.getKeyChar());
 				if (!Character.isLetterOrDigit(ch)) {
-					return; // Ignore searches for non alpha-numeric characters
+					return; // Ignore searches for non alphanumeric characters
 				}
 				final int sRow = table.getSelectedRow();
 				for (int row = (sRow + 1) % nRows; row != sRow; row = (row + 1) % nRows) {
@@ -671,7 +671,7 @@ public class SNTCommandFinderLegacy {
 		}
 	}
 
-	private class TableModel extends AbstractTableModel {
+	private static class TableModel extends AbstractTableModel {
 		private static final long serialVersionUID = 1L;
 		protected ArrayList<String[]> list;
 		public final static int COLUMNS = 2;
@@ -720,7 +720,7 @@ public class SNTCommandFinderLegacy {
 	}
 
 	@SuppressWarnings("unused")
-	private class TableHeaderRenderer implements TableCellRenderer {
+	private static class TableHeaderRenderer implements TableCellRenderer {
 		// https://stackoverflow.com/a/7794786
 
 		private final TableCellRenderer delegate;
@@ -752,7 +752,7 @@ public class SNTCommandFinderLegacy {
 		}
 	}
 
-	class ComponentWithFocusTimer {
+	static class ComponentWithFocusTimer {
 		final Component component;
 		final Timer focusTimer;
 

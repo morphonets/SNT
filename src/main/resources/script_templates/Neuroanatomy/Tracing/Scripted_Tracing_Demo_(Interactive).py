@@ -33,7 +33,7 @@ def run():
     # https://javadoc.scijava.org/SNT/sc/fiji/snt/SNTService.html
     print("There are currently %s traced paths" % snt.getPaths().size())
     print("...of which %s are selected" % snt.getSelectedPaths().size())
-    
+
     # But for more advanced features, we need to access SNT and
     # PathAndFillManager (the latter manages all things related to Paths):
     # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/SNT.html
@@ -81,7 +81,7 @@ def run():
     # Define a Tree (a collection of Paths) to hold all the paths we'll create
     tree = Tree()
 
-    # Let's use some other random point for the end-point [e] of the Path, such 
+    # Let's use some other random point for the end-point [e] of the Path, such
     # as the top-center voxel (we need at least 2 points to auto-trace a Path)
     ex = sx
     ey = 0
@@ -97,7 +97,7 @@ def run():
     # Cool. It worked! We can also compute paths from a list of points. Let's
     # create a bunch of child paths, e.g., by rotating the parent path above
     fork_point = p.getNode(0)  # 0-based index
-    for deg_angle in range(10,  360, 10):
+    for deg_angle in range(10, 360, 10):
         angle = math.radians(deg_angle)
         rot_x = sx + math.cos(angle) * (ex - sx) - math.sin(angle) * (ey - sy)
         rot_y = sy + math.sin(angle) * (ex - sx) + math.cos(angle) * (ey - sy)
@@ -134,7 +134,7 @@ def run():
 
     # Finally, we restore the plugin to its initial status
     ui.showDialog("Press OK to clear scripted paths", "Script Terminated")
-    
+
     pafm.deletePaths(tree.list())
     plugin.changeUIState(state)
     plugin.enableAstar(astar_enabled)

@@ -91,7 +91,7 @@ Before running the notebooks, there are three more things to take care of:
 
 ## Running
 Activate the `pyimagej` environment (if you have not registered it in `ipykernel`)
-and start jupyter from the _notebooks_ [directory](./):
+and start jupyter from the _notebooks'_ [directory](./):
 
 ```bash
 cd /path/to/notebooks/directory
@@ -106,7 +106,7 @@ where you unzipped the _notebooks_ directory).
 > :information_source: Some users have reported a `jupyter-notebook not found` error when calling jupyter notebook from the pyimagej environment. A quick workaround is to use jupyter-lab instead (see details below)
 
 
-If you prefer JupyterLab (or the 'regular' jupyter-notebook is failing from the pyimagej environment, replace
+If you prefer JupyterLab (or the 'regular' jupyter-notebook is failing from the pyimagej environment), replace
 `jupyter notebook` with `jupyter-lab`. If not present, you may need to install it on the `pyimagej` environment:
 
 ```bash
@@ -117,11 +117,11 @@ jupyter-lab
 
 ## Troubleshooting
 
-> :warning: Running SNT from python is pretty much a bleeding edge experience. Things are being actively developed and somethings may break. That being said, it is certainly possible (hundreds of people use it frequently). Your feedback is key! Please do [reach out](https://forum.image.sc/) if you run into issues.
+> :warning: Running SNT from python is pretty much a bleeding edge experience. Things are being actively developed and some things may break. That being said, it is certainly possible (hundreds of people use it frequently). Your feedback is key! Please do [reach out](https://forum.image.sc/) if you run into issues.
 
 
 ### Installation
-If your are are having problems setting up your conda environment, it may be useful
+If you are having problems setting up your conda environment, it may be useful
 to ensure your conda is up-to-date:
 
 ```

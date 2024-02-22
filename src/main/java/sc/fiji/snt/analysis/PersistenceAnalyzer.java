@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -50,7 +50,7 @@ public class PersistenceAnalyzer {
      */
     protected static final int FUNC_0_GEODESIC = 0;
     /**
-     * The euclidean (i.e., "straight line") distance between a node and the tree root
+     * The Euclidean (i.e., "straight line") distance between a node and the tree root
      */
     protected static final int FUNC_1_RADIAL = 1;
     /**
@@ -192,7 +192,7 @@ public class PersistenceAnalyzer {
      * Gets the persistence diagram.
      *
      * @param descriptor A descriptor for the filter function as per
-     *                   {@link #getDescriptors()} (case insensitive), such as
+     *                   {@link #getDescriptors()} (case-insensitive), such as
      *                   {@code radial}, {@code geodesic}, {@code centrifugal}
      *                   (reverse Strahler), etc.
      * @return the persistence diagram
@@ -211,7 +211,7 @@ public class PersistenceAnalyzer {
      * Gets the 'barcode' for the specified filter function.
      *
      * @param descriptor A descriptor for the filter function as per
-     *                   {@link #getDescriptors()} (case insensitive), such as
+     *                   {@link #getDescriptors()} (case-insensitive), such as
      *                   {@code radial}, {@code geodesic}, {@code centrifugal}
      *                   (reverse Strahler), etc.
      * @return the barcode
@@ -230,7 +230,7 @@ public class PersistenceAnalyzer {
      * Gets the persistence diagram nodes.
      *
      * @param descriptor A descriptor for the filter function as per
-     *                   {@link #getDescriptors()} (case insensitive), such as
+     *                   {@link #getDescriptors()} (case-insensitive), such as
      *                   {@code radial}, {@code geodesic}, {@code centrifugal}
      *                   (reverse Strahler), etc.
      * @return the persistence diagram nodes.
@@ -251,7 +251,7 @@ public class PersistenceAnalyzer {
      * Journal of Machine Learning Research. 16. 77-102.
      *
      * @param descriptor    A descriptor for the filter function as per
-     *                      {@link #getDescriptors()} (case insensitive), such as
+     *                      {@link #getDescriptors()} (case-insensitive), such as
      *                      {@code radial}, {@code geodesic}, {@code centrifugal}
      *                      (reverse Strahler), etc.
      * @param numLandscapes the number of piecewise-linear functions to output.

@@ -11,8 +11,8 @@ import org.scijava.util.*
 
 /**
  * file:	Get_Branch_Points_in_Brain_Compartment_Demo.groovy
- * author:	Tiago Ferreira  
- * version:	20190613 
+ * author:	Tiago Ferreira
+ * version:	20190613
  * info:	Exemplifies how to extract morphometric properties of a MouseLight
  *			cell associated with a specific brain region/neuropil compartment.
  *			Requires internet connection.
@@ -41,7 +41,7 @@ if (!bps) {
 }
 
 // Let's look at the soma location of the analyzed cell, and the centroid
-// defined by the extracted branch points. 
+// defined by the extracted branch points.
 somaCentroid = loader.getSomaLocation()
 bpsCentroid = SNTPoint.average(bps)
 println("SomaLocation: $somaCentroid.x, $somaCentroid.y, $somaCentroid.z")
@@ -95,7 +95,7 @@ viewer.show()
 println("... Done. With Viewer active, Press 'H' or 'F1' for help")
 
 
-/** 
+/**
  * Extracts all the branch points (BPs) of the specified cell that are
  * contained by {@code projCompartment}. Does nothing if cell's soma is not
  * contained by {@code somaCompartment}

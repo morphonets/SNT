@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -49,7 +49,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false,
+@Plugin(type = Command.class,
 	label = "Import InsectBrain Data", initializer = "init")
 public class InsectBrainImporterCmd extends CommonDynamicCmd {
 
@@ -158,7 +158,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 			// recViewer.validate(); // Not needed: will be called by recViewer.add(Collection)
 		}
 
-		resetProgress(recViewer);
+		notifyLoadingEnd(recViewer);
 		resetUI(recViewer == null);
 		if (failures > 0) {
 			error(String.format("%d/%d reconstructions could not be retrieved.",
@@ -196,13 +196,13 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 	protected void init() {
 
 		if (sntService.isActive()) {
-			snt = sntService.getPlugin();
+			snt = sntService.getInstance();
 			ui = sntService.getUI();
 			if (ui != null) ui.changeState(SNTUI.RUNNING_CMD);
 			runningFromMainSNT = true;
 		}
-		// If a recViewer instance has been specified, then we've be called from
-		// a standalone Reconstruction iewer even if SNT is currently running
+		// If a recViewer instance has been specified, then we've been called from
+		// a standalone Reconstruction Viewer even if SNT is currently running
 		runningFromMainSNT = runningFromMainSNT && recViewer == null;
 
 		if (!runningFromMainSNT && recViewer == null) {

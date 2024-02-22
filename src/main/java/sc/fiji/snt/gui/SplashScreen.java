@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -80,9 +80,9 @@ class SplashScreen extends JWindow {
 				return logoImage;
 			}
 		} catch (final Exception ignored) {
-			return null;
+			// do nothing
 		}
-		return null;
+		return new JLabel(new com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon()); // non-null fallback
 	}
 
 	static Dimension getScaledIconDimensions(final int originalIconWidth, final int originalIconHeight) {

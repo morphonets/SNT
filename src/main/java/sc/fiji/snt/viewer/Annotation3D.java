@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -28,22 +28,36 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-import net.imagej.mesh.Mesh;
-import net.imagej.mesh.Triangle;
-import net.imagej.mesh.Triangles;
-import net.imglib2.roi.geom.real.Polygon2D;
-
 import org.jzy3d.colors.Color;
+import org.jzy3d.colors.ColorMapper;
+import org.jzy3d.colors.IMultiColorable;
+import org.jzy3d.colors.colormaps.AbstractColorMap;
+import org.jzy3d.colors.colormaps.ColorMapGrayscale;
+import org.jzy3d.colors.colormaps.ColorMapHotCold;
+import org.jzy3d.colors.colormaps.ColorMapRBG;
+import org.jzy3d.colors.colormaps.ColorMapRainbow;
+import org.jzy3d.colors.colormaps.ColorMapRedAndGreen;
+import org.jzy3d.colors.colormaps.ColorMapWhiteBlue;
+import org.jzy3d.colors.colormaps.ColorMapWhiteGreen;
+import org.jzy3d.colors.colormaps.ColorMapWhiteRed;
+import org.jzy3d.maths.BoundingBox3d;
 import org.jzy3d.maths.Coord3d;
+import org.jzy3d.maths.Range;
 import org.jzy3d.plot3d.primitives.Drawable;
 import org.jzy3d.plot3d.primitives.LineStrip;
+import org.jzy3d.plot3d.primitives.ParallelepipedComposite;
 import org.jzy3d.plot3d.primitives.Point;
 import org.jzy3d.plot3d.primitives.Polygon;
 import org.jzy3d.plot3d.primitives.Scatter;
 import org.jzy3d.plot3d.primitives.Shape;
+import org.jzy3d.plot3d.primitives.Wireframeable;
+import org.jzy3d.plot3d.primitives.enlightables.EnlightableSphere;
 import org.scijava.util.ColorRGB;
-import org.scijava.util.Colors;
 
+import net.imagej.mesh.Mesh;
+import net.imagej.mesh.Triangle;
+import net.imagej.mesh.Triangles;
+import net.imglib2.roi.geom.real.Polygon2D;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.analysis.ConvexHull3D;
 import sc.fiji.snt.util.PointInImage;
@@ -65,6 +79,7 @@ public class Annotation3D {
 	protected static final int STRIP = 2;
 	protected static final int Q_TIP = 3;
 	protected static final int MERGE = 4;
+	protected static final int PLANE = 6;
 	protected static final int SURFACE_AND_VOLUME = 5;
 
 	private final Viewer3D viewer;
@@ -106,6 +121,9 @@ public class Annotation3D {
 			break;
 		case Q_TIP:
 			drawable = assembleQTip();
+			break;
+		case PLANE:
+			drawable = assemblePlane();
 			break;
 		default:
 			throw new IllegalArgumentException("Unrecognized type " + type);
@@ -155,6 +173,70 @@ public class Annotation3D {
 		return meshToDrawable(mesh, new Color(1f, 1f, 1f, 0.05f));
 	}
 
+	public static final List<String> COLORMAPS = List.of("grayscale", "hotcold", "rainbow", "rbg", "redgreen",
+			"whiteblue", "whitegreen", "whitered");
+
+	public boolean isColorCodeAllowed() {
+		return drawable instanceof IMultiColorable;
+	}
+
+	/**
+	 * 
+	 * @param colormap
+	 * @param min
+	 * @param max
+	 */
+	public void colorCode(final String colormap, String axis) {
+		if (!isColorCodeAllowed())
+			throw new IllegalArgumentException("The current " + getType() + "annot. cannot be colorcoded");
+		AbstractColorMap cm;
+		switch (colormap.toLowerCase()) {
+		case "grayscale":
+			cm = new ColorMapGrayscale();
+			break;
+		case "hotcold":
+			cm = new ColorMapHotCold();
+			break;
+		case "rainbow":
+			cm = new ColorMapRainbow();
+			break;
+		case "rbg":
+			cm = new ColorMapRBG();
+			break;
+		case "redgreen":
+		case "redandgreen":
+			cm = new ColorMapRedAndGreen();
+			break;
+		case "whiteblue":
+		case "whiteandblue":
+			cm = new ColorMapWhiteBlue();
+			break;
+		case "whitegreen":
+		case "whiteandgreen":
+			cm = new ColorMapWhiteGreen();
+			break;
+		case "whitered":
+		case "whiteandred":
+			cm = new ColorMapWhiteRed();
+			break;
+		default:
+			throw new IllegalArgumentException( "Invalid colormap. Valid options: " + COLORMAPS.toString());
+		}
+		((IMultiColorable) drawable).setColorMapper(new ColorMapper(cm, getRange(axis.toLowerCase())));
+	}
+
+
+	Range getRange(final String axis) {
+		switch (axis) {
+		case "x":
+			return drawable.getBounds().getXRange();
+		case "y":
+			return drawable.getBounds().getYRange();
+		default:
+			return drawable.getBounds().getZRange();
+		}
+
+	}
 	private static Drawable polygonToDrawable(final Polygon2D polygon, final Color color) {
 		final Polygon polyg = new Polygon();
 		polygon.vertices().forEach(vx -> {
@@ -218,6 +300,9 @@ public class Annotation3D {
 			}
 			idx++;
 		}
+		if (points.size() == 1) {
+			return new EnlightableSphere(coords[0], size, 15, colors[0]);
+		}
 		final Scatter scatter = new Scatter();
 		scatter.setData(coords);
 		scatter.setColors(colors);
@@ -259,6 +344,11 @@ public class Annotation3D {
 		return shape;
 	}
 
+	private Drawable assemblePlane() {
+		final Iterator<? extends SNTPoint> it = points.iterator();
+		return new Parallelepiped(it.next(), it.next());
+	}
+
 	/**
 	 * Sets the annotation width.
 	 *
@@ -271,16 +361,20 @@ public class Annotation3D {
 			return;
 		switch (type) {
 		case SCATTER:
-			((Scatter) drawable).setWidth(this.size);
+			if (drawable instanceof Scatter)
+				((Scatter) drawable).setWidth(this.size);
+			else if (drawable instanceof EnlightableSphere)
+				((EnlightableSphere) drawable).setVolume(size);
 			break;
 		case SURFACE:
-			((Shape) drawable).setWireframeWidth(this.size);
-			break;
 		case SURFACE_AND_VOLUME:
 			((Shape) drawable).setWireframeWidth(this.size);
 			break;
 		case STRIP:
 			((LineStrip) drawable).setWidth(this.size);
+			break;
+		case PLANE:
+			((Parallelepiped) drawable).setWireframeWidth(this.size);
 			break;
 		case Q_TIP:
 		case MERGE:
@@ -313,15 +407,20 @@ public class Annotation3D {
 	 * @param transparencyPercent the color transparency (in percentage)
 	 */
 	public void setColor(final ColorRGB color, final double transparencyPercent) {
-		final ColorRGB inputColor = (color == null) ? Colors.WHITE : color;
-		final Color c = new Color(inputColor.getRed(), inputColor.getGreen(), inputColor.getBlue(),
-				(int) Math.round((100 - transparencyPercent) * 255 / 100));
+		Color fallback = getDrawableColor();
+		if (fallback == null) fallback = Color.YELLOW;
+		final float a = (transparencyPercent == -1) ? fallback.a : 	(float)( (100 - transparencyPercent) / 100);
+		final Color c = (color == null) ? fallback : colorFromColorRGB(color);
+		c.a = a;
 		if (drawable == null)
 			return;
 		switch (type) {
 		case SCATTER:
-			((Scatter) drawable).setColors(null);
-			((Scatter) drawable).setColor(c);
+			if (drawable instanceof Scatter) {
+				((Scatter) drawable).setColors(null);
+				((Scatter) drawable).setColor(c);
+			} else if (drawable instanceof EnlightableSphere)
+				((EnlightableSphere) drawable).setColor(c);
 			break;
 		case SURFACE:
 		case SURFACE_AND_VOLUME:
@@ -330,6 +429,9 @@ public class Annotation3D {
 			break;
 		case STRIP:
 			((LineStrip) drawable).setColor(c);
+			break;
+		case PLANE:
+			((Parallelepiped) drawable).setColor(c);
 			break;
 		case Q_TIP:
 		case MERGE:
@@ -350,6 +452,45 @@ public class Annotation3D {
 		}
 	}
 
+	public ColorRGB getColor() {
+		final Color c = getDrawableColor();
+		if (c == null) return null;
+		return new ColorRGB((int) (c.r * 255 + 0.5), (int) (c.g * 255 + 0.5), (int) (c.b * 255 + 0.5));
+	}
+
+	protected Color getDrawableColor() {
+		if (drawable == null)
+			return null;
+		switch (type) {
+		case SCATTER:
+			if (drawable instanceof Scatter)
+				return ((Scatter) drawable).getColor();
+			else if (drawable instanceof EnlightableSphere)
+				return ((EnlightableSphere) drawable).getColor();
+		case SURFACE:
+		case SURFACE_AND_VOLUME:
+			return ((Shape) drawable).getColor();
+		case STRIP:
+			return ((LineStrip) drawable).getColor();
+		case PLANE:
+			return ((Parallelepiped) drawable).getColor();
+		case Q_TIP:
+		case MERGE:
+			for (final Drawable drawable : ((Shape) drawable).getDrawables()) {
+				if (drawable instanceof LineStrip) {
+					return ((LineStrip) drawable).getColor();
+				} else if (drawable instanceof Scatter) {
+					return ((Scatter) drawable).getColor();
+				} else if (drawable instanceof Shape) {
+					return ((Shape) drawable).getColor();
+				}
+			}
+			return null;
+		default:
+			throw new IllegalArgumentException("Unrecognized type " + type);
+		}
+	}
+
 	/**
 	 * Script friendly method to assign a color to the annotation.
 	 *
@@ -365,6 +506,15 @@ public class Annotation3D {
 	}
 
 	/**
+	 * Script friendly method to assign a transparency to the annotation.
+	 *
+	 * @param transparencyPercent the color transparency (in percentage)
+	 */
+	public void setTransparency(final double transparencyPercent) {
+		setColor(getColor(), transparencyPercent);
+	}
+
+	/**
 	 * Script friendly method to assign a color to the annotation.
 	 *
 	 * @param color the color to render the imported file, either a 1) HTML color
@@ -373,7 +523,27 @@ public class Annotation3D {
 	 *              range {@code [0, 255]}
 	 */
 	public void setColor(final String color) {
-		setColor(new ColorRGB(color), 10d);
+		setColor(new ColorRGB(color), 0);
+	}
+
+	/**
+	 * Script friendly method to assign a wireframe color to the annotation.
+	 *
+	 * @param color the wireframe color. Ignored if the annotation has no wireframe.
+	 */
+	public void setWireframeColor(final String color) {
+		setWireframeColor(new ColorRGB(color));
+	}
+
+	/**
+	 * Assigns a wireframe color to the annotation.
+	 *
+	 * @param color the wireframe color. Ignored if the annotation has no wireframe.
+	 */
+	public void setWireframeColor(final ColorRGB color) {
+		if (drawable instanceof Wireframeable) {
+			((Wireframeable) drawable).setWireframeColor(colorFromColorRGB(color));
+		}
 	}
 
 	/**
@@ -383,9 +553,7 @@ public class Annotation3D {
 	 *                         bounding box is displayed
 	 */
 	public void setBoundingBoxColor(final ColorRGB boundingBoxColor) {
-		final Color c = (boundingBoxColor == null) ? null
-				: new Color(boundingBoxColor.getRed(), boundingBoxColor.getGreen(), boundingBoxColor.getBlue(),
-						boundingBoxColor.getAlpha());
+		final Color c = colorFromColorRGB(boundingBoxColor);
 		drawable.setBoundingBoxColor(c);
 		drawable.setBoundingBoxDisplayed(c != null);
 	}
@@ -403,19 +571,20 @@ public class Annotation3D {
 	 * Gets the type of this annotation.
 	 *
 	 * @return the annotation type. Either {@code cloud} (point cloud),
-	 *         {@code surface}, {@code line}, or {@code mixed} (composite shape).
+	 *         {@code surface}, {@code line}, {@code plane}, or {@code mixed} (composite shape).
 	 */
 	public String getType() {
 		switch (type) {
 		case SCATTER:
 			return "cloud";
 		case SURFACE:
-			return "surface";
 		case SURFACE_AND_VOLUME:
 			return "surface";
-		case STRIP:
+			case STRIP:
 		case Q_TIP:
 			return "line";
+		case PLANE:
+			return "plane";
 		case MERGE:
 			return "mixed";
 		default:
@@ -443,7 +612,7 @@ public class Annotation3D {
 	}
 
 	/**
-	 * Returns the {@link AbstractDrawable} associated with this annotation.
+	 * Returns the AbstractDrawable associated with this annotation.
 	 *
 	 * @return the AbstractDrawable
 	 */
@@ -451,4 +620,30 @@ public class Annotation3D {
 		return drawable;
 	}
 
+	private Color colorFromColorRGB(final ColorRGB boundingBoxColor) {
+		final Color c = (boundingBoxColor == null) ? null
+				: new Color(boundingBoxColor.getRed(), boundingBoxColor.getGreen(), boundingBoxColor.getBlue(),
+						boundingBoxColor.getAlpha());
+		return c;
+	}
+
+	private class Parallelepiped extends ParallelepipedComposite {
+		
+		
+		Parallelepiped(final SNTPoint p1, final SNTPoint p2) {
+			 super(new BoundingBox3d(p1.getX(), p2.getX(), p1.getY(), p2.getY(), p1.getZ(), p2.getZ()));
+		}
+	
+		@Override
+		public void setColor(final Color c) {
+			super.setColor(c);
+			super.setWireframeColor(c);
+			if (quads != null) { // this is not needed!?
+				for (final Polygon quad : quads) {
+					quad.setColor(c);
+					quad.setWireframeColor(c);
+				}
+			}
+		}
+	}
 }

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -30,6 +30,7 @@ import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
@@ -37,8 +38,7 @@ import sc.fiji.snt.annotation.BrainAnnotation;
 
 /**
  * Defines a node in an SWC reconstruction. The SWC file format is detailed
- * <a href=
- * "http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html">here</a>
+ * <a href= "https://swc-specification.readthedocs.io/en/latest/">here</a>.
  *
  * @author Tiago Ferreira
  */
@@ -152,23 +152,22 @@ public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 	/**
 	 * Converts a collection of SWC points into a Reader.
 	 *
-	 * @param points the collection of SWC points to be converted into a space/
-	 *          tab separated String. Points should be sorted by sample number to
-	 *          ensure valid connectivity.
+	 * @param points the collection of SWC points to be converted into a space
+	 *               separated String. Points should be sorted by sample number to
+	 *               ensure valid connectivity.
 	 * @return the Reader
 	 */
-	public static StringReader collectionAsReader(
-		final Collection<SWCPoint> points)
-	{
+	public static StringReader collectionAsReader(final Collection<SWCPoint> points) {
+		final String SEP = " ";
 		final StringBuilder sb = new StringBuilder();
 		for (final SWCPoint p : points) {
-			sb.append(p.id).append("\t") //
-				.append(p.type).append("\t") //
-				.append(String.format("%.6f", p.x)).append(" ") //
-				.append(String.format("%.6f", p.y)).append(" ") //
-				.append(String.format("%.6f", p.z)).append(" ") //
-				.append(String.format("%.6f", p.radius)).append("\t") //
-				.append(p.parent).append(System.lineSeparator());
+			sb.append(p.id).append(SEP) //
+					.append(p.type).append(SEP) // see https://github.com/morphonets/SNT/issues/147
+					.append(String.format(Locale.US, "%.6f", p.x)).append(SEP) //
+					.append(String.format(Locale.US, "%.6f", p.y)).append(SEP) //
+					.append(String.format(Locale.US, "%.6f", p.z)).append(SEP) //
+					.append(String.format(Locale.US, "%.6f", p.radius)).append(SEP) //
+					.append(p.parent).append(System.lineSeparator());
 		}
 		return new StringReader(sb.toString());
 	}
@@ -207,7 +206,7 @@ public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 	}
 
 	@Override
-	public void setAnnotation(BrainAnnotation annotation) {
+	public void setAnnotation(final BrainAnnotation annotation) {
 		this.annotation = annotation;
 	}
 
@@ -245,11 +244,11 @@ public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 		return nextPoints;
 	}
 
-	public void setTags(String tags) {
+	public void setTags(final String tags) {
 		this.tags = tags;
 	}
 
-	public void setColor(Color color) {
+	public void setColor(final Color color) {
 		this.color = color;
 	}
 

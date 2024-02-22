@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -30,6 +30,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.LinAlgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
@@ -456,7 +457,6 @@ public class AllenUtils {
 		}
 
 		private DefaultMutableTreeNode getParentNode(final AllenCompartment parentStructure) {
-			@SuppressWarnings("unchecked")
 			final Enumeration<TreeNode> en = root.depthFirstEnumeration();
 			while (en.hasMoreElements()) {
 				DefaultMutableTreeNode node = (DefaultMutableTreeNode) en.nextElement();
@@ -496,11 +496,21 @@ public class AllenUtils {
 		final URL url = loader.getResource(meshPath);
 		if (url == null)
 			throw new IllegalArgumentException(meshLabel + " not found");
-		final OBJMesh mesh = new OBJMesh(url, "um");
+		final OBJMesh mesh = new OBJMesh(url, GuiUtils.micrometer());
 		mesh.setColor(color, 95f);
 		mesh.setVolume(volume);
 		mesh.setLabel(meshLabel);
+		mesh.setSymmetryAxis(getAxisDefiningSagittalPlane());
 		return mesh;
+	}
+
+	/**
+	 * 
+	 * @return the anatomical descriptions associated with the Cartesian X,Y,Z axes
+	 */
+	public static String[] getXYZLabels() {
+		// return new String[] { "Anterior-Posterior", "Inferior-Superior", "Left-Right" };
+		return new String[] { "Anterior-Posterior", "Dorsal-Ventral", "Left-Right (ML)" };
 	}
 
 	/* IDE Debug method */

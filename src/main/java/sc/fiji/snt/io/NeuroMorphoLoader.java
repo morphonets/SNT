@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -47,7 +47,7 @@ import sc.fiji.snt.Tree;
  */
 public class NeuroMorphoLoader implements RemoteSWCLoader {
 
-	private static final String BASE_URL = "http://neuromorpho.org/api/";
+	private static final String BASE_URL = "https://neuromorpho.org/api/";
 	private final static String NEURON_BASE_URL = BASE_URL + "neuron/name/";
 	private String lastKnownStatus;
 	private boolean sourceVersion;
@@ -101,7 +101,7 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 		final JSONObject json = getJSon(NEURON_BASE_URL, cellId);
 		if (json == null) return null;
 		final StringBuilder sb = new StringBuilder();
-		sb.append("http://neuromorpho.org/dableFiles/");
+		sb.append("https://neuromorpho.org/dableFiles/");
 		final String archive = (String) json.get("archive");
 		sb.append(archive.toLowerCase().replaceAll(" ", "%20"));
 		final String filename = cellId.replaceAll(" ", "%20");
@@ -122,7 +122,7 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 	 * a reader
 	 *
 	 * @param cellId the ID of the cell to be retrieved
-	 * @return the the character stream containing the data, or null if cell ID
+	 * @return the character stream containing the data, or null if cell ID
 	 *         was not found or could not be retrieved
 	 */
 	@Override

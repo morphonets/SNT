@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -46,6 +46,8 @@ import sc.fiji.snt.util.ShollPoint;
  * @author Tiago Ferreira
  */
 public class ShollAnalyzer {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	public static final String MEAN = "Mean";
 	public static final String MAX = "Max";
@@ -261,7 +263,7 @@ public class ShollAnalyzer {
 	}
 
 	/**
-	 * Gets the {@link LinearProfileStats} associated with this analyzer. By default
+	 * Gets the {@link LinearProfileStats} associated with this analyzer. By default,
 	 * it is set to determine the polynomial of 'best-fit' (2-20 degree range.)
 	 *
 	 * @return the LinearProfileStats instance

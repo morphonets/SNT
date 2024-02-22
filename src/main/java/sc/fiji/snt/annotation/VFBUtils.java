@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -34,6 +34,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.OBJMesh;
@@ -184,7 +185,7 @@ public class VFBUtils {
 		final URL url = loader.getResource(meshPath);
 		if (url == null)
 			throw new IllegalArgumentException(meshLabel + " not found");
-		final OBJMesh mesh = new OBJMesh(url, "um");
+		final OBJMesh mesh = new OBJMesh(url, GuiUtils.micrometer());
 		mesh.setColor(Colors.WHITE, 95f);
 		mesh.setLabel(meshLabel);
 		return mesh;
@@ -215,7 +216,7 @@ public class VFBUtils {
 				return null;
 			}
 			final URL url = new URL(pathAndLabel[0]);
-			final OBJMesh mesh = new OBJMesh(url, "um");
+			final OBJMesh mesh = new OBJMesh(url, GuiUtils.micrometer());
 			mesh.setColor(color, 95f);
 			mesh.setLabel(pathAndLabel[1]);
 			return mesh;
@@ -224,6 +225,14 @@ public class VFBUtils {
 			return null;
 		}
 
+	}
+
+	/**
+	 * 
+	 * @return the anatomical descriptions associated with the Cartesian X,Y,Z axes
+	 */
+	public static String[] getXYZLabels() {
+		return new String[] { "Left-Right (ML)", "Dorsal-Ventral", "Anterior-Posterior" };
 	}
 
 	/* IDE Debug method */

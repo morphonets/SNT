@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -51,7 +51,7 @@ import sc.fiji.snt.gui.GuiUtils;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Tree Color Coder",
+@Plugin(type = Command.class, label = "Tree Color Coder",
 	initializer = "init")
 public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 
@@ -70,7 +70,8 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 		TreeColorMapper.MEAN_RADIUS, //
 		TreeColorMapper.AVG_SPINE_DENSITY, //
 		TreeColorMapper.NODE_RADIUS, //
-		TreeColorMapper.X_COORDINATES,
+		TreeColorMapper.INTER_NODE_DISTANCE, //
+		TreeColorMapper.X_COORDINATES, //
 		TreeColorMapper.Y_COORDINATES, //
 		TreeColorMapper.Z_COORDINATES })
 	private String measurementChoice;

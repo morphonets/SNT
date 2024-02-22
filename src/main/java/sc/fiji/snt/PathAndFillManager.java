@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -29,6 +29,9 @@ import ij3d.Content;
 import ij3d.UniverseListener;
 import net.imagej.Dataset;
 import net.imagej.axis.Axes;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
+
 import org.jgrapht.Graphs;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.json.JSONException;
@@ -56,11 +59,15 @@ import java.awt.*;
 import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -81,6 +88,8 @@ import java.util.zip.GZIPOutputStream;
 public class PathAndFillManager extends DefaultHandler implements
 	UniverseListener, PathChangeListener
 {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	protected static final int TRACES_FILE_TYPE_COMPRESSED_XML = 1;
 	protected static final int TRACES_FILE_TYPE_UNCOMPRESSED_XML = 2;
@@ -133,6 +142,8 @@ public class PathAndFillManager extends DefaultHandler implements
 	private int last_fill_id;
 	private HashSet<Integer> foundIDs;
 	protected boolean enableUIupdates = true;
+	protected volatile boolean unsavedPaths = false;
+
 
 	/**
 	 * Instantiates a new PathAndFillManager using default values. Voxel
@@ -190,7 +201,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		boundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
 	}
 
-	protected void assignSpatialSettings(final ImagePlus imp) {
+	public void assignSpatialSettings(final ImagePlus imp) {
 		final Calibration cal = imp.getCalibration();
 		x_spacing = cal.pixelWidth;
 		y_spacing = cal.pixelHeight;
@@ -283,13 +294,13 @@ public class PathAndFillManager extends DefaultHandler implements
 		// Delete any rogue stand-alone paths that may still exist
 		while (allPaths.remove(null));
 		enableUIupdates = true;
-		resetListeners(null);
+		resetListenersAfterDataChangingOperation(null);
 	}
 
 	/**
 	 * Returns the number of Paths in the PathAndFillManager list.
 	 *
-	 * @return the the number of Paths
+	 * @return the number of Paths
 	 */
 	public int size() {
 		return allPaths.size();
@@ -442,28 +453,32 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @return true, if successful
 	 */
 	public synchronized boolean exportAllPathsAsSWC(final String baseFilename) {
-		return exportAllPathsAsSWC(getPathsStructured(), baseFilename);
+		return exportAllPathsAsSWC(getPathsStructured(), baseFilename, null);
 	}
 
 	public synchronized boolean exportTree(final int treeIndex, final File file) {
-		return exportConnectedStructureAsSWC(getPathsStructured()[treeIndex], file);
+		return exportConnectedStructureAsSWC(getPathsStructured()[treeIndex], file, null);
 	}
 
 	protected synchronized boolean savetoFileOrFileSeries(final File file) {
 		final Path[] pathsStructured = getPathsStructured();
-		return (pathsStructured.length == 1) ? exportTree(0, file) : exportAllPathsAsSWC(pathsStructured, file.getAbsolutePath());
+		return (pathsStructured.length == 1) ? exportTree(0, file) : exportAllPathsAsSWC(pathsStructured, file.getAbsolutePath(), null);
 	}
 
-	protected synchronized boolean exportAllPathsAsSWC(final Path[] primaryPaths, final String baseFilename) {
+	protected synchronized boolean exportAllPathsAsSWC(final Path[] primaryPaths, final String baseFilename, final String commonFileHeader) {
 		final String prefix = SNTUtils.stripExtension(baseFilename);
 		int i = 0;
-		for (final Path primaryPath : primaryPaths) {
+		if (primaryPaths.length == 1) {
+			final File swcFile = new File(prefix + ".swc");
+			if (exportConnectedStructureAsSWC(primaryPaths[0], swcFile, commonFileHeader)) ++i;
+		} else for (final Path primaryPath : primaryPaths) {
 			final File swcFile = getSWCFileForIndex(prefix, i);
-			if (exportConnectedStructureAsSWC(primaryPath, swcFile)) ++i;
+			if (exportConnectedStructureAsSWC(primaryPath, swcFile, commonFileHeader)) ++i;
 		}
-		return i > 0;
+		return unsavedPaths = i > 0;
 	}
-	protected synchronized boolean exportConnectedStructureAsSWC(final Path primaryPath, final File swcFile) {
+
+	protected synchronized boolean exportConnectedStructureAsSWC(final Path primaryPath, final File swcFile, final String commonFileHeader) {
 		{
 			final HashSet<Path> connectedPaths = new HashSet<>();
 			final LinkedList<Path> nextPathsToConsider = new LinkedList<>();
@@ -491,12 +506,13 @@ public class PathAndFillManager extends DefaultHandler implements
 
 			try {
 				final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
-					new FileOutputStream(swcFile), StandardCharsets.UTF_8));
-				flushSWCPoints(swcPoints, pw);
+						Files.newOutputStream(swcFile.toPath()), StandardCharsets.UTF_8));
+				flushSWCPoints(swcPoints, pw, commonFileHeader);
 			}
 			catch (final IOException ioe) {
-				error("Saving to " + swcFile.getAbsolutePath() + " failed.");
-				SNTUtils.error("IOException", ioe);
+				error(ioe.getClass().getSimpleName() + ": Could not save " + swcFile.getAbsolutePath()
+						+ ". See Console for details.");
+				ioe.printStackTrace();
 				return false;
 			}
 		}
@@ -527,21 +543,27 @@ public class PathAndFillManager extends DefaultHandler implements
 		else errorStatic(msg);
 	}
 
-	protected void flushSWCPoints(final List<SWCPoint> swcPoints,
-		final PrintWriter pw)
-	{
-		pw.println("# Exported from SNT v" +
-			SNTUtils.VERSION + " on " + LocalDateTime.of(LocalDate.now(), LocalTime
-				.now()));
-		pw.println("# https://imagej.net/SNT");
-		pw.println("#");
-		if (plugin != null && plugin.accessToValidImageData()) {
-			pw.println("# All positions and radii in " + spacing_units);
-			if (usingNonPhysicalUnits())
-				pw.println("# WARNING: Usage of pixel coordinates does not respect the SWC specification");
-			else
-				pw.println("# Voxel separation (x,y,z): " + x_spacing + ", " + y_spacing + ", " + z_spacing);
+	
+	protected void flushSWCPoints(final List<SWCPoint> swcPoints, final PrintWriter pw) {
+		flushSWCPoints(swcPoints, pw, null);
+	}
+
+	protected void flushSWCPoints(final List<SWCPoint> swcPoints, final PrintWriter pw, final String commonFileHeader) {
+		if (commonFileHeader == null || commonFileHeader.isBlank()) { // legacy header
+			pw.println("# Exported from SNT v" + SNTUtils.VERSION + " on "
+					+ LocalDateTime.of(LocalDate.now(), LocalTime.now().truncatedTo(ChronoUnit.SECONDS)));
+			pw.println("# https://imagej.net/SNT");
 			pw.println("#");
+			if (plugin != null && plugin.accessToValidImageData()) {
+				pw.println("# All positions and radii in " + spacing_units);
+				if (usingNonPhysicalUnits())
+					pw.println("# WARNING: Usage of pixel coordinates does not respect the SWC specification");
+				else
+					pw.println("# Voxel separation (x,y,z): " + x_spacing + ", " + y_spacing + ", " + z_spacing);
+				pw.println("#");
+			}
+		} else {
+			pw.println(commonFileHeader);
 		}
 		SWCPoint.flush(swcPoints, pw);
 		pw.close();
@@ -576,7 +598,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	public BoundingBox getBoundingBox(final boolean compute) {
 		if (boundingBox == null) boundingBox = new BoundingBox();
-		if (!compute || getPaths().size() == 0) return boundingBox;
+		if (!compute || getPaths().isEmpty()) return boundingBox;
 		SNTUtils.log("Computing bounding box...");
 		final Iterator<PointInImage> allPointsIt = allPointsIterator();
 		boundingBox.compute(allPointsIt);
@@ -665,7 +687,9 @@ public class PathAndFillManager extends DefaultHandler implements
 		 */
 
 		final Map<Path, List<Path>> pathChildrenMap = new HashMap<>();
-		for (final Path p : paths) {
+		final Iterator<Path> it = paths.iterator();
+		while (it.hasNext()) {
+			final Path p = it.next();
 			if (p.isPrimary()) {
 				primaryPaths.add(p);
 				continue;
@@ -673,9 +697,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			pathChildrenMap.putIfAbsent(p.getStartJoins(), new ArrayList<>());
 			pathChildrenMap.get(p.getStartJoins()).add(p);
 		}
-		for (final Path p : pathChildrenMap.keySet()) {
-			p.children.clear();
-			p.children.addAll(pathChildrenMap.get(p));
+		for (final Entry<Path, List<Path>> entry : pathChildrenMap.entrySet()) {
+			entry.getKey().children.clear();
+			entry.getKey().children.addAll(entry.getValue());
 		}
 		return primaryPaths.toArray(new Path[] {});
 	}
@@ -807,7 +831,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		 */
 		structuredPathSet.retainAll(new HashSet<>(paths));
 
-		if (structuredPathSet.size() == 0) throw new SWCExportException(
+		if (structuredPathSet.isEmpty()) throw new SWCExportException(
 			"The paths you select for SWC export must include a primary path (i.e., one at the top level in the Path Manager tree)");
 		if (structuredPathSet.size() > 1) throw new SWCExportException(
 			"You can only select one connected set of paths for SWC export");
@@ -1015,6 +1039,11 @@ public class PathAndFillManager extends DefaultHandler implements
 		return result;
 	}
 
+	private synchronized void resetListenersAfterDataChangingOperation(final Path justAdded) {
+		resetListeners(justAdded, false);
+		unsavedPaths = true;
+	}
+
 	public synchronized void resetListeners(final Path justAdded) {
 		resetListeners(justAdded, false);
 	}
@@ -1048,6 +1077,8 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @param commonTag a custom name tag to be applied to all Paths
 	 */
 	public void addTree(final Tree tree, final String commonTag) {
+		final boolean enableUIstatus = enableUIupdates;
+		enableUIupdates = false;
 		tree.list().forEach(p -> {
 			prepPathForAdding(p, true, true, true);
 			String tags = PathManagerUI.extractTagsFromPath(p);
@@ -1058,6 +1089,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			p.setName(p.getName() + " {" + tags + "}");
 			addPathInternal(p);
 		});
+		enableUIupdates = enableUIstatus;
+		if (enableUIupdates)
+			resetListenersAfterDataChangingOperation(tree.list().get(0));
 	}
 
 	/**
@@ -1068,13 +1102,31 @@ public class PathAndFillManager extends DefaultHandler implements
 	public void addTrees(final Collection<Tree> trees) {
 		if (boundingBox == null)
 			boundingBox = new BoundingBox();
+		final boolean noExistingPaths = allPaths.isEmpty();
 		trees.forEach(tree -> {
 			if (tree != null && !tree.isEmpty()) {
 				addTree(tree, tree.getLabel());
 				boundingBox.append(tree.getNodes().iterator());
 			}
 		});
+		final String unit = getCommonUnit(trees);
+		if (unit != null && noExistingPaths && (plugin == null || !plugin.accessToValidImageData())) {
+			boundingBox.setUnit(unit);
+			spacing_units = unit;
+			if (plugin != null) plugin.spacing_units = unit;
+		}
 		checkForAppropriateImageDimensions();
+	}
+
+	private String getCommonUnit(final Collection<Tree> trees) {
+		final Iterator<Tree> it = trees.iterator();
+		final String ref = it.next().getProperties().getProperty(TreeProperties.KEY_SPATIAL_UNIT,
+				SNTUtils.getSanitizedUnit(null));
+		while (it.hasNext()) {
+			if (!ref.equals(it.next().getProperties().getProperty(TreeProperties.KEY_SPATIAL_UNIT)))
+				return null;
+		}
+		return ref;
 	}
 
 	/**
@@ -1087,9 +1139,9 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	public void addPath(final Path p, final boolean retainTags) {
-		final String tags = PathManagerUI.extractTagsFromPath(p);
 		prepPathForAdding(p, true, true, true);
 		if (retainTags) {
+			final String tags = PathManagerUI.extractTagsFromPath(p);
 			p.setName((tags.isEmpty()) ? p.getName() : p.getName() + " {" + tags + "}");
 		}
 		addPathInternal(p);
@@ -1115,13 +1167,12 @@ public class PathAndFillManager extends DefaultHandler implements
 		if (!forceNewId && getPathFromID(p.getID()) != null) throw new IllegalArgumentException(
 				"Attempted to add a path with an ID that was already added");
 
-		// By default the latest tree ID is assigned to the added Path. That is a reasonable
+		// By default, the latest tree ID is assigned to the added Path. That is a reasonable
 		// assumption when adding paths in bulk, but in an interactive session, we need to
 		// ensure the path is being assigned the correct tree ID.
 		int treeID = maxUsedTreeID;
-		if (!assumeMaxUsedTreeID && !isPrimary) {
-			if (p.getStartJoins() != null)
-				treeID = p.getStartJoins().getTreeID();
+		if (!assumeMaxUsedTreeID && !isPrimary && (p.getStartJoins() != null)) {
+			treeID = p.getStartJoins().getTreeID();
 		}
 		p.setIDs((forceNewId || p.getID() < 0) ? ++maxUsedPathID : p.getID(), treeID);
 		if (maxUsedPathID < p.getID()) maxUsedPathID = p.getID();
@@ -1166,7 +1217,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		pathNameMap.put(p.getName(), p);
 		pathNameLowercaseMap.put(p.getName().toLowerCase(Locale.ROOT), p);
 		p.addChangeListener(this);
-		resetListeners(p);
+		resetListenersAfterDataChangingOperation(p);
 	}
 
 	/*
@@ -1264,7 +1315,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			pathNameLowercaseMap.remove(fittedPathToDelete.getName().toLowerCase(Locale.ROOT));
 			fittedPathToDelete.removeChangeListener(this);
 		}
-		if (removed && plugin != null) plugin.unsavedPaths = true;
+		if (removed) unsavedPaths = true;
 
 		// We don't just delete; have to fix up the references
 		// in other paths (for start and end joins):
@@ -1285,7 +1336,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				.removeFrom3DViewer(plugin.univ);
 		}
 
-		if (updateInterface) resetListeners(null);
+		if (updateInterface) resetListenersAfterDataChangingOperation(null);
 		return removed;
 	}
 
@@ -1301,7 +1352,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			deletePath(indices[i], false);
 		}
 		enableUIupdates = true;
-		resetListeners(null);
+		resetListenersAfterDataChangingOperation(null);
 	}
 
 	protected void addFill(final Fill fill) {
@@ -1331,13 +1382,14 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	protected void reloadFills(int[] selectedIndices) {
+		final boolean useSecondary = plugin.isTracingOnSecondaryImageActive();
+		final RandomAccessibleInterval<? extends RealType<?>> scope = useSecondary ? plugin.getSecondaryData()
+				: plugin.getLoadedData();
 		for (int ind : selectedIndices) {
 			Fill fill = allFills.get(ind);
 			FillerThread filler = FillerThread.fromFill(
-					plugin.getLoadedData(),
-					plugin.getImagePlus().getCalibration(),
-					plugin.getStats(),
-					fill);
+					scope, plugin.getImagePlus().getCalibration(),
+					plugin.getStats(), fill);
 			loadedFills.put(fill, filler);
 			plugin.addFillerThread(filler);
 		}
@@ -1345,7 +1397,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	// FIXME: should probably use XMLStreamWriter instead of this ad-hoc
 	// approach:
-	synchronized protected void writeXML(final String fileName,
+	protected synchronized void writeXML(final String fileName,
 		final boolean compress) throws IOException
 	{
 
@@ -1353,9 +1405,8 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		try {
 			if (compress) pw = new PrintWriter(new OutputStreamWriter(
-				new GZIPOutputStream(new FileOutputStream(fileName)), StandardCharsets.UTF_8));
-			else pw = new PrintWriter(new OutputStreamWriter(new FileOutputStream(
-				fileName), StandardCharsets.UTF_8));
+				new GZIPOutputStream(Files.newOutputStream(Paths.get(fileName))), StandardCharsets.UTF_8));
+			else pw = new PrintWriter(new OutputStreamWriter(Files.newOutputStream(Paths.get(fileName)), StandardCharsets.UTF_8));
 
 			pw.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
 			pw.println("<!DOCTYPE tracings [");
@@ -1491,6 +1542,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				++fillIndex;
 			}
 			pw.println("</tracings>");
+			unsavedPaths = false;
 		}
 		finally {
 			if (pw != null) pw.close();
@@ -1668,8 +1720,10 @@ public class PathAndFillManager extends DefaultHandler implements
 
 				if (startsxString == null && startsyString == null &&
 						startszString == null) {
+					// Do nothing
 				} else if (startsxString != null && startsyString != null &&
 						startszString != null) {
+					// Do nothing
 				} else {
 					throw new TracesFileFormatException(
 							"If one of starts[xyz] is specified, all of them must be.");
@@ -2187,7 +2241,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		final PathAndFillManager pafm = new PathAndFillManager();
 		pafm.setHeadless(true);
 		final TreeSet<SWCPoint> set = (nodes instanceof TreeSet) ? (TreeSet<SWCPoint>) nodes
-				: new TreeSet<SWCPoint>(nodes);
+				: new TreeSet<>(nodes);
 		if (pafm.importNodes(null, set, null, false))
 			return pafm;
 		else
@@ -2275,8 +2329,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 		Path currentPath = root.getPath().createPath();
 		currentPath.setName(root.getPath().getName());
-		currentPath.createCircles();
-		currentPath.setIsPrimary(true);
 		final Deque<SWCPoint> stack = new ArrayDeque<>();
 		stack.push(root);
 		boolean addStartJoin = false;
@@ -2368,8 +2420,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			factory.setValidating(true);
 			final SAXParser parser = factory.newSAXParser();
 
-			if (is != null) parser.parse(is, this);
-			else if (null != null) {
+			if (is != null) {
+				parser.parse(is, this);
+			} else {
 				final InputSource inputSource = new InputSource((Reader) null);
 				parser.parse(inputSource, this);
 			}
@@ -2412,6 +2465,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			plugin.ui.getPathManager().applyActiveTags(getPaths());
 		}
 		resetListeners(null, true);
+		unsavedPaths = false;
 		return true;
 
 	}
@@ -2430,9 +2484,9 @@ public class PathAndFillManager extends DefaultHandler implements
 		pathNameMap.clear();
 		pathNameLowercaseMap.clear();
 		allFills.clear();
-		if (plugin == null || (plugin != null && !plugin.accessToValidImageData()))
+		if (plugin == null || !plugin.accessToValidImageData())
 			resetSpatialSettings(false);
-		resetListeners(null);
+		resetListenersAfterDataChangingOperation(null);
 	}
 
 	protected void resetIDs() {
@@ -2473,7 +2527,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @param swcs the HashMap containing the absolute file paths (or URLs) of
 	 *          files to be imported as values and a file descriptor as keys.
 	 * @param color the color to be applied to imported Paths. If null, paths from
-	 *          each file will assigned unique colors
+	 *          each file will be assigned unique colors
 	 * @return the List of imported {@link Tree}s labeled after the file
 	 *         descriptor. The returned list will not contain null elements: If a
 	 *         file was not successfully imported an empty Tree will be generated
@@ -2520,7 +2574,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	private boolean importSWC(final String descriptor, final BufferedReader br) throws IOException
 	{
-		return importSWC(br, descriptor, false, 0, 0, 0, 1, 1, 1, false);
+		return importSWC(br, descriptor, false, 0, 0, 0, 1, 1, 1, 1, false);
 	}
 
 	/**
@@ -2559,6 +2613,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 *          data onto downsampled images. Default is 1.
 	 * @param zScale the scaling factor for all Z coordinates. Useful to import
 	 *          data onto downsampled images. Default is 1.
+	 * @param rScale the scaling factor for all radii. Default is 1.
 	 * @param replaceAllPaths If true, all existing Paths will be deleted before
 	 *          the import. Default is false.
 	 * @return true, if import was successful
@@ -2567,7 +2622,8 @@ public class PathAndFillManager extends DefaultHandler implements
 		final String descriptor,
 		final boolean assumeCoordinatesInVoxels, final double xOffset,
 		final double yOffset, final double zOffset, final double xScale,
-		final double yScale, final double zScale, final boolean replaceAllPaths, final int... swcTypes)
+		final double yScale, final double zScale, final double rScale, 
+		final boolean replaceAllPaths, final int... swcTypes)
 	{
 
 		if (replaceAllPaths) clear();
@@ -2598,7 +2654,7 @@ public class PathAndFillManager extends DefaultHandler implements
 						final double z = zScale * Double.parseDouble(fields[4]) + zOffset;
 						double radius;
 						try {
-							radius = Double.parseDouble(fields[5]);
+							radius = Double.parseDouble(fields[5]) * rScale;
 						} catch (final NumberFormatException ignored) {
 							radius = 0; // files in which radius is set to NaN
 						}
@@ -2616,6 +2672,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			SNTUtils.error("IO ERROR", exc);
 			return false;
 		}
+		if (replaceAllPaths) unsavedPaths = false;
 		return importNodes(descriptor, nodes, null, assumeCoordinatesInVoxels);
 	}
 
@@ -2743,7 +2800,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		// Infer fields for when an image has not been specified. We'll assume
 		// the image dimensions to be those of the coordinates bounding box.
 		// This allows us to open a SWC file without a source image
-		{
+		if (enableUIupdates){
 			if (boundingBox == null)
 				boundingBox = new BoundingBox();
 			boundingBox.append(((TreeSet<? extends SNTPoint>) points).iterator());
@@ -2757,7 +2814,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 *
 	 * @param map         the input map of reconstruction nodes
 	 * @param color       the color to be applied to imported Paths. If null, paths
-	 *                    from each ID will assigned unique colors
+	 *                    from each ID will be assigned unique colors
 	 * @param spatialUnit the spatial unit (um, mm, etc) associated with imported
 	 *                    nodes. If null, "um" are assumed
 	 * @return the map mapping imported ids to imported Trees. A null Tree will be
@@ -2766,18 +2823,19 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	public Map<String, Tree> importNeurons(final Map<String, TreeSet<SWCPoint>> map, final ColorRGB color, final String spatialUnit)
 	{
-		final Map<String, Tree> result = importMap(map, color);
+		final String unit = (spatialUnit == null) ? GuiUtils.micrometer() : spatialUnit;
+		final Map<String, Tree> result = importMap(map, color, unit);
 		if (result.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty())) {
 			if (boundingBox == null) // should never happen
 				boundingBox = new BoundingBox();
-			boundingBox.setUnit((spatialUnit == null) ? "um" : spatialUnit);
+			boundingBox.setUnit(unit);
 			updateBoundingBox();
 		}
 		return result;
 	}
 
 	private Map<String, Tree> importMap(final Map<String, TreeSet<SWCPoint>> map,
-		final ColorRGB color)
+		final ColorRGB color, final String spatialUnit)
 	{
 		final Map<String, Tree> result = new HashMap<>();
 		final ColorRGB[] colors;
@@ -2803,6 +2861,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				final Tree tree = new Tree();
 				tree.setLabel(k);
 				tree.setColor(colors[colorIdx[0]]);
+				tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, spatialUnit);
 				for (int i = firstImportedPathIdx; i < size(); i++)
 					tree.add(getPath(i));
 				result.put(k, tree);
@@ -2822,7 +2881,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected boolean importSWC(final String filePath,
 		final boolean ignoreCalibration)
 	{
-		return importSWC(filePath, ignoreCalibration, 0, 0, 0, 1, 1, 1, false);
+		return importSWC(filePath, ignoreCalibration, 0, 0, 0, 1, 1, 1, 1, false);
 	}
 
 	/**
@@ -2848,6 +2907,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 *          data onto downsampled images. Default is 1.
 	 * @param zScale the scaling factor for all Z coordinates. Useful to import
 	 *          data onto downsampled images. Default is 1.
+	 * @param rScale the scaling factor for all radii. Default is 1.
 	 * @param replaceAllPaths If true, all existing Paths will be deleted before
 	 *          the import.
 	 * @return true, if import was successful
@@ -2855,14 +2915,14 @@ public class PathAndFillManager extends DefaultHandler implements
 	public boolean importSWC(final String filePath,
 		final boolean assumeCoordinatesInVoxels, final double xOffset,
 		final double yOffset, final double zOffset, final double xScale,
-		final double yScale, final double zScale, final boolean replaceAllPaths,
-		final int... swcTypes)
+		final double yScale, final double zScale, final double rScale,
+		final boolean replaceAllPaths, final int... swcTypes)
 	{
 
 		if (filePath == null) return false;
 		final File f = new File(filePath);
 		if (!SNTUtils.fileAvailable(f)) {
-			error("The traces file '" + filePath + "' is not available.");
+			SNTUtils.error(filePath + " is not available.");
 			return false;
 		}
 
@@ -2871,14 +2931,14 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		try {
 
-			is = new BufferedInputStream(new FileInputStream(filePath));
+			is = new BufferedInputStream(Files.newInputStream(Paths.get(filePath)));
 			final BufferedReader br = new BufferedReader(new InputStreamReader(is,
 					StandardCharsets.UTF_8));
 
 			result = importSWC(br, SNTUtils.stripExtension(f.getName()), assumeCoordinatesInVoxels, xOffset, yOffset,
-				zOffset, xScale, yScale, zScale, replaceAllPaths, swcTypes);
+				zOffset, xScale, yScale, zScale, rScale, replaceAllPaths, swcTypes);
 
-			if (is != null) is.close();
+			is.close();
 
 		}
 		catch (final IOException ioe) {
@@ -2892,7 +2952,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	protected int guessTracesFileType(final String filename) {
 		try {
-			return guessTracesFileType(new FileInputStream(filename), true);
+			return guessTracesFileType(Files.newInputStream(Paths.get(filename)), true);
 		} catch (IOException e) {
 			errorStatic("The file '" + filename + "' could not be parsed.");
 			return -1;
@@ -2937,7 +2997,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		try {
 			SNTUtils.log("Loading gzipped file...");
 			return load(new GZIPInputStream(new BufferedInputStream(
-				new FileInputStream(filename))));
+					Files.newInputStream(Paths.get(filename)))));
 		}
 		catch (final IOException ioe) {
 			error("Could not read file '" + filename +
@@ -2949,7 +3009,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected boolean loadUncompressedXML(final String filename, final int...swcTypes) {
 		try {
 			SNTUtils.log("Loading uncompressed file...");
-			return load(new BufferedInputStream(new FileInputStream(filename)));
+			return load(new BufferedInputStream(Files.newInputStream(Paths.get(filename))));
 		}
 		catch (final IOException ioe) {
 			error("Could not read '" + filename + "' (it was expected to be XML)");
@@ -2969,24 +3029,29 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 		try {
 			final Map<String, TreeSet<SWCPoint>> nMap = MouseLightLoader.extractNodes(new File(filename), compartment);
-			final Map<String, Tree> outMap = importNeurons(nMap, null, "um");
+			final Map<String, Tree> outMap = importNeurons(nMap, null, GuiUtils.micrometer());
 			return outMap.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty());
-		} catch (final FileNotFoundException | IllegalArgumentException | JSONException e) {
+		} catch (final IOException | IllegalArgumentException | JSONException e) {
 			error("Failed to read file: '" + filename + "' (" + e.getMessage() +")");
 			return false;
 		}
 	}
 
-	private boolean loadNDF(final String filename) {
+	private boolean loadNDF(final Object filenameOrInputStream) {
 		try {
-			final NDFImporter importer = new NDFImporter(filename);
+			NDFImporter importer;
+			if (filenameOrInputStream instanceof InputStream) {
+				importer = new NDFImporter((InputStream)filenameOrInputStream);
+			} else {
+				importer = new NDFImporter((String)filenameOrInputStream);
+			}
 			final Collection<Tree> trees = importer.getTrees();
 			trees.forEach( tree -> addTree(tree, tree.getLabel()));
 			final boolean sucess = trees.stream().anyMatch(tree -> tree != null && !tree.isEmpty());
 			if (sucess) updateBoundingBox();
 			return sucess;
 		} catch (final IOException | IllegalArgumentException e) {
-			error("Failed to read file: '" + filename + "' (" + e.getMessage() +")");
+			error("Failed to read NDF data: '" + filenameOrInputStream.toString() + "' (" + e.getMessage() +")");
 			return false;
 		}
 	}
@@ -3020,7 +3085,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				result = loadNDF(filePath);
 				break;
 			case TRACES_FILE_TYPE_SWC:
-				result = importSWC(filePath, false, 0, 0, 0, 1, 1, 1, true, swcTypes);
+				result = importSWC(filePath, false, 0, 0, 0, 1, 1, 1, 1, true, swcTypes);
 				break;
 			default:
 				SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);
@@ -3034,6 +3099,15 @@ public class PathAndFillManager extends DefaultHandler implements
 			resetListeners(null, true);
 		}
 		return result;
+	}
+
+	public boolean loadGuessingType(final String filePathOrURL) throws IOException {
+		if (filePathOrURL.startsWith("http") || filePathOrURL.indexOf("://") > 0) {
+			final String fileName = filePathOrURL.substring(filePathOrURL.lastIndexOf('/') + 1);
+			final String fileNameWithoutExtn = SNTUtils.stripExtension(fileName);
+			return loadGuessingType(fileNameWithoutExtn, new URL(filePathOrURL).openStream());
+		}
+		return load(new File(filePathOrURL).getAbsolutePath());
 	}
 
 	public boolean loadGuessingType(final String optionalDescription, final InputStream is) throws IOException {
@@ -3053,12 +3127,15 @@ public class PathAndFillManager extends DefaultHandler implements
 			break;
 		case TRACES_FILE_TYPE_ML_JSON:
 			final Map<String, TreeSet<SWCPoint>> nMap = MouseLightLoader.extractNodes(bis, "all");
-			final Map<String, Tree> outMap = importNeurons(nMap, null, "um");
+			final Map<String, Tree> outMap = importNeurons(nMap, null, GuiUtils.micrometer());
 			result = outMap.values().stream().anyMatch(tree -> tree != null && !tree.isEmpty());
 			break;
 		case TRACES_FILE_TYPE_SWC:
 			final BufferedReader br = new BufferedReader(new InputStreamReader(bis, StandardCharsets.UTF_8));
-			result = importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, true);
+			result = importSWC(br, optionalDescription, false, 0, 0, 0, 1, 1, 1, 1, true);
+			break;
+		case TRACES_FILE_TYPE_NDF:
+			result = loadNDF(bis);
 			break;
 		default:
 			SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);
@@ -3091,9 +3168,14 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * stack of this kind.
 	 */
 	synchronized void setPathPointsInVolume(final Collection<Path> paths,
-		final short[][] slices, final int pixelIntensity, final int width, final int height, final int depth)
+		final short[][] slices, final int pixelIntensity, final int width, final int height)
 	{
+		final boolean ignoreDepth = slices.length == 1;
+		short actualPixelIntensity = (short)pixelIntensity;
+		int label = 1;
 		for (final Path topologyPath : paths) {
+			if (pixelIntensity == -1)
+				actualPixelIntensity = (short) ++label;
 			Path p = topologyPath;
 			if (topologyPath.getUseFitted()) {
 				p = topologyPath.getFitted();
@@ -3108,12 +3190,12 @@ public class PathAndFillManager extends DefaultHandler implements
 				final Path sp = p.startJoins;
 				final int spi = sp.indexNearestTo(s.x, s.y, s.z);
 				pointsToJoin.add(new Bresenham3D.IntegerPoint(sp.getXUnscaled(spi), sp
-					.getYUnscaled(spi), sp.getZUnscaled(spi)));
+					.getYUnscaled(spi), (ignoreDepth) ? 0 : sp.getZUnscaled(spi)));
 			}
 
 			for (int i = 0; i < n; ++i) {
 				pointsToJoin.add(new Bresenham3D.IntegerPoint(p.getXUnscaled(i), p
-					.getYUnscaled(i), p.getZUnscaled(i)));
+					.getYUnscaled(i), (ignoreDepth) ? 0 : p.getZUnscaled(i)));
 			}
 
 			Bresenham3D.IntegerPoint previous = null;
@@ -3128,7 +3210,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				 */
 				if (current.diagonallyAdjacentOrEqual(previous)) {
 					try {
-						slices [current.z][current.y * width + current.x] = (short) pixelIntensity;
+						slices [current.z][current.y * width + current.x] = actualPixelIntensity;
 					} catch (final ArrayIndexOutOfBoundsException ignored) {
 						SNTUtils.warn(String.format("Bresenham3D: Out-of-bounds point at [%d,%d,%d]", current.x,
 								current.y * width, current.z));
@@ -3142,7 +3224,7 @@ public class PathAndFillManager extends DefaultHandler implements
 						.bresenham3D(previous, current);
 					for (final Bresenham3D.IntegerPoint ip : pointsToDraw) {
 						try {
-							slices[ip.z][ip.y * width + ip.x] = (short) pixelIntensity;
+							slices[ip.z][ip.y * width + ip.x] = actualPixelIntensity;
 						}
 						catch (final ArrayIndexOutOfBoundsException ignored) {
 							SNTUtils.warn(String.format("Bresenham3D: Out-of-bounds point at [%d,%d,%d]", ip.x,
@@ -3202,7 +3284,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 *         those that are null or fitted version of o paths.
 	 */
 	public List<Path> getPathsFiltered() { // FIXME: this is no longer needed
-		return (List<Path>) getPaths().stream().filter(p -> p != null && !p.isFittedVersionOfAnotherPath())
+		return getPaths().stream().filter(p -> p != null && !p.isFittedVersionOfAnotherPath())
 				.collect(Collectors.toList());
 	}
 
@@ -3409,11 +3491,11 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	public void exportFillsAsCSV(final File outputFile) throws IOException {
 
-		final String[] headers = new String[] { "FillID", "SourcePaths",
-			"Threshold", "Metric", "Volume", "LengthUnits" };
+		final String[] headers = new String[] { "FillID", "SourcePaths", "Threshold", "Metric", "Volume", "LengthUnits",
+				"EstMeanRadius", "Source" };
 
 		final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
-			new FileOutputStream(outputFile.getAbsolutePath()), StandardCharsets.UTF_8));
+				Files.newOutputStream(Paths.get(outputFile.getAbsolutePath())), StandardCharsets.UTF_8));
 		final int columns = headers.length;
 		for (int c = 0; c < columns; ++c) {
 			SNTUtils.csvQuoteAndPrint(pw, headers[c]);
@@ -3433,6 +3515,15 @@ public class PathAndFillManager extends DefaultHandler implements
 			SNTUtils.csvQuoteAndPrint(pw, f.getVolume());
 			pw.print(",");
 			SNTUtils.csvQuoteAndPrint(pw, f.spacing_units);
+			pw.print(",");
+			SNTUtils.csvQuoteAndPrint(pw, f.getEstimatedMeanRadius());
+			pw.print(",");
+			if (getPlugin() == null) {
+				SNTUtils.csvQuoteAndPrint(pw, "n/a");
+			} else {
+				SNTUtils.csvQuoteAndPrint(pw,
+						(getPlugin().isTracingOnSecondaryImageActive()) ? "sec-layer" : "main-image");
+			}
 			pw.print("\r\n");
 		}
 		pw.close();
@@ -3460,7 +3551,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		Collections.addAll(h, primaryPaths);
 
 		final PrintWriter pw = new PrintWriter(new OutputStreamWriter(
-			new FileOutputStream(outputFile.getAbsolutePath()), StandardCharsets.UTF_8));
+				Files.newOutputStream(Paths.get(outputFile.getAbsolutePath())), StandardCharsets.UTF_8));
 		final int columns = headers.length;
 		for (int c = 0; c < columns; ++c) {
 			SNTUtils.csvQuoteAndPrint(pw, headers[c]);

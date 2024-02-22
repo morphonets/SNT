@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -30,7 +30,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 
+import org.scijava.Context;
 import org.scijava.Priority;
 import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
@@ -49,6 +49,7 @@ import org.scijava.service.Service;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.FileUtils;
 
+import ij.CompositeImage;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.NewImage;
@@ -61,7 +62,7 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
-import sc.fiji.snt.event.SNTEvent;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.SWCPoint;
@@ -78,6 +79,8 @@ import sc.fiji.snt.viewer.Viewer3D;
 @Plugin(type = Service.class, priority = Priority.NORMAL)
 public class SNTService extends AbstractService implements ImageJService {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	@Parameter
 	private ScriptService scriptService;
 
@@ -88,7 +91,7 @@ public class SNTService extends AbstractService implements ImageJService {
 
 
 	private void accessActiveInstance(final boolean createInstanceIfNull) {
-		plugin = SNTUtils.getPluginInstance();
+		plugin = SNTUtils.getInstance();
 		if (createInstanceIfNull && plugin == null) {
 			plugin = new SNT(getContext(), new PathAndFillManager());
 		} else if (plugin == null) {
@@ -108,7 +111,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 *         instance of SNT
 	 */
 	public boolean isActive() {
-		return SNTUtils.getPluginInstance() != null;
+		return SNTUtils.getInstance() != null;
 	}
 
 	/**
@@ -130,7 +133,7 @@ public class SNTService extends AbstractService implements ImageJService {
 			throw new IllegalArgumentException("Valid image data is not available");
 		}
 		final PathProfiler profiler = new PathProfiler(getTree(selectedPathsOnly),
-			plugin.getLoadedDataAsImp());
+			plugin.getDataset());
 		profiler.assignValues();
 	}
 
@@ -152,19 +155,23 @@ public class SNTService extends AbstractService implements ImageJService {
 	/**
 	 * Initializes SNT.
 	 *
-	 * @param imagePath the image to be traced. If "demo" (case insensitive), SNT is
-	 *                  initialized using the {@link #demoTreeImage}. If empty or
+	 * @param imagePath the image to be traced. If starting with "demo:" followed by
+	 *                  the name of a demo dataset, SNT is initialized using the
+	 *                  corresponding {@link #demoImage(String)} image. If empty or
 	 *                  null and SNT's UI is available an "Open" dialog prompt is
 	 *                  displayed. URL's supported.
 	 * @param startUI   Whether SNT's UI should also be initialized;
 	 * @return the SNT instance.
 	 */
 	public SNT initialize(final String imagePath, final boolean startUI) {
-		if ("demo".equalsIgnoreCase(imagePath)) {
-			return initialize(demoTreeImage(), startUI);
+		if ("demo".equalsIgnoreCase(imagePath)) { // legacy
+			return initialize(demoImage("fractal"), startUI);
 		}
 		if (imagePath == null || imagePath.isEmpty() && (!startUI || getUI() == null)) {
 			throw new IllegalArgumentException("Invalid imagePath " + imagePath);
+		}
+		if (imagePath.startsWith("demo:")) {
+			return initialize(demoImage(imagePath.substring(5).trim()), startUI);
 		}
 		return initialize(IJ.openImage(imagePath), startUI);
 	}
@@ -177,8 +184,15 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * @return the SNT instance.
 	 */
 	public SNT initialize(final ImagePlus imp, final boolean startUI) {
-		if (plugin == null) {
+		final boolean noInstance = plugin == null;
+		if (noInstance)
 			plugin = new SNT(getContext(), imp);
+		if (!imp.isVisible()) {
+			// Then a batch script of sorts is likely running. 
+			// Temporarily suppress the 'auto-tracing' prompt
+			plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
+		}
+		if (noInstance) {
 			plugin.initialize(true, 1, 1);
 		} else {
 			plugin.initialize(imp);
@@ -188,11 +202,19 @@ public class SNTService extends AbstractService implements ImageJService {
 	}
 
 	/**
-	 * Returns a reference to the active {@link SNT} plugin.
+	 * @deprecated use {@link #getInstance()} instead
+	 */
+	@Deprecated
+	public SNT getPlugin() {
+		return getInstance();
+	}
+
+	/**
+	 * Returns a reference to the active {@link SNT} instance.
 	 *
 	 * @return the {@link SNT} instance
 	 */
-	public SNT getPlugin() {
+	public SNT getInstance() {
 		accessActiveInstance(true);
 		return plugin;
 	}
@@ -201,25 +223,13 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * Loads the specified tracings file.
 	 *
 	 * @param filePathOrURL either a "SWC", "TRACES" or "JSON" file path. URLs
-	 *                      defining remote files also supported.. Null not allowed.
+	 *                      defining remote files also supported. Null not allowed.
 	 * @throws UnsupportedOperationException if SNT is not running
 	 * @throws IOException                   if data cannot be imported
 	 */
 	public void loadTracings(String filePathOrURL) throws UnsupportedOperationException, IOException {
 		accessActiveInstance(false);
-		final String lowerCaseFilePathOrURL = filePathOrURL.toLowerCase();
-		if (lowerCaseFilePathOrURL.contains("demo")) {
-			if (lowerCaseFilePathOrURL.contains("op"))
-				filePathOrURL = "https://raw.githubusercontent.com/morphonets/SNT/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1-gs.swc";
-			else if (lowerCaseFilePathOrURL.contains("timelapse")) 
-				filePathOrURL = "https://raw.githubusercontent.com/morphonets/SNTmanuscript/9b4b933a742244505f0544c29211e596c85a5da7/Fig01/traces/701.traces";
-		}
-		if (filePathOrURL.startsWith("http") || filePathOrURL.indexOf("://") > 0) {
-			final String fileName = filePathOrURL.substring(filePathOrURL.lastIndexOf('/') + 1);
-			final String fileNameWithoutExtn = fileName.substring(0, fileName.lastIndexOf('.'));
-			plugin.getPathAndFillManager().loadGuessingType(fileNameWithoutExtn, new URL(filePathOrURL).openStream());
-		} else
-			plugin.loadTracings(new File(filePathOrURL));
+		plugin.getPathAndFillManager().loadGuessingType(filePathOrURL);
 	}
 
 	/**
@@ -249,7 +259,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * Saves all the existing paths to a file.
 	 *
 	 * @param filePath the saving output file path. If {@code filePath} ends in
-	 *                 ".swc" (case insensitive), an SWC file is created, otherwise
+	 *                 ".swc" (case-insensitive), an SWC file is created, otherwise
 	 *                 a "traces" file is created. If empty and a GUI exists, a save
 	 *                 prompt is displayed.
 	 * @return true, if paths exist and file was successfully written.
@@ -261,7 +271,7 @@ public class SNTService extends AbstractService implements ImageJService {
 			return false;
 		File saveFile;
 		if (filePath == null || filePath.trim().isEmpty() && getUI() != null) {
-			saveFile = getUI().saveFile("Save As Traces...", null, ".traces");
+			saveFile = getUI().saveFile("Save As Traces...", null, "traces");
 		} else {
 			saveFile = new File(filePath);
 		}
@@ -395,7 +405,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 *         running without GUI
 	 */
 	public SNTUI getUI() {
-		plugin = SNTUtils.getPluginInstance();
+		plugin = SNTUtils.getInstance();
 		return (plugin==null) ? null : plugin.getUI();
 	}
 
@@ -475,7 +485,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	}
 
 	public SciViewSNT getOrCreateSciViewSNT() throws NoClassDefFoundError {
-		if (SNTUtils.getPluginInstance() == null) {
+		if (SNTUtils.getInstance() == null) {
 			return new SciViewSNT(getContext());
 		}
 		return getSciViewSNT();
@@ -502,7 +512,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	/**
 	 * Returns a toy reconstruction (fractal tree).
 	 *
-	 * @return a reference to the loaded tree, or null if data could no be retrieved
+	 * @return a reference to the loaded tree, or null if data could not be retrieved
 	 * @see #demoTreeImage()
 	 */
 	@Deprecated
@@ -528,27 +538,27 @@ public class SNTService extends AbstractService implements ImageJService {
 			return getResourceSWCTree("TreeV", "tests/TreeV.swc");
 		else if (nTree.contains("op") || nTree.contains("olfactory projection") || nTree.contains("diadem"))
 			return getResourceSWCTree("OP_1", "tests/OP_1-gs.swc");
-		else 
-		return getResourceSWCTree("AA0001", "ml/demo-trees/AA0001.swc");
+		else
+			return getResourceSWCTree("AA0001", "ml/demo-trees/AA0001.swc");
 	}
 
 	private Tree getResourceSWCTree(final String treeLabel, final String resourcePath) {
 		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 		final InputStream is = classloader.getResourceAsStream(resourcePath);
-		final PathAndFillManager pafm = new PathAndFillManager();
+		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 		pafm.setHeadless(true);
 		Tree tree;
 		try {
 			final int idx1stPath = pafm.size();
 			final BufferedReader br = new BufferedReader(new InputStreamReader(is, "UTF-8"));
-			if (pafm.importSWC(br, treeLabel, false, 0, 0, 0, 1, 1, 1, false)) {
+			if (pafm.importSWC(br, treeLabel, false, 0, 0, 0, 1, 1, 1, 1, false)) {
 				tree = new Tree();
 				for (int i = idx1stPath; i < pafm.size(); i++) {
 					final Path p = pafm.getPath(i);
 					tree.add(p);
 				}
 				tree.setLabel(treeLabel);
-				tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, "um");
+				tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, GuiUtils.micrometer());
 				tree.getProperties().setProperty(Tree.KEY_SOURCE, "SNT Demo");
 			} else {
 				return null;
@@ -564,7 +574,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	/**
 	 * Returns the image associated with the demo (fractal) tree.
 	 *
-	 * @return a reference to the image tree, or null if data could no be retrieved
+	 * @return a reference to the image tree, or null if data could not be retrieved
 	 * @see #demoTree()
 	 */
 	@Deprecated
@@ -576,29 +586,68 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * Returns one of the demo images bundled with SNT image associated with the
 	 * demo (fractal) tree.
 	 *
-	 * @param img a string describing the type of demo image. Either 'fractal' for
-	 *            the L-system toy neuron or 'ddaC' for the C4 ddaC drosophila
-	 *            neuron, a demo image initially distributed with the Sholl plugin.
+	 * @param img a string describing the type of demo image. Options include:
+	 *            'fractal' for the L-system toy neuron; 'ddaC' for the C4 ddaC
+	 *            drosophila neuron (demo image initially distributed with the Sholl
+	 *            plugin); 'OP1'/'OP_1' for the DIADEM OP_1 dataset; 'cil701' and
+	 *            'cil810' for the respective Cell Image Library entries, and
+	 *            'binary timelapse' for a small 4-frame sequence of neurite growth
 	 * @return the demo image, or null if data could no be retrieved
 	 * @see #demoTree(String)
 	 */
 	public ImagePlus demoImage(final String img) {
 		if (img == null)
-			return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
+			throw new IllegalArgumentException("demoImage(): argument cannot be null");
 		final String nImg = img.toLowerCase().trim();
-		if (nImg.contains("dda") || nImg.contains("c4") || nImg.contains("sholl")) {
+		if (nImg.contains("fractal") || nImg.contains("tree")) {
+			return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
+		} else if (nImg.contains("dda") || nImg.contains("c4") || nImg.contains("sholl")) {
 			return demoImageInternal("tests/ddaC.tif", "Drosophila_ddaC_Neuron.tif");
 		} else if (nImg.contains("op")) {
 			return ij.IJ.openImage(
 					"https://github.com/morphonets/SNT/raw/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1.tif");
-		} else if (nImg.contains("multichannel")) {
+		} else if (nImg.equalsIgnoreCase("rat_hippocampal_neuron") || (nImg.contains("hip") && nImg.contains("multichannel"))) {
 			return ij.IJ.openImage("http://wsr.imagej.net/images/Rat_Hippocampal_Neuron.zip");
-		} else if (nImg.contains("4d") || nImg.contains("timelapse")) {
-			final ImagePlus imp = IJ.openImage("https://cildata.crbs.ucsd.edu/media/images/701/701.tif");
-			if (imp != null) imp.setDimensions(1, 1, imp.getNSlices());
-			return imp;
+		} else if (nImg.contains("4d") || nImg.contains("701")) {
+			return cil701();
+		} else if (nImg.contains("multipolar") || nImg.contains("810")) {
+			return cil810();
+		} else if (nImg.contains("timelapse")) {
+			return (!nImg.contains("binary")) ? cil701()
+					: ij.IJ.openImage(
+							"https://github.com/morphonets/misc/raw/00369266e14f1a1ff333f99f0f72ef64077270da/dataset-demos/timelapse-binary-demo.zip");
 		}
-		return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
+		throw new IllegalArgumentException("Not a recognized demoImage argument: " + img);
+	}
+
+	private ImagePlus cil701() {
+		final ImagePlus imp = IJ.openImage("https://cildata.crbs.ucsd.edu/media/images/701/701.tif");
+		if (imp != null) {
+			imp.setDimensions(1, 1, imp.getNSlices());
+			imp.getCalibration().setUnit("um");
+			imp.getCalibration().pixelWidth = 0.169;
+			imp.getCalibration().pixelHeight = 0.169;
+			imp.getCalibration().frameInterval = 3000;
+			imp.getCalibration().setTimeUnit("s");
+			imp.setTitle("CIL_Dataset_#701.tif");
+		}
+		return imp;
+	}
+
+	private ImagePlus cil810() {
+		ImagePlus imp = IJ.openImage("https://cildata.crbs.ucsd.edu/media/images/810/810.tif");
+		if (imp != null) {
+			imp.setDimensions(imp.getNSlices(), 1, 1);
+			imp.getStack().setSliceLabel("N-cadherin", 1);
+			imp.getStack().setSliceLabel("V-glut 1/2", 2);
+			imp.getStack().setSliceLabel("NMDAR", 3);
+			imp.getCalibration().setUnit("um");
+			imp.getCalibration().pixelWidth = 0.113;
+			imp.getCalibration().pixelHeight = 0.113;
+			imp.setTitle("CIL_Dataset_#810.tif");
+			imp = new CompositeImage(imp, CompositeImage.COMPOSITE);
+		}
+		return imp;
 	}
 
 	private ImagePlus demoImageInternal(final String path, final String displayTitle) {
@@ -729,7 +778,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	}
 
 	private ImagePlus captureView(final ImagePlus holdingImp, final String viewDescription, final int viewPlane) {
-		// NB: overlay will be flatten but not active ROI
+		// NB: overlay will be flattened but not active ROI
 		final TracerCanvas canvas = new TracerCanvas(holdingImp, plugin, viewPlane, plugin
 			.getPathAndFillManager());
 		if (plugin.getXYCanvas() != null)
@@ -771,14 +820,11 @@ public class SNTService extends AbstractService implements ImageJService {
 		if (plugin == null) return;
 		if (getUI() == null) {
 			try {
-			SNTUtils.log("Disposing resources..");
-			plugin.cancelSearch(true);
-			plugin.notifyListeners(new SNTEvent(SNTEvent.QUIT));
 			plugin.getPrefs().savePluginPrefs(true);
+			SNTUtils.log("Disposing resources..");
+			plugin.dispose();
 			if (getInstanceViewer() != null) getRecViewer().dispose();
-			plugin.closeAndResetAllPanes();
 			if (plugin.getImagePlus() != null) plugin.getImagePlus().close();
-			SNTUtils.setPlugin(null);
 			SNTUtils.setContext(null);
 			plugin = null;
 			} catch (final NullPointerException ignored) {
@@ -787,6 +833,11 @@ public class SNTService extends AbstractService implements ImageJService {
 		} else {
 			getUI().exitRequested();
 		}
+	}
+
+	@Override
+	public Context getContext() {
+		return (super.getContext() == null) ? SNTUtils.getContext() : super.getContext();
 	}
 
 }

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -29,9 +29,10 @@ import java.util.HashMap;
 import java.util.List;
 
 import net.imagej.ImageJ;
-import net.imagej.legacy.LegacyService;
 import sc.fiji.snt.SNTPrefs;
+import sc.fiji.snt.util.ImpUtils;
 
+import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
@@ -48,14 +49,10 @@ import ij.WindowManager;
  *
  * @author Tiago Ferreira
  */
-@Plugin(initializer = "init", type = Command.class, visible = false,
-	label = "Change Tracing Image")
+@Plugin(initializer = "init", type = Command.class)
 public class ChooseDatasetCmd extends CommonDynamicCmd {
 
-	@Parameter
-	private LegacyService legacyService;
-
-	@Parameter(label = "New tracing image:", persist = false, required = false,
+	@Parameter(persist = false, required = false,
 		style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
 	private String choice;
 
@@ -67,21 +64,36 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 		description = "If the image currently loaded should remain open or instead disposed")
 	private boolean restoreImg;
 
+	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
+	private boolean secondaryLayer;
+
 	private HashMap<String, ImagePlus> impMap;
 
 	@Override
 	public void run() {
 		if (impMap == null || choice == null || impMap.isEmpty()) {
-			error("No other open images seem to be available.");
+			return;
+		}
+		ImagePlus chosenImp = impMap.get(choice);
+		if (!secondaryLayer && !compatibleCalibration(chosenImp)) {
+			cancel();
+			return;
+		}
+		chosenImp = comvertInPlaceToCompositeAsNeeded(chosenImp);
+		if (chosenImp.getType() == ImagePlus.COLOR_RGB) {
+			cancel();
+			return;
+		}
+		if (secondaryLayer) {
+			if (!ImpUtils.sameXYZDimensions(snt.getImagePlus(), chosenImp)) {
+				error("Dimensions of chosen image differ from those of image being traced.");
+			} else {
+				snt.flushSecondaryData();
+				snt.loadSecondaryImage(chosenImp);
+			}
 		} else {
-			ImagePlus chosenImp = impMap.get(choice);
-			if (!compatibleCalibration(chosenImp))
-				return;
-			
 			snt.getPrefs().setTemp(SNTPrefs.RESTORE_LOADED_IMGS, restoreImg);
-			chosenImp = comvertInPlaceToCompositeAsNeeded(chosenImp);
-			if (chosenImp.getType() != ImagePlus.COLOR_RGB)
-				snt.initialize(chosenImp);
+			snt.initialize(chosenImp);
 		}
 		resetUI();
 	}
@@ -89,7 +101,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 	protected boolean isCalibrationCompatible(final ImagePlus chosenImp) {
 		if (!validateCalibration || !snt.accessToValidImageData())
 			return true;
-		return snt.getImagePlus().getCalibration().equals(chosenImp.getCalibration());
+		return ImpUtils.sameCalibration(snt.getImagePlus(), chosenImp);
 	}
 
 	private boolean compatibleCalibration(final ImagePlus chosenImp) {
@@ -105,11 +117,25 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 
 	protected void init() {
 		super.init(true);
-		final MutableModuleItem<String> mItem = getInfo().getMutableInput("choice",
-			String.class);
+		if (!snt.accessToValidImageData() && secondaryLayer) {
+			resolveInputs();
+			error("A secondary tracing layer can only be used when a main tracing image exists.");
+			return;
+		}
+		final MutableModuleItem<String> mItem = getInfo().getMutableInput("choice", String.class);
+		if (secondaryLayer) {
+			getInfo().setLabel("Load Secondary Layer");
+			mItem.setLabel("New secondary layer:");
+			validateCalibration = false;
+			resolveInput("validateCalibration");
+		} else {
+			getInfo().setLabel("Change Tracing Image");
+			mItem.setLabel("New tracing image:");
+			resolveInput("secondaryLayer");
+		}
 		final Collection<ImagePlus> impCollection = getImpInstances();
 		if (impCollection == null || impCollection.isEmpty()) {
-			resolveInputs();
+			noImgsOpenError();
 			return;
 		}
 		impMap = new HashMap<>(impCollection.size());
@@ -119,7 +145,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 			impMap.put(imp.getTitle(), imp);
 		}
 		if (impMap.isEmpty()) {
-			resolveInputs();
+			noImgsOpenError();
 			return;
 		}
 		if (!snt.accessToValidImageData()) {
@@ -132,7 +158,12 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 		if (choices.size() > 10) mItem.setWidgetStyle(ChoiceWidget.LIST_BOX_STYLE);
 	}
 
-	protected void resolveInputs() {
+	private void noImgsOpenError() {
+		resolveInputs();
+		error("No other open images seem to be available.");
+	}
+
+	private void resolveInputs() {
 		choice = null;
 		resolveInput("choice");
 		resolveInput("validateCalibration");
@@ -140,7 +171,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 	}
 
 	public static Collection<ImagePlus> getImpInstances() {
-		// In theory we should be able to use legacyService to retrieve
+		// In theory, we should be able to use legacyService to retrieve
 		// all the images but somehow this can never retrieve the full
 		// list of current available instances:
 //		return legacyService.getImageMap().getImagePlusInstances();

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -36,8 +36,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -45,34 +48,67 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.scijava.Context;
+import org.scijava.app.StatusService;
+import org.scijava.batch.BatchService;
+import org.scijava.command.CommandService;
+import org.scijava.convert.ConvertService;
+import org.scijava.display.DisplayService;
+import org.scijava.io.IOService;
 import org.scijava.log.LogService;
+import org.scijava.platform.PlatformService;
+import org.scijava.plot.PlotService;
+import org.scijava.prefs.PrefService;
+import org.scijava.script.ScriptHeaderService;
+import org.scijava.script.ScriptService;
 import org.scijava.table.Table;
+import org.scijava.table.io.TableIOService;
+import org.scijava.thread.ThreadService;
 import org.scijava.ui.UIService;
 import org.scijava.ui.console.ConsolePane;
+import org.scijava.ui.swing.script.LanguageSupportService;
 import org.scijava.util.FileUtils;
 import org.scijava.util.VersionUtils;
+import org.scijava.service.Service;
+import org.scijava.service.ServiceHelper;
 
 import fiji.util.Levenshtein;
 import ij.IJ;
 import ij.ImagePlus;
-import ij.measure.Calibration;
 import ij.plugin.Colors;
-import ij.plugin.ContrastEnhancer;
-import ij.plugin.ZProjector;
-import ij.process.ImageConverter;
 import ij.process.LUT;
-import ij.process.StackConverter;
+import io.scif.services.DatasetIOService;
+import net.imagej.ImageJ;
+import net.imagej.ImageJService;
+import net.imagej.display.ImageDisplayService;
+import net.imagej.legacy.LegacyService;
+import net.imagej.lut.LUTService;
+import net.imagej.ops.OpService;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.ColorMaps;
+import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.viewer.MultiViewer2D;
+import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 
 /** Static utilities for SNT **/
 public class SNTUtils {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
+	/*
+	 * NB: This pattern needs to be OS agnostic: I.e., Microsoft Windows does not
+	 * support colons in filenames
+	 */
+	private static final String TIMESTAMP_PATTERN = "'_D'yyyy-MM-dd'T'HH-mm-ss";
+	private static final String TIMESTAMP_REGEX = "(.+?)_D(\\d{4}-\\d{2}-\\d{2})T(\\d{2}-\\d{2}-\\d{2})";
 	private static Context context;
 	private static LogService logService;
 
@@ -104,7 +140,11 @@ public class SNTUtils {
 	 *
 	 */
 	private static String getVersion() {
-		return VersionUtils.getVersion(SNT.class);
+		try {
+			return VersionUtils.getVersion(SNT.class);
+		} catch (final Throwable ignored) {
+			return "N/A";
+		}
 	}
 
 	public static synchronized void addViewer(final Viewer3D viewer) {
@@ -140,7 +180,15 @@ public class SNTUtils {
 			setContext(plugin.getContext());
 	}
 
+	/**
+	 * @deprecated use {@link #getInstance()} instead
+	 */
+	@Deprecated
 	public static SNT getPluginInstance() {
+		return plugin;
+	}
+
+	public static SNT getInstance() {
 		return plugin;
 	}
 
@@ -170,32 +218,6 @@ public class SNTUtils {
 		if (!SNTUtils.isDebugMode()) return;
 		if (!initialized) initialize();
 		logService.warn("[SNT] " + string);
-	}
-
-	protected static void convertTo32bit(final ImagePlus imp) throws IllegalArgumentException {
-		if (imp.getBitDepth() == 32)
-			return;
-		if (imp.getNSlices() == 1)
-			new ImageConverter(imp).convertToGray32();
-		else
-			new StackConverter(imp).convertToGray32();
-	}
-
-	public static void convertTo8bit(final ImagePlus imp) {
-		if (imp.getType() != ImagePlus.GRAY8) {
-			final boolean doScaling = ImageConverter.getDoScaling();
-			ImageConverter.setDoScaling(true);
-			new ImageConverter(imp).convertToGray8();
-			ImageConverter.setDoScaling(doScaling);
-		}
-	}
-
-	public static ImagePlus getMIP(final ImagePlus imp) {
-		final ImagePlus mip = ZProjector.run(imp, "max");
-		mip.setLut(imp.getLuts()[0]);
-		mip.copyScale(imp);
-		new ContrastEnhancer().stretchHistogram(mip, 0.35);
-		return mip;
 	}
 
 	public static void csvQuoteAndPrint(final PrintWriter pw, final Object o) {
@@ -412,34 +434,6 @@ public class SNTUtils {
 		}
 	}
 
-	public static boolean similarCalibrations(final Calibration a,
-		final Calibration b)
-	{
-		double ax = 1, ay = 1, az = 1;
-		double bx = 1, by = 1, bz = 1;
-		String aunit = "", bunit = "";
-		if (a != null) {
-			ax = a.pixelWidth;
-			ay = a.pixelHeight;
-			az = a.pixelDepth;
-			aunit = a.getUnit();
-		}
-		if (b != null) {
-			bx = b.pixelWidth;
-			by = b.pixelHeight;
-			bz = b.pixelDepth;
-			bunit = a.getUnit();
-		}
-		if (!aunit.equals(bunit)) return false;
-		final double epsilon = 0.000001;
-		final double pixelWidthDifference = Math.abs(ax - bx);
-		if (pixelWidthDifference > epsilon) return false;
-		final double pixelHeightDifference = Math.abs(ay - by);
-		if (pixelHeightDifference > epsilon) return false;
-		final double pixelDepthDifference = Math.abs(az - bz);
-		return pixelDepthDifference <= epsilon;
-	}
-
 	public static String getSanitizedUnit(final String unit) {
 		final BoundingBox bd = new BoundingBox();
 		bd.setUnit(unit);
@@ -520,7 +514,7 @@ public class SNTUtils {
 	 * @param pattern the filename substring (case-sensitive) to be matched. Only
 	 *                filenames containing {@code pattern} will be imported from the
 	 *                directory. {@code null} allowed.
-	 * @return the list of files. An empty list is retrieved if {@code dir} is not a
+	 * @return the array of files. An empty list is retrieved if {@code dir} is not a
 	 *         valid, readable directory.
 	 */
 	public static File[] getReconstructionFiles(final File dir, final String pattern) {
@@ -532,10 +526,59 @@ public class SNTUtils {
 			final String name = file.getName();
 			if (!name.contains(validatedPattern))
 				return false;
-			final String lName = name.toLowerCase();
-			return file.canRead() && (lName.endsWith("swc") || lName.endsWith(".traces") || lName.endsWith(".json"));
+			return file.canRead() && isReconstructionFile(file);
 		};
 		return dir.listFiles(filter);
+	}
+
+	public static boolean isReconstructionFile(final File file) {
+		final String lName = file.getName().toLowerCase();
+		return (lName.endsWith("swc") || lName.endsWith(".traces") || lName.endsWith(".json") || lName.endsWith(".ndf"));
+	}
+
+	/**
+	 * Retrieves a list of time-stamped backup files associated with a TRACES file
+	 *
+	 * @param tracesFile the TRACES file
+	 * @return the list of backup files. An empty list is retrieved if none could be
+	 *         found.
+	 */
+	public static List<File> getBackupCopies(final File tracesFile) {
+		final List<File> copies = new ArrayList<>();
+		if (tracesFile == null)
+			return copies;
+		final File dir = tracesFile.getParentFile();
+		if (dir == null || !dir.isDirectory() || !dir.exists() || !dir.canRead()) {
+			return copies;
+		}
+		final File[] candidates = getReconstructionFiles(dir, stripExtension(tracesFile.getName()));
+		if (candidates == null)
+			return copies;
+		Pattern p = Pattern.compile(SNTUtils.TIMESTAMP_REGEX);
+		for (final File candidate : candidates) {
+			try {
+				if (p.matcher(candidate.getName()).find())
+					copies.add(candidate);
+			} catch (final Exception ignored) {
+				// do nothing
+				ignored.printStackTrace();
+			}
+		}
+		return copies;
+	}
+
+	public static String getTimeStamp() {
+		return new SimpleDateFormat(TIMESTAMP_PATTERN).format(new Date());
+	}
+
+	public static String extractReadableTimeStamp(final File file) {
+		final Pattern p = Pattern.compile(SNTUtils.TIMESTAMP_REGEX);
+		final Matcher m = p.matcher(file.getName());
+		if (m.find()) {
+			// NB: m.group(0) returns the full match
+			return m.group(1) + " " + m.group(2) + " " + m.group(3).replace("-", ":");
+		}
+		return file.getName();
 	}
 
 	public static void setIsLoading(boolean isLoading) {
@@ -552,14 +595,40 @@ public class SNTUtils {
 	 */
 	public static Context getContext() {
 		if (context == null) {
+			System.out.println("[SNTUtils] Retrieving org.scijava.Context...");
 			try {
 				if (ij.IJ.getInstance() != null)
 					context = (Context) IJ.runPlugIn("org.scijava.Context", "");
-			} catch (final Exception | Error ignored) {
-				error("Failed to retrieve context from IJ1", ignored);
+			} catch (final Throwable ex) {
+				System.out.println("[ERROR] [SNT] Failed to retrieve context from IJ1: " + ex.getMessage());
 			} finally {
-				if (context == null)
-					context = new Context();
+				if (context == null) {
+					try {
+						context = new Context();
+					} catch (final Throwable e) {
+						System.out.println("[SNTUtils] Full SciJava context could not be initialized: " + e.getMessage());
+						System.out.print("[SNTUtils] Trying initialization with preset services...");
+						// FIXME: When running SNT outside IJ, some services fail to initialize!?
+						// We'll try to initialize a context with the services known to be needed by SNT
+						context = new Context(requiredServices());
+						System.out.print(" Done.");
+					} finally {
+						System.out.println("");
+					}
+				}
+				// Make sure required services have been loaded. Somehow SNTService is not when IJ is not running!?
+				final ServiceHelper sh = new ServiceHelper(context);
+				requiredServices().forEach(s -> {
+					if (context.getService(s) == null) {
+						try {
+							sh.loadService(s);
+						} catch (final IllegalArgumentException ex) {
+							ex.printStackTrace();
+						}
+					}
+				});
+				if (context != null)
+					System.out.println(String.format("[INFO] [SNT] %d scijava services loaded", context.getServiceIndex().size()));
 			}
 		}
 		return context;
@@ -571,6 +640,85 @@ public class SNTUtils {
 
 	public static void setContext(final Context context) {
 		SNTUtils.context = context;
+	}
+
+	private static List<Class<? extends Service>> requiredServices() {
+		final List<Class<? extends Service>> services = new ArrayList<>();
+		services.add(BatchService.class);
+		services.add(CommandService.class);
+		services.add(ConvertService.class);
+		services.add(DatasetIOService.class);
+		services.add(DisplayService.class);
+		services.add(ImageDisplayService.class);
+		services.add(IOService.class);
+		services.add(LanguageSupportService.class);
+		services.add(LogService.class);
+		services.add(LUTService.class);
+		services.add(OpService.class);
+		services.add(PlatformService.class);
+		services.add(PlotService.class);
+		services.add(PrefService.class);
+		services.add(ScriptHeaderService.class);
+		services.add(ScriptService.class);
+		services.add(StatusService.class);
+		services.add(TableIOService.class);
+		services.add(ThreadService.class);
+		services.add(UIService.class);
+		services.add(SNTService.class);
+		services.add(ImageJService.class);
+		services.add(LegacyService.class);
+		return services;
+	}
+
+	/**
+	 * Convenience method to quickly display a collection of {@link Tree}s
+	 * 
+	 * @param trees         the collection of trees to be rendered
+	 * @param renderOptions Either '2D' ({@link Viewer2D}), '3D' ({@link Viewer3D}),
+	 *                      'montage' {@link MultiViewer2D} or 'skeleton'
+	 *                      ({@link ImagePlus}). Optionally, 'centered' can be
+	 *                      specified, forcing all trees to be 'centered', by
+	 *                      translating their root to a common coordinate (0,0,0).
+	 */
+	public static void render(final Collection<Tree> trees, final String renderOptions) {
+		if (renderOptions.contains("center")) {
+			trees.forEach(tree -> {
+				final PointInImage root = tree.getRoot();
+				tree.translate(-root.getX(), -root.getY(), -root.getZ());
+			});
+		}
+		if (renderOptions.contains("skel")) {
+			final List<ImagePlus> imps = new ArrayList<>(trees.size());
+			final int[]  v = {1};
+			trees.forEach( tree -> imps.add(tree.getSkeleton2D(v[0]++)));
+			final ImagePlus imp = ImpUtils.getMIP(imps);
+			imp.setTitle("Skeletonized Trees");
+			ColorMaps.applyMagmaColorMap(imp, 128, false);
+			imp.show();
+		} else if (renderOptions.contains("montage")) {
+			new MultiViewer2D(trees).show();
+		} else if (renderOptions.contains("3D")) {
+			final Viewer3D v3 = new Viewer3D();
+			v3.add(trees);
+			v3.show();
+		} else if (renderOptions.contains("2D")) {
+			final Viewer2D v2 = new Viewer2D();
+			v2.add(trees);
+			v2.show();
+		} else {
+			throw new IllegalArgumentException("Unrecognized option: '" + renderOptions + "'");
+		}
+	}
+
+	/**
+	 * Convenience method to start SNT under a new ImageJ instance.
+	 */
+	public static void startApp() {
+		if (context == null) {
+			final ImageJ ij = new ImageJ();
+			ij.ui().showUI();
+		}
+		getContext().getService(CommandService.class).run(sc.fiji.snt.gui.cmds.SNTLoaderCmd.class, true);
 	}
 }
 

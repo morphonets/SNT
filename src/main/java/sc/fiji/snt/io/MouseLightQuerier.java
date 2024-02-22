@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -177,7 +177,7 @@ public class MouseLightQuerier {
 	}
 
 	/**
-	 * Sets the version of the Common Coordinate Framework to be use by the Querier.
+	 * Sets the version of the Common Coordinate Framework to be used by the Querier.
 	 *
 	 * @param version Either "3" (the default), or "2.5" (MouseLight legacy)
 	 */

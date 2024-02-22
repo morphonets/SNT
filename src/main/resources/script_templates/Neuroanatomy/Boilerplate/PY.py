@@ -2,7 +2,6 @@
 #@DatasetService ds
 #@DisplayService display
 #@ImageJ ij
-#@LegacyService ls
 #@LogService log
 #@LUTService lut
 #@SNTService snt
@@ -16,7 +15,9 @@ info:
 """
 
 from sc.fiji.snt import Path, PathAndFillManager, SNT, SNTUI, Tree
-from sc.fiji.snt.analysis import *
+from sc.fiji.snt.analysis import GroupedTreeStatistics, MultiTreeStatistics, NodeStatistics, TreeStatistics,\
+            ConvexHullAnalyzer, PersistenceAnalyzer, ShollAnalyzer, StrahlerAnalyzer, NodeColorMapper,\
+            TreeColorMapper, PathProfiler, PathStraightener, RoiConverter, SkeletonConverter, SNTChart, SNTTable
 from sc.fiji.snt.analysis.graph import DirectedWeightedGraph
 from sc.fiji.snt.analysis.sholl.parsers import TreeParser
 from sc.fiji.snt.annotation import AllenCompartment, AllenUtils, VFBUtils, ZBAtlasUtils

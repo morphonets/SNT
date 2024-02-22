@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -65,6 +65,7 @@ import sc.fiji.snt.gui.GuiUtils.TextFieldWithPlaceholder;
 public class SNTSearchableBar extends SearchableBar {
 
 	private static final long serialVersionUID = 1L;
+	private static final float FONT_SCALING_FACTOR = 1.1f;
 	public static final int SHOW_SEARCH_OPTIONS = 0x80;
 	protected List<AbstractButton> _extraButtons;
 	protected boolean containsCheckboxes;
@@ -115,20 +116,32 @@ public class SNTSearchableBar extends SearchableBar {
 		setStatusLabelPlaceholder(SNTUtils.getReadableVersion());
 	}
 
-	@SuppressWarnings("rawtypes")
+	public Component getSearchField() {
+		if (_textField != null && _textField.isVisible()) {
+			return _textField;
+		}
+		if (_comboBox != null && _comboBox.isVisible()) {
+			return _comboBox.getEditor().getEditorComponent();
+		}
+		return null;
+	}
+
+	@SuppressWarnings({ "rawtypes" })
 	@Override
 	protected JComboBox createComboBox() {
 		final JComboBox comboBox = super.createComboBox();
 		comboBox.setEditor(new BoxEditorWithPrompt("Find:"));
+		comboBox.setFont(comboBox.getFont().deriveFont(comboBox.getFont().getSize2D() * FONT_SCALING_FACTOR));
 		return comboBox;
 	}
 
-	private class BoxEditorWithPrompt extends BasicComboBoxEditor {
+	private static class BoxEditorWithPrompt extends BasicComboBoxEditor {
 		BoxEditorWithPrompt(String prompt) {
 			super();
 			final int cols = editor.getColumns();
 			editor = new GuiUtils.TextFieldWithPlaceholder(prompt);
 			editor.setColumns(cols);
+			editor.setFont(editor.getFont().deriveFont(editor.getFont().getSize2D() * FONT_SCALING_FACTOR));
 		}
 	}
 
@@ -253,15 +266,6 @@ public class SNTSearchableBar extends SearchableBar {
 			updateSearch();
 		});
 		popup.add(jcbmi1);
-		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
-			final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Display No. of Matches", getSearchable().isCountMatch());
-			jcbmi4.setToolTipText("May adversely affect performance if selected");
-			jcbmi4.addItemListener(e -> {
-				setShowMatchCount(jcbmi4.isSelected());
-				updateSearch();
-			});
-			popup.add(jcbmi4);
-		}
 		final JMenuItem jcbmi2 = new JCheckBoxMenuItem("Enable Wildcards (?*)", getSearchable().isWildcardEnabled());
 		jcbmi2.setToolTipText("<HTML><b>?</b> (any character) and <b>*</b> (any string) supported");
 		jcbmi2.addItemListener(e -> {
@@ -272,6 +276,16 @@ public class SNTSearchableBar extends SearchableBar {
 			updateSearch();
 		});
 		popup.add(jcbmi2);
+		popup.addSeparator();
+		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
+			final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Display No. of Matches", getSearchable().isCountMatch());
+			jcbmi4.setToolTipText("May adversely affect performance if selected");
+			jcbmi4.addItemListener(e -> {
+				setShowMatchCount(jcbmi4.isSelected());
+				updateSearch();
+			});
+			popup.add(jcbmi4);
+		}
 		final JMenuItem jcbmi3 = new JCheckBoxMenuItem("Loop After First/Last Hit", getSearchable().isRepeats());
 		jcbmi3.addItemListener(e -> getSearchable().setRepeats(jcbmi3.isSelected()));
 		jcbmi3.setToolTipText("Affects selection of previous/next hit using arrow keys");
@@ -325,7 +339,6 @@ public class SNTSearchableBar extends SearchableBar {
 			if (text == null || text.isEmpty()) _statusLabel.setText(
 				statusLabelPlaceholder);
 		});
-		_statusLabel.setBackground(Color.CYAN);
 		return _statusLabel;
 	}
 
@@ -362,12 +375,12 @@ public class SNTSearchableBar extends SearchableBar {
 
 	@Override
 	protected AbstractButton createCloseButton(final AbstractAction closeAction) {
-	    final AbstractButton button = new JButton();
-	    button.addActionListener(closeAction);
-	    //button.setBorder(BorderFactory.createEmptyBorder());
-	    //button.setOpaque(false);
-	    button.setRequestFocusEnabled(false);
-	    button.setFocusable(false);
+		final AbstractButton button = new JButton();
+		button.addActionListener(closeAction);
+		// button.setBorder(BorderFactory.createEmptyBorder());
+		// button.setOpaque(false);
+		button.setRequestFocusEnabled(false);
+		button.setFocusable(false);
 		formatButton(button, IconFactory.GLYPH.TIMES);
 		return button;
 	}
@@ -381,9 +394,10 @@ public class SNTSearchableBar extends SearchableBar {
 
 	protected void formatButton(final AbstractButton button, final IconFactory.GLYPH glyph) {
 		if (buttonHeight == 0)
-			buttonHeight = (getMaxHistoryLength() == 0) ? new JTextField().getHeight() : new JComboBox<String>().getHeight();
+			buttonHeight = (int) ((getMaxHistoryLength() == 0) ? FONT_SCALING_FACTOR * new JTextField().getHeight()
+					: FONT_SCALING_FACTOR * new JComboBox<String>().getHeight());
 		if (iconHeight == 0)
-			iconHeight = UIManager.getFont("Label.font").getSize();
+			iconHeight = FONT_SCALING_FACTOR * UIManager.getFont("Label.font").getSize();
 		button.setSize(new Dimension(buttonHeight, buttonHeight));
 		IconFactory.applyIcon(button, iconHeight, glyph);
 		button.setRequestFocusEnabled(false);

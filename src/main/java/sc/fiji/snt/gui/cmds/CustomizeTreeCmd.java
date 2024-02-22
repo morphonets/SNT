@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -54,12 +54,12 @@ public class CustomizeTreeCmd extends ContextCommand {
 	@Parameter(label = "Transparency (%)", min = "0", max = "100", style = NumberWidget.SCROLL_BAR_STYLE)
 	private double dTransparency;
 
-	@Parameter(label = "Skip dendrites customization")
-	private boolean skipD;
-
 	@Parameter(label = "Thickness", min = "1", max = "8",  stepSize = "1",
 			description = "Arbitrary units. 1: Thinnest; 8: Thickest")
 	private double dSize;
+
+	@Parameter(label = "Skip dendrites customization")
+	private boolean skipD;
 
 	@Parameter(label = "<HTML><b>Axons:", persist = false, visibility = ItemVisibility.MESSAGE)
 	private String msg2 = "";
@@ -92,6 +92,18 @@ public class CustomizeTreeCmd extends ContextCommand {
 
 	@Parameter(label = "Skip soma customization")
 	private boolean skipS;
+
+//	@Parameter(label = "<HTML><b>Misc Rendering Options:", persist = false, visibility = ItemVisibility.MESSAGE)
+//	private String msg4 = "";
+
+//	@Parameter(label = "Reflect light")
+//	private boolean reflectLight;
+//	
+//	@Parameter(label = "Display faces (when available)")
+//	private boolean faceDisplayed;
+//	
+//	@Parameter(label = "Display wireframe (when available)")
+//	private boolean wireframeDisplayed;
 
 	// this should really be @Parameter(type = ItemIO.OUTPUT), but this
 	// Suppresses the annoying "ignoring unsupported output message

@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -25,12 +25,10 @@ package sc.fiji.snt.gui.cmds;
 import io.scif.services.DatasetIOService;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import net.imagej.ImageJ;
 import net.imagej.display.ImageDisplayService;
 
 import org.scijava.ItemVisibility;
@@ -64,6 +62,8 @@ import sc.fiji.snt.SNTUtils;
 	menuPath = "Plugins>Neuroanatomy>SNT...", label ="SNT Startup Prompt",
 	initializer = "initialize")
 public class SNTLoaderCmd extends DynamicCommand {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	@Parameter
 	private SNTService sntService;
@@ -111,7 +111,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 	private String SPACER2;
 
 	@Parameter(required = false, label = "User interface", choices = { UI_DEFAULT,
-		UI_SIMPLE }, description = DEF_DESCRIPTION)
+		UI_SIMPLE }, description = DEF_DESCRIPTION + " or image is 2D")
 	private String uiChoice;
 
 	@Parameter(required = false, label = "Tracing channel",
@@ -228,7 +228,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 			}
 		}
 		if (imageFile != null) {
-			final File candidate = SNTUtils.findClosestPair(imageFile, new String[] { "traces", "swc" , "json"});
+			final File candidate = SNTUtils.findClosestPair(imageFile, new String[] { "traces", "swc" , "json", "ndf"});
 			if (candidate != null && candidate.exists()) {
 				tracesFile = candidate;
 			}
@@ -247,21 +247,9 @@ public class SNTLoaderCmd extends DynamicCommand {
 		}
 	}
 
-	@SuppressWarnings("unused")
-	private void resetPrefs() {
-		// There have been lots of reports of bugs caused simplify by persisting
-		// experimental preferences. We'll wipe everything until this version is
-		// properly released
-		final PrefsCmd resetPrefs = new PrefsCmd();
-		resetPrefs.setContext(context());
-		resetPrefs.clearAll();
-		SNTUtils.log("Prefs reset");
-	}
-
 	@Override
 	public void run() {
 
-	//	resetPrefs();
 		SNTUtils.setIsLoading(true);
 		final boolean noImg = IMAGE_NONE.equals(imageChoice) || (IMAGE_FILE.equals(
 			imageChoice) && imageFile == null);
@@ -413,18 +401,12 @@ public class SNTLoaderCmd extends DynamicCommand {
 		if (msg != null && !msg.isEmpty())
 			cancel(msg);
 	}
+
 	/*
 	 * IDE debug method
-	 *
-	 * @throws IOException
 	 */
-	public static void main(final String[] args) throws IOException {
-		final ImageJ ij = new ImageJ();
-		ij.ui().showUI();
-		final SNTService sntService = ij.context().getService(SNTService.class);
-		ij.ui().show("Demo image", sntService.demoImage("fractal"));
-		SNTUtils.setDebugMode(false);
-		ij.command().run(SNTLoaderCmd.class, true);
+	public static void main(final String[] args) {
+		SNTUtils.startApp();
 	}
 
 }

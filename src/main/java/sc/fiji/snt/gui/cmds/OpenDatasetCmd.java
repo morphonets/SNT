@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -22,14 +22,12 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import io.scif.services.DatasetIOService;
-
 import java.io.File;
 
 import net.imagej.ImageJ;
+import sc.fiji.snt.gui.GuiUtils;
 
 import org.scijava.command.Command;
-import org.scijava.convert.ConvertService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
@@ -41,39 +39,55 @@ import ij.ImagePlus;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, initializer = "init", visible = false,
+@Plugin(type = Command.class, initializer = "init",
 	label = "Change Tracing Image")
 public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 
-	@Parameter
-	private DatasetIOService ioService;
+//	@Parameter
+//	private DatasetIOService ioService;
+//
+//	@Parameter
+//	private ConvertService convertService;
 
-	@Parameter
-	private ConvertService convertService;
-
-	@Parameter(label = "New tracing image:")
+	@Parameter(required=false, persist = false)
 	private File file;
+
+	@SuppressWarnings("unused")
+	private void init() {
+		init(true);
+		if (file == null || !file.exists()) {
+			file = new GuiUtils(ui).getImageFile(file);
+			resolveInput("file");
+		}
+	}
 
 	@Override
 	public void run() {
-		init(true);
+		final boolean redirect = IJ.redirectingErrorMessages();
 		try {
-			// In theory we should be able to use ioService but the
+			// In theory, we should be able to use ioService but the
 			// following seems to always generate a virtual stack
 //			final Dataset ds = ioService.open(file.getAbsolutePath());
 //			final ImagePlus imp = convertService.convert(ds, ImagePlus.class);
 //			snt.initialize(imp);
-			ImagePlus imp = IJ.openImage(file.getAbsolutePath());
-			imp = comvertInPlaceToCompositeAsNeeded(imp);
-			if (imp.getType() != ImagePlus.COLOR_RGB) {
-				snt.initialize(imp);
+			if (file != null) {
+				IJ.redirectErrorMessages(true);
+				ImagePlus imp = IJ.openImage(file.getAbsolutePath());
+				imp = comvertInPlaceToCompositeAsNeeded(imp);
+				if (imp.getType() != ImagePlus.COLOR_RGB) {
+					snt.initialize(imp);
+				}
 			}
 		}
-		catch (final Throwable ex) {
-			error("Loading of image failed (" + ex.getMessage() +
-				" error). See Console for details.");
+		catch (final NullPointerException ex) {
+			error("Loading of image failed (see Console for details)... "
+					+ "File may not be valid or may encode a proprietary format "
+					+ "not immediately recognized. Please open the image using "
+					+ "IJ/Bioformats (if not yet open). Then, load it in SNT using "
+					+ "'Choose Tracing Image -> From Open Image...'.");
 			ex.printStackTrace();
 		} finally {
+			IJ.redirectErrorMessages(redirect);
 			resetUI();
 		}
 	}

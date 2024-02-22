@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -117,8 +117,7 @@ public class RecViewerPrefsCmd extends ContextCommand {
 	private String HEADER4;
 
 	@Parameter(label = "<HTML>&nbsp;", required = false, description = "How should SNT tools look? (Restart may be required)", choices = {
-			GuiUtils.LAF_DEFAULT, GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK,
-			GuiUtils.LAF_DARCULA })
+			GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK, GuiUtils.LAF_DARCULA })
 	private String laf;
 
 	@Parameter(label = "<HTML>&nbsp;", required = false,
@@ -152,8 +151,8 @@ public class RecViewerPrefsCmd extends ContextCommand {
 		rotationFPS = 0;
 		sensitivity = null;
 		scriptExtension = null;
-		laf = SNTPrefs.getDefaultLookAndFeel();
 		init();
+		laf = SNTPrefs.getDefaultLookAndFeel();
 	}
 
 	@SuppressWarnings("unused")

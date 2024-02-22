@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -19,13 +19,15 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
+
 /**
- * Parsers to retrieve Profiles from multiple sources (2D/3D images, reconstructions, and tables)
+ * Parsers to retrieve Sholl profiles from multiple sources (2D/3D images,
+ * reconstructions, and tables)
  *
  * @author Tiago Ferreira
  *
- * @see <a href="https://github.com/tferr/ASA">https://github.com/tferr/ASA</a>
- * @see <a href="http://imagej.net/Sholl">http://imagej.net/Sholl</a>
+ * @see <a href=
+ *      "https://imagej.net/plugins/sholl-analysis">https://imagej.net/Sholl</a>
  */
 
 package sc.fiji.snt.analysis.sholl.parsers;

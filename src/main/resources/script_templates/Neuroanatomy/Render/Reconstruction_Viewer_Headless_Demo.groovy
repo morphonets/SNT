@@ -6,8 +6,7 @@ import sc.fiji.snt.viewer.Viewer3D
 
 
 /**
- * Exemplifies how to use Reconstruction Viewer in (experimental) headless mode,
- * implemented in SNT v4.0.4
+ * Exemplifies how to use Reconstruction Viewer in (experimental) headless mode
  */
 
 // Retrieve some reconstructions
@@ -30,11 +29,6 @@ viewer.setViewMode("xy")
 viewer.setEnableDarkMode(false)
 viewer.addLabel("!! HEADLESS SCENE !!")
 
-// Make a snapshot of the scene
-file = File.createTempFile("snapshot",".png")
-file.deleteOnExit()
-filePath = file.getAbsolutePath()
-viewer.saveSnapshot(filePath)
+// Display a snapshot of the scene as an ImagePlus object
+viewer.snapshot().show()
 
-// Display snapshot in ImageJ
-ij.IJ.open(filePath)

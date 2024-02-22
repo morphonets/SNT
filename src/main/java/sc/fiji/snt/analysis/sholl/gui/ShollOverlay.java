@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -57,6 +57,8 @@ import ij.measure.Calibration;
  */
 public class ShollOverlay implements ProfileProperties {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private final Profile profile;
 	private final Properties properties;
 	private final Overlay overlay;
@@ -103,8 +105,8 @@ public class ShollOverlay implements ProfileProperties {
 		this.imp = imp;
 		ls = new DefaultLUTService();
 		properties = profile.getProperties();
-		channel = Integer.valueOf(properties.getProperty(KEY_CHANNEL_POS, "1"));
-		frame = Integer.valueOf(properties.getProperty(KEY_FRAME_POS, "1"));
+		channel = Integer.parseInt(properties.getProperty(KEY_CHANNEL_POS, "1"));
+		frame = Integer.parseInt(properties.getProperty(KEY_FRAME_POS, "1"));
 		hyperStack = (channel != 1 && frame != 1);
 		cal = profile.spatialCalibration();
 		centerRawX = center.rawX(cal);
@@ -241,7 +243,7 @@ public class ShollOverlay implements ProfileProperties {
 			throw new IllegalArgumentException("Shell ROIs cannot be generated with undefined center");
 		shells = new ArrayList<>();
 		final Color baseColor = alphaColor(this.baseColor, shellsAlpha);
-		final int shellThickness = Integer.valueOf(properties.getProperty(KEY_NSAMPLES, "1"));
+		final int shellThickness = Integer.parseInt(properties.getProperty(KEY_NSAMPLES, "1"));
 
 		// 2D analysis: circular shells
 		final String sProperty = properties.getProperty(KEY_HEMISHELLS, HEMI_NONE);
@@ -252,9 +254,8 @@ public class ShollOverlay implements ProfileProperties {
 		final boolean east = arcs && sProperty.contains(HEMI_EAST);
 
 		for (final ProfileEntry entry : profile.entries()) {
-			final double radiusX = cal.getRawX(entry.radius);
-			final double radiusY = cal.getRawY(entry.radius);
-
+			final double radiusX = entry.radius / cal.pixelWidth;
+			final double radiusY = entry.radius / cal.pixelHeight;
 			Roi shell;
 			if (arcs) {
 				final Arc2D.Double arc = new Arc2D.Double();
@@ -293,7 +294,7 @@ public class ShollOverlay implements ProfileProperties {
 		cRoi.setStrokeColor(baseColor);
 		cRoi.setProperty(TYPE, CENTER);
 		setROIposition(cRoi, channel, centerRawZ, frame, hyperStack);
-		overlay.add(cRoi, "center");
+		overlay.add(cRoi, CENTER);
 	}
 
 	private void setROIposition(final Roi roi, final int c, final double z, final int t, final boolean hyperStack) {
@@ -401,8 +402,7 @@ public class ShollOverlay implements ProfileProperties {
 			throw new IllegalArgumentException(
 					"Specified LUT could not be found: " + lutName + ". Use getLUTs() for available options");
 		}
-		final ColorTable ct = ls.loadLUT(map.get(lutName));
-		return ct;
+		return ls.loadLUT(map.get(lutName));
 	}
 
 	public void setShellsThickness(final int strokeWidth) {

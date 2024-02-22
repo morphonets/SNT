@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -193,9 +193,8 @@ public class NodeStatistics <T extends PointInImage> {
 	public SNTChart getHistogram(final String metric) {
 		getDescriptiveStatistics(metric);
 		final HistogramDatasetPlus datasetPlus = new HistogramDatasetPlus(currentStats, true);
-		final JFreeChart chart = AnalysisUtils.createHistogram(currentMetric, currentStats, datasetPlus);
-		final SNTChart frame = new SNTChart("Hist. " + currentMetric, chart);
-		return frame;
+		final JFreeChart chart = AnalysisUtils.createHistogram(currentMetric, "", currentStats, datasetPlus);
+		return new SNTChart("Hist. " + currentMetric, chart);
 	}
 
 	/**
@@ -219,7 +218,7 @@ public class NodeStatistics <T extends PointInImage> {
 	 * @return the list of filtered nodes
 	 */
 	public List<T> get(final BrainAnnotation compartment, final boolean includeChildren) {
-		final List<T> list = new ArrayList<T>();
+		final List<T> list = new ArrayList<>();
 		for (final T node : points) {
 			final BrainAnnotation annotation = node.getAnnotation();
 			if (annotation != null) {
@@ -266,11 +265,7 @@ public class NodeStatistics <T extends PointInImage> {
 					mappingAnnotation = pAnnotation;
 				}
 			}
-			Set<T> currentList = map.get(mappingAnnotation);
-			if (currentList == null) {
-				currentList = new HashSet<T>();
-				map.put(mappingAnnotation, currentList);
-			}
+			Set<T> currentList = map.computeIfAbsent(mappingAnnotation, k -> new HashSet<>());
 			currentList.add(p);
 		}
 	
@@ -306,7 +301,7 @@ public class NodeStatistics <T extends PointInImage> {
 	 * @param hemisphere typically 'left' or 'right'. The hemisphere flag (
 	 *                   {@link BrainAnnotation#LEFT_HEMISPHERE} or
 	 *                   {@link BrainAnnotation#RIGHT_HEMISPHERE}) is extracted from
-	 *                   the first character of the string (case insensitive).
+	 *                   the first character of the string (case-insensitive).
 	 *                   Ignored if not a recognized option
 	 * @return the map containing the brain compartments as keys, and frequencies
 	 *         as values.
@@ -390,23 +385,27 @@ public class NodeStatistics <T extends PointInImage> {
 	 */
 	public SNTChart getAnnotatedHistogram(final int depth) {
 		final Map<BrainAnnotation, Integer> map = getAnnotatedFrequencies(depth);
+		Map<BrainAnnotation, Integer> undefinedNodeMap = new HashMap<>();
 		final DefaultCategoryDataset dataset = new DefaultCategoryDataset();
 		final String seriesLabel = (depth == Integer.MAX_VALUE) ? "no filtering" : "depth \u2264" + depth;
 		map.entrySet().stream().sorted((e1, e2) -> -e1.getValue().compareTo(e2.getValue())).forEach(entry -> {
-			if (entry.getKey() != null)
-					dataset.addValue(entry.getValue(), seriesLabel, entry.getKey().acronym());
+			if (entry.getKey() == null || entry.getKey().getOntologyDepth() == 0) {
+				// a null brain annotation or the root brain itself
+				undefinedNodeMap.put(entry.getKey(), entry.getValue());
+			} else
+				dataset.addValue(entry.getValue(), seriesLabel, entry.getKey().acronym());
 		});
-		int nAreas = map.size();
-		if (map.get(null) != null) {
-			dataset.addValue(map.get(null), seriesLabel,"Other" );
-			nAreas--;
+		if (!undefinedNodeMap.isEmpty()) {
+			undefinedNodeMap.forEach((k, v) -> {
+				dataset.addValue(v, seriesLabel, BrainAnnotation.simplifiedString(k));
+			});
 		}
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
-				"Brain areas (N=" + nAreas + ", "+ seriesLabel +")", // domain axis title
+				"Brain areas (N=" + (map.size() - undefinedNodeMap.size()) + ", "+ seriesLabel +")", // domain axis title
 				"Frequency", // range axis title
+				"", //unit
 				dataset);
-		final SNTChart frame = new SNTChart(getLabel() + " Annotated Node Distribution", chart, new Dimension(400, 600));
-		return frame;
+		return new SNTChart(getLabel() + " Annotated Node Distribution", chart, new Dimension(400, 600));
 	}
 
 	/**
@@ -414,7 +413,7 @@ public class NodeStatistics <T extends PointInImage> {
 	 * specified ontology level across the specified hemisphere.
 	 *
 	 * @param depth      the ontological depth of the compartments to be considered
-	 * @param hemisphere 'left', 'right' or 'ratio' (case insensitive). Ignored if
+	 * @param hemisphere 'left', 'right' or 'ratio' (case-insensitive). Ignored if
 	 *                   not a recognized option
 	 * @param tree       the Tree associated with the nodes being analyzed. Only
 	 *                   used if hemisphere is 'ratio'.
@@ -461,9 +460,9 @@ public class NodeStatistics <T extends PointInImage> {
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
 				"Brain areas (N=" + nAreas + ", "+ axisTitle +")", // domain axis title
 				"Frequency", // range axis title
+				"", // axis unit (not applicable here)
 				dataset, 2);
-		final SNTChart frame = new SNTChart(getLabel() + " Annotated Frequencies", chart, new Dimension(400, 600));
-		return frame;
+		return new SNTChart(getLabel() + " Annotated Frequencies", chart, new Dimension(400, 600));
 	}
 
 	private SNTChart getAnnotatedFrequencyHistogram(final Map<BrainAnnotation, Integer> map, final int depth, final String secondaryLabel) {
@@ -481,6 +480,7 @@ public class NodeStatistics <T extends PointInImage> {
 		final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
 				"Brain areas (N=" + nAreas + ", "+ seriesLabel +")", // domain axis title
 				"Frequency", // range axis title
+				"", // unit
 				dataset);
 		final SNTChart frame = new SNTChart(getLabel() + " Annotated Frequencies", chart, new Dimension(400, 600));
 		if (secondaryLabel != null) frame.annotate(secondaryLabel);
@@ -501,17 +501,17 @@ public class NodeStatistics <T extends PointInImage> {
 		if (normGuess.matches(".*\\bz\\b.*")) {
 			return Z_COORDINATES;
 		}
-		if (normGuess.indexOf("rad") != -1 ) {
+		if (normGuess.contains("rad")) {
 			return RADIUS;
 		}
-		if (normGuess.indexOf("val") != -1 || normGuess.indexOf("int") > -1) {
+		if (normGuess.contains("val") || normGuess.contains("int")) {
 			return VALUES;
 		}
-		if (normGuess.indexOf("len") != -1) {
+		if (normGuess.contains("len")) {
 			return BRANCH_LENGTH;
 		}
-		if (normGuess.indexOf("ord") != -1 || normGuess.indexOf("strahler") != -1 || normGuess.indexOf("horton") != -1
-				|| normGuess.indexOf("h-s") != -1) {
+		if (normGuess.contains("ord") || normGuess.contains("strahler") || normGuess.contains("horton")
+				|| normGuess.contains("h-s")) {
 			return BRANCH_ORDER;
 		}
 		return "unknown";

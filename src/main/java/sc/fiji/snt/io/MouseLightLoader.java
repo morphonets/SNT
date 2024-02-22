@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -25,14 +25,13 @@ package sc.fiji.snt.io;
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -61,6 +60,7 @@ import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Methods for retrieving reconstructions from MouseLight's online database at
@@ -161,7 +161,7 @@ public class MouseLightLoader {
 	 * Extracts the nodes (single-point soma, axonal and dendritic arbor) of the
 	 * loaded neuron.
 	 *
-	 * @return the list of nodes of the neuron as {@link SWCPoint}s.
+	 * @return the set of nodes of the neuron as {@link SWCPoint}s.
 	 */
 	public TreeSet<SWCPoint> getNodes() {
 		return getNodes("all");
@@ -205,12 +205,13 @@ public class MouseLightLoader {
 	 *                    nodes are retrieved if {@code compartment} is not
 	 *                    recognized
 	 * @return the map containing the reconstruction nodes as {@link Tree}s
-	 * @throws FileNotFoundException if file could not be retrieved
+	 * @throws IOException if file could not be loaded
+	 * @throws JSONException if file is malformed
 	 * @see #extractNodesFromJSONObject(String, JSONObject)
 	 */
-	public static Map<String, Tree> extractTrees(final File jsonFile, final String compartment) throws FileNotFoundException {
+	public static Map<String, Tree> extractTrees(final File jsonFile, final String compartment) throws JSONException, IOException {
 		final Map<String, TreeSet<SWCPoint>> nodesMap = extractNodes(jsonFile, compartment);
-		final PathAndFillManager pafm = new PathAndFillManager();
+		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 		pafm.setHeadless(true);
 		final Map<String, Tree> result = pafm.importNeurons(nodesMap, null, null);
 		applyMetadata(result.values(), compartment);
@@ -219,7 +220,7 @@ public class MouseLightLoader {
 
 	public static Map<String, Tree> extractTrees(final InputStream stream, final String compartment) {
 		final Map<String, TreeSet<SWCPoint>> nodesMap = extractNodes(stream, compartment);
-		final PathAndFillManager pafm = new PathAndFillManager();
+		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 		pafm.setHeadless(true);
 		Map<String, Tree> result = pafm.importNeurons(nodesMap, null, null);
 		applyMetadata(result.values(), compartment);
@@ -235,11 +236,11 @@ public class MouseLightLoader {
 	 *                    recognized
 	 * @return the map containing the reconstruction nodes as {@link SWCPoint}s 
 	 * @throws JSONException if file is malformed
-	 * @throws FileNotFoundException if file could not be retrieved
+	 * @throws IOException if file could not be loaded
 	 * @see #extractTrees(File, String)
 	 */
-	public static Map<String, TreeSet<SWCPoint>> extractNodes(final File jsonFile, final String compartment) throws JSONException, FileNotFoundException {
-		final JSONTokener tokener = new JSONTokener(new BufferedInputStream(new FileInputStream(jsonFile)));
+	public static Map<String, TreeSet<SWCPoint>> extractNodes(final File jsonFile, final String compartment) throws JSONException, IOException {
+		final JSONTokener tokener = new JSONTokener(new BufferedInputStream(Files.newInputStream(jsonFile.toPath())));
 		return extractNodes(tokener, compartment);
 	}
 
@@ -274,9 +275,9 @@ public class MouseLightLoader {
 
 	private static void applyMetadata(final Collection<Tree>trees, final String compartment) {
 		trees.forEach( tree -> {
-			tree.getProperties().put(Tree.KEY_SPATIAL_UNIT, "um");
-			tree.getProperties().put(Tree.KEY_SOURCE, "MouseLight");
-			tree.getProperties().put(Tree.KEY_COMPARTMENT, TreeProperties.getStandardizedCompartment(compartment));
+			tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, GuiUtils.micrometer());
+			tree.getProperties().setProperty(Tree.KEY_SOURCE, "MouseLight");
+			tree.getProperties().setProperty(Tree.KEY_COMPARTMENT, TreeProperties.getStandardizedCompartment(compartment));
 		});
 	}
 
@@ -505,11 +506,11 @@ public class MouseLightLoader {
 	{
 		if (compartment == null || compartment.trim().isEmpty())
 			throw new IllegalArgumentException("Invalid compartment" + compartment);
-		final PathAndFillManager pafm = new PathAndFillManager();
+		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 		pafm.setHeadless(true);
 		final Map<String, TreeSet<SWCPoint>> inMap = new HashMap<>();
 		inMap.put(id, getNodes(compartment));
-		final Map<String, Tree> outMap = pafm.importNeurons(inMap, color, "um");
+		final Map<String, Tree> outMap = pafm.importNeurons(inMap, color, GuiUtils.micrometer());
 		final Tree tree = outMap.get(id);
 		if (tree == null) {
 			throw new IllegalArgumentException("Data could not be retrieved. Is the database online?");
@@ -520,7 +521,7 @@ public class MouseLightLoader {
 			tree.setLabel(""+ id);
 		tree.getProperties().setProperty(Tree.KEY_COMPARTMENT,
 				TreeProperties.getStandardizedCompartment(compartment));
-		tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, "um");
+		tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, GuiUtils.micrometer());
 		tree.getProperties().setProperty(Tree.KEY_ID, getID());
 		tree.getProperties().setProperty(Tree.KEY_SOURCE, "MouseLight " + getDOI());
 		return tree;
@@ -622,7 +623,7 @@ public class MouseLightLoader {
 				e.printStackTrace();
 			}
 			out.println("# End of Tree ");
-		} catch (final FileNotFoundException | IllegalArgumentException e) {
+		} catch (final IOException | IllegalArgumentException e) {
 			e.printStackTrace();
 		}
 		System.out.println("# All done");

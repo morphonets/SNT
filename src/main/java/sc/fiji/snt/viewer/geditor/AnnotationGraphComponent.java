@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -47,7 +47,7 @@ import javax.swing.*;
 public class AnnotationGraphComponent extends SNTGraphComponent {
 
     private static final long serialVersionUID = 1L;
-    private mxGraphLayout layout;
+    private final mxGraphLayout layout;
     // Layout parameters, these are all the default value unless specified
     // Fast organic layout parameters
     private double forceConstant = 50;

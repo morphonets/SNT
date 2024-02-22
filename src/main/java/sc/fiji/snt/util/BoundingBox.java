@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.Objects;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.jzy3d.maths.BoundingBox3d;
 
 import ij.measure.Calibration;
 import sc.fiji.snt.gui.GuiUtils;
@@ -39,6 +40,8 @@ import sc.fiji.snt.gui.GuiUtils;
  * @author Tiago Ferreira
  */
 public class BoundingBox {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private final static String DEF_SPACING_UNIT = "? units";
 
@@ -163,7 +166,7 @@ public class BoundingBox {
 	 */
 	public boolean isScaled() {
 		return xSpacing != 1d || ySpacing != 1d || zSpacing != 1d ||
-			spacingUnit != DEF_SPACING_UNIT;
+				!spacingUnit.equals(DEF_SPACING_UNIT);
 	}
 
 	/**
@@ -384,6 +387,17 @@ public class BoundingBox {
 
 	public boolean hasDimensions() {
 		return origin.distanceSquaredTo(originOpposite) > 0;
+	}
+
+	public BoundingBox3d toBoundingBox3d() {
+		final BoundingBox3d bounds = new BoundingBox3d();
+		bounds.setXmin((float)origin().x);
+		bounds.setXmax((float)originOpposite().x);
+		bounds.setYmin((float)origin().y);
+		bounds.setYmax((float)originOpposite().y);
+		bounds.setZmin((float)origin().z);
+		bounds.setZmax((float)originOpposite().z);
+		return bounds;
 	}
 
 	@Override

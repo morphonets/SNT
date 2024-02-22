@@ -2,7 +2,7 @@
  * #%L
  * Fiji distribution of ImageJ for the life sciences.
  * %%
- * Copyright (C) 2010 - 2022 Fiji developers.
+ * Copyright (C) 2010 - 2024 Fiji developers.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -21,6 +21,10 @@
  */
 
 package sc.fiji.snt.annotation;
+
+import java.util.Comparator;
+
+import org.scijava.util.ColorRGB;
 
 import sc.fiji.snt.viewer.OBJMesh;
 
@@ -73,6 +77,9 @@ public interface BrainAnnotation {
 	/** @return the parent of this compartment */
 	public BrainAnnotation getParent();
 
+	/** @return the display color of this compartment (if known) */
+	public ColorRGB color();
+
 	public static char getHemisphereFlag(final String hemisphere) {
 		final char flag = hemisphere.trim().toLowerCase().charAt(0);
 		switch(flag) {
@@ -82,6 +89,21 @@ public interface BrainAnnotation {
 		default:
 			return ANY_HEMISPHERE;
 		}
+	}
+
+	public static Comparator<BrainAnnotation> comparator() {
+		return Comparator.nullsLast(
+				Comparator.comparing(BrainAnnotation::getOntologyDepth, Comparator.nullsLast(Comparator.reverseOrder()))
+						.thenComparing(BrainAnnotation::acronym, Comparator.nullsLast(String::compareTo)));
+//						.thenComparing(BrainAnnotation::acronym, Comparator.nullsLast(String::compareToIgnoreCase)));
+	}
+
+	public static String simplifiedString(final BrainAnnotation annotation) {
+		if (annotation == null)
+			return "Other (n/a)";
+		if (annotation.getOntologyDepth() == 0)
+			return "Other (root)";
+		return annotation.acronym();
 	}
 
 }

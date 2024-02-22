@@ -2,7 +2,6 @@
 #@DatasetService ds
 #@DisplayService display
 #@ImageJ ij
-#@LegacyService ls
 #@LogService log
 #@LUTService lut
 #@SNTService snt
