@@ -149,7 +149,7 @@
 		<jgrapht-ext.version>${jgrapht-core.version}</jgrapht-ext.version>
 		<jide-oss.version>3.7.14</jide-oss.version>
 		<log4j.version>2.21.1</log4j.version>
-		<scenery.version>0.9.0</scenery.version>
+		<scenery.version>0.9.3</scenery.version>
 		<sciview.version>ba959ae644</sciview.version>
 		<smile.version>3.0.2</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
