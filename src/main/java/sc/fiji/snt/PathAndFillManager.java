@@ -2224,7 +2224,10 @@ public class PathAndFillManager extends DefaultHandler implements
 	public static PathAndFillManager createFromFile(final String filePath, final int... swcTypes) {
 		final PathAndFillManager pafm = new PathAndFillManager();
 		pafm.setHeadless(true);
-		if (pafm.load(filePath, swcTypes)) return pafm;
+		String normFilePath = filePath;
+		if (filePath.startsWith("~"))
+			normFilePath = filePath.replaceFirst("^~", System.getProperty("user.home"));
+		if (pafm.load(normFilePath, swcTypes)) return pafm;
 		else return null;
 	}
 

@@ -171,13 +171,7 @@ public class Tree implements TreeProperties {
 	 * @throws IllegalArgumentException if file path is not valid
 	 */
 	public Tree(final String filename, final String compartment) throws IllegalArgumentException {
-		File f;
-		if (filename.startsWith("~"))
-			f = new File(filename.replaceFirst("^~", System.getProperty("user.home")));
-		else
-			f = new File(filename);
-		if (!f.exists())
-			throw new IllegalArgumentException("File does not exist: " + filename);
+		final File f = getFile(filename, true);
 		initPathAndFillManagerFromFile(f.getAbsolutePath(), compartment);
 		tree = pafm.getPaths();
 		setLabel(SNTUtils.stripExtension(f.getName()));
@@ -222,9 +216,7 @@ public class Tree implements TreeProperties {
 	 * @throws IllegalArgumentException if file path is not valid
 	 */
 	public Tree(final String filename, final int... swcTypes) throws IllegalArgumentException {
-		final File f = new File(filename);
-		if (!f.exists())
-			throw new IllegalArgumentException("File does not exist: " + filename);
+		final File f = getFile(filename, true);
 		if (filename.toLowerCase().endsWith(".traces") && swcTypes != null)
 			SNTUtils.log("Importing TRACES file: swcTypes will be ignored!");
 		pafm = PathAndFillManager.createFromFile(filename, swcTypes);
@@ -1387,9 +1379,7 @@ public class Tree implements TreeProperties {
 	 *         if {@code tracesOrJsonFile} is not a valid, readable file.
 	 */
 	public static Collection<Tree> listFromFile(final String tracesOrJsonFile) throws IllegalArgumentException {
-		final File f = new File(tracesOrJsonFile);
-		if (!f.exists())
-			throw new IllegalArgumentException("File does not exist: " + tracesOrJsonFile);
+		File f = getFile(tracesOrJsonFile, true);
 		if (f.isDirectory()) {
 			return listFromDir(tracesOrJsonFile);
 		}
@@ -1465,7 +1455,7 @@ public class Tree implements TreeProperties {
 	public static List<Tree> listFromDir(final String dir, final String pattern, final String... swcTypes) {
 		final List<Tree> trees = new ArrayList<>();
 		if (dir == null) return trees;
-		final File dirFile = new File(dir);
+		final File dirFile = getFile(dir, true);
 		final File[] treeFiles = SNTUtils.getReconstructionFiles(dirFile, pattern);
 		if (treeFiles == null) {
 			return trees;
@@ -1522,7 +1512,7 @@ public class Tree implements TreeProperties {
 		if (list() == null || list().isEmpty() || filePath == null || filePath.isEmpty())
 			return false;
 		initPathAndFillManager();
-		File file = new File(filePath);
+		File file = getFile(filePath, false);
 		if (file.isDirectory() && getLabel() != null) {
 			final String fName = (getLabel().toLowerCase().endsWith(".swc")) ? getLabel() : getLabel() + ".swc";
 			file = new File(file.getAbsolutePath(), fName);
@@ -1546,7 +1536,7 @@ public class Tree implements TreeProperties {
 		if (list() == null || list().isEmpty() || filePath == null || filePath.isEmpty())
 			return false;
 		initPathAndFillManager();
-		File file = new File(filePath);
+		File file = getFile(filePath, false);
 		if (file.isDirectory() && getLabel() != null) {
 			final String fName = (getLabel().toLowerCase().endsWith(".traces")) ? getLabel() : getLabel() + ".traces";
 			file = new File(file.getAbsolutePath(), fName);
@@ -1779,6 +1769,17 @@ public class Tree implements TreeProperties {
 		default:
 			throw new IllegalArgumentException("Unrecognized rotation axis" + untouchedAxis);
 		}
+	}
+
+	private static File getFile(final String filename, final boolean checkIfAvailable) {
+		File f;
+		if (filename.startsWith("~" + File.separator))
+			f = new File(filename.replaceFirst("^~", System.getProperty("user.home")));
+		else
+			f = new File(filename);
+		if (!SNTUtils.fileAvailable(f))
+			throw new IllegalArgumentException("File is not available: " + filename);
+		return f;
 	}
 
 	/* IDE debug method */
