@@ -31,7 +31,7 @@ def run():
 
     background = ColorRGB('white') if bckgrnd is None else bckgrnd
     try:
-        snap = snt.captureView(view, background)
+        snap = snt.getInstance().captureView(view, background)
         snap.show()
         ls.runLegacyCommand("ij.plugin.ScaleBar", " width=50 ")
     except:

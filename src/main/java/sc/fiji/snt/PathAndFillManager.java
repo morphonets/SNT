@@ -1554,7 +1554,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		// method of Path.
 		pw.print("  <path id=\"" + p.getID() + "\"");
 				pw.print(" swctype=\"" + p.getSWCType() + "\"");
-				pw.print(" color=\"" + SNTUtils.getColorString(p.getColor()) + "\"");
+				pw.print(" color=\"" + SNTColor.colorToString(p.getColor()) + "\"");
 				pw.print(" channel=\"" + p.getChannel() + "\"");
 				pw.print(" frame=\"" + p.getFrame() + "\"");
 				pw.print(" spines=\"" + p.getSpineOrVaricosityCount() + "\"");
@@ -1780,7 +1780,7 @@ public class PathAndFillManager extends DefaultHandler implements
 					}
 
 					if (colorString != null) {
-						current_path.setColor(SNTUtils.getColor(colorString));
+						current_path.setColor(SNTColor.stringToColor(colorString));
 					}
 					if (channelString != null && frameString != null) {
 						current_path.setCTposition(Integer.parseInt(channelString), Integer

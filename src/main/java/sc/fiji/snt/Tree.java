@@ -33,7 +33,6 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.ColorRGBA;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.measure.Calibration;
@@ -964,14 +963,14 @@ public class Tree implements TreeProperties {
 
 		// Padding is required to accommodate "rounding errors"
 		// in PathAndFillManager.setPathPointsInVolume()
-		final int xyPadding = 6; // 4 extra pixels on each margin
+		final int xyPadding = 6; // 3 extra pixels on each margin
 		final int zPadding = 2; // 1 slice above / below last point
 		final int w = (int) Math.round(bound2.x - bound1.x) + xyPadding;
 		final int h = (int) Math.round(bound2.y - bound1.y) + xyPadding;
 		int d = (int) Math.round(bound2.z - bound1.z);
 		if (d < 1) d = 1;
 		if (d > 1) d += zPadding;
-		return IJ.createImage(null, w, h, d, bitDepth);
+		return ImpUtils.create(null, w, h, d, bitDepth);
 	}
 
 	/**
@@ -1063,7 +1062,7 @@ public class Tree implements TreeProperties {
 		if (d < 1) d = 1;
 		if (d > 1) d += (2 * zMargin);
 		SNTUtils.log("  Allocating " + w + "x" + h + "x" + d + " pixels (16-bit)");
-		final ImagePlus imp = IJ.createImage("Skel " + getLabel(), w, h, (threeD)?d:1, 16);
+		final ImagePlus imp = ImpUtils.create("Skel " + getLabel(), w, h, (threeD)?d:1, 16);
 
 		// Skeletonize
 		skeletonize(imp, pixelValue);
@@ -1129,7 +1128,7 @@ public class Tree implements TreeProperties {
 		if (d < 1) d = 1;
 		if (d > 1) d += (2 * zMargin);
 		SNTUtils.log("  Allocating " + w + "x" + h + "x" + d + " pixels (16-bit)");
-		final ImagePlus imp = IJ.createImage("Skel " + getLabel(), w, h, d, 16);
+		final ImagePlus imp = ImpUtils.create("Skel " + getLabel(), w, h, d, 16);
 
 		// Skeletonize
 		skeletonize(imp, 65535);

@@ -38,6 +38,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.util.ShollPoint;
@@ -411,8 +412,7 @@ public class TreeParser implements Parser {
 			stack.addSlice("", sp);
 		}
 		final ImagePlus result = new ImagePlus("Labels Image", stack);
-		result.setLut(SNTUtils.getLut((cTable == null) ? ColorTables.ICE
-			: cTable));
+		ImpUtils.applyColorTable(result, (cTable == null) ? ColorTables.ICE : cTable);
 		result.setDisplayRange(0, new LinearProfileStats(profile).getMax());
 		result.setCalibration(templateImg.getCalibration());
 		return result;

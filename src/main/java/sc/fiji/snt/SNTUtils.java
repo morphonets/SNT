@@ -22,7 +22,6 @@
 
 package sc.fiji.snt;
 
-import java.awt.Color;
 import java.awt.GraphicsEnvironment;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -76,10 +75,6 @@ import org.scijava.service.Service;
 import org.scijava.service.ServiceHelper;
 
 import fiji.util.Levenshtein;
-import ij.IJ;
-import ij.ImagePlus;
-import ij.plugin.Colors;
-import ij.process.LUT;
 import io.scif.services.DatasetIOService;
 import net.imagej.ImageJ;
 import net.imagej.ImageJService;
@@ -87,11 +82,9 @@ import net.imagej.display.ImageDisplayService;
 import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imagej.ops.OpService;
-import net.imglib2.display.ColorTable;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.viewer.MultiViewer2D;
@@ -100,8 +93,6 @@ import sc.fiji.snt.viewer.Viewer3D;
 
 /** Static utilities for SNT **/
 public class SNTUtils {
-
-	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	/*
 	 * NB: This pattern needs to be OS agnostic: I.e., Microsoft Windows does not
@@ -234,21 +225,6 @@ public class SNTUtils {
 		}
 		if (quote) return "\"" + result + "\"";
 		else return result;
-	}
-
-	protected static String getColorString(final Color color) {
-		//String name = "none";
-		//name = Colors.getColorName(color, name);
-		//if (!"none".equals(name)) name = Colors.colorToString(color);
-		return Colors.colorToString2(color);
-	}
-
-	protected static Color getColor(String colorName) {
-		if (colorName == null) colorName = "none";
-		Color color = null;
-		color = Colors.getColor(colorName, color);
-		if (color == null) color = Colors.decode(colorName, color);
-		return color;
 	}
 
 	public static String stripExtension(final String filename) {
@@ -458,19 +434,6 @@ public class SNTUtils {
 		return data;
 	}
 
-	/* see net.imagej.legacy.translate.ColorTableHarmonizer */
-	public static LUT getLut(final ColorTable cTable) {
-		final byte[] reds = new byte[256];
-		final byte[] greens = new byte[256];
-		final byte[] blues = new byte[256];
-		for (int i = 0; i < 256; i++) {
-			reds[i] = (byte) cTable.getResampled(ColorTable.RED, 256, i);
-			greens[i] = (byte) cTable.getResampled(ColorTable.GREEN, 256, i);
-			blues[i] = (byte) cTable.getResampled(ColorTable.BLUE, 256, i);
-		}
-		return new LUT(reds, greens, blues);
-	}
-
 	public static String getElapsedTime(final long fromStart) {
 		final long time = System.currentTimeMillis() - fromStart;
 		if (time < 1000)
@@ -598,7 +561,7 @@ public class SNTUtils {
 			System.out.println("[SNTUtils] Retrieving org.scijava.Context...");
 			try {
 				if (ij.IJ.getInstance() != null)
-					context = (Context) IJ.runPlugIn("org.scijava.Context", "");
+					context = (Context) ij.IJ.runPlugIn("org.scijava.Context", "");
 			} catch (final Throwable ex) {
 				System.out.println("[ERROR] [SNT] Failed to retrieve context from IJ1: " + ex.getMessage());
 			} finally {
@@ -688,13 +651,7 @@ public class SNTUtils {
 			});
 		}
 		if (renderOptions.contains("skel")) {
-			final List<ImagePlus> imps = new ArrayList<>(trees.size());
-			final int[]  v = {1};
-			trees.forEach( tree -> imps.add(tree.getSkeleton2D(v[0]++)));
-			final ImagePlus imp = ImpUtils.getMIP(imps);
-			imp.setTitle("Skeletonized Trees");
-			ColorMaps.applyMagmaColorMap(imp, 128, false);
-			imp.show();
+			ImpUtils.combineSkeletons(trees).show();
 		} else if (renderOptions.contains("montage")) {
 			new MultiViewer2D(trees).show();
 		} else if (renderOptions.contains("3D")) {
