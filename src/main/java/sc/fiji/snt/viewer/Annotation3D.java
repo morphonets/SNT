@@ -50,6 +50,7 @@ import org.jzy3d.plot3d.primitives.Point;
 import org.jzy3d.plot3d.primitives.Polygon;
 import org.jzy3d.plot3d.primitives.Scatter;
 import org.jzy3d.plot3d.primitives.Shape;
+import org.jzy3d.plot3d.primitives.Wireframeable;
 import org.jzy3d.plot3d.primitives.enlightables.EnlightableSphere;
 import org.scijava.util.ColorRGB;
 
@@ -409,7 +410,7 @@ public class Annotation3D {
 		Color fallback = getDrawableColor();
 		if (fallback == null) fallback = Color.YELLOW;
 		final float a = (transparencyPercent == -1) ? fallback.a : 	(float)( (100 - transparencyPercent) / 100);
-		final Color c = (color == null) ? fallback : new Color(color.getRed(), color.getGreen(), color.getBlue());
+		final Color c = (color == null) ? fallback : colorFromColorRGB(color);
 		c.a = a;
 		if (drawable == null)
 			return;
@@ -522,7 +523,27 @@ public class Annotation3D {
 	 *              range {@code [0, 255]}
 	 */
 	public void setColor(final String color) {
-		setColor(new ColorRGB(color), 10d);
+		setColor(new ColorRGB(color), 0);
+	}
+
+	/**
+	 * Script friendly method to assign a wireframe color to the annotation.
+	 *
+	 * @param color the wireframe color. Ignored if the annotation has no wireframe.
+	 */
+	public void setWireframeColor(final String color) {
+		setWireframeColor(new ColorRGB(color));
+	}
+
+	/**
+	 * Assigns a wireframe color to the annotation.
+	 *
+	 * @param color the wireframe color. Ignored if the annotation has no wireframe.
+	 */
+	public void setWireframeColor(final ColorRGB color) {
+		if (drawable instanceof Wireframeable) {
+			((Wireframeable) drawable).setWireframeColor(colorFromColorRGB(color));
+		}
 	}
 
 	/**
@@ -532,9 +553,7 @@ public class Annotation3D {
 	 *                         bounding box is displayed
 	 */
 	public void setBoundingBoxColor(final ColorRGB boundingBoxColor) {
-		final Color c = (boundingBoxColor == null) ? null
-				: new Color(boundingBoxColor.getRed(), boundingBoxColor.getGreen(), boundingBoxColor.getBlue(),
-						boundingBoxColor.getAlpha());
+		final Color c = colorFromColorRGB(boundingBoxColor);
 		drawable.setBoundingBoxColor(c);
 		drawable.setBoundingBoxDisplayed(c != null);
 	}
@@ -599,6 +618,13 @@ public class Annotation3D {
 	 */
 	public Drawable getDrawable() {
 		return drawable;
+	}
+
+	private Color colorFromColorRGB(final ColorRGB boundingBoxColor) {
+		final Color c = (boundingBoxColor == null) ? null
+				: new Color(boundingBoxColor.getRed(), boundingBoxColor.getGreen(), boundingBoxColor.getBlue(),
+						boundingBoxColor.getAlpha());
+		return c;
 	}
 
 	private class Parallelepiped extends ParallelepipedComposite {

@@ -26,12 +26,12 @@ import java.io.File;
 
 import net.imagej.ImageJ;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.ImpUtils;
 
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
-import ij.IJ;
 import ij.ImagePlus;
 
 /**
@@ -63,7 +63,7 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 
 	@Override
 	public void run() {
-		final boolean redirect = IJ.redirectingErrorMessages();
+		final boolean redirect = ij.IJ.redirectingErrorMessages();
 		try {
 			// In theory, we should be able to use ioService but the
 			// following seems to always generate a virtual stack
@@ -71,8 +71,8 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 //			final ImagePlus imp = convertService.convert(ds, ImagePlus.class);
 //			snt.initialize(imp);
 			if (file != null) {
-				IJ.redirectErrorMessages(true);
-				ImagePlus imp = IJ.openImage(file.getAbsolutePath());
+				ij.IJ.redirectErrorMessages(true);
+				ImagePlus imp = ImpUtils.open(file);
 				imp = comvertInPlaceToCompositeAsNeeded(imp);
 				if (imp.getType() != ImagePlus.COLOR_RGB) {
 					snt.initialize(imp);
@@ -87,7 +87,7 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 					+ "'Choose Tracing Image -> From Open Image...'.");
 			ex.printStackTrace();
 		} finally {
-			IJ.redirectErrorMessages(redirect);
+			ij.IJ.redirectErrorMessages(redirect);
 			resetUI();
 		}
 	}

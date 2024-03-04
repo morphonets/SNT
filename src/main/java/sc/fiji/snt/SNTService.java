@@ -22,9 +22,6 @@
 
 package sc.fiji.snt;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -46,25 +43,17 @@ import org.scijava.plugin.Plugin;
 import org.scijava.script.ScriptService;
 import org.scijava.service.AbstractService;
 import org.scijava.service.Service;
-import org.scijava.util.ColorRGB;
 import org.scijava.util.FileUtils;
 
-import ij.CompositeImage;
-import ij.IJ;
 import ij.ImagePlus;
-import ij.gui.NewImage;
-import ij.io.Opener;
-import ij.plugin.ZProjector;
-import ij.process.ColorProcessor;
-import net.imagej.ImageJService;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -77,7 +66,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  *
  */
 @Plugin(type = Service.class, priority = Priority.NORMAL)
-public class SNTService extends AbstractService implements ImageJService {
+public class SNTService extends AbstractService {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
@@ -173,7 +162,7 @@ public class SNTService extends AbstractService implements ImageJService {
 		if (imagePath.startsWith("demo:")) {
 			return initialize(demoImage(imagePath.substring(5).trim()), startUI);
 		}
-		return initialize(IJ.openImage(imagePath), startUI);
+		return initialize(ImpUtils.open(new File(imagePath)), startUI);
 	}
 
 	/**
@@ -596,68 +585,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * @see #demoTree(String)
 	 */
 	public ImagePlus demoImage(final String img) {
-		if (img == null)
-			throw new IllegalArgumentException("demoImage(): argument cannot be null");
-		final String nImg = img.toLowerCase().trim();
-		if (nImg.contains("fractal") || nImg.contains("tree")) {
-			return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
-		} else if (nImg.contains("dda") || nImg.contains("c4") || nImg.contains("sholl")) {
-			return demoImageInternal("tests/ddaC.tif", "Drosophila_ddaC_Neuron.tif");
-		} else if (nImg.contains("op")) {
-			return ij.IJ.openImage(
-					"https://github.com/morphonets/SNT/raw/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1.tif");
-		} else if (nImg.equalsIgnoreCase("rat_hippocampal_neuron") || (nImg.contains("hip") && nImg.contains("multichannel"))) {
-			return ij.IJ.openImage("http://wsr.imagej.net/images/Rat_Hippocampal_Neuron.zip");
-		} else if (nImg.contains("4d") || nImg.contains("701")) {
-			return cil701();
-		} else if (nImg.contains("multipolar") || nImg.contains("810")) {
-			return cil810();
-		} else if (nImg.contains("timelapse")) {
-			return (!nImg.contains("binary")) ? cil701()
-					: ij.IJ.openImage(
-							"https://github.com/morphonets/misc/raw/00369266e14f1a1ff333f99f0f72ef64077270da/dataset-demos/timelapse-binary-demo.zip");
-		}
-		throw new IllegalArgumentException("Not a recognized demoImage argument: " + img);
-	}
-
-	private ImagePlus cil701() {
-		final ImagePlus imp = IJ.openImage("https://cildata.crbs.ucsd.edu/media/images/701/701.tif");
-		if (imp != null) {
-			imp.setDimensions(1, 1, imp.getNSlices());
-			imp.getCalibration().setUnit("um");
-			imp.getCalibration().pixelWidth = 0.169;
-			imp.getCalibration().pixelHeight = 0.169;
-			imp.getCalibration().frameInterval = 3000;
-			imp.getCalibration().setTimeUnit("s");
-			imp.setTitle("CIL_Dataset_#701.tif");
-		}
-		return imp;
-	}
-
-	private ImagePlus cil810() {
-		ImagePlus imp = IJ.openImage("https://cildata.crbs.ucsd.edu/media/images/810/810.tif");
-		if (imp != null) {
-			imp.setDimensions(imp.getNSlices(), 1, 1);
-			imp.getStack().setSliceLabel("N-cadherin", 1);
-			imp.getStack().setSliceLabel("V-glut 1/2", 2);
-			imp.getStack().setSliceLabel("NMDAR", 3);
-			imp.getCalibration().setUnit("um");
-			imp.getCalibration().pixelWidth = 0.113;
-			imp.getCalibration().pixelHeight = 0.113;
-			imp.setTitle("CIL_Dataset_#810.tif");
-			imp = new CompositeImage(imp, CompositeImage.COMPOSITE);
-		}
-		return imp;
-	}
-
-	private ImagePlus demoImageInternal(final String path, final String displayTitle) {
-		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-		final InputStream is = classloader.getResourceAsStream(path);
-		final boolean redirecting = IJ.redirectingErrorMessages();
-		IJ.redirectErrorMessages(true);
-		final ImagePlus imp = new Opener().openTiff(is, displayTitle);
-		IJ.redirectErrorMessages(redirecting);
-		return imp;
+		return ImpUtils.demo(img);
 	}
 
 	/**
@@ -688,128 +616,6 @@ public class SNTService extends AbstractService implements ImageJService {
 			trees.add(tree);
 		}
 		return trees;
-	}
-
-	/**
-	 * Retrieves a WYSIWYG 'snapshot' of a tracing canvas.
-	 *
-	 * @param view A case-insensitive string specifying the canvas to be captured.
-	 *          Either "xy" (or "main"), "xz", "zy" or "3d" (for legacy's 3D
-	 *          Viewer).
-	 * @param project whether the snapshot of 3D image stacks should include its
-	 *          projection (MIP), or just the current plane
-	 * @return the snapshot capture of the canvas as an RGB image
-	 * @throws UnsupportedOperationException if SNT is not running
-	 * @throws IllegalArgumentException if view is not a recognized option
-	 */
-	@SuppressWarnings("deprecation")
-	public ImagePlus captureView(final String view, final boolean project) {
-		accessActiveInstance(false);
-		if (view == null || view.trim().isEmpty())
-			throw new IllegalArgumentException("Invalid view");
-
-		if (view.toLowerCase().contains("3d")) {
-			if (plugin.get3DUniverse() == null || plugin.get3DUniverse().getWindow() == null)
-				throw new IllegalArgumentException("Legacy 3D viewer is not available");
-			//plugin.get3DUniverse().getWindow().setBackground(background);
-			return plugin.get3DUniverse().takeSnapshot();
-		}
-
-		final int viewPlane = getView(view);
-		final ImagePlus imp = plugin.getImagePlus(viewPlane);
-		if (imp == null) throw new IllegalArgumentException(
-			"view is not available");
-
-		ImagePlus holdingView;
-		if (plugin.accessToValidImageData()) {
-			holdingView = ZProjector
-					.run(imp, "max", (project) ? 1 : imp.getZ(), (project) ? imp.getNSlices() : imp.getZ()).flatten();
-		} else {
-			holdingView = NewImage.createByteImage("Holding view", imp.getWidth(), imp.getHeight(), 1, NewImage.FILL_BLACK);
-		}
-		holdingView.copyScale(imp);
-		return captureView(holdingView, view, viewPlane);
-	}
-
-	/**
-	 * Retrieves a WYSIWYG 'snapshot' of a tracing canvas without voxel data.
-	 *
-	 * @param view            A case-insensitive string specifying the canvas to be
-	 *                        captured. Either "xy" (or "main"), "xz", "zy" or "3d"
-	 *                        (for legacy's 3D Viewer).
-	 * @param backgroundColor the background color of the canvas (string, hex, or
-	 *                        html)
-	 * @return the snapshot capture of the canvas as an RGB image
-	 * @throws UnsupportedOperationException if SNT is not running
-	 * @throws IllegalArgumentException      if {@code view} or
-	 *                                       {@code backgroundColor} are not
-	 *                                       recognized
-	 */
-	@SuppressWarnings("deprecation")
-	public ImagePlus captureView(final String view, final ColorRGB backgroundColor) throws IllegalArgumentException {
-		accessActiveInstance(false);
-		if (view == null || view.trim().isEmpty())
-			throw new IllegalArgumentException("Invalid view");
-		if (backgroundColor == null)
-			throw new IllegalArgumentException("Invalid backgroundColor");
-
-		final Color backgroundColorAWT = new Color(backgroundColor.getRed(), backgroundColor.getGreen(),
-				backgroundColor.getBlue(), 255);
-		if (view.toLowerCase().contains("3d")) {
-			if (plugin.get3DUniverse() == null || plugin.get3DUniverse().getWindow() == null)
-				throw new IllegalArgumentException("Legacy 3D viewer is not available");
-			final Color existingBackground = plugin.get3DUniverse().getWindow().getBackground();
-			plugin.get3DUniverse().getWindow().setBackground(backgroundColorAWT);
-			final ImagePlus imp = plugin.get3DUniverse().takeSnapshot();
-			plugin.get3DUniverse().getWindow().setBackground(existingBackground);
-			return imp;
-		}
-
-		final int viewPlane = getView(view);
-		final ImagePlus imp = plugin.getImagePlus(viewPlane);
-		if (imp == null) throw new IllegalArgumentException(
-			"view is not available");
-		final ColorProcessor ip = new ColorProcessor(imp.getWidth(), imp.getHeight());
-		ip.setColor(backgroundColorAWT);
-		ip.fill();
-		final ImagePlus holdingView = new ImagePlus("Holder", ip);
-		holdingView.copyScale(imp);
-		return captureView(holdingView, view, viewPlane);
-	}
-
-	private ImagePlus captureView(final ImagePlus holdingImp, final String viewDescription, final int viewPlane) {
-		// NB: overlay will be flattened but not active ROI
-		final TracerCanvas canvas = new TracerCanvas(holdingImp, plugin, viewPlane, plugin
-			.getPathAndFillManager());
-		if (plugin.getXYCanvas() != null)
-			canvas.setNodeDiameter(plugin.getXYCanvas().nodeDiameter());
-		final BufferedImage bi = new BufferedImage(holdingImp.getWidth(), holdingImp
-			.getHeight(), BufferedImage.TYPE_INT_ARGB);
-		final Graphics2D g = canvas.getGraphics2D(bi.getGraphics());
-		g.drawImage(holdingImp.getImage(), 0, 0, null);
-		for (final Path p : getPaths()) {
-			p.drawPathAsPoints(g, canvas, plugin);
-		}
-		// this is taken from ImagePlus.flatten()
-		final ImagePlus result = new ImagePlus(viewDescription + " view snapshot",
-			new ColorProcessor(bi));
-		result.copyScale(holdingImp);
-		result.setProperty("Info", holdingImp.getProperty("Info"));
-		return result;
-	}
-
-	private int getView(final String view) {
-		switch (view.toLowerCase()) {
-			case "xy":
-			case "main":
-				return MultiDThreePanes.XY_PLANE;
-			case "xz":
-				return MultiDThreePanes.XZ_PLANE;
-			case "zy":
-				return MultiDThreePanes.ZY_PLANE;
-			default:
-				throw new IllegalArgumentException("Unrecognized view");
-		}
 	}
 
 	/**

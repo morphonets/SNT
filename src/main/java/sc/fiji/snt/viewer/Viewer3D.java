@@ -164,6 +164,7 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.analysis.TreeStatistics;
+import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.VFBUtils;
@@ -1874,6 +1875,10 @@ public class Viewer3D {
 		} else if (object instanceof Path) {
 			final Tree tree = new Tree();
 			tree.add((Path) object);
+			addTree(tree);
+		} else if (object instanceof DirectedWeightedGraph) {
+			final Tree tree = ((DirectedWeightedGraph)object).getTree();
+			tree.setColor(SNTColor.getDistinctColors(1)[0]);
 			addTree(tree);
 		} else if (object instanceof Annotation3D) {
 			addAnnotation((Annotation3D) object);

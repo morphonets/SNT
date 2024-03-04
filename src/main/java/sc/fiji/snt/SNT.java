@@ -24,12 +24,11 @@ package sc.fiji.snt;
 
 import amira.AmiraMeshDecoder;
 import amira.AmiraParameters;
-import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.*;
 import ij.measure.Calibration;
-import ij.plugin.LutLoader;
+import ij.process.ColorProcessor;
 import ij.process.ImageStatistics;
 import ij.process.LUT;
 import ij.process.ShortProcessor;
@@ -39,6 +38,7 @@ import ij3d.ContentCreator;
 import ij3d.Image3DUniverse;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
+import net.imagej.display.ColorTables;
 import net.imagej.lut.LUTService;
 import net.imagej.ops.OpService;
 import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
@@ -94,7 +94,7 @@ import sc.fiji.snt.util.*;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyListener;
-import java.awt.image.IndexColorModel;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -543,8 +543,7 @@ public class SNT extends MultiDThreePanes implements
 		nullifyCanvases(true);
 		if (pathAndFillManager.size() == 0) {
 			// not enough information to proceed. Assemble a dummy canvas instead
-			xy = NewImage.createByteImage("Display Canvas", 1, 1, 1,
-				NewImage.FILL_BLACK);
+			xy = ImpUtils.create("Display Canvas", 1, 1, 1, 8);
 			setFieldsFromImage(xy);
 			setIsDisplayCanvas(xy);
 			return;
@@ -564,8 +563,8 @@ public class SNT extends MultiDThreePanes implements
 		// TODO: Remove ij.IJ dependency
 		final double MEM_FRACTION = 0.8d;
 		final long memNeeded = (long) width * height * depth; // 1 byte per pixel
-		final long memMax = IJ.maxMemory(); // - 100*1024*1024;
-		final long memInUse = IJ.currentMemory();
+		final long memMax = ij.IJ.maxMemory(); // - 100*1024*1024;
+		final long memInUse = ij.IJ.currentMemory();
 		final long memAvailable = (long) (MEM_FRACTION * (memMax - memInUse));
 		if (memMax > 0 && memNeeded > memAvailable) {
 			singleSlice = true;
@@ -592,8 +591,7 @@ public class SNT extends MultiDThreePanes implements
 
 		// Create image
 		imageType = ImagePlus.GRAY8;
-		xy = NewImage.createByteImage("Display Canvas", width, height, (singleSlice) ? 1 : depth,
-			NewImage.FILL_BLACK);
+		xy = ImpUtils.create("Display Canvas", 1, 1, (singleSlice) ? 1 : depth, 8);
 		setIsDisplayCanvas(xy);
 		xy.setCalibration(box.getCalibration());
 		x_spacing = box.xSpacing;
@@ -2426,7 +2424,7 @@ public class SNT extends MultiDThreePanes implements
 		converter.convertDistance(out);
 		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
 		imp.copyScale(getImagePlus());
-		imp.getProcessor().setColorModel(LutLoader.getLut("fire"));
+		ImpUtils.applyColorTable(imp, ColorTables.FIRE);
 		imp.resetDisplayRange();
 		return imp;
 	}
@@ -2452,12 +2450,7 @@ public class SNT extends MultiDThreePanes implements
 		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
 		imp.copyScale(getImagePlus());
 		imp.resetDisplayRange();
-		final IndexColorModel model = LutLoader.getLut("glasbey_on_dark");
-		if (model != null) {
-			imp.getProcessor().setColorModel(model);
-		} else {
-			logService.warn("LUT not found: glasbey_on_dark.lut");
-		}
+		ImpUtils.setLut(imp, "glasbey_on_dark");
 		return imp;
 	}
 
@@ -2802,7 +2795,7 @@ public class SNT extends MultiDThreePanes implements
 		if (!SNTUtils.fileAvailable(file)) {
 			throw new IllegalArgumentException("File path of input data unknown");
 		}
-		ImagePlus imp = ij.IJ.openImage(file.getAbsolutePath());
+		ImagePlus imp = ImpUtils.open(file);
 		if (imp == null) {
 			final Dataset ds = datasetIOService.open(file.getAbsolutePath());
 			if (ds == null)
@@ -3633,6 +3626,123 @@ public class SNT extends MultiDThreePanes implements
 
 	public int getFrame() {
 	 return frame;
+	}
+
+	/**
+	 * Retrieves a WYSIWYG 'snapshot' of a tracing canvas.
+	 *
+	 * @param view A case-insensitive string specifying the canvas to be captured.
+	 *          Either "xy" (or "main"), "xz", "zy" or "3d" (for legacy's 3D
+	 *          Viewer).
+	 * @param project whether the snapshot of 3D image stacks should include its
+	 *          projection (MIP), or just the current plane
+	 * @return the snapshot capture of the canvas as an RGB image
+	 * @throws UnsupportedOperationException if SNT is not running
+	 * @throws IllegalArgumentException if view is not a recognized option
+	 */
+	public ImagePlus captureView(final String view, final boolean project) {
+		if (view == null || view.trim().isEmpty())
+			throw new IllegalArgumentException("Invalid view");
+
+		if (view.toLowerCase().contains("3d")) {
+			if (get3DUniverse() == null || get3DUniverse().getWindow() == null)
+				throw new IllegalArgumentException("Legacy 3D viewer is not available");
+			//plugin.get3DUniverse().getWindow().setBackground(background);
+			return get3DUniverse().takeSnapshot();
+		}
+
+		final int viewPlane = getView(view);
+		final ImagePlus imp = getImagePlus(viewPlane);
+		if (imp == null) throw new IllegalArgumentException(
+			"view is not available");
+
+		ImagePlus holdingView;
+		if (accessToValidImageData()) {
+			holdingView = ImpUtils.getMIP(imp, (project) ? 1 : imp.getZ(), (project) ? imp.getNSlices() : imp.getZ())
+					.flatten();
+		} else {
+			holdingView = ImpUtils.create("Holding view", imp.getWidth(), imp.getHeight(), 1, 8);
+		}
+		holdingView.copyScale(imp);
+		return captureView(holdingView, view, viewPlane);
+	}
+
+	/**
+	 * Retrieves a WYSIWYG 'snapshot' of a tracing canvas without voxel data.
+	 *
+	 * @param view            A case-insensitive string specifying the canvas to be
+	 *                        captured. Either "xy" (or "main"), "xz", "zy" or "3d"
+	 *                        (for legacy's 3D Viewer).
+	 * @param backgroundColor the background color of the canvas (string, hex, or
+	 *                        html)
+	 * @return the snapshot capture of the canvas as an RGB image
+	 * @throws UnsupportedOperationException if SNT is not running
+	 * @throws IllegalArgumentException      if {@code view} or
+	 *                                       {@code backgroundColor} are not
+	 *                                       recognized
+	 */
+	public ImagePlus captureView(final String view, final ColorRGB backgroundColor) throws IllegalArgumentException {
+		if (view == null || view.trim().isEmpty())
+			throw new IllegalArgumentException("Invalid view");
+		if (backgroundColor == null)
+			throw new IllegalArgumentException("Invalid backgroundColor");
+
+		final Color backgroundColorAWT = new Color(backgroundColor.getRed(), backgroundColor.getGreen(),
+				backgroundColor.getBlue(), 255);
+		if (view.toLowerCase().contains("3d")) {
+			if (get3DUniverse() == null || get3DUniverse().getWindow() == null)
+				throw new IllegalArgumentException("Legacy 3D viewer is not available");
+			final Color existingBackground = get3DUniverse().getWindow().getBackground();
+			get3DUniverse().getWindow().setBackground(backgroundColorAWT);
+			final ImagePlus imp = get3DUniverse().takeSnapshot();
+			get3DUniverse().getWindow().setBackground(existingBackground);
+			return imp;
+		}
+
+		final int viewPlane = getView(view);
+		final ImagePlus imp = getImagePlus(viewPlane);
+		if (imp == null) throw new IllegalArgumentException(
+			"view is not available");
+		final ColorProcessor ip = new ColorProcessor(imp.getWidth(), imp.getHeight());
+		ip.setColor(backgroundColorAWT);
+		ip.fill();
+		final ImagePlus holdingView = new ImagePlus("Holder", ip);
+		holdingView.copyScale(imp);
+		return captureView(holdingView, view, viewPlane);
+	}
+
+	private ImagePlus captureView(final ImagePlus holdingImp, final String viewDescription, final int viewPlane) {
+		// NB: overlay will be flattened but not active ROI
+		final TracerCanvas canvas = new TracerCanvas(holdingImp, this, viewPlane, pathAndFillManager);
+		if (getXYCanvas() != null)
+			canvas.setNodeDiameter(getXYCanvas().nodeDiameter());
+		final BufferedImage bi = new BufferedImage(holdingImp.getWidth(), holdingImp
+			.getHeight(), BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = canvas.getGraphics2D(bi.getGraphics());
+		g.drawImage(holdingImp.getImage(), 0, 0, null);
+		for (final Path p : pathAndFillManager.getPaths()) {
+			p.drawPathAsPoints(g, canvas, this);
+		}
+		// this is taken from ImagePlus.flatten()
+		final ImagePlus result = new ImagePlus(viewDescription + " view snapshot",
+			new ColorProcessor(bi));
+		result.copyScale(holdingImp);
+		result.setProperty("Info", holdingImp.getProperty("Info"));
+		return result;
+	}
+
+	private static int getView(final String view) {
+		switch (view.toLowerCase()) {
+			case "xy":
+			case "main":
+				return MultiDThreePanes.XY_PLANE;
+			case "xz":
+				return MultiDThreePanes.XZ_PLANE;
+			case "zy":
+				return MultiDThreePanes.ZY_PLANE;
+			default:
+				throw new IllegalArgumentException("Unrecognized view");
+		}
 	}
 
 }

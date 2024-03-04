@@ -43,14 +43,13 @@ import org.scijava.plugin.Plugin;
 import org.scijava.ui.UIService;
 import org.scijava.widget.FileWidget;
 
-import ij.IJ;
 import ij.ImagePlus;
-import ij.measure.Calibration;
 import ij.plugin.CompositeConverter;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.SNTUtils;
 
 /**
@@ -320,7 +319,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 		// stacks which causes all sort of problems later on. We'll fallback
 		// to IJ1 until this issue is fixed
 		final int nImagesBefore = ij.WindowManager.getImageCount();
-		ImagePlus imp = IJ.openImage(imageFile.getAbsolutePath());
+		ImagePlus imp = ImpUtils.open(imageFile);
 		if (imp != null)
 			return imp;
 
@@ -329,7 +328,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 		// exists we will assume this has been the case.
 		final int nImagesAfter = ij.WindowManager.getImageCount();
 		if (nImagesAfter == nImagesBefore + 1) {
-			imp = IJ.getImage(); // cannot be null
+			imp = ij.IJ.getImage(); // cannot be null
 			final String title = imp.getTitle().toLowerCase();
 			final String filename = imageFile.getName().toLowerCase();
 			if (title.contains(filename)) return imp;
@@ -384,7 +383,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 		{
 			sourceImp.setDimensions(dims[2], dims[4], dims[3]);
 		}
-		final Calibration cal = sourceImp.getCalibration();
+		final ij.measure.Calibration cal = sourceImp.getCalibration();
 		if (!cal.scaled() || (sourceImp.getZ() > 1 && (cal.pixelDepth < cal.pixelHeight ||
 			cal.pixelDepth < cal.pixelWidth)))
 		{

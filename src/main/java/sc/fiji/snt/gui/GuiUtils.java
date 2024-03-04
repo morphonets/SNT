@@ -160,8 +160,6 @@ import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
 import com.jidesoft.utils.ProductNames;
 
-import ij.IJ;
-import ij.ImageJ;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.SNTChart;
@@ -170,8 +168,6 @@ import sc.fiji.snt.util.SNTColor;
 
 /** Misc. utilities for SNT's GUI. */
 public class GuiUtils {
-
-	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	public static final String LAF_LIGHT = FlatLightLaf.NAME;
 	public static final String LAF_LIGHT_INTJ = FlatIntelliJLaf.NAME;
@@ -1256,17 +1252,17 @@ public class GuiUtils {
 		side.add(subTitle);
 		side.add(new JLabel(" ")); // spacer
 		final JLabel ijDetails = leftAlignedLabel(
-				"ImageJ " + ImageJ.VERSION + ImageJ.BUILD + "  |  Java " + System.getProperty("java.version"), "", true);
+				"ImageJ " + ij.ImageJ.VERSION + ij.ImageJ.BUILD + "  |  Java " + System.getProperty("java.version"), "", true);
 		ijDetails.setAlignmentX(JLabel.CENTER_ALIGNMENT);
 		ijDetails.setToolTipText("Displays detailed System Information");
 		ijDetails.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(final MouseEvent e) {
-				if (IJ.getInstance() == null)
+				if (ij.IJ.getInstance() == null)
 					new ij.plugin.JavaProperties().run("");
 				else {
 					//IJ.doCommand("ImageJ Properties");
-					IJ.doCommand("System Information");
+					ij.IJ.doCommand("System Information");
 				}
 			}
 
@@ -1695,7 +1691,7 @@ public class GuiUtils {
 
 	public static JMenuItem menuItemTriggeringURL(final String label, final String URL) {
 		final JMenuItem mi = new JMenuItem(label);
-		mi.addActionListener(e -> IJ.runPlugIn("ij.plugin.BrowserLauncher", URL));
+		mi.addActionListener(e -> ij.IJ.runPlugIn("ij.plugin.BrowserLauncher", URL));
 		return mi;
 	}
 
@@ -2494,7 +2490,7 @@ public class GuiUtils {
 				if (url.startsWith("#"))
 					editorPane.scrollToReference(url.substring(1));
 				else {
-					IJ.runPlugIn("ij.plugin.BrowserLauncher", url);
+					ij.IJ.runPlugIn("ij.plugin.BrowserLauncher", url);
 				}
 			}
 		}
