@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 import org.jgrapht.Graphs;
 import org.jgrapht.alg.connectivity.BiconnectivityInspector;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.measure.Calibration;
@@ -200,7 +199,7 @@ public class SkeletonConverter {
 			ij.IJ.setRawThreshold(imp, lowerThreshold, upperThreshold, "no update");
 			SNTUtils.log("Lower threshold = " + lowerThreshold + ", Upper threshold = " + upperThreshold);
 			final int nImagesBefore = ij.WindowManager.getImageCount();
-			IJ.run(imp, "Convert to Mask", " black");
+			ij.IJ.run(imp, "Convert to Mask", " black");
 			// HACK: By some strange reason (sometimes!?) a new mask is created even though we are skipping the
 			// flag to create a new stack in the options string. So for now, we'll just try to intercept it
 			final int nImagesAfter = ij.WindowManager.getImageCount();

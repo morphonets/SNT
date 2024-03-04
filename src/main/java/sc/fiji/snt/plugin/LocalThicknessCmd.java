@@ -30,12 +30,11 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.Button;
 
-import ij.IJ;
 import ij.ImagePlus;
-import ij.Menus;
 import ij.measure.Calibration;
 import ij.process.ImageStatistics;
 import net.imagej.ImageJ;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.ImpUtils;
 
@@ -47,6 +46,8 @@ import sc.fiji.snt.util.ImpUtils;
 @Plugin(type = Command.class, initializer = "init",
 label = "Estimate Radii (Local Thickness)")
 public class LocalThicknessCmd extends CommonDynamicCmd {
+
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private static final String CMD_LABEL = "Local Thickness (complete process)";
 
@@ -128,7 +129,7 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 
 	@SuppressWarnings("unused")
 	private void helpButtonPressed() {
-		IJ.runPlugIn("ij.plugin.BrowserLauncher", "https://imagej.net/plugins/local-thickness");
+		GuiUtils.openURL("https://imagej.net/plugins/local-thickness");
 	}
 
 	@Override
@@ -177,8 +178,8 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 			thres = 128;
 		}
 		try {
-			IJ.run(imp, CMD_LABEL, "threshold=" + thres);
-			imp = IJ.getImage(); // may display a dialog if image not available
+			ij.IJ.run(imp, CMD_LABEL, "threshold=" + thres);
+			imp = ij.IJ.getImage(); // may display a dialog if image not available
 			imp.getProcessor().multiply( 0.5 * (cal.pixelWidth + cal.pixelHeight) / 2); // half of spatially calibrated diameters
 			imp.setTitle("Estimated-Radii");
 			imp.setCalibration(cal);
@@ -214,7 +215,7 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 			nBins = (int) Math.ceil((max - min) / binWidth);
 		}
 		imp.setDisplayRange(min, max);
-		IJ.run(imp, "Histogram", "bins=" + nBins + " x_min=" + min + " x_max=" + max + " y_max=Auto");
+		ij.IJ.run(imp, "Histogram", "bins=" + nBins + " x_min=" + min + " x_max=" + max + " y_max=Auto");
 
 		// Now assign an ROI in case user wants to activate the Histogram live mode
 //		final int size = Math.min(imp.getWidth(), imp.getHeight()) / 8;
@@ -225,9 +226,9 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 
 	private boolean localThicknessAvailable() {
 		try {
-			IJ.getClassLoader().loadClass("sc.fiji.localThickness.Local_Thickness_Driver");
+			ij.IJ.getClassLoader().loadClass("sc.fiji.localThickness.Local_Thickness_Driver");
 		} catch (final NullPointerException | ClassNotFoundException e) {
-			return Menus.getCommands().get(CMD_LABEL) != null;
+			return ij.Menus.getCommands().get(CMD_LABEL) != null;
 		}
 		return true;
 	}

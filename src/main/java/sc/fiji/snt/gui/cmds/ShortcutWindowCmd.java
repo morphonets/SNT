@@ -56,7 +56,6 @@ import org.scijava.plugin.Plugin;
 import org.scijava.thread.ThreadService;
 import org.scijava.ui.awt.AWTWindows;
 
-import ij.IJ;
 import ij.plugin.PlugIn;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
@@ -155,7 +154,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		jmi.setToolTipText("Performs analysis directly from a (skeletonized) 2D/3D image");
 		jmi.addActionListener(e -> {
 			try {  // FIXME: We need to adopt SciJavaCommands for this
-				IJ.runPlugIn(sc.fiji.snt.plugin.ij1.Strahler.class.getCanonicalName(), "");
+				ij.IJ.runPlugIn(sc.fiji.snt.plugin.ij1.Strahler.class.getCanonicalName(), "");
 			}
 			catch (final Exception ex) {
 				new GuiUtils(getFrame()).error("An error occured. See Console for details.");
@@ -189,7 +188,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 			jmi.setToolTipText("IJ1 command now deprecated but fully macro recordable");
 			jmi.addActionListener(e -> {
 				try {
-					IJ.doCommand(cmd);
+					ij.IJ.doCommand(cmd);
 				} catch (final Exception ex){
 					new GuiUtils(getFrame()).error(ex.getMessage());
 				}
