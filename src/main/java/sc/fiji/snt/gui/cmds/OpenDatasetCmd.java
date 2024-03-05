@@ -39,9 +39,8 @@ import ij.ImagePlus;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, initializer = "init",
-	label = "Change Tracing Image")
-public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
+@Plugin(type = Command.class, initializer = "init", label = "Change Tracing Image")
+public class OpenDatasetCmd extends CommonDynamicCmd {
 
 //	@Parameter
 //	private DatasetIOService ioService;
@@ -63,7 +62,6 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 
 	@Override
 	public void run() {
-		final boolean redirect = ij.IJ.redirectingErrorMessages();
 		try {
 			// In theory, we should be able to use ioService but the
 			// following seems to always generate a virtual stack
@@ -71,9 +69,8 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 //			final ImagePlus imp = convertService.convert(ds, ImagePlus.class);
 //			snt.initialize(imp);
 			if (file != null) {
-				ij.IJ.redirectErrorMessages(true);
 				ImagePlus imp = ImpUtils.open(file);
-				imp = comvertInPlaceToCompositeAsNeeded(imp);
+				imp = ChooseDatasetCmd.convertInPlaceToCompositeAsNeeded(ui, imp);
 				if (imp.getType() != ImagePlus.COLOR_RGB) {
 					snt.initialize(imp);
 				}
@@ -87,7 +84,6 @@ public class OpenDatasetCmd extends CommonDynamicCmd implements Command {
 					+ "'Choose Tracing Image -> From Open Image...'.");
 			ex.printStackTrace();
 		} finally {
-			ij.IJ.redirectErrorMessages(redirect);
 			resetUI();
 		}
 	}

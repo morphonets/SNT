@@ -30,7 +30,6 @@ import ij.gui.*;
 import ij.measure.Calibration;
 import ij.process.ColorProcessor;
 import ij.process.ImageStatistics;
-import ij.process.LUT;
 import ij.process.ShortProcessor;
 import ij3d.Content;
 import ij3d.ContentConstants;
@@ -39,7 +38,6 @@ import ij3d.Image3DUniverse;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
 import net.imagej.display.ColorTables;
-import net.imagej.lut.LUTService;
 import net.imagej.ops.OpService;
 import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
 import net.imglib2.*;
@@ -67,7 +65,6 @@ import org.scijava.NullContextException;
 import org.scijava.app.StatusService;
 import org.scijava.command.CommandService;
 import org.scijava.convert.ConvertService;
-import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
 import org.scijava.vecmath.Color3f;
@@ -117,17 +114,13 @@ public class SNT extends MultiDThreePanes implements
 	@Parameter
 	private Context context;
 	@Parameter
+	private DatasetIOService datasetIOService;
+	@Parameter
 	protected StatusService statusService;
 	@Parameter
-	private LogService logService;
+	private ConvertService convertService;
 	@Parameter
-	protected DatasetIOService datasetIOService;
-	@Parameter
-	protected ConvertService convertService;
-	@Parameter
-	protected OpService opService;
-	@Parameter
-	protected LUTService lutService;
+	private OpService opService;
 
 	public enum SearchType {
 		ASTAR, NBASTAR;
@@ -243,10 +236,8 @@ public class SNT extends MultiDThreePanes implements
 	protected String spacing_units = SNTUtils.getSanitizedUnit(null);
 	protected int channel;
 	protected int frame;
-	private LUT lut;
 
 	/* all tracing and filling-related functions are performed on the Imgs */
-	Dataset dataset;
 	@SuppressWarnings("rawtypes")
 	RandomAccessibleInterval ctSlice3d;
 
@@ -528,7 +519,13 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public boolean accessToValidImageData() {
-		return ctSlice3d != null; //getImagePlus() != null && !isDisplayCanvas(xy);
+		// NB: Currently we are assuming that image data comes from an ImagePlus. This
+		// needs to be changed when ImagePlus requirements are lift. Note that xy may
+		// be null (e.g., image has been manually closed), but its cached data ctSlice3d
+		// may still be available. Return ctSlice3d != null is problematic on its own,
+		// because there are several calls to this method that happen _before_ ctSlice3d
+		// has been assembled, but _after_ an image has been specified
+		return getImagePlus() != null && !isDisplayCanvas(xy);
 	}
 
 	private void setIsDisplayCanvas(final ImagePlus imp) {
@@ -537,6 +534,16 @@ public class SNT extends MultiDThreePanes implements
 
 	protected boolean isDisplayCanvas(final ImagePlus imp) {
 		return "SNT Display Canvas".equals(imp.getInfoProperty());
+	}
+
+	private void setIsCachedData(final ImagePlus imp) {
+		// NB: somehow setProperty/getProperty does not work with virtual stacks,
+		// so we'll brand the image title instead
+		imp.setTitle(String.format("Cached Data [C%dT%d]", channel, frame));
+	}
+
+	protected boolean isCachedData(final ImagePlus imp) {
+		return imp.getTitle().equals(String.format("Cached Data [C%dT%d]", channel, frame));
 	}
 
 	private void assembleDisplayCanvases() {
@@ -716,9 +723,8 @@ public class SNT extends MultiDThreePanes implements
 	@SuppressWarnings("unchecked")
 	private void loadDatasetFromImagePlus(final ImagePlus imp) {
 		statusService.showStatus("Loading data...");
-		this.dataset = convertService.convert(imp, Dataset.class);
-		this.ctSlice3d = ImgUtils.getCtSlice3d(this.dataset, channel - 1, frame - 1);
-		SNTUtils.log("Dataset dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(dataset)));
+		this.ctSlice3d = ImgUtils.getCtSlice3d(imp, channel - 1, frame - 1);
+		SNTUtils.log("Dataset dimensions: " + Arrays.toString(imp.getDimensions()));
 		SNTUtils.log("CT HyperSlice dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(this.ctSlice3d)));
 		statusService.showStatus("Finding stack minimum / maximum");
 		final boolean restoreROI = imp.getRoi() instanceof PointRoi;
@@ -729,7 +735,6 @@ public class SNT extends MultiDThreePanes implements
 			SNTUtils.log("Computing stack statistics");
 			computeImgStats(Views.iterable(this.ctSlice3d), getStats());
 		}
-		updateLut();
 	}
 
 	public void startUI() {
@@ -780,7 +785,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public Dataset getDataset() {
-		return dataset;
+		return (ctSlice3d == null) ? null : convertService.convert(ctSlice3d, Dataset.class);
 	}
 
 	public ImagePlus getImagePlus() {
@@ -816,7 +821,6 @@ public class SNT extends MultiDThreePanes implements
 		ui = null;
 		flushSecondaryData();
 		ctSlice3d = null;
-		dataset = null;
 		//searchArtists.clear(); fillerSet.clear();
 		searchArtists = null;
 		fillerSet = null;
@@ -2583,21 +2587,19 @@ public class SNT extends MultiDThreePanes implements
 	 *         traced, or null if no image data has been loaded into memory.
 	 */
 	public <T extends RealType<T>> ImagePlus getLoadedDataAsImp() {
-		if (!accessToValidImageData())
+		if (ctSlice3d == null)
 			return null;
 		final RandomAccessibleInterval<T> data = getLoadedData();
-		final ImagePlus imp = ImgUtils.raiToImp(data, "Image");
-		updateLut();
-		imp.setLut(lut);
+		final ImagePlus imp = ImgUtils.raiToImp(data, "LoadedData");
 		imp.copyScale(xy);
 		imp.resetDisplayRange();
+		setIsCachedData(imp);
 		return imp;
 	}
 
+	@SuppressWarnings("unchecked")
 	public <T extends RealType<T>> RandomAccessibleInterval<T> getLoadedData() {
-		@SuppressWarnings("unchecked")
-		final RandomAccessibleInterval<T> data = Views.dropSingletonDimensions(this.ctSlice3d);
-		return data;
+		return (ctSlice3d == null) ? null : Views.dropSingletonDimensions(ctSlice3d);
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -2829,9 +2831,7 @@ public class SNT extends MultiDThreePanes implements
 		if (secondaryData.numDimensions() == 3) {
 			img = Views.permute(Views.addDimension(img, 0,0), 2,3);
 		}
-		ImagePlus imp = ImageJFunctions.wrap(img, "Secondary Layer");
-		updateLut();
-		imp.setLut(lut);
+		final ImagePlus imp = ImageJFunctions.wrap(img, "Secondary Layer");
 		imp.copyScale(xy);
 		imp.resetDisplayRange();
 		return imp;
@@ -2964,10 +2964,6 @@ public class SNT extends MultiDThreePanes implements
 			xz.getWindow().setVisible(visible);
 		if (zy != null && zy.getWindow() != null)
 			zy.getWindow().setVisible(visible);
-	}
-
-	protected ImagePlus getMainImagePlusWithoutChecks() {
-		return xy;
 	}
 
 	protected void error(final String msg) {
@@ -3324,11 +3320,6 @@ public class SNT extends MultiDThreePanes implements
 		return new ImagePlus[] { xy8, views[0], views[1] };
 	}
 
-	private void updateLut() {
-		final LUT[] luts = xy.getLuts(); // never null
-		if (luts.length > 0) lut = luts[channel - 1];
-	}
-
 	/**
 	 * Overlays a semi-transparent MIP (8-bit scaled) of the data being traced
 	 * over the tracing canvas(es). Does nothing if image is 2D. Note that with
@@ -3399,7 +3390,7 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public synchronized void enableSnapCursor(final boolean enable) {
 		final boolean validImage = accessToValidImageData();
-		final boolean isBinary = validImage && xy.getProcessor().isBinary();
+		final boolean isBinary = validImage && ImpUtils.isBinary(xy);
 		snapCursor = enable && validImage && !isBinary;
 		if (isUIready()) {
 			if (enable && !validImage) {

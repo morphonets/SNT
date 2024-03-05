@@ -72,7 +72,6 @@ import ij3d.Content;
 import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
 import ij3d.ImageWindow3D;
-import net.imagej.Dataset;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
@@ -87,6 +86,7 @@ import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.io.WekaModelLoader;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.tracing.cost.OneMinusErf;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.*;
@@ -1023,8 +1023,13 @@ public class SNTUI extends JDialog {
 		channelSpinner.setEnabled(hasChannels);
 		frameSpinner.setEnabled(hasFrames);
 		applyPositionButton.addActionListener(e -> {
-			if (!plugin.accessToValidImageData()) {
+			if (!plugin.accessToValidImageData() && plugin.getLoadedData() == null) {
 				guiUtils.error("There is no valid image data to be loaded.");
+				return;
+			}
+
+			if (!plugin.accessToValidImageData() && plugin.getLoadedData() != null) {
+				cachedDataFallbackPrompt();
 				return;
 			}
 			if (imgDimensionsChanged() && guiUtils.getConfirmation(
@@ -1041,6 +1046,16 @@ public class SNTUI extends JDialog {
 		positionPanel.add(applyPositionButton);
 		sourcePanel.add(positionPanel, gdb);
 		return sourcePanel;
+	}
+
+	private void cachedDataFallbackPrompt() {
+		final ImagePlus cached = plugin.getLoadedDataAsImp();
+		if (cached != null && guiUtils.getConfirmation("Image seems to have been closed. Recover cached data?",
+				"Original Image Closed", "Recover", "Ignore")) {
+			plugin.initialize(cached);
+			if (ImpUtils.isVirtualStack(cached))
+				guiUtils.error("Data was recovered as a virtual stack. Some functionality may not be available.");
+		}
 	}
 
 	private boolean imgDimensionsChanged() {
@@ -1781,13 +1796,12 @@ public class SNTUI extends JDialog {
 					return; // user pressed cancel
 				try {
 					plugin.statusService.showStatus(("Loading " + imageFile.getName()));
-					final Dataset ds = plugin.datasetIOService.open(imageFile.getAbsolutePath());
-					final ImagePlus colorImp = plugin.convertService.convert(ds, ImagePlus.class);
+					final ImagePlus colorImp = ImpUtils.open(imageFile);
 					showStatus("Applying color labels...", false);
 					plugin.setColorImage(colorImp);
 					showStatus("Labels image loaded...", true);
 
-				} catch (final IOException exc) {
+				} catch (final Exception exc) {
 					guiUtils.error("Could not open " + imageFile.getAbsolutePath() + ". Maybe it is not a valid image?",
 							"IO Error");
 					exc.printStackTrace();
@@ -3219,11 +3233,12 @@ public class SNTUI extends JDialog {
 			}
 
 			final String defaultText;
-			if (!plugin.accessToValidImageData()) {
+			if (!plugin.accessToValidImageData() || plugin.getImagePlus() == null) {
 				defaultText = "Image data unavailable...";
 			} else {
-				defaultText = "Tracing " + StringUtils.abbreviate(plugin.getImagePlus().getShortTitle(), 25) + ", C=" + plugin.channel + ", T="
-						+ plugin.frame;
+				defaultText = "Tracing "
+						+ StringUtils.abbreviate(plugin.getImagePlus().getShortTitle(), 25) + ", C="
+						+ plugin.channel + ", T=" + plugin.frame;
 			}
 
 			if (!validMsg) {
@@ -3395,8 +3410,13 @@ public class SNTUI extends JDialog {
 
 		final ImageWindow xy_window = (plugin.getImagePlus()==null) ? null : plugin.getImagePlus().getWindow();
 		if (xy_window == null) {
-			if (displayErrorOnFailure)
-				guiUtils.error("XY view is not available.");
+			if (displayErrorOnFailure) {
+				if (!plugin.accessToValidImageData() && plugin.getLoadedData() != null) {
+					cachedDataFallbackPrompt();
+					return;
+				} else
+					guiUtils.error("XY view is not available.");
+			}
 			return;
 		}
 
@@ -3877,13 +3897,12 @@ public class SNTUI extends JDialog {
 		/* ImageListener */
 		@Override
 		public void imageClosed(final ImagePlus imp) {
-			if (imp != plugin.getMainImagePlusWithoutChecks())
-				return;
-			if (!plugin.isDisplayCanvas(imp)) {
-				// the image being closed contained valid data 
+			if (plugin.isCachedData(imp)) {
+				plugin.ctSlice3d = null;
+			} else if (imp == plugin.getImagePlus() && !plugin.isDisplayCanvas(imp)) {
 				plugin.pauseTracing(true, false);
+				SwingUtilities.invokeLater(() -> updateRebuildCanvasButton());
 			}
-			SwingUtilities.invokeLater(() -> updateRebuildCanvasButton());
 		}
 
 		/*
