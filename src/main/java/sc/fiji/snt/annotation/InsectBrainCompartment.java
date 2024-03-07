@@ -31,6 +31,8 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.viewer.OBJMesh;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Objects;
 import java.util.UUID;
@@ -91,7 +93,6 @@ public class InsectBrainCompartment implements BrainAnnotation {
     }
 
     private String getMeshURL() {
-        @SuppressWarnings("ConstantConditions")
         HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_OBJ_DOWNLOAD_URL).newBuilder();
         urlBuilder.addPathSegments(objPath);
         return urlBuilder.build().toString();
@@ -115,11 +116,11 @@ public class InsectBrainCompartment implements BrainAnnotation {
                 );
                 return null;
             }
-            final URL url = new URL(urlPath);
+            final URL url = new URI(urlPath).toURL();
             mesh = new OBJMesh(url, GuiUtils.micrometer());
             mesh.setColor(objColor, 95f);
             mesh.setLabel(name);
-        } catch (final IllegalArgumentException | IOException e) {
+        } catch (final IllegalArgumentException | IOException | URISyntaxException e) {
             SNTUtils.error("Could not retrieve mesh ", e);
         }
         return mesh;

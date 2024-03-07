@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 
 import sc.fiji.snt.PathAndFillManager;
@@ -57,7 +59,7 @@ public class FlyCircuitLoader implements RemoteSWCLoader {
 		HttpURLConnection connection = null;
 		boolean isOnline = false;
 		try {
-			final URL url = new URL(BASE_URL);
+			final URL url = new URI(BASE_URL).toURL();
 			connection = (HttpURLConnection) url.openConnection();
 			connection.setRequestMethod("GET");
 			connection.setConnectTimeout(5000);
@@ -65,7 +67,7 @@ public class FlyCircuitLoader implements RemoteSWCLoader {
 			isOnline = connection
 				.getResponseCode() == HttpURLConnection.HTTP_FORBIDDEN;
 		}
-		catch (final IOException ignored) {
+		catch (final IOException | URISyntaxException ignored) {
 			// do nothing
 		}
 		finally {
@@ -98,11 +100,11 @@ public class FlyCircuitLoader implements RemoteSWCLoader {
 	@Override
 	public BufferedReader getReader(final String cellId) {
 		try {
-			final URL url = new URL(getReconstructionURL(cellId));
+			final URL url = new URI(getReconstructionURL(cellId)).toURL();
 			final InputStream is = url.openStream();
 			return new BufferedReader(new InputStreamReader(is));
 		}
-		catch (final IOException e) {
+		catch (final IOException | URISyntaxException e) {
 			return null;
 		}
 	}

@@ -115,10 +115,9 @@ public class MouseLightLoader {
 
 	private Response getResponse(final String url, final int format) throws IOException {
 		final OkHttpClient client = new OkHttpClient();
-		//TODO: Update for okhttp4: final RequestBody body = RequestBody.create("{\"ids\": [\"" + id + "\"]}", MEDIA_TYPE);
 		//see https://github.com/morphonets/SNT/issues/26
-		final RequestBody body = RequestBody.create(MEDIA_TYPE, "{\"ids\": [\"" + id + "\"]," +
-				" \"ccfVersion\": " + CCF_VERSION + ", \"format\": " + format + "}");
+		final RequestBody body = RequestBody.create("{\"ids\": [\"" + id + "\"]," +
+				" \"ccfVersion\": " + CCF_VERSION + ", \"format\": " + format + "}", MEDIA_TYPE);
 		final Request request = new Request.Builder() //
 				.url(url) //
 				.post(body).addHeader("Content-Type", "application/json") //
@@ -571,9 +570,8 @@ public class MouseLightLoader {
 	public static int getNeuronCount() {
 		int count = -1;
 		final OkHttpClient client = new OkHttpClient();
-		//TODO: Update for okhttp4: final RequestBody body = RequestBody.create("{\"query\":\"{systemSettings{neuronCount}}\"}", MEDIA_TYPE);
 		//see https://github.com/morphonets/SNT/issues/26
-		final RequestBody body = RequestBody.create(MEDIA_TYPE, "{\"query\":\"{systemSettings{neuronCount}}\"}");
+		final RequestBody body = RequestBody.create("{\"query\":\"{systemSettings{neuronCount}}\"}", MEDIA_TYPE);
 		final Request request = new Request.Builder() //
 				.url("https://ml-neuronbrowser.janelia.org/graphql") //
 				.post(body) //

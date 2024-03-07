@@ -30,6 +30,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.JarURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
@@ -150,7 +152,7 @@ public class OBJMesh {
 		try {
 			// see https://stackoverflow.com/a/402771
 			if (filePath.startsWith("jar")) {
-				final URL jarUrl = new URL(filePath);
+				final URL jarUrl = new URI(filePath).toURL();
 				final JarURLConnection connection = (JarURLConnection) jarUrl
 					.openConnection();
 				url = connection.getJarFileURL();
@@ -159,10 +161,10 @@ public class OBJMesh {
 				url = (new File(filePath)).toURI().toURL();
 			}
 			else {
-				url = new URL(filePath);
+				url = new URI(filePath).toURL();
 			}
 		}
-		catch (final ClassCastException | IOException e) {
+		catch (final ClassCastException | IOException | URISyntaxException e) {
 			throw new IllegalArgumentException("Invalid path: " + filePath);
 		}
 		return url;

@@ -22,6 +22,8 @@
 package sc.fiji.snt.annotation;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.*;
 import java.util.stream.IntStream;
@@ -354,7 +356,7 @@ public class AllenCompartment implements BrainAnnotation {
 				System.out.println("MouseLight server is not reachable. Mesh(es) could not be retrieved. Check your internet connection...");
 				return null;
 			}
-			final URL url = new URL(urlPath);
+			final URL url = new URI(urlPath).toURL(); //new URL(urlPath);
 			mesh = new OBJMesh(url, GuiUtils.micrometer());
 			mesh.setColor(geometryColor, 87.5f);
 			mesh.setLabel(toString());
@@ -362,7 +364,7 @@ public class AllenCompartment implements BrainAnnotation {
 			if (!jsonObj.isNull("geometryVolume")) {
 				mesh.setVolume(jsonObj.getDouble("geometryVolume"));
 			}
-		} catch (final JSONException | IllegalArgumentException | IOException e) {
+		} catch (final JSONException | IllegalArgumentException | IOException | URISyntaxException e) {
 			SNTUtils.error("Could not retrieve mesh ", e);
 		}
 		return mesh;

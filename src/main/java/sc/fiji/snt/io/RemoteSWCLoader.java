@@ -27,7 +27,8 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.URL;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
@@ -53,7 +54,7 @@ public interface RemoteSWCLoader {
 
 	static boolean download(final String urlString, final File destinationFile) {
 		try {
-			final BufferedReader br = new BufferedReader(new InputStreamReader(new URL(urlString).openStream()));
+			final BufferedReader br = new BufferedReader(new InputStreamReader(new URI(urlString).toURL().openStream()));
 			final BufferedWriter bw = Files.newBufferedWriter(destinationFile.toPath(), StandardCharsets.UTF_8);
 //			final char[] buffer = new char[8192];
 //			int n;
@@ -63,7 +64,7 @@ public interface RemoteSWCLoader {
 //			br.close();
 //			bw.close();
 			return IOUtils.copy(br, bw) > 0 && destinationFile.exists() && destinationFile.length() > 0;
-		} catch (final IOException e) {
+		} catch (final IOException | URISyntaxException e) {
 			SNTUtils.error("Download failed", e);
 		}
 		return false;

@@ -171,7 +171,7 @@ public class InsectBrainLoader {
     }
 
     private String getJSONUrl() {
-        @SuppressWarnings("ConstantConditions") HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
+    	HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
         urlBuilder.addPathSegments("archive/neuron/");
         urlBuilder.addQueryParameter("format", "json");
         urlBuilder.addQueryParameter("id", String.valueOf(id));
@@ -211,7 +211,7 @@ public class InsectBrainLoader {
     		String uuidString = viewerFiles
     				.getJSONObject(0)
     				.getString("uuid");
-    		@SuppressWarnings("ConstantConditions") HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
+    		HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
     		urlBuilder.addPathSegments("filestore/download_url/");
     		urlBuilder.addQueryParameter("uuid", uuidString);
     		String downloadUrl = urlBuilder.build().toString();
