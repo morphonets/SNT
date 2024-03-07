@@ -29,11 +29,8 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.ui.UIService;
 
-import ij.ImagePlus;
-import ij.plugin.CompositeConverter;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
@@ -153,18 +150,6 @@ public class CommonDynamicCmd extends DynamicCommand {
 		snt.updateDisplayCanvases();
 		snt.updateAllViewers();
 		snt.getPrefs().setTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, true);
-	}
-
-	protected ImagePlus comvertInPlaceToCompositeAsNeeded(ImagePlus imp) {
-		if (imp.getType() == ImagePlus.COLOR_RGB && new GuiUtils(ui).getConfirmation(
-				"RGB images are (intentionally) not supported. You can however convert " + imp.getTitle()
-						+ " to a multichannel image. Would you like to do it now? (Import will abort if you choose \"No\")",
-				"Convert to Multichannel?")) {
-			imp.hide();
-			imp = CompositeConverter.makeComposite(imp);
-			imp.show();
-		}
-		return imp;
 	}
 
 	@Override

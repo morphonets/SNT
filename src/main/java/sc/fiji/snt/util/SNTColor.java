@@ -173,6 +173,9 @@ public class SNTColor {
 	 * @return the converted AWT color
 	 */
 	public static Color stringToColor(final String hex) {
+		final ColorRGB color = ColorRGB.fromHTMLColor(hex.toLowerCase()); // backwards compatibility for v4.2.0 that used capitalized strings
+		if (color != null)
+			return new Color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
 		if (hex.length() < 6) throw new IllegalArgumentException(
 			"Unsupported format. Only (#)RRGGBB(AA) allowed");
 		final String input = hex.charAt(0) == '#' ? hex.substring(1) : hex;

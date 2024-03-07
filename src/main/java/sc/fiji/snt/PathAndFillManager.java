@@ -1554,7 +1554,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		// method of Path.
 		pw.print("  <path id=\"" + p.getID() + "\"");
 				pw.print(" swctype=\"" + p.getSWCType() + "\"");
-				pw.print(" color=\"" + SNTUtils.getColorString(p.getColor()) + "\"");
+				pw.print(" color=\"" + SNTColor.colorToString(p.getColor()) + "\"");
 				pw.print(" channel=\"" + p.getChannel() + "\"");
 				pw.print(" frame=\"" + p.getFrame() + "\"");
 				pw.print(" spines=\"" + p.getSpineOrVaricosityCount() + "\"");
@@ -1780,7 +1780,7 @@ public class PathAndFillManager extends DefaultHandler implements
 					}
 
 					if (colorString != null) {
-						current_path.setColor(SNTUtils.getColor(colorString));
+						current_path.setColor(SNTColor.stringToColor(colorString));
 					}
 					if (channelString != null && frameString != null) {
 						current_path.setCTposition(Integer.parseInt(channelString), Integer
@@ -2224,7 +2224,10 @@ public class PathAndFillManager extends DefaultHandler implements
 	public static PathAndFillManager createFromFile(final String filePath, final int... swcTypes) {
 		final PathAndFillManager pafm = new PathAndFillManager();
 		pafm.setHeadless(true);
-		if (pafm.load(filePath, swcTypes)) return pafm;
+		String normFilePath = filePath;
+		if (filePath.startsWith("~"))
+			normFilePath = filePath.replaceFirst("^~", System.getProperty("user.home"));
+		if (pafm.load(normFilePath, swcTypes)) return pafm;
 		else return null;
 	}
 

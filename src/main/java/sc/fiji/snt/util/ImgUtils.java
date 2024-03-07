@@ -236,7 +236,7 @@ public class ImgUtils
      * @param channelIndex the channel position, 0-indexed
      * @param frameIndex the time position, 0-indexed
      * @param <T>
-     * @return the view rai
+     * @return the view RAI
      */
     public static < T extends RealType< T > > RandomAccessibleInterval< T > getCtSlice( final Dataset dataset,
                                                                                         final int channelIndex,
@@ -263,6 +263,27 @@ public class ImgUtils
         // If Z is a singleton dimension, drop it
         return Views.dropSingletonDimensions( img );
     }
+
+    /**
+     * Get a view of the {@link ImagePlus} at the specified channel and frame.
+     *
+     * @param imp the input ImagePlus
+     * @param channel the channel position, 1-indexed (as per ImagePlus convention)
+     * @param frame the time position, 1-indexed (as per ImagePlus convention)
+     * @param <T>
+     * @return the view RAI
+     */
+	public static <T extends RealType<T>> RandomAccessibleInterval<T> getCtSlice3d(final ImagePlus imp, final int channel,
+			final int frame) {
+		RandomAccessibleInterval<T> img = ImgUtils.impToRealRai5d(imp);
+		// Extract the relevant part of the imp
+		img = Views.hyperSlice(img, 2, channel - 1);
+		img = Views.hyperSlice(img, 3, frame - 1);
+		// bump to 3D
+        if ( img.numDimensions() == 2 )
+        	img = Views.addDimension( img, 0, 0 );
+		return img;
+	}
 
     /**
      * Wrap an {@link ImagePlus} to a {@link RandomAccessibleInterval} such that the number of dimensions in

@@ -22,7 +22,9 @@
 
 package sc.fiji.snt.util;
 
+import java.awt.image.IndexColorModel;
 import java.io.File;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -32,6 +34,8 @@ import org.scijava.convert.ConvertService;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.io.Opener;
+import ij.plugin.CompositeConverter;
 import ij.plugin.ContrastEnhancer;
 import ij.plugin.Duplicator;
 import ij.plugin.ImagesToStack;
@@ -39,9 +43,12 @@ import ij.plugin.ZProjector;
 import ij.process.ByteProcessor;
 import ij.process.ImageConverter;
 import ij.process.ImageStatistics;
+import ij.process.LUT;
 import ij.process.StackConverter;
 import net.imagej.Dataset;
+import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
 
 /**
  * Static utilities for handling and manipulation of {@link ImagePlus}s
@@ -62,7 +69,11 @@ public class ImpUtils {
 	}
 
 	public static ImagePlus getMIP(final ImagePlus imp) {
-		final ImagePlus mip = ZProjector.run(imp, "max");
+		return getMIP(imp, 1, imp.getNSlices());
+	}
+
+	public static ImagePlus getMIP(final ImagePlus imp, final int startSlice, final int stopSlice) {
+		final ImagePlus mip = ZProjector.run(imp, "max", startSlice, stopSlice);
 		if (mip.getNChannels() == 1)
 			mip.setLut(imp.getLuts()[0]); // assume single-channel image
 		mip.copyScale(imp);
@@ -96,14 +107,29 @@ public class ImpUtils {
 		}
 	}
 
+	public static ImagePlus convertRGBtoComposite(final ImagePlus imp) {
+		if (imp.getType() == ImagePlus.COLOR_RGB) {
+			imp.hide();
+			final boolean isShowing = imp.isVisible();
+			final ImagePlus res = CompositeConverter.makeComposite(imp);
+			imp.flush();
+			if (isShowing) res.show();
+			return res;
+		}
+		return imp;
+	}
+
 	public static ImagePlus open(final File file) {
 		return open(file, null);
 	}
 
 	public static ImagePlus open(final File file, final String title) {
+		final boolean redirecting = IJ.redirectingErrorMessages();
+		IJ.redirectErrorMessages(true);
 		final ImagePlus imp = IJ.openImage(file.getAbsolutePath());
 		if (title != null)
 			imp.setTitle(title);
+		IJ.redirectErrorMessages(redirecting);
 		return imp;
 	}
 
@@ -166,9 +192,134 @@ public class ImpUtils {
 		}
 		return set;
 	}
-	
+
 	public static Dataset toDataset(final ImagePlus imp) {
 		final ConvertService convertService = SNTUtils.getContext().getService(ConvertService.class);
 		return convertService.convert(imp, Dataset.class);
 	}
+
+
+	/* see net.imagej.legacy.translate.ColorTableHarmonizer */
+	public static void applyColorTable(final ImagePlus imp, final ColorTable cTable) {
+		final byte[] reds = new byte[256];
+		final byte[] greens = new byte[256];
+		final byte[] blues = new byte[256];
+		for (int i = 0; i < 256; i++) {
+			reds[i] = (byte) cTable.getResampled(ColorTable.RED, 256, i);
+			greens[i] = (byte) cTable.getResampled(ColorTable.GREEN, 256, i);
+			blues[i] = (byte) cTable.getResampled(ColorTable.BLUE, 256, i);
+		}
+		imp.setLut(new LUT(reds, greens, blues));
+	}
+
+	public static void setLut(final ImagePlus imp, final String lutName) {
+		final IndexColorModel model = ij.plugin.LutLoader.getLut(lutName);
+		if (model != null) {
+			imp.getProcessor().setColorModel(model);
+		} else {
+			SNTUtils.error("LUT not found: " + lutName);
+		}
+	}
+
+	public static ImagePlus create(final String title, final int width, final int height, final int depth,
+			final int bitDepth) {
+		return ij.IJ.createImage(title, width, height, depth, bitDepth);
+	}
+
+	public static boolean isBinary(final ImagePlus imp) {
+		 return imp != null && imp.getProcessor() != null && imp.getProcessor().isBinary();
+	}
+
+	public static boolean isVirtualStack(final ImagePlus imp) {
+		 return imp != null && imp.getStack() != null && imp.getStack().size() > 1 && imp.getStack().isVirtual();
+	}
+
+	public static ImagePlus combineSkeletons(final Collection<Tree> trees) {
+		final List<ImagePlus> imps = new ArrayList<>(trees.size());
+		final int[]  v = {1};
+		trees.forEach( tree -> imps.add(tree.getSkeleton2D(v[0]++)));
+		final ImagePlus imp = ImpUtils.getMIP(imps);
+		imp.setTitle("Skeletonized Trees");
+		ColorMaps.applyMagmaColorMap(imp, 128, false);
+		return imp;
+	}
+
+	/**
+	 * Returns one of the demo images bundled with SNT image associated with the
+	 * demo (fractal) tree.
+	 *
+	 * @param img a string describing the type of demo image. Options include:
+	 *            'fractal' for the L-system toy neuron; 'ddaC' for the C4 ddaC
+	 *            drosophila neuron (demo image initially distributed with the Sholl
+	 *            plugin); 'OP1'/'OP_1' for the DIADEM OP_1 dataset; 'cil701' and
+	 *            'cil810' for the respective Cell Image Library entries, and
+	 *            'binary timelapse' for a small 4-frame sequence of neurite growth
+	 * @return the demo image, or null if data could no be retrieved
+	 * @see #demoTree(String)
+	 */
+	public static ImagePlus demo(final String img) {
+		if (img == null)
+			throw new IllegalArgumentException("demoImage(): argument cannot be null");
+		final String nImg = img.toLowerCase().trim();
+		if (nImg.contains("fractal") || nImg.contains("tree")) {
+			return demoImageInternal("tests/TreeV.tif", "TreeV.tif");
+		} else if (nImg.contains("dda") || nImg.contains("c4") || nImg.contains("sholl")) {
+			return demoImageInternal("tests/ddaC.tif", "Drosophila_ddaC_Neuron.tif");
+		} else if (nImg.contains("op")) {
+			return ij.IJ.openImage(
+					"https://github.com/morphonets/SNT/raw/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1.tif");
+		} else if (nImg.equalsIgnoreCase("rat_hippocampal_neuron") || (nImg.contains("hip") && nImg.contains("multichannel"))) {
+			return ij.IJ.openImage("http://wsr.imagej.net/images/Rat_Hippocampal_Neuron.zip");
+		} else if (nImg.contains("4d") || nImg.contains("701")) {
+			return cil701();
+		} else if (nImg.contains("multipolar") || nImg.contains("810")) {
+			return cil810();
+		} else if (nImg.contains("timelapse")) {
+			return (!nImg.contains("binary")) ? cil701()
+					: ij.IJ.openImage(
+							"https://github.com/morphonets/misc/raw/00369266e14f1a1ff333f99f0f72ef64077270da/dataset-demos/timelapse-binary-demo.zip");
+		}
+		throw new IllegalArgumentException("Not a recognized demoImage argument: " + img);
+	}
+
+	private static ImagePlus demoImageInternal(final String path, final String displayTitle) {
+		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+		final InputStream is = classloader.getResourceAsStream(path);
+		final boolean redirecting = IJ.redirectingErrorMessages();
+		IJ.redirectErrorMessages(true);
+		final ImagePlus imp = new Opener().openTiff(is, displayTitle);
+		IJ.redirectErrorMessages(redirecting);
+		return imp;
+	}
+
+	private static ImagePlus cil810() {
+		ImagePlus imp = IJ.openImage("https://cildata.crbs.ucsd.edu/media/images/810/810.tif");
+		if (imp != null) {
+			imp.setDimensions(imp.getNSlices(), 1, 1);
+			imp.getStack().setSliceLabel("N-cadherin", 1);
+			imp.getStack().setSliceLabel("V-glut 1/2", 2);
+			imp.getStack().setSliceLabel("NMDAR", 3);
+			imp.getCalibration().setUnit("um");
+			imp.getCalibration().pixelWidth = 0.113;
+			imp.getCalibration().pixelHeight = 0.113;
+			imp.setTitle("CIL_Dataset_#810.tif");
+			imp = new ij.CompositeImage(imp, ij.CompositeImage.COMPOSITE);
+		}
+		return imp;
+	}
+
+	private static ImagePlus cil701() {
+		final ImagePlus imp = IJ.openImage("https://cildata.crbs.ucsd.edu/media/images/701/701.tif");
+		if (imp != null) {
+			imp.setDimensions(1, 1, imp.getNSlices());
+			imp.getCalibration().setUnit("um");
+			imp.getCalibration().pixelWidth = 0.169;
+			imp.getCalibration().pixelHeight = 0.169;
+			imp.getCalibration().frameInterval = 3000;
+			imp.getCalibration().setTimeUnit("s");
+			imp.setTitle("CIL_Dataset_#701.tif");
+		}
+		return imp;
+	}
+
 }

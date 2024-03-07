@@ -90,6 +90,7 @@ import sc.fiji.snt.analysis.sholl.parsers.ImageParser;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser2D;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser3D;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.Logger;
 import sc.fiji.snt.util.ShollPoint;
 
@@ -1266,8 +1267,8 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 		private void showMask() {
 			final ImagePlus mask = parser.getMask();
-			if (!lutChoice.contains("No LUT.")) mask.getProcessor().setLut(SNTUtils
-				.getLut(lutTable));
+			if (!lutChoice.contains("No LUT.") && lutTable != null)
+				ImpUtils.applyColorTable(mask, lutTable);
 			outputs.add(mask);
 			mask.show();
 		}

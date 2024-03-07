@@ -24,14 +24,12 @@ package sc.fiji.snt;
 
 import amira.AmiraMeshDecoder;
 import amira.AmiraParameters;
-import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.*;
 import ij.measure.Calibration;
-import ij.plugin.LutLoader;
+import ij.process.ColorProcessor;
 import ij.process.ImageStatistics;
-import ij.process.LUT;
 import ij.process.ShortProcessor;
 import ij3d.Content;
 import ij3d.ContentConstants;
@@ -39,7 +37,7 @@ import ij3d.ContentCreator;
 import ij3d.Image3DUniverse;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
-import net.imagej.lut.LUTService;
+import net.imagej.display.ColorTables;
 import net.imagej.ops.OpService;
 import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
 import net.imglib2.*;
@@ -67,7 +65,6 @@ import org.scijava.NullContextException;
 import org.scijava.app.StatusService;
 import org.scijava.command.CommandService;
 import org.scijava.convert.ConvertService;
-import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
 import org.scijava.vecmath.Color3f;
@@ -94,7 +91,7 @@ import sc.fiji.snt.util.*;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyListener;
-import java.awt.image.IndexColorModel;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -117,17 +114,13 @@ public class SNT extends MultiDThreePanes implements
 	@Parameter
 	private Context context;
 	@Parameter
+	private DatasetIOService datasetIOService;
+	@Parameter
 	protected StatusService statusService;
 	@Parameter
-	private LogService logService;
+	private ConvertService convertService;
 	@Parameter
-	protected DatasetIOService datasetIOService;
-	@Parameter
-	protected ConvertService convertService;
-	@Parameter
-	protected OpService opService;
-	@Parameter
-	protected LUTService lutService;
+	private OpService opService;
 
 	public enum SearchType {
 		ASTAR, NBASTAR;
@@ -243,10 +236,8 @@ public class SNT extends MultiDThreePanes implements
 	protected String spacing_units = SNTUtils.getSanitizedUnit(null);
 	protected int channel;
 	protected int frame;
-	private LUT lut;
 
 	/* all tracing and filling-related functions are performed on the Imgs */
-	Dataset dataset;
 	@SuppressWarnings("rawtypes")
 	RandomAccessibleInterval ctSlice3d;
 
@@ -528,7 +519,13 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public boolean accessToValidImageData() {
-		return ctSlice3d != null; //getImagePlus() != null && !isDisplayCanvas(xy);
+		// NB: Currently we are assuming that image data comes from an ImagePlus. This
+		// needs to be changed when ImagePlus requirements are lift. Note that xy may
+		// be null (e.g., image has been manually closed), but its cached data ctSlice3d
+		// may still be available. Return ctSlice3d != null is problematic on its own,
+		// because there are several calls to this method that happen _before_ ctSlice3d
+		// has been assembled, but _after_ an image has been specified
+		return getImagePlus() != null && !isDisplayCanvas(xy);
 	}
 
 	private void setIsDisplayCanvas(final ImagePlus imp) {
@@ -539,12 +536,21 @@ public class SNT extends MultiDThreePanes implements
 		return "SNT Display Canvas".equals(imp.getInfoProperty());
 	}
 
+	private void setIsCachedData(final ImagePlus imp) {
+		// NB: somehow setProperty/getProperty does not work with virtual stacks,
+		// so we'll brand the image title instead
+		imp.setTitle(String.format("Cached Data [C%dT%d]", channel, frame));
+	}
+
+	protected boolean isCachedData(final ImagePlus imp) {
+		return imp.getTitle().equals(String.format("Cached Data [C%dT%d]", channel, frame));
+	}
+
 	private void assembleDisplayCanvases() {
 		nullifyCanvases(true);
 		if (pathAndFillManager.size() == 0) {
 			// not enough information to proceed. Assemble a dummy canvas instead
-			xy = NewImage.createByteImage("Display Canvas", 1, 1, 1,
-				NewImage.FILL_BLACK);
+			xy = ImpUtils.create("Display Canvas", 1, 1, 1, 8);
 			setFieldsFromImage(xy);
 			setIsDisplayCanvas(xy);
 			return;
@@ -564,8 +570,8 @@ public class SNT extends MultiDThreePanes implements
 		// TODO: Remove ij.IJ dependency
 		final double MEM_FRACTION = 0.8d;
 		final long memNeeded = (long) width * height * depth; // 1 byte per pixel
-		final long memMax = IJ.maxMemory(); // - 100*1024*1024;
-		final long memInUse = IJ.currentMemory();
+		final long memMax = ij.IJ.maxMemory(); // - 100*1024*1024;
+		final long memInUse = ij.IJ.currentMemory();
 		final long memAvailable = (long) (MEM_FRACTION * (memMax - memInUse));
 		if (memMax > 0 && memNeeded > memAvailable) {
 			singleSlice = true;
@@ -592,8 +598,7 @@ public class SNT extends MultiDThreePanes implements
 
 		// Create image
 		imageType = ImagePlus.GRAY8;
-		xy = NewImage.createByteImage("Display Canvas", width, height, (singleSlice) ? 1 : depth,
-			NewImage.FILL_BLACK);
+		xy = ImpUtils.create("Display Canvas", 1, 1, (singleSlice) ? 1 : depth, 8);
 		setIsDisplayCanvas(xy);
 		xy.setCalibration(box.getCalibration());
 		x_spacing = box.xSpacing;
@@ -718,9 +723,8 @@ public class SNT extends MultiDThreePanes implements
 	@SuppressWarnings("unchecked")
 	private void loadDatasetFromImagePlus(final ImagePlus imp) {
 		statusService.showStatus("Loading data...");
-		this.dataset = convertService.convert(imp, Dataset.class);
-		this.ctSlice3d = ImgUtils.getCtSlice3d(this.dataset, channel - 1, frame - 1);
-		SNTUtils.log("Dataset dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(dataset)));
+		this.ctSlice3d = ImgUtils.getCtSlice3d(imp, channel - 1, frame - 1);
+		SNTUtils.log("Dataset dimensions: " + Arrays.toString(imp.getDimensions()));
 		SNTUtils.log("CT HyperSlice dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(this.ctSlice3d)));
 		statusService.showStatus("Finding stack minimum / maximum");
 		final boolean restoreROI = imp.getRoi() instanceof PointRoi;
@@ -731,7 +735,6 @@ public class SNT extends MultiDThreePanes implements
 			SNTUtils.log("Computing stack statistics");
 			computeImgStats(Views.iterable(this.ctSlice3d), getStats());
 		}
-		updateLut();
 	}
 
 	public void startUI() {
@@ -782,7 +785,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public Dataset getDataset() {
-		return dataset;
+		return (ctSlice3d == null) ? null : convertService.convert(ctSlice3d, Dataset.class);
 	}
 
 	public ImagePlus getImagePlus() {
@@ -818,7 +821,6 @@ public class SNT extends MultiDThreePanes implements
 		ui = null;
 		flushSecondaryData();
 		ctSlice3d = null;
-		dataset = null;
 		//searchArtists.clear(); fillerSet.clear();
 		searchArtists = null;
 		fillerSet = null;
@@ -2426,7 +2428,7 @@ public class SNT extends MultiDThreePanes implements
 		converter.convertDistance(out);
 		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
 		imp.copyScale(getImagePlus());
-		imp.getProcessor().setColorModel(LutLoader.getLut("fire"));
+		ImpUtils.applyColorTable(imp, ColorTables.FIRE);
 		imp.resetDisplayRange();
 		return imp;
 	}
@@ -2452,12 +2454,7 @@ public class SNT extends MultiDThreePanes implements
 		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
 		imp.copyScale(getImagePlus());
 		imp.resetDisplayRange();
-		final IndexColorModel model = LutLoader.getLut("glasbey_on_dark");
-		if (model != null) {
-			imp.getProcessor().setColorModel(model);
-		} else {
-			logService.warn("LUT not found: glasbey_on_dark.lut");
-		}
+		ImpUtils.setLut(imp, "glasbey_on_dark");
 		return imp;
 	}
 
@@ -2590,21 +2587,19 @@ public class SNT extends MultiDThreePanes implements
 	 *         traced, or null if no image data has been loaded into memory.
 	 */
 	public <T extends RealType<T>> ImagePlus getLoadedDataAsImp() {
-		if (!accessToValidImageData())
+		if (ctSlice3d == null)
 			return null;
 		final RandomAccessibleInterval<T> data = getLoadedData();
-		final ImagePlus imp = ImgUtils.raiToImp(data, "Image");
-		updateLut();
-		imp.setLut(lut);
+		final ImagePlus imp = ImgUtils.raiToImp(data, "LoadedData");
 		imp.copyScale(xy);
 		imp.resetDisplayRange();
+		setIsCachedData(imp);
 		return imp;
 	}
 
+	@SuppressWarnings("unchecked")
 	public <T extends RealType<T>> RandomAccessibleInterval<T> getLoadedData() {
-		@SuppressWarnings("unchecked")
-		final RandomAccessibleInterval<T> data = Views.dropSingletonDimensions(this.ctSlice3d);
-		return data;
+		return (ctSlice3d == null) ? null : Views.dropSingletonDimensions(ctSlice3d);
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -2802,7 +2797,7 @@ public class SNT extends MultiDThreePanes implements
 		if (!SNTUtils.fileAvailable(file)) {
 			throw new IllegalArgumentException("File path of input data unknown");
 		}
-		ImagePlus imp = ij.IJ.openImage(file.getAbsolutePath());
+		ImagePlus imp = ImpUtils.open(file);
 		if (imp == null) {
 			final Dataset ds = datasetIOService.open(file.getAbsolutePath());
 			if (ds == null)
@@ -2836,9 +2831,7 @@ public class SNT extends MultiDThreePanes implements
 		if (secondaryData.numDimensions() == 3) {
 			img = Views.permute(Views.addDimension(img, 0,0), 2,3);
 		}
-		ImagePlus imp = ImageJFunctions.wrap(img, "Secondary Layer");
-		updateLut();
-		imp.setLut(lut);
+		final ImagePlus imp = ImageJFunctions.wrap(img, "Secondary Layer");
 		imp.copyScale(xy);
 		imp.resetDisplayRange();
 		return imp;
@@ -2971,10 +2964,6 @@ public class SNT extends MultiDThreePanes implements
 			xz.getWindow().setVisible(visible);
 		if (zy != null && zy.getWindow() != null)
 			zy.getWindow().setVisible(visible);
-	}
-
-	protected ImagePlus getMainImagePlusWithoutChecks() {
-		return xy;
 	}
 
 	protected void error(final String msg) {
@@ -3331,11 +3320,6 @@ public class SNT extends MultiDThreePanes implements
 		return new ImagePlus[] { xy8, views[0], views[1] };
 	}
 
-	private void updateLut() {
-		final LUT[] luts = xy.getLuts(); // never null
-		if (luts.length > 0) lut = luts[channel - 1];
-	}
-
 	/**
 	 * Overlays a semi-transparent MIP (8-bit scaled) of the data being traced
 	 * over the tracing canvas(es). Does nothing if image is 2D. Note that with
@@ -3406,7 +3390,7 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public synchronized void enableSnapCursor(final boolean enable) {
 		final boolean validImage = accessToValidImageData();
-		final boolean isBinary = validImage && xy.getProcessor().isBinary();
+		final boolean isBinary = validImage && ImpUtils.isBinary(xy);
 		snapCursor = enable && validImage && !isBinary;
 		if (isUIready()) {
 			if (enable && !validImage) {
@@ -3633,6 +3617,123 @@ public class SNT extends MultiDThreePanes implements
 
 	public int getFrame() {
 	 return frame;
+	}
+
+	/**
+	 * Retrieves a WYSIWYG 'snapshot' of a tracing canvas.
+	 *
+	 * @param view A case-insensitive string specifying the canvas to be captured.
+	 *          Either "xy" (or "main"), "xz", "zy" or "3d" (for legacy's 3D
+	 *          Viewer).
+	 * @param project whether the snapshot of 3D image stacks should include its
+	 *          projection (MIP), or just the current plane
+	 * @return the snapshot capture of the canvas as an RGB image
+	 * @throws UnsupportedOperationException if SNT is not running
+	 * @throws IllegalArgumentException if view is not a recognized option
+	 */
+	public ImagePlus captureView(final String view, final boolean project) {
+		if (view == null || view.trim().isEmpty())
+			throw new IllegalArgumentException("Invalid view");
+
+		if (view.toLowerCase().contains("3d")) {
+			if (get3DUniverse() == null || get3DUniverse().getWindow() == null)
+				throw new IllegalArgumentException("Legacy 3D viewer is not available");
+			//plugin.get3DUniverse().getWindow().setBackground(background);
+			return get3DUniverse().takeSnapshot();
+		}
+
+		final int viewPlane = getView(view);
+		final ImagePlus imp = getImagePlus(viewPlane);
+		if (imp == null) throw new IllegalArgumentException(
+			"view is not available");
+
+		ImagePlus holdingView;
+		if (accessToValidImageData()) {
+			holdingView = ImpUtils.getMIP(imp, (project) ? 1 : imp.getZ(), (project) ? imp.getNSlices() : imp.getZ())
+					.flatten();
+		} else {
+			holdingView = ImpUtils.create("Holding view", imp.getWidth(), imp.getHeight(), 1, 8);
+		}
+		holdingView.copyScale(imp);
+		return captureView(holdingView, view, viewPlane);
+	}
+
+	/**
+	 * Retrieves a WYSIWYG 'snapshot' of a tracing canvas without voxel data.
+	 *
+	 * @param view            A case-insensitive string specifying the canvas to be
+	 *                        captured. Either "xy" (or "main"), "xz", "zy" or "3d"
+	 *                        (for legacy's 3D Viewer).
+	 * @param backgroundColor the background color of the canvas (string, hex, or
+	 *                        html)
+	 * @return the snapshot capture of the canvas as an RGB image
+	 * @throws UnsupportedOperationException if SNT is not running
+	 * @throws IllegalArgumentException      if {@code view} or
+	 *                                       {@code backgroundColor} are not
+	 *                                       recognized
+	 */
+	public ImagePlus captureView(final String view, final ColorRGB backgroundColor) throws IllegalArgumentException {
+		if (view == null || view.trim().isEmpty())
+			throw new IllegalArgumentException("Invalid view");
+		if (backgroundColor == null)
+			throw new IllegalArgumentException("Invalid backgroundColor");
+
+		final Color backgroundColorAWT = new Color(backgroundColor.getRed(), backgroundColor.getGreen(),
+				backgroundColor.getBlue(), 255);
+		if (view.toLowerCase().contains("3d")) {
+			if (get3DUniverse() == null || get3DUniverse().getWindow() == null)
+				throw new IllegalArgumentException("Legacy 3D viewer is not available");
+			final Color existingBackground = get3DUniverse().getWindow().getBackground();
+			get3DUniverse().getWindow().setBackground(backgroundColorAWT);
+			final ImagePlus imp = get3DUniverse().takeSnapshot();
+			get3DUniverse().getWindow().setBackground(existingBackground);
+			return imp;
+		}
+
+		final int viewPlane = getView(view);
+		final ImagePlus imp = getImagePlus(viewPlane);
+		if (imp == null) throw new IllegalArgumentException(
+			"view is not available");
+		final ColorProcessor ip = new ColorProcessor(imp.getWidth(), imp.getHeight());
+		ip.setColor(backgroundColorAWT);
+		ip.fill();
+		final ImagePlus holdingView = new ImagePlus("Holder", ip);
+		holdingView.copyScale(imp);
+		return captureView(holdingView, view, viewPlane);
+	}
+
+	private ImagePlus captureView(final ImagePlus holdingImp, final String viewDescription, final int viewPlane) {
+		// NB: overlay will be flattened but not active ROI
+		final TracerCanvas canvas = new TracerCanvas(holdingImp, this, viewPlane, pathAndFillManager);
+		if (getXYCanvas() != null)
+			canvas.setNodeDiameter(getXYCanvas().nodeDiameter());
+		final BufferedImage bi = new BufferedImage(holdingImp.getWidth(), holdingImp
+			.getHeight(), BufferedImage.TYPE_INT_ARGB);
+		final Graphics2D g = canvas.getGraphics2D(bi.getGraphics());
+		g.drawImage(holdingImp.getImage(), 0, 0, null);
+		for (final Path p : pathAndFillManager.getPaths()) {
+			p.drawPathAsPoints(g, canvas, this);
+		}
+		// this is taken from ImagePlus.flatten()
+		final ImagePlus result = new ImagePlus(viewDescription + " view snapshot",
+			new ColorProcessor(bi));
+		result.copyScale(holdingImp);
+		result.setProperty("Info", holdingImp.getProperty("Info"));
+		return result;
+	}
+
+	private static int getView(final String view) {
+		switch (view.toLowerCase()) {
+			case "xy":
+			case "main":
+				return MultiDThreePanes.XY_PLANE;
+			case "xz":
+				return MultiDThreePanes.XZ_PLANE;
+			case "zy":
+				return MultiDThreePanes.ZY_PLANE;
+			default:
+				throw new IllegalArgumentException("Unrecognized view");
+		}
 	}
 
 }
