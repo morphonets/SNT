@@ -35,6 +35,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.io.Opener;
+import ij.plugin.CompositeConverter;
 import ij.plugin.ContrastEnhancer;
 import ij.plugin.Duplicator;
 import ij.plugin.ImagesToStack;
@@ -106,14 +107,29 @@ public class ImpUtils {
 		}
 	}
 
+	public static ImagePlus convertRGBtoComposite(final ImagePlus imp) {
+		if (imp.getType() == ImagePlus.COLOR_RGB) {
+			imp.hide();
+			final boolean isShowing = imp.isVisible();
+			final ImagePlus res = CompositeConverter.makeComposite(imp);
+			imp.flush();
+			if (isShowing) res.show();
+			return res;
+		}
+		return imp;
+	}
+
 	public static ImagePlus open(final File file) {
 		return open(file, null);
 	}
 
 	public static ImagePlus open(final File file, final String title) {
+		final boolean redirecting = IJ.redirectingErrorMessages();
+		IJ.redirectErrorMessages(true);
 		final ImagePlus imp = IJ.openImage(file.getAbsolutePath());
 		if (title != null)
 			imp.setTitle(title);
+		IJ.redirectErrorMessages(redirecting);
 		return imp;
 	}
 
@@ -208,6 +224,14 @@ public class ImpUtils {
 	public static ImagePlus create(final String title, final int width, final int height, final int depth,
 			final int bitDepth) {
 		return ij.IJ.createImage(title, width, height, depth, bitDepth);
+	}
+
+	public static boolean isBinary(final ImagePlus imp) {
+		 return imp != null && imp.getProcessor() != null && imp.getProcessor().isBinary();
+	}
+
+	public static boolean isVirtualStack(final ImagePlus imp) {
+		 return imp != null && imp.getStack() != null && imp.getStack().size() > 1 && imp.getStack().isVirtual();
 	}
 
 	public static ImagePlus combineSkeletons(final Collection<Tree> trees) {

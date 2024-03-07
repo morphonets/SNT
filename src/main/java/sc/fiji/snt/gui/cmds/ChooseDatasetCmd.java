@@ -30,6 +30,8 @@ import java.util.List;
 
 import net.imagej.ImageJ;
 import sc.fiji.snt.SNTPrefs;
+import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.ImpUtils;
 
 import org.scijava.ItemVisibility;
@@ -79,7 +81,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 			cancel();
 			return;
 		}
-		chosenImp = comvertInPlaceToCompositeAsNeeded(chosenImp);
+		chosenImp = convertInPlaceToCompositeAsNeeded(ui, chosenImp);
 		if (chosenImp.getType() == ImagePlus.COLOR_RGB) {
 			cancel();
 			return;
@@ -188,6 +190,16 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 	public static ImagePlus getCurrentImage() {
 //		return legacyService.getImageMap().lookupImagePlus(imageDisplayService.getActiveImageDisplay());;
 		return WindowManager.getCurrentImage();
+	}
+
+	protected static ImagePlus convertInPlaceToCompositeAsNeeded(final SNTUI ui, final ImagePlus imp) {
+		if (imp != null && imp.getType() == ImagePlus.COLOR_RGB && new GuiUtils((ui==null)?imp.getWindow():ui).getConfirmation(
+				"RGB images are (intentionally) not supported by SNT. You can however convert " + imp.getTitle()
+						+ " to a multichannel image. Would you like to do it now? (Import will abort if you choose \"No\")",
+				"Convert to Multichannel?")) {
+			return ImpUtils.convertRGBtoComposite(imp);
+		}
+		return imp;
 	}
 
 	public static void main(final String... args) {
