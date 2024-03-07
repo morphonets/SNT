@@ -30,7 +30,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.net.URL;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
@@ -312,7 +312,7 @@ public class SNTUtils {
 
 	protected static boolean isValidURL(final String url) {
 		try {
-			new URL(url).toURI();
+			new URI(url);
 			return true;
 		}
 		catch (final Exception e) {
@@ -458,7 +458,7 @@ public class SNTUtils {
 		final String classPath = clazz.getResource(className).toString();
 		final String manifestPath = classPath.substring(0, classPath.lastIndexOf("!") + 1) + "/META-INF/MANIFEST.MF";
 		try {
-			final Manifest manifest = new Manifest(new URL(manifestPath).openStream());
+			final Manifest manifest = new Manifest(new URI(manifestPath).toURL().openStream());
 			final Attributes attr = manifest.getMainAttributes();
 			BUILD_DATE = attr.getValue("Implementation-Date");
 			BUILD_DATE = BUILD_DATE.substring(0, BUILD_DATE.lastIndexOf("T"));

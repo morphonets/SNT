@@ -23,6 +23,8 @@ package sc.fiji.snt.annotation;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -215,12 +217,12 @@ public class VFBUtils {
 				SNTUtils.log("Cannot retrieve mesh. Invalid id: " + vfbId);
 				return null;
 			}
-			final URL url = new URL(pathAndLabel[0]);
+			final URL url = new URI(pathAndLabel[0]).toURL();
 			final OBJMesh mesh = new OBJMesh(url, GuiUtils.micrometer());
 			mesh.setColor(color, 95f);
 			mesh.setLabel(pathAndLabel[1]);
 			return mesh;
-		} catch (final MalformedURLException e) {
+		} catch (final MalformedURLException | URISyntaxException e) {
 			SNTUtils.error(e.getMessage(), e);
 			return null;
 		}

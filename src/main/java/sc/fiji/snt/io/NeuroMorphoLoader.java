@@ -26,6 +26,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 
 import net.imagej.ImageJ;
@@ -128,11 +130,11 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 	@Override
 	public BufferedReader getReader(final String cellId) {
 		try {
-			final URL url = new URL(getReconstructionURL(cellId));
+			final URL url = new URI(getReconstructionURL(cellId)).toURL();
 			final InputStream is = url.openStream();
 			return new BufferedReader(new InputStreamReader(is));
 		}
-		catch (final IOException e) {
+		catch (final IOException | URISyntaxException e) {
 			return null;
 		}
 	}

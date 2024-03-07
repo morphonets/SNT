@@ -49,7 +49,7 @@ public final class InsectBrainUtils {
     }
 
     private static String getAllSpeciesURL() {
-        @SuppressWarnings("ConstantConditions") HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
+        HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
         urlBuilder.addPathSegments("api/species/min/");
         return urlBuilder.build().toString();
     }
@@ -113,7 +113,7 @@ public final class InsectBrainUtils {
 	}
  
     public static List<Integer> getAllNeuronIDs() {
-        @SuppressWarnings("ConstantConditions") HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
+        HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
         urlBuilder.addPathSegments("api/neurons/base/");
         urlBuilder.addQueryParameter("format", "json");
         String neuronsUrl = urlBuilder.build().toString();
@@ -150,7 +150,7 @@ public final class InsectBrainUtils {
     }
 
     private static String getBrainURL(final int speciesId) {
-        @SuppressWarnings("ConstantConditions") HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
+        HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
         urlBuilder.addPathSegments("archive/species/most_current_permitted/");
         urlBuilder.addQueryParameter("species_id", String.valueOf(speciesId));
         return urlBuilder.build().toString();

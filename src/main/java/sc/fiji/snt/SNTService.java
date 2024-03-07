@@ -27,6 +27,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -215,8 +216,9 @@ public class SNTService extends AbstractService {
 	 *                      defining remote files also supported. Null not allowed.
 	 * @throws UnsupportedOperationException if SNT is not running
 	 * @throws IOException                   if data cannot be imported
+	 * @throws URISyntaxException 
 	 */
-	public void loadTracings(String filePathOrURL) throws UnsupportedOperationException, IOException {
+	public void loadTracings(String filePathOrURL) throws UnsupportedOperationException, IOException, URISyntaxException {
 		accessActiveInstance(false);
 		plugin.getPathAndFillManager().loadGuessingType(filePathOrURL);
 	}

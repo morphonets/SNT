@@ -166,6 +166,21 @@
 		</repository>
 	</repositories>
 
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<argLine>
+						--add-opens java.base/java.time=ALL-UNNAMED
+						${surefireArgLine}
+					</argLine>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+	
 	<dependencies>
 		<!-- TEMP Until jogl 2.5.0 is properly deployed to mvn.scijava https://github.com/morphonets/SNT/issues/212 -->
 		<dependency>

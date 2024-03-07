@@ -267,10 +267,9 @@ public class MouseLightQuerier {
 
 		RequestBody fullQuery(final String cellIDs, final String exactMatch, final String tracingStructureIds,
 				final String nodeStructureIds, final String brainAreaIds) {
-			// TODO: Update for okhttp4: final RequestBody body = RequestBody.create(String.format(GRAPHQL_BODY, (...)), MEDIA_TYPE);
 			// see https://github.com/morphonets/SNT/issues/26
-			return RequestBody.create(MEDIA_TYPE, String.format(GRAPHQL_BODY, //
-					cellIDs, exactMatch, tracingStructureIds, nodeStructureIds, brainAreaIds));
+			return RequestBody.create(String.format(GRAPHQL_BODY, //
+					cellIDs, exactMatch, tracingStructureIds, nodeStructureIds, brainAreaIds), MEDIA_TYPE);
 		}
 	}
 

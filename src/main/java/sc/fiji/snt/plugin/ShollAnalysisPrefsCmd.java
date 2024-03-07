@@ -23,7 +23,8 @@
 package sc.fiji.snt.plugin;
 
 import java.io.IOException;
-import java.net.URL;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
@@ -222,9 +223,9 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 			url = "https://github.com/morphonets/SNT";
 		else url = ShollUtils.URL;
 		try {
-			platformService.open(new URL(url));
+			platformService.open(new URI(url).toURL());
 		}
-		catch (final IOException e) {
+		catch (final IOException | URISyntaxException e) {
 			logger.debug(e);
 			helper.error("<HTML><div WIDTH=400>Web page could not be open. " +
 				"Please visit " + url + " using your web browser.", null);

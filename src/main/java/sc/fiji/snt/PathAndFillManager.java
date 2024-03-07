@@ -57,6 +57,8 @@ import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 import java.awt.*;
 import java.io.*;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -2511,11 +2513,11 @@ public class PathAndFillManager extends DefaultHandler implements
 	public boolean importSWC(final String descriptor, final String urlOrFilePath) {
 		if (SNTUtils.isValidURL(urlOrFilePath)) {
 			try {
-				final URL url = new URL(urlOrFilePath);
+				final URL url = new URI(urlOrFilePath).toURL(); //new URL(urlOrFilePath);
 				final InputStream is = url.openStream();
 				return importSWC(descriptor, new BufferedReader(new InputStreamReader(is)));
 			}
-			catch (final IOException e) {
+			catch (final IOException | URISyntaxException e) {
 				return false;
 			}
 		}
@@ -3104,11 +3106,11 @@ public class PathAndFillManager extends DefaultHandler implements
 		return result;
 	}
 
-	public boolean loadGuessingType(final String filePathOrURL) throws IOException {
+	public boolean loadGuessingType(final String filePathOrURL) throws IOException, URISyntaxException {
 		if (filePathOrURL.startsWith("http") || filePathOrURL.indexOf("://") > 0) {
 			final String fileName = filePathOrURL.substring(filePathOrURL.lastIndexOf('/') + 1);
 			final String fileNameWithoutExtn = SNTUtils.stripExtension(fileName);
-			return loadGuessingType(fileNameWithoutExtn, new URL(filePathOrURL).openStream());
+			return loadGuessingType(fileNameWithoutExtn, new URI(filePathOrURL).toURL().openStream());
 		}
 		return load(new File(filePathOrURL).getAbsolutePath());
 	}
