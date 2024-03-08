@@ -113,7 +113,7 @@ public class SciViewSNT {
 		snt = null;
 	}
 
-	protected SciViewSNT(final SNT snt) throws NoClassDefFoundError {
+	public SciViewSNT(final SNT snt) throws NoClassDefFoundError {
 		this(snt.getContext());
 		this.snt = snt;
 		if (snt.getUI() != null) snt.getUI().setSciViewSNT(this);
@@ -160,8 +160,8 @@ public class SciViewSNT {
 					nullifySciView();
 				}
 			});
-			this.sciView.getFloor().setVisible(false);
-			if (snt != null) syncPathManagerList();
+			//this.sciView.getFloor().setVisible(false);
+			if (sciView.isInitialized() && snt != null) syncPathManagerList();
 		}
 	}
 
@@ -255,7 +255,7 @@ public class SciViewSNT {
 	 *         successful
 	 * @throws IllegalArgumentException if SNT is not running
 	 */
-	protected boolean syncPathManagerList() {
+    public boolean syncPathManagerList() {
 		if (snt == null)
 			throw new IllegalArgumentException("Unknown SNT instance. SNT not running?");
 		if (snt.getPathAndFillManager().size() == 0)

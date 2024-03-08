@@ -79,7 +79,7 @@ public class EnableSciViewUpdateSiteCmd implements Command {
 	}
 
 	public static boolean isSciViewAvailable() {
-		return Types.load("sc.iview.SciView") != null && Types.load("graphics.scenery.backends.Renderer") != null;
+		return Types.load("sc.iview.SciView") != null && Types.load("graphics.scenery.Scene") != null;
 	}
 
 	public static void main(final String... args) {

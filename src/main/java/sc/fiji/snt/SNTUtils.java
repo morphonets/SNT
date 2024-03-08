@@ -30,6 +30,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
@@ -668,14 +669,25 @@ public class SNTUtils {
 	}
 
 	/**
-	 * Convenience method to start SNT under a new ImageJ instance.
+	 * Convenience method to start up SNT's GUI.
+	 * 
+	 * @return a reference to the {@link SNT} instance just started.s
 	 */
-	public static void startApp() {
-		if (context == null) {
-			final ImageJ ij = new ImageJ();
-			ij.ui().showUI();
+	public static SNT startApp() {
+		GuiUtils.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu!?
+		if (context == null && ij.IJ.getInstance() != null) {
+			new ImageJ().ui().showUI();
 		}
-		getContext().getService(CommandService.class).run(sc.fiji.snt.gui.cmds.SNTLoaderCmd.class, true);
+		setIsLoading(true);
+		final PathAndFillManager pathAndFillManager = new PathAndFillManager();
+		final SNT snt = new SNT(getContext(), pathAndFillManager);
+		snt.initialize(null);
+		try {
+			javax.swing.SwingUtilities.invokeAndWait(() -> snt.startUI());
+		} catch (final InvocationTargetException | InterruptedException e) {
+			e.printStackTrace();
+		}
+		return snt;
 	}
 }
 

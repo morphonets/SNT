@@ -284,7 +284,7 @@ public class SNTUI extends JDialog {
 				c1.insets = new Insets(0, 0, 0, 0);
 				c1.insets.bottom = MARGIN * 2;
 				tab1.add(hideWindowsPanel(), c1);
-				tabbedPane.addTab("<HTML>Main ", tab1);
+				tabbedPane.addTab("Main", tab1);
 			}
 		}
 
@@ -313,7 +313,7 @@ public class SNTUI extends JDialog {
 			++c2.gridy;
 			c2.weighty = 1;
 			tab2.add(miscPanel(), c2);
-			tabbedPane.addTab("<HTML>Options ", tab2);
+			tabbedPane.addTab("Options", tab2);
 		}
 
 		{ // 3D tab
@@ -324,7 +324,7 @@ public class SNTUI extends JDialog {
 			c3.anchor = GridBagConstraints.NORTHEAST;
 			c3.gridwidth = GridBagConstraints.REMAINDER;
 
-			tabbedPane.addTab("<HTML> 3D ", tab3);
+			tabbedPane.addTab("3D", tab3);
 			InternalUtils.addSeparatorWithURL(tab3, "Reconstruction Viewer:", true, c3);
 			c3.gridy++;
 			final String msg = "A dedicated OpenGL visualization tool specialized in Neuroanatomy, " +
@@ -440,7 +440,6 @@ public class SNTUI extends JDialog {
 		tabbedPane.addChangeListener(e -> {
 			final JTabbedPane source = (JTabbedPane) e.getSource();
 			final int selectedTab = source.getSelectedIndex();
-
 			// Do not allow secondary tabs to be selected while operations are pending 
 			if (selectedTab > 0 && userInteractionConstrained()) {
 				tabbedPane.setSelectedIndex(0);
@@ -448,15 +447,9 @@ public class SNTUI extends JDialog {
 						"Please complete current task before selecting the "+ source.getTitleAt(selectedTab) +" tab.");
 				return;
 			}
-
-			// Highlight active tab. This assumes tab's title contains "HTML"
-			//TF: With FlatLaf, this is no longer useful!?
-//			for (int i = 0; i < source.getTabCount(); i++) {
-//				final String existingTile = source.getTitleAt(i);
-//				final String newTitle = (i == selectedTab) ? existingTile.replace("<HTML>", "<HTML><b>")
-//						: existingTile.replace("<HTML><b>", "<HTML>");
-//				source.setTitleAt(i, newTitle);
-//			}
+			if (recorder != null) {
+				recorder.recordCmd("snt.getUI().selectTab(\"" + source.getTitleAt(selectedTab) +"\")");
+			}
 		});
 		return tabbedPane;
 	}
@@ -534,6 +527,43 @@ public class SNTUI extends JDialog {
 	public void runCommand(final String cmd) throws IllegalArgumentException {
 		if (!runCustomCommand(cmd) && !getPathManager().runCustomCommand(cmd))
 			runSNTCommandFinderCommand(cmd);
+	}
+
+	/**
+	 * Activates the specified tab.
+	 *
+	 * @param tabTitle The tab title (e.g., "Main", "3D");
+	 */
+	public void selectTab(final String tabTitle) {
+		final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
+		SwingUtilities.invokeLater(() -> {
+			if (tp != null) {
+				switch (tabTitle.trim().toLowerCase()) {
+				case "main":
+					tp.setSelectedIndex(0);
+					break;
+				case "options":
+					tp.setSelectedIndex(1);
+					break;
+				case "3d":
+					tp.setSelectedIndex(2);
+					break;
+				default:
+					throw new IllegalArgumentException("Unrecognized tab");
+				}
+			}
+		});
+	}
+
+	private JTabbedPane getJTabbedPaneAddedToContentPane() {
+		JTabbedPane tp = null;
+		for (final Component component : getContentPane().getComponents()) {
+			if (component instanceof JTabbedPane) {
+				tp = ((JTabbedPane) component);
+				break;
+			}
+		}
+		return tp;
 	}
 
 	/**
@@ -3601,13 +3631,14 @@ public class SNTUI extends JDialog {
 	 *
 	 * @param initializeIfNull it true, initializes SciView if it has not yet
 	 *                         been initialized
-	 * @return the SciView viewer
+	 * @return the SciViewSNT instance
 	 */
 	public SciViewSNT getSciViewSNT(final boolean initializeIfNull) {
 		if (initializeIfNull && sciViewSNT == null) {
-			openSciView.doClick();
-		}
-		return (sciViewSNT == null) ? null : sciViewSNT;
+			sciViewSNT = new SciViewSNT(plugin);
+			new Thread(() -> sciViewSNT.getSciView()).start();
+        }
+		return sciViewSNT;
 	}
 
 	public JPopupMenu getTracingCanvasPopupMenu() {
@@ -4478,7 +4509,7 @@ public class SNTUI extends JDialog {
 		}
 
 		private void run() {
-			if (getState() != READY && getState() != TRACING_PAUSED) {
+			if (getState() != -1 && getState() != READY && getState() != TRACING_PAUSED) {
 				guiUtils.blinkingError(statusText, "Please exit current state before importing data.");
 				return;
 			}

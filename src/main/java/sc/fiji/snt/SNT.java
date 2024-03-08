@@ -609,6 +609,10 @@ public class SNT extends MultiDThreePanes implements
 
 	@Override
 	public void initialize(final ImagePlus imp) {
+		if (imp == null) {
+			initialize(true, 1, 1);
+			return;
+		}
 		final Roi sourceImageROI = imp.getRoi();
 		final boolean sameImp = imp == xy;
 		if (accessToValidImageData() && getPrefs().getTemp(SNTPrefs.RESTORE_LOADED_IMGS, false)) {
