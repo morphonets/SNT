@@ -199,21 +199,24 @@ Use this button to open the project on the cloud using [Gitpod](https://gitpod.i
 ### Locally
 
 1. Clone the main branch of this repository (use the green _code_ button above the list of files) 
+
 2. Import the project into an IDE such as [Eclipse](https://www.eclipse.org/downloads/packages/)/[IntelliJ](https://www.jetbrains.com/idea/download/)/[NetBeans](https://netbeans.apache.org/download/index.html):
    - In Eclipse: Run _Import> Existing Maven Projects_ and specify the path to the downloaded `SNT` folder in _Root Directory_
    - In IntelliJ: In the _Welcome Prompt_, choose _Open or Import_ and specify the path to the downloaded `SNT` folder
    - In NetBeans: Run _File> Open Project..._, select the downloaded `SNT` directory, and click on _Open Project_
-3. In your IDE, set the compliance level for the Java compiler to Java 11. SNT is currently compiled with java 11, but is expected to run fine with newer Java versions. Versions prior to SNT v4.2.2 were developed using Java8. 
-4. Wait for all the dependencies to be downloaded, and run [snt/gui/cmds/SNTLoaderCmd](./src/main/java/sc/fiji/snt/gui/cmds/SNTLoaderCmd.java). Alternatively, call `sc.fiji.snt.SNTUtils.startApp()` from any class.
 
-> :information_source: By default, ImageJ1 cannot run in headless environments. To bypass this, Fiji uses a bytecode injection mechanism to patch ImageJ1 at runtime.
-> However, this mechanism can be sensitive to the JVM in use. If you are unable to run SNTLoaderCmd from your IDE due to misterious `net.imagej.legacy.LegacyService` exceptions,
-> try changing the JDK used by the project. A sure-to-work option is to use the same JDK being distributed with Fiji, e.g., by pointing your project to the JDK of a local Fiji install (i.e., a local `Fiji.app/java/` directory).
+3. Wait for all the dependencies to be downloaded, and locate the [StartImageJAndSNTDemo](./src/test/java/sc/fiji/snt/demo//StartImageJAndSNTDemo.java) class in the tests folder.
 
-Useful resources to start hacking SNT:
+4. Java 21 is recommended to run SNT, so you should specify it as the project's JDK. However using Java17+ or newer requires the following VM arguments to be specified: `--add-opens java.base/java.lang=ALL-UNNAMED` in your IDE. To do so:
+   - In Eclipse: Run > Run Configurations..., Arguments tab
+   - In IntelliJ: Run -> Edit Configurations..., Add VM Options (Alt+V)
+
+5. Run `SciviewSNTDemo.main()`
+
+### Useful Resources to Start Hacking SNT
 
 From a Java IDE:
-- _main_ methods found on most classes: These test/showcase some of the class's functionality
+- _main_ methods found on most classes: Frequently, these showcase the class's functionality
 - [JUnit tests](./src/test/java/sc/fiji/snt/)
 
 From Fiji's Script Editor:
