@@ -182,7 +182,6 @@ import sc.fiji.snt.gui.ScriptRecorder;
 import sc.fiji.snt.gui.DemoRunner.Demo;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.io.FlyCircuitLoader;
-import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.plugin.BrainAnnotationCmd;
 import sc.fiji.snt.plugin.ConvexHullCmd;
@@ -8363,35 +8362,7 @@ public class Viewer3D {
 
 	/* IDE debug method */
 	public static void main(final String[] args) throws InterruptedException {
-		SNTUtils.setDebugMode(true);
-		final Viewer3D viewer = new Viewer3D(true);
-		final OBJMesh brainMesh = viewer.loadRefBrain("Allen CCF");
-		brainMesh.setBoundingBoxColor(Colors.RED);
-		final OBJMesh mesh = AllenUtils.getCompartment("Thalamus").getMesh();
-		if (mesh != null) { // server is online and reachable
-			viewer.addMesh(mesh);
-			SNTPoint centroid = mesh.getCentroid("l");
-			Annotation3D cAnnot = viewer.annotatePoint(centroid, "TH Left centroid");
-			cAnnot.setSize(200);
-			cAnnot.setColor("magenta");
-			centroid = mesh.getCentroid("r");
-			cAnnot = viewer.annotatePoint(centroid, "TH Right centroid");
-			cAnnot.setSize(200);
-			cAnnot.setColor("cyan");
-		}
-		final MouseLightLoader loader = new MouseLightLoader("AA1044");
-		final Tree aa1044 = loader.getTree("axon");
-		if (aa1044 != null) {  // server is online and reachable
-			viewer.addTree(aa1044);
-			viewer.annotateSurface(new TreeAnalyzer(aa1044).getTips(), "Convex Hull Tips", true);
-			final TreeColorMapper mapper = new TreeColorMapper();
-			mapper.map(aa1044, TreeColorMapper.PATH_ORDER, ColorTables.ICE);
-			viewer.rebuild(aa1044);
-			viewer.addColorBarLegend(mapper);
-		}
-		viewer.show();
-		viewer.setAnimationEnabled(true);
-		viewer.setEnableDarkMode(false);
+		 sc.fiji.snt.demo.RecViewerDemo.main(args);
 	}
 
 }

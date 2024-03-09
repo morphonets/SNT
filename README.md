@@ -128,7 +128,7 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 
 * [Sholl](./NOTES.md) and Horton-Strahler analyses
 
-* Image processing workflows: Reconstructions can be converted to masks and ROIs. Voxel intensities can be profiled around traced paths
+* Image processing workflows: Reconstructions can be converted to masks and ROIs. Voxel intensities can be profiled around (or across) traced paths
   
 ### Visualization
 
@@ -205,10 +205,10 @@ Use this button to open the project on the cloud using [Gitpod](https://gitpod.i
    - In IntelliJ: In the _Welcome Prompt_, choose _Open or Import_ and specify the path to the downloaded `SNT` folder
    - In NetBeans: Run _File> Open Project..._, select the downloaded `SNT` directory, and click on _Open Project_
 
-3. Wait for all the dependencies to be downloaded, and locate the [StartImageJAndSNTDemo](./src/test/java/sc/fiji/snt/demo//StartImageJAndSNTDemo.java) class in the tests folder.
+3. Wait for all the dependencies to be downloaded, and locate the [StartImageJAndSNTDemo](./src/test/java/sc/fiji/snt/demo/StartImageJAndSNTDemo.java) class in the tests folder.
 
-4. Java 21 is recommended to run SNT, so you should specify it as the project's JDK. However using Java17+ or newer requires the following VM arguments to be specified: `--add-opens java.base/java.lang=ALL-UNNAMED` in your IDE. To do so:
-   - In Eclipse: Run > Run Configurations..., Arguments tab
+4. Java 21 is recommended to run SNT, so you should specify it as the project JDK. However using Java17+ or newer requires the following VM arguments to be specified: `--add-opens java.base/java.lang=ALL-UNNAMED`. To do so:
+   - In Eclipse: Run -> Run Configurations..., Arguments tab
    - In IntelliJ: Run -> Edit Configurations..., Add VM Options (Alt+V)
 
 5. Run `SciviewSNTDemo.main()`
@@ -216,7 +216,8 @@ Use this button to open the project on the cloud using [Gitpod](https://gitpod.i
 ### Useful Resources to Start Hacking SNT
 
 From a Java IDE:
-- _main_ methods found on most classes: Frequently, these showcase the class's functionality
+- [Test demos](./src/test/java/sc/fiji/snt/demo/)
+- _main()_ methods found on most classes: Frequently, these showcase the class's functionality
 - [JUnit tests](./src/test/java/sc/fiji/snt/)
 
 From Fiji's Script Editor:
