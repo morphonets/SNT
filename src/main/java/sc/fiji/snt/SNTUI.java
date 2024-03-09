@@ -853,7 +853,7 @@ public class SNTUI extends JDialog {
 	 */
 	public void changeState(final int newState) {
 
-		if (newState == currentState) return;
+		if (newState == currentState || plugin == null) return; // plugin may be null when exiting
 		currentState = newState;
 		SwingUtilities.invokeLater(() -> {
 			switch (newState) {

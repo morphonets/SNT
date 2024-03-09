@@ -70,6 +70,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -141,6 +142,7 @@ import javax.swing.text.NumberFormatter;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
 
+import org.scijava.command.CommandService;
 import org.scijava.ui.DialogPrompt.Result;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.ui.swing.SwingDialog;
@@ -1255,18 +1257,6 @@ public class GuiUtils {
 				"ImageJ " + ij.ImageJ.VERSION + ij.ImageJ.BUILD + "  |  Java " + System.getProperty("java.version"), "", true);
 		ijDetails.setAlignmentX(JLabel.CENTER_ALIGNMENT);
 		ijDetails.setToolTipText("Displays detailed System Information");
-		ijDetails.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(final MouseEvent e) {
-				if (ij.IJ.getInstance() == null)
-					new ij.plugin.JavaProperties().run("");
-				else {
-					//IJ.doCommand("ImageJ Properties");
-					ij.IJ.doCommand("System Information");
-				}
-			}
-
-		});
 		side.add(ijDetails);
 		side.add(new JLabel(" ")); // spacer
 		final JPanel urls = new JPanel();
@@ -1283,6 +1273,15 @@ public class GuiUtils {
 		urls.add(url);
 		final JOptionPane optionPane = new JOptionPane(main, JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
 		final JDialog d = optionPane.createDialog("About SNT...");
+		ijDetails.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(final MouseEvent e) {
+				ijDetails.setText("<HTML><b>Gathering system information... This may take a while.");
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("dialog", d);
+				SNTUtils.getContext().getService(CommandService.class).run(SI.class, true, inputs);
+			}
+		});
 		d.setLocationRelativeTo(null);
 		d.setVisible(true);
 		d.toFront();
