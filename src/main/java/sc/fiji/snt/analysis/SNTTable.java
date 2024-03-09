@@ -22,8 +22,13 @@
 
 package sc.fiji.snt.analysis;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -287,7 +292,7 @@ public class SNTTable extends DefaultGenericTable {
 
 	public void save(final File outputFile) throws IOException {
 		if (tableIO == null) {
-			SNTUtils.saveTable(this, ',', true, true, outputFile);
+			save(this, ',', true, true, outputFile);
 		} else {
 			tableIO.save(this, outputFile.getAbsolutePath());
 		}
@@ -368,4 +373,42 @@ public class SNTTable extends DefaultGenericTable {
 		});
 		return sb.toString().replaceAll("null", " ");
 	}
+
+	public static void save(final Table<?, ?> table, final char columnSep, final boolean saveColHeaders,
+			final boolean saveRowHeaders, final File outputFile) throws IOException {
+		if(!outputFile.exists()) outputFile.mkdirs();
+		final FileOutputStream fos = new FileOutputStream(outputFile, false);
+		final OutputStreamWriter osw = new OutputStreamWriter(fos, StandardCharsets.UTF_8);
+		final PrintWriter pw = new PrintWriter(new BufferedWriter(osw), true);
+		final int columns = table.getColumnCount();
+		final int rows = table.getRowCount();
+		final boolean saveRows = saveRowHeaders && table.getRowHeader(0) != null;
+		// Print a column header to hold row headers
+		if (saveRows) {
+			SNTUtils.csvQuoteAndPrint(pw, "-");
+			pw.print(columnSep);
+		}
+		if (saveColHeaders) {
+			for (int col = 0; col < columns; ++col) {
+				SNTUtils.csvQuoteAndPrint(pw, table.getColumnHeader(col));
+				if (col < (columns - 1))
+					pw.print(columnSep);
+			}
+			pw.print("\r\n");
+		}
+		for (int row = 0; row < rows; row++) {
+			if (saveRows) {
+				SNTUtils.csvQuoteAndPrint(pw, table.getRowHeader(row));
+				pw.print(columnSep);
+			}
+			for (int col = 0; col < columns; col++) {
+				SNTUtils.csvQuoteAndPrint(pw, table.get(col, row));
+				if (col < (columns - 1))
+					pw.print(columnSep);
+			}
+			pw.print("\r\n");
+		}
+		pw.close();
+	}
+
 }

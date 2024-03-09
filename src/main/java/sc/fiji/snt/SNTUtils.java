@@ -23,16 +23,11 @@
 package sc.fiji.snt;
 
 import java.awt.GraphicsEnvironment;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileFilter;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
@@ -64,7 +59,8 @@ import org.scijava.plot.PlotService;
 import org.scijava.prefs.PrefService;
 import org.scijava.script.ScriptHeaderService;
 import org.scijava.script.ScriptService;
-import org.scijava.table.Table;
+import org.scijava.service.Service;
+import org.scijava.service.ServiceHelper;
 import org.scijava.table.io.TableIOService;
 import org.scijava.thread.ThreadService;
 import org.scijava.ui.UIService;
@@ -72,8 +68,6 @@ import org.scijava.ui.console.ConsolePane;
 import org.scijava.ui.swing.script.LanguageSupportService;
 import org.scijava.util.FileUtils;
 import org.scijava.util.VersionUtils;
-import org.scijava.service.Service;
-import org.scijava.service.ServiceHelper;
 
 import fiji.util.Levenshtein;
 import io.scif.services.DatasetIOService;
@@ -96,7 +90,7 @@ import sc.fiji.snt.viewer.Viewer3D;
 public class SNTUtils {
 
 	/*
-	 * NB: This pattern needs to be OS agnostic: I.e., Microsoft Windows does not
+	 * NB: This pattern needs to be OS agnostic: e.g., Microsoft Windows does not
 	 * support colons in filenames
 	 */
 	private static final String TIMESTAMP_PATTERN = "'_D'yyyy-MM-dd'T'HH-mm-ss";
@@ -177,7 +171,7 @@ public class SNTUtils {
 	 */
 	@Deprecated
 	public static SNT getPluginInstance() {
-		return plugin;
+		return getInstance();
 	}
 
 	public static SNT getInstance() {
@@ -263,43 +257,6 @@ public class SNTUtils {
 				return putatiteUniqueFile;
 		}
 		return new File(parent, filename + extension);
-	}
-
-	public static void saveTable(final Table<?, ?> table, final char columnSep, final boolean saveColHeaders,
-			final boolean saveRowHeaders, final File outputFile) throws IOException {
-		if(!outputFile.exists()) outputFile.getParentFile().mkdirs();
-		final FileOutputStream fos = new FileOutputStream(outputFile, false);
-		final OutputStreamWriter osw = new OutputStreamWriter(fos, StandardCharsets.UTF_8);
-		final PrintWriter pw = new PrintWriter(new BufferedWriter(osw), true);
-		final int columns = table.getColumnCount();
-		final int rows = table.getRowCount();
-		final boolean saveRows = saveRowHeaders && table.getRowHeader(0) != null;
-		// Print a column header to hold row headers
-		if (saveRows) {
-			csvQuoteAndPrint(pw, "-");
-			pw.print(columnSep);
-		}
-		if (saveColHeaders) {
-			for (int col = 0; col < columns; ++col) {
-				csvQuoteAndPrint(pw, table.getColumnHeader(col));
-				if (col < (columns - 1))
-					pw.print(columnSep);
-			}
-			pw.print("\r\n");
-		}
-		for (int row = 0; row < rows; row++) {
-			if (saveRows) {
-				csvQuoteAndPrint(pw, table.getRowHeader(row));
-				pw.print(columnSep);
-			}
-			for (int col = 0; col < columns; col++) {
-				csvQuoteAndPrint(pw, table.get(col, row));
-				if (col < (columns - 1))
-					pw.print(columnSep);
-			}
-			pw.print("\r\n");
-		}
-		pw.close();
 	}
 
 	public static boolean fileAvailable(final File file) {
@@ -675,7 +632,7 @@ public class SNTUtils {
 	 */
 	public static SNT startApp() {
 		GuiUtils.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu!?
-		if (context == null && ij.IJ.getInstance() != null) {
+		if (context == null && ij.IJ.getInstance() == null) {
 			new ImageJ().ui().showUI();
 		}
 		setIsLoading(true);

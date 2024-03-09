@@ -322,7 +322,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 			} catch (final UnsupportedOperationException exc1) {
 				// TODO: this should no longer be needed once this is solved:
 				// https://forum.image.sc/t/unsupportedoperationexception-defaulttableioservice/54197/
-				SNTUtils.saveTable(tableDisplay.get(0), getDelimiter(columnDelimiter),
+				SNTTable.save(tableDisplay.get(0), getDelimiter(columnDelimiter),
 						writeColHeaders, writeRowHeaders, file);
 			}
 			if (close)
@@ -413,7 +413,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 	public void run() {
 		if (nSciTables + nIJ1Tables + nSNTCharts + nIJ1Plots == 0)
 			return;
-		if (outputFile == null) {
+		if (outputFile == null || outputFile.getAbsolutePath().trim().isEmpty()) {
 			error("Specified path is not valid.");
 			return;
 		}
