@@ -298,10 +298,6 @@
 		</dependency>
 		<dependency>
 			<groupId>org.scijava</groupId>
-			<artifactId>scijava-table</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.scijava</groupId>
 			<artifactId>scijava-ui-awt</artifactId>
 		</dependency>
 		<dependency>
