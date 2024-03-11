@@ -152,7 +152,7 @@
 		<scenery.version>0.9.3</scenery.version>
 		<sciview.version>0.2.0</sciview.version>
 		<smile.version>3.0.2</smile.version>
-		<smile-base.version>${smile.version}</smile-base.version>
+		<smile-base.version>3.0.3</smile-base.version>
 		<smile-core.version>${smile.version}</smile-core.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
