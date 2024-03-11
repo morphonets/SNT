@@ -55,6 +55,8 @@ import static sc.fiji.snt.SNT.SearchImageType.ARRAY;
 
 public class Tracing3DTest {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private static OpService opService;
 	private static Img<UnsignedByteType> img;
 	private static Calibration cal;

@@ -40,6 +40,8 @@ import static org.junit.Assume.assumeNotNull;
  */
 public class SkeletonConverterTest {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
     private ImagePlus imp;
     private Tree demoTree;
 

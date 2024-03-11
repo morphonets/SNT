@@ -45,6 +45,8 @@ import sc.fiji.snt.util.BoundingBox;
  */
 public class TreeSkeletonTest {
 
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
 	private List<Tree> trees;
 	private static final int XY_PADDING = 3; // as per Tree#getSkeleton()
 	private static final int Z_PADDING = 1; // as per Tree#getSkeleton()

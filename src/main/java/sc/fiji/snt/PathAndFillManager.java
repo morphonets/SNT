@@ -1555,35 +1555,36 @@ public class PathAndFillManager extends DefaultHandler implements
 		// This probably should be a String returning
 		// method of Path.
 		pw.print("  <path id=\"" + p.getID() + "\"");
-				pw.print(" swctype=\"" + p.getSWCType() + "\"");
-				pw.print(" color=\"" + SNTColor.colorToString(p.getColor()) + "\"");
-				pw.print(" channel=\"" + p.getChannel() + "\"");
-				pw.print(" frame=\"" + p.getFrame() + "\"");
-				pw.print(" spines=\"" + p.getSpineOrVaricosityCount() + "\"");
+		pw.print(" swctype=\"" + p.getSWCType() + "\"");
+		if (p.getColor() != null)
+			pw.print(" color=\"" + SNTColor.colorToString(p.getColor()) + "\"");
+		pw.print(" channel=\"" + p.getChannel() + "\"");
+		pw.print(" frame=\"" + p.getFrame() + "\"");
+		pw.print(" spines=\"" + p.getSpineOrVaricosityCount() + "\"");
 
-				String startsString = "";
-				String endsString = "";
-				if (p.startJoins != null) {
-					final int startPathID = p.startJoins.getID();
-					// Find the nearest index for backward compatibility:
-					int nearestIndexOnStartPath = -1;
-					if (p.startJoins.size() > 0) {
-						nearestIndexOnStartPath = p.startJoins.indexNearestTo(
-							p.getStartJoinsPoint().x, p.getStartJoinsPoint().y, p.getStartJoinsPoint().z);
-					}
-					startsString = " startson=\"" + startPathID + "\"" + " startx=\"" +
-						p.getStartJoinsPoint().x + "\"" + " starty=\"" + p.getStartJoinsPoint().y +
-						"\"" + " startz=\"" + p.getStartJoinsPoint().z + "\"";
-					if (nearestIndexOnStartPath >= 0) startsString += " startsindex=\"" +
-						nearestIndexOnStartPath + "\"";
-				}
-				if (p.isPrimary()) pw.print(" primary=\"true\"");
-				pw.print(" usefitted=\"" + p.getUseFitted() + "\"");
-				if (p.getFitted() != null) {
-					pw.print(" fitted=\"" + p.getFitted().getID() + "\"");
-				}
-				if (p.fittedVersionOf != null) {
-					pw.print(" fittedversionof=\"" + p.fittedVersionOf.getID() + "\"");
+		String startsString = "";
+		String endsString = "";
+		if (p.startJoins != null) {
+			final int startPathID = p.startJoins.getID();
+			// Find the nearest index for backward compatibility:
+			int nearestIndexOnStartPath = -1;
+			if (p.startJoins.size() > 0) {
+				nearestIndexOnStartPath = p.startJoins.indexNearestTo(p.getStartJoinsPoint().x,
+						p.getStartJoinsPoint().y, p.getStartJoinsPoint().z);
+			}
+			startsString = " startson=\"" + startPathID + "\"" + " startx=\"" + p.getStartJoinsPoint().x + "\""
+					+ " starty=\"" + p.getStartJoinsPoint().y + "\"" + " startz=\"" + p.getStartJoinsPoint().z + "\"";
+			if (nearestIndexOnStartPath >= 0)
+				startsString += " startsindex=\"" + nearestIndexOnStartPath + "\"";
+		}
+		if (p.isPrimary())
+			pw.print(" primary=\"true\"");
+		pw.print(" usefitted=\"" + p.getUseFitted() + "\"");
+		if (p.getFitted() != null) {
+			pw.print(" fitted=\"" + p.getFitted().getID() + "\"");
+		}
+		if (p.fittedVersionOf != null) {
+			pw.print(" fittedversionof=\"" + p.fittedVersionOf.getID() + "\"");
 		}
 		pw.print(startsString);
 		pw.print(endsString);
@@ -1593,23 +1594,22 @@ public class PathAndFillManager extends DefaultHandler implements
 		pw.print(" reallength=\"" + p.getLength() + "\"");
 		pw.println(">");
 
-				for (int i = 0; i < p.size(); ++i) {
-					final int px = p.getXUnscaled(i);
-					final int py = p.getYUnscaled(i);
-					final int pz = p.getZUnscaled(i);
-					final double pxd = p.precise_x_positions[i];
-					final double pyd = p.precise_y_positions[i];
-					final double pzd = p.precise_z_positions[i];
-					String attributes = "x=\"" + px + "\" " + "y=\"" + py + "\" z=\"" +
-						pz + "\" " + "xd=\"" + pxd + "\" yd=\"" + pyd + "\" zd=\"" + pzd +
-						"\"";
-					if (p.hasRadii()) {
-						attributes += " tx=\"" + p.tangents_x[i] + "\"";
-						attributes += " ty=\"" + p.tangents_y[i] + "\"";
-						attributes += " tz=\"" + p.tangents_z[i] + "\"";
-						attributes += " r=\"" + p.radii[i] + "\"";
-					}
-					pw.println("    <point " + attributes + "/>");
+		for (int i = 0; i < p.size(); ++i) {
+			final int px = p.getXUnscaled(i);
+			final int py = p.getYUnscaled(i);
+			final int pz = p.getZUnscaled(i);
+			final double pxd = p.precise_x_positions[i];
+			final double pyd = p.precise_y_positions[i];
+			final double pzd = p.precise_z_positions[i];
+			String attributes = "x=\"" + px + "\" " + "y=\"" + py + "\" z=\"" + pz + "\" " + "xd=\"" + pxd + "\" yd=\""
+					+ pyd + "\" zd=\"" + pzd + "\"";
+			if (p.hasRadii()) {
+				attributes += " tx=\"" + p.tangents_x[i] + "\"";
+				attributes += " ty=\"" + p.tangents_y[i] + "\"";
+				attributes += " tz=\"" + p.tangents_z[i] + "\"";
+				attributes += " r=\"" + p.radii[i] + "\"";
+			}
+			pw.println("    <point " + attributes + "/>");
 		}
 		pw.println("  </path>");
 	}

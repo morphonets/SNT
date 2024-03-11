@@ -40,6 +40,7 @@ import static org.junit.Assert.assertEquals;
  */
 public class PathCursorTest
 {
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     private Path path;
     private RandomAccessibleInterval< UnsignedByteType > img;
