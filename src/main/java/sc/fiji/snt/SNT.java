@@ -789,7 +789,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public Dataset getDataset() {
-		return (ctSlice3d == null) ? null : convertService.convert(ctSlice3d, Dataset.class);
+		return (getImagePlus() == null) ? null : convertService.convert(getImagePlus(), Dataset.class);
 	}
 
 	public ImagePlus getImagePlus() {

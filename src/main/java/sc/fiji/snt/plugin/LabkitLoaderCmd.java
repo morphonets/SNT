@@ -33,7 +33,6 @@ import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 
 import org.scijava.command.Command;
-import org.scijava.convert.ConvertService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
@@ -73,9 +72,6 @@ public class LabkitLoaderCmd extends CommonDynamicCmd {
 	private static final String BACKGROUND_COLOR = "#666666"; // dark gray
 
 	@Parameter
-	private ConvertService convertService;
-
-	@Parameter
 	private Collection<Path> paths;
 
 	@SuppressWarnings("unused")
@@ -99,9 +95,7 @@ public class LabkitLoaderCmd extends CommonDynamicCmd {
 		try {
 
 			// Retrieve training image and training image properties
-			final Dataset dataset = (snt.getDataset() == null)
-					? convertService.convert(snt.getImagePlus(), Dataset.class)
-					: snt.getDataset();
+			final Dataset dataset = snt.getDataset();
 			final long cLen = dataset.dimension(dataset.dimensionIndex(Axes.CHANNEL));
 			final long zLen = dataset.dimension(dataset.dimensionIndex(Axes.Z));
 			final long tLen = dataset.dimension(dataset.dimensionIndex(Axes.TIME));
