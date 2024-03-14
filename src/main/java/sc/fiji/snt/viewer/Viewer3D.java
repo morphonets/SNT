@@ -8360,9 +8360,9 @@ public class Viewer3D {
 		}
 	}
 
-	/* IDE debug method */
-	public static void main(final String[] args) throws InterruptedException {
-		 sc.fiji.snt.demo.RecViewerDemo.main(args);
-	}
+//	/* IDE debug method */
+//	public static void main(final String[] args) throws InterruptedException {
+//		 sc.fiji.snt.demo.RecViewerDemo.main(args);
+//	}
 
 }
