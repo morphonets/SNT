@@ -70,7 +70,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -1253,8 +1252,8 @@ public class GuiUtils {
 		SplashScreen.assignStyle(subTitle, 1);
 		side.add(subTitle);
 		side.add(new JLabel(" ")); // spacer
-		final JLabel ijDetails = leftAlignedLabel(
-				"ImageJ " + ij.ImageJ.VERSION + ij.ImageJ.BUILD + "  |  Java " + System.getProperty("java.version"), "", true);
+		final String details = "ImageJ " + ij.ImageJ.VERSION + ij.ImageJ.BUILD + "  |  Java " + System.getProperty("java.version");
+		final JLabel ijDetails = leftAlignedLabel(details, "", true);
 		ijDetails.setAlignmentX(JLabel.CENTER_ALIGNMENT);
 		ijDetails.setToolTipText("Displays detailed System Information");
 		side.add(ijDetails);
@@ -1275,11 +1274,18 @@ public class GuiUtils {
 		final JDialog d = optionPane.createDialog("About SNT...");
 		ijDetails.addMouseListener(new MouseAdapter() {
 			@Override
-			public void mouseClicked(final MouseEvent e) {
-				ijDetails.setText("<HTML><b>Gathering system information... This may take a while.");
-				final HashMap<String, Object> inputs = new HashMap<>();
-				inputs.put("dialog", d);
-				SNTUtils.getContext().getService(CommandService.class).run(SI.class, true, inputs);
+			public void mouseClicked(final MouseEvent me) {
+				Timer timer;
+				if (Types.load("org.scijava.plugins.commands.debug.SystemInformation") == null) {
+					ijDetails.setText("<HTML><b>Gathering system information... This may take a while.");
+					SNTUtils.getContext().getService(CommandService.class).run("org.scijava.plugins.commands.debug.SystemInformation", true);
+					timer = new Timer(3000, e -> d.dispose());
+				} else {
+					ijDetails.setText("<HTML>SystemInformation command not found!?");
+					timer = new Timer(3000, e -> ijDetails.setText(details));
+				}
+				timer.setRepeats(false);
+				timer.start();
 			}
 		});
 		d.setLocationRelativeTo(null);
