@@ -214,6 +214,7 @@ public class SNT extends MultiDThreePanes implements
 	protected volatile boolean showOnlyActiveCTposPaths;
 	protected volatile boolean activateFinishedPath;
 	protected volatile boolean requireShiftToFork;
+	protected volatile boolean autoCT;
 	private boolean drawDiameters;
 
 	private boolean manualOverride = false;
@@ -2254,6 +2255,10 @@ public class SNT extends MultiDThreePanes implements
 		}
 		else {
 			/* This is an initial point. */
+			if (autoCT && (channel != xy.getC() || frame != xy.getT())) {
+				reloadImage(xy.getC(), xy.getT());
+				if (ui != null) ui.ctPositionChanged();
+			}
 			startPath(world_x, world_y, world_z, joinPoint);
 			changeUIState(SNTUI.PARTIAL_PATH);
 		}

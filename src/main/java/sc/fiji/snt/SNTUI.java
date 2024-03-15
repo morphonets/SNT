@@ -647,11 +647,18 @@ public class SNTUI extends JDialog {
 	 * Runs the 'secondary layer' wizard prompt for built-in filters
 	 */
 	public void runSecondaryLayerWizard() {
+		runSecondaryLayerWizard(false);
+	}
+
+	private void runSecondaryLayerWizard(final boolean autoCTwarning) {
 		if (!okToReplaceSecLayer())
 			return;
 		if (!plugin.accessToValidImageData()) {
 			noValidImageDataError();
-		} else if (!plugin.invalidStatsError(false)) {
+			return;
+		}
+		if (autoCTwarning) warnOnAutoCTcompatibilityOthers();
+		if (!plugin.invalidStatsError(false)) {
 			plugin.flushSecondaryData();
 			(new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
 		}
@@ -758,6 +765,11 @@ public class SNTUI extends JDialog {
 
 	protected void updateSettingsString() {
 		final StringBuilder sb = new StringBuilder();
+		sb.append("Data source: ");
+		sb.append("\n");
+		sb.append("    Channel: ").append(plugin.getChannel()).append("; Frame: ").append(plugin.getFrame());
+		sb.append( (plugin.autoCT) ? " (auto-loaded)" : " (manually-loaded)");
+		sb.append("\n");
 		sb.append("Auto-tracing: ").append((plugin.isAstarEnabled()) ? searchAlgoChoice.getSelectedItem() : "Disabled");
 		sb.append("\n");
 		sb.append("    Data structure: ").append(plugin.searchImageType);
@@ -1030,8 +1042,6 @@ public class SNTUI extends JDialog {
 	/* User inputs for multidimensional images */
 	private JPanel sourcePanel(final ImagePlus imp) {
 		final JPanel sourcePanel = new JPanel(new GridBagLayout());
-		final GridBagConstraints gdb = GuiUtils.defaultGbc();
-		gdb.gridwidth = 1;
 		final boolean hasChannels = imp != null && imp.getNChannels() > 1;
 		final boolean hasFrames = imp != null && imp.getNFrames() > 1;
 		final JPanel positionPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
@@ -1057,7 +1067,6 @@ public class SNTUI extends JDialog {
 				guiUtils.error("There is no valid image data to be loaded.");
 				return;
 			}
-
 			if (!plugin.accessToValidImageData() && plugin.getLoadedData() != null) {
 				cachedDataFallbackPrompt();
 				return;
@@ -1074,8 +1083,49 @@ public class SNTUI extends JDialog {
 			loadImagefromGUI(newC, newT);
 		});
 		positionPanel.add(applyPositionButton);
+
+		final JCheckBox autoCTcheckbox = new JCheckBox("Auto-load CT position of new paths", plugin.autoCT);
+		commandFinder.register(autoCTcheckbox, "Main Tab", "Data Source");
+		GuiUtils.addTooltip(autoCTcheckbox, "Automatically loads the active channel and frame of the starting " +
+				"node of newly created paths.<br>" +
+				"NB: This option may be incompatible with secondary layers and Z-projection overlays.");
+		autoCTcheckbox.addActionListener(e -> {
+			plugin.autoCT = autoCTcheckbox.isSelected();
+			updateSettingsString();
+			if (plugin.autoCT) warnOnAutoCTcompatibilitySelf();
+		});
+
+		final GridBagConstraints gdb = GuiUtils.defaultGbc();
+		gdb.gridwidth = 1;
 		sourcePanel.add(positionPanel, gdb);
+		gdb.gridx = 0;
+		gdb.gridy++;
+		sourcePanel.add(autoCTcheckbox, gdb);
 		return sourcePanel;
+	}
+
+	private void warnOnAutoCTcompatibilitySelf() {
+		if (plugin.getPrefs().getTemp("autoct-skipnag", false)) {
+			return;
+		}
+		final boolean secLayer = plugin.isTracingOnSecondaryImageAvailable() || plugin.isSecondaryImageFileLoaded();
+		final AbstractButton overlayCheckbox = commandFinder.getRegisteredComponent("Overlay MIP(s)");
+		final boolean overlayMip = overlayCheckbox != null && overlayCheckbox.isSelected();
+		if (secLayer || overlayMip) {
+			final Boolean skipnag = guiUtils.getPersistentWarning("This option may conflict with " +
+					"<i>Overlay MIP(s)</i> and <i>Trace/Fill on Secondary Layer</i> settings. You should " +
+					"consider disabling them if tracing becomes inaccurate.", "Possible Conflict");
+			if (skipnag != null) plugin.getPrefs().setTemp("autoct-skipnag", skipnag);
+		}
+	}
+
+	private void warnOnAutoCTcompatibilityOthers() {
+		if (plugin.autoCT && !plugin.getPrefs().getTemp("autoct-skipnag", false)) {
+			final Boolean skipnag = guiUtils.getPersistentWarning("This option may conflict with " +
+					"<i>Auto-load CT position of new paths</i>. You should consider " +
+					"disabling it if tracing becomes inaccurate.", "Possible Conflict");
+			if (skipnag != null) plugin.getPrefs().setTemp("autoct-skipnag", skipnag);
+		}
 	}
 
 	private void cachedDataFallbackPrompt() {
@@ -1143,6 +1193,7 @@ public class SNTUI extends JDialog {
 				mipCS.setSelected(false);
 			} else {
 				plugin.showMIPOverlays(false, (mipCS.isSelected()) ? (int) mipCS.getValue() * 0.01 : 0);
+				if  (mipCS.isSelected()) warnOnAutoCTcompatibilityOthers();
 			}
 		});
 		viewsPanel.add(mipCS, gdb);
@@ -2172,7 +2223,7 @@ public class SNTUI extends JDialog {
 		ScriptRecorder.setRecordingCall(mi1, "snt.getUI().runSecondaryLayerWizard()");
 		commandFinder.register(mi1, "Main tab", "Auto-tracing (II Layer)");
 		mi1.setToolTipText("Create a secondary layer using built-in image processing routines");
-		mi1.addActionListener(e -> runSecondaryLayerWizard());
+		mi1.addActionListener(e -> runSecondaryLayerWizard(true));
 		final JMenuItem mi2 = GuiUtils.MenuItems.fromOpenImage();
 		mi2.addActionListener(e -> loadSecondaryImage(true));
 		commandFinder.register(mi2, "Main tab", "Auto-tracing (II Layer)");
@@ -2197,6 +2248,7 @@ public class SNTUI extends JDialog {
 				noValidImageDataError();
 				return;
 			}
+			warnOnAutoCTcompatibilityOthers();
 			(new DynamicCmdRunner(WekaModelLoader.class, null)).run();
 		});
 		commandFinder.register(mi5, "Main tab", "Auto-tracing (II Layer)");
@@ -2244,6 +2296,7 @@ public class SNTUI extends JDialog {
 						(secLayerImgOverlayCSpinner.isSelected())
 								? (int) secLayerImgOverlayCSpinner.getValue() * 0.01
 								: 0);
+			if (secLayerImgOverlayCSpinner.isSelected()) warnOnAutoCTcompatibilityOthers();
 			}
 		});
 		secLayerImgOverlayCSpinner.appendLabel("% opacity");
@@ -2264,6 +2317,7 @@ public class SNTUI extends JDialog {
 			inputs.put("secondaryLayer", true);
 			(new DynamicCmdRunner(ChooseDatasetCmd.class, inputs, LOADING)).run();
 		} else {
+			warnOnAutoCTcompatibilityOthers();
 			final File proposedFile = (plugin.getFilteredImageFile() == null) ? plugin.getPrefs().getRecentDir()
 					: plugin.getFilteredImageFile();
 			final File file = guiUtils.getOpenFile("Choose Secondary Image", proposedFile);
@@ -3665,21 +3719,26 @@ public class SNTUI extends JDialog {
 		showStatus("Resetting", true);
 	}
 
-	protected void inputImageChanged() {
+	protected void ctPositionChanged() {
 		final ImagePlus imp = plugin.getImagePlus();
-		partsNearbyCSpinner.setSpinnerMinMax(1, plugin.getDepth());
-		partsNearbyCSpinner.setEnabled(imp != null && !plugin.is2D());
-		plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
-				(int) partsNearbyCSpinner.getValue(), false);
 		final JPanel newSourcePanel = sourcePanel(imp);
 		final GridBagLayout layout = (GridBagLayout) newSourcePanel.getLayout();
-		for (int i = 0; i < sourcePanel.getComponentCount(); i++) {
-			sourcePanel.remove(i);
-			final Component component = newSourcePanel.getComponent(i);
+		sourcePanel.removeAll();
+		for (final Component component : newSourcePanel.getComponents()) {
 			sourcePanel.add(component, layout.getConstraints(component));
+			if (component instanceof JCheckBox)
+				component.setEnabled( imp.getNChannels() > 1 || imp.getNFrames() > 1);
 		}
 		revalidate();
 		repaint();
+	}
+
+	protected void inputImageChanged() {
+		partsNearbyCSpinner.setSpinnerMinMax(1, plugin.getDepth());
+		partsNearbyCSpinner.setEnabled(!plugin.is2D());
+		plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
+				(int) partsNearbyCSpinner.getValue(), false);
+		ctPositionChanged();
 		if (autoRbmi != null)
 			autoRbmi.setSelected(plugin.getUseSubVolumeStats());
 		final boolean validImage = plugin.accessToValidImageData();
@@ -4001,7 +4060,8 @@ public class SNTUI extends JDialog {
 						return;
 					}
 					plugin.enableSecondaryLayerTracing(true);
-
+					if (plugin.isTracingOnSecondaryImageActive())
+						warnOnAutoCTcompatibilityOthers();
 				} else {
 					plugin.enableSecondaryLayerTracing(false);
 				}

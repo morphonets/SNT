@@ -450,6 +450,11 @@ public class SNTCommandFinder {
 		}
 	}
 
+	public AbstractButton getRegisteredComponent(final String label) {
+		final CmdAction cmd = cmdScrapper.getCmdMap().get(label);
+		return (cmd == null) ? null : cmd.button;
+	}
+
 	private void registerMenu(final JMenu menu, final List<String> path) {
 		for (final Component component : menu.getMenuComponents()) {
 			if (component instanceof JMenu) {
