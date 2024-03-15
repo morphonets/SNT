@@ -23,7 +23,6 @@
 package sc.fiji.snt.plugin.ij1;
 
 import net.imagej.ImageJ;
-import net.imagej.legacy.LegacyService;
 import sc.fiji.snt.gui.GuiUtils;
 
 import java.util.HashMap;
@@ -65,9 +64,6 @@ public class CallIJ1LegacyCmd implements Command {
 	@Parameter
 	private CommandService cmdService;
 
-	@Parameter
-	private LegacyService legacyService;
-
 	@Parameter(choices = { SNT_LEGACY, SHOLL_IMG_LEGACY, SHOLL_TRACES_LEGACY, SHOLL_CSV_LEGACY,
 			SHOLL_OPTIONS_LEGACY }, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE, //
 			label = "<HTML><div style='width:400'>"
@@ -80,7 +76,7 @@ public class CallIJ1LegacyCmd implements Command {
 	public void run() {
 		final String[] cmdAndArg = cmds.get(cmdChoice);
 		try {
-			legacyService.runLegacyCommand(cmdAndArg[0], cmdAndArg[1]);
+			ij.IJ.run(cmdAndArg[0], cmdAndArg[1]);
 		} catch (final Exception ex) {
 			new GuiUtils().error("An exception occured. Maybe the command is no longer available?",
 					"Exception occured");

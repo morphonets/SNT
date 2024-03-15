@@ -72,9 +72,7 @@ import org.scijava.util.VersionUtils;
 import fiji.util.Levenshtein;
 import io.scif.services.DatasetIOService;
 import net.imagej.ImageJ;
-import net.imagej.ImageJService;
 import net.imagej.display.ImageDisplayService;
-import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imagej.ops.OpService;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
@@ -586,8 +584,6 @@ public class SNTUtils {
 		services.add(ThreadService.class);
 		services.add(UIService.class);
 		services.add(SNTService.class);
-		services.add(ImageJService.class);
-		services.add(LegacyService.class);
 		return services;
 	}
 

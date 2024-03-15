@@ -282,6 +282,11 @@ public class ImpUtils {
 		throw new IllegalArgumentException("Not a recognized demoImage argument: " + img);
 	}
 
+	public static ImagePlus getCurrentImage() {
+		// FIXME: Requiring LegacyService() to access the current image is problematic due to
+		// initialization problems in SNTService and SNTUtils, so I'll use this as a workaround
+		return ij.WindowManager.getCurrentImage();
+	}
 	private static ImagePlus demoImageInternal(final String path, final String displayTitle) {
 		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 		final InputStream is = classloader.getResourceAsStream(path);
