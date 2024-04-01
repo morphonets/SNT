@@ -147,7 +147,7 @@
 		<!-- Dependency versions -->
 		<annotations.version>24.1.0</annotations.version>
 		<fastutil-core.version>8.5.13</fastutil-core.version>
-		<flatlaf.version>3.4</flatlaf.version>
+		<flatlaf.version>3.4.1</flatlaf.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
 		<font-awesome.version>6.5.1</font-awesome.version>
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
