@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -47,6 +48,7 @@ import org.jfree.chart.ui.RectangleEdge;
 import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
+import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
@@ -82,7 +84,7 @@ public class MultiViewer2D {
 		if (viewers == null)
 			throw new IllegalArgumentException("Cannot instantiate a grid from a null list of viewers");
 		this.viewers = viewers;
-		guessLayout();
+		guessLayout(true);
 		setAxesVisible(true);
 		setGridlinesVisible(false);
 		setOutlineVisible(true);
@@ -101,19 +103,27 @@ public class MultiViewer2D {
 			viewers.add(v);
 		});
 	
-		guessLayout();
+		guessLayout(true);
 		setAxesVisible(true);
 		setGridlinesVisible(false);
 		setOutlineVisible(true);
 	}
 
-	private void guessLayout() {
-		gridCols = viewers.size() / 2;
+	private void guessLayout(final boolean padGridWithEmptyViewers) {
+		gridCols = (viewers.size() < 11) ? viewers.size() : viewers.size() / 2;
+		for (int i =0; i < viewers.size() % gridCols ; i++) {
+			final Viewer2D dummy = new Viewer2D();
+			final Tree tree = new Tree();
+			tree.add(new Path());
+			dummy.add(tree);
+			dummy.setTitle("");
+			viewers.add(dummy);
+		}
 	}
 
 	public void setLayoutColumns(final int cols) {
 		if (cols <= 0) {
-			guessLayout();
+			guessLayout(true);
 		} else {
 			gridCols = Math.min(cols, viewers.size());
 		}
