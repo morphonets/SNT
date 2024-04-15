@@ -3727,7 +3727,7 @@ public class SNTUI extends JDialog {
 		for (final Component component : newSourcePanel.getComponents()) {
 			sourcePanel.add(component, layout.getConstraints(component));
 			if (component instanceof JCheckBox)
-				component.setEnabled( imp.getNChannels() > 1 || imp.getNFrames() > 1);
+				component.setEnabled( imp != null && (imp.getNChannels() > 1 || imp.getNFrames() > 1));
 		}
 		revalidate();
 		repaint();

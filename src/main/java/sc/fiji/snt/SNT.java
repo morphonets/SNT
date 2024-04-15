@@ -599,7 +599,7 @@ public class SNT extends MultiDThreePanes implements
 
 		// Create image
 		imageType = ImagePlus.GRAY8;
-		xy = ImpUtils.create("Display Canvas", 1, 1, (singleSlice) ? 1 : depth, 8);
+		xy = ImpUtils.create("Display Canvas", width, height, (singleSlice) ? 1 : depth, 8);
 		setIsDisplayCanvas(xy);
 		xy.setCalibration(box.getCalibration());
 		x_spacing = box.xSpacing;

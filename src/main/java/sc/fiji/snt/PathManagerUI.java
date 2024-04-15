@@ -22,11 +22,7 @@
 
 package sc.fiji.snt;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
+import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
@@ -38,6 +34,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -130,16 +127,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	protected static final String TABLE_TITLE = "SNT Measurements";
 	protected final GuiUtils guiUtils;
-	private final JScrollPane scrollPane;
-	private final JMenuBar menuBar;
-	private final JPopupMenu popup;
-	private final JMenu swcTypeMenu;
+    private final JMenuBar menuBar;
+    private final JMenu swcTypeMenu;
 	private final JMenu tagsMenu;
 	private ButtonGroup swcTypeButtonGroup;
 	private final ColorMenu colorMenu;
 	private final JMenuItem fitVolumeMenuItem;
 	private FitHelper fittingHelper;
-	private PathManagerUISearchableBar searchableBar;
+	private final PathManagerUISearchableBar searchableBar;
 
 	/**
 	 * Instantiates a new Path Manager Dialog.
@@ -162,7 +157,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		tree.setVisibleRowCount(30);
 		tree.setDoubleBuffered(true);
 		tree.addTreeSelectionListener(this);
-		scrollPane = new JScrollPane();
+        final JScrollPane scrollPane = new JScrollPane();
 		scrollPane.getViewport().add(tree);
 		add(scrollPane, BorderLayout.CENTER);
 
@@ -428,7 +423,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		
 		// Search Bar TreeSearchable
 		searchableBar = new PathManagerUISearchableBar(this);
-		popup = new JPopupMenu();
+        final JPopupMenu popup = new JPopupMenu();
 		popup.add(getDeleteMenuItem(multiPathListener));
 		popup.add(getDuplicateMenuItem(singlePathListener));
 		popup.add(getRenameMenuItem(singlePathListener));
@@ -738,7 +733,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			swcPoints = pathAndFillManager.getSWCFor(selectedPaths);
 		}
 		catch (final SWCExportException see) {
-			guiUtils.error("" + see.getMessage());
+			guiUtils.error(see.getMessage());
 			return;
 		}
 
@@ -758,7 +753,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 		catch (final IOException ioe) {
 			guiUtils.error("Saving to " + saveFile.getAbsolutePath() + " failed:\n" + ioe.getMessage());
-			return;
 		}
 	}
 
@@ -1377,8 +1371,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		{
 			final Component c = super.getTreeCellRendererComponent(tree, value,
 				selected, expanded, isLeaf, row, focused);
-//			((JLabel)c).setOpaque(true);
-//			((JLabel)c).setBackground(Color.RED);
 
 			final TreePath tp = tree.getPathForRow(row);
 			if (tp == null) {
@@ -1388,16 +1380,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				.getLastPathComponent());
 			if (node == null || node.isRoot()) return c;
 			final Path p = (Path) node.getUserObject();
-			final Color color = p.getColor();
-			if (color == null) {
+			if (p.getColor() == null && !p.hasNodeColors()) {
 				return c;
 			}
+			final Color color = p.getColor();
 			if (isLeaf)
-				setIcon(new NodeIcon(NodeIcon.EMPTY, color));
+				setIcon(new NodeIcon(NodeIcon.EMPTY, color, p.hasNodeColors()));
 			else if (!expanded)
-				setIcon(new NodeIcon(NodeIcon.PLUS, color));
+				setIcon(new NodeIcon(NodeIcon.PLUS, color, p.hasNodeColors()));
 			else
-				setIcon(new NodeIcon(NodeIcon.MINUS, color));
+				setIcon(new NodeIcon(NodeIcon.MINUS, color, p.hasNodeColors()));
 			return c;
 		}
 
@@ -1415,15 +1407,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final char EMPTY = ' ';
 		private final char type;
 		private final Color color;
+		private final Color crossHairColor;
+		private final boolean gradient;
 
 		private NodeIcon(final char type) {
-			this.type = type;
-			this.color = UIManager.getColor("Tree.background");
+			this(type, UIManager.getColor("Tree.background"), false);
 		}
 
-		private NodeIcon(final char type, final Color color) {
+		private NodeIcon(final char type, final Color color, final boolean gradient) {
 			this.type = type;
 			this.color = color;
+			this.gradient = gradient;
+			if (gradient || closerToBlack(color))
+				crossHairColor = Color.WHITE;
+			else
+				crossHairColor = Color.BLACK;
 		}
 
 		/* see https://stackoverflow.com/a/9780689 */
@@ -1437,15 +1435,23 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		public void paintIcon(final Component c, final Graphics g, final int x,
 			final int y)
 		{
-			g.setColor(color);
-			g.fillRect(x, y, SIZE - 1, SIZE - 1);
-			g.setColor(Color.BLACK);
-			g.drawRect(x, y, SIZE - 1, SIZE - 1);
+			final Graphics2D g2 = (Graphics2D)g;
+			if (gradient) { // Path has node colors: render gradient
+				final float[] fractions = { 0f,  0.5f, 1f };
+				final Color[] colors = { new Color(68, 1, 84), new Color(32, 145, 140), new Color(253, 231, 36) }; // min-mid-max hues
+				// of mpl-viridis
+				g2.setPaint(new LinearGradientPaint(3, 4, SIZE-1, SIZE-1, fractions, colors));
+				g2.fillRect(3, 4, SIZE-1, SIZE-1);
+			} else {
+				g2.setColor(color);
+				g2.fillRect(x, y, SIZE - 1, SIZE - 1);
+			}
+			g2.setColor(crossHairColor);
+			g2.drawRect(x, y, SIZE - 1, SIZE - 1);
 			if (type == EMPTY) return;
-			g.setColor(closerToBlack(color) ? Color.WHITE : Color.BLACK);
-			g.drawLine(x + 2, y + SIZE / 2, x + SIZE - 3, y + SIZE / 2);
+			g2.drawLine(x + 2, y + SIZE / 2, x + SIZE - 3, y + SIZE / 2);
 			if (type == PLUS) {
-				g.drawLine(x + SIZE / 2, y + 2, x + SIZE / 2, y + SIZE - 3);
+				g2.drawLine(x + SIZE / 2, y + 2, x + SIZE / 2, y + SIZE - 3);
 			}
 		}
 
@@ -1497,7 +1503,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			final JTree tree = (JTree) support.getComponent();
 			final int dropRow = tree.getRowForPath(dl.getPath());
 			final int[] selRows = tree.getSelectionRows();
-			for (int selRow : selRows) {
+            assert selRows != null;
+            for (int selRow : selRows) {
 				if (selRow == dropRow) {
 					return false;
 				}
@@ -1522,7 +1529,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		private boolean haveCompleteNode(final JTree tree) {
 			final int[] selRows = tree.getSelectionRows();
-			TreePath path = tree.getPathForRow(selRows[0]);
+            assert selRows != null;
+            TreePath path = tree.getPathForRow(selRows[0]);
 			final DefaultMutableTreeNode first = (DefaultMutableTreeNode) path
 				.getLastPathComponent();
 			final int childCount = first.getChildCount();
@@ -1640,7 +1648,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				index = parent.getChildCount();
 			}
 			// Add data to model.
-			for (DefaultMutableTreeNode node : nodes) {
+            assert nodes != null;
+            for (DefaultMutableTreeNode node : nodes) {
 				model.insertNodeInto(node, parent, index++);
 			}
 			return true;
@@ -2063,11 +2072,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 		if (MultiPathActionListener.HISTOGRAM_TREES_CMD.equals(cmd)) {
 			if (args.length == 1) {
-				runDistributionAnalysisCmd("All", args[0], (args.length > 1) && Boolean.parseBoolean(args[1]));
-			} else if (args.length > 1) {
-				runDistributionAnalysisCmd(args[0], args[1], (args.length > 2) && Boolean.parseBoolean(args[2]));
+				runDistributionAnalysisCmd("All", args[0], false);
 			} else {
-				throw new IllegalArgumentException("Not enough arguments...");
+				runDistributionAnalysisCmd(args[0], args[1], (args.length > 2) && Boolean.parseBoolean(args[2]));
 			}
 		} else if (MultiPathActionListener.HISTOGRAM_PATHS_CMD.equals(cmd)) {
 			runHistogramPathsCmd(getSelectedPaths(true), args[0], //
@@ -2092,7 +2099,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		} else if (MultiPathActionListener.CONVERT_TO_ROI_CMD.equals(cmd)) {
 			if (args.length == 1) {
 				runRoiConverterCmd(args[0], null);
-			} else if (args.length > 1) {
+			} else {
 				runRoiConverterCmd(args[0], args[1]);
 			}
 		} else {
@@ -2111,8 +2118,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		input.put("discardExisting", false);
 		final CommandService cmdService = plugin.getContext().getService(CommandService.class);
 		cmdService.run(ROIExporterCmd.class, true, input);
-		return;
-	}
+    }
 
 	private void runColorCodingCmd(final String singleTreeDescriptor, final String metric, final String lutName) throws IllegalArgumentException, IOException {
 		final Tree tree =  getSingleTreeMimickingPrompt(singleTreeDescriptor);
@@ -2203,7 +2209,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	protected void measureCells() {
 		final Collection<Tree> trees = getMultipleTrees();
 		if (trees == null) return;
-		if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
+		if (!MeasureUI.instances.isEmpty()) {
 			guiUtils.error("A Measurements prompt seems to be already open.");
 		} else {
 			new MeasureUI(plugin, trees).setVisible(true);
@@ -2654,6 +2660,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			else if (ASSIGN_DISTINCT_COLORS.equals(cmd)) {
+				removeColorNodesPrompt(selectedPaths);
 				assignDistinctColors(selectedPaths);
 				return;
 			}
@@ -2663,8 +2670,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			else if (COLORS_MENU.equals(cmd)) {
 				final SNTColor swcColor = colorMenu.getSelectedSWCColor();
-				for (final Path p : selectedPaths)
-					p.setColor(swcColor.color());
+				removeColorNodesPrompt(selectedPaths);
+				selectedPaths.forEach(p -> 	p.setColor(swcColor.color()));
 				refreshManager(true, true, selectedPaths);
 				plugin.setUnsavedChanges(true);
 				if (plugin.getUI().getRecorder(false) != null)
@@ -2731,7 +2738,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			} else if (TIME_COLOR_CODING_CMD.equals(cmd)) {
 				final Tree tree = new Tree(selectedPaths);
-				if (tree == null || tree.isEmpty()) return;
+				if (tree.isEmpty()) return;
 				final Map<String, Object> input = new HashMap<>();
 				input.put("tree", tree);
 				input.put("onlyConnectivitySafeMetrics", true);
@@ -2744,7 +2751,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			} else if (SPINE_COLOR_CODING_CMD.equals(cmd)) {
 				final Tree tree = new Tree(selectedPaths);
-				if (tree == null || tree.isEmpty()) return;
+				if (tree.isEmpty()) return;
 				final Map<String, Object> input = new HashMap<>();
 				input.put("tree", tree);
 				input.put("onlyConnectivitySafeMetrics", true);
@@ -3156,6 +3163,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		}
 
+		void removeColorNodesPrompt(final Collection<Path> selectedPaths) {
+			final boolean hasNodes = selectedPaths.stream().anyMatch(Path::hasNodeColors);
+			if (!hasNodes) return;
+			final boolean nag = plugin.getPrefs().getTemp("nodecolors-nag", true);
+			boolean reset = plugin.getPrefs().getTemp("nodecolors", true);
+			if (nag) {
+				final boolean[] options = guiUtils.getPersistentConfirmation("Selected path(s) have been color-coded, " +
+						"or have multiple node colors. Discard existing colors and apply single hue?", "Discard Node Colors?");
+				plugin.getPrefs().setTemp("nodecolors", reset = options[0]);
+				plugin.getPrefs().setTemp("nodecolors-nag", !options[1]);
+			}
+			if (reset)
+				selectedPaths.forEach( p-> p.setNodeColors(null));
+		}
+
 		void runColorMapper(final Tree tree, final boolean safeMetricsOnly) {
 			if (tree == null || tree.isEmpty()) return;
 			final Map<String, Object> input = new HashMap<>();
@@ -3188,13 +3210,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				Collections.sort(primaryPaths, (p1, p2) -> p1.getName().compareTo(p2.getName()));
 				break;
 			case "Path length":
-				Collections.sort(primaryPaths, (p1, p2) -> Double.compare(p1.getLength(), p2.getLength()));
+				primaryPaths.sort((p1, p2) -> Double.compare(p1.getLength(), p2.getLength()));
 				break;
 			case "Path mean radius":
-				Collections.sort(primaryPaths, (p1, p2) -> Double.compare(p1.getMeanRadius(), p2.getMeanRadius()));
+				primaryPaths.sort((p1, p2) -> Double.compare(p1.getMeanRadius(), p2.getMeanRadius()));
 				break;
 			case "Traced channel":
-				Collections.sort(primaryPaths, (p1, p2) -> Integer.compare(p1.getChannel(), p2.getChannel()));
+				primaryPaths.sort((p1, p2) -> Integer.compare(p1.getChannel(), p2.getChannel()));
 				break;
 			case "Traced frame":
 				Collections.sort(primaryPaths, (p1, p2) -> Integer.compare(p1.getFrame(), p2.getFrame()));
@@ -3387,7 +3409,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				}
 			}
 			refreshManager(false, false, selectedPaths);
-			guiUtils.centeredMsg("" + counter + " occurence(s) replaced.", "Operation Completed");
+			guiUtils.centeredMsg(counter + " occurrence(s) replaced.", "Operation Completed");
 		}
 
 		private void deleteCustomTags(final List<Path> paths) {

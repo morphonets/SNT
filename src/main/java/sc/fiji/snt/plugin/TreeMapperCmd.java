@@ -206,6 +206,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 			p.setColor((java.awt.Color)null);
 			p.setNodeColors(null);
 		}
+		snt.updateAllViewers();
 		statusService.showStatus("Color code removed...");
 	}
 
