@@ -133,7 +133,7 @@ public class SNTUI extends JDialog {
 	private JRadioButtonMenuItem autoRbmi;
 
 	// UI controls for CT data source
-	private JPanel sourcePanel;
+	private final JPanel sourcePanel;
 
 	// UI controls for loading  on 'secondary layer'
 	private JCheckBox secLayerActivateCheckbox;
@@ -2895,9 +2895,6 @@ public class SNTUI extends JDialog {
 			}
 		});
 		viewMenu.add(consoleJMI);
-		//viewMenu.addSeparator();
-
-		//viewMenu.add(guiUtils.combineChartsMenuItem());
 		return menuBar;
 	}
 
@@ -3012,12 +3009,11 @@ public class SNTUI extends JDialog {
 		++cop_f.gridy;
 		final JCheckBox jcheckbox = new JCheckBox("Enforce default colors (ignore color tags)");
 		GuiUtils.addTooltip(jcheckbox,
-				"Whether default colors above should be used even when color tags have been applied in the Path Manager");
+				"Whether default colors above should be used even when color tags have been applied in the Path Manager.<br><br>" +
+						"NB: This option does not affect color-coded paths, or paths with multi-color nodes");
 		registerInCommandFinder(jcheckbox, "Enforce Default Colors", "Main Tab");
 		jcheckbox.addActionListener(e -> {
 			plugin.displayCustomPathColors = !jcheckbox.isSelected();
-			// colorChooser1.setEnabled(!plugin.displayCustomPathColors);
-			// colorChooser2.setEnabled(!plugin.displayCustomPathColors);
 			plugin.updateTracingViewers(true);
 		});
 		colorOptionsPanel.add(jcheckbox, cop_f);
@@ -3478,16 +3474,6 @@ public class SNTUI extends JDialog {
 		loc = plugin.getPrefs().getFillWindowLocation();
 		if (loc != null)
 			fmUI.setLocation(loc);
-		// final GraphicsDevice activeScreen =
-		// getGraphicsConfiguration().getDevice();
-		// final int screenWidth = activeScreen.getDisplayMode().getWidth();
-		// final int screenHeight = activeScreen.getDisplayMode().getHeight();
-		// final Rectangle bounds =
-		// activeScreen.getDefaultConfiguration().getBounds();
-		//
-		// setLocation(bounds.x, bounds.y);
-		// pw.setLocation(screenWidth - pw.getWidth(), bounds.y);
-		// fw.setLocation(bounds.x + getWidth(), screenHeight - fw.getHeight());
 	}
 
 	private void arrangeCanvases(final boolean displayErrorOnFailure) {
@@ -3597,11 +3583,6 @@ public class SNTUI extends JDialog {
 				showOrHideFillList.setText("Show Fill Manager");
 			fmUI.setVisible(false);
 		}
-	}
-
-	protected boolean nearbySlices() {
-		assert SwingUtilities.isEventDispatchThread();
-		return partsNearbyCSpinner.isSelected();
 	}
 
 	private JMenuItem shollAnalysisHelpMenuItem() {
@@ -4432,7 +4413,7 @@ public class SNTUI extends JDialog {
 			return;
 		}
 		final List<File> copies = SNTUtils.getBackupCopies(autosaveFile); // list never null
-		if (copies == null || copies.isEmpty()) {
+		if (copies.isEmpty()) {
 			error("No time-stamped backups seem to exist for current data. Please create one first.");
 			return;
 		}

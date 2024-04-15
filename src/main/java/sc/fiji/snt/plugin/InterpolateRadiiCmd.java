@@ -66,7 +66,7 @@ public class InterpolateRadiiCmd extends CommonDynamicCmd {
 			+ "<b>Scope</b>: Some nodes may not have valid radius (e.g., if refining failed at " //
 			+ "their location because their cross-section fit deviated too much from a circular " //
 			+ "pattern). This command collects such nodes from selected paths, and assigns " //
-			+ "them new radii using linear interpolation based on remaining nodes with valid " //
+			+ "them new radii using linear interpolation based on flanking nodes with valid " //
 			+ "radii. It can apply the interpolation immediately, or simply preview it."; //
 	@Parameter(required = true, label = "Interpolation", //
 			choices = { "Preview only", "Apply", "Preview and Apply" })

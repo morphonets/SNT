@@ -149,7 +149,7 @@ public class AllenUtils {
 	/**
 	 * Constructs a compartment from its CCF name or acronym
 	 *
-	 * @param nameOrAcronym the name or acronym (case insensitive) identifying the
+	 * @param nameOrAcronym the name or acronym (case-insensitive) identifying the
 	 *                      compartment
 	 * @return the compartment whose name or acronym matches the specified string or
 	 *         null if no match was found
