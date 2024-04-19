@@ -29,17 +29,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import ij.plugin.*;
 import org.scijava.convert.ConvertService;
 
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.io.Opener;
-import ij.plugin.CompositeConverter;
-import ij.plugin.ContrastEnhancer;
-import ij.plugin.Duplicator;
-import ij.plugin.ImagesToStack;
-import ij.plugin.ZProjector;
 import ij.process.ByteProcessor;
 import ij.process.ImageConverter;
 import ij.process.ImageStatistics;
@@ -241,6 +237,26 @@ public class ImpUtils {
 		final ImagePlus imp = ImpUtils.getMIP(imps);
 		imp.setTitle("Skeletonized Trees");
 		ColorMaps.applyMagmaColorMap(imp, 128, false);
+		return imp;
+	}
+
+	public static ImagePlus combineSkeletons(final Collection<Tree> trees, final boolean asMontage) {
+		if (!asMontage) return combineSkeletons(trees);
+		final List<ImagePlus> imps = new ArrayList<>(trees.size());
+		trees.forEach( tree -> imps.add(tree.getSkeleton2D()));
+		ImagePlus imp = ImagesToStack.run(imps.toArray(new ImagePlus[0]));
+		int gridCols, gridRows;
+		if (trees.size() < 11) {
+			gridCols = trees.size();
+			gridRows = 1;
+		} else {
+			gridCols = (int)Math.sqrt(trees.size());
+			gridRows = gridCols;
+			int n = trees.size() - gridCols*gridRows;
+			if (n>0) gridCols += (int)Math.ceil((double)n/gridRows);
+		}
+		imp = new MontageMaker().makeMontage2(imp, gridCols, gridRows, 1, 1, trees.size(), 1, 0, true);
+		imp.setTitle("Skeletonized Trees");
 		return imp;
 	}
 

@@ -976,7 +976,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	private Collection<Tree> getTreesMimickingPrompt(final String description) {
 		final Collection<Tree> trees = pathAndFillManager.getTrees();
-		if (trees.size() == 1 || description.contains("All")) return trees;
+		if (trees.size() == 1 || description.toLowerCase().contains("all")) return trees;
 		for (final Tree t : trees) {
 			if (t.getLabel().equals(description)) return Collections.singleton(t);
 		}
@@ -1015,7 +1015,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		if (includeAll)
 			treeLabels.add(0, "   -- All --  ");
 		final List<String> choices = guiUtils.getMultipleChoices("Which Structure?",
-				treeLabels.toArray(new String[trees.size()]), null);
+				treeLabels.toArray(new String[trees.size()]), (includeAll) ? "   -- All --  " : null);
 		if (choices == null)
 			return null;
 		if (includeAll && choices.contains("   -- All --  "))
@@ -2823,7 +2823,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 				final Set<String> existingTags = extractTagsFromPaths(selectedPaths);
 				final Set<String> tags = guiUtils.getStringSet(
-					"Enter one or more tags (comma-separated list):<br>" +
+					"Enter one or more tags (comma separated list):<br>" +
 						"(Clearing the field will remove existing tags)", "Custom Tags",
 					existingTags);
 				if (tags == null) return; // user pressed cancel

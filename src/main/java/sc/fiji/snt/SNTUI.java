@@ -2762,7 +2762,6 @@ public class SNTUI extends JDialog {
 		// Utilities
 		utilitiesMenu.add(commandFinder.getMenuItem(menuBar, false));
 		utilitiesMenu.addSeparator();
-		utilitiesMenu.add(plotMenuItem);
 		final JMenuItem compareFiles = new JMenuItem("Compare Reconstructions/Cell Groups...");
 		compareFiles.setToolTipText("Statistical comparisons between cell groups or individual files");
 		compareFiles.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BINOCULARS));
@@ -2790,17 +2789,9 @@ public class SNTUI extends JDialog {
 				(new DynamicCmdRunner(GroupAnalyzerCmd.class, null)).run();
 			}
 		});
+		utilitiesMenu.add(plotMenuItem);
 		utilitiesMenu.addSeparator();
-		final JMenuItem graphGenerator = GuiUtils.MenuItems.createDendrogram();
-		utilitiesMenu.add(graphGenerator);
-		graphGenerator.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
-			if (tree == null) return;
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("tree", tree);
-			(new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
-		});
+
 		final JMenuItem annotGenerator = GuiUtils.MenuItems.createAnnotionGraph();
 		utilitiesMenu.add(annotGenerator);
 		annotGenerator.addActionListener(e -> {
@@ -2811,6 +2802,26 @@ public class SNTUI extends JDialog {
 			inputs.put("trees", trees);
 			(new DynamicCmdRunner(AnnotationGraphGeneratorCmd.class, inputs)).run();
 		});
+		final JMenuItem graphGenerator = GuiUtils.MenuItems.createDendrogram();
+		utilitiesMenu.add(graphGenerator);
+		graphGenerator.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Tree tree = getPathManager().getSingleTree();
+			if (tree == null) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("tree", tree);
+			(new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
+		});
+		final JMenuItem figureGenerator = GuiUtils.MenuItems.renderQuick();
+		figureGenerator.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Collection<Tree> trees = getPathManager().getMultipleTrees();
+			if (trees == null || trees.isEmpty()) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("trees", trees);
+			(new DynamicCmdRunner(FigCreatorCmd.class, inputs)).run();
+		});
+		utilitiesMenu.add(figureGenerator);
 		utilitiesMenu.addSeparator();
 
 		// similar to File>Autotrace Segmented Image File... but assuming current image as source,
@@ -3956,6 +3967,10 @@ public class SNTUI extends JDialog {
 			return decision;
 		}
 		return false;
+	}
+
+	public SNTTable getTable() {
+		return getPathManager().getTable();
 	}
 
 	private class GuiListener

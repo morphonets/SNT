@@ -2676,6 +2676,12 @@ public class GuiUtils {
 			return jmi;
 		}
 
+		public static JMenuItem renderQuick() {
+			final JMenuItem jmi = new JMenuItem("Create Figure...", IconFactory.getMenuIcon(IconFactory.GLYPH.PERSON_CHALKBOARD));
+			jmi.setToolTipText("Creates multi-panel figures and illustrations of selected reconstructions.");
+			return jmi;
+		}
+
 		public static JMenuItem saveTablesAndPlots(final GLYPH glyph) {
 			final JMenuItem jmi = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.getMenuIcon(glyph));
 			jmi.setToolTipText("Save all tables, plots, and charts currently open");

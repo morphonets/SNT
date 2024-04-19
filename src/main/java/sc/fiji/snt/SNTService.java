@@ -600,13 +600,7 @@ public class SNTService extends AbstractService {
 	 *         IDs).
 	 */
 	public List<Tree> demoTrees() {
-		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-		final InputStream is = classloader.getResourceAsStream("ml/demo-trees/AA0001-4.json");
-		final Map<String, Tree> result = MouseLightLoader.extractTrees(is, "dendrites");
-		if (result.values().stream().anyMatch(tree -> tree == null || tree.isEmpty())) {
-			return null;
-		}
-		return new ArrayList<>(result.values());
+		return MouseLightLoader.demoTrees();
 	}
 
 	protected List<Tree> demoTreesSWC() {

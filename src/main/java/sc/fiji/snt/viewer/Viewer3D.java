@@ -1505,10 +1505,22 @@ public class Viewer3D {
 		return frame;
 	}
 
+	public Frame getFrame(final boolean visible) {
+		if (frame == null) {
+			if (Engine.OFFSCREEN == ENGINE) {
+				throw new IllegalArgumentException("Offscreen canvas cannot be displayed.");
+			}
+			final JFrame dummy = new JFrame();
+			frame = (ViewerFrame) show( 0, 0, dummy.getGraphicsConfiguration(), visible);
+			dummy.dispose();
+		}
+		return frame;
+	}
+
 	/**
 	 * Displays the viewer under specified dimensions. Useful when generating
 	 * scene animations programmatically.
-	 * 
+	 *
 	 * @param width the width of the frame. {@code -1} will set width to its maximum.
 	 * @param height the height of the frame. {@code -1} will set height to its maximum.
 	 * @return the frame containing the viewer.
@@ -1519,12 +1531,13 @@ public class Viewer3D {
 			throw new IllegalArgumentException("Offscreen canvas cannot be displayed.");
 		}
 		final JFrame dummy = new JFrame();
-		final Frame frame = show( width, height, dummy.getGraphicsConfiguration());
+		final Frame frame = show( width, height, dummy.getGraphicsConfiguration(), true);
 		dummy.dispose();
 		return frame;
 	}
 
-	private Frame show(final int width, final int height, final GraphicsConfiguration gConfiguration) {
+	private Frame show(final int width, final int height, final GraphicsConfiguration gConfiguration,
+					   final boolean visible) {
 
 		final boolean viewInitialized = initView();
 		if (!viewInitialized && frame != null) {
@@ -1554,9 +1567,11 @@ public class Viewer3D {
 		}
 		updateView();
 		frame.canvas.requestFocusInWindow();
-		frame.setVisible(true);
-		if (SNTUtils.isDebugMode()) logGLDetails();
-		gUtils.notifyIfNewVersion(0);
+		frame.setVisible(visible);
+		if (visible) {
+			if (SNTUtils.isDebugMode()) logGLDetails();
+			gUtils.notifyIfNewVersion(0);
+		}
 		return frame;
 	}
 
@@ -3207,7 +3222,7 @@ public class Viewer3D {
 				frame.manager.dispose();
 				initManagerList();
 			}
-			show((int) dim.getWidth(), (int) dim.getHeight(), gConfiguration);
+			show((int) dim.getWidth(), (int) dim.getHeight(), gConfiguration, true);
 			setEnableDarkMode(darkMode);
 			if (hasManager) {
 				frame.snapPanelToSide();
@@ -4923,6 +4938,17 @@ public class Viewer3D {
 			final JMenuItem hide = new JMenuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true));
 			hide.setIcon(IconFactory.getMenuIcon(GLYPH.EYE_SLASH));
 			utilsMenu.add(hide);
+			if (!isSNTInstance()) {
+				final JMenuItem jmi = GuiUtils.MenuItems.renderQuick();
+				jmi.addActionListener(e -> {
+					final List<Tree> trees = getSelectedTrees();
+					if (trees == null || trees.isEmpty()) return;
+					final Map<String, Object> inputs = new HashMap<>();
+					inputs.put("trees", trees);
+					runCmd(FigCreatorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+				});
+				utilsMenu.add(jmi);
+			}
 			mi = new JMenuItem("Record Rotation", IconFactory.getMenuIcon(GLYPH.VIDEO));
 			mi.addActionListener(e -> {
 				SwingUtilities.invokeLater(() -> {
@@ -7286,7 +7312,7 @@ public class Viewer3D {
 		KeyListener
 	{
 
-		private float zoomStep;
+		private float zoomStep = Prefs.DEF_ZOOM_STEP;
 		private double rotationStep;
 		private static final int DOUBLE_PRESS_INTERVAL = 300; // ms
 		private long timeKeyDown = 0; // last time key was pressed
@@ -7550,6 +7576,9 @@ public class Viewer3D {
 					changeRGB(objColor, newForeground);
 				}
 			});
+
+			// Apply foreground to annotation labels
+			((AChart)chart).overlayAnnotation.labelColor = toAWTColor(newForeground);
 
 		}
 
