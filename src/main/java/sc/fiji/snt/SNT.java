@@ -2207,6 +2207,12 @@ public class SNT extends MultiDThreePanes implements
 		// ... and change the state of the UI
 		changeUIState(SNTUI.WAITING_TO_START_PATH);
 		updateTracingViewers(true);
+		if (getUI() != null && getUI().getRecorder(false) != null) {
+			final String cmmnt = String.format("  (%3f,%.3f,%.3f)\nEnd of new path [%s]",
+					last_start_point_x * x_spacing,	last_start_point_y * y_spacing, last_start_point_z * z_spacing,
+					pathAndFillManager.getPath(pathAndFillManager.size()-1).getName());
+			getUI().getRecorder(false).recordComment(cmmnt);
+		}
 	}
 
 	protected synchronized void clickForTrace(final Point3d p, final boolean join) {
@@ -2221,21 +2227,18 @@ public class SNT extends MultiDThreePanes implements
 		final double world_y, final double world_z, final boolean join)
 	{
 
-		PointInImage joinPoint = null;
-
-		if (join) {
-			joinPoint = pathAndFillManager.nearestJoinPointOnSelectedPaths(world_x /
-				x_spacing, world_y / y_spacing, world_z / z_spacing);
-		}
-
-		// FIXME: in some of the states this doesn't make sense; check for them:
-		if (currentSearchThread != null) return;
-
-		if (temporaryPath != null) return;
-
+		// In some of the states this doesn't make sense; check for them:
+		if (currentSearchThread != null || temporaryPath != null)
+			return;
 		if (!fillerSet.isEmpty()) {
 			setFillThresholdFrom(world_x, world_y, world_z);
 			return;
+		}
+
+		PointInImage joinPoint = null;
+		if (join) {
+			joinPoint = pathAndFillManager.nearestJoinPointOnSelectedPaths(world_x /
+					x_spacing, world_y / y_spacing, world_z / z_spacing);
 		}
 
 		if (pathUnfinished) {
@@ -2251,6 +2254,11 @@ public class SNT extends MultiDThreePanes implements
 					getUI().reset();
 				}
 				SNTUtils.error(ex.getMessage(), ex);
+			} finally {
+				if (getUI() != null && getUI().getRecorder(false) != null) {
+					final String cmmnt = String.format("  (%3f,%.3f,%.3f)", world_x, world_y, world_z);
+					getUI().getRecorder(false).recordComment(cmmnt);
+				}
 			}
 		}
 		else {
@@ -2261,6 +2269,11 @@ public class SNT extends MultiDThreePanes implements
 			}
 			startPath(world_x, world_y, world_z, joinPoint);
 			changeUIState(SNTUI.PARTIAL_PATH);
+			if (getUI() != null && getUI().getRecorder(false) != null) {
+				String cmmnt = String.format("Start of new path\n  (%3f,%.3f,%.3f); fork point: %s", world_x, world_y,
+						world_z, ((joinPoint == null) ? "none" : joinPoint));
+				getUI().getRecorder(false).recordComment(cmmnt);
+			}
 		}
 
 	}

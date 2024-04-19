@@ -871,6 +871,11 @@ public class Viewer3D {
 			.getGreen(), color.getBlue(), color.getAlpha());
 	}
 
+	private Color fromAWTColor(final java.awt.Color color, final Color fallbackColor) {
+		return (color == null) ? fallbackColor : new Color(color.getRed(), color
+			.getGreen(), color.getBlue(), color.getAlpha());
+	}
+
 	private Color fromColorRGB(final ColorRGB color) {
 		return (color == null) ? getDefColor() : new Color(color.getRed(), color
 			.getGreen(), color.getBlue(), color.getAlpha());
@@ -6840,9 +6845,11 @@ public class Viewer3D {
 
 				// Assemble arbor(s)
 				final LineStripPlus line = new LineStripPlus(p.size(), p.getSWCType());
+				final Color fallbackColor = getDefColor().alpha(1f);
 				for (int i = 0; i < p.size(); ++i) {
 					final PointInImage pim = p.getNode(i);
-					final Color color = fromAWTColor(p.hasNodeColors() ? p.getNodeColor(i) : p.getColor());
+					final Color color =
+							fromAWTColor(p.hasNodeColors() ? p.getNodeColor(i) : p.getColor(), fallbackColor);
 					final float width = Math.max((float) p.getNodeRadius(i), DEF_NODE_RADIUS);
 					if (i == 0 && p.getStartJoinsPoint() != null) {
 						final Coord3d joint = new Coord3d(p.getStartJoinsPoint().x, p.getStartJoinsPoint().y, p.getStartJoinsPoint().z);

@@ -282,7 +282,7 @@ public class SNTCommandFinder {
 		if (recorder == null)
 			return;
 		if (cmdAction.id.startsWith("<HTML>") || cmdAction.description().startsWith("Scripts")) {
-			recordComment("Command is not recordable... [id: "+ cmdAction.id +"]");
+			recordComment("Non-recordable command... [id: "+ cmdAction.id +"]");
 			return;
 		}
 		if (recordPresetAPICall(cmdAction))

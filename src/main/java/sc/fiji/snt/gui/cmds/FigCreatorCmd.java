@@ -96,6 +96,7 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			montage(renderingTrees, type + " " + view);
 		else
 			render(renderingTrees, type + " " + view);
+		resetUI();
 	}
 
 	private static Viewer3D.ViewMode getView(final String flag) {

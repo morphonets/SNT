@@ -2678,7 +2678,7 @@ public class GuiUtils {
 
 		public static JMenuItem renderQuick() {
 			final JMenuItem jmi = new JMenuItem("Create Figure...", IconFactory.getMenuIcon(IconFactory.GLYPH.PERSON_CHALKBOARD));
-			jmi.setToolTipText("Creates multi-panel figures and illustrations of selected reconstructions.");
+			jmi.setToolTipText("Creates multi-panel figures and illustrations of selected reconstructions");
 			return jmi;
 		}
 
