@@ -289,7 +289,7 @@ public class ImgUtils
      * Wrap an {@link ImagePlus} to a {@link RandomAccessibleInterval} such that the number of dimensions in
      * the resulting rai is 5 and the axis order is XYCZT.
      * Axes that are not present in the input imp have singleton dimensions in the rai.
-     *
+     * <p>
      * For example, given a 2D, multichannel imp, the dimensions of the result rai are
      * [ |X|, |Y|, |C|, 1, 1 ]
      * @param imp

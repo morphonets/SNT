@@ -152,7 +152,7 @@ public class MultiViewer3D {
 		layout.setHgap(gap/2);
 		layout.setVgap(gap/2);
 		frame.setLayout(layout);
-		frame.setBackground(BKG_DARK); // by default individual viewers have dark background
+		frame.getContentPane().setBackground(BKG_DARK); // by default individual viewers have dark background
 
 		final List<CanvasAWT> canvases = new ArrayList<>(viewers.size());
 		final int initialSize = initialViewerSize();
@@ -186,8 +186,9 @@ public class MultiViewer3D {
 				canvas.addKeyListener(new KeyAdapter() {
 					@Override
 					public void keyPressed(final KeyEvent e) {
-						if (e.getKeyCode() == KeyEvent.VK_ESCAPE)
-							canvases.forEach(Component::transferFocusBackward);
+						if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+							frame.requestFocusInWindow();
+						}
 					}
 				})
 		);
@@ -197,10 +198,10 @@ public class MultiViewer3D {
 				switch (e.getKeyChar()) {
 					case 'D':
 					case 'd':
-						if (frame.getBackground().equals(BKG_DARK))
-							frame.setBackground(BKG_LIGHT);
+						if (frame.getContentPane().getBackground().equals(BKG_DARK))
+							frame.getContentPane().setBackground(BKG_LIGHT);
 						else
-							frame.setBackground(BKG_DARK);
+							frame.getContentPane().setBackground(BKG_DARK);
 						break;
 					default:
 						super.keyPressed(e);
@@ -257,7 +258,7 @@ public class MultiViewer3D {
 		});
 		// If needed, add an extra space at the bottom to facilitate interaction w/ all viewers
 		if (gridRows * gridCols <= viewers.size())
-			frame.getRootPane().setBorder(BorderFactory.createEmptyBorder(0, 0,
+			((JComponent)frame.getContentPane()).setBorder(BorderFactory.createEmptyBorder(0, 0,
 					(gap>0) ? gap : GuiUtils.getMenuItemHeight(), 0));
 		return frame;
 	}

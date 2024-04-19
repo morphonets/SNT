@@ -271,8 +271,7 @@ public class ImpUtils {
 	 *            'cil810' for the respective Cell Image Library entries, and
 	 *            'binary timelapse' for a small 4-frame sequence of neurite growth
 	 * @return the demo image, or null if data could no be retrieved
-	 * @see #demoTree(String)
-	 */
+     */
 	public static ImagePlus demo(final String img) {
 		if (img == null)
 			throw new IllegalArgumentException("demoImage(): argument cannot be null");

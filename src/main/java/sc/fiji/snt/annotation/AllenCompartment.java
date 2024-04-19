@@ -66,7 +66,7 @@ public class AllenCompartment implements BrainAnnotation {
 	private ArrayList<AllenCompartment> parentStructure;
 
 	/**
-	 * Instantiates a new ARA annotation from an UUID (as used by MouseLight's
+	 * Instantiates a new ARA annotation from a UUID (as used by MouseLight's
 	 * database).
 	 *
 	 * @param uuid the ML UUID identifying the annotation
@@ -204,8 +204,8 @@ public class AllenCompartment implements BrainAnnotation {
 	 * Gets the tree path of this compartment. The TreePath is the list of parent
 	 * compartments that uniquely identify this compartment in the ontologies
 	 * hierarchical tree. The elements of the list are ordered with the root ('Whole
-	 * Brain") as the first element of the list. In practice, this is equivalent to
-	 * appending this compartment to the the list returned by {@link #getAncestors()}.
+	 * Brain') as the first element of the list. In practice, this is equivalent to
+	 * appending this compartment to the list returned by {@link #getAncestors()}.
 	 *
 	 * @return the tree path that uniquely identifies this compartment as a node in
 	 *         the CCF ontologies tree
@@ -260,7 +260,7 @@ public class AllenCompartment implements BrainAnnotation {
 	 *
 	 * @param level the ancestor level as negative 1-based index. E.g., {@code -1}
 	 *              retrieves the last ancestor (parent), {@code -2} retrieves the
-	 *              second to last, etc, all the way down to
+	 *              second to last, etc., all the way down to
 	 *              {@code -getOntologyDepth()}, which retrieves the root ontology
 	 *              ("Whole Brain")
 	 * @return the nth ancestor

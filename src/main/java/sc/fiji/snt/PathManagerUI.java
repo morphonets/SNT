@@ -281,7 +281,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi = new JMenuItem(MultiPathActionListener.REPLACE_TAG_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH_ARROW));
 		jmi.addActionListener(multiPathListener);
 		customTagsMenu.add(jmi);
-		
+
 		tagsMenu.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.REMOVE_TAGS_CMD);
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TRASH));
@@ -320,7 +320,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.addActionListener(multiPathListener);
 		fitMenu.add(jmi);
 		fitMenu.addSeparator();
-		
+
 		jmi = GuiUtils.menuItemTriggeringHelpURL("<HTML>Help on <i>Refining/Fitting", FIT_URI);
 		fitMenu.add(jmi);
 
@@ -385,7 +385,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setToolTipText("Computes distributions of metrics for complete arbors");
 		jmi.addActionListener(multiPathListener);
 		distributionMenu.add(jmi);
-	
+
 		final JMenu measureMenu = new JMenu("Measurements");
 		measureMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
 		advanced.add(measureMenu);
@@ -420,7 +420,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EXPORT));
 		jmi.addActionListener(multiPathListener);
 		advanced.add(jmi);
-		
+
 		// Search Bar TreeSearchable
 		searchableBar = new PathManagerUISearchableBar(this);
         final JPopupMenu popup = new JPopupMenu();
@@ -1174,7 +1174,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			this.fitHelper = fitHelper;
 			this.fit = fit;
 		}
-	
+
 		@Override
 		public String doInBackground() {
 			final CommandService cmdService = plugin.getContext().getService(CommandService.class);
@@ -1734,7 +1734,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	/**
 	 * Refreshes (Repaints) the Path Manager JTree.
-	 * 
+	 *
 	 * @param selectedPathsOnly Whether only selected nodes in the JTree should be
 	 *                          updated (repainted). If {@code false} all nodes are
 	 *                          updated.
@@ -2655,7 +2655,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			if (APPEND_ALL_CHILDREN_CMD.equals(cmd) || APPEND_DIRECT_CHILDREN_CMD.equals(cmd)) {
 				if (assumeAll)
 					guiUtils.error("No Path(s) are currently selected.");
-				else 
+				else
 					selectChildren(selectedPaths, APPEND_ALL_CHILDREN_CMD.equals(cmd));
 				return;
 			}
@@ -3156,7 +3156,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 
 			}
-	
+
 			else {
 				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
 				return;
@@ -3201,13 +3201,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			switch (choice) {
 			case "Cell ID":
-				Collections.sort(primaryPaths, (p1, p2) -> Integer.compare(p1.getTreeID(), p2.getTreeID()));
+				primaryPaths.sort((p1, p2) -> Integer.compare(p1.getTreeID(), p2.getTreeID()));
 				break;
 			case "Cell label":
-				Collections.sort(primaryPaths, (p1, p2) -> p1.getTreeLabel().compareTo(p2.getTreeLabel()));
+				primaryPaths.sort((p1, p2) -> p1.getTreeLabel().compareTo(p2.getTreeLabel()));
 				break;
 			case "Path name":
-				Collections.sort(primaryPaths, (p1, p2) -> p1.getName().compareTo(p2.getName()));
+				primaryPaths.sort((p1, p2) -> p1.getName().compareTo(p2.getName()));
 				break;
 			case "Path length":
 				primaryPaths.sort((p1, p2) -> Double.compare(p1.getLength(), p2.getLength()));
@@ -3219,7 +3219,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				primaryPaths.sort((p1, p2) -> Integer.compare(p1.getChannel(), p2.getChannel()));
 				break;
 			case "Traced frame":
-				Collections.sort(primaryPaths, (p1, p2) -> Integer.compare(p1.getFrame(), p2.getFrame()));
+				primaryPaths.sort((p1, p2) -> Integer.compare(p1.getFrame(), p2.getFrame()));
 				break;
 			default:
 				guiUtils.error("Not a recognized sorting option.");

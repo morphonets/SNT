@@ -36,7 +36,7 @@ import java.util.function.Consumer;
 
 /**
  * Static helpers for creating lazy filtered images
- *
+ * <p>
  * This Class is a direct port of code written by the Saalfeld lab at Janelia Research Campus, original source at
  * <a href=https://github.com/saalfeldlab/hot-knife/blob/master/src/main/java/org/janelia/saalfeldlab/hotknife/util/Lazy.java>https://github.com/saalfeldlab/hot-knife</a>
  *

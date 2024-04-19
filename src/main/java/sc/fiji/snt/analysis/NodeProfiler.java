@@ -162,7 +162,6 @@ public class NodeProfiler extends CommonDynamicCmd {
 		mis.setMaximumValue(path.size());
 		if (nodeStep >= path.size())
 			mis.setValue(this, 1);
-		;
 		resolveInput("imp");
 		resolveInput("dataset");
 		updateMsg();
@@ -390,11 +389,8 @@ public class NodeProfiler extends CommonDynamicCmd {
 
 	/**
 	 * Sets the shape of the iterating cursor.
-	 * 
-	 * @param shape Either {@link ProfileProcessor.Shape.LINE},
-	 *              {@link ProfileProcessor.Shape.CIRCLE},
-	 *              {@link ProfileProcessor.Shape.DISK}, or
-	 *              {@link ProfileProcessor.Shape.HYPERSPHERE}
+	 *
+	 * @param shape A {@link ProfileProcessor.Shape}
 	 */
 	public void setShape(final ProfileProcessor.Shape shape) {
 		if (shape == ProfileProcessor.Shape.NONE)

@@ -617,7 +617,7 @@ public class ShollPlot extends Plot {
 		if (plots.size() == 1) {
 			plots.get(0).show();
 		} else {
-			Collections.sort(plots, (p1, p2) -> (p1.getTitle().compareTo(p2.getTitle())));
+			plots.sort((p1, p2) -> (p1.getTitle().compareTo(p2.getTitle())));
 			final List<ImagePlus> imps = new ArrayList<>();
 			plots.forEach(p -> imps.add(p.getImagePlus()));
 			final ImagePlus res = ImpUtils.toStack(imps);

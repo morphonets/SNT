@@ -26,6 +26,7 @@ import ij.ImagePlus;
 
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
+import org.scijava.module.ModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
@@ -47,16 +48,16 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
 	private String style;
 
-	@Parameter(label = "Type:", choices = { "2D raster (bitmap) image", "2D scalable vector graphics",
-			"3D " + "(interactive)" }, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
+	@Parameter(label = "Type:", choices = { "2D raster (monochrome bitmap image)", "2D scalable vector graphics",
+			"3D (interactive)" }, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
 	private String type;
 
 	@Parameter(label = "View:", choices = { "XY (default)", "XZ", "ZY" },
 			style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
 	private String view;
 
-	@Parameter(label = "Positioning:", choices = { "Absolute (original locations)",
-			"Relative (somas at common origin)" }, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
+	@Parameter(label = "Positioning:", choices = { "Absolute (original coordinates)",
+			"Relative (soma(s) at common origin)" }, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
 	private String normalize;
 
 	@Parameter(persist = false, visibility = ItemVisibility.MESSAGE)
@@ -73,6 +74,8 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			return;
 		}
 		if (trees.size() == 1) {
+			final ModuleItem<String> mi = getInfo().getInput("style", String.class);
+			mi.setValue(this, mi.getChoices().get(0));
 			msg = "NB: Only 1 reconstruction available. Montage options will be ignored...";
 		} else {
 			removeInput(getInfo().getInput("msg", String.class));
@@ -185,6 +188,7 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 	 *                      <tt>center</tt>: whether trees should be  translated so that their roots/somas are displayed at a
 	 *                      common origin (0,0,0)
 	 *                     </p>
+	 * @return a reference to the displayed viewer
 	 */
 	public static Object render(final Collection<Tree> trees, final String renderOptions) {
 		final String flags = renderOptions.toLowerCase();

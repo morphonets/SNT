@@ -181,11 +181,9 @@ public class Annotation3D {
 	}
 
 	/**
-	 * 
+	 *
 	 * @param colormap
-	 * @param min
-	 * @param max
-	 */
+     */
 	public void colorCode(final String colormap, String axis) {
 		if (!isColorCodeAllowed())
 			throw new IllegalArgumentException("The current " + getType() + "annot. cannot be colorcoded");
