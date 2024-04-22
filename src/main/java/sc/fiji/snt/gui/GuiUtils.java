@@ -228,17 +228,17 @@ public class GuiUtils {
 	}
 
 	public void showNotification(final String msg, final Number msDelay) {
-		String parsedMsg;
+		StringBuilder parsedMsg;
 		if (!msg.startsWith("<HTML>")) {
 			final String[] lines = msg.split("\n");
-			parsedMsg = "<HTML><b>"+ lines[0] + "</b>";
+			parsedMsg = new StringBuilder("<HTML><b>" + lines[0] + "</b>");
 			for (int i = 1; i < lines.length; i++) {
-				parsedMsg += "<br>" + lines[i];
+				parsedMsg.append("<br>").append(lines[i]);
 			}
 		}
 		else
-			parsedMsg = msg;
-		showNotification(new JLabel(parsedMsg), msDelay.intValue());
+			parsedMsg = new StringBuilder(msg);
+		showNotification(new JLabel(parsedMsg.toString()), msDelay.intValue());
 	}
 
 	public void showNotification(final JLabel msg, final int msDelay) {

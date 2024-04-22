@@ -2614,21 +2614,7 @@ public class SNTUI extends JDialog {
 					warnOnPossibleAnnotationLoss();
 			}
 		});
-		final JMenuItem exportAllSWCMenuItem = new JMenuItem("Export As SWC...");
-		exportAllSWCMenuItem.addActionListener( e -> {
-			if (plugin.accessToValidImageData() && pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
-					"These tracings were obtained from a spatially uncalibrated "
-							+ "image but the SWC specification assumes all coordinates to be " + "in "
-							+ GuiUtils.micrometer() + ". Do you really want to proceed " + "with the SWC export?",
-					"Warning"))
-				return;
-
-			final SWCExportDialog dialog = new SWCExportDialog(SNTUI.this, plugin.getImagePlus(), getProposedSavingFile("swc"));
-			if (dialog.succeeded()) {
-				saveAllPathsToSwc(dialog.getFile().getAbsolutePath(), dialog.getFileHeader());
-				warnOnPossibleAnnotationLoss();
-			}	
-		});
+		final JMenuItem exportAllSWCMenuItem = getExportSWCMenuItem();
 		exportSubmenu.addSeparator();
 		exportSubmenu.add(exportAllSWCMenuItem);
 
@@ -2907,6 +2893,25 @@ public class SNTUI extends JDialog {
 		});
 		viewMenu.add(consoleJMI);
 		return menuBar;
+	}
+
+	private JMenuItem getExportSWCMenuItem() {
+		final JMenuItem exportAllSWCMenuItem = new JMenuItem("Export As SWC...");
+		exportAllSWCMenuItem.addActionListener( e -> {
+			if (plugin.accessToValidImageData() && pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
+					"These tracings were obtained from a spatially uncalibrated "
+							+ "image but the SWC specification assumes all coordinates to be " + "in "
+							+ GuiUtils.micrometer() + ". Do you really want to proceed " + "with the SWC export?",
+					"Warning"))
+				return;
+
+			final SWCExportDialog dialog = new SWCExportDialog(SNTUI.this, plugin.getImagePlus(), getProposedSavingFile("swc"));
+			if (dialog.succeeded()) {
+				saveAllPathsToSwc(dialog.getFile().getAbsolutePath(), dialog.getFileHeader());
+				warnOnPossibleAnnotationLoss();
+			}
+		});
+		return exportAllSWCMenuItem;
 	}
 
 	private JMenu showFolderMenu(final ScriptInstaller installer) {

@@ -67,8 +67,7 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 	@Parameter(required = true)
 	private Tree tree;
 
-	private SNTChart hist;
-	private String treeLabel;
+    private String treeLabel;
 
 	@SuppressWarnings("unused")
 	private void init() {
@@ -124,7 +123,8 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 
 		statusService.showStatus("Classifying reconstruction...");
 		final TreeStatistics tStats = new TreeStatistics(tree);
-		if (histogramType.toLowerCase().contains("length")) {
+        SNTChart hist;
+        if (histogramType.toLowerCase().contains("length")) {
 			hist = (splitByHemisphere) ?
 					tStats.getAnnotatedLengthHistogram(ajustedOntologyDepth(), "ratio")
 					: tStats.getAnnotatedLengthHistogram(ajustedOntologyDepth());

@@ -214,6 +214,7 @@ public class DemoRunner {
 				if (!prepNonImgLoading())
 					exit();
 				try {
+					assert snt != null;
 					snt.getPathAndFillManager().addTrees(sntService.demoTrees());
 					snt.setSinglePane(true);
 					snt.rebuildDisplayCanvases();
@@ -250,7 +251,9 @@ public class DemoRunner {
 			@Override
 			public void load() {
 				super.load();
+				assert snt != null;
 				if (snt.getPathAndFillManager().size() > 1) { // apply tags
+					assert ui != null;
 					ui.getPathManager().applyDefaultTags("Traced Channel");
 					ui.getPathManager().applyDefaultTags("Traced Frame");
 				}
@@ -305,13 +308,14 @@ public class DemoRunner {
 			@Override
 			public void load() {
 				super.load();
+				assert snt != null;
 				snt.enableSnapCursor(true);
 				snt.getUI().setRenderingScale(6.0);
 				snt.enableAstar(true);
 			}
 
 		};
-		entry.summary = "Downloads the NeuronJ demo dataset (image and traced neurites).";
+		entry.summary = "Downloads the test dataset (image and traced neurites) of the NeuronJ legacy plugin.";
 		entry.data = "Image (2D; 314KB) and tracings (2.2KB)";
 		entry.source = "NeuronJ, https://imagej.net/plugins/neuronj";
 		entry.online = true;
@@ -340,10 +344,10 @@ public class DemoRunner {
 			}
 		};
 
-		entry.summary = "Downloads the Spot Spine (https://imagej.net/plugins/spot-spine) demo dataset (image stack " +
-				"and traced dendrite).";
+		entry.summary = "Downloads the test dataset of the Spot Spine software (image stack and traced dendrite).";
 		entry.data = "Image (3D; 0.7MB) and tracings (160KB)";
-		entry.source = "Spot Spine manuscript, doi:10.12688/f1000research.146327.1";
+		entry.source = "Spot Spine (https://imagej.net/plugins/spot-spine) manuscript, doi:10.12688/f1000research" +
+				".146327.1";
 		entry.online = true;
 		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/misc/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.swc";
 		return entry;

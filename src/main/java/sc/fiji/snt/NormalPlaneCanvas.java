@@ -50,9 +50,8 @@ class NormalPlaneCanvas extends TracerCanvas {
 	private double maxScore = Double.MIN_VALUE;
 	private double minScore = Double.MAX_VALUE;
 	private int last_slice = -1;
-	private int last_editable_node = -1;
 
-	private final double[] centre_x_positions;
+    private final double[] centre_x_positions;
 	private final double[] centre_y_positions;
 	private final double[] radii;
 	private final double[] modeRadii;
@@ -177,7 +176,7 @@ class NormalPlaneCanvas extends TracerCanvas {
 			final int pz = fittedPath.getZUnscaled(fittedIndex);
 			tracerPlugin.setZPositionAllPanes(px, py, pz);
 			last_slice = z;
-			last_editable_node = fittedIndex;
+            int last_editable_node = fittedIndex;
 			fittedPath.setEditableNode(last_editable_node);
 		}
 

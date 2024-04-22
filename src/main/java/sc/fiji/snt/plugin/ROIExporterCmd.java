@@ -86,9 +86,7 @@ public class ROIExporterCmd implements Command {
 	@Parameter(required = false)
 	private ImagePlus imp;
 
-	private Overlay overlay;
-	private RoiConverter converter;
-	private boolean warningsExist = false;
+    private boolean warningsExist = false;
 
 	/* (non-Javadoc)
 	 * @see java.lang.Runnable#run()
@@ -96,7 +94,7 @@ public class ROIExporterCmd implements Command {
 	@Override
 	public void run() {
 
-		converter = (imp == null ) ? new RoiConverter(tree) : new RoiConverter(tree, imp);
+        RoiConverter converter = (imp == null) ? new RoiConverter(tree) : new RoiConverter(tree, imp);
 		if (converter.getParsedTree().isEmpty()) {
 			warnUser("None of the input paths could be converted to ROIs.");
 			return;
@@ -114,7 +112,7 @@ public class ROIExporterCmd implements Command {
 
 		converter.useSWCcolors(useSWCcolors);
 		converter.setStrokeWidth((avgWidth) ? -1 : 0);
-		overlay = new Overlay();
+        Overlay overlay = new Overlay();
 
 		if (viewChoice.contains("XZ")) converter.setView(RoiConverter.XZ_PLANE);
 		else if (viewChoice.contains("ZY")) converter.setView(

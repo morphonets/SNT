@@ -303,14 +303,14 @@ public class NodeProfiler extends CommonDynamicCmd {
 	}
 
 	/**
-	 * 
+	 *
 	 * @param path the path to be profiled, using its CT positions in the image
 	 * @return The profile (Mean±SD of all the profiled data)
 	 */
 	public Plot getPlot(final Path path) {
 		final Plot plot = new Plot(getTitle(path, -1), getXAxisLabel(path), getYAxisLabel(path, -1));
 		final Color[] colors = SNTColor.getDistinctColorsAWT((int) dataset.getChannels());
-		String legend = "";
+		StringBuilder legend = new StringBuilder();
 		for (int ch = 0; ch < dataset.getChannels(); ch++) {
 			System.out.println("Processing " + ch);
 			final SNTTable table = getTable(path, ch);
@@ -324,10 +324,10 @@ public class NodeProfiler extends CommonDynamicCmd {
 			final ArrayList<Double> xvalues = assembleXValuesFromProfiledValues(table);
 			plot.setColor(colors[ch], colors[ch]);
 			plot.addPoints(xvalues, ymeans, ystds, Plot.CONNECTED_CIRCLES);
-			legend += "Ch " + (ch + 1) + "\n"; // + " Mean±SD\n";
+			legend.append("Ch ").append(ch + 1).append("\n"); // + " Mean±SD\n";
 		}
 		plot.setColor(Color.BLACK, null);
-		plot.setLegend(legend, Plot.AUTO_POSITION);
+		plot.setLegend(legend.toString(), Plot.AUTO_POSITION);
 		plot.setLimitsToFit(true);
 		return plot;
 	}

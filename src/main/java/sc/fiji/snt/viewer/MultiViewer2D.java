@@ -75,9 +75,7 @@ public class MultiViewer2D {
 	private boolean gridVisible;
 	private boolean axesVisible;
 	private boolean outlineVisible;
-	private double legendMin = Double.MAX_VALUE;
-	private double legendMax = Double.MIN_VALUE;
-	private String label;
+    private String label;
 
 	public MultiViewer2D(final List<Viewer2D> viewers) {
 		if (viewers == null)
@@ -150,7 +148,9 @@ public class MultiViewer2D {
 		if (colorTable == null || viewers == null) {
 			throw new IllegalArgumentException("Cannot set legend from null viewers or null colorTable");
 		}
-		if (min >=max) {
+        double legendMin = Double.MAX_VALUE;
+        double legendMax = Double.MIN_VALUE;
+        if (min >=max) {
 			legendMin = Double.MAX_VALUE;
 			legendMax = Double.MIN_VALUE;
 			for (Viewer2D viewer: viewers) {

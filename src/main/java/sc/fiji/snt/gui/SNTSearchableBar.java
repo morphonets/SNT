@@ -296,6 +296,11 @@ public class SNTSearchableBar extends SearchableBar {
 		mi.addActionListener(e -> setSearchHistory(null));
 		popup.add(mi);
 		popup.addSeparator();
+		popup.add(getTipsAndShortcutsMenuItem());
+		return button;
+	}
+
+	private JMenuItem getTipsAndShortcutsMenuItem() {
 		final JMenuItem mi2 = new JMenuItem("Tips & Shortcuts...");
 		mi2.addActionListener(e -> {
 			if (objectDescription == null) objectDescription = "items";
@@ -314,8 +319,7 @@ public class SNTSearchableBar extends SearchableBar {
 					msg += "</ol></div></html>";
 			getGuiUtils().centeredMsg(msg, "Text-based Filtering");
 		});
-		popup.add(mi2);
-		return button;
+		return mi2;
 	}
 
 	private void updateSearch() {

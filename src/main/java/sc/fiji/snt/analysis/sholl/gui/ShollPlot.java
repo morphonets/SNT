@@ -27,7 +27,6 @@ import java.awt.FontMetrics;
 import java.awt.Rectangle;
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.math3.stat.StatUtils;

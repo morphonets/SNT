@@ -377,10 +377,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 	private class AnalysisRunner implements Runnable {
 
 		private final Tree tree;
-		private TreeParser parser;
-		private LinearProfileStats lStats;
-		private NormalizedProfileStats nStats;
-		private final String TREE_LABEL;
+        private final String TREE_LABEL;
 
 		public AnalysisRunner(final Tree tree) {
 			this.tree = tree;
@@ -398,7 +395,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 				logger.warn(TREE_LABEL + msg);
 				return;
 			}
-			parser = new TreeParser(tree);
+            TreeParser parser = new TreeParser(tree);
 			parser.setStepSize(adjustedStepSize());
 			try {
 				parser.setCenter(ShollAnalysisTreeCmd.getCenterFromChoice(centerChoice));
@@ -422,7 +419,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 			final Profile profile = parser.getProfile();
 
 			// Linear profile stats
-			lStats = new LinearProfileStats(profile);
+            LinearProfileStats lStats = new LinearProfileStats(profile);
 			lStats.setLogger(logger);
 			int primaryBranches;
 			try {
@@ -451,7 +448,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 			}
 
 			/// Normalized profile stats
-			nStats = getNormalizedProfileStats(profile);
+            NormalizedProfileStats nStats = getNormalizedProfileStats(profile);
 
 			// Plots
 			if (plotOutputDescription.toLowerCase().contains("linear")) {

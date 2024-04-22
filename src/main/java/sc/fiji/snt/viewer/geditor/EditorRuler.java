@@ -572,7 +572,7 @@ class EditorRuler extends JComponent implements MouseMotionListener,
 	/**
 	 * Fixes the formatting of -0.
 	 */
-	private final String format(double value)
+	private String format(double value)
 	{
 		String text = numberFormat.format(value);
 

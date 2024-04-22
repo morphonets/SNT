@@ -40,14 +40,13 @@ public class Comparator extends ContextCommand {
 	private final Profile profile2;
 	private final double[] p1Counts;
 	private final double[] p2Counts;
-	private final int nPoints;
-	private final SimpleRegression regression;
+    private final SimpleRegression regression;
 
 	public Comparator(final Profile profile1, final Profile profile2) {
 		validateProfile(profile1, profile2);
 		this.profile1 = profile1;
 		this.profile2 = profile2;
-		nPoints = Math.min(profile1.size(), profile2.size());
+        int nPoints = Math.min(profile1.size(), profile2.size());
 		p1Counts = profile1.countsAsArray();
 		p2Counts = profile2.countsAsArray();
 		regression = new SimpleRegression();

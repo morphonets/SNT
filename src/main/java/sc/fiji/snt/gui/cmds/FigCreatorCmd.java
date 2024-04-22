@@ -92,10 +92,16 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 		if (!type.toLowerCase().contains("3d"))
 			transformationFlags += " " + view;
 		final Collection<Tree> renderingTrees = getTreesForRendering(trees, transformationFlags);
+		final Object result;
 		if (style.toLowerCase().contains("montage") && trees.size() > 1)
-			montage(renderingTrees, type + " " + view);
+			result = montage(renderingTrees, type + " " + view);
 		else
-			render(renderingTrees, type + " " + view);
+			result = render(renderingTrees, type + " " + view);
+		if (result instanceof ImagePlus && (((ImagePlus) result).getWidth() / trees.size() < 200 ||
+				((ImagePlus) result).getHeight() / trees.size() < 200)) {
+			msg("Created figure may not have enough detail (paths were digitized at 1µm/pixel). It " +
+					"may be preferable to use scalable vector graphics instead.", "Coarse Result?");
+		}
 		resetUI();
 	}
 

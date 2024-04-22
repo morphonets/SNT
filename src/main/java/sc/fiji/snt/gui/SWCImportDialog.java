@@ -226,7 +226,7 @@ public class SWCImportDialog extends JDialog {
 		return assumePixelCoordinates;
 	}
 
-	private class BoxPanel extends JPanel {
+	private static class BoxPanel extends JPanel {
 
 		final JFormattedTextField[] fields;
 

@@ -51,8 +51,7 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 
 	private static final String BASE_URL = "https://neuromorpho.org/api/";
 	private final static String NEURON_BASE_URL = BASE_URL + "neuron/name/";
-	private String lastKnownStatus;
-	private boolean sourceVersion;
+    private boolean sourceVersion;
 
 	private JSONObject getJSon(final String url, final String anchor) {
 		Response response = null;
@@ -86,7 +85,7 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 	public boolean isDatabaseAvailable() {
 		final JSONObject jObject = getJSon(BASE_URL, "health");
 		if (jObject == null) return false;
-		lastKnownStatus = (String) jObject.get("status");
+        String lastKnownStatus = (String) jObject.get("status");
 		return "UP".equals(lastKnownStatus);
 	}
 

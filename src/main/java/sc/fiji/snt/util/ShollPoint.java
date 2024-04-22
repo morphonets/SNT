@@ -116,8 +116,4 @@ public class ShollPoint extends PointInImage {
 		return isSameLocation((ShollPoint) object);
 	}
 
-	@Override
-	public int hashCode() {
-		return super.hashCode();
-	}
 }

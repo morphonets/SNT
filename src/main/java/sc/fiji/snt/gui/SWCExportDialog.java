@@ -78,9 +78,7 @@ public class SWCExportDialog extends JDialog {
 
 	private final FilePicker filePicker;
 	private final JTable metadataTable;
-	private final JButton okButton;
-	private final JButton cancelButton;
-	private final ImagePlus imp;
+    private final ImagePlus imp;
 	private boolean collapseFileHeader;
 	private boolean collapseWarning;
 
@@ -97,7 +95,7 @@ public class SWCExportDialog extends JDialog {
 		this.loadPrefs(ui.getPrefs());
 		filePicker = new FilePicker(FilePicker.SAVE_DIALOG,
 				(suggestedFile == null) ? getLastExportFile(ui.getPrefs()) : suggestedFile, "swc");
-		okButton = new JButton("Save");
+        final JButton okButton = new JButton("Save");
 		okButton.addActionListener(e -> {
 			if (filePicker.invalidFileChoiceError())
 				return;
@@ -105,7 +103,7 @@ public class SWCExportDialog extends JDialog {
 			savePrefs(ui.getPrefs());
 			dispose();
 		});
-		cancelButton = new JButton("Cancel");
+        final JButton cancelButton = new JButton("Cancel");
 		cancelButton.addActionListener(e -> {
 			succeeded = false;
 			dispose();

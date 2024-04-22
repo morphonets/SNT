@@ -57,8 +57,7 @@ public class AllenCompartment implements BrainAnnotation {
 
 	private String name;
 	private String acronym;
-	private String[] aliases;
-	private int structureId;
+    private int structureId;
 	private UUID uuid;
 	private JSONObject jsonObj;
 	// Only access parentStructure via a call to getTreePath()
@@ -324,8 +323,7 @@ public class AllenCompartment implements BrainAnnotation {
 
 	@Override
 	public String[] aliases() {
-		aliases = getArray(jsonObj.getJSONArray("aliases"));
-		return aliases;
+		return getArray(jsonObj.getJSONArray("aliases"));
 	}
 
 	/**

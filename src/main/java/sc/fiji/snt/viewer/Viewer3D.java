@@ -3446,16 +3446,14 @@ public class Viewer3D {
 		private float t;
 
 		boolean validPrompt(final String title, final String[] firstCcLabel, final String[] secondCcLabel, final boolean includeSize) {
-			List<String> labels = new ArrayList<>();
-			labels.addAll(Arrays.asList(firstCcLabel));
+            List<String> labels = new ArrayList<>(Arrays.asList(firstCcLabel));
 			if (secondCcLabel != null)
 				labels.addAll(Arrays.asList(secondCcLabel));
 			if (includeSize)
 				labels.add("Size ");
 			labels.addAll(List.of("Color ", "Transparency (%) "));
-			List<String> values = new ArrayList<>();
-			values.addAll(List.of(prefs.getGuiPref("aX1", "0"), prefs.getGuiPref("aY1", "0"),
-					prefs.getGuiPref("aZ1", "0")));
+            List<String> values = new ArrayList<>(List.of(prefs.getGuiPref("aX1", "0"), prefs.getGuiPref("aY1", "0"),
+                    prefs.getGuiPref("aZ1", "0")));
 			if (secondCcLabel != null)
 				values.addAll(List.of(prefs.getGuiPref("aX2", "0"), prefs.getGuiPref("aY2", "0"),
 						prefs.getGuiPref("aZ2", "0")));
@@ -8321,7 +8319,7 @@ public class Viewer3D {
 	}
 
 	/** Defines the type of render, and view used by jzy3d */
-	private class ViewerFactory {
+	private static class ViewerFactory {
 
 		/** Returns ChartComponentFactory adopting {@link AView} */
 		private ChartFactory getUpstreamFactory(final Engine render) {

@@ -47,7 +47,6 @@ import javax.swing.*;
 public class AnnotationGraphComponent extends SNTGraphComponent {
 
     private static final long serialVersionUID = 1L;
-    private final mxGraphLayout layout;
     // Layout parameters, these are all the default value unless specified
     // Fast organic layout parameters
     private double forceConstant = 50;
@@ -60,7 +59,7 @@ public class AnnotationGraphComponent extends SNTGraphComponent {
 
     public AnnotationGraphComponent(final AnnotationGraphAdapter adapter, Context context) {
         super(adapter, context);
-        layout = new mxCircleLayout(adapter);
+        mxGraphLayout layout = new mxCircleLayout(adapter);
         layout.execute(adapter.getDefaultParent());
         new mxParallelEdgeLayout(adapter).execute(adapter.getDefaultParent());
     }
@@ -197,7 +196,7 @@ public class AnnotationGraphComponent extends SNTGraphComponent {
 					// do nothing!?
 				}
 
-				// setup the rotation for the label
+				// set up the rotation for the label
 				double angle = java.lang.Math.atan(bounds.getHeight() / bounds.getWidth());
 				double rotation = Math.toDegrees(angle);
 				if (quad) {

@@ -1014,7 +1014,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		Collections.sort(treeLabels);
 		if (includeAll)
 			treeLabels.add(0, "   -- All --  ");
-		final List<String> choices = guiUtils.getMultipleChoices("Which Structure?",
+		final List<String> choices = guiUtils.getMultipleChoices("Which Structure(s)?",
 				treeLabels.toArray(new String[trees.size()]), (includeAll) ? "   -- All --  " : null);
 		if (choices == null)
 			return null;

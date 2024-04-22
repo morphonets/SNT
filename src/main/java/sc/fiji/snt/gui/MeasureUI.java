@@ -779,8 +779,7 @@ public class MeasureUI extends JFrame {
 		private static final String ALL_SELECTED = "✓ ";
 		private final String label;
 		private final JTable table;
-		private final TableModel tableModel;
-		private final JTableHeader header;
+        private final JTableHeader header;
 		private final TableColumnModel tcm;
 		private final int targetColumn;
 		private int viewColumn;
@@ -789,7 +788,7 @@ public class MeasureUI extends JFrame {
 			super(label);
 			this.label = label;
 			this.table = table;
-			this.tableModel = table.getModel();
+            TableModel tableModel = table.getModel();
 			if (tableModel.getColumnClass(targetColumn) != Boolean.class) {
 				throw new IllegalArgumentException("Boolean column required.");
 			}
