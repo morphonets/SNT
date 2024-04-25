@@ -29,7 +29,7 @@ public interface PaneOwner {
 	public void zoomEventOccurred(boolean zoomInEvent, int x, int y,
 	                              int sourcePlane);
 
-	public void panEventOccured(int x, int y, int sourcePlane);
+	public void panEventOccurred(int x, int y, int sourcePlane);
 
 	public void showStatus(int progress, int maximum, String message);
 

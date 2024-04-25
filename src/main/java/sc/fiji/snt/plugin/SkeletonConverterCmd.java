@@ -246,7 +246,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				maskChoices.add(0, IMG_TRACED_DUP_CHOICE);
 				maskChoices.add(0, IMG_TRACED_SEC_LAYER_CHOICE);
 				originalChoices.add(0, IMG_TRACED_CHOICE);
-				if (isBinary(snt.getImagePlus())) {
+				if (isSegmented(snt.getImagePlus())) {
 					// the active image is binary: assume it is the segmented (non-skeletonized)
 					maskImgChoice = IMG_TRACED_DUP_CHOICE;
 				} else {
@@ -283,7 +283,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			return SkeletonConverter.ROI_EDGE;
 		case ROI_CONTAINED:
 			return SkeletonConverter.ROI_CONTAINED;
-		default: 
+		default:
 			return SkeletonConverter.ROI_UNSET;
 		}
 	}
@@ -294,9 +294,9 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 		else if (!roiPlane)
 			roi.setPosition(0);
 	}
-	
-	private boolean isBinary(final ImagePlus imp) {
-		return imp.getProcessor().isBinary();
+
+	private boolean isSegmented(final ImagePlus imp) {
+		return imp.getProcessor().isBinary() || imp.isThreshold();
 	}
 
 	@Override
@@ -348,7 +348,13 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 					SNTUtils.log("Duplicating loaded data");
 					chosenMaskImp = snt.getLoadedDataAsImp().duplicate();
 					if (snt.getImagePlus() != null)
+					if (snt.getImagePlus() != null) {
 						chosenMaskImp.setRoi(snt.getImagePlus().getRoi());
+						if (snt.getImagePlus().isThreshold()) {
+							chosenMaskImp.getProcessor().setThreshold(snt.getImagePlus().getProcessor().getMinThreshold(),
+									snt.getImagePlus().getProcessor().getMaxThreshold());
+						}
+					}
 					ensureMaskImgVisibleOnAbort = true;
 
 				} else if (IMG_TRACED_SEC_LAYER_CHOICE.equals(maskImgChoice)) {
@@ -360,7 +366,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				}
 				if (IMG_TRACED_CHOICE.equals(originalImgChoice)) {
 					chosenOrigImp = snt.getLoadedDataAsImp();
-				} else if (impMap != null) { // e.g. when 
+				} else if (impMap != null) { // e.g. when
 					chosenOrigImp = impMap.get(originalImgChoice);
 				}
 			}
@@ -399,7 +405,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			final Roi roi = getRoi(chosenMaskImp, chosenOrigImp, snt.getImagePlus());
 			// Extra user-friendliness: Aggregate unexpected settings in a single list
 			final boolean isSame = (useFileChoosers) ? (maskImgFileChoice == originalImgFileChoice) : (maskImgChoice.equals(originalImgChoice));
-			final boolean isBinary = chosenMaskImp.getProcessor().isBinary();
+			final boolean isSegmented = isSegmented(chosenMaskImp);
 			final boolean isCompatible = chosenOrigImp == null
 					|| chosenMaskImp.getCalibration().equals(chosenOrigImp.getCalibration());
 			final boolean isSameDim = chosenOrigImp == null || (chosenMaskImp.getWidth() == chosenOrigImp.getWidth()
@@ -408,7 +414,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			final boolean isValidConnectDist = maxConnectDist > 0d;
 			final boolean isValidRoi = roi != null && roi.isArea();
 			boolean inferRootFromRoi = !ROI_UNSET.equals(rootChoice);
-			if (isSame || !isValidOrigImg || !isBinary || !isSameDim || !isCompatible || (!isValidRoi && inferRootFromRoi)
+			if (isSame || !isValidOrigImg || !isSegmented || !isSameDim || !isCompatible || (!isValidRoi && inferRootFromRoi)
 					|| (!isValidConnectDist && connectComponents)) {
 				final int width = GuiUtils
 						.renderedWidth("      Warning: Images do not share the same spatial calibration<");
@@ -424,7 +430,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 					sb.append("<li>Warning: Images do not share the same dimensions. Algorithm will likely fail</li>");
 					ensureMaskImgVisibleOnAbort = true;
 				}
-				if (!isBinary) {
+				if (!isSegmented) {
 					sb.append(
 							"<li>Info: Image is not thresholded: Non-zero intensities will be used as foreground</li>");
 					ensureMaskImgVisibleOnAbort = true;
@@ -464,8 +470,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			}
 
 			SNTUtils.log("Segmented image: " + chosenMaskImp.getTitle());
-			SNTUtils.log("Segmented image thresholded/binarized: "
-					+ (isBinary(chosenMaskImp) || chosenMaskImp.isThreshold()));
+			SNTUtils.log("Segmented image thresholded/binarized: " + isSegmented);
 			SNTUtils.log("Original image: " + ((chosenOrigImp == null) ? null : chosenOrigImp.getTitle()));
 			SNTUtils.log("Root-defining strategy: " + rootChoice);
 			SNTUtils.log("ROI: " + roi);
@@ -499,21 +504,32 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				assignRoiZPosition(roi);
 				converter.setRootRoi(roi, getRootStrategy());
 			}
-			List<Tree> trees;
+			List<Tree> trees = null;
 			try {
 				trees = converter.getTrees();
 			} catch (final ClassCastException ignored) {
 				if (chosenOrigImp != null)
-					SNTUtils.log("Intensity-based pruning failed (unsupported image type!?): Defaulting to length-based prunning");
+					SNTUtils.log("Intensity-based pruning failed (unsupported image type!?): Defaulting to length-based pruning");
 				converter.setPruneMode(SkeletonConverter.SHORTEST_BRANCH);
-				trees = converter.getTrees();
-			} 
 
-			SNTUtils.log("... Done. " + trees.size() + " component(s) retrieved.");
+				try {
+					trees = converter.getTrees();
+				} catch (final IllegalStateException ex) {
+					error(ex.getMessage() +".<br>The ROI strategy may be creating unsolvable loops in the " +
+							"structure. It may be beneficial to adopt a less restrictive option.");
+					SNTUtils.error("", ex);
+					return;
+				}
+			}
+			if (trees == null) {
+				error("No paths could be extracted. No structures found in image!?");
+				return;
+			}
 			if (trees.isEmpty()) {
 				error("No paths could be extracted. Chosen parameters were not suitable!?");
 				return;
 			}
+			SNTUtils.log("... Done. " + trees.size() + " component(s) retrieved.");
 			trees.forEach(tree -> {
 				for (final Iterator<Path> it = tree.list().iterator(); it.hasNext();) {
 					final Path path = it.next();
@@ -560,13 +576,13 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			}
 			status("Successfully created " + trees.size() + " Tree(s)...", true);
 			if (chosenOrigImp != null && converter.getPruneMode() == SkeletonConverter.SHORTEST_BRANCH) {
-				error("Intensity-based resolution of loops could not be used. 'Shortest branch' prunning was used instead.<br>"
-						+ chosenOrigImp.getTitle() + " (" + chosenOrigImp.getBitDepth()
-						+ " -bit) may be of an unsupported type. ");
+				info("Intensity-based resolution of loops could not be used. 'Shortest branch' pruning was used " +
+						"instead.<br><i>" + originalImgChoice + "</i> (" + chosenOrigImp.getBitDepth() + " -bit " +
+						"image) may not allow for this option.");
 			}
 		} catch (final Throwable ex) {
 			ex.printStackTrace();
-			error("An exception occured. See Console for details.");
+			error("An exception occurred. See Console for details.");
 		} finally {
 			snt.setCanvasLabelAllPanes(null);
 		}
@@ -587,12 +603,20 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 		return null;
 	}
 
+	private void info(final String msg) {
+		if (ui != null)
+			ui.showMessage(msg, "Automated Tracing");
+		else
+			SNTUtils.log(msg);
+	}
+
 	@Override
 	protected void error(final String msg) {
 		super.error(msg);
 		abortRun = true; // should not be needed but isCanceled() is not working as expected!?
 		resolveAllInputs();
 		if (ensureMaskImgVisibleOnAbort && chosenMaskImp != null) {
+			chosenMaskImp.setTitle("Skeletonized_" +chosenMaskImp.getTitle().replace("DUP_",""));
 			chosenMaskImp.show();
 		}
 	}
@@ -629,7 +653,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 		resolveInput("editMode");
 		resolveInput("useFileChoosers");
 		resolveInput("simplifyPrompt");
-		
+
 	}
 
 	/* IDE debug method **/

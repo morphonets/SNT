@@ -185,7 +185,7 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 			imp.setCalibration(cal);
 			displayHistogram(imp);
 		} catch (final RuntimeException ex) {
-			error("An exception occured while calling the Local Thickness plugin. See Console for details");
+			error("An exception occurred while calling the Local Thickness plugin. See Console for details");
 			ex.printStackTrace();
 		} finally {
 			resetUI();

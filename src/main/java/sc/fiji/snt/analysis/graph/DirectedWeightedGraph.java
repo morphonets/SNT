@@ -585,7 +585,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 */
 	public SWCPoint getRoot() {
 		final List<SWCPoint> roots = vertexSet().stream().filter(v -> inDegreeOf(v) == 0).collect(Collectors.toList());
-		if (roots.size() == 0) {
+		if (roots.isEmpty()) {
 			throw new IllegalStateException("Graph has no nodes with in-degree 0");
 		}
 		if (roots.size() > 1) {

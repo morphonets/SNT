@@ -96,7 +96,7 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 		if (style.toLowerCase().contains("montage") && trees.size() > 1)
 			result = montage(renderingTrees, type + " " + view);
 		else
-			result = render(renderingTrees, type + " " + view);
+			result = singleScene(renderingTrees, type + " " + view);
 		if (result instanceof ImagePlus && (((ImagePlus) result).getWidth() / trees.size() < 200 ||
 				((ImagePlus) result).getHeight() / trees.size() < 200)) {
 			msg("Created figure may not have enough detail (paths were digitized at 1µm/pixel). It " +
@@ -163,12 +163,12 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			final ImagePlus result = ImpUtils.combineSkeletons(renderingTrees);
 			result.show();
 			return result;
-		} else if (renderOptions.contains("2d") || renderOptions.contains("view")) {
+		} else if (flags.contains("2d") || flags.contains("view")) {
 			final Viewer2D result = new Viewer2D();
 			result.add(renderingTrees);
 			result.show();
 			return result;
-		} else if (renderOptions.contains("3d")) {
+		} else if (flags.contains("3d")) {
 			final Viewer3D result = new Viewer3D();
 			result.add(renderingTrees);
 			result.setViewMode(getView(renderOptions));

@@ -38,6 +38,6 @@ def main():
                 continue
             sa.run()
     if msg:
-        ij.ui().showDialog("<HTML>The following errors occured:<br>%s" % '<br>'.join(msg), "Analysis Completed")
+        ij.ui().showDialog("<HTML>The following errors occurred:<br>%s" % '<br>'.join(msg), "Analysis Completed")
 
 main()

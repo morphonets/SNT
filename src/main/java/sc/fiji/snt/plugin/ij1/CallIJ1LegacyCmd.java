@@ -78,8 +78,8 @@ public class CallIJ1LegacyCmd implements Command {
 		try {
 			ij.IJ.run(cmdAndArg[0], cmdAndArg[1]);
 		} catch (final Exception ex) {
-			new GuiUtils().error("An exception occured. Maybe the command is no longer available?",
-					"Exception occured");
+			new GuiUtils().error("An exception occurred. Maybe the command is no longer available?",
+					"Exception occurred");
 			ex.printStackTrace();
 		}
 	}

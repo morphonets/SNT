@@ -1236,7 +1236,7 @@ public class SNTUI extends JDialog {
 				if (t instanceof OutOfMemoryError) {
 					guiUtils.error("Out of Memory: There is not enough RAM to load side views!");
 				} else {
-					guiUtils.error("An error occured. See Console for details.");
+					guiUtils.error("An error occurred. See Console for details.");
 					t.printStackTrace();
 				}
 				plugin.setSinglePane(true);
@@ -1794,7 +1794,7 @@ public class SNTUI extends JDialog {
 						} catch (final Throwable ignored) {
 							// see https://github.com/morphonets/SNT/issues/136
 							guiUtils.error(
-									"An exception occured. Viewer may not be functional. Please consider using previous viewers.");
+									"An exception occurred. Viewer may not be functional. Please consider using previous viewers.");
 						}
 					} else {
 						univ.resetView();
@@ -1821,7 +1821,7 @@ public class SNTUI extends JDialog {
 					showStatus("3D Viewer enabled: " + selectedKey, true);
 
 				} catch (final Throwable ex) {
-					guiUtils.error("An error occured. Legacy 3D viewer may not be available. See Console for details.");
+					guiUtils.error("An error occurred. Legacy 3D viewer may not be available. See Console for details.");
 					ex.printStackTrace();
 				} finally {
 					resetChoice();
@@ -1859,7 +1859,7 @@ public class SNTUI extends JDialog {
 					univChoice.addItem(iw3d.getTitle());
 				}
 			} catch (final Throwable ex) {
-				guiUtils.error("An error occured. Legacy 3D viewer may not be available. See Console for details.");
+				guiUtils.error("An error occurred. Legacy 3D viewer may not be available. See Console for details.");
 				ex.printStackTrace();
 			}
 			showStatus("Viewers list updated...", true);
@@ -2029,7 +2029,7 @@ public class SNTUI extends JDialog {
 						if (!get())
 							no3DcapabilitiesError("Reconstruction Viewer");
 					} catch (final InterruptedException | ExecutionException e) {
-						guiUtils.error("Unfortunately an error occured. See Console for details.");
+						guiUtils.error("Unfortunately an error occurred. See Console for details.");
 						e.printStackTrace();
 					} finally {
 						setReconstructionViewer(recViewer);

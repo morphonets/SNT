@@ -162,6 +162,17 @@ public class ImpUtils {
 		return extracted;
 	}
 
+	public static ImagePlus getCT(final ImagePlus imp, final int channel, final int frame) {
+		imp.deleteRoi(); // will call saveRoi
+		final ImagePlus extracted = new Duplicator().run(imp, channel, channel, 1, imp.getNSlices(), frame, frame);
+		extracted.setCalibration(imp.getCalibration());
+		imp.restoreRoi();
+		extracted.setRoi(imp.getRoi());
+		extracted.setProp("extracted-channel", channel);
+		extracted.setProp("extracted-frame", frame);
+		return extracted;
+	}
+
 	public static void removeSlices(final ImageStack stack, Collection<String> labels) {
 		int count = 0;
 		for (int i = 1; i <= stack.size(); i++) {

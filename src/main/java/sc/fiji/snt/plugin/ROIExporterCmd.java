@@ -158,7 +158,7 @@ public class ROIExporterCmd implements Command {
 
 		if (warningsExist) {
 			warnUser(
-				"ROIs generated but some exceptions occured.\nPlease see Console for details.");
+				"ROIs generated but some exceptions occurred.\nPlease see Console for details.");
 		}
 
 	}

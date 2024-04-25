@@ -729,8 +729,9 @@ public class SNT extends MultiDThreePanes implements
 	private void loadDatasetFromImagePlus(final ImagePlus imp) {
 		statusService.showStatus("Loading data...");
 		this.ctSlice3d = ImgUtils.getCtSlice3d(imp, channel - 1, frame - 1);
-		SNTUtils.log("Dataset dimensions: " + Arrays.toString(imp.getDimensions()));
-		SNTUtils.log("CT HyperSlice dimensions: " + Arrays.toString(Intervals.dimensionsAsLongArray(this.ctSlice3d)));
+		SNTUtils.log("Dimensions of input dataset [W,H,C,Z,T]: " + Arrays.toString(imp.getDimensions()));
+		SNTUtils.log(String.format("Dimensions:of imported XYZ volume (C=%d,T=%d): %s", channel, frame,
+				Arrays.toString(Intervals.dimensionsAsLongArray(this.ctSlice3d))));
 		statusService.showStatus("Finding stack minimum / maximum");
 		final boolean restoreROI = imp.getRoi() instanceof PointRoi;
 		if (restoreROI) imp.saveRoi();

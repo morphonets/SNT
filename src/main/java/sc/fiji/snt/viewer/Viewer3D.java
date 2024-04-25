@@ -4095,7 +4095,7 @@ public class Viewer3D {
 							guiUtils.error("There is not enough memory to complete command. See Console for details.");
 						} catch (NullPointerException | InterruptedException | ExecutionException e2) {
 							e2.printStackTrace();
-							guiUtils.error("Unfortunately an error occured. See Console for details.");
+							guiUtils.error("Unfortunately an error occurred. See Console for details.");
 						} finally {
 							removeProgressLoad(-1);
 						}
@@ -7085,7 +7085,7 @@ public class Viewer3D {
 			}
 			catch (final InterruptedException | ExecutionException e2) {
 				if (gUtils != null) {
-					gUtils.error("Unfortunately an exception occured. See console for details.");
+					gUtils.error("Unfortunately an exception occurred. See console for details.");
 					if (indeterminateProgress) getManagerPanel().showProgress(0, 0);
 				}
 				e2.printStackTrace();

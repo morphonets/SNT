@@ -239,7 +239,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 		if (commonSummaryTable == null || commonSummaryTable.isEmpty() || commonSummaryTable.getRowCount() < 1) {
 			cancel("Options were likely invalid and no files were parsed. See Console for details.");
 		} else if (commonSummaryTable.hasUnsavedData() && !saveSummaryTable()) {
-			cancel("An Error occured while saving summary table. Please save it manually.");
+			cancel("An Error occurred while saving summary table. Please save it manually.");
 		}
 		if (recViewer != null && recViewer.getManagerPanel() != null) {
 			recViewer.getManagerPanel().showProgress(0, 0);
@@ -409,7 +409,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 			try {
 				parser.parse();
 			} catch (final Exception ex) {
-				logger.warn(TREE_LABEL + " Exception occured: " + ex.getMessage());
+				logger.warn(TREE_LABEL + " Exception occurred: " + ex.getMessage());
 				return;
 			}
 			if (!parser.successful()) {
