@@ -240,10 +240,6 @@
 		</dependency>
 		<dependency>
 			<groupId>net.imagej</groupId>
-			<artifactId>imagej-legacy</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>net.imagej</groupId>
 			<artifactId>imagej-mesh</artifactId>
 		</dependency>
 		<dependency>
@@ -478,6 +474,10 @@
 			<version>${sciview.version}</version>
 			<optional>true</optional>
 			<exclusions>
+				<exclusion>
+					<groupId>xml-apis</groupId>
+					<artifactId>xml-apis</artifactId>
+				</exclusion>
 				<exclusion>
 					<groupId>org.apache.logging.log4j</groupId>
 					<artifactId>log4j-1.2-api</artifactId>

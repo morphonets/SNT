@@ -163,6 +163,7 @@ public class IconFactory {
 			OPTIONS('\uf013', true), //
 			PASTE('\uf0ea', true), //
 			PEN('\uf303', true), //
+			PERSON_CHALKBOARD('\ue53d', true),//
 			POINTER('\uf245', true), //
 			PLUS('\uf0fe', false), //
 			PREVIOUS('\uf358', false), //

@@ -352,11 +352,8 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	/**
-	 * 
-	 * @param shape Either {@link ProfileProcessor.Shape.CENTERLINE},
-	 *              {@link ProfileProcessor.Shape.CIRCLE},
-	 *              {@link ProfileProcessor.Shape.DISK}, or
-	 *              {@link ProfileProcessor.Shape.HYPERSPHERE}
+	 *
+	 * @param shape Either {@link ProfileProcessor.Shape}
 	 */
 	public void setShape(final ProfileProcessor.Shape shape) {
 		this.shape = shape;
@@ -610,7 +607,7 @@ public class PathProfiler extends CommonDynamicCmd {
 
 		if (nodeIndices) {
 			for (int i = 0; i < p.size(); i++) {
-				xList.add((double)i); 
+				xList.add((double)i);
 				yList.add(p.getNodeValue(i));
 			}
 		} else {
@@ -713,20 +710,20 @@ public class PathProfiler extends CommonDynamicCmd {
 	public Plot getPlot() throws IllegalArgumentException, ArrayIndexOutOfBoundsException {
 		return (tree.size()==1) ? getPlot(tree.get(0)) : getPlot(-1);
 	}
-	
+
 	private Plot getMeanSDPlot(final int channel) {
 		final Plot plot = new Plot(getPlotTitle(channel), getXAxisLabel(), getYAxisLabel(channel));
 		final Color[] colors = getSeriesColorsAWT();
 		final StringBuilder legend = new StringBuilder();
 		for (int i = 0; i < tree.size(); i++) {
 			final Path p = tree.get(i);
-			legend.append(p.getName()).append("\n");			
+			legend.append(p.getName()).append("\n");
 			metric = ProfileProcessor.Metric.MEAN;
 			valuesAssignedToTree = false;
 			final Map<String, double[]> meansMap = getValuesAsArray(p, channel);
 			metric = ProfileProcessor.Metric.SD;
 			valuesAssignedToTree = false;
-			final Map<String, double[]> sdMap = getValuesAsArray(p, channel);			
+			final Map<String, double[]> sdMap = getValuesAsArray(p, channel);
 			plot.setColor(colors[i], colors[i]);
 			plot.addPoints(meansMap.get(X_VALUES), meansMap.get(Y_VALUES), sdMap.get(Y_VALUES), Plot.CONNECTED_CIRCLES);
 		}

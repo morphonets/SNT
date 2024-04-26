@@ -71,7 +71,7 @@ public class CustomizeObjCmd extends ContextCommand {
 	private double bbTransparency;
 
 	// this should really be @Parameter(type = ItemIO.OUTPUT), but this
-	// supresses the annoying "ignoring unsupported output message
+	// suppresses the annoying "ignoring unsupported output message
 	@Parameter(required = false)
 	private ColorRGBA[] colors;
 	/*

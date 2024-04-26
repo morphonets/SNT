@@ -871,6 +871,11 @@ public class Viewer3D {
 			.getGreen(), color.getBlue(), color.getAlpha());
 	}
 
+	private Color fromAWTColor(final java.awt.Color color, final Color fallbackColor) {
+		return (color == null) ? fallbackColor : new Color(color.getRed(), color
+			.getGreen(), color.getBlue(), color.getAlpha());
+	}
+
 	private Color fromColorRGB(final ColorRGB color) {
 		return (color == null) ? getDefColor() : new Color(color.getRed(), color
 			.getGreen(), color.getBlue(), color.getAlpha());
@@ -1505,10 +1510,22 @@ public class Viewer3D {
 		return frame;
 	}
 
+	public Frame getFrame(final boolean visible) {
+		if (frame == null) {
+			if (Engine.OFFSCREEN == ENGINE) {
+				throw new IllegalArgumentException("Offscreen canvas cannot be displayed.");
+			}
+			final JFrame dummy = new JFrame();
+			frame = (ViewerFrame) show( 0, 0, dummy.getGraphicsConfiguration(), visible);
+			dummy.dispose();
+		}
+		return frame;
+	}
+
 	/**
 	 * Displays the viewer under specified dimensions. Useful when generating
 	 * scene animations programmatically.
-	 * 
+	 *
 	 * @param width the width of the frame. {@code -1} will set width to its maximum.
 	 * @param height the height of the frame. {@code -1} will set height to its maximum.
 	 * @return the frame containing the viewer.
@@ -1519,12 +1536,13 @@ public class Viewer3D {
 			throw new IllegalArgumentException("Offscreen canvas cannot be displayed.");
 		}
 		final JFrame dummy = new JFrame();
-		final Frame frame = show( width, height, dummy.getGraphicsConfiguration());
+		final Frame frame = show( width, height, dummy.getGraphicsConfiguration(), true);
 		dummy.dispose();
 		return frame;
 	}
 
-	private Frame show(final int width, final int height, final GraphicsConfiguration gConfiguration) {
+	private Frame show(final int width, final int height, final GraphicsConfiguration gConfiguration,
+					   final boolean visible) {
 
 		final boolean viewInitialized = initView();
 		if (!viewInitialized && frame != null) {
@@ -1554,9 +1572,11 @@ public class Viewer3D {
 		}
 		updateView();
 		frame.canvas.requestFocusInWindow();
-		frame.setVisible(true);
-		if (SNTUtils.isDebugMode()) logGLDetails();
-		gUtils.notifyIfNewVersion(0);
+		frame.setVisible(visible);
+		if (visible) {
+			if (SNTUtils.isDebugMode()) logGLDetails();
+			gUtils.notifyIfNewVersion(0);
+		}
 		return frame;
 	}
 
@@ -3207,7 +3227,7 @@ public class Viewer3D {
 				frame.manager.dispose();
 				initManagerList();
 			}
-			show((int) dim.getWidth(), (int) dim.getHeight(), gConfiguration);
+			show((int) dim.getWidth(), (int) dim.getHeight(), gConfiguration, true);
 			setEnableDarkMode(darkMode);
 			if (hasManager) {
 				frame.snapPanelToSide();
@@ -3426,16 +3446,14 @@ public class Viewer3D {
 		private float t;
 
 		boolean validPrompt(final String title, final String[] firstCcLabel, final String[] secondCcLabel, final boolean includeSize) {
-			List<String> labels = new ArrayList<>();
-			labels.addAll(Arrays.asList(firstCcLabel));
+            List<String> labels = new ArrayList<>(Arrays.asList(firstCcLabel));
 			if (secondCcLabel != null)
 				labels.addAll(Arrays.asList(secondCcLabel));
 			if (includeSize)
 				labels.add("Size ");
 			labels.addAll(List.of("Color ", "Transparency (%) "));
-			List<String> values = new ArrayList<>();
-			values.addAll(List.of(prefs.getGuiPref("aX1", "0"), prefs.getGuiPref("aY1", "0"),
-					prefs.getGuiPref("aZ1", "0")));
+            List<String> values = new ArrayList<>(List.of(prefs.getGuiPref("aX1", "0"), prefs.getGuiPref("aY1", "0"),
+                    prefs.getGuiPref("aZ1", "0")));
 			if (secondCcLabel != null)
 				values.addAll(List.of(prefs.getGuiPref("aX2", "0"), prefs.getGuiPref("aY2", "0"),
 						prefs.getGuiPref("aZ2", "0")));
@@ -4077,7 +4095,7 @@ public class Viewer3D {
 							guiUtils.error("There is not enough memory to complete command. See Console for details.");
 						} catch (NullPointerException | InterruptedException | ExecutionException e2) {
 							e2.printStackTrace();
-							guiUtils.error("Unfortunately an error occured. See Console for details.");
+							guiUtils.error("Unfortunately an error occurred. See Console for details.");
 						} finally {
 							removeProgressLoad(-1);
 						}
@@ -4923,6 +4941,17 @@ public class Viewer3D {
 			final JMenuItem hide = new JMenuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true));
 			hide.setIcon(IconFactory.getMenuIcon(GLYPH.EYE_SLASH));
 			utilsMenu.add(hide);
+			if (!isSNTInstance()) {
+				final JMenuItem jmi = GuiUtils.MenuItems.renderQuick();
+				jmi.addActionListener(e -> {
+					final List<Tree> trees = getSelectedTrees();
+					if (trees == null || trees.isEmpty()) return;
+					final Map<String, Object> inputs = new HashMap<>();
+					inputs.put("trees", trees);
+					runCmd(FigCreatorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+				});
+				utilsMenu.add(jmi);
+			}
 			mi = new JMenuItem("Record Rotation", IconFactory.getMenuIcon(GLYPH.VIDEO));
 			mi.addActionListener(e -> {
 				SwingUtilities.invokeLater(() -> {
@@ -6814,9 +6843,11 @@ public class Viewer3D {
 
 				// Assemble arbor(s)
 				final LineStripPlus line = new LineStripPlus(p.size(), p.getSWCType());
+				final Color fallbackColor = getDefColor().alpha(1f);
 				for (int i = 0; i < p.size(); ++i) {
 					final PointInImage pim = p.getNode(i);
-					final Color color = fromAWTColor(p.hasNodeColors() ? p.getNodeColor(i) : p.getColor());
+					final Color color =
+							fromAWTColor(p.hasNodeColors() ? p.getNodeColor(i) : p.getColor(), fallbackColor);
 					final float width = Math.max((float) p.getNodeRadius(i), DEF_NODE_RADIUS);
 					if (i == 0 && p.getStartJoinsPoint() != null) {
 						final Coord3d joint = new Coord3d(p.getStartJoinsPoint().x, p.getStartJoinsPoint().y, p.getStartJoinsPoint().z);
@@ -7054,7 +7085,7 @@ public class Viewer3D {
 			}
 			catch (final InterruptedException | ExecutionException e2) {
 				if (gUtils != null) {
-					gUtils.error("Unfortunately an exception occured. See console for details.");
+					gUtils.error("Unfortunately an exception occurred. See console for details.");
 					if (indeterminateProgress) getManagerPanel().showProgress(0, 0);
 				}
 				e2.printStackTrace();
@@ -7286,7 +7317,7 @@ public class Viewer3D {
 		KeyListener
 	{
 
-		private float zoomStep;
+		private float zoomStep = Prefs.DEF_ZOOM_STEP;
 		private double rotationStep;
 		private static final int DOUBLE_PRESS_INTERVAL = 300; // ms
 		private long timeKeyDown = 0; // last time key was pressed
@@ -7550,6 +7581,9 @@ public class Viewer3D {
 					changeRGB(objColor, newForeground);
 				}
 			});
+
+			// Apply foreground to annotation labels
+			((AChart)chart).overlayAnnotation.labelColor = toAWTColor(newForeground);
 
 		}
 
@@ -8285,7 +8319,7 @@ public class Viewer3D {
 	}
 
 	/** Defines the type of render, and view used by jzy3d */
-	private class ViewerFactory {
+	private static class ViewerFactory {
 
 		/** Returns ChartComponentFactory adopting {@link AView} */
 		private ChartFactory getUpstreamFactory(final Engine render) {

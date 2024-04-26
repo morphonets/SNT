@@ -157,7 +157,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 				ij.IJ.runPlugIn(sc.fiji.snt.plugin.ij1.Strahler.class.getCanonicalName(), "");
 			}
 			catch (final Exception ex) {
-				new GuiUtils(getFrame()).error("An error occured. See Console for details.");
+				new GuiUtils(getFrame()).error("An error occurred. See Console for details.");
 				ex.printStackTrace();
 			}
 		});

@@ -43,9 +43,8 @@ import sc.fiji.analyzeSkeleton.SkeletonResult;
 public class SummarizeSkeleton implements PlugInFilter {
 
 	private ImagePlus imp;
-	private final String TABLE_TITLE = "Skeleton Stats";
 
-	@Override
+    @Override
 	public int setup(final String arg, final ImagePlus imp) {
 
 		this.imp = imp;
@@ -75,7 +74,8 @@ public class SummarizeSkeleton implements PlugInFilter {
 			return;
 		}
 
-		final ResultsTable rt = Strahler.getTable(TABLE_TITLE);
+        String TABLE_TITLE = "Skeleton Stats";
+        final ResultsTable rt = Strahler.getTable(TABLE_TITLE);
 		try {
 
 			// Integrate values from all trees

@@ -85,7 +85,7 @@ public class Path implements Comparable<Path> {
 	public static final int SWC_CUSTOM = 5;
 	/** SWC type flag specifying {@value #SWC_UNSPECIFIED_LABEL} */
 	public static final int SWC_UNSPECIFIED = 6;
-	/** SWC type flag specifying {@value #SWC_GLIA_LABEL} */
+	/** SWC type flag specifying {@value #SWC_GLIA_PROCESS_LABEL} */
 	public static final int SWC_GLIA_PROCESS = 7;
 	/** SWC type flag specifying {@value #SWC_CUSTOM2_LABEL} */
 	public static final int SWC_CUSTOM2 = 8;
@@ -1045,7 +1045,7 @@ public class Path implements Comparable<Path> {
 		dup.somehowJoins = (ArrayList<Path>) somehowJoins.clone();
 		dup.children = (ArrayList<Path>) children.clone();
 		if (startJoins != null) dup.startJoins = startJoins.clone();
-		if (startJoinsPoint != null) dup.startJoinsPoint = startJoinsPoint.clone(); 
+		if (startJoinsPoint != null) dup.startJoinsPoint = startJoinsPoint.clone();
 		if (getFitted() != null) dup.setFitted(getFitted().clone());
 		dup.setNodeColors(getNodeColors());
 		applyCommonProperties(dup);
@@ -1351,7 +1351,7 @@ public class Path implements Comparable<Path> {
 					currentNode.drawConnection(g2, previousNode);
 					startIndexOfLastDrawnLine = i - 1;
 				}
-			} 
+			}
 			else if (getStartJoinsPoint() != null) {
 				final PathNode jointNode = new PathNode(getStartJoinsPoint(), i, canvas);
 				jointNode.setType(PathNode.JOINT);
@@ -1794,9 +1794,7 @@ public class Path implements Comparable<Path> {
 	}
 
 	/**
-	 * Gets the list of string representations of non-redundant SWC types (i.e.,
-	 * excluding {@link Path#SWC_FORK_POINT_LABEL}, and
-	 * {@link Path#SWC_FORK_POINT_LABEL}
+	 * Gets the list of string representations of SWC types
 	 *
 	 * @return the list of SWC type names
 	 */
@@ -1814,9 +1812,7 @@ public class Path implements Comparable<Path> {
 	}
 
 	/**
-	 * Gets the list of non-redundant SWC types (i.e., excluding the redundant
-	 * types {@link Path#SWC_FORK_POINT_LABEL}, and
-	 * {@link Path#SWC_FORK_POINT_LABEL}
+	 * Gets the list of SWC types.
 	 *
 	 * @return the list of SWC type flags
 	 */
@@ -1933,11 +1929,11 @@ public class Path implements Comparable<Path> {
 
 	/**
 	 * Uses linear interpolation to correct nodes with invalid radius.
-	 * 
+	 * <p>
 	 * Collects nodes with invalid radii (zero, NaN, or negative values) and assigns
 	 * them new values using linear interpolation based on remaining nodes with
 	 * valid radii.
-	 * 
+	 *
 	 * @param apply If {@code true} interpolated values are immediately to this
 	 *              path. If false, nodes remain unchanged.
 	 * @return the map containing the (node index, interpolated radius) pairs or
@@ -1954,11 +1950,11 @@ public class Path implements Comparable<Path> {
 
 	/**
 	 * Uses linear interpolation to correct nodes with invalid radius.
-	 * 
+	 * <p>
 	 * Collects nodes with invalid radii (zero, NaN, or negative values) and assigns
 	 * them new values using linear interpolation based on remaining nodes with
 	 * valid radii.
-	 * 
+	 *
 	 * @param predicate the function defining invalid radiii, e.g. {@code (x) -> {
 	 *                  return x <= 0 || Double.isNaN(x);} }
 	 * @param apply     If {@code true} interpolated values are immediately to this
@@ -2699,7 +2695,7 @@ public class Path implements Comparable<Path> {
 	/**
 	 * This is a version of {@link #findJunctions()} ensuring that a junction node
 	 * is only retrieved once even if multiple child paths are associated with it.
-	 * 
+	 *
 	 * @see #findJunctionIndices()
 	 * @return the junction nodes
 	 */

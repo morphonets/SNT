@@ -220,7 +220,7 @@ public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 			updateResultOverlay();
 			displayReport(counter, multidImg);
 		} catch (final Throwable t) {
-			error(t.getClass().getSimpleName() + ": An error occured. See Console/Log window for details.");
+			error(t.getClass().getSimpleName() + ": An error occurred. See Console/Log window for details.");
 			t.printStackTrace();
 		} finally {
 			exit();

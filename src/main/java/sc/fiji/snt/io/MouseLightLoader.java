@@ -605,6 +605,23 @@ public class MouseLightLoader {
 		return list;
 	}
 
+	/**
+	 * Returns a collection of four demo reconstructions
+	 * NB: Data is cached locally. No internet connection required.
+	 *
+	 * @return the list of {@link Tree}s, corresponding to the dendritic arbors of
+	 *         cells "AA0001", "AA0002", "AA0003", "AA0004"
+	 */
+	public static List<Tree> demoTrees() {
+		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+		final InputStream is = classloader.getResourceAsStream("ml/demo-trees/AA0001-4.json");
+		final Map<String, Tree> result = MouseLightLoader.extractTrees(is, "dendrites");
+		if (result.values().stream().anyMatch(tree -> tree == null || tree.isEmpty())) {
+			return null;
+		}
+		return new ArrayList<>(result.values());
+	}
+
 	/* IDE debug method */
 	public static void main(final String... args) throws IOException {
 		final String dir = "/home/tferr/Desktop/testjson/";

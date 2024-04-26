@@ -151,7 +151,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 		final int y = e.getY();
 		final boolean pan = IJ.spaceBarDown();
 		super.mouseDragged(e); // e consumed!?
-		if (pan) owner.panEventOccured(myScreenXD(x), myScreenYD(y), plane);
+		if (pan) owner.panEventOccurred(myScreenXD(x), myScreenYD(y), plane);
 	}
 
 	@Override

@@ -304,9 +304,7 @@ public class PathFitter implements Callable<Path> {
 	/**
 	 * Sets the fallback strategy for radii at locations in which fitting failed
 	 *
-	 * @param scope Either {@link #FALLBACK_MIN_SEP}, {@link #FALLBACK_MODE}, or
-	 *              {@link #FALLBACK_NAN}
-	 */
+     */
 	public void setRadiusFallback(final int fallback) {
 		if (fallback != PathFitter.FALLBACK_MODE && fallback != PathFitter.FALLBACK_MIN_SEP &&
 				fallback != PathFitter.FALLBACK_NAN)

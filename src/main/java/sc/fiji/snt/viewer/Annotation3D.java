@@ -181,11 +181,9 @@ public class Annotation3D {
 	}
 
 	/**
-	 * 
+	 *
 	 * @param colormap
-	 * @param min
-	 * @param max
-	 */
+     */
 	public void colorCode(final String colormap, String axis) {
 		if (!isColorCodeAllowed())
 			throw new IllegalArgumentException("The current " + getType() + "annot. cannot be colorcoded");
@@ -627,9 +625,9 @@ public class Annotation3D {
 		return c;
 	}
 
-	private class Parallelepiped extends ParallelepipedComposite {
-		
-		
+	private static class Parallelepiped extends ParallelepipedComposite {
+
+
 		Parallelepiped(final SNTPoint p1, final SNTPoint p2) {
 			 super(new BoundingBox3d(p1.getX(), p2.getX(), p1.getY(), p2.getY(), p1.getZ(), p2.getZ()));
 		}

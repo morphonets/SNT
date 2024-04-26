@@ -239,7 +239,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 		if (commonSummaryTable == null || commonSummaryTable.isEmpty() || commonSummaryTable.getRowCount() < 1) {
 			cancel("Options were likely invalid and no files were parsed. See Console for details.");
 		} else if (commonSummaryTable.hasUnsavedData() && !saveSummaryTable()) {
-			cancel("An Error occured while saving summary table. Please save it manually.");
+			cancel("An Error occurred while saving summary table. Please save it manually.");
 		}
 		if (recViewer != null && recViewer.getManagerPanel() != null) {
 			recViewer.getManagerPanel().showProgress(0, 0);
@@ -377,10 +377,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 	private class AnalysisRunner implements Runnable {
 
 		private final Tree tree;
-		private TreeParser parser;
-		private LinearProfileStats lStats;
-		private NormalizedProfileStats nStats;
-		private final String TREE_LABEL;
+        private final String TREE_LABEL;
 
 		public AnalysisRunner(final Tree tree) {
 			this.tree = tree;
@@ -398,7 +395,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 				logger.warn(TREE_LABEL + msg);
 				return;
 			}
-			parser = new TreeParser(tree);
+            TreeParser parser = new TreeParser(tree);
 			parser.setStepSize(adjustedStepSize());
 			try {
 				parser.setCenter(ShollAnalysisTreeCmd.getCenterFromChoice(centerChoice));
@@ -412,7 +409,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 			try {
 				parser.parse();
 			} catch (final Exception ex) {
-				logger.warn(TREE_LABEL + " Exception occured: " + ex.getMessage());
+				logger.warn(TREE_LABEL + " Exception occurred: " + ex.getMessage());
 				return;
 			}
 			if (!parser.successful()) {
@@ -422,7 +419,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 			final Profile profile = parser.getProfile();
 
 			// Linear profile stats
-			lStats = new LinearProfileStats(profile);
+            LinearProfileStats lStats = new LinearProfileStats(profile);
 			lStats.setLogger(logger);
 			int primaryBranches;
 			try {
@@ -451,7 +448,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 			}
 
 			/// Normalized profile stats
-			nStats = getNormalizedProfileStats(profile);
+            NormalizedProfileStats nStats = getNormalizedProfileStats(profile);
 
 			// Plots
 			if (plotOutputDescription.toLowerCase().contains("linear")) {

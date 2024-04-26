@@ -806,18 +806,22 @@ public class SNTChart extends ChartPanel {
 				((PaintScaleLegend) title).getAxis().setTickLabelPaint(newColor);
 			}
 		}
-		if (getChart().getPlot() instanceof XYPlot) {
+		if (getChart().getPlot() instanceof CombinedRangeXYPlot) {
+			final CombinedRangeXYPlot comb = (CombinedRangeXYPlot) (getChart().getPlot());
+			comb.getSubplots().forEach( plot -> replaceForegroundColorOfXYPlot(plot, oldColor, newColor));
+		} else if (getChart().getPlot() instanceof XYPlot) {
 			final XYPlot plot = (XYPlot)(getChart().getPlot());
-			setForegroundColor(plot.getDomainAxis(), newColor);
-			setForegroundColor(plot.getRangeAxis(), newColor);
-			replaceForegroundColor(plot.getRenderer(), oldColor, newColor);
-			replaceSeriesColor(plot.getRenderer(), oldColor, newColor);
+			replaceForegroundColorOfXYPlot(plot, oldColor, newColor);
 		} else if (getChart().getPlot() instanceof CategoryPlot) {
 			final CategoryPlot plot = (getChart().getCategoryPlot());
-			setForegroundColor(plot.getDomainAxis(), newColor);
-			setForegroundColor(plot.getRangeAxis(), newColor);
-			replaceForegroundColor(plot.getRenderer(), oldColor, newColor);
-			replaceSeriesColor(plot.getRenderer(), oldColor, newColor);
+			for (int i = 0; i < plot.getDomainAxisCount() ; i++)
+				setForegroundColor(plot.getDomainAxis(i), newColor);
+			for (int i = 0; i < plot.getRangeAxisCount() ; i++)
+				setForegroundColor(plot.getRangeAxis(i), newColor);
+			for (int i = 0; i < plot.getRendererCount(); i++) {
+				replaceForegroundColor(plot.getRenderer(i), oldColor, newColor);
+				replaceSeriesColor(plot.getRenderer(i), oldColor, newColor);
+			}
 		} else if (getChart().getPlot() instanceof PolarPlot) {
 			final PolarPlot plot = (PolarPlot)(getChart().getPlot());
 			for (int i = 0; i < plot.getAxisCount(); i++)
@@ -837,6 +841,17 @@ public class SNTChart extends ChartPanel {
 			plot.setDefaultNodeLabelPaint(newColor);
 		}
 
+	}
+
+	private void replaceForegroundColorOfXYPlot(final XYPlot plot, final Color oldColor, final Color newColor) {
+		for (int i = 0; i < plot.getDomainAxisCount() ; i++)
+			setForegroundColor(plot.getDomainAxis(i), newColor);
+		for (int i = 0; i < plot.getRangeAxisCount() ; i++)
+			setForegroundColor(plot.getRangeAxis(i), newColor);
+		for (int i = 0; i < plot.getRendererCount(); i++) {
+			replaceForegroundColor(plot.getRenderer(i), oldColor, newColor);
+			replaceSeriesColor(plot.getRenderer(i), oldColor, newColor);
+		}
 	}
 
 	private void replaceForegroundColor(final LegendItemSource render, final Color oldColor, final Color newColor) {
@@ -913,7 +928,7 @@ public class SNTChart extends ChartPanel {
 	private Color getColorFromString(final String string) {
 		if (string == null) return Color.BLACK;
 		final ColorRGB c = new ColorRGB(string);
-		return (c==null) ? Color.BLACK : new Color(c.getRed(), c.getGreen(), c.getBlue());
+		return new Color(c.getRed(), c.getGreen(), c.getBlue());
 	}
 
 	public void applyStyle(final SNTChart template) {
@@ -976,14 +991,14 @@ public class SNTChart extends ChartPanel {
 	 *
 	 * @param label    the subtitle text
 	 * @param tooltip the tooltip text. {@code null} permitted
-	 * @param aligment either 'left', 'center', or 'right'
+	 * @param alignment either 'left', 'center', or 'right'
 	 */
-	public void annotate(final String label, final String tooltip, final String aligment) {
+	public void annotate(final String label, final String tooltip, final String alignment) {
 		final TextTitle tLabel = new TextTitle(label);
 		tLabel.setFont(tLabel.getFont().deriveFont(Font.PLAIN, getFontSize("legend")));
 		tLabel.setPosition(RectangleEdge.BOTTOM);
 		tLabel.setToolTipText(tooltip);
-		switch (aligment.toLowerCase()) {
+		switch (alignment.toLowerCase()) {
 		case "left":
 			tLabel.setHorizontalAlignment(HorizontalAlignment.LEFT);
 			tLabel.setTextAlignment(HorizontalAlignment.LEFT);
@@ -1164,7 +1179,7 @@ public class SNTChart extends ChartPanel {
 		jmi.addActionListener( e -> setOutlineVisible(!isOutlineVisible()));
 		grids.add(jmi);
 		popup.add(grids);
-	
+
 		final JMenu utils = new JMenu("Utilities");
 		utils.add(new GuiUtils(frame).combineChartsMenuItem());
 		utils.addSeparator();

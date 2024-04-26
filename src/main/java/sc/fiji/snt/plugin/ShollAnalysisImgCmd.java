@@ -72,7 +72,6 @@ import net.imagej.Dataset;
 import net.imagej.DatasetService;
 import net.imagej.display.ImageDisplayService;
 import net.imagej.event.DataDeletedEvent;
-import net.imagej.legacy.LegacyService;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTPrefs;
@@ -120,8 +119,6 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 	private DisplayService displayService;
 	@Parameter
 	private ImageDisplayService imageDisplayService;
-	@Parameter
-	private LegacyService legacyService;
 	@Parameter
 	private LUTService lutService;
 	@Parameter
@@ -570,7 +567,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		helper = new GuiUtils();
 		logger = new Logger(context(), "Sholl");
 		readPreferences();
-		imp = legacyService.getImageMap().lookupImagePlus(imageDisplayService.getActiveImageDisplay());
+		imp = ImpUtils.getCurrentImage();
 		if (imp == null)
 			attemptToLoadDemoImage("No image is currently open");
 		if (imp == null) {
@@ -580,7 +577,6 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 		}
 		getInfo().setLabel("Sholl Analysis " + SNTUtils.VERSION);
 		previewOverlay = new PreviewOverlay();
-		legacyService.syncActiveImage();
 		setLUTs();
 		loadDataset(imp);
 		adjustSamplingOptions();

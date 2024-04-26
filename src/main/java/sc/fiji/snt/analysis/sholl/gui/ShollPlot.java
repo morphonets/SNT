@@ -27,7 +27,6 @@ import java.awt.FontMetrics;
 import java.awt.Rectangle;
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.math3.stat.StatUtils;
@@ -617,7 +616,7 @@ public class ShollPlot extends Plot {
 		if (plots.size() == 1) {
 			plots.get(0).show();
 		} else {
-			Collections.sort(plots, (p1, p2) -> (p1.getTitle().compareTo(p2.getTitle())));
+			plots.sort((p1, p2) -> (p1.getTitle().compareTo(p2.getTitle())));
 			final List<ImagePlus> imps = new ArrayList<>();
 			plots.forEach(p -> imps.add(p.getImagePlus()));
 			final ImagePlus res = ImpUtils.toStack(imps);

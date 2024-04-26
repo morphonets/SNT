@@ -22,7 +22,6 @@
 package sc.fiji.snt.misc;
 
 import ij.IJ;
-import ij.ImageJ;
 import ij.ImagePlus;
 import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;

@@ -713,7 +713,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			try {
 				parser.parse();
 			} catch (IllegalArgumentException ex) {
-				cancelAndFreezeUI(ex.getMessage(), "Exception Occured");
+				cancelAndFreezeUI(ex.getMessage(), "Exception Occurred");
 				ex.printStackTrace();
 				return;
 			}

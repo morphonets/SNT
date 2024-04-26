@@ -110,7 +110,7 @@ public class PointInImage implements SNTPoint {
 
 	@Override
 	public String toString() {
-		return "( " + x + ", " + y + ", " + z + " ) [onPath " + onPath + "]";
+		return String.format("(%3f,%.3f,%.3f) [on %s]", x, y, z, onPath);
 	}
 
 	public PointInImage transform(final PathTransformer transformer) {

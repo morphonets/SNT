@@ -57,7 +57,8 @@ public class DemoRunner {
 		priorUIState = ui.getState();
 		ui.changeState(SNTUI.LOADING);
 		ui.showStatus("Retrieving Demo data. Please wait...", false);
-		entries = List.of(demo1(), demo2(), demo3(), demo4(), demo5(), demo6(), demo7(), demo8(), demo9(), demo10());
+		entries = List.of(demo1(), demo2(), demo3(), demo4(), demo5(), demo6(), demo7(), demo8(), demo9(), demo10(),
+				demo11(), demo12());
 	}
 
 	public DemoRunner(final Context context) {
@@ -123,7 +124,7 @@ public class DemoRunner {
 			public List<Tree> getTrees() {
 				return List.of(getTree());
 			}
-			
+
 		};
 		entry.summary = "Downloads a Drosophila olfactory projection neuron and respective ground truth 3D reconstruction (radii included).";
 		entry.data = "Image (3D; 1-channel confocal image, 15MB) and SWC reconstruction (78KB)";
@@ -213,6 +214,7 @@ public class DemoRunner {
 				if (!prepNonImgLoading())
 					exit();
 				try {
+					assert snt != null;
 					snt.getPathAndFillManager().addTrees(sntService.demoTrees());
 					snt.setSinglePane(true);
 					snt.rebuildDisplayCanvases();
@@ -223,7 +225,7 @@ public class DemoRunner {
 					exit();
 				}
 			}
-			
+
 			@Override
 			public List<Tree> getTrees() {
 				return sntService.demoTrees();
@@ -249,9 +251,12 @@ public class DemoRunner {
 			@Override
 			public void load() {
 				super.load();
-				// apply tags
-				ui.getPathManager().applyDefaultTags("Traced Channel");
-				ui.getPathManager().applyDefaultTags("Traced Frame");
+				assert snt != null;
+				if (snt.getPathAndFillManager().size() > 1) { // apply tags
+					assert ui != null;
+					ui.getPathManager().applyDefaultTags("Traced Channel");
+					ui.getPathManager().applyDefaultTags("Traced Frame");
+				}
 			}
 		};
 		entry.summary = "Downloads a Drosophila S2 cell undergoing mitosis in which K-fibers were traced during anaphase.";
@@ -291,6 +296,60 @@ public class DemoRunner {
 		entry.data = "Image (2D timelapse, 0.9MB)";
 		entry.source = "https://forum.image.sc/t/snt-time-lapse-utilites/47974";
 		entry.online = true;
+		return entry;
+	}
+
+	private Demo demo11() {
+		final Demo entry = new Demo(11, "NeuronJ dataset (2D neurites)") {
+			@Override
+			public ImagePlus getImage() {
+				return  ij.IJ.openImage("https://github.com/morphonets/misc/raw/master/dataset-demos/NeuronJ/neurites.tif");
+			}
+			@Override
+			public void load() {
+				super.load();
+				assert snt != null;
+				snt.enableSnapCursor(true);
+				snt.getUI().setRenderingScale(6.0);
+				snt.enableAstar(true);
+			}
+
+		};
+		entry.summary = "Downloads the test dataset (image and traced neurites) of the NeuronJ legacy plugin.";
+		entry.data = "Image (2D; 314KB) and tracings (2.2KB)";
+		entry.source = "NeuronJ, https://imagej.net/plugins/neuronj";
+		entry.online = true;
+		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/misc/master/dataset-demos/NeuronJ/neurites.ndf";
+		return entry;
+	}
+
+	private Demo demo12() {
+		final Demo entry = new Demo(12, "Spot Spine dataset (spine decorated dendrite)") {
+			@Override
+			public ImagePlus getImage() {
+				return  ij.IJ.openImage("https://github.com/morphonets/misc/raw/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.tif");
+			}
+
+			@Override
+			public void load() {
+				super.load();
+				if (snt.getPathAndFillManager().size() > 1) {
+					snt.getImagePlus().setPosition(1, 20, 1);
+					snt.getUI().setVisibilityFilter("Z-slices", true);
+					snt.enableSnapCursor(false);
+					snt.getUI().runCommand("Display/Rebuild ZY/XZ Views");
+					if (!snt.getDrawDiameters())
+						snt.getUI().runCommand("Draw diameters");
+				}
+			}
+		};
+
+		entry.summary = "Downloads the test dataset of the Spot Spine software (image stack and traced dendrite).";
+		entry.data = "Image (3D; 0.7MB) and tracings (160KB)";
+		entry.source = "Spot Spine (https://imagej.net/plugins/spot-spine) manuscript, doi:10.12688/f1000research" +
+				".146327.1";
+		entry.online = true;
+		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/misc/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.swc";
 		return entry;
 	}
 

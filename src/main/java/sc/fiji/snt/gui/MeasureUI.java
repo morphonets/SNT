@@ -35,6 +35,7 @@ import javax.swing.table.*;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.Context;
+import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 
@@ -49,6 +50,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
+import sc.fiji.snt.gui.cmds.FigCreatorCmd;
 
 
 /**
@@ -71,8 +73,6 @@ public class MeasureUI extends JFrame {
 
 	@Parameter
 	private PrefService prefService;
-	@Parameter
-	private SNTService sntService;
 
 	private SNTTable table;
 	private boolean distinguishCompartments;
@@ -92,12 +92,8 @@ public class MeasureUI extends JFrame {
 		this(plugin.getContext(), trees);
 		this.plugin = plugin;
 		lastDirPath = plugin.getPrefs().getRecentDir().getAbsolutePath();
-		if (plugin.getUI() != null) {
-			//FIXME API limitation: it should be possible to access 
-			// SNTUI#getTable() without the need of sntService. This
-			// may cause problems if multiple instances are running
-			setTable(sntService.getTable());
-		}
+		if (plugin.getUI() != null)
+			setTable(plugin.getUI().getTable());
 	}
 
 	private MeasureUI(final Context context, final Collection<Tree> trees) {
@@ -349,35 +345,15 @@ public class MeasureUI extends JFrame {
 			jmi.setToolTipText("Computes Mean, SD, Sum, etc. for existing measurements");
 			optionsMenu.add(jmi);
 			GuiUtils.addSeparator(optionsMenu, "Utilities:");
-			jmi = new JMenuItem("List Cell(s) Being Measured...");
-			jmi.addActionListener(e -> showDetails(trees));
-			optionsMenu.add(jmi);
-			jmi = new JMenuItem("Render Cell(s) Being Measured...");
+			jmi = GuiUtils.MenuItems.renderQuick();
 			jmi.addActionListener(e -> {
-				final String[] choices = { //
-						"2D montage", //
-						"2D scene", //
-						"2D scene (centered positions)", //
-						"2D skeletons (centered positions)", //
-						"3D scene", //
-						"3D scene (centered positions)" };
-				final String[] desc = { //
-						"Multipanel montage (1 cell per panel) displayed in Reconstruction Plotter", //
-						"Reconstruction Plotter scene displaying cells at their absolute coordinates", //
-						"Reconstruction Plotter scene in which all reconstructions are displayed from a common coordinate", //
-						"Raster image in which all reconstructions are displayed from a common coordinate", //
-						"Reconstruction Viewer scene displaying cells at their absolute coordinates", //
-						"Reconstruction Viewer scene in which all reconstructions are displayed from a common coordinate" };
-				final String defChoice = (plugin == null) ? choices[2]
-						: plugin.getPrefs().getTemp("measure-render", choices[2]);
-				final String choice = guiUtils.getChoice("How would you like to render the cell(s) being measured?",
-						"Render Options", choices, desc, defChoice);
-				if (choice == null)
-					return;
-				if (plugin != null)
-					plugin.getPrefs().setTemp("measure-render", choice);
-				SNTUtils.render(trees, choice);
+				final Map<String, Object> inputs = new HashMap<>();
+				inputs.put("trees", trees);
+				SNTUtils.getContext().getService(CommandService.class).run(FigCreatorCmd.class, true, inputs);
 			});
+			optionsMenu.add(jmi);
+			jmi = new JMenuItem("List Cell(s) Being Measured...", IconFactory.getMenuIcon(IconFactory.GLYPH.LIST));
+			jmi.addActionListener(e -> showDetails(trees));
 			optionsMenu.add(jmi);
 			GuiUtils.addSeparator(optionsMenu, "Help:");
 			jmi = new JMenuItem("Quick Guide...");
@@ -454,7 +430,7 @@ public class MeasureUI extends JFrame {
 					+ "given cell, retrieving 'N' for 'Branch length' is the same as retrieving the cell's 'No. of "//
 					+ "Branches' metric.</li"//
 					+ "<li><em>N</em> may refer to different components (no. of cells, no. of branches, no. of " //
-					+ "nodes, etc.) depending on the metric being retrieved</li>"//	
+					+ "nodes, etc.) depending on the metric being retrieved</li>"//
 					+ "</ul>"//
 					+ "<p><b>Note on Fitted Paths:</b></p>"//
 					+ "<p>Some branch-based metrics may not be available when mixing fitted and "//
@@ -789,7 +765,7 @@ public class MeasureUI extends JFrame {
 			}
 
 		}
-	 
+
 	}
 
 	/**
@@ -803,8 +779,7 @@ public class MeasureUI extends JFrame {
 		private static final String ALL_SELECTED = "✓ ";
 		private final String label;
 		private final JTable table;
-		private final TableModel tableModel;
-		private final JTableHeader header;
+        private final JTableHeader header;
 		private final TableColumnModel tcm;
 		private final int targetColumn;
 		private int viewColumn;
@@ -813,7 +788,7 @@ public class MeasureUI extends JFrame {
 			super(label);
 			this.label = label;
 			this.table = table;
-			this.tableModel = table.getModel();
+            TableModel tableModel = table.getModel();
 			if (tableModel.getColumnClass(targetColumn) != Boolean.class) {
 				throw new IllegalArgumentException("Boolean column required.");
 			}

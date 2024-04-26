@@ -133,7 +133,7 @@ public class SNTUI extends JDialog {
 	private JRadioButtonMenuItem autoRbmi;
 
 	// UI controls for CT data source
-	private JPanel sourcePanel;
+	private final JPanel sourcePanel;
 
 	// UI controls for loading  on 'secondary layer'
 	private JCheckBox secLayerActivateCheckbox;
@@ -647,11 +647,18 @@ public class SNTUI extends JDialog {
 	 * Runs the 'secondary layer' wizard prompt for built-in filters
 	 */
 	public void runSecondaryLayerWizard() {
+		runSecondaryLayerWizard(false);
+	}
+
+	private void runSecondaryLayerWizard(final boolean autoCTwarning) {
 		if (!okToReplaceSecLayer())
 			return;
 		if (!plugin.accessToValidImageData()) {
 			noValidImageDataError();
-		} else if (!plugin.invalidStatsError(false)) {
+			return;
+		}
+		if (autoCTwarning) warnOnAutoCTcompatibilityOthers();
+		if (!plugin.invalidStatsError(false)) {
 			plugin.flushSecondaryData();
 			(new DynamicCmdRunner(ComputeSecondaryImg.class, null, RUNNING_CMD)).run();
 		}
@@ -758,6 +765,11 @@ public class SNTUI extends JDialog {
 
 	protected void updateSettingsString() {
 		final StringBuilder sb = new StringBuilder();
+		sb.append("Data source: ");
+		sb.append("\n");
+		sb.append("    Channel: ").append(plugin.getChannel()).append("; Frame: ").append(plugin.getFrame());
+		sb.append( (plugin.autoCT) ? " (auto-loaded)" : " (manually-loaded)");
+		sb.append("\n");
 		sb.append("Auto-tracing: ").append((plugin.isAstarEnabled()) ? searchAlgoChoice.getSelectedItem() : "Disabled");
 		sb.append("\n");
 		sb.append("    Data structure: ").append(plugin.searchImageType);
@@ -1030,8 +1042,6 @@ public class SNTUI extends JDialog {
 	/* User inputs for multidimensional images */
 	private JPanel sourcePanel(final ImagePlus imp) {
 		final JPanel sourcePanel = new JPanel(new GridBagLayout());
-		final GridBagConstraints gdb = GuiUtils.defaultGbc();
-		gdb.gridwidth = 1;
 		final boolean hasChannels = imp != null && imp.getNChannels() > 1;
 		final boolean hasFrames = imp != null && imp.getNFrames() > 1;
 		final JPanel positionPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
@@ -1057,7 +1067,6 @@ public class SNTUI extends JDialog {
 				guiUtils.error("There is no valid image data to be loaded.");
 				return;
 			}
-
 			if (!plugin.accessToValidImageData() && plugin.getLoadedData() != null) {
 				cachedDataFallbackPrompt();
 				return;
@@ -1074,8 +1083,49 @@ public class SNTUI extends JDialog {
 			loadImagefromGUI(newC, newT);
 		});
 		positionPanel.add(applyPositionButton);
+
+		final JCheckBox autoCTcheckbox = new JCheckBox("Auto-load CT position of new paths", plugin.autoCT);
+		commandFinder.register(autoCTcheckbox, "Main Tab", "Data Source");
+		GuiUtils.addTooltip(autoCTcheckbox, "Automatically loads the active channel and frame of the starting " +
+				"node of newly created paths.<br>" +
+				"NB: This option may be incompatible with secondary layers and Z-projection overlays.");
+		autoCTcheckbox.addActionListener(e -> {
+			plugin.autoCT = autoCTcheckbox.isSelected();
+			updateSettingsString();
+			if (plugin.autoCT) warnOnAutoCTcompatibilitySelf();
+		});
+
+		final GridBagConstraints gdb = GuiUtils.defaultGbc();
+		gdb.gridwidth = 1;
 		sourcePanel.add(positionPanel, gdb);
+		gdb.gridx = 0;
+		gdb.gridy++;
+		sourcePanel.add(autoCTcheckbox, gdb);
 		return sourcePanel;
+	}
+
+	private void warnOnAutoCTcompatibilitySelf() {
+		if (plugin.getPrefs().getTemp("autoct-skipnag", false)) {
+			return;
+		}
+		final boolean secLayer = plugin.isTracingOnSecondaryImageAvailable() || plugin.isSecondaryImageFileLoaded();
+		final AbstractButton overlayCheckbox = commandFinder.getRegisteredComponent("Overlay MIP(s)");
+		final boolean overlayMip = overlayCheckbox != null && overlayCheckbox.isSelected();
+		if (secLayer || overlayMip) {
+			final Boolean skipnag = guiUtils.getPersistentWarning("This option may conflict with " +
+					"<i>Overlay MIP(s)</i> and <i>Trace/Fill on Secondary Layer</i> settings. You should " +
+					"consider disabling them if tracing becomes inaccurate.", "Possible Conflict");
+			if (skipnag != null) plugin.getPrefs().setTemp("autoct-skipnag", skipnag);
+		}
+	}
+
+	private void warnOnAutoCTcompatibilityOthers() {
+		if (plugin.autoCT && !plugin.getPrefs().getTemp("autoct-skipnag", false)) {
+			final Boolean skipnag = guiUtils.getPersistentWarning("This option may conflict with " +
+					"<i>Auto-load CT position of new paths</i>. You should consider " +
+					"disabling it if tracing becomes inaccurate.", "Possible Conflict");
+			if (skipnag != null) plugin.getPrefs().setTemp("autoct-skipnag", skipnag);
+		}
 	}
 
 	private void cachedDataFallbackPrompt() {
@@ -1143,6 +1193,7 @@ public class SNTUI extends JDialog {
 				mipCS.setSelected(false);
 			} else {
 				plugin.showMIPOverlays(false, (mipCS.isSelected()) ? (int) mipCS.getValue() * 0.01 : 0);
+				if  (mipCS.isSelected()) warnOnAutoCTcompatibilityOthers();
 			}
 		});
 		viewsPanel.add(mipCS, gdb);
@@ -1185,7 +1236,7 @@ public class SNTUI extends JDialog {
 				if (t instanceof OutOfMemoryError) {
 					guiUtils.error("Out of Memory: There is not enough RAM to load side views!");
 				} else {
-					guiUtils.error("An error occured. See Console for details.");
+					guiUtils.error("An error occurred. See Console for details.");
 					t.printStackTrace();
 				}
 				plugin.setSinglePane(true);
@@ -1743,7 +1794,7 @@ public class SNTUI extends JDialog {
 						} catch (final Throwable ignored) {
 							// see https://github.com/morphonets/SNT/issues/136
 							guiUtils.error(
-									"An exception occured. Viewer may not be functional. Please consider using previous viewers.");
+									"An exception occurred. Viewer may not be functional. Please consider using previous viewers.");
 						}
 					} else {
 						univ.resetView();
@@ -1770,7 +1821,7 @@ public class SNTUI extends JDialog {
 					showStatus("3D Viewer enabled: " + selectedKey, true);
 
 				} catch (final Throwable ex) {
-					guiUtils.error("An error occured. Legacy 3D viewer may not be available. See Console for details.");
+					guiUtils.error("An error occurred. Legacy 3D viewer may not be available. See Console for details.");
 					ex.printStackTrace();
 				} finally {
 					resetChoice();
@@ -1808,7 +1859,7 @@ public class SNTUI extends JDialog {
 					univChoice.addItem(iw3d.getTitle());
 				}
 			} catch (final Throwable ex) {
-				guiUtils.error("An error occured. Legacy 3D viewer may not be available. See Console for details.");
+				guiUtils.error("An error occurred. Legacy 3D viewer may not be available. See Console for details.");
 				ex.printStackTrace();
 			}
 			showStatus("Viewers list updated...", true);
@@ -1978,7 +2029,7 @@ public class SNTUI extends JDialog {
 						if (!get())
 							no3DcapabilitiesError("Reconstruction Viewer");
 					} catch (final InterruptedException | ExecutionException e) {
-						guiUtils.error("Unfortunately an error occured. See Console for details.");
+						guiUtils.error("Unfortunately an error occurred. See Console for details.");
 						e.printStackTrace();
 					} finally {
 						setReconstructionViewer(recViewer);
@@ -2172,7 +2223,7 @@ public class SNTUI extends JDialog {
 		ScriptRecorder.setRecordingCall(mi1, "snt.getUI().runSecondaryLayerWizard()");
 		commandFinder.register(mi1, "Main tab", "Auto-tracing (II Layer)");
 		mi1.setToolTipText("Create a secondary layer using built-in image processing routines");
-		mi1.addActionListener(e -> runSecondaryLayerWizard());
+		mi1.addActionListener(e -> runSecondaryLayerWizard(true));
 		final JMenuItem mi2 = GuiUtils.MenuItems.fromOpenImage();
 		mi2.addActionListener(e -> loadSecondaryImage(true));
 		commandFinder.register(mi2, "Main tab", "Auto-tracing (II Layer)");
@@ -2197,6 +2248,7 @@ public class SNTUI extends JDialog {
 				noValidImageDataError();
 				return;
 			}
+			warnOnAutoCTcompatibilityOthers();
 			(new DynamicCmdRunner(WekaModelLoader.class, null)).run();
 		});
 		commandFinder.register(mi5, "Main tab", "Auto-tracing (II Layer)");
@@ -2244,6 +2296,7 @@ public class SNTUI extends JDialog {
 						(secLayerImgOverlayCSpinner.isSelected())
 								? (int) secLayerImgOverlayCSpinner.getValue() * 0.01
 								: 0);
+			if (secLayerImgOverlayCSpinner.isSelected()) warnOnAutoCTcompatibilityOthers();
 			}
 		});
 		secLayerImgOverlayCSpinner.appendLabel("% opacity");
@@ -2264,6 +2317,7 @@ public class SNTUI extends JDialog {
 			inputs.put("secondaryLayer", true);
 			(new DynamicCmdRunner(ChooseDatasetCmd.class, inputs, LOADING)).run();
 		} else {
+			warnOnAutoCTcompatibilityOthers();
 			final File proposedFile = (plugin.getFilteredImageFile() == null) ? plugin.getPrefs().getRecentDir()
 					: plugin.getFilteredImageFile();
 			final File file = guiUtils.getOpenFile("Choose Secondary Image", proposedFile);
@@ -2560,21 +2614,7 @@ public class SNTUI extends JDialog {
 					warnOnPossibleAnnotationLoss();
 			}
 		});
-		final JMenuItem exportAllSWCMenuItem = new JMenuItem("Export As SWC...");
-		exportAllSWCMenuItem.addActionListener( e -> {
-			if (plugin.accessToValidImageData() && pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
-					"These tracings were obtained from a spatially uncalibrated "
-							+ "image but the SWC specification assumes all coordinates to be " + "in "
-							+ GuiUtils.micrometer() + ". Do you really want to proceed " + "with the SWC export?",
-					"Warning"))
-				return;
-
-			final SWCExportDialog dialog = new SWCExportDialog(SNTUI.this, plugin.getImagePlus(), getProposedSavingFile("swc"));
-			if (dialog.succeeded()) {
-				saveAllPathsToSwc(dialog.getFile().getAbsolutePath(), dialog.getFileHeader());
-				warnOnPossibleAnnotationLoss();
-			}	
-		});
+		final JMenuItem exportAllSWCMenuItem = getExportSWCMenuItem();
 		exportSubmenu.addSeparator();
 		exportSubmenu.add(exportAllSWCMenuItem);
 
@@ -2708,7 +2748,6 @@ public class SNTUI extends JDialog {
 		// Utilities
 		utilitiesMenu.add(commandFinder.getMenuItem(menuBar, false));
 		utilitiesMenu.addSeparator();
-		utilitiesMenu.add(plotMenuItem);
 		final JMenuItem compareFiles = new JMenuItem("Compare Reconstructions/Cell Groups...");
 		compareFiles.setToolTipText("Statistical comparisons between cell groups or individual files");
 		compareFiles.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BINOCULARS));
@@ -2736,17 +2775,9 @@ public class SNTUI extends JDialog {
 				(new DynamicCmdRunner(GroupAnalyzerCmd.class, null)).run();
 			}
 		});
+		utilitiesMenu.add(plotMenuItem);
 		utilitiesMenu.addSeparator();
-		final JMenuItem graphGenerator = GuiUtils.MenuItems.createDendrogram();
-		utilitiesMenu.add(graphGenerator);
-		graphGenerator.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
-			if (tree == null) return;
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("tree", tree);
-			(new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
-		});
+
 		final JMenuItem annotGenerator = GuiUtils.MenuItems.createAnnotionGraph();
 		utilitiesMenu.add(annotGenerator);
 		annotGenerator.addActionListener(e -> {
@@ -2757,6 +2788,26 @@ public class SNTUI extends JDialog {
 			inputs.put("trees", trees);
 			(new DynamicCmdRunner(AnnotationGraphGeneratorCmd.class, inputs)).run();
 		});
+		final JMenuItem graphGenerator = GuiUtils.MenuItems.createDendrogram();
+		utilitiesMenu.add(graphGenerator);
+		graphGenerator.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Tree tree = getPathManager().getSingleTree();
+			if (tree == null) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("tree", tree);
+			(new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
+		});
+		final JMenuItem figureGenerator = GuiUtils.MenuItems.renderQuick();
+		figureGenerator.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Collection<Tree> trees = getPathManager().getMultipleTrees();
+			if (trees == null || trees.isEmpty()) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("trees", trees);
+			(new DynamicCmdRunner(FigCreatorCmd.class, inputs)).run();
+		});
+		utilitiesMenu.add(figureGenerator);
 		utilitiesMenu.addSeparator();
 
 		// similar to File>Autotrace Segmented Image File... but assuming current image as source,
@@ -2841,10 +2892,26 @@ public class SNTUI extends JDialog {
 			}
 		});
 		viewMenu.add(consoleJMI);
-		//viewMenu.addSeparator();
-
-		//viewMenu.add(guiUtils.combineChartsMenuItem());
 		return menuBar;
+	}
+
+	private JMenuItem getExportSWCMenuItem() {
+		final JMenuItem exportAllSWCMenuItem = new JMenuItem("Export As SWC...");
+		exportAllSWCMenuItem.addActionListener( e -> {
+			if (plugin.accessToValidImageData() && pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
+					"These tracings were obtained from a spatially uncalibrated "
+							+ "image but the SWC specification assumes all coordinates to be " + "in "
+							+ GuiUtils.micrometer() + ". Do you really want to proceed " + "with the SWC export?",
+					"Warning"))
+				return;
+
+			final SWCExportDialog dialog = new SWCExportDialog(SNTUI.this, plugin.getImagePlus(), getProposedSavingFile("swc"));
+			if (dialog.succeeded()) {
+				saveAllPathsToSwc(dialog.getFile().getAbsolutePath(), dialog.getFileHeader());
+				warnOnPossibleAnnotationLoss();
+			}
+		});
+		return exportAllSWCMenuItem;
 	}
 
 	private JMenu showFolderMenu(final ScriptInstaller installer) {
@@ -2958,12 +3025,11 @@ public class SNTUI extends JDialog {
 		++cop_f.gridy;
 		final JCheckBox jcheckbox = new JCheckBox("Enforce default colors (ignore color tags)");
 		GuiUtils.addTooltip(jcheckbox,
-				"Whether default colors above should be used even when color tags have been applied in the Path Manager");
+				"Whether default colors above should be used even when color tags have been applied in the Path Manager.<br><br>" +
+						"NB: This option does not affect color-coded paths, or paths with multi-color nodes");
 		registerInCommandFinder(jcheckbox, "Enforce Default Colors", "Main Tab");
 		jcheckbox.addActionListener(e -> {
 			plugin.displayCustomPathColors = !jcheckbox.isSelected();
-			// colorChooser1.setEnabled(!plugin.displayCustomPathColors);
-			// colorChooser2.setEnabled(!plugin.displayCustomPathColors);
 			plugin.updateTracingViewers(true);
 		});
 		colorOptionsPanel.add(jcheckbox, cop_f);
@@ -3424,16 +3490,6 @@ public class SNTUI extends JDialog {
 		loc = plugin.getPrefs().getFillWindowLocation();
 		if (loc != null)
 			fmUI.setLocation(loc);
-		// final GraphicsDevice activeScreen =
-		// getGraphicsConfiguration().getDevice();
-		// final int screenWidth = activeScreen.getDisplayMode().getWidth();
-		// final int screenHeight = activeScreen.getDisplayMode().getHeight();
-		// final Rectangle bounds =
-		// activeScreen.getDefaultConfiguration().getBounds();
-		//
-		// setLocation(bounds.x, bounds.y);
-		// pw.setLocation(screenWidth - pw.getWidth(), bounds.y);
-		// fw.setLocation(bounds.x + getWidth(), screenHeight - fw.getHeight());
 	}
 
 	private void arrangeCanvases(final boolean displayErrorOnFailure) {
@@ -3543,11 +3599,6 @@ public class SNTUI extends JDialog {
 				showOrHideFillList.setText("Show Fill Manager");
 			fmUI.setVisible(false);
 		}
-	}
-
-	protected boolean nearbySlices() {
-		assert SwingUtilities.isEventDispatchThread();
-		return partsNearbyCSpinner.isSelected();
 	}
 
 	private JMenuItem shollAnalysisHelpMenuItem() {
@@ -3665,21 +3716,26 @@ public class SNTUI extends JDialog {
 		showStatus("Resetting", true);
 	}
 
-	protected void inputImageChanged() {
+	protected void ctPositionChanged() {
 		final ImagePlus imp = plugin.getImagePlus();
-		partsNearbyCSpinner.setSpinnerMinMax(1, plugin.getDepth());
-		partsNearbyCSpinner.setEnabled(imp != null && !plugin.is2D());
-		plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
-				(int) partsNearbyCSpinner.getValue(), false);
 		final JPanel newSourcePanel = sourcePanel(imp);
 		final GridBagLayout layout = (GridBagLayout) newSourcePanel.getLayout();
-		for (int i = 0; i < sourcePanel.getComponentCount(); i++) {
-			sourcePanel.remove(i);
-			final Component component = newSourcePanel.getComponent(i);
+		sourcePanel.removeAll();
+		for (final Component component : newSourcePanel.getComponents()) {
 			sourcePanel.add(component, layout.getConstraints(component));
+			if (component instanceof JCheckBox)
+				component.setEnabled( imp != null && (imp.getNChannels() > 1 || imp.getNFrames() > 1));
 		}
 		revalidate();
 		repaint();
+	}
+
+	protected void inputImageChanged() {
+		partsNearbyCSpinner.setSpinnerMinMax(1, plugin.getDepth());
+		partsNearbyCSpinner.setEnabled(!plugin.is2D());
+		plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
+				(int) partsNearbyCSpinner.getValue(), false);
+		ctPositionChanged();
 		if (autoRbmi != null)
 			autoRbmi.setSelected(plugin.getUseSubVolumeStats());
 		final boolean validImage = plugin.accessToValidImageData();
@@ -3918,6 +3974,10 @@ public class SNTUI extends JDialog {
 		return false;
 	}
 
+	public SNTTable getTable() {
+		return getPathManager().getTable();
+	}
+
 	private class GuiListener
 			implements ActionListener, ItemListener, ImageListener {
 
@@ -4001,7 +4061,8 @@ public class SNTUI extends JDialog {
 						return;
 					}
 					plugin.enableSecondaryLayerTracing(true);
-
+					if (plugin.isTracingOnSecondaryImageActive())
+						warnOnAutoCTcompatibilityOthers();
 				} else {
 					plugin.enableSecondaryLayerTracing(false);
 				}
@@ -4372,7 +4433,7 @@ public class SNTUI extends JDialog {
 			return;
 		}
 		final List<File> copies = SNTUtils.getBackupCopies(autosaveFile); // list never null
-		if (copies == null || copies.isEmpty()) {
+		if (copies.isEmpty()) {
 			error("No time-stamped backups seem to exist for current data. Please create one first.");
 			return;
 		}

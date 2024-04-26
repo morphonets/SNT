@@ -183,7 +183,7 @@ public class SNTGraphComponent extends mxGraphComponent {
             guiUtils.tempMsg(file.getAbsolutePath() + " saved");
 
         } catch (IOException | TransformerException e) {
-            guiUtils.error("An exception occured while saving file. See Console for details");
+            guiUtils.error("An exception occurred while saving file. See Console for details");
             e.printStackTrace();
         }
     }

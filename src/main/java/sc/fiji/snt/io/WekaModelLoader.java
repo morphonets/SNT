@@ -129,7 +129,7 @@ public class WekaModelLoader extends CommonDynamicCmd {
 			if (t instanceof OutOfMemoryError) {
 				error("Out of Memory: There is not enough RAM to load model as secondary layer!");
 			} else {
-				error(t.getClass().getSimpleName() + ": An error occured. See Console" + ((tws) ? "/Log window" : "")
+				error(t.getClass().getSimpleName() + ": An error occurred. See Console" + ((tws) ? "/Log window" : "")
 						+ " for details.");
 				t.printStackTrace();
 			}

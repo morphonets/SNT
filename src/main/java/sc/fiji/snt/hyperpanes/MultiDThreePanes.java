@@ -783,7 +783,7 @@ public class MultiDThreePanes implements PaneOwner {
 	}
 
 	@Override
-	public void panEventOccured(int off_screen_x, int off_screen_y, int in_plane) {
+	public void panEventOccurred(int off_screen_x, int off_screen_y, int in_plane) {
 		if (single_pane) return; // do nothing
 		final int point[] = new int[3];
 		findPointInStack(off_screen_x, off_screen_y, in_plane, point);

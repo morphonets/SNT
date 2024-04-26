@@ -430,7 +430,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 				analyzer.measure(metrics, splitByType); // will display table
 			}
 		} catch (final IllegalArgumentException | ArithmeticException | IllegalStateException ex) {
-			error("An error occured while computing metric(s). See Console for details.");
+			error("An error occurred while computing metric(s). See Console for details.");
 			ex.printStackTrace();
 		} finally {
 			resetUI();

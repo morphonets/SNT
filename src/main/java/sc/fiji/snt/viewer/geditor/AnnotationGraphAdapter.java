@@ -36,10 +36,6 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
 
     private static final String DARK_GRAY = "#222222";
     private static final String LIGHT_GRAY = "#eeeeee";
-    // default cell colors
-    private final String defaultVertexStrokeColor = DARK_GRAY;
-    private final String defaultVertexFillColor = LIGHT_GRAY;
-    private final String defaultEdgeStrokeColor = DARK_GRAY;
     private final AnnotationGraph annotationGraph;
 
     public AnnotationGraphAdapter(final AnnotationGraph graph) {
@@ -87,8 +83,9 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
         String strokeColor;
         String fillColor;
         if (color == null) {
-            strokeColor = defaultVertexStrokeColor;
-            fillColor = defaultVertexFillColor;
+            // default cell colors
+            strokeColor = DARK_GRAY;
+            fillColor = LIGHT_GRAY;
         } else {
             strokeColor = color.toHTMLColor();
             fillColor = color.toHTMLColor();
@@ -107,7 +104,7 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
         }
         String strokeColor;
         if (color == null) {
-            strokeColor = defaultEdgeStrokeColor;
+            strokeColor = DARK_GRAY;
         } else {
             strokeColor = color.toHTMLColor();
         }
@@ -131,9 +128,9 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
         mxCell mxc = (mxCell) cell;
         if (mxc.isVertex() && mxc.getValue() instanceof BrainAnnotation) {
             BrainAnnotation vertex = (BrainAnnotation) mxc.getValue();
-            String tip = "<html>";
-            tip += "<b>Region:</b> " + vertex.name();
-            tip += "<br><b>Incoming edges:</b> ";
+            StringBuilder tip = new StringBuilder("<html>");
+            tip.append("<b>Region:</b> ").append(vertex.name());
+            tip.append("<br><b>Incoming edges:</b> ");
             if (annotationGraph.inDegreeOf(vertex) > 0) {
                 double sum = annotationGraph.incomingEdgesOf(vertex).stream()
                         .mapToDouble(AnnotationWeightedEdge::getWeight)
@@ -141,16 +138,16 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
                 int count = 1;
                 for (AnnotationWeightedEdge edge : annotationGraph.incomingEdgesOf(vertex)) {
                     BrainAnnotation source = edge.getSource();
-                    tip += "<br>" + count + ". " + source.name();
-                    tip += ", weight=" + String.format("%,.2f", edge.getWeight());
-                    tip += ", ratio=" + String.format("%.2f", edge.getWeight()/sum);
+                    tip.append("<br>").append(count).append(". ").append(source.name());
+                    tip.append(", weight=").append(String.format("%,.2f", edge.getWeight()));
+                    tip.append(", ratio=").append(String.format("%.2f", edge.getWeight() / sum));
                     ++count;
                 }
-                tip += "<br>sum=" + String.format("%,.2f", sum);
+                tip.append("<br>sum=").append(String.format("%,.2f", sum));
             } else {
-                tip += "<br>None";
+                tip.append("<br>None");
             }
-            tip += "<br><b>Outgoing edges:</b> ";
+            tip.append("<br><b>Outgoing edges:</b> ");
             if (annotationGraph.outDegreeOf(vertex) > 0) {
                 double sum = annotationGraph.outgoingEdgesOf(vertex).stream()
                         .mapToDouble(AnnotationWeightedEdge::getWeight)
@@ -158,17 +155,17 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
                 int count = 0;
                 for (AnnotationWeightedEdge edge : annotationGraph.outgoingEdgesOf(vertex)) {
                     BrainAnnotation target = edge.getTarget();
-                    tip += "<br>" + count + ". " + target.name();
-                    tip += ", weight=" + String.format("%,.2f", edge.getWeight());
-                    tip += ", ratio=" + String.format("%.2f", edge.getWeight()/sum);
+                    tip.append("<br>").append(count).append(". ").append(target.name());
+                    tip.append(", weight=").append(String.format("%,.2f", edge.getWeight()));
+                    tip.append(", ratio=").append(String.format("%.2f", edge.getWeight() / sum));
                     ++count;
                 }
-                tip += "<br>sum=" + String.format("%,.2f", sum);
+                tip.append("<br>sum=").append(String.format("%,.2f", sum));
             } else {
-                tip += "<br>None";
+                tip.append("<br>None");
             }
-            tip += "</html>";
-            return tip;
+            tip.append("</html>");
+            return tip.toString();
         	// NB: Once cell is displayed/edited we no longer can cast cell's
         	// value to a BrainAnnotation object!?
         	// return ((BrainAnnotation) mxc.getValue()).name();

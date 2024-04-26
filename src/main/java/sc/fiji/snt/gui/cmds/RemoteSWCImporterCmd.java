@@ -96,8 +96,7 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 	private RemoteSWCLoader loader;
 
 
-	private PathAndFillManager pafm;
-	private String placeholderQuery;
+    private String placeholderQuery;
 	private String database;
 
 	/*
@@ -128,7 +127,8 @@ public class RemoteSWCImporterCmd extends CommonDynamicCmd {
 			return;
 		}
 
-		if (standAloneViewer) {
+        PathAndFillManager pafm;
+        if (standAloneViewer) {
 			pafm = new PathAndFillManager();
 		}
 		else if (sntService.isActive()) {

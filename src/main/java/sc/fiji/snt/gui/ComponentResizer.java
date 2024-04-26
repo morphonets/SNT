@@ -33,13 +33,13 @@ import javax.swing.SwingUtilities;
  * the component. see
  * https://tips4java.wordpress.com/2009/09/13/resizing-components/ license:
  * re-use without restriction (https://tips4java.wordpress.com/about/)
- * 
+ *
  * @author Rob Camick
- * 
+ * <p>
  *         //TODO: Hava a look at
  *         https://tips4java.wordpress.com/2009/09/13/resizing-components/#comments
  *         for multi-screen support
- * 
+ *
  */
 class ComponentResizer extends MouseAdapter {
 
@@ -338,7 +338,7 @@ class ComponentResizer extends MouseAdapter {
 	 * Resize the component ensuring location and size is within the bounds of the
 	 * parent container and that the size is within the minimum and maximum
 	 * constraints.
-	 *
+	 * <p>
 	 * All calculations are done using the bounds of the component when the resizing
 	 * started.
 	 */

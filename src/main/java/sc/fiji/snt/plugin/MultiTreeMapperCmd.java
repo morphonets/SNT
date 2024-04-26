@@ -186,6 +186,7 @@ public class MultiTreeMapperCmd extends CommonDynamicCmd {
                 p.setNodeColors(null);
             }
         }
+        snt.updateAllViewers();
         statusService.showStatus("Color code removed...");
     }
 

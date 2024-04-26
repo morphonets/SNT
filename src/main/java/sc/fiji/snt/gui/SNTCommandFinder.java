@@ -282,7 +282,7 @@ public class SNTCommandFinder {
 		if (recorder == null)
 			return;
 		if (cmdAction.id.startsWith("<HTML>") || cmdAction.description().startsWith("Scripts")) {
-			recordComment("Command is not recordable... [id: "+ cmdAction.id +"]");
+			recordComment("Non-recordable command... [id: "+ cmdAction.id +"]");
 			return;
 		}
 		if (recordPresetAPICall(cmdAction))
@@ -448,6 +448,11 @@ public class SNTCommandFinder {
 			else if (component instanceof AbstractButton)
 				register((AbstractButton)component, path);
 		}
+	}
+
+	public AbstractButton getRegisteredComponent(final String label) {
+		final CmdAction cmd = cmdScrapper.getCmdMap().get(label);
+		return (cmd == null) ? null : cmd.button;
 	}
 
 	private void registerMenu(final JMenu menu, final List<String> path) {

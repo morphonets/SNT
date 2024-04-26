@@ -39,15 +39,16 @@ import javax.swing.JWindow;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
-/* Large multichannel/timelapse images can take a while to load into SNT. This helps to maintain the GUI functional 
+/* Large multichannel/timelapse images can take a while to load into SNT. This helps to maintain the GUI functional
  * Recycled code from https://stackoverflow.com/a/11935045 and net.imagej.launcher.SplashScreen
  * */
 class SplashScreen extends JWindow {
 
 	private static final long serialVersionUID = 1L;
 	private static final int fontSizeRef = GuiUtils.getMenuItemHeight();
-	private static JProgressBar progressBar = new JProgressBar();
-	private static int count = 1, TIMER_PAUSE = 25, PROGBAR_MAX = 100;
+	private static final JProgressBar progressBar = new JProgressBar();
+	private static int count = 1;
+    private static final int PROGBAR_MAX = 100;
 	private static Timer progressBarTimer;
 	private final ActionListener al = evt -> {
 		progressBar.setValue(count);
@@ -122,7 +123,8 @@ class SplashScreen extends JWindow {
 		pack();
 		setLocationRelativeTo(null);
 		setAlwaysOnTop(true);
-		progressBarTimer = new Timer(TIMER_PAUSE, al);
+        int TIMER_PAUSE = 25;
+        progressBarTimer = new Timer(TIMER_PAUSE, al);
 		setVisible(true);
 		progressBarTimer.start();
 	}

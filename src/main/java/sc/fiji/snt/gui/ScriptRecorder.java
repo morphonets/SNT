@@ -62,7 +62,7 @@ public class ScriptRecorder extends JDialog {
 
 		private final String ext;
 		private final String commentSeq;
-		private boolean semiColon;
+		private final boolean semiColon;
 
 		LANG(final String ext, final String commentSeq, final boolean semiColon) {
 			this.ext = ext;

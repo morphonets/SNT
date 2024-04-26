@@ -47,6 +47,7 @@ import org.jfree.chart.ui.RectangleEdge;
 import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
+import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
@@ -74,15 +75,13 @@ public class MultiViewer2D {
 	private boolean gridVisible;
 	private boolean axesVisible;
 	private boolean outlineVisible;
-	private double legendMin = Double.MAX_VALUE;
-	private double legendMax = Double.MIN_VALUE;
-	private String label;
+    private String label;
 
 	public MultiViewer2D(final List<Viewer2D> viewers) {
 		if (viewers == null)
 			throw new IllegalArgumentException("Cannot instantiate a grid from a null list of viewers");
 		this.viewers = viewers;
-		guessLayout();
+		guessLayout(true);
 		setAxesVisible(true);
 		setGridlinesVisible(false);
 		setOutlineVisible(true);
@@ -96,24 +95,32 @@ public class MultiViewer2D {
 			if (tree.getLabel() != null) {
 				v.setTitle(tree.getLabel());
 				v.getChart().annotate(tree.getLabel());
-			
+
 			}
 			viewers.add(v);
 		});
-	
-		guessLayout();
+
+		guessLayout(true);
 		setAxesVisible(true);
 		setGridlinesVisible(false);
 		setOutlineVisible(true);
 	}
 
-	private void guessLayout() {
-		gridCols = viewers.size() / 2;
+	private void guessLayout(final boolean padGridWithEmptyViewers) {
+		gridCols = (viewers.size() < 11) ? viewers.size() : viewers.size() / 2;
+		for (int i =0; i < viewers.size() % gridCols ; i++) {
+			final Viewer2D dummy = new Viewer2D();
+			final Tree tree = new Tree();
+			tree.add(new Path());
+			dummy.add(tree);
+			dummy.setTitle("");
+			viewers.add(dummy);
+		}
 	}
 
 	public void setLayoutColumns(final int cols) {
 		if (cols <= 0) {
-			guessLayout();
+			guessLayout(true);
 		} else {
 			gridCols = Math.min(cols, viewers.size());
 		}
@@ -141,7 +148,9 @@ public class MultiViewer2D {
 		if (colorTable == null || viewers == null) {
 			throw new IllegalArgumentException("Cannot set legend from null viewers or null colorTable");
 		}
-		if (min >=max) {
+        double legendMin = Double.MAX_VALUE;
+        double legendMax = Double.MIN_VALUE;
+        if (min >=max) {
 			legendMin = Double.MAX_VALUE;
 			legendMax = Double.MIN_VALUE;
 			for (Viewer2D viewer: viewers) {

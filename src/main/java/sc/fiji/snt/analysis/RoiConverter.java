@@ -534,7 +534,7 @@ public class RoiConverter extends TreeAnalyzer {
 					s1.or(s2);
 				}
 			} catch (final NullPointerException ex) {
-				SNTUtils.log("Skipping " + roi + " an exception occured " + ex.getMessage());
+				SNTUtils.log("Skipping " + roi + " an exception occurred " + ex.getMessage());
 			}
 		}
 		return (s1 == null) ? null : s1.trySimplify();

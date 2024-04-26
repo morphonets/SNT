@@ -29,17 +29,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import ij.plugin.*;
 import org.scijava.convert.ConvertService;
 
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.io.Opener;
-import ij.plugin.CompositeConverter;
-import ij.plugin.ContrastEnhancer;
-import ij.plugin.Duplicator;
-import ij.plugin.ImagesToStack;
-import ij.plugin.ZProjector;
 import ij.process.ByteProcessor;
 import ij.process.ImageConverter;
 import ij.process.ImageStatistics;
@@ -166,6 +162,17 @@ public class ImpUtils {
 		return extracted;
 	}
 
+	public static ImagePlus getCT(final ImagePlus imp, final int channel, final int frame) {
+		imp.deleteRoi(); // will call saveRoi
+		final ImagePlus extracted = new Duplicator().run(imp, channel, channel, 1, imp.getNSlices(), frame, frame);
+		extracted.setCalibration(imp.getCalibration());
+		imp.restoreRoi();
+		extracted.setRoi(imp.getRoi());
+		extracted.setProp("extracted-channel", channel);
+		extracted.setProp("extracted-frame", frame);
+		return extracted;
+	}
+
 	public static void removeSlices(final ImageStack stack, Collection<String> labels) {
 		int count = 0;
 		for (int i = 1; i <= stack.size(); i++) {
@@ -244,6 +251,26 @@ public class ImpUtils {
 		return imp;
 	}
 
+	public static ImagePlus combineSkeletons(final Collection<Tree> trees, final boolean asMontage) {
+		if (!asMontage) return combineSkeletons(trees);
+		final List<ImagePlus> imps = new ArrayList<>(trees.size());
+		trees.forEach( tree -> imps.add(tree.getSkeleton2D()));
+		ImagePlus imp = ImagesToStack.run(imps.toArray(new ImagePlus[0]));
+		int gridCols, gridRows;
+		if (trees.size() < 11) {
+			gridCols = trees.size();
+			gridRows = 1;
+		} else {
+			gridCols = (int)Math.sqrt(trees.size());
+			gridRows = gridCols;
+			int n = trees.size() - gridCols*gridRows;
+			if (n>0) gridCols += (int)Math.ceil((double)n/gridRows);
+		}
+		imp = new MontageMaker().makeMontage2(imp, gridCols, gridRows, 1, 1, trees.size(), 1, 0, true);
+		imp.setTitle("Skeletonized Trees");
+		return imp;
+	}
+
 	/**
 	 * Returns one of the demo images bundled with SNT image associated with the
 	 * demo (fractal) tree.
@@ -255,8 +282,7 @@ public class ImpUtils {
 	 *            'cil810' for the respective Cell Image Library entries, and
 	 *            'binary timelapse' for a small 4-frame sequence of neurite growth
 	 * @return the demo image, or null if data could no be retrieved
-	 * @see #demoTree(String)
-	 */
+     */
 	public static ImagePlus demo(final String img) {
 		if (img == null)
 			throw new IllegalArgumentException("demoImage(): argument cannot be null");
@@ -282,6 +308,11 @@ public class ImpUtils {
 		throw new IllegalArgumentException("Not a recognized demoImage argument: " + img);
 	}
 
+	public static ImagePlus getCurrentImage() {
+		// FIXME: Requiring LegacyService() to access the current image is problematic due to
+		// initialization problems in SNTService and SNTUtils, so I'll use this as a workaround
+		return ij.WindowManager.getCurrentImage();
+	}
 	private static ImagePlus demoImageInternal(final String path, final String displayTitle) {
 		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 		final InputStream is = classloader.getResourceAsStream(path);

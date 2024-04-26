@@ -269,8 +269,11 @@ public class SkeletonConverter {
 	 * @return the skeleton tree list
 	 */
 	public List<Tree> getTrees() {
+		final List<DirectedWeightedGraph> graphs = getGraphs();
+		if (graphs == null)
+			return null;
 		final List<Tree> treeList = new ArrayList<>();
-		for (final DirectedWeightedGraph graph : getGraphs()) {
+		for (final DirectedWeightedGraph graph : graphs) {
 			final Tree tree = graph.getTree();
 			/* Assign image calibration and known CT positions to tree */
 			assignToImage(tree);
@@ -299,7 +302,7 @@ public class SkeletonConverter {
 				&& (getRootRoiStrategy() == ROI_CENTROID || getRootRoiStrategy() == ROI_CENTROID_WEIGHTED)) {
 
 			// Retrieve primary paths. this is expected to be a singleton list
-			final List<Path> primaryPaths = tree.list().stream().filter(p -> p.isPrimary())
+			final List<Path> primaryPaths = tree.list().stream().filter(Path::isPrimary)
 					.collect(Collectors.toList());
 			// Create soma Path and add it to tree
 			final Path newRootPath = tree.list().get(0).createPath();
@@ -320,13 +323,16 @@ public class SkeletonConverter {
     /**
      * Generates a list of {@link DirectedWeightedGraph}s from the skeleton image.
      * Each graph corresponds to one connected component of the graph returned by {@link SkeletonResult#getGraph()}.
-     * @return 
+     * @return
      *
      * @return the list of skeletonized graphs
      */
 	public List<DirectedWeightedGraph> getGraphs() {
+		final Graph[] skelGraphs = getSkeletonGraphs();
+		if (skelGraphs == null)
+			return null;
 		List<DirectedWeightedGraph> graphList = new ArrayList<>();
-		for (final Graph skelGraph : getSkeletonGraphs()) {
+		for (final Graph skelGraph : skelGraphs) {
 			final DirectedWeightedGraph graph = sntGraphFromSkeletonGraph(skelGraph);
 			if (pruneByLength && graph.sumEdgeWeights() < lengthThreshold) {
 				continue;

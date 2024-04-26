@@ -45,9 +45,7 @@ public class GraphViewer {
     @Parameter
     private Context context;
     private final SNTGraph<?, ? extends DefaultWeightedEdge> graph;
-    private SNTGraphAdapter<?, ? extends DefaultWeightedEdge> adapter;
-    private SNTGraphComponent component;
-	private GraphEditor editor;
+    private GraphEditor editor;
 
     public GraphViewer(final SNTGraph<?, ? extends DefaultWeightedEdge> inputGraph) {
         this.graph = inputGraph;
@@ -71,6 +69,8 @@ public class GraphViewer {
 
     private void initEditor() {
         GuiUtils.setLookAndFeel();
+        SNTGraphAdapter<?, ? extends DefaultWeightedEdge> adapter;
+        SNTGraphComponent component;
         if (graph instanceof DirectedWeightedGraph) {
             adapter = new TreeGraphAdapter((DirectedWeightedGraph)this.graph);
             component = new TreeGraphComponent((TreeGraphAdapter) adapter, getContext());
@@ -79,7 +79,7 @@ public class GraphViewer {
             component = new AnnotationGraphComponent((AnnotationGraphAdapter) adapter, getContext());
         } else if (graph instanceof SNTPseudograph) {
             adapter = new SNTPseudographAdapter<>((SNTPseudograph<?, ? extends DefaultWeightedEdge>) this.graph);
-            component = new SNTPseudographComponent((SNTPseudographAdapter<?, ? extends DefaultWeightedEdge>)adapter, getContext());
+            component = new SNTPseudographComponent((SNTPseudographAdapter<?, ? extends DefaultWeightedEdge>) adapter, getContext());
         } else {
             throw new UnsupportedOperationException("Unsupported Graph Type.");
         }

@@ -158,7 +158,7 @@ public class LabkitLoaderCmd extends CommonDynamicCmd {
 			});
 
 		} catch (final Throwable t) {
-			error("An error occured. See Console for details");
+			error("An error occurred. See Console for details");
 			t.printStackTrace();
 		} finally {
 			resetUI();

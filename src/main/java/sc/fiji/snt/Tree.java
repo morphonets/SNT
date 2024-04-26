@@ -1545,8 +1545,11 @@ public class Tree implements TreeProperties {
 
 	@Override
 	public Tree clone() {
-		final Tree clone = new Tree();
+        final Tree clone = new Tree();
 		clone.setLabel(getLabel());
+		clone.applyProperties(this);
+		clone.setColor(getColor());
+		clone.assignValue(getAssignedValue());
 		final Map<Integer, Path> idToPathMap = new HashMap<>();
 		for (final Path path : list()) {
 			final Path clonePath = path.clone();

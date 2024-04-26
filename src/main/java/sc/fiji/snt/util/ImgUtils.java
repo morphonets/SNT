@@ -289,7 +289,7 @@ public class ImgUtils
      * Wrap an {@link ImagePlus} to a {@link RandomAccessibleInterval} such that the number of dimensions in
      * the resulting rai is 5 and the axis order is XYCZT.
      * Axes that are not present in the input imp have singleton dimensions in the rai.
-     *
+     * <p>
      * For example, given a 2D, multichannel imp, the dimensions of the result rai are
      * [ |X|, |Y|, |C|, 1, 1 ]
      * @param imp
@@ -297,16 +297,20 @@ public class ImgUtils
      * @return the 5D rai
      */
     public static < T extends RealType< T > > RandomAccessibleInterval< T > impToRealRai5d(
-            final ImagePlus imp )
-    {
-        RandomAccessibleInterval< T > out = ImageJFunctions.wrapReal( imp );
-        final int nd = out.numDimensions();
-        if ( imp.getNChannels() <= 1 )
-            out = Views.permute( Views.addDimension( out, 0, 0 ), 2, nd );
-        if ( imp.getNSlices() <= 1 )
-            out = Views.permute( Views.addDimension( out, 0, 0 ), 3, nd );
-        if ( imp.getNFrames() <= 1 )
-            out = Views.permute( Views.addDimension( out, 0, 0 ), 4, nd );
+            final ImagePlus imp ) {
+        // Note that ImageJFunctions.wrapReal will keep the same dimensions of the input ImagePlus, like so:
+        // XY imp -> [X,Y]; XYZ -> [X,Y,Z]; XYC -> [X,Y,C]; XYT -> [X,Y,T]; XYCZT -> [X,Y,C,Z,T], ie., a 2D ImagePlus
+        // does not have other zero dimensions
+        RandomAccessibleInterval<T> out = ImageJFunctions.wrapReal(imp);
+        if (imp.getNChannels() <= 1) { // No C axis
+            out = Views.permute(Views.addDimension(out, 0, 0), 2,  out.numDimensions());
+        }
+        if ( imp.getNSlices() <= 1 ) { // No Z axis
+            out = Views.permute(Views.addDimension(out, 0, 0), 3,  out.numDimensions());
+        }
+        if ( imp.getNFrames() <= 1 ) { // No T axis
+            out = Views.permute(Views.addDimension(out, 0, 0), 4,  out.numDimensions());
+        }
         return out;
     }
 
