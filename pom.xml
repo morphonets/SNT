@@ -147,15 +147,15 @@
 		<!-- Dependency versions -->
 		<annotations.version>24.1.0</annotations.version>
 		<fastutil-core.version>8.5.13</fastutil-core.version>
-		<flatlaf.version>3.4</flatlaf.version>
-		<flatlaf-jide-oss.version>3.4.1</flatlaf-jide-oss.version>
+		<flatlaf.version>3.4.1</flatlaf.version>
+		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
 		<font-awesome.version>6.5.1</font-awesome.version>
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
 		<jgrapht-ext.version>${jgrapht-core.version}</jgrapht-ext.version>
 		<jide-oss.version>3.7.15</jide-oss.version>
 		<log4j.version>2.21.1</log4j.version>
-		<scenery.version>0.10.0</scenery.version>
-		<sciview.version>0.2.0</sciview.version>
+		<scenery.version>0.11.2</scenery.version>
+		<sciview.version>0.4.0</sciview.version>
 		<smile.version>3.0.3</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
 		<smile-core.version>${smile.version}</smile-core.version>
