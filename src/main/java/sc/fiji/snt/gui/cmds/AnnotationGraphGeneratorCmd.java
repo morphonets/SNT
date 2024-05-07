@@ -22,7 +22,6 @@
 package sc.fiji.snt.gui.cmds;
 
 import net.imagej.ImageJ;
-import net.imagej.display.ColorTables;
 
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
@@ -36,6 +35,7 @@ import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.analysis.graph.AnnotationWeightedEdge;
 import sc.fiji.snt.analysis.graph.GraphColorMapper;
 import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.viewer.GraphViewer;
 import sc.fiji.snt.viewer.geditor.AnnotationGraphAdapter;
 import sc.fiji.snt.viewer.geditor.GraphEditor;
@@ -118,7 +118,7 @@ public class AnnotationGraphGeneratorCmd extends CommonDynamicCmd {
 			graphViewer.setContext(getContext());
 			final GraphEditor editor = graphViewer.getEditor();
 			final GraphColorMapper<BrainAnnotation, AnnotationWeightedEdge> mapper = new GraphColorMapper<>();
-			mapper.map(annotationGraph, GraphColorMapper.EDGE_WEIGHT, ColorTables.ICE);
+			mapper.map(annotationGraph, GraphColorMapper.EDGE_WEIGHT, ColorMaps.ICE);
 			final AnnotationGraphAdapter graphAdapter = (AnnotationGraphAdapter) (editor.getGraphComponent()
 					.getGraph());
 			graphAdapter.scaleEdgeWidths(1, (large) ? 15 : 10, "linear");

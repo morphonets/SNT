@@ -1605,6 +1605,11 @@ public class Tree implements TreeProperties {
 
 	}
 
+	/**
+	 * Assigns distinct colors to a collection of Trees.
+	 *
+	 * @see SNTColor#getDistinctColors(int)
+	 */
 	public static void assignUniqueColors(final Collection<Tree> trees) {
 		final ColorRGB[] colors = SNTColor.getDistinctColors(trees.size());
 		int i = 0;
@@ -1613,6 +1618,19 @@ public class Tree implements TreeProperties {
 		}
 	}
 
+	/**
+	 * Assigns distinct colors to a collection of Trees.
+	 *
+	 * @param excludedHue an optional string defining a hue to be excluded. Either 'red', 'green', or 'blue'.
+	 * @see SNTColor#getDistinctColors(int, String)
+	 */
+	public static void assignUniqueColors(final Collection<Tree> trees, final String excludedHue) {
+		final ColorRGB[] colors = SNTColor.getDistinctColors(trees.size(), excludedHue);
+		int i = 0;
+		for (Iterator<Tree> it = trees.iterator(); it.hasNext(); i++) {
+			it.next().setColor(colors[i]);
+		}
+	}
 	/**
 	 * Assigns the spatial calibration of an image to this Tree.
 	 *

@@ -30,10 +30,10 @@ import java.util.stream.Collectors;
 
 import org.scijava.Context;
 
-import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -222,12 +222,12 @@ public class NodeColorMapper extends ColorMapper {
 		final List<PointInImage> nodes = tree.getNodes();
 		final NodeStatistics<?> nodeStats = new NodeStatistics<>(nodes);
 		final NodeColorMapper mapper = new NodeColorMapper(nodeStats);
-		mapper.map("x-coord", ColorTables.ICE);
+		mapper.map("x-coord", ColorMaps.ICE);
 		final Viewer3D viewer1 = new Viewer3D();
 		viewer1.annotatePoints(nodes, "dummy annotation");
 		//viewer.annotatePoints(mapper.getNodes(), "dummy annotation");
 		nodeStats.assignBranches(tree);
-		mapper.map("length", ColorTables.ICE);
+		mapper.map("length", ColorMaps.ICE);
 		final Viewer3D viewer2 = new Viewer3D();
 		viewer2.annotatePoints(nodes, "dummy annotation");
 		viewer1.show();

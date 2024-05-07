@@ -719,7 +719,7 @@ public class SNTChart extends ChartPanel {
 
 	public void saveAsPNG(final String filePath) throws IOException {
 		final File f = new File((filePath.toLowerCase().endsWith(".png")) ? filePath : filePath + ".png");
-		f.mkdirs();
+		if(!f.getParentFile().exists()) f.getParentFile().mkdirs();
 		saveAsPNG(f);
 	}
 

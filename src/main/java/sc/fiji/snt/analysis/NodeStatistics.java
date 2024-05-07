@@ -183,6 +183,43 @@ public class NodeStatistics <T extends PointInImage> {
 	}
 
 	/**
+	 * Filters the current pool of nodes matching a measurement-based criterion.
+	 *
+	 * @param metric     the measurement ({@link #X_COORDINATES}, {@link #Y_COORDINATES},
+	 *                    {@link #BRANCH_ORDER}, etc.)
+	 * @param lowerBound the lower metric value (inclusive)
+	 * @param upperBound the upper metric value (inclusive)
+	 * @return the filtered list.
+	 */
+	public List<T> filter(final String metric, final double lowerBound, final double upperBound) throws UnknownMetricException {
+        currentMetric = getNormalizedMeasurement(metric);
+		switch (currentMetric) {
+			case BRANCH_LENGTH:
+				assessIfBranchesHaveBeenAssigned();
+				return points.stream().filter(p ->
+						p.getPath().getLength() >= lowerBound && p.getPath().getLength() <= upperBound).collect(Collectors.toList());
+			case BRANCH_ORDER:
+				assessIfBranchesHaveBeenAssigned();
+				return points.stream().filter(p ->
+						p.getPath().getOrder() >= lowerBound && p.getPath().getOrder() <= upperBound).collect(Collectors.toList());
+			case VALUES:
+				return points.stream().filter(p ->
+						p.v >= lowerBound && p.v <= upperBound).collect(Collectors.toList());
+			case X_COORDINATES:
+				return points.stream().filter(p ->
+						p.getX() >= lowerBound && p.getX() <= upperBound).collect(Collectors.toList());
+			case Y_COORDINATES:
+				return points.stream().filter(p ->
+						p.getY() >= lowerBound && p.getY() <= upperBound).collect(Collectors.toList());
+			case Z_COORDINATES:
+				return points.stream().filter(p ->
+						p.getZ() >= lowerBound && p.getZ() <= upperBound).collect(Collectors.toList());
+			default:
+				throw new UnknownMetricException("Unrecognized metric: " + currentMetric);
+		}
+	}
+
+	/**
 	 * Gets the relative frequencies histogram for a univariate measurement. The
 	 * number of bins is determined using the Freedman-Diaconis rule.
 	 *

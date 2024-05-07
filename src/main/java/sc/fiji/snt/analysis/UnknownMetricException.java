@@ -22,7 +22,7 @@
 
 package sc.fiji.snt.analysis;
 
-class UnknownMetricException extends IllegalArgumentException {
+public class UnknownMetricException extends IllegalArgumentException {
 	private static final long serialVersionUID = 1L;
 
 	protected UnknownMetricException(final String msg) {

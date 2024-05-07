@@ -247,7 +247,7 @@ public class ImpUtils {
 		trees.forEach( tree -> imps.add(tree.getSkeleton2D(v[0]++)));
 		final ImagePlus imp = ImpUtils.getMIP(imps);
 		imp.setTitle("Skeletonized Trees");
-		ColorMaps.applyMagmaColorMap(imp, 128, false);
+		ColorMaps.applyPlasma(imp, 128, false);
 		return imp;
 	}
 

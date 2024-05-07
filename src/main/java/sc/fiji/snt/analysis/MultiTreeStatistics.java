@@ -307,6 +307,16 @@ public class MultiTreeStatistics extends TreeStatistics {
 		}
 	}
 
+	public SNTTable getRawValues(final String metric) {
+		final String normMeasurement = getNormalizedMeasurement(metric);
+		final HistogramDatasetPlusMulti datasetPlus = new HistogramDatasetPlusMulti(normMeasurement);
+		try {
+			return datasetPlus.getTable();
+		} catch (final IllegalArgumentException ex) {
+			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics",
+					ex);
+		}
+	}
 	@Override
 	public Set<PointInImage> getTips() {
 		assignGroupToSuperTree();
@@ -403,6 +413,11 @@ public class MultiTreeStatistics extends TreeStatistics {
 			for (final double v : lastDstats.dStats.getValues()) {
 				values.add(v);
 			}
+		}
+		SNTTable getTable() {
+			final SNTTable table = new SNTTable();
+			table.addColumn(measurement, lastDstats.dStats.getValues());
+			return table;
 		}
 	}
 

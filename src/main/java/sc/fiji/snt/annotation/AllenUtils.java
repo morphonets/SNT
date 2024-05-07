@@ -155,6 +155,8 @@ public class AllenUtils {
 	 *         null if no match was found
 	 */
 	public static AllenCompartment getCompartment(final String nameOrAcronym) {
+		if (nameOrAcronym.equalsIgnoreCase("root"))
+			return getCompartment(AllenUtils.BRAIN_ROOT_ID);
 		areaList = getBrainAreasList();
 		for (int n = 0; n < areaList.length(); n++) {
 			final JSONObject area = (JSONObject) areaList.get(n);

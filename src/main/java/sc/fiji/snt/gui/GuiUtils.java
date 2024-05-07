@@ -1281,7 +1281,7 @@ public class GuiUtils {
 					SNTUtils.getContext().getService(CommandService.class).run("org.scijava.plugins.commands.debug.SystemInformation", true);
 					timer = new Timer(3000, e -> d.dispose());
 				} else {
-					ijDetails.setText("<HTML>SystemInformation command not found!?");
+					ijDetails.setText("<HTML>System Information command not found!?");
 					timer = new Timer(3000, e -> ijDetails.setText(details));
 				}
 				timer.setRepeats(false);

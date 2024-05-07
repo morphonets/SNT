@@ -406,7 +406,7 @@ public class Strahler implements PlugIn, DialogListener {
 			if (outIS)
 				imp2.show();
 			ip3.setMinAndMax(0, order);
-			ColorMaps.applyMagmaColorMap(imp3, 200, false);
+			ColorMaps.applyPlasma(imp3, 200, false);
 			if (validRootRoi)
 				imp3.setRoi(rootRoi);
 			imp3.show();

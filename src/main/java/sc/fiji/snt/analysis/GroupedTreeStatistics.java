@@ -453,18 +453,19 @@ public class GroupedTreeStatistics {
 	 * Assembles a Flow plot (aka Sankey diagram) for the specified feature using
 	 * "mean" as integration statistic, no cutoff value, and all of the brain
 	 * regions of the specified ontology depth. *
-	 * 
-	 * @param feature the feature ({@value MultiTreeStatistics#LENGTH},
-	 *                {@value MultiTreeStatistics#N_BRANCH_POINTS},
-	 *                {@value MultiTreeStatistics#N_TIPS}, etc.)
-	 * @param depth   the ontological depth of the compartments to be considered
-	 * @param cutoff  a filtering option. If the computed {@code feature} for an
-	 *                annotation is below this value, that annotation is excluded
-	 *                from the plot * @param normalize If true, values are retrieved
-	 *                as ratios. E.g., If {@code feature} is
-	 *                {@value MultiTreeStatistics#LENGTH}, and {@code cutoff} 0.1,
-	 *                BrainAnnotations in {@code annotations} associated with less
-	 *                than 10% of cable length are ignored.
+	 *
+	 * @param feature   the feature ({@value MultiTreeStatistics#LENGTH},
+	 *                  {@value MultiTreeStatistics#N_BRANCH_POINTS},
+	 *                  {@value MultiTreeStatistics#N_TIPS}, etc.)
+	 * @param depth     the ontological depth of the compartments to be considered
+	 * @param cutoff    a filtering option. If the computed {@code feature} for an
+	 *                  annotation is below this value, that annotation is excluded
+	 *                  from the plot
+	 * @param normalize If true, values are retrieved as ratios. E.g., If
+	 *                  {@code feature} is {@value MultiTreeStatistics#LENGTH},
+	 *                  and {@code cutoff} 0.1, BrainAnnotations in
+	 *                  {@code annotations} associated with less than 10% of cable
+	 *                  length are ignored.
 	 * @return the flow plot
 	 */
 	public SNTChart getFlowPlot(final String feature, final int depth, final double cutoff, final boolean normalize) {

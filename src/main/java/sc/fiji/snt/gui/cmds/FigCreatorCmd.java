@@ -84,8 +84,13 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 
 	@Override
 	public void run() {
-		if (trees == null || trees.isEmpty()) {
+		if (trees == null) {
 			error("No reconstructions have been specified.");
+			return;
+		}
+		trees.removeIf(tree -> tree == null || tree.isEmpty());
+		if (trees.isEmpty()) { // may happen with auto-traced structures!?
+			error("No valid reconstructions exist.");
 			return;
 		}
 		String transformationFlags = normalize;
@@ -106,17 +111,18 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 	}
 
 	private static Viewer3D.ViewMode getView(final String flag) {
-		if (flag.toLowerCase().contains("xz"))
+		final String lcFlag = flag.toLowerCase();
+		if (lcFlag.contains("xz") || lcFlag.contains("zx"))
 			return Viewer3D.ViewMode.XZ;
-		if (flag.toLowerCase().contains("zy"))
+		if (lcFlag.contains("yz") || lcFlag.contains("zy"))
 			return Viewer3D.ViewMode.YZ;
-		return Viewer3D.ViewMode.XY;
+		return Viewer3D.ViewMode.DEFAULT;
 	}
 
 	private static Collection<Tree> getTreesForRendering(final Collection<Tree> trees, final String renderOptions) {
 		final String options = renderOptions.toLowerCase();
-		final boolean isZY = options.contains("zy");
-		final boolean isXZ = options.contains("xz");
+		final boolean isZY = options.contains("zy") || options.contains("yz");
+		final boolean isXZ = options.contains("xz") || options.contains("zx");
 		final boolean center = options.contains("norm") || options.contains("relative") || options.contains("center");
 		final Collection<Tree> renderingTrees;
 		if (center || isZY || isXZ) {
@@ -168,7 +174,7 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			result.add(renderingTrees);
 			result.show();
 			return result;
-		} else if (flags.contains("3d")) {
+		} else if (flags.contains("3d") || flags.contains("interactive")) {
 			final Viewer3D result = new Viewer3D();
 			result.add(renderingTrees);
 			result.setViewMode(getView(renderOptions));
@@ -190,10 +196,10 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 	 *                      <tt>2d raster</tt>: trees are rendered as 2D skeletonized images<br>
 	 *                      <tt>2d vector</tt>: trees are rendered in a static (non-interactive) Viewer2D<br>
 	 *                      <tt>3d</tt>: trees are rendered in interactive Viewer3D canvas(es)<br>
-	 *                      <tt>xz</tt>: whether trees should be rendered in a XZ view (default is XY)<br>
-	 *                      <tt>zy</tt>: whether trees should be rendered in a ZY view (default is XY)<br>
-	 *                      <tt>center</tt>: whether trees should be  translated so that their roots/somas are displayed at a
-	 *                      common origin (0,0,0)
+	 *                      <tt>xz</tt>: whether trees should be displayed in a XZ view (default is XY)<br>
+	 *                      <tt>zy</tt>: whether trees should be displayed in a ZY view (default is XY)<br>
+	 *                      <tt>center</tt>: whether trees should be  translated so that their roots/somas are displayed
+	 *                      at a common origin (0,0,0)<br>
 	 *                     </p>
 	 * @return a reference to the displayed viewer
 	 */

@@ -299,6 +299,38 @@ public class SNTColor {
 		return colors;
 	}
 
+	/**
+	 * Returns distinct colors based on Kenneth Kelly's 22 colors of maximum
+	 * contrast (black and white excluded). More details on this
+	 * <a href="https://stackoverflow.com/a/4382138">SO discussion</a>
+	 *
+	 * @param nColors    the number of colors to be retrieved.
+	 * @param excludedHue an optional string defining a hue to be excluded. Either 'red', 'green', or 'blue'.
+	 * @return the maximum contrast colors
+	 */
+	public static ColorRGB[] getDistinctColors(final int nColors, final String excludedHue) {
+		ColorRGB[] kColors;
+		switch(excludedHue.toLowerCase()) {
+			case "red":
+				kColors = KELLY_COLORS_NO_RED;
+				break;
+			case "green":
+				kColors = KELLY_COLORS_NO_GREEN;
+				break;
+			case "blue":
+				kColors = KELLY_COLORS_NO_BLUE;
+				break;
+			default:
+				kColors = KELLY_COLORS;
+		}
+		final ColorRGB[] colors = Arrays.copyOf(kColors, nColors);
+		for (int last = kColors.length; last != 0 && last < nColors; last <<= 1) {
+			System.arraycopy(colors, 0, colors, last, Math.min(last << 1, nColors) -
+					last);
+		}
+		return colors;
+	}
+
 	public static Color[] getDistinctColorsAWT(final int nColors) {
 		final Color[] colors = new Color[nColors];
 		final ColorRGB[] colorsRGB = getDistinctColors(nColors);
@@ -332,4 +364,63 @@ public class SNTColor {
 		ColorRGB.fromHTMLColor("#232C16") // Dark Olive Green
 	};
 
+	private static ColorRGB[] KELLY_COLORS_NO_BLUE = {
+			ColorRGB.fromHTMLColor("#FFB300"), // Vivid Yellow
+			ColorRGB.fromHTMLColor("#803E75"), // Strong Purple
+			ColorRGB.fromHTMLColor("#FF6800"), // Vivid Orange
+			ColorRGB.fromHTMLColor("#C10020"), // Vivid Red
+			ColorRGB.fromHTMLColor("#CEA262"), // Grayish Yellow
+			ColorRGB.fromHTMLColor("#817066"), // Medium Gray
+			ColorRGB.fromHTMLColor("#007D34"), // Vivid Green
+			ColorRGB.fromHTMLColor("#F6768E"), // Strong Purplish Pink
+			ColorRGB.fromHTMLColor("#FF7A5C"), // Strong Yellowish Pink
+			ColorRGB.fromHTMLColor("#53377A"), // Strong Violet
+			ColorRGB.fromHTMLColor("#FF8E00"), // Vivid Orange Yellow
+			ColorRGB.fromHTMLColor("#B32851"), // Strong Purplish Red
+			ColorRGB.fromHTMLColor("#F4C800"), // Vivid Greenish Yellow
+			ColorRGB.fromHTMLColor("#7F180D"), // Strong Reddish Brown
+			ColorRGB.fromHTMLColor("#93AA00"), // Vivid Yellowish Green
+			ColorRGB.fromHTMLColor("#593315"), // Deep Yellowish Brown
+			ColorRGB.fromHTMLColor("#F13A13"), // Vivid Reddish Orange
+			ColorRGB.fromHTMLColor("#232C16") // Dark Olive Green
+	};
+	private static ColorRGB[] KELLY_COLORS_NO_GREEN = {
+			ColorRGB.fromHTMLColor("#FFB300"), // Vivid Yellow
+			ColorRGB.fromHTMLColor("#803E75"), // Strong Purple
+			ColorRGB.fromHTMLColor("#FF6800"), // Vivid Orange
+			ColorRGB.fromHTMLColor("#A6BDD7"), // Very Light Blue
+			ColorRGB.fromHTMLColor("#C10020"), // Vivid Red
+			ColorRGB.fromHTMLColor("#CEA262"), // Grayish Yellow
+			ColorRGB.fromHTMLColor("#817066"), // Medium Gray
+			ColorRGB.fromHTMLColor("#F6768E"), // Strong Purplish Pink
+			ColorRGB.fromHTMLColor("#00538A"), // Strong Blue
+			ColorRGB.fromHTMLColor("#FF7A5C"), // Strong Yellowish Pink
+			ColorRGB.fromHTMLColor("#53377A"), // Strong Violet
+			ColorRGB.fromHTMLColor("#FF8E00"), // Vivid Orange Yellow
+			ColorRGB.fromHTMLColor("#B32851"), // Strong Purplish Red
+			ColorRGB.fromHTMLColor("#F4C800"), // Vivid Greenish Yellow
+			ColorRGB.fromHTMLColor("#7F180D"), // Strong Reddish Brown
+			ColorRGB.fromHTMLColor("#593315"), // Deep Yellowish Brown
+			ColorRGB.fromHTMLColor("#F13A13"), // Vivid Reddish Orange
+	};
+	private static ColorRGB[] KELLY_COLORS_NO_RED = {
+			ColorRGB.fromHTMLColor("#FFB300"), // Vivid Yellow
+			ColorRGB.fromHTMLColor("#803E75"), // Strong Purple
+			ColorRGB.fromHTMLColor("#FF6800"), // Vivid Orange
+			ColorRGB.fromHTMLColor("#A6BDD7"), // Very Light Blue
+			ColorRGB.fromHTMLColor("#CEA262"), // Grayish Yellow
+			ColorRGB.fromHTMLColor("#817066"), // Medium Gray
+			ColorRGB.fromHTMLColor("#007D34"), // Vivid Green
+			ColorRGB.fromHTMLColor("#F6768E"), // Strong Purplish Pink
+			ColorRGB.fromHTMLColor("#00538A"), // Strong Blue
+			ColorRGB.fromHTMLColor("#FF7A5C"), // Strong Yellowish Pink
+			ColorRGB.fromHTMLColor("#53377A"), // Strong Violet
+			ColorRGB.fromHTMLColor("#FF8E00"), // Vivid Orange Yellow
+			ColorRGB.fromHTMLColor("#F4C800"), // Vivid Greenish Yellow
+			ColorRGB.fromHTMLColor("#7F180D"), // Strong Reddish Brown
+			ColorRGB.fromHTMLColor("#93AA00"), // Vivid Yellowish Green
+			ColorRGB.fromHTMLColor("#593315"), // Deep Yellowish Brown
+			ColorRGB.fromHTMLColor("#F13A13"), // Vivid Reddish Orange
+			ColorRGB.fromHTMLColor("#232C16") // Dark Olive Green
+	};
 }

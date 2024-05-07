@@ -376,7 +376,7 @@ public class SNTTable extends DefaultGenericTable {
 
 	public static void save(final Table<?, ?> table, final char columnSep, final boolean saveColHeaders,
 			final boolean saveRowHeaders, final File outputFile) throws IOException {
-		if(!outputFile.exists()) outputFile.mkdirs();
+		if(!outputFile.getParentFile().exists()) outputFile.getParentFile().mkdirs();
 		final FileOutputStream fos = new FileOutputStream(outputFile, false);
 		final OutputStreamWriter osw = new OutputStreamWriter(fos, StandardCharsets.UTF_8);
 		final PrintWriter pw = new PrintWriter(new BufferedWriter(osw), true);
