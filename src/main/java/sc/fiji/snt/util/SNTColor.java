@@ -304,8 +304,8 @@ public class SNTColor {
 	 * contrast (black and white excluded). More details on this
 	 * <a href="https://stackoverflow.com/a/4382138">SO discussion</a>
 	 *
-	 * @param nColors    the number of colors to be retrieved.
-	 * @param excludedHue an optional string defining a hue to be excluded. Either 'red', 'green', or 'blue'.
+	 * @param nColors    the number of colors to be retrieved
+	 * @param excludedHue an optional string defining a hue to be excluded. Either 'red', 'green', 'blue', or 'dim'
 	 * @return the maximum contrast colors
 	 */
 	public static ColorRGB[] getDistinctColors(final int nColors, final String excludedHue) {
@@ -319,6 +319,9 @@ public class SNTColor {
 				break;
 			case "blue":
 				kColors = KELLY_COLORS_NO_BLUE;
+				break;
+			case "dim":
+				kColors = KELLY_COLORS_NO_DIM;
 				break;
 			default:
 				kColors = KELLY_COLORS;
@@ -362,6 +365,27 @@ public class SNTColor {
 		ColorRGB.fromHTMLColor("#593315"), // Deep Yellowish Brown
 		ColorRGB.fromHTMLColor("#F13A13"), // Vivid Reddish Orange
 		ColorRGB.fromHTMLColor("#232C16") // Dark Olive Green
+	};
+
+	private static ColorRGB[] KELLY_COLORS_NO_DIM = {
+			// See https://stackoverflow.com/a/4382138
+			ColorRGB.fromHTMLColor("#FFB300"), // Vivid Yellow
+			ColorRGB.fromHTMLColor("#803E75"), // Strong Purple
+			ColorRGB.fromHTMLColor("#FF6800"), // Vivid Orange
+			ColorRGB.fromHTMLColor("#C10020"), // Vivid Red
+			ColorRGB.fromHTMLColor("#007D34"), // Vivid Green
+			ColorRGB.fromHTMLColor("#F6768E"), // Strong Purplish Pink
+			ColorRGB.fromHTMLColor("#00538A"), // Strong Blue
+			ColorRGB.fromHTMLColor("#FF7A5C"), // Strong Yellowish Pink
+			ColorRGB.fromHTMLColor("#53377A"), // Strong Violet
+			ColorRGB.fromHTMLColor("#FF8E00"), // Vivid Orange Yellow
+			ColorRGB.fromHTMLColor("#B32851"), // Strong Purplish Red
+			ColorRGB.fromHTMLColor("#F4C800"), // Vivid Greenish Yellow
+			ColorRGB.fromHTMLColor("#7F180D"), // Strong Reddish Brown
+			ColorRGB.fromHTMLColor("#93AA00"), // Vivid Yellowish Green
+			ColorRGB.fromHTMLColor("#593315"), // Deep Yellowish Brown
+			ColorRGB.fromHTMLColor("#F13A13"), // Vivid Reddish Orange
+			ColorRGB.fromHTMLColor("#232C16") // Dark Olive Green
 	};
 
 	private static ColorRGB[] KELLY_COLORS_NO_BLUE = {

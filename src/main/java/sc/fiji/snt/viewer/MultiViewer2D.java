@@ -59,7 +59,7 @@ import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 
 /**
- * Class for rendering {@link Tree}s as 2D plots that can be exported as SVG,
+ * Class for rendering montages of {@link Tree}s as 2D plots that can be exported as SVG,
  * PNG or PDF.
  *
  * @author Tiago Ferreira

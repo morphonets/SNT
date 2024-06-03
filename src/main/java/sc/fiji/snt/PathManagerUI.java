@@ -270,18 +270,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.COUNT_TAG_CMD));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.ORDER_TAG_CMD));
 		tagsMenu.add(morphoTagsMenu);
-		tagsMenu.addSeparator();
-
-		final JMenu customTagsMenu = new JMenu("Custom");
-		customTagsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.PEN));
-		tagsMenu.add(customTagsMenu);
 		jmi = new JMenuItem(MultiPathActionListener.CUSTOM_TAG_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.PLUS));
 		jmi.addActionListener(multiPathListener);
-		customTagsMenu.add(jmi);
+		tagsMenu.add(jmi);
+		tagsMenu.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.REPLACE_TAG_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH_ARROW));
 		jmi.addActionListener(multiPathListener);
-		customTagsMenu.add(jmi);
-
+		tagsMenu.add(jmi);
 		tagsMenu.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.REMOVE_TAGS_CMD);
 		jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TRASH));
@@ -2566,7 +2561,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String MERGE_PRIMARY_PATHS_CMD = "Merge Primary Paths(s) Into Shared Root...";
 		private static final String REBUILD_CMD = "Rebuild...";
 		private static final String DOWNSAMPLE_CMD = "Ramer-Douglas-Peucker Downsampling...";
-		private static final String CUSTOM_TAG_CMD = "Add...";
+		private static final String CUSTOM_TAG_CMD = "Other...";
 		private static final String REPLACE_TAG_CMD = "Replace...";
 		private static final String LENGTH_TAG_CMD = "Length";
 		private static final String MEAN_RADIUS_TAG_CMD = "Mean Radius";
