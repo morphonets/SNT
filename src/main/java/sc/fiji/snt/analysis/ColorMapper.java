@@ -24,14 +24,17 @@ package sc.fiji.snt.analysis;
 
 import java.awt.Color;
 import java.net.URL;
+import java.util.Collection;
 import java.util.Map;
 
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
+import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 
 import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
+import sc.fiji.snt.Tree;
 
 /**
  * Parent class for ColorMappers.
@@ -115,5 +118,16 @@ public class ColorMapper {
 				SNTUtils.getContext().inject(this);
 			luts = lutService.findLUTs();
 		}
+	}
+
+	public static void unMap(final Tree tree) {
+		unMap(tree.list());
+	}
+
+	public static void unMap(final Collection<Path> paths) {
+		paths.forEach(p -> {
+			p.setColor((java.awt.Color)null);
+			p.setNodeColors(null);
+		});
 	}
 }

@@ -66,18 +66,8 @@ import com.jidesoft.swing.TreeSearchable;
 import ij.ImagePlus;
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
-import sc.fiji.snt.analysis.NodeProfiler;
-import sc.fiji.snt.analysis.PathProfiler;
-import sc.fiji.snt.analysis.PathStraightener;
-import sc.fiji.snt.analysis.SNTTable;
-import sc.fiji.snt.analysis.TreeColorMapper;
-import sc.fiji.snt.gui.ColorMenu;
-import sc.fiji.snt.gui.IconFactory;
-import sc.fiji.snt.gui.MeasureUI;
-import sc.fiji.snt.gui.PathManagerUISearchableBar;
-import sc.fiji.snt.gui.SWCExportDialog;
-import sc.fiji.snt.gui.ScriptRecorder;
-import sc.fiji.snt.gui.SwingSafeResult;
+import sc.fiji.snt.analysis.*;
+import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.cmds.DistributionBPCmd;
 import sc.fiji.snt.gui.cmds.DistributionCPCmd;
 import sc.fiji.snt.gui.cmds.DuplicateCmd;
@@ -99,7 +89,6 @@ import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.util.SWCPoint;
-import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Implements the <i>Path Manager</i> Dialog.
@@ -357,39 +346,44 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final JMenu advanced = new JMenu("Analyze");
 		menuBar.add(advanced);
 
-		final JMenu colorMapMenu = new JMenu("Color Coding");
+		final JMenu colorMapMenu = new JMenu("Color Mapping");
 		colorMapMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COLOR2));
 		advanced.add(colorMapMenu);
+		jmi = new JMenuItem(MultiPathActionListener.COLORIZE_TREES_CMD);
+		jmi.setToolTipText("Color codes complete arbors using connectivity-dependent metrics");
+		jmi.addActionListener(multiPathListener);
+		colorMapMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.COLORIZE_PATHS_CMD);
 		jmi.setToolTipText("Color codes selected path(s) independently of their connectivity");
 		jmi.addActionListener(multiPathListener);
 		colorMapMenu.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.COLORIZE_TREES_CMD);
-		jmi.setToolTipText("Color codes complete arbors using connectivity-dependent metrics");
+		colorMapMenu.addSeparator();
+		jmi = new JMenuItem(MultiPathActionListener.COLORIZE_REMOVE_CMD);
+		jmi.setToolTipText("Removes existing color mappings of selected path(s)");
 		jmi.addActionListener(multiPathListener);
 		colorMapMenu.add(jmi);
 
 		final JMenu distributionMenu = new JMenu("Frequency Analysis");
 		distributionMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHART));
 		advanced.add(distributionMenu);
-		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_PATHS_CMD);
-		jmi.setToolTipText("Computes distributions of metrics for selected path(s), independently of their connectivity");
-		jmi.addActionListener(multiPathListener);
-		distributionMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_TREES_CMD);
 		jmi.setToolTipText("Computes distributions of metrics for complete arbors");
+		jmi.addActionListener(multiPathListener);
+		distributionMenu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_PATHS_CMD);
+		jmi.setToolTipText("Computes distributions of metrics for selected path(s), independently of their connectivity");
 		jmi.addActionListener(multiPathListener);
 		distributionMenu.add(jmi);
 
 		final JMenu measureMenu = new JMenu("Measurements");
 		measureMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
 		advanced.add(measureMenu);
-		jmi = new JMenuItem(MultiPathActionListener.MEASURE_PATHS_CMD);
-		jmi.setToolTipText("Measures selected path(s) independently of their connectivity");
-		jmi.addActionListener(multiPathListener);
-		measureMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.MEASURE_TREES_CMD);
 		jmi.setToolTipText("Measures complete arbors");
+		jmi.addActionListener(multiPathListener);
+		measureMenu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.MEASURE_PATHS_CMD);
+		jmi.setToolTipText("Measures selected path(s) independently of their connectivity");
 		jmi.addActionListener(multiPathListener);
 		measureMenu.add(jmi);
 
@@ -469,15 +463,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final JMenu menu = new JMenu("Spine/Varicosity Utilities");
 		final String tooltip = "Assumes spine/varicosity markers have already been assigned to selected path(s)";
 		menu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.MAP_PIN));
-		JMenuItem jmi = new JMenuItem(MultiPathActionListener.SPINE_COLOR_CODING_CMD);
+		JMenuItem jmi = new JMenuItem(MultiPathActionListener.SPINE_EXTRACT_CMD);
+		jmi.setToolTipText(tooltip);
+		jmi.addActionListener(multiPathListener);
+		menu.add(jmi);
+		menu.addSeparator();
+		jmi = new JMenuItem(MultiPathActionListener.SPINE_COLOR_CODING_CMD);
 		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.SPINE_PROFILE_CMD);
-		jmi.setToolTipText(tooltip);
-		jmi.addActionListener(multiPathListener);
-		menu.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.SPINE_EXTRACT_CMD);
 		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
@@ -492,11 +487,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final JMenu menu = new JMenu("Time-lapse Utilities");
 		final String tooltip = "Assumes selected path(s) belong to a time-lapse series";
 		menu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.VIDEO));
-		JMenuItem jmi = new JMenuItem(MultiPathActionListener.TIME_COLOR_CODING_CMD);
+		JMenuItem jmi = new JMenuItem("Apply 3D Drift Corrections...");
+		jmi.setToolTipText("<HTML>Assumes loaded image is a time-lapse series. Should be run <i>before</i> tracing operations");
+		jmi.addActionListener( e-> {
+			if (!plugin.accessToValidImageData() || plugin.getImagePlus().getNFrames() == 1) {
+				guiUtils.error("A timelapse is required but none seems to be loaded.");
+			}
+			else if (!ScriptInstaller.runScript("Plugins/Registration/Correct_3D_drift.py")) {
+				guiUtils.error("Could not find 'Correct 3D Drift'. " +
+						"Make sure no files are missing from your Fiji install.");
+			}
+		});
+		menu.add(jmi);
+		jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD);
 		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD);
+		menu.addSeparator();
+		jmi = new JMenuItem(MultiPathActionListener.TIME_COLOR_CODING_CMD);
 		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
@@ -1433,8 +1441,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			final Graphics2D g2 = (Graphics2D)g;
 			if (gradient) { // Path has node colors: render gradient
 				final float[] fractions = { 0f,  0.5f, 1f };
-				final Color[] colors = { new Color(68, 1, 84), new Color(32, 145, 140), new Color(253, 231, 36) }; // min-mid-max hues
-				// of mpl-viridis
+				final Color[] colors = { new Color(47, 4, 149), new Color(188, 54, 133), new Color(248, 223, 36) }; // min-mid-max hues of mpl-plasma
 				g2.setPaint(new LinearGradientPaint(3, 4, SIZE-1, SIZE-1, fractions, colors));
 				g2.fillRect(3, 4, SIZE-1, SIZE-1);
 			} else {
@@ -2055,7 +2062,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @param cmd  The command to be run, exactly as listed in the PathManagerUI's
 	 *             menu bar or Right-click contextual menu
 	 * @param args the option(s) that would fill the command's prompt. e.g.,
-	 *             'runCommand("Color Code Cell(s)...", "X coordinates", "Cyan Hot.lut")'
+	 *             'runCommand("Branch-based Color Mapping...", "X coordinates", "Cyan Hot.lut")'
 	 * @throws IllegalArgumentException if {@code cmd} was not found, or if it is
 	 *                                  not supported.
 	 */
@@ -2097,6 +2104,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			} else {
 				runRoiConverterCmd(args[0], args[1]);
 			}
+		} else if (MultiPathActionListener.COLORIZE_REMOVE_CMD.equals(cmd)) {
+			ColorMapper.unMap(getSelectedPaths(true));
+			plugin.updateAllViewers();
 		} else {
 			throw new IllegalArgumentException("Unsupported command or invalid options for '" + cmd + "'");
 		}
@@ -2586,12 +2596,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String SEND_TO_LABKIT_CMD = "Load Labkit With Selected Path(s)...";
 		private static final String SEND_TO_TWS_CMD = "Load TWS With Selected Path(s)...";
 		private static final String CONVERT_TO_SKEL_CMD = "Skeletonize...";
-		private static final String CONVERT_TO_SWC_CMD = "Save Subset as SWC...";
+		private static final String CONVERT_TO_SWC_CMD = "Export Selection as SWC...";
 		private static final String PLOT_PROFILE_CMD = "Path Profiler...";
 
 		// color mapping commands
-		private static final String COLORIZE_TREES_CMD = "Color Code Cell(s)...";
-		private static final String COLORIZE_PATHS_CMD = "Color Code Path(s)...";
+		private static final String COLORIZE_TREES_CMD = "Branch-based Color Mapping...";
+		private static final String COLORIZE_PATHS_CMD = "Path-based Color Mapping...";
+		private static final String COLORIZE_REMOVE_CMD = "Remove Existing Color Mapping(s)...";
+
 		// measure commands
 		private static final String MEASURE_TREES_CMD = "Measure Cell(s)...";
 		private static final String MEASURE_PATHS_CMD = "Measure Path(s)...";
@@ -2795,8 +2807,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				refreshManager(false, true, selectedPaths);
 				return;
 
-			} else if (COLORIZE_PATHS_CMD.equals(cmd)) {
+			}
+			else if (COLORIZE_PATHS_CMD.equals(cmd)) {
 				runColorMapper(new Tree(selectedPaths), true);
+				return;
+			}
+			else if (COLORIZE_REMOVE_CMD.equals(cmd) && !guiUtils.getConfirmation(
+					"Remove color mappings from selected paths (color tags may also be reset)?",
+					"Confirm?")) {
+				ColorMapper.unMap(selectedPaths);
+				plugin.updateAllViewers();
 				return;
 			}
 			else if (HISTOGRAM_TREES_CMD.equals(cmd)) {

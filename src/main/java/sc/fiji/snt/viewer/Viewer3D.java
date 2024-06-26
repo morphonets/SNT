@@ -4830,8 +4830,8 @@ public class Viewer3D {
 					applyColorToPlottedTrees(keys, c);
 			});
 			menu.add(mi);
-			final JMenu ccMenu = new JMenu("Color Coding");
-			ccMenu.setIcon(IconFactory.getMenuIcon(GLYPH.SIGNS));
+			final JMenu ccMenu = new JMenu("Color Mapping");
+			ccMenu.setIcon(IconFactory.getMenuIcon(GLYPH.COLOR2));
 			menu.add(ccMenu);
 			mi = new JMenuItem("Individual Cells...");
 			mi.addActionListener(e -> {
@@ -4851,11 +4851,20 @@ public class Viewer3D {
 				runCmd(ColorMapReconstructionCmd.class, inputs, CmdWorker.DO_NOTHING, true, false);
 			});
 			ccMenu.add(mi);
+			mi = new JMenuItem("Remove Existing Color Mapping(s)");
+			mi.addActionListener(e -> {
+				final List<Tree> trees = getSelectedTrees(true);
+				if (trees != null) {
+					trees.forEach(sc.fiji.snt.analysis.ColorMapper::unMap);
+					displayMsg("Color mappings removed");
+				}
+			});
+			ccMenu.add(mi);
+			ccMenu.addSeparator();
 			mi = new JMenuItem("Color Each Cell Uniquely");
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedTreeLabels();
 				if (keys == null || !okToApplyColor(keys)) return;
-
 				final ColorRGB[] colors = SNTColor.getDistinctColors(keys.size());
 				final int[] counter = new int[] { 0 };
 				plottedTrees.forEach((k, shapeTree) -> {
@@ -5227,7 +5236,7 @@ public class Viewer3D {
 
 		private JMenu legendMenu() {
 			// Legend Menu
-			final JMenu legendMenu = new JMenu("Color Coding Legends");
+			final JMenu legendMenu = new JMenu("Color Mapping Legends");
 			legendMenu.setIcon(IconFactory.getMenuIcon(GLYPH.COLOR2));
 			JMenuItem mi = new JMenuItem("Add...", IconFactory.getMenuIcon(GLYPH.PLUS));
 			mi.addActionListener(e -> {

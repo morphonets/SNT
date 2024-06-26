@@ -31,12 +31,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -483,7 +478,7 @@ public class ScriptInstaller implements MenuKeyListener {
 					continue; // script parameter
 				javaComment |= l.startsWith("//");
 				javaKeyword |= l.contains("new ");
-				groovyKeyword |= l.startsWith("def ");
+				groovyKeyword |= (!l.endsWith(";") || javaKeyword || l.startsWith("def "));
 				pythonComment |= l.startsWith("#");
 				pythonKeyword |= l.startsWith("from ");
 				if (groovyKeyword && (javaKeyword || javaComment))
@@ -541,6 +536,17 @@ public class ScriptInstaller implements MenuKeyListener {
 		final InputStream is = classloader.getResourceAsStream("script_templates/Neuroanatomy/" + dir + "/" + file);
 		final ScriptService sService = SNTUtils.getContext().getService(ScriptService.class);
 		sService.run(file, new InputStreamReader(is), true, inputMap);
+	}
+
+	public static boolean runScript(final String scriptPath) {
+		final ScriptService sService = SNTUtils.getContext().getService(ScriptService.class);
+		for (final ScriptInfo si : sService.getScripts()) {
+			if (scriptPath.equals(si.getPath()) || scriptPath.equals(si.getMenuPath())) {
+				sService.run(si, true, (Object)null);
+				return true;
+			}
+        }
+		return false;
 	}
 
 	private static String getBoilerPlateFile(final String extension) {

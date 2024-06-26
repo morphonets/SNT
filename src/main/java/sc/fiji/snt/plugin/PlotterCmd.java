@@ -42,6 +42,7 @@ import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 import org.scijava.widget.NumberWidget;
 
+import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
@@ -344,10 +345,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 		snapshotChart.applyStyle(chart);
 		snapshotChart.show();
 		// make tree monochrome
-		for (final Path p : plottingTree.list()) {
-			p.setColor((java.awt.Color)null);
-			p.setNodeColors(null);
-		}
+		ColorMapper.unMap(plottingTree);
 		msg = "";
 	}
 

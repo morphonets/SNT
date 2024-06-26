@@ -43,6 +43,7 @@ import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
 
+import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.ProfileProcessor;
 import sc.fiji.snt.analysis.TreeColorMapper;
@@ -50,7 +51,6 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
-import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
@@ -202,10 +202,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 
 	@SuppressWarnings("unused")
 	private void removeColorCoding() {
-		for (final Path p : tree.list()) {
-			p.setColor((java.awt.Color)null);
-			p.setNodeColors(null);
-		}
+		ColorMapper.unMap(tree);
 		snt.updateAllViewers();
 		statusService.showStatus("Color code removed...");
 	}
