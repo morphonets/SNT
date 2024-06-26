@@ -40,7 +40,6 @@ import java.util.stream.IntStream;
 import javax.swing.*;
 import javax.swing.border.BevelBorder;
 
-import ij.IJ;
 import ij.ImagePlus;
 import net.imagej.ImageJ;
 import net.imglib2.RandomAccessibleInterval;
@@ -580,7 +579,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		jmi.addActionListener(e-> {
 			ImagePlus imp = exportAsImp(FillConverter.ResultType.DISTANCE);
 			if (imp != null) {
-				IJ.run(imp,
+				ij.IJ.run(imp,
 					   "Calibration Bar...",
 					   "location=[Upper Right] fill=White label=Black number=10 decimal=3 zoom=1 overlay");
 				imp.show();

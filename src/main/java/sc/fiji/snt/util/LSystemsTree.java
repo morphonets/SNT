@@ -21,7 +21,6 @@
  */
 package sc.fiji.snt.util;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.plugin.PlugIn;
@@ -35,22 +34,17 @@ public class LSystemsTree implements PlugIn {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
-	/** Debug method */
-	public static void main(final String[] args) {
-		IJ.runPlugIn("ipnat.skel.LSystemsTree", "");
-	}
-
 	@Override
 	public void run(final String ignored) {
 		final LSystemsTree lst = new LSystemsTree();
-		final ImagePlus imp = IJ.altKeyDown() ? lst.createTreeStack("Fractal Tree") : lst.sampleTree();
+		final ImagePlus imp = ij.IJ.altKeyDown() ? lst.createTreeStack("Fractal Tree") : lst.sampleTree();
 		imp.show();
 	}
 
 	public ImagePlus createTreeStack(final String title) {
 		final int width = 720;
 		final int height = 560;
-		final ImagePlus imp = IJ.createImage(title, "8-bit black", width, height, 10);
+		final ImagePlus imp = ImpUtils.create(title, width, height, 10, 8);
 		final ImageStack stack = imp.getImageStack();
 		String label = "root";
 		for (int i = 1; i <= 10; i++) {
@@ -71,7 +65,8 @@ public class LSystemsTree implements PlugIn {
 
 	public ImagePlus createTree(final String title, final int width, final int height, final double angle,
 			final int recursions) {
-		final ImagePlus imp = IJ.createImage(title, "8-bit black", width, height, 1);
+
+		final ImagePlus imp = ImpUtils.create(title, width, height, 1, 8);
 		final ImageProcessor ip = imp.getProcessor();
 		ip.setColor(255);
 		ip.setLineWidth(1);
