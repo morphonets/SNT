@@ -193,7 +193,9 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 
 			recViewer.setSceneUpdatesEnabled(false);
 			double[] limits = { 0d, 0d };
+			boolean pmcSkipped = false;
 			if (treeMappingLabels != null) {
+				pmcSkipped = treeMappingLabels.remove("Path Manager Contents");
 				// Color code single trees
 				limits[0] = Double.MAX_VALUE;
 				limits[1] = Double.MIN_VALUE;
@@ -207,6 +209,7 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 				}
 			}
 			else if (multiTreeMappingLabels != null) {
+				pmcSkipped = multiTreeMappingLabels.remove("Path Manager Contents");
 				// Color group of trees
 				if (setProgress) recViewer.getManagerPanel().showProgress(-1, -1);
 				limits = recViewer.colorCode(multiTreeMappingLabels, measurementChoice,
@@ -218,6 +221,10 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 			recViewer.addColorBarLegend(colorTable, min, max);
 			if (setProgress) recViewer.getManagerPanel().showProgress(0, 0);
 
+			if (pmcSkipped) {
+				msg("<HTML><i>Path Manager Contents</i> was skipped because its topological type is unknown.<br>" +
+						"Please use color mapping options in Path Manager instead.","Items skipped");
+			}
 		}
 		catch (final UnsupportedOperationException | NullPointerException exc) {
 			error("SNT's Reconstruction Viewer is not available");

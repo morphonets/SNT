@@ -25,7 +25,6 @@ package sc.fiji.snt;
 import graphics.scenery.*;
 import graphics.scenery.attribute.material.DefaultMaterial;
 import graphics.scenery.attribute.material.Material;
-import ij.IJ;
 import net.imagej.ImageJ;
 
 import org.jetbrains.annotations.NotNull;
@@ -46,7 +45,6 @@ import sc.iview.node.Line3D;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.awt.image.BufferedImage;
 import java.util.List;
 
 import javax.swing.SwingUtilities;
@@ -60,8 +58,6 @@ import java.util.*;
  * @author Tiago Ferreira
  */
 public class SciViewSNT {
-
-	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private final static String PATH_MANAGER_TREE_LABEL = "Path Manager Contents";
 
@@ -482,8 +478,8 @@ public class SciViewSNT {
 		//GuiUtils.setSystemLookAndFeel();
 		final ImageJ ij = new ImageJ();
 
-		Image icon = new BufferedImage(64, 64, BufferedImage.TYPE_INT_RGB);
-		IJ.getInstance().setIconImage(icon);
+//		Image icon = new BufferedImage(64, 64, BufferedImage.TYPE_INT_RGB);
+//		ij.IJ.getInstance().setIconImage(icon);
 
 		ij.ui().showUI();
 		final SNTService sntService = ij.context().getService(SNTService.class);

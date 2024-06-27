@@ -326,9 +326,11 @@ public class SNTCommandFinder {
 			case "Convert to ROIs...":
 				sb.append("\", \"ROI type chosen in prompt\", \"[optional view (default is 'XY')]\")");
 				break;
-			case "Color Code Path(s)...":
-			case "Color Code Cell(s)...":
-				sb.append("\", \"metric chosen in prompt\", \"LUT chosen in prompt\")");
+			case "Branch-based Color Mapping...":
+			case "Path-based Color Mapping...":
+			case "Color Code Path(s)...": // backwards compatibility
+			case "Color Code Cell(s)...": // backwards compatibility
+					sb.append("\", \"metric chosen in prompt\", \"LUT chosen in prompt\")");
 				break;
 			default:
 				noOptionsRecorderComment();
