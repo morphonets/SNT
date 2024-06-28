@@ -160,7 +160,7 @@ public class InterpolateRadiiCmd extends CommonDynamicCmd {
 					predicate = nonZeroPredicate();
 				else
 					predicate = predicate.or(nonZeroPredicate());
-					replacements = path.interpolateMissingRadii(predicate, apply);
+				replacements = path.interpolateMissingRadii(predicate, apply);
 				if (replacements == null || replacements.isEmpty()) {
 					SNTUtils.log("Skipping " + path.getName() + ": No replacements needed or no valid replacement found");
 				} else {

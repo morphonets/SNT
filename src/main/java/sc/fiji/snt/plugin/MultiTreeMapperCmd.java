@@ -44,7 +44,6 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.viewer.MultiViewer2D;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
-import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;

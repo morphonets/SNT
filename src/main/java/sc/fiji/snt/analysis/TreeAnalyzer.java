@@ -387,10 +387,13 @@ public class TreeAnalyzer extends ContextCommand {
 		case MultiTreeStatistics.AVG_FRACTAL_DIMENSION:
 			return getAvgFractalDimension();
 		case MultiTreeStatistics.PRIMARY_LENGTH:
+		case TreeStatistics.PRIMARY_LENGTH:
 			return getPrimaryLength();
 		case MultiTreeStatistics.TERMINAL_LENGTH:
+		case TreeStatistics.TERMINAL_LENGTH:
 			return getTerminalLength();
 		case MultiTreeStatistics.INNER_LENGTH:
+		case TreeStatistics.INNER_LENGTH:
 			return getInnerLength();
 		case TreeStatistics.AVG_SPINE_DENSITY:
 		case TreeStatistics.PATH_SPINE_DENSITY:
@@ -427,17 +430,11 @@ public class TreeAnalyzer extends ContextCommand {
 			return getTips().size();
 		case TreeStatistics.N_SPINES:
 			return getNoSpinesOrVaricosities();
-		case TreeStatistics.PRIMARY_LENGTH:
-			return getPrimaryLength();
-		case TreeStatistics.INNER_LENGTH:
-			return getInnerLength();
-		case TreeStatistics.STRAHLER_NUMBER:
+            case TreeStatistics.STRAHLER_NUMBER:
 			return getStrahlerNumber();
 		case TreeStatistics.STRAHLER_RATIO:
 			return getStrahlerBifurcationRatio();
-		case TreeStatistics.TERMINAL_LENGTH:
-			return getTerminalLength();
-		case TreeStatistics.WIDTH:
+            case TreeStatistics.WIDTH:
 			return getWidth();
 		default:
 			if (metric.startsWith("Sholl: ")) {

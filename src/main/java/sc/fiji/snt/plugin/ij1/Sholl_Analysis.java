@@ -1906,7 +1906,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 			}
 		}
 
-		if (!"".equals(exitmsg)) {
+		if (!exitmsg.isEmpty()) {
 			IJ.showStatus("Tip: " + tipMsg + "...");
 			lError(exitmsg,
 					"This plugin requires a segmented arbor (2D/3D). Either:\n"
@@ -2281,10 +2281,10 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 			IJ.error("Sholl Analysis v" + VERSION + " Error", msg);
 		} else {
 			final EnhancedGenericDialog gd = new EnhancedGenericDialog("Sholl Analysis v" + VERSION + " Error");
-			if (boldMsg != null && !"".equals(boldMsg)) {
+			if (boldMsg != null && !boldMsg.isEmpty()) {
 				gd.addMessage(boldMsg, new Font("SansSerif", Font.BOLD, 12));
 			}
-			if (plainMsg != null && !"".equals(plainMsg)) {
+			if (plainMsg != null && !plainMsg.isEmpty()) {
 				gd.addMessage(plainMsg);
 			}
 			if (!isCSV) {

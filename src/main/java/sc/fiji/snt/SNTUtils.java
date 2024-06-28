@@ -542,7 +542,7 @@ public class SNTUtils {
 					}
 				});
 				if (context != null)
-					System.out.println(String.format("[INFO] [SNT] %d scijava services loaded", context.getServiceIndex().size()));
+					System.out.printf("[INFO] [SNT] %d scijava services loaded%n", context.getServiceIndex().size());
 			}
 		}
 		return context;

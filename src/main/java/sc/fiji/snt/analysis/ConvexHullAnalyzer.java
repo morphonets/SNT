@@ -225,9 +225,9 @@ public class ConvexHullAnalyzer extends ContextCommand {
 
 	private boolean isComputable() {
 		// There are edge cases where the entire computation stalls when parsing
-		// single-path Trees that are 1D or extremely small. There is no exception
-		// error, just opService seems to stall!? without any feedback. For now,
-		// we'll try to avoid any edge situation altogether.
+		// single-path Trees that are 1D or tiny. There is no exception error,
+		// just opService seems to stall!? without any feedback.
+		// For now, we'll try to avoid any edge situation altogether.
 		int nNodes = 0;
 		final BoundingBox bbox = new BoundingBox();
 		for (final Path p : tree.list()) {

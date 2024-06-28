@@ -280,7 +280,7 @@ public class BoundingBox {
 	}
 
 	/**
-	 * Combines Combines this bounding box with another one. It is asumed both boxes
+	 * Combines this bounding box with another one. It is assumed both boxes
 	 * share the same voxel spacing/Calibration.
 	 *
 	 * @param boundingBox the bounding box to be combined.

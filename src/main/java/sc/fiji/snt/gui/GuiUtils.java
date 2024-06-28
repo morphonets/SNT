@@ -405,7 +405,7 @@ public class GuiUtils {
 	}
 
 	private void makeVisible(final JDialog dialog, final boolean forceBringToFront) {
-		// work around a bug in openjdk and MacOS in which prompts
+		// work around a bug in openjdk and macOS in which prompts
 		// are not frontmost if the component hierarchy is > 3
 		dialog.setAlwaysOnTop(forceBringToFront && PlatformUtils.isMac());
 		dialog.setVisible(true);
@@ -994,7 +994,7 @@ public class GuiUtils {
 		else if ("labels".equals(extension))
 			fileChooser.setDialogTitle("Choose LABELS File");
 		else
-			fileChooser.setDialogTitle("Choose Reconstrution (" + extension.toUpperCase() + ") File");
+			fileChooser.setDialogTitle("Choose Reconstruction (" + extension.toUpperCase() + ") File");
 		fileChooser.setMultiSelectionEnabled(false);
 		return (File)getOpenFileChooserResult(fileChooser);
 	}
@@ -1496,7 +1496,7 @@ public class GuiUtils {
 	public void searchForum(final String query) {
 			String url;
 			try {
-				url = "https://forum.image.sc/search?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8.toString());
+				url = "https://forum.image.sc/search?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
 			} catch (final Exception ignored) {
 				url = query.trim().replace(" ", "%20");
 			}
@@ -1865,7 +1865,7 @@ public class GuiUtils {
 	}
 
 	/**
-	 * Returns a more human readable representation of a length in micrometers.
+	 * Returns a more human-readable representation of a length in micrometers.
 	 * <p>
 	 * E.g., scaledMicrometer(0.01,1) returns "1.0nm"
 	 * </p>

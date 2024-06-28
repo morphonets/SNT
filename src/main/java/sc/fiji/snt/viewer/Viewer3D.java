@@ -3833,7 +3833,7 @@ public class Viewer3D {
 			static final String TAG = "Add Tag(s)...";
 			static final String TOGGLE_DARK_MODE = "Toggle Dark Mode";
 			static final String TOGGLE_CONTROL_PANEL= "Toggle RV Controls";
-			static final long serialVersionUID = 1L;
+			private static final long serialVersionUID = 1L;
 			final String name;
 
 			Action(final String name) {
@@ -7856,7 +7856,7 @@ public class Viewer3D {
 		}
 
 		void resetLight() {
-			// HACK: the scene does not seem to update when light is removed
+			// HACK: the scene does not seem to update when light is removed,
 			// so we'll try our best to restore things to pre-prompt state
 			try {
 				Light light = chart.getScene().getLightSet().get(0);
@@ -8354,7 +8354,7 @@ public class Viewer3D {
 
 		}
 
-		private class OffScreenFactory extends OffscreenChartFactory {
+		private static class OffScreenFactory extends OffscreenChartFactory {
 
 			public OffScreenFactory() {
 				super(1920, 1080);
@@ -8366,7 +8366,7 @@ public class Viewer3D {
 			}
 		}
 
-		private class EmulGLFactory extends EmulGLChartFactory {
+		private static class EmulGLFactory extends EmulGLChartFactory {
 
 			@Override
 			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
@@ -8374,7 +8374,7 @@ public class Viewer3D {
 			}
 		}
 
-		private class JOGLFactory extends AWTChartFactory {
+		private static class JOGLFactory extends AWTChartFactory {
 
 			@Override
 			public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
@@ -8383,7 +8383,7 @@ public class Viewer3D {
 		}
 
 		/** Adapted View for improved rotations of the scene */
-		private class AView extends AWTView {
+		private static class AView extends AWTView {
 
 			public AView(final IChartFactory factory, final Scene scene, final ICanvas canvas, final Quality quality) {
 				super(factory, scene, canvas, quality);

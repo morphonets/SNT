@@ -33,7 +33,7 @@ import ij.ImagePlus;
 import sc.fiji.snt.gui.GuiUtils;
 
 /**
- * There have been problems on Mac OS with people trying to start the Sholl
+ * There have been problems on macOS with people trying to start the Sholl
  * analysis interface, but while the focus isn't on the image window. This is
  * just a key listener to detect such attempts and suggest to people what might
  * be wrong if they type Shift with Control-A or Alt-A in the wrong window.

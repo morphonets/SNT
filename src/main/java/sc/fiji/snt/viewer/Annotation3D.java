@@ -398,7 +398,7 @@ public class Annotation3D {
 	/**
 	 * Assigns a color to the annotation.
 	 * 
-	 * @param color               the color to render the annotation. (If the
+	 * @param color               the color to render the annotation. If the
 	 *                            annotation contains a wireframe, the wireframe is
 	 *                            rendered using a "contrast" color computed from
 	 *                            this one.

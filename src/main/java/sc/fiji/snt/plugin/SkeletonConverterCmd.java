@@ -347,7 +347,6 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 					 */
 					SNTUtils.log("Duplicating loaded data");
 					chosenMaskImp = snt.getLoadedDataAsImp().duplicate();
-					if (snt.getImagePlus() != null)
 					if (snt.getImagePlus() != null) {
 						chosenMaskImp.setRoi(snt.getImagePlus().getRoi());
 						if (snt.getImagePlus().isThreshold()) {
