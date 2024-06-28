@@ -62,6 +62,7 @@ public class IconFactory {
 			ARROWS_SPLIT('\ue4bc', true), //
 			//ARROWS_V('\uf338', true), //
 			//ATOM('\uf5d2', true), //
+			BARCODE('\uf02a', true), //
 			BEZIER_CURVE('\uf55b', true),//
 			BINOCULARS('\uf1e5', true), //
 			BOLD('\uf032', true),//

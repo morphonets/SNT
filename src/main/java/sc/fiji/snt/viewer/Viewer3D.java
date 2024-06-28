@@ -4612,6 +4612,15 @@ public class Viewer3D {
 				runCmd(ConvexHullCmd.class, inputs, CmdWorker.DO_NOTHING, true, true);
 			});
 			measureMenu.add(convexHullMenuItem);
+			mi = GuiUtils.MenuItems.persistenceAnalysis();
+			mi.addActionListener(e -> {
+				final List<Tree> trees = getSelectedTrees();
+				if (trees == null || trees.isEmpty()) return;
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("trees", trees);
+				runCmd(PersistenceAnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+			});
+			measureMenu.add(mi);
 			mi = GuiUtils.MenuItems.shollAnalysis();
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();

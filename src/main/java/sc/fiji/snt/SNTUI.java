@@ -2712,6 +2712,16 @@ public class SNTUI extends JDialog {
 			new DynamicCmdRunner(BrainAnnotationCmd.class, inputs).run();
 		});
 		analysisMenu.add(brainMenuItem);
+		final JMenuItem tmdMenuItem = GuiUtils.MenuItems.persistenceAnalysis();
+		tmdMenuItem.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Collection<Tree> trees = getPathManager().getMultipleTrees();
+			if (trees == null || trees.isEmpty()) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("trees", trees);
+			new DynamicCmdRunner(PersistenceAnalyzerCmd.class, inputs).run();
+		});
+		analysisMenu.add(tmdMenuItem);
 		final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
 		shollMenuItem.addActionListener(e -> {
 			if (noPathsError()) return;

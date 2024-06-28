@@ -90,8 +90,8 @@ public class PersistenceAnalyzer {
 
     private final Tree tree;
 
-    private final HashMap<String, ArrayList<ArrayList<Double>>> persistenceDiagramMap = new HashMap<>();
-    private final HashMap<String, ArrayList<ArrayList<SWCPoint>>> persistenceNodesMap = new HashMap<>();
+    private final HashMap<String, List<List<Double>>> persistenceDiagramMap = new HashMap<>();
+    private final HashMap<String, List<List<SWCPoint>>> persistenceNodesMap = new HashMap<>();
 
     private boolean nodeValuesAssigned;
 
@@ -121,8 +121,8 @@ public class PersistenceAnalyzer {
                     + "Maybe you meant one of the following?: \"" + String.join(", ", getDescriptors() + "\""));
         }
 
-        final ArrayList<ArrayList<SWCPoint>> persistenceNodes = new ArrayList<>();
-        final ArrayList<ArrayList<Double>> persistenceDiagram = new ArrayList<>();
+        final List<List<SWCPoint>> persistenceNodes = new ArrayList<>();
+        final List<List<Double>> persistenceDiagram = new ArrayList<>();
 
         SNTUtils.log("Retrieving graph...");
         // Use simplified graph since geodesic distances are preserved as edge weights
@@ -200,7 +200,7 @@ public class PersistenceAnalyzer {
      * @throws IllegalArgumentException If the {@code tree}'s graph could not be
      *                                  obtained
      */
-    public ArrayList<ArrayList<Double>> getDiagram(final String descriptor) throws UnknownMetricException, IllegalArgumentException {
+    public List<List<Double>> getDiagram(final String descriptor) throws UnknownMetricException, IllegalArgumentException {
         if (persistenceDiagramMap.get(descriptor) == null || persistenceDiagramMap.get(descriptor).isEmpty()) {
             compute(descriptor);
         }
@@ -219,8 +219,8 @@ public class PersistenceAnalyzer {
      * @throws IllegalArgumentException If the {@code tree}'s graph could not be
      *                                  obtained
      */
-    public ArrayList<Double> getBarcode(final String descriptor) throws UnknownMetricException, IllegalArgumentException {
-        final ArrayList<ArrayList<Double>> diag = getDiagram(descriptor);
+    public List<Double> getBarcode(final String descriptor) throws UnknownMetricException, IllegalArgumentException {
+        final List<List<Double>> diag = getDiagram(descriptor);
         final ArrayList<Double> barcodes = new ArrayList<>(diag.size());
         diag.forEach(point -> barcodes.add(Math.abs(point.get(1) - point.get(0))));
         return barcodes;
@@ -238,7 +238,7 @@ public class PersistenceAnalyzer {
      * @throws IllegalArgumentException If the {@code tree}'s graph could not be
      *                                  obtained
      */
-    public ArrayList<ArrayList<SWCPoint>> getDiagramNodes(final String descriptor) {
+    public List<List<SWCPoint>> getDiagramNodes(final String descriptor) {
         if (persistenceNodesMap.get(descriptor) == null || persistenceNodesMap.get(descriptor).isEmpty())
             compute(descriptor);
         return persistenceNodesMap.get(descriptor);
@@ -247,7 +247,7 @@ public class PersistenceAnalyzer {
     /**
      * Gets the persistence landscape as an N-dimensional vector, where N == numLandscapes x resolution.
      * For an overview of persistence landscapes, see
-     * Bubenik, P.. (2015). Statistical topological data analysis using persistence landscapes.
+     * Bubenik, P. (2015). Statistical topological data analysis using persistence landscapes.
      * Journal of Machine Learning Research. 16. 77-102.
      *
      * @param descriptor    A descriptor for the filter function as per
@@ -261,7 +261,7 @@ public class PersistenceAnalyzer {
         if (persistenceDiagramMap.get(descriptor) == null || persistenceDiagramMap.get(descriptor).isEmpty()) {
             compute(descriptor);
         }
-        final ArrayList<ArrayList<Double>> diagram = persistenceDiagramMap.get(descriptor);
+        final List<List<Double>> diagram = persistenceDiagramMap.get(descriptor);
         return landscapeTransform(diagram, numLandscapes, resolution);
     }
 
@@ -326,30 +326,28 @@ public class PersistenceAnalyzer {
         return graph.getRoot().distanceTo(node);
     }
 
-    private double[] getMinMax(ArrayList<ArrayList<Double>> diagram) {
+    private double[] getMinMax(List<List<Double>> diagram) {
         double minX = Double.MAX_VALUE;
         double maxY = -Double.MAX_VALUE;
-        for (ArrayList<Double> point : diagram) {
+        for (List<Double> point : diagram) {
             if (point.get(0) < minX) minX = point.get(0);
             if (point.get(1) > maxY) maxY = point.get(1);
         }
         return new double[]{minX, maxY};
     }
 
-    private double[] landscapeTransform(ArrayList<ArrayList<Double>> diagram, int numLandscapes, int resolution) {
+    private double[] landscapeTransform(List<List<Double>> diagram, int numLandscapes, int resolution) {
         double[] sampleRange = getMinMax(diagram);
         Linspace xValues = new Linspace(sampleRange[0], sampleRange[1], resolution);
         double stepX = xValues.step;
 
         double[][] ls = new double[numLandscapes][resolution];
-        for (double[] l : ls) {
-            Arrays.fill(l, 0);
-        }
-        ArrayList<ArrayList<Double>> events = new ArrayList<>();
+//      for (double[] l : ls) { Arrays.fill(l, 0); } // redundant: double[] arrays already 0-filled
+        List<List<Double>> events = new ArrayList<>();
         for (int j = 0; j < resolution; j++) {
             events.add(new ArrayList<>());
         }
-        for (ArrayList<Double> doubles : diagram) {
+        for (List<Double> doubles : diagram) {
             double px = doubles.get(0);
             double py = doubles.get(1);
             int minIndex = Math.min(Math.max((int) Math.ceil((px - sampleRange[0]) / stepX), 0), resolution);
@@ -414,8 +412,8 @@ public class PersistenceAnalyzer {
         final SNTService sntService = ij.context().getService(SNTService.class);
         final Tree tree = sntService.demoTree("fractal");
         final PersistenceAnalyzer analyzer = new PersistenceAnalyzer(tree);
-        final ArrayList<ArrayList<Double>> diagram = analyzer.getDiagram("radial");
-        for (final ArrayList<Double> point : diagram) {
+        final List<List<Double>> diagram = analyzer.getDiagram("radial");
+        for (final List<Double> point : diagram) {
             System.out.println(point);
         }
         System.out.println(diagram.size());

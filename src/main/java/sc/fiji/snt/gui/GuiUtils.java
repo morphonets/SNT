@@ -2621,9 +2621,15 @@ public class GuiUtils {
 
 		private MenuItems() {}
 
+		public static JMenuItem persistenceAnalysis() {
+			final JMenuItem jmi = new JMenuItem("Persistence Homology...", IconFactory.getMenuIcon(GLYPH.BARCODE));
+			jmi.setToolTipText("TMD, TMD variants, and Persistence landscapes");
+			return jmi;
+		}
+
 		public static JMenuItem brainAreaAnalysis() {
 			final JMenuItem jmi = new JMenuItem("Brain Area Analysis...", IconFactory.getMenuIcon(GLYPH.BRAIN));
-			jmi.setToolTipText("Distribution analyisis of projection patterns across brain areas.");
+			jmi.setToolTipText("Distribution analysis of projection patterns across brain areas");
 			return jmi;
 		}
 
@@ -2660,7 +2666,7 @@ public class GuiUtils {
 
 		public static JMenuItem createAnnotionGraph() {
 			final JMenuItem jmi = new JMenuItem("Create Annotation Graph...", IconFactory.getMenuIcon(GLYPH.BRAIN));
-			jmi.setToolTipText("Flow Plots and Ferris-Wheel diagrams from annoated trees");
+			jmi.setToolTipText("Flow Plots and Ferris-Wheel diagrams from annotated trees");
 			return jmi;
 		}
 
