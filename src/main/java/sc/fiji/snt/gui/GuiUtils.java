@@ -2628,7 +2628,7 @@ public class GuiUtils {
 		}
 
 		public static JMenuItem brainAreaAnalysis() {
-			final JMenuItem jmi = new JMenuItem("Brain Area Analysis...", IconFactory.getMenuIcon(GLYPH.BRAIN));
+			final JMenuItem jmi = new JMenuItem("Brain Area Frequencies...", IconFactory.getMenuIcon(GLYPH.BRAIN));
 			jmi.setToolTipText("Distribution analysis of projection patterns across brain areas");
 			return jmi;
 		}
@@ -2665,14 +2665,14 @@ public class GuiUtils {
 		}
 
 		public static JMenuItem createAnnotionGraph() {
-			final JMenuItem jmi = new JMenuItem("Create Annotation Graph...", IconFactory.getMenuIcon(GLYPH.BRAIN));
+			final JMenuItem jmi = new JMenuItem("Annotation Graph...", IconFactory.getMenuIcon(GLYPH.BRAIN));
 			jmi.setToolTipText("Flow Plots and Ferris-Wheel diagrams from annotated trees");
 			return jmi;
 		}
 
 		public static JMenuItem measureOptions() {
 			final JMenuItem jmi = new JMenuItem("Measure...", IconFactory.getMenuIcon(GLYPH.TABLE));
-			jmi.setToolTipText("<HTML>Compute detailed metrics from single cells");
+			jmi.setToolTipText("Compute detailed metrics from single cells");
 			return jmi;
 		}
 

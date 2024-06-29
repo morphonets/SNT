@@ -4033,6 +4033,10 @@ public class Viewer3D {
 
 		private JPopupMenu sceneMenu() {
 			final JPopupMenu sceneMenu = new JPopupMenu();
+			final JMenuItem dark = new JMenuItem(new Action(Action.TOGGLE_DARK_MODE, KeyEvent.VK_D, false, false));
+			dark.setIcon(IconFactory.getMenuIcon(GLYPH.SUN));
+			sceneMenu.add(dark);
+			sceneMenu.addSeparator();
 			final JMenuItem fit = new JMenuItem(new Action(Action.FIT, KeyEvent.VK_F, false, false));
 			fit.setIcon(IconFactory.getMenuIcon(GLYPH.EXPAND));
 			sceneMenu.add(fit);
@@ -4576,7 +4580,7 @@ public class Viewer3D {
 				});
 			});
 			measureMenu.add(mi);
-			GuiUtils.addSeparator(measureMenu, "Distribution Analysis:");
+			GuiUtils.addSeparator(measureMenu, "Distribution Analyses:");
 			mi = new JMenuItem("Branch Properties...", IconFactory.getMenuIcon(GLYPH.CHART));
 			mi.setToolTipText("Computes distributions of metrics from all the branches of selected trees");
 			mi.addActionListener(e -> {
@@ -4599,7 +4603,7 @@ public class Viewer3D {
 				runCmd(DistributionCPCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			GuiUtils.addSeparator(measureMenu, "Specialized Analysis:");
+			GuiUtils.addSeparator(measureMenu, "Specialized Analyses:");
 			final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
 			convexHullMenuItem.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
@@ -4612,6 +4616,15 @@ public class Viewer3D {
 				runCmd(ConvexHullCmd.class, inputs, CmdWorker.DO_NOTHING, true, true);
 			});
 			measureMenu.add(convexHullMenuItem);
+			mi = GuiUtils.MenuItems.createDendrogram();
+			mi.addActionListener(e -> {
+				final Tree tree = getSingleSelectionTreeWithPromptForType();
+				if (tree == null) return;
+				final Map<String, Object> inputs = new HashMap<>();
+				inputs.put("tree", tree);
+				runCmd(GraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+			});
+			measureMenu.add(mi);
 			mi = GuiUtils.MenuItems.persistenceAnalysis();
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
@@ -4645,25 +4658,7 @@ public class Viewer3D {
 				runCmd(StrahlerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			GuiUtils.addSeparator(measureMenu, "Graph-based Analysis:");
-			mi = GuiUtils.MenuItems.brainAreaAnalysis();
-			mi.addActionListener(e -> {
-				final Tree tree = getSingleSelectionTree();
-				if (tree == null) return;
-				final Map<String, Object> inputs = new HashMap<>();
-				inputs.put("tree", tree);
-				runCmd(BrainAnnotationCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
-			});
-			measureMenu.add(mi);
-			mi = GuiUtils.MenuItems.createDendrogram();
-			mi.addActionListener(e -> {
-				final Tree tree = getSingleSelectionTreeWithPromptForType();
-				if (tree == null) return;
-				final Map<String, Object> inputs = new HashMap<>();
-				inputs.put("tree", tree);
-				runCmd(GraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
-			});
-			measureMenu.add(mi);
+			GuiUtils.addSeparator(measureMenu, "Atlas-based Analyses:");
 			mi = GuiUtils.MenuItems.createAnnotionGraph();
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
@@ -4673,7 +4668,16 @@ public class Viewer3D {
 				runCmd(AnnotationGraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			GuiUtils.addSeparator(measureMenu, "Data Export & Utilities:");
+			mi = GuiUtils.MenuItems.brainAreaAnalysis();
+			mi.addActionListener(e -> {
+				final Tree tree = getSingleSelectionTree();
+				if (tree == null) return;
+				final Map<String, Object> inputs = new HashMap<>();
+				inputs.put("tree", tree);
+				runCmd(BrainAnnotationCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+			});
+			measureMenu.add(mi);
+			GuiUtils.addSeparator(measureMenu, "Data Export:");
 			mi = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.SAVE);
 			mi.addActionListener(e -> {
 				runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING, false, true);
@@ -4949,16 +4953,6 @@ public class Viewer3D {
 			});
 			utilsMenu.add(mi);
 			utilsMenu.add(legendMenu());
-			final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.getMenuIcon(GLYPH.BULB));
-			light.addActionListener(e -> frame.displayLightController(null));
-			utilsMenu.add(light);
-			final JMenuItem dark = new JMenuItem(new Action(Action.TOGGLE_DARK_MODE, KeyEvent.VK_D, false, false));
-			dark.setIcon(IconFactory.getMenuIcon(GLYPH.SUN));
-			utilsMenu.add(dark);
-			GuiUtils.addSeparator(utilsMenu, "Actions:");
-			final JMenuItem hide = new JMenuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true));
-			hide.setIcon(IconFactory.getMenuIcon(GLYPH.EYE_SLASH));
-			utilsMenu.add(hide);
 			if (!isSNTInstance()) {
 				final JMenuItem jmi = GuiUtils.MenuItems.renderQuick();
 				jmi.addActionListener(e -> {
@@ -4970,6 +4964,9 @@ public class Viewer3D {
 				});
 				utilsMenu.add(jmi);
 			}
+			final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.getMenuIcon(GLYPH.BULB));
+			light.addActionListener(e -> frame.displayLightController(null));
+			utilsMenu.add(light);
 			mi = new JMenuItem("Record Rotation", IconFactory.getMenuIcon(GLYPH.VIDEO));
 			mi.addActionListener(e -> {
 				SwingUtilities.invokeLater(() -> {
@@ -5020,6 +5017,10 @@ public class Viewer3D {
 
 		private JPopupMenu prefsMenu() {
 			final JPopupMenu prefsMenu = new JPopupMenu();
+			GuiUtils.addSeparator(prefsMenu, "Layout:");
+			final JMenuItem hide = new JMenuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true));
+			hide.setIcon(IconFactory.getMenuIcon(GLYPH.WINDOWS));
+			prefsMenu.add(hide);
 			GuiUtils.addSeparator(prefsMenu, "Keyboard & Mouse Sensitivity:");
 			prefsMenu.add(panMenu());
 			prefsMenu.add(zoomMenu());

@@ -113,7 +113,6 @@ public class SNTUI extends JDialog {
 	private JButton showOrHidePathList;
 	private JButton showOrHideFillList = new JButton(); // must be initialized
 	private JMenuItem saveMenuItem;
-	private JMenuItem exportCSVMenuItem;
 	private JMenuItem quitMenuItem;
 	private JMenuItem sendToTrakEM2;
 	private JLabel statusText;
@@ -880,7 +879,6 @@ public class SNTUI extends JDialog {
 				fmUI.setEnabledWhileNotFilling();
 				saveMenuItem.setEnabled(true);
 
-				exportCSVMenuItem.setEnabled(true);
 				sendToTrakEM2.setEnabled(plugin.anyListeners());
 				quitMenuItem.setEnabled(true);
 				showPathsSelected.setEnabled(true);
@@ -902,7 +900,6 @@ public class SNTUI extends JDialog {
 				// setFillListVisible(false);
 				saveMenuItem.setEnabled(true);
 
-				exportCSVMenuItem.setEnabled(true);
 				sendToTrakEM2.setEnabled(plugin.anyListeners());
 				quitMenuItem.setEnabled(true);
 				showPathsSelected.setEnabled(true);
@@ -1085,7 +1082,8 @@ public class SNTUI extends JDialog {
 		positionPanel.add(applyPositionButton);
 
 		final JCheckBox autoCTcheckbox = new JCheckBox("Auto-load CT position of new paths", plugin.autoCT);
-		commandFinder.register(autoCTcheckbox, "Main Tab", "Data Source");
+		commandFinder.register(autoCTcheckbox, "Toggle Auto-load CT Position of New Paths",
+				"Main Tab", "Data Source");
 		GuiUtils.addTooltip(autoCTcheckbox, "Automatically loads the active channel and frame of the starting " +
 				"node of newly created paths.<br>" +
 				"NB: This option may be incompatible with secondary layers and Z-projection overlays.");
@@ -1181,7 +1179,7 @@ public class SNTUI extends JDialog {
 
 		final CheckboxSpinner mipCS = new CheckboxSpinner(new JCheckBox("Overlay MIP(s) at"),
 				GuiUtils.integerSpinner(20, 10, 80, 1, true));
-		registerInCommandFinder(mipCS.getCheckBox(), "Overlay MIP(s)", "Options Tab");
+		registerInCommandFinder(mipCS.getCheckBox(), "Toggle Overlay MIP(s)", "Options Tab");
 		mipCS.getSpinner().addChangeListener(e -> mipCS.setSelected(false));
 		mipCS.appendLabel(" % opacity");
 		mipCS.getCheckBox().addActionListener(e -> {
@@ -1201,6 +1199,8 @@ public class SNTUI extends JDialog {
 
 		final JCheckBox zoomAllPanesCheckBox = new JCheckBox("Apply zoom changes to all views",
 				!plugin.isZoomAllPanesDisabled());
+		registerInCommandFinder(zoomAllPanesCheckBox, "Toggle Apply Zoom Changes to All Views'",
+				"Options Tab");
 		zoomAllPanesCheckBox
 				.addItemListener(e -> plugin.disableZoomAllPanes(e.getStateChange() == ItemEvent.DESELECTED));
 		viewsPanel.add(zoomAllPanesCheckBox, gdb);
@@ -1353,7 +1353,8 @@ public class SNTUI extends JDialog {
 
 		final JCheckBox confirmTemporarySegmentsCheckbox = new JCheckBox("Confirm temporary segments",
 				confirmTemporarySegments);
-		registerInCommandFinder(confirmTemporarySegmentsCheckbox, null, "Options Tab");
+		registerInCommandFinder(confirmTemporarySegmentsCheckbox, "Toggle Confirm Temporary Segments",
+				"Options Tab");
 		tPanel.add(confirmTemporarySegmentsCheckbox, gdb);
 		++gdb.gridy;
 
@@ -1376,13 +1377,16 @@ public class SNTUI extends JDialog {
 
 		final JCheckBox activateFinishedPathCheckbox = new JCheckBox("Finishing a path selects it",
 				plugin.activateFinishedPath);
-		registerInCommandFinder(activateFinishedPathCheckbox, null, "Options Tab");
+		registerInCommandFinder(activateFinishedPathCheckbox, "Toggle Finishing a Path Selects It",
+				"Options Tab");
 		GuiUtils.addTooltip(activateFinishedPathCheckbox, "Whether the path being traced should automatically be selected once finished.");
 		activateFinishedPathCheckbox.addItemListener(e -> plugin.enableAutoSelectionOfFinishedPath(e.getStateChange() == ItemEvent.SELECTED));
 		tPanel.add(activateFinishedPathCheckbox, gdb);
 		++gdb.gridy;
 
 		final JCheckBox requireShiftToForkCheckbox = new JCheckBox("Require 'Shift' to branch off a path", plugin.requireShiftToFork);
+		registerInCommandFinder(requireShiftToForkCheckbox, "Toggle Require 'Shift' to Branch Off a Path",
+				"Options Tab");
 		GuiUtils.addTooltip(requireShiftToForkCheckbox, "When branching off a path: Use Shift+Alt+click or Alt+click at the forking node? "
 				+ "NB: Alt+click is a common trigger for window dragging on Linux. Use Super+Alt+click to circumvent OS conflics.");
 		requireShiftToForkCheckbox.addItemListener(e ->plugin.requireShiftToFork = e.getStateChange() == ItemEvent.SELECTED);
@@ -1395,7 +1399,7 @@ public class SNTUI extends JDialog {
 		final JPanel intPanel = new JPanel(new GridBagLayout());
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
 		final JCheckBox diametersCheckBox = new JCheckBox("Draw diameters", plugin.getDrawDiameters());
-		registerInCommandFinder(diametersCheckBox, null, "Options Tab");
+		registerInCommandFinder(diametersCheckBox, "Toggle Draw Diameters", "Options Tab");
 		diametersCheckBox.addItemListener(e -> plugin.setDrawDiameters(e.getStateChange() == ItemEvent.SELECTED));
 		intPanel.add(diametersCheckBox, gdb);
 		++gdb.gridy;
@@ -1618,12 +1622,16 @@ public class SNTUI extends JDialog {
 		++gdb.gridy;
 		final JCheckBox canvasCheckBox = new JCheckBox("Activate canvas on mouse hovering",
 				plugin.autoCanvasActivation);
+		registerInCommandFinder(canvasCheckBox, "Toggle Activate Canvas on Mouse Hovering",
+				"Options Tab");
 		GuiUtils.addTooltip(canvasCheckBox, "Whether the image window should be brought to front as soon as the mouse "
 				+ "pointer enters it. This may be needed to ensure single key shortcuts work as expected when tracing.");
 		canvasCheckBox.addItemListener(e -> plugin.enableAutoActivation(e.getStateChange() == ItemEvent.SELECTED));
 		miscPanel.add(canvasCheckBox, gdb);
 		++gdb.gridy;
 		final JCheckBox askUserConfirmationCheckBox = new JCheckBox("Skip confirmation dialogs", !askUserConfirmation);
+		registerInCommandFinder(askUserConfirmationCheckBox, "Toggle Skip Confirmation Dialogs",
+				"Options Tab");
 		GuiUtils.addTooltip(askUserConfirmationCheckBox,
 				"Whether \"Are you sure?\" type of prompts should precede major operations");
 		askUserConfirmationCheckBox
@@ -2286,7 +2294,8 @@ public class SNTUI extends JDialog {
 		c.insets.left *= 2;
 		secLayerImgOverlayCSpinner = new CheckboxSpinner(new JCheckBox("Render in overlay at "),
 				GuiUtils.integerSpinner(20, 10, 80, 1, true));
-		registerInCommandFinder(secLayerImgOverlayCSpinner.getCheckBox(), "Toggle secondary layer overlay", "Main Tab");
+		registerInCommandFinder(secLayerImgOverlayCSpinner.getCheckBox(), "Toggle Secondary Layer Overlay",
+				"Main Tab");
 		secLayerImgOverlayCSpinner.getSpinner().addChangeListener(e -> {
 			secLayerImgOverlayCSpinner.setSelected(false);
 		});
@@ -2658,17 +2667,10 @@ public class SNTUI extends JDialog {
 				getPathManager().quickMeasurementsCmdError(guiUtils);
 			}
 		});
-		final JMenuItem plotMenuItem = new JMenuItem("Reconstruction Plotter...", IconFactory.getMenuIcon(IconFactory.GLYPH.DRAFT));
-		plotMenuItem.setToolTipText("Renders traced paths as vector graphics (2D)");
-		plotMenuItem.addActionListener( e -> {
-			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
-			if (tree == null) return;
-			final Map<String, Object> input = new HashMap<>();
-			input.put("tree", tree);
-			final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-			cmdService.run(PlotterCmd.class, true, input);
-		});
+
+		analysisMenu.add(getBrainAnnotationMenu());
+		analysisMenu.add(getPathAnalysisMenu());
+		analysisMenu.addSeparator();
 
 		final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
 		convexHullMenuItem.addActionListener(e -> {
@@ -2682,36 +2684,6 @@ public class SNTUI extends JDialog {
 			(new CmdRunner(ConvexHullCmd.class, inputs, getState())).execute();
 		});
 		analysisMenu.add(convexHullMenuItem);
-		analysisMenu.addSeparator();
-
-		final JMenuItem pathOrderAnalysis = new JMenuItem("Path Order Analysis",
-				IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
-		pathOrderAnalysis.setToolTipText("Horton-Strahler-like analysis based on paths rather than branches");
-		pathOrderAnalysis.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
-			if (tree == null) return;
-			final PathOrderAnalysisCmd pa = new PathOrderAnalysisCmd(tree);
-			pa.setContext(plugin.getContext());
-			pa.setTable(new SNTTable(), "SNT: Path Order Analysis");
-			pa.run();
-		});
-		analysisMenu.add(pathOrderAnalysis);
-		exportCSVMenuItem = new JMenuItem("Path Properties: Export CSV...", IconFactory.getMenuIcon(IconFactory.GLYPH.CSV));
-		exportCSVMenuItem.setToolTipText("Export details (metrics, relationships, ...) of existing paths as tabular data");
-		exportCSVMenuItem.addActionListener(listener);
-		analysisMenu.add(exportCSVMenuItem);
-		analysisMenu.addSeparator();
-		final JMenuItem brainMenuItem = GuiUtils.MenuItems.brainAreaAnalysis();
-		brainMenuItem.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
-			if (tree == null) return;
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("tree", tree);
-			new DynamicCmdRunner(BrainAnnotationCmd.class, inputs).run();
-		});
-		analysisMenu.add(brainMenuItem);
 		final JMenuItem tmdMenuItem = GuiUtils.MenuItems.persistenceAnalysis();
 		tmdMenuItem.addActionListener(e -> {
 			if (noPathsError()) return;
@@ -2785,19 +2757,8 @@ public class SNTUI extends JDialog {
 				(new DynamicCmdRunner(GroupAnalyzerCmd.class, null)).run();
 			}
 		});
-		utilitiesMenu.add(plotMenuItem);
+		utilitiesMenu.add(getRecPlotterMenuItem());
 		utilitiesMenu.addSeparator();
-
-		final JMenuItem annotGenerator = GuiUtils.MenuItems.createAnnotionGraph();
-		utilitiesMenu.add(annotGenerator);
-		annotGenerator.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Collection<Tree> trees = getPathManager().getMultipleTrees();
-			if (trees == null) return;
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("trees", trees);
-			(new DynamicCmdRunner(AnnotationGraphGeneratorCmd.class, inputs)).run();
-		});
 		final JMenuItem graphGenerator = GuiUtils.MenuItems.createDendrogram();
 		utilitiesMenu.add(graphGenerator);
 		graphGenerator.addActionListener(e -> {
@@ -2820,6 +2781,7 @@ public class SNTUI extends JDialog {
 		utilitiesMenu.add(figureGenerator);
 		utilitiesMenu.addSeparator();
 
+		utilitiesMenu.add(getDriftCorrectionMenuItem());
 		// similar to File>Autotrace Segmented Image File... but assuming current image as source,
 		// which does not require file validations etc.
 		final JMenuItem autotraceJMI = new JMenuItem("Autotrace Segmented Image...",
@@ -2828,7 +2790,6 @@ public class SNTUI extends JDialog {
 		utilitiesMenu.add(autotraceJMI);
 		ScriptRecorder.setRecordingCall(autotraceJMI, "snt.getUI().runAutotracingWizard(false)");
 		autotraceJMI.addActionListener(e -> runAutotracingOnImage(false));
-
 		// View menu
 		final JMenuItem arrangeDialogsMenuItem = new JMenuItem("Arrange Dialogs",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.WINDOWS2));
@@ -2903,6 +2864,109 @@ public class SNTUI extends JDialog {
 		});
 		viewMenu.add(consoleJMI);
 		return menuBar;
+	}
+
+	private JMenuItem getDriftCorrectionMenuItem() {
+		final JMenuItem driftJMI = new JMenuItem("Apply 3D Drift Corrections...", IconFactory.getMenuIcon(GLYPH.VIDEO));
+		driftJMI.setToolTipText("<HTML>Assumes loaded image is a time-lapse series. Should be run <i>before</i> tracing operations");
+		driftJMI.addActionListener( e-> {
+			if (!plugin.accessToValidImageData() || plugin.getImagePlus().getNFrames() == 1) {
+				guiUtils.error("A timelapse is required but none seems to be loaded.");
+			}
+			else if (!ScriptInstaller.runScript("Plugins/Registration/Correct_3D_drift.py")) {
+				guiUtils.error("Could not find 'Correct 3D Drift'. " +
+						"Make sure no files are missing from your Fiji install.");
+			}
+		});
+		return driftJMI;
+	}
+
+	private JMenuItem getRecPlotterMenuItem() {
+		final JMenuItem plotMenuItem = new JMenuItem("Reconstruction Plotter...", IconFactory.getMenuIcon(IconFactory.GLYPH.DRAFT));
+		plotMenuItem.setToolTipText("Renders traced paths as vector graphics (2D)");
+		plotMenuItem.addActionListener( e -> {
+			if (noPathsError()) return;
+			final Tree tree = getPathManager().getSingleTree();
+			if (tree == null) return;
+			final Map<String, Object> input = new HashMap<>();
+			input.put("tree", tree);
+			final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+			cmdService.run(PlotterCmd.class, true, input);
+		});
+		return plotMenuItem;
+	}
+
+	private JMenu getBrainAnnotationMenu() {
+		final JMenu menu = new JMenu("Atlas-based");
+		menu.setIcon(IconFactory.getMenuIcon(GLYPH.ATLAS));
+		JMenuItem mi = GuiUtils.MenuItems.createAnnotionGraph();
+		mi.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Collection<Tree> trees = getPathManager().getMultipleTrees();
+			if (trees == null) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("trees", trees);
+			(new DynamicCmdRunner(AnnotationGraphGeneratorCmd.class, inputs)).run();
+		});
+		menu.add(mi);
+		mi = GuiUtils.MenuItems.brainAreaAnalysis();
+		mi.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Tree tree = getPathManager().getSingleTree();
+			if (tree == null) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("tree", tree);
+			new DynamicCmdRunner(BrainAnnotationCmd.class, inputs).run();
+		});
+		menu.add(mi);
+		return menu;
+	}
+
+	private JMenu getPathAnalysisMenu() {
+		final JMenu menu = new JMenu("Path-based");
+		menu.setIcon(IconFactory.getMenuIcon(GLYPH.ROUTE));
+		JMenuItem mi = new JMenuItem("Path Order Analysis", IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
+		mi.setToolTipText("Horton-Strahler-like analysis based on paths rather than branches");
+		mi.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Tree tree = getPathManager().getSingleTree();
+			if (tree == null) return;
+			final PathOrderAnalysisCmd pa = new PathOrderAnalysisCmd(tree);
+			pa.setContext(plugin.getContext());
+			pa.setTable(new SNTTable(), "SNT: Path Order Analysis");
+			pa.run();
+		});
+		menu.add(mi);
+		mi = new JMenuItem("Path Properties: Export CSV...", IconFactory.getMenuIcon(IconFactory.GLYPH.CSV));
+		mi.setToolTipText("Export details (metrics, relationships, ...) of existing paths as tabular data");
+		mi.addActionListener(e -> {
+			final File saveFile = saveFile("Export All Paths as CSV...", "CSV_Properties.csv", "csv");
+			if (saveFile == null)
+				return; // user pressed cancel
+			if (saveFile.exists() && !guiUtils.getConfirmation(
+					"The file " + saveFile.getAbsolutePath() + " already exists. " + "Do you want to replace it?",
+					"Override CSV file?")) {
+				return;
+			}
+			final String savePath = saveFile.getAbsolutePath();
+			showStatus("Exporting as CSV to " + savePath, false);
+			final int preExportingState = currentState;
+			changeState(SAVING);
+			// Export here...
+			try {
+				pathAndFillManager.exportToCSV(saveFile);
+			} catch (final IOException ioe) {
+				showStatus("Exporting failed.", true);
+				guiUtils.error("Writing traces to '" + savePath + "' failed. See Console for details.");
+				changeState(preExportingState);
+				ioe.printStackTrace();
+				return;
+			}
+			showStatus("Export complete.", true);
+			changeState(preExportingState);
+		});
+		menu.add(mi);
+		return menu;
 	}
 
 	private JMenuItem getExportSWCMenuItem() {
@@ -3037,7 +3101,7 @@ public class SNTUI extends JDialog {
 		GuiUtils.addTooltip(jcheckbox,
 				"Whether default colors above should be used even when color tags have been applied in the Path Manager.<br><br>" +
 						"NB: This option does not affect color-coded paths, or paths with multi-color nodes");
-		registerInCommandFinder(jcheckbox, "Enforce Default Colors", "Main Tab");
+		registerInCommandFinder(jcheckbox, "Toggle Enforce Default Colors", "Main Tab");
 		jcheckbox.addActionListener(e -> {
 			plugin.displayCustomPathColors = !jcheckbox.isSelected();
 			plugin.updateTracingViewers(true);
@@ -4076,34 +4140,6 @@ public class SNTUI extends JDialog {
 				} else {
 					plugin.enableSecondaryLayerTracing(false);
 				}
-
-			} else if (source == exportCSVMenuItem && !noPathsError()) {
-
-				final File saveFile = saveFile("Export All Paths as CSV...", "CSV_Properties.csv", "csv");
-				if (saveFile == null)
-					return; // user pressed cancel
-				if (saveFile.exists() && !guiUtils.getConfirmation(
-						"The file " + saveFile.getAbsolutePath() + " already exists. " + "Do you want to replace it?",
-						"Override CSV file?")) {
-					return;
-				}
-				final String savePath = saveFile.getAbsolutePath();
-				showStatus("Exporting as CSV to " + savePath, false);
-
-				final int preExportingState = currentState;
-				changeState(SAVING);
-				// Export here...
-				try {
-					pathAndFillManager.exportToCSV(saveFile);
-				} catch (final IOException ioe) {
-					showStatus("Exporting failed.", true);
-					guiUtils.error("Writing traces to '" + savePath + "' failed. See Console for details.");
-					changeState(preExportingState);
-					ioe.printStackTrace();
-					return;
-				}
-				showStatus("Export complete.", true);
-				changeState(preExportingState);
 
 			} else if (source == keepSegment) {
 

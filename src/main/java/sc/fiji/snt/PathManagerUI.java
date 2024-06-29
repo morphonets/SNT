@@ -487,19 +487,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final JMenu menu = new JMenu("Time-lapse Utilities");
 		final String tooltip = "Assumes selected path(s) belong to a time-lapse series";
 		menu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.VIDEO));
-		JMenuItem jmi = new JMenuItem("Apply 3D Drift Corrections...");
-		jmi.setToolTipText("<HTML>Assumes loaded image is a time-lapse series. Should be run <i>before</i> tracing operations");
-		jmi.addActionListener( e-> {
-			if (!plugin.accessToValidImageData() || plugin.getImagePlus().getNFrames() == 1) {
-				guiUtils.error("A timelapse is required but none seems to be loaded.");
-			}
-			else if (!ScriptInstaller.runScript("Plugins/Registration/Correct_3D_drift.py")) {
-				guiUtils.error("Could not find 'Correct 3D Drift'. " +
-						"Make sure no files are missing from your Fiji install.");
-			}
-		});
-		menu.add(jmi);
-		jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD);
+		JMenuItem jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD);
 		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
