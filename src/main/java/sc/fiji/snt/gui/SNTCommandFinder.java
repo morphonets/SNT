@@ -740,7 +740,7 @@ public class SNTCommandFinder {
 		int maxWidh(final int columnIndex) {
 			if (columnIndex == 1)
 				return SwingUtilities.computeStringWidth(getFontMetrics(col1Font),
-						"A really long menu>And long submenu>");
+						"A really long menu>With long submenus>");
 			return SwingUtilities.computeStringWidth(getFontMetrics(col0Font), widestCmd);
 		}
 
@@ -831,13 +831,20 @@ public class SNTCommandFinder {
 			return "";
 		}
 
+		String tooltip() {
+			final String tooltip = button.getToolTipText();
+			return (tooltip == null) ? "" : tooltip.replaceAll("\\<[^>]*>",""); // Strip common HTML
+		}
+
 		boolean matches(final String lowercaseQuery) {
 			if (IGNORE_WHITESPACE) {
 				return id.toLowerCase().replaceAll("\\s+", "").contains(lowercaseQuery)
-						|| pathDescription().toLowerCase().contains(lowercaseQuery);
+						|| pathDescription().toLowerCase().contains(lowercaseQuery)
+						|| tooltip().toLowerCase().contains(lowercaseQuery);
 			}
 			return id.toLowerCase().contains(lowercaseQuery)
-					|| pathDescription().toLowerCase().contains(lowercaseQuery);
+					|| pathDescription().toLowerCase().contains(lowercaseQuery)
+					|| tooltip().toLowerCase().contains(lowercaseQuery);
 		}
 
 		void setkeyString(final KeyStroke key) {
