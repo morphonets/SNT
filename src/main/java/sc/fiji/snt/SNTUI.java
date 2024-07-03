@@ -2757,8 +2757,6 @@ public class SNTUI extends JDialog {
 				(new DynamicCmdRunner(GroupAnalyzerCmd.class, null)).run();
 			}
 		});
-		utilitiesMenu.add(getRecPlotterMenuItem());
-		utilitiesMenu.addSeparator();
 		final JMenuItem graphGenerator = GuiUtils.MenuItems.createDendrogram();
 		utilitiesMenu.add(graphGenerator);
 		graphGenerator.addActionListener(e -> {
@@ -2779,11 +2777,10 @@ public class SNTUI extends JDialog {
 			(new DynamicCmdRunner(FigCreatorCmd.class, inputs)).run();
 		});
 		utilitiesMenu.add(figureGenerator);
-		utilitiesMenu.addSeparator();
-
-		utilitiesMenu.add(getDriftCorrectionMenuItem());
+		utilitiesMenu.add(getRecPlotterMenuItem());
 		// similar to File>Autotrace Segmented Image File... but assuming current image as source,
 		// which does not require file validations etc.
+		utilitiesMenu.addSeparator();
 		final JMenuItem autotraceJMI = new JMenuItem("Autotrace Segmented Image...",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.ROBOT));
 		autotraceJMI.setToolTipText("Runs automated tracing on a thresholded/binary image already open");
@@ -2864,21 +2861,6 @@ public class SNTUI extends JDialog {
 		});
 		viewMenu.add(consoleJMI);
 		return menuBar;
-	}
-
-	private JMenuItem getDriftCorrectionMenuItem() {
-		final JMenuItem driftJMI = new JMenuItem("Apply 3D Drift Corrections...", IconFactory.getMenuIcon(GLYPH.VIDEO));
-		driftJMI.setToolTipText("<HTML>Assumes loaded image is a time-lapse series. Should be run <i>before</i> tracing operations");
-		driftJMI.addActionListener( e-> {
-			if (!plugin.accessToValidImageData() || plugin.getImagePlus().getNFrames() == 1) {
-				guiUtils.error("A timelapse is required but none seems to be loaded.");
-			}
-			else if (!ScriptInstaller.runScript("Plugins/Registration/Correct_3D_drift.py")) {
-				guiUtils.error("Could not find 'Correct 3D Drift'. " +
-						"Make sure no files are missing from your Fiji install.");
-			}
-		});
-		return driftJMI;
 	}
 
 	private JMenuItem getRecPlotterMenuItem() {

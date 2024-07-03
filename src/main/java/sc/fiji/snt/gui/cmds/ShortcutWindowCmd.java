@@ -65,7 +65,7 @@ import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.plugin.PlotterCmd;
 import sc.fiji.snt.plugin.ShollAnalysisImgCmd;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
-import sc.fiji.snt.plugin.ij1.CallIJ1LegacyCmd;
+import sc.fiji.snt.plugin.ij1.CallLegacyCmd;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -113,8 +113,8 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		buttons.add(null);
 		addScriptsButton();
 		buttons.add(null);
-		addButton(new Shortcut("Deprecated Cmds...", CallIJ1LegacyCmd.class,
-				"Runs a legacy ImageJ1-based plugin (here only for backwards compatibility)"));
+		addButton(new Shortcut("Deprecated Cmds...", CallLegacyCmd.class,
+				"Runs an outdated plugin (here only for backwards compatibility)"));
 		buttons.add(null);
 		addHelpButton();
 

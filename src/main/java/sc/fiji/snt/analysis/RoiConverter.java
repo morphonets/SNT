@@ -216,6 +216,22 @@ public class RoiConverter extends TreeAnalyzer {
 	}
 
 	/**
+	 * Converts the starting nodes of primary paths in the parsed pool into
+	 * {@link ij.gui.PointRoi}s
+	 *
+	 * @param overlay the target overlay to hold converted point
+	 */
+	public void convertRoots(Overlay overlay) {
+		if (overlay == null) overlay = new Overlay();
+		final Set<PointInImage> roots = new HashSet<>();
+		for (final Path p : tree.list()) {
+			if (p.isPrimary())
+				roots.add(p.getNode(0));
+		}
+		convertPoints(roots, overlay, Color.CYAN, "root");
+	}
+
+	/**
 	 * Converts paths into 2D polyline ROIs (segment paths), adding them to the
 	 * overlay of the image specified in the constructor.
 	 * 
@@ -254,7 +270,19 @@ public class RoiConverter extends TreeAnalyzer {
 	}
 
 	/**
-	 * Extracts all of the ROIs converted so far associated with the specified
+	 * Converts the starting nodes of primary paths in the parsed pool into
+	 * {@link ij.gui.PointRoi}s
+	 *
+	 * @throws IllegalArgumentException if this RoiConverter instance is not aware
+	 *                                  of any image
+	 * @see #convertRoots(Overlay)
+	 */
+	public void convertRoots() throws IllegalArgumentException {
+		convertRoots(getImpOverlay());
+	}
+
+	/**
+	 * Extracts all the ROIs converted so far associated with the specified
 	 * Z-plane. It is assumed that ROIs are stored in the overlay of the image
 	 * specified in the constructor.
 	 * 
@@ -383,7 +411,8 @@ public class RoiConverter extends TreeAnalyzer {
 			roi.addPoint(pp.x, pp.y, pos);
 		}
 		roi.setStrokeColor(color);
-		roi.setName(String.format("%s-roi-%s", id, sPlane));
+		final String label = (roi.size() > 1) ? "multi-point" : "single-point";
+		roi.setName(String.format("%s %s-roi-%s", id, label, sPlane));
 		overlay.add(roi);
 	}
 

@@ -229,6 +229,8 @@ public class ScriptInstaller implements MenuKeyListener {
 			return IconFactory.getMenuIcon(GLYPH.BEZIER_CURVE);
 		case "Tracing":
 			return IconFactory.getMenuIcon(GLYPH.ROUTE);
+		case "Time-lapses":
+			return IconFactory.getMenuIcon(GLYPH.VIDEO);
 		default:
 			return null;
 		}
@@ -283,7 +285,7 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	/** Returns a UI list with all the bundled non-demo SNT scripts **/
 	public JMenu getScriptsMenu() {
-		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Misc", "Render", "Skeletons_and_ROIs", "Tracing");
+		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Misc", "Render", "Skeletons_and_ROIs", "Tracing", "Time-lapses");
 		menus.insert(getDemosMenu(), 2);
 		return menus;
 	}
@@ -443,7 +445,7 @@ public class ScriptInstaller implements MenuKeyListener {
 				+ "Many other programming examples are available through the Script Editor's " //
 				+ "<i>Templates> Neuroanatomy></i> menu.<br>Please submit a pull request to " //
 				+ "<a href='https://github.com/morphonets/SNT/'>SNT's repository</a> if " //
-				+ "you would like to have your scripts distributed with Fiji.",
+				+ "you would like to have your scripts distributed with SNT.",
 				"About SNT Scripts...", true);
 		});
 		return mItem;
@@ -459,7 +461,7 @@ public class ScriptInstaller implements MenuKeyListener {
 			if (ext.isEmpty())
 				new GuiUtils(getTextEditor()).centeredMsg(
 						"Unable to detect scripting language. Please define it using the Language> menu.",
-						"Unknown Languagage");
+						"Unknown Language");
 		} catch (final UnsupportedFlavorException | HeadlessException | IOException ignored) {
 			guiUtils.error("No script could be extracted from the clipboard.");
 		}
@@ -531,11 +533,13 @@ public class ScriptInstaller implements MenuKeyListener {
 		return  new BufferedReader(new InputStreamReader(is)).lines().collect(Collectors.joining("\n"));
 	}
 
-	public static void runScript(final String dir, final String file, final Map<String, Object> inputMap) {
+	public static boolean runScript(final String dir, final String file, final Map<String, Object> inputMap) {
 		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-		final InputStream is = classloader.getResourceAsStream("script_templates/Neuroanatomy/" + dir + "/" + file);
+		final InputStream is = classloader.getResourceAsStream(dir + "/" + file);
+		if (is == null)
+			throw new IllegalArgumentException("Resource does not exist: '" + dir + "/" + file + "'" );
 		final ScriptService sService = SNTUtils.getContext().getService(ScriptService.class);
-		sService.run(file, new InputStreamReader(is), true, inputMap);
+        return sService.run(file, new InputStreamReader(is), true, inputMap) != null;
 	}
 
 	public static boolean runScript(final String scriptPath) {

@@ -1,4 +1,4 @@
-# @String(value="<HTML>This script creates an illustration of a tracing canvas.<br>N.B.: Paths can also be exported as vector graphics<br>using the <i>Reconstruction Plotter...</i> command.",visibility="MESSAGE") msg
+# @String(value="<HTML>This script creates an illustration of a tracing canvas.<br>N.B.: Paths can also be exported as vector graphics<br>using <i>Reconstruction Plotter...</i> or <i>Create Figure...</i>",visibility="MESSAGE") msg
 # @String(label="Tracing Canvas", choices={"XY", "ZY", "XZ"}, style="radioButtonHorizontal") view
 # @ColorRGB(label="Background color", required='false') bckgrnd
 # @LegacyService ls

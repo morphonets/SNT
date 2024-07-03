@@ -23,16 +23,16 @@
 package sc.fiji.snt.plugin.ij1;
 
 import net.imagej.ImageJ;
+import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
 
 import java.util.HashMap;
 
-import org.scijava.Context;
 import org.scijava.command.Command;
-import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
+import sc.fiji.snt.util.LSystemsTree;
 
 /**
  * Command to invoke legacy neuroanatomy-related plugins
@@ -40,10 +40,11 @@ import org.scijava.widget.ChoiceWidget;
  * @author Tiago Ferreira
  */
 @SuppressWarnings("deprecation")
-@Plugin(type = Command.class, visible=false, label="Run IJ1 Legacy Plugin")
-public class CallIJ1LegacyCmd implements Command {
+@Plugin(type = Command.class, visible=false, label="Run Legacy Commands")
+public class CallLegacyCmd implements Command {
 
-	private static final String SNT_LEGACY = "Simple Neurite Tracer...";
+	private static final String SAMPLE_IMG1 = "Sample: ddaC_Neuron (581k)";
+	private static final String SAMPLE_IMG2 = "Sample: Fractal Tree (23K)";
 	private static final String SHOLL_IMG_LEGACY = "Sholl Analysis (Image)...";
 	private static final String SHOLL_TRACES_LEGACY = "Sholl Analysis (Tracings)...";
 	private static final String SHOLL_CSV_LEGACY = "Sholl Analysis (Existing Profile)...";
@@ -51,32 +52,32 @@ public class CallIJ1LegacyCmd implements Command {
 	private static final HashMap<String, String[]> cmds = new HashMap<>();
 
 	static {
-		cmds.put(SNT_LEGACY, new String[] { "tracing.Simple_Neurite_Tracer", "skip" }); //FIXME: reflection
+		cmds.put(SAMPLE_IMG1, null);
+		cmds.put(SAMPLE_IMG2, new String[] { LSystemsTree.class.getName(), "" });
 		cmds.put(SHOLL_IMG_LEGACY, new String[] { Sholl_Analysis.class.getName(), "image" });
-		cmds.put(SHOLL_TRACES_LEGACY, new String[] { Sholl_Analysis.class.getName(), "" });
+		cmds.put(SHOLL_TRACES_LEGACY, new String[] { ShollAnalysisPlugin.class.getName(), "" });
 		cmds.put(SHOLL_CSV_LEGACY, new String[] { Sholl_Analysis.class.getName(), "csv" });
 		cmds.put(SHOLL_OPTIONS_LEGACY, new String[] { ShollOptions.class.getName(), "" });
 	}
 
-	@Parameter
-	private Context context;
-
-	@Parameter
-	private CommandService cmdService;
-
-	@Parameter(choices = { SNT_LEGACY, SHOLL_IMG_LEGACY, SHOLL_TRACES_LEGACY, SHOLL_CSV_LEGACY,
+	@Parameter(choices = { SAMPLE_IMG1, SAMPLE_IMG2, SHOLL_CSV_LEGACY, SHOLL_IMG_LEGACY, SHOLL_TRACES_LEGACY,
 			SHOLL_OPTIONS_LEGACY }, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE, //
-			label = "<HTML><div style='width:400'>"
-					+ "NB: These plugins are no longer maintained and <i>will</i> be removed "
-					+ "in the future. Please reach out to <a href=\"https://forum.image.sc\">forum.image.sc</a> "
-					+ "if your workflows need to be modernized.")
+			label = "<HTML>"
+					+ "These plugins are no longer maintained<br>"
+					+ "and <i>will</i> be removed in the future. Please<br>"
+					+ "reach out at <a href=\"https://forum.image.sc\">forum.image.sc</a> if your<br>"
+					+ "workflows need to be modernized.")
 	private String cmdChoice;
 
 	@Override
 	public void run() {
-		final String[] cmdAndArg = cmds.get(cmdChoice);
 		try {
-			ij.IJ.run(cmdAndArg[0], cmdAndArg[1]);
+			if (SAMPLE_IMG1.equals(cmdChoice)) {
+				ShollUtils.sampleImage().show();
+			} else {
+				final String[] cmdAndArg = cmds.get(cmdChoice);
+				ij.IJ.runPlugIn(cmdAndArg[0], cmdAndArg[1]);
+			}
 		} catch (final Exception ex) {
 			new GuiUtils().error("An exception occurred. Maybe the command is no longer available?",
 					"Exception occurred");
@@ -88,6 +89,6 @@ public class CallIJ1LegacyCmd implements Command {
 	public static void main(final String... args) {
 		final ImageJ ij = new ImageJ();
 		ij.ui().showUI();
-		ij.command().run(CallIJ1LegacyCmd.class, true);
+		ij.command().run(CallLegacyCmd.class, true);
 	}
 }

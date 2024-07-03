@@ -43,7 +43,6 @@ import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
-import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.UIManager;
 import javax.swing.plaf.basic.BasicComboBoxEditor;
@@ -65,11 +64,10 @@ import sc.fiji.snt.gui.GuiUtils.TextFieldWithPlaceholder;
 public class SNTSearchableBar extends SearchableBar {
 
 	private static final long serialVersionUID = 1L;
-	private static final float FONT_SCALING_FACTOR = 1.1f;
+	private static final float FONT_SCALING_FACTOR = 1.15f;
 	public static final int SHOW_SEARCH_OPTIONS = 0x80;
 	protected List<AbstractButton> _extraButtons;
 	protected boolean containsCheckboxes;
-	private int buttonHeight;
 	private float iconHeight;
 	private int buttonCount;
 
@@ -111,6 +109,7 @@ public class SNTSearchableBar extends SearchableBar {
 			_textField.setVisible(false);
 		}
 		// _comboBox has been initialized by the parent constructor. Now adjust its placeholder text
+		_comboBox.setPreferredSize(new Dimension (_comboBox.getPreferredSize().width, (int) (_comboBox.getPreferredSize().height * FONT_SCALING_FACTOR)));
 		final TextFieldWithPlaceholder editorField = ((GuiUtils.TextFieldWithPlaceholder)_comboBox.getEditor().getEditorComponent());
 		editorField.changePlaceholder(placeholder, true);
 		setStatusLabelPlaceholder(SNTUtils.getReadableVersion());
@@ -252,9 +251,7 @@ public class SNTSearchableBar extends SearchableBar {
 		final JPopupMenu popup = new JPopupMenu();
 		final JButton button = new JButton();
 		button.setToolTipText("Options for text-based filtering");
-		button.addActionListener( e -> {
-			popup.show(button, button.getWidth() / 2, button.getHeight() / 2);
-		});
+		button.addActionListener( e -> popup.show(button, button.getWidth() / 2, button.getHeight() / 2));
 		formatButton(button, IconFactory.GLYPH.LIST_ALT);
 
 		final JMenuItem jcbmi1 = new JCheckBoxMenuItem("Case Sensitive Matching", getSearchable().isCaseSensitive());
@@ -397,12 +394,8 @@ public class SNTSearchableBar extends SearchableBar {
 	}
 
 	protected void formatButton(final AbstractButton button, final IconFactory.GLYPH glyph) {
-		if (buttonHeight == 0)
-			buttonHeight = (int) ((getMaxHistoryLength() == 0) ? FONT_SCALING_FACTOR * new JTextField().getHeight()
-					: FONT_SCALING_FACTOR * new JComboBox<String>().getHeight());
 		if (iconHeight == 0)
 			iconHeight = FONT_SCALING_FACTOR * UIManager.getFont("Label.font").getSize();
-		button.setSize(new Dimension(buttonHeight, buttonHeight));
 		IconFactory.applyIcon(button, iconHeight, glyph);
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);

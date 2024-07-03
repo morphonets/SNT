@@ -1,4 +1,4 @@
-# @String(value="<HTML>This script creates an illustration of a tracing canvas.<br>N.B.: Paths can also be exported as vector graphics<br>using the <i>Reconstruction Plotter...</i> command.",visibility="MESSAGE") msg
+# @String(value="<HTML>This script creates an illustration of a tracing canvas.<br>N.B.: Paths can also be exported as vector graphics<br>using <i>Reconstruction Plotter...</i> or <i>Create Figure...</i>",visibility="MESSAGE") msg
 # @String(label="Tracing Canvas", choices={"XY", "ZY", "XZ", "3D"}, style="radioButtonHorizontal") view
 # @double(label="Paths offset",description="In pixels. Positive values move paths SE. Negative NW", value=20) offset
 # @boolean(label="Max Intensity Projection",description="If current image is a stack, compute Max Intensity Projection") mip

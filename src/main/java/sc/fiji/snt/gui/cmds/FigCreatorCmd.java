@@ -48,7 +48,7 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
 	private String style;
 
-	@Parameter(label = "Type:", choices = { "2D raster (monochrome bitmap image)", "2D scalable vector graphics",
+	@Parameter(label = "Type:", choices = { "2D raster (bitmap image)", "2D scalable (vector graphics)",
 			"3D (interactive)" }, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
 	private String type;
 
@@ -98,14 +98,17 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			transformationFlags += " " + view;
 		final Collection<Tree> renderingTrees = getTreesForRendering(trees, transformationFlags);
 		final Object result;
-		if (style.toLowerCase().contains("montage") && trees.size() > 1)
+		final boolean montage = style.toLowerCase().contains("montage") && trees.size() > 1;
+		if (montage)
 			result = montage(renderingTrees, type + " " + view);
 		else
 			result = singleScene(renderingTrees, type + " " + view);
-		if (result instanceof ImagePlus && (((ImagePlus) result).getWidth() / trees.size() < 200 ||
-				((ImagePlus) result).getHeight() / trees.size() < 200)) {
+		if (result instanceof ImagePlus) {
+			final int minSize = (montage) ? 200 / trees.size() : 200;
+			if (((ImagePlus) result).getWidth() < minSize || ((ImagePlus) result).getHeight() < minSize) {
 			msg("Created figure may not have enough detail (paths were digitized at 1µm/pixel). It " +
 					"may be preferable to use scalable vector graphics instead.", "Coarse Result?");
+			}
 		}
 		resetUI();
 	}

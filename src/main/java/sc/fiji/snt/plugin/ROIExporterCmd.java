@@ -64,14 +64,14 @@ public class ROIExporterCmd implements Command {
 	private StatusService statusService;
 
 	@Parameter(required = false, label = "Convert", choices = { "Path segments",
-		"Branch Points", "Tips", "All" })
+		"Branch Points", "Tips", "Roots", "All" })
 	private String roiChoice;
 
 	@Parameter(required = false, label = "View", choices = { "XY (default)", "XZ",
 		"ZY" })
 	private String viewChoice;
 
-	@Parameter(required = false, label = "Impose SWC colors")
+	@Parameter(required = false, label = "Impose SWC colors", description = "Applies only to Path segments")
 	private boolean useSWCcolors;
 
 	@Parameter(required = false, label = "Adopt path diameter as line thickness")
@@ -120,9 +120,14 @@ public class ROIExporterCmd implements Command {
 		else converter.setView(RoiConverter.XY_PLANE);
 
 		roiChoice = roiChoice.toLowerCase();
-		if (roiChoice.contains("all")) roiChoice = "tips branch points segments";
+		if (roiChoice.contains("all")) roiChoice = "roots tips branch points segments";
 
 		int size = 0;
+		if (roiChoice.contains("roots")) {
+			size = overlay.size();
+			converter.convertRoots(overlay);
+			if (overlay.size() == size) warn(noConversion("roots"));
+		}
 		if (roiChoice.contains("tips")) {
 			size = overlay.size();
 			converter.convertTips(overlay);

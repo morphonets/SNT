@@ -919,17 +919,34 @@ public class Path implements Comparable<Path> {
 //		System.out.println(getName()+ " is now " + isEditableNodeLocked());
 	}
 
+	/**
+	 * Returns the unscaled X position of a node.
+	 *
+	 * @param i the index of the path node
+	 * @return the 0-based index of the X-position of the node.
+	 */
 	public int getXUnscaled(final int i) {
 		return (int) Math.round(getXUnscaledDouble(i));
 	}
 
+	/**
+	 * Returns the unscaled Y position of a node.
+	 *
+	 * @param i the index of the path node
+	 * @return the 0-based index of the Y-position of the node.
+	 */
 	public int getYUnscaled(final int i) {
 		return (int) Math.round(getYUnscaledDouble(i));
 	}
 
-	public int getZUnscaled(final int i) {
-		return (int) Math.round(getZUnscaledDouble(i));
-	}
+	/**
+	 * Returns the unscaled Z position of a node.
+	 *
+	 * @param i the index of the path node
+	 * @return the 0-based index of the Z-position of the node. Note that Z-indices in ImagePlus are 1-based,
+	 * i.e., outside SNT the proper Z-slice for this position in an ImagePlus is {@code getZUnscaled(i) + 1}
+	 */
+	public int getZUnscaled(final int i) { return (int) Math.round(getZUnscaledDouble(i)); }
 
 	public double getXUnscaledDouble(final int i) {
 //		if ((i < 0) || i >= size())

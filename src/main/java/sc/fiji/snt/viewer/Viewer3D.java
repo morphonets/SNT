@@ -3004,6 +3004,7 @@ public class Viewer3D {
 			});
 			// dialog.setLocationRelativeTo(this);
 			dialog.setMinimumSize(new Dimension(dialog.getMinimumSize().width, getHeight()/2));
+			dialog.setPreferredSize(new Dimension(managerPanel.getPreferredSize().width, getHeight()));
 			dialog.setContentPane(managerPanel);
 			managerList.addKeyListener(getCmdFinderKeyAdapter());
 			chart.getCanvas().addKeyController(getCmdFinderKeyAdapter());
@@ -4024,7 +4025,7 @@ public class Viewer3D {
 		}
 
 		private JButton menuButton(final GLYPH glyph, final JPopupMenu menu, final String tooltipMsg) {
-			final JButton button = new JButton(IconFactory.getButtonIcon(glyph));
+			final JButton button = new JButton(IconFactory.getButtonIcon(glyph, 1.8f));
 			button.setToolTipText(tooltipMsg);
 			cmdFinder.register(menu, new ArrayList<>(Collections.singletonList(tooltipMsg)));
 			button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
@@ -5019,7 +5020,7 @@ public class Viewer3D {
 			final JPopupMenu prefsMenu = new JPopupMenu();
 			GuiUtils.addSeparator(prefsMenu, "Layout:");
 			final JMenuItem hide = new JMenuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true));
-			hide.setIcon(IconFactory.getMenuIcon(GLYPH.WINDOWS));
+			hide.setIcon(IconFactory.getMenuIcon(GLYPH.WINDOWS2));
 			prefsMenu.add(hide);
 			GuiUtils.addSeparator(prefsMenu, "Keyboard & Mouse Sensitivity:");
 			prefsMenu.add(panMenu());

@@ -209,7 +209,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		mi1 = new JMenuItem("SWC type...");
 		mi1.addActionListener(e -> {
 			final Collection<Path> paths = getPaths();
-			if (paths.size() == 0) {
+			if (paths.isEmpty()) {
 				guiUtils.error("There are no traced paths.");
 				return;
 			}
@@ -310,9 +310,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 						guiUtils.error("Input contained an invalid range.");
 						return;
 					}
-					IntStream.rangeClosed(Integer.parseInt(limits[0].trim()), Integer.parseInt(limits[1].trim())).forEach(v -> {
-						set.add(v);
-					});
+					IntStream.rangeClosed(Integer.parseInt(limits[0].trim()), Integer.parseInt(limits[1].trim())).forEach(set::add);
 				} else {
 					set.add(Integer.valueOf(value.trim()));
 				}
@@ -327,6 +325,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			switch (property.toLowerCase()) {
 			case "z-slice of first node":
 				value = p.getZUnscaled(0) + 1;
+				break;
 			case "traced channel":
 				value = p.getChannel();
 				break;
@@ -460,9 +459,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		button.setToolTipText(colorFilterMenu.getText());
 		final JPopupMenu popupMenu = colorFilterMenu.getPopupMenu();
 		popupMenu.setInvoker(colorFilterMenu);
-		button.addActionListener(e -> {
-			popupMenu.show(button, button.getWidth() / 2, button.getHeight() / 2);
-		});
+		button.addActionListener(e -> popupMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 		return button;
 	}
 

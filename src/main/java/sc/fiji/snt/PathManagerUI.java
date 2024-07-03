@@ -1931,8 +1931,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				for (final Path p : paths) {
 					try {
 						String label = plugin.getImagePlus().getStack().getShortSliceLabel(
-							plugin.getImagePlus().getStackIndex(p.getChannel(), p.getZUnscaled(0), p
-								.getFrame()));
+							plugin.getImagePlus().getStackIndex(p.getChannel(), p.getZUnscaled(0) +1, // 1-based index,
+									p.getFrame()));
 						if (label == null || label.isEmpty()) {
 							errorCounter++;
 							continue;
