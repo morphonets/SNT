@@ -63,12 +63,14 @@ public class ROIExporterCmd implements Command {
 	@Parameter
 	private StatusService statusService;
 
-	@Parameter(required = false, label = "Convert", choices = { "Path segments",
-		"Branch Points", "Tips", "Roots", "All" })
+	@Parameter(required = false, label = "Convert", choices = { "Paths", "Inner branches", "Primary branches",
+			"Terminal branches", "Branch points", "Tips", "Roots", "All" }, description =
+			"<HTML>What part(s) of traced paths should be converted?<br>NB:Branch-based choices require paths to " +
+					"define a single tree (single-rooted structure without loops)")
 	private String roiChoice;
 
-	@Parameter(required = false, label = "View", choices = { "XY (default)", "XZ",
-		"ZY" })
+	@Parameter(required = false, label = "View", choices = { "XY (default)", "XZ", "ZY" },
+			description = "Applies only to 3D paths")
 	private String viewChoice;
 
 	@Parameter(required = false, label = "Impose SWC colors", description = "Applies only to Path segments")
@@ -107,20 +109,22 @@ public class ROIExporterCmd implements Command {
 			warn("If Path(s) are associated with a multi-dimensional image, you may need to load it before conversion");
 		}
 		final int skippedPaths = tree.size() - converter.getParsedTree().size();
-		if (skippedPaths > 0) warn("" + skippedPaths +
-			" were rejected and will not be converted");
+		if (skippedPaths > 0)
+			warn("" + skippedPaths + " were rejected and will not be converted");
 
 		converter.useSWCcolors(useSWCcolors);
 		converter.setStrokeWidth((avgWidth) ? -1 : 0);
         Overlay overlay = new Overlay();
 
-		if (viewChoice.contains("XZ")) converter.setView(RoiConverter.XZ_PLANE);
-		else if (viewChoice.contains("ZY")) converter.setView(
-			RoiConverter.ZY_PLANE);
-		else converter.setView(RoiConverter.XY_PLANE);
+		if (viewChoice.contains("XZ"))
+			converter.setView(RoiConverter.XZ_PLANE);
+		else if (viewChoice.contains("ZY"))
+			converter.setView(RoiConverter.ZY_PLANE);
+		else
+			converter.setView(RoiConverter.XY_PLANE);
 
 		roiChoice = roiChoice.toLowerCase();
-		if (roiChoice.contains("all")) roiChoice = "roots tips branch points segments";
+		if (roiChoice.contains("all")) roiChoice = "roots tips branch points paths inner primary terminal";
 
 		int size = 0;
 		if (roiChoice.contains("roots")) {
@@ -138,12 +142,32 @@ public class ROIExporterCmd implements Command {
 			converter.convertBranchPoints(overlay);
 			if (overlay.size() == size) warn(noConversion("branch points"));
 		}
-		if (roiChoice.contains("segments")) {
+		if (roiChoice.contains("paths")) {
 			size = overlay.size();
 			converter.convertPaths(overlay);
-			if (overlay.size() == size) warn(noConversion("segments"));
+			if (overlay.size() == size) warn(noConversion("paths"));
 		}
-
+		try {
+			if (roiChoice.contains("inner")) {
+				size = overlay.size();
+				converter.convertInnerBranches(overlay);
+				if (overlay.size() == size) warn(noConversion("inner branches"));
+			}
+			if (roiChoice.contains("primary")) {
+				size = overlay.size();
+				converter.convertPrimaryBranches(overlay);
+				if (overlay.size() == size) warn(noConversion("primary branches"));
+			}
+			if (roiChoice.contains("terminal")) {
+				size = overlay.size();
+				converter.convertTerminalBranches(overlay);
+				if (overlay.size() == size) warn(noConversion("terminal branches"));
+			}
+		} catch ( final Exception ex) {
+			warn("Branches could not be converted. Please make sure that paths selected for conversion " +
+					"reflect a single valid tree.");
+			ex.printStackTrace();
+		}
 		if (overlay.size() == 0) {
 			warnUser("None of the input paths could be converted to ROIs.");
 			return;

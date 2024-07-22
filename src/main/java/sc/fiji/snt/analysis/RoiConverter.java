@@ -72,7 +72,7 @@ public class RoiConverter extends TreeAnalyzer {
 	private boolean useSWCcolors;
 	private final ImagePlus imp;
 	private final boolean hyperstack;
-	private boolean twoD;
+	private final boolean twoD;
 
 	/**
 	 * Instantiates a new Converter. Since an image has not been specified, C,Z,T
@@ -131,9 +131,13 @@ public class RoiConverter extends TreeAnalyzer {
 	 */
 	public Overlay convertPaths(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
-		for (final Path p : tree.list()) {
+		return convertPaths(overlay, tree.list(), null);
+	}
+
+	private Overlay convertPaths(final Overlay overlay, Collection<Path> paths, final String basename) {
+		for (final Path p : paths) {
 			if (p.size() > 1) {
-				drawPathSegments(p, overlay);
+				drawPathSegments(p, (basename==null) ? p.getName() : basename, overlay);
 			}
 			else { // Single Point Path
 				final HashSet<PointInImage> pim = new HashSet<>();
@@ -145,9 +149,12 @@ public class RoiConverter extends TreeAnalyzer {
 	}
 
 	public List<PolygonRoi> getROIs(final Path path) {
+		return getROIs(path, path.getName());
+	}
+
+	private List<PolygonRoi> getROIs(final Path path, final String basename) {
 
 		final List<PolygonRoi> polygons = new ArrayList<>();
-		final String basename = path.getName();
 		final Color color = getColor(path);
 		final float stroke = (width < 0f) ? (float) path.getMeanRadius() * 2 : width;
 		//if (stroke == 0f) stroke = 1f;
@@ -186,7 +193,7 @@ public class RoiConverter extends TreeAnalyzer {
 			}
 			else {
 				roi_pos[1] = current_roi_slice;
-				final PolygonRoi polyline = polygonToRoi(polygon, roi_pos, basename, roi_identifier, color, stroke);
+				final PolygonRoi polyline = polygonToRoi(polygon, roi_pos, basename, roi_identifier++, color, stroke);
 				if (polyline != null) polygons.add(polyline);
 				polygon = new FloatPolygon(); // reset ROI
 				polygon.addPoint(x, y);
@@ -212,7 +219,7 @@ public class RoiConverter extends TreeAnalyzer {
 	 */
 	public void convertTips(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
-		convertPoints(getTips(), overlay, Color.PINK, "end point");
+		convertPoints(getTips(), overlay, Color.PINK, "EndPoint");
 	}
 
 	/**
@@ -228,7 +235,7 @@ public class RoiConverter extends TreeAnalyzer {
 			if (p.isPrimary())
 				roots.add(p.getNode(0));
 		}
-		convertPoints(roots, overlay, Color.CYAN, "root");
+		convertPoints(roots, overlay, Color.CYAN, "Root");
 	}
 
 	/**
@@ -241,6 +248,35 @@ public class RoiConverter extends TreeAnalyzer {
 	 */
 	public void convertPaths() throws IllegalArgumentException {
 		convertPaths(getImpOverlay());
+	}
+
+	public void convertInnerBranches(Overlay overlay) {
+		if (overlay == null) overlay = new Overlay();
+		int lastIdx = overlay.size();
+		convertPaths(overlay, getInnerBranches(), "InnerBranch");
+		appendNumericSuffixToROIs(overlay, lastIdx, overlay.size()-1);
+	}
+
+	public void convertPrimaryBranches(Overlay overlay) {
+		if (overlay == null) overlay = new Overlay();
+		int lastIdx = overlay.size();
+		convertPaths(overlay, getPrimaryBranches(), "Prim.Branch");
+		appendNumericSuffixToROIs(overlay, lastIdx, overlay.size()-1);
+	}
+
+	public void convertTerminalBranches(Overlay overlay) {
+		if (overlay == null) overlay = new Overlay();
+		int lastIdx = overlay.size();
+		convertPaths(overlay, getTerminalBranches(), "Term.Branch");
+		appendNumericSuffixToROIs(overlay, lastIdx, overlay.size()-1);
+	}
+
+	private void appendNumericSuffixToROIs(final Overlay overlay, final int from, final int to) {
+		int suffix = 1;
+		for (int i = from; i <= to; i++) {
+			final Roi roi = overlay.get(i);
+			roi.setName(String.format("%s-%04d", roi.getName(), suffix++));
+		}
 	}
 
 	/**
@@ -312,7 +348,7 @@ public class RoiConverter extends TreeAnalyzer {
 	 */
 	public void convertBranchPoints(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
-		convertPoints(getBranchPoints(), overlay, Color.ORANGE, "fork point");
+		convertPoints(getBranchPoints(), overlay, Color.ORANGE, "BranchPoint");
 	}
 
 	/**
@@ -352,8 +388,8 @@ public class RoiConverter extends TreeAnalyzer {
 		return (useSWCcolors) ? Path.getSWCcolor(p.getSWCType()) : p.getColor();
 	}
 
-	private void drawPathSegments(final Path path, final Overlay overlay) {
-		getROIs(path).forEach( roi -> overlay.add(roi));
+	private void drawPathSegments(final Path path, final String basename, final Overlay overlay) {
+		getROIs(path, basename).forEach( roi -> overlay.add(roi));
 	}
 
 	private PolygonRoi polygonToRoi(final FloatPolygon p, final int[] impPosition,
@@ -372,10 +408,11 @@ public class RoiConverter extends TreeAnalyzer {
 			// polyline.fitSplineForStraightening();
 			polyline.setStrokeColor(color);
 			polyline.setStrokeWidth(strokeWidth);
+			final String name = basename.replaceAll("\\s", "");
 			if (twoD)
-				polyline.setName(String.format("%s-%04d", basename, roi_id));
+				polyline.setName(String.format("%s-%04d", name, roi_id));
 			else
-				polyline.setName(String.format("%s-%s-%04d", basename, sPlane, roi_id));
+				polyline.setName(String.format("%s-%s-%04d-%04d", name, sPlane, impPosition[1], roi_id));
 			setPosition(polyline, impPosition);
 			return polyline;
 		}
@@ -411,8 +448,11 @@ public class RoiConverter extends TreeAnalyzer {
 			roi.addPoint(pp.x, pp.y, pos);
 		}
 		roi.setStrokeColor(color);
-		final String label = (roi.size() > 1) ? "multi-point" : "single-point";
-		roi.setName(String.format("%s %s-roi-%s", id, label, sPlane));
+		final String label = (roi.size() > 1) ? "s-MultiPoint" : "-SinglePoint";
+		if (twoD)
+			roi.setName(String.format("%s%s", id, label));
+		else
+			roi.setName(String.format("%s%s-%s", id, label, sPlane));
 		overlay.add(roi);
 	}
 
@@ -483,7 +523,7 @@ public class RoiConverter extends TreeAnalyzer {
 	 * hyperstackPosition are considered.
 	 * 
 	 * @param overlay the overlay holding ROIs
-	 * @Param channel the channel (1-based index)
+	 * @param channel the channel (1-based index)
 	 * @param zSlice the z-plane (1-based index)
 	 * @param tFrame the t-frame (1-based index)
 	 * @return the sub-list of ROIs associated with the specified CZT position

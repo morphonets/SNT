@@ -2103,7 +2103,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private void runRoiConverterCmd(final String type, final String view) throws IllegalArgumentException {
 		final Map<String, Object> input = new HashMap<>();
 		input.put("tree", geSelectedPathsAsTree());
-		input.put("imp", plugin.getImagePlus());
+		input.put("imp", (plugin.accessToValidImageData()) ? plugin.getImagePlus() : null);
 		input.put("roiChoice", type);
 		input.put("viewChoice", (view==null) ? "XY (default)" : view);
 		input.put("useSWCcolors", false);
@@ -2760,7 +2760,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			} else if (CONVERT_TO_ROI_CMD.equals(cmd)) {
 				final Map<String, Object> input = new HashMap<>();
 				input.put("tree", new Tree(selectedPaths));
-				input.put("imp", plugin.getImagePlus());
+				input.put("imp", (plugin.accessToValidImageData()) ? plugin.getImagePlus() : null);
 				plugin.getContext().getService(CommandService.class).run(ROIExporterCmd.class, true, input);
 				return;
 			} else if (SEND_TO_LABKIT_CMD.equals(cmd)) {
