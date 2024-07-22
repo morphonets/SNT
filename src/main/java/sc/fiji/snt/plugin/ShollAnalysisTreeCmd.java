@@ -587,17 +587,17 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 		}
 		else if (choice.contains("custom")) {
 			filteredTypes.add(Path.SWC_CUSTOM);
-			existingTypes.contains(Path.SWC_CUSTOM);
+			containsType = existingTypes.contains(Path.SWC_CUSTOM);
 		}
 		else if (choice.contains("undefined")) {
 			filteredTypes.add(Path.SWC_UNDEFINED);
-			existingTypes.contains(Path.SWC_UNDEFINED);
+			containsType = existingTypes.contains(Path.SWC_UNDEFINED);
 		}
 		if (containsType) {
 			try {
 				return tree.subTree(filteredTypes.stream().mapToInt(Integer::intValue).toArray());
 			} catch (final IllegalArgumentException ex) {
-				logger.info("Connectiviy problem detected! The reconstruction is not a valid Tree!?");
+				logger.info("Connectivity problem detected! The reconstruction is not a valid Tree!?");
 				ex.printStackTrace();
 				return null;
 			}
