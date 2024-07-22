@@ -209,12 +209,7 @@ public class MultiViewer3D {
 				}
 			}
 		});
-		frame.addMouseWheelListener(new MouseWheelListener() {
-			@Override
-			public void mouseWheelMoved(final MouseWheelEvent e) {
-				canvases.forEach(canvas -> canvas.triggerMouseWheelEvent(e));
-			}
-		});
+		frame.addMouseWheelListener(e -> canvases.forEach(canvas -> canvas.triggerMouseWheelEvent(e)));
 		frame.addMouseMotionListener(new MouseMotionListener() {
 			@Override
 			public void mouseDragged(final MouseEvent e) {

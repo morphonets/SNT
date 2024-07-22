@@ -1107,9 +1107,6 @@ public class SNTCommandFinder {
 
 		private void registerMenuItem(final JMenuItem m, final List<String> path) {
 			if (m != null) {
-				String label = m.getActionCommand();
-				if (label == null)
-					label = m.getText();
 				if (m instanceof JMenu) {
 					final JMenu subMenu = (JMenu) m;
 					final String hostDesc = subMenu.getText();

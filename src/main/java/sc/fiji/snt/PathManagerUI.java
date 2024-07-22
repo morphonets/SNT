@@ -2760,7 +2760,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			} else if (CONVERT_TO_ROI_CMD.equals(cmd)) {
 				final Map<String, Object> input = new HashMap<>();
 				input.put("tree", new Tree(selectedPaths));
-				input.put("imp", (plugin.accessToValidImageData()) ? plugin.getImagePlus() : null);
+				if (plugin.accessToValidImageData()) {
+					input.put("imp", plugin.getImagePlus());
+					if (plugin.is2D())
+						input.put("viewChoice", "XY (default)");
+				} else {
+					input.put("imp", null);
+				}
 				plugin.getContext().getService(CommandService.class).run(ROIExporterCmd.class, true, input);
 				return;
 			} else if (SEND_TO_LABKIT_CMD.equals(cmd)) {

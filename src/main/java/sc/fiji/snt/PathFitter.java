@@ -502,19 +502,6 @@ public class PathFitter implements Callable<Path> {
 
 			if (!fitRadii && !showDetailedFittingResults) continue;
 
-			int x_in_image = (int) Math.round(centre_real_x / path.x_spacing);
-			int y_in_image = (int) Math.round(centre_real_y / path.y_spacing);
-			int z_in_image = (int) Math.round(centre_real_z / path.z_spacing);
-
-//			SNT.log("  Adjusted center image position: " + x_in_image + "," + y_in_image + "," + z_in_image);
-
-			if (x_in_image < 0) x_in_image = 0;
-			if (x_in_image >= width) x_in_image = width - 1;
-			if (y_in_image < 0) y_in_image = 0;
-			if (y_in_image >= height) y_in_image = height - 1;
-			if (z_in_image < 0) z_in_image = 0;
-			if (z_in_image >= depth) z_in_image = depth - 1;
-
 			// SNT.log("Adding a real slice.");
 			final FloatProcessor bp = new FloatProcessor(sideSearch, sideSearch);
 			bp.setPixels(normalPlane);

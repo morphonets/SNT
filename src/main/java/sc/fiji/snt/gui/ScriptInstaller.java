@@ -542,14 +542,21 @@ public class ScriptInstaller implements MenuKeyListener {
         return sService.run(file, new InputStreamReader(is), true, inputMap) != null;
 	}
 
+	/**
+	 * Runs the specified script known to {@link ScriptService}.
+	 *
+	 * @param scriptPath the script path as registered in ScriptService, (e.g., File/Open_Samples/Comparing_Lengths.ijm
+	 *                   or File > Open Samples > Comparing Lengths)
+	 * @return whether the script was executed
+	 */
 	public static boolean runScript(final String scriptPath) {
 		final ScriptService sService = SNTUtils.getContext().getService(ScriptService.class);
 		for (final ScriptInfo si : sService.getScripts()) {
-			if (scriptPath.equals(si.getPath()) || scriptPath.equals(si.getMenuPath())) {
-				sService.run(si, true, (Object)null);
+			if (scriptPath.equals(si.getPath()) || (si.getMenuPath() != null && scriptPath.equals(si.getMenuPath().getMenuString()))) {
+				sService.run(si, true, (Object) null);
 				return true;
 			}
-        }
+		}
 		return false;
 	}
 

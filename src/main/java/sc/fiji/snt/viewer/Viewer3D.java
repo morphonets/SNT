@@ -285,8 +285,8 @@ public class Viewer3D {
 
 	private static final String MESH_LABEL_ALLEN = "Whole Brain (CCFv" + AllenUtils.VERSION + ")";
 	private static final String MESH_LABEL_ZEBRAFISH = "Outline (MP ZBA)";
-	private static final String MESH_LABEL_JFRC2018 = "JFRC 2018";
-	private static final String MESH_LABEL_JFRC2 = "JFRC2 (VFB)";
+	private static final String MESH_LABEL_JFRC2018 = "JRC 2018 (Unisex)";
+	private static final String MESH_LABEL_JFRC2 = "JFRC2";
 	private static final String MESH_LABEL_JFRC3 = "JFRC3";
 	private static final String MESH_LABEL_FCWB = "FCWB";
 	private static final String MESH_LABEL_VNS = "VNS";
@@ -2522,6 +2522,7 @@ public class Viewer3D {
 
 	private static String getNormalizedBrainLabel(final String input) {
 		switch (input.toLowerCase()) {
+		case "jrc2018":
 		case "jfrc2018":
 		case "jfrc 2018":
 		case "jfrctemplate2018":
@@ -3004,7 +3005,7 @@ public class Viewer3D {
 			});
 			// dialog.setLocationRelativeTo(this);
 			dialog.setMinimumSize(new Dimension(dialog.getMinimumSize().width, getHeight()/2));
-			dialog.setPreferredSize(new Dimension(managerPanel.getPreferredSize().width, getHeight()));
+			dialog.setPreferredSize(new Dimension(managerPanel.getPreferredSize().width, getHeight() + status.getFont().getSize()));
 			dialog.setContentPane(managerPanel);
 			managerList.addKeyListener(getCmdFinderKeyAdapter());
 			chart.getCanvas().addKeyController(getCmdFinderKeyAdapter());
@@ -4012,7 +4013,7 @@ public class Viewer3D {
 			buttonPanel.add(menuButton(GLYPH.MARKER, annotationsMenu(), "Geometric Annotations"));
 			buttonPanel.add(menuButton(GLYPH.ATLAS, refBrainsMenu(), "Reference Brains"));
 			buttonPanel.add(menuButton(GLYPH.CALCULATOR, measureMenu(), "Analyze & Measure"));
-			buttonPanel.add(menuButton(GLYPH.TOOL, utilsMenu(), "Utilities"));
+			buttonPanel.add(menuButton(GLYPH.TOOL, utilsMenu(), "Utilities & Actions"));
 			buttonPanel.add(menuButton(GLYPH.CODE, scriptingMenu(), "Scripting"));
 			buttonPanel.add(menuButton(GLYPH.COG, prefsMenu(), "Settings"));
 			buttonPanel.add(cmdFinder.getButton());
@@ -5629,11 +5630,11 @@ public class Viewer3D {
 			mi = new JMenuItem("Adult Brain: FlyCircuit", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_FCWB));
 			refMenu.add(mi);
-			mi = new JMenuItem("Adult Brain: JFRC 2018", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
+			mi = new JMenuItem("Adult Brain: JRC 2018 (Unisex)", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
 			mi.setToolTipText("<HTML>AKA <i>The Bogovic brain</i>");
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_JFRC2018));
 			refMenu.add(mi);
-			mi = new JMenuItem("Adult Brain: JFRC2 (VFB)", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
+			mi = new JMenuItem("Adult Brain: JFRC2", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_JFRC2));
 			refMenu.add(mi);
 			mi = new JMenuItem("Adult Brain: JFRC3", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
@@ -5648,7 +5649,10 @@ public class Viewer3D {
 			mi = new JMenuItem("L3 Larva", IconFactory.getMenuIcon(GLYPH.CLOUD));
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_L3));
 			refMenu.add(mi);
-
+			refMenu.addSeparator();
+			mi = GuiUtils.menuItemTriggeringHelpURL("Reference Brains Help",
+					"https://imagej.net/plugins/snt/reconstruction-viewer#reference-brains");
+			refMenu.add(mi);
 			return refMenu;
 		}
 
@@ -6183,8 +6187,8 @@ public class Viewer3D {
 			jmi.addActionListener(e -> GuiUtils.expandAllTreeNodes(tree));
 			pMenu.add(jmi);
 			pMenu.addSeparator();
-			pMenu.add(GuiUtils.menuItemTriggeringHelpURL("Online 2D Atlas Viewer", "http://atlas.brain-map.org/atlas?atlas=602630314"));
-			pMenu.add(GuiUtils.menuItemTriggeringHelpURL("Online 3D Atlas Viewer", "http://connectivity.brain-map.org/3d-viewer"));
+			pMenu.add(GuiUtils.menuItemTriggeringHelpURL("Online 2D Atlas Viewer", "https://atlas.brain-map.org/atlas?atlas=602630314"));
+			pMenu.add(GuiUtils.menuItemTriggeringHelpURL("Online 3D Atlas Viewer", "https://connectivity.brain-map.org/3d-viewer"));
 			return pMenu;
 		}
 		private class NavigatorTree extends CheckBoxTree {

@@ -124,7 +124,7 @@ public class RoiConverter extends TreeAnalyzer {
 	}
 
 	/**
-	 * Converts paths into 2D polyline ROIs (segment paths).
+	 * Converts paths into 2D polyline ROIs.
 	 *
 	 * @param overlay the target overlay to hold converted paths
 	 * @return a reference to the overlay holding paths
@@ -132,6 +132,18 @@ public class RoiConverter extends TreeAnalyzer {
 	public Overlay convertPaths(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
 		return convertPaths(overlay, tree.list(), null);
+	}
+
+	/**
+	 * Converts an ad-hoc collection of paths into 2D polyline ROIs.
+	 *
+	 * @param overlay the target overlay to hold converted paths
+	 * @param paths   the collection of paths to be converted (e.g., a list of branches produced by {@link StrahlerAnalyzer}
+	 * @return a reference to the overlay holding paths
+	 */
+	public Overlay convertPaths(Overlay overlay, Collection<Path> paths) {
+		if (overlay == null) overlay = new Overlay();
+		return convertPaths(overlay, paths, null);
 	}
 
 	private Overlay convertPaths(final Overlay overlay, Collection<Path> paths, final String basename) {

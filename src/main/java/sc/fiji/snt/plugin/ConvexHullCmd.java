@@ -109,13 +109,19 @@ public class ConvexHullCmd extends ContextCommand {
 		if (table == null) {
 			table = (sntService.isActive()) ? table = sntService.getTable() : new SNTTable();
 		}
-		trees.forEach(tree -> run(tree));
+		setSceneUpdatesEnabled(false);
+		trees.forEach(this::run);
+		setSceneUpdatesEnabled(true);
 		if (showResult) {
 			if (recPlotter != null)
 				recPlotter.show();
 			if (recViewer != null)
 				recViewer.show();
 		}
+	}
+
+	private void setSceneUpdatesEnabled(final boolean enable) {
+		if (recViewer != null) recViewer.setSceneUpdatesEnabled(enable);
 	}
 
 	private void run(final Tree tree) {

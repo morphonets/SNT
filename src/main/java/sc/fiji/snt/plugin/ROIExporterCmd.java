@@ -63,14 +63,13 @@ public class ROIExporterCmd implements Command {
 	@Parameter
 	private StatusService statusService;
 
-	@Parameter(required = false, label = "Convert", choices = { "Paths", "Inner branches", "Primary branches",
-			"Terminal branches", "Branch points", "Tips", "Roots", "All" }, description =
-			"<HTML>What part(s) of traced paths should be converted?<br>NB:Branch-based choices require paths to " +
-					"define a single tree (single-rooted structure without loops)")
+	@Parameter(required = false, label = "Convert", choices = { "Paths", "Inner branches*", "Primary branches*",
+			"Terminal branches*", "Branch points", "Tips", "Roots", "All" }, description =
+			"* Branch-based choices require paths to define a single tree (single-rooted structure without loops)")
 	private String roiChoice;
 
 	@Parameter(required = false, label = "View", choices = { "XY (default)", "XZ", "ZY" },
-			description = "Applies only to 3D paths")
+			description = "Assumes paths to be 3D")
 	private String viewChoice;
 
 	@Parameter(required = false, label = "Impose SWC colors", description = "Applies only to Path segments")
@@ -96,9 +95,9 @@ public class ROIExporterCmd implements Command {
 	@Override
 	public void run() {
 
-        RoiConverter converter = (imp == null) ? new RoiConverter(tree) : new RoiConverter(tree, imp);
+        final RoiConverter converter = (imp == null) ? new RoiConverter(tree) : new RoiConverter(tree, imp);
 		if (converter.getParsedTree().isEmpty()) {
-			warnUser("None of the input paths could be converted to ROIs.");
+			warnUser("None of the input paths could be converted to ROIs. See Console for details.");
 			return;
 		}
 
@@ -116,6 +115,9 @@ public class ROIExporterCmd implements Command {
 		converter.setStrokeWidth((avgWidth) ? -1 : 0);
         Overlay overlay = new Overlay();
 
+		if (!viewChoice.contains("XY") && (imp == null || imp.getNSlices() == 1 )) {
+			warn("Image is 2D but '" + viewChoice + " view' was chosen");
+		}
 		if (viewChoice.contains("XZ"))
 			converter.setView(RoiConverter.XZ_PLANE);
 		else if (viewChoice.contains("ZY"))
@@ -147,18 +149,23 @@ public class ROIExporterCmd implements Command {
 			converter.convertPaths(overlay);
 			if (overlay.size() == size) warn(noConversion("paths"));
 		}
+		// convert branches
+		final boolean atLeast2Paths = tree.size() > 1;
+		if (!atLeast2Paths) {
+			warn("Only 1 path selected for conversion. No branch extraction is possible");
+		}
 		try {
-			if (roiChoice.contains("inner")) {
+			if (atLeast2Paths && roiChoice.contains("inner")) {
 				size = overlay.size();
 				converter.convertInnerBranches(overlay);
 				if (overlay.size() == size) warn(noConversion("inner branches"));
 			}
-			if (roiChoice.contains("primary")) {
+			if (atLeast2Paths && roiChoice.contains("primary")) {
 				size = overlay.size();
 				converter.convertPrimaryBranches(overlay);
 				if (overlay.size() == size) warn(noConversion("primary branches"));
 			}
-			if (roiChoice.contains("terminal")) {
+			if (atLeast2Paths && roiChoice.contains("terminal")) {
 				size = overlay.size();
 				converter.convertTerminalBranches(overlay);
 				if (overlay.size() == size) warn(noConversion("terminal branches"));
@@ -193,7 +200,7 @@ public class ROIExporterCmd implements Command {
 	}
 
 	private String noConversion(final String roiType) {
-		return "Conversion did not generated valid " + roiType +
+		return "Conversion did not generate valid " + roiType +
 			". Specified features do not exist on input path(s)?";
 	}
 
