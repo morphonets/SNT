@@ -44,10 +44,9 @@ import sc.fiji.snt.gui.GuiUtils;
 public class FlyCircuitLoader implements RemoteSWCLoader {
 
 	private static final String BASE_URL =
-		"http://flycircuit.tw/flycircuitSourceData/NeuronData_v1.2/";
+			"http://www.flycircuit.tw/flycircuitSourceData/NeuronData_v1.2/";
 	private static final String SWC_PREFIX = "_seg001_linesetTransformRelease.swc";
 	private static final String VERSION = "1.2";
-
 
 	/**
 	 * Checks whether a connection to the FlyCircuit database can be established.
