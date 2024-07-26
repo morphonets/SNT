@@ -39,7 +39,6 @@ import javax.swing.Timer;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultCaret;
 
-import org.apache.commons.lang3.StringUtils;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import org.scijava.ui.swing.script.EditorPane;
@@ -72,7 +71,16 @@ public class ScriptRecorder extends JDialog {
 
 		@Override
 		public String toString() {
-			return StringUtils.capitalize(super.toString().toLowerCase() + " (" + ext + ")");
+			switch (this) {
+				case BEANSHELL:
+					return "BeanShell [.bsh]";
+				case GROOVY:
+					return "Groovy [.groovy]";
+				case PYTHON:
+					return "Python (Jython) [.py]";
+				default:
+					throw new IllegalArgumentException("Unrecognized value");
+			}
 		}
 
 		public static LANG[] list() {

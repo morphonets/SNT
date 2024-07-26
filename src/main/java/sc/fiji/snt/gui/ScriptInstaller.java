@@ -324,11 +324,10 @@ public class ScriptInstaller implements MenuKeyListener {
 		});
 		final JMenuItem mi1 = new JMenuItem("From Template...", IconFactory.getMenuIcon(GLYPH.FILE));
 		mi1.addActionListener(e -> {
-
 			final HashMap<String, String> map = new HashMap<>();
 			map.put("BeanShell", "BSH.bsh");
 			map.put("Groovy", "GVY.groovy");
-			map.put("Python", "PY.py");
+			map.put("Python (Jython)", "PY.py");
 			final String choice = guiUtils.getChoice("Language:", "New SNT Script",
 					map.keySet().toArray(new String[0]), "");
 			if (choice == null) return; // user pressed cancel
