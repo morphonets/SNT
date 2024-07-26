@@ -58,7 +58,7 @@ public class AnnotationGraphGeneratorCmd extends CommonDynamicCmd {
 
 	@Parameter(label = "Cutoff value:", description = "<HTML><div WIDTH=600>Brain areas associated with less "
 			+ "than this quantity are ignored. E.g., if metric is '" + AnnotationGraph.TIPS + "' and this value "
-			+ " is 10, only brain areas targetted by at least 11 tips are reported")
+			+ " is 10, only brain areas targeted by at least 11 tips are reported")
 	protected double threshold;
 
 	@Parameter(required = false, label = "Deepest ontology:", description = "<HTML><div WIDTH=600>The highest ontology level to be considered for neuropil labels. As a reference, the deepest level for "
@@ -74,7 +74,7 @@ public class AnnotationGraphGeneratorCmd extends CommonDynamicCmd {
 	@Parameter(label = "Trees")
 	private Collection<Tree> trees;
 
-	private int ajustedDepth() {
+	private int adjustedDepth() {
 		return depth <= 0 ? Integer.MAX_VALUE : depth;
 	}
 
@@ -109,7 +109,7 @@ public class AnnotationGraphGeneratorCmd extends CommonDynamicCmd {
 		}
 		// SNTUtils.setIsLoading(true);
 		statusService.showStatus("Generating diagram(s)...");
-		final int depth = ajustedDepth();
+		final int depth = adjustedDepth();
 		if (diagram.startsWith("Ferris") || diagram.startsWith("Both")) {
 			SNTUtils.log("Creating Ferris wheel diagram");
 			final AnnotationGraph annotationGraph = new AnnotationGraph(annotatedTrees, metric, threshold, depth);

@@ -147,16 +147,17 @@
 		<!-- Dependency versions -->
 		<annotations.version>24.1.0</annotations.version>
 		<fastutil-core.version>8.5.13</fastutil-core.version>
-		<flatlaf.version>3.4.1</flatlaf.version>
+		<flatlaf.version>3.5</flatlaf.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
-		<font-awesome.version>6.5.1</font-awesome.version>
+		<font-awesome.version>6.5.2</font-awesome.version>
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
 		<jgrapht-ext.version>${jgrapht-core.version}</jgrapht-ext.version>
 		<jide-oss.version>3.7.15</jide-oss.version>
 		<log4j.version>2.21.1</log4j.version>
+		<orsonpdf.version>1.9.1</orsonpdf.version>
 		<scenery.version>0.11.2</scenery.version>
 		<sciview.version>0.4.0</sciview.version>
-		<smile.version>3.0.3</smile.version>
+		<smile.version>3.1.1</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
 		<smile-core.version>${smile.version}</smile-core.version>
 
@@ -503,11 +504,17 @@
 
 		<!-- Runtime dependencies -->
 		<dependency>
+			<!-- automatically allow charts to be exported as PDF -->
+			<groupId>com.orsonpdf</groupId>
+			<artifactId>orsonpdf</artifactId>
+			<version>${orsonpdf.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf-jide-oss</artifactId>
 			<version>${flatlaf-jide-oss.version}</version>
 			<scope>runtime</scope>
-			<optional>true</optional>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.logging.log4j</groupId>
