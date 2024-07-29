@@ -249,11 +249,11 @@ public class GroupedTreeStatistics {
 			if (groupMin < limits[0]) limits[0] = groupMin;
 			if (groupMax > limits[1]) limits[1] = groupMax;
 		}
-		final LinkedHashMap<String, HDPlus> hdpMap = new LinkedHashMap<>();
+		final LinkedHashMap<String, AnalysisUtils.HistogramDatasetPlus> hdpMap = new LinkedHashMap<>();
 		final ArrayList<Integer> bins = new ArrayList<>();
 		for (final Entry<String, MultiTreeStatistics> entry : groups.entrySet()) {
 			final HDPlus hdp = entry.getValue().new HDPlus(normMeasurement);
-			hdp.compute(true);
+			hdp.compute();
 			bins.add(hdp.nBins);
 			hdpMap.put(entry.getKey(), hdp);
 		}
@@ -267,7 +267,8 @@ public class GroupedTreeStatistics {
 		});
 		return (polar) ?
 				AnalysisUtils.createPolarHistogram(normMeasurement, "", dataset, hdpMap.size(), finalBinCount)
-				: AnalysisUtils.createHistogram(normMeasurement, "", hdpMap.size(), dataset);
+				: AnalysisUtils.createHistogram(normMeasurement, "", hdpMap.size(), dataset,
+				new ArrayList<>(hdpMap.values()));
 	}
 
 	/**

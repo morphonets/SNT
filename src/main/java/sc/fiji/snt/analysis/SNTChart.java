@@ -101,7 +101,6 @@ import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.chart.ui.TextAnchor;
 import org.jfree.data.Range;
 import org.jfree.data.category.CategoryDataset;
-import org.jfree.data.general.Dataset;
 import org.jfree.data.xy.XYDataset;
 import org.scijava.plot.CategoryChart;
 import org.scijava.ui.awt.AWTWindows;
@@ -172,7 +171,7 @@ public class SNTChart extends ChartPanel {
 		setMaximumDrawHeight(Integer.MAX_VALUE);
 		setBackground(BACKGROUND_COLOR); // provided contrast to otherwise transparent background
 		if (chart != null) {
-			costumizePopupMenu();
+			customizePopupMenu();
 			setPreferredSize(preferredSize);
 		}
 		try {
@@ -340,13 +339,14 @@ public class SNTChart extends ChartPanel {
 		} else if (getChart().getPlot() instanceof XYPlot) {
 			final XYPlot plot = (XYPlot)(getChart().getPlot());
 			plot.setDomainGridlinesVisible(visible);
+			//plot.setDomainMinorGridlinesVisible(visible);
 			plot.setRangeGridlinesVisible(visible);
-			plot.setRangeMinorGridlinesVisible(visible);
+			//plot.setRangeMinorGridlinesVisible(visible);
 		} else if (getChart().getPlot() instanceof CategoryPlot) {
 			final CategoryPlot plot = (getChart().getCategoryPlot());
 			plot.setDomainGridlinesVisible(visible);
 			plot.setRangeGridlinesVisible(visible);
-			plot.setRangeMinorGridlinesVisible(visible);
+			//plot.setRangeMinorGridlinesVisible(visible);
 		} else if (getChart().getPlot() instanceof PolarPlot) {
 			final PolarPlot plot = (PolarPlot)getChart().getPlot();
 			plot.setRadiusGridlinesVisible(visible);
@@ -598,13 +598,13 @@ public class SNTChart extends ChartPanel {
 			else if (getChart().getPlot() instanceof CategoryPlot) {
 				final List<?> annotations = getCategoryPlot().getAnnotations();
 				if (annotations != null) {
-					for (int i = 0; i < annotations.size(); i++) {
-						final CategoryAnnotation annotation = (CategoryAnnotation) annotations.get(i);
-						if (annotation instanceof TextAnnotation) {
-							((TextAnnotation) annotation)
-									.setFont(((TextAnnotation) annotation).getFont().deriveFont(size));
-						}
-					}
+                    for (Object o : annotations) {
+                        final CategoryAnnotation annotation = (CategoryAnnotation) o;
+                        if (annotation instanceof TextAnnotation) {
+                            ((TextAnnotation) annotation)
+                                    .setFont(((TextAnnotation) annotation).getFont().deriveFont(size));
+                        }
+                    }
 				}
 				adjustMarkersFont(getCategoryPlot().getDomainMarkers(Layer.FOREGROUND), size);
 				adjustMarkersFont(getCategoryPlot().getDomainMarkers(Layer.BACKGROUND), size);
@@ -1089,8 +1089,66 @@ public class SNTChart extends ChartPanel {
 		setChart(null);
 	}
 
+	/**
+	 *
+	 * @return whether current chart contains valid Data
+	 */
 	public boolean containsValidData() {
 		return getChart() != null;
+	}
+
+	/**
+	 * Sets whether a normal distribution curve should be overlaid over histogram frequencies.
+	 *
+	 * @param visible whether curve should be displayed. Ignored if current chart is not a histogram
+	 */
+	public void setNormDistributionVisible(final boolean visible) {
+		try {
+			AnalysisUtils.getNormalCurveRenderer(getChart().getXYPlot()).setDefaultSeriesVisible(visible);
+		} catch (final NullPointerException | ClassCastException ignored) {
+			// ignored
+		}
+	}
+
+	/**
+	 * Gets whether quartile markers (Q1, Median, Q3) are being overlaid over histogram frequencies
+	 *
+	 * @return true if current chart is a histogram with overlaid quartile markers
+	 */
+	public boolean isQuartilesVisible() {
+		try {
+			return AnalysisUtils.getQuartileMarkersRenderer(getChart().getXYPlot()).getDefaultSeriesVisible();
+		} catch (final NullPointerException | ClassCastException ignored) {
+			// do nothing
+		}
+		return false;
+	}
+
+	/**
+	 * Sets whether quartile markers (Q1, Median, Q3) should be overlaid over histogram frequencies.
+	 *
+	 * @param visible whether markers should be displayed. Ignored if current chart is not a histogram
+	 */
+	public void setQuartilesVisible(final boolean visible) {
+		try {
+			AnalysisUtils.getQuartileMarkersRenderer(getChart().getXYPlot()).setDefaultSeriesVisible(visible);
+		} catch (final NullPointerException | ClassCastException ignored) {
+			// ignored
+		}
+	}
+
+	/**
+	 * Gets whether a normal distribution curve is being overlaid over histogram frequencies
+	 *
+	 * @return true if current chart is a histogram with overlaid quartile markers
+	 */
+	public boolean isNormDistributionVisible() {
+		try {
+			return AnalysisUtils.getNormalCurveRenderer(getChart().getXYPlot()).getDefaultSeriesVisible();
+		} catch (final NullPointerException | ClassCastException ignored) {
+			// do nothing
+		}
+		return false;
 	}
 
 	@Override
@@ -1119,7 +1177,7 @@ public class SNTChart extends ChartPanel {
 		SwingUtilities.invokeLater(() -> getFrame().show());
 	}
 
-	private void costumizePopupMenu() {
+	private void customizePopupMenu() {
 		if (getPopupMenu() != null) {
 			final JMenuItem mi = new JMenuItem("Data (as CSV)...");
 			mi.addActionListener(e -> {
@@ -1168,15 +1226,37 @@ public class SNTChart extends ChartPanel {
 
 		final JMenu grids = new JMenu("Toggle Components");
 		popup.add(grids);
-		JMenuItem jmi = new JMenuItem("Toggle Grid Lines");
+		GuiUtils.addSeparator(grids, "Generic:");
+		JMenuItem jmi = new JMenuItem("Grid Lines");
 		jmi.setEnabled(!isFlowPlot());
 		jmi.addActionListener( e -> setGridlinesVisible(!isGridlinesVisible()));
 		grids.add(jmi);
-		jmi = new JMenuItem("Toggle Legend");
+		jmi = new JMenuItem("Legend");
 		jmi.addActionListener( e -> setLegendVisible(!isLegendVisible()));
 		grids.add(jmi);
-		jmi = new JMenuItem("Toggle Outline");
+		jmi = new JMenuItem("Outline");
 		jmi.addActionListener( e -> setOutlineVisible(!isOutlineVisible()));
+		grids.add(jmi);
+		GuiUtils.addSeparator(grids, "Histograms:");
+		jmi = new JMenuItem("Normal Distribution Overlay");
+		jmi.addActionListener( e -> {
+			try {
+				final XYItemRenderer r = AnalysisUtils.getNormalCurveRenderer(getChart().getXYPlot());
+                r.setDefaultSeriesVisible(!r.getDefaultSeriesVisible());
+			} catch (final NullPointerException | ClassCastException ignored) {
+				new GuiUtils(frame).error("This option requires a histogram.", "Option Not Available");
+			}
+		});
+		grids.add(jmi);
+		jmi = new JMenuItem("Quartile Overlays");
+		jmi.addActionListener( e -> {
+			try {
+				final XYItemRenderer r = AnalysisUtils.getQuartileMarkersRenderer(getChart().getXYPlot());
+				r.setDefaultSeriesVisible(!r.getDefaultSeriesVisible());
+			} catch (final NullPointerException | ClassCastException ignored) {
+				new GuiUtils(frame).error("This option requires a histogram.", "Option Not Available");
+			}
+		});
 		grids.add(jmi);
 		popup.add(grids);
 
@@ -1282,29 +1362,37 @@ public class SNTChart extends ChartPanel {
 		// https://stackoverflow.com/a/58530238
 		final ArrayList<String> csv = new ArrayList<>();
 		if (getChart().getPlot() instanceof XYPlot) {
-			final Dataset dataset = getXYPlot().getDataset();
-			final XYDataset xyDataset = (XYDataset) dataset;
-			final int seriesCount = xyDataset.getSeriesCount();
-			for (int i = 0; i < seriesCount; i++) {
-				final int itemCount = xyDataset.getItemCount(i);
-				for (int j = 0; j < itemCount; j++) {
-					final Comparable<?> key = xyDataset.getSeriesKey(i);
-					final Number x = xyDataset.getX(i, j);
-					final Number y = xyDataset.getY(i, j);
-					csv.add(String.format("%s, %s, %s", key, x, y));
+			for (int d = 0; d < getXYPlot().getDatasetCount(); d++) {
+				final XYDataset xyDataset = getXYPlot().getDataset(d);
+				if (!getXYPlot().getRenderer(d).getDefaultSeriesVisible())
+					continue;
+				csv.add(String.format("Dataset%02d,Xaxis,Yaxis", (d+1) ));
+				final int seriesCount = xyDataset.getSeriesCount();
+				for (int i = 0; i < seriesCount; i++) {
+					final int itemCount = xyDataset.getItemCount(i);
+					for (int j = 0; j < itemCount; j++) {
+						final Comparable<?> key = xyDataset.getSeriesKey(i);
+						final Number x = xyDataset.getX(i, j);
+						final Number y = xyDataset.getY(i, j);
+						csv.add(String.format("%s,%s,%s", key, x, y));
+					}
 				}
 			}
 		} else if (getChart().getPlot() instanceof CategoryPlot) {
-			final Dataset dataset = getCategoryPlot().getDataset();
-			final CategoryDataset categoryDataset = (CategoryDataset) dataset;
-			final int columnCount = categoryDataset.getColumnCount();
-			final int rowCount = categoryDataset.getRowCount();
-			for (int i = 0; i < rowCount; i++) {
-				for (int j = 0; j < columnCount; j++) {
-					final Comparable<?> key1 = categoryDataset.getRowKey(i);
-					final Comparable<?> key2 = categoryDataset.getColumnKey(j);
-					final Number n = categoryDataset.getValue(i, j);
-					csv.add(String.format("%s, %s, %s", key1, key2, n));
+			for (int d = 0; d < getCategoryPlot().getDatasetCount(); d++) {
+				final CategoryDataset categoryDataset = getCategoryPlot().getDataset(d);
+				if (!getCategoryPlot().getRenderer(d).getDefaultSeriesVisible())
+					continue;
+				csv.add(String.format("Dataset%02d,Xaxis,Yaxis", (d+1) ));
+				final int columnCount = categoryDataset.getColumnCount();
+				final int rowCount = categoryDataset.getRowCount();
+				for (int i = 0; i < rowCount; i++) {
+					for (int j = 0; j < columnCount; j++) {
+						final Comparable<?> key1 = categoryDataset.getRowKey(i);
+						final Comparable<?> key2 = categoryDataset.getColumnKey(j);
+						final Number n = categoryDataset.getValue(i, j);
+						csv.add(String.format("%s,%s,%s", key1, key2, n));
+					}
 				}
 			}
 		} else {

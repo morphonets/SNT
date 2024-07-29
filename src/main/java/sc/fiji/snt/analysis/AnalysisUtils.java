@@ -22,13 +22,14 @@
 
 package sc.fiji.snt.analysis;
 
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Rectangle;
-import java.awt.Shape;
+import java.awt.*;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
@@ -38,30 +39,22 @@ import org.jfree.chart.LegendItem;
 import org.jfree.chart.LegendItemCollection;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.axis.SubCategoryAxis;
-import org.jfree.chart.plot.CategoryPlot;
-import org.jfree.chart.plot.Plot;
-import org.jfree.chart.plot.PlotOrientation;
-import org.jfree.chart.plot.PolarAxisLocation;
-import org.jfree.chart.plot.PolarPlot;
-import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.labels.XYToolTipGenerator;
+import org.jfree.chart.plot.*;
 import org.jfree.chart.renderer.DefaultPolarItemRenderer;
 import org.jfree.chart.renderer.category.BarRenderer;
 import org.jfree.chart.renderer.category.StandardBarPainter;
-import org.jfree.chart.renderer.xy.StandardXYBarPainter;
-import org.jfree.chart.renderer.xy.XYBarRenderer;
+import org.jfree.chart.renderer.xy.*;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.chart.ui.RectangleInsets;
 import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.statistics.HistogramDataset;
 import org.jfree.data.statistics.HistogramType;
-import org.jfree.data.xy.DefaultXYDataset;
+import org.jfree.data.xy.*;
 import org.scijava.util.ColorRGB;
 
-import sc.fiji.snt.Path;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
-import sc.fiji.snt.TreeProperties;
+import sc.fiji.snt.*;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 
@@ -264,6 +257,155 @@ class AnalysisUtils {
 		return chart;
 	}
 
+	static XYItemRenderer getNormalCurveRenderer(final XYPlot histogram) {
+		for (int i = 0; i < histogram.getDatasetCount(); i++) {
+			final XYDataset dataset = histogram.getDataset(i);
+			for (int j = 0; j < dataset.getSeriesCount(); j++) {
+				if (dataset.getSeriesKey(j) != null && dataset.getSeriesKey(j).toString().startsWith("Norm. distribution")) {
+					return histogram.getRendererForDataset(dataset);
+				}
+			}
+		}
+		return null;
+	}
+
+	static XYItemRenderer getQuartileMarkersRenderer(final XYPlot histogram) {
+		for (int i = 0; i < histogram.getDatasetCount(); i++) {
+			final XYDataset dataset = histogram.getDataset(i);
+			for (int j = 0; j < dataset.getSeriesCount(); j++) {
+				if (dataset.getSeriesKey(j) != null && dataset.getSeriesKey(j).toString().startsWith("Percentile")) {
+					return histogram.getRendererForDataset(dataset);
+				}
+			}
+		}
+		return null;
+	}
+
+	static void addQuartileMarkers(final XYPlot histogram, final HistogramDatasetPlus hdp,
+									final boolean visibility) {
+		addQuartileMarkers(histogram, Collections.singletonList(hdp), visibility);
+	}
+
+	static void addQuartileMarkers(final XYPlot histogram, final List<HistogramDatasetPlus> hdps,
+								   final boolean visibility) {
+
+		assert hdps.size() == histogram.getDatasetCount();
+
+		// define strokes, tooltips, and colors
+		final Stroke stroke1 = new BasicStroke(
+				1.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+				1.0f, new float[]{10.0f, 6.0f}, 0.0f);
+		final Stroke stroke2 = new BasicStroke(
+				2.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+				1.0f, new float[]{10.0f, 6.0f}, 0.0f);
+
+		final XYToolTipGenerator xyToolTipGenerator = (dataset, series, item) -> {
+			return String.format("%s %.3f", dataset.getSeriesKey(series), dataset.getX(series, item).doubleValue());
+		};
+		final Color[] colors = (hdps.size() == 1) ?
+				new Color[]{Color.DARK_GRAY} : SNTColor.getDistinctColorsAWT(hdps.size());
+
+		// define marker positions
+		double minY = histogram.getRangeAxis(0).getRange().getLowerBound();
+		double maxY = histogram.getRangeAxis(0).getRange().getUpperBound();
+		final int[] percentiles = {25, 50, 75};
+
+		// define common render and dataset.
+		// NB: TF: This would be simpler w/ ValueMarkers but AFAICT there is
+		// no immediate way to toggle visibility of ValueMarkers w/ current API
+		final DefaultXYItemRenderer renderer = new DefaultXYItemRenderer();
+		renderer.setDefaultShapesVisible(false);
+		renderer.setDrawSeriesLineAsPath(true);
+		renderer.setDefaultSeriesVisible(visibility);
+		renderer.setDefaultSeriesVisibleInLegend(false);
+		renderer.setDefaultToolTipGenerator(xyToolTipGenerator);
+		final XYSeriesCollection markersDataset = new XYSeriesCollection();
+		final int markersIdx = histogram.getDatasetCount();
+		histogram.setDataset(markersIdx, markersDataset);
+		histogram.setRenderer(markersIdx, renderer);
+
+		// populate series
+		int counter = 0;
+		for (int i = 0; i < hdps.size(); i++) {
+			for (int j = 0; j < percentiles.length; j++) {
+				final int p = percentiles[j];
+				final XYSeries series = new XYSeries(String.format("Percentile %d [%02d]", p, i + 1));
+				series.add(hdps.get(i).dStats.getPercentile(p), minY);
+				series.add(hdps.get(i).dStats.getPercentile(p), maxY);
+				markersDataset.addSeries(series);
+				renderer.setSeriesPaint(counter, colors[i]);
+				renderer.setSeriesOutlinePaint(counter, colors[i]);
+				renderer.setSeriesStroke(counter, (j == 1) ? stroke2 : stroke1);
+				counter++;
+			}
+		}
+	}
+
+	static void addNormalCurve(final XYPlot histogram, final XYSeriesCollection normalDataset,
+							   final boolean visibility) {
+
+		assert normalDataset.getSeriesCount() == histogram.getDatasetCount();
+
+		// create the series;
+		final int normalCurveIdx = histogram.getDatasetCount();
+		histogram.setDataset(normalCurveIdx, normalDataset);
+
+		// assign normalCurve to a second non-visible Y axis
+		final NumberAxis axis = new NumberAxis("Norm. distribution");
+		axis.setVisible(false);
+		histogram.setRangeAxis(1, axis);
+		histogram.mapDatasetToRangeAxis(normalCurveIdx, 1);
+		histogram.mapDatasetToDomainAxis(normalCurveIdx, 0);
+
+		// Customize series
+		final XYSplineRenderer renderer = new XYSplineRenderer();
+		renderer.setDefaultShapesVisible(false);
+		renderer.setDrawSeriesLineAsPath(true);
+		renderer.setDefaultStroke(new BasicStroke(1.5f));
+		renderer.setAutoPopulateSeriesStroke(false); // otherwise stroke is not applied
+		renderer.setDefaultSeriesVisible(visibility);
+		renderer.setDefaultSeriesVisibleInLegend(false);
+		final Color[] colors = (normalDataset.getSeriesCount() == 1) ?
+				new Color[]{Color.DARK_GRAY} : SNTColor.getDistinctColorsAWT(normalDataset.getSeriesCount());
+		for (int j = 0; j < normalDataset.getSeriesCount(); j++) {
+			renderer.setSeriesPaint(j, colors[j]);
+			renderer.setSeriesOutlinePaint(j, colors[j]);
+		}
+		final XYToolTipGenerator xyToolTipGenerator = (dataset, series, item) -> {
+			return String.format("%s (%.3f, %.3f)", dataset.getSeriesKey(series),
+					dataset.getX(series, item).doubleValue(), dataset.getY(series, item).doubleValue());
+		};
+		renderer.setDefaultToolTipGenerator(xyToolTipGenerator);
+		histogram.setRenderer(normalCurveIdx, renderer);
+	}
+
+	static XYSeriesCollection getNormalDataset(final HistogramDatasetPlus hdp, final double fromX, final double toX) {
+		return getNormalDataset(Collections.singletonList(hdp), fromX, toX);
+	}
+
+	static XYSeriesCollection getNormalDataset(final List<HistogramDatasetPlus> hdps, final double fromX, final double toX) {
+		final XYSeriesCollection dataset = new XYSeriesCollection();
+		final AtomicInteger counter = new AtomicInteger(1);
+		hdps.forEach( hdp -> dataset.addSeries(getNormalCurve(hdp, fromX, toX, String.valueOf(counter.getAndIncrement()))));
+		return dataset;
+	}
+
+	static XYSeries getNormalCurve(final HistogramDatasetPlus hdp, final double fromX, final double toX, final String label) {
+		return getNormalCurve(hdp.dStats.getMean(), hdp.dStats.getStandardDeviation(), fromX, toX, label);
+	}
+
+	static XYSeries getNormalCurve(final double mu, final double sigma, final double fromX, final double toX, final String label) {
+		final int nSteps = 500;
+		final double step = (toX - fromX) / nSteps;
+		final XYSeries series = new XYSeries("Norm. distribution " + label);
+		for (int i = 0; i < nSteps; i++) {
+			final double x = fromX + (i * step);
+			final double y = ((1 / (sigma * Math.sqrt(2 * Math.PI))) * (Math.exp(-(((x - mu) * (x - mu)) / ((2 * sigma * sigma))))));
+			series.add(x, y);
+		}
+		return series;
+	}
+
 	static JFreeChart createHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
 			final HistogramDatasetPlus datasetPlus) {
 
@@ -287,6 +429,10 @@ class AnalysisUtils {
 		label.setFont(plot.getRangeAxis().getLabelFont().deriveFont(Font.PLAIN));
 		label.setPosition(RectangleEdge.BOTTOM);
 		chart.addSubtitle(label);
+		final double minX = plot.getDomainAxis().getRange().getLowerBound();
+		final double maxX = plot.getDomainAxis().getRange().getUpperBound();
+		addNormalCurve(plot, getNormalDataset(datasetPlus, minX, maxX), false);
+		addQuartileMarkers(plot, datasetPlus, false);
 		return chart;
 	}
 
@@ -315,7 +461,7 @@ class AnalysisUtils {
 	}
 
 	static SNTChart createHistogram(final String normMeasurement, final String unit, final int nSeries,
-			final HistogramDataset dataset) {
+			final HistogramDataset dataset, final List<HistogramDatasetPlus> hdps) {
 		final JFreeChart chart = ChartFactory.createHistogram(null, getMetricLabel(normMeasurement, unit), "Rel. Frequency", dataset);
 
 		// Customize plot
@@ -331,7 +477,20 @@ class AnalysisUtils {
 			bar_renderer.setSeriesPaint(i, awtColor);
 		}
 		bar_renderer.setShadowVisible(false);
+		if (hdps != null) {
+			final double minX = plot.getDomainAxis(0).getRange().getLowerBound();
+			final double maxX = plot.getDomainAxis(0).getRange().getUpperBound();
+			addNormalCurve(plot, getNormalDataset(hdps, minX, maxX), false);
+			addQuartileMarkers(plot, hdps, false);
+		}
+
 		return new SNTChart("Grouped Hist.", chart);
+	}
+
+
+	static SNTChart createHistogram(final String normMeasurement, final String unit, final int nSeries,
+									final HistogramDataset dataset) {
+		return createHistogram(normMeasurement, unit, nSeries, dataset, null);
 	}
 
 	static SNTChart createPolarHistogram(final String normMeasurement, final String unit, final HistogramDataset dataset, final int nSeries,
@@ -421,7 +580,6 @@ class AnalysisUtils {
 		long n;
 		double q1, q3, min, max;
 		private DescriptiveStatistics dStats;
-		private boolean computedAsPercentage;
 
 		HistogramDatasetPlus() {
 			values = new ArrayList<>();
@@ -446,17 +604,9 @@ class AnalysisUtils {
 		}
 
 		void compute() {
-			compute(false);
-		}
-
-		void compute(final boolean asPercentage) {
-			if (dStats == null || computedAsPercentage != asPercentage) {
+			if (dStats == null) {
 				dStats = new DescriptiveStatistics();
-				if (asPercentage) {
-					computedAsPercentage = true;
-					values.forEach(v -> dStats.addValue(v/values.size()));
-				} else
-					values.forEach(v -> dStats.addValue(v));
+				values.forEach(v -> dStats.addValue(v));
 			}
 			n = dStats.getN();
 			q1 = dStats.getPercentile(25);
@@ -485,5 +635,30 @@ class AnalysisUtils {
 			return dataset;
 		}
 
+	}
+
+	/* IDE debug method */
+	public static void main(final String[] args) {
+		sc.fiji.snt.gui.GuiUtils.setLookAndFeel();
+		final SNTService sntService = new sc.fiji.snt.SNTService();
+		final List<Tree> trees1 = sntService.demoTrees();
+		final List<Tree> trees2 = sntService.demoTrees();
+		trees2.forEach( tree -> tree.scale(1.5, 1.5, 1.5));
+		GroupedTreeStatistics groupedStats = new GroupedTreeStatistics();
+		groupedStats.addGroup(trees1, "Group 1");
+		groupedStats.addGroup(trees2, "Group 2");
+		SNTChart hist = groupedStats.getHistogram(TreeStatistics.INTER_NODE_DISTANCE);
+		hist.setNormDistributionVisible(true);
+		hist.show();
+		MultiTreeStatistics multiStats = new MultiTreeStatistics(Stream.concat(trees1.stream(), trees2.stream())
+				.collect(Collectors.toList()));
+		hist = multiStats.getHistogram(TreeStatistics.BRANCH_LENGTH);
+		hist.setTitle("Group Hist.");
+		hist.setQuartilesVisible(true);
+		hist.show();
+		hist = multiStats.getPolarHistogram(TreeStatistics.REMOTE_BIF_ANGLES);
+		hist.setTitle("Group Hist.");
+		hist.setQuartilesVisible(true);
+		hist.show();
 	}
 }
