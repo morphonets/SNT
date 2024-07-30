@@ -22,14 +22,7 @@
 
 package sc.fiji.snt.analysis;
 
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.GridLayout;
-import java.awt.Paint;
-import java.awt.Toolkit;
+import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.BufferedWriter;
@@ -53,6 +46,7 @@ import javax.swing.MenuElement;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 
+import net.imglib2.roi.geom.real.Polygon2D;
 import org.jfree.chart.ChartMouseEvent;
 import org.jfree.chart.ChartMouseListener;
 import org.jfree.chart.ChartPanel;
@@ -60,12 +54,7 @@ import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.LegendItem;
 import org.jfree.chart.LegendItemSource;
-import org.jfree.chart.annotations.CategoryAnnotation;
-import org.jfree.chart.annotations.CategoryTextAnnotation;
-import org.jfree.chart.annotations.TextAnnotation;
-import org.jfree.chart.annotations.XYAnnotation;
-import org.jfree.chart.annotations.XYPointerAnnotation;
-import org.jfree.chart.annotations.XYTextAnnotation;
+import org.jfree.chart.annotations.*;
 import org.jfree.chart.axis.Axis;
 import org.jfree.chart.axis.CategoryAnchor;
 import org.jfree.chart.entity.AxisEntity;
@@ -975,6 +964,29 @@ public class SNTChart extends ChartPanel {
 		setFontSize(template.getFontSize("legend"), "legend");
 		getChart().getPlot()
 				.setNoDataMessageFont(template.getChart().getPlot().getNoDataMessageFont());
+	}
+
+	public void addPolygon(final Polygon2D poly, final String lineColor, final String fillColor) {
+		final ColorRGB lColor = (lineColor == null || lineColor.isBlank()) ? null : ColorRGB.fromHTMLColor(lineColor);
+		final ColorRGB fColor = (fillColor == null || fillColor.isBlank()) ? null : ColorRGB.fromHTMLColor(fillColor);
+		addPolygon(poly, lColor, fColor);
+	}
+
+	public void addPolygon(final Polygon2D poly, final ColorRGB lineColor, final ColorRGB fillColor) {
+		final double[] cc = new double[poly.numVertices() * 2];
+		int counter =0;
+		for (int i = 0; i < poly.numVertices(); i++) {
+			cc[counter++] = poly.vertex(i).getDoublePosition(0);
+			cc[counter++] = poly.vertex(i).getDoublePosition(1);
+		}
+		final Stroke lineStroke = (lineColor == null) ? null : new BasicStroke(1f);
+		final Color lColor = (lineColor == null) ? null :
+				SNTColor.alphaColor(new Color(lineColor.getRed(), lineColor.getGreen(), lineColor.getBlue()), 50);
+		final Color fColor = (fillColor == null) ? null :
+				SNTColor.alphaColor(new Color(fillColor.getRed(), fillColor.getGreen(), fillColor.getBlue()), 25);
+		final XYPolygonAnnotation annot = new XYPolygonAnnotation(cc, lineStroke, lColor, fColor);
+		//annot.setToolTipText("Polygon2D");
+		getXYPlot().getRenderer().addAnnotation(annot);
 	}
 
 	/**

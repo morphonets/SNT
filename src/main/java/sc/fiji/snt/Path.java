@@ -181,7 +181,7 @@ public class Path implements Comparable<Path> {
 	protected ArrayList<Path> somehowJoins;
 	// We sometimes impose a tree structure on the Path
 	// graph, which is largely for display purposes. When
-	// this is done, we regerated this list. This should
+	// this is done, we regenerated this list. This should
 	// always be a subset of 'somehowJoins'...
 	protected ArrayList<Path> children;
 
@@ -1849,7 +1849,7 @@ public class Path implements Comparable<Path> {
 	/**
 	 * Gets the SWC type label associated with the specified type flag. SNT
 	 * follows the specification detailed at <a href=
-	 * "http://www.neuronland.org/NLMorphologyConverter/MorphologyFormats/SWC/Spec.html">neuronland</a>
+	 * "https://swc-specification.readthedocs.io/en/latest/">swc-specification.readthedocs.io</a>
 	 *
 	 * @param type the SWC type flag
 	 * @param capitalized whether output String should be capitalized

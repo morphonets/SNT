@@ -346,9 +346,7 @@ public class Tree implements TreeProperties {
 	 * @see PathDownsampler
 	 */
 	public void downSample(final double maximumAllowedDeviation) {
-		tree.parallelStream().forEach(p -> {
-			p.downsample(maximumAllowedDeviation);
-		});
+		tree.parallelStream().forEach(p -> p.downsample(maximumAllowedDeviation));
 		nullifyGraphsAndPafm();
 	}
 
@@ -364,31 +362,31 @@ public class Tree implements TreeProperties {
 	 */
 	public Tree subTree(final String... swcTypes) {
 		final Set<Integer> types = new HashSet<>();
-		for (int i = 0; i < swcTypes.length; i++) {
-			switch (swcTypes[i].toLowerCase().substring(0, 2)) {
-			case "ax":
-				types.add(Path.SWC_AXON);
-				break;
-			case "so":
-				types.add(Path.SWC_SOMA);
-				break;
-			case "ap":
-				types.add(Path.SWC_APICAL_DENDRITE);
-				break;
-			case "ba":
-			case "(b":
-				types.add(Path.SWC_DENDRITE);
-				break;
-			case "de":
-			case "dn":
-				types.add(Path.SWC_APICAL_DENDRITE);
-				types.add(Path.SWC_DENDRITE);
-				break;
-			default:
-				types.add(Path.SWC_UNDEFINED);
-				break;
-			}
-		}
+        for (final String swcType : swcTypes) {
+            switch (swcType.toLowerCase().substring(0, 2)) {
+                case "ax":
+                    types.add(Path.SWC_AXON);
+                    break;
+                case "so":
+                    types.add(Path.SWC_SOMA);
+                    break;
+                case "ap":
+                    types.add(Path.SWC_APICAL_DENDRITE);
+                    break;
+                case "ba":
+                case "(b":
+                    types.add(Path.SWC_DENDRITE);
+                    break;
+                case "de":
+                case "dn":
+                    types.add(Path.SWC_APICAL_DENDRITE);
+                    types.add(Path.SWC_DENDRITE);
+                    break;
+                default:
+                    types.add(Path.SWC_UNDEFINED);
+                    break;
+            }
+        }
 		final Tree subTree = subTree(types.stream().mapToInt(Integer::intValue).toArray());
 		if (getLabel() != null) 
 			subTree.setLabel(getLabel() + " " + Arrays.toString(swcTypes));
@@ -617,10 +615,9 @@ public class Tree implements TreeProperties {
 
 	public Set<Integer> getSWCTypes(final boolean includeSoma) {
 		final HashSet<Integer> types = new HashSet<>();
-		final Iterator<Path> it = tree.iterator();
-		while (it.hasNext()) {
-			types.add(it.next().getSWCType());
-		}
+        for (final Path path : tree) {
+            types.add(path.getSWCType());
+        }
 		if (!includeSoma) types.remove(Path.SWC_SOMA);
 		return types;
 	}

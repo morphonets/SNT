@@ -24,13 +24,7 @@ package sc.fiji.snt.viewer;
 
 import java.awt.Color;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
+import java.util.*;
 
 import net.imglib2.RealLocalizable;
 import net.imglib2.roi.geom.real.Polygon2D;
@@ -327,7 +321,7 @@ public class Viewer2D extends TreeColorMapper {
 	/**
 	 * Appends a tree to the viewer using default options.
 	 * 
-	 * @deprecated Use {@link #add(Tree)} instead
+	 * @deprecated Use {@link #add(Object)} instead
 	 * @param tree the Collection of paths to be plotted
 	 */
 	@Deprecated 
@@ -336,31 +330,66 @@ public class Viewer2D extends TreeColorMapper {
 	}
 
 	/**
-	 * Appends a tree to the viewer using default options.
-	 * 
-	 * @param tree the Collection of paths to be plotted
-	 */
-	public void add(final Tree tree) {
-		addPaths(tree.list());
-	}
-
-
-	/**
 	 * Adds a collection of trees. Each tree will be rendered using a unique color.
 	 *
 	 * @param trees the list of trees to be plotted
+	 * @deprecated use {@link #add(Object)} instead
 	 */
-	public void add(final Collection<Tree> trees) {
-		final ColorRGB[] colors = SNTColor.getDistinctColors(trees.size());
+	@Deprecated
+	public void addTrees(final Collection<Tree> trees) {
+		add(trees);
+	}
+
+	private void addTrees(final Collection<Tree> trees, final ColorRGB color) {
+		final ColorRGB[] colors;
+		if (color == null) {
+			colors = SNTColor.getDistinctColors(trees.size());
+		} else {
+			colors = new ColorRGB[trees.size()];
+			Arrays.fill(colors, color);
+		}
 		final ColorRGB prevDefaultColor = defaultColor;
 		int i = 0;
-		for (final Iterator<Tree> it = trees.iterator(); it.hasNext();) {
-			setDefaultColor(colors[i++]);
-			add(it.next());
-		}
+        for (Tree tree : trees) {
+            if (colors != null) setDefaultColor(colors[i++]);
+            add(tree);
+        }
 		setDefaultColor(prevDefaultColor);
 	}
 
+	/**
+	 * Appends a single tree, a single Polygon2D, a collection of Trees, or a collection of Polygon2D to the viewer
+	 * using default options.
+	 *
+	 * @param object the tree(s) or Polygon2D(s) to be added
+	 */
+	@SuppressWarnings("unchecked")
+	public void add(final Object object) {
+		if (object instanceof Collection ) {
+			if (!((Collection<?>) object).isEmpty() && ((Collection<?>) object).iterator().next() instanceof Polygon2D) {
+				addPolygons((Collection<Polygon2D>) object);
+			} else if (!((Collection<?>) object).isEmpty() && ((Collection<?>) object).iterator().next() instanceof Tree) {
+				addTrees((Collection<Tree>) object, null);
+			}
+		}
+		else if (object instanceof Tree) {
+			addPaths(((Tree) object).list());
+		}
+		else if (object instanceof Polygon2D) {
+			addPolygon((Polygon2D) object, "");
+		}
+	}
+
+	private void addPolygons(final Collection<Polygon2D> polys) {
+		final ColorRGB[] colors = SNTColor.getDistinctColors(polys.size());
+		final ColorRGB prevDefaultColor = defaultColor;
+		int i = 0;
+        for (final Polygon2D poly : polys) {
+            setDefaultColor(colors[i++]);
+            addPolygon(poly, "CH" + (i + 1));
+        }
+		setDefaultColor(prevDefaultColor);
+	}
 	/**
 	 * Adds a list of trees while assigning each tree to a LUT index.
 	 *
@@ -369,9 +398,9 @@ public class Viewer2D extends TreeColorMapper {
 	 */
 	public void add(final List<Tree> trees, final String lut) {
 		mapTrees(trees, lut);
-		for (final ListIterator<Tree> it = trees.listIterator(); it.hasNext();) {
-			addTree(it.next());
-		}
+        for (final Tree tree : trees) {
+            addTree(tree);
+        }
 	}
 
 	/**

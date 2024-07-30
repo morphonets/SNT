@@ -770,23 +770,23 @@ public class SNT extends MultiDThreePanes implements
 		return pathAndFillManager.unsavedPaths && pathAndFillManager.size() > 0;
 	}
 
-	protected boolean setUnsavedChanges(final boolean b) {
-		return pathAndFillManager.unsavedPaths = b;
+	protected void setUnsavedChanges(final boolean b) {
+		pathAndFillManager.unsavedPaths = b;
 	}
 
 	public PathAndFillManager getPathAndFillManager() {
 		return pathAndFillManager;
 	}
 
-	protected InteractiveTracerCanvas getXYCanvas() {
+	InteractiveTracerCanvas getXYCanvas() {
 		return xy_tracer_canvas;
 	}
 
-	protected InteractiveTracerCanvas getXZCanvas() {
+	InteractiveTracerCanvas getXZCanvas() {
 		return xz_tracer_canvas;
 	}
 
-	protected InteractiveTracerCanvas getZYCanvas() {
+	InteractiveTracerCanvas getZYCanvas() {
 		return zy_tracer_canvas;
 	}
 
@@ -1010,7 +1010,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected boolean anyListeners() {
-		return listeners.size() > 0;
+		return !listeners.isEmpty();
 	}
 
 	/*

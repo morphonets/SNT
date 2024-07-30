@@ -947,7 +947,7 @@ public class GuiUtils {
 			if (!path.endsWith(extension))
 				chosenFile = new File(path + extension);
 		}
-		SNTPrefs.setLastknownDir(chosenFile); // null allowed
+		SNTPrefs.setLastKnownDir(chosenFile); // null allowed
 		if (focused)
 			((Window) parent).toFront();
 		return chosenFile;
@@ -1021,11 +1021,11 @@ public class GuiUtils {
 		if (fileChooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION) {
 			if (fileChooser.isMultiSelectionEnabled()) {
 				final File[] result = fileChooser.getSelectedFiles();
-				SNTPrefs.setLastknownDir(result[0]);
+				SNTPrefs.setLastKnownDir(result[0]);
 				return result;
 			} else {
 				final File result = fileChooser.getSelectedFile();
-				SNTPrefs.setLastknownDir(result);
+				SNTPrefs.setLastKnownDir(result);
 				return result;
 			}
 		}

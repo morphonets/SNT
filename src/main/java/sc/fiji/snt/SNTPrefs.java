@@ -22,12 +22,11 @@
 
 package sc.fiji.snt;
 
-import java.awt.Point;
+import java.awt.*;
 import java.io.File;
 import java.util.HashSet;
 
-import javax.swing.LookAndFeel;
-import javax.swing.UIManager;
+import javax.swing.*;
 
 import org.scijava.prefs.PrefService;
 import org.scijava.util.VersionUtils;
@@ -362,7 +361,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	public static String getDefaultLookAndFeel() {
 		// If Fiji is using FlatLaf (default of v430 is light) used that as default, otherwise use System L&F
-		final LookAndFeel currentLaf = UIManager.getLookAndFeel();
+		final LookAndFeel currentLaf = GraphicsEnvironment.isHeadless() ? null : UIManager.getLookAndFeel();
 		return (currentLaf instanceof FlatLaf && !((FlatLaf) currentLaf).isDark()) ? currentLaf.getName()
 				: GuiUtils.LAF_DEFAULT;
 	}
@@ -415,7 +414,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		return recentDir;
 	}
 
-	public static void setLastknownDir(final File file) {
+	public static void setLastKnownDir(final File file) {
 		if (file != null) {
 			recentDir = (file.isDirectory()) ? file : file.getParentFile();
 		}
