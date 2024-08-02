@@ -68,6 +68,8 @@ public class TreeColorMapper extends ColorMapper {
 
 	/* For convenience keep references to TreeAnalyzer fields */
 
+	/** Flag for {@value #INTER_NODE_ANGLE} statistics. */
+	public static final String INTER_NODE_ANGLE = MultiTreeStatistics.INTER_NODE_ANGLE;
 	/** Flag for {@value #INTER_NODE_DISTANCE} statistics. */
 	public static final String INTER_NODE_DISTANCE = MultiTreeStatistics.INTER_NODE_DISTANCE;
 	/** Flag for {@value #SHOLL_COUNTS} mapping. */
@@ -76,6 +78,12 @@ public class TreeColorMapper extends ColorMapper {
 	public static final String STRAHLER_NUMBER = MultiTreeStatistics.STRAHLER_NUMBER;
 	/** Flag for {@value #PATH_ORDER} mapping. */
 	public static final String PATH_ORDER = TreeStatistics.PATH_ORDER;
+	/** Flag for {@value #PATH_EXT_ANGLE_XY} mapping. */
+	public static final String PATH_EXT_ANGLE_XY = TreeStatistics.PATH_EXT_ANGLE_XY;
+	/** Flag for {@value #PATH_EXT_ANGLE_XZ} mapping. */
+	public static final String PATH_EXT_ANGLE_XZ = TreeStatistics.PATH_EXT_ANGLE_XZ;
+	/** Flag for {@value #PATH_EXT_ANGLE_ZY} mapping. */
+	public static final String PATH_EXT_ANGLE_ZY = TreeStatistics.PATH_EXT_ANGLE_ZY;
 	/** Flag for {@value #LENGTH} mapping. */
 	public static final String LENGTH = TreeStatistics.PATH_LENGTH;
 	/** Flag for {@value #N_BRANCH_POINTS} mapping. */
@@ -109,6 +117,9 @@ public class TreeColorMapper extends ColorMapper {
 	private static final String[] ALL_FLAGS = { //
 			STRAHLER_NUMBER,//
 			PATH_ORDER, //
+			PATH_EXT_ANGLE_XY, //
+			PATH_EXT_ANGLE_XZ, //
+			PATH_EXT_ANGLE_ZY, //
 			LENGTH, //
 			N_BRANCH_POINTS, //
 			N_NODES, //
@@ -118,6 +129,7 @@ public class TreeColorMapper extends ColorMapper {
 			NODE_RADIUS, //
 			PATH_DISTANCE, //
 			SHOLL_COUNTS, //
+			INTER_NODE_ANGLE, //
 			INTER_NODE_DISTANCE, //
 			X_COORDINATES, //
 			Y_COORDINATES, //
@@ -211,6 +223,9 @@ public class TreeColorMapper extends ColorMapper {
 				mapPathDistances(root);
 				break;
 			case PATH_ORDER:
+			case PATH_EXT_ANGLE_XY:
+			case PATH_EXT_ANGLE_XZ:
+			case PATH_EXT_ANGLE_ZY:
 			case LENGTH:
 			case MEAN_RADIUS:
 			case AVG_SPINE_DENSITY:
@@ -228,6 +243,7 @@ public class TreeColorMapper extends ColorMapper {
 			case NODE_RADIUS:
 			case VALUES:
 			case INTER_NODE_DISTANCE:
+			case INTER_NODE_ANGLE:
 				mapToNodeProperty(cMeasurement);
 				break;
 			default:
@@ -262,6 +278,21 @@ public class TreeColorMapper extends ColorMapper {
 				integerScale = true;
 				for (final Path p : paths)
 					mappedPaths.add(new MappedPath(p, (double) p.getOrder()));
+				break;
+			case PATH_EXT_ANGLE_XY:
+				integerScale = false;
+				for (final Path p : paths)
+					mappedPaths.add(new MappedPath(p, p.getExtensionAngleXY()));
+				break;
+			case PATH_EXT_ANGLE_XZ:
+				integerScale = false;
+				for (final Path p : paths)
+					mappedPaths.add(new MappedPath(p, p.getExtensionAngleXZ()));
+				break;
+			case PATH_EXT_ANGLE_ZY:
+				integerScale = false;
+				for (final Path p : paths)
+					mappedPaths.add(new MappedPath(p, p.getExtensionAngleZY()));
 				break;
 			case LENGTH:
 				integerScale = false;
@@ -360,6 +391,9 @@ public class TreeColorMapper extends ColorMapper {
 							value = Double.NaN;
 						else
 							value = p.getNode(node).distanceTo(p.getNode(node-1));
+						break;
+					case INTER_NODE_ANGLE:
+						value = p.getAngle(node);
 						break;
 					default:
 						throw new IllegalArgumentException("Unknow parameter");
@@ -549,7 +583,7 @@ public class TreeColorMapper extends ColorMapper {
 	protected String tryReallyHardToGuessMetric(final String guess) {
 		final String normGuess = guess.toLowerCase();
 		if (normGuess.contains("inter") && normGuess.contains("node")) {
-			return INTER_NODE_DISTANCE;
+			return (normGuess.contains("angle")) ? INTER_NODE_ANGLE : INTER_NODE_DISTANCE;
 		}
 		if (normGuess.contains("soma") || normGuess.contains("path d")) {
 			return PATH_DISTANCE;
@@ -565,6 +599,14 @@ public class TreeColorMapper extends ColorMapper {
 		}
 		if (normGuess.contains("path") && normGuess.contains("order")) {
 			return PATH_ORDER;
+		}
+		if (normGuess.contains("path") && normGuess.contains("angle")) {
+			if (normGuess.contains("xz"))
+				return PATH_EXT_ANGLE_XZ;
+			else if (normGuess.contains("zy"))
+				return PATH_EXT_ANGLE_ZY;
+			else
+				return PATH_EXT_ANGLE_XY;
 		}
 		if (normGuess.contains("bp") || normGuess.contains("branch points") || normGuess.contains("junctions")) {
 			return N_BRANCH_POINTS;

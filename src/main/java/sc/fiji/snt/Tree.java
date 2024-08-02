@@ -26,6 +26,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import net.imagej.Dataset;
@@ -39,12 +41,7 @@ import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
-import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.ImpUtils;
-import sc.fiji.snt.util.PointInCanvas;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.SWCPoint;
+import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -248,15 +245,6 @@ public class Tree implements TreeProperties {
 		if (addedAll) nullifyGraphsAndPafm();
 		return addedAll;
 	}
-
-	// /**
-	// * Returns a copy of this Tree.
-	// *
-	// * @return a copy of this Tree.
-	// */
-	// public Tree duplicate() {
-	// return new Tree(new HashSet<Path>(tree));
-	// }
 
 	/**
 	 * Replaces all Paths in this Tree.
@@ -474,7 +462,7 @@ public class Tree implements TreeProperties {
 			p.children.removeIf(child -> !matchesType(child, swcTypes));
 			if (p.startJoins == null)
 				p.setIsPrimary(true);
-			else if (p.startJoins != null && !matchesType(p.startJoins, swcTypes)) {
+			else if (!matchesType(p.startJoins, swcTypes)) {
 				p.startJoins = null;
 				p.startJoinsPoint = null;
 			}
@@ -713,50 +701,6 @@ public class Tree implements TreeProperties {
 		final PointInCanvas offset = new PointInCanvas(xOffset, yOffset, zOffset);
 		tree.forEach(p -> p.setCanvasOffset(offset));
 	}
-
-// FIXME: These reverse methods are not valid
-//
-//	/** Reverses the X-coordinates of this tree */
-//	public void reverseX() {
-//		tree.forEach(p -> {
-//			final int startIdx = (p.startJoinsPoint == null) ? -1 : p.getNodeIndex(p.startJoinsPoint);
-//			final int endIdx = (p.endJoinsPoint == null) ? -1 : p.getNodeIndex(p.endJoinsPoint);
-//			ArrayUtils.reverse(p.precise_x_positions);
-//			if (startIdx > -1)
-//				p.startJoinsPoint.x = p.precise_x_positions[p.size() - startIdx + 1];
-//			if (endIdx > -1)
-//				p.endJoinsPoint.x = p.precise_x_positions[p.size() - endIdx + 1];
-//		});
-//		nullifyGraphsAndPafm();
-//	}
-//
-//	/** Reverses the Y-coordinates of this tree */
-//	public void reverseY() {
-//		tree.forEach(p -> {
-//			final int startIdx = (p.startJoinsPoint == null) ? -1 : p.getNodeIndex(p.startJoinsPoint);
-//			final int endIdx = (p.endJoinsPoint == null) ? -1 : p.getNodeIndex(p.endJoinsPoint);
-//			ArrayUtils.reverse(p.precise_y_positions);
-//			if (startIdx > -1)
-//				p.startJoinsPoint.y = p.precise_y_positions[p.size() - startIdx + 1];
-//			if (endIdx > -1)
-//				p.endJoinsPoint.y = p.precise_y_positions[p.size() - endIdx + 1];
-//		});
-//		nullifyGraphsAndPafm();
-//	}
-//
-//	/** Reverses the Z-coordinates of this tree */
-//	public void reverseZ() {
-//		tree.forEach(p -> {
-//			final int startIdx = (p.startJoinsPoint == null) ? -1 : p.getNodeIndex(p.startJoinsPoint);
-//			final int endIdx = (p.endJoinsPoint == null) ? -1 : p.getNodeIndex(p.endJoinsPoint);
-//			ArrayUtils.reverse(p.precise_z_positions);
-//			if (startIdx > -1)
-//				p.startJoinsPoint.z = p.precise_z_positions[p.size() - startIdx + 1];
-//			if (endIdx > -1)
-//				p.endJoinsPoint.z = p.precise_z_positions[p.size() - endIdx + 1];
-//		});
-//		nullifyGraphsAndPafm();
-//	}
 
 	/**
 	 * Translates the tree by the specified offset.
@@ -1332,7 +1276,7 @@ public class Tree implements TreeProperties {
 	 * Retrieves a list of {@link Tree}s from reconstruction files stored in a
 	 * common directory.
 	 *
-	 * @param dir the directory containg the reconstruction files (.(e)swc, .traces,
+	 * @param dir the directory containing the reconstruction files (.(e)swc, .traces,
 	 *            .json extension)
 	 * @return the list of imported {@link Tree}s. An empty list is retrieved if
 	 *         {@code dir} is not a valid, readable directory.
@@ -1524,7 +1468,7 @@ public class Tree implements TreeProperties {
 			pafm = new PathAndFillManager();
 			// Since the paths of this tree may be associated with other pafm instances and
 			// paths are passed to a pafm by reference, we must ensure path is added to the
-			// pafm whitout changes to (path ID, tree ID, etc)
+			// pafm without changes to (path ID, tree ID, etc)
 			for (final Path p : list()) {
 				pafm.addPath(p, p.getID(), p.getTreeID());
 			}
@@ -1689,6 +1633,27 @@ public class Tree implements TreeProperties {
 		nullifyGraphsAndPafm();
 	}
 
+	private void projectXZ() {
+		for (final Path p : this.list()) {
+			for (int i = 0; i < p.size(); i++) {
+				final PointInImage xy = p.getNodeWithoutChecks(i);
+				final PointInImage xz = new PointInImage(xy.x, xy.z, xy.y);
+				p.moveNode(i, new PointInImage(xy.x, xy.z, xy.y));
+			}
+		}
+		nullifyGraphsAndPafm();
+	}
+
+	private void projectZY() {
+		for (final Path p : this.list()) {
+			for (int i = 0; i < p.size(); i++) {
+				final PointInImage xy = p.getNodeWithoutChecks(i);
+				p.moveNode(i, new PointInImage(xy.z, xy.y, xy.x));
+			}
+		}
+		nullifyGraphsAndPafm();
+	}
+
 	private PointInImage swap(final PointInImage pim, int swapAxis1, int swapAxis2, int unchangedAxis) {
 		// swap axis1 and axis2
 		final Map<Integer, Double> coordMap = new HashMap<>();
@@ -1721,6 +1686,119 @@ public class Tree implements TreeProperties {
 		if (!SNTUtils.fileAvailable(f))
 			throw new IllegalArgumentException("File is not available: " + filename);
 		return f;
+	}
+
+	/**
+	 * Transforms this tree in place using standardized flags.
+	 *
+	 * @param transformOptions Space-separated String indicating <code>projection</code>, <code>translation</code>, and
+	 *                         <code>rotation</code>. E.g., <code>"zero-origin upright"</code>.
+	 *                         <code>
+	 *                         projection flags:
+	 *                         - "zy": ZY projection
+	 *                         - "xz": XZ projection
+	 *                         translation flags:
+	 *                         - "zero-origin": each tree is translated so that its root has (0,0,0) coordinates
+	 *                         rotation flags:
+	 *                         - "upright": each tree is rotated to vertically align its graph geodesic
+	 *                         - "r#": With # specifying a positive integer (e.g., r90): each tree is rotated by the
+	 *                         specified angle (in degrees)
+	 *                         </code>
+	 * @see #transform(Collection, String, boolean)
+	 */
+	public void transform(final String transformOptions) {
+		transform(Collections.singleton(this), transformOptions, true).iterator().next();
+	}
+
+	/**
+	 * Retrieves a transformed duplicate of this tree.
+	 *
+	 * @param transformOptions see {@link #transform(String)}
+	 * @return the duplicated copy of this Tree transformed according to transformOptions
+	 */
+	public Tree transformedCopy(final String transformOptions) {
+		return transform(Collections.singleton(this), transformOptions, true).iterator().next();
+	}
+
+	/**
+	 * Transforms a collection of trees using standardized flags.
+	 *
+	 * @param trees            the collection of Trees to be transformed
+	 * @param transformOptions Space-separated String indicating <code>projection</code>, <code>translation</code>, and
+	 *                         <code>rotation</code>. E.g., <code>"zero-origin upright"</code>.
+	 *                         <code>
+	 *                         projection flags:
+	 *                         - "zy": ZY projection
+	 *                         - "xz": XZ projection
+	 *                         translation flags:
+	 *                         - "zero-origin": each tree is translated so that its root has (0,0,0) coordinates
+	 *                         rotation flags:
+	 *                         - "upright": each tree is rotated to vertically align its graph geodesic
+	 *                         - "upright:centroid": each tree is rotated to vertically align its root-centroid vector
+	 *                         - "r#": With # specifying a positive integer (e.g., r90): each tree is rotated by the
+	 *                         specified angle (in degrees)
+	 *                         </code>
+	 * @param inPlace          If false, input trees are not affected, and transformations occur on a duplicated collection.
+	 *                         Ignored if transformationOptions are not valid
+	 * @return the collection with transformed trees, or the input collection if transformOptions were invalid
+	 */
+	public static Collection<Tree> transform(final Collection<Tree> trees, final String transformOptions, final boolean inPlace) {
+		final String options = transformOptions.toLowerCase();
+		final boolean isZY = options.contains("zy") || options.contains("yz");
+		final boolean isXZ = options.contains("xz") || options.contains("zx");
+		final boolean zeroRoot = options.contains("zero") || options.contains("origin");
+		final boolean straighten = options.contains("upright");
+		final boolean centroid = options.contains("centroid");
+		int rotAngle = 0;
+		final Matcher m = Pattern.compile("r(\\d+)").matcher(options);
+		while (m.find()) rotAngle += Integer.parseInt(m.group(1));
+		final Collection<Tree> renderingTrees;
+		int rotationAxis;
+		if (isXZ)
+			rotationAxis = Tree.Y_AXIS;
+		else if (isZY)
+			rotationAxis = Tree.X_AXIS;
+		else
+			rotationAxis = Tree.Z_AXIS;
+		if (zeroRoot || isZY || isXZ || straighten || rotAngle != 0) {
+			renderingTrees = (inPlace) ? trees : trees.stream().map(Tree::clone).collect(Collectors.toList());
+			final int finalRotAngle = rotAngle;
+			renderingTrees.forEach(tree -> {
+				double angle = 0;
+				if (finalRotAngle != 0 || straighten) {
+					final Path refPath;
+					if (centroid) {
+						refPath = tree.get(0).createPath();
+						refPath.addNode(tree.getRoot());
+						refPath.addNode(SNTPoint.average(tree.getNodes()));
+					} else {
+						refPath = tree.getGraph().getLongestPath(true);
+					}
+					if (straighten && isXZ) {
+						angle = refPath.getExtensionAngleXZ();
+					} else if (straighten && isZY) {
+						// NB: must be negative for ImagePlus and Viewer2D!???
+						angle = -refPath.getExtensionAngleZY();
+					} else if (straighten) {
+						angle = refPath.getExtensionAngleXY();
+					}
+					// since angle is relative to horizontal, we need to add 90 degrees
+					if (angle != 0) angle += 90;
+					tree.rotate(rotationAxis, -angle + finalRotAngle); // does nothing if angle is 0
+				}
+				if (isZY)
+					tree.projectZY();
+				else if (isXZ)
+					tree.projectXZ();
+				if (zeroRoot) {
+					final PointInImage root = tree.getRoot();
+					tree.translate(-root.getX(), -root.getY(), -root.getZ());
+				}
+			});
+		} else {
+			renderingTrees = trees;
+		}
+		return renderingTrees;
 	}
 
 	/* IDE debug method */

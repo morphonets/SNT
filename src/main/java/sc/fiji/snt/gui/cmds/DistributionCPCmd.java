@@ -78,7 +78,7 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 		}
 		final MutableModuleItem<String> measurementChoiceInput = getInfo()
 			.getMutableInput("measurementChoice", String.class);
-		final List<String> choices = TreeStatistics.getMetrics("common"); // sMultiTreeStatistics.getMetrics() + common Sholl metrics
+		final List<String> choices = TreeStatistics.getAllMetrics();
 		if (!calledFromPathManagerUI) choices.remove(MultiTreeStatistics.VALUES);
 		Collections.sort(choices);
 		measurementChoiceInput.setChoices(choices);

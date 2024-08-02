@@ -67,6 +67,7 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 	@Parameter(label = "X-Axis Metric", choices = { "Path ID", //
 			TreeStatistics.PATH_CHANNEL, TreeStatistics.PATH_FRAME, //
 			TreeStatistics.N_BRANCH_POINTS, TreeStatistics.PATH_CONTRACTION, //
+			TreeStatistics.PATH_EXT_ANGLE_XY, TreeStatistics.PATH_EXT_ANGLE_XZ, TreeStatistics.PATH_EXT_ANGLE_ZY,//
 			TreeStatistics.PATH_LENGTH, TreeStatistics.PATH_MEAN_RADIUS, //
 			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_SURFACE_AREA, //
 			TreeStatistics.N_PATH_NODES, TreeStatistics.PATH_VOLUME })
@@ -106,6 +107,7 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 					TreeStatistics.PATH_N_SPINES, TreeStatistics.PATH_SPINE_DENSITY, //
 					TreeStatistics.PATH_CHANNEL, TreeStatistics.PATH_FRAME, //
 					TreeStatistics.N_BRANCH_POINTS, TreeStatistics.PATH_CONTRACTION, //
+					TreeStatistics.PATH_EXT_ANGLE_XY, //
 					TreeStatistics.PATH_LENGTH, TreeStatistics.PATH_MEAN_RADIUS, //
 					TreeStatistics.PATH_ORDER, TreeStatistics.PATH_SURFACE_AREA, //
 					TreeStatistics.N_PATH_NODES, TreeStatistics.PATH_VOLUME);

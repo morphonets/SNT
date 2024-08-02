@@ -150,8 +150,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 
 	private JMenu getMorphoFilterMenu() {
 		final JMenu morphoFilteringMenu = new JMenu("Select by Morphological Trait");
-		morphoFilteringMenu.setIcon(IconFactory.getMenuIcon(
-			IconFactory.GLYPH.RULER));
+		morphoFilteringMenu.setIcon(IconFactory.getMenuIcon( IconFactory.GLYPH.RULER));
 		JMenuItem mi1 = new JMenuItem("Cell ID...");
 		mi1.addActionListener(e -> {
 			final Collection<Path> paths = getPaths();
@@ -184,27 +183,31 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			guiUtils.tempMsg(paths.size() + " Path(s) selected");
 		});
 		morphoFilteringMenu.add(mi1);
+
 		mi1 = new JMenuItem(TreeStatistics.PATH_CONTRACTION + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_CONTRACTION, ""));
 		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.PATH_LENGTH);
+		mi1 = new JMenuItem(TreeStatistics.PATH_EXT_ANGLE_XY + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_EXT_ANGLE_XY, "0-360°"));
+		morphoFilteringMenu.add(mi1);
+		mi1 = new JMenuItem(TreeStatistics.PATH_LENGTH + "...");
 		mi1.addActionListener(e -> {
 			final String unit = pmui.getPathAndFillManager().getBoundingBox(false)
 				.getUnit();
 			doMorphoFiltering(TreeStatistics.PATH_LENGTH, unit);
 		});
 		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.N_NODES + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_NODES, ""));
-		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.N_SPINES + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_SPINES, ""));
-		morphoFilteringMenu.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.PATH_MEAN_RADIUS + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_MEAN_RADIUS, ""));
 		morphoFilteringMenu.add(mi1);
 		mi1 = new JMenuItem(TreeStatistics.PATH_ORDER + "...");
 		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER, ""));
+		morphoFilteringMenu.add(mi1);
+		mi1 = new JMenuItem(TreeStatistics.N_NODES + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_NODES, ""));
+		morphoFilteringMenu.add(mi1);
+		mi1 = new JMenuItem(TreeStatistics.N_SPINES + "...");
+		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_SPINES, ""));
 		morphoFilteringMenu.add(mi1);
 		mi1 = new JMenuItem("SWC type...");
 		mi1.addActionListener(e -> {
@@ -401,6 +404,15 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			final Path p = iterator.next();
 			double value;
 			switch (property) {
+				case TreeStatistics.PATH_EXT_ANGLE_XY:
+					value = p.getExtensionAngleXY();
+					break;
+				case TreeStatistics.PATH_EXT_ANGLE_XZ:
+					value = p.getExtensionAngleXZ();
+					break;
+				case TreeStatistics.PATH_EXT_ANGLE_ZY:
+					value = p.getExtensionAngleZY();
+					break;
 				case TreeStatistics.PATH_LENGTH:
 				case "Length":
 					value = p.getLength();

@@ -104,6 +104,12 @@ public class PathAnalyzer extends TreeStatistics {
 			switch(metric) {
 			case TreeStatistics.PATH_ORDER:
 				return tree.get(0).getOrder();
+			case TreeStatistics.PATH_EXT_ANGLE_XY:
+				return tree.get(0).getExtensionAngleXY();
+			case TreeStatistics.PATH_EXT_ANGLE_XZ:
+				return tree.get(0).getExtensionAngleXZ();
+			case TreeStatistics.PATH_EXT_ANGLE_ZY:
+				return tree.get(0).getExtensionAngleZY();
 			case TreeStatistics.PATH_LENGTH:
 				return tree.get(0).getLength();
 			case TreeStatistics.PATH_CHANNEL:

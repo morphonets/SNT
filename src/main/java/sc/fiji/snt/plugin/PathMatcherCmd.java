@@ -207,10 +207,10 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 		super.cancel();
 	}
 
-	private boolean validMatchingChoice() {
-		return pathOrderMatching || startNodeLocationMatching || typeTagMatching || colorTagMatching
-				|| (customTagMatching && !customTagPattern.trim().isEmpty());
-	}
+    private boolean validMatchingChoice() {
+        return  startNodeLocationMatching || directionMatching || channelMatching || pathOrderMatching
+                || typeTagMatching || colorTagMatching  || (customTagMatching && !customTagPattern.trim().isEmpty());
+    }
 
 	private List<Path> getEligiblePaths() {
 		return paths.stream().filter(p -> p.size() > 1 && Path.SWC_SOMA != p.getSWCType()).collect(Collectors.toList());
@@ -349,38 +349,6 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			return box;
 		}
 
-		/*
-		 * With A being Paths' middle node, B Path's starting node, and C Path's end node, compute
-		 * angle between the vectors BA, and BC.
-		 * 
-		 */
-		double calculatedDegAngle() {
-			final PointInImage a = path.getNode(path.size() / 2);
-			final PointInImage b = startingNode();
-			final PointInImage c = path.getNode(path.size() - 1);
-			// define vectors
-			final double[] v1 = new double[] { a.getX() - b.getX(), a.getY() - a.getY(), a.getZ() - b.getZ() }; // BA
-			final double[] v2 = new double[] { c.getX() - b.getX(), c.getY() - b.getY(), c.getZ() - b.getZ() }; // BC
-			// normalize vectors
-			final double v1Magnitude = Math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2]);
-			if (v1Magnitude > 0) {
-				for (int i = 0; i < v1.length; i++)
-					v1[i] /= v1Magnitude;
-			}
-			final double v2Magnitude = Math.sqrt(v2[0] * v2[0] + v2[1] * v2[1] + v2[2] * v2[2]);
-			if (v2Magnitude > 0) {
-				for (int i = 0; i < v2.length; i++)
-					v2[i] /= v2Magnitude;
-			}
-			// Dot product
-			double dot = 0.0;
-			for (int i = 0; i < v1.length; i++)
-				dot += v1[i] * v2[i];
-			double angle = Math.toDegrees(Math.acos(dot));
-			angle = (angle + Math.ceil(-angle / 360) * 360); // Keep angle between 0 and 360
-			return angle;
-		}
-
 		PointInImage startingNode() {
 			return path.getNode(getIndexOfStartingNode());
 		}
@@ -400,9 +368,18 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 				return false; // paths cannot belong to the same neurite if they co-exist on the same frame
 			if (startNodeLocationMatching && !bBox().contains(other.startingNode()))
 				return false; // paths cannot belong to the same neurite without sharing common origin
-			if (directionMatching && Math
-					.abs(calculatedDegAngle() - other.calculatedDegAngle()) > directionMatchingRange)
-				return false; // paths cannot belong to the same neurite without sharing common direction
+			if (directionMatching) {
+				// paths cannot belong to the same neurite without sharing common direction
+				if (snt.is2D()) {
+					if (Math.abs(path.getExtensionAngleXY() - other.path.getExtensionAngleXY()) > directionMatchingRange)
+						return false;
+				} else {
+					if (Math.abs(path.getExtensionAngleXY() - other.path.getExtensionAngleXY()) > directionMatchingRange
+					|| Math.abs(path.getExtensionAngleZY() - other.path.getExtensionAngleZY()) > directionMatchingRange
+					|| Math.abs(path.getExtensionAngleXZ() - other.path.getExtensionAngleXZ()) > directionMatchingRange)
+						return false;
+				}
+			}
 			if (channelMatching && path.getChannel() != other.path.getChannel())
 				return false; // paths cannot belong to the same neurite without sharing same channel
 			if (pathOrderMatching && path.getOrder() != other.path.getOrder())
@@ -418,7 +395,9 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			if (SNTUtils.isDebugMode()) {
 				SNTUtils.log(String.format("%s (frame %d) matched to %s (frame %d)", path.getName(), path.getFrame(), other.path.getName(), other.path.getFrame()));
 				SNTUtils.log(String.format("  origin distance: %.2f", startingNode().distanceTo(other.startingNode())));
-				SNTUtils.log(String.format("  orienta. angles: %.2f; %.2f", calculatedDegAngle(), other.calculatedDegAngle()));
+				SNTUtils.log(String.format("  orienta. angles (XY): %.2f; %.2f", path.getExtensionAngleXY(), other.path.getExtensionAngleXY()));
+				SNTUtils.log(String.format("  orienta. angles (XZ): %.2f; %.2f", path.getExtensionAngleXZ(), other.path.getExtensionAngleXZ()));
+				SNTUtils.log(String.format("  orienta. angles (ZY): %.2f; %.2f", path.getExtensionAngleZY(), other.path.getExtensionAngleZY()));
 			}
 			matchedGroup.add(other.path);
 			return true;

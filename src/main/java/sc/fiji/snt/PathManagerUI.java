@@ -108,6 +108,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private static final String SYM_LENGTH = "L:";//"\uD800\uDCB3"; // not displayed in macOS
 	private static final String SYM_TREE = "ID:"; //"\uD800\uDCB7"; // not displayed in macOS
 	private static final String SYM_ORDER ="ORD:"; //"\uD800\uDC92"; // not displayed in macOS
+	private static final String SYM_ANGLE ="DEG:";
 
 	private final HelpfulJTree tree;
 	private final SNT plugin;
@@ -254,6 +255,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final JMenu morphoTagsMenu = new JMenu("Morphometry");
 		morphoTagsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RULER));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.TREE_TAG_CMD));
+		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.EXT_ANGLE_TAG_CMD));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.LENGTH_TAG_CMD));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.MEAN_RADIUS_TAG_CMD));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.COUNT_TAG_CMD));
@@ -636,7 +638,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	private void deletePaths(final Collection<Path> pathsToBeDeleted) {
-		final boolean resetIDs = pathsToBeDeleted.size() == pathAndFillManager.size();
+		final boolean all = pathsToBeDeleted.size() == pathAndFillManager.size();
 		boolean rebuild = false;
 		for (final Path p : pathsToBeDeleted) {
 			if (plugin !=null && p.isBeingEdited()) plugin.enableEditMode(false);
@@ -646,8 +648,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			p.disconnectFromAll();
 			pathAndFillManager.deletePath(p);
 		}
-		if (resetIDs) {
+		if (all) {
 			pathAndFillManager.resetIDs();
+			setSelectAllTagsMenu(false);
 		} else if (rebuild) {
 			pathAndFillManager.rebuildRelationships();
 		}
@@ -1889,6 +1892,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				});
 			}
 			break;
+		case MultiPathActionListener.EXT_ANGLE_TAG_CMD:
+				paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ANGLE +"\\d+.\\d+\\]|\\[" + SYM_ANGLE + "NaN\\]", "")));
+				if (reapply) {
+					paths.forEach(p-> {
+						p.setName(String.format(Locale.US, "%s [%s%.1f]", p.getName(), SYM_ANGLE, p.getExtensionAngleXY()));
+					});
+				}
+			break;
 		case MultiPathActionListener.ORDER_TAG_CMD:
 			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ORDER +"\\d+\\]", "")));
 			if (reapply) {
@@ -2521,6 +2532,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
 				setToolTip(SYM_ORDER);
 				break;
+			case MultiPathActionListener.EXT_ANGLE_TAG_CMD:
+				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ANGLE_RIGHT));
+				setToolTip(SYM_ANGLE);
+				break;
 			default:
 				// do nothing
 				break;
@@ -2564,6 +2579,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String LENGTH_TAG_CMD = "Length";
 		private static final String MEAN_RADIUS_TAG_CMD = "Mean Radius";
 		private static final String ORDER_TAG_CMD = "Path Order";
+		private static final String EXT_ANGLE_TAG_CMD = "Extension Angle (XY Plane)";
 		private static final String TREE_TAG_CMD = "Cell ID";
 		private static final String CHANNEL_TAG_CMD = "Traced Channel";
 		private static final String FRAME_TAG_CMD = "Traced Frame";
@@ -2938,7 +2954,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				if (guiUtils.getConfirmation((assumeAll) ? "Are you really sure you want to delete everything?"
 						: "Delete the selected " + n + " path(s)?", "Confirm Deletion?")) {
 					deletePaths(selectedPaths);
-					if (assumeAll) setSelectAllTagsMenu(false);
 				}
 				return;
 			}
@@ -2990,6 +3005,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					getPathAndFillManager().deletePath(p);
 				}
 				removeOrReapplyDefaultTag(selectedPaths, ORDER_TAG_CMD, false, false);
+				removeOrReapplyDefaultTag(selectedPaths, EXT_ANGLE_TAG_CMD, false, false);
+				removeOrReapplyDefaultTag(selectedPaths, LENGTH_TAG_CMD, false, false);
 				refreshManager(true, true, selectedPaths);
 				return;
 

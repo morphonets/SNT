@@ -132,14 +132,12 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 
 	@SuppressWarnings("unused")
 	private void measurementChoice1Changed() {
-		if (TreeStatistics.REMOTE_BIF_ANGLES.equals(measurementChoice1))
-			polar1 = true;
+		polar1 = measurementChoice1 != null && measurementChoice1.toLowerCase().contains(" angle");
 	}
 
 	@SuppressWarnings("unused")
 	private void measurementChoice2Changed() {
-		if (TreeStatistics.REMOTE_BIF_ANGLES.equals(measurementChoice2))
-			polar2 = true;
+		polar2 = measurementChoice2 != null && measurementChoice2.toLowerCase().contains(" angle");
 	}
 
 	@Override

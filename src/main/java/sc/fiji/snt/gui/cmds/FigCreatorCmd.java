@@ -32,14 +32,12 @@ import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.util.ImpUtils;
-import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.viewer.MultiViewer2D;
 import sc.fiji.snt.viewer.MultiViewer3D;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import java.util.Collection;
-import java.util.stream.Collectors;
 
 @Plugin(type = Command.class, initializer = "init", label = "Create Figure...")
 public class FigCreatorCmd extends CommonDynamicCmd {
@@ -57,8 +55,15 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 	private String view;
 
 	@Parameter(label = "Positioning:", choices = { "Absolute (original coordinates)",
-			"Relative (soma(s) at common origin)" }, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
-	private String normalize;
+			"Relative (translate soma(s) to common origin)" }, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
+	private String rootTranslation;
+
+	@Parameter(label = "Rotation:", choices = { "None", "Rotate to upright orientation (longest geodesic)",
+			"Rotate to upright orientation (point-cloud)"},
+			description = "<HTML>Tries to rotate the arbor to a 'vertical' position.<br>" +
+					"Assumes the longest shortest path in the arbor reflects its overall orientation.",
+			style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
+	private String uprightRotation;
 
 	@Parameter(persist = false, visibility = ItemVisibility.MESSAGE)
 	private String msg;
@@ -93,10 +98,16 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			error("No valid reconstructions exist.");
 			return;
 		}
-		String transformationFlags = normalize;
+		String transformationFlags = "";
+		if (rootTranslation.toLowerCase().contains("relative"))
+			transformationFlags += "zero-origin";
+		if (uprightRotation.toLowerCase().contains("upright"))
+			transformationFlags += " upright";
+		if (uprightRotation.toLowerCase().contains("centroid"))
+			transformationFlags += " centroid";
 		if (!type.toLowerCase().contains("3d"))
 			transformationFlags += " " + view;
-		final Collection<Tree> renderingTrees = getTreesForRendering(trees, transformationFlags);
+		final Collection<Tree> renderingTrees = Tree.transform(trees, transformationFlags, false);
 		final Object result;
 		final boolean montage = style.toLowerCase().contains("montage") && trees.size() > 1;
 		if (montage)
@@ -120,30 +131,6 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 		if (lcFlag.contains("yz") || lcFlag.contains("zy"))
 			return Viewer3D.ViewMode.YZ;
 		return Viewer3D.ViewMode.DEFAULT;
-	}
-
-	private static Collection<Tree> getTreesForRendering(final Collection<Tree> trees, final String renderOptions) {
-		final String options = renderOptions.toLowerCase();
-		final boolean isZY = options.contains("zy") || options.contains("yz");
-		final boolean isXZ = options.contains("xz") || options.contains("zx");
-		final boolean center = options.contains("norm") || options.contains("relative") || options.contains("center");
-		final Collection<Tree> renderingTrees;
-		if (center || isZY || isXZ) {
-			renderingTrees = trees.stream().map(Tree::clone).collect(Collectors.toList());
-			renderingTrees.forEach(tree -> {
-				if (center) {
-					final PointInImage root = tree.getRoot();
-					tree.translate(-root.getX(), -root.getY(), -root.getZ());
-				}
-				if (isZY)
-					tree.swapAxes(Tree.X_AXIS, Tree.Z_AXIS);
-				else if (isXZ)
-					tree.swapAxes(Tree.Y_AXIS, Tree.Z_AXIS);
-			});
-		} else {
-			renderingTrees = trees;
-		}
-		return renderingTrees;
 	}
 
 	private static Object montage(final Collection<Tree> renderingTrees, final String renderOptions) {
@@ -201,14 +188,17 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 	 *                      <tt>3d</tt>: trees are rendered in interactive Viewer3D canvas(es)<br>
 	 *                      <tt>xz</tt>: whether trees should be displayed in a XZ view (default is XY)<br>
 	 *                      <tt>zy</tt>: whether trees should be displayed in a ZY view (default is XY)<br>
-	 *                      <tt>center</tt>: whether trees should be  translated so that their roots/somas are displayed
+	 *                      <tt>zero-origin</tt>: whether trees should be  translated so that their roots/somas are displayed
 	 *                      at a common origin (0,0,0)<br>
-	 *                     </p>
+	 *                      <tt>upright</tt>: whether each tree should be rotated to vertically align its graph geodesic
+	 *                      <tt>upright:centroid</tt>: whether each tree should be rotated to vertically align its root-centroid vector
+	 *                      </p>
 	 * @return a reference to the displayed viewer
+	 * @see Tree#transform(Collection, String, boolean)
 	 */
 	public static Object render(final Collection<Tree> trees, final String renderOptions) {
 		final String flags = renderOptions.toLowerCase();
-		final Collection<Tree> renderingTrees = getTreesForRendering(trees, flags);
+		final Collection<Tree> renderingTrees = Tree.transform(trees, flags, false);
 		if (flags.contains("montage"))
 			return montage(renderingTrees, flags);
 		else

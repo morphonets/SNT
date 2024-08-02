@@ -65,6 +65,15 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 	@Parameter(label = "Fractal dimension")
 	private boolean fractalDimension;
 
+	@Parameter(label = "Extension angle (XY plane)")
+	private boolean extensionAngleXY;
+
+	@Parameter(label = "Extension angle (XZ plane)")
+	private boolean extensionAngleXZ;
+
+	@Parameter(label = "Extension angle (ZY plane)")
+	private boolean extensionAngleZY;
+
 	@Parameter(label = "Length")
 	private boolean pathLength;
 
@@ -139,6 +148,9 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 		nBranchPoints = enable;
 		pathContraction = enable;
 		pathFragmentation = enable;
+		extensionAngleXY = enable;
+		extensionAngleXZ = enable;
+		extensionAngleZY = enable;
 		pathLength = enable;
 		pathMeanRadius = enable;
 		pathNSpines = enable;
@@ -157,6 +169,9 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 		nBranchPoints = !nBranchPoints;
 		pathContraction = !pathContraction;
 		pathFragmentation = !pathFragmentation;
+		extensionAngleXY = !extensionAngleXY;
+		extensionAngleXZ = !extensionAngleXZ;
+		extensionAngleZY = !extensionAngleZY;
 		pathLength = !pathLength;
 		pathMeanRadius = !pathMeanRadius;
 		pathNSpines = !pathNSpines;
@@ -185,6 +200,9 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 		if (nBranchPoints) metrics.add(PathAnalyzer.N_BRANCH_POINTS);
 		if (pathContraction) metrics.add(PathAnalyzer.PATH_CONTRACTION);
 		if (pathFragmentation) metrics.add(PathAnalyzer.N_PATH_NODES);
+		if (extensionAngleXY) metrics.add(PathAnalyzer.PATH_EXT_ANGLE_XY);
+		if (extensionAngleXZ) metrics.add(PathAnalyzer.PATH_EXT_ANGLE_XZ);
+		if (extensionAngleZY) metrics.add(PathAnalyzer.PATH_EXT_ANGLE_ZY);
 		if (pathLength) metrics.add(PathAnalyzer.PATH_LENGTH);
 		if (pathMeanRadius) metrics.add(PathAnalyzer.PATH_MEAN_RADIUS);
 		if (pathOrder) metrics.add(PathAnalyzer.PATH_ORDER);

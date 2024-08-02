@@ -49,6 +49,7 @@ public class IconFactory {
 	}
 
 	public enum GLYPH {
+			ANGLE_RIGHT('\uf105', true),
 			ARCHIVE('\uf1c6', false), //
 			ADJUST('\uf042', true), //
 			ALIGN_LEFT('\uf036', true), //

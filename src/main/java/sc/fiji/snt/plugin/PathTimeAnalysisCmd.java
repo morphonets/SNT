@@ -76,6 +76,9 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 	@Parameter(label = "Metric", choices = { //
 			MultiTreeStatistics.LENGTH, //
 			TreeStatistics.PATH_LENGTH + " (mean ± SD)", //
+			TreeStatistics.PATH_EXT_ANGLE_XY + " (mean ± SD)", //
+			TreeStatistics.PATH_EXT_ANGLE_XZ + " (mean ± SD)", //
+			TreeStatistics.PATH_EXT_ANGLE_ZY + " (mean ± SD)", //
 			MultiTreeStatistics.N_BRANCH_POINTS, //
 			MultiTreeStatistics.HIGHEST_PATH_ORDER, //
 			MultiTreeStatistics.PATH_MEAN_RADIUS + " (mean ± SD)", //

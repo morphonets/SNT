@@ -219,9 +219,8 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 		} else {
 
 			stats.setMinNBins(3);
-			final SNTChart histFrame = (TreeStatistics.REMOTE_BIF_ANGLES.equals(metric))
-					? stats.getPolarHistogram(metric)
-					: stats.getHistogram(metric);
+			final boolean polar = metric != null && metric.toLowerCase().contains(" angle");
+			final SNTChart histFrame = (polar) ? stats.getPolarHistogram(metric) : stats.getHistogram(metric);
 			final SNTChart boxFrame = stats.getBoxPlot(metric);
 			long[] largestN = {Integer.MIN_VALUE};
 			final StringBuilder reportBuilder = new StringBuilder(metric).append(" Statistics\r\n\r\n");

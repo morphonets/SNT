@@ -133,11 +133,11 @@ class AnalysisUtils {
 			return String.format("%s (%s)", standardMetric, unit);
 		case TreeStatistics.INTER_NODE_DISTANCE_SQUARED:
 		case TreeStatistics.SURFACE_AREA:
-			return String.format("%s (%s\u00B2)", standardMetric, unit);
+			return String.format("%s (%s²)", standardMetric, unit);
 		case TreeStatistics.BRANCH_VOLUME:
 		case TreeStatistics.PATH_VOLUME:
 		case TreeStatistics.VOLUME:
-			return String.format("%s (%s\u00B3)", standardMetric, unit);
+			return String.format("%s (%s³)", standardMetric, unit);
 		default:
 			return standardMetric;
 		}

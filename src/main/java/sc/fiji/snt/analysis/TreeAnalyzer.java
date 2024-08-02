@@ -314,6 +314,15 @@ public class TreeAnalyzer extends ContextCommand {
 		metrics.add(MultiTreeStatistics.HIGHEST_PATH_ORDER);
 		metrics.add(TreeStatistics.AVG_SPINE_DENSITY);
 		metrics.add(TreeStatistics.DEPTH);
+		metrics.add(TreeStatistics.INNER_EXTENSION_ANGLE_XY);
+		metrics.add(TreeStatistics.INNER_EXTENSION_ANGLE_XZ);
+		metrics.add(TreeStatistics.INNER_EXTENSION_ANGLE_ZY);
+		metrics.add(TreeStatistics.PRIMARY_EXTENSION_ANGLE_XY);
+		metrics.add(TreeStatistics.PRIMARY_EXTENSION_ANGLE_XZ);
+		metrics.add(TreeStatistics.PRIMARY_EXTENSION_ANGLE_ZY);
+		metrics.add(TreeStatistics.TERMINAL_EXTENSION_ANGLE_XY);
+		metrics.add(TreeStatistics.TERMINAL_EXTENSION_ANGLE_XZ);
+		metrics.add(TreeStatistics.TERMINAL_EXTENSION_ANGLE_ZY);
 		metrics.add(TreeStatistics.HEIGHT);
 		metrics.add(TreeStatistics.INNER_LENGTH);
 		metrics.add(TreeStatistics.LENGTH);

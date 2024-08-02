@@ -210,7 +210,7 @@ public class MeasureUI extends JFrame {
 			// Enlarge default width of first column. Another option would be to have all
 			// columns to auto-fit at all times, e.g., https://stackoverflow.com/a/25570812.
 			// Maybe that would be better?
-			final String prototypeMetric = TreeStatistics.N_BRANCH_NODES;
+			final String prototypeMetric = TreeStatistics.TERMINAL_EXTENSION_ANGLE_XY;
 			for (int i = 0; i < statsTable.getColumnCount(); ++i) {
 				final int width = SwingUtilities.computeStringWidth(statsTable.getFontMetrics(statsTable.getFont()),
 						(i == 0) ? prototypeMetric : MEAN);

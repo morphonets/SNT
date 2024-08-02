@@ -32,10 +32,14 @@ import org.apache.commons.math3.analysis.interpolation.LinearInterpolator;
 import org.apache.commons.math3.analysis.polynomials.PolynomialFunction;
 import org.apache.commons.math3.analysis.polynomials.PolynomialSplineFunction;
 import org.apache.commons.math3.stat.StatUtils;
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.apache.commons.math3.stat.regression.SimpleRegression;
+import org.apache.commons.math3.util.MathUtils;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.ColorRGBA;
 import org.scijava.vecmath.Color3f;
 import org.scijava.vecmath.Point3f;
+import org.scijava.vecmath.Vector3d;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.gui.GuiUtils;
@@ -409,6 +413,103 @@ public class Path implements Comparable<Path> {
 			totalLength += Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff * zdiff);
 		}
 		return totalLength;
+	}
+
+
+	/*
+	 * Computes the angle between the specified node and its two flanking neighbors.
+	 * <p>
+	 * If A being the specified node, B its previous neighbor, and C is subsequent neighbor, computes the angle
+	 * between the vectors BA, and BC.
+	 * </p>
+	 * @return the angle in degrees (0-360 range) or Double.NaN if specified node does not have sufficient neighbors
+	 */
+	public double getAngle(final int nodeIndex) {
+		if (nodeIndex < 3)
+			return Double.NaN;
+		final PointInImage a = getNode(nodeIndex - 1);
+		final PointInImage b = getNode(nodeIndex - 2);
+		final PointInImage c = getNode(nodeIndex);
+		final Vector3d v1 = new Vector3d(
+				new double[]{a.getX() - b.getX(), a.getY() - b.getY(), a.getZ() - b.getZ()}); // BA
+		final Vector3d v2 = new Vector3d(
+				new double[]{c.getX() - b.getX(), c.getY() - b.getY(), c.getZ() - b.getZ()}); // BC
+		v1.normalize();
+		v2.normalize();
+		double angle = Math.acos(v1.dot(v2));
+		angle = MathUtils.normalizeAngle(angle, Math.PI); // normalize angle between 0 and 2PI
+		return Math.toDegrees(angle);
+	}
+
+	/**
+	 * Returns the overall extension angle of this path in the XY plane.
+	 * The angle is obtained from the slope of a linear regression across all the path nodes.
+	 *
+	 * @return the overall 'extension' angle in degrees [0-360[ of this path in the XY plane.
+	 */
+	public double getExtensionAngleXY() {
+		return getExtensionAngle(MultiDThreePanes.XY_PLANE);
+	}
+
+	/**
+	 * Returns the overall extension angle of this path in the XZ plane.
+	 * The angle is obtained from the slope of a linear regression across all the path nodes.
+	 *
+	 * @return the overall 'extension' angle in degrees [0-360[ in the XZ plane or zero if path is 2D.
+	 */
+	public double getExtensionAngleXZ() {
+		return getExtensionAngle(MultiDThreePanes.XZ_PLANE);
+	}
+
+	/**
+	 * Returns the overall extension angle of this path in the ZY plane.
+	 * The angle is obtained from the slope of a linear regression across all the path nodes.
+	 *
+	 * @return the overall 'extension' angle in degrees [0-360[ in the ZY plane or zero if path is 2D.
+	 */
+	public double getExtensionAngleZY() {
+		return getExtensionAngle(MultiDThreePanes.ZY_PLANE);
+	}
+
+	private double getExtensionAngle(final int view) {
+		if (size() == 1)
+			return Double.NaN;
+		final SimpleRegression sr = new SimpleRegression();
+		double x1, x2;
+		switch (view) {
+			case MultiDThreePanes.XY_PLANE:
+				getNodes().forEach(node -> sr.addData(node.x, node.y));
+				x1 = getNodeWithoutChecks(0).x;
+				x2 = getNodeWithoutChecks(size() - 1).x;
+				break;
+			case MultiDThreePanes.XZ_PLANE:
+				getNodes().forEach(node -> sr.addData(node.x, node.z));
+				x1 = getNodeWithoutChecks(0).x;
+				x2 = getNodeWithoutChecks(size() - 1).x;
+				break;
+			case MultiDThreePanes.ZY_PLANE:
+				getNodes().forEach(node -> sr.addData(node.z, node.y));
+				x1 = getNodeWithoutChecks(0).z;
+				x2 = getNodeWithoutChecks(size() - 1).z;
+				break;
+			default:
+				throw new IllegalArgumentException("Not a valid plane");
+		}
+		final double deltaX = x2 - x1;
+		final double deltaY = sr.predict(x2) - sr.predict(x1);
+		double angle;
+		if (deltaX == 0) { // vertical
+			angle = (deltaY > 0) ? Math.PI / 2 : 3 * Math.PI / 2;
+		} else if (deltaY == 0) { // horizontal
+			angle = (deltaX > 0) ? 0 : Math.PI;
+		} else {
+			angle = Math.atan2(deltaY, deltaX);
+		}
+		// We'll rotate everything so that West: 0; EAST: PI; North: PI/2; South: 3/2PI;
+		// Is this WEST-CLOCKWISE convention too awkward?
+		angle -= Math.PI;
+		angle = MathUtils.normalizeAngle(angle, Math.PI); // normalize angle and 0-2PI
+		return Math.toDegrees(angle); // return angle in 0-360 degrees. % 360 not needed since angle is normalized
 	}
 
 	protected String getRealLengthString() {
