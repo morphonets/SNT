@@ -75,7 +75,6 @@ import sc.fiji.snt.gui.cmds.PathFitterCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeOptionsCmd;
 import sc.fiji.snt.plugin.InterpolateRadiiCmd;
 import sc.fiji.snt.plugin.LabkitLoaderCmd;
-import sc.fiji.snt.plugin.MultiTreeMapperCmd;
 import sc.fiji.snt.plugin.PathAnalyzerCmd;
 import sc.fiji.snt.plugin.PathMatcherCmd;
 import sc.fiji.snt.plugin.PathSpineAnalysisCmd;
@@ -2132,11 +2131,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	private void runColorCodingCmd(final Tree tree, final boolean onlyConnectivitySafeMetrics, final String metric, final String lutName) throws IllegalArgumentException, IOException {
 		final Map<String, Object> input = new HashMap<>();
-		input.put("tree", tree);
+		input.put("trees", List.of(tree));
 		input.put("measurementChoice", metric);
 		input.put("lutChoice", lutName);
-		input.put("showInRecViewer", false);
-		input.put("showPlot", false);
+		input.put("runFigCreator", false);
 		input.put("dataset", plugin.accessToValidImageData() ? plugin.getDataset() : null);
 		input.put("removeColorCoding", null);
 		input.put("onlyConnectivitySafeMetrics", onlyConnectivitySafeMetrics);
@@ -2751,11 +2749,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final Tree tree = new Tree(selectedPaths);
 				if (tree.isEmpty()) return;
 				final Map<String, Object> input = new HashMap<>();
-				input.put("tree", tree);
+				input.put("trees", List.of(tree));
 				input.put("onlyConnectivitySafeMetrics", true);
 				input.put("measurementChoice", TreeColorMapper.PATH_FRAME);
-				input.put("showInRecViewer", false);
-				input.put("showPlot", false);
+				input.put("runFigCreator", false);
 				final CommandService cmdService = plugin.getContext().getService(
 						CommandService.class);
 				cmdService.run(TreeMapperCmd.class, true, input); // will call #update() via SNT#updateAllViewers();
@@ -2764,11 +2761,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final Tree tree = new Tree(selectedPaths);
 				if (tree.isEmpty()) return;
 				final Map<String, Object> input = new HashMap<>();
-				input.put("tree", tree);
+				input.put("trees", List.of(tree));
 				input.put("onlyConnectivitySafeMetrics", true);
-				input.put("measurementChoice", TreeColorMapper.AVG_SPINE_DENSITY);
-				input.put("showInRecViewer", false);
-				input.put("showPlot", false);
+				input.put("measurementChoice", TreeColorMapper.PATH_AVG_SPINE_DENSITY);
+				input.put("runFigCreator", false);
 				final CommandService cmdService = plugin.getContext().getService(
 						CommandService.class);
 				cmdService.run(TreeMapperCmd.class, true, input); // will call #update() via SNT#updateAllViewers();
@@ -2807,16 +2803,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final Collection<Tree> trees = getMultipleTrees();
 				if (trees == null || trees.isEmpty())
 					return;
-				if (trees.size() == 1) {
-					runColorMapper(trees.iterator().next(), false);
-				} else {
-					Map<String, Object> input = new HashMap<>();
-					input.put("trees", trees);
-					plugin.getContext().getService(CommandService.class).run(MultiTreeMapperCmd.class, true, input);
-				}
+				final Map<String, Object> input = new HashMap<>();
+				input.put("trees", trees);
+				plugin.getContext().getService(CommandService.class).run(TreeMapperCmd.class, true, input);
 				refreshManager(false, true, selectedPaths);
 				return;
-
 			}
 			else if (COLORIZE_PATHS_CMD.equals(cmd)) {
 				runColorMapper(new Tree(selectedPaths), true);
@@ -3207,7 +3198,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		void runColorMapper(final Tree tree, final boolean safeMetricsOnly) {
 			if (tree == null || tree.isEmpty()) return;
 			final Map<String, Object> input = new HashMap<>();
-			input.put("tree", tree);
+			input.put("trees", List.of(tree));
 			input.put("onlyConnectivitySafeMetrics", safeMetricsOnly);
 			input.put("dataset", plugin.accessToValidImageData() ? plugin.getDataset() : null);
 			final CommandService cmdService = plugin.getContext().getService(CommandService.class);

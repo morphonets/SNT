@@ -187,7 +187,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 				path.setColor(colors[idx++]);
 		} else if (matchedPoints > 0 && colorChoice != null && colorChoice.toLowerCase().contains("coded")) {
 			final String mappingProperty = (colorChoice.toLowerCase().contains("density"))
-					? TreeColorMapper.AVG_SPINE_DENSITY
+					? TreeColorMapper.PATH_AVG_SPINE_DENSITY
 					: TreeColorMapper.N_SPINES;
 			new TreeColorMapper(getContext()).map(new Tree(paths), mappingProperty, ColorTables.ICE);
 			if (ui != null)

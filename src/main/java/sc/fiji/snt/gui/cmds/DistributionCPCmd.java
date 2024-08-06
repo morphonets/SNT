@@ -82,7 +82,7 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 	protected void init() {
 		super.init(false);
 		if (trees == null || trees.isEmpty()) {
-			error("Collection of Trees required but none found.");
+			error("At least one Tree required but none found.");
 			return;
 		}
 		if (trees.size() == 1) {

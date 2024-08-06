@@ -158,7 +158,7 @@ public class NodeColorMapper extends ColorMapper {
 			initPointBranches();
 			resetAutoLimits();
 			if (BRANCH_LENGTH.equals(normMeasurement)) {
-				tColorMapper.map(pointBranches, TreeColorMapper.LENGTH, colorTable);
+				tColorMapper.map(pointBranches, TreeColorMapper.PATH_LENGTH, colorTable);
 			}
 			else if (BRANCH_ORDER.equals(normMeasurement)) {
 				tColorMapper.map(pointBranches, TreeColorMapper.PATH_ORDER, colorTable);

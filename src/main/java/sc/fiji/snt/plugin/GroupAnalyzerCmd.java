@@ -361,7 +361,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	}
 
 	final boolean isMetricMappable(final String metric) {
-		return Arrays.asList(MultiTreeColorMapper.PROPERTIES).contains(metric);
+		return MultiTreeColorMapper.getMetrics().contains(metric);
 	}
 
 	private boolean atLeastOneValidGroup() {

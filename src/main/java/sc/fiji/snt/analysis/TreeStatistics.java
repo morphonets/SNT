@@ -113,7 +113,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	/** Flag for {@value #N_BRANCH_POINTS} statistics. */
 	public static final String N_BRANCH_POINTS = "No. of branch points";
 	/** Flag for {@value #N_NODES} statistics. */
-	public static final String N_NODES = "No. of total nodes";
+	public static final String N_NODES = "No. of nodes";
 	/** Flag for {@value #N_PATH_NODES} statistics. */
 	public static final String N_PATH_NODES = "No. of path nodes (path fragmentation)";
 	/** Flag for {@value #N_BRANCH_NODES} statistics. */

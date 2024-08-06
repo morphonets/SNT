@@ -24,11 +24,7 @@ package sc.fiji.snt.plugin;
 
 import java.io.IOException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import net.imagej.Dataset;
 import net.imagej.ImageJ;
@@ -37,18 +33,16 @@ import net.imglib2.display.ColorTable;
 
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
+import org.scijava.command.CommandService;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
 
-import sc.fiji.snt.analysis.ColorMapper;
-import sc.fiji.snt.analysis.PathProfiler;
-import sc.fiji.snt.analysis.ProfileProcessor;
-import sc.fiji.snt.analysis.TreeColorMapper;
-import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+import sc.fiji.snt.gui.cmds.FigCreatorCmd;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.SNTUtils;
@@ -57,8 +51,7 @@ import sc.fiji.snt.Tree;
 
 /**
  * Command for color coding trees according to their properties using
- * {@link TreeColorMapper} with options to display result in {@link Viewer2D}
- * and {@link Viewer3D}
+ * {@link MultiTreeColorMapper} and {@link TreeColorMapper}
  *
  * @author Tiago Ferreira
  */
@@ -72,7 +65,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 	@Parameter
 	private LUTService lutService;
 
-	@Parameter(required = true, label = "Color by")
+	@Parameter(required = true, label = "Color by", persist = false) // dynamically generated
 	private String measurementChoice;
 
 	@Parameter(label = "LUT", callback = "lutChoiceChanged")
@@ -81,11 +74,8 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 	@Parameter(required = false, label = "<HTML>&nbsp;")
 	private ColorTable colorTable;
 
-	@Parameter(required = false, label = "Rec. Viewer Color Map")
-	private boolean showInRecViewer = false;
-
-	@Parameter(required = false, label = "Rec. Plotter Color Map")
-	private boolean showPlot = false;
+	@Parameter(required = false, label = "Make figure from mapping")
+	private boolean runFigCreator;
 
 	@Parameter(required = false, label = "Remove Existing Color Coding",
 		callback = "removeColorCoding",
@@ -93,7 +83,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 	private Button removeColorCoding;
 
 	@Parameter(required = true)
-	private Tree tree;
+	private Collection<Tree> trees;
 
 	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
 	private Dataset dataset;
@@ -101,50 +91,45 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 	@Parameter(required = false, persist = false, visibility = ItemVisibility.INVISIBLE)
 	private boolean onlyConnectivitySafeMetrics = false;
 
-	private Map<String, URL> luts;
-	private Viewer2D plot;
+ 	private Map<String, URL> luts;
 
 	@Override
 	public void run() {
-		if (!sntService.isActive()) error("SNT not running?");
-		if (tree == null || tree.isEmpty()) error("Invalid input tree");
+
 		statusService.showStatus("Applying Color Code...");
 		SNTUtils.log("Color Coding Tree (" + measurementChoice + ") using " + lutChoice);
-		final TreeColorMapper colorizer = new TreeColorMapper(context());
+
 		if (dataset != null && TreeColorMapper.VALUES.equals(measurementChoice)) {
 			SNTUtils.log("Assigning values...");
-			final PathProfiler profiler = new PathProfiler(tree, dataset);
-			profiler.setRadius(0);
-			profiler.setShape(ProfileProcessor.Shape.LINE);
-			profiler.setMetric(ProfileProcessor.Metric.MEAN);
-			profiler.assignValues();
+			for (final Tree tree : trees) {
+				final PathProfiler profiler = new PathProfiler(tree, dataset);
+				profiler.setRadius(0);
+				profiler.setShape(ProfileProcessor.Shape.LINE);
+				profiler.setMetric(ProfileProcessor.Metric.MEAN);
+				profiler.assignValues();
+			}
 		}
-		colorizer.setMinMax(Double.NaN, Double.NaN);
+
+		final TreeColorMapper mapper;
 		try {
-			colorizer.map(tree, measurementChoice, colorTable);
-		}
-		catch (final IllegalArgumentException exc) {
-			error(exc.getMessage());
-			return;
-		}
-		final double[] minMax = colorizer.getMinMax();
-		if (showInRecViewer) {
-			final Viewer3D recViewer = sntService.getRecViewer();
-			recViewer.addColorBarLegend(colorTable, (float) minMax[0], (float) minMax[1]);
+			if (trees.size() == 1) {
+				mapper = new TreeColorMapper(context());
+				mapper.setMinMax(Double.NaN, Double.NaN);
+				mapper.map(trees.iterator().next(), measurementChoice, colorTable);
+			} else {
+				mapper = new MultiTreeColorMapper(trees);
+				mapper.setMinMax(Double.NaN, Double.NaN);
+				mapper.map(measurementChoice, colorTable);
+			}
+		} catch (final IllegalArgumentException exc) {
+				error(exc.getMessage());
+				return;
 		}
 		sntService.updateViewers();
-		if (showPlot && colorizer.isNodeMapping() && tree.getNodesCount() > 10000) {
-			showPlot = new GuiUtils().getConfirmation("Render more than 10k nodes uniquely in Reconstruction Plotter "
-					+ "could become a CPU-intensive operation. Alternatively, you may want to render mapped nodes in "
-					+ "Reconstruction Viewer (significantly faster), or downsample the structure before the mapping. "
-					+ "Proceed nevertheless?", "Confirm Slow Operation?");
-		}
-		if (showPlot) {
-			SNTUtils.log("Creating 2D plot...");
-			plot = new Viewer2D(context());
-			plot.add(tree);
-			plot.addColorBarLegend(colorTable, minMax[0], minMax[1]);
-			plot.show();
+		if (runFigCreator) {
+			final Map<String, Object> inputs = new HashMap<>();
+			inputs.put("trees", trees);
+			getContext().getService(CommandService.class).run(FigCreatorCmd.class, true, inputs);
 		}
 		SNTUtils.log("Finished...");
 		resetUI();
@@ -153,19 +138,29 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 	@SuppressWarnings("unused")
 	private void init() {
 		super.init(true);
-		final List<String> choices = TreeColorMapper.getMetrics();
-		if (dataset == null) choices.remove(TreeColorMapper.VALUES);
-		if (onlyConnectivitySafeMetrics) {
-			choices.remove(TreeColorMapper.STRAHLER_NUMBER);
+		if (trees == null || trees.isEmpty()) {
+			error("Invalid input tree(s)");
 		}
-		Collections.sort(choices);
-		final MutableModuleItem<String> measurementChoiceInput = getInfo()
-				.getMutableInput("measurementChoice", String.class);
-		measurementChoiceInput.setChoices(choices);
 		resolveInput("onlyConnectivitySafeMetrics");
 		if (lutChoice == null) lutChoice = prefService.get(getClass(), "lutChoice",
 			"mpl-viridis.lut");
+		setChoices();
 		setLUTs();
+	}
+
+	private void setChoices() {
+		final List<String> choices = (trees.size() == 1) ? TreeColorMapper.getMetrics() :
+				MultiTreeColorMapper.getMetrics("gui-all");
+		if (dataset == null)
+			choices.remove(TreeColorMapper.VALUES);
+		if (onlyConnectivitySafeMetrics) {
+			choices.remove(MultiTreeColorMapper.N_BRANCHES);
+			choices.remove(MultiTreeColorMapper.STRAHLER_NUMBER);
+			choices.remove(TreeColorMapper.STRAHLER_NUMBER);
+		}
+		Collections.sort(choices);
+		final MutableModuleItem<String> measurementChoiceInput = getInfo().getMutableInput("measurementChoice", String.class);
+		measurementChoiceInput.setChoices(choices);
 	}
 
 	private void setLUTs() {
@@ -202,9 +197,18 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 
 	@SuppressWarnings("unused")
 	private void removeColorCoding() {
-		ColorMapper.unMap(tree);
+		trees.forEach(ColorMapper::unMap);
 		snt.updateAllViewers();
 		statusService.showStatus("Color code removed...");
+	}
+
+	private boolean isLargeData() {
+		 long sum = 0;
+		 for (final Tree tree : trees) {
+			 sum += tree.getNodesCount();
+			 if (sum > 10000) return true;
+		 }
+		 return false;
 	}
 
 	/* IDE debug method **/

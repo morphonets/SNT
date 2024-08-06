@@ -25,7 +25,6 @@ package sc.fiji.snt.gui.cmds;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -61,21 +60,7 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 	@Parameter
 	private PrefService prefService;
 
-	@Parameter(required = true, label = "Measurement", choices = { //
-		TreeColorMapper.PATH_EXT_ANGLE_XY, TreeColorMapper.PATH_EXT_ANGLE_XZ, TreeColorMapper.PATH_EXT_ANGLE_ZY,
-		TreeColorMapper.LENGTH, TreeColorMapper.PATH_ORDER, //
-		TreeColorMapper.N_BRANCH_POINTS, //
-		TreeColorMapper.N_NODES, //
-		TreeColorMapper.N_SPINES, //
-		TreeColorMapper.PATH_DISTANCE, //
-		TreeColorMapper.MEAN_RADIUS, //
-		TreeColorMapper.AVG_SPINE_DENSITY, //
-		TreeColorMapper.NODE_RADIUS, //
-		TreeColorMapper.INTER_NODE_ANGLE, //
-		TreeColorMapper.INTER_NODE_DISTANCE, //
-		TreeColorMapper.X_COORDINATES, //
-		TreeColorMapper.Y_COORDINATES, //
-		TreeColorMapper.Z_COORDINATES })
+	@Parameter(required = true, label = "Measurement", choices = {}) // see #init()
 	private String measurementChoice;
 
 	@Parameter(label = "Min", required = false,
@@ -96,10 +81,7 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 	private Viewer3D recViewer;
 
 	@Parameter(required = false)
-	private List<String> multiTreeMappingLabels;
-
-	@Parameter(required = false)
-	private List<String> treeMappingLabels;
+	private List<String> treeLabels;
 
 	private Map<String, URL> luts;
 
@@ -113,6 +95,13 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 	}
 
 	protected void init() {
+
+		// populate measurementChoices
+		final MutableModuleItem<String> input1 = getInfo().getMutableInput(
+				"measurementChoice", String.class);
+		List<String> metrics = TreeColorMapper.getMetrics();
+		Collections.sort(metrics);
+		input1.setChoices(metrics);
 		// see net.imagej.lut.LUTSelector
 		luts = lutService.findLUTs();
 		final ArrayList<String> luTChoices = new ArrayList<>();
@@ -135,7 +124,7 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 		final MutableModuleItem<String> mInput = getInfo().getMutableInput(
 			"measurementChoice", String.class);
 
-		if (treeMappingLabels == null && multiTreeMappingLabels == null) {
+		if (treeLabels == null) {
 			// No trees to be color coded: Show only options for color bar legend
 			getInfo().setLabel("Add Color Legend");
 			mChoices = new ArrayList<>();
@@ -152,16 +141,14 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 			resolveInput("treeMappingLabels");
 			resolveInput("multiTreeMappingLabels");
 		}
-		else if (treeMappingLabels != null) {
+		else if (treeLabels.size() == 1) {
 			// Color code single trees
 			mChoices = TreeColorMapper.getMetrics();
-			Collections.sort(mChoices);
-			resolveInput("multiTreeMappingLabels");
 		}
 		else {
-			mChoices = Arrays.asList(MultiTreeColorMapper.PROPERTIES);
-			resolveInput("treeMappingLabels");
+			mChoices = MultiTreeColorMapper.getMetrics("gui-all");
 		}
+		Collections.sort(mChoices);
 		mInput.setChoices(mChoices);
 	}
 
@@ -183,7 +170,7 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 			final boolean validMin = !Double.isNaN(min) && min <= max;
 			final boolean validMax = !Double.isNaN(max) && max > 0 && max >= min;
 
-			if (treeMappingLabels == null && multiTreeMappingLabels == null) {
+			if (treeLabels == null) {
 				// No trees to be color coded. Just add the color bar
 				if (!(validMin && validMax)) {
 					error("Invalid Limits " + min + "-" + max);
@@ -196,26 +183,11 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 			recViewer.setSceneUpdatesEnabled(false);
 			double[] limits = { 0d, 0d };
 			boolean pmcSkipped = false;
-			if (treeMappingLabels != null) {
-				pmcSkipped = treeMappingLabels.remove("Path Manager Contents");
-				// Color code single trees
-				limits[0] = Double.MAX_VALUE;
-				limits[1] = Double.MIN_VALUE;
-				int idx = 0;
-				for (final String l : treeMappingLabels) {
-					if (setProgress) recViewer.getManagerPanel().showProgress(idx++, treeMappingLabels.size());
-					final double[] minMax = recViewer.colorCode(l, measurementChoice,
-						colorTable);
-					if (minMax[0] < limits[0]) limits[0] = minMax[0];
-					if (minMax[1] > limits[1]) limits[1] = minMax[1];
-				}
-			}
-			else if (multiTreeMappingLabels != null) {
-				pmcSkipped = multiTreeMappingLabels.remove("Path Manager Contents");
+			if (treeLabels != null) {
+				pmcSkipped = treeLabels.remove("Path Manager Contents");
 				// Color group of trees
 				if (setProgress) recViewer.getManagerPanel().showProgress(-1, -1);
-				limits = recViewer.colorCode(multiTreeMappingLabels, measurementChoice,
-					colorTable);
+				limits = recViewer.colorCode(treeLabels, measurementChoice, colorTable);
 			}
 			recViewer.setSceneUpdatesEnabled(true);
 			if (!validMin) min = (float) limits[0];

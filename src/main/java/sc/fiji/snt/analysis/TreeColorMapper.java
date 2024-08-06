@@ -67,76 +67,59 @@ import sc.fiji.snt.viewer.Viewer3D;
 public class TreeColorMapper extends ColorMapper {
 
 	/* For convenience keep references to TreeAnalyzer fields */
-
-	/** Flag for {@value #INTER_NODE_ANGLE} statistics. */
+	/** Mapping property: Internode angle */
 	public static final String INTER_NODE_ANGLE = MultiTreeStatistics.INTER_NODE_ANGLE;
-	/** Flag for {@value #INTER_NODE_DISTANCE} statistics. */
+	/** Mapping property: Internode distance */
 	public static final String INTER_NODE_DISTANCE = MultiTreeStatistics.INTER_NODE_DISTANCE;
-	/** Flag for {@value #SHOLL_COUNTS} mapping. */
-	public static final String SHOLL_COUNTS = "Sholl inters. (root centered)"; //FIXME: getNormalizedMeasurement() will not allow '-'
-	/** Flag for {@value #STRAHLER_NUMBER} mapping. */
-	public static final String STRAHLER_NUMBER = MultiTreeStatistics.STRAHLER_NUMBER;
-	/** Flag for {@value #PATH_ORDER} mapping. */
-	public static final String PATH_ORDER = TreeStatistics.PATH_ORDER;
-	/** Flag for {@value #PATH_EXT_ANGLE_XY} mapping. */
-	public static final String PATH_EXT_ANGLE_XY = TreeStatistics.PATH_EXT_ANGLE_XY;
-	/** Flag for {@value #PATH_EXT_ANGLE_XZ} mapping. */
-	public static final String PATH_EXT_ANGLE_XZ = TreeStatistics.PATH_EXT_ANGLE_XZ;
-	/** Flag for {@value #PATH_EXT_ANGLE_ZY} mapping. */
-	public static final String PATH_EXT_ANGLE_ZY = TreeStatistics.PATH_EXT_ANGLE_ZY;
-	/** Flag for {@value #LENGTH} mapping. */
-	public static final String LENGTH = TreeStatistics.PATH_LENGTH;
-	/** Flag for {@value #N_BRANCH_POINTS} mapping. */
-	public static final String N_BRANCH_POINTS = TreeStatistics.N_BRANCH_POINTS;
-	/** Flag for {@value #N_NODES} mapping. */
-	public static final String N_NODES = TreeStatistics.N_NODES;
-	/** Flag for {@value #N_SPINES} statistics. */
-	public static final String N_SPINES =  TreeStatistics.N_SPINES;
-	/** Flag for {@value #MEAN_RADIUS} mapping. */
-	public static final String MEAN_RADIUS = TreeStatistics.PATH_MEAN_RADIUS;
-	/** Flag for {@value #AVG_SPINE_DENSITY} mapping. */
-	public static final String AVG_SPINE_DENSITY = TreeStatistics.PATH_SPINE_DENSITY;
-	/** Flag for {@value #NODE_RADIUS} mapping. */
-	public static final String NODE_RADIUS = TreeStatistics.NODE_RADIUS;
-	/** Flag for {@value #X_COORDINATES} mapping. */
-	public static final String X_COORDINATES = TreeStatistics.X_COORDINATES;
-	/** Flag for {@value #Y_COORDINATES} mapping. */
-	public static final String Y_COORDINATES = TreeStatistics.Y_COORDINATES;
-	/** Flag for {@value #Z_COORDINATES} mapping. */
-	public static final String Z_COORDINATES = TreeStatistics.Z_COORDINATES;
-	/** Flag for {@value #VALUES} mapping. */
-	public static final String VALUES = TreeStatistics.VALUES;
-	/** Flag for {@value #PATH_DISTANCE} mapping. */
-	public static final String PATH_DISTANCE = "Path distance to soma";
-	/** Flag for {@value #TAG_FILENAME} mapping. */
-	public static final String TAG_FILENAME = "Tags/filename";
-	/** Flag for {@value #PATH_FRAME} mapping. */
+	/** Mapping property: Path spine/varicosity density */
+	public static final String PATH_AVG_SPINE_DENSITY = TreeStatistics.PATH_SPINE_DENSITY;
+	/** Mapping property: Path frame */
 	public static final String PATH_FRAME = "Path frame";
+	/** Mapping property: Path order */
+	public static final String PATH_ORDER = TreeStatistics.PATH_ORDER;
+	/** Mapping property: Path's extension angle (XY plane) */
+	public static final String PATH_EXT_ANGLE_XY = TreeStatistics.PATH_EXT_ANGLE_XY;
+	/** Mapping property: Path's extension angle (XZ plane) */
+	public static final String PATH_EXT_ANGLE_XZ = TreeStatistics.PATH_EXT_ANGLE_XZ;
+	/** Mapping property: Path's extension angle (ZY plane) */
+	public static final String PATH_EXT_ANGLE_ZY = TreeStatistics.PATH_EXT_ANGLE_ZY;
+	/** Mapping property: Path distance to soma */
+	public static final String PATH_DISTANCE = "Path distance to soma";
+	/** Mapping property: Path length */
+	public static final String PATH_LENGTH = TreeStatistics.PATH_LENGTH;
+	/** Mapping property: Path mean radius */
+	public static final String PATH_MEAN_RADIUS = TreeStatistics.PATH_MEAN_RADIUS;
+	/** Mapping property: No. of branch points */
+	public static final String N_BRANCH_POINTS = TreeStatistics.N_BRANCH_POINTS;
+	/** Mapping property: No. of nodes */
+	public static final String N_NODES = TreeStatistics.N_NODES;
+	/** Mapping property: No. of spines/varicosities */
+	public static final String N_SPINES =  TreeStatistics.N_SPINES;
+	/** Mapping property: Node radius */
+	public static final String NODE_RADIUS = TreeStatistics.NODE_RADIUS;
+	/** Mapping property: X coordinates */
+	public static final String X_COORDINATES = TreeStatistics.X_COORDINATES;
+	/** Mapping property: Y coordinates */
+	public static final String Y_COORDINATES = TreeStatistics.Y_COORDINATES;
+	/** Mapping property: Z coordinates */
+	public static final String Z_COORDINATES = TreeStatistics.Z_COORDINATES;
+	/** Mapping property: Sholl inters. counts */
+	public static final String SHOLL_COUNTS = "Sholl inters. (root centered)"; //FIXME: getNormalizedMeasurement() will not allow '-'
+	/** Mapping property: {@link StrahlerAnalyzer#getRootNumber() Horton-Strahler number} */
+	public static final String STRAHLER_NUMBER = MultiTreeStatistics.STRAHLER_NUMBER;
+	/** Mapping property: Node intensity nodes */
+	public static final String VALUES = TreeStatistics.VALUES;
+	/** Mapping property: Tags/filename */
+	public static final String TAG_FILENAME = "Tags/filename";
+
 	private static final String INTERNAL_COUNTER = "Id";
 
-	private static final String[] ALL_FLAGS = { //
-			STRAHLER_NUMBER,//
-			PATH_ORDER, //
-			PATH_EXT_ANGLE_XY, //
-			PATH_EXT_ANGLE_XZ, //
-			PATH_EXT_ANGLE_ZY, //
-			LENGTH, //
-			N_BRANCH_POINTS, //
-			N_NODES, //
-			N_SPINES, //
-			MEAN_RADIUS, //
-			AVG_SPINE_DENSITY, //
-			NODE_RADIUS, //
-			PATH_DISTANCE, //
-			SHOLL_COUNTS, //
-			INTER_NODE_ANGLE, //
-			INTER_NODE_DISTANCE, //
-			X_COORDINATES, //
-			Y_COORDINATES, //
-			Z_COORDINATES, //
-			VALUES, //
-			TAG_FILENAME,
-			PATH_FRAME};
+	private static final String[] ALL_FLAGS = {
+			INTER_NODE_ANGLE, INTER_NODE_DISTANCE, N_BRANCH_POINTS, N_NODES, N_SPINES, NODE_RADIUS,
+			PATH_AVG_SPINE_DENSITY, PATH_DISTANCE, PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY,
+			PATH_FRAME, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_ORDER, SHOLL_COUNTS, STRAHLER_NUMBER,
+			TAG_FILENAME, VALUES, X_COORDINATES, Y_COORDINATES, Z_COORDINATES
+	};
 
 	protected ArrayList<Path> paths;
 	private int internalCounter = 1;
@@ -222,19 +205,19 @@ public class TreeColorMapper extends ColorMapper {
 					center.z);
 				mapPathDistances(root);
 				break;
-			case PATH_ORDER:
+			case PATH_AVG_SPINE_DENSITY:
 			case PATH_EXT_ANGLE_XY:
 			case PATH_EXT_ANGLE_XZ:
 			case PATH_EXT_ANGLE_ZY:
-			case LENGTH:
-			case MEAN_RADIUS:
-			case AVG_SPINE_DENSITY:
-			case N_NODES:
+			case PATH_FRAME:
+			case PATH_LENGTH:
+			case PATH_MEAN_RADIUS:
+			case PATH_ORDER:
 			case N_BRANCH_POINTS:
+			case N_NODES:
 			case N_SPINES:
 			case INTERNAL_COUNTER:
 			case TAG_FILENAME:
-			case PATH_FRAME:
 				mapToPathProperty(cMeasurement);
 				break;
 			case X_COORDINATES:
@@ -294,17 +277,17 @@ public class TreeColorMapper extends ColorMapper {
 				for (final Path p : paths)
 					mappedPaths.add(new MappedPath(p, p.getExtensionAngleZY()));
 				break;
-			case LENGTH:
+			case PATH_LENGTH:
 				integerScale = false;
 				for (final Path p : paths)
 					mappedPaths.add(new MappedPath(p, p.getLength()));
 				break;
-			case MEAN_RADIUS:
+			case PATH_MEAN_RADIUS:
 				integerScale = false;
 				for (final Path p : paths)
 					mappedPaths.add(new MappedPath(p, p.getMeanRadius()));
 				break;
-			case AVG_SPINE_DENSITY:
+			case PATH_AVG_SPINE_DENSITY:
 				integerScale = false;
 				for (final Path p : paths)
 					mappedPaths.add(new MappedPath(p, p.getSpineOrVaricosityCount()/p.getLength()));
@@ -523,7 +506,7 @@ public class TreeColorMapper extends ColorMapper {
 	 * Colorizes a tree after the specified measurement.
 	 *
 	 * @param tree the tree to be mapped
-	 * @param measurement the measurement ({@link #PATH_ORDER} }{@link #LENGTH},
+	 * @param measurement the measurement ({@link #PATH_ORDER} }{@link #PATH_LENGTH},
 	 *          etc.)
 	 * @param colorTable the color table specifying the color mapping. Null not
 	 *          allowed.
@@ -580,7 +563,7 @@ public class TreeColorMapper extends ColorMapper {
 		map(tree, measurement, lut);
 	}
 
-	protected String tryReallyHardToGuessMetric(final String guess) {
+	private static String tryReallyHardToGuessMetric(final String guess) {
 		final String normGuess = guess.toLowerCase();
 		if (normGuess.contains("inter") && normGuess.contains("node")) {
 			return (normGuess.contains("angle")) ? INTER_NODE_ANGLE : INTER_NODE_DISTANCE;
@@ -589,7 +572,7 @@ public class TreeColorMapper extends ColorMapper {
 			return PATH_DISTANCE;
 		}
 		if (normGuess.contains("length") || normGuess.contains("cable")) {
-			return LENGTH;
+			return PATH_LENGTH;
 		}
 		if (normGuess.contains("strahler") || normGuess.contains("horton") || normGuess.contains("h-s")) {
 			return STRAHLER_NUMBER;
@@ -616,7 +599,7 @@ public class TreeColorMapper extends ColorMapper {
 		}
 		if (normGuess.contains("radi")) {
 			if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average")) {
-				return MEAN_RADIUS;
+				return PATH_MEAN_RADIUS;
 			}
 			else {
 				return NODE_RADIUS;
@@ -624,7 +607,7 @@ public class TreeColorMapper extends ColorMapper {
 		}
 		if (normGuess.contains("spines") || normGuess.contains("varicosities")) {
 			if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average") || normGuess.contains("dens")) {
-				return AVG_SPINE_DENSITY;
+				return PATH_AVG_SPINE_DENSITY;
 			}
 			else {
 				return N_SPINES;
@@ -651,7 +634,7 @@ public class TreeColorMapper extends ColorMapper {
 		return "unknown";
 	}
 
-	protected String getNormalizedMeasurement(final String measurement) {
+	protected static String getNormalizedMeasurement(final String measurement) {
 		if (Arrays.stream(ALL_FLAGS).anyMatch(measurement::equalsIgnoreCase)) {
 			// This is just so that we can use capitalized strings in the GUI
 			// and lower case strings in scripts
@@ -673,7 +656,7 @@ public class TreeColorMapper extends ColorMapper {
 	 * automatically determined.
 	 *
 	 * @param tree the tree to be mapped
-	 * @param measurement the measurement ({@link #PATH_ORDER} }{@link #LENGTH},
+	 * @param measurement the measurement ({@link #PATH_ORDER} }{@link #PATH_LENGTH},
 	 *          etc.)
 	 * @param lut the lookup table specifying the color mapping
 	 */

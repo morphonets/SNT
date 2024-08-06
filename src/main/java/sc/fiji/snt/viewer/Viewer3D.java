@@ -2125,7 +2125,7 @@ public class Viewer3D {
 	 * @param treeLabels the collection of Tree identifiers (as per
 	 *          {@link #addTree(Tree)}) specifying the Trees to be color mapped
 	 * @param measurement the mapping measurement e.g.,
-	 *          {@link MultiTreeColorMapper#LENGTH}
+	 *          {@link MultiTreeColorMapper#CABLE_LENGTH}
 	 *          {@link MultiTreeColorMapper#N_TIPS}, etc.
 	 * @param colorTable the mapping color table (LUT), e.g.,
 	 *          {@link ColorTables#ICE}), or any other known to LutService
@@ -2145,7 +2145,7 @@ public class Viewer3D {
 		});
 		final MultiTreeColorMapper mapper = new MultiTreeColorMapper(trees);
 		mapper.map(measurement, colorTable);
-		shapeTrees.forEach(st -> st.rebuildShape());
+		shapeTrees.forEach(ShapeTree::rebuildShape);
 		return mapper.getMinMax();
 	}
 
@@ -4848,21 +4848,12 @@ public class Viewer3D {
 			final JMenu ccMenu = new JMenu("Color Mapping");
 			ccMenu.setIcon(IconFactory.getMenuIcon(GLYPH.COLOR2));
 			menu.add(ccMenu);
-			mi = new JMenuItem("Individual Cells...");
+			mi = new JMenuItem("Apply Color Mapping...");
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedTreeLabels();
 				if (keys == null) return;
 				final Map<String, Object> inputs = new HashMap<>();
-				inputs.put("treeMappingLabels", keys);
-				runCmd(ColorMapReconstructionCmd.class, inputs, CmdWorker.DO_NOTHING, true, false);
-			});
-			ccMenu.add(mi);
-			mi = new JMenuItem("Group of Cells...");
-			mi.addActionListener(e -> {
-				final List<String> keys = getSelectedTreeLabels();
-				if (keys == null) return;
-				final Map<String, Object> inputs = new HashMap<>();
-				inputs.put("multiTreeMappingLabels", keys);
+				inputs.put("treeLabels", keys);
 				runCmd(ColorMapReconstructionCmd.class, inputs, CmdWorker.DO_NOTHING, true, false);
 			});
 			ccMenu.add(mi);
@@ -5253,8 +5244,7 @@ public class Viewer3D {
 			JMenuItem mi = new JMenuItem("Add...", IconFactory.getMenuIcon(GLYPH.PLUS));
 			mi.addActionListener(e -> {
 				final Map<String, Object> inputs = new HashMap<>();
-				inputs.put("treeMappingLabels", null);
-				inputs.put("multiTreeMappingLabels", null);
+				inputs.put("treeLabels", null);
 				runCmd(ColorMapReconstructionCmd.class, inputs, CmdWorker.DO_NOTHING, true, false);
 			});
 			legendMenu.add(mi);

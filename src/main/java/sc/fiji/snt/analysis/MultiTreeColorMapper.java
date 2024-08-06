@@ -24,13 +24,13 @@ package sc.fiji.snt.analysis;
 
 import java.util.*;
 import java.util.stream.Collectors;
-
-import org.apache.commons.text.WordUtils;
+import java.util.stream.Stream;
 
 import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
 
+import org.checkerframework.checker.units.qual.A;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.annotation.AllenCompartment;
@@ -53,42 +53,25 @@ import sc.fiji.snt.viewer.Viewer3D;
  *
  * @author Tiago Ferreira
  */
-public class MultiTreeColorMapper extends ColorMapper {
-
-	/** Mapping property: Cable length */
-	public static final String LENGTH = MultiTreeStatistics.LENGTH;
-
-	/** Mapping property: Count of all branch points */
-	public static final String N_BRANCH_POINTS = MultiTreeStatistics.N_BRANCH_POINTS;
-
-	/** Mapping property: Count of all tips (end points) */
-	public static final String N_TIPS = MultiTreeStatistics.N_TIPS;
-
-	/** Mapping property: Count of all branches */
-	public static final String N_BRANCHES = MultiTreeStatistics.N_BRANCHES;
-
-	/** Mapping property: {@link StrahlerAnalyzer#getRootNumber() Horton-Strahler number} */
-	public static final String STRAHLER_NUMBER = MultiTreeStatistics.STRAHLER_NUMBER;
-
-	/** Mapping property: Highest {@link sc.fiji.snt.Path#getOrder() path order} */
-	public static final String HIGHEST_PATH_ORDER = MultiTreeStatistics.HIGHEST_PATH_ORDER;
+public class MultiTreeColorMapper extends TreeColorMapper {
 
 	/** Mapping property: Assigned Tree value */
 	public static final String ASSIGNED_VALUE = MultiTreeStatistics.ASSIGNED_VALUE;
-
-	/**
-	 * Mapping property (dummy): Each Tree in the collection is assigned an
-	 * incremental LUT entry
-	 */
+	/** Mapping property: Cable length */
+	public static final String CABLE_LENGTH = MultiTreeStatistics.LENGTH;
+	/** Mapping property (dummy): Each Tree in the collection is assigned an incremental LUT entry */
 	public static final String ID = "Cell/id";
+	/** Mapping property: Highest {@link sc.fiji.snt.Path#getOrder() path order} */
+	public static final String HIGHEST_PATH_ORDER = MultiTreeStatistics.HIGHEST_PATH_ORDER;
+	/** Mapping property: Count of all branches */
+	public static final String N_BRANCHES = MultiTreeStatistics.N_BRANCHES;
+	/** Mapping property: Count of all tips (end points) */
+	public static final String N_TIPS = MultiTreeStatistics.N_TIPS;
+	/** Mapping property: {@link StrahlerAnalyzer#getRootNumber() Horton-Strahler number} */
+	public static final String STRAHLER_NUMBER = MultiTreeStatistics.STRAHLER_NUMBER;
 
-	public static final String[] PROPERTIES = { //
-		ID, LENGTH, N_BRANCH_POINTS, N_TIPS, N_BRANCHES, STRAHLER_NUMBER, HIGHEST_PATH_ORDER//
-	};
-
-	private static final String[] ALL_FLAGS = { //
-		ID, LENGTH, N_BRANCH_POINTS, N_TIPS, N_BRANCHES, STRAHLER_NUMBER, HIGHEST_PATH_ORDER, ASSIGNED_VALUE//
-	};
+	private static final String[] MULTI_TREE_FLAGS = { ASSIGNED_VALUE, CABLE_LENGTH, ID, HIGHEST_PATH_ORDER, N_BRANCHES,
+			N_TIPS, STRAHLER_NUMBER};
 
 	private final List<MappedTree> mappedTrees;
 	private int internalCounter = 1;
@@ -101,19 +84,38 @@ public class MultiTreeColorMapper extends ColorMapper {
 	public MultiTreeColorMapper(final Collection<Tree> trees) {
 		mappedTrees = new ArrayList<>();
 		for (final Tree tree : trees) {
-			if (tree.size() > 0) mappedTrees.add(new MappedTree(tree));
+			if (!tree.isEmpty()) mappedTrees.add(new MappedTree(tree));
 		}
 	}
 
 	/**
 	 * Gets the list of supported mapping metrics.
-	 *
+	 * @param type Either 'all' (MultiTreeColorMapper and TreeColorMapper metrics) or 'default' (MultiTreeColorMapper only)
 	 * @return the list of mapping metrics.
 	 */
-	public static List<String> getMetrics() {
-		return Arrays.stream(ALL_FLAGS).collect(Collectors.toList());
+	public static List<String> getMetrics(final String type) {
+		if ("all".equalsIgnoreCase(type)) {
+			return Stream.concat(Arrays.stream(MULTI_TREE_FLAGS), TreeColorMapper.getMetrics().stream())
+					.collect(Collectors.toList());
+		}
+		else if ("gui".equalsIgnoreCase(type)) {
+			return List.of(CABLE_LENGTH, ID, HIGHEST_PATH_ORDER, N_BRANCHES, N_TIPS, STRAHLER_NUMBER);
+		}
+		else if ("gui-all".equalsIgnoreCase(type)) {
+			return Stream.concat(getMetrics("gui").stream(), TreeColorMapper.getMetrics().stream())
+					.collect(Collectors.toList());
+		}
+		return List.of(MULTI_TREE_FLAGS);
 	}
 
+	/**
+	 * Gets the list of single-value mapping metrics.
+	 *
+	 * @return the list of single-value mapping metrics.
+	 */
+	public static List<String> getSingleValueMetrics() {
+		return Arrays.asList(MULTI_TREE_FLAGS);
+	}
 	/*
 	 * (non-Javadoc)
 	 *
@@ -122,7 +124,7 @@ public class MultiTreeColorMapper extends ColorMapper {
 	 */
 	@Override
 	public void map(final String measurement, final ColorTable colorTable) {
-		final String cMeasurement = getNormalizedMeasurement(measurement);
+		final String cMeasurement = getNormalizedMeasurementInternal(measurement);
 		mapInternal(cMeasurement, colorTable);
 	}
 
@@ -146,98 +148,87 @@ public class MultiTreeColorMapper extends ColorMapper {
 
 	private void mapInternal(final String measurement, final ColorTable colorTable) {
 		super.map(measurement, colorTable);
-		for (final MappedTree mt : mappedTrees) {
-			final TreeAnalyzer analyzer = new TreeAnalyzer(mt.tree);
-			switch (measurement) {
-				case ASSIGNED_VALUE:
-					mt.value = mt.tree.getAssignedValue();
-					break;
-				case STRAHLER_NUMBER:
-					integerScale = true;
-					mt.value = analyzer.getStrahlerNumber();
-					break;
-				case HIGHEST_PATH_ORDER:
-					integerScale = true;
-					mt.value = analyzer.getHighestPathOrder();
-					break;
-				case LENGTH:
-					mt.value = analyzer.getCableLength();
-					break;
-				case N_BRANCH_POINTS:
-					integerScale = true;
-					mt.value = analyzer.getBranchPoints().size();
-					break;
-				case N_TIPS:
-					integerScale = true;
-					mt.value = analyzer.getTips().size();
-					break;
-				case N_BRANCHES:
-					integerScale = true;
-					mt.value = analyzer.getNBranches();
-					break;
-				case ID:
-					integerScale = true;
-					mt.value = internalCounter++;
-					break;
-				default:
-					throw new IllegalArgumentException("Unknown parameter: "+ measurement);
+		if (Arrays.asList(MULTI_TREE_FLAGS).contains(measurement)) {
+			for (final MappedTree mt : mappedTrees) {
+				final TreeAnalyzer analyzer = new TreeAnalyzer(mt.tree);
+				switch (measurement) {
+					case ASSIGNED_VALUE:
+						integerScale = false;
+						mt.value = mt.tree.getAssignedValue();
+						break;
+					case CABLE_LENGTH:
+						integerScale = false;
+						mt.value = analyzer.getCableLength();
+						break;
+					case HIGHEST_PATH_ORDER:
+						integerScale = true;
+						mt.value = analyzer.getHighestPathOrder();
+						break;
+					case ID:
+						integerScale = true;
+						mt.value = internalCounter++;
+						break;
+					case N_BRANCHES:
+						integerScale = true;
+						mt.value = analyzer.getNBranches();
+						break;
+					case N_TIPS:
+						integerScale = true;
+						mt.value = analyzer.getTips().size();
+						break;
+					case STRAHLER_NUMBER:
+						integerScale = true;
+						mt.value = analyzer.getStrahlerNumber();
+						break;
+					default:
+						super.map(measurement, colorTable);
+						throw new IllegalArgumentException("Unknown parameter: " + measurement);
+				}
+			}
+			assignMinMax();
+			for (final MappedTree mt : mappedTrees) {
+				mt.tree.setColor(getColorRGB(mt.value));
+			}
+		} else  {
+			min = Double.MAX_VALUE;
+			max = Double.MIN_VALUE;
+			for (final MappedTree mt : mappedTrees) {
+				final TreeColorMapper tMapper = new TreeColorMapper();
+				tMapper.map(mt.tree, measurement, colorTable);
+				final double[] minMax = tMapper.getMinMax();
+				if (minMax[0] < min) min = minMax[0];
+				if (minMax[1] > max) max = minMax[1];
+				mt.value = Double.NaN;
 			}
 		}
-		assignMinMax();
-		for (final MappedTree mt : mappedTrees) {
-			mt.tree.setColor(getColorRGB(mt.value));
-		}
 	}
 
-	protected String tryReallyHardToGuessMetric(final String guess) {
-		if (Arrays.stream(ALL_FLAGS).anyMatch(guess::equalsIgnoreCase)) {
-			return WordUtils.capitalize(guess, '-');
-		}
-		SNTUtils.log("\""+ guess + "\" was not immediately recognized as parameter");
-		String normGuess = guess.toLowerCase();
-		if (normGuess.contains("length") || normGuess.contains("cable")) {
-			return LENGTH;
-		}
-		if (normGuess.contains("strahler") || normGuess.contains("horton") || normGuess.contains("h-s")) {
-			return STRAHLER_NUMBER;
-		}
-		if (normGuess.contains("path") && normGuess.contains("order")) {
-			return HIGHEST_PATH_ORDER;
-		}
-		if (normGuess.contains("assign") || normGuess.contains("value")) {
-			return ASSIGNED_VALUE;
-		}
-		if (normGuess.contains("branches")) {
-			return N_BRANCHES;
-		}
-		if (normGuess.contains("bp") || normGuess.contains("branch") || normGuess.contains("junctions")) {
-			return N_BRANCH_POINTS;
-		}
-		if (normGuess.contains("tips") || normGuess.contains("termin") || normGuess.contains("end")) {
-			// n tips/termini/terminals/end points/endings
-			return N_TIPS;
-		}
-		if (normGuess.contains("id") || normGuess.contains("cell")) {
-			return ID;
-		}
-		return "unknown";
-	}
-
-	protected String getNormalizedMeasurement(final String measurement) {
-		if (Arrays.stream(ALL_FLAGS).anyMatch(measurement::equalsIgnoreCase)) {
-			// This is just so that we can use capitalized strings in the GUI
-			// and lower case strings in scripts
-			return WordUtils.capitalize(measurement, new char[]{});
+	 private String getNormalizedMeasurementInternal(final String measurement) {
+		for (final String s : MULTI_TREE_FLAGS) {
+			if (s.equalsIgnoreCase(measurement)) return s;
 		}
 		final String normMeasurement = tryReallyHardToGuessMetric(measurement);
 		if (!measurement.equals(normMeasurement)) {
 			SNTUtils.log("\"" + normMeasurement + "\" assumed");
 			if ("unknonwn".equals(normMeasurement)) {
 				throw new IllegalArgumentException("Unrecognizable measurement! "
-						+ "Maybe you meant one of the following?: " + Arrays.toString(ALL_FLAGS));
+						+ "Maybe you meant one of the following?: " + Arrays.toString(MULTI_TREE_FLAGS));
 			}
 		}
 		return normMeasurement;
+	}
+
+	private String tryReallyHardToGuessMetric(final String guess) {
+		if (guess.toLowerCase().contains("assign"))
+			return ASSIGNED_VALUE;
+		else if (guess.toLowerCase().contains("cable"))
+			return CABLE_LENGTH;
+		else if (guess.toLowerCase().contains("id"))
+			return ID;
+		else if (guess.toLowerCase().contains("horton") || guess.toLowerCase().contains("strahler") || guess.toLowerCase().contains("root"))
+			return STRAHLER_NUMBER;
+		else
+			return TreeColorMapper.getNormalizedMeasurement(guess);
 	}
 
 	public List<Tree> sortedMappedTrees() {
