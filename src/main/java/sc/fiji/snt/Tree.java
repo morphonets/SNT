@@ -349,6 +349,8 @@ public class Tree implements TreeProperties {
 	 *         if no hits were retrieved
 	 */
 	public Tree subTree(final String... swcTypes) {
+		if (swcTypes.length == 1 && "all".equalsIgnoreCase(swcTypes[0]))
+			return this;
 		final Set<Integer> types = new HashSet<>();
         for (final String swcType : swcTypes) {
             switch (swcType.toLowerCase().substring(0, 2)) {

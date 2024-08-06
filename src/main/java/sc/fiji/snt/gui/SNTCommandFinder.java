@@ -122,7 +122,7 @@ public class SNTCommandFinder {
 		cmdScrapper = new CmdScrapper(sntui);
 		maxPath = 2;
 		keyWordsToIgnoreInMenuPaths = Arrays.asList("Full List", "Batch Scripts"); // alias menus listing cmds elsewhere
-		widestCmd = "Get Branch Points in Brain Compartment ";
+		widestCmd = "Get Branch Points in Brain Compartment Demo ";
 		guiUtils = new GuiUtils(sntui);
 	}
 

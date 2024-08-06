@@ -2604,7 +2604,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String PLOT_PROFILE_CMD = "Path Profiler...";
 
 		// color mapping commands
-		private static final String COLORIZE_TREES_CMD = "Branch-based Color Mapping...";
+		private static final String COLORIZE_TREES_CMD = "Cell-based Color Mapping...";
 		private static final String COLORIZE_PATHS_CMD = "Path-based Color Mapping...";
 		private static final String COLORIZE_REMOVE_CMD = "Remove Existing Color Mapping(s)...";
 
@@ -2613,7 +2613,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String MEASURE_PATHS_CMD = "Measure Path(s)...";
 		// distribution commands
 		private static final String HISTOGRAM_PATHS_CMD = "Path-based Distributions...";
-		private static final String HISTOGRAM_TREES_CMD = "Branch-based Distributions...";
+		private static final String HISTOGRAM_TREES_CMD = "Cell-based Distributions...";
 		// timelapse analysis
 		private static final String MATCH_PATHS_ACROSS_TIME_CMD = "Match Paths Across Time...";
 		private static final String TIME_PROFILE_CMD = "Time Profile...";
@@ -2803,7 +2803,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			else if (COLORIZE_TREES_CMD.equals(cmd)) {
-
+				selectionDoesNotReflectCompleteTreesWarning(selectedPaths);
 				final Collection<Tree> trees = getMultipleTrees();
 				if (trees == null || trees.isEmpty())
 					return;
@@ -2830,7 +2830,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			else if (HISTOGRAM_TREES_CMD.equals(cmd)) {
-
+				selectionDoesNotReflectCompleteTreesWarning(selectedPaths);
 				final Collection<Tree> trees = getMultipleTrees();
 				if (trees == null) return;
 				runDistributionAnalysisCmd(trees, null, null);
@@ -3458,6 +3458,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				if (!p.getName().contains(string)) return false;
 			}
 			return true;
+		}
+
+		void selectionDoesNotReflectCompleteTreesWarning(final Collection<Path> selectedPaths) {
+			if (selectedPaths.isEmpty() || plugin.getPrefs().getTemp("misc-paths-skipnag", false)
+					|| selectedPaths.size() == pathAndFillManager.getPaths().size()) {
+				return;
+			}
+			final int refId = selectedPaths.iterator().next().getTreeID();
+			if (getSelectedPaths(false).stream().anyMatch(path -> path.getTreeID() != refId)
+					|| pathAndFillManager.getPaths().stream().anyMatch(path -> !path.isSelected() && path.getTreeID() == refId)) {
+				final Boolean skipnag = guiUtils.getPersistentWarning("Current selection of " + selectedPaths.size() +
+						" path(s) is going to be ignored because this command operates on whole tree(s).", "Ignored Selection");
+				if (skipnag != null) plugin.getPrefs().setTemp("misc-paths-skipnag", skipnag);
+			}
 		}
 
 		@SuppressWarnings("unused")

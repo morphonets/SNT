@@ -22,11 +22,7 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import net.imagej.ImageJ;
 
@@ -37,6 +33,8 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 
+import org.scijava.widget.ChoiceWidget;
+import sc.fiji.snt.analysis.GroupedTreeStatistics;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.GuiUtils;
@@ -62,8 +60,13 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 	@Parameter(required = true, label = "Compartment", choices= {"All", "Axon", "Dendrites"})
 	private String compartment;
 
-	@Parameter(required = false, label = "Polar histogram", description = "Creates a polar histogram. Assumes a data range between 0 and 360")
-	private boolean polar;
+	@Parameter(required = false, label = "Histogram style:", style= ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE,
+			choices = {"Data from all cells in a single series", "Data from each cell on a separated series"})
+	private String histogramChoice;
+
+	@Parameter(required = false, label = "Histogram type", style= ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE,
+					choices = {"Linear", "Polar"}, description = "Polar histogram assumes a data range between 0 and 360")
+	private String histogramType;
 
 	@Parameter(required = true)
 	private Collection<Tree> trees;
@@ -71,10 +74,20 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
 	private boolean calledFromPathManagerUI;
 
+	private boolean polar;
+	private String swcTypes;
+	private String failures = "";
+	private String failureExplanation = "";
+
 	protected void init() {
 		super.init(false);
 		if (trees == null || trees.isEmpty()) {
 			error("Collection of Trees required but none found.");
+			return;
+		}
+		if (trees.size() == 1) {
+			resolveInput("histogramChoice");
+			histogramChoice = "Data from all cells in a single series";
 		}
 		final MutableModuleItem<String> measurementChoiceInput = getInfo()
 			.getMutableInput("measurementChoice", String.class);
@@ -86,52 +99,63 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 			"measurementChoice", MultiTreeStatistics.LENGTH));
 	}
 
-	@Override
-	public void run() {
-		String failures = "";
-		String explanation = "";
-		final boolean exactMatchState = MultiTreeStatistics.isExactMetricMatch();
-		MultiTreeStatistics.setExactMetricMatch(true);
-		MultiTreeStatistics mStats = null;
-		if  ("All".equals(compartment)) {
-			try {
-				mStats = new MultiTreeStatistics(trees);
-				mStats.setLabel("All Processes");
-			} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
-				failures = "all";
-			}
-		} else {
-			explanation = " Perhaps branches have not been tagged as dendrites/axons? If this is the case, "
+	private void runSingleSeriesStats() {
+		if ("All".equals(compartment)) {
+			failureExplanation = " Perhaps branches have not been tagged as dendrites/axons? If this is the case, "
 					+ "you can re-run the analysis using 'All' as compartment choice.";
-			try {
-				if (compartment.contains("De")) {
-					mStats = new MultiTreeStatistics(trees, "dendrites");
-					mStats.setLabel("Dendrites");
-				}
-			} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
-				failures += "dendritic";
-			}
-			try {
-				if (compartment.contains("Ax")) {
-					mStats = new MultiTreeStatistics(trees, "axon");
-					mStats.setLabel("Axons");
-				}
-			} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
-				failures += (failures.isEmpty()) ? "axonal" : " or axonal";
-			}
 		}
-
-		if (mStats != null) {
+		try {
+			final MultiTreeStatistics mStats = new MultiTreeStatistics(trees, swcTypes);
+			mStats.setLabel(swcTypes);
 			if (polar)
 				mStats.getPolarHistogram(measurementChoice).show();
 			else
 				mStats.getHistogram(measurementChoice).show();
+		} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
+			failures += String.format(" %s", swcTypes);
+		}
+	}
+
+	private void runMultiSeriesStats() {
+		final GroupedTreeStatistics gStats = new GroupedTreeStatistics();
+		trees.forEach( tree -> {
+			try {
+				gStats.addGroup(Collections.singletonList(tree), tree.getLabel(), swcTypes);
+			} catch (final java.util.NoSuchElementException | IllegalArgumentException | NullPointerException ignored) {
+				failures += String.format(" %s:%s;", tree.getLabel(), swcTypes);
+			}
+		});
+		if (!gStats.getGroups().isEmpty()) {
+			if (polar)
+				gStats.getPolarHistogram(measurementChoice).show();
+			else
+				gStats.getHistogram(measurementChoice).show();
+		}
+	}
+
+	@Override
+	public void run() {
+
+		polar = histogramType.toLowerCase().contains("polar");
+		if (compartment.toLowerCase().contains("de")) {
+			swcTypes = "dendrites";
+		} else if (compartment.toLowerCase().contains("ax")) {
+			swcTypes = "axon";
+		} else {
+			swcTypes = "all";
+		}
+		final boolean exactMatchState = MultiTreeStatistics.isExactMetricMatch();
+		MultiTreeStatistics.setExactMetricMatch(true);
+		if (histogramChoice.toLowerCase().contains("single series")) {
+			runSingleSeriesStats();
+		} else {
+			runMultiSeriesStats();
 		}
 		if (!failures.isEmpty()) {
 			String error = "It was not possible to access data for " + failures + " compartment(s).";
-			error += explanation;
+			error += failureExplanation;
 			if (calledFromPathManagerUI) {
-				error += "Note that some distributions can only be computed on "
+				error += " Note that some distributions can only be computed on "
 						+ "structures with a single root without disconnected paths. "
 						+ "Please re-run the command with a valid selection.";
 			}
