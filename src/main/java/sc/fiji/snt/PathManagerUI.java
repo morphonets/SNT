@@ -2697,6 +2697,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			else if (MEASURE_TREES_CMD.equals(cmd)) {
+				selectionDoesNotReflectCompleteTreesWarning(selectedPaths);
 				measureCells();
 				return;
 			}

@@ -187,7 +187,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	/** Flag for {@value #COMPLEXITY_INDEX} statistics. */
 	public static final String COMPLEXITY_INDEX = "Complexity index";
 	/** Flag specifying {@link StrahlerAnalyzer#getRootNumber() Horton-Strahler number} statistics */
-	public static final String STRAHLER_NUMBER = "Horton-Strahler number";
+	public static final String STRAHLER_NUMBER = "Horton-Strahler root number";
 	/** Flag specifying {@link StrahlerAnalyzer#getAvgBifurcationRatio() Horton-Strahler bifurcation ratio} statistics */
 	public static final String STRAHLER_RATIO = "Horton-Strahler bifurcation ratio";
 	/** Flag specifying {@link sc.fiji.snt.analysis.sholl.math.LinearProfileStats#getMean() Sholl mean} statistics */

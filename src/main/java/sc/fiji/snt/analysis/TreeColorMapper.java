@@ -105,8 +105,8 @@ public class TreeColorMapper extends ColorMapper {
 	public static final String Z_COORDINATES = TreeStatistics.Z_COORDINATES;
 	/** Mapping property: Sholl inters. counts */
 	public static final String SHOLL_COUNTS = "Sholl inters. (root centered)"; //FIXME: getNormalizedMeasurement() will not allow '-'
-	/** Mapping property: {@link StrahlerAnalyzer#getRootNumber() Horton-Strahler number} */
-	public static final String STRAHLER_NUMBER = MultiTreeStatistics.STRAHLER_NUMBER;
+	/** Mapping property: Horton-Strahler branch orders */
+	public static final String STRAHLER_ORDERS = "Horton-Strahler orders";
 	/** Mapping property: Node intensity nodes */
 	public static final String VALUES = TreeStatistics.VALUES;
 	/** Mapping property: Tags/filename */
@@ -117,7 +117,7 @@ public class TreeColorMapper extends ColorMapper {
 	private static final String[] ALL_FLAGS = {
 			INTER_NODE_ANGLE, INTER_NODE_DISTANCE, N_BRANCH_POINTS, N_NODES, N_SPINES, NODE_RADIUS,
 			PATH_AVG_SPINE_DENSITY, PATH_DISTANCE, PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY,
-			PATH_FRAME, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_ORDER, SHOLL_COUNTS, STRAHLER_NUMBER,
+			PATH_FRAME, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_ORDER, SHOLL_COUNTS, STRAHLER_ORDERS,
 			TAG_FILENAME, VALUES, X_COORDINATES, Y_COORDINATES, Z_COORDINATES
 	};
 
@@ -176,7 +176,7 @@ public class TreeColorMapper extends ColorMapper {
 		map(measurement, colorTable);
 		final String cMeasurement = getNormalizedMeasurement(measurement);
 		switch (cMeasurement) {
-			case STRAHLER_NUMBER:
+			case STRAHLER_ORDERS:
 				assignStrahlerOrderToNodeValues();
 				integerScale = true;
 				mapToNodeProperty(VALUES);
@@ -575,7 +575,7 @@ public class TreeColorMapper extends ColorMapper {
 			return PATH_LENGTH;
 		}
 		if (normGuess.contains("strahler") || normGuess.contains("horton") || normGuess.contains("h-s")) {
-			return STRAHLER_NUMBER;
+			return STRAHLER_ORDERS;
 		}
 		if (normGuess.contains("sholl") || normGuess.contains("inters")) {
 			return SHOLL_COUNTS;

@@ -43,8 +43,6 @@ import org.scijava.widget.Button;
 import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.gui.cmds.FigCreatorCmd;
-import sc.fiji.snt.viewer.Viewer2D;
-import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
@@ -65,7 +63,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 	@Parameter
 	private LUTService lutService;
 
-	@Parameter(required = true, label = "Color by", persist = false) // dynamically generated
+	@Parameter(required = true, label = "Color by") // dynamically generated
 	private String measurementChoice;
 
 	@Parameter(label = "LUT", callback = "lutChoiceChanged")
@@ -156,7 +154,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 		if (onlyConnectivitySafeMetrics) {
 			choices.remove(MultiTreeColorMapper.N_BRANCHES);
 			choices.remove(MultiTreeColorMapper.STRAHLER_NUMBER);
-			choices.remove(TreeColorMapper.STRAHLER_NUMBER);
+			choices.remove(TreeColorMapper.STRAHLER_ORDERS);
 		}
 		Collections.sort(choices);
 		final MutableModuleItem<String> measurementChoiceInput = getInfo().getMutableInput("measurementChoice", String.class);

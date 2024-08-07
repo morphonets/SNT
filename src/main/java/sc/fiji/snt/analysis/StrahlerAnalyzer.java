@@ -373,7 +373,7 @@ public class StrahlerAnalyzer {
 		});
 		System.out.println("# Avg B. ratio: " + analyzer.getAvgBifurcationRatio());
 		final TreeColorMapper mapper = new TreeColorMapper(ij.context());
-		mapper.map(tree, TreeColorMapper.STRAHLER_NUMBER, ColorTables.ICE);
+		mapper.map(tree, TreeColorMapper.STRAHLER_ORDERS, ColorTables.ICE);
 		final Viewer3D viewer = new Viewer3D(ij.context());
 		viewer.addColorBarLegend(mapper);
 		viewer.add(tree);

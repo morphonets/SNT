@@ -64,7 +64,7 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 			choices = {"Data from all cells in a single series", "Data from each cell on a separated series"})
 	private String histogramChoice;
 
-	@Parameter(required = false, label = "Histogram type", style= ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE,
+	@Parameter(required = false, label = "Histogram type:", style= ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE,
 					choices = {"Linear", "Polar"}, description = "Polar histogram assumes a data range between 0 and 360")
 	private String histogramType;
 

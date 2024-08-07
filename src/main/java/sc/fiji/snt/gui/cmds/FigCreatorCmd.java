@@ -59,9 +59,16 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 	private String rootTranslation;
 
 	@Parameter(label = "Rotation:", choices = { "None", "Rotate to upright orientation (longest geodesic)",
-			"Rotate to upright orientation (point-cloud)"},
-			description = "<HTML>Tries to rotate the arbor to a 'vertical' position.<br>" +
-					"Assumes the longest shortest path in the arbor reflects its overall orientation.",
+			"Rotate to upright orientation (tips)"},
+			description = "<HTML>Tries to rotate the arbor to a 'vertical' position." +
+					"<dl>" +
+					"<dt>None</dt>" +
+					"<dd>No rotation is performed</dd>" +
+					"<dt>Longest geodesic</dt>" +
+					"<dd>Assumes the longest shortest path in the arbor reflects its overall orientation</dd>" +
+					"<dt>Tips</dt>" +
+					"<dd>Assumes the vector defined by the soma and the centroid of all tips in the <br>" +
+					"arbor reflects its overall orientation</dd></dl>",
 			style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
 	private String uprightRotation;
 
@@ -103,8 +110,8 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			transformationFlags += "zero-origin";
 		if (uprightRotation.toLowerCase().contains("upright"))
 			transformationFlags += " upright";
-		if (uprightRotation.toLowerCase().contains("centroid"))
-			transformationFlags += " centroid";
+		if (uprightRotation.toLowerCase().contains("tips"))
+			transformationFlags += " tips";
 		if (!type.toLowerCase().contains("3d"))
 			transformationFlags += " " + view;
 		final Collection<Tree> renderingTrees = Tree.transform(trees, transformationFlags, false);

@@ -1735,8 +1735,8 @@ public class Tree implements TreeProperties {
 	 *                         translation flags:
 	 *                         - "zero-origin": each tree is translated so that its root has (0,0,0) coordinates
 	 *                         rotation flags:
-	 *                         - "upright": each tree is rotated to vertically align its graph geodesic
-	 *                         - "upright:centroid": each tree is rotated to vertically align its root-centroid vector
+	 *                         - "upright:geodesic": each tree is rotated to vertically align its graph geodesic
+	 *                         - "upright:tips": each tree is rotated to vertically align its [root, tips centroid] vector
 	 *                         - "r#": With # specifying a positive integer (e.g., r90): each tree is rotated by the
 	 *                         specified angle (in degrees)
 	 *                         </code>
@@ -1744,13 +1744,14 @@ public class Tree implements TreeProperties {
 	 *                         Ignored if transformationOptions are not valid
 	 * @return the collection with transformed trees, or the input collection if transformOptions were invalid
 	 */
-	public static Collection<Tree> transform(final Collection<Tree> trees, final String transformOptions, final boolean inPlace) {
+	public static Collection<Tree>
+	transform(final Collection<Tree> trees, final String transformOptions, final boolean inPlace) {
 		final String options = transformOptions.toLowerCase();
 		final boolean isZY = options.contains("zy") || options.contains("yz");
 		final boolean isXZ = options.contains("xz") || options.contains("zx");
 		final boolean zeroRoot = options.contains("zero") || options.contains("origin");
 		final boolean straighten = options.contains("upright");
-		final boolean centroid = options.contains("centroid");
+		final boolean centroid = options.contains("tips");
 		int rotAngle = 0;
 		final Matcher m = Pattern.compile("r(\\d+)").matcher(options);
 		while (m.find()) rotAngle += Integer.parseInt(m.group(1));
@@ -1772,7 +1773,9 @@ public class Tree implements TreeProperties {
 					if (centroid) {
 						refPath = tree.get(0).createPath();
 						refPath.addNode(tree.getRoot());
-						refPath.addNode(SNTPoint.average(tree.getNodes()));
+						final Set<PointInImage> tips = new TreeAnalyzer(tree).getTips();
+						tips.remove(tree.getRoot());
+						refPath.addNode(SNTPoint.average(tips));
 					} else {
 						refPath = tree.getGraph().getLongestPath(true);
 					}
