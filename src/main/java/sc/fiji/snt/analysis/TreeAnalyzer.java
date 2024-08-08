@@ -1301,41 +1301,14 @@ public class TreeAnalyzer extends ContextCommand {
 	 * 
 	 * @return a list containing the fractal dimension of each branch
 	 * @see StrahlerAnalyzer#getBranches()
+	 * @see Path#getFractalDimension()
 	 * @throws IllegalArgumentException if the tree contains multiple roots or loops
 	 */
 	public List<Double> getFractalDimension() throws IllegalArgumentException {
-		final List<Path> branches = getBranches();
 		final List<Double> fractalDims = new ArrayList<>();
-		for (final Path b : branches) {
-			// Must have at least 4 points after the start-node in a branch
-			if (b.size() < 5) {
-				continue;
-			}
-			final List<Double> pathDists = new ArrayList<>();
-			final List<Double> eucDists  = new ArrayList<>();
-			// Start at the second node in the branch
-			for (int i = 1; i < b.size(); i++) {
-				double pDist = b.getNode(i).distanceTo(b.getNode(i-1));
-				if (!pathDists.isEmpty()) {
-					double cumDist = pathDists.get(i-2) + pDist;
-					pathDists.add(cumDist);
-				}
-				else {
-					pathDists.add(pDist);
-				}
-				double eDist = b.getNode(i).distanceTo(b.getNode(0));
-				eucDists.add(eDist);
-			}
-			double numerator = 0.0;
-			for (int i = 0; i < eucDists.size(); i++) {
-				numerator += Math.log(1 + eucDists.get(i)) * Math.log(1 + pathDists.get(i));
-			}
-			double denominator = 0.0;
-			for (int i = 0; i < eucDists.size(); i++) {
-				denominator += Math.log(1 + eucDists.get(i)) * Math.log(1 + eucDists.get(i));
-			}
-			double fDim = (double) numerator / denominator;
-			fractalDims.add(fDim);	
+		for (final Path b : getBranches()) {
+			final double fDim = b.getFractalDimension();
+			if (!Double.isNaN(fDim)) fractalDims.add(fDim);
 		}
 		return fractalDims;
 	}

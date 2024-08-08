@@ -179,7 +179,6 @@ public class SWCExportDialog extends JDialog {
 	private CollapsiblePanel warningPanel() {
 		final JLabel label = GuiUtils.leftAlignedLabel("<HTML>The following data is not stored in SWC files:" //
 				+ "<ul>" //
-				+ "  <li>Image properties</li>"//
 				+ "  <li><i>Fits</i>: Path refinements that do not override original nodes</li>"//
 				+ "  <li><i>Fills</i>: All types</li>"//
 				+ "  <li>Channel and frame position of path(s)</li>"//

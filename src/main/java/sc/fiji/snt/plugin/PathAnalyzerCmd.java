@@ -196,7 +196,7 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 			metrics.add(PathAnalyzer.CONVEX_HULL_ELONGATION);
 			metrics.add(PathAnalyzer.CONVEX_HULL_ROUNDNESS);
 		}
-		if (fractalDimension) metrics.add(PathAnalyzer.BRANCH_FRACTAL_DIMENSION); // will be computed for paths
+		if (fractalDimension) metrics.add(PathAnalyzer.PATH_FRACTAL_DIMENSION);
 		if (nBranchPoints) metrics.add(PathAnalyzer.N_BRANCH_POINTS);
 		if (pathContraction) metrics.add(PathAnalyzer.PATH_CONTRACTION);
 		if (pathFragmentation) metrics.add(PathAnalyzer.N_PATH_NODES);

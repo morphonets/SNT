@@ -30,7 +30,6 @@ import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
 
-import org.checkerframework.checker.units.qual.A;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.annotation.AllenCompartment;

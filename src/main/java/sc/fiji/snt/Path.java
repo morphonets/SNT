@@ -32,7 +32,6 @@ import org.apache.commons.math3.analysis.interpolation.LinearInterpolator;
 import org.apache.commons.math3.analysis.polynomials.PolynomialFunction;
 import org.apache.commons.math3.analysis.polynomials.PolynomialSplineFunction;
 import org.apache.commons.math3.stat.StatUtils;
-import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.apache.commons.math3.util.MathUtils;
 import org.scijava.util.ColorRGB;
@@ -400,6 +399,39 @@ public class Path implements Comparable<Path> {
 	}
 
 	/**
+	 * Gets the fractal dimension of this path.
+	 *
+	 * @return the fractal dimension of this path or Double.NaN if this path has less than 5 nodes
+	 */
+	public double getFractalDimension() {
+		if (size() < 5) { // Must have at least 4 points after the start-node
+			return Double.NaN;
+		}
+		final List<Double> pathDists = new ArrayList<>();
+		final List<Double> eucDists = new ArrayList<>();
+		for (int i = 1; i < size(); i++) { //Start at the second node
+			double pDist = getNodeWithoutChecks(i).distanceTo(getNodeWithoutChecks(i - 1));
+			if (!pathDists.isEmpty()) {
+				double cumDist = pathDists.get(i - 2) + pDist;
+				pathDists.add(cumDist);
+			} else {
+				pathDists.add(pDist);
+			}
+			double eDist = getNodeWithoutChecks(i).distanceTo(getNodeWithoutChecks(0));
+			eucDists.add(eDist);
+		}
+		double numerator = 0.0;
+		for (int i = 0; i < eucDists.size(); i++) {
+			numerator += Math.log(1 + eucDists.get(i)) * Math.log(1 + pathDists.get(i));
+		}
+		double denominator = 0.0;
+		for (final double eucDist : eucDists) {
+			denominator += Math.log(1 + eucDist) * Math.log(1 + eucDist);
+		}
+		return (double) numerator / denominator;
+	}
+
+	/**
 	 * Gets the length of this Path
 	 *
 	 * @return the length of this Path
@@ -419,8 +451,8 @@ public class Path implements Comparable<Path> {
 	/*
 	 * Computes the angle between the specified node and its two flanking neighbors.
 	 * <p>
-	 * If A being the specified node, B its previous neighbor, and C is subsequent neighbor, computes the angle
-	 * between the vectors BA, and BC.
+	 * With B being the specified node, A its previous neighbor, and C is subsequent neighbor, computes the angle
+	 * between the vectors AB, and BC.
 	 * </p>
 	 * @return the angle in degrees (0-360 range) or Double.NaN if specified node does not have sufficient neighbors
 	 */

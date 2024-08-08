@@ -60,56 +60,75 @@ import sc.fiji.snt.util.SWCPoint;
  */
 public class TreeStatistics extends TreeAnalyzer {
 
-	/** Flag for {@value #LENGTH} analysis. */
-	public static final String LENGTH = "Cable length";
+	// branch angles
+	/** Flag for {@value #INNER_EXTENSION_ANGLE_XY} analysis. */
+	public static final String INNER_EXTENSION_ANGLE_XY = "Inner branches: Extension angle XY plane";
+	/** Flag for {@value #INNER_EXTENSION_ANGLE_XZ} analysis. */
+	public static final String INNER_EXTENSION_ANGLE_XZ = "Inner branches: Extension angle XZ plane";
+	/** Flag for {@value #INNER_EXTENSION_ANGLE_ZY} analysis. */
+	public static final String INNER_EXTENSION_ANGLE_ZY = "Inner branches: Extension angle ZY plane";
+	/** Flag for {@value #PRIMARY_EXTENSION_ANGLE_XY} analysis. */
+	public static final String PRIMARY_EXTENSION_ANGLE_XY = "Primary branches: Extension angle XY plane";
+	/** Flag for {@value #PRIMARY_EXTENSION_ANGLE_XZ} analysis. */
+	public static final String PRIMARY_EXTENSION_ANGLE_XZ = "Primary branches: Extension angle XZ plane";
+	/** Flag for {@value #PRIMARY_EXTENSION_ANGLE_ZY} analysis. */
+	public static final String PRIMARY_EXTENSION_ANGLE_ZY = "Primary branches: Extension angle ZY plane";
+	/** Flag for {@value #TERMINAL_EXTENSION_ANGLE_XY} analysis. */
+	public static final String TERMINAL_EXTENSION_ANGLE_XY = "Terminal branches: Extension angle XY plane";
+	/** Flag for {@value #TERMINAL_EXTENSION_ANGLE_XZ} analysis. */
+	public static final String TERMINAL_EXTENSION_ANGLE_XZ = "Terminal branches: Extension angle XZ plane";
+	/** Flag for {@value #TERMINAL_EXTENSION_ANGLE_ZY} analysis. */
+	public static final String TERMINAL_EXTENSION_ANGLE_ZY = "Terminal branches: Extension angle ZY plane";
+	/** Flag for {@value #REMOTE_BIF_ANGLES} statistics. */
+	public static final String REMOTE_BIF_ANGLES = "Remote bif. angles";
+	// paths
 	/** Flag for {@value #PATH_LENGTH} analysis. */
 	public static final String PATH_LENGTH = "Path length";
 	/** Flag for {@value #PATH_EXT_ANGLE_XY} analysis. */
-	public static final String PATH_EXT_ANGLE_XY = "Path extension angle (XY plane)";
+	public static final String PATH_EXT_ANGLE_XY = "Path extension angle XY plane";
 	/** Flag for {@value #PATH_EXT_ANGLE_XZ} analysis. */
-	public static final String PATH_EXT_ANGLE_XZ = "Path extension angle (XZ plane)";
+	public static final String PATH_EXT_ANGLE_XZ = "Path extension angle XZ plane";
 	/** Flag for {@value #PATH_EXT_ANGLE_ZY} analysis. */
-	public static final String PATH_EXT_ANGLE_ZY = "Path extension angle (ZY plane)";
-	/** Flag for {@value #BRANCH_LENGTH} analysis. */
-	public static final String BRANCH_LENGTH = "Branch length";
-	/** Flag for {@value #BRANCH_MEAN_RADIUS} analysis. */
-	public static final String BRANCH_MEAN_RADIUS = "Branch mean radius";
-	/** Flag for {@value #INNER_EXTENSION_ANGLE_XY} analysis. */
-	public static final String INNER_EXTENSION_ANGLE_XY = "Extension angle of inner branches (XY plane)";
-	/** Flag for {@value #INNER_EXTENSION_ANGLE_XZ} analysis. */
-	public static final String INNER_EXTENSION_ANGLE_XZ = "Extension angle of inner branches (XZ plane)";
-	/** Flag for {@value #INNER_EXTENSION_ANGLE_ZY} analysis. */
-	public static final String INNER_EXTENSION_ANGLE_ZY = "Extension angle of inner branches (ZY plane)";
-	/** Flag for {@value #PRIMARY_EXTENSION_ANGLE_XY} analysis. */
-	public static final String PRIMARY_EXTENSION_ANGLE_XY = "Extension angle of primary branches (XY plane)";
-	/** Flag for {@value #PRIMARY_EXTENSION_ANGLE_XZ} analysis. */
-	public static final String PRIMARY_EXTENSION_ANGLE_XZ = "Extension angle of primary branches (XZ plane)";
-	/** Flag for {@value #PRIMARY_EXTENSION_ANGLE_ZY} analysis. */
-	public static final String PRIMARY_EXTENSION_ANGLE_ZY = "Extension angle of primary branches (ZY plane)";
-	/** Flag for {@value #TERMINAL_EXTENSION_ANGLE_XY} analysis. */
-	public static final String TERMINAL_EXTENSION_ANGLE_XY = "Extension angle of terminal branches (XY plane)";
-	/** Flag for {@value #TERMINAL_EXTENSION_ANGLE_XZ} analysis. */
-	public static final String TERMINAL_EXTENSION_ANGLE_XZ = "Extension angle of terminal branches (XZ plane)";
-	/** Flag for {@value #TERMINAL_EXTENSION_ANGLE_ZY} analysis. */
-	public static final String TERMINAL_EXTENSION_ANGLE_ZY = "Extension angle of terminal branches (ZY plane)";
-	/** Flag for {@value #TERMINAL_LENGTH} analysis. */
-	public static final String TERMINAL_LENGTH = "Length of terminal branches";
-	/** Flag for {@value #PRIMARY_LENGTH} analysis. */
-	public static final String PRIMARY_LENGTH = "Length of primary branches";
-	/** Flag for {@value #INNER_LENGTH} analysis. */
-	public static final String INNER_LENGTH = "Length of inner branches";
+	public static final String PATH_EXT_ANGLE_ZY = "Path extension angle ZY plane";
 	/** Flag for {@value #PATH_ORDER} statistics. */
 	public static final String PATH_ORDER = "Path order";
 	/** Flag for {@value #PATH_CHANNEL} statistics. */
 	public static final String PATH_CHANNEL = "Path channel";
 	/** Flag for {@value #PATH_FRAME} statistics. */
 	public static final String PATH_FRAME = "Path frame";
+	/** Flag for {@value #PATH_MEAN_RADIUS} statistics. */
+	public static final String PATH_MEAN_RADIUS = "Path mean radius";
+	/** Flag for {@value #PATH_SPINE_DENSITY} statistics */
+	public static final String PATH_SPINE_DENSITY = "Path spine/varicosity density";
+	/** Flag for {@value #PATH_CONTRACTION} statistics. */
+	public static final String PATH_CONTRACTION = "Path contraction";
+	/** Flag for {@value #PATH_FRACTAL_DIMENSION} statistics. */
+	public static final String PATH_FRACTAL_DIMENSION = "Path fractal dimension";
+	// branches
+	/** Flag for {@value #BRANCH_LENGTH} analysis. */
+	public static final String BRANCH_LENGTH = "Branch length";
+	/** Flag for {@value #BRANCH_MEAN_RADIUS} analysis. */
+	public static final String BRANCH_MEAN_RADIUS = "Branch mean radius";
+	/** Flag for {@value #TERMINAL_LENGTH} analysis. */
+	public static final String TERMINAL_LENGTH = "Terminal branches: Length";
+	/** Flag for {@value #PRIMARY_LENGTH} analysis. */
+	public static final String PRIMARY_LENGTH = "Primary branches: Length";
+	/** Flag for {@value #INNER_LENGTH} analysis. */
+	public static final String INNER_LENGTH = "Inner branches: Length";
+	/** Flag for {@value #BRANCH_CONTRACTION} statistics. */
+	public static final String BRANCH_CONTRACTION = "Branch contraction";
+	/** Flag for {@value #BRANCH_FRACTAL_DIMENSION} statistics. */
+	public static final String BRANCH_FRACTAL_DIMENSION = "Branch fractal dimension";
+	// nodes
+	/** Flag for {@value #NODE_RADIUS} statistics. */
+	public static final String NODE_RADIUS = "Node radius";
 	/** Flag for {@value #INTER_NODE_ANGLE} statistics. */
 	public static final String INTER_NODE_ANGLE = "Internode angle";
 	/** Flag for {@value #INTER_NODE_DISTANCE} statistics. */
 	public static final String INTER_NODE_DISTANCE = "Internode distance";
 	/** Flag for {@value #INTER_NODE_DISTANCE_SQUARED} statistics. */
 	public static final String INTER_NODE_DISTANCE_SQUARED = "Internode distance (squared)";
+	// counts
 	/** Flag for {@value #N_BRANCH_POINTS} statistics. */
 	public static final String N_BRANCH_POINTS = "No. of branch points";
 	/** Flag for {@value #N_NODES} statistics. */
@@ -122,8 +141,6 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String N_PATHS = "No. of paths";
 	/** Flag for {@value #N_SPINES} statistics. */
 	public static final String N_SPINES = "No. of spines/varicosities";
-	/** Flag for {@value #NODE_RADIUS} statistics. */
-	public static final String NODE_RADIUS = "Node radius";
 	/** Flag specifying {@value #N_BRANCHES} statistics */
 	public static final String N_BRANCHES = "No. of branches";
 	/** Flag specifying {@value #N_PRIMARY_BRANCHES} statistics */
@@ -134,14 +151,17 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String N_TERMINAL_BRANCHES = "No. of terminal branches";
 	/** Flag specifying {@value #N_TIPS} statistics */
 	public static final String N_TIPS = "No. of tips";
-	/** Flag for {@value #PATH_MEAN_RADIUS} statistics. */
-	public static final String PATH_MEAN_RADIUS = "Path mean radius";
 	/** Flag for {@value #N_FITTED_PATHS} statistics */
 	public static final String N_FITTED_PATHS = "No. of fitted paths";
-	/** Flag for {@value #PATH_SPINE_DENSITY} statistics */
-	public static final String PATH_SPINE_DENSITY = "Path spine/varicosity density";
 	/** Flag for {@value #PATH_N_SPINES} statistics */
 	public static final String PATH_N_SPINES = "No. of spines/varicosities per path";
+	//misc
+	/** Flag for {@value #LENGTH} analysis. */
+	public static final String LENGTH = "Cable length";
+	/** Flag for {@value #COMPLEXITY_INDEX_ACI} statistics. */
+	public static final String COMPLEXITY_INDEX_ACI = "Complexity index: ACI";
+	/** Flag for {@value #COMPLEXITY_INDEX_DCI} statistics. */
+	public static final String COMPLEXITY_INDEX_DCI = "Complexity index: DCI";
 	/** Flag for {@value #X_COORDINATES} statistics. */
 	public static final String X_COORDINATES = "X coordinates";
 	/** Flag for {@value #Y_COORDINATES} statistics. */
@@ -154,24 +174,18 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String HEIGHT = "Height";
 	/** Flag for {@value #DEPTH} statistics */
 	public static final String DEPTH = "Depth";
-	/** Flag for {@value #BRANCH_CONTRACTION} statistics. */
-	public static final String BRANCH_CONTRACTION = "Branch contraction";
-	/** Flag for {@value #PATH_CONTRACTION} statistics. */
-	public static final String PATH_CONTRACTION = "Path contraction";
-	/** Flag for {@value #REMOTE_BIF_ANGLES} statistics. */
-	public static final String REMOTE_BIF_ANGLES = "Remote bif. angles";
 	/** Flag for {@value #PARTITION_ASYMMETRY} statistics. */
 	public static final String PARTITION_ASYMMETRY = "Partition asymmetry";
-	/** Flag for {@value #BRANCH_FRACTAL_DIMENSION} statistics. */
-	public static final String BRANCH_FRACTAL_DIMENSION = "Branch fractal dimension";
+	// graph geodesics
 	/** Flag for {@value #GRAPH_DIAMETER} statistics. */
-	public static final String GRAPH_DIAMETER = "Length of longest shortest path";
+	public static final String GRAPH_DIAMETER = "Longest shortest path: Length";
 	/** Flag for {@value #GRAPH_DIAMETER_ANGLE_XY} statistics. */
-	public static final String GRAPH_DIAMETER_ANGLE_XY = "Angle of longest shortest path (XY plane)";
+	public static final String GRAPH_DIAMETER_ANGLE_XY = "Longest shortest path: Extension angle XY plane";
 	/** Flag for {@value #GRAPH_DIAMETER_ANGLE_XZ} statistics. */
-	public static final String GRAPH_DIAMETER_ANGLE_XZ = "Angle of longest shortest path (XZ plane)";
+	public static final String GRAPH_DIAMETER_ANGLE_XZ = "Longest shortest path: Extension angle XZ plane";
 	/** Flag for {@value #GRAPH_DIAMETER_ANGLE_ZY} statistics. */
-	public static final String GRAPH_DIAMETER_ANGLE_ZY = "Angle of longest shortest path (ZY plane)";
+	public static final String GRAPH_DIAMETER_ANGLE_ZY = "Longest shortest path: Extension angle ZY plane";
+	// volume and surface
 	/** Flag for {@value #VOLUME} statistics. */
 	public static final String VOLUME = "Volume";
 	/** Flag for {@value #BRANCH_VOLUME} statistics. */
@@ -184,12 +198,12 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String BRANCH_SURFACE_AREA = "Branch surface area";
 	/** Flag for {@value #PATH_SURFACE_AREA} statistics. */
 	public static final String PATH_SURFACE_AREA = "Path surface area";
-	/** Flag for {@value #COMPLEXITY_INDEX} statistics. */
-	public static final String COMPLEXITY_INDEX = "Complexity index";
+	// Strahler
 	/** Flag specifying {@link StrahlerAnalyzer#getRootNumber() Horton-Strahler number} statistics */
 	public static final String STRAHLER_NUMBER = "Horton-Strahler root number";
 	/** Flag specifying {@link StrahlerAnalyzer#getAvgBifurcationRatio() Horton-Strahler bifurcation ratio} statistics */
 	public static final String STRAHLER_RATIO = "Horton-Strahler bifurcation ratio";
+	// Sholl
 	/** Flag specifying {@link sc.fiji.snt.analysis.sholl.math.LinearProfileStats#getMean() Sholl mean} statistics */
 	public static final String SHOLL_MEAN_VALUE = "Sholl: " + ShollAnalyzer.MEAN;
 	/** Flag specifying {@link sc.fiji.snt.analysis.sholl.math.LinearProfileStats#getSum() Sholl sum} statistics */
@@ -214,6 +228,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String SHOLL_SKEWENESS = "Sholl: " + ShollAnalyzer.SKEWENESS;
 	/** Flag specifying {@value #SHOLL_RAMIFICATION_INDEX} statistics */
 	public static final String SHOLL_RAMIFICATION_INDEX = "Sholl: " + ShollAnalyzer.RAMIFICATION_INDEX;
+	//convex hull
 	/** Flag specifying {@value #CONVEX_HULL_BOUNDARY_SIZE} statistics */
 	public static final String CONVEX_HULL_BOUNDARY_SIZE = "Convex hull: " + ConvexHullAnalyzer.BOUNDARY_SIZE;
 	/** Flag specifying {@value #CONVEX_HULL_SIZE} statistics */
@@ -226,6 +241,7 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String CONVEX_HULL_ROUNDNESS= "Convex hull: " + ConvexHullAnalyzer.ROUNDNESS;
 	/** Flag specifying {@value #CONVEX_HULL_CENTROID_ROOT_DISTANCE} statistics */
 	public static final String CONVEX_HULL_CENTROID_ROOT_DISTANCE = "Convex hull: Centroid-root distance";
+
 	/**
 	 * Flag for analysis of {@value #VALUES}, an optional numeric property that can
 	 * be assigned to Path nodes (e.g., voxel intensities), assigned via
@@ -256,16 +272,16 @@ public class TreeStatistics extends TreeAnalyzer {
 	private static final String[] ALL_FLAGS = {
 			GRAPH_DIAMETER_ANGLE_XY, GRAPH_DIAMETER_ANGLE_XZ, GRAPH_DIAMETER_ANGLE_ZY, //
 			BRANCH_CONTRACTION, BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH,
-			BRANCH_MEAN_RADIUS, BRANCH_SURFACE_AREA, BRANCH_VOLUME, COMPLEXITY_INDEX, CONVEX_HULL_BOUNDARY_SIZE,
-			CONVEX_HULL_BOXIVITY, CONVEX_HULL_CENTROID_ROOT_DISTANCE, CONVEX_HULL_ELONGATION, CONVEX_HULL_ROUNDNESS,
-			CONVEX_HULL_SIZE, DEPTH, //
+			BRANCH_MEAN_RADIUS, BRANCH_SURFACE_AREA, BRANCH_VOLUME, COMPLEXITY_INDEX_ACI, COMPLEXITY_INDEX_DCI,
+			CONVEX_HULL_BOUNDARY_SIZE, CONVEX_HULL_BOXIVITY, CONVEX_HULL_CENTROID_ROOT_DISTANCE, CONVEX_HULL_ELONGATION,
+			CONVEX_HULL_ROUNDNESS, CONVEX_HULL_SIZE, DEPTH, //
 			INNER_EXTENSION_ANGLE_XY, INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY, PRIMARY_EXTENSION_ANGLE_XY,
 			PRIMARY_EXTENSION_ANGLE_XZ, PRIMARY_EXTENSION_ANGLE_ZY, TERMINAL_EXTENSION_ANGLE_XY,
 			TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY, //
 			GRAPH_DIAMETER, HEIGHT, INNER_LENGTH, INTER_NODE_ANGLE, INTER_NODE_DISTANCE,
 			INTER_NODE_DISTANCE_SQUARED, LENGTH, N_BRANCH_NODES, N_BRANCH_POINTS, N_BRANCHES, N_FITTED_PATHS,
 			N_INNER_BRANCHES, N_NODES, N_PATH_NODES, N_PATHS, N_PRIMARY_BRANCHES, N_SPINES, N_TERMINAL_BRANCHES, N_TIPS,
-			NODE_RADIUS, PARTITION_ASYMMETRY, PATH_CHANNEL, PATH_CONTRACTION, PATH_FRAME,
+			NODE_RADIUS, PARTITION_ASYMMETRY, PATH_CHANNEL, PATH_CONTRACTION, PATH_FRACTAL_DIMENSION, PATH_FRAME,
 			PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY, PATH_LENGTH, PATH_MEAN_RADIUS,
 			PATH_SPINE_DENSITY, PATH_N_SPINES, PATH_ORDER, PATH_SURFACE_AREA, PATH_VOLUME, PRIMARY_LENGTH,
 			REMOTE_BIF_ANGLES, SHOLL_DECAY, SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE,
@@ -330,12 +346,13 @@ public class TreeStatistics extends TreeAnalyzer {
 			break;
 		case "common":
 			metrics = new String[] { BRANCH_CONTRACTION, BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH, BRANCH_MEAN_RADIUS,
-					BRANCH_SURFACE_AREA, BRANCH_VOLUME, COMPLEXITY_INDEX, CONVEX_HULL_SIZE, DEPTH, INNER_LENGTH,
-					INTER_NODE_ANGLE, INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, LENGTH, N_BRANCH_POINTS, N_BRANCHES,
-					N_INNER_BRANCHES, N_NODES, N_PRIMARY_BRANCHES, N_SPINES, N_TERMINAL_BRANCHES, N_TIPS, NODE_RADIUS,
-					PARTITION_ASYMMETRY, PRIMARY_LENGTH, REMOTE_BIF_ANGLES, SHOLL_DECAY, SHOLL_MAX_VALUE,
-					SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MEAN_VALUE, SURFACE_AREA, STRAHLER_NUMBER,
-					TERMINAL_LENGTH, VALUES, VOLUME, X_COORDINATES, Y_COORDINATES, Z_COORDINATES };
+					BRANCH_SURFACE_AREA, BRANCH_VOLUME, COMPLEXITY_INDEX_ACI, COMPLEXITY_INDEX_DCI, CONVEX_HULL_SIZE,
+					DEPTH, INNER_LENGTH, INTER_NODE_ANGLE, INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, LENGTH,
+					N_BRANCH_POINTS, N_BRANCHES, N_INNER_BRANCHES, N_NODES, N_PRIMARY_BRANCHES, N_SPINES,
+					N_TERMINAL_BRANCHES, N_TIPS, NODE_RADIUS, PARTITION_ASYMMETRY, PRIMARY_LENGTH, REMOTE_BIF_ANGLES,
+					SHOLL_DECAY, SHOLL_MAX_VALUE, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MEAN_VALUE,
+					SURFACE_AREA, STRAHLER_NUMBER, TERMINAL_LENGTH, VALUES, VOLUME, X_COORDINATES, Y_COORDINATES,
+					Z_COORDINATES };
 			break;
 		case "quick":
 			/* NB: This list can only include metrics supported by #getMetricWithoutChecks() */
@@ -942,7 +959,14 @@ public class TreeStatistics extends TreeAnalyzer {
 				stat.addValue(Double.NaN);
 			}
 			break;
-		case COMPLEXITY_INDEX:
+		case COMPLEXITY_INDEX_ACI:
+			// implementation: doi: 10.1523/JNEUROSCI.4434-06.2007
+			double sumPathOrders = 0;
+			for (final Path p : tree.list())
+				sumPathOrders += p.getOrder() - 1;
+			stat.addValue(sumPathOrders / tree.list().size());
+			break;
+		case COMPLEXITY_INDEX_DCI:
 			try {
 				// Implementation by chronological order:
 				// www.jneurosci.org/content/19/22/9928#F6
@@ -984,12 +1008,14 @@ public class TreeStatistics extends TreeAnalyzer {
 		case BRANCH_FRACTAL_DIMENSION:
 		case FRACTAL_DIMENSION:
 			try {
-				for (final double fDim : getFractalDimension())
-					stat.addValue(fDim);
+				getFractalDimension().forEach(stat::addValue);
 			} catch (final IllegalArgumentException ignored) {
 				SNTUtils.log("Error: " + ignored.getMessage());
 				stat.addValue(Double.NaN);
 			}
+			break;
+		case PATH_FRACTAL_DIMENSION:
+			tree.list().forEach(p -> stat.addValue(p.getFractalDimension()));
 			break;
 		case GRAPH_DIAMETER:
 			try {

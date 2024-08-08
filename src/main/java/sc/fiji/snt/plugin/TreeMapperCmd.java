@@ -200,15 +200,6 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 		statusService.showStatus("Color code removed...");
 	}
 
-	private boolean isLargeData() {
-		 long sum = 0;
-		 for (final Tree tree : trees) {
-			 sum += tree.getNodesCount();
-			 if (sum > 10000) return true;
-		 }
-		 return false;
-	}
-
 	/* IDE debug method **/
 	public static void main(final String[] args) throws IOException {
 		final ImageJ ij = new ImageJ();
