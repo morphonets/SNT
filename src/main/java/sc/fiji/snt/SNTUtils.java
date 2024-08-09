@@ -527,7 +527,7 @@ public class SNTUtils {
 						context = new Context(requiredServices());
 						System.out.print(" Done.");
 					} finally {
-						System.out.println("");
+						System.out.println();
 					}
 				}
 				// Make sure required services have been loaded. Somehow SNTService is not when IJ is not running!?

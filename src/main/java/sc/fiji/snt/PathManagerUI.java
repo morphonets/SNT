@@ -1059,9 +1059,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						"Adjust Parameters?", options, options[0]);
 				if (choice == null) {
 					return null;
-				} else if (choice == options[0]) {
+				} else if (choice.equals(options[0])) {
 					return true;
-				} else if (choice == options[1]) {
+				} else if (choice.equals(options[1])) {
 					plugin.getContext().getService(PrefService.class).clear(PathFitterCmd.class);
 					return false;
 				}
@@ -2814,7 +2814,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				runColorMapper(new Tree(selectedPaths), true);
 				return;
 			}
-			else if (COLORIZE_REMOVE_CMD.equals(cmd) && !guiUtils.getConfirmation(
+			else if (COLORIZE_REMOVE_CMD.equals(cmd) && guiUtils.getConfirmation(
 					"Remove color mappings from selected paths (color tags may also be reset)?",
 					"Confirm?")) {
 				ColorMapper.unMap(selectedPaths);

@@ -195,20 +195,20 @@ public class PathOrderAnalysisCmd extends TreeAnalyzer {
 		series1.setStyle(plotService.newSeriesStyle(new ColorRGB("#1b9e77"), LineStyle.SOLID,
 				MarkerStyle.CIRCLE));
 		series1.setLabel("N. Paths");
-		series1.setValues(converIntSetToDoubleList(nPathsMap.keySet()), nPathsMap.values().stream().collect(Collectors.toList()));
+		series1.setValues(converIntSetToDoubleList(nPathsMap.keySet()), new ArrayList<>(nPathsMap.values()));
 
 		final XYSeries series2 = plot.addXYSeries();
 		series2.setStyle(plotService.newSeriesStyle(new ColorRGB("#d95f02"), LineStyle.SOLID,
 				MarkerStyle.CIRCLE));
 		series2.setLabel("N. Branch points");
-		series1.setValues(converIntSetToDoubleList(bPointsMap.keySet()), bPointsMap.values().stream().collect(Collectors.toList()));
+		series1.setValues(converIntSetToDoubleList(bPointsMap.keySet()), new ArrayList<>(bPointsMap.values()));
 
 
 		final XYSeries series3 = plot.addXYSeries();
 		series3.setStyle(plotService.newSeriesStyle(new ColorRGB("#7570b3"), LineStyle.SOLID,
 				MarkerStyle.CIRCLE));
 		series3.setLabel("Length");
-		series1.setValues(converIntSetToDoubleList(tLengthMap.keySet()), tLengthMap.values().stream().collect(Collectors.toList()));
+		series1.setValues(converIntSetToDoubleList(tLengthMap.keySet()), new ArrayList<>(tLengthMap.values()));
 
 		uiService.show("SNT: Path Order Plot", plot);
 	}

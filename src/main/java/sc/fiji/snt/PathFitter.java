@@ -872,10 +872,8 @@ public class PathFitter implements Callable<Path> {
 		if (u2_smaller <= u1_smaller && u1_larger <= u2_larger) return true;
 
 		// Partially overlapping cases:
-		if (u1_smaller <= u2_smaller && u2_smaller <= u1_larger &&
-			u1_larger <= u2_larger) return true;
-		if (u2_smaller <= u1_smaller && u1_smaller <= u2_larger &&
-			u2_larger <= u1_larger) return true;
+		if (u1_smaller <= u2_smaller && u2_smaller <= u1_larger) return true;
+		if (u2_smaller <= u1_smaller && u1_smaller <= u2_larger) return true;
 
 		/*
 		 * We only reach here if something has gone badly wrong, so dump helpful values

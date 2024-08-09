@@ -63,12 +63,12 @@ public interface SNTPoint {
 	public char getHemisphere();
 
 	public static PointInImage average(final Collection<? extends SNTPoint> points) {
+		if (points == null || points.isEmpty())
+			return null;
 		double x = 0;
 		double y = 0;
 		double z = 0;
 		int n = 0;
-		if (points == null || points.isEmpty())
-			return null;
 		final Iterator<? extends SNTPoint> it = points.iterator();
 		while (it.hasNext()) {
 			final SNTPoint p = it.next();

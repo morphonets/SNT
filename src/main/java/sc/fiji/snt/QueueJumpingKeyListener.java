@@ -285,7 +285,7 @@ class QueueJumpingKeyListener implements KeyListener {
 				tracerPlugin.getUI().toggleSecondaryLayerTracing();
 				e.consume();
 			}
-			else if ((keyChar == 'v' || keyChar == 'V') && canvas != null) {
+			else if (keyChar == 'v' || keyChar == 'V') {
 				// IJ1 built-in: Measure
 				canvas.clickAtMaxPoint(join_modifier_down);
 				e.consume();

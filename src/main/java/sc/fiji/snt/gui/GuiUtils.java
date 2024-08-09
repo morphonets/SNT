@@ -1266,7 +1266,7 @@ public class GuiUtils {
 		urls.add(url);
 		url = leftAlignedLabel("Forum   ", "https://forum.image.sc/tag/snt", true);
 		urls.add(url);
-		url = leftAlignedLabel("GitHub   ", "https://github.com/morphonets/SNT/", true);
+		url = leftAlignedLabel("Source   ", "https://github.com/morphonets/SNT/", true);
 		urls.add(url);
 		url = leftAlignedLabel("Manuscript", "http://dx.doi.org/10.1038/s41592-021-01105-7", true);
 		urls.add(url);

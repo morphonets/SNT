@@ -451,7 +451,7 @@ public class RoiConverter extends TreeAnalyzer {
 		for (final PointInImage p : points) {
 			final Path path = p.onPath;
 			if (path == null) {
-				SNTUtils.log("Converting " + path + " failed. Skipping it...");
+				SNTUtils.log("Converting path failed. Skipping it..." + p);
 				continue;
 			}
 			final PointInCanvas pp = p.getUnscaledPoint(exportPlane);

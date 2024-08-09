@@ -791,7 +791,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		for (int i = 0; i < dataset.getChannels(); i++) {
 			legend.append("Ch").append(i).append("\n");
 			final Map<String, double[]> values = getValuesAsArray(path, i);
-			plot.setColor(colors[i - 1], colors[i - 1]);
+			plot.setColor(colors[i], colors[i]);
 			plot.addPoints(values.get(X_VALUES), values.get(Y_VALUES), Plot.CONNECTED_CIRCLES);
 		}
 		plot.setColor(Color.BLACK, null);

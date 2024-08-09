@@ -525,7 +525,7 @@ public class NodeStatistics <T extends PointInImage> {
 	}
 
 	protected static String getStandardizedMetric(final String guess) {
-		if (Arrays.stream(ALL_FLAGS).anyMatch(guess::equals)) {
+		if (Arrays.asList(ALL_FLAGS).contains(guess)) {
 			return guess;
 		}
 		final String normGuess = guess.toLowerCase();
@@ -600,7 +600,7 @@ public class NodeStatistics <T extends PointInImage> {
 	protected void assessIfBranchesHaveBeenAssigned() {
 		if (!branchesAssigned && branchAssignmentTree == null) {
 			throw new IllegalArgumentException("assignBranches() has not been called");
-		} else if (!branchesAssigned && branchAssignmentTree != null) {
+		} else if (!branchesAssigned) {
 			assignBranches(branchAssignmentTree);
 		}
 	}

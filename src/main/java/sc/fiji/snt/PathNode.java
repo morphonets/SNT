@@ -126,15 +126,13 @@ class PathNode {
 	private double getScreenCoordinateY(final PointInImage pim) {
 		switch (canvas.getPlane()) {
 			case MultiDThreePanes.XY_PLANE:
-				return canvas.myScreenYDprecise(path.canvasOffset.y + pim.y /
+            case MultiDThreePanes.ZY_PLANE:
+                return canvas.myScreenYDprecise(path.canvasOffset.y + pim.y /
 					path.y_spacing);
 			case MultiDThreePanes.XZ_PLANE:
 				return canvas.myScreenYDprecise(path.canvasOffset.z + pim.z /
 					path.z_spacing);
-			case MultiDThreePanes.ZY_PLANE:
-				return canvas.myScreenYDprecise(path.canvasOffset.y + pim.y /
-					path.y_spacing);
-			default:
+            default:
 				throw new IllegalArgumentException("BUG: Unknown plane! (" + canvas
 					.getPlane() + ")");
 		}

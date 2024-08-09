@@ -2506,7 +2506,7 @@ public class Path implements Comparable<Path> {
 		if (c == null) throw new IllegalArgumentException(
 			"In addTo3DViewer, Color3f can no longer be null");
 
-		realColor = (c == null) ? new Color3f(Color.magenta) : c;
+		realColor = c;
 
 		if (points <= 1) {
 			content3D = null;
@@ -3030,7 +3030,7 @@ public class Path implements Comparable<Path> {
 		if (radii == null || radii.length == 0) {
 			this.radii = null;
 		}
-		else if (radii != null && radii.length != size()) {
+		else if (radii.length != size()) {
 			throw new IllegalArgumentException(
 				"radii array must have as many elements as nodes");
 		}

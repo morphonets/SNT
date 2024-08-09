@@ -337,6 +337,7 @@ public class TreeColorMapper extends ColorMapper {
 				throw new IllegalArgumentException("Unknown parameter");
 		}
 		for (final MappedPath mp : mappedPaths) {
+			mp.path.setNodeColors(null);
 			mp.path.setColor(getColor(mp.mappedValue));
 		}
 		nodeMapping = false;

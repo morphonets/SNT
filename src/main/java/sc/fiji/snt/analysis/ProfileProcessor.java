@@ -163,7 +163,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 
 	public SortedMap<Integer, List<Double>> getRawValues(final int nodeStep) {
 		final SortedMap<Integer, List<Double>> rawValues = new TreeMap<>();
-		int step = (nodeStep < 1) ? 1 : nodeStep;
+		int step = Math.max(nodeStep, 1);
 		if (step > path.size())
 			step = path.size();
 		final int start = (shape == Shape.LINE) ? 1 : 0;

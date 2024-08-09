@@ -62,34 +62,34 @@ public class TreeStatistics extends TreeAnalyzer {
 
 	// branch angles
 	/** Flag for {@value #INNER_EXTENSION_ANGLE_XY} analysis. */
-	public static final String INNER_EXTENSION_ANGLE_XY = "Inner branches: Extension angle XY plane";
+	public static final String INNER_EXTENSION_ANGLE_XY = "Inner branches: Extension angle XY";
 	/** Flag for {@value #INNER_EXTENSION_ANGLE_XZ} analysis. */
-	public static final String INNER_EXTENSION_ANGLE_XZ = "Inner branches: Extension angle XZ plane";
+	public static final String INNER_EXTENSION_ANGLE_XZ = "Inner branches: Extension angle XZ";
 	/** Flag for {@value #INNER_EXTENSION_ANGLE_ZY} analysis. */
-	public static final String INNER_EXTENSION_ANGLE_ZY = "Inner branches: Extension angle ZY plane";
+	public static final String INNER_EXTENSION_ANGLE_ZY = "Inner branches: Extension angle ZY";
 	/** Flag for {@value #PRIMARY_EXTENSION_ANGLE_XY} analysis. */
-	public static final String PRIMARY_EXTENSION_ANGLE_XY = "Primary branches: Extension angle XY plane";
+	public static final String PRIMARY_EXTENSION_ANGLE_XY = "Primary branches: Extension angle XY";
 	/** Flag for {@value #PRIMARY_EXTENSION_ANGLE_XZ} analysis. */
-	public static final String PRIMARY_EXTENSION_ANGLE_XZ = "Primary branches: Extension angle XZ plane";
+	public static final String PRIMARY_EXTENSION_ANGLE_XZ = "Primary branches: Extension angle XZ";
 	/** Flag for {@value #PRIMARY_EXTENSION_ANGLE_ZY} analysis. */
-	public static final String PRIMARY_EXTENSION_ANGLE_ZY = "Primary branches: Extension angle ZY plane";
+	public static final String PRIMARY_EXTENSION_ANGLE_ZY = "Primary branches: Extension angle ZY";
 	/** Flag for {@value #TERMINAL_EXTENSION_ANGLE_XY} analysis. */
-	public static final String TERMINAL_EXTENSION_ANGLE_XY = "Terminal branches: Extension angle XY plane";
+	public static final String TERMINAL_EXTENSION_ANGLE_XY = "Terminal branches: Extension angle XY";
 	/** Flag for {@value #TERMINAL_EXTENSION_ANGLE_XZ} analysis. */
-	public static final String TERMINAL_EXTENSION_ANGLE_XZ = "Terminal branches: Extension angle XZ plane";
+	public static final String TERMINAL_EXTENSION_ANGLE_XZ = "Terminal branches: Extension angle XZ";
 	/** Flag for {@value #TERMINAL_EXTENSION_ANGLE_ZY} analysis. */
-	public static final String TERMINAL_EXTENSION_ANGLE_ZY = "Terminal branches: Extension angle ZY plane";
+	public static final String TERMINAL_EXTENSION_ANGLE_ZY = "Terminal branches: Extension angle ZY";
 	/** Flag for {@value #REMOTE_BIF_ANGLES} statistics. */
 	public static final String REMOTE_BIF_ANGLES = "Remote bif. angles";
 	// paths
 	/** Flag for {@value #PATH_LENGTH} analysis. */
 	public static final String PATH_LENGTH = "Path length";
 	/** Flag for {@value #PATH_EXT_ANGLE_XY} analysis. */
-	public static final String PATH_EXT_ANGLE_XY = "Path extension angle XY plane";
+	public static final String PATH_EXT_ANGLE_XY = "Path extension angle XY";
 	/** Flag for {@value #PATH_EXT_ANGLE_XZ} analysis. */
-	public static final String PATH_EXT_ANGLE_XZ = "Path extension angle XZ plane";
+	public static final String PATH_EXT_ANGLE_XZ = "Path extension angle XZ";
 	/** Flag for {@value #PATH_EXT_ANGLE_ZY} analysis. */
-	public static final String PATH_EXT_ANGLE_ZY = "Path extension angle ZY plane";
+	public static final String PATH_EXT_ANGLE_ZY = "Path extension angle ZY";
 	/** Flag for {@value #PATH_ORDER} statistics. */
 	public static final String PATH_ORDER = "Path order";
 	/** Flag for {@value #PATH_CHANNEL} statistics. */
@@ -180,11 +180,11 @@ public class TreeStatistics extends TreeAnalyzer {
 	/** Flag for {@value #GRAPH_DIAMETER} statistics. */
 	public static final String GRAPH_DIAMETER = "Longest shortest path: Length";
 	/** Flag for {@value #GRAPH_DIAMETER_ANGLE_XY} statistics. */
-	public static final String GRAPH_DIAMETER_ANGLE_XY = "Longest shortest path: Extension angle XY plane";
+	public static final String GRAPH_DIAMETER_ANGLE_XY = "Longest shortest path: Extension angle XY";
 	/** Flag for {@value #GRAPH_DIAMETER_ANGLE_XZ} statistics. */
-	public static final String GRAPH_DIAMETER_ANGLE_XZ = "Longest shortest path: Extension angle XZ plane";
+	public static final String GRAPH_DIAMETER_ANGLE_XZ = "Longest shortest path: Extension angle XZ";
 	/** Flag for {@value #GRAPH_DIAMETER_ANGLE_ZY} statistics. */
-	public static final String GRAPH_DIAMETER_ANGLE_ZY = "Longest shortest path: Extension angle ZY plane";
+	public static final String GRAPH_DIAMETER_ANGLE_ZY = "Longest shortest path: Extension angle ZY";
 	// volume and surface
 	/** Flag for {@value #VOLUME} statistics. */
 	public static final String VOLUME = "Volume";

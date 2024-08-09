@@ -323,7 +323,6 @@ public class SkeletonConverter {
     /**
      * Generates a list of {@link DirectedWeightedGraph}s from the skeleton image.
      * Each graph corresponds to one connected component of the graph returned by {@link SkeletonResult#getGraph()}.
-     * @return
      *
      * @return the list of skeletonized graphs
      */

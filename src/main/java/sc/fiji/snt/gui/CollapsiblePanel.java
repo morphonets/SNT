@@ -53,7 +53,7 @@ public class CollapsiblePanel extends JPanel {
 	 * @param header         the label for the collapsible button (Implemented as a
 	 *                       checkbox)
 	 * @param contents       the Component to be collapsed (typically a JPanel)
-	 * @param collapsedState Whether {@contents} should be displayed collapsed by
+	 * @param collapsedState Whether {@code contents} should be displayed collapsed by
 	 *                       default.
 	 */
 	public CollapsiblePanel(final String header, final Component contents, final boolean collapsedState) {

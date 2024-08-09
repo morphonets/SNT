@@ -275,7 +275,7 @@ public class SNTTable extends DefaultGenericTable {
 			sStas[col] = geColumnStats(col, firstRowToBeSummarized, getRowCount()-1);
 		}
 		final int lastRowIndex = getRowCount();
-		insertRows(getRowCount(), new String[] { " ", "Mean", "SD", "N", "Min", "Max", "Sum", " " });
+		insertRows(getRowCount(), " ", "Mean", "SD", "N", "Min", "Max", "Sum", " ");
 		for (int col = 0; col < getColumnCount(); col++) {
 			final double min = sStas[col].getMin();
 			final double max = sStas[col].getMax();

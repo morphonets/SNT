@@ -1265,13 +1265,11 @@ public class Tree implements TreeProperties {
 			SNTUtils.error("File not parsed", e);
 			return new ArrayList<>();
 		}
-		if (baseName != null) {
-			if (trees.size() == 1)
-				trees.iterator().next().setLabel(baseName);
-			else
-				trees.forEach(t -> t.setLabel(baseName + " " + t.getLabel()));
-		}
-		return trees;
+        if (trees.size() == 1)
+            trees.iterator().next().setLabel(baseName);
+        else
+            trees.forEach(t -> t.setLabel(baseName + " " + t.getLabel()));
+        return trees;
 	}
 
 	/**
@@ -1775,7 +1773,7 @@ public class Tree implements TreeProperties {
 						refPath.addNode(tree.getRoot());
 						final Set<PointInImage> tips = new TreeAnalyzer(tree).getTips();
 						tips.remove(tree.getRoot());
-						refPath.addNode(SNTPoint.average(tips));
+						if (!tips.isEmpty()) refPath.addNode(SNTPoint.average(tips));
 					} else {
 						refPath = tree.getGraph().getLongestPath(true);
 					}
@@ -1787,9 +1785,11 @@ public class Tree implements TreeProperties {
 					} else if (straighten) {
 						angle = refPath.getExtensionAngleXY();
 					}
-					// since angle is relative to horizontal, we need to add 90 degrees
-					if (angle != 0) angle += 90;
-					tree.rotate(rotationAxis, -angle + finalRotAngle); // does nothing if angle is 0
+					if (!Double.isNaN(angle)) {
+						// since angle is relative to horizontal, we need to add 90 degrees
+						if (angle != 0) angle += 90;
+						tree.rotate(rotationAxis, -angle + finalRotAngle); // does nothing if angle is 0
+					}
 				}
 				if (isZY)
 					tree.projectZY();

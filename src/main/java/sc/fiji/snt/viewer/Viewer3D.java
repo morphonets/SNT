@@ -5455,8 +5455,10 @@ public class Viewer3D {
 			mi = new JMenuItem("Sphere...", IconFactory.getMenuIcon(GLYPH.GLOBE));
 			mi.addActionListener(e -> {
 				final AnnotPrompt ap = new AnnotPrompt();
-				if (ap.validPrompt("Sphere Properties...", new String[] { "Center X ", "Center Y ", "Center Z "}, null, true))
-					annotatePoint(ap.pim1, "Sphere", ap.color, ap.t);
+				if (ap.validPrompt("Sphere Properties...", new String[] { "Center X ", "Center Y ", "Center Z "}, null, true)) {
+					final Annotation3D point = annotatePoint(ap.pim1, "Sphere", ap.color, (float) ap.size);
+					point.setColor(point.getColor(), ap.t);
+				}
 			});
 			primitives.add(mi);
 			mi = new JMenuItem("Vector...", IconFactory.getMenuIcon(GLYPH.ARROWS_LR));
@@ -5531,8 +5533,7 @@ public class Viewer3D {
 					return;
 				}
 				final List<?> selectedKeys = managerList.getSelectedValuesList();
-				if (selectedKeys.isEmpty() || selectedKeys.size() > 1
-						|| (selectedKeys.size() == 1 && CheckBoxList.ALL_ENTRY.equals(selectedKeys.get(0)))) {
+				if (selectedKeys.size() != 1 || CheckBoxList.ALL_ENTRY.equals(selectedKeys.get(0))) {
 					guiUtils.error("This command operates on single objects.");
 					return;
 				}
