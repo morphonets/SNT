@@ -338,6 +338,10 @@ public class MeasureUI extends JFrame {
 					guiUtils.error("Measurements table is empty.");
 					return;
 				}
+				if (table.getRowCount() == 1) {
+					guiUtils.error("Measurements table contains only one entry.");
+					return;
+				}
 				table.removeSummary();
 				table.summarize();
 				updateTable(false);

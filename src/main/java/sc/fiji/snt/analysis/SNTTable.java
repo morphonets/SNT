@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -60,6 +61,7 @@ public class SNTTable extends DefaultGenericTable {
 
 	private static final long serialVersionUID = 1L;
 	private boolean hasUnsavedData;
+	private String title;
 
 	@Parameter
 	private DefaultTableIOPlugin tableIO;
@@ -83,12 +85,29 @@ public class SNTTable extends DefaultGenericTable {
 		if (tableIO == null) {
 			throw new NoSuchServiceException("Failed to initialize IOService");
 		}
-		final TableIOOptions options = new TableIOOptions().readColumnHeaders(true).readColumnHeaders(true);
-		final Table<?, ?> openedTable = tableIO.open(new FileLocation(filePath), options);
+		final FileLocation loc = new FileLocation(filePath);
+		final Table<?, ?> openedTable = loadTable(loc, tableIO);
 		for (int col = 0; col < openedTable.getColumnCount(); ++col) {
 			add(openedTable.get(col));
 		}
+		title = loc.getName();
 		hasUnsavedData = false;
+	}
+
+	private Table<?, ?> loadTable(final FileLocation fileLocation, final DefaultTableIOPlugin tableIO) throws IOException {
+		final TableIOOptions options = new TableIOOptions();
+		Table<?, ?> table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(false));
+		if (table.isEmpty())
+			table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(false));
+		if (table.isEmpty())
+			table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(true));
+		if (table.isEmpty())
+			table = tableIO.open(fileLocation, options.readColumnHeaders(false).readRowHeaders(false));
+		if (table.isEmpty())
+			table = tableIO.open(fileLocation, options.readColumnHeaders(false).readRowHeaders(true));
+		if (table.isEmpty())
+			throw new IllegalArgumentException(fileLocation.getName() + " does not seem to contain valid data!?");
+		return table;
 	}
 
 	protected void validate() {
@@ -108,6 +127,19 @@ public class SNTTable extends DefaultGenericTable {
 			for (int row = 0; row < getRowCount(); ++row) {
 				if (get(col, row) == null) {
 					set(col, row, value);
+				}
+			}
+		}
+	}
+
+	public void replace(final String columnHeadersPattern, final double originalValue, final double replacementValue) {
+		validate();
+		for (int col = 0; col < getColumnCount(); ++col) {
+			if (columnHeadersPattern != null && !getColumnHeader(col).contains(columnHeadersPattern))
+				continue;
+			for (int row = 0; row < getRowCount(); ++row) {
+				if (get(col, row) instanceof Number && ((Number) get(col, row)).doubleValue() == originalValue) {
+					set(col, row, replacementValue);
 				}
 			}
 		}
@@ -207,6 +239,20 @@ public class SNTTable extends DefaultGenericTable {
 			tableIO = context.getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
 	}
 
+	public List<String> geColumnHeaders() {
+		return geColumnHeaders("");
+	}
+
+	public List<String> geColumnHeaders(final String pattern) {
+		final List<String> headers = new ArrayList<>();
+		for (int i = 0; i < getColumnCount(); i++) {
+			final String header = getColumnHeader(i);
+			if (pattern == null || pattern.isEmpty() || header.contains(pattern))
+				headers.add(getColumnHeader(i));
+		}
+		return headers;
+	}
+
 	public boolean isSummarized() {
 		final int meanRowIdx = getRowIndex("Mean");
 		return meanRowIdx > 1 && meanRowIdx <= getRowCount() - 6 && getRowIndex("SD") == meanRowIdx+1;
@@ -214,6 +260,10 @@ public class SNTTable extends DefaultGenericTable {
 
 	public void removeSummary() {
 		if (isSummarized()) removeRows( getRowIndex("Mean")-1, 8);
+	}
+
+	public int getSummaryRow() {
+		return (isSummarized()) ? -1 : getRowIndex("Mean")-1;
 	}
 
 	public SummaryStatistics geRowStats(final String rowHeader, final int startColumnIndex, final int endColumnIndex) {
@@ -324,7 +374,7 @@ public class SNTTable extends DefaultGenericTable {
 		initDisplayService();
 		final List<Display<?>> displays = displayService.getDisplays(this);
 		if (displays == null || displays.isEmpty()) {
-			if (createDisplayAsNeeded) createDisplay("SNT Measurements");
+			if (createDisplayAsNeeded) createDisplay(getTitle());
 			return;
 		}
 		displays.forEach(d -> {
@@ -340,6 +390,10 @@ public class SNTTable extends DefaultGenericTable {
 				SNTUtils.error(e.getMessage(), e);
 			}
 		}
+	}
+
+	public String getTitle() {
+		return (title == null) ? "SNT Measurements" : title;
 	}
 
 //	@Override

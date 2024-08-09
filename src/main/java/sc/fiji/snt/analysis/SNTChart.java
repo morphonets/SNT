@@ -29,10 +29,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
+import java.util.*;
 import java.util.List;
 
 import javax.swing.ButtonGroup;
@@ -47,6 +44,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 
 import net.imglib2.roi.geom.real.Polygon2D;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.jfree.chart.ChartMouseEvent;
 import org.jfree.chart.ChartMouseListener;
 import org.jfree.chart.ChartPanel;
@@ -90,8 +88,11 @@ import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.chart.ui.TextAnchor;
 import org.jfree.data.Range;
 import org.jfree.data.category.CategoryDataset;
+import org.jfree.data.statistics.HistogramDataset;
+import org.jfree.data.statistics.HistogramType;
 import org.jfree.data.xy.XYDataset;
 import org.scijava.plot.CategoryChart;
+import org.scijava.table.Column;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
 import org.scijava.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
@@ -1646,6 +1647,75 @@ public class SNTChart extends ChartPanel {
 
 	public static void setDefaultFontScale(final double scalingFactor) {
 		SNTChart.scalingFactor = scalingFactor;
+	}
+
+	public static SNTChart getPolarHistogram(final SNTTable table, final Collection<String> columnHeaders) throws IOException {
+		return getHistogram(table, true, columnHeaders);
+	}
+
+	public static SNTChart getHistogram(final SNTTable table, final Collection<String> columnHeaders) {
+		return getHistogram(table, false, columnHeaders);
+	}
+
+	public static SNTChart getPolarHistogram(final SNTTable table, final int... columnIndices) {
+		return getHistogram(table, true, columnIndices);
+	}
+
+	public static SNTChart getHistogram(final SNTTable table, final int... columnIndices) {
+		return getHistogram(table, false, columnIndices);
+	}
+
+	private static SNTChart getHistogram(final SNTTable table, final boolean polar, final Collection<String> columnHeaders) {
+		final int[] columnIndices = new int[columnHeaders.size()];
+		int idx = 0;
+		for (final String columnHeader : columnHeaders)
+			columnIndices[idx++] = table.getColumnIndex(columnHeader);
+		return getHistogram(table, polar, columnIndices);
+	}
+
+	private static SNTChart getHistogram(final SNTTable table, final boolean polar, final int... columnIndices ) {
+		final LinkedHashMap<String, AnalysisUtils.HistogramDatasetPlus> hdpMap = new LinkedHashMap<>();
+		int nBins = 2;
+		final boolean isSummarized = table.isSummarized();
+		table.removeSummary();
+		final double[] limits = new double[] {Double.MAX_VALUE, Double.MIN_VALUE};
+		for (final int colIdx : columnIndices) {
+			try {
+				final Column<?> col = table.get(colIdx);
+				final DescriptiveStatistics stats = new DescriptiveStatistics();
+				col.forEach(row -> {
+					if (!Double.isNaN((double) row))
+						stats.addValue((Double) row);
+				});
+				final double max = stats.getMax();
+				final double min = stats.getMin();
+				if (min < limits[0]) limits[0] = min;
+				if (max > limits[1]) limits[1] = max;
+				final AnalysisUtils.HistogramDatasetPlus hdp = new AnalysisUtils.HistogramDatasetPlus(stats, true);
+				hdp.compute();
+				nBins = Math.max(nBins, hdp.nBins);
+				hdpMap.put(table.getColumnHeader(colIdx), hdp);
+			} catch (final IndexOutOfBoundsException ex) {
+				throw new IndexOutOfBoundsException("Invalid column header. Available headers: "
+						+ table.geColumnHeaders().toString());
+			} finally {
+				if (isSummarized) table.summarize();
+			}
+		}
+		final HistogramDataset dataset = new HistogramDataset();
+		dataset.setType(HistogramType.RELATIVE_FREQUENCY);
+		int finalNBins = nBins;
+		hdpMap.forEach((label, hdp) -> {
+			dataset.addSeries(label, hdp.valuesAsArray(), finalNBins, limits[0], limits[1]);
+		});
+		final String title = table.getTitle();
+		final String axisLabel = (columnIndices.length == 1) ? table.getColumnHeader(columnIndices[0]) : "";
+		final SNTChart chart = (polar) ?
+				AnalysisUtils.createPolarHistogram(axisLabel, "", dataset, hdpMap.size(), nBins)
+				: AnalysisUtils.createHistogram(axisLabel, "", hdpMap.size(), dataset,
+				new ArrayList<>(hdpMap.values()));
+		chart.setTitle(title);
+		return chart;
 	}
 
 	/* IDE debug method */

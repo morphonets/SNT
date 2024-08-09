@@ -31,6 +31,7 @@ import org.scijava.plugin.Plugin;
 import org.scijava.widget.NumberWidget;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.PersistenceAnalyzer;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 
 import java.util.Collection;
@@ -47,24 +48,27 @@ public class PersistenceAnalyzerCmd extends ContextCommand {
 	private LogService logService;
 
 	@Parameter(label = "Descriptor(s)", choices = {"TMD barcodes", "Persistence landscape",
-			"TMD barcodes and Persistence landscape"}, description = "")
+			"TMD barcodes and Persistence landscape"})
 	private String outputChoice;
 
 	@Parameter(label = "Descriptor function", choices = {"Radial (default)", "Geodesic", "Centrifugal", "Path order",
-			"X", "Y", "Z"}, description = "Transparency of imported mesh")
+			"X", "Y", "Z"})
 	private String descriptorChoice;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = "Landscape Options:")
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = "<HTML>&nbsp;")
+	private String SPACER;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = "<HTML><b>Landscape Options:")
 	private String HEADER1;
 
 	@Parameter(label = "No. of landscapes", min = "1", max = "500", style = NumberWidget.SCROLL_BAR_STYLE,
-			description = "<HTML>The number of piecewise-linear functions.<br>Only considered if output " +
-					"includes persistence landscape")
+			description = "<HTML>The number of piecewise-linear functions.<br>Only considered if <i>Descriptor(s)</i>" +
+					" includes persistence landscape")
 	private int landscapeNum;
 
 	@Parameter(label = "Resolution", min = "1", max = "500", style = NumberWidget.SCROLL_BAR_STYLE,
 			description = "<HTML>The number of samples for all piecewise-linear functions.<br>" +
-					"Only considered if output includes persistence landscape")
+					"Only considered if <i>Descriptor(s)</i> includes persistence landscape")
 	private int landscapeRes;
 
 	@Parameter(required = false)
@@ -92,10 +96,10 @@ public class PersistenceAnalyzerCmd extends ContextCommand {
 		final AtomicBoolean failure = new AtomicBoolean(false);
 		trees.forEach(tree -> {if (!parseTree(tree, table)) failure.set(true);});
 		table.fillEmptyCells(Double.NaN);
+		table.replace("TMD", 0, Double.NaN);
 		table.show(String.format("Persistence Homology Table [%s]", descriptorChoice));
-		if (failure.get()) {
+		if (failure.get())
 			logService.error("Some tree(s) could not be parsed... More details may be available in debug mode");
-		}
 	}
 
 	private boolean parseTree(final Tree tree, final SNTTable table) {

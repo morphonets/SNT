@@ -54,6 +54,7 @@ import org.jfree.data.statistics.HistogramType;
 import org.jfree.data.xy.*;
 import org.scijava.util.ColorRGB;
 
+import org.scijava.util.Colors;
 import sc.fiji.snt.*;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -471,7 +472,7 @@ class AnalysisUtils {
 		bar_renderer.setBarPainter(new StandardXYBarPainter());
 		bar_renderer.setDrawBarOutline(true);
 		bar_renderer.setSeriesOutlinePaint(0, Color.DARK_GRAY);
-		final ColorRGB[] colors = SNTColor.getDistinctColors(nSeries);
+		final ColorRGB[] colors = (nSeries==1) ? new ColorRGB[]{Colors.LIGHTGRAY} : SNTColor.getDistinctColors(nSeries);
 		for (int i = 0; i < nSeries; i++) {
 			final Color awtColor = new Color(colors[i].getRed(), colors[i].getGreen(), colors[i].getBlue(), 128);
 			bar_renderer.setSeriesPaint(i, awtColor);
@@ -483,7 +484,7 @@ class AnalysisUtils {
 			addNormalCurve(plot, getNormalDataset(hdps, minX, maxX), false);
 			addQuartileMarkers(plot, hdps, false);
 		}
-
+		if (nSeries==1) chart.removeLegend();
 		return new SNTChart("Grouped Hist.", chart);
 	}
 
@@ -501,11 +502,11 @@ class AnalysisUtils {
 		polarPlot.setRenderer(render);
 		render.setShapesVisible(false);
 		render.setConnectFirstAndLastPoint(true);
-		render.setDefaultFillPaint(Color.red);
+		//render.setDefaultFillPaint(Color.red);
 		final LegendItemCollection chartLegend = new LegendItemCollection();
 		final Shape shape = new Rectangle(polarPlot.getAngleLabelFont().getSize() * 2,
 				polarPlot.getAngleLabelFont().getSize());
-		final ColorRGB[] colors = SNTColor.getDistinctColors(nSeries);
+		final ColorRGB[] colors = (nSeries==1) ? new ColorRGB[]{Colors.GRAY} : SNTColor.getDistinctColors(nSeries);
 		for (int s = 0; s < nSeries; s++) {
 			final Color awtColor = new Color(colors[s].getRed(), colors[s].getGreen(), colors[s].getBlue());
 			chartLegend.add(new LegendItem(dataset.getSeriesKey(s).toString(), null, null, null, shape, awtColor));
