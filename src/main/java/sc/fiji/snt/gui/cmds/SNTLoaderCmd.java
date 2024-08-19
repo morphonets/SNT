@@ -101,7 +101,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 	private String SPACER1;
 
 	@Parameter(required = false, label = "Reconstruction file", //
-			description="The reconstruction file to be loaded (.traces, .(e)swc or .json) (optional)",
+			description="The reconstruction file to be loaded: JSON, NDF, SWC, or TRACES (optional)",
 		style = FileWidget.OPEN_STYLE, callback = "tracesFileChanged")
 	private File tracesFile;
 
@@ -115,7 +115,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 
 	@Parameter(required = false, label = "Tracing channel",
 		description = DEF_DESCRIPTION, min = "1", //
-		max = ""+ ij.CompositeImage.MAX_CHANNELS +"", callback = "channelChanged")
+		max = ""+ ij.CompositeImage.MAX_CHANNELS, callback = "channelChanged")
 	private int channel;
 
 	private Collection<ImagePlus> openImps;

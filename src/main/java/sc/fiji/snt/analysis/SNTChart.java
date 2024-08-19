@@ -45,47 +45,19 @@ import javax.swing.WindowConstants;
 
 import net.imglib2.roi.geom.real.Polygon2D;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import org.jfree.chart.ChartMouseEvent;
-import org.jfree.chart.ChartMouseListener;
-import org.jfree.chart.ChartPanel;
-import org.jfree.chart.ChartUtils;
-import org.jfree.chart.JFreeChart;
-import org.jfree.chart.LegendItem;
-import org.jfree.chart.LegendItemSource;
+import org.jfree.chart.*;
 import org.jfree.chart.annotations.*;
 import org.jfree.chart.axis.Axis;
 import org.jfree.chart.axis.CategoryAnchor;
-import org.jfree.chart.entity.AxisEntity;
-import org.jfree.chart.entity.ChartEntity;
-import org.jfree.chart.entity.JFreeChartEntity;
-import org.jfree.chart.entity.PlotEntity;
-import org.jfree.chart.entity.TitleEntity;
-import org.jfree.chart.entity.XYAnnotationEntity;
-import org.jfree.chart.entity.XYItemEntity;
-import org.jfree.chart.plot.CategoryMarker;
-import org.jfree.chart.plot.CategoryPlot;
-import org.jfree.chart.plot.CombinedRangeXYPlot;
-import org.jfree.chart.plot.Marker;
-import org.jfree.chart.plot.Plot;
-import org.jfree.chart.plot.PolarPlot;
-import org.jfree.chart.plot.ValueMarker;
-import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.entity.*;
+import org.jfree.chart.plot.*;
 import org.jfree.chart.plot.flow.FlowPlot;
 import org.jfree.chart.renderer.AbstractRenderer;
 import org.jfree.chart.renderer.DefaultPolarItemRenderer;
-import org.jfree.chart.renderer.category.AbstractCategoryItemRenderer;
-import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
-import org.jfree.chart.renderer.category.CategoryItemRenderer;
+import org.jfree.chart.renderer.category.*;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
-import org.jfree.chart.title.LegendTitle;
-import org.jfree.chart.title.PaintScaleLegend;
-import org.jfree.chart.title.TextTitle;
-import org.jfree.chart.title.Title;
-import org.jfree.chart.ui.HorizontalAlignment;
-import org.jfree.chart.ui.Layer;
-import org.jfree.chart.ui.RectangleAnchor;
-import org.jfree.chart.ui.RectangleEdge;
-import org.jfree.chart.ui.TextAnchor;
+import org.jfree.chart.title.*;
+import org.jfree.chart.ui.*;
 import org.jfree.data.Range;
 import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.statistics.HistogramDataset;
@@ -94,8 +66,7 @@ import org.jfree.data.xy.XYDataset;
 import org.scijava.plot.CategoryChart;
 import org.scijava.table.Column;
 import org.scijava.ui.awt.AWTWindows;
-import org.scijava.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
-import org.scijava.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
+import org.scijava.ui.swing.viewer.plot.jfreechart.*;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
@@ -123,7 +94,6 @@ public class SNTChart extends ChartPanel {
 	private static final Color BACKGROUND_COLOR = Color.WHITE;
 	private static final List<SNTChart> openInstances = new ArrayList<>();
 	private List<SNTChart> otherCombinedCharts;
-	private LegendTitle stashedLegend;
 	private JFrame frame;
 	private String title;
 
@@ -153,8 +123,7 @@ public class SNTChart extends ChartPanel {
 			}
 			setFontSize(GuiUtils.uiFontSize());
 		}
-		// Tweak: Ensure chart is always drawn and not scaled to avoid rendering
-		// artifacts
+		// Tweak: Ensure chart is always drawn and not scaled to avoid rendering artifacts
 		setMinimumDrawWidth(0);
 		setMaximumDrawWidth(Integer.MAX_VALUE);
 		setMinimumDrawHeight(0);
@@ -350,12 +319,8 @@ public class SNTChart extends ChartPanel {
 	}
 
 	public void setLegendVisible(final boolean visible) {
-		if (visible && stashedLegend != null) {
-			getChart().addLegend(stashedLegend);
-		} else if (!visible) {
-			stashedLegend = getChart().getLegend();
-			getChart().removeLegend();
-		}
+		if (getChart().getLegend() != null)
+			getChart().getLegend().setVisible(!getChart().getLegend().isVisible());
 	}
 
 	/**
@@ -1246,6 +1211,7 @@ public class SNTChart extends ChartPanel {
 		grids.add(jmi);
 		jmi = new JMenuItem("Legend");
 		jmi.addActionListener( e -> setLegendVisible(!isLegendVisible()));
+		jmi.setEnabled(getChart().getLegend() != null);
 		grids.add(jmi);
 		jmi = new JMenuItem("Outline");
 		jmi.addActionListener( e -> setOutlineVisible(!isOutlineVisible()));
@@ -1268,6 +1234,17 @@ public class SNTChart extends ChartPanel {
 				r.setDefaultSeriesVisible(!r.getDefaultSeriesVisible());
 			} catch (final NullPointerException | ClassCastException ignored) {
 				new GuiUtils(frame).error("This option requires a histogram.", "Option Not Available");
+			}
+		});
+		grids.add(jmi);
+		GuiUtils.addSeparator(grids, "Polar Plots:");
+		jmi = new JMenuItem("Clockwise/Counterclockwise");
+		jmi.addActionListener( e -> {
+			if (getChart().getPlot() instanceof PolarPlot) {
+				((PolarPlot) getChart().getPlot()).setCounterClockwise(!((PolarPlot) getChart().getPlot()).isCounterClockwise());
+				getChart().fireChartChanged();
+			} else {
+				new GuiUtils(frame).error("This option requires a polar plot.", "Option Not Available");
 			}
 		});
 		grids.add(jmi);

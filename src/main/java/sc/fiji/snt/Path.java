@@ -490,7 +490,7 @@ public class Path implements Comparable<Path> {
 	 * @return the overall 'extension' angle in degrees [0-360[ in the XZ plane or zero if path is 2D.
 	 */
 	public double getExtensionAngleXZ() {
-		return getExtensionAngle(MultiDThreePanes.XZ_PLANE);
+		return (is3D()) ? getExtensionAngle(MultiDThreePanes.XZ_PLANE) : 0;
 	}
 
 	/**
@@ -500,7 +500,15 @@ public class Path implements Comparable<Path> {
 	 * @return the overall 'extension' angle in degrees [0-360[ in the ZY plane or zero if path is 2D.
 	 */
 	public double getExtensionAngleZY() {
-		return getExtensionAngle(MultiDThreePanes.ZY_PLANE);
+		return (is3D()) ? getExtensionAngle(MultiDThreePanes.ZY_PLANE) : 0;
+	}
+
+	private boolean is3D() throws IllegalArgumentException {
+		final double zRef = getNodeWithoutChecks(0).getZ();
+		for (int i=0; i< size(); i++) {
+			if (getNodeWithoutChecks(i).getZ() != zRef) return true;
+		}
+		return false;
 	}
 
 	private double getExtensionAngle(final int view) {

@@ -186,7 +186,8 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 			final ColorRGB color) {
 		if (y != null) {
 			final XYSeries series = plot.addXYSeries();
-			series.setStyle(plotService.newSeriesStyle(color, LineStyle.SOLID, MarkerStyle.FILLEDCIRCLE));
+			series.setStyle(plotService.newSeriesStyle(color, (anyMetric)  ? LineStyle.NONE : LineStyle.SOLID,
+					MarkerStyle.FILLEDCIRCLE));
 			series.setValues(x, y);
 			series.setLabel(label);
 		}

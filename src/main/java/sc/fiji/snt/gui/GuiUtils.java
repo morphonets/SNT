@@ -1678,8 +1678,8 @@ public class GuiUtils {
 		helpMenu.add(MenuItems.devResourceAPI());
 		helpMenu.addSeparator();
 
-		mi = menuItemTriggeringURL("SNT's Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.COGS));
+		mi = menuItemTriggeringURL("Implemented Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
+		mi.setIcon(IconFactory.getMenuIcon(GLYPH.MATH));
 		helpMenu.add(mi);
 		mi = menuItemTriggeringURL("SNT Manuscript", "http://dx.doi.org/10.1038/s41592-021-01105-7");
 		mi.setIcon(IconFactory.getMenuIcon(GLYPH.FILE));
