@@ -81,6 +81,7 @@ public class IconFactory {
 			CHART_AREA('\uf1fe', true), //
 			CHART_MAGNIFIED('\ue522', true), //
 			CHECK_DOUBLE('\uf560', true), //
+			CHILDREN('\ue4e1', true), //
 			CIRCLE('\uf192', false), //
 			CLOCK_ROTATE_LEFT('\uf1da', true), //
 			CLIPBOARD('\uf328', false), //

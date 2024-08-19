@@ -38,6 +38,9 @@ import sc.fiji.snt.TreeProperties;
  */
 public class PathAnalyzer extends TreeStatistics {
 
+	/** Flag for {@value #N_CHILDREN} analysis. */
+	public static final String N_CHILDREN = "No. of children";
+
 	public PathAnalyzer(Collection<Path> paths, String label) {
 		super(new Tree(paths));
 		tree.setLabel(label);
@@ -77,8 +80,22 @@ public class PathAnalyzer extends TreeStatistics {
 	}
 
 	@Override
+	public List<Path> getTerminalBranches() {
+		final ArrayList<Path> paths = new ArrayList<>();
+		for (final Path path : tree.list()) {
+			if (!path.getChildren().isEmpty()) paths.add(path);
+		}
+		return paths;
+	}
+
+	@Override
 	public double getPrimaryLength() {
-		return getPrimaryBranches().stream().mapToDouble(p -> p.getLength()).sum();
+		return getPrimaryBranches().stream().mapToDouble(Path::getLength).sum();
+	}
+
+	@Override
+	public double getTerminalLength() {
+		return getTerminalBranches().stream().mapToDouble(Path::getLength).sum();
 	}
 
 	@Override
@@ -99,42 +116,23 @@ public class PathAnalyzer extends TreeStatistics {
 	}
 
 	@Override
-	protected Number getMetricWithoutChecks(final String metric) throws UnknownMetricException {
-		if ( tree.size() == 1) {
-			switch(metric) {
-			case TreeStatistics.PATH_ORDER:
-				return tree.get(0).getOrder();
-			case TreeStatistics.PATH_EXT_ANGLE_XY:
-				return tree.get(0).getExtensionAngleXY();
-			case TreeStatistics.PATH_EXT_ANGLE_XZ:
-				return tree.get(0).getExtensionAngleXZ();
-			case TreeStatistics.PATH_EXT_ANGLE_ZY:
-				return tree.get(0).getExtensionAngleZY();
-			case TreeStatistics.PATH_LENGTH:
-				return tree.get(0).getLength();
-			case TreeStatistics.PATH_CHANNEL:
-				return tree.get(0).getChannel();
-			case TreeStatistics.PATH_FRAME:
-				return tree.get(0).getFrame();
-			case TreeStatistics.PATH_CONTRACTION:
-				return tree.get(0).getContraction();
-			case TreeStatistics.PATH_MEAN_RADIUS:
-				return tree.get(0).getMeanRadius();
-			case TreeStatistics.PATH_SURFACE_AREA:
-				return tree.get(0).getApproximatedSurface();
-			case TreeStatistics.PATH_VOLUME:
-				return tree.get(0).getApproximatedVolume();
-			case TreeStatistics.N_BRANCH_POINTS:
-				return tree.get(0).getJunctionNodes().size();
-			case TreeStatistics.PATH_N_SPINES:
-				return tree.get(0).getSpineOrVaricosityCount();
-			case TreeStatistics.PATH_SPINE_DENSITY:
-				return tree.get(0).getSpineOrVaricosityCount() / tree.get(0).getLength();
-			default:
-				super.getMetricWithoutChecks(metric);
-			}
+	protected void assembleStats(final StatisticsInstance stat, final String measurement) {
+		if (N_CHILDREN.equalsIgnoreCase(measurement)) {
+			for (final Path p : getBranches())
+				stat.addValue(p.getChildren().size());
+		} else {
+			super.assembleStats(stat, measurement);
 		}
-		return super.getMetricWithoutChecks(metric);
+	}
+
+	@Override
+	public SummaryStatistics getSummaryStats(final String metric) {
+		if (N_CHILDREN.equalsIgnoreCase(metric)) {
+			final SummaryStatistics sStats = new SummaryStatistics();
+			assembleStats(new StatisticsInstance(sStats), N_CHILDREN);
+			return sStats;
+		}
+		return super.getSummaryStats(metric);
 	}
 
 	public void measureIndividualPaths(final Collection<String> metrics, final boolean summarize) {

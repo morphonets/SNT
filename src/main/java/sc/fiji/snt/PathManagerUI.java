@@ -107,6 +107,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private static final String SYM_LENGTH = "L:";//"\uD800\uDCB3"; // not displayed in macOS
 	private static final String SYM_TREE = "ID:"; //"\uD800\uDCB7"; // not displayed in macOS
 	private static final String SYM_ORDER ="ORD:"; //"\uD800\uDC92"; // not displayed in macOS
+	private static final String SYM_CHILDREN = "NC:";
 	private static final String SYM_ANGLE ="DEG:";
 
 	private final HelpfulJTree tree;
@@ -257,6 +258,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.EXT_ANGLE_TAG_CMD));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.LENGTH_TAG_CMD));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.MEAN_RADIUS_TAG_CMD));
+		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.N_CHILDREN_TAG_CMD));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.COUNT_TAG_CMD));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.ORDER_TAG_CMD));
 		tagsMenu.add(morphoTagsMenu);
@@ -1891,6 +1893,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				});
 			}
 			break;
+		case MultiPathActionListener.N_CHILDREN_TAG_CMD:
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_CHILDREN +"\\d+\\]", "")));
+			if (reapply) {
+				paths.forEach(p-> {
+					p.setName(p.getName() + " [" + SYM_CHILDREN + p.getChildren().size() + "]");
+				});
+			}
+			break;
 		case MultiPathActionListener.EXT_ANGLE_TAG_CMD:
 				paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ANGLE +"\\d+.\\d+\\]|\\[" + SYM_ANGLE + "NaN\\]", "")));
 				if (reapply) {
@@ -2518,6 +2528,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ID_ALT));
 				setToolTip(SYM_TREE);
 				break;
+			case MultiPathActionListener.N_CHILDREN_TAG_CMD:
+				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHILDREN));
+				setToolTip(SYM_CHILDREN);
+				break;
 			case MultiPathActionListener.MEAN_RADIUS_TAG_CMD:
 				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CIRCLE));
 				setToolTip(SYM_RADIUS);
@@ -2579,6 +2593,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String ORDER_TAG_CMD = "Path Order";
 		private static final String EXT_ANGLE_TAG_CMD = "Extension Angle (XY Plane)";
 		private static final String TREE_TAG_CMD = "Cell ID";
+		private static final String N_CHILDREN_TAG_CMD = "No. of Children";
 		private static final String CHANNEL_TAG_CMD = "Traced Channel";
 		private static final String FRAME_TAG_CMD = "Traced Frame";
 		private static final String SLICE_TAG_CMD = "Z-slice of First Node";

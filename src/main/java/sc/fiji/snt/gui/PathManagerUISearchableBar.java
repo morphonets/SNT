@@ -46,8 +46,7 @@ import org.scijava.command.CommandService;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathManagerUI;
-import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.TreeStatistics;
+import sc.fiji.snt.analysis.PathAnalyzer;
 import sc.fiji.snt.gui.cmds.SWCTypeFilterCmd;
 
 /**
@@ -183,32 +182,15 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			guiUtils.tempMsg(paths.size() + " Path(s) selected");
 		});
 		morphoFilteringMenu.add(mi1);
-
-		mi1 = new JMenuItem(TreeStatistics.PATH_CONTRACTION + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_CONTRACTION, ""));
-		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.PATH_EXT_ANGLE_XY + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_EXT_ANGLE_XY, "0-360°"));
-		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.PATH_LENGTH + "...");
-		mi1.addActionListener(e -> {
-			final String unit = pmui.getPathAndFillManager().getBoundingBox(false)
-				.getUnit();
-			doMorphoFiltering(TreeStatistics.PATH_LENGTH, unit);
-		});
-		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.PATH_MEAN_RADIUS + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_MEAN_RADIUS, ""));
-		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.PATH_ORDER + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.PATH_ORDER, ""));
-		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.N_NODES + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_NODES, ""));
-		morphoFilteringMenu.add(mi1);
-		mi1 = new JMenuItem(TreeStatistics.N_SPINES + "...");
-		mi1.addActionListener(e -> doMorphoFiltering(TreeStatistics.N_SPINES, ""));
-		morphoFilteringMenu.add(mi1);
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.N_CHILDREN, ""));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.N_NODES, ""));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.N_SPINES, ""));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_CONTRACTION, ""));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_EXT_ANGLE_XY, "0-360°"));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_LENGTH,
+				pmui.getPathAndFillManager().getBoundingBox(false).getUnit()));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_MEAN_RADIUS, ""));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_ORDER, ""));
 		mi1 = new JMenuItem("SWC type...");
 		mi1.addActionListener(e -> {
 			final Collection<Path> paths = getPaths();
@@ -255,6 +237,12 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		});
 		morphoFilteringMenu.add(mi1);
 		return morphoFilteringMenu;
+	}
+
+	private JMenuItem morphoFilterMenuItem(final String pathAnalyzerMetric, final String unit) {
+		final JMenuItem mi = new JMenuItem(pathAnalyzerMetric + "...");
+		mi.addActionListener(e -> doMorphoFiltering(pathAnalyzerMetric, unit));
+		return mi;
 	}
 
 	private ColorMenu getColorFilterMenu() {
@@ -366,8 +354,8 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		double min = Double.MIN_VALUE;
 		double max = Double.MAX_VALUE;
 		if (s.contains("min") || s.contains("max")) {
-			final TreeStatistics treeStats = new TreeStatistics(new Tree(filteredPaths));
-			final SummaryStatistics summary = treeStats.getSummaryStats(property);
+			final PathAnalyzer stats = new PathAnalyzer(filteredPaths, null);
+			final SummaryStatistics summary = stats.getSummaryStats(property);
 			min = summary.getMin();
 			max = summary.getMax();
 		}
@@ -404,33 +392,36 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			final Path p = iterator.next();
 			double value;
 			switch (property) {
-				case TreeStatistics.PATH_EXT_ANGLE_XY:
+				case PathAnalyzer.PATH_EXT_ANGLE_XY:
 					value = p.getExtensionAngleXY();
 					break;
-				case TreeStatistics.PATH_EXT_ANGLE_XZ:
+				case PathAnalyzer.PATH_EXT_ANGLE_XZ:
 					value = p.getExtensionAngleXZ();
 					break;
-				case TreeStatistics.PATH_EXT_ANGLE_ZY:
+				case PathAnalyzer.PATH_EXT_ANGLE_ZY:
 					value = p.getExtensionAngleZY();
 					break;
-				case TreeStatistics.PATH_LENGTH:
+				case PathAnalyzer.PATH_LENGTH:
 				case "Length":
 					value = p.getLength();
 					break;
-				case TreeStatistics.N_NODES:
+				case PathAnalyzer.N_NODES:
 					value = p.size();
 					break;
-				case TreeStatistics.PATH_MEAN_RADIUS:
+				case PathAnalyzer.PATH_MEAN_RADIUS:
 					value = p.getMeanRadius();
 					break;
-				case TreeStatistics.PATH_ORDER:
+				case PathAnalyzer.PATH_ORDER:
 					value = p.getOrder();
 					break;
-				case TreeStatistics.N_SPINES:
+				case PathAnalyzer.N_SPINES:
 					value = p.getSpineOrVaricosityCount();
 					break;
-				case TreeStatistics.PATH_CONTRACTION:
+				case PathAnalyzer.PATH_CONTRACTION:
 					value = p.getContraction();
+					break;
+				case PathAnalyzer.N_CHILDREN:
+					value = p.getChildren().size();
 					break;
 				default:
 					throw new IllegalArgumentException("Unrecognized parameter");
@@ -482,14 +473,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				+ "combining multiple criteria to further restrict matches");
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
-		button.addActionListener(e -> {
-			if (pmui.getJTree().isSelectionEmpty()) {
-				guiUtils.error("There are no selected Paths.");
-				button.setSelected(false);
-			} else {
-				subFilteringEnabled = button.isSelected();
-			}
-		});
+		button.addActionListener(e -> subFilteringEnabled = button.isSelected());
 		// There is a logic for when the "Highlights All" button is enabled. Apply it here too:
 		_highlightsButton.addPropertyChangeListener("enabled", evt -> button.setEnabled(_highlightsButton.isEnabled()));
 		return button;
