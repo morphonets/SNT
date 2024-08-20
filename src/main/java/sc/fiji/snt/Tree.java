@@ -1683,7 +1683,7 @@ public class Tree implements TreeProperties {
 			f = new File(filename.replaceFirst("^~", System.getProperty("user.home")));
 		else
 			f = new File(filename);
-		if (!SNTUtils.fileAvailable(f))
+		if (checkIfAvailable && !SNTUtils.fileAvailable(f))
 			throw new IllegalArgumentException("File is not available: " + filename);
 		return f;
 	}
