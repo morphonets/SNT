@@ -61,9 +61,9 @@ public class PersistenceAnalyzerTest {
 		// TODO devise proper correctness tests for each descriptor.
 		final int numTips = tAnalyzer.getTips().size();
 		for (final String descriptor : allDescriptors) {
-			final ArrayList<ArrayList<Double>> diagram = pAnalyzer.getDiagram(descriptor);
+			final List<List<Double>> diagram = pAnalyzer.getDiagram(descriptor);
 			assertEquals("Number of points in diagram", numTips, diagram.size());
-			for (final ArrayList<Double> point : diagram) {
+			for (final List<Double> point : diagram) {
 				assertTrue("Two non-negative values per point in diagram",
 						point.size() == 2 && point.get(0) >= 0 && point.get(1) >= 0);
 			}
@@ -73,7 +73,7 @@ public class PersistenceAnalyzerTest {
 	@Test
 	public void testBarcode() {
 		// Use geodesic descriptor since the sum of all intervals equals total cable length.
-		ArrayList<Double> barcode = pAnalyzer.getBarcode("geodesic");
+		List<Double> barcode = pAnalyzer.getBarcode("geodesic");
 		final double cableLength = tAnalyzer.getCableLength();
 		double sumIntervals = 0d;
 		for (final double interval : barcode) {
@@ -96,9 +96,9 @@ public class PersistenceAnalyzerTest {
 	public void testDiagramNodes() {
 		final int numTips = tAnalyzer.getTips().size();
 		for (final String descriptor : allDescriptors) {
-			final ArrayList<ArrayList<SWCPoint>> diagramNodes = pAnalyzer.getDiagramNodes(descriptor);
+			final List<List<SWCPoint>> diagramNodes = pAnalyzer.getDiagramNodes(descriptor);
 			assertEquals("Number of points in diagram", numTips, diagramNodes.size());
-			for (final ArrayList<SWCPoint> point : diagramNodes) {
+			for (final List<SWCPoint> point : diagramNodes) {
 				assertTrue("Two SWCPoint objects per point in diagram",
 						point.size() == 2 && point.get(0) instanceof SWCPoint && point.get(1) instanceof SWCPoint);
 			}
