@@ -61,6 +61,12 @@ import sc.fiji.snt.util.SWCPoint;
 public class TreeStatistics extends TreeAnalyzer {
 
 	// branch angles
+	/** Metric: Branch extension angle XY */
+	public static final String BRANCH_EXTENSION_ANGLE_XY = "Branch extension angle XY";
+	/** Metric: Branch extension angle XZ */
+	public static final String BRANCH_EXTENSION_ANGLE_XZ = "Branch extension angle XZ";
+	/** Metric: Branch extension angle ZY */
+	public static final String BRANCH_EXTENSION_ANGLE_ZY = "Branch extension angle ZY";
 	/** Flag for {@value #INNER_EXTENSION_ANGLE_XY} analysis. */
 	public static final String INNER_EXTENSION_ANGLE_XY = "Inner branches: Extension angle XY";
 	/** Flag for {@value #INNER_EXTENSION_ANGLE_XZ} analysis. */
@@ -275,6 +281,7 @@ public class TreeStatistics extends TreeAnalyzer {
 			BRANCH_MEAN_RADIUS, BRANCH_SURFACE_AREA, BRANCH_VOLUME, COMPLEXITY_INDEX_ACI, COMPLEXITY_INDEX_DCI,
 			CONVEX_HULL_BOUNDARY_SIZE, CONVEX_HULL_BOXIVITY, CONVEX_HULL_CENTROID_ROOT_DISTANCE, CONVEX_HULL_ELONGATION,
 			CONVEX_HULL_ROUNDNESS, CONVEX_HULL_SIZE, DEPTH, //
+			BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY, //
 			INNER_EXTENSION_ANGLE_XY, INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY, PRIMARY_EXTENSION_ANGLE_XY,
 			PRIMARY_EXTENSION_ANGLE_XZ, PRIMARY_EXTENSION_ANGLE_ZY, TERMINAL_EXTENSION_ANGLE_XY,
 			TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY, //
@@ -832,7 +839,12 @@ public class TreeStatistics extends TreeAnalyzer {
 					return INNER_EXTENSION_ANGLE_ZY;
 				else
 					return INNER_EXTENSION_ANGLE_XY;
-			}
+			} else if (normGuess.contains("xz"))
+				return BRANCH_EXTENSION_ANGLE_XZ;
+			else if (normGuess.contains("zy"))
+				return BRANCH_EXTENSION_ANGLE_ZY;
+			else
+				return BRANCH_EXTENSION_ANGLE_XY;
 		}
 		if (normGuess.contains("path") && normGuess.contains("order")) {
 			return PATH_ORDER;
@@ -1051,6 +1063,27 @@ public class TreeStatistics extends TreeAnalyzer {
 		case INNER_LENGTH:
 			try {
 				getInnerBranches().forEach( b -> stat.addValue(b.getLength()));
+			} catch (final IllegalArgumentException ignored ) {
+				stat.addValue(Double.NaN);
+			}
+			break;
+		case BRANCH_EXTENSION_ANGLE_XY:
+			try {
+				getBranches().forEach( b -> stat.addValue(b.getExtensionAngleXY()));
+			} catch (final IllegalArgumentException ignored ) {
+				stat.addValue(Double.NaN);
+			}
+			break;
+		case BRANCH_EXTENSION_ANGLE_XZ:
+			try {
+				getBranches().forEach( b -> stat.addValue(b.getExtensionAngleXZ()));
+			} catch (final IllegalArgumentException ignored ) {
+				stat.addValue(Double.NaN);
+			}
+			break;
+		case BRANCH_EXTENSION_ANGLE_ZY:
+			try {
+				getBranches().forEach( b -> stat.addValue(b.getExtensionAngleZY()));
 			} catch (final IllegalArgumentException ignored ) {
 				stat.addValue(Double.NaN);
 			}
