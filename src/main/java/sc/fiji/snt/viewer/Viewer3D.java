@@ -3723,13 +3723,15 @@ public class Viewer3D {
 
 	 	/** Updates the progress bar. */
 		public void showProgress(final int value, final int maximum) {
-			if (value == -1 && maximum == -1) {
-				progressBar.setIndeterminate(true);
-			} else {
-				progressBar.setIndeterminate(false);
-				progressBar.addToGlobalMax(maximum);
-				progressBar.addToGlobalValue(value);
-			}
+			SwingUtilities.invokeLater( () -> {
+				if (value == -1 && maximum == -1) {
+					progressBar.setIndeterminate(true);
+				} else {
+					progressBar.setIndeterminate(false);
+					progressBar.addToGlobalMax(maximum);
+					progressBar.addToGlobalValue(value);
+				}
+			});
 		}
 
 		class ProgressBar extends JProgressBar {

@@ -24,21 +24,12 @@ package sc.fiji.snt.gui;
 
 import java.awt.Color;
 import java.awt.Component;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
-import javax.swing.JButton;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JPopupMenu;
-import javax.swing.JToggleButton;
-import javax.swing.SwingWorker;
+import javax.swing.*;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.command.CommandModule;
@@ -60,7 +51,6 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	private static final long serialVersionUID = 1L;
 	private final PathManagerUI pmui;
 	private final GuiUtils guiUtils;
-	private boolean subFilteringEnabled;
 
 	/**
 	 * Creates PathManagerUI's SearchableBar
@@ -75,6 +65,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		setSearcheableObjectDescription("Paths");
 		setFindAndReplaceMenuItem(createFindAndReplaceMenuItem());
 		_extraButtons = new ArrayList<>();
+		_extraButtons.add(createSWCTypeFilteringButton());
 		_extraButtons.add(createColorFilteringButton());
 		_extraButtons.add(createMorphoFilteringButton());
 		_extraButtons.add(createSubFilteringButton());
@@ -82,6 +73,10 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		setStatusLabelPlaceholder(String.format("%d Path(s) listed", pmui
 			.getPathAndFillManager().size()));
 		_highlightsButton.setToolTipText("Highlight all: Auto-select paths matching filtered text");
+	}
+
+	private void logSelectionCount(final int count) {
+		_statusLabel.setText( (subFilteringEnabled) ? "⫧ " + count + " Match(es)" : count + " Match(es)");
 	}
 
 	private JMenuItem createFindAndReplaceMenuItem() {
@@ -137,12 +132,19 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			IconFactory.GLYPH.IMAGE));
 		JMenuItem mi1 = new JMenuItem("Traced channel...");
 		mi1.addActionListener(e -> doImageFiltering("Traced channel"));
+		mi1.setIcon(IconFactory.getMenuIcon('C', false));
 		imgFilteringMenu.add(mi1);
 		mi1 = new JMenuItem("Traced frame...");
 		mi1.addActionListener(e -> doImageFiltering("Traced frame"));
+		mi1.setIcon(IconFactory.getMenuIcon('T', false));
 		imgFilteringMenu.add(mi1);
 		mi1 = new JMenuItem("Z-slice of first node...");
 		mi1.addActionListener(e -> doImageFiltering("Z-slice of first node"));
+		mi1.setIcon(IconFactory.getMenuIcon('Z', false));
+		imgFilteringMenu.add(mi1);
+		mi1 = new JMenuItem("Z-slice of last node...");
+		mi1.addActionListener(e -> doImageFiltering("Z-slice of last node"));
+		mi1.setIcon(IconFactory.getMenuIcon('Z', true));
 		imgFilteringMenu.add(mi1);
 		return imgFilteringMenu;
 	}
@@ -151,6 +153,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		final JMenu morphoFilteringMenu = new JMenu("Select by Morphological Trait");
 		morphoFilteringMenu.setIcon(IconFactory.getMenuIcon( IconFactory.GLYPH.RULER));
 		JMenuItem mi1 = new JMenuItem("Cell ID...");
+		mi1.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ID_ALT));
 		mi1.addActionListener(e -> {
 			final Collection<Path> paths = getPaths();
 			if (paths.isEmpty()) {
@@ -179,7 +182,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				return;
 			}
 			pmui.setSelectedPaths(paths, this);
-			guiUtils.tempMsg(paths.size() + " Path(s) selected");
+			logSelectionCount(paths.size());
 		});
 		morphoFilteringMenu.add(mi1);
 		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.N_CHILDREN, ""));
@@ -191,57 +194,37 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				pmui.getPathAndFillManager().getBoundingBox(false).getUnit()));
 		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_MEAN_RADIUS, ""));
 		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_ORDER, ""));
-		mi1 = new JMenuItem("SWC type...");
-		mi1.addActionListener(e -> {
-			final Collection<Path> paths = getPaths();
-			if (paths.isEmpty()) {
-				guiUtils.error("There are no traced paths.");
-				return;
-			}
-			class GetFilteredTypes extends SwingWorker<Object, Object> {
-
-				CommandModule cmdModule;
-
-				@Override
-				public Object doInBackground() {
-					final CommandService cmdService = pmui.getSNT()
-						.getContext().getService(CommandService.class);
-					try {
-						cmdModule = cmdService.run(SWCTypeFilterCmd.class, true).get();
-					}
-					catch (InterruptedException | ExecutionException ignored) {
-						return null;
-					}
-					return null;
-				}
-
-				@Override
-				protected void done() {
-					final Set<Integer> types = SWCTypeFilterCmd.getChosenTypes(pmui
-						.getSNT().getContext());
-					if ((cmdModule != null && cmdModule.isCanceled()) || types == null ||
-						types.isEmpty())
-					{
-						return; // user pressed cancel or chose nothing
-					}
-					paths.removeIf(path -> !types.contains(path.getSWCType()));
-					if (paths.isEmpty()) {
-						guiUtils.error("No Path matches the specified type(s).");
-						return;
-					}
-					pmui.setSelectedPaths(paths, this);
-					guiUtils.tempMsg(paths.size() + " Path(s) selected");
-				}
-			}
-			(new GetFilteredTypes()).execute();
-		});
-		morphoFilteringMenu.add(mi1);
 		return morphoFilteringMenu;
 	}
 
 	private JMenuItem morphoFilterMenuItem(final String pathAnalyzerMetric, final String unit) {
 		final JMenuItem mi = new JMenuItem(pathAnalyzerMetric + "...");
 		mi.addActionListener(e -> doMorphoFiltering(pathAnalyzerMetric, unit));
+		switch (pathAnalyzerMetric) {
+			case PathAnalyzer.N_CHILDREN:
+				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHILDREN));
+				break;
+			case PathAnalyzer.N_SPINES:
+				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.MAP_PIN));
+				break;
+			case PathAnalyzer.PATH_CONTRACTION:
+				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.STAIRS));
+				break;
+			case PathAnalyzer.PATH_EXT_ANGLE_XY:
+				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ANGLE_RIGHT));
+				break;
+			case PathAnalyzer.PATH_LENGTH:
+				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RULER_VERTICAL));
+				break;
+			case PathAnalyzer.PATH_MEAN_RADIUS:
+				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CIRCLE));
+				break;
+			case PathAnalyzer.PATH_ORDER:
+				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
+				break;
+			default:
+				break;
+		}
 		return mi;
 	}
 
@@ -271,7 +254,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				return;
 			}
 			pmui.setSelectedPaths(filteredPaths, this);
-			guiUtils.tempMsg(filteredPaths.size() + " Path(s) selected");
+			logSelectionCount(filteredPaths.size());
 			// refreshManager(true, true);
 		});
 		return colorFilterMenu;
@@ -317,6 +300,9 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			case "z-slice of first node":
 				value = p.getZUnscaled(0) + 1;
 				break;
+			case "z-slice of last node":
+				value = p.getZUnscaled(p.size()-1) + 1;
+				break;
 			case "traced channel":
 				value = p.getChannel();
 				break;
@@ -334,7 +320,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			return;
 		}
 		pmui.setSelectedPaths(filteredPaths, this);
-		guiUtils.tempMsg(filteredPaths.size() + " Path(s) selected");
+		logSelectionCount(filteredPaths.size());
 	}
 
 	private void doMorphoFiltering(final String property, final String unit) {
@@ -433,7 +419,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			return;
 		}
 		pmui.setSelectedPaths(paths, this);
-		guiUtils.tempMsg(paths.size() + " Path(s) selected");
+		logSelectionCount(paths.size());
 		// refreshManager(true, true);
 	}
 
@@ -466,16 +452,53 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		return button;
 	}
 
-	private JToggleButton createSubFilteringButton() {
-		final JToggleButton button = new JToggleButton();
-		formatButton(button, IconFactory.GLYPH.FILTER);
-		button.setToolTipText("Restrict filtering to selected Paths. This allows\n"
-				+ "combining multiple criteria to further restrict matches");
-		button.setRequestFocusEnabled(false);
-		button.setFocusable(false);
-		button.addActionListener(e -> subFilteringEnabled = button.isSelected());
-		// There is a logic for when the "Highlights All" button is enabled. Apply it here too:
-		_highlightsButton.addPropertyChangeListener("enabled", evt -> button.setEnabled(_highlightsButton.isEnabled()));
+	private JButton createSWCTypeFilteringButton() {
+		final JButton button = new JButton();
+		formatButton(button, IconFactory.GLYPH.ID);
+		button.setToolTipText("Filter by SWC-type(s)");
+		button.addActionListener(e -> {
+			final Collection<Path> paths = getPaths();
+			if (paths.isEmpty()) {
+				guiUtils.error("There are no traced paths.");
+				return;
+			}
+			class GetFilteredTypes extends SwingWorker<Object, Object> {
+
+				CommandModule cmdModule;
+
+				@Override
+				public Object doInBackground() {
+					final CommandService cmdService = pmui.getSNT()
+							.getContext().getService(CommandService.class);
+					try {
+						cmdModule = cmdService.run(SWCTypeFilterCmd.class, true).get();
+					}
+					catch (InterruptedException | ExecutionException ignored) {
+						return null;
+					}
+					return null;
+				}
+
+				@Override
+				protected void done() {
+					final Set<Integer> types = SWCTypeFilterCmd.getChosenTypes(pmui
+							.getSNT().getContext());
+					if ((cmdModule != null && cmdModule.isCanceled()) || types == null ||
+							types.isEmpty())
+					{
+						return; // user pressed cancel or chose nothing
+					}
+					paths.removeIf(path -> !types.contains(path.getSWCType()));
+					if (paths.isEmpty()) {
+						guiUtils.error("No Path matches the specified type(s).");
+						return;
+					}
+					pmui.setSelectedPaths(paths, this);
+					logSelectionCount(paths.size());
+				}
+			}
+			(new GetFilteredTypes()).execute();
+		});
 		return button;
 	}
 
@@ -483,7 +506,6 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		return (subFilteringEnabled) ? pmui.getSelectedPaths(true) : pmui.getPathAndFillManager()
 				.getPathsFiltered();
 	}
-
 
 	/* IDE Debug method */
 	public static void main(final String[] args) {

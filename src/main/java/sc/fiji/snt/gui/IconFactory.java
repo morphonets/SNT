@@ -309,6 +309,12 @@ public class IconFactory {
 			entry.solid);
 	}
 
+	public static Icon getMenuIcon(final char symbol, final boolean solid) {
+		return new FADerivedIcon(symbol, UIManager.getFont("MenuItem.font")
+				.getSize() * 0.9f, UIManager.getColor("MenuItem.foreground"),
+				solid);
+	}
+
 	public static Icon getListIcon(final GLYPH entry) {
 		return new FADerivedIcon(entry.id, UIManager.getFont("List.font")
 			.getSize() * 0.9f, UIManager.getColor("List.foreground"),

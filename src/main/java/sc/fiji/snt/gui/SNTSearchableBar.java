@@ -31,20 +31,9 @@ import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.util.List;
 
-import javax.swing.AbstractAction;
-import javax.swing.AbstractButton;
-import javax.swing.BorderFactory;
-import javax.swing.Icon;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JToggleButton;
-import javax.swing.UIManager;
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.plaf.basic.BasicComboBoxEditor;
 
 import com.jidesoft.swing.Searchable;
@@ -75,6 +64,7 @@ public class SNTSearchableBar extends SearchableBar {
 	private String objectDescription;
 	private GuiUtils guiUtils;
 	private JMenuItem findAndReplaceMenuItem;
+	protected boolean subFilteringEnabled;
 
 	public SNTSearchableBar(final Searchable searchable) {
 		this(searchable, "Find:");
@@ -93,7 +83,7 @@ public class SNTSearchableBar extends SearchableBar {
 		setMismatchForeground(Color.RED);
 		setMaxHistoryLength(10);
 		setHighlightAll(true);
-		updatPlaceholderText();
+		updatePlaceholderText();
 	}
 
 	private void init(final String placeholder) {
@@ -135,7 +125,7 @@ public class SNTSearchableBar extends SearchableBar {
 	}
 
 	private static class BoxEditorWithPrompt extends BasicComboBoxEditor {
-		BoxEditorWithPrompt(String prompt) {
+		BoxEditorWithPrompt(final String prompt) {
 			super();
 			final int cols = editor.getColumns();
 			editor = new GuiUtils.TextFieldWithPlaceholder(prompt);
@@ -144,8 +134,9 @@ public class SNTSearchableBar extends SearchableBar {
 		}
 	}
 
-	private void updatPlaceholderText() {
+	private void updatePlaceholderText() {
 		final TextFieldWithPlaceholder editorField = ((GuiUtils.TextFieldWithPlaceholder)_comboBox.getEditor().getEditorComponent());
+		_comboBox.getEditor().getEditorComponent().requestFocus(); // or painting does not occur properly!?
 		if (getSearchable().isWildcardEnabled() && getSearchable().isCaseSensitive())
 			editorField.changePlaceholder("Active filters: [Aa]  [?*]", false);
 		else if (getSearchable().isWildcardEnabled())
@@ -154,11 +145,47 @@ public class SNTSearchableBar extends SearchableBar {
 			editorField.changePlaceholder("Active filter: [Aa]", false);
 		else
 			editorField.resetPlaceholder();
+		_comboBox.getEditor().getEditorComponent().transferFocusBackward();
+	}
+
+	protected JToggleButton createSubFilteringButton() {
+		final JToggleButton button = new JToggleButton();
+		formatButton(button, IconFactory.GLYPH.FILTER);
+		button.setToolTipText("Restricts filtering to current selection.\nCombines filters to restrict matches");
+		button.setRequestFocusEnabled(false);
+		button.setFocusable(false);
+		button.addActionListener(e -> {
+			subFilteringEnabled = button.isSelected();
+			setStatusLabelPlaceholder(statusLabelPlaceholder); // update label
+		});
+		((GuiUtils.TextFieldWithPlaceholder) _comboBox.getEditor().getEditorComponent()).getDocument()
+				.addDocumentListener(new DocumentListener() {
+					@Override
+					public void changedUpdate(final DocumentEvent e) {
+						disable();
+					}
+					@Override
+					public void removeUpdate(final DocumentEvent e) {
+						disable();
+					}
+					@Override
+					public void insertUpdate(final DocumentEvent e) {
+						disable();
+					}
+					void disable() { // text searches disable subFiltering
+						subFilteringEnabled = false;
+						button.setSelected(false);
+						button.setEnabled(getSearchingText().isBlank());
+					}
+				});
+		return button;
 	}
 
 	public void setStatusLabelPlaceholder(final String placeholder) {
 		statusLabelPlaceholder = placeholder;
-		if (_statusLabel != null) _statusLabel.setText(statusLabelPlaceholder);
+		if (_statusLabel != null) {
+			_statusLabel.setText( (subFilteringEnabled) ? "⫧ " + statusLabelPlaceholder : statusLabelPlaceholder);
+		}
 	}
 
 	@Override
@@ -256,20 +283,16 @@ public class SNTSearchableBar extends SearchableBar {
 
 		final JMenuItem jcbmi1 = new JCheckBoxMenuItem("Case Sensitive Matching", getSearchable().isCaseSensitive());
 		jcbmi1.addItemListener(e -> {
-			_comboBox.getEditor().getEditorComponent().requestFocus();
 			getSearchable().setCaseSensitive(jcbmi1.isSelected());
-			updatPlaceholderText();
-			_comboBox.getEditor().getEditorComponent().transferFocusBackward();
+			updatePlaceholderText();
 			updateSearch();
 		});
 		popup.add(jcbmi1);
 		final JMenuItem jcbmi2 = new JCheckBoxMenuItem("Enable Wildcards (?*)", getSearchable().isWildcardEnabled());
 		jcbmi2.setToolTipText("<HTML><b>?</b> (any character) and <b>*</b> (any string) supported");
 		jcbmi2.addItemListener(e -> {
-			_comboBox.getEditor().getEditorComponent().requestFocus();
 			getSearchable().setWildcardEnabled(jcbmi2.isSelected());
-			updatPlaceholderText();
-			_comboBox.getEditor().getEditorComponent().transferFocusBackward();
+			updatePlaceholderText();
 			updateSearch();
 		});
 		popup.add(jcbmi2);

@@ -45,32 +45,73 @@ import sc.fiji.snt.gui.GuiUtils;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "SWC-type Filtering",
-	initializer = "init")
+@Plugin(type = Command.class, visible = false, label = "SWC-type Filtering")
 public class SWCTypeFilterCmd extends ContextCommand {
 
-	private static final String CHOSEN_TYPES = "chosenTYpes";
+	private static final String CHOSEN_TYPES = "chosenTypes";
 
 	@Parameter
 	private PrefService prefService;
 
-	@Parameter(persist = false, label = Path.SWC_DENDRITE_LABEL)
+	@Parameter(label = Path.SWC_DENDRITE_LABEL)
 	private boolean basalDendrite;
 
-	@Parameter(persist = false, label = Path.SWC_APICAL_DENDRITE_LABEL)
+	@Parameter(label = Path.SWC_APICAL_DENDRITE_LABEL)
 	private boolean apicalDendrite;
 
-	@Parameter(persist = false, label = Path.SWC_AXON_LABEL)
+	@Parameter(label = Path.SWC_AXON_LABEL)
 	private boolean axon;
 
-	@Parameter(persist = false, label = Path.SWC_CUSTOM_LABEL)
+	@Parameter(label = Path.SWC_CUSTOM_LABEL)
 	private boolean custom;
 
-	@Parameter(persist = false, label = Path.SWC_SOMA_LABEL)
+	@Parameter(label = Path.SWC_CUSTOM2_LABEL)
+	private boolean custom2;
+
+	@Parameter(label = Path.SWC_GLIA_PROCESS_LABEL)
+	private boolean glia;
+
+	@Parameter(label = Path.SWC_SOMA_LABEL)
 	private boolean soma;
 
-	@Parameter(persist = false, label = Path.SWC_UNDEFINED_LABEL)
+	@Parameter(label = Path.SWC_UNDEFINED_LABEL)
 	private boolean undefined;
+
+	@Parameter(label = Path.SWC_UNSPECIFIED_LABEL)
+	private boolean unspecified;
+
+	@Parameter(label = "Select", choices = {"Choose", "Select All", "Select None", "Reverse Selection"},
+			callback="actionChoiceSelected")
+	private String actionChoice;
+
+	@SuppressWarnings("unused")
+	private void actionChoiceSelected() {
+		if (actionChoice.contains("All")) {
+			setAllCheckboxesEnabled(true);
+		} else if (actionChoice.contains("None")) {
+			setAllCheckboxesEnabled(false);
+		} else if (actionChoice.contains("Reverse")) {
+			toggleCheckboxes();
+		}
+	}
+
+	private void setAllCheckboxesEnabled(final boolean enable) {
+		axon = basalDendrite = apicalDendrite = custom = custom2 = glia = soma = undefined = unspecified = enable;
+		actionChoice = "Choose";
+	}
+
+	private void toggleCheckboxes() {
+		axon = !axon;
+		basalDendrite = !basalDendrite;
+		apicalDendrite = !apicalDendrite;
+		custom= !custom;
+		custom2 = !custom2;
+		glia = !glia;
+		soma = !soma;
+		undefined = !undefined;
+		unspecified = !unspecified;
+		actionChoice = "Choose";
+	}
 
 	/* (non-Javadoc)
 	 *
@@ -79,12 +120,15 @@ public class SWCTypeFilterCmd extends ContextCommand {
 	@Override
 	public void run() {
 		final StringBuilder sb = new StringBuilder();
+		if (axon) sb.append(Path.SWC_AXON);
 		if (basalDendrite) sb.append(Path.SWC_DENDRITE);
 		if (apicalDendrite) sb.append(Path.SWC_APICAL_DENDRITE);
-		if (axon) sb.append(Path.SWC_AXON);
 		if (custom) sb.append(Path.SWC_CUSTOM);
+		if (custom2) sb.append(Path.SWC_CUSTOM2);
+		if (glia) sb.append(Path.SWC_GLIA_PROCESS);
 		if (soma) sb.append(Path.SWC_SOMA);
 		if (undefined) sb.append(Path.SWC_UNDEFINED);
+		if (unspecified) sb.append(Path.SWC_UNSPECIFIED);
 		prefService.put(SWCTypeFilterCmd.class, CHOSEN_TYPES, sb.toString());
 	}
 

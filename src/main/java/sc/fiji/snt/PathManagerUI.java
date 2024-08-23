@@ -246,6 +246,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		imageTagsMenu.add(new TagMenuItem(MultiPathActionListener.SLICE_TAG_CMD));
 		imageTagsMenu.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.SLICE_LABEL_TAG_CMD);
+		jmi.setIcon(IconFactory.getMenuIcon('\uF02B', true));
 		jmi.setToolTipText("Applies 'Slice labels' (AKA 'image subtitles') as custom tag(s).\n"
 				+ "NB: Unless explicitly set, most images do not have meaningful slice labels");
 		jmi.addActionListener(multiPathListener);
@@ -2513,12 +2514,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			switch (tag) {
 			case MultiPathActionListener.SLICE_TAG_CMD:
 				setToolTip("Z:");
+				setIcon(IconFactory.getMenuIcon('Z', true));
 				break;
 			case MultiPathActionListener.CHANNEL_TAG_CMD:
 				setToolTip("Ch:");
+				setIcon(IconFactory.getMenuIcon('C', true));
 				break;
 			case MultiPathActionListener.FRAME_TAG_CMD:
 				setToolTip("T:");
+				setIcon(IconFactory.getMenuIcon('T', true));
 				break;
 			case MultiPathActionListener.LENGTH_TAG_CMD:
 				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RULER_VERTICAL));
