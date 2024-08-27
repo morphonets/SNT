@@ -27,6 +27,7 @@ import java.awt.Component;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import javax.swing.*;
@@ -38,7 +39,9 @@ import org.scijava.command.CommandService;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathManagerUI;
 import sc.fiji.snt.analysis.PathAnalyzer;
+import sc.fiji.snt.gui.cmds.FilterOrTagPathsByAngleCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeFilterCmd;
+import sc.fiji.snt.util.SNTColor;
 
 /**
  * Implements the customized SearchableBar used by {@link PathManagerUI},
@@ -73,6 +76,17 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		setStatusLabelPlaceholder(String.format("%d Path(s) listed", pmui
 			.getPathAndFillManager().size()));
 		_highlightsButton.setToolTipText("Highlight all: Auto-select paths matching filtered text");
+	}
+
+	@Override
+	JToggleButton createSubFilteringButton() {
+		final JToggleButton button = super.createSubFilteringButton();
+		button.addActionListener( e -> {
+			if (pmui.getSNT().getUI().getRecorder(false) != null)
+				pmui.getSNT().getUI().getRecorder(false).recordCmd(
+					String.format("snt.getUI().getPathManager().setCombinedSelectionFilters(%b)", button.isSelected()));
+		});
+		return button;
 	}
 
 	private void logSelectionCount(final int count) {
@@ -185,16 +199,33 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			logSelectionCount(paths.size());
 		});
 		morphoFilteringMenu.add(mi1);
+		morphoFilteringMenu.add(angleFilterMenuItem());
 		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.N_CHILDREN, ""));
 		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.N_NODES, ""));
 		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.N_SPINES, ""));
 		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_CONTRACTION, ""));
-		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_EXT_ANGLE_XY, "0-360°"));
 		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_LENGTH,
 				pmui.getPathAndFillManager().getBoundingBox(false).getUnit()));
 		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_MEAN_RADIUS, ""));
 		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_ORDER, ""));
 		return morphoFilteringMenu;
+	}
+
+	private JMenuItem angleFilterMenuItem() {
+		final JMenuItem mi = new JMenuItem("Extension Angle...");
+		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ANGLE_RIGHT));
+		mi.addActionListener(e -> {
+			final Collection<Path> filteredPaths = getPaths();
+			if (filteredPaths.isEmpty()) {
+				guiUtils.error("There are no traced paths.");
+				return;
+			}
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("tagOnly", false);
+			inputs.put("paths", filteredPaths);
+			pmui.getSNT().getUI().runCommand(FilterOrTagPathsByAngleCmd.class, inputs);
+		});
+		return mi;
 	}
 
 	private JMenuItem morphoFilterMenuItem(final String pathAnalyzerMetric, final String unit) {
@@ -209,9 +240,6 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				break;
 			case PathAnalyzer.PATH_CONTRACTION:
 				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.STAIRS));
-				break;
-			case PathAnalyzer.PATH_EXT_ANGLE_XY:
-				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ANGLE_RIGHT));
 				break;
 			case PathAnalyzer.PATH_LENGTH:
 				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RULER_VERTICAL));
@@ -379,13 +407,16 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			double value;
 			switch (property) {
 				case PathAnalyzer.PATH_EXT_ANGLE_XY:
-					value = p.getExtensionAngleXY();
+				case PathAnalyzer.PATH_EXT_ANGLE_REL_XY:
+					value = p.getExtensionAngleXY(PathAnalyzer.PATH_EXT_ANGLE_REL_XY.equals(property));
 					break;
 				case PathAnalyzer.PATH_EXT_ANGLE_XZ:
-					value = p.getExtensionAngleXZ();
+				case PathAnalyzer.PATH_EXT_ANGLE_REL_XZ:
+					value = p.getExtensionAngleXZ(PathAnalyzer.PATH_EXT_ANGLE_REL_XZ.equals(property));
 					break;
 				case PathAnalyzer.PATH_EXT_ANGLE_ZY:
-					value = p.getExtensionAngleZY();
+				case PathAnalyzer.PATH_EXT_ANGLE_REL_ZY:
+					value = p.getExtensionAngleZY(PathAnalyzer.PATH_EXT_ANGLE_REL_ZY.equals(property));
 					break;
 				case PathAnalyzer.PATH_LENGTH:
 				case "Length":
@@ -448,7 +479,14 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		button.setToolTipText(colorFilterMenu.getText());
 		final JPopupMenu popupMenu = colorFilterMenu.getPopupMenu();
 		popupMenu.setInvoker(colorFilterMenu);
-		button.addActionListener(e -> popupMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
+		button.addActionListener( e -> popupMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
+		colorFilterMenu.addActionListener( e-> {
+			final SNTColor color = colorFilterMenu.getSelectedSWCColor();
+			if (color != null && pmui.getSNT().getUI().getRecorder(false) != null) {
+				pmui.getSNT().getUI().getRecorder(false).recordCmd(
+						String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\")", color.toString()));
+			}
+		});
 		return button;
 	}
 
@@ -488,11 +526,17 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 					{
 						return; // user pressed cancel or chose nothing
 					}
+					if (pmui.getSNT().getUI().getRecorder(false) != null) {
+						final String s = types.stream().map(Object::toString).collect( Collectors.joining(","));
+						pmui.getSNT().getUI().getRecorder(false).recordCmd(
+							String.format("snt.getUI().getPathManager().applySelectionFilter(\"[%s]\")", s));
+					}
 					paths.removeIf(path -> !types.contains(path.getSWCType()));
 					if (paths.isEmpty()) {
 						guiUtils.error("No Path matches the specified type(s).");
 						return;
 					}
+
 					pmui.setSelectedPaths(paths, this);
 					logSelectionCount(paths.size());
 				}
@@ -502,7 +546,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		return button;
 	}
 
-	private Collection<Path> getPaths() {
+	 public Collection<Path> getPaths() {
 		return (subFilteringEnabled) ? pmui.getSelectedPaths(true) : pmui.getPathAndFillManager()
 				.getPathsFiltered();
 	}

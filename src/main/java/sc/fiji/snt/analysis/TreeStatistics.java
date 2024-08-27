@@ -96,6 +96,12 @@ public class TreeStatistics extends TreeAnalyzer {
 	public static final String PATH_EXT_ANGLE_XZ = "Path extension angle XZ";
 	/** Flag for {@value #PATH_EXT_ANGLE_ZY} analysis. */
 	public static final String PATH_EXT_ANGLE_ZY = "Path extension angle ZY";
+	/** Flag for {@value #PATH_EXT_ANGLE_REL_XY} analysis. */
+	public static final String PATH_EXT_ANGLE_REL_XY = "Path extension angle XY (Rel.)";
+	/** Flag for {@value #PATH_EXT_ANGLE_REL_XZ} analysis. */
+	public static final String PATH_EXT_ANGLE_REL_XZ = "Path extension angle XZ (Rel.)";
+	/** Flag for {@value #PATH_EXT_ANGLE_REL_ZY} analysis. */
+	public static final String PATH_EXT_ANGLE_REL_ZY = "Path extension angle ZY (Rel.)";
 	/** Flag for {@value #PATH_ORDER} statistics. */
 	public static final String PATH_ORDER = "Path order";
 	/** Flag for {@value #PATH_CHANNEL} statistics. */
@@ -289,7 +295,8 @@ public class TreeStatistics extends TreeAnalyzer {
 			INTER_NODE_DISTANCE_SQUARED, LENGTH, N_BRANCH_NODES, N_BRANCH_POINTS, N_BRANCHES, N_FITTED_PATHS,
 			N_INNER_BRANCHES, N_NODES, N_PATH_NODES, N_PATHS, N_PRIMARY_BRANCHES, N_SPINES, N_TERMINAL_BRANCHES, N_TIPS,
 			NODE_RADIUS, PARTITION_ASYMMETRY, PATH_CHANNEL, PATH_CONTRACTION, PATH_FRACTAL_DIMENSION, PATH_FRAME,
-			PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY, PATH_LENGTH, PATH_MEAN_RADIUS,
+			PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY, PATH_EXT_ANGLE_REL_XY, PATH_EXT_ANGLE_REL_XZ,
+			PATH_EXT_ANGLE_REL_ZY, PATH_LENGTH, PATH_MEAN_RADIUS,
 			PATH_SPINE_DENSITY, PATH_N_SPINES, PATH_ORDER, PATH_SURFACE_AREA, PATH_VOLUME, PRIMARY_LENGTH,
 			REMOTE_BIF_ANGLES, SHOLL_DECAY, SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE,
 			SHOLL_MEAN_VALUE, SHOLL_N_MAX, SHOLL_N_SECONDARY_MAX, SHOLL_POLY_FIT_DEGREE, SHOLL_RAMIFICATION_INDEX,
@@ -348,6 +355,7 @@ public class TreeStatistics extends TreeAnalyzer {
 					INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, N_BRANCH_POINTS, N_FITTED_PATHS,
 					N_NODES, N_PATH_NODES, N_PATHS, N_SPINES, N_TIPS, NODE_RADIUS, PATH_CHANNEL, PATH_CONTRACTION,
 					PATH_FRAME, PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY,
+					PATH_EXT_ANGLE_REL_XY, PATH_EXT_ANGLE_REL_XZ, PATH_EXT_ANGLE_REL_ZY,
 					PATH_LENGTH, PATH_MEAN_RADIUS, PATH_SPINE_DENSITY, PATH_N_SPINES, PATH_ORDER,
 					PATH_SURFACE_AREA, PATH_VOLUME, VALUES, X_COORDINATES, Y_COORDINATES, Z_COORDINATES };
 			break;
@@ -813,11 +821,11 @@ public class TreeStatistics extends TreeAnalyzer {
 		if (normGuess.contains("angle")) {
 			if (normGuess.contains("path") && normGuess.contains("ext")) {
 				if (normGuess.contains("xz"))
-					return PATH_EXT_ANGLE_XZ;
+					return (normGuess.contains("rel")) ? PATH_EXT_ANGLE_REL_XZ : PATH_EXT_ANGLE_XZ;
 				else if (normGuess.contains("zy"))
-					return PATH_EXT_ANGLE_ZY;
+					return (normGuess.contains("rel")) ? PATH_EXT_ANGLE_REL_ZY :PATH_EXT_ANGLE_ZY;
 				else
-					return PATH_EXT_ANGLE_XY;
+					return (normGuess.contains("rel")) ? PATH_EXT_ANGLE_REL_XY :PATH_EXT_ANGLE_XY;
 			} else if (normGuess.contains("term")) {
 				if (normGuess.contains("xz"))
 					return TERMINAL_EXTENSION_ANGLE_XZ;
@@ -1038,21 +1046,21 @@ public class TreeStatistics extends TreeAnalyzer {
 			break;
 		case GRAPH_DIAMETER_ANGLE_XY:
 			try {
-				stat.addValue(tree.getGraph().getLongestPath(true).getExtensionAngleXY());
+				stat.addValue(tree.getGraph().getLongestPath(true).getExtensionAngleXY(false));
 			} catch (final IllegalArgumentException ignored) {
 				stat.addValue(Double.NaN);
 			}
 			break;
 		case GRAPH_DIAMETER_ANGLE_XZ:
 			try {
-				stat.addValue(tree.getGraph().getLongestPath(true).getExtensionAngleXZ());
+				stat.addValue(tree.getGraph().getLongestPath(true).getExtensionAngleXZ(false));
 			} catch (final IllegalArgumentException ignored) {
 				stat.addValue(Double.NaN);
 			}
 			break;
 		case GRAPH_DIAMETER_ANGLE_ZY:
 			try {
-				stat.addValue(tree.getGraph().getLongestPath(true).getExtensionAngleZY());
+				stat.addValue(tree.getGraph().getLongestPath(true).getExtensionAngleZY(false));
 			} catch (final IllegalArgumentException ignored) {
 				stat.addValue(Double.NaN);
 			}
@@ -1069,84 +1077,84 @@ public class TreeStatistics extends TreeAnalyzer {
 			break;
 		case BRANCH_EXTENSION_ANGLE_XY:
 			try {
-				getBranches().forEach( b -> stat.addValue(b.getExtensionAngleXY()));
+				getBranches().forEach( b -> stat.addValue(b.getExtensionAngleXY(false)));
 			} catch (final IllegalArgumentException ignored ) {
 				stat.addValue(Double.NaN);
 			}
 			break;
 		case BRANCH_EXTENSION_ANGLE_XZ:
 			try {
-				getBranches().forEach( b -> stat.addValue(b.getExtensionAngleXZ()));
+				getBranches().forEach( b -> stat.addValue(b.getExtensionAngleXZ(false)));
 			} catch (final IllegalArgumentException ignored ) {
 				stat.addValue(Double.NaN);
 			}
 			break;
 		case BRANCH_EXTENSION_ANGLE_ZY:
 			try {
-				getBranches().forEach( b -> stat.addValue(b.getExtensionAngleZY()));
+				getBranches().forEach( b -> stat.addValue(b.getExtensionAngleZY(false)));
 			} catch (final IllegalArgumentException ignored ) {
 				stat.addValue(Double.NaN);
 			}
 			break;
 		case INNER_EXTENSION_ANGLE_XY:
 				try {
-					getInnerBranches().forEach( b -> stat.addValue(b.getExtensionAngleXY()));
+					getInnerBranches().forEach( b -> stat.addValue(b.getExtensionAngleXY(false)));
 				} catch (final IllegalArgumentException ignored ) {
 					stat.addValue(Double.NaN);
 				}
 				break;
 		case INNER_EXTENSION_ANGLE_XZ:
 				try {
-					getInnerBranches().forEach( b -> stat.addValue(b.getExtensionAngleXZ()));
+					getInnerBranches().forEach( b -> stat.addValue(b.getExtensionAngleXZ(false)));
 				} catch (final IllegalArgumentException ignored ) {
 					stat.addValue(Double.NaN);
 				}
 				break;
 		case INNER_EXTENSION_ANGLE_ZY:
 				try {
-					getInnerBranches().forEach( b -> stat.addValue(b.getExtensionAngleZY()));
+					getInnerBranches().forEach( b -> stat.addValue(b.getExtensionAngleZY(false)));
 				} catch (final IllegalArgumentException ignored ) {
 					stat.addValue(Double.NaN);
 				}
 				break;
 		case PRIMARY_EXTENSION_ANGLE_XY:
 				try {
-					getPrimaryBranches().forEach( b -> stat.addValue(b.getExtensionAngleXY()));
+					getPrimaryBranches().forEach( b -> stat.addValue(b.getExtensionAngleXY(false)));
 				} catch (final IllegalArgumentException ignored ) {
 					stat.addValue(Double.NaN);
 				}
 				break;
 		case PRIMARY_EXTENSION_ANGLE_XZ:
 				try {
-					getPrimaryBranches().forEach( b -> stat.addValue(b.getExtensionAngleXZ()));
+					getPrimaryBranches().forEach( b -> stat.addValue(b.getExtensionAngleXZ(false)));
 				} catch (final IllegalArgumentException ignored ) {
 					stat.addValue(Double.NaN);
 				}
 				break;
 		case PRIMARY_EXTENSION_ANGLE_ZY:
 				try {
-					getPrimaryBranches().forEach( b -> stat.addValue(b.getExtensionAngleZY()));
+					getPrimaryBranches().forEach( b -> stat.addValue(b.getExtensionAngleZY(false)));
 				} catch (final IllegalArgumentException ignored ) {
 					stat.addValue(Double.NaN);
 				}
 				break;
 		case TERMINAL_EXTENSION_ANGLE_XY:
 				try {
-					getTerminalBranches().forEach( b -> stat.addValue(b.getExtensionAngleXY()));
+					getTerminalBranches().forEach( b -> stat.addValue(b.getExtensionAngleXY(false)));
 				} catch (final IllegalArgumentException ignored ) {
 					stat.addValue(Double.NaN);
 				}
 				break;
 		case TERMINAL_EXTENSION_ANGLE_XZ:
 				try {
-					getTerminalBranches().forEach( b -> stat.addValue(b.getExtensionAngleXZ()));
+					getTerminalBranches().forEach( b -> stat.addValue(b.getExtensionAngleXZ(false)));
 				} catch (final IllegalArgumentException ignored ) {
 					stat.addValue(Double.NaN);
 				}
 				break;
 		case TERMINAL_EXTENSION_ANGLE_ZY:
 				try {
-					getTerminalBranches().forEach( b -> stat.addValue(b.getExtensionAngleZY()));
+					getTerminalBranches().forEach( b -> stat.addValue(b.getExtensionAngleZY(false)));
 				} catch (final IllegalArgumentException ignored ) {
 					stat.addValue(Double.NaN);
 				}
@@ -1257,16 +1265,19 @@ public class TreeStatistics extends TreeAnalyzer {
 			}
 			break;
 		case PATH_EXT_ANGLE_XY:
+		case PATH_EXT_ANGLE_REL_XY:
 			for (final Path p : tree.list())
-				stat.addValue(p.getExtensionAngleXY());
+				stat.addValue(p.getExtensionAngleXY(PATH_EXT_ANGLE_REL_XY.equals(m)));
 			break;
 		case PATH_EXT_ANGLE_XZ:
+		case PATH_EXT_ANGLE_REL_XZ:
 			for (final Path p : tree.list())
-				stat.addValue(p.getExtensionAngleXZ());
+				stat.addValue(p.getExtensionAngleXZ(PATH_EXT_ANGLE_REL_XZ.equals(m)));
 			break;
 		case PATH_EXT_ANGLE_ZY:
+		case PATH_EXT_ANGLE_REL_ZY:
 			for (final Path p : tree.list())
-				stat.addValue(p.getExtensionAngleZY());
+				stat.addValue(p.getExtensionAngleZY(PATH_EXT_ANGLE_REL_ZY.equals(m)));
 			break;
 		case PATH_LENGTH:
 			for (final Path p : tree.list())

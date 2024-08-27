@@ -68,11 +68,7 @@ import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.gui.*;
-import sc.fiji.snt.gui.cmds.DistributionBPCmd;
-import sc.fiji.snt.gui.cmds.DistributionCPCmd;
-import sc.fiji.snt.gui.cmds.DuplicateCmd;
-import sc.fiji.snt.gui.cmds.PathFitterCmd;
-import sc.fiji.snt.gui.cmds.SWCTypeOptionsCmd;
+import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.plugin.InterpolateRadiiCmd;
 import sc.fiji.snt.plugin.LabkitLoaderCmd;
 import sc.fiji.snt.plugin.PathAnalyzerCmd;
@@ -256,7 +252,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final JMenu morphoTagsMenu = new JMenu("Morphometry");
 		morphoTagsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RULER));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.TREE_TAG_CMD));
-		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.EXT_ANGLE_TAG_CMD));
+		morphoTagsMenu.add(tagAngleMenuItem());
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.LENGTH_TAG_CMD));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.MEAN_RADIUS_TAG_CMD));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.N_CHILDREN_TAG_CMD));
@@ -1814,6 +1810,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	/**
+	 * Sets whether selection filters should be combined. This is equivalent to toggling the 'filter' button
+	 * in Path Manager's UI
+	 *
+	 * @param enable if true, selection filters are combined
+	 */
+	public void setCombinedSelectionFilters(final boolean enable) {
+		searchableBar.setSubFilteringEnabled(enable);
+	}
+
+	/**
 	 * Applies a custom tag/ color to selected Path(s).
 	 *
 	 * @param customTagOrColor The tag (or color) to be applied to selected Paths.
@@ -1902,13 +1908,27 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				});
 			}
 			break;
-		case MultiPathActionListener.EXT_ANGLE_TAG_CMD:
-				paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ANGLE +"\\d+.\\d+\\]|\\[" + SYM_ANGLE + "NaN\\]", "")));
-				if (reapply) {
-					paths.forEach(p-> {
-						p.setName(String.format(Locale.US, "%s [%s%.1f]", p.getName(), SYM_ANGLE, p.getExtensionAngleXY()));
-					});
-				}
+		case "Extension Angle...":
+		case PathAnalyzer.PATH_EXT_ANGLE_XY:
+		case PathAnalyzer.PATH_EXT_ANGLE_XZ:
+		case PathAnalyzer.PATH_EXT_ANGLE_ZY:
+		case PathAnalyzer.PATH_EXT_ANGLE_REL_XY:
+		case PathAnalyzer.PATH_EXT_ANGLE_REL_XZ:
+		case PathAnalyzer.PATH_EXT_ANGLE_REL_ZY:
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ANGLE + "\\d+.\\d+]|\\[" + SYM_ANGLE + "NaN]", "")));
+			if (reapply) {
+				final boolean relative = cmd.toLowerCase().contains("rel");
+				paths.forEach(p-> {
+					double value;
+					if (cmd.contains("XZ"))
+						value = p.getExtensionAngleXZ(relative);
+					else if (cmd.contains("ZY"))
+						value = p.getExtensionAngleZY(relative);
+					else
+						value = p.getExtensionAngleXY(relative);
+					p.setName(String.format(Locale.US, "%s [%s%.1f]", p.getName(), SYM_ANGLE, value));
+				});
+			}
 			break;
 		case MultiPathActionListener.ORDER_TAG_CMD:
 			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ORDER +"\\d+\\]", "")));
@@ -1987,15 +2007,25 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	/**
-	 * Selects paths matching a text-based criteria.
+	 * Selects paths matching a text-based criteria, or a list of SWC type flags
 	 *
-	 * @param query The matching text, as it would have been typed in the "Text
-	 *              filtering" box.
+	 * @param query The matching text, as it would have been typed in the "Text filtering" box.
+	 *              If query encodes an integer list (e.g., "[1,3,5]"), paths are selected based on their SWC type flag
 	 */
 	public void applySelectionFilter(final String query) throws IllegalArgumentException {
+		if (query != null && query.startsWith("[") && query.endsWith("]")) {
+			final String q =  query.substring( 1, query.length() - 1);
+			final List<Integer> types = Arrays.stream(q.split("\\s*,\\s*")).map(Integer::parseInt).collect(Collectors.toList());
+			if (!types.isEmpty()) {
+				final Collection<Path> paths = searchableBar.getPaths();
+				paths.removeIf(path -> !types.contains(path.getSWCType()));
+				setSelectedPaths(paths, this);
+			}
+			return;
+		}
 		final List<Integer> hits = searchableBar.getSearchable().findAll(query);
 		if (hits != null && !hits.isEmpty()) {
-			final int[] array = hits.stream().mapToInt(i->i).toArray();
+			final int[] array = hits.stream().mapToInt(i -> i).toArray();
 			tree.addSelectionRows(array);
 		}
 	}
@@ -2548,10 +2578,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
 				setToolTip(SYM_ORDER);
 				break;
-			case MultiPathActionListener.EXT_ANGLE_TAG_CMD:
-				setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ANGLE_RIGHT));
-				setToolTip(SYM_ANGLE);
-				break;
 			default:
 				// do nothing
 				break;
@@ -2575,6 +2601,25 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	}
 
+	private JMenuItem tagAngleMenuItem() {
+		final JMenuItem jmi = new JMenuItem("Extension Angle...", IconFactory.getMenuIcon(IconFactory.GLYPH.ANGLE_RIGHT));
+		jmi.setToolTipText("List symbol: '[" + SYM_ANGLE + "]'");
+		ScriptRecorder.setRecordingCall(jmi, null);
+		jmi.addActionListener(e -> {
+			final List<Path> selectedPaths = getSelectedPaths(true);
+			if (selectedPaths.isEmpty()) {
+				guiUtils.error("There are no traced paths.");
+				return;
+			}
+			final HashMap<String, Object> input = new HashMap<>();
+			input.put("paths", selectedPaths);
+			input.put("tagOnly", true);
+			(plugin.getUI().new DynamicCmdRunner(FilterOrTagPathsByAngleCmd.class, input)).run();
+		});
+		return jmi;
+
+	}
+
 	/** ActionListener for commands that can operate on multiple paths */
 	private class MultiPathActionListener implements ActionListener {
 
@@ -2595,7 +2640,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String LENGTH_TAG_CMD = "Length";
 		private static final String MEAN_RADIUS_TAG_CMD = "Mean Radius";
 		private static final String ORDER_TAG_CMD = "Path Order";
-		private static final String EXT_ANGLE_TAG_CMD = "Extension Angle (XY Plane)";
 		private static final String TREE_TAG_CMD = "Cell ID";
 		private static final String N_CHILDREN_TAG_CMD = "No. of Children";
 		private static final String CHANNEL_TAG_CMD = "Traced Channel";
@@ -3016,7 +3060,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					getPathAndFillManager().deletePath(p);
 				}
 				removeOrReapplyDefaultTag(selectedPaths, ORDER_TAG_CMD, false, false);
-				removeOrReapplyDefaultTag(selectedPaths, EXT_ANGLE_TAG_CMD, false, false);
+				removeOrReapplyDefaultTag(selectedPaths, "angle", false, false);
 				removeOrReapplyDefaultTag(selectedPaths, LENGTH_TAG_CMD, false, false);
 				refreshManager(true, true, selectedPaths);
 				return;

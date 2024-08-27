@@ -371,12 +371,12 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			if (directionMatching) {
 				// paths cannot belong to the same neurite without sharing common direction
 				if (snt.is2D()) {
-					if (Math.abs(path.getExtensionAngleXY() - other.path.getExtensionAngleXY()) > directionMatchingRange)
+					if (Math.abs(path.getExtensionAngleXY(false) - other.path.getExtensionAngleXY(false)) > directionMatchingRange)
 						return false;
 				} else {
-					if (Math.abs(path.getExtensionAngleXY() - other.path.getExtensionAngleXY()) > directionMatchingRange
-					|| Math.abs(path.getExtensionAngleZY() - other.path.getExtensionAngleZY()) > directionMatchingRange
-					|| Math.abs(path.getExtensionAngleXZ() - other.path.getExtensionAngleXZ()) > directionMatchingRange)
+					if (Math.abs(path.getExtensionAngleXY(false) - other.path.getExtensionAngleXY(false)) > directionMatchingRange
+					|| Math.abs(path.getExtensionAngleZY(false) - other.path.getExtensionAngleZY(false)) > directionMatchingRange
+					|| Math.abs(path.getExtensionAngleXZ(false) - other.path.getExtensionAngleXZ(false)) > directionMatchingRange)
 						return false;
 				}
 			}
@@ -391,13 +391,15 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			if (customTagMatching
 					&& (!path.getName().contains(customTagPattern) || !other.path.getName().contains(customTagPattern)))
 				return false; // paths cannot belong to the same neurite without sharing custom tag
-			
+
 			if (SNTUtils.isDebugMode()) {
 				SNTUtils.log(String.format("%s (frame %d) matched to %s (frame %d)", path.getName(), path.getFrame(), other.path.getName(), other.path.getFrame()));
 				SNTUtils.log(String.format("  origin distance: %.2f", startingNode().distanceTo(other.startingNode())));
-				SNTUtils.log(String.format("  orienta. angles (XY): %.2f; %.2f", path.getExtensionAngleXY(), other.path.getExtensionAngleXY()));
-				SNTUtils.log(String.format("  orienta. angles (XZ): %.2f; %.2f", path.getExtensionAngleXZ(), other.path.getExtensionAngleXZ()));
-				SNTUtils.log(String.format("  orienta. angles (ZY): %.2f; %.2f", path.getExtensionAngleZY(), other.path.getExtensionAngleZY()));
+				SNTUtils.log(String.format("  orienta. angles (XY): %.2f; %.2f", path.getExtensionAngleXY(false), other.path.getExtensionAngleXY(false)));
+				if (!snt.is2D()) {
+					SNTUtils.log(String.format("  orienta. angles (XZ): %.2f; %.2f", path.getExtensionAngleXZ(false), other.path.getExtensionAngleXZ(false)));
+					SNTUtils.log(String.format("  orienta. angles (ZY): %.2f; %.2f", path.getExtensionAngleZY(false), other.path.getExtensionAngleZY(false)));
+				}
 			}
 			matchedGroup.add(other.path);
 			return true;

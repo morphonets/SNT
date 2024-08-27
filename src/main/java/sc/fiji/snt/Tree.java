@@ -1778,12 +1778,12 @@ public class Tree implements TreeProperties {
 						refPath = tree.getGraph().getLongestPath(true);
 					}
 					if (straighten && isXZ) {
-						angle = refPath.getExtensionAngleXZ();
+						angle = refPath.getExtensionAngleXZ(false);
 					} else if (straighten && isZY) {
 						// NB: must be negative for ImagePlus and Viewer2D!???
-						angle = -refPath.getExtensionAngleZY();
+						angle = -refPath.getExtensionAngleZY(false);
 					} else if (straighten) {
-						angle = refPath.getExtensionAngleXY();
+						angle = refPath.getExtensionAngleXY(false);
 					}
 					if (!Double.isNaN(angle)) {
 						// since angle is relative to horizontal, we need to add 90 degrees

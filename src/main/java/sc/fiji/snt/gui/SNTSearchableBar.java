@@ -148,14 +148,14 @@ public class SNTSearchableBar extends SearchableBar {
 		_comboBox.getEditor().getEditorComponent().transferFocusBackward();
 	}
 
-	protected JToggleButton createSubFilteringButton() {
+	JToggleButton createSubFilteringButton() {
 		final JToggleButton button = new JToggleButton();
 		formatButton(button, IconFactory.GLYPH.FILTER);
 		button.setToolTipText("Restricts filtering to current selection.\nCombines filters to restrict matches");
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
 		button.addActionListener(e -> {
-			subFilteringEnabled = button.isSelected();
+			setSubFilteringEnabled(button.isSelected());
 			setStatusLabelPlaceholder(statusLabelPlaceholder); // update label
 		});
 		((GuiUtils.TextFieldWithPlaceholder) _comboBox.getEditor().getEditorComponent()).getDocument()
@@ -173,7 +173,7 @@ public class SNTSearchableBar extends SearchableBar {
 						disable();
 					}
 					void disable() { // text searches disable subFiltering
-						subFilteringEnabled = false;
+						setSubFilteringEnabled(false);
 						button.setSelected(false);
 						button.setEnabled(getSearchingText().isBlank());
 					}
@@ -364,6 +364,10 @@ public class SNTSearchableBar extends SearchableBar {
 				statusLabelPlaceholder);
 		});
 		return _statusLabel;
+	}
+
+	public void setSubFilteringEnabled(final boolean enable) {
+		this.subFilteringEnabled = enable;
 	}
 
 	public void setStatus(final String text) {

@@ -265,17 +265,17 @@ public class TreeColorMapper extends ColorMapper {
 			case PATH_EXT_ANGLE_XY:
 				integerScale = false;
 				for (final Path p : paths)
-					mappedPaths.add(new MappedPath(p, p.getExtensionAngleXY()));
+					mappedPaths.add(new MappedPath(p, p.getExtensionAngleXY(false)));
 				break;
 			case PATH_EXT_ANGLE_XZ:
 				integerScale = false;
 				for (final Path p : paths)
-					mappedPaths.add(new MappedPath(p, p.getExtensionAngleXZ()));
+					mappedPaths.add(new MappedPath(p, p.getExtensionAngleXZ(false)));
 				break;
 			case PATH_EXT_ANGLE_ZY:
 				integerScale = false;
 				for (final Path p : paths)
-					mappedPaths.add(new MappedPath(p, p.getExtensionAngleZY()));
+					mappedPaths.add(new MappedPath(p, p.getExtensionAngleZY(false)));
 				break;
 			case PATH_LENGTH:
 				integerScale = false;

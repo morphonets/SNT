@@ -477,30 +477,33 @@ public class Path implements Comparable<Path> {
 	 * Returns the overall extension angle of this path in the XY plane.
 	 * The angle is obtained from the slope of a linear regression across all the path nodes.
 	 *
+	 * @param relative if true and path has a parent, angle is computed relatively to parent's extension angle on the same plane
 	 * @return the overall 'extension' angle in degrees [0-360[ of this path in the XY plane.
 	 */
-	public double getExtensionAngleXY() {
-		return getExtensionAngle(MultiDThreePanes.XY_PLANE);
+	public double getExtensionAngleXY(final boolean relative) {
+		return getExtensionAngle(MultiDThreePanes.XY_PLANE, relative);
 	}
 
 	/**
 	 * Returns the overall extension angle of this path in the XZ plane.
 	 * The angle is obtained from the slope of a linear regression across all the path nodes.
 	 *
+	 * @param relative if true and path has a parent, angle is computed relatively to parent's extension angle on the same plane
 	 * @return the overall 'extension' angle in degrees [0-360[ in the XZ plane or zero if path is 2D.
 	 */
-	public double getExtensionAngleXZ() {
-		return (is3D()) ? getExtensionAngle(MultiDThreePanes.XZ_PLANE) : 0;
+	public double getExtensionAngleXZ(final boolean relative) {
+		return (is3D()) ? getExtensionAngle(MultiDThreePanes.XZ_PLANE, relative) : 0;
 	}
 
 	/**
 	 * Returns the overall extension angle of this path in the ZY plane.
 	 * The angle is obtained from the slope of a linear regression across all the path nodes.
 	 *
+	 * @param relative if true and path has a parent, angle is computed relatively to parent's extension angle on the same plane
 	 * @return the overall 'extension' angle in degrees [0-360[ in the ZY plane or zero if path is 2D.
 	 */
-	public double getExtensionAngleZY() {
-		return (is3D()) ? getExtensionAngle(MultiDThreePanes.ZY_PLANE) : 0;
+	public double getExtensionAngleZY(final boolean relative) {
+		return (is3D()) ? getExtensionAngle(MultiDThreePanes.ZY_PLANE, relative) : 0;
 	}
 
 	private boolean is3D() throws IllegalArgumentException {
@@ -509,6 +512,25 @@ public class Path implements Comparable<Path> {
 			if (getNodeWithoutChecks(i).getZ() != zRef) return true;
 		}
 		return false;
+	}
+
+	private double getExtensionAngle(final int view, final boolean relative) {
+		final double angle = getExtensionAngle(view);
+		if (!relative || Double.isNaN(angle))
+			return angle;
+		if (startJoins == null)
+			return Double.NaN;
+		double parentAngle = (startJoins.getExtensionAngle(view) + 180) % 360; // opposite angle in [0-360[ degrees
+		// calculate the acute angle with parent path. It is either |diff| or |180-diff|
+		// https://math.stackexchange.com/questions/2592698/
+		double theta = angle - parentAngle;
+		if (angle >= 180 && angle < 360 && parentAngle >= 0 && parentAngle < 180)
+			theta = 180 - (angle - parentAngle);
+		if (theta >= 180)
+			theta = 180 - theta;
+		else if (theta < 0)
+			theta += 180;
+		return Math.abs(theta);
 	}
 
 	private double getExtensionAngle(final int view) {
@@ -548,7 +570,7 @@ public class Path implements Comparable<Path> {
 		// We'll rotate everything so that West: 0; EAST: PI; North: PI/2; South: 3/2PI;
 		// Is this WEST-CLOCKWISE convention too awkward?
 		angle -= Math.PI;
-		angle = MathUtils.normalizeAngle(angle, Math.PI); // normalize angle and 0-2PI
+		angle = MathUtils.normalizeAngle(angle, Math.PI); // normalize angle between 0-2PI
 		return Math.toDegrees(angle); // return angle in 0-360 degrees. % 360 not needed since angle is normalized
 	}
 

@@ -196,6 +196,9 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 			metrics.add(PathAnalyzer.PATH_EXT_ANGLE_XY);
 			metrics.add(PathAnalyzer.PATH_EXT_ANGLE_XZ);
 			metrics.add(PathAnalyzer.PATH_EXT_ANGLE_ZY);
+			metrics.add(PathAnalyzer.PATH_EXT_ANGLE_REL_XY);
+			metrics.add(PathAnalyzer.PATH_EXT_ANGLE_REL_XZ);
+			metrics.add(PathAnalyzer.PATH_EXT_ANGLE_REL_ZY);
 		}
 		if (pathLength) metrics.add(PathAnalyzer.PATH_LENGTH);
 		if (pathMeanRadius) metrics.add(PathAnalyzer.PATH_MEAN_RADIUS);

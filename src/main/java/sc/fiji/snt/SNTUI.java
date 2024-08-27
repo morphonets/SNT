@@ -588,6 +588,20 @@ public class SNTUI extends JDialog {
 		}
 	}
 
+	/**
+	 * Runs a Scijava command associated with SNT.
+	 *
+	 * @param cmd  The command class to be run, exactly as listed in SNTUI's menu bar
+	 * @param inputs the input(s) map
+	 */
+	public void runCommand(final Class<? extends Command> cmd, final HashMap<String, Object> inputs) {
+		try {
+			(new DynamicCmdRunner(cmd, inputs)).run();
+		} catch (final RuntimeException ignored) {
+			new CmdRunner(cmd, inputs, getState()).run();
+		}
+	}
+
 	protected void runSNTCommandFinderCommand(final String cmd) {
 		commandFinder.runCommand(cmd);
 	}
