@@ -305,7 +305,7 @@ public class MeasureUI extends JFrame {
 		}
 
 		private JButton optionsButton(final Collection<Tree> trees) {
-			final JButton optionsButton = new JButton(IconFactory.getButtonIcon(IconFactory.GLYPH.OPTIONS, 1.1f));
+			final JButton optionsButton = new JButton(IconFactory.getButtonIcon(IconFactory.GLYPH.OPTIONS, 1.3f));
 			optionsButton.setToolTipText("Options & Utilities");
 			final JPopupMenu optionsMenu = new JPopupMenu();
 			GuiUtils.addSeparator(optionsMenu, "Options:");

@@ -851,6 +851,7 @@ public class SNTUI extends JDialog {
 	protected void disableImageDependentComponents() {
 		assert SwingUtilities.isEventDispatchThread();
 		fmUI.setEnabledNone();
+		GuiUtils.enableComponents(sourcePanel, false);
 		setEnableAutoTracingComponents(false, false);
 	}
 
@@ -887,6 +888,7 @@ public class SNTUI extends JDialog {
 				keepSegment.setEnabled(false);
 				junkSegment.setEnabled(false);
 				completePath.setEnabled(false);
+				GuiUtils.enableComponents(sourcePanel, true);
 
 				partsNearbyCSpinner.setEnabled(isStackAvailable());
 				setEnableAutoTracingComponents(plugin.isAstarEnabled(), true);

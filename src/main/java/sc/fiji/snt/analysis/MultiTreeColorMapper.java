@@ -263,7 +263,7 @@ public class MultiTreeColorMapper extends TreeColorMapper {
 				if (mt.value < groupMin) groupMin = mt.value;
 				if (mt.value > groupMax) groupMax = mt.value;
 			}
-			multiViewer.setColorBarLegend(colorTable, groupMin, groupMax);
+			multiViewer.setColorBarLegend(this);
 		}
 		return multiViewer;
 	}

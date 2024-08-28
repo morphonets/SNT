@@ -22,9 +22,11 @@
 
 package sc.fiji.snt.plugin;
 
+import java.awt.*;
 import java.io.IOException;
 import java.net.URL;
 import java.util.*;
+import java.util.List;
 
 import net.imagej.Dataset;
 import net.imagej.ImageJ;
@@ -38,6 +40,7 @@ import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
+import org.scijava.util.ColorRGB;
 import org.scijava.widget.Button;
 
 import sc.fiji.snt.analysis.*;
@@ -71,6 +74,11 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 
 	@Parameter(required = false, label = "<HTML>&nbsp;")
 	private ColorTable colorTable;
+
+	@Parameter(required = false, label = "Undefined value color",
+			description="<HTML>If a metric is undefined (i.e., <i>NaN</i>) for a particular segment, " +
+					"how should that segment be colored?")
+	private ColorRGB nanColor;
 
 	@Parameter(required = false, label = "Make figure from mapping")
 	private boolean runFigCreator;
@@ -113,10 +121,14 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 			if (trees.size() == 1) {
 				mapper = new TreeColorMapper(context());
 				mapper.setMinMax(Double.NaN, Double.NaN);
+				if (nanColor != null)
+					mapper.setNaNColor(new Color(nanColor.getRed(), nanColor.getGreen(), nanColor.getBlue()));
 				mapper.map(trees.iterator().next(), measurementChoice, colorTable);
 			} else {
 				mapper = new MultiTreeColorMapper(trees);
 				mapper.setMinMax(Double.NaN, Double.NaN);
+				if (nanColor != null)
+					mapper.setNaNColor(new Color(nanColor.getRed(), nanColor.getGreen(), nanColor.getBlue()));
 				mapper.map(measurementChoice, colorTable);
 			}
 		} catch (final IllegalArgumentException exc) {
@@ -127,6 +139,8 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 		if (runFigCreator) {
 			final Map<String, Object> inputs = new HashMap<>();
 			inputs.put("trees", trees);
+			inputs.put("mapper", mapper);
+			inputs.put("noRasterOutput", true);
 			getContext().getService(CommandService.class).run(FigCreatorCmd.class, true, inputs);
 		}
 		SNTUtils.log("Finished...");

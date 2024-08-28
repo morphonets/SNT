@@ -23,18 +23,11 @@
 package sc.fiji.snt.viewer;
 
 import java.awt.Color;
-import java.text.DecimalFormat;
 import java.util.*;
 
 import net.imglib2.RealLocalizable;
 import net.imglib2.roi.geom.real.Polygon2D;
 import org.jfree.chart.JFreeChart;
-import org.jfree.chart.axis.AxisLocation;
-import org.jfree.chart.axis.NumberAxis;
-import org.jfree.chart.renderer.LookupPaintScale;
-import org.jfree.chart.title.PaintScaleLegend;
-import org.jfree.chart.ui.HorizontalAlignment;
-import org.jfree.chart.ui.RectangleEdge;
 import org.scijava.Context;
 import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
@@ -50,12 +43,10 @@ import org.scijava.plot.defaultplot.DefaultPlotService;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
-import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
-import sc.fiji.snt.gui.GuiUtils;
 
 import org.scijava.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import sc.fiji.snt.util.PointInImage;
@@ -262,7 +253,10 @@ public class Viewer2D extends TreeColorMapper {
 	public <T extends ColorMapper> void addColorBarLegend(final T colorMapper)
 	{
 		final double[] minMax = colorMapper.getMinMax();
+		final boolean prevIntegerScale = integerScale;
+		this.integerScale = colorMapper.isIntegerScale();
 		addColorBarLegend(colorMapper.getColorTable(), minMax[0], minMax[1]);
+		this.integerScale = prevIntegerScale;
 	}
 
 	/**
@@ -276,46 +270,7 @@ public class Viewer2D extends TreeColorMapper {
 			return;
 		}
 		chart = getChart();
-		chart.getChart().addSubtitle(getPaintScaleLegend(colorTable, min, max));
-	}
-
-	protected PaintScaleLegend getPaintScaleLegend(final String colorTable, double min, double max) {
-		return getPaintScaleLegend(getColorTable(colorTable), min, max);
-	}
-
-	protected PaintScaleLegend getPaintScaleLegend(final ColorTable colorTable, double min, double max) {
-		if (min >= max || colorTable == null) {
-			throw new IllegalArgumentException("Invalid scale: min must be smaller than max and colorTable not null");
-		}
-		final LookupPaintScale paintScale = new LookupPaintScale(min, max, Color.BLACK);
-		for (int i = 0; i < colorTable.getLength(); i++) {
-			final Color color = new Color(colorTable.get(ColorTable.RED, i), colorTable.get(ColorTable.GREEN, i),
-					colorTable.get(ColorTable.BLUE, i));
-
-			final double value = min + (i * (max - min)  / colorTable.getLength());
-			paintScale.add(value, color);
-		}
-
-		final NumberAxis numberAxis = new NumberAxis();
-		if (integerScale) {
-			numberAxis.setStandardTickUnits(NumberAxis.createIntegerTickUnits());
-			numberAxis.setNumberFormatOverride(new DecimalFormat("#"));
-		} else {
-			numberAxis.setNumberFormatOverride(SNTUtils.getDecimalFormat(max, 2));
-		}
-		numberAxis.setAutoRangeIncludesZero(min <=0 && max >= 0);
-		numberAxis.setRange(min, max);
-		numberAxis.setAutoTickUnitSelection(true);
-		numberAxis.centerRange((max+min)/2);
-		numberAxis.setLabelFont(numberAxis.getLabelFont().deriveFont(GuiUtils.uiFontSize()));
-		numberAxis.setTickLabelFont(numberAxis.getTickLabelFont().deriveFont(GuiUtils.uiFontSize()));
-		final PaintScaleLegend psl = new PaintScaleLegend(paintScale, numberAxis);
-		psl.setBackgroundPaint(null); // transparent
-		psl.setPosition(RectangleEdge.RIGHT);
-		psl.setAxisLocation(AxisLocation.TOP_OR_RIGHT);
-		psl.setHorizontalAlignment(HorizontalAlignment.CENTER);
-		psl.setMargin(50, 5, 50, 5);
-		return psl;
+		chart.addColorBarLegend(colorTable, min, max, (integerScale) ? 0 : 2);
 	}
 
 	/**

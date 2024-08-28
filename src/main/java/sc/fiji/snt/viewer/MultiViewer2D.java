@@ -138,13 +138,18 @@ public class MultiViewer2D {
 		outlineVisible = visible;
 	}
 
+	public <T extends sc.fiji.snt.analysis.ColorMapper> void setColorBarLegend(final T colorMapper) {
+		final double[] minMax = colorMapper.getMinMax();
+		setColorBarLegend(colorMapper.getColorTable(), minMax[0], minMax[1], (colorMapper.isIntegerScale()) ? 0 : 2);
+	}
+
 	public void setColorBarLegend(final String lut, final double min, final double max) {
 		final TreeColorMapper lutRetriever = new TreeColorMapper(SNTUtils.getContext());
 		final ColorTable colorTable = lutRetriever.getColorTable(lut);
-		setColorBarLegend(colorTable, min, max);
+		setColorBarLegend(colorTable, min, max, 2);
 	}
 
-	public void setColorBarLegend(final ColorTable colorTable, final double min, final double max) {
+	public void setColorBarLegend(final ColorTable colorTable, final double min, final double max, final int nDecimalPlaces) {
 		if (colorTable == null || viewers == null) {
 			throw new IllegalArgumentException("Cannot set legend from null viewers or null colorTable");
 		}
@@ -164,7 +169,7 @@ public class MultiViewer2D {
 			legendMax = max;
 		}
 		colorLegendViewer = viewers.get(viewers.size() - 1);
-		legend = colorLegendViewer.getPaintScaleLegend(colorTable, legendMin, legendMax);
+		legend = SNTChart.getPaintScaleLegend(colorTable, legendMin, legendMax, nDecimalPlaces);
 	}
 
 	public void save(final String filePath) {
@@ -319,7 +324,7 @@ public class MultiViewer2D {
 		}
 
 		final MultiViewer2D viewer2 = new MultiViewer2D(viewers);
-		viewer2.setColorBarLegend(ColorTables.CYAN, min, max);
+		viewer2.setColorBarLegend(ColorTables.CYAN, min, max, 2);
 		viewer2.setLayoutColumns(0);
 		viewer2.setGridlinesVisible(false);
 		viewer2.setOutlineVisible(false);

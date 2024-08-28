@@ -83,6 +83,12 @@ public class TreeColorMapper extends ColorMapper {
 	public static final String PATH_EXT_ANGLE_XZ = TreeStatistics.PATH_EXT_ANGLE_XZ;
 	/** Mapping property: Path's extension angle (ZY plane) */
 	public static final String PATH_EXT_ANGLE_ZY = TreeStatistics.PATH_EXT_ANGLE_ZY;
+	/** Mapping property: Path's extension (rel.) angle (XY plane) */
+	public static final String PATH_EXT_ANGLE_REL_XY = TreeStatistics.PATH_EXT_ANGLE_REL_XY;
+	/** Mapping property: Path's extension (rel.) angle (XZ plane) */
+	public static final String PATH_EXT_ANGLE_REL_XZ = TreeStatistics.PATH_EXT_ANGLE_REL_XZ;
+	/** Mapping property: Path's extension (rel.) angle (ZY plane) */
+	public static final String PATH_EXT_ANGLE_REL_ZY = TreeStatistics.PATH_EXT_ANGLE_REL_ZY;
 	/** Mapping property: Path distance to soma */
 	public static final String PATH_DISTANCE = "Path distance to soma";
 	/** Mapping property: Path length */
@@ -117,6 +123,7 @@ public class TreeColorMapper extends ColorMapper {
 	private static final String[] ALL_FLAGS = {
 			INTER_NODE_ANGLE, INTER_NODE_DISTANCE, N_BRANCH_POINTS, N_NODES, N_SPINES, NODE_RADIUS,
 			PATH_AVG_SPINE_DENSITY, PATH_DISTANCE, PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY,
+			PATH_EXT_ANGLE_REL_XY, PATH_EXT_ANGLE_REL_XZ, PATH_EXT_ANGLE_REL_ZY,
 			PATH_FRAME, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_ORDER, SHOLL_COUNTS, STRAHLER_ORDERS,
 			TAG_FILENAME, VALUES, X_COORDINATES, Y_COORDINATES, Z_COORDINATES
 	};
@@ -209,6 +216,9 @@ public class TreeColorMapper extends ColorMapper {
 			case PATH_EXT_ANGLE_XY:
 			case PATH_EXT_ANGLE_XZ:
 			case PATH_EXT_ANGLE_ZY:
+			case PATH_EXT_ANGLE_REL_XY:
+			case PATH_EXT_ANGLE_REL_XZ:
+			case PATH_EXT_ANGLE_REL_ZY:
 			case PATH_FRAME:
 			case PATH_LENGTH:
 			case PATH_MEAN_RADIUS:
@@ -263,19 +273,22 @@ public class TreeColorMapper extends ColorMapper {
 					mappedPaths.add(new MappedPath(p, (double) p.getOrder()));
 				break;
 			case PATH_EXT_ANGLE_XY:
-				integerScale = false;
+			case PATH_EXT_ANGLE_REL_XY:
+				integerScale = true;
 				for (final Path p : paths)
-					mappedPaths.add(new MappedPath(p, p.getExtensionAngleXY(false)));
+					mappedPaths.add(new MappedPath(p, p.getExtensionAngleXY(PATH_EXT_ANGLE_REL_XY.equals(measurement))));
 				break;
 			case PATH_EXT_ANGLE_XZ:
-				integerScale = false;
+			case PATH_EXT_ANGLE_REL_XZ:
+				integerScale = true;
 				for (final Path p : paths)
-					mappedPaths.add(new MappedPath(p, p.getExtensionAngleXZ(false)));
+					mappedPaths.add(new MappedPath(p, p.getExtensionAngleXZ(PATH_EXT_ANGLE_REL_XZ.equals(measurement))));
 				break;
 			case PATH_EXT_ANGLE_ZY:
-				integerScale = false;
+			case PATH_EXT_ANGLE_REL_ZY:
+				integerScale = true;
 				for (final Path p : paths)
-					mappedPaths.add(new MappedPath(p, p.getExtensionAngleZY(false)));
+					mappedPaths.add(new MappedPath(p, p.getExtensionAngleZY(PATH_EXT_ANGLE_REL_ZY.equals(measurement))));
 				break;
 			case PATH_LENGTH:
 				integerScale = false;
@@ -677,7 +690,6 @@ public class TreeColorMapper extends ColorMapper {
 			map(it.next(), INTERNAL_COUNTER, lut);
 			internalCounter = it.nextIndex();
 		}
-		mappedTrees.addAll(trees);
 	}
 
 	/**
@@ -705,7 +717,7 @@ public class TreeColorMapper extends ColorMapper {
 		});
 		final MultiViewer2D multiViewer = new MultiViewer2D(viewers);
 		if (colorTable != null && !mappedTrees.isEmpty())
-			multiViewer.setColorBarLegend(colorTable, min, max);
+			multiViewer.setColorBarLegend(this);
 		return multiViewer;
 	}
 

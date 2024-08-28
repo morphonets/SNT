@@ -48,6 +48,7 @@ import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.gui.GuiUtils;
@@ -1017,7 +1018,8 @@ public class GraphEditor extends JPanel
 			}
 
 			PaintScaleLegend getLegend() {
-				final PaintScaleLegend legend = getPaintScaleLegend(colorTable, min, max);
+				final boolean integers = (int)min == min && (int)max == max;
+				final PaintScaleLegend legend = SNTChart.getPaintScaleLegend(colorTable, min, max, (integers) ? 0 : 2);
 				legend.setPosition(RectangleEdge.TOP);
 				legend.setMargin(10, 50, 0, 50);
 				legend.getAxis().setLabelPaint(color);

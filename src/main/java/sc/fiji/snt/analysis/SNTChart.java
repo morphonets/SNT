@@ -29,6 +29,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.text.DecimalFormat;
 import java.util.*;
 import java.util.List;
 
@@ -48,12 +49,15 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.jfree.chart.*;
 import org.jfree.chart.annotations.*;
 import org.jfree.chart.axis.Axis;
+import org.jfree.chart.axis.AxisLocation;
 import org.jfree.chart.axis.CategoryAnchor;
+import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.entity.*;
 import org.jfree.chart.plot.*;
 import org.jfree.chart.plot.flow.FlowPlot;
 import org.jfree.chart.renderer.AbstractRenderer;
 import org.jfree.chart.renderer.DefaultPolarItemRenderer;
+import org.jfree.chart.renderer.LookupPaintScale;
 import org.jfree.chart.renderer.category.*;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.chart.title.*;
@@ -73,10 +77,7 @@ import org.scijava.util.Colors;
 import ij.ImagePlus;
 import ij.plugin.ImagesToStack;
 import net.imglib2.display.ColorTable;
-import sc.fiji.snt.SNTPrefs;
-import sc.fiji.snt.SNTService;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
+import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.SNTColor;
 
@@ -320,7 +321,7 @@ public class SNTChart extends ChartPanel {
 
 	public void setLegendVisible(final boolean visible) {
 		if (getChart().getLegend() != null)
-			getChart().getLegend().setVisible(!getChart().getLegend().isVisible());
+			getChart().getLegend().setVisible(visible);
 	}
 
 	/**
@@ -1411,6 +1412,18 @@ public class SNTChart extends ChartPanel {
 		return otherCombinedCharts != null && !otherCombinedCharts.isEmpty();
 	}
 
+	/**
+	 * Adds a color bar legend (LUT ramp).
+	 *
+	 * @param colorTable the color table
+	 * @param min the minimum value in the color table
+	 * @param max the maximum value in the color table
+	 * @param nDecimalPlaces the number of decimal places in the legend labels
+	 */
+	public void addColorBarLegend(final ColorTable colorTable, double min, double max, final int nDecimalPlaces) {
+		getChart().addSubtitle(getPaintScaleLegend(colorTable, min, max, nDecimalPlaces));
+	}
+
 	private class ChartListener implements ChartMouseListener {
 
 		@Override
@@ -1463,6 +1476,40 @@ public class SNTChart extends ChartPanel {
 			// do nothing
 		}
 
+	}
+
+	public static PaintScaleLegend getPaintScaleLegend(final ColorTable colorTable, double min, double max, final int nDecimalPlaces) {
+		if (min >= max || colorTable == null) {
+			throw new IllegalArgumentException("Invalid scale: min must be smaller than max and colorTable not null");
+		}
+		final LookupPaintScale paintScale = new LookupPaintScale(min, max, Color.BLACK);
+		for (int i = 0; i < colorTable.getLength(); i++) {
+			final Color color = new Color(colorTable.get(ColorTable.RED, i), colorTable.get(ColorTable.GREEN, i),
+					colorTable.get(ColorTable.BLUE, i));
+
+			final double value = min + (i * (max - min)  / colorTable.getLength());
+			paintScale.add(value, color);
+		}
+		final NumberAxis numberAxis = new NumberAxis();
+		if (nDecimalPlaces == 0) {
+			numberAxis.setStandardTickUnits(NumberAxis.createIntegerTickUnits());
+			numberAxis.setNumberFormatOverride(new DecimalFormat("#"));
+		} else {
+			numberAxis.setNumberFormatOverride(SNTUtils.getDecimalFormat(max, nDecimalPlaces));
+		}
+		numberAxis.setAutoRangeIncludesZero(min <=0 && max >= 0);
+		numberAxis.setRange(min, max);
+		numberAxis.setAutoTickUnitSelection(true);
+		numberAxis.centerRange((max+min)/2);
+		numberAxis.setLabelFont(numberAxis.getLabelFont().deriveFont(GuiUtils.uiFontSize()));
+		numberAxis.setTickLabelFont(numberAxis.getTickLabelFont().deriveFont(GuiUtils.uiFontSize()));
+		final PaintScaleLegend psl = new PaintScaleLegend(paintScale, numberAxis);
+		psl.setBackgroundPaint(null); // transparent
+		psl.setPosition(RectangleEdge.RIGHT);
+		psl.setAxisLocation(AxisLocation.TOP_OR_RIGHT);
+		psl.setHorizontalAlignment(HorizontalAlignment.CENTER);
+		psl.setMargin(50, 5, 50, 5);
+		return psl;
 	}
 
 	public static List<SNTChart> openCharts() {

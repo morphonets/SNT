@@ -235,6 +235,9 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			case PathAnalyzer.N_CHILDREN:
 				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHILDREN));
 				break;
+			case PathAnalyzer.N_NODES:
+				mi.setIcon(IconFactory.getMenuIcon('#', true));
+				break;
 			case PathAnalyzer.N_SPINES:
 				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.MAP_PIN));
 				break;
@@ -257,7 +260,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	}
 
 	private ColorMenu getColorFilterMenu() {
-		final ColorMenu colorFilterMenu = new ColorMenu("Filter by color tags");
+		final ColorMenu colorFilterMenu = new ColorMenu("Filter by color tag");
 		colorFilterMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COLOR));
 		colorFilterMenu.addActionListener(e -> {
 			final Collection<Path> filteredPaths = getPaths();
@@ -457,7 +460,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	private JButton createMorphoFilteringButton() {
 		final JButton button = new JButton();
 		formatButton(button, IconFactory.GLYPH.RULER);
-		button.setToolTipText("Filter by morphometric traits or image properties");
+		button.setToolTipText("Filter by morphometry or image properties");
 		final JPopupMenu popup = new JPopupMenu();
 		GuiUtils.addSeparator(popup, "Morphometric Traits:");
 		for (final Component component : getMorphoFilterMenu().getMenuComponents()) {

@@ -27,16 +27,19 @@ import ij.ImagePlus;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.ModuleItem;
+import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.viewer.MultiViewer2D;
 import sc.fiji.snt.viewer.MultiViewer3D;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 
+import java.util.ArrayList;
 import java.util.Collection;
 
 @Plugin(type = Command.class, initializer = "init", label = "Create Figure...")
@@ -78,6 +81,12 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 	@Parameter(required = true)
 	Collection<Tree> trees;
 
+	@Parameter(required = false)
+	ColorMapper mapper;
+
+	@Parameter(required = false)
+	boolean noRasterOutput;
+
 	@SuppressWarnings("unused")
 	private void init() {
 		super.init(false);
@@ -92,7 +101,14 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 		} else {
 			removeInput(getInfo().getInput("msg", String.class));
 		}
+		if (noRasterOutput) {
+			final MutableModuleItem<String> mi = (MutableModuleItem<String>) getInfo().getInput("type", String.class);
+			final ArrayList<String> choices = new ArrayList<>(mi.getChoices());
+			choices.remove(0);
+			mi.setChoices(choices);
+		}
 	}
+
 
 	@Override
 	public void run() {
@@ -100,7 +116,11 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			error("No reconstructions have been specified.");
 			return;
 		}
-		trees.removeIf(tree -> tree == null || tree.isEmpty());
+		try {
+			trees.removeIf(tree -> tree == null || tree.isEmpty());
+		} catch (final UnsupportedOperationException ignored) {
+			// do nothing: ImmutableCollection
+		}
 		if (trees.isEmpty()) { // may happen with auto-traced structures!?
 			error("No valid reconstructions exist.");
 			return;
@@ -118,15 +138,28 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 		final Object result;
 		final boolean montage = style.toLowerCase().contains("montage") && trees.size() > 1;
 		if (montage)
-			result = montage(renderingTrees, type + " " + view);
+			result = montage(renderingTrees, type + " " + view, false);
 		else
-			result = singleScene(renderingTrees, type + " " + view);
+			result = singleScene(renderingTrees, type + " " + view, false);
 		if (result instanceof ImagePlus) {
+			((ImagePlus) result).show();
 			final int minSize = (montage) ? 200 / trees.size() : 200;
 			if (((ImagePlus) result).getWidth() < minSize || ((ImagePlus) result).getHeight() < minSize) {
 			msg("Created figure may not have enough detail (paths were digitized at 1µm/pixel). It " +
 					"may be preferable to use scalable vector graphics instead.", "Coarse Result?");
 			}
+		} else if (result instanceof Viewer2D) {
+			if (mapper != null) ((Viewer2D) result).addColorBarLegend(mapper);
+			((Viewer2D) result).show();
+		} else if (result instanceof MultiViewer2D) {
+			if (mapper != null) ((MultiViewer2D) result).setColorBarLegend(mapper);
+			((MultiViewer2D) result).show();
+		} else if (result instanceof Viewer3D) {
+			if (mapper != null) ((Viewer3D) result).addColorBarLegend(mapper);
+			((Viewer3D) result).show();
+		} else if (result instanceof MultiViewer3D) {
+			if (mapper != null) ((MultiViewer3D) result).addColorBarLegend(mapper);
+			((MultiViewer3D) result).show();
 		}
 		resetUI();
 	}
@@ -140,42 +173,42 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 		return Viewer3D.ViewMode.DEFAULT;
 	}
 
-	private static Object montage(final Collection<Tree> renderingTrees, final String renderOptions) {
+	private static Object montage(final Collection<Tree> renderingTrees, final String renderOptions, final boolean display) {
 		final String flags = renderOptions.toLowerCase();
 		if (flags.contains("skel") || flags.contains("raster") || flags.contains("image")) {
 			final ImagePlus result = ImpUtils.combineSkeletons(renderingTrees, true);
-			result.show();
+			if (display) result.show();
 			return result;
 		} else if (flags.contains("2d") || flags.contains("vector")) {
 			final MultiViewer2D result = new MultiViewer2D(renderingTrees);
-			result.show();
+			if (display) result.show();
 			return result;
 		} else if (flags.contains("3d") || flags.contains("interactive")) {
 			final MultiViewer3D result = new MultiViewer3D(renderingTrees);
 			result.setViewMode(getView(renderOptions));
-			result.show();
+			if (display) result.show();
 			return result;
 		} else {
 			throw new IllegalArgumentException("Unrecognized option: '" + renderOptions + "'");
 		}
 	}
 
-	private static Object singleScene(final Collection<Tree> renderingTrees, final String renderOptions) {
+	private static Object singleScene(final Collection<Tree> renderingTrees, final String renderOptions, final boolean display) {
 		final String flags = renderOptions.toLowerCase();
 		if (flags.contains("skel") || flags.contains("raster") || flags.contains("image")) {
 			final ImagePlus result = ImpUtils.combineSkeletons(renderingTrees);
-			result.show();
+			if (display) result.show();
 			return result;
 		} else if (flags.contains("2d") || flags.contains("view")) {
 			final Viewer2D result = new Viewer2D();
 			result.add(renderingTrees);
-			result.show();
+			if (display) result.show();
 			return result;
 		} else if (flags.contains("3d") || flags.contains("interactive")) {
 			final Viewer3D result = new Viewer3D();
 			result.add(renderingTrees);
 			result.setViewMode(getView(renderOptions));
-			result.show();
+			if (display) result.show();
 			return result;
 		} else {
 			throw new IllegalArgumentException("Unrecognized option: '" + renderOptions + "'");
@@ -207,8 +240,8 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 		final String flags = renderOptions.toLowerCase();
 		final Collection<Tree> renderingTrees = Tree.transform(trees, flags, false);
 		if (flags.contains("montage"))
-			return montage(renderingTrees, flags);
+			return montage(renderingTrees, flags, true);
 		else
-			return singleScene(renderingTrees, flags);
+			return singleScene(renderingTrees, flags, true);
 	}
 }

@@ -51,6 +51,7 @@ public class ColorMapper {
 	protected boolean integerScale;
 	protected double min = Double.MAX_VALUE;
 	protected double max = Double.MIN_VALUE;
+	private Color nanColor;
 
 	public void map(final String measurement, final ColorTable colorTable) {
 		if (colorTable == null) throw new IllegalArgumentException(
@@ -61,7 +62,17 @@ public class ColorMapper {
 		// Implementation left to extending classes
 	}
 
+	public Color getNaNColor() {
+		return nanColor;
+	}
+
+	public void setNaNColor(final Color nanColor) {
+		this.nanColor = nanColor;
+	}
+
 	public Color getColor(final double mappedValue) {
+		if (Double.isNaN(mappedValue))
+			return getNaNColor();
 		final int idx = getColorTableIdx(mappedValue);
 		return new Color(colorTable.get(ColorTable.RED, idx), colorTable.get(
 			ColorTable.GREEN, idx), colorTable.get(ColorTable.BLUE, idx));
@@ -97,6 +108,10 @@ public class ColorMapper {
 			throw new IllegalArgumentException("min > max");
 		this.min = (Double.isNaN(min)) ? Double.MAX_VALUE : min;
 		this.max = (Double.isNaN(max)) ? Double.MIN_VALUE : max;
+	}
+
+	public boolean isIntegerScale() {
+		return integerScale;
 	}
 
 	/**

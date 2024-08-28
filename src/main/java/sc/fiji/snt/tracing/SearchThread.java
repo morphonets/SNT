@@ -210,6 +210,17 @@ public abstract class SearchThread extends AbstractSearch {
 			progress.finished(this, success);
 	}
 
+	private void printStatus(final long sinceLastReport, final long loopsSinceLastReport) {
+		final StringBuilder sb = new StringBuilder();
+		sb.append("Start nodes: open=").append(open_from_start.size()).append(" closed=").append(closed_from_start_count);
+		if (bidirectional)
+			sb.append(" | Goal nodes: open=").append(open_from_goal.size()).append(" closed=").append(closed_from_goal_count);
+		else
+			sb.append(" | Unidirectional search");
+		sb.append(" | ").append(sinceLastReport / (double) loopsSinceLastReport).append("ms/loop");
+		SNTUtils.log(sb.toString());
+	}
+
 	@Override
 	public void printStatus() {
 		SNTUtils.log("... Start nodes: open=" + open_from_start.size() +
@@ -233,12 +244,9 @@ public abstract class SearchThread extends AbstractSearch {
 		if ((reportEveryMilliseconds > 0) && (since_last_report > reportEveryMilliseconds)) {
 			final long loops_since_last_report = loops - loops_at_last_report;
 			if (verbose) {
-				System.out.println("" + (since_last_report / (double) loops_since_last_report) + "ms/loop");
-				printStatus();
+				printStatus(since_last_report, loops_since_last_report);
 			}
-
 			reportPointsInSearch();
-
 			loops_at_last_report = loops;
 			lastReportMilliseconds = currentMilliseconds;
 		}
@@ -268,8 +276,7 @@ public abstract class SearchThread extends AbstractSearch {
 
 			final int[] imgPosition = new int[3];
 
-			while ((open_from_start.size() > 0) || (bidirectional && (open_from_goal
-				.size() > 0)))
+			while ((!open_from_start.isEmpty()) || (bidirectional && (!open_from_goal.isEmpty())))
 			{
 
 				if (Thread.currentThread().isInterrupted()) {
@@ -304,7 +311,7 @@ public abstract class SearchThread extends AbstractSearch {
 
 				DefaultSearchNode p;
 
-				if (open_queue.size() == 0) continue;
+				if (open_queue.isEmpty()) continue;
 
 				p = open_queue.deleteMin().getKey();
 				if (p == null) continue;
@@ -468,7 +475,7 @@ public abstract class SearchThread extends AbstractSearch {
 
 			/*
 			 * If we get to here then we haven't found a route to the point. (With the
-			 * current impmlementation this shouldn't happen, so print a warning - probably
+			 * current implementation this shouldn't happen, so print a warning - probably
 			 * the programmer hasn't populated the open list to start with.) However, in
 			 * this case let's return the best path so far anyway...
 			 */

@@ -24,7 +24,6 @@ package sc.fiji.snt.gui;
 
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -232,11 +231,10 @@ public class SNTSearchableBar extends SearchableBar {
 			addButton(buttonPanel, _repeatCheckBox);
 		}
 		if (_extraButtons != null) {
-			// buttonPanel.add(Box.createHorizontalGlue());
+			buttonPanel.add(Box.createHorizontalGlue());
 			_extraButtons.forEach(b -> addButton(buttonPanel, b));
 		}
 		if (buttonCount > 0) {
-			normalizeButtons(buttonPanel);
 			buttonPanel.setLayout(new GridLayout(1, buttonCount));
 			gbc.gridx = 2;
 			gbc.gridy = 1;
@@ -433,30 +431,5 @@ public class SNTSearchableBar extends SearchableBar {
 			button.setSelectedIcon(selectIcon);
 			button.setRolloverSelectedIcon(selectIcon);
 		}
-	}
-
-	private void normalizeButtons(final Container container) {
-		// Some L&Fs/JDK versions render buttons inconsistently!? Attempt to fix it
-		final JToggleButton template = firstToggleButton(container);
-		if (template != null) {
-			for (final Component component : container.getComponents()) {
-				if (component instanceof AbstractButton) {
-					((AbstractButton) component).setBackground(template.getBackground());
-					((AbstractButton) component).setBorder(template.getBorder());
-					((AbstractButton) component).setBorderPainted(template.isBorderPainted());
-					((AbstractButton) component).setContentAreaFilled(template.isContentAreaFilled());
-					((AbstractButton) component).setMargin(template.getMargin());
-					((AbstractButton) component).setOpaque(template.isOpaque());
-				}
-			}
-		}
-	}
-
-	private JToggleButton firstToggleButton(final Container container) {
-		for (final Component component : container.getComponents()) {
-			if (component instanceof JToggleButton)
-				return (JToggleButton) component;
-		}
-		return null;
 	}
 }
