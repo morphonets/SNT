@@ -65,22 +65,22 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 	private PlotService plotService;
 
 	@Parameter(label = "X-Axis Metric", choices = { "Path ID", //
-			TreeStatistics.PATH_CHANNEL, TreeStatistics.PATH_FRAME, //
-			TreeStatistics.N_BRANCH_POINTS, TreeStatistics.PATH_CONTRACTION, //
-			TreeStatistics.PATH_EXT_ANGLE_XY, TreeStatistics.PATH_EXT_ANGLE_XZ, TreeStatistics.PATH_EXT_ANGLE_ZY,//
-			TreeStatistics.PATH_EXT_ANGLE_REL_XY, TreeStatistics.PATH_EXT_ANGLE_REL_XZ, TreeStatistics.PATH_EXT_ANGLE_REL_ZY,//
-			TreeStatistics.PATH_LENGTH, TreeStatistics.PATH_MEAN_RADIUS, //
-			TreeStatistics.PATH_ORDER, TreeStatistics.PATH_SURFACE_AREA, //
-			TreeStatistics.N_PATH_NODES, TreeStatistics.PATH_VOLUME })
+			PathAnalyzer.PATH_CHANNEL, PathAnalyzer.PATH_FRAME, //
+			PathAnalyzer.N_BRANCH_POINTS, PathAnalyzer.PATH_CONTRACTION, //
+			PathAnalyzer.PATH_EXT_ANGLE_XY, PathAnalyzer.PATH_EXT_ANGLE_XZ, PathAnalyzer.PATH_EXT_ANGLE_ZY,//
+			PathAnalyzer.PATH_EXT_ANGLE_REL_XY, PathAnalyzer.PATH_EXT_ANGLE_REL_XZ, PathAnalyzer.PATH_EXT_ANGLE_REL_ZY,//
+			PathAnalyzer.PATH_LENGTH, PathAnalyzer.PATH_MEAN_RADIUS, //
+			PathAnalyzer.PATH_ORDER, PathAnalyzer.PATH_SURFACE_AREA, //
+			PathAnalyzer.N_PATH_NODES, PathAnalyzer.PATH_VOLUME })
 	private String xAxisMetric;
 
 	@Parameter(label = "Y-Axis Metric 1", choices = { //
-			TreeStatistics.PATH_SPINE_DENSITY, TreeStatistics.N_SPINES //
+			PathAnalyzer.PATH_SPINE_DENSITY, PathAnalyzer.N_SPINES //
 	})
 	private String yAxisMetric1;
 
 	@Parameter(label = "Y-axis Metric 2", required = false, choices = { NONE_OPTION, //
-			TreeStatistics.PATH_SPINE_DENSITY, TreeStatistics.N_SPINES //
+			PathAnalyzer.PATH_SPINE_DENSITY, PathAnalyzer.N_SPINES //
 	})
 	private String yAxisMetric2;
 
@@ -105,18 +105,17 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 		getInfo().setLabel("Multimetric Plot...");
 		if (anyMetric) {
 			final List<String> metrics = Arrays.asList(NONE_OPTION, "Path ID", //
-					TreeStatistics.PATH_N_SPINES, TreeStatistics.PATH_SPINE_DENSITY, //
-					TreeStatistics.PATH_CHANNEL, TreeStatistics.PATH_FRAME, //
-					TreeStatistics.N_BRANCH_POINTS, TreeStatistics.PATH_CONTRACTION, //
-					TreeStatistics.PATH_EXT_ANGLE_XY, //
-					TreeStatistics.PATH_LENGTH, TreeStatistics.PATH_MEAN_RADIUS, //
-					TreeStatistics.PATH_ORDER, TreeStatistics.PATH_SURFACE_AREA, //
-					TreeStatistics.N_PATH_NODES, TreeStatistics.PATH_VOLUME);
+					PathAnalyzer.PATH_CHANNEL, PathAnalyzer.PATH_FRAME, //
+					PathAnalyzer.PATH_CONTRACTION, PathAnalyzer.PATH_LENGTH,
+					PathAnalyzer.PATH_EXT_ANGLE_XY, PathAnalyzer.PATH_EXT_ANGLE_XZ, PathAnalyzer.PATH_EXT_ANGLE_ZY,//
+					PathAnalyzer.PATH_EXT_ANGLE_REL_XY, PathAnalyzer.PATH_EXT_ANGLE_REL_XZ, PathAnalyzer.PATH_EXT_ANGLE_REL_ZY,//
+					PathAnalyzer.PATH_ORDER, PathAnalyzer.PATH_N_SPINES, PathAnalyzer.PATH_SPINE_DENSITY, //
+					PathAnalyzer.N_BRANCH_POINTS, PathAnalyzer.PATH_MEAN_RADIUS, //
+					PathAnalyzer.PATH_SURFACE_AREA, PathAnalyzer.N_PATH_NODES, PathAnalyzer.PATH_VOLUME);
 			Collections.sort(metrics);
 			Arrays.asList("xAxisMetric", "yAxisMetric1", "yAxisMetric2", "yAxisMetric3", "yAxisMetric4").forEach(m -> {
 				getInfo().getMutableInput(m, String.class).setChoices(metrics);
 			});
-
 		} else {
 			resolveInput("yAxisMetric3");
 			resolveInput("yAxisMetric4");
@@ -138,16 +137,16 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 			return;
 		}
 		paths.forEach(p -> {
-			final PathAnalyzer pa = new PathAnalyzer(Collections.singletonList(p), p.getName());
-			xValues.add(pa.getMetric(xAxisMetric).doubleValue());
+			final PathAnalyzer pa = new PathAnalyzer(p);
+			xValues.add(pa.getMetric(xAxisMetric, p).doubleValue());
 			if (y1Values != null)
-				y1Values.add(pa.getMetric(yAxisMetric1).doubleValue());
+				y1Values.add(pa.getMetric(yAxisMetric1, p).doubleValue());
 			if (y2Values != null)
-				y2Values.add(pa.getMetric(yAxisMetric2).doubleValue());
+				y2Values.add(pa.getMetric(yAxisMetric2, p).doubleValue());
 			if (y3Values != null)
-				y3Values.add(pa.getMetric(yAxisMetric3).doubleValue());
+				y3Values.add(pa.getMetric(yAxisMetric3, p).doubleValue());
 			if (y4Values != null)
-				y4Values.add(pa.getMetric(yAxisMetric4).doubleValue());
+				y4Values.add(pa.getMetric(yAxisMetric4, p).doubleValue());
 		});
 
 		if (outputChoice.toLowerCase().contains("plot")) {
@@ -187,8 +186,7 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 			final ColorRGB color) {
 		if (y != null) {
 			final XYSeries series = plot.addXYSeries();
-			series.setStyle(plotService.newSeriesStyle(color, (anyMetric)  ? LineStyle.NONE : LineStyle.SOLID,
-					MarkerStyle.FILLEDCIRCLE));
+			series.setStyle(plotService.newSeriesStyle(color, LineStyle.NONE, MarkerStyle.FILLEDCIRCLE));
 			series.setValues(x, y);
 			series.setLabel(label);
 		}

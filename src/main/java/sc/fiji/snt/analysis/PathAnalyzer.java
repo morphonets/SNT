@@ -49,7 +49,7 @@ public class PathAnalyzer extends TreeStatistics {
 			tree.getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, unit);
 	}
 
-	private PathAnalyzer(final Path path) {
+	public PathAnalyzer(final Path path) {
 		this(Collections.singleton(path), path.getName());
 	}
 
@@ -67,7 +67,7 @@ public class PathAnalyzer extends TreeStatistics {
 	public Number getMetric(final String metric) throws IllegalArgumentException {
 		if ("Path ID".equalsIgnoreCase(metric))
 			return (tree.size() == 1) ? tree.list().get(0).getID() : Double.NaN;
-		return getMetricInternal(TreeStatistics.getNormalizedMeasurement(metric));
+		return getMetricInternal(getNormalizedMeasurement(metric));
 	}
 
 	@Override
@@ -135,6 +135,63 @@ public class PathAnalyzer extends TreeStatistics {
 		return super.getSummaryStats(metric);
 	}
 
+	public Number getMetric(final String metric, final Path path) throws UnknownMetricException {
+		switch (metric) {
+			case "Path ID":
+				return path.getID();
+			case PATH_CHANNEL:
+				return path.getChannel();
+			case PATH_CONTRACTION:
+				return path.getContraction();
+			case PATH_EXT_ANGLE_XY:
+			case PATH_EXT_ANGLE_REL_XY:
+				return path.getExtensionAngleXY(metric.toLowerCase().contains("rel"));
+			case PATH_EXT_ANGLE_XZ:
+			case PATH_EXT_ANGLE_REL_XZ:
+				return path.getExtensionAngleXZ(metric.toLowerCase().contains("rel"));
+			case PATH_EXT_ANGLE_ZY:
+			case PATH_EXT_ANGLE_REL_ZY:
+				return path.getExtensionAngleZY(metric.toLowerCase().contains("rel"));
+			case PATH_FRACTAL_DIMENSION:
+				return path.getFractalDimension();
+			case PATH_FRAME:
+				return path.getFrame();
+			case PATH_LENGTH:
+			case LENGTH:
+				return path.getLength();
+			case PATH_MEAN_RADIUS:
+				return path.getMeanRadius();
+			case PATH_N_SPINES:
+			case N_SPINES:
+				return path.getSpineOrVaricosityCount();
+			case PATH_ORDER:
+				return path.getOrder();
+			case PATH_SPINE_DENSITY:
+				return path.getSpineOrVaricosityCount() / path.getLength();
+			case PATH_SURFACE_AREA:
+				return path.getApproximatedSurface();
+			case PATH_VOLUME:
+			case VOLUME:
+				return path.getApproximatedVolume();
+			case N_CHILDREN:
+				return path.getChildren().size();
+			case N_PATH_NODES:
+			case N_NODES:
+				return path.size();
+			case N_BRANCH_POINTS:
+				return path.getJunctionNodes().size();
+			default:
+				// A generic metric not directly associated with the Path class!?
+				// we can recycle the logic behind #assembleStats(). Since, all
+				// getBranches() related code has been (hopefully) overridden, this will
+				// effectively retrieve the single-value metric for this path.
+				final PathAnalyzer analyzer = new PathAnalyzer(path);
+				final SummaryStatistics dummy = new SummaryStatistics();
+				analyzer.assembleStats(new StatisticsInstance(dummy), metric);
+				return dummy.getMax(); // since N=1, same as the value itself
+		}
+	}
+
 	public void measureIndividualPaths(final Collection<String> metrics, final boolean summarize) {
 		if (table == null) table = new SNTTable();
 		final Collection<String> measuringMetrics = (metrics == null || metrics.isEmpty()) ? getMetrics("safe") : metrics;
@@ -142,21 +199,7 @@ public class PathAnalyzer extends TreeStatistics {
 			final int row = getNextRow(path.getName());
 			table.set(getCol("SWC Type(s)"), row, Path.getSWCtypeName(path.getSWCType(), true)); // plural heading for consistency with other commands
 			measuringMetrics.forEach(metric -> {
-				// The easiest here is to initialize an instance aware only of this single
-				// path. Then, we can recycle the logic behind #assembleStats(). Since, all
-				// getBranches() related code has been (hopefully) overridden, this will
-				// effectively retrieve the single-value metric for this path.
-				final PathAnalyzer analyzer = new PathAnalyzer(path);
-				final SummaryStatistics dummy = new SummaryStatistics();
-				analyzer.assembleStats(new StatisticsInstance(dummy), metric);
-				Number value;
-				try {
-					value = dummy.getMax(); // since N=1, same as the value itself
-				} catch (final IllegalArgumentException ignored) {
-					// maybe we are handling some legacy metric description!?
-					value = analyzer.getMetricInternal(metric);
-				}
-				table.set(getCol(metric), row, value);
+				table.set(getCol(metric), row, new PathAnalyzer(path).getMetric(metric, path));
 			});
 		});
 		if (summarize && table instanceof SNTTable) {
