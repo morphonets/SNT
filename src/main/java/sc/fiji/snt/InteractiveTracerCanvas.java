@@ -39,10 +39,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.tracing.artist.FillerThreadArtist;
 import sc.fiji.snt.tracing.artist.SearchArtist;
-import sc.fiji.snt.util.PointInCanvas;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.SWCPoint;
+import sc.fiji.snt.util.*;
 
 import javax.swing.*;
 import java.awt.*;
@@ -124,8 +121,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		});
 		pMenu.add(selectByRoi);
 		pMenu.addSeparator();
+		pMenu.add(menuItem(AListener.BOOKMARK_CURSOR, listener, KeyStroke.getKeyStroke(KeyEvent.VK_B, KeyEvent.SHIFT_DOWN_MASK)));
+		pMenu.addSeparator();
 
-		final JMenuItem mi = menuItem(AListener.CLICK_AT_MAX, listener, KeyEvent.VK_V);
+		JMenuItem mi = menuItem(AListener.CLICK_AT_MAX, listener, KeyEvent.VK_V);
 		mi.setEnabled(!tracerPlugin.is2D());
 		pMenu.add(mi);
 		extendPathMenuItem = menuItem(AListener.EXTEND_SELECTED, listener);
@@ -825,6 +824,14 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		toggleEditModeMenuItem.doClick();
 	}
 
+	protected void bookmarkCursorLocation() {
+		final int[] p = new int[3];
+		tracerPlugin.findPointInStack((int) Math.round(last_x_in_pane_precise), (int) Math.round(last_y_in_pane_precise), plane, p);
+		tracerPlugin.getUI().getBookmarkManager().add(p[0], p[1], p[2], getImage());
+		if (!tracerPlugin.getUI().getBookmarkManager().isShowing())
+			tempMsg("Bookmark added");
+	}
+
 	protected void togglePauseTracing() {
 		togglePauseTracingMenuItem.doClick();
 	}
@@ -855,23 +862,19 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		getGuiUtils().showHTMLDialog(HELP_MSG, "Counting Spines/ Varicosities", false);
 	}
 
-	/**
-	 * This class implements ActionListeners for
-	 * InteractiveTracerCanvas's contextual menu.
-	 */
+	/** This class implements ActionListeners for InteractiveTracerCanvas's contextual menu. */
 	private class AListener implements ActionListener, ItemListener {
 
 		/* Listed shortcuts are specified in QueueJumpingKeyListener */
-		public static final String CLICK_AT_MAX = "Click on Brightest Voxel Above/Below Cursor";
-		public static final String FORK_NEAREST = "Fork at Nearest Node";
-
-		public static final String SELECT_NEAREST = "Select Nearest Path";
-		public static final String APPEND_NEAREST = "Add Nearest Path to Selection";
-		public static final String EXTEND_SELECTED = "Continue Extending Path";
-		public static final String PAUSE_SNT_TOGGLE = "Pause SNT";
-		public static final String PAUSE_TRACING_TOGGLE = "Pause Tracing";
-		public static final String EDIT_TOGGLE_FORMATTER = "Edit %s";
-
+		private static final String CLICK_AT_MAX = "Click on Brightest Voxel Above/Below Cursor";
+		private static final String FORK_NEAREST = "Fork at Nearest Node";
+		private static final String BOOKMARK_CURSOR = "Bookmark Cursor Position";
+		private static final String SELECT_NEAREST = "Select Nearest Path";
+		private static final String APPEND_NEAREST = "Add Nearest Path to Selection";
+		private static final String EXTEND_SELECTED = "Continue Extending Path";
+		private static final String PAUSE_SNT_TOGGLE = "Pause SNT";
+		private static final String PAUSE_TRACING_TOGGLE = "Pause Tracing";
+		private static final String EDIT_TOGGLE_FORMATTER = "Edit %s";
 		private final static String NODE_RESET = "  Reset Active Node";
 		private final static String NODE_DELETE = "  Delete Active Node";
 		private final static String NODE_INSERT = "  Insert New Node at Cursor Position";
@@ -929,6 +932,11 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				tracerPlugin.replaceCurrentPath(activePath);
 				return;
 
+			}
+
+			else if (e.getActionCommand().equals(BOOKMARK_CURSOR)) {
+				bookmarkCursorLocation();
+				return;
 			}
 
 			else if (e.getActionCommand().equals(CLICK_AT_MAX)) {
@@ -1161,7 +1169,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final String prevDouble = tracerPlugin.getPrefs().getTemp("lastRadDouble", null);
 		final Object[] usrChoice = getGuiUtils().getChoiceAndDouble(msg, edPath.getName() + ": Ad hoc Radius",
 				defChoices, prevChoice,
-				(prevDouble == null) ? edPath.getNodeRadius(edNode) : Double.valueOf(prevDouble));
+				(prevDouble == null) ? edPath.getNodeRadius(edNode) : Double.parseDouble(prevDouble));
 		if (usrChoice == null)
 			return;
 

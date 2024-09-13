@@ -67,6 +67,7 @@ public class IconFactory {
 			BEZIER_CURVE('\uf55b', true),//
 			BINOCULARS('\uf1e5', true), //
 			BOLD('\uf032', true),//
+			BOOKMARK('\uf02e', true), //
 			BOOK_READER('\uf5da', true), //
 			BRAIN('\uf5dc', true), //
 			BRANCH_CODE('\uf126', true), //

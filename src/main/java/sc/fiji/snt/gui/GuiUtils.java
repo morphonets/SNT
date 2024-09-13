@@ -43,20 +43,12 @@ import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.Window;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.ComponentEvent;
-import java.awt.event.ComponentListener;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowEvent;
-import java.awt.event.WindowListener;
+import java.awt.event.*;
 import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -137,7 +129,7 @@ import javax.swing.event.DocumentListener;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.HyperlinkListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.text.NumberFormatter;
+import javax.swing.text.*;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
 
@@ -956,6 +948,20 @@ public class GuiUtils {
 	public File[] getReconstructionFiles() {
 		final JFileChooser fileChooser = getReconstructionFileChooser(null);
 		return (File[])getOpenFileChooserResult(fileChooser);
+	}
+
+	public File getFile(final File file, final String extensionWithoutPeriod) {
+		final JFileChooser fileChooser = GuiUtils.getDnDFileChooser();
+		fileChooser.setDialogTitle("Choose " + extensionWithoutPeriod.toUpperCase() + " File");
+		fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+		fileChooser.setDialogType(JFileChooser.OPEN_DIALOG);
+		fileChooser.setMultiSelectionEnabled(false);
+		fileChooser.addChoosableFileFilter(
+				new FileNameExtensionFilter(extensionWithoutPeriod.toUpperCase() , extensionWithoutPeriod));
+		if (file != null)
+			fileChooser.setSelectedFile(file);
+		fileChooser.setMultiSelectionEnabled(false);
+		return (File) getOpenFileChooserResult(fileChooser);
 	}
 
 	public File getImageFile(final File file) {
@@ -1786,16 +1792,17 @@ public class GuiUtils {
 		final int maxDigits = Integer.toString(max).length();
 		final SpinnerModel model = new SpinnerNumberModel(value, min, max, step);
 		final JSpinner spinner = new JSpinner(model);
-		final JFormattedTextField textfield = ((DefaultEditor) spinner.getEditor())
-			.getTextField();
-		textfield.setColumns(maxDigits);
-		try {
-			if (allowEditing) {
-				((NumberFormatter) textfield.getFormatter()).setAllowsInvalid(false);
-			}
-			textfield.setEditable(allowEditing);
-		} catch (final Exception ignored){
-			textfield.setEditable(false);
+		final JFormattedTextField textField = ((JSpinner.NumberEditor) spinner.getEditor()).getTextField();
+		textField.setColumns(maxDigits);
+		textField.setEditable(allowEditing);
+		if (allowEditing) {
+			// ((NumberFormatter) textField.getFormatter()).setAllowsInvalid(false); // This disables editing completely on Ubuntu!?
+			final Color c = textField.getForeground();
+			textField.addPropertyChangeListener(evt -> {
+				if ("editValid".equals(evt.getPropertyName())) {
+					textField.setForeground((Boolean.FALSE.equals(evt.getNewValue())) ? Color.RED : c);
+				}
+			});
 		}
 		return spinner;
 	}
@@ -1817,19 +1824,6 @@ public class GuiUtils {
 		final DecimalFormat decimalFormat = new DecimalFormat("0." + decString);
 		formatter.setFormat(decimalFormat);
 		formatter.setAllowsInvalid(false);
-//		textfield.addPropertyChangeListener(new PropertyChangeListener() {
-//
-//			@Override
-//			public void propertyChange(final PropertyChangeEvent evt) {
-//				if ("editValid".equals(evt.getPropertyName()) && Boolean.FALSE.equals(evt.getNewValue())) {
-//
-//					new GuiUtils(spinner).getPopup("Number must be between " + SNT.formatDouble(min, nDecimals)
-//							+ " and " + SNT.formatDouble(max, nDecimals), spinner).showPopup();
-//
-//				}
-//
-//			}
-//		});
 		return spinner;
 	}
 

@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import ij.gui.ImageCanvas;
 import ij.plugin.*;
 import org.scijava.convert.ConvertService;
 
@@ -313,6 +314,19 @@ public class ImpUtils {
 		// initialization problems in SNTService and SNTUtils, so I'll use this as a workaround
 		return ij.WindowManager.getCurrentImage();
 	}
+
+	public static void zoomTo(final ImagePlus imp, final double zoomMagnification, final int x, final int y) {
+		final ImageCanvas canvas = imp.getCanvas();
+		final double currentMag = imp.getCanvas().getMagnification();
+		if (currentMag < zoomMagnification) {
+			// Zoom in on location. This will likely resize the ImageWindow
+			Zoom.set(imp, zoomMagnification, x, y);
+		} else if (canvas.getSrcRect().width < imp.getWidth() || canvas.getSrcRect().height < imp.getHeight()) {
+			// the image is already zoomed in. Do not resize ImageWindow
+			Zoom.set(imp, currentMag, x, y);
+		}
+	}
+
 	private static ImagePlus demoImageInternal(final String path, final String displayTitle) {
 		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 		final InputStream is = classloader.getResourceAsStream(path);

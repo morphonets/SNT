@@ -103,7 +103,6 @@ public class SNTUI extends JDialog {
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	/* UI */
-	private static final int MARGIN = 2;
 	private JCheckBox showPathsSelected;
 	protected CheckboxSpinner partsNearbyCSpinner;
 	protected JCheckBox useSnapWindow;
@@ -142,11 +141,12 @@ public class SNTUI extends JDialog {
 	private ActiveWorker activeWorker;
 	private volatile int currentState = -1;
 
-	private SNT plugin;
+	SNT plugin;
 	private PathAndFillManager pathAndFillManager;
 	protected GuiUtils guiUtils;
 	private final PathManagerUI pmUI;
 	private final FillManagerUI fmUI;
+	private final BookmarkManager bookmarkManager;
 
 	/* Reconstruction Viewer */
 	protected Viewer3D recViewer;
@@ -232,7 +232,8 @@ public class SNTUI extends JDialog {
 		pathAndFillManager = plugin.getPathAndFillManager();
 		commandFinder = new SNTCommandFinder(this);
 		commandFinder.register(getTracingCanvasPopupMenu(), new ArrayList<>(Collections.singletonList("Image Contextual Menu")));
-		setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+        bookmarkManager = new BookmarkManager(this);
+        setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowAdapter() {
 
 			@Override
@@ -250,7 +251,7 @@ public class SNTUI extends JDialog {
 			final GridBagConstraints c1 = GuiUtils.defaultGbc();
 			{
 				final JPanel tab1 = InternalUtils.getTab();
-				c1.insets.top = MARGIN * 2;
+				c1.insets.top = InternalUtils.MARGIN * 2;
 				c1.anchor = GridBagConstraints.NORTHEAST;
 				InternalUtils.addSeparatorWithURL(tab1, "Data Source:", false, c1);
 				c1.insets.top = 0;
@@ -281,7 +282,7 @@ public class SNTUI extends JDialog {
 				++c1.gridy;
 				c1.fill = GridBagConstraints.HORIZONTAL;
 				c1.insets = new Insets(0, 0, 0, 0);
-				c1.insets.bottom = MARGIN * 2;
+				c1.insets.bottom = InternalUtils.MARGIN * 2;
 				tab1.add(hideWindowsPanel(), c1);
 				tabbedPane.addTab("Main", tab1);
 			}
@@ -363,11 +364,16 @@ public class SNTUI extends JDialog {
 			c3.gridy++;
 			tab3.add(largeMsg(""), c3); // add bottom spacer
 
-			{
-				tabbedPane.setIconAt(0, IconFactory.getTabbedPaneIcon(IconFactory.GLYPH.HOME));
-				tabbedPane.setIconAt(1, IconFactory.getTabbedPaneIcon(IconFactory.GLYPH.TOOL));
-				tabbedPane.setIconAt(2, IconFactory.getTabbedPaneIcon(IconFactory.GLYPH.CUBE));
-			}
+            { // Bookmarks Tab
+                tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
+            }
+
+            {
+                tabbedPane.setIconAt(0, IconFactory.getTabbedPaneIcon(GLYPH.HOME));
+                tabbedPane.setIconAt(1, IconFactory.getTabbedPaneIcon(GLYPH.TOOL));
+                tabbedPane.setIconAt(2, IconFactory.getTabbedPaneIcon(GLYPH.CUBE));
+                tabbedPane.setIconAt(3, IconFactory.getTabbedPaneIcon(GLYPH.BOOKMARK));
+            }
 		}
 
 		setJMenuBar(createMenuBar());
@@ -615,6 +621,15 @@ public class SNTUI extends JDialog {
 			return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Gets the Bookmark Manager pane.
+	 *
+	 * @return the {@link BookmarkManager} associated with this UI
+	 */
+	public BookmarkManager getBookmarkManager() {
+		return bookmarkManager;
 	}
 
 	/**
@@ -2004,7 +2019,7 @@ public class SNTUI extends JDialog {
 		});
 	}
 
-	private JPanel largeMsg(final String msg) {
+	JPanel largeMsg(final String msg) {
 		final JTextArea ta = new JTextArea();
 		final Font defFont = new JLabel().getFont();
 		final Font font = defFont.deriveFont(defFont.getSize() * .85f);
@@ -2224,10 +2239,10 @@ public class SNTUI extends JDialog {
 		statusPanel.setLayout(new BorderLayout());
 		statusText = new JLabel("Loading SNT...");
 		statusText.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED),
-				BorderFactory.createEmptyBorder(MARGIN, MARGIN, MARGIN, MARGIN)));
+				BorderFactory.createEmptyBorder(InternalUtils.MARGIN, InternalUtils.MARGIN, InternalUtils.MARGIN, InternalUtils.MARGIN)));
 		statusPanel.add(statusText, BorderLayout.CENTER);
 		statusPanel.add(statusButtonPanel(), BorderLayout.SOUTH);
-		statusPanel.setBorder(BorderFactory.createEmptyBorder(MARGIN, MARGIN, MARGIN * MARGIN, MARGIN));
+		statusPanel.setBorder(BorderFactory.createEmptyBorder(InternalUtils.MARGIN, InternalUtils.MARGIN, InternalUtils.MARGIN * InternalUtils.MARGIN, InternalUtils.MARGIN));
 		return statusPanel;
 	}
 
@@ -2295,7 +2310,7 @@ public class SNTUI extends JDialog {
 		JPanel secLayerPanel = new JPanel();
 		secLayerPanel.setLayout(new GridBagLayout());
 		final GridBagConstraints c = GuiUtils.defaultGbc();
-		c.insets.top = MARGIN * 2; // separator
+		c.insets.top = InternalUtils.MARGIN * 2; // separator
 		c.ipadx = 0;
 
 		// row 1
@@ -2381,6 +2396,12 @@ public class SNTUI extends JDialog {
 			plugin.showMIPOverlays(true, 0);
 		}
 		updateSecLayerWidgets();
+	}
+
+	protected File openCsvFile() {
+		final String suggestFilename = (plugin.accessToValidImageData()) ? plugin.getImagePlus().getTitle() : "SNT_Data";
+		final File suggestedFile = SNTUtils.findClosestPair(new File(plugin.getPrefs().getRecentDir(), suggestFilename), "csv");
+		return guiUtils.getFile(suggestedFile, "csv");
 	}
 
 	protected File openReconstructionFile(final String extension) {
@@ -2815,8 +2836,8 @@ public class SNTUI extends JDialog {
 			}
 			java.awt.Rectangle bounds = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
 			setBounds(bounds.x, bounds.y, w, h);
-			pmUI.setBounds(getLocation().x + w + MARGIN, getLocation().y, w, h);
-			fmUI.setLocation(pmUI.getLocation().x + w + MARGIN, getLocation().y);
+			pmUI.setBounds(getLocation().x + w + InternalUtils.MARGIN, getLocation().y, w, h);
+			fmUI.setLocation(pmUI.getLocation().x + w + InternalUtils.MARGIN, getLocation().y);
 			final Window console = GuiUtils.getConsole();
 			if (console != null)
 				console.setBounds(getLocation().x, bounds.height - h / 3, w * 2, h / 3);
@@ -3327,7 +3348,7 @@ public class SNTUI extends JDialog {
 		final JPanel statusBar = new JPanel();
 		statusBar.setLayout(new BoxLayout(statusBar, BoxLayout.X_AXIS));
 		statusBarText = GuiUtils.leftAlignedLabel("Ready to trace...", true);
-		statusBarText.setBorder(BorderFactory.createEmptyBorder(0, MARGIN, MARGIN / 2, 0));
+		statusBarText.setBorder(BorderFactory.createEmptyBorder(0, InternalUtils.MARGIN, InternalUtils.MARGIN / 2, 0));
 		statusBar.add(statusBarText);
 		refreshStatus();
 		statusBar.addMouseListener( new MouseAdapter() {
@@ -4306,7 +4327,9 @@ public class SNTUI extends JDialog {
 		}
 	}
 
-	private static class InternalUtils {
+	static class InternalUtils {
+
+		static final int MARGIN = 2;
 
 		static String getImportActionName(final int type) {
 			switch (type) {

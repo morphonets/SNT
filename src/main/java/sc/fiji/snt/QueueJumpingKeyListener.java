@@ -173,6 +173,11 @@ class QueueJumpingKeyListener implements KeyListener {
 			canvas.fakeMouseMoved(shift_down, join_modifier_down);
 			e.consume();
 		}
+		else if (shift_down && (keyChar == 'b' || keyChar == 'B')) {
+			// IJ1 built-in: Shift+B Blobs Sample Image
+			canvas.bookmarkCursorLocation();
+			e.consume();
+		}
 		else if (shift_down && (keyChar == 'e' || keyChar == 'E')) {
 			// IJ1 built-in: Shift+E Restore Selection
 			canvas.toggleEditMode();
