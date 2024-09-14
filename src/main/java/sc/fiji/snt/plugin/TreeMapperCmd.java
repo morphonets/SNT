@@ -141,6 +141,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 			inputs.put("trees", trees);
 			inputs.put("mapper", mapper);
 			inputs.put("noRasterOutput", true);
+			inputs.put("noGeodesicTransformation", onlyConnectivitySafeMetrics);
 			getContext().getService(CommandService.class).run(FigCreatorCmd.class, true, inputs);
 		}
 		SNTUtils.log("Finished...");

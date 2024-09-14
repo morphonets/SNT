@@ -690,8 +690,8 @@ public class SkeletonConverter {
 	private void assignToImage(final Tree tree) {
 		final String fProp = imp.getProp("extracted-frame");
 		final String cProp = imp.getProp("extracted-channel");
-		final int f = (fProp == null) ? 1 : Integer.valueOf(fProp);
-		final int c = (cProp == null) ? 1 : Integer.valueOf(cProp);
+		final int f = (fProp == null) ? 1 : Integer.parseInt(fProp);
+		final int c = (cProp == null) ? 1 : Integer.parseInt(cProp);
 		tree.list().forEach(path -> path.setCTposition(c, f));
 		tree.assignImage(imp);
 	}

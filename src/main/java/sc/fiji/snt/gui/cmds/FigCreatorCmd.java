@@ -87,6 +87,9 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 	@Parameter(required = false)
 	boolean noRasterOutput;
 
+	@Parameter(required = false)
+	boolean noGeodesicTransformation;
+
 	@SuppressWarnings("unused")
 	private void init() {
 		super.init(false);
@@ -105,6 +108,12 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			final MutableModuleItem<String> mi = (MutableModuleItem<String>) getInfo().getInput("type", String.class);
 			final ArrayList<String> choices = new ArrayList<>(mi.getChoices());
 			choices.remove(0);
+			mi.setChoices(choices);
+		}
+		if (noGeodesicTransformation) {
+			final MutableModuleItem<String> mi = (MutableModuleItem<String>) getInfo().getInput("uprightRotation", String.class);
+			final ArrayList<String> choices = new ArrayList<>(mi.getChoices());
+			choices.remove(1);
 			mi.setChoices(choices);
 		}
 	}
