@@ -477,6 +477,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
 		menu.addSeparator();
+		jmi = new JMenuItem("Start Spot Spine...");
+		jmi.addActionListener(e -> {
+			plugin.getContext().getService(CommandService.class).run(SpotSpineLoaderCmd.class, true, new HashMap<>());
+		});
+		menu.add(jmi);
+		menu.addSeparator();
 		jmi = GuiUtils.menuItemTriggeringHelpURL("Spine/Varicosity Utilities Help",
 				"https://imagej.net/plugins/snt/step-by-step-instructions#spinevaricosity-analysis");
 		menu.add(jmi);

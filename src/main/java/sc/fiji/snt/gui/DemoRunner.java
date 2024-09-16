@@ -23,9 +23,11 @@
 package sc.fiji.snt.gui;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 
 import org.scijava.Context;
+import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 
 import ij.ImagePlus;
@@ -34,6 +36,7 @@ import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.gui.cmds.SpotSpineLoaderCmd;
 
 public class DemoRunner {
 
@@ -340,13 +343,14 @@ public class DemoRunner {
 					snt.getUI().runCommand("Display/Rebuild ZY/XZ Views");
 					if (!snt.getDrawDiameters())
 						snt.getUI().runCommand("Draw diameters");
+					snt.getContext().getService(CommandService.class).run(SpotSpineLoaderCmd.class, true, new HashMap<>());
 				}
 			}
 		};
 
 		entry.summary = "Downloads the test dataset of the Spot Spine software (image stack and traced dendrite).";
 		entry.data = "Image (3D; 0.7MB) and tracings (160KB)";
-		entry.source = "Spot Spine (https://imagej.net/plugins/spot-spine) manuscript, doi:10.12688/f1000research" +
+		entry.source = "Spot Spine (https://imagej.net/plugins/spot-spine) manuscript, doi:10.12688/f1000research.146327.2" +
 				".146327.1";
 		entry.online = true;
 		entry.tracingsURL = "https://raw.githubusercontent.com/morphonets/misc/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.swc";

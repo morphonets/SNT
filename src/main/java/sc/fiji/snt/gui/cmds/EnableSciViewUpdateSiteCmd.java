@@ -23,6 +23,7 @@ import java.util.List;
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
+import net.imagej.legacy.LegacyService;
 import org.scijava.command.Command;
 import org.scijava.command.CommandInfo;
 import org.scijava.command.CommandService;
@@ -51,9 +52,12 @@ public class EnableSciViewUpdateSiteCmd implements Command {
 	@Parameter
 	private CommandService cmdService;
 
+	@Parameter
+	LegacyService legacyService;
+
 	@Override
 	public void run() {
-		final UpdateSite updateSite = updateService.getUpdateSite("SciView"); // this may be outdated
+		final UpdateSite updateSite = updateService.getUpdateSite("sciview");
 		if (updateSite != null && updateSite.isActive()) {
 			SNTUtils.log("sciview subscription detected");
 			return;
@@ -64,7 +68,7 @@ public class EnableSciViewUpdateSiteCmd implements Command {
 		if (prompts[0])
 			runUpdater();
 		if (prompts[1])
-			ij.IJ.runPlugIn("ij.plugin.BrowserLauncher", "https://docs.scenery.graphics/sciview");
+			legacyService.runLegacyCommand("ij.plugin.BrowserLauncher","https://docs.scenery.graphics/sciview");
 	}
 
 	private void runUpdater() {

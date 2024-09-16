@@ -221,7 +221,6 @@ public class BookmarkManager {
         JMenuItem jmi = new JMenuItem("To CSV File...");
         menu.add(jmi);
         jmi.addActionListener(e -> {
-            if (noBookmarksError()) return;
             final File saveFile = sntui.saveFile("Export Bookmarks to CSV...",
                     "SNT_Bookmarks.csv", "csv");
             if (saveFile != null) {
@@ -251,7 +250,9 @@ public class BookmarkManager {
         impButton.addActionListener(e -> impMenu.show(impButton, impButton.getWidth() / 2, impButton.getHeight() / 2));
         final JButton expButton = new JButton("Export...");
         final JPopupMenu expMenu = exportMenu();
-        expButton.addActionListener(e -> expMenu.show(expButton, expButton.getWidth() / 2, expButton.getHeight() / 2));
+        expButton.addActionListener(e -> {
+            if (!noBookmarksError()) expMenu.show(expButton, expButton.getWidth() / 2, expButton.getHeight() / 2);
+        });
         final JPanel buttonPanel = new JPanel(new GridLayout(0, 2));
         buttonPanel.setBorder(new EmptyBorder(SNTUI.InternalUtils.MARGIN, 0, SNTUI.InternalUtils.MARGIN, 0));
         buttonPanel.add(impButton);
