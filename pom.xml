@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>37.0.0</version>
+		<version>38.0.1</version>
 		<relativePath />
 	</parent>
 
@@ -187,17 +187,6 @@
 	</build>
 	
 	<dependencies>
-		<!-- TEMP Until jogl 2.5.0 is properly deployed to mvn.scijava https://github.com/morphonets/SNT/issues/212 -->
-		<dependency>
-			<groupId>org.jogamp.gluegen</groupId>
-			<artifactId>gluegen-rt</artifactId>
-			<classifier>${scijava.natives.classifier.gluegen}</classifier>
-		</dependency>
-		<dependency>
-			<groupId>org.jogamp.jogl</groupId>
-			<artifactId>jogl-all</artifactId>
-			<classifier>${scijava.natives.classifier.jogl}</classifier>
-		</dependency>
 		<!-- Fiji dependencies -->
 		<dependency>
 			<groupId>sc.fiji</groupId>
