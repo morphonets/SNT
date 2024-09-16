@@ -27,6 +27,7 @@ import ij.gui.ImageCanvas;
 import ij.gui.PointRoi;
 import ij.gui.Roi;
 import ij.plugin.frame.RoiManager;
+import ij.process.FloatPolygon;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.ImpUtils;
@@ -150,26 +151,20 @@ public class BookmarkManager {
             }
         });
         pMenu.add(mi);
-        mi = new JMenuItem("Send Selected Bookmarks to ROI Manager");
-        mi.addActionListener(e -> {
-            if (noBookmarksError()) return;
-            toRoiManager();
-            record("toRoiManager()");
-        });
-        pMenu.add(mi);
         pMenu.addSeparator();
         mi = new JMenuItem("Remove Selected Row(s)");
         mi.addActionListener( e -> {
+            if (noBookmarksError()) return;
             final int[] rows = table.getSelectedRows();
             for (int i = 0; i < rows.length; i++)
                 model.removeRow(rows[i] - i);
         });
         pMenu.add(mi);
-        mi = new JMenuItem("Remove All Bookmarks...");
+        mi = new JMenuItem("Remove All...");
         mi.addActionListener(e -> {
             if (!noBookmarksError() && sntui.guiUtils.getConfirmation("Delete all bookmarks?", "Delete All?")) {
                 reset();
-                record("reset()");
+                recordCmd("reset()");
             }
         });
         pMenu.add(mi);
@@ -177,45 +172,90 @@ public class BookmarkManager {
         mi = new JMenuItem("Deselect / Select All");
         mi.addActionListener(e -> {
            clearSelection();
-           record("clearSelection()");
+           recordCmd("clearSelection()");
         });
         pMenu.add(mi);
         return pMenu;
     }
 
-    private void record(final String cmd) {
+    private void recordCmd(final String cmd) {
         if (null != sntui.getRecorder(false))
             sntui.getRecorder(false).recordCmd("snt.getUI().getBookmarkManager()." + cmd);
     }
 
-    private JPanel assembleButtonPanel() {
-        final JButton importButton = new JButton("Import...");
-        importButton.addActionListener(e -> {
+    private void recordComment(final String comment) {
+        if (null != sntui.getRecorder(false))
+            sntui.getRecorder(false).recordComment(comment);
+    }
+
+    private JPopupMenu importMenu() {
+        final JPopupMenu menu = new JPopupMenu();
+        JMenuItem jmi = new JMenuItem("From CSV File...");
+        menu.add(jmi);
+        jmi.addActionListener(e -> {
             final File file = sntui.openCsvFile();
             if (file != null) {
+                recordCmd("load(\"" + file.getAbsolutePath() + "\")");
                 loadBookmarksFromFile(file);
-                record("load(\"" + file.getAbsolutePath() + "\")");
+                sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
             }
         });
-        final JButton exportButton = new JButton("Export...");
-        exportButton.addActionListener(e -> {
+        jmi = new JMenuItem("From ROI Manager");
+        menu.add(jmi);
+        jmi.addActionListener(e -> {
+            RoiManager rm = RoiManager.getInstance2();
+            if (rm == null || rm.getCount() == 0) {
+                sntui.guiUtils.error("ROI Manager is either closed or empty.");
+                return;
+            }
+            load(rm.getRoisAsArray());
+            sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
+            recordComment("rm = ij.plugin.frame.RoiManager.getInstance2()");
+            recordCmd("load(rm.getRoisAsArray())");
+        });
+        return menu;
+    }
+
+    private JPopupMenu exportMenu() {
+        final JPopupMenu menu = new JPopupMenu();
+        JMenuItem jmi = new JMenuItem("To CSV File...");
+        menu.add(jmi);
+        jmi.addActionListener(e -> {
             if (noBookmarksError()) return;
             final File saveFile = sntui.saveFile("Export Bookmarks to CSV...",
                     "SNT_Bookmarks.csv", "csv");
             if (saveFile != null) {
+                recordCmd("save(\"" + saveFile.getAbsolutePath() + "\")");
                 if (saveBookMarksToFile(saveFile)) {
                     sntui.showStatus("Export complete.", true);
-                    record("save(\"" + saveFile.getAbsolutePath() + "\")");
                 } else {
                     sntui.showStatus("Exporting failed.", true);
                     sntui.guiUtils.error("Exporting failed. See Console for details.");
                 }
             }
         });
+        jmi = new JMenuItem("To ROI Manager");
+        menu.add(jmi);
+        jmi.addActionListener(e -> {
+            table.clearSelection();
+            toRoiManager();
+            recordCmd("clearSelection()");
+            recordCmd("toRoiManager()");
+        });
+        return menu;
+    }
+
+    private JPanel assembleButtonPanel() {
+        final JButton impButton = new JButton("Import...");
+        final JPopupMenu impMenu = importMenu();
+        impButton.addActionListener(e -> impMenu.show(impButton, impButton.getWidth() / 2, impButton.getHeight() / 2));
+        final JButton expButton = new JButton("Export...");
+        final JPopupMenu expMenu = exportMenu();
+        expButton.addActionListener(e -> expMenu.show(expButton, expButton.getWidth() / 2, expButton.getHeight() / 2));
         final JPanel buttonPanel = new JPanel(new GridLayout(0, 2));
         buttonPanel.setBorder(new EmptyBorder(SNTUI.InternalUtils.MARGIN, 0, SNTUI.InternalUtils.MARGIN, 0));
-        buttonPanel.add(importButton);
-        buttonPanel.add(exportButton);
+        buttonPanel.add(impButton);
+        buttonPanel.add(expButton);
         return buttonPanel;
     }
 
@@ -310,7 +350,7 @@ public class BookmarkManager {
 
     protected void add(final int x, final int y, final int z, final ImagePlus imp) {
         add(x, y, z, imp.getC(), imp.getT());
-        record("add(" + x + ", " + y + ", " + z  + ", " + imp.getC() + ", " + imp.getT() +")");
+        recordCmd("add(" + x + ", " + y + ", " + z  + ", " + imp.getC() + ", " + imp.getT() +")");
     }
 
     public void add(final int x, final int y, final int z, final int c, final int t) {
@@ -343,6 +383,29 @@ public class BookmarkManager {
 
     public boolean load(final String filePath) {
         return load(new File(filePath));
+    }
+
+    public void load(final List<Roi> rois) {
+        for (final Roi roi : rois) {
+            if (roi instanceof PointRoi) {
+                final FloatPolygon fp = roi.getFloatPolygon();
+                for (int i = 0; i < fp.npoints; i++) {
+                    final Bookmark b = new Bookmark(roi.getName(), fp.xpoints[i], fp.ypoints[i],
+                            roi.getZPosition(), roi.getCPosition(), roi.getTPosition());
+                    model.getDataList().add(b);
+                }
+            } else {
+                final double[] centroid = roi.getContourCentroid();
+                final Bookmark b = new Bookmark(roi.getName(), centroid[0], centroid[1],
+                        roi.getZPosition(), roi.getCPosition(), roi.getTPosition());
+                model.getDataList().add(b);
+            }
+        }
+        model.fireTableDataChanged();
+    }
+
+    public void load(final Roi[] rois) {
+        load(List.of(rois)); // script friendly version
     }
 
     public boolean save(final File file) {
@@ -484,7 +547,7 @@ class BookmarkModel extends AbstractTableModel {
         final int tIdx = table.getColumnIndex(getHeader()[5]);
 
         if (lIdx == -1 || xIdx == -1 || yIdx == -1 || zIdx == -1)
-            throw new IOException("Unexpected column headers in CSV file");
+            throw new IOException("Unexpected column header(s) in CSV file");
         final List<Bookmark> dataList = new ArrayList<>();
         for (int i = 0; i < table.getRowCount(); i++) {
             dataList.add(new Bookmark((String) table.get(lIdx, i), // label
