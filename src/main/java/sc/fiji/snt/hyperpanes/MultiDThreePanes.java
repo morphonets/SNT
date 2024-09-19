@@ -771,7 +771,7 @@ public class MultiDThreePanes implements PaneOwner {
 	public static void main(final String[] args) {
 		if (ij.IJ.getInstance() == null) new ij.ImageJ();
 		final String path = "https://imagej.net/images/Spindly-GFP.zip";
-		final ImagePlus imp = ij.IJ.openImage(path);
+		final ImagePlus imp = sc.fiji.snt.util.ImpUtils.open(path);
 		for (ImagePlus view : MultiDThreePanes.getZYXZ(imp, 20)) {
 			view.show();
 		}

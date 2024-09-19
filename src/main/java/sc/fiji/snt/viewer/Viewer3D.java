@@ -2341,7 +2341,7 @@ public class Viewer3D {
 				// HACK: current cartesian views may not reflect sensible 'anatomical views'.
 				// This is the case with the Allen CCF. While this is not addressed, we can
 				// just save a rotated copy of the snapshot. //TODO: Handle this more properly
-				final ij.ImagePlus imp = ij.IJ.openImage(file.getAbsolutePath());
+				final ij.ImagePlus imp = sc.fiji.snt.util.ImpUtils.open(file.getAbsolutePath());
 				if (imp != null) {
 					ij.IJ.run(imp, "Rotate 90 Degrees Left", "");
 					ij.IJ.saveAs(imp, "PNG", file.getAbsolutePath().replace(".png", "_rotated.png"));

@@ -51,6 +51,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ShollAnalysisDialog;
 import sc.fiji.snt.gui.ShollAnalysisDialog.ShollPoint;
 import sc.fiji.snt.gui.ShollAnalysisDialog.ShollResults;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
 
 /**
@@ -105,7 +106,7 @@ public class ShollAnalysisPlugin implements PlugIn, DialogListener {
 
 		if (!showDialog()) return;
 
-		imp = (impRequired) ? IJ.openImage(imgPath) : null;
+		imp = (impRequired) ? ImpUtils.open(imgPath) : null;
 		if (impRequired && imp == null || !validTracesFile(new File(tracesPath))) {
 			GuiUtils.errorPrompt("Invalid image or invalid Traces/(e)SWC file\n \n" +
 				imgPath + "\n" + tracesPath);

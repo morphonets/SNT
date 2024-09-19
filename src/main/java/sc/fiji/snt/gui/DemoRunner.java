@@ -37,6 +37,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.cmds.SpotSpineLoaderCmd;
+import sc.fiji.snt.util.ImpUtils;
 
 public class DemoRunner {
 
@@ -246,7 +247,7 @@ public class DemoRunner {
 		final Demo entry = new Demo(9, "Non-neuronal dividing cell (5D image)") {
 			@Override
 			public ImagePlus getImage() {
-				final ImagePlus imp = ij.IJ.openImage("http://wsr.imagej.net/images/mitosis.tif");
+				final ImagePlus imp = ImpUtils.open("http://wsr.imagej.net/images/mitosis.tif");
 				imp.setPosition(2, 4, 31); // k-fibers channel, mid Z-range, traced time point
 				return imp;
 			}
@@ -306,7 +307,7 @@ public class DemoRunner {
 		final Demo entry = new Demo(11, "NeuronJ dataset (2D neurites)") {
 			@Override
 			public ImagePlus getImage() {
-				return  ij.IJ.openImage("https://github.com/morphonets/misc/raw/master/dataset-demos/NeuronJ/neurites.tif");
+				return  ImpUtils.open("https://github.com/morphonets/misc/raw/master/dataset-demos/NeuronJ/neurites.tif");
 			}
 			@Override
 			public void load() {
@@ -330,7 +331,7 @@ public class DemoRunner {
 		final Demo entry = new Demo(12, "Spot Spine dataset (spine decorated dendrite)") {
 			@Override
 			public ImagePlus getImage() {
-				return  ij.IJ.openImage("https://github.com/morphonets/misc/raw/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.tif");
+				return  ImpUtils.open("https://github.com/morphonets/misc/raw/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.tif");
 			}
 
 			@Override

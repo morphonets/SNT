@@ -120,10 +120,18 @@ public class ImpUtils {
 		return open(file, null);
 	}
 
+	public static ImagePlus open(final String filePathOrUrl) {
+		return open(filePathOrUrl, null);
+	}
+
 	public static ImagePlus open(final File file, final String title) {
+		return open(file.getAbsolutePath(), title);
+	}
+
+	public static ImagePlus open(final String filePathOrUrl, final String title) {
 		final boolean redirecting = IJ.redirectingErrorMessages();
 		IJ.redirectErrorMessages(true);
-		final ImagePlus imp = IJ.openImage(file.getAbsolutePath());
+		final ImagePlus imp = IJ.openImage(filePathOrUrl);
 		if (title != null)
 			imp.setTitle(title);
 		IJ.redirectErrorMessages(redirecting);
@@ -293,18 +301,16 @@ public class ImpUtils {
 		} else if (nImg.contains("dda") || nImg.contains("c4") || nImg.contains("sholl")) {
 			return demoImageInternal("tests/ddaC.tif", "Drosophila_ddaC_Neuron.tif");
 		} else if (nImg.contains("op")) {
-			return ij.IJ.openImage(
-					"https://github.com/morphonets/SNT/raw/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1.tif");
+			return open("https://github.com/morphonets/SNT/raw/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1.tif", null);
 		} else if (nImg.equalsIgnoreCase("rat_hippocampal_neuron") || (nImg.contains("hip") && nImg.contains("multichannel"))) {
-			return ij.IJ.openImage("http://wsr.imagej.net/images/Rat_Hippocampal_Neuron.zip");
+			return open("http://wsr.imagej.net/images/Rat_Hippocampal_Neuron.zip", null);
 		} else if (nImg.contains("4d") || nImg.contains("701")) {
 			return cil701();
 		} else if (nImg.contains("multipolar") || nImg.contains("810")) {
 			return cil810();
 		} else if (nImg.contains("timelapse")) {
 			return (!nImg.contains("binary")) ? cil701()
-					: ij.IJ.openImage(
-							"https://github.com/morphonets/misc/raw/00369266e14f1a1ff333f99f0f72ef64077270da/dataset-demos/timelapse-binary-demo.zip");
+					: open("https://github.com/morphonets/misc/raw/00369266e14f1a1ff333f99f0f72ef64077270da/dataset-demos/timelapse-binary-demo.zip", null);
 		}
 		throw new IllegalArgumentException("Not a recognized demoImage argument: " + img);
 	}
@@ -354,7 +360,7 @@ public class ImpUtils {
 	}
 
 	private static ImagePlus cil701() {
-		final ImagePlus imp = IJ.openImage("https://cildata.crbs.ucsd.edu/media/images/701/701.tif");
+		final ImagePlus imp = open("https://cildata.crbs.ucsd.edu/media/images/701/701.tif", null);
 		if (imp != null) {
 			imp.setDimensions(1, 1, imp.getNSlices());
 			imp.getCalibration().setUnit("um");

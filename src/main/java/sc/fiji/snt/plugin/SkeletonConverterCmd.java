@@ -22,7 +22,6 @@
 
 package sc.fiji.snt.plugin;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.Roi;
 import net.imagej.ImageJ;
@@ -46,6 +45,7 @@ import sc.fiji.snt.analysis.SkeletonConverter;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.SNTColor;
 
 import java.io.File;
@@ -329,11 +329,11 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 					return;
 				}
 				SNTUtils.log("Loading " + maskImgFileChoice.getAbsolutePath());
-				chosenMaskImp = IJ.openImage(maskImgFileChoice.getAbsolutePath());
+				chosenMaskImp = ImpUtils.open(maskImgFileChoice);
 				ensureMaskImgVisibleOnAbort = true;
 				if (SNTUtils.fileAvailable(originalImgFileChoice)) {
 					SNTUtils.log("Loading " + originalImgFileChoice.getAbsolutePath());
-					chosenOrigImp = IJ.openImage(originalImgFileChoice.getAbsolutePath());
+					chosenOrigImp = ImpUtils.open(originalImgFileChoice);
 				} else {
 					isValidOrigImg = originalImgFileChoice == null || originalImgFileChoice.toString().isEmpty();
 				}
