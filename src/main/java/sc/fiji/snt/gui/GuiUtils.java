@@ -1237,7 +1237,7 @@ public class GuiUtils {
 		});
 		blinkTimer.start();
 		if (centeredDialog(msg, "Ongoing Operation",
-			JOptionPane.PLAIN_MESSAGE) > Integer.MIN_VALUE)
+			JOptionPane.WARNING_MESSAGE) > Integer.MIN_VALUE)
 		{ // Dialog
 			// dismissed
 			blinkTimer.stop();

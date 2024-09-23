@@ -2342,7 +2342,7 @@ public class Viewer3D {
 				// This is the case with the Allen CCF. While this is not addressed, we can
 				// just save a rotated copy of the snapshot. //TODO: Handle this more properly
 				final ij.ImagePlus imp = sc.fiji.snt.util.ImpUtils.open(file.getAbsolutePath());
-				if (imp != null) {
+				if (imp != null && ij.IJ.getInstance() != null) {
 					ij.IJ.run(imp, "Rotate 90 Degrees Left", "");
 					ij.IJ.saveAs(imp, "PNG", file.getAbsolutePath().replace(".png", "_rotated.png"));
 				}
@@ -4563,6 +4563,7 @@ public class Viewer3D {
 				initTable();
 				if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
 					guiUtils.error("A Measurements prompt seems to be already open.");
+					MeasureUI.instances.get(MeasureUI.instances.size()-1).toFront();
 					trees = null;
 				} else {
 					final MeasureUI measureUI = new MeasureUI(trees);
@@ -7690,7 +7691,8 @@ public class Viewer3D {
 				sb.append("  <tr>");
 				sb.append("  <tr>");
 				sb.append("    <td><u>H</u>elp</td>");
-				sb.append("    <td>Press 'H' (notification) or F1 (list)</td>");
+				sb.append("    <td>Press 'H' (notification) or F1 (list), or see " +
+						"<a href=\"https://imagej.net/plugins/snt/key-shortcuts#reconstruction-viewer\">online list</a></td>");
 				sb.append("  </tr>");
 			}
 			sb.append("</table>");

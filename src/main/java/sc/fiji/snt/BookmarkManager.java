@@ -138,7 +138,31 @@ public class BookmarkManager {
 
     private JPopupMenu assembleTablePopupMenu() {
         final JPopupMenu pMenu = new JPopupMenu();
-        JMenuItem mi = new JMenuItem("Rename Selected Bookmark...");
+        JMenuItem  mi = new JMenuItem("Deselect / Select All");
+        mi.addActionListener(e -> {
+            clearSelection();
+            recordCmd("clearSelection()");
+        });
+        pMenu.add(mi);
+        pMenu.addSeparator();
+        mi = new JMenuItem("Remove All...");
+        mi.addActionListener(e -> {
+            if (!noBookmarksError() && sntui.guiUtils.getConfirmation("Delete all bookmarks?", "Delete All?")) {
+                reset();
+                recordCmd("reset()");
+            }
+        });
+        pMenu.add(mi);
+        mi = new JMenuItem("Remove Selected Row(s)");
+        mi.addActionListener( e -> {
+            if (noBookmarksError()) return;
+            final int[] rows = table.getSelectedRows();
+            for (int i = 0; i < rows.length; i++)
+                model.removeRow(rows[i] - i);
+        });
+        pMenu.add(mi);
+        pMenu.addSeparator();
+        mi = new JMenuItem("Rename Selected Bookmark...");
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
             final int row = table.getSelectedRow();
@@ -151,28 +175,10 @@ public class BookmarkManager {
             }
         });
         pMenu.add(mi);
-        pMenu.addSeparator();
-        mi = new JMenuItem("Remove Selected Row(s)");
-        mi.addActionListener( e -> {
-            if (noBookmarksError()) return;
-            final int[] rows = table.getSelectedRows();
-            for (int i = 0; i < rows.length; i++)
-                model.removeRow(rows[i] - i);
-        });
-        pMenu.add(mi);
-        mi = new JMenuItem("Remove All...");
+        mi = new JMenuItem("Reset Columns");
         mi.addActionListener(e -> {
-            if (!noBookmarksError() && sntui.guiUtils.getConfirmation("Delete all bookmarks?", "Delete All?")) {
-                reset();
-                recordCmd("reset()");
-            }
-        });
-        pMenu.add(mi);
-        pMenu.addSeparator();
-        mi = new JMenuItem("Deselect / Select All");
-        mi.addActionListener(e -> {
-           clearSelection();
-           recordCmd("clearSelection()");
+            resizeColumns();
+            recordComment("Bookmark Manager: resizeColumns()");
         });
         pMenu.add(mi);
         return pMenu;

@@ -2260,6 +2260,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		if (trees == null) return;
 		if (!MeasureUI.instances.isEmpty()) {
 			guiUtils.error("A Measurements prompt seems to be already open.");
+			MeasureUI.instances.get(MeasureUI.instances.size()-1).toFront();
 		} else {
 			new MeasureUI(plugin, trees).setVisible(true);
 		}

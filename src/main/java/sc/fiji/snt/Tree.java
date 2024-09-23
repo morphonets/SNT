@@ -510,7 +510,10 @@ public class Tree implements TreeProperties {
 		}
 
 		//System.out.println("Returning subtree with nNodes: "+ nodes.size());
-		final Tree subTree = new Tree(nodes, getLabel() + " (filtered)");
+		final String[] types = new String[swcTypes.length];
+		for (int i = 0; i < swcTypes.length; i++)
+			types[i] = Path.getSWCtypeName(swcTypes[i], true);
+		final Tree subTree = new Tree(nodes, getLabel() + " " + Arrays.toString(types));
 		subTree.applyProperties(this);
 		return subTree;
 	}
