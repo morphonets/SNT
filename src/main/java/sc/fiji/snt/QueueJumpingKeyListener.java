@@ -32,7 +32,7 @@ import java.util.Arrays;
 
 import javax.swing.SwingUtilities;
 
-import org.scijava.vecmath.Point3d;
+import org.jogamp.vecmath.Point3d;
 
 import ij.gui.Toolbar;
 import ij3d.Content;

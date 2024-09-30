@@ -27,6 +27,7 @@ import ij.measure.Calibration;
 import ij3d.Content;
 import ij3d.Image3DUniverse;
 import ij3d.Pipe;
+import ij3d.Utils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.analysis.interpolation.LinearInterpolator;
 import org.apache.commons.math3.analysis.polynomials.PolynomialFunction;
@@ -36,9 +37,9 @@ import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.apache.commons.math3.util.MathUtils;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.ColorRGBA;
-import org.scijava.vecmath.Color3f;
-import org.scijava.vecmath.Point3f;
-import org.scijava.vecmath.Vector3d;
+import org.jogamp.vecmath.Color3f;
+import org.jogamp.vecmath.Point3f;
+import org.jogamp.vecmath.Vector3d;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.gui.GuiUtils;
@@ -2476,7 +2477,7 @@ public class Path implements Comparable<Path> {
 	public Content addAsLinesTo3DViewer(final Image3DUniverse univ, final Color c,
 		final ImagePlus colorImage)
 	{
-		return addAsLinesTo3DViewer(univ, new Color3f(c), colorImage);
+		return addAsLinesTo3DViewer(univ, Utils.toColor3f(c), colorImage);
 	}
 
 	@Deprecated
@@ -2491,7 +2492,7 @@ public class Path implements Comparable<Path> {
 	public Content addDiscsTo3DViewer(final Image3DUniverse univ, final Color c,
 		final ImagePlus colorImage)
 	{
-		return addDiscsTo3DViewer(univ, new Color3f(c), colorImage);
+		return addDiscsTo3DViewer(univ, Utils.toColor3f(c), colorImage);
 	}
 
 	@Deprecated
@@ -2526,7 +2527,7 @@ public class Path implements Comparable<Path> {
 	{
 		if (c == null) throw new IllegalArgumentException(
 			"In addTo3DViewer, Color can no longer be null");
-		addTo3DViewer(univ, new Color3f(c), colorImage);
+		addTo3DViewer(univ, Utils.toColor3f(c), colorImage);
 	}
 
 	@Deprecated

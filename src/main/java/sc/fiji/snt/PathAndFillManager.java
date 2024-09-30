@@ -27,6 +27,7 @@ import ij.gui.Roi;
 import ij.measure.Calibration;
 import ij3d.Content;
 import ij3d.UniverseListener;
+import ij3d.Utils;
 import net.imagej.Dataset;
 import net.imagej.axis.Axes;
 import net.imglib2.RandomAccessibleInterval;
@@ -35,9 +36,9 @@ import net.imglib2.type.numeric.RealType;
 import org.jgrapht.Graphs;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.json.JSONException;
-import org.scijava.java3d.View;
+import org.jogamp.java3d.View;
 import org.scijava.util.ColorRGB;
-import org.scijava.vecmath.Color3f;
+import org.jogamp.vecmath.Color3f;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -3637,7 +3638,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			final boolean selected = p.isSelected();
 			final boolean customColor = plugin.displayCustomPathColors && p.hasCustomColor();
 			Color3f color3f;
-			if (customColor) color3f = new Color3f(p.getColor());
+			if (customColor) color3f = Utils.toColor3f(p.getColor());
 			else if (selected) color3f = plugin.selectedColor3f;
 			else color3f = plugin.deselectedColor3f;
 

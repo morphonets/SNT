@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>38.0.1</version>
+		<version>39.0.0-SNAPSHOT</version>
 		<relativePath />
 	</parent>
 
@@ -244,6 +244,10 @@
 		<!-- ImageJ dependencies -->
 		<dependency>
 			<groupId>net.imagej</groupId>
+			<artifactId>imagej-legacy</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.imagej</groupId>
 			<artifactId>ij</artifactId>
 		</dependency>
 
@@ -276,10 +280,6 @@
 		</dependency>
 		<dependency>
 			<groupId>org.scijava</groupId>
-			<artifactId>j3dcore</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>org.scijava</groupId>
 			<artifactId>scijava-common</artifactId>
 		</dependency>
 		<dependency>
@@ -295,7 +295,7 @@
 			<artifactId>script-editor</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.scijava</groupId>
+			<groupId>org.jogamp.java3d</groupId>
 			<artifactId>vecmath</artifactId>
 		</dependency>
 		<dependency>

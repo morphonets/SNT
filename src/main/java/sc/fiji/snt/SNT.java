@@ -31,10 +31,7 @@ import ij.measure.Calibration;
 import ij.process.ColorProcessor;
 import ij.process.ImageStatistics;
 import ij.process.ShortProcessor;
-import ij3d.Content;
-import ij3d.ContentConstants;
-import ij3d.ContentCreator;
-import ij3d.Image3DUniverse;
+import ij3d.*;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
 import net.imagej.display.ColorTables;
@@ -67,9 +64,9 @@ import org.scijava.command.CommandService;
 import org.scijava.convert.ConvertService;
 import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
-import org.scijava.vecmath.Color3f;
-import org.scijava.vecmath.Point3d;
-import org.scijava.vecmath.Point3f;
+import org.jogamp.vecmath.Color3f;
+import org.jogamp.vecmath.Point3d;
+import org.jogamp.vecmath.Point3f;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.event.SNTListener;
 import sc.fiji.snt.filter.Frangi;
@@ -321,10 +318,8 @@ public class SNT extends MultiDThreePanes implements
 	/* Colors */
 	private static final Color DEFAULT_SELECTED_COLOR = Color.GREEN;
 	protected static final Color DEFAULT_DESELECTED_COLOR = Color.MAGENTA;
-	protected static final Color3f DEFAULT_SELECTED_COLOR3F = new Color3f(
-		Color.GREEN);
-	protected static final Color3f DEFAULT_DESELECTED_COLOR3F = new Color3f(
-		Color.MAGENTA);
+	protected static final Color3f DEFAULT_SELECTED_COLOR3F = Utils.toColor3f(Color.GREEN);
+	protected static final Color3f DEFAULT_DESELECTED_COLOR3F = Utils.toColor3f(Color.MAGENTA);
 	protected Color3f selectedColor3f = DEFAULT_SELECTED_COLOR3F;
 	protected Color3f deselectedColor3f = DEFAULT_DESELECTED_COLOR3F;
 	protected Color selectedColor = DEFAULT_SELECTED_COLOR;
@@ -2387,7 +2382,7 @@ public class SNT extends MultiDThreePanes implements
 		if (use3DViewer) {
 			final List<Point3f> sphere = customnode.MeshMaker.createSphere(x, y, z,
 				radius);
-			univ.addTriangleMesh(sphere, new Color3f(color), name);
+			univ.addTriangleMesh(sphere, Utils.toColor3f(color), name);
 		}
 	}
 
@@ -2916,12 +2911,11 @@ public class SNT extends MultiDThreePanes implements
 				final String ballName = univ.getSafeContentName("ball " + done);
 				final List<Point3f> sphere = customnode.MeshMaker.createSphere(
 					np.near.x, np.near.y, np.near.z, Math.abs(x_spacing / 2));
-				univ.addTriangleMesh(sphere, new Color3f(c), ballName);
+				univ.addTriangleMesh(sphere, Utils.toColor3f(c), ballName);
 			}
 			++done;
 		}
-		univ.addLineMesh(linePoints, new Color3f(Color.RED), "correspondences",
-			false);
+		univ.addLineMesh(linePoints, Utils.toColor3f(Color.RED), "correspondences", false);
 
 		for (int pi = 0; pi < pafmTraces.size(); ++pi) {
 			final Path p = pafmTraces.getPath(pi);
@@ -3116,13 +3110,13 @@ public class SNT extends MultiDThreePanes implements
 
 	protected void setSelectedColor(final Color newColor) {
 		selectedColor = newColor;
-		selectedColor3f = new Color3f(newColor);
+		selectedColor3f = Utils.toColor3f(newColor);
 		updateTracingViewers(true);
 	}
 
 	protected void setDeselectedColor(final Color newColor) {
 		deselectedColor = newColor;
-		deselectedColor3f = new Color3f(newColor);
+		deselectedColor3f = Utils.toColor3f(newColor);
 		if (getUI() != null && getUI().recViewer != null) {
 			getUI().recViewer.setDefaultColor(new ColorRGB(newColor.getRed(), newColor
 				.getGreen(), newColor.getBlue()));
