@@ -2258,10 +2258,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	protected void measureCells() {
 		final Collection<Tree> trees = getMultipleTrees();
 		if (trees == null) return;
-		if (!MeasureUI.instances.isEmpty()) {
-			guiUtils.error("A Measurements prompt seems to be already open.");
-			MeasureUI.instances.get(MeasureUI.instances.size()-1).toFront();
-		} else {
+		boolean newInstance = true;
+		if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
+			if (guiUtils.getConfirmation("A Measurements prompt seems to be already open. Close it?",
+					"Measurements Prompt Already Open")) {
+				MeasureUI.instances.get(MeasureUI.instances.size() - 1).dispose();
+			} else {
+				newInstance = false;
+				MeasureUI.instances.get(MeasureUI.instances.size()-1).toFront();
+			}
+		}
+		if (newInstance) {
 			new MeasureUI(plugin, trees).setVisible(true);
 		}
 	}

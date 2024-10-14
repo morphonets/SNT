@@ -4560,13 +4560,20 @@ public class Viewer3D {
 			mi.addActionListener(e -> {
 				List<Tree> trees = getSelectedTrees();
 				if (trees == null || trees.isEmpty()) return;
-				initTable();
+				boolean newInstance = true;
 				if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
-					guiUtils.error("A Measurements prompt seems to be already open.");
-					MeasureUI.instances.get(MeasureUI.instances.size()-1).toFront();
-					trees = null;
-				} else {
+					if (guiUtils.getConfirmation("A Measurements prompt seems to be already open. Close it?",
+							"Measurements Prompt Already Open")) {
+						MeasureUI.instances.get(MeasureUI.instances.size() - 1).dispose();
+					} else {
+						newInstance = false;
+						MeasureUI.instances.get(MeasureUI.instances.size()-1).toFront();
+						trees = null;
+					}
+				}
+				if (newInstance) {
 					final MeasureUI measureUI = new MeasureUI(trees);
+					initTable();
 					measureUI.setTable(table);
 					measureUI.setVisible(true);
 				}

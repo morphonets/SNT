@@ -70,6 +70,7 @@ public class MeasureUI extends JFrame {
 	private static final Class<?>[] columnClasses = new Class<?>[] { String.class, Boolean.class, Boolean.class,
 			Boolean.class, Boolean.class, Boolean.class, Boolean.class };
 	public static final List<MeasureUI> instances = new ArrayList<>();
+	private final MeasurePanel panel;
 
 	@Parameter
 	private PrefService prefService;
@@ -100,7 +101,7 @@ public class MeasureUI extends JFrame {
 		super("SNT Measurements");
 		context.inject(this);
 		guiUtils = new GuiUtils(this);
-		final MeasurePanel panel = new MeasurePanel(trees);
+		panel = new MeasurePanel(trees);
 		add(panel);
 		pack();
 		instances.add(this);
@@ -110,17 +111,20 @@ public class MeasureUI extends JFrame {
 			public void windowClosing(final WindowEvent e) {
 				final boolean exit = backgroundTask == null || backgroundTask.isDone() || guiUtils.getConfirmation(
 						"Measurements are still being retrieved. Interrupt nevertheless?", "Interrupt?");
-				if (exit) {
-					panel.savePreferences();
-					instances.remove(MeasureUI.this);
-					if (backgroundTask != null && !backgroundTask.isDone()) {
-						backgroundTask.cancel(true);
-						backgroundTask.done();
-					}
-					dispose();
-				}
+				if (exit) dispose();
 			}
 		});
+	}
+
+	@Override
+	public void dispose() {
+		panel.savePreferences();
+		instances.remove(MeasureUI.this);
+		if (backgroundTask != null && !backgroundTask.isDone()) {
+			backgroundTask.cancel(true);
+			backgroundTask.done();
+		}
+		super.dispose();
 	}
 
 	@Override
@@ -173,6 +177,7 @@ public class MeasureUI extends JFrame {
 		private static final long serialVersionUID = 1L;
 		private final CheckBoxList metricList;
 		private final DefaultTableModel statsTableModel;
+		private final JButton runButton;
 
 		@SuppressWarnings("unchecked")
 		MeasurePanel(final Collection<Tree> trees) {
@@ -285,7 +290,8 @@ public class MeasureUI extends JFrame {
 			TablePopupMenu.install(statsTable, statsTableScrollPane);
 			add(statsTableScrollPane, c);
 
-			final JButton runButton = new JButton("Measure " + trees.size() + " Reconstruction(s)");
+			runButton = new JButton("Measure 100 Comp. Reconstruction(s)");
+			updateRunButtonLabel(trees.size());
 			runButton.addActionListener(new GenerateTableAction(trees, statsTableModel));
 			final JButton optionsButton = optionsButton(trees);
 			GuiUtils.equalizeHeight(runButton, optionsButton);
@@ -304,6 +310,16 @@ public class MeasureUI extends JFrame {
 			add(buttonPanel, c);
 		}
 
+		private void updateRunButtonLabel(final int nTrees) {
+			SwingUtilities.invokeLater(() -> {
+				runButton.setText(
+						String.format("Measure %d %s Reconstruction(s)", nTrees, (distinguishCompartments) ? "Comp. " : ""));
+				runButton.setToolTipText((distinguishCompartments)
+						? "Measurements will be split into known compartments\n(axon, dendrites, etc.)"
+						: "Measurements will be retrieved for the whole cell\nwithout compartment (axon, dendrites, etc.) distinction");
+			});
+		}
+
 		private JButton optionsButton(final Collection<Tree> trees) {
 			final JButton optionsButton = new JButton(IconFactory.getButtonIcon(IconFactory.GLYPH.OPTIONS, 1.3f));
 			optionsButton.setToolTipText("Options & Utilities");
@@ -311,8 +327,11 @@ public class MeasureUI extends JFrame {
 			GuiUtils.addSeparator(optionsMenu, "Options:");
 			final JCheckBoxMenuItem jcmi1 = new JCheckBoxMenuItem("Distinguish Compartments",
 					distinguishCompartments);
-			jcmi1.addActionListener(e -> distinguishCompartments = jcmi1.isSelected());
-			jcmi1.setToolTipText("Whether measurements should be grouped by cellular\n"
+			jcmi1.addActionListener(e -> {
+				distinguishCompartments = jcmi1.isSelected();
+				updateRunButtonLabel(trees.size());
+			});
+			jcmi1.setToolTipText("Whether measurements should be slip into cellular\n"
 					+ "compartment (e.g., \"axon\", \"dendrites\", etc.)");
 			optionsMenu.add(jcmi1);
 			final JCheckBoxMenuItem jcmi4  = new JCheckBoxMenuItem("Debug mode", SNTUtils.isDebugMode());

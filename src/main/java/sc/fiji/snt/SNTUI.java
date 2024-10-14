@@ -351,9 +351,8 @@ public class SNTUI extends JDialog {
 			InternalUtils.addSeparatorWithURL(tab3, "Legacy 3D Viewer:", true, c3);
 			++c3.gridy;
 			final String msg2 =
-				"The Legacy 3D Viewer is a functional tracing canvas " +
-					"but it depends on outdated services that are now deprecated. " +
-					"It may not function reliably on recent operating systems.";
+				"The Legacy 3D Viewer is a functional tracing canvas but it depends on " +
+						"stalled services that may not function reliably during complex tasks.";
 			tab3.add(largeMsg(msg2), c3);
 			c3.gridy++;
 			try {
