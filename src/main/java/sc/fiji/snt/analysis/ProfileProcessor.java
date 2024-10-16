@@ -143,7 +143,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 
 	/**
 	 * Specify a fixed radius for each {@link Shape} region around each
-	 * {@link PointInImage}. Set to <= 0 to use the actual {@link PointInImage}
+	 * {@link PointInImage}. Set to {@literal <= 0} to use the actual {@link PointInImage}
 	 * radii.
 	 *
 	 * @param radius

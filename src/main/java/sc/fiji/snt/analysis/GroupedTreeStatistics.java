@@ -230,7 +230,7 @@ public class GroupedTreeStatistics {
 	 * is determined using the Freedman-Diaconis rule.
 	 *
 	 * @param measurement the measurement (e.g.,
-	 *                    {@link MultiTreeStatistics#AVG_REMOTE_ANGLE)
+	 *                    {@link MultiTreeStatistics#AVG_REMOTE_ANGLE}
 	 * @return the frame holding the histogram
 	 * @see #getHistogram(String)
 	 * @see #setMinNBins(int)

@@ -234,17 +234,17 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 	 * @param trees         the collection of trees to be rendered
 	 * @param renderOptions A string of flags (comma or space separated) specifying rendering options:
 	 *                      <p>
-	 *                      <tt>montage</tt>: whether a multi-panel montage (1 cell/pane) should be obtained in
+	 *                      <code>montage</code>: whether a multi-panel montage (1 cell/pane) should be obtained in
 	 *                      {@link  MultiViewer2D}/{@link  MultiViewer3D} as opposed to a single-scene<br>
-	 *                      <tt>2d raster</tt>: trees are rendered as 2D skeletonized images<br>
-	 *                      <tt>2d vector</tt>: trees are rendered in a static (non-interactive) Viewer2D<br>
-	 *                      <tt>3d</tt>: trees are rendered in interactive Viewer3D canvas(es)<br>
-	 *                      <tt>xz</tt>: whether trees should be displayed in a XZ view (default is XY)<br>
-	 *                      <tt>zy</tt>: whether trees should be displayed in a ZY view (default is XY)<br>
-	 *                      <tt>zero-origin</tt>: whether trees should be  translated so that their roots/somas are displayed
+	 *                      <code>2d raster</code>: trees are rendered as 2D skeletonized images<br>
+	 *                      <code>2d vector</code>: trees are rendered in a static (non-interactive) Viewer2D<br>
+	 *                      <code>3d</code>: trees are rendered in interactive Viewer3D canvas(es)<br>
+	 *                      <code>xz</code>: whether trees should be displayed in a XZ view (default is XY)<br>
+	 *                      <code>zy</code>: whether trees should be displayed in a ZY view (default is XY)<br>
+	 *                      <code>zero-origin</code>: whether trees should be  translated so that their roots/somas are displayed
 	 *                      at a common origin (0,0,0)<br>
-	 *                      <tt>upright</tt>: whether each tree should be rotated to vertically align its graph geodesic
-	 *                      <tt>upright:centroid</tt>: whether each tree should be rotated to vertically align its root-centroid vector
+	 *                      <code>upright</code>: whether each tree should be rotated to vertically align its graph geodesic
+	 *                      <code>upright:centroid</code>: whether each tree should be rotated to vertically align its root-centroid vector
 	 *                      </p>
 	 * @return a reference to the displayed viewer
 	 * @see Tree#transform(Collection, String, boolean)

@@ -446,7 +446,7 @@ public class TreeParser implements Parser {
 	 * single-point (soma centroid)), should segments between the soma and neurite
 	 * be ignored. Useful when somas are large relatively to the length of arbor, as
 	 * in microglia cells. See e.g.,
-	 * <a href=" https://forum.image.sc/t//51707/">this forum thread</a>.
+	 * <a href="https://forum.image.sc/t//51707/">this forum thread</a>.
 	 * 
 	 * @param skipSomaticSegments the skipFirsNode to set
 	 */

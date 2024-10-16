@@ -184,10 +184,10 @@ public class SkeletonConverter {
 	 *                            values are considered to be foreground.
 	 * @param lowerThreshold      intensities below this value will be set to zero,
 	 *                            and will not contribute to the skeleton. Ignored
-	 *                            if < 0
+	 *                            if &gt; 0
 	 * @param upperThreshold       intensities above this value will be set to zero,
 	 *                            and will not contribute to the skeleton. Ignored
-	 *                            if < 0
+	 *                            if &lt; 0
 	 * @param erodeIsolatedPixels If true, any isolated pixels (single point
 	 *                            skeletons) that may be formed after
 	 *                            skeletonization are eliminated by erosion.

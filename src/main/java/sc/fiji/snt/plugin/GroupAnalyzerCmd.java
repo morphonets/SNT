@@ -58,7 +58,7 @@ import sc.fiji.snt.viewer.Viewer3D;
 
 /**
  * Command for Comparing Groups of Tree(s). Implements the "Compare Groups..."
- * and "Import & Compare Groups..."
+ * and "Import and Compare Groups..."
  *
  * @author Tiago Ferreira
  */

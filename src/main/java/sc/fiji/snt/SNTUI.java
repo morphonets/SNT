@@ -3770,7 +3770,7 @@ public class SNTUI extends JDialog {
 	}
 
 	/**
-	 * Gets the active getSciViewSNT (SciView<>SNT bridge) instance.
+	 * Gets the active getSciViewSNT (SciView-SNT bridge) instance.
 	 *
 	 * @param initializeIfNull it true, initializes SciView if it has not yet
 	 *                         been initialized

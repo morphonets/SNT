@@ -367,6 +367,24 @@ public class MeasureUI extends JFrame {
 			});
 			jmi.setToolTipText("Computes Mean, SD, Sum, etc. for existing measurements");
 			optionsMenu.add(jmi);
+//			jmi = new JMenuItem("Histogram of Existing Measurements...");
+//			jmi.addActionListener(e -> {
+//				if (table == null || table.isEmpty()) {
+//					guiUtils.error("Measurements table is empty.");
+//					return;
+//				}
+//				final boolean isSummarized = table.isSummarized();
+//				table.removeSummary();
+//				final List<String> choices = new GuiUtils(this).getMultipleChoices("Which metrics",
+//						table.geColumnHeaders().toArray(new String[0]), null);
+//				if (choices == null) return;
+//				SNTChart.getHistogram(table, choices.toArray(new String[0])).show();
+//				if (isSummarized) {
+//					table.summarize();
+//					updateTable(false);
+//				}
+//			});
+//			optionsMenu.add(jmi);
 			GuiUtils.addSeparator(optionsMenu, "Utilities:");
 			jmi = GuiUtils.MenuItems.renderQuick();
 			jmi.addActionListener(e -> {

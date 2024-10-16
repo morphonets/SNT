@@ -53,17 +53,15 @@ import com.formdev.flatlaf.util.SystemInfo;
 
 /**
  * Improvements to JFileChooser, namely:
- * <ul>
- * <li>Confirmation dialog when overriding files</li>
- * <li>Accessory panel with FlatLaf buttons to:</li>
- * <ul>
- * <li>Toggle visibility of hidden files</li>
- * <li>Filter file list by custom pattern</li>
- * <li>Reveal contents in native file explorer</li>
- * </ul>
- * </ul>
+ * <pre>
+ * - Confirmation dialog when overriding files
+ * - Accessory panel with FlatLaf buttons to:
+ *   - Toggle visibility of hidden files
+ *   - Filter file list by custom pattern
+ *   - Reveal contents in native file explorer
+ * </pre>
  * Other fixes (current directory always the root folder on linux) and tweaks
- * (drag & drop, etc.) are provided by GuiUtils to keep dependencies to a
+ * (drag and drop, etc.) are provided by GuiUtils to keep dependencies to a
  * minimum. TODO: submit this upstream porting to SciJava
  */
 public class FileChooser extends JFileChooser {

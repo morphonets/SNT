@@ -59,9 +59,9 @@ public class FilePicker extends JPanel {
 	 * 
 	 * @param fileChooserType   Either {@link #OPEN_DIALOG} or {@link #SAVE_DIALOG}
 	 * @param initialFile       File path to be displayed when panel is shown. Optional.
-	 *                          {@#code null} allowed.
+	 *                          {@code null} allowed.
 	 * @param allowedExtensions Allowed file extensions in JFileChooser. Optional.
-	 *                          {@#code null} allowed.
+	 *                          {@code null} allowed.
 	 */
 	public FilePicker(final int fileChooserType, final File initialFile, final String... allowedExtensions) {
 		if (fileChooserType != OPEN_DIALOG && fileChooserType != SAVE_DIALOG) {

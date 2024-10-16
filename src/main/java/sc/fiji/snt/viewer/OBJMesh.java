@@ -98,9 +98,7 @@ public class OBJMesh {
 
 	/**
 	 * Sets the axis defining the symmetry plane of this mesh (e.g., the sagittal
-	 * plane for most bilateria models)
-	 *
-	 * @return the axis defining the symmetry plane where X=0; Y=1; Z=2;
+	 * plane for most bilateria models),  where X=0; Y=1; Z=2;
 	 */
 	public void setSymmetryAxis(final int axis) {
 		this.symmetryAxis = axis;
