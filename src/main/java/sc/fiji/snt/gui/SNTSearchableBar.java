@@ -356,6 +356,7 @@ public class SNTSearchableBar extends SearchableBar {
 
 	private JLabel statusLabel() {
 		_statusLabel = new JLabel(statusLabelPlaceholder);
+		_statusLabel.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 0));
 		_statusLabel.addPropertyChangeListener("text", evt -> {
 			final String text = _statusLabel.getText();
 			if (text == null || text.isEmpty()) _statusLabel.setText(

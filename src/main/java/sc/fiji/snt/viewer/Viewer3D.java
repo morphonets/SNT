@@ -3896,6 +3896,7 @@ public class Viewer3D {
 					fitToVisibleObjects(true, true);
 					return;
 				case LOG_TO_RECORDER:
+					openRecorder(false);
 					logSceneControls(true);
 					break;
 				case NONE:
@@ -3926,7 +3927,7 @@ public class Viewer3D {
 					 keyController.showHelp(false);
 					 return;
 				case RECORDER:
-					openRecorder();
+					openRecorder(true);
 					return;
 				case SNAPSHOT_DISK:
 					keyController.saveScreenshot();
@@ -3982,9 +3983,9 @@ public class Viewer3D {
 					toggleControlPanel(); // e.g, if action called via cmdFinder
 			}
 
-			private void openRecorder() {
+			private void openRecorder(final boolean warnIfOpen) {
 				if (getRecorder(false) != null) {
-					guiUtils.error("Script Recorder is already open.");
+					if (warnIfOpen) guiUtils.error("Script Recorder is already open.");
 					return;
 				}
 				final StringBuilder sb = new StringBuilder();
@@ -5948,6 +5949,8 @@ public class Viewer3D {
 			tree.setClickInCheckBoxOnly(false);
 			searchableBar = new SNTSearchableBar(new TreeSearchable(tree));
 			searchableBar.setStatusLabelPlaceholder("CCF v"+ AllenUtils.VERSION);
+			searchableBar.setHighlightAll(false);
+			searchableBar.setShowMatchCount(true);
 			searchableBar.setVisibleButtons(
 				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
 				SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_STATUS);

@@ -24,6 +24,7 @@ package sc.fiji.snt;
 
 import ij.ImagePlus;
 import ij.gui.ImageCanvas;
+import ij.gui.Overlay;
 import ij.gui.PointRoi;
 import ij.gui.Roi;
 import ij.plugin.frame.RoiManager;
@@ -206,6 +207,23 @@ public class BookmarkManager {
                 sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
             }
         });
+        jmi = new JMenuItem("From Image Overlay");
+        jmi.setToolTipText("The Image Overlay is automatically saved in the image header of TIFF images");
+        menu.add(jmi);
+        jmi.addActionListener(e -> {
+            final ImagePlus imp = sntui.plugin.getImagePlus();
+            if (imp == null) {
+                sntui.guiUtils.error("No image is currently loaded.");
+                return;
+            }
+            if (imp.getOverlay() == null || imp.getOverlay().size() == 0) {
+                sntui.guiUtils.error("Image Overlay contains no ROIs.");
+                return;
+            }
+            load(imp.getOverlay().toArray());
+            sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
+            recordCmd("load(snt.getInstance().getImagePlus().getOverlay().toArray())");
+        });
         jmi = new JMenuItem("From ROI Manager");
         menu.add(jmi);
         jmi.addActionListener(e -> {
@@ -238,6 +256,22 @@ public class BookmarkManager {
                     sntui.guiUtils.error("Exporting failed. See Console for details.");
                 }
             }
+        });
+        jmi = new JMenuItem("To Image Overlay");
+        jmi.setToolTipText("The Image Overlay is automatically saved in the image header of TIFF images");
+        menu.add(jmi);
+        jmi.addActionListener(e -> {
+            final ImagePlus imp = sntui.plugin.getImagePlus();
+            if (imp == null) {
+                sntui.guiUtils.error("No image is currently loaded.");
+                return;
+            }
+            table.clearSelection();
+            if (imp.getOverlay() == null) imp.setOverlay(new Overlay());
+            toOverlay(imp.getOverlay());
+            sntui.showStatus(model.getDataList().size() + " bookmarks exported to the Image Overlay", true);
+            recordCmd("clearSelection()");
+            recordCmd("toOverlay(snt.getInstance().getImagePlus().getOverlay())");
         });
         jmi = new JMenuItem("To ROI Manager");
         menu.add(jmi);
@@ -437,6 +471,11 @@ public class BookmarkManager {
             rois.add(roi);
         }
         return rois;
+    }
+
+    public void toOverlay(final Overlay overlay) {
+        for (final Roi roi : getROIs(table.getSelectedRows().length>0))
+            overlay.add(roi);
     }
 
     public void toRoiManager() {

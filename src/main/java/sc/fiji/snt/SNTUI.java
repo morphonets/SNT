@@ -380,10 +380,15 @@ public class SNTUI extends JDialog {
 		final GridBagConstraints dialogGbc = GuiUtils.defaultGbc();
 		add(statusPanel(), dialogGbc);
 		dialogGbc.gridy++;
-		add(new JLabel(" "), dialogGbc);
+		add(new JLabel(" "), dialogGbc); // tabbed pane top spacer
 		dialogGbc.gridy++;
-
 		add(tabbedPane, dialogGbc);
+		dialogGbc.gridy++;
+		dialogGbc.weighty = 1;
+		add(new JLabel(" "), dialogGbc); // tabbed pane bottom spacer
+		dialogGbc.gridy++;
+		dialogGbc.weighty = 0;
+		add(new JSeparator(SwingConstants.HORIZONTAL), dialogGbc);
 		dialogGbc.gridy++;
 		add(statusBar(), dialogGbc);
 		addFileDrop(this, guiUtils);
@@ -3343,14 +3348,11 @@ public class SNTUI extends JDialog {
 		return hideWindowsPanel;
 	}
 
-	private JPanel statusBar() {
-		final JPanel statusBar = new JPanel();
-		statusBar.setLayout(new BoxLayout(statusBar, BoxLayout.X_AXIS));
+	private JLabel statusBar() {
 		statusBarText = GuiUtils.leftAlignedLabel("Ready to trace...", true);
-		statusBarText.setBorder(BorderFactory.createEmptyBorder(0, InternalUtils.MARGIN, InternalUtils.MARGIN / 2, 0));
-		statusBar.add(statusBarText);
+		statusBarText.setBorder(BorderFactory.createEmptyBorder(InternalUtils.MARGIN, InternalUtils.MARGIN, InternalUtils.MARGIN, 0));
 		refreshStatus();
-		statusBar.addMouseListener( new MouseAdapter() {
+		statusBarText.addMouseListener( new MouseAdapter() {
 			@Override
 			public void mousePressed(final MouseEvent e) {
 				if (e.getClickCount() == 2) {
@@ -3360,7 +3362,7 @@ public class SNTUI extends JDialog {
 				}
 			}
 		});
-		return statusBar;
+		return statusBarText;
 	}
 
 	boolean setFastMarchSearchEnabled(final boolean enable) {
