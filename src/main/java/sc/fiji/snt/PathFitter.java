@@ -358,8 +358,6 @@ public class PathFitter implements Callable<Path> {
 		fitted = path.createPath();
 		SNTUtils.log("  Generating cross-section stack (" + totalPoints +
 			"slices/nodes)");
-		final int width = (int) img.dimension(0);
-		final int height = (int) img.dimension(1);
 		final int depth = (int) (img.numDimensions() > 2 ? img.dimension(2) : 1);
 		final ImageStack stack = new ImageStack(sideSearch, sideSearch);
 

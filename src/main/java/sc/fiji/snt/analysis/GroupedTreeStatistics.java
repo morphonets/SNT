@@ -217,7 +217,7 @@ public class GroupedTreeStatistics {
 	 *                    NODE_RADIUS}, etc.)
 	 * @return the frame holding the histogram
 	 * @see MultiTreeStatistics#getMetrics()
-	 * @see TreeStatistics#getMetrics()
+	 * @see TreeStatistics#getMetric(String)
 	 * @see #setMinNBins(int)
 	 */
 	public SNTChart getHistogram(final String measurement) {
@@ -279,7 +279,7 @@ public class GroupedTreeStatistics {
 	 *                    NODE_RADIUS}, etc.)
 	 * @return the frame holding the box plot
 	 * @see MultiTreeStatistics#getMetrics()
-	 * @see TreeStatistics#getMetrics()
+	 * @see TreeStatistics#getMetric(String)
 	 */
 	public SNTChart getBoxPlot(final String measurement) {
 

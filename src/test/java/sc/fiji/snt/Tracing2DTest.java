@@ -35,7 +35,6 @@ import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.real.FloatType;
-import net.imglib2.view.Views;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.scijava.Context;
@@ -245,7 +244,7 @@ public class Tracing2DTest {
     public void testFrangi() {
         final double[] scales = new double[]{0.75};
         final RandomAccessibleInterval<FloatType> frangi = createLazyImg(new Frangi<>(scales, spacing, stats.max));
-        ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(Views.iterable(frangi), new FloatType(), new FloatType());
+        ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(frangi, new FloatType(), new FloatType());
         cmm.process();
         filterTest(frangi, new Reciprocal(cmm.getMin().getRealDouble(), cmm.getMax().getRealDouble() / 4.0),
                 0.95);
@@ -255,7 +254,7 @@ public class Tracing2DTest {
     public void testTubeness() {
         final double[] scales = new double[]{0.75};
         final RandomAccessibleInterval<FloatType> tubeness = createLazyImg(new Tubeness<>(scales, spacing));
-        ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(Views.iterable(tubeness), new FloatType(), new FloatType());
+        ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(tubeness, new FloatType(), new FloatType());
         cmm.process();
         filterTest(tubeness, new Reciprocal(cmm.getMin().getRealDouble(), cmm.getMax().getRealDouble() / 4.0),
                 0.8);
@@ -273,7 +272,7 @@ public class Tracing2DTest {
                 opService,
                 net.imagej.ops.filter.gauss.DefaultGaussRAI.class,
                 (Object) sigmas);
-        ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(Views.iterable(gaussian), new FloatType(), new FloatType());
+        ComputeMinMax<FloatType> cmm = new ComputeMinMax<>(gaussian, new FloatType(), new FloatType());
         cmm.process();
         Cost cost = new Reciprocal(cmm.getMin().getRealDouble(), cmm.getMax().getRealDouble());
         AbstractSearch search = createSearch(gaussian, SNT.SearchType.ASTAR, ARRAY, cost, SNT.HeuristicType.EUCLIDEAN);

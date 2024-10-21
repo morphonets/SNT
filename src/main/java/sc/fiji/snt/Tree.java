@@ -1640,7 +1640,6 @@ public class Tree implements TreeProperties {
 		for (final Path p : this.list()) {
 			for (int i = 0; i < p.size(); i++) {
 				final PointInImage xy = p.getNodeWithoutChecks(i);
-				final PointInImage xz = new PointInImage(xy.x, xy.z, xy.y);
 				p.moveNode(i, new PointInImage(xy.x, xy.z, xy.y));
 			}
 		}

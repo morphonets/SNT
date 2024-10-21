@@ -22,44 +22,6 @@
 
 package sc.fiji.snt;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.Frame;
-import java.awt.GraphicsConfiguration;
-import java.awt.GraphicsDevice;
-import java.awt.GraphicsEnvironment;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.GridLayout;
-import java.awt.Insets;
-import java.awt.Point;
-import java.awt.Rectangle;
-import java.awt.Window;
-import java.awt.event.*;
-import java.io.File;
-import java.io.IOException;
-import java.util.Map.Entry;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.stream.IntStream;
-
-import javax.swing.Timer;
-import javax.swing.border.BevelBorder;
-import javax.swing.border.EmptyBorder;
-import javax.swing.event.ChangeListener;
-
-import org.apache.commons.lang3.StringUtils;
-import org.scijava.command.Command;
-import org.scijava.command.CommandModule;
-import org.scijava.command.CommandService;
-import org.scijava.ui.UIService;
-import org.scijava.util.ColorRGB;
-import org.scijava.util.Types;
-
 import ij.ImageListener;
 import ij.ImagePlus;
 import ij.Prefs;
@@ -72,15 +34,22 @@ import ij3d.Content;
 import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
 import ij3d.ImageWindow3D;
+import org.apache.commons.lang3.StringUtils;
+import org.scijava.command.Command;
+import org.scijava.command.CommandModule;
+import org.scijava.command.CommandService;
+import org.scijava.ui.UIService;
+import org.scijava.util.ColorRGB;
+import org.scijava.util.Types;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.DemoRunner.Demo;
+import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.io.WekaModelLoader;
@@ -89,8 +58,21 @@ import sc.fiji.snt.tracing.cost.OneMinusErf;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.viewer.Viewer3D;
 
+import javax.swing.Timer;
 import javax.swing.*;
+import javax.swing.border.BevelBorder;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.ChangeListener;
+import java.awt.*;
+import java.awt.event.*;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
 import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
 
 /**
  * Implements SNT's main dialog.
@@ -268,7 +250,12 @@ public class SNTUI extends JDialog {
 				++c1.gridy;
 				tab1.add(secondaryDataPanel(), c1);
 				++c1.gridy;
+				InternalUtils.addSeparatorWithURL(tab1, "Computation Settings:", true, c1);
+				++c1.gridy;
+				c1.fill = GridBagConstraints.BOTH;
+				c1.weighty = 0.9;
 				tab1.add(settingsPanel(), c1);
+				c1.weighty = 0;
 				++c1.gridy;
 				InternalUtils.addSeparatorWithURL(tab1, "Filters for Visibility of Paths:", true, c1);
 				++c1.gridy;
@@ -281,7 +268,6 @@ public class SNTUI extends JDialog {
 				GuiUtils.addSeparator(tab1, "", true, c1); // empty separator
 				++c1.gridy;
 				c1.fill = GridBagConstraints.HORIZONTAL;
-				c1.insets = new Insets(0, 0, 0, 0);
 				c1.insets.bottom = InternalUtils.MARGIN * 2;
 				tab1.add(hideWindowsPanel(), c1);
 				tabbedPane.addTab("Main", tab1);
@@ -380,16 +366,14 @@ public class SNTUI extends JDialog {
 		final GridBagConstraints dialogGbc = GuiUtils.defaultGbc();
 		add(statusPanel(), dialogGbc);
 		dialogGbc.gridy++;
-		add(new JLabel(" "), dialogGbc); // tabbed pane top spacer
-		dialogGbc.gridy++;
-		add(tabbedPane, dialogGbc);
-		dialogGbc.gridy++;
 		dialogGbc.weighty = 1;
-		add(new JLabel(" "), dialogGbc); // tabbed pane bottom spacer
+		dialogGbc.insets.top = new JLabel().getFont().getSize();
+		add(tabbedPane, dialogGbc);
 		dialogGbc.gridy++;
 		dialogGbc.weighty = 0;
 		add(new JSeparator(SwingConstants.HORIZONTAL), dialogGbc);
 		dialogGbc.gridy++;
+		dialogGbc.insets.top = 0;
 		add(statusBar(), dialogGbc);
 		addFileDrop(this, guiUtils);
 		//registerCommandFinder(menuBar); // spurious addition if added here!?
@@ -2193,23 +2177,14 @@ public class SNTUI extends JDialog {
 		return p;
 	}
 
-	private JPanel settingsPanel() {
-		final JPanel settingsPanel = new JPanel(new GridBagLayout());
+	private JComponent settingsPanel() {
 		settingsArea = new JTextArea();
 		final JScrollPane sp = new JScrollPane(settingsArea);
-		// sp.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_ALWAYS);
-		settingsArea.setRows(4); // TODO: CHECK this height on all OSes. May be too large for MacOS
-		// settingsArea.setEnabled(false);
+		sp.setViewportView(settingsArea);
+		settingsArea.setRows(4);
 		settingsArea.setEditable(false);
 		settingsArea.setFont(settingsArea.getFont().deriveFont((float) (settingsArea.getFont().getSize() * .85)));
 		settingsArea.setFocusable(false);
-
-		final GridBagConstraints c = GuiUtils.defaultGbc();
-		GuiUtils.addSeparator(settingsPanel, GuiUtils.leftAlignedLabel("Computation Settings:", true), true, c);
-		c.fill = GridBagConstraints.BOTH; // avoid collapsing of panel on resizing
-		++c.gridy;
-		settingsPanel.add(sp, c);
-
 		final JPopupMenu pMenu = new JPopupMenu();
 		JMenuItem mi = new JMenuItem("Copy", IconFactory.getMenuIcon(GLYPH.COPY));
 		mi.addActionListener(e -> {
@@ -2234,8 +2209,7 @@ public class SNTUI extends JDialog {
 		});
 		pMenu.add(mi);
 		settingsArea.setComponentPopupMenu(pMenu);
-
-		return settingsPanel;
+		return sp;
 	}
 
 	private JPanel statusPanel() {

@@ -460,7 +460,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 				profiler.setMetric(m);
 				final long t0 = System.currentTimeMillis();
 				final double[] values = profiler.call();
-				System.out.println(String.format("%s %s %d ms", s, m, System.currentTimeMillis() - t0));
+				System.out.printf("%s %s %d ms%n", s, m, System.currentTimeMillis() - t0);
 				//System.out.println(Arrays.toString(values));
 			}
 		}

@@ -46,7 +46,6 @@ import net.imglib2.algorithm.neighborhood.DiamondShape;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.type.numeric.real.DoubleType;
-import net.imglib2.util.Util;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
@@ -498,8 +497,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 				}
 				Img<T> tmp = ops.create().img(
 						in,
-						Util.getTypeFromInterval(in),
-						new ArrayImgFactory<>(Util.getTypeFromInterval(in)));
+						in.getType(),
+						new ArrayImgFactory<>(in.getType()));
 				ops.filter().median(tmp, in, new DiamondShape(radius));
 				out = (Img<U>) tmp;
 				break;

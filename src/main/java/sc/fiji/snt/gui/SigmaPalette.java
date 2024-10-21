@@ -915,7 +915,7 @@ public class SigmaPalette extends Thread {
 					break;
 				} case MEDIAN: {
 					int radius = (int) Math.round(sigma / snt.getAverageSeparation());
-					opService.filter().median(Views.iterable(result), input, new DiamondShape(radius));
+					opService.filter().median(result, input, new DiamondShape(radius));
 					break;
 				}
 				default:

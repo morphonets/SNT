@@ -31,7 +31,6 @@ import org.scijava.plugin.Plugin;
 import org.scijava.widget.NumberWidget;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.PersistenceAnalyzer;
-import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 
 import java.util.Collection;

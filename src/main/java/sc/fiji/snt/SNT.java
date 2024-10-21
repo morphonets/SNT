@@ -734,7 +734,7 @@ public class SNT extends MultiDThreePanes implements
 		if (restoreROI) imp.restoreRoi();
 		if (!getUseSubVolumeStats()) {
 			SNTUtils.log("Computing stack statistics");
-			computeImgStats(Views.iterable(this.ctSlice3d), getStats());
+			computeImgStats(this.ctSlice3d, getStats());
 		}
 	}
 
@@ -1728,14 +1728,8 @@ public class SNT extends MultiDThreePanes implements
 		{
 			SNTUtils.log("Computing local statistics...");
 			computeImgStats(
-					Views.iterable(
-							ImgUtils.subInterval(
-									img,
-									new Point(x_start, y_start, z_start),
-									new Point(x_end, y_end, z_end),
-									10)),
-					imgStats,
-					costType);
+					ImgUtils.subInterval(img, new Point(x_start, y_start, z_start), new Point(x_end, y_end, z_end), 10),
+					imgStats, costType);
 		}
 
 		Cost costFunction;
@@ -1924,7 +1918,7 @@ public class SNT extends MultiDThreePanes implements
 			setUseSubVolumeStats(true);
 		} else if (strategy.equalsIgnoreCase("preprocess")) {
 			final RandomAccessibleInterval<T> data = getSecondaryData();
-			computeImgStats(Views.iterable(data), getStatsSecondary(), getCostType());
+			computeImgStats(data, getStatsSecondary(), getCostType());
 		} else {
 			throw new IllegalArgumentException("Unknown strategy: " + strategy);
 		}
@@ -2430,7 +2424,7 @@ public class SNT extends MultiDThreePanes implements
 		if (fillerSet.isEmpty()) return null;
 		final FillConverter converter = new FillConverter(fillerSet);
 		final RandomAccessibleInterval<T> in = getLoadedData();
-		final RandomAccessibleInterval<T> out = Util.getSuitableImgFactory(in, Util.getTypeFromInterval(in)).create(in);
+		final RandomAccessibleInterval<T> out = Util.getSuitableImgFactory(in, in.getType()).create(in);
 		converter.convert(in, out);
 		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
 		imp.copyScale(getImagePlus());
@@ -2567,7 +2561,7 @@ public class SNT extends MultiDThreePanes implements
 				"Unknown Image Statistics", "Compute Now", "Dismiss");
 		if (compute) {
 			final RandomAccessibleInterval<T> data = (isSecondary) ? getSecondaryData() : getLoadedData();
-			computeImgStats(Views.iterable(data), (isSecondary) ? getStatsSecondary() : getStats(), CostType.RECIPROCAL);
+			computeImgStats(data, (isSecondary) ? getStatsSecondary() : getStats(), CostType.RECIPROCAL);
 		} else if (getUI() == null) {
 			error("Statistics for the " + (isSecondary ? "Secondary Layer" : "main image")
 					+ " have not been computed yet. Please trace small path over a relevant feature to compute them.");
@@ -2620,9 +2614,9 @@ public class SNT extends MultiDThreePanes implements
 		return (ctSlice3d == null) ? null : Views.dropSingletonDimensions(ctSlice3d);
 	}
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@SuppressWarnings("rawtypes")
 	public <T> IterableInterval getLoadedIterable() {
-		return Views.iterable(ctSlice3d);
+		return ctSlice3d;
 	}
 
 	/**
@@ -2746,11 +2740,10 @@ public class SNT extends MultiDThreePanes implements
 		SNTUtils.log("Secondary data dimensions: " +
 				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
 		if (computeStatistics) {
-			OpService opService = getContext().getService(OpService.class);
-			IterableInterval<T> iterableView = Views.iterable(img);
-			Pair<T, T> minMax = opService.stats().minMax(iterableView);
-			double mean = opService.stats().mean(iterableView).getRealDouble();
-			double stdDev = opService.stats().stdDev(iterableView).getRealDouble();
+			final OpService opService = getContext().getService(OpService.class);
+			final Pair<T, T> minMax = opService.stats().minMax(img);
+			final double mean = opService.stats().mean(img).getRealDouble();
+			final double stdDev = opService.stats().stdDev(img).getRealDouble();
 			statsSecondary.min = minMax.getA().getRealDouble();
 			statsSecondary.max = minMax.getB().getRealDouble();
 			statsSecondary.mean = mean;

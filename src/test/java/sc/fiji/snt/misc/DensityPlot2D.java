@@ -172,8 +172,8 @@ public class DensityPlot2D {
 				System.out.println("frameView: " + frameView);
 				System.out.println((Interval) im);
 
-				inCur = Views.iterable(im).cursor();
-				final Cursor<FloatType> frameCur = Views.iterable(frameView).cursor();
+				inCur = im.cursor();
+				final Cursor<FloatType> frameCur = frameView.cursor();
 
 				final long[] pos = new long[2];
 

@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>39.0.0-SNAPSHOT</version>
+		<version>39.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -147,7 +147,6 @@
 		<!-- Dependency versions -->
 		<annotations.version>24.1.0</annotations.version>
 		<fastutil-core.version>8.5.13</fastutil-core.version>
-		<flatlaf.version>3.5</flatlaf.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
 		<font-awesome.version>6.5.2</font-awesome.version>
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
@@ -311,7 +310,6 @@
 		<dependency>
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf</artifactId>
-			<version>${flatlaf.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.github.vlsi.mxgraph</groupId>

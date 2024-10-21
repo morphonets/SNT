@@ -48,7 +48,6 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.PathAnalyzer;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
-import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.SNTColor;
 
