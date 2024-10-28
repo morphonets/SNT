@@ -30,7 +30,6 @@ import org.scijava.app.StatusService;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.Line;
 import ij.gui.Roi;
@@ -42,6 +41,7 @@ import ij.process.ShortProcessor;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
+import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.util.ShollPoint;
 
 /**
@@ -378,7 +378,7 @@ public class ImageParser extends ContextCommand implements Parser {
 				getMaskProcessor(false, profile.countsAsArray()));
 		img.setCalibration(cal);
 		try {
-			IJ.run(img, "mpl-inferno", "");
+			ColorMaps.applyPlasma(img, 100, false);
 		} catch (final Exception ignored) {
 			// do nothing ...
 		}

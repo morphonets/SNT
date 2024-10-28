@@ -20,11 +20,11 @@ def error():
 
 
 shell_width = 10
-imp = IJ.getImage()
-overlay = imp.getOverlay()
 raster_shells = []
+imp = IJ.getImage()
 
-if imp and overlay:
+if imp and imp.getOverlay():
+  overlay = imp.getOverlay()
   for i in range(overlay.size()):
     roi = overlay.get(i)
     if roi.getName() and "Shell" in roi.getName():

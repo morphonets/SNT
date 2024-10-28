@@ -1,27 +1,40 @@
-#@File(label="Input file:", description="Reconstruction file (.traces, .swc, json) to be analyzed") input_file
-#@String(label="Restrict to :", choices={"Axon", "Dendrites", "All processes"}) subtree_choice
+#@File(label="Input file (leave empty for demo):", required="false", description="Reconstruction file (.traces, .swc, json) to be analyzed. A folder of files is also supported.") input_file
+#@String(label="Restrict to :", choices={"All processes", "Axon", "Dendrites"}) subtree_choice
 #@ImageJ ij
+#@SNTService snt
 
 
 """
 file:       Strahler_Analysis.py
 author:     Tiago Ferreira
 version:    20220110
-info:       Performs Strahler Analysis on a single reconstruction file.
+info:       Performs Strahler Analysis on a single reconstruction file(s).
             See Batch>Strahler_Bulk_Analysis for a batch processing alternative.
 """
 
 from sc.fiji.snt import Tree
 from sc.fiji.snt.plugin import StrahlerCmd
+import os.path
+
+
+def getTrees():
+    global subtree_choice, input_file
+
+    # return a demo reconstruction if input_file is empty:
+    if not str(input_file) or not os.path.isfile(str(input_file)):
+        subtree_choice = "All"
+        return [snt.demoTree("pyramidal")]
+    # A single file may contain more than one cell, so we'll
+    # assume input_file may contain a collection of Trees
+    trees = Tree.listFromFile(input_file.getAbsolutePath())
+    return trees
 
 
 def main():
 
-    # A single file may contain more than one cell, so by default,
-    # we'll assume it contains a collection of Trees
-    trees = Tree.listFromFile(input_file.getAbsolutePath())
-    if not trees or trees.isEmpty():
-        ij.ui().showDialog("File did not contain a valid reconstruction.", "Error")
+    trees = getTrees()
+    if not trees:
+        ij.ui().showDialog("File did not contain valid reconstruction(s).", "Error")
         return
     else:
         msg = []

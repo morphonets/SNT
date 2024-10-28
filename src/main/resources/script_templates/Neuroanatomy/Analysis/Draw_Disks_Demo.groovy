@@ -8,10 +8,10 @@
  *       disks in 3D along an axon.
  */
 
-import net.imglib2.Point;
-import net.imglib2.util.LinAlgHelpers;
-import net.imglib2.algorithm.region.hypersphere.HyperSphere;
-import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.Point
+import net.imglib2.util.LinAlgHelpers
+import net.imglib2.algorithm.region.hypersphere.HyperSphere
+import net.imglib2.img.display.imagej.ImageJFunctions
 import sc.fiji.snt.*
 import sc.fiji.snt.analysis.*
 import sc.fiji.snt.analysis.graph.*
@@ -21,8 +21,8 @@ import sc.fiji.snt.io.*
 import sc.fiji.snt.plugin.*
 import sc.fiji.snt.util.*
 import sc.fiji.snt.viewer.*
-import ij3d.Image3DUniverse;
-import org.scijava.vecmath.Color3f;
+import ij3d.Image3DUniverse
+import org.jogamp.vecmath.Color3f
 
 // Documentation Resources: https://imagej.net/plugins/snt/scripting
 // Latest SNT API: https://javadoc.scijava.org/SNT/
@@ -76,4 +76,5 @@ def main()
 	univ.addVoltex(imp, new Color3f(0,255,0), "OP_1", 25, new boolean[] {true, true, true}, 1);
 }
 
-main();
+main()
+return null // suppress unsupported output `ij3d.Content` warning

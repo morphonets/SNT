@@ -12,10 +12,10 @@
 # @Context context
 
 """
-file:	   Filter_Multiple_Images.py
-author:	 Tiago Ferreira, Cameron Arshadi
+file:		Filter_Multiple_Images.py
+author:		Tiago Ferreira, Cameron Arshadi
 version:	20190525
-info:	   Bulk filtering of image files using Frangi Vesselness
+info:		Bulk filtering of image files using Frangi Vesselness
 """
 
 import os

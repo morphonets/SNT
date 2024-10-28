@@ -329,15 +329,18 @@ public class TreeStatistics extends TreeAnalyzer {
 	 * Gets a subset of supported metrics.
 	 *
 	 * @param type the type. Either 'legacy' (metrics supported up to SNTv4.0.5),
-	 *             "safe" (metrics that can be computed from invalid graphs) or
-	 *             'common' (commonly used metrics) or 'quick' (used by the 'quick
-	 *             measure' GUI commands).
+	 *             "safe" (metrics that can be computed from invalid graphs),
+	 *             'common' (commonly used metrics), 'quick' (used by the 'quick
+	 *             measure' GUI commands), or 'all' (shortcut to {@link #getAllMetrics()})
 	 * @return the list metrics
 	 */
 	public static List<String> getMetrics(final String type) {
 		// We could use Arrays.asList() here but that would make list immutable
 		String[] metrics;
 		switch (type) {
+		case "all":
+			measure(getAllMetrics(), true);
+			return getAllMetrics();
 		case "legacy":
 			// Historical metrics up to SNTv4.0.10
 			metrics = new String[] { BRANCH_LENGTH, CONTRACTION, REMOTE_BIF_ANGLES, PARTITION_ASYMMETRY,
